@@ -13,7 +13,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 48 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Abwesenheit, Automatik, Wochenzettel, Excel, SharePoint
+npm test         # 49 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Abwesenheit, Automatik, Wochenzettel, Excel, SharePoint
 npm run build    # dist/ zum Hochladen auf den Webserver
 ```
 

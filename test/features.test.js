@@ -268,3 +268,19 @@ test('Übergabe-Ranking: weniger Mehrstunden zuerst, Mehrstunden werden ausgewie
   assert.equal(ranking[0].overMinutes, 0)
   assert.equal(ranking[1].overMinutes, 3 * 450 + 2 * 240 - 20 * 60)
 })
+
+test('Browser-Ablage: startet auch, wenn der Zugriff auf localStorage gesperrt ist', async () => {
+  const { LocalDocStore } = await import('../src/storage/docstore-local.js')
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('blockiert') } })
+  try {
+    const store = new LocalDocStore()
+    assert.equal(store.persistent, false)
+    const etag = await store.write('a.json', { x: 1 }, null)
+    assert.deepEqual((await store.read('a.json')).data, { x: 1 })
+    assert.ok(etag)
+  } finally {
+    if (before) Object.defineProperty(globalThis, 'localStorage', before)
+    else delete globalThis.localStorage
+  }
+})

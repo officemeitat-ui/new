@@ -9,8 +9,10 @@ export class ConflictError extends Error {
   }
 }
 
-function safeStorage(storage) {
+function safeStorage(given) {
   try {
+    // Schon der Zugriff auf localStorage kann werfen (gesperrte Website-Daten, eingebettete Vorschau)
+    const storage = given ?? globalThis.localStorage
     const probe = '__einsatzplaner_probe__'
     storage.setItem(probe, '1')
     storage.removeItem(probe)
@@ -22,7 +24,7 @@ function safeStorage(storage) {
 }
 
 export class LocalDocStore {
-  constructor({ prefix = 'einsatzplaner:doc:', storage = globalThis.localStorage, download } = {}) {
+  constructor({ prefix = 'einsatzplaner:doc:', storage, download } = {}) {
     this.kind = 'local'
     this.label = 'Dieser Browser'
     this.prefix = prefix
