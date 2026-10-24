@@ -1,6 +1,8 @@
 // Prüfregeln nach österreichischem Arbeitsrecht (AZG, ARG, KJBG) und
-// betrieblichen Vorgaben. Jede Regel liefert Markierungen ("Issues") mit
-// Schweregrad error (Verstoß), warning (prüfen) oder info (Hinweis/Zuschlag).
+// betrieblichen Vorgaben. Jede Regel ist ein Eintrag in RULES und liefert
+// Markierungen ("Issues") mit Schweregrad error (Verstoß), warning (prüfen)
+// oder info (Hinweis/Zuschlag). Eigene Regeln: registerRule({...}), siehe
+// docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
 import { dayIndex, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
 
@@ -15,11 +17,12 @@ export const DEFAULT_RULES = {
   breakMin: 30,
   nightStart: '22:00', // § 12a AZG
   nightEnd: '05:00',
-  travelMin: 30, // Fahrzeit zwischen zwei Objekten am selben Tag
+  travelMin: 30, // Fahrzeit zwischen zwei Objekten am selben Tag (wenn keine Matrix-Angabe)
   sundayBonusPct: 100,
   holidayBonusPct: 100,
   creditSpecialTasks: false, // Sonderleistungen in Feiertags-/Urlaubsgutschrift einrechnen
   autoExtraHoursPerWeek: 6, // Automatik darf für Vertretungen so viele Stunden über Vertrag planen
+  disabledRules: [], // ids aus RULES, die nicht geprüft werden
   minor: { maxDailyH: 8, maxWeeklyH: 40, minDailyRestH: 12, nightStart: '20:00', nightEnd: '06:00' }, // KJBG
 }
 
@@ -27,24 +30,31 @@ export const SEVERITY_RANK = { info: 1, warning: 2, error: 3 }
 export const SEVERITY_LABEL = { error: 'Verstoß', warning: 'Prüfen', info: 'Hinweis' }
 
 export function mergeRules(rules = {}) {
-  return { ...DEFAULT_RULES, ...rules, minor: { ...DEFAULT_RULES.minor, ...(rules.minor || {}) } }
+  return { ...DEFAULT_RULES, ...rules, disabledRules: rules.disabledRules || [], minor: { ...DEFAULT_RULES.minor, ...(rules.minor || {}) } }
 }
 
-export function createContext({ employees, objects, absences = [], rules }, holidays) {
+const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
+
+export function createContext({ employees, objects, absences = [], rules, travel = {} }, holidays) {
   const absencesByEmployee = new Map()
   for (const a of absences) {
     if (!absencesByEmployee.has(a.employeeId)) absencesByEmployee.set(a.employeeId, [])
     absencesByEmployee.get(a.employeeId).push(a)
   }
+  const merged = mergeRules(rules)
   return {
-    rules: mergeRules(rules),
+    rules: merged,
     employees,
     employeesById: new Map(employees.map((e) => [e.id, e])),
     objectsById: new Map(objects.map((o) => [o.id, o])),
     absencesByEmployee,
     holidays,
+    /** Fahrzeit in Minuten zwischen zwei Objekten (Matrix, sonst Pauschale). */
+    travel: (a, b) => (a === b ? 0 : travel[pairKey(a, b)] ?? merged.travelMin),
   }
 }
+
+export const travelKey = pairKey
 
 export function findAbsence(ctx, employeeId, date) {
   return (ctx.absencesByEmployee.get(employeeId) || []).find((a) => date >= a.from && date <= a.to) || null
@@ -85,19 +95,24 @@ export function windowMinutes(start, end, winStart, winEnd) {
   return total
 }
 
-/** Fahrzeiten eines Tages: zwischen zwei aufeinanderfolgenden Einsätzen in verschiedenen Objekten. */
-export function travelLegs(dayItems, rules) {
+/**
+ * Fahrzeiten eines Tages: zwischen zwei aufeinanderfolgenden Einsätzen in
+ * verschiedenen Objekten. Zweites Argument: Kontext (mit Fahrzeit-Matrix) oder Regeln.
+ */
+export function travelLegs(dayItems, ctxOrRules) {
+  const travel = typeof ctxOrRules.travel === 'function' ? ctxOrRules.travel : (a, b) => (a === b ? 0 : (ctxOrRules.rules || ctxOrRules).travelMin)
   const sorted = [...dayItems].sort((a, b) => a.start - b.start)
   const legs = []
   for (let i = 0; i + 1 < sorted.length; i++) {
-    if (sorted[i].objectId !== sorted[i + 1].objectId) legs.push({ from: sorted[i], to: sorted[i + 1], minutes: rules.travelMin })
+    const minutes = travel(sorted[i].objectId, sorted[i + 1].objectId)
+    if (minutes > 0) legs.push({ from: sorted[i], to: sorted[i + 1], minutes })
   }
   return legs
 }
 
 const sumNet = (items) => items.reduce((s, i) => s + i.net, 0)
 
-function groupBy(items, fn) {
+export function groupBy(items, fn) {
   const map = new Map()
   for (const it of items) {
     const k = fn(it)
@@ -130,114 +145,260 @@ export function hasWeeklyRest(items, monday, minMinutes) {
   })
 }
 
+// ---------------------------------------------------------------- Regelkatalog
+//
+// Jede Regel: { id, title, law, description, check(env) }. check ruft
+// env.add(severity, code, scope, message, instanzen, extra) auf.
+// env enthält: emp, items (sortiert), ctx, r (Regeln), minor, limits,
+// byDay (Map Datum → Einsätze), byWeek, byMonth, workOfDay(date), objName(inst).
+
+export const RULES = [
+  {
+    id: 'absence',
+    title: 'Abwesenheit',
+    law: 'Urlaub, Krankenstand, Zeitausgleich',
+    description: 'Eingeteilt, obwohl eine Abwesenheit eingetragen ist.',
+    check({ emp, items, ctx, add }) {
+      for (const it of items) {
+        const abs = findAbsence(ctx, emp.id, it.date)
+        if (abs) add('error', 'ABSENT', 'shift', `${abs.type}: ${emp.name} ist an diesem Tag abwesend`, [it])
+      }
+    },
+  },
+  {
+    id: 'skills',
+    title: 'Qualifikation',
+    law: 'betrieblich',
+    description: 'Die Leistung verlangt eine Qualifikation, die die Person nicht hat.',
+    check({ emp, items, add }) {
+      for (const it of items) {
+        const missing = it.skills.filter((s) => !(emp.skills || []).includes(s))
+        if (missing.length) add('error', 'SKILL', 'shift', `Qualifikation fehlt: ${missing.join(', ')}`, [it])
+      }
+    },
+  },
+  {
+    id: 'availability',
+    title: 'Verfügbarkeit',
+    law: 'Arbeitsvertrag / Vereinbarung',
+    description: 'Einsatz liegt außerhalb der hinterlegten Verfügbarkeit.',
+    check({ emp, items, add }) {
+      for (const it of items) if (!fitsAvailability(emp, it)) add('warning', 'AVAILABILITY', 'shift', `Außerhalb der Verfügbarkeit (${availabilityText(emp, it.weekday)})`, [it])
+    },
+  },
+  {
+    id: 'training',
+    title: 'Einschulung im Objekt',
+    law: 'betrieblich',
+    description: 'Person ist im Objekt nicht eingeschult (Schlüssel, Alarm, Abläufe). In Objekten mit „nur eingeschultes Personal“ ein Verstoß.',
+    check({ emp, items, ctx, add, objName }) {
+      for (const it of items) {
+        if ((emp.trained || []).includes(it.objectId) || it.regulars.includes(emp.id)) continue
+        const obj = ctx.objectsById.get(it.objectId)
+        add(obj?.onlyTrained ? 'error' : 'warning', 'NOT_TRAINED', 'shift', `Nicht eingeschult: ${objName(it)}${obj?.onlyTrained ? ' (nur eingeschultes Personal, Schlüssel/Alarm)' : ''}`, [it])
+      }
+    },
+  },
+  {
+    id: 'keys',
+    title: 'Schlüssel',
+    law: 'betrieblich',
+    description: 'Für das Objekt sind Schlüssel hinterlegt, die eingeteilte Person hat keinen: Übergabe organisieren.',
+    check({ emp, items, ctx, add, objName }) {
+      for (const it of items) {
+        const keys = ctx.objectsById.get(it.objectId)?.keys || []
+        if (!keys.length || keys.some((k) => k.holderId === emp.id)) continue
+        const holders = keys.map((k) => ctx.employeesById.get(k.holderId)?.name).filter(Boolean)
+        add('warning', 'KEY_HANDOVER', 'shift', `Schlüsselübergabe nötig für ${objName(it)}${holders.length ? ` (Schlüssel bei ${holders.join(', ')})` : ''}`, [it])
+      }
+    },
+  },
+  {
+    id: 'night',
+    title: 'Nachtarbeit',
+    law: '§ 12a AZG, § 17 KJBG',
+    description: 'Hinweis auf Nachtzuschlag; für Jugendliche zwischen 20 und 6 Uhr verboten.',
+    check({ items, minor, limits, add }) {
+      for (const it of items) {
+        const night = windowMinutes(it.start, it.end, limits.nightStart, limits.nightEnd)
+        if (night <= 0) continue
+        if (minor) add('error', 'MINOR_NIGHT', 'shift', `Jugendliche dürfen zwischen ${limits.nightStart} und ${limits.nightEnd} Uhr nicht arbeiten (§ 17 KJBG)`, [it])
+        else add('info', 'NIGHT', 'shift', `Nachtarbeit ${formatHours(night)} h (${limits.nightStart}–${limits.nightEnd} Uhr), Nachtzuschlag laut KV`, [it], { nightMinutes: night })
+      }
+    },
+  },
+  {
+    id: 'sundayHoliday',
+    title: 'Sonn- und Feiertagsarbeit',
+    law: 'ARG, § 18 KJBG',
+    description: 'Hinweis auf Zuschläge; für Jugendliche verboten.',
+    check({ items, minor, r, add }) {
+      for (const it of items) {
+        if (it.holiday?.legal) {
+          if (minor) add('error', 'MINOR_HOLIDAY', 'shift', 'Feiertagsarbeit für Jugendliche nicht erlaubt (§ 18 KJBG)', [it])
+          else add('info', 'HOLIDAY', 'shift', `Feiertagsarbeit (${it.holiday.name}): Feiertagsentgelt + ${r.holidayBonusPct} % Zuschlag`, [it])
+        } else if (it.isSunday) {
+          if (minor) add('error', 'MINOR_SUNDAY', 'shift', 'Sonntagsarbeit für Jugendliche nicht erlaubt (§ 18 KJBG)', [it])
+          else add('info', 'SUNDAY', 'shift', `Sonntagsarbeit: ${r.sundayBonusPct} % Zuschlag, Ausnahme nach ARG prüfen`, [it])
+        }
+      }
+    },
+  },
+  {
+    id: 'overlap',
+    title: 'Überschneidung und Fahrzeit',
+    law: 'betrieblich',
+    description: 'Zwei Einsätze überschneiden sich oder die Zeit reicht nicht für den Weg zum nächsten Objekt.',
+    check({ items, ctx, add, objName }) {
+      const maxTravel = Math.max(ctx.rules.travelMin, 120)
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length && items[j].start < items[i].end + maxTravel; j++) {
+          const a = items[i]
+          const b = items[j]
+          if (b.start < a.end) {
+            add('error', 'OVERLAP', 'shift', `Überschneidung: ${objName(a)} ${a.startTime}–${a.endTime} und ${objName(b)} ${b.startTime}–${b.endTime}`, [a, b])
+          } else {
+            const need = ctx.travel(a.objectId, b.objectId)
+            if (need > 0 && b.start - a.end < need) add('warning', 'TRAVEL', 'shift', `Nur ${b.start - a.end} min von ${objName(a)} zu ${objName(b)} (Fahrzeit ${need} min)`, [a, b])
+          }
+        }
+      }
+    },
+  },
+  {
+    id: 'dailyHours',
+    title: 'Tagesarbeitszeit',
+    law: '§ 9 AZG, § 11 KJBG',
+    description: 'Höchstgrenze pro Tag (inkl. Fahrzeit) und Warnung bei langen Tagen.',
+    check({ byDay, minor, limits, r, workOfDay, add }) {
+      for (const [date, ds] of byDay) {
+        const work = workOfDay(date)
+        if (work > limits.maxDaily) add('error', 'DAILY_MAX', 'day', `Tagesarbeitszeit ${formatHours(work)} h inkl. Fahrzeit, Höchstgrenze ${formatHours(limits.maxDaily)} h`, ds)
+        else if (!minor && work > r.dailyWarnH * 60) add('warning', 'DAILY_LONG', 'day', `Tagesarbeitszeit ${formatHours(work)} h inkl. Fahrzeit, über ${r.dailyWarnH} h nur als Überstunden zulässig`, ds)
+      }
+    },
+  },
+  {
+    id: 'dailyRest',
+    title: 'Tägliche Ruhezeit',
+    law: '§ 12 AZG, § 16 KJBG',
+    description: 'Ununterbrochene Ruhe zwischen Dienstende und nächstem Dienstbeginn.',
+    check({ byDay, limits, add }) {
+      let prevLast = null
+      for (const date of [...byDay.keys()].sort()) {
+        const ds = byDay.get(date)
+        const first = ds.reduce((m, i) => (i.start < m.start ? i : m))
+        const last = ds.reduce((m, i) => (i.end > m.end ? i : m))
+        if (prevLast) {
+          const rest = first.start - prevLast.end
+          if (rest < limits.rest) {
+            add('error', 'REST', 'day', `Ruhezeit nur ${formatHours(Math.max(rest, 0))} h: Ende ${formatDate(prevLast.date)} ${formatTime(prevLast.end)}, Beginn ${formatDate(date)} ${formatTime(first.start)} (mind. ${limits.rest / 60} h)`, [prevLast, first])
+          }
+        }
+        prevLast = last
+      }
+    },
+  },
+  {
+    id: 'weeklyHours',
+    title: 'Wochenarbeitszeit',
+    law: '§ 9 AZG, § 11 KJBG',
+    description: 'Höchstgrenze pro Woche und Warnung über dem 48-h-Durchschnitt.',
+    check({ byWeek, minor, limits, r, workOfItems, add }) {
+      for (const [monday, ws] of byWeek) {
+        const work = workOfItems(ws)
+        const kw = `KW ${isoWeek(monday).week}`
+        if (work > limits.maxWeekly) add('error', 'WEEKLY_MAX', 'week', `${formatHours(work)} h in ${kw}, Höchstgrenze ${formatHours(limits.maxWeekly)} h`, ws)
+        else if (!minor && work > r.maxAvgWeeklyH * 60) add('warning', 'WEEKLY_48', 'week', `${formatHours(work)} h in ${kw}: über ${r.maxAvgWeeklyH} h, Durchschnitt über 17 Wochen beachten`, ws)
+      }
+    },
+  },
+  {
+    id: 'contract',
+    title: 'Mehr- und Überstunden',
+    law: '§ 19d AZG, Arbeitsvertrag',
+    description: 'Geplante Stunden über den vertraglichen Wochenstunden.',
+    check({ emp, byWeek, workOfItems, add }) {
+      const contract = (emp.weeklyHours || 0) * 60
+      if (!contract) return
+      for (const [, ws] of byWeek) {
+        const work = workOfItems(ws)
+        if (work <= contract) continue
+        const kind = emp.type === 'Vollzeit' || emp.type === 'Lehrling' ? 'Überstunden' : 'Mehrstunden (ggf. 25 % Zuschlag)'
+        add('warning', 'CONTRACT', 'week', `${formatHours(work)} h geplant bei ${formatHours(contract)} h Vertrag: +${formatHours(work - contract)} h ${kind}`, ws, { overMinutes: work - contract })
+      }
+    },
+  },
+  {
+    id: 'weeklyRest',
+    title: 'Wochenruhe',
+    law: '§§ 3, 4 ARG',
+    description: '36 Stunden ununterbrochene Ruhe, die einen ganzen Tag einschließen.',
+    check({ items, byWeek, r, add }) {
+      for (const [monday, ws] of byWeek) {
+        if (!hasWeeklyRest(items, monday, r.minWeeklyRestH * 60)) add('error', 'WEEKLY_REST', 'week', `Keine ${r.minWeeklyRestH} h Wochenruhe mit einem ganzen freien Tag in KW ${isoWeek(monday).week} (§ 4 ARG)`, ws)
+      }
+    },
+  },
+  {
+    id: 'monthlyLimit',
+    title: 'Geringfügigkeitsgrenze',
+    law: '§ 5 Abs 2 ASVG',
+    description: 'Monatliches Stundenlimit für geringfügig Beschäftigte.',
+    check({ emp, byMonth, workOfItems, add }) {
+      if (!(emp.maxMonthHours > 0)) return
+      for (const [month, ms] of byMonth) {
+        const work = workOfItems(ms)
+        if (work > emp.maxMonthHours * 60) {
+          add('error', 'MONTHLY_LIMIT', 'month', `Geringfügig: ${formatHours(work)} h im ${MONTH_LONG[Number(month.slice(5, 7)) - 1]}, Limit ${formatHours(emp.maxMonthHours * 60)} h (Geringfügigkeitsgrenze)`, ms)
+        }
+      }
+    },
+  },
+]
+
+/** Eigene Regel ergänzen (z. B. aus einem Erweiterungsmodul). */
+export function registerRule(rule) {
+  if (!rule?.id || typeof rule.check !== 'function') throw new Error('Regel braucht id und check()')
+  const idx = RULES.findIndex((r) => r.id === rule.id)
+  if (idx >= 0) RULES.splice(idx, 1, rule)
+  else RULES.push(rule)
+}
+
 /** Alle Markierungen für eine Person und ihre (aktiven) Einsätze. */
 export function evaluateEmployee(emp, list, ctx) {
   const r = ctx.rules
   const minor = !!emp.minor
-  const restMin = (minor ? r.minor.minDailyRestH : r.minDailyRestH) * 60
-  const maxDaily = (minor ? r.minor.maxDailyH : r.maxDailyH) * 60
-  const maxWeekly = (minor ? r.minor.maxWeeklyH : r.maxWeeklyH) * 60
-  const [nightStart, nightEnd] = minor ? [r.minor.nightStart, r.minor.nightEnd] : [r.nightStart, r.nightEnd]
+  const limits = {
+    rest: (minor ? r.minor.minDailyRestH : r.minDailyRestH) * 60,
+    maxDaily: (minor ? r.minor.maxDailyH : r.maxDailyH) * 60,
+    maxWeekly: (minor ? r.minor.maxWeeklyH : r.maxWeeklyH) * 60,
+    nightStart: minor ? r.minor.nightStart : r.nightStart,
+    nightEnd: minor ? r.minor.nightEnd : r.nightEnd,
+  }
   const items = [...list].sort((a, b) => a.start - b.start || a.end - b.end)
-  const objName = (i) => ctx.objectsById.get(i.objectId)?.name || 'Objekt'
-  const issues = []
-  const add = (severity, code, scope, message, insts, extra = {}) =>
-    issues.push({ severity, code, scope, message, employeeId: emp.id, keys: insts.map((i) => i.key), date: insts[0]?.date, ...extra })
-
-  for (const it of items) {
-    const abs = findAbsence(ctx, emp.id, it.date)
-    if (abs) add('error', 'ABSENT', 'shift', `${abs.type}: ${emp.name} ist an diesem Tag abwesend`, [it])
-    const missing = it.skills.filter((s) => !(emp.skills || []).includes(s))
-    if (missing.length) add('error', 'SKILL', 'shift', `Qualifikation fehlt: ${missing.join(', ')}`, [it])
-    if (!fitsAvailability(emp, it)) add('warning', 'AVAILABILITY', 'shift', `Außerhalb der Verfügbarkeit (${availabilityText(emp, it.weekday)})`, [it])
-    const obj = ctx.objectsById.get(it.objectId)
-    if (!(emp.trained || []).includes(it.objectId) && !it.regulars.includes(emp.id)) {
-      add(obj?.onlyTrained ? 'error' : 'warning', 'NOT_TRAINED', 'shift', `Nicht eingeschult: ${objName(it)}${obj?.onlyTrained ? ' (nur eingeschultes Personal, Schlüssel/Alarm)' : ''}`, [it])
-    }
-    const night = windowMinutes(it.start, it.end, nightStart, nightEnd)
-    if (night > 0) {
-      if (minor) add('error', 'MINOR_NIGHT', 'shift', `Jugendliche dürfen zwischen ${nightStart} und ${nightEnd} Uhr nicht arbeiten (§ 17 KJBG)`, [it])
-      else add('info', 'NIGHT', 'shift', `Nachtarbeit ${formatHours(night)} h (${nightStart}–${nightEnd} Uhr), Nachtzuschlag laut KV`, [it])
-    }
-    if (it.holiday?.legal) {
-      if (minor) add('error', 'MINOR_HOLIDAY', 'shift', `Feiertagsarbeit für Jugendliche nicht erlaubt (§ 18 KJBG)`, [it])
-      else add('info', 'HOLIDAY', 'shift', `Feiertagsarbeit (${it.holiday.name}): Feiertagsentgelt + ${r.holidayBonusPct} % Zuschlag`, [it])
-    } else if (it.isSunday) {
-      if (minor) add('error', 'MINOR_SUNDAY', 'shift', `Sonntagsarbeit für Jugendliche nicht erlaubt (§ 18 KJBG)`, [it])
-      else add('info', 'SUNDAY', 'shift', `Sonntagsarbeit: ${r.sundayBonusPct} % Zuschlag, Ausnahme nach ARG prüfen`, [it])
-    }
-  }
-
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length && items[j].start < items[i].end + r.travelMin; j++) {
-      const a = items[i]
-      const b = items[j]
-      if (b.start < a.end) {
-        add('error', 'OVERLAP', 'shift', `Überschneidung: ${objName(a)} ${a.startTime}–${a.endTime} und ${objName(b)} ${b.startTime}–${b.endTime}`, [a, b])
-      } else if (a.objectId !== b.objectId) {
-        add('warning', 'TRAVEL', 'shift', `Nur ${b.start - a.end} min von ${objName(a)} zu ${objName(b)} (Fahrzeit ${r.travelMin} min)`, [a, b])
-      }
-    }
-  }
-
   const byDay = groupBy(items, (i) => i.date)
-  const travelByDay = new Map()
-  let prevLast = null
-  for (const date of [...byDay.keys()].sort()) {
-    const ds = byDay.get(date)
-    const travel = travelLegs(ds, r).reduce((s, l) => s + l.minutes, 0)
-    travelByDay.set(date, travel)
-    const work = sumNet(ds) + travel
-    if (work > maxDaily) {
-      add('error', 'DAILY_MAX', 'day', `Tagesarbeitszeit ${formatHours(work)} h inkl. Fahrzeit, Höchstgrenze ${formatHours(maxDaily)} h`, ds)
-    } else if (!minor && work > r.dailyWarnH * 60) {
-      add('warning', 'DAILY_LONG', 'day', `Tagesarbeitszeit ${formatHours(work)} h inkl. Fahrzeit, über ${r.dailyWarnH} h nur als Überstunden zulässig`, ds)
-    }
-    const first = ds.reduce((m, i) => (i.start < m.start ? i : m))
-    const last = ds.reduce((m, i) => (i.end > m.end ? i : m))
-    if (prevLast) {
-      const rest = first.start - prevLast.end
-      if (rest < restMin) {
-        add(
-          'error',
-          'REST',
-          'day',
-          `Ruhezeit nur ${formatHours(Math.max(rest, 0))} h: Ende ${formatDate(prevLast.date)} ${formatTime(prevLast.end)}, Beginn ${formatDate(date)} ${formatTime(first.start)} (mind. ${restMin / 60} h)`,
-          [prevLast, first],
-        )
-      }
-    }
-    prevLast = last
+  const travelByDay = new Map([...byDay].map(([d, ds]) => [d, travelLegs(ds, ctx).reduce((s, l) => s + l.minutes, 0)]))
+  const workOfItems = (list2) => sumNet(list2) + [...new Set(list2.map((i) => i.date))].reduce((s, d) => s + (travelByDay.get(d) || 0), 0)
+  const issues = []
+  const env = {
+    emp,
+    items,
+    ctx,
+    r,
+    minor,
+    limits,
+    byDay,
+    byWeek: groupBy(items, (i) => mondayOf(i.date)),
+    byMonth: groupBy(items, (i) => i.date.slice(0, 7)),
+    workOfDay: (date) => workOfItems(byDay.get(date) || []),
+    workOfItems,
+    objName: (i) => ctx.objectsById.get(i.objectId)?.name || 'Objekt',
+    add: (severity, code, scope, message, insts, extra = {}) =>
+      issues.push({ severity, code, scope, message, employeeId: emp.id, keys: insts.map((i) => i.key), date: insts[0]?.date, ...extra }),
   }
-
-  const byWeek = groupBy(items, (i) => mondayOf(i.date))
-  for (const [monday, ws] of byWeek) {
-    const days = new Set(ws.map((i) => i.date))
-    const work = sumNet(ws) + [...days].reduce((s, d) => s + (travelByDay.get(d) || 0), 0)
-    const kw = `KW ${isoWeek(monday).week}`
-    if (work > maxWeekly) add('error', 'WEEKLY_MAX', 'week', `${formatHours(work)} h in ${kw}, Höchstgrenze ${formatHours(maxWeekly)} h`, ws)
-    else if (!minor && work > r.maxAvgWeeklyH * 60) add('warning', 'WEEKLY_48', 'week', `${formatHours(work)} h in ${kw}: über ${r.maxAvgWeeklyH} h, Durchschnitt über 17 Wochen beachten`, ws)
-    const contract = (emp.weeklyHours || 0) * 60
-    if (contract > 0 && work > contract) {
-      const kind = emp.type === 'Vollzeit' || emp.type === 'Lehrling' ? 'Überstunden' : 'Mehrstunden (ggf. 25 % Zuschlag)'
-      add('warning', 'CONTRACT', 'week', `${formatHours(work)} h geplant bei ${formatHours(contract)} h Vertrag: +${formatHours(work - contract)} h ${kind}`, ws, { overMinutes: work - contract })
-    }
-    if (!hasWeeklyRest(items, monday, r.minWeeklyRestH * 60)) {
-      add('error', 'WEEKLY_REST', 'week', `Keine ${r.minWeeklyRestH} h Wochenruhe mit einem ganzen freien Tag in ${kw} (§ 4 ARG)`, ws)
-    }
-  }
-
-  if (emp.maxMonthHours > 0) {
-    for (const [month, ms] of groupBy(items, (i) => i.date.slice(0, 7))) {
-      const days = new Set(ms.map((i) => i.date))
-      const work = sumNet(ms) + [...days].reduce((s, d) => s + (travelByDay.get(d) || 0), 0)
-      if (work > emp.maxMonthHours * 60) {
-        const name = MONTH_LONG[Number(month.slice(5, 7)) - 1]
-        add('error', 'MONTHLY_LIMIT', 'month', `Geringfügig: ${formatHours(work)} h im ${name}, Limit ${formatHours(emp.maxMonthHours * 60)} h (Geringfügigkeitsgrenze)`, ms)
-      }
-    }
-  }
-
+  const disabled = new Set(r.disabledRules || [])
+  for (const rule of RULES) if (!disabled.has(rule.id)) rule.check(env)
   return issues
 }
 

@@ -36,6 +36,8 @@ export function candidateCost(ctx, state, emp, inst, ev) {
   let cost = (weekMin / (Math.max(emp.weeklyHours || 0, 1) * 60)) * 100
   if (inst.regulars.includes(emp.id)) cost -= 50
   if (ev.issues.some((i) => i.code === 'NOT_TRAINED')) cost += 30
+  const region = ctx.objectsById.get(inst.objectId)?.region
+  if (region && emp.team && emp.team !== region) cost += 40 // Vertretung bevorzugt aus dem eigenen Revier
   if (own.some((i) => i.objectId === inst.objectId && mondayOf(i.date) === week)) cost -= 12
   const sameDay = own.filter((i) => i.date === inst.date)
   if (sameDay.some((i) => Math.abs(i.end - inst.start) <= 90 || Math.abs(inst.end - i.start) <= 90)) cost -= 8
@@ -111,10 +113,17 @@ function repairSlot(ctx, state, inst, { from, to }, stats) {
 export function autoPlan(ctx, instances, assignments, { from, to, replan = false }) {
   const state = new PlanState(instances, assignments)
   const inRange = instances.filter((i) => i.status !== 'cancelled' && i.date >= from && i.date <= to)
-  if (replan) {
-    for (const inst of inRange) for (const a of [...state.assigned(inst.key)]) if (!a.locked) state.unassign(a.employeeId, inst.key)
+  const stats = { regular: 0, substitute: 0, other: 0, released: 0 }
+  for (const inst of inRange) {
+    for (const a of [...state.assigned(inst.key)]) {
+      if (a.locked) continue
+      // Neu eingetragene Abwesenheit: nicht fixierte Einteilung freigeben
+      if (replan || findAbsence(ctx, a.employeeId, inst.date)) {
+        state.unassign(a.employeeId, inst.key)
+        if (!replan) stats.released++
+      }
+    }
   }
-  const stats = { regular: 0, substitute: 0, other: 0 }
 
   for (const inst of [...inRange].sort((a, b) => a.start - b.start)) {
     for (const id of inst.regulars) {

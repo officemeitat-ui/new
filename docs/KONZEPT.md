@@ -1,6 +1,6 @@
 # Konzept: Automatische Einsatzplanung für die Gebäudereinigung
 
-Stand: Oktober 2026 · Grundlage: österreichisches Arbeitsrecht (AZG, ARG, KJBG)
+Stand: Oktober 2026 · Version 1.0 · Grundlage: österreichisches Arbeitsrecht (AZG, ARG, KJBG)
 
 ## 1. Ausgangslage
 
@@ -91,36 +91,60 @@ Der Wochenzettel sieht aus wie der bisherige Excel-Plan:
 
 Export als Tabelle für Excel (Kopieren und Einfügen), später direkt als PDF oder in die Lohnverrechnung.
 
-## 4. Was der Prototyp schon kann
+## 4. Was andere Tools bieten (Recherche Oktober 2026)
 
-Der Prototyp in diesem Repository (`index.html`) zeigt das Konzept vollständig mit erfundenen Beispieldaten aus dem Raum Salzburg (KW 44/2026 mit Nationalfeiertag und Allerheiligen):
+Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.Clean, A.S.E., CleanManager, cleaning pro, Miele MOVE Clean+, KleanApp, iQTrust), internationale Reinigungssoftware (Swept, Janitorial Manager, Aspire) und allgemeine Dienstplan-Tools (TimeTac, Aplano, Papershift, Shiftbase, Planday, Staffomatic, Quinyx, Connecteam, Microsoft Teams Shifts). Grundlage waren Herstellerseiten und Vergleichsportale. Die Angaben stammen von den Anbietern selbst und wurden nicht im Detail geprüft.
 
-- Wochenübersicht (Mitarbeitende × Tage) mit offenen Einsätzen, Markierungen und Saldo
-- Wochenzettel je Person im Excel-Layout, inkl. Kopieren für Excel
-- Objektplan (Objekte × Tage) und Prüfbericht
-- „Wer kann einspringen?“ mit Begründung je Person
-- Einzeländerungen „nur diese Woche“ (Zeit, Tag, entfällt, Notiz)
-- Stammdaten-Pflege, Regeln, betriebsfreie Tage, Datensicherung
+| Funktion | Wer bietet es | Im Dienstplan |
+|---|---|---|
+| Plan veröffentlichen, Änderungen markieren und mitteilen | Teams Shifts, TimeTac, Connecteam, PlanD | ✔ Veröffentlichen, „geändert“-Markierung, Änderungstexte zum Versenden |
+| Vertretungs-Cockpit | PlanD | ✔ Ansicht „Vertretungen“ mit Vorschlägen |
+| Soll-/Ist-Stunden je Objekt (Budget gegen Plan) | Profacilo, Janitorial Manager, Aspire, MR.Clean | ✔ Objekt-Controlling |
+| Laufendes Zeitkonto, Resturlaub | Staffomatic, Shiftbase, TimeTac | ✔ Zeitkonto aus veröffentlichten Wochen, Urlaubsanspruch |
+| Lohnexport (BMD, RZL) | TimeTac (BMD-Schnittstelle) | ✔ Monatsauswertung als CSV; Lohnarten-Zuordnung beim Import |
+| Objektmappe (Anweisungen für Springer) | Swept, PlanD | ✔ im Einsatz-Dialog |
+| Schlüsselverwaltung | MR.Clean, Profacilo, CleanManager, Miele | ✔ Schlüssel je Objekt, Regel „Schlüsselübergabe nötig“ |
+| Tourenplanung / Fahrzeiten | MR.Clean, Profacilo, Swept | ✔ Fahrzeit-Matrix je Objektpaar (noch ohne Karte) |
+| Prüfung nach österreichischem Arbeitsrecht | bei keinem Anbieter belegt | ✔ AZG, ARG, KJBG, Geringfügigkeit |
+| Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | Ausbaustufe 2 |
+| Alarm bei Nichterscheinen | Swept | Ausbaustufe 2 (setzt Zeiterfassung voraus) |
+| Qualitätskontrolle, Reklamationen | KleanApp, iQTrust, Miele, Janitorial Manager | Ausbaustufe 3 |
+| Mitarbeiter-App: offene Einsätze, Tausch | Teams Shifts, Papershift, Shiftbase, Planday | Ausbaustufe 2 |
+| Objektkalkulation (m² × Leistungswert) | A.S.E., MR.Clean, Janitorial Manager | Ausbaustufe 3 |
 
-Grenzen des Prototyps: Die Daten liegen nur im Browser, es gibt keine Benutzer, und die Fahrzeit ist pauschal.
+Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der Dienstplan schon Microsoft Graph nutzt, ist das eine naheliegende nächste Erweiterung.
 
-## 5. Weg zum echten Tool
+## 5. Was gebaut ist (Version 1.0)
+
+- **Ablage in SharePoint** über Microsoft Graph, Anmeldung mit dem Microsoft-365-Konto. Daten als lesbare JSON-Dateien je Bereich und Woche, mit Versionsverlauf, Schutz vor gegenseitigem Überschreiben (eTag) und automatischem Zusammenführen.
+- **Hosting** als statische Web-App auf `dienstplan.cleanos.at` (Azure Static Web Apps oder eigener Webspace), Anleitung in [EINRICHTUNG.md](EINRICHTUNG.md).
+- **Ausgelegt für 35+ Mitarbeitende**: Reviere/Teams, Filter und Suche. Die Automatik plant rund 230 Einsätze in einer Zehntelsekunde.
+- **Ansichten**:
+  - Planung: Wochenübersicht, Wochenzettel, Objektplan, Vertretungen, Prüfbericht
+  - Auswertung: Objekt-Controlling, Monatsauswertung
+  - Stammdaten: Mitarbeitende, Objekte & Leistungen, Abwesenheiten (Kalender, Resturlaub), Regeln & Feiertage
+- **Excel**: Import aus bestehenden Listen (Kopieren/Einfügen), Export der Wochenpläne im bisherigen Layout als .xlsx (gesamt und je Person, beim Veröffentlichen direkt nach SharePoint), Druck/PDF.
+- **Rollen**: Disposition (bearbeiten) und Lesezugriff über `config.json`.
+- **Erweiterbar**: Regeln, Ansichten, Ablagen und Design sind austauschbare Module, siehe [ERWEITERN.md](ERWEITERN.md).
+- **Corporate Design** als Theme. Logo und Farben sind Platzhalter, bis die echten Cleanos-Vorgaben vorliegen.
+
+## 6. Ausbaustufen
 
 | Stufe | Inhalt |
 |---|---|
-| **1. Echtdaten-Test** (1–2 Wochen) | Bestehende Excel-Pläne einlesen (Objekte, Leistungen, Stammkräfte), eine echte Woche parallel planen, Regeln mit KV und Lohnverrechnung abgleichen |
-| **2. Mehrbenutzer** | Server + Datenbank, Anmeldung für Disposition/Objektleitung, Änderungsprotokoll, Zeitkonto über Wochen hinweg (Saldo-Übertrag, 17-Wochen-Durchschnitt) |
-| **3. Mitarbeiter-App** | Wochenplan am Handy (PWA), Push bei Änderungen, Krankmeldung/Urlaubsantrag, optional Zeiterfassung per Objekt-QR-Code |
-| **4. Anbindungen** | Fahrzeiten aus echten Entfernungen, Export für die Lohnverrechnung (z. B. BMD, RZL, DPW), SharePoint/Teams |
+| **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
+| **2. Mitarbeiter-App** | Eigener Wochenplan am Handy (PWA), Push bei Änderungen, Urlaubsantrag, offene Einsätze übernehmen; Zeiterfassung per QR/NFC im Objekt. Braucht einen kleinen Server für Rechte je Person |
+| **3. Qualität & Kalkulation** | Begehungen und Reklamationen, Objektkalkulation aus Flächen und Leistungswerten, Tourenplanung mit Karte |
+| **4. Anbindungen** | Teams Shifts, BMD/RZL mit Lohnarten-Mapping, Fahrzeiten aus Adressen |
 
-Zu klären vor Stufe 2:
+Zu klären:
 
-- **Kollektivvertrag** (Denkmal-, Fassaden- und Gebäudereinigung): genaue Zuschläge (Nacht, Sonntag, Mehrarbeit), Durchrechnungsmodelle
-- **Fahrzeit**: Wann zählt sie als Arbeitszeit (zwischen Objekten immer, von zu Hause zum ersten Objekt?)
-- **Feiertagsgutschrift**: Ausfallprinzip mit oder ohne Sonderleistungen
-- **Betriebsrat**: Ein elektronisches Planungs-/Zeiterfassungssystem braucht in Österreich ggf. eine Betriebsvereinbarung (§ 96a ArbVG)
-- **Datenschutz** (DSGVO): Krankenstände nur als „abwesend“ für die Disposition sichtbar
+- **Kollektivvertrag**: genaue Zuschläge (Nacht, Sonntag, Mehrarbeit), Durchrechnungsmodelle
+- **Fahrzeit**: wann sie als Arbeitszeit zählt
+- **Feiertagsgutschrift**: mit oder ohne Sonderleistungen
+- **Betriebsvereinbarung**: § 96a ArbVG, falls es einen Betriebsrat gibt
+- **Datenschutz**: Zugriff auf die SharePoint-Website nur für die Disposition
 
-## 6. Bauen oder kaufen?
+## Quellen der Recherche
 
-Allgemeine Dienstplan-Software (auch österreichische Anbieter) kann Schichten und Zeiterfassung, ist aber meist auf Schichtbetriebe ausgelegt (Gastro, Handel, Pflege). Die Reinigungs-Logik mit Stammobjekten, 14-tägigen Leistungen, Feiertagsregeln je Objekt, Vertretungen und dem Excel-Wochenzettel muss man dort oft mühsam nachbauen. Der Prototyp hilft in beiden Fällen: Entweder er wird weiterentwickelt, oder er dient als genaue Anforderungsliste für einen Anbietervergleich.
+softguide.de (A.S.E., MR.Clean, cleaning pro, PlanD, Profacilo, CleanManager, Tourenplanung), capterra.com.de (PlanD, Staffomatic), ki-syndikat.de (Profacilo, iQTrust, Aplano, Papershift), new.timetac.com (Gebäudereinigung, BMD-Integration), timetac.com (Schichtplanung), miele.de (MOVE Clean+), lexware.de (KleanApp), sweptworks.com, capterra.com (Swept), janitorialmanager.com, youraspire.com, lp.connecteam.com, getapp.de und shiftbase.com (Shiftbase), planday.com, docs.staffomatic.com, quinyx.com, support.microsoft.com und learn.microsoft.com (Teams Shifts, Graph-Shifts-Integration), absentify.com, rzlsoftware.at, whk-controlling.de (Kalkulation Reinigung).

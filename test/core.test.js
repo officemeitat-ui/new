@@ -198,3 +198,33 @@ test('Beispieldaten: Automatik erzeugt keine neuen Verstöße', () => {
   // einzig der absichtlich händisch fixierte Ruhezeitverstoß
   assert.deepEqual(errors.map((e) => e.code), ['REST'])
 })
+
+test('Excel-Export: ein Blatt je Person im Wochenplan-Layout', async () => {
+  const { default: ExcelJS } = await import('exceljs')
+  const { buildTimesheetWorkbook } = await import('../src/export/excel.js')
+  const data = createDemoData(MONDAY)
+  const from = '2026-10-01'
+  const to = '2026-11-30'
+  const holidays = holidayCalendar(from, to, data.extraFreeDays)
+  const ctx = createContext(data, holidays)
+  const instances = buildInstances(data, from, to, holidays, ctx.rules)
+  const res = autoPlan(ctx, instances, data.assignments, { from: MONDAY, to: '2026-11-01' })
+  const state = new PlanState(instances, res.assignments)
+  const sheets = data.employees.slice(0, 3).map((e) => buildTimesheet(ctx, e, MONDAY, instances, state))
+  const wb = buildTimesheetWorkbook(ExcelJS, sheets, { brand: 'Test' })
+  const buffer = await wb.xlsx.writeBuffer()
+  const back = new ExcelJS.Workbook()
+  await back.xlsx.load(buffer)
+  assert.equal(back.worksheets.length, 3)
+  const ws = back.worksheets[0]
+  assert.equal(ws.getCell('A1').value, data.employees[0].name)
+  assert.equal(ws.getCell('A2').value, 'Montag')
+  const struck = []
+  ws.eachRow((row) => {
+    if (row.getCell(1).font?.strike) struck.push(row.getCell(2).value)
+  })
+  assert.ok(struck.length > 0, 'Feiertagseinsätze sind durchgestrichen')
+  let last = null
+  ws.eachRow((row) => (last = row))
+  assert.equal(last.getCell(1).value, 'GESAMT')
+})

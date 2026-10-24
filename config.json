@@ -1,0 +1,27 @@
+{
+  "brand": {
+    "name": "Cleanos",
+    "product": "Dienstplan",
+    "tagline": "Einsatzplanung Gebäudereinigung",
+    "logo": "assets/cleanos-logo.svg",
+    "theme": "cleanos"
+  },
+  "storage": "local",
+  "demo": true,
+  "sharepoint": {
+    "tenantId": "",
+    "clientId": "",
+    "siteUrl": "https://TENANT.sharepoint.com/sites/Dienstplan",
+    "library": "Dokumente",
+    "folder": "Dienstplan-App",
+    "refreshSeconds": 60
+  },
+  "access": {
+    "planners": []
+  },
+  "features": {
+    "excel": true,
+    "download": true,
+    "print": true
+  }
+}

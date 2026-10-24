@@ -1,14 +1,20 @@
 {
   "name": "einsatzplaner-reinigung",
-  "version": "0.1.0",
-  "description": "Prototyp: automatische Einsatz- und Dienstplanung für die Gebäudereinigung (österreichisches Arbeitsrecht)",
+  "version": "1.0.0",
+  "description": "Dienstplan für die Gebäudereinigung: automatische Einsatzplanung mit österreichischem Arbeitsrecht, Ablage in SharePoint",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node scripts/serve.js",
+    "build": "node scripts/build.js",
+    "preview": "node scripts/build.js && node scripts/serve.js dist",
     "test": "node --test"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "3.30.0",
+    "exceljs": "4.4.0"
   }
 }

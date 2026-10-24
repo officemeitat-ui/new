@@ -1,0 +1,81 @@
+/* Cleanos Corporate Design (PLATZHALTER).
+   Farben, Schrift und Logo hier durch die echten Werte aus dem Cleanos-CD
+   ersetzen. Alles andere in der App leitet sich von diesen Tokens ab.
+   Logo-Datei: assets/cleanos-logo.svg (in config.json → brand.logo). */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root[data-brand='cleanos'] {
+  --brand-primary: #0a3d6b; /* Cleanos Dunkelblau: Kopfzeile */
+  --brand-primary-2: #0e5291;
+  --brand-accent: #19b3a6; /* Cleanos Türkis: Akzent */
+  --brand-on-primary: #ffffff;
+
+  --bg: #f1f5f8;
+  --surface: #ffffff;
+  --surface-2: #e8eef3;
+  --line: #d3dde6;
+  --line-strong: #91a3b4;
+  --fg: #10233a;
+  --muted: #536477;
+  --accent: #0e5291;
+  --accent-fg: #ffffff;
+  --accent-soft: #e0ecf8;
+  --band: #d9e4f1;
+  --font-display: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-brand='cleanos']:not([data-theme='light']) {
+    --brand-primary: #07294a;
+    --brand-primary-2: #0b3d6c;
+    --bg: #0c141c;
+    --surface: #121d28;
+    --surface-2: #192735;
+    --line: #263748;
+    --line-strong: #4a5f74;
+    --fg: #e3ebf3;
+    --muted: #97a8ba;
+    --accent: #6fb0f0;
+    --accent-fg: #071a2c;
+    --accent-soft: #15304d;
+    --band: #1b2c40;
+  }
+}
+:root[data-brand='cleanos'][data-theme='dark'] {
+  --brand-primary: #07294a;
+  --brand-primary-2: #0b3d6c;
+  --bg: #0c141c;
+  --surface: #121d28;
+  --surface-2: #192735;
+  --line: #263748;
+  --line-strong: #4a5f74;
+  --fg: #e3ebf3;
+  --muted: #97a8ba;
+  --accent: #6fb0f0;
+  --accent-fg: #071a2c;
+  --accent-soft: #15304d;
+  --band: #1b2c40;
+}
+
+[data-brand='cleanos'] h1, [data-brand='cleanos'] h2, [data-brand='cleanos'] h3 { letter-spacing: -0.01em; font-weight: 700; }
+[data-brand='cleanos'] .modal-body h3, [data-brand='cleanos'] .tabgroup-label, [data-brand='cleanos'] .stat .label { letter-spacing: 0.06em; }
+
+/* Kopfzeile in Markenfarbe */
+[data-brand='cleanos'] .topbar { background: linear-gradient(100deg, var(--brand-primary), var(--brand-primary-2)); border-bottom: 0; color: var(--brand-on-primary); }
+[data-brand='cleanos'] body::before { background: var(--brand-primary); }
+[data-brand='cleanos'] .topbar .btn { background: rgb(255 255 255 / 0.08); border-color: rgb(255 255 255 / 0.28); color: var(--brand-on-primary); }
+[data-brand='cleanos'] .topbar .btn:hover { background: rgb(255 255 255 / 0.16); }
+[data-brand='cleanos'] .topbar .btn.primary { background: var(--brand-accent); border-color: var(--brand-accent); color: #04211f; font-weight: 700; }
+[data-brand='cleanos'] .topbar .kw small, [data-brand='cleanos'] .topbar .brand-text small, [data-brand='cleanos'] .userbox { color: rgb(255 255 255 / 0.75); }
+[data-brand='cleanos'] .topbar .userbox .user { color: var(--brand-on-primary); }
+[data-brand='cleanos'] .topbar .pill.info { background: rgb(255 255 255 / 0.14); color: var(--brand-on-primary); }
+[data-brand='cleanos'] .topbar .pill.ok { background: var(--brand-accent); color: #04211f; }
+[data-brand='cleanos'] .topbar :focus-visible { outline-color: var(--brand-accent); }
+[data-brand='cleanos'] .brand-logo { height: 30px; }
+[data-brand='cleanos'] .brand-text { border-left: 1px solid rgb(255 255 255 / 0.3); padding-left: 12px; }
+
+[data-brand='cleanos'] .tab[aria-current='page'] { border-bottom-color: var(--brand-accent); }
+[data-brand='cleanos'] .stat .value { font-weight: 800; }
+[data-brand='cleanos'] .btn.primary { background: var(--accent); border-color: var(--accent); }
+[data-brand='cleanos'] .object-card, [data-brand='cleanos'] .grid-wrap, [data-brand='cleanos'] .sheet-wrap, [data-brand='cleanos'] .stat { border-radius: var(--radius); }
