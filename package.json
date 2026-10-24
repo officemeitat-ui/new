@@ -1,0 +1,14 @@
+{
+  "name": "einsatzplaner-reinigung",
+  "version": "0.1.0",
+  "description": "Prototyp: automatische Einsatz- und Dienstplanung für die Gebäudereinigung (österreichisches Arbeitsrecht)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
