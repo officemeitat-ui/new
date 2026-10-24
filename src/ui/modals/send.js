@@ -13,7 +13,8 @@ import { weekFileBase } from '../../export/excel.js'
 
 const fmt = (iso) => new Date(iso).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 export const canMail = () => !!(app.config.features.mail && app.store?.kind === 'sharepoint' && app.auth)
-const canShare = () => typeof navigator.canShare === 'function' && typeof navigator.share === 'function'
+const canShare = () => app.config.features.pdf && typeof navigator.canShare === 'function' && typeof navigator.share === 'function'
+const canPdf = () => app.config.features.pdf && app.config.features.download
 
 /** Versandstand einer Person in der Woche. */
 export function sendState(c, emp) {
@@ -76,7 +77,7 @@ function sendModal(c, modal) {
         <td>${e.email ? esc(e.email) : '<span class="muted">keine E-Mail</span>'}</td>
         <td><span class="pill ${st.cls} name">${esc(st.label)}</span></td>
         <td class="send-acts">
-          <button class="btn small" data-action="send-pdf" data-emp="${esc(e.id)}" title="PDF herunterladen">${ICON.sheet} PDF</button>
+          ${canPdf() ? `<button class="btn small" data-action="send-pdf" data-emp="${esc(e.id)}" title="PDF herunterladen">${ICON.sheet} PDF</button>` : ''}
           ${canShare() ? `<button class="btn small" data-action="send-share" data-emp="${esc(e.id)}" title="Am Handy z. B. per WhatsApp senden">${ICON.send} Teilen</button>` : ''}
           ${canMail() && e.email && p ? `<button class="btn small primary edit-only" data-action="send-mail" data-emp="${esc(e.id)}">${ICON.send} E-Mail</button>` : ''}
         </td></tr>`
@@ -90,12 +91,12 @@ function sendModal(c, modal) {
     body: `${
       p
         ? ''
-        : `<div class="banner warn-banner"><p><strong>Noch nicht veröffentlicht.</strong> Erst veröffentlichen, dann versenden: so stimmen Zeitkonto und Versandstand. PDFs zur Vorschau sind trotzdem möglich (Vermerk „Entwurf“).</p><button class="btn primary edit-only" data-action="open-publish">${ICON.send} Veröffentlichen</button></div>`
+        : `<div class="banner warn-banner"><p><strong>Noch nicht veröffentlicht.</strong> Erst veröffentlichen, dann versenden: so stimmen Zeitkonto und Versandstand.${canPdf() ? ' PDFs zur Vorschau sind trotzdem möglich (Vermerk „Entwurf“).' : ''}</p><button class="btn primary edit-only" data-action="open-publish">${ICON.send} Veröffentlichen</button></div>`
     }
       <div class="filters">${FILTERS.map(([k, label]) => `<button class="filter" data-action="send-filter" data-filter="${k}" aria-pressed="${filter === k}">${label} <span class="muted">${counts[k]}</span></button>`).join('')}</div>
       <div class="toolbar send-bulk">
-        <button class="btn" data-action="send-all-pdf" ${list.length ? '' : 'disabled'}>${ICON.print} ${list.length === 1 ? 'PDF' : `Ein PDF für ${list.length} Personen`}</button>
-        <button class="btn" data-action="send-zip" ${list.length ? '' : 'disabled'}>${ICON.sheet} ZIP: je Person ein PDF</button>
+        ${canPdf() ? `<button class="btn" data-action="send-all-pdf" ${list.length ? '' : 'disabled'}>${ICON.print} ${list.length === 1 ? 'PDF' : `Ein PDF für ${list.length} Personen`}</button>
+        <button class="btn" data-action="send-zip" ${list.length ? '' : 'disabled'}>${ICON.sheet} ZIP: je Person ein PDF</button>` : '<span class="muted">PDF-Download ist in dieser Umgebung ausgeschaltet (config.json → features).</span>'}
         ${canMail() && p ? `<button class="btn ${confirmAll ? 'primary confirm' : 'primary'} edit-only" data-action="send-mail-all" ${mailable.length ? '' : 'disabled'}>${ICON.send} ${confirmAll ? `Wirklich ${mailable.length} E-Mails senden?` : `E-Mail an ${mailable.length} ${mailable.length === 1 ? 'Person' : 'Personen'}`}</button>` : ''}
         ${p && filter !== 'done' ? `<button class="btn edit-only" data-action="send-mark" ${list.length ? '' : 'disabled'} title="z. B. ausgedruckt und übergeben">Als versendet markieren</button>` : ''}
         ${busy ? `<span class="muted">${esc(busy)}</span>` : ''}
