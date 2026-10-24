@@ -28,6 +28,7 @@ export const ICON = {
   sheet: svg('<rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2 6h12M2 10h12M6 6v8" stroke="currentColor" stroke-width="1.4"/>'),
   key: svg('<circle cx="5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 8h6.5M12 8v2.5M14 8v2" stroke="currentColor" stroke-width="1.6"/>'),
   upload: svg('<path d="M8 11V2M4.5 5.5 8 2l3.5 3.5M2.5 11v3h11v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+  car: svg('<path d="M2.5 10.5V8.3l1.4-3.6A1.5 1.5 0 0 1 5.3 3.7h5.4a1.5 1.5 0 0 1 1.4 1l1.4 3.6v2.2a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 8h10" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="11.5" r="1.3" fill="currentColor"/><circle cx="11" cy="11.5" r="1.3" fill="currentColor"/>'),
   user: svg('<circle cx="8" cy="5.5" r="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 14c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6"/>'),
 }
 

@@ -35,13 +35,14 @@ export function mergeRules(rules = {}) {
 
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
-export function createContext({ employees, objects, absences = [], rules, travel = {} }, holidays) {
+export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {} }, holidays) {
   const absencesByEmployee = new Map()
   for (const a of absences) {
     if (!absencesByEmployee.has(a.employeeId)) absencesByEmployee.set(a.employeeId, [])
     absencesByEmployee.get(a.employeeId).push(a)
   }
   const merged = mergeRules(rules)
+  const between = (a, b) => (a === b ? 0 : travel[pairKey(a, b)] ?? merged.travelMin)
   return {
     rules: merged,
     employees,
@@ -50,11 +51,27 @@ export function createContext({ employees, objects, absences = [], rules, travel
     absencesByEmployee,
     holidays,
     /** Fahrzeit in Minuten zwischen zwei Objekten (Matrix, sonst Pauschale). */
-    travel: (a, b) => (a === b ? 0 : travel[pairKey(a, b)] ?? merged.travelMin),
+    travel: between,
+    trips,
+    /**
+     * Geplante Fahrt nach einem Einsatz. Vorrang: Eintrag dieser Woche für die
+     * Person > Standard der Leistung > Matrix/Pauschale bis zum nächsten Einsatz
+     * desselben Tages. Liefert { minutes, note, source }.
+     */
+    tripAfter(empId, inst, next) {
+      const entry = empId ? trips[tripKey(inst, empId)] : null
+      const note = entry?.note || inst.travelNote || ''
+      if (Number.isFinite(entry?.min)) return { minutes: entry.min, note, source: 'woche' }
+      if (Number.isFinite(inst.travelAfterMin)) return { minutes: inst.travelAfterMin, note, source: 'leistung' }
+      if (!next || next.date !== inst.date) return { minutes: 0, note, source: 'keine' }
+      return { minutes: between(inst.objectId, next.objectId), note, source: 'automatisch' }
+    },
   }
 }
 
 export const travelKey = pairKey
+/** Schlüssel einer geplanten Fahrt: Einsatz + Person. */
+export const tripKey = (inst, empId) => `${inst.key}|${empId}`
 
 export function findAbsence(ctx, employeeId, date) {
   return (ctx.absencesByEmployee.get(employeeId) || []).find((a) => date >= a.from && date <= a.to) || null
@@ -96,18 +113,17 @@ export function windowMinutes(start, end, winStart, winEnd) {
 }
 
 /**
- * Fahrzeiten eines Tages: zwischen zwei aufeinanderfolgenden Einsätzen in
- * verschiedenen Objekten. Zweites Argument: Kontext (mit Fahrzeit-Matrix) oder Regeln.
+ * Fahrten eines Tages einer Person: nach jedem Einsatz eine Fahrt (ggf. 0 min),
+ * sortiert nach Beginn. Jede Fahrt: { from, to, minutes, note, source }.
  */
-export function travelLegs(dayItems, ctxOrRules) {
-  const travel = typeof ctxOrRules.travel === 'function' ? ctxOrRules.travel : (a, b) => (a === b ? 0 : (ctxOrRules.rules || ctxOrRules).travelMin)
+export function dayTrips(dayItems, ctx, empId = null) {
   const sorted = [...dayItems].sort((a, b) => a.start - b.start)
-  const legs = []
-  for (let i = 0; i + 1 < sorted.length; i++) {
-    const minutes = travel(sorted[i].objectId, sorted[i + 1].objectId)
-    if (minutes > 0) legs.push({ from: sorted[i], to: sorted[i + 1], minutes })
-  }
-  return legs
+  return sorted.map((inst, i) => ({ from: inst, to: sorted[i + 1] || null, ...ctx.tripAfter(empId, inst, sorted[i + 1]) }))
+}
+
+/** Nur Fahrten mit Dauer (für Arbeitszeitsummen). */
+export function travelLegs(dayItems, ctx, empId = null) {
+  return dayTrips(dayItems, ctx, empId).filter((t) => t.minutes > 0)
 }
 
 const sumNet = (items) => items.reduce((s, i) => s + i.net, 0)
@@ -248,19 +264,20 @@ export const RULES = [
     id: 'overlap',
     title: 'Überschneidung und Fahrzeit',
     law: 'betrieblich',
-    description: 'Zwei Einsätze überschneiden sich oder die Zeit reicht nicht für den Weg zum nächsten Objekt.',
-    check({ items, ctx, add, objName }) {
-      const maxTravel = Math.max(ctx.rules.travelMin, 120)
+    description: 'Zwei Einsätze überschneiden sich oder die geplante Fahrt passt nicht in die Zeit bis zum nächsten Einsatz.',
+    check({ emp, items, byDay, ctx, add, objName }) {
       for (let i = 0; i < items.length; i++) {
-        for (let j = i + 1; j < items.length && items[j].start < items[i].end + maxTravel; j++) {
+        for (let j = i + 1; j < items.length && items[j].start < items[i].end; j++) {
           const a = items[i]
           const b = items[j]
-          if (b.start < a.end) {
-            add('error', 'OVERLAP', 'shift', `Überschneidung: ${objName(a)} ${a.startTime}–${a.endTime} und ${objName(b)} ${b.startTime}–${b.endTime}`, [a, b])
-          } else {
-            const need = ctx.travel(a.objectId, b.objectId)
-            if (need > 0 && b.start - a.end < need) add('warning', 'TRAVEL', 'shift', `Nur ${b.start - a.end} min von ${objName(a)} zu ${objName(b)} (Fahrzeit ${need} min)`, [a, b])
-          }
+          add('error', 'OVERLAP', 'shift', `Überschneidung: ${objName(a)} ${a.startTime}–${a.endTime} und ${objName(b)} ${b.startTime}–${b.endTime}`, [a, b])
+        }
+      }
+      for (const [, ds] of byDay) {
+        for (const trip of dayTrips(ds, ctx, emp.id)) {
+          if (!trip.to || trip.minutes <= 0 || trip.to.start < trip.from.end) continue
+          const gap = trip.to.start - trip.from.end
+          if (gap < trip.minutes) add('warning', 'TRAVEL', 'shift', `Fahrt ${objName(trip.from)} → ${objName(trip.to)} dauert ${trip.minutes} min, Zeit dazwischen nur ${gap} min`, [trip.from, trip.to])
         }
       }
     },
@@ -378,7 +395,7 @@ export function evaluateEmployee(emp, list, ctx) {
   }
   const items = [...list].sort((a, b) => a.start - b.start || a.end - b.end)
   const byDay = groupBy(items, (i) => i.date)
-  const travelByDay = new Map([...byDay].map(([d, ds]) => [d, travelLegs(ds, ctx).reduce((s, l) => s + l.minutes, 0)]))
+  const travelByDay = new Map([...byDay].map(([d, ds]) => [d, travelLegs(ds, ctx, emp.id).reduce((s, l) => s + l.minutes, 0)]))
   const workOfItems = (list2) => sumNet(list2) + [...new Set(list2.map((i) => i.date))].reduce((s, d) => s + (travelByDay.get(d) || 0), 0)
   const issues = []
   const env = {

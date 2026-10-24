@@ -15,8 +15,8 @@ const allDays = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((d) => [d, { from: 
 const emp = (id, extra = {}) => ({ id, name: id, type: 'Vollzeit', weeklyHours: 40, skills: [], trained: ['o1', 'o2'], availability: allDays, ...extra })
 const task = (id, objectId, weekdays, start, end, extra = {}) => ({ id, objectId, label: id, recurrence: { type: 'weekly', weekdays }, start, end, staff: 1, regulars: [], skills: [], holidayRule: 'entfaellt', ...extra })
 
-function setup({ employees, objects = [{ id: 'o1', name: 'A' }, { id: 'o2', name: 'B' }], tasks, absences = [], assignments = {}, rules = {}, travel = {}, from = '2026-10-01', to = '2026-11-30' }) {
-  const data = { employees, objects, tasks, absences, rules, travel, overrides: {} }
+function setup({ employees, objects = [{ id: 'o1', name: 'A' }, { id: 'o2', name: 'B' }], tasks, absences = [], assignments = {}, rules = {}, travel = {}, trips = {}, from = '2026-10-01', to = '2026-11-30' }) {
+  const data = { employees, objects, tasks, absences, rules, travel, trips, overrides: {} }
   const holidays = holidayCalendar(from, to)
   const ctx = createContext(data, holidays)
   const instances = buildInstances(data, from, to, holidays, ctx.rules)
@@ -147,4 +147,39 @@ test('Automatik gibt Einsätze neu abwesender Personen frei, fixierte bleiben', 
   assert.deepEqual(res.assignments['2026-10-29|a'], [{ employeeId: 'springer', locked: false }])
   assert.deepEqual(res.assignments['2026-10-28|a'], [{ employeeId: 'stamm', locked: true }])
   assert.equal(res.stats.released, 1)
+})
+
+test('Fahrten: Woche > Leistung > automatisch, mit Notiz', () => {
+  const tasks = [task('a', 'o1', [2], '08:00', '10:00', { regulars: ['p'] }), task('b', 'o2', [2], '11:00', '12:00', { regulars: ['p'] }), task('c', 'o2', [2], '13:00', '14:00', { regulars: ['p'], travelAfterMin: 20, travelNote: 'zurück ins Lager' })]
+  const auto = setup({ employees: [emp('p')], tasks })
+  const res = autoPlan(auto.ctx, auto.instances, {}, { from: MONDAY, to: '2026-11-01' })
+  const state = new PlanState(auto.instances, res.assignments)
+  const ts = buildTimesheet(auto.ctx, auto.ctx.employees[0], MONDAY, auto.instances, state)
+  const tue = ts.days[1].lines
+  assert.deepEqual(tue.map((l) => [l.trip.minutes, l.trip.source]), [[30, 'automatisch'], [0, 'automatisch'], [20, 'leistung']])
+  assert.ok(tue[2].notes.includes('Fahrt: zurück ins Lager'))
+  assert.equal(ts.totals.travel, 50)
+
+  const trips = { '2026-10-27|a|p': { min: 45, note: 'Firmenauto' } }
+  const planned = setup({ employees: [emp('p')], tasks, trips })
+  const ts2 = buildTimesheet(planned.ctx, planned.ctx.employees[0], MONDAY, planned.instances, new PlanState(planned.instances, res.assignments))
+  assert.equal(ts2.days[1].lines[0].trip.source, 'woche')
+  assert.equal(ts2.totals.travel, 65)
+  assert.ok(ts2.days[1].lines[0].notes.includes('Fahrt: Firmenauto'))
+  // 45 min Fahrt, aber nur 60 min Zeit → passt; 75 min → Warnung
+  const tight = setup({ employees: [emp('p')], tasks, trips: { '2026-10-27|a|p': { min: 75 } } })
+  const issues = evaluateEmployee(tight.ctx.employees[0], new PlanState(tight.instances, res.assignments).instancesOf('p'), tight.ctx)
+  assert.ok(issues.some((i) => i.code === 'TRAVEL' && i.message.includes('75 min')))
+})
+
+test('Fahrten werden in der Wochendatei gespeichert', async () => {
+  const { splitData, weekPath } = await import('../src/storage/data-service.js')
+  const docs = splitData({ employees: [], assignments: {}, overrides: {}, trips: { '2026-10-27|t1|e1': { min: 20, note: 'Bus' } } }, new Set(['2026-10-26', '2026-11-02']))
+  assert.deepEqual(docs[weekPath('2026-10-26')].trips, { '2026-10-27|t1|e1': { min: 20, note: 'Bus' } })
+  assert.equal(docs[weekPath('2026-11-02')].trips, undefined)
+})
+
+test('Import: Fahrzeit in Stunden oder Minuten', async () => {
+  const { travelMinutes } = await import('../src/core/importer.js')
+  assert.deepEqual(['0,5', '30', '30 min', '1,5 h', '', 'x'].map(travelMinutes), [30, 30, 30, 90, null, null])
 })

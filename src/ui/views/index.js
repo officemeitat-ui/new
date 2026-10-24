@@ -2,6 +2,7 @@
 // Eine neue Ansicht: Datei anlegen, registerView(...) aufrufen, hier importieren.
 
 import './week.js'
+import './timeline.js'
 import './sheet.js'
 import './objects.js'
 import './coverage.js'
@@ -15,3 +16,4 @@ import './rules.js'
 import '../modals/shift.js'
 import '../modals/publish.js'
 import '../modals/data.js'
+import '../modals/trip.js'

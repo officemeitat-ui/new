@@ -5,7 +5,7 @@
 import { WEEKDAY_SHORT } from './dates.js'
 
 export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis']
-export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art']
+export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art', 'Fahrzeit danach', 'Fahrtnotiz']
 
 const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 
@@ -28,6 +28,8 @@ const ALIASES = {
   every: ['intervall', 'rhythmus'],
   holiday: ['anfeiertagen', 'feiertag', 'feiertagsregel'],
   category: ['art', 'kategorie'],
+  travel: ['fahrzeit', 'fahrzeitdanach', 'fahrzeitmin', 'fahrt'],
+  travelNote: ['fahrtnotiz', 'notizfahrt', 'fahrthinweis'],
 }
 
 export function parseTable(text) {
@@ -78,6 +80,16 @@ export function parseWeekdays(text) {
     }
   }
   return [...out].sort()
+}
+
+/** Fahrzeit: "30", "30 min", "0,5 h", "0,5" (Stunden, wie im bisherigen Plan) → Minuten */
+export function travelMinutes(text) {
+  const t = String(text ?? '').trim().toLowerCase().replace(',', '.')
+  if (!t) return null
+  const n = parseFloat(t)
+  if (!Number.isFinite(n)) return null
+  if (t.includes('h') || (n > 0 && n < 5)) return Math.round(n * 60)
+  return Math.round(n)
 }
 
 /** "1", "wöchentlich", "14-tägig", "alle 2 Wochen", "monatlich" → Wochenintervall */
@@ -155,6 +167,8 @@ export function importTasks(text, employees) {
         regulars,
         skills: [],
         holidayRule: HOLIDAY[norm(pick(row, 'holiday'))] || 'entfaellt',
+        ...(travelMinutes(pick(row, 'travel')) !== null ? { travelAfterMin: travelMinutes(pick(row, 'travel')) } : {}),
+        ...(pick(row, 'travelNote') ? { travelNote: pick(row, 'travelNote') } : {}),
       },
     }
   })

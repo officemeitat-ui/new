@@ -103,6 +103,8 @@ export function buildInstances({ objects, tasks, overrides = {} }, from, to, hol
         staff: task.staff || 1,
         skills: task.skills || [],
         regulars: task.regulars || [],
+        travelAfterMin: Number.isFinite(task.travelAfterMin) ? task.travelAfterMin : null,
+        travelNote: task.travelNote || '',
         status,
         reason,
         origHoliday,

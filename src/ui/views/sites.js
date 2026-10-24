@@ -16,7 +16,7 @@ function sitesView() {
         .map(
           (t) => `<tr>
           <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}</td>
-          <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}</td><td class="num">${t.staff}</td>
+          <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}${Number.isFinite(t.travelAfterMin) || t.travelNote ? `<br><span class="muted">Fahrt danach ${Number.isFinite(t.travelAfterMin) ? `${t.travelAfterMin} min` : 'automatisch'}${t.travelNote ? `: ${esc(t.travelNote)}` : ''}</span>` : ''}</td><td class="num">${t.staff}</td>
           <td>${t.regulars.map((id) => esc(empName(id))).join(', ') || '<span class="muted">–</span>'}</td>
           <td>${esc(HOLIDAY_RULES[t.holidayRule || 'entfaellt'])}</td>
           <td>${(t.skills || []).map((s) => `<span class="tag">${esc(s)}</span>`).join(' ') || '<span class="muted">–</span>'}</td>
@@ -114,6 +114,8 @@ function taskModal(c, { id, objectId }) {
         <label class="field"><span>Ende</span><input type="time" id="task-end" value="${esc(t.end)}"></label>
         <label class="field"><span>Personen</span><input type="number" id="task-staff" min="1" step="1" value="${t.staff}"></label>
         <label class="field"><span>An Feiertagen</span><select id="task-holiday">${options(Object.entries(HOLIDAY_RULES), t.holidayRule || 'entfaellt')}</select></label>
+        <label class="field"><span>Fahrzeit danach (min)</span><input type="number" id="task-travel" min="0" step="5" value="${Number.isFinite(t.travelAfterMin) ? t.travelAfterMin : ''}" placeholder="automatisch"></label>
+        <label class="field wide"><span>Fahrtnotiz (Standard, je Woche änderbar)</span><input type="text" id="task-travel-note" value="${esc(t.travelNote || '')}" placeholder="z. B. Firmenauto zurück ins Lager"></label>
       </div>
       <section><h3>Stammkraft</h3><div class="form-grid">${checkboxes('task-reg', app.data.employees.filter((e) => !obj?.region || !e.team || e.team === obj.region || t.regulars.includes(e.id)).map((e) => [e.id, e.name]), t.regulars || [])}</div><p class="note">Angezeigt werden Personen aus dem Revier des Objekts.</p></section>
       <section><h3>Benötigte Qualifikation</h3><div class="form-grid">${checkboxes('task-skill', (app.data.skills || []).map((s) => [s, s]), t.skills || [])}</div></section>`,
@@ -138,6 +140,8 @@ function readTaskForm(existing) {
     end: val('task-end'),
     staff: Math.max(1, Math.round(num('task-staff') || 1)),
     holidayRule: val('task-holiday'),
+    travelAfterMin: val('task-travel').trim() === '' ? undefined : Math.max(0, Math.round(num('task-travel') ?? 0)),
+    travelNote: val('task-travel-note').trim() || undefined,
     regulars: checkedValues('task-reg'),
     skills: checkedValues('task-skill'),
   }
@@ -216,6 +220,7 @@ registerActions(
       if (!task.label) return toast('Bitte eine Bezeichnung eingeben.')
       if (task.recurrence.type === 'weekly' && !task.recurrence.weekdays.length) return toast('Bitte mindestens einen Wochentag wählen.')
       if (!task.start || !task.end) return toast('Bitte Beginn und Ende angeben.')
+      for (const k of Object.keys(task)) if (task[k] === undefined) delete task[k]
       if (id === 'new') app.data.tasks.push(task)
       else app.data.tasks = app.data.tasks.map((t) => (t.id === id ? task : t))
       for (const empId of task.regulars) {

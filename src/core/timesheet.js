@@ -12,7 +12,7 @@
 // hours, bonus, travel, credited, creditReason, nightMinutes, sundayHoliday.
 
 import { addDays, eachDay, formatDate } from './dates.js'
-import { findAbsence, travelLegs, windowMinutes } from './rules.js'
+import { dayTrips, findAbsence, windowMinutes } from './rules.js'
 
 export function buildTimesheet(ctx, emp, monday, instances, state) {
   const r = ctx.rules
@@ -64,10 +64,14 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     })
   }
 
+  // Fahrt nach jedem Einsatz (wie die Spalte „Fahrzeit“ im bisherigen Plan)
   for (const day of days) {
     const work = day.lines.filter((l) => l.kind === 'work')
-    for (const leg of travelLegs(work.map((l) => l.inst), ctx)) {
-      work.find((l) => l.inst === leg.from).travel += leg.minutes
+    for (const trip of dayTrips(work.map((l) => l.inst), ctx, emp.id)) {
+      const line = work.find((l) => l.inst === trip.from)
+      line.travel = trip.minutes
+      line.trip = { minutes: trip.minutes, note: trip.note, source: trip.source, to: trip.to }
+      if (trip.note) line.notes.push(`Fahrt: ${trip.note}`)
     }
   }
 

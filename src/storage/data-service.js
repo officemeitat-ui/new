@@ -22,6 +22,8 @@ export const DOC = {
 export const weekPath = (monday) => `daten/plaene/${monday.slice(0, 4)}/${monday}.json`
 
 const MASTER_KEYS = ['version', 'employees', 'objects', 'tasks', 'skills', 'rules', 'extraFreeDays', 'travel', 'settings']
+// Felder je Woche; Schlüssel beginnen mit dem Datum des Einsatzes (trips = geplante Fahrten)
+const WEEK_FIELDS = ['assignments', 'overrides', 'trips']
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))
@@ -34,13 +36,12 @@ export function splitData(data, weeks) {
     [DOC.account]: { weeks: data.published || {} },
   }
   for (const monday of weeks) docs[weekPath(monday)] = { monday, assignments: {}, overrides: {}, log: data.logs?.[monday] || [] }
-  for (const [field, target] of [
-    ['assignments', 'assignments'],
-    ['overrides', 'overrides'],
-  ]) {
+  for (const field of WEEK_FIELDS) {
     for (const [key, value] of Object.entries(data[field] || {})) {
       const doc = docs[weekPath(weekOfKey(key))]
-      if (doc) doc[target][key] = value
+      if (!doc) continue
+      doc[field] = doc[field] || {}
+      doc[field][key] = value
     }
   }
   return docs
@@ -56,7 +57,7 @@ export function applyDoc(data, path, doc) {
     data.published = doc.weeks || {}
   } else {
     const monday = doc.monday
-    for (const field of ['assignments', 'overrides']) {
+    for (const field of WEEK_FIELDS) {
       data[field] = data[field] || {}
       for (const key of Object.keys(data[field])) if (weekOfKey(key) === monday) delete data[field][key]
       Object.assign(data[field], doc[field] || {})
@@ -90,7 +91,7 @@ export class DataService {
   async load(seed) {
     this.#setStatus('loading')
     const [master, absences, account] = await Promise.all([DOC.master, DOC.absences, DOC.account].map((p) => this.store.read(p)))
-    const data = { assignments: {}, overrides: {}, logs: {}, absences: [], published: {} }
+    const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {} }
     this.data = data
     if (!master) {
       Object.assign(data, await seed())

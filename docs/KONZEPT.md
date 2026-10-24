@@ -104,7 +104,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Lohnexport (BMD, RZL) | TimeTac (BMD-Schnittstelle) | ✔ Monatsauswertung als CSV; Lohnarten-Zuordnung beim Import |
 | Objektmappe (Anweisungen für Springer) | Swept, PlanD | ✔ im Einsatz-Dialog |
 | Schlüsselverwaltung | MR.Clean, Profacilo, CleanManager, Miele | ✔ Schlüssel je Objekt, Regel „Schlüsselübergabe nötig“ |
-| Tourenplanung / Fahrzeiten | MR.Clean, Profacilo, Swept | ✔ Fahrzeit-Matrix je Objektpaar (noch ohne Karte) |
+| Tourenplanung / Fahrzeiten | MR.Clean, Profacilo, Swept | ✔ Fahrten je Einsatz planbar (Dauer + Notiz), Fahrzeit-Matrix, Zeitlinie je Tag (noch ohne Karte) |
 | Prüfung nach österreichischem Arbeitsrecht | bei keinem Anbieter belegt | ✔ AZG, ARG, KJBG, Geringfügigkeit |
 | Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | Ausbaustufe 2 |
 | Alarm bei Nichterscheinen | Swept | Ausbaustufe 2 (setzt Zeiterfassung voraus) |
@@ -120,9 +120,10 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 - **Hosting** als statische Web-App auf `dienstplan.cleanos.at` (Azure Static Web Apps oder eigener Webspace), Anleitung in [EINRICHTUNG.md](EINRICHTUNG.md).
 - **Ausgelegt für 35+ Mitarbeitende**: Reviere/Teams, Filter und Suche. Die Automatik plant rund 230 Einsätze in einer Zehntelsekunde.
 - **Ansichten**:
-  - Planung: Wochenübersicht, Wochenzettel, Objektplan, Vertretungen, Prüfbericht
+  - Planung: Wochenübersicht, Zeitlinie, Wochenzettel, Objektplan, Vertretungen, Prüfbericht
   - Auswertung: Objekt-Controlling, Monatsauswertung
   - Stammdaten: Mitarbeitende, Objekte & Leistungen, Abwesenheiten (Kalender, Resturlaub), Regeln & Feiertage
+- **Fahrten einplanen**: Nach jedem Einsatz Dauer und eigene Notiz („Firmenauto, Schlüssel im Büro holen“), für diese Woche oder als Standard der Leistung. Ohne Eintrag gilt die Fahrzeit-Matrix bzw. Pauschale. Fahrten zählen als Arbeitszeit, stehen im Wochenzettel und in der Zeitlinie, und zu knappe Fahrten werden markiert.
 - **Excel**: Import aus bestehenden Listen (Kopieren/Einfügen), Export der Wochenpläne im bisherigen Layout als .xlsx (gesamt und je Person, beim Veröffentlichen direkt nach SharePoint), Druck/PDF.
 - **Rollen**: Disposition (bearbeiten) und Lesezugriff über `config.json`.
 - **Erweiterbar**: Regeln, Ansichten, Ablagen und Design sind austauschbare Module, siehe [ERWEITERN.md](ERWEITERN.md).

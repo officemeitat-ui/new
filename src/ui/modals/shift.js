@@ -6,6 +6,7 @@ import { HOLIDAY_RULES } from '../../core/plan.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { addLog, app, empName, mutateAssignments, openModal, persist, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { esc, ICON, issueList, modalFrame, objectOf, val } from '../shared.js'
+import { tripContext } from './trip.js'
 
 function objectFolder(obj) {
   const keys = obj.keys || []
@@ -55,7 +56,10 @@ function shiftModal(c, { key }) {
       if (!e) return ''
       const role = inst.regulars.includes(e.id) ? 'Stammkraft' : inst.regulars.length ? 'Vertretung' : 'eingeteilt'
       const issues = c.validation.cell.get(`${e.id}|${key}`) || []
-      return `<div class="person"><div class="pname">${esc(e.name)}<small>${role}${a.locked ? ' · fixiert' : ''}</small></div>${issueList(issues)}
+      const t = tripContext(c, key, e.id)
+      const trip = t?.trip
+      const tripLine = trip ? `<button class="link-btn trip-line" data-action="open-trip" data-key="${esc(key)}" data-emp="${esc(e.id)}">${ICON.car} Fahrt danach: ${trip.minutes ? `${trip.minutes} min${t.next ? ` → ${esc(objectOf(c, t.next).short || '')}` : ''}` : 'keine'}${trip.note ? ` · ${esc(trip.note)}` : ''} <span class="muted">(planen)</span></button>` : ''
+      return `<div class="person"><div class="pname">${esc(e.name)}<small>${role}${a.locked ? ' · fixiert' : ''}</small></div><div>${issueList(issues)}${tripLine}</div>
         <div class="acts edit-only"><button class="btn small" data-action="toggle-lock" data-key="${esc(key)}" data-emp="${esc(e.id)}">${a.locked ? 'Lösen' : 'Fixieren'}</button><button class="btn small danger" data-action="unassign" data-key="${esc(key)}" data-emp="${esc(e.id)}">Entfernen</button></div></div>`
     })
     .join('')

@@ -87,7 +87,7 @@ Erst `npm ci && npm run build` ausführen. Der Ordner `dist/` enthält dann alle
 1. `https://dienstplan.cleanos.at` öffnen und mit dem Microsoft-365-Konto anmelden.
 2. Die Ablage ist leer, die App zeigt „Willkommen“.
    - **Mitarbeitende einfügen:** In Excel die Liste mit Überschrift kopieren (Name, Beschäftigung, Wochenstunden, Team, Qualifikationen, Tage, Von, Bis) und einfügen.
-   - **Objekte & Leistungen einfügen:** Objekt, Adresse, Revier, Leistung, Tage, Von, Bis, Personen, Stammkraft, Intervall, An Feiertagen.
+   - **Objekte & Leistungen einfügen:** Objekt, Adresse, Revier, Leistung, Tage, Von, Bis, Personen, Stammkraft, Intervall, An Feiertagen, optional Fahrzeit danach (z. B. „0,5“ oder „30 min“) und Fahrtnotiz.
    - Mit „Vorlage kopieren“ bekommt man die Überschriften für Excel.
 3. Unter *Regeln & Feiertage* Werte aus dem Kollektivvertrag prüfen (Zuschläge, Fahrzeit, Mehrstunden für Vertretungen) und betriebsfreie Tage eintragen (z. B. 24.12., 31.12., Hl. Rupert).
 4. *Woche planen* → prüfen → *Veröffentlichen*. Die Excel-Wochenpläne liegen danach in `Dienstplan-App/exporte/…`.

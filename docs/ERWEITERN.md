@@ -10,7 +10,7 @@ src/
     dates.js         Datum/Zeit
     holidays.js      Feiertage Österreich
     plan.js          Stammplan → Einsätze, Feiertagsregeln, Einzeländerungen, PlanState
-    rules.js         Regelkatalog (RULES) und Prüfung
+    rules.js         Regelkatalog (RULES), Prüfung, Fahrten (ctx.tripAfter, dayTrips)
     scheduler.js     Automatische Einteilung, Kandidaten-Ranking
     timesheet.js     Wochenzettel mit Anrechnung, Zuschlägen, Fahrzeit, Saldo
     reports.js       Monatsauswertung, Objekt-Controlling, Zeitkonto, Urlaub
@@ -97,10 +97,11 @@ Der `DataService` kümmert sich um Aufteilung, Autosave, Zusammenführen und Nac
 ```js
 employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours }
 object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, contact, keys[{ id, label, holderId }] }
-task     = { id, objectId, label, category: 'reinigung'|'sonder', recurrence: { type: 'weekly', weekdays[], everyWeeks, anchor, until? } | { type: 'once', date }, start, end, staff, regulars[employeeId], skills[], holidayRule: 'entfaellt'|'findet_statt'|'verschieben' }
+task     = { id, objectId, label, category: 'reinigung'|'sonder', recurrence: { type: 'weekly', weekdays[], everyWeeks, anchor, until? } | { type: 'once', date }, start, end, staff, regulars[employeeId], skills[], holidayRule: 'entfaellt'|'findet_statt'|'verschieben', travelAfterMin?, travelNote? }
 absence  = { id, employeeId, type, from, to, note? }
 assignments[`${datum}|${taskId}`] = [{ employeeId, locked }]
 overrides[`${datum}|${taskId}`]   = { date?, start?, end?, cancelled?, note? }
+trips[`${datum}|${taskId}|${employeeId}`] = { min?, note? }   // geplante Fahrt nach dem Einsatz (Woche)
 published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur} }
 travel[`${objA}|${objB}`] = minuten
 ```

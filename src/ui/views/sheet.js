@@ -35,7 +35,8 @@ export function sheetTable(c, emp, { interactive = true } = {}) {
               const sev = maxSeverity(issues.filter((i) => i.severity !== 'info'))
               const mark = sev && interactive ? `<span class="flag ${sev} issue-mark" title="${esc(issues.map((i) => i.message).join('\n'))}">!</span>` : ''
               const text = interactive ? `<button class="link-btn" data-action="open-shift" data-key="${esc(l.inst.key)}">${esc(l.text)}</button>` : esc(l.text)
-              return `<tr class="line ${l.style}"><td class="time">${esc(l.time)}</td><td class="text">${text}${mark}</td><td class="num">${hoursCell(l.hours)}</td><td class="num">${hoursCell(l.credited)}</td><td class="num">${hoursCell(l.travel)}</td><td class="notes">${esc(l.notes.join(' · '))}</td></tr>`
+              const travel = interactive && l.kind === 'work' ? `<button class="link-btn trip-cell ${l.trip?.source === 'woche' || l.trip?.source === 'leistung' ? 'planned' : ''}" data-action="open-trip" data-key="${esc(l.inst.key)}" data-emp="${esc(emp.id)}" title="Fahrt planen">${hoursCell(l.travel) || '+'}</button>` : hoursCell(l.travel)
+              return `<tr class="line ${l.style}"><td class="time">${esc(l.time)}</td><td class="text">${text}${mark}</td><td class="num">${hoursCell(l.hours)}</td><td class="num">${hoursCell(l.credited)}</td><td class="num">${travel}</td><td class="notes">${esc(l.notes.join(' · '))}</td></tr>`
             })
             .join('')
         : `<tr class="line"><td></td><td class="muted">${day.absence ? esc(day.absence.type) : 'frei'}</td><td></td><td></td><td></td><td></td></tr>`

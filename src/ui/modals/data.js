@@ -6,7 +6,7 @@ import { seedDemoHistory } from '../planning.js'
 import { download, esc, ICON, modalFrame, val } from '../shared.js'
 import { copyText } from '../views/sheet.js'
 
-const BACKUP_KEYS = ['version', 'employees', 'objects', 'tasks', 'skills', 'rules', 'extraFreeDays', 'travel', 'absences', 'assignments', 'overrides', 'published', 'logs']
+const BACKUP_KEYS = ['version', 'employees', 'objects', 'tasks', 'skills', 'rules', 'extraFreeDays', 'travel', 'absences', 'assignments', 'overrides', 'trips', 'published', 'logs']
 
 function backup() {
   return JSON.stringify(Object.fromEntries(BACKUP_KEYS.map((k) => [k, app.data[k]])), null, 1)
