@@ -30,6 +30,7 @@ export const RULE_FIELDS = [
   ]],
   ['Automatik', [
     ['autoExtraHoursPerWeek', 'Max. Mehrstunden für Vertretungen (h/Woche)', 'Darüber plant die Automatik niemanden ein; manuell bleibt es möglich.'],
+    ['dueLeadDays', 'Periodische Leistungen zuteilen (Tage vorher)', '14-tägige, monatliche, quartalsweise Leistungen ohne Besetzung erscheinen ab dann unter „Zu erledigen“'],
   ]],
   ['Jugendliche (KJBG)', [
     ['minor.maxDailyH', 'Höchstarbeitszeit pro Tag (h)', '§ 11 KJBG: 8 h'],

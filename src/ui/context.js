@@ -39,7 +39,10 @@ export const VIEWS = []
 export const MODALS = {}
 export const ACTIONS = {}
 
-/** Ansicht registrieren: { id, label, group: 'plan'|'auswertung'|'stamm', order, render(c), summary?, badge?(c) } */
+/**
+ * Ansicht registrieren: { id, label, group: 'plan'|'auswertung'|'stamm', order, render(c), summary?, badge?(c),
+ * range?() → { from, to } für zusätzlich zu ladende Wochen }
+ */
 export function registerView(view) {
   const idx = VIEWS.findIndex((v) => v.id === view.id)
   if (idx >= 0) VIEWS.splice(idx, 1, view)
@@ -77,11 +80,10 @@ export function windowFor(monday, month) {
   }
 }
 
-export function compute() {
-  const { data, ui } = app
-  const monday = ui.monday
+/** Berechnete Woche (Standard: angezeigte Woche). */
+export function compute(monday = app.ui.monday, month = monday === app.ui.monday ? currentMonth() : addDays(monday, 3).slice(0, 7)) {
+  const { data } = app
   const sunday = addDays(monday, 6)
-  const month = currentMonth()
   const { from, to } = windowFor(monday, month)
   const holidays = holidayCalendar(from, to, data.extraFreeDays)
   const ctx = createContext(data, holidays)
@@ -99,6 +101,36 @@ export function compute() {
   return { monday, sunday, month, from, to, holidays, ctx, instances, state, validation, week, days: eachDay(monday, sunday), published, timesheet, changedSincePublish }
 }
 
+/** Berechnung für einen beliebigen Zeitraum (z. B. Abwesenheit über mehrere Wochen). */
+export function computeRange(from, to) {
+  const { data } = app
+  const wFrom = [firstOfMonth(from), addDays(mondayOf(from), -7)].sort()[0]
+  const wTo = [lastOfMonth(to), addDays(mondayOf(to), 13)].sort()[1]
+  const holidays = holidayCalendar(wFrom, wTo, data.extraFreeDays)
+  const ctx = createContext(data, holidays)
+  const instances = buildInstances(data, wFrom, wTo, holidays, ctx.rules)
+  const state = new PlanState(instances, data.assignments)
+  return { from, to, holidays, ctx, instances, state }
+}
+
+/** Wochen-Dateien eines Zeitraums laden (SharePoint). */
+export async function ensureRange(from, to) {
+  const wFrom = [firstOfMonth(from), addDays(mondayOf(from), -7)].sort()[0]
+  const wTo = [lastOfMonth(to), addDays(mondayOf(to), 13)].sort()[1]
+  await app.service.ensureWeeks(mondaysBetween(wFrom, wTo))
+}
+
+/**
+ * Wochen, die schon eingeteilt sind: dort hat die Automatik geplant (nicht
+ * fixierte Einteilungen). Händische Einteilungen und Übergaben sind fixiert
+ * und zählen nicht, damit die Woche später trotzdem automatisch geplant wird.
+ */
+export function plannedWeeks() {
+  const weeks = new Set()
+  for (const [key, list] of Object.entries(app.data.assignments)) if (list.some((a) => !a.locked)) weeks.add(mondayOf(key.slice(0, 10)))
+  return weeks
+}
+
 // ---------------------------------------------------------------- Darstellung
 
 let renderHooks = { frame: () => '', afterRender: () => {} }
@@ -110,6 +142,8 @@ export async function render() {
   const { from, to } = windowFor(app.ui.monday, currentMonth())
   try {
     await app.service.ensureWeeks(mondaysBetween(from, to))
+    const extra = VIEWS.find((v) => v.id === app.ui.view)?.range?.()
+    if (extra) await ensureRange(extra.from, extra.to)
   } catch (err) {
     toast(`Wochen konnten nicht geladen werden: ${err.message}`)
   }
@@ -196,6 +230,7 @@ export function addLog(monday, text) {
 }
 
 export function persist() {
+  app.dataVersion = (app.dataVersion || 0) + 1
   app.service.schedule()
 }
 

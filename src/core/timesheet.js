@@ -155,7 +155,10 @@ export function summarizeDays(days) {
 /** Signatur der Zeilen einer Person, um Änderungen nach dem Veröffentlichen zu erkennen. */
 export function timesheetSignature(ts) {
   const parts = []
-  for (const day of ts.days) for (const l of day.lines) parts.push(`${day.date}|${l.kind}|${l.time}|${l.text}|${l.credited}`)
+  for (const day of ts.days) {
+    if (day.absence) parts.push(`${day.date}|abwesend|${day.absence.type}`)
+    for (const l of day.lines) parts.push(`${day.date}|${l.kind}|${l.time}|${l.text}|${l.credited}`)
+  }
   let h = 2166136261
   for (const ch of parts.join('\n')) {
     h ^= ch.codePointAt(0)

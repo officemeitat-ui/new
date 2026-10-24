@@ -14,6 +14,8 @@ src/
     scheduler.js     Automatische Einteilung, Kandidaten-Ranking
     timesheet.js     Wochenzettel mit Anrechnung, Zuschlägen, Fahrzeit, Saldo
     reports.js       Monatsauswertung, Objekt-Controlling, Zeitkonto, Urlaub
+    attention.js     Handlungsbedarf: Rhythmus-Kategorien, Auswirkung einer Abwesenheit,
+                     Übergabe an eine Person, Saldo-Korrekturen
     importer.js      Excel-Import (Tabulator/CSV)
     merge.js         Zusammenführen bei gleichzeitigem Bearbeiten
   storage/     Ablage
@@ -28,8 +30,8 @@ src/
     context.js    App-Zustand, Registry (registerView, registerModal, registerActions)
     planning.js   Planen, Veröffentlichen
     shared.js     UI-Bausteine
-    views/*.js    je Ansicht eine Datei
-    modals/*.js   Dialoge
+    views/*.js    je Ansicht eine Datei (z. B. due.js: Periodische Leistungen)
+    modals/*.js   Dialoge (absence.js: Abwesenheits-Assistent, todo.js: Zu erledigen)
 themes/        Corporate Design (CSS-Tokens)
 config.json    Laufzeit-Konfiguration
 ```
@@ -88,6 +90,12 @@ Eine Ablage braucht vier Methoden, siehe `docstore-local.js`:
 
 Der `DataService` kümmert sich um Aufteilung, Autosave, Zusammenführen und Nachladen. Eine REST-API oder Azure Blob Storage sind damit je eine Datei.
 
+## Handlungsbedarf („Zu erledigen“) erweitern
+
+Die Glocke sammelt Punkte aus `computeTodo()` in `src/ui/modals/todo.js`: Abwesenheiten (`absenceImpact`), periodische Leistungen (`periodicDue` mit Status `zugeteilt`, `stammkraft`, `zuteilen`, `entfaellt`) und geänderte veröffentlichte Wochen. Ein weiterer Punkt (z. B. „Schlüssel nicht zurückgegeben“) ist eine weitere Liste in `computeTodo` mit einer eindeutigen `id`; das Popup beim Start erscheint, sobald eine `id` neu ist. Die Frist für periodische Leistungen steht in den Regeln (`dueLeadDays`, Standard 7 Tage).
+
+Eine Woche gilt als eingeteilt, sobald die Automatik dort geplant hat (nicht fixierte Einteilungen). Händische Einteilungen und Übergaben aus dem Abwesenheits-Assistenten sind fixiert, damit „Woche planen“ die Woche danach trotzdem vollständig einteilt und die Übergaben behält.
+
 ## Corporate Design
 
 `themes/cleanos.css` überschreibt nur Farb- und Schrift-Tokens (`--accent`, `--bg`, `--font-display`, …) und die Kopfzeile. Logo: `assets/cleanos-logo.svg` bzw. `brand.logo` in `config.json`. Ein weiteres Theme: neue Datei `themes/name.css` mit `:root[data-brand='name']` und in `config.json` `"theme": "name"`.
@@ -97,12 +105,16 @@ Der `DataService` kümmert sich um Aufteilung, Autosave, Zusammenführen und Nac
 ```js
 employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours }
 object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, contact, keys[{ id, label, holderId }] }
-task     = { id, objectId, label, category: 'reinigung'|'sonder', recurrence: { type: 'weekly', weekdays[], everyWeeks, anchor, until? } | { type: 'once', date }, start, end, staff, regulars[employeeId], skills[], holidayRule: 'entfaellt'|'findet_statt'|'verschieben', travelAfterMin?, travelNote? }
+task     = { id, objectId, label, category: 'reinigung'|'sonder', recurrence, start, end, staff, regulars[employeeId], skills[], holidayRule: 'entfaellt'|'findet_statt'|'verschieben', travelAfterMin?, travelNote? }
+recurrence = { type: 'weekly', weekdays[], everyWeeks, anchor, until? }
+           | { type: 'monthly', mode: 'nth', nth: 1..4|-1, weekday: 1..7, everyMonths, anchor, until? }   // z. B. 1. Samstag, quartalsweise
+           | { type: 'monthly', mode: 'day', day: 1..31, everyMonths, anchor, until? }                   // 31 = Monatsletzter
+           | { type: 'once', date }
 absence  = { id, employeeId, type, from, to, note? }
 assignments[`${datum}|${taskId}`] = [{ employeeId, locked }]
 overrides[`${datum}|${taskId}`]   = { date?, start?, end?, cancelled?, note? }
 trips[`${datum}|${taskId}|${employeeId}`] = { min?, note? }   // geplante Fahrt nach dem Einsatz (Woche)
-published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur} }
+published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur}, correctedAt?, corrections?[{ empId, before, after, delta, at, by }] }
 travel[`${objA}|${objB}`] = minuten
 ```
 

@@ -1,7 +1,7 @@
 // Wochenzettel je Person im Layout des bisherigen Excel-Plans, mit Kopieren
 // für Excel, Excel-Download und Druck/PDF.
 
-import { formatDate, formatHours, isoWeekday, WEEKDAY_LONG } from '../../core/dates.js'
+import { formatDate, formatHours, isoWeekday, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
 import { maxSeverity } from '../../core/rules.js'
 import { buildTimesheetWorkbook, weekFileBase, workbookBlob } from '../../export/excel.js'
 import { app, registerActions, registerView, renderNow, toast } from '../context.js'
@@ -67,7 +67,8 @@ function sheetView(c) {
       <button class="btn" data-action="copy-sheet">${ICON.copy} Für Excel kopieren</button>
       ${f.download ? `<button class="btn" data-action="excel-sheet">${ICON.sheet} Excel</button>` : ''}
       ${f.print ? `<button class="btn" data-action="print-sheet">${ICON.print} Drucken / PDF</button><button class="btn" data-action="print-all">${ICON.print} Alle ${list.length} drucken</button>` : ''}
-      ${changed ? '<span class="pill warning">nach Veröffentlichung geändert</span>' : ''}
+      <button class="btn edit-only" data-action="open-absence-new" data-emp="${esc(emp.id)}" data-date="${esc(c.monday)}">${ICON.plus} Abwesenheit</button>
+      ${changed ? `<span class="pill warning">nach Veröffentlichung geändert</span>${c.monday <= todayISO() ? ' <button class="btn small primary edit-only" data-action="open-publish">Korrektur buchen</button>' : ''}` : ''}
     </div>
     <div class="sheet-wrap" id="sheet-print">${sheetTable(c, emp)}</div>
     <div class="legend"><span style="text-decoration:line-through">durchgestrichen</span><span>= entfällt / verschoben (Feiertag, Urlaub: angerechnet)</span><span style="color:var(--changed)">rot = Vertretung oder verschoben</span><span style="color:var(--special);font-weight:600">grün = Sonderleistung</span></div>

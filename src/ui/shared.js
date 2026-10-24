@@ -1,6 +1,8 @@
 // Gemeinsame Bausteine für Ansichten und Dialoge.
 
-import { formatDate, formatHours, isoWeekday, WEEKDAY_SHORT } from '../core/dates.js'
+import { formatDate, formatHours, isoWeekday, MONTH_LONG, WEEKDAY_LONG, WEEKDAY_SHORT } from '../core/dates.js'
+import { rhythmCategory } from '../core/attention.js'
+import { NTH_LABEL } from '../core/plan.js'
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
 export const uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -29,6 +31,7 @@ export const ICON = {
   key: svg('<circle cx="5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 8h6.5M12 8v2.5M14 8v2" stroke="currentColor" stroke-width="1.6"/>'),
   upload: svg('<path d="M8 11V2M4.5 5.5 8 2l3.5 3.5M2.5 11v3h11v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
   car: svg('<path d="M2.5 10.5V8.3l1.4-3.6A1.5 1.5 0 0 1 5.3 3.7h5.4a1.5 1.5 0 0 1 1.4 1l1.4 3.6v2.2a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 8h10" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="11.5" r="1.3" fill="currentColor"/><circle cx="11" cy="11.5" r="1.3" fill="currentColor"/>'),
+  bell: svg('<path d="M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1.3 1.2H2.7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
   user: svg('<circle cx="8" cy="5.5" r="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 14c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6"/>'),
 }
 
@@ -67,6 +70,11 @@ export function checkboxes(name, options, selected) {
 export function rhythmText(task) {
   const r = task.recurrence
   if (r.type === 'once') return `einmalig ${formatDate(r.date)}`
+  if (r.type === 'monthly') {
+    const when = r.mode === 'day' ? (r.day >= 31 ? 'am Monatsletzten' : `am ${r.day}.`) : `${NTH_LABEL[r.nth] || '1.'} ${WEEKDAY_LONG[(r.weekday || 1) - 1]}`
+    const from = (r.everyMonths || 1) > 1 && r.anchor ? ` ab ${MONTH_LONG[Number(r.anchor.slice(5, 7)) - 1]}` : ''
+    return `${when}, ${rhythmCategory(task)}${from}`
+  }
   const days = r.weekdays.length === 7 ? 'täglich' : r.weekdays.map((d) => WEEKDAY_SHORT[d - 1]).join(', ')
   return `${days}${r.everyWeeks > 1 ? `, alle ${r.everyWeeks} Wochen` : ''}`
 }

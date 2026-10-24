@@ -107,12 +107,13 @@ function repairSlot(ctx, state, inst, { from, to }, stats) {
 }
 
 /**
- * Plant den Zeitraum [from, to]. Bestehende Zuteilungen bleiben erhalten;
- * mit `replan` werden nicht fixierte Zuteilungen vorher entfernt.
+ * Plant den Zeitraum [from, to]. Optionen: `replan` verwirft vorher nicht
+ * fixierte Einteilungen, `only` beschränkt auf bestimmte Einsätze (Schlüssel),
+ * `regularsOnly` teilt nur die Stammkräfte ein (z. B. als Vorschau einer Woche).
  */
-export function autoPlan(ctx, instances, assignments, { from, to, replan = false }) {
+export function autoPlan(ctx, instances, assignments, { from, to, replan = false, only = null, regularsOnly = false }) {
   const state = new PlanState(instances, assignments)
-  const inRange = instances.filter((i) => i.status !== 'cancelled' && i.date >= from && i.date <= to)
+  const inRange = instances.filter((i) => i.status !== 'cancelled' && i.date >= from && i.date <= to && (!only || only.has(i.key)))
   const stats = { regular: 0, substitute: 0, other: 0, released: 0 }
   for (const inst of inRange) {
     for (const a of [...state.assigned(inst.key)]) {
@@ -138,6 +139,7 @@ export function autoPlan(ctx, instances, assignments, { from, to, replan = false
   }
 
   const open = () => inRange.filter((i) => state.count(i.key) < i.staff)
+  if (regularsOnly) return { assignments: state.toObject(), stats, open: open().map((i) => i.key) }
   const staticOk = (emp, inst) => !findAbsence(ctx, emp.id, inst.date) && inst.skills.every((s) => (emp.skills || []).includes(s)) && fitsAvailability(emp, inst)
   const order = open()
     .map((inst) => ({ inst, pressure: ctx.employees.filter((e) => staticOk(e, inst)).length / (inst.staff - state.count(inst.key)) }))

@@ -1,9 +1,10 @@
 // Monatsauswertung je Person als Grundlage für die Lohnverrechnung
 // (CSV für BMD, RZL oder die Steuerberatung).
 
-import { formatHours, MONTH_LONG } from '../../core/dates.js'
+import { correctionsInMonth } from '../../core/attention.js'
+import { formatDate, formatHours, isoWeek, MONTH_LONG } from '../../core/dates.js'
 import { monthReport, PAYROLL_COLUMNS, timeAccount, toCSV } from '../../core/reports.js'
-import { app, registerActions, registerView } from '../context.js'
+import { app, empName, registerActions, registerView } from '../context.js'
 import { download, esc, ICON, saldoClass, signed } from '../shared.js'
 import { copyText } from './sheet.js'
 import { filterBar, filteredEmployees } from './week.js'
@@ -37,7 +38,20 @@ function payrollView(c) {
     ${filterBar(c, { problems: false })}
     <div class="toolbar"><button class="btn" data-action="payroll-copy">${ICON.copy} Für Excel kopieren</button>${app.config.features.download ? `<button class="btn" data-action="payroll-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}</div>
     <div class="table-wrap"><table class="data payroll"><thead><tr><th>Mitarbeiter:in</th><th>Soll</th><th>Gearbeitet</th><th>Fahrzeit</th><th>Sonn-/Feiertag</th><th>Nacht</th><th>Feiertag angerechnet</th><th>Urlaub</th><th>Krankenstand</th><th>Ist</th><th>Saldo</th><th>Zeitkonto</th></tr></thead><tbody>${body}</tbody></table></div>
-    <p class="note">Soll = Wochenstunden / 5 je Werktag (Mo–Fr) im Monat. Wochen, die noch nicht eingeteilt sind, zählen nur mit Anrechnungen. Zeitkonto = Startsaldo + veröffentlichte Wochen.</p>`
+    <p class="note">Soll = Wochenstunden / 5 je Werktag (Mo–Fr) im Monat. Wochen, die noch nicht eingeteilt sind, zählen nur mit Anrechnungen. Zeitkonto = Startsaldo + veröffentlichte Wochen (inkl. gebuchter Korrekturen).</p>
+    ${correctionsSection(c)}`
+}
+
+/** Rückwirkende Änderungen veröffentlichter Wochen, die den Monat berühren. */
+function correctionsSection(c) {
+  const ids = new Set(filteredEmployees(c).map((e) => e.id))
+  const list = correctionsInMonth(app.data.published, c.month).filter((x) => ids.has(x.empId))
+  if (!list.length) return ''
+  const rowsHtml = list
+    .map((x) => `<tr><td class="num">KW ${isoWeek(x.monday).week}<br><span class="muted">${formatDate(x.monday, { weekday: false })}</span></td><td><strong>${esc(empName(x.empId))}</strong></td><td class="num">${signed(x.before)}</td><td class="num">${signed(x.after)}</td><td class="num saldo ${saldoClass(x.delta)}"><strong>${signed(x.delta)}</strong></td><td><span class="muted">${new Date(x.at).toLocaleString('de-AT')} · ${esc(x.by)}</span></td></tr>`)
+    .join('')
+  return `<h3>Nachträgliche Korrekturen</h3><p class="note">Rückwirkend geänderte Wochen (z. B. nachgereichte Krankmeldung, Vertretung nachgetragen). Die Differenz ist im Zeitkonto schon enthalten; für die Lohnverrechnung bitte gesondert berücksichtigen, wenn der Monat bereits abgerechnet ist.</p>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Woche</th><th>Mitarbeiter:in</th><th>Saldo bisher</th><th>Saldo neu</th><th>Korrektur</th><th>Gebucht</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`
 }
 
 registerView({ id: 'payroll', order: 70, label: 'Monatsauswertung', group: 'auswertung', render: payrollView })

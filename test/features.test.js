@@ -183,3 +183,88 @@ test('Import: Fahrzeit in Stunden oder Minuten', async () => {
   const { travelMinutes } = await import('../src/core/importer.js')
   assert.deepEqual(['0,5', '30', '30 min', '1,5 h', '', 'x'].map(travelMinutes), [30, 30, 30, 90, null, null])
 })
+
+test('Monatlicher Rhythmus: n-ter Wochentag, letzter, Tag im Monat, quartalsweise', async () => {
+  const { taskOccursOn } = await import('../src/core/plan.js')
+  const { rhythmCategory } = await import('../src/core/attention.js')
+  const first = { recurrence: { type: 'monthly', mode: 'nth', nth: 1, weekday: 6, everyMonths: 1 } }
+  assert.deepEqual(['2026-11-07', '2026-11-14', '2026-12-05'].map((d) => taskOccursOn(first, d)), [true, false, true])
+  const last = { recurrence: { type: 'monthly', mode: 'nth', nth: -1, weekday: 5, everyMonths: 1 } }
+  assert.deepEqual(['2026-10-30', '2026-10-23', '2026-11-27'].map((d) => taskOccursOn(last, d)), [true, false, true])
+  const day = { recurrence: { type: 'monthly', mode: 'day', day: 31, everyMonths: 1 } }
+  assert.deepEqual(['2026-11-30', '2026-10-31', '2026-11-29'].map((d) => taskOccursOn(day, d)), [true, true, false])
+  const quarter = { recurrence: { type: 'monthly', mode: 'nth', nth: 2, weekday: 5, everyMonths: 3, anchor: '2026-11-01' } }
+  assert.deepEqual(['2026-11-13', '2026-12-11', '2027-02-12', '2026-08-14'].map((d) => taskOccursOn(quarter, d)), [true, false, true, true])
+  assert.deepEqual([first, quarter, { recurrence: { type: 'weekly', weekdays: [1], everyWeeks: 2 } }, { recurrence: { type: 'once', date: '2026-11-02' } }].map(rhythmCategory), ['monatlich', 'quartalsweise', '14-tägig', 'einmalig'])
+})
+
+test('Abwesenheit: betroffene Einsätze, Übergabe an eine Person, Ranking', async () => {
+  const { absenceImpact, handOver, rankHandover, staffingStatus } = await import('../src/core/attention.js')
+  const tasks = [task('a', 'o1', [1, 2, 3, 4, 5], '08:00', '12:00', { regulars: ['urlaub'] }), task('b', 'o2', [2, 4], '13:00', '15:00', { regulars: ['urlaub'] })]
+  const absences = [{ employeeId: 'urlaub', type: 'Urlaub', from: '2026-11-02', to: '2026-11-06' }]
+  const { ctx, instances, state } = setup({ employees: [emp('urlaub'), emp('voll', { weeklyHours: 40 }), emp('frei', { weeklyHours: 20, availability: { 1: { from: '07:00', to: '13:00' }, 2: { from: '07:00', to: '13:00' }, 3: { from: '07:00', to: '13:00' }, 4: { from: '07:00', to: '13:00' }, 5: { from: '07:00', to: '13:00' } } })], tasks, absences })
+  const impact = absenceImpact(ctx, instances, state, absences[0])
+  assert.equal(impact.rows.length, 7)
+  assert.equal(impact.minutes, 5 * 240 + 2 * 120)
+  assert.equal(impact.openMinutes, impact.minutes)
+  assert.equal(staffingStatus(ctx, state, impact.rows[0].inst, () => false).status, 'zuteilen')
+  assert.match(staffingStatus(ctx, state, impact.rows[0].inst, () => false).reason, /Urlaub/)
+
+  const ranking = rankHandover(ctx, state, impact.rows.map((r) => r.inst), { excludeId: 'urlaub' })
+  assert.equal(ranking[0].emp.id, 'voll')
+  assert.equal(ranking[0].done, 7)
+  const res = handOver(ctx, state, impact.rows.map((r) => r.inst), ctx.employeesById.get('voll'))
+  assert.equal(res.done.length, 7)
+  assert.equal(absenceImpact(ctx, instances, state, absences[0]).openMinutes, 0)
+})
+
+test('Korrekturen: Saldo-Unterschiede und Monatsliste', async () => {
+  const { saldoCorrections, correctionsInMonth } = await import('../src/core/attention.js')
+  assert.deepEqual(saldoCorrections({ a: 60, b: 0 }, { a: -180, b: 0, c: 30 }), [{ empId: 'a', before: 60, after: -180, delta: -240 }, { empId: 'c', before: 0, after: 30, delta: 30 }])
+  const published = { '2026-10-26': { corrections: [{ empId: 'a', delta: -240, at: '2026-11-03' }] }, '2026-12-07': { corrections: [{ empId: 'b', delta: 30 }] } }
+  assert.equal(correctionsInMonth(published, '2026-10').length, 1)
+  assert.equal(correctionsInMonth(published, '2026-11').length, 1) // Woche reicht in den November
+  assert.equal(correctionsInMonth(published, '2026-12').length, 1)
+})
+
+test('Import: monatlich und quartalsweise werden Monatsrhythmen, 14-tägig bekommt einen Start', async () => {
+  const { parseMonthInterval } = await import('../src/core/importer.js')
+  assert.deepEqual(['monatlich', 'quartalsweise', 'halbjährlich', 'jährlich', 'alle 2 Monate', '14-tägig', 'monatlich (4 Wochen)'].map(parseMonthInterval), [1, 3, 6, 12, 2, null, null])
+  const text = 'Objekt\tLeistung\tTage\tVon\tBis\tIntervall\nLager\tGrundreinigung\tSa\t08:00\t13:00\tmonatlich\nBüro\tTeppich\tFr\t17:00\t20:00\tquartalsweise\nBüro\tFenster\tDo\t13:00\t15:00\t14-tägig'
+  const { items, errors } = importTasks(text, [], { anchor: '2026-11-02' })
+  assert.deepEqual(errors, [])
+  assert.deepEqual(items[0].task.recurrence, { type: 'monthly', mode: 'nth', nth: 1, weekday: 6, everyMonths: 1, anchor: '2026-11-01' })
+  assert.equal(items[1].task.recurrence.everyMonths, 3)
+  assert.deepEqual(items[2].task.recurrence, { type: 'weekly', weekdays: [4], everyWeeks: 2, anchor: '2026-11-02' })
+})
+
+test('Automatik: nur bestimmte Einsätze oder nur Stammkräfte planen', () => {
+  const tasks = [task('a', 'o1', [1], '08:00', '10:00', { regulars: ['s'] }), task('b', 'o2', [1], '12:00', '14:00')]
+  const { ctx, instances } = setup({ employees: [emp('s'), emp('x')], tasks })
+  const onlyB = autoPlan(ctx, instances, {}, { from: '2026-11-02', to: '2026-11-08', only: new Set(['2026-11-02|b']) })
+  assert.deepEqual(Object.keys(onlyB.assignments), ['2026-11-02|b'])
+  const regulars = autoPlan(ctx, instances, {}, { from: '2026-11-02', to: '2026-11-08', regularsOnly: true })
+  assert.deepEqual(Object.keys(regulars.assignments), ['2026-11-02|a'])
+  assert.deepEqual(regulars.open, ['2026-11-02|b'])
+})
+
+test('Rückwirkend: nachgetragene Abwesenheit ändert die Signatur der veröffentlichten Woche', () => {
+  const tasks = [task('a', 'o1', [3], '08:00', '12:00', { regulars: ['e'] })]
+  const asg = { '2026-10-28|a': [{ employeeId: 'e' }] }
+  const before = setup({ employees: [emp('e')], tasks, assignments: asg })
+  const after = setup({ employees: [emp('e')], tasks, assignments: asg, absences: [{ employeeId: 'e', type: 'Krankenstand', from: '2026-10-28', to: '2026-10-28' }] })
+  const sig = (s) => timesheetSignature(buildTimesheet(s.ctx, s.ctx.employees[0], MONDAY, s.instances, s.state))
+  assert.notEqual(sig(before), sig(after))
+})
+
+test('Übergabe-Ranking: weniger Mehrstunden zuerst, Mehrstunden werden ausgewiesen', async () => {
+  const { rankHandover } = await import('../src/core/attention.js')
+  const tasks = [task('a', 'o1', [1, 2], '08:00', '12:00'), task('fix', 'o2', [3, 4, 5], '06:00', '14:00', { regulars: ['ausgelastet'] })]
+  const { ctx, instances, state } = setup({ employees: [emp('ausgelastet', { weeklyHours: 20 }), emp('luft', { weeklyHours: 20 })], tasks })
+  for (const d of ['2026-11-04', '2026-11-05', '2026-11-06']) state.assign('ausgelastet', `${d}|fix`)
+  const insts = instances.filter((i) => i.taskId === 'a' && i.date >= '2026-11-02' && i.date <= '2026-11-03')
+  const ranking = rankHandover(ctx, state, insts)
+  assert.deepEqual(ranking.map((r) => r.emp.id), ['luft', 'ausgelastet'])
+  assert.equal(ranking[0].overMinutes, 0)
+  assert.equal(ranking[1].overMinutes, 3 * 450 + 2 * 240 - 20 * 60)
+})

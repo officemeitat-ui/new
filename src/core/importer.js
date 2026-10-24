@@ -103,8 +103,23 @@ export function parseInterval(text) {
   return n >= 1 && n <= 4 ? n : 1
 }
 
+/** "monatlich", "quartalsweise", "halbjährlich", "jährlich", "alle 2 Monate" → Monatsintervall, sonst null */
+export function parseMonthInterval(text) {
+  const t = norm(text)
+  if (t.includes('quartal')) return 3
+  if (t.includes('halbjahr') || t.includes('halbjaehr') || t.includes('halbjahrl')) return 6
+  if (t.includes('jahr') || t.includes('jaehr') || t.includes('jahrl')) return 12
+  const m = t.match(/alle(\d+)monat/)
+  if (m) return Number(m[1])
+  if (t.includes('zweimonat')) return 2
+  if (t.includes('monat') && !/4|vierwoch/.test(t)) return 1
+  return null
+}
+
 const TYPES = ['Vollzeit', 'Teilzeit', 'Geringfügig', 'Lehrling']
 const normalizeType = (v) => TYPES.find((t) => norm(t) === norm(v) || norm(v).startsWith(norm(t).slice(0, 5))) || 'Teilzeit'
+
+const weekdaysOf = (r) => (r.type === 'monthly' ? !!r.weekday : r.weekdays.length > 0)
 
 /** Mitarbeitende aus Tabelle. Liefert { items, errors }. */
 export function importEmployees(text) {
@@ -132,8 +147,12 @@ export function importEmployees(text) {
 
 const HOLIDAY = { entfallt: 'entfaellt', entfaellt: 'entfaellt', findetstatt: 'findet_statt', ja: 'findet_statt', verschieben: 'verschieben', verschoben: 'verschieben' }
 
-/** Objekte + Leistungen aus Tabelle. Stammkräfte werden über den Namen zugeordnet. */
-export function importTasks(text, employees) {
+/**
+ * Objekte + Leistungen aus Tabelle. Stammkräfte werden über den Namen zugeordnet.
+ * Monatliche Rhythmen ("monatlich", "quartalsweise") werden zum ersten Wochentag
+ * aus "Tage" im Monat, ab dem Monat von `anchor`.
+ */
+export function importTasks(text, employees, { anchor } = {}) {
   const errors = []
   const items = parseTable(text).map((row, i) => {
     const line = i + 2
@@ -152,6 +171,10 @@ export function importTasks(text, employees) {
       else errors.push(`Zeile ${line}: Stammkraft „${n}“ nicht gefunden`)
     }
     const every = parseInterval(pick(row, 'every'))
+    const months = parseMonthInterval(pick(row, 'every'))
+    const recurrence = months
+      ? { type: 'monthly', mode: 'nth', nth: 1, weekday: weekdays[0], everyMonths: months, ...(anchor ? { anchor: `${anchor.slice(0, 7)}-01` } : {}) }
+      : { type: 'weekly', weekdays, everyWeeks: every, ...(anchor && every > 1 ? { anchor } : {}) }
     const category = /sonder|blume|garten/i.test(pick(row, 'category') + pick(row, 'label')) ? 'sonder' : 'reinigung'
     return {
       object,
@@ -160,7 +183,7 @@ export function importTasks(text, employees) {
       task: {
         label: pick(row, 'label') || 'Unterhaltsreinigung',
         category,
-        recurrence: { type: 'weekly', weekdays, everyWeeks: every },
+        recurrence,
         start,
         end,
         staff: Math.max(1, parseInt(pick(row, 'staff'), 10) || regulars.length || 1),
@@ -172,5 +195,5 @@ export function importTasks(text, employees) {
       },
     }
   })
-  return { items: items.filter((t) => t.object && t.task.recurrence.weekdays.length && t.task.start && t.task.end), errors }
+  return { items: items.filter((t) => t.object && weekdaysOf(t.task.recurrence) && t.task.start && t.task.end), errors }
 }

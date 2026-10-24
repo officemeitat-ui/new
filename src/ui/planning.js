@@ -1,6 +1,7 @@
 // Automatisch planen und Woche veröffentlichen.
 
-import { addDays, formatDate, isoWeek } from '../core/dates.js'
+import { addDays, formatDate, isoWeek, mondayOf } from '../core/dates.js'
+import { saldoCorrections } from '../core/attention.js'
 import { mondaysBetween } from '../core/reports.js'
 import { autoPlan } from '../core/scheduler.js'
 import { timesheetSignature } from '../core/timesheet.js'
@@ -41,17 +42,27 @@ export function changeMessage(c, emp) {
   return lines.join('\n')
 }
 
-/** Salden und Signaturen einer Woche festhalten (ohne Dateien). */
+/** Aktuelle Salden aller Personen einer Woche. */
+export function currentSaldi(c) {
+  return Object.fromEntries(c.ctx.employees.map((emp) => [emp.id, c.timesheet(emp).totals.saldo]))
+}
+
+/**
+ * Salden und Signaturen einer Woche festhalten (ohne Dateien). War die Woche
+ * schon veröffentlicht, werden die Saldo-Unterschiede als Korrektur gebucht
+ * (rückwirkende Änderungen, z. B. nachträgliche Krankmeldung).
+ */
 export function snapshotWeek(c, extra = {}) {
-  const saldi = {}
-  const snapshot = {}
-  for (const emp of c.ctx.employees) {
-    const ts = c.timesheet(emp)
-    saldi[emp.id] = ts.totals.saldo
-    snapshot[emp.id] = timesheetSignature(ts)
-  }
+  const saldi = currentSaldi(c)
+  const snapshot = Object.fromEntries(c.ctx.employees.map((emp) => [emp.id, timesheetSignature(c.timesheet(emp))]))
   app.data.published = app.data.published || {}
-  app.data.published[c.monday] = { status: 'veroeffentlicht', publishedAt: new Date().toISOString(), publishedBy: app.user?.name || 'Browser', saldi, snapshot, ...extra }
+  const previous = app.data.published[c.monday]
+  const at = new Date().toISOString()
+  const by = app.user?.name || 'Browser'
+  const corrections = [...(previous?.corrections || [])]
+  if (previous?.saldi) for (const corr of saldoCorrections(previous.saldi, saldi)) corrections.push({ ...corr, at, by })
+  app.data.published[c.monday] = { status: 'veroeffentlicht', publishedAt: previous?.publishedAt || at, publishedBy: previous?.publishedBy || by, ...(previous ? { correctedAt: at, correctedBy: by } : {}), saldi, snapshot, ...(corrections.length ? { corrections } : {}), ...extra }
+  return corrections.length - (previous?.corrections || []).length
 }
 
 /**
@@ -60,6 +71,9 @@ export function snapshotWeek(c, extra = {}) {
  */
 export async function seedDemoHistory(weeksBefore = 4) {
   const start = app.ui.monday
+  // Nachgereichte Krankmeldungen erst nach dem Veröffentlichen eintragen
+  const late = app.data.absences.filter((a) => a.reportedAfterPublish)
+  app.data.absences = app.data.absences.filter((a) => !a.reportedAfterPublish)
   for (let i = -weeksBefore; i <= 0; i++) {
     app.ui.monday = addDays(start, i * 7)
     const { from, to } = windowFor(app.ui.monday, currentMonth())
@@ -71,18 +85,23 @@ export async function seedDemoHistory(weeksBefore = 4) {
       snapshotWeek(app.cur, { publishedBy: 'Beispieldaten' })
     }
   }
+  for (const a of late) {
+    delete a.reportedAfterPublish
+    app.data.absences.push(a)
+    addLog(mondayOf(a.from), `${a.type} nachgetragen: ${app.data.employees.find((e) => e.id === a.employeeId)?.name} ${formatDate(a.from)}`)
+  }
   app.ui.monday = start
   app.cur = compute()
+  persist()
 }
 
 /**
  * Woche veröffentlichen: Salden ins Zeitkonto, Signaturen für die
  * Änderungserkennung, Excel-Wochenpläne in die Ablage (SharePoint) bzw. als Download.
  */
-export async function publishWeek({ files = true } = {}) {
-  const c = app.cur
+export async function publishWeek({ files = true, c = app.cur } = {}) {
   const employees = c.ctx.employees
-  const result = { webUrl: null, files: 0 }
+  const result = { webUrl: null, files: 0, corrections: 0 }
   if (files && app.config.features.excel) {
     const base = weekFileBase(c.monday)
     const folder = `exporte/${c.monday.slice(0, 4)}/${base}`
@@ -101,8 +120,9 @@ export async function publishWeek({ files = true } = {}) {
       result.files = 1
     }
   }
-  snapshotWeek(c, { files: result.webUrl })
-  addLog(c.monday, `Woche veröffentlicht${result.files ? ` (${result.files} Excel-Dateien)` : ''}`)
+  const wasPublished = !!app.data.published?.[c.monday]
+  result.corrections = snapshotWeek(c, result.webUrl ? { files: result.webUrl } : {})
+  addLog(c.monday, `${wasPublished ? 'Korrektur gebucht' : 'Woche veröffentlicht'}${result.corrections ? ` (${result.corrections} Saldo-Korrekturen)` : ''}${result.files ? `, ${result.files} Excel-Dateien` : ''}`)
   persist()
   await app.service.flush()
   renderNow()

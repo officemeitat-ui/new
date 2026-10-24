@@ -2,8 +2,9 @@
 
 import { eachDay, formatDate, isoWeekday, lastOfMonth, MONTH_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { vacationSummary } from '../../core/reports.js'
-import { addLog, app, confirmStep, empName, persist, registerActions, registerView, renderNow, toast } from '../context.js'
-import { ABSENCE_CLASS, ABSENCE_TYPES, esc, ICON, uid, val } from '../shared.js'
+import { app, confirmStep, empName, persist, registerActions, registerView, renderNow } from '../context.js'
+import { addAbsence } from '../modals/absence.js'
+import { ABSENCE_CLASS, ABSENCE_TYPES, esc, ICON, val } from '../shared.js'
 import { monthPicker } from './controlling.js'
 import { filterBar, filteredEmployees } from './week.js'
 
@@ -45,18 +46,18 @@ function absencesView(c) {
     .map((a) => {
       const n = affected(a)
       return `<tr><td><strong>${esc(empName(a.employeeId))}</strong></td><td><span class="cal-key ${ABSENCE_CLASS[a.type] || 'abs-sonst'}">${esc(a.type[0])}</span> ${esc(a.type)}</td><td class="num">${formatDate(a.from, { year: true })}</td><td class="num">${formatDate(a.to, { year: true })}</td>
-      <td>${n ? `<button class="link-btn" data-action="view" data-view="coverage"><span class="pill error">${n} Einsätze noch eingeteilt</span></button>` : '<span class="pill ok">keine Konflikte</span>'}</td>
+      <td>${n ? `<span class="pill error">${n} Einsätze noch eingeteilt</span>` : ''} <button class="btn small" data-action="open-impact" data-id="${esc(a.id)}">Vertretung planen</button></td>
       <td class="edit-only"><button class="btn small ${app.ui.confirm === `abs-${a.id}` ? 'danger confirm' : 'danger'}" data-action="abs-delete" data-id="${esc(a.id)}">${app.ui.confirm === `abs-${a.id}` ? 'Wirklich?' : 'Löschen'}</button></td></tr>`
     })
     .join('')
-  return `<div class="section-head"><div><h2>Abwesenheiten</h2><p>Urlaub, Krankenstand, Zeitausgleich. Betroffene Einsätze werden rot markiert und erscheinen unter „Vertretungen“. Stammeinsätze werden der abwesenden Person angerechnet (Ausfallprinzip).</p></div>${monthPicker(c)}</div>
+  return `<div class="section-head"><div><h2>Abwesenheiten</h2><p>Urlaub, Krankenstand, Zeitausgleich, auch rückwirkend. Nach dem Eintragen zeigt der Assistent, welche Einsätze und Stunden neu zu planen sind, und übergibt Fixobjekte an eine Vertretung. Stammeinsätze werden der abwesenden Person angerechnet (Ausfallprinzip).</p></div>${monthPicker(c)}</div>
     <div class="inline-form edit-only">
       <label class="field"><span>Mitarbeiter:in</span><select id="abs-emp">${c.ctx.employees.map((e) => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')}</select></label>
       <label class="field"><span>Art</span><select id="abs-type">${ABSENCE_TYPES.map((t) => `<option>${t}</option>`).join('')}</select></label>
       <label class="field"><span>Von</span><input type="date" id="abs-from" value="${c.monday}"></label>
       <label class="field"><span>Bis</span><input type="date" id="abs-to" value="${c.monday}"></label>
       <label class="field"><span>Notiz</span><input type="text" id="abs-note" placeholder="optional"></label>
-      <button class="btn primary" data-action="abs-add">${ICON.plus} Eintragen</button>
+      <button class="btn primary" data-action="abs-add">${ICON.plus} Eintragen und Vertretung planen</button>
     </div>
     ${filterBar(c, { problems: false })}
     <h3>${MONTH_LONG[m - 1]} ${y}</h3>
@@ -71,15 +72,9 @@ registerActions(
   {
     'abs-add': () => {
       const from = val('abs-from')
-      const to = val('abs-to') || from
-      if (!from || to < from) return toast('Bitte einen gültigen Zeitraum wählen.')
-      const entry = { id: uid('a'), employeeId: val('abs-emp'), type: val('abs-type'), from, to }
+      const entry = { employeeId: val('abs-emp'), type: val('abs-type'), from, to: val('abs-to') || from }
       if (val('abs-note').trim()) entry.note = val('abs-note').trim()
-      app.data.absences.push(entry)
-      addLog(app.cur.monday, `Abwesenheit: ${empName(entry.employeeId)} ${entry.type} ${formatDate(from)}–${formatDate(to)}`)
-      persist()
-      renderNow()
-      toast('Abwesenheit eingetragen. Unter „Vertretungen“ stehen die betroffenen Einsätze.')
+      return addAbsence(entry)
     },
     'abs-delete': (el) => {
       if (!confirmStep(`abs-${el.dataset.id}`)) return

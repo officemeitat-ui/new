@@ -51,6 +51,13 @@ export function lastOfMonth(date) {
   return fromDayIndex(Math.round(Date.UTC(y, m, 0) / DAY_MS))
 }
 
+export const daysInMonth = (date) => Number(lastOfMonth(date).slice(8))
+
+/** Monate zwischen zwei Daten (nur Jahr/Monat zählen). */
+export function monthsBetween(a, b) {
+  return (Number(b.slice(0, 4)) - Number(a.slice(0, 4))) * 12 + (Number(b.slice(5, 7)) - Number(a.slice(5, 7)))
+}
+
 export function toMinutes(time) {
   const [h, m] = String(time).split(':').map(Number)
   return h * 60 + (m || 0)

@@ -1,7 +1,7 @@
 // Erzeugt aus den Leistungen (Stammplan) die konkreten Einsätze eines Zeitraums
 // und wendet Feiertagsregeln sowie Einzeländerungen ("nur diese Woche") an.
 
-import { addDays, dayIndex, eachDay, isoWeekday, toMinutes, weeksBetween } from './dates.js'
+import { addDays, dayIndex, daysInMonth, eachDay, isoWeekday, monthsBetween, toMinutes, weeksBetween } from './dates.js'
 
 export const HOLIDAY_RULES = {
   entfaellt: 'entfällt',
@@ -9,9 +9,19 @@ export const HOLIDAY_RULES = {
   verschieben: 'auf nächsten Werktag verschieben',
 }
 
+export const NTH_LABEL = { 1: '1.', 2: '2.', 3: '3.', 4: '4.', [-1]: 'letzter' }
+
+/**
+ * Rhythmus einer Leistung:
+ *   { type: 'weekly', weekdays, everyWeeks, anchor }        jede / jede 2. … Woche
+ *   { type: 'monthly', mode: 'nth', nth, weekday, everyMonths, anchor }   z. B. 1. Samstag, quartalsweise
+ *   { type: 'monthly', mode: 'day', day, everyMonths, anchor }            z. B. am 15. (31 = letzter Tag)
+ *   { type: 'once', date }
+ */
 export function taskOccursOn(task, date) {
   const r = task.recurrence
   if (r.type === 'once') return r.date === date
+  if (r.type === 'monthly') return monthlyOccursOn(r, date)
   if (!r.weekdays.includes(isoWeekday(date))) return false
   if (r.from && date < r.from) return false
   if (r.until && date > r.until) return false
@@ -21,6 +31,21 @@ export function taskOccursOn(task, date) {
     return ((diff % every) + every) % every === 0
   }
   return true
+}
+
+function monthlyOccursOn(r, date) {
+  if (r.from && date < r.from) return false
+  if (r.until && date > r.until) return false
+  const every = r.everyMonths || 1
+  if (every > 1) {
+    const diff = monthsBetween(r.anchor || r.from || date, date)
+    if (((diff % every) + every) % every !== 0) return false
+  }
+  const day = Number(date.slice(8))
+  if (r.mode === 'day') return day === Math.min(r.day || 1, daysInMonth(date))
+  if (isoWeekday(date) !== r.weekday) return false
+  if (r.nth === -1) return day + 7 > daysInMonth(date)
+  return Math.ceil(day / 7) === r.nth
 }
 
 export function nextWorkday(date, holidays) {

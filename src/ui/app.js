@@ -11,6 +11,7 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService } from '../storage/data-service.js'
 import { applyBrand, loadConfig } from './config.js'
 import { ACTIONS, app, closeModal, render, renderNow, saveStatusText, setFrame, toast, VIEWS } from './context.js'
+import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { download, esc, ICON } from './shared.js'
 import { bindFilterEvents } from './views/week.js'
@@ -78,6 +79,7 @@ function topbar(c) {
       ${status}
     </div>
     <div class="actions">
+      ${bellButton()}
       <button class="btn primary edit-only" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>
       <button class="btn edit-only" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">Neu planen</button>
       <button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>
@@ -130,11 +132,20 @@ function welcome() {
     <div class="actions"><button class="btn primary" data-action="import-open" data-kind="employees">${ICON.upload} Mitarbeitende einfügen</button><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button><button class="btn" data-action="open-data">Beispieldaten laden</button></div></div>`
 }
 
+/** Veröffentlichte Woche, die schon begonnen hat und danach geändert wurde: Korrektur buchen. */
+function correctionBanner(c) {
+  if (!c.published?.snapshot || app.readOnly || c.monday > todayISO()) return ''
+  const changed = c.ctx.employees.filter((e) => c.changedSincePublish(e))
+  if (!changed.length) return ''
+  const names = changed.slice(0, 4).map((e) => esc(e.name)).join(', ') + (changed.length > 4 ? ' …' : '')
+  return `<div class="banner warn-banner"><p><strong>Rückwirkend geändert.</strong> KW ${isoWeek(c.monday).week} ist veröffentlicht und wurde danach geändert (${names}). Damit Zeitkonto und Lohnverrechnung stimmen, die Korrektur buchen.</p><button class="btn primary" data-action="open-publish">${ICON.send} Korrektur buchen</button></div>`
+}
+
 function frame(c) {
   const view = VIEWS.find((v) => v.id === app.ui.view) || VIEWS[0]
   app.ui.view = view.id
   const readOnly = app.readOnly ? '<div class="banner"><p><strong>Nur Leserechte.</strong> Dein Konto ist nicht als Disposition eingetragen (config.json → access.planners).</p></div>' : ''
-  return `${topbar(c)}${tabs(c)}<main class="wrap">${readOnly}${welcome()}${view.summary ? summary(c) : ''}${view.render(c)}</main>`
+  return `${topbar(c)}${tabs(c)}<main class="wrap">${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}</main>`
 }
 
 setFrame({
@@ -142,6 +153,7 @@ setFrame({
   afterRender: () => {
     document.body.classList.toggle('readonly', app.readOnly)
     writePrefs()
+    refreshBell()
   },
 })
 
@@ -189,9 +201,9 @@ function bindEvents() {
       app.ui.employeeId = e.target.value
       renderNow()
     }
-    if (e.target.dataset.toggle === 'rhythm') {
-      for (const el of document.querySelectorAll('[data-rhythm]')) el.hidden = el.dataset.rhythm !== e.target.value
-    }
+    // Formularteile ein-/ausblenden: <select data-toggle="x"> steuert [data-x="wert"]
+    const toggle = e.target.dataset.toggle
+    if (toggle) for (const el of document.querySelectorAll(`[data-${toggle}]`)) el.hidden = el.dataset[toggle] !== e.target.value
   })
   bindFilterEvents(document)
   document.addEventListener('keydown', (e) => {
@@ -243,6 +255,7 @@ async function boot() {
       if (status === 'error') toast(`Speichern fehlgeschlagen: ${detail}`)
     },
     onRemoteChange: (kind, changed) => {
+      app.dataVersion = (app.dataVersion || 0) + 1
       renderNow()
       if (kind === 'merged') toast('Gleichzeitige Änderungen einer anderen Person wurden zusammengeführt.')
       else toast(`Aktualisiert: Änderungen von ${[...new Set(changed.map((x) => x.by).filter(Boolean))].join(', ') || 'anderer Sitzung'} geladen.`)
@@ -261,6 +274,7 @@ async function boot() {
     await seedDemoHistory()
     renderNow()
   }
+  await showTodoIfNew()
   const every = (config.storage === 'sharepoint' ? config.sharepoint.refreshSeconds || 60 : 30) * 1000
   setInterval(() => app.service.refresh().catch(() => {}), every)
 }

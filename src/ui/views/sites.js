@@ -1,7 +1,7 @@
 // Objekte & Leistungen (Stammplan), Objektmappe, Schlüssel, Budget.
 
-import { formatHours, WEEKDAY_SHORT } from '../../core/dates.js'
-import { HOLIDAY_RULES } from '../../core/plan.js'
+import { formatHours, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
+import { HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
 import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
 import { regionFilter } from './objects.js'
@@ -87,7 +87,8 @@ function taskModal(c, { id, objectId }) {
       : app.data.tasks.find((x) => x.id === id)
   if (!t) return null
   const r = t.recurrence
-  const once = r.type === 'once'
+  const type = r.type
+  const monthly = type === 'monthly' ? r : { mode: 'nth', nth: 1, weekday: r.weekdays?.[0] || 1, day: 1, everyMonths: 1, anchor: `${c.monday.slice(0, 7)}-01` }
   const obj = app.data.objects.find((o) => o.id === t.objectId)
   const confirmDel = app.ui.confirm === 'task-delete'
   return modalFrame({
@@ -98,16 +99,25 @@ function taskModal(c, { id, objectId }) {
         <label class="field"><span>Objekt</span><select id="task-object">${options(app.data.objects.map((o) => [o.id, o.name]), t.objectId)}</select></label>
         <label class="field"><span>Bezeichnung</span><input type="text" id="task-label" value="${esc(t.label)}" placeholder="z. B. Büroreinigung"></label>
         <label class="field"><span>Art</span><select id="task-category">${options(Object.entries(CATEGORY_LABEL), t.category)}</select></label>
-        <label class="field"><span>Rhythmus</span><select id="task-type" data-toggle="rhythm"><option value="weekly" ${once ? '' : 'selected'}>regelmäßig</option><option value="once" ${once ? 'selected' : ''}>einmalig</option></select></label>
+        <label class="field"><span>Rhythmus</span><select id="task-type" data-toggle="rhythm">${options([['weekly', 'wöchentlich / 14-tägig'], ['monthly', 'monatlich / quartalsweise'], ['once', 'einmalig']], type)}</select></label>
       </div>
-      <div class="form-grid" data-rhythm="weekly" ${once ? 'hidden' : ''}>
-        <div class="field wide"><span>Wochentage</span><div class="weekday-picker">${[1, 2, 3, 4, 5, 6, 7].map((d) => `<label><input type="checkbox" name="task-wd" value="${d}" ${!once && r.weekdays.includes(d) ? 'checked' : ''}>${WEEKDAY_SHORT[d - 1]}</label>`).join('')}</div></div>
+      <div class="form-grid" data-rhythm="weekly" ${type === 'weekly' ? '' : 'hidden'}>
+        <div class="field wide"><span>Wochentage</span><div class="weekday-picker">${[1, 2, 3, 4, 5, 6, 7].map((d) => `<label><input type="checkbox" name="task-wd" value="${d}" ${type === 'weekly' && r.weekdays.includes(d) ? 'checked' : ''}>${WEEKDAY_SHORT[d - 1]}</label>`).join('')}</div></div>
         <label class="field"><span>Intervall</span><select id="task-every">${options([[1, 'jede Woche'], [2, 'alle 2 Wochen (14-tägig)'], [3, 'alle 3 Wochen'], [4, 'alle 4 Wochen']], r.everyWeeks || 1)}</select></label>
         <label class="field"><span>Erstmals in der Woche vom</span><input type="date" id="task-anchor" value="${esc(r.anchor || c.monday)}"></label>
         <label class="field"><span>Gültig bis (optional)</span><input type="date" id="task-until" value="${esc(r.until || '')}"></label>
       </div>
-      <div class="form-grid" data-rhythm="once" ${once ? '' : 'hidden'}>
-        <label class="field"><span>Datum</span><input type="date" id="task-date" value="${esc(once ? r.date : c.monday)}"></label>
+      <div class="form-grid" data-rhythm="monthly" ${type === 'monthly' ? '' : 'hidden'}>
+        <label class="field"><span>Intervall</span><select id="task-months">${options([[1, 'monatlich'], [2, 'alle 2 Monate'], [3, 'quartalsweise'], [6, 'halbjährlich'], [12, 'jährlich']], monthly.everyMonths || 1)}</select></label>
+        <label class="field"><span>Termin</span><select id="task-mmode" data-toggle="mmode">${options([['nth', 'Wochentag im Monat'], ['day', 'fixer Tag im Monat']], monthly.mode)}</select></label>
+        <label class="field" data-mmode="nth" ${monthly.mode === 'day' ? 'hidden' : ''}><span>Welcher</span><select id="task-nth">${options(Object.entries(NTH_LABEL).sort((a, b) => (a[0] === '-1') - (b[0] === '-1') || a[0] - b[0]), monthly.nth)}</select></label>
+        <label class="field" data-mmode="nth" ${monthly.mode === 'day' ? 'hidden' : ''}><span>Wochentag</span><select id="task-mweekday">${options(WEEKDAY_LONG.map((n, i) => [i + 1, n]), monthly.weekday)}</select></label>
+        <label class="field" data-mmode="day" ${monthly.mode === 'day' ? '' : 'hidden'}><span>Tag im Monat</span><input type="number" id="task-mday" min="1" max="31" step="1" value="${monthly.day || 1}"><small class="muted">31 = immer Monatsletzter</small></label>
+        <label class="field"><span>Erstmals im Monat</span><input type="month" id="task-manchor" value="${esc((monthly.anchor || c.monday).slice(0, 7))}"></label>
+        <label class="field"><span>Gültig bis (optional)</span><input type="date" id="task-muntil" value="${esc(type === 'monthly' ? r.until || '' : '')}"></label>
+      </div>
+      <div class="form-grid" data-rhythm="once" ${type === 'once' ? '' : 'hidden'}>
+        <label class="field"><span>Datum</span><input type="date" id="task-date" value="${esc(type === 'once' ? r.date : c.monday)}"></label>
       </div>
       <div class="form-grid">
         <label class="field"><span>Beginn</span><input type="time" id="task-start" value="${esc(t.start)}"></label>
@@ -124,12 +134,25 @@ function taskModal(c, { id, objectId }) {
   })
 }
 
-function readTaskForm(existing) {
+function readRecurrence() {
   const type = val('task-type')
-  const recurrence =
-    type === 'once'
-      ? { type: 'once', date: val('task-date') }
-      : { type: 'weekly', weekdays: checkedValues('task-wd').map(Number), everyWeeks: Number(val('task-every')) || 1, anchor: val('task-anchor') || app.cur.monday, ...(val('task-until') ? { until: val('task-until') } : {}) }
+  if (type === 'once') return { type: 'once', date: val('task-date') }
+  if (type === 'monthly') {
+    const mode = val('task-mmode')
+    return {
+      type: 'monthly',
+      mode,
+      ...(mode === 'day' ? { day: Math.min(31, Math.max(1, Math.round(num('task-mday') || 1))) } : { nth: Number(val('task-nth')) || 1, weekday: Number(val('task-mweekday')) || 1 }),
+      everyMonths: Number(val('task-months')) || 1,
+      anchor: `${val('task-manchor') || app.cur.monday.slice(0, 7)}-01`,
+      ...(val('task-muntil') ? { until: val('task-muntil') } : {}),
+    }
+  }
+  return { type: 'weekly', weekdays: checkedValues('task-wd').map(Number), everyWeeks: Number(val('task-every')) || 1, anchor: val('task-anchor') || app.cur.monday, ...(val('task-until') ? { until: val('task-until') } : {}) }
+}
+
+function readTaskForm(existing) {
+  const recurrence = readRecurrence()
   return {
     ...existing,
     objectId: val('task-object'),

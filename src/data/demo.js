@@ -71,6 +71,10 @@ export function createDemoData(monday) {
     { id: 't25', objectId: 'o10', label: 'Geräte & Umkleiden', category: 'reinigung', recurrence: weekly(MO_FR), start: '10:00', end: '13:00', staff: 1, regulars: ['e4'], skills: [], holidayRule: 'findet_statt' },
     { id: 't26', objectId: 'o11', label: 'Büroetagen', category: 'reinigung', recurrence: weekly(MO_FR), start: '09:00', end: '13:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'entfaellt' },
     { id: 't27', objectId: 'o11', label: 'Sanitär & Teeküchen', category: 'reinigung', recurrence: weekly(MO_FR), start: '13:00', end: '17:00', staff: 1, regulars: ['e10'], skills: [], holidayRule: 'entfaellt' },
+    // Periodische Leistungen: monatlich, quartalsweise, am Monatsersten
+    { id: 't28', objectId: 'o3', label: 'Grundreinigung Hallenboden', category: 'reinigung', recurrence: { type: 'monthly', mode: 'nth', nth: 1, weekday: 6, everyMonths: 1, anchor: `${monday.slice(0, 7)}-01` }, start: '08:00', end: '13:00', staff: 2, regulars: [], skills: ['Grundreinigung'], holidayRule: 'verschieben' },
+    { id: 't29', objectId: 'o11', label: 'Teppichreinigung', category: 'reinigung', recurrence: { type: 'monthly', mode: 'nth', nth: 2, weekday: 5, everyMonths: 3, anchor: `${day(14).slice(0, 7)}-01` }, start: '17:00', end: '20:00', staff: 1, regulars: ['e10'], skills: [], holidayRule: 'verschieben' },
+    { id: 't30', objectId: 'o7', label: 'Desinfektion Lüftungsgitter', category: 'reinigung', recurrence: { type: 'monthly', mode: 'day', day: 1, everyMonths: 1, anchor: `${monday.slice(0, 7)}-01` }, start: '14:00', end: '16:00', staff: 1, regulars: ['e1'], skills: ['Hygienebereich'], holidayRule: 'verschieben' },
     { id: 't16', objectId: 'o1', label: 'Grundreinigung Böden', category: 'reinigung', recurrence: { type: 'once', date: day(5) }, start: '08:00', end: '14:30', staff: 2, regulars: [], skills: ['Grundreinigung'], holidayRule: 'findet_statt' },
     { id: 't17', objectId: 'o2', label: 'Glasreinigung Schauraum', category: 'reinigung', recurrence: { type: 'once', date: day(3) }, start: '09:00', end: '12:00', staff: 1, regulars: [], skills: ['Glasreinigung'], holidayRule: 'findet_statt' },
   ]
@@ -79,6 +83,10 @@ export function createDemoData(monday) {
     { id: 'a1', employeeId: 'e5', type: 'Urlaub', from: day(0), to: day(4) },
     { id: 'a2', employeeId: 'e6', type: 'Krankenstand', from: day(3), to: day(4) },
     { id: 'a3', employeeId: 'e1', type: 'Zeitausgleich', from: day(4), to: day(4) },
+    // Urlaub in der Folgewoche: Gül hat Fixobjekte (Kanzlei, Werkstatt), die Stunden müssen jemand anderem zugeteilt werden
+    { id: 'a4', employeeId: 'e9', type: 'Urlaub', from: day(7), to: day(11) },
+    // Krankmeldung, die erst nach dem Veröffentlichen der Vorwoche eingetragen wird (rückwirkende Korrektur)
+    { id: 'a5', employeeId: 'e4', type: 'Krankenstand', from: day(-5), to: day(-5), note: 'Krankmeldung nachgereicht', reportedAfterPublish: true },
   ]
 
   // Bewusst eingebautes Problem, damit die Markierungen sichtbar werden:

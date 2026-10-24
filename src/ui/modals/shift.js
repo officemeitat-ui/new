@@ -60,7 +60,7 @@ function shiftModal(c, { key }) {
       const trip = t?.trip
       const tripLine = trip ? `<button class="link-btn trip-line" data-action="open-trip" data-key="${esc(key)}" data-emp="${esc(e.id)}">${ICON.car} Fahrt danach: ${trip.minutes ? `${trip.minutes} min${t.next ? ` → ${esc(objectOf(c, t.next).short || '')}` : ''}` : 'keine'}${trip.note ? ` · ${esc(trip.note)}` : ''} <span class="muted">(planen)</span></button>` : ''
       return `<div class="person"><div class="pname">${esc(e.name)}<small>${role}${a.locked ? ' · fixiert' : ''}</small></div><div>${issueList(issues)}${tripLine}</div>
-        <div class="acts edit-only"><button class="btn small" data-action="toggle-lock" data-key="${esc(key)}" data-emp="${esc(e.id)}">${a.locked ? 'Lösen' : 'Fixieren'}</button><button class="btn small danger" data-action="unassign" data-key="${esc(key)}" data-emp="${esc(e.id)}">Entfernen</button></div></div>`
+        <div class="acts edit-only"><button class="btn small" data-action="open-absence-new" data-emp="${esc(e.id)}" data-date="${esc(inst.date)}" title="Krank oder verhindert: Abwesenheit eintragen und alle betroffenen Einsätze neu planen">Abwesend</button><button class="btn small" data-action="toggle-lock" data-key="${esc(key)}" data-emp="${esc(e.id)}">${a.locked ? 'Lösen' : 'Fixieren'}</button><button class="btn small danger" data-action="unassign" data-key="${esc(key)}" data-emp="${esc(e.id)}">Entfernen</button></div></div>`
     })
     .join('')
 

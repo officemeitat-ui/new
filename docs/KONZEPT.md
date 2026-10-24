@@ -98,7 +98,8 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Funktion | Wer bietet es | Im Dienstplan |
 |---|---|---|
 | Plan veröffentlichen, Änderungen markieren und mitteilen | Teams Shifts, TimeTac, Connecteam, PlanD | ✔ Veröffentlichen, „geändert“-Markierung, Änderungstexte zum Versenden |
-| Vertretungs-Cockpit | PlanD | ✔ Ansicht „Vertretungen“ mit Vorschlägen |
+| Vertretungs-Cockpit | PlanD | ✔ Ansicht „Vertretungen“ mit Vorschlägen, Abwesenheits-Assistent mit Sammelübergabe |
+| Intervall-Leistungen (Grundreinigung, Glas, Teppich) | MR.Clean, Profacilo, PlanD | ✔ 14-tägig bis jährlich, mit Frist und Erinnerung |
 | Soll-/Ist-Stunden je Objekt (Budget gegen Plan) | Profacilo, Janitorial Manager, Aspire, MR.Clean | ✔ Objekt-Controlling |
 | Laufendes Zeitkonto, Resturlaub | Staffomatic, Shiftbase, TimeTac | ✔ Zeitkonto aus veröffentlichten Wochen, Urlaubsanspruch |
 | Lohnexport (BMD, RZL) | TimeTac (BMD-Schnittstelle) | ✔ Monatsauswertung als CSV; Lohnarten-Zuordnung beim Import |
@@ -120,9 +121,13 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 - **Hosting** als statische Web-App auf `dienstplan.cleanos.at` (Azure Static Web Apps oder eigener Webspace), Anleitung in [EINRICHTUNG.md](EINRICHTUNG.md).
 - **Ausgelegt für 35+ Mitarbeitende**: Reviere/Teams, Filter und Suche. Die Automatik plant rund 230 Einsätze in einer Zehntelsekunde.
 - **Ansichten**:
-  - Planung: Wochenübersicht, Zeitlinie, Wochenzettel, Objektplan, Vertretungen, Prüfbericht
+  - Planung: Wochenübersicht, Zeitlinie, Wochenzettel, Objektplan, Vertretungen, Periodische Leistungen, Prüfbericht
   - Auswertung: Objekt-Controlling, Monatsauswertung
   - Stammdaten: Mitarbeitende, Objekte & Leistungen, Abwesenheiten (Kalender, Resturlaub), Regeln & Feiertage
+- **Urlaub und Krankenstand mit Assistent**: Beim Eintragen (auch rückwirkend oder direkt aus einem Einsatz mit „Abwesend“) zeigt der Dienstplan sofort die betroffenen Einsätze und Stunden: betroffen, neu zu planen, schon vertreten. Fixobjekte lassen sich gesammelt an eine Person übergeben. Die Liste der Kandidat:innen ist danach sortiert, wer die meisten Stunden regelkonform übernehmen kann, und zeigt die Mehrstunden über den Vertrag. In Wochen, die noch nicht eingeteilt sind, rechnet der Vorschlag die eigenen Fixobjekte der Vertretung schon mit. Alternativ: automatisch verteilen, je Einsatz eine Vertretung wählen oder „entfällt“ (mit dem Kunden vereinbart).
+- **Rückwirkende Änderungen**: Wird eine schon veröffentlichte Woche geändert (nachgereichte Krankmeldung, Vertretung nachgetragen), erscheint ein Hinweis „Rückwirkend geändert“. Mit „Korrektur buchen“ werden die neuen Salden ins Zeitkonto übernommen. Die Unterschiede je Person stehen in der Monatsauswertung unter „Nachträgliche Korrekturen“ für die Lohnverrechnung. Die abwesende Person bekommt ihre Stammeinsätze nach dem Ausfallprinzip angerechnet.
+- **Periodische Leistungen**: Rhythmen wöchentlich, 14-tägig, alle 3/4 Wochen, monatlich (z. B. „1. Samstag“, „am 15.“, „Monatsletzter“), alle 2 Monate, quartalsweise, halbjährlich, jährlich, einmalig. Die Ansicht „Periodische Leistungen“ zeigt alle Termine nach Kategorie mit Status und Frist („zuteilen bis“). Ohne Stammkraft oder wenn die Stammkraft fehlt, muss der Termin spätestens 7 Tage vorher zugeteilt sein (einstellbar).
+- **Zu erledigen**: Glocke mit Zähler und Popup beim Start, sobald es etwas Neues gibt: Abwesenheiten mit offenen Stunden, fällige periodische Leistungen, veröffentlichte Wochen mit Änderungen.
 - **Fahrten einplanen**: Nach jedem Einsatz Dauer und eigene Notiz („Firmenauto, Schlüssel im Büro holen“), für diese Woche oder als Standard der Leistung. Ohne Eintrag gilt die Fahrzeit-Matrix bzw. Pauschale. Fahrten zählen als Arbeitszeit, stehen im Wochenzettel und in der Zeitlinie, und zu knappe Fahrten werden markiert.
 - **Excel**: Import aus bestehenden Listen (Kopieren/Einfügen), Export der Wochenpläne im bisherigen Layout als .xlsx (gesamt und je Person, beim Veröffentlichen direkt nach SharePoint), Druck/PDF.
 - **Rollen**: Disposition (bearbeiten) und Lesezugriff über `config.json`.

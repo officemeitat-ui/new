@@ -22,6 +22,7 @@ export const DEFAULT_RULES = {
   holidayBonusPct: 100,
   creditSpecialTasks: false, // Sonderleistungen in Feiertags-/Urlaubsgutschrift einrechnen
   autoExtraHoursPerWeek: 6, // Automatik darf für Vertretungen so viele Stunden über Vertrag planen
+  dueLeadDays: 7, // periodische Leistungen spätestens so viele Tage vorher zuteilen
   disabledRules: [], // ids aus RULES, die nicht geprüft werden
   minor: { maxDailyH: 8, maxWeeklyH: 40, minDailyRestH: 12, nightStart: '20:00', nightEnd: '06:00' }, // KJBG
 }

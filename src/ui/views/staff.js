@@ -132,7 +132,7 @@ function runImport(kind, text, apply) {
     }
     return { count: items.length, errors, summary: `${items.length} Mitarbeitende erkannt` }
   }
-  const { items, errors } = importTasks(text, data.employees)
+  const { items, errors } = importTasks(text, data.employees, { anchor: app.cur.monday })
   const objectNames = new Set(items.map((i) => i.object))
   if (apply) {
     for (const item of items) {
