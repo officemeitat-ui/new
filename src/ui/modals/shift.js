@@ -4,8 +4,8 @@
 import { addDays, eachDay, formatDate, formatHours, mondayOf } from '../../core/dates.js'
 import { HOLIDAY_RULES } from '../../core/plan.js'
 import { rankCandidates } from '../../core/scheduler.js'
-import { addLog, app, empName, mutateAssignments, openModal, persist, registerActions, registerModal, renderNow, toast } from '../context.js'
-import { esc, ICON, issueList, modalFrame, objectOf, val } from '../shared.js'
+import { addLog, app, empName, mutateAssignments, openModal, persist, recordUndo, registerActions, registerModal, renderNow, toast } from '../context.js'
+import { esc, ICON, issueList, modalFrame, objectOf, reasonsHtml, val } from '../shared.js'
 import { tripContext } from './trip.js'
 
 function objectFolder(obj) {
@@ -68,7 +68,7 @@ function shiftModal(c, { key }) {
   if (inst.status !== 'cancelled' && !app.readOnly) {
     const region = obj.region
     const list = rankCandidates(c.ctx, c.state, inst)
-    candidates = `<section><h3>Wer kann einspringen?</h3><p class="note">Sortiert nach Eignung: Regeln, Verfügbarkeit, Wochenstunden, Einschulung, Revier, Wege. Rot heißt, die Einteilung würde gegen eine Regel verstoßen.</p>
+    candidates = `<section><h3>Wer kann einspringen?</h3><p class="note">Sortiert nach Eignung: Regeln, Verfügbarkeit, freie Vertragsstunden, Zeitkonto, Revier, Einschulung, wer das Objekt kennt, Wege. Grün begründet den Vorschlag, Rot spricht dagegen.</p>
       <div class="candidates">${list
         .map((cand) => {
           const errors = cand.issues.filter((i) => i.severity === 'error')
@@ -77,7 +77,7 @@ function shiftModal(c, { key }) {
           const shown = [...errors, ...warnings, ...cand.issues.filter((i) => i.severity === 'info')].slice(0, 4)
           const otherTeam = region && cand.emp.team && cand.emp.team !== region
           return `<div class="person"><div class="pname">${esc(cand.emp.name)}<small>${cand.regular ? 'Stammkraft · ' : ''}${esc(cand.emp.team || cand.emp.type)}${otherTeam ? ' (anderes Revier)' : ''} · ${formatHours(cand.emp.weeklyHours * 60)} h</small><span class="pill ${status[0]}">${status[1]}</span></div>
-            ${issueList(shown)}
+            <div>${errors.length ? '' : reasonsHtml(cand.factors)}${issueList(shown)}</div>
             <div class="acts"><button class="btn small ${errors.length ? '' : 'primary'}" data-action="assign" data-key="${esc(key)}" data-emp="${esc(cand.emp.id)}">${errors.length ? 'Trotzdem einteilen' : 'Einteilen'}</button></div></div>`
         })
         .join('')}</div></section>`
@@ -141,6 +141,7 @@ registerActions(
       mutateAssignments((s) => s.setLocked(emp, key, !s.isLocked(emp, key)))
     },
     'ov-save': (el) => {
+      recordUndo('Einsatz geändert')
       const key = el.dataset.key
       const inst = instOf(key)
       const task = app.data.tasks.find((t) => t.id === inst.taskId)
@@ -159,6 +160,7 @@ registerActions(
       toast('Änderung für diese Woche gespeichert.')
     },
     'ov-cancel': (el) => {
+      recordUndo('Entfällt / wieder eingeplant')
       const key = el.dataset.key
       const ov = { ...(app.data.overrides[key] || {}) }
       if (ov.cancelled) delete ov.cancelled
@@ -170,6 +172,7 @@ registerActions(
       renderNow()
     },
     'ov-reset': (el) => {
+      recordUndo('Änderung zurückgenommen')
       delete app.data.overrides[el.dataset.key]
       persist()
       renderNow()

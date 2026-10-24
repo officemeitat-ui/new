@@ -8,9 +8,9 @@ import { absenceImpact, handOver, isPeriodic, rankHandover, rhythmCategory } fro
 import { addDays, eachDay, formatDate, formatHours, isoWeek, isoWeekday, mondayOf, todayISO } from '../../core/dates.js'
 import { PlanState } from '../../core/plan.js'
 import { autoPlan, rankCandidates } from '../../core/scheduler.js'
-import { addLog, app, compute, computeRange, empName, ensureRange, openModal, persist, plannedWeeks, registerActions, registerModal, renderNow, toast } from '../context.js'
+import { addLog, app, compute, computeRange, dataStamp, recordUndo, empName, ensureRange, openModal, persist, plannedWeeks, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { changedEmployees, publishWeek } from '../planning.js'
-import { ABSENCE_TYPES, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { ABSENCE_TYPES, reasonsText, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
 
 const absenceOf = (id) => (app.data.absences || []).find((a) => a.id === id)
 const workdays = (a) => eachDay(a.from, a.to).filter((d) => isoWeekday(d) <= 5).length
@@ -50,7 +50,7 @@ function applyChanges(state, before, after, lock) {
 // Vorschläge sind aufwendig (jede Person wird durchgerechnet): nur nach Änderungen neu berechnen.
 let memo = { key: null }
 function suggestions(a, an) {
-  const key = `${app.dataVersion || 0}|${a.id}|${a.employeeId}|${a.from}|${a.to}`
+  const key = `${dataStamp()}|${a.id}|${a.employeeId}|${a.from}|${a.to}`
   if (memo.key === key) return memo
   const emp = an.r.ctx.employeesById.get(a.employeeId)
   const ranking = app.readOnly ? [] : rankHandover(an.r.ctx, an.preview, an.pending, { excludeId: a.employeeId, team: emp?.team })
@@ -142,7 +142,8 @@ function impactModal(c, { absenceId }) {
       status = `${x.stillAssigned ? `<span class="pill error">noch eingeteilt${x.locked ? ', fixiert' : ''}</span>` : '<span class="pill error">offen</span>'}${unplanned.includes(mondayOf(inst.origDate)) ? ' <span class="pill info">Woche nicht eingeteilt</span>' : ''}`
       const best = sug.best.get(inst.key)
       const warn = best?.issues.filter((i) => i.severity === 'warning').map((i) => i.message).join('; ')
-      action = `${best ? `<button class="btn small primary" data-action="impact-assign" data-key="${esc(inst.key)}" data-emp="${esc(best.emp.id)}" data-id="${esc(a.id)}" title="${esc(warn || 'passt ohne Einwände')}">${esc(best.emp.name)}${warn ? ' <span class="flag warning">!</span>' : ''}</button>` : '<span class="muted">kein regelkonformer Vorschlag</span>'}
+      const why = best ? reasonsText(best.factors) : ''
+      action = `${best ? `<button class="btn small primary" data-action="impact-assign" data-key="${esc(inst.key)}" data-emp="${esc(best.emp.id)}" data-id="${esc(a.id)}" title="${esc([why, warn].filter(Boolean).join('\n') || 'passt ohne Einwände')}">${esc(best.emp.name)}${warn ? ' <span class="flag warning">!</span>' : ''}</button>` : '<span class="muted">kein regelkonformer Vorschlag</span>'}
         <button class="btn small" data-action="goto-shift" data-key="${esc(inst.key)}" data-date="${esc(inst.origDate)}" title="Einsatz öffnen: alle Kandidat:innen">Andere …</button>
         <button class="btn small" data-action="impact-cancel" data-key="${esc(inst.key)}" data-id="${esc(a.id)}" title="Einsatz entfällt in dieser Woche (z. B. mit Kunden vereinbart)">Entfällt</button>`
     }
@@ -202,7 +203,8 @@ registerModal('absence-impact', impactModal)
 // ---------------------------------------------------------------- Aktionen
 
 /** Plan im Zeitraum der Abwesenheit ändern, protokollieren und speichern. */
-function changePlan(a, fn) {
+function changePlan(a, fn, label = `Vertretung für ${empName(a.employeeId)}`) {
+  recordUndo(label)
   const an = analyse(a)
   const result = fn(an)
   app.data.assignments = an.state.toObject()
@@ -270,6 +272,7 @@ registerActions(
     'impact-cancel': (el) => {
       const a = absenceOf(el.dataset.id)
       const key = el.dataset.key
+      recordUndo('Entfällt / wieder eingeplant')
       const ov = { ...(app.data.overrides[key] || {}) }
       if (ov.cancelled) delete ov.cancelled
       else ov.cancelled = true

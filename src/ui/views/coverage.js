@@ -5,7 +5,7 @@ import { formatDate } from '../../core/dates.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { app, empName, mutateAssignments, registerActions, registerView, toast } from '../context.js'
 import { planWeek } from '../planning.js'
-import { byStart, esc, ICON, objectOf } from '../shared.js'
+import { byStart, esc, ICON, objectOf, reasonsHtml } from '../shared.js'
 
 function suggestion(c, inst) {
   const best = rankCandidates(c.ctx, c.state, inst).find((x) => x.allowed)
@@ -30,7 +30,7 @@ function row(c, inst, reason, absentId = null) {
     <td><span class="swatch" style="--obj:var(--o${obj.color})"></span><button class="link-btn" data-action="open-shift" data-key="${esc(inst.key)}">${esc(obj.name)}</button><br><span class="muted">${esc(inst.label)}</span></td>
     <td>${esc(reason)}</td>
     <td>${status}</td>
-    <td>${best ? `<button class="btn small primary edit-only" data-action="cover-take" data-key="${esc(inst.key)}" data-emp="${esc(best.emp.id)}" data-replace="${esc(blocked || '')}">${esc(label)}</button>${best.issues.some((i) => i.severity === 'warning') ? `<br><span class="muted">${esc(best.issues.filter((i) => i.severity === 'warning').map((i) => i.message).join('; '))}</span>` : ''}` : open > 0 ? '<span class="muted">kein regelkonformer Vorschlag, Einsatz öffnen</span>' : ''}</td>
+    <td>${best ? `<button class="btn small primary edit-only" data-action="cover-take" data-key="${esc(inst.key)}" data-emp="${esc(best.emp.id)}" data-replace="${esc(blocked || '')}">${esc(label)}</button><br>${reasonsHtml(best.factors, { good: 2, bad: 1 })}${best.issues.some((i) => i.severity === 'warning') ? `<br><span class="muted">${esc(best.issues.filter((i) => i.severity === 'warning').map((i) => i.message).join('; '))}</span>` : ''}` : open > 0 ? '<span class="muted">kein regelkonformer Vorschlag, Einsatz öffnen</span>' : ''}</td>
   </tr>`
 }
 

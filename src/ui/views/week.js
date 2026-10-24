@@ -3,7 +3,8 @@
 import { formatHours } from '../../core/dates.js'
 import { timeAccount } from '../../core/reports.js'
 import { maxSeverity, SEVERITY_LABEL } from '../../core/rules.js'
-import { app, registerView, renderNow } from '../context.js'
+import { rankCandidates } from '../../core/scheduler.js'
+import { app, empName, mutateAssignments, registerView, renderNow, toast } from '../context.js'
 import { byStart, dayClass, dayHeads, esc, ICON, objectOf, options, saldoClass, signed } from '../shared.js'
 
 const WEEK_FLAG = { CONTRACT: (i) => `+${formatHours(i.overMinutes)}`, WEEKLY_48: () => '>48', WEEKLY_MAX: () => '>60', WEEKLY_REST: () => '36h', MONTHLY_LIMIT: () => 'GFG' }
@@ -20,7 +21,7 @@ export function workChip(c, emp, line) {
     sev ? `<span class="flag ${sev}">${sev === 'info' ? 'i' : '!'}</span>` : '',
   ].join('')
   const title = [`${obj.name}${inst.label ? ` – ${inst.label}` : ''}`, `${inst.startTime}–${inst.endTime}`, ...line.notes, ...issues.map((i) => `${SEVERITY_LABEL[i.severity]}: ${i.message}`)].join('\n')
-  return `<button class="chip ${sev && sev !== 'info' ? `sev-${sev}` : ''} ${inst.category === 'sonder' ? 'special' : ''}" style="--obj:var(--o${obj.color})" data-action="open-shift" data-key="${esc(inst.key)}" title="${esc(title)}">
+  return `<button class="chip ${sev && sev !== 'info' ? `sev-${sev}` : ''} ${inst.category === 'sonder' ? 'special' : ''}" style="--obj:var(--o${obj.color})" data-action="open-shift" data-key="${esc(inst.key)}" data-emp="${esc(emp.id)}" ${app.readOnly ? '' : 'draggable="true"'} title="${esc(title)}">
     <span class="chip-time">${inst.startTime}–${inst.endTime}</span><span class="chip-flags">${flags}</span><span class="chip-obj">${esc(obj.short || obj.name)}</span></button>`
 }
 
@@ -34,7 +35,7 @@ export function struckChip(c, line) {
 function openChip(c, inst) {
   const obj = objectOf(c, inst)
   const missing = inst.staff - c.state.count(inst.key)
-  return `<button class="chip open" style="--obj:var(--o${obj.color})" data-action="open-shift" data-key="${esc(inst.key)}" title="${esc(`${obj.name} – ${inst.label}: ${missing} offen`)}">
+  return `<button class="chip open" style="--obj:var(--o${obj.color})" data-action="open-shift" data-key="${esc(inst.key)}" ${app.readOnly ? '' : 'draggable="true"'} title="${esc(`${obj.name} – ${inst.label}: ${missing} offen. Auf eine Person ziehen, um einzuteilen.`)}">
     <span class="chip-time">${inst.startTime}–${inst.endTime}</span><span class="chip-flags"><span class="flag error">${missing}</span></span><span class="chip-obj">${esc(obj.short || obj.name)}</span></button>`
 }
 
@@ -77,7 +78,7 @@ function weekView(c) {
   const inTeam = (inst) => !team || c.ctx.objectsById.get(inst.objectId)?.region === team || inst.regulars.some((id) => c.ctx.employeesById.get(id)?.team === team)
   const openByDay = c.days.map((d) => c.week.filter((i) => i.date === d && i.status !== 'cancelled' && c.state.count(i.key) < i.staff && inTeam(i)).sort(byStart))
   const openTotal = openByDay.reduce((s, l) => s + l.reduce((t, i) => t + i.staff - c.state.count(i.key), 0), 0)
-  const openRow = `<tr class="open-row"><th class="name-col">Offene Einsätze</th>${openByDay.map((list, i) => `<td class="${dayClass(c, c.days[i])}"><div class="cell-stack">${list.map((inst) => openChip(c, inst)).join('')}</div></td>`).join('')}<td class="sum">${openTotal ? `<strong>${openTotal} offen</strong>` : 'alles besetzt'}</td></tr>`
+  const openRow = `<tr class="open-row"><th class="name-col">Offene Einsätze</th>${openByDay.map((list, i) => `<td class="${dayClass(c, c.days[i])}" data-drop="" data-date="${c.days[i]}"><div class="cell-stack">${list.map((inst) => openChip(c, inst)).join('')}</div></td>`).join('')}<td class="sum">${openTotal ? `<strong>${openTotal} offen</strong>` : 'alles besetzt'}</td></tr>`
   const published = app.data.published || {}
   const employees = filteredEmployees(c)
   let lastTeam = null
@@ -88,7 +89,7 @@ function weekView(c) {
         .map((day) => {
           const chips = day.lines.map((l) => (l.kind === 'work' ? workChip(c, emp, l) : struckChip(c, l))).join('')
           const abs = day.absence ? `<span class="abs-tag">${esc(day.absence.type)}</span>` : ''
-          return `<td class="${dayClass(c, day.date)} ${day.absence ? 'absent' : ''}"><div class="cell-stack">${abs}${chips}</div></td>`
+          return `<td class="${dayClass(c, day.date)} ${day.absence ? 'absent' : ''}" data-drop="${esc(emp.id)}" data-date="${day.date}"><div class="cell-stack">${abs}${chips}</div></td>`
         })
         .join('')
       const t = ts.totals
@@ -136,5 +137,86 @@ export function bindFilterEvents(target) {
       el?.focus()
       el?.setSelectionRange(el.value.length, el.value.length)
     }, 250)
+  })
+}
+
+// ---------------------------------------------------------------- Ziehen und Ablegen
+
+/**
+ * Einsatz von einer Person auf eine andere ziehen (gleicher Tag). Beim
+ * Ziehen zeigt jede Zelle, ob die Person passt: grün, gelb (prüfen) oder rot
+ * (Regelverstoß). Auf „Offene Einsätze“ ziehen trägt die Person aus.
+ */
+export function bindDragEvents(target) {
+  let drag = null
+  const clear = () => {
+    for (const td of document.querySelectorAll('td.drop-ok, td.drop-warn, td.drop-err, td.drop-hover')) {
+      td.classList.remove('drop-ok', 'drop-warn', 'drop-err', 'drop-hover')
+      td.removeAttribute('data-why')
+    }
+    document.body.classList.remove('dragging')
+  }
+  target.addEventListener('dragstart', (e) => {
+    const chip = e.target.closest?.('.chip[draggable="true"]')
+    const c = app.cur
+    const inst = chip && c?.state.instByKey.get(chip.dataset.key)
+    if (!inst || app.readOnly) return
+    drag = { key: inst.key, from: chip.dataset.emp || '', inst }
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', inst.key)
+    const verdict = new Map(rankCandidates(c.ctx, c.state, inst).map((x) => [x.emp.id, x]))
+    for (const td of document.querySelectorAll(`td[data-drop][data-date="${inst.date}"]`)) {
+      const id = td.dataset.drop
+      if (!id) {
+        if (drag.from) td.classList.add('drop-ok')
+        continue
+      }
+      const v = verdict.get(id)
+      if (!v || id === drag.from) continue
+      const errors = v.issues.filter((i) => i.severity === 'error')
+      const warnings = v.issues.filter((i) => i.severity === 'warning')
+      td.classList.add(errors.length ? 'drop-err' : v.allowed && !warnings.length ? 'drop-ok' : 'drop-warn')
+      td.dataset.why = (errors[0] || warnings[0])?.message || ''
+    }
+    document.body.classList.add('dragging')
+  })
+  target.addEventListener('dragover', (e) => {
+    const td = e.target.closest?.('td.drop-ok, td.drop-warn, td.drop-err')
+    if (!drag || !td) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = td.classList.contains('drop-err') ? 'none' : 'move'
+    for (const other of document.querySelectorAll('td.drop-hover')) if (other !== td) other.classList.remove('drop-hover')
+    td.classList.add('drop-hover')
+  })
+  target.addEventListener('drop', (e) => {
+    const td = e.target.closest?.('td[data-drop]')
+    if (!drag || !td) return
+    e.preventDefault()
+    const { key, from, inst } = drag
+    const to = td.dataset.drop
+    const label = `${app.cur.ctx.objectsById.get(inst.objectId)?.short || 'Einsatz'} ${inst.startTime}`
+    const err = td.classList.contains('drop-err')
+    const ok = td.classList.contains('drop-ok') || td.classList.contains('drop-warn')
+    const why = td.dataset.why
+    clear()
+    drag = null
+    if (err) return toast(`${empName(to)}: ${why}. Wenn es trotzdem sein muss: Einsatz öffnen, „Trotzdem einteilen“.`)
+    if (!ok) return
+    if (!to) {
+      mutateAssignments((s) => s.unassign(from, key), { date: inst.origDate, text: `${empName(from)} ausgetragen: ${label}` })
+      return toast(`${empName(from)} ausgetragen: ${label} ist jetzt offen.`)
+    }
+    mutateAssignments(
+      (s) => {
+        if (from) s.unassign(from, key)
+        s.assign(to, key, true)
+      },
+      { date: inst.origDate, text: from ? `${label}: ${empName(from)} → ${empName(to)}` : `${empName(to)} eingeteilt: ${label}` },
+    )
+    toast(from ? `${label} an ${empName(to)} übergeben.${why ? ` Prüfen: ${why}` : ''}` : `${empName(to)} eingeteilt: ${label}.${why ? ` Prüfen: ${why}` : ''}`)
+  })
+  target.addEventListener('dragend', () => {
+    clear()
+    drag = null
   })
 }

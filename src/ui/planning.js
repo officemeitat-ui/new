@@ -6,12 +6,14 @@ import { mondaysBetween } from '../core/reports.js'
 import { autoPlan } from '../core/scheduler.js'
 import { timesheetSignature } from '../core/timesheet.js'
 import { weekFileBase } from '../export/excel.js'
-import { addLog, app, compute, currentMonth, persist, renderNow, toast, windowFor } from './context.js'
+import { addLog, app, compute, currentMonth, persist, recordUndo, renderNow, toast, touch, windowFor } from './context.js'
+import { allPdfName, pdfFileName, weekPdfBlob } from './pdf.js'
 import { download } from './shared.js'
 import { weekWorkbookBlob } from './views/sheet.js'
 
 export function planWeek(replan = false, { silent = false } = {}) {
   const c = app.cur
+  if (!silent) recordUndo(replan ? 'Neu planen' : 'Woche planen')
   const res = autoPlan(c.ctx, c.instances, app.data.assignments, { from: c.monday, to: c.sunday, replan })
   app.data.assignments = res.assignments
   const parts = [`${res.stats.regular} Stammeinsätze`, `${res.stats.substitute} Vertretungen`]
@@ -56,12 +58,24 @@ export function snapshotWeek(c, extra = {}) {
   const saldi = currentSaldi(c)
   const snapshot = Object.fromEntries(c.ctx.employees.map((emp) => [emp.id, timesheetSignature(c.timesheet(emp))]))
   app.data.published = app.data.published || {}
+  touch()
   const previous = app.data.published[c.monday]
   const at = new Date().toISOString()
   const by = app.user?.name || 'Browser'
   const corrections = [...(previous?.corrections || [])]
   if (previous?.saldi) for (const corr of saldoCorrections(previous.saldi, saldi)) corrections.push({ ...corr, at, by })
-  app.data.published[c.monday] = { status: 'veroeffentlicht', publishedAt: previous?.publishedAt || at, publishedBy: previous?.publishedBy || by, ...(previous ? { correctedAt: at, correctedBy: by } : {}), saldi, snapshot, ...(corrections.length ? { corrections } : {}), ...extra }
+  app.data.published[c.monday] = {
+    status: 'veroeffentlicht',
+    publishedAt: previous?.publishedAt || at,
+    publishedBy: previous?.publishedBy || by,
+    ...(previous ? { correctedAt: at, correctedBy: by } : {}),
+    saldi,
+    snapshot,
+    ...(corrections.length ? { corrections } : {}),
+    ...(previous?.sent ? { sent: previous.sent } : {}),
+    ...(previous?.files ? { files: previous.files } : {}),
+    ...extra,
+  }
   return corrections.length - (previous?.corrections || []).length
 }
 
@@ -95,34 +109,52 @@ export async function seedDemoHistory(weeksBefore = 4) {
   persist()
 }
 
+/** Excel- und PDF-Wochenpläne in die Ablage (SharePoint) bzw. als Download. */
+async function exportFiles(c, result) {
+  const { features } = app.config
+  const employees = c.ctx.employees
+  const base = weekFileBase(c.monday)
+  const folder = `exporte/${c.monday.slice(0, 4)}/${base}`
+  const clean = (name) => name.replace(/[\\/:*?"<>|]/g, '')
+  if (app.store.kind === 'sharepoint') {
+    const upload = async (path, blob) => {
+      const up = await app.store.upload(`${folder}/${path}`, blob, blob.type)
+      result.webUrl = result.webUrl || (app.store.webUrl ? `${app.store.webUrl}/${folder}` : up.webUrl)
+      result.files++
+    }
+    if (features.excel) {
+      await upload(`Wochenplan_${base}_alle.xlsx`, await weekWorkbookBlob(c, employees))
+      for (const emp of employees) await upload(`Mitarbeitende/${clean(emp.name)}.xlsx`, await weekWorkbookBlob(c, [emp]))
+    }
+    if (features.pdf) {
+      await upload(allPdfName(c), await weekPdfBlob(c, employees))
+      for (const emp of employees) await upload(`PDF/${pdfFileName(c.monday, clean(emp.name))}`, await weekPdfBlob(c, [emp]))
+    }
+  } else if (features.excel && features.download) {
+    download(`Wochenplan_${base}_alle.xlsx`, await weekWorkbookBlob(c, employees))
+    result.files = 1
+  }
+}
+
 /**
  * Woche veröffentlichen: Salden ins Zeitkonto, Signaturen für die
- * Änderungserkennung, Excel-Wochenpläne in die Ablage (SharePoint) bzw. als Download.
+ * Änderungserkennung, Excel- und PDF-Wochenpläne in die Ablage (SharePoint)
+ * bzw. als Download. War die Woche schon veröffentlicht, wird die Korrektur
+ * gebucht. Scheitert der Dateiexport, bleibt die Veröffentlichung gültig.
  */
 export async function publishWeek({ files = true, c = app.cur } = {}) {
-  const employees = c.ctx.employees
-  const result = { webUrl: null, files: 0, corrections: 0 }
-  if (files && app.config.features.excel) {
-    const base = weekFileBase(c.monday)
-    const folder = `exporte/${c.monday.slice(0, 4)}/${base}`
-    const all = await weekWorkbookBlob(c, employees)
-    if (app.store.kind === 'sharepoint') {
-      const up = await app.store.upload(`${folder}/Wochenplan_${base}_alle.xlsx`, all, all.type)
-      result.webUrl = app.store.webUrl ? `${app.store.webUrl}/${folder}` : up.webUrl
-      result.files = 1
-      for (const emp of employees) {
-        const blob = await weekWorkbookBlob(c, [emp])
-        await app.store.upload(`${folder}/Mitarbeitende/${emp.name.replace(/[\\/:*?"<>|]/g, '')}.xlsx`, blob, blob.type)
-        result.files++
-      }
-    } else if (app.config.features.download) {
-      download(`Wochenplan_${base}_alle.xlsx`, all)
-      result.files = 1
-    }
-  }
+  const result = { webUrl: null, files: 0, corrections: 0, fileError: null }
   const wasPublished = !!app.data.published?.[c.monday]
-  result.corrections = snapshotWeek(c, result.webUrl ? { files: result.webUrl } : {})
-  addLog(c.monday, `${wasPublished ? 'Korrektur gebucht' : 'Woche veröffentlicht'}${result.corrections ? ` (${result.corrections} Saldo-Korrekturen)` : ''}${result.files ? `, ${result.files} Excel-Dateien` : ''}`)
+  result.corrections = snapshotWeek(c)
+  if (files) {
+    try {
+      await exportFiles(compute(c.monday), result) // neu berechnet: mit Veröffentlichungsvermerk
+    } catch (err) {
+      result.fileError = err.message
+    }
+    if (result.webUrl) app.data.published[c.monday].files = result.webUrl
+  }
+  addLog(c.monday, `${wasPublished ? 'Korrektur gebucht' : 'Woche veröffentlicht'}${result.corrections ? ` (${result.corrections} Saldo-Korrekturen)` : ''}${result.files ? `, ${result.files} Dateien` : ''}${result.fileError ? `, Dateiexport fehlgeschlagen: ${result.fileError}` : ''}`)
   persist()
   await app.service.flush()
   renderNow()

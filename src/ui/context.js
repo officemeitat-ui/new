@@ -80,8 +80,23 @@ export function windowFor(monday, month) {
   }
 }
 
+// Ergebnisse von compute() bleiben gültig, bis sich Daten ändern (persist,
+// geladene oder zusammengeführte Dokumente). Ansichtswechsel, Filter und
+// Suche rechnen dadurch nicht neu.
+const computed = new Map()
+export const dataStamp = () => `${app.dataVersion || 0}|${app.service?.version || 0}`
+
 /** Berechnete Woche (Standard: angezeigte Woche). */
 export function compute(monday = app.ui.monday, month = monday === app.ui.monday ? currentMonth() : addDays(monday, 3).slice(0, 7)) {
+  const key = `${dataStamp()}|${monday}|${month}`
+  if (!computed.has(key)) {
+    if (computed.size > 8) computed.delete(computed.keys().next().value)
+    computed.set(key, computeFresh(monday, month))
+  }
+  return computed.get(key)
+}
+
+function computeFresh(monday, month) {
   const { data } = app
   const sunday = addDays(monday, 6)
   const { from, to } = windowFor(monday, month)
@@ -200,13 +215,57 @@ export function closeModal() {
 }
 
 let toastTimer = null
+let lastToastAt = 0
+/** Kurze Meldung unten. Direkt nach einer Planänderung mit „Rückgängig“. */
 export function toast(message) {
   const $toast = document.getElementById('toast')
-  $toast.textContent = message
+  const last = undoStack.at(-1)
+  const offerUndo = last && Date.now() - last.at < 1500 && !app.readOnly
+  $toast.innerHTML = `<span>${esc(message)}</span>${offerUndo ? '<button class="toast-btn" data-action="undo">Rückgängig</button>' : ''}`
+  $toast.hidden = false
+  lastToastAt = Date.now()
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => ($toast.hidden = true), offerUndo ? 8000 : 5000)
+}
+
+// ---------------------------------------------------------------- Rückgängig
+
+const undoStack = []
+const UNDO_FIELDS = ['assignments', 'overrides', 'trips']
+const weekOfKey = (key) => mondayOf(key.slice(0, 10))
+
+/** Stand vor einer Planänderung merken (Einteilungen, Einzeländerungen, Fahrten). */
+export function recordUndo(label) {
+  const at = Date.now()
+  undoStack.push({ label, at, weeks: new Set(app.service?.weeks || []), data: Object.fromEntries(UNDO_FIELDS.map((f) => [f, structuredClone(app.data[f] || {})])) })
+  if (undoStack.length > 30) undoStack.shift()
+  // Zeigt die Aktion selbst keine Meldung, kommt eine mit „Rückgängig“
+  setTimeout(() => {
+    if (lastToastAt < at && undoStack.at(-1)?.at === at) toast(label)
+  }, 0)
+}
+
+/** Letzte Planänderung zurücknehmen. Wochen, die erst danach geladen wurden, bleiben unberührt. */
+export function undo() {
+  const last = undoStack.pop()
+  if (!last) return toast('Nichts zum Rückgängigmachen.')
+  for (const field of UNDO_FIELDS) {
+    const kept = Object.entries(app.data[field] || {}).filter(([key]) => !last.weeks.has(weekOfKey(key)))
+    app.data[field] = { ...Object.fromEntries(kept), ...last.data[field] }
+  }
+  addLog(app.ui.monday, `Rückgängig: ${last.label}`)
+  persist()
+  renderNow()
+  lastToastAt = Date.now()
+  const $toast = document.getElementById('toast')
+  $toast.textContent = `Rückgängig gemacht: ${last.label}`
   $toast.hidden = false
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => ($toast.hidden = true), 5000)
+  toastTimer = setTimeout(() => ($toast.hidden = true), 4000)
 }
+
+/** Nach Änderungen anderer Personen: alte Stände nicht mehr zurückspielen. */
+export const clearUndo = () => (undoStack.length = 0)
 
 /** Zweistufige Bestätigung ohne Browser-Dialog. Liefert true beim zweiten Klick. */
 export function confirmStep(key, rerender = renderNow) {
@@ -229,13 +288,19 @@ export function addLog(monday, text) {
   data.logs[monday] = list.slice(-300)
 }
 
-export function persist() {
+/** Daten geändert: Rechen-Caches verwerfen (ohne Speichern). */
+export function touch() {
   app.dataVersion = (app.dataVersion || 0) + 1
+}
+
+export function persist() {
+  touch()
   app.service.schedule()
 }
 
 /** Einteilungen ändern, protokollieren, speichern und neu zeichnen. */
 export function mutateAssignments(fn, logText) {
+  recordUndo(typeof logText === 'object' ? logText.text : logText || 'Einteilung geändert')
   const state = new PlanState(app.cur.instances, app.data.assignments)
   const result = fn(state)
   app.data.assignments = state.toObject()

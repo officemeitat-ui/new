@@ -28,21 +28,63 @@ export function evaluateCandidate(ctx, state, emp, inst, { asRegular = false } =
   return { emp, issues, blocking, allowed: blocking.length === 0 }
 }
 
-/** Niedriger ist besser. */
-export function candidateCost(ctx, state, emp, inst, ev) {
+const hrs = (min) => (Math.round((min / 60) * 100) / 100).toLocaleString('de-AT')
+
+/** Zeitkonto vor einer Woche: Startsaldo + veröffentlichte Wochen davor (zwischengespeichert). */
+function balanceBefore(ctx, emp, monday) {
+  ctx.balanceCache = ctx.balanceCache || new Map()
+  const key = `${emp.id}|${monday}`
+  if (!ctx.balanceCache.has(key)) {
+    let total = Math.round((emp.startBalanceHours || 0) * 60)
+    for (const [m, week] of Object.entries(ctx.published || {})) if (m < monday && week.status === 'veroeffentlicht') total += week.saldi?.[emp.id] || 0
+    ctx.balanceCache.set(key, total)
+  }
+  return ctx.balanceCache.get(key)
+}
+
+/**
+ * Warum passt (oder passt nicht) diese Person für den Einsatz? Liste von
+ * Gründen mit Punkten: negativ spricht dafür, positiv dagegen. Die Summe ist
+ * die Kosten für die Automatik, die Texte erklären den Vorschlag.
+ */
+export function candidateFactors(ctx, state, emp, inst, ev) {
+  const factors = []
+  const add = (code, points, text, good = points < 0) => factors.push({ code, points, text, good })
   const week = mondayOf(inst.date)
   const own = state.instancesOf(emp.id).filter((i) => i.key !== inst.key)
-  const weekMin = own.filter((i) => mondayOf(i.date) === week).reduce((s, i) => s + i.net, 0) + inst.net
-  let cost = (weekMin / (Math.max(emp.weeklyHours || 0, 1) * 60)) * 100
-  if (inst.regulars.includes(emp.id)) cost -= 50
-  if (ev.issues.some((i) => i.code === 'NOT_TRAINED')) cost += 30
+  const weekMin = own.filter((i) => mondayOf(i.date) === week).reduce((s, i) => s + i.net, 0)
+  const contract = Math.max(emp.weeklyHours || 0, 1) * 60
+  const free = contract - weekMin
+  // Auslastung: wer noch Vertragsstunden frei hat, kommt zuerst
+  add('load', ((weekMin + inst.net) / contract) * 100, free >= inst.net ? `noch ${hrs(free)} h frei laut Vertrag` : free > 0 ? `nur ${hrs(free)} h frei laut Vertrag` : `schon ${hrs(-free)} h über Vertrag`, free >= inst.net)
+  if (inst.regulars.includes(emp.id)) add('regular', -50, 'Stammkraft')
   const region = ctx.objectsById.get(inst.objectId)?.region
-  if (region && emp.team && emp.team !== region) cost += 40 // Vertretung bevorzugt aus dem eigenen Revier
-  if (own.some((i) => i.objectId === inst.objectId && mondayOf(i.date) === week)) cost -= 12
+  if (region && emp.team && emp.team !== region) add('region', 40, `anderes Revier (${emp.team})`)
+  else if (region && emp.team === region) add('region', 0, 'gleiches Revier', true)
+  if (ev?.issues.some((i) => i.code === 'NOT_TRAINED')) add('trained', 30, 'nicht eingeschult')
+  else if ((emp.trained || []).includes(inst.objectId) && !inst.regulars.includes(emp.id)) add('trained', -5, 'im Objekt eingeschult')
+  // Kontinuität: Kund:innen sehen lieber bekannte Gesichter
+  const known = own.filter((i) => i.objectId === inst.objectId && i.date < week).length
+  if (known && !inst.regulars.includes(emp.id)) add('known', -Math.min(15, known * 3), `kennt das Objekt (${known}× in den letzten Wochen)`)
+  if (own.some((i) => i.objectId === inst.objectId && mondayOf(i.date) === week)) add('sameObject', -12, 'diese Woche schon im Objekt')
   const sameDay = own.filter((i) => i.date === inst.date)
-  if (sameDay.some((i) => Math.abs(i.end - inst.start) <= 90 || Math.abs(inst.end - i.start) <= 90)) cost -= 8
-  if (inst.isSunday || inst.holiday?.legal) cost += 10
-  return cost
+  if (sameDay.some((i) => Math.abs(i.end - inst.start) <= 90 || Math.abs(inst.end - i.start) <= 90)) add('adjacent', -8, 'Einsatz direkt davor oder danach')
+  // Zeitkonto ausgleichen: Minusstunden zuerst auffüllen, Plusstunden schonen
+  const balance = balanceBefore(ctx, emp, week)
+  if (Math.abs(balance) >= 120) add('balance', Math.max(-12, Math.min(12, balance / 60)) * 1.5, balance < 0 ? `Zeitkonto −${hrs(-balance)} h: gleicht Minusstunden aus` : `Zeitkonto +${hrs(balance)} h`)
+  if (inst.isSunday || inst.holiday?.legal) add('sunday', 10, 'Sonn-/Feiertag')
+  return factors
+}
+
+/** Niedriger ist besser. */
+export function candidateCost(ctx, state, emp, inst, ev) {
+  return candidateFactors(ctx, state, emp, inst, ev).reduce((s, f) => s + f.points, 0)
+}
+
+/** Kurze Begründung für einen Vorschlag: die wichtigsten Gründe dafür und dagegen. */
+export function explain(factors, { good = 3, bad = 2 } = {}) {
+  const byWeight = [...factors].sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
+  return { pro: byWeight.filter((f) => f.good).slice(0, good).map((f) => f.text), contra: byWeight.filter((f) => !f.good && f.points > 0 && f.code !== 'load').concat(byWeight.filter((f) => f.code === 'load' && !f.good)).slice(0, bad).map((f) => f.text) }
 }
 
 function bestCandidate(ctx, state, inst, exclude = new Set()) {
@@ -158,7 +200,8 @@ export function rankCandidates(ctx, state, inst) {
     .map((emp) => {
       const regular = inst.regulars.includes(emp.id)
       const ev = evaluateCandidate(ctx, state, emp, inst, { asRegular: regular })
-      return { ...ev, regular, cost: candidateCost(ctx, state, emp, inst, ev) }
+      const factors = candidateFactors(ctx, state, emp, inst, ev)
+      return { ...ev, regular, factors, cost: factors.reduce((s, f) => s + f.points, 0) }
     })
     .sort((a, b) => {
       if (a.allowed !== b.allowed) return a.allowed ? -1 : 1

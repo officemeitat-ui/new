@@ -6,6 +6,28 @@ import { loadScript } from '../ui/load-script.js'
 
 export const GRAPH_SCOPES = ['User.Read', 'Sites.ReadWrite.All']
 
+/** Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand optional). */
+export function scopesFor(config = {}) {
+  const scopes = [...GRAPH_SCOPES]
+  if (config.features?.mail) scopes.push(config.mail?.from ? 'Mail.Send.Shared' : 'Mail.Send')
+  return scopes
+}
+
+/**
+ * Ist die Seite selbst schon durch die Microsoft-Anmeldung des Hostings
+ * geschützt (Azure Static Web Apps), steht dort, wer angemeldet ist. Damit
+ * meldet MSAL dieselbe Person ohne zweite Eingabe an.
+ */
+async function hostLogin() {
+  try {
+    const res = await fetch('/.auth/me', { credentials: 'same-origin', headers: { accept: 'application/json' } })
+    if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) return ''
+    return (await res.json()).clientPrincipal?.userDetails || ''
+  } catch {
+    return ''
+  }
+}
+
 export async function signIn({ tenantId, clientId, redirectUri = `${location.origin}${location.pathname}`, scopes = GRAPH_SCOPES }) {
   if (!tenantId || !clientId) throw new Error('In config.json fehlen sharepoint.tenantId oder sharepoint.clientId.')
   await loadScript('vendor/msal-browser.min.js')
@@ -16,10 +38,20 @@ export async function signIn({ tenantId, clientId, redirectUri = `${location.ori
   })
   await pca.initialize()
   const result = await pca.handleRedirectPromise()
-  const account = result?.account || pca.getActiveAccount() || pca.getAllAccounts()[0]
+  let account = result?.account || pca.getActiveAccount() || pca.getAllAccounts()[0]
   if (!account) {
-    await pca.loginRedirect({ scopes })
-    return new Promise(() => {}) // Seite wird zur Anmeldung umgeleitet
+    const loginHint = await hostLogin()
+    if (loginHint) {
+      try {
+        account = (await pca.ssoSilent({ scopes, loginHint })).account
+      } catch {
+        /* still nicht möglich (z. B. Drittanbieter-Cookies gesperrt): normale Anmeldung */
+      }
+    }
+    if (!account) {
+      await pca.loginRedirect({ scopes, ...(loginHint ? { loginHint } : {}) })
+      return new Promise(() => {}) // Seite wird zur Anmeldung umgeleitet
+    }
   }
   pca.setActiveAccount(account)
 

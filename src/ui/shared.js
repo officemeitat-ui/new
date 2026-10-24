@@ -3,6 +3,7 @@
 import { formatDate, formatHours, isoWeekday, MONTH_LONG, WEEKDAY_LONG, WEEKDAY_SHORT } from '../core/dates.js'
 import { rhythmCategory } from '../core/attention.js'
 import { NTH_LABEL } from '../core/plan.js'
+import { explain } from '../core/scheduler.js'
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
 export const uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -65,6 +66,19 @@ export function modalFrame({ title, subtitle = '', color = null, body, foot = ''
 
 export function checkboxes(name, options, selected) {
   return options.map(([value, label]) => `<label class="check"><input type="checkbox" name="${name}" value="${esc(value)}" ${selected.includes(value) ? 'checked' : ''}><span>${esc(label)}</span></label>`).join('')
+}
+
+/** Begründung eines Vorschlags als kleine Liste: ✓ dafür, ✗ dagegen. */
+export function reasonsHtml(factors, opts) {
+  if (!factors?.length) return ''
+  const { pro, contra } = explain(factors, opts)
+  if (!pro.length && !contra.length) return ''
+  return `<span class="reasons">${pro.map((t) => `<span class="why pro">${esc(t)}</span>`).join('')}${contra.map((t) => `<span class="why contra">${esc(t)}</span>`).join('')}</span>`
+}
+
+export const reasonsText = (factors) => {
+  const { pro, contra } = explain(factors || [])
+  return [...pro.map((t) => `✓ ${t}`), ...contra.map((t) => `✗ ${t}`)].join('\n')
 }
 
 export function rhythmText(task) {

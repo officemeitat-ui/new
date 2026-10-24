@@ -1,16 +1,37 @@
 {
+  "auth": {
+    "identityProviders": {
+      "azureActiveDirectory": {
+        "registration": {
+          "openIdIssuer": "https://login.microsoftonline.com/__TENANT_ID__/v2.0",
+          "clientIdSettingName": "AZURE_CLIENT_ID",
+          "clientSecretSettingName": "AZURE_CLIENT_SECRET"
+        }
+      }
+    }
+  },
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/src/*", "/vendor/*", "/assets/*", "/themes/*", "/*.json"]
+    "exclude": ["/src/*", "/vendor/*", "/assets/*", "/themes/*", "/app/*", "/*.json"]
   },
   "routes": [
-    { "route": "/config.json", "headers": { "cache-control": "no-store" } },
-    { "route": "/src/*", "headers": { "cache-control": "no-cache" } }
+    { "route": "/.auth/login/github", "statusCode": 404 },
+    { "route": "/.auth/login/twitter", "statusCode": 404 },
+    { "route": "/logout", "redirect": "/.auth/logout?post_logout_redirect_uri=/", "statusCode": 302 },
+    { "route": "/config.json", "allowedRoles": ["authenticated"], "headers": { "cache-control": "no-store" } },
+    { "route": "/index.html", "allowedRoles": ["authenticated"], "headers": { "cache-control": "no-cache" } },
+    { "route": "/app/*", "allowedRoles": ["authenticated"], "headers": { "cache-control": "public, max-age=31536000, immutable" } },
+    { "route": "/src/*", "allowedRoles": ["authenticated"], "headers": { "cache-control": "no-cache" } },
+    { "route": "/*", "allowedRoles": ["authenticated"] }
   ],
+  "responseOverrides": {
+    "401": { "redirect": "/.auth/login/aad?post_login_redirect_uri=.referrer", "statusCode": 302 }
+  },
   "globalHeaders": {
     "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "X-Robots-Tag": "noindex, nofollow"
   }
 }

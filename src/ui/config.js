@@ -22,6 +22,9 @@ export const DEFAULT_CONFIG = {
     // E-Mail-Adressen mit Bearbeitungsrecht. Leer = alle angemeldeten Personen dürfen planen.
     planners: [],
   },
+  mail: {
+    from: '', // optional: freigegebenes Postfach für den Versand, z. B. dienstplan@firma.at
+  },
   demo: true, // im Browser-Modus mit Beispieldaten starten
   migrateLegacy: true, // Daten des ersten Prototyps (einsatzplaner.data.v1) übernehmen
 }

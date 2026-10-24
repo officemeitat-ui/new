@@ -36,7 +36,7 @@ export function mergeRules(rules = {}) {
 
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
-export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {} }, holidays) {
+export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {} }, holidays) {
   const absencesByEmployee = new Map()
   for (const a of absences) {
     if (!absencesByEmployee.has(a.employeeId)) absencesByEmployee.set(a.employeeId, [])
@@ -51,6 +51,8 @@ export function createContext({ employees, objects, absences = [], rules, travel
     objectsById: new Map(objects.map((o) => [o.id, o])),
     absencesByEmployee,
     holidays,
+    /** Veröffentlichte Wochen (Salden für das Zeitkonto). */
+    published,
     /** Fahrzeit in Minuten zwischen zwei Objekten (Matrix, sonst Pauschale). */
     travel: between,
     trips,

@@ -3,7 +3,7 @@
 
 import { formatDate, formatTime, mondayOf } from '../../core/dates.js'
 import { tripKey } from '../../core/rules.js'
-import { addLog, app, closeModal, empName, openModal, persist, registerActions, registerModal, renderNow, toast } from '../context.js'
+import { addLog, app, closeModal, empName, openModal, persist, recordUndo, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { byStart, esc, ICON, modalFrame, num, objectOf, val } from '../shared.js'
 
 const SOURCE = { woche: 'für diese Woche geplant', leistung: 'Standard der Leistung', automatisch: 'automatisch (Fahrzeit-Matrix bzw. Pauschale)', keine: 'keine Fahrt geplant' }
@@ -67,6 +67,7 @@ registerActions({
 registerActions(
   {
     'trip-save': (el) => {
+      recordUndo('Fahrt geplant')
       const { key, emp } = el.dataset
       const inst = app.cur.state.instByKey.get(key)
       const { min, note } = readForm()
@@ -81,6 +82,7 @@ registerActions(
       toast('Fahrt für diese Woche gespeichert.')
     },
     'trip-default': (el) => {
+      recordUndo('Fahrt als Standard')
       const { key, emp } = el.dataset
       const inst = app.cur.state.instByKey.get(key)
       const task = app.data.tasks.find((x) => x.id === inst.taskId)
@@ -96,6 +98,7 @@ registerActions(
       toast(`Standard für „${task.label}“ gespeichert: gilt jede Woche.`)
     },
     'trip-reset': (el) => {
+      recordUndo('Fahrt zurückgesetzt')
       const { key, emp } = el.dataset
       delete app.data.trips?.[tripKey(app.cur.state.instByKey.get(key), emp)]
       persist()

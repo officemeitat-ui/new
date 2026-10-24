@@ -66,7 +66,9 @@ function sheetView(c) {
       <button class="btn icon" data-action="sheet-step" data-delta="1" aria-label="Nächste Person" ${idx >= list.length - 1 ? 'disabled' : ''}>${ICON.right}</button>
       <button class="btn" data-action="copy-sheet">${ICON.copy} Für Excel kopieren</button>
       ${f.download ? `<button class="btn" data-action="excel-sheet">${ICON.sheet} Excel</button>` : ''}
-      ${f.print ? `<button class="btn" data-action="print-sheet">${ICON.print} Drucken / PDF</button><button class="btn" data-action="print-all">${ICON.print} Alle ${list.length} drucken</button>` : ''}
+      ${f.pdf && f.download ? `<button class="btn" data-action="send-pdf" data-emp="${esc(emp.id)}">${ICON.sheet} PDF</button>` : ''}
+      ${f.print ? `<button class="btn" data-action="print-sheet">${ICON.print} Drucken</button><button class="btn" data-action="print-all">${ICON.print} Alle ${list.length} drucken</button>` : ''}
+      ${f.pdf ? `<button class="btn" data-action="open-send">${ICON.send} Versenden</button>` : ''}
       <button class="btn edit-only" data-action="open-absence-new" data-emp="${esc(emp.id)}" data-date="${esc(c.monday)}">${ICON.plus} Abwesenheit</button>
       ${changed ? `<span class="pill warning">nach Veröffentlichung geändert</span>${c.monday <= todayISO() ? ' <button class="btn small primary edit-only" data-action="open-publish">Korrektur buchen</button>' : ''}` : ''}
     </div>

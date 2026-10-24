@@ -3,7 +3,7 @@
 
 import { saldoCorrections } from '../../core/attention.js'
 import { isoWeek, todayISO } from '../../core/dates.js'
-import { app, closeModal, empName, openModal, registerActions, registerModal, toast } from '../context.js'
+import { app, empName, openModal, registerActions, registerModal, toast } from '../context.js'
 import { changedEmployees, changeMessage, currentSaldi, publishWeek } from '../planning.js'
 import { esc, ICON, modalFrame, saldoClass, signed } from '../shared.js'
 import { copyText } from '../views/sheet.js'
@@ -45,6 +45,8 @@ function publishModal(c) {
       <section><h3>Was passiert</h3><ul class="plain">
         ${correction ? '<li>Die neuen Salden ersetzen die bisherigen im Zeitkonto. Die Unterschiede erscheinen in der Monatsauswertung unter „Nachträgliche Korrekturen“ für die Lohnverrechnung.</li>' : `<li>Die Salden aller ${c.ctx.employees.length} Personen werden ins Zeitkonto übernommen.</li>`}
         ${app.config.features.excel ? `<li>Wochenpläne als Excel ${where}: eine Gesamtdatei${app.store.kind === 'sharepoint' ? ' und eine Datei je Person' : ''}.</li>` : ''}
+        ${app.config.features.pdf && app.store.kind === 'sharepoint' ? '<li>Wochenpläne als PDF in SharePoint: alle in einer Datei und je Person eine Datei (Ordner PDF).</li>' : ''}
+        <li>Danach öffnet sich der Versand: PDF je Person, Teilen (z. B. WhatsApp)${app.config.features.mail && app.store.kind === 'sharepoint' ? ' oder E-Mail' : ''}.</li>
         <li>Spätere Änderungen werden in der Wochenübersicht mit <span class="pill warning">geändert</span> markiert.</li>
       </ul></section>
       ${
@@ -58,7 +60,7 @@ function publishModal(c) {
       <details><summary>Änderungsprotokoll dieser Woche (${(app.data.logs?.[c.monday] || []).length})</summary>
         ${log.length ? `<ul class="plain log">${log.map((l) => `<li><span class="muted">${new Date(l.at).toLocaleString('de-AT')} · ${esc(l.by)}</span> ${esc(l.text)}</li>`).join('')}</ul>` : '<p class="note">Noch keine Einträge.</p>'}
       </details>`,
-    foot: `<span></span><div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary edit-only" data-action="publish-run">${ICON.send} ${correction ? 'Korrektur buchen' : p ? 'Erneut veröffentlichen' : 'Veröffentlichen'}</button></div>`,
+    foot: `${p ? `<button class="btn" data-action="open-send">${ICON.send} Versand an Mitarbeitende</button>` : '<span></span>'}<div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary edit-only" data-action="publish-run">${ICON.send} ${correction ? 'Korrektur buchen' : p ? 'Erneut veröffentlichen' : 'Veröffentlichen'}</button></div>`,
   })
 }
 
@@ -79,8 +81,8 @@ registerActions(
       el.textContent = 'Wird veröffentlicht …'
       try {
         const res = await publishWeek()
-        closeModal()
-        toast(`${res.corrections ? `Korrektur gebucht: ${res.corrections} Saldo-Änderungen.` : 'Veröffentlicht.'} ${res.files ? `${res.files} Excel-Dateien erstellt.` : ''}`)
+        openModal({ type: 'send' })
+        toast(`${res.corrections ? `Korrektur gebucht: ${res.corrections} Saldo-Änderungen.` : 'Veröffentlicht.'} ${res.files ? `${res.files} ${res.files === 1 ? 'Datei' : 'Dateien'} erstellt.` : ''}${res.fileError ? ` Dateiexport fehlgeschlagen: ${res.fileError}` : ''}`)
       } catch (err) {
         el.disabled = false
         toast(`Veröffentlichen fehlgeschlagen: ${err.message}`)

@@ -10,11 +10,12 @@ import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService } from '../storage/data-service.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, closeModal, render, renderNow, saveStatusText, setFrame, toast, VIEWS } from './context.js'
+import { ACTIONS, app, clearUndo, closeModal, render, renderNow, saveStatusText, setFrame, toast, undo, VIEWS } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
+import { flowBar } from './flow.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { download, esc, ICON } from './shared.js'
-import { bindFilterEvents } from './views/week.js'
+import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
 const PREFS_KEY = 'einsatzplaner.prefs.v2'
 const LEGACY_KEY = 'einsatzplaner.data.v1'
@@ -112,11 +113,7 @@ function summary(c) {
   const moved = c.week.filter((i) => i.status === 'moved' && i.reason === 'holiday').length
   const absent = (app.data.absences || []).filter((a) => a.from <= c.sunday && a.to >= c.monday).length
   const holText = hol.length ? `${hol.join(', ')}<br><span class="muted" style="font-weight:400">${cancelled} Einsätze entfallen, ${moved} verschoben</span>` : '<span class="muted" style="font-weight:400">keine in dieser Woche</span>'
-  const banner =
-    slots > 0 && filled === 0 && !app.readOnly
-      ? `<div class="banner"><p><strong>Diese Woche ist noch nicht eingeteilt.</strong> Die Automatik besetzt zuerst die Stammkräfte, dann Vertretungen für Urlaub, Krankenstand und offene Einsätze, und hält dabei alle Regeln ein.</p><button class="btn primary" data-action="plan">${ICON.bolt} Woche planen</button></div>`
-      : ''
-  return `${banner}<section class="summary" aria-label="Kennzahlen der Woche">
+  return `${flowBar(c)}<section class="summary" aria-label="Kennzahlen der Woche">
     <div class="stat"><div class="label">Besetzt</div><div class="value">${filled} / ${slots}</div></div>
     <button class="stat ${slots - filled ? 'err' : ''}" data-action="view" data-view="coverage"><div class="label">Offen</div><div class="value">${slots - filled}</div></button>
     <button class="stat ${errors ? 'err' : ''}" data-action="view" data-view="report"><div class="label">Verstöße</div><div class="value">${errors}</div></button>
@@ -180,6 +177,7 @@ Object.assign(ACTIONS, {
   plan: () => (app.readOnly ? toast('Nur Leserechte.') : planWeek(false)),
   replan: () => (app.readOnly ? toast('Nur Leserechte.') : planWeek(true)),
   'close-modal': closeModal,
+  undo: () => (app.readOnly ? toast('Nur Leserechte.') : undo()),
   backdrop: (el, e) => {
     if (e.target === el) closeModal()
   },
@@ -206,8 +204,14 @@ function bindEvents() {
     if (toggle) for (const el of document.querySelectorAll(`[data-${toggle}]`)) el.hidden = el.dataset[toggle] !== e.target.value
   })
   bindFilterEvents(document)
+  bindDragEvents(document)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && app.ui.modal) closeModal()
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !app.readOnly) {
+      e.preventDefault()
+      undo()
+    }
   })
   window.addEventListener('beforeunload', (e) => {
     if (app.service?.hasPendingChanges()) {
@@ -225,7 +229,7 @@ function showMessage(html) {
 
 async function boot() {
   const config = await loadConfig()
-  config.features = { excel: true, download: true, print: true, ...(config.features || {}) }
+  config.features = { excel: true, pdf: true, download: true, print: true, mail: false, ...(config.features || {}) }
   app.config = config
   applyBrand(config.brand)
   bindEvents()
@@ -233,8 +237,9 @@ async function boot() {
   let store
   if (config.storage === 'sharepoint') {
     showMessage('<p>Anmeldung bei Microsoft 365 …</p>')
-    const { signIn } = await import('../auth/msal.js')
-    const auth = await signIn(config.sharepoint)
+    const { scopesFor, signIn } = await import('../auth/msal.js')
+    const auth = await signIn({ ...config.sharepoint, scopes: scopesFor(config) })
+    app.auth = auth
     app.user = auth.user
     app.signOut = auth.signOut
     store = new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint })
@@ -256,6 +261,7 @@ async function boot() {
     },
     onRemoteChange: (kind, changed) => {
       app.dataVersion = (app.dataVersion || 0) + 1
+      clearUndo()
       renderNow()
       if (kind === 'merged') toast('Gleichzeitige Änderungen einer anderen Person wurden zusammengeführt.')
       else toast(`Aktualisiert: Änderungen von ${[...new Set(changed.map((x) => x.by).filter(Boolean))].join(', ') || 'anderer Sitzung'} geladen.`)

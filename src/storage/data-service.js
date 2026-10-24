@@ -80,6 +80,7 @@ export class DataService {
     this.saving = null
     this.status = 'idle'
     this.data = null
+    this.version = 0 // steigt bei jedem geladenen/zusammengeführten Dokument (für Rechen-Caches)
   }
 
   #setStatus(status, detail = '') {
@@ -104,6 +105,7 @@ export class DataService {
       ]) {
         if (!doc) continue
         applyDoc(data, path, doc.data)
+        this.version++
         this.base.set(path, clone(doc.data))
         this.etags.set(path, doc.etag)
       }
@@ -128,6 +130,7 @@ export class DataService {
       this.weeks.add(monday)
       if (doc) {
         applyDoc(this.data, path, doc.data)
+        this.version++
         this.base.set(path, clone(doc.data))
         this.etags.set(path, doc.etag)
       }
@@ -193,6 +196,7 @@ export class DataService {
         this.etags.delete(path)
       }
       applyDoc(this.data, path, mergedDoc)
+      this.version++
       await this.#save(path, mergedDoc, false)
       return true
     }
@@ -213,6 +217,7 @@ export class DataService {
       const remote = await this.store.read(path)
       if (!remote) continue
       applyDoc(this.data, path, remote.data)
+      this.version++
       this.base.set(path, clone(remote.data))
       this.etags.set(path, remote.etag)
       changed.push({ path, by: remote.modifiedBy })

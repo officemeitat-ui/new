@@ -4,7 +4,8 @@ Der Dienstplan ist eine reine Web-App (HTML/JavaScript). Sie braucht **keinen ei
 
 ```
 Browser (dienstplan.cleanos.at)
-   │  Anmeldung mit Microsoft-365-Konto (MSAL, Entra ID)
+   │  1. Seite nur nach Microsoft-Anmeldung (Azure Static Web Apps, eigener Tenant)
+   │  2. dieselbe Anmeldung holt das Graph-Token (MSAL, ohne zweite Eingabe)
    ▼
 Microsoft Graph ──► SharePoint-Website „Dienstplan“
                      └─ Dokumente/Dienstplan-App/
@@ -12,7 +13,7 @@ Microsoft Graph ──► SharePoint-Website „Dienstplan“
                          ├─ daten/abwesenheiten.json     Urlaub, Krankenstand, …
                          ├─ daten/zeitkonto.json         veröffentlichte Wochen mit Salden
                          ├─ daten/plaene/2026/2026-10-26.json   Einteilung + Protokoll je Woche
-                         └─ exporte/2026/KW44_2026/      Excel-Wochenpläne (gesamt + je Person)
+                         └─ exporte/2026/KW44_2026/      Excel- und PDF-Wochenpläne (gesamt + je Person)
 ```
 
 SharePoint führt für jede Datei einen **Versionsverlauf**. Jede frühere Fassung lässt sich dort wiederherstellen.
@@ -36,8 +37,11 @@ Im [Microsoft Entra Admin Center](https://entra.microsoft.com) → *Identität �
 Danach:
 
 1. Unter *Authentifizierung* eine zweite SPA-URI für Tests ergänzen: `http://localhost:8080/`
-2. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**. Anschließend **Administratorzustimmung erteilen**.
-3. Von der *Übersicht* notieren: **Verzeichnis-ID (Mandant)** und **Anwendungs-ID (Client)**.
+2. Ebenfalls unter *Authentifizierung*: Plattform **Web** hinzufügen mit der Umleitungs-URI `https://dienstplan.cleanos.at/.auth/login/aad/callback` und **ID-Token** aktivieren. Das ist die Anmeldung, die die ganze Seite schützt (Schritt 4).
+3. Unter *Zertifikate & Geheimnisse*: einen **geheimen Clientschlüssel** anlegen (für den Seitenschutz in Azure Static Web Apps).
+4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**, für den E-Mail-Versand zusätzlich **Mail.Send** (oder **Mail.Send.Shared** für ein gemeinsames Postfach, siehe unten). Anschließend **Administratorzustimmung erteilen**.
+5. Von der *Übersicht* notieren: **Verzeichnis-ID (Mandant)** und **Anwendungs-ID (Client)**.
+6. Optional, empfohlen: unter *Unternehmensanwendungen → Cleanos Dienstplan → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* nur die Disposition zuweisen. Dann kann sich niemand sonst aus dem Tenant anmelden.
 
 Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohnehin darf. Wer keinen Zugriff auf die Dienstplan-Website hat, sieht auch in der App nichts.
 
@@ -59,28 +63,40 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
     "refreshSeconds": 60
   },
   "access": { "planners": ["disposition@cleanos.at"] },
-  "features": { "excel": true, "download": true, "print": true }
+  "features": { "excel": true, "pdf": true, "download": true, "print": true, "mail": true },
+  "mail": { "from": "" }
 }
 ```
 
 - `access.planners`: E-Mail-Adressen, die planen dürfen. Alle anderen angemeldeten Personen mit Zugriff auf die Website sehen den Plan **nur lesend**. Eine leere Liste bedeutet: alle dürfen planen.
 - `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat.
+- `features.pdf`: PDF-Wochenpläne (Download, Teilen, beim Veröffentlichen nach SharePoint in den Ordner `PDF`).
+- `features.mail`: Wochenpläne per E-Mail mit PDF-Anhang direkt aus dem Dienstplan. Gesendet wird aus dem Postfach der angemeldeten Person. Mit `mail.from` (z. B. `dienstplan@cleanos.at`) aus einem freigegebenen Postfach: dafür braucht die Disposition dort die Berechtigung „Senden als“ und die App **Mail.Send.Shared**. Die E-Mail-Adressen stehen bei den Mitarbeitenden.
+- `brand.contact`: Satz unten auf jedem PDF, z. B. „Fragen zum Dienstplan: Disposition, Tel. …“.
 - Die Datei kann jederzeit am Server geändert werden, ohne neuen Build.
 
 ## 4. Hosting auf dienstplan.cleanos.at
 
 Erst `npm ci && npm run build` ausführen. Der Ordner `dist/` enthält dann alles, was auf den Server muss.
 
-### Variante A: Azure Static Web Apps (empfohlen, Free-Tarif reicht)
+### Variante A: Azure Static Web Apps (empfohlen)
 
-1. Im Azure-Portal eine *Static Web App* anlegen (Tarif Free, Region Westeuropa). Als Quelle „Andere“ wählen.
-2. Unter *Bereitstellungstoken verwalten* den Token kopieren und im GitHub-Repository als Secret **AZURE_STATIC_WEB_APPS_API_TOKEN** speichern. Ab dann veröffentlicht `.github/workflows/ci.yml` jeden Stand auf `main` automatisch, nachdem die Tests grün sind.
-3. Unter *Benutzerdefinierte Domänen*: `dienstplan.cleanos.at` hinzufügen. Beim DNS-Anbieter von cleanos.at einen **CNAME** `dienstplan` → `<name>.azurestaticapps.net` anlegen. Azure stellt das HTTPS-Zertifikat selbst aus.
-4. `staticwebapp.config.json` setzt Sicherheitsheader (Content-Security-Policy). Diese sind mit dem Build getestet.
+1. Im Azure-Portal eine *Static Web App* anlegen (Tarif **Standard**, Region Westeuropa). Als Quelle „Andere“ wählen. Der Standard-Tarif (rund 9 USD im Monat) ist nötig, damit sich **nur Konten aus dem eigenen Tenant** anmelden können.
+2. Unter *Umgebungsvariablen* zwei Werte anlegen: **AZURE_CLIENT_ID** = Anwendungs-ID aus Schritt 2, **AZURE_CLIENT_SECRET** = der geheime Clientschlüssel.
+3. Unter *Bereitstellungstoken verwalten* den Token kopieren und im GitHub-Repository als Secret **AZURE_STATIC_WEB_APPS_API_TOKEN** speichern, die Verzeichnis-ID als Variable **ENTRA_TENANT_ID** (*Settings → Secrets and variables → Actions → Variables*). Ab dann veröffentlicht `.github/workflows/ci.yml` jeden Stand auf `main` automatisch, nachdem die Tests grün sind.
+4. Unter *Benutzerdefinierte Domänen*: `dienstplan.cleanos.at` hinzufügen. Beim DNS-Anbieter von cleanos.at einen **CNAME** `dienstplan` → `<name>.azurestaticapps.net` anlegen. Azure stellt das HTTPS-Zertifikat selbst aus.
+5. `staticwebapp.config.json` setzt Sicherheitsheader (Content-Security-Policy) und den Seitenschutz. Diese sind mit dem Build getestet.
+
+**So ist die Seite geschützt:** Jede Datei (auch `index.html`, `config.json` und der Programmcode) wird erst nach der Microsoft-Anmeldung ausgeliefert. `npm run build` trägt die Tenant-ID aus `config.json` (oder `ENTRA_TENANT_ID`) ein. Danach meldet die App dieselbe Person ohne zweite Eingabe bei Microsoft Graph an. Abmelden: Knopf „Abmelden“ oder `https://dienstplan.cleanos.at/logout`.
+
+- Ohne Tenant-ID baut der Build trotzdem geschützt, lässt dann aber jedes Microsoft-Konto zur Anmeldung zu (geht auch im Free-Tarif). Die Daten bleiben auch dann geschützt, weil SharePoint nur berechtigte Konten lesen lässt.
+- Nur für eine öffentliche Demo: `DIENSTPLAN_PUBLIC=1 npm run build`.
 
 ### Variante B: vorhandener Webspace
 
-`dist/` per FTP/SFTP in das Verzeichnis der Subdomain `dienstplan.cleanos.at` laden. Voraussetzungen: **HTTPS** (z. B. Let's Encrypt). Ohne HTTPS funktioniert die Microsoft-Anmeldung nicht. `config.json` darf nicht im Cache liegen. Die Sicherheitsheader aus `staticwebapp.config.json` sollten sinngemäß in `.htaccess` oder der Serverkonfiguration gesetzt werden.
+`dist/` per FTP/SFTP in das Verzeichnis der Subdomain `dienstplan.cleanos.at` laden. Voraussetzungen: **HTTPS** (z. B. Let's Encrypt). Ohne HTTPS funktioniert die Microsoft-Anmeldung nicht. `config.json` und `index.html` dürfen nicht im Cache liegen, die Dateien unter `app/` dürfen dauerhaft gecacht werden (Name enthält einen Hash). Die Sicherheitsheader aus `staticwebapp.config.json` sollten sinngemäß in `.htaccess` oder der Serverkonfiguration gesetzt werden.
+
+Auf einem normalen Webspace ist der Programmcode öffentlich abrufbar; die **Daten** sind trotzdem nur nach Microsoft-Anmeldung und nur für Konten mit Zugriff auf die SharePoint-Website lesbar. Wer auch den Code hinter die Anmeldung legen will, nimmt Variante A (oder Azure App Service mit „Authentifizierung“).
 
 ## 5. Erster Start
 
@@ -90,7 +106,7 @@ Erst `npm ci && npm run build` ausführen. Der Ordner `dist/` enthält dann alle
    - **Objekte & Leistungen einfügen:** Objekt, Adresse, Revier, Leistung, Tage, Von, Bis, Personen, Stammkraft, Intervall („wöchentlich“, „14-tägig“, „monatlich“, „quartalsweise“, „halbjährlich“, „jährlich“; monatliche Leistungen finden am ersten genannten Wochentag im Monat statt und lassen sich danach unter „Objekte & Leistungen“ genauer einstellen), An Feiertagen, optional Fahrzeit danach (z. B. „0,5“ oder „30 min“) und Fahrtnotiz.
    - Mit „Vorlage kopieren“ bekommt man die Überschriften für Excel.
 3. Unter *Regeln & Feiertage* Werte aus dem Kollektivvertrag prüfen (Zuschläge, Fahrzeit, Mehrstunden für Vertretungen) und betriebsfreie Tage eintragen (z. B. 24.12., 31.12., Hl. Rupert).
-4. *Woche planen* → prüfen → *Veröffentlichen*. Die Excel-Wochenpläne liegen danach in `Dienstplan-App/exporte/…`.
+4. Die Leiste oben führt durch die Woche: *Einteilen* → *Offene Einsätze* → *Prüfen* → *Veröffentlichen* → *Versenden*. Excel- und PDF-Wochenpläne liegen danach in `Dienstplan-App/exporte/…`, der Versand-Dialog schickt jeder Person ihr PDF (E-Mail, am Handy „Teilen“ z. B. per WhatsApp, oder als ZIP/Sammel-PDF zum Ausdrucken).
 
 ## 6. Testen ohne SharePoint
 

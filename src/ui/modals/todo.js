@@ -8,7 +8,7 @@
 import { absenceImpact, periodicDue } from '../../core/attention.js'
 import { addDays, formatDate, formatHours, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { buildTimesheet, timesheetSignature } from '../../core/timesheet.js'
-import { app, computeRange, empName, ensureRange, openModal, plannedWeeks, registerActions, registerModal, render } from '../context.js'
+import { app, computeRange, dataStamp, empName, ensureRange, openModal, plannedWeeks, registerActions, registerModal, render } from '../context.js'
 import { ABSENCE_CLASS, esc, ICON, modalFrame } from '../shared.js'
 
 const SEEN_KEY = 'einsatzplaner.todoSeen.v1'
@@ -61,7 +61,7 @@ export function computeTodo(today = todayISO()) {
 // Berechnung nur nach Änderungen
 let cache = { key: null, todo: null }
 export function todo() {
-  const key = `${app.dataVersion || 0}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}`
+  const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}`
   if (cache.key !== key) cache = { key, todo: computeTodo() }
   return cache.todo
 }
