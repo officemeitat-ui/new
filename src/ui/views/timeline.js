@@ -83,7 +83,7 @@ function timelineView(c) {
     const workMin = work.reduce((s, i) => s + i.net, 0)
     const travelMin = blocks.filter((b) => b.kind === 'trip').reduce((s, b) => s + b.trip.minutes, 0)
     const meta = workMin ? `${formatHours(workMin)} h${travelMin ? ` + ${formatHours(travelMin)} h Fahrt` : ''}` : day?.absence ? esc(day.absence.type) : 'frei'
-    rows.push({ name: `<button class="emp-name" data-action="open-sheet" data-emp="${esc(emp.id)}">${esc(emp.name)}</button>`, meta, blocks, cls: `${day?.absence ? 'absent' : ''} ${workMin ? '' : 'idle'}`, note: day?.absence ? day.absence.type : '' })
+    rows.push({ name: `<button class="emp-name" data-action="open-person" data-emp="${esc(emp.id)}">${esc(emp.name)}</button>`, meta, blocks, cls: `${day?.absence ? 'absent' : ''} ${workMin ? '' : 'idle'}`, note: day?.absence ? day.absence.type : '' })
   }
 
   const axis = { from: Math.floor(min / 60) * 60, to: Math.ceil(max / 60) * 60 }

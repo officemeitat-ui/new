@@ -113,7 +113,7 @@ function mobileWeek(c) {
     lastTeam = emp.team
     const t = ts.totals
     cards.push(`<article class="m-card ${day.absence ? 'absent' : ''} ${c.changedSincePublish(emp) ? 'row-changed' : ''}">
-      <header><button class="emp-name" data-action="open-sheet" data-emp="${esc(emp.id)}">${esc(emp.name)}</button><span class="m-hours">${formatHours(t.ist)} / ${formatHours(t.soll)} h · <span class="saldo ${saldoClass(t.saldo)}">${signed(t.saldo)}</span></span></header>
+      <header><button class="emp-name" data-action="open-person" data-emp="${esc(emp.id)}">${esc(emp.name)}</button><span class="m-hours">${formatHours(t.ist)} / ${formatHours(t.soll)} h · <span class="saldo ${saldoClass(t.saldo)}">${signed(t.saldo)}</span></span></header>
       ${day.absence ? `<span class="abs-tag">${esc(day.absence.type)}</span>` : ''}
       <div class="m-chips">${day.lines.map((l) => (l.kind === 'work' ? workChip(c, emp, l) : struckChip(c, l))).join('')}</div>
     </article>`)
@@ -124,7 +124,7 @@ function mobileWeek(c) {
       ${filterBar(c, { problems: false })}
       ${open.length ? `<section class="m-open"><h3>Offen (${open.length})</h3><div class="m-chips">${open.map((inst) => openChip(c, inst)).join('')}</div><p class="note">Antippen: wer kann einspringen?</p></section>` : '<p><span class="pill ok">An diesem Tag alles besetzt</span></p>'}
       <section class="m-list">${cards.join('') || '<p class="empty">Niemand eingeteilt.</p>'}</section>
-      ${free.length ? `<details class="m-free"><summary>Frei an diesem Tag (${free.length})</summary><p>${free.map((e) => `<button class="link-btn" data-action="open-sheet" data-emp="${esc(e.id)}">${esc(e.name)}</button>`).join(' · ')}</p></details>` : ''}
+      ${free.length ? `<details class="m-free"><summary>Frei an diesem Tag (${free.length})</summary><p>${free.map((e) => `<button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}">${esc(e.name)}</button>`).join(' · ')}</p></details>` : ''}
     </div>`
 }
 
@@ -154,7 +154,7 @@ function weekView(c) {
       const changed = c.changedSincePublish(emp)
       const groupRow = !team && emp.team && emp.team !== lastTeam ? `<tr class="group-row"><th class="name-col" colspan="1">${esc(emp.team)}</th><td colspan="8"></td></tr>` : ''
       lastTeam = emp.team
-      return `${groupRow}<tr class="${changed ? 'row-changed' : ''}"><th class="name-col"><button class="emp-name" data-action="open-sheet" data-emp="${esc(emp.id)}" title="Wochenzettel öffnen">${esc(emp.name)}</button><span class="emp-meta">${esc(emp.type)} · ${formatHours(emp.weeklyHours * 60)} h${emp.minor ? ' · unter 18' : ''}${emp.note ? ` · ${esc(emp.note)}` : ''}</span>${changed ? '<span class="pill warning changed-pill" title="Nach dem Veröffentlichen geändert: Person informieren">geändert</span>' : ''}</th>${cells}
+      return `${groupRow}<tr class="${changed ? 'row-changed' : ''}"><th class="name-col"><button class="emp-name" data-action="open-person" data-emp="${esc(emp.id)}" title="Dienstplan der Person: Woche, feste Objekte, Objekte zuweisen">${esc(emp.name)}</button><span class="emp-meta">${esc(emp.type)} · ${formatHours(emp.weeklyHours * 60)} h${emp.minor ? ' · unter 18' : ''}${emp.note ? ` · ${esc(emp.note)}` : ''}</span>${changed ? '<span class="pill warning changed-pill" title="Nach dem Veröffentlichen geändert: Person informieren">geändert</span>' : ''}</th>${cells}
         <td class="sum"><div class="hours"><b>${formatHours(t.ist)}</b> / ${formatHours(t.soll)} h</div><div class="saldo ${saldoClass(t.saldo)}">Woche ${signed(t.saldo)}</div><div class="account" title="Zeitkonto: Startsaldo + veröffentlichte Wochen">Konto ${signed(account)}</div>${weekFlags(c, emp)}</td></tr>`
     })
     .join('')

@@ -14,7 +14,7 @@ function staffView(c) {
   const rows = filteredEmployees(c)
     .map(
       (e) => `<tr>
-      <td><strong>${esc(e.name)}</strong>${e.personnelNo ? ` <span class="muted">#${esc(e.personnelNo)}</span>` : ''}${e.note ? `<br><span class="muted">${esc(e.note)}</span>` : ''}${e.email ? `<br><span class="muted">${esc(e.email)}</span>` : ''}</td>
+      <td><button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}"><strong>${esc(e.name)}</strong></button>${e.personnelNo ? ` <span class="muted">#${esc(e.personnelNo)}</span>` : ''}${e.note ? `<br><span class="muted">${esc(e.note)}</span>` : ''}${e.email ? `<br><span class="muted">${esc(e.email)}</span>` : ''}</td>
       <td>${esc(e.team || '–')}</td>
       <td>${esc(e.type)}${e.minor ? '<br><span class="tag">unter 18 (KJBG)</span>' : ''}</td>
       <td class="num">${formatHours(e.weeklyHours * 60)} h${e.maxMonthHours ? `<br><span class="muted">max. ${formatHours(e.maxMonthHours * 60)} h/Monat</span>` : ''}</td>

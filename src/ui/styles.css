@@ -422,6 +422,26 @@ table.assign tr.row-open td:first-child { box-shadow: inset 3px 0 0 var(--err); 
 .load-bar { width: 8rem; max-width: 100%; height: 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
 .load-bar span { display: block; height: 100%; background: var(--ok); }
 .load-bar span.over { background: var(--err); }
+/* Dienstplan einer Person */
+.pp-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.pp-day { border: 1px solid var(--line); border-radius: var(--radius); padding: 6px; min-height: 4.5rem; display: flex; flex-direction: column; gap: 4px; background: var(--surface); }
+.pp-day.absent { background: var(--surface-2); }
+.pp-day-head { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.pp-day .chip { width: 100%; }
+.pp-object-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 10px 0 6px; }
+.pp-object-head .btn { margin-left: auto; }
+.pp-fit { font-size: 0.8rem; }
+.pp-fit .pro { color: var(--ok); }
+.pp-fit .con { color: var(--err); }
+table.pp-tasks td { vertical-align: top; }
+tr.row-mine td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+.tag.warn-tag { color: var(--warn); border-color: currentColor; }
+@media (max-width: 900px) {
+  .pp-week { grid-template-columns: 1fr; }
+  .pp-day { min-height: 0; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .pp-day-head { width: 100%; }
+  .pp-day .chip { width: auto; }
+}
 /* Müllplan */
 .tag.waste { color: var(--ok); border-color: currentColor; background: var(--ok-soft); white-space: normal; }
 .tag.waste svg, .waste-line svg, .waste-form h3 svg, .section-head h2 svg { width: 14px; height: 14px; vertical-align: -2px; }

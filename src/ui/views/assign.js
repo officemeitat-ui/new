@@ -81,7 +81,7 @@ function assignView(c) {
       const contract = (e.weeklyHours || 0) * 60
       const pct = contract ? Math.min(140, Math.round((min / contract) * 100)) : 0
       const free = contract - min
-      return `<tr><td><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.team || '')} · ${esc(e.type)}</span></td><td class="num">${h(contract)}</td><td class="num">${h(min)}</td>
+      return `<tr><td><button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}"><strong>${esc(e.name)}</strong></button><br><span class="muted">${esc(e.team || '')} · ${esc(e.type)}</span></td><td class="num">${h(contract)}</td><td class="num">${h(min)}</td>
         <td class="num saldo ${saldoClass(free)}">${free >= 0 ? h(free) : `−${h(-free)}`}</td>
         <td><div class="load-bar" title="${pct} %"><span style="width:${Math.min(100, pct)}%" class="${pct > 100 ? 'over' : ''}"></span></div></td>
         <td><span class="muted">${esc([...new Set(list.map((t) => app.data.objects.find((o) => o.id === t.objectId)?.short || ''))].filter(Boolean).join(', ') || '–')}</span></td></tr>`
@@ -107,7 +107,8 @@ function assignView(c) {
 
 registerView({ id: 'assign', order: 92, label: 'Zuweisung', group: 'stamm', render: assignView })
 
-function assign(taskId, empId, { quiet = false } = {}) {
+/** Person dauerhaft als Stammkraft eintragen (und im Objekt als eingeschult vermerken). */
+export function assignRegular(taskId, empId, { quiet = false } = {}) {
   const task = app.data.tasks.find((t) => t.id === taskId)
   const emp = app.data.employees.find((e) => e.id === empId)
   if (!task || !emp || task.regulars.includes(empId)) return null
@@ -123,7 +124,7 @@ function assign(taskId, empId, { quiet = false } = {}) {
 function applySuggestions(taskIds) {
   const ctx = ctxOf(app.cur)
   const list = suggestRegulars(ctx, { taskIds })
-  for (const s of list) assign(s.task.id, s.emp.id, { quiet: true })
+  for (const s of list) assignRegular(s.task.id, s.emp.id, { quiet: true })
   return list
 }
 
@@ -135,7 +136,7 @@ registerActions(
     },
     'as-assign': (el) => {
       recordUndo('Stammkraft zuweisen')
-      if (assign(el.dataset.task, el.dataset.emp)) persist()
+      if (assignRegular(el.dataset.task, el.dataset.emp)) persist()
       renderNow()
     },
     'as-pick': (el) => {
@@ -145,7 +146,7 @@ registerActions(
       const emp = ctx.employeesById.get(el.value)
       const ev = evaluateRegular(ctx, task, emp)
       recordUndo('Stammkraft zuweisen')
-      assign(task.id, emp.id, { quiet: true })
+      assignRegular(task.id, emp.id, { quiet: true })
       persist()
       renderNow()
       toast(ev.allowed ? `${emp.name} übernimmt ${task.label}.` : `${emp.name} zugewiesen, bitte prüfen: ${ev.blockers.join('; ')}`)
