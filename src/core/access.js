@@ -14,6 +14,7 @@ export const MODULES = {
   zaehler: 'Zählerstände',
   kontrolle: 'Objektkontrolle',
   objektmappe: 'Objektmappe',
+  fahrzeuge: 'Fahrzeuge & Reifen',
 }
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
@@ -27,6 +28,7 @@ export const DEFAULT_ROLES = {
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe'], edit: ['zaehler', 'kontrolle'] },
   ableser: { label: 'Ableser', modules: ['zaehler'], edit: ['zaehler'] },
   pruefer: { label: 'Prüfer/in', modules: ['kontrolle', 'objektmappe'], edit: ['kontrolle'] },
+  fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] },
   lesen: { label: 'Nur lesen', modules: ['planung'], edit: [] },
 }
 

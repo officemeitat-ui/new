@@ -4,6 +4,7 @@
 
 import { addDays } from '../core/dates.js'
 import { periodFor, prevPeriod } from '../core/meters.js'
+import { campaignFor } from '../core/vehicles.js'
 import { OBJEKTKONTROLLE_CHECKLIST } from './checklist-objektkontrolle.js'
 
 /** Zählstellen mit sechs Quartalen Verlauf; die fällige Runde ist zur Hälfte erfasst. */
@@ -167,7 +168,42 @@ function demoMappe() {
   }
 }
 
+// ---------------------------------------------------------------- Fahrzeuge & Reifen
+
+function demoVehicles(monday) {
+  const day = (n) => addDays(monday, n)
+  const campaign = campaignFor(monday)
+  const target = campaign.season
+  const before = target === 'winter' ? 'sommer' : 'winter'
+  const tread = (vl, vr = vl, hl = vl - 0.5, hr = hl) => ({ vl, vr, hl, hr })
+  const set = (sommer, winter) => ({ sommer: { size: sommer.size, storage: sommer.storage || '', dot: sommer.dot || '', tread: sommer.tread || {} }, winter: { size: winter.size, storage: winter.storage || '', dot: winter.dot || '', tread: winter.tread || {} } })
+  const vehicles = [
+    { id: 'v1', plate: 'S-284 KL', label: 'VW Caddy', kind: 'transporter', driverId: 'e2', workshopId: 'w1', mounted: before, tires: set({ size: '205/55 R16', tread: tread(5.5) }, { size: '205/55 R16', storage: 'Reifen Muster, Regal 14', dot: '3822', tread: tread(6.5) }), note: 'Reinigungsmaschine im Laderaum: vor dem Termin ausräumen' },
+    { id: 'v2', plate: 'S-511 TR', label: 'Renault Trafic', kind: 'transporter', driverId: 'e4', workshopId: 'w1', mounted: before, tires: set({ size: '215/65 R16C', tread: tread(4) }, { size: '215/65 R16C', storage: 'Reifen Muster, Regal 15', dot: '4121', tread: tread(5.5) }) },
+    { id: 'v3', plate: 'S-907 PL', label: 'MAN TGE 5,5 t', kind: 'lkw', driverId: 'e6', workshopId: 'w2', mounted: before, tires: set({ size: '205/75 R16C', tread: tread(6) }, { size: '205/75 R16C', storage: 'Lager Gnigl, Halle 2', dot: '1920', tread: tread(5, 4.8, 4.5, 4.5) }) },
+    { id: 'v4', plate: 'S-133 MB', label: 'Škoda Fabia', kind: 'pkw', driverId: 'e10', workshopId: 'w2', mounted: target, tires: set({ size: '185/65 R15', storage: 'Autohaus Beispiel, Platz B7', tread: tread(4.5) }, { size: '185/65 R15', dot: '3623', tread: tread(7.5, 7.5, 7, 7) }) },
+    { id: 'v5', plate: 'S-620 GA', label: 'Opel Combo', kind: 'transporter', driverId: 'e9', workshopId: 'w1', mounted: 'ganzjahr', tires: { ganzjahr: { size: '205/60 R16', tread: tread(6) } } },
+    { id: 'v6', plate: 'S-742 HW', label: 'Dacia Dokker', kind: 'transporter', driverId: 'e1', workshopId: 'w1', mounted: before, tires: set({ size: '195/65 R15', tread: tread(5) }, { size: '195/65 R15', storage: 'Reifen Muster, Regal 9', dot: '2523', tread: tread(7) }) },
+    { id: 'v7', plate: 'S-388 RE', label: 'Hyundai i20', kind: 'pkw', driverId: 'e5', workshopId: 'w2', mounted: before, tires: set({ size: '185/65 R15', tread: tread(5) }, { size: '185/65 R15', storage: 'Autohaus Beispiel, Platz B9', dot: '4422', tread: tread(6) }) },
+  ]
+  const change = (id, vehicleId, date, time, workshopId, extra = {}) => ({ id, vehicleId, season: target, year: campaign.year, date, time, minutes: 30, workshopId, status: 'geplant', mails: [], ...extra })
+  return {
+    vehicles,
+    workshops: [
+      { id: 'w1', name: 'Reifen Muster GmbH', address: 'Musterstraße 5, 5020 Salzburg', phone: '+43 662 000000', email: 'termine@reifen-muster.example' },
+      { id: 'w2', name: 'Autohaus Beispiel', address: 'Beispielweg 12, 5071 Wals', phone: '+43 662 000001', email: 'service@autohaus-beispiel.example' },
+    ],
+    changes: [
+      change('c1', 'v4', day(-6), '07:30', 'w2', { status: 'erledigt', doneAt: day(-6), km: 48210, tread: tread(7.5, 7.5, 7, 7), storage: 'Autohaus Beispiel, Platz B7', cost: 45 }),
+      change('c2', 'v7', day(1), '13:30', 'w2', { mails: [{ at: `${day(-3)}T09:12:00.000Z`, to: 'Sandra Pichler', kind: 'fahrer', via: 'demo' }] }),
+      change('c3', 'v6', day(2), '09:00', 'w1'),
+      change('c4', 'v1', day(3), '07:00', 'w1'),
+    ],
+    settings: { slotMinutes: 30, travelMinutes: 20 },
+  }
+}
+
 export function createModuleDemo(monday) {
-  return { zaehler: demoMeters(monday), kontrolle: demoInspections(monday), mappe: demoMappe() }
+  return { zaehler: demoMeters(monday), kontrolle: demoInspections(monday), mappe: demoMappe(), fahrzeuge: demoVehicles(monday) }
 }
 

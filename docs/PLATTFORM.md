@@ -10,6 +10,7 @@ Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan,
 | **Zählerstände** | Wasserzähler-Ablesung (wasserzaehler.cleanos.at) | Ableser, Objektservice, Objektleitung |
 | **Objektkontrolle** | Prüfprotokoll-Tool (pruefprotokoll.cleanos.at) | Prüfer/in, Objektservice, Objektleitung |
 | **Objektmappe** | Objektdokumentation (objektdoku.cleanos.at) | Objektleitung; Prüfer/Objektservice lesen |
+| **Fahrzeuge & Reifen** | Listen und Zettel zum Reifenwechsel | Disposition, Fuhrpark |
 
 ## Rollen
 
@@ -21,6 +22,7 @@ Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan,
 | `objektservice` | Zähler, Kontrolle, Objektmappe | Zähler, Kontrolle |
 | `ableser` | Zählerstände | Zählerstände |
 | `pruefer` – Prüfer/in | Objektkontrolle, Objektmappe | Objektkontrolle |
+| `fuhrpark` – Fuhrpark | Fahrzeuge & Reifen | Fahrzeuge & Reifen |
 | `lesen` | Dienstplan | nichts |
 
 - Mehrere Rollen addieren sich (z. B. Objektleitung und Lohnverrechnung).
@@ -199,6 +201,35 @@ Vertrauliche Abschnitte sind in der Fußzeile vermerkt. Zugangsfotos erscheinen 
 
 Hinweis: Im Ordner `06_Software\serviceERP1` liegt eine Server-Fassung der Objektdoku (MongoDB, eigene Rechteverwaltung). Die Plattform hier braucht keinen eigenen Server, keine Datenbank und kein Hosting außer statischen Dateien. Alles bleibt in SharePoint und nutzt die Microsoft-Anmeldung. Das passt zu den bestehenden Werkzeugen und spart Betrieb und Wartung.
 
+## Fahrzeuge & Reifen
+
+Eigener Punkt unter *Stammdaten*: die Firmenfahrzeuge mit Fahrer/in (aus den Mitarbeitenden), Reifensätzen und Einlagerung. Daten liegen in `fahrzeuge/fahrzeuge.json`, mit eigener Rolle `fuhrpark`.
+
+**Je Fahrzeug:** Kennzeichen, Fahrzeug, Art (Pkw, Transporter bis 3,5 t, Lkw über 3,5 t), Fahrer/in, Werkstatt, was montiert ist (Sommer, Winter, Ganzjahr). Je Reifensatz: Größe, wo er eingelagert ist, DOT-Nummer (Alter) und Profiltiefe je Rad.
+
+**Wechselrunde:** Oben steht die laufende Runde mit Frist:
+
+- **Winter:** planen ab September, Frist 31. Oktober. Ab 1. November gilt bei winterlichen Verhältnissen die Winterreifenpflicht (bis 15. April).
+- **Sommer:** planen ab März, montieren erst ab 16. April, Ziel 15. Mai.
+
+Je Fahrzeug: Termin fehlt, Termin geplant (informiert oder nicht), Termin vorbei (bestätigen), umgerüstet, Ganzjahresreifen, überfällig.
+
+**Termine vorschlagen:** Für alle Fahrzeuge ohne Termin sucht die App bei der gewählten Werkstatt den ersten freien Platz, an dem die Fahrerin oder der Fahrer keinen Dienst hat (samt Fahrzeit hin und zurück) und nicht abwesend ist. Wochenenden werden übersprungen, ein Platz wird nie doppelt vergeben. In der Tabelle steht der Grund („nach Dienst 06:00–08:30“). Beim einzelnen Termin zeigt die App die Dienste des Tages und warnt bei Überschneidung; „Nächsten freien Termin suchen“ findet den nächsten passenden.
+
+**E-Mails:**
+
+- **An die Fahrer/innen:** je Person eine E-Mail mit Termin, Werkstatt, Adresse und Lagerort der Reifen, dazu der Termin als Kalenderdatei (.ics). Die Adresse kommt aus den Mitarbeitenden; fehlt sie, wird sie im Dialog eingetragen und bei der Person gespeichert. Mit Microsoft 365 (`features.mail`) geht der Versand direkt aus dem eigenen Postfach, sonst öffnet sich je Person das E-Mail-Programm (die .ics-Datei gibt es zum Anhängen).
+- **An die Werkstatt:** eine Sammel-E-Mail mit allen Terminen, Reifengrößen und Lagerorten, Text vor dem Senden änderbar, die Liste zusätzlich als CSV.
+- Verschiebt man einen Termin, gilt er wieder als „noch nicht informiert“.
+
+**Erledigt:** Datum, km-Stand, Kosten, Profiltiefe der montierten und der eingelagerten Reifen, neuer Lagerort. Damit stimmt am Fahrzeug, was montiert ist und wo der andere Satz liegt.
+
+**Mindestprofil** (Österreich): Winterreifen 4 mm, bei Lkw über 3,5 t 5 mm (dort auch Schneeketten mitführen); Ganzjahresreifen zählen im Winter als Winterreifen; Sommerreifen gesetzlich 1,6 mm, empfohlen 3 mm. Reifen ab 6 Jahren (DOT) werden zum Tausch empfohlen. Was darunter liegt, steht in der Übersicht und in „Zu erledigen“.
+
+**Zu erledigen:** ab drei Wochen vor der Frist Fahrzeuge ohne Termin, vorbeigegangene Termine zum Bestätigen, Termine in den nächsten drei Tagen ohne Info an die Fahrerin oder den Fahrer, Reifen unter dem gesetzlichen Mindestprofil.
+
+**Übernehmen:** „Liste einfügen“ nimmt eine Excel-Liste (Kennzeichen, Fahrzeug, Art, Fahrer/in, Sommerreifen, Winterreifen, Lagerort, Werkstatt, Montiert). Fahrer/innen und Werkstätten werden über den Namen zugeordnet, vorhandene Kennzeichen ergänzt. Die Schnellsuche findet Kennzeichen auch ohne Bindestrich.
+
 ## Ohne Netz (Keller, Tiefgarage)
 
 Mit SharePoint arbeitet die App auch ohne Netz weiter:
@@ -221,4 +252,4 @@ Mit SharePoint arbeitet die App auch ohne Netz weiter:
 
 ## Vorschau
 
-[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png) · [Übernahme aus den Werkzeugen](vorschau/38-uebernahme.png) · [Verlauf der Objektmappe](vorschau/39-objektmappe-verlauf.png) · [Objektblatt auf Rumänisch](vorschau/40-objektblatt-ro.png) · [Öffnungscode](vorschau/41-oeffnungscode.png)
+[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png) · [Übernahme aus den Werkzeugen](vorschau/38-uebernahme.png) · [Verlauf der Objektmappe](vorschau/39-objektmappe-verlauf.png) · [Objektblatt auf Rumänisch](vorschau/40-objektblatt-ro.png) · [Öffnungscode](vorschau/41-oeffnungscode.png) · [Fahrzeuge & Reifen](vorschau/42-fahrzeuge-reifen.png) · [Termine vorschlagen](vorschau/43-reifen-vorschlag.png) · [Fahrer/innen informieren](vorschau/44-reifen-mail.png)

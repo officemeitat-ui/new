@@ -39,6 +39,7 @@ export const MODULE_DOCS = {
   zaehler: { path: 'zaehler/zaehler.json', empty: () => ({ meters: [], readings: [], closures: {} }) },
   kontrolle: { path: 'kontrolle/kontrolle.json', empty: () => ({ checklists: [], plans: {}, inspections: [] }) },
   mappe: { path: 'objektmappe/objektmappe.json', empty: () => ({ objects: {} }) },
+  fahrzeuge: { path: 'fahrzeuge/fahrzeuge.json', empty: () => ({ vehicles: [], workshops: [], changes: [], settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 

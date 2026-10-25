@@ -42,7 +42,7 @@ Danach:
 4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**, für den E-Mail-Versand zusätzlich **Mail.Send** (oder **Mail.Send.Shared** für ein gemeinsames Postfach, siehe unten), für Nachkontrollen direkt im Outlook-Kalender **Calendars.ReadWrite** (nur mit `features.calendar`). Anschließend **Administratorzustimmung erteilen**.
 5. Von der *Übersicht* notieren: **Verzeichnis-ID (Mandant)** und **Anwendungs-ID (Client)**.
 6. Optional, empfohlen: unter *Unternehmensanwendungen → Cleanos Dienstplan → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* nur die Disposition zuweisen. Dann kann sich niemand sonst aus dem Tenant anmelden.
-7. Für die Plattform mit Modulen: unter *App-Rollen* die Rollen `disposition`, `lohnverrechnung`, `objektleitung`, `objektservice`, `ableser`, `pruefer`, `lesen` anlegen und unter *Unternehmensanwendungen → Benutzer und Gruppen* Personen oder Gruppen zuweisen (Schritt für Schritt in [PLATTFORM.md](PLATTFORM.md)).
+7. Für die Plattform mit Modulen: unter *App-Rollen* die Rollen `disposition`, `lohnverrechnung`, `objektleitung`, `objektservice`, `ableser`, `pruefer`, `fuhrpark`, `lesen` anlegen und unter *Unternehmensanwendungen → Benutzer und Gruppen* Personen oder Gruppen zuweisen (Schritt für Schritt in [PLATTFORM.md](PLATTFORM.md)).
 
 Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohnehin darf. Wer keinen Zugriff auf die Dienstplan-Website hat, sieht auch in der App nichts.
 

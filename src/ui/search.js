@@ -1,5 +1,5 @@
 // Schnellsuche (Strg+K oder Lupe): Ansichten, Mitarbeitende, Objekte,
-// Zählstellen und Kontrollen in einem Feld. Zeigt nur, was die Rolle sehen darf.
+// Zählstellen, Fahrzeuge und Kontrollen in einem Feld. Zeigt nur, was die Rolle sehen darf.
 
 import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, visibleViews } from './context.js'
 import { esc, ICON, modalFrame } from './shared.js'
@@ -23,6 +23,11 @@ function results(q) {
   }
   if (sees('zaehler'))
     for (const m of app.data.zaehler?.meters || []) if (hit(m.number, m.location, m.objektNr)) out.push({ group: 'Zählstellen', label: m.location || m.number, sub: `Nr. ${m.number} · ${app.data.objects.find((o) => o.id === m.objectId)?.name || ''}`, action: 'search-meter', data: { id: m.id } })
+  if (sees('fahrzeuge'))
+    for (const v of app.data.fahrzeuge?.vehicles || []) {
+      const driver = app.data.employees.find((e) => e.id === v.driverId)?.name || ''
+      if (hit(v.plate, v.plate?.replace(/[\s-]/g, ''), v.label, driver)) out.push({ group: 'Fahrzeuge', label: v.plate, sub: [v.label, driver].filter(Boolean).join(' · '), action: 'veh-edit-open', data: { id: v.id } })
+    }
   if (sees('kontrolle'))
     for (const k of app.data.kontrolle?.inspections || []) {
       const o = app.data.objects.find((x) => x.id === k.objectId)
@@ -43,7 +48,7 @@ function searchModal(c, m) {
     .join('')
   return modalFrame({
     title: 'Suchen',
-    body: `<label class="search-field">${ICON.search}<input type="search" id="search-q" value="${esc(m.q || '')}" placeholder="Person, Objekt, Kunde, Zählernummer, Ansicht …" autocomplete="off" data-input="search-q"></label>
+    body: `<label class="search-field">${ICON.search}<input type="search" id="search-q" value="${esc(m.q || '')}" placeholder="Person, Objekt, Kunde, Zählernummer, Kennzeichen, Ansicht …" autocomplete="off" data-input="search-q"></label>
       <ul class="search-list" role="listbox">${items || (m.q ? '<li class="muted">Nichts gefunden.</li>' : '<li class="muted">Tippen zum Suchen. Pfeiltasten und Enter wählen.</li>')}</ul>`,
   })
 }

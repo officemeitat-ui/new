@@ -742,6 +742,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
 .check.error { background: var(--err-soft); color: var(--err); font-weight: 600; }
 .check.warning { background: var(--warn-soft); color: var(--warn); }
 .check.info { background: var(--info-soft); color: var(--info); }
+.check.ok { background: var(--ok-soft, var(--info-soft)); color: var(--ok, var(--info)); }
 ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; font-size: 0.88rem; }
 .object-card header .btn svg { width: 14px; height: 14px; }
 .pill.na { background: var(--surface-2); color: var(--muted); }
@@ -852,3 +853,14 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
   .print-page { break-after: page; }
   .print-page:last-child { break-after: auto; }
 }
+
+/* Fahrzeuge & Reifen */
+.veh-campaign { margin: 6px 0 12px; }
+.veh-table .actions-cell { white-space: nowrap; }
+.veh-table .actions-cell .btn { margin: 2px 0; }
+.veh-set { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px 10px; margin: 10px 0; }
+.veh-set legend { font-weight: 600; padding: 0 4px; }
+.veh-tread { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 6px; }
+.veh-tread input { width: 4.5rem; }
+.mail-preview { white-space: pre-wrap; font: inherit; font-size: 0.9rem; background: var(--surface-2, var(--surface)); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 6px 0 0; }
+@media (max-width: 720px) { .veh-table .actions-cell { white-space: normal; } }

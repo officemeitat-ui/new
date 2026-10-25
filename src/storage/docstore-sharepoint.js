@@ -29,7 +29,7 @@ export class SharePointDocStore {
    * @param {string} opts.library   Name der Dokumentbibliothek, z. B. "Dokumente"
    * @param {string} opts.folder    Ordner in der Bibliothek, z. B. "Dienstplan-App"
    */
-  constructor({ getToken, siteUrl, library = 'Dokumente', folder = 'Dienstplan-App', shareFolders = ['daten', 'zaehler', 'kontrolle', 'objektmappe'], fetchImpl = globalThis.fetch.bind(globalThis) }) {
+  constructor({ getToken, siteUrl, library = 'Dokumente', folder = 'Dienstplan-App', shareFolders = ['daten', 'zaehler', 'kontrolle', 'objektmappe', 'fahrzeuge'], fetchImpl = globalThis.fetch.bind(globalThis) }) {
     this.kind = 'sharepoint'
     this.getToken = getToken
     this.siteUrl = siteUrl
@@ -39,6 +39,7 @@ export class SharePointDocStore {
     this.driveId = null
     this.label = 'SharePoint'
     this.knownFolders = new Set()
+    this.pendingFolders = new Map() // gleichzeitige Speichervorgänge legen einen Ordner nur einmal an
     this.shareFolders = shareFolders
   }
 
@@ -195,18 +196,23 @@ export class SharePointDocStore {
       const parent = current
       current = current ? `${current}/${part}` : part
       if (this.knownFolders.has(current)) continue
-      // erst nachsehen: ohne Recht an der Bibliothekswurzel liefert Anlegen 403 statt 409
-      const exists = await this.#request('GET', `/drives/${this.driveId}/root:/${encodePath(current)}`, { okStatuses: [404] })
-      if (exists.status === 404) {
-        const url = parent ? `/drives/${this.driveId}/root:/${encodePath(parent)}:/children` : `/drives/${this.driveId}/root/children`
-        await this.#request('POST', url, {
-          body: JSON.stringify({ name: part, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
-          headers: { 'Content-Type': 'application/json' },
-          okStatuses: [409],
-        })
-      }
-      this.knownFolders.add(current)
+      if (!this.pendingFolders.has(current)) this.pendingFolders.set(current, this.#createFolder(parent, part, current).finally(() => this.pendingFolders.delete(current)))
+      await this.pendingFolders.get(current)
     }
+  }
+
+  async #createFolder(parent, part, current) {
+    // erst nachsehen: ohne Recht an der Bibliothekswurzel liefert Anlegen 403 statt 409
+    const exists = await this.#request('GET', `/drives/${this.driveId}/root:/${encodePath(current)}`, { okStatuses: [404] })
+    if (exists.status === 404) {
+      const url = parent ? `/drives/${this.driveId}/root:/${encodePath(parent)}:/children` : `/drives/${this.driveId}/root/children`
+      await this.#request('POST', url, {
+        body: JSON.stringify({ name: part, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+        headers: { 'Content-Type': 'application/json' },
+        okStatuses: [409],
+      })
+    }
+    this.knownFolders.add(current)
   }
 
   async #put(path, body, contentType, headers = {}, query = '') {
