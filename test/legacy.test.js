@@ -42,6 +42,7 @@ test('Übernahme: Dateien der Werkzeuge werden erkannt', () => {
   ])
   assert.deepEqual([found.water.length, found.customers.length, found.objects.length, found.inspections.length, found.akten.length, found.unknown.length], [1, 1, 1, 1, 1, 1])
   assert.deepEqual(found.templates, [{ id: 'V-1', name: 'Stiegenhaus', floor: 'Fliesen', note: '', services: [{ what: 'Handläufe abwischen', interval: 'w1', minutes: 10, method: '' }] }], 'gelöschte Vorlagen (Grabstein) nicht')
+  assert.equal(classifyLegacy([{ path: 'Sicherung/backup-2026.json', data: { werkzeug: 'Firma Objektdokumentation', vorlagen: [{ name: 'Büro' }] } }]).templates.length, 1, 'Sicherung der Vorlagen am Werkzeug-Namen erkannt')
   assert.deepEqual(found.customers[0], { nr: '10000', name: 'Musterverwaltung GmbH', street: 'Musterstraße 1', city: '5400 Hallein', email: 'office@example.at' })
 })
 

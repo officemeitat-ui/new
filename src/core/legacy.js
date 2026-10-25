@@ -1,5 +1,5 @@
 // Übernahme aus den bisherigen Werkzeugen, deren Daten schon in SharePoint
-// liegen (Bibliothek „Cleanos_Daten“):
+// liegen (gemeinsame Bibliothek, z. B. „<Firma>_Daten“):
 //   Wasserzähler - Ablesung/…/Ablesung_<Ort>_<Jahr>.json     → Zählerstände (core/meters.js)
 //   Objektpruefprotokolle/Stammdaten/Kunden.json, Objekte.json → Kundenstamm, Objekte, Objektmappe
 //   Objektpruefprotokolle/Objekte/<Objekt>/<Begehung>/*.json   → Objektkontrolle
@@ -38,7 +38,7 @@ export function classifyLegacy(files) {
       out.water.push(...water)
       continue
     }
-    if (/vorlagen/i.test(path) || data.werkzeug === 'Cleanos Objektdokumentation') {
+    if (/vorlagen/i.test(path) || / Objektdokumentation$/.test(str(data.werkzeug))) {
       out.templates.push(...convertTemplates(data))
       continue
     }
