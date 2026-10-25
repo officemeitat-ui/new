@@ -49,7 +49,13 @@ Dazu kommen: Veröffentlichen mit Excel- und PDF-Export nach SharePoint, Markier
 
 ## Corporate Design
 
-Logo und Farben in `assets/cleanos-logo.svg` und `themes/cleanos.css` sind **Platzhalter**. Bitte durch das echte Cleanos-CD ersetzen: Logo als SVG oder PNG, Primär- und Akzentfarbe, Schrift.
+Logo und Farben in `assets/cleanos-logo.svg` und `themes/cleanos.css` sind noch **Platzhalter**. Das Design der eigenen Website übernimmt ein Befehl:
+
+```bash
+npm run theme -- https://www.cleanos.at
+```
+
+Er liest Logo, Markenfarben, Schriften und die Art der Kopfzeile (hell oder farbig), schreibt `themes/cleanos.css`, lädt das Logo nach `assets/` und trägt alles in `config.json` ein (auch für die PDF-Wochenpläne: Logo und Markenfarbe). Alle Farben werden auf Lesbarkeit geprüft. Ist die Website nicht erreichbar, geht auch eine im Browser gespeicherte Seite („Seite speichern unter … komplett“): `npm run theme -- ./cleanos/index.html`. Danach mit `npm start` ansehen und bei Bedarf in `themes/cleanos.css` nachjustieren.
 
 ## Technik
 

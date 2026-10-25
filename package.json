@@ -8,7 +8,8 @@
     "start": "node scripts/serve.js",
     "build": "node scripts/build.js",
     "preview": "node scripts/build.js && node scripts/serve.js dist",
-    "test": "node --test"
+    "test": "node --test",
+    "theme": "node scripts/theme-from-site.js"
   },
   "engines": {
     "node": ">=20"

@@ -73,6 +73,7 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
 - `features.pdf`: PDF-Wochenpläne (Download, Teilen, beim Veröffentlichen nach SharePoint in den Ordner `PDF`).
 - `features.mail`: Wochenpläne per E-Mail mit PDF-Anhang direkt aus dem Dienstplan. Gesendet wird aus dem Postfach der angemeldeten Person. Mit `mail.from` (z. B. `dienstplan@cleanos.at`) aus einem freigegebenen Postfach: dafür braucht die Disposition dort die Berechtigung „Senden als“ und die App **Mail.Send.Shared**. Die E-Mail-Adressen stehen bei den Mitarbeitenden.
 - `brand.contact`: Satz unten auf jedem PDF, z. B. „Fragen zum Dienstplan: Disposition, Tel. …“.
+- `brand.colors`, `brand.logoOnLight`: Markenfarben und Logo für die PDF-Wochenpläne. Werden von `npm run theme -- https://www.cleanos.at` automatisch gesetzt (siehe README, Corporate Design).
 - Die Datei kann jederzeit am Server geändert werden, ohne neuen Build.
 
 ## 4. Hosting auf dienstplan.cleanos.at

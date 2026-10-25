@@ -5,6 +5,7 @@
 // Erzeugt nur die Dokumentbeschreibung für pdfmake (in Node testbar);
 // gerendert wird im Browser (src/ui/pdf.js).
 
+import { mix, parseColor, readableOn } from '../core/color.js'
 import { formatDate, formatHours, isoWeek, isoWeekday, WEEKDAY_LONG } from '../core/dates.js'
 
 const BAND = '#D9E1F2'
@@ -57,7 +58,14 @@ function objectNotes(ts, objectsById, employeesById) {
 }
 
 /** Seiten für einen Wochenzettel. */
-function timesheetPages(entry, { objectsById, employeesById, brand, status, contact }) {
+/** Markenfarbe fürs PDF: Primärfarbe aus config.json (brand.colors), lesbar auf Weiß. */
+function inkColors(brand) {
+  const primary = parseColor(brand.colors?.primary || '') ? brand.colors.primary : '#1F3A5F'
+  const ink = readableOn(primary, '#ffffff', 4.5)
+  return { ink, soft: mix('#ffffff', primary, 0.1), line: parseColor(brand.colors?.primary || '') ? mix('#ffffff', primary, 0.45) : LINE }
+}
+
+function timesheetPages(entry, { objectsById, employeesById, brand, status, contact, logo, colors }) {
   const { ts, account } = entry
   const emp = ts.employee
   const { year, week } = isoWeek(ts.monday)
@@ -98,16 +106,16 @@ function timesheetPages(entry, { objectsById, employeesById, brand, status, cont
   return [
     {
       columns: [
-        { stack: [{ text: brand.name, style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
+        logo ? { stack: [logo.svg ? { svg: logo.svg, width: logo.width || 120 } : { image: logo.image, fit: [150, 34] }, { text: brand.product || 'Dienstplan', color: GREY, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name, style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
         { stack: [{ text: `KW ${week} / ${year}`, style: 'kw', alignment: 'right' }, { text: `${formatDate(ts.monday, { weekday: false })} – ${formatDate(ts.sunday, { weekday: false, year: true })}`, alignment: 'right', color: GREY }] },
       ],
     },
-    { canvas: [{ type: 'line', x1: 0, y1: 3, x2: 523, y2: 3, lineWidth: 1.2, lineColor: LINE }], margin: [0, 0, 0, 6] },
+    { canvas: [{ type: 'line', x1: 0, y1: 3, x2: 523, y2: 3, lineWidth: 1.5, lineColor: colors.ink }], margin: [0, 0, 0, 6] },
     { text: [{ text: emp.name, style: 'name' }, status ? { text: `   ${status}`, color: status === 'Entwurf' ? RED : GREY, fontSize: 9 } : ''] },
     { text: meta, color: GREY, margin: [0, 1, 0, 6] },
     {
       table: { headerRows: 1, dontBreakRows: true, widths: [66, '*', 26, 44, 36, 128], body },
-      layout: { hLineColor: () => LINE, vLineColor: () => LINE, hLineWidth: () => 0.5, vLineWidth: () => 0.5, paddingTop: () => 2, paddingBottom: () => 2 },
+      layout: { hLineColor: () => colors.line, vLineColor: () => colors.line, hLineWidth: () => 0.5, vLineWidth: () => 0.5, paddingTop: () => 2, paddingBottom: () => 2 },
     },
     account !== undefined && account !== null ? { text: `Zeitkonto nach dieser Woche: ${signedHours(account)} h`, alignment: 'right', bold: true, margin: [0, 5, 0, 0] } : '',
     { text: [{ text: 'durchgestrichen', decoration: 'lineThrough' }, ' = entfällt (Feiertag, Urlaub: angerechnet) · ', { text: 'rot', color: RED }, ' = Vertretung oder verschoben · ', { text: 'grün', color: GREEN }, ' = Sonderleistung'], fontSize: 7, color: GREY, margin: [0, 4, 0, 0] },
@@ -119,13 +127,15 @@ function timesheetPages(entry, { objectsById, employeesById, brand, status, cont
 /**
  * Dokumentbeschreibung (pdfmake) für einen oder mehrere Wochenzettel,
  * je Person eine neue Seite. entries = [{ ts, account? }]
+ * logo (optional, Logo für helle Hintergründe): { svg } oder { image: dataUrl }
  */
-export function timesheetDocument(entries, { objects = [], employees = [], brand = { name: '', product: '' }, status = '', contact = '', createdAt = new Date() } = {}) {
+export function timesheetDocument(entries, { objects = [], employees = [], brand = { name: '', product: '' }, status = '', contact = '', createdAt = new Date(), logo = null } = {}) {
+  const colors = inkColors(brand)
   const objectsById = new Map(objects.map((o) => [o.id, o]))
   const employeesById = new Map(employees.map((e) => [e.id, e]))
   const content = []
   entries.forEach((entry, i) => {
-    const pages = timesheetPages(entry, { objectsById, employeesById, brand, status, contact })
+    const pages = timesheetPages(entry, { objectsById, employeesById, brand, status, contact, logo, colors })
     if (i > 0) pages[0] = { ...pages[0], pageBreak: 'before' }
     content.push(...pages)
   })
@@ -145,11 +155,11 @@ export function timesheetDocument(entries, { objects = [], employees = [], brand
     }),
     defaultStyle: { fontSize: 8.5, lineHeight: 1.05 },
     styles: {
-      brand: { fontSize: 14, bold: true, color: '#1F3A5F' },
-      kw: { fontSize: 16, bold: true },
+      brand: { fontSize: 14, bold: true, color: colors.ink },
+      kw: { fontSize: 16, bold: true, color: colors.ink },
       name: { fontSize: 15, bold: true },
-      th: { bold: true, fontSize: 8, color: '#1F3A5F', fillColor: '#EEF2F8' },
-      section: { fontSize: 9, bold: true, margin: [0, 8, 0, 3], color: '#1F3A5F' },
+      th: { bold: true, fontSize: 8, color: colors.ink, fillColor: colors.soft },
+      section: { fontSize: 9, bold: true, margin: [0, 8, 0, 3], color: colors.ink },
     },
   }
 }

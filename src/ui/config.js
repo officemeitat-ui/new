@@ -47,6 +47,8 @@ export async function loadConfig(url = 'config.json') {
 }
 
 export function applyBrand(brand) {
+  // Ohne Theme-Datei reichen die Markenfarben aus config.json (brand.colors)
+  if (!brand.theme && brand.colors?.primary) document.documentElement.style.setProperty('--accent', brand.colors.primary)
   if (brand.theme) {
     const link = document.createElement('link')
     link.rel = 'stylesheet'

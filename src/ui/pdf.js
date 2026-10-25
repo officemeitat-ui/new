@@ -31,15 +31,33 @@ export function accountAfterWeek(c, emp) {
 }
 
 const cache = new Map()
+let logoPromise = null
+
+/** Logo für helle Hintergründe (config.json → brand.logoOnLight) für das PDF laden. */
+function loadLogo() {
+  const url = app.config.brand.logoOnLight
+  if (!url) return Promise.resolve(null)
+  logoPromise =
+    logoPromise ||
+    fetch(url)
+      .then(async (res) => {
+        if (!res.ok) return null
+        if (/svg/.test(res.headers.get('content-type') || '') || url.endsWith('.svg')) return { svg: await res.text() }
+        const blob = await res.blob()
+        return { image: await new Promise((resolve) => Object.assign(new FileReader(), { onload: (e) => resolve(e.target.result) }).readAsDataURL(blob)) }
+      })
+      .catch(() => null)
+  return logoPromise
+}
 
 /** PDF mit je einer Seite pro Person (Ergebnis wird bis zur nächsten Änderung zwischengespeichert). */
 export async function weekPdfBlob(c, employees) {
   const key = `${c.monday}|${pdfStatus(c)}|${employees.map((e) => `${e.id}:${timesheetSignature(c.timesheet(e))}:${accountAfterWeek(c, e)}`).join(',')}`
   if (cache.has(key)) return cache.get(key)
-  const pdfMake = await loadPdfMake()
+  const [pdfMake, logo] = await Promise.all([loadPdfMake(), loadLogo()])
   const doc = timesheetDocument(
     employees.map((emp) => ({ ts: c.timesheet(emp), account: accountAfterWeek(c, emp) })),
-    { objects: app.data.objects, employees: app.data.employees, brand: app.config.brand, status: pdfStatus(c), contact: app.config.brand.contact || '' },
+    { objects: app.data.objects, employees: app.data.employees, brand: app.config.brand, status: pdfStatus(c), contact: app.config.brand.contact || '', logo },
   )
   const blob = await new Promise((resolve, reject) => {
     try {

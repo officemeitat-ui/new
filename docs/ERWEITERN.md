@@ -110,6 +110,8 @@ Eine Woche gilt als eingeteilt, sobald die Automatik dort geplant hat (nicht fix
 
 ## Corporate Design
 
+Am einfachsten aus der eigenen Website: `npm run theme -- https://www.firma.at` (oder Pfad zu einer gespeicherten Seite). Das Skript (`scripts/theme-from-site.js`, Logik in `scripts/theme/`) erkennt Farben aus Baukasten-Variablen (Elementor, WordPress) oder aus Häufigkeit und wichtigen Selektoren (Kopfzeile, Knöpfe, Links), Schriften aus Google Fonts oder `@font-face`, das Logo in der Kopfzeile und ob die Kopfzeile hell oder farbig ist. Es schreibt `themes/<name>.css` und in `config.json` `brand.theme`, `brand.logo`, `brand.logoOnLight` (Logo für helle Flächen, z. B. im PDF) und `brand.colors` (Primär- und Akzentfarbe, auch fürs PDF).
+
 `themes/cleanos.css` überschreibt nur Farb- und Schrift-Tokens (`--accent`, `--bg`, `--font-display`, …) und die Kopfzeile. Logo: `assets/cleanos-logo.svg` bzw. `brand.logo` in `config.json`. Ein weiteres Theme: neue Datei `themes/name.css` mit `:root[data-brand='name']` und in `config.json` `"theme": "name"`.
 
 ## Datenmodell (Auszug)

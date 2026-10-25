@@ -1,0 +1,11 @@
+/* Testseite: erfundene Marke für die Tests des Theme-Imports */
+:root { --e-global-color-primary: #00737A; --e-global-color-accent: #F5A623; --e-global-color-text: #333333; --e-global-typography-primary-font-family: "Montserrat"; --e-global-typography-text-font-family: "Open Sans"; }
+body { font-family: 'Open Sans', Arial, sans-serif; color: #333; background: #fff; }
+h1, h2, h3 { font-family: 'Montserrat', sans-serif; color: #00737a; }
+.site-header { background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.1); }
+.main-nav a { color: #1a1a1a; }
+.main-nav a:hover { color: #00737a; }
+.btn-primary { background: #f5a623; color: #1a1a1a; border-radius: 30px; }
+.hero { background: linear-gradient(#00737a, #005c62); color: #fff; }
+footer { background: #0d2b2d; color: #ccc; }
+.badge { background: #e8f4f5; }
