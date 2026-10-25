@@ -115,6 +115,10 @@ Die Glocke sammelt Punkte aus `computeTodo()` in `src/ui/modals/todo.js`: Abwese
 
 Eine Woche gilt als eingeteilt, sobald die Automatik dort geplant hat (nicht fixierte Einteilungen). Händische Einteilungen und Übergaben aus dem Abwesenheits-Assistenten sind fixiert, damit „Woche planen“ die Woche danach trotzdem vollständig einteilt und die Übergaben behält.
 
+## Zuweisung im Stammplan anpassen
+
+Logik in `src/core/assign.js` (getestet in `test/assign.test.js`), Ansicht in `src/ui/views/assign.js`. `evaluateRegular()` liefert Ausschlussgründe (`blockers`) und Gründe mit Punkten (`factors`, negativ = spricht dafür) wie `candidateFactors()` der Wochenplanung. Ein neuer Grund ist eine Zeile `add('code', punkte, 'Text')`, ein neuer Ausschluss ein `blockers.push('Text')`. `suggestRegulars()` verteilt alle offenen Leistungen.
+
 ## Müllplanung anpassen
 
 Logik in `src/core/waste.js`, Eingabe in `src/ui/waste-form.js`, Ansicht in `src/ui/views/waste.js`. Die Gänge entstehen beim Berechnen der Einsätze (`buildInstances` → `applyWaste`), es wird nichts zusätzlich gespeichert: Ändert sich der Stammplan, wandern die Gänge mit.

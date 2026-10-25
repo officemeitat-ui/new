@@ -110,6 +110,12 @@ export function createDemoData(monday) {
   })
   Object.assign(objects.find((o) => o.id === 'o4'), { keys: [{ id: 'k2', label: 'Lager/Sanitär', holderId: 'e6' }, { id: 'k3', label: 'Lager/Sanitär (2)', holderId: 'e2' }], instructions: 'Schlüssel für Lager und Sanitär an der Kassa abholen. Zapfsäulenbereich nur nach Rücksprache.' })
   Object.assign(objects.find((o) => o.id === 'o2'), { instructions: 'Schauraum: Glasflächen nur mit Abzieher, keine Mikrofasertücher an den Fahrzeugen.' })
+  // Neuer Kunde: Reinigungsplan steht, Stammkräfte sind noch zuzuweisen (Ansicht „Zuweisung“)
+  objects.push({ id: 'o90', name: 'Kindergarten Aigen', short: 'Kindergarten', address: '5026 Salzburg-Aigen', color: 12, onlyTrained: false, region: 'Salzburg Stadt', budgetHoursMonth: 0, budgetFactor: 1, contact: 'Leitung, Mo–Fr bis 16 Uhr' })
+  tasks.push(
+    { id: 't31', objectId: 'o90', label: 'Gruppenräume & Sanitär', category: 'reinigung', recurrence: weekly(MO_FR), start: '17:00', end: '19:00', staff: 1, regulars: [], skills: [], holidayRule: 'entfaellt' },
+    { id: 't32', objectId: 'o90', label: 'Küche & Garderobe', category: 'reinigung', recurrence: weekly([2, 4]), start: '14:00', end: '15:30', staff: 1, regulars: [], skills: ['Hygienebereich'], holidayRule: 'entfaellt' },
+  )
 
   // Müllpläne: Rhythmus der Gemeinde oder Termine aus dem Abfuhrkalender.
   // Kanzlei: alle Gänge laufen mit den Reinigungen mit. Wohnanlage: teils
