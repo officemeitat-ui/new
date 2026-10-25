@@ -42,6 +42,7 @@ Danach:
 4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**, für den E-Mail-Versand zusätzlich **Mail.Send** (oder **Mail.Send.Shared** für ein gemeinsames Postfach, siehe unten). Anschließend **Administratorzustimmung erteilen**.
 5. Von der *Übersicht* notieren: **Verzeichnis-ID (Mandant)** und **Anwendungs-ID (Client)**.
 6. Optional, empfohlen: unter *Unternehmensanwendungen → Cleanos Dienstplan → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* nur die Disposition zuweisen. Dann kann sich niemand sonst aus dem Tenant anmelden.
+7. Für die Plattform mit Modulen: unter *App-Rollen* die Rollen `disposition`, `lohnverrechnung`, `objektleitung`, `objektservice`, `ableser`, `pruefer`, `lesen` anlegen und unter *Unternehmensanwendungen → Benutzer und Gruppen* Personen oder Gruppen zuweisen (Schritt für Schritt in [PLATTFORM.md](PLATTFORM.md)).
 
 Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohnehin darf. Wer keinen Zugriff auf die Dienstplan-Website hat, sieht auch in der App nichts.
 
@@ -68,7 +69,9 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
 }
 ```
 
-- `access.planners`: E-Mail-Adressen, die planen dürfen. Alle anderen angemeldeten Personen mit Zugriff auf die Website sehen den Plan **nur lesend**. Eine leere Liste bedeutet: alle dürfen planen.
+- `access.planners`: E-Mail-Adressen, die planen dürfen (Rolle Disposition). Alle anderen angemeldeten Personen ohne Rolle sehen den Plan **nur lesend**. Eine leere Liste und keine Rollen bedeutet: alle dürfen alles.
+- `access.members`, `access.roles`: Rollen per E-Mail-Liste statt über Entra ID und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier.
+- Ablage gemeinsam mit den bisherigen Werkzeugen: z. B. `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Die Module legen eigene Unterordner an (`daten/`, `zaehler/`, `kontrolle/`, `objektmappe/`), die je Ordner eigene SharePoint-Rechte bekommen können.
 - `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat.
 - `features.pdf`: PDF-Wochenpläne (Download, Teilen, beim Veröffentlichen nach SharePoint in den Ordner `PDF`).
 - `features.mail`: Wochenpläne per E-Mail mit PDF-Anhang direkt aus dem Dienstplan. Gesendet wird aus dem Postfach der angemeldeten Person. Mit `mail.from` (z. B. `dienstplan@cleanos.at`) aus einem freigegebenen Postfach: dafür braucht die Disposition dort die Berechtigung „Senden als“ und die App **Mail.Send.Shared**. Die E-Mail-Adressen stehen bei den Mitarbeitenden.

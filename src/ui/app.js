@@ -3,6 +3,7 @@
 
 import './views/index.js'
 
+import { MODULES, resolveAccess } from '../core/access.js'
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../core/dates.js'
 import { DEFAULT_RULES } from '../core/rules.js'
 import { createDemoData, DEFAULT_SKILLS } from '../data/demo.js'
@@ -10,11 +11,12 @@ import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService } from '../storage/data-service.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, clearUndo, closeModal, labelTables, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, VIEWS } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, visibleViews } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
-import { bottomNav, isMobile, mobileTopbar, watchDevice } from './mobile.js'
+import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
 import { planWeek, seedDemoHistory } from './planning.js'
+import { searchButton } from './search.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
@@ -30,9 +32,9 @@ function readPrefs() {
 }
 
 function writePrefs() {
-  const { view, monday, employeeId, team, region } = app.ui
+  const { view, monday, employeeId, team, region, previewRole } = app.ui
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region }))
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole }))
   } catch {
     /* Browser erlaubt keine Speicherung */
   }
@@ -65,35 +67,41 @@ function topbar(c) {
   const { year, week } = isoWeek(c.monday)
   const published = c.published
   const changed = published?.snapshot ? c.ctx.employees.filter((e) => c.changedSincePublish(e)).length : 0
+  // Ansichten ohne Wochenbezug (Zähler, Kontrollen): Titel statt Wochenwahl
+  const view = visibleViews().find((v) => v.id === app.ui.view)
+  const title = view?.noWeek ? { label: view.label, sub: formatDate(todayISO(), { year: true }) } : null
   if (isMobile()) {
     const short = published ? (changed ? `${changed} geändert` : 'veröffentlicht') : 'Entwurf'
-    return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short })
+    return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short, title })
   }
   const status = published ? (changed ? `<span class="pill warning">veröffentlicht · ${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info">Entwurf</span>'
-  const user = app.user ? `<span class="user">${ICON.user} ${esc(app.user.name)}${app.readOnly ? ' (lesen)' : ''}</span>${app.signOut ? '<button class="btn small" data-action="sign-out">Abmelden</button>' : ''}` : ''
+  const role = app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''
+  const user = app.user ? `<span class="user">${ICON.user} ${esc(app.user.name)}${role}</span>${app.signOut ? '<button class="btn small" data-action="sign-out">Abmelden</button>' : ''}` : roleSwitch()
   return `<header class="topbar"><div class="topbar-inner wrap">
     ${brandBlock()}
-    <div class="weeknav">
+    ${title ? `<div class="weeknav"><div class="kw">${esc(title.label)}<small>${title.sub}</small></div></div>` : `<div class="weeknav">
       <button class="btn icon" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
       <div class="kw">KW ${week} / ${year}<small>${formatDate(c.monday, { weekday: false })} – ${formatDate(c.sunday, { weekday: false, year: true })}</small></div>
       <button class="btn icon" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
       <button class="btn small" data-action="nav-today">Heute</button>
       ${status}
-    </div>
+    </div>`}
     <div class="actions">
+      ${searchButton()}
       ${bellButton()}
-      <button class="btn primary edit-only" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>
-      <button class="btn edit-only" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">Neu planen</button>
-      <button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>
-      <button class="btn" data-action="open-data">Daten</button>
+      ${canEdit('planung') ? `<button class="btn primary" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>
+      <button class="btn" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">Neu planen</button>` : ''}
+      ${app.access?.sees('planung') !== false ? `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>` : ''}
+      ${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten</button>' : ''}
     </div>
     <div class="userbox"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span>${user}</div>
   </div></header>`
 }
 
 function tabs(c) {
+  const views = visibleViews()
   return `<nav class="tabs wrap" aria-label="Ansichten">${GROUPS.map(([group, label]) => {
-    const items = VIEWS.filter((v) => v.group === group)
+    const items = views.filter((v) => v.group === group)
     if (!items.length) return ''
     return `<div class="tabgroup"><span class="tabgroup-label">${label}</span>${items
       .map((v) => {
@@ -140,9 +148,13 @@ function correctionBanner(c) {
 }
 
 function frame(c) {
-  const view = VIEWS.find((v) => v.id === app.ui.view) || VIEWS[0]
+  const views = visibleViews()
+  if (!views.length) return `${topbar(c)}<main class="wrap"><div class="banner"><p><strong>Kein Bereich freigegeben.</strong> Deinem Konto ist keine Rolle mit Modulen zugewiesen. Bitte bei der Disposition melden.</p></div></main>`
+  const view = views.find((v) => v.id === app.ui.view) || views[0]
   app.ui.view = view.id
-  const readOnly = app.readOnly ? '<div class="banner"><p><strong>Nur Leserechte.</strong> Dein Konto ist nicht als Disposition eingetragen (config.json → access.planners).</p></div>' : ''
+  // Leserechte je Modul der aktuellen Ansicht
+  app.readOnly = !canEdit(moduleOf(view))
+  const readOnly = app.readOnly ? `<div class="banner"><p><strong>Nur lesen.</strong> ${app.access ? `Deine Rolle (${esc(app.access.label)}) darf im Bereich „${esc(MODULES[moduleOf(view)] || '')}“ nichts ändern.` : ''}</p></div>` : ''
   const mobile = isMobile()
   return `${topbar(c)}${mobile ? '' : tabs(c)}<main class="wrap">${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}</main>${mobile ? bottomNav(c) : ''}`
 }
@@ -179,14 +191,21 @@ Object.assign(ACTIONS, {
     window.scrollTo({ top: 0 })
   },
   plan: () => {
-    if (app.readOnly) return toast('Nur Leserechte.')
+    if (!canEdit('planung')) return toast('Nur Leserechte.')
     app.ui.modal = null
     planWeek(false)
   },
   replan: () => {
-    if (app.readOnly) return toast('Nur Leserechte.')
+    if (!canEdit('planung')) return toast('Nur Leserechte.')
     app.ui.modal = null
     planWeek(true)
+  },
+  'preview-role': (el) => {
+    app.ui.previewRole = el.value === 'disposition' ? null : el.value
+    app.access = resolveAccess({ preview: app.ui.previewRole, access: app.config.access })
+    app.ui.modal = null
+    render()
+    toast(app.ui.previewRole ? `Vorschau: so sieht es die Rolle „${el.options[el.selectedIndex].text}“.` : 'Vorschau beendet: alle Bereiche.')
   },
   'close-modal': closeModal,
   reload: () => location.reload(),
@@ -218,6 +237,14 @@ function bindEvents() {
     // <input data-change="aktion">: Aktion bei Änderung (z. B. Datei gewählt)
     const handler = ACTIONS[e.target.dataset.change]
     if (handler) handler(e.target, e)
+  })
+  // <input data-input="aktion">: Aktion beim Tippen (kurz verzögert)
+  let inputTimer = null
+  document.addEventListener('input', (e) => {
+    const handler = ACTIONS[e.target.dataset.input]
+    if (!handler) return
+    clearTimeout(inputTimer)
+    inputTimer = setTimeout(() => handler(e.target, e), 200)
   })
   bindFilterEvents(document)
   bindDragEvents(document)
@@ -262,14 +289,14 @@ async function boot() {
     store = new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint })
     showMessage('<p>Verbinde mit SharePoint …</p>')
     await store.init()
-    const planners = (config.access.planners || []).map((x) => x.toLowerCase())
-    app.readOnly = planners.length > 0 && !planners.includes(app.user.email)
+    app.access = resolveAccess({ roleClaims: app.user.roles, email: app.user.email, access: config.access })
   } else {
     store = new LocalDocStore({ download })
   }
   app.store = store
 
   Object.assign(app.ui, readPrefs())
+  if (config.storage !== 'sharepoint') app.access = resolveAccess({ preview: app.ui.previewRole, access: config.access })
   app.service = new DataService(store, {
     onStatus: (status, detail) => {
       const el = document.getElementById('save-status')

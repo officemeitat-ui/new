@@ -68,7 +68,8 @@ export async function signIn({ tenantId, clientId, redirectUri = `${location.ori
   }
 
   return {
-    user: { name: account.name || account.username, email: (account.username || '').toLowerCase() },
+    // roles: App-Rollen aus Entra ID (Unternehmensanwendung → Benutzer und Gruppen)
+    user: { name: account.name || account.username, email: (account.username || '').toLowerCase(), roles: account.idTokenClaims?.roles || [] },
     getToken,
     signOut: () => pca.logoutRedirect({ account }),
   }

@@ -5,50 +5,15 @@
 import { formatDate, formatHours } from '../core/dates.js'
 import { UE_MODES } from '../core/overtime.js'
 import { euroText, monthName } from '../core/payout.js'
-import { inkColors } from './pdf.js'
+import { docShell, GREY, header, inkColors, tableLayout, TOTAL } from './pdf-parts.js'
 
-const GREY = '#595959'
-const TOTAL = '#FFF2CC'
 const signedH = (min) => `${min > 0 ? '+' : min < 0 ? '−' : '±'}${formatHours(Math.abs(min))}`
-
-function header({ title, subtitle, brand, logo, colors }) {
-  return [
-    {
-      columns: [
-        logo ? { stack: [logo.svg ? { svg: logo.svg, width: 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: GREY, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name || '', style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
-        { stack: [{ text: title, style: 'title', alignment: 'right' }, { text: subtitle, alignment: 'right', color: GREY }] },
-      ],
-    },
-    { canvas: [{ type: 'line', x1: 0, y1: 3, x2: 523, y2: 3, lineWidth: 1.5, lineColor: colors.ink }], margin: [0, 0, 0, 8] },
-  ]
-}
-
-const tableLayout = (colors) => ({ hLineColor: () => colors.line, vLineColor: () => colors.line, hLineWidth: () => 0.5, vLineWidth: () => 0.5, paddingTop: () => 3, paddingBottom: () => 3 })
 
 function linesTable(entry, colors) {
   const body = [[{ text: 'Lohnart', style: 'th' }, { text: 'Stunden', style: 'th', alignment: 'right' }, { text: 'Satz', style: 'th', alignment: 'right' }, { text: 'Betrag', style: 'th', alignment: 'right' }]]
   for (const l of entry.lines) body.push([l.label, { text: formatHours(l.min), alignment: 'right' }, { text: l.base ? `100 % + ${l.pct} %` : `${l.pct} %`, alignment: 'right' }, { text: euroText(l.amount), alignment: 'right' }])
   body.push([{ text: 'Summe brutto', bold: true, fillColor: TOTAL }, { text: '', fillColor: TOTAL }, { text: '', fillColor: TOTAL }, { text: euroText(entry.amount), bold: true, alignment: 'right', fillColor: TOTAL }])
   return { table: { headerRows: 1, widths: ['*', 50, 70, 70], body }, layout: tableLayout(colors) }
-}
-
-function docShell(content, { brand, colors, createdAt, title }) {
-  const created = createdAt.toLocaleDateString('de-AT')
-  return {
-    pageSize: 'A4',
-    pageMargins: [36, 30, 36, 40],
-    info: { title, author: brand.name, creator: brand.product || 'Dienstplan' },
-    content,
-    footer: (page, pages) => ({ columns: [{ text: `${brand.name || ''}${brand.name ? ' · ' : ''}erstellt am ${created}`, fontSize: 7.5, color: GREY }, { text: `Seite ${page} von ${pages}`, alignment: 'right', fontSize: 7.5, color: GREY }], margin: [36, 14, 36, 0] }),
-    defaultStyle: { fontSize: 8.5, lineHeight: 1.1 },
-    styles: {
-      brand: { fontSize: 14, bold: true, color: colors.ink },
-      title: { fontSize: 14, bold: true, color: colors.ink },
-      name: { fontSize: 13, bold: true },
-      th: { bold: true, fontSize: 8, color: colors.ink, fillColor: colors.soft },
-      section: { fontSize: 10, bold: true, margin: [0, 10, 0, 4], color: colors.ink },
-    },
-  }
 }
 
 /** Übersicht für die Lohnverrechnung: wer bekommt wie viel, danach je Person die Lohnzeilen. */

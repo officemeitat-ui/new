@@ -4,11 +4,13 @@
 //  - periodische Leistungen (14-tägig, monatlich, quartalsweise …) ohne
 //    Besetzung, rechtzeitig vor dem Termin (Regel „dueLeadDays“)
 //  - veröffentlichte Wochen, die danach geändert wurden (Korrektur buchen)
+//  - Punkte weiterer Module (registerTodo: Ablesungen, Kontrollen, Mängel …)
+// Jede Person sieht nur die Punkte der Module ihrer Rolle.
 
 import { absenceImpact, periodicDue } from '../../core/attention.js'
 import { addDays, formatDate, formatHours, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { buildTimesheet, timesheetSignature } from '../../core/timesheet.js'
-import { app, computeRange, dataStamp, empName, ensureRange, openModal, plannedWeeks, registerActions, registerModal, render } from '../context.js'
+import { app, canEdit, computeRange, dataStamp, empName, ensureRange, openModal, plannedWeeks, registerActions, registerModal, render } from '../context.js'
 import { ABSENCE_CLASS, esc, ICON, modalFrame } from '../shared.js'
 
 const SEEN_KEY = 'einsatzplaner.todoSeen.v1'
@@ -17,7 +19,25 @@ const AHEAD_DAYS = 35
 
 export const todoWindow = (today = todayISO()) => ({ from: addDays(today, -BACK_DAYS), to: addDays(today, AHEAD_DAYS) })
 
+const SOURCES = []
+/**
+ * Weitere Quelle für „Zu erledigen“: { id, module, title, compute(today) → [{ id, … }], render(items, c) → HTML }
+ * Die id jedes Punkts ändert sich, wenn er wieder neu gemeldet werden soll.
+ */
+export function registerTodo(source) {
+  const idx = SOURCES.findIndex((s) => s.id === source.id)
+  if (idx >= 0) SOURCES.splice(idx, 1, source)
+  else SOURCES.push(source)
+}
+
+const sees = (module) => !app.access || app.access.sees(module)
+
 export function computeTodo(today = todayISO()) {
+  const extra = SOURCES.filter((src) => sees(src.module))
+    .map((source) => ({ source, items: source.compute(today) }))
+    .filter((x) => x.items.length)
+  const extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
+  if (!sees('planung')) return { today, lead: 0, absences: [], periodic: [], weeks: [], extra, count: extraIds.length, ids: extraIds }
   const { from, to } = todoWindow(today)
   const r = computeRange(from, to)
   const planned = plannedWeeks()
@@ -54,14 +74,14 @@ export function computeTodo(today = todayISO()) {
   }
   weeks.sort((a, b) => a.monday.localeCompare(b.monday))
 
-  const ids = [...absences, ...periodic, ...weeks].map((x) => x.id)
-  return { today, lead, absences, periodic, weeks, count: ids.length, ids }
+  const ids = [...[...absences, ...periodic, ...weeks].map((x) => x.id), ...extraIds]
+  return { today, lead, absences, periodic, weeks, extra, count: ids.length, ids }
 }
 
 // Berechnung nur nach Änderungen
 let cache = { key: null, todo: null }
 export function todo() {
-  const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}`
+  const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
   if (cache.key !== key) cache = { key, todo: computeTodo() }
   return cache.todo
 }
@@ -86,7 +106,7 @@ function markSeen(ids) {
 
 export function bellButton() {
   const count = cache.todo?.count || 0
-  return `<button class="btn bell" data-action="open-todo" title="Zu erledigen: Abwesenheiten, periodische Leistungen, Korrekturen">${ICON.bell}<span class="bell-label">Zu erledigen</span><span id="todo-count" class="flag error" ${count ? '' : 'hidden'}>${count || ''}</span></button>`
+  return `<button class="btn bell" data-action="open-todo" title="Zu erledigen: offene Punkte deiner Bereiche">${ICON.bell}<span class="bell-label">Zu erledigen</span><span id="todo-count" class="flag error" ${count ? '' : 'hidden'}>${count || ''}</span></button>`
 }
 
 let timer = null
@@ -104,10 +124,11 @@ export function refreshBell() {
 
 /** Beim Start: neue Punkte? Dann aufpoppen. */
 export async function showTodoIfNew() {
-  if (app.readOnly || app.ui.modal) return
+  // Nur wer in einem der Bereiche etwas tun darf, bekommt das Popup
+  if (app.ui.modal || !(canEdit('planung') || SOURCES.some((s) => canEdit(s.module)))) return
   try {
     const { from, to } = todoWindow()
-    await ensureRange(from, to)
+    if (sees('planung')) await ensureRange(from, to)
   } catch {
     return
   }
@@ -154,12 +175,13 @@ function todoModal(c, { auto }) {
         <button class="btn small primary" data-action="goto-publish" data-monday="${w.monday}">${w.started ? 'Korrektur buchen' : 'Ansehen'}</button></div>`)
       .join('')}</section>`)
   }
+  for (const { source, items } of t.extra) sections.push(`<section><h3>${esc(source.title)}</h3>${source.render(items, c)}</section>`)
   return modalFrame({
     title: 'Zu erledigen',
     subtitle: `${auto ? 'Neu oder geändert seit deinem letzten Besuch · ' : ''}Stand ${formatDate(t.today, { year: true })}`,
     wide: true,
     body: sections.join('') || '<p class="empty">Alles erledigt: keine offenen Zuteilungen, keine Korrekturen.</p>',
-    foot: `<button class="btn" data-action="view" data-view="due">Alle periodischen Leistungen</button><div class="actions"><button class="btn primary" data-action="close-modal">Schließen</button></div>`,
+    foot: `${sees('planung') ? '<button class="btn" data-action="view" data-view="due">Alle periodischen Leistungen</button>' : '<span></span>'}<div class="actions"><button class="btn primary" data-action="close-modal">Schließen</button></div>`,
   })
 }
 
@@ -168,7 +190,7 @@ registerModal('todo', todoModal)
 registerActions({
   'open-todo': async () => {
     const { from, to } = todoWindow()
-    await ensureRange(from, to).catch(() => {})
+    if (sees('planung')) await ensureRange(from, to).catch(() => {})
     markSeen(todo().ids)
     openModal({ type: 'todo' })
   },

@@ -6,6 +6,15 @@
 //   daten/abwesenheiten.json          Urlaub, Krankenstand, …
 //   daten/zeitkonto.json              veröffentlichte Wochen mit Salden, Monatsabschlüsse
 //   daten/plaene/2026/2026-10-26.json Einteilungen einer Woche + Änderungsprotokoll
+//   zaehler/zaehler.json              Zählstellen und Ablesungen (Modul Zählerstände), Fotos in zaehler/fotos/
+//   kontrolle/kontrolle.json          Checklisten, Kontrollen, Mängel (Modul Objektkontrolle), Fotos in kontrolle/fotos/
+//   objektmappe/objektmappe.json      Kontakte, Zugang, Leistungsverzeichnis (Modul Objektmappe)
+//
+// Rechte: Jeder Modul-Ordner kann in SharePoint eigene Berechtigungen haben
+// (z. B. Gruppe „Ableser“ nur auf zaehler/). Darf jemand eine Datei nicht
+// lesen (403), bleibt der Bereich leer und wird nie gespeichert – die App
+// läuft weiter. Stundenlöhne stehen nicht in den Stammdaten, sondern in
+// daten/zeitkonto.json (nur Disposition und Lohnverrechnung).
 //
 // Gespeichert wird automatisch (verzögert), nur geänderte Dateien. Bei einem
 // Konflikt werden die Änderungen beider Seiten zusammengeführt (merge.js).
@@ -21,7 +30,19 @@ export const DOC = {
 }
 export const weekPath = (monday) => `daten/plaene/${monday.slice(0, 4)}/${monday}.json`
 
+/** Dateien der Module: app.data[key] ist der Inhalt der Datei. */
+export const MODULE_DOCS = {
+  zaehler: { path: 'zaehler/zaehler.json', empty: () => ({ meters: [], readings: [], closures: {} }) },
+  kontrolle: { path: 'kontrolle/kontrolle.json', empty: () => ({ checklists: [], plans: {}, inspections: [] }) },
+  mappe: { path: 'objektmappe/objektmappe.json', empty: () => ({ objects: {} }) },
+}
+const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
+
 const MASTER_KEYS = ['version', 'employees', 'objects', 'tasks', 'skills', 'rules', 'extraFreeDays', 'travel', 'settings']
+// Lohndaten je Person: nicht in den Stammdaten (die auch Ableser und Prüfer lesen), sondern im Zeitkonto
+const PAY_FIELDS = ['hourlyWage', 'wageGroup']
+const payOf = (e) => Object.fromEntries(PAY_FIELDS.filter((f) => e[f] !== undefined).map((f) => [f, e[f]]))
+const withoutPay = (e) => Object.fromEntries(Object.entries(e).filter(([k]) => !PAY_FIELDS.includes(k)))
 // Felder je Woche; Schlüssel beginnen mit dem Datum des Einsatzes (trips = geplante Fahrten)
 const WEEK_FIELDS = ['assignments', 'overrides', 'trips']
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
@@ -30,11 +51,15 @@ const weekOfKey = (key) => mondayOf(key.slice(0, 10))
 
 /** App-Daten → Dateien. Nur Wochen in `weeks` werden erzeugt. */
 export function splitData(data, weeks) {
+  const master = Object.fromEntries(MASTER_KEYS.map((k) => [k, data[k]]).filter(([, v]) => v !== undefined))
+  if (master.employees) master.employees = master.employees.map(withoutPay)
+  const pay = Object.fromEntries((data.employees || []).map((e) => [e.id, payOf(e)]).filter(([, p]) => Object.keys(p).length))
   const docs = {
-    [DOC.master]: Object.fromEntries(MASTER_KEYS.map((k) => [k, data[k]]).filter(([, v]) => v !== undefined)),
+    [DOC.master]: master,
     [DOC.absences]: { absences: data.absences || [] },
-    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}) },
+    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(Object.keys(pay).length ? { pay } : {}) },
   }
+  for (const [key, m] of Object.entries(MODULE_DOCS)) docs[m.path] = data[key] ?? m.empty()
   for (const monday of weeks) docs[weekPath(monday)] = { monday, assignments: {}, overrides: {}, log: data.logs?.[monday] || [] }
   for (const field of WEEK_FIELDS) {
     for (const [key, value] of Object.entries(data[field] || {})) {
@@ -50,13 +75,21 @@ export function splitData(data, weeks) {
 /** Eine Datei in die App-Daten übernehmen. */
 export function applyDoc(data, path, doc) {
   if (path === DOC.master) {
+    // Lohndaten bleiben erhalten (stehen im Zeitkonto); ältere Stammdaten mit Lohn darin gelten weiter
+    const pay = new Map((data.employees || []).map((e) => [e.id, payOf(e)]))
     for (const k of MASTER_KEYS) if (doc[k] !== undefined) data[k] = doc[k]
+    if (doc.employees) data.employees = doc.employees.map((e) => ({ ...(pay.get(e.id) || {}), ...e }))
   } else if (path === DOC.absences) {
     data.absences = doc.absences || []
   } else if (path === DOC.account) {
     data.published = doc.weeks || {}
     if (doc.payroll) data.payroll = doc.payroll
     else delete data.payroll
+    const pay = doc.pay || {}
+    data.employees = (data.employees || []).map((e) => (pay[e.id] ? { ...withoutPay(e), ...pay[e.id] } : e))
+  } else if (MODULE_BY_PATH[path]) {
+    const m = MODULE_BY_PATH[path]
+    data[m.key] = { ...m.empty(), ...doc }
   } else {
     const monday = doc.monday
     for (const field of WEEK_FIELDS) {
@@ -78,6 +111,7 @@ export class DataService {
     this.base = new Map() // Pfad → zuletzt gespeicherter/geladener Stand
     this.etags = new Map()
     this.weeks = new Set()
+    this.denied = new Set() // Dateien ohne Leserecht: werden nie gespeichert
     this.timer = null
     this.saving = null
     this.status = 'idle'
@@ -90,21 +124,41 @@ export class DataService {
     this.onStatus(status, detail)
   }
 
-  /** Lädt Stammdaten, Abwesenheiten und Zeitkonto. `seed()` liefert Startdaten, falls noch nichts existiert. */
+  /** Datei lesen; ohne Leserecht (403) als gesperrt merken statt abzubrechen. */
+  async #read(path) {
+    try {
+      return await this.store.read(path)
+    } catch (err) {
+      if (err.status !== 403) throw err
+      this.denied.add(path)
+      return null
+    }
+  }
+
+  /** Darf diese Datei gespeichert werden? */
+  writable(path) {
+    return !this.denied.has(path)
+  }
+
+  /** Splitten ohne gesperrte Dateien. */
+  #docs() {
+    return Object.entries(splitData(this.data, this.weeks)).filter(([path]) => !this.denied.has(path))
+  }
+
+  /** Lädt Stammdaten, Abwesenheiten, Zeitkonto und die Modul-Dateien. `seed()` liefert Startdaten, falls noch nichts existiert. */
   async load(seed) {
     this.#setStatus('loading')
-    const [master, absences, account] = await Promise.all([DOC.master, DOC.absences, DOC.account].map((p) => this.store.read(p)))
+    const paths = [DOC.master, DOC.absences, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
+    const docs = await Promise.all(paths.map((p) => this.#read(p)))
+    if (this.denied.has(DOC.master)) throw new Error('Kein Leserecht auf die Stammdaten (daten/stammdaten.json). Bitte in SharePoint freigeben lassen.')
     const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {} }
     this.data = data
-    if (!master) {
+    if (!docs[0]) {
       Object.assign(data, await seed())
       this.firstRun = true
     } else {
-      for (const [path, doc] of [
-        [DOC.master, master],
-        [DOC.absences, absences],
-        [DOC.account, account],
-      ]) {
+      for (const [i, path] of paths.entries()) {
+        const doc = docs[i]
         if (!doc) continue
         applyDoc(data, path, doc.data)
         this.version++
@@ -125,7 +179,7 @@ export class DataService {
   async ensureWeeks(mondays) {
     const missing = mondays.filter((m) => !this.weeks.has(m))
     if (!missing.length) return false
-    const docs = await Promise.all(missing.map((m) => this.store.read(weekPath(m))))
+    const docs = await Promise.all(missing.map((m) => this.#read(weekPath(m))))
     missing.forEach((monday, i) => {
       const path = weekPath(monday)
       const doc = docs[i]
@@ -148,8 +202,7 @@ export class DataService {
   }
 
   hasPendingChanges() {
-    const docs = splitData(this.data, this.weeks)
-    return Object.entries(docs).some(([path, doc]) => !same(doc, this.base.get(path) ?? emptyDoc(path)))
+    return this.#docs().some(([path, doc]) => !same(doc, this.base.get(path) ?? emptyDoc(path)))
   }
 
   async flush() {
@@ -163,8 +216,7 @@ export class DataService {
   }
 
   async #flush() {
-    const docs = splitData(this.data, this.weeks)
-    const dirty = Object.entries(docs).filter(([path, doc]) => !same(doc, this.base.get(path) ?? emptyDoc(path)))
+    const dirty = this.#docs().filter(([path, doc]) => !same(doc, this.base.get(path) ?? emptyDoc(path)))
     if (!dirty.length) {
       this.#setStatus('saved')
       return
@@ -210,12 +262,11 @@ export class DataService {
    */
   async refresh() {
     if (this.saving || this.timer && this.status === 'pending') return []
-    const docs = splitData(this.data, this.weeks)
     const changed = []
-    for (const path of Object.keys(docs)) {
+    for (const [path, doc] of this.#docs()) {
       const etag = await this.store.etagOf(path)
       if (!etag || etag === this.etags.get(path)) continue
-      if (!same(docs[path], this.base.get(path) ?? emptyDoc(path))) continue
+      if (!same(doc, this.base.get(path) ?? emptyDoc(path))) continue
       const remote = await this.store.read(path)
       if (!remote) continue
       applyDoc(this.data, path, remote.data)
@@ -230,6 +281,7 @@ export class DataService {
 }
 
 function emptyDoc(path) {
+  if (MODULE_BY_PATH[path]) return MODULE_BY_PATH[path].empty()
   if (path === DOC.absences) return { absences: [] }
   if (path === DOC.account) return { weeks: {} }
   if (path.startsWith('daten/plaene/')) {

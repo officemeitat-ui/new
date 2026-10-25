@@ -145,13 +145,17 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 - **Erweiterbar**: Regeln, Ansichten, Ablagen und Design sind austauschbare Module, siehe [ERWEITERN.md](ERWEITERN.md).
 - **Corporate Design** als Theme. Logo und Farben sind Platzhalter, bis die echten Cleanos-Vorgaben vorliegen.
 
+## 5a. Plattform mit Modulen
+
+Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle und Objektdokumentation als Module im Dienstplan: eine Anmeldung, gemeinsame Objekte, Rollen aus Entra ID, getrennte Dateien je Modul mit eigenen SharePoint-Rechten. Was übernommen wurde, was neu ist und wie die Rollen eingerichtet werden: [PLATTFORM.md](PLATTFORM.md).
+
 ## 6. Ausbaustufen
 
 | Stufe | Inhalt |
 |---|---|
 | **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
 | **2. Mitarbeiter-App** | Eigener Wochenplan am Handy (PWA), Push bei Änderungen, Urlaubsantrag, offene Einsätze übernehmen; Zeiterfassung per QR/NFC im Objekt. Braucht einen kleinen Server für Rechte je Person |
-| **3. Qualität & Kalkulation** | Begehungen und Reklamationen, Objektkalkulation aus Flächen und Leistungswerten, Tourenplanung mit Karte |
+| **3. Qualität & Kalkulation** | Begehungen (gebaut: Modul Objektkontrolle), Leistungsverzeichnis mit Richtzeiten (gebaut: Objektmappe), Zählerablesung (gebaut: Zählerstände); offen: Reklamationen, Objektkalkulation aus Flächen und Leistungswerten, Tourenplanung mit Karte |
 | **4. Anbindungen** | Teams Shifts, BMD/RZL mit Lohnarten-Mapping, Fahrzeiten aus Adressen |
 
 Zu klären:
@@ -160,7 +164,7 @@ Zu klären:
 - **Fahrzeit**: wann sie als Arbeitszeit zählt
 - **Feiertagsgutschrift**: mit oder ohne Sonderleistungen
 - **Betriebsvereinbarung**: § 96a ArbVG, falls es einen Betriebsrat gibt
-- **Datenschutz**: Zugriff auf die SharePoint-Website nur für die Disposition
+- **Datenschutz**: Zugriff auf die SharePoint-Website nur für die Disposition; mit den Modulen Rechte je Ordner (siehe [PLATTFORM.md](PLATTFORM.md)), Krankenstände und Stundenlöhne nur für Disposition und Lohnverrechnung
 
 ## Quellen der Recherche
 

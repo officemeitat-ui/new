@@ -2,9 +2,10 @@
 // „Mehr“-Menü mit allen Ansichten und Aktionen, Wischen zwischen Tagen,
 // App installieren (Startbildschirm).
 
-import { app, openModal, registerActions, registerModal, renderModal, renderNow, saveStatusText, VIEW_GROUPS, VIEWS } from './context.js'
+import { roleOptions } from '../core/access.js'
+import { app, canEdit, openModal, registerActions, registerModal, renderModal, renderNow, saveStatusText, VIEW_GROUPS, visibleViews } from './context.js'
 import { bellButton, todo } from './modals/todo.js'
-import { esc, ICON, modalFrame } from './shared.js'
+import { esc, ICON, modalFrame, options } from './shared.js'
 
 const phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 700px)') : null
 /** Schmaler Bildschirm (Handy, Tablet hochkant geteilt). */
@@ -39,46 +40,68 @@ export function watchDevice() {
   }, { passive: true })
 }
 
-/** Leiste unten (nur Handy). */
+/** Leiste unten (nur Handy). Ohne Dienstplan-Recht: die Ansichten der eigenen Module. */
 export function bottomNav(c) {
-  const main = ['week', 'coverage', 'sheet']
+  const views = visibleViews()
   const item = (view, icon, label, badge = 0) =>
     `<button class="bn-item" data-action="view" data-view="${view}" ${app.ui.view === view ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${badge ? `<span class="flag error bn-badge">${badge}</span>` : ''}</button>`
-  const open = VIEWS.find((v) => v.id === 'coverage')?.badge?.(c) || 0
+  let main = ['week', 'coverage', 'sheet']
+  let items
+  if (views.some((v) => v.id === 'week')) {
+    const open = views.find((v) => v.id === 'coverage')?.badge?.(c) || 0
+    items = [
+      item('week', ICON.calendar, 'Woche'),
+      item('coverage', ICON.users, 'Vertretung', open),
+      canEdit('planung') ? `<button class="bn-item bn-add" data-action="open-absence-new" aria-label="Abwesenheit eintragen"><span class="bn-plus">${ICON.plus}</span><span>Abwesend</span></button>` : '',
+      item('sheet', ICON.sheet, 'Zettel'),
+    ]
+  } else {
+    const own = [...views.filter((v) => v.mobile), ...views.filter((v) => !v.mobile)].slice(0, 4)
+    main = own.map((v) => v.id)
+    items = own.map((v) => item(v.id, v.mobile?.icon || ICON.sheet, esc(v.mobile?.label || v.label), v.badge?.(c) || 0))
+  }
   return `<nav class="bottom-nav" aria-label="Navigation">
-    ${item('week', ICON.calendar, 'Woche')}
-    ${item('coverage', ICON.users, 'Vertretung', open)}
-    <button class="bn-item bn-add edit-only" data-action="open-absence-new" aria-label="Abwesenheit eintragen"><span class="bn-plus">${ICON.plus}</span><span>Abwesend</span></button>
-    ${item('sheet', ICON.sheet, 'Zettel')}
+    ${items.join('')}
     <button class="bn-item" data-action="open-more" ${main.includes(app.ui.view) ? '' : 'aria-current="page"'}>${ICON.menu}<span>Mehr</span></button>
   </nav>`
 }
 
+/** Browser-Modus: Ansicht einer Rolle ausprobieren (z. B. „so sieht es die Objektleitung“). */
+export function roleSwitch() {
+  if (app.config.storage === 'sharepoint') return ''
+  return `<label class="role-switch" title="Vorschau: was eine Rolle sieht und ändern darf"><span>Ansicht als</span><select data-change="preview-role">${options(roleOptions(app.config.access), app.ui.previewRole || 'disposition')}</select></label>`
+}
+
 /** Kopfzeile fürs Handy: Logo, Woche, Glocke. */
-export function mobileTopbar(c, { brand, week, year, range, status }) {
+export function mobileTopbar(c, { brand, week, year, range, status, title = null }) {
   return `<header class="topbar m-topbar"><div class="topbar-inner wrap">
     ${brand}
-    <div class="weeknav">
+    ${title ? `<div class="weeknav"><span class="kw">${esc(title.label)}<small>${title.sub}</small></span></div>` : `<div class="weeknav">
       <button class="btn icon" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
       <button class="kw link-btn" data-action="nav-today" title="Zur aktuellen Woche">KW ${week}<small>${range} · ${status}</small></button>
       <button class="btn icon" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
-    </div>
+    </div>`}
     ${bellButton()}
   </div></header>`
 }
 
 function moreModal(c) {
   const count = todo().count
+  const plan = canEdit('planung')
+  const sees = !app.access || app.access.sees('planung')
   const actions = [
-    ['plan', `${ICON.bolt} Woche planen`, 'primary', true],
-    ['replan', 'Neu planen', '', true],
-    ['open-publish', `${ICON.send} Veröffentlichen`, '', false],
-    ['open-send', `${ICON.send} An Mitarbeitende versenden`, '', false],
-    ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, '', false],
-    ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, '', true],
-  ]
+    plan && ['plan', `${ICON.bolt} Woche planen`, 'primary'],
+    plan && ['replan', 'Neu planen', ''],
+    sees && ['open-publish', `${ICON.send} Veröffentlichen`, ''],
+    sees && ['open-send', `${ICON.send} An Mitarbeitende versenden`, ''],
+    ['open-search', `${ICON.search} Suchen`, ''],
+    ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
+    plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
+  ].filter(Boolean)
+  const visible = visibleViews()
   const views = VIEW_GROUPS.map(([group, label]) => {
-    const items = VIEWS.filter((v) => v.group === group)
+    const items = visible.filter((v) => v.group === group)
+    if (!items.length) return ''
     return `<section><h3>${label}</h3><div class="more-grid">${items
       .map((v) => {
         const badge = v.badge?.(c)
@@ -96,11 +119,12 @@ function moreModal(c) {
   return modalFrame({
     title: 'Menü',
     subtitle: `${esc(app.config.brand.name)} · ${esc(app.config.brand.product)}`,
-    body: `<section><h3>Aktionen</h3><div class="more-actions">${actions.map(([action, label, cls, edit]) => `<button class="btn ${cls} ${edit ? 'edit-only' : ''}" data-action="${action}">${label}</button>`).join('')}</div></section>
+    body: `<section><h3>Aktionen</h3><div class="more-actions">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       ${views}
       <section><h3>Konto & Daten</h3>
-        <p class="note">${saveStatusText(app.service.status)}${app.user ? ` · ${esc(app.user.name)}${app.readOnly ? ' (nur lesen)' : ''}` : ''}</p>
-        <div class="more-actions"><button class="btn" data-action="open-data">Daten & Sicherung</button>${app.signOut ? '<button class="btn" data-action="sign-out">Abmelden</button>' : ''}</div>
+        <p class="note">${saveStatusText(app.service.status)}${app.user ? ` · ${esc(app.user.name)}` : ''}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p>
+        ${app.user ? '' : roleSwitch()}
+        <div class="more-actions">${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten & Sicherung</button>' : ''}${app.signOut ? '<button class="btn" data-action="sign-out">Abmelden</button>' : ''}</div>
       </section>
       <section><h3>App</h3>${install}</section>`,
   })

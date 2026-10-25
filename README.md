@@ -2,6 +2,9 @@
 
 Einsatzplanung für die Gebäudereinigung: Stammplan pflegen, Wochen automatisch einteilen, Vertretungen finden, Arbeitsrecht prüfen (AZG, ARG, KJBG), Wochenzettel im gewohnten Layout veröffentlichen und als PDF an die Mitarbeitenden schicken. Ablage in SharePoint, die ganze Seite nur nach Microsoft-365-Anmeldung, Betrieb auf `dienstplan.cleanos.at`.
 
+**Eine Plattform statt vier Werkzeugen:** Dienstplan, Zählerstände (Wasserzähler-Ablesung), Objektkontrolle und Objektmappe (Objektdokumentation) laufen in einer App mit einer Anmeldung, gemeinsamen Objekten und einer Liste „Zu erledigen“. Rollen aus Entra ID (z. B. Ableser, Prüfer/in, Lohnverrechnung) bestimmen, wer welche Module sieht und ändern darf. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
+
+- **Plattform, Rollen, Übernahme der bisherigen Werkzeuge:** [docs/PLATTFORM.md](docs/PLATTFORM.md)
 - **Konzept und Recherche:** [docs/KONZEPT.md](docs/KONZEPT.md)
 - **Einrichtung** (SharePoint, Entra ID, Domain): [docs/EINRICHTUNG.md](docs/EINRICHTUNG.md)
 - **Erweitern** (Regeln, Ansichten, Ablage, Design): [docs/ERWEITERN.md](docs/ERWEITERN.md)
@@ -13,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 97 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
+npm test         # 126 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint, Rollen, Zähler, Kontrolle, Objektmappe
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -63,6 +66,14 @@ Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eig
 - **Hinweis Steuer:** Überstundenzuschläge, die nach § 68 Abs. 2 EStG steuerfrei sein können (2026: 15 Überstunden, max. 170 €); Mehrarbeitszuschläge sind steuerpflichtig.
 
 Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich anpassen. Die Automatik meidet Einteilungen, die Überstunden auslösen. Zeitausgleich wird jetzt korrekt aus dem Zeitkonto genommen (vorher wie Urlaub angerechnet). Die endgültige Abrechnung macht die Lohnverrechnung.
+
+**Zählerstände (ersetzt die Wasserzähler-Ablesung):** Zählstellen je Objekt mit stabiler ID und Nummernverlauf, Ablesen am Handy mit Foto (Kamera oder Galerie), „Kein Zutritt“ & Co. als Ergebnis ohne Stand, Zählertausch in der Ablesung (Endstand alt, Anfangsstand neu, bewusst nicht vorbelegt). Fällig 30 Tage vor bis 60 Tage nach Quartalsende. Plausibilität gegen dasselbe Quartal im Vorjahr (kritisch, hoch, niedrig, kein Verbrauch) schon beim Tippen. Rundgang „alle offenen ablesen“, Runde abschließen (Freigabe), Ablesung als Einsatz einplanen, Liste je Quartal (CSV, PDF mit „Auffällige Zähler“) und Jahresliste im gewohnten Excel-Zuschnitt, Versand per E-Mail. Die Jahreslisten des bisherigen Werkzeugs lassen sich übernehmen.
+
+**Objektkontrolle (ersetzt das Prüfprotokoll-Tool):** Begehung am Handy mit dem bewährten Katalog (9 Kapitel, 39 Punkte, als Checkliste bearbeitbar), OK/R/M/G/N-A je Punkt, Fotos, Vorbefunde direkt beim Prüfpunkt, Vorschlag für den Gesamtzustand, Textvorschlag für die Zusammenfassung, zwei Unterschriften, Abschluss sperrt, PDF-Protokoll, Versand An/CC/BCC ohne Vorbelegung. Mängel bleiben offen, bis derselbe Punkt OK ist oder sie erledigt sind; mit Zuständigkeit, Frist und „Nacharbeit“ als Einsatz im Dienstplan. Rhythmus je Objekt, Nachkontrollen und Gefahren in „Zu erledigen“.
+
+**Objektmappe (ersetzt die Objektdokumentation):** Kunde, Ansprechpartner, Zugang (ohne Codes), Geräte, Dokumente als Link und das Leistungsverzeichnis mit Richtzeiten. Stunden werden gerechnet und mit dem Dienstplan verglichen. Objektblatt als PDF fürs Personal, als Kundenfassung (nie Vertrauliches) oder als Akte. Kundenstamm (Kunden.json oder Excel) einlesbar.
+
+**Rollen und Suche:** Jede Rolle sieht nur ihre Module, am Handy mit eigener Leiste (z. B. „Zähler“ für Ableser). Strg+K oder die Lupe sucht Personen, Objekte, Kunden, Zählernummern und Kontrollen. Im Einsatz stehen fällige Ablesungen und offene Mängel des Objekts.
 
 **Auf allen Geräten:** PC, Tablet und Handy haben den vollen Funktionsumfang, die Daten liegen zentral in SharePoint. Am Handy gibt es eine eigene Ansicht: Tagesliste statt Wochentabelle (offene Einsätze oben, Wischen wechselt den Tag), Leiste unten (Woche, Vertretung, **＋ Abwesend**, Wochenzettel, Menü), Dialoge als Blatt von unten und Tabellen als Karten. Auf Touch-Geräten ersetzt „Statt Ana“ im Einsatz das Ziehen. Der Dienstplan lässt sich als App auf den Startbildschirm legen (Android, iPhone, Windows, Mac), startet schneller und gleicht sich beim Zurückwechseln sofort ab.
 

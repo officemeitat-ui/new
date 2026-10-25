@@ -2,6 +2,7 @@
 // Ansichten, Dialogen und Aktionen. Erweiterungen melden sich hier an
 // (siehe docs/ERWEITERN.md).
 
+import { GROUP_MODULE } from '../core/access.js'
 import { addDays, eachDay, firstOfMonth, lastOfMonth, mondayOf, todayISO } from '../core/dates.js'
 import { holidayCalendar } from '../core/holidays.js'
 import { buildInstances, PlanState } from '../core/plan.js'
@@ -17,6 +18,7 @@ export const app = {
   service: null,
   data: null,
   readOnly: false,
+  access: null,
   cur: null,
   ui: {
     view: 'week',
@@ -38,15 +40,29 @@ export const app = {
 export const VIEWS = []
 export const VIEW_GROUPS = [
   ['plan', 'Planung'],
+  ['service', 'Objektservice'],
   ['auswertung', 'Auswertung'],
   ['stamm', 'Stammdaten'],
 ]
 export const MODALS = {}
 export const ACTIONS = {}
+/** Hinweise anderer Module zu einem Objekt (z. B. fällige Ablesung, offene Mängel): [{ module, html(objectId) }] */
+export const OBJECT_HINTS = []
+export const registerObjectHint = (hint) => OBJECT_HINTS.push(hint)
+/** Hinweise zu einem Objekt, die die Rolle sehen darf. */
+export const objectHints = (objectId) => OBJECT_HINTS.filter((h) => !app.access || app.access.sees(h.module)).map((h) => h.html(objectId)).filter(Boolean)
+
+/** Modul einer Ansicht (für Rollen): angegeben oder nach Gruppe. */
+export const moduleOf = (view) => view.module || GROUP_MODULE[view.group] || 'planung'
+/** Ansichten, die die angemeldete Person sehen darf. */
+export const visibleViews = () => VIEWS.filter((v) => !app.access || app.access.sees(moduleOf(v)))
+/** Darf in einem Modul ändern (ohne Rollen-Setup: ja). */
+export const canEdit = (module) => !app.access || app.access.canEdit(module)
 
 /**
- * Ansicht registrieren: { id, label, group: 'plan'|'auswertung'|'stamm', order, render(c), summary?, badge?(c),
- * range?() → { from, to } für zusätzlich zu ladende Wochen }
+ * Ansicht registrieren: { id, label, group: 'plan'|'service'|'auswertung'|'stamm', module?, order, render(c),
+ * summary?, badge?(c), range?() → { from, to } für zusätzlich zu ladende Wochen }
+ * module: Rollen-Modul (core/access.js), sonst nach Gruppe.
  */
 export function registerView(view) {
   const idx = VIEWS.findIndex((v) => v.id === view.id)
@@ -59,12 +75,15 @@ export function registerModal(type, render) {
   MODALS[type] = render
 }
 
-/** Aktionen registrieren. Mit { edit: true } sind sie im Lesemodus gesperrt. */
+/**
+ * Aktionen registrieren. Mit { edit: true } sind sie im Lesemodus der aktuellen
+ * Ansicht gesperrt, mit { edit: 'zaehler' } ohne Schreibrecht im Modul.
+ */
 export function registerActions(handlers, { edit = false } = {}) {
   for (const [name, fn] of Object.entries(handlers)) {
     ACTIONS[name] = edit
       ? (...args) => {
-          if (app.readOnly) return toast('Nur Leserechte: Änderungen sind für dein Konto nicht freigegeben.')
+          if (edit === true ? app.readOnly : !canEdit(edit)) return toast('Nur Leserechte: Änderungen sind für dein Konto nicht freigegeben.')
           return fn(...args)
         }
       : fn
@@ -182,6 +201,10 @@ export function renderNow() {
   renderHooks.afterRender(app.cur)
 }
 
+const MODAL_HOOKS = []
+/** Nach jedem Zeichnen eines Dialogs (z. B. Unterschriftsfelder füllen). */
+export const onModalRender = (fn) => MODAL_HOOKS.push(fn)
+
 export function renderModal() {
   const $modal = document.getElementById('modal-root')
   const { ui } = app
@@ -205,6 +228,7 @@ export function renderModal() {
   const body = $modal.querySelector('.modal-body')
   if (body) body.scrollTop = bodyScroll
   labelTables($modal)
+  for (const fn of MODAL_HOOKS) fn($modal)
   if (ui.modal.justOpened) {
     ui.modal.justOpened = false
     $modal.querySelector('.modal input, .modal select, .modal textarea, .modal button')?.focus({ preventScroll: true })

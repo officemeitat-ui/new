@@ -7,6 +7,7 @@
 
 import { addDays } from '../core/dates.js'
 import { DEFAULT_RULES } from '../core/rules.js'
+import { createModuleDemo } from './demo-modules.js'
 
 const avail = (days, from, to) => Object.fromEntries(days.map((d) => [d, { from, to }]))
 
@@ -152,6 +153,7 @@ export function createDemoData(monday) {
     skills: [...DEFAULT_SKILLS],
     extraFreeDays: [{ date: `${monday.slice(0, 4)}-12-24`, name: 'Heiliger Abend (betriebsfrei)' }, { date: `${monday.slice(0, 4)}-12-31`, name: 'Silvester (betriebsfrei)' }],
     rules: { ...DEFAULT_RULES, minor: { ...DEFAULT_RULES.minor } },
+    ...createModuleDemo(monday),
   }
 }
 

@@ -168,6 +168,19 @@ rules.pay = { fullTimeWeeklyH, dailyNormalH, longDayH, mehrPct, mehrBalanceMonth
 rules.wages = { 1: 15.12, …, 6: 12.37 }   // KV-Stundenlöhne je Lohngruppe
 ```
 
+## Ein Modul ergänzen (Plattform)
+
+Ein Modul ist eine oder mehrere Ansichten mit eigener Datei und eigenen Rechten. Beispiele: `src/ui/views/meters.js` (Zählerstände), `inspections.js` (Objektkontrolle), `objektmappe.js`.
+
+1. **Rolle und Modul:** in `src/core/access.js` das Modul in `MODULES` eintragen und in `DEFAULT_ROLES` festlegen, wer es sieht (`modules`) und ändern darf (`edit`).
+2. **Datei:** in `src/storage/data-service.js` unter `MODULE_DOCS` einen Schlüssel mit Pfad und leerem Inhalt anlegen, z. B. `matten: { path: 'matten/matten.json', empty: () => ({ items: [] }) }`. Der Inhalt steht dann in `app.data.matten`, wird automatisch gespeichert, zusammengeführt und in der Datensicherung mitgenommen. Ohne Leserecht (403) bleibt er leer und wird nie geschrieben.
+3. **Ansicht:** `registerView({ id, label, group: 'service', module: 'matten', noWeek: true, mobile: { icon, label }, badge, render })`. `noWeek` zeigt oben den Titel statt der Wochenwahl, `mobile` setzt den Knopf in der Leiste unten.
+4. **Aktionen:** `registerActions({ … }, { edit: 'matten' })` sperrt sie ohne Schreibrecht im Modul (unabhängig von der gerade offenen Ansicht).
+5. **Zu erledigen:** `registerTodo({ id, module, title, compute(today) → [{ id, … }], render(items) })`. Die `id` eines Punkts ändert sich, wenn er neu gemeldet werden soll.
+6. **Hinweis im Einsatz:** `registerObjectHint({ module, html(objectId) })` zeigt im Einsatz-Dialog etwas zum Objekt.
+7. **Suche:** in `src/ui/search.js` eine Gruppe ergänzen.
+8. **Fotos und Unterschriften:** `storePhoto(file, 'matten/fotos/…')` aus `src/ui/photo.js` (SharePoint: Datei, Browser: kleines Vorschaubild), `signaturePad()` aus `src/ui/signature.js`.
+
 ## Ideen für nächste Module
 
 - **Mitarbeiter-App** (PWA): eigener Wochenplan, Push bei Änderungen, Urlaubsantrag. Braucht einen kleinen Server für Rechte je Person.

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { mergeDoc } from '../src/core/merge.js'
 import { ConflictError, LocalDocStore } from '../src/storage/docstore-local.js'
 import { SharePointDocStore } from '../src/storage/docstore-sharepoint.js'
-import { DataService, DOC, splitData, weekPath } from '../src/storage/data-service.js'
+import { DataService, DOC, MODULE_DOCS, splitData, weekPath } from '../src/storage/data-service.js'
 
 function memoryStorage() {
   const map = new Map()
@@ -111,7 +111,7 @@ test('DataService: refresh lädt fremde Änderungen nach', async () => {
 
 // ---------------------------------------------------------------- Nachgebauter Graph
 
-function fakeGraph() {
+function fakeGraph(opts = {}) {
   const files = new Map() // Pfad im Laufwerk → { body, etag }
   const folders = new Set([''])
   let n = 0
@@ -126,12 +126,20 @@ function fakeGraph() {
     }
     assert.equal(headers.Authorization, 'Bearer TOKEN')
     const p = decodeURIComponent(u.pathname.replace('/v1.0', ''))
-    if (p === '/sites/firma.sharepoint.com:/sites/Dienstplan') return json(200, { id: 'site1', displayName: 'Dienstplan' })
-    if (p === '/sites/site1/drives') return json(200, { value: [{ id: 'drive1', name: 'Dokumente', webUrl: 'https://firma.sharepoint.com/sites/Dienstplan/Freigegebene Dokumente' }] })
+    if (opts.siteDenied && p.startsWith('/sites/')) return json(403, { error: { message: 'Access denied' } })
+    if (p === '/sites/firma.sharepoint.com:/sites/Dienstplan' || p === '/sites/firma.sharepoint.com') return json(200, { id: 'site1', displayName: 'Dienstplan' })
+    if (p.startsWith('/sites/firma.sharepoint.com:')) return json(400, { error: { message: 'Invalid hostname for this tenancy' } })
+    if (p.startsWith('/shares/')) {
+      const url = Buffer.from(p.split('/')[2].slice(2).replace(/_/g, '/').replace(/-/g, '+'), 'base64').toString('utf8')
+      calls.push(`SHARE ${url}`)
+      return (opts.shared || []).includes(url) ? json(200, { id: 'item1', webUrl: url, parentReference: { driveId: 'drive1' } }) : json(403, { error: { message: 'Access denied' } })
+    }
+    if (p === '/sites/site1/drives') return json(200, { value: [{ id: 'drive1', name: opts.driveName || 'Dokumente', webUrl: `https://firma.sharepoint.com/sites/Dienstplan/${opts.driveUrlName || 'Freigegebene Dokumente'}` }] })
     let m = p.match(/^\/drives\/drive1\/root:\/(.+):\/children$/) || (p === '/drives/drive1/root/children' ? [p, ''] : null)
     if (m && method === 'POST') {
       const name = JSON.parse(body).name
       const full = m[1] ? `${m[1]}/${name}` : name
+      if (opts.noRootRights && !m[1]) return json(403, { error: { message: 'Access denied' } })
       if (folders.has(full)) return json(409, { error: { message: 'exists' } })
       folders.add(full)
       return json(201, { name })
@@ -140,6 +148,7 @@ function fakeGraph() {
     if (!m) return json(400, { error: { message: `unbekannt ${p}` } })
     const path = m[1]
     if (method === 'GET') {
+      if (folders.has(path)) return json(200, { name: path.split('/').pop(), folder: {} })
       const f = files.get(path)
       if (!f) return json(404, { error: { message: 'not found' } })
       return json(200, { eTag: f.etag, '@microsoft.graph.downloadUrl': `https://download.example/${encodeURIComponent(path)}`, lastModifiedBy: { user: { displayName: 'Test' } } })
@@ -197,4 +206,86 @@ test('SharePoint: DataService arbeitet mit Graph-Ablage', async () => {
   assert.deepEqual(Object.keys(week.assignments).sort(), ['2026-10-27|t1', '2026-10-28|t1'])
   const upload = await s1.upload('exporte/2026/KW44/Wochenplan.xlsx', new Blob(['x']), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   assert.match(upload.webUrl, /Wochenplan\.xlsx$/)
+})
+
+test('DataService: Modul-Dateien werden getrennt gespeichert, ohne Leserecht nie geschrieben', async () => {
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  const svc = new DataService(store, { debounceMs: 0 })
+  const data = await svc.load(seed)
+  assert.equal(await store.read(MODULE_DOCS.zaehler.path), null, 'leere Module legen keine Datei an')
+  data.zaehler = { meters: [{ id: 'm1', objectId: 'o1', number: 'W-1' }], readings: [] }
+  await svc.flush()
+  assert.equal((await store.read(MODULE_DOCS.zaehler.path)).data.meters[0].number, 'W-1')
+  assert.equal((await store.read(DOC.master)).data.zaehler, undefined, 'nicht in den Stammdaten')
+
+  // Person ohne Leserecht auf die Kontrollen (SharePoint antwortet 403)
+  const denied = Object.create(store)
+  denied.read = async (path) => {
+    if (path === MODULE_DOCS.kontrolle.path) throw Object.assign(new Error('Zugriff verweigert'), { status: 403 })
+    return store.read(path)
+  }
+  denied.write = async (path, doc, etag) => {
+    if (path === MODULE_DOCS.kontrolle.path) throw new Error('darf nicht geschrieben werden')
+    return store.write(path, doc, etag)
+  }
+  const other = new DataService(denied, { debounceMs: 0 })
+  const d2 = await other.load(seed)
+  assert.equal(d2.zaehler.meters.length, 1)
+  assert.ok(!other.writable(MODULE_DOCS.kontrolle.path))
+  d2.kontrolle = { checklists: [], plans: {}, inspections: [{ id: 'k1' }], defects: [] }
+  d2.zaehler.readings.push({ id: 'r1', meterId: 'm1', date: '2026-10-25', value: 12 })
+  await other.flush()
+  assert.equal((await store.read(MODULE_DOCS.zaehler.path)).data.readings.length, 1)
+  assert.equal(await store.read(MODULE_DOCS.kontrolle.path), null)
+})
+
+test('DataService: ohne Leserecht auf die Stammdaten gibt es eine klare Meldung', async () => {
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  store.read = async () => {
+    throw Object.assign(new Error('403'), { status: 403 })
+  }
+  await assert.rejects(new DataService(store).load(seed), /Kein Leserecht auf die Stammdaten/)
+})
+
+test('DataService: Stundenlöhne stehen im Zeitkonto, nicht in den Stammdaten', async () => {
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  const svc = new DataService(store, { debounceMs: 0 })
+  const data = await svc.load(() => ({ ...seed(), employees: [{ id: 'e1', name: 'Ana', hourlyWage: 14.5, wageGroup: 5 }, { id: 'e2', name: 'Markus' }] }))
+  const master = (await store.read(DOC.master)).data
+  assert.deepEqual(master.employees[0], { id: 'e1', name: 'Ana' })
+  assert.deepEqual((await store.read(DOC.account)).data.pay, { e1: { hourlyWage: 14.5, wageGroup: 5 } })
+  assert.equal(data.employees[0].hourlyWage, 14.5)
+  // neu laden: Lohn kommt aus dem Zeitkonto zurück
+  const again = await new DataService(store).load(seed)
+  assert.deepEqual([again.employees[0].hourlyWage, again.employees[0].wageGroup], [14.5, 5])
+  // ohne Leserecht aufs Zeitkonto: kein Lohn sichtbar
+  const denied = Object.create(store)
+  denied.read = async (path) => {
+    if (path === DOC.account) throw Object.assign(new Error('403'), { status: 403 })
+    return store.read(path)
+  }
+  const ableser = await new DataService(denied).load(seed)
+  assert.equal(ableser.employees[0].hourlyWage, undefined)
+})
+
+test('SharePoint: Website auf der Tenant-Wurzel, Bibliothek über die Adresse, Ordner nur nachsehen', async () => {
+  const g = fakeGraph({ driveName: 'Cleanos Daten', driveUrlName: 'Cleanos_Daten', noRootRights: true })
+  g.folders.add('Plattform')
+  const store = new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/', library: 'Cleanos_Daten', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  await store.init()
+  assert.ok(g.calls.includes('GET https://graph.microsoft.com/v1.0/sites/firma.sharepoint.com'))
+  await store.write('zaehler/zaehler.json', { meters: [] })
+  assert.ok(g.files.has('Plattform/zaehler/zaehler.json'), 'vorhandener Ordner wird nicht neu angelegt (kein 403)')
+})
+
+test('SharePoint: nur Ordner freigegeben (Ableser) – Laufwerk über die Freigabe', async () => {
+  const g = fakeGraph({ siteDenied: true, shared: ['https://firma.sharepoint.com/sites/Dienstplan/Dokumente/Plattform/zaehler'] })
+  g.folders.add('Plattform').add('Plattform/zaehler')
+  const store = new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', library: 'Dokumente', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  await store.init()
+  assert.equal(store.folderOnly, true)
+  await store.write('zaehler/zaehler.json', { meters: [{ id: 'S-1' }] })
+  assert.deepEqual((await store.read('zaehler/zaehler.json')).data, { meters: [{ id: 'S-1' }] })
+  const denied = fakeGraph({ siteDenied: true, shared: [] })
+  await assert.rejects(new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: denied.fetchImpl }).init(), /Access denied/)
 })

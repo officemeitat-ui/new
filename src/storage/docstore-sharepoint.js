@@ -9,6 +9,9 @@ const GRAPH = 'https://graph.microsoft.com/v1.0'
 const encodePath = (path) => path.split('/').filter(Boolean).map(encodeURIComponent).join('/')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** Freigabe-ID für /shares: „u!“ + Base64url der Adresse. */
+const shareId = (url) => `u!${btoa(unescape(encodeURIComponent(url))).replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-')}`
+
 export class GraphError extends Error {
   constructor(status, message, body) {
     super(message)
@@ -26,7 +29,7 @@ export class SharePointDocStore {
    * @param {string} opts.library   Name der Dokumentbibliothek, z. B. "Dokumente"
    * @param {string} opts.folder    Ordner in der Bibliothek, z. B. "Dienstplan-App"
    */
-  constructor({ getToken, siteUrl, library = 'Dokumente', folder = 'Dienstplan-App', fetchImpl = globalThis.fetch.bind(globalThis) }) {
+  constructor({ getToken, siteUrl, library = 'Dokumente', folder = 'Dienstplan-App', shareFolders = ['daten', 'zaehler', 'kontrolle', 'objektmappe'], fetchImpl = globalThis.fetch.bind(globalThis) }) {
     this.kind = 'sharepoint'
     this.getToken = getToken
     this.siteUrl = siteUrl
@@ -36,6 +39,7 @@ export class SharePointDocStore {
     this.driveId = null
     this.label = 'SharePoint'
     this.knownFolders = new Set()
+    this.shareFolders = shareFolders
   }
 
   async #request(method, url, { body, headers = {}, okStatuses = [] } = {}) {
@@ -64,14 +68,44 @@ export class SharePointDocStore {
 
   async init() {
     const u = new URL(this.siteUrl)
-    const site = await this.#json('GET', `/sites/${u.hostname}:${u.pathname.replace(/\/$/, '') || '/'}`)
-    const drives = await this.#json('GET', `/sites/${site.id}/drives?$select=id,name,webUrl`)
-    const drive = drives.value.find((d) => d.name === this.library) || drives.value.find((d) => ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name))
-    if (!drive) throw new Error(`Dokumentbibliothek „${this.library}“ nicht gefunden. Vorhanden: ${drives.value.map((d) => d.name).join(', ')}`)
-    this.driveId = drive.id
-    this.label = `SharePoint · ${site.displayName || u.pathname} · ${drive.name}/${this.folder}`
-    this.webUrl = `${drive.webUrl}/${encodePath(this.folder)}`
-    return { site: site.displayName }
+    const path = u.pathname.replace(/\/$/, '')
+    try {
+      // Website auf der Tenant-Wurzel: /sites/<host> ohne Doppelpunkt
+      const site = await this.#json('GET', path ? `/sites/${u.hostname}:${path}` : `/sites/${u.hostname}`)
+      const drives = await this.#json('GET', `/sites/${site.id}/drives?$select=id,name,webUrl`)
+      // Bibliothek über den Anzeigenamen oder den letzten Teil der Adresse finden
+      const urlName = (d) => decodeURIComponent((d.webUrl || '').split('/').pop() || '')
+      const drive = drives.value.find((d) => d.name === this.library || urlName(d) === this.library) || drives.value.find((d) => ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name))
+      if (!drive) throw new Error(`Dokumentbibliothek „${this.library}“ nicht gefunden. Vorhanden: ${drives.value.map((d) => d.name).join(', ')}`)
+      this.driveId = drive.id
+      this.label = `SharePoint · ${site.displayName || u.pathname} · ${drive.name}/${this.folder}`
+      this.webUrl = `${drive.webUrl}/${encodePath(this.folder)}`
+      return { site: site.displayName }
+    } catch (err) {
+      if (!(err instanceof GraphError) || ![403, 404].includes(err.status)) throw err
+      return this.#initFromShare(err)
+    }
+  }
+
+  /**
+   * Nur Ordner freigegeben (kein Zugriff auf die Website, z. B. Ableser):
+   * Laufwerk über die Freigabe-Adresse eines erreichbaren Ordners finden.
+   */
+  async #initFromShare(original) {
+    const base = `${this.siteUrl.replace(/\/$/, '')}/${this.library}/${this.folder}`
+    for (const sub of ['', ...this.shareFolders]) {
+      try {
+        const item = await this.#json('GET', `/shares/${shareId(sub ? `${base}/${sub}` : base)}/driveItem?$select=id,name,webUrl,parentReference`)
+        this.driveId = item.parentReference.driveId
+        this.label = `SharePoint · ${this.library}/${this.folder}`
+        this.webUrl = sub ? item.webUrl.replace(new RegExp(`/${encodeURIComponent(sub)}$`), '') : item.webUrl
+        this.folderOnly = true
+        return { site: null }
+      } catch (err) {
+        if (!(err instanceof GraphError) || ![403, 404].includes(err.status)) throw err
+      }
+    }
+    throw original
   }
 
   #itemUrl(path) {
@@ -91,6 +125,15 @@ export class SharePointDocStore {
     return { data: await res.json(), etag: meta.eTag, modifiedBy: meta.lastModifiedBy?.user?.displayName || null, modifiedAt: meta.lastModifiedDateTime || null }
   }
 
+  /** Datei als Blob (z. B. Foto fürs PDF); null, wenn es sie nicht gibt. */
+  async readBlob(path) {
+    const meta = await this.#meta(path)
+    if (!meta) return null
+    const res = await this.fetch(meta['@microsoft.graph.downloadUrl'])
+    if (!res.ok) throw new GraphError(res.status, `Datei ${path} konnte nicht gelesen werden`)
+    return res.blob()
+  }
+
   async etagOf(path) {
     return (await this.#meta(path))?.eTag ?? null
   }
@@ -102,12 +145,16 @@ export class SharePointDocStore {
       const parent = current
       current = current ? `${current}/${part}` : part
       if (this.knownFolders.has(current)) continue
-      const url = parent ? `/drives/${this.driveId}/root:/${encodePath(parent)}:/children` : `/drives/${this.driveId}/root/children`
-      await this.#request('POST', url, {
-        body: JSON.stringify({ name: part, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
-        headers: { 'Content-Type': 'application/json' },
-        okStatuses: [409],
-      })
+      // erst nachsehen: ohne Recht an der Bibliothekswurzel liefert Anlegen 403 statt 409
+      const exists = await this.#request('GET', `/drives/${this.driveId}/root:/${encodePath(current)}`, { okStatuses: [404] })
+      if (exists.status === 404) {
+        const url = parent ? `/drives/${this.driveId}/root:/${encodePath(parent)}:/children` : `/drives/${this.driveId}/root/children`
+        await this.#request('POST', url, {
+          body: JSON.stringify({ name: part, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+          headers: { 'Content-Type': 'application/json' },
+          okStatuses: [409],
+        })
+      }
       this.knownFolders.add(current)
     }
   }
