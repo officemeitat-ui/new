@@ -405,6 +405,7 @@ table.grid.cal { min-width: 980px; table-layout: auto; }
 .ot-modes .field span { font-size: 0.72rem; }
 .ot-modes select { font-size: 0.85rem; padding-block: 3px; }
 table.overtime td { vertical-align: top; }
+.payout-list .total-row > * { background: var(--surface-2); }
 /* Müllplan */
 .tag.waste { color: var(--ok); border-color: currentColor; background: var(--ok-soft); white-space: normal; }
 .tag.waste svg, .waste-line svg, .waste-form h3 svg, .section-head h2 svg { width: 14px; height: 14px; vertical-align: -2px; }

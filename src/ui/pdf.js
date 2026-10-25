@@ -11,7 +11,7 @@ import { loadScript } from './load-script.js'
 
 export { pdfFileName }
 
-async function loadPdfMake() {
+export async function loadPdfMake() {
   await loadScript('vendor/pdfmake.min.js')
   await loadScript('vendor/vfs_fonts.js')
   return globalThis.pdfMake
@@ -34,7 +34,7 @@ const cache = new Map()
 let logoPromise = null
 
 /** Logo für helle Hintergründe (config.json → brand.logoOnLight) für das PDF laden. */
-function loadLogo() {
+export function loadLogo() {
   const url = app.config.brand.logoOnLight
   if (!url) return Promise.resolve(null)
   logoPromise =
@@ -69,6 +69,18 @@ export async function weekPdfBlob(c, employees) {
   if (cache.size > 60) cache.delete(cache.keys().next().value)
   cache.set(key, blob)
   return blob
+}
+
+/** Beliebige pdfmake-Dokumentbeschreibung als Blob. */
+export async function pdfBlob(doc) {
+  const pdfMake = await loadPdfMake()
+  return new Promise((resolve, reject) => {
+    try {
+      pdfMake.createPdf(doc).getBlob(resolve)
+    } catch (err) {
+      reject(err)
+    }
+  })
 }
 
 export const allPdfName = (c) => `Wochenplaene_${weekFileBase(c.monday)}_alle.pdf`

@@ -10,16 +10,19 @@ export async function blobToBase64(blob) {
   return btoa(binary)
 }
 
+const recipients = (list) => (Array.isArray(list) ? list : String(list || '').split(/[,;\s]+/)).filter(Boolean).map((address) => ({ emailAddress: { address } }))
+
 /**
  * @param getToken  Funktion, die ein Graph-Token liefert
- * @param mail      { to, subject, text, attachments: [{ name, blob, type }] }
+ * @param mail      { to, cc?, subject, text, attachments: [{ name, blob, type }] }; to/cc: Adresse, Liste oder „a@x.at, b@y.at“
  * @param from      optional: freigegebenes Postfach
  */
-export async function sendMail(getToken, { to, subject, text, attachments = [] }, { from = '', fetchImpl = fetch } = {}) {
+export async function sendMail(getToken, { to, cc = [], subject, text, attachments = [] }, { from = '', fetchImpl = fetch } = {}) {
   const message = {
     subject,
     body: { contentType: 'Text', content: text },
-    toRecipients: [{ emailAddress: { address: to } }],
+    toRecipients: recipients(to),
+    ...(recipients(cc).length ? { ccRecipients: recipients(cc) } : {}),
     attachments: await Promise.all(
       attachments.map(async (a) => ({ '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.type || a.blob.type || 'application/pdf', contentBytes: await blobToBase64(a.blob) })),
     ),

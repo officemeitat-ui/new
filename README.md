@@ -13,7 +13,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 81 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
+npm test         # 86 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -53,6 +53,7 @@ Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eig
 - **Zuschläge auf Normalstunden:** Nacht (Mo–Sa 21–6 Uhr) +50 %, Sonn-/Feiertag wie bisher als Zeitgutschrift im Wochenzettel oder wahlweise in Geld.
 - **Behandlung je Person:** auszahlen, Zeitausgleich 1:1,5 oder Zeitausgleich 1:1 mit Zuschlag in Geld (§ 10 AZG). Beträge brutto mit dem KV-Stundenlohn der Lohngruppe oder einem eigenen Stundenlohn.
 - **Monatsabschluss:** bucht ausbezahlte Stunden aus dem Zeitkonto (Zeitausgleich-Zuschläge hinein), sperrt den Monat und lässt sich aufheben. CSV mit Lohnarten für BMD/RZL.
+- **Auszahlungen versenden:** gesammelt an die Lohnverrechnung (eine E-Mail mit „wer bekommt wie viel“ im Text, Übersicht mit Einzelaufstellung als PDF und CSV im Anhang, mehrere Empfänger möglich) und einzeln an jede Person (eigene Aufstellung als PDF). Über Microsoft 365 direkt aus dem Dienstplan, sonst im eigenen E-Mail-Programm, als PDF/ZIP oder „Teilen“ am Handy. Versandstand je Empfänger, „geändert seit Versand“, die Adresse der Lohnverrechnung wird gemerkt.
 - **Hinweis Steuer:** Überstundenzuschläge, die nach § 68 Abs. 2 EStG steuerfrei sein können (2026: 15 Überstunden, max. 170 €); Mehrarbeitszuschläge sind steuerpflichtig.
 
 Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich anpassen. Die Automatik meidet Einteilungen, die Überstunden auslösen. Zeitausgleich wird jetzt korrekt aus dem Zeitkonto genommen (vorher wie Urlaub angerechnet). Die endgültige Abrechnung macht die Lohnverrechnung.

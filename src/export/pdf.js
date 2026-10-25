@@ -7,6 +7,7 @@
 
 import { mix, parseColor, readableOn } from '../core/color.js'
 import { formatDate, formatHours, isoWeek, isoWeekday, WEEKDAY_LONG } from '../core/dates.js'
+import { fileSafe } from '../core/filename.js'
 
 const BAND = '#D9E1F2'
 const TOTAL = '#FFF2CC'
@@ -59,7 +60,7 @@ function objectNotes(ts, objectsById, employeesById) {
 
 /** Seiten für einen Wochenzettel. */
 /** Markenfarbe fürs PDF: Primärfarbe aus config.json (brand.colors), lesbar auf Weiß. */
-function inkColors(brand) {
+export function inkColors(brand) {
   const primary = parseColor(brand.colors?.primary || '') ? brand.colors.primary : '#1F3A5F'
   const ink = readableOn(primary, '#ffffff', 4.5)
   return { ink, soft: mix('#ffffff', primary, 0.1), line: parseColor(brand.colors?.primary || '') ? mix('#ffffff', primary, 0.45) : LINE }
@@ -167,5 +168,5 @@ export function timesheetDocument(entries, { objects = [], employees = [], brand
 /** Dateiname für den PDF-Wochenplan einer Person. */
 export function pdfFileName(monday, name) {
   const { year, week } = isoWeek(monday)
-  return `Wochenplan_KW${String(week).padStart(2, '0')}_${year}_${String(name).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_')}.pdf`
+  return `Wochenplan_KW${String(week).padStart(2, '0')}_${year}_${fileSafe(name)}.pdf`
 }

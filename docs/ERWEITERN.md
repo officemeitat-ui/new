@@ -131,6 +131,7 @@ Logik in `src/core/overtime.js` (rein rechnend, getestet in `test/overtime.test.
 - `classifyWeek()` ordnet eine Woche ein (Tagesgrenze, Wochengrenze, Zeitklassen). Ein anderes Modell, etwa eine Durchrechnung über mehrere Wochen, ist eine eigene Funktion mit demselben Ergebnis (`parts[{ date, type, cls, min }]`).
 - `premiumPct()` liefert den Satz je Stundenart und Zeitklasse aus `rules.pay`. Eine weitere Zeitklasse (z. B. Sonntagnacht) braucht einen Eintrag in `TIME_CLASSES`, eine Zeile in `timeClasses()` und die Sätze in `rules.pay`.
 - `payMonth()` macht daraus Lohnzeilen, Betrag, Steuerhinweis und die Buchung ins Zeitkonto; `OVERTIME_COLUMNS` in der Ansicht legt die CSV-Spalten fest.
+- Versand: Texte und Auswahl in `src/core/payout.js`, PDFs in `src/export/payout-pdf.js`, Dialog in `src/ui/modals/payout.js`.
 
 ## Corporate Design
 
@@ -156,7 +157,9 @@ overrides[`${datum}|${taskId}`]   = { date?, start?, end?, cancelled?, note? }
 trips[`${datum}|${taskId}|${employeeId}`] = { min?, note? }   // geplante Fahrt nach dem Einsatz (Woche)
 published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur}, correctedAt?, corrections?[{ empId, before, after, delta, at, by }], sent?{empId: { at, by, via: 'E-Mail'|'Teilen'|'PDF'|'manuell', sig }}, files? }
 travel[`${objA}|${objB}`] = minuten
-payroll[monat] = { modes?{empId: { ue, mehr }}, closedAt?, by?, rows?{empId: { mehrPaid, uePaid, zaBonus, amount, taxFree, accountDelta, lines[] }} }   // Monatsabschlüsse (daten/zeitkonto.json)
+payroll[monat] = { modes?{empId: { ue, mehr }}, closedAt?, by?, rows?{empId: { mehrPaid, mehrPaidEntries[], uePaid, zaBonus, amount, taxFree, accountDelta, lines[] }},
+                   sent?{ office?: { at, by, via, to, sig, total }, people?{empId: { at, by, via, sig }} } }   // Monatsabschlüsse und Versand (daten/zeitkonto.json)
+settings = { payrollMail? }   // Adresse(n) der Lohnverrechnung für den Versand der Auszahlungen
 rules.pay = { fullTimeWeeklyH, dailyNormalH, longDayH, mehrPct, mehrBalanceMonths, nightFrom, nightTo, nightPct, ueTag … ue11Feiertag, bonusAs, ueMode, mehrMode, taxFreeHours, taxFreeMax }
 rules.wages = { 1: 15.12, …, 6: 12.37 }   // KV-Stundenlöhne je Lohngruppe
 ```

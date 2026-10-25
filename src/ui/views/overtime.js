@@ -104,6 +104,7 @@ function overtimeView(c) {
       <button class="filter" data-action="ot-all" aria-pressed="${!!app.ui.otAll}">Alle Mitarbeitenden</button>
       <button class="btn" data-action="ot-copy">${ICON.copy} Für Excel kopieren</button>
       ${app.config.features.download ? `<button class="btn" data-action="ot-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}
+      <button class="btn ${closed ? 'primary' : ''}" data-action="ot-send" data-month="${month}">${ICON.send} Auszahlungen versenden</button>
       <span class="spacer"></span>
       ${closed ? `<button class="btn edit-only ${app.ui.confirm === 'ot-reopen' ? 'danger confirm' : ''}" data-action="ot-reopen" data-month="${month}">${app.ui.confirm === 'ot-reopen' ? 'Abschluss wirklich aufheben?' : 'Abschluss aufheben'}</button>` : `<button class="btn primary edit-only ${confirmClose ? 'confirm' : ''}" data-action="ot-close" data-month="${month}">${confirmClose ? `${monthName} jetzt abschließen?` : 'Monat abschließen'}</button>`}
     </div>
@@ -177,6 +178,7 @@ registerModal('overtime-detail', detailModal)
 
 registerActions({
   'ot-detail': (el) => openModal({ type: 'overtime-detail', empId: el.dataset.emp }),
+  'ot-send': (el) => openModal({ type: 'payout-send', month: el.dataset.month }),
   'ot-all': () => {
     app.ui.otAll = !app.ui.otAll
     renderNow()
@@ -209,14 +211,16 @@ registerActions(
       renderNow()
       const total = Object.values(rows).reduce((s, x) => s + x.amount, 0)
       const out = Object.values(rows).reduce((s, x) => s + x.accountDelta, 0)
+      // gleich weiter zum Versand: Lohnverrechnung und Mitarbeitende
+      openModal({ type: 'payout-send', month })
       toast(`Abgeschlossen: ${euro(total)} brutto für ${Object.keys(rows).length} Personen, Zeitkonto ${signed(out)} h.`)
     },
     'ot-reopen': (el) => {
       const month = el.dataset.month
       if (!confirmStep('ot-reopen')) return
       recordUndo('Abschluss aufheben')
-      const { modes } = app.data.payroll[month]
-      app.data.payroll[month] = modes ? { modes } : {}
+      const { modes, sent } = app.data.payroll[month]
+      app.data.payroll[month] = { ...(modes ? { modes } : {}), ...(sent ? { sent } : {}) }
       persist()
       renderNow()
       toast('Abschluss aufgehoben. Die Buchungen im Zeitkonto sind zurückgenommen.')

@@ -46,7 +46,8 @@ test('PDF: eine Seite je Person, Feiertag durchgestrichen, Hinweise nur für Obj
   assert.match(json, /Schlüssel beim Portier/)
   assert.doesNotMatch(json, /Büro Probe: /) // ohne Anweisungen kein Hinweis
   assert.equal(doc.footer(1, 2).columns[1].text, 'Seite 1 von 2')
-  assert.equal(pdfFileName('2026-10-26', 'Dragan Jović / Test'), 'Wochenplan_KW44_2026_Dragan_Jović_Test.pdf')
+  // ohne Sonderzeichen: Browser verwerfen sonst den Dateinamen
+  assert.equal(pdfFileName('2026-10-26', 'Dragan Jović / Test'), 'Wochenplan_KW44_2026_Dragan_Jovic_Test.pdf')
 })
 
 test('PDF: pdfmake erzeugt ein gültiges PDF (Schrift mit č, ć, ş)', async () => {
