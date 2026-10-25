@@ -3,7 +3,7 @@
 
 import { formatDate } from '../../core/dates.js'
 import { austrianHolidays } from '../../core/holidays.js'
-import { DEFAULT_RULES, RULES, travelKey } from '../../core/rules.js'
+import { DEFAULT_RULES, mergeRules, RULES, travelKey } from '../../core/rules.js'
 import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
 import { checked, esc, ICON, num, options, val } from '../shared.js'
 
@@ -28,6 +28,31 @@ export const RULE_FIELDS = [
     ['travelMin', 'Fahrzeit zwischen Objekten (min)', 'Pauschale, wenn unten keine Strecke hinterlegt ist; zählt als Arbeitszeit'],
     ['creditSpecialTasks', 'Sonderleistungen bei Feiertag/Urlaub anrechnen', 'z. B. „Blumen gießen“', 'checkbox'],
   ]],
+  ['Überstunden & Mehrarbeit (AZG, KV Gebäudereinigung)', [
+    ['pay.fullTimeWeeklyH', 'Normalarbeitszeit Vollzeit (h/Woche)', 'KV: 40 h. Teilzeit: bis hierher Mehrarbeit, darüber Überstunden'],
+    ['pay.dailyNormalH', 'Tägliche Normalarbeitszeit (h)', '§§ 3, 4 AZG: 8 h, bei anderer Verteilung 9 h; darüber Überstunden'],
+    ['pay.longDayH', 'Eigener Satz ab Stunde', 'KV: angeordnete 11. und 12. Stunde (also ab 10 h)'],
+    ['pay.mehrPct', 'Mehrarbeitszuschlag (%)', '§ 19d AZG, KV: 25 %'],
+    ['pay.mehrBalanceMonths', 'Ausgleich der Mehrarbeit binnen (Monate)', '1:1 ausgeglichen = zuschlagsfrei (KV: 3 Monate)'],
+    ['pay.mehrMode', 'Mehrarbeit standardmäßig', 'je Person und Monat änderbar', 'select', [['zeitkonto', 'ins Zeitkonto (ausgleichen)'], ['auszahlen', 'auszahlen mit Zuschlag']]],
+    ['pay.ueMode', 'Überstunden standardmäßig', '§ 10 AZG: Geld oder Zeitausgleich 1:1,5', 'select', [['auszahlen', 'auszahlen'], ['za', 'Zeitausgleich 1:1,5'], ['mix', 'Zeitausgleich 1:1 + Zuschlag in Geld']]],
+  ]],
+  ['Zuschläge in % (KV Gebäudereinigung 2026)', [
+    ['pay.ueTag', 'Überstunden', 'KV: 50 %'],
+    ['pay.ueNacht', 'Überstunden Nacht', 'KV: 100 %'],
+    ['pay.ueSonntag', 'Überstunden Sonntag', 'KV: 150 %'],
+    ['pay.ueFeiertag', 'Überstunden Feiertag', 'KV: 100 % zusätzlich zum Feiertagsentgelt'],
+    ['pay.ue11Tag', '11./12. Stunde', 'KV: 75 % (angeordnet)'],
+    ['pay.ue11Nacht', '11./12. Stunde Nacht', 'KV: 125 %'],
+    ['pay.ue11Sonntag', '11./12. Stunde Sonntag', 'laut KV prüfen'],
+    ['pay.ue11Feiertag', '11./12. Stunde Feiertag', 'KV: 125 %'],
+    ['pay.nightPct', 'Nachtzuschlag Normal-/Mehrarbeitsstunden', 'KV: 50 %, Mo–Sa'],
+    ['pay.nightFrom', 'Nachtzeit (Zuschlag) ab', 'KV: 21:00', 'time'],
+    ['pay.nightTo', 'Nachtzeit (Zuschlag) bis', 'KV: 06:00', 'time'],
+    ['pay.bonusAs', 'Sonn-/Feiertagszuschlag auf Normalstunden', 'als Zeit: im Wochenzettel und Zeitkonto (wie bisher)', 'select', [['zeit', 'als Zeitgutschrift'], ['geld', 'in Geld (Auszahlung)']]],
+    ['pay.taxFreeHours', 'Steuerfreie Überstunden je Monat', '§ 68 Abs 2 EStG, 2026: 15 (sonst 10)'],
+    ['pay.taxFreeMax', 'Steuerfrei höchstens (€/Monat)', '2026: 170 € (sonst 120 €)'],
+  ]],
   ['Automatik', [
     ['autoExtraHoursPerWeek', 'Max. Mehrstunden für Vertretungen (h/Woche)', 'Darüber plant die Automatik niemanden ein; manuell bleibt es möglich.'],
     ['dueLeadDays', 'Periodische Leistungen zuteilen (Tage vorher)', '14-tägige, monatliche, quartalsweise Leistungen ohne Besetzung erscheinen ab dann unter „Zu erledigen“'],
@@ -43,8 +68,15 @@ export const RULE_FIELDS = [
 
 function ruleValue(path) {
   const [a, b] = path.split('.')
-  const rules = { ...DEFAULT_RULES, ...app.data.rules }
-  return b ? { ...DEFAULT_RULES.minor, ...(rules.minor || {}) }[b] : rules[a]
+  const rules = mergeRules(app.data.rules)
+  return b ? rules[a]?.[b] : rules[a]
+}
+
+function wagesFieldset() {
+  const wages = mergeRules(app.data.rules).wages
+  return `<fieldset><legend>KV-Stundenlöhne (€)</legend>
+    ${Object.keys(wages).map((g) => `<div class="rule"><label for="rule-wages-${g}">Lohngruppe ${esc(g)}</label><input id="rule-wages-${g}" type="number" step="0.01" min="0" value="${esc(wages[g])}"><small></small></div>`).join('')}
+    <p class="note">Lohnordnung Denkmal-, Fassaden- und Gebäudereinigung ab 1.1.2026. Die Lohngruppe steht bei der Person, ein eigener Stundenlohn (Überzahlung) geht vor.</p></fieldset>`
 }
 
 function rulesView(c) {
@@ -53,8 +85,9 @@ function rulesView(c) {
   const fieldsets = RULE_FIELDS.map(
     ([title, fields]) =>
       `<fieldset><legend>${title}</legend>${fields
-        .map(([key, label, hint, type = 'number']) => {
+        .map(([key, label, hint, type = 'number', choices]) => {
           const id = `rule-${key.replace('.', '-')}`
+          if (type === 'select') return `<div class="rule"><label for="${id}">${label}</label><select id="${id}">${options(choices, ruleValue(key))}</select><small>${hint}</small></div>`
           if (type === 'checkbox') return `<label class="check"><input type="checkbox" id="${id}" ${ruleValue(key) ? 'checked' : ''}><span>${label}<br><small class="muted">${hint}</small></span></label>`
           return `<div class="rule"><label for="${id}">${label}</label><input id="${id}" type="${type}" ${type === 'number' ? 'step="0.5" min="0"' : ''} value="${esc(ruleValue(key))}"><small>${hint}</small></div>`
         })
@@ -70,7 +103,7 @@ function rulesView(c) {
   const free = [...(app.data.extraFreeDays || [])].sort((a, b) => a.date.localeCompare(b.date))
   return `<div class="section-head"><div><h2>Regeln & Feiertage</h2><p>Grundlage sind AZG, ARG und KJBG. Werte aus eurem Kollektivvertrag oder Betriebsvereinbarungen hier anpassen. Alle Markierungen und die Automatik richten sich danach.</p></div>
       <div class="actions edit-only"><button class="btn ${app.ui.confirm === 'rules-reset' ? 'danger confirm' : ''}" data-action="rules-reset">${app.ui.confirm === 'rules-reset' ? 'Wirklich zurücksetzen?' : 'Standardwerte'}</button><button class="btn primary" data-action="rules-save">Regeln speichern</button></div></div>
-    <div class="rules">${fieldsets}</div>
+    <div class="rules">${fieldsets}${wagesFieldset()}</div>
     ${catalog}
     <div class="rules">
       <fieldset><legend>Fahrzeiten zwischen Objekten</legend>
@@ -98,12 +131,15 @@ registerView({ id: 'rules', order: 110, label: 'Regeln & Feiertage', group: 'sta
 registerActions(
   {
     'rules-save': () => {
-      const rules = { ...DEFAULT_RULES, ...app.data.rules }
-      rules.minor = { ...DEFAULT_RULES.minor, ...(rules.minor || {}) }
+      const rules = structuredClone(mergeRules(app.data.rules))
+      for (const g of Object.keys(rules.wages)) {
+        const wage = num(`rule-wages-${g}`)
+        if (wage !== null) rules.wages[g] = wage
+      }
       for (const [, fields] of RULE_FIELDS) {
         for (const [key, , , type = 'number'] of fields) {
           const id = `rule-${key.replace('.', '-')}`
-          const value = type === 'checkbox' ? checked(id) : type === 'time' ? val(id) : num(id)
+          const value = type === 'checkbox' ? checked(id) : type === 'time' || type === 'select' ? val(id) : num(id)
           if (value === null || value === '') continue
           const [a, b] = key.split('.')
           if (b) rules[a][b] = value
@@ -120,7 +156,7 @@ registerActions(
     },
     'rules-reset': () => {
       if (!confirmStep('rules-reset')) return
-      app.data.rules = { ...DEFAULT_RULES, minor: { ...DEFAULT_RULES.minor } }
+      app.data.rules = structuredClone(DEFAULT_RULES)
       persist()
       renderNow()
     },

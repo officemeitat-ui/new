@@ -25,18 +25,51 @@ export const DEFAULT_RULES = {
   dueLeadDays: 7, // periodische Leistungen spätestens so viele Tage vorher zuteilen
   disabledRules: [], // ids aus RULES, die nicht geprüft werden
   minor: { maxDailyH: 8, maxWeeklyH: 40, minDailyRestH: 12, nightStart: '20:00', nightEnd: '06:00' }, // KJBG
+  // Überstunden, Mehrarbeit, Zuschläge in % des Stundenlohns (AZG, KV Denkmal-,
+  // Fassaden- und Gebäudereinigung, Arbeiter/innen, ab 1.1.2026). Berechnung in overtime.js.
+  pay: {
+    fullTimeWeeklyH: 40, // KV: wöchentliche Normalarbeitszeit
+    dailyNormalH: 9, // §§ 3, 4 AZG: 8 h, bei anderer Verteilung 9 h; darüber Überstunden
+    longDayH: 10, // KV: 11. und 12. Arbeitsstunde am Tag
+    mehrPct: 25, // § 19d Abs 3a AZG, KV: Mehrarbeit (Teilzeit)
+    mehrBalanceMonths: 3, // zuschlagsfrei, wenn binnen 3 Monaten 1:1 ausgeglichen
+    nightFrom: '21:00', // KV: Nachtarbeit Mo–Sa 21–6 Uhr
+    nightTo: '06:00',
+    nightPct: 50, // Normal- und Mehrarbeitsstunden in der Nacht
+    ueTag: 50, // § 10 AZG, KV
+    ueNacht: 100,
+    ueSonntag: 150,
+    ueFeiertag: 100, // zusätzlich zum Feiertagsentgelt
+    ue11Tag: 75, // angeordnete 11./12. Stunde
+    ue11Nacht: 125,
+    ue11Sonntag: 175,
+    ue11Feiertag: 125,
+    bonusAs: 'zeit', // Sonn-/Feiertagszuschlag auf Normalstunden: 'zeit' (Wochenzettel, Zeitkonto) oder 'geld'
+    ueMode: 'auszahlen', // Überstunden: 'auszahlen' | 'za' (Zeitausgleich 1:1,5) | 'mix' (1:1, Zuschlag in Geld)
+    mehrMode: 'zeitkonto', // Mehrarbeit: 'zeitkonto' (binnen 3 Monaten ausgleichen) | 'auszahlen'
+    taxFreeHours: 15, // § 68 Abs 2 iVm § 124b Z 440 EStG: 2026 15 Überstunden, max. 170 € (sonst 10 h, 120 €)
+    taxFreeMax: 170,
+  },
+  wages: { 1: 15.12, 2: 13.3, 3: 12.99, 4: 13.03, 5: 12.73, 6: 12.37 }, // KV-Stundenlöhne je Lohngruppe ab 1.1.2026
 }
 
 export const SEVERITY_RANK = { info: 1, warning: 2, error: 3 }
 export const SEVERITY_LABEL = { error: 'Verstoß', warning: 'Prüfen', info: 'Hinweis' }
 
 export function mergeRules(rules = {}) {
-  return { ...DEFAULT_RULES, ...rules, disabledRules: rules.disabledRules || [], minor: { ...DEFAULT_RULES.minor, ...(rules.minor || {}) } }
+  return {
+    ...DEFAULT_RULES,
+    ...rules,
+    disabledRules: rules.disabledRules || [],
+    minor: { ...DEFAULT_RULES.minor, ...(rules.minor || {}) },
+    pay: { ...DEFAULT_RULES.pay, ...(rules.pay || {}) },
+    wages: { ...DEFAULT_RULES.wages, ...(rules.wages || {}) },
+  }
 }
 
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
-export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {} }, holidays) {
+export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {}, payroll = {} }, holidays) {
   const absencesByEmployee = new Map()
   for (const a of absences) {
     if (!absencesByEmployee.has(a.employeeId)) absencesByEmployee.set(a.employeeId, [])
@@ -53,6 +86,8 @@ export function createContext({ employees, objects, absences = [], rules, travel
     holidays,
     /** Veröffentlichte Wochen (Salden für das Zeitkonto). */
     published,
+    /** Monatsabschlüsse (ausbezahlte Stunden, Zeitausgleich-Zuschläge). */
+    payroll,
     /** Fahrzeit in Minuten zwischen zwei Objekten (Matrix, sonst Pauschale). */
     travel: between,
     trips,

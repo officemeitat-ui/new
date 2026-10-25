@@ -27,7 +27,7 @@ export function pdfStatus(c) {
 
 /** Zeitkonto inkl. dieser Woche (veröffentlichte Vorwochen + aktueller Saldo). */
 export function accountAfterWeek(c, emp) {
-  return timeAccount(emp, app.data.published, addDays(c.monday, -1)) + c.timesheet(emp).totals.saldo
+  return timeAccount(emp, app.data.published, addDays(c.monday, -1), app.data.payroll) + c.timesheet(emp).totals.saldo
 }
 
 const cache = new Map()

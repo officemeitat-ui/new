@@ -39,7 +39,9 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     const replaced = inst.regulars.includes(emp.id) ? [] : inst.regulars.filter((id) => !state.has(id, inst.key))
     const sundayHoliday = inst.holiday?.legal ? 'holiday' : inst.isSunday ? 'sunday' : null
     const bonusPct = sundayHoliday === 'holiday' ? r.holidayBonusPct : sundayHoliday === 'sunday' ? r.sundayBonusPct : 0
-    const bonus = Math.round((inst.net * bonusPct) / 100)
+    // Sonn-/Feiertagszuschlag als Zeitgutschrift (wie im bisherigen Wochenzettel) oder in Geld (Überstunden & Auszahlung)
+    const bonusAsMoney = r.pay?.bonusAs === 'geld'
+    const bonus = bonusAsMoney ? 0 : Math.round((inst.net * bonusPct) / 100)
     const notes = []
     if (replaced.length) notes.push(`Vertretung für ${replaced.map(nameOf).join(', ')}`)
     if (inst.status === 'moved') notes.push(`verschoben von ${formatDate(inst.origDate)}${inst.reason === 'holiday' ? ' (Feiertag)' : ''}`)
@@ -48,6 +50,7 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     const wasteNote = (inst.waste || inst.addOns?.length) && ctx.objectsById.get(inst.objectId)?.waste?.note
     if (wasteNote) notes.push(wasteNote)
     if (bonus) notes.push(`inkl. ${bonusPct} % ${sundayHoliday === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag`)
+    else if (bonusAsMoney && bonusPct) notes.push(`${bonusPct} % ${sundayHoliday === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag wird ausbezahlt`)
     if (inst.breakMin) notes.push(`${inst.breakMin} min Pause abgezogen`)
     if (inst.note) notes.push(inst.note)
     dayMap.get(inst.date).lines.push({
@@ -109,7 +112,10 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     } else if (!state.has(emp.id, inst.key)) {
       const absence = findAbsence(ctx, emp.id, inst.date)
       const others = state.assigned(inst.key).map((a) => nameOf(a.employeeId))
-      if (absence) {
+      if (absence?.type === 'Zeitausgleich') {
+        // Zeitausgleich wird nicht angerechnet: die Stunden kommen aus dem Zeitkonto
+        base.notes.push('Zeitausgleich (aus dem Zeitkonto)')
+      } else if (absence) {
         base.credited = creditable(inst) ? inst.net : 0
         base.creditReason = base.credited ? absence.type : null
         base.notes.push(`${absence.type}${base.credited ? ' angerechnet' : ''}`)

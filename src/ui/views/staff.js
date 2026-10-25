@@ -2,8 +2,10 @@
 
 import { formatHours, WEEKDAY_LONG } from '../../core/dates.js'
 import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, TASK_TEMPLATE } from '../../core/importer.js'
+import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
+import { mergeRules } from '../../core/rules.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
-import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, ICON, modalFrame, num, uid, val } from '../shared.js'
+import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, euro, ICON, modalFrame, num, options, uid, val } from '../shared.js'
 import { copyText } from './sheet.js'
 import { filterBar, filteredEmployees } from './week.js'
 
@@ -40,6 +42,7 @@ function employeeModal(c, { id }) {
     })
     .join('')
   const confirmDel = app.ui.confirm === 'emp-delete'
+  const { wages, pay } = mergeRules(app.data.rules)
   return modalFrame({
     title: id === 'new' ? 'Mitarbeiter:in anlegen' : e.name,
     body: `<div class="form-grid">
@@ -52,6 +55,10 @@ function employeeModal(c, { id }) {
         <label class="field"><span>Max. Stunden pro Monat (geringfügig)</span><input type="number" id="emp-maxmonth" step="0.5" min="0" value="${e.maxMonthHours ?? ''}" placeholder="leer = kein Limit"></label>
         <label class="field"><span>Urlaubsanspruch (Arbeitstage/Jahr)</span><input type="number" id="emp-vacation" step="1" min="0" value="${e.vacationDaysYear ?? 25}"></label>
         <label class="field"><span>Zeitkonto Startsaldo (h)</span><input type="number" id="emp-start" step="0.25" value="${e.startBalanceHours ?? 0}"></label>
+        <label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${euro(w)}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
+        <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${e.hourlyWage ?? ''}" placeholder="leer = KV-Lohn der Lohngruppe"></label>
+        <label class="field"><span>Überstunden</span><select id="emp-uemode">${options(Object.entries(UE_MODES), e.ueMode || '', { empty: `wie unter „Regeln“ (${UE_MODES[pay.ueMode]})` })}</select></label>
+        <label class="field"><span>Mehrarbeit (Teilzeit)</span><select id="emp-mehrmode">${options(Object.entries(MEHR_MODES), e.mehrMode || '', { empty: `wie unter „Regeln“` })}</select></label>
         <label class="field"><span>Notiz</span><input type="text" id="emp-note" value="${esc(e.note || '')}" placeholder="z. B. Springer:in, Führerschein B"></label>
         <label class="check" style="align-self:end"><input type="checkbox" id="emp-minor" ${e.minor ? 'checked' : ''}><span>unter 18 Jahre (Jugendschutz KJBG)</span></label>
       </div>
@@ -77,6 +84,10 @@ function readEmployeeForm(existing) {
     maxMonthHours: num('emp-maxmonth') || undefined,
     vacationDaysYear: num('emp-vacation') ?? 25,
     startBalanceHours: num('emp-start') || undefined,
+    wageGroup: Number(val('emp-wagegroup')) || undefined,
+    hourlyWage: num('emp-wage') || undefined,
+    ueMode: val('emp-uemode') || undefined,
+    mehrMode: val('emp-mehrmode') || undefined,
     note: val('emp-note').trim() || undefined,
     minor: checked('emp-minor') || undefined,
     skills: checkedValues('emp-skill'),

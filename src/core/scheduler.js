@@ -5,8 +5,9 @@
 //   3. Reparatur: bleibt ein Einsatz offen, wird versucht, eine Person von
 //      einem anderen (nicht fixierten) Einsatz freizuspielen.
 
-import { mondayOf } from './dates.js'
+import { addDays, mondayOf } from './dates.js'
 import { PlanState } from './plan.js'
+import { payrollBookings } from './reports.js'
 import { evaluateEmployee, findAbsence, fitsAvailability } from './rules.js'
 
 // Warnungen, die die Automatik wie Verstöße behandelt (manuell bleibt alles möglich).
@@ -37,7 +38,7 @@ function balanceBefore(ctx, emp, monday) {
   if (!ctx.balanceCache.has(key)) {
     let total = Math.round((emp.startBalanceHours || 0) * 60)
     for (const [m, week] of Object.entries(ctx.published || {})) if (m < monday && week.status === 'veroeffentlicht') total += week.saldi?.[emp.id] || 0
-    ctx.balanceCache.set(key, total)
+    ctx.balanceCache.set(key, total + payrollBookings(emp, ctx.payroll, addDays(monday, -1)))
   }
   return ctx.balanceCache.get(key)
 }
@@ -74,6 +75,13 @@ export function candidateFactors(ctx, state, emp, inst, ev) {
   const balance = balanceBefore(ctx, emp, week)
   if (Math.abs(balance) >= 120) add('balance', Math.max(-12, Math.min(12, balance / 60)) * 1.5, balance < 0 ? `Zeitkonto −${hrs(-balance)} h: gleicht Minusstunden aus` : `Zeitkonto +${hrs(balance)} h`)
   if (inst.isSunday || inst.holiday?.legal) add('sunday', 10, 'Sonn-/Feiertag')
+  // Überstunden kosten 50 % und mehr: lieber jemand, bei dem es Normal- oder Mehrarbeit bleibt
+  const pay = ctx.rules.pay
+  if (pay) {
+    const dayMin = sameDay.reduce((s, i) => s + i.net, 0) + inst.net
+    if (weekMin + inst.net > pay.fullTimeWeeklyH * 60) add('overtime', 25, `über ${pay.fullTimeWeeklyH} h/Woche: Überstunden (+${pay.ueTag} %)`)
+    else if (dayMin > pay.dailyNormalH * 60) add('overtime', 15, `über ${hrs(pay.dailyNormalH * 60)} h am Tag: Überstunden (+${pay.ueTag} %)`)
+  }
   return factors
 }
 

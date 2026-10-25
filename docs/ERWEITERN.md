@@ -124,6 +124,14 @@ Logik in `src/core/waste.js`, Eingabe in `src/ui/waste-form.js`, Ansicht in `src
 - **Wer einen eigenen Gang bekommt**: `wasteRegulars()`; in der Automatik zählt zusätzlich „an dem Tag ohnehin im Objekt“ (`candidateFactors`)
 - Ein angehängter Gang steht am Einsatz in `inst.addOns[]`, ein eigener Gang ist ein Einsatz mit `category: 'muell'` und `inst.waste`.
 
+## Überstunden und Zuschläge anpassen
+
+Logik in `src/core/overtime.js` (rein rechnend, getestet in `test/overtime.test.js`), Ansicht in `src/ui/views/overtime.js`.
+
+- `classifyWeek()` ordnet eine Woche ein (Tagesgrenze, Wochengrenze, Zeitklassen). Ein anderes Modell, etwa eine Durchrechnung über mehrere Wochen, ist eine eigene Funktion mit demselben Ergebnis (`parts[{ date, type, cls, min }]`).
+- `premiumPct()` liefert den Satz je Stundenart und Zeitklasse aus `rules.pay`. Eine weitere Zeitklasse (z. B. Sonntagnacht) braucht einen Eintrag in `TIME_CLASSES`, eine Zeile in `timeClasses()` und die Sätze in `rules.pay`.
+- `payMonth()` macht daraus Lohnzeilen, Betrag, Steuerhinweis und die Buchung ins Zeitkonto; `OVERTIME_COLUMNS` in der Ansicht legt die CSV-Spalten fest.
+
 ## Corporate Design
 
 Am einfachsten aus der eigenen Website: `npm run theme -- https://www.firma.at` (oder Pfad zu einer gespeicherten Seite). Das Skript (`scripts/theme-from-site.js`, Logik in `scripts/theme/`) erkennt Farben aus Baukasten-Variablen (Elementor, WordPress) oder aus Häufigkeit und wichtigen Selektoren (Kopfzeile, Knöpfe, Links), Schriften aus Google Fonts oder `@font-face`, das Logo in der Kopfzeile und ob die Kopfzeile hell oder farbig ist. Es schreibt `themes/<name>.css` und in `config.json` `brand.theme`, `brand.logo`, `brand.logoOnLight` (Logo für helle Flächen, z. B. im PDF) und `brand.colors` (Primär- und Akzentfarbe, auch fürs PDF).
@@ -133,7 +141,7 @@ Am einfachsten aus der eigenen Website: `npm run theme -- https://www.firma.at` 
 ## Datenmodell (Auszug)
 
 ```js
-employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours }   // email: Versand der PDF-Wochenpläne
+employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours, wageGroup?, hourlyWage?, ueMode?, mehrMode? }   // email: Versand der PDF-Wochenpläne
 object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, contact, keys[{ id, label, holderId }], waste? }
 waste    = { streams[{ id, type: 'Restmüll'|'Biomüll'|'Altpapier'|'Leichtverpackung'|'Glas'|'Metall'|'Sperrmüll'|'Sonstiges', recurrence }],
              outWhen: 'vortag'|'abholtag', bringBack, minutes, responsible?: employeeId, note? }   // recurrence wie unten oder { type: 'dates', dates[] }
@@ -148,6 +156,9 @@ overrides[`${datum}|${taskId}`]   = { date?, start?, end?, cancelled?, note? }
 trips[`${datum}|${taskId}|${employeeId}`] = { min?, note? }   // geplante Fahrt nach dem Einsatz (Woche)
 published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur}, correctedAt?, corrections?[{ empId, before, after, delta, at, by }], sent?{empId: { at, by, via: 'E-Mail'|'Teilen'|'PDF'|'manuell', sig }}, files? }
 travel[`${objA}|${objB}`] = minuten
+payroll[monat] = { modes?{empId: { ue, mehr }}, closedAt?, by?, rows?{empId: { mehrPaid, uePaid, zaBonus, amount, taxFree, accountDelta, lines[] }} }   // Monatsabschlüsse (daten/zeitkonto.json)
+rules.pay = { fullTimeWeeklyH, dailyNormalH, longDayH, mehrPct, mehrBalanceMonths, nightFrom, nightTo, nightPct, ueTag … ue11Feiertag, bonusAs, ueMode, mehrMode, taxFreeHours, taxFreeMax }
+rules.wages = { 1: 15.12, …, 6: 12.37 }   // KV-Stundenlöhne je Lohngruppe
 ```
 
 ## Ideen für nächste Module

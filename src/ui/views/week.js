@@ -150,7 +150,7 @@ function weekView(c) {
         })
         .join('')
       const t = ts.totals
-      const account = timeAccount(emp, published, c.monday)
+      const account = timeAccount(emp, published, c.monday, app.data.payroll)
       const changed = c.changedSincePublish(emp)
       const groupRow = !team && emp.team && emp.team !== lastTeam ? `<tr class="group-row"><th class="name-col" colspan="1">${esc(emp.team)}</th><td colspan="8"></td></tr>` : ''
       lastTeam = emp.team

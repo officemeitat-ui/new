@@ -4,7 +4,7 @@
 // und jede Datei klein und lesbar bleibt:
 //   daten/stammdaten.json             Mitarbeitende, Objekte, Leistungen, Regeln
 //   daten/abwesenheiten.json          Urlaub, Krankenstand, …
-//   daten/zeitkonto.json              veröffentlichte Wochen mit Salden
+//   daten/zeitkonto.json              veröffentlichte Wochen mit Salden, Monatsabschlüsse
 //   daten/plaene/2026/2026-10-26.json Einteilungen einer Woche + Änderungsprotokoll
 //
 // Gespeichert wird automatisch (verzögert), nur geänderte Dateien. Bei einem
@@ -33,7 +33,7 @@ export function splitData(data, weeks) {
   const docs = {
     [DOC.master]: Object.fromEntries(MASTER_KEYS.map((k) => [k, data[k]]).filter(([, v]) => v !== undefined)),
     [DOC.absences]: { absences: data.absences || [] },
-    [DOC.account]: { weeks: data.published || {} },
+    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}) },
   }
   for (const monday of weeks) docs[weekPath(monday)] = { monday, assignments: {}, overrides: {}, log: data.logs?.[monday] || [] }
   for (const field of WEEK_FIELDS) {
@@ -55,6 +55,8 @@ export function applyDoc(data, path, doc) {
     data.absences = doc.absences || []
   } else if (path === DOC.account) {
     data.published = doc.weeks || {}
+    if (doc.payroll) data.payroll = doc.payroll
+    else delete data.payroll
   } else {
     const monday = doc.monday
     for (const field of WEEK_FIELDS) {

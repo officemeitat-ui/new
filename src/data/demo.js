@@ -99,6 +99,8 @@ export function createDemoData(monday) {
 
   // Revier Salzburg Stadt (handverlesen) ergänzen
   employees.forEach((e, i) => Object.assign(e, { team: 'Salzburg Stadt', personnelNo: String(1001 + i), vacationDaysYear: 25 }))
+  // Lohngruppen laut KV (Stundenlöhne unter „Regeln“), Dragan mit Überzahlung
+  Object.assign(employees.find((e) => e.id === 'e4'), { hourlyWage: 14.5 })
   const budgetFactor = [1, 0.9, 1.05, 1, 1, 0.95, 1.1, 1, 0.85, 1, 1]
   objects.forEach((o, i) => Object.assign(o, { region: 'Salzburg Stadt', budgetHoursMonth: 0, budgetFactor: budgetFactor[i] }))
   Object.assign(objects.find((o) => o.id === 'o7'), {
@@ -130,6 +132,7 @@ export function createDemoData(monday) {
   absences.push(...generated.absences)
   setBudgets(objects, tasks)
   for (const o of objects) delete o.budgetFactor
+  for (const e of employees) if (!e.minor) e.wageGroup = (e.skills || []).includes('Glasreinigung') ? 2 : 6
 
   return {
     version: 1,

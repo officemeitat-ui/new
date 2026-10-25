@@ -253,7 +253,7 @@ export function toast(message) {
 // ---------------------------------------------------------------- Rückgängig
 
 const undoStack = []
-const UNDO_FIELDS = ['assignments', 'overrides', 'trips']
+const UNDO_FIELDS = ['assignments', 'overrides', 'trips', 'payroll']
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))
 
 /** Stand vor einer Planänderung merken (Einteilungen, Einzeländerungen, Fahrten). */
@@ -272,6 +272,11 @@ export function undo() {
   const last = undoStack.pop()
   if (!last) return toast('Nichts zum Rückgängigmachen.')
   for (const field of UNDO_FIELDS) {
+    // Monatsabschlüsse gehören zu keiner Woche: ganz zurücksetzen
+    if (field === 'payroll') {
+      app.data.payroll = last.data.payroll
+      continue
+    }
     const kept = Object.entries(app.data[field] || {}).filter(([key]) => !last.weeks.has(weekOfKey(key)))
     app.data[field] = { ...Object.fromEntries(kept), ...last.data[field] }
   }

@@ -29,14 +29,14 @@ function payrollView(c) {
       <td class="num">${r.sickDays ? `${r.sickDays} T<br><span class="muted">${formatHours(r.sickCredit)} h</span>` : h(0)}</td>
       <td class="num"><strong>${formatHours(r.ist)}</strong></td>
       <td class="num saldo ${saldoClass(r.saldo)}">${signed(r.saldo)}${r.overLimit ? '<br><span class="pill error">über GFG-Grenze</span>' : ''}</td>
-      <td class="num">${signed(timeAccount(r.employee, app.data.published, c.monday))}</td>
+      <td class="num">${signed(timeAccount(r.employee, app.data.published, c.monday, app.data.payroll))}</td>
     </tr>`,
     )
     .join('')
   const [y, m] = c.month.split('-').map(Number)
   return `<div class="section-head"><div><h2>Monatsauswertung ${MONTH_LONG[m - 1]} ${y}</h2><p>Grundlage für die Lohnverrechnung: geleistete Stunden, Fahrzeit, Sonn- und Feiertagsstunden mit Zuschlag, Nachtarbeit, angerechnete Feiertage, Urlaub und Krankenstand. Die Zuordnung zu Lohnarten erfolgt beim Import in BMD/RZL.</p></div>${monthPicker(c)}</div>
     ${filterBar(c, { problems: false })}
-    <div class="toolbar"><button class="btn" data-action="payroll-copy">${ICON.copy} Für Excel kopieren</button>${app.config.features.download ? `<button class="btn" data-action="payroll-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}</div>
+    <div class="toolbar"><button class="btn" data-action="view" data-view="overtime">Überstunden & Auszahlung</button><button class="btn" data-action="payroll-copy">${ICON.copy} Für Excel kopieren</button>${app.config.features.download ? `<button class="btn" data-action="payroll-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}</div>
     <div class="table-wrap"><table class="data payroll"><thead><tr><th>Mitarbeiter:in</th><th>Soll</th><th>Gearbeitet</th><th>Fahrzeit</th><th>Sonn-/Feiertag</th><th>Nacht</th><th>Feiertag angerechnet</th><th>Urlaub</th><th>Krankenstand</th><th>Ist</th><th>Saldo</th><th>Zeitkonto</th></tr></thead><tbody>${body}</tbody></table></div>
     <p class="note">Soll = Wochenstunden / 5 je Werktag (Mo–Fr) im Monat. Wochen, die noch nicht eingeteilt sind, zählen nur mit Anrechnungen. Zeitkonto = Startsaldo + veröffentlichte Wochen (inkl. gebuchter Korrekturen).</p>
     ${correctionsSection(c)}`

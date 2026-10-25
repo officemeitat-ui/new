@@ -109,11 +109,20 @@ export function objectControlling(ctx, objects, month, instances, state, isSched
 }
 
 /** Laufendes Zeitkonto: Startsaldo + Salden aller veröffentlichten Wochen bis einschließlich `uptoMonday`. */
-export function timeAccount(emp, publishedWeeks = {}, uptoMonday) {
+export function timeAccount(emp, publishedWeeks = {}, uptoMonday, payroll = {}) {
   let total = Math.round((emp.startBalanceHours || 0) * 60)
   for (const [monday, week] of Object.entries(publishedWeeks)) {
     if (monday > uptoMonday || week.status !== 'veroeffentlicht') continue
     total += week.saldi?.[emp.id] || 0
+  }
+  return total + payrollBookings(emp, payroll, addDays(uptoMonday, 6))
+}
+
+/** Buchungen aus Monatsabschlüssen bis `upto`: ausbezahlte Stunden (−), Zeitausgleich-Zuschläge (+). */
+export function payrollBookings(emp, payroll = {}, upto) {
+  let total = 0
+  for (const [month, closure] of Object.entries(payroll)) {
+    if (closure?.closedAt && lastOfMonth(`${month}-01`) <= upto) total += closure.rows?.[emp.id]?.accountDelta || 0
   }
   return total
 }

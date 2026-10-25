@@ -399,6 +399,12 @@ table.grid.cal { min-width: 980px; table-layout: auto; }
 .folder p { margin: 6px 0 0; }
 .folder-line { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 8px 14px; font-size: 0.85rem; color: var(--muted); border-bottom: 1px solid var(--line); }
 .inline-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
+/* Überstunden & Auszahlung */
+.toolbar .spacer { flex: 1 1 auto; }
+.ot-modes { display: grid; gap: 4px; min-width: 12rem; }
+.ot-modes .field span { font-size: 0.72rem; }
+.ot-modes select { font-size: 0.85rem; padding-block: 3px; }
+table.overtime td { vertical-align: top; }
 /* Müllplan */
 .tag.waste { color: var(--ok); border-color: currentColor; background: var(--ok-soft); white-space: normal; }
 .tag.waste svg, .waste-line svg, .waste-form h3 svg, .section-head h2 svg { width: 14px; height: 14px; vertical-align: -2px; }
