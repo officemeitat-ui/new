@@ -49,7 +49,9 @@ Dazu kommen: Veröffentlichen mit Excel- und PDF-Export nach SharePoint, Markier
 
 ## Corporate Design
 
-Logo und Farben in `assets/cleanos-logo.svg` und `themes/cleanos.css` sind noch **Platzhalter**. Das Design der eigenen Website übernimmt ein Befehl:
+Das Cleanos-Design ist eingebaut: Logo `assets/cleanos-logo.png`, Hausfarben aus dem Logo (Blau `#0f70b7`, Grün `#a1c855`, Grau `#717274`), helle Kopfzeile mit grüner Linie, Wassertropfen als Symbol im Browser-Tab, PDF-Wochenpläne mit Logo und Markenfarbe. Werte in `themes/cleanos.css` und `config.json` (brand).
+
+Neu erzeugen lässt es sich aus Logo und Farben (`npm run theme -- --logo assets/cleanos-logo.png --primary "#0f70b7" --accent "#a1c855" --logo-height 56`) oder aus der Website, dann kommen auch deren Schriften mit:
 
 ```bash
 npm run theme -- https://www.cleanos.at

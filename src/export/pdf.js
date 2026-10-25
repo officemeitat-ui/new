@@ -106,7 +106,7 @@ function timesheetPages(entry, { objectsById, employeesById, brand, status, cont
   return [
     {
       columns: [
-        logo ? { stack: [logo.svg ? { svg: logo.svg, width: logo.width || 120 } : { image: logo.image, fit: [150, 34] }, { text: brand.product || 'Dienstplan', color: GREY, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name, style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
+        logo ? { stack: [logo.svg ? { svg: logo.svg, width: logo.width || 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: GREY, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name, style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
         { stack: [{ text: `KW ${week} / ${year}`, style: 'kw', alignment: 'right' }, { text: `${formatDate(ts.monday, { weekday: false })} – ${formatDate(ts.sunday, { weekday: false, year: true })}`, alignment: 'right', color: GREY }] },
       ],
     },

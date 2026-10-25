@@ -3,9 +3,15 @@
     "name": "Cleanos",
     "product": "Dienstplan",
     "tagline": "Einsatzplanung Gebäudereinigung",
-    "logo": "assets/cleanos-logo.svg",
+    "logo": "assets/cleanos-logo.png",
     "theme": "cleanos",
-    "contact": "Fragen zum Dienstplan: Disposition Cleanos"
+    "contact": "Fragen zum Dienstplan: Disposition Cleanos",
+    "logoOnLight": "assets/cleanos-logo.png",
+    "colors": {
+      "primary": "#0f70b7",
+      "accent": "#a1c855"
+    },
+    "icon": "assets/cleanos-icon.png"
   },
   "storage": "local",
   "demo": true,

@@ -65,3 +65,14 @@ test('PDF in Markenfarbe mit Logo', () => {
   const plain = timesheetDocument([{ ts }], { brand: { name: 'Beispiel' } })
   assert.equal(plain.content[0].columns[0].stack[0].text, 'Beispiel')
 })
+
+test('Cleanos-Design: Logo, Symbol und Hausfarben aus dem Logo sind eingetragen', () => {
+  const config = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'))
+  const { brand } = config
+  for (const file of [brand.logo, brand.logoOnLight, brand.icon]) assert.ok(readFileSync(new URL(`../${file}`, import.meta.url)).length > 1000, file)
+  assert.deepEqual(brand.colors, { primary: '#0f70b7', accent: '#a1c855' })
+  const theme = readFileSync(new URL(`../themes/${brand.theme}.css`, import.meta.url), 'utf8')
+  assert.match(theme, /--brand-primary: #0f70b7;/)
+  assert.match(theme, /--brand-accent: #a1c855;/)
+  assert.ok(contrast('#0f70b7', '#ffffff') >= 4.5) // Cleanos-Blau ist als Schrift auf Weiß lesbar
+})

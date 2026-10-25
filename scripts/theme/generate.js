@@ -6,7 +6,7 @@ import { luminance, mix, readableOn, textOn } from '../../src/core/color.js'
 const fontStack = (family, fallback) => (family ? `'${family.replace(/'/g, '')}', ${fallback}` : fallback)
 
 /**
- * @param brand { name, primary, accent, heading, body, imports[], fontFaces[{family,file,weight,style}], header, source }
+ * @param brand { name, primary, accent, heading, body, imports[], fontFaces[{family,file,weight,style}], header, logoHeight, source }
  * header: Hintergrund der Kopfzeile auf der Website (null/hell → helle Kopfzeile)
  */
 export function themeCss(brand) {
@@ -93,7 +93,7 @@ ${block(dark)}
 }
 
 ${topbar}
-[data-brand='${name}'] .brand-logo { height: 34px; }
+[data-brand='${name}'] .brand-logo { height: ${brand.logoHeight || 34}px; }
 [data-brand='${name}'] .brand-text { border-left: 1px solid currentColor; border-left-color: rgb(127 127 127 / 0.35); padding-left: 12px; }
 [data-brand='${name}'] .tab[aria-current='page'] { border-bottom-color: var(--brand-accent); }
 [data-brand='${name}'] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }

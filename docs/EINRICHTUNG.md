@@ -51,7 +51,7 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
 
 ```json
 {
-  "brand": { "name": "Cleanos", "product": "Dienstplan", "tagline": "Einsatzplanung Gebäudereinigung", "logo": "assets/cleanos-logo.svg", "theme": "cleanos" },
+  "brand": { "name": "Cleanos", "product": "Dienstplan", "tagline": "Einsatzplanung Gebäudereinigung", "logo": "assets/cleanos-logo.png", "logoOnLight": "assets/cleanos-logo.png", "icon": "assets/cleanos-icon.png", "theme": "cleanos", "colors": { "primary": "#0f70b7", "accent": "#a1c855" } },
   "storage": "sharepoint",
   "demo": false,
   "sharepoint": {

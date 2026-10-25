@@ -2,11 +2,13 @@
 //
 //   npm run theme -- https://www.cleanos.at
 //   npm run theme -- ./cleanos-gespeichert/index.html     (im Browser „Seite speichern unter … komplett“)
+//   npm run theme -- --logo assets/logo.png --primary "#0f70b7" --accent "#a1c855"   (ohne Website: Logo + Hausfarben)
 //
 // Liest Logo, Markenfarben, Schriften und Kopfzeile, schreibt
 // themes/<name>.css, lädt Logo (und ggf. Schriften) nach assets/ bzw.
 // themes/fonts/ und trägt alles in config.json ein. Danach `npm start` und
-// prüfen. Optionen: --name cleanos   --dry (nur anzeigen)
+// prüfen. Optionen: --name cleanos   --dry (nur anzeigen)   --font "Schriftname" (Google Fonts)
+// --logo-height 56 (Höhe des Logos in der Kopzeile, z. B. für hohe Logos)
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, extname, join, resolve as resolvePath } from 'node:path'
@@ -19,7 +21,36 @@ const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const args = process.argv.slice(2)
 const flag = (n) => args.includes(`--${n}`)
 const option = (n) => (args.indexOf(`--${n}`) >= 0 ? args[args.indexOf(`--${n}`) + 1] : null)
-const source = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--name')
+const VALUE_OPTIONS = new Set(['--name', '--logo', '--primary', '--accent', '--font', '--logo-height'])
+const source = args.find((a, i) => !a.startsWith('--') && !VALUE_OPTIONS.has(args[i - 1]))
+
+// Ohne Website: Logo-Datei und Hausfarben direkt angeben
+if (!source && option('primary')) {
+  const config = JSON.parse(await readFile(join(root, 'config.json'), 'utf8'))
+  const name = (option('name') || config.brand?.theme || 'marke').toLowerCase().replace(/[^a-z0-9-]/g, '')
+  const font = option('font')
+  const logo = option('logo') || config.brand?.logo || ''
+  const css = themeCss({
+    name,
+    primary: option('primary').toLowerCase(),
+    accent: (option('accent') || option('primary')).toLowerCase(),
+    heading: font || '',
+    body: font || '',
+    imports: font ? [`https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@400;500;600;700;800&display=swap`] : [],
+    header: '#ffffff',
+    logoHeight: Number(option('logo-height')) || 34,
+    source: logo ? `Logo ${basename(logo)}` : 'Hausfarben',
+  })
+  if (flag('dry')) {
+    console.log(css)
+    process.exit(0)
+  }
+  await writeFile(join(root, `themes/${name}.css`), css)
+  config.brand = { ...config.brand, theme: name, ...(logo ? { logo, logoOnLight: logo } : {}), colors: { primary: option('primary').toLowerCase(), accent: (option('accent') || option('primary')).toLowerCase() } }
+  await writeFile(join(root, 'config.json'), `${JSON.stringify(config, null, 2)}\n`)
+  console.log(`Geschrieben: themes/${name}.css, config.json (brand). Jetzt mit „npm start“ ansehen.`)
+  process.exit(0)
+}
 if (!source) {
   console.log('Aufruf: npm run theme -- https://www.firma.at   (oder Pfad zu einer gespeicherten Seite)')
   process.exit(1)

@@ -56,5 +56,9 @@ export function applyBrand(brand) {
     document.head.append(link)
     document.documentElement.dataset.brand = brand.theme
   }
+  if (brand.icon) {
+    const icon = document.querySelector('link[rel="icon"]') || document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }))
+    icon.href = brand.icon
+  }
   document.title = `${brand.product} · ${brand.name}`
 }
