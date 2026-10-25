@@ -65,7 +65,7 @@ export function objektblattDocument(data, { sections, customer = false, brand = 
   }
   if (has('geraete') && mappe.devices?.length) {
     section('Geräte')
-    table(['Gerät', 'Standort', 'Inventar-Nr.', 'Eigentum', 'Zustand'], mappe.devices.map((d) => [d.label || '', d.place || '', d.inventoryNo || '', d.owner || '', d.condition || '']), ['*', 110, 70, 60, 70])
+    table(['Gerät', 'Standort', 'Inventar-Nr.', 'Eigentum', 'Zustand'], mappe.devices.map((d) => [d.label || '', d.place || '', d.inventoryNo || '', d.owner === 'Kunde' ? 'Kunde' : brand.name || 'eigen', d.condition || '']), ['*', 110, 70, 60, 70])
   }
   if (has('muell') && data.waste) {
     section('Müllplan')

@@ -135,7 +135,7 @@ function demoMappe() {
           { label: 'Haupteingang Stiege 1+2', number: 'S-14', type: 'Schlüssel', count: 2, place: 'Schlüsselkasten Büro', confidential: true },
           { label: 'Müllraum / Keller', number: 'S-15', type: 'Schlüssel', count: 1, place: 'Hausmeisterbox (Code bei der Disposition erfragen)', confidential: true },
         ],
-        devices: [{ label: 'Nass-Trockensauger', place: 'Kellerabteil 3', owner: 'Cleanos', inventoryNo: 'G-0112' }],
+        devices: [{ label: 'Nass-Trockensauger', place: 'Kellerabteil 3', owner: 'eigen', inventoryNo: 'G-0112' }],
         areas: [
           { name: 'Stiegenhaus Stiege 1+2', location: 'EG–3. OG', size: 240, floor: 'Kunststein', services: [
             { what: 'Böden kehren und feucht wischen', interval: 'w2', minutes: 40, method: 'Wischmopp' },

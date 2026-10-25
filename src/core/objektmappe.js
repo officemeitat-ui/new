@@ -7,7 +7,7 @@
 //   objects:   { objektId: { customerNo, customer, objectNo, kind, contract, validFrom, street, hvEmail, notes,
 //                contacts: [{ name, role, phone, mail, note, internal }],
 //                access: [{ label, number, type, count, place, note, confidential }],
-//                devices: [{ label, place, inventoryNo, owner, condition }],
+//                devices: [{ label, place, inventoryNo, owner: 'eigen'|'Kunde', condition }],
 //                attachments: [{ name, url }],
 //                areas: [{ name, location, size, floor, services: [{ what, interval, minutes, method }] }],
 //                checkedAt?, checkedBy? } }
