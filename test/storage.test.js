@@ -144,6 +144,13 @@ function fakeGraph(opts = {}) {
       folders.add(full)
       return json(201, { name })
     }
+    const kids = p.match(/^\/drives\/drive1\/root:\/(.+):\/children$/)
+    if (kids && method === 'GET') {
+      const dir = kids[1]
+      if (!folders.has(dir)) return json(404, { error: { message: 'not found' } })
+      const direct = (k) => k.startsWith(`${dir}/`) && !k.slice(dir.length + 1).includes('/')
+      return json(200, { value: [...[...folders].filter(direct).map((k) => ({ name: k.split('/').pop(), folder: {} })), ...[...files.keys()].filter(direct).map((k) => ({ name: k.split('/').pop(), file: {}, size: files.get(k).body.length }))] })
+    }
     m = p.match(/^\/drives\/drive1\/root:\/(.+?)(:\/content)?$/)
     if (!m) return json(400, { error: { message: `unbekannt ${p}` } })
     const path = m[1]
@@ -288,4 +295,18 @@ test('SharePoint: nur Ordner freigegeben (Ableser) – Laufwerk über die Freiga
   assert.deepEqual((await store.read('zaehler/zaehler.json')).data, { meters: [{ id: 'S-1' }] })
   const denied = fakeGraph({ siteDenied: true, shared: [] })
   await assert.rejects(new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: denied.fetchImpl }).init(), /Access denied/)
+})
+
+test('SharePoint: Ordnerbaum und Dateien der bisherigen Werkzeuge lesen', async () => {
+  const g = fakeGraph()
+  g.folders.add('Wasserzähler - Ablesung').add('Wasserzähler - Ablesung/EBG').add('Wasserzähler - Ablesung/EBG/Fotos')
+  g.files.set('Wasserzähler - Ablesung/EBG/Ablesung_Hallein_2026.json', { body: '﻿{"ort":"Hallein","stellen":[]}', etag: '"w1"' })
+  g.files.set('Wasserzähler - Ablesung/EBG/Fotos/a.jpg', { body: 'x', etag: '"f1"' })
+  const store = new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  await store.init()
+  const tree = await store.listTree('Wasserzähler - Ablesung')
+  assert.deepEqual(tree.map((f) => f.path), ['Wasserzähler - Ablesung/EBG/Ablesung_Hallein_2026.json'], 'Fotos-Ordner übersprungen')
+  assert.deepEqual(await store.readRoot('Wasserzähler - Ablesung/EBG/Ablesung_Hallein_2026.json'), { ort: 'Hallein', stellen: [] })
+  assert.equal(await store.readRoot('gibt/es/nicht.json'), null)
+  assert.equal(store.rootUrl('A B/c.jpg'), 'https://firma.sharepoint.com/sites/Dienstplan/Freigegebene Dokumente/A%20B/c.jpg')
 })

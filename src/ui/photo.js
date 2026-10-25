@@ -3,7 +3,7 @@
 // kleines Vorschaubild direkt in den Daten.
 
 import { fileSafe } from '../core/filename.js'
-import { app, openModal, registerActions, registerModal, renderModal } from './context.js'
+import { app, openModal, persist, registerActions, registerModal, renderModal } from './context.js'
 import { modalFrame } from './shared.js'
 
 async function shrink(file, maxSide, quality) {
@@ -38,8 +38,10 @@ export async function storePhoto(file, name) {
   if (app.store?.kind === 'sharepoint') {
     const blob = await shrink(file, 1600, 0.8)
     const path = `${name.split('/').map(fileSafe).join('/')}.jpg`
-    const { webUrl } = await app.store.upload(path, blob, 'image/jpeg')
-    return { url: webUrl, path }
+    const res = await app.store.upload(path, blob, 'image/jpeg')
+    // ohne Netz: Datei wartet im Gerät, bis dahin ein kleines Vorschaubild
+    if (res.queued) return { path, pending: true, data: await dataUrl(await shrink(file, 240, 0.6)) }
+    return { url: res.webUrl, path }
   }
   return { data: await dataUrl(await shrink(file, 480, 0.6)) }
 }
@@ -49,8 +51,36 @@ export async function storeImageData(data, name) {
   if (app.store?.kind !== 'sharepoint') return { data }
   const blob = await (await fetch(data)).blob()
   const path = `${name.split('/').map(fileSafe).join('/')}.png`
-  const { webUrl } = await app.store.upload(path, blob, 'image/png')
-  return { url: webUrl, path }
+  const res = await app.store.upload(path, blob, 'image/png')
+  if (res.queued) return { path, pending: true, data }
+  return { url: res.webUrl, path }
+}
+
+/** Alle Foto-Verweise in den Modul-Daten (für das Nachtragen nach dem Hochladen). */
+function* photoRefs(data) {
+  for (const r of data.zaehler?.readings || []) if (r.photo) yield r.photo
+  for (const k of data.kontrolle?.inspections || []) {
+    for (const it of Object.values(k.items || {})) yield* it.photos || []
+    for (const s of Object.values(k.signatures || {})) if (s?.image) yield s.image
+  }
+  for (const m of Object.values(data.mappe?.objects || {})) for (const p of m.photos || []) if (p.photo) yield p.photo
+}
+
+/** Ohne Netz zurückgestellte Fotos hochladen und die Verweise nachtragen. */
+export async function uploadQueued() {
+  if (!app.store?.flushUploads || !(await app.store.queuedUploads())) return 0
+  const done = new Map()
+  const left = await app.store.flushUploads((path, url) => done.set(path, url))
+  if (done.size) {
+    for (const ref of photoRefs(app.data)) {
+      if (!ref.pending || !done.has(ref.path)) continue
+      ref.url = done.get(ref.path)
+      delete ref.pending
+      delete ref.data
+    }
+    persist()
+  }
+  return left
 }
 
 /** Bild als Daten-URL (fürs PDF): direkt oder aus SharePoint geladen. */
@@ -59,7 +89,7 @@ export async function photoDataUrl(photo) {
   if (photo.data) return photo.data
   if (photo.path && app.store?.readBlob) {
     try {
-      const blob = await app.store.readBlob(photo.path)
+      const blob = await app.store.readBlob(photo.path, { root: !!photo.root })
       return blob ? await dataUrl(blob) : null
     } catch {
       return null
@@ -71,6 +101,7 @@ export async function photoDataUrl(photo) {
 /** Foto anzeigen: Vorschaubild (groß im Dialog) oder Link auf die Datei in SharePoint. */
 export function photoLink(photo, label = 'Foto') {
   if (!photo) return ''
+  if (photo.pending && photo.data) return `<button type="button" class="photo-thumb pending" data-action="photo-view" data-src="${photo.data}" title="Wird hochgeladen, sobald Netz da ist" aria-label="${label} (wartet aufs Hochladen)"><img src="${photo.data}" alt=""></button>`
   if (photo.data?.startsWith('data:image/')) return `<button type="button" class="photo-thumb" data-action="photo-view" data-src="${photo.data}" aria-label="${label} groß anzeigen"><img src="${photo.data}" alt=""></button>`
   if (/^https:\/\//.test(photo.url || '')) return `<a href="${photo.url}" target="_blank" rel="noopener">${label}</a>`
   return ''

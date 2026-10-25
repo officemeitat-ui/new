@@ -7,7 +7,9 @@
 import { addDays, formatDate, isoWeekday, todayISO } from '../../core/dates.js'
 import { fileSafe } from '../../core/filename.js'
 import { checklistItems, checklistToText, DEFAULT_PRIO, DEFECTS, findings, inspectionDue, itemText, openDefects, OVERALL, PRIO_DAYS, PRIOS, progress, quarterOf, RATING_KEYS, RATINGS, reworkTask, suggestOverall, summaryText, textToChapters } from '../../core/inspections.js'
+import { saveEvent } from '../../auth/graph-calendar.js'
 import { sendMail } from '../../auth/graph-mail.js'
+import { icsEvent } from '../../core/ics.js'
 import { INSPECTION_KINDS, OBJEKTKONTROLLE_CHECKLIST } from '../../data/checklist-objektkontrolle.js'
 import { inspectionDocument, inspectionFileName } from '../../export/inspection-pdf.js'
 import { app, canEdit, closeModal, confirmStep, dataStamp, empName, openModal, persist, recordUndo, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
@@ -31,6 +33,7 @@ const inspOf = (id) => K().inspections.find((x) => x.id === id)
 const checklistOf = (id) => K().checklists.find((c) => c.id === id) || K().checklists[0]
 const editable = () => canEdit(MODULE)
 const canPdf = () => app.config.features.pdf && app.config.features.download
+const canCalendar = () => !!(app.config.features.calendar && app.auth?.getToken)
 const userName = () => app.user?.name || ''
 const mappeOf = (objectId) => app.data.mappe?.objects?.[objectId] || {}
 const RATING_CLASS = { OK: 'ok', R: 'info', M: 'warning', G: 'error', NA: 'na' }
@@ -138,7 +141,8 @@ function inspectionsView() {
   const tabs = [['objekte', `Objekte (${dueNow.length} fällig)`], ['maengel', `Offene Mängel (${s.defects.length})`], ['kontrollen', 'Kontrollen'], ['checklisten', 'Checklisten']]
   const body = tab === 'maengel' ? defectsTab(s, today) : tab === 'kontrollen' ? historyTab() : tab === 'checklisten' ? checklistsTab() : objectsTab(s, today)
   return `<div class="section-head"><div><h2>${ICON.check} Objektkontrolle</h2>
-      <p>Begehung am Handy: je Prüfpunkt OK, R (Reinigung), M (Mangel), G (Gefahr) oder N/A. Mängel bleiben offen, bis sie behoben sind, und erscheinen bei der nächsten Kontrolle direkt beim Prüfpunkt.</p></div></div>
+      <p>Begehung am Handy: je Prüfpunkt OK, R (Reinigung), M (Mangel), G (Gefahr) oder N/A. Mängel bleiben offen, bis sie behoben sind, und erscheinen bei der nächsten Kontrolle direkt beim Prüfpunkt.</p></div>
+      ${editable() ? `<div class="actions"><button class="btn" data-action="legacy-open">${ICON.upload} Aus dem Prüfprotokoll übernehmen</button></div>` : ''}</div>
     <div class="summary">
       <div class="stat ${dueNow.some((d) => d.status === 'ueberfaellig') ? 'err' : dueNow.length ? 'warn' : ''}"><div class="label">Kontrollen fällig</div><div class="value">${dueNow.length}</div></div>
       <div class="stat ${danger ? 'err' : ''}"><div class="label">Gefahr offen</div><div class="value">${danger}</div></div>
@@ -227,6 +231,7 @@ function inspectionModal(c, m) {
         <label class="field"><span>Zusammenfassung ${locked ? '' : '<button type="button" class="link-btn" data-action="ins-summary">Textvorschlag</button>'}</span><textarea id="ins-text" rows="3" data-change="ins-meta" ${locked ? 'disabled' : ''}>${esc(insp.summary?.text || '')}</textarea></label>
         <div class="form-grid"><label class="field inline"><input type="checkbox" id="ins-follow" data-change="ins-meta" ${insp.summary?.followUp ? 'checked' : ''} ${locked ? 'disabled' : ''}><span>Nachkontrolle nötig</span></label>
           <label class="field"><span>Termin Nachkontrolle</span><input type="date" id="ins-follow-date" value="${esc(insp.summary?.followUpDate || '')}" data-change="ins-meta" ${locked ? 'disabled' : ''}></label></div>
+        ${followUpCalendar(insp)}
         <div class="sig-row">${[['inspector', 'Unterschrift Prüfer/in', insp.inspector], ['customer', 'Unterschrift Auftraggeber (optional)', '']]
           .map(([key, label, name]) => {
             const s = insp.signatures?.[key]
@@ -243,6 +248,30 @@ function inspectionModal(c, m) {
 }
 
 registerModal('inspection', inspectionModal)
+
+/** Nachkontrolle in den Kalender: direkt in Outlook (features.calendar) oder als .ics-Datei. */
+function followUpCalendar(insp) {
+  const date = insp.summary?.followUp && insp.summary?.followUpDate
+  if (!date || !editable()) return ''
+  const cal = insp.calendar
+  const done = cal?.date === date
+  const outlook = canCalendar() ? `<button type="button" class="btn small" data-action="ins-calendar" data-id="${esc(insp.id)}">${cal?.id && !done ? 'Termin in Outlook verschieben' : 'In Outlook-Kalender eintragen'}</button>` : ''
+  const ics = app.config.features.download ? `<button type="button" class="btn small" data-action="ins-ics" data-id="${esc(insp.id)}">Termin als Datei (.ics)</button>` : ''
+  if (done && cal.webLink) return `<p class="note">${ICON.check} Nachkontrolle am ${formatDate(date, { year: true })} steht im Kalender · <a href="${esc(cal.webLink)}" target="_blank" rel="noopener">in Outlook öffnen</a></p>`
+  return outlook || ics ? `<p class="actions">${outlook}${ics}</p>` : ''
+}
+
+function followUpEvent(insp) {
+  const obj = objOf(insp.objectId) || {}
+  const cl = checklistOf(insp.checklistId)
+  const open = findings(insp, cl).filter((x) => !x.done)
+  return {
+    title: `Nachkontrolle ${obj.name || ''}`.trim(),
+    date: insp.summary.followUpDate,
+    location: obj.address || '',
+    text: [`Nachkontrolle zur Objektkontrolle vom ${formatDate(insp.date, { year: true })}${insp.inspector ? ` (${insp.inspector})` : ''}.`, insp.summary?.overall ? `Gesamtzustand: ${insp.summary.overall}` : '', open.length ? `\nOffene Mängel:\n${open.map((x) => `• ${x.id} ${x.rating}/${x.prio}: ${x.text}${x.note ? ` – ${x.note}` : ''}`).join('\n')}` : ''].filter(Boolean).join('\n'),
+  }
+}
 
 // Aktuelle Kontrolle im Dialog ändern, speichern, Dialog neu zeichnen
 function change(fn, { rerender = true, skip } = {}) {
@@ -606,6 +635,29 @@ registerActions({
     const cur = list(m[el.dataset.f])
     if (!cur.includes(el.dataset.a)) m[el.dataset.f] = [...cur, el.dataset.a].join(', ')
     renderModal()
+  },
+  'ins-calendar': async (el) => {
+    const insp = inspOf(el.dataset.id)
+    if (!insp?.summary?.followUpDate) return
+    el.disabled = true
+    try {
+      const ev = followUpEvent(insp)
+      const res = await saveEvent(app.auth.getToken, ev, { id: insp.calendar?.id || '' })
+      insp.calendar = { id: res.id, webLink: res.webLink, date: ev.date, at: new Date().toISOString() }
+      persist()
+      renderModal()
+      toast(`Nachkontrolle am ${formatDate(ev.date, { year: true })} steht in deinem Outlook-Kalender.`)
+    } catch (err) {
+      el.disabled = false
+      toast(err.message)
+    }
+  },
+  'ins-ics': (el) => {
+    const insp = inspOf(el.dataset.id)
+    if (!insp?.summary?.followUpDate) return
+    const ev = followUpEvent(insp)
+    const ics = icsEvent({ uid: `${insp.id}-nachkontrolle@dienstplan`, date: ev.date, title: ev.title, description: ev.text, location: ev.location })
+    download(fileSafe(`Nachkontrolle_${objOf(insp.objectId)?.short || objOf(insp.objectId)?.name || ''}_${ev.date}.ics`), new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
   },
   'ins-pdf': async (el) => {
     toast('PDF wird erstellt …')

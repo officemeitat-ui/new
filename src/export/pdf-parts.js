@@ -22,14 +22,16 @@ export function header({ title, subtitle, brand, logo, colors }) {
 
 export const tableLayout = (colors) => ({ hLineColor: () => colors.line, vLineColor: () => colors.line, hLineWidth: () => 0.5, vLineWidth: () => 0.5, paddingTop: () => 3, paddingBottom: () => 3 })
 
-export function docShell(content, { brand, colors, createdAt, title }) {
-  const created = createdAt.toLocaleDateString('de-AT')
+/** labels: Fußzeile in anderer Sprache ({ created: 'created on', page: (p, n) => `Page ${p} of ${n}`, locale: 'en-GB' }). */
+export function docShell(content, { brand, colors, createdAt, title, labels = {} }) {
+  const created = createdAt.toLocaleDateString(labels.locale || 'de-AT')
+  const pageText = labels.page || ((p, n) => `Seite ${p} von ${n}`)
   return {
     pageSize: 'A4',
     pageMargins: [36, 30, 36, 40],
     info: { title, author: brand.name, creator: brand.product || 'Dienstplan' },
     content,
-    footer: (page, pages) => ({ columns: [{ text: `${brand.name || ''}${brand.name ? ' · ' : ''}erstellt am ${created}`, fontSize: 7.5, color: GREY }, { text: `Seite ${page} von ${pages}`, alignment: 'right', fontSize: 7.5, color: GREY }], margin: [36, 14, 36, 0] }),
+    footer: (page, pages) => ({ columns: [{ text: `${brand.name || ''}${brand.name ? ' · ' : ''}${labels.created || 'erstellt am'} ${created}`, fontSize: 7.5, color: GREY }, { text: pageText(page, pages), alignment: 'right', fontSize: 7.5, color: GREY }], margin: [36, 14, 36, 0] }),
     defaultStyle: { fontSize: 8.5, lineHeight: 1.1 },
     styles: {
       brand: { fontSize: 14, bold: true, color: colors.ink },
@@ -39,4 +41,28 @@ export function docShell(content, { brand, colors, createdAt, title }) {
       section: { fontSize: 10, bold: true, margin: [0, 10, 0, 4], color: colors.ink },
     },
   }
+}
+
+// ---------------------------------------------------------------- Öffnungscode
+
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // ohne 0/O, 1/I/L
+
+function randomCode(length) {
+  const limit = 256 - (256 % CODE_ALPHABET.length) // ohne Häufung einzelner Zeichen
+  let out = ''
+  while (out.length < length) {
+    for (const b of globalThis.crypto.getRandomValues(new Uint8Array(length * 2))) if (b < limit && out.length < length) out += CODE_ALPHABET[b % CODE_ALPHABET.length]
+  }
+  return out
+}
+
+/** Öffnungscode zum Vorlesen oder Abtippen, z. B. „K7QM-3XRP“ (rund 40 Bit). */
+export const openCode = () => randomCode(8).replace(/^(.{4})/, '$1-')
+
+/**
+ * PDF mit Öffnungscode verschlüsseln (AES-256). Drucken bleibt erlaubt,
+ * Ändern und Kopieren nicht. Der Code wird nirgends gespeichert.
+ */
+export function protectPdf(doc, code) {
+  return { ...doc, version: '1.7ext3', userPassword: code, ownerPassword: randomCode(24), permissions: { printing: 'highResolution', modifying: false, copying: false, annotating: false, fillingForms: false, contentAccessibility: true, documentAssembly: false } }
 }

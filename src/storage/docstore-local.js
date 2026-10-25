@@ -65,6 +65,15 @@ export class LocalDocStore {
     return { webUrl: null, downloaded: true }
   }
 
+  /** Daten anderer Werkzeuge gibt es nur in SharePoint. */
+  async listTree() {
+    return []
+  }
+
+  async readRoot() {
+    return null
+  }
+
   async list(prefix) {
     const out = []
     for (let i = 0; i < (this.storage.length || 0); i++) {

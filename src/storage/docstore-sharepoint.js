@@ -78,6 +78,7 @@ export class SharePointDocStore {
       const drive = drives.value.find((d) => d.name === this.library || urlName(d) === this.library) || drives.value.find((d) => ['Dokumente', 'Documents', 'Freigegebene Dokumente', 'Shared Documents'].includes(d.name))
       if (!drive) throw new Error(`Dokumentbibliothek „${this.library}“ nicht gefunden. Vorhanden: ${drives.value.map((d) => d.name).join(', ')}`)
       this.driveId = drive.id
+      this.driveWebUrl = drive.webUrl
       this.label = `SharePoint · ${site.displayName || u.pathname} · ${drive.name}/${this.folder}`
       this.webUrl = `${drive.webUrl}/${encodePath(this.folder)}`
       return { site: site.displayName }
@@ -97,6 +98,7 @@ export class SharePointDocStore {
       try {
         const item = await this.#json('GET', `/shares/${shareId(sub ? `${base}/${sub}` : base)}/driveItem?$select=id,name,webUrl,parentReference`)
         this.driveId = item.parentReference.driveId
+        this.driveWebUrl = `${this.siteUrl.replace(/\/$/, '')}/${this.library}`
         this.label = `SharePoint · ${this.library}/${this.folder}`
         this.webUrl = sub ? item.webUrl.replace(new RegExp(`/${encodeURIComponent(sub)}$`), '') : item.webUrl
         this.folderOnly = true
@@ -125,13 +127,61 @@ export class SharePointDocStore {
     return { data: await res.json(), etag: meta.eTag, modifiedBy: meta.lastModifiedBy?.user?.displayName || null, modifiedAt: meta.lastModifiedDateTime || null }
   }
 
-  /** Datei als Blob (z. B. Foto fürs PDF); null, wenn es sie nicht gibt. */
-  async readBlob(path) {
-    const meta = await this.#meta(path)
+  /** Datei als Blob (z. B. Foto fürs PDF); null, wenn es sie nicht gibt. root: Pfad ab der Bibliothek statt ab dem App-Ordner. */
+  async readBlob(path, { root = false } = {}) {
+    const meta = root ? await this.#rootMeta(path) : await this.#meta(path)
     if (!meta) return null
     const res = await this.fetch(meta['@microsoft.graph.downloadUrl'])
     if (!res.ok) throw new GraphError(res.status, `Datei ${path} konnte nicht gelesen werden`)
     return res.blob()
+  }
+
+  async #rootMeta(path) {
+    const res = await this.#request('GET', `/drives/${this.driveId}/root:/${encodePath(path)}`, { okStatuses: [403, 404] })
+    return res.ok ? res.json() : null
+  }
+
+  /** JSON-Datei ab der Bibliothek lesen (z. B. Daten der bisherigen Werkzeuge); null, wenn nicht vorhanden oder gesperrt. */
+  async readRoot(path) {
+    const meta = await this.#rootMeta(path)
+    if (!meta?.['@microsoft.graph.downloadUrl']) return null
+    const res = await this.fetch(meta['@microsoft.graph.downloadUrl'])
+    if (!res.ok) return null
+    try {
+      return JSON.parse((await res.text()).replace(/^\uFEFF/, ''))
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Dateien eines Ordners (ab der Bibliothek) samt Unterordnern.
+   * skip: Ordnernamen, die übersprungen werden (z. B. Fotos). Liefert [{ path, name, size, modified }].
+   */
+  async listTree(dir, { depth = 4, skip = ['Fotos'] } = {}) {
+    const out = []
+    const walk = async (path, level) => {
+      let url = `/drives/${this.driveId}/root:/${encodePath(path)}:/children?$select=name,folder,file,size,lastModifiedDateTime&$top=999`
+      while (url) {
+        const res = await this.#request('GET', url, { okStatuses: [403, 404] })
+        if (!res.ok) return
+        const page = await res.json()
+        for (const item of page.value || []) {
+          const child = `${path}/${item.name}`
+          if (item.folder) {
+            if (level < depth && !skip.includes(item.name)) await walk(child, level + 1)
+          } else out.push({ path: child, name: item.name, size: item.size, modified: item.lastModifiedDateTime })
+        }
+        url = page['@odata.nextLink'] || null
+      }
+    }
+    await walk(dir.replace(/^\/|\/$/g, ''), 1)
+    return out
+  }
+
+  /** Adresse einer Datei ab der Bibliothek zum Öffnen im Browser. */
+  rootUrl(path) {
+    return this.driveWebUrl ? `${this.driveWebUrl}/${encodePath(path)}` : null
   }
 
   async etagOf(path) {

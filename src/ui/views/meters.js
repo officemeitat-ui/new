@@ -6,7 +6,7 @@
 
 import { addDays, formatDate, isoWeekday, todayISO } from '../../core/dates.js'
 import { fileSafe } from '../../core/filename.js'
-import { applySwap, checkReading, correctNumber, DEFAULT_WINDOW, duePeriod, expectedBetween, findWaterLists, formatValue, hasValue, importMeters, importWaterLists, INTERVALS, isActive, METER_KINDS, METER_TEMPLATE, meterLabel, meterStatus, notableIssue, parseValue, periodByKey, periodOf, readingRows, readingsCsv, readingsOf, REASONS, segments, unitOf, yearCsv, yearRows } from '../../core/meters.js'
+import { applySwap, checkReading, correctNumber, DEFAULT_WINDOW, duePeriod, expectedBetween, formatValue, hasValue, importMeters, INTERVALS, isActive, METER_KINDS, METER_TEMPLATE, meterLabel, meterStatus, notableIssue, parseValue, periodByKey, periodOf, readingRows, readingsCsv, readingsOf, REASONS, segments, unitOf, yearCsv, yearRows } from '../../core/meters.js'
 import { sendMail } from '../../auth/graph-mail.js'
 import { meterReportDocument } from '../../export/meters-pdf.js'
 import { app, canEdit, closeModal, confirmStep, dataStamp, openModal, persist, recordUndo, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
@@ -541,15 +541,12 @@ const TEMPLATE_TEXT = `${METER_TEMPLATE.join('\t')}\nWohnanlage Lehen\t12345678\
 registerModal('meter-import', (c, m) => {
   const result = m.text ? importMeters(m.text, app.data.objects, { today: todayISO() }) : null
   const dupes = result ? result.items.filter((x) => Z().meters.some((y) => y.objectId === x.meter.objectId && y.number === x.meter.number && isActive(y))) : []
-  const water = m.water
   return modalFrame({
     title: 'Zählstellen übernehmen',
     wide: true,
     body: `<section><h3>Aus dem Wasserzähler-Tool</h3>
-        <p class="note">Die Jahreslisten (<code>Ablesung_&lt;Ort&gt;_&lt;Jahr&gt;.json</code> aus SharePoint, Ordner „Wasserzähler - Ablesung“) oder die Komplett-Sicherung wählen, gerne alle auf einmal. Zählstellen-IDs, Nummernverlauf, Gründe, Tausch, Fotos (als Link) und abgeschlossene Quartale werden übernommen. Ein zweiter Import ersetzt, statt zu verdoppeln.</p>
-        <input type="file" id="mi-water" accept=".json,application/json" multiple data-change="mi-water">
-        ${water ? `<div class="banner"><p><strong>${water.stats.lists} Jahreslisten</strong>: ${water.stats.meters} neue Zählstellen, ${water.stats.readings} neue Ablesungen, ${water.stats.photos} Fotos, ${water.stats.objects} neue Objekte (Standorte)${water.files ? ` aus ${water.files} Dateien` : ''}.</p><button class="btn primary" data-action="mi-water-apply">Übernehmen</button></div>` : ''}
-        ${m.waterError ? `<p class="check error">${esc(m.waterError)}</p>` : ''}</section>
+        <p class="note">Die Jahreslisten liegen schon in SharePoint (Ordner „Wasserzähler - Ablesung“). Die App liest sie dort direkt, mit Zählstellen-IDs, Nummernverlauf, Gründen, Tausch, Fotos und abgeschlossenen Quartalen. Ein neuer Abgleich verdoppelt nichts.</p>
+        <button class="btn primary" data-action="legacy-open">${ICON.upload} Aus den bisherigen Werkzeugen übernehmen</button></section>
       <section><h3>Aus Excel einfügen</h3>
         <p class="note">Zeilen in Excel markieren, kopieren und hier einfügen. Spalten (Reihenfolge egal, erste Zeile = Überschriften): <strong>${METER_TEMPLATE.join(', ')}</strong>. Stand und Datum sind optional.</p>
         <textarea id="mi-text" rows="6" placeholder="${esc(TEMPLATE_TEXT)}" data-input="mi-preview">${esc(m.text || '')}</textarea>
@@ -573,39 +570,6 @@ registerActions({
 registerActions(
   {
     'meter-import-open': () => openModal({ type: 'meter-import', text: '' }),
-    'mi-water': async (el) => {
-      const m = app.ui.modal
-      const lists = []
-      try {
-        for (const file of el.files || []) findWaterLists(JSON.parse(await file.text()), lists)
-      } catch {
-        m.waterError = 'Eine Datei ist kein gültiges JSON.'
-        return renderModalKeepingInput()
-      }
-      if (!lists.length) {
-        m.waterError = 'In den Dateien wurden keine Jahreslisten des Wasserzähler-Tools gefunden.'
-        m.water = null
-        return renderModalKeepingInput()
-      }
-      m.waterError = null
-      m.lists = lists
-      m.water = { ...importWaterLists(lists, { objects: app.data.objects, zaehler: Z() }), files: el.files.length }
-      renderModalKeepingInput()
-    },
-    'mi-water-apply': () => {
-      const m = app.ui.modal
-      if (!m.lists) return
-      const res = importWaterLists(m.lists, { objects: app.data.objects, zaehler: Z() })
-      if (res.objects.length) {
-        if (!canEdit('stammdaten')) return toast(`Für ${res.objects.length} Standorte gibt es noch kein Objekt. Bitte die Disposition, sie anzulegen (Stammdaten).`)
-        app.data.objects.push(...res.objects)
-      }
-      app.data.zaehler = { ...Z(), meters: res.meters, readings: res.readings, closures: res.closures }
-      persist()
-      closeModal()
-      renderNow()
-      toast(`Übernommen: ${res.stats.meters} neue Zählstellen, ${res.stats.readings} neue Ablesungen${res.objects.length ? `, ${res.objects.length} Standorte als Objekte` : ''}.`)
-    },
     'mi-apply': () => {
       const { items } = importMeters(val('mi-text'), app.data.objects, { today: todayISO() })
       const z = Z()

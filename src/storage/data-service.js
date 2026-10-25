@@ -18,10 +18,14 @@
 //
 // Gespeichert wird automatisch (verzögert), nur geänderte Dateien. Bei einem
 // Konflikt werden die Änderungen beider Seiten zusammengeführt (merge.js).
+// Ohne Netz (Ablage meldet OfflineError) bleiben die Änderungen im Gerät
+// (`local`, siehe offline.js) und werden beim nächsten Start bzw. sobald
+// wieder Netz da ist gespeichert.
 
 import { mondayOf } from '../core/dates.js'
 import { mergeDoc } from '../core/merge.js'
 import { ConflictError } from './docstore-local.js'
+import { isNetworkError } from './offline.js'
 
 export const DOC = {
   master: 'daten/stammdaten.json',
@@ -103,8 +107,9 @@ export function applyDoc(data, path, doc) {
 }
 
 export class DataService {
-  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800 } = {}) {
+  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null } = {}) {
     this.store = store
+    this.local = local // Gerätespeicher für ungespeicherte Änderungen (offline.js)
     this.onStatus = onStatus
     this.onRemoteChange = onRemoteChange
     this.debounceMs = debounceMs
@@ -124,15 +129,29 @@ export class DataService {
     this.onStatus(status, detail)
   }
 
-  /** Datei lesen; ohne Leserecht (403) als gesperrt merken statt abzubrechen. */
+  /** Datei lesen; ohne Leserecht (403) als gesperrt merken statt abzubrechen. Ohne Netz und ohne Kopie im Gerät: undefined. */
   async #read(path) {
     try {
       return await this.store.read(path)
     } catch (err) {
+      if (isNetworkError(err)) return undefined
       if (err.status !== 403) throw err
       this.denied.add(path)
       return null
     }
+  }
+
+  /** Ungespeicherte Änderungen im Gerät festhalten (übersteht Neustart ohne Netz). */
+  async #savePending(dirty) {
+    if (!this.local) return
+    const paths = new Set(dirty.map(([path]) => path))
+    for (const [path, doc] of dirty) await this.local.put('pending', path, { doc: clone(doc), base: clone(this.base.get(path)), etag: this.etags.get(path) ?? null, at: new Date().toISOString() })
+    for (const [path] of await this.local.all('pending')) if (!paths.has(path)) await this.local.del('pending', path)
+  }
+
+  /** Anzahl der Dateien mit ungespeicherten Änderungen. */
+  pendingCount() {
+    return this.data ? this.#docs().filter(([path, doc]) => !same(doc, this.base.get(path) ?? emptyDoc(path))).length : 0
   }
 
   /** Darf diese Datei gespeichert werden? */
@@ -151,6 +170,7 @@ export class DataService {
     const paths = [DOC.master, DOC.absences, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
     const docs = await Promise.all(paths.map((p) => this.#read(p)))
     if (this.denied.has(DOC.master)) throw new Error('Kein Leserecht auf die Stammdaten (daten/stammdaten.json). Bitte in SharePoint freigeben lassen.')
+    if (docs[0] === undefined) throw Object.assign(new Error('Keine Verbindung, und auf diesem Gerät liegt noch kein Stand. Bitte einmal mit Netz öffnen.'), { offline: true })
     const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {} }
     this.data = data
     if (!docs[0]) {
@@ -166,6 +186,19 @@ export class DataService {
         this.etags.set(path, doc.etag)
       }
     }
+    // Änderungen, die zuletzt ohne Netz gemacht wurden: wieder übernehmen (beim Speichern zusammengeführt)
+    const pending = this.local ? await this.local.all('pending') : []
+    for (const [path, p] of pending) {
+      if (this.denied.has(path)) continue
+      if (path.startsWith('daten/plaene/')) this.weeks.add(p.doc.monday)
+      applyDoc(data, path, clone(p.doc))
+      this.version++
+      if (p.base === undefined) this.base.delete(path)
+      else this.base.set(path, clone(p.base))
+      if (p.etag) this.etags.set(path, p.etag)
+      else this.etags.delete(path)
+    }
+    this.restored = pending.length
     this.#setStatus('saved')
     if (this.firstRun) {
       // Startdaten enthalten ggf. schon Einteilungen: deren Wochen gelten als geladen
@@ -175,7 +208,7 @@ export class DataService {
     return data
   }
 
-  /** Lädt fehlende Wochen-Dateien nach (beim Blättern). */
+  /** Lädt fehlende Wochen-Dateien nach (beim Blättern). Ohne Netz und ohne Kopie bleibt eine Woche ungeladen. */
   async ensureWeeks(mondays) {
     const missing = mondays.filter((m) => !this.weeks.has(m))
     if (!missing.length) return false
@@ -183,6 +216,7 @@ export class DataService {
     missing.forEach((monday, i) => {
       const path = weekPath(monday)
       const doc = docs[i]
+      if (doc === undefined) return
       this.weeks.add(monday)
       if (doc) {
         applyDoc(this.data, path, doc.data)
@@ -218,16 +252,26 @@ export class DataService {
   async #flush() {
     const dirty = this.#docs().filter(([path, doc]) => !same(doc, this.base.get(path) ?? emptyDoc(path)))
     if (!dirty.length) {
+      if (this.local) await this.#savePending([])
       this.#setStatus('saved')
       return
     }
     this.#setStatus('saving')
+    await this.#savePending(dirty)
     let merged = false
     try {
-      for (const [path, doc] of dirty) merged = (await this.#save(path, doc)) || merged
+      for (const [path, doc] of dirty) {
+        merged = (await this.#save(path, doc)) || merged
+        await this.local?.del('pending', path)
+      }
       this.#setStatus('saved')
       if (merged) this.onRemoteChange('merged')
     } catch (err) {
+      if (isNetworkError(err)) {
+        // ohne Netz: Änderungen bleiben im Gerät, gespeichert wird beim nächsten Versuch
+        this.#setStatus('offline', String(this.pendingCount()))
+        return
+      }
       this.#setStatus('error', err.message)
       throw err
     }
@@ -262,6 +306,12 @@ export class DataService {
    */
   async refresh() {
     if (this.saving || this.timer && this.status === 'pending') return []
+    // zuerst nachholen, was ohne Netz liegen geblieben ist
+    if (this.status === 'offline' || this.restored) {
+      this.restored = 0
+      await this.flush()
+      if (this.status === 'offline') return []
+    }
     const changed = []
     for (const [path, doc] of this.#docs()) {
       const etag = await this.store.etagOf(path)

@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 126 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint, Rollen, Zähler, Kontrolle, Objektmappe
+npm test         # 143 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -69,9 +69,11 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Zählerstände (ersetzt die Wasserzähler-Ablesung):** Zählstellen je Objekt mit stabiler ID und Nummernverlauf, Ablesen am Handy mit Foto (Kamera oder Galerie), „Kein Zutritt“ & Co. als Ergebnis ohne Stand, Zählertausch in der Ablesung (Endstand alt, Anfangsstand neu, bewusst nicht vorbelegt). Fällig 30 Tage vor bis 60 Tage nach Quartalsende. Plausibilität gegen dasselbe Quartal im Vorjahr (kritisch, hoch, niedrig, kein Verbrauch) schon beim Tippen. Rundgang „alle offenen ablesen“, Runde abschließen (Freigabe), Ablesung als Einsatz einplanen, Liste je Quartal (CSV, PDF mit „Auffällige Zähler“) und Jahresliste im gewohnten Excel-Zuschnitt, Versand per E-Mail. Die Jahreslisten des bisherigen Werkzeugs lassen sich übernehmen.
 
-**Objektkontrolle (ersetzt das Prüfprotokoll-Tool):** Begehung am Handy mit dem bewährten Katalog (9 Kapitel, 39 Punkte, als Checkliste bearbeitbar), OK/R/M/G/N-A je Punkt, Fotos, Vorbefunde direkt beim Prüfpunkt, Vorschlag für den Gesamtzustand, Textvorschlag für die Zusammenfassung, zwei Unterschriften, Abschluss sperrt, PDF-Protokoll, Versand An/CC/BCC ohne Vorbelegung. Mängel bleiben offen, bis derselbe Punkt OK ist oder sie erledigt sind; mit Zuständigkeit, Frist und „Nacharbeit“ als Einsatz im Dienstplan. Rhythmus je Objekt, Nachkontrollen und Gefahren in „Zu erledigen“.
+**Objektkontrolle (ersetzt das Prüfprotokoll-Tool):** Begehung am Handy mit dem bewährten Katalog (9 Kapitel, 39 Punkte, als Checkliste bearbeitbar), OK/R/M/G/N-A je Punkt, Fotos, Vorbefunde direkt beim Prüfpunkt, Vorschlag für den Gesamtzustand, Textvorschlag für die Zusammenfassung, zwei Unterschriften, Abschluss sperrt, PDF-Protokoll, Versand An/CC/BCC ohne Vorbelegung. Mängel bleiben offen, bis derselbe Punkt OK ist oder sie erledigt sind; mit Zuständigkeit, Frist und „Nacharbeit“ als Einsatz im Dienstplan. Rhythmus je Objekt, Nachkontrollen und Gefahren in „Zu erledigen“; Nachkontrolle als Termin in Outlook (direkt oder als .ics).
 
-**Objektmappe (ersetzt die Objektdokumentation):** Kunde, Ansprechpartner, Zugang (ohne Codes), Geräte, Dokumente als Link und das Leistungsverzeichnis mit Richtzeiten. Stunden werden gerechnet und mit dem Dienstplan verglichen. Objektblatt als PDF fürs Personal, als Kundenfassung (nie Vertrauliches) oder als Akte. Kundenstamm (Kunden.json oder Excel) einlesbar.
+**Objektmappe (ersetzt die Objektdokumentation):** Kunde, Ansprechpartner, Zugang (ohne Codes), Geräte, Dokumente als Link, Einsatztage und Zeitfenster, das Leistungsverzeichnis mit Richtzeiten und Raumbuch, Ablauf- und Zugangsfotos. Bereiche aus dem Vorlagen-Katalog (Häufigkeit passt sich den Einsatztagen an). Stunden werden gerechnet und mit dem Dienstplan verglichen. Jedes Speichern ist eine Fassung: Verlauf mit Unterschieden in Worten, frühere Fassungen zurückholbar. Objektblatt als PDF fürs Personal (auch Englisch und Rumänisch), als Kundenfassung (nie Vertrauliches) oder als Akte, auf Wunsch mit Öffnungscode. Kundenstamm (Kunden.json oder Excel) einlesbar.
+
+**Übernahme und ohne Netz:** Die Daten der bisherigen Werkzeuge liest die App direkt aus ihren SharePoint-Ordnern (Wasserzähler, Prüfprotokolle, Objektdoku, Kundenstamm), mehrfach abgleichbar ohne Doppelte. Im Keller ohne Netz geht die Arbeit weiter: Erfasstes und Fotos warten im Gerät und werden gespeichert und zusammengeführt, sobald wieder Netz da ist.
 
 **Rollen und Suche:** Jede Rolle sieht nur ihre Module, am Handy mit eigener Leiste (z. B. „Zähler“ für Ableser). Strg+K oder die Lupe sucht Personen, Objekte, Kunden, Zählernummern und Kontrollen. Im Einsatz stehen fällige Ablesungen und offene Mängel des Objekts.
 

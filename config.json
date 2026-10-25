@@ -23,10 +23,15 @@
   "sharepoint": {
     "tenantId": "",
     "clientId": "",
-    "siteUrl": "https://TENANT.sharepoint.com/sites/Dienstplan",
-    "library": "Dokumente",
-    "folder": "Dienstplan-App",
-    "refreshSeconds": 60
+    "siteUrl": "https://cleanconcept1.sharepoint.com",
+    "library": "Cleanos_Daten",
+    "folder": "Plattform",
+    "refreshSeconds": 60,
+    "sources": {
+      "wasserzaehler": "Wasserzähler - Ablesung",
+      "pruefprotokoll": "Objektpruefprotokolle",
+      "objektdoku": "Objektdoku"
+    }
   },
   "access": {
     "planners": []
@@ -36,7 +41,8 @@
     "pdf": true,
     "download": true,
     "print": true,
-    "mail": false
+    "mail": false,
+    "calendar": false
   },
   "mail": {
     "from": ""

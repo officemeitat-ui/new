@@ -39,7 +39,7 @@ Danach:
 1. Unter *Authentifizierung* eine zweite SPA-URI für Tests ergänzen: `http://localhost:8080/`
 2. Ebenfalls unter *Authentifizierung*: Plattform **Web** hinzufügen mit der Umleitungs-URI `https://dienstplan.cleanos.at/.auth/login/aad/callback` und **ID-Token** aktivieren. Das ist die Anmeldung, die die ganze Seite schützt (Schritt 4).
 3. Unter *Zertifikate & Geheimnisse*: einen **geheimen Clientschlüssel** anlegen (für den Seitenschutz in Azure Static Web Apps).
-4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**, für den E-Mail-Versand zusätzlich **Mail.Send** (oder **Mail.Send.Shared** für ein gemeinsames Postfach, siehe unten). Anschließend **Administratorzustimmung erteilen**.
+4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**, für den E-Mail-Versand zusätzlich **Mail.Send** (oder **Mail.Send.Shared** für ein gemeinsames Postfach, siehe unten), für Nachkontrollen direkt im Outlook-Kalender **Calendars.ReadWrite** (nur mit `features.calendar`). Anschließend **Administratorzustimmung erteilen**.
 5. Von der *Übersicht* notieren: **Verzeichnis-ID (Mandant)** und **Anwendungs-ID (Client)**.
 6. Optional, empfohlen: unter *Unternehmensanwendungen → Cleanos Dienstplan → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* nur die Disposition zuweisen. Dann kann sich niemand sonst aus dem Tenant anmelden.
 7. Für die Plattform mit Modulen: unter *App-Rollen* die Rollen `disposition`, `lohnverrechnung`, `objektleitung`, `objektservice`, `ableser`, `pruefer`, `lesen` anlegen und unter *Unternehmensanwendungen → Benutzer und Gruppen* Personen oder Gruppen zuweisen (Schritt für Schritt in [PLATTFORM.md](PLATTFORM.md)).
@@ -61,10 +61,11 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
     "siteUrl": "https://cleanos.sharepoint.com/sites/Dienstplan",
     "library": "Dokumente",
     "folder": "Dienstplan-App",
-    "refreshSeconds": 60
+    "refreshSeconds": 60,
+    "sources": { "wasserzaehler": "Wasserzähler - Ablesung", "pruefprotokoll": "Objektpruefprotokolle", "objektdoku": "Objektdoku" }
   },
   "access": { "planners": ["disposition@cleanos.at"] },
-  "features": { "excel": true, "pdf": true, "download": true, "print": true, "mail": true },
+  "features": { "excel": true, "pdf": true, "download": true, "print": true, "mail": true, "calendar": false },
   "mail": { "from": "" }
 }
 ```
@@ -72,9 +73,11 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
 - `access.planners`: E-Mail-Adressen, die planen dürfen (Rolle Disposition). Alle anderen angemeldeten Personen ohne Rolle sehen den Plan **nur lesend**. Eine leere Liste und keine Rollen bedeutet: alle dürfen alles.
 - `access.members`, `access.roles`: Rollen per E-Mail-Liste statt über Entra ID und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier.
 - Ablage gemeinsam mit den bisherigen Werkzeugen: z. B. `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Die Module legen eigene Unterordner an (`daten/`, `zaehler/`, `kontrolle/`, `objektmappe/`), die je Ordner eigene SharePoint-Rechte bekommen können.
-- `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat.
+- `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat. Ohne Netz Erfasstes wird zusätzlich sofort gespeichert, sobald wieder Netz da ist.
+- `sharepoint.sources`: Ordner der bisherigen Werkzeuge in derselben Bibliothek, für **Daten → Bisherige Werkzeuge → In SharePoint suchen** (siehe [PLATTFORM.md](PLATTFORM.md)). Nur ändern, wenn die Ordner anders heißen.
 - `features.pdf`: PDF-Wochenpläne (Download, Teilen, beim Veröffentlichen nach SharePoint in den Ordner `PDF`).
 - `features.mail`: Wochenpläne per E-Mail mit PDF-Anhang direkt aus dem Dienstplan. Gesendet wird aus dem Postfach der angemeldeten Person. Mit `mail.from` (z. B. `dienstplan@cleanos.at`) aus einem freigegebenen Postfach: dafür braucht die Disposition dort die Berechtigung „Senden als“ und die App **Mail.Send.Shared**. Die E-Mail-Adressen stehen bei den Mitarbeitenden.
+- `features.calendar`: Nachkontrollen mit einem Klick in den eigenen Outlook-Kalender (ganztägig, Erinnerung am Vortag). Braucht **Calendars.ReadWrite** mit Administratorzustimmung, sonst scheitert die Anmeldung; deshalb standardmäßig aus. Ohne diese Einstellung gibt es den Termin als .ics-Datei, die sich ebenfalls in Outlook öffnet.
 - `brand.contact`: Satz unten auf jedem PDF, z. B. „Fragen zum Dienstplan: Disposition, Tel. …“.
 - `brand.colors`, `brand.logoOnLight`: Markenfarben und Logo für die PDF-Wochenpläne. Werden von `npm run theme -- https://www.cleanos.at` automatisch gesetzt (siehe README, Corporate Design).
 - Die Datei kann jederzeit am Server geändert werden, ohne neuen Build.

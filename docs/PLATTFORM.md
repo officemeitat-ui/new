@@ -84,6 +84,29 @@ Empfehlung (Bibliothek `Cleanos_Daten`, Ordner `Plattform`):
 
 ## Übernahme aus den bisherigen Werkzeugen
 
+### Direkt aus SharePoint
+
+Die Werkzeuge speichern schon in SharePoint (Bibliothek `Cleanos_Daten`). Die App liest diese Ordner direkt, ohne Herunterladen:
+
+| Ordner in der Bibliothek | Inhalt | wird zu |
+|---|---|---|
+| `Wasserzähler - Ablesung` | Jahreslisten `Ablesung_<Ort>_<Jahr>.json`, Fotos | Zählstellen, Ablesungen, abgeschlossene Quartale |
+| `Stammdaten/Kunden.json` | Kundenstamm (551 Kunden) | Kundenstamm der Objektmappe |
+| `Objektpruefprotokolle` | `Stammdaten/Objekte.json`, je Objekt die Protokolle, Fotos, Unterschriften | Kunde, Nummer, E-Mail Hausverwaltung; Kontrollen |
+| `Objektdoku` | Akten je Objekt, `Vorlagen.json`, Fotos | Objektmappe mit Verlauf, Raumbuch, Fotos; Bereichsvorlagen |
+
+So geht's: **Daten → Bisherige Werkzeuge** (oder in den Modulen „Übernehmen“) → **In SharePoint suchen**. Die App zeigt vorher, was übernommen wird und was die eigene Rolle darf. Objekte, die es im Dienstplan noch nicht gibt, werden angelegt (dafür braucht es das Recht „Stammdaten“).
+
+- **Fotos und Unterschriften bleiben, wo sie sind**, und sind verlinkt. Fürs PDF lädt die App sie bei Bedarf.
+- **Mehrmals abgleichen geht.** Ein neuer Abgleich übernimmt nur Neues und ersetzt Geändertes, er verdoppelt nichts. Die Werkzeuge können also bis zur Umstellung parallel laufen.
+- **Andere Ordnernamen** stehen in `config.json` → `sharepoint.sources`:
+
+```json
+"sources": { "wasserzaehler": "Wasserzähler - Ablesung", "pruefprotokoll": "Objektpruefprotokolle", "objektdoku": "Objektdoku" }
+```
+
+Ohne SharePoint (Browser-Modus) lassen sich dieselben JSON-Dateien im selben Dialog auswählen.
+
 ### Wasserzähler-Ablesung (im Echtbetrieb)
 
 Das Modul folgt dem Datenmodell des Werkzeugs, damit nichts verloren geht:
@@ -100,11 +123,8 @@ Das Modul folgt dem Datenmodell des Werkzeugs, damit nichts verloren geht:
 - **Runde abschließen** sperrt die Werte (Freigabe durch das Büro).
 - **Liste (CSV/PDF)** je Quartal mit „Auffällige Zähler“ und Jahresliste im Excel-Zuschnitt des Werkzeugs; Versand per E-Mail, nichts vorbelegt.
 
-**Übernehmen:**
+**Übernehmen:** wie oben unter „Direkt aus SharePoint“. Ergebnis:
 
-1. In SharePoint unter `Cleanos_Daten/Wasserzähler - Ablesung/…` die Jahreslisten `Ablesung_<Ort>_<Jahr>.json` herunterladen (oder die Komplett-Sicherung des Werkzeugs).
-2. In der App unter **Zählerstände → Übernehmen** alle Dateien auf einmal wählen.
-3. Ergebnis:
    - Standorte ohne passendes Objekt werden als Objekte angelegt, z. B. „EBG Hallein“.
    - Fotos bleiben in SharePoint und sind verlinkt.
    - Abgeschlossene Quartale bleiben gesperrt.
@@ -138,13 +158,15 @@ Neu:
 - **Rhythmus je Objekt** (monatlich bis jährlich). Nachkontrolle mit Termin geht vor, Fälliges steht in „Zu erledigen“.
 - **Eigene Checklisten** je Objektart.
 - Der **Kundenstamm** (Kunden.json, 551 Kunden) lässt sich in der Objektmappe einlesen.
-- Statt Kalendertermin in Outlook steht die Nachkontrolle in „Zu erledigen“. Das braucht kein zusätzliches Recht wie *Calendars.ReadWrite*, dessen fehlende Zustimmung sonst die ganze Anmeldung scheitern ließe.
+- Die **Nachkontrolle** steht in „Zu erledigen“ und kommt auf Knopfdruck in den Kalender:
+  - als **Termin-Datei (.ics)**: öffnet sich in Outlook, braucht kein zusätzliches Recht;
+  - oder **direkt in Outlook**, wenn `features.calendar` eingeschaltet ist (Recht *Calendars.ReadWrite*, siehe EINRICHTUNG). Wird der Termin der Nachkontrolle verschoben, verschiebt „Termin in Outlook verschieben“ den vorhandenen Eintrag.
 
-Die bisherigen Kontrollen sind Testdaten und werden nicht übernommen.
+Kontrollen aus dem Werkzeug werden mit Fotos und Unterschriften übernommen. Waren es nur Testdaten, nach der Übernahme unter „Kontrollen“ löschen.
 
 ### Objektdokumentation
 
-Laut Werkzeug liegen keine echten Daten in SharePoint, weil die Anmeldung nie funktioniert hat. Die Objektmappe übernimmt das Modell und hängt am zentralen Objekt.
+Die Objektmappe übernimmt das Modell des Werkzeugs (Schnittstelle 1:1) und hängt am zentralen Objekt. Vorhandene Akten werden mit Verlauf, Fotos und Versandliste übernommen.
 
 Jedes Objekt hat:
 
@@ -153,9 +175,16 @@ Jedes Objekt hat:
 - Geräte
 - Hinweise
 - Dokumente als Links
-- das Leistungsverzeichnis: Bereiche mit Leistungen, Häufigkeit (täglich bis jährlich, nach Bedarf, witterungsabhängig) und Richtzeit
+- Objektleitung und Vertretung, Einsatztage und Zeitfenster laut Vertrag
+- das Leistungsverzeichnis: Bereiche mit Leistungen, Häufigkeit (dieselben 15 Kennungen wie im Werkzeug, von „täglich Mo–So“ bis „jährlich“, „nach Bedarf“, „witterungsabhängig“) und Richtzeit
+- das **Raumbuch** je Bereich: Nr., Raum, m², Boden, Bemerkung. Ohne eigene Fläche gilt beim Bereich die Summe der Räume.
+- **Fotos:** Ablauf-Fotos (wie und wo gereinigt wird) und Zugangsfotos (vertraulich)
 
 Die Stunden werden gerechnet und mit dem Stammplan des Dienstplans verglichen. Eine Abweichung über 10 % wird markiert.
+
+**Bereich aus Vorlage:** Der Katalog des Werkzeugs (13 Bereiche, 80 Leistungen) ist eingebaut, eigene Vorlagen kommen dazu („Als Vorlage“ bei einem Bereich). Die Häufigkeiten passen sich den Einsatztagen an: Bei 3 Einsatztagen wird aus „täglich Mo–Fr“ „3× Woche“. Ohne vertragliche Einsatztage gelten die Tage aus dem Stammplan.
+
+**Fassungen:** Jedes Speichern ist eine neue Fassung, auf Wunsch mit Anlass („Vertrag 2027“). Unter **Verlauf** steht je Fassung, was sich geändert hat, in Worten (z. B. „Stiegenhaus: Böden wischen 2× Woche → täglich Mo–Fr“, „Stunden/Woche: 2,79 → 4,09“). Vor dem Speichern zeigt der Verlauf, was sich ändern wird. „Zurückholen“ lädt eine frühere Fassung als Entwurf; erst Speichern macht sie zur aktuellen. Die letzten 50 Fassungen bleiben. Gespeichert wird nur, was sich geändert hat, damit die Datei klein bleibt.
 
 Das **Objektblatt** gibt es mit drei Voreinstellungen:
 
@@ -163,16 +192,22 @@ Das **Objektblatt** gibt es mit drei Voreinstellungen:
 - **Kunde**: Leistungsverzeichnis; vertrauliche Abschnitte sind gesperrt und nie enthalten
 - **Akte**: alles
 
-Vertrauliche Abschnitte sind in der Fußzeile vermerkt.
+Vertrauliche Abschnitte sind in der Fußzeile vermerkt. Zugangsfotos erscheinen nur im Abschnitt „Schlüssel und Zugang“, nie in der Kundenfassung.
 
-Noch nicht übernommen (nächste Schritte, falls gewünscht):
-
-- Fassungsverlauf mit Unterschieden
-- Raumbuch
-- Blatt in Englisch/Rumänisch
-- PDF mit Öffnungscode
+- **Sprache:** Deutsch, Englisch oder Rumänisch. Überschriften, Tabellenköpfe, Häufigkeiten und Wochentage sind übersetzt. Eigene Texte (Hinweise, Leistungen, Methoden) bleiben, wie sie eingetragen sind; das Blatt weist darauf hin.
+- **Öffnungscode:** Das PDF ist verschlüsselt (AES-256) und lässt sich nur mit einem Code wie `K7QM-3XRP` öffnen. Drucken geht, Ändern und Kopieren nicht. Der Code wird einmal angezeigt und **nirgends gespeichert**. Er wird getrennt vom PDF weitergegeben (Anruf, SMS), nie in derselben E-Mail. Ist er verloren, einfach ein neues PDF erstellen.
 
 Hinweis: Im Ordner `06_Software\serviceERP1` liegt eine Server-Fassung der Objektdoku (MongoDB, eigene Rechteverwaltung). Die Plattform hier braucht keinen eigenen Server, keine Datenbank und kein Hosting außer statischen Dateien. Alles bleibt in SharePoint und nutzt die Microsoft-Anmeldung. Das passt zu den bestehenden Werkzeugen und spart Betrieb und Wartung.
+
+## Ohne Netz (Keller, Tiefgarage)
+
+Mit SharePoint arbeitet die App auch ohne Netz weiter:
+
+- Der letzte Stand jeder Datei liegt im Gerät (Browser-Speicher). Die App startet auch ohne Netz, wenn das Gerät schon einmal verbunden war.
+- Erfasstes (Ablesungen, Kontrollen, Mappe, Dienstplan) wird im Gerät festgehalten. Oben steht dann **„Offline · 2 Änderungen warten“**. Das bleibt auch erhalten, wenn die App geschlossen oder das Handy neu gestartet wird.
+- **Fotos** werden zuerst als kleines Vorschaubild gezeigt und hochgeladen, sobald Netz da ist.
+- Mit Netz (zurück in der App oder Netz wieder da) wird **sofort gespeichert und mit den Änderungen anderer zusammengeführt**. Haben zwei Personen dieselbe Ablesung erfasst, bleiben beide sichtbar, nichts wird still überschrieben.
+- Ohne Netz geht nicht: E-Mail-Versand, Kalender, Übernahme aus SharePoint.
 
 ## Was die Plattform einfacher macht
 
@@ -186,4 +221,4 @@ Hinweis: Im Ordner `06_Software\serviceERP1` liegt eine Server-Fassung der Objek
 
 ## Vorschau
 
-[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png)
+[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png) · [Übernahme aus den Werkzeugen](vorschau/38-uebernahme.png) · [Verlauf der Objektmappe](vorschau/39-objektmappe-verlauf.png) · [Objektblatt auf Rumänisch](vorschau/40-objektblatt-ro.png) · [Öffnungscode](vorschau/41-oeffnungscode.png)

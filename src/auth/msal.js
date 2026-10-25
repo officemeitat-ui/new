@@ -6,10 +6,11 @@ import { loadScript } from '../ui/load-script.js'
 
 export const GRAPH_SCOPES = ['User.Read', 'Sites.ReadWrite.All']
 
-/** Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand optional). */
+/** Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand und Kalender optional). */
 export function scopesFor(config = {}) {
   const scopes = [...GRAPH_SCOPES]
   if (config.features?.mail) scopes.push(config.mail?.from ? 'Mail.Send.Shared' : 'Mail.Send')
+  if (config.features?.calendar) scopes.push('Calendars.ReadWrite')
   return scopes
 }
 

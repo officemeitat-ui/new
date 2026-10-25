@@ -150,7 +150,7 @@ function demoMappe() {
           { name: 'Keller', location: 'UG', services: [{ what: 'Kellergänge kehren', interval: 'm1', minutes: 30 }] },
         ],
         notes: 'Parken im Hof erlaubt. Bei Wasserschäden sofort Hausbesorger und Hausverwaltung verständigen.',
-        attachments: [{ name: 'Grundriss Stiegenhaus', url: 'https://example.sharepoint.com/sites/cleanos/Objekte/Lehen/Grundriss.pdf' }],
+        attachments: [{ name: 'Grundriss Stiegenhaus', url: 'https://example.sharepoint.com/sites/firma/Objekte/Lehen/Grundriss.pdf' }],
       },
       o7: {
         customerNo: '10077',

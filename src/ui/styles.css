@@ -796,6 +796,8 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
 .search-group { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 4px 2px; }
 .search-hit { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: var(--radius); color: var(--fg); }
 .search-hit:hover, .search-hit.sel { background: var(--accent-soft); }
+.offline-text { color: var(--warn); font-weight: 600; }
+.photo-thumb.pending { outline: 2px dashed var(--warn); outline-offset: 1px; }
 .hint-banner { margin: 8px 0; padding: 6px 12px; font-size: 0.88rem; }
 .hint-banner svg { width: 14px; height: 14px; vertical-align: -2px; }
 .mp-tabs { margin-bottom: 12px; }
@@ -807,6 +809,18 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
 .mp-area-head > input:first-child { font-weight: 600; flex: 2 1 12rem; }
 .mp-service { padding-left: 12px; }
 .mp-sum { flex: none; font-variant-numeric: tabular-nums; }
+.mp-room { padding-left: 12px; }
+.mp-rooms { margin-top: 6px; }
+.mp-rooms > summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; padding: 4px 0; }
+.mp-tpl { margin-top: 12px; align-items: flex-end; }
+.mp-days { flex-wrap: wrap; margin-bottom: 6px; }
+.mp-photo .photo-thumb { flex: none; }
+.mp-foot { flex: 1 1 22rem; justify-content: flex-end; flex-wrap: nowrap; align-items: center; }
+.mp-reason { min-width: 0; flex: 0 1 20rem; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--fg); }
+.mp-versions > li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.mp-diff { margin: 4px 0 0 1.1rem; padding: 0; font-size: 0.9rem; }
+.mp-diff li { margin: 2px 0; }
+.open-code { font: 600 2rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.12em; text-align: center; padding: 14px; margin: 4px 0 12px; border: 2px dashed var(--accent); border-radius: var(--radius); user-select: all; }
 .mp-sections { display: grid; gap: 4px 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); margin: 10px 0; }
 .addr-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 @media (max-width: 700px) {

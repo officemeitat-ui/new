@@ -385,6 +385,8 @@ export function saveStatusText(status, detail) {
       return 'Speichert …'
     case 'error':
       return `<span class="err-text">Nicht gespeichert: ${esc(detail)}</span>`
+    case 'offline':
+      return `<span class="offline-text">Offline${Number(detail) ? ` · ${Number(detail)} ${Number(detail) === 1 ? 'Änderung wartet' : 'Änderungen warten'}` : ''} · wird gespeichert, sobald Netz da ist</span>`
     default:
       return `Gespeichert${where ? ` · ${where}` : ''}`
   }

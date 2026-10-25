@@ -10,12 +10,14 @@ import { createDemoData, DEFAULT_SKILLS } from '../data/demo.js'
 import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService } from '../storage/data-service.js'
+import { CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
 import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, visibleViews } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
 import { planWeek, seedDemoHistory } from './planning.js'
+import { uploadQueued } from './photo.js'
 import { searchButton } from './search.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
@@ -273,12 +275,13 @@ function showMessage(html) {
 
 async function boot() {
   const config = await loadConfig()
-  config.features = { excel: true, pdf: true, download: true, print: true, mail: false, ...(config.features || {}) }
+  config.features = { excel: true, pdf: true, download: true, print: true, mail: false, calendar: false, ...(config.features || {}) }
   app.config = config
   applyBrand(config.brand)
   bindEvents()
 
   let store
+  let local = null
   if (config.storage === 'sharepoint') {
     showMessage('<p>Anmeldung bei Microsoft 365 …</p>')
     const { scopesFor, signIn } = await import('../auth/msal.js')
@@ -286,7 +289,9 @@ async function boot() {
     app.auth = auth
     app.user = auth.user
     app.signOut = auth.signOut
-    store = new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint })
+    // Hülle für den Offline-Betrieb: letzter Stand und ungespeicherte Änderungen bleiben im Gerät
+    local = createOfflineCache()
+    store = new CachedDocStore(new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint }), local)
     showMessage('<p>Verbinde mit SharePoint …</p>')
     await store.init()
     app.access = resolveAccess({ roleClaims: app.user.roles, email: app.user.email, access: config.access })
@@ -298,6 +303,7 @@ async function boot() {
   Object.assign(app.ui, readPrefs())
   if (config.storage !== 'sharepoint') app.access = resolveAccess({ preview: app.ui.previewRole, access: config.access })
   app.service = new DataService(store, {
+    local,
     onStatus: (status, detail) => {
       const el = document.getElementById('save-status')
       if (el) el.innerHTML = saveStatusText(status, detail)
@@ -325,12 +331,27 @@ async function boot() {
     renderNow()
   }
   await showTodoIfNew()
+  // Zuletzt ohne Netz Erfasstes gleich nachholen
+  if (app.service.restored) {
+    toast(`${app.service.restored} ${app.service.restored === 1 ? 'Änderung' : 'Änderungen'} aus der Zeit ohne Netz übernommen, wird gespeichert.`)
+    app.service.refresh().catch(() => {})
+  }
+  const sync = () => {
+    app.service.refresh().catch(() => {})
+    uploadQueued().catch(() => {})
+  }
   const every = (config.storage === 'sharepoint' ? config.sharepoint.refreshSeconds || 60 : 30) * 1000
-  setInterval(() => app.service.refresh().catch(() => {}), every)
-  // Zurück in der App (Handy entsperrt, Tab gewechselt): sofort abgleichen
+  setInterval(sync, every)
+  // Zurück in der App (Handy entsperrt, Tab gewechselt) oder wieder Netz: sofort abgleichen
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') app.service.refresh().catch(() => {})
+    if (document.visibilityState === 'visible') sync()
   })
+  window.addEventListener('online', sync)
+  window.addEventListener('offline', () => {
+    const el = document.getElementById('save-status')
+    if (el && app.store?.kind === 'sharepoint') el.innerHTML = saveStatusText('offline', String(app.service.pendingCount()))
+  })
+  uploadQueued().catch(() => {})
   registerServiceWorker()
 }
 
@@ -349,6 +370,7 @@ function registerServiceWorker() {
 
 boot().catch((err) => {
   console.error(err)
+  if (err.offline) return showMessage(`<h2>Keine Verbindung</h2><p>${esc(err.message)}</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`) || (ACTIONS.reload = () => location.reload())
   showMessage(`<h2>Der Dienstplan konnte nicht gestartet werden</h2><p>${esc(err.message)}</p><p class="note">Bei SharePoint-Fehlern: Einträge in config.json prüfen (tenantId, clientId, siteUrl, library) und ob dein Konto Zugriff auf die Website hat. Details in docs/EINRICHTUNG.md.</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`)
   ACTIONS.reload = () => location.reload()
 })
