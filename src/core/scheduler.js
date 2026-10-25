@@ -66,7 +66,8 @@ export function candidateFactors(ctx, state, emp, inst, ev) {
   // Kontinuität: Kund:innen sehen lieber bekannte Gesichter
   const known = own.filter((i) => i.objectId === inst.objectId && i.date < week).length
   if (known && !inst.regulars.includes(emp.id)) add('known', -Math.min(15, known * 3), `kennt das Objekt (${known}× in den letzten Wochen)`)
-  if (own.some((i) => i.objectId === inst.objectId && mondayOf(i.date) === week)) add('sameObject', -12, 'diese Woche schon im Objekt')
+  if (own.some((i) => i.objectId === inst.objectId && i.date === inst.date)) add('sameDay', -20, 'an dem Tag ohnehin im Objekt')
+  else if (own.some((i) => i.objectId === inst.objectId && mondayOf(i.date) === week)) add('sameObject', -12, 'diese Woche schon im Objekt')
   const sameDay = own.filter((i) => i.date === inst.date)
   if (sameDay.some((i) => Math.abs(i.end - inst.start) <= 90 || Math.abs(inst.end - i.start) <= 90)) add('adjacent', -8, 'Einsatz direkt davor oder danach')
   // Zeitkonto ausgleichen: Minusstunden zuerst auffüllen, Plusstunden schonen

@@ -1,19 +1,22 @@
 // Dialog zu einem Einsatz: Einteilung, "Wer kann einspringen?", Objektmappe
 // und Änderungen nur für diese Woche.
 
-import { addDays, eachDay, formatDate, formatHours, mondayOf } from '../../core/dates.js'
+import { addDays, eachDay, formatDate, formatHours, formatTime, mondayOf } from '../../core/dates.js'
 import { HOLIDAY_RULES } from '../../core/plan.js'
 import { rankCandidates } from '../../core/scheduler.js'
+import { dutyText } from '../../core/waste.js'
 import { addLog, app, empName, mutateAssignments, openModal, persist, recordUndo, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { esc, ICON, issueList, modalFrame, objectOf, reasonsHtml, val } from '../shared.js'
 import { tripContext } from './trip.js'
 
 function objectFolder(obj) {
   const keys = obj.keys || []
-  if (!obj.instructions && !obj.contact && !keys.length) return ''
+  const waste = obj.waste?.streams?.length ? obj.waste.note || '' : ''
+  if (!obj.instructions && !obj.contact && !keys.length && !waste) return ''
   return `<details class="folder"><summary>${ICON.key} Objektmappe</summary>
     ${obj.instructions ? `<p>${esc(obj.instructions)}</p>` : ''}
     ${obj.contact ? `<p class="note">Ansprechperson: ${esc(obj.contact)}</p>` : ''}
+    ${waste ? `<p class="note">${ICON.trash} Müll: ${esc(waste)}</p>` : ''}
     ${keys.length ? `<p class="note">Schlüssel: ${keys.map((k) => `${esc(k.label)} – ${k.holderId ? esc(empName(k.holderId)) : 'im Büro'}`).join(' · ')}</p>` : ''}
   </details>`
 }
@@ -33,6 +36,8 @@ function shiftModal(c, { key }) {
     ...inst.skills.map((s) => `<span class="tag">benötigt: ${esc(s)}</span>`),
     task ? `<span class="tag">Feiertag: ${esc(HOLIDAY_RULES[task.holidayRule || 'entfaellt'])}</span>` : '',
     inst.category === 'sonder' ? '<span class="tag special">Sonderleistung</span>' : '',
+    ...(inst.addOns || []).map((a) => `<span class="tag waste">${ICON.trash} ${esc(dutyText(a))} (+${a.minutes} min)</span>`),
+    inst.category === 'muell' ? `<span class="tag waste">${ICON.trash} eigener Müll-Gang: kein passender Einsatz im Objekt</span>` : '',
     inst.holiday ? `<span class="pill info">${esc(inst.holiday.name)}</span>` : inst.isSunday ? '<span class="pill info">Sonntag</span>' : '',
     inst.status === 'moved' ? `<span class="pill warning">verschoben von ${formatDate(inst.origDate)}${inst.reason === 'holiday' ? ' (Feiertag)' : ''}</span>` : '',
     inst.status === 'cancelled' ? `<span class="pill info">entfällt${inst.reason === 'holiday' ? `: ${esc(inst.origHoliday?.name)}` : ' diese Woche'}</span>` : '',
@@ -86,6 +91,7 @@ function shiftModal(c, { key }) {
   }
 
   const ov = app.data.overrides[key] || {}
+  const addOnMin = (inst.addOns || []).reduce((sum, a) => sum + a.minutes, 0)
   const weekDays = eachDay(mondayOf(inst.origDate), addDays(mondayOf(inst.origDate), 6))
   const edit = app.readOnly
     ? ''
@@ -93,7 +99,7 @@ function shiftModal(c, { key }) {
     <div class="form-grid">
       <label class="field"><span>Tag</span><select id="ov-date">${weekDays.map((d) => `<option value="${d}" ${d === inst.date ? 'selected' : ''}>${formatDate(d)}${c.holidays.get(d) ? ` (${esc(c.holidays.get(d).name)})` : ''}</option>`).join('')}</select></label>
       <label class="field"><span>Beginn</span><input type="time" id="ov-start" value="${esc(inst.startTime)}"></label>
-      <label class="field"><span>Ende</span><input type="time" id="ov-end" value="${esc(inst.endTime)}"></label>
+      <label class="field"><span>Ende${addOnMin ? ` (ohne ${addOnMin} min Müll)` : ''}</span><input type="time" id="ov-end" value="${esc(formatTime(inst.end - addOnMin))}"></label>
       <label class="field wide"><span>Notiz auf dem Wochenzettel</span><input type="text" id="ov-note" value="${esc(ov.note || '')}" placeholder="z. B. Schlüssel beim Portier"></label>
     </div>
     <div class="actions" style="margin-top:10px">
@@ -152,12 +158,11 @@ registerActions(
       recordUndo('Einsatz geändert')
       const key = el.dataset.key
       const inst = instOf(key)
-      const task = app.data.tasks.find((t) => t.id === inst.taskId)
       const ov = { ...(app.data.overrides[key] || {}) }
       const date = val('ov-date')
       ov.date = date !== inst.origDate || inst.status === 'moved' ? date : undefined
-      ov.start = val('ov-start') !== task.start ? val('ov-start') : undefined
-      ov.end = val('ov-end') !== task.end ? val('ov-end') : undefined
+      ov.start = val('ov-start') !== inst.baseStart ? val('ov-start') : undefined
+      ov.end = val('ov-end') !== inst.baseEnd ? val('ov-end') : undefined
       ov.note = val('ov-note').trim() || undefined
       const clean = Object.fromEntries(Object.entries(ov).filter(([, v]) => v !== undefined && v !== false))
       if (Object.keys(clean).length) app.data.overrides[key] = clean

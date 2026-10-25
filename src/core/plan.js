@@ -1,7 +1,9 @@
 // Erzeugt aus den Leistungen (Stammplan) die konkreten Einsätze eines Zeitraums
 // und wendet Feiertagsregeln sowie Einzeländerungen ("nur diese Woche") an.
 
-import { addDays, dayIndex, daysInMonth, eachDay, isoWeekday, monthsBetween, toMinutes, weeksBetween } from './dates.js'
+import { dayIndex, eachDay, isoWeekday, toMinutes } from './dates.js'
+import { nextWorkday, taskOccursOn } from './recurrence.js'
+import { applyWaste } from './waste.js'
 
 export const HOLIDAY_RULES = {
   entfaellt: 'entfällt',
@@ -9,138 +11,103 @@ export const HOLIDAY_RULES = {
   verschieben: 'auf nächsten Werktag verschieben',
 }
 
-export const NTH_LABEL = { 1: '1.', 2: '2.', 3: '3.', 4: '4.', [-1]: 'letzter' }
-
-/**
- * Rhythmus einer Leistung:
- *   { type: 'weekly', weekdays, everyWeeks, anchor }        jede / jede 2. … Woche
- *   { type: 'monthly', mode: 'nth', nth, weekday, everyMonths, anchor }   z. B. 1. Samstag, quartalsweise
- *   { type: 'monthly', mode: 'day', day, everyMonths, anchor }            z. B. am 15. (31 = letzter Tag)
- *   { type: 'once', date }
- */
-export function taskOccursOn(task, date) {
-  const r = task.recurrence
-  if (r.type === 'once') return r.date === date
-  if (r.type === 'monthly') return monthlyOccursOn(r, date)
-  if (!r.weekdays.includes(isoWeekday(date))) return false
-  if (r.from && date < r.from) return false
-  if (r.until && date > r.until) return false
-  const every = r.everyWeeks || 1
-  if (every > 1) {
-    const diff = weeksBetween(r.anchor || r.from || date, date)
-    return ((diff % every) + every) % every === 0
-  }
-  return true
-}
-
-function monthlyOccursOn(r, date) {
-  if (r.from && date < r.from) return false
-  if (r.until && date > r.until) return false
-  const every = r.everyMonths || 1
-  if (every > 1) {
-    const diff = monthsBetween(r.anchor || r.from || date, date)
-    if (((diff % every) + every) % every !== 0) return false
-  }
-  const day = Number(date.slice(8))
-  if (r.mode === 'day') return day === Math.min(r.day || 1, daysInMonth(date))
-  if (isoWeekday(date) !== r.weekday) return false
-  if (r.nth === -1) return day + 7 > daysInMonth(date)
-  return Math.ceil(day / 7) === r.nth
-}
-
-export function nextWorkday(date, holidays) {
-  let d = addDays(date, 1)
-  while (isoWeekday(d) > 5 || holidays.has(d)) d = addDays(d, 1)
-  return d
-}
+export { NTH_LABEL, nextWorkday, taskOccursOn } from './recurrence.js'
 
 /**
  * Ein Einsatz (Instanz) ist eine Leistung an einem konkreten Tag.
  * `key` = Ursprungsdatum|Leistung bleibt stabil, auch wenn der Einsatz verschoben wird.
  * status: 'normal' | 'moved' (verschoben) | 'cancelled' (entfällt)
  */
-export function buildInstances({ objects, tasks, overrides = {} }, from, to, holidays, rules) {
+export function buildInstances({ objects, tasks, employees = [], overrides = {} }, from, to, holidays, rules) {
   const objectsById = new Map(objects.map((o) => [o.id, o]))
   const out = []
   for (const date of eachDay(from, to)) {
     for (const task of tasks) {
       if (!taskOccursOn(task, date)) continue
       const obj = objectsById.get(task.objectId)
-      if (!obj) continue
-      const key = `${date}|${task.id}`
-      const origHoliday = holidays.get(date) || null
-      let actualDate = date
-      let status = 'normal'
-      let reason = null
-      if (origHoliday && task.recurrence.type !== 'once') {
-        const rule = task.holidayRule || 'entfaellt'
-        if (rule === 'entfaellt') {
-          status = 'cancelled'
-          reason = 'holiday'
-        } else if (rule === 'verschieben') {
-          actualDate = nextWorkday(date, holidays)
-          status = 'moved'
-          reason = 'holiday'
-        }
-      }
-
-      const ov = overrides[key]
-      let startTime = task.start
-      let endTime = task.end
-      if (ov) {
-        if (ov.date) {
-          actualDate = ov.date
-          status = ov.date === date ? 'normal' : 'moved'
-          reason = ov.date === date ? null : 'manual'
-        }
-        if (ov.start) startTime = ov.start
-        if (ov.end) endTime = ov.end
-        if (ov.cancelled) {
-          status = 'cancelled'
-          reason = 'manual'
-        }
-      }
-
-      const dayStart = dayIndex(actualDate) * 1440
-      const s = toMinutes(startTime)
-      let e = toMinutes(endTime)
-      if (e <= s) e += 1440
-      const duration = e - s
-      const breakMin = duration > rules.breakAfterH * 60 ? Math.max(task.breakMin || 0, rules.breakMin) : task.breakMin || 0
-      const weekday = isoWeekday(actualDate)
-
-      out.push({
-        key,
-        taskId: task.id,
-        objectId: obj.id,
-        label: task.label,
-        category: task.category || 'reinigung',
-        origDate: date,
-        date: actualDate,
-        weekday,
-        startTime,
-        endTime,
-        start: dayStart + s,
-        end: dayStart + e,
-        duration,
-        breakMin,
-        net: duration - breakMin,
-        staff: task.staff || 1,
-        skills: task.skills || [],
-        regulars: task.regulars || [],
-        travelAfterMin: Number.isFinite(task.travelAfterMin) ? task.travelAfterMin : null,
-        travelNote: task.travelNote || '',
-        status,
-        reason,
-        origHoliday,
-        holiday: holidays.get(actualDate) || null,
-        isSunday: weekday === 7,
-        timeChanged: !!(ov && (ov.start || ov.end)),
-        note: ov?.note || '',
-      })
+      if (obj) out.push(instanceFor(task, obj, date, { overrides, holidays, rules }))
     }
   }
+  // Müllplan: Gänge an Einsätze im Objekt anhängen oder eigene Einsätze erzeugen
+  applyWaste(out, { objects, tasks, employees, from, to, holidays, make: (task, date) => instanceFor(task, objectsById.get(task.objectId), date, { overrides, holidays, rules }) })
   return out
+}
+
+/** Einsatz einer Leistung an einem Tag, mit Feiertagsregel und Einzeländerung. */
+export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }) {
+  const key = `${date}|${task.id}`
+  const origHoliday = holidays.get(date) || null
+  let actualDate = date
+  let status = 'normal'
+  let reason = null
+  if (origHoliday && task.recurrence.type !== 'once') {
+    const rule = task.holidayRule || 'entfaellt'
+    if (rule === 'entfaellt') {
+      status = 'cancelled'
+      reason = 'holiday'
+    } else if (rule === 'verschieben') {
+      actualDate = nextWorkday(date, holidays)
+      status = 'moved'
+      reason = 'holiday'
+    }
+  }
+
+  const ov = overrides[key]
+  let startTime = task.start
+  let endTime = task.end
+  if (ov) {
+    if (ov.date) {
+      actualDate = ov.date
+      status = ov.date === date ? 'normal' : 'moved'
+      reason = ov.date === date ? null : 'manual'
+    }
+    if (ov.start) startTime = ov.start
+    if (ov.end) endTime = ov.end
+    if (ov.cancelled) {
+      status = 'cancelled'
+      reason = 'manual'
+    }
+  }
+
+  const dayStart = dayIndex(actualDate) * 1440
+  const s = toMinutes(startTime)
+  let e = toMinutes(endTime)
+  if (e <= s) e += 1440
+  const duration = e - s
+  const breakMin = duration > rules.breakAfterH * 60 ? Math.max(task.breakMin || 0, rules.breakMin) : task.breakMin || 0
+  const weekday = isoWeekday(actualDate)
+
+  return {
+    key,
+    taskId: task.id,
+    objectId: obj.id,
+    label: task.label,
+    category: task.category || 'reinigung',
+    origDate: date,
+    date: actualDate,
+    weekday,
+    startTime,
+    endTime,
+    baseStart: task.start,
+    baseEnd: task.end,
+    start: dayStart + s,
+    end: dayStart + e,
+    duration,
+    breakMin,
+    net: duration - breakMin,
+    staff: task.staff || 1,
+    skills: task.skills || [],
+    regulars: task.regulars || [],
+    travelAfterMin: Number.isFinite(task.travelAfterMin) ? task.travelAfterMin : null,
+    travelNote: task.travelNote || '',
+    status,
+    reason,
+    origHoliday,
+    holiday: holidays.get(actualDate) || null,
+    isSunday: weekday === 7,
+    timeChanged: !!(ov && (ov.start || ov.end)),
+    note: ov?.note || '',
+  }
 }
 
 /** Veränderbarer Planungszustand: wer ist welchem Einsatz zugeteilt. */

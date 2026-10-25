@@ -211,6 +211,19 @@ export function renderModal() {
   }
 }
 
+/** Dialog neu zeichnen, ohne bereits getippte Eingaben zu verlieren (`skip`: Felder, die aus dem Zustand neu entstehen). */
+export function renderModalKeepingInput(skip = /^$/) {
+  const fields = [...document.querySelectorAll('#modal-root input[id], #modal-root select[id], #modal-root textarea[id]')]
+  const saved = fields.filter((el) => el.type !== 'file' && !skip.test(el.id)).map((el) => [el.id, el.type === 'checkbox' ? el.checked : el.value])
+  renderModal()
+  for (const [id, value] of saved) {
+    const el = document.getElementById(id)
+    if (!el) continue
+    if (el.type === 'checkbox') el.checked = value
+    else el.value = value
+  }
+}
+
 export function openModal(modal) {
   app.ui.modal = { ...modal, justOpened: true }
   app.ui.confirm = null

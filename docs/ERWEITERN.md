@@ -115,6 +115,15 @@ Die Glocke sammelt Punkte aus `computeTodo()` in `src/ui/modals/todo.js`: Abwese
 
 Eine Woche gilt als eingeteilt, sobald die Automatik dort geplant hat (nicht fixierte Einteilungen). Händische Einteilungen und Übergaben aus dem Abwesenheits-Assistenten sind fixiert, damit „Woche planen“ die Woche danach trotzdem vollständig einteilt und die Übergaben behält.
 
+## Müllplanung anpassen
+
+Logik in `src/core/waste.js`, Eingabe in `src/ui/waste-form.js`, Ansicht in `src/ui/views/waste.js`. Die Gänge entstehen beim Berechnen der Einsätze (`buildInstances` → `applyWaste`), es wird nichts zusätzlich gespeichert: Ändert sich der Stammplan, wandern die Gänge mit.
+
+- **Zeitfenster** (wann ein Einsatz den Gang mitnehmen kann, Uhrzeit für eigene Gänge): `WASTE_WINDOWS`
+- **Arten von Tonnen** und Erkennung aus dem Abfuhrkalender: `WASTE_TYPES`, `TYPE_PATTERNS`
+- **Wer einen eigenen Gang bekommt**: `wasteRegulars()`; in der Automatik zählt zusätzlich „an dem Tag ohnehin im Objekt“ (`candidateFactors`)
+- Ein angehängter Gang steht am Einsatz in `inst.addOns[]`, ein eigener Gang ist ein Einsatz mit `category: 'muell'` und `inst.waste`.
+
 ## Corporate Design
 
 Am einfachsten aus der eigenen Website: `npm run theme -- https://www.firma.at` (oder Pfad zu einer gespeicherten Seite). Das Skript (`scripts/theme-from-site.js`, Logik in `scripts/theme/`) erkennt Farben aus Baukasten-Variablen (Elementor, WordPress) oder aus Häufigkeit und wichtigen Selektoren (Kopfzeile, Knöpfe, Links), Schriften aus Google Fonts oder `@font-face`, das Logo in der Kopfzeile und ob die Kopfzeile hell oder farbig ist. Es schreibt `themes/<name>.css` und in `config.json` `brand.theme`, `brand.logo`, `brand.logoOnLight` (Logo für helle Flächen, z. B. im PDF) und `brand.colors` (Primär- und Akzentfarbe, auch fürs PDF).
@@ -125,14 +134,16 @@ Am einfachsten aus der eigenen Website: `npm run theme -- https://www.firma.at` 
 
 ```js
 employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours }   // email: Versand der PDF-Wochenpläne
-object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, contact, keys[{ id, label, holderId }] }
+object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, contact, keys[{ id, label, holderId }], waste? }
+waste    = { streams[{ id, type: 'Restmüll'|'Biomüll'|'Altpapier'|'Leichtverpackung'|'Glas'|'Metall'|'Sperrmüll'|'Sonstiges', recurrence }],
+             outWhen: 'vortag'|'abholtag', bringBack, minutes, responsible?: employeeId, note? }   // recurrence wie unten oder { type: 'dates', dates[] }
 task     = { id, objectId, label, category: 'reinigung'|'sonder', recurrence, start, end, staff, regulars[employeeId], skills[], holidayRule: 'entfaellt'|'findet_statt'|'verschieben', travelAfterMin?, travelNote? }
 recurrence = { type: 'weekly', weekdays[], everyWeeks, anchor, until? }
            | { type: 'monthly', mode: 'nth', nth: 1..4|-1, weekday: 1..7, everyMonths, anchor, until? }   // z. B. 1. Samstag, quartalsweise
            | { type: 'monthly', mode: 'day', day: 1..31, everyMonths, anchor, until? }                   // 31 = Monatsletzter
            | { type: 'once', date }
 absence  = { id, employeeId, type, from, to, note? }
-assignments[`${datum}|${taskId}`] = [{ employeeId, locked }]
+assignments[`${datum}|${taskId}`] = [{ employeeId, locked }]   // eigene Müll-Gänge: taskId = muell-<objectId>-out|in
 overrides[`${datum}|${taskId}`]   = { date?, start?, end?, cancelled?, note? }
 trips[`${datum}|${taskId}|${employeeId}`] = { min?, note? }   // geplante Fahrt nach dem Einsatz (Woche)
 published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur}, correctedAt?, corrections?[{ empId, before, after, delta, at, by }], sent?{empId: { at, by, via: 'E-Mail'|'Teilen'|'PDF'|'manuell', sig }}, files? }

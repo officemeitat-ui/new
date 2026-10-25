@@ -43,7 +43,7 @@ function tripModal(c, { key, emp }) {
         <label class="field wide"><span>Notiz zur Fahrt (erscheint im Wochenzettel und in der Zeitlinie)</span><input type="text" id="trip-note" value="${esc(entry.note || '')}" placeholder="${esc(inst.travelNote || 'z. B. Firmenauto, Schlüssel im Büro holen, Öffi Linie 3')}"></label>
       </div>`,
     foot: `<button class="btn edit-only" data-action="trip-reset" data-key="${esc(key)}" data-emp="${esc(emp)}" ${Object.keys(entry).length ? '' : 'disabled'}>Zurücksetzen</button>
-      <div class="actions edit-only"><button class="btn" data-action="trip-default" data-key="${esc(key)}" data-emp="${esc(emp)}" title="Gilt jede Woche für diese Leistung, für alle Personen">Als Standard der Leistung</button><button class="btn primary" data-action="trip-save" data-key="${esc(key)}" data-emp="${esc(emp)}">Für diese Woche speichern</button></div>`,
+      <div class="actions edit-only">${inst.category === 'muell' ? '' : `<button class="btn" data-action="trip-default" data-key="${esc(key)}" data-emp="${esc(emp)}" title="Gilt jede Woche für diese Leistung, für alle Personen">Als Standard der Leistung</button>`}<button class="btn primary" data-action="trip-save" data-key="${esc(key)}" data-emp="${esc(emp)}">Für diese Woche speichern</button></div>`,
   })
 }
 
@@ -86,6 +86,7 @@ registerActions(
       const { key, emp } = el.dataset
       const inst = app.cur.state.instByKey.get(key)
       const task = app.data.tasks.find((x) => x.id === inst.taskId)
+      if (!task) return
       const { min, note } = readForm()
       if (min === undefined) delete task.travelAfterMin
       else task.travelAfterMin = min

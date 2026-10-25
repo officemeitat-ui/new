@@ -1,13 +1,18 @@
 // Objekte & Leistungen (Stammplan), Objektmappe, Schlüssel, Budget.
 
-import { formatHours, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
+import { addDays, formatHours, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
+import { holidayCalendar } from '../../core/holidays.js'
 import { HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
-import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { wasteSummary } from '../../core/waste.js'
+import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
+import { readWaste, wasteSection } from '../waste-form.js'
 import { regionFilter } from './objects.js'
 
 function sitesView() {
   const region = app.ui.region
+  const today = todayISO()
+  const holidays = holidayCalendar(today, addDays(today, 70), app.data.extraFreeDays)
   const cards = app.data.objects
     .filter((o) => !region || o.region === region)
     .map((obj) => {
@@ -28,6 +33,7 @@ function sitesView() {
         <header><h3>${esc(obj.name)}</h3><span class="addr">${esc([obj.address, obj.region].filter(Boolean).join(' · '))}${obj.onlyTrained ? ' · nur eingeschultes Personal' : ''}${obj.budgetHoursMonth ? ` · Budget ${formatHours(obj.budgetHoursMonth * 60)} h/Monat` : ''}</span>
           <span class="edit-only"><button class="btn small" data-action="task-edit" data-id="new" data-obj="${esc(obj.id)}">${ICON.plus} Leistung</button>
           <button class="btn small" data-action="obj-edit" data-id="${esc(obj.id)}">Objekt bearbeiten</button></span></header>
+        ${obj.waste?.streams?.length ? `<div class="folder-line waste-line">${ICON.trash}<span>${esc(wasteSummary(obj, today, holidays))}</span></div>` : ''}
         ${obj.instructions || keys.length ? `<div class="folder-line">${obj.instructions ? `<span>${esc(obj.instructions)}</span>` : ''}${keys.length ? `<span class="keys">${ICON.key} ${keys.map((k) => `${esc(k.label)}: ${k.holderId ? esc(empName(k.holderId)) : 'Büro'}`).join(' · ')}</span>` : ''}</div>` : ''}
         ${tasks.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Leistung</th><th>Rhythmus</th><th>Zeit</th><th>Pers.</th><th>Stammkraft</th><th>An Feiertagen</th><th>Qualifikation</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:10px 14px;margin:0">Noch keine Leistungen.</p>'}
       </article>`
@@ -65,7 +71,8 @@ function objectModal(c, { id }) {
       <section><h3>Schlüssel</h3>
         ${keys.map((k, i) => `<div class="inline-row"><input type="text" id="key-label-${i}" value="${esc(k.label)}" aria-label="Schlüssel"><select id="key-holder-${i}" aria-label="Bei">${options(empOptions, k.holderId, { empty: 'im Büro' })}</select><button class="btn small danger" data-action="key-remove" data-idx="${i}">Entfernen</button></div>`).join('')}
         <button class="btn small" data-action="key-add">${ICON.plus} Schlüssel</button>
-        <p class="note">Ist ein Schlüssel hinterlegt, markiert der Plan jede Vertretung ohne Schlüssel mit „Schlüsselübergabe nötig“.</p></section>`,
+        <p class="note">Ist ein Schlüssel hinterlegt, markiert der Plan jede Vertretung ohne Schlüssel mit „Schlüsselübergabe nötig“.</p></section>
+      ${wasteSection(o)}`,
     foot: `${id === 'new' ? '<span></span>' : `<button class="btn ${confirmDel ? 'danger confirm' : 'danger'}" data-action="obj-delete" data-id="${esc(o.id)}">${confirmDel ? 'Objekt samt Leistungen löschen?' : 'Löschen'}</button>`}
       <div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="obj-save" data-id="${esc(o.id)}">Speichern</button></div>`,
   })
@@ -183,16 +190,21 @@ registerModal('task', taskModal)
 
 registerActions(
   {
-    'obj-edit': (el) => openModal({ type: 'object', id: el.dataset.id }),
+    'obj-edit': (el) => {
+      openModal({ type: 'object', id: el.dataset.id })
+      if (el.dataset.focus) document.querySelector(`#modal-root .${el.dataset.focus}`)?.scrollIntoView({ block: 'start' })
+    },
     'key-add': () => {
       app.ui.modal.keys = [...readKeys(), { label: 'Haupteingang', holderId: '' }]
-      renderModal()
+      app.ui.modal.waste = readWaste()
+      renderModalKeepingInput(/^key-|^wsr-/)
     },
     'key-remove': (el) => {
       const keys = readKeys()
       keys.splice(Number(el.dataset.idx), 1)
       app.ui.modal.keys = keys
-      renderModal()
+      app.ui.modal.waste = readWaste()
+      renderModalKeepingInput(/^key-|^wsr-/)
     },
     'obj-save': (el) => {
       const id = el.dataset.id
@@ -210,6 +222,8 @@ registerActions(
         contact: val('obj-contact').trim() || undefined,
         keys: readKeys(),
       }
+      const waste = readWaste()
+      obj.waste = waste.streams?.length ? waste : undefined
       if (!obj.name) return toast('Bitte einen Namen eingeben.')
       if (!obj.short) obj.short = obj.name.split(' ')[0]
       for (const k of Object.keys(obj)) if (obj[k] === undefined) delete obj[k]
@@ -226,6 +240,7 @@ registerActions(
       }
       const id = el.dataset.id
       for (const t of app.data.tasks.filter((x) => x.objectId === id)) removeTaskEverywhere(t.id)
+      for (const action of ['out', 'in']) removeTaskEverywhere(`muell-${id}-${action}`)
       app.data.objects = app.data.objects.filter((o) => o.id !== id)
       for (const e of app.data.employees) e.trained = (e.trained || []).filter((x) => x !== id)
       persist()

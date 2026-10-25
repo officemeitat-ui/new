@@ -13,7 +13,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 61 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
+npm test         # 70 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -31,6 +31,7 @@ Ob die App im Browser oder in SharePoint speichert, legt `config.json` fest (`"s
 | Objektplan | | Abwesenheiten mit Kalender und Resturlaub |
 | Vertretungs-Cockpit mit Vorschlägen | Nachträgliche Korrekturen für die Lohnverrechnung | Regeln, Regelkatalog, Fahrzeiten, Feiertage |
 | Periodische Leistungen (14-tägig, monatlich, quartalsweise) mit Frist | | |
+| Müllplan: wer stellt wann die Tonnen raus und rein | | Müllplan je Objekt, Abfuhrkalender einlesen (.ics) |
 | Prüfbericht | | |
 
 Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eigener Notiz eintragen, für diese Woche oder als Standard der Leistung. Ohne Eintrag gilt die Fahrzeit-Matrix bzw. Pauschale. Passt eine Fahrt nicht bis zum nächsten Einsatz, wird sie rot markiert.
@@ -42,6 +43,8 @@ Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eig
 **Einfach planen:** Einsätze lassen sich in der Wochenübersicht auf eine andere Person ziehen. Beim Ziehen zeigt jede Zelle sofort, ob die Person passt (grün), geprüft werden sollte (gelb) oder gegen eine Regel verstößt (rot). Jede Planänderung lässt sich mit „Rückgängig“ oder Strg+Z zurücknehmen. Vorschläge sind begründet, z. B. „noch 6 h frei laut Vertrag · kennt das Objekt (4×) · Zeitkonto −8 h: gleicht Minusstunden aus“. Die Automatik bevorzugt Stammkräfte, Personen mit freien Vertragsstunden oder Minusstunden, das eigene Revier und wer das Objekt schon kennt.
 
 **PDF und Versand:** Je Person eine A4-Seite im gewohnten Layout (Feiertage durchgestrichen, Vertretungen rot, Sonderleistungen grün), mit Objektadressen, Hinweisen für Vertretungen, Saldo und Zeitkonto. Nach dem Veröffentlichen öffnet sich der Versand: E-Mail mit PDF-Anhang über Microsoft 365, „Teilen“ am Handy (z. B. WhatsApp), Sammel-PDF zum Drucken oder ZIP. Wird ein Plan nach dem Versand geändert, steht die Person wieder auf „zu versenden“.
+
+**Müllplan:** Je Objekt die Abfuhrtage der Tonnen eintragen (Restmüll, Bio, Papier, Gelbe Tonne …): als Rhythmus (wöchentlich, 14-tägig, 4-wöchentlich, monatlich) oder als Termine aus dem Abfuhrkalender der Gemeinde, als Kalenderdatei (.ics) oder eingefügte Liste. Die Automatik plant das Raus- und Reinstellen mit: Ist am Vorabend (bzw. in der Früh) jemand ohnehin im Objekt, erledigt diese Person es mit, die Minuten werden angerechnet und stehen im Wochenzettel („Müll rausstellen: Restmüll, Altpapier (+10 min)“). Sonst entsteht ein kurzer eigener Gang (z. B. 18:00–18:10), den „Woche planen“ besetzt, bevorzugt mit einer verfügbaren Stammkraft des Objekts oder mit jemandem, der an dem Tag schon dort ist. Fällt die Abfuhr laut Rhythmus auf einen Feiertag, rückt sie auf den nächsten Werktag. Die Ansicht „Müllplan“ zeigt für die Woche je Objekt jeden Gang mit Zeit und Person.
 
 **Auf allen Geräten:** PC, Tablet und Handy haben den vollen Funktionsumfang, die Daten liegen zentral in SharePoint. Am Handy gibt es eine eigene Ansicht: Tagesliste statt Wochentabelle (offene Einsätze oben, Wischen wechselt den Tag), Leiste unten (Woche, Vertretung, **＋ Abwesend**, Wochenzettel, Menü), Dialoge als Blatt von unten und Tabellen als Karten. Auf Touch-Geräten ersetzt „Statt Ana“ im Einsatz das Ziehen. Der Dienstplan lässt sich als App auf den Startbildschirm legen (Android, iPhone, Windows, Mac), startet schneller und gleicht sich beim Zurückwechseln sofort ab.
 

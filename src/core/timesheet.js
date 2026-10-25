@@ -13,6 +13,7 @@
 
 import { addDays, eachDay, formatDate } from './dates.js'
 import { dayTrips, findAbsence, windowMinutes } from './rules.js'
+import { dutyText } from './waste.js'
 
 export function buildTimesheet(ctx, emp, monday, instances, state) {
   const r = ctx.rules
@@ -43,6 +44,9 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     if (replaced.length) notes.push(`Vertretung für ${replaced.map(nameOf).join(', ')}`)
     if (inst.status === 'moved') notes.push(`verschoben von ${formatDate(inst.origDate)}${inst.reason === 'holiday' ? ' (Feiertag)' : ''}`)
     if (inst.timeChanged) notes.push('Zeit diese Woche geändert')
+    for (const a of inst.addOns || []) notes.push(`${dutyText(a)} (+${a.minutes} min)`)
+    const wasteNote = (inst.waste || inst.addOns?.length) && ctx.objectsById.get(inst.objectId)?.waste?.note
+    if (wasteNote) notes.push(wasteNote)
     if (bonus) notes.push(`inkl. ${bonusPct} % ${sundayHoliday === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag`)
     if (inst.breakMin) notes.push(`${inst.breakMin} min Pause abgezogen`)
     if (inst.note) notes.push(inst.note)

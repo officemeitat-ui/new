@@ -215,6 +215,9 @@ function bindEvents() {
     // Formularteile ein-/ausblenden: <select data-toggle="x"> steuert [data-x="wert"]
     const toggle = e.target.dataset.toggle
     if (toggle) for (const el of document.querySelectorAll(`[data-${toggle}]`)) el.hidden = el.dataset[toggle] !== e.target.value
+    // <input data-change="aktion">: Aktion bei Änderung (z. B. Datei gewählt)
+    const handler = ACTIONS[e.target.dataset.change]
+    if (handler) handler(e.target, e)
   })
   bindFilterEvents(document)
   bindDragEvents(document)

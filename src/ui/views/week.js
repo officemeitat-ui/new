@@ -4,6 +4,7 @@ import { formatDate, formatHours, isoWeekday, todayISO, WEEKDAY_LONG, WEEKDAY_SH
 import { timeAccount } from '../../core/reports.js'
 import { maxSeverity, SEVERITY_LABEL } from '../../core/rules.js'
 import { rankCandidates } from '../../core/scheduler.js'
+import { dutyText } from '../../core/waste.js'
 import { app, empName, mutateAssignments, registerView, renderNow, toast } from '../context.js'
 import { isMobile } from '../mobile.js'
 import { byStart, dayClass, dayHeads, esc, ICON, objectOf, options, saldoClass, signed } from '../shared.js'
@@ -19,11 +20,12 @@ export function workChip(c, emp, line) {
     line.substitute ? '<span class="flag sub" title="Vertretung">V</span>' : '',
     inst.status === 'moved' ? '<span class="flag sub" title="Verschoben">↷</span>' : '',
     c.state.isLocked(emp.id, inst.key) ? `<span class="flag lock" title="Fixiert">${ICON.lock}</span>` : '',
+    inst.addOns?.length ? `<span class="flag waste" title="${esc(inst.addOns.map((a) => `${dutyText(a)} (+${a.minutes} min)`).join('\n'))}">${ICON.trash}</span>` : '',
     sev ? `<span class="flag ${sev}">${sev === 'info' ? 'i' : '!'}</span>` : '',
   ].join('')
   const title = [`${obj.name}${inst.label ? ` – ${inst.label}` : ''}`, `${inst.startTime}–${inst.endTime}`, ...line.notes, ...issues.map((i) => `${SEVERITY_LABEL[i.severity]}: ${i.message}`)].join('\n')
   return `<button class="chip ${sev && sev !== 'info' ? `sev-${sev}` : ''} ${inst.category === 'sonder' ? 'special' : ''}" style="--obj:var(--o${obj.color})" data-action="open-shift" data-key="${esc(inst.key)}" data-emp="${esc(emp.id)}" ${app.readOnly ? '' : 'draggable="true"'} title="${esc(title)}">
-    <span class="chip-time">${inst.startTime}–${inst.endTime}</span><span class="chip-flags">${flags}</span><span class="chip-obj">${esc(obj.short || obj.name)}</span></button>`
+    <span class="chip-time">${inst.startTime}–${inst.endTime}</span><span class="chip-flags">${flags}</span><span class="chip-obj">${inst.category === 'muell' ? `${ICON.trash} ` : ''}${esc(obj.short || obj.name)}${inst.category === 'muell' ? ' · Müll' : ''}</span></button>`
 }
 
 export function struckChip(c, line) {

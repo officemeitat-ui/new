@@ -109,6 +109,20 @@ export function createDemoData(monday) {
   Object.assign(objects.find((o) => o.id === 'o4'), { keys: [{ id: 'k2', label: 'Lager/Sanitär', holderId: 'e6' }, { id: 'k3', label: 'Lager/Sanitär (2)', holderId: 'e2' }], instructions: 'Schlüssel für Lager und Sanitär an der Kassa abholen. Zapfsäulenbereich nur nach Rücksprache.' })
   Object.assign(objects.find((o) => o.id === 'o2'), { instructions: 'Schauraum: Glasflächen nur mit Abzieher, keine Mikrofasertücher an den Fahrzeugen.' })
 
+  // Müllpläne: Rhythmus der Gemeinde oder Termine aus dem Abfuhrkalender.
+  // Kanzlei: alle Gänge laufen mit den Reinigungen mit. Wohnanlage: teils
+  // mit, teils eigene Gänge. Bergheim: Termine, rausstellen in der Früh.
+  const every = (weekday, weeks, first) => ({ type: 'weekly', weekdays: [weekday], everyWeeks: weeks, anchor: first })
+  Object.assign(objects.find((o) => o.id === 'o1'), {
+    waste: { streams: [{ id: 'w1', type: 'Restmüll', recurrence: every(2, 2, day(1)) }, { id: 'w2', type: 'Altpapier', recurrence: every(4, 4, day(3)) }], outWhen: 'vortag', bringBack: true, minutes: 10, note: 'Tonnen in der Tiefgarage, zur Abholung vor den Haupteingang stellen.' },
+  })
+  Object.assign(objects.find((o) => o.id === 'o5'), {
+    waste: { streams: [{ id: 'w3', type: 'Biomüll', recurrence: every(2, 1, day(1)) }, { id: 'w4', type: 'Restmüll', recurrence: every(3, 2, day(2)) }], outWhen: 'vortag', bringBack: true, minutes: 10, note: 'Müllraum im Hof (Schlüssel Hausmeisterbox). Tonnen an den Gehsteig.' },
+  })
+  Object.assign(objects.find((o) => o.id === 'o8'), {
+    waste: { streams: [{ id: 'w5', type: 'Restmüll', recurrence: { type: 'dates', dates: [day(2), day(16), day(30)] } }, { id: 'w6', type: 'Leichtverpackung', recurrence: { type: 'dates', dates: [day(3), day(31)] } }], outWhen: 'abholtag', bringBack: true, minutes: 15 },
+  })
+
   const generated = generateRegions(monday)
   employees.push(...generated.employees)
   objects.push(...generated.objects)
