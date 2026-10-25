@@ -14,7 +14,7 @@ Heute wird pro Mitarbeiter:in und Woche ein Excel-Wochenplan geführt (SharePoin
 
 Darin stecken bereits feste Regeln, die heute im Kopf und von Hand umgesetzt werden:
 
-- **Feiertag**: Einsätze in geschlossenen Objekten werden durchgestrichen, die Stunden trotzdem angerechnet (Ausfallprinzip).
+- **Feiertag**: Es wird gearbeitet, mit Feiertagszuschlag. Nur Einsätze in Objekten, die am Feiertag geschlossen sind, werden durchgestrichen, die Stunden trotzdem angerechnet (Ausfallprinzip).
 - **Verschieben**: Ein Einsatz vom Feiertag wird auf den nächsten Tag gelegt (rot markiert).
 - **Sonn-/Feiertagsarbeit** (z. B. Tankstelle) zählt mit 100 % Zuschlag: 1,5 h → 3 h.
 - **Sonderleistungen** wie „Blumen gießen“ sind grün.
@@ -41,7 +41,7 @@ Einmal den **Stammplan** pflegen (welches Objekt, welche Leistung, wann, wer ist
 - Rhythmus: Wochentage, jede/2./3./4. Woche, oder einmalig (Grundreinigung, Fenster)
 - Uhrzeit, Anzahl Personen, benötigte Qualifikation
 - Stammkraft (eine oder mehrere Personen)
-- Feiertagsregel: *entfällt* · *findet statt (mit Zuschlag)* · *auf nächsten Werktag verschieben*
+- Feiertagsregel: *findet statt (mit Feiertagszuschlag)*, Standard · *auf nächsten Werktag verschieben* · *entfällt (Kunde geschlossen)*
 
 **Mitarbeitende**: Beschäftigungsart (Vollzeit, Teilzeit, geringfügig, Lehrling), Wochenstunden (Soll), Monatslimit bei Geringfügigen, unter 18 (KJBG), Qualifikationen, eingeschult in Objekten, Verfügbarkeit je Wochentag.
 
@@ -52,7 +52,7 @@ Einmal den **Stammplan** pflegen (welches Objekt, welche Leistung, wann, wer ist
 ### 3.2 Automatische Wochenplanung
 
 1. **Einsätze erzeugen**: aus allen Leistungen für die Woche, inkl. 14-tägig und einmalig.
-2. **Feiertage anwenden**: entfällt / findet statt / verschoben.
+2. **Feiertage anwenden**: findet statt mit Zuschlag (Standard) / verschoben / entfällt, wenn der Kunde geschlossen hat. Betriebsfreie Tage schließen den Betrieb (einzelne Einsätze „trotzdem“).
 3. **Stammkräfte einteilen**, sofern keine Regel verletzt wird.
 4. **Vertretungen suchen**: Einsätze, deren Stammkraft fehlt, und Einsätze ohne Stammkraft. Die schwierigsten zuerst (z. B. wenn nur zwei Leute die Qualifikation „Hygienebereich“ haben). Bewertet wird nach Wochenstunden (wer hat noch Luft), Einschulung im Objekt, Nähe zu anderen Einsätzen am selben Tag und fairer Verteilung von Sonn- und Feiertagen.
 5. **Reparatur**: Bleibt etwas offen, versucht das Tool, jemanden von einem anderen Einsatz freizuspielen.
@@ -83,9 +83,9 @@ Rechtsgrundlagen (alle Werte änderbar):
 
 Der Wochenzettel sieht aus wie der bisherige Excel-Plan:
 
-- **Durchgestrichen**: entfällt (Feiertag, Urlaub, Krankenstand). Die Stunden werden angerechnet, Sonderleistungen wahlweise nicht (wie bisher: 4 + 4 = 8 h statt 8,5 h).
+- **Durchgestrichen**: entfällt (Urlaub, Krankenstand, Kunde am Feiertag geschlossen). Die Stunden werden angerechnet, Sonderleistungen wahlweise nicht (wie bisher: 4 + 4 = 8 h statt 8,5 h).
 - **Rot**: Vertretung oder verschoben. **Grün**: Sonderleistung.
-- **Zuschlag**: Sonn-/Feiertag 100 % (einstellbar).
+- **Zuschlag**: Sonn-/Feiertag 100 % (einstellbar): Feiertagsarbeit = Feiertagsentgelt + Entgelt für die Arbeit (ARG § 9).
 - **Fahrzeit**: 30 min zwischen zwei Objekten am selben Tag (einstellbar).
 - **Gesamt**: Soll, Arbeitszeit, Fahrzeit, Saldo.
 

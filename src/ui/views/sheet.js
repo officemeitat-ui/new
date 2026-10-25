@@ -73,7 +73,7 @@ function sheetView(c) {
       ${changed ? `<span class="pill warning">nach Veröffentlichung geändert</span>${c.monday <= todayISO() ? ' <button class="btn small primary edit-only" data-action="open-publish">Korrektur buchen</button>' : ''}` : ''}
     </div>
     <div class="sheet-wrap" id="sheet-print">${sheetTable(c, emp)}</div>
-    <div class="legend"><span style="text-decoration:line-through">durchgestrichen</span><span>= entfällt / verschoben (Feiertag, Urlaub: angerechnet)</span><span style="color:var(--changed)">rot = Vertretung oder verschoben</span><span style="color:var(--special);font-weight:600">grün = Sonderleistung</span></div>
+    <div class="legend"><span style="text-decoration:line-through">durchgestrichen</span><span>= entfällt / verschoben (Urlaub, Krankenstand, Kunde geschlossen: angerechnet)</span><span>Feiertagsarbeit mit Zuschlag</span><span style="color:var(--changed)">rot = Vertretung oder verschoben</span><span style="color:var(--special);font-weight:600">grün = Sonderleistung</span></div>
     ${issues.length ? `<section><h3 style="margin-bottom:8px">Prüfung für ${esc(emp.name)}</h3><div class="report">${issues.map((i) => reportRow(c, i)).join('')}</div></section>` : `<p class="note">Keine Verstöße oder Warnungen für ${esc(emp.name)} in dieser Woche.</p>`}`
 }
 

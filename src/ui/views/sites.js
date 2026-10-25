@@ -2,7 +2,7 @@
 
 import { addDays, formatHours, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { holidayCalendar } from '../../core/holidays.js'
-import { HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
+import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
 import { wasteSummary } from '../../core/waste.js'
 import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
@@ -23,7 +23,7 @@ function sitesView() {
           <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}</td>
           <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}${Number.isFinite(t.travelAfterMin) || t.travelNote ? `<br><span class="muted">Fahrt danach ${Number.isFinite(t.travelAfterMin) ? `${t.travelAfterMin} min` : 'automatisch'}${t.travelNote ? `: ${esc(t.travelNote)}` : ''}</span>` : ''}</td><td class="num">${t.staff}</td>
           <td>${t.regulars.map((id) => esc(empName(id))).join(', ') || '<span class="muted">–</span>'}</td>
-          <td>${esc(HOLIDAY_RULES[t.holidayRule || 'entfaellt'])}</td>
+          <td>${esc(HOLIDAY_RULES[t.holidayRule || DEFAULT_HOLIDAY_RULE])}</td>
           <td>${(t.skills || []).map((s) => `<span class="tag">${esc(s)}</span>`).join(' ') || '<span class="muted">–</span>'}</td>
           <td class="edit-only"><button class="btn small" data-action="task-edit" data-id="${esc(t.id)}">Bearbeiten</button></td></tr>`,
         )
@@ -90,7 +90,7 @@ function readKeys() {
 function taskModal(c, { id, objectId }) {
   const t =
     id === 'new'
-      ? { id: 'new', objectId: objectId || app.data.objects[0]?.id, label: '', category: 'reinigung', recurrence: { type: 'weekly', weekdays: [1, 2, 3, 4, 5], everyWeeks: 1, anchor: c.monday }, start: '18:00', end: '20:00', staff: 1, regulars: [], skills: [], holidayRule: 'entfaellt', breakMin: 0 }
+      ? { id: 'new', objectId: objectId || app.data.objects[0]?.id, label: '', category: 'reinigung', recurrence: { type: 'weekly', weekdays: [1, 2, 3, 4, 5], everyWeeks: 1, anchor: c.monday }, start: '18:00', end: '20:00', staff: 1, regulars: [], skills: [], holidayRule: DEFAULT_HOLIDAY_RULE, breakMin: 0 }
       : app.data.tasks.find((x) => x.id === id)
   if (!t) return null
   const r = t.recurrence
@@ -130,7 +130,7 @@ function taskModal(c, { id, objectId }) {
         <label class="field"><span>Beginn</span><input type="time" id="task-start" value="${esc(t.start)}"></label>
         <label class="field"><span>Ende</span><input type="time" id="task-end" value="${esc(t.end)}"></label>
         <label class="field"><span>Personen</span><input type="number" id="task-staff" min="1" step="1" value="${t.staff}"></label>
-        <label class="field"><span>An Feiertagen</span><select id="task-holiday">${options(Object.entries(HOLIDAY_RULES), t.holidayRule || 'entfaellt')}</select></label>
+        <label class="field"><span>An Feiertagen</span><select id="task-holiday">${options(Object.entries(HOLIDAY_RULES), t.holidayRule || DEFAULT_HOLIDAY_RULE)}</select></label>
         <label class="field"><span>Fahrzeit danach (min)</span><input type="number" id="task-travel" min="0" step="5" value="${Number.isFinite(t.travelAfterMin) ? t.travelAfterMin : ''}" placeholder="automatisch"></label>
         <label class="field wide"><span>Fahrtnotiz (Standard, je Woche änderbar)</span><input type="text" id="task-travel-note" value="${esc(t.travelNote || '')}" placeholder="z. B. Firmenauto zurück ins Lager"></label>
       </div>

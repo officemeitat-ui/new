@@ -3,6 +3,7 @@
 // Überschriften erkannt, die Reihenfolge ist egal.
 
 import { WEEKDAY_SHORT } from './dates.js'
+import { DEFAULT_HOLIDAY_RULE } from './plan.js'
 
 export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis']
 export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art', 'Fahrzeit danach', 'Fahrtnotiz']
@@ -145,7 +146,7 @@ export function importEmployees(text) {
   return { items: items.filter((e) => e.name), errors }
 }
 
-const HOLIDAY = { entfallt: 'entfaellt', entfaellt: 'entfaellt', findetstatt: 'findet_statt', ja: 'findet_statt', verschieben: 'verschieben', verschoben: 'verschieben' }
+const HOLIDAY = { entfallt: 'entfaellt', entfaellt: 'entfaellt', nein: 'entfaellt', geschlossen: 'entfaellt', findetstatt: 'findet_statt', ja: 'findet_statt', arbeiten: 'findet_statt', verschieben: 'verschieben', verschoben: 'verschieben' }
 
 /**
  * Objekte + Leistungen aus Tabelle. Stammkräfte werden über den Namen zugeordnet.
@@ -189,7 +190,7 @@ export function importTasks(text, employees, { anchor } = {}) {
         staff: Math.max(1, parseInt(pick(row, 'staff'), 10) || regulars.length || 1),
         regulars,
         skills: [],
-        holidayRule: HOLIDAY[norm(pick(row, 'holiday'))] || 'entfaellt',
+        holidayRule: HOLIDAY[norm(pick(row, 'holiday'))] || DEFAULT_HOLIDAY_RULE,
         ...(travelMinutes(pick(row, 'travel')) !== null ? { travelAfterMin: travelMinutes(pick(row, 'travel')) } : {}),
         ...(pick(row, 'travelNote') ? { travelNote: pick(row, 'travelNote') } : {}),
       },

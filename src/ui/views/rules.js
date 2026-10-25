@@ -3,6 +3,7 @@
 
 import { formatDate } from '../../core/dates.js'
 import { austrianHolidays } from '../../core/holidays.js'
+import { DEFAULT_HOLIDAY_RULE } from '../../core/plan.js'
 import { DEFAULT_RULES, mergeRules, RULES, travelKey } from '../../core/rules.js'
 import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
 import { checked, esc, ICON, num, options, val } from '../shared.js'
@@ -23,7 +24,7 @@ export const RULE_FIELDS = [
     ['nightEnd', 'Nachtarbeit bis', '05:00', 'time'],
   ]],
   ['Zuschläge, Fahrzeit & Anrechnung', [
-    ['holidayBonusPct', 'Feiertagszuschlag (%)', 'Arbeit am Feiertag, z. B. 1,5 h → 3 h'],
+    ['holidayBonusPct', 'Feiertagszuschlag (%)', 'ARG § 9: Feiertagsentgelt + Entgelt für die Arbeit = 100 %; im Wochenzettel z. B. 1,5 h → 3 h'],
     ['sundayBonusPct', 'Sonntagszuschlag (%)', 'laut Kollektivvertrag prüfen'],
     ['travelMin', 'Fahrzeit zwischen Objekten (min)', 'Pauschale, wenn unten keine Strecke hinterlegt ist; zählt als Arbeitszeit'],
     ['creditSpecialTasks', 'Sonderleistungen bei Feiertag/Urlaub anrechnen', 'z. B. „Blumen gießen“', 'checkbox'],
@@ -101,6 +102,7 @@ function rulesView(c) {
   const objOptions = app.data.objects.map((o) => [o.id, `${o.name}${o.region ? ` (${o.region})` : ''}`])
   const holidays = [...austrianHolidays(year), ...austrianHolidays(year + 1)]
   const free = [...(app.data.extraFreeDays || [])].sort((a, b) => a.date.localeCompare(b.date))
+  const closedTasks = app.data.tasks.filter((t) => t.holidayRule === 'entfaellt').length
   return `<div class="section-head"><div><h2>Regeln & Feiertage</h2><p>Grundlage sind AZG, ARG und KJBG. Werte aus eurem Kollektivvertrag oder Betriebsvereinbarungen hier anpassen. Alle Markierungen und die Automatik richten sich danach.</p></div>
       <div class="actions edit-only"><button class="btn ${app.ui.confirm === 'rules-reset' ? 'danger confirm' : ''}" data-action="rules-reset">${app.ui.confirm === 'rules-reset' ? 'Wirklich zurücksetzen?' : 'Standardwerte'}</button><button class="btn primary" data-action="rules-save">Regeln speichern</button></div></div>
     <div class="rules">${fieldsets}${wagesFieldset()}</div>
@@ -112,9 +114,11 @@ function rulesView(c) {
         <div class="inline-form edit-only" style="border:0;padding:0"><label class="field"><span>Von</span><select id="tr-a">${options(objOptions, '')}</select></label><label class="field"><span>Nach</span><select id="tr-b">${options(objOptions, '')}</select></label><label class="field"><span>Minuten</span><input type="number" id="tr-min" min="0" step="5" value="15" style="width:6rem"></label><button class="btn" data-action="travel-add">${ICON.plus} Hinzufügen</button></div>
       </fieldset>
       <fieldset><legend>Gesetzliche Feiertage ${year}/${year + 1}</legend><div class="hol-list">${holidays.map((h) => `<span class="tabular">${formatDate(h.date, { year: true })}</span><span>${esc(h.name)}</span><span></span>`).join('')}</div>
-        <p class="note">Österreich, § 7 ARG. Werden automatisch berechnet (Ostern, Pfingsten, Fronleichnam). Karfreitag ist seit 2019 kein Feiertag mehr.</p></fieldset>
+        <p class="note">Österreich, § 7 ARG. Werden automatisch berechnet (Ostern, Pfingsten, Fronleichnam). Karfreitag ist seit 2019 kein Feiertag mehr.</p>
+        <p class="note">An Feiertagen wird gearbeitet: die Einsätze finden statt, mit Feiertagszuschlag (${ruleValue('holidayBonusPct')} %). Je Leistung lässt sich „verschieben“ oder „entfällt (Kunde geschlossen)“ wählen.</p>
+        ${closedTasks ? `<div class="edit-only"><button class="btn ${app.ui.confirm === 'holiday-all-work' ? 'primary confirm' : ''}" data-action="holiday-all-work">${app.ui.confirm === 'holiday-all-work' ? `Wirklich ${closedTasks} Leistungen umstellen?` : `${closedTasks} ${closedTasks === 1 ? 'Leistung entfällt' : 'Leistungen entfallen'} an Feiertagen: alle auf „findet statt“ stellen`}</button></div>` : ''}</fieldset>
       <fieldset><legend>Betriebsfreie Tage</legend>
-        <p class="note">Zum Beispiel 24.12., 31.12. oder der Landespatron Hl. Rupert (24.9., Salzburg). Einsätze entfallen wie an Feiertagen, aber ohne Feiertagszuschlag.</p>
+        <p class="note">Tage, an denen der Betrieb geschlossen ist, z. B. Betriebsausflug oder Hl. Rupert (24.9., Salzburg), wenn frei gegeben wird. An diesen Tagen entfallen alle Einsätze, ohne Zuschlag. Einzelne Einsätze lassen sich im Einsatz mit „Trotzdem stattfinden“ einplanen.</p>
         <div class="hol-list">${free.map((d) => `<span class="tabular">${formatDate(d.date, { year: true })}</span><span>${esc(d.name)}</span><button class="btn small danger edit-only" data-action="freeday-delete" data-date="${esc(d.date)}">Entfernen</button>`).join('') || '<span class="muted">keine</span>'}</div>
         <div class="inline-form edit-only" style="border:0;padding:0"><label class="field"><span>Datum</span><input type="date" id="free-date"></label><label class="field"><span>Bezeichnung</span><input type="text" id="free-name" placeholder="z. B. Betriebsausflug"></label><button class="btn" data-action="freeday-add">${ICON.plus} Hinzufügen</button></div>
       </fieldset>
@@ -153,6 +157,14 @@ registerActions(
       persist()
       renderNow()
       toast('Regeln gespeichert. Alle Markierungen wurden neu berechnet.')
+    },
+    'holiday-all-work': () => {
+      if (!confirmStep('holiday-all-work')) return
+      const list = app.data.tasks.filter((t) => t.holidayRule === 'entfaellt')
+      for (const t of list) t.holidayRule = DEFAULT_HOLIDAY_RULE
+      persist()
+      renderNow()
+      toast(`${list.length} Leistungen finden an Feiertagen jetzt statt, mit Feiertagszuschlag. Mit „Woche planen“ einteilen.`)
     },
     'rules-reset': () => {
       if (!confirmStep('rules-reset')) return

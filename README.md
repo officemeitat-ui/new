@@ -13,7 +13,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 92 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
+npm test         # 97 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Excel, SharePoint
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -42,7 +42,9 @@ Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eig
 
 **Einfach planen:** Einsätze lassen sich in der Wochenübersicht auf eine andere Person ziehen. Beim Ziehen zeigt jede Zelle sofort, ob die Person passt (grün), geprüft werden sollte (gelb) oder gegen eine Regel verstößt (rot). Jede Planänderung lässt sich mit „Rückgängig“ oder Strg+Z zurücknehmen. Vorschläge sind begründet, z. B. „noch 6 h frei laut Vertrag · kennt das Objekt (4×) · Zeitkonto −8 h: gleicht Minusstunden aus“. Die Automatik bevorzugt Stammkräfte, Personen mit freien Vertragsstunden oder Minusstunden, das eigene Revier und wer das Objekt schon kennt.
 
-**PDF und Versand:** Je Person eine A4-Seite im gewohnten Layout (Feiertage durchgestrichen, Vertretungen rot, Sonderleistungen grün), mit Objektadressen, Hinweisen für Vertretungen, Saldo und Zeitkonto. Nach dem Veröffentlichen öffnet sich der Versand: E-Mail mit PDF-Anhang über Microsoft 365, „Teilen“ am Handy (z. B. WhatsApp), Sammel-PDF zum Drucken oder ZIP. Wird ein Plan nach dem Versand geändert, steht die Person wieder auf „zu versenden“.
+**PDF und Versand:** Je Person eine A4-Seite im gewohnten Layout (Feiertagsarbeit mit Zuschlag, Entfallenes durchgestrichen, Vertretungen rot, Sonderleistungen grün), mit Objektadressen, Hinweisen für Vertretungen, Saldo und Zeitkonto. Nach dem Veröffentlichen öffnet sich der Versand: E-Mail mit PDF-Anhang über Microsoft 365, „Teilen“ am Handy (z. B. WhatsApp), Sammel-PDF zum Drucken oder ZIP. Wird ein Plan nach dem Versand geändert, steht die Person wieder auf „zu versenden“.
+
+**Feiertage:** An gesetzlichen Feiertagen wird gearbeitet: die Einsätze finden statt, mit Feiertagszuschlag (ARG § 9: Feiertagsentgelt + Entgelt für die Arbeit, 100 %, einstellbar). Der Zuschlag steht im Wochenzettel („inkl. 100 % Feiertagszuschlag“, z. B. 2 h → 4 h), in der Monatsauswertung und in „Überstunden & Auszahlung“ (als Zeitgutschrift oder in Geld). Nur wenn ein Kunde an Feiertagen geschlossen hat, wird bei der Leistung „entfällt (Kunde geschlossen)“ oder „verschieben“ eingestellt. Betriebsfreie Tage (selbst eingetragen) schließen den Betrieb; einzelne Einsätze lassen sich dann mit „Trotzdem stattfinden“ einplanen. Jugendliche (KJBG) werden an Sonn- und Feiertagen nicht eingeteilt.
 
 **Müllplan:** Je Objekt die Abfuhrtage der Tonnen eintragen (Restmüll, Bio, Papier, Gelbe Tonne …): als Rhythmus (wöchentlich, 14-tägig, 4-wöchentlich, monatlich) oder als Termine aus dem Abfuhrkalender der Gemeinde, als Kalenderdatei (.ics) oder eingefügte Liste. Die Automatik plant das Raus- und Reinstellen mit: Ist am Vorabend (bzw. in der Früh) jemand ohnehin im Objekt, erledigt diese Person es mit, die Minuten werden angerechnet und stehen im Wochenzettel („Müll rausstellen: Restmüll, Altpapier (+10 min)“). Sonst entsteht ein kurzer eigener Gang (z. B. 18:00–18:10), den „Woche planen“ besetzt, bevorzugt mit einer verfügbaren Stammkraft des Objekts oder mit jemandem, der an dem Tag schon dort ist. Fällt die Abfuhr laut Rhythmus auf einen Feiertag, rückt sie auf den nächsten Werktag. Die Ansicht „Müllplan“ zeigt für die Woche je Objekt jeden Gang mit Zeit und Person.
 

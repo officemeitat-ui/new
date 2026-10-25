@@ -2,7 +2,7 @@
 // und Änderungen nur für diese Woche.
 
 import { addDays, eachDay, formatDate, formatHours, formatTime, mondayOf } from '../../core/dates.js'
-import { HOLIDAY_RULES } from '../../core/plan.js'
+import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES } from '../../core/plan.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { dutyText } from '../../core/waste.js'
 import { addLog, app, empName, mutateAssignments, openModal, persist, recordUndo, registerActions, registerModal, renderNow, toast } from '../context.js'
@@ -34,7 +34,7 @@ function shiftModal(c, { key }) {
     `<span class="tag">${formatHours(inst.net)} h netto${inst.breakMin ? ` (−${inst.breakMin} min Pause)` : ''}</span>`,
     `<span class="tag">${inst.staff} ${inst.staff === 1 ? 'Person' : 'Personen'}</span>`,
     ...inst.skills.map((s) => `<span class="tag">benötigt: ${esc(s)}</span>`),
-    task ? `<span class="tag">Feiertag: ${esc(HOLIDAY_RULES[task.holidayRule || 'entfaellt'])}</span>` : '',
+    task ? `<span class="tag">Feiertag: ${esc(HOLIDAY_RULES[task.holidayRule || DEFAULT_HOLIDAY_RULE])}</span>` : '',
     inst.category === 'sonder' ? '<span class="tag special">Sonderleistung</span>' : '',
     ...(inst.addOns || []).map((a) => `<span class="tag waste">${ICON.trash} ${esc(dutyText(a))} (+${a.minutes} min)</span>`),
     inst.category === 'muell' ? `<span class="tag waste">${ICON.trash} eigener Müll-Gang: kein passender Einsatz im Objekt</span>` : '',
@@ -104,7 +104,7 @@ function shiftModal(c, { key }) {
     </div>
     <div class="actions" style="margin-top:10px">
       <button class="btn primary" data-action="ov-save" data-key="${esc(key)}">Übernehmen</button>
-      <button class="btn" data-action="ov-cancel" data-key="${esc(key)}">${ov.cancelled ? 'Wieder einplanen' : 'Entfällt diese Woche'}</button>
+      ${inst.status === 'cancelled' && inst.reason === 'holiday' ? `<button class="btn" data-action="ov-work" data-key="${esc(key)}">Trotzdem stattfinden</button>` : `<button class="btn" data-action="ov-cancel" data-key="${esc(key)}">${ov.cancelled ? 'Wieder einplanen' : 'Entfällt diese Woche'}</button>`}
       ${Object.keys(ov).length ? `<button class="btn" data-action="ov-reset" data-key="${esc(key)}">Änderung zurücknehmen</button>` : ''}
     </div></details>`
 
@@ -113,6 +113,7 @@ function shiftModal(c, { key }) {
     subtitle: esc([obj.address, obj.region && !(obj.address || '').includes(obj.region) ? obj.region : ''].filter(Boolean).join(' · ')),
     color: obj.color,
     body: `<div class="meta">${tags}</div>
+      ${inst.status === 'cancelled' && inst.reason === 'holiday' && !app.readOnly ? `<div class="banner"><p>${inst.origHoliday?.legal ? `Entfällt am Feiertag (${esc(inst.origHoliday.name)}), weil bei der Leistung „entfällt“ eingestellt ist.` : `Betrieb geschlossen: ${esc(inst.origHoliday?.name || 'betriebsfrei')}.`}</p><button class="btn primary" data-action="ov-work" data-key="${esc(key)}">Trotzdem stattfinden</button></div>` : ''}
       ${staffingIssues.length ? issueList(staffingIssues) : ''}
       ${objectFolder(obj)}
       <section><h3>Eingeteilt (${assigned.length}/${inst.staff})</h3>${regularsNote}${people || '<p class="note">Noch niemand eingeteilt.</p>'}</section>
@@ -183,6 +184,15 @@ registerActions(
       addLog(mondayOf(instOf(key).origDate), `${ov.cancelled ? 'Entfällt' : 'Wieder eingeplant'}: ${label(key)}`)
       persist()
       renderNow()
+    },
+    'ov-work': (el) => {
+      recordUndo('Findet trotzdem statt')
+      const key = el.dataset.key
+      app.data.overrides[key] = { ...(app.data.overrides[key] || {}), work: true }
+      addLog(mondayOf(instOf(key).origDate), `Findet trotzdem statt: ${label(key)}`)
+      persist()
+      renderNow()
+      toast(`Der Einsatz findet statt${instOf(key)?.origHoliday?.legal ? ', mit Feiertagszuschlag' : ''}. Mit „Woche planen“ einteilen.`)
     },
     'ov-reset': (el) => {
       recordUndo('Änderung zurückgenommen')

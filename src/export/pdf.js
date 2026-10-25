@@ -119,7 +119,7 @@ function timesheetPages(entry, { objectsById, employeesById, brand, status, cont
       layout: { hLineColor: () => colors.line, vLineColor: () => colors.line, hLineWidth: () => 0.5, vLineWidth: () => 0.5, paddingTop: () => 2, paddingBottom: () => 2 },
     },
     account !== undefined && account !== null ? { text: `Zeitkonto nach dieser Woche: ${signedHours(account)} h`, alignment: 'right', bold: true, margin: [0, 5, 0, 0] } : '',
-    { text: [{ text: 'durchgestrichen', decoration: 'lineThrough' }, ' = entfällt (Feiertag, Urlaub: angerechnet) · ', { text: 'rot', color: RED }, ' = Vertretung oder verschoben · ', { text: 'grün', color: GREEN }, ' = Sonderleistung'], fontSize: 7, color: GREY, margin: [0, 4, 0, 0] },
+    { text: [{ text: 'durchgestrichen', decoration: 'lineThrough' }, ' = entfällt (Urlaub, Krankenstand, Kunde geschlossen: angerechnet) · ', { text: 'rot', color: RED }, ' = Vertretung oder verschoben · ', { text: 'grün', color: GREEN }, ' = Sonderleistung'], fontSize: 7, color: GREY, margin: [0, 4, 0, 0] },
     ...objectNotes(ts, objectsById, employeesById),
     contact ? { text: contact, fontSize: 8, color: GREY, margin: [0, 8, 0, 0] } : '',
   ]

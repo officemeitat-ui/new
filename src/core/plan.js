@@ -5,10 +5,13 @@ import { dayIndex, eachDay, isoWeekday, toMinutes } from './dates.js'
 import { nextWorkday, taskOccursOn } from './recurrence.js'
 import { applyWaste } from './waste.js'
 
+// An Feiertagen wird gearbeitet (mit Feiertagszuschlag). „Entfällt“ nur, wenn
+// es bei der Leistung ausdrücklich so eingestellt ist (z. B. Kunde geschlossen).
+export const DEFAULT_HOLIDAY_RULE = 'findet_statt'
 export const HOLIDAY_RULES = {
-  entfaellt: 'entfällt',
-  findet_statt: 'findet statt (mit Zuschlag)',
+  findet_statt: 'findet statt (mit Feiertagszuschlag)',
   verschieben: 'auf nächsten Werktag verschieben',
+  entfaellt: 'entfällt (Kunde geschlossen)',
 }
 
 export { NTH_LABEL, nextWorkday, taskOccursOn } from './recurrence.js'
@@ -37,11 +40,15 @@ export function buildInstances({ objects, tasks, employees = [], overrides = {} 
 export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }) {
   const key = `${date}|${task.id}`
   const origHoliday = holidays.get(date) || null
+  const ov = overrides[key]
   let actualDate = date
   let status = 'normal'
   let reason = null
-  if (origHoliday && task.recurrence.type !== 'once') {
-    const rule = task.holidayRule || 'entfaellt'
+  // Gesetzlicher Feiertag: Regel der Leistung (Standard: findet statt).
+  // Betriebsfreier Tag (selbst eingetragen): Betrieb geschlossen, Einsätze entfallen.
+  // „Trotzdem stattfinden“ (Einzeländerung) geht beidem vor.
+  if (origHoliday && task.recurrence.type !== 'once' && !ov?.work) {
+    const rule = origHoliday.legal ? task.holidayRule || DEFAULT_HOLIDAY_RULE : 'entfaellt'
     if (rule === 'entfaellt') {
       status = 'cancelled'
       reason = 'holiday'
@@ -52,7 +59,6 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
     }
   }
 
-  const ov = overrides[key]
   let startTime = task.start
   let endTime = task.end
   if (ov) {

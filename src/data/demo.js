@@ -47,30 +47,30 @@ export function createDemoData(monday) {
 
   const tasks = [
     { id: 't1', objectId: 'o1', label: 'Büroreinigung', category: 'reinigung', recurrence: weekly([1, 3, 5]), start: '17:30', end: '19:30', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'verschieben' },
-    { id: 't2', objectId: 'o2', label: 'Schauraum & Büros', category: 'reinigung', recurrence: weekly(MO_FR), start: '06:00', end: '08:30', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't3', objectId: 'o2', label: 'Außenbereich (14-tägig)', category: 'reinigung', recurrence: weekly([4], { everyWeeks: 2, anchor: addDays(monday, 7) }), start: '13:30', end: '15:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't4', objectId: 'o3', label: 'Lager & Sozialräume', category: 'reinigung', recurrence: weekly(MO_FR), start: '15:00', end: '19:00', staff: 2, regulars: ['e4', 'e3'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't5', objectId: 'o3', label: 'Samstagsdienst', category: 'reinigung', recurrence: weekly([6]), start: '08:00', end: '13:00', staff: 1, regulars: ['e4'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't18', objectId: 'o3', label: 'Büroetage', category: 'reinigung', recurrence: weekly(MO_FR), start: '14:30', end: '17:00', staff: 1, regulars: ['e6'], skills: [], holidayRule: 'entfaellt' },
+    { id: 't2', objectId: 'o2', label: 'Schauraum & Büros', category: 'reinigung', recurrence: weekly(MO_FR), start: '06:00', end: '08:30', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't3', objectId: 'o2', label: 'Außenbereich (14-tägig)', category: 'reinigung', recurrence: weekly([4], { everyWeeks: 2, anchor: addDays(monday, 7) }), start: '13:30', end: '15:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't4', objectId: 'o3', label: 'Lager & Sozialräume', category: 'reinigung', recurrence: weekly(MO_FR), start: '15:00', end: '19:00', staff: 2, regulars: ['e4', 'e3'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't5', objectId: 'o3', label: 'Samstagsdienst', category: 'reinigung', recurrence: weekly([6]), start: '08:00', end: '13:00', staff: 1, regulars: ['e4'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't18', objectId: 'o3', label: 'Büroetage', category: 'reinigung', recurrence: weekly(MO_FR), start: '14:30', end: '17:00', staff: 1, regulars: ['e6'], skills: [], holidayRule: 'findet_statt' },
     { id: 't6', objectId: 'o4', label: 'Shop & Sanitär', category: 'reinigung', recurrence: weekly(MO_FR), start: '18:00', end: '19:30', staff: 1, regulars: ['e6'], skills: [], holidayRule: 'findet_statt' },
     { id: 't7', objectId: 'o4', label: 'Shop & Sanitär (Wochenende)', category: 'reinigung', recurrence: weekly([6, 7]), start: '18:00', end: '19:30', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'findet_statt' },
-    { id: 't8', objectId: 'o5', label: 'Stiegenhäuser', category: 'reinigung', recurrence: weekly([2, 5]), start: '08:00', end: '09:30', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't9', objectId: 'o6', label: 'Büro & Container', category: 'reinigung', recurrence: weekly([1, 3]), start: '09:30', end: '11:00', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't19', objectId: 'o6', label: 'Werkhalle', category: 'reinigung', recurrence: weekly([2, 4]), start: '10:00', end: '16:30', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'entfaellt', travelAfterMin: 45, travelNote: 'Firmenauto, Maschine zurück ins Lager' },
-    { id: 't20', objectId: 'o6', label: 'Büro & Container', category: 'reinigung', recurrence: weekly([5]), start: '12:00', end: '16:00', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't10', objectId: 'o7', label: 'Ordination', category: 'reinigung', recurrence: weekly(MO_FR), start: '19:30', end: '21:30', staff: 1, regulars: ['e3'], skills: ['Hygienebereich'], holidayRule: 'entfaellt' },
-    { id: 't12', objectId: 'o8', label: 'Büros & Schmutzfangmatten', category: 'reinigung', recurrence: weekly(MO_FR), start: '08:30', end: '12:30', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't11', objectId: 'o8', label: 'Blumen gießen', category: 'sonder', recurrence: weekly([2, 4]), start: '12:30', end: '13:00', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't21', objectId: 'o8', label: 'Küche & Sozialraum', category: 'reinigung', recurrence: weekly([3]), start: '13:00', end: '17:00', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't13', objectId: 'o9', label: 'Werkstatt & Sanitär', category: 'reinigung', recurrence: weekly([1, 2, 3, 4]), start: '14:00', end: '16:30', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't14', objectId: 'o9', label: 'Büro', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '10:00', end: '12:00', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't22', objectId: 'o9', label: 'Halle & Außenanlage', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '12:30', end: '16:30', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't23', objectId: 'o1', label: 'Archiv & Besprechung', category: 'reinigung', recurrence: weekly([2, 4]), start: '08:00', end: '12:00', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't24', objectId: 'o1', label: 'Büroreinigung Vormittag', category: 'reinigung', recurrence: weekly([5]), start: '08:00', end: '13:00', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'entfaellt' },
+    { id: 't8', objectId: 'o5', label: 'Stiegenhäuser', category: 'reinigung', recurrence: weekly([2, 5]), start: '08:00', end: '09:30', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't9', objectId: 'o6', label: 'Büro & Container', category: 'reinigung', recurrence: weekly([1, 3]), start: '09:30', end: '11:00', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't19', objectId: 'o6', label: 'Werkhalle', category: 'reinigung', recurrence: weekly([2, 4]), start: '10:00', end: '16:30', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'findet_statt', travelAfterMin: 45, travelNote: 'Firmenauto, Maschine zurück ins Lager' },
+    { id: 't20', objectId: 'o6', label: 'Büro & Container', category: 'reinigung', recurrence: weekly([5]), start: '12:00', end: '16:00', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't10', objectId: 'o7', label: 'Ordination', category: 'reinigung', recurrence: weekly(MO_FR), start: '19:30', end: '21:30', staff: 1, regulars: ['e3'], skills: ['Hygienebereich'], holidayRule: 'findet_statt' },
+    { id: 't12', objectId: 'o8', label: 'Büros & Schmutzfangmatten', category: 'reinigung', recurrence: weekly(MO_FR), start: '08:30', end: '12:30', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't11', objectId: 'o8', label: 'Blumen gießen', category: 'sonder', recurrence: weekly([2, 4]), start: '12:30', end: '13:00', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't21', objectId: 'o8', label: 'Küche & Sozialraum', category: 'reinigung', recurrence: weekly([3]), start: '13:00', end: '17:00', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't13', objectId: 'o9', label: 'Werkstatt & Sanitär', category: 'reinigung', recurrence: weekly([1, 2, 3, 4]), start: '14:00', end: '16:30', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't14', objectId: 'o9', label: 'Büro', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '10:00', end: '12:00', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't22', objectId: 'o9', label: 'Halle & Außenanlage', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '12:30', end: '16:30', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't23', objectId: 'o1', label: 'Archiv & Besprechung', category: 'reinigung', recurrence: weekly([2, 4]), start: '08:00', end: '12:00', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't24', objectId: 'o1', label: 'Büroreinigung Vormittag', category: 'reinigung', recurrence: weekly([5]), start: '08:00', end: '13:00', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'findet_statt' },
     { id: 't15', objectId: 'o10', label: 'Trainingsfläche & Duschen', category: 'reinigung', recurrence: weekly(MO_FR), start: '06:00', end: '07:45', staff: 1, regulars: ['e7'], skills: [], holidayRule: 'findet_statt' },
     { id: 't25', objectId: 'o10', label: 'Geräte & Umkleiden', category: 'reinigung', recurrence: weekly(MO_FR), start: '10:00', end: '13:00', staff: 1, regulars: ['e4'], skills: [], holidayRule: 'findet_statt' },
-    { id: 't26', objectId: 'o11', label: 'Büroetagen', category: 'reinigung', recurrence: weekly(MO_FR), start: '09:00', end: '13:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'entfaellt' },
-    { id: 't27', objectId: 'o11', label: 'Sanitär & Teeküchen', category: 'reinigung', recurrence: weekly(MO_FR), start: '13:00', end: '17:00', staff: 1, regulars: ['e10'], skills: [], holidayRule: 'entfaellt' },
+    { id: 't26', objectId: 'o11', label: 'Büroetagen', category: 'reinigung', recurrence: weekly(MO_FR), start: '09:00', end: '13:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't27', objectId: 'o11', label: 'Sanitär & Teeküchen', category: 'reinigung', recurrence: weekly(MO_FR), start: '13:00', end: '17:00', staff: 1, regulars: ['e10'], skills: [], holidayRule: 'findet_statt' },
     // Periodische Leistungen: monatlich, quartalsweise, am Monatsersten
     { id: 't28', objectId: 'o3', label: 'Grundreinigung Hallenboden', category: 'reinigung', recurrence: { type: 'monthly', mode: 'nth', nth: 1, weekday: 6, everyMonths: 1, anchor: `${monday.slice(0, 7)}-01` }, start: '08:00', end: '13:00', staff: 2, regulars: [], skills: ['Grundreinigung'], holidayRule: 'verschieben' },
     { id: 't29', objectId: 'o11', label: 'Teppichreinigung', category: 'reinigung', recurrence: { type: 'monthly', mode: 'nth', nth: 2, weekday: 5, everyMonths: 3, anchor: `${day(14).slice(0, 7)}-01` }, start: '17:00', end: '20:00', staff: 1, regulars: ['e10'], skills: [], holidayRule: 'verschieben' },
@@ -113,8 +113,8 @@ export function createDemoData(monday) {
   // Neuer Kunde: Reinigungsplan steht, Stammkräfte sind noch zuzuweisen (Ansicht „Zuweisung“)
   objects.push({ id: 'o90', name: 'Kindergarten Aigen', short: 'Kindergarten', address: '5026 Salzburg-Aigen', color: 12, onlyTrained: false, region: 'Salzburg Stadt', budgetHoursMonth: 0, budgetFactor: 1, contact: 'Leitung, Mo–Fr bis 16 Uhr' })
   tasks.push(
-    { id: 't31', objectId: 'o90', label: 'Gruppenräume & Sanitär', category: 'reinigung', recurrence: weekly(MO_FR), start: '17:00', end: '19:00', staff: 1, regulars: [], skills: [], holidayRule: 'entfaellt' },
-    { id: 't32', objectId: 'o90', label: 'Küche & Garderobe', category: 'reinigung', recurrence: weekly([2, 4]), start: '14:00', end: '15:30', staff: 1, regulars: [], skills: ['Hygienebereich'], holidayRule: 'entfaellt' },
+    { id: 't31', objectId: 'o90', label: 'Gruppenräume & Sanitär', category: 'reinigung', recurrence: weekly(MO_FR), start: '17:00', end: '19:00', staff: 1, regulars: [], skills: [], holidayRule: 'findet_statt' },
+    { id: 't32', objectId: 'o90', label: 'Küche & Garderobe', category: 'reinigung', recurrence: weekly([2, 4]), start: '14:00', end: '15:30', staff: 1, regulars: [], skills: ['Hygienebereich'], holidayRule: 'findet_statt' },
   )
 
   // Müllpläne: Rhythmus der Gemeinde oder Termine aus dem Abfuhrkalender.
@@ -170,15 +170,15 @@ const PROFILES = {
 
 // [Name, Kurzname, Art, Feiertagsregel, Leistung]
 const OBJECT_TYPES = {
-  buero: ['Bürogebäude', 'Büro', 'entfaellt', 'Büroreinigung'],
-  praxis: ['Arztpraxis', 'Praxis', 'entfaellt', 'Ordination'],
-  markt: ['Supermarkt', 'Markt', 'entfaellt', 'Verkaufsfläche & Sozialräume'],
+  buero: ['Bürogebäude', 'Büro', 'findet_statt', 'Büroreinigung'],
+  praxis: ['Arztpraxis', 'Praxis', 'findet_statt', 'Ordination'],
+  markt: ['Supermarkt', 'Markt', 'findet_statt', 'Verkaufsfläche & Sozialräume'],
   heim: ['Seniorenwohnheim', 'Heim', 'findet_statt', 'Wohnbereiche'],
   hotel: ['Hotel', 'Hotel', 'findet_statt', 'Zimmer & Gänge'],
-  bank: ['Bankfiliale', 'Bank', 'entfaellt', 'Kundenhalle & Büros'],
-  stiege: ['Wohnanlage', 'Stiege', 'entfaellt', 'Stiegenhäuser'],
-  werk: ['Werkstatt', 'Werkstatt', 'entfaellt', 'Halle & Sanitär'],
-  schule: ['Bildungszentrum', 'Bildung', 'entfaellt', 'Klassen & Gänge'],
+  bank: ['Bankfiliale', 'Bank', 'findet_statt', 'Kundenhalle & Büros'],
+  stiege: ['Wohnanlage', 'Stiege', 'findet_statt', 'Stiegenhäuser'],
+  werk: ['Werkstatt', 'Werkstatt', 'findet_statt', 'Halle & Sanitär'],
+  schule: ['Bildungszentrum', 'Bildung', 'findet_statt', 'Klassen & Gänge'],
 }
 
 const REGIONS = [
@@ -307,7 +307,7 @@ function generateRegions(monday) {
     // Sonderleistung und 14-tägige Leistung je Revier
     const office = regionObjects.find((o) => o.type === 'buero')
     const springer = regionEmployees.find((e) => e.note)
-    tasks.push({ id: `t${taskNo++}`, objectId: office.id, label: 'Blumen gießen', category: 'sonder', recurrence: { type: 'weekly', weekdays: [2, 4], everyWeeks: 1, anchor: monday }, start: '07:30', end: '08:00', staff: 1, regulars: springer ? [springer.id] : [], skills: [], holidayRule: 'entfaellt' })
+    tasks.push({ id: `t${taskNo++}`, objectId: office.id, label: 'Blumen gießen', category: 'sonder', recurrence: { type: 'weekly', weekdays: [2, 4], everyWeeks: 1, anchor: monday }, start: '07:30', end: '08:00', staff: 1, regulars: springer ? [springer.id] : [], skills: [], holidayRule: 'findet_statt' })
     tasks.push({ id: `t${taskNo++}`, objectId: office.id, label: 'Glasreinigung (14-tägig)', category: 'reinigung', recurrence: { type: 'weekly', weekdays: [5], everyWeeks: 2, anchor: monday }, start: '13:30', end: '16:30', staff: 1, regulars: springer ? [springer.id] : [], skills: ['Glasreinigung'], holidayRule: 'verschieben' })
     if (region.absence) {
       const [idx, type, fromDay, toDay] = region.absence
