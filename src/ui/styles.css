@@ -864,3 +864,5 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
 .veh-tread input { width: 4.5rem; }
 .mail-preview { white-space: pre-wrap; font: inherit; font-size: 0.9rem; background: var(--surface-2, var(--surface)); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 6px 0 0; }
 @media (max-width: 720px) { .veh-table .actions-cell { white-space: normal; } }
+.veh-tabs { margin: 2px 0 14px; }
+.veh-tabs .flag { margin-left: 4px; }

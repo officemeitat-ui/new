@@ -1,13 +1,17 @@
 // Modul Fahrzeuge & Reifen: Firmenfahrzeuge mit Fahrer/in, Reifensätzen und
-// Einlagerung. Je Saison der Reifenwechsel: Termine vorschlagen (neben den
-// Diensten der Fahrer/innen), Fahrer/innen per E-Mail informieren (mit
+// Einlagerung. Reiter „Reifenwechsel“: je Saison Termine vorschlagen (neben
+// den Diensten der Fahrer/innen), Fahrer/innen per E-Mail informieren (mit
 // Kalendertermin), Sammelliste an die Werkstatt, Erledigt mit Profiltiefe.
+// Reiter „Service & Pickerl“: §57a-Begutachtung, Service nach Datum/km und
+// weitere Fälligkeiten; Werkstatttermine erledigen sie, auch zusammen mit dem
+// Reifenwechsel.
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { addDays, dayIndex, formatDate, todayISO } from '../../core/dates.js'
 import { fileSafe } from '../../core/filename.js'
 import { icsEvent } from '../../core/ics.js'
-import { activeVehicles, applyDone, campaignFor, campaignSummary, conflicts, DEFAULT_SETTINGS, driverMail, importVehicles, lowestTread, minTread, proposeSlots, SEASONS, STATUS_CLASS, STATUS_LABEL, tireCsv, tireIssues, VEHICLE_KINDS, vehicleStatus, WHEELS, workshopMail } from '../../core/vehicles.js'
+import { addKm, addMonths, applyTasksDone, classOf, currentKm, DUE_CLASS, DUE_LABEL, fleetCsv, monthText, openTasks, PICKERL_RESULTS, pickerlStatus, serviceStatus, suggestPickerl, taskLabel, VEHICLE_CLASSES, vehicleDues } from '../../core/vehicle-dues.js'
+import { activeVehicles, applyDone, campaignFor, campaignSummary, changeWhat, conflicts, DEFAULT_SETTINGS, driverMail, importVehicles, lowestTread, minTread, proposeSlots, SEASONS, STATUS_CLASS, STATUS_LABEL, tireCsv, tireIssues, VEHICLE_KINDS, vehicleStatus, WHEELS, workshopMail } from '../../core/vehicles.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { canMail } from '../modals/send.js'
 import { registerTodo } from '../modals/todo.js'
@@ -59,6 +63,19 @@ function rows(today = todayISO()) {
 
 const planned = (today) => rows(today).filter((r) => r.st.status === 'geplant')
 const informed = (change, kind = 'fahrer') => (change?.mails || []).some((x) => x.kind === kind)
+const activeIds = () => new Set(activeVehicles(FZ()).map((v) => v.id))
+/** Alle geplanten Termine (Reifen und Werkstatt) ab heute. */
+const upcoming = (today = todayISO()) => FZ().changes.filter((c) => c.status === 'geplant' && c.date >= today && activeIds().has(c.vehicleId))
+const isWerkstatt = (c) => c.kind === 'werkstatt'
+const kmText = (n) => `${Math.round(n).toLocaleString('de-AT')} km`
+/** Fahrzeuge mit offenen Fälligkeiten (Service, Pickerl, weitere), dringendste zuerst. */
+function serviceRows(today = todayISO()) {
+  const rank = { abgelaufen: 0, nachfrist: 1, faellig: 2, bald: 3, ok: 4, unbekannt: 5 }
+  return activeVehicles(FZ())
+    .map((v) => ({ v, dues: vehicleDues(FZ(), v, today), open: openTasks(FZ(), v, today), change: FZ().changes.filter((c) => c.vehicleId === v.id && c.status === 'geplant' && (c.tasks || []).length).sort((a, b) => a.date.localeCompare(b.date))[0] || null }))
+    .sort((a, b) => (rank[a.dues[0]?.status] ?? 9) - (rank[b.dues[0]?.status] ?? 9) || a.v.plate.localeCompare(b.v.plate, 'de'))
+}
+const urgentDue = (d) => ['abgelaufen', 'nachfrist', 'faellig'].includes(d.status)
 
 // ---------------------------------------------------------------- Übersicht
 
@@ -69,9 +86,21 @@ function treadCell(v, season) {
   return `<span class="pill ${low < legal ? 'error' : low < advised ? 'warning' : 'ok'}">${mm(low)} mm</span><br><span class="muted">${SEASONS[season]}, mind. ${mm(legal)}</span>`
 }
 
+function sectionHead(total) {
+  const today = todayISO()
+  const tab = app.ui.vehTab || 'reifen'
+  const tireOpen = rows(today).filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length
+  const serviceOpen = serviceRows(today).filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length
+  return `<div class="section-head"><div><h2>${ICON.car} Fahrzeuge &amp; Reifen</h2>
+      <p>Firmenfahrzeuge mit Fahrer/in, Reifen, Service und Pickerl. Termine werden neben den Diensten vorgeschlagen, Fahrer/innen bekommen eine E-Mail mit Kalendertermin, die Werkstatt eine Sammelliste.</p></div>
+      <div class="actions">${editable() ? `<button class="btn" data-action="veh-edit-open">${ICON.plus} Fahrzeug</button><button class="btn" data-action="veh-ws-open">Werkstätten (${FZ().workshops.length})</button><button class="btn" data-action="veh-import-open">${ICON.upload} Liste einfügen</button>` : ''}${total && canDownload() ? `<button class="btn" data-action="veh-csv">${ICON.download} CSV</button>` : ''}</div></div>
+    ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`
+}
+
 function vehiclesView() {
   const today = todayISO()
   const fz = FZ()
+  if ((app.ui.vehTab || 'reifen') === 'service' && activeVehicles(fz).length) return `${sectionHead(activeVehicles(fz).length)}${serviceView()}`
   const list = rows(today)
   const { campaign, counts, total } = campaignSummary(fz, today)
   const filter = app.ui.vehFilter || 'alle'
@@ -88,7 +117,7 @@ function vehiclesView() {
       const driver = empOf(v.driverId)
       const clash = c?.status === 'geplant' && v.driverId && busy ? conflicts(busy(v.driverId, c.date), c.time, c.minutes || 30, travel) : []
       const term = c
-        ? `${formatDate(c.date)} ${esc(c.time || '')}${c.status === 'erledigt' ? ' <span class="pill ok">erledigt</span>' : ''}<br><span class="muted">${esc(wsOf(c.workshopId)?.name || '')}</span>
+        ? `${formatDate(c.date)} ${esc(c.time || '')}${c.status === 'erledigt' ? ' <span class="pill ok">erledigt</span>' : ''}<br><span class="muted">${esc(wsOf(c.workshopId)?.name || '')}${(c.tasks || []).length ? ` · dazu ${esc(c.tasks.map((t) => taskLabel(v, t).replace(/^§57a-Begutachtung \(Pickerl\)$/, 'Pickerl')).join(', '))}` : ''}</span>
           ${c.status === 'geplant' ? `<br>${informed(c) ? '<span class="pill ok">✓ informiert</span>' : '<span class="pill warning">noch nicht informiert</span>'}${informed(c, 'werkstatt') ? ' <span class="pill info">Werkstatt</span>' : ''}` : ''}
           ${clash.length ? `<br><span class="check warning">⚠ ${esc(clash.map((x) => x.text).join('; '))}</span>` : ''}${st.early ? '<br><span class="check warning">⚠ vor dem 16. April</span>' : ''}`
         : '<span class="muted">–</span>'
@@ -113,9 +142,7 @@ function vehiclesView() {
   const empty = !total
     ? `<div class="banner welcome"><p><strong>Noch keine Fahrzeuge.</strong> Fahrzeuge einzeln anlegen oder die Liste aus Excel einfügen (Kennzeichen, Fahrzeug, Fahrer/in, Reifengrößen, Lagerort).</p>${editable() ? `<div class="actions"><button class="btn primary" data-action="veh-edit-open">${ICON.plus} Fahrzeug</button><button class="btn" data-action="veh-import-open">${ICON.upload} Liste einfügen</button></div>` : ''}</div>`
     : ''
-  return `<div class="section-head"><div><h2>${ICON.car} Fahrzeuge &amp; Reifen</h2>
-      <p>Firmenfahrzeuge mit Fahrer/in, Reifensätzen und Einlagerung. Je Saison der Reifenwechsel: Termine neben den Diensten vorschlagen, Fahrer/innen per E-Mail informieren, Liste an die Werkstatt.</p></div>
-      <div class="actions">${editable() ? `<button class="btn" data-action="veh-edit-open">${ICON.plus} Fahrzeug</button><button class="btn" data-action="veh-ws-open">Werkstätten (${fz.workshops.length})</button><button class="btn" data-action="veh-import-open">${ICON.upload} Liste einfügen</button>` : ''}${total && canDownload() ? `<button class="btn" data-action="veh-csv">${ICON.download} CSV</button>` : ''}</div></div>
+  return `${sectionHead(total)}
     ${
       total
         ? `<div class="summary">
@@ -125,7 +152,7 @@ function vehiclesView() {
       <div class="stat ${open ? 'warn' : ''}"><div class="label">Ohne Termin</div><div class="value">${open}</div><div class="muted">${counts.ueberfaellig ? `${counts.ueberfaellig} überfällig` : open ? 'bitte planen' : 'passt'}</div></div>
     </div>
     <p class="note">${esc(rule)}</p>
-    ${editable() ? `<div class="actions veh-campaign">${open ? `<button class="btn primary" data-action="veh-propose-open">${ICON.bolt} Termine vorschlagen (${open})</button>` : ''}${uninformed ? `<button class="btn ${open ? '' : 'primary'}" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(planned(today).filter((r) => !informed(r.st.change)).map((r) => r.st.change.id).join(','))}">${ICON.send} Fahrer/innen informieren (${uninformed})</button>` : ''}${counts.geplant ? `<button class="btn" data-action="veh-mail-open" data-kind="werkstatt">${ICON.send} Liste an Werkstatt</button>` : ''}</div>` : ''}
+    ${editable() ? `<div class="actions veh-campaign">${open ? `<button class="btn primary" data-action="veh-propose-open">${ICON.bolt} Termine vorschlagen (${open})</button>` : ''}${uninformed ? `<button class="btn ${open ? '' : 'primary'}" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(planned(today).filter((r) => !informed(r.st.change)).map((r) => r.st.change.id).join(','))}">${ICON.send} Fahrer/innen informieren (${uninformed})</button>` : ''}${upcoming(today).length ? `<button class="btn" data-action="veh-mail-open" data-kind="werkstatt">${ICON.send} Liste an Werkstatt</button>` : ''}</div>` : ''}
     <div class="toolbar filters-bar"><div class="seg" role="group" aria-label="Filter">${[['alle', `Alle (${list.length})`], ['offen', `Zu tun (${open + counts.vorbei})`], ['geplant', `Geplant (${counts.geplant})`]].map(([k, label]) => `<button class="btn small ${filter === k ? 'primary' : ''}" data-action="veh-filter" data-v="${k}">${label}</button>`).join('')}</div></div>
     <div class="table-wrap"><table class="data veh-table"><thead><tr><th>Fahrzeug</th><th>Fahrer/in</th><th>Montiert</th><th>Termin</th><th>Profil</th><th>Stand</th><th></th></tr></thead><tbody>${body || '<tr><td colspan="7" class="muted">Nichts in dieser Auswahl.</td></tr>'}</tbody></table></div>
     ${issues.length ? `<section><h3>Profil und Reifenalter</h3>${issues.map((i) => `<p class="check ${i.level}">${i.level === 'error' ? '⚠ ' : ''}<strong>${esc(i.v.plate)}</strong> ${esc(i.text)}</p>`).join('')}</section>` : ''}`
@@ -133,15 +160,89 @@ function vehiclesView() {
     }`
 }
 
-registerView({ id: 'fahrzeuge', order: 95, label: 'Fahrzeuge & Reifen', group: 'stamm', module: MODULE, noWeek: true, mobile: { icon: ICON.car, label: 'Reifen' }, badge: () => rows().filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length, render: vehiclesView })
+// ---------------------------------------------------------------- Service & Pickerl
+
+function pickerlCell(v, today) {
+  const p = pickerlStatus(v, today)
+  if (p.status === 'unbekannt') return '<span class="muted">nicht eingetragen</span>'
+  const note = p.status === 'abgelaufen' ? `abgelaufen seit ${formatDate(p.to, { weekday: false })}` : p.status === 'nachfrist' ? `Nachfrist bis ${formatDate(p.to, { weekday: false, year: true })}` : p.status === 'faellig' ? `jetzt, bis ${formatDate(p.end, { weekday: false })}` : `ab ${formatDate(p.from, { weekday: false, year: true })}`
+  return `<strong>${monthText(p.due)}</strong> <span class="pill ${DUE_CLASS[p.status]}">${esc(DUE_LABEL[p.status])}</span><br><span class="muted">${esc(classOf(v))} · ${esc(note)}${p.guessed ? ' · geschätzt, Plakette eintragen' : ''}</span>`
+}
+
+function serviceCell(v, today) {
+  const s = serviceStatus(v, today)
+  if (s.status === 'unbekannt') return '<span class="muted">nicht eingetragen</span>'
+  const parts = [s.date ? formatDate(s.date, { weekday: false, year: true }) : '', s.km ? kmText(s.km) : ''].filter(Boolean).join(' oder ')
+  const hint = [s.left !== null && s.left !== undefined ? (s.left > 0 ? `noch ${kmText(s.left)}` : `${kmText(-s.left)} drüber`) : '', s.kmDate && s.km ? `km erreicht ~${formatDate(s.kmDate, { weekday: false, year: s.kmDate.slice(0, 4) !== today.slice(0, 4) })}` : ''].filter(Boolean).join(' · ')
+  return `${esc(parts)} <span class="pill ${DUE_CLASS[s.status]}">${esc(DUE_LABEL[s.status])}</span>${hint ? `<br><span class="muted">${esc(hint)}</span>` : ''}`
+}
+
+function serviceView() {
+  const today = todayISO()
+  const list = serviceRows(today)
+  const all = list.flatMap((r) => r.dues.map((d) => ({ ...d, v: r.v })))
+  const pick = all.filter((d) => d.task === 'pickerl')
+  const svc = all.filter((d) => d.task === 'service')
+  const other = all.filter((d) => d.task.startsWith('due:'))
+  const werk = upcoming(today).filter((c) => (c.tasks || []).length)
+  const uninformed = werk.filter((c) => !informed(c))
+  const toPlan = list.filter((r) => r.open.length)
+  const travel = settings().travelMinutes
+  const dates = werk.map((c) => c.date).sort()
+  const busy = dates.length ? busyLookup(dates[0], dates.at(-1)) : null
+  const body = list
+    .map(({ v, dues, open, change }) => {
+      const km = currentKm(v)
+      const s = serviceStatus(v, today)
+      const clash = change && v.driverId && busy && change.date >= today ? conflicts(busy(v.driverId, change.date), change.time, change.minutes || 60, travel) : []
+      const others = dues.filter((d) => d.task.startsWith('due:'))
+      const term = change
+        ? `${formatDate(change.date)} ${esc(change.time)}<br><span class="muted">${esc(wsOf(change.workshopId)?.name || '')} · ${esc(changeWhat(change, v))}</span><br>${informed(change) ? '<span class="pill ok">✓ informiert</span>' : '<span class="pill warning">noch nicht informiert</span>'}${clash.length ? `<br><span class="check warning">⚠ ${esc(clash.map((x) => x.text).join('; '))}</span>` : ''}${change.date < today ? '<br><span class="check warning">Termin vorbei, bitte bestätigen</span>' : ''}`
+        : '<span class="muted">–</span>'
+      const acts = editable()
+        ? `${open.length && !change ? `<button class="btn small primary" data-action="veh-plan-open" data-id="${esc(v.id)}" data-kind="werkstatt">${ICON.calendar} Werkstatttermin</button>` : ''}
+          ${change ? `<button class="btn small ${change.date < today ? 'primary' : ''}" data-action="veh-done-open" data-change="${esc(change.id)}">${ICON.check} Erledigt</button> <button class="btn small" data-action="veh-plan-open" data-id="${esc(v.id)}" data-change="${esc(change.id)}">Ändern</button> <button class="btn small" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(change.id)}">${ICON.send} Mail</button>` : ''}
+          <button class="btn small" data-action="veh-km-open" data-id="${esc(v.id)}">km</button> <button class="btn small" data-action="veh-edit-open" data-id="${esc(v.id)}">Bearbeiten</button>`
+        : ''
+      return `<tr><td><strong>${esc(v.plate)}</strong><br><span class="muted">${esc([v.label, classOf(v)].filter(Boolean).join(' · '))}</span></td>
+        <td>${esc(empOf(v.driverId)?.name || '–')}</td>
+        <td class="num">${km ? `${kmText(km.km)}<br><span class="muted">am ${formatDate(km.date, { weekday: false })}${s.perMonth ? ` · ~${s.perMonth.toLocaleString('de-AT')}/Monat` : ''}</span>` : '<span class="muted">–</span>'}</td>
+        <td>${pickerlCell(v, today)}</td>
+        <td>${serviceCell(v, today)}</td>
+        <td>${others.length ? others.map((d) => `${esc(d.label)} <span class="muted">${formatDate(d.date, { weekday: false, year: true })}</span>${d.status === 'ok' ? '' : ` <span class="pill ${DUE_CLASS[d.status]}">${esc(DUE_LABEL[d.status])}</span>`}`).join('<br>') : '<span class="muted">–</span>'}</td>
+        <td>${term}</td>
+        <td class="actions-cell">${acts}</td></tr>`
+    })
+    .join('')
+  const count = (arr, ...st) => arr.filter((d) => st.includes(d.status)).length
+  return `<div class="summary">
+      <div class="stat ${count(pick, 'abgelaufen') ? 'warn' : ''}"><div class="label">Pickerl</div><div class="value">${count(pick, 'faellig', 'nachfrist', 'abgelaufen')}</div><div class="muted">${count(pick, 'abgelaufen') ? `${count(pick, 'abgelaufen')} abgelaufen` : 'jetzt fällig'}${count(pick, 'bald') ? `, ${count(pick, 'bald')} bald` : ''}</div></div>
+      <div class="stat"><div class="label">Service</div><div class="value">${count(svc, 'faellig')}</div><div class="muted">fällig${count(svc, 'bald') ? `, ${count(svc, 'bald')} bald` : ''}</div></div>
+      <div class="stat"><div class="label">Weitere Fälligkeiten</div><div class="value">${count(other, 'faellig', 'bald')}</div><div class="muted">in den nächsten 30 Tagen</div></div>
+      <div class="stat"><div class="label">Werkstatttermine</div><div class="value">${werk.length}</div><div class="muted">${uninformed.length ? `${uninformed.length} noch nicht informiert` : 'alle informiert'}</div></div>
+    </div>
+    <p class="note">Pickerl (§57a): Pkw 3-2-1 Jahre ab Erstzulassung (ab 1 Monat vorher bis 4 Monate danach); ab 19. Mai 2027 4-2-2-2-1, dann ab 4 Monate vorher und ohne Nachfrist. Lkw und Kastenwagen (N1–N3): jährlich, ab 3 Monate vorher bis Monatsende. Maßgeblich ist der Monat auf der Plakette. Service: nach Datum oder km, was zuerst kommt.</p>
+    ${editable() ? `<div class="actions veh-campaign">${toPlan.length ? `<button class="btn primary" data-action="veh-propose-open" data-kind="werkstatt">${ICON.bolt} Werkstatttermine vorschlagen (${toPlan.length})</button>` : ''}${uninformed.length ? `<button class="btn" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(uninformed.map((c) => c.id).join(','))}">${ICON.send} Fahrer/innen informieren (${uninformed.length})</button>` : ''}${upcoming(today).length ? `<button class="btn" data-action="veh-mail-open" data-kind="werkstatt">${ICON.send} Liste an Werkstatt</button>` : ''}</div>` : ''}
+    <div class="table-wrap"><table class="data veh-table"><thead><tr><th>Fahrzeug</th><th>Fahrer/in</th><th>km-Stand</th><th>Pickerl</th><th>Service</th><th>Weitere</th><th>Termin</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`
+}
+
+registerView({ id: 'fahrzeuge', order: 95, label: 'Fahrzeuge & Reifen', group: 'stamm', module: MODULE, noWeek: true, mobile: { icon: ICON.car, label: 'Reifen' }, badge: () => rows().filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length + serviceRows().filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length, render: vehiclesView })
 
 registerActions({
   'veh-filter': (el) => {
     app.ui.vehFilter = el.dataset.v
     renderNow()
   },
+  'veh-tab': (el) => {
+    app.ui.vehTab = el.dataset.v
+    renderNow()
+  },
   'veh-csv': () => {
     const today = todayISO()
+    if (app.ui.vehTab === 'service') {
+      const data = serviceRows(today).map(({ v, change }) => ({ vehicle: v, driver: empOf(v.driverId)?.name || '', today, change }))
+      return download(`Fahrzeuge_Service_Pickerl_${today}.csv`, new Blob([fleetCsv(data)], { type: 'text/csv;charset=utf-8' }))
+    }
     const data = rows(today).map(({ v, st }) => ({ vehicle: v, change: st.change, driver: empOf(v.driverId)?.name || '', workshop: wsOf(st.change?.workshopId || v.workshopId)?.name || '', status: st.status }))
     download(`Reifenwechsel_${campaignFor(today).key}.csv`, new Blob([tireCsv(data)], { type: 'text/csv;charset=utf-8' }))
   },
@@ -185,10 +286,35 @@ function editModal(c, m) {
         ${field('note', 'Hinweis (steht in der E-Mail an die Werkstatt nicht)', d.note, { cls: 'wide' })}
       </div>
       ${d.mounted === 'ganzjahr' ? tireFieldset(d, 'ganzjahr') : `${tireFieldset(d, 'sommer')}${tireFieldset(d, 'winter')}`}
-      <p class="note">Mindestprofil: Sommerreifen 1,6 mm (empfohlen 3 mm), Winterreifen 4 mm, bei Lkw über 3,5 t 5 mm. Ab 6 Jahren (DOT) wird der Tausch empfohlen.</p>`,
+      <p class="note">Mindestprofil: Sommerreifen 1,6 mm (empfohlen 3 mm), Winterreifen 4 mm, bei Lkw über 3,5 t 5 mm. Ab 6 Jahren (DOT) wird der Tausch empfohlen.</p>
+      ${duesFieldset(d)}`,
     foot: `${m.id ? `<button class="btn ${app.ui.confirm === 'veh-del' ? 'danger confirm' : 'danger'}" data-action="veh-del" data-id="${esc(m.id)}">${app.ui.confirm === 'veh-del' ? 'Wirklich löschen?' : 'Löschen'}</button>` : '<button class="btn" data-action="close-modal">Abbrechen</button>'}
       <div class="actions"><button class="btn primary" data-action="veh-save">Speichern</button></div>`,
   })
+}
+
+function duesFieldset(d) {
+  const today = todayISO()
+  const p = pickerlStatus(d, today)
+  const cur = currentKm(d)
+  const s = d.service || {}
+  return `<fieldset class="veh-set"><legend>Zulassung und Pickerl</legend><div class="form-grid">
+      <label class="field"><span>Fahrzeugklasse (Zulassungsschein, Feld J)</span><select data-change="veh-set" data-path="cls" data-rerender="1">${options(Object.entries(VEHICLE_CLASSES), classOf(d))}</select></label>
+      ${field('firstReg', 'Erstzulassung', d.firstReg, { type: 'month' })}
+      ${field('pickerl.next', 'Nächstes Pickerl laut Plakette', d.pickerl?.next, { type: 'month' })}
+      ${field('kmNow', 'km-Stand jetzt', d.kmNow ?? '', { type: 'number', placeholder: cur ? `zuletzt ${kmText(cur.km)}` : '' })}
+    </div>${!d.pickerl?.next && p.due ? `<p class="note">Ohne Plakette geschätzt: ${monthText(p.due)} (Klasse ${esc(classOf(d))}, Erstzulassung ${monthText(d.firstReg)}). Den gestanzten Monat eintragen, dann stimmt es sicher.</p>` : ''}</fieldset>
+    <fieldset class="veh-set"><legend>Service (was zuerst kommt)</legend><div class="form-grid">
+      ${field('service.months', 'alle … Monate', s.months, { type: 'number', placeholder: '12' })}
+      ${field('service.km', 'alle … km', s.km, { type: 'number', placeholder: '30000' })}
+      ${field('service.lastDate', 'Letztes Service am', s.lastDate, { type: 'date' })}
+      ${field('service.lastKm', 'bei km', s.lastKm, { type: 'number' })}
+      ${field('service.nextDate', 'Nächstes am (laut Anzeige/Pickerl im Auto)', s.nextDate, { type: 'date' })}
+      ${field('service.nextKm', 'oder bei km', s.nextKm, { type: 'number' })}
+    </div><p class="note">„Nächstes“ leer lassen, dann rechnet die App aus letztem Service und Intervall.</p></fieldset>
+    <fieldset class="veh-set"><legend>Weitere Fälligkeiten</legend>
+      ${(d.dues || []).map((x, i) => `<div class="mp-row"><input type="text" value="${esc(x.label || '')}" placeholder="z. B. Leasingende, Tachograph, Verbandskasten" aria-label="Bezeichnung" data-change="veh-set" data-path="dues.${i}.label"><input type="date" value="${esc(x.date || '')}" aria-label="fällig am" data-change="veh-set" data-path="dues.${i}.date"><input type="number" value="${esc(x.months ?? '')}" placeholder="wiederholen alle … Monate" aria-label="wiederholen alle Monate" data-change="veh-set" data-path="dues.${i}.months"><input type="text" value="${esc(x.note || '')}" placeholder="Hinweis" aria-label="Hinweis" data-change="veh-set" data-path="dues.${i}.note"><button type="button" class="btn small danger" data-action="veh-due-del" data-i="${i}" aria-label="Entfernen">×</button></div>`).join('')}
+      <button type="button" class="btn small" data-action="veh-due-add">${ICON.plus} Fälligkeit</button></fieldset>`
 }
 
 registerModal('veh-edit', editModal)
@@ -229,6 +355,17 @@ function dayPlan(busy, empId, date) {
   return `<p class="note"><strong>${esc(empName(empId))} am ${formatDate(date)}:</strong> ${list.length ? list.map((b) => (b.allDay ? esc(b.label) : `${String(Math.floor(b.start / 60)).padStart(2, '0')}:${String(b.start % 60).padStart(2, '0')}–${String(Math.floor(b.end / 60) % 24).padStart(2, '0')}:${String(b.end % 60).padStart(2, '0')} ${esc(b.label)}`)).join(' · ') : 'kein Dienst'}</p>`
 }
 
+/** Aufgaben zum Ankreuzen: Reifenwechsel „gleich mit erledigen“ (nur Fälliges), Werkstatttermin (alles). */
+function taskChoices(v, m) {
+  const today = todayISO()
+  const dues = vehicleDues(FZ(), v, today).filter((d) => !d.change || d.change.id === m.changeId)
+  const list = m.kind === 'werkstatt' ? dues : dues.filter((d) => d.status !== 'ok' || m.tasks.includes(d.task))
+  if (!list.length) return m.kind === 'werkstatt' ? '<p class="check warning">Für dieses Fahrzeug ist nichts eingetragen (Pickerl, Service, weitere Fälligkeiten unter „Bearbeiten“).</p>' : ''
+  return `<fieldset class="veh-set"><legend>${m.kind === 'werkstatt' ? 'Was wird gemacht?' : 'Gleich mit erledigen'}</legend>${list
+    .map((d) => `<label class="field inline"><input type="checkbox" name="vp-task" value="${esc(d.task)}" ${m.tasks.includes(d.task) ? 'checked' : ''} data-change="vp-update"><span>${esc(taskLabel(v, d.task))} <span class="pill ${DUE_CLASS[d.status]}">${esc(DUE_LABEL[d.status])}</span>${d.date ? ` <span class="muted">${formatDate(d.date, { weekday: false, year: true })}</span>` : ''}</span></label>`)
+    .join('')}</fieldset>`
+}
+
 function planModal(c, m) {
   const v = vehOf(m.vehicleId)
   if (!v) return ''
@@ -237,9 +374,10 @@ function planModal(c, m) {
   const busy = busyLookup(date, date)
   const clash = v.driverId ? conflicts(busy(v.driverId, date), m.time, Number(m.minutes) || 30, settings().travelMinutes) : []
   const ch = m.changeId ? changeById(m.changeId) : null
+  const tire = m.kind !== 'werkstatt'
   return modalFrame({
-    title: `Reifenwechsel ${esc(v.plate)}`,
-    subtitle: `${esc(v.label || '')} · auf ${esc(SEASONS[campaign.season])} · Fahrer/in: ${esc(empOf(v.driverId)?.name || '–')}`,
+    title: `${tire ? 'Reifenwechsel' : 'Werkstatttermin'} ${esc(v.plate)}`,
+    subtitle: `${esc(v.label || '')}${tire ? ` · auf ${esc(SEASONS[campaign.season])}` : ''} · Fahrer/in: ${esc(empOf(v.driverId)?.name || '–')}`,
     body: `<div class="form-grid">
         <label class="field"><span>Datum</span><input type="date" id="vp-date" value="${esc(date)}" data-change="vp-update"></label>
         <label class="field"><span>Uhrzeit</span><input type="time" id="vp-time" value="${esc(m.time)}" step="300" data-change="vp-update"></label>
@@ -247,9 +385,10 @@ function planModal(c, m) {
         <label class="field"><span>Werkstatt</span><select id="vp-ws" data-change="vp-update">${options(FZ().workshops.map((w) => [w.id, w.name]), m.workshopId, { empty: '–' })}</select></label>
         <label class="field wide"><span>Hinweis für die Fahrerin / den Fahrer</span><input type="text" id="vp-note" value="${esc(m.note || '')}" placeholder="z. B. Laderaum vorher ausräumen" data-change="vp-update"></label>
       </div>
+      ${taskChoices(v, m)}
       ${dayPlan(busy, v.driverId, date)}
       ${clash.length ? clash.map((x) => `<p class="check warning">⚠ Überschneidung (mit ${settings().travelMinutes} Min. Fahrzeit): ${esc(x.text)}</p>`).join('') : v.driverId ? '<p class="check ok">Passt zu den Diensten.</p>' : ''}
-      ${campaign.season === 'sommer' && date < campaign.earliest ? '<p class="check warning">⚠ Vor dem 16. April: bei winterlichen Verhältnissen gilt noch die Winterreifenpflicht.</p>' : ''}
+      ${tire && campaign.season === 'sommer' && date < campaign.earliest ? '<p class="check warning">⚠ Vor dem 16. April: bei winterlichen Verhältnissen gilt noch die Winterreifenpflicht.</p>' : ''}
       <p class="actions"><button type="button" class="btn small" data-action="vp-next">${ICON.bolt} Nächsten freien Termin suchen</button></p>`,
     foot: `${ch ? `<button class="btn ${app.ui.confirm === 'vp-cancel' ? 'danger confirm' : 'danger'}" data-action="vp-cancel">${app.ui.confirm === 'vp-cancel' ? 'Termin wirklich absagen?' : 'Termin absagen'}</button>` : '<button class="btn" data-action="close-modal">Abbrechen</button>'}
       <div class="actions"><button class="btn" data-action="vp-save" data-mail="0">Speichern</button><button class="btn primary" data-action="vp-save" data-mail="1">${ICON.send} Speichern &amp; informieren</button></div>`,
@@ -262,7 +401,8 @@ registerModal('veh-plan', planModal)
 
 function propose(m) {
   const today = todayISO()
-  const open = rows(today).filter((r) => ['offen', 'ueberfaellig'].includes(r.st.status) && (!m.workshopId || m.all || r.v.workshopId === m.workshopId || !r.v.workshopId))
+  const candidates = m.kind === 'werkstatt' ? serviceRows(today).filter((r) => r.open.length && !r.change) : rows(today).filter((r) => ['offen', 'ueberfaellig'].includes(r.st.status))
+  const open = candidates.filter((r) => !m.workshopId || m.all || r.v.workshopId === m.workshopId || !r.v.workshopId)
   const taken = FZ().changes.filter((x) => x.status === 'geplant' && x.workshopId === m.workshopId)
   const busy = busyLookup(m.from, m.to)
   return { open, ...proposeSlots(open.map((r) => r.v), { from: m.from, to: m.to, dayStart: m.dayStart, dayEnd: m.dayEnd, slotMinutes: Number(m.slot) || 30, travelMinutes: Number(m.travel) || 0, busyOf: busy, taken }) }
@@ -271,8 +411,8 @@ function propose(m) {
 function proposeModal(c, m) {
   const res = m.result
   return modalFrame({
-    title: 'Termine vorschlagen',
-    subtitle: 'Je Fahrzeug der erste freie Platz, an dem die Fahrerin oder der Fahrer keinen Dienst hat',
+    title: m.kind === 'werkstatt' ? 'Werkstatttermine vorschlagen' : 'Termine vorschlagen',
+    subtitle: m.kind === 'werkstatt' ? 'Für fälliges Service, Pickerl und weitere Fälligkeiten: je Fahrzeug der erste freie Platz ohne Dienst' : 'Je Fahrzeug der erste freie Platz, an dem die Fahrerin oder der Fahrer keinen Dienst hat',
     wide: true,
     body: `<div class="form-grid">
         <label class="field"><span>Werkstatt</span><select id="vq-ws">${options(FZ().workshops.map((w) => [w.id, w.name]), m.workshopId, { empty: '–' })}</select></label>
@@ -305,30 +445,65 @@ registerModal('veh-propose', proposeModal)
 
 // ---------------------------------------------------------------- Erledigt
 
+/** Abschnitte je Aufgabe im Erledigt-Dialog: Service (nächstes), Pickerl (Ergebnis, Plakette), weitere. */
+function taskDone(v, ch) {
+  return (ch.tasks || [])
+    .map((task) => {
+      if (task === 'service') {
+        const s = v.service || {}
+        return `<fieldset class="veh-set"><legend>Service</legend><div class="form-grid">
+          <label class="field"><span>Nächstes Service am</span><input type="date" id="vd-s-date" value="${esc(Number(s.months) ? addMonths(ch.date, Number(s.months)) : '')}"></label>
+          <label class="field"><span>oder bei km</span><input type="number" id="vd-s-km" inputmode="numeric" min="0" placeholder="${Number(s.km) ? `km-Stand + ${Number(s.km).toLocaleString('de-AT')}` : 'laut Serviceheft'}"></label></div></fieldset>`
+      }
+      if (task === 'pickerl') {
+        return `<fieldset class="veh-set"><legend>Pickerl (§57a)</legend><div class="form-grid">
+          <label class="field"><span>Ergebnis</span><select id="vd-p-result">${options(Object.entries(PICKERL_RESULTS), 'ok')}</select></label>
+          <label class="field"><span>Nächste Begutachtung laut neuer Plakette</span><input type="month" id="vd-p-next" value="${esc(suggestPickerl(v, ch.date) || '')}"></label></div>
+          <p class="note">Vorschlag aus Klasse ${esc(classOf(v))} und Erstzulassung; bitte den gestanzten Monat der neuen Plakette übernehmen. Bei schweren Mängeln gibt es keine Plakette: reparieren und neu vorführen.</p></fieldset>`
+      }
+      const d = (v.dues || []).find((x) => `due:${x.id}` === task)
+      return d ? `<label class="field inline"><input type="checkbox" id="vd-${esc(task.replace(':', '-'))}" checked><span>${esc(d.label)} erledigt${Number(d.months) ? ` (danach wieder in ${d.months} Monaten)` : ''}</span></label>` : ''
+    })
+    .join('')
+}
+
 function doneModal(c, m) {
   const ch = changeById(m.changeId)
   const v = ch && vehOf(ch.vehicleId)
   if (!v) return ''
+  const tire = (ch.kind || 'reifen') === 'reifen'
   const other = ch.season === 'winter' ? 'sommer' : 'winter'
   const treadRow = (prefix, label) => `<div class="veh-tread"><span class="muted">${label}</span>${WHEELS.map(([k, l]) => `<label class="field inline"><span>${l}</span><input type="number" id="${prefix}-${k}" step="0.1" min="0" max="15" inputmode="decimal" aria-label="${label} ${l}"></label>`).join('')}</div>`
   return modalFrame({
-    title: `Reifenwechsel erledigt: ${esc(v.plate)}`,
-    subtitle: `jetzt ${esc(SEASONS[ch.season])} montiert`,
+    title: `${tire ? 'Reifenwechsel' : 'Werkstatttermin'} erledigt: ${esc(v.plate)}`,
+    subtitle: tire ? `jetzt ${esc(SEASONS[ch.season])} montiert${(ch.tasks || []).length ? ` · dazu ${esc(ch.tasks.map((t) => taskLabel(v, t)).join(', '))}` : ''}` : esc(changeWhat(ch, v)),
     body: `<div class="form-grid">
         <label class="field"><span>Datum</span><input type="date" id="vd-date" value="${esc(ch.date || todayISO())}"></label>
-        <label class="field"><span>km-Stand</span><input type="number" id="vd-km" inputmode="numeric" min="0"></label>
+        <label class="field"><span>km-Stand</span><input type="number" id="vd-km" inputmode="numeric" min="0" placeholder="${currentKm(v) ? `zuletzt ${kmText(currentKm(v).km)}` : ''}"></label>
         <label class="field"><span>Kosten (€, optional)</span><input type="number" id="vd-cost" inputmode="decimal" min="0" step="0.01"></label>
-        <label class="field wide"><span>${esc(SEASONS[other])} eingelagert bei / wo</span><input type="text" id="vd-storage" value="${esc(v.tires?.[other]?.storage || v.tires?.[ch.season]?.storage || (wsOf(ch.workshopId)?.name ?? ''))}"></label>
+        ${tire ? `<label class="field wide"><span>${esc(SEASONS[other])} eingelagert bei / wo</span><input type="text" id="vd-storage" value="${esc(v.tires?.[other]?.storage || v.tires?.[ch.season]?.storage || (wsOf(ch.workshopId)?.name ?? ''))}"></label>` : ''}
       </div>
-      ${treadRow('vd-t', `Profil ${SEASONS[ch.season]} (montiert), mm`)}
-      ${treadRow('vd-r', `Profil ${SEASONS[other]} (eingelagert), mm`)}
-      <label class="field"><span>Bemerkung</span><input type="text" id="vd-note" placeholder="z. B. Ventil getauscht"></label>
-      <p class="note">Das Profil steht auf der Rechnung oder dem Prüfblatt der Werkstatt. Liegt es unter dem Mindestprofil, kommt es in „Zu erledigen“.</p>`,
+      ${tire ? `${treadRow('vd-t', `Profil ${SEASONS[ch.season]} (montiert), mm`)}${treadRow('vd-r', `Profil ${SEASONS[other]} (eingelagert), mm`)}` : ''}
+      ${taskDone(v, ch)}
+      <label class="field"><span>Bemerkung</span><input type="text" id="vd-note" placeholder="${tire ? 'z. B. Ventil getauscht' : 'z. B. Bremsbeläge vorne neu'}"></label>
+      ${tire ? '<p class="note">Das Profil steht auf der Rechnung oder dem Prüfblatt der Werkstatt. Liegt es unter dem Mindestprofil, kommt es in „Zu erledigen“.</p>' : ''}`,
     foot: '<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="vd-save">Speichern</button></div>',
   })
 }
 
 registerModal('veh-done', doneModal)
+
+registerModal('veh-km', (c, m) => {
+  const v = vehOf(m.id)
+  const cur = currentKm(v)
+  return modalFrame({
+    title: `km-Stand ${esc(v.plate)}`,
+    subtitle: cur ? `zuletzt ${kmText(cur.km)} am ${formatDate(cur.date, { weekday: false, year: true })}` : 'noch kein km-Stand',
+    body: `<div class="form-grid"><label class="field"><span>Datum</span><input type="date" id="vk-date" value="${esc(todayISO())}"></label><label class="field"><span>km-Stand</span><input type="number" id="vk-km" inputmode="numeric" min="0" autofocus></label></div>
+      <p class="note">Aus den km-Ständen rechnet die App hoch, wann das Service nach km fällig wird. Am einfachsten bei jedem Tanken oder Werkstattbesuch eintragen.</p>`,
+    foot: '<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="vk-save">Speichern</button></div>',
+  })
+})
 
 // ---------------------------------------------------------------- E-Mails
 
@@ -345,14 +520,17 @@ function driverRows(ids) {
 }
 
 const mailFor = (r) => driverMail({ change: r.change, vehicle: r.vehicle, workshop: r.workshop, driverName: r.driver?.name || '', sender: userName(), brand: app.config.brand.name || '' })
-const icsFor = (r) => icsEvent({ uid: `${r.change.id}@reifenwechsel`, date: r.change.date, time: r.change.time, minutes: r.change.minutes || 30, title: `Reifenwechsel ${r.vehicle.plate}`, location: [r.workshop?.name, r.workshop?.address].filter(Boolean).join(', '), description: mailFor(r).text, remindHours: 12 })
+const icsFor = (r) => icsEvent({ uid: `${r.change.id}@reifenwechsel`, date: r.change.date, time: r.change.time, minutes: r.change.minutes || 30, title: `${(r.change.kind || 'reifen') === 'reifen' && !(r.change.tasks || []).length ? 'Reifenwechsel' : 'Werkstatttermin'} ${r.vehicle.plate}`, location: [r.workshop?.name, r.workshop?.address].filter(Boolean).join(', '), description: mailFor(r).text, remindHours: 12 })
 const mailtoHref = (to, subject, body) => `mailto:${encodeURIComponent(to || '').replace(/%40/g, '@').replace(/%2C/g, ',')}?${new URLSearchParams({ subject, body }).toString().replace(/\+/g, '%20')}`
+
+/** Geplante Termine bei einer Werkstatt (Reifen und Werkstatt) ab heute. */
+const workshopRows = (workshopId) => upcoming().filter((c) => c.workshopId === workshopId).map((change) => ({ change, vehicle: vehOf(change.vehicleId) }))
 
 function mailModal(c, m) {
   if (m.kind === 'werkstatt') {
     const ws = wsOf(m.workshopId)
-    const list = planned(todayISO()).filter((r) => r.st.change.workshopId === m.workshopId)
-    const draft = workshopMail({ rows: list.map((r) => ({ change: r.st.change, vehicle: r.v })), workshop: ws, campaign: campaignFor(todayISO()), sender: userName(), brand: app.config.brand.name || '' })
+    const list = workshopRows(m.workshopId)
+    const draft = workshopMail({ rows: list, workshop: ws, campaign: campaignFor(todayISO()), sender: userName(), brand: app.config.brand.name || '' })
     return modalFrame({
       title: 'Liste an die Werkstatt',
       wide: true,
@@ -408,6 +586,7 @@ registerActions(
       const d = app.ui.modal.draft
       const value = el.type === 'number' ? (el.value === '' ? '' : Number(String(el.value).replace(',', '.'))) : el.value.trim()
       setPath(d, el.dataset.path, el.dataset.path === 'plate' ? value.toUpperCase() : value)
+      if (el.dataset.rerender && el.dataset.path !== 'mounted') return renderModal()
       if (el.dataset.path === 'mounted') {
         if (value === 'ganzjahr') d.tires = { ganzjahr: d.tires?.ganzjahr || { ...(d.tires?.sommer || blankSet()) } }
         else if (!d.tires?.sommer) d.tires = { sommer: { ...(d.tires?.ganzjahr || blankSet()) }, winter: blankSet() }
@@ -419,8 +598,11 @@ registerActions(
       const d = m.draft
       if (!d.plate) return toast('Bitte das Kennzeichen eintragen.')
       if (FZ().vehicles.some((v) => v.plate === d.plate && v.id !== m.id)) return toast(`${d.plate} gibt es schon.`)
-      if (m.id) Object.assign(vehOf(m.id), d)
-      else FZ().vehicles.push({ ...d, id: uid('v') })
+      let next = d.kmNow ? addKm(d, todayISO(), d.kmNow) : d
+      next = { ...next, dues: (next.dues || []).filter((x) => x.label) }
+      delete next.kmNow
+      if (m.id) Object.assign(vehOf(m.id), next)
+      else FZ().vehicles.push({ ...next, id: uid('v') })
       persist()
       closeModal()
       renderNow()
@@ -435,6 +617,29 @@ registerActions(
       closeModal()
       renderNow()
       toast('Fahrzeug gelöscht.')
+    },
+    'veh-due-add': () => {
+      const d = app.ui.modal.draft
+      d.dues = [...(d.dues || []), { id: uid('d'), label: '', date: '', months: '', note: '' }]
+      renderModal()
+    },
+    'veh-due-del': (el) => {
+      app.ui.modal.draft.dues.splice(Number(el.dataset.i), 1)
+      renderModal()
+    },
+    'veh-km-open': (el) => openModal({ type: 'veh-km', id: el.dataset.id }),
+    'vk-save': () => {
+      const v = vehOf(app.ui.modal.id)
+      const km = Number(val('vk-km'))
+      const cur = currentKm(v)
+      if (!km) return toast('Bitte den km-Stand eintragen.')
+      if (cur && km < cur.km && val('vk-date') >= cur.date) return toast(`Kleiner als zuletzt (${kmText(cur.km)}). Bitte prüfen.`)
+      Object.assign(v, addKm(v, val('vk-date') || todayISO(), km))
+      persist()
+      closeModal()
+      renderNow()
+      const s = serviceStatus(v, todayISO())
+      toast(`${v.plate}: ${kmText(km)} eingetragen.${s.status === 'faellig' ? ' Service ist fällig.' : s.status === 'bald' && s.left !== null ? ` Service in ${kmText(Math.max(0, s.left))}.` : ''}`)
     },
     'veh-ws-open': () => openModal({ type: 'veh-ws', draft: structuredClone(FZ().workshops) }),
     'veh-ws-set': (el) => {
@@ -478,15 +683,17 @@ registerActions(
       const v = vehOf(el.dataset.id)
       const ch = el.dataset.change ? changeById(el.dataset.change) : null
       const today = todayISO()
+      const kind = ch ? ch.kind || 'reifen' : el.dataset.kind || 'reifen'
       const campaign = campaignFor(today)
-      const date = ch?.date || [addDays(today, 1), campaign.earliest].sort()[1]
+      const date = ch?.date || (kind === 'werkstatt' ? addDays(today, 1) : [addDays(today, 1), campaign.earliest].sort()[1])
+      const tasks = ch ? [...(ch.tasks || [])] : openTasks(FZ(), v, today).map((d) => d.task)
       await ensureRange(date, addDays(date, 14)).catch(() => {})
-      openModal({ type: 'veh-plan', vehicleId: v.id, changeId: ch?.id || null, date, time: ch?.time || '07:30', minutes: ch?.minutes || settings().slotMinutes, workshopId: ch?.workshopId || v.workshopId || '', note: ch?.note || '' })
+      openModal({ type: 'veh-plan', kind, tasks, vehicleId: v.id, changeId: ch?.id || null, date, time: ch?.time || '07:30', minutes: ch?.minutes || (kind === 'werkstatt' || tasks.length ? 60 : settings().slotMinutes), workshopId: ch?.workshopId || v.workshopId || '', note: ch?.note || '' })
     },
     'vp-update': async () => {
       const m = app.ui.modal
       const dateChanged = val('vp-date') && val('vp-date') !== m.date
-      Object.assign(m, { date: val('vp-date') || m.date, time: val('vp-time') || m.time, minutes: Number(val('vp-min')) || 30, workshopId: val('vp-ws'), note: val('vp-note').trim() })
+      Object.assign(m, { date: val('vp-date') || m.date, time: val('vp-time') || m.time, minutes: Number(val('vp-min')) || 30, workshopId: val('vp-ws'), note: val('vp-note').trim(), tasks: [...document.querySelectorAll('input[name="vp-task"]:checked')].map((x) => x.value) })
       if (dateChanged) await ensureRange(m.date, m.date).catch(() => {})
       renderModalKeepingInput()
     },
@@ -502,13 +709,14 @@ registerActions(
     },
     'vp-save': (el) => {
       const m = app.ui.modal
-      Object.assign(m, { date: val('vp-date') || m.date, time: val('vp-time') || m.time, minutes: Number(val('vp-min')) || 30, workshopId: val('vp-ws'), note: val('vp-note').trim() })
+      Object.assign(m, { date: val('vp-date') || m.date, time: val('vp-time') || m.time, minutes: Number(val('vp-min')) || 30, workshopId: val('vp-ws'), note: val('vp-note').trim(), tasks: [...document.querySelectorAll('input[name="vp-task"]:checked')].map((x) => x.value) })
+      if (m.kind === 'werkstatt' && !m.tasks.length) return toast('Bitte ankreuzen, was gemacht wird.')
       const campaign = campaignFor(todayISO())
       let ch = m.changeId ? changeById(m.changeId) : null
       const moved = ch && (ch.date !== m.date || ch.time !== m.time)
-      if (ch) Object.assign(ch, { date: m.date, time: m.time, minutes: m.minutes, workshopId: m.workshopId, note: m.note, ...(moved ? { mails: [] } : {}) })
+      if (ch) Object.assign(ch, { date: m.date, time: m.time, minutes: m.minutes, workshopId: m.workshopId, note: m.note, tasks: m.tasks, ...(moved ? { mails: [] } : {}) })
       else {
-        ch = { id: uid('c'), vehicleId: m.vehicleId, season: campaign.season, year: campaign.year, date: m.date, time: m.time, minutes: m.minutes, workshopId: m.workshopId, note: m.note, status: 'geplant', mails: [] }
+        ch = { id: uid('c'), vehicleId: m.vehicleId, kind: m.kind, ...(m.kind === 'werkstatt' ? {} : { season: campaign.season, year: campaign.year }), tasks: m.tasks, date: m.date, time: m.time, minutes: m.minutes, workshopId: m.workshopId, note: m.note, status: 'geplant', mails: [] }
         FZ().changes.push(ch)
       }
       persist()
@@ -526,12 +734,13 @@ registerActions(
       renderNow()
       toast('Termin abgesagt. Fahrer/in und Werkstatt bitte selbst verständigen.')
     },
-    'veh-propose-open': async () => {
+    'veh-propose-open': async (el) => {
       const today = todayISO()
+      const kind = el?.dataset?.kind || 'reifen'
       const campaign = campaignFor(today)
-      const from = [addDays(today, 1), campaign.earliest].sort()[1]
+      const from = kind === 'werkstatt' ? addDays(today, 1) : [addDays(today, 1), campaign.earliest].sort()[1]
       const s = settings()
-      const m = { type: 'veh-propose', workshopId: FZ().workshops[0]?.id || '', from, to: addDays(from, 11), dayStart: '07:00', dayEnd: '17:00', slot: s.slotMinutes, travel: s.travelMinutes, all: false, result: null }
+      const m = { type: 'veh-propose', kind, workshopId: FZ().workshops[0]?.id || '', from, to: addDays(from, 11), dayStart: '07:00', dayEnd: '17:00', slot: kind === 'werkstatt' ? 60 : s.slotMinutes, travel: s.travelMinutes, all: kind === 'werkstatt', result: null }
       await ensureRange(m.from, m.to).catch(() => {})
       m.result = propose(m)
       openModal(m)
@@ -548,9 +757,12 @@ registerActions(
       const m = app.ui.modal
       const picked = new Set([...document.querySelectorAll('input[name="vq-pick"]:checked')].map((x) => Number(x.value)))
       const campaign = campaignFor(todayISO())
-      const created = m.result.proposals.filter((_, i) => picked.has(i)).map((p) => ({ id: uid('c'), vehicleId: p.vehicleId, season: campaign.season, year: campaign.year, date: p.date, time: p.time, minutes: p.minutes, workshopId: m.workshopId, note: '', status: 'geplant', mails: [] }))
+      const today = todayISO()
+      const created = m.result.proposals
+        .filter((_, i) => picked.has(i))
+        .map((p) => ({ id: uid('c'), vehicleId: p.vehicleId, ...(m.kind === 'werkstatt' ? { kind: 'werkstatt', tasks: openTasks(FZ(), vehOf(p.vehicleId), today).map((d) => d.task) } : { kind: 'reifen', season: campaign.season, year: campaign.year, tasks: [] }), date: p.date, time: p.time, minutes: p.minutes, workshopId: m.workshopId, note: '', status: 'geplant', mails: [] }))
       FZ().changes.push(...created)
-      FZ().settings = { ...FZ().settings, slotMinutes: Number(m.slot) || 30, travelMinutes: Number(m.travel) || 0 }
+      if (m.kind !== 'werkstatt') FZ().settings = { ...FZ().settings, slotMinutes: Number(m.slot) || 30, travelMinutes: Number(m.travel) || 0 }
       persist()
       renderNow()
       if (!created.length) return closeModal()
@@ -563,17 +775,30 @@ registerActions(
       const ch = changeById(m.changeId)
       const v = vehOf(ch.vehicleId)
       const read = (prefix) => Object.fromEntries(WHEELS.map(([k]) => [k, val(`${prefix}-${k}`) === '' ? '' : Number(val(`${prefix}-${k}`).replace(',', '.'))]).filter(([, x]) => x !== ''))
-      Object.assign(ch, { status: 'erledigt', date: val('vd-date') || ch.date, doneAt: val('vd-date') || todayISO(), km: val('vd-km') ? Number(val('vd-km')) : '', cost: val('vd-cost') ? Number(val('vd-cost').replace(',', '.')) : '', storage: val('vd-storage').trim(), tread: read('vd-t'), removedTread: read('vd-r'), note: [ch.note, val('vd-note').trim()].filter(Boolean).join(' · ') })
-      Object.assign(v, applyDone(v, ch))
+      const tire = (ch.kind || 'reifen') === 'reifen'
+      const km = val('vd-km') ? Number(val('vd-km')) : ''
+      Object.assign(ch, { status: 'erledigt', date: val('vd-date') || ch.date, doneAt: val('vd-date') || todayISO(), km, cost: val('vd-cost') ? Number(val('vd-cost').replace(',', '.')) : '', note: [ch.note, val('vd-note').trim()].filter(Boolean).join(' · '), ...(tire ? { storage: val('vd-storage').trim(), tread: read('vd-t'), removedTread: read('vd-r') } : {}) })
+      let next = tire ? applyDone(v, ch) : v
+      const tasks = ch.tasks || []
+      const interval = Number(v.service?.km)
+      const results = {
+        service: tasks.includes('service') ? { nextDate: val('vd-s-date'), nextKm: val('vd-s-km') ? Number(val('vd-s-km')) : km && interval ? km + interval : '' } : null,
+        pickerl: tasks.includes('pickerl') ? { result: val('vd-p-result') || 'ok', next: val('vd-p-next') } : null,
+        done: tasks.filter((t) => t.startsWith('due:') && document.getElementById(`vd-${t.replace(':', '-')}`)?.checked),
+      }
+      ch.results = { ...(results.pickerl ? { pickerl: results.pickerl.result } : {}) }
+      next = applyTasksDone(next, ch, results)
+      Object.assign(v, next)
       persist()
       closeModal()
       renderNow()
-      const issues = tireIssues(v, ch.season, todayISO()).filter((i) => i.level === 'error')
-      toast(`${v.plate}: ${SEASONS[ch.season]} montiert.${issues.length ? ` ${issues[0].text}` : ''}`)
+      const issues = tire ? tireIssues(v, ch.season, todayISO()).filter((i) => i.level === 'error') : []
+      const pk = results.pickerl ? (results.pickerl.result === 'schwer' ? ' Pickerl: schwere Mängel, bitte reparieren und neu vorführen.' : ` Nächstes Pickerl ${monthText(v.pickerl?.next)}.`) : ''
+      toast(`${v.plate}: ${tire ? `${SEASONS[ch.season]} montiert` : 'Werkstatttermin erledigt'}.${pk}${issues.length ? ` ${issues[0].text}` : ''}`)
     },
     'veh-mail-open': (el) => {
       if (el.dataset.kind === 'werkstatt') {
-        const ws = planned(todayISO()).map((r) => r.st.change.workshopId).find(Boolean) || FZ().workshops[0]?.id
+        const ws = upcoming().map((c) => c.workshopId).find(Boolean) || FZ().workshops[0]?.id
         return openModal({ type: 'veh-mail', kind: 'werkstatt', workshopId: ws })
       }
       openModal({ type: 'veh-mail', kind: 'fahrer', ids: el.dataset.ids.split(',').filter(Boolean) })
@@ -633,13 +858,13 @@ registerActions(
       const m = app.ui.modal
       const to = val('vm-to').trim()
       if (!to) return toast('Bitte die E-Mail-Adresse der Werkstatt eintragen.')
-      const list = planned(todayISO()).filter((r) => r.st.change.workshopId === m.workshopId)
+      const list = workshopRows(m.workshopId)
       const subject = val('vm-subject').trim()
       const text = val('vm-text')
       const ws = wsOf(m.workshopId)
       if (ws && !ws.email) ws.email = to
       if (!canMail()) {
-        for (const r of list) noteMail(r.st.change, to, 'werkstatt', 'mailto')
+        for (const r of list) noteMail(r.change, to, 'werkstatt', 'mailto')
         persist()
         location.href = mailtoHref(to, subject, text)
         closeModal()
@@ -648,9 +873,9 @@ registerActions(
       }
       el.disabled = true
       try {
-        const csv = tireCsv(list.map((r) => ({ vehicle: r.v, change: r.st.change, driver: empOf(r.v.driverId)?.name || '', workshop: ws?.name || '', status: r.st.status })))
-        await sendMail(app.auth.getToken, { to, subject, text, attachments: [{ name: fileSafe(`Reifenwechsel_${campaignFor(todayISO()).key}.csv`), blob: new Blob([csv], { type: 'text/csv' }), type: 'text/csv' }] }, { from: app.config.mail?.from || '' })
-        for (const r of list) noteMail(r.st.change, to, 'werkstatt', 'graph')
+        const csv = tireCsv(list.map((r) => ({ vehicle: r.vehicle, change: r.change, driver: empOf(r.vehicle.driverId)?.name || '', workshop: ws?.name || '', status: 'geplant' })))
+        await sendMail(app.auth.getToken, { to, subject, text, attachments: [{ name: fileSafe(`Termine_${ws?.name || 'Werkstatt'}_${todayISO()}.csv`), blob: new Blob([csv], { type: 'text/csv' }), type: 'text/csv' }] }, { from: app.config.mail?.from || '' })
+        for (const r of list) noteMail(r.change, to, 'werkstatt', 'graph')
         persist()
         closeModal()
         renderNow()
@@ -688,18 +913,26 @@ registerTodo({
     const open = list.filter((r) => ['offen', 'ueberfaellig'].includes(r.st.status))
     // ab 3 Wochen vor der Frist erinnern
     if (open.length && today >= addDays(campaign.by, -21)) items.push({ id: `open:${campaign.key}:${open.length}`, kind: 'open', list: open, late: today > campaign.by })
-    for (const r of list.filter((x) => x.st.status === 'vorbei')) items.push({ id: `past:${r.st.change.id}`, kind: 'past', r })
-    const soon = list.filter((r) => r.st.status === 'geplant' && !informed(r.st.change) && r.st.change.date <= addDays(today, 3))
-    if (soon.length) items.push({ id: `inform:${soon.map((r) => r.st.change.id).join(',')}`, kind: 'inform', list: soon })
+    // vorbeigegangene Termine (Reifen und Werkstatt) bestätigen
+    const ids = activeIds()
+    for (const c of FZ().changes.filter((x) => x.status === 'geplant' && x.date < today && ids.has(x.vehicleId))) items.push({ id: `past:${c.id}`, kind: 'past', v: vehOf(c.vehicleId), change: c })
+    const soon = upcoming(today).filter((c) => !informed(c) && c.date <= addDays(today, 3))
+    if (soon.length) items.push({ id: `inform:${soon.map((c) => c.id).join(',')}`, kind: 'inform', list: soon })
     for (const r of list) for (const i of tireIssues(r.v, r.v.mounted === 'ganzjahr' ? 'ganzjahr' : campaign.season, today).filter((x) => x.level === 'error')) items.push({ id: `tread:${r.v.id}:${campaign.key}`, kind: 'tread', r, text: i.text })
+    // Pickerl, Service, weitere Fälligkeiten ohne Termin
+    for (const r of serviceRows(today).filter((x) => x.open.length)) items.push({ id: `dues:${r.v.id}:${r.open.map((d) => `${d.task}=${d.status}`).join(',')}`, kind: 'dues', r })
     return items
   },
   render: (items) =>
     items
       .map((it) => {
         if (it.kind === 'open') return `<div class="todo-item"><span class="flag ${it.late ? 'error' : 'warning'}">${it.list.length}</span><div class="todo-text"><strong>Reifenwechsel ohne Termin</strong><br><span class="muted">${esc(it.list.map((r) => r.v.plate).join(', '))}${it.late ? ' · Frist vorbei' : ''}</span></div><button class="btn small primary" data-action="veh-propose-open">Vorschlagen</button></div>`
-        if (it.kind === 'past') return `<div class="todo-item"><span class="flag warning">!</span><div class="todo-text"><strong>${esc(it.r.v.plate)}</strong>: Reifenwechsel am ${formatDate(it.r.st.change.date)} bestätigen<br><span class="muted">Profil und Einlagerung eintragen</span></div><button class="btn small primary" data-action="veh-done-open" data-change="${esc(it.r.st.change.id)}">Erledigt</button></div>`
-        if (it.kind === 'inform') return `<div class="todo-item"><span class="flag warning">${it.list.length}</span><div class="todo-text"><strong>Fahrer/innen noch nicht informiert</strong><br><span class="muted">${esc(it.list.map((r) => `${r.v.plate} ${formatDate(r.st.change.date)}`).join(', '))}</span></div><button class="btn small primary" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(it.list.map((r) => r.st.change.id).join(','))}">Informieren</button></div>`
+        if (it.kind === 'past') return `<div class="todo-item"><span class="flag warning">!</span><div class="todo-text"><strong>${esc(it.v.plate)}</strong>: ${esc(changeWhat(it.change, it.v))} am ${formatDate(it.change.date)} bestätigen<br><span class="muted">${(it.change.kind || 'reifen') === 'reifen' ? 'Profil und Einlagerung eintragen' : 'km-Stand, nächstes Service, neue Plakette eintragen'}</span></div><button class="btn small primary" data-action="veh-done-open" data-change="${esc(it.change.id)}">Erledigt</button></div>`
+        if (it.kind === 'inform') return `<div class="todo-item"><span class="flag warning">${it.list.length}</span><div class="todo-text"><strong>Fahrer/innen noch nicht informiert</strong><br><span class="muted">${esc(it.list.map((c) => `${vehOf(c.vehicleId)?.plate} ${formatDate(c.date)}`).join(', '))}</span></div><button class="btn small primary" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(it.list.map((c) => c.id).join(','))}">Informieren</button></div>`
+        if (it.kind === 'dues') {
+          const worst = it.r.open[0].status
+          return `<div class="todo-item"><span class="flag ${worst === 'abgelaufen' ? 'error' : 'warning'}">${it.r.open.length}</span><div class="todo-text"><strong>${esc(it.r.v.plate)}</strong>: ${esc(it.r.open.map((d) => `${d.label} ${DUE_LABEL[d.status]}`).join(', '))}<br><span class="muted">${esc(empOf(it.r.v.driverId)?.name || 'ohne feste/n Fahrer/in')}</span></div><button class="btn small primary" data-action="veh-plan-open" data-id="${esc(it.r.v.id)}" data-kind="werkstatt">Werkstatttermin</button></div>`
+        }
         return `<div class="todo-item"><span class="flag error">!</span><div class="todo-text"><strong>${esc(it.r.v.plate)}</strong>: ${esc(it.text)}</div><button class="btn small" data-action="veh-edit-open" data-id="${esc(it.r.v.id)}">Fahrzeug</button></div>`
       })
       .join(''),

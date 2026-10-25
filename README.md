@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 150 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel
+npm test         # 155 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel, Service & Pickerl
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -73,7 +73,7 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Objektmappe (ersetzt die Objektdokumentation):** Kunde, Ansprechpartner, Zugang (ohne Codes), Geräte, Dokumente als Link, Einsatztage und Zeitfenster, das Leistungsverzeichnis mit Richtzeiten und Raumbuch, Ablauf- und Zugangsfotos. Bereiche aus dem Vorlagen-Katalog (Häufigkeit passt sich den Einsatztagen an). Stunden werden gerechnet und mit dem Dienstplan verglichen. Jedes Speichern ist eine Fassung: Verlauf mit Unterschieden in Worten, frühere Fassungen zurückholbar. Objektblatt als PDF fürs Personal (auch Englisch und Rumänisch), als Kundenfassung (nie Vertrauliches) oder als Akte, auf Wunsch mit Öffnungscode. Kundenstamm (Kunden.json oder Excel) einlesbar.
 
-**Fahrzeuge & Reifen:** Firmenfahrzeuge mit Fahrer/in, Reifensätzen, Lagerort und Profiltiefe. Je Saison der Reifenwechsel (Winter bis 31. Oktober, Sommer ab 16. April): Termine werden neben den Diensten der Fahrer/innen vorgeschlagen, die Fahrer/innen bekommen eine E-Mail mit Kalendertermin, die Werkstatt eine Sammelliste. Erledigt mit km-Stand und Profil; Reifen unter dem Mindestprofil (Winter 4 mm, Lkw über 3,5 t 5 mm) stehen in „Zu erledigen“.
+**Fahrzeuge & Reifen:** Firmenfahrzeuge mit Fahrer/in, Reifensätzen, Lagerort und Profiltiefe. Je Saison der Reifenwechsel (Winter bis 31. Oktober, Sommer ab 16. April): Termine werden neben den Diensten der Fahrer/innen vorgeschlagen, die Fahrer/innen bekommen eine E-Mail mit Kalendertermin, die Werkstatt eine Sammelliste. Erledigt mit km-Stand und Profil; Reifen unter dem Mindestprofil (Winter 4 mm, Lkw über 3,5 t 5 mm) stehen in „Zu erledigen“. Dazu **Service und Pickerl**: Pickerl nach §57a (Pkw 3-2-1, ab 19. Mai 2027 4-2-2-2-1; Lkw und Kastenwagen jährlich) mit Fenster und Nachfrist, Service nach Datum oder km mit Hochrechnung aus den km-Ständen, weitere Fälligkeiten wie Tachograph oder Leasingende. Werkstatttermine erledigen mehrere Aufgaben auf einmal, auch zusammen mit dem Reifenwechsel.
 
 **Übernahme und ohne Netz:** Die Daten der bisherigen Werkzeuge liest die App direkt aus ihren SharePoint-Ordnern (Wasserzähler, Prüfprotokolle, Objektdoku, Kundenstamm), mehrfach abgleichbar ohne Doppelte. Im Keller ohne Netz geht die Arbeit weiter: Erfasstes und Fotos warten im Gerät und werden gespeichert und zusammengeführt, sobald wieder Netz da ist.
 

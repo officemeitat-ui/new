@@ -83,3 +83,21 @@ export function todayISO() {
   const d = new Date()
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+
+/** „03/2027“, „3.2027“, „2027-03“ oder ein Datum → „2027-03“ (sonst „“) */
+export function parseMonth(text) {
+  const s = String(text || '').trim()
+  let m = s.match(/^(\d{4})-(\d{1,2})/)
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}`
+  m = s.match(/^(?:\d{1,2}\.)?(\d{1,2})[./](\d{4})$/)
+  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12) return `${m[2]}-${m[1].padStart(2, '0')}`
+  return ''
+}
+
+/** „15.03.2027“ oder „2027-03-15“ → „2027-03-15“ (sonst „“) */
+export function parseDate(text) {
+  const s = String(text || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : ''
+}

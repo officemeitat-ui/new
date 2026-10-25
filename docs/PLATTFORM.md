@@ -10,7 +10,7 @@ Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan,
 | **Zählerstände** | Wasserzähler-Ablesung (wasserzaehler.cleanos.at) | Ableser, Objektservice, Objektleitung |
 | **Objektkontrolle** | Prüfprotokoll-Tool (pruefprotokoll.cleanos.at) | Prüfer/in, Objektservice, Objektleitung |
 | **Objektmappe** | Objektdokumentation (objektdoku.cleanos.at) | Objektleitung; Prüfer/Objektservice lesen |
-| **Fahrzeuge & Reifen** | Listen und Zettel zum Reifenwechsel | Disposition, Fuhrpark |
+| **Fahrzeuge & Reifen** | Listen und Zettel zu Reifenwechsel, Service und Pickerl | Disposition, Fuhrpark |
 
 ## Rollen
 
@@ -228,7 +228,31 @@ Je Fahrzeug: Termin fehlt, Termin geplant (informiert oder nicht), Termin vorbei
 
 **Zu erledigen:** ab drei Wochen vor der Frist Fahrzeuge ohne Termin, vorbeigegangene Termine zum Bestätigen, Termine in den nächsten drei Tagen ohne Info an die Fahrerin oder den Fahrer, Reifen unter dem gesetzlichen Mindestprofil.
 
-**Übernehmen:** „Liste einfügen“ nimmt eine Excel-Liste (Kennzeichen, Fahrzeug, Art, Fahrer/in, Sommerreifen, Winterreifen, Lagerort, Werkstatt, Montiert). Fahrer/innen und Werkstätten werden über den Namen zugeordnet, vorhandene Kennzeichen ergänzt. Die Schnellsuche findet Kennzeichen auch ohne Bindestrich.
+**Übernehmen:** „Liste einfügen“ nimmt eine Excel-Liste (Kennzeichen, Fahrzeug, Art, Fahrer/in, Sommerreifen, Winterreifen, Lagerort, Werkstatt, Montiert; dazu Klasse, Erstzulassung, km-Stand, Pickerl als Monat/Jahr, Service als Datum oder Monat, Service bei km). Fahrer/innen und Werkstätten werden über den Namen zugeordnet, vorhandene Kennzeichen ergänzt. Die Schnellsuche findet Kennzeichen auch ohne Bindestrich.
+
+### Service, Pickerl und weitere Fälligkeiten
+
+Zweiter Reiter **Service & Pickerl**: je Fahrzeug km-Stand, Pickerl, Service, weitere Fälligkeiten und der nächste Werkstatttermin.
+
+**Pickerl (§57a KFG):** eingetragen werden Fahrzeugklasse (Zulassungsschein, Feld J), Erstzulassung und der Monat auf der Plakette. Ohne Plakettenmonat schätzt die App aus Klasse und Erstzulassung. Die Fristen:
+
+| Klasse | Intervall | begutachten möglich |
+|---|---|---|
+| Pkw (M1), Fälligkeit bis Juli 2027 | 3-2-1 Jahre ab Erstzulassung | ab dem Monat davor bis Ende des vierten Monats danach |
+| Pkw (M1), ab 19. Mai 2027 (42. KFG-Novelle) | 4-2-2-2-1 Jahre | ab vier Monate vorher bis Ende des Fälligkeitsmonats, keine Nachfrist |
+| Lkw N1 (auch Kastenwagen bis 3,5 t), N2, N3 | jährlich | ab drei Monate vorher bis Ende des Fälligkeitsmonats |
+
+Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Maßgeblich ist immer der Monat auf der Plakette. Nach der Begutachtung schlägt die App den nächsten Monat vor; wurde ein Pkw noch nach altem Recht begutachtet, nimmt sie im Zweifel den früheren Termin. Der gestanzte Monat der neuen Plakette ersetzt den Vorschlag. Bei schweren Mängeln gibt es keine neue Plakette, das Pickerl bleibt fällig.
+
+**Service:** Intervall in Monaten und/oder km mit letztem Service, oder direkt das nächste Service laut Anzeige im Auto. Fällig ist, was zuerst kommt. Aus den km-Ständen (bei Terminen, beim Reifenwechsel oder über „km“) rechnet die App die km pro Monat und schätzt, wann der km-Stand erreicht ist. „Bald“ heißt: in 30 Tagen oder weniger als 1.500 km.
+
+**Weitere Fälligkeiten:** frei benennbar mit Datum und optional „wiederholen alle … Monate“, z. B. Tachographprüfung (alle 24 Monate), Verbandskasten, Jahresvignette, Leasingende.
+
+**Werkstatttermin:** sammelt, was erledigt werden soll (Service, Pickerl, weitere). Beim Reifenwechsel bietet die App fällige Aufgaben unter „Gleich mit erledigen“ an, damit das Auto nur einmal in die Werkstatt muss. „Werkstatttermine vorschlagen“ sucht für alle Fahrzeuge mit offenen Fälligkeiten freie Plätze neben den Diensten, wie beim Reifenwechsel. Die E-Mail an die Fahrerin oder den Fahrer nennt, was gemacht wird, mit Hinweis „Zulassungsschein im Auto lassen“ fürs Pickerl. Die Sammelliste an die Werkstatt enthält Reifen- und Werkstatttermine.
+
+**Erledigt:** km-Stand, Kosten, nächstes Service (vorgeschlagen aus dem Intervall), Pickerl-Ergebnis und Monat der neuen Plakette, weitere Fälligkeiten abhaken (wiederkehrende rücken weiter).
+
+**Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
 
 ## Ohne Netz (Keller, Tiefgarage)
 
@@ -252,4 +276,4 @@ Mit SharePoint arbeitet die App auch ohne Netz weiter:
 
 ## Vorschau
 
-[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png) · [Übernahme aus den Werkzeugen](vorschau/38-uebernahme.png) · [Verlauf der Objektmappe](vorschau/39-objektmappe-verlauf.png) · [Objektblatt auf Rumänisch](vorschau/40-objektblatt-ro.png) · [Öffnungscode](vorschau/41-oeffnungscode.png) · [Fahrzeuge & Reifen](vorschau/42-fahrzeuge-reifen.png) · [Termine vorschlagen](vorschau/43-reifen-vorschlag.png) · [Fahrer/innen informieren](vorschau/44-reifen-mail.png)
+[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png) · [Übernahme aus den Werkzeugen](vorschau/38-uebernahme.png) · [Verlauf der Objektmappe](vorschau/39-objektmappe-verlauf.png) · [Objektblatt auf Rumänisch](vorschau/40-objektblatt-ro.png) · [Öffnungscode](vorschau/41-oeffnungscode.png) · [Fahrzeuge & Reifen](vorschau/42-fahrzeuge-reifen.png) · [Termine vorschlagen](vorschau/43-reifen-vorschlag.png) · [Fahrer/innen informieren](vorschau/44-reifen-mail.png) · [Service & Pickerl](vorschau/45-service-pickerl.png) · [Werkstatttermin](vorschau/46-werkstatttermin.png) · [Pickerl erledigt](vorschau/47-pickerl-erledigt.png)

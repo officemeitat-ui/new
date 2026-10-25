@@ -9,9 +9,11 @@
 //                 mounted: 'sommer'|'winter'|'ganzjahr',
 //                 tires: { sommer: { size, storage, dot, tread: { vl, vr, hl, hr } }, winter: { … } } }]
 //   workshops: [{ id, name, address, phone, email }]
-//   changes:   [{ id, vehicleId, season: 'winter'|'sommer', year, date, time, minutes, workshopId,
+//   changes:   [{ id, vehicleId, kind: 'reifen'|'werkstatt', season: 'winter'|'sommer', year, date, time, minutes, workshopId,
+//                 tasks: ['service', 'pickerl', 'due:ID'],   was beim Termin außerdem erledigt wird
 //                 status: 'geplant'|'erledigt'|'abgesagt', doneAt, km, tread, removedTread, storage, cost, note,
 //                 mails: [{ at, to, kind: 'fahrer'|'werkstatt', via }] }]
+//   Service, Pickerl und weitere Fälligkeiten: core/vehicle-dues.js
 //   settings:  { slotMinutes, travelMinutes }
 //
 // Rechtslage Österreich (KFG/KDV, Stand 2026): vom 1. November bis 15. April
@@ -20,7 +22,7 @@
 // zumindest auf einer Antriebsachse, mindestens 5 mm, Schneeketten mitführen.
 // Sommerreifen: gesetzlich 1,6 mm.
 
-import { addDays, formatDate, isoWeekday, toMinutes } from './dates.js'
+import { addDays, formatDate, isoWeekday, parseDate, parseMonth, toMinutes } from './dates.js'
 import { parseTable } from './importer.js'
 
 export const VEHICLE_KINDS = {
@@ -32,6 +34,7 @@ export const VEHICLE_KINDS = {
 export const SEASONS = { sommer: 'Sommerreifen', winter: 'Winterreifen', ganzjahr: 'Ganzjahresreifen' }
 export const WHEELS = [['vl', 'VL'], ['vr', 'VR'], ['hl', 'HL'], ['hr', 'HR']]
 export const DEFAULT_SETTINGS = { slotMinutes: 30, travelMinutes: 20 }
+export const TASKS = { service: 'Service', pickerl: '§57a-Begutachtung (Pickerl)' }
 
 const num = (v) => {
   const n = parseFloat(String(v ?? '').replace(',', '.'))
@@ -99,7 +102,7 @@ export const activeVehicles = (fz) => (fz?.vehicles || []).filter((v) => !v.inac
 
 /** Wechsel eines Fahrzeugs in einer Runde (nicht abgesagt), der neueste zuerst. */
 export const changeOf = (fz, vehicleId, campaign) =>
-  (fz?.changes || []).filter((c) => c.vehicleId === vehicleId && c.season === campaign.season && c.year === campaign.year && c.status !== 'abgesagt').sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null
+  (fz?.changes || []).filter((c) => (c.kind || 'reifen') === 'reifen' && c.vehicleId === vehicleId && c.season === campaign.season && c.year === campaign.year && c.status !== 'abgesagt').sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null
 
 /**
  * Stand eines Fahrzeugs in der laufenden Runde:
@@ -181,20 +184,36 @@ export function proposeSlots(vehicles, { from, to, dayStart = '07:00', dayEnd = 
 const dateText = (date) => formatDate(date, { year: true })
 const workshopText = (w) => [w?.name, w?.address, w?.phone ? `Tel. ${w.phone}` : ''].filter(Boolean).join(', ')
 
+const taskName = (vehicle, t) => TASKS[t] || (vehicle.dues || []).find((d) => `due:${d.id}` === t)?.label || t
+const isTireOnly = (c) => (c.kind || 'reifen') === 'reifen' && !(c.tasks || []).length
+const joinAnd = (parts) => (parts.length > 1 ? `${parts.slice(0, -1).join(', ')} und ${parts.at(-1)}` : parts[0] || '')
+const tidy = (lines) => lines.filter((l, i, all) => l !== '' || all[i - 1] !== '').join('\n').trim()
+
+/** Was beim Termin gemacht wird, in Worten: „Wechsel auf Winterreifen, Service und §57a-Begutachtung (Pickerl)“ */
+export function changeWhat(change, vehicle) {
+  const parts = (change.kind || 'reifen') === 'reifen' ? [`Wechsel auf ${change.season === 'winter' ? 'Winterreifen' : 'Sommerreifen'}`] : []
+  parts.push(...(change.tasks || []).map((t) => taskName(vehicle, t)))
+  return joinAnd(parts) || 'Werkstatttermin'
+}
+
 /** E-Mail an die Fahrerin bzw. den Fahrer (Du-Form wie bei den Wochenplänen). */
 export function driverMail({ change, vehicle, workshop, driverName = '', sender = '', brand = '' }) {
+  const tire = (change.kind || 'reifen') === 'reifen'
   const season = change.season === 'winter' ? 'Winterreifen' : 'Sommerreifen'
-  const set = vehicle.tires?.[change.season] || {}
+  const set = (tire && vehicle.tires?.[change.season]) || {}
+  const tasks = change.tasks || []
   return {
-    subject: `Reifenwechsel ${vehicle.plate}: ${dateText(change.date)} um ${change.time} Uhr`,
-    text: [
+    subject: `${isTireOnly(change) ? 'Reifenwechsel' : 'Werkstatttermin'} ${vehicle.plate}: ${dateText(change.date)} um ${change.time} Uhr`,
+    text: tidy([
       `Hallo ${String(driverName).split(' ')[0] || ''},`.replace(' ,', ','),
       '',
-      `für dein Firmenauto ${vehicle.plate}${vehicle.label ? ` (${vehicle.label})` : ''} ist der Wechsel auf ${season} geplant:`,
+      isTireOnly(change) ? `für dein Firmenauto ${vehicle.plate}${vehicle.label ? ` (${vehicle.label})` : ''} ist der Wechsel auf ${season} geplant:` : `für dein Firmenauto ${vehicle.plate}${vehicle.label ? ` (${vehicle.label})` : ''} ist ein Werkstatttermin geplant: ${changeWhat(change, vehicle)}.`,
       '',
       `Termin: ${dateText(change.date)}, ${change.time} Uhr (ca. ${change.minutes || 30} Minuten)`,
       workshop ? `Werkstatt: ${workshopText(workshop)}` : '',
       set.storage ? `Die ${season} liegen: ${set.storage}` : '',
+      tasks.includes('pickerl') ? 'Für das Pickerl bitte den Zulassungsschein im Auto lassen.' : '',
+      tasks.includes('service') ? 'Bitte das Serviceheft (falls vorhanden) im Auto lassen.' : '',
       change.note ? `Hinweis: ${change.note}` : '',
       '',
       'Bitte bring das Auto rechtzeitig hin. Passt der Termin nicht, melde dich bitte gleich bei der Disposition.',
@@ -202,25 +221,39 @@ export function driverMail({ change, vehicle, workshop, driverName = '', sender 
       'Liebe Grüße',
       sender,
       brand,
-    ]
-      .filter((l, i, all) => l !== '' || all[i - 1] !== '')
-      .join('\n')
-      .trim(),
+    ]),
   }
 }
 
 /** Sammel-E-Mail an die Werkstatt mit allen Terminen (Sie-Form). */
 export function workshopMail({ rows, workshop, campaign, sender = '', brand = '' }) {
+  const tiresOnly = rows.every((r) => isTireOnly(r.change))
   const lines = rows
     .slice()
     .sort((a, b) => `${a.change.date} ${a.change.time}`.localeCompare(`${b.change.date} ${b.change.time}`))
     .map(({ change, vehicle }) => {
+      const head = `• ${dateText(change.date)} ${change.time} Uhr · ${vehicle.plate}${vehicle.label ? ` ${vehicle.label}` : ''}`
+      const extra = (change.tasks || []).map((t) => taskName(vehicle, t))
+      if ((change.kind || 'reifen') !== 'reifen') return `${head} · ${joinAnd(extra)}`
       const set = vehicle.tires?.[change.season] || {}
-      return `• ${dateText(change.date)} ${change.time} Uhr · ${vehicle.plate}${vehicle.label ? ` ${vehicle.label}` : ''} · ${change.season === 'winter' ? 'auf Winterreifen' : 'auf Sommerreifen'}${set.size ? ` ${set.size}` : ''}${set.storage ? ` · eingelagert: ${set.storage}` : ''}`
+      return `${head} · ${change.season === 'winter' ? 'auf Winterreifen' : 'auf Sommerreifen'}${set.size ? ` ${set.size}` : ''}${set.storage ? ` · eingelagert: ${set.storage}` : ''}${extra.length ? ` · dazu: ${joinAnd(extra)}` : ''}`
     })
+  const n = `${rows.length} ${rows.length === 1 ? 'Fahrzeug' : 'Fahrzeuge'}${brand ? ` (${brand})` : ''}`
   return {
-    subject: `Reifenwechsel ${campaign.label}: ${rows.length} ${rows.length === 1 ? 'Fahrzeug' : 'Fahrzeuge'}${brand ? ` (${brand})` : ''}`,
-    text: [`Sehr geehrte Damen und Herren${workshop?.name ? ` von ${workshop.name}` : ''},`, '', 'wir möchten folgende Reifenwechsel vereinbaren:', '', ...lines, '', 'Bitte um kurze Bestätigung oder einen Gegenvorschlag. Fällt Ihnen beim Wechsel ein zu geringes Profil oder ein Schaden auf, geben Sie uns bitte Bescheid.', '', 'Freundliche Grüße', sender, brand].filter((l, i, all) => l !== '' || all[i - 1] !== '').join('\n').trim(),
+    subject: tiresOnly && campaign ? `Reifenwechsel ${campaign.label}: ${n}` : `Werkstatttermine: ${n}`,
+    text: tidy([
+      `Sehr geehrte Damen und Herren${workshop?.name ? ` von ${workshop.name}` : ''},`,
+      '',
+      tiresOnly ? 'wir möchten folgende Reifenwechsel vereinbaren:' : 'wir möchten folgende Termine vereinbaren:',
+      '',
+      ...lines,
+      '',
+      tiresOnly ? 'Bitte um kurze Bestätigung oder einen Gegenvorschlag. Fällt Ihnen beim Wechsel ein zu geringes Profil oder ein Schaden auf, geben Sie uns bitte Bescheid.' : 'Bitte um kurze Bestätigung oder einen Gegenvorschlag. Fällt Ihnen etwas auf (Reifenprofil, Mängel, anstehende Reparaturen), geben Sie uns bitte vorher Bescheid.',
+      '',
+      'Freundliche Grüße',
+      sender,
+      brand,
+    ]),
   }
 }
 
@@ -234,12 +267,12 @@ const dmy = (d) => (d ? d.split('-').reverse().join('.') : '')
 
 /** Liste für Excel. rows: [{ vehicle, change, driver, workshop, status }] */
 export function tireCsv(rows) {
-  const head = ['Kennzeichen', 'Fahrzeug', 'Art', 'Fahrer/in', 'Montiert', 'Saison', 'Termin', 'Uhrzeit', 'Werkstatt', 'Status', 'Reifengröße', 'Einlagerung', 'Profil VL', 'Profil VR', 'Profil HL', 'Profil HR', 'km', 'Kosten']
+  const head = ['Kennzeichen', 'Fahrzeug', 'Art', 'Fahrer/in', 'Montiert', 'Saison', 'Termin', 'Uhrzeit', 'Werkstatt', 'Status', 'Reifengröße', 'Einlagerung', 'Profil VL', 'Profil VR', 'Profil HL', 'Profil HR', 'km', 'Kosten', 'Was']
   const lines = rows.map(({ vehicle, change, driver, workshop, status }) => {
     const season = change?.season || (vehicle.mounted === 'winter' ? 'winter' : 'sommer')
     const set = vehicle.tires?.[season] || {}
     const tread = change?.tread || set.tread || {}
-    return [vehicle.plate, vehicle.label, VEHICLE_KINDS[vehicle.kind]?.label || '', driver || '', SEASONS[vehicle.mounted] || '', change ? SEASONS[change.season] : '', dmy(change?.date), change?.time || '', workshop || '', STATUS_LABEL[status] || status || '', set.size || '', set.storage || '', ...WHEELS.map(([k]) => tread[k] ?? ''), change?.km ?? '', change?.cost ?? '']
+    return [vehicle.plate, vehicle.label, VEHICLE_KINDS[vehicle.kind]?.label || '', driver || '', SEASONS[vehicle.mounted] || '', change ? SEASONS[change.season] : '', dmy(change?.date), change?.time || '', workshop || '', STATUS_LABEL[status] || status || '', set.size || '', set.storage || '', ...WHEELS.map(([k]) => tread[k] ?? ''), change?.km ?? '', change?.cost ?? '', change ? changeWhat(change, vehicle) : '']
   })
   return `﻿${[head, ...lines].map((l) => l.map(csvCell).join(';')).join('\r\n')}\r\n`
 }
@@ -250,12 +283,32 @@ const pick = (row, ...names) => {
   return key === undefined ? '' : String(row[key] ?? '').trim()
 }
 
+/** Zulassung, km, Pickerl und Service aus einer Zeile der Fahrzeugliste. */
+function dueFields(row, today) {
+  const out = {}
+  const cls = pick(row, 'klasse', 'fahrzeugklasse').toUpperCase().match(/[MN][1-3]/)?.[0]
+  if (cls) out.cls = cls
+  const reg = parseMonth(pick(row, 'erstzulassung', 'ez', 'zulassung'))
+  if (reg) out.firstReg = reg
+  const km = num(pick(row, 'kmstand', 'km', 'kilometer').replace(/\./g, ''))
+  if (km && today) out.kmLog = [{ date: today, km }]
+  const pickerl = parseMonth(pick(row, 'pickerl', 'begutachtung', '57a', 'nachstespickerl', 'pickerlfallig'))
+  if (pickerl) out.pickerl = { next: pickerl }
+  const serviceText = pick(row, 'service', 'nachstesservice', 'servicefallig', 'serviceam')
+  const serviceKm = num(pick(row, 'servicebeikm', 'servicekm', 'nachstesservicekm').replace(/\./g, ''))
+  const serviceDate = parseDate(serviceText) || (parseMonth(serviceText) ? `${parseMonth(serviceText)}-01` : '')
+  if (serviceDate || serviceKm) out.service = { months: '', km: '', lastDate: '', lastKm: '', nextDate: serviceDate, nextKm: serviceKm || '' }
+  return out
+}
+
 /**
  * Fahrzeugliste aus Excel (kopiert oder CSV): Kennzeichen, Fahrzeug, Art,
- * Fahrer/in, Sommerreifen, Winterreifen, Lagerort, Werkstatt, Montiert.
+ * Fahrer/in, Sommerreifen, Winterreifen, Lagerort, Werkstatt, Montiert;
+ * dazu Klasse, Erstzulassung, km-Stand, Pickerl (Monat/Jahr), Service
+ * (Datum oder Monat), Service bei km.
  * Fahrer/innen und Werkstätten werden über den Namen zugeordnet.
  */
-export function importVehicles(text, { employees = [], workshops = [] } = {}) {
+export function importVehicles(text, { employees = [], workshops = [], today = '' } = {}) {
   const byName = (list, name) => {
     const n = norm(name)
     return n ? list.find((x) => norm(x.name) === n) || list.find((x) => norm(x.name).includes(n) || n.includes(norm(x.name))) : null
@@ -283,6 +336,7 @@ export function importVehicles(text, { employees = [], workshops = [] } = {}) {
       mounted: allSeason ? 'ganzjahr' : /winter/.test(mountedText) ? 'winter' : 'sommer',
       tires: allSeason ? {} : { sommer: { size: pick(row, 'sommerreifen', 'sommer', 'reifengrossesommer'), storage: '', tread: {} }, winter: { size: pick(row, 'winterreifen', 'winter', 'reifengrossewinter'), storage, tread: {} } },
       note: pick(row, 'bemerkung', 'hinweis', 'notiz'),
+      ...dueFields(row, today),
     })
   }
   return { vehicles: out, warnings }
