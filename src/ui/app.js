@@ -10,9 +10,10 @@ import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService } from '../storage/data-service.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, clearUndo, closeModal, render, renderNow, saveStatusText, setFrame, toast, undo, VIEWS } from './context.js'
+import { ACTIONS, app, clearUndo, closeModal, labelTables, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, VIEWS } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
+import { bottomNav, isMobile, mobileTopbar, watchDevice } from './mobile.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
@@ -52,11 +53,7 @@ function legacyData() {
 
 // ---------------------------------------------------------------- Rahmen
 
-const GROUPS = [
-  ['plan', 'Planung'],
-  ['auswertung', 'Auswertung'],
-  ['stamm', 'Stammdaten'],
-]
+const GROUPS = VIEW_GROUPS
 
 function brandBlock() {
   const b = app.config.brand
@@ -68,6 +65,10 @@ function topbar(c) {
   const { year, week } = isoWeek(c.monday)
   const published = c.published
   const changed = published?.snapshot ? c.ctx.employees.filter((e) => c.changedSincePublish(e)).length : 0
+  if (isMobile()) {
+    const short = published ? (changed ? `${changed} geändert` : 'veröffentlicht') : 'Entwurf'
+    return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short })
+  }
   const status = published ? (changed ? `<span class="pill warning">veröffentlicht · ${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info">Entwurf</span>'
   const user = app.user ? `<span class="user">${ICON.user} ${esc(app.user.name)}${app.readOnly ? ' (lesen)' : ''}</span>${app.signOut ? '<button class="btn small" data-action="sign-out">Abmelden</button>' : ''}` : ''
   return `<header class="topbar"><div class="topbar-inner wrap">
@@ -142,13 +143,16 @@ function frame(c) {
   const view = VIEWS.find((v) => v.id === app.ui.view) || VIEWS[0]
   app.ui.view = view.id
   const readOnly = app.readOnly ? '<div class="banner"><p><strong>Nur Leserechte.</strong> Dein Konto ist nicht als Disposition eingetragen (config.json → access.planners).</p></div>' : ''
-  return `${topbar(c)}${tabs(c)}<main class="wrap">${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}</main>`
+  const mobile = isMobile()
+  return `${topbar(c)}${mobile ? '' : tabs(c)}<main class="wrap">${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}</main>${mobile ? bottomNav(c) : ''}`
 }
 
 setFrame({
   frame,
   afterRender: () => {
     document.body.classList.toggle('readonly', app.readOnly)
+    document.body.classList.toggle('mobile', isMobile())
+    labelTables()
     writePrefs()
     refreshBell()
   },
@@ -174,9 +178,18 @@ Object.assign(ACTIONS, {
     render()
     window.scrollTo({ top: 0 })
   },
-  plan: () => (app.readOnly ? toast('Nur Leserechte.') : planWeek(false)),
-  replan: () => (app.readOnly ? toast('Nur Leserechte.') : planWeek(true)),
+  plan: () => {
+    if (app.readOnly) return toast('Nur Leserechte.')
+    app.ui.modal = null
+    planWeek(false)
+  },
+  replan: () => {
+    if (app.readOnly) return toast('Nur Leserechte.')
+    app.ui.modal = null
+    planWeek(true)
+  },
   'close-modal': closeModal,
+  reload: () => location.reload(),
   undo: () => (app.readOnly ? toast('Nur Leserechte.') : undo()),
   backdrop: (el, e) => {
     if (e.target === el) closeModal()
@@ -205,6 +218,7 @@ function bindEvents() {
   })
   bindFilterEvents(document)
   bindDragEvents(document)
+  watchDevice()
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && app.ui.modal) closeModal()
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
@@ -283,6 +297,24 @@ async function boot() {
   await showTodoIfNew()
   const every = (config.storage === 'sharepoint' ? config.sharepoint.refreshSeconds || 60 : 30) * 1000
   setInterval(() => app.service.refresh().catch(() => {}), every)
+  // Zurück in der App (Handy entsperrt, Tab gewechselt): sofort abgleichen
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') app.service.refresh().catch(() => {})
+  })
+  registerServiceWorker()
+}
+
+/** Installierbare App: nur im fertigen Build (dort gibt es das Manifest). */
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !document.querySelector('link[rel="manifest"]')) return
+  const hadController = !!navigator.serviceWorker.controller
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return
+    const $toast = document.getElementById('toast')
+    $toast.innerHTML = '<span>Neue Version des Dienstplans verfügbar.</span><button class="toast-btn" data-action="reload">Neu laden</button>'
+    $toast.hidden = false
+  })
+  navigator.serviceWorker.register('sw.js').catch(() => {})
 }
 
 boot().catch((err) => {

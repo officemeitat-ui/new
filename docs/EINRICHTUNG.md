@@ -109,7 +109,17 @@ Auf einem normalen Webspace ist der Programmcode öffentlich abrufbar; die **Dat
 3. Unter *Regeln & Feiertage* Werte aus dem Kollektivvertrag prüfen (Zuschläge, Fahrzeit, Mehrstunden für Vertretungen) und betriebsfreie Tage eintragen (z. B. 24.12., 31.12., Hl. Rupert).
 4. Die Leiste oben führt durch die Woche: *Einteilen* → *Offene Einsätze* → *Prüfen* → *Veröffentlichen* → *Versenden*. Excel- und PDF-Wochenpläne liegen danach in `Dienstplan-App/exporte/…`, der Versand-Dialog schickt jeder Person ihr PDF (E-Mail, am Handy „Teilen“ z. B. per WhatsApp, oder als ZIP/Sammel-PDF zum Ausdrucken).
 
-## 6. Testen ohne SharePoint
+## 6. Am Handy und Tablet
+
+`https://dienstplan.cleanos.at` im Browser öffnen und anmelden. Als App auf den Startbildschirm legen:
+
+- **iPhone/iPad:** in Safari „Teilen“ → „Zum Home-Bildschirm“
+- **Android:** im Chrome-Menü „App installieren“ (oder im Dienstplan unter „Mehr“ → „Als App installieren“)
+- **Windows/Mac:** in Edge oder Chrome das Installieren-Symbol in der Adressleiste
+
+Alle Geräte arbeiten mit denselben Daten in SharePoint. Ändert jemand am PC, sieht man es am Handy beim nächsten Öffnen der App sofort. Für den Echtbetrieb ist deshalb `"storage": "sharepoint"` nötig; im Browser-Modus (`"local"`) bleiben die Daten auf dem jeweiligen Gerät.
+
+## 7. Testen ohne SharePoint
 
 `npm start` und `http://localhost:8080` öffnen. Mit `"storage": "local"` speichert die App im Browser, mit `"demo": true` startet sie mit Beispieldaten (35 Mitarbeitende, 4 veröffentlichte Wochen).
 

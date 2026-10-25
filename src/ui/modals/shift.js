@@ -68,6 +68,8 @@ function shiftModal(c, { key }) {
   if (inst.status !== 'cancelled' && !app.readOnly) {
     const region = obj.region
     const list = rankCandidates(c.ctx, c.state, inst)
+    // Einsatz voll besetzt: Tauschen statt Ziehen (geht auch am Handy und Tablet)
+    const swap = assigned.length >= inst.staff ? assigned.find((a) => !a.locked) || assigned[0] : null
     candidates = `<section><h3>Wer kann einspringen?</h3><p class="note">Sortiert nach Eignung: Regeln, Verfügbarkeit, freie Vertragsstunden, Zeitkonto, Revier, Einschulung, wer das Objekt kennt, Wege. Grün begründet den Vorschlag, Rot spricht dagegen.</p>
       <div class="candidates">${list
         .map((cand) => {
@@ -78,7 +80,7 @@ function shiftModal(c, { key }) {
           const otherTeam = region && cand.emp.team && cand.emp.team !== region
           return `<div class="person"><div class="pname">${esc(cand.emp.name)}<small>${cand.regular ? 'Stammkraft · ' : ''}${esc(cand.emp.team || cand.emp.type)}${otherTeam ? ' (anderes Revier)' : ''} · ${formatHours(cand.emp.weeklyHours * 60)} h</small><span class="pill ${status[0]}">${status[1]}</span></div>
             <div>${errors.length ? '' : reasonsHtml(cand.factors)}${issueList(shown)}</div>
-            <div class="acts"><button class="btn small ${errors.length ? '' : 'primary'}" data-action="assign" data-key="${esc(key)}" data-emp="${esc(cand.emp.id)}">${errors.length ? 'Trotzdem einteilen' : 'Einteilen'}</button></div></div>`
+            <div class="acts">${swap ? `<button class="btn small ${errors.length ? '' : 'primary'}" data-action="assign" data-key="${esc(key)}" data-emp="${esc(cand.emp.id)}" data-replace="${esc(swap.employeeId)}" title="Einsatz von ${esc(empName(swap.employeeId))} übernehmen">${errors.length ? 'Trotzdem statt' : 'Statt'} ${esc(empName(swap.employeeId).split(' ')[0])}</button>` : ''}<button class="btn small ${errors.length || swap ? '' : 'primary'}" data-action="assign" data-key="${esc(key)}" data-emp="${esc(cand.emp.id)}">${errors.length ? 'Trotzdem einteilen' : swap ? 'Zusätzlich' : 'Einteilen'}</button></div></div>`
         })
         .join('')}</div></section>`
   }
@@ -128,9 +130,15 @@ registerActions({
 registerActions(
   {
     assign: (el) => {
-      const { key, emp } = el.dataset
-      mutateAssignments((s) => s.assign(emp, key, true), { date: instOf(key).origDate, text: `${empName(emp)} eingeteilt: ${label(key)}` })
-      toast(`${empName(emp)} eingeteilt und fixiert.`)
+      const { key, emp, replace } = el.dataset
+      mutateAssignments(
+        (s) => {
+          if (replace) s.unassign(replace, key)
+          s.assign(emp, key, true)
+        },
+        { date: instOf(key).origDate, text: replace ? `${label(key)}: ${empName(replace)} → ${empName(emp)}` : `${empName(emp)} eingeteilt: ${label(key)}` },
+      )
+      toast(replace ? `${empName(emp)} übernimmt den Einsatz von ${empName(replace)}.` : `${empName(emp)} eingeteilt und fixiert.`)
     },
     unassign: (el) => {
       const { key, emp } = el.dataset

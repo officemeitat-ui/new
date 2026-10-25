@@ -7,9 +7,11 @@
 //   werden erst bei Bedarf geladen.
 // - staticwebapp.config.json bekommt die Tenant-ID aus config.json: die ganze
 //   Seite ist dann nur nach Microsoft-Anmeldung im eigenen Tenant erreichbar.
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { manifestFor, serviceWorkerSource } from './pwa.js'
 import { VENDOR } from './vendor.js'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
@@ -55,7 +57,35 @@ if (esbuild) {
 } else {
   await copy('src')
 }
+// ---------------------------------------------------------------- Als App installierbar (PWA)
+const appConfig = JSON.parse(await readFile(join(root, 'config.json'), 'utf8'))
+const brand = appConfig.brand || {}
+const head = [
+  '<link rel="manifest" href="manifest.webmanifest">',
+  `<meta name="theme-color" content="${brand.colors?.primary || '#1d4ea6'}">`,
+  '<meta name="mobile-web-app-capable" content="yes">',
+  '<meta name="apple-mobile-web-app-capable" content="yes">',
+  '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+  `<meta name="apple-mobile-web-app-title" content="${brand.product || 'Dienstplan'}">`,
+  brand.appleTouchIcon ? `<link rel="apple-touch-icon" href="${brand.appleTouchIcon}">` : '',
+  brand.icon ? `<link rel="icon" href="${brand.icon}">` : '',
+].filter(Boolean)
+html = html.replace('</head>', `${head.join('\n')}\n</head>`)
 await writeFile(join(dist, 'index.html'), html)
+await writeFile(join(dist, 'manifest.webmanifest'), `${JSON.stringify(manifestFor(appConfig), null, 2)}\n`)
+const listFiles = async (dir) => (await readdir(join(dist, dir), { withFileTypes: true }).catch(() => [])).flatMap((d) => (d.isFile() ? [`./${dir}/${d.name}`] : []))
+const precache = [
+  './index.html',
+  './config.json',
+  './manifest.webmanifest',
+  ...(await listFiles('app')),
+  ...(await listFiles('assets')),
+  ...(await listFiles('themes')),
+  './vendor/msal-browser.min.js',
+]
+const version = createHash('sha256').update(html).update(precache.join()).digest('hex').slice(0, 10)
+await writeFile(join(dist, 'sw.js'), serviceWorkerSource({ version, precache }))
+console.log(`App-Installation: manifest.webmanifest, sw.js (${precache.length} Dateien vorgehalten)`)
 
 // ---------------------------------------------------------------- Anmeldung (Azure Static Web Apps)
 // Standard: jede Seite nur nach Microsoft-Anmeldung.

@@ -11,7 +11,12 @@
       "primary": "#0f70b7",
       "accent": "#a1c855"
     },
-    "icon": "assets/cleanos-icon.png"
+    "icon": "assets/cleanos-icon.png",
+    "appIcons": [
+      "assets/cleanos-app-192.png",
+      "assets/cleanos-app-512.png"
+    ],
+    "appleTouchIcon": "assets/cleanos-apple-touch.png"
   },
   "storage": "local",
   "demo": true,

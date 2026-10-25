@@ -36,6 +36,11 @@ export const app = {
 // ---------------------------------------------------------------- Registry
 
 export const VIEWS = []
+export const VIEW_GROUPS = [
+  ['plan', 'Planung'],
+  ['auswertung', 'Auswertung'],
+  ['stamm', 'Stammdaten'],
+]
 export const MODALS = {}
 export const ACTIONS = {}
 
@@ -185,6 +190,7 @@ export function renderModal() {
     return
   }
   const scroll = $modal.querySelector('.modal-backdrop')?.scrollTop || 0
+  const bodyScroll = $modal.querySelector('.modal-body')?.scrollTop || 0
   const candScroll = $modal.querySelector('.candidates')?.scrollTop || 0
   const html = MODALS[ui.modal.type]?.(app.cur, ui.modal)
   if (!html) {
@@ -196,6 +202,9 @@ export function renderModal() {
   $modal.querySelector('.modal-backdrop').scrollTop = scroll
   const cand = $modal.querySelector('.candidates')
   if (cand) cand.scrollTop = candScroll
+  const body = $modal.querySelector('.modal-body')
+  if (body) body.scrollTop = bodyScroll
+  labelTables($modal)
   if (ui.modal.justOpened) {
     ui.modal.justOpened = false
     $modal.querySelector('.modal input, .modal select, .modal textarea, .modal button')?.focus({ preventScroll: true })
@@ -276,6 +285,18 @@ export function confirmStep(key, rerender = renderNow) {
   app.ui.confirm = key
   rerender()
   return false
+}
+
+/**
+ * Tabellen fürs Handy: jede Zelle bekommt die Spaltenüberschrift als
+ * data-label, damit sie auf schmalen Bildschirmen als Karte lesbar ist.
+ */
+export function labelTables(root = document) {
+  for (const table of root.querySelectorAll('table.data:not([data-labelled])')) {
+    const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim())
+    for (const tr of table.querySelectorAll('tbody tr')) [...tr.children].forEach((cell, i) => cell.setAttribute('data-label', heads[i] || ''))
+    table.setAttribute('data-labelled', '')
+  }
 }
 
 // ---------------------------------------------------------------- Speichern

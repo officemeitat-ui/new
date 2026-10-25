@@ -33,6 +33,10 @@ export const ICON = {
   upload: svg('<path d="M8 11V2M4.5 5.5 8 2l3.5 3.5M2.5 11v3h11v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
   car: svg('<path d="M2.5 10.5V8.3l1.4-3.6A1.5 1.5 0 0 1 5.3 3.7h5.4a1.5 1.5 0 0 1 1.4 1l1.4 3.6v2.2a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 8h10" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="11.5" r="1.3" fill="currentColor"/><circle cx="11" cy="11.5" r="1.3" fill="currentColor"/>'),
   bell: svg('<path d="M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1.3 1.2H2.7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+  calendar: svg('<rect x="2" y="3" width="12" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+  users: svg('<circle cx="6" cy="5.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1.8 13.5c.6-2.4 2.3-3.6 4.2-3.6s3.6 1.2 4.2 3.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 3.4a2.3 2.3 0 0 1 0 4.4M12 9.9c1.2.4 1.9 1.6 2.2 3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
+  menu: svg('<path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>'),
+  download: svg('<path d="M8 2v8.5M4.5 7 8 10.5 11.5 7M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'),
   user: svg('<circle cx="8" cy="5.5" r="2.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 14c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6"/>'),
 }
 

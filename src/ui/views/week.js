@@ -1,10 +1,11 @@
 // Wochenübersicht: Mitarbeitende × Tage, offene Einsätze, Saldo, Zeitkonto.
 
-import { formatHours } from '../../core/dates.js'
+import { formatDate, formatHours, isoWeekday, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { timeAccount } from '../../core/reports.js'
 import { maxSeverity, SEVERITY_LABEL } from '../../core/rules.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { app, empName, mutateAssignments, registerView, renderNow, toast } from '../context.js'
+import { isMobile } from '../mobile.js'
 import { byStart, dayClass, dayHeads, esc, ICON, objectOf, options, saldoClass, signed } from '../shared.js'
 
 const WEEK_FLAG = { CONTRACT: (i) => `+${formatHours(i.overMinutes)}`, WEEKLY_48: () => '>48', WEEKLY_MAX: () => '>60', WEEKLY_REST: () => '36h', MONTHLY_LIMIT: () => 'GFG' }
@@ -72,7 +73,61 @@ export function filterBar(c, { problems = true } = {}) {
   </div>`
 }
 
+// ---------------------------------------------------------------- Handy: Tagesliste
+
+function mobileDay(c) {
+  if (!c.days.includes(app.ui.mobileDay)) {
+    const today = todayISO()
+    app.ui.mobileDay = c.days.includes(today) ? today : c.days.find((d) => isoWeekday(d) <= 5 && !c.holidays.get(d)?.legal) || c.monday
+  }
+  return app.ui.mobileDay
+}
+
+/** Wochenübersicht fürs Handy: ein Tag, offene Einsätze oben, darunter je Person eine Karte. */
+function mobileWeek(c) {
+  const date = mobileDay(c)
+  const team = app.ui.team
+  const inTeam = (inst) => !team || c.ctx.objectsById.get(inst.objectId)?.region === team || inst.regulars.some((id) => c.ctx.employeesById.get(id)?.team === team)
+  const openOf = (d) => c.week.filter((i) => i.date === d && i.status !== 'cancelled' && c.state.count(i.key) < i.staff && inTeam(i)).sort(byStart)
+  const days = c.days
+    .map((d) => {
+      const n = openOf(d).length
+      return `<button class="day-chip ${dayClass(c, d)}" data-action="m-day" data-date="${d}" aria-pressed="${d === date}"><span>${WEEKDAY_SHORT[isoWeekday(d) - 1]}</span><b>${d.slice(8)}</b>${n ? `<span class="flag error">${n}</span>` : ''}</button>`
+    })
+    .join('')
+  const open = openOf(date)
+  const holiday = c.holidays.get(date)
+  const cards = []
+  const free = []
+  let lastTeam = null
+  for (const emp of filteredEmployees(c)) {
+    const ts = c.timesheet(emp)
+    const day = ts.days.find((d) => d.date === date)
+    if (!day.lines.length && !day.absence) {
+      free.push(emp)
+      continue
+    }
+    if (!team && emp.team && emp.team !== lastTeam) cards.push(`<h3 class="m-team">${esc(emp.team)}</h3>`)
+    lastTeam = emp.team
+    const t = ts.totals
+    cards.push(`<article class="m-card ${day.absence ? 'absent' : ''} ${c.changedSincePublish(emp) ? 'row-changed' : ''}">
+      <header><button class="emp-name" data-action="open-sheet" data-emp="${esc(emp.id)}">${esc(emp.name)}</button><span class="m-hours">${formatHours(t.ist)} / ${formatHours(t.soll)} h · <span class="saldo ${saldoClass(t.saldo)}">${signed(t.saldo)}</span></span></header>
+      ${day.absence ? `<span class="abs-tag">${esc(day.absence.type)}</span>` : ''}
+      <div class="m-chips">${day.lines.map((l) => (l.kind === 'work' ? workChip(c, emp, l) : struckChip(c, l))).join('')}</div>
+    </article>`)
+  }
+  return `<div class="day-tabs" role="tablist" aria-label="Tag">${days}</div>
+    <div class="m-swipe">
+      <h2 class="m-date">${WEEKDAY_LONG[isoWeekday(date) - 1]}, ${formatDate(date, { weekday: false })}${holiday ? ` <span class="pill info">${esc(holiday.name)}</span>` : ''}</h2>
+      ${filterBar(c, { problems: false })}
+      ${open.length ? `<section class="m-open"><h3>Offen (${open.length})</h3><div class="m-chips">${open.map((inst) => openChip(c, inst)).join('')}</div><p class="note">Antippen: wer kann einspringen?</p></section>` : '<p><span class="pill ok">An diesem Tag alles besetzt</span></p>'}
+      <section class="m-list">${cards.join('') || '<p class="empty">Niemand eingeteilt.</p>'}</section>
+      ${free.length ? `<details class="m-free"><summary>Frei an diesem Tag (${free.length})</summary><p>${free.map((e) => `<button class="link-btn" data-action="open-sheet" data-emp="${esc(e.id)}">${esc(e.name)}</button>`).join(' · ')}</p></details>` : ''}
+    </div>`
+}
+
 function weekView(c) {
+  if (c.ctx.employees.length && isMobile()) return mobileWeek(c)
   if (!c.ctx.employees.length) return `<p class="empty">Noch keine Mitarbeitenden angelegt. <button class="btn small" data-action="view" data-view="staff">Mitarbeitende anlegen</button></p>`
   const team = app.ui.team
   const inTeam = (inst) => !team || c.ctx.objectsById.get(inst.objectId)?.region === team || inst.regulars.some((id) => c.ctx.employeesById.get(id)?.team === team)

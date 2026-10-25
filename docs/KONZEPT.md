@@ -98,7 +98,8 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Funktion | Wer bietet es | Im Dienstplan |
 |---|---|---|
 | Plan veröffentlichen, Änderungen markieren und mitteilen | Teams Shifts, TimeTac, Connecteam, PlanD | ✔ Veröffentlichen, „geändert“-Markierung, PDF je Person per E-Mail/WhatsApp mit Versandstand |
-| Drag & Drop im Plan mit Konfliktanzeige | Planday, Shiftbase, Papershift | ✔ Ziehen mit Ampel, Rückgängig |
+| Drag & Drop im Plan mit Konfliktanzeige | Planday, Shiftbase, Papershift | ✔ Ziehen mit Ampel, Rückgängig; am Handy Tauschen per Fingertipp |
+| Planen am Handy (App) | Planday, Shiftbase, Papershift, Teams Shifts | ✔ eigene Handy-Ansicht, installierbar als App |
 | Vertretungs-Cockpit | PlanD | ✔ Ansicht „Vertretungen“ mit Vorschlägen, Abwesenheits-Assistent mit Sammelübergabe |
 | Intervall-Leistungen (Grundreinigung, Glas, Teppich) | MR.Clean, Profacilo, PlanD | ✔ 14-tägig bis jährlich, mit Frist und Erinnerung |
 | Soll-/Ist-Stunden je Objekt (Budget gegen Plan) | Profacilo, Janitorial Manager, Aspire, MR.Clean | ✔ Objekt-Controlling |
@@ -125,6 +126,7 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
   - Planung: Wochenübersicht, Zeitlinie, Wochenzettel, Objektplan, Vertretungen, Periodische Leistungen, Prüfbericht
   - Auswertung: Objekt-Controlling, Monatsauswertung
   - Stammdaten: Mitarbeitende, Objekte & Leistungen, Abwesenheiten (Kalender, Resturlaub), Regeln & Feiertage
+- **Alle Geräte**: PC, Tablet und Handy mit vollem Funktionsumfang. Handy-Ansicht mit Tagesliste, Leiste unten (Woche, Vertretung, ＋ Abwesend, Wochenzettel, Menü), Dialogen als Blatt von unten und Tabellen als Karten. Tauschen per Fingertipp statt Ziehen. Installierbar als App (PWA) mit Symbol aus dem Logo; startet schneller und gleicht beim Zurückwechseln sofort ab.
 - **Ablauf-Leiste**: führt durch jede Woche (Einteilen → Offene Einsätze → Prüfen → Veröffentlichen → Versenden) und zeigt immer den nächsten sinnvollen Klick.
 - **Ziehen und Ablegen, Rückgängig**: Einsätze in der Wochenübersicht auf eine andere Person ziehen, mit Ampel während des Ziehens. Jede Planänderung lässt sich zurücknehmen (Knopf in der Meldung oder Strg+Z).
 - **Begründete Vorschläge**: Die Automatik bewertet jede Person nachvollziehbar: Stammkraft, freie Vertragsstunden, Zeitkonto (Minusstunden zuerst auffüllen), Revier, Einschulung, wer das Objekt aus den letzten Wochen kennt, Anschluss an andere Einsätze. Dieselben Gründe stehen als Text beim Vorschlag.

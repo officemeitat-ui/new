@@ -32,6 +32,7 @@ src/
     context.js    App-Zustand, Registry (registerView, registerModal, registerActions)
     planning.js   Planen, Veröffentlichen, Dateiexport
     flow.js       Ablauf-Leiste der Woche
+    mobile.js     Handy: Kopfzeile, Leiste unten, Menü, Wischen, App installieren
     pdf.js        PDF im Browser erzeugen, ZIP
     shared.js     UI-Bausteine
     views/*.js    je Ansicht eine Datei (z. B. due.js: Periodische Leistungen)
@@ -97,6 +98,12 @@ Der `DataService` kümmert sich um Aufteilung, Autosave, Zusammenführen und Nac
 ## Vorschläge der Automatik anpassen
 
 Wie gut eine Person zu einem Einsatz passt, steht in `candidateFactors()` (src/core/scheduler.js): eine Liste von Gründen mit Punkten (negativ = spricht dafür). Die Summe ist die Kosten für die Automatik, die Texte erscheinen als Begründung im Einsatz-Dialog, bei den Vertretungen und im Abwesenheits-Assistenten. Ein neuer Grund ist eine Zeile `add('code', punkte, 'Text')`, z. B. ein Bonus für Führerschein bei Objekten außerhalb der Stadt.
+
+## Handy und Tablet
+
+Unter 700 px Breite zeigt `isMobile()` (src/ui/mobile.js) die Handy-Ansicht: eigene Kopfzeile, Leiste unten, Menü „Mehr“ mit allen registrierten Ansichten. Eine neue Ansicht erscheint dort automatisch. Tabellen mit `class="data"` werden am Handy zu Karten; die Spaltenüberschrift kommt als `data-label` in jede Zelle (`labelTables()`). Eine Ansicht kann am Handy eine eigene Darstellung liefern, wie die Wochenübersicht mit `isMobile() ? mobileWeek(c) : …`.
+
+Installierbar (PWA): `npm run build` schreibt `manifest.webmanifest` (aus `config.json` → brand: Name, Farbe, `appIcons`, `appleTouchIcon`) und `sw.js` (hält die gebündelten Dateien vor; Seite, Anmeldung und Daten kommen immer aus dem Netz). Logik in `scripts/pwa.js`.
 
 ## Rückgängig
 
