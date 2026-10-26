@@ -431,15 +431,18 @@ export const RULES = [
     title: 'Mehr- und Überstunden',
     law: '§ 19d AZG, Arbeitsvertrag',
     description: 'Geplante Stunden über den vertraglichen Wochenstunden.',
-    check({ emp, byWeek, workOfItems, add }) {
+    check({ emp, byWeek, workOfItems, ctx, add }) {
       for (const [monday, ws] of byWeek) {
         // Wochenstunden, die in dieser Woche galten
         const contract = weeklyHoursAt(emp, monday) * 60
         if (!contract) continue
-        const work = workOfItems(ws)
+        // angerechnete Feiertage der eigenen Stammeinsätze zählen wie im Wochenzettel mit
+        // (z. B. Teilzeit: Einsatz vom Feiertag auf Mittwoch verschoben → Mehrstunden)
+        const credit = ctx.holidayCredit?.get(`${emp.id}|${monday}`) || 0
+        const work = workOfItems(ws) + credit
         if (work <= contract) continue
         const kind = emp.type === 'Vollzeit' || emp.type === 'Lehrling' ? 'Überstunden' : 'Mehrstunden (ggf. 25 % Zuschlag)'
-        add('warning', 'CONTRACT', 'week', `${formatHours(work)} h geplant bei ${formatHours(contract)} h Vertrag: +${formatHours(work - contract)} h ${kind}`, ws, { overMinutes: work - contract })
+        add('warning', 'CONTRACT', 'week', `${formatHours(work)} h geplant${credit ? ` (davon ${formatHours(credit)} h Feiertag angerechnet)` : ''} bei ${formatHours(contract)} h Vertrag: +${formatHours(work - contract)} h ${kind}`, ws, { overMinutes: work - contract })
       }
     },
   },
@@ -517,14 +520,30 @@ export function evaluateEmployee(emp, list, ctx) {
 }
 
 /**
+ * Feiertagsstunden je Person und Woche („empId|Montag“ → Minuten): Stammeinsätze,
+ * die wegen eines gesetzlichen Feiertags entfallen oder verschoben sind (wie im Wochenzettel).
+ */
+export function holidayCredits(instances, rules = {}) {
+  const out = new Map()
+  for (const inst of instances) {
+    if (inst.reason !== 'holiday' || inst.status === 'normal' || !inst.origHoliday?.legal) continue
+    if (inst.category === 'sonder' && !rules.creditSpecialTasks) continue
+    const monday = mondayOf(inst.origDate)
+    for (const id of inst.regulars) out.set(`${id}|${monday}`, (out.get(`${id}|${monday}`) || 0) + inst.net)
+  }
+  return out
+}
+
+/**
  * Prüft den ganzen Plan. Liefert Markierungen, die einen Einsatz im
  * Zeitraum [from, to] betreffen, plus Indizes für die Darstellung.
  */
 export function validatePlan(ctx, state, instances, { from, to }) {
   const all = []
+  const vctx = { ...ctx, holidayCredit: holidayCredits(instances, ctx.rules) }
   for (const emp of ctx.employees) {
     const list = state.instancesOf(emp.id)
-    if (list.length) all.push(...evaluateEmployee(emp, list, ctx))
+    if (list.length) all.push(...evaluateEmployee(emp, list, vctx))
   }
   for (const inst of instances) {
     if (inst.status === 'cancelled') continue

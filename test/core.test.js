@@ -79,6 +79,19 @@ test('Fahrzeit über Mitternacht: Objektwechsel in der Nachtschicht zählt', () 
   assert.ok(ts.totals.travel > 0)
 })
 
+test('Teilzeit: verschobener Feiertagseinsatz ergibt Mehrstunden-Warnung wie im Wochenzettel', () => {
+  const tasks = [task('di', 'o1', [2], '08:00', '12:00', { regulars: ['t'], holidayRule: 'verschieben' }), task('rest', 'o2', [1, 4, 5], '08:00', '13:20', { regulars: ['t'] })]
+  const base = setup({ employees: [emp('t', { type: 'Teilzeit', weeklyHours: 20 })], tasks, from: '2026-11-30', to: '2026-12-20' })
+  const asg = Object.fromEntries(base.instances.filter((i) => i.status !== 'cancelled').map((i) => [i.key, [{ employeeId: 't' }]]))
+  const s = setup({ employees: [emp('t', { type: 'Teilzeit', weeklyHours: 20 })], tasks, assignments: asg, from: '2026-11-30', to: '2026-12-20' })
+  const ts = buildTimesheet(s.ctx, s.ctx.employees[0], '2026-12-07', s.instances, s.state)
+  assert.equal(ts.totals.saldo, 240)
+  const { issues } = validatePlan(s.ctx, s.state, s.instances, { from: '2026-12-07', to: '2026-12-13' })
+  const warn = issues.find((i) => i.code === 'CONTRACT')
+  assert.ok(warn, 'Mehrstunden-Warnung')
+  assert.match(warn.message, /Feiertag angerechnet.*\+4 h/)
+})
+
 test('Feiertagsregel: entfällt, findet statt, verschieben', () => {
   const { instances } = setup({
     employees: [],
