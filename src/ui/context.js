@@ -39,7 +39,7 @@ export const app = {
 
 export const VIEWS = []
 
-/** Kurznamen für Adressen wie app.cleanos.at/#zaehler (auch die Namen der früheren Werkzeuge). */
+/** Kurznamen für Adressen wie app.firma.at/#zaehler (auch die Namen der früheren Werkzeuge). */
 export const VIEW_ALIASES = { dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe' }
 
 /** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
@@ -50,8 +50,9 @@ export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
 }
 
 export const VIEW_GROUPS = [
-  ['plan', 'Planung'],
+  ['plan', 'Einsatzplanung'],
   ['service', 'Objektservice'],
+  ['fuhrpark', 'Fuhrpark'],
   ['auswertung', 'Auswertung'],
   ['stamm', 'Stammdaten'],
 ]
@@ -71,7 +72,7 @@ export const visibleViews = () => VIEWS.filter((v) => !app.access || app.access.
 export const canEdit = (module) => !app.access || app.access.canEdit(module)
 
 /**
- * Ansicht registrieren: { id, label, group: 'plan'|'service'|'auswertung'|'stamm', module?, order, render(c),
+ * Ansicht registrieren: { id, label, group: 'plan'|'service'|'fuhrpark'|'auswertung'|'stamm', module?, icon?, order, render(c),
  * summary?, badge?(c), range?() → { from, to } für zusätzlich zu ladende Wochen }
  * module: Rollen-Modul (core/access.js), sonst nach Gruppe.
  */

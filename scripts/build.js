@@ -91,7 +91,7 @@ const head = [
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
-  `<meta name="apple-mobile-web-app-title" content="${brand.product || 'Dienstplan'}">`,
+  `<meta name="apple-mobile-web-app-title" content="${brand.app && brand.app.length <= 12 ? brand.app : brand.product || 'Dienstplan'}">`,
   brand.appleTouchIcon ? `<link rel="apple-touch-icon" href="${brand.appleTouchIcon}">` : '',
   brand.icon ? `<link rel="icon" href="${brand.icon}">` : '',
 ].filter(Boolean)

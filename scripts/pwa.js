@@ -12,8 +12,9 @@ export function manifestFor(config) {
   const largest = icons.at(-1)
   if (largest) icons.push({ ...largest, purpose: 'maskable' })
   return {
-    name: `${b.name || 'Einsatzplaner'} ${b.product || 'Dienstplan'}`.trim(),
-    short_name: b.product || 'Dienstplan',
+    name: b.app || `${b.name || 'Einsatzplaner'} ${b.product || 'Dienstplan'}`.trim(),
+    // Name unter dem Symbol am Startbildschirm: kurz halten
+    short_name: b.app && b.app.length <= 12 ? b.app : b.product || 'Dienstplan',
     description: b.tagline || 'Einsatzplanung',
     lang: 'de-AT',
     start_url: './',

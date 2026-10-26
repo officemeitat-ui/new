@@ -226,7 +226,7 @@ function serviceView() {
     <div class="table-wrap"><table class="data veh-table"><thead><tr><th>Fahrzeug</th><th>Fahrer/in</th><th>km-Stand</th><th>Pickerl</th><th>Service</th><th>Weitere</th><th>Termin</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`
 }
 
-registerView({ id: 'fahrzeuge', order: 95, label: 'Fahrzeuge & Reifen', group: 'stamm', module: MODULE, noWeek: true, mobile: { icon: ICON.car, label: 'Reifen' }, badge: () => rows().filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length + serviceRows().filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length, render: vehiclesView })
+registerView({ id: 'fahrzeuge', order: 95, label: 'Fahrzeuge & Reifen', group: 'fuhrpark', module: MODULE, noWeek: true, mobile: { icon: ICON.car, label: 'Reifen' }, badge: () => rows().filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length + serviceRows().filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length, render: vehiclesView })
 
 registerActions({
   'veh-filter': (el) => {

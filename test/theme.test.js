@@ -76,9 +76,10 @@ test('Cleanos-Design nach www.cleanos.at: Hausfarben, zwei Farbschemata, lesbar'
   const theme = readFileSync(new URL(`../themes/${brand.theme}.css`, import.meta.url), 'utf8')
   for (const token of ['--brand-primary: #0c6cb4;', '--brand-accent: #9cc654;', '--brand-night: #0e2433;', '--fg: #13232f;', '--bg: #f3f6f8;', '--line: #dde5ea;', '--ok: #4e7a1e;', '--ok-soft: #eef6e2;']) assert.ok(theme.includes(token), token)
   assert.match(theme, /--font-body: 'Segoe UI'/, 'Systemschrift wie auf der Website')
-  assert.match(theme, /\[data-skin='cleanos-nacht'\] \.topbar \{ background: #0e2433;/)
-  // Text lesbar (≥ 4,5:1), Grün nur auf Dunkel als Schrift
-  const pairs = [['#0c6cb4', '#ffffff'], ['#ffffff', '#0c6cb4'], ['#4b5b67', '#f3f6f8'], ['#4e7a1e', '#eef6e2'], ['#0c6cb4', '#e3eef8'], ['#8a5300', '#fdf0d5'], ['#b3261e', '#fce8e6'], ['#9cc654', '#0e2433'], ['#5ea9e3', '#0e2433'], ['#a3b4c1', '#0e2433']]
+  assert.match(theme, /:root\[data-skin='cleanos-nacht'\] \{\n  --sb-bg: #0e2433;/, 'Nachtblau: Seitenleiste in Nachtblau')
+  assert.match(theme, /--sb-marker: #9cc654;/, 'grüne Markierung nur auf Dunkel')
+  // Text lesbar (≥ 4,5:1), Grün nur auf Dunkel als Schrift; auch Seitenleiste hell und Nachtblau
+  const pairs = [['#0c6cb4', '#ffffff'], ['#ffffff', '#0c6cb4'], ['#4b5b67', '#f3f6f8'], ['#4e7a1e', '#eef6e2'], ['#0c6cb4', '#e8f1fa'], ['#8a5300', '#fdf0d5'], ['#b3261e', '#fce8e6'], ['#9cc654', '#0e2433'], ['#5ea9e3', '#0e2433'], ['#a3b4c1', '#0e2433'], ['#5f6f7b', '#ffffff'], ['#5f6f7b', '#f3f6f8'], ['#e3ebf0', '#0e2433'], ['#8fa3b2', '#0e2433'], ['#ffffff', '#173f5c'], ['#a3245a', '#f8e9f0']]
   for (const [fg, bg] of pairs) assert.ok(contrast(fg, bg) >= 4.5, `${fg} auf ${bg}: ${contrast(fg, bg).toFixed(2)}`)
   assert.ok(contrast('#9cc654', '#ffffff') < 3, 'Grün auf Weiß wäre nicht lesbar und wird nicht als Schrift verwendet')
 })

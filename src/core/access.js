@@ -9,7 +9,7 @@
 // braucht; die Rechte in SharePoint sichern das zusätzlich ab.
 
 export const MODULES = {
-  planung: 'Dienstplan',
+  planung: 'Einsatzplanung',
   auswertung: 'Auswertung & Lohn',
   stammdaten: 'Stammdaten',
   zaehler: 'Zählerstände',
@@ -19,7 +19,7 @@ export const MODULES = {
 }
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
-export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 'stammdaten', service: 'kontrolle' }
+export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 'stammdaten', service: 'kontrolle', fuhrpark: 'fahrzeuge' }
 
 // Rollen-IDs = App-Rollen in Entra ID (Wert z. B. „Dienstplan.Ableser“ oder „ableser“)
 export const DEFAULT_ROLES = {

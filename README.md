@@ -87,26 +87,28 @@ Dazu kommen: Veröffentlichen mit Excel- und PDF-Export nach SharePoint, Markier
 
 ## Corporate Design und Darstellung
 
+**Aufbau („Klar & hell“):** Die Cleanos App hat links eine Seitenleiste mit allen Bereichen, die die eigene Gruppe sehen darf (Einsatzplanung, Objektservice, Fuhrpark, Auswertung, Stammdaten), mit Symbolen und Zählern. Oben steht eine schlanke Kopfleiste mit Titel und Wochenwahl, Suche, „Zu erledigen“, „Woche planen“ und dem Menü „⋯“ (Veröffentlichen, Neu planen, Versenden, Daten, Darstellung, Abmelden). Der Inhalt besteht aus ruhigen Karten statt Rahmen, offene Einsätze sind rot gestrichelt umrandet und Feiertage nur leicht getönt. Auf Tablets zeigt die Seitenleiste nur Symbole, am Handy gibt es Kopfzeile und Leiste unten.
+
 Das Cleanos-Design folgt den Gestaltungsregeln von www.cleanos.at:
 
 | | Farbe | wofür |
 |---|---|---|
-| Cleanos-Blau | `#0C6CB4` | Knöpfe, Links, aktive Register |
-| Cleanos-Grün | `#9CC654` | nur auf Dunkel (Linie unter der Nachtblau-Kopfleiste, Erfolg im Dunkelmodus); Grün auf Weiß ist als Schrift nicht lesbar |
-| Nachtblau | `#0E2433` | Kopfleiste „Cleanos Nachtblau“, Flächen im Dunkelmodus |
+| Cleanos-Blau | `#0C6CB4` | Knöpfe, Links, aktiver Bereich in der Seitenleiste |
+| Cleanos-Grün | `#9CC654` | nur auf Dunkel (Markierung in der Nachtblau-Seitenleiste, Erfolg im Dunkelmodus); Grün auf Weiß ist als Schrift nicht lesbar |
+| Nachtblau | `#0E2433` | Seitenleiste „Cleanos Nachtblau“, Flächen im Dunkelmodus |
 | Text / Text leise | `#13232F` / `#4B5B67` | Schrift |
 | Grün dunkel auf Hellgrün | `#4E7A1E` / `#EEF6E2` | „in Ordnung“, erledigt |
 | Grauton / Linie | `#F3F6F8` / `#DDE5EA` | Hintergrund, Rahmen |
 
 Schrift ist die Systemschrift (Segoe UI), Knöpfe haben 8 px Ecken und sind fett, Karten 12 px; Überschriften und Beschriftungen nie in Großbuchstaben oder gesperrt. Alle Textfarben sind auf Lesbarkeit geprüft (mindestens 4,5:1). Werte in `themes/cleanos.css`, Logo und PDF-Farben in `config.json` (brand).
 
-**Darstellung je Person:** Über das Paletten-Symbol oben (am Handy „Mehr → Darstellung“) wählt jede Person für ihr Gerät:
+**Darstellung je Person:** Über das Paletten-Symbol unten in der Seitenleiste oder „⋯ → Darstellung“ (am Handy „Mehr → Darstellung“) wählt jede Person für ihr Gerät:
 
-- **Farbschema:** Cleanos (weiße Kopfleiste wie auf der Website), Cleanos Nachtblau, Standard, Ruhig (Petrol, warme Grautöne), Hoher Kontrast (für Sonne am Handy).
+- **Farbschema:** Cleanos (helle Seitenleiste wie die Website), Cleanos Nachtblau (Seitenleiste in Nachtblau), Standard, Ruhig (Petrol, warme Grautöne), Hoher Kontrast (für Sonne am Handy).
 - **Hell, dunkel oder wie das Gerät.**
 - **Schriftgröße:** normal oder groß.
 
-Die Voreinstellung für alle ist `brand.theme` in `config.json`; die Marken-Farbschemata und ihre Vorschau stehen in `brand.themes`.
+Die Voreinstellung für alle ist `brand.theme` in `config.json`; die Marken-Farbschemata und ihre Vorschau stehen in `brand.themes`. Der Name oben links und am Startbildschirm ist `brand.app` („Cleanos App“).
 
 **Andere Marke:** `npm run theme -- https://www.firma.at` (oder `--logo … --primary … --accent …`) erzeugt `themes/<name>.css` mit einem wählbaren Farbschema und trägt es in `config.json` ein. Achtung: Mit dem Namen `cleanos` würde das von Hand nach den Gestaltungsregeln abgestimmte Cleanos-Theme überschrieben; zum Ausprobieren `--name test` verwenden.
 

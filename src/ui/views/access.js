@@ -34,7 +34,7 @@ function accessView() {
           <td>${esc(list(r.modules))}</td><td>${esc(list(r.edit))}</td></tr>`
       })
       .join('')}</tbody></table></section>
-  <section class="table-wrap"><h3>Rechte in SharePoint je Ordner</h3><p class="muted">Bibliothek ${esc(app.config.sharepoint?.library || '')}, Ordner ${esc(app.config.sharepoint?.folder || '')}. Jeden Ordner nur für diese Gruppen freigeben (Vererbung beenden).</p><table class="data">
+  <section class="table-wrap"><div class="table-head"><h3>Rechte in SharePoint je Ordner</h3><p class="muted">Bibliothek ${esc(app.config.sharepoint?.library || '')}, Ordner ${esc(app.config.sharepoint?.folder || '')}. Jeden Ordner nur für diese Gruppen freigeben (Vererbung beenden).</p></div><table class="data">
     <thead><tr><th>Ordner</th><th>Inhalt</th>${used.map((id) => `<th>${esc(roles[id].label)}</th>`).join('')}</tr></thead>
     <tbody>${folders
       .map(([folder, label], i) => `<tr><td><code>${esc(folder)}/</code></td><td>${esc(label)}</td>${used.map((id) => `<td>${esc(folderRights(roleAccess[id])[i][2] || '–')}</td>`).join('')}</tr>`)

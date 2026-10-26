@@ -75,9 +75,10 @@ import { esc } from '../shared.js'
 
 registerView({
   id: 'keys',
-  order: 95,                 // Position im Register
+  order: 95,                 // Position in der Seitenleiste
   label: 'Schlüssel',
-  group: 'stamm',            // 'plan' | 'auswertung' | 'stamm'
+  group: 'stamm',            // 'plan' | 'service' | 'fuhrpark' | 'auswertung' | 'stamm'
+  icon: '<path d="M4 12h16"/>', // optional: Symbol in der Seitenleiste (SVG-Inhalt, 24er-Raster)
   render: (c) => `<h2>Schlüssel</h2>${app.data.objects.map((o) => `<p>${esc(o.name)}: ${(o.keys || []).length}</p>`).join('')}`,
 })
 ```
@@ -101,7 +102,7 @@ Wie gut eine Person zu einem Einsatz passt, steht in `candidateFactors()` (src/c
 
 ## Handy und Tablet
 
-Unter 700 px Breite zeigt `isMobile()` (src/ui/mobile.js) die Handy-Ansicht: eigene Kopfzeile, Leiste unten, Menü „Mehr“ mit allen registrierten Ansichten. Eine neue Ansicht erscheint dort automatisch. Tabellen mit `class="data"` werden am Handy zu Karten; die Spaltenüberschrift kommt als `data-label` in jede Zelle (`labelTables()`). Eine Ansicht kann am Handy eine eigene Darstellung liefern, wie die Wochenübersicht mit `isMobile() ? mobileWeek(c) : …`.
+Ab 701 px Breite stehen alle Ansichten in der Seitenleiste (`src/ui/sidebar.js`, zwischen 701 und 1180 px nur mit Symbolen), darüber eine schlanke Kopfleiste (`topbar` in `src/ui/app.js`) mit Titel, Wochenwahl und dem Menü „⋯“. Unter 700 px Breite zeigt `isMobile()` (src/ui/mobile.js) die Handy-Ansicht: eigene Kopfzeile, Leiste unten, Menü „Mehr“ mit allen registrierten Ansichten. Eine neue Ansicht erscheint an beiden Stellen automatisch. Tabellen mit `class="data"` werden am Handy zu Karten; die Spaltenüberschrift kommt als `data-label` in jede Zelle (`labelTables()`). Eine Ansicht kann am Handy eine eigene Darstellung liefern, wie die Wochenübersicht mit `isMobile() ? mobileWeek(c) : …`.
 
 Installierbar (PWA): `npm run build` schreibt `manifest.webmanifest` (aus `config.json` → brand: Name, Farbe, `appIcons`, `appleTouchIcon`) und `sw.js` (hält die gebündelten Dateien vor; Seite, Anmeldung und Daten kommen immer aus dem Netz). Logik in `scripts/pwa.js`.
 
@@ -174,7 +175,7 @@ Ein Modul ist eine oder mehrere Ansichten mit eigener Datei und eigenen Rechten.
 
 1. **Rolle und Modul:** in `src/core/access.js` das Modul in `MODULES` eintragen und in `DEFAULT_ROLES` festlegen, wer es sieht (`modules`) und ändern darf (`edit`).
 2. **Datei:** in `src/storage/data-service.js` unter `MODULE_DOCS` einen Schlüssel mit Pfad und leerem Inhalt anlegen, z. B. `matten: { path: 'matten/matten.json', empty: () => ({ items: [] }) }`. Der Inhalt steht dann in `app.data.matten`, wird automatisch gespeichert, zusammengeführt und in der Datensicherung mitgenommen. Ohne Leserecht (403) bleibt er leer und wird nie geschrieben.
-3. **Ansicht:** `registerView({ id, label, group: 'service', module: 'matten', noWeek: true, mobile: { icon, label }, badge, render })`. `noWeek` zeigt oben den Titel statt der Wochenwahl, `mobile` setzt den Knopf in der Leiste unten.
+3. **Ansicht:** `registerView({ id, label, group: 'service', module: 'matten', noWeek: true, mobile: { icon, label }, badge, render })`. `noWeek` zeigt oben den Pfad („Objektservice / …“) statt der Wochenwahl, `icon` das Symbol in der Seitenleiste (sonst aus `NAV_ICONS` in `src/ui/sidebar.js`), `mobile` setzt den Knopf in der Leiste unten.
 4. **Aktionen:** `registerActions({ … }, { edit: 'matten' })` sperrt sie ohne Schreibrecht im Modul (unabhängig von der gerade offenen Ansicht).
 5. **Zu erledigen:** `registerTodo({ id, module, title, compute(today) → [{ id, … }], render(items) })`. Die `id` eines Punkts ändert sich, wenn er neu gemeldet werden soll.
 6. **Hinweis im Einsatz:** `registerObjectHint({ module, html(objectId) })` zeigt im Einsatz-Dialog etwas zum Objekt.

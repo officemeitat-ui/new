@@ -9,7 +9,8 @@ const config = JSON.parse(readFileSync(new URL('../config.json', import.meta.url
 
 test('App-Installation: Manifest aus der Marke, mit Symbolen für Startbildschirm', () => {
   const m = manifestFor(config)
-  assert.equal(m.name, 'Cleanos Dienstplan')
+  assert.equal(m.name, 'Cleanos App')
+  assert.equal(m.short_name, 'Cleanos App')
   assert.equal(m.display, 'standalone')
   assert.equal(m.theme_color, '#0c6cb4')
   assert.deepEqual(m.icons.map((i) => i.sizes), ['192x192', '512x512', '512x512'])

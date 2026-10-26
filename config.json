@@ -2,7 +2,8 @@
   "brand": {
     "name": "Cleanos",
     "product": "Dienstplan",
-    "tagline": "Einsatzplanung Gebäudereinigung",
+    "app": "Cleanos App",
+    "tagline": "Gebäudereinigung",
     "logo": "assets/cleanos-logo.png",
     "logoOnLight": "assets/cleanos-logo.png",
     "icon": "assets/cleanos-icon.png",
@@ -10,7 +11,7 @@
     "themes": {
       "cleanos": {
         "label": "Cleanos",
-        "note": "Wie www.cleanos.at: weiße Kopfleiste, Cleanos-Blau, Systemschrift",
+        "note": "Wie www.cleanos.at: helle Seitenleiste, Cleanos-Blau, Systemschrift",
         "preview": {
           "header": "#ffffff",
           "headerLine": "#dde5ea",
@@ -26,7 +27,7 @@
       },
       "cleanos-nacht": {
         "label": "Cleanos Nachtblau",
-        "note": "Kopfleiste in Nachtblau mit grüner Linie",
+        "note": "Seitenleiste in Nachtblau mit grüner Markierung",
         "preview": {
           "header": "#0e2433",
           "headerLine": "#9cc654",

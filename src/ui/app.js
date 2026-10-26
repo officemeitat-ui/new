@@ -16,6 +16,7 @@ import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, re
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
+import { sidebar } from './sidebar.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { uploadQueued } from './photo.js'
 import { searchButton } from './search.js'
@@ -57,13 +58,27 @@ function legacyData() {
 }
 
 // ---------------------------------------------------------------- Rahmen
-
-const GROUPS = VIEW_GROUPS
+// Ab 701 px: Seitenleiste mit allen Bereichen (sidebar.js) und schlanke
+// Kopfleiste über dem Inhalt (Titel, Wochenwahl, wenige Knöpfe, „⋯“).
+// Am Handy: Kopfzeile mit Logo und Woche, Leiste unten (mobile.js).
 
 function brandBlock() {
   const b = app.config.brand
   const logo = b.logo ? `<img class="brand-logo" src="${esc(b.logo)}" alt="${esc(b.name)}">` : `<span class="brand-word">${esc(b.name)}</span>`
   return `<div class="brand">${logo}<div class="brand-text"><strong>${esc(b.product)}</strong><small>${esc(b.tagline)}</small></div></div>`
+}
+
+/** Weniger gebrauchte Aktionen im Menü „⋯“. */
+function moreMenu(plan) {
+  const items = [
+    plan && `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>`,
+    plan && `<button class="btn" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">${ICON.bolt} Neu planen</button>`,
+    plan && `<button class="btn" data-action="open-send">${ICON.send} An Mitarbeitende versenden</button>`,
+    (!app.access || app.access.all) && `<button class="btn" data-action="open-data">${ICON.folder} Daten & Sicherung</button>`,
+    `<button class="btn" data-action="theme-open">${ICON.palette} Darstellung</button>`,
+    app.signOut && `<button class="btn" data-action="sign-out">${ICON.user} Abmelden</button>`,
+  ].filter(Boolean)
+  return `<details class="menu-wrap"><summary class="btn icon ghost" aria-label="Weitere Aktionen" title="Weitere Aktionen">${ICON.more}</summary><div class="menu" role="menu">${items.join('')}</div></details>`
 }
 
 function topbar(c) {
@@ -78,41 +93,40 @@ function topbar(c) {
     return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short, title })
   }
   const status = published ? (changed ? `<span class="pill warning">veröffentlicht · ${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info">Entwurf</span>'
-  const role = app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''
-  const user = app.user ? `<span class="user">${ICON.user} ${esc(app.user.name)}${role}</span>${app.signOut ? '<button class="btn small" data-action="sign-out">Abmelden</button>' : ''}` : roleSwitch()
-  return `<header class="topbar"><div class="topbar-inner wrap">
-    ${brandBlock()}
-    ${title ? `<div class="weeknav"><div class="kw">${esc(title.label)}<small>${title.sub}</small></div></div>` : `<div class="weeknav">
-      <button class="btn icon" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
+  const group = VIEW_GROUPS.find(([g]) => g === view?.group)?.[1] || ''
+  const head = !view
+    ? ''
+    : title
+      ? `<nav class="crumbs" aria-label="Pfad"><span>${esc(group)}</span><span class="sep" aria-hidden="true">/</span><b>${esc(view.label)}</b></nav>`
+      : `<h1 class="page-title">${esc(view.label)}</h1><div class="weeknav">
+      <button class="btn icon ghost" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
       <div class="kw">KW ${week} / ${year}<small>${formatDate(c.monday, { weekday: false })} – ${formatDate(c.sunday, { weekday: false, year: true })}</small></div>
-      <button class="btn icon" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
+      <button class="btn icon ghost" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
       <button class="btn small" data-action="nav-today">Heute</button>
       ${status}
-    </div>`}
+    </div>`
+  // Planen nur in der Einsatzplanung; Veröffentlichen, Neu planen, Daten im Menü „⋯“
+  const plan = canEdit('planung') && view?.group === 'plan'
+  return `<header class="topbar"><div class="topbar-inner">
+    <div class="page-head">${head}</div>
     <div class="actions">
       ${searchButton()}
       ${bellButton()}
-      ${canEdit('planung') ? `<button class="btn primary" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>
-      <button class="btn" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">Neu planen</button>` : ''}
-      ${canEdit('planung') ? `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>` : ''}
-      ${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten</button>' : ''}
+      ${plan ? `<button class="btn primary" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>` : ''}
+      ${moreMenu(plan)}
     </div>
-    <div class="userbox"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span>${user}${themeButton()}</div>
   </div></header>`
 }
 
-function tabs(c) {
-  const views = visibleViews()
-  return `<nav class="tabs wrap" aria-label="Ansichten">${GROUPS.map(([group, label]) => {
-    const items = views.filter((v) => v.group === group)
-    if (!items.length) return ''
-    return `<div class="tabgroup"><span class="tabgroup-label">${label}</span>${items
-      .map((v) => {
-        const badge = v.badge?.(c)
-        return `<button class="tab" data-action="view" data-view="${v.id}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}>${esc(v.label)}${badge ? ` <span class="flag error">${badge}</span>` : ''}</button>`
-      })
-      .join('')}</div>`
-  }).join('')}</nav>`
+/** Unten in der Seitenleiste: Speicherstand, angemeldete Person (oder Rollen-Vorschau), Darstellung. */
+function sidebarFoot() {
+  const role = app.access && !app.access.all ? app.access.label : ''
+  const who = app.user
+    ? `<div class="sb-user"><span class="user">${ICON.user} <span>${esc(app.user.name)}</span></span>${role ? `<small>${esc(role)}</small>` : ''}</div>`
+    : roleSwitch()
+  return `<div class="sb-status"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span></div>
+    <div class="sb-account">${who}</div>
+    <div class="sb-tools">${themeButton()}${app.signOut ? `<button class="btn small" data-action="sign-out" title="Abmelden">Abmelden</button>` : ''}</div>`
 }
 
 function summary(c) {
@@ -152,14 +166,15 @@ function correctionBanner(c) {
 
 function frame(c) {
   const views = visibleViews()
-  if (!views.length) return `${topbar(c)}<main class="wrap"><div class="banner"><p><strong>Kein Bereich freigegeben.</strong> Dein Konto ist keiner Gruppe dieser App zugeordnet. Bitte im Büro oder bei der IT melden.</p></div></main>`
+  const mobile = isMobile()
+  const shell = (content) => (mobile ? `${topbar(c)}<main class="wrap">${content}</main>${views.length ? bottomNav(c) : ''}` : `<div class="layout">${sidebar(c, { foot: sidebarFoot() })}<div class="layout-main">${views.length ? topbar(c) : ''}<main class="wrap">${content}</main></div></div>`)
+  if (!views.length) return shell('<div class="banner"><p><strong>Kein Bereich freigegeben.</strong> Dein Konto ist keiner Gruppe dieser App zugeordnet. Bitte im Büro oder bei der IT melden.</p></div>')
   const view = views.find((v) => v.id === app.ui.view) || views[0]
   app.ui.view = view.id
   // Leserechte je Modul der aktuellen Ansicht
   app.readOnly = !canEdit(moduleOf(view))
   const readOnly = app.readOnly ? `<div class="banner"><p><strong>Nur lesen.</strong> ${app.access ? `Deine Rolle (${esc(app.access.label)}) darf im Bereich „${esc(MODULES[moduleOf(view)] || '')}“ nichts ändern.` : ''}</p></div>` : ''
-  const mobile = isMobile()
-  return `${topbar(c)}${mobile ? '' : tabs(c)}<main class="wrap">${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}</main>${mobile ? bottomNav(c) : ''}`
+  return shell(`${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}`)
 }
 
 setFrame({
@@ -190,7 +205,7 @@ Object.assign(ACTIONS, {
     app.ui.view = el.dataset.view
     app.ui.confirm = null
     app.ui.modal = null
-    // Adresse zum Speichern als Lesezeichen, z. B. app.cleanos.at/#zaehler
+    // Adresse zum Speichern als Lesezeichen, z. B. app.firma.at/#zaehler
     try {
       history.replaceState(null, '', `#${app.ui.view}`)
     } catch {
@@ -233,6 +248,8 @@ Object.assign(ACTIONS, {
 
 function bindEvents() {
   document.addEventListener('click', (e) => {
+    // Menü „⋯“: Klick daneben oder auf einen Eintrag schließt es
+    for (const menu of document.querySelectorAll('details.menu-wrap[open]')) if (!menu.contains(e.target) || e.target.closest('.menu [data-action]')) menu.open = false
     const el = e.target.closest('[data-action]')
     if (!el || el.disabled) return
     const handler = ACTIONS[el.dataset.action]
@@ -262,6 +279,7 @@ function bindEvents() {
   bindDragEvents(document)
   watchDevice()
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') for (const menu of document.querySelectorAll('details.menu-wrap[open]')) menu.open = false
     if (e.key === 'Escape' && app.ui.modal) closeModal()
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !app.readOnly) {

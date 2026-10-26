@@ -46,6 +46,9 @@ export async function loadConfig(url = 'config.json') {
   }
 }
 
+/** Name der App (Kopf, Browser-Tab, Startbildschirm): brand.app, sonst Marke + Produkt. */
+export const appName = (brand = {}) => brand.app || `${brand.name || ''} ${brand.product || ''}`.trim()
+
 export function applyBrand(brand) {
   // Ohne Theme-Datei reichen die Markenfarben aus config.json (brand.colors)
   if (!brand.theme && brand.colors?.primary) document.documentElement.style.setProperty('--accent', brand.colors.primary)
@@ -61,5 +64,5 @@ export function applyBrand(brand) {
     const icon = document.querySelector('link[rel="icon"]') || document.head.appendChild(Object.assign(document.createElement('link'), { rel: 'icon' }))
     icon.href = brand.icon
   }
-  document.title = `${brand.product} · ${brand.name}`
+  document.title = appName(brand)
 }
