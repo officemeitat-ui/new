@@ -45,6 +45,10 @@ export function createOfflineCache(name = 'dienstplan-offline') {
   }
   const safe = (fn, fallback) => (...args) => fn(...args).catch(() => fallback)
   return {
+    close: async () => {
+      if (dbPromise) (await dbPromise.catch(() => null))?.close()
+      dbPromise = null
+    },
     get: safe((store, key) => run(store, 'readonly', (s) => s.get(key)), undefined),
     put: safe((store, key, value) => run(store, 'readwrite', (s) => s.put(value, key)), undefined),
     del: safe((store, key) => run(store, 'readwrite', (s) => s.delete(key)), undefined),
@@ -64,6 +68,29 @@ export function createOfflineCache(name = 'dienstplan-offline') {
       })
     }, []),
   }
+}
+
+/**
+ * Gerätespeicher früherer Versionen (ein gemeinsamer für alle Konten):
+ * Ungespeichertes und wartende Fotos in den Speicher des angemeldeten Kontos
+ * übernehmen, den Rest (Kopien fremder Dateien) löschen. Liefert die Anzahl
+ * übernommener Einträge.
+ */
+export async function adoptLegacyCache(target, name = 'dienstplan-offline') {
+  if (typeof indexedDB === 'undefined') return 0
+  const list = await indexedDB.databases?.().catch(() => null)
+  if (list && !list.some((d) => d.name === name)) return 0
+  const legacy = createOfflineCache(name)
+  let moved = 0
+  for (const store of ['pending', 'blobs'])
+    for (const [key, value] of await legacy.all(store)) {
+      if (await target.get(store, key)) continue
+      await target.put(store, key, value)
+      moved++
+    }
+  await legacy.close()
+  indexedDB.deleteDatabase(name)
+  return moved
 }
 
 export function memoryCache() {
@@ -178,18 +205,26 @@ export class CachedDocStore {
     }
   }
 
-  /** Wartende Fotos hochladen; onDone(path, webUrl) je Datei. Liefert die Anzahl noch wartender. */
+  /**
+   * Wartende Fotos hochladen; onDone(path, webUrl) je Datei. Liefert die Anzahl
+   * noch wartender. Ein Foto mit echtem Fehler (z. B. keine Schreibrechte)
+   * bleibt im Gerät (mit Fehlertext) und hält die anderen nicht auf.
+   */
   async flushUploads(onDone = () => {}) {
     const list = await this.cache.all('blobs')
     let left = 0
-    for (const [path, { blob, type }] of list) {
+    for (const [path, entry] of list) {
       try {
-        const { webUrl } = await this.remote.upload(path, blob, type)
+        const { webUrl } = await this.remote.upload(path, entry.blob, entry.type)
         await this.cache.del('blobs', path)
         onDone(path, webUrl)
       } catch (err) {
-        if (!isNetworkError(err)) throw err
         left++
+        if (isNetworkError(err)) {
+          this.#mark(true)
+          continue
+        }
+        await this.cache.put('blobs', path, { ...entry, tries: (entry.tries || 0) + 1, error: String(err.message || err) })
       }
     }
     if (!left && list.length) this.#mark(false)
@@ -200,12 +235,27 @@ export class CachedDocStore {
     return (await this.cache.all('blobs')).length
   }
 
+  /** Fotos, die mit echtem Fehler hängen: [{ path, error, tries }] */
+  async failedUploads() {
+    return (await this.cache.all('blobs')).filter(([, e]) => e.error).map(([path, { error, tries }]) => ({ path, error, tries }))
+  }
+
   readBlob(path, opts) {
     return this.remote.readBlob(path, opts)
   }
 
   listTree(...args) {
     return this.remote.listTree(...args)
+  }
+
+  /** Ohne Netz: leer (Umzug alter Dateien wartet auf den nächsten Start). */
+  async listDocs(prefix) {
+    try {
+      return (await this.remote.listDocs?.(prefix)) || []
+    } catch (err) {
+      if (isNetworkError(err)) return []
+      throw err
+    }
   }
 
   readRoot(path) {

@@ -19,7 +19,10 @@ export function accountProblem(account, tenantId, { allowGuests = false } = {}) 
   const home = String(account.homeAccountId || '').split('.')[1]?.toLowerCase() || tid
   const own = String(tenantId).toLowerCase()
   if (tid && tid !== own) return 'Dieses Konto gehört nicht zur Firma. Bitte mit dem Firmenkonto anmelden.'
-  if (!allowGuests && home && home !== own) return 'Gastkonten sind gesperrt. Bitte mit dem eigenen Firmenkonto anmelden.'
+  const claims = account.idTokenClaims || {}
+  // Gäste erkennt man an fremdem Heimat-Mandanten, am Anspruch idp (anderer Identitätsanbieter) oder acct = 1 (optional im Token)
+  const guest = (home && home !== own) || !!claims.idp || Number(claims.acct) === 1
+  if (!allowGuests && guest) return 'Gastkonten sind gesperrt. Bitte mit dem eigenen Firmenkonto anmelden.'
   return ''
 }
 
@@ -97,7 +100,7 @@ export async function signIn({ tenantId, clientId, allowGuests = false, redirect
   const { groups, overage } = groupsOf(account)
   return {
     // roles: App-Rollen aus Entra ID (Unternehmensanwendung → Benutzer und Gruppen); groups: Microsoft-Gruppen (Token-Konfiguration)
-    user: { name: account.name || account.username, email: (account.username || '').toLowerCase(), roles: account.idTokenClaims?.roles || [], groups, groupsOverage: overage },
+    user: { id: account.homeAccountId || '', name: account.name || account.username, email: (account.username || '').toLowerCase(), roles: account.idTokenClaims?.roles || [], groups, groupsOverage: overage },
     getToken,
     signOut: () => pca.logoutRedirect({ account }),
   }

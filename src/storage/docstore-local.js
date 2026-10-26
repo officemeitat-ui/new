@@ -78,6 +78,10 @@ export class LocalDocStore {
     return null
   }
 
+  listDocs(prefix) {
+    return this.list(prefix)
+  }
+
   async list(prefix) {
     const out = []
     for (let i = 0; i < (this.storage.length || 0); i++) {

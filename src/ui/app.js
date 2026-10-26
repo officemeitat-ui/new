@@ -10,7 +10,7 @@ import { createDemoData, DEFAULT_SKILLS } from '../data/demo.js'
 import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights } from '../storage/data-service.js'
-import { CachedDocStore, createOfflineCache } from '../storage/offline.js'
+import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
 import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, viewFromHash, visibleViews } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
@@ -173,7 +173,15 @@ function frame(c) {
   app.ui.view = view.id
   // Leserechte je Modul der aktuellen Ansicht
   app.readOnly = view.module === '*' ? false : !canEdit(moduleOf(view))
-  const readOnly = app.readOnly ? `<div class="banner"><p><strong>Nur lesen.</strong> ${app.access ? `Deine Rolle (${esc(app.access.label)}) darf im Bereich „${esc(MODULES[moduleOf(view)] || '')}“ nichts ändern.` : ''}</p></div>` : ''
+  // Woche ohne Netz und ohne Kopie im Gerät: leer anzeigen, aber nichts ändern lassen (sonst würde ein leerer Plan gespeichert)
+  const missingWeek = view.group === 'plan' && !view.noWeek && app.service?.weekUnavailable?.(c.monday)
+  const readOnly = missingWeek
+    ? `<div class="banner warn-banner"><p><strong>KW ${isoWeek(c.monday).week} ist ohne Verbindung nicht verfügbar.</strong> Sie wurde auf diesem Gerät noch nie geöffnet. Sobald wieder Netz da ist, wird sie geladen.</p></div>`
+    : app.readOnly
+      ? `<div class="banner"><p><strong>Nur lesen.</strong> ${app.access ? `Deine Rolle (${esc(app.access.label)}) darf im Bereich „${esc(MODULES[moduleOf(view)] || '')}“ nichts ändern.` : ''}</p></div>`
+      : ''
+  app.locked = !!missingWeek
+  if (missingWeek) app.readOnly = true
   return shell(`${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}`)
 }
 
@@ -215,12 +223,12 @@ Object.assign(ACTIONS, {
     window.scrollTo({ top: 0 })
   },
   plan: () => {
-    if (!canEdit('planung')) return toast('Nur Leserechte.')
+    if (!canEdit('planung') || app.locked) return toast(app.locked ? 'Diese Woche ist ohne Verbindung nicht geladen.' : 'Nur Leserechte.')
     app.ui.modal = null
     planWeek(false)
   },
   replan: () => {
-    if (!canEdit('planung')) return toast('Nur Leserechte.')
+    if (!canEdit('planung') || app.locked) return toast(app.locked ? 'Diese Woche ist ohne Verbindung nicht geladen.' : 'Nur Leserechte.')
     app.ui.modal = null
     planWeek(true)
   },
@@ -240,7 +248,8 @@ Object.assign(ACTIONS, {
   'sign-out': async () => {
     await app.service.flush().catch(() => {})
     // Kopie der Daten im Gerät löschen (geteilte Geräte); Ungespeichertes und wartende Fotos bleiben
-    if (app.offline && !app.service.pendingCount()) await Promise.all(['docs', 'meta'].map((s) => app.offline.clear?.(s)))
+    // im Speicher dieses Kontos und werden bei der nächsten Anmeldung gespeichert
+    if (app.offline) await Promise.all(['docs', 'meta'].map((s) => app.offline.clear?.(s)))
     app.signOut?.()
   },
   'switch-account': () => app.switchAccount?.(),
@@ -321,8 +330,10 @@ async function boot() {
     app.auth = auth
     app.user = auth.user
     app.signOut = auth.signOut
-    // Hülle für den Offline-Betrieb: letzter Stand und ungespeicherte Änderungen bleiben im Gerät
-    local = createOfflineCache()
+    // Hülle für den Offline-Betrieb: letzter Stand und ungespeicherte Änderungen bleiben im Gerät,
+    // je Konto ein eigener Speicher (geteilte Tablets: niemand liest ohne Netz die Kopie eines anderen)
+    local = createOfflineCache(`dienstplan-offline:${auth.user.id || auth.user.email}`)
+    await adoptLegacyCache(local).catch(() => 0)
     store = new CachedDocStore(new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint }), local)
     showMessage('<p>Verbinde mit SharePoint …</p>')
     await store.init()
@@ -352,6 +363,7 @@ async function boot() {
       app.dataVersion = (app.dataVersion || 0) + 1
       clearUndo()
       renderNow()
+      if (kind === 'loaded') return // Woche nach Verbindungsausfall nachgeladen
       if (kind === 'merged') toast('Gleichzeitige Änderungen einer anderen Person wurden zusammengeführt.')
       else toast(`Aktualisiert: Änderungen von ${[...new Set(changed.map((x) => x.by).filter(Boolean))].join(', ') || 'anderer Sitzung'} geladen.`)
     },
@@ -365,6 +377,10 @@ async function boot() {
   }
   app.data = await app.service.load(seed)
   await render()
+  if (app.service.missing?.size) toast(`Nicht gefunden: ${[...app.service.missing].join(', ')}. Entweder noch nicht angelegt (das Büro öffnet die App zuerst) oder es fehlt das Leserecht auf den Ordner in SharePoint.`)
+  // frühere Ablage daten/plaene/ im Hintergrund umziehen (nur mit Schreibrecht auf die Pläne)
+  if (config.storage === 'sharepoint') app.service.migrateOldWeeks().catch(() => 0)
+  if (app.service.broken?.size) toast(`Beschädigte Datei in SharePoint (kein gültiges JSON): ${[...app.service.broken].join(', ')}. Der Bereich bleibt leer; bitte im Versionsverlauf eine frühere Fassung wiederherstellen.`)
   if (app.service.firstRun && config.storage === 'local' && config.demo && (config.migrateLegacy === false || !legacyData())) {
     await seedDemoHistory()
     renderNow()

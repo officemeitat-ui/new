@@ -83,7 +83,11 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint
   const rows = Object.fromEntries(folderRights(resolveAccess({ groupClaims: [OM], access, strict: true })).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows, { objekte: 'Lesen', daten: 'Lesen', personal: '', lohn: '', zaehler: '', kontrolle: 'Bearbeiten', objektmappe: 'Bearbeiten', fahrzeuge: '', exporte: '' })
+  assert.deepEqual(rows, { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', zaehler: '', kontrolle: 'Bearbeiten', objektmappe: 'Bearbeiten', fahrzeuge: '', exporte: '' })
+  // Prüfer liest die Stammdaten (Namen), aber keine Wochenpläne
+  const pr = Object.fromEntries(folderRights(resolveAccess({ roleClaims: ['pruefer'], access, strict: true })).map(([f, , r]) => [f, r]))
+  assert.equal(pr.daten, 'Lesen')
+  assert.equal(pr.plaene, '')
   const full = folderRights(resolveAccess({ email: 'office@cleanos.at', access, strict: true }))
   assert.ok(full.every(([, , r]) => r === 'Bearbeiten'))
 })
@@ -161,6 +165,9 @@ test('Anmeldung: nur Konten aus dem eigenen Tenant, keine Gäste', () => {
   assert.equal(accountProblem(guest, TENANT, { allowGuests: true }), '')
   const other = { tenantId: '99999999-9999-9999-9999-999999999999', homeAccountId: 'oid3.99999999-9999-9999-9999-999999999999' }
   assert.match(accountProblem(other, TENANT), /nicht zur Firma/)
+  const viaIdp = { ...member, idTokenClaims: { tid: TENANT, idp: 'live.com' } }
+  assert.match(accountProblem(viaIdp, TENANT), /Gastkonten/)
+  assert.match(accountProblem({ ...member, idTokenClaims: { tid: TENANT, acct: 1 } }, TENANT), /Gastkonten/)
   assert.deepEqual(groupsOf({ idTokenClaims: { groups: [OM, VA] } }), { groups: [OM, VA], overage: false })
   assert.equal(groupsOf({ idTokenClaims: { _claim_names: { groups: 'src1' } } }).overage, true)
 })
@@ -175,6 +182,8 @@ test('Adresse: app.cleanos.at/#zaehler öffnet die Ansicht, Namen der früheren 
   assert.equal(viewFromHash('#dienstplan', ids), 'week')
   assert.equal(viewFromHash('#code=abc&state=xyz', ids), null)
   assert.equal(viewFromHash('', ids), null)
+  assert.equal(viewFromHash('#100%', ids), null)
+  assert.equal(viewFromHash('#constructor', ids), null)
 })
 
 test('Betrieb auf app.cleanos.at: SharePoint, Tenant, Vollzugriff für office@ und it@', () => {

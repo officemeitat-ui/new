@@ -102,7 +102,7 @@ export async function seedDemoHistory(weeksBefore = 4) {
   for (const a of late) {
     delete a.reportedAfterPublish
     app.data.absences.push(a)
-    addLog(mondayOf(a.from), `${a.type} nachgetragen: ${app.data.employees.find((e) => e.id === a.employeeId)?.name} ${formatDate(a.from)}`)
+    addLog(mondayOf(a.from), `Abwesenheit nachgetragen: ${app.data.employees.find((e) => e.id === a.employeeId)?.name} ${formatDate(a.from)}`)
   }
   app.ui.monday = start
   app.cur = compute()

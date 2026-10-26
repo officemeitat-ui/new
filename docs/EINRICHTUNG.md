@@ -11,7 +11,7 @@ Browser (app.cleanos.at)
 Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten → Plattform/
                          ├─ objekte/objekte.json          Objekte (alle Gruppen lesen)
                          ├─ daten/stammdaten.json         Mitarbeitende, Leistungen, Regeln
-                         ├─ daten/plaene/2026/2026-10-26.json   Einteilung + Protokoll je Woche
+                         ├─ plaene/2026/2026-10-26.json   Einteilung + Protokoll je Woche
                          ├─ personal/abwesenheiten.json   Urlaub, Krankenstand (nur Vollzugriff)
                          ├─ lohn/zeitkonto.json           Salden, Löhne (nur Vollzugriff, Lohn)
                          ├─ zaehler/ kontrolle/ objektmappe/ fahrzeuge/   je Modul, mit Fotos
@@ -84,7 +84,7 @@ Aus `config.json` gelten dazu: `"tenantId": "a31131f2-4ccf-4eb2-ab3d-49c923c6bed
 - Zum Ausprobieren mit Beispieldaten ohne SharePoint: `DIENSTPLAN_DEMO=1 npm run build`.
 - `access.planners`: E-Mail-Adressen mit Vollzugriff (Rolle `disposition`), auch ohne Gruppe. Im Betrieb sieht, wer weder hier steht noch einer Gruppe angehört, nichts.
 - `access.members`, `access.roles`: Rollen per E-Mail-Liste und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier.
-- Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `personal/`, `lohn/`, `zaehler/`, `kontrolle/`, `objektmappe/`, `fahrzeuge/`, `exporte/`), jeder mit eigenen SharePoint-Rechten.
+- Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `plaene/`, `personal/`, `lohn/`, `zaehler/`, `kontrolle/`, `objektmappe/`, `fahrzeuge/`, `exporte/`), jeder mit eigenen SharePoint-Rechten.
 - `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat. Ohne Netz Erfasstes wird zusätzlich sofort gespeichert, sobald wieder Netz da ist.
 - `sharepoint.sources`: Ordner der bisherigen Werkzeuge in derselben Bibliothek, für **Daten → Bisherige Werkzeuge → In SharePoint suchen** (siehe [PLATTFORM.md](PLATTFORM.md)). Nur ändern, wenn die Ordner anders heißen.
 - `features.pdf`: PDF-Wochenpläne (Download, Teilen, beim Veröffentlichen nach SharePoint in den Ordner `PDF`).

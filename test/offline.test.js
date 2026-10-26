@@ -109,3 +109,42 @@ test('Offline: Fotos warten im Gerät und werden später hochgeladen', async () 
   assert.deepEqual(done, [['zaehler/fotos/2026/Q3/a.jpg', 'https://sp/zaehler/fotos/2026/Q3/a.jpg']])
   assert.deepEqual(net.uploads, ['zaehler/fotos/2026/Q3/a.jpg'])
 })
+
+test('Offline: ein Foto mit echtem Fehler hält die anderen nicht auf', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  net.online = false
+  await store.upload('kontrolle/fotos/a.jpg', new Blob(['a']), 'image/jpeg')
+  await store.upload('kontrolle/fotos/b.jpg', new Blob(['b']), 'image/jpeg')
+  net.online = true
+  const upload = remote.upload
+  remote.upload = async (path, ...rest) => {
+    if (path.endsWith('a.jpg')) throw Object.assign(new Error('Zugriff verweigert'), { status: 403 })
+    return upload(path, ...rest)
+  }
+  const done = []
+  assert.equal(await store.flushUploads((path) => done.push(path)), 1)
+  assert.deepEqual(done, ['kontrolle/fotos/b.jpg'])
+  assert.deepEqual(await store.failedUploads(), [{ path: 'kontrolle/fotos/a.jpg', error: 'Zugriff verweigert', tries: 1 }])
+})
+
+test('Offline: nie geöffnete Woche ist gesperrt und wird mit Netz nachgeladen', async () => {
+  const { remote, inner, net } = flakyRemote()
+  const cache = memoryCache()
+  await inner.write('plaene/2026/2026-11-09.json', { assignments: { '2026-11-10|t1': ['e1'] }, overrides: {}, logs: {}, published: {} })
+  const store = new CachedDocStore(remote, cache)
+  await store.init()
+  const events = []
+  const svc = new DataService(store, { debounceMs: 0, local: cache, onRemoteChange: (kind) => events.push(kind) })
+  const data = await svc.load(seed)
+  net.online = false
+  await svc.ensureWeeks(['2026-11-09'])
+  assert.equal(svc.weekUnavailable('2026-11-09'), true)
+  assert.equal(data.assignments['2026-11-10|t1'], undefined)
+  net.online = true
+  await svc.refresh()
+  assert.equal(svc.weekUnavailable('2026-11-09'), false)
+  assert.deepEqual(data.assignments['2026-11-10|t1'], ['e1'])
+  assert.deepEqual(events, ['loaded'])
+})

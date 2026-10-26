@@ -185,6 +185,13 @@ export class SharePointDocStore {
     return out
   }
 
+  /** Dateien unter einem Unterordner des App-Ordners, Pfade wie bei read() (z. B. 'daten/plaene/2026/2026-01-05.json'). */
+  async listDocs(prefix) {
+    const base = this.folder.replace(/^\/|\/$/g, '')
+    const files = await this.listTree(`${base}/${prefix}`, { depth: 3, skip: [] })
+    return files.map((f) => f.path.slice(base.length + 1))
+  }
+
   /** Adresse einer Datei ab der Bibliothek zum Öffnen im Browser. */
   rootUrl(path) {
     return this.driveWebUrl ? `${this.driveWebUrl}/${encodePath(path)}` : null

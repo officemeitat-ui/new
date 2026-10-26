@@ -86,7 +86,8 @@ export async function addAbsence(entry) {
   const overlap = (app.data.absences || []).find((a) => a.employeeId === entry.employeeId && a.from <= entry.to && a.to >= entry.from)
   const saved = { id: uid('a'), ...entry }
   app.data.absences.push(saved)
-  addLog(mondayOf(entry.from), `Abwesenheit: ${empName(entry.employeeId)} ${entry.type} ${formatDate(entry.from)}–${formatDate(entry.to)}`)
+  // Wochenprotokoll liegt bei den Plänen (auch für Leserollen) → ohne Grund der Abwesenheit
+  addLog(mondayOf(entry.from), `Abwesenheit: ${empName(entry.employeeId)} ${formatDate(entry.from)}–${formatDate(entry.to)}`)
   persist()
   await openImpact(saved.id)
   if (overlap) toast(`Hinweis: ${empName(entry.employeeId)} ist in diesem Zeitraum schon als ${overlap.type} eingetragen.`)
@@ -229,7 +230,7 @@ registerActions(
     'impact-release': (el) => {
       const a = absenceOf(el.dataset.id)
       const n = changePlan(a, (an) => an.impact.stillAssigned.length)
-      addLog(mondayOf(a.from), `${empName(a.employeeId)} aus ${n} Einsätzen ausgetragen (${a.type})`)
+      addLog(mondayOf(a.from), `${empName(a.employeeId)} aus ${n} Einsätzen ausgetragen (abwesend)`)
       toast(`${empName(a.employeeId)} aus ${n} Einsätzen ausgetragen. Sie sind jetzt offen.`)
     },
     'impact-handover': (el) => {
@@ -242,7 +243,7 @@ registerActions(
         return res
       })
       const hours = formatHours(done.reduce((s, i) => s + i.net, 0))
-      addLog(mondayOf(a.from), `Übergabe ${empName(a.employeeId)} → ${target.name}: ${done.length} Einsätze, ${hours} h (${a.type})`)
+      addLog(mondayOf(a.from), `Übergabe ${empName(a.employeeId)} → ${target.name}: ${done.length} Einsätze, ${hours} h (abwesend)`)
       toast(`${target.name} übernimmt ${done.length} Einsätze (${hours} h).${skipped.length ? ` ${skipped.length} nicht möglich: ${skipped[0].reasons[0]}` : ''}`)
     },
     'impact-auto': (el) => {
@@ -256,7 +257,7 @@ registerActions(
         applyChanges(an.state, before, out.assignments, true)
         return { filled: an.pending.length - out.open.length, open: out.open.length }
       })
-      addLog(mondayOf(a.from), `Vertretung automatisch verteilt (${empName(a.employeeId)}, ${a.type}): ${res.filled} besetzt, ${res.open} offen`)
+      addLog(mondayOf(a.from), `Vertretung automatisch verteilt (${empName(a.employeeId)} abwesend): ${res.filled} besetzt, ${res.open} offen`)
       toast(`${res.filled} Einsätze verteilt.${res.open ? ` ${res.open} bleiben offen: einzeln besetzen.` : ''}`)
     },
     'impact-assign': (el) => {

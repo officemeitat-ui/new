@@ -18,6 +18,7 @@ export const app = {
   service: null,
   data: null,
   readOnly: false,
+  locked: false, // aktuelle Woche ohne Netz nicht geladen: nichts ändern
   access: null,
   cur: null,
   ui: {
@@ -44,8 +45,14 @@ export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', dienstplan: 'we
 
 /** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
 export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
-  const key = decodeURIComponent(String(hash || '').replace(/^#\/?/, '')).trim().toLowerCase()
-  const id = VIEW_ALIASES[key] || key
+  let key = String(hash || '').replace(/^#\/?/, '')
+  try {
+    key = decodeURIComponent(key)
+  } catch {
+    return null // kaputter Link (z. B. einzelnes %)
+  }
+  key = key.trim().toLowerCase()
+  const id = Object.hasOwn(VIEW_ALIASES, key) ? VIEW_ALIASES[key] : key
   return ids.includes(id) ? id : null
 }
 
@@ -99,6 +106,7 @@ export function registerActions(handlers, { edit = false } = {}) {
   for (const [name, fn] of Object.entries(handlers)) {
     ACTIONS[name] = edit
       ? (...args) => {
+          if (app.locked) return toast('Diese Woche ist ohne Verbindung nicht geladen. Bitte warten, bis wieder Netz da ist.')
           if (edit === true ? app.readOnly : !canEdit(edit)) return toast('Nur Leserechte: Änderungen sind für dein Konto nicht freigegeben.')
           return fn(...args)
         }

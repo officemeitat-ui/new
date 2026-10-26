@@ -45,11 +45,30 @@ test('Merge: lokal gelöschte Einträge bleiben gelöscht', () => {
   assert.deepEqual(mergeDoc(base, { list: [{ id: 'a' }] }, { list: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }), { list: [{ id: 'a' }, { id: 'c' }] })
 })
 
+test('Merge: beide ändern denselben Eintrag → Feld für Feld zusammengeführt', () => {
+  const base = { list: [{ id: 'a', name: 'Anna', h: 20 }] }
+  const local = { list: [{ id: 'a', name: 'Anna B.', h: 20 }] }
+  const remote = { list: [{ id: 'a', name: 'Anna', h: 25 }] }
+  assert.deepEqual(mergeDoc(base, local, remote), { list: [{ id: 'a', name: 'Anna B.', h: 25 }] })
+})
+
+test('Merge: fremde Änderung schlägt eigenes Löschen, eigene Änderung schlägt fremdes Löschen', () => {
+  const base = { list: [{ id: 'a', v: 1 }, { id: 'b', v: 1 }], map: { x: { v: 1 } } }
+  const local = { list: [{ id: 'b', v: 2 }], map: {} }
+  const remote = { list: [{ id: 'a', v: 9 }], map: { x: { v: 9 } } }
+  assert.deepEqual(mergeDoc(base, local, remote), { list: [{ id: 'a', v: 9 }, { id: 'b', v: 2 }], map: { x: { v: 9 } } })
+})
+
+test('Merge: Listen ohne id als Menge, unbekannte Basis → gespeicherter Stand', () => {
+  assert.deepEqual(mergeDoc({ tags: ['a', 'b'] }, { tags: ['a', 'c'] }, { tags: ['a', 'b', 'd'] }), { tags: ['a', 'd', 'c'] })
+  assert.deepEqual(mergeDoc({}, { list: [{ id: 'a', v: 1 }, { id: 'n', v: 1 }] }, { list: [{ id: 'a', v: 2 }] }), { list: [{ id: 'a', v: 2 }, { id: 'n', v: 1 }] })
+})
+
 test('Wochenaufteilung: Einteilungen landen in der Datei ihrer Woche', () => {
   const docs = splitData({ ...seed(), assignments: { '2026-10-27|t1': [1], '2026-11-02|t1': [2] } }, new Set(['2026-10-26', '2026-11-02']))
   assert.deepEqual(Object.keys(docs[weekPath('2026-10-26')].assignments), ['2026-10-27|t1'])
   assert.deepEqual(Object.keys(docs[weekPath('2026-11-02')].assignments), ['2026-11-02|t1'])
-  assert.equal(weekPath('2026-10-26'), 'daten/plaene/2026/2026-10-26.json')
+  assert.equal(weekPath('2026-10-26'), 'plaene/2026/2026-10-26.json')
 })
 
 test('Browser-Ablage: eTag schützt vor Überschreiben', async () => {
@@ -199,7 +218,7 @@ test('SharePoint: DataService arbeitet mit Graph-Ablage', async () => {
   await s1.init()
   const a = new DataService(s1)
   await a.load(seed)
-  assert.ok(g.files.has('Dienstplan-App/daten/plaene/2026/2026-10-26.json'))
+  assert.ok(g.files.has('Dienstplan-App/plaene/2026/2026-10-26.json'))
   const s2 = make()
   await s2.init()
   const b = new DataService(s2)
@@ -209,7 +228,7 @@ test('SharePoint: DataService arbeitet mit Graph-Ablage', async () => {
   a.data.employees[0].name = 'Ana P.'
   await a.flush()
   await b.flush()
-  const week = JSON.parse(g.files.get('Dienstplan-App/daten/plaene/2026/2026-10-26.json').body)
+  const week = JSON.parse(g.files.get('Dienstplan-App/plaene/2026/2026-10-26.json').body)
   assert.deepEqual(Object.keys(week.assignments).sort(), ['2026-10-27|t1', '2026-10-28|t1'])
   const upload = await s1.upload('exporte/2026/KW44/Wochenplan.xlsx', new Blob(['x']), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   assert.match(upload.webUrl, /Wochenplan\.xlsx$/)
@@ -309,4 +328,52 @@ test('SharePoint: Ordnerbaum und Dateien der bisherigen Werkzeuge lesen', async 
   assert.deepEqual(await store.readRoot('Wasserzähler - Ablesung/EBG/Ablesung_Hallein_2026.json'), { ort: 'Hallein', stellen: [] })
   assert.equal(await store.readRoot('gibt/es/nicht.json'), null)
   assert.equal(store.rootUrl('A B/c.jpg'), 'https://firma.sharepoint.com/sites/Dienstplan/Freigegebene Dokumente/A%20B/c.jpg')
+})
+
+test('Woche ohne Laden bearbeitet: wird zusammengeführt statt überschrieben oder verworfen', async () => {
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  await new DataService(store, { debounceMs: 0 }).load(seed)
+  const other = new DataService(store, { debounceMs: 0 })
+  const od = await other.load(seed)
+  await other.ensureWeeks(['2026-11-02'])
+  od.assignments['2026-11-05|t2'] = ['e2']
+  await other.flush()
+  const svc = new DataService(store, { debounceMs: 0 })
+  const data = await svc.load(seed)
+  // ohne ensureWeeks: Einteilung in einer nie geladenen Woche
+  data.assignments['2026-11-03|t1'] = ['e1']
+  assert.equal(svc.pendingCount(), 1)
+  await svc.flush()
+  const saved = (await store.read(weekPath('2026-11-02'))).data.assignments
+  assert.deepEqual(Object.keys(saved).sort(), ['2026-11-03|t1', '2026-11-05|t2'])
+  await svc.ensureWeeks(['2026-11-02'])
+  assert.deepEqual(Object.keys(data.assignments).filter((k) => k >= '2026-11-02').sort(), ['2026-11-03|t1', '2026-11-05|t2'])
+})
+
+test('Lohn einer neuen Person bleibt, wenn die Stammdaten später ankommen', async () => {
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  const svc = new DataService(store, { debounceMs: 0 })
+  const data = await svc.load(seed)
+  const office = new DataService(store, { debounceMs: 0 })
+  const od = await office.load(seed)
+  od.employees.push({ id: 'e9', name: 'Neu', hourlyWage: 13 })
+  await office.flush()
+  data.published = { '2026-10-19': { saldo: {} } }
+  await svc.flush() // Konflikt im Zeitkonto → zusammengeführt, e9 noch unbekannt
+  await svc.refresh() // Stammdaten mit e9 kommen an
+  data.published['2026-10-26'] = { saldo: {} }
+  await svc.flush()
+  assert.equal((await store.read(DOC.account)).data.pay.e9.hourlyWage, 13)
+  assert.equal(data.employees.find((e) => e.id === 'e9').hourlyWage, 13)
+})
+
+test('Umzug: alle Wochen unter daten/plaene/ landen in plaene/', async () => {
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  await new DataService(store, { debounceMs: 0 }).load(seed)
+  await store.write('daten/plaene/2025/2025-03-03.json', { monday: '2025-03-03', assignments: { '2025-03-04|t1': ['e1'] }, overrides: {}, log: [] })
+  const svc = new DataService(store, { debounceMs: 0 })
+  await svc.load(seed)
+  assert.equal(await svc.migrateOldWeeks(), 1)
+  assert.equal(await store.read('daten/plaene/2025/2025-03-03.json'), null)
+  assert.deepEqual((await store.read(weekPath('2025-03-03'))).data.assignments, { '2025-03-04|t1': ['e1'] })
 })
