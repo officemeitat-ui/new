@@ -4,6 +4,7 @@
 //  - Übergabe aller betroffenen Einsätze an eine Person
 //  - Saldo-Korrekturen bei nachträglichen Änderungen veröffentlichter Wochen
 
+import { weeklyHoursAt } from './contract.js'
 import { mondayOf } from './dates.js'
 import { PlanState } from './plan.js'
 import { findAbsence } from './rules.js'
@@ -129,7 +130,7 @@ export function rankHandover(ctx, state, insts, { excludeId = null, team = null 
       let overMinutes = 0
       for (const monday of weeks) {
         const planned = sim.instancesOf(emp.id).filter((i) => mondayOf(i.date) === monday).reduce((s, i) => s + i.net, 0)
-        overMinutes += Math.max(0, planned - (emp.weeklyHours || 0) * 60)
+        overMinutes += Math.max(0, planned - weeklyHoursAt(emp, monday) * 60)
       }
       const trained = done.filter((i) => (emp.trained || []).includes(i.objectId)).length
       return { emp, done: done.length, skipped: skipped.length, minutes: done.reduce((s, i) => s + i.net, 0), overMinutes, trained, sameTeam: !!team && emp.team === team }

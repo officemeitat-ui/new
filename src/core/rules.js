@@ -5,7 +5,7 @@
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
 import { employedOn, weeklyHoursAt } from './contract.js'
-import { dayIndex, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
+import { dayIndex, dstMinutes, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
 
 export const DEFAULT_RULES = {
   minDailyRestH: 11, // § 12 AZG
@@ -102,7 +102,8 @@ export function createContext({ employees, objects, absences = [], rules, travel
       const note = entry?.note || inst.travelNote || ''
       if (Number.isFinite(entry?.min)) return { minutes: entry.min, note, source: 'woche' }
       if (Number.isFinite(inst.travelAfterMin)) return { minutes: inst.travelAfterMin, note, source: 'leistung' }
-      if (!next || next.date !== inst.date) return { minutes: 0, note, source: 'keine' }
+      // nächster Einsatz am selben Tag oder gleich nach Mitternacht (Nachtschicht mit Objektwechsel)
+      if (!next || (next.date !== inst.date && next.start - inst.end >= 60)) return { minutes: 0, note, source: 'keine' }
       return { minutes: between(inst.objectId, next.objectId), note, source: 'automatisch' }
     },
   }
@@ -162,15 +163,29 @@ export function windowMinutes(start, end, winStart, winEnd) {
 /**
  * Fahrten eines Tages einer Person: nach jedem Einsatz eine Fahrt (ggf. 0 min),
  * sortiert nach Beginn. Jede Fahrt: { from, to, minutes, note, source }.
+ * after: erster Einsatz der Person an einem späteren Tag (firstAfterDay); beginnt
+ * er weniger als 60 min nach dem letzten Einsatz (über Mitternacht), zählt die
+ * Fahrt dorthin noch zu diesem Tag.
  */
-export function dayTrips(dayItems, ctx, empId = null) {
+export function dayTrips(dayItems, ctx, empId = null, after = null) {
   const sorted = [...dayItems].sort((a, b) => a.start - b.start)
-  return sorted.map((inst, i) => ({ from: inst, to: sorted[i + 1] || null, ...ctx.tripAfter(empId, inst, sorted[i + 1]) }))
+  const nextOf = (inst, i) => sorted[i + 1] || (after && after.start >= inst.end && after.start - inst.end < 60 ? after : null)
+  return sorted.map((inst, i) => {
+    const to = nextOf(inst, i)
+    return { from: inst, to, ...ctx.tripAfter(empId, inst, to) }
+  })
+}
+
+/** Erster Einsatz nach einem Tag aus einer Liste (für Fahrten über Mitternacht). */
+export function firstAfterDay(items, date) {
+  let best = null
+  for (const i of items) if (i.date > date && (!best || i.start < best.start)) best = i
+  return best
 }
 
 /** Nur Fahrten mit Dauer (für Arbeitszeitsummen). */
-export function travelLegs(dayItems, ctx, empId = null) {
-  return dayTrips(dayItems, ctx, empId).filter((t) => t.minutes > 0)
+export function travelLegs(dayItems, ctx, empId = null, after = null) {
+  return dayTrips(dayItems, ctx, empId, after).filter((t) => t.minutes > 0)
 }
 
 const sumNet = (items) => items.reduce((s, i) => s + i.net, 0)
@@ -329,8 +344,8 @@ export const RULES = [
           add('error', 'OVERLAP', 'shift', `Überschneidung: ${objName(a)} ${a.startTime}–${a.endTime} und ${objName(b)} ${b.startTime}–${b.endTime}`, [a, b])
         }
       }
-      for (const [, ds] of byDay) {
-        for (const trip of dayTrips(ds, ctx, emp.id)) {
+      for (const [date, ds] of byDay) {
+        for (const trip of dayTrips(ds, ctx, emp.id, firstAfterDay(items, date))) {
           if (!trip.to || trip.minutes <= 0 || trip.to.start < trip.from.end) continue
           const gap = trip.to.start - trip.from.end
           if (gap < trip.minutes) add('warning', 'TRAVEL', 'shift', `Fahrt ${objName(trip.from)} → ${objName(trip.to)} dauert ${trip.minutes} min, Zeit dazwischen nur ${gap} min`, [trip.from, trip.to])
@@ -372,7 +387,7 @@ export const RULES = [
       for (const g of groups) {
         if (prev) {
           const end = prev.end + ctx.tripAfter(emp.id, prev.last, null).minutes
-          const rest = g.first.start - end
+          const rest = g.first.start - end + dstMinutes(end, g.first.start)
           if (rest < limits.rest) {
             add('error', 'REST', 'day', `Ruhezeit nur ${formatHours(Math.max(rest, 0))} h: Ende ${formatDate(prev.last.date)} ${formatTime(end)}, Beginn ${formatDate(g.first.date)} ${formatTime(g.first.start)} (mind. ${limits.rest / 60} h)`, [prev.last, g.first])
           }
@@ -477,7 +492,7 @@ export function evaluateEmployee(emp, list, ctx) {
   }
   const items = [...list].sort((a, b) => a.start - b.start || a.end - b.end)
   const byDay = groupBy(items, (i) => i.date)
-  const travelByDay = new Map([...byDay].map(([d, ds]) => [d, travelLegs(ds, ctx, emp.id).reduce((s, l) => s + l.minutes, 0)]))
+  const travelByDay = new Map([...byDay].map(([d, ds]) => [d, travelLegs(ds, ctx, emp.id, firstAfterDay(items, d)).reduce((s, l) => s + l.minutes, 0)]))
   const workOfItems = (list2) => sumNet(list2) + [...new Set(list2.map((i) => i.date))].reduce((s, d) => s + (travelByDay.get(d) || 0), 0)
   const issues = []
   const env = {

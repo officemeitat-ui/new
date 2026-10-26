@@ -1,5 +1,6 @@
 // Datumshilfen. Ein Datum ist immer ein String 'YYYY-MM-DD', Zeitpunkte sind
-// Minuten seit 1970-01-01 00:00 (Wanduhrzeit, ohne Zeitzonen/Sommerzeit).
+// Minuten seit 1970-01-01 00:00 (Wanduhrzeit, ohne Zeitzonen). Für Dauer und
+// Ruhezeit über eine Zeitumstellung hinweg gibt es dstMinutes().
 
 const DAY_MS = 86400000
 const pad = (n) => String(n).padStart(2, '0')
@@ -100,4 +101,35 @@ export function parseDate(text) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
   const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
   return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : ''
+}
+
+const DST_CACHE = new Map()
+/** Umstellungen der Sommerzeit (EU, also Österreich) als Wanduhr-Minuten um 02:00. */
+function dstSwitches(year) {
+  if (!DST_CACHE.has(year)) {
+    const lastSunday = (month) => {
+      const last = lastOfMonth(`${year}-${month}-01`)
+      return addDays(last, -(isoWeekday(last) % 7))
+    }
+    DST_CACHE.set(year, { spring: dayIndex(lastSunday('03')) * 1440 + 120, autumn: dayIndex(lastSunday('10')) * 1440 + 120 })
+  }
+  return DST_CACHE.get(year)
+}
+
+/**
+ * Korrektur in Minuten für eine Spanne von Wanduhrzeit a bis b über eine
+ * Zeitumstellung: im März fehlt eine Stunde (−60), im Oktober gibt es sie
+ * doppelt (+60). Echte Dauer = b − a + dstMinutes(a, b).
+ */
+export function dstMinutes(a, b) {
+  if (!(b > a)) return 0
+  let correction = 0
+  const from = Number(fromDayIndex(Math.floor(a / 1440)).slice(0, 4))
+  const to = Number(fromDayIndex(Math.floor(b / 1440)).slice(0, 4))
+  for (let year = from; year <= to; year++) {
+    const { spring, autumn } = dstSwitches(year)
+    if (a <= spring && b >= spring + 60) correction -= 60
+    if (a <= autumn && b >= autumn + 60) correction += 60
+  }
+  return correction
 }

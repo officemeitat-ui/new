@@ -59,7 +59,8 @@ export const PAYROLL_COLUMNS = [
   ['Fahrzeit (h)', (r) => formatHours(r.travel)],
   ['Sonn-/Feiertag gearbeitet (h)', (r) => formatHours(r.sundayHoliday)],
   ['Zuschlag Sonn-/Feiertag (h)', (r) => formatHours(r.bonus)],
-  ['Nachtarbeit (h)', (r) => formatHours(r.night)],
+  // AZG-Nachtarbeit (Arbeitsrecht, Standard 22–5 Uhr); die zuschlagspflichtigen KV-Nachtstunden (21–6 Uhr) stehen im Export „Überstunden & Auszahlung“
+  ['Nachtarbeit lt. AZG (h)', (r) => formatHours(r.night)],
   ['Feiertag angerechnet (h)', (r) => formatHours(r.holidayCredit)],
   ['Urlaub (Tage)', (r) => String(r.vacationDays)],
   ['Urlaub angerechnet (h)', (r) => formatHours(r.vacationCredit)],

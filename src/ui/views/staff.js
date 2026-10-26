@@ -1,6 +1,6 @@
 // Mitarbeitende: Liste, Bearbeiten, Import aus Excel.
 
-import { changeWeeklyHours } from '../../core/contract.js'
+import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
 import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, TASK_TEMPLATE } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
@@ -52,7 +52,7 @@ function employeeModal(c, { id }) {
         <label class="field"><span>Revier / Team</span><input type="text" id="emp-team" list="team-list" value="${esc(e.team || '')}"><datalist id="team-list">${teams.map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
         <label class="field"><span>E-Mail (Microsoft 365)</span><input type="email" id="emp-email" value="${esc(e.email || '')}"></label>
         <label class="field"><span>Beschäftigung</span><select id="emp-type">${EMPLOYMENT_TYPES.map((t) => `<option ${t === e.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-        <label class="field"><span>Wochenstunden (Soll)</span><input type="number" id="emp-hours" step="0.5" min="0" value="${e.weeklyHours ?? ''}"></label>
+        <label class="field"><span>Wochenstunden (Soll)</span><input type="number" id="emp-hours" step="0.5" min="0" max="${MAX_WEEKLY_HOURS}" value="${e.weeklyHours ?? ''}"></label>
         ${id === 'new' ? '' : `<label class="field"><span>Neue Wochenstunden gelten ab</span><input type="date" id="emp-hours-from" value="${mondayOf(todayISO())}"><small class="muted">${(e.hoursHistory || []).filter((h) => h.from > '0000-01-01').map((h) => `ab ${formatDate(h.from, { year: true })}: ${formatHours(h.weeklyHours * 60)} h`).join(' · ') || 'Frühere Wochen rechnen mit den bisherigen Stunden.'}</small></label>`}
         <label class="field"><span>Eintritt</span><input type="date" id="emp-entry" value="${esc(e.entryDate || '')}"></label>
         <label class="field"><span>Austritt (letzter Arbeitstag)</span><input type="date" id="emp-exit" value="${esc(e.exitDate || '')}"></label>
@@ -188,6 +188,7 @@ registerActions(
       let emp = readEmployeeForm(existing)
       if (!emp.name) return toast('Bitte einen Namen eingeben.')
       if (emp.entryDate && emp.exitDate && emp.exitDate < emp.entryDate) return toast('Der Austritt liegt vor dem Eintritt.')
+      if (!(emp.weeklyHours >= 0) || emp.weeklyHours > MAX_WEEKLY_HOURS) return toast(`Wochenstunden zwischen 0 und ${MAX_WEEKLY_HOURS} (gesetzliche Normalarbeitszeit). Mehr ist Mehr- bzw. Überstunden und wird im Plan gezählt.`)
       // Stunden geändert: bisherige gelten bis zum Vortag weiter (vergangene Wochen bleiben, wie sie waren)
       if (id !== 'new' && (existing.weeklyHours || 0) !== emp.weeklyHours) emp = changeWeeklyHours({ ...emp, weeklyHours: existing.weeklyHours }, emp.weeklyHours, val('emp-hours-from') || mondayOf(todayISO()))
       if (id === 'new') app.data.employees.push(emp)

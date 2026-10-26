@@ -13,7 +13,7 @@
 
 import { sollMinutes } from './contract.js'
 import { addDays, eachDay, formatDate, fromDayIndex, isoWeekday } from './dates.js'
-import { dayTrips, findAbsence, windowMinutes } from './rules.js'
+import { dayTrips, findAbsence, firstAfterDay, windowMinutes } from './rules.js'
 import { dutyText } from './waste.js'
 
 export function buildTimesheet(ctx, emp, monday, instances, state) {
@@ -74,9 +74,10 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
   }
 
   // Fahrt nach jedem Einsatz (wie die Spalte „Fahrzeit“ im bisherigen Plan)
+  const allWork = days.flatMap((d) => d.lines.filter((l) => l.kind === 'work').map((l) => l.inst))
   for (const day of days) {
     const work = day.lines.filter((l) => l.kind === 'work')
-    for (const trip of dayTrips(work.map((l) => l.inst), ctx, emp.id)) {
+    for (const trip of dayTrips(work.map((l) => l.inst), ctx, emp.id, firstAfterDay(allWork, day.date))) {
       const line = work.find((l) => l.inst === trip.from)
       line.travel = trip.minutes
       line.trip = { minutes: trip.minutes, note: trip.note, source: trip.source, to: trip.to }

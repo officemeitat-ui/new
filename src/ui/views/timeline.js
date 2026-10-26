@@ -3,7 +3,7 @@
 // Fahrten passen nicht bis zum nächsten Einsatz.
 
 import { dayIndex, formatDate, formatHours, formatTime, isoWeekday, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
-import { dayTrips, maxSeverity } from '../../core/rules.js'
+import { dayTrips, firstAfterDay, maxSeverity } from '../../core/rules.js'
 import { app, registerActions, registerView, renderNow } from '../context.js'
 import { byStart, esc, ICON, objectOf } from '../shared.js'
 import { filterBar, filteredEmployees } from './week.js'
@@ -72,7 +72,7 @@ function timelineView(c) {
     const work = c.state.instancesOf(emp.id).filter((i) => i.date === date).sort(byStart)
     const blocks = []
     for (const inst of work) blocks.push({ kind: 'work', inst, start: inst.start, end: inst.end, issues: c.validation.cell.get(`${emp.id}|${inst.key}`) || [] })
-    for (const trip of dayTrips(work, c.ctx, emp.id)) {
+    for (const trip of dayTrips(work, c.ctx, emp.id, firstAfterDay(c.state.instancesOf(emp.id), date))) {
       if (trip.minutes <= 0) continue
       const start = trip.from.end
       const end = start + trip.minutes

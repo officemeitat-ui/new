@@ -8,7 +8,7 @@
 import { addDays, mondayOf } from './dates.js'
 import { PlanState } from './plan.js'
 import { payrollBookings } from './reports.js'
-import { employedOn } from './contract.js'
+import { employedOn, weeklyHoursAt } from './contract.js'
 import { evaluateEmployee, findAbsence, fitsAvailability } from './rules.js'
 
 // Warnungen, die die Automatik wie Verstöße behandelt (manuell bleibt alles möglich).
@@ -58,7 +58,7 @@ export function candidateFactors(ctx, state, emp, inst, ev) {
   const week = mondayOf(inst.date)
   const own = state.instancesOf(emp.id).filter((i) => i.key !== inst.key)
   const weekMin = own.filter((i) => mondayOf(i.date) === week).reduce((s, i) => s + i.net, 0)
-  const contract = Math.max(emp.weeklyHours || 0, 1) * 60
+  const contract = Math.max(weeklyHoursAt(emp, week), 1) * 60
   const free = contract - weekMin
   // Auslastung: wer noch Vertragsstunden frei hat, kommt zuerst
   add('load', ((weekMin + inst.net) / contract) * 100, free >= inst.net ? `noch ${hrs(free)} h frei laut Vertrag` : free > 0 ? `nur ${hrs(free)} h frei laut Vertrag` : `schon ${hrs(-free)} h über Vertrag`, free >= inst.net)

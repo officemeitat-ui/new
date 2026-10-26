@@ -34,7 +34,7 @@ function payrollView(c) {
     )
     .join('')
   const [y, m] = c.month.split('-').map(Number)
-  return `<div class="section-head"><div><h2>Monatsauswertung ${MONTH_LONG[m - 1]} ${y}</h2><p>Grundlage für die Lohnverrechnung: geleistete Stunden, Fahrzeit, Sonn- und Feiertagsstunden mit Zuschlag, Nachtarbeit, angerechnete Feiertage, Urlaub und Krankenstand. Die Zuordnung zu Lohnarten erfolgt beim Import in BMD/RZL.</p></div>${monthPicker(c)}</div>
+  return `<div class="section-head"><div><h2>Monatsauswertung ${MONTH_LONG[m - 1]} ${y}</h2><p>Grundlage für die Lohnverrechnung: geleistete Stunden, Fahrzeit, Sonn- und Feiertagsstunden mit Zuschlag, Nachtarbeit, angerechnete Feiertage, Urlaub und Krankenstand. Die Zuordnung zu Lohnarten erfolgt beim Import in BMD/RZL. Das Monats-Soll ist rechnerisch (je Werktag Mo–Fr ein Fünftel der Wochenstunden); wer auch am Wochenende arbeitet, hat deshalb je nach Monat einen anderen Monatssaldo. Maßgeblich für Mehr- und Überstunden ist das Zeitkonto je Woche.</p></div>${monthPicker(c)}</div>
     ${filterBar(c, { problems: false })}
     <div class="toolbar"><button class="btn" data-action="view" data-view="overtime">Überstunden & Auszahlung</button><button class="btn" data-action="payroll-copy">${ICON.copy} Für Excel kopieren</button>${app.config.features.download ? `<button class="btn" data-action="payroll-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}</div>
     <div class="table-wrap"><table class="data payroll"><thead><tr><th>Mitarbeiter:in</th><th>Soll</th><th>Gearbeitet</th><th>Fahrzeit</th><th>Sonn-/Feiertag</th><th>Nacht</th><th>Feiertag angerechnet</th><th>Urlaub</th><th>Krankenstand</th><th>Ist</th><th>Saldo</th><th>Zeitkonto</th></tr></thead><tbody>${body}</tbody></table></div>

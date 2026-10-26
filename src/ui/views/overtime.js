@@ -158,7 +158,7 @@ export const OVERTIME_COLUMNS = [
   ['Mehrarbeit ausbezahlt +25 % (h)', (r) => formatHours(r.mehr.paid)],
   ['Mehrarbeit offen im Zeitkonto (h)', (r) => formatHours(r.mehr.openMin)],
   ...['ue', 'ue11'].flatMap((type) => Object.entries(TIME_CLASSES).map(([cls, label]) => [`${HOUR_TYPES[type]} ${label} (h)`, (r) => formatHours(r.hours[type][cls] || 0)])),
-  ['Nachtstunden normal/Mehrarbeit (h)', (r) => formatHours((r.hours.normal.nacht || 0) + (r.hours.mehr.nacht || 0))],
+  ['Nachtstunden mit KV-Nachtzuschlag, normal/Mehrarbeit (h)', (r) => formatHours((r.hours.normal.nacht || 0) + (r.hours.mehr.nacht || 0))],
   ['Sonntagsstunden normal/Mehrarbeit (h)', (r) => formatHours((r.hours.normal.sonntag || 0) + (r.hours.mehr.sonntag || 0))],
   ['Feiertagsstunden normal/Mehrarbeit (h)', (r) => formatHours((r.hours.normal.feiertag || 0) + (r.hours.mehr.feiertag || 0))],
   ['Behandlung Überstunden', (r) => UE_MODES[r.ueMode]],

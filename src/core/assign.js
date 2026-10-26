@@ -6,6 +6,7 @@
 // Revier ist, das Objekt kennt und direkt davor oder danach in der Nähe ist.
 
 import { addDays, formatHours, isoWeekday, mondayOf, toMinutes, WEEKDAY_SHORT, weeksBetween } from './dates.js'
+import { weeklyHoursAt } from './contract.js'
 import { buildInstances, PlanState } from './plan.js'
 import { evaluateEmployee, fitsWindow } from './rules.js'
 
@@ -131,7 +132,7 @@ export function evaluateRegular(ctx, task, emp, { tasks, load } = {}) {
 
   // Auslastung: freie Vertragsstunden zuerst
   const minutes = weeklyMinutes(task, r)
-  const contract = Math.max(1, (emp.weeklyHours || 0) * 60)
+  const contract = Math.max(1, weeklyHoursAt(emp, '9999-12-31') * 60) // Stammplan: aktuelle Wochenstunden
   const after = mine.minutes + minutes
   const free = contract - mine.minutes
   const freeText = free >= minutes ? `noch ${hrs(free)} h/Woche frei` : Math.round(free) > 0 ? `nur ${hrs(free)} h/Woche frei` : Math.round(free) === 0 ? 'Vertrag schon voll' : `schon ${hrs(-free)} h/Woche über Vertrag`

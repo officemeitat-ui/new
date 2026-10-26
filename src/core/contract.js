@@ -9,12 +9,15 @@
 
 import { addDays, eachDay, isoWeekday } from './dates.js'
 
-/** Wochenstunden laut Vertrag an einem Tag (ohne Verlauf: die aktuellen). */
+/** Gesetzliche Normalarbeitszeit je Woche (§ 3 AZG); mehr kann kein Vertrags-Soll sein. */
+export const MAX_WEEKLY_HOURS = 40
+
+/** Wochenstunden laut Vertrag an einem Tag (ohne Verlauf: die aktuellen), höchstens 40. */
 export function weeklyHoursAt(emp, date) {
   let hours = emp.weeklyHours || 0
   const history = [...(emp.hoursHistory || [])].sort((a, b) => a.from.localeCompare(b.from))
   for (const h of history) if (h.from <= date) hours = h.weeklyHours
-  return Number(hours) || 0
+  return Math.min(Number(hours) || 0, MAX_WEEKLY_HOURS)
 }
 
 /** An diesem Tag beschäftigt (zwischen Eintritt und Austritt)? */

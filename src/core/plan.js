@@ -1,7 +1,7 @@
 // Erzeugt aus den Leistungen (Stammplan) die konkreten Einsätze eines Zeitraums
 // und wendet Feiertagsregeln sowie Einzeländerungen ("nur diese Woche") an.
 
-import { dayIndex, eachDay, isoWeekday, toMinutes } from './dates.js'
+import { dayIndex, dstMinutes, eachDay, isoWeekday, toMinutes } from './dates.js'
 import { nextWorkday, taskOccursOn } from './recurrence.js'
 import { applyWaste } from './waste.js'
 
@@ -80,7 +80,8 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
   const s = toMinutes(startTime)
   let e = toMinutes(endTime)
   if (e <= s) e += 1440
-  const duration = e - s
+  // echte Dauer (Nachtdienst in der Nacht der Zeitumstellung: 1 h mehr bzw. weniger)
+  const duration = e - s + dstMinutes(dayStart + s, dayStart + e)
   const breakMin = duration > rules.breakAfterH * 60 ? Math.max(task.breakMin || 0, rules.breakMin) : task.breakMin || 0
   const weekday = isoWeekday(actualDate)
 

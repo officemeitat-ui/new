@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { addDays, isoWeek, isoWeekday, mondayOf } from '../src/core/dates.js'
+import { addDays, dayIndex, dstMinutes, isoWeek, isoWeekday, mondayOf } from '../src/core/dates.js'
 import { austrianHolidays, easterSunday, holidayCalendar } from '../src/core/holidays.js'
 import { buildInstances, PlanState } from '../src/core/plan.js'
 import { createContext, evaluateEmployee, hasWeeklyRest, validatePlan, windowMinutes } from '../src/core/rules.js'
@@ -53,6 +53,30 @@ test('Datumshilfen', () => {
   assert.equal(mondayOf('2026-11-01'), MONDAY)
   assert.deepEqual(isoWeek(MONDAY), { year: 2026, week: 44 })
   assert.equal(addDays('2026-12-31', 1), '2027-01-01')
+})
+
+test('Zeitumstellung: Nachtdienst und Ruhezeit mit echter Dauer', () => {
+  const at = (date, h) => dayIndex(date) * 1440 + h * 60
+  assert.equal(dstMinutes(at('2026-10-24', 21), at('2026-10-25', 9)), 60, 'Oktober: Stunde doppelt')
+  assert.equal(dstMinutes(at('2027-03-27', 21), at('2027-03-28', 8)), -60, 'März: Stunde fehlt')
+  assert.equal(dstMinutes(at('2026-10-25', 4), at('2026-10-25', 9)), 0, 'nach der Umstellung')
+  // Sa 21:00 – So 09:00 in der Oktobernacht: 13 h, also über 12 h am Tag
+  const s = setup({ employees: [emp('a')], tasks: [task('n', 'o1', [6], '21:00', '09:00')], assignments: { '2026-10-24|n': [{ employeeId: 'a' }] } })
+  const night = s.instances.find((i) => i.key === '2026-10-24|n')
+  assert.equal(night.duration, 780)
+  assert.ok(evaluateEmployee(s.ctx.employees[0], [night], s.ctx).some((x) => x.code === 'DAILY_MAX'))
+  // März: Ende Sa 21:00, Beginn So 08:00 = nur 10 h Ruhe
+  const m = setup({ employees: [emp('a')], tasks: [task('sa', 'o1', [6], '17:00', '21:00'), task('so', 'o1', [7], '08:00', '10:00')], assignments: { '2027-03-27|sa': [{ employeeId: 'a' }], '2027-03-28|so': [{ employeeId: 'a' }] }, from: '2027-03-22', to: '2027-03-28' })
+  assert.ok(evaluateEmployee(m.ctx.employees[0], m.state.instancesOf('a'), m.ctx).some((x) => x.code === 'REST'))
+})
+
+test('Fahrzeit über Mitternacht: Objektwechsel in der Nachtschicht zählt', () => {
+  const s = setup({ employees: [emp('x')], tasks: [task('a', 'o1', [2], '20:00', '23:50'), task('b', 'o2', [3], '00:00', '02:00')], assignments: { '2026-11-03|a': [{ employeeId: 'x' }], '2026-11-04|b': [{ employeeId: 'x' }] }, rules: { travelDefaultMin: 30 }, from: '2026-11-02', to: '2026-11-08' })
+  const codes = evaluateEmployee(s.ctx.employees[0], s.state.instancesOf('x'), s.ctx).map((i) => i.code)
+  const ts = buildTimesheet(s.ctx, s.ctx.employees[0], '2026-11-02', s.instances, s.state)
+  assert.ok(codes.includes('TRAVEL'), codes.join(','))
+  assert.equal(ts.totals.travel, s.ctx.tripAfter('x', s.instances.find((i) => i.key === '2026-11-03|a'), s.instances.find((i) => i.key === '2026-11-04|b')).minutes)
+  assert.ok(ts.totals.travel > 0)
 })
 
 test('Feiertagsregel: entfällt, findet statt, verschieben', () => {
