@@ -116,7 +116,8 @@ export function splitData(data, weeks) {
     [DOC.master]: master,
     [DOC.objects]: { objects: data.objects || [] },
     [DOC.absences]: { absences: data.absences || [] },
-    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(Object.keys(pay).length ? { pay } : {}) },
+    // pay immer schreiben (auch leer): ein gelöschter Lohn muss bei anderen Geräten ankommen
+    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), pay },
   }
   for (const [key, m] of Object.entries(MODULE_DOCS)) docs[m.path] = data[key] ?? m.empty()
   for (const monday of weeks) docs[weekPath(monday)] = { monday, assignments: {}, overrides: {}, log: data.logs?.[monday] || [] }
@@ -148,8 +149,8 @@ export function applyDoc(data, path, doc) {
     data.published = doc.weeks || {}
     if (doc.payroll) data.payroll = doc.payroll
     else delete data.payroll
-    const pay = doc.pay || {}
-    data.employees = (data.employees || []).map((e) => (pay[e.id] ? { ...withoutPay(e), ...pay[e.id] } : e))
+    // mit pay (auch leer) gilt nur, was dort steht; ältere Dateien ohne pay lassen Löhne aus den Stammdaten stehen
+    if (doc.pay) data.employees = (data.employees || []).map((e) => ({ ...withoutPay(e), ...(doc.pay[e.id] || {}) }))
   } else if (MODULE_BY_PATH[path]) {
     const m = MODULE_BY_PATH[path]
     data[m.key] = { ...m.empty(), ...doc }

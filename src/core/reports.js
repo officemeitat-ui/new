@@ -1,6 +1,7 @@
 // Auswertungen: Monatsauswertung für die Lohnverrechnung, Objekt-Controlling
 // (Budget gegen Plan), Zeitkonto und Urlaubsanspruch.
 
+import { sollMinutes } from './contract.js'
 import { addDays, eachDay, firstOfMonth, formatHours, isoWeekday, lastOfMonth, mondayOf } from './dates.js'
 import { holidayCalendar } from './holidays.js'
 import { buildTimesheet, summarizeDays } from './timesheet.js'
@@ -12,11 +13,8 @@ export function mondaysBetween(from, to) {
   return out
 }
 
-/** Soll eines Zeitraums: Wochenstunden / 5 je Werktag Mo–Fr (Feiertage zählen, sie werden angerechnet). */
-export function sollMinutes(emp, from, to) {
-  const days = eachDay(from, to).filter((d) => isoWeekday(d) <= 5).length
-  return Math.round(((emp.weeklyHours || 0) * 60 * days) / 5)
-}
+// Soll eines Zeitraums: Wochenstunden / 5 je Werktag Mo–Fr, mit Verlauf und Ein-/Austritt (contract.js)
+export { sollMinutes }
 
 /**
  * Monatsauswertung je Person. `month` = 'YYYY-MM'.

@@ -24,7 +24,8 @@ export const UE_MODES = { auszahlen: 'Auszahlen', za: 'Zeitausgleich 1:1,5', mix
 export const MEHR_MODES = { zeitkonto: 'Zeitkonto (binnen 3 Monaten ausgleichen)', auszahlen: 'Auszahlen mit Zuschlag' }
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1)
-const money = (min, wage, pct) => Math.round(((min / 60) * wage * pct) / 100 * 100) / 100
+// in ganzen Cent rechnen (Gleitkomma: 54 min × 13,30 € × 150 % = 17,96 €, nicht 17,95 €)
+const money = (min, wage, pct) => Math.round((min * Math.round(wage * 100) * pct) / 6000) / 100
 
 /** Datum + n Monate (gleicher Tag, am Monatsende begrenzt): Frist für den Ausgleich von Mehrarbeit. */
 export function addMonths(date, n) {
@@ -167,7 +168,13 @@ export function mehrLedger(weeks, { months = 3, closures = {}, empId, until, ski
       it.used = take(it.min, (e) => e.deadline >= it.date)
     } else {
       // Abschluss: genau die ausbezahlten Tage herausnehmen (ältere Abschlüsse: älteste zuerst), Fälliges ist erledigt
-      if (it.entries) for (const paid of it.entries) take(paid.min, (e) => e.date === paid.date)
+      // (wurde ein Tag nachträglich geändert, z. B. Krankenstand nachgetragen: aus derselben Woche nehmen)
+      if (it.entries) {
+        for (const paid of it.entries) {
+          const got = take(paid.min, (e) => e.date === paid.date)
+          if (got < paid.min) take(paid.min - got, (e) => mondayOf(e.date) === mondayOf(paid.date))
+        }
+      }
       else take(it.min)
       for (const e of open) if (e.deadline <= it.date) e.min = 0
     }
@@ -259,7 +266,14 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
     }
   }
   const amount = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100
-  const uePaid = ueMode === 'auszahlen' ? total.ue + total.ue11 : 0
+  let uePaid = ueMode === 'auszahlen' ? total.ue + total.ue11 : 0
+  // Ohne Stundenlohn nichts „auszahlen“: sonst gingen Stunden aus dem Zeitkonto, ohne dass Geld fließt
+  const missingWage = !wage && (mehrPaid > 0 || uePaid > 0 || lines.length > 0)
+  if (missingWage) {
+    uePaid = 0
+    paidEntries.length = 0
+  }
+  const mehrBooked = missingWage ? 0 : mehrPaid
 
   // Steuerfreie Überstundenzuschläge (§ 68 Abs 2 EStG): erste n Überstunden, Zuschlag bis 50 %, Höchstbetrag
   let taxFree = 0
@@ -282,14 +296,15 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
     mehrMode,
     hours,
     total,
-    mehr: { added: total.mehr, balanced: balancedInMonth, due, dueMin, paid: mehrPaid, paidEntries, open: stillOpen, openMin: stillOpen.reduce((s, e) => s + e.min, 0) },
+    mehr: { added: total.mehr, balanced: balancedInMonth, due, dueMin, paid: mehrBooked, paidEntries, open: stillOpen, openMin: stillOpen.reduce((s, e) => s + e.min, 0) },
     lines,
     amount,
     zaBonus,
     uePaid,
     taxFree,
+    missingWage,
     // Zeitkonto: ausbezahlte Stunden gehen hinaus, Zeitausgleich-Zuschläge kommen dazu
-    accountDelta: -(mehrPaid + uePaid) + zaBonus,
+    accountDelta: -(mehrBooked + uePaid) + zaBonus,
     weeks: weeks.filter((w) => w.sunday >= from && w.monday <= to),
   }
 }

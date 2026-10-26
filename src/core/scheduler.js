@@ -8,6 +8,7 @@
 import { addDays, mondayOf } from './dates.js'
 import { PlanState } from './plan.js'
 import { payrollBookings } from './reports.js'
+import { employedOn } from './contract.js'
 import { evaluateEmployee, findAbsence, fitsAvailability } from './rules.js'
 
 // Warnungen, die die Automatik wie Verstöße behandelt (manuell bleibt alles möglich).
@@ -191,7 +192,7 @@ export function autoPlan(ctx, instances, assignments, { from, to, replan = false
 
   const open = () => inRange.filter((i) => state.count(i.key) < i.staff)
   if (regularsOnly) return { assignments: state.toObject(), stats, open: open().map((i) => i.key) }
-  const staticOk = (emp, inst) => !findAbsence(ctx, emp.id, inst.date) && inst.skills.every((s) => (emp.skills || []).includes(s)) && fitsAvailability(emp, inst)
+  const staticOk = (emp, inst) => employedOn(emp, inst.date) && !findAbsence(ctx, emp.id, inst.date) && inst.skills.every((s) => (emp.skills || []).includes(s)) && fitsAvailability(emp, inst)
   const order = open()
     .map((inst) => ({ inst, pressure: ctx.employees.filter((e) => staticOk(e, inst)).length / (inst.staff - state.count(inst.key)) }))
     .sort((a, b) => a.pressure - b.pressure || a.inst.start - b.inst.start)

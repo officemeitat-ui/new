@@ -11,7 +11,8 @@
 // Jede Zeile trägt Kennzahlen für die Monatsauswertung (Lohnverrechnung):
 // hours, bonus, travel, credited, creditReason, nightMinutes, sundayHoliday.
 
-import { addDays, eachDay, formatDate } from './dates.js'
+import { sollMinutes } from './contract.js'
+import { addDays, eachDay, formatDate, fromDayIndex, isoWeekday } from './dates.js'
 import { dayTrips, findAbsence, windowMinutes } from './rules.js'
 import { dutyText } from './waste.js'
 
@@ -41,7 +42,8 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     const bonusPct = sundayHoliday === 'holiday' ? r.holidayBonusPct : sundayHoliday === 'sunday' ? r.sundayBonusPct : 0
     // Sonn-/Feiertagszuschlag als Zeitgutschrift (wie im bisherigen Wochenzettel) oder in Geld (Überstunden & Auszahlung)
     const bonusAsMoney = r.pay?.bonusAs === 'geld'
-    const bonus = bonusAsMoney ? 0 : Math.round((inst.net * bonusPct) / 100)
+    // Zuschlag als Zeit je Kalendertag (Schicht Sa 22–02 Uhr: Sonntagsanteil ab Mitternacht)
+    const bonus = bonusAsMoney ? 0 : calendarBonus(ctx, inst)
     const notes = []
     if (replaced.length) notes.push(`Vertretung für ${replaced.map(nameOf).join(', ')}`)
     if (inst.status === 'moved') notes.push(`verschoben von ${formatDate(inst.origDate)}${inst.reason === 'holiday' ? ' (Feiertag)' : ''}`)
@@ -112,7 +114,12 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     } else if (!state.has(emp.id, inst.key)) {
       const absence = findAbsence(ctx, emp.id, inst.date)
       const others = state.assigned(inst.key).map((a) => nameOf(a.employeeId))
-      if (absence?.type === 'Zeitausgleich') {
+      if (absence && inst.holiday?.legal) {
+        // Feiertag in Urlaub/Krankenstand/Zeitausgleich: Feiertagsentgelt, kein Urlaubs- oder ZA-Tag
+        base.credited = creditable(inst) ? inst.net : 0
+        base.creditReason = base.credited ? 'feiertag' : null
+        base.notes.push(`Feiertag (${absence.type})${base.credited ? ' angerechnet' : ''}`)
+      } else if (absence?.type === 'Zeitausgleich') {
         // Zeitausgleich wird nicht angerechnet: die Stunden kommen aus dem Zeitkonto
         base.notes.push('Zeitausgleich (aus dem Zeitkonto)')
       } else if (absence) {
@@ -134,7 +141,8 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     day.total = day.credited + day.travel
   }
   const totals = summarizeDays(days)
-  totals.soll = Math.round((emp.weeklyHours || 0) * 60)
+  // Soll mit den damals gültigen Wochenstunden, anteilig bei Ein-/Austritt in dieser Woche
+  totals.soll = sollMinutes(emp, monday, addDays(monday, 6))
   totals.saldo = totals.ist - totals.soll
   return { employee: emp, monday, sunday, days, totals }
 }
@@ -156,7 +164,8 @@ export function summarizeDays(days) {
         t.credits[l.creditReason] = (t.credits[l.creditReason] || 0) + l.credited
       }
     }
-    if (day.absence) t.absenceDays[day.absence.type] = (t.absenceDays[day.absence.type] || 0) + 1
+    // Abwesenheitstage wie im Urlaubskonto: Montag bis Freitag ohne Feiertage
+    if (day.absence && isoWeekday(day.date) <= 5 && !day.holiday?.legal) t.absenceDays[day.absence.type] = (t.absenceDays[day.absence.type] || 0) + 1
   }
   t.ist = t.credited + t.travel
   return t
@@ -175,4 +184,19 @@ export function timesheetSignature(ts) {
     h = Math.imul(h, 16777619) >>> 0
   }
   return h.toString(36)
+}
+
+/** Sonn-/Feiertagszuschlag als Zeit je Kalendertag (gleiche Teilung wie timeClasses in overtime.js). */
+function calendarBonus(ctx, inst) {
+  const r = ctx.rules
+  let total = 0
+  for (let s = inst.start, end = inst.start + inst.net; s < end; ) {
+    const day = Math.floor(s / 1440)
+    const e = Math.min(end, (day + 1) * 1440)
+    const date = fromDayIndex(day)
+    const pct = ctx.holidays.get(date)?.legal ? r.holidayBonusPct : isoWeekday(date) === 7 ? r.sundayBonusPct : 0
+    total += ((e - s) * pct) / 100
+    s = e
+  }
+  return Math.round(total)
 }

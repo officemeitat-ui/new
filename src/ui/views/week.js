@@ -1,5 +1,6 @@
 // Wochenübersicht: Mitarbeitende × Tage, offene Einsätze, Saldo, Zeitkonto.
 
+import { employedInWeek } from '../../core/contract.js'
 import { formatDate, formatHours, isoWeekday, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { timeAccount } from '../../core/reports.js'
 import { maxSeverity, SEVERITY_LABEL } from '../../core/rules.js'
@@ -56,6 +57,8 @@ export function filteredEmployees(c) {
   const { team, search, onlyProblems } = app.ui
   const q = search.trim().toLowerCase()
   return c.ctx.employees.filter((e) => {
+    // vor dem Eintritt bzw. nach dem Austritt nicht im Plan (außer es ist doch etwas eingeteilt)
+    if (!employedInWeek(e, c.monday) && !c.validation.issues.some((i) => i.employeeId === e.id)) return false
     if (team && e.team !== team) return false
     if (q && !e.name.toLowerCase().includes(q)) return false
     if (onlyProblems) {

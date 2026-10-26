@@ -192,3 +192,24 @@ test('Betrieb auf app.cleanos.at: SharePoint, Tenant, Vollzugriff für office@ u
   // Probe-Ablage bleibt im Browser
   assert.equal(base.storage, 'local')
 })
+
+test('Vertrag: Wochenstunden mit Gültigkeit, Ein- und Austritt', async () => {
+  const { changeWeeklyHours, employedInWeek, sollMinutes, weeklyHoursAt } = await import('../src/core/contract.js')
+  let emp = { id: 'e1', weeklyHours: 20 }
+  emp = changeWeeklyHours(emp, 25, '2026-11-02')
+  assert.equal(weeklyHoursAt(emp, '2026-08-10'), 20, 'August rechnet mit den damaligen 20 h')
+  assert.equal(weeklyHoursAt(emp, '2026-11-02'), 25)
+  assert.equal(sollMinutes(emp, '2026-08-10', '2026-08-16'), 20 * 60)
+  assert.equal(sollMinutes(emp, '2026-11-02', '2026-11-08'), 25 * 60)
+  // nochmals ändern ab demselben Tag ersetzt den Eintrag
+  emp = changeWeeklyHours(emp, 30, '2026-11-02')
+  assert.deepEqual(emp.hoursHistory.map((h) => h.weeklyHours), [20, 30])
+  // Eintritt Mittwoch: 3 von 5 Werktagen
+  const neu = { id: 'e2', weeklyHours: 20, entryDate: '2026-11-04' }
+  assert.equal(sollMinutes(neu, '2026-11-02', '2026-11-08'), 12 * 60)
+  assert.equal(sollMinutes(neu, '2026-10-26', '2026-11-01'), 0)
+  const weg = { id: 'e3', weeklyHours: 40, exitDate: '2026-09-30' }
+  assert.equal(sollMinutes(weg, '2026-10-05', '2026-10-11'), 0)
+  assert.ok(employedInWeek(weg, '2026-09-28') && !employedInWeek(weg, '2026-10-05'))
+  assert.ok(!employedInWeek(neu, '2026-10-26') && employedInWeek(neu, '2026-11-02'))
+})

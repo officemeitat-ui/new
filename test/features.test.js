@@ -85,7 +85,7 @@ test('Monatsauswertung und CSV', () => {
   const rows = monthReport(ctx, '2026-10', instances, state)
   assert.equal(rows.length, 35)
   const sandra = rows.find((r) => r.employee.name === 'Sandra Pichler')
-  assert.equal(sandra.vacationDays, 5)
+  assert.equal(sandra.vacationDays, 4, 'Mo–Fr ohne den Nationalfeiertag, wie im Urlaubskonto')
   assert.ok(sandra.vacationCredit > 0)
   assert.ok(rows.some((r) => r.holidayCredit > 0), 'Nationalfeiertag angerechnet')
   const csv = toCSV(rows)

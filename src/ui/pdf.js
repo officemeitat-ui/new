@@ -1,7 +1,6 @@
 // PDF-Wochenpläne im Browser erzeugen. pdfmake (mit Schrift Roboto, inkl.
 // č, ć, ş, ğ …) und JSZip werden erst geladen, wenn sie gebraucht werden.
 
-import { addDays } from '../core/dates.js'
 import { timeAccount } from '../core/reports.js'
 import { timesheetSignature } from '../core/timesheet.js'
 import { pdfFileName, timesheetDocument } from '../export/pdf.js'
@@ -27,7 +26,9 @@ export function pdfStatus(c) {
 
 /** Zeitkonto inkl. dieser Woche (veröffentlichte Vorwochen + aktueller Saldo). */
 export function accountAfterWeek(c, emp) {
-  return timeAccount(emp, app.data.published, addDays(c.monday, -1), app.data.payroll) + c.timesheet(emp).totals.saldo
+  // Vorwochen aus dem Zeitkonto, diese Woche mit ihrem aktuellen Saldo; Monatsabschlüsse bis Sonntag dieser Woche (wie in der Ansicht)
+  const before = Object.fromEntries(Object.entries(app.data.published || {}).filter(([monday]) => monday < c.monday))
+  return timeAccount(emp, before, c.monday, app.data.payroll) + c.timesheet(emp).totals.saldo
 }
 
 const cache = new Map()

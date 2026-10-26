@@ -4,6 +4,7 @@
 // oder info (Hinweis/Zuschlag). Eigene Regeln: registerRule({...}), siehe
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
+import { employedOn, weeklyHoursAt } from './contract.js'
 import { dayIndex, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
 
 export const DEFAULT_RULES = {
@@ -232,6 +233,15 @@ export const RULES = [
     },
   },
   {
+    id: 'employment',
+    title: 'Beschäftigungszeitraum',
+    law: 'Arbeitsvertrag',
+    description: 'Einsatz vor dem Eintritt oder nach dem Austritt.',
+    check({ emp, items, add }) {
+      for (const it of items) if (!employedOn(emp, it.date)) add('error', 'EMPLOYMENT', 'shift', emp.exitDate && it.date > emp.exitDate ? `Nach dem Austritt (${formatDate(emp.exitDate)})` : `Vor dem Eintritt (${formatDate(emp.entryDate)})`, [it])
+    },
+  },
+  {
     id: 'availability',
     title: 'Verfügbarkeit',
     law: 'Arbeitsvertrag / Vereinbarung',
@@ -374,9 +384,10 @@ export const RULES = [
     law: '§ 19d AZG, Arbeitsvertrag',
     description: 'Geplante Stunden über den vertraglichen Wochenstunden.',
     check({ emp, byWeek, workOfItems, add }) {
-      const contract = (emp.weeklyHours || 0) * 60
-      if (!contract) return
-      for (const [, ws] of byWeek) {
+      for (const [monday, ws] of byWeek) {
+        // Wochenstunden, die in dieser Woche galten
+        const contract = weeklyHoursAt(emp, monday) * 60
+        if (!contract) continue
         const work = workOfItems(ws)
         if (work <= contract) continue
         const kind = emp.type === 'Vollzeit' || emp.type === 'Lehrling' ? 'Überstunden' : 'Mehrstunden (ggf. 25 % Zuschlag)'

@@ -201,10 +201,13 @@ registerActions(
     },
     'ot-close': (el) => {
       const month = el.dataset.month
+      const all = payroll(month).rows
+      const noWage = all.filter((r) => r.missingWage)
+      if (noWage.length) return toast(`Abschluss nicht möglich: kein Stundenlohn bei ${noWage.map((r) => r.employee.name).join(', ')}. Unter „Mitarbeitende“ Lohngruppe oder Stundenlohn eintragen.`)
       if (!confirmStep('ot-close')) return
       recordUndo('Monat abschließen')
       const rows = {}
-      for (const r of payroll(month).rows) if (relevant(r) || r.accountDelta) rows[r.employee.id] = closureRow(r)
+      for (const r of all) if (relevant(r) || r.accountDelta) rows[r.employee.id] = closureRow(r)
       app.data.payroll = app.data.payroll || {}
       app.data.payroll[month] = { ...(app.data.payroll[month] || {}), closedAt: new Date().toISOString(), by: app.user?.name || 'Browser', rows }
       persist()
