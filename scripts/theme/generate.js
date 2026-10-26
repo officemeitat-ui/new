@@ -5,7 +5,21 @@ import { luminance, mix, readableOn, textOn } from '../../src/core/color.js'
 
 const fontStack = (family, fallback) => (family ? `'${family.replace(/'/g, '')}', ${fallback}` : fallback)
 
+/** Eintrag für config.json → brand.themes (Vorschau im Dialog „Darstellung“). */
+export function themeEntry(brand) {
+  const P = brand.primary
+  const lightHeader = !brand.header || luminance(brand.header) > 0.6
+  return {
+    label: brand.label || brand.name,
+    note: brand.source ? `Aus ${brand.source} übernommen` : 'Hausfarben',
+    preview: { header: lightHeader ? '#ffffff' : brand.header, headerLine: brand.accent || P, logo: lightHeader ? P : '#ffffff', bg: mix('#f3f5f8', P, 0.03), line: mix('#d6dde5', P, 0.06), primary: readableOn(P, '#ffffff', 4.5), text: mix('#141c26', P, 0.12), ok: '#1d7646', okSoft: '#e1f2e8' },
+    dark: mix('#0c131a', P, 0.04),
+  }
+}
+
 /**
+ * Theme-Datei: Farbschema „name“ (data-skin, wählbar unter „Darstellung“)
+ * und Markenregeln für Logo (data-brand).
  * @param brand { name, primary, accent, heading, body, imports[], fontFaces[{family,file,weight,style}], header, logoHeight, source }
  * header: Hintergrund der Kopfzeile auf der Website (null/hell → helle Kopfzeile)
  */
@@ -14,7 +28,7 @@ export function themeCss(brand) {
   const P = brand.primary
   const A = brand.accent || P
   const lightHeader = !brand.header || luminance(brand.header) > 0.6
-  const sel = `:root[data-brand='${name}']`
+  const sel = `:root[data-skin='${name}']`
   const darkSurface = '#151d26'
   const tokens = {
     '--brand-primary': P,
@@ -58,21 +72,21 @@ export function themeCss(brand) {
   // Kopfzeile wie auf der Website: hell mit farbiger Linie oder in Markenfarbe
   const topbar = lightHeader
     ? `/* Kopfzeile hell wie auf der Website (Logo bleibt auch im Dunkelmodus gut sichtbar) */
-[data-brand='${name}'] .topbar { background: #ffffff; color: #141c26; border-bottom: 3px solid var(--brand-accent); }
-[data-brand='${name}'] body::before { background: #ffffff; }
-[data-brand='${name}'] .topbar .btn { background: #ffffff; border-color: #d6dde5; color: #141c26; }
-[data-brand='${name}'] .topbar .btn:hover { border-color: ${P}; }
-[data-brand='${name}'] .topbar .btn.primary { background: var(--brand-primary); border-color: var(--brand-primary); color: var(--brand-on-primary); }
-[data-brand='${name}'] .topbar .kw small, [data-brand='${name}'] .topbar .brand-text small, [data-brand='${name}'] .userbox { color: #55606e; }
-[data-brand='${name}'] .topbar .flag { color: #ffffff; }`
+[data-skin='${name}'] .topbar { background: #ffffff; color: #141c26; border-bottom: 3px solid var(--brand-accent); }
+[data-skin='${name}'] body::before { background: #ffffff; }
+[data-skin='${name}'] .topbar .btn { background: #ffffff; border-color: #d6dde5; color: #141c26; }
+[data-skin='${name}'] .topbar .btn:hover { border-color: ${P}; }
+[data-skin='${name}'] .topbar .btn.primary { background: var(--brand-primary); border-color: var(--brand-primary); color: var(--brand-on-primary); }
+[data-skin='${name}'] .topbar .kw small, [data-skin='${name}'] .topbar .brand-text small, [data-skin='${name}'] .userbox { color: #55606e; }
+[data-skin='${name}'] .topbar .flag { color: #ffffff; }`
     : `/* Kopfzeile in Markenfarbe wie auf der Website */
-[data-brand='${name}'] .topbar { background: linear-gradient(100deg, var(--brand-primary), var(--brand-primary-2)); border-bottom: 0; color: var(--brand-on-primary); }
-[data-brand='${name}'] body::before { background: var(--brand-primary); }
-[data-brand='${name}'] .topbar .btn { background: rgb(255 255 255 / 0.08); border-color: rgb(255 255 255 / 0.28); color: var(--brand-on-primary); }
-[data-brand='${name}'] .topbar .btn:hover { background: rgb(255 255 255 / 0.16); }
-[data-brand='${name}'] .topbar .btn.primary { background: var(--brand-accent); border-color: var(--brand-accent); color: var(--brand-on-accent); font-weight: 700; }
-[data-brand='${name}'] .topbar .kw small, [data-brand='${name}'] .topbar .brand-text small, [data-brand='${name}'] .userbox { color: rgb(255 255 255 / 0.75); }
-[data-brand='${name}'] .topbar .pill.info { background: rgb(255 255 255 / 0.14); color: var(--brand-on-primary); }`
+[data-skin='${name}'] .topbar { background: linear-gradient(100deg, var(--brand-primary), var(--brand-primary-2)); border-bottom: 0; color: var(--brand-on-primary); }
+[data-skin='${name}'] body::before { background: var(--brand-primary); }
+[data-skin='${name}'] .topbar .btn { background: rgb(255 255 255 / 0.08); border-color: rgb(255 255 255 / 0.28); color: var(--brand-on-primary); }
+[data-skin='${name}'] .topbar .btn:hover { background: rgb(255 255 255 / 0.16); }
+[data-skin='${name}'] .topbar .btn.primary { background: var(--brand-accent); border-color: var(--brand-accent); color: var(--brand-on-accent); font-weight: 700; }
+[data-skin='${name}'] .topbar .kw small, [data-skin='${name}'] .topbar .brand-text small, [data-skin='${name}'] .userbox { color: rgb(255 255 255 / 0.75); }
+[data-skin='${name}'] .topbar .pill.info { background: rgb(255 255 255 / 0.14); color: var(--brand-on-primary); }`
 
   return `/* Corporate Design „${name}“, erzeugt mit „npm run theme“${brand.source ? ` aus ${brand.source}` : ''}.
    Primärfarbe ${P}, Akzent ${A}${brand.heading ? `, Schrift ${brand.heading}${brand.body && brand.body !== brand.heading ? ` / ${brand.body}` : ''}` : ''}.
@@ -95,8 +109,8 @@ ${block(dark)}
 ${topbar}
 [data-brand='${name}'] .brand-logo { height: ${brand.logoHeight || 34}px; }
 [data-brand='${name}'] .brand-text { border-left: 1px solid currentColor; border-left-color: rgb(127 127 127 / 0.35); padding-left: 12px; }
-[data-brand='${name}'] .tab[aria-current='page'] { border-bottom-color: var(--brand-accent); }
-[data-brand='${name}'] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-[data-brand='${name}'] .flow-step.next b { color: var(--accent); }
+[data-skin='${name}'] .tab[aria-current='page'] { border-bottom-color: var(--brand-accent); }
+[data-skin='${name}'] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+[data-skin='${name}'] .flow-step.next b { color: var(--accent); }
 `
 }

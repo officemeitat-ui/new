@@ -4,14 +4,48 @@
     "product": "Dienstplan",
     "tagline": "Einsatzplanung Gebäudereinigung",
     "logo": "assets/cleanos-logo.png",
-    "theme": "cleanos",
-    "contact": "Fragen zum Dienstplan: Disposition Cleanos",
     "logoOnLight": "assets/cleanos-logo.png",
-    "colors": {
-      "primary": "#0f70b7",
-      "accent": "#a1c855"
-    },
     "icon": "assets/cleanos-icon.png",
+    "theme": "cleanos",
+    "themes": {
+      "cleanos": {
+        "label": "Cleanos",
+        "note": "Wie www.cleanos.at: weiße Kopfleiste, Cleanos-Blau, Systemschrift",
+        "preview": {
+          "header": "#ffffff",
+          "headerLine": "#dde5ea",
+          "logo": "#0c6cb4",
+          "bg": "#f3f6f8",
+          "line": "#dde5ea",
+          "primary": "#0c6cb4",
+          "text": "#13232f",
+          "ok": "#4e7a1e",
+          "okSoft": "#eef6e2"
+        },
+        "dark": "#0e2433"
+      },
+      "cleanos-nacht": {
+        "label": "Cleanos Nachtblau",
+        "note": "Kopfleiste in Nachtblau mit grüner Linie",
+        "preview": {
+          "header": "#0e2433",
+          "headerLine": "#9cc654",
+          "logo": "#ffffff",
+          "bg": "#f3f6f8",
+          "line": "#dde5ea",
+          "primary": "#0c6cb4",
+          "text": "#13232f",
+          "ok": "#4e7a1e",
+          "okSoft": "#eef6e2"
+        },
+        "dark": "#0e2433"
+      }
+    },
+    "colors": {
+      "primary": "#0c6cb4",
+      "accent": "#9cc654"
+    },
+    "contact": "Fragen zum Dienstplan: Disposition Cleanos",
     "appIcons": [
       "assets/cleanos-app-192.png",
       "assets/cleanos-app-512.png"

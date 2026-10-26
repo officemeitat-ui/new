@@ -48,7 +48,8 @@ test('Design übernehmen: Theme mit lesbaren Farben, helle oder farbige Kopfzeil
   assert.match(light, /@import url\('https:\/\/fonts\.googleapis\.com\/css2\?family=Montserrat/)
   assert.match(light, /--font-display: 'Montserrat'/)
   assert.match(light, /border-bottom: 3px solid var\(--brand-accent\)/)
-  const accent = light.match(/:root\[data-brand='beispiel'\] \{[^}]*--accent: (#[0-9a-f]{6});/)[1]
+  const accent = light.match(/:root\[data-skin='beispiel'\] \{[^}]*--accent: (#[0-9a-f]{6});/)[1]
+  assert.match(light, /\[data-brand='beispiel'\] \.brand-logo/, 'Logo bleibt Marke, Farben sind wählbares Farbschema')
   assert.ok(contrast(accent, '#ffffff') >= 4.5)
   const dark = themeCss({ name: 'beispiel', primary: b.primary, accent: b.accent, header: '#0d2b2d' })
   assert.match(dark, /linear-gradient\(100deg, var\(--brand-primary\)/)
@@ -66,13 +67,39 @@ test('PDF in Markenfarbe mit Logo', () => {
   assert.equal(plain.content[0].columns[0].stack[0].text, 'Beispiel')
 })
 
-test('Cleanos-Design: Logo, Symbol und Hausfarben aus dem Logo sind eingetragen', () => {
+test('Cleanos-Design nach www.cleanos.at: Hausfarben, zwei Farbschemata, lesbar', () => {
   const config = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'))
   const { brand } = config
   for (const file of [brand.logo, brand.logoOnLight, brand.icon]) assert.ok(readFileSync(new URL(`../${file}`, import.meta.url)).length > 1000, file)
-  assert.deepEqual(brand.colors, { primary: '#0f70b7', accent: '#a1c855' })
+  assert.deepEqual(brand.colors, { primary: '#0c6cb4', accent: '#9cc654' })
+  assert.deepEqual(Object.keys(brand.themes), ['cleanos', 'cleanos-nacht'])
   const theme = readFileSync(new URL(`../themes/${brand.theme}.css`, import.meta.url), 'utf8')
-  assert.match(theme, /--brand-primary: #0f70b7;/)
-  assert.match(theme, /--brand-accent: #a1c855;/)
-  assert.ok(contrast('#0f70b7', '#ffffff') >= 4.5) // Cleanos-Blau ist als Schrift auf Weiß lesbar
+  for (const token of ['--brand-primary: #0c6cb4;', '--brand-accent: #9cc654;', '--brand-night: #0e2433;', '--fg: #13232f;', '--bg: #f3f6f8;', '--line: #dde5ea;', '--ok: #4e7a1e;', '--ok-soft: #eef6e2;']) assert.ok(theme.includes(token), token)
+  assert.match(theme, /--font-body: 'Segoe UI'/, 'Systemschrift wie auf der Website')
+  assert.match(theme, /\[data-skin='cleanos-nacht'\] \.topbar \{ background: #0e2433;/)
+  // Text lesbar (≥ 4,5:1), Grün nur auf Dunkel als Schrift
+  const pairs = [['#0c6cb4', '#ffffff'], ['#ffffff', '#0c6cb4'], ['#4b5b67', '#f3f6f8'], ['#4e7a1e', '#eef6e2'], ['#0c6cb4', '#e3eef8'], ['#8a5300', '#fdf0d5'], ['#b3261e', '#fce8e6'], ['#9cc654', '#0e2433'], ['#5ea9e3', '#0e2433'], ['#a3b4c1', '#0e2433']]
+  for (const [fg, bg] of pairs) assert.ok(contrast(fg, bg) >= 4.5, `${fg} auf ${bg}: ${contrast(fg, bg).toFixed(2)}`)
+  assert.ok(contrast('#9cc654', '#ffffff') < 3, 'Grün auf Weiß wäre nicht lesbar und wird nicht als Schrift verwendet')
+})
+
+test('Darstellung: Farbschemata der Marke und eingebaute, Auswahl je Gerät', async () => {
+  const { applyTheme, resolveTheme, themeList } = await import('../src/ui/theme.js')
+  const config = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'))
+  assert.deepEqual(themeList(config.brand).map((t) => t.id), ['cleanos', 'cleanos-nacht', 'standard', 'ruhig', 'kontrast'])
+  assert.deepEqual(themeList({}).map((t) => t.id), ['standard', 'ruhig', 'kontrast'], 'ohne Marke (neutrale Vorschau) nur die eingebauten')
+  assert.deepEqual(resolveTheme({}, config.brand), { skin: 'cleanos', mode: 'auto', scale: 'normal' }, 'Voreinstellung aus config.json')
+  assert.deepEqual(resolveTheme({ skin: 'kontrast', mode: 'dunkel', scale: 'gross' }, config.brand), { skin: 'kontrast', mode: 'dunkel', scale: 'gross' })
+  assert.equal(resolveTheme({ skin: 'gibtsnicht' }, {}).skin, 'standard')
+  assert.equal(themeList({ theme: 'firma', name: 'Firma' })[0].label, 'Firma', 'ältere config ohne brand.themes')
+  // anwenden: Attribute am Wurzelelement und Farbe der Statusleiste
+  const meta = { content: '' }
+  globalThis.document = { querySelector: () => meta, head: { appendChild: (x) => x } }
+  const root = { dataset: {} }
+  applyTheme({ skin: 'cleanos-nacht', mode: 'hell', scale: 'gross' }, config.brand, root)
+  assert.deepEqual({ ...root.dataset }, { skin: 'cleanos-nacht', theme: 'light', scale: 'gross' })
+  assert.equal(meta.content, '#0e2433')
+  applyTheme({ skin: 'standard', mode: 'auto' }, config.brand, root)
+  assert.deepEqual({ ...root.dataset }, { skin: 'standard' })
+  delete globalThis.document
 })

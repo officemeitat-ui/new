@@ -15,7 +15,7 @@ import { basename, extname, join, resolve as resolvePath } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { contrast } from '../src/core/color.js'
 import { extractBrand, stylesheetUrls } from './theme/extract.js'
-import { themeCss } from './theme/generate.js'
+import { themeCss, themeEntry } from './theme/generate.js'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const args = process.argv.slice(2)
@@ -46,7 +46,9 @@ if (!source && option('primary')) {
     process.exit(0)
   }
   await writeFile(join(root, `themes/${name}.css`), css)
-  config.brand = { ...config.brand, theme: name, ...(logo ? { logo, logoOnLight: logo } : {}), colors: { primary: option('primary').toLowerCase(), accent: (option('accent') || option('primary')).toLowerCase() } }
+  const primary = option('primary').toLowerCase()
+  const accent = (option('accent') || option('primary')).toLowerCase()
+  config.brand = { ...config.brand, theme: name, themes: { ...(config.brand?.themes || {}), [name]: themeEntry({ name: config.brand?.name || name, primary, accent, source: 'Hausfarben' }) }, ...(logo ? { logo, logoOnLight: logo } : {}), colors: { primary, accent } }
   await writeFile(join(root, 'config.json'), `${JSON.stringify(config, null, 2)}\n`)
   console.log(`Geschrieben: themes/${name}.css, config.json (brand). Jetzt mit „npm start“ ansehen.`)
   process.exit(0)
@@ -150,6 +152,7 @@ await writeFile(join(root, `themes/${name}.css`), css2)
 config.brand = {
   ...config.brand,
   theme: name,
+  themes: { ...(config.brand?.themes || {}), [name]: themeEntry({ name: config.brand?.name || name, primary: brand.primary, accent: brand.accent, header: brand.header, source: /^https?:/.test(source) ? source : basename(source) }) },
   logo: logoPath,
   colors: { primary: brand.primary, accent: brand.accent },
   ...(lightHeader && logoPath ? { logoOnLight: logoPath } : {}),

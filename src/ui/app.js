@@ -19,6 +19,7 @@ import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mo
 import { planWeek, seedDemoHistory } from './planning.js'
 import { uploadQueued } from './photo.js'
 import { searchButton } from './search.js'
+import { applyTheme, themeButton } from './theme.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
@@ -34,9 +35,9 @@ function readPrefs() {
 }
 
 function writePrefs() {
-  const { view, monday, employeeId, team, region, previewRole } = app.ui
+  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale } = app.ui
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole }))
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale }))
   } catch {
     /* Browser erlaubt keine Speicherung */
   }
@@ -96,7 +97,7 @@ function topbar(c) {
       ${app.access?.sees('planung') !== false ? `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>` : ''}
       ${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten</button>' : ''}
     </div>
-    <div class="userbox"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span>${user}</div>
+    <div class="userbox"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span>${user}${themeButton()}</div>
   </div></header>`
 }
 
@@ -277,7 +278,11 @@ async function boot() {
   const config = await loadConfig()
   config.features = { excel: true, pdf: true, download: true, print: true, mail: false, calendar: false, ...(config.features || {}) }
   app.config = config
+  app.savePrefs = writePrefs
   applyBrand(config.brand)
+  // Darstellung sofort, damit nichts in den falschen Farben aufblitzt
+  applyTheme(readPrefs(), config.brand)
+  globalThis.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => applyTheme(app.ui, config.brand))
   bindEvents()
 
   let store

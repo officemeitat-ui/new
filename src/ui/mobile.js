@@ -124,7 +124,7 @@ function moreModal(c) {
       <section><h3>Konto & Daten</h3>
         <p class="note">${saveStatusText(app.service.status)}${app.user ? ` · ${esc(app.user.name)}` : ''}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p>
         ${app.user ? '' : roleSwitch()}
-        <div class="more-actions">${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten & Sicherung</button>' : ''}${app.signOut ? '<button class="btn" data-action="sign-out">Abmelden</button>' : ''}</div>
+        <div class="more-actions"><button class="btn" data-action="theme-open">${ICON.palette} Darstellung</button>${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten & Sicherung</button>' : ''}${app.signOut ? '<button class="btn" data-action="sign-out">Abmelden</button>' : ''}</div>
       </section>
       <section><h3>App</h3>${install}</section>`,
   })

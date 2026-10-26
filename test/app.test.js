@@ -11,7 +11,7 @@ test('App-Installation: Manifest aus der Marke, mit Symbolen für Startbildschir
   const m = manifestFor(config)
   assert.equal(m.name, 'Cleanos Dienstplan')
   assert.equal(m.display, 'standalone')
-  assert.equal(m.theme_color, '#0f70b7')
+  assert.equal(m.theme_color, '#0c6cb4')
   assert.deepEqual(m.icons.map((i) => i.sizes), ['192x192', '512x512', '512x512'])
   assert.ok(m.icons.some((i) => i.purpose === 'maskable'))
   for (const icon of m.icons) assert.ok(readFileSync(new URL(`../${icon.src}`, import.meta.url)).length > 1000)

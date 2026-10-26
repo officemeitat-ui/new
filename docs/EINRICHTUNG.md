@@ -79,7 +79,8 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
 - `features.mail`: Wochenpläne per E-Mail mit PDF-Anhang direkt aus dem Dienstplan. Gesendet wird aus dem Postfach der angemeldeten Person. Mit `mail.from` (z. B. `dienstplan@cleanos.at`) aus einem freigegebenen Postfach: dafür braucht die Disposition dort die Berechtigung „Senden als“ und die App **Mail.Send.Shared**. Die E-Mail-Adressen stehen bei den Mitarbeitenden.
 - `features.calendar`: Nachkontrollen mit einem Klick in den eigenen Outlook-Kalender (ganztägig, Erinnerung am Vortag). Braucht **Calendars.ReadWrite** mit Administratorzustimmung, sonst scheitert die Anmeldung; deshalb standardmäßig aus. Ohne diese Einstellung gibt es den Termin als .ics-Datei, die sich ebenfalls in Outlook öffnet.
 - `brand.contact`: Satz unten auf jedem PDF, z. B. „Fragen zum Dienstplan: Disposition, Tel. …“.
-- `brand.colors`, `brand.logoOnLight`: Markenfarben und Logo für die PDF-Wochenpläne. Werden von `npm run theme -- https://www.cleanos.at` automatisch gesetzt (siehe README, Corporate Design).
+- `brand.colors`, `brand.logoOnLight`: Markenfarben und Logo für die PDFs (Cleanos-Blau `#0c6cb4`, Grün `#9cc654`).
+- `brand.theme`, `brand.themes`: Farbschema für alle und die wählbaren Marken-Farbschemata (`cleanos`, `cleanos-nacht`). Jede Person kann unter „Darstellung“ für ihr Gerät ein anderes Schema, hell/dunkel und die Schriftgröße wählen (siehe README, Corporate Design und Darstellung).
 - Die Datei kann jederzeit am Server geändert werden, ohne neuen Build.
 
 ## 4. Hosting auf dienstplan.cleanos.at

@@ -50,6 +50,7 @@ export function applyBrand(brand) {
   // Ohne Theme-Datei reichen die Markenfarben aus config.json (brand.colors)
   if (!brand.theme && brand.colors?.primary) document.documentElement.style.setProperty('--accent', brand.colors.primary)
   if (brand.theme) {
+    // Eine Datei je Marke (themes/<marke>.css) mit allen ihren Farbschemata (brand.themes)
     const link = document.createElement('link')
     link.rel = 'stylesheet'
     link.href = `themes/${brand.theme}.css`

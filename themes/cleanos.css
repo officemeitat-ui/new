@@ -1,72 +1,136 @@
-/* Corporate Design „cleanos“, erzeugt mit „npm run theme“ aus Logo cleanos-logo.png.
-   Primärfarbe #0f70b7, Akzent #a1c855, Schrift Plus Jakarta Sans.
-   Werte bei Bedarf hier anpassen; neu erzeugen überschreibt die Datei. */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+/* Corporate Design Cleanos nach den Gestaltungsregeln von www.cleanos.at:
+   Cleanos-Blau #0C6CB4 (Knöpfe, Links), Grün #9CC654 nur auf Dunkel,
+   Nachtblau #0E2433, Text #13232F, Text leise #4B5B67, Grauton #F3F6F8,
+   Linie #DDE5EA, Grün dunkel #4E7A1E auf Hellgrün #EEF6E2; Systemschrift;
+   Knöpfe mit 8 px Ecken, fett, nie Großbuchstaben; Karten mit 12 px Ecken.
+   Zwei Varianten: „cleanos“ (weiße Kopfleiste wie auf der Website) und
+   „cleanos-nacht“ (Kopfleiste in Nachtblau mit grüner Linie). */
 
-
-:root[data-brand='cleanos'] {
-  --brand-primary: #0f70b7;
-  --brand-primary-2: #0d5f9c;
-  --brand-accent: #a1c855;
-  --brand-on-primary: #ffffff;
-  --brand-on-accent: #111827;
-  --bg: #ecf1f6;
+:root:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) {
+  --brand-primary: #0c6cb4;
+  --brand-primary-2: #0a5a96;
+  --brand-accent: #9cc654;
+  --brand-night: #0e2433;
+  --bg: #f3f6f8;
   --surface: #ffffff;
-  --surface-2: #dee7ef;
-  --line: #cad6e2;
-  --line-strong: #889eb3;
-  --fg: #132637;
-  --muted: #55606e;
-  --accent: #0f70b7;
+  --surface-2: #f3f6f8;
+  --line: #dde5ea;
+  --line-strong: #6f8596;
+  --fg: #13232f;
+  --muted: #4b5b67;
+  --accent: #0c6cb4;
   --accent-fg: #ffffff;
-  --accent-soft: #e2eef6;
-  --band: #d4e5f2;
-  --font-display: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
-  --font-body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --accent-soft: #e3eef8;
+  --ok: #4e7a1e;
+  --ok-soft: #eef6e2;
+  --special: #4e7a1e;
+  --info: #0c6cb4;
+  --info-soft: #e3eef8;
+  --warn: #8a5300;
+  --warn-soft: #fdf0d5;
+  --err: #b3261e;
+  --err-soft: #fce8e6;
+  --changed: #b3261e;
+  --holiday: #a3245a;
+  --holiday-soft: #fbf0f4;
+  --band: #e3eef8;
+  --weekend: #edf1f4;
+  --total: #fff4cc;
+  --font-display: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-body: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --radius: 8px;
+  --radius-card: 12px;
+  --shadow: 0 1px 2px rgb(19 35 47 / 0.06), 0 6px 20px rgb(19 35 47 / 0.08);
 }
+
+/* Dunkel: Flächen in Nachtblau, Grün als Erfolgsfarbe (auf Dunkel erlaubt) */
 @media (prefers-color-scheme: dark) {
-  :root[data-brand='cleanos']:not([data-theme='light']) {
-    --brand-primary: #083e65;
-    --brand-primary-2: #073252;
-    --bg: #0c1720;
-    --surface: #151f2a;
-    --surface-2: #1a2a3a;
-    --line: #27394c;
-    --line-strong: #4c5d70;
-    --fg: #e4eaf1;
-    --muted: #98a6b6;
-    --accent: #4b94c9;
-    --accent-fg: #0b1322;
-    --accent-soft: #14324a;
-    --band: #1b3853;
+  :root:is([data-skin='cleanos'], [data-skin='cleanos-nacht']):not([data-theme='light']) {
+    --bg: #0a1823; --surface: #0e2433; --surface-2: #132d40; --line: #1f3d52; --line-strong: #5d7a90;
+    --fg: #e9eff3; --muted: #a3b4c1;
+    --accent: #5ea9e3; --accent-fg: #06131d; --accent-soft: #123a58;
+    --ok: #9cc654; --ok-soft: #1d3311; --special: #9cc654;
+    --info: #7ab8e8; --info-soft: #11344f;
+    --warn: #f0b44c; --warn-soft: #3a2a10;
+    --err: #f28b82; --err-soft: #3d1b1a; --changed: #f28b82;
+    --band: #133a56; --weekend: #0b1d2a; --total: #3a3214;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
   }
 }
-:root[data-brand='cleanos'][data-theme='dark'] {
-  --brand-primary: #083e65;
-  --brand-primary-2: #073252;
-  --bg: #0c1720;
-  --surface: #151f2a;
-  --surface-2: #1a2a3a;
-  --line: #27394c;
-  --line-strong: #4c5d70;
-  --fg: #e4eaf1;
-  --muted: #98a6b6;
-  --accent: #4b94c9;
-  --accent-fg: #0b1322;
-  --accent-soft: #14324a;
-  --band: #1b3853;
+:root:is([data-skin='cleanos'], [data-skin='cleanos-nacht'])[data-theme='dark'] {
+  --bg: #0a1823; --surface: #0e2433; --surface-2: #132d40; --line: #1f3d52; --line-strong: #5d7a90;
+  --fg: #e9eff3; --muted: #a3b4c1;
+  --accent: #5ea9e3; --accent-fg: #06131d; --accent-soft: #123a58;
+  --ok: #9cc654; --ok-soft: #1d3311; --special: #9cc654;
+  --info: #7ab8e8; --info-soft: #11344f;
+  --warn: #f0b44c; --warn-soft: #3a2a10;
+  --err: #f28b82; --err-soft: #3d1b1a; --changed: #f28b82;
+  --band: #133a56; --weekend: #0b1d2a; --total: #3a3214;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
 }
 
-/* Kopfzeile hell wie auf der Website (Logo bleibt auch im Dunkelmodus gut sichtbar) */
-[data-brand='cleanos'] .topbar { background: #ffffff; color: #141c26; border-bottom: 3px solid var(--brand-accent); }
-[data-brand='cleanos'] body::before { background: #ffffff; }
-[data-brand='cleanos'] .topbar .btn { background: #ffffff; border-color: #d6dde5; color: #141c26; }
-[data-brand='cleanos'] .topbar .btn:hover { border-color: #0f70b7; }
-[data-brand='cleanos'] .topbar .btn.primary { background: var(--brand-primary); border-color: var(--brand-primary); color: var(--brand-on-primary); }
-[data-brand='cleanos'] .topbar .kw small, [data-brand='cleanos'] .topbar .brand-text small, [data-brand='cleanos'] .userbox { color: #55606e; }
-[data-brand='cleanos'] .topbar .flag { color: #ffffff; }
+/* Schrift und Formen wie auf der Website: gerade, fett, keine Sperrschrift */
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) :is(h1, h2, h3, legend) { font-weight: 700; letter-spacing: 0; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .btn { border-radius: 8px; font-weight: 600; border-color: #c9d6df; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .btn:hover { border-color: var(--accent); color: var(--accent); }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .btn.primary { font-weight: 700; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .btn.primary:hover { background: var(--brand-primary-2); border-color: var(--brand-primary-2); color: var(--accent-fg); filter: none; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .btn.danger:hover { color: var(--err); border-color: var(--err); }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .btn.danger.confirm:hover { color: #ffffff; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) :is(.stat, .table-wrap, .object-card, fieldset, .report, .inline-form, .empty, .banner, .modal) { border-radius: var(--radius-card); }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .modal > header { border-radius: var(--radius-card) var(--radius-card) 0 0; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .stat .value { font-weight: 700; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) :is(.stat .label, .tabgroup-label, .grid .group-row th, .grid .group-row td, .m-open h3, .m-team, .search-group, .brand h1, .brand-word) { text-transform: none; letter-spacing: 0; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .stat .label { font-weight: 700; font-size: 0.85rem; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .pill { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 0.78rem; padding: 2px 10px; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .data thead th { text-transform: none; letter-spacing: 0; font-size: 0.8rem; font-weight: 700; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .modal-body h3 { text-transform: none; letter-spacing: 0; font-size: 1.05rem; color: var(--fg); }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .tab { font-weight: 600; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .tab[aria-current='page'] { color: var(--fg); border-bottom-color: var(--accent); }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .tabgroup-label { font-weight: 700; font-size: 0.8rem; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .banner { border-color: #c9dff0; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .brand-text strong { font-weight: 700; }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) :focus-visible { outline-color: var(--accent); }
+:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) .tabs { box-shadow: 0 1px 0 var(--line); }
+
+/* Kopfleiste „Cleanos“: weiß wie auf der Website */
+[data-skin='cleanos'] .topbar { background: #ffffff; color: #13232f; border-bottom: 1px solid #dde5ea; }
+[data-skin='cleanos'] body::before { background: #ffffff; }
+[data-skin='cleanos'] .topbar .btn { background: #ffffff; color: #13232f; }
+[data-skin='cleanos'] .topbar .btn.primary { background: #0c6cb4; border-color: #0c6cb4; color: #ffffff; }
+[data-skin='cleanos'] .topbar .btn.primary:hover { background: #0a5a96; border-color: #0a5a96; }
+[data-skin='cleanos'] .topbar :is(.kw small, .brand-text small, .userbox) { color: #4b5b67; }
+[data-skin='cleanos'] .topbar .user { color: #13232f; }
+[data-skin='cleanos'] .topbar .flag { color: #ffffff; }
+
+/* Kopfleiste „Cleanos Nachtblau“ (und Cleanos im Dunkelmodus): Nachtblau, grüne Linie, Logo auf weißem Feld */
+[data-skin='cleanos-nacht'] .topbar { background: #0e2433; color: #ffffff; border-bottom: 3px solid #9cc654; }
+[data-skin='cleanos-nacht'] body::before { background: #0e2433; }
+[data-skin='cleanos-nacht'] .topbar .btn { background: transparent; border-color: rgb(255 255 255 / 0.55); color: #ffffff; }
+[data-skin='cleanos-nacht'] .topbar .btn:hover { border-color: #ffffff; background: rgb(255 255 255 / 0.08); color: #ffffff; }
+[data-skin='cleanos-nacht'] .topbar .btn.primary { background: #0c6cb4; border-color: #0c6cb4; color: #ffffff; }
+[data-skin='cleanos-nacht'] .topbar .btn.primary:hover { background: #0a5a96; border-color: #0a5a96; }
+[data-skin='cleanos-nacht'] .topbar :is(.kw small, .brand-text small, .userbox) { color: #c9d6df; }
+[data-skin='cleanos-nacht'] .topbar .user { color: #ffffff; }
+[data-skin='cleanos-nacht'] .topbar .pill.info { background: rgb(255 255 255 / 0.14); color: #ffffff; }
+[data-skin='cleanos-nacht'] .topbar .pill.ok { background: rgb(156 198 84 / 0.2); color: #cfe6a6; }
+[data-skin='cleanos-nacht'] .topbar :is(select, input) { background: #132d40; color: #ffffff; border-color: rgb(255 255 255 / 0.4); }
+[data-skin='cleanos-nacht'] .brand-logo { background: #ffffff; border-radius: 8px; padding: 4px 8px; }
+@media (prefers-color-scheme: dark) {
+  [data-skin='cleanos']:not([data-theme='light']) .topbar { background: #0e2433; color: #ffffff; border-bottom: 3px solid #9cc654; }
+  [data-skin='cleanos']:not([data-theme='light']) body::before { background: #0e2433; }
+  [data-skin='cleanos']:not([data-theme='light']) .topbar .btn:not(.primary) { background: transparent; border-color: rgb(255 255 255 / 0.55); color: #ffffff; }
+  [data-skin='cleanos']:not([data-theme='light']) .topbar :is(.kw small, .brand-text small, .userbox) { color: #c9d6df; }
+  [data-skin='cleanos']:not([data-theme='light']) .topbar .user { color: #ffffff; }
+  [data-skin='cleanos']:not([data-theme='light']) .brand-logo { background: #ffffff; border-radius: 8px; padding: 4px 8px; }
+}
+[data-skin='cleanos'][data-theme='dark'] .topbar { background: #0e2433; color: #ffffff; border-bottom: 3px solid #9cc654; }
+[data-skin='cleanos'][data-theme='dark'] body::before { background: #0e2433; }
+[data-skin='cleanos'][data-theme='dark'] .topbar .btn:not(.primary) { background: transparent; border-color: rgb(255 255 255 / 0.55); color: #ffffff; }
+[data-skin='cleanos'][data-theme='dark'] .topbar :is(.kw small, .brand-text small, .userbox) { color: #c9d6df; }
+[data-skin='cleanos'][data-theme='dark'] .topbar .user { color: #ffffff; }
+[data-skin='cleanos'][data-theme='dark'] .brand-logo { background: #ffffff; border-radius: 8px; padding: 4px 8px; }
+
+/* Marke (unabhängig vom gewählten Farbschema): Logo und Trennstrich */
 [data-brand='cleanos'] .brand-logo { height: 56px; }
-[data-brand='cleanos'] .brand-text { border-left: 1px solid currentColor; border-left-color: rgb(127 127 127 / 0.35); padding-left: 12px; }
-[data-brand='cleanos'] .tab[aria-current='page'] { border-bottom-color: var(--brand-accent); }
-[data-brand='cleanos'] .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-[data-brand='cleanos'] .flow-step.next b { color: var(--accent); }
+[data-brand='cleanos'] .brand-text { border-left: 1px solid rgb(127 127 127 / 0.35); padding-left: 12px; }

@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 155 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel, Service & Pickerl
+npm test         # 156 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel, Service & Pickerl
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -85,17 +85,30 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 Dazu kommen: Veröffentlichen mit Excel- und PDF-Export nach SharePoint, Markierung späterer Änderungen, Änderungsprotokoll, Leserechte für Nicht-Disponent:innen und automatisches Zusammenführen, wenn zwei Personen gleichzeitig planen.
 
-## Corporate Design
+## Corporate Design und Darstellung
 
-Das Cleanos-Design ist eingebaut: Logo `assets/cleanos-logo.png`, Hausfarben aus dem Logo (Blau `#0f70b7`, Grün `#a1c855`, Grau `#717274`), helle Kopfzeile mit grüner Linie, Wassertropfen als Symbol im Browser-Tab, PDF-Wochenpläne mit Logo und Markenfarbe. Werte in `themes/cleanos.css` und `config.json` (brand).
+Das Cleanos-Design folgt den Gestaltungsregeln von www.cleanos.at:
 
-Neu erzeugen lässt es sich aus Logo und Farben (`npm run theme -- --logo assets/cleanos-logo.png --primary "#0f70b7" --accent "#a1c855" --logo-height 56`) oder aus der Website, dann kommen auch deren Schriften mit:
+| | Farbe | wofür |
+|---|---|---|
+| Cleanos-Blau | `#0C6CB4` | Knöpfe, Links, aktive Register |
+| Cleanos-Grün | `#9CC654` | nur auf Dunkel (Linie unter der Nachtblau-Kopfleiste, Erfolg im Dunkelmodus); Grün auf Weiß ist als Schrift nicht lesbar |
+| Nachtblau | `#0E2433` | Kopfleiste „Cleanos Nachtblau“, Flächen im Dunkelmodus |
+| Text / Text leise | `#13232F` / `#4B5B67` | Schrift |
+| Grün dunkel auf Hellgrün | `#4E7A1E` / `#EEF6E2` | „in Ordnung“, erledigt |
+| Grauton / Linie | `#F3F6F8` / `#DDE5EA` | Hintergrund, Rahmen |
 
-```bash
-npm run theme -- https://www.cleanos.at
-```
+Schrift ist die Systemschrift (Segoe UI), Knöpfe haben 8 px Ecken und sind fett, Karten 12 px; Überschriften und Beschriftungen nie in Großbuchstaben oder gesperrt. Alle Textfarben sind auf Lesbarkeit geprüft (mindestens 4,5:1). Werte in `themes/cleanos.css`, Logo und PDF-Farben in `config.json` (brand).
 
-Er liest Logo, Markenfarben, Schriften und die Art der Kopfzeile (hell oder farbig), schreibt `themes/cleanos.css`, lädt das Logo nach `assets/` und trägt alles in `config.json` ein (auch für die PDF-Wochenpläne: Logo und Markenfarbe). Alle Farben werden auf Lesbarkeit geprüft. Ist die Website nicht erreichbar, geht auch eine im Browser gespeicherte Seite („Seite speichern unter … komplett“): `npm run theme -- ./cleanos/index.html`. Danach mit `npm start` ansehen und bei Bedarf in `themes/cleanos.css` nachjustieren.
+**Darstellung je Person:** Über das Paletten-Symbol oben (am Handy „Mehr → Darstellung“) wählt jede Person für ihr Gerät:
+
+- **Farbschema:** Cleanos (weiße Kopfleiste wie auf der Website), Cleanos Nachtblau, Standard, Ruhig (Petrol, warme Grautöne), Hoher Kontrast (für Sonne am Handy).
+- **Hell, dunkel oder wie das Gerät.**
+- **Schriftgröße:** normal oder groß.
+
+Die Voreinstellung für alle ist `brand.theme` in `config.json`; die Marken-Farbschemata und ihre Vorschau stehen in `brand.themes`.
+
+**Andere Marke:** `npm run theme -- https://www.firma.at` (oder `--logo … --primary … --accent …`) erzeugt `themes/<name>.css` mit einem wählbaren Farbschema und trägt es in `config.json` ein. Achtung: Mit dem Namen `cleanos` würde das von Hand nach den Gestaltungsregeln abgestimmte Cleanos-Theme überschrieben; zum Ausprobieren `--name test` verwenden.
 
 ## Technik
 
