@@ -37,7 +37,7 @@ function tripModal(c, { key, emp }) {
         <div class="trip-stop">${to ? `<span class="swatch" style="--obj:var(--o${to.color})"></span><strong>${esc(to.name)}</strong><span class="muted">${next.startTime}–${next.endTime}</span>` : '<span class="muted">Letzter Einsatz des Tages: z. B. Rückfahrt ins Büro oder Lager eintragen</span>'}</div>
       </div>
       <p class="note">Derzeit: <strong>${trip.minutes} min</strong>, ${SOURCE[trip.source]}${to ? `. Automatisch wären es ${auto} min.` : '.'}${tight ? ` <span class="err-text">Die Fahrt passt nicht in die ${gap} min bis zum nächsten Einsatz.</span>` : ''} Fahrzeit zählt als Arbeitszeit und erscheint im Wochenzettel in der Spalte „Fahrzeit“.</p>
-      <div class="form-grid">
+      <div class="form-grid edit-only">
         <label class="field"><span>Fahrzeit (Minuten)</span><input type="number" id="trip-min" min="0" step="5" value="${Number.isFinite(entry.min) ? entry.min : ''}" placeholder="automatisch: ${next ? auto : 0}"></label>
         <div class="field"><span>Schnellwahl</span><div class="weekday-picker">${quick.map((m) => `<button class="btn small" data-action="trip-quick" data-min="${m}">${m}</button>`).join('')}</div></div>
         <label class="field wide"><span>Notiz zur Fahrt (erscheint im Wochenzettel und in der Zeitlinie)</span><input type="text" id="trip-note" value="${esc(entry.note || '')}" placeholder="${esc(inst.travelNote || 'z. B. Firmenauto, Schlüssel im Büro holen, Öffi Linie 3')}"></label>
@@ -47,7 +47,7 @@ function tripModal(c, { key, emp }) {
   })
 }
 
-registerModal('trip', tripModal)
+registerModal('trip', tripModal, { module: 'planung' })
 
 const readForm = () => {
   const raw = val('trip-min').trim()
@@ -107,6 +107,6 @@ registerActions(
       renderNow()
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )
 

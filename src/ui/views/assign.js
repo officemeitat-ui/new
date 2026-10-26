@@ -128,12 +128,16 @@ function applySuggestions(taskIds) {
   return list
 }
 
+// Filter „nur ohne Stammkraft“: reine Anzeige, auch für Lesende
+registerActions({
+  'as-open': () => {
+    app.ui.assignOpen = !app.ui.assignOpen
+    renderNow()
+  },
+})
+
 registerActions(
   {
-    'as-open': () => {
-      app.ui.assignOpen = !app.ui.assignOpen
-      renderNow()
-    },
     'as-assign': (el) => {
       recordUndo('Stammkraft zuweisen')
       if (assignRegular(el.dataset.task, el.dataset.emp)) persist()
@@ -178,6 +182,6 @@ registerActions(
       toast(`${list.length} Stammkräfte zugewiesen.${left ? ` ${left} Leistungen bleiben offen: dafür ist niemand frei.` : ''}`)
     },
   },
-  { edit: true },
+  { edit: 'stammdaten' },
 )
 

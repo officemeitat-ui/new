@@ -206,5 +206,5 @@ registerActions(
       toast('Qualifikationen gespeichert.')
     },
   },
-  { edit: true },
+  { edit: 'stammdaten' },
 )

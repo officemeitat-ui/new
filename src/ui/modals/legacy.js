@@ -60,7 +60,7 @@ function legacyModal(c, m) {
   })
 }
 
-registerModal('legacy', legacyModal)
+registerModal('legacy', legacyModal, { module: ['zaehler', 'kontrolle', 'objektmappe', 'stammdaten'] })
 
 registerActions({
   'legacy-open': () => openModal({ type: 'legacy' }),

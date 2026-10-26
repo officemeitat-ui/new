@@ -42,7 +42,7 @@ function coverageView(c) {
       const insts = c.week.filter((i) => i.status !== 'cancelled' && (i.regulars.includes(a.employeeId) || c.state.has(a.employeeId, i.key)) && i.date >= a.from && i.date <= a.to).sort(byStart)
       insts.forEach((i) => handled.add(i.key))
       const emp = c.ctx.employeesById.get(a.employeeId)
-      return `<section class="cover-block"><h3>${esc(emp?.name || '?')} · ${esc(a.type)} <span class="muted">${formatDate(a.from)} – ${formatDate(a.to)}</span> <button class="btn small" data-action="open-impact" data-id="${esc(a.id)}">${ICON.user} Gesamten Zeitraum planen / übergeben</button></h3>
+      return `<section class="cover-block"><h3>${esc(emp?.name || '?')} · ${esc(a.type)} <span class="muted">${formatDate(a.from)} – ${formatDate(a.to)}</span> <button class="btn small edit-only" data-action="open-impact" data-id="${esc(a.id)}">${ICON.user} Gesamten Zeitraum planen / übergeben</button></h3>
         ${insts.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Zeit</th><th>Objekt</th><th>Grund</th><th>Besetzung</th><th>Vorschlag</th></tr></thead><tbody>${insts.map((i) => row(c, i, `Stammkraft ${a.type}`, a.employeeId)).join('')}</tbody></table></div>` : '<p class="note">Keine Stammeinsätze in dieser Woche betroffen.</p>'}</section>`
     })
     .join('')
@@ -73,5 +73,5 @@ registerActions(
     },
     'cover-all': () => planWeek(false),
   },
-  { edit: true },
+  { edit: 'planung' },
 )

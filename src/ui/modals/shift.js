@@ -5,7 +5,7 @@ import { addDays, eachDay, formatDate, formatHours, formatTime, mondayOf } from 
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES } from '../../core/plan.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { dutyText } from '../../core/waste.js'
-import { addLog, app, empName, mutateAssignments, objectHints, openModal, persist, recordUndo, registerActions, registerModal, renderNow, toast } from '../context.js'
+import { addLog, app, empName, mutateAssignments, objectHints, openModal, persist, recordUndo, mayEdit, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { esc, ICON, issueList, modalFrame, objectOf, reasonsHtml, val } from '../shared.js'
 import { tripContext } from './trip.js'
 
@@ -70,7 +70,7 @@ function shiftModal(c, { key }) {
     .join('')
 
   let candidates = ''
-  if (inst.status !== 'cancelled' && !app.readOnly) {
+  if (inst.status !== 'cancelled' && mayEdit('planung')) {
     const region = obj.region
     const list = rankCandidates(c.ctx, c.state, inst)
     // Einsatz voll besetzt: Tauschen statt Ziehen (geht auch am Handy und Tablet)
@@ -93,7 +93,7 @@ function shiftModal(c, { key }) {
   const ov = app.data.overrides[key] || {}
   const addOnMin = (inst.addOns || []).reduce((sum, a) => sum + a.minutes, 0)
   const weekDays = eachDay(mondayOf(inst.origDate), addDays(mondayOf(inst.origDate), 6))
-  const edit = app.readOnly
+  const edit = !mayEdit('planung')
     ? ''
     : `<details ${Object.keys(ov).length ? 'open' : ''}><summary>Nur diese Woche ändern</summary>
     <div class="form-grid">
@@ -114,7 +114,7 @@ function shiftModal(c, { key }) {
     color: obj.color,
     body: `<div class="meta">${tags}</div>
       ${objectHints(obj.id).map((h) => `<div class="banner hint-banner"><p>${h}</p></div>`).join('')}
-      ${inst.status === 'cancelled' && inst.reason === 'holiday' && !app.readOnly ? `<div class="banner"><p>${inst.origHoliday?.legal ? `Entfällt am Feiertag (${esc(inst.origHoliday.name)}), weil bei der Leistung „entfällt“ eingestellt ist.` : `Betrieb geschlossen: ${esc(inst.origHoliday?.name || 'betriebsfrei')}.`}</p><button class="btn primary" data-action="ov-work" data-key="${esc(key)}">Trotzdem stattfinden</button></div>` : ''}
+      ${inst.status === 'cancelled' && inst.reason === 'holiday' && mayEdit('planung') ? `<div class="banner"><p>${inst.origHoliday?.legal ? `Entfällt am Feiertag (${esc(inst.origHoliday.name)}), weil bei der Leistung „entfällt“ eingestellt ist.` : `Betrieb geschlossen: ${esc(inst.origHoliday?.name || 'betriebsfrei')}.`}</p><button class="btn primary" data-action="ov-work" data-key="${esc(key)}">Trotzdem stattfinden</button></div>` : ''}
       ${staffingIssues.length ? issueList(staffingIssues) : ''}
       ${objectFolder(obj)}
       <section><h3>Eingeteilt (${assigned.length}/${inst.staff})</h3>${regularsNote}${people || '<p class="note">Noch niemand eingeteilt.</p>'}</section>
@@ -122,7 +122,7 @@ function shiftModal(c, { key }) {
   })
 }
 
-registerModal('shift', shiftModal)
+registerModal('shift', shiftModal, { module: 'planung' })
 
 const instOf = (key) => app.cur.state.instByKey.get(key)
 const label = (key) => {
@@ -202,5 +202,5 @@ registerActions(
       renderNow()
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )

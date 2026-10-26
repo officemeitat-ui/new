@@ -83,5 +83,5 @@ registerActions(
       renderNow()
     },
   },
-  { edit: true },
+  { edit: ['planung', 'stammdaten'] },
 )

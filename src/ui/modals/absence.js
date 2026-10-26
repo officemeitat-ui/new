@@ -8,7 +8,7 @@ import { absenceImpact, handOver, isPeriodic, rankHandover, rhythmCategory } fro
 import { addDays, eachDay, formatDate, formatHours, isoWeek, isoWeekday, mondayOf, todayISO } from '../../core/dates.js'
 import { PlanState } from '../../core/plan.js'
 import { autoPlan, rankCandidates } from '../../core/scheduler.js'
-import { addLog, app, compute, computeRange, dataStamp, recordUndo, empName, ensureRange, openModal, persist, plannedWeeks, registerActions, registerModal, renderNow, toast } from '../context.js'
+import { addLog, app, compute, computeRange, dataStamp, recordUndo, empName, ensureRange, openModal, persist, plannedWeeks, mayEdit, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { changedEmployees, publishWeek } from '../planning.js'
 import { ABSENCE_TYPES, reasonsText, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
 
@@ -53,8 +53,8 @@ function suggestions(a, an) {
   const key = `${dataStamp()}|${a.id}|${a.employeeId}|${a.from}|${a.to}`
   if (memo.key === key) return memo
   const emp = an.r.ctx.employeesById.get(a.employeeId)
-  const ranking = app.readOnly ? [] : rankHandover(an.r.ctx, an.preview, an.pending, { excludeId: a.employeeId, team: emp?.team })
-  const best = new Map(app.readOnly ? [] : an.pending.map((inst) => [inst.key, rankCandidates(an.r.ctx, an.preview, inst).find((x) => x.allowed) || null]))
+  const ranking = !mayEdit('planung') ? [] : rankHandover(an.r.ctx, an.preview, an.pending, { excludeId: a.employeeId, team: emp?.team })
+  const best = new Map(!mayEdit('planung') ? [] : an.pending.map((inst) => [inst.key, rankCandidates(an.r.ctx, an.preview, inst).find((x) => x.allowed) || null]))
   const weeks = [...new Set(an.impact.rows.map((x) => mondayOf(x.inst.origDate)))].sort()
   const published = weeks.filter((m) => app.data.published?.[m]).map((monday) => ({ monday, changed: changedEmployees(compute(monday)) }))
   memo = { key, ranking, best, weeks, published }
@@ -158,7 +158,7 @@ function impactModal(c, { absenceId }) {
   if (unplanned.length) notes.push(`<p class="note">${unplanned.map(kw).join(', ')} ${unplanned.length === 1 ? 'ist' : 'sind'} noch nicht eingeteilt. „Woche planen“ vertritt dort automatisch. Fixobjekte lassen sich hier schon vorab gezielt an eine Person übergeben.</p>`)
 
   const handover =
-    pending.length && !app.readOnly
+    pending.length && mayEdit('planung')
       ? `<section class="handover"><h3>${pending.length} ${pending.length === 1 ? 'Einsatz' : 'Einsätze'} (${formatHours(impact.openMinutes)} h) neu vergeben</h3>
         ${sug.ranking.length ? `<div class="inline-form">
           <label class="field grow"><span>Fixobjekte übergeben an</span><select id="impact-to">${sug.ranking
@@ -198,8 +198,8 @@ function impactModal(c, { absenceId }) {
   })
 }
 
-registerModal('absence-new', absenceNewModal)
-registerModal('absence-impact', impactModal)
+registerModal('absence-new', absenceNewModal, { module: 'planung' })
+registerModal('absence-impact', impactModal, { module: 'planung' })
 
 // ---------------------------------------------------------------- Aktionen
 
@@ -295,7 +295,7 @@ registerActions(
       }
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )
 
 /** Kleine Schaltfläche für Ansichten: Abwesenheit melden (z. B. im Einsatz-Dialog). */

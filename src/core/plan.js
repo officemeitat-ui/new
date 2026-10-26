@@ -37,6 +37,13 @@ export function buildInstances({ objects, tasks, employees = [], overrides = {} 
 }
 
 /** Einsatz einer Leistung an einem Tag, mit Feiertagsregel und Einzeländerung. */
+/** Uhrzeit „H:MM“/„HH:MM“ (bis 24:00) als „HH:MM“; anderes (z. B. manipulierte Daten) → fallback. */
+export function clockTime(value, fallback) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value ?? '').trim())
+  if (!m || Number(m[1]) > 24 || Number(m[2]) > 59 || (Number(m[1]) === 24 && Number(m[2]) > 0)) return fallback
+  return `${m[1].padStart(2, '0')}:${m[2]}`
+}
+
 export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }) {
   const key = `${date}|${task.id}`
   const origHoliday = holidays.get(date) || null
@@ -59,8 +66,8 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
     }
   }
 
-  let startTime = task.start
-  let endTime = task.end
+  let startTime = clockTime(task.start, '00:00')
+  let endTime = clockTime(task.end, startTime)
   if (ov) {
     // ov.date = schon durch den Feiertag verschobenes Datum: Status/Grund bleiben „Feiertag“
     if (ov.date && ov.date !== actualDate) {
@@ -68,8 +75,8 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
       status = ov.date === date ? 'normal' : 'moved'
       reason = ov.date === date ? null : 'manual'
     }
-    if (ov.start) startTime = ov.start
-    if (ov.end) endTime = ov.end
+    if (ov.start) startTime = clockTime(ov.start, startTime)
+    if (ov.end) endTime = clockTime(ov.end, endTime)
     if (ov.cancelled) {
       status = 'cancelled'
       reason = 'manual'

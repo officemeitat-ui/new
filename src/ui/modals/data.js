@@ -33,7 +33,7 @@ function dataModal() {
   })
 }
 
-registerModal('data', dataModal)
+registerModal('data', dataModal, { module: '*' })
 
 registerActions({
   'open-data': () => openModal({ type: 'data' }),
@@ -75,5 +75,5 @@ registerActions(
       toast('Beispieldaten geladen: 4 veröffentlichte Wochen und die aktuelle Woche eingeteilt.')
     },
   },
-  { edit: true },
+  { edit: '*' },
 )

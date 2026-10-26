@@ -61,7 +61,7 @@ function objectModal(c, { id }) {
         <label class="field"><span>Adresse</span><input type="text" id="obj-address" value="${esc(o.address)}"></label>
         <label class="field"><span>Revier</span><input type="text" id="obj-region" list="region-list" value="${esc(o.region || '')}"><datalist id="region-list">${regions.map((r) => `<option value="${esc(r)}">`).join('')}</datalist></label>
         <label class="field"><span>Farbe</span><select id="obj-color">${COLOR_NAMES.map((n, i) => `<option value="${i + 1}" ${o.color === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label class="field"><span>Budget (Sollstunden/Monat)</span><input type="number" id="obj-budget" min="0" step="1" value="${o.budgetHoursMonth ?? ''}" placeholder="laut Kalkulation"></label>
+        <label class="field"><span>Budget (Sollstunden/Monat)</span><input type="number" id="obj-budget" min="0" step="1" value="${esc(o.budgetHoursMonth ?? '')}" placeholder="laut Kalkulation"></label>
         <label class="check" style="align-self:end"><input type="checkbox" id="obj-trained" ${o.onlyTrained ? 'checked' : ''}><span>Nur eingeschultes Personal (Schlüssel, Alarm, Hygiene)</span></label>
       </div>
       <section><h3>Objektmappe</h3><div class="form-grid">
@@ -119,7 +119,7 @@ function taskModal(c, { id, objectId }) {
         <label class="field"><span>Termin</span><select id="task-mmode" data-toggle="mmode">${options([['nth', 'Wochentag im Monat'], ['day', 'fixer Tag im Monat']], monthly.mode)}</select></label>
         <label class="field" data-mmode="nth" ${monthly.mode === 'day' ? 'hidden' : ''}><span>Welcher</span><select id="task-nth">${options(Object.entries(NTH_LABEL).sort((a, b) => (a[0] === '-1') - (b[0] === '-1') || a[0] - b[0]), monthly.nth)}</select></label>
         <label class="field" data-mmode="nth" ${monthly.mode === 'day' ? 'hidden' : ''}><span>Wochentag</span><select id="task-mweekday">${options(WEEKDAY_LONG.map((n, i) => [i + 1, n]), monthly.weekday)}</select></label>
-        <label class="field" data-mmode="day" ${monthly.mode === 'day' ? '' : 'hidden'}><span>Tag im Monat</span><input type="number" id="task-mday" min="1" max="31" step="1" value="${monthly.day || 1}"><small class="muted">31 = immer Monatsletzter</small></label>
+        <label class="field" data-mmode="day" ${monthly.mode === 'day' ? '' : 'hidden'}><span>Tag im Monat</span><input type="number" id="task-mday" min="1" max="31" step="1" value="${esc(monthly.day || 1)}"><small class="muted">31 = immer Monatsletzter</small></label>
         <label class="field"><span>Erstmals im Monat</span><input type="month" id="task-manchor" value="${esc((monthly.anchor || c.monday).slice(0, 7))}"></label>
         <label class="field"><span>Gültig bis (optional)</span><input type="date" id="task-muntil" value="${esc(type === 'monthly' ? r.until || '' : '')}"></label>
       </div>
@@ -129,7 +129,7 @@ function taskModal(c, { id, objectId }) {
       <div class="form-grid">
         <label class="field"><span>Beginn</span><input type="time" id="task-start" value="${esc(t.start)}"></label>
         <label class="field"><span>Ende</span><input type="time" id="task-end" value="${esc(t.end)}"></label>
-        <label class="field"><span>Personen</span><input type="number" id="task-staff" min="1" step="1" value="${t.staff}"></label>
+        <label class="field"><span>Personen</span><input type="number" id="task-staff" min="1" step="1" value="${esc(t.staff)}"></label>
         <label class="field"><span>An Feiertagen</span><select id="task-holiday">${options(Object.entries(HOLIDAY_RULES), t.holidayRule || DEFAULT_HOLIDAY_RULE)}</select></label>
         <label class="field"><span>Fahrzeit danach (min)</span><input type="number" id="task-travel" min="0" step="5" value="${Number.isFinite(t.travelAfterMin) ? t.travelAfterMin : ''}" placeholder="automatisch"></label>
         <label class="field wide"><span>Fahrtnotiz (Standard, je Woche änderbar)</span><input type="text" id="task-travel-note" value="${esc(t.travelNote || '')}" placeholder="z. B. Firmenauto zurück ins Lager"></label>
@@ -198,8 +198,8 @@ function removeTaskEverywhere(id) {
 }
 
 registerView({ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm', render: sitesView })
-registerModal('object', objectModal)
-registerModal('task', taskModal)
+registerModal('object', objectModal, { module: 'stammdaten' })
+registerModal('task', taskModal, { module: 'stammdaten' })
 
 registerActions(
   {
@@ -294,5 +294,5 @@ registerActions(
       renderNow()
     },
   },
-  { edit: true },
+  { edit: 'stammdaten' },
 )

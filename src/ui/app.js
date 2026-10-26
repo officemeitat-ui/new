@@ -124,7 +124,8 @@ function sidebarFoot() {
   const who = app.user
     ? `<div class="sb-user"><span class="user">${ICON.user} <span>${esc(app.user.name)}</span></span>${role ? `<small>${esc(role)}</small>` : ''}</div>`
     : roleSwitch()
-  return `<div class="sb-status"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span></div>
+  const status = saveStatusText(app.service.status)
+  return `<div class="sb-status"><span id="save-status" class="save-status" title="${esc(status.replace(/<[^>]+>/g, ''))}">${status}</span></div>
     <div class="sb-account">${who}</div>
     <div class="sb-tools">${themeButton()}${app.signOut ? `<button class="btn small" data-action="sign-out" title="Abmelden">Abmelden</button>` : ''}</div>`
 }
@@ -356,7 +357,10 @@ async function boot() {
     blank: emptyData,
     onStatus: (status, detail) => {
       const el = document.getElementById('save-status')
-      if (el) el.innerHTML = saveStatusText(status, detail)
+      if (el) {
+        el.innerHTML = saveStatusText(status, detail)
+        el.title = el.textContent // Tablet: nur Punkt, Text als Tooltip
+      }
       if (status === 'error') toast(`Speichern fehlgeschlagen: ${detail}`)
     },
     onRemoteChange: (kind, changed) => {

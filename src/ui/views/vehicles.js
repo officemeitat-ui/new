@@ -40,6 +40,9 @@ const mm = (v) => (v === null || v === undefined || v === '' ? '' : String(v).re
 const ORDER = { ueberfaellig: 0, vorbei: 1, offen: 2, geplant: 3, erledigt: 4, ganzjahr: 5 }
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
+/** Darf die Rolle die Dienste sehen? Sonst kennt die App sie nicht (Pläne/Abwesenheiten werden gar nicht geladen). */
+const shiftsVisible = () => !app.access || app.access.sees('planung')
+
 /** Belegte Zeiten je Person und Tag aus dem Dienstplan (Einsätze, Abwesenheiten). */
 function busyLookup(from, to) {
   const r = computeRange(from, to)
@@ -276,7 +279,7 @@ function editModal(c, m) {
   const d = m.draft
   const employees = [...app.data.employees].sort((a, b) => a.name.localeCompare(b.name, 'de'))
   return modalFrame({
-    title: m.id ? `Fahrzeug ${esc(d.plate || '')}` : 'Neues Fahrzeug',
+    title: m.id ? `Fahrzeug ${d.plate || ''}` : 'Neues Fahrzeug',
     wide: true,
     body: `<div class="form-grid">
         ${field('plate', 'Kennzeichen', d.plate, { placeholder: 'S-123 AB' })}
@@ -319,7 +322,7 @@ function duesFieldset(d) {
       <button type="button" class="btn small" data-action="veh-due-add">${ICON.plus} Fälligkeit</button></fieldset>`
 }
 
-registerModal('veh-edit', editModal)
+registerModal('veh-edit', editModal, { module: MODULE })
 
 // ---------------------------------------------------------------- Werkstätten
 
@@ -352,6 +355,7 @@ registerModal('veh-import', (c, m) => {
 // ---------------------------------------------------------------- Termin planen
 
 function dayPlan(busy, empId, date) {
+  if (!shiftsVisible()) return `<p class="note">Die Dienste von ${esc(empName(empId))} sind für deine Rolle nicht einsehbar. Termin bitte mit dem Büro abstimmen.</p>`
   if (!empId) return '<p class="note">Ohne feste/n Fahrer/in: jemand bringt das Fahrzeug hin.</p>'
   const list = busy(empId, date)
   return `<p class="note"><strong>${esc(empName(empId))} am ${formatDate(date)}:</strong> ${list.length ? list.map((b) => (b.allDay ? esc(b.label) : `${String(Math.floor(b.start / 60)).padStart(2, '0')}:${String(b.start % 60).padStart(2, '0')}–${String(Math.floor(b.end / 60) % 24).padStart(2, '0')}:${String(b.end % 60).padStart(2, '0')} ${esc(b.label)}`)).join(' · ') : 'kein Dienst'}</p>`
@@ -378,7 +382,7 @@ function planModal(c, m) {
   const ch = m.changeId ? changeById(m.changeId) : null
   const tire = m.kind !== 'werkstatt'
   return modalFrame({
-    title: `${tire ? 'Reifenwechsel' : 'Werkstatttermin'} ${esc(v.plate)}`,
+    title: `${tire ? 'Reifenwechsel' : 'Werkstatttermin'} ${v.plate}`,
     subtitle: `${esc(v.label || '')}${tire ? ` · auf ${esc(SEASONS[campaign.season])}` : ''} · Fahrer/in: ${esc(empOf(v.driverId)?.name || '–')}`,
     body: `<div class="form-grid">
         <label class="field"><span>Datum</span><input type="date" id="vp-date" value="${esc(date)}" data-change="vp-update"></label>
@@ -389,7 +393,7 @@ function planModal(c, m) {
       </div>
       ${taskChoices(v, m)}
       ${dayPlan(busy, v.driverId, date)}
-      ${clash.length ? clash.map((x) => `<p class="check warning">⚠ Überschneidung (mit ${settings().travelMinutes} Min. Fahrzeit): ${esc(x.text)}</p>`).join('') : v.driverId ? '<p class="check ok">Passt zu den Diensten.</p>' : ''}
+      ${clash.length ? clash.map((x) => `<p class="check warning">⚠ Überschneidung (mit ${settings().travelMinutes} Min. Fahrzeit): ${esc(x.text)}</p>`).join('') : v.driverId && shiftsVisible() ? '<p class="check ok">Passt zu den Diensten.</p>' : ''}
       ${tire && campaign.season === 'sommer' && date < campaign.earliest ? '<p class="check warning">⚠ Vor dem 16. April: bei winterlichen Verhältnissen gilt noch die Winterreifenpflicht.</p>' : ''}
       <p class="actions"><button type="button" class="btn small" data-action="vp-next">${ICON.bolt} Nächsten freien Termin suchen</button></p>`,
     foot: `${ch ? `<button class="btn ${app.ui.confirm === 'vp-cancel' ? 'danger confirm' : 'danger'}" data-action="vp-cancel">${app.ui.confirm === 'vp-cancel' ? 'Termin wirklich absagen?' : 'Termin absagen'}</button>` : '<button class="btn" data-action="close-modal">Abbrechen</button>'}
@@ -397,7 +401,7 @@ function planModal(c, m) {
   })
 }
 
-registerModal('veh-plan', planModal)
+registerModal('veh-plan', planModal, { module: MODULE })
 
 // ---------------------------------------------------------------- Termine vorschlagen
 
@@ -415,7 +419,7 @@ function proposeModal(c, m) {
   const res = m.result
   return modalFrame({
     title: m.kind === 'werkstatt' ? 'Werkstatttermine vorschlagen' : 'Termine vorschlagen',
-    subtitle: m.kind === 'werkstatt' ? 'Für fälliges Service, Pickerl und weitere Fälligkeiten: je Fahrzeug der erste freie Platz ohne Dienst' : 'Je Fahrzeug der erste freie Platz, an dem die Fahrerin oder der Fahrer keinen Dienst hat',
+    subtitle: !shiftsVisible() ? 'Je Fahrzeug der erste freie Platz der Werkstatt. Die Dienste sind für deine Rolle nicht einsehbar: Termine bitte mit dem Büro abstimmen.' : m.kind === 'werkstatt' ? 'Für fälliges Service, Pickerl und weitere Fälligkeiten: je Fahrzeug der erste freie Platz ohne Dienst' : 'Je Fahrzeug der erste freie Platz, an dem die Fahrerin oder der Fahrer keinen Dienst hat',
     wide: true,
     body: `<div class="form-grid">
         <label class="field"><span>Werkstatt</span><select id="vq-ws">${options(FZ().workshops.map((w) => [w.id, w.name]), m.workshopId, { empty: '–' })}</select></label>
@@ -444,7 +448,7 @@ function proposeModal(c, m) {
   })
 }
 
-registerModal('veh-propose', proposeModal)
+registerModal('veh-propose', proposeModal, { module: MODULE })
 
 // ---------------------------------------------------------------- Erledigt
 
@@ -478,7 +482,7 @@ function doneModal(c, m) {
   const other = ch.season === 'winter' ? 'sommer' : 'winter'
   const treadRow = (prefix, label) => `<div class="veh-tread"><span class="muted">${label}</span>${WHEELS.map(([k, l]) => `<label class="field inline"><span>${l}</span><input type="number" id="${prefix}-${k}" step="0.1" min="0" max="15" inputmode="decimal" aria-label="${label} ${l}"></label>`).join('')}</div>`
   return modalFrame({
-    title: `${tire ? 'Reifenwechsel' : 'Werkstatttermin'} erledigt: ${esc(v.plate)}`,
+    title: `${tire ? 'Reifenwechsel' : 'Werkstatttermin'} erledigt: ${v.plate}`,
     subtitle: tire ? `jetzt ${esc(SEASONS[ch.season])} montiert${(ch.tasks || []).length ? ` · dazu ${esc(ch.tasks.map((t) => taskLabel(v, t)).join(', '))}` : ''}` : esc(changeWhat(ch, v)),
     body: `<div class="form-grid">
         <label class="field"><span>Datum</span><input type="date" id="vd-date" value="${esc(ch.date || todayISO())}"></label>
@@ -494,13 +498,13 @@ function doneModal(c, m) {
   })
 }
 
-registerModal('veh-done', doneModal)
+registerModal('veh-done', doneModal, { module: MODULE })
 
 registerModal('veh-km', (c, m) => {
   const v = vehOf(m.id)
   const cur = currentKm(v)
   return modalFrame({
-    title: `km-Stand ${esc(v.plate)}`,
+    title: `km-Stand ${v.plate}`,
     subtitle: cur ? `zuletzt ${kmText(cur.km)} am ${formatDate(cur.date, { weekday: false, year: true })}` : 'noch kein km-Stand',
     body: `<div class="form-grid"><label class="field"><span>Datum</span><input type="date" id="vk-date" value="${esc(todayISO())}"></label><label class="field"><span>km-Stand</span><input type="text" id="vk-km" inputmode="numeric" autofocus></label></div>
       <p class="note">Aus den km-Ständen rechnet die App hoch, wann das Service nach km fällig wird. Am einfachsten bei jedem Tanken oder Werkstattbesuch eintragen.</p>`,
@@ -548,7 +552,7 @@ function mailModal(c, m) {
   const list = driverRows(m.ids)
   const first = list[0] ? mailFor(list[0]) : null
   return modalFrame({
-    title: list.length === 1 ? `Fahrer/in informieren: ${esc(list[0].vehicle.plate)}` : 'Fahrer/innen informieren',
+    title: list.length === 1 ? `Fahrer/in informieren: ${list[0].vehicle.plate}` : 'Fahrer/innen informieren',
     subtitle: canMail() ? 'E-Mail mit Termin für den Kalender (.ics) aus deinem Microsoft-365-Postfach' : 'Öffnet je Person dein E-Mail-Programm',
     wide: true,
     body: `<div class="table-wrap"><table class="data"><thead><tr><th></th><th>Fahrzeug</th><th>Fahrer/in</th><th>E-Mail</th><th>Termin</th><th></th></tr></thead><tbody>${list
@@ -566,7 +570,7 @@ function mailModal(c, m) {
   })
 }
 
-registerModal('veh-mail', mailModal)
+registerModal('veh-mail', mailModal, { module: MODULE })
 
 function noteMail(change, to, kind, via) {
   change.mails = [...(change.mails || []), { at: new Date().toISOString(), to, kind, via }]

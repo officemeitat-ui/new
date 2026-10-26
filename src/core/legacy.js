@@ -82,6 +82,8 @@ export function objectResolver(objects, mappe = {}) {
 
 // ---------------------------------------------------------------- Objektkontrolle
 
+// eingebettete Bilder nur als echte base64-Bilddaten (keine Skripte in manipulierten Dateien)
+const SAFE_IMAGE = /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i
 const RATING = { OK: 'OK', R: 'R', M: 'M', G: 'G', NA: 'NA', 'N/A': 'NA' }
 const OVERALL = { 'sehr gut': 'Sehr gut', gut: 'Gut', handlungsbedarf: 'Handlungsbedarf', kritisch: 'Kritisch' }
 
@@ -89,6 +91,8 @@ const OVERALL = { 'sehr gut': 'Sehr gut', gut: 'Gut', handlungsbedarf: 'Handlung
 export function convertInspection(json, { objectId, checklistId, photoDir = '', photoUrl = null }) {
   const items = {}
   for (const [id, it] of Object.entries(json.items || {})) {
+    // nur Prüfpunkte der Form „3.2“ (die Kennung erscheint in Listen und Dateinamen)
+    if (!/^\d{1,3}\.\d{1,3}$/.test(id)) continue
     const rating = RATING[it.b] || RATING[str(it.b).toUpperCase()]
     if (!rating) continue
     const files = it.fotoDateien || []
@@ -97,8 +101,8 @@ export function convertInspection(json, { objectId, checklistId, photoDir = '', 
       return { path, root: true, name, ...(photoUrl ? { url: photoUrl(path) } : {}) }
     })
     // eingebettete Fotos nur, wenn es keine Dateien gibt (sonst bleibt die Datei klein)
-    if (!photos.length) for (const data of it.fotos || []) if (/^data:image\//.test(data)) photos.push({ data })
-    items[id] = { rating, ...(it.bem ? { note: str(it.bem) } : {}), ...(it.prio && rating !== 'OK' && rating !== 'NA' ? { prio: str(it.prio) } : {}), ...(photos.length ? { photos } : {}), ...(it.erledigt ? { done: { at: json.geaendert || json.abgeschlossen || '', by: 'Prüfprotokoll-Tool' } } : {}) }
+    if (!photos.length) for (const data of it.fotos || []) if (SAFE_IMAGE.test(str(data))) photos.push({ data })
+    items[id] = { rating, ...(it.bem ? { note: str(it.bem) } : {}), ...(/^[1-4]$/.test(str(it.prio)) && rating !== 'OK' && rating !== 'NA' ? { prio: str(it.prio) } : {}), ...(photos.length ? { photos } : {}), ...(it.erledigt ? { done: { at: json.geaendert || json.abgeschlossen || '', by: 'Prüfprotokoll-Tool' } } : {}) }
   }
   const a = json.abschluss || {}
   const overall = OVERALL[str(a.gesamt).toLowerCase()]
@@ -173,7 +177,7 @@ export function convertAkte(a, { photoDir = '', photoUrl = null } = {}) {
       services: list(b.leistungen).map((l) => ({ what: str(l.was), interval: mapInterval(l.intervall), minutes: num(l.min), method: str(l.methode), ...(l.bemerkung ? { note: str(l.bemerkung) } : {}), ...(list(l.tage).length ? { days: l.tage } : {}) })),
       rooms: list(b.raeume).map((r) => ({ no: str(r.nr), name: str(r.name), size: num(r.flaeche), floor: str(r.boden), note: str(r.bemerkung) })),
     })),
-    photos: list(a.fotos).filter((f) => f.datei || /^data:image\//.test(f.daten || '')).map((f, i) => ({ id: str(f.id) || `F-${i + 1}`, kind: f.art === 'zugang' ? 'zugang' : 'ablauf', area: str(f.bereich), title: str(f.titel), text: str(f.beschreibung), date: str(f.datum), photo: f.datei ? photoRef(f.datei) : { data: f.daten } })),
+    photos: list(a.fotos).filter((f) => f.datei || SAFE_IMAGE.test(str(f.daten))).map((f, i) => ({ id: str(f.id) || `F-${i + 1}`, kind: f.art === 'zugang' ? 'zugang' : 'ablauf', area: str(f.bereich), title: str(f.titel), text: str(f.beschreibung), date: str(f.datum), photo: f.datei ? photoRef(f.datei) : { data: f.daten } })),
     ...(a.geprueftAm ? { checkedAt: str(a.geprueftAm), ...(a.geprueftVon ? { checkedBy: str(a.geprueftVon) } : {}) } : {}),
     ...(list(a.verlauf).length ? { history: list(a.verlauf).slice(0, 50).map((v) => ({ version: Number(v.fassung) || 0, at: str(v.zeit), by: str(v.wer), reason: str(v.anlass), ...(v.daten ? { data: convertAkte({ ...v.daten, verlauf: [], fotos: [] }) } : {}) })) } : {}),
     ...(list(a.versandt).length ? { sent: list(a.versandt).map((x) => ({ at: str(x.zeit), to: str(x.an), cc: str(x.cc), bcc: str(x.bcc), subject: str(x.betreff), file: str(x.datei), via: str(x.weg) })) } : {}),

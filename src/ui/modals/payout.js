@@ -8,7 +8,7 @@ import { formatHours } from '../../core/dates.js'
 import { euroText, mailtoUrl, monthName, parseRecipients, payoutEntries, payoutFileBase, payoutListText, payoutPersonFile, payoutPersonText, payoutSig } from '../../core/payout.js'
 import { toCSV } from '../../core/reports.js'
 import { payoutListDocument, payoutStatementDocument } from '../../export/payout-pdf.js'
-import { app, confirmStep, persist, registerActions, registerModal, renderModal, toast } from '../context.js'
+import { app, confirmStep, persist, mayEdit, registerActions, registerModal, renderModal, toast } from '../context.js'
 import { loadScript } from '../load-script.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { download, esc, ICON, modalFrame, signed } from '../shared.js'
@@ -36,7 +36,7 @@ const stateOf = (sent, sig) => {
 }
 
 function markSent(month, patch) {
-  if (app.readOnly) return
+  if (!mayEdit('auswertung')) return
   app.data.payroll = app.data.payroll || {}
   const entry = (app.data.payroll[month] = app.data.payroll[month] || {})
   const sent = { office: entry.sent?.office, people: { ...(entry.sent?.people || {}) } }
@@ -136,7 +136,7 @@ function payoutModal(c, modal) {
   })
 }
 
-registerModal('payout-send', payoutModal)
+registerModal('payout-send', payoutModal, { module: 'auswertung' })
 
 const currentMonth = () => app.ui.modal?.month || app.cur.month
 const setBusy = (text) => {
@@ -161,7 +161,8 @@ async function withBusy(text, fn) {
 registerActions({
   'po-to': (el) => {
     app.ui.modal.to = el.value
-    if (!app.readOnly && el.value.trim() !== (app.data.settings?.payrollMail || '')) {
+    // die Adresse steht in den Stammdaten: nur speichern, wer sie ändern darf (sonst gilt sie nur für diesen Versand)
+    if (mayEdit(['stammdaten', 'planung']) && el.value.trim() !== (app.data.settings?.payrollMail || '')) {
       app.data.settings = { ...(app.data.settings || {}), payrollMail: el.value.trim() }
       persist()
     }
@@ -303,5 +304,5 @@ registerActions(
       toast(`${ctx.entries.length} als versendet markiert.`)
     },
   },
-  { edit: true },
+  { edit: 'auswertung' },
 )

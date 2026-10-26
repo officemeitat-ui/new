@@ -202,7 +202,7 @@ function readModal(c, m) {
   const reason = m.reason ?? ''
   const swap = !!m.swap
   return modalFrame({
-    title: esc(meter.location || meter.number),
+    title: meter.location || meter.number,
     subtitle: `${esc(obj?.name || '')} · Zähler ${esc(meter.number)}${walk.length > 1 ? ` · ${walk.indexOf(meter.id) + 1} von ${walk.length}` : ''}`,
     color: obj?.color,
     body: `<div class="meter-head">
@@ -236,7 +236,7 @@ function readModal(c, m) {
   })
 }
 
-registerModal('meter-read', readModal)
+registerModal('meter-read', readModal, { module: MODULE })
 
 function nextInWalk(m, fromId) {
   const walk = m.walk || []
@@ -450,7 +450,7 @@ function meterModal(c, m) {
     ? `<ul class="plain">${[...meter.history].reverse().map((h) => `<li>${formatDate(h.date || h.at.slice(0, 10), { weekday: false, year: true })}: ${h.type === 'tausch' ? 'Zählertausch' : 'Nummer berichtigt'} ${esc(h.from)} → ${esc(h.to)}${h.by ? ` · ${esc(h.by)}` : ''}${h.note ? ` · ${esc(h.note)}` : ''}</li>`).join('')}</ul>`
     : ''
   return modalFrame({
-    title: isNew ? 'Neue Zählstelle' : esc(meter.location || meter.number),
+    title: isNew ? 'Neue Zählstelle' : meter.location || meter.number,
     subtitle: isNew ? 'Wasser, Strom, Gas oder Wärme' : `${esc(objOf(meter.objectId)?.name || '')} · Zähler ${esc(meter.number)} · ID ${esc(meter.id)}`,
     wide: true,
     body: `<div class="form-grid">
@@ -474,7 +474,7 @@ function meterModal(c, m) {
   })
 }
 
-registerModal('meter', meterModal)
+registerModal('meter', meterModal, { module: MODULE })
 
 registerActions({
   'meter-open': (el) => openModal({ type: 'meter', id: el.dataset.id }),

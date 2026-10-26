@@ -27,3 +27,20 @@ test('App-Installation: Service Worker ist gültiges JavaScript und lässt die A
   assert.match(src, /startsWith\('\/\.auth\/'\)\) return/)
   assert.match(src, /request\.mode === 'navigate'/)
 })
+
+test('Quelltext: alle Module der Oberfläche sind gültiges JavaScript', async () => {
+  const { readdirSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { execFileSync } = await import('node:child_process')
+  const root = new URL('../src', import.meta.url).pathname
+  const files = []
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(dir, e.name))
+      else if (e.name.endsWith('.js')) files.push(join(dir, e.name))
+    }
+  }
+  walk(root)
+  assert.ok(files.length > 50)
+  for (const f of files) execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' })
+})

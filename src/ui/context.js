@@ -81,6 +81,17 @@ export const visibleViews = () => {
 }
 /** Darf in einem Modul ändern (ohne Rollen-Setup: ja). */
 export const canEdit = (module) => !app.access || app.access.canEdit(module)
+/**
+ * Darf eine Aktion ausführen: modules = Modul, Liste von Modulen (eines genügt)
+ * oder '*' (nur Vollzugriff). Planungs-Aktionen sind gesperrt, solange die
+ * angezeigte Woche ohne Netz nicht geladen ist.
+ */
+export function mayEdit(modules) {
+  if (modules === '*') return !app.access || !!app.access.all
+  const list = [].concat(modules)
+  if (app.locked && list.includes('planung')) return false
+  return list.some((m) => canEdit(m))
+}
 
 /**
  * Ansicht registrieren: { id, label, group: 'plan'|'service'|'fuhrpark'|'auswertung'|'stamm', module?, icon?, order, render(c),
@@ -94,20 +105,28 @@ export function registerView(view) {
   VIEWS.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
 }
 
-export function registerModal(type, render) {
+const MODAL_MODULES = {}
+/** Dialog registrieren; module: Bereich, dessen Schreibrecht die Eingaben im Dialog freigibt (sonst die aktuelle Ansicht). */
+export function registerModal(type, render, { module = null } = {}) {
   MODALS[type] = render
+  if (module) MODAL_MODULES[type] = module
 }
 
 /**
- * Aktionen registrieren. Mit { edit: true } sind sie im Lesemodus der aktuellen
- * Ansicht gesperrt, mit { edit: 'zaehler' } ohne Schreibrecht im Modul.
+ * Aktionen registrieren. { edit: 'zaehler' } (oder ['planung', 'stammdaten'],
+ * '*' = nur Vollzugriff) sperrt sie ohne Schreibrecht im Bereich – egal aus
+ * welcher Ansicht (Suche, Übersicht) der Dialog geöffnet wurde.
+ * { edit: true } richtet sich nach der aktuellen Ansicht (nur für Aktionen, die
+ * es ausschließlich in einer Ansicht gibt).
  */
 export function registerActions(handlers, { edit = false } = {}) {
   for (const [name, fn] of Object.entries(handlers)) {
     ACTIONS[name] = edit
       ? (...args) => {
-          if (app.locked) return toast('Diese Woche ist ohne Verbindung nicht geladen. Bitte warten, bis wieder Netz da ist.')
-          if (edit === true ? app.readOnly : !canEdit(edit)) return toast('Nur Leserechte: Änderungen sind für dein Konto nicht freigegeben.')
+          if (edit === true ? app.readOnly : !mayEdit(edit)) {
+            const locked = app.locked && (edit === true || [].concat(edit).includes('planung'))
+            return toast(locked ? 'Diese Woche ist ohne Verbindung nicht geladen. Bitte warten, bis wieder Netz da ist.' : 'Nur Leserechte: Änderungen sind für dein Konto nicht freigegeben.')
+          }
           return fn(...args)
         }
       : fn
@@ -246,6 +265,9 @@ export function renderModal() {
     return
   }
   $modal.innerHTML = `<div class="modal-backdrop" data-action="backdrop">${html}</div>`
+  // Eingaben im Dialog nach dem Recht seines Bereichs (nicht der Ansicht, aus der er geöffnet wurde)
+  const module = MODAL_MODULES[ui.modal.type]
+  $modal.classList.toggle('readonly', module ? !mayEdit(module) : app.readOnly)
   $modal.querySelector('.modal-backdrop').scrollTop = scroll
   const cand = $modal.querySelector('.candidates')
   if (cand) cand.scrollTop = candScroll

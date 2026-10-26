@@ -83,7 +83,7 @@ registerView({
 })
 ```
 
-In `src/ui/views/index.js` importieren, fertig. `c` ist die berechnete Woche (Einsätze, Prüfung, Wochenzettel über `c.timesheet(emp)`). Klicks laufen über `data-action="name"` und `registerActions({ name: (el) => … }, { edit: true })`. Mit `edit: true` ist die Aktion im Lesemodus gesperrt. Änderungen an `app.data` mit `persist()` speichern und mit `renderNow()` neu zeichnen.
+In `src/ui/views/index.js` importieren, fertig. `c` ist die berechnete Woche (Einsätze, Prüfung, Wochenzettel über `c.timesheet(emp)`). Klicks laufen über `data-action="name"` und `registerActions({ name: (el) => … }, { edit: 'planung' })`. Mit `edit: '<Modul>'` (oder einer Liste, `'*'` = nur Vollzugriff) ist die Aktion ohne Schreibrecht in diesem Bereich gesperrt, egal aus welcher Ansicht sie kommt (Suche und Übersicht öffnen Dialoge aller Bereiche). Dialoge geben ihren Bereich mit: `registerModal('typ', render, { module: 'planung' })`; dann blendet die App `.edit-only` im Dialog nach diesem Recht aus. `edit: true` richtet sich nur nach der aktuellen Ansicht und passt nur für Aktionen, die es ausschließlich dort gibt. Änderungen an `app.data` mit `persist()` speichern und mit `renderNow()` neu zeichnen.
 
 ## Andere Ablage (z. B. eigene Datenbank)
 

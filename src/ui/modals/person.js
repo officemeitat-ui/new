@@ -122,7 +122,7 @@ function personModal(c, { empId, objectId }) {
   })
 }
 
-registerModal('person', personModal)
+registerModal('person', personModal, { module: 'planung' })
 
 function afterChange(text) {
   persist()
@@ -201,6 +201,6 @@ registerActions(
       afterChange(done.length ? `${empOf(empId).name} übernimmt fest: ${done.join(', ')}.` : 'Keine passende Leistung frei.')
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )
 

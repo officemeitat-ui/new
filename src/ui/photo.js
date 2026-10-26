@@ -4,7 +4,7 @@
 
 import { fileSafe } from '../core/filename.js'
 import { app, openModal, persist, registerActions, registerModal, renderModal } from './context.js'
-import { modalFrame } from './shared.js'
+import { esc, modalFrame } from './shared.js'
 
 async function shrink(file, maxSide, quality) {
   const bitmap = await createImageBitmap(file)
@@ -98,16 +98,22 @@ export async function photoDataUrl(photo) {
   return null
 }
 
+/** Nur echte Bild-Daten (base64) als Vorschau; alles andere (z. B. manipulierte Daten) wird nicht eingebettet. */
+const SAFE_IMAGE = /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i
+export const safeImageData = (data) => (typeof data === 'string' && SAFE_IMAGE.test(data) ? data : '')
+
 /** Foto anzeigen: Vorschaubild (groß im Dialog) oder Link auf die Datei in SharePoint. */
 export function photoLink(photo, label = 'Foto') {
   if (!photo) return ''
-  if (photo.pending && photo.data) return `<button type="button" class="photo-thumb pending" data-action="photo-view" data-src="${photo.data}" title="Wird hochgeladen, sobald Netz da ist" aria-label="${label} (wartet aufs Hochladen)"><img src="${photo.data}" alt=""></button>`
-  if (photo.data?.startsWith('data:image/')) return `<button type="button" class="photo-thumb" data-action="photo-view" data-src="${photo.data}" aria-label="${label} groß anzeigen"><img src="${photo.data}" alt=""></button>`
-  if (/^https:\/\//.test(photo.url || '')) return `<a href="${photo.url}" target="_blank" rel="noopener">${label}</a>`
+  const data = safeImageData(photo.data)
+  const name = esc(label)
+  if (photo.pending && data) return `<button type="button" class="photo-thumb pending" data-action="photo-view" data-src="${data}" title="Wird hochgeladen, sobald Netz da ist" aria-label="${name} (wartet aufs Hochladen)"><img src="${data}" alt=""></button>`
+  if (data) return `<button type="button" class="photo-thumb" data-action="photo-view" data-src="${data}" aria-label="${name} groß anzeigen"><img src="${data}" alt=""></button>`
+  if (/^https:\/\//.test(photo.url || '')) return `<a href="${esc(photo.url)}" target="_blank" rel="noopener">${name}</a>`
   return ''
 }
 
-registerModal('photo', (c, { src, back }) => modalFrame({ title: 'Foto', body: `<img class="photo-large" src="${src}" alt="Foto">`, foot: back ? '<span></span><button class="btn primary" data-action="photo-back">Zurück</button>' : '' }))
+registerModal('photo', (c, { src, back }) => modalFrame({ title: 'Foto', body: safeImageData(src) || /^https:\/\//.test(src || '') ? `<img class="photo-large" src="${esc(src)}" alt="Foto">` : '<p class="muted">Foto nicht verfügbar.</p>', foot: back ? '<span></span><button class="btn primary" data-action="photo-back">Zurück</button>' : '' }))
 registerActions({
   'photo-view': (el) => openModal({ type: 'photo', src: el.dataset.src, back: app.ui.modal }),
   'photo-back': () => {

@@ -45,7 +45,7 @@ export function wasteSection(object) {
     </details>
     <div class="form-grid">
       <label class="field"><span>Rausstellen</span><select id="ws-out">${options([['vortag', 'am Vorabend'], ['abholtag', 'in der Früh am Abholtag']], s.outWhen)}</select></label>
-      <label class="field"><span>Minuten je Gang</span><input type="number" id="ws-min" min="1" step="1" value="${s.minutes}"></label>
+      <label class="field"><span>Minuten je Gang</span><input type="number" id="ws-min" min="1" step="1" value="${esc(s.minutes)}"></label>
       <label class="field" title="Automatisch: Stammkraft im Objekt, die zu der Zeit verfügbar ist"><span>Eigene Gänge übernimmt</span><select id="ws-resp">${options(empOptions, s.responsible || '', { empty: 'automatisch' })}</select></label>
       <label class="check" style="align-self:end"><input type="checkbox" id="ws-back" ${s.bringBack ? 'checked' : ''}><span>Nach der Abholung wieder reinstellen</span></label>
       <label class="field wide"><span>Hinweis (erscheint im Einsatz)</span><input type="text" id="ws-note" value="${esc(s.note || '')}" placeholder="z. B. Müllraum im Hof, Tonnen an den Gehsteig stellen"></label>
@@ -120,5 +120,5 @@ registerActions(
       importEntries(parseAny(await file.text()))
     },
   },
-  { edit: true },
+  { edit: ['stammdaten', 'planung'] },
 )

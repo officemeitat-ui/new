@@ -222,3 +222,24 @@ test('Vertrag: Wochenstunden mit Gültigkeit, Ein- und Austritt', async () => {
   assert.ok(employedInWeek(weg, '2026-09-28') && !employedInWeek(weg, '2026-10-05'))
   assert.ok(!employedInWeek(neu, '2026-10-26') && employedInWeek(neu, '2026-11-02'))
 })
+
+test('Oberfläche: Schreibrecht je Bereich, nicht je Ansicht (Suche/Übersicht öffnen keine Hintertür)', async () => {
+  const { app, mayEdit } = await import('../src/ui/context.js')
+  const before = { access: app.access, locked: app.locked, readOnly: app.readOnly }
+  try {
+    app.access = resolveAccess({ roleClaims: ['Dienstplan.Objektmanagement'], strict: true })
+    app.readOnly = false // z. B. auf der Übersicht
+    assert.equal(mayEdit('planung'), false)
+    assert.equal(mayEdit('stammdaten'), false)
+    assert.equal(mayEdit('kontrolle'), true)
+    assert.equal(mayEdit(['planung', 'objektmappe']), true)
+    assert.equal(mayEdit('*'), false)
+    app.access = resolveAccess({ roleClaims: ['Dienstplan.Disposition'], strict: true })
+    assert.equal(mayEdit('*'), true)
+    app.locked = true // Woche ohne Netz nicht geladen
+    assert.equal(mayEdit('planung'), false)
+    assert.equal(mayEdit('stammdaten'), true)
+  } finally {
+    Object.assign(app, before)
+  }
+})

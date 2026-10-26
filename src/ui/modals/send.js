@@ -5,7 +5,7 @@
 import { sendMail } from '../../auth/graph-mail.js'
 import { formatDate, isoWeek } from '../../core/dates.js'
 import { timesheetSignature } from '../../core/timesheet.js'
-import { addLog, app, confirmStep, openModal, persist, registerActions, registerModal, renderModal, toast } from '../context.js'
+import { addLog, app, confirmStep, openModal, persist, mayEdit, registerActions, registerModal, renderModal, toast } from '../context.js'
 import { allPdfName, pdfFileName, weekPdfBlob, weekPdfZip } from '../pdf.js'
 import { changeMessage } from '../planning.js'
 import { download, esc, ICON, modalFrame } from '../shared.js'
@@ -29,7 +29,7 @@ export const toSend = (c) => c.ctx.employees.filter((e) => sendState(c, e).key !
 
 function markSent(c, employees, via) {
   const p = app.data.published?.[c.monday]
-  if (!p || app.readOnly) return
+  if (!p || !mayEdit('planung')) return
   const at = new Date().toISOString()
   const by = app.user?.name || 'Browser'
   p.sent = { ...(p.sent || {}) }
@@ -109,7 +109,7 @@ function sendModal(c, modal) {
   })
 }
 
-registerModal('send', sendModal)
+registerModal('send', sendModal, { module: 'planung' })
 
 const empOf = (id) => app.cur.ctx.employeesById.get(id)
 const setBusy = (text) => {
@@ -242,5 +242,5 @@ registerActions(
       toast(`${done.length} E-Mails gesendet.${failed.length ? ` Nicht gesendet: ${failed.slice(0, 2).join('; ')}${failed.length > 2 ? ' …' : ''}` : ''}`)
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )

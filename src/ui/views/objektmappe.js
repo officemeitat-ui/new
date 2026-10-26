@@ -216,7 +216,7 @@ function sheetTab(o, d, m) {
   return `<div class="seg">${Object.entries(PRESETS).map(([k, p]) => `<button type="button" class="btn small ${k === preset ? 'primary' : ''}" data-action="mp-preset" data-v="${k}">${esc(p.label)}</button>`).join('')}</div>
     <div class="mp-sections">${SECTIONS.map((s) => {
       const blocked = customer && s.confidential
-      return `<label class="field inline ${blocked ? 'muted' : ''}"><input type="checkbox" name="mp-sec" value="${s.id}" ${chosen.includes(s.id) && !blocked ? 'checked' : ''} ${blocked ? 'disabled' : ''} data-change="mp-sections"><span>${esc(s.label)}${s.confidential ? ' <span class="pill warning">vertraulich</span>' : ''}</span></label>`
+      return `<label class="field inline ${blocked ? 'muted' : ''}"><input type="checkbox" name="mp-sec" value="${esc(s.id)}" ${chosen.includes(s.id) && !blocked ? 'checked' : ''} ${blocked ? 'disabled' : ''} data-change="mp-sections"><span>${esc(s.label)}${s.confidential ? ' <span class="pill warning">vertraulich</span>' : ''}</span></label>`
     }).join('')}</div>
     ${customer ? '<p class="note">Kundenfassung: vertrauliche Abschnitte (Ansprechpartner, Zugang, Richtzeiten, Kontrolle) werden nie ausgegeben.</p>' : ''}
     <div class="form-grid"><label class="field"><span>Sprache</span><select data-change="mp-lang" aria-label="Sprache des Objektblatts">${options(Object.entries(SHEET_LANGS), m.lang || 'de')}</select></label>
@@ -235,7 +235,7 @@ function mappeModal(c, m) {
   const body = { personen: () => peopleTab(d), leistungen: () => servicesTab(o, d, m), fotos: () => photosTab(d), verlauf: () => historyTab(o, d), blatt: () => sheetTab(o, d, m) }[tab]?.() ?? objectTab(o, d)
   const dirty = JSON.stringify(d) !== JSON.stringify(M().objects[o.id] || {})
   return modalFrame({
-    title: esc(o.name),
+    title: o.name,
     subtitle: `Objektmappe${d.customer ? ` · ${esc(d.customer)}` : ''}${d.version ? ` · Fassung ${d.version}` : ''}${d.checkedAt ? ` · ${new Date(d.checkedAt).toLocaleDateString('de-AT')}${d.checkedBy ? ` von ${esc(d.checkedBy)}` : ''}` : ''}`,
     color: o.color,
     wide: true,
@@ -244,7 +244,7 @@ function mappeModal(c, m) {
   })
 }
 
-registerModal('mappe', mappeModal)
+registerModal('mappe', mappeModal, { module: MODULE })
 
 registerActions({
   'mp-open': (el) => openModal({ type: 'mappe', id: el.dataset.id, tab: el.dataset.tab || 'objekt' }),

@@ -174,7 +174,7 @@ function exportRows(c) {
 }
 
 registerView({ id: 'overtime', order: 72, label: 'Überstunden & Auszahlung', group: 'auswertung', render: overtimeView, range: () => ({ from: firstWeek(currentMonth()), to: lastOfMonth(`${currentMonth()}-01`) }) })
-registerModal('overtime-detail', detailModal)
+registerModal('overtime-detail', detailModal, { module: 'auswertung' })
 
 registerActions({
   'ot-detail': (el) => openModal({ type: 'overtime-detail', empId: el.dataset.emp }),
@@ -229,6 +229,6 @@ registerActions(
       toast('Abschluss aufgehoben. Die Buchungen im Zeitkonto sind zurückgenommen.')
     },
   },
-  { edit: true },
+  { edit: 'auswertung' },
 )
 

@@ -83,5 +83,5 @@ registerActions(
       toast(res.open.length ? `${open.length - res.open.length} Gänge eingeteilt, ${res.open.length} bleiben offen.` : `${open.length} Müll-Gänge eingeteilt.`)
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )

@@ -52,15 +52,15 @@ function employeeModal(c, { id }) {
         <label class="field"><span>Revier / Team</span><input type="text" id="emp-team" list="team-list" value="${esc(e.team || '')}"><datalist id="team-list">${teams.map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
         <label class="field"><span>E-Mail (Microsoft 365)</span><input type="email" id="emp-email" value="${esc(e.email || '')}"></label>
         <label class="field"><span>Beschäftigung</span><select id="emp-type">${EMPLOYMENT_TYPES.map((t) => `<option ${t === e.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-        <label class="field"><span>Wochenstunden (Soll)</span><input type="number" id="emp-hours" step="0.5" min="0" max="${MAX_WEEKLY_HOURS}" value="${e.weeklyHours ?? ''}"></label>
+        <label class="field"><span>Wochenstunden (Soll)</span><input type="number" id="emp-hours" step="0.5" min="0" max="${MAX_WEEKLY_HOURS}" value="${esc(e.weeklyHours ?? '')}"></label>
         ${id === 'new' ? '' : `<label class="field"><span>Neue Wochenstunden gelten ab</span><input type="date" id="emp-hours-from" value="${mondayOf(todayISO())}"><small class="muted">${(e.hoursHistory || []).filter((h) => h.from > '0000-01-01').map((h) => `ab ${formatDate(h.from, { year: true })}: ${formatHours(h.weeklyHours * 60)} h`).join(' · ') || 'Frühere Wochen rechnen mit den bisherigen Stunden.'}</small></label>`}
         <label class="field"><span>Eintritt</span><input type="date" id="emp-entry" value="${esc(e.entryDate || '')}"></label>
         <label class="field"><span>Austritt (letzter Arbeitstag)</span><input type="date" id="emp-exit" value="${esc(e.exitDate || '')}"></label>
-        <label class="field"><span>Max. Stunden pro Monat (geringfügig)</span><input type="number" id="emp-maxmonth" step="0.5" min="0" value="${e.maxMonthHours ?? ''}" placeholder="leer = kein Limit"></label>
-        <label class="field"><span>Urlaubsanspruch (Arbeitstage/Jahr)</span><input type="number" id="emp-vacation" step="1" min="0" value="${e.vacationDaysYear ?? 25}"></label>
-        <label class="field"><span>Zeitkonto Startsaldo (h)</span><input type="number" id="emp-start" step="0.25" value="${e.startBalanceHours ?? 0}"></label>
+        <label class="field"><span>Max. Stunden pro Monat (geringfügig)</span><input type="number" id="emp-maxmonth" step="0.5" min="0" value="${esc(e.maxMonthHours ?? '')}" placeholder="leer = kein Limit"></label>
+        <label class="field"><span>Urlaubsanspruch (Arbeitstage/Jahr)</span><input type="number" id="emp-vacation" step="1" min="0" value="${esc(e.vacationDaysYear ?? 25)}"></label>
+        <label class="field"><span>Zeitkonto Startsaldo (h)</span><input type="number" id="emp-start" step="0.25" value="${esc(e.startBalanceHours ?? 0)}"></label>
         <label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${euro(w)}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
-        <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${e.hourlyWage ?? ''}" placeholder="leer = KV-Lohn der Lohngruppe"></label>
+        <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${esc(e.hourlyWage ?? '')}" placeholder="leer = KV-Lohn der Lohngruppe"></label>
         <label class="field"><span>Überstunden</span><select id="emp-uemode">${options(Object.entries(UE_MODES), e.ueMode || '', { empty: `wie unter „Regeln“ (${UE_MODES[pay.ueMode]})` })}</select></label>
         <label class="field"><span>Mehrarbeit (Teilzeit)</span><select id="emp-mehrmode">${options(Object.entries(MEHR_MODES), e.mehrMode || '', { empty: `wie unter „Regeln“` })}</select></label>
         <label class="field"><span>Notiz</span><input type="text" id="emp-note" value="${esc(e.note || '')}" placeholder="z. B. Springer:in, Führerschein B"></label>
@@ -169,8 +169,8 @@ function runImport(kind, text, apply) {
 }
 
 registerView({ id: 'staff', order: 80, label: 'Mitarbeitende', group: 'stamm', render: staffView })
-registerModal('employee', employeeModal)
-registerModal('import', importModal)
+registerModal('employee', employeeModal, { module: 'stammdaten' })
+registerModal('import', importModal, { module: 'stammdaten' })
 
 registerActions({
   'import-template': (el) => {
@@ -224,5 +224,5 @@ registerActions(
       toast(`Übernommen: ${res.summary}.${res.errors.length ? ` ${res.errors.length} Hinweise beachten.` : ''}`)
     },
   },
-  { edit: true },
+  { edit: 'stammdaten' },
 )

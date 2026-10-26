@@ -64,7 +64,7 @@ function publishModal(c) {
   })
 }
 
-registerModal('publish', publishModal)
+registerModal('publish', publishModal, { module: 'planung' })
 
 registerActions({
   'open-publish': () => openModal({ type: 'publish' }),
@@ -89,5 +89,5 @@ registerActions(
       }
     },
   },
-  { edit: true },
+  { edit: 'planung' },
 )

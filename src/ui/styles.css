@@ -256,7 +256,15 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
   :root { --sb-w: 68px; }
   .sb-brand { justify-content: center; padding-inline: 8px; }
   .sb-brand .brand-logo { height: 30px; }
-  .sb-app, .sb-label, .sb-status, .sb-account { display: none; }
+  .sb-app, .sb-label, .sb-account { display: none; }
+  /* Speicherstand bleibt sichtbar: Punkt, bei „offline“ und Fehler mit kurzem Text (Langtext im Tooltip) */
+  .sb-status { text-align: center; }
+  .sb-status .save-status { display: inline-block; font-size: 0; line-height: 1; }
+  .sb-status .save-status::before { margin-right: 0; }
+  .sb-status .save-status:has(.offline-text)::before { background: var(--warn); }
+  .sb-status .save-status:has(.err-text)::before { background: var(--err); }
+  .sb-status .save-status:has(.offline-text)::after { content: 'Offline'; display: block; margin-top: 3px; font-size: 0.66rem; font-weight: 600; color: var(--sb-fg); }
+  .sb-status .save-status:has(.err-text)::after { content: 'Fehler'; display: block; margin-top: 3px; font-size: 0.66rem; font-weight: 600; color: var(--sb-fg); }
   .sb-nav { padding-inline: 8px; }
   .sb-group-label { height: 1px; padding: 0; margin: 10px 8px; background: var(--sb-line); overflow: hidden; color: transparent; }
   .sb-nav .sb-item { position: relative; justify-content: center; padding: 9px 0; }
@@ -629,7 +637,9 @@ code.template { font-size: 0.75rem; color: var(--muted); overflow-x: auto; white
 .rule-catalog { display: grid; gap: 10px 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); }
 .wide-fs { margin-top: 0; }
 
-body.readonly .edit-only { display: none !important; }
+/* Lesemodus: in der Ansicht nach ihrem Bereich, im Dialog nach dem Bereich des Dialogs */
+body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
+#modal-root.readonly .edit-only { display: none !important; }
 
 /* Zeitlinie */
 .tl-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }

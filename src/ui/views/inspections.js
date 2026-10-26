@@ -38,7 +38,7 @@ const userName = () => app.user?.name || ''
 const mappeOf = (objectId) => app.data.mappe?.objects?.[objectId] || {}
 const RATING_CLASS = { OK: 'ok', R: 'info', M: 'warning', G: 'error', NA: 'na' }
 const OVERALL_CLASS = { 'Sehr gut': 'ok', Gut: 'ok', Handlungsbedarf: 'warning', Kritisch: 'error' }
-const ratingPill = (r) => (r ? `<span class="pill ${RATING_CLASS[r]} rating">${RATINGS[r].short}</span>` : '')
+const ratingPill = (r) => (r ? `<span class="pill ${RATING_CLASS[r] || 'info'} rating">${esc(RATINGS[r]?.short ?? r)}</span>` : '')
 const overallPill = (o) => (o ? `<span class="pill ${OVERALL_CLASS[o] || 'info'} name">${esc(o)}</span>` : '')
 
 /** Stammkräfte eines Objekts (für Zuständigkeit und Nacharbeit). */
@@ -93,7 +93,7 @@ function defectsTab(s, today) {
       const late = d.due && d.due < today
       const task = d.taskId && app.data.tasks.find((t) => t.id === d.taskId)
       return `<tr class="${d.rating === 'G' || late ? 'row-open' : ''}">
-        <td>${ratingPill(d.rating)}<br><span class="muted">${d.prio} ${esc(PRIOS[d.prio] || '')}</span></td>
+        <td>${ratingPill(d.rating)}<br><span class="muted">${esc(d.prio)} ${esc(PRIOS[d.prio] || '')}</span></td>
         <td><strong>${esc(obj?.name || '')}</strong><br>${esc(d.itemId)} ${esc(text)}${d.note ? `<br><span class="muted">${esc(d.note)}</span>` : ''} ${d.photos?.length ? photoLink(d.photos[0]) : ''}</td>
         <td>${formatDate(d.since, { weekday: false, year: true })}</td>
         <td>${editable() ? `<select class="small-select" data-change="def-assign" data-insp="${esc(d.inspectionId)}" data-item="${esc(d.itemId)}" aria-label="Zuständig">${options(emps, d.assignee, { empty: 'Büro / Hausverwaltung' })}</select>` : esc(d.assignee ? empName(d.assignee) : 'Büro')}</td>
@@ -212,7 +212,7 @@ function inspectionModal(c, m) {
     .join('')
   const f = findings(insp, cl)
   return modalFrame({
-    title: `Kontrolle ${esc(obj.name)}`,
+    title: `Kontrolle ${obj.name}`,
     subtitle: `${formatDate(insp.date, { year: true })} · ${quarterOf(insp.date)} · ${esc(insp.kind || '')} · ${prog.rated}/${prog.total} bewertet${insp.status === 'abgeschlossen' ? ' · abgeschlossen' : ''}`,
     color: obj.color,
     wide: true,
@@ -224,7 +224,7 @@ function inspectionModal(c, m) {
         <label class="field"><span>Kontrollart</span><select id="ins-kind" data-change="ins-meta" ${locked ? 'disabled' : ''}>${options(INSPECTION_KINDS.map((x) => [x, x]), insp.kind)}</select></label>
         <label class="field"><span>Checkliste</span><select id="ins-cl" data-change="ins-meta" ${locked || prog.rated ? 'disabled' : ''}>${options(k.checklists.map((x) => [x.id, x.name]), cl.id)}</select></label>
       </div></details>
-      ${prev.length ? `<div class="insp-prevbox"><h3>Offene Mängel aus früheren Kontrollen (${prev.length})</h3><ul class="plain">${prev.map((d) => `<li>${ratingPill(d.rating)} <strong>${d.itemId}</strong> ${esc(prevText(d))}${d.note ? ` – ${esc(d.note)}` : ''} <span class="muted">seit ${formatDate(d.since, { weekday: false, year: true })}</span>${locked ? '' : ` <button class="btn small" data-action="def-done" data-insp="${esc(d.inspectionId)}" data-item="${esc(d.itemId)}">Erledigt</button>`}</li>`).join('')}</ul></div>` : ''}
+      ${prev.length ? `<div class="insp-prevbox"><h3>Offene Mängel aus früheren Kontrollen (${prev.length})</h3><ul class="plain">${prev.map((d) => `<li>${ratingPill(d.rating)} <strong>${esc(d.itemId)}</strong> ${esc(prevText(d))}${d.note ? ` – ${esc(d.note)}` : ''} <span class="muted">seit ${formatDate(d.since, { weekday: false, year: true })}</span>${locked ? '' : ` <button class="btn small" data-action="def-done" data-insp="${esc(d.inspectionId)}" data-item="${esc(d.itemId)}">Erledigt</button>`}</li>`).join('')}</ul></div>` : ''}
       <nav class="chapter-chips" aria-label="Kapitel">${chips}</nav>
       ${chapters}
       <section class="insp-chapter" id="ch-end"><h3>Abschluss</h3>
@@ -249,7 +249,7 @@ function inspectionModal(c, m) {
   })
 }
 
-registerModal('inspection', inspectionModal)
+registerModal('inspection', inspectionModal, { module: MODULE })
 
 /** Nachkontrolle in den Kalender: direkt in Outlook (features.calendar) oder als .ics-Datei. */
 function followUpCalendar(insp) {
@@ -547,7 +547,7 @@ registerModal('checklist', (c, m) => {
   const cl = isNew ? { id: 'new', name: '', chapters: [] } : checklistOf(m.id)
   const used = K().inspections.some((x) => x.checklistId === cl.id)
   return modalFrame({
-    title: isNew ? 'Neue Checkliste' : `Checkliste ${esc(cl.name)}`,
+    title: isNew ? 'Neue Checkliste' : `Checkliste ${cl.name}`,
     wide: true,
     body: `<label class="field"><span>Name</span><input id="cl-name" type="text" value="${esc(cl.name)}" placeholder="z. B. Bürogebäude, Arztpraxis"></label>
       <p class="note">Je Zeile ein Prüfpunkt, Kapitel mit „# “ beginnen. ${used ? '<strong>Diese Checkliste wurde schon verwendet: neue Punkte bitte am Ende eines Kapitels anfügen, damit die Nummern (z. B. 1.6) und damit die offenen Mängel gleich bleiben.</strong>' : ''}</p>
