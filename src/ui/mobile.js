@@ -88,12 +88,11 @@ export function mobileTopbar(c, { brand, week, year, range, status, title = null
 function moreModal(c) {
   const count = todo().count
   const plan = canEdit('planung')
-  const sees = !app.access || app.access.sees('planung')
   const actions = [
     plan && ['plan', `${ICON.bolt} Woche planen`, 'primary'],
     plan && ['replan', 'Neu planen', ''],
-    sees && ['open-publish', `${ICON.send} Veröffentlichen`, ''],
-    sees && ['open-send', `${ICON.send} An Mitarbeitende versenden`, ''],
+    plan && ['open-publish', `${ICON.send} Veröffentlichen`, ''],
+    plan && ['open-send', `${ICON.send} An Mitarbeitende versenden`, ''],
     ['open-search', `${ICON.search} Suchen`, ''],
     ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],

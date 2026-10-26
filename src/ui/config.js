@@ -29,7 +29,7 @@ export const DEFAULT_CONFIG = {
   migrateLegacy: true, // Daten des ersten Prototyps (einsatzplaner.data.v1) übernehmen
 }
 
-function deepMerge(base, extra) {
+export function deepMerge(base, extra) {
   if (!extra || typeof extra !== 'object' || Array.isArray(extra)) return extra ?? base
   const out = { ...base }
   for (const [k, v] of Object.entries(extra)) out[k] = base && typeof base[k] === 'object' && !Array.isArray(base[k]) ? deepMerge(base[k], v) : v

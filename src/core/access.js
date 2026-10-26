@@ -1,11 +1,12 @@
 // Module und Rollen: Ein Tool für mehrere Aufgaben (Dienstplan, Lohn,
 // Objektkontrolle, Zählerstände …). Jede Rolle sieht bestimmte Module und darf
-// in bestimmten Modulen ändern. Rollen kommen aus Entra ID (App-Rollen, auch
-// über Gruppen zugewiesen) oder aus E-Mail-Listen in config.json.
+// in bestimmten Modulen ändern. Rollen kommen aus Entra ID: App-Rollen (auch
+// über Gruppen zugewiesen) oder Mitgliedschaft in Microsoft-Gruppen
+// (config.json → access.groups), dazu E-Mail-Listen in config.json.
 //
-// Echte Trennung der Daten: Jedes Modul speichert in eigenen Dateien
-// (data-service.js). Fehlt in SharePoint das Leserecht auf eine Datei, bleibt
-// das Modul leer, statt dass die App abbricht.
+// Echte Trennung der Daten: Jedes Modul speichert in eigenen Ordnern
+// (data-service.js, dataRights). Die App liest nur die Ordner, die die Rolle
+// braucht; die Rechte in SharePoint sichern das zusätzlich ab.
 
 export const MODULES = {
   planung: 'Dienstplan',
@@ -22,7 +23,9 @@ export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 
 
 // Rollen-IDs = App-Rollen in Entra ID (Wert z. B. „Dienstplan.Ableser“ oder „ableser“)
 export const DEFAULT_ROLES = {
-  disposition: { label: 'Disposition / Büro', modules: '*', edit: '*' },
+  disposition: { label: 'Vollzugriff (Büro, IT)', modules: '*', edit: '*' },
+  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe'], edit: ['kontrolle', 'objektmappe'] },
+  vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung'], edit: ['auswertung'] },
   objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe'], edit: ['zaehler', 'kontrolle', 'objektmappe'] },
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe'], edit: ['zaehler', 'kontrolle'] },
@@ -41,14 +44,19 @@ function roleIdOf(claim, roles) {
   return Object.keys(roles).find((id) => c === id || c.endsWith(`.${id}`)) || null
 }
 
+/** Gruppen-IDs je Rolle aus config.json → access.groups { rolle: [Gruppen-ID, …] } (auch einzelne ID als Text). */
+const groupList = (v) => (Array.isArray(v) ? v : [v]).map(lower).filter(Boolean)
+
 /**
  * Zugriff der angemeldeten Person.
- *  roleClaims: App-Rollen aus dem Entra-Token (Claim „roles“)
- *  email:      Anmeldename
- *  access:     config.json → access { planners[], members{ rolle: [E-Mails] }, roles{ eigene Rollen } }
- *  preview:    Rolle zur Vorschau (nur Browser-Modus)
+ *  roleClaims:  App-Rollen aus dem Entra-Token (Claim „roles“)
+ *  groupClaims: Objekt-IDs der Microsoft-Gruppen aus dem Token (Claim „groups“)
+ *  email:       Anmeldename
+ *  access:      config.json → access { planners[], members{ rolle: [E-Mails] }, groups{ rolle: [Gruppen-IDs] }, roles{ eigene Rollen } }
+ *  preview:     Rolle zur Vorschau (nur Browser-Modus)
+ *  strict:      ohne Rolle kein Zugriff (Betrieb mit SharePoint); sonst wie bisher
  */
-export function resolveAccess({ roleClaims = [], email = '', access = {}, preview = null } = {}) {
+export function resolveAccess({ roleClaims = [], groupClaims = [], email = '', access = {}, preview = null, strict = false } = {}) {
   const roles = { ...DEFAULT_ROLES, ...(access.roles || {}) }
   const found = new Set()
   if (preview && roles[preview]) found.add(preview)
@@ -57,18 +65,21 @@ export function resolveAccess({ roleClaims = [], email = '', access = {}, previe
       const id = roleIdOf(claim, roles)
       if (id) found.add(id)
     }
+    const groups = new Set(groupClaims.map(lower))
+    for (const [id, list] of Object.entries(access.groups || {})) if (roles[id] && groupList(list).some((g) => groups.has(g))) found.add(id)
     for (const [id, list] of Object.entries(access.members || {})) if (roles[id] && (list || []).map(lower).includes(lower(email))) found.add(id)
     const planners = (access.planners || []).map(lower)
     if (planners.includes(lower(email))) found.add('disposition')
-    const configured = planners.length || Object.keys(access.members || {}).length || roleClaims.length
-    if (!found.size) found.add(configured ? 'lesen' : 'disposition') // nichts eingerichtet: alle wie bisher
+    const configured = planners.length || Object.keys(access.members || {}).length || Object.keys(access.groups || {}).length || roleClaims.length
+    // Betrieb: wer keiner Gruppe zugeordnet ist, sieht nichts. Sonst wie bisher (Probe, Browser-Modus).
+    if (!found.size && !strict) found.add(configured ? 'lesen' : 'disposition')
   }
   const list = [...found].map((id) => ({ id, ...roles[id] }))
   const sees = (m) => list.some((r) => includes(r.modules, m))
   const canEdit = (m) => list.some((r) => includes(r.edit, m)) && sees(m)
   return {
     roles: list.map((r) => r.id),
-    label: list.map((r) => r.label).join(', '),
+    label: list.map((r) => r.label).join(', ') || 'Keine Berechtigung',
     all: list.some((r) => r.modules === '*' && r.edit === '*'),
     sees,
     canEdit,

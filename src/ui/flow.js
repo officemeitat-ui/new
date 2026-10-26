@@ -27,7 +27,8 @@ export function weekSteps(c) {
 }
 
 export function flowBar(c) {
-  if (!c.ctx.employees.length) return ''
+  // Ablauf der Disposition: wer nur liest (z. B. Objektmanagement), braucht ihn nicht
+  if (!c.ctx.employees.length || app.readOnly) return ''
   const steps = weekSteps(c)
   const next = steps.find((s) => !s.done && !(s.edit && app.readOnly))
   return `<nav class="flow" aria-label="Ablauf der Woche">${steps

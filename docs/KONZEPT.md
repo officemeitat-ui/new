@@ -120,7 +120,7 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 ## 5. Was gebaut ist (Version 1.0)
 
 - **Ablage in SharePoint** über Microsoft Graph, Anmeldung mit dem Microsoft-365-Konto. Daten als lesbare JSON-Dateien je Bereich und Woche, mit Versionsverlauf, Schutz vor gegenseitigem Überschreiben (eTag) und automatischem Zusammenführen.
-- **Hosting** als statische Web-App auf `dienstplan.cleanos.at` (Azure Static Web Apps oder eigener Webspace), Anleitung in [EINRICHTUNG.md](EINRICHTUNG.md).
+- **Hosting** als statische Web-App auf `app.cleanos.at` (Azure Static Web Apps oder eigener Webspace), Anleitung in [EINRICHTUNG.md](EINRICHTUNG.md).
 - **Ausgelegt für 35+ Mitarbeitende**: Reviere/Teams, Filter und Suche. Die Automatik plant rund 230 Einsätze in einer Zehntelsekunde.
 - **Ansichten**:
   - Planung: Wochenübersicht, Zeitlinie, Wochenzettel, Objektplan, Vertretungen, Periodische Leistungen, Müllplan, Prüfbericht

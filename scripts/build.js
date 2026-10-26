@@ -1,5 +1,6 @@
-// Erstellt dist/ zum Hochladen auf den Webserver (z. B. dienstplan.cleanos.at).
-// Aufruf: npm run build
+// Erstellt dist/ zum Hochladen auf den Webserver (app.cleanos.at).
+// Aufruf: npm run build            Betrieb: config.json + config.production.json
+//         DIENSTPLAN_DEMO=1 npm run build   Probe mit Beispieldaten (nur config.json)
 //
 // - Eigener Code wird mit esbuild zu wenigen, minimierten Dateien mit
 //   Inhalts-Hash gebündelt (app/…): schneller Start, sicheres Caching.
@@ -7,10 +8,14 @@
 //   werden erst bei Bedarf geladen.
 // - staticwebapp.config.json bekommt die Tenant-ID aus config.json: die ganze
 //   Seite ist dann nur nach Microsoft-Anmeldung im eigenen Tenant erreichbar.
+// - dist/config.json = config.json mit config.production.json darüber
+//   (SharePoint, Anmeldung, Gruppen); ENTRA_CLIENT_ID/ENTRA_TENANT_ID aus der
+//   Umgebung haben Vorrang (z. B. GitHub-Variablen).
 import { createHash } from 'node:crypto'
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { deepMerge } from '../src/ui/config.js'
 import { manifestFor, serviceWorkerSource } from './pwa.js'
 import { VENDOR } from './vendor.js'
 
@@ -23,7 +28,28 @@ const copy = (item, target = item) =>
 
 await rm(dist, { recursive: true, force: true })
 await mkdir(join(dist, 'vendor'), { recursive: true })
-for (const item of ['config.json', 'themes', 'assets']) await copy(item)
+for (const item of ['themes', 'assets']) await copy(item)
+
+// ---------------------------------------------------------------- Konfiguration
+const demoBuild = process.env.DIENSTPLAN_DEMO === '1' || process.env.DIENSTPLAN_PUBLIC === '1'
+let appConfig = JSON.parse(await readFile(join(root, 'config.json'), 'utf8'))
+if (!demoBuild) {
+  try {
+    appConfig = deepMerge(appConfig, JSON.parse(await readFile(join(root, 'config.production.json'), 'utf8')))
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+}
+appConfig.sharepoint = { ...(appConfig.sharepoint || {}) }
+if (process.env.ENTRA_TENANT_ID) appConfig.sharepoint.tenantId = process.env.ENTRA_TENANT_ID
+if (process.env.ENTRA_CLIENT_ID) appConfig.sharepoint.clientId = process.env.ENTRA_CLIENT_ID
+await writeFile(join(dist, 'config.json'), `${JSON.stringify(appConfig, null, 2)}\n`)
+if (appConfig.storage === 'sharepoint') {
+  console.log(`Betrieb: SharePoint ${appConfig.sharepoint.siteUrl || '(siteUrl fehlt)'} → ${appConfig.sharepoint.library}/${appConfig.sharepoint.folder}, Anmeldung nur mit Firmenkonten.`)
+  if (!appConfig.sharepoint.clientId) console.warn('Hinweis: Noch keine Anwendungs-ID (sharepoint.clientId). Die Seite zeigt bis dahin „noch nicht bei Microsoft registriert“. In config.production.json eintragen oder ENTRA_CLIENT_ID setzen (docs/EINRICHTUNG.md, Schritt 2).')
+} else {
+  console.log('Probe: Daten im Browser' + (appConfig.demo ? ' mit Beispieldaten' : '') + '.')
+}
 for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, source), join(dist, target))
 
 // ---------------------------------------------------------------- Bündeln
@@ -58,7 +84,6 @@ if (esbuild) {
   await copy('src')
 }
 // ---------------------------------------------------------------- Als App installierbar (PWA)
-const appConfig = JSON.parse(await readFile(join(root, 'config.json'), 'utf8'))
 const brand = appConfig.brand || {}
 const head = [
   '<link rel="manifest" href="manifest.webmanifest">',
@@ -94,9 +119,8 @@ console.log(`App-Installation: manifest.webmanifest, sw.js (${precache.length} D
 //  - Ohne Tenant-ID: Anmeldung mit einem Microsoft-Konto (Free-Tarif); die
 //    Daten bleiben trotzdem nur für berechtigte SharePoint-Konten lesbar.
 //  - DIENSTPLAN_PUBLIC=1 schaltet den Schutz bewusst ab (reine Demo).
-const config = JSON.parse(await readFile(join(root, 'config.json'), 'utf8'))
 const swa = JSON.parse(await readFile(join(root, 'staticwebapp.config.json'), 'utf8'))
-const tenantId = process.env.ENTRA_TENANT_ID || config.sharepoint?.tenantId || ''
+const tenantId = appConfig.sharepoint.tenantId || ''
 if (process.env.DIENSTPLAN_PUBLIC === '1') {
   delete swa.auth
   delete swa.responseOverrides
@@ -110,4 +134,4 @@ if (process.env.DIENSTPLAN_PUBLIC === '1') {
   console.warn('Hinweis: Keine Tenant-ID gefunden. Die Seite verlangt eine Microsoft-Anmeldung, lässt aber jedes Microsoft-Konto zu. Für „nur eigener Tenant“ sharepoint.tenantId in config.json oder ENTRA_TENANT_ID setzen.')
 }
 await writeFile(join(dist, 'staticwebapp.config.json'), `${JSON.stringify(swa, null, 2)}\n`)
-console.log('dist/ erstellt. Inhalt auf den Webserver laden; config.json vorher anpassen.')
+console.log('dist/ erstellt. Inhalt auf den Webserver laden (app.cleanos.at).')

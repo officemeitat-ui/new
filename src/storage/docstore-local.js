@@ -60,6 +60,10 @@ export class LocalDocStore {
     return next
   }
 
+  async remove(path) {
+    this.storage.removeItem(this.prefix + path)
+  }
+
   async upload(path, blob) {
     if (this.download) this.download(path.split('/').pop(), blob)
     return { webUrl: null, downloaded: true }

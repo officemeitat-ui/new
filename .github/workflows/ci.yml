@@ -20,12 +20,14 @@ jobs:
         env:
           # Verzeichnis-ID des Microsoft-365-Tenants: nur dessen Konten dürfen die Seite öffnen
           ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          # Anwendungs-ID der App-Registrierung (falls nicht in config.production.json)
+          ENTRA_CLIENT_ID: ${{ vars.ENTRA_CLIENT_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist
 
-  # Veröffentlicht dist/ auf Azure Static Web Apps (dienstplan.cleanos.at).
+  # Veröffentlicht dist/ auf Azure Static Web Apps (app.cleanos.at).
   # Läuft nur auf main und nur, wenn das Secret AZURE_STATIC_WEB_APPS_API_TOKEN gesetzt ist.
   deploy:
     needs: test

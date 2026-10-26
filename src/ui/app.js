@@ -9,10 +9,10 @@ import { DEFAULT_RULES } from '../core/rules.js'
 import { createDemoData, DEFAULT_SKILLS } from '../data/demo.js'
 import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
-import { DataService } from '../storage/data-service.js'
+import { DataService, dataRights } from '../storage/data-service.js'
 import { CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, viewFromHash, visibleViews } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
@@ -94,7 +94,7 @@ function topbar(c) {
       ${bellButton()}
       ${canEdit('planung') ? `<button class="btn primary" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>
       <button class="btn" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">Neu planen</button>` : ''}
-      ${app.access?.sees('planung') !== false ? `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>` : ''}
+      ${canEdit('planung') ? `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>` : ''}
       ${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten</button>' : ''}
     </div>
     <div class="userbox"><span id="save-status" class="save-status">${saveStatusText(app.service.status)}</span>${user}${themeButton()}</div>
@@ -136,7 +136,7 @@ function summary(c) {
 }
 
 function welcome() {
-  if (app.data.employees.length || app.readOnly) return ''
+  if (app.data.employees.length || app.readOnly || !canEdit('stammdaten')) return ''
   return `<div class="banner welcome"><div><h2>Willkommen im Dienstplan</h2><p>Noch keine Daten in der Ablage. Am schnellsten geht es mit den bestehenden Excel-Listen: Mitarbeitende einfügen, dann Objekte und Leistungen mit Stammkraft.</p></div>
     <div class="actions"><button class="btn primary" data-action="import-open" data-kind="employees">${ICON.upload} Mitarbeitende einfügen</button><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button><button class="btn" data-action="open-data">Beispieldaten laden</button></div></div>`
 }
@@ -152,7 +152,7 @@ function correctionBanner(c) {
 
 function frame(c) {
   const views = visibleViews()
-  if (!views.length) return `${topbar(c)}<main class="wrap"><div class="banner"><p><strong>Kein Bereich freigegeben.</strong> Deinem Konto ist keine Rolle mit Modulen zugewiesen. Bitte bei der Disposition melden.</p></div></main>`
+  if (!views.length) return `${topbar(c)}<main class="wrap"><div class="banner"><p><strong>Kein Bereich freigegeben.</strong> Dein Konto ist keiner Gruppe dieser App zugeordnet. Bitte im Büro oder bei der IT melden.</p></div></main>`
   const view = views.find((v) => v.id === app.ui.view) || views[0]
   app.ui.view = view.id
   // Leserechte je Modul der aktuellen Ansicht
@@ -190,6 +190,12 @@ Object.assign(ACTIONS, {
     app.ui.view = el.dataset.view
     app.ui.confirm = null
     app.ui.modal = null
+    // Adresse zum Speichern als Lesezeichen, z. B. app.cleanos.at/#zaehler
+    try {
+      history.replaceState(null, '', `#${app.ui.view}`)
+    } catch {
+      /* eingebettete Vorschau */
+    }
     render()
     window.scrollTo({ top: 0 })
   },
@@ -218,8 +224,11 @@ Object.assign(ACTIONS, {
   },
   'sign-out': async () => {
     await app.service.flush().catch(() => {})
+    // Kopie der Daten im Gerät löschen (geteilte Geräte); Ungespeichertes und wartende Fotos bleiben
+    if (app.offline && !app.service.pendingCount()) await Promise.all(['docs', 'meta'].map((s) => app.offline.clear?.(s)))
     app.signOut?.()
   },
+  'switch-account': () => app.switchAccount?.(),
 })
 
 function bindEvents() {
@@ -299,16 +308,23 @@ async function boot() {
     store = new CachedDocStore(new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint }), local)
     showMessage('<p>Verbinde mit SharePoint …</p>')
     await store.init()
-    app.access = resolveAccess({ roleClaims: app.user.roles, email: app.user.email, access: config.access })
+    // Rechte aus Microsoft-Gruppen und App-Rollen; ohne Zuordnung kein Zugriff
+    app.access = resolveAccess({ roleClaims: app.user.roles, groupClaims: app.user.groups, email: app.user.email, access: config.access, strict: true })
+    app.offline = local
   } else {
     store = new LocalDocStore({ download })
   }
   app.store = store
 
   Object.assign(app.ui, readPrefs())
+  const linked = viewFromHash(location.hash)
+  if (linked) app.ui.view = linked
   if (config.storage !== 'sharepoint') app.access = resolveAccess({ preview: app.ui.previewRole, access: config.access })
   app.service = new DataService(store, {
     local,
+    // nur die Ordner der eigenen Rolle lesen und schreiben (im Browser-Modus alles)
+    rights: config.storage === 'sharepoint' ? dataRights(app.access) : null,
+    blank: emptyData,
     onStatus: (status, detail) => {
       const el = document.getElementById('save-status')
       if (el) el.innerHTML = saveStatusText(status, detail)
@@ -352,6 +368,16 @@ async function boot() {
     if (document.visibilityState === 'visible') sync()
   })
   window.addEventListener('online', sync)
+  // Lesezeichen/Link mit #ansicht im laufenden Fenster
+  window.addEventListener('hashchange', () => {
+    const view = viewFromHash(location.hash)
+    if (view && view !== app.ui.view) {
+      app.ui.view = view
+      app.ui.modal = null
+      render()
+    }
+  })
+  if (app.user?.groupsOverage) toast('Hinweis: Zu viele Gruppen im Microsoft-Konto, die Gruppen-Rechte fehlen. Bitte die IT bitten, in Entra ID nur „Sicherheitsgruppen“ bzw. „der App zugewiesene Gruppen“ ins Token zu geben.')
   window.addEventListener('offline', () => {
     const el = document.getElementById('save-status')
     if (el && app.store?.kind === 'sharepoint') el.innerHTML = saveStatusText('offline', String(app.service.pendingCount()))
@@ -374,6 +400,11 @@ function registerServiceWorker() {
 }
 
 boot().catch((err) => {
+  // falsches Konto (Gast, anderer Tenant): abmelden und mit dem Firmenkonto neu anmelden
+  if (err.signOut) {
+    app.switchAccount = err.signOut
+    return showMessage(`<h2>Anmeldung nicht möglich</h2><p>${esc(err.message)}</p><p><button class="btn primary" data-action="switch-account">Mit anderem Konto anmelden</button></p>`)
+  }
   console.error(err)
   if (err.offline) return showMessage(`<h2>Keine Verbindung</h2><p>${esc(err.message)}</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`) || (ACTIONS.reload = () => location.reload())
   showMessage(`<h2>Der Dienstplan konnte nicht gestartet werden</h2><p>${esc(err.message)}</p><p class="note">Bei SharePoint-Fehlern: Einträge in config.json prüfen (tenantId, clientId, siteUrl, library) und ob dein Konto Zugriff auf die Website hat. Details in docs/EINRICHTUNG.md.</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`)

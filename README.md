@@ -1,8 +1,8 @@
 # Cleanos Dienstplan
 
-Einsatzplanung für die Gebäudereinigung: Stammplan pflegen, Wochen automatisch einteilen, Vertretungen finden, Arbeitsrecht prüfen (AZG, ARG, KJBG), Wochenzettel im gewohnten Layout veröffentlichen und als PDF an die Mitarbeitenden schicken. Ablage in SharePoint, die ganze Seite nur nach Microsoft-365-Anmeldung, Betrieb auf `dienstplan.cleanos.at`.
+Einsatzplanung für die Gebäudereinigung: Stammplan pflegen, Wochen automatisch einteilen, Vertretungen finden, Arbeitsrecht prüfen (AZG, ARG, KJBG), Wochenzettel im gewohnten Layout veröffentlichen und als PDF an die Mitarbeitenden schicken. Ablage in SharePoint, die ganze Seite nur nach Anmeldung mit dem Firmenkonto (Microsoft 365, keine Gäste), Betrieb auf `app.cleanos.at`.
 
-**Eine Plattform statt vier Werkzeugen:** Dienstplan, Zählerstände (Wasserzähler-Ablesung), Objektkontrolle und Objektmappe (Objektdokumentation) laufen in einer App mit einer Anmeldung, gemeinsamen Objekten und einer Liste „Zu erledigen“. Rollen aus Entra ID (z. B. Ableser, Prüfer/in, Lohnverrechnung) bestimmen, wer welche Module sieht und ändern darf. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
+**Eine Plattform statt vier Werkzeugen:** Dienstplan, Zählerstände (Wasserzähler-Ablesung), Objektkontrolle, Objektmappe (Objektdokumentation) und Fahrzeuge laufen in einer App mit einer Anmeldung, gemeinsamen Objekten und einer Liste „Zu erledigen“. **Microsoft-Gruppen** bestimmen, wer welche Bereiche sieht und ändern darf (z. B. Objektmanagement: Einsatzplanung lesen, Objektkontrolle, Objektmappe; Vorarbeiter: nur Wasserzähler; office@ und it@: alles). Ohne Gruppe kein Zugriff. Jede Berechtigungsstufe hat in SharePoint einen eigenen Ordner, und die App liest nur die Ordner der eigenen Gruppe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
 
 - **Plattform, Rollen, Übernahme der bisherigen Werkzeuge:** [docs/PLATTFORM.md](docs/PLATTFORM.md)
 - **Konzept und Recherche:** [docs/KONZEPT.md](docs/KONZEPT.md)
@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 156 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel, Service & Pickerl
+npm test         # 164 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel, Service & Pickerl, Rechte je Gruppe
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 

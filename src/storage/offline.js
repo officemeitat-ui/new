@@ -48,6 +48,7 @@ export function createOfflineCache(name = 'dienstplan-offline') {
     get: safe((store, key) => run(store, 'readonly', (s) => s.get(key)), undefined),
     put: safe((store, key, value) => run(store, 'readwrite', (s) => s.put(value, key)), undefined),
     del: safe((store, key) => run(store, 'readwrite', (s) => s.delete(key)), undefined),
+    clear: safe((store) => run(store, 'readwrite', (s) => s.clear()), undefined),
     all: safe(async (store) => {
       const d = await db()
       return new Promise((resolve, reject) => {
@@ -71,6 +72,7 @@ export function memoryCache() {
     get: async (store, key) => maps[store].get(key),
     put: async (store, key, value) => void maps[store].set(key, value),
     del: async (store, key) => void maps[store].delete(key),
+    clear: async (store) => void maps[store].clear(),
     all: async (store) => [...maps[store].entries()],
   }
 }
@@ -130,6 +132,11 @@ export class CachedDocStore {
       if (cached) return { ...cached, modifiedBy: null, cached: true }
       throw new OfflineError(`Ohne Verbindung nicht verfügbar: ${path}`)
     }
+  }
+
+  async remove(path) {
+    await this.remote.remove?.(path)
+    await this.cache.del('docs', path)
   }
 
   async etagOf(path) {

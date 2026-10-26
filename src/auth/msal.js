@@ -6,6 +6,29 @@ import { loadScript } from '../ui/load-script.js'
 
 export const GRAPH_SCOPES = ['User.Read', 'Sites.ReadWrite.All']
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Nur interne Konten: das Konto muss aus dem eigenen Tenant stammen. Gäste
+ * (B2B, Heimat-Tenant woanders) und fremde Konten werden abgewiesen, außer
+ * allowGuests ist gesetzt. Liefert einen Text, wenn die Anmeldung nicht passt.
+ */
+export function accountProblem(account, tenantId, { allowGuests = false } = {}) {
+  if (!account || !GUID.test(tenantId || '')) return ''
+  const tid = String(account.tenantId || account.idTokenClaims?.tid || '').toLowerCase()
+  const home = String(account.homeAccountId || '').split('.')[1]?.toLowerCase() || tid
+  const own = String(tenantId).toLowerCase()
+  if (tid && tid !== own) return 'Dieses Konto gehört nicht zur Firma. Bitte mit dem Firmenkonto anmelden.'
+  if (!allowGuests && home && home !== own) return 'Gastkonten sind gesperrt. Bitte mit dem eigenen Firmenkonto anmelden.'
+  return ''
+}
+
+/** Microsoft-Gruppen aus dem Token (Objekt-IDs). Bei sehr vielen Gruppen fehlt die Liste („overage“). */
+export function groupsOf(account) {
+  const claims = account?.idTokenClaims || {}
+  return { groups: Array.isArray(claims.groups) ? claims.groups : [], overage: !!claims._claim_names?.groups || !!claims.hasgroups }
+}
+
 /** Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand und Kalender optional). */
 export function scopesFor(config = {}) {
   const scopes = [...GRAPH_SCOPES]
@@ -29,8 +52,9 @@ async function hostLogin() {
   }
 }
 
-export async function signIn({ tenantId, clientId, redirectUri = `${location.origin}${location.pathname}`, scopes = GRAPH_SCOPES }) {
-  if (!tenantId || !clientId) throw new Error('In config.json fehlen sharepoint.tenantId oder sharepoint.clientId.')
+export async function signIn({ tenantId, clientId, allowGuests = false, redirectUri = `${location.origin}${location.pathname}`, scopes = GRAPH_SCOPES }) {
+  if (!GUID.test(tenantId || '')) throw new Error('In config.json fehlt sharepoint.tenantId (Verzeichnis-ID des Microsoft-365-Tenants).')
+  if (!GUID.test(clientId || '')) throw new Error('Die App ist noch nicht bei Microsoft registriert: In config.json fehlt sharepoint.clientId (Anwendungs-ID aus Entra ID, Einrichtung Schritt 2).')
   await loadScript('vendor/msal-browser.min.js')
   const { PublicClientApplication, InteractionRequiredAuthError } = globalThis.msal
   const pca = new PublicClientApplication({
@@ -54,6 +78,8 @@ export async function signIn({ tenantId, clientId, redirectUri = `${location.ori
       return new Promise(() => {}) // Seite wird zur Anmeldung umgeleitet
     }
   }
+  const problem = accountProblem(account, tenantId, { allowGuests })
+  if (problem) throw Object.assign(new Error(problem), { signOut: () => pca.logoutRedirect({ account }) })
   pca.setActiveAccount(account)
 
   async function getToken() {
@@ -68,9 +94,10 @@ export async function signIn({ tenantId, clientId, redirectUri = `${location.ori
     }
   }
 
+  const { groups, overage } = groupsOf(account)
   return {
-    // roles: App-Rollen aus Entra ID (Unternehmensanwendung → Benutzer und Gruppen)
-    user: { name: account.name || account.username, email: (account.username || '').toLowerCase(), roles: account.idTokenClaims?.roles || [] },
+    // roles: App-Rollen aus Entra ID (Unternehmensanwendung → Benutzer und Gruppen); groups: Microsoft-Gruppen (Token-Konfiguration)
+    user: { name: account.name || account.username, email: (account.username || '').toLowerCase(), roles: account.idTokenClaims?.roles || [], groups, groupsOverage: overage },
     getToken,
     signOut: () => pca.logoutRedirect({ account }),
   }

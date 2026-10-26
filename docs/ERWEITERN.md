@@ -162,7 +162,7 @@ trips[`${datum}|${taskId}|${employeeId}`] = { min?, note? }   // geplante Fahrt 
 published[montag] = { status, publishedAt, publishedBy, saldi{empId: min}, snapshot{empId: signatur}, correctedAt?, corrections?[{ empId, before, after, delta, at, by }], sent?{empId: { at, by, via: 'E-Mail'|'Teilen'|'PDF'|'manuell', sig }}, files? }
 travel[`${objA}|${objB}`] = minuten
 payroll[monat] = { modes?{empId: { ue, mehr }}, closedAt?, by?, rows?{empId: { mehrPaid, mehrPaidEntries[], uePaid, zaBonus, amount, taxFree, accountDelta, lines[] }},
-                   sent?{ office?: { at, by, via, to, sig, total }, people?{empId: { at, by, via, sig }} } }   // Monatsabschlüsse und Versand (daten/zeitkonto.json)
+                   sent?{ office?: { at, by, via, to, sig, total }, people?{empId: { at, by, via, sig }} } }   // Monatsabschlüsse und Versand (lohn/zeitkonto.json)
 settings = { payrollMail? }   // Adresse(n) der Lohnverrechnung für den Versand der Auszahlungen
 rules.pay = { fullTimeWeeklyH, dailyNormalH, longDayH, mehrPct, mehrBalanceMonths, nightFrom, nightTo, nightPct, ueTag … ue11Feiertag, bonusAs, ueMode, mehrMode, taxFreeHours, taxFreeMax }
 rules.wages = { 1: 15.12, …, 6: 12.37 }   // KV-Stundenlöhne je Lohngruppe

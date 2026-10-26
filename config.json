@@ -55,7 +55,7 @@
   "storage": "local",
   "demo": true,
   "sharepoint": {
-    "tenantId": "",
+    "tenantId": "a31131f2-4ccf-4eb2-ab3d-49c923c6bede",
     "clientId": "",
     "siteUrl": "https://cleanconcept1.sharepoint.com",
     "library": "Cleanos_Daten",

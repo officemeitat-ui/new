@@ -128,6 +128,11 @@ export class SharePointDocStore {
     return { data: await res.json(), etag: meta.eTag, modifiedBy: meta.lastModifiedBy?.user?.displayName || null, modifiedAt: meta.lastModifiedDateTime || null }
   }
 
+  /** Datei löschen (landet im Papierkorb der Website); fehlt sie schon, ist das kein Fehler. */
+  async remove(path) {
+    await this.#request('DELETE', this.#itemUrl(path), { okStatuses: [404] })
+  }
+
   /** Datei als Blob (z. B. Foto fürs PDF); null, wenn es sie nicht gibt. root: Pfad ab der Bibliothek statt ab dem App-Ordner. */
   async readBlob(path, { root = false } = {}) {
     const meta = root ? await this.#rootMeta(path) : await this.#meta(path)

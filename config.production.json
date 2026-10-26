@@ -1,0 +1,21 @@
+{
+  "_hinweis": "Einstellungen für den Betrieb auf app.cleanos.at. npm run build legt sie über config.json. Anleitung: docs/EINRICHTUNG.md",
+  "storage": "sharepoint",
+  "demo": false,
+  "migrateLegacy": false,
+  "sharepoint": {
+    "clientId": "",
+    "allowGuests": false
+  },
+  "access": {
+    "planners": [
+      "office@cleanos.at",
+      "it@cleanos.at"
+    ],
+    "groups": {
+      "disposition": [],
+      "objektmanagement": [],
+      "vorarbeiter": []
+    }
+  }
+}

@@ -38,6 +38,17 @@ export const app = {
 // ---------------------------------------------------------------- Registry
 
 export const VIEWS = []
+
+/** Kurznamen für Adressen wie app.cleanos.at/#zaehler (auch die Namen der früheren Werkzeuge). */
+export const VIEW_ALIASES = { dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe' }
+
+/** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
+export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
+  const key = decodeURIComponent(String(hash || '').replace(/^#\/?/, '')).trim().toLowerCase()
+  const id = VIEW_ALIASES[key] || key
+  return ids.includes(id) ? id : null
+}
+
 export const VIEW_GROUPS = [
   ['plan', 'Planung'],
   ['service', 'Objektservice'],

@@ -1,6 +1,6 @@
 # Plattform: ein Tool, mehrere Module, Rollen statt eigener Programme
 
-Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan, die Wasserzähler-Ablesung, die Objektkontrolle und die Objektdokumentation. Jetzt läuft alles in einer App. Es gibt eine Anmeldung, die Objekte und Mitarbeitenden sind gemeinsam gepflegt, und es gibt eine Glocke „Zu erledigen“. Jede Rolle sieht nur ihre Module.
+Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan, die Wasserzähler-Ablesung, die Objektkontrolle und die Objektdokumentation. Jetzt läuft alles in einer App unter **app.cleanos.at**: einmal anmelden, alle Bereiche, die die eigene Gruppe darf, stehen in den Registern (am Handy unter „Mehr“). Direkt zu einem Bereich: `app.cleanos.at/#zaehler`, `#kontrolle`, `#objektmappe`, `#dienstplan` (auch `#wasserzaehler`, `#pruefprotokoll`, `#objektdoku`), z. B. als Lesezeichen oder als Weiterleitung der alten Adressen. Es gibt eine Anmeldung, die Objekte und Mitarbeitenden sind gemeinsam gepflegt, und es gibt eine Glocke „Zu erledigen“. Jede Rolle sieht nur ihre Module.
 
 | Modul | Ersetzt | Wer arbeitet damit |
 |---|---|---|
@@ -16,7 +16,9 @@ Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan,
 
 | Rolle (Wert in Entra ID) | sieht | darf ändern |
 |---|---|---|
-| `disposition` – Disposition / Büro | alles | alles |
+| `disposition` – Vollzugriff (Büro, IT) | alles | alles |
+| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektmappe | Objektkontrolle, Objektmappe |
+| `vorarbeiter` – Vorarbeiter/in | Zählerstände (Wasserzähler) | Zählerstände |
 | `lohnverrechnung` | Auswertung & Lohn | Auswertung & Lohn |
 | `objektleitung` | Dienstplan (lesen), Zähler, Kontrolle, Objektmappe | Zähler, Kontrolle, Objektmappe |
 | `objektservice` | Zähler, Kontrolle, Objektmappe | Zähler, Kontrolle |
@@ -25,60 +27,80 @@ Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan,
 | `fuhrpark` – Fuhrpark | Fahrzeuge & Reifen | Fahrzeuge & Reifen |
 | `lesen` | Dienstplan | nichts |
 
-- Mehrere Rollen addieren sich (z. B. Objektleitung und Lohnverrechnung).
-- Ohne jede Rolleneinrichtung dürfen alle angemeldeten Personen alles (wie bisher).
-- Ist etwas eingerichtet und eine Person hat keine Rolle, sieht sie den Dienstplan nur lesend.
-- Eigene Rollen gehen per `config.json` (siehe unten).
-- Im Browser-Modus (ohne SharePoint) gibt es oben „Ansicht als …“. Damit lässt sich ausprobieren, was eine Rolle sieht.
+- Mehrere Rollen addieren sich (z. B. Objektmanagement und Vorarbeiter).
+- **Im Betrieb (SharePoint) gilt: ohne Rolle kein Zugriff.** Wer keiner Gruppe zugeordnet ist, sieht „Kein Bereich freigegeben“, und die App lädt keine einzige Datei.
+- `office@cleanos.at` und `it@cleanos.at` haben Vollzugriff (`config.production.json` → `access.planners`), auch bevor die Gruppen eingerichtet sind.
+- Im Browser-Modus (Probe ohne SharePoint) gibt es oben „Ansicht als …“. Damit lässt sich ausprobieren, was eine Rolle sieht. Ohne jede Einrichtung darf dort jede Person alles.
+- Die Ansicht **Stammdaten → Berechtigungen** zeigt für Vollzugriff, welche Gruppe was sieht und welche SharePoint-Rechte sie braucht, berechnet aus denselben Regeln, nach denen die App arbeitet.
 
-### Rollen in Entra ID einrichten (empfohlen)
+### Rechte über Microsoft-Gruppen (empfohlen, geht mit jeder Lizenz)
 
-1. **Entra ID → App-Registrierungen → Cleanos Dienstplan → App-Rollen → App-Rolle erstellen**. Für jede Rolle:
-   - Anzeigename: z. B. „Ableser“
-   - Zulässige Mitgliedstypen: **Benutzer/Gruppen**
-   - Wert: `ableser`; auch `Dienstplan.Ableser` funktioniert
-   - Beschreibung beliebig, Häkchen „aktiviert“ setzen
-2. **Unternehmensanwendungen → Cleanos Dienstplan → Benutzer und Gruppen → Benutzer/Gruppe hinzufügen**: Person oder Gruppe wählen, dann die Rolle wählen.
-   - Gruppen zuweisen braucht Entra ID P1 (in Microsoft 365 Business Premium enthalten). Ohne P1 die Personen einzeln zuweisen.
-   - Die vorhandene Gruppe „Wasserzaehler_Ablesung“ kann einfach die Rolle `ableser` bekommen.
-3. Unter *Eigenschaften* **Zuweisung erforderlich = Ja** setzen. Dann kann sich niemand ohne Rolle anmelden.
-4. Die Rolle steht nach der nächsten Anmeldung im Token (Claim `roles`). Wer gerade angemeldet ist, meldet sich einmal ab und wieder an.
-
-### Alternative ohne Entra-Rollen: config.json
+1. **Entra ID → Gruppen → Neue Gruppe**, Typ **Sicherheit**, je Rolle eine Gruppe, z. B.
+   - „App Cleanos – Vollzugriff“ (office@, it@ und wer sonst alles darf)
+   - „App Cleanos – Objektmanagement“
+   - „App Cleanos – Vorarbeiter“
+   Mitglieder hinzufügen. Die vorhandene Gruppe „Wasserzaehler_Ablesung“ kann gleich als Vorarbeiter-Gruppe dienen.
+2. Von jeder Gruppe in der *Übersicht* die **Objekt-ID** kopieren.
+3. **App-Registrierungen → Cleanos App → Tokenkonfiguration → Gruppenanspruch hinzufügen → Sicherheitsgruppen**, beim ID-Token „Gruppen-ID“. Dann stehen die Gruppen nach der Anmeldung im Token.
+4. In `config.production.json` die Objekt-IDs eintragen:
 
 ```json
 "access": {
-  "planners": ["disposition@cleanos.at"],
-  "members": {
-    "ableser": ["max.muster@cleanos.at"],
-    "pruefer": ["pruefer@cleanos.at"],
-    "lohnverrechnung": ["lohn@kanzlei.at"]
-  },
+  "planners": ["office@cleanos.at", "it@cleanos.at"],
+  "groups": {
+    "disposition": ["Objekt-ID der Gruppe Vollzugriff"],
+    "objektmanagement": ["Objekt-ID der Gruppe Objektmanagement"],
+    "vorarbeiter": ["Objekt-ID der Gruppe Vorarbeiter"]
+  }
+}
+```
+
+5. Neu bauen und hochladen, oder `config.json` am Server direkt ändern (kein Build nötig). Ab der nächsten Anmeldung gilt die neue Zuordnung. Wer neu in eine Gruppe kommt, meldet sich einmal ab und wieder an.
+
+Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen oder entfernen, fertig.
+
+### Variante mit App-Rollen (Entra ID P1, z. B. Microsoft 365 Business Premium)
+
+1. **App-Registrierungen → Cleanos App → App-Rollen → App-Rolle erstellen**, je Rolle: Anzeigename (z. B. „Objektmanagement“), zulässige Mitgliedstypen **Benutzer/Gruppen**, Wert `objektmanagement` (auch `Cleanos.Objektmanagement` geht), aktiviert.
+2. **Unternehmensanwendungen → Cleanos App → Benutzer und Gruppen → Benutzer/Gruppe hinzufügen**: Gruppe wählen, Rolle wählen. Dann braucht es keine Objekt-IDs in der Konfiguration.
+3. Unter *Eigenschaften* **Zuweisung erforderlich = Ja**: Wer keiner zugewiesenen Gruppe angehört, kann sich gar nicht erst anmelden.
+
+### Eigene Rollen und E-Mail-Listen
+
+```json
+"access": {
+  "members": { "vorarbeiter": ["max.muster@cleanos.at"] },
   "roles": {
     "hausbetreuung": { "label": "Hausbetreuung", "modules": ["zaehler", "objektmappe"], "edit": ["zaehler"] }
   }
 }
 ```
 
-`planners` gilt wie bisher als Disposition. Rollen aus Entra ID und aus `members` addieren sich.
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler`, `kontrolle`, `objektmappe`, `fahrzeuge`.
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
-Die Rollen steuern, was die App zeigt. Echten Schutz geben die SharePoint-Rechte, denn die App arbeitet nur mit den Rechten der angemeldeten Person. Jedes Modul hat seinen eigenen Ordner. Darf jemand eine Datei nicht lesen, bleibt das Modul leer und wird nie gespeichert. Die App läuft weiter.
+Die Rollen steuern, was die App zeigt und welche Dateien sie überhaupt anfragt. **Echten Schutz geben die SharePoint-Rechte**, denn die App arbeitet nur mit den Rechten der angemeldeten Person; ohne SharePoint-Recht kommt auch niemand mit einem anderen Programm an die Daten. Deshalb hat jede Berechtigungsstufe einen eigenen Ordner.
 
-Empfehlung (Bibliothek `Cleanos_Daten`, Ordner `Plattform`):
+Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 
-| Ordner / Datei | Lesen | Bearbeiten |
-|---|---|---|
-| `Plattform/` (Grundrecht) | alle Rollen | – |
-| `daten/` (Stammdaten, Wochenpläne) | alle Rollen | Disposition |
-| `daten/zeitkonto.json` (Salden, Stundenlöhne, Monatsabschlüsse) | nur Disposition, Lohnverrechnung | Disposition, Lohnverrechnung |
-| `daten/abwesenheiten.json` (Krankenstände sind Gesundheitsdaten) | Disposition, Lohnverrechnung, Objektleitung | Disposition |
-| `zaehler/` (inkl. Fotos) | Objektleitung | Ableser, Objektservice, Objektleitung |
-| `kontrolle/` (inkl. Fotos, Unterschriften) | Objektleitung | Prüfer, Objektservice, Objektleitung |
-| `objektmappe/` | Prüfer, Objektservice | Objektleitung, Disposition |
+| Ordner | Inhalt | Vollzugriff | Objektmanagement | Vorarbeiter |
+|---|---|---|---|---|
+| `objekte/` | Objekte (Name, Adresse, Revier) | Bearbeiten | Lesen | Lesen |
+| `daten/` | Mitarbeitende, Leistungen, Wochenpläne | Bearbeiten | Lesen | – |
+| `personal/` | Urlaub und Krankenstände (Gesundheitsdaten) | Bearbeiten | – | – |
+| `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
+| `zaehler/` | Zählerstände mit Fotos | Bearbeiten | – | Bearbeiten |
+| `kontrolle/` | Objektkontrollen mit Fotos, Unterschriften | Bearbeiten | Bearbeiten | – |
+| `objektmappe/` | Objektmappe, Leistungsverzeichnis | Bearbeiten | Bearbeiten | – |
+| `fahrzeuge/` | Fahrzeuge, Reifen, Service, Pickerl | Bearbeiten | – | – |
+| `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
-**Stundenlöhne** stehen deshalb nicht mehr in `stammdaten.json`, sondern in `zeitkonto.json`. Beim ersten Speichern durch die Disposition wandern sie automatisch dorthin.
+So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
+
+- **Lohn und Krankenstände** liegen in eigenen Ordnern (`lohn/`, `personal/`), die nur Vollzugriff (und ggf. Lohnverrechnung) öffnen kann. Wer früher schon Daten unter `daten/` hatte: Beim ersten Start mit Vollzugriff verschiebt die App `abwesenheiten.json` und `zeitkonto.json` in die neuen Ordner und löscht die alten Dateien (Papierkorb der Website).
+- **Objekte** stehen in `objekte/`, damit Vorarbeiter die Zähler ihren Objekten zuordnen können, ohne die Personaldaten in `daten/` lesen zu dürfen. Auch das zieht beim ersten Start mit Vollzugriff von selbst um.
+- **Abmelden** löscht die Kopie der Daten im Gerät (für geteilte Handys); noch nicht gespeicherte Änderungen und wartende Fotos bleiben, bis sie hochgeladen sind.
 
 **Nur Ordner freigegeben:** Hat jemand nur einzelne Ordner freigegeben bekommen und keinen Zugriff auf die Website (bewährt beim Wasserzähler-Tool), findet die App die Bibliothek über die Freigabe-Adresse des Ordners.
 
