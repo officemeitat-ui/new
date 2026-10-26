@@ -151,7 +151,7 @@ function summary(c) {
 
 function welcome() {
   if (app.data.employees.length || app.readOnly || !canEdit('stammdaten')) return ''
-  return `<div class="banner welcome"><div><h2>Willkommen im Dienstplan</h2><p>Noch keine Daten in der Ablage. Am schnellsten geht es mit den bestehenden Excel-Listen: Mitarbeitende einfügen, dann Objekte und Leistungen mit Stammkraft.</p></div>
+  return `<div class="banner welcome"><div><h2>Willkommen</h2><p>Noch keine Daten in der Ablage. Am schnellsten geht es mit den bestehenden Excel-Listen: Mitarbeitende einfügen, dann Objekte und Leistungen mit Stammkraft.</p></div>
     <div class="actions"><button class="btn primary" data-action="import-open" data-kind="employees">${ICON.upload} Mitarbeitende einfügen</button><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button><button class="btn" data-action="open-data">Beispieldaten laden</button></div></div>`
 }
 
@@ -411,7 +411,7 @@ function registerServiceWorker() {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController) return
     const $toast = document.getElementById('toast')
-    $toast.innerHTML = '<span>Neue Version des Dienstplans verfügbar.</span><button class="toast-btn" data-action="reload">Neu laden</button>'
+    $toast.innerHTML = '<span>Neue Version der App verfügbar.</span><button class="toast-btn" data-action="reload">Neu laden</button>'
     $toast.hidden = false
   })
   navigator.serviceWorker.register('sw.js').catch(() => {})
@@ -425,6 +425,6 @@ boot().catch((err) => {
   }
   console.error(err)
   if (err.offline) return showMessage(`<h2>Keine Verbindung</h2><p>${esc(err.message)}</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`) || (ACTIONS.reload = () => location.reload())
-  showMessage(`<h2>Der Dienstplan konnte nicht gestartet werden</h2><p>${esc(err.message)}</p><p class="note">Bei SharePoint-Fehlern: Einträge in config.json prüfen (tenantId, clientId, siteUrl, library) und ob dein Konto Zugriff auf die Website hat. Details in docs/EINRICHTUNG.md.</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`)
+  showMessage(`<h2>Die App konnte nicht gestartet werden</h2><p>${esc(err.message)}</p><p class="note">Bei SharePoint-Fehlern: Einträge in config.json prüfen (tenantId, clientId, siteUrl, library) und ob dein Konto Zugriff auf die Website hat. Details in docs/EINRICHTUNG.md.</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`)
   ACTIONS.reload = () => location.reload()
 })

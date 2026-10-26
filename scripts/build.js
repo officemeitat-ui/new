@@ -108,7 +108,10 @@ const precache = [
   ...(await listFiles('themes')),
   './vendor/msal-browser.min.js',
 ]
-const version = createHash('sha256').update(html).update(precache.join()).digest('hex').slice(0, 10)
+// Version aus den Inhalten (nicht nur den Namen): auch eine geänderte Theme-Datei oder ein neues Logo kommt auf jedes Gerät
+const hash = createHash('sha256').update(html)
+for (const file of precache) hash.update(file).update(await readFile(join(dist, file)).catch(() => ''))
+const version = hash.digest('hex').slice(0, 10)
 await writeFile(join(dist, 'sw.js'), serviceWorkerSource({ version, precache }))
 console.log(`App-Installation: manifest.webmanifest, sw.js (${precache.length} Dateien vorgehalten)`)
 

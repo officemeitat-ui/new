@@ -111,7 +111,7 @@ function moreModal(c) {
   const install = isStandalone()
     ? '<p class="note">Als App installiert.</p>'
     : installPrompt
-      ? `<button class="btn primary" data-action="install-app">${ICON.download} Als App installieren</button><p class="note">Danach startet der Dienstplan wie eine App vom Startbildschirm, ohne Browserleiste.</p>`
+      ? `<button class="btn primary" data-action="install-app">${ICON.download} Als App installieren</button><p class="note">Danach startet sie wie eine App vom Startbildschirm, ohne Browserleiste.</p>`
       : isIOS()
         ? '<p class="note"><strong>Als App installieren:</strong> In Safari unten auf „Teilen“ tippen, dann „Zum Home-Bildschirm“.</p>'
         : '<p class="note"><strong>Als App installieren:</strong> Im Browser-Menü „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.</p>'
