@@ -5,7 +5,9 @@
 //    Besetzung, rechtzeitig vor dem Termin (Regel „dueLeadDays“)
 //  - veröffentlichte Wochen, die danach geändert wurden (Korrektur buchen)
 //  - Punkte weiterer Module (registerTodo: Ablesungen, Kontrollen, Mängel …)
-// Jede Person sieht nur die Punkte der Module ihrer Rolle.
+// Jede Person sieht nur, was sie erledigen kann: Punkte der Module, in denen
+// ihre Rolle ändern darf (wer die Einsatzplanung nur liest, bekommt keine
+// Zuteil-Aufgaben).
 
 import { absenceImpact, periodicDue } from '../../core/attention.js'
 import { addDays, formatDate, formatHours, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
@@ -30,14 +32,14 @@ export function registerTodo(source) {
   else SOURCES.push(source)
 }
 
-const sees = (module) => !app.access || app.access.sees(module)
+const mayDo = (module) => canEdit(module)
 
 export function computeTodo(today = todayISO()) {
-  const extra = SOURCES.filter((src) => sees(src.module))
+  const extra = SOURCES.filter((src) => mayDo(src.module))
     .map((source) => ({ source, items: source.compute(today) }))
     .filter((x) => x.items.length)
   const extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
-  if (!sees('planung')) return { today, lead: 0, absences: [], periodic: [], weeks: [], extra, count: extraIds.length, ids: extraIds }
+  if (!mayDo('planung')) return { today, lead: 0, absences: [], periodic: [], weeks: [], extra, count: extraIds.length, ids: extraIds }
   const { from, to } = todoWindow(today)
   const r = computeRange(from, to)
   const planned = plannedWeeks()
@@ -128,7 +130,7 @@ export async function showTodoIfNew() {
   if (app.ui.modal || !(canEdit('planung') || SOURCES.some((s) => canEdit(s.module)))) return
   try {
     const { from, to } = todoWindow()
-    if (sees('planung')) await ensureRange(from, to)
+    if (mayDo('planung')) await ensureRange(from, to)
   } catch {
     return
   }
@@ -181,7 +183,7 @@ function todoModal(c, { auto }) {
     subtitle: `${auto ? 'Neu oder geändert seit deinem letzten Besuch · ' : ''}Stand ${formatDate(t.today, { year: true })}`,
     wide: true,
     body: sections.join('') || '<p class="empty">Alles erledigt: keine offenen Zuteilungen, keine Korrekturen.</p>',
-    foot: `${sees('planung') ? '<button class="btn" data-action="view" data-view="due">Alle periodischen Leistungen</button>' : '<span></span>'}<div class="actions"><button class="btn primary" data-action="close-modal">Schließen</button></div>`,
+    foot: `${mayDo('planung') ? '<button class="btn" data-action="view" data-view="due">Alle periodischen Leistungen</button>' : '<span></span>'}<div class="actions"><button class="btn primary" data-action="close-modal">Schließen</button></div>`,
   })
 }
 
@@ -190,7 +192,7 @@ registerModal('todo', todoModal)
 registerActions({
   'open-todo': async () => {
     const { from, to } = todoWindow()
-    if (sees('planung')) await ensureRange(from, to).catch(() => {})
+    if (mayDo('planung')) await ensureRange(from, to).catch(() => {})
     markSeen(todo().ids)
     openModal({ type: 'todo' })
   },
