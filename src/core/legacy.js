@@ -19,7 +19,8 @@ export const LEGACY_SOURCES = {
   objektdoku: 'Objektdoku',
 }
 
-const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+// ß → ss vor dem Entfernen der Sonderzeichen („Straße“ = „Strasse“)
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 const slug = (s) => norm(s).slice(0, 40) || 'x'
 const str = (v) => (v === undefined || v === null ? '' : String(v).trim())
 

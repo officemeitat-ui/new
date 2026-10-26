@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { addKm, addMonths, applyTasksDone, classOf, currentKm, kmPerDay, monthAdd, openTasks, parseMonth, pickerlSchedule, pickerlStatus, pickerlWindow, serviceStatus, suggestPickerl, vehicleDues } from '../src/core/vehicle-dues.js'
+import { addKm, addMonths, applyTasksDone, classOf, currentKm, kmFits, kmPerDay, monthAdd, openTasks, parseKm, parseMonth, pickerlDue, pickerlSchedule, pickerlStatus, pickerlWindow, serviceStatus, suggestPickerl, vehicleDues } from '../src/core/vehicle-dues.js'
 import { changeWhat, driverMail, importVehicles, workshopMail } from '../src/core/vehicles.js'
 
 test('Pickerl: Fristen nach Klasse, 3-2-1 bis zur Novelle, danach 4-2-2-2-1, Lkw jährlich', () => {
@@ -40,6 +40,38 @@ test('Pickerl: Stand und Vorschlag für die nächste Plakette', () => {
   assert.equal(suggestPickerl({ kind: 'pkw', firstReg: '2025-01' }, '2029-01-12'), '2031-01', 'neues Recht: 4-2-2-2-1')
   assert.equal(pickerlStatus({ kind: 'pkw', firstReg: '2025-01' }, '2026-10-25').due, '2029-01', 'Neuwagen 2025: erstes Pickerl nach 4 Jahren')
   assert.equal(suggestPickerl({ kind: 'lkw', pickerl: { next: '2026-09' } }, '2026-10-30'), '2027-09', 'ohne Erstzulassung: ein Jahr nach der Plakette')
+})
+
+test('Pickerl ohne Plakette: Termine nach altem Recht zählen mit, im Zweifel der frühere', () => {
+  const today = '2026-10-26'
+  // gleiches Ergebnis wie mit letzter Begutachtung nach altem Recht (04/2026 → 2028-04), nicht 2029-04
+  assert.equal(pickerlDue({ kind: 'pkw', firstReg: '2023-04' }, today), '2028-04')
+  assert.equal(pickerlDue({ kind: 'pkw', firstReg: '2023-04', pickerl: { lastDate: '2026-04-10' } }, today), '2028-04')
+  // nach 3-2-1 am 06/2025 begutachtet → 06/2027 (nicht 06/2028)
+  assert.equal(pickerlDue({ kind: 'pkw', firstReg: '2022-06' }, today), '2027-06')
+  // Übergang: erstes Pickerl fällig bis Juli 2027 noch nach 3 Jahren
+  assert.equal(pickerlDue({ kind: 'pkw', firstReg: '2024-06' }, today), '2027-06')
+  assert.equal(pickerlDue({ kind: 'pkw', firstReg: '2024-08' }, today), '2028-08', 'ab August 2027 fällig: neues Recht (4 Jahre)')
+  assert.equal(pickerlDue({ kind: 'pkw', firstReg: '2019-03' }, '2027-08-01'), '2028-03', 'im März 2027 nach altem Recht begutachtet: ein Jahr später')
+  assert.equal(pickerlDue({ kind: 'transporter', firstReg: '2022-11' }, today), '2026-11', 'Lkw unverändert jährlich')
+})
+
+test('km-Stand: rückläufige Eingabe wird abgelehnt, „59.000“ ist 59000', () => {
+  let v = { service: { nextKm: 60000 }, kmLog: [] }
+  v = addKm(v, '2026-01-10', 50000)
+  v = addKm(v, '2026-09-01', 61000)
+  const typo = addKm(v, '2026-10-20', 6150)
+  assert.equal(typo, v, 'Tippfehler 6.150 statt 61.500: nicht übernommen')
+  assert.equal(serviceStatus(typo, '2026-10-26').status, 'faellig')
+  assert.equal(kmFits(v, '2026-05-01', 70000), false, 'größer als ein späterer Stand')
+  assert.equal(kmFits(v, '2026-05-01', 55000), true)
+  assert.equal(kmFits(v, '2026-09-01', 60000), true, 'gleicher Tag wird ersetzt')
+  assert.deepEqual(['59.000', '59 000', '59000 km', 59000, '59,4', '', 'abc', '0'].map(parseKm), [59000, 59000, 59000, 59000, 59, null, null, null])
+  // Werkstatttermin mit „59“ (Number('59.000')): km-Stand und Service bleiben richtig
+  const car = { id: 'v1', service: { months: 12, km: 30000, lastDate: '2025-11-10', lastKm: 32000 }, kmLog: [{ date: '2025-11-10', km: 32000 }, { date: '2026-10-20', km: 58100 }] }
+  const done = applyTasksDone(car, { vehicleId: 'v1', tasks: ['service'], date: '2026-10-26', doneAt: '2026-10-26', km: 59 }, { service: { nextDate: '2027-10-26' } })
+  assert.equal(currentKm(done).km, 58100)
+  assert.equal(done.service.lastKm, 32000, 'kein lastKm 59')
 })
 
 test('Service: nach Datum oder km, mit Hochrechnung', () => {

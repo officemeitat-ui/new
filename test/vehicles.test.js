@@ -2,6 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { DEFAULT_ROLES } from '../src/core/access.js'
+import { todayISO } from '../src/core/dates.js'
+import { holidayCalendar } from '../src/core/holidays.js'
 import { icsEvent } from '../src/core/ics.js'
 import { applyDone, campaignFor, campaignSummary, conflicts, driverMail, importVehicles, minTread, proposeSlots, tireAge, tireCsv, tireIssues, vehicleStatus, workshopMail } from '../src/core/vehicles.js'
 import { createModuleDemo } from '../src/data/demo-modules.js'
@@ -72,6 +74,40 @@ test('Reifen: Termine neben den Diensten vorschlagen', () => {
   assert.equal(res.proposals[0].after, 'nach Dienst 09:00–13:00')
   const weekend = proposeSlots([{ id: 'v1', driverId: '' }], { from: '2026-10-31', to: '2026-11-01', busyOf })
   assert.deepEqual(weekend.unplaced, ['v1'], 'Samstag und Sonntag hat die Werkstatt zu')
+})
+
+test('Reifen: Vorschläge überschneiden keine vergebenen Plätze und lassen Feiertage aus', () => {
+  const overlap = (p, t) => {
+    const m = (x) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3, 5))
+    return m(p.time) < m(t.time) + t.minutes && m(t.time) < m(p.time) + p.minutes
+  }
+  // 60 Minuten, belegt 07:30–08:00: 07:00–08:00 überschneidet sich
+  const taken = [{ date: '2026-11-03', time: '07:30', minutes: 30 }]
+  const one = proposeSlots([{ id: 'v1' }], { from: '2026-11-03', to: '2026-11-03', slotMinutes: 60, travelMinutes: 0, taken }).proposals[0]
+  assert.deepEqual([one.time, overlap(one, taken[0])], ['08:00', false])
+  // belegt außerhalb des Rasters (07:45–08:15)
+  const off = [{ date: '2026-11-03', time: '07:45', minutes: 30 }]
+  const three = proposeSlots([{ id: 'a' }, { id: 'b' }, { id: 'c' }], { from: '2026-11-03', to: '2026-11-03', slotMinutes: 30, travelMinutes: 0, taken: off }).proposals
+  assert.deepEqual(three.map((p) => p.time), ['07:00', '08:30', '09:00'])
+  // 26.10. Nationalfeiertag, 8.12. Mariä Empfängnis; betriebsfreie Tage über holidays
+  assert.equal(proposeSlots([{ id: 'v1' }], { from: '2026-10-26', to: '2026-10-30' }).proposals[0].date, '2026-10-27')
+  assert.equal(proposeSlots([{ id: 'v1' }], { from: '2026-12-08', to: '2026-12-11' }).proposals[0].date, '2026-12-09')
+  const free = holidayCalendar('2026-12-21', '2026-12-31', [{ date: '2026-12-24', name: 'Heiliger Abend' }])
+  assert.equal(proposeSlots([{ id: 'v1' }], { from: '2026-12-24', to: '2026-12-31', holidays: free }).proposals[0].date, '2026-12-28')
+})
+
+test('Fahrzeugliste: Art „bis 3,5 t“ ist Transporter, Kombi ist Pkw, km-Stand ohne Datum gilt heute', () => {
+  const kindOf = (art) => importVehicles(`Kennzeichen\tArt\nS-1\t${art}`, { today: '2026-10-26' }).vehicles[0].kind
+  assert.deepEqual(['Transporter bis 3,5 t', 'Lkw bis 3,5 t', 'Kastenwagen 3,5t', 'Klein-Lkw', 'N1'].map(kindOf), ['transporter', 'transporter', 'transporter', 'transporter', 'transporter'])
+  assert.deepEqual(['Lkw über 3,5 t', 'Lkw', 'N2', 'Sattelzug N3'].map(kindOf), ['lkw', 'lkw', 'lkw', 'lkw'])
+  assert.deepEqual(['Pkw', 'Kombi', 'Personenkraftwagen', 'Limousine', 'M1', ''].map(kindOf), ['pkw', 'pkw', 'pkw', 'pkw', 'pkw', 'pkw'])
+  // eigene Liste wieder einlesen: Transporter bleibt Transporter (Winterreifen 4 mm, nicht 5 mm)
+  const csv = tireCsv([{ vehicle: van, change: null, driver: '', workshop: '', status: 'erledigt' }]).replace(/^﻿/, '')
+  const back = importVehicles(csv, { today: '2026-10-26' }).vehicles[0]
+  assert.deepEqual([back.kind, minTread(back, 'winter').legal], ['transporter', 4])
+  // so ruft die App auf: ohne today → km-Stand von heute statt verloren
+  const a = importVehicles('Kennzeichen\tkm-Stand\nS-284 KL\t58.100', { employees: [], workshops: [] }).vehicles[0]
+  assert.deepEqual(a.kmLog, [{ date: todayISO(), km: 58100 }])
 })
 
 test('Reifen: E-Mail an Fahrer/in und Sammelliste an die Werkstatt', () => {

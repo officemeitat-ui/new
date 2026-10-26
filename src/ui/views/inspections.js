@@ -195,7 +195,9 @@ function inspectionModal(c, m) {
   const locked = insp.status === 'abgeschlossen' || !editable()
   const prog = progress(cl, insp.items)
   const prev = openDefects(k.inspections, { objectId: insp.objectId, exclude: insp.id }).filter((d) => d.since < insp.date || d.inspectionId !== insp.id)
-  const prevBy = new Map(prev.map((d) => [d.itemId, d]))
+  // beim Prüfpunkt nur Mängel derselben Checkliste zeigen (ältere ohne Checkliste wie bisher)
+  const prevBy = new Map(prev.filter((d) => (d.checklistId || cl.id) === cl.id).map((d) => [d.itemId, d]))
+  const prevText = (d) => itemText(d.checklistId ? checklistOf(d.checklistId) : cl, d.itemId)
   const items = checklistItems(cl)
   const suggestion = suggestOverall(insp.items)
   const overall = insp.summary?.overall || ''
@@ -222,7 +224,7 @@ function inspectionModal(c, m) {
         <label class="field"><span>Kontrollart</span><select id="ins-kind" data-change="ins-meta" ${locked ? 'disabled' : ''}>${options(INSPECTION_KINDS.map((x) => [x, x]), insp.kind)}</select></label>
         <label class="field"><span>Checkliste</span><select id="ins-cl" data-change="ins-meta" ${locked || prog.rated ? 'disabled' : ''}>${options(k.checklists.map((x) => [x.id, x.name]), cl.id)}</select></label>
       </div></details>
-      ${prev.length ? `<div class="insp-prevbox"><h3>Offene Mängel aus früheren Kontrollen (${prev.length})</h3><ul class="plain">${prev.map((d) => `<li>${ratingPill(d.rating)} <strong>${d.itemId}</strong> ${esc(itemText(cl, d.itemId))}${d.note ? ` – ${esc(d.note)}` : ''} <span class="muted">seit ${formatDate(d.since, { weekday: false, year: true })}</span>${locked ? '' : ` <button class="btn small" data-action="def-done" data-insp="${esc(d.inspectionId)}" data-item="${esc(d.itemId)}">Erledigt</button>`}</li>`).join('')}</ul></div>` : ''}
+      ${prev.length ? `<div class="insp-prevbox"><h3>Offene Mängel aus früheren Kontrollen (${prev.length})</h3><ul class="plain">${prev.map((d) => `<li>${ratingPill(d.rating)} <strong>${d.itemId}</strong> ${esc(prevText(d))}${d.note ? ` – ${esc(d.note)}` : ''} <span class="muted">seit ${formatDate(d.since, { weekday: false, year: true })}</span>${locked ? '' : ` <button class="btn small" data-action="def-done" data-insp="${esc(d.inspectionId)}" data-item="${esc(d.itemId)}">Erledigt</button>`}</li>`).join('')}</ul></div>` : ''}
       <nav class="chapter-chips" aria-label="Kapitel">${chips}</nav>
       ${chapters}
       <section class="insp-chapter" id="ch-end"><h3>Abschluss</h3>

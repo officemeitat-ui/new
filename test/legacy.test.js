@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { classifyLegacy, convertAkte, convertInspection, mapInterval, planLegacyImport, scanLegacy } from '../src/core/legacy.js'
+import { classifyLegacy, convertAkte, convertInspection, mapInterval, objectResolver, planLegacyImport, scanLegacy } from '../src/core/legacy.js'
 import { openDefects } from '../src/core/inspections.js'
 
 // Daten im Format der bisherigen Werkzeuge (anonymisiert, wie beschrieben)
@@ -115,4 +115,18 @@ test('Übernahme: Ordner in SharePoint durchsuchen', async () => {
   assert.equal(res.files.length, 5, 'Kundenstamm nur einmal, PDF nicht')
   const found = classifyLegacy(res.files)
   assert.deepEqual([found.water.length, found.customers.length, found.objects.length, found.inspections.length, found.akten.length], [1, 1, 1, 1, 1])
+})
+
+test('Übernahme: „ß“ und „ss“ gelten beim Zuordnen als gleich', () => {
+  const { resolve, created } = objectResolver([{ id: 'o5', name: 'Musterstraße 1' }])
+  assert.equal(resolve({ name: 'Musterstrasse 1' }).id, 'o5')
+  assert.equal(resolve({ name: 'Gartenstraße 2' }).id, 'o-alt-gartenstrasse2', 'neue ID mit „ss“')
+  assert.equal(created.length, 1)
+  // Übernahme der Wasserzähler-Liste beim vorhandenen Objekt, ohne den Bestand zu verändern
+  const reading = { id: 'r-app', meterId: 'S-musterort-01', period: '2026-Q2', date: '2026-06-30', value: 5, swap: { oldNumber: '', newNumber: 'A1', oldEnd: 140, newStart: 0 } }
+  const current = { objects: [{ id: 'o7', name: 'EBG Musterort' }], mappe: { objects: {} }, kontrolle: { inspections: [] }, zaehler: { meters: [{ id: 'S-musterort-01', objectId: 'o7', number: 'A1', history: [{ type: 'tausch', from: 'A0', to: 'A1', date: '2026-06-30' }] }], readings: [reading] } }
+  const before = JSON.stringify(current)
+  const plan = planLegacyImport({ water: [waterList], customers: [], objects: [], inspections: [], akten: [], templates: [] }, current)
+  assert.equal(JSON.stringify(current), before, 'Vorschau ändert nichts')
+  assert.deepEqual([plan.objects.length, plan.zaehler.meters[0].objectId], [0, 'o7'])
 })

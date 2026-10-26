@@ -20,7 +20,7 @@
 //                by?, note?, photo?, estimated?, at }]
 //   closures: { 'objektId|2026-Q3': { at, by } }   abgeschlossene Runden (gesperrt)
 
-import { addDays, dayIndex, lastOfMonth, MONTH_LONG } from './dates.js'
+import { addDays, dayIndex, lastOfMonth, MONTH_LONG, todayISO } from './dates.js'
 import { parseTable } from './importer.js'
 
 export const METER_KINDS = {
@@ -120,27 +120,42 @@ export function readingsOf(zaehler, meterId) {
 }
 
 export const hasValue = (r) => num(r?.value) !== null
-const swapIncomplete = (r) => !!r.swap && (num(r.swap.oldEnd) === null || num(r.swap.newStart) === null)
+const swapOpen = (s) => num(s.oldEnd) === null || num(s.newStart) === null
+const swapIncomplete = (r) => !!r.swap && swapOpen(r.swap)
 
 /**
  * Verbrauch zwischen aufeinanderfolgenden gültigen Ständen. Beim Tausch:
  * (Endstand alt − Vorstand) + (Stand − Anfangsstand neu); fehlt einer der
- * beiden Werte, ist der Verbrauch unbekannt (incomplete).
+ * beiden Werte, ist der Verbrauch unbekannt (incomplete). Ein Tausch ohne
+ * Stand (nur Endstand alt und Anfangsstand neu) gilt beim nächsten Stand.
  */
 export function segments(readings) {
   const out = []
   let prev = null
+  let pending = []
   for (const r of readings) {
-    if (!hasValue(r)) continue
+    if (!hasValue(r)) {
+      if (r.swap) pending.push(r.swap)
+      continue
+    }
+    const swaps = [...pending, ...(r.swap ? [r.swap] : [])]
+    pending = []
     if (prev) {
       const d = Math.max(0, days(prev.date, r.date))
       let delta = round(r.value - prev.value)
       let incomplete = false
-      if (r.swap) {
-        if (swapIncomplete(r)) {
-          delta = null
-          incomplete = true
-        } else delta = round(r.swap.oldEnd - prev.value + (r.value - r.swap.newStart))
+      if (swaps.some(swapOpen)) {
+        delta = null
+        incomplete = true
+      } else if (swaps.length) {
+        // je Zähler: bis zum Endstand, dann ab dem Anfangsstand des nächsten
+        let from = prev.value
+        let sum = 0
+        for (const s of swaps) {
+          sum += s.oldEnd - from
+          from = s.newStart
+        }
+        delta = round(sum + r.value - from)
       }
       out.push({ from: prev.date, to: r.date, days: d, delta, perDay: delta !== null && d ? delta / d : null, reading: r, prev, incomplete })
     }
@@ -197,14 +212,17 @@ export function checkReading(meter, readings, reading) {
   const others = readings.filter((r) => r.id !== reading.id)
   const before = others.filter((r) => hasValue(r) && r.date <= date)
   const prev = before.at(-1)
-  const later = others.find((r) => hasValue(r) && r.date > date && !r.swap)
-  if (later && !reading.swap && value > later.value) issues.push({ level: 'error', code: 'spaeter', text: `Größer als die spätere Ablesung (${fmt(later.value)} am ${dmy(later.date)}).` })
+  // nächste spätere Ablesung; ist sie ein Tausch, gilt dessen Endstand alt (danach zählt der neue Zähler)
+  const later = reading.swap ? null : others.find((r) => r.date > date && (hasValue(r) || r.swap))
+  const limit = later ? (later.swap ? num(later.swap.oldEnd) : later.value) : null
+  if (limit !== null && value > limit) issues.push({ level: 'error', code: 'spaeter', text: later.swap ? `Größer als der Endstand des alten Zählers beim Tausch (${fmt(limit)} am ${dmy(later.date)}).` : `Größer als die spätere Ablesung (${fmt(limit)} am ${dmy(later.date)}).` })
   if (reading.swap) {
     if (swapIncomplete(reading)) return [...issues, { level: 'warning', code: 'tausch_unvollstaendig', text: 'Zählertausch unvollständig: Endstand des alten und Anfangsstand des neuen Zählers eintragen, sonst kann kein Verbrauch gerechnet werden.' }]
     issues.push({ level: 'info', code: 'tausch', text: `Zählerwechsel ${reading.swap.oldNumber || ''} → ${reading.swap.newNumber || ''}: Verbrauch über beide Zähler gerechnet.` })
   }
   if (!prev) return issues
-  const seg = segments([...before, reading]).at(-1)
+  // mit Tausch ohne Stand dazwischen (gilt bei dieser Ablesung)
+  const seg = segments([...others.filter((r) => r.date <= date && (hasValue(r) || r.swap)), reading]).at(-1)
   if (!seg || seg.delta === null) return issues
   const delta = seg.delta
   const expected = expectedBetween(before, prev.date, date)
@@ -240,7 +258,8 @@ export function meterStatus(meter, readings, today, window = DEFAULT_WINDOW) {
   const interval = meter.interval || 'quartal'
   const cur = periodOf(today, interval)
   const last = [...readings].reverse().find(hasValue) || null
-  const done = (p) => readings.find((r) => (r.period || periodFor(r.date, interval, window).key) === p.key)
+  // erledigt nur durch eine Ablesung ab Öffnung des Fensters (nicht z. B. durch einen Tausch mitten im Quartal)
+  const done = (p) => readings.find((r) => (r.period || periodFor(r.date, interval, window).key) === p.key && r.date >= addDays(p.to, -window.before))
   for (const p of [prevPeriod(cur, interval), cur]) {
     if (meter.installedAt && meter.installedAt > p.to) continue
     if (done(p)) continue
@@ -260,8 +279,9 @@ export function duePeriod(meter, readings, date, window = DEFAULT_WINDOW) {
   if ((st.status === 'faellig' || st.status === 'ueberfaellig') && date >= addDays(st.period.to, -window.before)) return st.period
   const p = periodFor(date, interval, window)
   const own = periodOf(date, interval)
-  // vorige Runde schon erfasst: eine neue Ablesung überschreibt sie nicht, sondern zählt zum laufenden Zeitraum
-  return p.key !== own.key && readings.some((r) => r.period === p.key) ? own : p
+  // vorige Runde schon mit Stand erfasst: eine neue Ablesung überschreibt sie nicht, sondern zählt zum
+  // laufenden Zeitraum; war dort nur „kein Zutritt“ o. Ä., wird der Stand nachgetragen
+  return p.key !== own.key && readings.some((r) => r.period === p.key && hasValue(r)) ? own : p
 }
 
 // ---------------------------------------------------------------- Tausch und Berichtigung
@@ -278,10 +298,21 @@ export function applySwap(zaehler, meterId, reading, { by = '', at = new Date().
   return { ...zaehler, meters, readings: [...zaehler.readings.filter((r) => r.id !== reading.id), reading] }
 }
 
-/** Nur die Nummer berichtigen (Tippfehler, Nachtrag): Verlauf ohne Tausch. */
+/** Nur die Nummer berichtigen (Tippfehler, Nachtrag): Verlauf ohne Tausch. Datum: heute nach Ortszeit. */
 export function correctNumber(meter, number, { by = '', note = '', date, at = new Date().toISOString() } = {}) {
   if (!number || number === meter.number) return meter
-  return { ...meter, number, history: [...(meter.history || []), { at, date: date || at.slice(0, 10), type: 'korrektur', from: meter.number, to: number, ...(by ? { by } : {}), ...(note ? { note } : {}) }] }
+  return { ...meter, number, history: [...(meter.history || []), { at, date: date || todayISO(), type: 'korrektur', from: meter.number, to: number, ...(by ? { by } : {}), ...(note ? { note } : {}) }] }
+}
+
+/**
+ * Zählernummer an einem Tag: spätere Tausche aus dem Verlauf zurückgerechnet.
+ * Eine Berichtigung (Tippfehler) gilt auch für frühere Ablesungen.
+ */
+export function numberAt(meter, date) {
+  let number = String(meter.number ?? '')
+  const swaps = (meter.history || []).filter((h) => h.type === 'tausch' && (h.date || '') > date)
+  for (const h of swaps.sort((a, b) => b.date.localeCompare(a.date) || (b.at || '').localeCompare(a.at || ''))) number = String(h.from ?? '')
+  return number
 }
 
 // ---------------------------------------------------------------- Listen und Export
@@ -302,7 +333,7 @@ export function readingRows(zaehler, objects, { from, to, objectId = null } = {}
         object: objById.get(m.objectId)?.name || '',
         address: objById.get(m.objectId)?.address || '',
         objektNr: m.objektNr || '',
-        number: r.swap?.newNumber || m.number,
+        number: String(r.swap?.newNumber || numberAt(m, r.date)),
         kind: METER_KINDS[m.kind]?.label || m.kind,
         location: m.location || '',
         period: r.period ? periodByKey(r.period).label : '',
@@ -318,7 +349,7 @@ export function readingRows(zaehler, objects, { from, to, objectId = null } = {}
       })
     }
   }
-  return rows.sort((a, b) => a.object.localeCompare(b.object, 'de') || a.location.localeCompare(b.location, 'de') || a.number.localeCompare(b.number, 'de') || a.date.localeCompare(b.date))
+  return rows.sort((a, b) => a.object.localeCompare(b.object, 'de') || String(a.location).localeCompare(String(b.location), 'de') || a.number.localeCompare(b.number, 'de') || a.date.localeCompare(b.date))
 }
 
 const csvCell = (v) => {
@@ -351,9 +382,13 @@ export function yearRows(zaehler, objects, { year, objectId = null }) {
     if (!all.some(inYear) && m.state === 'abriss') continue
     const start = [...all].reverse().find((r) => hasValue(r) && (r.period ? r.period < `${year}-` : r.date < `${year}-01-01`)) || null
     const quarters = [1, 2, 3, 4].map((q) => {
-      const r = all.filter((x) => x.period === `${year}-Q${q}`).at(-1) || null
-      const seg = r && segByReading.get(r.id)
-      return r ? { date: r.date, value: hasValue(r) ? r.value : null, delta: seg?.delta ?? null, note: [r.reason ? REASONS[r.reason] : '', r.swap ? 'Zählertausch' : '', r.note || ''].filter(Boolean).join(', '), photo: r.photo?.url || '' } : null
+      const list = all.filter((x) => x.period === `${year}-Q${q}`)
+      const r = list.at(-1) || null
+      if (!r) return null
+      // Verbrauch des Quartals: alle Abschnitte darin (z. B. Tausch mitten im Quartal und reguläre Ablesung)
+      const segs = list.map((x) => segByReading.get(x.id)).filter(Boolean)
+      const delta = segs.length && segs.every((s) => s.delta !== null) ? round(segs.reduce((x, s) => x + s.delta, 0)) : null
+      return { date: r.date, value: hasValue(r) ? r.value : null, delta, note: [r.reason ? REASONS[r.reason] : '', list.some((x) => x.swap) ? 'Zählertausch' : '', r.note || ''].filter(Boolean).join(', '), photo: r.photo?.url || '' }
     })
     const yearSegs = all.filter(inYear).map((r) => segByReading.get(r.id)).filter(Boolean)
     const end = [...all].reverse().find((r) => hasValue(r) && inYear(r)) || null
@@ -362,7 +397,7 @@ export function yearRows(zaehler, objects, { year, objectId = null }) {
       object: objById.get(m.objectId)?.name || '',
       objektNr: m.objektNr || '',
       location: m.location || '',
-      number: m.number,
+      number: String(m.number ?? ''),
       note: m.note || '',
       quarters,
       start: start?.value ?? null,
@@ -388,37 +423,42 @@ export function yearCsv(rows) {
 
 export const METER_TEMPLATE = ['Objekt', 'Zählernummer', 'Art', 'Ort', 'Rhythmus', 'Stand', 'Datum', 'Objekt Nr.', 'Hinweis']
 
-const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+// ß → ss vor dem Entfernen der Sonderzeichen („Straße“ = „Strasse“)
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 const col = (row, ...names) => {
   const key = Object.keys(row).find((k) => names.includes(norm(k)))
   return key === undefined ? '' : row[key]
 }
+// Reihenfolge zählt: „Wärme“ (normiert „warme“) vor Warmwasser, „vierteljährlich“ vor „jährlich“
 const KIND_WORDS = [
+  ['waerme', /warme(?!s?wasser)|waerme|heiz/],
   ['warmwasser', /warm|^ww/],
   ['kaltwasser', /kalt|wasser|^kw/],
   ['strom', /strom|elektr|kwh/],
   ['gas', /gas/],
-  ['waerme', /warme|waerme|heiz/],
 ]
 const INTERVAL_WORDS = [
+  ['quartal', /quartal|viertel|^q|(^|\D)3monat|dreimonat/],
+  ['halbjahr', /halb|(^|\D)6monat|sechsmonat/],
+  ['jahr', /12monat|jahr/],
   ['monat', /monat/],
-  ['quartal', /quartal|^q/],
-  ['halbjahr', /halb/],
-  ['jahr', /jahr/],
 ]
+/** Datum „31.12.2025“, „31.12.25“ oder „2025-12-31“ → ISO, sonst null (auch für 31.11.). */
 const toDate = (v) => {
   const s = String(v || '').trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
-  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/)
-  if (!m) return null
-  return `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const de = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/)
+  const [y, m, d] = iso ? iso.slice(1) : de ? [de[3], de[2], de[1]] : []
+  if (!y || Number(m) < 1 || Number(m) > 12 || Number(d) < 1) return null
+  const month = `${y.length === 2 ? `20${y}` : y}-${m.padStart(2, '0')}`
+  return Number(d) <= Number(lastOfMonth(`${month}-01`).slice(8)) ? `${month}-${d.padStart(2, '0')}` : null
 }
 
-/** Objekt zu einem Namen (Name, Kurzname oder enthalten). */
+/** Objekt zu einem Namen: Name oder Kurzname, genau (ohne Groß-/Kleinschreibung und Sonderzeichen). */
 export function findObject(objects, name) {
   const n = norm(name)
   if (!n) return null
-  return objects.find((o) => norm(o.name) === n) || objects.find((o) => norm(o.short) === n) || objects.find((o) => norm(o.name).includes(n)) || null
+  return objects.find((o) => norm(o.name) === n) || objects.find((o) => norm(o.short) === n) || null
 }
 
 /** Zähler aus Excel einfügen: Objekt, Zählernummer, Art, Ort, Rhythmus, (Stand, Datum, Objekt Nr., Hinweis). */
@@ -437,12 +477,16 @@ export function importMeters(text, objects, { today }) {
     const intText = norm(col(row, 'rhythmus', 'intervall', 'ablesung'))
     const interval = INTERVAL_WORDS.find(([, re]) => re.test(intText))?.[0] || 'quartal'
     const value = parseValue(col(row, 'stand', 'zahlerstand', 'zaehlerstand', 'anfangsstand'))
+    // Datum leer: heute; unlesbar: Fehler statt still „heute“
+    const dateText = String(col(row, 'datum', 'ablesedatum')).trim()
+    const date = dateText ? toDate(dateText) : today
+    if (value !== null && !date) return errors.push(`Zeile ${line}: Datum „${dateText}“ nicht lesbar (TT.MM.JJJJ)`)
     const meter = { objectId: obj.id, number, kind, location: col(row, 'ort', 'lage', 'einbauort', 'anschrift', 'objektanschrift'), unit: METER_KINDS[kind].unit, interval }
     const objektNr = col(row, 'objektnr', 'objektnummer')
     const note = col(row, 'hinweis', 'ansprechperson', 'bemerkung')
     if (objektNr) meter.objektNr = objektNr
     if (note) meter.note = note
-    items.push({ meter, reading: value !== null ? { date: toDate(col(row, 'datum', 'ablesedatum')) || today, value } : null })
+    items.push({ meter, reading: value !== null ? { date, value } : null })
   })
   return { items, errors }
 }
@@ -484,7 +528,10 @@ export function importWaterLists(lists, existing = { objects: [], zaehler: { met
     const name = list.bereich && !norm(list.ort).includes(norm(list.bereich)) ? `${list.bereich} ${list.ort}` : list.ort
     let obj = allObjects.find((o) => o.meterSite === name) || findObject(allObjects, name)
     if (!obj) {
-      obj = { id: `o-wz-${slug(name)}`, name, short: list.ort, address: list.ort, region: '', color: ((allObjects.length + 3) % 12) + 1, onlyTrained: false, keys: [], meterSite: name, ...(list.bereich ? { customer: list.bereich } : {}), ...(list.auftragsnummer ? { orderNo: list.auftragsnummer } : {}) }
+      // gekürzte ID kann bei langen, ähnlichen Namen gleich sein: eindeutig machen
+      let id = `o-wz-${slug(name)}`
+      while (allObjects.some((o) => o.id === id)) id += 'x'
+      obj = { id, name, short: list.ort, address: list.ort, region: '', color: ((allObjects.length + 3) % 12) + 1, onlyTrained: false, keys: [], meterSite: name, ...(list.bereich ? { customer: list.bereich } : {}), ...(list.auftragsnummer ? { orderNo: list.auftragsnummer } : {}) }
       allObjects.push(obj)
       objects.push(obj)
       stats.objects++
@@ -493,7 +540,7 @@ export function importWaterLists(lists, existing = { objects: [], zaehler: { met
       const prev = meters.get(s.id)
       const history = [...(prev?.history || [])]
       for (const v of s.verlauf || []) {
-        const entry = { at: v.zeit || '', date: v.quartal && v.jahr ? periodByKey(`${v.jahr}-${v.quartal}`).to : (v.zeit || '').slice(0, 10), type: v.art === 'tausch' ? 'tausch' : 'korrektur', from: v.von || '', to: v.nach || '', ...(v.ableser ? { by: v.ableser } : {}), ...(v.bem ? { note: v.bem } : {}) }
+        const entry = { at: v.zeit || '', date: v.quartal && v.jahr ? periodByKey(`${v.jahr}-${v.quartal}`).to : (v.zeit || '').slice(0, 10), type: v.art === 'tausch' ? 'tausch' : 'korrektur', from: String(v.von ?? ''), to: String(v.nach ?? ''), ...(v.ableser ? { by: v.ableser } : {}), ...(v.bem ? { note: v.bem } : {}) }
         if (!history.some((h) => h.at === entry.at && h.from === entry.from && h.to === entry.to)) history.push(entry)
       }
       if (!prev) stats.meters++
@@ -501,7 +548,7 @@ export function importWaterLists(lists, existing = { objects: [], zaehler: { met
         ...(prev || {}),
         id: s.id,
         objectId: obj.id,
-        number: s.zaehlerNr || prev?.number || '',
+        number: String(s.zaehlerNr ?? '') || prev?.number || '',
         kind: prev?.kind || 'kaltwasser',
         unit: prev?.unit || 'm³',
         interval: 'quartal',
@@ -535,7 +582,7 @@ export function importWaterLists(lists, existing = { objects: [], zaehler: { met
           date: round.datum && round.datum >= addDays(period.to, -DEFAULT_WINDOW.before) ? round.datum : period.to,
           value,
           ...(reason ? { reason } : {}),
-          ...(w.tausch ? { swap: { oldNumber: '', newNumber: w.tausch.zaehlerNeu || '', oldEnd: parseValue(w.tausch.standAlt), newStart: parseValue(w.tausch.startNeu) } } : {}),
+          ...(w.tausch ? { swap: { oldNumber: '', newNumber: String(w.tausch.zaehlerNeu ?? ''), oldEnd: parseValue(w.tausch.standAlt), newStart: parseValue(w.tausch.startNeu) } } : {}),
           ...(round.ableser ? { by: round.ableser } : {}),
           ...(w.bem ? { note: w.bem } : {}),
           ...(photo ? { photo: { url: photo.url, name: photo.name || '' } } : {}),
@@ -545,19 +592,23 @@ export function importWaterLists(lists, existing = { objects: [], zaehler: { met
       }
     }
   }
-  // Anfangsstand (Endstand Vorjahr) nur, wenn es für Q4 des Vorjahres keine Ablesung gibt
+  // Anfangsstand (Endstand Vorjahr) nur, solange es für Q4 des Vorjahres keine echte Ablesung gibt;
+  // kommt die Liste des Vorjahres später dazu, fällt ein früher angelegter Anfangsstand weg
+  const isStart = (r) => r.id === `${r.meterId}-${r.period}-start`
+  const real = new Set([...readings.values()].filter((r) => hasValue(r) && !isStart(r)).map((r) => `${r.meterId}|${r.period}`))
+  for (const r of [...readings.values()]) if (isStart(r) && real.has(`${r.meterId}|${r.period}`)) readings.delete(r.id)
   for (const s of starts) {
     const key = `${s.year - 1}-Q4`
-    if ([...readings.values()].some((r) => r.meterId === s.meterId && r.period === key && hasValue(r))) continue
+    if (real.has(`${s.meterId}|${key}`)) continue
     const id = `${s.meterId}-${key}-start`
     if (!readings.has(id)) stats.readings++
     readings.set(id, { id, meterId: s.meterId, period: key, date: `${s.year - 1}-12-31`, value: s.value, note: `Anfangsstand${s.source ? ` (${s.source})` : ''}`, at: '', source: 'wasserzaehler' })
   }
-  // alte Nummer beim Tausch aus dem Verlauf ergänzen
-  for (const r of readings.values()) {
+  // alte Nummer beim Tausch aus dem Verlauf ergänzen (als Kopie: der Bestand bleibt unverändert)
+  for (const r of [...readings.values()]) {
     if (!r.swap || r.swap.oldNumber) continue
     const h = (meters.get(r.meterId)?.history || []).find((x) => x.type === 'tausch' && x.to === r.swap.newNumber)
-    if (h) r.swap = { ...r.swap, oldNumber: h.from }
+    if (h) readings.set(r.id, { ...r, swap: { ...r.swap, oldNumber: h.from } })
   }
   return { objects, meters: [...meters.values()], readings: [...readings.values()], closures, stats }
 }

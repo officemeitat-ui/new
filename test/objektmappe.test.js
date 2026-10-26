@@ -149,3 +149,29 @@ test('Objektblatt: Sprachen, Raumbuch und Öffnungscode', async () => {
   assert.ok(buffer.includes('/Encrypt'), 'verschlüsselt')
   assert.ok(!buffer.includes('Wohnanlage Lehen'), 'Inhalt nicht lesbar ohne Code')
 })
+
+test('Objektmappe: Stundenvergleich nur mit gültigen Leistungen, Beginn = Ende zählt nicht', () => {
+  const lv = { areas: [{ name: 'Stiegenhaus', services: [{ what: 'Böden', interval: 't5', minutes: 60 }] }] }
+  const tasks = [
+    { id: 'alt', objectId: 'o1', category: 'reinigung', start: '06:00', end: '08:00', staff: 1, recurrence: { type: 'weekly', weekdays: [1, 2, 3, 4, 5], everyWeeks: 1, until: '2026-10-31' } },
+    { id: 'neu', objectId: 'o1', category: 'reinigung', start: '06:00', end: '07:00', staff: 1, recurrence: { type: 'weekly', weekdays: [1, 2, 3, 4, 5], everyWeeks: 1, from: '2026-11-01' } },
+    { id: 'sa', objectId: 'o1', category: 'reinigung', start: '08:00', end: '09:00', staff: 1, recurrence: { type: 'weekly', weekdays: [6], until: '2025-12-31' } },
+  ]
+  const nov = compareHours(lv, tasks, 'o1', '2026-11-02')
+  assert.deepEqual([nov.lv, nov.plan, nov.warn], [300, 300, false], 'beendete Leistung zählt nicht')
+  assert.equal(plannedMinutes(tasks, 'o1', '2026-10-26'), 600, 'vor dem Wechsel gilt die alte')
+  assert.deepEqual(serviceWeekdays({}, tasks, 'o1', '2026-11-02'), [1, 2, 3, 4, 5], 'Samstag ist beendet')
+  assert.equal(plannedMinutes([{ objectId: 'o2', start: '08:00', end: '08:00', recurrence: { type: 'weekly', weekdays: [1] } }], 'o2'), 0)
+})
+
+test('Objektmappe: Kundenstamm mit Spalte „Straße“', () => {
+  const csv = 'Nr;Name;Straße;PLZ Ort;E-Mail\n10001;Muster GmbH;Hauptstraße 1;5020 Salzburg;office@muster.at'
+  assert.deepEqual(importCustomers(csv)[0], { nr: '10001', name: 'Muster GmbH', street: 'Hauptstraße 1', city: '5020 Salzburg', email: 'office@muster.at' })
+})
+
+test('Objektmappe: leere Zwischenfassung bricht den Verlauf nicht', () => {
+  let m = {}
+  const states = [{ notes: 'x' }, {}, { contacts: [{ name: 'P' }] }]
+  for (const [i, s] of states.entries()) m = saveVersion(m, { ...s, history: m.history }, { at: `2026-01-0${i + 1}T00:00:00Z` })
+  assert.deepEqual(versions(m).map((v) => [v.version, v.data]), [[3, { contacts: [{ name: 'P' }] }], [2, {}], [1, { notes: 'x' }]])
+})

@@ -87,7 +87,8 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | Ordner | Inhalt | Vollzugriff | Objektmanagement | Vorarbeiter |
 |---|---|---|---|---|
 | `objekte/` | Objekte (Name, Adresse, Revier) | Bearbeiten | Lesen | Lesen |
-| `daten/` | Mitarbeitende, Leistungen, Wochenpläne | Bearbeiten | Lesen | – |
+| `daten/` | Mitarbeitende, Leistungen, Regeln | Bearbeiten | Lesen | – |
+| `plaene/` | Wochenpläne (Einteilungen, Änderungsprotokoll) | Bearbeiten | Lesen | – |
 | `personal/` | Urlaub und Krankenstände (Gesundheitsdaten) | Bearbeiten | – | – |
 | `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
 | `zaehler/` | Zählerstände mit Fotos | Bearbeiten | – | Bearbeiten |
@@ -98,9 +99,11 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
 
-- **Lohn und Krankenstände** liegen in eigenen Ordnern (`lohn/`, `personal/`), die nur Vollzugriff (und ggf. Lohnverrechnung) öffnen kann. Wer früher schon Daten unter `daten/` hatte: Beim ersten Start mit Vollzugriff verschiebt die App `abwesenheiten.json` und `zeitkonto.json` in die neuen Ordner und löscht die alten Dateien (Papierkorb der Website).
+- **Lohn und Krankenstände** liegen in eigenen Ordnern (`lohn/`, `personal/`), die nur Vollzugriff (und ggf. Lohnverrechnung) öffnen kann. Wer früher schon Daten unter `daten/` hatte: Beim ersten Start mit Vollzugriff verschiebt die App `abwesenheiten.json`, `zeitkonto.json` und alle Wochenpläne aus `daten/plaene/` in die neuen Ordner und löscht die alten Dateien (Papierkorb der Website). Scheitert das Löschen, versucht sie es beim nächsten Start wieder. Das Änderungsprotokoll der Wochen nennt keinen Grund einer Abwesenheit (es steht bei den Plänen, die auch Objektmanagement liest).
 - **Objekte** stehen in `objekte/`, damit Vorarbeiter die Zähler ihren Objekten zuordnen können, ohne die Personaldaten in `daten/` lesen zu dürfen. Auch das zieht beim ersten Start mit Vollzugriff von selbst um.
-- **Abmelden** löscht die Kopie der Daten im Gerät (für geteilte Handys); noch nicht gespeicherte Änderungen und wartende Fotos bleiben, bis sie hochgeladen sind.
+- **Gerätespeicher je Konto:** Jedes Microsoft-Konto hat im Gerät einen eigenen Speicher. Auf einem geteilten Tablet liest niemand ohne Netz die Kopie eines anderen.
+- **Abmelden** löscht die Kopie der Daten im Gerät (für geteilte Handys); noch nicht gespeicherte Änderungen und wartende Fotos bleiben im Speicher dieses Kontos, bis sie hochgeladen sind.
+- **Gleichzeitig bearbeitet:** Speichern zwei Personen dieselbe Datei, führt die App beide Stände zusammen: je Eintrag und Feld, Listen ohne Kennung (z. B. Protokoll, freie Tage) als Menge, eine fremde Änderung schlägt ein eigenes Löschen. Wochen, die ohne Netz nie geöffnet wurden, sind gesperrt, bis sie geladen sind.
 
 **Nur Ordner freigegeben:** Hat jemand nur einzelne Ordner freigegeben bekommen und keinen Zugriff auf die Website (bewährt beim Wasserzähler-Tool), findet die App die Bibliothek über die Freigabe-Adresse des Ordners.
 
@@ -176,7 +179,7 @@ Das Modul folgt dem Datenmodell des Werkzeugs, damit nichts verloren geht:
 
 Neu:
 
-- **Zuständigkeit und Frist je Mangel.** Bei „R“ ist die Stammkraft des Objekts vorgeschlagen, die Frist richtet sich nach der Priorität.
+- **Zuständigkeit und Frist je Mangel.** Bei „R“ ist die Stammkraft des Objekts vorgeschlagen, die Frist richtet sich nach der Priorität: sofort 1 Tag, kurzfristig 7 Tage (Vorgabe bei Reinigung „R“), planbar 14 Tage (Vorgabe bei Mangel/Reparatur „M“), beobachten 90 Tage. Gefahr „G“ ist immer sofort.
 - **„Nacharbeit“** legt einen Einsatz im Dienstplan an, direkt nach dem regulären Einsatz der Stammkraft. Ist die Person dann abwesend, kommt eine Warnung.
 - **Offene Mängel aller Objekte** in einer Liste.
 - **Rhythmus je Objekt** (monatlich bis jährlich). Nachkontrolle mit Termin geht vor, Fälliges steht in „Zu erledigen“.
@@ -263,6 +266,8 @@ Zweiter Reiter **Service & Pickerl**: je Fahrzeug km-Stand, Pickerl, Service, we
 | Pkw (M1), Fälligkeit bis Juli 2027 | 3-2-1 Jahre ab Erstzulassung | ab dem Monat davor bis Ende des vierten Monats danach |
 | Pkw (M1), ab 19. Mai 2027 (42. KFG-Novelle) | 4-2-2-2-1 Jahre | ab vier Monate vorher bis Ende des Fälligkeitsmonats, keine Nachfrist |
 | Lkw N1 (auch Kastenwagen bis 3,5 t), N2, N3 | jährlich | ab drei Monate vorher bis Ende des Fälligkeitsmonats |
+
+Übergang: Ist das Pickerl zwischen Februar und Juli 2027 fällig, gilt noch altes Recht (3-2-1, ab dem Monat davor bis Ende des vierten Monats danach). Wurde ein Pkw vor dem 19. Mai 2027 begutachtet, zählt auch sein nächster Termin nach 3-2-1. Ohne Plakettenmonat schätzt die App beide Rechtslagen und nimmt im Zweifel den früheren Termin.
 
 Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Maßgeblich ist immer der Monat auf der Plakette. Nach der Begutachtung schlägt die App den nächsten Monat vor; wurde ein Pkw noch nach altem Recht begutachtet, nimmt sie im Zweifel den früheren Termin. Der gestanzte Monat der neuen Plakette ersetzt den Vorschlag. Bei schweren Mängeln gibt es keine neue Plakette, das Pickerl bleibt fällig.
 

@@ -12,11 +12,13 @@
 //   dues:    [{ id, label, date, months, note }]     months = wiederholen
 //
 // Pickerl (§57a KFG, Stand Oktober 2026; maßgeblich ist immer die Plakette):
-//   Pkw M1 bis 18.5.2027: 3-2-1 Jahre ab Erstzulassung; begutachten ab dem
-//     Monat davor bis Ende des vierten Monats danach.
+//   Pkw M1, Fälligkeit bis Juli 2027: 3-2-1 Jahre ab Erstzulassung; begutachten
+//     ab dem Monat davor bis Ende des vierten Monats danach (−1/+4).
 //   Pkw M1 ab 19.5.2027 (42. KFG-Novelle): 4-2-2-2-1; ab vier Monate vorher bis
-//     Ende des Fälligkeitsmonats, keine Nachfrist. Stichtag Feb.–Juli 2027:
-//     noch −1/+4 Monate.
+//     Ende des Fälligkeitsmonats, keine Nachfrist.
+//   Übergang: Fälligkeit Feb.–Juli 2027 noch nach altem Recht (3-2-1, −1/+4).
+//     Wurde vor dem 19.5.2027 begutachtet, gilt der nächste Termin nach 3-2-1
+//     weiter. Ohne Plakette schätzt die App im Zweifel den früheren Termin.
 //   Lkw N1–N3 (auch Kastenwagen bis 3,5 t): jährlich; ab drei Monate vorher bis
 //     Ende des Fälligkeitsmonats.
 
@@ -90,6 +92,19 @@ export function suggestPickerl(v, done) {
   return next
 }
 
+/**
+ * Mögliche Fälligkeiten ohne Plakette und ohne letzte Begutachtung: Pkw nach
+ * neuem Recht und dazu die Termine nach altem Recht (3-2-1), die noch gelten:
+ * der erste, wenn er bis Juli 2027 fällig ist (Übergang), jeder weitere, wenn
+ * die Begutachtung davor noch vor der Novelle lag. Im Zweifel der frühere.
+ */
+function guessedSchedule(cls, firstReg) {
+  if (cls !== 'M1') return pickerlSchedule(cls, firstReg)
+  const old = years(firstReg, OLD_YEARS)
+  const still = old.filter((d, i) => (i === 0 ? d <= '2027-07' : !afterReform(old[i - 1])))
+  return [...new Set([...pickerlSchedule(cls, firstReg), ...still])].sort()
+}
+
 /** Nächster Fälligkeitsmonat: Plakette, sonst aus Erstzulassung und letzter Begutachtung. */
 export function pickerlDue(v, today) {
   if (v.pickerl?.next) return v.pickerl.next
@@ -97,7 +112,7 @@ export function pickerlDue(v, today) {
   const cls = classOf(v)
   const last = v.pickerl?.lastDate
   if (last) return suggestPickerl(v, last)
-  return pickerlSchedule(cls, v.firstReg).find((d) => pickerlWindow(cls, d).to >= today) || null
+  return guessedSchedule(cls, v.firstReg).find((d) => pickerlWindow(cls, d).to >= today) || null
 }
 
 /**
@@ -132,12 +147,27 @@ export function kmPerDay(v) {
   return days >= 30 && b.km > a.km ? (b.km - a.km) / days : null
 }
 
-/** km-Stand eintragen (nur wenn neuer oder gleich wie der letzte). */
-export function addKm(v, date, km) {
+/** km-Eingabe „59.000“, „59 000“ oder „59000 km“ → 59000 (sonst null): Punkt und Leerzeichen trennen Tausender. */
+export function parseKm(text) {
+  if (typeof text === 'number') return Number.isFinite(text) && text > 0 ? Math.round(text) : null
+  const s = String(text ?? '').replace(/\s|km/gi, '').replace(/[.'’]/g, '')
+  if (!/^\d+(,\d*)?$/.test(s)) return null
+  const n = Math.round(Number(s.replace(',', '.')))
+  return n > 0 ? n : null
+}
+
+/** Passt ein km-Stand zu den bisherigen: nicht kleiner als ein früherer, nicht größer als ein späterer? */
+export function kmFits(v, date, km) {
   const n = Number(km)
-  if (!Number.isFinite(n) || n <= 0 || !date) return v
+  if (!Number.isFinite(n) || n <= 0 || !date) return false
+  return (v.kmLog || []).every((x) => !x.date || x.date === date || !Number.isFinite(Number(x.km)) || (x.date < date ? Number(x.km) <= n : Number(x.km) >= n))
+}
+
+/** km-Stand eintragen; ein Stand, der nicht zur Reihenfolge passt (Tippfehler), wird nicht übernommen. */
+export function addKm(v, date, km) {
+  if (!kmFits(v, date, km)) return v
   const log = (v.kmLog || []).filter((x) => x.date !== date)
-  return { ...v, kmLog: [...log, { date, km: n }].sort((a, b) => a.date.localeCompare(b.date)).slice(-24) }
+  return { ...v, kmLog: [...log, { date, km: Number(km) }].sort((a, b) => a.date.localeCompare(b.date)).slice(-24) }
 }
 
 /** Nächstes Service: { date, km } aus Eintrag oder Intervall. */
@@ -211,10 +241,12 @@ export function taskLabel(v, task) {
 export function applyTasksDone(v, change, results = {}) {
   let out = structuredClone(v)
   const date = change.doneAt || change.date
-  if (change.km) out = addKm(out, date, change.km)
+  // km-Stand nur, wenn er zu den bisherigen passt (sonst Tippfehler, z. B. „59“ statt 59.000)
+  const km = change.km && kmFits(out, date, change.km) ? Number(change.km) : null
+  if (km) out = addKm(out, date, km)
   for (const task of change.tasks || []) {
     if (task === 'service' && results.service) {
-      out.service = { ...(out.service || {}), lastDate: date, lastKm: change.km ? Number(change.km) : out.service?.lastKm ?? '', nextDate: results.service.nextDate || '', nextKm: results.service.nextKm ? Number(results.service.nextKm) : '' }
+      out.service = { ...(out.service || {}), lastDate: date, lastKm: km ?? out.service?.lastKm ?? '', nextDate: results.service.nextDate || '', nextKm: results.service.nextKm ? Number(results.service.nextKm) : '' }
     }
     if (task === 'pickerl' && results.pickerl) {
       const passed = results.pickerl.result !== 'schwer'

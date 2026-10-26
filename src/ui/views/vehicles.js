@@ -10,7 +10,8 @@ import { sendMail } from '../../auth/graph-mail.js'
 import { addDays, dayIndex, formatDate, todayISO } from '../../core/dates.js'
 import { fileSafe } from '../../core/filename.js'
 import { icsEvent } from '../../core/ics.js'
-import { addKm, addMonths, applyTasksDone, classOf, currentKm, DUE_CLASS, DUE_LABEL, fleetCsv, monthText, openTasks, PICKERL_RESULTS, pickerlStatus, serviceStatus, suggestPickerl, taskLabel, VEHICLE_CLASSES, vehicleDues } from '../../core/vehicle-dues.js'
+import { holidayCalendar } from '../../core/holidays.js'
+import { addKm, addMonths, applyTasksDone, classOf, currentKm, DUE_CLASS, DUE_LABEL, fleetCsv, kmFits, monthText, openTasks, parseKm, PICKERL_RESULTS, pickerlStatus, serviceStatus, suggestPickerl, taskLabel, VEHICLE_CLASSES, vehicleDues } from '../../core/vehicle-dues.js'
 import { activeVehicles, applyDone, campaignFor, campaignSummary, changeWhat, conflicts, DEFAULT_SETTINGS, driverMail, importVehicles, lowestTread, minTread, proposeSlots, SEASONS, STATUS_CLASS, STATUS_LABEL, tireCsv, tireIssues, VEHICLE_KINDS, vehicleStatus, WHEELS, workshopMail } from '../../core/vehicles.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { canMail } from '../modals/send.js'
@@ -258,8 +259,9 @@ function setPath(obj, path, value) {
   const target = keys.reduce((o, k) => (o[k] ??= {}), obj)
   target[last] = value
 }
+// type 'km': Texteingabe, „59.000“ gilt als 59000 (Zahlenfelder lesen den Punkt als Komma)
 const field = (path, label, value, { type = 'text', placeholder = '', cls = '' } = {}) =>
-  `<label class="field ${cls}"><span>${esc(label)}</span><input type="${type}" value="${esc(value ?? '')}" placeholder="${esc(placeholder)}" data-change="veh-set" data-path="${path}" ${type === 'number' ? 'inputmode="decimal" step="0.1"' : ''}></label>`
+  `<label class="field ${cls}"><span>${esc(label)}</span><input type="${type === 'km' ? 'text' : type}" value="${esc(value ?? '')}" placeholder="${esc(placeholder)}" data-change="veh-set" data-path="${path}" ${type === 'number' ? 'inputmode="decimal" step="0.1"' : type === 'km' ? 'inputmode="numeric" data-km="1"' : ''}></label>`
 
 function tireFieldset(d, season) {
   const s = d.tires?.[season] || {}
@@ -302,15 +304,15 @@ function duesFieldset(d) {
       <label class="field"><span>Fahrzeugklasse (Zulassungsschein, Feld J)</span><select data-change="veh-set" data-path="cls" data-rerender="1">${options(Object.entries(VEHICLE_CLASSES), classOf(d))}</select></label>
       ${field('firstReg', 'Erstzulassung', d.firstReg, { type: 'month' })}
       ${field('pickerl.next', 'Nächstes Pickerl laut Plakette', d.pickerl?.next, { type: 'month' })}
-      ${field('kmNow', 'km-Stand jetzt', d.kmNow ?? '', { type: 'number', placeholder: cur ? `zuletzt ${kmText(cur.km)}` : '' })}
+      ${field('kmNow', 'km-Stand jetzt', d.kmNow ?? '', { type: 'km', placeholder: cur ? `zuletzt ${kmText(cur.km)}` : '' })}
     </div>${!d.pickerl?.next && p.due ? `<p class="note">Ohne Plakette geschätzt: ${monthText(p.due)} (Klasse ${esc(classOf(d))}, Erstzulassung ${monthText(d.firstReg)}). Den gestanzten Monat eintragen, dann stimmt es sicher.</p>` : ''}</fieldset>
     <fieldset class="veh-set"><legend>Service (was zuerst kommt)</legend><div class="form-grid">
       ${field('service.months', 'alle … Monate', s.months, { type: 'number', placeholder: '12' })}
-      ${field('service.km', 'alle … km', s.km, { type: 'number', placeholder: '30000' })}
+      ${field('service.km', 'alle … km', s.km, { type: 'km', placeholder: '30.000' })}
       ${field('service.lastDate', 'Letztes Service am', s.lastDate, { type: 'date' })}
-      ${field('service.lastKm', 'bei km', s.lastKm, { type: 'number' })}
+      ${field('service.lastKm', 'bei km', s.lastKm, { type: 'km' })}
       ${field('service.nextDate', 'Nächstes am (laut Anzeige/Pickerl im Auto)', s.nextDate, { type: 'date' })}
-      ${field('service.nextKm', 'oder bei km', s.nextKm, { type: 'number' })}
+      ${field('service.nextKm', 'oder bei km', s.nextKm, { type: 'km' })}
     </div><p class="note">„Nächstes“ leer lassen, dann rechnet die App aus letztem Service und Intervall.</p></fieldset>
     <fieldset class="veh-set"><legend>Weitere Fälligkeiten</legend>
       ${(d.dues || []).map((x, i) => `<div class="mp-row"><input type="text" value="${esc(x.label || '')}" placeholder="z. B. Leasingende, Tachograph, Verbandskasten" aria-label="Bezeichnung" data-change="veh-set" data-path="dues.${i}.label"><input type="date" value="${esc(x.date || '')}" aria-label="fällig am" data-change="veh-set" data-path="dues.${i}.date"><input type="number" value="${esc(x.months ?? '')}" placeholder="wiederholen alle … Monate" aria-label="wiederholen alle Monate" data-change="veh-set" data-path="dues.${i}.months"><input type="text" value="${esc(x.note || '')}" placeholder="Hinweis" aria-label="Hinweis" data-change="veh-set" data-path="dues.${i}.note"><button type="button" class="btn small danger" data-action="veh-due-del" data-i="${i}" aria-label="Entfernen">×</button></div>`).join('')}
@@ -335,7 +337,7 @@ registerModal('veh-ws', (c, m) =>
 // ---------------------------------------------------------------- Liste einfügen
 
 registerModal('veh-import', (c, m) => {
-  const res = m.text ? importVehicles(m.text, { employees: app.data.employees, workshops: FZ().workshops }) : null
+  const res = m.text ? importVehicles(m.text, { employees: app.data.employees, workshops: FZ().workshops, today: todayISO() }) : null
   const known = new Set(FZ().vehicles.map((v) => v.plate))
   return modalFrame({
     title: 'Fahrzeugliste einfügen',
@@ -405,7 +407,8 @@ function propose(m) {
   const open = candidates.filter((r) => !m.workshopId || m.all || r.v.workshopId === m.workshopId || !r.v.workshopId)
   const taken = FZ().changes.filter((x) => x.status === 'geplant' && x.workshopId === m.workshopId)
   const busy = busyLookup(m.from, m.to)
-  return { open, ...proposeSlots(open.map((r) => r.v), { from: m.from, to: m.to, dayStart: m.dayStart, dayEnd: m.dayEnd, slotMinutes: Number(m.slot) || 30, travelMinutes: Number(m.travel) || 0, busyOf: busy, taken }) }
+  const holidays = holidayCalendar(m.from, m.to, app.data.extraFreeDays)
+  return { open, ...proposeSlots(open.map((r) => r.v), { from: m.from, to: m.to, dayStart: m.dayStart, dayEnd: m.dayEnd, slotMinutes: Number(m.slot) || 30, travelMinutes: Number(m.travel) || 0, busyOf: busy, taken, holidays }) }
 }
 
 function proposeModal(c, m) {
@@ -453,7 +456,7 @@ function taskDone(v, ch) {
         const s = v.service || {}
         return `<fieldset class="veh-set"><legend>Service</legend><div class="form-grid">
           <label class="field"><span>Nächstes Service am</span><input type="date" id="vd-s-date" value="${esc(Number(s.months) ? addMonths(ch.date, Number(s.months)) : '')}"></label>
-          <label class="field"><span>oder bei km</span><input type="number" id="vd-s-km" inputmode="numeric" min="0" placeholder="${Number(s.km) ? `km-Stand + ${Number(s.km).toLocaleString('de-AT')}` : 'laut Serviceheft'}"></label></div></fieldset>`
+          <label class="field"><span>oder bei km</span><input type="text" id="vd-s-km" inputmode="numeric" placeholder="${Number(s.km) ? `km-Stand + ${Number(s.km).toLocaleString('de-AT')}` : 'laut Serviceheft'}"></label></div></fieldset>`
       }
       if (task === 'pickerl') {
         return `<fieldset class="veh-set"><legend>Pickerl (§57a)</legend><div class="form-grid">
@@ -479,7 +482,7 @@ function doneModal(c, m) {
     subtitle: tire ? `jetzt ${esc(SEASONS[ch.season])} montiert${(ch.tasks || []).length ? ` · dazu ${esc(ch.tasks.map((t) => taskLabel(v, t)).join(', '))}` : ''}` : esc(changeWhat(ch, v)),
     body: `<div class="form-grid">
         <label class="field"><span>Datum</span><input type="date" id="vd-date" value="${esc(ch.date || todayISO())}"></label>
-        <label class="field"><span>km-Stand</span><input type="number" id="vd-km" inputmode="numeric" min="0" placeholder="${currentKm(v) ? `zuletzt ${kmText(currentKm(v).km)}` : ''}"></label>
+        <label class="field"><span>km-Stand</span><input type="text" id="vd-km" inputmode="numeric" placeholder="${currentKm(v) ? `zuletzt ${kmText(currentKm(v).km)}` : ''}"></label>
         <label class="field"><span>Kosten (€, optional)</span><input type="number" id="vd-cost" inputmode="decimal" min="0" step="0.01"></label>
         ${tire ? `<label class="field wide"><span>${esc(SEASONS[other])} eingelagert bei / wo</span><input type="text" id="vd-storage" value="${esc(v.tires?.[other]?.storage || v.tires?.[ch.season]?.storage || (wsOf(ch.workshopId)?.name ?? ''))}"></label>` : ''}
       </div>
@@ -499,7 +502,7 @@ registerModal('veh-km', (c, m) => {
   return modalFrame({
     title: `km-Stand ${esc(v.plate)}`,
     subtitle: cur ? `zuletzt ${kmText(cur.km)} am ${formatDate(cur.date, { weekday: false, year: true })}` : 'noch kein km-Stand',
-    body: `<div class="form-grid"><label class="field"><span>Datum</span><input type="date" id="vk-date" value="${esc(todayISO())}"></label><label class="field"><span>km-Stand</span><input type="number" id="vk-km" inputmode="numeric" min="0" autofocus></label></div>
+    body: `<div class="form-grid"><label class="field"><span>Datum</span><input type="date" id="vk-date" value="${esc(todayISO())}"></label><label class="field"><span>km-Stand</span><input type="text" id="vk-km" inputmode="numeric" autofocus></label></div>
       <p class="note">Aus den km-Ständen rechnet die App hoch, wann das Service nach km fällig wird. Am einfachsten bei jedem Tanken oder Werkstattbesuch eintragen.</p>`,
     foot: '<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="vk-save">Speichern</button></div>',
   })
@@ -584,7 +587,7 @@ registerActions(
     },
     'veh-set': (el) => {
       const d = app.ui.modal.draft
-      const value = el.type === 'number' ? (el.value === '' ? '' : Number(String(el.value).replace(',', '.'))) : el.value.trim()
+      const value = el.dataset.km ? (el.value.trim() === '' ? '' : parseKm(el.value) ?? '') : el.type === 'number' ? (el.value === '' ? '' : Number(String(el.value).replace(',', '.'))) : el.value.trim()
       setPath(d, el.dataset.path, el.dataset.path === 'plate' ? value.toUpperCase() : value)
       if (el.dataset.rerender && el.dataset.path !== 'mounted') return renderModal()
       if (el.dataset.path === 'mounted') {
@@ -598,6 +601,7 @@ registerActions(
       const d = m.draft
       if (!d.plate) return toast('Bitte das Kennzeichen eintragen.')
       if (FZ().vehicles.some((v) => v.plate === d.plate && v.id !== m.id)) return toast(`${d.plate} gibt es schon.`)
+      if (d.kmNow && !kmFits(d, todayISO(), d.kmNow)) return toast(`${kmText(d.kmNow)} passt nicht zu den bisherigen km-Ständen (zuletzt ${kmText(currentKm(d)?.km || 0)}). Bitte prüfen.`)
       let next = d.kmNow ? addKm(d, todayISO(), d.kmNow) : d
       next = { ...next, dues: (next.dues || []).filter((x) => x.label) }
       delete next.kmNow
@@ -630,11 +634,11 @@ registerActions(
     'veh-km-open': (el) => openModal({ type: 'veh-km', id: el.dataset.id }),
     'vk-save': () => {
       const v = vehOf(app.ui.modal.id)
-      const km = Number(val('vk-km'))
-      const cur = currentKm(v)
+      const km = parseKm(val('vk-km'))
+      const date = val('vk-date') || todayISO()
       if (!km) return toast('Bitte den km-Stand eintragen.')
-      if (cur && km < cur.km && val('vk-date') >= cur.date) return toast(`Kleiner als zuletzt (${kmText(cur.km)}). Bitte prüfen.`)
-      Object.assign(v, addKm(v, val('vk-date') || todayISO(), km))
+      if (!kmFits(v, date, km)) return toast(`${kmText(km)} passt nicht zu den bisherigen km-Ständen (zuletzt ${kmText(currentKm(v).km)} am ${formatDate(currentKm(v).date, { weekday: false, year: true })}). Bitte prüfen.`)
+      Object.assign(v, addKm(v, date, km))
       persist()
       closeModal()
       renderNow()
@@ -662,11 +666,13 @@ registerActions(
     },
     'veh-import-open': () => openModal({ type: 'veh-import', text: '' }),
     'veh-import-run': () => {
-      const { vehicles } = importVehicles(app.ui.modal.text || '', { employees: app.data.employees, workshops: FZ().workshops })
+      const { vehicles } = importVehicles(app.ui.modal.text || '', { employees: app.data.employees, workshops: FZ().workshops, today: todayISO() })
       let added = 0
       for (const v of vehicles) {
         const known = FZ().vehicles.find((x) => x.plate === v.plate)
         if (known) {
+          // km-Stand aus der Liste auch bei vorhandenen km-Ständen nachtragen (wenn er passt)
+          if (v.kmLog?.length) Object.assign(known, addKm(known, v.kmLog[0].date, v.kmLog[0].km))
           for (const [k, val2] of Object.entries(v)) if (k !== 'tires' && val2 && !known[k]) known[k] = val2
           for (const s of ['sommer', 'winter']) if (v.tires?.[s]) known.tires = { ...known.tires, [s]: { ...v.tires[s], ...Object.fromEntries(Object.entries(known.tires?.[s] || {}).filter(([, x]) => x && (typeof x !== 'object' || Object.keys(x).length))) } }
         } else {
@@ -701,7 +707,8 @@ registerActions(
       const m = app.ui.modal
       const v = vehOf(m.vehicleId)
       const taken = FZ().changes.filter((x) => x.status === 'geplant' && x.workshopId === m.workshopId && x.id !== m.changeId)
-      const { proposals } = proposeSlots([v], { from: m.date, to: addDays(m.date, 14), slotMinutes: Number(m.minutes) || 30, travelMinutes: settings().travelMinutes, busyOf: busyLookup(m.date, addDays(m.date, 14)), taken })
+      const holidays = holidayCalendar(m.date, addDays(m.date, 14), app.data.extraFreeDays)
+      const { proposals } = proposeSlots([v], { from: m.date, to: addDays(m.date, 14), slotMinutes: Number(m.minutes) || 30, travelMinutes: settings().travelMinutes, busyOf: busyLookup(m.date, addDays(m.date, 14)), taken, holidays })
       if (!proposals.length) return toast('In den nächsten zwei Wochen kein freier Platz zwischen 7 und 17 Uhr.')
       Object.assign(m, { date: proposals[0].date, time: proposals[0].time })
       renderModal()
@@ -776,13 +783,16 @@ registerActions(
       const v = vehOf(ch.vehicleId)
       const read = (prefix) => Object.fromEntries(WHEELS.map(([k]) => [k, val(`${prefix}-${k}`) === '' ? '' : Number(val(`${prefix}-${k}`).replace(',', '.'))]).filter(([, x]) => x !== ''))
       const tire = (ch.kind || 'reifen') === 'reifen'
-      const km = val('vd-km') ? Number(val('vd-km')) : ''
+      const km = val('vd-km') ? parseKm(val('vd-km')) : ''
+      const doneAt = val('vd-date') || todayISO()
+      if (km === null) return toast('Den km-Stand bitte als Zahl eintragen, z. B. 59.000.')
+      if (km && !kmFits(v, doneAt, km)) return toast(`${kmText(km)} passt nicht zu den bisherigen km-Ständen (zuletzt ${kmText(currentKm(v).km)}). Bitte prüfen.`)
       Object.assign(ch, { status: 'erledigt', date: val('vd-date') || ch.date, doneAt: val('vd-date') || todayISO(), km, cost: val('vd-cost') ? Number(val('vd-cost').replace(',', '.')) : '', note: [ch.note, val('vd-note').trim()].filter(Boolean).join(' · '), ...(tire ? { storage: val('vd-storage').trim(), tread: read('vd-t'), removedTread: read('vd-r') } : {}) })
       let next = tire ? applyDone(v, ch) : v
       const tasks = ch.tasks || []
       const interval = Number(v.service?.km)
       const results = {
-        service: tasks.includes('service') ? { nextDate: val('vd-s-date'), nextKm: val('vd-s-km') ? Number(val('vd-s-km')) : km && interval ? km + interval : '' } : null,
+        service: tasks.includes('service') ? { nextDate: val('vd-s-date'), nextKm: val('vd-s-km') ? parseKm(val('vd-s-km')) || '' : km && interval ? km + interval : '' } : null,
         pickerl: tasks.includes('pickerl') ? { result: val('vd-p-result') || 'ok', next: val('vd-p-next') } : null,
         done: tasks.filter((t) => t.startsWith('due:') && document.getElementById(`vd-${t.replace(':', '-')}`)?.checked),
       }

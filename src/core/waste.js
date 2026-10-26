@@ -16,7 +16,7 @@
 //   note: ''                           // z. B. „Müllraum im Hof, Schlüssel 3“
 // }
 
-import { addDays, dayIndex, eachDay, formatDate, formatTime, isoWeekday, toMinutes, WEEKDAY_SHORT } from './dates.js'
+import { addDays, dayIndex, daysInMonth, eachDay, formatDate, formatTime, isoWeekday, toMinutes, WEEKDAY_SHORT, weeksBetween } from './dates.js'
 import { nextWorkday, taskOccursOn } from './recurrence.js'
 import { fitsAvailability } from './rules.js'
 
@@ -196,27 +196,77 @@ export function applyWaste(instances, { objects, tasks, employees = [], from, to
 
 // ---------------------------------------------------------------- Abfuhrkalender einlesen
 
-/** iCalendar (.ics) des Abfuhrkalenders: [{ date, summary, type }] */
+const VIENNA = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit' })
+const ICS_WEEKDAYS = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 7 }
+/** Wiederholung ohne Ende: so weit wird aufgelöst (Abfuhrkalender gelten meist ein Jahr). */
+const ICS_HORIZON_DAYS = 731
+
+/** Datum eines .ics-Werts: ganztägig oder Ortszeit wie angegeben, UTC (…Z) in Wiener Zeit umgerechnet. */
+function icsDate(value) {
+  const m = String(value || '').match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/)
+  if (!m) return null
+  if (!m[7]) return `${m[1]}-${m[2]}-${m[3]}`
+  return VIENNA.format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0))))
+}
+
+/** Termine einer Wiederholung (RRULE FREQ=DAILY/WEEKLY mit INTERVAL, COUNT/UNTIL, BYDAY); andere nur der erste Termin. */
+function expandRule(start, rule) {
+  const r = Object.fromEntries(String(rule || '').split(';').map((p) => p.split('=')).map(([k, v]) => [k.toUpperCase(), (v || '').toUpperCase()]))
+  if (r.FREQ !== 'DAILY' && r.FREQ !== 'WEEKLY') return [start]
+  const every = Math.max(1, Number(r.INTERVAL) || 1)
+  const count = Number(r.COUNT) || Infinity
+  const end = [r.UNTIL ? icsDate(r.UNTIL) : null, addDays(start, ICS_HORIZON_DAYS)].filter(Boolean).sort()[0]
+  const days = r.FREQ === 'WEEKLY' ? (r.BYDAY ? r.BYDAY.split(',').map((d) => ICS_WEEKDAYS[d.replace(/[^A-Z]/g, '')]).filter(Boolean) : [isoWeekday(start)]) : null
+  const out = []
+  for (let d = start; d <= end && out.length < count; d = addDays(d, 1)) {
+    const hit = days ? days.includes(isoWeekday(d)) && weeksBetween(start, d) % every === 0 : (dayIndex(d) - dayIndex(start)) % every === 0
+    if (d === start || hit) out.push(d)
+  }
+  return out
+}
+
+/**
+ * iCalendar (.ics) des Abfuhrkalenders: [{ date, summary, type }], nach Datum.
+ * Wiederholungen (RRULE) werden aufgelöst, EXDATE und abgesagte Termine
+ * (STATUS:CANCELLED) fallen weg, ein verschobener Einzeltermin (RECURRENCE-ID)
+ * ersetzt den ursprünglichen. Zeiten in UTC zählen nach Wiener Datum.
+ */
 export function parseIcs(text) {
   const lines = String(text).replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n')
   const events = []
   let cur = null
-  for (const line of lines) {
-    if (line === 'BEGIN:VEVENT') cur = {}
-    else if (line === 'END:VEVENT') {
-      if (cur?.date) events.push({ date: cur.date, summary: cur.summary || '', type: detectWasteType(cur.summary) })
+  let nested = 0
+  for (const raw of lines) {
+    const line = raw.trim()
+    if (line === 'BEGIN:VEVENT') {
+      cur = { exdates: [] }
+      nested = 0
+    } else if (line === 'END:VEVENT') {
+      if (cur) events.push(cur)
       cur = null
-    } else if (cur) {
+    } else if (cur && /^BEGIN:/i.test(line)) nested++
+    else if (cur && /^END:/i.test(line)) nested = Math.max(0, nested - 1)
+    else if (cur && !nested) {
+      // Eigenschaften im Termin selbst (nicht in einer Erinnerung VALARM)
       const i = line.indexOf(':')
+      if (i < 0) continue
       const name = line.slice(0, i).split(';')[0].toUpperCase()
-      const value = line.slice(i + 1)
-      if (name === 'DTSTART') {
-        const m = value.match(/^(\d{4})(\d{2})(\d{2})/)
-        if (m) cur.date = `${m[1]}-${m[2]}-${m[3]}`
-      } else if (name === 'SUMMARY') cur.summary = value.replace(/\\,/g, ',').replace(/\\n/gi, ' ').trim()
+      const value = line.slice(i + 1).trim()
+      if (name === 'EXDATE') cur.exdates.push(...value.split(',').map(icsDate).filter(Boolean))
+      else if (name === 'SUMMARY') cur.summary = value.replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/gi, ' ').trim()
+      else cur[name] = value
     }
   }
-  return events
+  // verschobene oder abgesagte Einzeltermine: der ursprüngliche Termin der Serie fällt weg
+  const replaced = new Set(events.filter((e) => e['RECURRENCE-ID']).map((e) => `${e.UID || ''}|${icsDate(e['RECURRENCE-ID'])}`))
+  const out = []
+  for (const e of events) {
+    const start = icsDate(e.DTSTART)
+    if (!start || /^CANCELLED$/i.test(e.STATUS || '')) continue
+    const dates = e['RECURRENCE-ID'] ? [start] : expandRule(start, e.RRULE).filter((d) => !e.exdates.includes(d) && !replaced.has(`${e.UID || ''}|${d}`))
+    for (const date of dates) out.push({ date, summary: e.summary || '', type: detectWasteType(e.summary) })
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /** Alle Daten in einem Text (z. B. „03.11.2026, 17.11.2026“), als ISO-Datum. */
@@ -224,13 +274,23 @@ export function datesIn(text) {
   return [...String(text).matchAll(/(\d{4})-(\d{2})-(\d{2})|(\d{1,2})\.(\d{1,2})\.(\d{4})/g)].map((m) => (m[1] ? `${m[1]}-${m[2]}-${m[3]}` : `${m[6]}-${m[5].padStart(2, '0')}-${m[4].padStart(2, '0')}`))
 }
 
-/** Eingefügte Termine, z. B. „03.11.2026 Restmüll“ oder „2026-11-17 Papier“ (eine Zeile je Termin). */
+/** Gültiges Datum aus Tag, Monat, Jahr (zweistelliges Jahr = 20xx), sonst null (z. B. 31.11.). */
+function validDate(y, m, d) {
+  const year = String(y).length === 2 ? 2000 + Number(y) : Number(y)
+  const month = Number(m)
+  const day = Number(d)
+  if (month < 1 || month > 12 || day < 1) return null
+  const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  return day <= daysInMonth(`${date.slice(0, 8)}01`) ? date : null
+}
+
+/** Eingefügte Termine, z. B. „03.11.2026 Restmüll“, „03.11.26 Bio“ oder „2026-11-17 Papier“ (eine Zeile je Termin). */
 export function parseDateList(text, defaultType = 'Restmüll') {
   const out = []
   for (const line of String(text).split(/\n|;/)) {
     const iso = line.match(/(\d{4})-(\d{2})-(\d{2})/)
-    const de = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/)
-    const date = iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : de ? `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}` : null
+    const de = line.match(/(\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})(?!\d)/)
+    const date = iso ? validDate(iso[1], iso[2], iso[3]) : de ? validDate(de[3], de[2], de[1]) : null
     if (!date) continue
     const rest = line.replace(iso?.[0] || de?.[0], '')
     out.push({ date, summary: rest.trim(), type: /[a-zäöü]/i.test(rest) ? detectWasteType(rest) : defaultType })

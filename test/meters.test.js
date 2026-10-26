@@ -1,7 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { applySwap, checkReading, correctNumber, duePeriod, findWaterLists, importMeters, importWaterLists, meterStatus, parseValue, periodByKey, periodFor, periodOf, readingRows, readingsCsv, readingsOf, segments, yearCsv, yearRows } from '../src/core/meters.js'
+import { todayISO } from '../src/core/dates.js'
+import { planLegacyImport } from '../src/core/legacy.js'
+import { applySwap, checkReading, correctNumber, duePeriod, findObject, findWaterLists, importMeters, importWaterLists, meterStatus, numberAt, parseValue, periodByKey, periodFor, periodOf, readingRows, readingsCsv, readingsOf, segments, yearCsv, yearRows } from '../src/core/meters.js'
 
 const meter = { id: 'S-test-01', objectId: 'o1', number: 'A100', kind: 'kaltwasser', location: 'Musterstraße 12', interval: 'quartal', history: [] }
 const r = (period, date, value, extra = {}) => ({ id: `r-${period}`, meterId: meter.id, period, date, value, ...extra })
@@ -142,4 +144,110 @@ test('Zähler: neue Ablesung überschreibt keine erledigte Vorrunde', () => {
   // 25.8. liegt noch im Fenster von Q2 (bis 29.8.), Q2 ist aber erfasst: zählt zu Q3
   assert.equal(duePeriod(meter, readings, '2026-08-25').key, '2026-Q3')
   assert.equal(duePeriod(meter, [], '2026-08-25').key, '2026-Q2')
+})
+
+test('Zähler: Ablesung vor dem Fenster erledigt den Zeitraum nicht, Stand nach „kein Zutritt“ gehört zur Vorrunde', () => {
+  // Q3: am 2.10. kein Zutritt, am 20.10. Stand nachgetragen → Q3 (nicht Q4); Q4 bleibt zum Jahresende fällig
+  const readings = [r('2026-Q2', '2026-06-29', 100), r('2026-Q3', '2026-10-02', null, { reason: 'kein_zutritt' })]
+  assert.equal(duePeriod(meter, readings, '2026-10-20').key, '2026-Q3')
+  const early = [...readings, { ...r('2026-Q4', '2026-10-20', 130), id: 'x' }]
+  assert.equal(meterStatus(meter, early, '2026-12-15').status, 'faellig', 'Oktober-Ablesung erledigt Q4 nicht')
+  // Tausch mitten im Quartal: die Ablesung zum Stichtag bleibt fällig
+  const base = [r('2026-Q2', '2026-06-29', 500)]
+  const p = duePeriod(meter, base, '2026-08-10')
+  const swap = { id: 'sw', meterId: meter.id, period: p.key, date: '2026-08-10', value: 3, swap: { oldNumber: 'A100', newNumber: 'B200', oldEnd: 520, newStart: 0 } }
+  assert.deepEqual([p.key, meterStatus(meter, [...base, swap], '2026-09-15').status], ['2026-Q3', 'faellig'])
+  // reguläre Ablesung im selben Quartal: Verbrauch über Tausch und Ablesung, auch in der Jahresliste
+  const all = [...base, swap, { ...r('2026-Q3', '2026-09-30', 25), id: 'q3' }]
+  assert.equal(segments(all).filter((s) => s.reading.period === '2026-Q3').reduce((x, s) => x + s.delta, 0), 45)
+  assert.deepEqual([yearRows({ meters: [meter], readings: all }, [], { year: 2026 })[0].quarters[2].delta, meterStatus(meter, all, '2026-10-05').status], [45, 'ok'])
+})
+
+test('Zähler: Tausch ohne Stand gilt beim nächsten Stand, Liste nennt die Nummer zum Ablesedatum', () => {
+  const list = { art: 'wasserablesung', ort: 'Haus', jahr: '2026', stellen: [{ id: 'S9', zaehlerNr: 'B200' }], runden: {
+    Q1: { datum: '2026-03-30', werte: { S9: { stand: '500' } } },
+    Q2: { datum: '2026-06-29', werte: { S9: { stand: '', tausch: { standAlt: '520', startNeu: '0', zaehlerNeu: 'B200' } } } },
+    Q3: { datum: '2026-09-29', werte: { S9: { stand: '30' } } },
+  } }
+  const res = importWaterLists([list], { objects: [{ id: 'o1', name: 'Haus' }], zaehler: { meters: [], readings: [] } })
+  const all = readingsOf({ readings: res.readings }, 'S9')
+  assert.equal(segments(all).find((s) => s.reading.period === '2026-Q3').delta, 50, '(520 − 500) + (30 − 0), nicht −470')
+  assert.ok(!checkReading(res.meters[0], all, all.at(-1)).some((i) => i.code === 'kritisch'), 'kein negativer Verbrauch')
+  // Nummer zum Ablesedatum: vor dem Tausch die alte; Berichtigung gilt auch rückwirkend
+  let z = { meters: [{ ...meter }], readings: [r('2026-Q1', '2026-03-31', 500)] }
+  z = applySwap(z, meter.id, { id: 'sw', meterId: meter.id, period: '2026-Q2', date: '2026-06-30', value: 12, swap: { oldNumber: 'A100', newNumber: 'B200', oldEnd: 540, newStart: 2 } }, { at: '2026-06-30T08:00:00Z' })
+  const rows = readingRows(z, [], { from: '2026-01-01', to: '2026-12-31' })
+  assert.deepEqual(rows.map((x) => [x.date, x.number]), [['2026-03-31', 'A100'], ['2026-06-30', 'B200']])
+  assert.equal(numberAt(correctNumber(z.meters[0], 'B2000', { date: '2026-07-01' }), '2026-07-15'), 'B2000')
+  // spätere Ablesung am neuen Zähler ist kein Fehler „größer als später“ für die alte
+  const later = [...readingsOf(z, meter.id), r('2026-Q3', '2026-09-30', 40)]
+  assert.deepEqual(checkReading(meter, later, later[0]).filter((i) => i.code === 'spaeter'), [])
+  assert.equal(checkReading(meter, later, { ...later[0], value: 600 })[0].code, 'spaeter', 'über dem Endstand alt (540)')
+})
+
+test('Zähler: Import erkennt Wärme und Quartal, ordnet Objekte nur genau zu, meldet unlesbares Datum', () => {
+  const objects = [{ id: 'o10', name: 'Musterstraße 10' }, { id: 'oX', name: 'Wohnanlage Lehen' }]
+  const imp = (obj, art, rh, extra = '') => importMeters(`Objekt\tZählernummer\tArt\tRhythmus\tStand\tDatum\n${obj}\tZ-1\t${art}\t${rh}\t${extra}`, objects, { today: '2026-10-26' })
+  assert.deepEqual(['Wärme', 'Wärmezähler', 'Fernwärme', 'Warmwasser', 'Warmes Wasser'].map((a) => imp('Wohnanlage Lehen', a, '').items[0].meter.kind), ['waerme', 'waerme', 'waerme', 'warmwasser', 'warmwasser'])
+  assert.equal(imp('Wohnanlage Lehen', 'Wärme', '').items[0].meter.unit, 'kWh')
+  assert.deepEqual(['vierteljährlich', 'alle 3 Monate', 'halbjährlich', 'alle 6 Monate', 'jährlich', 'monatlich', 'alle 12 Monate'].map((x) => imp('Wohnanlage Lehen', 'Kaltwasser', x).items[0].meter.interval), ['quartal', 'quartal', 'halbjahr', 'halbjahr', 'jahr', 'monat', 'jahr'])
+  const unknown = imp('Musterstraße 1', 'Kaltwasser', '')
+  assert.deepEqual([unknown.items.length, unknown.errors], [0, ['Zeile 2: Objekt „Musterstraße 1“ nicht gefunden']], 'nicht bei „Musterstraße 10“')
+  assert.equal(findObject([{ id: 'x', name: 'Bürohaus Salzburg' }], 'A'), null)
+  assert.equal(findObject(objects, 'musterstrasse 10').id, 'o10', 'ß = ss')
+  assert.deepEqual(imp('Wohnanlage Lehen', 'Kaltwasser', '', '12\t31.11.2026').errors, ['Zeile 2: Datum „31.11.2026“ nicht lesbar (TT.MM.JJJJ)'])
+  assert.deepEqual(imp('Wohnanlage Lehen', 'Kaltwasser', '', '12\t31.12.25').items[0].reading, { date: '2025-12-31', value: 12 })
+  assert.deepEqual(imp('Wohnanlage Lehen', 'Kaltwasser', '', '12\t').items[0].reading, { date: '2026-10-26', value: 12 }, 'ohne Datum: heute')
+  // Übernahme: unbekannter Standort wird eigenes Objekt
+  const res = importWaterLists([{ art: 'wasserablesung', ort: 'Musterstraße 1', jahr: '2026', stellen: [{ id: 'S-1', zaehlerNr: 'A1' }], runden: {} }], { objects, zaehler: { meters: [], readings: [] } })
+  assert.deepEqual([res.objects.length, res.meters[0].objectId], [1, 'o-wz-musterstrasse1'])
+})
+
+test('Zähler: Übernahme ohne doppelten Anfangsstand, mit eindeutigen IDs, ohne den Bestand zu ändern', () => {
+  const list = (jahr, start, runden) => ({ art: 'wasserablesung', ort: 'Musterort', jahr: String(jahr), stellen: [{ id: 'S-1', zaehlerNr: 'A1', startstand: String(start) }], runden })
+  const l2026 = list(2026, 281, { Q1: { datum: '2026-03-30', werte: { 'S-1': { stand: '300' } } } })
+  const l2025 = list(2025, 200, { Q4: { datum: '2025-12-20', werte: { 'S-1': { stand: '281' } } } })
+  const first = importWaterLists([l2026], { objects: [], zaehler: { meters: [], readings: [] } })
+  assert.ok(first.readings.some((x) => x.id === 'S-1-2025-Q4-start'))
+  const second = importWaterLists([l2025], { objects: first.objects, zaehler: { meters: first.meters, readings: first.readings } })
+  assert.deepEqual(second.readings.filter((x) => x.period === '2025-Q4').map((x) => x.id), ['S-1-2025-Q4'], 'echte Q4-Ablesung ersetzt den Anfangsstand')
+  // lange, ähnliche Standorte: verschiedene Objekt-IDs
+  const long = (nr) => ({ art: 'wasserablesung', ort: `Wohnanlage Salzburg Lehen Ignaz-Harrer-Straße ${nr}`, jahr: '2026', stellen: [{ id: `S-${nr}`, zaehlerNr: `Z${nr}` }], runden: {} })
+  const two = importWaterLists([long(12), long(14)])
+  assert.equal(new Set(two.objects.map((o) => o.id)).size, 2)
+  assert.notEqual(two.meters[0].objectId, two.meters[1].objectId)
+  // Vorschau ändert keine vorhandene Ablesung
+  const reading = { id: 'r-app', meterId: 'S-1', period: '2026-Q2', date: '2026-06-30', value: 5, swap: { oldNumber: '', newNumber: 'B2', oldEnd: 310, newStart: 0 } }
+  const current = { objects: first.objects, mappe: { objects: {} }, kontrolle: { inspections: [] }, zaehler: { meters: [{ ...first.meters[0], history: [{ type: 'tausch', from: 'A1', to: 'B2', date: '2026-06-30' }] }], readings: [reading] } }
+  const plan = planLegacyImport({ water: [l2026], customers: [], objects: [], inspections: [], akten: [], templates: [] }, current)
+  assert.equal(reading.swap.oldNumber, '', 'Bestand unverändert')
+  assert.equal(plan.zaehler.readings.find((x) => x.id === 'r-app').swap.oldNumber, 'A1', 'im Ergebnis ergänzt')
+})
+
+test('Zähler: Zählernummer als Zahl, Berichtigung mit Ortsdatum', () => {
+  const list = { art: 'wasserablesung', ort: 'Haus', jahr: '2026', stellen: [{ id: 'S-1', zaehlerNr: 4617 }, { id: 'S-2', zaehlerNr: 4618 }], runden: { Q1: { datum: '2026-03-30', werte: { 'S-1': { stand: '1' }, 'S-2': { stand: '2' } } } } }
+  const res = importWaterLists([list])
+  assert.deepEqual(readingRows({ meters: res.meters, readings: res.readings }, res.objects, { from: '2026-01-01', to: '2026-12-31' }).map((x) => x.number), ['4617', '4618'])
+  assert.deepEqual(yearRows({ meters: res.meters, readings: res.readings }, res.objects, { year: 2026 }).map((x) => x.number), ['4617', '4618'])
+  // 1.1.2027 00:30 in Wien (= 31.12.2026 23:30 UTC): Berichtigung am 1.1.2027
+  const tz = process.env.TZ
+  const RealDate = globalThis.Date
+  process.env.TZ = 'Europe/Vienna'
+  try {
+    const fixed = new RealDate(2027, 0, 1, 0, 30).getTime()
+    globalThis.Date = class extends RealDate {
+      constructor(...a) {
+        super(...(a.length ? a : [fixed]))
+      }
+      static now() {
+        return fixed
+      }
+    }
+    assert.equal(correctNumber(meter, 'A1000', { by: 'Büro' }).history[0].date, todayISO())
+    assert.equal(todayISO(), '2027-01-01')
+  } finally {
+    globalThis.Date = RealDate
+    if (tz === undefined) delete process.env.TZ
+    else process.env.TZ = tz
+  }
 })

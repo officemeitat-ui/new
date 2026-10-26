@@ -22,7 +22,8 @@
 // zumindest auf einer Antriebsachse, mindestens 5 mm, Schneeketten mitführen.
 // Sommerreifen: gesetzlich 1,6 mm.
 
-import { addDays, formatDate, isoWeekday, parseDate, parseMonth, toMinutes } from './dates.js'
+import { addDays, formatDate, isoWeekday, parseDate, parseMonth, todayISO, toMinutes } from './dates.js'
+import { holidayCalendar } from './holidays.js'
 import { parseTable } from './importer.js'
 
 export const VEHICLE_KINDS = {
@@ -145,17 +146,20 @@ export function conflicts(busy, time, minutes, travel = 0) {
 /**
  * Termine für mehrere Fahrzeuge vorschlagen: je Fahrzeug der erste freie
  * Platz bei der Werkstatt, an dem die Fahrerin keinen Dienst hat (samt
- * Fahrzeit) und nicht abwesend ist. Wochenenden werden übersprungen.
+ * Fahrzeit) und nicht abwesend ist. Wochenenden und Feiertage werden
+ * übersprungen.
  *   vehicles: [{ id, driverId }]
  *   busyOf(driverId, date) → [{ start, end, label, allDay }]
- *   taken: [{ date, time, minutes }] schon vergebene Plätze der Werkstatt
+ *   taken: [{ date, time, minutes }] schon vergebene Plätze der Werkstatt (auch außerhalb des Rasters)
+ *   holidays: Map/Set der Feiertage (holidayCalendar), ohne Angabe die gesetzlichen
  * Liefert { proposals: [{ vehicleId, date, time, minutes, after }], unplaced: [vehicleId] }
  */
-export function proposeSlots(vehicles, { from, to, dayStart = '07:00', dayEnd = '17:00', slotMinutes = 30, travelMinutes = 20, busyOf = () => [], taken = [] }) {
-  const used = new Set()
-  for (const t of taken) for (let m = toMinutes(t.time); m < toMinutes(t.time) + (t.minutes || slotMinutes); m += slotMinutes) used.add(`${t.date}|${m}`)
+export function proposeSlots(vehicles, { from, to, dayStart = '07:00', dayEnd = '17:00', slotMinutes = 30, travelMinutes = 20, busyOf = () => [], taken = [], holidays = holidayCalendar(from, to) }) {
+  // belegte Zeiträume der Werkstatt in Minuten; ein Platz ist frei, wenn er keinen davon überschneidet
+  const used = taken.map((t) => ({ date: t.date, s: toMinutes(t.time), e: toMinutes(t.time) + (Number(t.minutes) || slotMinutes) }))
+  const free = (date, m) => !used.some((b) => b.date === date && b.s < m + slotMinutes && b.e > m)
   const days = []
-  for (let d = from; d <= to; d = addDays(d, 1)) if (isoWeekday(d) <= 5) days.push(d)
+  for (let d = from; d <= to; d = addDays(d, 1)) if (isoWeekday(d) <= 5 && !holidays.has(d)) days.push(d)
   const proposals = []
   const unplaced = []
   for (const v of vehicles) {
@@ -164,11 +168,11 @@ export function proposeSlots(vehicles, { from, to, dayStart = '07:00', dayEnd = 
       const busy = v.driverId ? busyOf(v.driverId, date) : []
       if (busy.some((b) => b.allDay)) continue
       for (let m = toMinutes(dayStart); m + slotMinutes <= toMinutes(dayEnd); m += slotMinutes) {
-        if (used.has(`${date}|${m}`)) continue
+        if (!free(date, m)) continue
         if (conflicts(busy, hm(m), slotMinutes, travelMinutes).length) continue
         const before = busy.filter((b) => b.end <= m - travelMinutes).sort((a, b) => b.end - a.end)[0]
         found = { vehicleId: v.id, date, time: hm(m), minutes: slotMinutes, after: before ? `nach Dienst ${hm(before.start)}–${hm(before.end)}` : '' }
-        used.add(`${date}|${m}`)
+        used.push({ date, s: m, e: m + slotMinutes })
         break
       }
       if (found) break
@@ -277,10 +281,26 @@ export function tireCsv(rows) {
   return `﻿${[head, ...lines].map((l) => l.map(csvCell).join(';')).join('\r\n')}\r\n`
 }
 
-const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+// ß → ss vor dem Entfernen der Sonderzeichen („Straße“ = „Strasse“)
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 const pick = (row, ...names) => {
   const key = Object.keys(row).find((k) => names.includes(norm(k)))
   return key === undefined ? '' : String(row[key] ?? '').trim()
+}
+
+/**
+ * Fahrzeugart aus der Spalte „Art“: bis 3,5 t (auch „3,5t“, Klein-Lkw, N1) ist
+ * ein Transporter, Lkw nur über 3,5 t (N2, N3) oder „Lkw“ ohne „bis 3,5 t“;
+ * Pkw auch als Kombi, Limousine, Personenkraftwagen oder M1.
+ */
+function vehicleKind(text) {
+  const t = norm(text)
+  if (!t) return 'pkw'
+  const code = String(text).toUpperCase().match(/\b[MN][1-3]\b/)?.[0]
+  if (/bis35|kleinlkw/.test(t) || code === 'N1') return 'transporter'
+  if (/uber35|mehrals35|lkw/.test(t) || code === 'N2' || code === 'N3') return 'lkw'
+  if (/pkw|personen|kombi|limousine/.test(t) || code === 'M1') return 'pkw'
+  return 'transporter'
 }
 
 /** Zulassung, km, Pickerl und Service aus einer Zeile der Fahrzeugliste. */
@@ -306,9 +326,10 @@ function dueFields(row, today) {
  * Fahrer/in, Sommerreifen, Winterreifen, Lagerort, Werkstatt, Montiert;
  * dazu Klasse, Erstzulassung, km-Stand, Pickerl (Monat/Jahr), Service
  * (Datum oder Monat), Service bei km.
- * Fahrer/innen und Werkstätten werden über den Namen zugeordnet.
+ * Fahrer/innen und Werkstätten werden über den Namen zugeordnet. Der km-Stand
+ * gilt am Tag `today` (ohne Angabe: heute).
  */
-export function importVehicles(text, { employees = [], workshops = [], today = '' } = {}) {
+export function importVehicles(text, { employees = [], workshops = [], today = todayISO() } = {}) {
   const byName = (list, name) => {
     const n = norm(name)
     return n ? list.find((x) => norm(x.name) === n) || list.find((x) => norm(x.name).includes(n) || n.includes(norm(x.name))) : null
@@ -318,8 +339,7 @@ export function importVehicles(text, { employees = [], workshops = [], today = '
   for (const row of parseTable(text)) {
     const plate = pick(row, 'kennzeichen', 'kfz', 'kfzkennzeichen', 'plate').toUpperCase()
     if (!plate) continue
-    const kindText = norm(pick(row, 'art', 'typ', 'fahrzeugart'))
-    const kind = /lkw|35t|uber35/.test(kindText) ? 'lkw' : /pkw/.test(kindText) ? 'pkw' : kindText ? 'transporter' : 'pkw'
+    const kind = vehicleKind(pick(row, 'art', 'typ', 'fahrzeugart'))
     const driverName = pick(row, 'fahrer', 'fahrerin', 'fahrerfahrerin', 'mitarbeiter', 'mitarbeiterin')
     const driver = byName(employees, driverName)
     if (driverName && !driver) warnings.push(`${plate}: „${driverName}“ ist bei den Mitarbeitenden nicht bekannt.`)

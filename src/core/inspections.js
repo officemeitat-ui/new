@@ -23,11 +23,19 @@ export const RATINGS = {
 }
 export const RATING_KEYS = ['OK', 'R', 'M', 'G', 'NA']
 export const DEFECTS = ['R', 'M', 'G']
-export const DEFAULT_PRIO = { G: '1', M: '2', R: '3' }
+// Vorgabe: Reinigung bis zum nächsten Einsatz (kurzfristig), Reparatur braucht oft eine Firma (planbar)
+export const DEFAULT_PRIO = { G: '1', R: '2', M: '3' }
 export const PRIOS = { 1: 'sofort', 2: 'kurzfristig', 3: 'planbar', 4: 'beobachten' }
 export const OVERALL = ['Sehr gut', 'Gut', 'Handlungsbedarf', 'Kritisch']
-/** Frist ab Kontrolle je Priorität (Tage), als Vorschlag. */
-export const PRIO_DAYS = { 1: 1, 2: 14, 3: 7, 4: 90 }
+/**
+ * Frist ab Kontrolle je Priorität (Tage), als Vorschlag. Je weniger dringend,
+ * desto länger: sofort = am nächsten Tag (Gefahr sichern), kurzfristig = eine
+ * Woche (bis zum nächsten wöchentlichen Einsatz; Vorgabe für Reinigung),
+ * planbar = zwei Wochen (Vorgabe für Reparaturen), beobachten = bis zur
+ * nächsten Regelkontrolle (Quartal). Die Fristen der Vorgaben bleiben damit
+ * wie bisher (Reinigung 7, Reparatur 14 Tage).
+ */
+export const PRIO_DAYS = { 1: 1, 2: 7, 3: 14, 4: 90 }
 
 /** Alle Prüfpunkte einer Checkliste: [{ id: '1.6', chapter: 0, chapterTitle, text }] */
 export function checklistItems(checklist) {
@@ -63,34 +71,44 @@ export function progress(checklist, items = {}) {
 
 export const quarterOf = (date) => `Q${Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1} ${date.slice(0, 4)}`
 
-/** Feststellungen einer Kontrolle (R, M, G) nach Priorität. */
+/**
+ * Feststellungen einer Kontrolle (R, M, G) nach Priorität. Geht von den
+ * Bewertungen aus, nicht von der Checkliste: auch wenn diese fehlt oder eine
+ * andere ist, geht keine Feststellung verloren (Text dann „Punkt 3.2“).
+ */
 export function findings(inspection, checklist) {
-  return checklistItems(checklist)
-    .filter((x) => DEFECTS.includes(inspection.items?.[x.id]?.rating))
-    .map((x) => ({ ...x, ...inspection.items[x.id], prio: inspection.items[x.id].prio || DEFAULT_PRIO[inspection.items[x.id].rating] }))
+  return Object.entries(inspection.items || {})
+    .filter(([, it]) => DEFECTS.includes(it?.rating))
+    .map(([id, it]) => {
+      const chapter = Number(id.split('.')[0]) - 1
+      return { id, chapter, chapterTitle: checklist?.chapters?.[chapter]?.title || '', text: itemText(checklist, id), ...it, prio: it.prio || DEFAULT_PRIO[it.rating] }
+    })
     .sort((a, b) => a.prio.localeCompare(b.prio) || a.id.localeCompare(b.id, 'de', { numeric: true }))
 }
 
 const byDate = (a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '') || (a.closedAt || '').localeCompare(b.closedAt || '')
 
 /**
- * Offene Mängel über alle (abgeschlossenen) Kontrollen: je Objekt und
- * Prüfpunkt zählt die letzte Bewertung. R/M/G ohne „erledigt“ ist offen,
- * OK schließt den Mangel, N/A und „nicht bewertet“ ändern nichts.
+ * Offene Mängel über alle (abgeschlossenen) Kontrollen: je Objekt, Checkliste
+ * und Prüfpunkt zählt die letzte Bewertung (Punkt 1.6 einer anderen Checkliste
+ * ist ein anderer Punkt). R/M/G ohne „erledigt“ ist offen, OK schließt den
+ * Mangel, N/A und „nicht bewertet“ ändern nichts. Ältere Kontrollen ohne
+ * Checkliste schreibt derselbe Punkt einer späteren Kontrolle fort.
  * `exclude`: Kontrolle, die nicht mitzählt (die gerade bearbeitete).
- * Liefert [{ objectId, itemId, rating, note, prio, since, inspectionId, assignee, due, photos }].
+ * Liefert [{ objectId, checklistId, itemId, rating, note, prio, since, inspectionId, assignee, due, photos }].
  */
 export function openDefects(inspections, { objectId = null, exclude = null } = {}) {
   const state = new Map()
   for (const insp of [...inspections].filter((x) => x.status === 'abgeschlossen' && x.id !== exclude && (!objectId || x.objectId === objectId)).sort(byDate)) {
+    const checklistId = insp.checklistId || ''
     for (const [itemId, item] of Object.entries(insp.items || {})) {
-      const key = `${insp.objectId}|${itemId}`
-      const prev = state.get(key)
-      if (item.rating === 'OK') state.delete(key)
-      else if (DEFECTS.includes(item.rating)) {
-        if (item.done) state.delete(key)
-        else state.set(key, { objectId: insp.objectId, itemId, rating: item.rating, note: item.note || '', prio: item.prio || DEFAULT_PRIO[item.rating], since: prev?.since || insp.date, inspectionId: insp.id, date: insp.date, assignee: item.assignee || prev?.assignee || '', due: item.due || '', photos: item.photos || [], taskId: item.taskId || prev?.taskId || '' })
-      }
+      if (item.rating !== 'OK' && !DEFECTS.includes(item.rating)) continue
+      const key = `${insp.objectId}|${checklistId}|${itemId}`
+      const legacy = `${insp.objectId}||${itemId}`
+      const prev = state.get(key) || state.get(legacy)
+      state.delete(legacy)
+      if (item.rating === 'OK' || item.done) state.delete(key)
+      else state.set(key, { objectId: insp.objectId, checklistId, itemId, rating: item.rating, note: item.note || '', prio: item.prio || DEFAULT_PRIO[item.rating], since: prev?.since || insp.date, inspectionId: insp.id, date: insp.date, assignee: item.assignee || prev?.assignee || '', due: item.due || '', photos: item.photos || [], taskId: item.taskId || prev?.taskId || '' })
     }
   }
   return [...state.values()].sort((a, b) => a.prio.localeCompare(b.prio) || a.since.localeCompare(b.since))

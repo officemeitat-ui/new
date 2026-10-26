@@ -18,6 +18,7 @@
 //   customers: [{ nr, name, street, city, email }]   Kundenstamm (z. B. aus der Kundenverwaltung)
 //   templates: [{ id, name, floor, note, services }]  eigene Bereichsvorlagen
 
+import { todayISO } from './dates.js'
 import { parseTable } from './importer.js'
 
 /**
@@ -61,14 +62,17 @@ export const areaSize = (a) => num(a.size) || roomsSize(a)
 
 export const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
-/** Einsatztage 1–7 (Mo = 1): laut Mappe (Vertrag), sonst aus dem wöchentlichen Stammplan. */
-export function serviceWeekdays(m, tasks = [], objectId = null) {
+/** Gilt eine Leistung am Tag `today` (Gültig ab / Gültig bis der Wiederholung)? */
+export const taskValidOn = (t, today) => !today || ((!t.recurrence?.from || t.recurrence.from <= today) && (!t.recurrence?.until || t.recurrence.until >= today))
+
+/** Einsatztage 1–7 (Mo = 1): laut Mappe (Vertrag), sonst aus dem wöchentlichen Stammplan (nur gültige Leistungen). */
+export function serviceWeekdays(m, tasks = [], objectId = null, today = todayISO()) {
   const own = (m?.serviceDays || []).map((d) => (typeof d === 'number' ? d : WEEKDAYS.indexOf(String(d).slice(0, 2)) + 1)).filter((d) => d >= 1 && d <= 7)
   if (own.length) return [...new Set(own)].sort()
   const days = new Set()
   for (const t of tasks) {
     const r = t.recurrence || {}
-    if (t.objectId === objectId && t.category !== 'sonder' && r.type === 'weekly' && (r.everyWeeks || 1) === 1) for (const d of r.weekdays || []) days.add(d)
+    if (t.objectId === objectId && t.category !== 'sonder' && r.type === 'weekly' && (r.everyWeeks || 1) === 1 && taskValidOn(t, today)) for (const d of r.weekdays || []) days.add(d)
   }
   return [...days].sort()
 }
@@ -118,7 +122,8 @@ export function saveVersion(prev = {}, next, { by = '', reason = '', at = new Da
   const out = { ...next, checkedAt: at, ...(by ? { checkedBy: by } : {}) }
   if (!keys.length) return { ...out, version: prev.version || next.version || 1, history: prev.history || [] }
   const history = [...(prev.history || [])]
-  if (!isEmpty(before)) history.unshift({ version: prev.version || 1, at: prev.checkedAt || '', by: prev.checkedBy || '', reason: prev.reason || '', keys, data: Object.fromEntries(keys.filter((k) => k in before).map((k) => [k, before[k]])) })
+  // eine leere Fassung mitten im Verlauf gehört dazu, sonst fehlt beim Zurückrechnen ein Schritt
+  if (!isEmpty(before) || history.length) history.unshift({ version: prev.version || 1, at: prev.checkedAt || '', by: prev.checkedBy || '', reason: prev.reason || '', keys, data: Object.fromEntries(keys.filter((k) => k in before).map((k) => [k, before[k]])) })
   return { ...out, version: (prev.version || (isEmpty(before) ? 0 : 1)) + 1, reason, history: history.slice(0, HISTORY_MAX) }
 }
 
@@ -212,13 +217,17 @@ const toMin = (t) => {
   return h * 60 + (m || 0)
 }
 
-/** Geplante Minuten pro Woche laut Dienstplan (Stammplan, ohne Sonderleistungen und Einmaliges). */
-export function plannedMinutes(tasks, objectId) {
+/**
+ * Geplante Minuten pro Woche laut Dienstplan (Stammplan, ohne Sonderleistungen
+ * und Einmaliges, nur Leistungen, die am Tag `today` gelten).
+ */
+export function plannedMinutes(tasks, objectId, today = todayISO()) {
   let sum = 0
   for (const t of tasks) {
-    if (t.objectId !== objectId || t.category === 'sonder') continue
+    if (t.objectId !== objectId || t.category === 'sonder' || !taskValidOn(t, today)) continue
     let dur = toMin(t.end) - toMin(t.start)
-    if (dur <= 0) dur += 1440
+    // über Mitternacht (22:00–00:30); Beginn = Ende ist kein 24-h-Einsatz, sondern leer
+    if (dur < 0) dur += 1440
     const r = t.recurrence || {}
     const perWeek = r.type === 'weekly' ? (r.weekdays || []).length / (r.everyWeeks || 1) : r.type === 'monthly' ? 12 / 52 / (r.everyMonths || 1) : 0
     sum += dur * (t.staff || 1) * perWeek
@@ -227,9 +236,9 @@ export function plannedMinutes(tasks, objectId) {
 }
 
 /** Vergleich Leistungsverzeichnis ↔ Dienstplan: Abweichung in Minuten und Prozent. */
-export function compareHours(mappe, tasks, objectId) {
+export function compareHours(mappe, tasks, objectId, today = todayISO()) {
   const lv = Math.round(lvMinutes(mappe))
-  const plan = plannedMinutes(tasks, objectId)
+  const plan = plannedMinutes(tasks, objectId, today)
   const diff = plan - lv
   return { lv, plan, diff, pct: lv ? Math.round((diff / lv) * 100) : null, warn: lv > 0 && plan > 0 && Math.abs(diff) > Math.max(30, lv * 0.1) }
 }
@@ -283,7 +292,8 @@ export function sheetSections(preset, chosen) {
 
 // ---------------------------------------------------------------- Kundenstamm
 
-const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+// ß → ss vor dem Entfernen der Sonderzeichen, sonst wird „Straße“ zu „strae“
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 const pick = (row, ...names) => {
   const key = Object.keys(row).find((k) => names.includes(norm(k)))
   return key === undefined ? '' : String(row[key] ?? '').trim()

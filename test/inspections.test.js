@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { addMonths, checklistItems, checklistToText, findings, inspectionDue, itemText, openDefects, progress, reworkTask, suggestOverall, summaryText, textToChapters } from '../src/core/inspections.js'
+import { addMonths, checklistItems, checklistToText, findings, inspectionDue, itemText, openDefects, PRIO_DAYS, PRIOS, progress, reworkTask, suggestOverall, summaryText, textToChapters } from '../src/core/inspections.js'
 import { OBJEKTKONTROLLE_CHECKLIST } from '../src/data/checklist-objektkontrolle.js'
 
 const cl = OBJEKTKONTROLLE_CHECKLIST
@@ -29,7 +29,7 @@ test('Kontrolle: Fortschritt je Kapitel und Feststellungen nach Priorität', () 
   const items = { '1.1': { rating: 'OK' }, '1.2': { rating: 'R' }, '8.2': { rating: 'G', note: 'Platte lose' }, '4.1': { rating: 'M', prio: '4' } }
   const p = progress(cl, items)
   assert.deepEqual([p.rated, p.total, p.chapters[0].rated, p.chapters[0].worst, p.chapters[7].worst, p.chapters[1].worst], [4, 39, 2, 'R', 'G', null])
-  assert.deepEqual(findings({ items }, cl).map((f) => [f.id, f.prio]), [['8.2', '1'], ['1.2', '3'], ['4.1', '4']])
+  assert.deepEqual(findings({ items }, cl).map((f) => [f.id, f.prio]), [['8.2', '1'], ['1.2', '2'], ['4.1', '4']])
   const text = summaryText({ items, summary: {} }, cl)
   assert.match(text, /4 von 39 Prüfpunkten bewertet, 1 in Ordnung\. 3 Feststellungen: 1 × Gefahr, 1 × Mangel, 1 × Reinigung\. Sofort: Gehwege.*\(Platte lose\)\. Gesamtzustand: Kritisch\./)
 })
@@ -75,4 +75,33 @@ test('Kontrolle: Checkliste als Text bearbeiten', () => {
   assert.match(text, /^# Allgemeiner Objektzustand und Allgemeinflächen\nAllgemeiner Reinigungszustand/)
   assert.deepEqual(textToChapters(text), cl.chapters)
   assert.deepEqual(textToChapters('Punkt ohne Kapitel\n# 2 Lift\n- Kabine sauber\n\n# Leer'), [{ title: 'Allgemein', items: ['Punkt ohne Kapitel'] }, { title: 'Lift', items: ['Kabine sauber'] }])
+})
+
+test('Kontrolle: Feststellungen bleiben bei fehlender oder anderer Checkliste erhalten', () => {
+  const k = { id: 'k1', objectId: 'o1', checklistId: 'cl-buero', date: '2026-10-20', status: 'abgeschlossen', items: { '1.1': { rating: 'OK' }, '3.2': { rating: 'G', note: 'Stolperfalle Kabel' } }, summary: {} }
+  const other = { id: 'cl-std', chapters: [{ title: 'Eingang', items: ['Boden', 'Glas'] }, { title: 'Büro', items: ['Tische'] }] }
+  assert.deepEqual(findings(k, other).map((f) => [f.id, f.rating, f.prio, f.text, f.note]), [['3.2', 'G', '1', 'Punkt 3.2', 'Stolperfalle Kabel']])
+  assert.deepEqual(findings(k, undefined).map((f) => f.id), ['3.2'])
+  assert.match(summaryText(k, other), /1 Feststellung: 1 × Gefahr\. Sofort: Punkt 3\.2 \(Stolperfalle Kabel\)/)
+  assert.deepEqual(findings({ items: { '8.2': { rating: 'M' } } }, cl).map((f) => [f.text, f.chapter, f.chapterTitle]), [[itemText(cl, '8.2'), 7, cl.chapters[7].title]])
+})
+
+test('Kontrolle: offene Mängel je Checkliste, ältere Kontrollen ohne Checkliste werden fortgeschrieben', () => {
+  // 1.6 der Checkliste „Wohnhaus“ ist ein anderer Punkt als 1.6 der Checkliste „Büro“
+  const a = { id: 'a', objectId: 'o1', checklistId: 'cl-wohnhaus', date: '2026-09-01', status: 'abgeschlossen', items: { '1.6': { rating: 'M', note: 'Platte lose' } } }
+  const b = { id: 'b', objectId: 'o1', checklistId: 'cl-buero', date: '2026-10-01', status: 'abgeschlossen', items: { '1.6': { rating: 'OK' } } }
+  assert.deepEqual(openDefects([a, b]).map((d) => [d.checklistId, d.itemId, d.note]), [['cl-wohnhaus', '1.6', 'Platte lose']])
+  assert.deepEqual(openDefects([a, { ...b, checklistId: 'cl-wohnhaus' }]), [], 'gleiche Checkliste: OK schließt')
+  // ohne Checkliste (alte Daten): spätere Bewertung desselben Punkts gilt weiter
+  const old = { id: 'o', objectId: 'o1', date: '2026-03-01', status: 'abgeschlossen', items: { '2.1': { rating: 'R' }, '2.2': { rating: 'M' } } }
+  const next = { id: 'n', objectId: 'o1', checklistId: 'objektkontrolle', date: '2026-06-01', status: 'abgeschlossen', items: { '2.1': { rating: 'OK' }, '2.2': { rating: 'M', note: 'noch immer' } } }
+  assert.deepEqual(openDefects([old]).map((d) => [d.itemId, d.checklistId]), [['2.1', ''], ['2.2', '']])
+  assert.deepEqual(openDefects([old, next]).map((d) => [d.itemId, d.since, d.note]), [['2.2', '2026-03-01', 'noch immer']])
+})
+
+test('Kontrolle: Frist wird mit sinkender Dringlichkeit länger', () => {
+  const keys = Object.keys(PRIOS).sort()
+  assert.deepEqual(keys, ['1', '2', '3', '4'])
+  for (let i = 1; i < keys.length; i++) assert.ok(PRIO_DAYS[keys[i]] > PRIO_DAYS[keys[i - 1]], `${PRIOS[keys[i]]} länger als ${PRIOS[keys[i - 1]]}`)
+  assert.equal(PRIO_DAYS[1], 1, 'Gefahr: am nächsten Tag')
 })

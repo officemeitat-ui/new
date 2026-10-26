@@ -136,3 +136,24 @@ test('Müll: Rhythmus aus der Eingabe und zurück', () => {
   assert.equal(streamText({ type: 'Glas', recurrence: { type: 'dates', dates: ['2026-11-03'] } }), 'Glas: 1 Termin')
   assert.deepEqual(wasteRecurrence('dates', '', ['2026-11-17', '2026-11-03', '2026-11-17']), { type: 'dates', dates: ['2026-11-03', '2026-11-17'] })
 })
+
+test('Müll: .ics mit UTC-Zeiten, Wiederholung, Ausnahmen, verschobenen und abgesagten Terminen', () => {
+  const cal = (...events) => ['BEGIN:VCALENDAR', 'VERSION:2.0', ...events.flatMap((e) => ['BEGIN:VEVENT', ...e, 'END:VEVENT']), 'END:VCALENDAR'].join('\r\n')
+  // UTC: 3.11. 00:00 in Wien = 2.11. 23:00 UTC; Sommerzeit 1.10. 00:30 = 30.9. 22:30 UTC
+  assert.deepEqual(parseIcs(cal(['DTSTART:20261102T230000Z', 'SUMMARY:Restmüll'], ['DTSTART:20260930T223000Z', 'SUMMARY:Biotonne'])).map((e) => e.date), ['2026-10-01', '2026-11-03'])
+  // 14-tägig, 6 Termine, einer ausgenommen
+  const rr = parseIcs(cal(['DTSTART;VALUE=DATE:20261103', 'RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=6', 'EXDATE;VALUE=DATE:20261117', 'SUMMARY:Altpapier']))
+  assert.deepEqual(rr.map((e) => e.date), ['2026-11-03', '2026-12-01', '2026-12-15', '2026-12-29', '2027-01-12'])
+  assert.ok(rr.every((e) => e.type === 'Altpapier'))
+  // wöchentlich Di und Fr bis Ende November, täglich alle 3 Tage
+  assert.deepEqual(parseIcs(cal(['DTSTART;VALUE=DATE:20261103', 'RRULE:FREQ=WEEKLY;BYDAY=TU,FR;UNTIL=20261113', 'SUMMARY:Bio'])).map((e) => e.date), ['2026-11-03', '2026-11-06', '2026-11-10', '2026-11-13'])
+  assert.deepEqual(parseIcs(cal(['DTSTART;VALUE=DATE:20261101', 'RRULE:FREQ=DAILY;INTERVAL=3;COUNT=3', 'SUMMARY:Glas'])).map((e) => e.date), ['2026-11-01', '2026-11-04', '2026-11-07'])
+  // verschoben 24.12. → 23.12., abgesagt 31.12., Erinnerung (VALARM) ändert nichts
+  const moved = parseIcs(cal(['UID:x1', 'DTSTART;VALUE=DATE:20261224', 'SUMMARY:Restmüll', 'BEGIN:VALARM', 'DESCRIPTION:Erinnerung', 'SUMMARY:Erinnerung', 'END:VALARM'], ['UID:x1', 'RECURRENCE-ID;VALUE=DATE:20261224', 'DTSTART;VALUE=DATE:20261223', 'SUMMARY:Restmüll'], ['UID:x2', 'DTSTART;VALUE=DATE:20261231', 'STATUS:CANCELLED', 'SUMMARY:Biomüll']))
+  assert.deepEqual(moved.map((e) => [e.date, e.summary]), [['2026-12-23', 'Restmüll']])
+})
+
+test('Müll: eingefügte Termine mit zweistelligem Jahr, ungültige Daten werden nicht übernommen', () => {
+  const list = parseDateList('03.11.26 Restmüll\n17.11.26 Restmüll\n31.11.2026 Restmüll\n2026-02-30 Papier\n1.12.2026 Bio')
+  assert.deepEqual(list.map((e) => [e.date, e.type]), [['2026-11-03', 'Restmüll'], ['2026-11-17', 'Restmüll'], ['2026-12-01', 'Biomüll']])
+})

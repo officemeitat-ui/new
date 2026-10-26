@@ -54,7 +54,7 @@ function mappeView() {
   const body = rows
     .map(({ o, m }) => {
       const c = completeness(m, o)
-      const cmp = compareHours(m, app.data.tasks, o.id)
+      const cmp = compareHours(m, app.data.tasks, o.id, todayISO())
       return `<tr><td><span class="swatch" style="--obj:var(--o${o.color || 10})"></span><button class="link-btn" data-action="mp-open" data-id="${esc(o.id)}"><strong>${esc(o.name)}</strong></button><br><span class="muted">${esc([o.address, m.objectNo ? `Obj.-Nr. ${m.objectNo}` : ''].filter(Boolean).join(' · '))}</span></td>
         <td>${esc(m.customer || '')}${m.customerNo ? `<br><span class="muted">Kd.-Nr. ${esc(m.customerNo)}</span>` : ''}</td>
         <td class="num">${cmp.lv ? `${h(cmp.lv)} h` : '–'}<br><span class="muted">Plan ${h(cmp.plan)} h</span>${cmp.warn ? `<br><span class="pill warning">${cmp.diff > 0 ? '+' : '−'}${h(Math.abs(cmp.diff))} h</span>` : ''}</td>
@@ -149,9 +149,9 @@ function peopleTab(d) {
 }
 
 function servicesTab(o, d, m) {
-  const cmp = compareHours(d, app.data.tasks, o.id)
+  const cmp = compareHours(d, app.data.tasks, o.id, todayISO())
   const intervals = Object.entries(LV_INTERVALS).map(([k, v]) => [k, v.label])
-  const days = serviceWeekdays(d, app.data.tasks, o.id)
+  const days = serviceWeekdays(d, app.data.tasks, o.id, todayISO())
   const tpls = allTemplates()
   const areas = (d.areas || [])
     .map((a, i) => {
@@ -364,7 +364,7 @@ registerActions(
       const name = document.getElementById('mp-tpl')?.value
       const tpl = allTemplates().find((t) => t.name === name)
       if (!tpl) return
-      const days = serviceWeekdays(m.draft, app.data.tasks, m.id).length
+      const days = serviceWeekdays(m.draft, app.data.tasks, m.id, todayISO()).length
       const { area, fitted } = areaFromTemplate(tpl, days)
       ;(m.draft.areas ||= []).push(area)
       renderModal()
@@ -447,7 +447,7 @@ function sheetData(o, d) {
   const k = app.data.kontrolle
   const last = (k?.inspections || []).filter((x) => x.objectId === o.id && x.status === 'abgeschlossen').sort((a, b) => b.date.localeCompare(a.date))[0]
   const checklist = k?.checklists?.find((x) => x.id === last?.checklistId) || k?.checklists?.[0]
-  const inspection = last ? { date: last.date, overall: last.summary?.overall || suggestOverall(last.items), defects: openDefects(k.inspections, { objectId: o.id }).filter((x) => DEFECTS.includes(x.rating)).map((x) => ({ id: x.itemId, rating: x.rating, text: itemText(checklist, x.itemId), note: x.note })) } : null
+  const inspection = last ? { date: last.date, overall: last.summary?.overall || suggestOverall(last.items), defects: openDefects(k.inspections, { objectId: o.id }).filter((x) => DEFECTS.includes(x.rating)).map((x) => ({ id: x.itemId, rating: x.rating, text: itemText(k.checklists?.find((c) => c.id === x.checklistId) || checklist, x.itemId), note: x.note })) } : null
   return {
     object: o,
     mappe: d,
@@ -456,7 +456,7 @@ function sheetData(o, d) {
     waste: o.waste?.streams?.length ? wasteSummary(o, todayISO(), app.cur?.holidays) : '',
     meters,
     inspection,
-    plannedMinutes: compareHours(d, app.data.tasks, o.id).plan,
+    plannedMinutes: compareHours(d, app.data.tasks, o.id, todayISO()).plan,
   }
 }
 

@@ -32,7 +32,9 @@ const isOpen = (st) => st.status === 'faellig' || st.status === 'ueberfaellig'
 const canPdf = () => app.config.features.pdf && app.config.features.download
 const closureOf = (objectId, periodKey) => Z().closures[`${objectId}|${periodKey}`] || null
 const userName = () => app.user?.name || ''
-const byLocation = (a, b) => (a.location || '').localeCompare(b.location || '', 'de', { numeric: true }) || a.number.localeCompare(b.number, 'de', { numeric: true })
+const byLocation = (a, b) => (a.location || '').localeCompare(b.location || '', 'de', { numeric: true }) || String(a.number).localeCompare(String(b.number), 'de', { numeric: true })
+/** Ablesung im Zeitraum, die eine neue ersetzt: Tausch ersetzt nur einen Tausch, reguläre nur eine reguläre. */
+const existingIn = (readings, period, swap) => readings.find((r) => r.period === period.key && !!r.swap === !!swap)
 
 // Status aller aktiven Zählstellen (nur nach Änderungen neu berechnen)
 let memo = { key: null, list: [] }
@@ -90,8 +92,10 @@ function objectCard(obj, list, all, today) {
   const mine = all.filter((x) => x.meter.objectId === obj.id)
   const round = roundOf(mine)
   const closed = round && closureOf(obj.id, round.key)
-  const roundDone = round && mine.every((x) => x.readings.some((r) => r.period === round.key))
-  const count = round ? mine.filter((x) => x.readings.some((r) => r.period === round.key)).length : 0
+  // erfasst wie in meterStatus: nur Ablesungen ab Öffnung des Fensters (kein Tausch mitten im Quartal)
+  const read = (x) => x.readings.some((r) => r.period === round.key && r.date >= addDays(round.to, -windowDays().before))
+  const roundDone = round && mine.every(read)
+  const count = round ? mine.filter(read).length : 0
   list.sort((a, b) => byLocation(a.meter, b.meter))
   return `<article class="object-card" style="--obj:var(--o${obj.color || 10})">
     <header><h3>${esc(obj.name)}</h3><span class="addr">${mine.length} Zählstellen${round ? ` · ${esc(round.label)}: ${count}/${mine.length} erfasst` : ''}${closed ? ` · ${ICON.lock} abgeschlossen` : ''}</span>
@@ -188,7 +192,7 @@ function readModal(c, m) {
   const readings = readingsOf(Z(), meter.id)
   const last = [...readings].reverse().find(hasValue)
   const period = duePeriod(meter, readings, m.date || today, windowDays())
-  const existing = readings.find((r) => r.period === period.key)
+  const existing = existingIn(readings, period, m.swap)
   const expected = last ? expectedBetween(readings, last.date, today) : null
   const unit = unitOf(meter)
   const walk = m.walk || []
@@ -339,7 +343,7 @@ registerActions(
       if (draft.swap && !draft.swap.newNumber) return toast('Bitte die Nummer des neuen Zählers eintragen.')
       const period = duePeriod(meter, readings, draft.date, windowDays())
       if (closureOf(meter.objectId, period.key)) return toast(`${period.label} ist abgeschlossen.`)
-      const existing = readings.find((r) => r.period === period.key)
+      const existing = existingIn(readings, period, draft.swap)
       const issues = checkReading(meter, readings.filter((r) => r !== existing), draft)
       if (issues.some((i) => i.level === 'error') && app.ui.confirm !== 'mr-force') {
         m.issues = issues
