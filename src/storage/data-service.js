@@ -276,6 +276,8 @@ export class DataService {
       Object.assign(data, await seed())
       this.firstRun = true
     } else {
+      // Grunddaten zuerst: Dateien, die es (noch) nicht gibt, z. B. objekte/ ohne Objekte, lassen leere Listen
+      Object.assign(data, await this.blank())
       for (const [i, path] of paths.entries()) {
         const doc = docs[i]
         if (!doc) continue
@@ -285,6 +287,7 @@ export class DataService {
         this.etags.set(path, doc.etag)
       }
     }
+    data.objects ||= []
     // Umzug: alte Dateien gelten als noch nicht gespeichert, Objekte aus älteren Stammdaten ebenso
     for (const path of this.moved.keys()) {
       this.base.delete(path)

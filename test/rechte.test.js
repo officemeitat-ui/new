@@ -145,6 +145,14 @@ test('Rechte: ältere Ablage wird in die eigenen Ordner verschoben', async () =>
   assert.equal(again.objects[0].name, 'Kanzlei')
 })
 
+test('Rechte: leere Ablage, zweiter Start ohne Objekte hat trotzdem eine Objektliste', async () => {
+  const { store } = spyStore()
+  await new DataService(store, { debounceMs: 0, blank }).load(blank)
+  assert.equal(await store.read(DOC.objects), null)
+  const data = await new DataService(store, { debounceMs: 0 }).load(() => assert.fail())
+  assert.deepEqual(data.objects, [])
+})
+
 test('Anmeldung: nur Konten aus dem eigenen Tenant, keine Gäste', () => {
   const member = { tenantId: TENANT, homeAccountId: `oid1.${TENANT}`, idTokenClaims: { tid: TENANT } }
   assert.equal(accountProblem(member, TENANT), '')
