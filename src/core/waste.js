@@ -151,7 +151,7 @@ function wasteRegulars(object, tasks, employees, inst) {
  *    (inst.addOns, Ende und Arbeitszeit verlängern sich)
  *  - sonst: eigener Einsatz (Kategorie „muell“) über `make(task, date)`
  */
-export function applyWaste(instances, { objects, tasks, employees = [], from, to, holidays, make }) {
+export function applyWaste(instances, { objects, tasks, employees = [], from, to, holidays, make, rules }) {
   const objectsById = new Map(objects.map((o) => [o.id, o]))
   for (const duty of wasteDuties(objects, from, to, holidays)) {
     const w = WASTE_WINDOWS[duty.window]
@@ -163,6 +163,11 @@ export function applyWaste(instances, { objects, tasks, employees = [], from, to
       host.end += duty.minutes
       host.duration += duty.minutes
       host.net += duty.minutes
+      // länger als 6 h: Pause nachziehen
+      if (rules && host.duration > rules.breakAfterH * 60 && host.breakMin < rules.breakMin) {
+        host.net -= rules.breakMin - host.breakMin
+        host.breakMin = rules.breakMin
+      }
       host.endTime = formatTime(host.end)
       continue
     }

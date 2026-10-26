@@ -32,7 +32,7 @@ export function buildInstances({ objects, tasks, employees = [], overrides = {} 
     }
   }
   // Müllplan: Gänge an Einsätze im Objekt anhängen oder eigene Einsätze erzeugen
-  applyWaste(out, { objects, tasks, employees, from, to, holidays, make: (task, date) => instanceFor(task, objectsById.get(task.objectId), date, { overrides, holidays, rules }) })
+  applyWaste(out, { objects, tasks, employees, from, to, holidays, rules, make: (task, date) => instanceFor(task, objectsById.get(task.objectId), date, { overrides, holidays, rules }) })
   return out
 }
 
@@ -62,7 +62,8 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
   let startTime = task.start
   let endTime = task.end
   if (ov) {
-    if (ov.date) {
+    // ov.date = schon durch den Feiertag verschobenes Datum: Status/Grund bleiben „Feiertag“
+    if (ov.date && ov.date !== actualDate) {
       actualDate = ov.date
       status = ov.date === date ? 'normal' : 'moved'
       reason = ov.date === date ? null : 'manual'

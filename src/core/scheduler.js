@@ -25,7 +25,10 @@ function isSoftBlocking(issue, rules) {
 /** Was würde passieren, wenn `emp` den Einsatz `inst` zusätzlich übernimmt? */
 export function evaluateCandidate(ctx, state, emp, inst, { asRegular = false } = {}) {
   const own = state.instancesOf(emp.id).filter((i) => i.key !== inst.key)
-  const issues = evaluateEmployee(emp, [...own, inst], ctx).filter((i) => i.keys.includes(inst.key))
+  // auch Markierungen, die erst durch inst entstehen, ohne inst zu nennen (z. B. Wochenruhe der Nachbarwoche)
+  const sig = (i) => `${i.code}|${i.keys.filter((k) => k !== inst.key).sort().join(',')}`
+  const before = new Set(evaluateEmployee(emp, own, ctx).map(sig))
+  const issues = evaluateEmployee(emp, [...own, inst], ctx).filter((i) => i.keys.includes(inst.key) || !before.has(sig(i)))
   const blocking = issues.filter((i) => i.severity === 'error' || (!asRegular && isSoftBlocking(i, ctx.rules)))
   return { emp, issues, blocking, allowed: blocking.length === 0 }
 }
@@ -169,6 +172,11 @@ export function autoPlan(ctx, instances, assignments, { from, to, replan = false
   const stats = { regular: 0, substitute: 0, other: 0, released: 0 }
   for (const inst of inRange) {
     for (const a of [...state.assigned(inst.key)]) {
+      // Person gibt es nicht mehr: Platz freigeben (die Prüfung zählt sie auch nicht)
+      if (!ctx.employeesById.has(a.employeeId)) {
+        state.unassign(a.employeeId, inst.key)
+        continue
+      }
       if (a.locked) continue
       // Neu eingetragene Abwesenheit: nicht fixierte Einteilung freigeben
       if (replan || findAbsence(ctx, a.employeeId, inst.date)) {

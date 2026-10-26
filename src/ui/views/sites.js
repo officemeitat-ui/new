@@ -1,6 +1,6 @@
 // Objekte & Leistungen (Stammplan), Objektmappe, Schlüssel, Budget.
 
-import { addDays, formatHours, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
+import { addDays, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { holidayCalendar } from '../../core/holidays.js'
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
 import { wasteSummary } from '../../core/waste.js'
@@ -158,8 +158,21 @@ function readRecurrence() {
   return { type: 'weekly', weekdays: checkedValues('task-wd').map(Number), everyWeeks: Number(val('task-every')) || 1, anchor: val('task-anchor') || app.cur.monday, ...(val('task-until') ? { until: val('task-until') } : {}) }
 }
 
+/**
+ * „Erstmals in der Woche vom … / im Monat …“ in der Zukunft gilt auch als Beginn
+ * (vorher nur als Takt: der Einsatz erschien schon in früheren Wochen).
+ * Ein Anker in der Vergangenheit bleibt reiner Takt, damit veröffentlichte Wochen unverändert bleiben.
+ */
+function withStart(recurrence, old) {
+  if (recurrence.type === 'once' || !recurrence.anchor) return recurrence
+  const start = recurrence.type === 'monthly' ? recurrence.anchor : mondayOf(recurrence.anchor)
+  const now = recurrence.type === 'monthly' ? `${todayISO().slice(0, 7)}-01` : mondayOf(todayISO())
+  if (old && old.anchor === recurrence.anchor) return old.from ? { ...recurrence, from: old.from } : recurrence
+  return start > now ? { ...recurrence, from: start } : recurrence
+}
+
 function readTaskForm(existing) {
-  const recurrence = readRecurrence()
+  const recurrence = withStart(readRecurrence(), existing?.recurrence)
   return {
     ...existing,
     objectId: val('task-object'),

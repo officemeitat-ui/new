@@ -5,8 +5,22 @@
 // Fahrzeit). Unter diesen gewinnt, wer noch Vertragsstunden frei hat, im
 // Revier ist, das Objekt kennt und direkt davor oder danach in der Nähe ist.
 
-import { formatHours, isoWeekday, toMinutes, WEEKDAY_SHORT, weeksBetween } from './dates.js'
-import { availabilityWindow } from './rules.js'
+import { addDays, formatHours, isoWeekday, mondayOf, toMinutes, WEEKDAY_SHORT, weeksBetween } from './dates.js'
+import { buildInstances, PlanState } from './plan.js'
+import { evaluateEmployee, fitsWindow } from './rules.js'
+
+/** Probe: 6 Wochen mit allen Stammeinsätzen + der neuen Leistung einplanen und mit den Prüfregeln bewerten. */
+function probeErrors(ctx, task, emp, mine) {
+  const from = mondayOf(task.recurrence.anchor || task.recurrence.date || '2026-01-05')
+  const tasks = [...mine.tasks.filter((t) => t.id !== task.id), task].map((t) => ({ ...t, regulars: [emp.id] }))
+  const insts = buildInstances({ objects: [...ctx.objectsById.values()], tasks }, from, addDays(from, 41), new Map(), ctx.rules)
+  const st = new PlanState(insts, Object.fromEntries(insts.map((i) => [i.key, [{ employeeId: emp.id }]])))
+  const own = new Set(insts.filter((i) => i.taskId === task.id).map((i) => i.key))
+  const out = new Set()
+  for (const i of evaluateEmployee(emp, st.instancesOf(emp.id), { ...ctx, absencesByEmployee: new Map() }))
+    if (i.severity === 'error' && !['SKILL', 'NOT_TRAINED', 'MONTHLY_LIMIT'].includes(i.code) && i.keys.some((k) => own.has(k))) out.add(i.message.replace(/ \(.*$|:.*$/, ''))
+  return [...out]
+}
 
 const gcd = (a, b) => (b ? gcd(b, a % b) : a)
 const hrs = (min) => formatHours(Math.round(min))
@@ -102,16 +116,14 @@ export function evaluateRegular(ctx, task, emp, { tasks, load } = {}) {
 
   const missing = (task.skills || []).filter((s) => !(emp.skills || []).includes(s))
   if (missing.length) blockers.push(`fehlt: ${missing.join(', ')}`)
-  const unavailable = days.filter((d) => {
-    const w = availabilityWindow(emp, d)
-    return !w || span.start < w.from || span.end > w.to
-  })
+  const unavailable = days.filter((d) => !fitsWindow(emp, d, span.start, span.end))
   if (unavailable.length) blockers.push(`nicht verfügbar ${unavailable.map((d) => WEEKDAY_SHORT[d - 1]).join(', ')} ${task.start}–${task.end}`)
   if (emp.minor) {
     const ns = toMinutes(r.minor.nightStart)
     const ne = toMinutes(r.minor.nightEnd)
     if (span.end > ns || span.start < ne) blockers.push(`unter 18: Nachtruhe ${r.minor.nightStart}–${r.minor.nightEnd}`)
   }
+  if (task.recurrence.type !== 'once') for (const m of probeErrors(ctx, task, emp, mine)) if (!blockers.includes(m)) blockers.push(m)
   for (const c of conflictsWith(ctx, task, mine.tasks)) {
     const o = ctx.objectsById.get(c.task.objectId)
     blockers.push(c.kind === 'overlap' ? `überschneidet sich mit ${o?.short || o?.name || ''} ${c.days.map((d) => WEEKDAY_SHORT[d - 1]).join(', ')} ${c.task.start}–${c.task.end}` : `Fahrzeit ${c.travel} min zu ${o?.short || o?.name || ''} reicht nicht`)

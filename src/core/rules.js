@@ -125,11 +125,19 @@ export function availabilityWindow(emp, weekday) {
   return { from, to }
 }
 
+/** Passt [start, end) (Minuten ab Mitternacht des Wochentags, end ggf. > 1440) in die Verfügbarkeit? */
+export function fitsWindow(emp, weekday, start, end) {
+  const w = availabilityWindow(emp, weekday)
+  if (!w || start < w.from) return false
+  if (end <= w.to) return true
+  // über Mitternacht: verfügbar bis 24:00 und am Folgetag ab 00:00
+  const next = availabilityWindow(emp, (weekday % 7) + 1)
+  return w.to >= 1440 && !!next && next.from === 0 && end - 1440 <= next.to
+}
+
 export function fitsAvailability(emp, inst) {
-  const w = availabilityWindow(emp, inst.weekday)
-  if (!w) return false
   const dayStart = inst.start - (inst.start % 1440)
-  return inst.start - dayStart >= w.from && inst.end - dayStart <= w.to
+  return fitsWindow(emp, inst.weekday, inst.start - dayStart, inst.end - dayStart)
 }
 
 export function availabilityText(emp, weekday) {
@@ -348,19 +356,44 @@ export const RULES = [
     title: 'Tägliche Ruhezeit',
     law: '§ 12 AZG, § 16 KJBG',
     description: 'Ununterbrochene Ruhe zwischen Dienstende und nächstem Dienstbeginn.',
-    check({ byDay, limits, add }) {
-      let prevLast = null
-      for (const date of [...byDay.keys()].sort()) {
-        const ds = byDay.get(date)
-        const first = ds.reduce((m, i) => (i.start < m.start ? i : m))
-        const last = ds.reduce((m, i) => (i.end > m.end ? i : m))
-        if (prevLast) {
-          const rest = first.start - prevLast.end
+    check({ emp, items, ctx, limits, add }) {
+      // Arbeitstage nach Beginn-Datum; beginnt ein Einsatz < 60 min nach dem Ende des
+      // Vortags (Nachtschicht mit Objektwechsel um Mitternacht), gehört er zum Vortag.
+      // Ende eines Arbeitstags = Ende des letzten Einsatzes + geplante Fahrt danach.
+      const groups = []
+      for (const it of items) {
+        const g = groups.at(-1)
+        if (g && (g.date === it.date || it.start - g.end < 60)) {
+          g.end = Math.max(g.end, it.end)
+          if (it.end >= g.last.end) g.last = it
+        } else groups.push({ date: it.date, first: it, last: it, end: it.end })
+      }
+      let prev = null
+      for (const g of groups) {
+        if (prev) {
+          const end = prev.end + ctx.tripAfter(emp.id, prev.last, null).minutes
+          const rest = g.first.start - end
           if (rest < limits.rest) {
-            add('error', 'REST', 'day', `Ruhezeit nur ${formatHours(Math.max(rest, 0))} h: Ende ${formatDate(prevLast.date)} ${formatTime(prevLast.end)}, Beginn ${formatDate(date)} ${formatTime(first.start)} (mind. ${limits.rest / 60} h)`, [prevLast, first])
+            add('error', 'REST', 'day', `Ruhezeit nur ${formatHours(Math.max(rest, 0))} h: Ende ${formatDate(prev.last.date)} ${formatTime(end)}, Beginn ${formatDate(g.first.date)} ${formatTime(g.first.start)} (mind. ${limits.rest / 60} h)`, [prev.last, g.first])
           }
         }
-        prevLast = last
+        prev = g
+      }
+    },
+  },
+  {
+    id: 'dailyBreak',
+    title: 'Ruhepause',
+    law: '§ 11 AZG, § 15 KJBG',
+    description: 'Mehr als 6 h (Jugendliche 4,5 h) Arbeitszeit am Tag: mindestens 30 min Pause (im Einsatz oder als Lücke ohne Fahrt).',
+    check({ emp, byDay, ctx, minor, r, add }) {
+      const limit = minor ? 270 : r.breakAfterH * 60
+      for (const [, ds] of byDay) {
+        const net = ds.reduce((s, i) => s + i.net, 0)
+        if (net <= limit) continue
+        let best = Math.max(...ds.map((i) => i.breakMin))
+        for (const t of dayTrips(ds, ctx, emp.id)) if (t.to) best = Math.max(best, t.to.start - t.from.end - t.minutes)
+        if (best < r.breakMin) add('warning', 'BREAK', 'day', `${formatHours(net)} h am Tag ohne ${r.breakMin} min Ruhepause`, ds)
       }
     },
   },
