@@ -166,7 +166,8 @@ test('Anmeldung: nur Konten aus dem eigenen Tenant, keine Gäste', () => {
 })
 
 test('Adresse: app.cleanos.at/#zaehler öffnet die Ansicht, Namen der früheren Werkzeuge gehen auch', () => {
-  const ids = ['week', 'zaehler', 'kontrolle', 'objektmappe']
+  const ids = ['home', 'week', 'zaehler', 'kontrolle', 'objektmappe']
+  assert.equal(viewFromHash('#start', ids), 'home')
   assert.equal(viewFromHash('#zaehler', ids), 'zaehler')
   assert.equal(viewFromHash('#wasserzaehler', ids), 'zaehler')
   assert.equal(viewFromHash('#Pruefprotokoll', ids), 'kontrolle')

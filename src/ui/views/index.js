@@ -1,6 +1,7 @@
 // Alle Ansichten und Dialoge. Reihenfolge = Reihenfolge der Register.
 // Eine neue Ansicht: Datei anlegen, registerView(...) aufrufen, hier importieren.
 
+import './home.js'
 import './week.js'
 import './timeline.js'
 import './sheet.js'

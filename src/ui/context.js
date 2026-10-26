@@ -2,7 +2,7 @@
 // Ansichten, Dialogen und Aktionen. Erweiterungen melden sich hier an
 // (siehe docs/ERWEITERN.md).
 
-import { GROUP_MODULE } from '../core/access.js'
+import { GROUP_MODULE, MODULES } from '../core/access.js'
 import { addDays, eachDay, firstOfMonth, lastOfMonth, mondayOf, todayISO } from '../core/dates.js'
 import { holidayCalendar } from '../core/holidays.js'
 import { buildInstances, PlanState } from '../core/plan.js'
@@ -40,7 +40,7 @@ export const app = {
 export const VIEWS = []
 
 /** Kurznamen für Adressen wie app.firma.at/#zaehler (auch die Namen der früheren Werkzeuge). */
-export const VIEW_ALIASES = { dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe' }
+export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe' }
 
 /** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
 export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
@@ -50,6 +50,7 @@ export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
 }
 
 export const VIEW_GROUPS = [
+  ['start', ''],
   ['plan', 'Einsatzplanung'],
   ['service', 'Objektservice'],
   ['fuhrpark', 'Fuhrpark'],
@@ -66,8 +67,11 @@ export const objectHints = (objectId) => OBJECT_HINTS.filter((h) => !app.access 
 
 /** Modul einer Ansicht (für Rollen): angegeben oder nach Gruppe. */
 export const moduleOf = (view) => view.module || GROUP_MODULE[view.group] || 'planung'
-/** Ansichten, die die angemeldete Person sehen darf. */
-export const visibleViews = () => VIEWS.filter((v) => !app.access || app.access.sees(moduleOf(v)))
+/** Ansichten, die die angemeldete Person sehen darf. module '*' (Übersicht): wer überhaupt einen Bereich sieht. */
+export const visibleViews = () => {
+  const any = !app.access || Object.keys(MODULES).some((m) => app.access.sees(m))
+  return VIEWS.filter((v) => (v.module === '*' ? any : !app.access || app.access.sees(moduleOf(v))))
+}
 /** Darf in einem Modul ändern (ohne Rollen-Setup: ja). */
 export const canEdit = (module) => !app.access || app.access.canEdit(module)
 

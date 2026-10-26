@@ -97,7 +97,7 @@ function topbar(c) {
   const head = !view
     ? ''
     : title
-      ? `<nav class="crumbs" aria-label="Pfad"><span>${esc(group)}</span><span class="sep" aria-hidden="true">/</span><b>${esc(view.label)}</b></nav>`
+      ? `<nav class="crumbs" aria-label="Pfad">${group ? `<span>${esc(group)}</span><span class="sep" aria-hidden="true">/</span>` : ''}<b>${esc(view.label)}</b></nav>`
       : `<h1 class="page-title">${esc(view.label)}</h1><div class="weeknav">
       <button class="btn icon ghost" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
       <div class="kw">KW ${week} / ${year}<small>${formatDate(c.monday, { weekday: false })} – ${formatDate(c.sunday, { weekday: false, year: true })}</small></div>
@@ -172,7 +172,7 @@ function frame(c) {
   const view = views.find((v) => v.id === app.ui.view) || views[0]
   app.ui.view = view.id
   // Leserechte je Modul der aktuellen Ansicht
-  app.readOnly = !canEdit(moduleOf(view))
+  app.readOnly = view.module === '*' ? false : !canEdit(moduleOf(view))
   const readOnly = app.readOnly ? `<div class="banner"><p><strong>Nur lesen.</strong> ${app.access ? `Deine Rolle (${esc(app.access.label)}) darf im Bereich „${esc(MODULES[moduleOf(view)] || '')}“ nichts ändern.` : ''}</p></div>` : ''
   return shell(`${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}`)
 }

@@ -11,6 +11,7 @@ const svg = (body) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 /** Symbole je Ansicht (24er-Raster, Strich). Eigene Ansichten geben `icon` (SVG-Inhalt) bei registerView mit. */
 export const NAV_ICONS = {
+  home: '<path d="M3.5 10.5 12 3.5l8.5 7V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1z"/>',
   week: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
   timeline: '<path d="M4 6h9M8 12h12M6 18h8"/>',
   sheet: '<path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M8.5 13h7M8.5 17h7"/>',
@@ -45,7 +46,7 @@ export function sidebar(c, { foot = '' } = {}) {
   const nav = VIEW_GROUPS.map(([group, label]) => {
     const items = views.filter((v) => v.group === group)
     if (!items.length) return ''
-    return `<div class="sb-group"><span class="sb-group-label">${esc(label)}</span>${items
+    return `<div class="sb-group">${label ? `<span class="sb-group-label">${esc(label)}</span>` : ''}${items
       .map((v) => {
         const badge = v.badge?.(c)
         return `<button class="tab sb-item" data-action="view" data-view="${v.id}" title="${esc(v.label)}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}>${navIcon(v)}<span class="sb-label">${esc(v.label)}</span>${badge ? `<span class="flag error">${badge}</span>` : ''}</button>`

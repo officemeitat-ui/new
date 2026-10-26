@@ -101,7 +101,7 @@ function moreModal(c) {
   const views = VIEW_GROUPS.map(([group, label]) => {
     const items = visible.filter((v) => v.group === group)
     if (!items.length) return ''
-    return `<section><h3>${label}</h3><div class="more-grid">${items
+    return `<section><h3>${label || 'Start'}</h3><div class="more-grid">${items
       .map((v) => {
         const badge = v.badge?.(c)
         return `<button class="more-item" data-action="view" data-view="${v.id}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}>${esc(v.label)}${badge ? ` <span class="flag error">${badge}</span>` : ''}</button>`
