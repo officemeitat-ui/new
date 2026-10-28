@@ -708,7 +708,7 @@ const KAPITEL_TITEL = {}; SEKTIONEN.forEach(s => KAPITEL_TITEL[s.nr] = s.titel);
 /* ============================================================
    2) Speicher und Datenmodell – ein Datensatz = eine Kontrolle
    ============================================================ */
-const VERSION = "2.8";
+const VERSION = "2.9";
 const VERSION_DATUM = "16.10.2026";
 const DB_KEY = "cleanos.schnellkontrolle.v1";
 const $  = (s,r=document) => r.querySelector(s);
@@ -1230,6 +1230,7 @@ $("#btnAbschluss").addEventListener("click", () => {
   if(gesperrt()){
     if(!confirm("Kontrolle wieder zur Bearbeitung öffnen?")) return;
     doc.status = "offen"; doc.wiedergeoeffnet = (doc.wiedergeoeffnet||[]).concat(new Date().toISOString());
+    ablageOffenSetzen(doc.id, null);
     formularFuellen(); markiereGeaendert(true); toast("Kontrolle wieder geöffnet."); return;
   }
   const fehlt = [];
@@ -1243,27 +1244,16 @@ $("#btnAbschluss").addEventListener("click", () => {
   if(!confirm(text + "Kontrolle abschließen und gegen Änderungen sperren?")) return;
   doc.status = "abgeschlossen"; doc.abgeschlossen = new Date().toISOString();
   formularFuellen(); markiereGeaendert(true); speichern();
+  /* Beim Abschliessen geht alles von selbst nach SharePoint. Jeder
+     Schritt fuer sich - scheitert einer, laufen die anderen trotzdem
+     durch, und am Ende steht im Klartext, was fehlt.
+     2.9: Was nicht durchgeht, weil Netz oder Anmeldung fehlen (Keller!),
+     merkt sich das Geraet und holt es von selbst nach. */
+  ablageOffenSetzen(doc.id, ABLAGE_SCHRITTE.slice());
   if(graphBereit() && graphToken){
-    toast("Abgeschlossen – Protokoll und PDF gehen nach SharePoint.", 4000);
-    /* Beim Abschliessen geht alles von selbst nach SharePoint. Jeder
-       Schritt fuer sich - scheitert einer, laufen die anderen trotzdem
-       durch, und am Ende steht im Klartext, was fehlt. */
     toast("Abgeschlossen – Protokoll, Fotos und PDF gehen nach SharePoint …", 9000);
-    (async () => {
-      const fehler = [];
-      const schritt = async (name, fn) => { try{ await fn(); }catch(e){ fehler.push(name + ": " + (e.message || e)); } };
-      await schritt("Protokoll",   () => graphSchreiben(doc));
-      await schritt("Fotos",       () => graphFotosAblegen(doc));
-      await schritt("Objektliste", () => objektStammErgaenzen(doc));
-      await schritt("PDF",         () => graphPdfAblegen(doc, false));
-      let termin = 0;
-      await schritt("Termin", async () => { termin = await graphTerminAnlegen(doc); });
-      if(termin) toast(termin === 2 ? "Termin der Nachkontrolle angepasst."
-                     : "Nachkontrolle am " + deDat(doc.abschluss.nachtermin) + " im Kalender eingetragen.", 4500);
-      if(fehler.length) meldungZeigen("Nicht alles ist in SharePoint gelandet", fehler.join("\n"));
-      else toast("Protokoll, Fotos und PDF liegen in SharePoint.", 4500);
-    })();
-  } else toast("Abgeschlossen. Jetzt „Senden“ oder PDF.", 4000);
+    ablageNachholen(true, doc.id);
+  } else toast("Abgeschlossen. Protokoll, Fotos und PDF gehen nach SharePoint, sobald du angemeldet bist und Netz hast.", 6000);
 });
 
 /* ============================================================
@@ -1918,6 +1908,111 @@ async function graphOrdnerSichern(teile){
   }
   return pfad;
 }
+/* Fotos zusaetzlich als einzelne Bilddateien ablegen - benannt nach
+   Datum und Pruefpunkt, damit sie auch ohne Werkzeug auffindbar sind.
+   Im Protokoll und im PDF bleiben sie ebenfalls enthalten.
+   2.9: wieder da - seit 2.7 rief das Abschliessen diese Funktion auf,
+   sie fehlte aber, und jeder Abschluss meldete "Fotos: ... is not defined". */
+async function graphFotosAblegen(p){
+  await graphZiel();
+  const ordner = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerTeile(p), "Fotos"));
+  let hoch = 0;
+  for(const id of ALLE_IDS){
+    const it = (p.items || {})[id];
+    if(!it || !it.fotos || !it.fotos.length) continue;
+    it.fotoDateien = it.fotoDateien || [];
+    for(let i = 0; i < it.fotos.length; i++){
+      const name = (p.datum || heute()) + "_Punkt-" + id.replace(".", "-") + "_" + String(i+1).padStart(2, "0") + ".jpg";
+      if(it.fotoDateien.includes(name)) continue;            /* schon oben */
+      const b64 = String(it.fotos[i]).split(",")[1];
+      if(!b64) continue;
+      const bin = atob(b64), puffer = new Uint8Array(bin.length);
+      for(let z = 0; z < bin.length; z++) puffer[z] = bin.charCodeAt(z);
+      await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(ordner + "/" + name)}:/content`,
+        {method:"PUT", headers:{"Content-Type":"image/jpeg"}, body:puffer});
+      it.fotoDateien.push(name); hoch++;
+    }
+  }
+  if(hoch){ if(p === doc) markiereGeaendert(true); else p.geaendert = new Date().toISOString(); }
+  return hoch;
+}
+
+/* 2.9: Ablage nach dem Abschliessen, Schritt fuer Schritt gemerkt.
+   Je Kontrolle steht auf diesem Geraet, welche Schritte noch fehlen.
+   Kein Netz oder keine Anmeldung: spaeter von selbst nochmal (wieder
+   Netz, Abgleich, Werkzeug wieder im Vordergrund). Lehnt SharePoint
+   einen Schritt ab (z. B. keine Rechte), wird das einmal gemeldet und
+   nicht endlos wiederholt. */
+const ABLAGE_OFFEN_KEY = "cleanos.schnell.ablageoffen";
+const ABLAGE_SCHRITTE = ["Protokoll", "Fotos", "Objektliste", "PDF", "Termin"];
+let ablageLauf = null;
+function ablageOffen(){
+  try{ const a = JSON.parse(localStorage.getItem(ABLAGE_OFFEN_KEY) || "[]"); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+}
+function ablageOffenSchreiben(a){ try{ localStorage.setItem(ABLAGE_OFFEN_KEY, JSON.stringify(a)); }catch(e){} }
+function ablageOffenSetzen(id, schritte, extra){
+  const a = ablageOffen().filter(x => x.id !== id);
+  if(schritte && schritte.length) a.push(Object.assign({id, schritte, seit:new Date().toISOString()}, extra || {}));
+  ablageOffenSchreiben(a);
+  ablageStandZeigen();
+}
+function ablageStandZeigen(){
+  const n = ablageOffen().length;
+  const el = $("#saveState");
+  if(el && n) el.textContent = n === 1 ? "1 Kontrolle wartet auf SharePoint" : n + " Kontrollen warten auf SharePoint";
+}
+/* Netz weg, Anmeldung abgelaufen, Server kurz weg: spaeter nochmal.
+   Alles andere (Rechte, ungueltige Daten) ist kein Fall zum Wiederholen. */
+function nochmalVersuchen(e){
+  if(!e) return true;
+  if(navigator.onLine === false || e instanceof TypeError) return true;
+  if(/nicht angemeldet/.test(e.message || "")) return true;
+  return !e.status || e.status === 401 || e.status === 408 || e.status === 429 || e.status >= 500;
+}
+function ablageNachholen(sofort, nurId){
+  if(ablageLauf) return ablageLauf;
+  if(!graphBereit() || !graphToken){ ablageStandZeigen(); return Promise.resolve(); }
+  ablageLauf = (async () => {
+    for(const e of ablageOffen()){
+      if(nurId && e.id !== nurId) continue;
+      if(!sofort && e.versucht && Date.now() - new Date(e.versucht).getTime() < 10 * 60000) continue;
+      let p = doc.id === e.id ? doc : (dbLesen().protokolle || []).find(x => x.id === e.id);
+      if(!p || p.status !== "abgeschlossen"){ ablageOffenSetzen(e.id, null); continue; }
+      const offen = [], gemeldet = [];
+      let termin = 0, netz = false;
+      for(const name of e.schritte){
+        try{
+          if(name === "Protokoll"){ if(!(await graphSchreiben(p))) throw new Error("in SharePoint inzwischen geändert – bitte abgleichen"); }
+          /* offene Kontrolle: markiereGeaendert legt sie gleich selbst neu ab; sonst hier */
+          else if(name === "Fotos"){ if(await graphFotosAblegen(p) && p !== doc) await graphSchreiben(p); }
+          else if(name === "Objektliste") await objektStammErgaenzen(p);
+          else if(name === "PDF") await graphPdfAblegen(p, false);
+          else if(name === "Termin") termin = await graphTerminAnlegen(p);
+        }catch(err){
+          if(nochmalVersuchen(err)){ offen.push(name); if(navigator.onLine === false || err instanceof TypeError) netz = true; }
+          else gemeldet.push(name + ": " + (err.message || err));
+        }
+      }
+      /* Was hier an der Kontrolle ergaenzt wurde (Fotodateien, Termin), gehoert gespeichert. */
+      if(p !== doc){
+        const db = dbLesen(), i = (db.protokolle || []).findIndex(x => x.id === p.id);
+        if(i >= 0){ db.protokolle[i] = p; dbSchreiben(db); }
+      }
+      ablageOffenSetzen(e.id, offen, offen.length ? {versucht:new Date().toISOString()} : null);
+      const name = p.meta.objekt || p.meta.objektId || "Kontrolle";
+      if(termin) toast(termin === 2 ? "Termin der Nachkontrolle angepasst."
+                     : "Nachkontrolle am " + deDat(p.abschluss.nachtermin) + " im Kalender eingetragen.", 4500);
+      if(gemeldet.length) meldungZeigen("Nicht alles ist in SharePoint gelandet", name + "\n" + gemeldet.join("\n"));
+      else if(offen.length) toast((netz ? "Kein Netz – " : "SharePoint gerade nicht erreichbar – ") + name + ": "
+        + offen.join(", ") + " geht von selbst nach SharePoint, sobald es wieder geht.", 6500);
+      else toast(name + ": Protokoll, Fotos und PDF liegen in SharePoint.", 4500);
+    }
+  })().finally(() => { ablageLauf = null; ablageStandZeigen(); });
+  return ablageLauf;
+}
+window.addEventListener("online", () => ablageNachholen(true));
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") ablageNachholen(false); });
+
 async function graphSchreiben(p){
   await graphZiel();
   const ordnerPfad = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerTeile(p)));
@@ -2010,6 +2105,8 @@ async function graphAbgleichen(meldung){
     datalistsFuellen();
     graphStatusZeigen("angemeldet als " + graphUser + " · abgeglichen " + jetztZeit(), "");
     if(meldung) toast(`SharePoint: ${index.length} Kontrollen in der Ablage, ${geholt} aktualisiert, ${hoch} hochgeladen.`, 4500);
+    /* 2.9: Was beim Abschliessen liegengeblieben ist, jetzt nachholen. */
+    ablageNachholen(false);
   }catch(e){
     if(String(e.message).includes("nicht angemeldet")){ graphStatusZeigen("nicht angemeldet", ""); return; }
     graphStatusZeigen("Fehler beim Abgleich", `<div class="note rot">${esc(e.message)}</div>`);

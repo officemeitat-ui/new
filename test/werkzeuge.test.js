@@ -37,3 +37,21 @@ test('Werkzeuge: keine Kundendaten in den Dateien (Repository ist öffentlich)',
     assert.ok(!/const STAMM_VORGABE = \[\s*\{/.test(html), `${name}: keine eingebauten Standorte`)
   }
 })
+
+test('Werkzeuge: „Abschließen“ legt alles in SharePoint ab und holt Offenes nach (keine ältere Fassung einspielen)', () => {
+  const fassung = (html) => (html.match(/const VERSION\s*=\s*"([\d.]+)"/) || [])[1]
+  const mind = (v, soll) => v.split('.').map(Number).reduce((r, x, i) => r || x - (soll.split('.').map(Number)[i] || 0), 0) >= 0
+  const erwartet = {
+    wasserzaehler: { version: '1.13', muss: [/function pdfsNachreichen\(/, /pdfOffenSetzen\(doc\.id, doc\.aktiv, true\)/] },
+    // 2.8 rief graphFotosAblegen auf, ohne sie zu enthalten
+    objektkontrolle: { version: '2.9', muss: [/async function graphFotosAblegen\(/, /function ablageNachholen\(/, /addEventListener\("online"/] },
+    objektdoku: { version: '2.1', muss: [/id="kAbschluss"/, /async function abschliessen\(/, /function ablageNachholen\(/] },
+    mattenwechsel: { version: '2.4', muss: [/function ablageAnstossen\(/, /addEventListener\("online", ablageAnstossen\)/] },
+  }
+  for (const [name, { version, muss }] of Object.entries(erwartet)) {
+    const html = datei(name)
+    const v = fassung(html)
+    assert.ok(v && mind(v, version), `${name}: Fassung ${v} – mindestens ${version} nötig`)
+    for (const re of muss) assert.match(html, re, `${name}: ${re}`)
+  }
+})

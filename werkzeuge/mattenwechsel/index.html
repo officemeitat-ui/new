@@ -1192,8 +1192,8 @@ function leererStandort(){
      index     - was in SharePoint liegt (nur Kenndaten, winzig)
      entfernt  - hier gelöscht, in SharePoint belassen
    ============================================================ */
-const VERSION = "2.3";
-const VERSION_DATUM = "16.10.2026";
+const VERSION = "2.4";
+const VERSION_DATUM = "28.10.2026";
 const DB_NAME = "cleanos.matten";
 const $  = (s,r=document) => r.querySelector(s);
 const $$ = (s,r=document) => Array.from(r.querySelectorAll(s));
@@ -4515,7 +4515,31 @@ async function ablageSchritt(t, s){
 /* Alle abgeschlossenen Touren durchgehen, bei denen etwas offen
    ist. Läuft nach jedem Abgleich und beim Abschließen.
    Rückgabe: was erledigt wurde und was weiterhin offen bleibt. */
-async function ablageNachholen(meldung){
+/* 2.4: Nur ein Lauf zur selben Zeit - Abschliessen, wieder Netz und
+   der Knopf koennen zusammenfallen, und dann ginge jedes PDF doppelt
+   hinauf. Wer waehrend eines Laufs fragt, bekommt dessen Ergebnis. */
+let ablageLauf = null;
+function ablageNachholen(meldung){
+  if(!ablageLauf) ablageLauf = ablageNachholenLauf(meldung).finally(() => { ablageLauf = null; });
+  return ablageLauf;
+}
+/* 2.4: Kommt das Netz zurueck, waehrend das Werkzeug offen ist (Fahrer
+   aus dem Keller, Tablet aus dem Funkloch), geht das Offene sofort
+   hinauf - nicht erst beim naechsten Start oder Abgleich. */
+let ablageZuletzt = 0;
+function ablageAnstossen(){
+  if(!graphBereit() || !graphToken || navigator.onLine === false) return;
+  if(!dbLesen().touren.some(t => ablageOffen(t).length)) return;
+  ablageZuletzt = Date.now();
+  ablageNachholen(false).then(r => {
+    if(r && r.erledigt && !r.offen) toast("Nachgeholt: Tour, Fotos, Tourbericht und Lieferscheine liegen in SharePoint.", 5000);
+  }).catch(() => {});
+}
+window.addEventListener("online", ablageAnstossen);
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && Date.now() - ablageZuletzt > 2 * 60000) ablageAnstossen();
+});
+async function ablageNachholenLauf(meldung){
   if(!graphBereit() || !graphToken) return {erledigt:0, offen:0};
   const db = dbLesen();
   let erledigt = 0;
@@ -5610,7 +5634,7 @@ $("#btnAbschluss").addEventListener("click", async () => {
   markiereGeaendert(true);
   if(!graphBereit() || !graphToken){
     ablageStandZeigen();
-    toast("Tour abgeschlossen – liegt auf diesem Gerät. Beim nächsten Abgleich geht alles nach SharePoint.", 6000);
+    toast("Tour abgeschlossen – liegt auf diesem Gerät. Sobald du angemeldet bist und Netz hast, geht alles nach SharePoint.", 6000);
     return;
   }
   toast("Wird in SharePoint abgelegt …", 8000);
@@ -5620,8 +5644,10 @@ $("#btnAbschluss").addEventListener("click", async () => {
   }
   const r = await ablageNachholen(false);
   const fehler = (r.fehler || []).concat(stammFehler);
-  if(fehler.length) meldungZeigen("Teilweise nicht abgelegt",
-    fehler.join(" · ") + " – der nächste Abgleich versucht es erneut.");
+  if(fehler.length && navigator.onLine === false)
+    toast("Kein Netz – Tour, Fotos, Tourbericht und Lieferscheine gehen von selbst nach SharePoint, sobald wieder Netz da ist.", 7000);
+  else if(fehler.length) meldungZeigen("Teilweise nicht abgelegt",
+    fehler.join(" · ") + " – wird von selbst erneut versucht (wieder Netz, nächster Abgleich).");
   else toast("Tour, Fotos, Tourbericht und Lieferscheine liegen in SharePoint.", 5000);
   lieferZeichnen();
 });

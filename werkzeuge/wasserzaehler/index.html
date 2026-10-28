@@ -746,7 +746,7 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
 /* ============================================================
    1) Grundlagen
    ============================================================ */
-const VERSION = "1.12", VERSION_DATUM = "16.10.2026";
+const VERSION = "1.13", VERSION_DATUM = "28.10.2026";
 const DB_KEY = "cleanos.wasserablesung.v1";
 const QUARTALE = ["Q1", "Q2", "Q3", "Q4"];
 const Q_ZEIT = {Q1:"Jänner – März", Q2:"April – Juni", Q3:"Juli – September", Q4:"Oktober – Dezember"};
@@ -2272,6 +2272,7 @@ $("#btnAbschluss").addEventListener("click", () => {
   if(r.status === "abgeschlossen"){
     if(!confirm("Quartal wieder öffnen, um nachzutragen?")) return;
     r.status = "offen";
+    pdfOffenSetzen(doc.id, doc.aktiv, false);
   } else {
     const z = zaehleQuartal(doc.aktiv);
     if(z.offen && !confirm(`${z.offen} von ${z.gesamt} Zählstellen sind noch offen.\n\nTrotzdem abschließen?`)) return;
@@ -2279,6 +2280,10 @@ $("#btnAbschluss").addEventListener("click", () => {
     if(!r.ableser){ toast("Bitte eintragen, wer abgelesen hat."); $("#f_ableser").focus(); return; }
     r.status = "abgeschlossen";
     r.abgeschlossen = new Date().toISOString();
+    /* 1.13: Das PDF gilt als offen, bis es wirklich in SharePoint liegt.
+       Geht es jetzt nicht (Keller, abgelaufene Anmeldung), holt es der
+       nächste Abgleich von selbst nach. */
+    pdfOffenSetzen(doc.id, doc.aktiv, true);
   }
   markiereGeaendert(true); formularFuellen();
   if(r.status !== "abgeschlossen"){ toast("Quartal wieder offen."); return; }
@@ -2294,9 +2299,11 @@ $("#btnAbschluss").addEventListener("click", () => {
 async function abschlussAblegen(l, q){
   if(!(graphBereit() && graphToken)){
     $("#abschlussHinweis").innerHTML = `<div class="note rot"><b>Nicht angemeldet – nichts ist in SharePoint.</b><br>
-      Stände und Fotos liegen nur auf diesem Gerät. Bitte anmelden; danach wird alles abgelegt und geprüft.</div>`;
+      Stände und Fotos liegen nur auf diesem Gerät. Bitte anmelden; danach wird alles abgelegt, auch das PDF.</div>`;
     return;
   }
+  const schluessel = l.id + "|" + q;
+  pdfInArbeit.add(schluessel);
   const merk = $("#saveState").textContent;
   try{
     $("#saveState").textContent = "Fotos werden abgelegt …";
@@ -2304,6 +2311,7 @@ async function abschlussAblegen(l, q){
     $("#saveState").textContent = "PDF wird erstellt …";
     await graphSchreiben(l);
     await graphPdfAblegen(l, q, false);
+    pdfOffenSetzen(l.id, q, false);
     $("#saveState").textContent = "in SharePoint " + jetztZeit();
     toast("Abgeschlossen. Liste und PDF liegen in SharePoint unter " + ordnerOrtName(l) + ".", 5000);
     /* Und dann nachsehen, ob es wirklich so dort liegt. */
@@ -2320,8 +2328,10 @@ async function abschlussAblegen(l, q){
     /* Deutlich und bleibend, nicht als Hinweis, der wegläuft. */
     $("#abschlussHinweis").innerHTML = `<div class="note rot"><b>Quartal ist abgeschlossen, aber noch nicht alles ist in SharePoint.</b><br>
       ${esc(e.message)}<br><br>Auf diesem Gerät ist alles gespeichert und geht von selbst hoch, sobald wieder Netz
-      da ist (Statusleiste oben). Danach dort „Prüfen“. Das PDF lässt sich über das Drucker-Symbol jederzeit nachziehen –
-      „Als PDF in SharePoint ablegen“, oder „Anzeigen und drucken“ für ein PDF im Browser.</div>`;
+      da ist (Statusleiste oben), <b>auch das PDF</b>. Danach dort „Prüfen“.</div>`;
+  }finally{
+    pdfInArbeit.delete(schluessel);
+    ablageZeigen(); planeNachreichen();
   }
 }
 
@@ -2826,7 +2836,42 @@ function wartet(l){
   let fotos = 0;
   QUARTALE.forEach(q => Object.values(((l.runden || {})[q] || {}).werte || {}).forEach(w =>
     (w.fotos || []).forEach(f => { if(f && (typeof f === "string" || !f.hoch)) fotos++; })));
-  return {liste: (l.geaendert || "") > (l.graphStand || ""), fotos};
+  return {liste: (l.geaendert || "") > (l.graphStand || ""), fotos, pdf: pdfOffen().filter(p => p.id === l.id).length};
+}
+/* 1.13: PDFs abgeschlossener Quartale, die noch nicht in SharePoint
+   liegen. Gemerkt auf dem Gerät, das abgeschlossen hat; nachreichen()
+   holt sie nach, sobald Anmeldung und Netz da sind. Schlägt die
+   Umwandlung fehl, wird es nicht im Sekundentakt wiederholt. */
+const PDF_OFFEN_KEY = "cleanos.wasser.pdfoffen";
+const pdfInArbeit = new Set();
+function pdfOffen(){
+  try{ const a = JSON.parse(localStorage.getItem(PDF_OFFEN_KEY) || "[]"); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+}
+function pdfOffenSchreiben(a){ try{ localStorage.setItem(PDF_OFFEN_KEY, JSON.stringify(a)); }catch(e){} }
+function pdfOffenSetzen(id, q, offen){
+  const a = pdfOffen().filter(p => !(p.id === id && p.q === q));
+  if(offen) a.push({id, q, seit:new Date().toISOString()});
+  pdfOffenSchreiben(a);
+}
+async function pdfsNachreichen(sofort){
+  for(const p of pdfOffen()){
+    if(pdfInArbeit.has(p.id + "|" + p.q)) continue;
+    const l = (doc && doc.id === p.id) ? doc : dbLesen().listen.find(x => x.id === p.id);
+    if(!l || ((l.runden || {})[p.q] || {}).status !== "abgeschlossen"){ pdfOffenSetzen(p.id, p.q, false); continue; }
+    if(!sofort && p.versucht && Date.now() - new Date(p.versucht).getTime() < 10 * 60000) continue;
+    pdfInArbeit.add(p.id + "|" + p.q);
+    try{
+      await graphPdfAblegen(l, p.q, false);
+      pdfOffenSetzen(p.id, p.q, false);
+      toast(`PDF ${p.q} ${l.ort || ""} liegt jetzt in SharePoint.`, 4500);
+    }catch(e){
+      pdfOffenSchreiben(pdfOffen().map(x => x.id === p.id && x.q === p.q
+        ? Object.assign(x, {versucht:new Date().toISOString(), fehler:e.message || String(e)}) : x));
+      if(navigator.onLine === false || e instanceof TypeError) throw e;   /* kein Netz: später alles nochmal */
+    }finally{
+      pdfInArbeit.delete(p.id + "|" + p.q);
+    }
+  }
 }
 function uhrzeitVon(iso){
   if(!iso) return "";
@@ -2845,7 +2890,7 @@ function ablageZeigen(){
   if(!graphBereit() || !doc || !doc.id){ el.className = "ablage noprint"; el.innerHTML = ""; return; }
   const w = wartet(doc);
   let andere = 0;
-  dbLesen().listen.forEach(l => { if(l.id !== doc.id){ const x = wartet(l); if(x.liste || x.fotos) andere++; } });
+  dbLesen().listen.forEach(l => { if(l.id !== doc.id){ const x = wartet(l); if(x.liste || x.fotos || x.pdf) andere++; } });
   if(!graphToken){
     /* Mit gemerkter Anmeldung ist man angemeldet - auch in den Sekunden,
        in denen sie beim Start erneuert wird. Bis 1.5 stand hier dann
@@ -2864,16 +2909,17 @@ function ablageZeigen(){
   }
   if(abgleichLaeuft){ el.className = "ablage noprint"; el.innerHTML = `<span>Wird mit SharePoint abgeglichen …</span>`; return; }
   if(ablageLaeuft){ el.className = "ablage noprint"; el.innerHTML = `<span>Wird in SharePoint abgelegt …</span>`; return; }
-  if(w.liste || w.fotos || andere){
+  if(w.liste || w.fotos || w.pdf || andere){
     const teile = [];
     if(w.fotos) teile.push(w.fotos === 1 ? "1 Foto" : w.fotos + " Fotos");
     if(w.liste) teile.push("die letzten Eingaben");
+    if(w.pdf) teile.push(w.pdf === 1 ? "das PDF" : w.pdf + " PDFs");
     if(andere) teile.push(andere === 1 ? "1 weitere Liste" : andere + " weitere Listen");
     el.className = "ablage noprint warn";
     el.innerHTML = `<span><b>Noch nicht in SharePoint:</b> ${esc(teile.join(", "))} – ` +
       (navigator.onLine === false ? "kein Netz, geht von selbst hoch, sobald wieder Netz da ist." : "wird gleich nachgereicht.") +
       `</span><button class="mini" id="abJetzt">Jetzt hochladen</button>`;
-    $("#abJetzt").onclick = () => nachreichen();
+    $("#abJetzt").onclick = () => nachreichen(true);
     return;
   }
   el.className = "ablage noprint ok";
@@ -2891,10 +2937,10 @@ function listeGeaendertNachFotos(id){
 let nachreichenTimer = null, nachreichenVersprechen = null, abgleichGelaufen = false;
 function planeNachreichen(){
   clearTimeout(nachreichenTimer);
-  const offen = [doc].concat(dbLesen().listen).some(l => l && l.id && (wartet(l).liste || wartet(l).fotos));
+  const offen = [doc].concat(dbLesen().listen).some(l => l && l.id && (wartet(l).liste || wartet(l).fotos || wartet(l).pdf));
   if(offen && graphBereit() && graphToken) nachreichenTimer = setTimeout(() => nachreichen(), 30000);
 }
-function nachreichen(){
+function nachreichen(sofort){
   if(nachreichenVersprechen) return nachreichenVersprechen;
   if(!graphBereit() || !graphToken){ ablageZeigen(); return Promise.resolve(); }
   /* Erst eintragen, dann laufen lassen: Gibt es nichts zu tun, wäre der
@@ -2920,6 +2966,8 @@ function nachreichen(){
         const l = (doc && doc.id === id) ? doc : dbLesen().listen.find(x => x.id === id);
         if(l && wartet(l).liste){ if(await graphSchreiben(l) && l !== doc) listeSichern(l); }
       }
+      /* 4. PDFs abgeschlossener Quartale, die beim Abschließen nicht abgelegt werden konnten (1.13) */
+      await pdfsNachreichen(sofort);
       $("#saveState").textContent = "in SharePoint " + jetztZeit();
     }catch(e){
       $("#saveState").textContent = "nicht in SharePoint";
@@ -2932,8 +2980,8 @@ function nachreichen(){
 }
 window.addEventListener("online", () => {
   ablageZeigen();
-  if(!abgleichGelaufen && graphBereit() && graphToken) graphAbgleichen(false).then(() => nachreichen());
-  else nachreichen();
+  if(!abgleichGelaufen && graphBereit() && graphToken) graphAbgleichen(false).then(() => nachreichen(true));
+  else nachreichen(true);
 });
 window.addEventListener("offline", () => ablageZeigen());
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && graphToken) nachreichen(); });

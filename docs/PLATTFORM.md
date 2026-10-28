@@ -127,16 +127,26 @@ Die Objektdoku liest zusätzlich die Objektliste unter `Objektpruefprotokolle/St
 
 Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für den Webspace gebaut sind (`werkzeuge/<name>/index.html`):
 
-| Werkzeug | Ordner in der App | SharePoint |
-|---|---|---|
-| Wasserzähler-Ablesung | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
-| Objektkontrolle (Prüfprotokoll) | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
-| Objektdoku (Leistungsverzeichnis) | `werkzeuge/objektdoku/` | `Objektdoku` |
-| Mattenwechsel | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
+| Werkzeug | Fassung | Ordner in der App | SharePoint |
+|---|---|---|---|
+| Wasserzähler-Ablesung | 1.13 | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
+| Objektkontrolle (Prüfprotokoll) | 2.9 | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
+| Objektdoku (Leistungsverzeichnis) | 2.1 | `werkzeuge/objektdoku/` | `Objektdoku` |
+| Mattenwechsel | 2.4 | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
 
 - **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.
 - **Alles wie gewohnt.** Ablesen, Fotos, Berichte, Kontrollen mit Unterschrift, Objektblatt mit Öffnungscode, Touren und Lieferscheine: Es ist dieselbe Datei, mit denselben Daten in denselben SharePoint-Ordnern. Ohne Netz arbeiten die Werkzeuge weiter wie bisher.
 - **Bleibt offen.** Wer zwischendurch in den Dienstplan wechselt, findet das Werkzeug unverändert wieder (auch eine halb erfasste Liste).
+- **„Abschließen“ legt alles in SharePoint ab, auch das PDF.** Ein Klick genügt, niemand muss ans Ablegen denken:
+
+  | Werkzeug | beim Abschließen in SharePoint |
+  |---|---|
+  | Wasserzähler | Liste, Fotos, PDF-Bericht des Quartals |
+  | Objektkontrolle | Protokoll, Fotos (einzeln im Ordner `Fotos`), Objektliste, PDF, auf Wunsch Termin der Nachkontrolle |
+  | Objektdoku | neue Fassung im Verlauf, Akte, Fotos, Objektblatt (PDF, mit Öffnungscode, falls gewählt) – Knopf „Abschließen“ unten in der Leiste |
+  | Mattenwechsel | Tour, Fotos, Tourbericht und je Kunde ein Lieferschein (PDF) |
+
+  Ohne Netz (Keller) oder mit abgelaufener Anmeldung merkt sich das Gerät, was fehlt, zeigt es an („… wartet auf SharePoint“) und holt es von selbst nach: sobald wieder Netz da ist, beim nächsten Start oder wenn das Werkzeug wieder in den Vordergrund kommt. Lehnt SharePoint etwas ab (z. B. fehlende Rechte), kommt eine Meldung statt endloser Wiederholung.
 - **„Eigenes Fenster“** öffnet das Werkzeug allein (z. B. am Handy auf ganzer Fläche). Dort meldet es sich wie bisher selbst an; dafür braucht seine App-Registrierung die Umleitungsadresse `https://app.cleanos.at/werkzeuge/<name>/` (Einrichtung Schritt 2).
 - **Neue Fassung eines Werkzeugs:** die `index.html` aus dem Webspace-Paket nach `werkzeuge/<name>/` kopieren, bauen, hochladen. Passt eine neue Fassung nicht mehr zur Anmeldebrücke, bricht der Bau mit einer klaren Meldung ab (Details in `werkzeuge/LIESMICH.md`).
 - **Die bisherigen Adressen** (wasserzaehler.cleanos.at, objektdoku.cleanos.at …) können weiterlaufen oder auf `app.cleanos.at/#wasserzaehler` usw. weiterleiten.

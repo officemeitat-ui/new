@@ -1,13 +1,24 @@
 # Die eigenen Werkzeuge in der Cleanos App
 
-| Ordner | Werkzeug | Ansicht in der App | Rolle (Modul) |
-|---|---|---|---|
-| `wasserzaehler/` | Wasserzähler-Ablesung | `#wasserzaehler` | `zaehler` |
-| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | `#objektkontrolle` | `kontrolle` |
-| `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | `#objektdoku` | `objektmappe` |
-| `mattenwechsel/` | Mattenwechsel | `#matten` | `matten` |
+| Ordner | Werkzeug | Fassung | Ansicht in der App | Rolle (Modul) |
+|---|---|---|---|---|
+| `wasserzaehler/` | Wasserzähler-Ablesung | 1.13 | `#wasserzaehler` | `zaehler` |
+| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.9 | `#objektkontrolle` | `kontrolle` |
+| `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.1 | `#objektdoku` | `objektmappe` |
+| `mattenwechsel/` | Mattenwechsel | 2.4 | `#matten` | `matten` |
 
-Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, unverändert. Gepflegt und gebaut werden die Werkzeuge wie bisher aus ihren eigenen Quellen (`bau.js`, `bauteile/` usw.). Hier liegt nur das fertige Ergebnis. Kundendaten (Kunden.json, Standortlisten, Import-JSON) gehören nicht hierher: Die Werkzeuge lesen sie aus SharePoint.
+Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, unverändert.
+
+## Abschließen: alles nach SharePoint, auch ohne Netz (Stand 28.10.2026)
+
+Seit diesen Fassungen legt „Abschließen“ in jedem Werkzeug automatisch alles in SharePoint ab, samt PDF. Geht das gerade nicht (kein Netz, Anmeldung abgelaufen), merkt sich das Gerät die offenen Schritte und holt sie von selbst nach (wieder Netz, nächster Start, Werkzeug wieder im Vordergrund).
+
+- **Wasserzähler 1.13:** Das PDF des Quartals wird nachgeholt; bisher nur Liste und Fotos, und die Statusleiste zeigte fälschlich „Alles in SharePoint“.
+- **Objektkontrolle 2.9:** Die Ablage der Fotos (einzelne Bilddateien) war seit 2.7 verloren gegangen. Jeder Abschluss meldete „Nicht alles ist in SharePoint gelandet“. Sie ist wieder da, und ohne Netz geht nichts mehr verloren.
+- **Objektdoku 2.1:** Neuer Knopf „Abschließen“ unten in der Leiste: Fassung festhalten, Blatt setzen, Akte, Fotos und Blatt ablegen. Ohne Netz wartet das fertige Blatt im Gerät.
+- **Mattenwechsel 2.4:** Holt Offenes jetzt auch nach, wenn das Netz wiederkommt, während das Werkzeug offen ist (bisher erst beim nächsten Abgleich), und lädt nichts doppelt hoch.
+
+Die geänderten Quellen (`bauteile/` bzw. die Einzeldatei) liegen im Paket `Werkzeuge-Quellen_2026-10-28.zip`. Bitte in die eigenen Werkzeug-Ordner übernehmen, sonst baut der nächste `node bau.js` die alte Fassung. `npm test` prüft, dass keine ältere Fassung ohne diese Ablage in die App kommt. Gepflegt und gebaut werden die Werkzeuge wie bisher aus ihren eigenen Quellen (`bau.js`, `bauteile/` usw.). Hier liegt nur das fertige Ergebnis. Kundendaten (Kunden.json, Standortlisten, Import-JSON) gehören nicht hierher: Die Werkzeuge lesen sie aus SharePoint.
 
 ## Neue Fassung einspielen
 

@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 161 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess)
+npm test         # 162 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess)
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 

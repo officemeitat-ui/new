@@ -196,6 +196,7 @@ footer.leiste{
   box-shadow:0 -2px 8px rgba(0,0,0,.05);
 }
 footer.leiste .stand{font-size:12px; color:var(--grau); margin-right:auto}
+footer.leiste .ablagestand{font-size:12px; color:var(--warn); font-weight:600}
 
 /* ---------- Meldungen ---------- */
 #meldung{
@@ -759,6 +760,8 @@ body.gesperrt > *:not(#startGate){display:none !important}
       <button class="k" id="kPdfOeffnen">Erzeugen und ansehen</button>
       <button class="k" id="kAblage" disabled>In SharePoint ablegen</button>
     </div>
+    <p class="hinweis">„Abschließen“ (unten) erledigt alles auf einmal: Fassung festhalten, Blatt setzen,
+      Akte, Fotos und Blatt in SharePoint ablegen. Ohne Netz wartet das Blatt im Gerät und geht von selbst hoch.</p>
     <div id="pdfStand"></div>
   </div>
 
@@ -835,8 +838,10 @@ body.gesperrt > *:not(#startGate){display:none !important}
 
 <footer class="leiste">
   <span class="stand" id="speicherstand">bereit</span>
+  <span class="ablagestand" id="ablageStand" hidden></span>
   <button class="k" id="kSichern">Speichern</button>
   <button class="k haupt" id="kZumBlatt">Zum Blatt</button>
+  <button class="k gruen" id="kAbschluss" title="Fassung festhalten, Blatt setzen, Akte, Fotos und Blatt in SharePoint ablegen">Abschließen</button>
 </footer>
 
 <div id="meldung" hidden role="status" aria-live="polite"></div>
@@ -1005,8 +1010,8 @@ body.gesperrt > *:not(#startGate){display:none !important}
    im LIESMICH, Punkt "Richtzeiten".
    ============================================================ */
 
-const VERSION = "2.0";
-const VERSION_DATUM = "12.10.2026";
+const VERSION = "2.1";
+const VERSION_DATUM = "28.10.2026";
 
 /* ---------- Intervalle ----------
    wocheFaktor = Einsätze je Woche. Daraus wird alles andere
@@ -1562,7 +1567,8 @@ function vorlageLoeschen(id){ return dbLoeschen(SPEICHER_VORLAGEN, id); }
 /* ---------- Sicherung ---------- */
 async function backupBauen(){
   const objekte = await dbAlle(SPEICHER_OBJEKTE);
-  const einst = await dbAlle(SPEICHER_EINST);
+  /* Das wartende Blatt (Abschließen ohne Netz) ist kein Teil der Sicherung. */
+  const einst = (await dbAlle(SPEICHER_EINST)).filter(e => e.schluessel !== "ablageOffen");
   const vorlagen = await dbAlle(SPEICHER_VORLAGEN).catch(() => []);
   return JSON.stringify({ werkzeug:"Cleanos Objektdokumentation", version:VERSION,
                           erzeugt:new Date().toISOString(),
@@ -8830,6 +8836,7 @@ function verdrahten(){
   });
 
   $("kSichern").addEventListener("click", () => sichern(false));
+  $("kAbschluss").addEventListener("click", abschliessen);
   $("kZumBlatt").addEventListener("click", () => reiterZeigen("rBlatt"));
 
   $("kAnmelden").addEventListener("click", () => angemeldet() ? abmelden() : graphAnmelden());
@@ -8929,6 +8936,117 @@ function gateDarfHinein(){
   return !!(gemerkt && gemerkt.refresh);
 }
 
+/* ---------- Abschließen (2.1) ----------
+   Ein Klick für das, was am Ende einer Begehung oder Überarbeitung
+   steht: den Stand als Fassung festhalten, das Blatt setzen und
+   Akte, Fotos und Blatt in SharePoint ablegen. Bisher waren das
+   drei Knöpfe an zwei Stellen - und das Ablegen wurde vergessen.
+
+   Das Blatt entsteht im Gerät, also auch ohne Netz. Geht das
+   Ablegen gerade nicht (Keller, Anmeldung abgelaufen), wartet das
+   fertige Blatt im Gerät (IndexedDB, Einstellung "ablageOffen")
+   und geht von selbst hoch: wieder Netz, Werkzeug wieder im
+   Vordergrund, nächster Start. Gespeichert wird genau das Blatt
+   vom Abschließen - samt Öffnungscode, der nirgends sonst steht. */
+const ABLAGE_OFFEN = "ablageOffen";
+let ablageLauf = null;
+
+async function ablageOffenLesen(){
+  const a = await einstellungLaden(ABLAGE_OFFEN, []);
+  return Array.isArray(a) ? a : [];
+}
+async function ablageOffenAendern(fn){
+  await einstellungSpeichern(ABLAGE_OFFEN, fn(await ablageOffenLesen()));
+}
+async function ablageStandZeigen(){
+  const el = $("ablageStand");
+  if(!el) return;
+  const n = (await ablageOffenLesen().catch(() => [])).length;
+  el.hidden = !n;
+  el.textContent = n === 1 ? "1 Akte wartet auf SharePoint" : n + " Akten warten auf SharePoint";
+}
+
+async function abschliessen(){
+  if(!aktObjekt) return;
+  const s = schalterLesen();
+  if($("sCode").checked){
+    const p = pdfCodePruefen($("fCode").value);
+    if(!p.ok){ reiterZeigen("rBlatt"); melden("Öffnungscode: " + p.grund, "warn"); return; }
+  }
+  const o = aktObjekt;
+  melden("Schließe ab …");
+  try{
+    fassungHalten(o, "abgeschlossen", graphUser);
+    await sichern(true);
+    /* Abgelegt wird das Blatt in der ersten gewählten Sprache - wie
+       beim Erzeugen, wo die weiteren nur heruntergeladen werden. */
+    const sprache = (blattSprachen.length ? blattSprachen : ["de"])[0];
+    const blatt = await blattPdf(o, Object.assign({}, s, { sprache }));
+    letztesPdf = blatt;
+    await ablageOffenAendern(a => a.filter(x => x.id !== o.id).concat([{
+      id:o.id, seit:new Date().toISOString(), blatt:{ name:blatt.name, bytes:blatt.bytes } }]));
+  }catch(e){
+    melden("Abschließen ging nicht: " + (e && e.message ? e.message : e), "warn");
+    return;
+  }
+  if(!angemeldet() || navigator.onLine === false){
+    await ablageStandZeigen();
+    melden("Abgeschlossen. Akte, Fotos und Blatt gehen nach SharePoint, sobald du angemeldet bist und Netz hast.", "gut");
+    return;
+  }
+  await ablageNachholen(true, o.id);
+}
+
+/* Was beim Abschließen nicht abgelegt werden konnte, jetzt ablegen.
+   Nur ein Lauf zur selben Zeit; ohne "sofort" höchstens alle zehn
+   Minuten je Akte, damit ein dauerhaftes Problem nicht im
+   Sekundentakt Fotos hochschiebt. */
+function ablageNachholen(sofort, nurId){
+  if(ablageLauf) return ablageLauf;
+  ablageLauf = (async () => {
+    if(!angemeldet() || navigator.onLine === false) return;
+    for(const e of await ablageOffenLesen()){
+      if(nurId && e.id !== nurId) continue;
+      if(!sofort && e.versucht && Date.now() - new Date(e.versucht).getTime() < 10 * 60000) continue;
+      const o = alleObjekte.find(x => x.id === e.id);
+      if(!o){ await ablageOffenAendern(a => a.filter(x => x.id !== e.id)); continue; }
+      const name = o.objekt || o.objektId || "Objekt";
+      let r;
+      try{ r = await objektAblegen(o, e.blatt); }
+      catch(f){ r = { fehler:[String(f && f.message ? f.message : f)] }; }
+      const merkeVersuch = (grund) => ablageOffenAendern(a => a.map(x => x.id === e.id
+        ? Object.assign(x, { versucht:new Date().toISOString(), grund }) : x));
+      if(r.konflikt){
+        await merkeVersuch("an zwei Stellen geändert");
+        if(o === aktObjekt) konfliktZeigen(r.konflikt, e.blatt);
+        else melden(name + ": in SharePoint inzwischen geändert – bitte öffnen und abschließen.", "warn");
+        continue;
+      }
+      /* ablage-Kennung mitschreiben */
+      if(o === aktObjekt) await sichern(true); else await objektSpeichern(o);
+      if((r.fehler || []).length){
+        await merkeVersuch(r.fehler.join(" | "));
+        melden(name + ": noch nicht alles in SharePoint (" + r.fehler.join(" | ")
+          + "). Wird von selbst nochmal versucht.", "warn");
+      } else {
+        await ablageOffenAendern(a => a.filter(x => x.id !== e.id));
+        const teile = [];
+        if(r.json) teile.push("Akte");
+        if(r.fotos) teile.push(r.fotos + (r.fotos === 1 ? " Foto" : " Fotos"));
+        if(r.pdf) teile.push("Blatt (PDF)");
+        melden("Abgeschlossen: " + name + " – " + teile.join(", ") + " in SharePoint abgelegt.", "gut");
+      }
+    }
+  })().catch(f => {
+    melden("Ablegen in SharePoint ging nicht: " + (f && f.message ? f.message : f) + " – wird von selbst nochmal versucht.", "warn");
+  }).finally(() => { ablageLauf = null; ablageStandZeigen(); });
+  return ablageLauf;
+}
+window.addEventListener("online", () => ablageNachholen(true));
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible") ablageNachholen(false);
+});
+
 /* ---------- Start ---------- */
 async function starten(){
   verdrahten();
@@ -8967,6 +9085,9 @@ async function starten(){
      wer das Werkzeug oeffnet, will ein Objekt bearbeiten, keinen
      Bericht ueber Vorlagen. */
   if(angemeldet()) vorlagenAbgleichen().catch(() => {});
+  /* Abgeschlossenes, das noch auf SharePoint wartet (2.1) */
+  ablageStandZeigen();
+  if(angemeldet()) ablageNachholen(false);
 }
 
 if(document.readyState === "loading")
