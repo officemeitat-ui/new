@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { VENDOR } from './vendor.js'
+import { mitBruecke } from './werkzeuge.js'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const base = process.argv[2] ? join(root, process.argv[2]) : root
@@ -13,14 +14,17 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 
 createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '')
-  const rel = path === '/' ? 'index.html' : path.slice(1)
+  const rel = path === '/' ? 'index.html' : path.endsWith('/') ? `${path.slice(1)}index.html` : path.slice(1)
   const file = VENDOR[rel] && base === root ? join(root, VENDOR[rel]) : join(base, rel)
   if (!file.startsWith(root)) {
     res.writeHead(403).end()
     return
   }
   try {
-    const body = await readFile(file)
+    let body = await readFile(file)
+    // Werkzeuge aus dem Quellordner: Anmeldebrücke wie beim Bau einsetzen
+    const tool = base === root && rel.match(/^werkzeuge\/([a-z0-9-]+)\/index\.html$/)
+    if (tool) body = mitBruecke(body.toString('utf8'), tool[1])
     res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' }).end(body)
   } catch {
     res.writeHead(404).end('Nicht gefunden')

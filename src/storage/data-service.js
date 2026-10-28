@@ -7,10 +7,11 @@
 //   plaene/2026/2026-10-26.json       Einteilungen einer Woche + Änderungsprotokoll
 //   personal/abwesenheiten.json       Urlaub, Krankenstand, … (Gesundheitsdaten)
 //   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse
-//   zaehler/zaehler.json              Zählstellen und Ablesungen (Modul Zählerstände), Fotos in zaehler/fotos/
-//   kontrolle/kontrolle.json          Checklisten, Kontrollen, Mängel (Modul Objektkontrolle), Fotos in kontrolle/fotos/
-//   objektmappe/objektmappe.json      Kontakte, Zugang, Leistungsverzeichnis (Modul Objektmappe)
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
+//
+// Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
+// eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
+// Bibliothek (TOOL_FOLDERS), nicht hier.
 //
 // Rechte: dataRights() sagt je Rolle, welche Dateien die App überhaupt liest
 // und schreibt; andere Dateien fragt sie gar nicht erst an. In SharePoint
@@ -24,7 +25,6 @@
 // (`local`, siehe offline.js) und werden beim nächsten Start bzw. sobald
 // wieder Netz da ist gespeichert.
 
-import { MODULES } from '../core/access.js'
 import { mondayOf } from '../core/dates.js'
 import { mergeDoc } from '../core/merge.js'
 import { ConflictError } from './docstore-local.js'
@@ -45,9 +45,6 @@ export const oldPathOf = (path) => OLD_PATHS[path] || (path.startsWith('plaene/'
 
 /** Dateien der Module: app.data[key] ist der Inhalt der Datei. */
 export const MODULE_DOCS = {
-  zaehler: { path: 'zaehler/zaehler.json', empty: () => ({ meters: [], readings: [], closures: {} }) },
-  kontrolle: { path: 'kontrolle/kontrolle.json', empty: () => ({ checklists: [], plans: {}, inspections: [] }) },
-  mappe: { path: 'objektmappe/objektmappe.json', empty: () => ({ objects: {} }) },
   fahrzeuge: { path: 'fahrzeuge/fahrzeuge.json', empty: () => ({ vehicles: [], workshops: [], changes: [], settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
@@ -64,14 +61,11 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees(...Object.keys(MODULES)), () => edits('stammdaten', 'planung')],
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'kontrolle', 'objektmappe', 'fahrzeuge'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
-    [MODULE_DOCS.zaehler.path, () => sees('zaehler'), () => edits('zaehler')],
-    [MODULE_DOCS.kontrolle.path, () => sees('kontrolle'), () => edits('kontrolle')],
-    [MODULE_DOCS.mappe.path, () => sees('objektmappe', 'kontrolle'), () => edits('objektmappe')],
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
@@ -85,11 +79,34 @@ export const FOLDERS = [
   ['plaene', 'Wochenpläne (Einteilungen)', weekPath('2026-01-05')],
   ['personal', 'Urlaub und Krankenstände', DOC.absences],
   ['lohn', 'Zeitkonto, Löhne, Monatsabschlüsse', DOC.account],
-  ['zaehler', 'Zählerstände mit Fotos', MODULE_DOCS.zaehler.path],
-  ['kontrolle', 'Objektkontrollen mit Fotos', MODULE_DOCS.kontrolle.path],
-  ['objektmappe', 'Objektmappe, Leistungsverzeichnis', MODULE_DOCS.mappe.path],
   ['fahrzeuge', 'Fahrzeuge, Reifen, Service', MODULE_DOCS.fahrzeuge.path],
 ]
+
+/**
+ * Ordner der eigenen Werkzeuge in derselben Bibliothek (neben dem Ordner der
+ * App): [Ordner, Inhalt, Modul]. Die Werkzeuge lesen und schreiben dort mit
+ * den SharePoint-Rechten der angemeldeten Person; ohne Modul = Kundenstamm,
+ * den alle Werkzeuge lesen.
+ */
+export const TOOL_FOLDERS = [
+  ['Wasserzähler - Ablesung', 'Wasserzähler-Ablesung: Listen, Fotos und Berichte je Standort', 'zaehler'],
+  ['Objektpruefprotokolle', 'Objektkontrolle: Protokolle, Fotos, Unterschriften, Objektliste (auch die Objektdoku liest sie)', 'kontrolle'],
+  ['Objektdoku', 'Objektdoku: Akten, Leistungsverzeichnis, Objektblätter, Vorlagen', 'objektmappe'],
+  ['Mattenwechsel', 'Mattenwechsel: Touren, Lieferscheine, Standorte', 'matten'],
+  ['Stammdaten', 'Kundenstamm (Kunden.json), gelesen von allen Werkzeugen', null],
+]
+
+/** Vorschlag je Rolle für die Werkzeug-Ordner: 'Bearbeiten', 'Lesen' oder ''. */
+export function toolFolderRights(access) {
+  const sees = (m) => !access || access.all || access.sees(m)
+  const edits = (m) => !access || access.all || access.canEdit(m)
+  const anyTool = TOOL_FOLDERS.some(([, , m]) => m && sees(m))
+  return TOOL_FOLDERS.map(([folder, label, m]) => {
+    // die Objektdoku liest die Objektliste der Objektkontrolle
+    const right = m ? (edits(m) ? 'Bearbeiten' : sees(m) || (m === 'kontrolle' && sees('objektmappe')) ? 'Lesen' : '') : access?.all || !access ? 'Bearbeiten' : anyTool ? 'Lesen' : ''
+    return [folder, label, right]
+  })
+}
 
 /** Rechte einer Rolle je Ordner: 'Bearbeiten', 'Lesen' oder ''. Exporte (PDF/Excel) und Übernahme nur mit Vollzugriff. */
 export function folderRights(access) {

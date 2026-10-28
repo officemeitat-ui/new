@@ -29,7 +29,7 @@ export class SharePointDocStore {
    * @param {string} opts.library   Name der Dokumentbibliothek, z. B. "Dokumente"
    * @param {string} opts.folder    Ordner in der Bibliothek, z. B. "Dienstplan-App"
    */
-  constructor({ getToken, siteUrl, library = 'Dokumente', folder = 'Dienstplan-App', shareFolders = ['daten', 'zaehler', 'kontrolle', 'objektmappe', 'fahrzeuge'], fetchImpl = globalThis.fetch.bind(globalThis) }) {
+  constructor({ getToken, siteUrl, library = 'Dokumente', folder = 'Dienstplan-App', shareFolders = ['objekte', 'daten', 'plaene', 'fahrzeuge', 'personal', 'lohn'], fetchImpl = globalThis.fetch.bind(globalThis) }) {
     this.kind = 'sharepoint'
     this.getToken = getToken
     this.siteUrl = siteUrl

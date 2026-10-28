@@ -9,7 +9,7 @@ import { DEFAULT_RULES } from '../core/rules.js'
 import { createDemoData, DEFAULT_SKILLS } from '../data/demo.js'
 import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
-import { DataService, dataRights } from '../storage/data-service.js'
+import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
 import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, viewFromHash, visibleViews } from './context.js'
@@ -18,7 +18,7 @@ import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
 import { sidebar } from './sidebar.js'
 import { planWeek, seedDemoHistory } from './planning.js'
-import { uploadQueued } from './photo.js'
+import { syncTools } from './views/tools.js'
 import { searchButton } from './search.js'
 import { applyTheme, themeButton } from './theme.js'
 import { download, esc, ICON } from './shared.js'
@@ -110,6 +110,7 @@ function topbar(c) {
   return `<header class="topbar"><div class="topbar-inner">
     <div class="page-head">${head}</div>
     <div class="actions">
+      ${view?.actions ? view.actions(c) : ''}
       ${searchButton()}
       ${bellButton()}
       ${plan ? `<button class="btn primary" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>` : ''}
@@ -183,7 +184,8 @@ function frame(c) {
       : ''
   app.locked = !!missingWeek
   if (missingWeek) app.readOnly = true
-  return shell(`${readOnly}${welcome()}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}`)
+  // Willkommen (leere Ablage) nur in Einsatzplanung und Stammdaten, nicht über den Werkzeugen
+  return shell(`${readOnly}${['plan', 'stamm', 'start'].includes(view.group) ? welcome() : ''}${view.group === 'plan' ? correctionBanner(c) : ''}${view.summary ? summary(c) : ''}${view.render(c)}`)
 }
 
 setFrame({
@@ -194,6 +196,7 @@ setFrame({
     labelTables()
     writePrefs()
     refreshBell()
+    syncTools()
   },
 })
 
@@ -307,6 +310,12 @@ function bindEvents() {
 
 // ---------------------------------------------------------------- Start
 
+/** Ablage nur im Arbeitsspeicher (Rollen ohne eigene Daten in der App). */
+function memoryStorage() {
+  const map = new Map()
+  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => void map.set(k, String(v)), removeItem: (k) => void map.delete(k), key: (i) => [...map.keys()][i] ?? null, get length() { return map.size } }
+}
+
 function showMessage(html) {
   document.getElementById('app').innerHTML = `<div class="wrap boot">${html}</div>`
 }
@@ -335,11 +344,18 @@ async function boot() {
     // je Konto ein eigener Speicher (geteilte Tablets: niemand liest ohne Netz die Kopie eines anderen)
     local = createOfflineCache(`dienstplan-offline:${auth.user.id || auth.user.email}`)
     await adoptLegacyCache(local).catch(() => 0)
-    store = new CachedDocStore(new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint }), local)
-    showMessage('<p>Verbinde mit SharePoint …</p>')
-    await store.init()
     // Rechte aus Microsoft-Gruppen und App-Rollen; ohne Zuordnung kein Zugriff
     app.access = resolveAccess({ roleClaims: app.user.roles, groupClaims: app.user.groups, email: app.user.email, access: config.access, strict: true })
+    const rights = dataRights(app.access)
+    if (FOLDERS.some(([, , path]) => rights.read(path))) {
+      store = new CachedDocStore(new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint }), local)
+      showMessage('<p>Verbinde mit SharePoint …</p>')
+      await store.init()
+    } else {
+      // Rolle nur mit Werkzeugen (z. B. Vorarbeiter: Wasserzähler): kein Ordner der App nötig,
+      // die Werkzeuge speichern selbst in SharePoint
+      store = Object.assign(new LocalDocStore({ storage: memoryStorage() }), { label: 'Werkzeuge speichern selbst in SharePoint' })
+    }
     app.offline = local
   } else {
     store = new LocalDocStore({ download })
@@ -397,7 +413,6 @@ async function boot() {
   }
   const sync = () => {
     app.service.refresh().catch(() => {})
-    uploadQueued().catch(() => {})
   }
   const every = (config.storage === 'sharepoint' ? config.sharepoint.refreshSeconds || 60 : 30) * 1000
   setInterval(sync, every)
@@ -420,7 +435,6 @@ async function boot() {
     const el = document.getElementById('save-status')
     if (el && app.store?.kind === 'sharepoint') el.innerHTML = saveStatusText('offline', String(app.service.pendingCount()))
   })
-  uploadQueued().catch(() => {})
   registerServiceWorker()
 }
 

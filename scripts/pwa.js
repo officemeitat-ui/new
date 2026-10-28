@@ -71,6 +71,8 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/.auth/')) return
+  // Werkzeuge (eigene Seiten im Rahmen der App): zuerst aus dem Netz, ohne Netz die zuletzt geladene Fassung
+  if (url.pathname.includes('/werkzeuge/')) return event.respondWith(networkFirst(request))
   // Seite und Konfiguration: immer zuerst aus dem Netz (Anmeldung, aktuelle Einstellungen)
   if (request.mode === 'navigate') return event.respondWith(networkFirst(request, './index.html'))
   if (url.pathname.endsWith('/config.json')) return event.respondWith(networkFirst(request))

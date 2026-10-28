@@ -1,6 +1,5 @@
 // Bausteine für PDF-Berichte (pdfmake): Kopf mit Logo, Tabellenrahmen,
-// Seitenrahmen mit Fußzeile. Genutzt von Auszahlungen, Zählerständen,
-// Kontrollberichten und dem Objektblatt.
+// Seitenrahmen mit Fußzeile. Genutzt von den Auszahlungen.
 
 import { inkColors } from './pdf.js'
 

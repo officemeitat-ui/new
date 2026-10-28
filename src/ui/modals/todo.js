@@ -4,7 +4,7 @@
 //  - periodische Leistungen (14-tägig, monatlich, quartalsweise …) ohne
 //    Besetzung, rechtzeitig vor dem Termin (Regel „dueLeadDays“)
 //  - veröffentlichte Wochen, die danach geändert wurden (Korrektur buchen)
-//  - Punkte weiterer Module (registerTodo: Ablesungen, Kontrollen, Mängel …)
+//  - Punkte weiterer Module (registerTodo, z. B. Fahrzeuge: Service, Pickerl, Reifen)
 // Jede Person sieht nur, was sie erledigen kann: Punkte der Module, in denen
 // ihre Rolle ändern darf (wer die Einsatzplanung nur liest, bekommt keine
 // Zuteil-Aufgaben).

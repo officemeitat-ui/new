@@ -5,7 +5,7 @@
 // liest und speichert (dataRights).
 
 import { DEFAULT_ROLES, MODULES, resolveAccess } from '../../core/access.js'
-import { folderRights } from '../../storage/data-service.js'
+import { folderRights, toolFolderRights } from '../../storage/data-service.js'
 import { app, registerView } from '../context.js'
 import { esc } from '../shared.js'
 
@@ -38,6 +38,11 @@ function accessView() {
     <thead><tr><th>Ordner</th><th>Inhalt</th>${used.map((id) => `<th>${esc(roles[id].label)}</th>`).join('')}</tr></thead>
     <tbody>${folders
       .map(([folder, label], i) => `<tr><td><code>${esc(folder)}/</code></td><td>${esc(label)}</td>${used.map((id) => `<td>${esc(folderRights(roleAccess[id])[i][2] || '–')}</td>`).join('')}</tr>`)
+      .join('')}</tbody></table></section>
+  <section class="table-wrap"><div class="table-head"><h3>Rechte in SharePoint für die Werkzeuge</h3><p class="muted">Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel speichern selbst in diesen Ordnern der Bibliothek ${esc(app.config.sharepoint?.library || '')} (neben ${esc(app.config.sharepoint?.folder || '')}). Vorschlag je Rolle; wer einen Ordner nicht öffnen darf, sieht im Werkzeug nichts davon.</p></div><table class="data">
+    <thead><tr><th>Ordner</th><th>Inhalt</th>${used.map((id) => `<th>${esc(roles[id].label)}</th>`).join('')}</tr></thead>
+    <tbody>${toolFolderRights(null)
+      .map(([folder, label], i) => `<tr><td><code>${esc(folder)}/</code></td><td>${esc(label)}</td>${used.map((id) => `<td>${esc(toolFolderRights(roleAccess[id])[i][2] || '–')}</td>`).join('')}</tr>`)
       .join('')}</tbody></table></section>
   ${me ? `<section class="banner"><p><strong>Deine Anmeldung:</strong> ${esc(me.name)} (${esc(me.email)}) · ${esc(app.access?.label || '')}<br>Gruppen im Microsoft-Konto: ${(me.groups || []).length ? me.groups.map((g) => `<code>${esc(g)}</code>`).join(' ') : 'keine übermittelt'}</p></section>` : ''}
   <p class="note">Gruppen eintragen: in <code>config.production.json</code> unter <code>access.groups</code> je Rolle die Objekt-ID der Microsoft-Gruppe, oder in Entra ID der Gruppe die App-Rolle zuweisen. Schritt für Schritt in docs/EINRICHTUNG.md.</p>`

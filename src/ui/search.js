@@ -1,5 +1,6 @@
-// Schnellsuche (Strg+K oder Lupe): Ansichten, Mitarbeitende, Objekte,
-// Zählstellen, Fahrzeuge und Kontrollen in einem Feld. Zeigt nur, was die Rolle sehen darf.
+// Schnellsuche (Strg+K oder Lupe): Ansichten (auch die Werkzeuge), Mitarbeitende,
+// Objekte und Fahrzeuge in einem Feld. Zeigt nur, was die Rolle sehen darf.
+// Suchen in den Werkzeugen (Zählstellen, Kontrollen, Akten) geht dort selbst.
 
 import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, visibleViews } from './context.js'
 import { esc, ICON, modalFrame } from './shared.js'
@@ -15,23 +16,11 @@ function results(q) {
   for (const v of visibleViews()) if (hit(v.label)) out.push({ group: 'Ansicht', label: v.label, action: 'view', data: { view: v.id } })
   if (sees('planung') || sees('stammdaten'))
     for (const e of app.data.employees) if (hit(e.name, e.personnelNo, e.team)) out.push({ group: 'Mitarbeitende', label: e.name, sub: [e.personnelNo, e.team].filter(Boolean).join(' · '), action: sees('planung') ? 'open-person' : 'emp-edit', data: sees('planung') ? { emp: e.id } : { id: e.id } })
-  for (const o of app.data.objects) {
-    const m = app.data.mappe?.objects?.[o.id] || {}
-    if (!hit(o.name, o.short, o.address, m.customer, m.customerNo, m.objectNo)) continue
-    const action = sees('objektmappe') ? 'mp-open' : sees('stammdaten') ? 'search-goto-sites' : null
-    if (action) out.push({ group: 'Objekte', label: o.name, sub: [o.address, m.customer].filter(Boolean).join(' · '), action, data: { id: o.id } })
-  }
-  if (sees('zaehler'))
-    for (const m of app.data.zaehler?.meters || []) if (hit(m.number, m.location, m.objektNr)) out.push({ group: 'Zählstellen', label: m.location || m.number, sub: `Nr. ${m.number} · ${app.data.objects.find((o) => o.id === m.objectId)?.name || ''}`, action: 'search-meter', data: { id: m.id } })
+  if (sees('stammdaten')) for (const o of app.data.objects) if (hit(o.name, o.short, o.address)) out.push({ group: 'Objekte', label: o.name, sub: o.address || '', action: 'search-goto-sites', data: { id: o.id } })
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {
       const driver = app.data.employees.find((e) => e.id === v.driverId)?.name || ''
       if (hit(v.plate, v.plate?.replace(/[\s-]/g, ''), v.label, driver)) out.push({ group: 'Fahrzeuge', label: v.plate, sub: [v.label, driver].filter(Boolean).join(' · '), action: 'veh-edit-open', data: { id: v.id } })
-    }
-  if (sees('kontrolle'))
-    for (const k of app.data.kontrolle?.inspections || []) {
-      const o = app.data.objects.find((x) => x.id === k.objectId)
-      if (hit(o?.name, k.date, k.inspector, k.kind)) out.push({ group: 'Kontrollen', label: `${o?.name || ''} · ${k.date.split('-').reverse().join('.')}`, sub: [k.kind, k.summary?.overall, k.status].filter(Boolean).join(' · '), action: 'ins-open', data: { id: k.id } })
     }
   return out.slice(0, 40)
 }
@@ -48,7 +37,7 @@ function searchModal(c, m) {
     .join('')
   return modalFrame({
     title: 'Suchen',
-    body: `<label class="search-field">${ICON.search}<input type="search" id="search-q" value="${esc(m.q || '')}" placeholder="Person, Objekt, Kunde, Zählernummer, Kennzeichen, Ansicht …" autocomplete="off" data-input="search-q"></label>
+    body: `<label class="search-field">${ICON.search}<input type="search" id="search-q" value="${esc(m.q || '')}" placeholder="Person, Objekt, Kennzeichen, Ansicht oder Werkzeug …" autocomplete="off" data-input="search-q"></label>
       <ul class="search-list" role="listbox">${items || (m.q ? '<li class="muted">Nichts gefunden.</li>' : '<li class="muted">Tippen zum Suchen. Pfeiltasten und Enter wählen.</li>')}</ul>`,
   })
 }
@@ -80,11 +69,6 @@ registerActions({
     input?.setSelectionRange(pos, pos)
   },
   'search-go': (el) => go(results(app.ui.modal.q || '')[Number(el.dataset.i)]),
-  'search-meter': (el) => {
-    app.ui.view = 'zaehler'
-    renderNow()
-    ACTIONS['meter-open']?.(el)
-  },
   'search-goto-sites': () => {
     app.ui.view = 'sites'
     renderNow()

@@ -1,4 +1,4 @@
-// Dialog zu einem Einsatz: Einteilung, "Wer kann einspringen?", Objektmappe
+// Dialog zu einem Einsatz: Einteilung, "Wer kann einspringen?", Objektinfo
 // und Änderungen nur für diese Woche.
 
 import { addDays, eachDay, formatDate, formatHours, formatTime, mondayOf } from '../../core/dates.js'
@@ -13,7 +13,7 @@ function objectFolder(obj) {
   const keys = obj.keys || []
   const waste = obj.waste?.streams?.length ? obj.waste.note || '' : ''
   if (!obj.instructions && !obj.contact && !keys.length && !waste) return ''
-  return `<details class="folder"><summary>${ICON.key} Objektmappe</summary>
+  return `<details class="folder"><summary>${ICON.key} Objektinfo</summary>
     ${obj.instructions ? `<p>${esc(obj.instructions)}</p>` : ''}
     ${obj.contact ? `<p class="note">Ansprechperson: ${esc(obj.contact)}</p>` : ''}
     ${waste ? `<p class="note">${ICON.trash} Müll: ${esc(waste)}</p>` : ''}

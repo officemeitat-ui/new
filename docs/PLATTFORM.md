@@ -1,33 +1,38 @@
-# Plattform: ein Tool, mehrere Module, Rollen statt eigener Programme
+# Plattform: eine App, deine Werkzeuge, Rollen statt eigener Programme
 
-Bisher gab es vier getrennte Werkzeuge mit je eigener Anmeldung: den Dienstplan, die Wasserzähler-Ablesung, die Objektkontrolle und die Objektdokumentation. Jetzt läuft alles in einer App unter **app.cleanos.at**: einmal anmelden, alle Bereiche, die die eigene Gruppe darf, stehen in den Registern (am Handy unter „Mehr“). Direkt zu einem Bereich: `app.cleanos.at/#zaehler`, `#kontrolle`, `#objektmappe`, `#dienstplan` (auch `#wasserzaehler`, `#pruefprotokoll`, `#objektdoku`), z. B. als Lesezeichen oder als Weiterleitung der alten Adressen. Es gibt eine Anmeldung, die Objekte und Mitarbeitenden sind gemeinsam gepflegt, und es gibt eine Glocke „Zu erledigen“. Jede Rolle sieht nur ihre Module.
+Alles läuft in einer App unter **app.cleanos.at**: einmal mit dem Firmenkonto anmelden, und alle Bereiche, die die eigene Gruppe darf, stehen in der Seitenleiste (am Handy unter „Mehr“). Direkt zu einem Bereich: `app.cleanos.at/#wasserzaehler`, `#objektkontrolle` (auch `#pruefprotokoll`), `#objektdoku`, `#matten`, `#dienstplan`, z. B. als Lesezeichen oder als Weiterleitung der alten Adressen.
 
-| Modul | Ersetzt | Wer arbeitet damit |
+Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Mattenwechsel sind die eigenen Werkzeuge, unverändert** (Ordner `werkzeuge/`). Sie laufen im Rahmen der App mit derselben Anmeldung und speichern wie bisher selbst in ihren SharePoint-Ordnern. Siehe [Die eigenen Werkzeuge](#die-eigenen-werkzeuge-in-der-app).
+
+| Bereich | Was | Wer arbeitet damit |
 |---|---|---|
-| **Dienstplan** (Planung) | – | Disposition |
-| **Auswertung & Lohn** | – | Disposition, Lohnverrechnung |
-| **Stammdaten** | Objektlisten in den Einzeltools | Disposition |
-| **Zählerstände** | Wasserzähler-Ablesung (wasserzaehler.cleanos.at) | Ableser, Objektservice, Objektleitung |
-| **Objektkontrolle** | Prüfprotokoll-Tool (pruefprotokoll.cleanos.at) | Prüfer/in, Objektservice, Objektleitung |
-| **Objektmappe** | Objektdokumentation (objektdoku.cleanos.at) | Objektleitung; Prüfer/Objektservice lesen |
-| **Fahrzeuge & Reifen** | Listen und Zettel zu Reifenwechsel, Service und Pickerl | Disposition, Fuhrpark |
+| **Einsatzplanung** | Dienstplan, Zeitlinie, Wochenzettel, Vertretungen, Müllplan | Disposition; Objektmanagement liest |
+| **Auswertung & Lohn** | Controlling, Monatsauswertung, Überstunden & Auszahlung | Disposition, Lohnverrechnung |
+| **Stammdaten** | Mitarbeitende, Objekte & Leistungen, Zuweisung, Regeln, Berechtigungen | Disposition |
+| **Wasserzähler** | Werkzeug Wasserzähler-Ablesung | Vorarbeiter/innen, Ableser |
+| **Objektkontrolle** | Werkzeug Objektkontrolle (Prüfprotokoll) | Objektmanagement, Prüfer/innen |
+| **Objektdoku** | Werkzeug Objektdokumentation (Leistungsverzeichnis) | Objektmanagement |
+| **Mattenwechsel** | Werkzeug Mattenwechsel | Disposition (weitere Rollen über `config.production.json`) |
+| **Fahrzeuge & Reifen** | Reifenwechsel, Service, Pickerl | Disposition, Fuhrpark |
 
 ## Rollen
 
 | Rolle (Wert in Entra ID) | sieht | darf ändern |
 |---|---|---|
 | `disposition` – Vollzugriff (Büro, IT) | alles | alles |
-| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektmappe | Objektkontrolle, Objektmappe |
-| `vorarbeiter` – Vorarbeiter/in | Zählerstände (Wasserzähler) | Zählerstände |
+| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektdoku | Objektkontrolle, Objektdoku |
+| `vorarbeiter` – Vorarbeiter/in | Wasserzähler | Wasserzähler |
 | `lohnverrechnung` | Auswertung & Lohn | Auswertung & Lohn |
-| `objektleitung` | Dienstplan (lesen), Zähler, Kontrolle, Objektmappe | Zähler, Kontrolle, Objektmappe |
-| `objektservice` | Zähler, Kontrolle, Objektmappe | Zähler, Kontrolle |
-| `ableser` | Zählerstände | Zählerstände |
-| `pruefer` – Prüfer/in | Objektkontrolle, Objektmappe | Objektkontrolle |
+| `objektleitung` | Dienstplan (lesen), Wasserzähler, Objektkontrolle, Objektdoku | Wasserzähler, Objektkontrolle, Objektdoku |
+| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku | Wasserzähler, Objektkontrolle |
+| `ableser` | Wasserzähler | Wasserzähler |
+| `pruefer` – Prüfer/in | Objektkontrolle, Objektdoku | Objektkontrolle |
 | `fuhrpark` – Fuhrpark | Fahrzeuge & Reifen | Fahrzeuge & Reifen |
 | `lesen` | Dienstplan | nichts |
 
 - Mehrere Rollen addieren sich (z. B. Objektmanagement und Vorarbeiter).
+- Bei den Werkzeugen entscheidet die Rolle, wer sie in der App sieht. Was jemand darin lesen oder ändern darf, regeln die SharePoint-Rechte auf die Ordner der Werkzeuge (Tabelle unten).
+- Mattenwechsel sieht zunächst nur Vollzugriff. Für eine eigene Gruppe in `access.roles` eine Rolle mit dem Modul `matten` anlegen (siehe „Eigene Rollen“).
 - **Im Betrieb (SharePoint) gilt: ohne Rolle kein Zugriff.** Wer keiner Gruppe zugeordnet ist, sieht „Kein Bereich freigegeben“, und die App lädt keine einzige Datei.
 - `office@cleanos.at` und `it@cleanos.at` haben Vollzugriff (`config.production.json` → `access.planners`), auch bevor die Gruppen eingerichtet sind.
 - Im Browser-Modus (Probe ohne SharePoint) gibt es oben „Ansicht als …“. Damit lässt sich ausprobieren, was eine Rolle sieht. Ohne jede Einrichtung darf dort jede Person alles.
@@ -76,7 +81,7 @@ Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen ode
 }
 ```
 
-Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler`, `kontrolle`, `objektmappe`, `fahrzeuge`.
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`.
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
@@ -86,145 +91,55 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 
 | Ordner | Inhalt | Vollzugriff | Objektmanagement | Vorarbeiter |
 |---|---|---|---|---|
-| `objekte/` | Objekte (Name, Adresse, Revier) | Bearbeiten | Lesen | Lesen |
+| `objekte/` | Objekte (Name, Adresse, Revier) | Bearbeiten | Lesen | – |
 | `daten/` | Mitarbeitende, Leistungen, Regeln | Bearbeiten | Lesen | – |
 | `plaene/` | Wochenpläne (Einteilungen, Änderungsprotokoll) | Bearbeiten | Lesen | – |
 | `personal/` | Urlaub und Krankenstände (Gesundheitsdaten) | Bearbeiten | – | – |
 | `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
-| `zaehler/` | Zählerstände mit Fotos | Bearbeiten | – | Bearbeiten |
-| `kontrolle/` | Objektkontrollen mit Fotos, Unterschriften | Bearbeiten | Bearbeiten | – |
-| `objektmappe/` | Objektmappe, Leistungsverzeichnis | Bearbeiten | Bearbeiten | – |
 | `fahrzeuge/` | Fahrzeuge, Reifen, Service, Pickerl | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
 
 - **Lohn und Krankenstände** liegen in eigenen Ordnern (`lohn/`, `personal/`), die nur Vollzugriff (und ggf. Lohnverrechnung) öffnen kann. Wer früher schon Daten unter `daten/` hatte: Beim ersten Start mit Vollzugriff verschiebt die App `abwesenheiten.json`, `zeitkonto.json` und alle Wochenpläne aus `daten/plaene/` in die neuen Ordner und löscht die alten Dateien (Papierkorb der Website). Scheitert das Löschen, versucht sie es beim nächsten Start wieder. Das Änderungsprotokoll der Wochen nennt keinen Grund einer Abwesenheit (es steht bei den Plänen, die auch Objektmanagement liest).
-- **Objekte** stehen in `objekte/`, damit Vorarbeiter die Zähler ihren Objekten zuordnen können, ohne die Personaldaten in `daten/` lesen zu dürfen. Auch das zieht beim ersten Start mit Vollzugriff von selbst um.
+- **Vorarbeiter** brauchen keinen Ordner unter `Plattform`: Sie arbeiten nur im Werkzeug Wasserzähler, die App lädt für sie keine eigene Datei.
 - **Gerätespeicher je Konto:** Jedes Microsoft-Konto hat im Gerät einen eigenen Speicher. Auf einem geteilten Tablet liest niemand ohne Netz die Kopie eines anderen.
 - **Abmelden** löscht die Kopie der Daten im Gerät (für geteilte Handys); noch nicht gespeicherte Änderungen und wartende Fotos bleiben im Speicher dieses Kontos, bis sie hochgeladen sind.
 - **Gleichzeitig bearbeitet:** Speichern zwei Personen dieselbe Datei, führt die App beide Stände zusammen: je Eintrag und Feld, Listen ohne Kennung (z. B. Protokoll, freie Tage) als Menge, eine fremde Änderung schlägt ein eigenes Löschen. Wochen, die ohne Netz nie geöffnet wurden, sind gesperrt, bis sie geladen sind.
+
+**Ordner der Werkzeuge** (in derselben Bibliothek, neben `Plattform`; die Werkzeuge legen sie selbst an):
+
+| Ordner | Inhalt | Vollzugriff | Objektmanagement | Vorarbeiter |
+|---|---|---|---|---|
+| `Wasserzähler - Ablesung/` | Wasserzähler-Ablesung: Listen, Fotos, Berichte je Standort | Bearbeiten | – | Bearbeiten |
+| `Objektpruefprotokolle/` | Objektkontrolle: Protokolle, Fotos, Unterschriften, Objektliste | Bearbeiten | Bearbeiten | – |
+| `Objektdoku/` | Objektdoku: Akten, Objektblätter, Vorlagen | Bearbeiten | Bearbeiten | – |
+| `Mattenwechsel/` | Mattenwechsel: Touren, Lieferscheine, Standorte | Bearbeiten | – | – |
+| `Stammdaten/` | Kundenstamm `Kunden.json` (von allen Werkzeugen gelesen) | Bearbeiten | Lesen | Lesen |
+
+Die Objektdoku liest zusätzlich die Objektliste unter `Objektpruefprotokolle/Stammdaten/`. Wer also nur die Objektdoku hat, braucht dort „Lesen“. Die App zeigt dieselbe Tabelle für die eigenen Gruppen unter **Stammdaten → Berechtigungen**.
 
 **Nur Ordner freigegeben:** Hat jemand nur einzelne Ordner freigegeben bekommen und keinen Zugriff auf die Website (bewährt beim Wasserzähler-Tool), findet die App die Bibliothek über die Freigabe-Adresse des Ordners.
 
 **Website auf der Tenant-Wurzel:** `"siteUrl": "https://cleanconcept1.sharepoint.com"` funktioniert, die App spricht sie richtig an (`/sites/<host>` ohne Doppelpunkt).
 
-## Übernahme aus den bisherigen Werkzeugen
+## Die eigenen Werkzeuge in der App
 
-### Direkt aus SharePoint
+Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für den Webspace gebaut sind (`werkzeuge/<name>/index.html`):
 
-Die Werkzeuge speichern schon in SharePoint (Bibliothek `Cleanos_Daten`). Die App liest diese Ordner direkt, ohne Herunterladen:
-
-| Ordner in der Bibliothek | Inhalt | wird zu |
+| Werkzeug | Ordner in der App | SharePoint |
 |---|---|---|
-| `Wasserzähler - Ablesung` | Jahreslisten `Ablesung_<Ort>_<Jahr>.json`, Fotos | Zählstellen, Ablesungen, abgeschlossene Quartale |
-| `Stammdaten/Kunden.json` | Kundenstamm (551 Kunden) | Kundenstamm der Objektmappe |
-| `Objektpruefprotokolle` | `Stammdaten/Objekte.json`, je Objekt die Protokolle, Fotos, Unterschriften | Kunde, Nummer, E-Mail Hausverwaltung; Kontrollen |
-| `Objektdoku` | Akten je Objekt, `Vorlagen.json`, Fotos | Objektmappe mit Verlauf, Raumbuch, Fotos; Bereichsvorlagen |
+| Wasserzähler-Ablesung | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
+| Objektkontrolle (Prüfprotokoll) | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
+| Objektdoku (Leistungsverzeichnis) | `werkzeuge/objektdoku/` | `Objektdoku` |
+| Mattenwechsel | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
 
-So geht's: **Daten → Bisherige Werkzeuge** (oder in den Modulen „Übernehmen“) → **In SharePoint suchen**. Die App zeigt vorher, was übernommen wird und was die eigene Rolle darf. Objekte, die es im Dienstplan noch nicht gibt, werden angelegt (dafür braucht es das Recht „Stammdaten“).
-
-- **Fotos und Unterschriften bleiben, wo sie sind**, und sind verlinkt. Fürs PDF lädt die App sie bei Bedarf.
-- **Mehrmals abgleichen geht.** Ein neuer Abgleich übernimmt nur Neues und ersetzt Geändertes, er verdoppelt nichts. Die Werkzeuge können also bis zur Umstellung parallel laufen.
-- **Andere Ordnernamen** stehen in `config.json` → `sharepoint.sources`:
-
-```json
-"sources": { "wasserzaehler": "Wasserzähler - Ablesung", "pruefprotokoll": "Objektpruefprotokolle", "objektdoku": "Objektdoku" }
-```
-
-Ohne SharePoint (Browser-Modus) lassen sich dieselben JSON-Dateien im selben Dialog auswählen.
-
-### Wasserzähler-Ablesung (im Echtbetrieb)
-
-Das Modul folgt dem Datenmodell des Werkzeugs, damit nichts verloren geht:
-
-- **Zählstelle mit stabiler ID** (`S-<ort>-NN`) und Nummernverlauf (Tausch oder Berichtigung).
-- **Ablesung je Quartal**: entweder ein Stand oder ein Grund ohne Stand (kein Zutritt, nicht ablesbar, nicht gefunden, Abriss).
-- **Fällig** 30 Tage vor bis 60 Tage nach Quartalsende, einstellbar.
-- **Verbrauch wird immer gerechnet**, auch über den Zählertausch: (Endstand alt − Vorstand) + (Stand − Anfangsstand neu).
-- Endstand und Anfangsstand werden **nicht vorbelegt**. Bis beide eingetragen sind, gilt der Tausch als „unvollständig“ und es gibt keinen Leckalarm.
-- **Plausibilität** gegen dasselbe Quartal im Vorjahr, sonst gegen den Schnitt:
-  - kritisch: negativ oder über 2,5-fach
-  - hoch: 0 m³ oder über 1,4-fach
-  - niedrig: unter 25 %
-- **Runde abschließen** sperrt die Werte (Freigabe durch das Büro).
-- **Liste (CSV/PDF)** je Quartal mit „Auffällige Zähler“ und Jahresliste im Excel-Zuschnitt des Werkzeugs; Versand per E-Mail, nichts vorbelegt.
-
-**Übernehmen:** wie oben unter „Direkt aus SharePoint“. Ergebnis:
-
-   - Standorte ohne passendes Objekt werden als Objekte angelegt, z. B. „EBG Hallein“.
-   - Fotos bleiben in SharePoint und sind verlinkt.
-   - Abgeschlossene Quartale bleiben gesperrt.
-   - Ein zweiter Import ersetzt die Daten, er verdoppelt nichts. Ein Parallelbetrieb bis zur Umstellung ist also möglich.
-
-**Neu gegenüber dem Werkzeug:**
-
-- **„Einplanen“** legt die Ablesung als Einsatz im Dienstplan an, mit Dauer nach Anzahl der Zähler. Damit sind Ableser zugeteilt und die Stunden zählen.
-- **Erinnerung** in „Zu erledigen“.
-- **Hinweis im Einsatz** am Objekt.
-- **Rollen in der App.**
-
-### Objektkontrolle (Prüfprotokoll-Tool, noch nicht im Echtbetrieb)
-
-Übernommen:
-
-- Prüfkatalog mit 9 Kapiteln und 39 Punkten (jetzt als Daten, also bearbeitbar und erweiterbar)
-- Bewertung OK / R / M / G / N-A; Tastatur 1–5, Pfeile, B für Bemerkung
-- Priorität G→1, M→2, R→3
-- Vorschlag Gesamtzustand: G → Kritisch, ab 3 M → Handlungsbedarf, M oder ab 4 R → Gut, sonst Sehr gut
-- Vorbefunde direkt beim Prüfpunkt; derselbe Punkt später OK → Mangel erledigt
-- „Rest OK“ / „Rest N/A“, Fotos (Kamera und Galerie getrennt), zwei Unterschriften
-- Abschließen sperrt; PDF mit Fotos und Unterschriften
-- Versand An/CC/BCC mit **nichts vorbelegt** und bekannten Adressen zum Antippen
-
-Neu:
-
-- **Zuständigkeit und Frist je Mangel.** Bei „R“ ist die Stammkraft des Objekts vorgeschlagen, die Frist richtet sich nach der Priorität: sofort 1 Tag, kurzfristig 7 Tage (Vorgabe bei Reinigung „R“), planbar 14 Tage (Vorgabe bei Mangel/Reparatur „M“), beobachten 90 Tage. Gefahr „G“ ist immer sofort.
-- **„Nacharbeit“** legt einen Einsatz im Dienstplan an, direkt nach dem regulären Einsatz der Stammkraft. Ist die Person dann abwesend, kommt eine Warnung.
-- **Offene Mängel aller Objekte** in einer Liste.
-- **Rhythmus je Objekt** (monatlich bis jährlich). Nachkontrolle mit Termin geht vor, Fälliges steht in „Zu erledigen“.
-- **Eigene Checklisten** je Objektart.
-- Der **Kundenstamm** (Kunden.json, 551 Kunden) lässt sich in der Objektmappe einlesen.
-- Die **Nachkontrolle** steht in „Zu erledigen“ und kommt auf Knopfdruck in den Kalender:
-  - als **Termin-Datei (.ics)**: öffnet sich in Outlook, braucht kein zusätzliches Recht;
-  - oder **direkt in Outlook**, wenn `features.calendar` eingeschaltet ist (Recht *Calendars.ReadWrite*, siehe EINRICHTUNG). Wird der Termin der Nachkontrolle verschoben, verschiebt „Termin in Outlook verschieben“ den vorhandenen Eintrag.
-
-Kontrollen aus dem Werkzeug werden mit Fotos und Unterschriften übernommen. Waren es nur Testdaten, nach der Übernahme unter „Kontrollen“ löschen.
-
-### Objektdokumentation
-
-Die Objektmappe übernimmt das Modell des Werkzeugs (Schnittstelle 1:1) und hängt am zentralen Objekt. Vorhandene Akten werden mit Verlauf, Fotos und Versandliste übernommen.
-
-Jedes Objekt hat:
-
-- Ansprechpartner (auch intern)
-- Zugang ohne Codes, nur der Hinweis, wo sie zu erfragen sind
-- Geräte
-- Hinweise
-- Dokumente als Links
-- Objektleitung und Vertretung, Einsatztage und Zeitfenster laut Vertrag
-- das Leistungsverzeichnis: Bereiche mit Leistungen, Häufigkeit (dieselben 15 Kennungen wie im Werkzeug, von „täglich Mo–So“ bis „jährlich“, „nach Bedarf“, „witterungsabhängig“) und Richtzeit
-- das **Raumbuch** je Bereich: Nr., Raum, m², Boden, Bemerkung. Ohne eigene Fläche gilt beim Bereich die Summe der Räume.
-- **Fotos:** Ablauf-Fotos (wie und wo gereinigt wird) und Zugangsfotos (vertraulich)
-
-Die Stunden werden gerechnet und mit dem Stammplan des Dienstplans verglichen. Eine Abweichung über 10 % wird markiert.
-
-**Bereich aus Vorlage:** Der Katalog des Werkzeugs (13 Bereiche, 80 Leistungen) ist eingebaut, eigene Vorlagen kommen dazu („Als Vorlage“ bei einem Bereich). Die Häufigkeiten passen sich den Einsatztagen an: Bei 3 Einsatztagen wird aus „täglich Mo–Fr“ „3× Woche“. Ohne vertragliche Einsatztage gelten die Tage aus dem Stammplan.
-
-**Fassungen:** Jedes Speichern ist eine neue Fassung, auf Wunsch mit Anlass („Vertrag 2027“). Unter **Verlauf** steht je Fassung, was sich geändert hat, in Worten (z. B. „Stiegenhaus: Böden wischen 2× Woche → täglich Mo–Fr“, „Stunden/Woche: 2,79 → 4,09“). Vor dem Speichern zeigt der Verlauf, was sich ändern wird. „Zurückholen“ lädt eine frühere Fassung als Entwurf; erst Speichern macht sie zur aktuellen. Die letzten 50 Fassungen bleiben. Gespeichert wird nur, was sich geändert hat, damit die Datei klein bleibt.
-
-Das **Objektblatt** gibt es mit drei Voreinstellungen:
-
-- **Mitarbeiter**: mit Zugang, ohne Richtzeiten
-- **Kunde**: Leistungsverzeichnis; vertrauliche Abschnitte sind gesperrt und nie enthalten
-- **Akte**: alles
-
-Vertrauliche Abschnitte sind in der Fußzeile vermerkt. Zugangsfotos erscheinen nur im Abschnitt „Schlüssel und Zugang“, nie in der Kundenfassung.
-
-- **Sprache:** Deutsch, Englisch oder Rumänisch. Überschriften, Tabellenköpfe, Häufigkeiten und Wochentage sind übersetzt. Eigene Texte (Hinweise, Leistungen, Methoden) bleiben, wie sie eingetragen sind; das Blatt weist darauf hin.
-- **Öffnungscode:** Das PDF ist verschlüsselt (AES-256) und lässt sich nur mit einem Code wie `K7QM-3XRP` öffnen. Drucken geht, Ändern und Kopieren nicht. Der Code wird einmal angezeigt und **nirgends gespeichert**. Er wird getrennt vom PDF weitergegeben (Anruf, SMS), nie in derselben E-Mail. Ist er verloren, einfach ein neues PDF erstellen.
-
-Hinweis: Im Ordner `06_Software\serviceERP1` liegt eine Server-Fassung der Objektdoku (MongoDB, eigene Rechteverwaltung). Die Plattform hier braucht keinen eigenen Server, keine Datenbank und kein Hosting außer statischen Dateien. Alles bleibt in SharePoint und nutzt die Microsoft-Anmeldung. Das passt zu den bestehenden Werkzeugen und spart Betrieb und Wartung.
+- **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.
+- **Alles wie gewohnt.** Ablesen, Fotos, Berichte, Kontrollen mit Unterschrift, Objektblatt mit Öffnungscode, Touren und Lieferscheine: Es ist dieselbe Datei, mit denselben Daten in denselben SharePoint-Ordnern. Ohne Netz arbeiten die Werkzeuge weiter wie bisher.
+- **Bleibt offen.** Wer zwischendurch in den Dienstplan wechselt, findet das Werkzeug unverändert wieder (auch eine halb erfasste Liste).
+- **„Eigenes Fenster“** öffnet das Werkzeug allein (z. B. am Handy auf ganzer Fläche). Dort meldet es sich wie bisher selbst an; dafür braucht seine App-Registrierung die Umleitungsadresse `https://app.cleanos.at/werkzeuge/<name>/` (Einrichtung Schritt 2).
+- **Neue Fassung eines Werkzeugs:** die `index.html` aus dem Webspace-Paket nach `werkzeuge/<name>/` kopieren, bauen, hochladen. Passt eine neue Fassung nicht mehr zur Anmeldebrücke, bricht der Bau mit einer klaren Meldung ab (Details in `werkzeuge/LIESMICH.md`).
+- **Die bisherigen Adressen** (wasserzaehler.cleanos.at, objektdoku.cleanos.at …) können weiterlaufen oder auf `app.cleanos.at/#wasserzaehler` usw. weiterleiten.
 
 ## Fahrzeuge & Reifen
 
@@ -286,21 +201,16 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 Mit SharePoint arbeitet die App auch ohne Netz weiter:
 
 - Der letzte Stand jeder Datei liegt im Gerät (Browser-Speicher). Die App startet auch ohne Netz, wenn das Gerät schon einmal verbunden war.
-- Erfasstes (Ablesungen, Kontrollen, Mappe, Dienstplan) wird im Gerät festgehalten. Oben steht dann **„Offline · 2 Änderungen warten“**. Das bleibt auch erhalten, wenn die App geschlossen oder das Handy neu gestartet wird.
-- **Fotos** werden zuerst als kleines Vorschaubild gezeigt und hochgeladen, sobald Netz da ist.
-- Mit Netz (zurück in der App oder Netz wieder da) wird **sofort gespeichert und mit den Änderungen anderer zusammengeführt**. Haben zwei Personen dieselbe Ablesung erfasst, bleiben beide sichtbar, nichts wird still überschrieben.
-- Ohne Netz geht nicht: E-Mail-Versand, Kalender, Übernahme aus SharePoint.
+- Erfasstes im Dienstplan und bei den Fahrzeugen wird im Gerät festgehalten (die Werkzeuge haben ihren eigenen Offline-Speicher wie bisher). Oben steht dann **„Offline · 2 Änderungen warten“**. Das bleibt auch erhalten, wenn die App geschlossen oder das Handy neu gestartet wird.
+- Mit Netz (zurück in der App oder Netz wieder da) wird **sofort gespeichert und mit den Änderungen anderer zusammengeführt**. Haben zwei Personen gleichzeitig geändert, bleiben beide Änderungen erhalten, nichts wird still überschrieben.
+- Ohne Netz geht nicht: E-Mail-Versand.
 
 ## Was die Plattform einfacher macht
 
-- **Eine Anmeldung, eine Adresse, eine App am Handy.** Am Handy zeigt die Leiste unten die Module der eigenen Rolle (z. B. Zähler, Kontrolle, Mappe).
-- **Gemeinsame Objekte.** Objekt-ID, Kunde und Adresse stehen einmal zentral. Damit fallen die Schreibvarianten und freien Objektnummern der Einzelwerkzeuge weg.
-- **Zu erledigen** sammelt alles, was ansteht, je nach Rolle: Abwesenheiten, periodische Leistungen, Korrekturen, fällige Ablesungen, fällige Kontrollen, Gefahren und überschrittene Fristen.
-- **Hinweise im Einsatz:** Wer den Einsatz an einem Objekt öffnet, sieht fällige Ablesungen und offene Mängel dort.
-- **Schnellsuche** mit Strg+K oder der Lupe: Personen, Objekte, Kunden, Zählernummern, Kontrollen und Ansichten.
-- **Rundgang:** Alle offenen Zähler eines Objekts nacheinander, sortiert nach Lage, mit „Speichern & weiter“.
-- **Planung verbindet die Module:** Ablesung und Nacharbeit landen als Einsatz im Dienstplan, mit Zeit, Person, Stunden und Zeitkonto.
+- **Eine Anmeldung, eine Adresse, eine App am Handy.** Dienstplan und Werkzeuge in einer Seitenleiste, je nach Rolle.
+- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine.
+- **Schnellsuche** mit Strg+K oder der Lupe: Personen, Objekte, Fahrzeuge und Bereiche (auch die Werkzeuge). Suchen in den Werkzeugen geht dort selbst.
 
 ## Vorschau
 
-[Zählerstände](vorschau/32-zaehlerstaende.png) · [Ablesen am Handy](vorschau/33-ablesen-handy.png) · [Objektkontrolle](vorschau/34-objektkontrolle.png) · [Offene Mängel](vorschau/35-offene-maengel.png) · [Kontrolle am Handy](vorschau/36-kontrolle-handy.png) · [Objektmappe, Leistungsverzeichnis](vorschau/37-objektmappe-leistungen.png) · [Übernahme aus den Werkzeugen](vorschau/38-uebernahme.png) · [Verlauf der Objektmappe](vorschau/39-objektmappe-verlauf.png) · [Objektblatt auf Rumänisch](vorschau/40-objektblatt-ro.png) · [Öffnungscode](vorschau/41-oeffnungscode.png) · [Fahrzeuge & Reifen](vorschau/42-fahrzeuge-reifen.png) · [Termine vorschlagen](vorschau/43-reifen-vorschlag.png) · [Fahrer/innen informieren](vorschau/44-reifen-mail.png) · [Service & Pickerl](vorschau/45-service-pickerl.png) · [Werkstatttermin](vorschau/46-werkstatttermin.png) · [Pickerl erledigt](vorschau/47-pickerl-erledigt.png) · [Cleanos App, Wochenübersicht](vorschau/48-cleanos-design.png) · [Darstellung wählen](vorschau/49-darstellung.png) · [Cleanos Nachtblau, dunkel](vorschau/50-cleanos-nacht-dunkel.png) · [Berechtigungen](vorschau/51-berechtigungen.png) · [Tablet](vorschau/52-tablet.png) · [Übersicht](vorschau/53-uebersicht.png)
+[Fahrzeuge & Reifen](vorschau/42-fahrzeuge-reifen.png) · [Termine vorschlagen](vorschau/43-reifen-vorschlag.png) · [Fahrer/innen informieren](vorschau/44-reifen-mail.png) · [Service & Pickerl](vorschau/45-service-pickerl.png) · [Werkstatttermin](vorschau/46-werkstatttermin.png) · [Pickerl erledigt](vorschau/47-pickerl-erledigt.png) · [Cleanos App, Wochenübersicht](vorschau/48-cleanos-design.png) · [Darstellung wählen](vorschau/49-darstellung.png) · [Cleanos Nachtblau, dunkel](vorschau/50-cleanos-nacht-dunkel.png) · [Berechtigungen](vorschau/51-berechtigungen.png) · [Tablet](vorschau/52-tablet.png) · [Übersicht](vorschau/53-uebersicht.png) · [Wasserzähler in der App](vorschau/54-werkzeug-wasserzaehler.png) · [Objektdoku in der App](vorschau/55-werkzeug-objektdoku.png) · [Mattenwechsel in der App](vorschau/56-werkzeug-mattenwechsel.png)

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { accountProblem, groupsOf } from '../src/auth/msal.js'
 import { resolveAccess } from '../src/core/access.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
-import { DataService, dataRights, DOC, folderRights, MODULE_DOCS, OLD_PATHS, weekPath } from '../src/storage/data-service.js'
+import { DataService, dataRights, DOC, folderRights, MODULE_DOCS, OLD_PATHS, toolFolderRights, weekPath } from '../src/storage/data-service.js'
 import { deepMerge } from '../src/ui/config.js'
 import { viewFromHash } from '../src/ui/context.js'
 
@@ -68,53 +68,50 @@ test('Rechte: ohne Gruppe kein Zugriff (Betrieb), App-Rollen über Gruppen wirke
 })
 
 test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () => {
+  // Vorarbeiter: nur das Werkzeug Wasserzähler, keine Datei der App
   const va = dataRights(resolveAccess({ groupClaims: [VA], access, strict: true }))
-  assert.ok(va.read(DOC.objects) && va.read(MODULE_DOCS.zaehler.path) && va.write(MODULE_DOCS.zaehler.path))
-  for (const p of [DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.kontrolle.path, MODULE_DOCS.mappe.path, MODULE_DOCS.fahrzeuge.path]) assert.ok(!va.read(p), p)
-  assert.ok(!va.write(DOC.objects))
+  for (const p of [DOC.objects, DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.fahrzeuge.path]) assert.ok(!va.read(p) && !va.write(p), p)
 
   const om = dataRights(resolveAccess({ groupClaims: [OM], access, strict: true }))
-  for (const p of [DOC.objects, DOC.master, weekPath('2026-10-26'), MODULE_DOCS.kontrolle.path, MODULE_DOCS.mappe.path]) assert.ok(om.read(p), p)
-  for (const p of [DOC.absences, DOC.account, MODULE_DOCS.zaehler.path, MODULE_DOCS.fahrzeuge.path]) assert.ok(!om.read(p), p)
-  assert.deepEqual([DOC.master, DOC.objects, weekPath('2026-10-26'), MODULE_DOCS.kontrolle.path, MODULE_DOCS.mappe.path].filter((p) => om.write(p)), [MODULE_DOCS.kontrolle.path, MODULE_DOCS.mappe.path])
+  for (const p of [DOC.objects, DOC.master, weekPath('2026-10-26')]) assert.ok(om.read(p) && !om.write(p), p)
+  for (const p of [DOC.absences, DOC.account, MODULE_DOCS.fahrzeuge.path]) assert.ok(!om.read(p), p)
 
   const none = dataRights(resolveAccess({ access, strict: true }))
   assert.ok(!none.read(DOC.objects) && !none.read(DOC.master))
 
-  // Ordnertabelle für SharePoint
-  const rows = Object.fromEntries(folderRights(resolveAccess({ groupClaims: [OM], access, strict: true })).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows, { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', zaehler: '', kontrolle: 'Bearbeiten', objektmappe: 'Bearbeiten', fahrzeuge: '', exporte: '' })
-  // Prüfer liest die Stammdaten (Namen), aber keine Wochenpläne
-  const pr = Object.fromEntries(folderRights(resolveAccess({ roleClaims: ['pruefer'], access, strict: true })).map(([f, , r]) => [f, r]))
-  assert.equal(pr.daten, 'Lesen')
-  assert.equal(pr.plaene, '')
+  // Ordnertabelle für SharePoint (Ordner der App)
+  const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', exporte: '' })
+  assert.ok(Object.values(rows(resolveAccess({ groupClaims: [VA], access, strict: true }))).every((r) => r === ''))
   const full = folderRights(resolveAccess({ email: 'office@cleanos.at', access, strict: true }))
   assert.ok(full.every(([, , r]) => r === 'Bearbeiten'))
+
+  // Ordner der Werkzeuge (neben dem Ordner der App)
+  const tools = (acc) => Object.fromEntries(toolFolderRights(acc).map(([f, , r]) => [f, r]))
+  assert.deepEqual(tools(resolveAccess({ groupClaims: [VA], access, strict: true })), { 'Wasserzähler - Ablesung': 'Bearbeiten', Objektpruefprotokolle: '', Objektdoku: '', Mattenwechsel: '', Stammdaten: 'Lesen' })
+  assert.deepEqual(tools(resolveAccess({ groupClaims: [OM], access, strict: true })), { 'Wasserzähler - Ablesung': '', Objektpruefprotokolle: 'Bearbeiten', Objektdoku: 'Bearbeiten', Mattenwechsel: '', Stammdaten: 'Lesen' })
+  // Prüfer: Objektdoku nur lesen, Objektliste der Kontrolle bearbeiten
+  assert.deepEqual(tools(resolveAccess({ roleClaims: ['pruefer'], access, strict: true })).Objektdoku, 'Lesen')
+  assert.ok(toolFolderRights(resolveAccess({ email: 'it@cleanos.at', access, strict: true })).every(([, , r]) => r === 'Bearbeiten'))
 })
 
-test('Rechte: Vorarbeiter fragt Personaldaten gar nicht erst an', async () => {
+test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserzähler)', async () => {
   const { store, log } = spyStore()
   // Bestand der Disposition
   const admin = new DataService(store, { debounceMs: 0 })
   await admin.load(() => ({ ...blank(), employees: [{ id: 'e1', name: 'Ana', phone: '0664' }], objects: [{ id: 'o1', name: 'Wohnanlage Lehen' }], absences: [{ id: 'a1', employeeId: 'e1', type: 'Krankenstand', from: '2026-10-26', to: '2026-10-30' }] }))
-  admin.data.zaehler = { meters: [{ id: 'm1', objectId: 'o1', nr: 'A1' }], readings: [], closures: {} }
-  await admin.flush()
   log.read.length = 0
   log.write.length = 0
 
   const rights = dataRights(resolveAccess({ groupClaims: [VA], access, strict: true }))
   const va = new DataService(store, { debounceMs: 0, rights, blank })
   const data = await va.load(() => assert.fail('legt nichts an'))
-  assert.deepEqual(log.read.sort(), [DOC.objects, MODULE_DOCS.zaehler.path].sort())
+  assert.deepEqual(log.read, [])
   assert.deepEqual(data.employees, [])
   assert.deepEqual(data.absences, [])
-  assert.equal(data.objects[0].name, 'Wohnanlage Lehen')
-  assert.equal(data.zaehler.meters.length, 1)
-  // Ablesung speichern: nur zaehler/
-  data.zaehler.readings.push({ id: 'r1', meterId: 'm1', value: 12 })
   data.tasks.push({ id: 'x' }) // dürfte die Rolle nicht, wird nicht gespeichert
   await va.flush()
-  assert.deepEqual(log.write, [MODULE_DOCS.zaehler.path])
+  assert.deepEqual(log.write, [])
   assert.equal(va.writable(DOC.master), false)
 })
 
@@ -179,6 +176,7 @@ test('Adresse: app.cleanos.at/#zaehler öffnet die Ansicht, Namen der früheren 
   assert.equal(viewFromHash('#wasserzaehler', ids), 'zaehler')
   assert.equal(viewFromHash('#Pruefprotokoll', ids), 'kontrolle')
   assert.equal(viewFromHash('#objektdoku', ids), 'objektmappe')
+  assert.equal(viewFromHash('#mattenwechsel', [...ids, 'matten']), 'matten')
   assert.equal(viewFromHash('#dienstplan', ids), 'week')
   assert.equal(viewFromHash('#code=abc&state=xyz', ids), null)
   assert.equal(viewFromHash('', ids), null)

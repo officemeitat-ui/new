@@ -23,6 +23,7 @@ export const NAV_ICONS = {
   zaehler: '<path d="M12 2.8C9.2 6.6 6.2 10 6.2 13.6a5.8 5.8 0 0 0 11.6 0C17.8 10 14.8 6.6 12 2.8z"/>',
   kontrolle: '<rect x="8" y="2.5" width="8" height="4" rx="1"/><path d="M16 4.5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h2M8.5 14l2.5 2.5 4.5-5"/>',
   objektmappe: '<path d="M3 4.5h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H3zM21 4.5h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H21z"/>',
+  matten: '<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M7 9.5h10M7 12h10M7 14.5h10"/>',
   fahrzeuge: '<path d="M5 17H3.5v-4.5L5.5 7h13l2 5.5V17H19M5 12.5h14"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/><path d="M9.5 17h5"/>',
   controlling: '<path d="M3.5 3.5v17h17M8 16.5v-4M12.5 16.5v-9M17 16.5v-6"/>',
   payroll: '<rect x="2.5" y="5.5" width="19" height="13" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>',

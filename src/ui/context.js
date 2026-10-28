@@ -41,7 +41,7 @@ export const app = {
 export const VIEWS = []
 
 /** Kurznamen für Adressen wie app.firma.at/#zaehler (auch die Namen der früheren Werkzeuge). */
-export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe' }
+export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe', leistungsverzeichnis: 'objektmappe', mattenwechsel: 'matten' }
 
 /** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
 export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
@@ -66,7 +66,7 @@ export const VIEW_GROUPS = [
 ]
 export const MODALS = {}
 export const ACTIONS = {}
-/** Hinweise anderer Module zu einem Objekt (z. B. fällige Ablesung, offene Mängel): [{ module, html(objectId) }] */
+/** Hinweise anderer Module zu einem Objekt (z. B. Fahrzeug am Objekt): [{ module, html(objectId) }] */
 export const OBJECT_HINTS = []
 export const registerObjectHint = (hint) => OBJECT_HINTS.push(hint)
 /** Hinweise zu einem Objekt, die die Rolle sehen darf. */
@@ -77,7 +77,7 @@ export const moduleOf = (view) => view.module || GROUP_MODULE[view.group] || 'pl
 /** Ansichten, die die angemeldete Person sehen darf. module '*' (Übersicht): wer überhaupt einen Bereich sieht. */
 export const visibleViews = () => {
   const any = !app.access || Object.keys(MODULES).some((m) => app.access.sees(m))
-  return VIEWS.filter((v) => (v.module === '*' ? any : !app.access || app.access.sees(moduleOf(v))))
+  return VIEWS.filter((v) => v.available?.() !== false).filter((v) => (v.module === '*' ? any : !app.access || app.access.sees(moduleOf(v))))
 }
 /** Darf in einem Modul ändern (ohne Rollen-Setup: ja). */
 export const canEdit = (module) => !app.access || app.access.canEdit(module)
@@ -95,7 +95,7 @@ export function mayEdit(modules) {
 
 /**
  * Ansicht registrieren: { id, label, group: 'plan'|'service'|'fuhrpark'|'auswertung'|'stamm', module?, icon?, order, render(c),
- * summary?, badge?(c), range?() → { from, to } für zusätzlich zu ladende Wochen }
+ * summary?, badge?(c), range?() → { from, to } für zusätzlich zu ladende Wochen, available?() → false blendet aus }
  * module: Rollen-Modul (core/access.js), sonst nach Gruppe.
  */
 export function registerView(view) {

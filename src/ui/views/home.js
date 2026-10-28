@@ -1,7 +1,7 @@
 // Übersicht (Startseite): alle Bereiche der eigenen Rolle auf einen Blick.
 // Je Bereich eine Karte mit dem, was offen ist (Zähler der Ansichten), und
 // einem Klick hinein; für die Einsatzplanung der Stand der Woche. Wer nur
-// Zählerstände darf, sieht nur diese Karte.
+// ein Werkzeug darf, sieht nur dessen Karte.
 
 import { formatDate, isoWeek, todayISO } from '../../core/dates.js'
 import { app, registerView, VIEW_GROUPS, visibleViews } from '../context.js'

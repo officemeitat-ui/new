@@ -1,5 +1,5 @@
 // Module und Rollen: Ein Tool für mehrere Aufgaben (Dienstplan, Lohn,
-// Objektkontrolle, Zählerstände …). Jede Rolle sieht bestimmte Module und darf
+// Wasserzähler, Objektkontrolle …). Jede Rolle sieht bestimmte Module und darf
 // in bestimmten Modulen ändern. Rollen kommen aus Entra ID: App-Rollen (auch
 // über Gruppen zugewiesen) oder Mitgliedschaft in Microsoft-Gruppen
 // (config.json → access.groups), dazu E-Mail-Listen in config.json.
@@ -7,14 +7,19 @@
 // Echte Trennung der Daten: Jedes Modul speichert in eigenen Ordnern
 // (data-service.js, dataRights). Die App liest nur die Ordner, die die Rolle
 // braucht; die Rechte in SharePoint sichern das zusätzlich ab.
+//
+// zaehler, kontrolle, objektmappe und matten sind die eigenen Werkzeuge
+// (werkzeuge/, src/ui/views/tools.js): Sie speichern selbst in ihren Ordnern
+// der Bibliothek; die Rolle entscheidet, wer sie in der App sieht.
 
 export const MODULES = {
   planung: 'Einsatzplanung',
   auswertung: 'Auswertung & Lohn',
   stammdaten: 'Stammdaten',
-  zaehler: 'Zählerstände',
+  zaehler: 'Wasserzähler-Ablesung',
   kontrolle: 'Objektkontrolle',
-  objektmappe: 'Objektmappe',
+  objektmappe: 'Objektdoku',
+  matten: 'Mattenwechsel',
   fahrzeuge: 'Fahrzeuge & Reifen',
 }
 

@@ -46,7 +46,7 @@ test('Offline: Netzfehler werden erkannt', () => {
   assert.ok(!isNetworkError(Object.assign(new Error('Zugriff verweigert'), { status: 403 })))
 })
 
-test('Offline: ablesen im Keller, Neustart ohne Netz, später speichern und zusammenführen', async () => {
+test('Offline: erfassen ohne Netz, Neustart ohne Netz, später speichern und zusammenführen', async () => {
   const { remote, inner, net } = flakyRemote()
   const cache = memoryCache()
   // 1. mit Netz starten: Stand landet auch im Gerät
@@ -54,37 +54,37 @@ test('Offline: ablesen im Keller, Neustart ohne Netz, später speichern und zusa
   await store.init()
   const svc = new DataService(store, { debounceMs: 0, local: cache })
   const data = await svc.load(seed)
-  data.zaehler = { meters: [{ id: 'S-1', objectId: 'o1', number: 'A1' }], readings: [], closures: {} }
+  data.fahrzeuge = { vehicles: [{ id: 'v1', plate: 'S-1' }], workshops: [], changes: [], settings: {} }
   await svc.flush()
   assert.equal(svc.status, 'saved')
 
-  // 2. Netz weg: Ablesung erfassen, Speichern schlägt nicht fehl, Status „offline“
+  // 2. Netz weg: Reifenwechsel erfassen, Speichern schlägt nicht fehl, Status „offline“
   net.online = false
-  data.zaehler.readings.push({ id: 'r1', meterId: 'S-1', period: '2026-Q3', date: '2026-10-02', value: 130 })
+  data.fahrzeuge.changes.push({ id: 'r1', vehicleId: 'v1', date: '2026-10-02', km: 130 })
   await svc.flush()
   assert.equal(svc.status, 'offline')
   assert.equal(svc.pendingCount(), 1)
   assert.equal((await cache.all('pending')).length, 1, 'Änderung liegt im Gerät')
 
-  // 3. App ohne Netz neu starten: Stand aus dem Gerät, Ablesung wieder da
+  // 3. App ohne Netz neu starten: Stand aus dem Gerät, Eintrag wieder da
   const store2 = new CachedDocStore(remote, cache)
   assert.deepEqual(await store2.init(), { site: null, offline: true })
   const svc2 = new DataService(store2, { debounceMs: 0, local: cache })
   const data2 = await svc2.load(seed)
   assert.equal(data2.employees[0].name, 'Ana')
-  assert.deepEqual(data2.zaehler.readings.map((r) => r.value), [130])
+  assert.deepEqual(data2.fahrzeuge.changes.map((r) => r.km), [130])
 
-  // 4. inzwischen hat jemand anderes eine andere Ablesung gespeichert
-  const other = (await inner.read(MODULE_DOCS.zaehler.path)).data
-  other.readings.push({ id: 'r2', meterId: 'S-1', period: '2026-Q2', date: '2026-06-30', value: 100 })
-  await inner.write(MODULE_DOCS.zaehler.path, other, (await inner.read(MODULE_DOCS.zaehler.path)).etag)
+  // 4. inzwischen hat jemand anderes einen anderen Eintrag gespeichert
+  const other = (await inner.read(MODULE_DOCS.fahrzeuge.path)).data
+  other.changes.push({ id: 'r2', vehicleId: 'v1', date: '2026-06-30', km: 100 })
+  await inner.write(MODULE_DOCS.fahrzeuge.path, other, (await inner.read(MODULE_DOCS.fahrzeuge.path)).etag)
 
   // 5. Netz wieder da: refresh speichert nach und führt zusammen
   net.online = true
   await svc2.refresh()
   assert.equal(svc2.status, 'saved')
-  const saved = (await inner.read(MODULE_DOCS.zaehler.path)).data.readings.map((r) => r.id).sort()
-  assert.deepEqual(saved, ['r1', 'r2'], 'beide Ablesungen erhalten')
+  const saved = (await inner.read(MODULE_DOCS.fahrzeuge.path)).data.changes.map((r) => r.id).sort()
+  assert.deepEqual(saved, ['r1', 'r2'], 'beide Einträge erhalten')
   assert.equal((await cache.all('pending')).length, 0)
 })
 

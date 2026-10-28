@@ -20,10 +20,9 @@ function dataModal() {
     title: 'Daten & Ablage',
     body: `<section><h3>Ablage</h3>
         <p>${s.kind === 'sharepoint' ? `Gespeichert in <strong>${esc(s.label)}</strong>. SharePoint führt für jede Datei einen Versionsverlauf.${s.webUrl ? ` <a href="${esc(s.webUrl)}" target="_blank" rel="noopener">Ordner öffnen</a>` : ''}` : `Gespeichert in <strong>diesem Browser</strong>${s.persistent ? '' : ' (nur bis zum Schließen, der Browser blockiert die Speicherung)'}. Für den Echtbetrieb in <code>config.json</code> auf SharePoint umstellen.`}</p>
-        <p class="note">Dateien: daten/stammdaten.json, daten/abwesenheiten.json, daten/zeitkonto.json, daten/plaene/JJJJ/Woche.json, ${Object.values(MODULE_DOCS).map((m) => m.path).join(', ')}, exporte/…</p>
+        <p class="note">Dateien: objekte/objekte.json, daten/stammdaten.json, plaene/JJJJ/Woche.json, personal/abwesenheiten.json, lohn/zeitkonto.json, ${Object.values(MODULE_DOCS).map((m) => m.path).join(', ')}, exporte/… Die Werkzeuge (Wasserzähler, Objektkontrolle, Objektdoku, Mattenwechsel) speichern in ihren eigenen Ordnern.</p>
         ${app.service.denied?.size ? `<p class="note">Ohne Leserecht (bleibt leer, wird nicht gespeichert): ${esc([...app.service.denied].join(', '))}</p>` : ''}</section>
-      <section><h3>Bisherige Werkzeuge</h3><p class="note">Wasserzähler-Ablesung, Prüfprotokoll und Objektdokumentation: Daten aus deren SharePoint-Ordnern übernehmen (wiederholbar, nichts doppelt).</p><button class="btn" data-action="legacy-open">${ICON.upload} Übernehmen</button></section>
-      <section><h3>Datensicherung</h3><p class="note">Alle geladenen Daten als JSON (Stammdaten, Abwesenheiten, Zeitkonto, Zähler, Kontrollen, Objektmappe und die gerade geladenen Wochen).</p>
+      <section><h3>Datensicherung</h3><p class="note">Alle geladenen Daten der App als JSON (Stammdaten, Abwesenheiten, Zeitkonto, Fahrzeuge und die gerade geladenen Wochen). Die Werkzeuge sichern ihre Daten selbst in SharePoint.</p>
         <div class="actions">${app.config.features.download ? `<button class="btn" data-action="backup-download">${ICON.sheet} Herunterladen</button>` : ''}<button class="btn" data-action="backup-copy">${ICON.copy} Kopieren</button></div></section>
       <section class="edit-only"><h3>Daten einspielen</h3><p class="note">Eine Datensicherung einfügen oder als Datei wählen. Vorhandene Daten werden ersetzt; geladene Wochen werden überschrieben.</p>
         <input type="file" id="import-file" accept=".json,application/json">

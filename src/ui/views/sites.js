@@ -1,4 +1,4 @@
-// Objekte & Leistungen (Stammplan), Objektmappe, Schlüssel, Budget.
+// Objekte & Leistungen (Stammplan), Objektinfo, Schlüssel, Budget.
 
 import { addDays, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { holidayCalendar } from '../../core/holidays.js'
@@ -39,7 +39,7 @@ function sitesView() {
       </article>`
     })
     .join('')
-  return `<div class="section-head"><div><h2>Objekte & Leistungen <span class="muted">(${app.data.objects.length} Objekte, ${app.data.tasks.length} Leistungen)</span></h2><p>Der Stammplan: welche Leistung in welchem Rhythmus, zu welcher Zeit, mit wem als Stammkraft, und was an Feiertagen passiert. Dazu Objektmappe, Schlüssel und Budget.</p></div>
+  return `<div class="section-head"><div><h2>Objekte & Leistungen <span class="muted">(${app.data.objects.length} Objekte, ${app.data.tasks.length} Leistungen)</span></h2><p>Der Stammplan: welche Leistung in welchem Rhythmus, zu welcher Zeit, mit wem als Stammkraft, und was an Feiertagen passiert. Dazu Objektinfo, Schlüssel und Budget.</p></div>
     <div class="actions edit-only"><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="obj-edit" data-id="new">${ICON.plus} Objekt anlegen</button></div></div>
     ${regionFilter()}
     <div class="objects">${cards}</div>`
@@ -64,7 +64,7 @@ function objectModal(c, { id }) {
         <label class="field"><span>Budget (Sollstunden/Monat)</span><input type="number" id="obj-budget" min="0" step="1" value="${esc(o.budgetHoursMonth ?? '')}" placeholder="laut Kalkulation"></label>
         <label class="check" style="align-self:end"><input type="checkbox" id="obj-trained" ${o.onlyTrained ? 'checked' : ''}><span>Nur eingeschultes Personal (Schlüssel, Alarm, Hygiene)</span></label>
       </div>
-      <section><h3>Objektmappe</h3><div class="form-grid">
+      <section><h3>Objektinfo</h3><div class="form-grid">
         <label class="field wide"><span>Anweisungen für das Personal (erscheint im Einsatz und für Vertretungen)</span><textarea id="obj-instructions" rows="3" style="font-family:inherit;font-size:inherit">${esc(o.instructions || '')}</textarea></label>
         <label class="field wide"><span>Ansprechperson beim Kunden</span><input type="text" id="obj-contact" value="${esc(o.contact || '')}"></label>
       </div><p class="note">Keine Alarmcodes oder Passwörter eintragen: diese Daten liegen für alle Disponent:innen lesbar in SharePoint.</p></section>

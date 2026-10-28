@@ -105,7 +105,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Soll-/Ist-Stunden je Objekt (Budget gegen Plan) | Profacilo, Janitorial Manager, Aspire, MR.Clean | ✔ Objekt-Controlling |
 | Laufendes Zeitkonto, Resturlaub | Staffomatic, Shiftbase, TimeTac | ✔ Zeitkonto aus veröffentlichten Wochen, Urlaubsanspruch |
 | Lohnexport (BMD, RZL) | TimeTac (BMD-Schnittstelle) | ✔ Monatsauswertung als CSV; Lohnarten-Zuordnung beim Import |
-| Objektmappe (Anweisungen für Springer) | Swept, PlanD | ✔ im Einsatz-Dialog |
+| Objektinfo (Anweisungen für Springer) | Swept, PlanD | ✔ im Einsatz-Dialog |
 | Schlüsselverwaltung | MR.Clean, Profacilo, CleanManager, Miele | ✔ Schlüssel je Objekt, Regel „Schlüsselübergabe nötig“ |
 | Tourenplanung / Fahrzeiten | MR.Clean, Profacilo, Swept | ✔ Fahrten je Einsatz planbar (Dauer + Notiz), Fahrzeit-Matrix, Zeitlinie je Tag (noch ohne Karte) |
 | Prüfung nach österreichischem Arbeitsrecht | bei keinem Anbieter belegt | ✔ AZG, ARG, KJBG, Geringfügigkeit |
@@ -147,7 +147,7 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 
 ## 5a. Plattform mit Modulen
 
-Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle und Objektdokumentation als Module im Dienstplan: eine Anmeldung, gemeinsame Objekte, Rollen aus Entra ID, getrennte Dateien je Modul mit eigenen SharePoint-Rechten. Was übernommen wurde, was neu ist und wie die Rollen eingerichtet werden: [PLATTFORM.md](PLATTFORM.md).
+Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle, Objektdokumentation und Mattenwechsel als eigene Werkzeuge unverändert in der App: eine Anmeldung, Rollen aus Entra ID, jedes Werkzeug mit seinen Daten in seinem SharePoint-Ordner. Wie die Rollen eingerichtet werden: [PLATTFORM.md](PLATTFORM.md).
 
 ## 6. Ausbaustufen
 
@@ -155,7 +155,7 @@ Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle und Objektdokum
 |---|---|
 | **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
 | **2. Mitarbeiter-App** | Eigener Wochenplan am Handy (PWA), Push bei Änderungen, Urlaubsantrag, offene Einsätze übernehmen; Zeiterfassung per QR/NFC im Objekt. Braucht einen kleinen Server für Rechte je Person |
-| **3. Qualität & Kalkulation** | Begehungen (gebaut: Modul Objektkontrolle), Leistungsverzeichnis mit Richtzeiten (gebaut: Objektmappe), Zählerablesung (gebaut: Zählerstände); offen: Reklamationen, Objektkalkulation aus Flächen und Leistungswerten, Tourenplanung mit Karte |
+| **3. Qualität & Kalkulation** | Begehungen (eigenes Werkzeug Objektkontrolle), Leistungsverzeichnis (eigenes Werkzeug Objektdoku), Zählerablesung (eigenes Werkzeug Wasserzähler), Mattenwechsel mit Touren (eigenes Werkzeug), alle in der App eingebunden; offen: Reklamationen, Objektkalkulation aus Flächen und Leistungswerten |
 | **4. Anbindungen** | Teams Shifts, BMD/RZL mit Lohnarten-Mapping, Fahrzeiten aus Adressen |
 
 Zu klären:

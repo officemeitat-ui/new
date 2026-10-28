@@ -1,0 +1,169 @@
+// Die eigenen Werkzeuge in der App: Wasserzähler-Ablesung, Objektkontrolle,
+// Objektdoku und Mattenwechsel – unverändert (werkzeuge/), im Rahmen der App.
+//
+// - Anmeldung: kommt von der App (window.werkzeugBruecke ↔ werkzeuge/bruecke.js),
+//   eine Microsoft-Anmeldung für alles.
+// - Daten: speichern die Werkzeuge wie bisher selbst in ihren Ordnern der
+//   Bibliothek (Wasserzähler - Ablesung, Objektpruefprotokolle, Objektdoku,
+//   Mattenwechsel); es gelten die SharePoint-Rechte der angemeldeten Person.
+// - Sichtbarkeit: nach Rolle (Modul zaehler, kontrolle, objektmappe, matten).
+// - Ein Werkzeug bleibt geladen, wenn man zwischendurch z. B. in den
+//   Dienstplan wechselt: Sein Rahmen liegt außerhalb der Seite, die die App
+//   bei jeder Änderung neu zeichnet, und wird nur über den Platzhalter gelegt.
+
+import { app, registerActions, registerView, renderNow } from '../context.js'
+import { esc, ICON } from '../shared.js'
+
+export const TOOLS = [
+  { id: 'zaehler', name: 'wasserzaehler', module: 'zaehler', label: 'Wasserzähler', title: 'Wasserzähler-Ablesung', order: 72, text: 'Zählerstände je Quartal mit Fotos, Bericht für die Hausverwaltung, Jahreswechsel' },
+  { id: 'kontrolle', name: 'objektkontrolle', module: 'kontrolle', label: 'Objektkontrolle', title: 'Objektkontrolle (Prüfprotokoll)', order: 73, text: 'Prüfprotokoll mit Bewertung, Fotos, Unterschriften und PDF' },
+  { id: 'objektmappe', name: 'objektdoku', module: 'objektmappe', label: 'Objektdoku', title: 'Objektdokumentation (Leistungsverzeichnis)', order: 74, text: 'Objektakte, Leistungsverzeichnis, Objektblatt als PDF mit Öffnungscode' },
+  { id: 'matten', name: 'mattenwechsel', module: 'matten', label: 'Mattenwechsel', title: 'Mattenwechsel', order: 75, text: 'Touren, Lieferscheine und Nachweis des Mattenwechsels' },
+]
+
+const frames = new Map() // Werkzeug → <iframe>, bleibt bis zum Neuladen der App
+let host = null
+let problem = '' // Anmeldung für die Werkzeuge gerade nicht möglich
+
+const toolOf = (name) => TOOLS.find((t) => t.name === name)
+const url = (tool) => `werkzeuge/${tool.name}/`
+
+function hostEl() {
+  if (!host) {
+    host = document.createElement('div')
+    host.id = 'tool-host'
+    host.hidden = true
+    document.body.append(host)
+  }
+  return host
+}
+
+function frameFor(tool) {
+  let frame = frames.get(tool.name)
+  if (!frame) {
+    frame = document.createElement('iframe')
+    frame.className = 'tool-frame'
+    frame.title = tool.title
+    frame.src = url(tool)
+    frame.setAttribute('allow', 'clipboard-write; fullscreen')
+    hostEl().append(frame)
+    frames.set(tool.name, frame)
+  }
+  return frame
+}
+
+/** Nach jedem Zeichnen (app.js): Rahmen des offenen Werkzeugs über den Platzhalter legen, andere verstecken. */
+export function syncTools() {
+  const slot = document.querySelector('.tool-slot')
+  const active = slot ? toolOf(slot.dataset.tool) : null
+  document.body.classList.toggle('tool-view', !!active)
+  for (const [name, frame] of frames) frame.hidden = !active || name !== active.name
+  if (!active) {
+    if (host) host.hidden = true
+    return
+  }
+  frameFor(active).hidden = false
+  const el = hostEl()
+  el.hidden = false
+  // Platzhalter bis zum unteren Rand (am Handy über der Leiste unten)
+  const top = slot.getBoundingClientRect().top
+  const bottomBar = document.querySelector('.bottom-nav')?.getBoundingClientRect().height || 0
+  slot.style.height = `${Math.max(360, window.innerHeight - top - bottomBar - 8)}px`
+  const r = slot.getBoundingClientRect()
+  Object.assign(el.style, { top: `${r.top + window.scrollY}px`, left: `${r.left + window.scrollX}px`, width: `${r.width}px`, height: `${r.height}px` })
+}
+window.addEventListener('resize', () => syncTools())
+
+// ---------------------------------------------------------------- Anmeldung für die Werkzeuge
+
+const OIDC = new Set(['openid', 'profile', 'offline_access', 'email'])
+// fehlt dafür die Zustimmung, geht es ohne weiter (wie in den Werkzeugen selbst)
+const OPTIONAL = ['Mail.Send', 'Calendars.ReadWrite']
+
+async function toolToken(scope) {
+  const wanted = String(scope || '')
+    .split(/\s+/)
+    .filter((s) => s && !OIDC.has(s))
+  if (!app.auth?.tokenFor) throw new Error('keine Microsoft-Anmeldung (Browser-Modus)')
+  let res
+  try {
+    res = await app.auth.tokenFor(wanted)
+  } catch (err) {
+    const required = wanted.filter((s) => !OPTIONAL.includes(s))
+    if (required.length === wanted.length) {
+      if (wanted.some((s) => /Sites\.|User\.Read/.test(s))) reportProblem(err)
+      throw err
+    }
+    try {
+      res = await app.auth.tokenFor(required)
+    } catch (err2) {
+      reportProblem(err2)
+      throw err2
+    }
+  }
+  if (problem) {
+    problem = ''
+    renderNow()
+  }
+  const seconds = Math.max(60, Math.floor(((res.expiresOn ? new Date(res.expiresOn).getTime() : Date.now() + 3600e3) - Date.now()) / 1000))
+  return { accessToken: res.accessToken, expiresIn: seconds, scope: (res.scopes || wanted).join(' ') }
+}
+
+function reportProblem(err) {
+  const text = String(err?.message || err || 'unbekannter Fehler').split('\n')[0].slice(0, 200)
+  if (text === problem) return
+  problem = text
+  if (TOOLS.some((t) => t.id === app.ui.view)) renderNow()
+}
+
+// Schnittstelle für werkzeuge/bruecke.js (gleiche Adresse, daher direkt erreichbar)
+window.werkzeugBruecke = {
+  bruecke: 1,
+  get angemeldet() {
+    return !!app.auth?.tokenFor
+  },
+  token: toolToken,
+  anmelden() {
+    if (app.auth?.reauth) app.auth.reauth()
+    else {
+      problem = 'Im Browser-Modus gibt es keine Microsoft-Anmeldung. Die Werkzeuge arbeiten dann nur auf diesem Gerät.'
+      renderNow()
+    }
+  },
+}
+
+// ---------------------------------------------------------------- Ansichten
+
+function toolView(tool) {
+  return () => {
+    const banner = problem
+      ? `<div class="banner warn-banner"><p><strong>Keine Verbindung zu SharePoint für die Werkzeuge.</strong> ${esc(problem)} Das Werkzeug arbeitet auf diesem Gerät weiter und gleicht ab, sobald die Anmeldung wieder geht.</p>${app.auth?.reauth ? '<button class="btn primary" data-action="tool-reauth">Neu anmelden</button>' : ''}</div>`
+      : ''
+    return `${banner}<div class="tool-slot" data-tool="${tool.name}" aria-hidden="true"></div>`
+  }
+}
+
+for (const tool of TOOLS)
+  registerView({
+    id: tool.id,
+    label: tool.label,
+    title: tool.title,
+    text: tool.text,
+    group: 'service',
+    module: tool.module,
+    order: tool.order,
+    noWeek: true,
+    // ohne Werkzeuge (z. B. neutrale Vorschau): config.json → "tools": false
+    available: () => app.config?.tools !== false,
+    actions: () =>
+      `<button class="btn small ghost" data-action="tool-reload" data-tool="${tool.name}" title="${esc(tool.title)} neu laden">${ICON.refresh} Neu laden</button><a class="btn small ghost" href="${url(tool)}" target="_blank" rel="noopener" title="Im eigenen Fenster öffnen (eigene Anmeldung des Werkzeugs)">Eigenes Fenster</a>`,
+    render: toolView(tool),
+  })
+
+registerActions({
+  'tool-reload': (el) => {
+    const frame = frames.get(el.dataset.tool)
+    if (frame) frame.src = url(toolOf(el.dataset.tool))
+  },
+  'tool-reauth': () => app.auth?.reauth?.(),
+})

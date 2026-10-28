@@ -6,6 +6,7 @@
 //   Inhalts-Hash gebündelt (app/…): schneller Start, sicheres Caching.
 // - Bibliotheken (MSAL, ExcelJS, pdfmake, JSZip) liegen unter vendor/ und
 //   werden erst bei Bedarf geladen.
+// - Die Werkzeuge kommen unverändert nach werkzeuge/ (scripts/werkzeuge.js).
 // - staticwebapp.config.json bekommt die Tenant-ID aus config.json: die ganze
 //   Seite ist dann nur nach Microsoft-Anmeldung im eigenen Tenant erreichbar.
 // - dist/config.json = config.json mit config.production.json darüber
@@ -18,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { deepMerge } from '../src/ui/config.js'
 import { manifestFor, serviceWorkerSource } from './pwa.js'
 import { VENDOR } from './vendor.js'
+import { werkzeugeBauen } from './werkzeuge.js'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const dist = join(root, 'dist')
@@ -29,6 +31,9 @@ const copy = (item, target = item) =>
 await rm(dist, { recursive: true, force: true })
 await mkdir(join(dist, 'vendor'), { recursive: true })
 for (const item of ['themes', 'assets']) await copy(item)
+// Werkzeuge (Wasserzähler, Objektkontrolle, Objektdoku, Mattenwechsel): unverändert, mit Anmeldebrücke
+const werkzeuge = await werkzeugeBauen(root, dist)
+console.log(`Werkzeuge: ${werkzeuge.length} (${werkzeuge.map((w) => w.split('/')[1]).join(', ')}) mit Anmeldung über die App.`)
 
 // ---------------------------------------------------------------- Konfiguration
 const demoBuild = process.env.DIENSTPLAN_DEMO === '1' || process.env.DIENSTPLAN_PUBLIC === '1'

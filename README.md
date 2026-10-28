@@ -2,9 +2,9 @@
 
 Einsatzplanung für die Gebäudereinigung: Stammplan pflegen, Wochen automatisch einteilen, Vertretungen finden, Arbeitsrecht prüfen (AZG, ARG, KJBG), Wochenzettel im gewohnten Layout veröffentlichen und als PDF an die Mitarbeitenden schicken. Ablage in SharePoint, die ganze Seite nur nach Anmeldung mit dem Firmenkonto (Microsoft 365, keine Gäste), Betrieb auf `app.cleanos.at`.
 
-**Eine Plattform statt vier Werkzeugen:** Dienstplan, Zählerstände (Wasserzähler-Ablesung), Objektkontrolle, Objektmappe (Objektdokumentation) und Fahrzeuge laufen in einer App mit einer Anmeldung, gemeinsamen Objekten und einer Liste „Zu erledigen“. **Microsoft-Gruppen** bestimmen, wer welche Bereiche sieht und ändern darf (z. B. Objektmanagement: Einsatzplanung lesen, Objektkontrolle, Objektmappe; Vorarbeiter: nur Wasserzähler; office@ und it@: alles). Ohne Gruppe kein Zugriff. Jede Berechtigungsstufe hat in SharePoint einen eigenen Ordner, und die App liest nur die Ordner der eigenen Gruppe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
+**Eine App mit den eigenen Werkzeugen:** Dienstplan und Fahrzeuge, dazu die Werkzeuge **Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel unverändert** (Ordner `werkzeuge/`), alle mit einer Anmeldung in einer Seitenleiste. **Microsoft-Gruppen** bestimmen, wer welche Bereiche sieht (z. B. Objektmanagement: Einsatzplanung lesen, Objektkontrolle, Objektdoku; Vorarbeiter: nur Wasserzähler; office@ und it@: alles). Ohne Gruppe kein Zugriff. Jede Berechtigungsstufe hat in SharePoint einen eigenen Ordner, und die App liest nur die Ordner der eigenen Gruppe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
 
-- **Plattform, Rollen, Übernahme der bisherigen Werkzeuge:** [docs/PLATTFORM.md](docs/PLATTFORM.md)
+- **Plattform, Rollen, die eigenen Werkzeuge in der App:** [docs/PLATTFORM.md](docs/PLATTFORM.md), [werkzeuge/LIESMICH.md](werkzeuge/LIESMICH.md)
 - **Konzept und Recherche:** [docs/KONZEPT.md](docs/KONZEPT.md)
 - **Einrichtung** (SharePoint, Entra ID, Domain): [docs/EINRICHTUNG.md](docs/EINRICHTUNG.md)
 - **Erweitern** (Regeln, Ansichten, Ablage, Design): [docs/ERWEITERN.md](docs/ERWEITERN.md)
@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 165 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Übernahme, Rollen, Zähler, Kontrolle, Objektmappe, Reifenwechsel, Service & Pickerl, Rechte je Gruppe
+npm test         # 159 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke)
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -29,7 +29,7 @@ Ob die App im Browser oder in SharePoint speichert, legt `config.json` fest (`"s
 | Ablauf-Leiste: Einteilen → Offene → Prüfen → Veröffentlichen → Versenden | Objekt-Controlling: Budget gegen Plan je Objekt | Mitarbeitende inkl. Import aus Excel, Lohngruppe, Stundenlohn |
 | Wochenübersicht mit Revier-Filter, Saldo und Zeitkonto; Einsätze per Ziehen umverteilen | Überstunden & Auszahlung: Mehrarbeit, Überstunden, Zuschläge in €, Monatsabschluss, Versand | Zuweisung: Reinigungsplan → feste Person je Leistung, mit Vorschlägen und Auslastung |
 | Zeitlinie je Tag: Einsätze und Fahrten als Balken | | |
-| Wochenzettel wie bisher (PDF, Excel, Druck) | Monatsauswertung für die Lohnverrechnung (CSV) | Objekte & Leistungen, Objektmappe, Schlüssel, Budget |
+| Wochenzettel wie bisher (PDF, Excel, Druck) | Monatsauswertung für die Lohnverrechnung (CSV) | Objekte & Leistungen, Objektinfo, Schlüssel, Budget |
 | Versand: PDF je Person per E-Mail, Teilen (WhatsApp) oder ZIP, mit Versandstand | | |
 | Objektplan | | Abwesenheiten mit Kalender und Resturlaub |
 | Vertretungs-Cockpit mit Vorschlägen | Nachträgliche Korrekturen für die Lohnverrechnung | Regeln, Regelkatalog, Fahrzeiten, Feiertage |
@@ -67,17 +67,13 @@ Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eig
 
 Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich anpassen. Die Automatik meidet Einteilungen, die Überstunden auslösen. Zeitausgleich wird jetzt korrekt aus dem Zeitkonto genommen (vorher wie Urlaub angerechnet). Die endgültige Abrechnung macht die Lohnverrechnung.
 
-**Zählerstände (ersetzt die Wasserzähler-Ablesung):** Zählstellen je Objekt mit stabiler ID und Nummernverlauf, Ablesen am Handy mit Foto (Kamera oder Galerie), „Kein Zutritt“ & Co. als Ergebnis ohne Stand, Zählertausch in der Ablesung (Endstand alt, Anfangsstand neu, bewusst nicht vorbelegt). Fällig 30 Tage vor bis 60 Tage nach Quartalsende. Plausibilität gegen dasselbe Quartal im Vorjahr (kritisch, hoch, niedrig, kein Verbrauch) schon beim Tippen. Rundgang „alle offenen ablesen“, Runde abschließen (Freigabe), Ablesung als Einsatz einplanen, Liste je Quartal (CSV, PDF mit „Auffällige Zähler“) und Jahresliste im gewohnten Excel-Zuschnitt, Versand per E-Mail. Die Jahreslisten des bisherigen Werkzeugs lassen sich übernehmen.
-
-**Objektkontrolle (ersetzt das Prüfprotokoll-Tool):** Begehung am Handy mit dem bewährten Katalog (9 Kapitel, 39 Punkte, als Checkliste bearbeitbar), OK/R/M/G/N-A je Punkt, Fotos, Vorbefunde direkt beim Prüfpunkt, Vorschlag für den Gesamtzustand, Textvorschlag für die Zusammenfassung, zwei Unterschriften, Abschluss sperrt, PDF-Protokoll, Versand An/CC/BCC ohne Vorbelegung. Mängel bleiben offen, bis derselbe Punkt OK ist oder sie erledigt sind; mit Zuständigkeit, Frist und „Nacharbeit“ als Einsatz im Dienstplan. Rhythmus je Objekt, Nachkontrollen und Gefahren in „Zu erledigen“; Nachkontrolle als Termin in Outlook (direkt oder als .ics).
-
-**Objektmappe (ersetzt die Objektdokumentation):** Kunde, Ansprechpartner, Zugang (ohne Codes), Geräte, Dokumente als Link, Einsatztage und Zeitfenster, das Leistungsverzeichnis mit Richtzeiten und Raumbuch, Ablauf- und Zugangsfotos. Bereiche aus dem Vorlagen-Katalog (Häufigkeit passt sich den Einsatztagen an). Stunden werden gerechnet und mit dem Dienstplan verglichen. Jedes Speichern ist eine Fassung: Verlauf mit Unterschieden in Worten, frühere Fassungen zurückholbar. Objektblatt als PDF fürs Personal (auch Englisch und Rumänisch), als Kundenfassung (nie Vertrauliches) oder als Akte, auf Wunsch mit Öffnungscode. Kundenstamm (Kunden.json oder Excel) einlesbar.
+**Die eigenen Werkzeuge:** Wasserzähler-Ablesung, Objektkontrolle (Prüfprotokoll), Objektdoku (Leistungsverzeichnis) und Mattenwechsel laufen genau so, wie sie gebaut sind, im Rahmen der App. Sie bekommen die Microsoft-Anmeldung der App (keine eigene Anmeldemaske) und speichern wie bisher in ihren SharePoint-Ordnern; ohne Netz arbeiten sie weiter wie gewohnt. Eine neue Fassung wird einfach nach `werkzeuge/<name>/` kopiert. Details: [werkzeuge/LIESMICH.md](werkzeuge/LIESMICH.md).
 
 **Fahrzeuge & Reifen:** Firmenfahrzeuge mit Fahrer/in, Reifensätzen, Lagerort und Profiltiefe. Je Saison der Reifenwechsel (Winter bis 31. Oktober, Sommer ab 16. April): Termine werden neben den Diensten der Fahrer/innen vorgeschlagen, die Fahrer/innen bekommen eine E-Mail mit Kalendertermin, die Werkstatt eine Sammelliste. Erledigt mit km-Stand und Profil; Reifen unter dem Mindestprofil (Winter 4 mm, Lkw über 3,5 t 5 mm) stehen in „Zu erledigen“. Dazu **Service und Pickerl**: Pickerl nach §57a (Pkw 3-2-1, ab 19. Mai 2027 4-2-2-2-1; Lkw und Kastenwagen jährlich) mit Fenster und Nachfrist, Service nach Datum oder km mit Hochrechnung aus den km-Ständen, weitere Fälligkeiten wie Tachograph oder Leasingende. Werkstatttermine erledigen mehrere Aufgaben auf einmal, auch zusammen mit dem Reifenwechsel.
 
-**Übernahme und ohne Netz:** Die Daten der bisherigen Werkzeuge liest die App direkt aus ihren SharePoint-Ordnern (Wasserzähler, Prüfprotokolle, Objektdoku, Kundenstamm), mehrfach abgleichbar ohne Doppelte. Im Keller ohne Netz geht die Arbeit weiter: Erfasstes und Fotos warten im Gerät und werden gespeichert und zusammengeführt, sobald wieder Netz da ist.
+**Ohne Netz:** Im Keller ohne Netz geht die Arbeit weiter: Erfasstes wartet im Gerät und wird gespeichert und zusammengeführt, sobald wieder Netz da ist (die Werkzeuge mit ihrem eigenen Offline-Speicher).
 
-**Rollen und Suche:** Jede Rolle sieht nur ihre Module, am Handy mit eigener Leiste (z. B. „Zähler“ für Ableser). Strg+K oder die Lupe sucht Personen, Objekte, Kunden, Zählernummern und Kontrollen. Im Einsatz stehen fällige Ablesungen und offene Mängel des Objekts.
+**Rollen und Suche:** Jede Rolle sieht nur ihre Bereiche und Werkzeuge. Strg+K oder die Lupe sucht Personen, Objekte, Fahrzeuge und Bereiche.
 
 **Auf allen Geräten:** PC, Tablet und Handy haben den vollen Funktionsumfang, die Daten liegen zentral in SharePoint. Am Handy gibt es eine eigene Ansicht: Tagesliste statt Wochentabelle (offene Einsätze oben, Wischen wechselt den Tag), Leiste unten (Woche, Vertretung, **＋ Abwesend**, Wochenzettel, Menü), Dialoge als Blatt von unten und Tabellen als Karten. Auf Touch-Geräten ersetzt „Statt Ana“ im Einsatz das Ziehen. Der Dienstplan lässt sich als App auf den Startbildschirm legen (Android, iPhone, Windows, Mac), startet schneller und gleicht sich beim Zurückwechseln sofort ab.
 

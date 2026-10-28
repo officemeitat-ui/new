@@ -102,6 +102,13 @@ export async function signIn({ tenantId, clientId, allowGuests = false, redirect
     // roles: App-Rollen aus Entra ID (Unternehmensanwendung → Benutzer und Gruppen); groups: Microsoft-Gruppen (Token-Konfiguration)
     user: { id: account.homeAccountId || '', name: account.name || account.username, email: (account.username || '').toLowerCase(), roles: account.idTokenClaims?.roles || [], groups, groupsOverage: overage },
     getToken,
+    /** Token für weitere Rechte (Werkzeuge: Mail.Send, Kalender, Azure Maps …), still; wirft, wenn Zustimmung oder Anmeldung fehlt. */
+    tokenFor: async (wanted) => {
+      const res = await pca.acquireTokenSilent({ scopes: wanted, account })
+      return { accessToken: res.accessToken, expiresOn: res.expiresOn, scopes: res.scopes || wanted }
+    },
+    /** Erneut bei Microsoft anmelden (ganze Seite), danach zurück in die App. */
+    reauth: (wanted = scopes) => pca.acquireTokenRedirect({ scopes: wanted, account }),
     signOut: () => pca.logoutRedirect({ account }),
   }
 }

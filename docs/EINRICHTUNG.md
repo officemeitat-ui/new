@@ -1,6 +1,6 @@
 # Einrichtung: app.cleanos.at mit Ablage in SharePoint
 
-Die Cleanos App (Dienstplan, Zählerstände, Objektkontrolle, Objektmappe, Fahrzeuge) ist eine reine Web-App (HTML/JavaScript). Sie braucht **keinen eigenen Server und keine Datenbank**: Anmeldung nur mit dem Firmenkonto (Microsoft 365, Tenant `a31131f2-4ccf-4eb2-ab3d-49c923c6bede` für cleanos.at / cleanconcept1), Daten als Dateien in der SharePoint-Bibliothek `Cleanos_Daten`, Zugriff über Microsoft Graph. Dauer der Einrichtung: etwa eine Stunde, Administratorrechte für Microsoft 365 und Zugang zur DNS-Verwaltung von cleanos.at nötig.
+Die Cleanos App (Einsatzplanung, Fahrzeuge und eure Werkzeuge Wasserzähler, Objektkontrolle, Objektdoku, Mattenwechsel) ist eine reine Web-App (HTML/JavaScript). Sie braucht **keinen eigenen Server und keine Datenbank**: Anmeldung nur mit dem Firmenkonto (Microsoft 365, Tenant `a31131f2-4ccf-4eb2-ab3d-49c923c6bede` für cleanos.at / cleanconcept1), Daten als Dateien in der SharePoint-Bibliothek `Cleanos_Daten`, Zugriff über Microsoft Graph. Dauer der Einrichtung: etwa eine Stunde, Administratorrechte für Microsoft 365 und Zugang zur DNS-Verwaltung von cleanos.at nötig.
 
 ```
 Browser (app.cleanos.at)
@@ -14,7 +14,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ plaene/2026/2026-10-26.json   Einteilung + Protokoll je Woche
                          ├─ personal/abwesenheiten.json   Urlaub, Krankenstand (nur Vollzugriff)
                          ├─ lohn/zeitkonto.json           Salden, Löhne (nur Vollzugriff, Lohn)
-                         ├─ zaehler/ kontrolle/ objektmappe/ fahrzeuge/   je Modul, mit Fotos
+                         ├─ fahrzeuge/                    Fahrzeuge, Reifen, Service
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 
@@ -45,7 +45,8 @@ Danach:
 1. Unter *Authentifizierung* eine zweite SPA-URI für Tests ergänzen: `http://localhost:8080/`
 2. Ebenfalls unter *Authentifizierung*: Plattform **Web** hinzufügen mit der Umleitungs-URI `https://app.cleanos.at/.auth/login/aad/callback` und **ID-Token** aktivieren. Das ist die Anmeldung, die die ganze Seite schützt (Schritt 4).
 3. Unter *Zertifikate & Geheimnisse*: einen **geheimen Clientschlüssel** anlegen (für den Seitenschutz in Azure Static Web Apps).
-4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read** und **Sites.ReadWrite.All**, für den E-Mail-Versand zusätzlich **Mail.Send** (oder **Mail.Send.Shared** für ein gemeinsames Postfach, siehe unten), für Nachkontrollen direkt im Outlook-Kalender **Calendars.ReadWrite** (nur mit `features.calendar`). Anschließend **Administratorzustimmung erteilen**.
+4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read**, **Sites.ReadWrite.All** und **Mail.Send** (Versand aus dem Dienstplan und aus den Werkzeugen: Wasserzähler-Bericht, Objektblatt, Lieferschein; für ein gemeinsames Postfach zusätzlich **Mail.Send.Shared**, siehe unten). Für den Termin der Nachkontrolle im Werkzeug Objektkontrolle zusätzlich **Calendars.ReadWrite**; für die Routen im Mattenwechsel *Azure Maps → user_impersonation*. Anschließend **Administratorzustimmung erteilen**. Die Werkzeuge in der App nutzen diese Registrierung (eine Anmeldung für alles); fehlt die Zustimmung zu Mail.Send oder Kalender, laufen sie ohne Direktversand bzw. Termin weiter.
+5a. Nur wenn die Werkzeuge auch **allein** geöffnet werden sollen („Eigenes Fenster“): in den bisherigen Registrierungen der Werkzeuge je eine SPA-Umleitungs-URI ergänzen, z. B. `https://app.cleanos.at/werkzeuge/wasserzaehler/`, `…/objektkontrolle/`, `…/objektdoku/`, `…/mattenwechsel/`. In der App selbst braucht es das nicht.
 5. Unter *Tokenkonfiguration → Gruppenanspruch hinzufügen*: **Sicherheitsgruppen**, beim ID-Token „Gruppen-ID“. Damit kommen die Microsoft-Gruppen ins Token und die App weiß, wer was darf.
 6. Von der *Übersicht* die **Anwendungs-ID (Client)** notieren. Die Verzeichnis-ID ist schon eingetragen (`a31131f2-4ccf-4eb2-ab3d-49c923c6bede`).
 7. Empfohlen: unter *Unternehmensanwendungen → Cleanos App → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* die drei Gruppen zuweisen (Gruppen zuweisen braucht Entra ID P1, sonst die Personen einzeln). Dann kann sich niemand sonst aus dem Tenant überhaupt anmelden. Wer angemeldet ist, aber keiner Gruppe angehört, sieht in der App nichts und lädt keine Daten.
@@ -84,12 +85,11 @@ Aus `config.json` gelten dazu: `"tenantId": "a31131f2-4ccf-4eb2-ab3d-49c923c6bed
 - Zum Ausprobieren mit Beispieldaten ohne SharePoint: `DIENSTPLAN_DEMO=1 npm run build`.
 - `access.planners`: E-Mail-Adressen mit Vollzugriff (Rolle `disposition`), auch ohne Gruppe. Im Betrieb sieht, wer weder hier steht noch einer Gruppe angehört, nichts.
 - `access.members`, `access.roles`: Rollen per E-Mail-Liste und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier.
-- Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `plaene/`, `personal/`, `lohn/`, `zaehler/`, `kontrolle/`, `objektmappe/`, `fahrzeuge/`, `exporte/`), jeder mit eigenen SharePoint-Rechten.
+- Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `plaene/`, `personal/`, `lohn/`, `fahrzeuge/`, `exporte/`), jeder mit eigenen SharePoint-Rechten. Die Werkzeuge speichern wie bisher in ihren eigenen Ordnern derselben Bibliothek (`Wasserzähler - Ablesung`, `Objektpruefprotokolle`, `Objektdoku`, `Mattenwechsel`).
 - `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat. Ohne Netz Erfasstes wird zusätzlich sofort gespeichert, sobald wieder Netz da ist.
-- `sharepoint.sources`: Ordner der bisherigen Werkzeuge in derselben Bibliothek, für **Daten → Bisherige Werkzeuge → In SharePoint suchen** (siehe [PLATTFORM.md](PLATTFORM.md)). Nur ändern, wenn die Ordner anders heißen.
+- `tools`: `false` blendet die Werkzeuge aus (z. B. für eine Vorschau ohne Firmendaten); Standard: eingeblendet.
 - `features.pdf`: PDF-Wochenpläne (Download, Teilen, beim Veröffentlichen nach SharePoint in den Ordner `PDF`).
 - `features.mail`: Wochenpläne per E-Mail mit PDF-Anhang direkt aus dem Dienstplan. Gesendet wird aus dem Postfach der angemeldeten Person. Mit `mail.from` (z. B. `dienstplan@cleanos.at`) aus einem freigegebenen Postfach: dafür braucht die Disposition dort die Berechtigung „Senden als“ und die App **Mail.Send.Shared**. Die E-Mail-Adressen stehen bei den Mitarbeitenden.
-- `features.calendar`: Nachkontrollen mit einem Klick in den eigenen Outlook-Kalender (ganztägig, Erinnerung am Vortag). Braucht **Calendars.ReadWrite** mit Administratorzustimmung, sonst scheitert die Anmeldung; deshalb standardmäßig aus. Ohne diese Einstellung gibt es den Termin als .ics-Datei, die sich ebenfalls in Outlook öffnet.
 - `brand.contact`: Satz unten auf jedem PDF, z. B. „Fragen zum Dienstplan: Disposition, Tel. …“.
 - `brand.colors`, `brand.logoOnLight`: Markenfarben und Logo für die PDFs (Cleanos-Blau `#0c6cb4`, Grün `#9cc654`).
 - `brand.theme`, `brand.themes`: Farbschema für alle und die wählbaren Marken-Farbschemata (`cleanos`, `cleanos-nacht`). Jede Person kann unter „Darstellung“ für ihr Gerät ein anderes Schema, hell/dunkel und die Schriftgröße wählen (siehe README, Corporate Design und Darstellung).
@@ -105,8 +105,8 @@ Erst `npm ci && npm run build` ausführen. Der Ordner `dist/` enthält dann alle
 2. Unter *Umgebungsvariablen* zwei Werte anlegen: **AZURE_CLIENT_ID** = Anwendungs-ID aus Schritt 2, **AZURE_CLIENT_SECRET** = der geheime Clientschlüssel.
 3. Unter *Bereitstellungstoken verwalten* den Token kopieren und im GitHub-Repository als Secret **AZURE_STATIC_WEB_APPS_API_TOKEN** speichern, die Verzeichnis-ID als Variable **ENTRA_TENANT_ID** (*Settings → Secrets and variables → Actions → Variables*). Ab dann veröffentlicht `.github/workflows/ci.yml` jeden Stand auf `main` automatisch, nachdem die Tests grün sind.
 4. Unter *Benutzerdefinierte Domänen*: `app.cleanos.at` hinzufügen. Beim DNS-Anbieter von cleanos.at einen **CNAME** `app` → `<name>.azurestaticapps.net` anlegen. Azure stellt das HTTPS-Zertifikat selbst aus.
-5. Optional: die alten Adressen weiterleiten, z. B. `wasserzaehler.cleanos.at` → `https://app.cleanos.at/#zaehler`, `pruefprotokoll.cleanos.at` → `#kontrolle`, `objektdoku.cleanos.at` → `#objektmappe`.
-6. `staticwebapp.config.json` setzt Sicherheitsheader (Content-Security-Policy) und den Seitenschutz. Diese sind mit dem Build getestet.
+5. Optional: die alten Adressen weiterleiten, z. B. `wasserzaehler.cleanos.at` → `https://app.cleanos.at/#wasserzaehler`, `pruefprotokoll.cleanos.at` → `#objektkontrolle`, `objektdoku.cleanos.at` → `#objektdoku`, Mattenwechsel → `#matten`.
+6. `staticwebapp.config.json` setzt Sicherheitsheader (Content-Security-Policy) und den Seitenschutz. Diese sind mit dem Build getestet. Die Werkzeuge unter `/werkzeuge/` bekommen dieselben Regeln wie auf dem Webspace, nur dürfen sie im Rahmen der App laufen.
 
 **So ist die Seite geschützt:** Jede Datei (auch `index.html`, `config.json` und der Programmcode) wird erst nach der Microsoft-Anmeldung ausgeliefert. `npm run build` trägt die Tenant-ID aus `config.json` (oder `ENTRA_TENANT_ID`) ein, damit lassen nur Konten des eigenen Tenants die Seite überhaupt laden. Danach meldet die App dieselbe Person ohne zweite Eingabe bei Microsoft Graph an und prüft noch einmal: Gastkonten und fremde Konten werden abgewiesen. Abmelden: Knopf „Abmelden“ (löscht auch die Kopie der Daten im Gerät) oder `https://app.cleanos.at/logout`.
 
@@ -121,7 +121,7 @@ Auf einem normalen Webspace ist der Programmcode öffentlich abrufbar; die **Dat
 ## 5. Erster Start
 
 1. `https://app.cleanos.at` öffnen und mit office@ oder it@ (Vollzugriff) anmelden. Die App legt die Ordner unter `Plattform/` an; danach die Ordnerrechte setzen (Schritt 1).
-2. Die Ablage ist leer, die App zeigt „Willkommen“. Daten aus den bisherigen Werkzeugen: **Daten → Bisherige Werkzeuge → In SharePoint suchen** ([PLATTFORM.md](PLATTFORM.md#übernahme-aus-den-bisherigen-werkzeugen)).
+2. Die Ablage ist leer, die App zeigt „Willkommen“. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel brauchen nichts: Sie arbeiten mit ihren vorhandenen Daten in SharePoint weiter ([PLATTFORM.md](PLATTFORM.md#die-eigenen-werkzeuge-in-der-app)).
    - **Mitarbeitende einfügen:** In Excel die Liste mit Überschrift kopieren (Name, Beschäftigung, Wochenstunden, Team, Qualifikationen, Tage, Von, Bis) und einfügen.
    - **Objekte & Leistungen einfügen:** Objekt, Adresse, Revier, Leistung, Tage, Von, Bis, Personen, Stammkraft, Intervall („wöchentlich“, „14-tägig“, „monatlich“, „quartalsweise“, „halbjährlich“, „jährlich“; monatliche Leistungen finden am ersten genannten Wochentag im Monat statt und lassen sich danach unter „Objekte & Leistungen“ genauer einstellen), An Feiertagen (leer = findet statt mit Feiertagszuschlag; „entfällt“, wenn der Kunde geschlossen hat; „verschieben“), optional Fahrzeit danach (z. B. „0,5“ oder „30 min“) und Fahrtnotiz.
    - Mit „Vorlage kopieren“ bekommt man die Überschriften für Excel.
@@ -149,4 +149,4 @@ Alle Geräte arbeiten mit denselben Daten in SharePoint. Ändert jemand am PC, s
 
 - Krankenstände sind Gesundheitsdaten. Die App speichert nur „Krankenstand von–bis“, keine Diagnosen, im eigenen Ordner `personal/`, den nur Vollzugriff öffnen darf.
 - Ein elektronisches System zur Planung und Auswertung von Arbeitszeiten kann in Österreich eine **Betriebsvereinbarung** erfordern (§ 96a ArbVG), sofern es einen Betriebsrat gibt.
-- Keine Alarmcodes oder Passwörter in die Objektmappe schreiben.
+- Keine Alarmcodes oder Passwörter in die Objektinfo (Objekte & Leistungen) schreiben.
