@@ -16,7 +16,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 159 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke)
+npm test         # 161 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess)
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 ```
 
@@ -77,7 +77,7 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Auf allen Geräten:** PC, Tablet und Handy haben den vollen Funktionsumfang, die Daten liegen zentral in SharePoint. Am Handy gibt es eine eigene Ansicht: Tagesliste statt Wochentabelle (offene Einsätze oben, Wischen wechselt den Tag), Leiste unten (Woche, Vertretung, **＋ Abwesend**, Wochenzettel, Menü), Dialoge als Blatt von unten und Tabellen als Karten. Auf Touch-Geräten ersetzt „Statt Ana“ im Einsatz das Ziehen. Der Dienstplan lässt sich als App auf den Startbildschirm legen (Android, iPhone, Windows, Mac), startet schneller und gleicht sich beim Zurückwechseln sofort ab.
 
-**Geschützt:** Auf Azure Static Web Apps wird jede Datei erst nach der Microsoft-Anmeldung ausgeliefert, nur für Konten aus dem eigenen Tenant. Die App übernimmt diese Anmeldung für SharePoint, ohne zweite Eingabe.
+**Geschützt:** Die Daten gibt es nur nach der Microsoft-Anmeldung mit dem Firmenkonto und nur, soweit das Konto in SharePoint lesen darf; Gastkonten werden abgewiesen. Auf dem World4You-Webspace setzt die mitgebaute `.htaccess` dieselben Sicherheitsregeln wie auf Azure. Auf Azure Static Web Apps wird zusätzlich jede Datei erst nach der Anmeldung ausgeliefert (docs/EINRICHTUNG.md, Schritt 4).
 
 Dazu kommen: Veröffentlichen mit Excel- und PDF-Export nach SharePoint, Markierung späterer Änderungen, Änderungsprotokoll, Leserechte für Nicht-Disponent:innen und automatisches Zusammenführen, wenn zwei Personen gleichzeitig planen.
 

@@ -13,7 +13,7 @@ Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, 
 
 1. Das Werkzeug wie gewohnt bauen und prüfen (z. B. `node bau.js`, `node webspace-pruefen.js`).
 2. Die fertige HTML-Datei nach `werkzeuge/<ordner>/index.html` kopieren (Wasserzähler: `Wasserablesung.html`, Objektkontrolle: `Objektpruefprotokoll-Schnell.html`, Mattenwechsel: `Mattenwechsel.html`).
-3. `npm test && npm run build`, dann `dist/` hochladen (oder pushen, die Pipeline macht das).
+3. `npm test && npm run build`, dann den Inhalt von `dist/` per FTP auf den Webspace laden (samt `.htaccess`, siehe `docs/EINRICHTUNG.md`, Schritt 4).
 
 `npm run build` prüft jede Datei. Passt eine neue Fassung nicht mehr zur Anmeldebrücke (siehe unten), bricht der Bau mit einer Meldung ab, statt ein Werkzeug auszuliefern, das in der App stumm bleibt.
 

@@ -43,8 +43,8 @@ Im [Microsoft Entra Admin Center](https://entra.microsoft.com) → *Identität �
 Danach:
 
 1. Unter *Authentifizierung* eine zweite SPA-URI für Tests ergänzen: `http://localhost:8080/`
-2. Ebenfalls unter *Authentifizierung*: Plattform **Web** hinzufügen mit der Umleitungs-URI `https://app.cleanos.at/.auth/login/aad/callback` und **ID-Token** aktivieren. Das ist die Anmeldung, die die ganze Seite schützt (Schritt 4).
-3. Unter *Zertifikate & Geheimnisse*: einen **geheimen Clientschlüssel** anlegen (für den Seitenschutz in Azure Static Web Apps).
+2. Nur für Azure (Schritt 4, Variante B): unter *Authentifizierung* Plattform **Web** hinzufügen mit der Umleitungs-URI `https://app.cleanos.at/.auth/login/aad/callback` und **ID-Token** aktivieren. Das ist die Anmeldung, die dort die ganze Seite schützt. Auf dem World4You-Webspace (Variante A) entfällt das.
+3. Nur für Azure: unter *Zertifikate & Geheimnisse* einen **geheimen Clientschlüssel** anlegen (für den Seitenschutz in Azure Static Web Apps).
 4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read**, **Sites.ReadWrite.All** und **Mail.Send** (Versand aus dem Dienstplan und aus den Werkzeugen: Wasserzähler-Bericht, Objektblatt, Lieferschein; für ein gemeinsames Postfach zusätzlich **Mail.Send.Shared**, siehe unten). Für den Termin der Nachkontrolle im Werkzeug Objektkontrolle zusätzlich **Calendars.ReadWrite**; für die Routen im Mattenwechsel *Azure Maps → user_impersonation*. Anschließend **Administratorzustimmung erteilen**. Die Werkzeuge in der App nutzen diese Registrierung (eine Anmeldung für alles); fehlt die Zustimmung zu Mail.Send oder Kalender, laufen sie ohne Direktversand bzw. Termin weiter.
 5a. Nur wenn die Werkzeuge auch **allein** geöffnet werden sollen („Eigenes Fenster“): in den bisherigen Registrierungen der Werkzeuge je eine SPA-Umleitungs-URI ergänzen, z. B. `https://app.cleanos.at/werkzeuge/wasserzaehler/`, `…/objektkontrolle/`, `…/objektdoku/`, `…/mattenwechsel/`. In der App selbst braucht es das nicht.
 5. Unter *Tokenkonfiguration → Gruppenanspruch hinzufügen*: **Sicherheitsgruppen**, beim ID-Token „Gruppen-ID“. Damit kommen die Microsoft-Gruppen ins Token und die App weiß, wer was darf.
@@ -97,26 +97,36 @@ Aus `config.json` gelten dazu: `"tenantId": "a31131f2-4ccf-4eb2-ab3d-49c923c6bed
 
 ## 4. Hosting auf app.cleanos.at
 
-Erst `npm ci && npm run build` ausführen. Der Ordner `dist/` enthält dann alles, was auf den Server muss.
+Erst `npm ci && npm run build` ausführen (oder das fertige Paket `cleanos-app-webserver.zip` nehmen). Der Ordner `dist/` enthält dann alles, was auf den Server muss. Die Daten liegen nie auf dem Webserver, sondern immer in SharePoint (Microsoft Graph).
 
-### Variante A: Azure Static Web Apps (empfohlen)
+### Variante A: World4You-Webspace (für Cleanos, ohne GitHub)
+
+1. Im World4You-Kundenbereich die Subdomain **app.cleanos.at** anlegen, mit eigenem Ordner (z. B. `/app`).
+2. Für die Subdomain **HTTPS** einschalten: das SSL-Zertifikat aktivieren (Let's Encrypt, sofern im Paket enthalten, sonst ein Zertifikat bei World4You dazunehmen) und, wenn angeboten, die Weiterleitung von http auf https. Ohne HTTPS geht die Microsoft-Anmeldung nicht. Wer doch `http://` aufruft, wird von der App selbst auf https umgeleitet.
+3. Den **Inhalt** von `dist/` (bzw. des entpackten Pakets) per FTP in den Ordner der Subdomain laden, z. B. mit FileZilla (FTP-Zugangsdaten im World4You-Kundenbereich). Wichtig: die drei Dateien **`.htaccess`** (im Hauptordner, in `app/` und in `werkzeuge/`) mit hochladen. Sie beginnen mit einem Punkt und sind manchmal versteckt; in FileZilla unter *Server → Anzeigen versteckter Dateien erzwingen*.
+4. Prüfen: `https://app.cleanos.at` öffnen, es kommt die Microsoft-Anmeldung. In den Entwicklertools des Browsers (F12 → Netzwerk → `index.html` → Antwort-Header) steht `Content-Security-Policy`. Fehlt der Header, ist die `.htaccess` nicht angekommen oder das Apache-Modul *mod_headers* ist aus: beim World4You-Support nachfragen. Die App läuft auch dann, nur ohne diese zusätzliche Absicherung.
+5. Optional: die alten Adressen der Werkzeuge im World4You-Kundenbereich weiterleiten, z. B. `wasserzaehler.cleanos.at` → `https://app.cleanos.at/#wasserzaehler`, `pruefprotokoll.cleanos.at` → `#objektkontrolle`, `objektdoku.cleanos.at` → `#objektdoku`, Mattenwechsel → `#matten`. Oder die alten Adressen einfach weiterlaufen lassen: Allein geöffnet melden sich die Werkzeuge wie bisher selbst an.
+
+**Neue Fassung einspielen:** neues Paket bauen und wieder den ganzen Inhalt hochladen (vorhandene Dateien ersetzen; alte Dateien in `app/` stören nicht). Handys, Tablets und PCs holen sich die neue Fassung beim nächsten Öffnen von selbst.
+
+**Was die `.htaccess` tut:** `npm run build` erzeugt sie aus `staticwebapp.config.json` (`scripts/htaccess.js`), also mit genau denselben Sicherheitsregeln wie auf Azure: Content-Security-Policy (die App lädt nur eigenen Code und spricht nur mit Microsoft), keine Einbettung fremder Seiten, die Werkzeuge mit ihren eigenen Regeln im Rahmen der App, kein Verzeichnis-Listing, `config.json` und `index.html` nie aus dem Zwischenspeicher, `staticwebapp.config.json` gesperrt, Suchmaschinen ausgeschlossen (`noindex`). Mit Apache getestet, alles in `<IfModule>`: Fehlt ein Modul, gibt es keinen „500 Internal Server Error“.
+
+**So ist die Seite geschützt:** Auf dem Webspace ist der Programmcode ohne Anmeldung abrufbar, ebenso `config.json` (Tenant-ID, Anwendungs-ID, Gruppen-IDs, die Adressen mit Vollzugriff). Das sind keine Geheimnisse und keine Kundendaten. Die **Daten** gibt es nur nach der Microsoft-Anmeldung mit dem Firmenkonto und nur, soweit das Konto in SharePoint lesen darf; Gastkonten und fremde Konten weist die App ab. Wer auch den Code hinter die Anmeldung legen will, nimmt Variante B.
+
+**Sicherung ohne GitHub:** Die Pakete `cleanos-app-quellcode.zip` und `cleanos-app.bundle` (vollständiger Verlauf) in SharePoint in einen Ordner legen, den nur Büro und IT öffnen dürfen, nicht unter `Plattform/`. Zum Weiterentwickeln mit Claude: in einer neuen Sitzung `cleanos-app.bundle` hochladen.
+
+### Variante B: Azure Static Web Apps (ganze Seite hinter der Anmeldung, mit GitHub)
 
 1. Im Azure-Portal eine *Static Web App* anlegen (Tarif **Standard**, Region Westeuropa). Als Quelle „Andere“ wählen. Der Standard-Tarif (rund 9 USD im Monat) ist nötig, damit sich **nur Konten aus dem eigenen Tenant** anmelden können.
 2. Unter *Umgebungsvariablen* zwei Werte anlegen: **AZURE_CLIENT_ID** = Anwendungs-ID aus Schritt 2, **AZURE_CLIENT_SECRET** = der geheime Clientschlüssel.
 3. Unter *Bereitstellungstoken verwalten* den Token kopieren und im GitHub-Repository als Secret **AZURE_STATIC_WEB_APPS_API_TOKEN** speichern, die Verzeichnis-ID als Variable **ENTRA_TENANT_ID** (*Settings → Secrets and variables → Actions → Variables*). Ab dann veröffentlicht `.github/workflows/ci.yml` jeden Stand auf `main` automatisch, nachdem die Tests grün sind.
-4. Unter *Benutzerdefinierte Domänen*: `app.cleanos.at` hinzufügen. Beim DNS-Anbieter von cleanos.at einen **CNAME** `app` → `<name>.azurestaticapps.net` anlegen. Azure stellt das HTTPS-Zertifikat selbst aus.
-5. Optional: die alten Adressen weiterleiten, z. B. `wasserzaehler.cleanos.at` → `https://app.cleanos.at/#wasserzaehler`, `pruefprotokoll.cleanos.at` → `#objektkontrolle`, `objektdoku.cleanos.at` → `#objektdoku`, Mattenwechsel → `#matten`.
+4. Unter *Benutzerdefinierte Domänen*: `app.cleanos.at` hinzufügen. Beim DNS-Anbieter von cleanos.at (World4You) einen **CNAME** `app` → `<name>.azurestaticapps.net` anlegen. Azure stellt das HTTPS-Zertifikat selbst aus.
+5. Optional: die alten Adressen weiterleiten wie in Variante A, Schritt 5.
 6. `staticwebapp.config.json` setzt Sicherheitsheader (Content-Security-Policy) und den Seitenschutz. Diese sind mit dem Build getestet. Die Werkzeuge unter `/werkzeuge/` bekommen dieselben Regeln wie auf dem Webspace, nur dürfen sie im Rahmen der App laufen.
 
 **So ist die Seite geschützt:** Jede Datei (auch `index.html`, `config.json` und der Programmcode) wird erst nach der Microsoft-Anmeldung ausgeliefert. `npm run build` trägt die Tenant-ID aus `config.json` (oder `ENTRA_TENANT_ID`) ein, damit lassen nur Konten des eigenen Tenants die Seite überhaupt laden. Danach meldet die App dieselbe Person ohne zweite Eingabe bei Microsoft Graph an und prüft noch einmal: Gastkonten und fremde Konten werden abgewiesen. Abmelden: Knopf „Abmelden“ (löscht auch die Kopie der Daten im Gerät) oder `https://app.cleanos.at/logout`.
 
 - Nur für eine öffentliche Demo mit Beispieldaten: `DIENSTPLAN_PUBLIC=1 npm run build`.
-
-### Variante B: vorhandener Webspace
-
-`dist/` per FTP/SFTP in das Verzeichnis der Subdomain `app.cleanos.at` laden. Voraussetzungen: **HTTPS** (z. B. Let's Encrypt). Ohne HTTPS funktioniert die Microsoft-Anmeldung nicht. `config.json` und `index.html` dürfen nicht im Cache liegen, die Dateien unter `app/` dürfen dauerhaft gecacht werden (Name enthält einen Hash). Die Sicherheitsheader aus `staticwebapp.config.json` sollten sinngemäß in `.htaccess` oder der Serverkonfiguration gesetzt werden.
-
-Auf einem normalen Webspace ist der Programmcode öffentlich abrufbar; die **Daten** sind trotzdem nur nach Microsoft-Anmeldung und nur für Konten mit Zugriff auf die SharePoint-Website lesbar. Wer auch den Code hinter die Anmeldung legen will, nimmt Variante A (oder Azure App Service mit „Authentifizierung“).
 
 ## 5. Erster Start
 

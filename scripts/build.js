@@ -9,6 +9,7 @@
 // - Die Werkzeuge kommen unverändert nach werkzeuge/ (scripts/werkzeuge.js).
 // - staticwebapp.config.json bekommt die Tenant-ID aus config.json: die ganze
 //   Seite ist dann nur nach Microsoft-Anmeldung im eigenen Tenant erreichbar.
+// - .htaccess (Apache-Webspace, z. B. World4You) mit denselben Headern.
 // - dist/config.json = config.json mit config.production.json darüber
 //   (SharePoint, Anmeldung, Gruppen); ENTRA_CLIENT_ID/ENTRA_TENANT_ID aus der
 //   Umgebung haben Vorrang (z. B. GitHub-Variablen).
@@ -17,6 +18,7 @@ import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deepMerge } from '../src/ui/config.js'
+import { htaccessFor } from './htaccess.js'
 import { manifestFor, serviceWorkerSource } from './pwa.js'
 import { VENDOR } from './vendor.js'
 import { werkzeugeBauen } from './werkzeuge.js'
@@ -142,4 +144,12 @@ if (process.env.DIENSTPLAN_PUBLIC === '1') {
   console.warn('Hinweis: Keine Tenant-ID gefunden. Die Seite verlangt eine Microsoft-Anmeldung, lässt aber jedes Microsoft-Konto zu. Für „nur eigener Tenant“ sharepoint.tenantId in config.json oder ENTRA_TENANT_ID setzen.')
 }
 await writeFile(join(dist, 'staticwebapp.config.json'), `${JSON.stringify(swa, null, 2)}\n`)
+
+// ---------------------------------------------------------------- Webspace (Apache, z. B. World4You)
+const exists = (dir) => readdir(join(dist, dir)).then(() => true, () => false)
+for (const [file, text] of Object.entries(htaccessFor(swa))) {
+  const dir = file.split('/').slice(0, -1).join('/')
+  if (!dir || (await exists(dir))) await writeFile(join(dist, file), text)
+}
+console.log('Webspace: .htaccess mit denselben Sicherheitsregeln (Apache, z. B. World4You). Dort ist der Code ohne Anmeldung abrufbar, die Daten nicht.')
 console.log('dist/ erstellt. Inhalt auf den Webserver laden (app.cleanos.at).')

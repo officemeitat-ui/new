@@ -334,6 +334,11 @@ async function boot() {
   let store
   let local = null
   if (config.storage === 'sharepoint') {
+    // Microsoft-Anmeldung geht nur über HTTPS (z. B. Webspace ohne Weiterleitung, mit http:// aufgerufen)
+    if (location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+      location.replace(`https://${location.host}${location.pathname}${location.search}${location.hash}`)
+      return
+    }
     showMessage('<p>Anmeldung bei Microsoft 365 …</p>')
     const { scopesFor, signIn } = await import('../auth/msal.js')
     const auth = await signIn({ ...config.sharepoint, scopes: scopesFor(config) })
