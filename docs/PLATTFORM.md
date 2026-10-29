@@ -12,7 +12,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | **Wasserzähler** | Werkzeug Wasserzähler-Ablesung | Vorarbeiter/innen, Ableser |
 | **Objektkontrolle** | Werkzeug Objektkontrolle (Prüfprotokoll) | Objektmanagement, Prüfer/innen |
 | **Objektdoku** | Werkzeug Objektdokumentation (Leistungsverzeichnis) | Objektmanagement |
-| **Mattenwechsel** | Werkzeug Mattenwechsel | Disposition (weitere Rollen über `config.production.json`) |
+| **Mattenwechsel** | Werkzeug Mattenwechsel | Disposition, Gruppe Mattenwechsel |
 | **Fahrzeuge & Reifen** | Reifenwechsel, Service, Pickerl | Disposition, Fuhrpark |
 
 ## Rollen
@@ -22,6 +22,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | `disposition` – Vollzugriff (Büro, IT) | alles | alles |
 | `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektdoku | Objektkontrolle, Objektdoku |
 | `vorarbeiter` – Vorarbeiter/in | Wasserzähler | Wasserzähler |
+| `mattenwechsel` – Mattenwechsel | Mattenwechsel | Mattenwechsel |
 | `lohnverrechnung` | Auswertung & Lohn | Auswertung & Lohn |
 | `objektleitung` | Dienstplan (lesen), Wasserzähler, Objektkontrolle, Objektdoku | Wasserzähler, Objektkontrolle, Objektdoku |
 | `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku | Wasserzähler, Objektkontrolle |
@@ -32,7 +33,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 
 - Mehrere Rollen addieren sich (z. B. Objektmanagement und Vorarbeiter).
 - Bei den Werkzeugen entscheidet die Rolle, wer sie in der App sieht. Was jemand darin lesen oder ändern darf, regeln die SharePoint-Rechte auf die Ordner der Werkzeuge (Tabelle unten).
-- Mattenwechsel sieht zunächst nur Vollzugriff. Für eine eigene Gruppe in `access.roles` eine Rolle mit dem Modul `matten` anlegen (siehe „Eigene Rollen“).
+- **Mattenwechsel wird pro Gruppe zugewiesen:** die Objekt-ID der Microsoft-Gruppe (z. B. Fahrer:innen der Touren) unter `access.groups.mattenwechsel` eintragen. Wer zusätzlich in einer anderen Gruppe ist, bekommt beides (z. B. Vorarbeiter + Mattenwechsel). Die Gruppe braucht in SharePoint „Bearbeiten“ auf `Mattenwechsel` und auf `Stammdaten` (der Mattenwechsel pflegt beim Abschließen den gemeinsamen Kundenstamm `Stammdaten/Kunden.json`).
 - **Im Betrieb (SharePoint) gilt: ohne Rolle kein Zugriff.** Wer keiner Gruppe zugeordnet ist, sieht „Kein Bereich freigegeben“, und die App lädt keine einzige Datei.
 - `office@cleanos.at` und `it@cleanos.at` haben Vollzugriff (`config.production.json` → `access.planners`), auch bevor die Gruppen eingerichtet sind.
 - Im Browser-Modus (Probe ohne SharePoint) gibt es oben „Ansicht als …“. Damit lässt sich ausprobieren, was eine Rolle sieht. Ohne jede Einrichtung darf dort jede Person alles.
@@ -55,7 +56,8 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
   "groups": {
     "disposition": ["Objekt-ID der Gruppe Vollzugriff"],
     "objektmanagement": ["Objekt-ID der Gruppe Objektmanagement"],
-    "vorarbeiter": ["Objekt-ID der Gruppe Vorarbeiter"]
+    "vorarbeiter": ["Objekt-ID der Gruppe Vorarbeiter"],
+    "mattenwechsel": ["Objekt-ID der Gruppe Mattenwechsel"]
   }
 }
 ```

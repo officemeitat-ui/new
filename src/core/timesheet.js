@@ -65,7 +65,8 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
       credited: inst.net + bonus,
       creditReason: null,
       travel: 0,
-      nightMinutes: emp.minor ? 0 : windowMinutes(inst.start, inst.end, r.nightStart, r.nightEnd),
+      // Nachtstunden mit Zuschlag laut KV (21–6 Uhr), nicht die Nachtzeit nach § 12a AZG
+      nightMinutes: emp.minor ? 0 : windowMinutes(inst.start, inst.end, r.pay.nightFrom, r.pay.nightTo),
       sundayHoliday,
       substitute: replaced.length > 0,
       style: inst.category === 'sonder' ? 'special' : replaced.length || inst.status === 'moved' ? 'changed' : 'normal',

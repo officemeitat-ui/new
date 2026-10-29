@@ -31,6 +31,8 @@ export const DEFAULT_ROLES = {
   disposition: { label: 'Vollzugriff (Büro, IT)', modules: '*', edit: '*' },
   objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe'], edit: ['kontrolle', 'objektmappe'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
+  // eigene Microsoft-Gruppe für den Mattenwechsel (Fahrer:innen, Disposition der Touren)
+  mattenwechsel: { label: 'Mattenwechsel', modules: ['matten'], edit: ['matten'] },
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung'], edit: ['auswertung'] },
   objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe'], edit: ['zaehler', 'kontrolle', 'objektmappe'] },
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe'], edit: ['zaehler', 'kontrolle'] },

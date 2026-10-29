@@ -2,10 +2,11 @@
 
 Einsatzplanung für die Gebäudereinigung: Stammplan pflegen, Wochen automatisch einteilen, Vertretungen finden, Arbeitsrecht prüfen (AZG, ARG, KJBG), Wochenzettel im gewohnten Layout veröffentlichen und als PDF an die Mitarbeitenden schicken. Ablage in SharePoint, die ganze Seite nur nach Anmeldung mit dem Firmenkonto (Microsoft 365, keine Gäste), Betrieb auf `app.cleanos.at`.
 
-**Eine App mit den eigenen Werkzeugen:** Dienstplan und Fahrzeuge, dazu die Werkzeuge **Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel unverändert** (Ordner `werkzeuge/`), alle mit einer Anmeldung in einer Seitenleiste. **Microsoft-Gruppen** bestimmen, wer welche Bereiche sieht (z. B. Objektmanagement: Einsatzplanung lesen, Objektkontrolle, Objektdoku; Vorarbeiter: nur Wasserzähler; office@ und it@: alles). Ohne Gruppe kein Zugriff. Jede Berechtigungsstufe hat in SharePoint einen eigenen Ordner, und die App liest nur die Ordner der eigenen Gruppe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
+**Eine App mit den eigenen Werkzeugen:** Dienstplan und Fahrzeuge, dazu die Werkzeuge **Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel unverändert** (Ordner `werkzeuge/`), alle mit einer Anmeldung in einer Seitenleiste. **Microsoft-Gruppen** bestimmen, wer welche Bereiche sieht (z. B. Objektmanagement: Einsatzplanung lesen, Objektkontrolle, Objektdoku; Vorarbeiter: nur Wasserzähler; Gruppe Mattenwechsel: Mattenwechsel; office@ und it@: alles). Ohne Gruppe kein Zugriff. Jede Berechtigungsstufe hat in SharePoint einen eigenen Ordner, und die App liest nur die Ordner der eigenen Gruppe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md).
 
 - **Plattform, Rollen, die eigenen Werkzeuge in der App:** [docs/PLATTFORM.md](docs/PLATTFORM.md), [werkzeuge/LIESMICH.md](werkzeuge/LIESMICH.md)
 - **Konzept und Recherche:** [docs/KONZEPT.md](docs/KONZEPT.md)
+- **Prüfung nach österreichischem Recht (AZG, ARG, KJBG, KV Reinigung):** [docs/RECHTSPRUEFUNG.md](docs/RECHTSPRUEFUNG.md)
 - **Einrichtung** (SharePoint, Entra ID, Domain): [docs/EINRICHTUNG.md](docs/EINRICHTUNG.md)
 - **Erweitern** (Regeln, Ansichten, Ablage, Design): [docs/ERWEITERN.md](docs/ERWEITERN.md)
 
@@ -16,7 +17,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 167 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess), Einrichtung, Hochladen
+npm test         # 171 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess), Einrichtung, Hochladen
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 npm run hochladen # baut und lädt per FTP(S) auf den Webspace (World4You), config.json am Server bleibt
 ```

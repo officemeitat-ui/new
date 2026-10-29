@@ -16,7 +16,7 @@ function accessView() {
   const roles = { ...DEFAULT_ROLES, ...(access.roles || {}) }
   const groups = access.groups || {}
   const people = (id) => [...(id === 'disposition' ? access.planners || [] : []), ...(access.members?.[id] || [])]
-  const used = Object.keys(roles).filter((id) => (groups[id] || []).length || people(id).length || ['disposition', 'objektmanagement', 'vorarbeiter'].includes(id))
+  const used = Object.keys(roles).filter((id) => (groups[id] || []).length || people(id).length || ['disposition', 'objektmanagement', 'vorarbeiter', 'mattenwechsel'].includes(id))
   const roleAccess = Object.fromEntries(used.map((id) => [id, resolveAccess({ preview: id, access })]))
   const folders = folderRights(roleAccess[used[0]]).map(([folder, label]) => [folder, label])
   const ids = (id) => [groups[id] || []].flat().filter(Boolean)

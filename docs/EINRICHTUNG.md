@@ -25,7 +25,7 @@ SharePoint führt für jede Datei einen **Versionsverlauf**. Jede frühere Fassu
 ## 1. SharePoint-Website vorbereiten
 
 1. Die vorhandene Ablage der bisherigen Werkzeuge wird weiter genutzt: `https://cleanconcept1.sharepoint.com`, Bibliothek **Cleanos_Daten**. Den Ordner `Plattform` mit seinen Unterordnern legt die App beim ersten Start mit Vollzugriff selbst an.
-2. **Microsoft-Gruppen anlegen** (Entra ID → Gruppen, Typ Sicherheit): „App Cleanos – Vollzugriff“, „App Cleanos – Objektmanagement“, „App Cleanos – Vorarbeiter“, Mitglieder eintragen. Objekt-IDs notieren (Schritt 3).
+2. **Microsoft-Gruppen anlegen** (Entra ID → Gruppen, Typ Sicherheit): „App Cleanos – Vollzugriff“, „App Cleanos – Objektmanagement“, „App Cleanos – Vorarbeiter“, „App Cleanos – Mattenwechsel“, Mitglieder eintragen. Objekt-IDs notieren (Schritt 3).
 3. **Ordnerrechte setzen** (Schritt 1): nach dem ersten Start je Unterordner von `Plattform` die Vererbung beenden und nur die Gruppen laut Tabelle in [PLATTFORM.md](PLATTFORM.md#daten-wirklich-trennen-sharepoint-rechte-je-ordner) eintragen. Die App zeigt dieselbe Tabelle unter **Stammdaten → Berechtigungen**.
 
 Ohne passende SharePoint-Rechte kommt niemand an die Daten, auch nicht mit einem anderen Programm. Die App selbst fragt zusätzlich nur die Ordner an, die die eigene Gruppe braucht.
@@ -49,7 +49,7 @@ Danach:
 5a. Nur wenn die Werkzeuge auch **allein** geöffnet werden sollen („Eigenes Fenster“): in den bisherigen Registrierungen der Werkzeuge je eine SPA-Umleitungs-URI ergänzen, z. B. `https://app.cleanos.at/werkzeuge/wasserzaehler/`, `…/objektkontrolle/`, `…/objektdoku/`, `…/mattenwechsel/`. In der App selbst braucht es das nicht.
 5. Unter *Tokenkonfiguration → Gruppenanspruch hinzufügen*: **Sicherheitsgruppen**, beim ID-Token „Gruppen-ID“. Damit kommen die Microsoft-Gruppen ins Token und die App weiß, wer was darf.
 6. Von der *Übersicht* die **Anwendungs-ID (Client)** notieren. Die Verzeichnis-ID ist schon eingetragen (`a31131f2-4ccf-4eb2-ab3d-49c923c6bede`).
-7. Empfohlen: unter *Unternehmensanwendungen → Cleanos App → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* die drei Gruppen zuweisen (Gruppen zuweisen braucht Entra ID P1, sonst die Personen einzeln). Dann kann sich niemand sonst aus dem Tenant überhaupt anmelden. Wer angemeldet ist, aber keiner Gruppe angehört, sieht in der App nichts und lädt keine Daten.
+7. Empfohlen: unter *Unternehmensanwendungen → Cleanos App → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* die Gruppen zuweisen (Gruppen zuweisen braucht Entra ID P1, sonst die Personen einzeln). Dann kann sich niemand sonst aus dem Tenant überhaupt anmelden. Wer angemeldet ist, aber keiner Gruppe angehört, sieht in der App nichts und lädt keine Daten.
 8. Alternativ zu den Gruppen-IDs: App-Rollen anlegen (`disposition`, `objektmanagement`, `vorarbeiter`, …) und den Gruppen zuweisen, siehe [PLATTFORM.md](PLATTFORM.md#variante-mit-app-rollen-entra-id-p1-z-b-microsoft-365-business-premium).
 
 Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohnehin darf. Wer keinen Zugriff auf die Dienstplan-Website hat, sieht auch in der App nichts.
@@ -71,7 +71,8 @@ Delegiert heißt: Die App darf nur, was die angemeldete Person in SharePoint ohn
     "groups": {
       "disposition": ["Objekt-ID Gruppe Vollzugriff"],
       "objektmanagement": ["Objekt-ID Gruppe Objektmanagement"],
-      "vorarbeiter": ["Objekt-ID Gruppe Vorarbeiter"]
+      "vorarbeiter": ["Objekt-ID Gruppe Vorarbeiter"],
+      "mattenwechsel": ["Objekt-ID Gruppe Mattenwechsel"]
     }
   }
 }

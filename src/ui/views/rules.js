@@ -19,9 +19,9 @@ export const RULE_FIELDS = [
   ]],
   ['Ruhezeiten (AZG, ARG)', [
     ['minDailyRestH', 'Tägliche Ruhezeit (h)', '§ 12 AZG: mind. 11 h zwischen Dienstende und Dienstbeginn'],
-    ['minWeeklyRestH', 'Wochenruhe (h)', '§§ 3, 4 ARG: 36 h, inkl. eines ganzen freien Tages'],
-    ['nightStart', 'Nachtarbeit ab', '§ 12a AZG: 22:00', 'time'],
-    ['nightEnd', 'Nachtarbeit bis', '05:00', 'time'],
+    ['minWeeklyRestH', 'Wochenruhe (h)', '§§ 3, 4 ARG: 36 h, inkl. eines ganzen freien Tages; Jugendliche (§ 19 KJBG): zwei zusammenhängende freie Tage mit dem Sonntag'],
+    ['nightStart', 'Nachtzeit nach AZG ab', '§ 12a AZG: 22:00 (Nachtarbeitnehmer:in); der Nachtzuschlag gilt laut KV ab 21 Uhr', 'time'],
+    ['nightEnd', 'Nachtzeit nach AZG bis', '05:00', 'time'],
   ]],
   ['Zuschläge, Fahrzeit & Anrechnung', [
     ['holidayBonusPct', 'Feiertagszuschlag (%)', 'ARG § 9: Feiertagsentgelt + Entgelt für die Arbeit = 100 %; im Wochenzettel z. B. 1,5 h → 3 h'],
@@ -53,6 +53,7 @@ export const RULE_FIELDS = [
     ['pay.bonusAs', 'Sonn-/Feiertagszuschlag auf Normalstunden', 'als Zeit: im Wochenzettel und Zeitkonto (wie bisher)', 'select', [['zeit', 'als Zeitgutschrift'], ['geld', 'in Geld (Auszahlung)']]],
     ['pay.taxFreeHours', 'Steuerfreie Überstunden je Monat', '§ 68 Abs 2 EStG, 2026: 15 (sonst 10)'],
     ['pay.taxFreeMax', 'Steuerfrei höchstens (€/Monat)', '2026: 170 € (sonst 120 €)'],
+    ['marginalLimitEur', 'Geringfügigkeitsgrenze (€/Monat)', '§ 5 Abs 2 ASVG: 2026 551,10 €; geprüft für „Geringfügig“ mit Stunden × Stundenlohn', 'euro'],
   ]],
   ['Automatik', [
     ['autoExtraHoursPerWeek', 'Max. Mehrstunden für Vertretungen (h/Woche)', 'Darüber plant die Automatik niemanden ein; manuell bleibt es möglich.'],
@@ -90,7 +91,8 @@ function rulesView(c) {
           const id = `rule-${key.replace('.', '-')}`
           if (type === 'select') return `<div class="rule"><label for="${id}">${label}</label><select id="${id}">${options(choices, ruleValue(key))}</select><small>${hint}</small></div>`
           if (type === 'checkbox') return `<label class="check"><input type="checkbox" id="${id}" ${ruleValue(key) ? 'checked' : ''}><span>${label}<br><small class="muted">${hint}</small></span></label>`
-          return `<div class="rule"><label for="${id}">${label}</label><input id="${id}" type="${type}" ${type === 'number' ? 'step="0.5" min="0"' : ''} value="${esc(ruleValue(key))}"><small>${hint}</small></div>`
+          const input = type === 'euro' ? 'type="number" step="0.01" min="0"' : type === 'number' ? 'type="number" step="0.5" min="0"' : `type="${type}"`
+          return `<div class="rule"><label for="${id}">${label}</label><input id="${id}" ${input} value="${esc(ruleValue(key))}"><small>${hint}</small></div>`
         })
         .join('')}</fieldset>`,
   ).join('')

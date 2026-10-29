@@ -93,7 +93,7 @@ export const TOOL_FOLDERS = [
   ['Objektpruefprotokolle', 'Objektkontrolle: Protokolle, Fotos, Unterschriften, Objektliste (auch die Objektdoku liest sie)', 'kontrolle'],
   ['Objektdoku', 'Objektdoku: Akten, Leistungsverzeichnis, Objektblätter, Vorlagen', 'objektmappe'],
   ['Mattenwechsel', 'Mattenwechsel: Touren, Lieferscheine, Standorte', 'matten'],
-  ['Stammdaten', 'Kundenstamm (Kunden.json), gelesen von allen Werkzeugen', null],
+  ['Stammdaten', 'Kundenstamm (Kunden.json): von allen Werkzeugen gelesen, vom Mattenwechsel beim Abschließen gepflegt', null],
 ]
 
 /** Vorschlag je Rolle für die Werkzeug-Ordner: 'Bearbeiten', 'Lesen' oder ''. */
@@ -102,8 +102,8 @@ export function toolFolderRights(access) {
   const edits = (m) => !access || access.all || access.canEdit(m)
   const anyTool = TOOL_FOLDERS.some(([, , m]) => m && sees(m))
   return TOOL_FOLDERS.map(([folder, label, m]) => {
-    // die Objektdoku liest die Objektliste der Objektkontrolle
-    const right = m ? (edits(m) ? 'Bearbeiten' : sees(m) || (m === 'kontrolle' && sees('objektmappe')) ? 'Lesen' : '') : access?.all || !access ? 'Bearbeiten' : anyTool ? 'Lesen' : ''
+    // die Objektdoku liest die Objektliste der Objektkontrolle; der Mattenwechsel schreibt den gemeinsamen Kundenstamm
+    const right = m ? (edits(m) ? 'Bearbeiten' : sees(m) || (m === 'kontrolle' && sees('objektmappe')) ? 'Lesen' : '') : access?.all || !access || edits('matten') ? 'Bearbeiten' : anyTool ? 'Lesen' : ''
     return [folder, label, right]
   })
 }

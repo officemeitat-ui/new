@@ -265,3 +265,47 @@ test('Excel-Export: ein Blatt je Person im Wochenplan-Layout', async () => {
   ws.eachRow((row) => (last = row))
   assert.equal(last.getCell(1).value, 'GESAMT')
 })
+
+test('Jugendliche: Wochenfreizeit zwei zusammenhängende Tage mit dem Sonntag (§ 19 KJBG)', () => {
+  // Montag bis Samstag: nur der Sonntag frei → Verstoß; Montag bis Freitag → in Ordnung
+  const sechs = [task('w', 'o1', [1, 2, 3, 4, 5, 6], '08:00', '12:00', { holidayRule: 'findet_statt' })]
+  const fuenf = [task('w', 'o1', [1, 2, 3, 4, 5], '08:00', '12:00', { holidayRule: 'findet_statt' })]
+  const woche = (tasks) => {
+    const asg = {}
+    // zwei Wochen: ob der Montag nach dem Sonntag frei ist, steht erst in der Folgewoche
+    for (const i of setup({ employees: [], tasks, from: '2026-11-02', to: '2026-11-15' }).instances) asg[i.key] = [{ employeeId: 'l' }]
+    const { ctx, state } = setup({ employees: [emp('l', { minor: true })], tasks, assignments: asg, from: '2026-11-02', to: '2026-11-15' })
+    return evaluateEmployee(ctx.employees[0], state.instancesOf('l'), ctx).map((i) => i.code)
+  }
+  assert.ok(woche(sechs).includes('MINOR_WEEKLY_REST'))
+  assert.ok(!woche(fuenf).includes('MINOR_WEEKLY_REST'))
+  assert.ok(!woche(sechs).includes('WEEKLY_REST'), 'für Jugendliche gilt die strengere Regel statt der 36 h')
+})
+
+test('Nachtarbeit: Hinweis mit der Nachtzeit laut KV (21–6 Uhr), Nachtarbeitnehmer nach § 12a AZG', () => {
+  const tasks = [task('spaet', 'o1', [2], '19:00', '22:00'), task('nacht', 'o1', [3], '22:00', '02:00')]
+  const asg = { '2026-11-03|spaet': [{ employeeId: 'n' }], '2026-11-04|nacht': [{ employeeId: 'n' }] }
+  const { ctx, state } = setup({ employees: [emp('n')], tasks, assignments: asg })
+  const night = evaluateEmployee(ctx.employees[0], state.instancesOf('n'), ctx).filter((i) => i.code === 'NIGHT')
+  assert.equal(night.length, 2)
+  assert.match(night[0].message, /Nachtarbeit 1(,0)? h \(21:00–06:00 Uhr\)/)
+  assert.ok(!/Nachtarbeitnehmer/.test(night[0].message))
+  assert.match(night[1].message, /Nachtarbeitnehmer:in \(§ 12a AZG\)/)
+})
+
+test('Geringfügig: Grenze in Euro (2026: 551,10 €) aus Stunden × Stundenlohn', () => {
+  // Lohngruppe 6: 12,37 €/h; Mo–Fr 06:00–08:15 im Oktober 2026 (22 Werktage, 26.10. Feiertag entfällt) = 21 × 2,25 h = 47,25 h → 584,48 €
+  const tasks = [task('a', 'o1', [1, 2, 3, 4, 5], '06:00', '08:15')]
+  const range = { from: '2026-10-01', to: '2026-10-31' }
+  const asg = {}
+  for (const i of setup({ employees: [], tasks, ...range }).instances) if (i.status !== 'cancelled') asg[i.key] = [{ employeeId: 'g' }]
+  const run = (extra) => {
+    const { ctx, state } = setup({ employees: [emp('g', { type: 'Geringfügig', weeklyHours: 11, wageGroup: 6, ...extra })], tasks, assignments: asg, ...range })
+    return evaluateEmployee(ctx.employees[0], state.instancesOf('g'), ctx)
+  }
+  const euro = run({}).find((i) => i.code === 'MONTHLY_EURO')
+  assert.ok(euro, 'über 551,10 €')
+  assert.match(euro.message, /12,37 € = 584,48 €, über der Geringfügigkeitsgrenze von 551,10 €/)
+  assert.ok(!run({ hourlyWage: 11 }).some((i) => i.code === 'MONTHLY_EURO'), '47,25 h × 11 € = 519,75 €')
+  assert.ok(!run({ type: 'Teilzeit' }).some((i) => i.code === 'MONTHLY_EURO'), 'nur für geringfügig Beschäftigte')
+})

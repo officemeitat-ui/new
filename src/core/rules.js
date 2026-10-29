@@ -14,9 +14,10 @@ export const DEFAULT_RULES = {
   maxAvgWeeklyH: 48, // § 9 Abs 4 AZG, Durchschnitt über 17 Wochen
   maxWeeklyH: 60, // § 9 AZG
   minWeeklyRestH: 36, // §§ 3, 4 ARG
+  marginalLimitEur: 551.1, // § 5 Abs 2 ASVG: Geringfügigkeitsgrenze 2026 (monatlich, laufendes Entgelt)
   breakAfterH: 6, // § 11 AZG
   breakMin: 30,
-  nightStart: '22:00', // § 12a AZG
+  nightStart: '22:00', // § 12a AZG (Nachtarbeitnehmer:in); Zuschlag nach KV: pay.nightFrom/nightTo
   nightEnd: '05:00',
   travelMin: 30, // Fahrzeit zwischen zwei Objekten am selben Tag (wenn keine Matrix-Angabe)
   sundayBonusPct: 100,
@@ -25,7 +26,8 @@ export const DEFAULT_RULES = {
   autoExtraHoursPerWeek: 6, // Automatik darf für Vertretungen so viele Stunden über Vertrag planen
   dueLeadDays: 7, // periodische Leistungen spätestens so viele Tage vorher zuteilen
   disabledRules: [], // ids aus RULES, die nicht geprüft werden
-  minor: { maxDailyH: 8, maxWeeklyH: 40, minDailyRestH: 12, nightStart: '20:00', nightEnd: '06:00' }, // KJBG
+  // KJBG: §§ 11, 16, 17; Wochenfreizeit § 19: zwei zusammenhängende Kalendertage mit dem Sonntag
+  minor: { maxDailyH: 8, maxWeeklyH: 40, minDailyRestH: 12, nightStart: '20:00', nightEnd: '06:00' },
   // Überstunden, Mehrarbeit, Zuschläge in % des Stundenlohns (AZG, KV Denkmal-,
   // Fassaden- und Gebäudereinigung, Arbeiter/innen, ab 1.1.2026). Berechnung in overtime.js.
   pay: {
@@ -204,6 +206,17 @@ export function groupBy(items, fn) {
  * Wochenruhe: 36 h ununterbrochen, die einen ganzen Kalendertag dieser Woche
  * einschließen (§ 4 ARG). Ränder außerhalb des geladenen Zeitraums gelten als frei.
  */
+/**
+ * Wochenfreizeit Jugendlicher (§ 19 KJBG): zwei zusammenhängende freie
+ * Kalendertage, in die der Sonntag fällt (Samstag + Sonntag oder Sonntag +
+ * Montag). Der Teil mit dem Sonntag (mind. 43 h) ist damit erfüllt.
+ */
+export function hasMinorWeeklyRest(items, monday) {
+  const sunday = dayIndex(monday) + 6
+  const free = (day) => !items.some((it) => it.start < (day + 1) * 1440 && it.end > day * 1440)
+  return free(sunday) && (free(sunday - 1) || free(sunday + 1))
+}
+
 export function hasWeeklyRest(items, monday, minMinutes) {
   const sorted = [...items].sort((a, b) => a.start - b.start)
   const firstDay = dayIndex(monday)
@@ -303,14 +316,19 @@ export const RULES = [
   {
     id: 'night',
     title: 'Nachtarbeit',
-    law: '§ 12a AZG, § 17 KJBG',
-    description: 'Hinweis auf Nachtzuschlag; für Jugendliche zwischen 20 und 6 Uhr verboten.',
-    check({ items, minor, limits, add }) {
+    law: 'KV, § 12a AZG, § 17 KJBG',
+    description: 'Hinweis auf den Nachtzuschlag laut KV (21–6 Uhr); für Jugendliche zwischen 20 und 6 Uhr verboten.',
+    check({ items, minor, limits, r, add }) {
       for (const it of items) {
-        const night = windowMinutes(it.start, it.end, limits.nightStart, limits.nightEnd)
+        if (minor) {
+          if (windowMinutes(it.start, it.end, limits.nightStart, limits.nightEnd) > 0) add('error', 'MINOR_NIGHT', 'shift', `Jugendliche dürfen zwischen ${limits.nightStart} und ${limits.nightEnd} Uhr nicht arbeiten (§ 17 KJBG)`, [it])
+          continue
+        }
+        const night = windowMinutes(it.start, it.end, r.pay.nightFrom, r.pay.nightTo)
         if (night <= 0) continue
-        if (minor) add('error', 'MINOR_NIGHT', 'shift', `Jugendliche dürfen zwischen ${limits.nightStart} und ${limits.nightEnd} Uhr nicht arbeiten (§ 17 KJBG)`, [it])
-        else add('info', 'NIGHT', 'shift', `Nachtarbeit ${formatHours(night)} h (${limits.nightStart}–${limits.nightEnd} Uhr), Nachtzuschlag laut KV`, [it], { nightMinutes: night })
+        // § 12a AZG: wer regelmäßig (48 Nächte im Jahr) mind. 3 h zwischen 22 und 5 Uhr arbeitet, ist Nachtarbeitnehmer:in (§ 12b: Untersuchung)
+        const azg = windowMinutes(it.start, it.end, r.nightStart, r.nightEnd)
+        add('info', 'NIGHT', 'shift', `Nachtarbeit ${formatHours(night)} h (${r.pay.nightFrom}–${r.pay.nightTo} Uhr), Nachtzuschlag laut KV${azg >= 180 ? `; mind. 3 h zwischen ${r.nightStart} und ${r.nightEnd} Uhr: regelmäßig (48 Nächte im Jahr) = Nachtarbeitnehmer:in (§ 12a AZG)` : ''}`, [it], { nightMinutes: night })
       }
     },
   },
@@ -449,11 +467,13 @@ export const RULES = [
   {
     id: 'weeklyRest',
     title: 'Wochenruhe',
-    law: '§§ 3, 4 ARG',
-    description: '36 Stunden ununterbrochene Ruhe, die einen ganzen Tag einschließen.',
-    check({ items, byWeek, r, add }) {
+    law: '§§ 3, 4 ARG, § 19 KJBG',
+    description: '36 Stunden ununterbrochene Ruhe, die einen ganzen Tag einschließen; Jugendliche: zwei zusammenhängende freie Kalendertage mit dem Sonntag.',
+    check({ items, byWeek, minor, r, add }) {
       for (const [monday, ws] of byWeek) {
-        if (!hasWeeklyRest(items, monday, r.minWeeklyRestH * 60)) add('error', 'WEEKLY_REST', 'week', `Keine ${r.minWeeklyRestH} h Wochenruhe mit einem ganzen freien Tag in KW ${isoWeek(monday).week} (§ 4 ARG)`, ws)
+        if (minor) {
+          if (!hasMinorWeeklyRest(items, monday)) add('error', 'MINOR_WEEKLY_REST', 'week', `Jugendliche: keine zwei zusammenhängenden freien Kalendertage mit dem Sonntag in KW ${isoWeek(monday).week} (Wochenfreizeit, § 19 KJBG)`, ws)
+        } else if (!hasWeeklyRest(items, monday, r.minWeeklyRestH * 60)) add('error', 'WEEKLY_REST', 'week', `Keine ${r.minWeeklyRestH} h Wochenruhe mit einem ganzen freien Tag in KW ${isoWeek(monday).week} (§ 4 ARG)`, ws)
       }
     },
   },
@@ -461,13 +481,19 @@ export const RULES = [
     id: 'monthlyLimit',
     title: 'Geringfügigkeitsgrenze',
     law: '§ 5 Abs 2 ASVG',
-    description: 'Monatliches Stundenlimit für geringfügig Beschäftigte.',
-    check({ emp, byMonth, workOfItems, add }) {
-      if (!(emp.maxMonthHours > 0)) return
+    description: 'Monatliches Stundenlimit der Person und Geringfügigkeitsgrenze in Euro (Stunden × Stundenlohn, ohne Sonderzahlungen).',
+    check({ emp, byMonth, workOfItems, r, add }) {
+      const wage = emp.hourlyWage > 0 ? emp.hourlyWage : Number(r.wages?.[emp.wageGroup]) || 0
+      const euro = emp.type === 'Geringfügig' && wage > 0 && r.marginalLimitEur > 0
+      if (!(emp.maxMonthHours > 0) && !euro) return
       for (const [month, ms] of byMonth) {
         const work = workOfItems(ms)
-        if (work > emp.maxMonthHours * 60) {
-          add('error', 'MONTHLY_LIMIT', 'month', `Geringfügig: ${formatHours(work)} h im ${MONTH_LONG[Number(month.slice(5, 7)) - 1]}, Limit ${formatHours(emp.maxMonthHours * 60)} h (Geringfügigkeitsgrenze)`, ms)
+        const name = MONTH_LONG[Number(month.slice(5, 7)) - 1]
+        if (emp.maxMonthHours > 0 && work > emp.maxMonthHours * 60) {
+          add('error', 'MONTHLY_LIMIT', 'month', `Geringfügig: ${formatHours(work)} h im ${name}, Limit ${formatHours(emp.maxMonthHours * 60)} h (Geringfügigkeitsgrenze)`, ms)
+        } else if (euro && (work / 60) * wage > r.marginalLimitEur) {
+          const fmt = (x) => x.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          add('error', 'MONTHLY_EURO', 'month', `Geringfügig: ${formatHours(work)} h im ${name} × ${fmt(wage)} € = ${fmt((work / 60) * wage)} €, über der Geringfügigkeitsgrenze von ${fmt(r.marginalLimitEur)} € (dann vollversichert)`, ms)
         }
       }
     },

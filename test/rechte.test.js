@@ -95,6 +95,25 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   assert.ok(toolFolderRights(resolveAccess({ email: 'it@cleanos.at', access, strict: true })).every(([, , r]) => r === 'Bearbeiten'))
 })
 
+test('Rechte: Mattenwechsel wird pro Gruppe zugewiesen', () => {
+  const MW = '33333333-3333-3333-3333-333333333333'
+  const acc = { ...access, groups: { ...access.groups, mattenwechsel: [MW] } }
+  const mw = resolveAccess({ groupClaims: [MW], access: acc, strict: true })
+  assert.ok(mw.sees('matten') && mw.canEdit('matten'))
+  for (const m of ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'fahrzeuge', 'auswertung', 'stammdaten']) assert.ok(!mw.sees(m), m)
+  // die App selbst liest für diese Gruppe nichts aus der Plattform-Ablage
+  const r = dataRights(mw)
+  for (const p of [DOC.objects, DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26')]) assert.ok(!r.read(p), p)
+  // SharePoint: Mattenwechsel und Kundenstamm bearbeiten (Kundenliste beim Abschließen), sonst nichts
+  const tools = Object.fromEntries(toolFolderRights(mw).map(([f, , x]) => [f, x]))
+  assert.deepEqual(tools, { 'Wasserzähler - Ablesung': '', Objektpruefprotokolle: '', Objektdoku: '', Mattenwechsel: 'Bearbeiten', Stammdaten: 'Bearbeiten' })
+  // zusammen mit Vorarbeiter: beides
+  const beide = resolveAccess({ groupClaims: [MW, VA], access: acc, strict: true })
+  assert.ok(beide.sees('matten') && beide.sees('zaehler'))
+  // ohne Eintrag sieht nur Vollzugriff den Mattenwechsel
+  assert.ok(!resolveAccess({ groupClaims: [OM], access: acc, strict: true }).sees('matten'))
+})
+
 test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserzähler)', async () => {
   const { store, log } = spyStore()
   // Bestand der Disposition
@@ -194,7 +213,7 @@ test('Betrieb auf app.cleanos.at: SharePoint, Tenant, Vollzugriff für office@ u
   assert.equal(c.sharepoint.siteUrl, base.sharepoint.siteUrl)
   assert.equal(c.sharepoint.allowGuests, false)
   assert.deepEqual(c.access.planners, ['office@cleanos.at', 'it@cleanos.at'])
-  assert.deepEqual(Object.keys(c.access.groups), ['disposition', 'objektmanagement', 'vorarbeiter'])
+  assert.deepEqual(Object.keys(c.access.groups), ['disposition', 'objektmanagement', 'vorarbeiter', 'mattenwechsel'])
   assert.equal(c.brand.name, base.brand.name)
   // Probe-Ablage bleibt im Browser
   assert.equal(base.storage, 'local')
