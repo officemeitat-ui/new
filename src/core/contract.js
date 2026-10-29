@@ -6,8 +6,9 @@
 //   emp.hoursHistory  [{ from: 'JJJJ-MM-TT', weeklyHours }]  ab diesem Tag gültig
 //   emp.entryDate     'JJJJ-MM-TT' (optional)
 //   emp.exitDate      'JJJJ-MM-TT' (optional, letzter Arbeitstag)
+//   emp.durchrechnung { start: Montag, weeks }  Durchrechnung der Normalarbeitszeit (KV)
 
-import { addDays, eachDay, isoWeekday } from './dates.js'
+import { addDays, dayIndex, eachDay, isoWeekday, mondayOf } from './dates.js'
 
 /** Gesetzliche Normalarbeitszeit je Woche (§ 3 AZG); mehr kann kein Vertrags-Soll sein. */
 export const MAX_WEEKLY_HOURS = 40
@@ -19,6 +20,28 @@ export function weeklyHoursAt(emp, date) {
   for (const h of history) if (h.from <= date) hours = h.weeklyHours
   return Math.min(Number(hours) || 0, MAX_WEEKLY_HOURS)
 }
+
+/**
+ * Durchrechnung der Normalarbeitszeit (KV Denkmal-, Fassaden- und
+ * Gebäudereinigung, flexible Arbeitszeit): Vollzeit, per Betriebsvereinbarung
+ * oder schriftlicher Vereinbarung; 35 bis 45 Normalstunden pro Woche, im
+ * Schnitt des Zeitraums höchstens 40. Zeiträume folgen ab `start` lückenlos
+ * aufeinander. Liefert den Zeitraum, in den `date` fällt, oder null.
+ */
+export const DR_LIMITS = { bandMinH: 35, bandMaxH: 45, maxWeeks: 52, maxWeeksOther: 26, longGroups: ['2'] }
+export function drPeriod(emp, date) {
+  const d = emp?.durchrechnung
+  if (!d?.start || !(d.weeks > 0) || emp.type !== 'Vollzeit') return null
+  const first = mondayOf(d.start)
+  if (date < first) return null
+  const days = Math.round(d.weeks) * 7
+  const k = Math.floor((dayIndex(date) - dayIndex(first)) / days)
+  const start = addDays(first, k * days)
+  return { start, end: addDays(start, days - 1), weeks: Math.round(d.weeks) }
+}
+
+/** Längster Zeitraum laut KV für die Lohngruppe: 52 Wochen (Lohngruppe 2), sonst 26. */
+export const drMaxWeeks = (emp) => (DR_LIMITS.longGroups.includes(String(emp?.wageGroup)) ? DR_LIMITS.maxWeeks : DR_LIMITS.maxWeeksOther)
 
 /** An diesem Tag beschäftigt (zwischen Eintritt und Austritt)? */
 export const employedOn = (emp, date) => (!emp.entryDate || date >= emp.entryDate) && (!emp.exitDate || date <= emp.exitDate)

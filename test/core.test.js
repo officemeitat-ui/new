@@ -309,3 +309,57 @@ test('Geringfügig: Grenze in Euro (2026: 551,10 €) aus Stunden × Stundenlohn
   assert.ok(!run({ hourlyWage: 11 }).some((i) => i.code === 'MONTHLY_EURO'), '47,25 h × 11 € = 519,75 €')
   assert.ok(!run({ type: 'Teilzeit' }).some((i) => i.code === 'MONTHLY_EURO'), 'nur für geringfügig Beschäftigte')
 })
+
+test('Wochenarbeitszeit: Schnitt über 17 Wochen (§ 9 Abs 4 AZG) mit den veröffentlichten Wochen', () => {
+  // diese Woche 5 × (11 h − 30 min Pause) = 52,5 h; davor 16 veröffentlichte Wochen mit je 49 h → Schnitt 49,2 h = Verstoß
+  const tasks = [task('lang', 'o1', [1, 2, 3, 4, 5], '06:00', '17:00')]
+  const asg = {}
+  for (const i of setup({ employees: [], tasks, from: '2026-11-02', to: '2026-11-08' }).instances) asg[i.key] = [{ employeeId: 'v' }]
+  const run = (published) => {
+    const s = setup({ employees: [emp('v', { maxDailyH: 12 })], tasks, assignments: asg, from: '2026-11-02', to: '2026-11-08' })
+    s.ctx.published = published
+    return evaluateEmployee(s.ctx.employees[0], s.state.instancesOf('v'), s.ctx)
+  }
+  const history = (h) => Object.fromEntries(Array.from({ length: 16 }, (_, i) => [addDays('2026-11-02', -7 * (i + 1)), { work: { v: h * 60 } }]))
+  const over = run(history(49))
+  assert.ok(over.some((i) => i.code === 'WEEKLY_AVG'))
+  assert.match(over.find((i) => i.code === 'WEEKLY_AVG').message, /Schnitt über 17 Wochen bis KW 45: 49,2 h, mehr als 48 h/)
+  // Vorgeschichte 40 h: nur der Hinweis für diese Woche, kein Verstoß
+  const ok = run(history(40))
+  assert.ok(!ok.some((i) => i.code === 'WEEKLY_AVG'))
+  assert.ok(ok.some((i) => i.code === 'WEEKLY_48'))
+  // ohne Vorgeschichte (unbekannt): nie ein Verstoß geraten
+  assert.ok(!run({}).some((i) => i.code === 'WEEKLY_AVG'))
+})
+
+test('Durchrechnung (KV): 35–45 h ohne Überstunden-Warnung, Hinweis aufs Guthaben, Zeitraum laut KV', () => {
+  const codes = (end, extra) => {
+    const tasks = [task('t', 'o1', [1, 2, 3, 4, 5], '06:00', end)]
+    const asg = {}
+    for (const i of setup({ employees: [], tasks, from: '2026-11-02', to: '2026-11-08' }).instances) asg[i.key] = [{ employeeId: 'v' }]
+    const { ctx, state } = setup({ employees: [emp('v', extra)], tasks, assignments: asg, from: '2026-11-02', to: '2026-11-08' })
+    return evaluateEmployee(ctx.employees[0], state.instancesOf('v'), ctx).map((i) => i.code)
+  }
+  const dr = { durchrechnung: { start: '2026-11-02', weeks: 26 }, wageGroup: 4 }
+  assert.ok(codes('15:00', {}).includes('CONTRACT'), 'ohne Durchrechnung: 45 h = Überstunden')
+  const mit = codes('15:00', dr)
+  assert.ok(!mit.includes('CONTRACT') && mit.includes('DR_PLUS'))
+  assert.ok(codes('12:30', dr).includes('DR_BAND'), '32,5 h liegt unter der Bandbreite')
+  assert.ok(codes('15:00', { ...dr, durchrechnung: { start: '2026-11-02', weeks: 52 } }).includes('DR_PERIOD'), '52 Wochen nur für Lohngruppe 2')
+  assert.ok(!codes('15:00', { ...dr, wageGroup: 2, durchrechnung: { start: '2026-11-02', weeks: 52 } }).includes('DR_PERIOD'))
+})
+
+test('Sonntagsarbeit: Warnung ohne hinterlegte Ausnahme (§ 3 ARG), mit Grundlage nur Hinweis', () => {
+  const tasks = [task('so', 'o1', [7], '08:00', '10:00', { holidayRule: 'findet_statt' })]
+  const asg = { '2026-11-08|so': [{ employeeId: 's' }] }
+  const run = (rules = {}, objects) => {
+    const { ctx, state } = setup({ employees: [emp('s')], tasks, assignments: asg, rules, ...(objects ? { objects } : {}) })
+    return evaluateEmployee(ctx.employees[0], state.instancesOf('s'), ctx)
+  }
+  assert.ok(run().some((i) => i.code === 'SUNDAY_BASIS'))
+  const global = run({ sundayBasis: 'KV § 4' })
+  assert.ok(!global.some((i) => i.code === 'SUNDAY_BASIS'))
+  assert.match(global.find((i) => i.code === 'SUNDAY').message, /Sonntagsarbeit \(KV § 4\)/)
+  const objekt = run({}, [{ id: 'o1', name: 'Spital', sundayBasis: 'ARG-VO, Krankenanstalt' }])
+  assert.match(objekt.find((i) => i.code === 'SUNDAY').message, /Krankenanstalt/)
+})

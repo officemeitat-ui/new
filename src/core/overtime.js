@@ -14,12 +14,20 @@
 // Zeitausgleich ausgeglichen wird (§ 19d Abs 3b AZG, KV), sonst 25 %.
 // Überstunden: 50 % (Nacht 100 %, Sonntag 150 %, …), ausbezahlt oder als
 // Zeitausgleich 1:1,5 (§ 10 AZG).
+//
+// Sonntag (KV): der Sonntagszuschlag gilt 6–21 Uhr, die Stunden davor und
+// danach haben einen eigenen Satz (Sonntag Nacht).
+// Durchrechnung (KV, contract.js drPeriod): Stunden zwischen 40 und 45 pro
+// Woche bleiben Normalarbeitszeit ('dr'); ein Guthaben am Ende des Zeitraums
+// (Plus über 40 h abzüglich Wochen unter dem Vertrag) wird als Überstunden
+// mit 50 % abgerechnet.
 
+import { DR_LIMITS, drPeriod } from './contract.js'
 import { addDays, formatHours, fromDayIndex, isoWeekday, lastOfMonth, mondayOf } from './dates.js'
 import { windowMinutes } from './rules.js'
 
-export const HOUR_TYPES = { normal: 'Normalstunden', mehr: 'Mehrarbeit', ue: 'Überstunden', ue11: 'Überstunden 11./12. Stunde' }
-export const TIME_CLASSES = { tag: 'Tag', nacht: 'Nacht', sonntag: 'Sonntag', feiertag: 'Feiertag' }
+export const HOUR_TYPES = { normal: 'Normalstunden', dr: 'Normalstunden über 40 h (Durchrechnung)', mehr: 'Mehrarbeit', ue: 'Überstunden', ue11: 'Überstunden 11./12. Stunde' }
+export const TIME_CLASSES = { tag: 'Tag', nacht: 'Nacht', sonntag: 'Sonntag', sonntagnacht: 'Sonntag Nacht', feiertag: 'Feiertag' }
 export const UE_MODES = { auszahlen: 'Auszahlen', za: 'Zeitausgleich 1:1,5', mix: 'Zeitausgleich 1:1 + Zuschlag in Geld' }
 export const MEHR_MODES = { zeitkonto: 'Zeitkonto (binnen 3 Monaten ausgleichen)', auszahlen: 'Auszahlen mit Zuschlag' }
 
@@ -49,8 +57,12 @@ function timeClasses(start, end, holidays, p) {
     const e = Math.min(end, (day + 1) * 1440)
     const date = fromDayIndex(day)
     if (holidays.get(date)?.legal) out.push({ date, cls: 'feiertag', min: e - s })
-    else if (isoWeekday(date) === 7) out.push({ date, cls: 'sonntag', min: e - s })
-    else {
+    else if (isoWeekday(date) === 7) {
+      // Sonntagszuschlag 6–21 Uhr (KV), davor und danach Sonntag Nacht
+      const day = p.sundayFrom && p.sundayTo ? windowMinutes(s, e, p.sundayFrom, p.sundayTo) : e - s
+      if (day) out.push({ date, cls: 'sonntag', min: day })
+      if (e - s > day) out.push({ date, cls: 'sonntagnacht', min: e - s - day })
+    } else {
       const night = windowMinutes(s, e, p.nightFrom, p.nightTo)
       if (night) out.push({ date, cls: 'nacht', min: night })
       if (e - s > night) out.push({ date, cls: 'tag', min: e - s - night })
@@ -85,6 +97,9 @@ export function classifyWeek(ctx, ts) {
   const longDay = Math.max(dailyNormal, p.longDayH * 60)
   const fullTime = p.fullTimeWeeklyH * 60
   const contract = Math.min(ts.totals.soll, fullTime)
+  // Durchrechnung (nur Vollzeit): bis 45 h Normalarbeitszeit, darüber Überstunden
+  const dr = ts.employee && contract === fullTime ? drPeriod(ts.employee, ts.monday) : null
+  const weekCap = dr ? Math.max(fullTime, (p.drBandMaxH ?? DR_LIMITS.bandMaxH) * 60) : fullTime
   const segments = []
   let credited = 0
   for (const day of ts.days) {
@@ -105,10 +120,12 @@ export function classifyWeek(ctx, ts) {
   // 2. Wochengrenze: Anrechnungen füllen zuerst den Vertrag
   let week = credited
   const byWeek = { get: () => week, add: (_, n) => (week += n) }
-  const weekly = splitBy(daily.filter((x) => x.type === 'base'), byWeek, (used) => (used < contract ? ['normal', contract - used] : used < fullTime ? ['mehr', fullTime - used] : ['ue', Infinity]))
+  const weekly = splitBy(daily.filter((x) => x.type === 'base'), byWeek, (used) =>
+    used < contract ? ['normal', contract - used] : dr ? (used < weekCap ? ['dr', weekCap - used] : ['ue', Infinity]) : used < fullTime ? ['mehr', fullTime - used] : ['ue', Infinity],
+  )
 
   // 3. Zeitklassen
-  const sum = { normal: 0, mehr: 0, ue: 0, ue11: 0 }
+  const sum = { normal: 0, dr: 0, mehr: 0, ue: 0, ue11: 0 }
   const parts = []
   for (const t of [...weekly, ...daily.filter((x) => x.type !== 'base')]) {
     for (const c of timeClasses(t.start, t.end, ctx.holidays, p)) {
@@ -126,8 +143,27 @@ export function classifyWeek(ctx, ts) {
     ...sum,
     minus: Math.max(0, contract - credited - sum.normal),
     longest,
+    drPeriod: dr,
     parts,
   }
+}
+
+/**
+ * Durchrechnung je Zeitraum: Plus (Stunden über 40 h) und Minus (Wochen unter
+ * dem Vertrag) aus den eingeordneten Wochen. Am Ende des Zeitraums wird ein
+ * Guthaben als Überstunden mit 50 % abgerechnet (KV).
+ */
+export function drBalances(weeks) {
+  const periods = new Map()
+  for (const w of weeks) {
+    if (!w.drPeriod) continue
+    const p = periods.get(w.drPeriod.start) || { ...w.drPeriod, plus: 0, minus: 0, weeksKnown: 0 }
+    p.plus += w.dr || 0
+    p.minus += w.minus || 0
+    p.weeksKnown++
+    periods.set(w.drPeriod.start, p)
+  }
+  return [...periods.values()].map((p) => ({ ...p, balance: p.plus - p.minus })).sort((a, b) => a.start.localeCompare(b.start))
 }
 
 /**
@@ -189,6 +225,7 @@ export function premiumPct(rules, type, cls) {
   if (type === 'ue' || type === 'ue11') return Number(p[`${type}${cap(cls)}`]) || 0
   if (cls === 'nacht') return p.nightPct
   if (cls === 'sonntag') return rules.sundayBonusPct
+  if (cls === 'sonntagnacht') return p.sundayNightPct ?? rules.sundayBonusPct
   if (cls === 'feiertag') return rules.holidayBonusPct
   return 0
 }
@@ -196,7 +233,8 @@ export function premiumPct(rules, type, cls) {
 /** Teil des Zuschlags, der schon als Zeit im Wochenzettel gutgeschrieben ist (Sonn-/Feiertag). */
 function timeCreditedPct(rules, cls) {
   if (rules.pay.bonusAs === 'geld') return 0
-  return cls === 'sonntag' ? rules.sundayBonusPct : cls === 'feiertag' ? rules.holidayBonusPct : 0
+  // der Wochenzettel schreibt jede Sonntagsstunde mit dem Sonntagszuschlag gut, den Rest der Sonntagsnacht gibt es in Geld
+  return cls === 'sonntag' || cls === 'sonntagnacht' ? rules.sundayBonusPct : cls === 'feiertag' ? rules.holidayBonusPct : 0
 }
 
 /**
@@ -216,8 +254,8 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
   const inMonth = (d) => d >= from && d <= to
 
   // Stunden des Monats nach Art und Zeitklasse
-  const hours = { normal: {}, mehr: {}, ue: {}, ue11: {} }
-  const total = { normal: 0, mehr: 0, ue: 0, ue11: 0 }
+  const hours = { normal: {}, dr: {}, mehr: {}, ue: {}, ue11: {} }
+  const total = { normal: 0, dr: 0, mehr: 0, ue: 0, ue11: 0 }
   const ueParts = []
   for (const w of weeks) {
     for (const part of w.parts) {
@@ -238,6 +276,17 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
   const mehrPaid = paidEntries.reduce((s, e) => s + e.min, 0)
   const stillOpen = ledger.open.filter((e) => e.deadline > to && !(mehrMode === 'auszahlen' && inMonth(e.date)))
 
+  // Durchrechnung: Zeitraum, der in diesem Monat endet → Guthaben als Überstunden (+50 %, Tag)
+  const drAll = drBalances(weeks)
+  const drEnding = drAll.filter((x) => x.end >= from && x.end <= to)
+  const drUe = drEnding.reduce((s, x) => s + Math.max(0, x.balance), 0)
+  if (drUe) {
+    hours.ue.tag = (hours.ue.tag || 0) + drUe
+    total.ue += drUe
+    ueParts.push({ date: drEnding.at(-1).end, type: 'ue', cls: 'tag', min: drUe })
+  }
+  const drNow = drAll.filter((x) => x.start <= to).at(-1) || null
+
   // Lohnzeilen
   const lines = []
   const line = (key, label, min, pct, base, note = '') => {
@@ -247,10 +296,11 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
   }
   const lateNote = `nicht binnen ${p.mehrBalanceMonths} Monaten ausgeglichen`
   line('mehr', `Mehrarbeit ausbezahlt (+${p.mehrPct} %)`, mehrPaid, p.mehrPct, true, !dueMin ? 'sofort ausbezahlt' : dueMin === mehrPaid ? lateNote : `davon ${formatHours(dueMin)} h ${lateNote}`)
-  for (const cls of ['nacht', 'sonntag', 'feiertag']) {
-    const min = (hours.normal[cls] || 0) + (hours.mehr[cls] || 0)
+  const zLabel = { nacht: 'Nachtzuschlag', sonntag: 'Sonntagszuschlag', sonntagnacht: 'Sonntagsnachtzuschlag', feiertag: 'Feiertagsarbeitsentgelt' }
+  for (const cls of ['nacht', 'sonntag', 'sonntagnacht', 'feiertag']) {
+    const min = (hours.normal[cls] || 0) + (hours.dr[cls] || 0) + (hours.mehr[cls] || 0)
     const pct = premiumPct(r, 'normal', cls) - timeCreditedPct(r, cls)
-    if (pct > 0) line(`zuschlag-${cls}`, `${cls === 'nacht' ? 'Nachtzuschlag' : cls === 'sonntag' ? 'Sonntagszuschlag' : 'Feiertagsarbeitsentgelt'} ${pct} %`, min, pct, false, 'Normal- und Mehrarbeitsstunden')
+    if (pct > 0) line(`zuschlag-${cls}`, `${zLabel[cls]} ${pct} %`, min, pct, false, cls === 'sonntagnacht' && timeCreditedPct(r, cls) ? `Normal- und Mehrarbeitsstunden; ${timeCreditedPct(r, cls)} % schon als Zeit gutgeschrieben` : 'Normal- und Mehrarbeitsstunden')
   }
   let zaBonus = 0
   for (const type of ['ue', 'ue11']) {
@@ -260,7 +310,8 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
       const pct = premiumPct(r, type, cls)
       const moneyPct = Math.max(0, pct - timeCreditedPct(r, cls))
       const label = `${HOUR_TYPES[type]}${cls === 'tag' ? '' : ` ${TIME_CLASSES[cls]}`} (+${pct} %)`
-      if (ueMode === 'auszahlen') line(`${type}-${cls}`, label, min, moneyPct, true, moneyPct < pct ? `${pct - moneyPct} % schon als Zeit gutgeschrieben` : '')
+      const drNote = type === 'ue' && cls === 'tag' && drUe ? `davon ${formatHours(drUe)} h Guthaben aus der Durchrechnung bis ${drEnding.at(-1).end.split('-').reverse().join('.')}` : ''
+      if (ueMode === 'auszahlen') line(`${type}-${cls}`, label, min, moneyPct, true, [moneyPct < pct ? `${pct - moneyPct} % schon als Zeit gutgeschrieben` : '', drNote].filter(Boolean).join('; '))
       else if (ueMode === 'mix') line(`${type}-${cls}`, `Zuschlag ${label}`, min, moneyPct, false, 'Stunden als Zeitausgleich 1:1')
       else zaBonus += Math.round((min * moneyPct) / 100)
     }
@@ -305,6 +356,8 @@ export function payMonth(ctx, emp, month, weeks, { closures = {}, modes = {} } =
     missingWage,
     // Zeitkonto: ausbezahlte Stunden gehen hinaus, Zeitausgleich-Zuschläge kommen dazu
     accountDelta: -(mehrBooked + uePaid) + zaBonus,
+    // Durchrechnung: laufender Zeitraum (Saldo bis Monatsende) und abgerechnetes Guthaben
+    durchrechnung: drNow ? { ...drNow, settled: drUe, endsInMonth: drEnding.length > 0 } : null,
     weeks: weeks.filter((w) => w.sunday >= from && w.monday <= to),
   }
 }

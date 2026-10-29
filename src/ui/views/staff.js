@@ -17,7 +17,7 @@ function staffView(c) {
       (e) => `<tr>
       <td><button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}"><strong>${esc(e.name)}</strong></button>${e.personnelNo ? ` <span class="muted">#${esc(e.personnelNo)}</span>` : ''}${e.note ? `<br><span class="muted">${esc(e.note)}</span>` : ''}${e.email ? `<br><span class="muted">${esc(e.email)}</span>` : ''}</td>
       <td>${esc(e.team || '–')}</td>
-      <td>${esc(e.type)}${e.minor ? '<br><span class="tag">unter 18 (KJBG)</span>' : ''}</td>
+      <td>${esc(e.type)}${e.minor ? '<br><span class="tag">unter 18 (KJBG)</span>' : ''}${e.durchrechnung && e.type === 'Vollzeit' ? `<br><span class="tag">Durchrechnung ${esc(e.durchrechnung.weeks)} Wochen</span>` : ''}</td>
       <td class="num">${formatHours(e.weeklyHours * 60)} h${e.maxMonthHours ? `<br><span class="muted">max. ${formatHours(e.maxMonthHours * 60)} h/Monat</span>` : ''}</td>
       <td><div class="tags">${(e.skills || []).map((s) => `<span class="tag">${esc(s)}</span>`).join('') || '<span class="muted">–</span>'}</div></td>
       <td><div class="tags">${(e.trained || []).slice(0, 6).map((id) => `<span class="tag">${esc(objName(id))}</span>`).join('')}${(e.trained || []).length > 6 ? `<span class="tag">+${e.trained.length - 6}</span>` : ''}</div></td>
@@ -63,6 +63,8 @@ function employeeModal(c, { id }) {
         <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${esc(e.hourlyWage ?? '')}" placeholder="leer = KV-Lohn der Lohngruppe"></label>
         <label class="field"><span>Überstunden</span><select id="emp-uemode">${options(Object.entries(UE_MODES), e.ueMode || '', { empty: `wie unter „Regeln“ (${UE_MODES[pay.ueMode]})` })}</select></label>
         <label class="field"><span>Mehrarbeit (Teilzeit)</span><select id="emp-mehrmode">${options(Object.entries(MEHR_MODES), e.mehrMode || '', { empty: `wie unter „Regeln“` })}</select></label>
+        <label class="field"><span>Durchrechnung ab (Vollzeit, KV)</span><input type="date" id="emp-dr-start" value="${esc(e.durchrechnung?.start || '')}"><small class="muted">Nur mit Betriebsvereinbarung bzw. schriftlicher Vereinbarung; Plan spätestens 2 Wochen vorher bekanntgeben.</small></label>
+        <label class="field"><span>Durchrechnung: Wochen je Zeitraum</span><input type="number" id="emp-dr-weeks" min="1" max="52" step="1" value="${esc(e.durchrechnung?.weeks ?? '')}" placeholder="leer = keine Durchrechnung"><small class="muted">KV: 35–45 h je Woche, Schnitt 40 h; bis 52 Wochen (Lohngruppe 2), sonst bis 26. Guthaben am Ende = Überstunden mit 50 %.</small></label>
         <label class="field"><span>Notiz</span><input type="text" id="emp-note" value="${esc(e.note || '')}" placeholder="z. B. Springer:in, Führerschein B"></label>
         <label class="check" style="align-self:end"><input type="checkbox" id="emp-minor" ${e.minor ? 'checked' : ''}><span>unter 18 Jahre (Jugendschutz KJBG)</span></label>
       </div>
@@ -94,6 +96,7 @@ function readEmployeeForm(existing) {
     hourlyWage: num('emp-wage') || undefined,
     ueMode: val('emp-uemode') || undefined,
     mehrMode: val('emp-mehrmode') || undefined,
+    durchrechnung: val('emp-dr-start') && num('emp-dr-weeks') > 0 ? { start: mondayOf(val('emp-dr-start')), weeks: Math.min(52, Math.round(num('emp-dr-weeks'))) } : undefined,
     note: val('emp-note').trim() || undefined,
     minor: checked('emp-minor') || undefined,
     skills: checkedValues('emp-skill'),

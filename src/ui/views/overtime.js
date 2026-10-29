@@ -3,7 +3,8 @@
 // (auszahlen oder Zeitausgleich), Monatsabschluss mit Buchung ins Zeitkonto,
 // CSV für die Lohnverrechnung.
 
-import { formatDate, formatHours, isoWeek, lastOfMonth, mondayOf, MONTH_LONG } from '../../core/dates.js'
+import { drPeriod } from '../../core/contract.js'
+import { addDays, formatDate, formatHours, isoWeek, lastOfMonth, mondayOf, MONTH_LONG } from '../../core/dates.js'
 import { classifyWeek, closureRow, HOUR_TYPES, MEHR_MODES, payMonth, payrollWeeks, TIME_CLASSES, UE_MODES } from '../../core/overtime.js'
 import { mondaysBetween, toCSV } from '../../core/reports.js'
 import { mergeRules } from '../../core/rules.js'
@@ -31,19 +32,43 @@ export function payroll(month) {
   if (cache.has(key)) return cache.get(key)
   if (cache.size > 4) cache.delete(cache.keys().next().value)
   const weeks = payrollWeeks(month, mergeRules(app.data.rules))
-  const range = computeRange(weeks[0], lastOfMonth(`${month}-01`))
+  const from = `${month}-01`
+  const to = lastOfMonth(from)
+  // Durchrechnung: alle Wochen ab Beginn des Zeitraums, der in diesem Monat läuft oder endet
+  const drStart = (emp) => [drPeriod(emp, from), drPeriod(emp, to)].filter(Boolean).map((x) => x.start).sort()[0]
+  const first = [weeks[0], ...app.data.employees.map(drStart).filter(Boolean)].sort()[0]
+  const range = computeRange(first, to)
   const known = knownWeeks()
   const used = weeks.filter((m) => known.has(m))
+  const weeksOf = (emp) => {
+    const start = drStart(emp)
+    if (!start || start >= weeks[0]) return used
+    const before = []
+    for (let m = start; m < weeks[0]; m = addDays(m, 7)) if (known.has(m)) before.push(m)
+    return [...before, ...used]
+  }
   const closures = app.data.payroll || {}
   const modesOf = (id) => closures[month]?.modes?.[id] || {}
-  const rows = range.ctx.employees.map((emp) => payMonth(range.ctx, emp, month, used.map((m) => classifyWeek(range.ctx, buildTimesheet(range.ctx, emp, m, range.instances, range.state))), { closures, modes: modesOf(emp.id) }))
+  const rows = range.ctx.employees.map((emp) => payMonth(range.ctx, emp, month, weeksOf(emp).map((m) => classifyWeek(range.ctx, buildTimesheet(range.ctx, emp, m, range.instances, range.state))), { closures, modes: modesOf(emp.id) }))
   const monthWeeks = mondaysBetween(`${month}-01`, lastOfMonth(`${month}-01`))
   const result = { rows, rules: range.ctx.rules, missing: monthWeeks.filter((m) => !known.has(m)) }
   cache.set(key, result)
   return result
 }
 
-const relevant = (r) => r.total.mehr || r.total.ue || r.total.ue11 || r.mehr.dueMin || r.mehr.openMin || r.amount || r.zaBonus
+const relevant = (r) => r.total.mehr || r.total.ue || r.total.ue11 || r.mehr.dueMin || r.mehr.openMin || r.amount || r.zaBonus || r.durchrechnung?.balance
+
+/** Durchrechnung (KV): Saldo des laufenden Zeitraums bzw. abgerechnetes Guthaben. */
+function drText(r) {
+  const d = r.durchrechnung
+  if (!d) return ''
+  const end = formatDate(d.end, { weekday: false })
+  if (d.endsInMonth) {
+    if (d.settled) return `Durchrechnung bis ${end}: ${formatHours(d.settled)} h Guthaben als Überstunden`
+    return d.balance < 0 ? `Durchrechnung bis ${end}: endet mit −${formatHours(-d.balance)} h (bleibt im Zeitkonto)` : `Durchrechnung bis ${end}: ausgeglichen`
+  }
+  return `Durchrechnung bis ${end}: Saldo ${d.balance >= 0 ? '+' : '−'}${formatHours(Math.abs(d.balance))} h`
+}
 
 function modeSelects(r, month, locked) {
   const id = esc(r.employee.id)
@@ -71,13 +96,15 @@ function overtimeView(c) {
       const e = r.employee
       const stored = closure?.rows?.[e.id]
       const changed = closed && stored && Math.abs(stored.amount - r.amount) > 0.005
-      const night = (r.hours.normal.nacht || 0) + (r.hours.mehr.nacht || 0)
-      const sunHol = (r.hours.normal.sonntag || 0) + (r.hours.mehr.sonntag || 0) + (r.hours.normal.feiertag || 0) + (r.hours.mehr.feiertag || 0)
-      const ueSpecial = ['nacht', 'sonntag', 'feiertag'].map((cls) => [cls, (r.hours.ue[cls] || 0) + (r.hours.ue11[cls] || 0)]).filter(([, m]) => m)
+      const normalOf = (cls) => (r.hours.normal[cls] || 0) + (r.hours.dr[cls] || 0) + (r.hours.mehr[cls] || 0)
+      const night = normalOf('nacht')
+      const sunHol = normalOf('sonntag') + normalOf('sonntagnacht') + normalOf('feiertag')
+      const ueSpecial = ['nacht', 'sonntag', 'sonntagnacht', 'feiertag'].map((cls) => [cls, (r.hours.ue[cls] || 0) + (r.hours.ue11[cls] || 0)]).filter(([, m]) => m)
+      const dr = drText(r)
       return `<tr>
         <td><button class="link-btn" data-action="ot-detail" data-emp="${esc(e.id)}"><strong>${esc(e.name)}</strong></button><br><span class="muted">${esc(e.type)} · ${formatHours((e.weeklyHours || 0) * 60)} h · ${r.wage ? `${euro(r.wage)}/h${e.wageGroup && !(e.hourlyWage > 0) ? ` (LG ${e.wageGroup})` : ''}` : '<span class="err-text">Stundenlohn fehlt</span>'}</span></td>
         <td class="num">${h(r.total.mehr)}${r.mehr.balanced ? `<br><span class="muted">ausgeglichen ${formatHours(r.mehr.balanced)}</span>` : ''}${r.mehr.dueMin ? `<br><span class="pill warning">fällig ${formatHours(r.mehr.dueMin)} h</span>` : ''}${r.mehr.openMin ? `<br><span class="muted">offen ${formatHours(r.mehr.openMin)} bis ${formatDate(r.mehr.open[0].deadline, { weekday: false })}</span>` : ''}</td>
-        <td class="num">${h(r.total.ue + r.total.ue11)}${r.total.ue11 ? `<br><span class="muted">11./12. Std. ${formatHours(r.total.ue11)}</span>` : ''}${ueSpecial.map(([cls, m]) => `<br><span class="muted">${TIME_CLASSES[cls]} ${formatHours(m)}</span>`).join('')}</td>
+        <td class="num">${h(r.total.ue + r.total.ue11)}${r.total.ue11 ? `<br><span class="muted">11./12. Std. ${formatHours(r.total.ue11)}</span>` : ''}${ueSpecial.map(([cls, m]) => `<br><span class="muted">${TIME_CLASSES[cls]} ${formatHours(m)}</span>`).join('')}${dr ? `<br><span class="muted">${esc(dr)}</span>` : ''}</td>
         <td class="num">${night ? `Nacht ${formatHours(night)}` : ''}${night && sunHol ? '<br>' : ''}${sunHol ? `Sonn-/Feiertag ${formatHours(sunHol)}` : ''}${!night && !sunHol ? '<span class="muted">–</span>' : ''}</td>
         <td>${modeSelects(r, month, closed)}</td>
         <td class="num"><strong>${r.amount ? euro(r.amount) : '<span class="muted">–</span>'}</strong>${r.taxFree ? `<br><span class="muted">stfr. ${euro(r.taxFree)}</span>` : ''}${changed ? `<br><span class="pill warning" title="Abgeschlossen mit ${euro(stored.amount)}">seit Abschluss geändert</span>` : ''}</td>
@@ -123,7 +150,7 @@ function detailModal(c, { empId }) {
         <tr><th>Summe brutto</th><td></td><td></td><td class="num"><strong>${euro(r.amount)}</strong></td><td>${r.taxFree ? `<span class="muted">davon Zuschläge ${euro(r.taxFree)} ggf. steuerfrei (§ 68 Abs. 2 EStG)</span>` : ''}</td></tr></tbody></table></div>`
     : '<p class="note">Diesen Monat wird nichts ausbezahlt.</p>'
   const weeks = r.weeks
-    .map((w) => `<tr><td class="num">KW ${isoWeek(w.monday).week}<br><span class="muted">${formatDate(w.monday, { weekday: false })}–${formatDate(w.sunday, { weekday: false })}</span></td><td class="num">${formatHours(w.contract)}</td><td class="num">${formatHours(w.worked)}${w.longest > p.dailyNormalH * 60 ? `<br><span class="muted">längster Tag ${formatHours(w.longest)}</span>` : ''}</td><td class="num">${h(w.credited)}</td><td class="num">${h(w.normal)}</td><td class="num">${h(w.mehr)}</td><td class="num">${h(w.ue + w.ue11)}${w.ue11 ? `<br><span class="muted">11./12. ${formatHours(w.ue11)}</span>` : ''}</td><td class="num">${w.minus ? `−${formatHours(w.minus)}` : h(0)}</td></tr>`)
+    .map((w) => `<tr><td class="num">KW ${isoWeek(w.monday).week}<br><span class="muted">${formatDate(w.monday, { weekday: false })}–${formatDate(w.sunday, { weekday: false })}</span></td><td class="num">${formatHours(w.contract)}</td><td class="num">${formatHours(w.worked)}${w.longest > p.dailyNormalH * 60 ? `<br><span class="muted">längster Tag ${formatHours(w.longest)}</span>` : ''}</td><td class="num">${h(w.credited)}</td><td class="num">${h(w.normal)}${w.dr ? `<br><span class="muted">+${formatHours(w.dr)} Durchrechnung</span>` : ''}</td><td class="num">${h(w.mehr)}</td><td class="num">${h(w.ue + w.ue11)}${w.ue11 ? `<br><span class="muted">11./12. ${formatHours(w.ue11)}</span>` : ''}</td><td class="num">${w.minus ? `−${formatHours(w.minus)}` : h(0)}</td></tr>`)
     .join('')
   const ledger = [...r.mehr.due.map((x) => ({ ...x, due: true })), ...r.mehr.open]
     .map((x) => `<tr><td>${formatDate(x.date, { year: true })}</td><td class="num">${formatHours(x.min)}</td><td>${formatDate(x.deadline, { year: true })}</td><td>${x.due ? `<span class="pill warning">fällig: +${p.mehrPct} %</span>` : r.mehrMode === 'auszahlen' ? '<span class="muted">wird ausbezahlt</span>' : '<span class="muted">mit Minusstunden ausgleichen</span>'}</td></tr>`)
@@ -137,8 +164,9 @@ function detailModal(c, { empId }) {
     subtitle: `Überstunden & Auszahlung · ${MONTH_LONG[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`,
     wide: true,
     body: `<div class="tags"><span class="tag">${esc(e.type)}</span><span class="tag">Vertrag ${formatHours((e.weeklyHours || 0) * 60)} h/Woche</span><span class="tag">${r.wage ? `${euro(r.wage)}/h` : 'kein Stundenlohn'}</span><span class="tag">Überstunden: ${esc(UE_MODES[r.ueMode])}</span><span class="tag">Mehrarbeit: ${esc(MEHR_MODES[r.mehrMode])}</span></div>
+      ${drText(r) ? `<p class="note"><strong>${esc(drText(r))}.</strong> Durchrechnung laut KV: 35–45 h je Woche sind Normalarbeitszeit, im Schnitt des Zeitraums höchstens 40 h; ein Guthaben am Ende wird als Überstunden mit 50 % abgerechnet.</p>` : ''}
       <section><h3>Abrechnung</h3>${lines}</section>
-      <section><h3>Stunden im Monat</h3><div class="table-wrap"><table class="data"><thead><tr><th>Art</th>${Object.values(TIME_CLASSES).map((x) => `<th>${x}</th>`).join('')}<th>Summe</th></tr></thead><tbody>${byType || '<tr><td colspan="6" class="muted">keine</td></tr>'}</tbody></table></div></section>
+      <section><h3>Stunden im Monat</h3><div class="table-wrap"><table class="data"><thead><tr><th>Art</th>${Object.values(TIME_CLASSES).map((x) => `<th>${x}</th>`).join('')}<th>Summe</th></tr></thead><tbody>${byType || `<tr><td colspan="${Object.keys(TIME_CLASSES).length + 2}" class="muted">keine</td></tr>`}</tbody></table></div></section>
       <section><h3>Wochen</h3><div class="table-wrap"><table class="data"><thead><tr><th>Woche</th><th>Vertrag</th><th>Gearbeitet</th><th>Angerechnet</th><th>Normal</th><th>Mehrarbeit</th><th>Überstunden</th><th>Minus</th></tr></thead><tbody>${weeks || '<tr><td colspan="8" class="muted">keine eingeteilten Wochen</td></tr>'}</tbody></table></div>
         <p class="note">Gearbeitet = Einsätze und Fahrzeit. Angerechnet = Urlaub, Krankenstand, Feiertag; zählt wie Arbeitszeit für den Vertrag. Über ${formatHours(p.dailyNormalH * 60)} h am Tag oder ${p.fullTimeWeeklyH} h in der Woche: Überstunden. Zwischen Vertrag und ${p.fullTimeWeeklyH} h: Mehrarbeit. Minusstunden gleichen Mehrarbeit 1:1 aus (älteste zuerst).</p></section>
       ${ledger ? `<section><h3>Mehrstunden-Konto</h3><div class="table-wrap"><table class="data"><thead><tr><th>Geleistet am</th><th>Offen (h)</th><th>Ausgleichen bis</th><th>Status</th></tr></thead><tbody>${ledger}</tbody></table></div><p class="note">Werden Mehrarbeitsstunden binnen ${p.mehrBalanceMonths} Monaten durch Zeitausgleich 1:1 ausgeglichen, gibt es keinen Zuschlag (§ 19d Abs. 3b AZG, KV). Sonst sind sie mit ${p.mehrPct} % Zuschlag auszuzahlen.</p></section>` : ''}`,

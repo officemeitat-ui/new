@@ -23,7 +23,7 @@ export function setupHtml(config, redirectUri) {
   return `<h2>Noch ein Schritt: die App bei Microsoft registrieren</h2>
     <p>Die App ist hochgeladen, kennt aber ihre <strong>Anwendungs-ID</strong> noch nicht. Einmalig im <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Microsoft Entra Admin Center</a> mit einem Administratorkonto:</p>
     <ol class="setup-steps">
-      <li><strong>App-Registrierungen → Neue Registrierung:</strong> Name „${esc(config.brand?.app || 'Cleanos App')}“, „Nur Konten in diesem Organisationsverzeichnis“, Umleitungs-URI Plattform <em>Single-Page-Anwendung (SPA)</em>:<br>${code(redirectUri)}</li>
+      <li><strong>App-Registrierungen → Neue Registrierung:</strong> Name „${esc(config.brand?.app || 'App')}“, „Nur Konten in diesem Organisationsverzeichnis“, Umleitungs-URI Plattform <em>Single-Page-Anwendung (SPA)</em>:<br>${code(redirectUri)}</li>
       <li><strong>API-Berechtigungen → Microsoft Graph → Delegiert:</strong> User.Read, Sites.ReadWrite.All, Mail.Send, für den Termin der Nachkontrolle Calendars.ReadWrite; für die Routen im Mattenwechsel <em>Azure Maps → user_impersonation</em>. Danach <strong>Administratorzustimmung erteilen</strong>.</li>
       <li><strong>Tokenkonfiguration → Gruppenanspruch hinzufügen:</strong> Sicherheitsgruppen, beim ID-Token „Gruppen-ID“. Daraus kommen die Rechte je Gruppe.</li>
       <li><strong>Übersicht:</strong> Die Verzeichnis-ID muss ${sp.tenantId ? code(sp.tenantId) : '<em>(in config.json fehlt sharepoint.tenantId)</em>'} lauten. Die <strong>Anwendungs-ID (Client)</strong> kopieren und hier einfügen:</li>

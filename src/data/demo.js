@@ -152,7 +152,7 @@ export function createDemoData(monday) {
     overrides: {},
     skills: [...DEFAULT_SKILLS],
     extraFreeDays: [{ date: `${monday.slice(0, 4)}-12-24`, name: 'Heiliger Abend (betriebsfrei)' }, { date: `${monday.slice(0, 4)}-12-31`, name: 'Silvester (betriebsfrei)' }],
-    rules: { ...DEFAULT_RULES, minor: { ...DEFAULT_RULES.minor } },
+    rules: { ...DEFAULT_RULES, sundayBasis: 'Betriebsvereinbarung (Beispiel)', minor: { ...DEFAULT_RULES.minor } },
     ...createModuleDemo(monday),
   }
 }

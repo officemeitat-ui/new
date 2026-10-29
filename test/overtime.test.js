@@ -142,3 +142,44 @@ test('Überstunden: Automatik meidet Einsätze, die Überstunden auslösen', () 
   const factors = candidateFactors(c, state, c.employeesById.get('e2'), fri, null)
   assert.ok(factors.some((f) => f.code === 'overtime' && f.text.includes('40 h/Woche')))
 })
+
+test('Sonntag (KV): Zuschlag 6–21 Uhr, davor und danach Sonntag Nacht mit eigenem Satz', () => {
+  const tasks = [task('frueh', [7], '04:00', '07:00', ['e1']), task('abend', [7], '19:00', '23:00', ['e1'])]
+  const { w } = week('2026-11-02', [emp('e1', 30)], tasks)
+  const by = (cls) => w.parts.filter((p) => p.cls === cls).reduce((s, p) => s + p.min, 0)
+  assert.deepEqual([by('sonntag'), by('sonntagnacht')], [h(3), h(4)])
+  // Normalstunden Sonntag Nacht: 150 %, davon 100 % schon als Zeit im Wochenzettel → 50 % in Geld
+  const weeks = [mk('2026-11-02', '2026-11-08', [{ date: '2026-11-08', type: 'normal', cls: 'sonntagnacht', min: 120 }, { date: '2026-11-08', type: 'ue', cls: 'sonntagnacht', min: 60 }])]
+  const person = { id: 'e1', hourlyWage: 12 }
+  const zeit = payMonth(ctx, person, '2026-11', weeks)
+  assert.equal(zeit.lines.find((l) => l.key === 'zuschlag-sonntagnacht').amount, 12) // 2 h × 12 € × 50 %
+  assert.deepEqual([zeit.lines.find((l) => l.key === 'ue-sonntagnacht').pct, zeit.lines.find((l) => l.key === 'ue-sonntagnacht').amount], [75, 21]) // 175 % − 100 % Zeit
+  const geld = payMonth({ rules: mergeRules({ pay: { bonusAs: 'geld' } }) }, person, '2026-11', weeks)
+  assert.equal(geld.lines.find((l) => l.key === 'zuschlag-sonntagnacht').amount, 36) // 2 h × 12 € × 150 %
+})
+
+test('Durchrechnung (KV): bis 45 h Normalarbeitszeit, Guthaben am Ende als Überstunden mit 50 %', () => {
+  const dr = { durchrechnung: { start: '2026-11-02', weeks: 4 }, hourlyWage: 12 }
+  const at = (monday, end, extra = dr) => week(monday, [emp('v', 40, extra)], [task('t', [1, 2, 3, 4, 5], '06:00', end, ['v'])]).w
+  const w1 = at('2026-11-02', '15:00') // 45 h
+  assert.deepEqual([w1.normal, w1.dr, w1.ue, w1.minus], [h(40), h(5), 0, 0])
+  assert.equal(at('2026-11-02', '15:00', {}).ue, h(5), 'ohne Durchrechnung: 5 Überstunden')
+  const w2 = at('2026-11-09', '15:00') // 45 h
+  const w3 = at('2026-11-16', '13:00') // 35 h
+  const w4 = at('2026-11-23', '14:00') // 40 h
+  assert.equal(w3.minus, h(5))
+  const person = { id: 'v', type: 'Vollzeit', weeklyHours: 40, ...dr }
+  // Zeitraum 2.–29.11.: +5 +5 −5 ±0 = 5 h Guthaben → Überstunden (+50 %) im November
+  const nov = payMonth(ctx, person, '2026-11', [w1, w2, w3, w4])
+  assert.equal(nov.total.ue, h(5))
+  assert.equal(nov.durchrechnung.settled, h(5))
+  assert.deepEqual([nov.durchrechnung.start, nov.durchrechnung.end, nov.durchrechnung.balance], ['2026-11-02', '2026-11-29', h(5)])
+  const line = nov.lines.find((l) => l.key === 'ue-tag')
+  assert.equal(line.amount, 90) // 5 h × 12 € × 150 %
+  assert.match(line.note, /Guthaben aus der Durchrechnung bis 29\.11\.2026/)
+  // Zeitraum noch offen (Oktober-Abrechnung sieht ihn nicht; ausgeglichen = nichts zu zahlen)
+  const ausgeglichen = payMonth(ctx, person, '2026-11', [w1, w3, w4, at('2026-11-09', '13:00')])
+  assert.equal(ausgeglichen.total.ue, 0)
+  // Teilzeit: keine Durchrechnung nach KV (gilt für Vollzeit)
+  assert.equal(week('2026-11-02', [emp('t', 30, dr)], [task('t', [1, 2, 3, 4, 5], '06:00', '15:00', ['t'])]).w.dr, 0)
+})

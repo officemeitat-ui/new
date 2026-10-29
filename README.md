@@ -17,7 +17,7 @@ Voraussetzung: [Node.js](https://nodejs.org) ab Version 20.
 ```bash
 npm ci
 npm start        # http://localhost:8080 – Demo mit 35 Mitarbeitenden, Daten im Browser
-npm test         # 171 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess), Einrichtung, Hochladen
+npm test         # 176 Tests: Feiertage, Regeln, Fahrten, Rhythmen, Müllplan, Überstunden, Abwesenheit, Automatik, Wochenzettel, PDF, E-Mail, Kalender, Excel, SharePoint, Offline, Rollen, Reifenwechsel, Service & Pickerl, Rechte je Gruppe, Werkzeuge (Anmeldebrücke), Webspace (.htaccess), Einrichtung, Hochladen
 npm run build    # dist/ zum Hochladen: gebündelt, minimiert, mit Anmeldeschutz
 npm run hochladen # baut und lädt per FTP(S) auf den Webspace (World4You), config.json am Server bleibt
 ```
@@ -60,8 +60,9 @@ Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eig
 **Überstunden & Auszahlung:** Aus dem Dienstplan berechnet der Dienstplan je Person und Monat, was nach AZG und Kollektivvertrag (Denkmal-, Fassaden- und Gebäudereinigung, Arbeiter/innen, ab 1.1.2026) anfällt:
 
 - **Mehrarbeit** (Teilzeit, zwischen Vertrag und 40 h/Woche): zuschlagsfrei, wenn sie binnen 3 Monaten 1:1 durch Zeitausgleich ausgeglichen wird; sonst +25 %. Ein Mehrstunden-Konto zeigt je Stunde, bis wann sie ausgeglichen sein muss.
-- **Überstunden** (über 9 h am Tag oder 40 h in der Woche): +50 %, Nacht +100 %, Sonntag +150 %, Feiertag +100 %, angeordnete 11./12. Stunde +75 %.
-- **Zuschläge auf Normalstunden:** Nacht (Mo–Sa 21–6 Uhr) +50 %, Sonn-/Feiertag wie bisher als Zeitgutschrift im Wochenzettel oder wahlweise in Geld.
+- **Überstunden** (über 9 h am Tag oder 40 h in der Woche): +50 %, Nacht +100 %, Sonntag +150 % (Sonntag Nacht +175 %), Feiertag +100 %, angeordnete 11./12. Stunde +75 %.
+- **Durchrechnung** (KV, je Person mit Vereinbarung): 35–45 h je Woche sind Normalarbeitszeit, im Schnitt höchstens 40 h; ein Guthaben am Ende des Zeitraums wird als Überstunden (+50 %) abgerechnet.
+- **Zuschläge auf Normalstunden:** Nacht (Mo–Sa 21–6 Uhr) +50 %, Sonntag 6–21 Uhr +100 %, Sonntag Nacht +150 %, Feiertag +100 %; Sonn-/Feiertag wie bisher als Zeitgutschrift im Wochenzettel oder wahlweise in Geld.
 - **Behandlung je Person:** auszahlen, Zeitausgleich 1:1,5 oder Zeitausgleich 1:1 mit Zuschlag in Geld (§ 10 AZG). Beträge brutto mit dem KV-Stundenlohn der Lohngruppe oder einem eigenen Stundenlohn.
 - **Monatsabschluss:** bucht ausbezahlte Stunden aus dem Zeitkonto (Zeitausgleich-Zuschläge hinein), sperrt den Monat und lässt sich aufheben. CSV mit Lohnarten für BMD/RZL.
 - **Auszahlungen versenden:** gesammelt an die Lohnverrechnung (eine E-Mail mit „wer bekommt wie viel“ im Text, Übersicht mit Einzelaufstellung als PDF und CSV im Anhang, mehrere Empfänger möglich) und einzeln an jede Person (eigene Aufstellung als PDF). Über Microsoft 365 direkt aus dem Dienstplan, sonst im eigenen E-Mail-Programm, als PDF/ZIP oder „Teilen“ am Handy. Versandstand je Empfänger, „geändert seit Versand“, die Adresse der Lohnverrechnung wird gemerkt.

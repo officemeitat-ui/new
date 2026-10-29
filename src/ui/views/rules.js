@@ -25,7 +25,8 @@ export const RULE_FIELDS = [
   ]],
   ['Zuschläge, Fahrzeit & Anrechnung', [
     ['holidayBonusPct', 'Feiertagszuschlag (%)', 'ARG § 9: Feiertagsentgelt + Entgelt für die Arbeit = 100 %; im Wochenzettel z. B. 1,5 h → 3 h'],
-    ['sundayBonusPct', 'Sonntagszuschlag (%)', 'laut Kollektivvertrag prüfen'],
+    ['sundayBonusPct', 'Sonntagszuschlag (%)', 'KV: 100 % (Sonntag 6–21 Uhr)'],
+    ['sundayBasis', 'Sonntagsarbeit erlaubt aufgrund', '§ 3 ARG: Wochenendruhe ab Samstag 13 Uhr (unbedingt nötige Reinigung 15 Uhr). Ausnahme eintragen (ARG-Verordnung, KV, Betriebsvereinbarung); je Objekt ergänzbar. Leer = Warnung bei jedem Sonntagseinsatz', 'text'],
     ['travelMin', 'Fahrzeit zwischen Objekten (min)', 'Pauschale, wenn unten keine Strecke hinterlegt ist; zählt als Arbeitszeit'],
     ['creditSpecialTasks', 'Sonderleistungen bei Feiertag/Urlaub anrechnen', 'z. B. „Blumen gießen“', 'checkbox'],
   ]],
@@ -42,14 +43,19 @@ export const RULE_FIELDS = [
     ['pay.ueTag', 'Überstunden', 'KV: 50 %'],
     ['pay.ueNacht', 'Überstunden Nacht', 'KV: 100 %'],
     ['pay.ueSonntag', 'Überstunden Sonntag', 'KV: 150 %'],
+    ['pay.ueSonntagnacht', 'Überstunden Sonntag Nacht', 'KV: 175 % (vor 6, ab 21 Uhr)'],
     ['pay.ueFeiertag', 'Überstunden Feiertag', 'KV: 100 % zusätzlich zum Feiertagsentgelt'],
     ['pay.ue11Tag', '11./12. Stunde', 'KV: 75 % (angeordnet)'],
     ['pay.ue11Nacht', '11./12. Stunde Nacht', 'KV: 125 %'],
-    ['pay.ue11Sonntag', '11./12. Stunde Sonntag', 'laut KV prüfen'],
+    ['pay.ue11Sonntag', '11./12. Stunde Sonntag', 'KV: 175 %'],
+    ['pay.ue11Sonntagnacht', '11./12. Stunde Sonntag Nacht', 'laut KV prüfen'],
     ['pay.ue11Feiertag', '11./12. Stunde Feiertag', 'KV: 125 %'],
     ['pay.nightPct', 'Nachtzuschlag Normal-/Mehrarbeitsstunden', 'KV: 50 %, Mo–Sa'],
     ['pay.nightFrom', 'Nachtzeit (Zuschlag) ab', 'KV: 21:00', 'time'],
     ['pay.nightTo', 'Nachtzeit (Zuschlag) bis', 'KV: 06:00', 'time'],
+    ['pay.sundayFrom', 'Sonntagszuschlag ab', 'KV § 10: 06:00', 'time'],
+    ['pay.sundayTo', 'Sonntagszuschlag bis', 'KV: 21:00; davor und danach gilt „Sonntag Nacht“', 'time'],
+    ['pay.sundayNightPct', 'Sonntag Nacht, Normal-/Mehrarbeitsstunden (%)', 'KV: 150 % (davon der Sonntagszuschlag als Zeit, der Rest in Geld)'],
     ['pay.bonusAs', 'Sonn-/Feiertagszuschlag auf Normalstunden', 'als Zeit: im Wochenzettel und Zeitkonto (wie bisher)', 'select', [['zeit', 'als Zeitgutschrift'], ['geld', 'in Geld (Auszahlung)']]],
     ['pay.taxFreeHours', 'Steuerfreie Überstunden je Monat', '§ 68 Abs 2 EStG, 2026: 15 (sonst 10)'],
     ['pay.taxFreeMax', 'Steuerfrei höchstens (€/Monat)', '2026: 170 € (sonst 120 €)'],
@@ -145,8 +151,8 @@ registerActions(
       for (const [, fields] of RULE_FIELDS) {
         for (const [key, , , type = 'number'] of fields) {
           const id = `rule-${key.replace('.', '-')}`
-          const value = type === 'checkbox' ? checked(id) : type === 'time' || type === 'select' ? val(id) : num(id)
-          if (value === null || value === '') continue
+          const value = type === 'checkbox' ? checked(id) : type === 'time' || type === 'select' ? val(id) : type === 'text' ? val(id).trim() : num(id)
+          if (value === null || (value === '' && type !== 'text')) continue
           const [a, b] = key.split('.')
           if (b) rules[a][b] = value
           else rules[a] = value

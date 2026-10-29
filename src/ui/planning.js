@@ -57,6 +57,8 @@ export function currentSaldi(c) {
 export function snapshotWeek(c, extra = {}) {
   const saldi = currentSaldi(c)
   const snapshot = Object.fromEntries(c.ctx.employees.map((emp) => [emp.id, timesheetSignature(c.timesheet(emp))]))
+  // gearbeitete Minuten inkl. Fahrzeit: für den Schnitt über 17 Wochen (§ 9 Abs 4 AZG) in späteren Wochen
+  const work = Object.fromEntries(c.ctx.employees.map((emp) => [emp.id, c.timesheet(emp).totals.hours + c.timesheet(emp).totals.travel]).filter(([, m]) => m > 0))
   app.data.published = app.data.published || {}
   touch()
   const previous = app.data.published[c.monday]
@@ -71,6 +73,7 @@ export function snapshotWeek(c, extra = {}) {
     ...(previous ? { correctedAt: at, correctedBy: by } : {}),
     saldi,
     snapshot,
+    work,
     ...(corrections.length ? { corrections } : {}),
     ...(previous?.sent ? { sent: previous.sent } : {}),
     ...(previous?.files ? { files: previous.files } : {}),

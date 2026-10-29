@@ -4,14 +4,15 @@
 // oder info (Hinweis/Zuschlag). Eigene Regeln: registerRule({...}), siehe
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
-import { employedOn, weeklyHoursAt } from './contract.js'
-import { dayIndex, dstMinutes, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
+import { DR_LIMITS, drMaxWeeks, drPeriod, employedOn, weeklyHoursAt } from './contract.js'
+import { addDays, dayIndex, dstMinutes, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
 
 export const DEFAULT_RULES = {
   minDailyRestH: 11, // § 12 AZG
   dailyWarnH: 10, // über 10 h nur als Überstunden
   maxDailyH: 12, // § 9 AZG
   maxAvgWeeklyH: 48, // § 9 Abs 4 AZG, Durchschnitt über 17 Wochen
+  avgWeeks: 17,
   maxWeeklyH: 60, // § 9 AZG
   minWeeklyRestH: 36, // §§ 3, 4 ARG
   marginalLimitEur: 551.1, // § 5 Abs 2 ASVG: Geringfügigkeitsgrenze 2026 (monatlich, laufendes Entgelt)
@@ -25,6 +26,7 @@ export const DEFAULT_RULES = {
   creditSpecialTasks: false, // Sonderleistungen in Feiertags-/Urlaubsgutschrift einrechnen
   autoExtraHoursPerWeek: 6, // Automatik darf für Vertretungen so viele Stunden über Vertrag planen
   dueLeadDays: 7, // periodische Leistungen spätestens so viele Tage vorher zuteilen
+  sundayBasis: '', // Grundlage der Sonntagsarbeit (ARG-Ausnahme, KV, Betriebsvereinbarung); je Objekt ergänzbar
   disabledRules: [], // ids aus RULES, die nicht geprüft werden
   // KJBG: §§ 11, 16, 17; Wochenfreizeit § 19: zwei zusammenhängende Kalendertage mit dem Sonntag
   minor: { maxDailyH: 8, maxWeeklyH: 40, minDailyRestH: 12, nightStart: '20:00', nightEnd: '06:00' },
@@ -39,13 +41,19 @@ export const DEFAULT_RULES = {
     nightFrom: '21:00', // KV: Nachtarbeit Mo–Sa 21–6 Uhr
     nightTo: '06:00',
     nightPct: 50, // Normal- und Mehrarbeitsstunden in der Nacht
+    sundayFrom: '06:00', // KV § 10: Sonntagszuschlag 6–21 Uhr
+    sundayTo: '21:00',
+    sundayNightPct: 150, // KV: Sonntag Nacht (vor 6, ab 21 Uhr), Normal- und Mehrarbeitsstunden
+    drBandMaxH: 45, // KV flexible Arbeitszeit: bis 45 h pro Woche Normalarbeitszeit bei Durchrechnung
     ueTag: 50, // § 10 AZG, KV
     ueNacht: 100,
     ueSonntag: 150,
+    ueSonntagnacht: 175,
     ueFeiertag: 100, // zusätzlich zum Feiertagsentgelt
     ue11Tag: 75, // angeordnete 11./12. Stunde
     ue11Nacht: 125,
     ue11Sonntag: 175,
+    ue11Sonntagnacht: 175,
     ue11Feiertag: 125,
     bonusAs: 'zeit', // Sonn-/Feiertagszuschlag auf Normalstunden: 'zeit' (Wochenzettel, Zeitkonto) oder 'geld'
     ueMode: 'auszahlen', // Überstunden: 'auszahlen' | 'za' (Zeitausgleich 1:1,5) | 'mix' (1:1, Zuschlag in Geld)
@@ -336,15 +344,20 @@ export const RULES = [
     id: 'sundayHoliday',
     title: 'Sonn- und Feiertagsarbeit',
     law: 'ARG, § 18 KJBG',
-    description: 'Hinweis auf Zuschläge; für Jugendliche verboten.',
-    check({ items, minor, r, add }) {
+    description: 'Hinweis auf Zuschläge; Sonntagsarbeit braucht eine Ausnahme von der Wochenendruhe (beim Objekt oder unter Regeln hinterlegt); für Jugendliche verboten.',
+    check({ items, ctx, minor, r, add }) {
       for (const it of items) {
         if (it.holiday?.legal) {
           if (minor) add('error', 'MINOR_HOLIDAY', 'shift', 'Feiertagsarbeit für Jugendliche nicht erlaubt (§ 18 KJBG)', [it])
           else add('info', 'HOLIDAY', 'shift', `Feiertagsarbeit (${it.holiday.name}): Feiertagsentgelt + ${r.holidayBonusPct} % Zuschlag`, [it])
         } else if (it.isSunday) {
           if (minor) add('error', 'MINOR_SUNDAY', 'shift', 'Sonntagsarbeit für Jugendliche nicht erlaubt (§ 18 KJBG)', [it])
-          else add('info', 'SUNDAY', 'shift', `Sonntagsarbeit: ${r.sundayBonusPct} % Zuschlag, Ausnahme nach ARG prüfen`, [it])
+          else {
+            // Wochenendruhe (§ 3 ARG): Sonntagsarbeit nur mit Ausnahme (§§ 10–18 ARG, ARG-VO, KV, Betriebsvereinbarung)
+            const basis = ctx.objectsById.get(it.objectId)?.sundayBasis || r.sundayBasis
+            if (basis) add('info', 'SUNDAY', 'shift', `Sonntagsarbeit (${basis}): ${r.sundayBonusPct} % Zuschlag 6–21 Uhr`, [it])
+            else add('warning', 'SUNDAY_BASIS', 'shift', `Sonntagsarbeit ohne hinterlegte Ausnahme von der Wochenendruhe (§ 3 ARG): beim Objekt oder unter Regeln eintragen, worauf sie sich stützt (ARG-Verordnung, KV, Betriebsvereinbarung)`, [it])
+          }
         }
       }
     },
@@ -434,22 +447,42 @@ export const RULES = [
     id: 'weeklyHours',
     title: 'Wochenarbeitszeit',
     law: '§ 9 AZG, § 11 KJBG',
-    description: 'Höchstgrenze pro Woche und Warnung über dem 48-h-Durchschnitt.',
-    check({ byWeek, minor, limits, r, workOfItems, add }) {
+    description: 'Höchstgrenze pro Woche und 48 h im Schnitt über 17 Wochen (frühere Wochen aus den veröffentlichten Wochenplänen).',
+    check({ emp, byWeek, minor, limits, r, ctx, workOfItems, add }) {
+      const span = r.avgWeeks || 17
       for (const [monday, ws] of byWeek) {
         const work = workOfItems(ws)
         const kw = `KW ${isoWeek(monday).week}`
         if (work > limits.maxWeekly) add('error', 'WEEKLY_MAX', 'week', `${formatHours(work)} h in ${kw}, Höchstgrenze ${formatHours(limits.maxWeekly)} h`, ws)
-        else if (!minor && work > r.maxAvgWeeklyH * 60) add('warning', 'WEEKLY_48', 'week', `${formatHours(work)} h in ${kw}: über ${r.maxAvgWeeklyH} h, Durchschnitt über 17 Wochen beachten`, ws)
+        if (minor) continue
+        // § 9 Abs 4 AZG: 17 Wochen bis einschließlich dieser; Wochen im Plan zählen wie geplant, ältere wie veröffentlicht.
+        // Unbekannte Wochen zählen mit 0 – ein Verstoß ist damit sicher, nie geraten.
+        let sum = 0
+        let known = 0
+        for (let i = 0; i < span; i++) {
+          const m = addDays(monday, -7 * i)
+          const planned = byWeek.get(m)
+          const done = planned ? workOfItems(planned) : ctx.published?.[m]?.work?.[emp.id]
+          if (done == null) continue
+          sum += done
+          known++
+        }
+        if (sum > r.maxAvgWeeklyH * 60 * span) add('error', 'WEEKLY_AVG', 'week', `Schnitt über ${span} Wochen bis ${kw}: ${formatHours(Math.round(sum / span))} h, mehr als ${r.maxAvgWeeklyH} h (§ 9 Abs 4 AZG)`, ws)
+        else if (work > r.maxAvgWeeklyH * 60) add('warning', 'WEEKLY_48', 'week', `${formatHours(work)} h in ${kw}: über ${r.maxAvgWeeklyH} h; im Schnitt über ${span} Wochen höchstens ${r.maxAvgWeeklyH} h${known > 1 ? ` (bisher ${formatHours(Math.round(sum / span))} h aus ${known} bekannten Wochen)` : ''}`, ws)
       }
     },
   },
   {
     id: 'contract',
     title: 'Mehr- und Überstunden',
-    law: '§ 19d AZG, Arbeitsvertrag',
-    description: 'Geplante Stunden über den vertraglichen Wochenstunden.',
-    check({ emp, byWeek, workOfItems, ctx, add }) {
+    law: '§ 19d AZG, Arbeitsvertrag, KV (Durchrechnung)',
+    description: 'Geplante Stunden über den vertraglichen Wochenstunden; bei Durchrechnung (KV) die Bandbreite 35–45 h.',
+    check({ emp, byWeek, workOfItems, ctx, r, add }) {
+      const span = emp.durchrechnung?.weeks
+      if (span > 0 && emp.type === 'Vollzeit' && span > drMaxWeeks(emp)) {
+        const first = [...byWeek.values()][0] || []
+        add('warning', 'DR_PERIOD', 'week', `Durchrechnung über ${span} Wochen: laut KV höchstens ${drMaxWeeks(emp)} Wochen${String(emp.wageGroup) === '2' ? '' : ` für Lohngruppe ${emp.wageGroup || '?'} (52 Wochen nur Lohngruppe 2)`}`, first.slice(0, 1))
+      }
       for (const [monday, ws] of byWeek) {
         // Wochenstunden, die in dieser Woche galten
         const contract = weeklyHoursAt(emp, monday) * 60
@@ -458,6 +491,15 @@ export const RULES = [
         // (z. B. Teilzeit: Einsatz vom Feiertag auf Mittwoch verschoben → Mehrstunden)
         const credit = ctx.holidayCredit?.get(`${emp.id}|${monday}`) || 0
         const work = workOfItems(ws) + credit
+        // Durchrechnung (KV): 35–45 h sind Normalarbeitszeit, Überstunden erst darüber oder am Ende des Zeitraums
+        const dr = contract >= (r.pay?.fullTimeWeeklyH || 40) * 60 ? drPeriod(emp, monday) : null
+        if (dr) {
+          const max = (r.pay?.drBandMaxH ?? DR_LIMITS.bandMaxH) * 60
+          if (work > max) add('warning', 'CONTRACT', 'week', `${formatHours(work)} h geplant: über ${formatHours(max)} h (Bandbreite der Durchrechnung) +${formatHours(work - max)} h Überstunden`, ws, { overMinutes: work - max })
+          else if (work < DR_LIMITS.bandMinH * 60) add('info', 'DR_BAND', 'week', `${formatHours(work)} h geplant: unter ${DR_LIMITS.bandMinH} h, der Bandbreite der Durchrechnung (KV: 35–45 h, Schnitt 40 h bis ${formatDate(dr.end)})`, ws)
+          else if (work > contract) add('info', 'DR_PLUS', 'week', `${formatHours(work)} h geplant: +${formatHours(work - contract)} h ins Guthaben der Durchrechnung (bis ${formatDate(dr.end)}; Guthaben am Ende = Überstunden mit 50 %)`, ws)
+          continue
+        }
         if (work <= contract) continue
         const kind = emp.type === 'Vollzeit' || emp.type === 'Lehrling' ? 'Überstunden' : 'Mehrstunden (ggf. 25 % Zuschlag)'
         add('warning', 'CONTRACT', 'week', `${formatHours(work)} h geplant${credit ? ` (davon ${formatHours(credit)} h Feiertag angerechnet)` : ''} bei ${formatHours(contract)} h Vertrag: +${formatHours(work - contract)} h ${kind}`, ws, { overMinutes: work - contract })

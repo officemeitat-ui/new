@@ -63,6 +63,7 @@ function objectModal(c, { id }) {
         <label class="field"><span>Farbe</span><select id="obj-color">${COLOR_NAMES.map((n, i) => `<option value="${i + 1}" ${o.color === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="field"><span>Budget (Sollstunden/Monat)</span><input type="number" id="obj-budget" min="0" step="1" value="${esc(o.budgetHoursMonth ?? '')}" placeholder="laut Kalkulation"></label>
         <label class="check" style="align-self:end"><input type="checkbox" id="obj-trained" ${o.onlyTrained ? 'checked' : ''}><span>Nur eingeschultes Personal (Schlüssel, Alarm, Hygiene)</span></label>
+        <label class="field wide"><span>Sonntagsarbeit erlaubt aufgrund (Ausnahme von der Wochenendruhe)</span><input type="text" id="obj-sundaybasis" value="${esc(o.sundayBasis || '')}" placeholder="z. B. ARG-VO, Krankenanstalt · Betriebsvereinbarung vom … · leer = wie unter „Regeln“"></label>
       </div>
       <section><h3>Objektinfo</h3><div class="form-grid">
         <label class="field wide"><span>Anweisungen für das Personal (erscheint im Einsatz und für Vertretungen)</span><textarea id="obj-instructions" rows="3" style="font-family:inherit;font-size:inherit">${esc(o.instructions || '')}</textarea></label>
@@ -231,6 +232,7 @@ registerActions(
         color: Number(val('obj-color')) || 1,
         budgetHoursMonth: num('obj-budget') || undefined,
         onlyTrained: checked('obj-trained'),
+        sundayBasis: val('obj-sundaybasis').trim() || undefined,
         instructions: val('obj-instructions').trim() || undefined,
         contact: val('obj-contact').trim() || undefined,
         keys: readKeys(),
