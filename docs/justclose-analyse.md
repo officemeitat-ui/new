@@ -93,18 +93,19 @@ Vertriebsexpertise, eigene Case Studies, Ad-Budget und Personal. Software kann d
   Datenschutzhinweise für Bewerberdaten; Impressum nach ECG/MedienG (AT) bzw. DDG (DE).
 - **Werbeaussagen** wie „2–3 Neukunden/Monat“ oder Garantien müssen belegbar sein.
 
-## 5. Vorschlag nächster Schritt
+## 5. Umsetzung
 
-Offene Frage: **Für wen und welche Ebene?** (eigenes Angebot vs. Kundenprojekt; nur Website oder auch Tooling)
+Entscheidung: **beides** – Website/Funnel (Ebene A) und Tooling (Ebene B), nutzbar für das eigene Angebot und
+für Kundenprojekte. Der erste Stand liegt in diesem Repository (siehe [README](../README.md)):
 
-Vorschlag MVP (Ebene A + kleiner Teil B):
+1. Funnel-Landingpage mit Hero, Problem, 3-Phasen-Prozess, Kundenstimmen, FAQ und einem CTA
+2. Vorqualifizierung mit Punkten/Ausschlusskriterien → Terminbuchung (Cal.com/Calendly) → Webhook ins CRM
+3. Recruiting-Funnel („Bewerbung in 60 Sekunden“)
+4. Admin-Bereich mit Dashboard, Pipeline-Board, gewichtetem Forecast
+5. KI-Gesprächsvorbereitung und KI-Follow-up-Entwurf (Claude)
 
-1. Funnel-Landingpage mit Hero, Problem, 3-Phasen-Prozess, Ergebnissen, FAQ, einem CTA
-2. Multi-Step-Vorqualifizierung → Terminbuchung (Cal.com) → Webhook ins CRM
-3. Optional: KI-Follow-up-Entwurf nach dem Erstgespräch (Transkript rein → Zusammenfassung + Mail-Entwurf raus)
-
-Dafür benötigt: Zielgruppe & Angebot, Markenname/Logo, Texte bzw. Stichpunkte, vorhandene Referenzen,
-gewünschtes CRM.
+Für ein konkretes Projekt noch benötigt: Zielgruppe & Angebot, Markenname/Logo/Farbe, Texte bzw. Stichpunkte,
+echte Referenzen, Buchungslink und gewünschtes CRM.
 
 ## Quellen
 

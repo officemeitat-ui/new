@@ -1,0 +1,114 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { getFunnel, getPipeline } from "@/config/site";
+import { AiError, generateBriefing, generateFollowUp } from "@/lib/ai";
+import { passwordMatches, requireAdmin } from "@/lib/auth";
+import { formatEuro } from "@/lib/format";
+import { addActivity, getLead, saveBriefing, saveFollowup, setStage, setValue, type Lead } from "@/lib/leads";
+import { findStage } from "@/lib/pipeline";
+import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
+import { sendWebhook } from "@/lib/webhook";
+
+export async function login(formData: FormData) {
+  if (!passwordMatches(String(formData.get("password") ?? ""))) {
+    // Bremst automatisiertes Durchprobieren von Passwörtern.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    redirect("/admin/login?fehler=1");
+  }
+  const store = await cookies();
+  store.set(SESSION_COOKIE, await createSessionToken(), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+  });
+  redirect("/admin");
+}
+
+export async function logout() {
+  (await cookies()).delete(SESSION_COOKIE);
+  redirect("/admin/login");
+}
+
+async function loadLead(leadId: string) {
+  const lead = await getLead(leadId);
+  const funnel = lead && getFunnel(lead.funnel);
+  const pipeline = funnel && getPipeline(funnel.pipelineId);
+  if (!lead || !funnel || !pipeline) throw new Error("Eintrag nicht gefunden");
+  return { lead, funnel, pipeline };
+}
+
+function refresh(lead: Lead) {
+  revalidatePath(`/admin/leads/${lead.id}`);
+  revalidatePath("/admin", "layout");
+}
+
+export async function moveLead(leadId: string, stageId: string) {
+  await requireAdmin();
+  const { lead, pipeline } = await loadLead(leadId);
+  const from = findStage(pipeline, lead.stage);
+  const to = findStage(pipeline, stageId);
+  if (!to || lead.stage === stageId) return;
+  await setStage(lead.id, to.id, `Stufe: ${from?.label ?? lead.stage} → ${to.label}`);
+  after(() => sendWebhook({ event: "lead.stage_changed", leadId: lead.id, from: lead.stage, to: to.id }));
+  refresh(lead);
+}
+
+export async function moveLeadFromForm(formData: FormData) {
+  await moveLead(String(formData.get("leadId")), String(formData.get("stage")));
+}
+
+export async function updateValue(formData: FormData) {
+  await requireAdmin();
+  const { lead } = await loadLead(String(formData.get("leadId")));
+  const raw = String(formData.get("value") ?? "").replace(/[^\d]/g, "");
+  const value = raw ? Math.min(Number(raw), 1_000_000_000) : null;
+  await setValue(lead.id, value, value === null ? "Deal-Wert entfernt" : `Deal-Wert: ${formatEuro(value)}`);
+  refresh(lead);
+}
+
+export async function addNote(formData: FormData) {
+  await requireAdmin();
+  const { lead } = await loadLead(String(formData.get("leadId")));
+  const text = String(formData.get("note") ?? "").trim().slice(0, 10000);
+  if (!text) return;
+  await addActivity(lead.id, "note", text);
+  refresh(lead);
+}
+
+export type AiState = { error?: string; ok?: boolean };
+
+export async function createBriefing(_prev: AiState, formData: FormData): Promise<AiState> {
+  await requireAdmin();
+  const { lead, funnel, pipeline } = await loadLead(String(formData.get("leadId")));
+  try {
+    await saveBriefing(lead.id, await generateBriefing(lead, funnel, pipeline));
+  } catch (error) {
+    if (error instanceof AiError) return { error: error.message };
+    throw error;
+  }
+  refresh(lead);
+  return { ok: true };
+}
+
+export async function createFollowUp(_prev: AiState, formData: FormData): Promise<AiState> {
+  await requireAdmin();
+  const { lead, funnel, pipeline } = await loadLead(String(formData.get("leadId")));
+  const notes = String(formData.get("notes") ?? "").trim().slice(0, 50000);
+  if (notes.length < 20) return { error: "Bitte Gesprächsnotizen oder ein Transkript einfügen (mindestens 20 Zeichen)." };
+  try {
+    const followup = await generateFollowUp(lead, funnel, pipeline, notes);
+    await addActivity(lead.id, "note", notes);
+    await saveFollowup(lead.id, followup);
+  } catch (error) {
+    if (error instanceof AiError) return { error: error.message };
+    throw error;
+  }
+  refresh(lead);
+  return { ok: true };
+}
