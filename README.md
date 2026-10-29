@@ -76,6 +76,8 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Ohne Netz:** Im Keller ohne Netz geht die Arbeit weiter: Erfasstes wartet im Gerät und wird gespeichert und zusammengeführt, sobald wieder Netz da ist (die Werkzeuge mit ihrem eigenen Offline-Speicher).
 
+**Wetter & Winterdienst:** Vorhersage und amtliche Warnungen von GeoSphere Austria je Revier. Objekte mit Winterdienst (§ 93 StVO, fertig bis 6 Uhr): bei Schnee oder Glätte legt ein Klick die Einsätze an und teilt das Winterdienst-Team ein; „Zu erledigen“ erinnert. Leistungen „im Freien“ bekommen bei Hitzewarnung den Hinweis auf den Hitzeschutzplan (Hitzeschutzverordnung) und bei Sturm einen Hinweis für Arbeit in der Höhe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md#wetter--winterdienst).
+
 **Rollen und Suche:** Jede Rolle sieht nur ihre Bereiche und Werkzeuge. Strg+K oder die Lupe sucht Personen, Objekte, Fahrzeuge und Bereiche.
 
 **Auf allen Geräten:** PC, Tablet und Handy haben den vollen Funktionsumfang, die Daten liegen zentral in SharePoint. Am Handy gibt es eine eigene Ansicht: Tagesliste statt Wochentabelle (offene Einsätze oben, Wischen wechselt den Tag), Leiste unten (Woche, Vertretung, **＋ Abwesend**, Wochenzettel, Menü), Dialoge als Blatt von unten und Tabellen als Karten. Auf Touch-Geräten ersetzt „Statt Ana“ im Einsatz das Ziehen. Der Dienstplan lässt sich als App auf den Startbildschirm legen (Android, iPhone, Windows, Mac), startet schneller und gleicht sich beim Zurückwechseln sofort ab.

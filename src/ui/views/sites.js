@@ -7,6 +7,7 @@ import { wasteSummary } from '../../core/waste.js'
 import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
 import { readWaste, wasteSection } from '../waste-form.js'
+import { weatherEnabled, weatherRules } from '../weather.js'
 import { regionFilter } from './objects.js'
 
 function sitesView() {
@@ -20,7 +21,7 @@ function sitesView() {
       const rows = tasks
         .map(
           (t) => `<tr>
-          <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}</td>
+          <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}${t.outdoor ? ' <span class="tag">im Freien</span>' : ''}</td>
           <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}${Number.isFinite(t.travelAfterMin) || t.travelNote ? `<br><span class="muted">Fahrt danach ${Number.isFinite(t.travelAfterMin) ? `${t.travelAfterMin} min` : 'automatisch'}${t.travelNote ? `: ${esc(t.travelNote)}` : ''}</span>` : ''}</td><td class="num">${t.staff}</td>
           <td>${t.regulars.map((id) => esc(empName(id))).join(', ') || '<span class="muted">–</span>'}</td>
           <td>${esc(HOLIDAY_RULES[t.holidayRule || DEFAULT_HOLIDAY_RULE])}</td>
@@ -34,6 +35,7 @@ function sitesView() {
           <span class="edit-only"><button class="btn small" data-action="task-edit" data-id="new" data-obj="${esc(obj.id)}">${ICON.plus} Leistung</button>
           <button class="btn small" data-action="obj-edit" data-id="${esc(obj.id)}">Objekt bearbeiten</button></span></header>
         ${obj.waste?.streams?.length ? `<div class="folder-line waste-line">${ICON.trash}<span>${esc(wasteSummary(obj, today, holidays))}</span></div>` : ''}
+        ${obj.winter?.active && weatherEnabled() ? `<div class="folder-line">${ICON.snow}<span>${esc(winterSummary(obj))}</span></div>` : ''}
         ${obj.instructions || keys.length ? `<div class="folder-line">${obj.instructions ? `<span>${esc(obj.instructions)}</span>` : ''}${keys.length ? `<span class="keys">${ICON.key} ${keys.map((k) => `${esc(k.label)}: ${k.holderId ? esc(empName(k.holderId)) : 'Büro'}`).join(' · ')}</span>` : ''}</div>` : ''}
         ${tasks.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Leistung</th><th>Rhythmus</th><th>Zeit</th><th>Pers.</th><th>Stammkraft</th><th>An Feiertagen</th><th>Qualifikation</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:10px 14px;margin:0">Noch keine Leistungen.</p>'}
       </article>`
@@ -73,10 +75,57 @@ function objectModal(c, { id }) {
         ${keys.map((k, i) => `<div class="inline-row"><input type="text" id="key-label-${i}" value="${esc(k.label)}" aria-label="Schlüssel"><select id="key-holder-${i}" aria-label="Bei">${options(empOptions, k.holderId, { empty: 'im Büro' })}</select><button class="btn small danger" data-action="key-remove" data-idx="${i}">Entfernen</button></div>`).join('')}
         <button class="btn small" data-action="key-add">${ICON.plus} Schlüssel</button>
         <p class="note">Ist ein Schlüssel hinterlegt, markiert der Plan jede Vertretung ohne Schlüssel mit „Schlüsselübergabe nötig“.</p></section>
-      ${wasteSection(o)}`,
+      ${wasteSection(o)}
+      ${weatherEnabled() ? winterSection(o) : ''}`,
     foot: `${id === 'new' ? '<span></span>' : `<button class="btn ${confirmDel ? 'danger confirm' : 'danger'}" data-action="obj-delete" data-id="${esc(o.id)}">${confirmDel ? 'Objekt samt Leistungen löschen?' : 'Löschen'}</button>`}
       <div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="obj-save" data-id="${esc(o.id)}">Speichern</button></div>`,
   })
+}
+
+/** Winterdienst je Objekt: räumen und streuen (§ 93 StVO), angelegt in „Wetter & Winterdienst“. */
+function winterSection(o) {
+  const w = o.winter || {}
+  const cfg = weatherRules()
+  const team = w.team || []
+  const people = app.data.employees.filter((e) => (!e.exitDate || e.exitDate >= todayISO() || team.includes(e.id)) && (!o.region || !e.team || e.team === o.region || team.includes(e.id)))
+  return `<section class="obj-winter"><h3>${ICON.snow} Winterdienst</h3>
+    <label class="check"><input type="checkbox" id="win-active" ${w.active ? 'checked' : ''}><span>Dieses Objekt räumen und streuen (Gehsteig, Zugang, Parkplatz)</span></label>
+    <div class="form-grid">
+      <label class="field"><span>Fertig bis</span><input type="time" id="win-until" value="${esc(w.until || '')}" placeholder="${esc(cfg.winterUntil)}"><small class="muted">leer = ${esc(cfg.winterUntil)} Uhr (Regeln)</small></label>
+      <label class="field"><span>Dauer (min)</span><input type="number" id="win-minutes" min="5" step="5" value="${esc(w.minutes ?? '')}" placeholder="${esc(cfg.winterMinutes)}"></label>
+      <label class="field"><span>Personen</span><input type="number" id="win-staff" min="1" step="1" value="${esc(w.staff ?? 1)}"></label>
+      <label class="field wide"><span>Hinweis (Flächen, Streugut, Schneeräumer)</span><input type="text" id="win-note" value="${esc(w.note || '')}" placeholder="z. B. Streusplitt im Keller, Gehsteig 40 m, Stiege zum Eingang"></label>
+    </div>
+    <p class="note">Winterdienst-Team (wird beim Anlegen eingeteilt, in dieser Reihenfolge nach Personen):</p>
+    <div class="form-grid">${people.map((e) => `<label class="check"><input type="checkbox" name="win-team" id="win-team-${esc(e.id)}" value="${esc(e.id)}" ${team.includes(e.id) ? 'checked' : ''}><span>${esc(e.name)}</span></label>`).join('') || '<p class="muted">Noch keine Mitarbeitenden.</p>'}</div>
+    <p class="note">Bei Schnee oder Glätte zeigt „Wetter & Winterdienst“ die Objekte an; ein Klick legt die Einsätze an. § 93 StVO: Gehsteige von 6 bis 22 Uhr geräumt und bei Glätte gestreut; wer den Winterdienst vertraglich übernimmt, tritt an die Stelle des Eigentümers (Abs. 5).</p>
+  </section>`
+}
+
+function winterSummary(o) {
+  const w = o.winter
+  const cfg = weatherRules()
+  const team = (w.team || []).map(empName).filter(Boolean)
+  return `Winterdienst fertig bis ${w.until || cfg.winterUntil} Uhr · ${w.minutes || cfg.winterMinutes} min · ${w.staff || 1} P. · Team: ${team.length ? team.join(', ') : 'keins (beim Anlegen offen)'}`
+}
+
+function readWinter(existing) {
+  if (!document.getElementById('win-active')) return existing?.winter // Wetter-Modul aus: unverändert lassen
+  const active = checked('win-active')
+  const team = checkedValues('win-team')
+  const until = val('win-until')
+  const w = {
+    active,
+    until: /^\d{2}:\d{2}$/.test(until) ? until : undefined,
+    minutes: num('win-minutes') > 0 ? Math.round(num('win-minutes')) : undefined,
+    staff: Math.max(1, Math.round(num('win-staff') || 1)),
+    team,
+    note: val('win-note').trim() || undefined,
+  }
+  for (const k of Object.keys(w)) if (w[k] === undefined) delete w[k]
+  // ganz ohne Angaben: nichts speichern (alte Objekte bleiben unverändert)
+  if (!active && !team.length && !w.note && !w.until && !w.minutes && !existing?.winter) return undefined
+  return w
 }
 
 function readKeys() {
@@ -134,6 +183,7 @@ function taskModal(c, { id, objectId }) {
         <label class="field"><span>An Feiertagen</span><select id="task-holiday">${options(Object.entries(HOLIDAY_RULES), t.holidayRule || DEFAULT_HOLIDAY_RULE)}</select></label>
         <label class="field"><span>Fahrzeit danach (min)</span><input type="number" id="task-travel" min="0" step="5" value="${Number.isFinite(t.travelAfterMin) ? t.travelAfterMin : ''}" placeholder="automatisch"></label>
         <label class="field wide"><span>Fahrtnotiz (Standard, je Woche änderbar)</span><input type="text" id="task-travel-note" value="${esc(t.travelNote || '')}" placeholder="z. B. Firmenauto zurück ins Lager"></label>
+        <label class="check wide"><input type="checkbox" id="task-outdoor" ${t.outdoor ? 'checked' : ''}><span>Arbeit im Freien (Außenanlage, Fassade, Glas außen): Hinweise bei Hitze und Sturm</span></label>
       </div>
       <section><h3>Stammkraft</h3><div class="form-grid">${checkboxes('task-reg', app.data.employees.filter((e) => !obj?.region || !e.team || e.team === obj.region || t.regulars.includes(e.id)).map((e) => [e.id, e.name]), t.regulars || [])}</div><p class="note">Angezeigt werden Personen aus dem Revier des Objekts.</p></section>
       <section><h3>Benötigte Qualifikation</h3><div class="form-grid">${checkboxes('task-skill', (app.data.skills || []).map((s) => [s, s]), t.skills || [])}</div></section>`,
@@ -188,6 +238,7 @@ function readTaskForm(existing) {
     travelNote: val('task-travel-note').trim() || undefined,
     regulars: checkedValues('task-reg'),
     skills: checkedValues('task-skill'),
+    outdoor: checked('task-outdoor') || undefined,
   }
 }
 
@@ -236,6 +287,7 @@ registerActions(
         instructions: val('obj-instructions').trim() || undefined,
         contact: val('obj-contact').trim() || undefined,
         keys: readKeys(),
+        winter: readWinter(existing),
       }
       const waste = readWaste()
       obj.waste = waste.streams?.length ? waste : undefined

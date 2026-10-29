@@ -5,6 +5,7 @@
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
 import { DR_LIMITS, drMaxWeeks, drPeriod, employedOn, weeklyHoursAt } from './contract.js'
+import { WEATHER_DEFAULTS, warningText } from './weather.js'
 import { addDays, dayIndex, dstMinutes, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
 
 export const DEFAULT_RULES = {
@@ -62,6 +63,8 @@ export const DEFAULT_RULES = {
     taxFreeMax: 170,
   },
   wages: { 1: 15.12, 2: 13.3, 3: 12.99, 4: 13.03, 5: 12.73, 6: 12.37 }, // KV-Stundenlöhne je Lohngruppe ab 1.1.2026
+  // Wetter (GeoSphere Austria): Orte je Revier, Schwellen für Winterdienst, Hitze und Sturm (weather.js)
+  weather: { ...WEATHER_DEFAULTS, locations: WEATHER_DEFAULTS.locations.map((l) => ({ ...l })) },
 }
 
 export const SEVERITY_RANK = { info: 1, warning: 2, error: 3 }
@@ -75,6 +78,7 @@ export function mergeRules(rules = {}) {
     minor: { ...DEFAULT_RULES.minor, ...(rules.minor || {}) },
     pay: { ...DEFAULT_RULES.pay, ...(rules.pay || {}) },
     wages: { ...DEFAULT_RULES.wages, ...(rules.wages || {}) },
+    weather: { ...DEFAULT_RULES.weather, ...(rules.weather || {}) },
   }
 }
 
@@ -516,6 +520,25 @@ export const RULES = [
         if (minor) {
           if (!hasMinorWeeklyRest(items, monday)) add('error', 'MINOR_WEEKLY_REST', 'week', `Jugendliche: keine zwei zusammenhängenden freien Kalendertage mit dem Sonntag in KW ${isoWeek(monday).week} (Wochenfreizeit, § 19 KJBG)`, ws)
         } else if (!hasWeeklyRest(items, monday, r.minWeeklyRestH * 60)) add('error', 'WEEKLY_REST', 'week', `Keine ${r.minWeeklyRestH} h Wochenruhe mit einem ganzen freien Tag in KW ${isoWeek(monday).week} (§ 4 ARG)`, ws)
+      }
+    },
+  },
+  {
+    id: 'weather',
+    title: 'Wetter (Arbeit im Freien)',
+    law: 'Hitzeschutzverordnung, ASchG',
+    description: 'Leistungen im Freien bei Hitzewarnung (Hitzeschutzplan umsetzen) und bei Sturm oder Gewitter; Vorhersage und Warnungen von GeoSphere Austria.',
+    check({ items, ctx, add }) {
+      if (typeof ctx.weather !== 'function') return
+      for (const it of items) {
+        if (!it.outdoor && it.category !== 'winter') continue
+        const wx = ctx.weather(it.objectId, it.date)
+        if (!wx) continue
+        const { heat, storm } = wx
+        if (heat.warning) add('warning', 'HEAT', 'shift', `${warningText(heat.warning)} (GeoSphere): Hitzeschutzplan umsetzen (Hitzeschutzverordnung) – Trinkwasser, Schatten, zusätzliche Pausen, UV-Schutz; Arbeit im Freien möglichst in die Morgenstunden`, [it])
+        else if (heat.hot) add('info', 'HEAT_HINT', 'shift', `Hitze erwartet (bis ${String(heat.tMax).replace('.', ',')} °C): bei einer Hitzewarnung gilt für Arbeit im Freien die Hitzeschutzverordnung`, [it])
+        if (storm.warning) add('warning', 'STORM', 'shift', `${warningText(storm.warning)} (GeoSphere): Arbeit im Freien und in der Höhe (Glas, Fassade, Leiter) prüfen oder verschieben`, [it])
+        else if (storm.windy) add('info', 'WIND', 'shift', `Böen bis ${storm.gust} km/h erwartet: Arbeit in der Höhe (Glas, Fassade, Leiter) prüfen`, [it])
       }
     },
   },

@@ -58,6 +58,8 @@ if (appConfig.storage === 'sharepoint') {
   console.log('Probe: Daten im Browser' + (appConfig.demo ? ' mit Beispieldaten' : '') + '.')
 }
 for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, source), join(dist, target))
+// Wetter-Umweg für den Webspace (PHP), falls der Browser GeoSphere nicht direkt erreicht
+if (appConfig.weather !== false) await copy('wetter.php')
 
 // ---------------------------------------------------------------- Bündeln
 let html = await readFile(join(root, 'index.html'), 'utf8')

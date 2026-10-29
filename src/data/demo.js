@@ -49,7 +49,7 @@ export function createDemoData(monday) {
   const tasks = [
     { id: 't1', objectId: 'o1', label: 'Büroreinigung', category: 'reinigung', recurrence: weekly([1, 3, 5]), start: '17:30', end: '19:30', staff: 1, regulars: ['e2'], skills: [], holidayRule: 'verschieben' },
     { id: 't2', objectId: 'o2', label: 'Schauraum & Büros', category: 'reinigung', recurrence: weekly(MO_FR), start: '06:00', end: '08:30', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'findet_statt' },
-    { id: 't3', objectId: 'o2', label: 'Außenbereich (14-tägig)', category: 'reinigung', recurrence: weekly([4], { everyWeeks: 2, anchor: addDays(monday, 7) }), start: '13:30', end: '15:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't3', objectId: 'o2', label: 'Außenbereich (14-tägig)', category: 'reinigung', recurrence: weekly([4], { everyWeeks: 2, anchor: addDays(monday, 7) }), start: '13:30', end: '15:00', staff: 1, regulars: ['e1'], skills: [], holidayRule: 'findet_statt', outdoor: true },
     { id: 't4', objectId: 'o3', label: 'Lager & Sozialräume', category: 'reinigung', recurrence: weekly(MO_FR), start: '15:00', end: '19:00', staff: 2, regulars: ['e4', 'e3'], skills: [], holidayRule: 'findet_statt' },
     { id: 't5', objectId: 'o3', label: 'Samstagsdienst', category: 'reinigung', recurrence: weekly([6]), start: '08:00', end: '13:00', staff: 1, regulars: ['e4'], skills: [], holidayRule: 'findet_statt' },
     { id: 't18', objectId: 'o3', label: 'Büroetage', category: 'reinigung', recurrence: weekly(MO_FR), start: '14:30', end: '17:00', staff: 1, regulars: ['e6'], skills: [], holidayRule: 'findet_statt' },
@@ -65,7 +65,7 @@ export function createDemoData(monday) {
     { id: 't21', objectId: 'o8', label: 'Küche & Sozialraum', category: 'reinigung', recurrence: weekly([3]), start: '13:00', end: '17:00', staff: 1, regulars: ['e5'], skills: [], holidayRule: 'findet_statt' },
     { id: 't13', objectId: 'o9', label: 'Werkstatt & Sanitär', category: 'reinigung', recurrence: weekly([1, 2, 3, 4]), start: '14:00', end: '16:30', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'findet_statt' },
     { id: 't14', objectId: 'o9', label: 'Büro', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '10:00', end: '12:00', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'findet_statt' },
-    { id: 't22', objectId: 'o9', label: 'Halle & Außenanlage', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '12:30', end: '16:30', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'findet_statt' },
+    { id: 't22', objectId: 'o9', label: 'Halle & Außenanlage', category: 'reinigung', recurrence: weekly([1, 2, 4, 5]), start: '12:30', end: '16:30', staff: 1, regulars: ['e8'], skills: [], holidayRule: 'findet_statt', outdoor: true },
     { id: 't23', objectId: 'o1', label: 'Archiv & Besprechung', category: 'reinigung', recurrence: weekly([2, 4]), start: '08:00', end: '12:00', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'findet_statt' },
     { id: 't24', objectId: 'o1', label: 'Büroreinigung Vormittag', category: 'reinigung', recurrence: weekly([5]), start: '08:00', end: '13:00', staff: 1, regulars: ['e9'], skills: [], holidayRule: 'findet_statt' },
     { id: 't15', objectId: 'o10', label: 'Trainingsfläche & Duschen', category: 'reinigung', recurrence: weekly(MO_FR), start: '06:00', end: '07:45', staff: 1, regulars: ['e7'], skills: [], holidayRule: 'findet_statt' },
@@ -111,6 +111,9 @@ export function createDemoData(monday) {
   })
   Object.assign(objects.find((o) => o.id === 'o4'), { keys: [{ id: 'k2', label: 'Lager/Sanitär', holderId: 'e6' }, { id: 'k3', label: 'Lager/Sanitär (2)', holderId: 'e2' }], instructions: 'Schlüssel für Lager und Sanitär an der Kassa abholen. Zapfsäulenbereich nur nach Rücksprache.' })
   Object.assign(objects.find((o) => o.id === 'o2'), { instructions: 'Schauraum: Glasflächen nur mit Abzieher, keine Mikrofasertücher an den Fahrzeugen.' })
+  // Winterdienst (räumen und streuen): angelegt wird er bei Schnee oder Glätte unter „Wetter & Winterdienst“
+  Object.assign(objects.find((o) => o.id === 'o5'), { winter: { active: true, until: '06:00', minutes: 30, staff: 1, team: ['e3', 'e7'], note: 'Gehsteig 40 m und Hauszugang, Streusplitt im Müllraum' } })
+  Object.assign(objects.find((o) => o.id === 'o2'), { winter: { active: true, until: '07:00', minutes: 45, staff: 1, team: ['e4', 'e9'], note: 'Gehsteig, Kundenparkplatz und Zufahrt; Schneeschaufel und Streuwagen im Lager' } })
   // Neuer Kunde: Reinigungsplan steht, Stammkräfte sind noch zuzuweisen (Ansicht „Zuweisung“)
   objects.push({ id: 'o90', name: 'Kindergarten Aigen', short: 'Kindergarten', address: '5026 Salzburg-Aigen', color: 12, onlyTrained: false, region: 'Salzburg Stadt', budgetHoursMonth: 0, budgetFactor: 1, contact: 'Leitung, Mo–Fr bis 16 Uhr' })
   tasks.push(
@@ -152,7 +155,21 @@ export function createDemoData(monday) {
     overrides: {},
     skills: [...DEFAULT_SKILLS],
     extraFreeDays: [{ date: `${monday.slice(0, 4)}-12-24`, name: 'Heiliger Abend (betriebsfrei)' }, { date: `${monday.slice(0, 4)}-12-31`, name: 'Silvester (betriebsfrei)' }],
-    rules: { ...DEFAULT_RULES, sundayBasis: 'Betriebsvereinbarung (Beispiel)', minor: { ...DEFAULT_RULES.minor } },
+    rules: {
+      ...DEFAULT_RULES,
+      sundayBasis: 'Betriebsvereinbarung (Beispiel)',
+      minor: { ...DEFAULT_RULES.minor },
+      // Wetter je Revier (Koordinaten eines Orts im Revier)
+      weather: {
+        ...DEFAULT_RULES.weather,
+        locations: [
+          { name: 'Salzburg Stadt', lat: 47.8095, lon: 13.055 },
+          { name: 'Flachgau', lat: 47.9, lon: 13.13 },
+          { name: 'Tennengau', lat: 47.683, lon: 13.097 },
+          { name: 'Salzburg Süd', lat: 47.735, lon: 13.033 },
+        ],
+      },
+    },
     ...createModuleDemo(monday),
   }
 }

@@ -169,6 +169,7 @@ function computeFresh(monday, month) {
   const { from, to } = windowFor(monday, month)
   const holidays = holidayCalendar(from, to, data.extraFreeDays)
   const ctx = createContext(data, holidays)
+  ctx.weather = app.weatherLookup // Wetter (Hitze, Sturm) für die Prüfregel, falls geladen
   const instances = buildInstances(data, from, to, holidays, ctx.rules)
   const state = new PlanState(instances, data.assignments)
   const validation = validatePlan(ctx, state, instances, { from: monday, to: sunday })
@@ -323,7 +324,7 @@ export function toast(message) {
 // ---------------------------------------------------------------- Rückgängig
 
 const undoStack = []
-const UNDO_FIELDS = ['assignments', 'overrides', 'trips', 'payroll', 'tasks']
+const UNDO_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'payroll', 'tasks']
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))
 
 /** Stand vor einer Planänderung merken (Einteilungen, Einzeländerungen, Fahrten). */

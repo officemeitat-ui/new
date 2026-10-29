@@ -4,6 +4,7 @@
 import { dayIndex, dstMinutes, eachDay, isoWeekday, toMinutes } from './dates.js'
 import { nextWorkday, taskOccursOn } from './recurrence.js'
 import { applyWaste } from './waste.js'
+import { applyWinter } from './weather.js'
 
 // An Feiertagen wird gearbeitet (mit Feiertagszuschlag). „Entfällt“ nur, wenn
 // es bei der Leistung ausdrücklich so eingestellt ist (z. B. Kunde geschlossen).
@@ -21,7 +22,7 @@ export { NTH_LABEL, nextWorkday, taskOccursOn } from './recurrence.js'
  * `key` = Ursprungsdatum|Leistung bleibt stabil, auch wenn der Einsatz verschoben wird.
  * status: 'normal' | 'moved' (verschoben) | 'cancelled' (entfällt)
  */
-export function buildInstances({ objects, tasks, employees = [], overrides = {} }, from, to, holidays, rules) {
+export function buildInstances({ objects, tasks, employees = [], overrides = {}, winter = {} }, from, to, holidays, rules) {
   const objectsById = new Map(objects.map((o) => [o.id, o]))
   const out = []
   for (const date of eachDay(from, to)) {
@@ -33,6 +34,9 @@ export function buildInstances({ objects, tasks, employees = [], overrides = {} 
   }
   // Müllplan: Gänge an Einsätze im Objekt anhängen oder eigene Einsätze erzeugen
   applyWaste(out, { objects, tasks, employees, from, to, holidays, rules, make: (task, date) => instanceFor(task, objectsById.get(task.objectId), date, { overrides, holidays, rules }) })
+  // Winterdienst: angelegte Einsätze (Schnee, Glätte) für Objekte mit Winterdienst
+  const calls = Object.fromEntries(Object.entries(winter).filter(([key]) => key.slice(0, 10) >= from && key.slice(0, 10) <= to))
+  applyWinter(out, { objects, winter: calls, weatherRules: rules?.weather, make: (task, date) => instanceFor(task, objectsById.get(task.objectId), date, { overrides, holidays, rules }) })
   return out
 }
 
@@ -115,6 +119,8 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
     regulars: task.regulars || [],
     travelAfterMin: Number.isFinite(task.travelAfterMin) ? task.travelAfterMin : null,
     travelNote: task.travelNote || '',
+    // Arbeit im Freien (Hitzeschutz, Sturm): Leistung so markiert oder Winterdienst
+    outdoor: !!task.outdoor,
     status,
     reason,
     origHoliday,

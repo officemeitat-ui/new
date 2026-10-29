@@ -22,6 +22,7 @@ import { syncTools, toolUrls } from './views/tools.js'
 import { searchButton } from './search.js'
 import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
+import { startWeather } from './weather.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
@@ -412,6 +413,8 @@ async function boot() {
     renderNow()
   }
   await showTodoIfNew()
+  // Wetter (Winterdienst, Hitze, Sturm) im Hintergrund laden
+  startWeather()
   // Zuletzt ohne Netz Erfasstes gleich nachholen
   if (app.service.restored) {
     toast(`${app.service.restored} ${app.service.restored === 1 ? 'Änderung' : 'Änderungen'} aus der Zeit ohne Netz übernommen, wird gespeichert.`)

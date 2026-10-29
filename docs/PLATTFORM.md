@@ -209,6 +209,18 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 
 **Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
 
+## Wetter & Winterdienst
+
+Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.
+
+**Winterdienst (§ 93 StVO):** Beim Objekt unter *Objekte & Leistungen* „Winterdienst“ einschalten: fertig bis (Standard 6 Uhr), Dauer, Personen, Team und ein Hinweis (Flächen, Streugut). Nötig ist er, wenn vom Vorabend 16 Uhr bis 22 Uhr Neuschnee kommt (ab 1 cm), Niederschlag bei Frost fällt (Glätte) oder GeoSphere vor Schnee oder Glatteis warnt. Dann zeigt die Ansicht die betroffenen Objekte, „Zu erledigen“ meldet es, und der Knopf **„Winterdienst anlegen“** legt je Objekt einen Einsatz an (z. B. 05:15–06:00) und teilt das Team ein: in der eingetragenen Reihenfolge, wer an dem Tag abwesend oder nicht mehr beschäftigt ist, wird übersprungen. Fehlt jemand, bleibt der Einsatz offen wie jeder andere. Die Einsätze stehen in der Wochenübersicht mit Schneeflocke, im Wochenzettel und in den Stunden; Ruhezeit, Nachtruhe Jugendlicher usw. werden wie immer geprüft. „Absagen“ nimmt einen Einsatz wieder heraus (z. B. Schnee blieb aus), „Rückgängig“ geht auch.
+
+**Hitze und Sturm:** Leistungen mit Häkchen **„Arbeit im Freien“** (Außenanlage, Fassade, Glas außen). Gibt GeoSphere für den Tag eine Hitzewarnung aus, markiert der Plan diese Einsätze mit dem Hinweis auf den Hitzeschutzplan (Hitzeschutzverordnung, seit 1.1.2026); ab 30 °C laut Vorhersage gibt es einen Hinweis. Bei Sturm- oder Gewitterwarnung bzw. Böen ab 60 km/h: Hinweis, Arbeit im Freien und in der Höhe zu prüfen. Die Regel „Wetter“ lässt sich im Regelkatalog abschalten.
+
+**Einstellungen** unter *Regeln & Feiertage → Wetter & Winterdienst*: Orte je Revier („Flachgau = 47.90, 13.13“, ein Objekt nimmt den Ort seines Reviers, sonst den ersten), fertig bis, Dauer, ab wie viel Neuschnee, Glätte-Temperatur, Hitze- und Böen-Schwelle.
+
+**Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.
+
 ## Ohne Netz (Keller, Tiefgarage)
 
 Mit SharePoint arbeitet die App auch ohne Netz weiter:
@@ -221,7 +233,7 @@ Mit SharePoint arbeitet die App auch ohne Netz weiter:
 ## Was die Plattform einfacher macht
 
 - **Eine Anmeldung, eine Adresse, eine App am Handy.** Dienstplan und Werkzeuge in einer Seitenleiste, je nach Rolle.
-- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine.
+- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte.
 - **Schnellsuche** mit Strg+K oder der Lupe: Personen, Objekte, Fahrzeuge und Bereiche (auch die Werkzeuge). Suchen in den Werkzeugen geht dort selbst.
 
 ## Vorschau

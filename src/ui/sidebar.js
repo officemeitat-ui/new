@@ -25,6 +25,7 @@ export const NAV_ICONS = {
   objektmappe: '<path d="M3 4.5h6a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H3zM21 4.5h-6a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H21z"/>',
   matten: '<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M7 9.5h10M7 12h10M7 14.5h10"/>',
   fahrzeuge: '<path d="M5 17H3.5v-4.5L5.5 7h13l2 5.5V17H19M5 12.5h14"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/><path d="M9.5 17h5"/>',
+  wetter: '<path d="M7 16.5h10.5a3.8 3.8 0 0 0 .4-7.6A6 6 0 0 0 6.3 10.1 3.2 3.2 0 0 0 7 16.5z"/><path d="M8.5 20v1.5M12 19.5v2M15.5 20v1.5"/>',
   controlling: '<path d="M3.5 3.5v17h17M8 16.5v-4M12.5 16.5v-9M17 16.5v-6"/>',
   payroll: '<rect x="2.5" y="5.5" width="19" height="13" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/>',
   overtime: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',

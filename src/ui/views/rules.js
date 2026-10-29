@@ -87,6 +87,44 @@ function wagesFieldset() {
     <p class="note">Lohnordnung Denkmal-, Fassaden- und Gebäudereinigung ab 1.1.2026. Die Lohngruppe steht bei der Person, ein eigener Stundenlohn (Überzahlung) geht vor.</p></fieldset>`
 }
 
+export const WEATHER_FIELDS = [
+  ['weather.winterUntil', 'Winterdienst fertig bis', '§ 93 StVO: Gehsteige von 6 bis 22 Uhr geräumt und bei Glätte gestreut; je Objekt änderbar', 'time'],
+  ['weather.winterMinutes', 'Winterdienst-Dauer je Objekt (min)', 'wenn beim Objekt nichts steht'],
+  ['weather.snowCm', 'Winterdienst ab Neuschnee (cm)', 'Summe vom Vorabend 16 Uhr bis 22 Uhr des Tages'],
+  ['weather.iceTempC', 'Glätte: Niederschlag bei höchstens (°C)', 'Regen oder Nieseln bei Frost: Winterdienst (streuen)'],
+  ['weather.heatC', 'Hitze-Hinweis ab (°C)', 'Hitzeschutzverordnung: Pflichten ab Hitzewarnung gelb; vorher ein Hinweis laut Vorhersage'],
+  ['weather.gustKmh', 'Hinweis ab Böen (km/h)', 'Arbeit im Freien und in der Höhe (Glas, Fassade, Leiter)'],
+]
+
+const locationsText = (list) => (list || []).map((l) => `${l.name} = ${l.lat}, ${l.lon}`).join('\n')
+
+/** „Revier = Breite, Länge“ je Zeile → [{ name, lat, lon }]; Fehler als Text. */
+export function parseLocations(text) {
+  const list = []
+  for (const line of String(text || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean)) {
+    const m = line.match(/^(.+?)\s*[=:]\s*(.+)$/)
+    const nums = (m?.[2].match(/-?\d+(?:[.,]\d+)?/g) || []).map((x) => Number(x.replace(',', '.')))
+    if (!m || nums.length !== 2) return { error: `„${line}“: bitte als „Revier = Breite, Länge“ schreiben, z. B. „Salzburg = 47.8095, 13.055“.` }
+    const [lat, lon] = nums
+    if (lat < 46 || lat > 49.1 || lon < 9.4 || lon > 17.2) return { error: `„${line}“: liegt nicht in Österreich (Breite 46–49, Länge 9,5–17).` }
+    list.push({ name: m[1].trim(), lat, lon })
+  }
+  return list.length ? { list } : { error: 'Bitte mindestens einen Ort eintragen.' }
+}
+
+function weatherFieldset() {
+  if (app.config?.weather === false) return ''
+  const fields = WEATHER_FIELDS.map(([key, label, hint, type = 'number']) => {
+    const id = `rule-${key.replace('.', '-')}`
+    const input = type === 'number' ? 'type="number" step="0.5"' : `type="${type}"`
+    return `<div class="rule"><label for="${id}">${label}</label><input id="${id}" ${input} value="${esc(ruleValue(key))}"><small>${hint}</small></div>`
+  }).join('')
+  return `<fieldset><legend>Wetter & Winterdienst</legend>${fields}
+    <div class="rule"><label for="rule-weather-locations">Orte (Revier = Breite, Länge)</label><textarea id="rule-weather-locations" rows="3" style="font-family:inherit;font-size:inherit">${esc(locationsText(ruleValue('weather').locations))}</textarea>
+    <small>Je Zeile ein Ort. Objekte nutzen den Ort ihres Reviers (gleicher Name), sonst den ersten. Koordinaten z. B. im Kartendienst mit Rechtsklick auf den Ort.</small></div>
+    <p class="note">Vorhersage und amtliche Warnungen: GeoSphere Austria (Data Hub, CC BY 4.0).</p></fieldset>`
+}
+
 function rulesView(c) {
   const year = Number(c.monday.slice(0, 4))
   const disabled = new Set(app.data.rules?.disabledRules || [])
@@ -113,7 +151,7 @@ function rulesView(c) {
   const closedTasks = app.data.tasks.filter((t) => t.holidayRule === 'entfaellt').length
   return `<div class="section-head"><div><h2>Regeln & Feiertage</h2><p>Grundlage sind AZG, ARG und KJBG. Werte aus eurem Kollektivvertrag oder Betriebsvereinbarungen hier anpassen. Alle Markierungen und die Automatik richten sich danach.</p></div>
       <div class="actions edit-only"><button class="btn ${app.ui.confirm === 'rules-reset' ? 'danger confirm' : ''}" data-action="rules-reset">${app.ui.confirm === 'rules-reset' ? 'Wirklich zurücksetzen?' : 'Standardwerte'}</button><button class="btn primary" data-action="rules-save">Regeln speichern</button></div></div>
-    <div class="rules">${fieldsets}${wagesFieldset()}</div>
+    <div class="rules">${fieldsets}${weatherFieldset()}${wagesFieldset()}</div>
     ${catalog}
     <div class="rules">
       <fieldset><legend>Fahrzeiten zwischen Objekten</legend>
@@ -157,6 +195,16 @@ registerActions(
           if (b) rules[a][b] = value
           else rules[a] = value
         }
+      }
+      if (document.getElementById('rule-weather-locations')) {
+        for (const [key, , , type = 'number'] of WEATHER_FIELDS) {
+          const id = `rule-${key.replace('.', '-')}`
+          const value = type === 'time' ? val(id) : num(id)
+          if (value !== null && value !== '') rules.weather[key.split('.')[1]] = value
+        }
+        const loc = parseLocations(val('rule-weather-locations'))
+        if (loc.error) return toast(loc.error)
+        rules.weather.locations = loc.list
       }
       const enabled = new Set([...document.querySelectorAll('input[name="rule-enabled"]:checked')].map((el) => el.value))
       rules.disabledRules = RULES.map((r) => r.id).filter((id) => !enabled.has(id))

@@ -26,7 +26,7 @@ export function workChip(c, emp, line) {
   ].join('')
   const title = [`${obj.name}${inst.label ? ` – ${inst.label}` : ''}`, `${inst.startTime}–${inst.endTime}`, ...line.notes, ...issues.map((i) => `${SEVERITY_LABEL[i.severity]}: ${i.message}`)].join('\n')
   return `<button class="chip ${sev && sev !== 'info' ? `sev-${sev}` : ''} ${inst.category === 'sonder' ? 'special' : ''}" style="--obj:var(--o${obj.color})" data-action="open-shift" data-key="${esc(inst.key)}" data-emp="${esc(emp.id)}" ${app.readOnly ? '' : 'draggable="true"'} title="${esc(title)}">
-    <span class="chip-time">${inst.startTime}–${inst.endTime}</span><span class="chip-flags">${flags}</span><span class="chip-obj">${inst.category === 'muell' ? `${ICON.trash} ` : ''}${esc(obj.short || obj.name)}${inst.category === 'muell' ? ' · Müll' : ''}</span></button>`
+    <span class="chip-time">${inst.startTime}–${inst.endTime}</span><span class="chip-flags">${flags}</span><span class="chip-obj">${inst.category === 'muell' ? `${ICON.trash} ` : inst.category === 'winter' ? `${ICON.snow} ` : ''}${esc(obj.short || obj.name)}${inst.category === 'muell' ? ' · Müll' : inst.category === 'winter' ? ' · Winter' : ''}</span></button>`
 }
 
 export function struckChip(c, line) {

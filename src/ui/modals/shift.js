@@ -38,6 +38,7 @@ function shiftModal(c, { key }) {
     inst.category === 'sonder' ? '<span class="tag special">Sonderleistung</span>' : '',
     ...(inst.addOns || []).map((a) => `<span class="tag waste">${ICON.trash} ${esc(dutyText(a))} (+${a.minutes} min)</span>`),
     inst.category === 'muell' ? `<span class="tag waste">${ICON.trash} eigener Müll-Gang: kein passender Einsatz im Objekt</span>` : '',
+    inst.category === 'winter' ? `<span class="tag winter">${ICON.snow} Winterdienst${inst.winterReason ? `: ${esc(inst.winterReason)}` : ''}</span>` : inst.outdoor ? '<span class="tag">Arbeit im Freien</span>' : '',
     inst.holiday ? `<span class="pill info">${esc(inst.holiday.name)}</span>` : inst.isSunday ? '<span class="pill info">Sonntag</span>' : '',
     inst.status === 'moved' ? `<span class="pill warning">verschoben von ${formatDate(inst.origDate)}${inst.reason === 'holiday' ? ' (Feiertag)' : ''}</span>` : '',
     inst.status === 'cancelled' ? `<span class="pill info">entfällt${inst.reason === 'holiday' ? `: ${esc(inst.origHoliday?.name)}` : ' diese Woche'}</span>` : '',
