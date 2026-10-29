@@ -5,7 +5,7 @@ import { holidayCalendar } from '../src/core/holidays.js'
 import { buildInstances, PlanState } from '../src/core/plan.js'
 import { createContext, validatePlan } from '../src/core/rules.js'
 import { createDemoData } from '../src/data/demo.js'
-import { applyWinter, dayOutlook, forecastUrl, heatCheck, locationFor, metadataUrl, parseForecast, parseWarnings, pickParams, stormCheck, viennaParts, viennaTime, warningsUrl, warningText, winterCheck } from '../src/core/weather.js'
+import { alarmFile, alarmPlace, alarmProblems, applyWinter, dayOutlook, findPlace, forecastUrl, heatCheck, locationFor, metadataUrl, onCallIndex, parseForecast, parseWarnings, pickParams, stormCheck, viennaParts, viennaTime, warningsUrl, warningText, winterAt, winterCheck } from '../src/core/weather.js'
 
 // Stündliche Vorhersage als Antwort des Data Hub (GeoJSON), ab einem Zeitpunkt in UTC
 function forecastJson(startIso, rows, params = { t: '2t', precip: 'tp', snow: 'sf', gust: '10fg' }, units = { t: '°C', precip: 'kg m-2', snow: 'kg m-2', gust: 'm s-1' }) {
@@ -110,9 +110,11 @@ test('Hitze und Sturm: Warnung geht vor, sonst Schwelle aus der Vorhersage', () 
   assert.equal(dayOutlook({ hours, warnings }, '2027-07-17').known, false)
 })
 
-test('Wetter-Ort je Objekt: Revier mit gleichem Namen, sonst der erste Ort', () => {
-  const locations = [{ name: 'Salzburg Stadt', lat: 47.8, lon: 13.05 }, { name: 'Tennengau', lat: 47.68, lon: 13.1 }, { name: 'kaputt', lat: 'x', lon: 1 }]
+test('Wetter-Ort je Objekt: eigens gewählter Ort, sonst Revier mit gleichem Namen, sonst der erste Ort', () => {
+  const locations = [{ name: 'Salzburg Stadt', lat: 47.8, lon: 13.05 }, { name: 'Tennengau', lat: 47.68, lon: 13.1 }, { name: 'kaputt', lat: 'x', lon: 1 }, { name: 'Hallein', lat: 47.68, lon: 13.1 }]
   assert.equal(locationFor({ region: 'tennengau ' }, locations).name, 'Tennengau')
+  assert.equal(locationFor({ region: 'Tennengau', weatherPlace: 'Hallein' }, locations).name, 'Hallein')
+  assert.equal(locationFor({ region: 'Tennengau', weatherPlace: 'gibt es nicht' }, locations).name, 'Tennengau')
   assert.equal(locationFor({ region: 'Pongau' }, locations).name, 'Salzburg Stadt')
   assert.equal(locationFor({ region: 'kaputt' }, locations).name, 'Salzburg Stadt')
   assert.equal(locationFor({}, []), null)
@@ -187,4 +189,67 @@ test('Beispieldaten: Orte je Revier, Winterdienst-Objekte mit Team, Leistungen i
   assert.ok(winter.length >= 2)
   for (const o of winter) for (const id of o.winter.team) assert.ok(demo.employees.some((e) => e.id === id))
   assert.ok(demo.tasks.filter((t) => t.outdoor).length >= 2)
+})
+
+test('Ortsliste Salzburg: Name genügt („Obertrum“ → Obertrum am See)', () => {
+  assert.deepEqual(findPlace('Hallein'), { name: 'Hallein', lat: 47.6833, lon: 13.097 })
+  assert.equal(findPlace('obertrum').name, 'Obertrum am See')
+  assert.equal(findPlace(' seekirchen ').name, 'Seekirchen am Wallersee')
+  assert.equal(findPlace('Wien'), null)
+  assert.equal(findPlace(''), null)
+})
+
+test('Schnee-Alarm: Datei für den Server (Stufe 1 aus den Teams, Stufe 2, Büro, Regeln)', () => {
+  const locations = [{ name: 'Salzburg', lat: 47.8095, lon: 13.055 }, { name: 'Hallein', lat: 47.6833, lon: 13.097 }, { name: 'Obertrum', lat: 47.9372, lon: 13.0767 }]
+  const objects = [
+    { id: 'o1', name: 'Wohnanlage Lehen', region: 'Salzburg', winter: { active: true, team: ['e1', 'e2'] } },
+    { id: 'o2', name: 'Bank Hallein', region: 'Salzburg', weatherPlace: 'Hallein', winter: { active: true, team: ['e3'] } },
+    { id: 'o3', name: 'Büro ohne Winterdienst', region: 'Salzburg', winter: { active: false, team: ['e4'] } },
+  ]
+  const employees = [{ id: 'e1', name: 'Ana', email: 'ana@example.test' }, { id: 'e2', name: 'Ben' }, { id: 'e3', name: 'Cem', email: 'cem@example.test' }, { id: 'e4', name: 'Dora', email: 'dora@example.test' }]
+  assert.deepEqual(winterAt(locations[1], objects, locations), { objects: [objects[1]], team: ['e3'] })
+  assert.deepEqual(alarmPlace({}, locations[0], objects, locations), { active: true, level1: ['e1', 'e2'], level2: [], rotate: false })
+  const alarm = {
+    key: 'k'.repeat(64), cronKey: 'p'.repeat(32), sender: 'winterdienst@example.test', officeEmails: 'buero@example.test; kaputt, chef@example.test', quietFrom: '22:00', quietTo: '03:00',
+    topics: { e1: 'wd-ana', e3: 'wd-cem', e4: 'wd-dora', office: 'wd-buero' },
+    places: { Hallein: { active: true, level1: ['e3'], level2: ['e4'] }, Obertrum: { active: false, level1: [], level2: [] } },
+  }
+  const f = alarmFile({ alarm, locations, objects, employees, address: 'https://app.example.test/' })
+  assert.equal(f.schluessel, 'k'.repeat(64))
+  assert.equal(f.pruefschluessel, 'p'.repeat(32))
+  assert.equal(f.ntfy, 'https://ntfy.sh')
+  assert.deepEqual(f.regeln, { vorlaufStunden: 3, schneeCm: 0.3, pauseStunden: 8, eskalationMinuten: 15, ruheVon: '22:00', ruheBis: '03:00', ruheAusnahmeStufe: 2 })
+  assert.deepEqual(f.orte.map((o) => o.name), ['Salzburg', 'Hallein'], 'Obertrum ist aus')
+  const [sbg, hal] = f.orte
+  assert.deepEqual(sbg.objekte, ['Wohnanlage Lehen'])
+  assert.deepEqual(sbg.stufe1, [{ name: 'Ana', ntfy: 'wd-ana' }], 'Ben ohne Handy und E-Mail fällt weg; Stufe 1 ohne E-Mail')
+  assert.deepEqual(sbg.stufe2, [{ name: 'Büro', ntfy: 'wd-buero' }, { name: 'Büro', email: 'buero@example.test' }, { name: 'Büro', email: 'chef@example.test' }])
+  assert.deepEqual(hal.objekte, ['Bank Hallein'])
+  assert.deepEqual(hal.stufe1, [{ name: 'Cem', ntfy: 'wd-cem' }])
+  assert.deepEqual(hal.stufe2[0], { name: 'Dora', ntfy: 'wd-dora', email: 'dora@example.test' })
+  assert.deepEqual(alarmProblems(f), [])
+  // Stufe 1 auch per E-Mail; Ort ohne Handy wird gemeldet
+  const g = alarmFile({ alarm: { ...alarm, emailLevel1: true, topics: { e1: 'wd-ana' } }, locations, objects, employees, address: '' })
+  assert.deepEqual(g.orte[1].stufe1, [{ name: 'Cem', email: 'cem@example.test' }])
+  assert.deepEqual(alarmProblems(g), ['Hallein: Stufe 1 ohne Handy (ntfy)'])
+  assert.deepEqual(alarmProblems({ orte: [] }), ['kein Ort eingeschaltet'])
+})
+
+test('Schnee-Alarm: Bereitschaft wechselt wöchentlich (montags), auch über den Jahreswechsel', () => {
+  // Mo 30.11.2026 bis So 6.12.2026 dieselbe Person, ab Mo 7.12. die nächste
+  const w = (d) => onCallIndex(d, 3)
+  assert.equal(w('2026-11-30'), w('2026-12-06'))
+  assert.equal(w('2026-12-07'), (w('2026-11-30') + 1) % 3)
+  assert.equal(w('2026-12-14'), (w('2026-11-30') + 2) % 3)
+  assert.equal(w('2026-12-21'), w('2026-11-30'))
+  // fortlaufend über Silvester (kein Sprung durch Kalenderwochen)
+  assert.equal(onCallIndex('2027-01-04', 4), (onCallIndex('2026-12-28', 4) + 1) % 4)
+  assert.equal(onCallIndex('2026-12-01', 0), -1)
+  const locations = [{ name: 'Hallein', lat: 47.68, lon: 13.1 }]
+  const employees = [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]
+  const base = { key: 'k'.repeat(64), topics: { a: 'wd-a', b: 'wd-b' } }
+  const file = (rotate, level1) => alarmFile({ alarm: { ...base, places: { Hallein: { active: true, level1, level2: [], rotate } } }, locations, objects: [], employees, address: '' })
+  assert.equal(file(true, ['a', 'b']).orte[0].wechsel, 'woche')
+  assert.equal(file(false, ['a', 'b']).orte[0].wechsel, undefined)
+  assert.equal(file(true, ['a']).orte[0].wechsel, undefined, 'eine Person: kein Wechsel nötig')
 })

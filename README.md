@@ -76,7 +76,7 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Ohne Netz:** Im Keller ohne Netz geht die Arbeit weiter: Erfasstes wartet im Gerät und wird gespeichert und zusammengeführt, sobald wieder Netz da ist (die Werkzeuge mit ihrem eigenen Offline-Speicher).
 
-**Wetter & Winterdienst:** Vorhersage und amtliche Warnungen von GeoSphere Austria je Revier. Objekte mit Winterdienst (§ 93 StVO, fertig bis 6 Uhr): bei Schnee oder Glätte legt ein Klick die Einsätze an und teilt das Winterdienst-Team ein; „Zu erledigen“ erinnert. Leistungen „im Freien“ bekommen bei Hitzewarnung den Hinweis auf den Hitzeschutzplan (Hitzeschutzverordnung) und bei Sturm einen Hinweis für Arbeit in der Höhe. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md#wetter--winterdienst).
+**Wetter & Winterdienst:** Vorhersage und amtliche Warnungen von GeoSphere Austria je Revier. Objekte mit Winterdienst (§ 93 StVO, fertig bis 6 Uhr): bei Schnee oder Glätte legt ein Klick die Einsätze an und teilt das Winterdienst-Team ein; „Zu erledigen“ erinnert. Leistungen „im Freien“ bekommen bei Hitzewarnung den Hinweis auf den Hitzeschutzplan (Hitzeschutzverordnung) und bei Sturm einen Hinweis für Arbeit in der Höhe. **Schnee-Alarm:** Der Webspace prüft alle 10 Minuten je Ort (z. B. Salzburg, Hallein, Obertrum) und weckt das Team per Push aufs Handy (ntfy, Knopf „Bin wach“), sobald es zu schneien beginnt oder Glätte droht. Ohne Bestätigung geht der Alarm nach 15 Minuten an Stufe 2. Die Bereitschaft kann wöchentlich wechseln. Details: [docs/PLATTFORM.md](docs/PLATTFORM.md#wetter--winterdienst).
 
 **Rollen und Suche:** Jede Rolle sieht nur ihre Bereiche und Werkzeuge. Strg+K oder die Lupe sucht Personen, Objekte, Fahrzeuge und Bereiche.
 

@@ -2,10 +2,11 @@
 // Sicherheitsregeln und Cache-Zeiten wie in staticwebapp.config.json (Azure),
 // daraus erzeugt, damit beide Wege nie auseinanderlaufen.
 //
-// Drei Dateien, weil Apache Regeln je Ordner liest:
+// Mehrere Dateien, weil Apache Regeln je Ordner liest:
 //   .htaccess            ganze App (CSP, Header, Cache von index.html usw.)
 //   app/.htaccess        gebündelter Code mit Hash im Namen: dauerhaft cachen
 //   werkzeuge/.htaccess  Regeln der Werkzeuge (dürfen im Rahmen der App laufen)
+//   privat/.htaccess     Schnee-Alarm: Einstellungen und Stand, gesperrt
 // Alles in <IfModule>: Fehlt ein Modul, liefert der Webspace trotzdem aus
 // (ohne die Header) statt mit „500 Internal Server Error“ abzubrechen.
 // Kein Seitenschutz wie auf Azure: Der Code ist abrufbar, die Daten nur nach
@@ -65,5 +66,18 @@ export function htaccessFor(swa) {
     '</IfModule>',
     '',
   ].join('\n')
-  return { '.htaccess': root, 'app/.htaccess': app, 'werkzeuge/.htaccess': tools }
+  // Schnee-Alarm: Einstellungen (Namen, E-Mail, Schlüssel) und Stand nie ausliefern
+  const privat = [
+    KOPF,
+    '# Schnee-Alarm (wetter-alarm.php): Einstellungen und Stand, nur für PHP lesbar.',
+    '<IfModule mod_authz_core.c>',
+    '  Require all denied',
+    '</IfModule>',
+    '<IfModule !mod_authz_core.c>',
+    '  Order allow,deny',
+    '  Deny from all',
+    '</IfModule>',
+    '',
+  ].join('\n')
+  return { '.htaccess': root, 'app/.htaccess': app, 'werkzeuge/.htaccess': tools, 'privat/.htaccess': privat }
 }

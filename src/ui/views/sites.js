@@ -4,10 +4,11 @@ import { addDays, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT }
 import { holidayCalendar } from '../../core/holidays.js'
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
 import { wasteSummary } from '../../core/waste.js'
+import { locationFor } from '../../core/weather.js'
 import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
 import { readWaste, wasteSection } from '../waste-form.js'
-import { weatherEnabled, weatherRules } from '../weather.js'
+import { weatherEnabled, weatherLocations, weatherRules } from '../weather.js'
 import { regionFilter } from './objects.js'
 
 function sitesView() {
@@ -91,6 +92,7 @@ function winterSection(o) {
   return `<section class="obj-winter"><h3>${ICON.snow} Winterdienst</h3>
     <label class="check"><input type="checkbox" id="win-active" ${w.active ? 'checked' : ''}><span>Dieses Objekt räumen und streuen (Gehsteig, Zugang, Parkplatz)</span></label>
     <div class="form-grid">
+      <label class="field"><span>Ort (Wetter, Schnee-Alarm)</span><select id="obj-weatherplace">${options([['', `wie Revier (${locationFor({ region: o.region }, weatherLocations())?.name || '–'})`], ...weatherLocations().map((l) => [l.name, l.name])], o.weatherPlace || '')}</select></label>
       <label class="field"><span>Fertig bis</span><input type="time" id="win-until" value="${esc(w.until || '')}" placeholder="${esc(cfg.winterUntil)}"><small class="muted">leer = ${esc(cfg.winterUntil)} Uhr (Regeln)</small></label>
       <label class="field"><span>Dauer (min)</span><input type="number" id="win-minutes" min="5" step="5" value="${esc(w.minutes ?? '')}" placeholder="${esc(cfg.winterMinutes)}"></label>
       <label class="field"><span>Personen</span><input type="number" id="win-staff" min="1" step="1" value="${esc(w.staff ?? 1)}"></label>
@@ -288,6 +290,7 @@ registerActions(
         contact: val('obj-contact').trim() || undefined,
         keys: readKeys(),
         winter: readWinter(existing),
+        weatherPlace: document.getElementById('obj-weatherplace') ? val('obj-weatherplace') || undefined : existing.weatherPlace,
       }
       const waste = readWaste()
       obj.waste = waste.streams?.length ? waste : undefined

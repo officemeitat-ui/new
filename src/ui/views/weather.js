@@ -7,6 +7,7 @@ import { app, canEdit, persist, recordUndo, registerActions, registerView, rende
 import { registerTodo } from '../modals/todo.js'
 import { esc, ICON } from '../shared.js'
 import { cancelWinterCall, createWinterCalls, refreshWeather, weatherEnabled, weatherOverview, weatherState, winterOpen } from '../weather.js'
+import { alarmCard } from './weather-alarm.js'
 
 const de = (x, digits = 0) => (x === null || x === undefined ? '–' : Number(x).toLocaleString('de-AT', { maximumFractionDigits: digits }).replace('-', '−'))
 const dayName = (date, today) => (date === today ? 'Heute' : formatDate(date, { weekday: true }))
@@ -63,7 +64,7 @@ function weatherView() {
         <p class="note">Stand ${time(row.entry.at)} · ${esc(row.entry.source || 'GeoSphere')}${row.entry.partial ? ` · ${esc(row.entry.partial)}` : ''}</p></section>`
     })
     .join('')
-  return `${head}${status}${hint}${sections}
+  return `${head}${status}${hint}${alarmCard()}${sections}
     <p class="note">Daten: <a href="https://data.hub.geosphere.at" target="_blank" rel="noopener">GeoSphere Austria</a> (CC BY 4.0), Warnungen je Gemeinde. Orte und Schwellen (Neuschnee, Glätte, Hitze, Böen) unter <em>Regeln & Feiertage</em>.</p>`
 }
 

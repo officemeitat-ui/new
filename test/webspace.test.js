@@ -9,7 +9,7 @@ const route = (r) => swa.routes.find((x) => x.route === r).headers
 
 test('Webspace: .htaccess übernimmt die Sicherheitsregeln aus staticwebapp.config.json', () => {
   const files = htaccessFor(swa)
-  assert.deepEqual(Object.keys(files), ['.htaccess', 'app/.htaccess', 'werkzeuge/.htaccess'])
+  assert.deepEqual(Object.keys(files), ['.htaccess', 'app/.htaccess', 'werkzeuge/.htaccess', 'privat/.htaccess'])
   const root = files['.htaccess']
   for (const [name, value] of Object.entries(swa.globalHeaders)) assert.ok(root.includes(`Header always set ${name} "${value}"`), `App: ${name}`)
   assert.match(root, /Options -Indexes/)
@@ -26,6 +26,9 @@ test('Webspace: .htaccess übernimmt die Sicherheitsregeln aus staticwebapp.conf
   assert.match(tools, /Header set Cache-Control "no-cache"/)
   // gleiche Art („always“) wie im Hauptordner, sonst stünde die CSP doppelt
   assert.ok(!/Header set Content-Security-Policy/.test(root + tools))
+  // Schnee-Alarm: Einstellungen und Stand gesperrt (Apache 2.4 und älter)
+  assert.match(files['privat/.htaccess'], /<IfModule mod_authz_core\.c>\s+Require all denied\s+<\/IfModule>/)
+  assert.match(files['privat/.htaccess'], /<IfModule !mod_authz_core\.c>\s+Order allow,deny\s+Deny from all/)
 })
 
 test('Webspace: jeder Header-Block ist abgesichert, ungültige Werte brechen ab', () => {

@@ -58,8 +58,12 @@ if (appConfig.storage === 'sharepoint') {
   console.log('Probe: Daten im Browser' + (appConfig.demo ? ' mit Beispieldaten' : '') + '.')
 }
 for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, source), join(dist, target))
-// Wetter-Umweg für den Webspace (PHP), falls der Browser GeoSphere nicht direkt erreicht
-if (appConfig.weather !== false) await copy('wetter.php')
+// Wetter am Webspace (PHP): Umweg, falls der Browser GeoSphere nicht direkt erreicht, und
+// Schnee-Alarm (Cronjob). Einstellungen und Stand des Alarms liegen in privat/ (gesperrt).
+if (appConfig.weather !== false) {
+  for (const file of ['wetter.php', 'wetter-lib.php', 'wetter-alarm.php']) await copy(file)
+  await mkdir(join(dist, 'privat'), { recursive: true })
+}
 
 // ---------------------------------------------------------------- Bündeln
 let html = await readFile(join(root, 'index.html'), 'utf8')

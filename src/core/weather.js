@@ -206,11 +206,127 @@ export function stormCheck(outlook, cfg = WEATHER_DEFAULTS) {
   return { warning, windy: !!warning || (outlook.gust !== null && outlook.gust >= c.gustKmh), gust: outlook.gust }
 }
 
-/** Ort für ein Objekt: Revier mit Koordinaten, sonst der erste Ort. */
+/** Ort für ein Objekt: eigens gewählter Ort, sonst Ort mit dem Namen des Reviers, sonst der erste Ort. */
 export function locationFor(object, locations = WEATHER_DEFAULTS.locations) {
   const list = (locations || []).filter((l) => Number.isFinite(Number(l.lat)) && Number.isFinite(Number(l.lon)))
-  const region = String(object?.region || '').trim().toLowerCase()
-  return list.find((l) => region && String(l.name || '').trim().toLowerCase() === region) || list[0] || null
+  const named = (name) => {
+    const n = String(name || '').trim().toLowerCase()
+    return n ? list.find((l) => String(l.name || '').trim().toLowerCase() === n) : null
+  }
+  return named(object?.weatherPlace) || named(object?.region) || list[0] || null
+}
+
+// Orte im Land Salzburg (Ortsmitte, gerundet): „Hallein“ genügt, die Koordinaten kommen von hier
+export const PLACES = [
+  ['Salzburg', 47.8095, 13.055], ['Hallein', 47.6833, 13.097], ['Obertrum am See', 47.9372, 13.0767], ['Seekirchen am Wallersee', 47.8983, 13.1286],
+  ['Wals-Siezenheim', 47.7833, 12.9667], ['Grödig', 47.7383, 13.0372], ['Anif', 47.7461, 13.0656], ['Elsbethen', 47.7683, 13.0806],
+  ['Bergheim', 47.8333, 13.0333], ['Hallwang', 47.85, 13.0833], ['Eugendorf', 47.8667, 13.1333], ['Koppl', 47.8072, 13.1544],
+  ['Thalgau', 47.8333, 13.25], ['Neumarkt am Wallersee', 47.9453, 13.2233], ['Straßwalchen', 47.98, 13.2583], ['Mattsee', 47.9667, 13.1],
+  ['Oberndorf bei Salzburg', 47.9447, 12.9411], ['Anthering', 47.8833, 13.0083], ['Puch bei Hallein', 47.7139, 13.0919], ['Oberalm', 47.7, 13.1],
+  ['Kuchl', 47.6264, 13.1475], ['Golling an der Salzach', 47.5958, 13.1658], ['Abtenau', 47.5636, 13.3456], ['Fuschl am See', 47.7972, 13.3],
+  ['St. Gilgen', 47.7667, 13.3667], ['Bischofshofen', 47.4167, 13.2167], ['St. Johann im Pongau', 47.35, 13.2], ['Radstadt', 47.3833, 13.45],
+  ['Zell am See', 47.3256, 12.7969], ['Saalfelden', 47.4269, 12.8483], ['Tamsweg', 47.1281, 13.8108],
+].map(([name, lat, lon]) => ({ name, lat, lon }))
+
+/** Ort aus der Liste: genauer Name oder Anfang („Obertrum“ → Obertrum am See), ohne Groß/klein. */
+export function findPlace(name) {
+  const n = String(name || '').trim().toLowerCase()
+  if (!n) return null
+  return PLACES.find((p) => p.name.toLowerCase() === n) || PLACES.find((p) => p.name.toLowerCase().startsWith(`${n} `)) || null
+}
+
+// ---------------------------------------------------------------- Schnee-Alarm (wetter-alarm.php)
+
+export const ALARM_DEFAULTS = {
+  enabled: false,
+  ntfy: 'https://ntfy.sh', // Push-Dienst; eigener ntfy-Server möglich
+  leadHours: 3, // so weit voraus wecken (Schneefall in den nächsten Stunden)
+  snowCm: 0.3, // Schneefall ab so viel je Stunde
+  escalateMin: 15, // ohne „Bin wach“ nach so vielen Minuten an Stufe 2
+  pauseHours: 8, // ein Ort meldet sich höchstens so oft neu (außer die Warnstufe steigt)
+  quietFrom: '', // Ruhezeit (optional), Warnung orange/rot weckt trotzdem
+  quietTo: '',
+  sender: '', // Absender der E-Mails (z. B. winterdienst@firma.at)
+  emailLevel1: false, // Stufe 1 zusätzlich per E-Mail (nachts weckt die nicht)
+  officeEmails: '', // Stufe 2: weitere E-Mail-Adressen, mit Komma getrennt
+  places: {}, // je Ort: { active, level1: [Personen], level2: [Personen] }
+  topics: {}, // je Person und fürs Büro („office“): ntfy-Thema
+}
+
+/** Personen, die an einem Ort Winterdienst haben (Teams der Objekte), und die Objekte selbst. */
+export function winterAt(place, objects, locations) {
+  const here = (objects || []).filter((o) => o.winter?.active && locationFor(o, locations)?.name === place.name)
+  return { objects: here, team: [...new Set(here.flatMap((o) => o.winter.team || []))] }
+}
+
+/** Einstellungen eines Orts, ohne eigene Auswahl: Stufe 1 = Winterdienst-Teams der Objekte dort. */
+export function alarmPlace(alarm, place, objects, locations) {
+  const own = alarm?.places?.[place.name]
+  return { active: own ? own.active !== false : true, level1: own?.level1 ?? winterAt(place, objects, locations).team, level2: own?.level2 ?? [], rotate: !!own?.rotate }
+}
+
+/**
+ * Wöchentlicher Wechsel der Bereitschaft: wer in der Woche von `date` dran ist
+ * (Index in Stufe 1). Wechsel montags 0 Uhr, fortlaufend über den Jahreswechsel
+ * (wetter-alarm.php rechnet gleich).
+ */
+export function onCallIndex(date, count) {
+  if (!count) return -1
+  const days = Math.floor(Date.parse(`${date}T00:00:00Z`) / 86400e3)
+  return (((Math.floor((days + 3) / 7)) % count) + count) % count
+}
+
+/**
+ * Einstellungen für den Server (privat/wetter-alarm.json): Orte mit Koordinaten,
+ * je Stufe die Personen mit ntfy-Thema und E-Mail, Regeln, Schlüssel.
+ */
+export function alarmFile({ alarm, locations, objects, employees, address }) {
+  const a = { ...ALARM_DEFAULTS, ...alarm }
+  const person = (id, withEmail) => {
+    const e = employees.find((x) => x.id === id)
+    if (!e) return null
+    const out = { name: e.name }
+    if (a.topics?.[id]) out.ntfy = a.topics[id]
+    if (withEmail && e.email) out.email = e.email
+    return out.ntfy || out.email ? out : null
+  }
+  const office = [
+    ...(a.topics?.office ? [{ name: 'Büro', ntfy: a.topics.office }] : []),
+    ...String(a.officeEmails || '').split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)).map((email) => ({ name: 'Büro', email })),
+  ]
+  const orte = (locations || [])
+    .map((loc) => ({ loc, set: alarmPlace(a, loc, objects, locations) }))
+    .filter(({ set }) => set.active)
+    .map(({ loc, set }) => ({
+      name: loc.name,
+      lat: Number(loc.lat),
+      lon: Number(loc.lon),
+      objekte: winterAt(loc, objects, locations).objects.map((o) => o.name),
+      ...(set.rotate && set.level1.length > 1 ? { wechsel: 'woche' } : {}),
+      stufe1: set.level1.map((id) => person(id, a.emailLevel1)).filter(Boolean),
+      stufe2: [...set.level2.map((id) => person(id, true)).filter(Boolean), ...office],
+    }))
+  return {
+    version: 1,
+    schluessel: a.key,
+    pruefschluessel: a.cronKey,
+    adresse: address,
+    ntfy: a.ntfy || ALARM_DEFAULTS.ntfy,
+    absender: a.sender || '',
+    regeln: { vorlaufStunden: Number(a.leadHours), schneeCm: Number(a.snowCm), pauseStunden: Number(a.pauseHours), eskalationMinuten: Number(a.escalateMin), ruheVon: a.quietFrom || '', ruheBis: a.quietTo || '', ruheAusnahmeStufe: 2 },
+    orte,
+  }
+}
+
+/** Was am Alarm noch fehlt (für die Anzeige): Orte ohne Stufe 1, Personen ohne Handy-Thema. */
+export function alarmProblems(file) {
+  const out = []
+  for (const o of file.orte) {
+    if (!o.stufe1.length) out.push(`${o.name}: niemand in Stufe 1`)
+    else if (!o.stufe1.some((p) => p.ntfy)) out.push(`${o.name}: Stufe 1 ohne Handy (ntfy)`)
+  }
+  if (!file.orte.length) out.push('kein Ort eingeschaltet')
+  return out
 }
 
 // ---------------------------------------------------------------- Winterdienst-Einsätze

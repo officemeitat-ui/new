@@ -219,6 +219,40 @@ Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und 
 
 **Einstellungen** unter *Regeln & Feiertage → Wetter & Winterdienst*: Orte je Revier („Flachgau = 47.90, 13.13“, ein Objekt nimmt den Ort seines Reviers, sonst den ersten), fertig bis, Dauer, ab wie viel Neuschnee, Glätte-Temperatur, Hitze- und Böen-Schwelle.
 
+### Schnee-Alarm: das Team wecken
+
+Damit niemand nachts selbst aufs Wetter schauen muss: Der Webspace prüft **alle 10 Minuten** (Cronjob, auch wenn niemand die App offen hat) je Ort, etwa Salzburg, Hallein oder Obertrum, Vorhersage und Warnungen. Ausgelöst wird bei:
+
+- Schneefall in den nächsten 3 Stunden (ab 0,3 cm je Stunde);
+- Glätte, also Niederschlag bei Frost;
+- einer Schnee- oder Glatteiswarnung von GeoSphere.
+
+Was dann passiert:
+
+- **Stufe 1** wird per Push aufs Handy geweckt: App **ntfy**, höchste Priorität, Knopf **„Bin wach“**. Auf Wunsch kommt zusätzlich eine E-Mail.
+- Bestätigt **15 Minuten** lang niemand, geht der Alarm an **Stufe 2**, z. B. Büro-Handy, Disposition oder E-Mail.
+- Ein Ort meldet sich höchstens alle 8 Stunden neu, außer die Warnstufe steigt.
+- Optional gibt es eine **Ruhezeit** (z. B. 22–3 Uhr): Dann wird erst am Ende geweckt, Warnung orange oder rot weckt sofort.
+- Kommen 2 Stunden lang keine Wetterdaten, erfährt es Stufe 2.
+
+**Einrichten** unter *Wetter & Winterdienst → Alarm einrichten*:
+
+- **Orte:** dazunehmen, für Orte im Land Salzburg genügt der Name („Hallein“, „Obertrum“). Beim Objekt lässt sich der Ort wählen (*Objekte & Leistungen → Winterdienst → Ort*).
+- **Stufe 1** sind anfangs die Winterdienst-Teams der Objekte an diesem Ort. **„Stufe 1 wechselt wöchentlich“** teilt die Bereitschaft auf: je Woche eine Person, Wechsel montags.
+- **Handys:** Jede Person in Stufe 1 und 2 bekommt ein eigenes ntfy-Thema. Es kommt per „Einladung per E-Mail“ oder wird kopiert. Auf dem Handy: App ntfy installieren, auf + tippen und das Thema abonnieren. Dann beim Thema höchste Priorität und „Nicht stören übergehen“ erlauben (Android: Benachrichtigungskategorie der höchsten Priorität; iPhone: unter Fokus die App ntfy erlauben). „Testalarm senden“ prüft alle Handys.
+- **Webspace:** Einmalig „Alarm-Datei herunterladen“ und die Datei in den Ordner `privat/` der App hochladen (Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)), dazu den Cronjob. Danach überträgt „Speichern und übertragen“ jede Änderung direkt.
+
+Die Karte „Schnee-Alarm“ zeigt je Ort:
+
+- wer Bereitschaft hat;
+- die Lage;
+- den letzten Alarm und wer bestätigt hat;
+- wann der Webspace zuletzt geprüft hat. Liegt das über 30 Minuten zurück, ist der Cronjob zu prüfen.
+
+Dazu kommt ein Protokoll.
+
+**Rufbereitschaft:** Wer in Stufe 1 steht, muss erreichbar sein. Das ist Rufbereitschaft (§ 20a AZG) und außerhalb der Arbeitszeit nur an 10 Tagen im Monat erlaubt; der KV kann 30 Tage in 3 Monaten zulassen. Deshalb gibt es den wöchentlichen Wechsel (ab 4 Personen bleibt jede Person bei rund einer Woche im Monat), und der Dialog weist darauf hin. Siehe [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md).
+
 **Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.
 
 ## Ohne Netz (Keller, Tiefgarage)

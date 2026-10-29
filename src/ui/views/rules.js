@@ -5,6 +5,7 @@ import { formatDate } from '../../core/dates.js'
 import { austrianHolidays } from '../../core/holidays.js'
 import { DEFAULT_HOLIDAY_RULE } from '../../core/plan.js'
 import { DEFAULT_RULES, mergeRules, RULES, travelKey } from '../../core/rules.js'
+import { findPlace } from '../../core/weather.js'
 import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
 import { checked, esc, ICON, num, options, val } from '../shared.js'
 
@@ -98,13 +99,19 @@ export const WEATHER_FIELDS = [
 
 const locationsText = (list) => (list || []).map((l) => `${l.name} = ${l.lat}, ${l.lon}`).join('\n')
 
-/** „Revier = Breite, Länge“ je Zeile → [{ name, lat, lon }]; Fehler als Text. */
+/** „Revier = Breite, Länge“ oder nur ein Ortsname (Land Salzburg) je Zeile → [{ name, lat, lon }]; Fehler als Text. */
 export function parseLocations(text) {
   const list = []
   for (const line of String(text || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean)) {
     const m = line.match(/^(.+?)\s*[=:]\s*(.+)$/)
+    // nur ein Name: Koordinaten aus der Ortsliste (Land Salzburg)
+    const known = !m && findPlace(line)
+    if (known) {
+      list.push({ name: line, lat: known.lat, lon: known.lon })
+      continue
+    }
     const nums = (m?.[2].match(/-?\d+(?:[.,]\d+)?/g) || []).map((x) => Number(x.replace(',', '.')))
-    if (!m || nums.length !== 2) return { error: `„${line}“: bitte als „Revier = Breite, Länge“ schreiben, z. B. „Salzburg = 47.8095, 13.055“.` }
+    if (!m || nums.length !== 2) return { error: `„${line}“: Ort nicht in der Liste. Bitte als „Name = Breite, Länge“ schreiben, z. B. „Salzburg = 47.8095, 13.055“.` }
     const [lat, lon] = nums
     if (lat < 46 || lat > 49.1 || lon < 9.4 || lon > 17.2) return { error: `„${line}“: liegt nicht in Österreich (Breite 46–49, Länge 9,5–17).` }
     list.push({ name: m[1].trim(), lat, lon })
@@ -120,8 +127,8 @@ function weatherFieldset() {
     return `<div class="rule"><label for="${id}">${label}</label><input id="${id}" ${input} value="${esc(ruleValue(key))}"><small>${hint}</small></div>`
   }).join('')
   return `<fieldset><legend>Wetter & Winterdienst</legend>${fields}
-    <div class="rule"><label for="rule-weather-locations">Orte (Revier = Breite, Länge)</label><textarea id="rule-weather-locations" rows="3" style="font-family:inherit;font-size:inherit">${esc(locationsText(ruleValue('weather').locations))}</textarea>
-    <small>Je Zeile ein Ort. Objekte nutzen den Ort ihres Reviers (gleicher Name), sonst den ersten. Koordinaten z. B. im Kartendienst mit Rechtsklick auf den Ort.</small></div>
+    <div class="rule"><label for="rule-weather-locations">Orte (Wetter und Schnee-Alarm)</label><textarea id="rule-weather-locations" rows="3" style="font-family:inherit;font-size:inherit">${esc(locationsText(ruleValue('weather').locations))}</textarea>
+    <small>Je Zeile ein Ort. Für Orte im Land Salzburg genügt der Name (z. B. „Hallein“, „Obertrum“), sonst „Name = Breite, Länge“ (im Kartendienst Rechtsklick auf den Ort). Objekte nutzen den beim Objekt gewählten Ort, sonst den Ort ihres Reviers, sonst den ersten.</small></div>
     <p class="note">Vorhersage und amtliche Warnungen: GeoSphere Austria (Data Hub, CC BY 4.0).</p></fieldset>`
 }
 
