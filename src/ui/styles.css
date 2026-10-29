@@ -517,6 +517,10 @@ details[open] summary { margin-bottom: 10px; }
 .info-text { color: var(--info); font-weight: 600; }
 .ok-text { color: var(--ok); font-weight: 600; }
 .boot { padding-block: 48px; display: grid; gap: 12px; max-width: 70ch; }
+.setup-steps { display: grid; gap: 10px; padding-left: 1.3em; line-height: 1.5; }
+.setup-value { display: inline-block; margin: 4px 6px 0 0; padding: 2px 6px; border-radius: 6px; background: var(--surface-2, #eef2f5); overflow-wrap: anywhere; }
+.setup-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.setup-form input { flex: 1 1 22ch; min-width: 0; font-family: ui-monospace, monospace; }
 
 button.stat { text-align: left; font: inherit; color: inherit; cursor: pointer; }
 button.stat:hover { border-color: var(--line-strong); }

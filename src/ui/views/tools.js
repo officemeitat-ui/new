@@ -11,7 +11,7 @@
 //   Dienstplan wechselt: Sein Rahmen liegt außerhalb der Seite, die die App
 //   bei jeder Änderung neu zeichnet, und wird nur über den Platzhalter gelegt.
 
-import { app, registerActions, registerView, renderNow } from '../context.js'
+import { app, registerActions, registerView, renderNow, visibleViews } from '../context.js'
 import { esc, ICON } from '../shared.js'
 
 export const TOOLS = [
@@ -73,6 +73,13 @@ export function syncTools() {
   Object.assign(el.style, { top: `${r.top + window.scrollY}px`, left: `${r.left + window.scrollX}px`, width: `${r.width}px`, height: `${r.height}px` })
 }
 window.addEventListener('resize', () => syncTools())
+
+/** Adressen der Werkzeuge, die die eigene Rolle sieht (samt Anmeldebrücke): zum Vorhalten für ohne Netz. */
+export function toolUrls() {
+  const visible = new Set(visibleViews().map((v) => v.id))
+  const urls = TOOLS.filter((t) => visible.has(t.id)).map(url)
+  return urls.length ? [...urls, 'werkzeuge/bruecke.js'] : []
+}
 
 // ---------------------------------------------------------------- Anmeldung für die Werkzeuge
 

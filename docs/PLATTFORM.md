@@ -137,6 +137,7 @@ Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für de
 - **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.
 - **Alles wie gewohnt.** Ablesen, Fotos, Berichte, Kontrollen mit Unterschrift, Objektblatt mit Öffnungscode, Touren und Lieferscheine: Es ist dieselbe Datei, mit denselben Daten in denselben SharePoint-Ordnern. Ohne Netz arbeiten die Werkzeuge weiter wie bisher.
 - **Bleibt offen.** Wer zwischendurch in den Dienstplan wechselt, findet das Werkzeug unverändert wieder (auch eine halb erfasste Liste).
+- **Startet auch im Keller.** Die installierte App hält die Werkzeuge der eigenen Rolle beim Start (mit Netz) im Gerät vor, in einem eigenen Speicher, den App-Updates nicht löschen. Ein Werkzeug öffnet sich dadurch auch ohne Netz, selbst wenn es auf diesem Gerät noch nie geöffnet wurde. Mit Netz kommt immer die neueste Fassung.
 - **„Abschließen“ legt alles in SharePoint ab, auch das PDF.** Ein Klick genügt, niemand muss ans Ablegen denken:
 
   | Werkzeug | beim Abschließen in SharePoint |

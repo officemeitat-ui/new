@@ -26,6 +26,10 @@ test('App-Installation: Service Worker ist gültiges JavaScript und lässt die A
   assert.match(src, /"\.\/app\/app-X\.js"/)
   assert.match(src, /startsWith\('\/\.auth\/'\)\) return/)
   assert.match(src, /request\.mode === 'navigate'/)
+  // Werkzeuge: eigener Speicher, den App-Updates nicht löschen (gelöscht wird nur 'dienstplan-…')
+  assert.match(src, /const WERKZEUGE = 'werkzeuge-1'/)
+  assert.ok(!'werkzeuge-1'.startsWith('dienstplan-'))
+  assert.match(src, /'werkzeuge-vorhalten'/)
 })
 
 test('Quelltext: alle Module der Oberfläche sind gültiges JavaScript', async () => {

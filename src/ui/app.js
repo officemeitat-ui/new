@@ -18,8 +18,9 @@ import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
 import { sidebar } from './sidebar.js'
 import { planWeek, seedDemoHistory } from './planning.js'
-import { syncTools } from './views/tools.js'
+import { syncTools, toolUrls } from './views/tools.js'
 import { searchButton } from './search.js'
+import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
@@ -453,7 +454,15 @@ function registerServiceWorker() {
     $toast.innerHTML = '<span>Neue Version der App verfügbar.</span><button class="toast-btn" data-action="reload">Neu laden</button>'
     $toast.hidden = false
   })
-  navigator.serviceWorker.register('sw.js').catch(() => {})
+  navigator.serviceWorker
+    .register('sw.js')
+    .then(() => navigator.serviceWorker.ready)
+    // Werkzeuge der eigenen Rolle für ohne Netz vorhalten (Keller), nicht erst beim ersten Öffnen
+    .then((reg) => {
+      const urls = toolUrls()
+      if (urls.length) reg.active?.postMessage({ type: 'werkzeuge-vorhalten', urls })
+    })
+    .catch(() => {})
 }
 
 boot().catch((err) => {
@@ -461,6 +470,11 @@ boot().catch((err) => {
   if (err.signOut) {
     app.switchAccount = err.signOut
     return showMessage(`<h2>Anmeldung nicht möglich</h2><p>${esc(err.message)}</p><p><button class="btn primary" data-action="switch-account">Mit anderem Konto anmelden</button></p>`)
+  }
+  // hochgeladen, aber noch ohne Anwendungs-ID: Einrichtungsschritte statt Fehlermeldung
+  if (err.unregistered) {
+    Object.assign(ACTIONS, setupActions(download), { reload: () => location.reload() })
+    return showMessage(setupHtml(app.config || {}, err.redirectUri))
   }
   console.error(err)
   if (err.offline) return showMessage(`<h2>Keine Verbindung</h2><p>${esc(err.message)}</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`) || (ACTIONS.reload = () => location.reload())
