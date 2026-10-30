@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-import { mitBruecke, WERKZEUGE } from '../scripts/werkzeuge.js'
+import { APP_FARBEN, fuerApp, mitBruecke, WERKZEUGE } from '../scripts/werkzeuge.js'
 
 const datei = (name) => readFileSync(new URL(`../werkzeuge/${name}/index.html`, import.meta.url), 'utf8')
 
@@ -21,6 +21,18 @@ test('Werkzeuge: alle vier passen zur Anmeldebrücke, sie wird als erstes Skript
     assert.ok(out.indexOf('<meta charset') < brueckeAt, `${name}: Zeichensatz bleibt vorn`)
     // sonst unverändert
     assert.equal(out.replace('\n<script src="../bruecke.js"></script>', ''), html, `${name}: Datei sonst unverändert`)
+  }
+})
+
+test('Werkzeuge: in der App mit den Cleanos-Farben, sonst unverändert', () => {
+  const ohneFarben = (t) => t.replace(/#[0-9a-f]{6}(?![0-9a-f])/gi, '#')
+  for (const { name } of WERKZEUGE) {
+    const html = readFileSync(new URL(`../werkzeuge/${name}/index.html`, import.meta.url), 'utf8')
+    const out = fuerApp(html, name)
+    for (const alt of Object.keys(APP_FARBEN)) assert.ok(!out.toLowerCase().includes(alt), `${name}: ${alt} noch drin`)
+    assert.ok(out.includes('#0c6cb4'), `${name}: Cleanos-Blau`)
+    assert.equal(ohneFarben(out), ohneFarben(mitBruecke(html, name)), `${name}: nur Farben geändert`)
+    assert.ok(/#0f70b7/i.test(html), `${name}: Quelle selbst bleibt unverändert`)
   }
 })
 

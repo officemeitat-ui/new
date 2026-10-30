@@ -1,7 +1,8 @@
 // Die Werkzeuge (werkzeuge/<name>/index.html) kommen unverändert in die App.
-// Beim Bau (und im Entwicklungs-Server) wird nur werkzeuge/bruecke.js als
+// Beim Bau (und im Entwicklungs-Server) wird werkzeuge/bruecke.js als
 // erstes Skript eingesetzt: Läuft ein Werkzeug in der Cleanos App, nutzt es
-// deren Anmeldung (siehe dort).
+// deren Anmeldung (siehe dort). Außerdem bekommt die Kopie die Farben der App
+// (Cleanos-Design nach www.cleanos.at) statt der leicht abweichenden Töne.
 //
 // Neue Fassung eines Werkzeugs: die index.html aus dem Webspace-Paket nach
 // werkzeuge/<name>/ kopieren, fertig. Passt das Anmeldeverfahren nicht mehr
@@ -41,6 +42,25 @@ export function mitBruecke(html, name) {
   return `${html.slice(0, pos)}\n${SCRIPT}${html.slice(pos)}`
 }
 
+// Farben der Werkzeuge → Farben der App (themes/cleanos.css). Gilt für alles in der
+// Datei: Oberfläche, Bericht und PDF verwenden dieselben Werte.
+export const APP_FARBEN = {
+  '#0f70b7': '#0c6cb4', // Blau → Cleanos-Blau
+  '#0b5a94': '#0a5a96', // Blau dunkel
+  '#a1c855': '#9cc654', // Grün → Cleanos-Grün
+  '#6d9227': '#4e7a1e', // Grün dunkel (auf Weiß gut lesbar)
+  '#f1f7e3': '#eef6e2', // Hellgrün
+  '#2b2b2b': '#13232f', // Text
+  '#595959': '#4b5b67', // Text leise
+}
+const FARBE = new RegExp(`#(${Object.keys(APP_FARBEN).map((f) => f.slice(1)).join('|')})(?![0-9a-f])`, 'gi')
+
+/** Farben eines Werkzeugs auf die der App umstellen. */
+export const inAppFarben = (html) => html.replace(FARBE, (f) => APP_FARBEN[f.toLowerCase()])
+
+/** Werkzeug für die App: Brücke einsetzen, Farben der App. */
+export const fuerApp = (html, name) => inAppFarben(mitBruecke(html, name))
+
 /** Kopiert alle Werkzeuge mit Brücke nach dist/werkzeuge/. Liefert die Pfade. */
 export async function werkzeugeBauen(root, dist) {
   const out = []
@@ -49,7 +69,7 @@ export async function werkzeugeBauen(root, dist) {
   for (const { name } of WERKZEUGE) {
     const html = await readFile(join(root, 'werkzeuge', name, 'index.html'), 'utf8')
     await mkdir(join(dist, 'werkzeuge', name), { recursive: true })
-    await writeFile(join(dist, 'werkzeuge', name, 'index.html'), mitBruecke(html, name))
+    await writeFile(join(dist, 'werkzeuge', name, 'index.html'), fuerApp(html, name))
     out.push(`werkzeuge/${name}/index.html`)
   }
   return out

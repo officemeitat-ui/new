@@ -101,7 +101,7 @@ Das Cleanos-Design folgt den Gestaltungsregeln von www.cleanos.at:
 | Grün dunkel auf Hellgrün | `#4E7A1E` / `#EEF6E2` | „in Ordnung“, erledigt |
 | Grauton / Linie | `#F3F6F8` / `#DDE5EA` | Hintergrund, Rahmen |
 
-Schrift ist die Systemschrift (Segoe UI), Knöpfe haben 8 px Ecken und sind fett, Karten 12 px; Überschriften und Beschriftungen nie in Großbuchstaben oder gesperrt. Alle Textfarben sind auf Lesbarkeit geprüft (mindestens 4,5:1). Werte in `themes/cleanos.css`, Logo und PDF-Farben in `config.json` (brand).
+Die vier Werkzeuge bekommen beim Bauen dieselben Farben (ihre Dateien bleiben unverändert, siehe `werkzeuge/LIESMICH.md`). Schrift ist die Systemschrift (Segoe UI), Knöpfe haben 8 px Ecken und sind fett, Karten 12 px; Überschriften und Beschriftungen nie in Großbuchstaben oder gesperrt. Alle Textfarben sind auf Lesbarkeit geprüft (mindestens 4,5:1). Werte in `themes/cleanos.css`, Logo und PDF-Farben in `config.json` (brand).
 
 **Darstellung je Person:** Über das Paletten-Symbol unten in der Seitenleiste oder „⋯ → Darstellung“ (am Handy „Mehr → Darstellung“) wählt jede Person für ihr Gerät:
 

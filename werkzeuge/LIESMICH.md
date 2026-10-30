@@ -40,6 +40,18 @@ Auf dem Webspace meldet sich jedes Werkzeug selbst bei Microsoft an (PKCE, eigen
 
 Die Rechte für die Werkzeuge kommen damit aus der Registrierung der Cleanos App: **User.Read, Sites.ReadWrite.All, Mail.Send**; für den Termin der Nachkontrolle **Calendars.ReadWrite**; für die Routen im Mattenwechsel **Azure Maps / user_impersonation**. Fehlt die Zustimmung zu Mail.Send oder zum Kalender, laufen die Werkzeuge ohne Direktversand bzw. Termin weiter. Fehlt die Anmeldung ganz (z. B. abgelaufen), arbeiten sie am Gerät weiter, und die App zeigt „Neu anmelden“.
 
+## Farben: wie die App
+
+Die Werkzeuge verwenden fast die Cleanos-Farben, aber leicht andere Töne als die App. Der Bau stellt in der Kopie in `dist/` (und im Entwicklungs-Server) die Farbwerte auf die der App um (`themes/cleanos.css`, nach www.cleanos.at). Das gilt überall in der Datei, also für Oberfläche, Bericht und PDF:
+
+| im Werkzeug | in der App |
+|---|---|
+| Blau `#0F70B7`, Blau dunkel `#0B5A94` | Cleanos-Blau `#0C6CB4`, `#0A5A96` |
+| Grün `#A1C855`, Grün dunkel `#6D9227`, Hellgrün `#F1F7E3` | Cleanos-Grün `#9CC654`, `#4E7A1E` (auf Weiß gut lesbar), `#EEF6E2` |
+| Text `#2B2B2B`, Text leise `#595959` | `#13232F`, `#4B5B67` |
+
+Die Dateien hier bleiben unverändert; eine neue Fassung wird genauso umgefärbt. Die Tabelle steht in `scripts/werkzeuge.js` (`APP_FARBEN`).
+
 ## Wer sieht was, wer darf was
 
 - **Sehen** (Seitenleiste): nach Rolle, also nach Microsoft-Gruppe (`src/core/access.js`, Module oben in der Tabelle).

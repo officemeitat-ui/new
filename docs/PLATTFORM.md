@@ -127,7 +127,7 @@ Die Objektdoku liest zusätzlich die Objektliste unter `Objektpruefprotokolle/St
 
 ## Die eigenen Werkzeuge in der App
 
-Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für den Webspace gebaut sind (`werkzeuge/<name>/index.html`):
+Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für den Webspace gebaut sind (`werkzeuge/<name>/index.html`). Nur ihre Farbtöne stellt der Bau auf die Cleanos-Farben der App um, damit alles gleich aussieht (siehe `werkzeuge/LIESMICH.md`, „Farben“):
 
 | Werkzeug | Fassung | Ordner in der App | SharePoint |
 |---|---|---|---|
