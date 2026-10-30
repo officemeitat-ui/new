@@ -105,11 +105,13 @@ Die vier Werkzeuge bekommen beim Bauen dieselben Farben (ihre Dateien bleiben un
 
 **Darstellung je Person:** Über das Paletten-Symbol unten in der Seitenleiste oder „⋯ → Darstellung“ (am Handy „Mehr → Darstellung“) wählt jede Person für ihr Gerät:
 
-- **Farbschema:** Cleanos (helle Seitenleiste wie die Website), Cleanos Nachtblau (Seitenleiste in Nachtblau), Standard, Ruhig (Petrol, warme Grautöne), Hoher Kontrast (für Sonne am Handy).
+- **Farbschema:** Cleanos (helle Seitenleiste wie die Website), Cleanos Nachtblau (Seitenleiste in Nachtblau), Cleanos Kontrast (kräftige Rahmen und dunklere Schrift, für Sonne am Handy). Es ist eine interne Cleanos App: Andere Farbschemata gibt es nicht (`brand.builtinThemes: false`); wer früher „Standard“, „Ruhig“ oder „Hoher Kontrast“ gewählt hatte, sieht wieder Cleanos.
 - **Hell, dunkel oder wie das Gerät.**
 - **Schriftgröße:** normal oder groß.
 
-Die Voreinstellung für alle ist `brand.theme` in `config.json`; die Marken-Farbschemata und ihre Vorschau stehen in `brand.themes`. Der Name oben links und am Startbildschirm ist `brand.app` („Cleanos App“).
+Die Voreinstellung für alle ist `brand.theme` in `config.json`; die Marken-Farbschemata und ihre Vorschau stehen in `brand.themes`.
+
+**Überall im Cleanos-Design:** App, Einrichtungsseite, die vier Werkzeuge (Farben beim Bauen angeglichen), PDF-Wochenpläne und Auszahlungen (Tagesbänder in Cleanos-Blau getönt, Sonderleistungen in Cleanos-Grün dunkel, `brand.colors` mit `accentText` und `muted`), Schnee-Alarm (Seite „Bin wach“ mit Logo und Cleanos-Blau, Push mit dem App-Symbol, E-Mails als „Cleanos App – Winterdienst“). Rot für Vertretungen und die gelbe Summenzeile bleiben, weil sie eine feste Bedeutung haben. Der Name oben links und am Startbildschirm ist `brand.app` („Cleanos App“).
 
 **Andere Marke:** `npm run theme -- https://www.firma.at` (oder `--logo … --primary … --accent …`) erzeugt `themes/<name>.css` mit einem wählbaren Farbschema und trägt es in `config.json` ein. Achtung: Mit dem Namen `cleanos` würde das von Hand nach den Gestaltungsregeln abgestimmte Cleanos-Theme überschrieben; zum Ausprobieren `--name test` verwenden.
 

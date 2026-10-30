@@ -184,6 +184,26 @@ function in_ruhezeit(array $r, int $ts): bool
     return $r['ruheVon'] <= $r['ruheBis'] ? ($t >= $r['ruheVon'] && $t < $r['ruheBis']) : ($t >= $r['ruheVon'] || $t < $r['ruheBis']);
 }
 
+/** Marke aus config.json der App (Name, Hausfarbe, Logo, App-Symbol) für die Seite „Bin wach“ und die Nachrichten. */
+function marke(): array
+{
+    static $m = null;
+    if ($m !== null) {
+        return $m;
+    }
+    $c = json_decode((string) @file_get_contents(__DIR__ . '/config.json'), true);
+    $b = is_array($c['brand'] ?? null) ? $c['brand'] : [];
+    $farbe = fn ($v, string $sonst) => is_string($v) && preg_match('/^#[0-9a-f]{6}$/i', $v) ? $v : $sonst;
+    $datei = fn ($v) => is_string($v) && preg_match('#^[a-z0-9][a-z0-9/_.-]*\.(png|svg|jpg|webp)$#i', $v) && !str_contains($v, '..') ? $v : '';
+    return $m = [
+        'app' => is_string($b['app'] ?? null) ? $b['app'] : (is_string($b['name'] ?? null) ? $b['name'] : 'App'),
+        'farbe' => $farbe($b['colors']['primary'] ?? null, '#1d4ea6'),
+        'leise' => $farbe($b['colors']['muted'] ?? null, '#4b5b67'),
+        'logo' => $datei($b['logoOnLight'] ?? $b['logo'] ?? ''),
+        'symbol' => $datei($b['appIcons'][0] ?? $b['icon'] ?? ''),
+    ];
+}
+
 // ---------------------------------------------------------------- Benachrichtigen
 
 function adresse(array $e): string
@@ -204,13 +224,14 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
             'message' => $text,
             'priority' => 5,
             'tags' => ['snowflake', 'rotating_light'],
+            'icon' => marke()['symbol'] ? adresse($e) . marke()['symbol'] : null,
             'click' => $app,
             'actions' => array_values(array_filter([
                 $wach ? ['action' => 'http', 'label' => 'Bin wach', 'url' => $wach, 'method' => 'POST', 'clear' => true] : null,
                 ['action' => 'view', 'label' => 'App öffnen', 'url' => $app],
             ])),
         ];
-        [$status] = holen(rtrim((string) ($e['ntfy'] ?? 'https://ntfy.sh'), '/'), json_encode($nachricht, JSON_UNESCAPED_UNICODE));
+        [$status] = holen(rtrim((string) ($e['ntfy'] ?? 'https://ntfy.sh'), '/'), json_encode(array_filter($nachricht, fn ($v) => $v !== null), JSON_UNESCAPED_UNICODE));
         if ($status < 200 || $status >= 300) {
             $fehler[] = sprintf('ntfy an %s: %s', $person['name'] ?? '?', $status ? "Antwort $status" : 'nicht erreichbar');
         }
@@ -219,9 +240,9 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
         $absender = filter_var($e['absender'] ?? '', FILTER_VALIDATE_EMAIL) ? $e['absender'] : null;
         $kopf = ['MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit', 'Auto-Submitted: auto-generated'];
         if ($absender) {
-            $kopf[] = 'From: Winterdienst-Alarm <' . $absender . '>';
+            $kopf[] = 'From: =?UTF-8?B?' . base64_encode(marke()['app'] . ' – Winterdienst') . '?= <' . $absender . '>';
         }
-        $inhalt = $text . "\n\n" . ($wach ? "Bitte bestätigen: $wach\n" : '') . "App: $app\n\nAutomatische Nachricht (Wetterdaten: GeoSphere Austria).\n";
+        $inhalt = $text . "\n\n" . ($wach ? "Bitte bestätigen: $wach\n" : '') . "App: $app\n\nAutomatische Nachricht der " . marke()['app'] . " (Wetterdaten: GeoSphere Austria).\n";
         $ok = @mail($person['email'], '=?UTF-8?B?' . base64_encode($titel) . '?=', $inhalt, implode("\r\n", $kopf), $absender ? '-f' . $absender : '');
         if (!$ok) {
             $fehler[] = sprintf('E-Mail an %s nicht versendet', $person['name'] ?? $person['email']);
@@ -335,14 +356,22 @@ if ($aktion === 'wach') {
     $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
-    $seite = fn (string $inhalt) => print('<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Winterdienst</title><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;font-size:1.15rem">' . $inhalt . '</body></html>');
+    // im Design der App: Logo, Hausfarbe, Systemschrift, Knöpfe mit 8 px Ecken
+    $m = marke();
+    $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
+    $seite = fn (string $inhalt) => print('<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="' . $m['farbe'] . '"><title>' . $h($m['app']) . ' – Winterdienst</title>'
+        . '<style>body{margin:0;padding:1rem;background:#f3f6f8;color:#13232f;font:1.1rem/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif}'
+        . 'main{max-width:30rem;margin:1rem auto;padding:1.5rem;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgb(19 35 47/.06),0 6px 20px rgb(19 35 47/.08)}'
+        . 'img{display:block;max-width:180px;max-height:64px;margin:0 0 1rem}h1{font-size:1.4rem;margin:0 0 .5rem}p{color:' . $m['leise'] . '}'
+        . 'button{font:inherit;font-weight:700;font-size:1.2rem;color:#fff;background:' . $m['farbe'] . ';border:0;border-radius:8px;padding:.85rem 1.4rem;width:100%;cursor:pointer}</style></head>'
+        . '<body><main>' . ($m['logo'] ? '<img src="' . $h($m['logo']) . '" alt="' . $h($m['app']) . '">' : '') . $inhalt . '</main></body></html>');
     if (strlen($token) !== 24) {
         http_response_code(400);
         $seite('<p>Ungültiger Link.</p>');
         exit;
     }
     if ($methode !== 'POST') {
-        $seite('<h1>Winterdienst</h1><form method="post"><button style="font-size:1.3rem;padding:.8rem 1.6rem" type="submit">Ich bin wach und übernehme</button></form>');
+        $seite('<h1>Winterdienst</h1><p>Bitte bestätigen, dass du wach bist und den Winterdienst übernimmst.</p><form method="post"><button type="submit">Ich bin wach und übernehme</button></form>');
         exit;
     }
     $wer = mit_stand(function (array &$stand) use ($token) {

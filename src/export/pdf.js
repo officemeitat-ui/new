@@ -26,25 +26,25 @@ function dayNote(day) {
   return parts.join(' · ')
 }
 
-function lineRow(line, objectsById) {
+function lineRow(line, objectsById, colors) {
   const obj = line.inst ? objectsById.get(line.inst.objectId) : null
-  const color = line.style === 'changed' ? RED : line.style === 'special' ? GREEN : undefined
+  const color = line.style === 'changed' ? RED : line.style === 'special' ? colors.special : undefined
   const struck = line.style === 'struck'
-  const deco = struck ? { decoration: 'lineThrough', color: GREY } : color ? { color } : {}
+  const deco = struck ? { decoration: 'lineThrough', color: colors.grey } : color ? { color } : {}
   const title = obj ? [{ text: obj.name, bold: true }, line.inst.label ? ` – ${line.inst.label}` : ''] : line.text
   const text = [{ text: title, ...deco }]
-  if (obj?.address && !struck) text.push({ text: obj.address, fontSize: 7, color: GREY })
+  if (obj?.address && !struck) text.push({ text: obj.address, fontSize: 7, color: colors.grey })
   return [
     { text: line.time.replace(' - ', '–'), bold: true, alignment: 'center', ...deco },
     { stack: text },
     { text: h(line.hours), alignment: 'center' },
     { text: h(line.credited), alignment: 'center' },
     { text: h(line.travel), alignment: 'center' },
-    { text: [...line.notes, line.trip?.note && !line.notes.some((n) => n.includes(line.trip.note)) ? `Fahrt: ${line.trip.note}` : ''].filter(Boolean).join(' · '), fontSize: 7.5, color: GREY },
+    { text: [...line.notes, line.trip?.note && !line.notes.some((n) => n.includes(line.trip.note)) ? `Fahrt: ${line.trip.note}` : ''].filter(Boolean).join(' · '), fontSize: 7.5, color: colors.grey },
   ]
 }
 
-function objectNotes(ts, objectsById, employeesById) {
+function objectNotes(ts, objectsById, employeesById, colors) {
   const seen = new Map()
   for (const day of ts.days) for (const l of day.lines) if (l.kind === 'work' && l.inst && !seen.has(l.inst.objectId)) seen.set(l.inst.objectId, objectsById.get(l.inst.objectId))
   // Adressen stehen schon in der Tabelle: hier nur Objekte mit Anweisungen oder Schlüsseln
@@ -53,17 +53,34 @@ function objectNotes(ts, objectsById, employeesById) {
     .map((o) => {
       const keys = (o.keys || []).map((k) => `${k.label}: ${k.holderId ? employeesById.get(k.holderId)?.name || 'Büro' : 'im Büro'}`)
       const detail = [o.instructions, keys.length ? `Schlüssel: ${keys.join(', ')}` : ''].filter(Boolean).join(' · ')
-      return { text: [{ text: `${o.name}: `, bold: true }, { text: detail, color: GREY }], margin: [0, 0, 0, 2] }
+      return { text: [{ text: `${o.name}: `, bold: true }, { text: detail, color: colors.grey }], margin: [0, 0, 0, 2] }
     })
   return items.length ? [{ text: 'Hinweise zu den Objekten', style: 'section' }, ...items] : []
 }
 
 /** Seiten für einen Wochenzettel. */
-/** Markenfarbe fürs PDF: Primärfarbe aus config.json (brand.colors), lesbar auf Weiß. */
+/**
+ * Farben fürs PDF aus den Hausfarben (config.json, brand.colors): Schrift und Tagesbänder
+ * in der Primärfarbe, Sonderleistungen in der Akzentfarbe (beide lesbar auf Weiß).
+ * Ohne Hausfarben das Layout des früheren Excel-Plans. Rot (Vertretung) und die gelbe
+ * Summenzeile bleiben immer gleich.
+ */
+const color = (c) => (parseColor(c || '') ? c : null)
+
 export function inkColors(brand) {
-  const primary = parseColor(brand.colors?.primary || '') ? brand.colors.primary : '#1F3A5F'
+  const own = parseColor(brand.colors?.primary || '')
+  const primary = own ? brand.colors.primary : '#1F3A5F'
   const ink = readableOn(primary, '#ffffff', 4.5)
-  return { ink, soft: mix('#ffffff', primary, 0.1), line: parseColor(brand.colors?.primary || '') ? mix('#ffffff', primary, 0.45) : LINE }
+  const accent = parseColor(brand.colors?.accent || '') ? brand.colors.accent : null
+  return {
+    ink,
+    soft: mix('#ffffff', primary, 0.1),
+    line: own ? mix('#ffffff', primary, 0.45) : LINE,
+    band: own ? mix('#ffffff', primary, 0.13) : BAND,
+    // eigene Töne aus dem Corporate Design gehen vor (z. B. Cleanos: Grün dunkel, Text leise)
+    special: color(brand.colors?.accentText) || (accent ? readableOn(accent, '#ffffff', 4.5) : GREEN),
+    grey: color(brand.colors?.muted) || (own ? readableOn(mix('#5f6b75', primary, 0.12), '#ffffff', 4.5) : GREY),
+  }
 }
 
 function timesheetPages(entry, { objectsById, employeesById, brand, status, contact, logo, colors }) {
@@ -83,15 +100,15 @@ function timesheetPages(entry, { objectsById, employeesById, brand, status, cont
   for (const day of ts.days) {
     const note = dayNote(day)
     body.push([
-      { text: `${WEEKDAY_LONG[isoWeekday(day.date) - 1]} ${formatDate(day.date, { weekday: false })}`, bold: true, fillColor: BAND, noWrap: true },
-      { text: note, bold: true, color: RED, fillColor: BAND },
-      { text: '', fillColor: BAND },
-      { text: '', fillColor: BAND },
-      { text: '', fillColor: BAND },
-      { text: day.total ? `Tag gesamt: ${formatHours(day.total)} h` : '', fillColor: BAND, fontSize: 7.5, bold: true },
+      { text: `${WEEKDAY_LONG[isoWeekday(day.date) - 1]} ${formatDate(day.date, { weekday: false })}`, bold: true, fillColor: colors.band, noWrap: true },
+      { text: note, bold: true, color: RED, fillColor: colors.band },
+      { text: '', fillColor: colors.band },
+      { text: '', fillColor: colors.band },
+      { text: '', fillColor: colors.band },
+      { text: day.total ? `Tag gesamt: ${formatHours(day.total)} h` : '', fillColor: colors.band, fontSize: 7.5, bold: true },
     ])
-    if (!day.lines.length) body.push(['', { text: day.absence ? day.absence.type : 'frei', color: GREY, italics: true }, '', '', '', ''])
-    for (const l of day.lines) body.push(lineRow(l, objectsById))
+    if (!day.lines.length) body.push(['', { text: day.absence ? day.absence.type : 'frei', color: colors.grey, italics: true }, '', '', '', ''])
+    for (const l of day.lines) body.push(lineRow(l, objectsById, colors))
   }
   const t = ts.totals
   body.push([
@@ -107,21 +124,21 @@ function timesheetPages(entry, { objectsById, employeesById, brand, status, cont
   return [
     {
       columns: [
-        logo ? { stack: [logo.svg ? { svg: logo.svg, width: logo.width || 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: GREY, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name, style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
-        { stack: [{ text: `KW ${week} / ${year}`, style: 'kw', alignment: 'right' }, { text: `${formatDate(ts.monday, { weekday: false })} – ${formatDate(ts.sunday, { weekday: false, year: true })}`, alignment: 'right', color: GREY }] },
+        logo ? { stack: [logo.svg ? { svg: logo.svg, width: logo.width || 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: colors.grey, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name, style: 'brand' }, { text: brand.product || 'Dienstplan', color: colors.grey }] },
+        { stack: [{ text: `KW ${week} / ${year}`, style: 'kw', alignment: 'right' }, { text: `${formatDate(ts.monday, { weekday: false })} – ${formatDate(ts.sunday, { weekday: false, year: true })}`, alignment: 'right', color: colors.grey }] },
       ],
     },
     { canvas: [{ type: 'line', x1: 0, y1: 3, x2: 523, y2: 3, lineWidth: 1.5, lineColor: colors.ink }], margin: [0, 0, 0, 6] },
-    { text: [{ text: emp.name, style: 'name' }, status ? { text: `   ${status}`, color: status === 'Entwurf' ? RED : GREY, fontSize: 9 } : ''] },
-    { text: meta, color: GREY, margin: [0, 1, 0, 6] },
+    { text: [{ text: emp.name, style: 'name' }, status ? { text: `   ${status}`, color: status === 'Entwurf' ? RED : colors.grey, fontSize: 9 } : ''] },
+    { text: meta, color: colors.grey, margin: [0, 1, 0, 6] },
     {
       table: { headerRows: 1, dontBreakRows: true, widths: [66, '*', 26, 44, 36, 128], body },
       layout: { hLineColor: () => colors.line, vLineColor: () => colors.line, hLineWidth: () => 0.5, vLineWidth: () => 0.5, paddingTop: () => 2, paddingBottom: () => 2 },
     },
     account !== undefined && account !== null ? { text: `Zeitkonto nach dieser Woche: ${signedHours(account)} h`, alignment: 'right', bold: true, margin: [0, 5, 0, 0] } : '',
-    { text: [{ text: 'durchgestrichen', decoration: 'lineThrough' }, ' = entfällt (Urlaub, Krankenstand, Kunde geschlossen: angerechnet) · ', { text: 'rot', color: RED }, ' = Vertretung oder verschoben · ', { text: 'grün', color: GREEN }, ' = Sonderleistung'], fontSize: 7, color: GREY, margin: [0, 4, 0, 0] },
-    ...objectNotes(ts, objectsById, employeesById),
-    contact ? { text: contact, fontSize: 8, color: GREY, margin: [0, 8, 0, 0] } : '',
+    { text: [{ text: 'durchgestrichen', decoration: 'lineThrough' }, ' = entfällt (Urlaub, Krankenstand, Kunde geschlossen: angerechnet) · ', { text: 'rot', color: RED }, ' = Vertretung oder verschoben · ', { text: 'grün', color: colors.special }, ' = Sonderleistung'], fontSize: 7, color: colors.grey, margin: [0, 4, 0, 0] },
+    ...objectNotes(ts, objectsById, employeesById, colors),
+    contact ? { text: contact, fontSize: 8, color: colors.grey, margin: [0, 8, 0, 0] } : '',
   ]
 }
 
@@ -149,8 +166,8 @@ export function timesheetDocument(entries, { objects = [], employees = [], brand
     content,
     footer: (page, pages) => ({
       columns: [
-        { text: `${brand.name}${brand.name ? ' · ' : ''}erstellt am ${created}`, fontSize: 7.5, color: GREY },
-        { text: `Seite ${page} von ${pages}`, alignment: 'right', fontSize: 7.5, color: GREY },
+        { text: `${brand.name}${brand.name ? ' · ' : ''}erstellt am ${created}`, fontSize: 7.5, color: colors.grey },
+        { text: `Seite ${page} von ${pages}`, alignment: 'right', fontSize: 7.5, color: colors.grey },
       ],
       margin: [36, 14, 36, 0],
     }),

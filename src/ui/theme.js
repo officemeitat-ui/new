@@ -2,7 +2,8 @@
 // für ihr Gerät; die Voreinstellung für alle kommt aus config.json
 // (brand.theme). Marken-Farbschemata (nach der Website der Firma) stehen
 // in themes/<marke>.css und sind in brand.themes beschrieben; die
-// eingebauten (Standard, Ruhig, Hoher Kontrast) haben keinen Markenbezug.
+// eingebauten (Standard, Ruhig, Hoher Kontrast) haben keinen Markenbezug und
+// lassen sich mit brand.builtinThemes: false ausblenden.
 
 import { app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow } from './context.js'
 import { esc, ICON, modalFrame } from './shared.js'
@@ -17,10 +18,14 @@ export const BUILTIN_THEMES = {
 export const MODES = { auto: 'Wie das Gerät', hell: 'Hell', dunkel: 'Dunkel' }
 export const SCALES = { normal: 'Normal', gross: 'Groß' }
 
-/** Alle wählbaren Farbschemata: Marke zuerst, dann die eingebauten. */
+/**
+ * Alle wählbaren Farbschemata: Marke zuerst, dann die eingebauten.
+ * brand.builtinThemes: false = nur die der Marke (interne App ganz im Corporate Design).
+ */
 export function themeList(brand = {}) {
   const own = Object.entries(brand.themes || {}).map(([id, t]) => ({ id, ...t, brand: true }))
   if (brand.theme && !own.some((t) => t.id === brand.theme)) own.unshift({ id: brand.theme, label: brand.name || brand.theme, note: 'Hausfarben', brand: true })
+  if (brand.builtinThemes === false && own.length) return own
   return [...own, ...Object.entries(BUILTIN_THEMES).map(([id, t]) => ({ id, ...t }))]
 }
 

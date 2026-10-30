@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 import { contrast, mix, parseColor, readableOn, textOn, toHex } from '../src/core/color.js'
-import { timesheetDocument } from '../src/export/pdf.js'
+import { inkColors, timesheetDocument } from '../src/export/pdf.js'
 import { extractBrand, stylesheetUrls } from '../scripts/theme/extract.js'
 import { themeCss } from '../scripts/theme/generate.js'
 
@@ -65,14 +65,27 @@ test('PDF in Markenfarbe mit Logo', () => {
   assert.equal(doc.content[0].columns[0].stack[0].svg, svg)
   const plain = timesheetDocument([{ ts }], { brand: { name: 'Beispiel' } })
   assert.equal(plain.content[0].columns[0].stack[0].text, 'Beispiel')
+  // Cleanos: Tagesbänder in Cleanos-Blau getönt, Sonderleistung in Grün dunkel, Nebentext „Text leise“
+  const { brand } = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'))
+  const c = inkColors(brand)
+  assert.equal(c.ink, '#0c6cb4')
+  assert.equal(c.special, '#4e7a1e')
+  assert.equal(c.grey, '#4b5b67')
+  assert.ok(contrast(c.band, '#ffffff') < 1.25 && contrast('#13232f', c.band) >= 7, `Band ${c.band} hell und gut lesbar`)
+  const day = { date: '2026-10-26', holiday: null, absence: null, total: 60, lines: [{ kind: 'work', style: 'special', time: '08:00 - 09:00', hours: 60, credited: 60, travel: 0, notes: [], text: 'Sonder' }] }
+  const doc2 = timesheetDocument([{ ts: { ...ts, days: [day] } }], { brand })
+  const json = JSON.stringify(doc2.content)
+  assert.ok(json.includes(`"fillColor":"${c.band}"`) && json.includes('"color":"#4e7a1e"'), 'Band und Sonderleistung in Cleanos-Farben')
+  assert.ok(!/#D9E1F2|#00A651/.test(json), 'keine Farben des alten Excel-Plans')
 })
 
-test('Cleanos-Design nach www.cleanos.at: Hausfarben, zwei Farbschemata, lesbar', () => {
+test('Cleanos-Design nach www.cleanos.at: Hausfarben, drei Farbschemata, lesbar', () => {
   const config = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'))
   const { brand } = config
   for (const file of [brand.logo, brand.logoOnLight, brand.icon]) assert.ok(readFileSync(new URL(`../${file}`, import.meta.url)).length > 1000, file)
-  assert.deepEqual(brand.colors, { primary: '#0c6cb4', accent: '#9cc654' })
-  assert.deepEqual(Object.keys(brand.themes), ['cleanos', 'cleanos-nacht'])
+  assert.deepEqual(brand.colors, { primary: '#0c6cb4', accent: '#9cc654', accentText: '#4e7a1e', muted: '#4b5b67' })
+  assert.deepEqual(Object.keys(brand.themes), ['cleanos', 'cleanos-nacht', 'cleanos-kontrast'])
+  assert.equal(brand.builtinThemes, false, 'interne Cleanos App: nur Cleanos-Farbschemata')
   const theme = readFileSync(new URL(`../themes/${brand.theme}.css`, import.meta.url), 'utf8')
   for (const token of ['--brand-primary: #0c6cb4;', '--brand-accent: #9cc654;', '--brand-night: #0e2433;', '--fg: #13232f;', '--bg: #f3f6f8;', '--line: #dde5ea;', '--ok: #4e7a1e;', '--ok-soft: #eef6e2;']) assert.ok(theme.includes(token), token)
   assert.match(theme, /--font-body: 'Segoe UI'/, 'Systemschrift wie auf der Website')
@@ -82,15 +95,22 @@ test('Cleanos-Design nach www.cleanos.at: Hausfarben, zwei Farbschemata, lesbar'
   const pairs = [['#0c6cb4', '#ffffff'], ['#ffffff', '#0c6cb4'], ['#4b5b67', '#f3f6f8'], ['#4e7a1e', '#eef6e2'], ['#0c6cb4', '#e8f1fa'], ['#8a5300', '#fdf0d5'], ['#b3261e', '#fce8e6'], ['#9cc654', '#0e2433'], ['#5ea9e3', '#0e2433'], ['#a3b4c1', '#0e2433'], ['#5f6f7b', '#ffffff'], ['#5f6f7b', '#f3f6f8'], ['#e3ebf0', '#0e2433'], ['#8fa3b2', '#0e2433'], ['#ffffff', '#173f5c'], ['#a3245a', '#f8e9f0']]
   for (const [fg, bg] of pairs) assert.ok(contrast(fg, bg) >= 4.5, `${fg} auf ${bg}: ${contrast(fg, bg).toFixed(2)}`)
   assert.ok(contrast('#9cc654', '#ffffff') < 3, 'Grün auf Weiß wäre nicht lesbar und wird nicht als Schrift verwendet')
+  // Cleanos Kontrast: Schrift mindestens 7:1 (hell und dunkel), Hinweise auf getönten Flächen mindestens 4,5:1
+  assert.match(theme, /:root\[data-skin='cleanos-kontrast'\] \{/)
+  for (const [fg, bg] of [['#0e2433', '#ffffff'], ['#13232f', '#eef2f5'], ['#0a5a96', '#ffffff'], ['#ffffff', '#0a5a96'], ['#3b5f16', '#ffffff'], ['#6b4000', '#ffeac2'], ['#ffffff', '#000000'], ['#e9eff3', '#0e2433'], ['#7ab8e8', '#000000'], ['#9cc654', '#000000'], ['#ffffff', '#123a58']]) assert.ok(contrast(fg, bg) >= 7, `Kontrast ${fg} auf ${bg}: ${contrast(fg, bg).toFixed(2)}`)
+  for (const [fg, bg] of [['#0a5a96', '#dceaf6'], ['#3b5f16', '#e6f2d6'], ['#a00000', '#ffe0e0'], ['#7ab8e8', '#11344f'], ['#9cc654', '#1d3311'], ['#ff8a8a', '#3a0000']]) assert.ok(contrast(fg, bg) >= 4.5, `Kontrast ${fg} auf ${bg}: ${contrast(fg, bg).toFixed(2)}`)
 })
 
-test('Darstellung: Farbschemata der Marke und eingebaute, Auswahl je Gerät', async () => {
+test('Darstellung: nur Cleanos-Farbschemata (interne App), Auswahl je Gerät', async () => {
   const { applyTheme, resolveTheme, themeList } = await import('../src/ui/theme.js')
   const config = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'))
-  assert.deepEqual(themeList(config.brand).map((t) => t.id), ['cleanos', 'cleanos-nacht', 'standard', 'ruhig', 'kontrast'])
+  assert.deepEqual(themeList(config.brand).map((t) => t.id), ['cleanos', 'cleanos-nacht', 'cleanos-kontrast'])
+  assert.deepEqual(themeList({ ...config.brand, builtinThemes: true }).map((t) => t.id), ['cleanos', 'cleanos-nacht', 'cleanos-kontrast', 'standard', 'ruhig', 'kontrast'], 'andere Marke: eingebaute dazu')
   assert.deepEqual(themeList({}).map((t) => t.id), ['standard', 'ruhig', 'kontrast'], 'ohne Marke (neutrale Vorschau) nur die eingebauten')
   assert.deepEqual(resolveTheme({}, config.brand), { skin: 'cleanos', mode: 'auto', scale: 'normal' }, 'Voreinstellung aus config.json')
-  assert.deepEqual(resolveTheme({ skin: 'kontrast', mode: 'dunkel', scale: 'gross' }, config.brand), { skin: 'kontrast', mode: 'dunkel', scale: 'gross' })
+  assert.deepEqual(resolveTheme({ skin: 'cleanos-kontrast', mode: 'dunkel', scale: 'gross' }, config.brand), { skin: 'cleanos-kontrast', mode: 'dunkel', scale: 'gross' })
+  assert.equal(resolveTheme({ skin: 'kontrast' }, config.brand).skin, 'cleanos', 'früher gewähltes „Standard“/„Ruhig“/„Hoher Kontrast“: zurück auf Cleanos')
+  assert.equal(resolveTheme({ skin: 'ruhig' }, config.brand).skin, 'cleanos')
   assert.equal(resolveTheme({ skin: 'gibtsnicht' }, {}).skin, 'standard')
   assert.equal(themeList({ theme: 'firma', name: 'Firma' })[0].label, 'Firma', 'ältere config ohne brand.themes')
   // anwenden: Attribute am Wurzelelement und Farbe der Statusleiste
@@ -101,6 +121,8 @@ test('Darstellung: Farbschemata der Marke und eingebaute, Auswahl je Gerät', as
   assert.deepEqual({ ...root.dataset }, { skin: 'cleanos-nacht', theme: 'light', scale: 'gross' })
   assert.equal(meta.content, '#0e2433')
   applyTheme({ skin: 'standard', mode: 'auto' }, config.brand, root)
-  assert.deepEqual({ ...root.dataset }, { skin: 'standard' })
+  assert.deepEqual({ ...root.dataset }, { skin: 'cleanos' }, 'nicht mehr wählbar: Cleanos')
+  applyTheme({ skin: 'cleanos-kontrast', mode: 'dunkel' }, config.brand, root)
+  assert.equal(meta.content, '#000000')
   delete globalThis.document
 })

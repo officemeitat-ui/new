@@ -4,8 +4,9 @@
    Linie #DDE5EA, Grün dunkel #4E7A1E auf Hellgrün #EEF6E2; Systemschrift;
    Knöpfe mit 8 px Ecken, fett, nie Großbuchstaben; Karten mit 12 px Ecken.
    Aufbau (Seitenleiste, Karten) kommt aus styles.css; hier nur Farben und
-   Formen. Zwei Varianten: „cleanos“ (weiße Seitenleiste, „Klar & hell“) und
-   „cleanos-nacht“ (Seitenleiste in Nachtblau mit grüner Markierung). */
+   Formen. Drei Varianten, je hell und dunkel: „cleanos“ (weiße Seitenleiste,
+   „Klar & hell“), „cleanos-nacht“ (Seitenleiste in Nachtblau mit grüner
+   Markierung) und „cleanos-kontrast“ (kräftige Rahmen, für Sonne am Handy). */
 
 :root:is([data-skin='cleanos'], [data-skin='cleanos-nacht']) {
   --brand-primary: #0c6cb4;
@@ -120,6 +121,46 @@
 [data-skin='cleanos-nacht'] .m-topbar .btn { background: transparent; border-color: rgb(255 255 255 / 0.55); color: #ffffff; }
 [data-skin='cleanos-nacht'] .m-topbar .kw small { color: #c9d6df; }
 [data-skin='cleanos-nacht'] .m-topbar .brand-logo { background: #ffffff; border-radius: 8px; padding: 3px 6px; }
+
+/* „Cleanos Kontrast“: Cleanos-Farben, aber Text und Rahmen kräftiger (Sonne am Handy, schlechte Augen).
+   Cleanos-Blau dunkel #0A5A96 statt #0C6CB4, damit auch kleine Schrift sicher lesbar ist (≥ 7:1). */
+:root[data-skin='cleanos-kontrast'] {
+  --brand-primary: #0a5a96; --brand-primary-2: #084a7b; --brand-accent: #9cc654; --brand-night: #0e2433;
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #eef2f5; --line: #4b5b67; --line-strong: #0e2433; --line-soft: #4b5b67;
+  --fg: #0e2433; --muted: #13232f; --accent: #0a5a96; --accent-fg: #ffffff; --accent-soft: #dceaf6;
+  --ok: #3b5f16; --ok-soft: #e6f2d6; --special: #3b5f16; --info: #0a5a96; --info-soft: #dceaf6;
+  --warn: #6b4000; --warn-soft: #ffeac2; --err: #a00000; --err-soft: #ffe0e0; --changed: #a00000;
+  --holiday: #7d1544; --holiday-soft: #f8e9f0; --band: #dceaf6; --weekend: #eef2f5; --total: #fff0b3;
+  --font-display: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --font-body: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+  --radius: 8px; --radius-card: 12px; --shadow: none;
+  --sb-muted: #13232f; --sb-hover: #eef2f5; --sb-marker: #0e2433;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin='cleanos-kontrast']:not([data-theme='light']) {
+    --bg: #000000; --surface: #000000; --surface-2: #0e2433; --line: #a3b4c1; --line-strong: #ffffff; --line-soft: #a3b4c1;
+    --fg: #ffffff; --muted: #e9eff3; --accent: #7ab8e8; --accent-fg: #000000; --accent-soft: #123a58;
+    --ok: #9cc654; --ok-soft: #1d3311; --special: #9cc654; --info: #7ab8e8; --info-soft: #11344f;
+    --warn: #ffd27a; --warn-soft: #332300; --err: #ff8a8a; --err-soft: #3a0000; --changed: #ff8a8a;
+    --holiday: #f08bb4; --holiday-soft: #3a1a2a; --band: #11344f; --weekend: #0b1d2a; --total: #332b00;
+    --sb-bg: #000000; --sb-fg: #ffffff; --sb-muted: #e9eff3; --sb-line: #a3b4c1; --sb-hover: #0e2433;
+    --sb-active-bg: #123a58; --sb-active-fg: #ffffff; --sb-marker: #9cc654;
+  }
+  [data-skin='cleanos-kontrast']:not([data-theme='light']) .sidebar .brand-logo { background: #ffffff; border-radius: 8px; padding: 4px 8px; }
+}
+:root[data-skin='cleanos-kontrast'][data-theme='dark'] {
+  --bg: #000000; --surface: #000000; --surface-2: #0e2433; --line: #a3b4c1; --line-strong: #ffffff; --line-soft: #a3b4c1;
+  --fg: #ffffff; --muted: #e9eff3; --accent: #7ab8e8; --accent-fg: #000000; --accent-soft: #123a58;
+  --ok: #9cc654; --ok-soft: #1d3311; --special: #9cc654; --info: #7ab8e8; --info-soft: #11344f;
+  --warn: #ffd27a; --warn-soft: #332300; --err: #ff8a8a; --err-soft: #3a0000; --changed: #ff8a8a;
+  --holiday: #f08bb4; --holiday-soft: #3a1a2a; --band: #11344f; --weekend: #0b1d2a; --total: #332b00;
+  --sb-bg: #000000; --sb-fg: #ffffff; --sb-muted: #e9eff3; --sb-line: #a3b4c1; --sb-hover: #0e2433;
+  --sb-active-bg: #123a58; --sb-active-fg: #ffffff; --sb-marker: #9cc654;
+}
+[data-skin='cleanos-kontrast'][data-theme='dark'] .sidebar .brand-logo { background: #ffffff; border-radius: 8px; padding: 4px 8px; }
+[data-skin='cleanos-kontrast'] .btn { border-radius: 8px; font-weight: 700; }
+[data-skin='cleanos-kontrast'] :is(.tab, .sb-item) { font-weight: 600; }
+[data-skin='cleanos-kontrast'] .flag.error { background: #a00000; color: #ffffff; }
 
 /* Marke (unabhängig vom gewählten Farbschema): Logo */
 [data-brand='cleanos'] .m-topbar .brand-logo { height: 46px; }

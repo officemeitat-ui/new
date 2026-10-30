@@ -137,9 +137,11 @@
   --band: #10264d; --weekend: #111111; --total: #332b00;
 }
 [data-skin='kontrast'] { --card-border: var(--line-strong); --card-shadow: none; --line-soft: var(--line); --sb-marker: var(--fg); }
-[data-skin='kontrast'] :is(.btn, .pill, .tag, .stat, .table-wrap, input, select, textarea) { border-width: 2px; }
-[data-skin='kontrast'] .pill { border: 1px solid currentColor; }
-[data-skin='kontrast'] :focus-visible { outline-width: 3px; }
+/* kräftige Rahmen: auch für Kontrast-Schemata einer Marke (z. B. „cleanos-kontrast“) */
+:is([data-skin='kontrast'], [data-skin$='-kontrast']) { --card-border: var(--line-strong); --card-shadow: none; }
+:is([data-skin='kontrast'], [data-skin$='-kontrast']) :is(.btn, .pill, .tag, .stat, .table-wrap, input, select, textarea) { border-width: 2px; }
+:is([data-skin='kontrast'], [data-skin$='-kontrast']) .pill { border: 1px solid currentColor; }
+:is([data-skin='kontrast'], [data-skin$='-kontrast']) :focus-visible { outline-width: 3px; }
 
 /* Schriftgröße (Darstellung → Groß): alles in rem wächst mit */
 html[data-scale='gross'] { font-size: 17.5px; }

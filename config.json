@@ -40,11 +40,30 @@
           "okSoft": "#eef6e2"
         },
         "dark": "#0e2433"
+      },
+      "cleanos-kontrast": {
+        "label": "Cleanos Kontrast",
+        "note": "Kräftige Rahmen, dunklere Schrift: für Sonne am Handy",
+        "preview": {
+          "header": "#ffffff",
+          "headerLine": "#0e2433",
+          "logo": "#0a5a96",
+          "bg": "#ffffff",
+          "line": "#0e2433",
+          "primary": "#0a5a96",
+          "text": "#0e2433",
+          "ok": "#3b5f16",
+          "okSoft": "#e6f2d6"
+        },
+        "dark": "#000000"
       }
     },
+    "builtinThemes": false,
     "colors": {
       "primary": "#0c6cb4",
-      "accent": "#9cc654"
+      "accent": "#9cc654",
+      "accentText": "#4e7a1e",
+      "muted": "#4b5b67"
     },
     "contact": "Fragen zum Dienstplan: Disposition Cleanos",
     "appIcons": [
