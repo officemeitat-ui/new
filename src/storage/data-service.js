@@ -124,7 +124,8 @@ const payOf = (e) => Object.fromEntries(PAY_FIELDS.filter((f) => e[f] !== undefi
 const withoutPay = (e) => Object.fromEntries(Object.entries(e).filter(([k]) => !PAY_FIELDS.includes(k)))
 // Felder je Woche; Schlüssel beginnen mit dem Datum des Einsatzes (trips = geplante Fahrten)
 // winter: angelegte Winterdienst-Einsätze „Datum|Objekt“ → { reason, by, at }
-const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter']
+// winterlog: Winterdienst-Protokoll „Datum|Objekt|Eintrag“ → { person, at, geraeumt, gestreut, … }
+const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog']
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))

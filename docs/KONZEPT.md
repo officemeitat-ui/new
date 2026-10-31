@@ -141,9 +141,10 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 - **Zu erledigen**: Glocke mit Zähler und Popup beim Start, sobald es etwas Neues gibt: Abwesenheiten mit offenen Stunden, fällige periodische Leistungen, veröffentlichte Wochen mit Änderungen.
 - **Fahrten einplanen**: Nach jedem Einsatz Dauer und eigene Notiz („Firmenauto, Schlüssel im Büro holen“), für diese Woche oder als Standard der Leistung. Ohne Eintrag gilt die Fahrzeit-Matrix bzw. Pauschale. Fahrten zählen als Arbeitszeit, stehen im Wochenzettel und in der Zeitlinie, und zu knappe Fahrten werden markiert.
 - **Excel**: Import aus bestehenden Listen (Kopieren/Einfügen), Export der Wochenpläne im bisherigen Layout als .xlsx (gesamt und je Person, beim Veröffentlichen direkt nach SharePoint), Druck/PDF.
-- **Rollen**: Disposition (bearbeiten) und Lesezugriff über `config.json`.
+- **Rollen** über Microsoft-Gruppen: jede Gruppe sieht nur ihre Bereiche, SharePoint-Ordner je Berechtigung (siehe [PLATTFORM.md](PLATTFORM.md)).
 - **Erweiterbar**: Regeln, Ansichten, Ablagen und Design sind austauschbare Module, siehe [ERWEITERN.md](ERWEITERN.md).
-- **Corporate Design** als Theme. Logo und Farben sind Platzhalter, bis die echten Cleanos-Vorgaben vorliegen.
+- **Corporate Design**: interne Cleanos App, Farben und Formen nach www.cleanos.at (`themes/cleanos.css`), nur Cleanos-Farbschemata (hell, Nachtblau, Kontrast; je hell und dunkel), auch Werkzeuge, PDFs und Schnee-Alarm.
+- **Wetter & Winterdienst**: Vorhersage und Warnungen von GeoSphere Austria, Winterdienst per Klick, Schnee-Alarm (weckt das Team per Push, Eskalation, wöchentlicher Wechsel der Bereitschaft) und Winterdienst-Protokoll als Nachweis (am Handy mit Fotos, PDF je Monat); siehe [PLATTFORM.md](PLATTFORM.md).
 
 ## 5a. Plattform mit Modulen
 
@@ -160,7 +161,7 @@ Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle, Objektdokument
 
 Zu klären:
 
-- **Kollektivvertrag**: Zuschlagssätze sind aus dem KV 2026 vorbelegt; mit der Lohnverrechnung abgleichen, v. a. Sonntag/11.–12. Stunde, Lohngruppe 3 (eigene Sonntagssätze) und ob die tägliche Normalarbeitszeit 9 oder 10 h ist. Durchrechnungsmodelle (flexible Arbeitszeit laut KV) sind noch nicht abgebildet
+- **Kollektivvertrag**: Zuschlagssätze sind aus dem KV 2026 vorbelegt; mit der Lohnverrechnung abgleichen, v. a. Sonntag/11.–12. Stunde, Lohngruppe 3 (eigene Sonntagssätze) und ob die tägliche Normalarbeitszeit 9 oder 10 h ist. Die Durchrechnung (flexible Arbeitszeit laut KV) ist je Person einstellbar (siehe [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md))
 - **Fahrzeit**: wann sie als Arbeitszeit zählt
 - **Feiertagsgutschrift**: mit oder ohne Sonderleistungen
 - **Betriebsvereinbarung**: § 96a ArbVG, falls es einen Betriebsrat gibt

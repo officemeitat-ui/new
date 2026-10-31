@@ -251,6 +251,16 @@ Die Karte „Schnee-Alarm“ zeigt je Ort:
 
 Dazu kommt ein Protokoll.
 
+### Winterdienst-Protokoll: der Nachweis
+
+Wer wann wo geräumt und gestreut hat. Kommt es zu einem Sturz, ist ein lückenloses Protokoll (wann, wer, was, Fotos) der übliche Nachweis, dass die Pflicht nach § 93 StVO erfüllt wurde.
+
+- **Am Handy, ohne Anmeldung:** Die Alarm-Nachricht (ntfy) hat neben „Bin wach“ den Knopf **„Protokoll“**, die Seite „Bin wach“ und die E-Mail führen ebenfalls dorthin. Dort wählt die Person das Objekt und trägt ein: erledigt um, geräumt, gestreut (Streumittel Splitt, Salz, Sand) oder „nur kontrolliert, nichts nötig“, eine Notiz und bis zu 4 Fotos. Die Fotos werden am Handy verkleinert (längste Seite 1600 px), damit sie auch über schwaches Netz ankommen. Der Link gilt 36 Stunden nach dem Alarm. Gespeichert wird am Webspace in `privat/winterdienst/` (gesperrt).
+- **In der App:** im Einsatz-Dialog eines Winterdienst-Einsatzes „Erledigt eintragen“, in *Wetter & Winterdienst* „Eintragen“ oder direkt aus „Zu erledigen“.
+- **Übernahme:** Öffnet jemand mit Einsatzplanung (bearbeiten) *Wetter & Winterdienst*, übernimmt die App die Protokolle vom Handy in die Woche (SharePoint) und legt die Fotos nach `exporte/Winterdienst/<Monat>/`. Testalarme zählen nicht.
+- **Übersicht:** die letzten 14 Tage je Objekt mit Uhrzeit, Person, Tätigkeit, Notiz und Fotos; angelegter Winterdienst ohne Protokoll ist rot markiert und steht 2 Stunden nach „fertig bis“ unter **„Zu erledigen“**.
+- **PDF-Nachweis** je Monat: Tabelle (Tag, Objekt mit Adresse, Uhrzeit, wer, Tätigkeit, Wetterlage, Notiz) und die Fotos im Anhang; mit SharePoint zusätzlich unter `exporte/Winterdienst/<Monat>/`.
+
 **Rufbereitschaft:** Wer in Stufe 1 steht, muss erreichbar sein. Das ist Rufbereitschaft (§ 20a AZG) und außerhalb der Arbeitszeit nur an 10 Tagen im Monat erlaubt; der KV kann 30 Tage in 3 Monaten zulassen. Deshalb gibt es den wöchentlichen Wechsel (ab 4 Personen bleibt jede Person bei rund einer Woche im Monat), und der Dialog weist darauf hin. Siehe [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md).
 
 **Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.

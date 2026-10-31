@@ -221,10 +221,10 @@ test('Schnee-Alarm: Datei für den Server (Stufe 1 aus den Teams, Stufe 2, Büro
   assert.deepEqual(f.regeln, { vorlaufStunden: 3, schneeCm: 0.3, pauseStunden: 8, eskalationMinuten: 15, ruheVon: '22:00', ruheBis: '03:00', ruheAusnahmeStufe: 2 })
   assert.deepEqual(f.orte.map((o) => o.name), ['Salzburg', 'Hallein'], 'Obertrum ist aus')
   const [sbg, hal] = f.orte
-  assert.deepEqual(sbg.objekte, ['Wohnanlage Lehen'])
+  assert.deepEqual(sbg.objekte, [{ id: 'o1', name: 'Wohnanlage Lehen', adresse: '' }])
   assert.deepEqual(sbg.stufe1, [{ name: 'Ana', ntfy: 'wd-ana' }], 'Ben ohne Handy und E-Mail fällt weg; Stufe 1 ohne E-Mail')
   assert.deepEqual(sbg.stufe2, [{ name: 'Büro', ntfy: 'wd-buero' }, { name: 'Büro', email: 'buero@example.test' }, { name: 'Büro', email: 'chef@example.test' }])
-  assert.deepEqual(hal.objekte, ['Bank Hallein'])
+  assert.deepEqual(hal.objekte, [{ id: 'o2', name: 'Bank Hallein', adresse: '' }])
   assert.deepEqual(hal.stufe1, [{ name: 'Cem', ntfy: 'wd-cem' }])
   assert.deepEqual(hal.stufe2[0], { name: 'Dora', ntfy: 'wd-dora', email: 'dora@example.test' })
   assert.deepEqual(alarmProblems(f), [])

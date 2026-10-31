@@ -1,5 +1,6 @@
 // Bausteine für PDF-Berichte (pdfmake): Kopf mit Logo, Tabellenrahmen,
-// Seitenrahmen mit Fußzeile. Genutzt von den Auszahlungen.
+// Seitenrahmen mit Fußzeile. Genutzt von den Auszahlungen und dem Winterdienst-Protokoll.
+// Nebentext in colors.grey (Hausfarbe „Text leise“, sonst Grau).
 
 import { inkColors } from './pdf.js'
 
@@ -11,8 +12,8 @@ export function header({ title, subtitle, brand, logo, colors }) {
   return [
     {
       columns: [
-        logo ? { stack: [logo.svg ? { svg: logo.svg, width: 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: GREY, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name || '', style: 'brand' }, { text: brand.product || 'Dienstplan', color: GREY }] },
-        { stack: [{ text: title, style: 'title', alignment: 'right' }, { text: subtitle, alignment: 'right', color: GREY }] },
+        logo ? { stack: [logo.svg ? { svg: logo.svg, width: 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: colors.grey, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name || '', style: 'brand' }, { text: brand.product || 'Dienstplan', color: colors.grey }] },
+        { stack: [{ text: title, style: 'title', alignment: 'right' }, { text: subtitle, alignment: 'right', color: colors.grey }] },
       ],
     },
     { canvas: [{ type: 'line', x1: 0, y1: 3, x2: 523, y2: 3, lineWidth: 1.5, lineColor: colors.ink }], margin: [0, 0, 0, 8] },
@@ -30,7 +31,7 @@ export function docShell(content, { brand, colors, createdAt, title, labels = {}
     pageMargins: [36, 30, 36, 40],
     info: { title, author: brand.name, creator: brand.product || 'Dienstplan' },
     content,
-    footer: (page, pages) => ({ columns: [{ text: `${brand.name || ''}${brand.name ? ' · ' : ''}${labels.created || 'erstellt am'} ${created}`, fontSize: 7.5, color: GREY }, { text: pageText(page, pages), alignment: 'right', fontSize: 7.5, color: GREY }], margin: [36, 14, 36, 0] }),
+    footer: (page, pages) => ({ columns: [{ text: `${brand.name || ''}${brand.name ? ' · ' : ''}${labels.created || 'erstellt am'} ${created}`, fontSize: 7.5, color: colors.grey }, { text: pageText(page, pages), alignment: 'right', fontSize: 7.5, color: colors.grey }], margin: [36, 14, 36, 0] }),
     defaultStyle: { fontSize: 8.5, lineHeight: 1.1 },
     styles: {
       brand: { fontSize: 14, bold: true, color: colors.ink },

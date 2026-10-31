@@ -61,7 +61,7 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 // Wetter am Webspace (PHP): Umweg, falls der Browser GeoSphere nicht direkt erreicht, und
 // Schnee-Alarm (Cronjob). Einstellungen und Stand des Alarms liegen in privat/ (gesperrt).
 if (appConfig.weather !== false) {
-  for (const file of ['wetter.php', 'wetter-lib.php', 'wetter-alarm.php']) await copy(file)
+  for (const file of ['wetter.php', 'wetter-lib.php', 'wetter-alarm.php', 'wetter-foto.js']) await copy(file)
   await mkdir(join(dist, 'privat'), { recursive: true })
 }
 

@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.log
 hochladen.json
+
+# lokale Prüfungen und Auslieferungspakete (nicht ins Repository)
+.pruefung/
+pakete/

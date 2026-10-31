@@ -5,7 +5,7 @@
 import { formatDate, formatHours } from '../core/dates.js'
 import { UE_MODES } from '../core/overtime.js'
 import { euroText, monthName } from '../core/payout.js'
-import { docShell, GREY, header, inkColors, tableLayout, TOTAL } from './pdf-parts.js'
+import { docShell, header, inkColors, tableLayout, TOTAL } from './pdf-parts.js'
 
 const signedH = (min) => `${min > 0 ? '+' : min < 0 ? '−' : '±'}${formatHours(Math.abs(min))}`
 
@@ -37,15 +37,15 @@ export function payoutListDocument(entries, { month, status = '', brand = { name
   const content = [
     ...header({ title: `Auszahlungen ${monthName(month)}`, subtitle: `Überstunden, Mehrarbeit, Zuschläge${status ? ` · ${status}` : ''}`, brand, logo, colors }),
     { table: { headerRows: 1, widths: [44, '*', 56, 58, 56, 52, 66], body }, layout: tableLayout(colors) },
-    { text: `Alle Beträge brutto. Überstundenzuschläge, die nach § 68 Abs. 2 EStG steuerfrei sein können: ${euroText(taxFree)} (Hinweis, die Lohnverrechnung prüft). Mehrarbeitszuschläge sind steuerpflichtig.${note ? ` ${note}` : ''}`, fontSize: 7.5, color: GREY, margin: [0, 6, 0, 0] },
+    { text: `Alle Beträge brutto. Überstundenzuschläge, die nach § 68 Abs. 2 EStG steuerfrei sein können: ${euroText(taxFree)} (Hinweis, die Lohnverrechnung prüft). Mehrarbeitszuschläge sind steuerpflichtig.${note ? ` ${note}` : ''}`, fontSize: 7.5, color: colors.grey, margin: [0, 6, 0, 0] },
     { text: 'Einzelaufstellung', style: 'section' },
   ]
   for (const e of entries) {
     content.push({
       stack: [
-        { text: [{ text: e.employee.name, bold: true }, { text: `   ${[e.employee.personnelNo ? `Pers.-Nr. ${e.employee.personnelNo}` : '', e.wage ? `${euroText(e.wage)}/h` : '', `Überstunden: ${UE_MODES[e.ueMode] || ''}`].filter(Boolean).join(' · ')}`, color: GREY }], margin: [0, 4, 0, 3] },
-        e.lines.length ? linesTable(e, colors) : { text: 'Keine Auszahlung, nur Zeitausgleich.', color: GREY },
-        { text: [e.zaBonus ? `Zeitausgleich-Zuschlag +${formatHours(e.zaBonus)} h · ` : '', `Zeitkonto ${signedH(e.accountDelta)} h`].join(''), fontSize: 7.5, color: GREY, margin: [0, 2, 0, 4] },
+        { text: [{ text: e.employee.name, bold: true }, { text: `   ${[e.employee.personnelNo ? `Pers.-Nr. ${e.employee.personnelNo}` : '', e.wage ? `${euroText(e.wage)}/h` : '', `Überstunden: ${UE_MODES[e.ueMode] || ''}`].filter(Boolean).join(' · ')}`, color: colors.grey }], margin: [0, 4, 0, 3] },
+        e.lines.length ? linesTable(e, colors) : { text: 'Keine Auszahlung, nur Zeitausgleich.', color: colors.grey },
+        { text: [e.zaBonus ? `Zeitausgleich-Zuschlag +${formatHours(e.zaBonus)} h · ` : '', `Zeitkonto ${signedH(e.accountDelta)} h`].join(''), fontSize: 7.5, color: colors.grey, margin: [0, 2, 0, 4] },
       ],
       unbreakable: true,
     })
@@ -61,13 +61,13 @@ export function payoutStatementDocument(entries, { month, status = '', brand = {
     const page = [
       ...header({ title: `Auszahlung ${monthName(month)}`, subtitle: `Überstunden und Mehrarbeit${status ? ` · ${status}` : ''}`, brand, logo, colors }),
       { text: e.employee.name, style: 'name' },
-      { text: [e.employee.personnelNo ? `Personalnr. ${e.employee.personnelNo}` : '', e.employee.type, e.employee.weeklyHours ? `${formatHours(e.employee.weeklyHours * 60)} h/Woche` : '', e.wage ? `Stundenlohn ${euroText(e.wage)}` : ''].filter(Boolean).join(' · '), color: GREY, margin: [0, 1, 0, 8] },
+      { text: [e.employee.personnelNo ? `Personalnr. ${e.employee.personnelNo}` : '', e.employee.type, e.employee.weeklyHours ? `${formatHours(e.employee.weeklyHours * 60)} h/Woche` : '', e.wage ? `Stundenlohn ${euroText(e.wage)}` : ''].filter(Boolean).join(' · '), color: colors.grey, margin: [0, 1, 0, 8] },
       e.lines.length ? linesTable(e, colors) : { text: 'Diesen Monat wird nichts ausbezahlt.', margin: [0, 0, 0, 4] },
       e.zaBonus ? { text: `Zeitausgleich (${UE_MODES[e.ueMode]}): +${formatHours(e.zaBonus)} h Zuschlag ins Zeitkonto.`, margin: [0, 6, 0, 0] } : '',
       e.accountDelta ? { text: `Zeitkonto: ${signedH(e.accountDelta)} h${e.amount && e.accountDelta < 0 ? ' (ausbezahlte Stunden)' : ''}`, bold: true, margin: [0, 6, 0, 0] } : '',
       e.mehrOpenMin ? { text: `Noch offen: ${formatHours(e.mehrOpenMin)} h Mehrarbeit im Zeitkonto, Ausgleich bis ${formatDate(e.mehrOpen[0].deadline, { weekday: false, year: true })}. Danach wird sie mit Zuschlag ausbezahlt.`, margin: [0, 6, 0, 0] } : '',
-      { text: 'Bruttobeträge; die Auszahlung erfolgt mit der Lohnabrechnung. Überstunden: Zuschlag laut Kollektivvertrag (50 %, Nacht 100 %, Sonntag 150 %). Mehrarbeit ist zuschlagsfrei, wenn sie binnen 3 Monaten 1:1 ausgeglichen wird, sonst 25 %.', fontSize: 7.5, color: GREY, margin: [0, 10, 0, 0] },
-      contact ? { text: contact, fontSize: 8, color: GREY, margin: [0, 8, 0, 0] } : '',
+      { text: 'Bruttobeträge; die Auszahlung erfolgt mit der Lohnabrechnung. Überstunden: Zuschlag laut Kollektivvertrag (50 %, Nacht 100 %, Sonntag 150 %). Mehrarbeit ist zuschlagsfrei, wenn sie binnen 3 Monaten 1:1 ausgeglichen wird, sonst 25 %.', fontSize: 7.5, color: colors.grey, margin: [0, 10, 0, 0] },
+      contact ? { text: contact, fontSize: 8, color: colors.grey, margin: [0, 8, 0, 0] } : '',
     ]
     if (i > 0) page[0] = { ...page[0], pageBreak: 'before' }
     content.push(...page)

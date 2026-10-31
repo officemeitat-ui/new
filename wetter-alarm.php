@@ -15,10 +15,12 @@
 //   php wetter-alarm.php                         prüfen (Cronjob am Webspace)
 //   wetter-alarm.php?aktion=pruefen&schluessel=… prüfen (externer Cron-Dienst, Prüfschlüssel)
 //   wetter-alarm.php?aktion=wach&t=…             „Bin wach“ (ntfy-Knopf, Link in der E-Mail)
-//   wetter-alarm.php?aktion=status|test|speichern  aus der App, mit Schlüssel im Kopf X-Schluessel
+//   wetter-alarm.php?aktion=protokoll&t=…        Winterdienst-Protokoll am Handy (ohne Anmeldung, mit Fotos)
+//   wetter-alarm.php?aktion=status|test|speichern|protokolle|foto  aus der App, Schlüssel im Kopf X-Schluessel
 //
 // Einstellungen: privat/wetter-alarm.json (erstellt die App unter Wetter & Winterdienst →
-// Alarm einrichten). Der Ordner privat/ ist per .htaccess gesperrt. Daten: GeoSphere Austria, CC BY 4.0.
+// Alarm einrichten). Protokolle und Fotos: privat/winterdienst/ (die App übernimmt sie nach
+// SharePoint). Der Ordner privat/ ist per .htaccess gesperrt. Daten: GeoSphere Austria, CC BY 4.0.
 
 declare(strict_types=1);
 
@@ -204,6 +206,94 @@ function marke(): array
     ];
 }
 
+/** Objekte eines Orts als [['id', 'name', 'adresse']] (ältere Einstellungen: nur Namen). */
+function objekte(array $ort): array
+{
+    $aus = [];
+    foreach ((array) ($ort['objekte'] ?? []) as $i => $o) {
+        $aus[] = is_array($o)
+            ? ['id' => (string) ($o['id'] ?? "o$i"), 'name' => (string) ($o['name'] ?? ''), 'adresse' => (string) ($o['adresse'] ?? '')]
+            : ['id' => "o$i", 'name' => (string) $o, 'adresse' => ''];
+    }
+    return $aus;
+}
+
+// ---------------------------------------------------------------- Winterdienst-Protokoll (Speicher)
+
+const STREUMITTEL = ['', 'Splitt', 'Salz', 'Sand', 'Splitt und Salz'];
+const FOTO_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+
+function protokoll_ordner(): string
+{
+    $d = ordner() . '/winterdienst';
+    if (!is_dir("$d/fotos")) {
+        @mkdir("$d/fotos", 0775, true);
+    }
+    return $d;
+}
+
+function protokolle_lesen(string $monat): array
+{
+    $datei = protokoll_ordner() . "/$monat.json";
+    $liste = is_file($datei) ? json_decode((string) file_get_contents($datei), true) : [];
+    return is_array($liste) ? $liste : [];
+}
+
+function protokoll_anhaengen(array $eintrag): bool
+{
+    $datei = protokoll_ordner() . '/' . substr($eintrag['datum'], 0, 7) . '.json';
+    $h = @fopen($datei, 'c+');
+    if (!$h) {
+        return false;
+    }
+    flock($h, LOCK_EX);
+    $liste = json_decode((string) stream_get_contents($h), true);
+    $liste = is_array($liste) ? $liste : [];
+    $liste[] = $eintrag;
+    ftruncate($h, 0);
+    rewind($h);
+    $ok = fwrite($h, json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) !== false;
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ok;
+}
+
+/** Alarm zu einem Code (aus „Bin wach“ bzw. „Protokoll“): [Ort, Person, Alarm] oder null; gilt 36 Stunden. */
+function alarm_zum_code(string $token): ?array
+{
+    if (strlen($token) !== 24) {
+        return null;
+    }
+    $stand = mit_stand(fn (array &$s) => $s);
+    foreach ((array) ($stand['orte'] ?? []) as $name => $s) {
+        $a = $s['alarm'] ?? null;
+        if ($a && isset($a['empfaenger'][$token]) && jetzt() - (int) $a['gesendet'] <= 36 * 3600) {
+            return [(string) $name, (string) $a['empfaenger'][$token]['name'], $a, (string) ($s['lage'] ?? '')];
+        }
+    }
+    return null;
+}
+
+/** Seite im Design der App (Logo, Hausfarbe, Systemschrift, Knöpfe mit 8 px Ecken). */
+function html_seite(string $inhalt, int $status = 200, string $skript = ''): void
+{
+    $m = marke();
+    $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
+    http_response_code($status);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="' . $m['farbe'] . '"><title>' . $h($m['app']) . ' – Winterdienst</title>'
+        . '<style>body{margin:0;padding:1rem;background:#f3f6f8;color:#13232f;font:1.1rem/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif}'
+        . 'main{max-width:30rem;margin:1rem auto;padding:1.5rem;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgb(19 35 47/.06),0 6px 20px rgb(19 35 47/.08)}'
+        . 'img.logo{display:block;max-width:180px;max-height:64px;margin:0 0 1rem}h1{font-size:1.4rem;margin:0 0 .5rem}h2{font-size:1.1rem;margin:1.5rem 0 .4rem}p,.leise{color:' . $m['leise'] . '}'
+        . 'label{display:block;margin:.8rem 0 .2rem;font-weight:600}label.haken{display:flex;gap:.6rem;align-items:center;font-weight:400;margin:.4rem 0}label.haken input{width:1.4rem;height:1.4rem}'
+        . 'select,input[type=time],textarea,input[type=file]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;background:#fff;color:inherit}'
+        . 'button,a.knopf{display:block;box-sizing:border-box;text-align:center;text-decoration:none;font:inherit;font-weight:700;font-size:1.2rem;color:#fff;background:' . $m['farbe'] . ';border:0;border-radius:8px;padding:.85rem 1.4rem;width:100%;cursor:pointer;margin-top:1.2rem}'
+        . '.ok{background:#eef6e2;color:#4e7a1e;border-radius:8px;padding:.6rem .8rem;font-weight:600}.fehler{background:#fce8e6;color:#b3261e;border-radius:8px;padding:.6rem .8rem}'
+        . 'ul{padding-left:1.2rem}li{margin:.2rem 0}</style>' . ($skript ? '<script src="' . $h($skript) . '" defer></script>' : '') . '</head>'
+        . '<body><main>' . ($m['logo'] ? '<img class="logo" src="' . $h($m['logo']) . '" alt="' . $h($m['app']) . '">' : '') . $inhalt . '</main></body></html>';
+}
+
 // ---------------------------------------------------------------- Benachrichtigen
 
 function adresse(array $e): string
@@ -217,6 +307,7 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
     $fehler = [];
     $app = adresse($e) . '#wetter';
     $wach = $token ? adresse($e) . 'wetter-alarm.php?aktion=wach&t=' . $token : null;
+    $prot = $token ? adresse($e) . 'wetter-alarm.php?aktion=protokoll&t=' . $token : null;
     if (!empty($person['ntfy'])) {
         $nachricht = [
             'topic' => (string) $person['ntfy'],
@@ -227,7 +318,8 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
             'icon' => marke()['symbol'] ? adresse($e) . marke()['symbol'] : null,
             'click' => $app,
             'actions' => array_values(array_filter([
-                $wach ? ['action' => 'http', 'label' => 'Bin wach', 'url' => $wach, 'method' => 'POST', 'clear' => true] : null,
+                $wach ? ['action' => 'http', 'label' => 'Bin wach', 'url' => $wach, 'method' => 'POST'] : null,
+                $prot ? ['action' => 'view', 'label' => 'Protokoll', 'url' => $prot] : null,
                 ['action' => 'view', 'label' => 'App öffnen', 'url' => $app],
             ])),
         ];
@@ -242,7 +334,7 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
         if ($absender) {
             $kopf[] = 'From: =?UTF-8?B?' . base64_encode(marke()['app'] . ' – Winterdienst') . '?= <' . $absender . '>';
         }
-        $inhalt = $text . "\n\n" . ($wach ? "Bitte bestätigen: $wach\n" : '') . "App: $app\n\nAutomatische Nachricht der " . marke()['app'] . " (Wetterdaten: GeoSphere Austria).\n";
+        $inhalt = $text . "\n\n" . ($wach ? "Bitte bestätigen: $wach\nNach dem Räumen das Protokoll eintragen: $prot\n" : '') . "App: $app\n\nAutomatische Nachricht der " . marke()['app'] . " (Wetterdaten: GeoSphere Austria).\n";
         $ok = @mail($person['email'], '=?UTF-8?B?' . base64_encode($titel) . '?=', $inhalt, implode("\r\n", $kopf), $absender ? '-f' . $absender : '');
         if (!$ok) {
             $fehler[] = sprintf('E-Mail an %s nicht versendet', $person['name'] ?? $person['email']);
@@ -306,7 +398,7 @@ function pruefen(array $e): array
             $lage = lage($d['stunden'], $d['warnungen'], $r, $jetzt);
             $s['lage'] = $lage['text'] ?? 'ruhig';
             $alarm = $s['alarm'] ?? null;
-            $objekte = implode(', ', (array) ($ort['objekte'] ?? []));
+            $objekte = implode(', ', array_column(objekte($ort), 'name'));
             $titel = "Winterdienst $name";
             if ($lage) {
                 $neu = !$alarm || !empty($alarm['test']) || $jetzt - (int) $alarm['gesendet'] >= $r['pauseStunden'] * 3600 || $lage['stufe'] > (int) $alarm['stufe'];
@@ -354,24 +446,12 @@ $methode = $cli ? 'CLI' : ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 // „Bin wach“: GET zeigt eine Seite mit Knopf (E-Mail-Prüfprogramme öffnen Links von selbst), POST bestätigt
 if ($aktion === 'wach') {
     $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
-    header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: no-store');
-    // im Design der App: Logo, Hausfarbe, Systemschrift, Knöpfe mit 8 px Ecken
-    $m = marke();
-    $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
-    $seite = fn (string $inhalt) => print('<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="' . $m['farbe'] . '"><title>' . $h($m['app']) . ' – Winterdienst</title>'
-        . '<style>body{margin:0;padding:1rem;background:#f3f6f8;color:#13232f;font:1.1rem/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif}'
-        . 'main{max-width:30rem;margin:1rem auto;padding:1.5rem;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgb(19 35 47/.06),0 6px 20px rgb(19 35 47/.08)}'
-        . 'img{display:block;max-width:180px;max-height:64px;margin:0 0 1rem}h1{font-size:1.4rem;margin:0 0 .5rem}p{color:' . $m['leise'] . '}'
-        . 'button{font:inherit;font-weight:700;font-size:1.2rem;color:#fff;background:' . $m['farbe'] . ';border:0;border-radius:8px;padding:.85rem 1.4rem;width:100%;cursor:pointer}</style></head>'
-        . '<body><main>' . ($m['logo'] ? '<img src="' . $h($m['logo']) . '" alt="' . $h($m['app']) . '">' : '') . $inhalt . '</main></body></html>');
     if (strlen($token) !== 24) {
-        http_response_code(400);
-        $seite('<p>Ungültiger Link.</p>');
+        html_seite('<p>Ungültiger Link.</p>', 400);
         exit;
     }
     if ($methode !== 'POST') {
-        $seite('<h1>Winterdienst</h1><p>Bitte bestätigen, dass du wach bist und den Winterdienst übernimmst.</p><form method="post"><button type="submit">Ich bin wach und übernehme</button></form>');
+        html_seite('<h1>Winterdienst</h1><p>Bitte bestätigen, dass du wach bist und den Winterdienst übernimmst.</p><form method="post"><button type="submit">Ich bin wach und übernehme</button></form>');
         exit;
     }
     $wer = mit_stand(function (array &$stand) use ($token) {
@@ -386,11 +466,131 @@ if ($aktion === 'wach') {
         return null;
     });
     if (!$wer) {
-        http_response_code(404);
-        $seite('<p>Dieser Alarm ist nicht mehr offen.</p>');
+        html_seite('<p>Dieser Alarm ist nicht mehr offen.</p>', 404);
         exit;
     }
-    $seite('<h1>Danke, ' . htmlspecialchars($wer[0]) . '</h1><p>Winterdienst ' . htmlspecialchars($wer[1]) . ' ist bestätigt.</p>');
+    html_seite('<h1>Danke, ' . htmlspecialchars($wer[0]) . '</h1><p>Winterdienst ' . htmlspecialchars($wer[1]) . ' ist bestätigt. Nach dem Räumen und Streuen bitte das Protokoll eintragen.</p>'
+        . '<a class="knopf" href="wetter-alarm.php?aktion=protokoll&amp;t=' . $token . '">Protokoll eintragen</a>');
+    exit;
+}
+
+// Winterdienst-Protokoll am Handy: mit dem Code aus dem Alarm, ohne Anmeldung. GET: Formular, POST: speichern.
+if ($aktion === 'protokoll') {
+    $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
+    $zu = $e ? alarm_zum_code($token) : null;
+    if (!$zu) {
+        html_seite('<h1>Winterdienst-Protokoll</h1><p>Dieser Link gilt nicht mehr (36 Stunden nach dem Alarm). Bitte im Büro melden.</p>', 404);
+        exit;
+    }
+    [$ortName, $person, $alarm, $lage] = $zu;
+    $ort = null;
+    foreach ((array) $e['orte'] as $o) {
+        if ($o['name'] === $ortName) {
+            $ort = $o;
+        }
+    }
+    $liste = $ort ? objekte($ort) : [];
+    $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
+    $meldung = '';
+    if ($methode === 'POST') {
+        $fehler = [];
+        $obj = null;
+        foreach ($liste as $o) {
+            if ($o['id'] === (string) ($_POST['objekt'] ?? '')) {
+                $obj = $o;
+            }
+        }
+        if (!$obj) {
+            $fehler[] = 'Bitte das Objekt wählen.';
+        }
+        $geraeumt = !empty($_POST['geraeumt']);
+        $gestreut = !empty($_POST['gestreut']);
+        $kontrolle = !empty($_POST['kontrolle']);
+        if (!$geraeumt && !$gestreut && !$kontrolle) {
+            $fehler[] = 'Bitte ankreuzen: geräumt, gestreut oder nur kontrolliert.';
+        }
+        $mittel = (string) ($_POST['mittel'] ?? '');
+        if (!in_array($mittel, STREUMITTEL, true)) {
+            $mittel = '';
+        }
+        $zeit = (string) ($_POST['erledigt'] ?? '');
+        $heute = uhrzeit(jetzt(), 'Y-m-d');
+        $erledigt = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $zeit) ? (new DateTimeImmutable("$heute $zeit", new DateTimeZone('Europe/Vienna')))->getTimestamp() : jetzt();
+        if ($erledigt > jetzt() + 300) {
+            $erledigt -= 86400; // kurz nach Mitternacht für den Vorabend eingetragen
+        }
+        $notiz = mb_substr(trim((string) ($_POST['notiz'] ?? '')), 0, 500);
+        // Fotos (das Formular verkleinert sie vorher am Handy)
+        $id = bin2hex(random_bytes(6));
+        $fotos = [];
+        $dateien = $_FILES['fotos'] ?? null;
+        if ($dateien && is_array($dateien['name'] ?? null)) {
+            $finfo = class_exists('finfo') ? new finfo(FILEINFO_MIME_TYPE) : null;
+            foreach ($dateien['name'] as $i => $n) {
+                if (($dateien['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+                    continue;
+                }
+                if ($dateien['error'][$i] !== UPLOAD_ERR_OK) {
+                    $fehler[] = 'Foto zu groß oder nicht angekommen.';
+                    continue;
+                }
+                if (count($fotos) >= 4) {
+                    $fehler[] = 'Höchstens 4 Fotos je Eintrag.';
+                    break;
+                }
+                $typ = $finfo ? (string) $finfo->file($dateien['tmp_name'][$i]) : (string) ($dateien['type'][$i] ?? '');
+                if (!isset(FOTO_TYPEN[$typ]) || $dateien['size'][$i] > 10 * 1024 * 1024) {
+                    $fehler[] = 'Foto bitte als JPEG oder PNG, höchstens 10 MB.';
+                    continue;
+                }
+                $fotos[] = ['tmp' => $dateien['tmp_name'][$i], 'name' => sprintf('%s-%d.%s', $id, count($fotos) + 1, FOTO_TYPEN[$typ])];
+            }
+        }
+        if (!$fehler) {
+            $gespeichert = [];
+            foreach ($fotos as $f) {
+                if (move_uploaded_file($f['tmp'], protokoll_ordner() . '/fotos/' . $f['name'])) {
+                    $gespeichert[] = $f['name'];
+                }
+            }
+            $eintrag = ['id' => $id, 'datum' => uhrzeit($erledigt, 'Y-m-d'), 'erledigt' => $erledigt, 'ort' => $ortName, 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'adresse' => $obj['adresse'], 'person' => $person,
+                'geraeumt' => $geraeumt, 'gestreut' => $gestreut, 'kontrolle' => $kontrolle && !$geraeumt && !$gestreut, 'mittel' => $gestreut ? $mittel : '', 'notiz' => $notiz, 'fotos' => $gespeichert, 'lage' => $lage,
+                'eingetragen' => jetzt(), 'alarm' => (string) $alarm['id'], 'test' => !empty($alarm['test'])];
+            if (protokoll_anhaengen($eintrag)) {
+                mit_stand(function (array &$stand) use ($ortName, $person, $obj) {
+                    protokoll($stand, $ortName, "Protokoll von $person: " . $obj['name']);
+                });
+                $meldung = '<p class="ok">Gespeichert: ' . $h($obj['name']) . ' um ' . uhrzeit($erledigt) . ' Uhr' . ($gespeichert ? ', ' . count($gespeichert) . (count($gespeichert) === 1 ? ' Foto' : ' Fotos') : '') . '. Danke!</p>';
+            } else {
+                $meldung = '<p class="fehler">Konnte nicht speichern (Ordner privat/ am Webspace nicht beschreibbar). Bitte im Büro melden.</p>';
+            }
+        } else {
+            $meldung = '<p class="fehler">' . $h(implode(' ', array_unique($fehler))) . '</p>';
+        }
+    }
+    // heute an diesem Ort schon eingetragen
+    $heute = uhrzeit(jetzt(), 'Y-m-d');
+    $erledigtHeute = array_values(array_filter(protokolle_lesen(substr($heute, 0, 7)), fn ($p) => $p['ort'] === $ortName && $p['datum'] === $heute));
+    $fertig = array_column($erledigtHeute, 'objektId');
+    $optionen = '';
+    foreach ($liste as $o) {
+        $optionen .= '<option value="' . $h($o['id']) . '">' . $h($o['name'] . ($o['adresse'] ? ', ' . $o['adresse'] : '')) . (in_array($o['id'], $fertig, true) ? ' ✓' : '') . '</option>';
+    }
+    $schon = $erledigtHeute ? '<h2>Heute eingetragen</h2><ul>' . implode('', array_map(fn ($p) => '<li>' . $h($p['objekt']) . ', ' . uhrzeit((int) $p['erledigt']) . ' Uhr, ' . $h($p['person']) . '</li>', $erledigtHeute)) . '</ul>' : '';
+    $mittelOpt = implode('', array_map(fn ($x) => '<option value="' . $h($x) . '">' . ($x === '' ? '–' : $h($x)) . '</option>', STREUMITTEL));
+    html_seite('<h1>Winterdienst-Protokoll</h1><p>' . $h($ortName) . ' · ' . $h($person) . '</p>' . $meldung
+        . ($liste ? '<form method="post" enctype="multipart/form-data" data-fotos-verkleinern>'
+            . '<label for="objekt">Objekt</label><select id="objekt" name="objekt" required><option value="">– wählen –</option>' . $optionen . '</select>'
+            . '<label for="erledigt">Erledigt um</label><input type="time" id="erledigt" name="erledigt" value="' . uhrzeit(jetzt()) . '" required>'
+            . '<label class="haken"><input type="checkbox" name="geraeumt" value="1"> Geräumt</label>'
+            . '<label class="haken"><input type="checkbox" name="gestreut" value="1"> Gestreut</label>'
+            . '<label class="haken"><input type="checkbox" name="kontrolle" value="1"> Nur kontrolliert, nichts nötig</label>'
+            . '<label for="mittel">Streumittel</label><select id="mittel" name="mittel">' . $mittelOpt . '</select>'
+            . '<label for="notiz">Notiz (optional)</label><textarea id="notiz" name="notiz" rows="2" maxlength="500" placeholder="z. B. Eisplatte beim Eingang, nachstreuen"></textarea>'
+            . '<label for="fotos">Fotos (optional, bis zu 4)</label><input type="file" id="fotos" name="fotos[]" accept="image/*" capture="environment" multiple>'
+            . '<button type="submit">Protokoll speichern</button></form>'
+          : '<p>Für diesen Ort ist kein Objekt mit Winterdienst eingetragen.</p>')
+        . $schon, 200, 'wetter-foto.js');
     exit;
 }
 
@@ -443,6 +643,28 @@ if ($aktion === 'test' && ($cli || $methode === 'POST')) {
         return $aus;
     });
     ausgabe($bericht ? 200 : 404, $bericht ?: ['fehler' => 'Ort nicht gefunden']);
+}
+if ($aktion === 'protokolle') {
+    // Protokolle eines Monats (Standard: dieser und der vorige), für die Übernahme nach SharePoint
+    $monat = (string) ($_GET['monat'] ?? '');
+    $monate = preg_match('/^\d{4}-\d{2}$/', $monat) ? [$monat] : [uhrzeit(strtotime('first day of last month', jetzt()), 'Y-m'), uhrzeit(jetzt(), 'Y-m')];
+    $alle = [];
+    foreach (array_unique($monate) as $m) {
+        $alle = array_merge($alle, protokolle_lesen($m));
+    }
+    ausgabe(200, ['eintraege' => $alle]);
+}
+if ($aktion === 'foto') {
+    $datei = (string) ($_GET['datei'] ?? '');
+    $pfad = protokoll_ordner() . '/fotos/' . $datei;
+    if (!preg_match('/^[a-f0-9]{12}-[1-4]\.(jpg|png|webp)$/', $datei) || !is_file($pfad)) {
+        ausgabe(404, ['fehler' => 'Foto nicht gefunden']);
+    }
+    header('Content-Type: ' . array_search(pathinfo($datei, PATHINFO_EXTENSION), FOTO_TYPEN, true));
+    header('Cache-Control: private, max-age=86400');
+    header('Content-Length: ' . filesize($pfad));
+    readfile($pfad);
+    exit;
 }
 if ($aktion === 'speichern' && $methode === 'POST') {
     // neue Einstellungen aus der App (Schlüssel geprüft); der neue Schlüssel darf sich ändern

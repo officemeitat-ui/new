@@ -301,7 +301,8 @@ export function alarmFile({ alarm, locations, objects, employees, address }) {
       name: loc.name,
       lat: Number(loc.lat),
       lon: Number(loc.lon),
-      objekte: winterAt(loc, objects, locations).objects.map((o) => o.name),
+      // mit Kennung und Adresse: das Protokoll am Handy ordnet die Einträge dem Objekt zu
+      objekte: winterAt(loc, objects, locations).objects.map((o) => ({ id: o.id, name: o.name, adresse: o.address || '' })),
       ...(set.rotate && set.level1.length > 1 ? { wechsel: 'woche' } : {}),
       stufe1: set.level1.map((id) => person(id, a.emailLevel1)).filter(Boolean),
       stufe2: [...set.level2.map((id) => person(id, true)).filter(Boolean), ...office],

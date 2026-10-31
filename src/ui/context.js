@@ -324,7 +324,7 @@ export function toast(message) {
 // ---------------------------------------------------------------- Rückgängig
 
 const undoStack = []
-const UNDO_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'payroll', 'tasks']
+const UNDO_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog', 'payroll', 'tasks']
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))
 
 /** Stand vor einer Planänderung merken (Einteilungen, Einzeländerungen, Fahrten). */
