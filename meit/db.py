@@ -1,0 +1,250 @@
+"""SQLite-Datenbank: Schema und kleine Hilfsfunktionen (keine ORM-Abhängigkeit)."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from contextlib import contextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Iterator
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    contact_name TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    industry TEXT DEFAULT '',
+    employees INTEGER DEFAULT 0,
+    package TEXT DEFAULT 'keins',
+    mrr REAL DEFAULT 0,
+    contract_end TEXT DEFAULT '',
+    booked_services TEXT DEFAULT '[]',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    status TEXT DEFAULT 'neu',
+    priority TEXT DEFAULT 'normal',
+    category TEXT DEFAULT '',
+    solution TEXT DEFAULT '',
+    ai_suggestion TEXT DEFAULT '',
+    time_spent_min INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    resolved_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'pc',
+    os TEXT DEFAULT '',
+    serial TEXT DEFAULT '',
+    purchase_date TEXT DEFAULT '',
+    warranty_end TEXT DEFAULT '',
+    last_seen TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS kb_articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    content TEXT DEFAULT '',
+    tags TEXT DEFAULT '',
+    embedding TEXT DEFAULT '',
+    embedding_model TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    unit TEXT DEFAULT 'Pauschal',
+    price REAL DEFAULT 0,
+    recurring INTEGER DEFAULT 0,
+    keywords TEXT DEFAULT '',
+    active INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS quotes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    need TEXT DEFAULT '',
+    items TEXT DEFAULT '[]',
+    total_once REAL DEFAULT 0,
+    total_monthly REAL DEFAULT 0,
+    text TEXT DEFAULT '',
+    status TEXT DEFAULT 'entwurf',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    answers TEXT DEFAULT '{}',
+    score REAL DEFAULT 0,
+    level TEXT DEFAULT '',
+    report TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,
+    provider TEXT DEFAULT '',
+    input TEXT DEFAULT '',
+    output TEXT DEFAULT '',
+    ok INTEGER DEFAULT 1,
+    duration_ms INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_assets_customer ON assets(customer_id);
+"""
+
+# Felder, die über die API geschrieben werden dürfen (Whitelist gegen SQL-Injection).
+WRITABLE_FIELDS: dict[str, set[str]] = {
+    "customers": {
+        "name", "contact_name", "email", "phone", "address", "industry", "employees",
+        "package", "mrr", "contract_end", "booked_services", "notes",
+    },
+    "tickets": {
+        "customer_id", "title", "description", "status", "priority", "category",
+        "solution", "ai_suggestion", "time_spent_min", "resolved_at",
+    },
+    "assets": {
+        "customer_id", "name", "type", "os", "serial", "purchase_date", "warranty_end",
+        "last_seen", "notes",
+    },
+    "kb_articles": {"title", "content", "tags", "embedding", "embedding_model"},
+    "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
+    "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status"},
+    "assessments": {"customer_id", "answers", "score", "level", "report"},
+    "agent_log": {"agent", "provider", "input", "output", "ok", "duration_ms"},
+}
+
+TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles"}
+TABLES_WITH_CREATED_AT = {
+    "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
+}
+
+
+def now_iso() -> str:
+    return datetime.now().replace(microsecond=0).isoformat(sep=" ")
+
+
+class Database:
+    def __init__(self, path: str):
+        self.path = path
+        if path != ":memory:":
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+    @contextmanager
+    def connect(self) -> Iterator[sqlite3.Connection]:
+        conn = sqlite3.connect(self.path, timeout=30)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def init_schema(self) -> None:
+        with self.connect() as conn:
+            conn.executescript(SCHEMA)
+
+    # --- generische Helfer -------------------------------------------------
+    def query(self, sql: str, params: tuple | list = ()) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            return [dict(row) for row in conn.execute(sql, params).fetchall()]
+
+    def query_one(self, sql: str, params: tuple | list = ()) -> dict[str, Any] | None:
+        rows = self.query(sql, params)
+        return rows[0] if rows else None
+
+    def scalar(self, sql: str, params: tuple | list = ()) -> Any:
+        with self.connect() as conn:
+            row = conn.execute(sql, params).fetchone()
+            return row[0] if row else None
+
+    def _clean(self, table: str, data: dict[str, Any]) -> dict[str, Any]:
+        allowed = WRITABLE_FIELDS[table]
+        clean: dict[str, Any] = {}
+        for key, value in data.items():
+            if key not in allowed:
+                continue
+            if isinstance(value, (list, dict)):
+                value = json.dumps(value, ensure_ascii=False)
+            elif isinstance(value, bool):
+                value = int(value)
+            clean[key] = value
+        return clean
+
+    def insert(self, table: str, data: dict[str, Any]) -> int:
+        clean = self._clean(table, data)
+        ts = now_iso()
+        if table in TABLES_WITH_CREATED_AT:
+            clean["created_at"] = ts
+        if table in TABLES_WITH_UPDATED_AT:
+            clean["updated_at"] = ts
+        cols = ", ".join(clean)
+        marks = ", ".join("?" for _ in clean)
+        with self.connect() as conn:
+            cur = conn.execute(f"INSERT INTO {table} ({cols}) VALUES ({marks})", list(clean.values()))
+            return int(cur.lastrowid)
+
+    def update(self, table: str, row_id: int, data: dict[str, Any]) -> bool:
+        clean = self._clean(table, data)
+        if table in TABLES_WITH_UPDATED_AT:
+            clean["updated_at"] = now_iso()
+        if not clean:
+            return self.get(table, row_id) is not None
+        assignments = ", ".join(f"{k} = ?" for k in clean)
+        with self.connect() as conn:
+            cur = conn.execute(
+                f"UPDATE {table} SET {assignments} WHERE id = ?", [*clean.values(), row_id]
+            )
+            return cur.rowcount > 0
+
+    def get(self, table: str, row_id: int) -> dict[str, Any] | None:
+        if table not in WRITABLE_FIELDS:
+            raise ValueError(f"Unbekannte Tabelle: {table}")
+        return self.query_one(f"SELECT * FROM {table} WHERE id = ?", (row_id,))
+
+    def delete(self, table: str, row_id: int) -> bool:
+        if table not in WRITABLE_FIELDS:
+            raise ValueError(f"Unbekannte Tabelle: {table}")
+        with self.connect() as conn:
+            cur = conn.execute(f"DELETE FROM {table} WHERE id = ?", (row_id,))
+            return cur.rowcount > 0
+
+
+def loads(value: str | None, default: Any) -> Any:
+    """JSON tolerant laden (leere/kaputte Felder -> default)."""
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return default

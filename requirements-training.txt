@@ -1,0 +1,9 @@
+# Nur auf dem KI-PC mit NVIDIA-GPU (Linux oder Windows + WSL2) nötig.
+# Vorher passendes PyTorch mit CUDA installieren: https://pytorch.org/get-started/locally/
+unsloth
+trl
+datasets
+transformers
+peft
+accelerate
+bitsandbytes

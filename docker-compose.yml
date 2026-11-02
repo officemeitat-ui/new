@@ -1,0 +1,45 @@
+# ME-IT Cockpit + Ollama (lokale KI) mit einem Befehl:
+#   docker compose up -d
+#   docker compose exec ollama ollama pull qwen3:14b
+#   docker compose exec ollama ollama pull bge-m3
+# Danach: http://localhost:8080
+#
+# NVIDIA-GPU: NVIDIA Container Toolkit installieren (unter Windows: Docker Desktop + WSL2),
+# dann funktioniert der "deploy"-Abschnitt unten. Ohne GPU den Abschnitt entfernen (läuft dann auf CPU, langsam).
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=30m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  cockpit:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "127.0.0.1:8080:8080"   # nur lokal; für LAN "8080:8080" + MEIT_PASSWORD setzen
+    environment:
+      - LLM_PROVIDER=ollama
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:14b}
+      - EMBED_MODEL=${EMBED_MODEL:-bge-m3}
+      - MEIT_PASSWORD=${MEIT_PASSWORD:-}
+      - MEIT_COMPANY=${MEIT_COMPANY:-ME-IT}
+    volumes:
+      - cockpit-data:/data
+
+volumes:
+  ollama:
+  cockpit-data:

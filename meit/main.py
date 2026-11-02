@@ -1,0 +1,526 @@
+"""ME-IT Cockpit – FastAPI-Anwendung (API + Weboberfläche).
+
+Start:  python -m meit   (oder: uvicorn meit.main:app --host 127.0.0.1 --port 8080)
+"""
+
+from __future__ import annotations
+
+import base64
+import secrets
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any, Optional
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from . import __version__
+from .agents import (
+    AgentContext, create_quote, monthly_report, run_assistant, run_security_check, triage_ticket,
+)
+from .config import Settings, get_settings
+from .db import Database, loads, now_iso
+from .knowledge import KnowledgeBase
+from .llm import Router
+from .radar import Radar, eol_info
+from .security import QUESTIONS
+from .seed import seed_all
+from .training import build_dataset, stats as training_stats, to_jsonl
+
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+# --- Eingabemodelle --------------------------------------------------------------
+class CustomerIn(BaseModel):
+    name: str = Field(min_length=1)
+    contact_name: str = ""
+    email: str = ""
+    phone: str = ""
+    address: str = ""
+    industry: str = ""
+    employees: int = 0
+    package: str = "keins"
+    mrr: float = 0
+    contract_end: str = ""
+    booked_services: list[str] = []
+    notes: str = ""
+
+
+class TicketIn(BaseModel):
+    customer_id: Optional[int] = None
+    title: str = Field(min_length=1)
+    description: str = ""
+    status: str = "neu"
+    priority: str = "normal"
+    category: str = ""
+    solution: str = ""
+    time_spent_min: int = 0
+    auto_triage: bool = True
+
+
+class TicketUpdate(BaseModel):
+    customer_id: Optional[int] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    category: Optional[str] = None
+    solution: Optional[str] = None
+    time_spent_min: Optional[int] = None
+
+
+class AssetIn(BaseModel):
+    customer_id: int
+    name: str = Field(min_length=1)
+    type: str = "pc"
+    os: str = ""
+    serial: str = ""
+    purchase_date: str = ""
+    warranty_end: str = ""
+    last_seen: str = ""
+    notes: str = ""
+
+
+class ArticleIn(BaseModel):
+    title: str = Field(min_length=1)
+    content: str = ""
+    tags: str = ""
+
+
+class ServiceIn(BaseModel):
+    code: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    description: str = ""
+    unit: str = "Pauschal"
+    price: float = 0
+    recurring: bool = False
+    keywords: str = ""
+    active: bool = True
+
+
+class ChatIn(BaseModel):
+    messages: list[dict[str, str]]
+
+
+class QuoteIn(BaseModel):
+    customer_id: int
+    need: str = Field(min_length=3)
+    service_codes: list[str] = []
+
+
+class QuoteStatus(BaseModel):
+    status: str
+
+
+class SecurityIn(BaseModel):
+    customer_id: int
+    answers: dict[str, str]
+
+
+class ReportIn(BaseModel):
+    customer_id: int
+    month: Optional[str] = None
+
+
+TICKET_STATUSES = {"neu", "in_arbeit", "wartet", "geloest"}
+PRIORITIES = {"niedrig", "normal", "hoch", "kritisch"}
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
+    db = Database(settings.db_path)
+    db.init_schema()
+    seed_all(db, demo=settings.seed_demo_data)
+    router = Router(settings)
+    kb = KnowledgeBase(db, router)
+    radar = Radar(db)
+    ctx = AgentContext(db=db, router=router, kb=kb, radar=radar, company=settings.company_name)
+
+    app = FastAPI(title=f"{settings.company_name} Cockpit", version=__version__)
+    app.state.ctx = ctx
+    app.state.settings = settings
+
+    # --- optionaler Passwortschutz (HTTP Basic), wenn im LAN erreichbar ----------
+    @app.middleware("http")
+    async def basic_auth(request: Request, call_next):
+        if settings.app_password:
+            header = request.headers.get("authorization", "")
+            ok = False
+            if header.lower().startswith("basic "):
+                try:
+                    _, _, password = base64.b64decode(header[6:]).decode().partition(":")
+                    ok = secrets.compare_digest(password, settings.app_password)
+                except (ValueError, UnicodeDecodeError):
+                    ok = False
+            if not ok:
+                return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="ME-IT"'})
+        return await call_next(request)
+
+    def must(row: dict | None, what: str = "Eintrag") -> dict:
+        if not row:
+            raise HTTPException(404, f"{what} nicht gefunden")
+        return row
+
+    def customer_out(c: dict) -> dict:
+        c["booked_services"] = loads(c.get("booked_services"), [])
+        return c
+
+    # --- System -------------------------------------------------------------------
+    @app.get("/api/health")
+    def health() -> dict[str, Any]:
+        return {"ok": True, "version": __version__, "company": settings.company_name, "llm": router.status()}
+
+    @app.get("/api/settings")
+    def get_app_settings() -> dict[str, Any]:
+        return {
+            "company": settings.company_name, "llm_provider": settings.llm_provider,
+            "ollama_url": settings.ollama_url, "ollama_model": settings.ollama_model,
+            "embed_model": settings.embed_model, "openai_base_url": settings.openai_base_url,
+            "openai_model": settings.openai_model, "anthropic_model": settings.anthropic_model,
+            "allow_cloud_fallback": settings.allow_cloud_fallback, "db_path": settings.db_path,
+            "password_protected": bool(settings.app_password), "llm": router.status(),
+        }
+
+    # --- Dashboard ----------------------------------------------------------------
+    @app.get("/api/dashboard")
+    def dashboard() -> dict[str, Any]:
+        today = date.today()
+        assets = db.query("SELECT os, warranty_end FROM assets")
+        eol = sum(1 for a in assets if (info := eol_info(a["os"] or "")) and info[0] <= today)
+        eol_soon = sum(1 for a in assets if (info := eol_info(a["os"] or "")) and today < info[0] <= today + timedelta(days=548))
+        warranty_soon = sum(1 for a in assets if a["warranty_end"] and today.isoformat() <= a["warranty_end"][:10]
+                            <= (today + timedelta(days=90)).isoformat())
+        scan = radar.scan()
+        resolved = db.query("SELECT created_at, resolved_at FROM tickets WHERE status = 'geloest' AND resolved_at != ''")
+        return {
+            "customers": db.scalar("SELECT COUNT(*) FROM customers"),
+            "managed_customers": db.scalar("SELECT COUNT(*) FROM customers WHERE package != 'keins'"),
+            "mrr": db.scalar("SELECT COALESCE(SUM(mrr), 0) FROM customers"),
+            "open_tickets": db.scalar("SELECT COUNT(*) FROM tickets WHERE status != 'geloest'"),
+            "critical_tickets": db.scalar(
+                "SELECT COUNT(*) FROM tickets WHERE status != 'geloest' AND priority IN ('kritisch', 'hoch')"),
+            "resolved_tickets": len(resolved),
+            "assets": len(assets), "assets_eol": eol, "assets_eol_soon": eol_soon, "warranty_soon": warranty_soon,
+            "radar_count": scan["count"], "radar_once": scan["total_once"], "radar_monthly": scan["total_monthly"],
+            "radar_annual": scan["total_annual"], "top_opportunities": scan["opportunities"][:5],
+            "contracts_ending": db.query(
+                "SELECT id, name, contract_end FROM customers WHERE contract_end != '' AND contract_end BETWEEN ? AND ? "
+                "ORDER BY contract_end", (today.isoformat(), (today + timedelta(days=90)).isoformat())),
+            "recent_agent_runs": db.query(
+                "SELECT agent, provider, ok, duration_ms, created_at FROM agent_log ORDER BY id DESC LIMIT 8"),
+            "llm": router.status(),
+        }
+
+    # --- Kunden -------------------------------------------------------------------
+    @app.get("/api/customers")
+    def list_customers() -> list[dict]:
+        rows = db.query(
+            "SELECT c.*, (SELECT COUNT(*) FROM tickets t WHERE t.customer_id = c.id AND t.status != 'geloest') AS open_tickets, "
+            "(SELECT COUNT(*) FROM assets a WHERE a.customer_id = c.id) AS asset_count FROM customers c ORDER BY c.name")
+        return [customer_out(r) for r in rows]
+
+    @app.post("/api/customers", status_code=201)
+    def add_customer(data: CustomerIn) -> dict:
+        return customer_out(db.get("customers", db.insert("customers", data.model_dump())))
+
+    @app.get("/api/customers/{cid}")
+    def get_customer(cid: int) -> dict:
+        c = customer_out(must(db.get("customers", cid), "Kunde"))
+        c["assets"] = db.query("SELECT * FROM assets WHERE customer_id = ? ORDER BY name", (cid,))
+        c["tickets"] = db.query("SELECT * FROM tickets WHERE customer_id = ? ORDER BY id DESC LIMIT 50", (cid,))
+        c["quotes"] = db.query("SELECT id, title, total_once, total_monthly, status, created_at FROM quotes "
+                               "WHERE customer_id = ? ORDER BY id DESC", (cid,))
+        c["assessments"] = db.query("SELECT id, score, level, created_at FROM assessments WHERE customer_id = ? "
+                                    "ORDER BY id DESC", (cid,))
+        c["opportunities"] = radar.scan(cid)["opportunities"]
+        return c
+
+    @app.put("/api/customers/{cid}")
+    def update_customer(cid: int, data: CustomerIn) -> dict:
+        must(db.get("customers", cid), "Kunde")
+        db.update("customers", cid, data.model_dump())
+        return customer_out(db.get("customers", cid))
+
+    @app.delete("/api/customers/{cid}")
+    def delete_customer(cid: int) -> dict:
+        if not db.delete("customers", cid):
+            raise HTTPException(404, "Kunde nicht gefunden")
+        return {"ok": True}
+
+    # --- Tickets ------------------------------------------------------------------
+    @app.get("/api/tickets")
+    def list_tickets(status: Optional[str] = None, customer_id: Optional[int] = None,
+                     open_only: bool = False) -> list[dict]:
+        sql = ("SELECT t.*, c.name AS customer_name FROM tickets t LEFT JOIN customers c ON c.id = t.customer_id "
+               "WHERE 1=1")
+        params: list[Any] = []
+        if status:
+            sql += " AND t.status = ?"
+            params.append(status)
+        if open_only:
+            sql += " AND t.status != 'geloest'"
+        if customer_id:
+            sql += " AND t.customer_id = ?"
+            params.append(customer_id)
+        sql += (" ORDER BY CASE t.status WHEN 'geloest' THEN 1 ELSE 0 END, "
+                "CASE t.priority WHEN 'kritisch' THEN 0 WHEN 'hoch' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, t.id DESC")
+        rows = db.query(sql, params)
+        for r in rows:
+            r["ai_suggestion"] = loads(r.get("ai_suggestion"), None)
+        return rows
+
+    @app.post("/api/tickets", status_code=201)
+    def add_ticket(data: TicketIn) -> dict:
+        payload = data.model_dump(exclude={"auto_triage"})
+        if payload["status"] not in TICKET_STATUSES or payload["priority"] not in PRIORITIES:
+            raise HTTPException(422, "Ungültiger Status oder Priorität")
+        if payload.get("customer_id"):
+            must(db.get("customers", payload["customer_id"]), "Kunde")
+        tid = db.insert("tickets", payload)
+        if data.auto_triage:
+            try:
+                triage_ticket(ctx, tid)
+            except Exception:  # noqa: BLE001 - Ticket bleibt auch ohne Triage gespeichert
+                pass
+        row = db.get("tickets", tid)
+        row["ai_suggestion"] = loads(row.get("ai_suggestion"), None)
+        return row
+
+    @app.get("/api/tickets/{tid}")
+    def get_ticket(tid: int) -> dict:
+        row = must(db.query_one(
+            "SELECT t.*, c.name AS customer_name FROM tickets t LEFT JOIN customers c ON c.id = t.customer_id "
+            "WHERE t.id = ?", (tid,)), "Ticket")
+        row["ai_suggestion"] = loads(row.get("ai_suggestion"), None)
+        return row
+
+    @app.put("/api/tickets/{tid}")
+    def update_ticket(tid: int, data: TicketUpdate) -> dict:
+        ticket = must(db.get("tickets", tid), "Ticket")
+        payload = {k: v for k, v in data.model_dump().items() if v is not None}
+        if "status" in payload and payload["status"] not in TICKET_STATUSES:
+            raise HTTPException(422, "Ungültiger Status")
+        if "priority" in payload and payload["priority"] not in PRIORITIES:
+            raise HTTPException(422, "Ungültige Priorität")
+        if payload.get("status") == "geloest" and ticket["status"] != "geloest":
+            payload["resolved_at"] = now_iso()
+        elif payload.get("status") and payload["status"] != "geloest":
+            payload["resolved_at"] = ""
+        db.update("tickets", tid, payload)
+        row = db.get("tickets", tid)
+        row["ai_suggestion"] = loads(row.get("ai_suggestion"), None)
+        return row
+
+    @app.delete("/api/tickets/{tid}")
+    def delete_ticket(tid: int) -> dict:
+        if not db.delete("tickets", tid):
+            raise HTTPException(404, "Ticket nicht gefunden")
+        return {"ok": True}
+
+    @app.post("/api/tickets/{tid}/triage")
+    def triage(tid: int, apply: bool = True) -> dict:
+        must(db.get("tickets", tid), "Ticket")
+        return triage_ticket(ctx, tid, apply=apply)
+
+    # --- Geräte -------------------------------------------------------------------
+    @app.get("/api/assets")
+    def list_assets(customer_id: Optional[int] = None) -> list[dict]:
+        sql = "SELECT a.*, c.name AS customer_name FROM assets a LEFT JOIN customers c ON c.id = a.customer_id"
+        params: tuple = ()
+        if customer_id:
+            sql += " WHERE a.customer_id = ?"
+            params = (customer_id,)
+        rows = db.query(sql + " ORDER BY c.name, a.name", params)
+        today = date.today()
+        for r in rows:
+            info = eol_info(r["os"] or "")
+            r["eol_date"] = info[0].isoformat() if info else ""
+            r["eol_status"] = ("abgelaufen" if info and info[0] <= today else
+                               "bald" if info and info[0] <= today + timedelta(days=548) else "ok")
+        return rows
+
+    @app.post("/api/assets", status_code=201)
+    def add_asset(data: AssetIn) -> dict:
+        must(db.get("customers", data.customer_id), "Kunde")
+        return db.get("assets", db.insert("assets", data.model_dump()))
+
+    @app.put("/api/assets/{aid}")
+    def update_asset(aid: int, data: AssetIn) -> dict:
+        must(db.get("assets", aid), "Gerät")
+        db.update("assets", aid, data.model_dump())
+        return db.get("assets", aid)
+
+    @app.delete("/api/assets/{aid}")
+    def delete_asset(aid: int) -> dict:
+        if not db.delete("assets", aid):
+            raise HTTPException(404, "Gerät nicht gefunden")
+        return {"ok": True}
+
+    # --- Wissensdatenbank -------------------------------------------------------
+    @app.get("/api/kb")
+    def list_articles() -> list[dict]:
+        return db.query("SELECT id, title, tags, content, updated_at FROM kb_articles ORDER BY title")
+
+    @app.get("/api/kb/search")
+    def search_articles(q: str = Query(min_length=1), limit: int = 5) -> list[dict]:
+        return kb.search(q, limit=min(limit, 20))
+
+    @app.post("/api/kb", status_code=201)
+    def add_article(data: ArticleIn) -> dict:
+        return db.get("kb_articles", db.insert("kb_articles", data.model_dump()))
+
+    @app.put("/api/kb/{aid}")
+    def update_article(aid: int, data: ArticleIn) -> dict:
+        must(db.get("kb_articles", aid), "Artikel")
+        db.update("kb_articles", aid, {**data.model_dump(), "embedding": "", "embedding_model": ""})
+        return db.get("kb_articles", aid)
+
+    @app.delete("/api/kb/{aid}")
+    def delete_article(aid: int) -> dict:
+        if not db.delete("kb_articles", aid):
+            raise HTTPException(404, "Artikel nicht gefunden")
+        return {"ok": True}
+
+    @app.post("/api/kb/reindex")
+    def reindex() -> dict:
+        db.query("UPDATE kb_articles SET embedding = '', embedding_model = ''")
+        return {"indexed": kb.ensure_embeddings()}
+
+    @app.post("/api/tickets/{tid}/to-kb", status_code=201)
+    def ticket_to_kb(tid: int) -> dict:
+        """Gelöstes Ticket als Wissensartikel übernehmen – so lernt das System mit."""
+        t = must(db.get("tickets", tid), "Ticket")
+        if not t["solution"]:
+            raise HTTPException(422, "Ticket hat noch keine Lösung")
+        content = f"## Problem\n{t['description']}\n\n## Lösung\n{t['solution']}\n"
+        return db.get("kb_articles", db.insert("kb_articles", {
+            "title": t["title"], "content": content, "tags": (t["category"] or "").lower()}))
+
+    # --- Leistungskatalog -------------------------------------------------------
+    @app.get("/api/services")
+    def list_services() -> list[dict]:
+        return db.query("SELECT * FROM services ORDER BY recurring DESC, code")
+
+    @app.post("/api/services", status_code=201)
+    def add_service(data: ServiceIn) -> dict:
+        if db.query_one("SELECT id FROM services WHERE code = ?", (data.code.upper(),)):
+            raise HTTPException(409, "Code existiert bereits")
+        return db.get("services", db.insert("services", {**data.model_dump(), "code": data.code.upper()}))
+
+    @app.put("/api/services/{sid}")
+    def update_service(sid: int, data: ServiceIn) -> dict:
+        must(db.get("services", sid), "Leistung")
+        db.update("services", sid, {**data.model_dump(), "code": data.code.upper()})
+        return db.get("services", sid)
+
+    # --- Umsatz-Radar -----------------------------------------------------------
+    @app.get("/api/radar")
+    def get_radar(customer_id: Optional[int] = None) -> dict:
+        return radar.scan(customer_id)
+
+    # --- Agenten ----------------------------------------------------------------
+    @app.post("/api/agents/assistant")
+    def assistant(data: ChatIn) -> dict:
+        if not data.messages:
+            raise HTTPException(422, "Keine Nachricht")
+        return run_assistant(ctx, data.messages)
+
+    @app.post("/api/agents/quote", status_code=201)
+    def quote(data: QuoteIn) -> dict:
+        must(db.get("customers", data.customer_id), "Kunde")
+        return create_quote(ctx, data.customer_id, data.need, data.service_codes)
+
+    @app.post("/api/agents/report")
+    def report(data: ReportIn) -> dict:
+        must(db.get("customers", data.customer_id), "Kunde")
+        return monthly_report(ctx, data.customer_id, data.month)
+
+    @app.get("/api/agents/log")
+    def agent_log(limit: int = 50) -> list[dict]:
+        return db.query("SELECT * FROM agent_log ORDER BY id DESC LIMIT ?", (min(limit, 500),))
+
+    # --- Angebote ---------------------------------------------------------------
+    @app.get("/api/quotes")
+    def list_quotes() -> list[dict]:
+        rows = db.query("SELECT q.*, c.name AS customer_name FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id "
+                        "ORDER BY q.id DESC")
+        for r in rows:
+            r["items"] = loads(r["items"], [])
+        return rows
+
+    @app.put("/api/quotes/{qid}")
+    def set_quote_status(qid: int, data: QuoteStatus) -> dict:
+        if data.status not in {"entwurf", "versendet", "angenommen", "abgelehnt"}:
+            raise HTTPException(422, "Ungültiger Status")
+        q = must(db.get("quotes", qid), "Angebot")
+        db.update("quotes", qid, {"status": data.status})
+        if data.status == "angenommen" and q["status"] != "angenommen":
+            # Angenommene wiederkehrende Leistungen erhöhen automatisch den MRR des Kunden.
+            customer = db.get("customers", q["customer_id"])
+            if customer:
+                items = loads(q["items"], [])
+                booked = set(loads(customer["booked_services"], []))
+                booked.update(i["code"] for i in items if i.get("recurring"))
+                db.update("customers", customer["id"], {
+                    "mrr": round((customer["mrr"] or 0) + (q["total_monthly"] or 0), 2),
+                    "booked_services": sorted(booked),
+                    "package": customer["package"] if customer["package"] != "keins" or not q["total_monthly"] else "basis",
+                })
+        return db.get("quotes", qid)
+
+    @app.delete("/api/quotes/{qid}")
+    def delete_quote(qid: int) -> dict:
+        if not db.delete("quotes", qid):
+            raise HTTPException(404, "Angebot nicht gefunden")
+        return {"ok": True}
+
+    # --- Security / NIS2 --------------------------------------------------------
+    @app.get("/api/security/questions")
+    def security_questions() -> list[dict]:
+        return QUESTIONS
+
+    @app.post("/api/security/assess", status_code=201)
+    def security_assess(data: SecurityIn) -> dict:
+        must(db.get("customers", data.customer_id), "Kunde")
+        return run_security_check(ctx, data.customer_id, data.answers)
+
+    @app.get("/api/security/assessments/{aid}")
+    def get_assessment(aid: int) -> dict:
+        a = must(db.get("assessments", aid), "Bewertung")
+        a["answers"] = loads(a["answers"], {})
+        return a
+
+    # --- Training ---------------------------------------------------------------
+    @app.get("/api/training/stats")
+    def get_training_stats() -> dict:
+        return training_stats(db)
+
+    @app.get("/api/training/export")
+    def export_training(include_kb: bool = True) -> PlainTextResponse:
+        body = to_jsonl(build_dataset(db, include_kb=include_kb))
+        return PlainTextResponse(body, media_type="application/jsonl", headers={
+            "Content-Disposition": f'attachment; filename="meit-training-{date.today().isoformat()}.jsonl"'})
+
+    # --- Weboberfläche ----------------------------------------------------------
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def index() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(_: Request, exc: ValueError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    return app
+
+
+def __getattr__(name: str):
+    """``uvicorn meit.main:app`` – App wird erst beim ersten Zugriff erzeugt (Tests bleiben isoliert)."""
+    if name == "app":
+        instance = create_app()
+        globals()["app"] = instance
+        return instance
+    raise AttributeError(name)

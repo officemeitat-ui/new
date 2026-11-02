@@ -1,0 +1,6 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+pydantic>=2.7
+# optional – nur für Claude als Cloud-Option (LLM_PROVIDER=anthropic oder ALLOW_CLOUD_FALLBACK=true)
+anthropic>=2.4
