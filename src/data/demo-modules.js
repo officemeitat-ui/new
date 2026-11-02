@@ -63,6 +63,22 @@ function demoComplaints(monday) {
 }
 
 export function createModuleDemo(monday) {
-  return { fahrzeuge: demoVehicles(monday), reklamationen: demoComplaints(monday) }
+  return {
+    fahrzeuge: demoVehicles(monday),
+    reklamationen: demoComplaints(monday),
+    // Kalkulation für die Wohnanlage (o5): Stiegenhaus, Eingang, Kellergang
+    kalkulation: {
+      settings: {},
+      objects: {
+        o5: {
+          areas: [
+            { id: 'f-demo1', name: 'Stiegenhaus 4 Stockwerke', type: 'stiege', m2: 180, perWeek: 2 },
+            { id: 'f-demo2', name: 'Eingang mit Glastür', type: 'eingang', m2: 25, perWeek: 2 },
+            { id: 'f-demo3', name: 'Kellergang, Müllraum', type: 'gang', m2: 90, perWeek: 0.5 },
+          ],
+        },
+      },
+    },
+  }
 }
 

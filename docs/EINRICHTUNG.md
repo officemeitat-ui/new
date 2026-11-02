@@ -16,6 +16,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ lohn/zeitkonto.json           Salden, Löhne (nur Vollzugriff, Lohn)
                          ├─ fahrzeuge/                    Fahrzeuge, Reifen, Service
                          ├─ reklamationen/                Reklamationen je Objekt
+                         ├─ kalkulation/                  Objektkalkulation (Löhne, Margen)
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 
@@ -87,7 +88,7 @@ Aus `config.json` gelten dazu: `"tenantId": "a31131f2-4ccf-4eb2-ab3d-49c923c6bed
 - Zum Ausprobieren mit Beispieldaten ohne SharePoint: `DIENSTPLAN_DEMO=1 npm run build`.
 - `access.planners`: E-Mail-Adressen mit Vollzugriff (Rolle `disposition`), auch ohne Gruppe. Im Betrieb sieht, wer weder hier steht noch einer Gruppe angehört, nichts.
 - `access.members`, `access.roles`: Rollen per E-Mail-Liste und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier.
-- Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `plaene/`, `personal/`, `lohn/`, `fahrzeuge/`, `reklamationen/`, `exporte/`), jeder mit eigenen SharePoint-Rechten. Die Werkzeuge speichern wie bisher in ihren eigenen Ordnern derselben Bibliothek (`Wasserzähler - Ablesung`, `Objektpruefprotokolle`, `Objektdoku`, `Mattenwechsel`).
+- Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `plaene/`, `personal/`, `lohn/`, `fahrzeuge/`, `reklamationen/`, `kalkulation/`, `exporte/`), jeder mit eigenen SharePoint-Rechten. Die Werkzeuge speichern wie bisher in ihren eigenen Ordnern derselben Bibliothek (`Wasserzähler - Ablesung`, `Objektpruefprotokolle`, `Objektdoku`, `Mattenwechsel`).
 - `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat. Ohne Netz Erfasstes wird zusätzlich sofort gespeichert, sobald wieder Netz da ist.
 - `tools`: `false` blendet die Werkzeuge aus (z. B. für eine Vorschau ohne Firmendaten); Standard: eingeblendet.
 - `weather`: `false` blendet *Wetter & Winterdienst* aus; Standard: eingeblendet (Daten von GeoSphere Austria, Orte je Revier unter *Regeln & Feiertage*).

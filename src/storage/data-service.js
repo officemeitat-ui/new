@@ -9,6 +9,7 @@
 //   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
 //   reklamationen/reklamationen.json  Reklamationen je Objekt
+//   kalkulation/kalkulation.json      Objektkalkulation (Flächen, Leistungswerte, Zuschläge)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -48,6 +49,7 @@ export const oldPathOf = (path) => OLD_PATHS[path] || (path.startsWith('plaene/'
 export const MODULE_DOCS = {
   fahrzeuge: { path: 'fahrzeuge/fahrzeuge.json', empty: () => ({ vehicles: [], workshops: [], changes: [], settings: {} }) },
   reklamationen: { path: 'reklamationen/reklamationen.json', empty: () => ({ items: [] }) },
+  kalkulation: { path: 'kalkulation/kalkulation.json', empty: () => ({ settings: {}, objects: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -70,6 +72,8 @@ export function dataRights(access) {
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
     [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
+    // Löhne und Margen: nur Auswertung & Lohn
+    [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -84,6 +88,7 @@ export const FOLDERS = [
   ['lohn', 'Zeitkonto, Löhne, Monatsabschlüsse', DOC.account],
   ['fahrzeuge', 'Fahrzeuge, Reifen, Service', MODULE_DOCS.fahrzeuge.path],
   ['reklamationen', 'Reklamationen je Objekt', MODULE_DOCS.reklamationen.path],
+  ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
 ]
 
 /**

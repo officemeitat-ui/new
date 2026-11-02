@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', exporte: '' })
   // Reklamationen: Objektmanagement bearbeitet, Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.reklamationen.path) && om.write(MODULE_DOCS.reklamationen.path))
   assert.ok(!va.read(MODULE_DOCS.reklamationen.path))

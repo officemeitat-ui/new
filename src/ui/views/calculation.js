@@ -1,0 +1,218 @@
+// Objektkalkulation (Auswertung): Flächen je Objekt mit Art, m², Häufigkeit und Leistungswert;
+// Stunden im Monat, Verrechnungssatz über Zuschläge, Monatspreis; Vergleich mit Budget und
+// Reinigungsplan; „Als Budget übernehmen“; PDF-Angebot für den Kunden und internes Kalkulationsblatt.
+// Datei kalkulation/kalkulation.json (nur Auswertung & Lohn), weil sie Löhne und Margen enthält.
+
+import { AREA_TYPES, CALC_DEFAULTS, calcWage, calculate, FREQUENCIES } from '../../core/calculation.js'
+import { lastOfMonth, todayISO } from '../../core/dates.js'
+import { objectControlling } from '../../core/reports.js'
+import { mergeRules } from '../../core/rules.js'
+import { calcDocument, calcPdfName, offerDocument } from '../../export/calc-pdf.js'
+import { app, canEdit, closeModal, computeRange, openModal, persist, registerActions, registerModal, registerView, renderNow, toast } from '../context.js'
+import { loadLogo, pdfBlob } from '../pdf.js'
+import { download, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+
+const MODULE = 'auswertung'
+const doc = () => (app.data.kalkulation ||= { settings: {}, objects: {} })
+const settings = () => ({ ...CALC_DEFAULTS, ...(doc().settings || {}), performance: { ...CALC_DEFAULTS.performance, ...(doc().settings?.performance || {}) } })
+const objOf = (id) => app.data.objects.find((o) => o.id === id)
+const areasOf = (id) => doc().objects?.[id]?.areas || []
+const editable = () => canEdit(MODULE) && !app.readOnly
+const eur = (n) => `${(n ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+const de = (n, d = 1) => (n ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 0, maximumFractionDigits: d })
+const wageNow = () => calcWage(settings(), mergeRules(app.data.rules).wages)
+
+/** Stunden laut Reinigungsplan im laufenden Monat (Leistungen × Personen). */
+function plannedHours(objectId) {
+  const from = `${todayISO().slice(0, 7)}-01`
+  const r = computeRange(from, lastOfMonth(from))
+  const obj = objOf(objectId)
+  return obj ? objectControlling(r.ctx, [obj], from.slice(0, 7), r.instances, r.state)[0].planned / 60 : null
+}
+
+function current() {
+  const id = app.ui.calcObject && objOf(app.ui.calcObject) ? app.ui.calcObject : app.data.objects[0]?.id
+  return id
+}
+
+// ---------------------------------------------------------------- Ansicht
+
+function calcView() {
+  const id = current()
+  if (!id) return '<p class="empty">Noch keine Objekte.</p>'
+  const obj = objOf(id)
+  const s = settings()
+  const ed = editable()
+  const areas = app.ui.calcDraft?.id === id ? app.ui.calcDraft.areas : areasOf(id)
+  const wage = wageNow()
+  const calc = calculate({ areas, settings: s, wage })
+  const planned = plannedHours(id)
+  const budget = obj.budgetHoursMonth || null
+  const typeOpts = Object.entries(AREA_TYPES).map(([k, [l]]) => [k, l])
+  const freqOpts = FREQUENCIES.map(([f, l]) => [String(f), l])
+  const rows = areas
+    .map((a, i) => {
+      const r = calc.rows[i]
+      const dis = ed ? '' : 'disabled'
+      return `<tr><td><input type="text" id="ca-name-${i}" value="${esc(a.name || '')}" placeholder="z. B. Büros 1. OG" ${dis}></td>
+        <td><select id="ca-type-${i}" ${dis}>${options(typeOpts, a.type)}</select></td>
+        <td class="num"><input type="number" id="ca-m2-${i}" min="0" step="1" value="${esc(a.m2 ?? '')}" style="width:6rem" ${dis}></td>
+        <td><select id="ca-freq-${i}" ${dis}>${options(freqOpts, String(FREQUENCIES.find(([f]) => Math.abs(f - a.perWeek) < 1e-6)?.[0] ?? 1))}</select></td>
+        <td class="num"><input type="number" id="ca-value-${i}" min="1" step="5" value="${esc(a.value || '')}" placeholder="${esc(s.performance[a.type] || 150)}" style="width:5rem" ${dis}></td>
+        <td class="num">${de(r.minutes / 60, 2)}</td>
+        <td>${ed ? `<button class="btn small danger" data-action="calc-remove" data-idx="${i}" aria-label="Fläche entfernen">${ICON.trash}</button>` : ''}</td></tr>`
+    })
+    .join('')
+  const tile = (label, value, sub = '') => `<div class="stat"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<small class="muted">${sub}</small>` : ''}</div>`
+  const diff = (h) => (h === null || !calc.hours ? '' : Math.abs(h - calc.hours) < 0.05 ? 'passt zur Kalkulation' : `${h > calc.hours ? '+' : '−'}${de(Math.abs(h - calc.hours))} h zur Kalkulation`)
+  return `<div class="section-head"><div><h2>Kalkulation</h2><p>Aus Flächen, Häufigkeit und Leistungswerten (m² je Stunde) die Stunden im Monat, dann über Zuschläge der Verrechnungssatz und der Monatspreis. Vergleich mit Budget und Reinigungsplan, Angebot als PDF.</p></div>
+      <div class="actions"><button class="btn" data-action="calc-settings">Grundlagen</button></div></div>
+    <div class="filters"><label class="field inline"><span>Objekt</span><select id="calc-obj" data-change="calc-object">${options(app.data.objects.map((o) => [o.id, `${o.name}${areasOf(o.id).length ? ' ✓' : ''}`]), id)}</select></label><span class="muted">${esc(obj.address || '')}</span></div>
+    <div class="table-wrap"><table class="data calc-table"><thead><tr><th>Bereich</th><th>Art</th><th class="num">Fläche m²</th><th>Häufigkeit</th><th class="num">m²/h</th><th class="num">h/Monat</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="muted">Noch keine Flächen. „Fläche hinzufügen“, z. B. Büros, Sanitär, Stiegenhaus.</td></tr>'}</tbody></table></div>
+    ${ed ? `<div class="actions" style="margin:8px 0 16px"><button class="btn" data-action="calc-add">${ICON.plus} Fläche hinzufügen</button><button class="btn primary" data-action="calc-save">Speichern</button></div>` : ''}
+    <div class="impact-stats tc-stats">
+      ${tile('Stunden je Monat', de(calc.hours), `inkl. ${de(s.setupPct, 0)} % Rüstzeit`)}
+      ${tile('Verrechnungssatz', eur(calc.rate), `Lohn ${eur(wage)}`)}
+      ${tile('Preis je Monat netto', eur(calc.net), `brutto ${eur(calc.gross)}`)}
+      ${tile('Je m² und Monat', calc.perM2 === null ? '–' : eur(calc.perM2), `${de(calc.totalM2, 0)} m²`)}
+      ${tile('Budget im Objekt', budget ? `${de(budget)} h` : '–', diff(budget))}
+      ${tile('Laut Reinigungsplan', planned === null ? '–' : `${de(planned)} h`, diff(planned))}
+    </div>
+    <div class="actions">${canEdit('stammdaten') || canEdit('planung') ? `<button class="btn" data-action="calc-budget" ${calc.hours ? '' : 'disabled'} title="Stunden der Kalkulation als Budget (Sollstunden/Monat) ins Objekt übernehmen">Als Budget übernehmen</button>` : ''}<button class="btn" data-action="calc-pdf" data-kind="Kalkulation" ${calc.hours ? '' : 'disabled'}>${ICON.download} Kalkulation (intern)</button><button class="btn primary" data-action="calc-pdf" data-kind="Angebot" ${calc.hours ? '' : 'disabled'}>${ICON.download} Angebot (PDF)</button></div>
+    <details class="calc-steps"><summary>So rechnet die Kalkulation</summary><table class="data"><tbody>${calc.steps.map((st) => `<tr><td>${esc(st.label)}</td><td class="num">${st.pct === null ? '' : `${de(st.pct)} %`}</td><td class="num">${eur(st.amount)}</td></tr>`).join('')}<tr><td><strong>Verrechnungssatz netto</strong></td><td></td><td class="num"><strong>${eur(calc.rate)}</strong></td></tr></tbody></table>
+      <p class="note">Je Fläche: m² ÷ Leistungswert × Reinigungen je Woche × 4,33 Wochen; dazu Rüst- und Nebenzeiten. Die Zuschläge laufen nacheinander (jeder auf die Summe davor). Leistungswerte und Zuschläge unter „Grundlagen“; Richtwerte, mit der eigenen Erfahrung abgleichen.</p></details>`
+}
+
+registerView({ id: 'kalkulation', order: 62, label: 'Kalkulation', group: 'auswertung', module: MODULE, noWeek: true, text: 'Stunden und Preis je Objekt', render: calcView })
+
+// ---------------------------------------------------------------- Formular lesen
+
+function readAreas() {
+  const id = current()
+  const areas = (app.ui.calcDraft?.id === id ? app.ui.calcDraft.areas : areasOf(id)).map((a) => ({ ...a }))
+  areas.forEach((a, i) => {
+    if (!document.getElementById(`ca-m2-${i}`)) return
+    a.name = val(`ca-name-${i}`).trim()
+    a.type = val(`ca-type-${i}`)
+    a.m2 = Math.max(0, Number(val(`ca-m2-${i}`)) || 0)
+    a.perWeek = Number(val(`ca-freq-${i}`)) || 1
+    const v = Number(val(`ca-value-${i}`))
+    if (v > 0) a.value = v
+    else delete a.value
+  })
+  app.ui.calcDraft = { id, areas }
+  return areas
+}
+
+// ---------------------------------------------------------------- Grundlagen (Dialog)
+
+function settingsModal() {
+  const s = settings()
+  const ed = editable()
+  const dis = ed ? '' : 'disabled'
+  const wages = mergeRules(app.data.rules).wages
+  const field = (key, label, hint = '') => `<label class="field"><span>${label}</span><input type="number" id="cs-${key}" step="0.5" min="0" value="${esc(s[key])}" ${dis}>${hint ? `<small class="muted">${hint}</small>` : ''}</label>`
+  return modalFrame({
+    title: 'Grundlagen der Kalkulation',
+    wide: true,
+    body: `<h3>Leistungswerte (m² je Stunde)</h3><p class="note">Richtwerte für die Unterhaltsreinigung; Ausschreibungen nennen etwa Büro 150–250, Sanitär 35–120, Treppenhaus 130–200 m²/h. Je Fläche lässt sich ein eigener Wert eintragen.</p>
+      <div class="form-grid">${Object.entries(AREA_TYPES).map(([k, [l]]) => `<label class="field"><span>${esc(l)}</span><input type="number" id="cs-perf-${k}" min="1" step="5" value="${esc(s.performance[k])}" ${dis}></label>`).join('')}</div>
+      <h3>Stundenlohn und Zuschläge</h3>
+      <div class="form-grid">
+        <label class="field"><span>KV-Lohngruppe</span><select id="cs-wageGroup" ${dis}>${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${w.toLocaleString('de-AT', { minimumFractionDigits: 2 })} €`]), s.wageGroup, { empty: 'eigener Stundenlohn' })}</select></label>
+        <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="cs-wage" step="0.01" min="0" value="${esc(s.wage ?? '')}" placeholder="leer = Lohngruppe" ${dis}></label>
+        ${field('lnkPct', 'Lohnnebenkosten (%)', 'Sonderzahlungen, Urlaub, Feiertage, Krankenstand, Dienstgeberabgaben; Wert aus dem WKO-Merkblatt „Lohnnebenkosten Gebäudereiniger“ oder von der Steuerberatung')}
+        ${field('setupPct', 'Rüst- und Nebenzeiten (%)', 'Material holen, Wege im Objekt')}
+        ${field('materialPct', 'Material und Geräte (%)')}
+        ${field('overheadPct', 'Verwaltung und Gemeinkosten (%)')}
+        ${field('profitPct', 'Gewinn und Wagnis (%)')}
+        ${field('vatPct', 'Umsatzsteuer (%)')}
+      </div>`,
+    foot: `<span></span><div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<button class="btn primary" data-action="calc-settings-save">Speichern</button>' : ''}</div>`,
+  })
+}
+
+registerModal('calc-settings', settingsModal, { module: MODULE })
+
+// ---------------------------------------------------------------- Aktionen
+
+registerActions({
+  'calc-object': () => {
+    app.ui.calcObject = val('calc-obj')
+    app.ui.calcDraft = null
+    renderNow()
+  },
+  'calc-settings': () => openModal({ type: 'calc-settings' }),
+  'calc-pdf': async (el) => {
+    const id = current()
+    const obj = objOf(id)
+    const areas = editable() ? readAreas() : areasOf(id)
+    const s = settings()
+    const wage = wageNow()
+    const calc = calculate({ areas, settings: s, wage })
+    const logo = await loadLogo().catch(() => null)
+    const kind = el.dataset.kind
+    const docDef = kind === 'Angebot' ? offerDocument({ object: obj, calc, brand: app.config.brand, logo }) : calcDocument({ object: obj, calc, settings: s, wage, plannedMonth: plannedHours(id), budgetMonth: obj.budgetHoursMonth ?? null, brand: app.config.brand, logo })
+    download(calcPdfName(kind, obj.name), await pdfBlob(docDef))
+  },
+})
+
+registerActions(
+  {
+    'calc-add': () => {
+      const areas = readAreas()
+      areas.push({ id: uid('f'), name: '', type: 'buero', m2: 0, perWeek: 5 })
+      renderNow()
+    },
+    'calc-remove': (el) => {
+      const areas = readAreas()
+      areas.splice(Number(el.dataset.idx), 1)
+      renderNow()
+    },
+    'calc-save': () => {
+      const id = current()
+      const areas = readAreas().filter((a) => a.m2 > 0 || a.name)
+      doc().objects = { ...(doc().objects || {}), [id]: { ...(doc().objects?.[id] || {}), areas, updatedAt: new Date().toISOString() } }
+      app.ui.calcDraft = null
+      persist()
+      renderNow()
+      toast('Kalkulation gespeichert.')
+    },
+    'calc-settings-save': () => {
+      const s = settings()
+      for (const k of Object.keys(AREA_TYPES)) {
+        const v = Number(val(`cs-perf-${k}`))
+        if (v > 0) s.performance[k] = v
+      }
+      s.wageGroup = val('cs-wageGroup')
+      s.wage = Number(val('cs-wage')) > 0 ? Number(val('cs-wage')) : null
+      for (const k of ['lnkPct', 'setupPct', 'materialPct', 'overheadPct', 'profitPct', 'vatPct']) {
+        const v = Number(val(`cs-${k}`))
+        if (Number.isFinite(v) && v >= 0) s[k] = v
+      }
+      if (!s.wage && !s.wageGroup) return toast('Bitte eine Lohngruppe wählen oder einen eigenen Stundenlohn eintragen.')
+      doc().settings = s
+      persist()
+      closeModal()
+      renderNow()
+      toast('Grundlagen gespeichert.')
+    },
+  },
+  { edit: MODULE },
+)
+
+registerActions(
+  {
+    'calc-budget': () => {
+      const id = current()
+      const obj = objOf(id)
+      const calc = calculate({ areas: editable() ? readAreas() : areasOf(id), settings: settings(), wage: wageNow() })
+      obj.budgetHoursMonth = Math.round(calc.hours * 10) / 10
+      persist()
+      renderNow()
+      toast(`Budget ${obj.name}: ${de(obj.budgetHoursMonth)} h je Monat (Objekt-Controlling vergleicht damit).`)
+    },
+  },
+  { edit: ['stammdaten', 'planung'] },
+)
+

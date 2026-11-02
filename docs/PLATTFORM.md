@@ -100,6 +100,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
 | `fahrzeuge/` | Fahrzeuge, Reifen, Service, Pickerl | Bearbeiten | – | – |
 | `reklamationen/` | Reklamationen je Objekt | Bearbeiten | Bearbeiten | – |
+| `kalkulation/` | Objektkalkulation (Löhne, Margen) | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
@@ -209,6 +210,17 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 **Erledigt:** km-Stand, Kosten, nächstes Service (vorgeschlagen aus dem Intervall), Pickerl-Ergebnis und Monat der neuen Plakette, weitere Fälligkeiten abhaken (wiederkehrende rücken weiter).
 
 **Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
+
+## Kalkulation je Objekt
+
+Unter *Auswertung → Kalkulation* (Auswertung & Lohn, Vollzugriff), gespeichert in `kalkulation/kalkulation.json` (nur diese Rollen, weil Löhne und Margen darin stehen).
+
+- **Flächen je Objekt:** Bereich, Art (Büro, Sanitär, Stiegenhaus, Gang, Eingang, Küche, Lager, Sonstiges), Fläche in m², Häufigkeit (täglich Mo–Fr, Mo–Sa, 3×, 2×, 1× pro Woche, 14-tägig, monatlich, quartalsweise) und, falls abweichend, ein eigener Leistungswert.
+- **Stunden je Monat:** je Fläche m² ÷ Leistungswert (m² je Stunde) × Reinigungen je Woche × 4,33, dazu Rüst- und Nebenzeiten (Standard 10 %).
+- **Verrechnungssatz:** Stundenlohn (KV-Lohngruppe aus den Regeln oder eigener Wert) + Lohnnebenkosten + Material und Geräte + Verwaltung und Gemeinkosten + Gewinn und Wagnis, jeweils auf die Summe davor. „So rechnet die Kalkulation“ zeigt jeden Schritt in Euro.
+- **Ergebnis:** Preis je Monat netto und brutto, je m², dazu der Vergleich mit dem **Budget** des Objekts und den Stunden **laut Reinigungsplan** im laufenden Monat. „Als Budget übernehmen“ setzt die kalkulierten Stunden als Budget (das Objekt-Controlling vergleicht damit).
+- **PDF:** **Angebot** für den Kunden (Leistungsverzeichnis mit Flächen und Häufigkeit, Monatspreis netto, USt., brutto, Gültigkeit 30 Tage; ohne Stunden, Löhne und Zuschläge) und **Kalkulation (intern)** mit allen Werten.
+- **Grundlagen** (einmal einstellen): Leistungswerte je Art (Vorgabe Büro 200, Sanitär 60, Stiegenhaus 150, Gang 250, Eingang 120, Küche 80, Lager 300, Sonstiges 150 m²/h; Ausschreibungen nennen etwa Büro 150–250, Sanitär 35–120, Treppenhaus 130–200), Lohngruppe, Lohnnebenkosten (Vorgabe 90 %; den eigenen Wert aus dem WKO-Merkblatt „Lohnnebenkosten Gebäudereiniger“ oder von der Steuerberatung nehmen), Rüstzeit, Material (8 %), Verwaltung (15 %), Gewinn (5 %), USt. (20 %). Alle Vorgaben sind Richtwerte, mit der eigenen Nachkalkulation abgleichen.
 
 ## Export für das Lohnprogramm (BMD, RZL)
 
