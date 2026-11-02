@@ -109,8 +109,8 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Schlüsselverwaltung | MR.Clean, Profacilo, CleanManager, Miele | ✔ Schlüssel je Objekt, Regel „Schlüsselübergabe nötig“ |
 | Tourenplanung / Fahrzeiten | MR.Clean, Profacilo, Swept | ✔ Fahrten je Einsatz planbar (Dauer + Notiz), Fahrzeit-Matrix, Zeitlinie je Tag (noch ohne Karte) |
 | Prüfung nach österreichischem Arbeitsrecht | bei keinem Anbieter belegt | ✔ AZG, ARG, KJBG, Geringfügigkeit |
-| Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | Ausbaustufe 2 |
-| Alarm bei Nichterscheinen | Swept | Ausbaustufe 2 (setzt Zeiterfassung voraus) |
+| Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | umgesetzt mit QR-Code bzw. NFC (ohne Geofence) |
+| Alarm bei Nichterscheinen | Swept | umgesetzt (Push ans Büro und an die Person) |
 | Qualitätskontrolle, Reklamationen | KleanApp, iQTrust, Miele, Janitorial Manager | Ausbaustufe 3 |
 | Mitarbeiter-App: eigener Plan, Anträge, Krankmeldung | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |
 | Mitarbeiter-App: offene Einsätze übernehmen (Einsatzbörse) | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |
@@ -157,7 +157,7 @@ Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle, Objektdokument
 | Stufe | Inhalt |
 |---|---|
 | **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
-| **2. Mitarbeiter-App** | **Seit November 2026:** eigener Wochenplan am Handy über einen persönlichen Link (ohne Anmeldung, `mein-plan.php` am Webspace), Push bei neuen und geänderten Wochen, Urlaubs-, Zeitausgleichs- und Pflegefreistellungsantrag, Krankmeldung; im Büro unter „Zu erledigen“ eintragen, genehmigen oder ablehnen; Einsatzbörse (offene Einsätze an alle, die sie laut Regeln übernehmen dürfen, „Ich übernehme“ → „Einteilen“). Offen: Tausch zwischen Kolleg:innen, Zeiterfassung per QR/NFC im Objekt |
+| **2. Mitarbeiter-App** | **Seit November 2026:** eigener Wochenplan am Handy über einen persönlichen Link (ohne Anmeldung, `mein-plan.php` am Webspace), Push bei neuen und geänderten Wochen, Urlaubs-, Zeitausgleichs- und Pflegefreistellungsantrag, Krankmeldung; im Büro unter „Zu erledigen“ eintragen, genehmigen oder ablehnen; Einsatzbörse (offene Einsätze an alle, die sie laut Regeln übernehmen dürfen, „Ich übernehme“ → „Einteilen“). Zeiterfassung per QR-Code im Objekt (NFC mit derselben Adresse) mit Ist-Zeiten und Alarm bei Nichterscheinen. Offen: Tausch zwischen Kolleg:innen |
 | **3. Qualität & Kalkulation** | Begehungen (eigenes Werkzeug Objektkontrolle), Leistungsverzeichnis (eigenes Werkzeug Objektdoku), Zählerablesung (eigenes Werkzeug Wasserzähler), Mattenwechsel mit Touren (eigenes Werkzeug), alle in der App eingebunden; offen: Reklamationen, Objektkalkulation aus Flächen und Leistungswerten |
 | **4. Anbindungen** | Teams Shifts, BMD/RZL mit Lohnarten-Mapping, Fahrzeiten aus Adressen |
 

@@ -22,6 +22,7 @@ import { portalNote } from './modals/publish.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { accountAfterWeek } from './pdf.js'
 import { publishWeek } from './planning.js'
+import { downloadQrPosters } from './timeclock.js'
 import { checked, download, esc, ICON, modalFrame, val } from './shared.js'
 
 const hex = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -44,12 +45,23 @@ function complete(p) {
   const out = { ...p, codes: { ...(p.codes || {}) }, topics: { ...(p.topics || {}) }, oldHashes: { ...(p.oldHashes || {}) } }
   out.key ||= hex(32)
   for (const e of app.data.employees) if (!out.codes[e.id] && (employedOn(e, today) || (e.entryDate && e.entryDate > today))) out.codes[e.id] = newCode()
+  if (out.timeclock) withTimeclock(out)
   return out
 }
 
+/** Zeiterfassung: Code je Objekt (für den QR-Aushang) und Prüfschlüssel für den Cronjob. */
+function withTimeclock(d) {
+  d.objectTokens = { ...(d.objectTokens || {}) }
+  for (const o of app.data.objects) d.objectTokens[o.id] ||= newCode().toUpperCase().slice(0, 12)
+  d.cronKey ||= hex(16)
+  return d
+}
+
+export const cronUrl = (p) => `${address()}mein-plan.php?aktion=pruefen&schluessel=${p.cronKey || '(nach dem Speichern)'}`
+
 // ---------------------------------------------------------------- Webspace
 
-async function call(aktion, body) {
+export async function call(aktion, body) {
   const res = await fetch(`mein-plan.php?aktion=${aktion}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: { 'X-Schluessel': portalSettings().key, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
@@ -272,6 +284,9 @@ function readForm() {
   if (!document.getElementById('pt-enabled')) return d
   d.enabled = checked('pt-enabled')
   d.exchange = checked('pt-exchange')
+  d.timeclock = checked('pt-timeclock')
+  if (document.getElementById('pt-alarm')) d.alarmMin = Math.max(0, Math.round(Number(val('pt-alarm')) || 0))
+  if (d.timeclock) withTimeclock(d)
   d.officeEmails = val('pt-emails').trim()
   d.sender = val('pt-sender').trim()
   if (checked('pt-office')) d.officeTopic ||= app.data.rules?.weather?.alarm?.topics?.office || `mp-${hex(8)}`
@@ -310,6 +325,13 @@ function portalModal() {
       <h3>Persönliche Links</h3>
       <p class="note">Link per WhatsApp oder E-Mail schicken. Beim ersten Öffnen merkt sich das Handy den Link (Tipp: „Zum Startbildschirm“). Beim Veröffentlichen einer Woche gehen die Pläne automatisch mit; wer Push eingerichtet hat, bekommt eine Nachricht bei neuen und geänderten Wochen (App „ntfy“, wie beim Schnee-Alarm). Der Link wirkt wie ein Passwort: bei Verlust „Neuer Link“.</p>
       ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Link schicken</th><th>Push (ntfy)</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Noch keine Mitarbeitenden.</p>'}
+      <h3>Zeiterfassung im Objekt (QR-Code)</h3>
+      <label class="check"><input type="checkbox" id="pt-timeclock" data-change="portal-redraw" ${d.timeclock ? 'checked' : ''}><span><strong>Zeiterfassung ein</strong>: Je Objekt hängt ein QR-Code. Mit der Handy-Kamera scannen, „Kommen“ bzw. „Gehen“ tippen; die Uhrzeit nimmt der Server, nicht das Handy. Die App zeigt die Ist-Zeiten neben dem Plan (Ansicht „Ist-Zeiten“, im Einsatz-Dialog); die Stunden im Wochenzettel bleiben die geplanten.</span></label>
+      ${d.timeclock ? `<div class="form-grid"><label class="field"><span>Alarm „nicht eingestempelt“ nach (Minuten, 0 = aus)</span><input type="number" id="pt-alarm" min="0" step="5" value="${esc(d.alarmMin ?? 20)}"></label></div>
+      <p class="note">Der Alarm geht per Push ans Büro-Handy und an die Person, nur bei Personen, die schon einmal gestempelt haben, und höchstens einmal je Einsatz. Dafür am Webspace einen <strong>Cronjob alle 5 bis 10 Minuten</strong> (wie beim Schnee-Alarm): <code>php mein-plan.php pruefen</code> im Ordner der App oder diese Adresse aufrufen lassen:</p>
+      <p><code class="wrap">${esc(cronUrl(d))}</code> ${d.cronKey ? `<button class="btn small" data-action="portal-copy" data-text="${esc(cronUrl(d))}">Adresse kopieren</button>` : ''}</p>
+      <p><button class="btn" data-action="portal-qr">${ICON.print} QR-Aushänge (PDF)</button> <span class="muted">${Object.keys(d.objectTokens || {}).length} Objekte, je Objekt eine Seite</span></p>
+      <p class="note">Vorher mit dem Betriebsrat bzw. schriftlich regeln (Zeiterfassung ist ein Kontrollsystem) und die Mitarbeitenden informieren; siehe Rechtsprüfung. Kein GPS: der Code am Objekt zeigt, dass das Handy dort war.</p>` : ''}
       <h3>Anträge ans Büro</h3>
       <label class="check"><input type="checkbox" id="pt-office" ${d.officeTopic ? 'checked' : ''}><span>Büro-Handy bekommt neue Anträge und Krankmeldungen per Push${d.officeTopic ? `: Thema <code>${esc(d.officeTopic)}</code> <button class="btn small" data-action="portal-copy" data-text="${esc(d.officeTopic)}">kopieren</button>` : ''}</span></label>
       <div class="form-grid">
@@ -338,7 +360,7 @@ function rejectModal(c, { id }) {
 
 registerModal('portal-reject', rejectModal, { module: 'planung' })
 
-const settingsFile = (p) => portalFile({ portal: p, address: address(), ntfy: ntfyServer(), employees: app.data.employees })
+const settingsFile = (p) => portalFile({ portal: p, address: address(), ntfy: ntfyServer(), employees: app.data.employees, objects: app.data.objects })
 
 registerActions(
   {
@@ -350,6 +372,23 @@ registerActions(
       } catch {
         toast(el.dataset.text)
       }
+    },
+    'portal-redraw': () => {
+      readForm()
+      renderModal()
+    },
+    'portal-qr': async () => {
+      const d = readForm()
+      saveSettings({ ...d })
+      // der Webspace muss die Codes kennen
+      let note = ''
+      try {
+        if (d.enabled) await call('einrichten', settingsFile(d))
+      } catch (err) {
+        note = ` Achtung, noch nicht übertragen: ${err.message}`
+      }
+      await downloadQrPosters(d)
+      toast(`QR-Aushänge erstellt: ausdrucken und je Objekt aufhängen.${note}`)
     },
     'portal-push': (el) => {
       const d = readForm()

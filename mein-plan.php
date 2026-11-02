@@ -15,7 +15,13 @@
 // Einsatzbörse: Die App schickt je Person die offenen Einsätze, die sie laut Regeln übernehmen darf
 // (eingeschult, verfügbar, Ruhezeit). „Ich übernehme“ meldet das dem Büro; eingeteilt wird in der App.
 //
-// Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten
+// Zeiterfassung: Am Objekt hängt ein QR-Code (mein-plan.php?o=CODE). Das Handy kennt die Person
+// (Cookie vom persönlichen Link); „Kommen“ und „Gehen“ nimmt die Uhrzeit des Servers. Der Cronjob
+// (aktion=pruefen) meldet dem Büro, wer laut Plan seit einigen Minuten im Dienst sein sollte und
+// sich nicht eingestempelt hat (nur bei Personen, die schon einmal gestempelt haben).
+//
+// Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten | zeiten
+// Cronjob: mein-plan.php?aktion=pruefen&schluessel=PRÜFSCHLÜSSEL oder php mein-plan.php pruefen
 
 declare(strict_types=1);
 
@@ -139,6 +145,141 @@ function antraege(callable $fn)
     return $ergebnis;
 }
 
+/** Zeiterfassung eingeschaltet? Dann { alarmMinuten, pruefschluessel, objekte: { code: { id, name } } }. */
+function zeiterfassung(?array $e): ?array
+{
+    $z = $e['zeiterfassung'] ?? null;
+    return is_array($z) && is_array($z['objekte'] ?? null) ? $z : null;
+}
+
+/** Stempelungen gesperrt ändern (wie die Anträge); älter als 62 Tage fallen weg. */
+function zeiten(callable $fn)
+{
+    $h = @fopen(speicher() . '/zeiten.json', 'c+');
+    if (!$h) {
+        return null;
+    }
+    flock($h, LOCK_EX);
+    $liste = json_decode((string) stream_get_contents($h), true);
+    $liste = is_array($liste) ? $liste : [];
+    $ergebnis = $fn($liste);
+    $liste = array_values(array_filter($liste, fn ($r) => (int) ($r['kommen'] ?? 0) > jetzt() - 62 * 86400));
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ergebnis;
+}
+
+/** Zeitpunkt für Datum und Uhrzeit in Wien. */
+function wien_ts(string $datum, string $uhrzeit): int
+{
+    $t = DateTimeImmutable::createFromFormat('!Y-m-d H:i', "$datum $uhrzeit", new DateTimeZone('Europe/Vienna'));
+    return $t ? $t->getTimestamp() : 0;
+}
+
+function uhr(int $ts): string
+{
+    return (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('H:i');
+}
+
+function dauer(int $sekunden): string
+{
+    $min = intdiv(max(0, $sekunden), 60);
+    return intdiv($min, 60) . ':' . str_pad((string) ($min % 60), 2, '0', STR_PAD_LEFT) . ' h';
+}
+
+/** Einsätze einer Person (gestern und heute), optional nur an einem Objekt; mit Beginn als Zeitpunkt. */
+function einsaetze(array $person, ?string $objektId = null): array
+{
+    $tage = [tag_plus(heute(), -1), heute()];
+    $out = [];
+    foreach ((array) ($person['wochen'] ?? []) as $w) {
+        foreach ((array) ($w['tage'] ?? []) as $t) {
+            if (!in_array($t['datum'] ?? '', $tage, true)) {
+                continue;
+            }
+            foreach ((array) ($t['eintraege'] ?? []) as $x) {
+                if (!empty($x['entfaellt']) || empty($x['id']) || empty($x['beginn']) || ($objektId !== null && ($x['objektId'] ?? '') !== $objektId)) {
+                    continue;
+                }
+                $out[] = $x + ['datum' => $t['datum'], 'ts' => wien_ts($t['datum'], (string) $x['beginn'])];
+            }
+        }
+    }
+    return $out;
+}
+
+/** Laut Plan passender Einsatz zum Kommen: Beginn höchstens 6 h zurück oder 3 h voraus, der nächste. */
+function passender_einsatz(array $person, string $objektId): ?array
+{
+    $best = null;
+    foreach (einsaetze($person, $objektId) as $x) {
+        $abstand = abs($x['ts'] - jetzt());
+        if ($x['ts'] >= jetzt() - 6 * 3600 && $x['ts'] <= jetzt() + 3 * 3600 && (!$best || $abstand < abs($best['ts'] - jetzt()))) {
+            $best = $x;
+        }
+    }
+    return $best;
+}
+
+/**
+ * Cronjob: Wer laut Plan seit alarmMinuten im Dienst sein sollte und nicht gestempelt hat, wird
+ * dem Büro (und sich selbst) einmal gemeldet; bis 3 Stunden nach Beginn. Nur Personen, die die
+ * Zeiterfassung schon benutzen (einmal gestempelt).
+ */
+function nicht_erschienen(array $e, array $z): array
+{
+    $min = (int) ($z['alarmMinuten'] ?? 0);
+    if ($min <= 0) {
+        return ['geprueft' => 0, 'gemeldet' => 0];
+    }
+    $zeiten = json_lesen(speicher() . '/zeiten.json');
+    $da = [];
+    foreach ($zeiten as $r) {
+        $da[$r['hash'] . '|' . ($r['einsatz'] ?? '')] = true;
+        $da[$r['hash'] . '|' . ($r['objektId'] ?? '') . '|' . ($r['datum'] ?? '')] = true;
+    }
+    $datei = speicher() . '/gemeldet.json';
+    $gemeldet = array_filter(json_lesen($datei), fn ($ts) => (int) $ts > jetzt() - 3 * 86400);
+    $faelle = 0;
+    $geprueft = 0;
+    foreach (glob(speicher() . '/*.json') ?: [] as $pfad) {
+        $hash = basename($pfad, '.json');
+        if (!preg_match('/^[a-f0-9]{64}$/', $hash)) {
+            continue;
+        }
+        $p = json_lesen($pfad);
+        if (empty($p['stempelt'])) {
+            continue;
+        }
+        $geprueft++;
+        foreach (einsaetze($p) as $x) {
+            $k = $hash . '|' . $x['id'];
+            $ab = $x['ts'] + $min * 60;
+            if ($ab > jetzt() || jetzt() > $ab + 3 * 3600 || isset($da[$k]) || isset($da[$hash . '|' . $x['objektId'] . '|' . $x['datum']]) || isset($gemeldet[$k])) {
+                continue;
+            }
+            $gemeldet[$k] = jetzt();
+            $faelle++;
+            $was = ($x['zeit'] ?? '') . ' ' . ($x['objekt'] ?? '');
+            $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
+            foreach ((array) ($e['buero'] ?? []) as $b) {
+                if (!empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => 'Nicht eingestempelt: ' . ($p['name'] ?? ''), 'message' => "$was (Beginn vor " . intdiv(jetzt() - $x['ts'], 60) . " min).\nIn der App unter „Zu erledigen“.", 'priority' => 4, 'tags' => ['warning'], 'click' => $app]);
+                }
+            }
+            if (!empty($p['ntfy'])) {
+                ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => 'Noch nicht eingestempelt: ' . $was, 'message' => 'Bitte beim Objekt den QR-Code scannen. Kommst du später, bitte im Büro melden.', 'priority' => 4, 'tags' => ['alarm_clock'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
+            }
+        }
+    }
+    json_schreiben($datei, $gemeldet);
+    return ['geprueft' => $geprueft, 'gemeldet' => $faelle];
+}
+
 $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
 $tag = function (string $d): string {
     $t = DateTimeImmutable::createFromFormat('!Y-m-d', $d);
@@ -152,9 +293,29 @@ $e = einstellungen();
 $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+// ---------------------------------------------------------------- Cronjob: Nichterscheinen
+
+$cli = PHP_SAPI === 'cli' && in_array('pruefen', array_slice($argv ?? [], 1), true);
+if ($aktion === 'pruefen' || $cli) {
+    $z = zeiterfassung($e);
+    $schluessel = (string) ($z['pruefschluessel'] ?? '');
+    if (!$z || strlen($schluessel) < 16) {
+        json_ausgabe(503, ['fehler' => 'Zeiterfassung nicht eingerichtet']);
+    }
+    if (!$cli && !hash_equals($schluessel, (string) ($_GET['schluessel'] ?? ''))) {
+        json_ausgabe(403, ['fehler' => 'Prüfschlüssel fehlt oder falsch']);
+    }
+    $ergebnis = nicht_erschienen($e, $z);
+    if ($cli) {
+        echo json_encode($ergebnis) . "\n";
+        exit;
+    }
+    json_ausgabe(200, $ergebnis);
+}
+
 // ---------------------------------------------------------------- Aufrufe der App (mit Schlüssel)
 
-if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten'], true)) {
+if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten'], true)) {
     if (!$e) {
         json_ausgabe(503, ['fehler' => 'Mein Dienstplan noch nicht eingerichtet: privat/mitarbeiter.json fehlt (App → Mitarbeitende → Plan am Handy).']);
     }
@@ -163,6 +324,11 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten'], 
         json_ausgabe(403, ['fehler' => 'Schlüssel fehlt oder falsch']);
     }
     $daten = $methode === 'POST' ? json_decode((string) file_get_contents('php://input'), true) : null;
+
+    if ($aktion === 'zeiten') {
+        $seit = (int) ($_GET['seit'] ?? 0);
+        json_ausgabe(200, ['zeiten' => array_values(array_filter(json_lesen(speicher() . '/zeiten.json'), fn ($r) => (int) ($r['geaendert'] ?? 0) >= $seit)), 'jetzt' => jetzt()]);
+    }
 
     if ($aktion === 'antraege') {
         $grenze = tag_plus(heute(), -120);
@@ -306,6 +472,11 @@ if ($aktion === 'vergessen') {
 }
 $hash = preg_match('/^[A-Za-z0-9]{16,40}$/', $code) ? hash('sha256', $code) : '';
 $person = $hash ? json_lesen(person_datei($hash)) : [];
+$token = (string) ($_GET['o'] ?? '');
+if (!$person && $token !== '') {
+    html_seite('<h1>Zeiterfassung</h1><p>Dieses Handy kennt dich noch nicht. Bitte zuerst deinen persönlichen Link aus der Nachricht vom Büro öffnen, dann den Code noch einmal scannen.</p>', 403, '', 'Zeiterfassung');
+    exit;
+}
 if (!$person) {
     html_seite('<h1>Mein Dienstplan</h1><p>Dieser Link gilt nicht (mehr). Bitte im Büro um einen neuen Link bitten.</p>', 404, '', 'Mein Dienstplan');
     exit;
@@ -313,6 +484,81 @@ if (!$person) {
 if (isset($_GET['p'])) {
     // merken: danach genügt mein-plan.php (z. B. am Startbildschirm)
     setcookie(COOKIE, $code, ['expires' => jetzt() + 400 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+}
+
+// Zeiterfassung am Objekt (QR-Code)
+if ($token !== '') {
+    $z = zeiterfassung($e);
+    $obj = $z['objekte'][$token] ?? null;
+    if (!is_array($obj)) {
+        html_seite('<h1>Zeiterfassung</h1><p>Dieser Code gilt nicht (mehr). Bitte im Büro melden.</p>', 404, '', 'Zeiterfassung');
+        exit;
+    }
+    $zurueck = 'mein-plan.php?o=' . rawurlencode($token);
+    if ($aktion === 'stempeln' && $methode === 'POST') {
+        if (fremde_herkunft()) {
+            html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Zeiterfassung');
+            exit;
+        }
+        $ergebnis = zeiten(function (array &$l) use ($hash, $person, $obj) {
+            $offen = null;
+            foreach ($l as $i => $r) {
+                if ($r['hash'] !== $hash || $r['objektId'] !== $obj['id'] || (int) $r['kommen'] < jetzt() - 16 * 3600) {
+                    continue;
+                }
+                if (max((int) $r['kommen'], (int) ($r['gehen'] ?? 0)) > jetzt() - 60) {
+                    return 'doppelt'; // zweimal getippt
+                }
+                if (empty($r['gehen'])) {
+                    $offen = $i;
+                }
+            }
+            if ($offen !== null) {
+                $l[$offen]['gehen'] = jetzt();
+                $l[$offen]['geaendert'] = jetzt();
+                return 'gehen';
+            }
+            $x = passender_einsatz($person, $obj['id']);
+            $l[] = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'einsatz' => $x['id'] ?? '', 'plan' => $x['zeit'] ?? '', 'datum' => $x['datum'] ?? heute(), 'kommen' => jetzt(), 'gehen' => null, 'geaendert' => jetzt()];
+            return 'kommen';
+        });
+        if ($ergebnis === null) {
+            html_seite('<h1>Zeiterfassung</h1><p class="fehler">Konnte nicht speichern. Bitte im Büro anrufen.</p>', 500, '', 'Zeiterfassung');
+            exit;
+        }
+        if (empty($person['stempelt'])) {
+            $person['stempelt'] = jetzt(); // ab jetzt gilt der Alarm bei Nichterscheinen
+            json_schreiben(person_datei($hash), $person);
+        }
+        header('Location: ' . $zurueck . '&erfasst=' . $ergebnis, true, 303);
+        exit;
+    }
+    // Stand: letzte Stempelung hier (16 h)
+    $letzte = null;
+    foreach (json_lesen(speicher() . '/zeiten.json') as $r) {
+        if ($r['hash'] === $hash && $r['objektId'] === $obj['id'] && (int) $r['kommen'] > jetzt() - 16 * 3600 && (!$letzte || $r['kommen'] > $letzte['kommen'])) {
+            $letzte = $r;
+        }
+    }
+    $erfasst = (string) ($_GET['erfasst'] ?? '');
+    $info = '';
+    if ($erfasst === 'kommen' && $letzte) {
+        $info = '<p class="ok">Kommen um ' . uhr((int) $letzte['kommen']) . ' Uhr erfasst.</p>';
+    } elseif ($erfasst === 'gehen' && $letzte && !empty($letzte['gehen'])) {
+        $info = '<p class="ok">Gehen um ' . uhr((int) $letzte['gehen']) . ' Uhr erfasst (' . dauer((int) $letzte['gehen'] - (int) $letzte['kommen']) . '). Danke!</p>';
+    } elseif ($erfasst === 'doppelt') {
+        $info = '<p class="ok">Schon erfasst.</p>';
+    }
+    $offen = $letzte && empty($letzte['gehen']);
+    $x = $offen ? null : passender_einsatz($person, $obj['id']);
+    $stand = $offen
+        ? '<p>Eingestempelt seit <b>' . uhr((int) $letzte['kommen']) . ' Uhr</b>' . ($letzte['plan'] ? ' (laut Plan ' . $h((string) $letzte['plan']) . ')' : '') . '.</p>'
+        : ($x ? '<p>Laut Plan: <b>' . $h((string) $x['zeit']) . '</b>' . (!empty($x['leistung']) ? ' · ' . $h((string) $x['leistung']) : '') . '</p>' : '<p class="leise">Laut Plan hast du hier jetzt keinen Einsatz. Kommen trotzdem erfassen (z. B. eingesprungen)?</p>');
+    $knopf = '<form method="post" action="' . $h($zurueck) . '&amp;aktion=stempeln"><button type="submit">' . ($offen ? 'Gehen erfassen' : 'Kommen erfassen') . '</button></form>';
+    html_seite('<h1>Zeiterfassung</h1><p><b>' . $h((string) $obj['name']) . '</b><br>' . $h((string) ($person['name'] ?? '')) . '</p>' . $info . $stand
+        . '<p class="leise">Jetzt: ' . uhr(jetzt()) . ' Uhr</p>' . $knopf
+        . '<p class="leise" style="margin-top:1.5rem;font-size:.9rem">Die Uhrzeit nimmt der Server, nicht das Handy. <a href="mein-plan.php">Mein Dienstplan</a></p>', 200, '', 'Zeiterfassung');
+    exit;
 }
 
 // Antrag oder Krankmeldung
@@ -438,6 +684,13 @@ if (($_GET['gesendet'] ?? '') === 'krank') {
 } elseif (($_GET['gesendet'] ?? '') === 'einsatz') {
     $meldung = '<p class="ok">Danke! Das Büro bestätigt, ob du eingeteilt bist.</p>';
 }
+// erfasste Zeiten je Einsatz (Zeiterfassung)
+$gestempelt = [];
+foreach (zeiterfassung($e) ? json_lesen(speicher() . '/zeiten.json') : [] as $r) {
+    if ($r['hash'] === $hash && !empty($r['einsatz'])) {
+        $gestempelt[$r['einsatz']] = $r;
+    }
+}
 $planHtml = '';
 foreach ($wochen as $mo => $w) {
     $tageHtml = '';
@@ -454,6 +707,7 @@ foreach ($wochen as $mo => $w) {
                 . (!empty($x['leistung']) ? ' <span class="leise">· ' . $h((string) $x['leistung']) . '</span>' : '')
                 . ($adresse !== '' ? '<br><span class="leise">' . $h($adresse) . $karte . '</span>' : '')
                 . (!empty($x['notizen']) ? '<br><span class="hinweis">' . $h(implode(' · ', (array) $x['notizen'])) . '</span>' : '')
+                . (isset($gestempelt[$x['id'] ?? '']) ? '<br><span class="zeit-ok">✓ ' . uhr((int) $gestempelt[$x['id']]['kommen']) . (!empty($gestempelt[$x['id']]['gehen']) ? '–' . uhr((int) $gestempelt[$x['id']]['gehen']) : ' eingestempelt') . '</span>' : '')
                 . (!empty($x['hinweis']) || !empty($x['schluessel']) ? '<details><summary>Objektinfo</summary>' . (!empty($x['hinweis']) ? '<p>' . nl2br($h((string) $x['hinweis'])) . '</p>' : '') . (!empty($x['schluessel']) ? '<p class="leise">Schlüssel: ' . $h((string) $x['schluessel']) . '</p>' : '') . '</details>' : '')
                 . '</div>';
         }
@@ -495,7 +749,7 @@ $formulare = '<h2>Abwesenheit</h2>'
     . '<label for="a-notiz">Notiz (optional)</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
     . '<button type="submit">Antrag senden</button></form></details>';
 html_seite('<h1>Mein Dienstplan</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
-    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
+    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
     . ($planHtml ?: '<p class="leise">Noch kein veröffentlichter Plan.</p>')
     . $boerseHtml . $antraegeHtml . $formulare
     . '<p class="leise" style="margin-top:2rem;font-size:.9rem">Diese Seite ist persönlich: den Link nicht weitergeben. Tipp: im Browser-Menü „Zum Startbildschirm“ wählen. <a href="mein-plan.php?aktion=vergessen">Auf diesem Gerät vergessen</a></p>', 200, '', 'Mein Dienstplan');

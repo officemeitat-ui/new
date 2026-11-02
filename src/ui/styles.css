@@ -743,6 +743,10 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .impact-stats { display: flex; flex-wrap: wrap; gap: 8px; }
 .impact-stats .stat { min-width: 8rem; }
 .impact-stats .stat small { display: block; font-size: 0.78rem; }
+.tc-stats { margin: 0 0 12px; }
+.tc-table tr.clickable { cursor: pointer; }
+.tc-list { margin: 0; padding-left: 1.1rem; }
+.tc-list li { margin: 3px 0; }
 .handover { display: grid; gap: 8px; }
 .handover .inline-form { background: var(--surface-2); }
 .field.grow { flex: 1 1 22rem; }

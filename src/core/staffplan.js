@@ -15,7 +15,7 @@ import { addDays, isoWeek } from './dates.js'
 import { evaluateCandidate } from './scheduler.js'
 
 export const REQUEST_TYPES = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand']
-export const PORTAL_DEFAULTS = { enabled: false, exchange: true, key: '', codes: {}, topics: {}, oldHashes: {}, officeTopic: '', officeEmails: '', sender: '' }
+export const PORTAL_DEFAULTS = { enabled: false, exchange: true, timeclock: false, alarmMin: 20, key: '', cronKey: '', codes: {}, topics: {}, oldHashes: {}, objectTokens: {}, officeTopic: '', officeEmails: '', sender: '' }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789' // ohne 0/O, 1/l/I
 
@@ -56,6 +56,9 @@ export function staffWeek(ts, { objectsById = new Map(), account = null } = {}) 
     const notizen = [...(l.notes || [])]
     if (l.kind === 'work' && l.travel > 0) notizen.push(`danach ${l.travel} min Fahrt${l.trip?.to ? ` zu ${objectsById.get(l.trip.to.objectId)?.name || 'nächstem Einsatz'}` : ''}`)
     return {
+      id: l.inst?.key || '',
+      objektId: l.inst?.objectId || '',
+      beginn: l.inst?.startTime || '',
       zeit: dash(l.time),
       objekt: obj?.name || plainText(l.text).split(' – ')[0],
       leistung: l.inst?.label || '',
@@ -91,11 +94,17 @@ export function savePayload(entries) {
 }
 
 /** Einstellungen für privat/mitarbeiter.json (nur, was der Webspace braucht). */
-export function portalFile({ portal, address, ntfy, employees = [] }) {
+export function portalFile({ portal, address, ntfy, employees = [], objects = [] }) {
   const buero = []
   if (portal.officeTopic) buero.push({ name: 'Büro-Handy', ntfy: portal.officeTopic })
   for (const email of String(portal.officeEmails || '').split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) buero.push({ name: employees.find((e) => e.email === email)?.name || 'Büro', email })
-  return { version: 1, schluessel: portal.key, adresse: address, ntfy, absender: portal.sender || '', buero }
+  const file = { version: 1, schluessel: portal.key, adresse: address, ntfy, absender: portal.sender || '', buero }
+  // Zeiterfassung: Code je Objekt (steht im QR-Aushang), Prüfschlüssel für den Cronjob
+  if (portal.timeclock) {
+    const byId = new Map(objects.map((o) => [o.id, o]))
+    file.zeiterfassung = { alarmMinuten: Math.max(0, Math.round(Number(portal.alarmMin) || 0)), pruefschluessel: portal.cronKey || '', objekte: Object.fromEntries(Object.entries(portal.objectTokens || {}).filter(([id]) => byId.has(id)).map(([id, token]) => [token, { id, name: byId.get(id).name }])) }
+  }
+  return file
 }
 
 /** Hashwert → Person (aktuelle Codes und ersetzte Links, damit offene Anträge zuordenbar bleiben). */

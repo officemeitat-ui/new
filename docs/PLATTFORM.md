@@ -276,6 +276,7 @@ Für Mitarbeitende ohne Firmenkonto: Jede Person bekommt einen **persönlichen L
 - Stunden der Woche, Soll und Zeitkonto danach;
 - „geändert am …“, wenn eine Woche nach dem Veröffentlichen korrigiert wurde;
 - offene Einsätze, die sie übernehmen könnte (Einsatzbörse, siehe unten);
+- mit Zeiterfassung: die erfassten Zeiten beim Einsatz;
 - ihre Anträge und Meldungen mit Status (offen, genehmigt, abgelehnt mit Begründung, eingetragen, eingeteilt).
 
 Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach genügt das Symbol am Startbildschirm. „Auf diesem Gerät vergessen“ löscht ihn wieder.
@@ -294,6 +295,14 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 
 **Einsatzbörse:** Offene Einsätze der veröffentlichten Wochen (ab einer Stunde vor Beginn nicht mehr) erscheinen am Handy unter **„Offene Einsätze für dich“**, aber nur bei Personen, die sie laut Regeln übernehmen dürfen: dieselbe Prüfung wie bei „Vorschlagen“ (eingeschult, wo nötig; verfügbar; keine Überschneidung; Ruhezeit; Höchstarbeitszeit; nicht abwesend; Jugendschutz). Höchstens 20 je Person. Wer **„Ich übernehme“** tippt, meldet sich; das Büro-Handy bekommt einen Push. Unter „Zu erledigen“ prüft **„Einteilen“** noch einmal, teilt fixiert ein, sagt weiteren Meldungen für denselben Einsatz ab („Schon vergeben“) und veröffentlicht die Woche neu; die Person bekommt „Du bist eingeteilt“. „Ablehnen“ geht mit kurzer Begründung. Neue Angebote kommen mit dem Push für den Plan („1 offener Einsatz für dich“). Abschalten: Häkchen „Einsatzbörse“ im Dialog.
 
+**Zeiterfassung im Objekt (QR-Code):** im selben Dialog einschalten (anfangs aus). Je Objekt gibt es einen Code; **„QR-Aushänge (PDF)“** erstellt je Objekt eine A4-Seite zum Aufhängen (innen, z. B. Putzraum; laminiert). Statt Papier geht auch ein NFC-Aufkleber mit derselben Adresse.
+
+- **Am Objekt:** Handy-Kamera auf den Code, Link öffnen, **„Kommen erfassen“**; nach der Arbeit wieder scannen, **„Gehen erfassen“**. Die Uhrzeit nimmt der Server, nicht das Handy. Die Seite zeigt den Einsatz laut Plan; ohne Einsatz (eingesprungen) geht es trotzdem. Zweimal getippt zählt einmal. Wer den persönlichen Link auf dem Handy noch nie geöffnet hat, wird dazu aufgefordert (so weiß der Server, wer stempelt). Im Plan am Handy steht danach „✓ 05:57–08:32“ beim Einsatz.
+- **In der App:** Ansicht **„Ist-Zeiten“** (unter Einsatzplanung) mit Plan, Kommen, Gehen, Ist-Stunden und Status je Einsatz: passt, später gekommen, früher gegangen (Toleranz 10 Minuten), noch nicht ausgestempelt, nicht eingestempelt, ohne Einsatz laut Plan. „Jetzt abrufen“ holt die letzten 14 Tage, sonst holt die App alle 2 Minuten, was neu ist, solange jemand mit Einsatzplanung sie offen hat. CSV für die Lohnverrechnung. Im Einsatz-Dialog steht der Block „Zeiterfassung“. Gespeichert wird je Woche in SharePoint.
+- **Nicht eingestempelt:** Unter „Zu erledigen“ (und als Zahl bei „Ist-Zeiten“) stehen begonnene Einsätze ohne Stempelung, nach der eingestellten Zeit (Standard 20 Minuten). Zusätzlich meldet der Webspace es per Push ans Büro-Handy und an die Person, auch nachts und wenn niemand die App offen hat; dafür braucht es einen **Cronjob** wie beim Schnee-Alarm (Adresse im Dialog). Der Alarm gilt nur für Personen, die schon einmal gestempelt haben, damit es beim Einführen keine Fehlalarme gibt, und höchstens einmal je Einsatz.
+- **Stunden:** Der Wochenzettel und die Lohnverrechnung rechnen weiter mit den geplanten Zeiten. Die Ist-Zeiten zeigen, wo das nicht stimmt; dann den Einsatz ändern (Zeit) oder die Korrektur buchen wie bisher.
+- **Grenzen:** Ein Foto des Codes ließe sich auch anderswo scannen; der Code beweist die Anwesenheit nicht sicher, reicht aber für den Alltag und für Stichproben. Kein GPS, keine Ortung.
+
 **Push (ntfy, wie beim Schnee-Alarm):** „Push einrichten“ gibt der Person ein Thema; wer schon ein Thema für den Schnee-Alarm hat, behält es. Die Person bekommt eine Nachricht, wenn ihr Plan für eine neue Woche da ist oder eine Woche geändert wurde, und wenn über einen Antrag entschieden ist. Ohne Push sieht sie alles beim Öffnen.
 
 **Veröffentlichen:** „Woche veröffentlichen“ und „Korrektur buchen“ schicken die Woche je Person automatisch an den Webspace. Unveränderte Wochen lösen keinen Push aus.
@@ -302,7 +311,7 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 
 **Einmalig am Webspace:** „Einrichtungs-Datei herunterladen“ und `mitarbeiter.json` in den Ordner `privat/` laden (wie die Alarm-Datei, Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)). Danach überträgt „Speichern und übertragen“ Einstellungen und Pläne direkt.
 
-**Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto) sowie die offenen Einsätze für sie, unter dem Hashwert des Links. Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
+**Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto) sowie die offenen Einsätze für sie, unter dem Hashwert des Links; mit Zeiterfassung dazu Kommen und Gehen je Objekt (62 Tage, dann gelöscht; dauerhaft in SharePoint). Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
 
 ## Ohne Netz (Keller, Tiefgarage)
 
@@ -316,7 +325,7 @@ Mit SharePoint arbeitet die App auch ohne Netz weiter:
 ## Was die Plattform einfacher macht
 
 - **Eine Anmeldung, eine Adresse, eine App am Handy.** Dienstplan und Werkzeuge in einer Seitenleiste, je nach Rolle.
-- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte, Anträge und Krankmeldungen vom Handy.
+- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte, Anträge und Krankmeldungen vom Handy, Meldungen aus der Einsatzbörse, nicht eingestempelte Einsätze.
 - **Schnellsuche** mit Strg+K oder der Lupe: Personen, Objekte, Fahrzeuge und Bereiche (auch die Werkzeuge). Suchen in den Werkzeugen geht dort selbst.
 
 ## Vorschau

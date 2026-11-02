@@ -7,6 +7,7 @@ import { rankCandidates } from '../../core/scheduler.js'
 import { dutyText } from '../../core/waste.js'
 import { addLog, app, empName, mutateAssignments, objectHints, openModal, persist, recordUndo, mayEdit, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { esc, ICON, issueList, modalFrame, objectOf, reasonsHtml, val } from '../shared.js'
+import { stampBlock } from '../timeclock.js'
 import { winterLogBlock } from '../winterlog.js'
 import { tripContext } from './trip.js'
 
@@ -120,6 +121,7 @@ function shiftModal(c, { key }) {
       ${staffingIssues.length ? issueList(staffingIssues) : ''}
       ${objectFolder(obj)}
       <section><h3>Eingeteilt (${assigned.length}/${inst.staff})</h3>${regularsNote}${people || '<p class="note">Noch niemand eingeteilt.</p>'}</section>
+      ${stampBlock(inst, c)}
       ${winterLogBlock(inst)}
       ${candidates}${edit}`,
   })
