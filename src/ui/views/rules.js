@@ -3,10 +3,12 @@
 
 import { formatDate } from '../../core/dates.js'
 import { austrianHolidays } from '../../core/holidays.js'
+import { estimateTravel, hasCoords } from '../../core/geo.js'
 import { DEFAULT_HOLIDAY_RULE } from '../../core/plan.js'
 import { DEFAULT_RULES, mergeRules, RULES, travelKey } from '../../core/rules.js'
 import { findPlace } from '../../core/weather.js'
 import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
+import { geocode } from '../geocode.js'
 import { checked, esc, ICON, num, options, val } from '../shared.js'
 
 export const RULE_FIELDS = [
@@ -28,7 +30,10 @@ export const RULE_FIELDS = [
     ['holidayBonusPct', 'Feiertagszuschlag (%)', 'ARG § 9: Feiertagsentgelt + Entgelt für die Arbeit = 100 %; im Wochenzettel z. B. 1,5 h → 3 h'],
     ['sundayBonusPct', 'Sonntagszuschlag (%)', 'KV: 100 % (Sonntag 6–21 Uhr)'],
     ['sundayBasis', 'Sonntagsarbeit erlaubt aufgrund', '§ 3 ARG: Wochenendruhe ab Samstag 13 Uhr (unbedingt nötige Reinigung 15 Uhr). Ausnahme eintragen (ARG-Verordnung, KV, Betriebsvereinbarung); je Objekt ergänzbar. Leer = Warnung bei jedem Sonntagseinsatz', 'text'],
-    ['travelMin', 'Fahrzeit zwischen Objekten (min)', 'Pauschale, wenn unten keine Strecke hinterlegt ist; zählt als Arbeitszeit'],
+    ['travelMin', 'Fahrzeit zwischen Objekten (min)', 'Pauschale, wenn unten keine Strecke hinterlegt ist und Koordinaten fehlen; zählt als Arbeitszeit'],
+    ['travelFromDistance', 'Fahrzeit aus Entfernung schätzen', 'wenn beide Objekte Koordinaten haben: Luftlinie × 1,35 (Straße), durch die Geschwindigkeit, plus Zuschlag, auf 5 min aufgerundet', 'checkbox'],
+    ['travelSpeedKmh', 'Durchschnittsgeschwindigkeit (km/h)', 'Stadt Salzburg rund 25–30, Umland 40–50'],
+    ['travelBaseMin', 'Zuschlag je Fahrt (min)', 'Parken, Gehen, Ein- und Ausladen'],
     ['creditSpecialTasks', 'Sonderleistungen bei Feiertag/Urlaub anrechnen', 'z. B. „Blumen gießen“', 'checkbox'],
   ]],
   ['Überstunden & Mehrarbeit (AZG, KV Gebäudereinigung)', [
@@ -162,9 +167,10 @@ function rulesView(c) {
     ${catalog}
     <div class="rules">
       <fieldset><legend>Fahrzeiten zwischen Objekten</legend>
-        <p class="note">Abweichend von der Pauschale (${ruleValue('travelMin')} min). Gilt in beide Richtungen. Gleiche Adresse = 0 min.</p>
+        <p class="note">Vorrang haben die Strecken hier. Sonst ${ruleValue('travelFromDistance') ? `schätzt die App aus den Koordinaten der Objekte (${ruleValue('travelSpeedKmh')} km/h, +${ruleValue('travelBaseMin')} min), ohne Koordinaten gilt` : 'gilt'} die Pauschale (${ruleValue('travelMin')} min). Gilt in beide Richtungen. Gleiche Adresse = 0 min.</p>
+        <p>${app.data.objects.filter(hasCoords).length} von ${app.data.objects.length} Objekten haben Koordinaten. <button class="btn small edit-only" data-action="geo-all" title="Fehlende Koordinaten über OpenStreetMap aus den Adressen suchen (1 Anfrage je Sekunde)">Fehlende suchen (OpenStreetMap)</button></p>
         <div class="hol-list">${travel.map(([k, min]) => `<span>${esc(objName(k.split('|')[0]))} ↔ ${esc(objName(k.split('|')[1]))}</span><span class="num">${min} min</span><button class="btn small danger edit-only" data-action="travel-delete" data-key="${esc(k)}">Entfernen</button>`).join('') || '<span class="muted">keine</span>'}</div>
-        <div class="inline-form edit-only" style="border:0;padding:0"><label class="field"><span>Von</span><select id="tr-a">${options(objOptions, '')}</select></label><label class="field"><span>Nach</span><select id="tr-b">${options(objOptions, '')}</select></label><label class="field"><span>Minuten</span><input type="number" id="tr-min" min="0" step="5" value="15" style="width:6rem"></label><button class="btn" data-action="travel-add">${ICON.plus} Hinzufügen</button></div>
+        <div class="inline-form edit-only" style="border:0;padding:0"><label class="field"><span>Von</span><select id="tr-a">${options(objOptions, '')}</select></label><label class="field"><span>Nach</span><select id="tr-b">${options(objOptions, '')}</select></label><label class="field"><span>Minuten</span><input type="number" id="tr-min" min="0" step="5" value="15" style="width:6rem"></label><button class="btn" data-action="travel-estimate" title="Aus den Koordinaten schätzen">Schätzen</button><button class="btn" data-action="travel-add">${ICON.plus} Hinzufügen</button></div>
       </fieldset>
       <fieldset><legend>Gesetzliche Feiertage ${year}/${year + 1}</legend><div class="hol-list">${holidays.map((h) => `<span class="tabular">${formatDate(h.date, { year: true })}</span><span>${esc(h.name)}</span><span></span>`).join('')}</div>
         <p class="note">Österreich, § 7 ARG. Werden automatisch berechnet (Ostern, Pfingsten, Fronleichnam). Karfreitag ist seit 2019 kein Feiertag mehr.</p>
@@ -234,6 +240,40 @@ registerActions(
       app.data.rules = structuredClone(DEFAULT_RULES)
       persist()
       renderNow()
+    },
+    'travel-estimate': () => {
+      const o = (id) => app.data.objects.find((x) => x.id === id)
+      const r = mergeRules(app.data.rules)
+      const est = estimateTravel(o(val('tr-a')), o(val('tr-b')), { speedKmh: r.travelSpeedKmh, baseMin: r.travelBaseMin })
+      if (!est) return toast('Für die Schätzung brauchen beide Objekte Koordinaten (Objekte & Leistungen → Objekt → Koordinaten).')
+      document.getElementById('tr-min').value = est.minutes
+      toast(`Rund ${String(est.km).replace('.', ',')} km Straße → ${est.minutes} min. Mit „Hinzufügen“ fest eintragen, sonst rechnet die App ohnehin so.`)
+    },
+    'geo-all': async (el) => {
+      const missing = app.data.objects.filter((o) => !hasCoords(o) && o.address)
+      if (!missing.length) return toast('Alle Objekte mit Adresse haben schon Koordinaten.')
+      el.disabled = true
+      let found = 0
+      const notFound = []
+      for (const [i, o] of missing.entries()) {
+        el.textContent = `Suche ${i + 1} von ${missing.length} …`
+        try {
+          const hit = await geocode(o.address)
+          if (hit) {
+            Object.assign(o, { lat: hit.lat, lon: hit.lon })
+            found++
+          } else notFound.push(o.name)
+        } catch (err) {
+          notFound.push(o.name)
+          if (i === 0) {
+            toast(`Suche nicht möglich: ${err.message}`)
+            break
+          }
+        }
+      }
+      if (found) persist()
+      renderNow()
+      toast(`${found} von ${missing.length} gefunden.${notFound.length ? ` Nicht gefunden: ${notFound.slice(0, 5).join(', ')}${notFound.length > 5 ? ' …' : ''} (Adresse genauer eintragen oder Koordinaten von Hand).` : ''}`)
     },
     'travel-add': () => {
       const a = val('tr-a')

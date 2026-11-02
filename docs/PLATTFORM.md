@@ -210,6 +210,19 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 
 **Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
 
+## Fahrzeiten aus Adressen
+
+Zwischen zwei Einsätzen am selben Tag rechnet die App eine Fahrt (zählt als Arbeitszeit). Woher die Minuten kommen, in dieser Reihenfolge:
+
+1. eine für die Woche oder die Leistung eingetragene Fahrt (Einsatz → „Fahrt danach“);
+2. eine Strecke unter *Regeln & Feiertage → Fahrzeiten zwischen Objekten*;
+3. **eine Schätzung aus den Koordinaten** beider Objekte: Luftlinie × 1,35 (Straße statt Luftlinie), geteilt durch die Durchschnittsgeschwindigkeit (Standard 35 km/h), plus Zuschlag je Fahrt (Standard 5 Minuten: Parken, Gehen, Laden), auf 5 Minuten aufgerundet; unter 100 m: 0 Minuten;
+4. die Pauschale (Standard 30 Minuten).
+
+**Koordinaten:** im Objekt (*Objekte & Leistungen → Objekt bearbeiten*) „Suchen“ fragt OpenStreetMap nach der Adresse; oder von Hand „Breite, Länge“ eintragen (z. B. in Google Maps: Rechtsklick auf den Ort, Zahlen kopieren). Unter *Regeln & Feiertage → Fahrzeiten* sucht „Fehlende suchen (OpenStreetMap)“ alle Objekte ohne Koordinaten nacheinander (eine Anfrage je Sekunde, wie OpenStreetMap es verlangt). „Schätzen“ zeigt für zwei Objekte die Kilometer und Minuten; „Hinzufügen“ trägt den Wert fest ein, z. B. wenn er korrigiert werden soll. Geschwindigkeit und Zuschlag sind einstellbar, die Schätzung lässt sich abschalten.
+
+**Genauigkeit:** Die Schätzung ersetzt keinen Routenplaner (Einbahnen, Brücken, Stau). Für Strecken, die oft vorkommen und deutlich abweichen, eine feste Strecke eintragen. **Datenschutz:** Gesucht werden nur Objektadressen, keine Namen; die Anfrage geht an die OpenStreetMap Foundation (Nominatim). Wer das nicht will, trägt die Koordinaten von Hand ein.
+
 ## Reklamationen
 
 Eigener Punkt unter *Objektservice* (Modul „Reklamationen“; Rollen Objektmanagement, Objektleitung, Objektservice und Vollzugriff). Gespeichert in `reklamationen/reklamationen.json`.

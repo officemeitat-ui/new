@@ -39,7 +39,7 @@ Ob die App im Browser oder in SharePoint speichert, legt `config.json` fest (`"s
 | Müllplan: wer stellt wann die Tonnen raus und rein | | Müllplan je Objekt, Abfuhrkalender einlesen (.ics) |
 | Prüfbericht | | |
 
-Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eigener Notiz eintragen, für diese Woche oder als Standard der Leistung. Ohne Eintrag gilt die Fahrzeit-Matrix bzw. Pauschale. Passt eine Fahrt nicht bis zum nächsten Einsatz, wird sie rot markiert.
+Fahrten sind planbar: Nach jedem Einsatz lässt sich die Fahrt mit Dauer und eigener Notiz eintragen, für diese Woche oder als Standard der Leistung. Ohne Eintrag gilt die eingetragene Strecke, sonst eine **Schätzung aus den Adressen** (Koordinaten je Objekt, über OpenStreetMap gesucht oder von Hand; Luftlinie × 1,35, Durchschnittsgeschwindigkeit, Zuschlag fürs Parken), sonst die Pauschale. Passt eine Fahrt nicht bis zum nächsten Einsatz, wird sie rot markiert.
 
 **Urlaub und Krankenstand:** Wird eine Abwesenheit eingetragen (auch rückwirkend, auch direkt im Einsatz mit „Abwesend“), öffnet sich sofort der Assistent. Er zeigt, welche Einsätze und wie viele Stunden neu zu planen sind, übergibt die Fixobjekte gesammelt an eine Person (sortiert nach: wer übernimmt die meisten Stunden regelkonform, mit wie vielen Mehrstunden), verteilt automatisch oder schlägt je Einsatz eine Vertretung vor. Betrifft die Abwesenheit schon veröffentlichte Wochen, wird dort die Korrektur gebucht: Zeitkonto und Monatsauswertung („Nachträgliche Korrekturen“) stimmen danach.
 

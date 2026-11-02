@@ -4,6 +4,7 @@
 // oder info (Hinweis/Zuschlag). Eigene Regeln: registerRule({...}), siehe
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
+import { estimateTravel } from './geo.js'
 import { DR_LIMITS, drMaxWeeks, drPeriod, employedOn, weeklyHoursAt } from './contract.js'
 import { WEATHER_DEFAULTS, warningText } from './weather.js'
 import { addDays, dayIndex, dstMinutes, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
@@ -21,7 +22,10 @@ export const DEFAULT_RULES = {
   breakMin: 30,
   nightStart: '22:00', // § 12a AZG (Nachtarbeitnehmer:in); Zuschlag nach KV: pay.nightFrom/nightTo
   nightEnd: '05:00',
-  travelMin: 30, // Fahrzeit zwischen zwei Objekten am selben Tag (wenn keine Matrix-Angabe)
+  travelMin: 30, // Fahrzeit zwischen zwei Objekten am selben Tag (wenn keine Matrix-Angabe und keine Koordinaten)
+  travelFromDistance: true, // aus Koordinaten schätzen (geo.js), wenn beide Objekte welche haben
+  travelSpeedKmh: 35, // Durchschnitt inkl. Ampeln und Stadtverkehr
+  travelBaseMin: 5, // Zuschlag je Fahrt: Parken, Gehen, Ein- und Ausladen
   sundayBonusPct: 100,
   holidayBonusPct: 100,
   creditSpecialTasks: false, // Sonderleistungen in Feiertags-/Urlaubsgutschrift einrechnen
@@ -91,20 +95,31 @@ export function createContext({ employees, objects, absences = [], rules, travel
     absencesByEmployee.get(a.employeeId).push(a)
   }
   const merged = mergeRules(rules)
-  const between = (a, b) => (a === b ? 0 : travel[pairKey(a, b)] ?? merged.travelMin)
+  const objectsById = new Map(objects.map((o) => [o.id, o]))
+  /** Fahrzeit mit Herkunft: eingetragene Strecke > Schätzung aus Koordinaten > Pauschale. */
+  const travelInfo = (a, b) => {
+    if (a === b) return { minutes: 0, source: 'gleich' }
+    const manual = travel[pairKey(a, b)]
+    if (Number.isFinite(manual)) return { minutes: manual, source: 'strecke' }
+    const est = merged.travelFromDistance ? estimateTravel(objectsById.get(a), objectsById.get(b), { speedKmh: merged.travelSpeedKmh, baseMin: merged.travelBaseMin }) : null
+    if (est) return { minutes: est.minutes, source: 'geschaetzt', km: est.km }
+    return { minutes: merged.travelMin, source: 'pauschale' }
+  }
+  const between = (a, b) => travelInfo(a, b).minutes
   return {
     rules: merged,
     employees,
     employeesById: new Map(employees.map((e) => [e.id, e])),
-    objectsById: new Map(objects.map((o) => [o.id, o])),
+    objectsById,
     absencesByEmployee,
     holidays,
     /** Veröffentlichte Wochen (Salden für das Zeitkonto). */
     published,
     /** Monatsabschlüsse (ausbezahlte Stunden, Zeitausgleich-Zuschläge). */
     payroll,
-    /** Fahrzeit in Minuten zwischen zwei Objekten (Matrix, sonst Pauschale). */
+    /** Fahrzeit in Minuten zwischen zwei Objekten (Strecke, Schätzung aus Koordinaten, sonst Pauschale). */
     travel: between,
+    travelInfo,
     trips,
     /**
      * Geplante Fahrt nach einem Einsatz. Vorrang: Eintrag dieser Woche für die

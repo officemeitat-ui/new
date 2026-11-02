@@ -34,7 +34,7 @@
     "401": { "redirect": "/.auth/login/aad?post_login_redirect_uri=.referrer", "statusCode": 302 }
   },
   "globalHeaders": {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepointonline.com https://*.svc.ms https://dataset.api.hub.geosphere.at https://warnungen.zamg.at; frame-src 'self' https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepointonline.com https://*.svc.ms https://dataset.api.hub.geosphere.at https://warnungen.zamg.at https://nominatim.openstreetmap.org; frame-src 'self' https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",

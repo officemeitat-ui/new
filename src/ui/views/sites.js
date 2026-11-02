@@ -3,10 +3,12 @@
 import { addDays, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { holidayCalendar } from '../../core/holidays.js'
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
+import { coordsText, parseCoords } from '../../core/geo.js'
 import { wasteSummary } from '../../core/waste.js'
 import { locationFor } from '../../core/weather.js'
 import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
+import { geocode } from '../geocode.js'
 import { readWaste, wasteSection } from '../waste-form.js'
 import { weatherEnabled, weatherLocations, weatherRules } from '../weather.js'
 import { regionFilter } from './objects.js'
@@ -62,6 +64,7 @@ function objectModal(c, { id }) {
         <label class="field wide"><span>Name</span><input type="text" id="obj-name" value="${esc(o.name)}" required></label>
         <label class="field"><span>Kurzname (für den Plan)</span><input type="text" id="obj-short" value="${esc(o.short)}"></label>
         <label class="field"><span>Adresse</span><input type="text" id="obj-address" value="${esc(o.address)}"></label>
+        <label class="field"><span>Koordinaten (Breite, Länge) für die Fahrzeit</span><span class="input-btn"><input type="text" id="obj-coords" value="${esc(coordsText(o))}" placeholder="z. B. 47.80950, 13.05500"><button class="btn small" data-action="obj-geocode" title="Über OpenStreetMap aus der Adresse suchen">Suchen</button></span></label>
         <label class="field"><span>Revier</span><input type="text" id="obj-region" list="region-list" value="${esc(o.region || '')}"><datalist id="region-list">${regions.map((r) => `<option value="${esc(r)}">`).join('')}</datalist></label>
         <label class="field"><span>Farbe</span><select id="obj-color">${COLOR_NAMES.map((n, i) => `<option value="${i + 1}" ${o.color === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="field"><span>Budget (Sollstunden/Monat)</span><input type="number" id="obj-budget" min="0" step="1" value="${esc(o.budgetHoursMonth ?? '')}" placeholder="laut Kalkulation"></label>
@@ -273,6 +276,21 @@ registerActions(
       app.ui.modal.waste = readWaste()
       renderModalKeepingInput(/^key-|^wsr-/)
     },
+    'obj-geocode': async (el) => {
+      const address = val('obj-address').trim()
+      if (!address) return toast('Bitte zuerst die Adresse eintragen.')
+      el.disabled = true
+      try {
+        const hit = await geocode(address)
+        if (!hit) return toast('Adresse bei OpenStreetMap nicht gefunden. Koordinaten von Hand eintragen (z. B. aus Google Maps: Rechtsklick auf den Ort).')
+        document.getElementById('obj-coords').value = `${hit.lat.toFixed(5)}, ${hit.lon.toFixed(5)}`
+        toast(`Gefunden: ${hit.label}`)
+      } catch (err) {
+        toast(`Suche nicht möglich: ${err.message}`)
+      } finally {
+        el.disabled = false
+      }
+    },
     'obj-save': (el) => {
       const id = el.dataset.id
       const existing = id === 'new' ? { id: uid('o') } : app.data.objects.find((o) => o.id === id)
@@ -281,6 +299,8 @@ registerActions(
         name: val('obj-name').trim(),
         short: val('obj-short').trim(),
         address: val('obj-address').trim(),
+        lat: parseCoords(val('obj-coords'))?.lat,
+        lon: parseCoords(val('obj-coords'))?.lon,
         region: val('obj-region').trim() || undefined,
         color: Number(val('obj-color')) || 1,
         budgetHoursMonth: num('obj-budget') || undefined,
@@ -295,6 +315,7 @@ registerActions(
       const waste = readWaste()
       obj.waste = waste.streams?.length ? waste : undefined
       if (!obj.name) return toast('Bitte einen Namen eingeben.')
+      if (val('obj-coords').trim() && !parseCoords(val('obj-coords'))) return toast('Koordinaten bitte als „Breite, Länge“ eintragen, z. B. 47.80950, 13.05500.')
       if (!obj.short) obj.short = obj.name.split(' ')[0]
       for (const k of Object.keys(obj)) if (obj[k] === undefined) delete obj[k]
       if (id === 'new') app.data.objects.push(obj)
