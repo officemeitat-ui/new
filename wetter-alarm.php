@@ -627,6 +627,17 @@ if ($aktion === 'foto') {
     readfile($pfad);
     exit;
 }
+if ($aktion === 'fotos-uebernommen' && $methode === 'POST') {
+    // Die App hat diese Fotos nach SharePoint übertragen: am Webspace löschen (nur gültige Namen)
+    $daten = json_decode((string) file_get_contents('php://input'), true);
+    $geloescht = 0;
+    foreach ((array) ($daten['dateien'] ?? []) as $datei) {
+        if (is_string($datei) && preg_match('/^[a-f0-9]{12}-[1-4]\.(jpg|png|webp)$/', $datei) && @unlink(protokoll_ordner() . '/fotos/' . $datei)) {
+            $geloescht++;
+        }
+    }
+    ausgabe(200, ['geloescht' => $geloescht]);
+}
 if ($aktion === 'speichern' && $methode === 'POST') {
     // neue Einstellungen aus der App (Schlüssel geprüft); der neue Schlüssel darf sich ändern
     $neu = json_decode((string) file_get_contents('php://input'), true);

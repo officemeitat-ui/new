@@ -74,6 +74,7 @@ export async function syncFromPhones({ force = false } = {}) {
       persist()
       toast(`${taken} ${taken === 1 ? 'Protokoll' : 'Protokolle'} vom Handy übernommen${app.store.kind === 'sharepoint' ? ', Fotos in SharePoint' : ''}.`)
     }
+    if (editable() && app.store.kind === 'sharepoint') await cleanUpPhotos(a.key)
     sync.error = ''
   } catch (err) {
     sync.error = err.message || String(err)
@@ -81,6 +82,42 @@ export async function syncFromPhones({ force = false } = {}) {
   sync.running = false
   if (app.ui.view === 'wetter') renderNow()
   return taken
+}
+
+/**
+ * Fotos, die sicher in SharePoint liegen (Verweis gespeichert), am Webspace löschen. Nur Fotos der
+ * Protokolle in den geladenen Wochen; scheitert es, folgt der nächste Versuch beim nächsten Abruf.
+ */
+async function cleanUpPhotos(key) {
+  // zuerst nachholen, was beim Übernehmen nicht hochgeladen wurde (Fotos der letzten 60 Tage)
+  const since = addDays(todayISO(), -60)
+  let added = 0
+  for (const e of Object.values(logOf())) {
+    if (e.date < since) continue
+    for (const f of e.fotos || []) {
+      if (f.pfad || f.webspaceGeloescht) continue
+      try {
+        const path = photoPath(e, f.datei, objOf(e.objectId)?.name || e.object)
+        const up = await app.store.upload(path, await serverPhoto(f.datei), 'image/jpeg')
+        Object.assign(f, { pfad: path, url: up.webUrl || '' })
+        added++
+      } catch {
+        /* nächster Versuch beim nächsten Abruf */
+      }
+    }
+  }
+  if (added) persist()
+  const uploaded = Object.values(logOf()).flatMap((x) => (x.fotos || []).filter((f) => f.pfad && !f.webspaceGeloescht))
+  if (!uploaded.length) return
+  try {
+    await app.service.flush()
+    const res = await fetch('wetter-alarm.php?aktion=fotos-uebernommen', { method: 'POST', headers: { 'X-Schluessel': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ dateien: uploaded.map((f) => f.datei) }) })
+    if (!res.ok) return
+    for (const f of uploaded) f.webspaceGeloescht = true
+    persist()
+  } catch {
+    /* nächster Versuch beim nächsten Abruf */
+  }
 }
 
 // ---------------------------------------------------------------- Fotos
