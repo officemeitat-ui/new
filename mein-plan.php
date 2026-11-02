@@ -12,6 +12,9 @@
 // privat/mitarbeiter/ (Name nur über den Hashwert des Codes auffindbar), dazu die Anträge.
 // Der Ordner privat/ ist per .htaccess gesperrt.
 //
+// Einsatzbörse: Die App schickt je Person die offenen Einsätze, die sie laut Regeln übernehmen darf
+// (eingeschult, verfügbar, Ruhezeit). „Ich übernehme“ meldet das dem Büro; eingeteilt wird in der App.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten
 
 declare(strict_types=1);
@@ -23,6 +26,26 @@ const COOKIE = 'mein_plan';
 const ARTEN = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand'];
 const STATUS_TEXT = ['offen' => 'offen', 'genehmigt' => 'genehmigt', 'abgelehnt' => 'abgelehnt', 'erledigt' => 'eingetragen'];
 const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const EINSATZ_TEXT = ['offen' => 'gemeldet', 'genehmigt' => 'eingeteilt', 'abgelehnt' => 'nicht eingeteilt', 'erledigt' => 'erledigt'];
+
+function status_text(array $a): string
+{
+    $s = (string) ($a['status'] ?? '');
+    return (($a['art'] ?? '') === 'Einsatz' ? EINSATZ_TEXT[$s] ?? null : null) ?? STATUS_TEXT[$s] ?? $s;
+}
+
+/** Offene Einsätze für eine Person (Einsatzbörse). */
+function angebote_von(string $hash): array
+{
+    return array_values(array_filter((array) (json_lesen(speicher() . '/angebote.json')[$hash] ?? []), fn ($o) => is_array($o) && ($o['datum'] ?? '') >= heute()));
+}
+
+/** Formular von einer fremden Seite? (Browser schicken Sec-Fetch-Site mit) */
+function fremde_herkunft(): bool
+{
+    $herkunft = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? '';
+    return $herkunft !== '' && $herkunft !== 'same-origin' && $herkunft !== 'none';
+}
 
 function jetzt(): int
 {
@@ -180,7 +203,10 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten'], 
         // der Person Bescheid geben (Krankmeldung „eingetragen“: kein Push nötig)
         $p = json_lesen(person_datei((string) $a['hash']));
         if (!empty($p['ntfy']) && $status !== 'erledigt') {
-            ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $a['art'] . ' ' . $zeitraum($a['von'], $a['bis']) . ': ' . STATUS_TEXT[$status], 'message' => $a['antwort'] ?: 'Details in deinem Dienstplan.', 'priority' => 3, 'tags' => [$status === 'genehmigt' ? 'white_check_mark' : 'x'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
+            $titel = $a['art'] === 'Einsatz'
+                ? ($status === 'genehmigt' ? 'Du bist eingeteilt: ' : 'Nicht eingeteilt: ') . $tag($a['von']) . ' ' . ($a['text'] ?? '')
+                : $a['art'] . ' ' . $zeitraum($a['von'], $a['bis']) . ': ' . STATUS_TEXT[$status];
+            ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => $a['antwort'] ?: 'Details in deinem Dienstplan.', 'priority' => 3, 'tags' => [$status === 'genehmigt' ? 'white_check_mark' : 'x'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
         }
         json_ausgabe(200, ['antrag' => $a]);
     }
@@ -191,6 +217,33 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten'], 
     foreach ((array) ($daten['entfernen'] ?? []) as $hash) {
         if (is_string($hash) && preg_match('/^[a-f0-9]{64}$/', $hash)) {
             @unlink(person_datei($hash));
+        }
+    }
+    // Einsatzbörse: Liste ersetzen; neue Angebote je Person zählen (für den Push)
+    $neueAngebote = [];
+    if (isset($daten['angebote']) && is_array($daten['angebote'])) {
+        $alt = json_lesen(speicher() . '/angebote.json');
+        $liste = [];
+        foreach ($daten['angebote'] as $hash => $angebote) {
+            if (!preg_match('/^[a-f0-9]{64}$/', (string) $hash) || !is_array($angebote)) {
+                continue;
+            }
+            $bekannt = array_column(array_filter((array) ($alt[$hash] ?? []), 'is_array'), 'id');
+            foreach (array_slice($angebote, 0, 20) as $o) {
+                $id = (string) ($o['id'] ?? '');
+                $datum = (string) ($o['datum'] ?? '');
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}\|[^|]{1,80}$/u', $id) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
+                    continue;
+                }
+                $kurz = fn ($k, $n) => mb_substr((string) ($o[$k] ?? ''), 0, $n);
+                $liste[$hash][] = ['id' => $id, 'datum' => $datum, 'zeit' => $kurz('zeit', 20), 'objekt' => $kurz('objekt', 80), 'leistung' => $kurz('leistung', 80), 'adresse' => $kurz('adresse', 120), 'minuten' => (int) ($o['minuten'] ?? 0)];
+                if (!in_array($id, $bekannt, true)) {
+                    $neueAngebote[$hash] = ($neueAngebote[$hash] ?? 0) + 1;
+                }
+            }
+        }
+        if (!json_schreiben(speicher() . '/angebote.json', $liste)) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
     }
     foreach ((array) ($daten['personen'] ?? []) as $person) {
@@ -218,6 +271,9 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten'], 
             $woche['veroeffentlicht'] = $alt['veroeffentlicht'] ?? jetzt();
             $woche['geaendert'] = $alt && ($alt['sig'] ?? '') !== $sig ? jetzt() : ($alt['geaendert'] ?? null);
             $p['wochen'][$mo] = $woche;
+        }
+        if (!empty($neueAngebote[$hash])) {
+            $meldungen[] = $neueAngebote[$hash] === 1 ? '1 offener Einsatz für dich' : $neueAngebote[$hash] . ' offene Einsätze für dich';
         }
         // nur die letzten 8 Wochen und die kommenden behalten
         $grenze = tag_plus($montag, -56);
@@ -261,8 +317,7 @@ if (isset($_GET['p'])) {
 
 // Antrag oder Krankmeldung
 if ($aktion === 'antrag' && $methode === 'POST') {
-    $herkunft = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? '';
-    if ($herkunft !== '' && $herkunft !== 'same-origin' && $herkunft !== 'none') {
+    if (fremde_herkunft()) {
         html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
         exit;
     }
@@ -319,6 +374,56 @@ if ($aktion === 'antrag' && $methode === 'POST') {
     }
 }
 
+// Einsatzbörse: „Ich übernehme“
+if ($aktion === 'melden' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        exit;
+    }
+    $id = (string) ($_POST['einsatz'] ?? '');
+    $angebot = null;
+    foreach (angebote_von($hash) as $o) {
+        if ($o['id'] === $id) {
+            $angebot = $o;
+        }
+    }
+    $neu = !$angebot ? null : antraege(function (array &$l) use ($hash, $person, $angebot) {
+        foreach ($l as $a) {
+            if ($a['hash'] === $hash && ($a['einsatz'] ?? '') === $angebot['id'] && $a['status'] === 'offen') {
+                return 'schon';
+            }
+        }
+        if (count(array_filter($l, fn ($a) => $a['hash'] === $hash && (int) $a['erstellt'] > jetzt() - 86400)) >= 10) {
+            return false;
+        }
+        $a = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'art' => 'Einsatz', 'von' => $angebot['datum'], 'bis' => $angebot['datum'], 'einsatz' => $angebot['id'], 'text' => trim($angebot['zeit'] . ' ' . $angebot['objekt']), 'notiz' => '', 'erstellt' => jetzt(), 'status' => 'offen', 'antwort' => ''];
+        $l[] = $a;
+        return $a;
+    });
+    if (!$angebot) {
+        $meldung = '<p class="fehler">Dieser Einsatz ist nicht mehr offen. Danke trotzdem!</p>';
+    } elseif ($neu === false) {
+        $meldung = '<p class="fehler">Zu viele Meldungen heute. Bitte im Büro melden.</p>';
+    } elseif ($neu === null) {
+        $meldung = '<p class="fehler">Konnte nicht speichern. Bitte im Büro anrufen.</p>';
+    } else {
+        if (is_array($neu)) {
+            $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
+            $text = $tag($angebot['datum']) . ' ' . $neu['text'] . ($angebot['leistung'] ? ' (' . $angebot['leistung'] . ')' : '') . "\nIn der App unter „Zu erledigen“ einteilen.";
+            foreach ((array) ($e['buero'] ?? []) as $b) {
+                if (!empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => 'Übernimmt Einsatz: ' . ($person['name'] ?? ''), 'message' => $text, 'priority' => 3, 'tags' => ['raising_hand'], 'click' => $app]);
+                }
+                if (!empty($b['email'])) {
+                    mail_senden((string) $b['email'], 'Übernimmt Einsatz: ' . ($person['name'] ?? ''), $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Mein Dienstplan');
+                }
+            }
+        }
+        header('Location: mein-plan.php?gesendet=einsatz', true, 303);
+        exit;
+    }
+}
+
 // Plan: diese Woche und die kommenden (sonst die letzte veröffentlichte)
 $montag = (new DateTimeImmutable(heute() . ' monday this week'))->format('Y-m-d');
 $wochen = array_filter((array) ($person['wochen'] ?? []), fn ($k) => $k >= $montag, ARRAY_FILTER_USE_KEY);
@@ -330,6 +435,8 @@ if (($_GET['gesendet'] ?? '') === 'krank') {
     $meldung = '<p class="ok">Krankmeldung ist im Büro. Gute Besserung!</p>';
 } elseif (($_GET['gesendet'] ?? '') === 'antrag') {
     $meldung = '<p class="ok">Antrag gesendet. Die Antwort steht dann hier.</p>';
+} elseif (($_GET['gesendet'] ?? '') === 'einsatz') {
+    $meldung = '<p class="ok">Danke! Das Büro bestätigt, ob du eingeteilt bist.</p>';
 }
 $planHtml = '';
 foreach ($wochen as $mo => $w) {
@@ -361,8 +468,20 @@ foreach ($wochen as $mo => $w) {
 // eigene Anträge
 $meine = array_values(array_filter(antraege(fn (array &$l) => $l) ?? [], fn ($a) => $a['hash'] === $hash && (($a['bis'] ?? '') >= tag_plus(heute(), -60) || $a['status'] === 'offen')));
 usort($meine, fn ($a, $b) => $b['erstellt'] <=> $a['erstellt']);
-$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . ' <span class="pill st-' . $h($a['status']) . '">' . $h(STATUS_TEXT[$a['status']] ?? $a['status']) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
+$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (($a['art'] ?? '') === 'Einsatz' ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
 $p = '<input type="hidden" name="p" value="' . $h($code) . '">';
+$gemeldet = array_column(array_filter($meine, fn ($a) => ($a['art'] ?? '') === 'Einsatz' && $a['status'] === 'offen'), 'einsatz');
+$boerse = '';
+foreach (angebote_von($hash) as $o) {
+    $adresse = (string) $o['adresse'];
+    $boerse .= '<div class="einsatz angebot"><b>' . $h($tag($o['datum'])) . ' ' . $h($o['zeit']) . '</b> ' . $h($o['objekt'])
+        . ($o['leistung'] ? ' <span class="leise">· ' . $h($o['leistung']) . '</span>' : '')
+        . ($adresse !== '' ? '<br><span class="leise">' . $h($adresse) . ' · <a href="https://www.google.com/maps/search/?api=1&amp;query=' . rawurlencode($adresse) . '" target="_blank" rel="noopener">Karte</a></span>' : '')
+        . '<br><span class="leise">' . $stunden($o['minuten']) . ' h</span>'
+        . (in_array($o['id'], $gemeldet, true) ? ' <span class="pill st-offen">gemeldet</span>' : '<form method="post" action="mein-plan.php?aktion=melden">' . $p . '<input type="hidden" name="einsatz" value="' . $h($o['id']) . '"><button type="submit" class="klein">Ich übernehme</button></form>')
+        . '</div>';
+}
+$boerseHtml = $boerse ? '<h2>Offene Einsätze für dich</h2><p class="leise">Passt laut Plan zu deinen Zeiten. Das Büro bestätigt, wer eingeteilt wird.</p>' . $boerse : '';
 $heute = heute();
 $formulare = '<h2>Abwesenheit</h2>'
     . '<details><summary>Krank melden</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . '<input type="hidden" name="art" value="Krankenstand">'
@@ -376,7 +495,7 @@ $formulare = '<h2>Abwesenheit</h2>'
     . '<label for="a-notiz">Notiz (optional)</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
     . '<button type="submit">Antrag senden</button></form></details>';
 html_seite('<h1>Mein Dienstplan</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
-    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}</style>'
+    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
     . ($planHtml ?: '<p class="leise">Noch kein veröffentlichter Plan.</p>')
-    . $antraegeHtml . $formulare
+    . $boerseHtml . $antraegeHtml . $formulare
     . '<p class="leise" style="margin-top:2rem;font-size:.9rem">Diese Seite ist persönlich: den Link nicht weitergeben. Tipp: im Browser-Menü „Zum Startbildschirm“ wählen. <a href="mein-plan.php?aktion=vergessen">Auf diesem Gerät vergessen</a></p>', 200, '', 'Mein Dienstplan');

@@ -113,7 +113,8 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Alarm bei Nichterscheinen | Swept | Ausbaustufe 2 (setzt Zeiterfassung voraus) |
 | Qualitätskontrolle, Reklamationen | KleanApp, iQTrust, Miele, Janitorial Manager | Ausbaustufe 3 |
 | Mitarbeiter-App: eigener Plan, Anträge, Krankmeldung | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |
-| Mitarbeiter-App: offene Einsätze, Tausch | Teams Shifts, Papershift, Shiftbase, Planday | Ausbaustufe 2 |
+| Mitarbeiter-App: offene Einsätze übernehmen (Einsatzbörse) | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |
+| Mitarbeiter-App: Tausch | Teams Shifts, Papershift, Shiftbase, Planday | Ausbaustufe 2 |
 | Objektkalkulation (m² × Leistungswert) | A.S.E., MR.Clean, Janitorial Manager | Ausbaustufe 3 |
 
 Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der Dienstplan schon Microsoft Graph nutzt, ist das eine naheliegende nächste Erweiterung.
@@ -156,7 +157,7 @@ Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle, Objektdokument
 | Stufe | Inhalt |
 |---|---|
 | **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
-| **2. Mitarbeiter-App** | **Seit November 2026:** eigener Wochenplan am Handy über einen persönlichen Link (ohne Anmeldung, `mein-plan.php` am Webspace), Push bei neuen und geänderten Wochen, Urlaubs-, Zeitausgleichs- und Pflegefreistellungsantrag, Krankmeldung; im Büro unter „Zu erledigen“ eintragen, genehmigen oder ablehnen. Offen: offene Einsätze übernehmen, Tausch, Zeiterfassung per QR/NFC im Objekt |
+| **2. Mitarbeiter-App** | **Seit November 2026:** eigener Wochenplan am Handy über einen persönlichen Link (ohne Anmeldung, `mein-plan.php` am Webspace), Push bei neuen und geänderten Wochen, Urlaubs-, Zeitausgleichs- und Pflegefreistellungsantrag, Krankmeldung; im Büro unter „Zu erledigen“ eintragen, genehmigen oder ablehnen; Einsatzbörse (offene Einsätze an alle, die sie laut Regeln übernehmen dürfen, „Ich übernehme“ → „Einteilen“). Offen: Tausch zwischen Kolleg:innen, Zeiterfassung per QR/NFC im Objekt |
 | **3. Qualität & Kalkulation** | Begehungen (eigenes Werkzeug Objektkontrolle), Leistungsverzeichnis (eigenes Werkzeug Objektdoku), Zählerablesung (eigenes Werkzeug Wasserzähler), Mattenwechsel mit Touren (eigenes Werkzeug), alle in der App eingebunden; offen: Reklamationen, Objektkalkulation aus Flächen und Leistungswerten |
 | **4. Anbindungen** | Teams Shifts, BMD/RZL mit Lohnarten-Mapping, Fahrzeiten aus Adressen |
 

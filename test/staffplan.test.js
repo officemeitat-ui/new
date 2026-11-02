@@ -5,7 +5,8 @@ import { formatDate } from '../src/core/dates.js'
 import { holidayCalendar } from '../src/core/holidays.js'
 import { buildInstances, PlanState } from '../src/core/plan.js'
 import { createContext } from '../src/core/rules.js'
-import { hashIndex, newCode, openRequests, personalLink, portalEmployees, portalFile, requestText, savePayload, sha256Hex, staffWeek } from '../src/core/staffplan.js'
+import { dayIndex } from '../src/core/dates.js'
+import { hashIndex, newCode, offerOf, openRequests, openShifts, personalLink, portalEmployees, portalFile, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../src/core/staffplan.js'
 import { buildTimesheet } from '../src/core/timesheet.js'
 
 const allDays = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((d) => [d, { from: '00:00', to: '24:00' }]))
@@ -102,4 +103,38 @@ test('Anträge: nur offene und gültige, Person auch über ersetzten Link, älte
   assert.equal(requestText({ art: 'Krankenstand', von: '2026-11-02', bis: '2026-11-02' }, formatDate), 'Krankmeldung ab Mo 02.11.')
   assert.equal(requestText(list[1], formatDate), 'Urlaub Mo 21.12. – Do 31.12.')
   assert.equal(requestText(list[2], formatDate), 'Zeitausgleich Fr 06.11.')
+})
+
+test('Einsatzbörse: offene Einsätze nur an Personen, die sie laut Regeln übernehmen dürfen', () => {
+  const objects = [{ id: 'o1', name: 'Wohnanlage Rif', address: 'Rif 3, 5400 Hallein' }, { id: 'o2', name: 'Labor', address: 'Laborweg 1', onlyTrained: true }]
+  const tasks = [task('Stiege', 'o1', [2], '08:00', '10:00'), task('Labor', 'o2', [2], '10:30', '12:00'), task('Früh', 'o1', [3], '06:00', '07:00'), task('Spät', 'o1', [2], '09:00', '11:00', { staff: 2 })]
+  const employees = [emp('x', { name: 'Anna' }), emp('y', { name: 'Bernd' }), emp('z', { name: 'Clara', trained: ['o1'] })]
+  const data = { employees, objects, tasks, absences: [{ id: 'a1', employeeId: 'y', type: 'Urlaub', from: '2026-11-03', to: '2026-11-03' }], rules: {}, overrides: {} }
+  const holidays = holidayCalendar('2026-10-26', '2026-11-15')
+  const ctx = createContext(data, holidays)
+  const instances = buildInstances(data, '2026-10-26', '2026-11-15', holidays, ctx.rules)
+  const state = new PlanState(instances, { '2026-11-03|Stiege': [{ employeeId: 'x' }], '2026-11-03|Spät': [{ employeeId: 'z' }] })
+  const week = { from: '2026-11-02', to: '2026-11-08' }
+  assert.deepEqual(openShifts(instances, state, week).map((i) => i.key), ['2026-11-03|Spät', '2026-11-03|Labor', '2026-11-04|Früh'], 'besetzte nicht, „Spät“ braucht noch eine Person')
+  const notBefore = dayIndex('2026-11-03') * 1440 + 10 * 60
+  assert.deepEqual(openShifts(instances, state, { ...week, notBefore }).map((i) => i.key), ['2026-11-03|Labor', '2026-11-04|Früh'], 'schon begonnene nicht')
+  const offers = shiftOffers({ ctx, state, instances, ...week, employees: ctx.employees, objectsById: new Map(objects.map((o) => [o.id, o])) })
+  const ids = (id) => (offers.get(id) || []).map((o) => o.id)
+  assert.deepEqual(ids('x'), ['2026-11-03|Labor', '2026-11-04|Früh'], 'Anna: nicht „Spät“ (überschneidet Stiege)')
+  assert.deepEqual(ids('y'), ['2026-11-04|Früh'], 'Bernd: am Dienstag Urlaub')
+  assert.deepEqual(ids('z'), ['2026-11-04|Früh'], 'Clara: im Labor nicht eingeschult, in „Spät“ schon eingeteilt')
+  assert.deepEqual(offers.get('x')[0], { id: '2026-11-03|Labor', datum: '2026-11-03', zeit: '10:30–12:00', objekt: 'Labor', leistung: 'Labor', adresse: 'Laborweg 1', minuten: 90 })
+  assert.equal(shiftOffers({ ctx, state, instances, ...week, employees: ctx.employees, max: 1 }).get('x').length, 1, 'höchstens max je Person')
+  assert.equal(offerOf({ key: 'k', date: '2026-11-03', startTime: '06:00', endTime: '07:00', objectId: 'weg', label: '', net: 60 }).objekt, 'Objekt')
+})
+
+test('Einsatzbörse: Meldung „Ich übernehme“ als Antrag mit Einsatz', async () => {
+  const anna = await sha256Hex('CodeAnna')
+  const list = openRequests([
+    { id: '1', hash: anna, art: 'Einsatz', von: '2026-11-03', bis: '2026-11-03', einsatz: '2026-11-03|Labor', text: '10:30–12:00 Labor', status: 'offen', erstellt: 1 },
+    { id: '2', hash: anna, art: 'Einsatz', von: '2026-11-03', bis: '2026-11-03', einsatz: '2026-11-04|Früh', status: 'offen', erstellt: 2 },
+    { id: '3', hash: anna, art: 'Einsatz', von: '2026-11-03', bis: '2026-11-03', status: 'offen', erstellt: 3 },
+  ], await hashIndex({ codes: { e1: 'CodeAnna' } }))
+  assert.deepEqual(list.map((a) => [a.id, a.employeeId]), [['1', 'e1']], 'Einsatz muss zum Tag passen')
+  assert.equal(requestText(list[0], formatDate), 'übernimmt Einsatz Di 03.11. 10:30–12:00 Labor')
 })

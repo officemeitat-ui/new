@@ -5,15 +5,23 @@
 // Einstellungen bei den Regeln (rules.portal): Schlüssel für den Webspace, Codes je Person,
 // ntfy-Themen für Push, Büro-Handy und E-Mail für neue Anträge. Der Webspace bekommt die
 // Codes nur als Hashwert und je Person nur ihre eigenen Wochen.
+//
+// Einsatzbörse: beim Übertragen gehen dazu je Person die offenen Einsätze mit, die sie laut Regeln
+// übernehmen darf. „Ich übernehme“ steht dann unter „Zu erledigen“; „Einteilen“ prüft noch einmal,
+// teilt ein, sagt weiteren Meldungen ab und veröffentlicht die Woche neu.
 
 import { employedOn } from '../core/contract.js'
-import { addDays, formatDate, mondayOf, todayISO } from '../core/dates.js'
-import { hashIndex, newCode, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, staffWeek } from '../core/staffplan.js'
-import { ALARM_DEFAULTS } from '../core/weather.js'
-import { app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
+import { addDays, dayIndex, formatDate, mondayOf, todayISO } from '../core/dates.js'
+import { PlanState } from '../core/plan.js'
+import { evaluateCandidate } from '../core/scheduler.js'
+import { hashIndex, newCode, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
+import { ALARM_DEFAULTS, viennaParts } from '../core/weather.js'
+import { addLog, app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
 import { addAbsence } from './modals/absence.js'
+import { portalNote } from './modals/publish.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { accountAfterWeek } from './pdf.js'
+import { publishWeek } from './planning.js'
 import { checked, download, esc, ICON, modalFrame, val } from './shared.js'
 
 const hex = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -57,10 +65,33 @@ async function call(aktion, body) {
 }
 
 /**
- * Veröffentlichte Wochen an den Webspace: je Person ihr Plan (Push bei neuen oder geänderten
- * Wochen macht der Webspace). Ersetzte Links werden dabei entfernt. null, wenn ausgeschaltet.
+ * Einsatzbörse: offene Einsätze der veröffentlichten Wochen ab jetzt (frühestens in einer Stunde)
+ * je Person, die sie laut Regeln übernehmen darf. Liefert { angebote: { hash: [...] }, byEmp }.
  */
-export async function sendWeeks(mondays, { only = null } = {}) {
+async function offersByHash(p) {
+  const today = todayISO()
+  const now = viennaParts(Date.now())
+  const notBefore = dayIndex(now.date) * 1440 + now.hour * 60 + now.minute + 60
+  const mondays = Object.keys(app.data.published || {}).filter((m) => m >= mondayOf(today)).sort()
+  const byEmp = new Map()
+  if (mondays.length) await ensureRange(mondays[0], addDays(mondays.at(-1), 6))
+  const objectsById = new Map(app.data.objects.map((o) => [o.id, o]))
+  for (const monday of mondays) {
+    const c = compute(monday)
+    const offers = shiftOffers({ ctx: c.ctx, state: c.state, instances: c.instances, from: monday < today ? today : monday, to: addDays(monday, 6), notBefore, employees: portalEmployees(c.ctx.employees, p.codes, monday), objectsById })
+    for (const [id, list] of offers) byEmp.set(id, [...(byEmp.get(id) || []), ...list])
+  }
+  const angebote = {}
+  for (const [id, list] of byEmp) angebote[await sha256Hex(p.codes[id])] = list.slice(0, 20)
+  return { angebote, byEmp }
+}
+
+/**
+ * Veröffentlichte Wochen an den Webspace: je Person ihr Plan (Push bei neuen oder geänderten
+ * Wochen macht der Webspace), dazu die Einsatzbörse. Ersetzte Links werden dabei entfernt.
+ * null, wenn ausgeschaltet.
+ */
+export async function sendWeeks(mondays) {
   const p = portalSettings()
   if (!p.enabled || !p.key) return null
   const objectsById = new Map(app.data.objects.map((o) => [o.id, o]))
@@ -69,13 +100,20 @@ export async function sendWeeks(mondays, { only = null } = {}) {
     if (!app.data.published?.[monday]) continue
     const c = compute(monday)
     for (const emp of portalEmployees(c.ctx.employees, p.codes, monday)) {
-      if (only && emp.id !== only) continue
       entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp) }) })
     }
   }
+  const offers = p.exchange === false ? { angebote: {}, byEmp: new Map() } : await offersByHash(p)
+  const payload = savePayload(entries)
+  // wer nur Angebote bekommt (diese Woche nicht dabei), braucht trotzdem Namen und Push-Thema
+  const known = new Set(payload.personen.map((x) => x.hash))
+  for (const id of offers.byEmp.keys()) {
+    const hash = await sha256Hex(p.codes[id])
+    if (!known.has(hash)) payload.personen.push({ hash, name: empById(id)?.name || '', ntfy: p.topics[id] || '' })
+  }
   const remove = p.remove || []
-  if (!entries.length && !remove.length) return { personen: 0, benachrichtigt: 0 }
-  const res = await call('speichern', { ...savePayload(entries), entfernen: remove })
+  const res = await call('speichern', { ...payload, angebote: offers.angebote, entfernen: remove })
+  res.angebote = new Set([...offers.byEmp.values()].flat().map((o) => o.id)).size
   if (remove.length) {
     const now = portalSettings()
     saveSettings({ ...now, remove: (now.remove || []).filter((h) => !remove.includes(h)) })
@@ -148,6 +186,50 @@ async function decide(a, status, antwort = '') {
   }
 }
 
+/** Meldung aus der Einsatzbörse: noch einmal prüfen, einteilen, andere Meldungen absagen, Woche neu veröffentlichen. */
+async function assignFromRequest(a) {
+  const monday = mondayOf(a.von)
+  await ensureRange(a.von, a.von)
+  const c = compute(monday)
+  const inst = c.instances.find((i) => i.key === a.einsatz)
+  const emp = c.ctx.employeesById.get(a.employeeId)
+  if (!emp) return toast('Person nicht gefunden.')
+  if (!inst || inst.status === 'cancelled') {
+    await decide(a, 'abgelehnt', 'Der Einsatz entfällt. Danke trotzdem!')
+    return toast(`Der Einsatz entfällt inzwischen; ${emp.name} bekommt Bescheid.`)
+  }
+  const what = `${formatDate(inst.date)} ${inst.startTime}–${inst.endTime} ${c.ctx.objectsById.get(inst.objectId)?.name || ''}`.trim()
+  if (c.state.has(emp.id, inst.key)) {
+    await decide(a, 'genehmigt')
+    return toast(`${emp.name} ist dort schon eingeteilt.`)
+  }
+  if (c.state.count(inst.key) >= (inst.staff || 1)) {
+    await decide(a, 'abgelehnt', 'Schon vergeben. Danke für die Meldung!')
+    return toast(`${what} ist schon besetzt; ${emp.name} bekommt Bescheid.`)
+  }
+  const ev = evaluateCandidate(c.ctx, c.state, emp, inst)
+  if (!ev.allowed) return toast(`${emp.name} passt nicht mehr: ${ev.blocking.map((i) => i.message).join('; ')}. Bitte ablehnen oder von Hand einteilen.`)
+  recordUndo(`Einsatzbörse: ${emp.name} eingeteilt`)
+  const state = new PlanState(c.instances, app.data.assignments)
+  state.assign(emp.id, inst.key, true)
+  app.data.assignments = state.toObject()
+  addLog(monday, `Einsatzbörse: ${emp.name} übernimmt ${what}`)
+  persist()
+  await decide(a, 'genehmigt')
+  if (state.count(inst.key) >= (inst.staff || 1)) for (const other of req.list.filter((x) => x.art === 'Einsatz' && x.einsatz === inst.key)) await decide(other, 'abgelehnt', 'Schon vergeben. Danke für die Meldung!')
+  // Woche neu veröffentlichen: Plan am Handy und Börse sind gleich aktuell
+  let note = ''
+  if (app.data.published?.[monday]) {
+    try {
+      note = portalNote(await publishWeek({ c: compute(monday), files: app.store?.kind === 'sharepoint' }))
+    } catch (err) {
+      note = ` Woche nicht neu veröffentlicht: ${err.message}`
+    }
+  }
+  renderNow()
+  toast(`${emp.name} ist eingeteilt: ${what}.${note}`)
+}
+
 const sentAt = (s) => new Date(s * 1000).toLocaleString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 registerTodo({
@@ -163,8 +245,11 @@ registerTodo({
     items
       .map((a) => {
         const krank = a.art === 'Krankenstand'
+        const shift = a.art === 'Einsatz'
         const who = a.employeeId ? empName(a.employeeId) : a.name
         const btn = (what, label, cls = '') => `<button class="btn small ${cls}" data-action="portal-request" data-id="${esc(a.id)}" data-do="${what}">${label}</button>`
+        const reject = `<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
+        if (shift) return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">Einsatzbörse am Handy, ${esc(sentAt(a.erstellt))}</span></div><div class="todo-acts">${a.employeeId ? btn('einteilen', 'Einteilen', 'primary') : ''}${reject}</div></div>`
         const acts = krank ? `${a.employeeId ? btn('eintragen', 'Eintragen', 'primary') : ''}${btn('erledigt', 'Schon erledigt')}` : `${a.employeeId ? btn('genehmigen', a.art === 'Pflegefreistellung' ? 'Eintragen' : 'Genehmigen', 'primary') : ''}<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
         return `<div class="todo-item"><span class="flag ${krank ? 'error' : 'warning'}">${krank ? '!' : '?'}</span><div class="todo-text"><strong>${esc(who)}</strong>: ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}${a.employeeId ? '' : ' · keiner Person zuordenbar (Link inzwischen ersetzt?)'}</span></div><div class="todo-acts">${acts}</div></div>`
       })
@@ -186,6 +271,7 @@ function readForm() {
   const d = draft()
   if (!document.getElementById('pt-enabled')) return d
   d.enabled = checked('pt-enabled')
+  d.exchange = checked('pt-exchange')
   d.officeEmails = val('pt-emails').trim()
   d.sender = val('pt-sender').trim()
   if (checked('pt-office')) d.officeTopic ||= app.data.rules?.weather?.alarm?.topics?.office || `mp-${hex(8)}`
@@ -219,6 +305,7 @@ function portalModal() {
     title: 'Plan am Handy (Mein Dienstplan)',
     wide: true,
     body: `<label class="check"><input type="checkbox" id="pt-enabled" ${d.enabled ? 'checked' : ''}><span><strong>Plan am Handy ein</strong>: Mitarbeitende sehen über einen persönlichen Link (ohne Anmeldung) ihre veröffentlichten Wochen mit Zeiten, Objekten, Adressen, Hinweisen, Stunden und Zeitkonto. Sie können Urlaub, Zeitausgleich oder Pflegefreistellung beantragen und sich krank melden; das landet hier unter „Zu erledigen“.</span></label>
+      <label class="check"><input type="checkbox" id="pt-exchange" ${d.exchange !== false ? 'checked' : ''}><span><strong>Einsatzbörse</strong>: offene Einsätze der veröffentlichten Wochen erscheinen am Handy bei allen, die sie laut Regeln übernehmen dürfen (eingeschult, verfügbar, Ruhezeit, Höchstarbeitszeit, nicht abwesend). „Ich übernehme“ landet unter „Zu erledigen“; eingeteilt wird erst mit „Einteilen“ im Büro.</span></label>
       ${status}
       <h3>Persönliche Links</h3>
       <p class="note">Link per WhatsApp oder E-Mail schicken. Beim ersten Öffnen merkt sich das Handy den Link (Tipp: „Zum Startbildschirm“). Beim Veröffentlichen einer Woche gehen die Pläne automatisch mit; wer Push eingerichtet hat, bekommt eine Nachricht bei neuen und geänderten Wochen (App „ntfy“, wie beim Schnee-Alarm). Der Link wirkt wie ein Passwort: bei Verlust „Neuer Link“.</p>
@@ -242,9 +329,9 @@ function rejectModal(c, { id }) {
   const a = req.list.find((x) => x.id === id)
   if (!a) return null
   return modalFrame({
-    title: 'Antrag ablehnen',
+    title: a.art === 'Einsatz' ? 'Meldung ablehnen' : 'Antrag ablehnen',
     subtitle: `${a.employeeId ? empName(a.employeeId) : a.name}: ${requestText(a, formatDate)}`,
-    body: `<label class="field"><span>Begründung (bekommt die Person aufs Handy)</span><textarea id="pt-reason" rows="3" maxlength="300" placeholder="z. B. In dieser Woche sind schon zwei Personen im Urlaub. Bitte melde dich im Büro."></textarea></label>`,
+    body: `<label class="field"><span>Begründung (bekommt die Person aufs Handy)</span><textarea id="pt-reason" rows="3" maxlength="300" placeholder="z. B. In dieser Woche sind schon zwei Personen im Urlaub. Bitte melde dich im Büro.">${a.art === 'Einsatz' ? 'Schon vergeben. Danke für die Meldung!' : ''}</textarea></label>`,
     foot: `<span></span><div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn danger" data-action="portal-reject-send" data-id="${esc(a.id)}">Ablehnen</button></div>`,
   })
 }
@@ -298,7 +385,7 @@ registerActions(
       try {
         await call('einrichten', settingsFile(d))
         const r = await sendAll()
-        toast(`Übertragen: Pläne für ${r.personen} ${r.personen === 1 ? 'Person' : 'Personen'}${r.benachrichtigt ? `, ${r.benachrichtigt} Push-Nachrichten` : ''}.`)
+        toast(`Übertragen: Pläne für ${r.personen} ${r.personen === 1 ? 'Person' : 'Personen'}${r.angebote ? `, ${r.angebote === 1 ? '1 offener Einsatz' : `${r.angebote} offene Einsätze`} in der Börse` : ''}${r.benachrichtigt ? `, ${r.benachrichtigt} Push-Nachrichten` : ''}.`)
         loadRequests({ force: true })
       } catch (err) {
         toast(`Gespeichert, aber nicht übertragen: ${err.message}`)
@@ -308,6 +395,7 @@ registerActions(
       const a = req.list.find((x) => x.id === el.dataset.id)
       if (!a) return
       const what = el.dataset.do
+      if (what === 'einteilen') return assignFromRequest(a)
       if (what === 'erledigt') {
         if (await decide(a, 'erledigt')) toast(`Krankmeldung von ${a.name} als erledigt markiert.`)
         return

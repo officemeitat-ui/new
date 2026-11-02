@@ -76,7 +76,7 @@ registerActions({
 
 /** Hinweis zu „Plan am Handy“ nach dem Veröffentlichen. */
 export const portalNote = (res) =>
-  res.portal ? ` Plan am Handy: ${res.portal.personen} ${res.portal.personen === 1 ? 'Person' : 'Personen'}${res.portal.benachrichtigt ? `, ${res.portal.benachrichtigt} Push` : ''}.` : res.portalError ? ` Plan am Handy nicht übertragen: ${res.portalError}` : ''
+  res.portal ? ` Plan am Handy: ${res.portal.personen} ${res.portal.personen === 1 ? 'Person' : 'Personen'}${res.portal.angebote ? `, ${res.portal.angebote === 1 ? '1 offener Einsatz' : `${res.portal.angebote} offene Einsätze`} in der Börse` : ''}${res.portal.benachrichtigt ? `, ${res.portal.benachrichtigt} Push` : ''}.` : res.portalError ? ` Plan am Handy nicht übertragen: ${res.portalError}` : ''
 
 registerActions(
   {

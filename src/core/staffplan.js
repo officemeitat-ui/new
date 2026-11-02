@@ -5,12 +5,17 @@
 // Beim Veröffentlichen geht je Person die Woche als kleine JSON-Datei an den Webspace:
 // Einsätze mit Zeit, Objekt, Adresse und Hinweisen, Abwesenheit, Feiertag, Stunden und
 // Zeitkonto. Anträge (Urlaub, Zeitausgleich, Pflegefreistellung, Krankmeldung) kommen zurück.
+//
+// Einsatzbörse: offene Einsätze gehen an alle, die sie laut Regeln übernehmen dürfen (dieselbe
+// Prüfung wie bei „Vorschlagen“: eingeschult, verfügbar, Ruhezeit, Höchstarbeitszeit, keine
+// Abwesenheit). „Ich übernehme“ kommt als Meldung (art „Einsatz“) zurück; eingeteilt wird im Büro.
 
 import { employedInWeek } from './contract.js'
 import { addDays, isoWeek } from './dates.js'
+import { evaluateCandidate } from './scheduler.js'
 
 export const REQUEST_TYPES = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand']
-export const PORTAL_DEFAULTS = { enabled: false, key: '', codes: {}, topics: {}, oldHashes: {}, officeTopic: '', officeEmails: '', sender: '' }
+export const PORTAL_DEFAULTS = { enabled: false, exchange: true, key: '', codes: {}, topics: {}, oldHashes: {}, officeTopic: '', officeEmails: '', sender: '' }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789' // ohne 0/O, 1/l/I
 
@@ -100,17 +105,52 @@ export async function hashIndex(portal) {
   return index
 }
 
-/** Offene Anträge mit Person, älteste zuerst. */
+const validRequest = (a) => (REQUEST_TYPES.includes(a.art) || (a.art === 'Einsatz' && typeof a.einsatz === 'string' && a.einsatz.startsWith(`${a.von}|`))) && /^\d{4}-\d{2}-\d{2}$/.test(a.von) && /^\d{4}-\d{2}-\d{2}$/.test(a.bis)
+
+/** Offene Anträge und Meldungen mit Person, älteste zuerst. */
 export function openRequests(list, index) {
   return (list || [])
-    .filter((a) => a.status === 'offen' && REQUEST_TYPES.includes(a.art) && /^\d{4}-\d{2}-\d{2}$/.test(a.von) && /^\d{4}-\d{2}-\d{2}$/.test(a.bis))
+    .filter((a) => a.status === 'offen' && validRequest(a))
     .map((a) => ({ ...a, employeeId: index.get(a.hash) || null }))
     .sort((a, b) => a.erstellt - b.erstellt)
 }
 
 /** Text einer Anfrage, z. B. „Krankmeldung ab Mo 02.11. bis Mi 04.11.“ */
 export function requestText(a, formatDate) {
+  if (a.art === 'Einsatz') return `übernimmt Einsatz ${formatDate(a.von)} ${a.text || ''}`.trim()
   const range = a.von === a.bis ? formatDate(a.von) : `${formatDate(a.von)} – ${formatDate(a.bis)}`
   if (a.art === 'Krankenstand') return `Krankmeldung ab ${formatDate(a.von)}${a.bis !== a.von ? `, voraussichtlich bis ${formatDate(a.bis)}` : ''}`
   return `${a.art} ${range}`
+}
+
+// ---------------------------------------------------------------- Einsatzbörse
+
+/** Offene Einsätze (nicht abgesagt, zu wenig Personen) von from bis to, frühestens ab notBefore (Minuten). */
+export function openShifts(instances, state, { from, to, notBefore = -Infinity }) {
+  return instances
+    .filter((i) => i.status !== 'cancelled' && i.date >= from && i.date <= to && i.start >= notBefore && state.count(i.key) < (i.staff || 1))
+    .sort((a, b) => a.start - b.start)
+}
+
+/** Angebot fürs Handy. */
+export function offerOf(inst, objectsById = new Map()) {
+  const obj = objectsById.get(inst.objectId)
+  return { id: inst.key, datum: inst.date, zeit: `${inst.startTime}–${inst.endTime}`, objekt: obj?.name || 'Objekt', leistung: inst.label || '', adresse: obj?.address || '', minuten: inst.net }
+}
+
+/**
+ * Wer welche offenen Einsätze übernehmen dürfte: Map Person → Angebote (höchstens max je Person).
+ * Dieselbe Prüfung wie bei den Vorschlägen; Stammkräfte, die abwesend sind, fallen dabei heraus.
+ */
+export function shiftOffers({ ctx, state, instances, from, to, notBefore, employees, objectsById = new Map(), evaluate = evaluateCandidate, max = 20 }) {
+  const out = new Map()
+  for (const inst of openShifts(instances, state, { from, to, notBefore })) {
+    for (const emp of employees) {
+      if (state.has(emp.id, inst.key) || (out.get(emp.id)?.length || 0) >= max) continue
+      if (!evaluate(ctx, state, emp, inst).allowed) continue
+      if (!out.has(emp.id)) out.set(emp.id, [])
+      out.get(emp.id).push(offerOf(inst, objectsById))
+    }
+  }
+  return out
 }

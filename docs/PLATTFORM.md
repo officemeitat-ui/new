@@ -275,7 +275,8 @@ Für Mitarbeitende ohne Firmenkonto: Jede Person bekommt einen **persönlichen L
 - entfallene Einsätze durchgestrichen (Feiertag, Urlaub, Zeitausgleich), Feiertage und eigene Abwesenheiten markiert;
 - Stunden der Woche, Soll und Zeitkonto danach;
 - „geändert am …“, wenn eine Woche nach dem Veröffentlichen korrigiert wurde;
-- ihre Anträge mit Status (offen, genehmigt, abgelehnt mit Begründung, eingetragen).
+- offene Einsätze, die sie übernehmen könnte (Einsatzbörse, siehe unten);
+- ihre Anträge und Meldungen mit Status (offen, genehmigt, abgelehnt mit Begründung, eingetragen, eingeteilt).
 
 Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach genügt das Symbol am Startbildschirm. „Auf diesem Gerät vergessen“ löscht ihn wieder.
 
@@ -291,6 +292,8 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 - **Ablehnen** verlangt eine kurze Begründung, die die Person aufs Handy bekommt.
 - **Schon erledigt** (Krankmeldung, z. B. schon telefonisch eingetragen) schließt sie ohne Eintrag.
 
+**Einsatzbörse:** Offene Einsätze der veröffentlichten Wochen (ab einer Stunde vor Beginn nicht mehr) erscheinen am Handy unter **„Offene Einsätze für dich“**, aber nur bei Personen, die sie laut Regeln übernehmen dürfen: dieselbe Prüfung wie bei „Vorschlagen“ (eingeschult, wo nötig; verfügbar; keine Überschneidung; Ruhezeit; Höchstarbeitszeit; nicht abwesend; Jugendschutz). Höchstens 20 je Person. Wer **„Ich übernehme“** tippt, meldet sich; das Büro-Handy bekommt einen Push. Unter „Zu erledigen“ prüft **„Einteilen“** noch einmal, teilt fixiert ein, sagt weiteren Meldungen für denselben Einsatz ab („Schon vergeben“) und veröffentlicht die Woche neu; die Person bekommt „Du bist eingeteilt“. „Ablehnen“ geht mit kurzer Begründung. Neue Angebote kommen mit dem Push für den Plan („1 offener Einsatz für dich“). Abschalten: Häkchen „Einsatzbörse“ im Dialog.
+
 **Push (ntfy, wie beim Schnee-Alarm):** „Push einrichten“ gibt der Person ein Thema; wer schon ein Thema für den Schnee-Alarm hat, behält es. Die Person bekommt eine Nachricht, wenn ihr Plan für eine neue Woche da ist oder eine Woche geändert wurde, und wenn über einen Antrag entschieden ist. Ohne Push sieht sie alles beim Öffnen.
 
 **Veröffentlichen:** „Woche veröffentlichen“ und „Korrektur buchen“ schicken die Woche je Person automatisch an den Webspace. Unveränderte Wochen lösen keinen Push aus.
@@ -299,7 +302,7 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 
 **Einmalig am Webspace:** „Einrichtungs-Datei herunterladen“ und `mitarbeiter.json` in den Ordner `privat/` laden (wie die Alarm-Datei, Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)). Danach überträgt „Speichern und übertragen“ Einstellungen und Pläne direkt.
 
-**Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto), unter dem Hashwert des Links. Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
+**Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto) sowie die offenen Einsätze für sie, unter dem Hashwert des Links. Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
 
 ## Ohne Netz (Keller, Tiefgarage)
 
