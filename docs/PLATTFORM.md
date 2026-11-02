@@ -304,7 +304,7 @@ Dazu kommt ein Protokoll.
 
 Wer wann wo geräumt und gestreut hat. Kommt es zu einem Sturz, ist ein lückenloses Protokoll (wann, wer, was, Fotos) der übliche Nachweis, dass die Pflicht nach § 93 StVO erfüllt wurde.
 
-- **Am Handy, ohne Anmeldung:** Die Alarm-Nachricht (ntfy) hat neben „Bin wach“ den Knopf **„Protokoll“**, die Seite „Bin wach“ und die E-Mail führen ebenfalls dorthin. Dort wählt die Person das Objekt und trägt ein: erledigt um, geräumt, gestreut (Streumittel Splitt, Salz, Sand) oder „nur kontrolliert, nichts nötig“, eine Notiz und bis zu 4 Fotos. Die Fotos werden am Handy verkleinert (längste Seite 1600 px), damit sie auch über schwaches Netz ankommen. Der Link gilt 36 Stunden nach dem Alarm. Gespeichert wird am Webspace in `privat/winterdienst/` (gesperrt).
+- **Am Handy, ohne Anmeldung:** Die Alarm-Nachricht (ntfy) hat neben „Bin wach“ den Knopf **„Protokoll“**, die Seite „Bin wach“ und die E-Mail führen ebenfalls dorthin. Dort wählt die Person das Objekt und trägt ein: erledigt um, geräumt, gestreut (Streumittel Splitt, Salz, Sand) oder „nur kontrolliert, nichts nötig“, eine Notiz und bis zu 4 Fotos. Die Fotos werden am Handy verkleinert (längste Seite 1600 px), damit sie auch über schwaches Netz ankommen. Der Link gilt 36 Stunden nach dem Alarm. Gespeichert wird am Webspace in `privat/winterdienst/` (gesperrt); die Fotos löscht die App dort, sobald sie in SharePoint liegen (fehlgeschlagene Uploads holt sie beim nächsten Abruf nach).
 - **In der App:** im Einsatz-Dialog eines Winterdienst-Einsatzes „Erledigt eintragen“, in *Wetter & Winterdienst* „Eintragen“ oder direkt aus „Zu erledigen“.
 - **Übernahme:** Öffnet jemand mit Einsatzplanung (bearbeiten) *Wetter & Winterdienst*, übernimmt die App die Protokolle vom Handy in die Woche (SharePoint) und legt die Fotos nach `exporte/Winterdienst/<Monat>/`. Testalarme zählen nicht.
 - **Übersicht:** die letzten 14 Tage je Objekt mit Uhrzeit, Person, Tätigkeit, Notiz und Fotos; angelegter Winterdienst ohne Protokoll ist rot markiert und steht 2 Stunden nach „fertig bis“ unter **„Zu erledigen“**.
@@ -363,6 +363,17 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 **Einmalig am Webspace:** „Einrichtungs-Datei herunterladen“ und `mitarbeiter.json` in den Ordner `privat/` laden (wie die Alarm-Datei, Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)). Danach überträgt „Speichern und übertragen“ Einstellungen und Pläne direkt.
 
 **Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto) sowie die offenen Einsätze für sie, unter dem Hashwert des Links; mit Zeiterfassung dazu Kommen und Gehen je Objekt (62 Tage, dann gelöscht; dauerhaft in SharePoint). Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
+
+## Systemcheck (Inbetriebnahme)
+
+Unter *Stammdaten → Systemcheck* (nur Vollzugriff): prüft vom Browser aus Webspace, Einrichtung und Microsoft 365 und sagt je Punkt, was zu tun ist. Nur lesend.
+
+- **Webspace:** HTTPS, Sicherheitsregeln (`.htaccess`), `privat/` von außen gesperrt, PHP 8 und Erweiterungen (json, mbstring, curl, openssl, fileinfo), `privat/` beschreibbar, Upload-Grenze für Fotos (8 MB), freier Speicher, Webspace erreicht das Internet (GeoSphere über `wetter.php`; nötig für Schnee-Alarm und Push).
+- **Schnee-Alarm** und **Plan am Handy** (wenn eingeschaltet): Einrichtungsdatei in `privat/`, Schlüssel von App und Webspace passen, letzter Lauf der Cronjobs (Warnung, wenn länger als 30 Minuten her).
+- **Microsoft 365:** Daten in SharePoint (nicht im Browser-Modus), Anwendungs-ID eingetragen, angemeldete Person und Rolle, Daten geladen.
+- „Bericht kopieren“ gibt alles als Text, z. B. für IT oder Support.
+
+`system.php` am Webspace liefert dafür nur Ja/Nein-Werte und Zeitpunkte, keine Inhalte; PHP-Version und freien Speicher nur mit dem Schlüssel aus der App (oder bevor etwas eingerichtet ist). Sie läuft auch auf älterem PHP, damit sie melden kann, dass PHP zu alt ist.
 
 ## Ohne Netz (Keller, Tiefgarage)
 

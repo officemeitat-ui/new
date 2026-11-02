@@ -747,6 +747,10 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .input-btn { display: flex; gap: 6px; align-items: center; }
 .calc-table input[type='text'] { width: 100%; min-width: 9rem; }
 .calc-steps { margin-top: 14px; }
+.sys-list { list-style: none; padding: 0; margin: 0; }
+.sys-list li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sys-list li:last-child { border-bottom: 0; }
+.sys-list .flag { margin-top: 3px; }
 .calc-steps summary { cursor: pointer; font-weight: 600; }
 .pe-preview { background: var(--surface-2, #f3f6f8); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; overflow-x: auto; white-space: pre; }
 .input-btn input { flex: 1 1 auto; min-width: 0; }

@@ -308,6 +308,7 @@ if ($aktion === 'pruefen' || $cli) {
         json_ausgabe(403, ['fehler' => 'Prüfschlüssel fehlt oder falsch']);
     }
     $ergebnis = nicht_erschienen($e, $z);
+    json_schreiben(speicher() . '/pruefung.json', ['zuletzt' => jetzt()] + $ergebnis); // für den Systemcheck
     if ($cli) {
         echo json_encode($ergebnis) . "\n";
         exit;

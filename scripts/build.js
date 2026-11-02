@@ -66,7 +66,7 @@ const webspace = [
   ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
 ]
 if (webspace.length) {
-  for (const file of ['wetter-lib.php', 'webspace-lib.php', ...webspace]) await copy(file)
+  for (const file of ['wetter-lib.php', 'webspace-lib.php', 'system.php', ...webspace]) await copy(file)
   await mkdir(join(dist, 'privat'), { recursive: true })
 }
 
