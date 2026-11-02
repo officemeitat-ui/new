@@ -7,7 +7,7 @@ import { toCSV } from '../core/reports.js'
 import { hashIndex } from '../core/staffplan.js'
 import { absMinutes, mergeStamps, missingCheckins, STATUS_TEXT, stampRows, stampUsers } from '../core/timeclock.js'
 import { qrPosterDocument } from '../export/qr-pdf.js'
-import { app, canEdit, compute, empName, ensureRange, persist, registerActions, registerView, renderModal, renderNow, toast } from './context.js'
+import { addLog, app, canEdit, compute, empName, ensureRange, mayEdit, persist, recordUndo, registerActions, registerView, renderModal, renderNow, toast } from './context.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { loadLogo, pdfBlob } from './pdf.js'
 import { download, esc, ICON } from './shared.js'
@@ -74,7 +74,32 @@ export function stampBlock(inst, c) {
   if (!on() || inst.status === 'cancelled') return ''
   const rows = stampRows({ instances: [inst], state: c.state, stamps: stampsOf(), from: inst.date, to: inst.date, users: new Set(c.state.assigned(inst.key).map((a) => a.employeeId)), now: nowMinutes() }).filter((r) => r.inst)
   if (!rows.length) return ''
-  return `<section><h3>Zeiterfassung</h3><ul class="tc-list">${rows.map((r) => `<li><strong>${esc(empName(r.empId))}</strong>: ${r.stamp ? `${esc(time(r.stamp.in))}${r.stamp.out ? `–${esc(time(r.stamp.out))} (${hm(r.minutes)} h)` : ' eingestempelt'}` : ''} <span class="pill ${STATUS_CLASS[r.status]}">${esc(statusText(r))}</span></li>`).join('')}</ul></section>`
+  const ed = mayEdit('planung')
+  return `<section><h3>Zeiterfassung</h3><ul class="tc-list">${rows.map((r) => `<li><strong>${esc(empName(r.empId))}</strong>: ${r.stamp ? `${esc(time(r.stamp.in))}${r.stamp.out ? `–${esc(time(r.stamp.out))} (${hm(r.minutes)} h)` : ' eingestempelt'}` : ''} <span class="pill ${STATUS_CLASS[r.status]}">${esc(statusText(r))}</span>${ed && adoptable(r, c) ? ` <button class="btn small" data-action="tc-adopt" data-key="${esc(r.inst.key)}" data-emp="${esc(r.empId)}">Ist übernehmen</button>` : ''}</li>`).join('')}</ul></section>`
+}
+
+// ---------------------------------------------------------------- Ist-Zeit übernehmen
+
+/** Übernehmbar: gekommen und gegangen, Abweichung über der Toleranz, nur eine Person im Einsatz (die Zeit gilt für den ganzen Einsatz). */
+const adoptable = (r, c) => !!(r.inst && r.stamp?.out && (r.status === 'spaet' || r.status === 'frueh') && c.state.count(r.inst.key) === 1)
+
+/** Ist-Zeiten als Einzeländerung des Einsatzes übernehmen (Beginn und Ende für diesen Tag). */
+function adopt(rows) {
+  if (!rows.length) return toast('Nichts zu übernehmen.')
+  recordUndo(rows.length === 1 ? 'Ist-Zeit übernommen' : `${rows.length} Ist-Zeiten übernommen`)
+  const weeks = new Set()
+  for (const r of rows) {
+    const key = r.inst.key
+    const ov = { ...(app.data.overrides[key] || {}), start: time(r.stamp.in), end: time(r.stamp.out) }
+    if (!String(ov.note || '').includes('Ist-Zeit')) ov.note = [ov.note, 'Ist-Zeit laut Zeiterfassung'].filter(Boolean).join(' · ')
+    app.data.overrides[key] = ov
+    weeks.add(mondayOf(r.inst.origDate || r.date))
+    addLog(mondayOf(r.inst.origDate || r.date), `Ist-Zeit übernommen: ${empName(r.empId)}, ${formatDate(r.date)} ${objName(r.inst.objectId)} ${r.inst.startTime}–${r.inst.endTime} → ${ov.start}–${ov.end}`)
+  }
+  persist()
+  renderNow()
+  const published = [...weeks].some((m) => app.data.published?.[m])
+  toast(`${rows.length === 1 ? 'Ist-Zeit übernommen' : `${rows.length} Ist-Zeiten übernommen`}.${published ? ' Die Woche ist veröffentlicht: unter „Zu erledigen“ die Korrektur buchen (Zeitkonto, Plan am Handy).' : ''}`)
 }
 
 function statusText(r) {
@@ -96,24 +121,26 @@ function timesView(c) {
   const rows = rowsOf(c)
   const count = (s) => rows.filter((r) => r.status === s).length
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
+  const ed = mayEdit('planung')
+  const toAdopt = rows.filter((r) => adoptable(r, c))
   const body = rows
     .map((r) => {
       const name = r.empId ? empName(r.empId) : r.stamp?.name || '?'
       const plan = r.inst ? `${r.inst.startTime}–${r.inst.endTime}` : '–'
       const obj = r.inst ? objName(r.inst.objectId) : r.stamp.objectName
       const open = r.inst ? ` data-action="open-shift" data-key="${esc(r.inst.key)}"` : ''
-      return `<tr${open ? ' class="clickable"' : ''}${open}><td>${esc(formatDate(r.date))}</td><td class="num">${esc(plan)}</td><td>${esc(obj)}</td><td>${esc(name)}</td><td class="num">${esc(time(r.stamp?.in))}</td><td class="num">${esc(time(r.stamp?.out))}</td><td class="num">${hm(r.minutes)}</td><td><span class="pill ${STATUS_CLASS[r.status]}">${esc(statusText(r))}</span></td></tr>`
+      return `<tr${open ? ' class="clickable"' : ''}${open}><td>${esc(formatDate(r.date))}</td><td class="num">${esc(plan)}</td><td>${esc(obj)}</td><td>${esc(name)}</td><td class="num">${esc(time(r.stamp?.in))}</td><td class="num">${esc(time(r.stamp?.out))}</td><td class="num">${hm(r.minutes)}</td><td><span class="pill ${STATUS_CLASS[r.status]}">${esc(statusText(r))}</span>${ed && adoptable(r, c) ? ` <button class="btn small" data-action="tc-adopt" data-key="${esc(r.inst.key)}" data-emp="${esc(r.empId)}" title="Beginn und Ende des Einsatzes an diesem Tag auf die erfassten Zeiten setzen">Ist übernehmen</button>` : ''}</td></tr>`
     })
     .join('')
   const err = sync.error ? `<div class="banner warn-banner"><p>Zeiten konnten nicht geholt werden: ${esc(sync.error)}</p></div>` : ''
   const current = mondayOf(todayISO())
   const future = c.monday > current ? `<div class="banner"><p>Diese Woche liegt noch vor uns. <button class="btn small" data-action="nav-today">Zur aktuellen Woche</button></p></div>` : ''
   return `<div class="section-head"><div><h2>Ist-Zeiten KW ${isoWeek(c.monday).week}</h2><p>Kommen und Gehen laut QR-Code im Objekt neben dem Plan. Die Stunden im Wochenzettel bleiben die geplanten; Abweichungen hier prüfen und bei Bedarf den Einsatz ändern.</p></div>
-      <div class="actions"><button class="btn" data-action="tc-sync">${ICON.refresh} Jetzt abrufen</button><button class="btn" data-action="tc-csv">${ICON.download} CSV</button></div></div>
+      <div class="actions">${ed && toAdopt.length > 1 ? `<button class="btn" data-action="tc-adopt-all" title="Alle Abweichungen über der Toleranz in den Plan übernehmen">Alle ${toAdopt.length} Abweichungen übernehmen</button>` : ''}<button class="btn" data-action="tc-sync">${ICON.refresh} Jetzt abrufen</button><button class="btn" data-action="tc-csv">${ICON.download} CSV</button></div></div>
     ${err}${future}
     <div class="impact-stats tc-stats">${tile('Passt', count('ok'))}${tile('Später / früher', count('spaet') + count('frueh'), count('spaet') + count('frueh') ? 'warn' : '')}${tile('Nicht eingestempelt', count('fehlt'), count('fehlt') ? 'err' : '')}${tile('Noch offen', count('offen'))}${tile('Ohne Plan', count('ohnePlan'))}</div>
     ${rows.length ? `<div class="table-wrap"><table class="data tc-table"><thead><tr><th>Tag</th><th class="num">Plan</th><th>Objekt</th><th>Person</th><th class="num">Kommen</th><th class="num">Gehen</th><th class="num">Ist (h)</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="empty">Noch keine Stempelungen in dieser Woche. QR-Aushänge unter <em>Mitarbeitende → Plan am Handy</em> erstellen und im Objekt aufhängen.</p>'}
-    <p class="note">„Nicht eingestempelt“ gilt nur für Personen, die die Zeiterfassung schon benutzen. Toleranz 10 Minuten.</p>`
+    <p class="note">„Nicht eingestempelt“ gilt nur für Personen, die die Zeiterfassung schon benutzen. Toleranz 10 Minuten. „Ist übernehmen“ setzt Beginn und Ende des Einsatzes an diesem Tag auf die erfassten Zeiten (nur bei einer Person im Einsatz); in veröffentlichten Wochen danach die Korrektur buchen.</p>`
 }
 
 const CSV_COLUMNS = [
@@ -172,6 +199,19 @@ export async function downloadQrPosters(p) {
   const doc = qrPosterDocument({ objects, tokenOf: (id) => p.objectTokens[id], address: new URL('.', location.href).href, brand: app.config.brand, logo: await loadLogo().catch(() => null) })
   download('QR-Aushaenge_Zeiterfassung.pdf', await pdfBlob(doc))
 }
+
+registerActions(
+  {
+    'tc-adopt': (el) => {
+      const c = compute(mondayOf(el.dataset.key.slice(0, 10)))
+      const row = stampRows({ instances: c.instances.filter((i) => i.key === el.dataset.key), state: c.state, stamps: stampsOf(), from: '0000-01-01', to: '9999-12-31', users: new Set([el.dataset.emp]), now: nowMinutes() }).find((r) => r.inst && r.empId === el.dataset.emp)
+      if (!row || !adoptable(row, c)) return toast('Nicht übernehmbar (keine vollständige Stempelung oder mehrere Personen im Einsatz).')
+      adopt([row])
+    },
+    'tc-adopt-all': () => adopt(rowsOf(app.cur).filter((r) => adoptable(r, app.cur))),
+  },
+  { edit: 'planung' },
+)
 
 registerActions({
   'tc-sync': async () => {
