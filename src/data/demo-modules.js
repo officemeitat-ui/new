@@ -1,9 +1,9 @@
-// Beispieldaten für Fahrzeuge & Reifen und Reklamationen (Vorschau im Browser-Modus).
+// Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus).
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
 
-import { addDays } from '../core/dates.js'
+import { addDays, todayISO } from '../core/dates.js'
 import { monthAdd } from '../core/vehicle-dues.js'
 import { campaignFor } from '../core/vehicles.js'
 
@@ -62,8 +62,51 @@ function demoComplaints(monday) {
   }
 }
 
+// Material & Lager: zwei Lieferanten, übliche Artikel, Bestand aus Anfangsbestand und Ausgaben an
+// Objekte, eine offene Bestellung, zwei Anforderungen (eine vom Handy). Einige Artikel sind knapp.
+function demoMaterial() {
+  // relativ zu heute (nicht zur angezeigten Woche): Buchungen liegen in der Vergangenheit
+  const day = (n) => addDays(todayISO(), n)
+  const at = (n, time = '07:30') => `${day(n)}T${time}:00.000Z`
+  let n = 0
+  const id = () => `mv-demo${++n}`
+  const suppliers = [
+    { id: 's-demo1', name: 'Hygiene-Großhandel Beispiel', email: 'bestellung@hygiene-beispiel.at', phone: '0662 000 000', contact: '', customerNo: 'K-1020', note: 'Lieferung Di und Do, ab 150 € frei Haus' },
+    { id: 's-demo2', name: 'Papier & Co Beispiel', email: 'shop@papier-beispiel.at', phone: '', contact: 'Frau Huber', customerNo: '', note: '' },
+  ]
+  const art = (aid, name, category, unit, supplierId, price, min, target, packSize = 1) => ({ id: aid, name, category, unit, supplierId, price, min, target, packSize, articleNo: '', active: true })
+  const articles = [
+    art('a-demo1', 'Allzweckreiniger 1 l', 'Reinigungsmittel', 'Fl.', 's-demo1', 3.2, 6, 18, 6),
+    art('a-demo2', 'Sanitärreiniger 1 l', 'Reinigungsmittel', 'Fl.', 's-demo1', 3.9, 6, 18, 6),
+    art('a-demo3', 'Glasreiniger 1 l', 'Reinigungsmittel', 'Fl.', 's-demo1', 2.8, 4, 12),
+    art('a-demo4', 'Handseife 5 l', 'Papier & Hygiene', 'Kanister', 's-demo1', 14.5, 2, 6),
+    art('a-demo5', 'Papierhandtücher Zickzack', 'Papier & Hygiene', 'Karton', 's-demo2', 24.9, 3, 8),
+    art('a-demo6', 'Toilettenpapier 3-lagig', 'Papier & Hygiene', 'Pkg', 's-demo2', 6.5, 4, 12),
+    art('a-demo7', 'Müllsäcke 60 l', 'Müllsäcke', 'Rolle', 's-demo2', 2.1, 10, 30),
+    art('a-demo8', 'Müllsäcke 120 l', 'Müllsäcke', 'Rolle', 's-demo2', 3.4, 10, 30),
+    art('a-demo9', 'Mikrofasertücher (10 Stk)', 'Tücher & Mopps', 'Pkg', 's-demo1', 9.9, 3, 8),
+    art('a-demo10', 'Einweghandschuhe Nitril M', 'Arbeitskleidung & Schutz', 'Box', 's-demo1', 7.5, 4, 10),
+    art('a-demo11', 'Arbeitsjacke', 'Arbeitskleidung & Schutz', 'Stk', '', 39, 0, 0),
+  ]
+  const price = Object.fromEntries(articles.map((a) => [a.id, a.price]))
+  const start = { 'a-demo1': 18, 'a-demo2': 8, 'a-demo3': 10, 'a-demo4': 3, 'a-demo5': 6, 'a-demo6': 14, 'a-demo7': 28, 'a-demo8': 22, 'a-demo9': 7, 'a-demo10': 9, 'a-demo11': 5 }
+  const moves = Object.entries(start).map(([articleId, qty]) => ({ id: id(), at: at(-28), date: day(-28), kind: 'korrektur', articleId, loc: 'lager', qty, price: price[articleId], by: 'Beispieldaten', note: 'Anfangsbestand' }))
+  const out = (d, articleId, qty, objectId, employeeId = '') => moves.push({ id: id(), at: at(d), date: day(d), kind: 'ausgabe', articleId, loc: 'lager', qty: -qty, price: price[articleId], objectId, employeeId, by: 'Beispieldaten', note: '' })
+  out(-20, 'a-demo1', 3, 'o1'); out(-20, 'a-demo8', 6, 'o5'); out(-18, 'a-demo5', 2, 'o2'); out(-15, 'a-demo2', 2, 'o3'); out(-14, 'a-demo4', 1, 'o2')
+  out(-12, 'a-demo8', 4, 'o3'); out(-10, 'a-demo1', 3, 'o5'); out(-9, 'a-demo6', 4, 'o1'); out(-7, 'a-demo2', 2, 'o5'); out(-6, 'a-demo7', 8, 'o4')
+  out(-5, 'a-demo8', 4, 'o5'); out(-4, 'a-demo4', 1, 'o7'); out(-3, 'a-demo5', 1, 'o7'); out(-3, 'a-demo1', 3, 'o2'); out(-2, 'a-demo10', 2, 'o3')
+  out(-8, 'a-demo11', 1, '', 'e3')
+  const orders = [{ id: 'b-demo1', no: `${day(0).slice(0, 4)}-001`, supplierId: 's-demo1', status: 'bestellt', createdAt: at(-2), orderedAt: day(-2), expected: day(2), lines: [{ articleId: 'a-demo2', qty: 12, price: 3.9, received: 0 }], note: '', by: 'Beispieldaten', sent: { at: at(-2), via: 'markiert', to: '', by: 'Beispieldaten' } }]
+  const requests = [
+    { id: 'q-demo1', at: at(-1, '06:40'), source: 'handy', by: 'Ana Popescu', name: 'Ana Popescu', employeeId: 'e1', objectId: 'o2', lines: [{ articleId: '', qty: 0, text: 'Handseife leer, Papierhandtücher fast aus' }], note: '', status: 'offen', answer: '' },
+    { id: 'q-demo2', at: at(0, '09:15'), source: 'app', by: 'Objektleitung', name: 'Objektleitung', employeeId: '', objectId: 'o5', lines: [{ articleId: 'a-demo8', qty: 5, text: '' }], note: 'bis Freitag', status: 'offen', answer: '' },
+  ]
+  return { articles, locations: [{ id: 'lager', name: 'Hauptlager' }, { id: 'l-demo2', name: 'Bus S-284 KL' }], suppliers, moves, orders, requests, settings: { deliveryAddress: 'Cleanos, Lagerweg 1, 5020 Salzburg', contact: 'Büro, 0662 000 001' } }
+}
+
 export function createModuleDemo(monday) {
   return {
+    material: demoMaterial(),
     fahrzeuge: demoVehicles(monday),
     reklamationen: demoComplaints(monday),
     // Kalkulation für die Wohnanlage (o5): Stiegenhaus, Eingang, Kellergang

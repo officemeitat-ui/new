@@ -60,6 +60,7 @@ export const VIEW_GROUPS = [
   ['start', ''],
   ['plan', 'Einsatzplanung'],
   ['service', 'Objektservice'],
+  ['lager', 'Material'],
   ['fuhrpark', 'Fuhrpark'],
   ['auswertung', 'Auswertung'],
   ['stamm', 'Stammdaten'],
@@ -94,7 +95,7 @@ export function mayEdit(modules) {
 }
 
 /**
- * Ansicht registrieren: { id, label, group: 'plan'|'service'|'fuhrpark'|'auswertung'|'stamm', module?, icon?, order, render(c),
+ * Ansicht registrieren: { id, label, group: 'plan'|'service'|'lager'|'fuhrpark'|'auswertung'|'stamm', module?, icon?, order, render(c),
  * summary?, badge?(c), range?() → { from, to } für zusätzlich zu ladende Wochen, available?() → false blendet aus }
  * module: Rollen-Modul (core/access.js), sonst nach Gruppe.
  */

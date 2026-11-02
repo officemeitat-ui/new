@@ -116,6 +116,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Mitarbeiter-App: offene Einsätze übernehmen (Einsatzbörse) | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |
 | Mitarbeiter-App: Tausch | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Abgeben über die Börse, Büro bestätigt) |
 | Objektkalkulation (m² × Leistungswert) | A.S.E., MR.Clean, Janitorial Manager | umgesetzt (Kalkulation mit Angebot) |
+| Material, Lager, Bestellungen, Materialanforderung vom Personal | Janitorial Manager, Swept | umgesetzt (Material & Lager: Bestand aus Buchungen, Bestellvorschlag, Bestellung per E-Mail, „Material fehlt?“ am Handy, Verbrauch je Objekt gegen Kalkulation) |
 
 Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der Dienstplan schon Microsoft Graph nutzt, ist das eine naheliegende nächste Erweiterung.
 
@@ -158,7 +159,7 @@ Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle, Objektdokument
 |---|---|
 | **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
 | **2. Mitarbeiter-App** | **Seit November 2026:** eigener Wochenplan am Handy über einen persönlichen Link (ohne Anmeldung, `mein-plan.php` am Webspace), Push bei neuen und geänderten Wochen, Urlaubs-, Zeitausgleichs- und Pflegefreistellungsantrag, Krankmeldung; im Büro unter „Zu erledigen“ eintragen, genehmigen oder ablehnen; Einsatzbörse (offene Einsätze an alle, die sie laut Regeln übernehmen dürfen, „Ich übernehme“ → „Einteilen“). Zeiterfassung per QR-Code im Objekt (NFC mit derselben Adresse) mit Ist-Zeiten und Alarm bei Nichterscheinen. Dienste abgeben und tauschen über die Einsatzbörse (Büro bestätigt) |
-| **3. Qualität & Kalkulation** | Begehungen (eigenes Werkzeug Objektkontrolle), Leistungsverzeichnis (eigenes Werkzeug Objektdoku), Zählerablesung (eigenes Werkzeug Wasserzähler), Mattenwechsel mit Touren (eigenes Werkzeug), alle in der App eingebunden; Reklamationen je Objekt und Objektkalkulation aus Flächen und Leistungswerten (seit November 2026) |
+| **3. Qualität & Kalkulation** | Begehungen (eigenes Werkzeug Objektkontrolle), Leistungsverzeichnis (eigenes Werkzeug Objektdoku), Zählerablesung (eigenes Werkzeug Wasserzähler), Mattenwechsel mit Touren (eigenes Werkzeug), alle in der App eingebunden; Reklamationen je Objekt, Objektkalkulation aus Flächen und Leistungswerten, Material & Lager mit Bestellungen und Anforderung am Handy (seit November 2026) |
 | **4. Anbindungen** | Fahrzeiten aus Adressen (seit November 2026: Schätzung aus Koordinaten, OpenStreetMap); Export ins Lohnprogramm (BMD, RZL) mit Lohnarten-Zuordnung und einstellbarem Dateiformat; offen: Teams Shifts |
 
 Zu klären:

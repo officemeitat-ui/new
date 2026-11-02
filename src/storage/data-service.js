@@ -10,6 +10,7 @@
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
 //   reklamationen/reklamationen.json  Reklamationen je Objekt
 //   kalkulation/kalkulation.json      Objektkalkulation (Flächen, Leistungswerte, Zuschläge)
+//   material/material.json            Material & Lager (Artikel, Buchungen, Bestellungen, Anforderungen)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -28,6 +29,7 @@
 // wieder Netz da ist gespeichert.
 
 import { mondayOf } from '../core/dates.js'
+import { emptyMaterial } from '../core/material.js'
 import { mergeDoc } from '../core/merge.js'
 import { ConflictError } from './docstore-local.js'
 import { isNetworkError } from './offline.js'
@@ -50,6 +52,7 @@ export const MODULE_DOCS = {
   fahrzeuge: { path: 'fahrzeuge/fahrzeuge.json', empty: () => ({ vehicles: [], workshops: [], changes: [], settings: {} }) },
   reklamationen: { path: 'reklamationen/reklamationen.json', empty: () => ({ items: [] }) },
   kalkulation: { path: 'kalkulation/kalkulation.json', empty: () => ({ settings: {}, objects: {} }) },
+  material: { path: 'material/material.json', empty: emptyMaterial },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -65,13 +68,14 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen'), () => edits('stammdaten', 'planung')],
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
     [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
+    [MODULE_DOCS.material.path, () => sees('material'), () => edits('material')],
     // Löhne und Margen: nur Auswertung & Lohn
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
   ]
@@ -88,6 +92,7 @@ export const FOLDERS = [
   ['lohn', 'Zeitkonto, Löhne, Monatsabschlüsse', DOC.account],
   ['fahrzeuge', 'Fahrzeuge, Reifen, Service', MODULE_DOCS.fahrzeuge.path],
   ['reklamationen', 'Reklamationen je Objekt', MODULE_DOCS.reklamationen.path],
+  ['material', 'Material, Lager, Bestellungen', MODULE_DOCS.material.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
 ]
 

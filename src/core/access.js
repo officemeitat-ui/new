@@ -22,21 +22,24 @@ export const MODULES = {
   matten: 'Mattenwechsel',
   fahrzeuge: 'Fahrzeuge & Reifen',
   reklamationen: 'Reklamationen',
+  material: 'Material & Lager',
 }
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
-export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 'stammdaten', service: 'kontrolle', fuhrpark: 'fahrzeuge' }
+export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 'stammdaten', service: 'kontrolle', fuhrpark: 'fahrzeuge', lager: 'material' }
 
 // Rollen-IDs = App-Rollen in Entra ID (Wert z. B. „Dienstplan.Ableser“ oder „ableser“)
 export const DEFAULT_ROLES = {
   disposition: { label: 'Vollzugriff (Büro, IT)', modules: '*', edit: '*' },
-  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen'], edit: ['kontrolle', 'objektmappe', 'reklamationen'] },
+  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   // eigene Microsoft-Gruppe für den Mattenwechsel (Fahrer:innen, Disposition der Touren)
   mattenwechsel: { label: 'Mattenwechsel', modules: ['matten'], edit: ['matten'] },
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung'], edit: ['auswertung'] },
-  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen'] },
-  objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen'], edit: ['zaehler', 'kontrolle', 'reklamationen'] },
+  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material'] },
+  objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material'] },
+  // Lager und Einkauf: Bestand, Bestellungen, Ausgabe an die Objekte
+  lager: { label: 'Lager & Einkauf', modules: ['material'], edit: ['material'] },
   ableser: { label: 'Ableser', modules: ['zaehler'], edit: ['zaehler'] },
   pruefer: { label: 'Prüfer/in', modules: ['kontrolle', 'objektmappe'], edit: ['kontrolle'] },
   fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] },

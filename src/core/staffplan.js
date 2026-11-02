@@ -114,7 +114,7 @@ export async function hashIndex(portal) {
   return index
 }
 
-const validRequest = (a) => (REQUEST_TYPES.includes(a.art) || ((a.art === 'Einsatz' || a.art === 'Abgabe') && typeof a.einsatz === 'string' && a.einsatz.startsWith(`${a.von}|`))) && /^\d{4}-\d{2}-\d{2}$/.test(a.von) && /^\d{4}-\d{2}-\d{2}$/.test(a.bis)
+const validRequest = (a) => (REQUEST_TYPES.includes(a.art) || a.art === 'Material' || ((a.art === 'Einsatz' || a.art === 'Abgabe') && typeof a.einsatz === 'string' && a.einsatz.startsWith(`${a.von}|`))) && /^\d{4}-\d{2}-\d{2}$/.test(a.von) && /^\d{4}-\d{2}-\d{2}$/.test(a.bis)
 
 /** Offene Anträge und Meldungen mit Person, älteste zuerst. */
 export function openRequests(list, index) {
@@ -128,6 +128,7 @@ export function openRequests(list, index) {
 export function requestText(a, formatDate) {
   if (a.art === 'Einsatz') return `übernimmt Einsatz ${formatDate(a.von)} ${a.text || ''}`.trim()
   if (a.art === 'Abgabe') return `möchte abgeben: ${formatDate(a.von)} ${a.text || ''}`.trim()
+  if (a.art === 'Material') return `meldet fehlendes Material${a.text ? ` (${a.text})` : ''}${a.notiz ? `: ${a.notiz}` : ''}`
   const range = a.von === a.bis ? formatDate(a.von) : `${formatDate(a.von)} – ${formatDate(a.bis)}`
   if (a.art === 'Krankenstand') return `Krankmeldung ab ${formatDate(a.von)}${a.bis !== a.von ? `, voraussichtlich bis ${formatDate(a.bis)}` : ''}`
   return `${a.art} ${range}`

@@ -17,6 +17,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ fahrzeuge/                    Fahrzeuge, Reifen, Service
                          ├─ reklamationen/                Reklamationen je Objekt
                          ├─ kalkulation/                  Objektkalkulation (Löhne, Margen)
+                         ├─ material/                     Material & Lager (Artikel, Bestellungen)
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 

@@ -81,7 +81,15 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', exporte: '' })
+  // Material & Lager: Objektmanagement fordert an und gibt aus; Vorarbeiter sieht es nicht
+  assert.ok(om.read(MODULE_DOCS.material.path) && om.write(MODULE_DOCS.material.path))
+  assert.ok(!va.read(MODULE_DOCS.material.path))
+  // Rolle Lager & Einkauf: Material bearbeiten, Objekte und Personen (für die Ausgabe) nur lesen, sonst nichts
+  const lager = dataRights(resolveAccess({ roleClaims: ['Dienstplan.Lager'], access, strict: true }))
+  assert.ok(lager.read(MODULE_DOCS.material.path) && lager.write(MODULE_DOCS.material.path))
+  assert.ok(lager.read(DOC.objects) && lager.read(DOC.master) && !lager.write(DOC.master))
+  for (const p of [DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.kalkulation.path, MODULE_DOCS.reklamationen.path]) assert.ok(!lager.read(p), p)
   // Reklamationen: Objektmanagement bearbeitet, Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.reklamationen.path) && om.write(MODULE_DOCS.reklamationen.path))
   assert.ok(!va.read(MODULE_DOCS.reklamationen.path))

@@ -20,12 +20,13 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | Rolle (Wert in Entra ID) | sieht | darf ändern |
 |---|---|---|
 | `disposition` – Vollzugriff (Büro, IT) | alles | alles |
-| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektdoku | Objektkontrolle, Objektdoku |
+| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektdoku, Reklamationen, Material & Lager | Objektkontrolle, Objektdoku, Reklamationen, Material & Lager |
 | `vorarbeiter` – Vorarbeiter/in | Wasserzähler | Wasserzähler |
 | `mattenwechsel` – Mattenwechsel | Mattenwechsel | Mattenwechsel |
 | `lohnverrechnung` | Auswertung & Lohn | Auswertung & Lohn |
-| `objektleitung` | Dienstplan (lesen), Wasserzähler, Objektkontrolle, Objektdoku | Wasserzähler, Objektkontrolle, Objektdoku |
-| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku | Wasserzähler, Objektkontrolle |
+| `objektleitung` | Dienstplan (lesen), Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Material & Lager | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Material & Lager |
+| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Material & Lager | Wasserzähler, Objektkontrolle, Reklamationen, Material & Lager |
+| `lager` – Lager & Einkauf | Material & Lager | Material & Lager |
 | `ableser` | Wasserzähler | Wasserzähler |
 | `pruefer` – Prüfer/in | Objektkontrolle, Objektdoku | Objektkontrolle |
 | `fuhrpark` – Fuhrpark | Fahrzeuge & Reifen | Fahrzeuge & Reifen |
@@ -66,10 +67,10 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 
 Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen oder entfernen, fertig.
 
-### Variante mit App-Rollen (Entra ID P1, z. B. Microsoft 365 Business Premium)
+### Variante mit App-Rollen (ohne Objekt-IDs, ohne neues Paket)
 
-1. **App-Registrierungen → Cleanos App → App-Rollen → App-Rolle erstellen**, je Rolle: Anzeigename (z. B. „Objektmanagement“), zulässige Mitgliedstypen **Benutzer/Gruppen**, Wert `objektmanagement` (auch `Cleanos.Objektmanagement` geht), aktiviert.
-2. **Unternehmensanwendungen → Cleanos App → Benutzer und Gruppen → Benutzer/Gruppe hinzufügen**: Gruppe wählen, Rolle wählen. Dann braucht es keine Objekt-IDs in der Konfiguration.
+1. **App-Registrierungen → Cleanos App → App-Rollen → App-Rolle erstellen**, je Rolle: Anzeigename (z. B. „Objektmanagement“), zulässige Mitgliedstypen **Benutzer/Gruppen**, Wert `objektmanagement` (auch `Cleanos.Objektmanagement` geht, Groß-/Kleinschreibung egal), Beschreibung (Pflichtfeld, frei), aktiviert.
+2. **Unternehmensanwendungen → Cleanos App → Benutzer und Gruppen → Benutzer/Gruppe hinzufügen**: Person (oder Gruppe) wählen, Rolle wählen. Dann braucht es keine Objekt-IDs in der Konfiguration. Einzelne Personen zuweisen geht mit jeder Lizenz; **ganze Gruppen** zuweisen braucht Entra ID P1 (z. B. in Microsoft 365 Business Premium). Nach dem Zuweisen einmal ab- und wieder anmelden.
 3. Unter *Eigenschaften* **Zuweisung erforderlich = Ja**: Wer keiner zugewiesenen Gruppe angehört, kann sich gar nicht erst anmelden.
 
 ### Eigene Rollen und E-Mail-Listen
@@ -83,7 +84,7 @@ Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen ode
 }
 ```
 
-Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`.
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager).
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
@@ -101,6 +102,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `fahrzeuge/` | Fahrzeuge, Reifen, Service, Pickerl | Bearbeiten | – | – |
 | `reklamationen/` | Reklamationen je Objekt | Bearbeiten | Bearbeiten | – |
 | `kalkulation/` | Objektkalkulation (Löhne, Margen) | Bearbeiten | – | – |
+| `material/` | Material & Lager (Artikel, Buchungen, Bestellungen, Anforderungen) | Bearbeiten | Bearbeiten | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
@@ -258,6 +260,19 @@ Eigener Punkt unter *Objektservice* (Modul „Reklamationen“; Rollen Objektman
 - **PDF für den Kunden:** Eingang, Mangel, Maßnahme, Ergebnis und Verlauf, **ohne Namen der Mitarbeitenden**.
 - **Zu erledigen** meldet Reklamationen mit überschrittener Frist; der Einsatz-Dialog zeigt offene Reklamationen des Objekts.
 
+## Material & Lager
+
+Eigener Punkt *Material* in der Seitenleiste (Modul „Material & Lager“; Rollen Lager & Einkauf, Objektmanagement, Objektleitung, Objektservice und Vollzugriff). Gespeichert in `material/material.json`.
+
+- **Start:** „Grundsortiment anlegen“ (14 übliche Artikel mit Melde- und Sollbestand, ohne Preise) oder „Liste einfügen“ aus Excel (Spalten Artikel, Einheit, Kategorie, Lieferant, Artikelnummer, Preis, Mindestbestand, Sollbestand, Packung, Bestand; vorhandene Artikel gleichen Namens werden aktualisiert, neue Lieferanten angelegt, „Bestand“ wird Anfangsbestand). Danach Lieferanten mit Bestell-E-Mail ergänzen und einmal Inventur machen.
+- **Bestand** je Lager (Hauptlager, dazu z. B. Außenlager oder Bus), Melde- und Sollbestand, bestellte Mengen, Zustand (ok, nachbestellen, leer), Lagerwert, Suche, CSV. Der Bestand wird nie gespeichert, sondern immer aus den Buchungen gerechnet; so stimmt er auch, wenn zwei Personen gleichzeitig buchen.
+- **Buchen:** *Ausgabe* an ein Objekt oder an eine Person (z. B. Arbeitskleidung), *Wareneingang* ohne Bestellung, *Umbuchen* zwischen Lagern, *Inventur* (gezählte Mengen eintragen, gebucht wird nur die Differenz; Zählliste als PDF). Fällt ein Bestand unter null, kommt ein Hinweis. Gebucht wird nie überschrieben: *Buchungen* zeigt das Journal, „Stornieren“ bucht die Gegenrichtung. Buchungen älter als zwei Jahre fasst die App je Artikel und Lager zu einem Übertrag zusammen (Datei bleibt klein).
+- **Bestellen:** Der *Bestellvorschlag* nimmt jeden Artikel am oder unter dem Meldebestand, der noch nicht bestellt ist, füllt bis zum Sollbestand auf (auf Packungen gerundet) und gruppiert je Lieferant. „Bestellung anlegen“ → Entwurf prüfen → **„Per E-Mail bestellen“** (mit Mail.Send aus dem eigenen Postfach, Bestellschein als PDF im Anhang; sonst öffnet sich das E-Mail-Programm und das PDF liegt im Download-Ordner) oder „Als bestellt markieren“ (Telefon, Webshop). **Wareneingang** je Position, auch in Teilen; der Preis der Lieferung wird zum Artikelpreis. Überfällige Lieferungen stehen unter „Zu erledigen“.
+- **Anforderungen:** Objektleitung oder Vorarbeiter:innen erfassen, was im Objekt fehlt (Artikel mit Menge oder Freitext). Mit **Plan am Handy** melden es die Reinigungskräfte selbst: „Material fehlt?“ → Objekt (nur Objekte aus dem eigenen Plan) → was fehlt. Das Büro bekommt einen Push; sobald die App im Büro offen ist, landet die Meldung automatisch hier und die Person bekommt „notiert“. Im Lager: **Ausgeben** (Freitext wird, wo möglich, einem Artikel zugeordnet; Objekt vorbelegt; die Person bekommt „erledigt“), **Bestellen** (in den Entwurf beim Lieferanten) oder **Ablehnen** mit Antwort ans Handy. Offene Anforderungen zeigt auch der Einsatz-Dialog beim Objekt.
+- **Verbrauch** je Objekt, je Person und je Kategorie für Monat, Quartal oder 12 Monate, zum Preis bei der Ausgabe; CSV. Wer die Kalkulation sehen darf, bekommt daneben das **Materialbudget** aus der Objektkalkulation (kalkulierte Stunden × Zuschlag „Material und Geräte“ je Stunde) und die Abweichung.
+- **Sicherheitsdatenblatt:** Je Artikel lässt sich ein Link hinterlegen (z. B. auf die Datei in SharePoint oder beim Hersteller).
+- **Zu erledigen** meldet: Artikel zum Nachbestellen, überfällige Lieferungen, offene Anforderungen.
+
 ## Wetter & Winterdienst
 
 Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.
@@ -326,7 +341,8 @@ Für Mitarbeitende ohne Firmenkonto: Jede Person bekommt einen **persönlichen L
 - „geändert am …“, wenn eine Woche nach dem Veröffentlichen korrigiert wurde;
 - offene Einsätze, die sie übernehmen könnte (Einsatzbörse, siehe unten);
 - mit Zeiterfassung: die erfassten Zeiten beim Einsatz;
-- ihre Anträge und Meldungen mit Status (offen, genehmigt, abgelehnt mit Begründung, eingetragen, eingeteilt).
+- ihre Anträge und Meldungen mit Status (offen, genehmigt, abgelehnt mit Begründung, eingetragen, eingeteilt, bei Material: gemeldet, notiert, erledigt);
+- **„Material fehlt?“** (nur mit Einsätzen): Objekt aus dem eigenen Plan wählen, schreiben, was fehlt; geht ans Lager (siehe [Material & Lager](#material--lager)).
 
 Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach genügt das Symbol am Startbildschirm. „Auf diesem Gerät vergessen“ löscht ihn wieder.
 

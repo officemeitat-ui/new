@@ -20,6 +20,9 @@
 // (aktion=pruefen) meldet dem Büro, wer laut Plan seit einigen Minuten im Dienst sein sollte und
 // sich nicht eingestempelt hat (nur bei Personen, die schon einmal gestempelt haben).
 //
+// Material fehlt? (aktion=material): Die Person wählt eines ihrer Objekte laut Plan und schreibt,
+// was fehlt. Das Büro bekommt einen Push; die App übernimmt die Meldung als Anforderung ins Lager.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten | zeiten
 // Cronjob: mein-plan.php?aktion=pruefen&schluessel=PRÜFSCHLÜSSEL oder php mein-plan.php pruefen
 
@@ -34,12 +37,35 @@ const STATUS_TEXT = ['offen' => 'offen', 'genehmigt' => 'genehmigt', 'abgelehnt'
 const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const EINSATZ_TEXT = ['offen' => 'gemeldet', 'genehmigt' => 'eingeteilt', 'abgelehnt' => 'nicht eingeteilt', 'erledigt' => 'erledigt'];
 const ABGABE_TEXT = ['offen' => 'angefragt', 'genehmigt' => 'in der Börse', 'abgelehnt' => 'nicht freigegeben', 'erledigt' => 'abgegeben'];
+const MATERIAL_TEXT = ['offen' => 'gemeldet', 'genehmigt' => 'notiert', 'abgelehnt' => 'nicht nötig', 'erledigt' => 'erledigt'];
 
 function status_text(array $a): string
 {
     $s = (string) ($a['status'] ?? '');
     $art = $a['art'] ?? '';
-    return ($art === 'Einsatz' ? EINSATZ_TEXT[$s] ?? null : ($art === 'Abgabe' ? ABGABE_TEXT[$s] ?? null : null)) ?? STATUS_TEXT[$s] ?? $s;
+    $texte = ['Einsatz' => EINSATZ_TEXT, 'Abgabe' => ABGABE_TEXT, 'Material' => MATERIAL_TEXT][$art] ?? [];
+    return $texte[$s] ?? STATUS_TEXT[$s] ?? $s;
+}
+
+/** Objekte der Person laut Plan (vorige Woche bis zuletzt veröffentlicht): id → Name, für „Material fehlt?“. */
+function meine_objekte(array $person): array
+{
+    $ab = tag_plus(heute(), -14);
+    $out = [];
+    foreach ((array) ($person['wochen'] ?? []) as $w) {
+        foreach ((array) ($w['tage'] ?? []) as $t) {
+            if (($t['datum'] ?? '') < $ab) {
+                continue;
+            }
+            foreach ((array) ($t['eintraege'] ?? []) as $x) {
+                if (!empty($x['objektId']) && !empty($x['objekt'])) {
+                    $out[(string) $x['objektId']] = (string) $x['objekt'];
+                }
+            }
+        }
+    }
+    asort($out);
+    return $out;
 }
 
 /** Offene Einsätze für eine Person (Einsatzbörse). */
@@ -371,14 +397,15 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         }
         // der Person Bescheid geben (Krankmeldung „eingetragen“: kein Push nötig)
         $p = json_lesen(person_datei((string) $a['hash']));
-        if (!empty($p['ntfy']) && ($status !== 'erledigt' || $a['art'] === 'Abgabe')) {
+        if (!empty($p['ntfy']) && ($status !== 'erledigt' || in_array($a['art'], ['Abgabe', 'Material'], true))) {
             $was = $tag($a['von']) . ' ' . ($a['text'] ?? '');
             $titel = match ($a['art']) {
+                'Material' => ['genehmigt' => 'Material notiert: ', 'abgelehnt' => 'Material: ', 'erledigt' => 'Material erledigt: '][$status] . ($a['text'] ?? ''),
                 'Einsatz' => ($status === 'genehmigt' ? 'Du bist eingeteilt: ' : 'Nicht eingeteilt: ') . $was,
                 'Abgabe' => ['genehmigt' => 'In der Einsatzbörse: ', 'abgelehnt' => 'Abgabe nicht möglich: ', 'erledigt' => 'Abgegeben: '][$status] . $was,
                 default => $a['art'] . ' ' . $zeitraum($a['von'], $a['bis']) . ': ' . STATUS_TEXT[$status],
             };
-            ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => $a['antwort'] ?: 'Details in deinem Dienstplan.', 'priority' => 3, 'tags' => [$status === 'genehmigt' ? 'white_check_mark' : 'x'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
+            ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => $a['antwort'] ?: 'Details in deinem Dienstplan.', 'priority' => 3, 'tags' => [$status === 'abgelehnt' ? 'x' : 'white_check_mark'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
         }
         json_ausgabe(200, ['antrag' => $a]);
     }
@@ -626,6 +653,56 @@ if ($aktion === 'antrag' && $methode === 'POST') {
     }
 }
 
+// Material fehlt im Objekt: geht ans Lager (App → Material & Lager → Anforderungen)
+if ($aktion === 'material' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        exit;
+    }
+    $objekte = meine_objekte($person);
+    $objekt = (string) ($_POST['objekt'] ?? '');
+    $was = mb_substr(trim((string) ($_POST['was'] ?? '')), 0, 300);
+    $fehler = '';
+    if (!isset($objekte[$objekt])) {
+        $fehler = 'Bitte das Objekt wählen.';
+    } elseif ($was === '') {
+        $fehler = 'Bitte kurz schreiben, was fehlt.';
+    }
+    if (!$fehler) {
+        $neu = antraege(function (array &$l) use ($hash, $person, $objekt, $objekte, $was) {
+            $heute = array_filter($l, fn ($a) => $a['hash'] === $hash && (int) $a['erstellt'] > jetzt() - 86400);
+            if (count($heute) >= 10) {
+                return false;
+            }
+            $a = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'art' => 'Material', 'objekt' => $objekt, 'text' => $objekte[$objekt], 'von' => heute(), 'bis' => heute(), 'notiz' => $was, 'erstellt' => jetzt(), 'status' => 'offen', 'antwort' => ''];
+            $l[] = $a;
+            return $a;
+        });
+        if ($neu === false) {
+            $fehler = 'Zu viele Meldungen heute. Bitte im Büro melden.';
+        } elseif ($neu === null) {
+            $fehler = 'Konnte nicht speichern. Bitte im Büro anrufen.';
+        }
+    }
+    if ($fehler) {
+        $meldung = '<p class="fehler">' . $h($fehler) . '</p>';
+    } else {
+        $titel = 'Material fehlt: ' . $objekte[$objekt];
+        $text = ($person['name'] ?? '') . ": „{$was}“\nIn der App unter „Material & Lager“.";
+        $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#material';
+        foreach ((array) ($e['buero'] ?? []) as $b) {
+            if (!empty($b['ntfy'])) {
+                ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => $text, 'priority' => 3, 'tags' => ['package'], 'click' => $app]);
+            }
+            if (!empty($b['email'])) {
+                mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Mein Dienstplan');
+            }
+        }
+        header('Location: mein-plan.php?gesendet=material', true, 303);
+        exit;
+    }
+}
+
 // Einsatzbörse: „Ich übernehme“
 if ($aktion === 'melden' && $methode === 'POST') {
     if (fremde_herkunft()) {
@@ -746,6 +823,8 @@ if (($_GET['gesendet'] ?? '') === 'krank') {
     $meldung = '<p class="ok">Danke! Das Büro bestätigt, ob du eingeteilt bist.</p>';
 } elseif (($_GET['gesendet'] ?? '') === 'abgabe') {
     $meldung = '<p class="ok">Anfrage ist im Büro. Bis jemand übernimmt, bleibt der Einsatz deiner.</p>';
+} elseif (($_GET['gesendet'] ?? '') === 'material') {
+    $meldung = '<p class="ok">Danke! Das Lager kümmert sich um das Material.</p>';
 }
 // eigene Anträge (vor dem Plan: Abgaben stehen beim Einsatz)
 $meine = array_values(array_filter(antraege(fn (array &$l) => $l) ?? [], fn ($a) => $a['hash'] === $hash && (($a['bis'] ?? '') >= tag_plus(heute(), -60) || $a['status'] === 'offen')));
@@ -795,7 +874,7 @@ foreach ($wochen as $mo => $w) {
         . ($tageHtml ?: '<p class="leise">Keine Einsätze in dieser Woche.</p>')
         . '<p class="summe">Stunden: <b>' . $stunden($summe['ist'] ?? 0) . ' h</b>' . (isset($summe['soll']) ? ' · Soll ' . $stunden($summe['soll']) . ' h' : '') . (isset($w['konto']) && $w['konto'] !== null ? ' · Zeitkonto danach ' . $konto($w['konto']) . ' h' : '') . '</p>';
 }
-$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
+$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe', 'Material'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . (($a['art'] ?? '') === 'Material' && !empty($a['notiz']) ? ': „' . $h((string) $a['notiz']) . '“' : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
 $gemeldet = array_column(array_filter($meine, fn ($a) => ($a['art'] ?? '') === 'Einsatz' && $a['status'] === 'offen'), 'einsatz');
 $boerse = '';
 foreach (angebote_von($hash) as $o) {
@@ -809,7 +888,12 @@ foreach (angebote_von($hash) as $o) {
 }
 $boerseHtml = $boerse ? '<h2>Offene Einsätze für dich</h2><p class="leise">Passt laut Plan zu deinen Zeiten. Das Büro bestätigt, wer eingeteilt wird.</p>' . $boerse : '';
 $heute = heute();
-$formulare = '<h2>Abwesenheit</h2>'
+$objekte = meine_objekte($person);
+$materialForm = $objekte ? '<h2>Material fehlt?</h2><details><summary>Im Objekt fehlt etwas (z. B. Müllsäcke, Seife, Papier)</summary><form method="post" action="mein-plan.php?aktion=material">' . $p
+    . '<label for="m-obj">Objekt</label><select id="m-obj" name="objekt">' . implode('', array_map(fn ($id, $name) => '<option value="' . $h((string) $id) . '">' . $h($name) . '</option>', array_keys($objekte), $objekte)) . '</select>'
+    . '<label for="m-was">Was fehlt?</label><textarea id="m-was" name="was" rows="2" maxlength="300" required placeholder="z. B. Müllsäcke 120 l, Handseife"></textarea>'
+    . '<button type="submit">Melden</button><p class="leise">Geht ans Lager. Du bekommst Bescheid, wenn es notiert ist.</p></form></details>' : '';
+$formulare = $materialForm . '<h2>Abwesenheit</h2>'
     . '<details><summary>Krank melden</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . '<input type="hidden" name="art" value="Krankenstand">'
     . '<label for="k-von">Krank ab</label><input type="date" id="k-von" name="von" value="' . $heute . '" required>'
     . '<label for="k-bis">Voraussichtlich bis (wenn bekannt)</label><input type="date" id="k-bis" name="bis">'
