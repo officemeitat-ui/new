@@ -14,7 +14,7 @@ import { employedOn } from '../core/contract.js'
 import { addDays, dayIndex, formatDate, mondayOf, todayISO } from '../core/dates.js'
 import { PlanState } from '../core/plan.js'
 import { evaluateCandidate } from '../core/scheduler.js'
-import { hashIndex, newCode, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
+import { hashIndex, newCode, offeredBy, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
 import { ALARM_DEFAULTS, viennaParts } from '../core/weather.js'
 import { addLog, app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
 import { addAbsence } from './modals/absence.js'
@@ -126,6 +126,7 @@ export async function sendWeeks(mondays) {
   const remove = p.remove || []
   const res = await call('speichern', { ...payload, angebote: offers.angebote, entfernen: remove })
   res.angebote = new Set([...offers.byEmp.values()].flat().map((o) => o.id)).size
+  res.angebotePersonen = [...offers.byEmp.values()].filter((l) => l.some((o) => o.tausch)).length
   if (remove.length) {
     const now = portalSettings()
     saveSettings({ ...now, remove: (now.remove || []).filter((h) => !remove.includes(h)) })
@@ -215,19 +216,28 @@ async function assignFromRequest(a) {
     await decide(a, 'genehmigt')
     return toast(`${emp.name} ist dort schon eingeteilt.`)
   }
-  if (c.state.count(inst.key) >= (inst.staff || 1)) {
+  // voll besetzt: nur möglich, wenn jemand den Einsatz abgibt (Tausch)
+  const giver = c.state.count(inst.key) >= (inst.staff || 1) ? offeredBy(c.state, inst.key) : null
+  if (c.state.count(inst.key) >= (inst.staff || 1) && !giver) {
     await decide(a, 'abgelehnt', 'Schon vergeben. Danke für die Meldung!')
     return toast(`${what} ist schon besetzt; ${emp.name} bekommt Bescheid.`)
   }
   const ev = evaluateCandidate(c.ctx, c.state, emp, inst)
   if (!ev.allowed) return toast(`${emp.name} passt nicht mehr: ${ev.blocking.map((i) => i.message).join('; ')}. Bitte ablehnen oder von Hand einteilen.`)
-  recordUndo(`Einsatzbörse: ${emp.name} eingeteilt`)
+  const giverName = giver ? empName(giver.employeeId) : ''
+  recordUndo(giver ? `Tausch: ${emp.name} statt ${giverName}` : `Einsatzbörse: ${emp.name} eingeteilt`)
   const state = new PlanState(c.instances, app.data.assignments)
+  if (giver) state.unassign(giver.employeeId, inst.key)
   state.assign(emp.id, inst.key, true)
   app.data.assignments = state.toObject()
-  addLog(monday, `Einsatzbörse: ${emp.name} übernimmt ${what}`)
+  addLog(monday, giver ? `Tausch über die Einsatzbörse: ${emp.name} übernimmt ${what} von ${giverName}` : `Einsatzbörse: ${emp.name} übernimmt ${what}`)
   persist()
   await decide(a, 'genehmigt')
+  // der abgebenden Person Bescheid geben (über ihre Anfrage, falls es eine gab)
+  if (giver?.request) {
+    const body = { id: giver.request, status: 'erledigt', antwort: `Übernimmt: ${emp.name}` }
+    await call('antrag-status', body).catch(() => req.retry.push(body))
+  }
   if (state.count(inst.key) >= (inst.staff || 1)) for (const other of req.list.filter((x) => x.art === 'Einsatz' && x.einsatz === inst.key)) await decide(other, 'abgelehnt', 'Schon vergeben. Danke für die Meldung!')
   // Woche neu veröffentlichen: Plan am Handy und Börse sind gleich aktuell
   let note = ''
@@ -239,7 +249,38 @@ async function assignFromRequest(a) {
     }
   }
   renderNow()
-  toast(`${emp.name} ist eingeteilt: ${what}.${note}`)
+  toast(`${emp.name} ist eingeteilt: ${what}${giver ? ` (statt ${giverName})` : ''}.${note}`)
+}
+
+/** Einsatz in die Börse stellen (die Person bleibt eingeteilt, bis jemand übernimmt) oder wieder herausnehmen. */
+export async function offerShift(key, empId, { on = true, request = '' } = {}) {
+  const list = app.data.assignments[key] || []
+  if (!list.some((x) => x.employeeId === empId)) return toast('Die Person ist dort nicht mehr eingeteilt.')
+  recordUndo(on ? 'In die Einsatzbörse gestellt' : 'Aus der Einsatzbörse genommen')
+  app.data.assignments[key] = list.map((x) => {
+    if (x.employeeId !== empId) return x
+    const { offered, request: r, ...rest } = x
+    return on ? { ...rest, offered: true, ...(request ? { request } : {}) } : rest
+  })
+  addLog(mondayOf(key.slice(0, 10)), `${on ? 'In die Einsatzbörse gestellt' : 'Aus der Einsatzbörse genommen'}: ${empName(empId)}, ${formatDate(key.slice(0, 10))}`)
+  persist()
+  renderNow()
+  try {
+    const r = await sendWeeks([])
+    return r
+  } catch (err) {
+    toast(`Gespeichert, aber die Börse am Handy ist noch nicht aktuell: ${err.message}`)
+    return null
+  }
+}
+
+/** Knopf im Einsatz-Dialog je eingeteilter Person. */
+export function offerButton(inst, a) {
+  const p = portalSettings()
+  if (!p.enabled || p.exchange === false || !p.codes || inst.status === 'cancelled' || inst.date < todayISO()) return ''
+  return a.offered
+    ? `<span class="tag">in der Börse</span><button class="btn small" data-action="portal-offer" data-key="${esc(inst.key)}" data-emp="${esc(a.employeeId)}" data-off="1">Aus der Börse</button>`
+    : `<button class="btn small" data-action="portal-offer" data-key="${esc(inst.key)}" data-emp="${esc(a.employeeId)}" title="Kolleg:innen am Handy anbieten; die Person bleibt eingeteilt, bis jemand übernimmt">In die Börse</button>`
 }
 
 const sentAt = (s) => new Date(s * 1000).toLocaleString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -261,6 +302,7 @@ registerTodo({
         const who = a.employeeId ? empName(a.employeeId) : a.name
         const btn = (what, label, cls = '') => `<button class="btn small ${cls}" data-action="portal-request" data-id="${esc(a.id)}" data-do="${what}">${label}</button>`
         const reject = `<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
+        if (a.art === 'Abgabe') return `<div class="todo-item"><span class="flag warning">⇄</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}. „In die Börse“: Kolleg:innen sehen den Einsatz am Handy; bis jemand übernimmt, bleibt ${esc(who)} eingeteilt.</span></div><div class="todo-acts">${a.employeeId ? btn('boerse', 'In die Börse', 'primary') : ''}${reject}</div></div>`
         if (shift) return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">Einsatzbörse am Handy, ${esc(sentAt(a.erstellt))}</span></div><div class="todo-acts">${a.employeeId ? btn('einteilen', 'Einteilen', 'primary') : ''}${reject}</div></div>`
         const acts = krank ? `${a.employeeId ? btn('eintragen', 'Eintragen', 'primary') : ''}${btn('erledigt', 'Schon erledigt')}` : `${a.employeeId ? btn('genehmigen', a.art === 'Pflegefreistellung' ? 'Eintragen' : 'Genehmigen', 'primary') : ''}<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
         return `<div class="todo-item"><span class="flag ${krank ? 'error' : 'warning'}">${krank ? '!' : '?'}</span><div class="todo-text"><strong>${esc(who)}</strong>: ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}${a.employeeId ? '' : ' · keiner Person zuordenbar (Link inzwischen ersetzt?)'}</span></div><div class="todo-acts">${acts}</div></div>`
@@ -435,6 +477,16 @@ registerActions(
       if (!a) return
       const what = el.dataset.do
       if (what === 'einteilen') return assignFromRequest(a)
+      if (what === 'boerse') {
+        await ensureRange(a.von, a.von)
+        if (!(app.data.assignments[a.einsatz] || []).some((x) => x.employeeId === a.employeeId)) {
+          await decide(a, 'abgelehnt', 'Du bist dort nicht mehr eingeteilt.')
+          return toast(`${a.name} ist dort nicht mehr eingeteilt; Anfrage geschlossen.`)
+        }
+        const r = await offerShift(a.einsatz, a.employeeId, { request: a.id })
+        await decide(a, 'genehmigt', 'Dein Einsatz steht in der Einsatzbörse. Bis ihn jemand übernimmt, bleibst du eingeteilt.')
+        return toast(`In der Einsatzbörse: passt für ${r?.angebotePersonen ?? 0} Kolleg:innen. ${a.name} bekommt Bescheid.`)
+      }
       if (what === 'erledigt') {
         if (await decide(a, 'erledigt')) toast(`Krankmeldung von ${a.name} als erledigt markiert.`)
         return
@@ -445,6 +497,11 @@ registerActions(
       await decide(a, krank ? 'erledigt' : 'genehmigt')
     },
     'portal-reject': (el) => openModal({ type: 'portal-reject', id: el.dataset.id }),
+    'portal-offer': async (el) => {
+      const off = !!el.dataset.off
+      const r = await offerShift(el.dataset.key, el.dataset.emp, { on: !off })
+      if (r) toast(off ? 'Aus der Einsatzbörse genommen.' : `In der Einsatzbörse: passt für ${r.angebotePersonen ?? 0} Kolleg:innen.`)
+    },
     'portal-reject-send': async (el) => {
       const a = req.list.find((x) => x.id === el.dataset.id)
       if (!a) return closeModal()

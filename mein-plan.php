@@ -33,11 +33,13 @@ const ARTEN = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand'];
 const STATUS_TEXT = ['offen' => 'offen', 'genehmigt' => 'genehmigt', 'abgelehnt' => 'abgelehnt', 'erledigt' => 'eingetragen'];
 const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const EINSATZ_TEXT = ['offen' => 'gemeldet', 'genehmigt' => 'eingeteilt', 'abgelehnt' => 'nicht eingeteilt', 'erledigt' => 'erledigt'];
+const ABGABE_TEXT = ['offen' => 'angefragt', 'genehmigt' => 'in der Börse', 'abgelehnt' => 'nicht freigegeben', 'erledigt' => 'abgegeben'];
 
 function status_text(array $a): string
 {
     $s = (string) ($a['status'] ?? '');
-    return (($a['art'] ?? '') === 'Einsatz' ? EINSATZ_TEXT[$s] ?? null : null) ?? STATUS_TEXT[$s] ?? $s;
+    $art = $a['art'] ?? '';
+    return ($art === 'Einsatz' ? EINSATZ_TEXT[$s] ?? null : ($art === 'Abgabe' ? ABGABE_TEXT[$s] ?? null : null)) ?? STATUS_TEXT[$s] ?? $s;
 }
 
 /** Offene Einsätze für eine Person (Einsatzbörse). */
@@ -368,10 +370,13 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         }
         // der Person Bescheid geben (Krankmeldung „eingetragen“: kein Push nötig)
         $p = json_lesen(person_datei((string) $a['hash']));
-        if (!empty($p['ntfy']) && $status !== 'erledigt') {
-            $titel = $a['art'] === 'Einsatz'
-                ? ($status === 'genehmigt' ? 'Du bist eingeteilt: ' : 'Nicht eingeteilt: ') . $tag($a['von']) . ' ' . ($a['text'] ?? '')
-                : $a['art'] . ' ' . $zeitraum($a['von'], $a['bis']) . ': ' . STATUS_TEXT[$status];
+        if (!empty($p['ntfy']) && ($status !== 'erledigt' || $a['art'] === 'Abgabe')) {
+            $was = $tag($a['von']) . ' ' . ($a['text'] ?? '');
+            $titel = match ($a['art']) {
+                'Einsatz' => ($status === 'genehmigt' ? 'Du bist eingeteilt: ' : 'Nicht eingeteilt: ') . $was,
+                'Abgabe' => ['genehmigt' => 'In der Einsatzbörse: ', 'abgelehnt' => 'Abgabe nicht möglich: ', 'erledigt' => 'Abgegeben: '][$status] . $was,
+                default => $a['art'] . ' ' . $zeitraum($a['von'], $a['bis']) . ': ' . STATUS_TEXT[$status],
+            };
             ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => $a['antwort'] ?: 'Details in deinem Dienstplan.', 'priority' => 3, 'tags' => [$status === 'genehmigt' ? 'white_check_mark' : 'x'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
         }
         json_ausgabe(200, ['antrag' => $a]);
@@ -402,7 +407,7 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
                     continue;
                 }
                 $kurz = fn ($k, $n) => mb_substr((string) ($o[$k] ?? ''), 0, $n);
-                $liste[$hash][] = ['id' => $id, 'datum' => $datum, 'zeit' => $kurz('zeit', 20), 'objekt' => $kurz('objekt', 80), 'leistung' => $kurz('leistung', 80), 'adresse' => $kurz('adresse', 120), 'minuten' => (int) ($o['minuten'] ?? 0)];
+                $liste[$hash][] = ['id' => $id, 'datum' => $datum, 'zeit' => $kurz('zeit', 20), 'objekt' => $kurz('objekt', 80), 'leistung' => $kurz('leistung', 80), 'adresse' => $kurz('adresse', 120), 'minuten' => (int) ($o['minuten'] ?? 0), 'tausch' => !empty($o['tausch'])];
                 if (!in_array($id, $bekannt, true)) {
                     $neueAngebote[$hash] = ($neueAngebote[$hash] ?? 0) + 1;
                 }
@@ -670,6 +675,61 @@ if ($aktion === 'melden' && $methode === 'POST') {
     }
 }
 
+// Dienst abgeben: Anfrage ans Büro (das stellt den Einsatz in die Börse oder lehnt ab)
+if ($aktion === 'abgeben' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        exit;
+    }
+    $id = (string) ($_POST['einsatz'] ?? '');
+    $notiz = mb_substr(trim((string) ($_POST['notiz'] ?? '')), 0, 300);
+    $eintrag = null;
+    foreach ((array) ($person['wochen'] ?? []) as $w) {
+        foreach ((array) ($w['tage'] ?? []) as $t) {
+            foreach ((array) ($t['eintraege'] ?? []) as $x) {
+                if (($x['id'] ?? '') === $id && $id !== '' && empty($x['entfaellt']) && !empty($x['beginn']) && wien_ts((string) $t['datum'], (string) $x['beginn']) > jetzt() + 2 * 3600) {
+                    $eintrag = $x + ['datum' => $t['datum']];
+                }
+            }
+        }
+    }
+    $neu = !$eintrag ? null : antraege(function (array &$l) use ($hash, $person, $eintrag, $notiz) {
+        foreach ($l as $a) {
+            if ($a['hash'] === $hash && ($a['einsatz'] ?? '') === $eintrag['id'] && in_array($a['status'], ['offen', 'genehmigt'], true) && $a['art'] === 'Abgabe') {
+                return 'schon';
+            }
+        }
+        if (count(array_filter($l, fn ($a) => $a['hash'] === $hash && (int) $a['erstellt'] > jetzt() - 86400)) >= 10) {
+            return false;
+        }
+        $a = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'art' => 'Abgabe', 'von' => $eintrag['datum'], 'bis' => $eintrag['datum'], 'einsatz' => $eintrag['id'], 'text' => trim(($eintrag['zeit'] ?? '') . ' ' . ($eintrag['objekt'] ?? '')), 'notiz' => $notiz, 'erstellt' => jetzt(), 'status' => 'offen', 'antwort' => ''];
+        $l[] = $a;
+        return $a;
+    });
+    if (!$eintrag) {
+        $meldung = '<p class="fehler">Diesen Einsatz kannst du hier nicht mehr abgeben (beginnt bald oder steht nicht mehr im Plan). Bitte im Büro anrufen.</p>';
+    } elseif ($neu === false) {
+        $meldung = '<p class="fehler">Zu viele Anfragen heute. Bitte im Büro melden.</p>';
+    } elseif ($neu === null) {
+        $meldung = '<p class="fehler">Konnte nicht speichern. Bitte im Büro anrufen.</p>';
+    } else {
+        if (is_array($neu)) {
+            $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
+            $text = $tag($eintrag['datum']) . ' ' . $neu['text'] . ($notiz ? "\n„{$notiz}“" : '') . "\nIn der App unter „Zu erledigen“: in die Einsatzbörse stellen oder ablehnen.";
+            foreach ((array) ($e['buero'] ?? []) as $b) {
+                if (!empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => 'Möchte abgeben: ' . ($person['name'] ?? ''), 'message' => $text, 'priority' => 3, 'tags' => ['arrows_counterclockwise'], 'click' => $app]);
+                }
+                if (!empty($b['email'])) {
+                    mail_senden((string) $b['email'], 'Möchte abgeben: ' . ($person['name'] ?? ''), $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Mein Dienstplan');
+                }
+            }
+        }
+        header('Location: mein-plan.php?gesendet=abgabe', true, 303);
+        exit;
+    }
+}
+
 // Plan: diese Woche und die kommenden (sonst die letzte veröffentlichte)
 $montag = (new DateTimeImmutable(heute() . ' monday this week'))->format('Y-m-d');
 $wochen = array_filter((array) ($person['wochen'] ?? []), fn ($k) => $k >= $montag, ARRAY_FILTER_USE_KEY);
@@ -683,6 +743,18 @@ if (($_GET['gesendet'] ?? '') === 'krank') {
     $meldung = '<p class="ok">Antrag gesendet. Die Antwort steht dann hier.</p>';
 } elseif (($_GET['gesendet'] ?? '') === 'einsatz') {
     $meldung = '<p class="ok">Danke! Das Büro bestätigt, ob du eingeteilt bist.</p>';
+} elseif (($_GET['gesendet'] ?? '') === 'abgabe') {
+    $meldung = '<p class="ok">Anfrage ist im Büro. Bis jemand übernimmt, bleibt der Einsatz deiner.</p>';
+}
+// eigene Anträge (vor dem Plan: Abgaben stehen beim Einsatz)
+$meine = array_values(array_filter(antraege(fn (array &$l) => $l) ?? [], fn ($a) => $a['hash'] === $hash && (($a['bis'] ?? '') >= tag_plus(heute(), -60) || $a['status'] === 'offen')));
+usort($meine, fn ($a, $b) => $b['erstellt'] <=> $a['erstellt']);
+$p = '<input type="hidden" name="p" value="' . $h($code) . '">';
+$abgaben = [];
+foreach ($meine as $a) {
+    if (($a['art'] ?? '') === 'Abgabe' && in_array($a['status'], ['offen', 'genehmigt'], true)) {
+        $abgaben[$a['einsatz']] = $a;
+    }
 }
 // erfasste Zeiten je Einsatz (Zeiterfassung)
 $gestempelt = [];
@@ -707,6 +779,9 @@ foreach ($wochen as $mo => $w) {
                 . (!empty($x['leistung']) ? ' <span class="leise">· ' . $h((string) $x['leistung']) . '</span>' : '')
                 . ($adresse !== '' ? '<br><span class="leise">' . $h($adresse) . $karte . '</span>' : '')
                 . (!empty($x['notizen']) ? '<br><span class="hinweis">' . $h(implode(' · ', (array) $x['notizen'])) . '</span>' : '')
+                . (isset($abgaben[$x['id'] ?? '']) ? ' <span class="pill st-offen">Abgabe ' . $h(status_text($abgaben[$x['id']])) . '</span>'
+                    : (empty($x['entfaellt']) && !empty($x['id']) && !empty($x['beginn']) && wien_ts((string) $t['datum'], (string) $x['beginn']) > jetzt() + 2 * 3600
+                        ? '<details class="abgabe"><summary>Abgeben</summary><form method="post" action="mein-plan.php?aktion=abgeben">' . $p . '<input type="hidden" name="einsatz" value="' . $h((string) $x['id']) . '"><label>Grund (optional)<textarea name="notiz" rows="2" maxlength="300"></textarea></label><button type="submit" class="klein">Abgabe anfragen</button></form></details>' : ''))
                 . (isset($gestempelt[$x['id'] ?? '']) ? '<br><span class="zeit-ok">✓ ' . uhr((int) $gestempelt[$x['id']]['kommen']) . (!empty($gestempelt[$x['id']]['gehen']) ? '–' . uhr((int) $gestempelt[$x['id']]['gehen']) : ' eingestempelt') . '</span>' : '')
                 . (!empty($x['hinweis']) || !empty($x['schluessel']) ? '<details><summary>Objektinfo</summary>' . (!empty($x['hinweis']) ? '<p>' . nl2br($h((string) $x['hinweis'])) . '</p>' : '') . (!empty($x['schluessel']) ? '<p class="leise">Schlüssel: ' . $h((string) $x['schluessel']) . '</p>' : '') . '</details>' : '')
                 . '</div>';
@@ -719,11 +794,7 @@ foreach ($wochen as $mo => $w) {
         . ($tageHtml ?: '<p class="leise">Keine Einsätze in dieser Woche.</p>')
         . '<p class="summe">Stunden: <b>' . $stunden($summe['ist'] ?? 0) . ' h</b>' . (isset($summe['soll']) ? ' · Soll ' . $stunden($summe['soll']) . ' h' : '') . (isset($w['konto']) && $w['konto'] !== null ? ' · Zeitkonto danach ' . $konto($w['konto']) . ' h' : '') . '</p>';
 }
-// eigene Anträge
-$meine = array_values(array_filter(antraege(fn (array &$l) => $l) ?? [], fn ($a) => $a['hash'] === $hash && (($a['bis'] ?? '') >= tag_plus(heute(), -60) || $a['status'] === 'offen')));
-usort($meine, fn ($a, $b) => $b['erstellt'] <=> $a['erstellt']);
-$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (($a['art'] ?? '') === 'Einsatz' ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
-$p = '<input type="hidden" name="p" value="' . $h($code) . '">';
+$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
 $gemeldet = array_column(array_filter($meine, fn ($a) => ($a['art'] ?? '') === 'Einsatz' && $a['status'] === 'offen'), 'einsatz');
 $boerse = '';
 foreach (angebote_von($hash) as $o) {
@@ -731,7 +802,7 @@ foreach (angebote_von($hash) as $o) {
     $boerse .= '<div class="einsatz angebot"><b>' . $h($tag($o['datum'])) . ' ' . $h($o['zeit']) . '</b> ' . $h($o['objekt'])
         . ($o['leistung'] ? ' <span class="leise">· ' . $h($o['leistung']) . '</span>' : '')
         . ($adresse !== '' ? '<br><span class="leise">' . $h($adresse) . ' · <a href="https://www.google.com/maps/search/?api=1&amp;query=' . rawurlencode($adresse) . '" target="_blank" rel="noopener">Karte</a></span>' : '')
-        . '<br><span class="leise">' . $stunden($o['minuten']) . ' h</span>'
+        . '<br><span class="leise">' . $stunden($o['minuten']) . ' h' . (!empty($o['tausch']) ? ' · wird von einer Kollegin oder einem Kollegen abgegeben' : '') . '</span>'
         . (in_array($o['id'], $gemeldet, true) ? ' <span class="pill st-offen">gemeldet</span>' : '<form method="post" action="mein-plan.php?aktion=melden">' . $p . '<input type="hidden" name="einsatz" value="' . $h($o['id']) . '"><button type="submit" class="klein">Ich übernehme</button></form>')
         . '</div>';
 }
@@ -749,7 +820,7 @@ $formulare = '<h2>Abwesenheit</h2>'
     . '<label for="a-notiz">Notiz (optional)</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
     . '<button type="submit">Antrag senden</button></form></details>';
 html_seite('<h1>Mein Dienstplan</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
-    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
+    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
     . ($planHtml ?: '<p class="leise">Noch kein veröffentlichter Plan.</p>')
     . $boerseHtml . $antraegeHtml . $formulare
     . '<p class="leise" style="margin-top:2rem;font-size:.9rem">Diese Seite ist persönlich: den Link nicht weitergeben. Tipp: im Browser-Menü „Zum Startbildschirm“ wählen. <a href="mein-plan.php?aktion=vergessen">Auf diesem Gerät vergessen</a></p>', 200, '', 'Mein Dienstplan');

@@ -114,7 +114,7 @@ export async function hashIndex(portal) {
   return index
 }
 
-const validRequest = (a) => (REQUEST_TYPES.includes(a.art) || (a.art === 'Einsatz' && typeof a.einsatz === 'string' && a.einsatz.startsWith(`${a.von}|`))) && /^\d{4}-\d{2}-\d{2}$/.test(a.von) && /^\d{4}-\d{2}-\d{2}$/.test(a.bis)
+const validRequest = (a) => (REQUEST_TYPES.includes(a.art) || ((a.art === 'Einsatz' || a.art === 'Abgabe') && typeof a.einsatz === 'string' && a.einsatz.startsWith(`${a.von}|`))) && /^\d{4}-\d{2}-\d{2}$/.test(a.von) && /^\d{4}-\d{2}-\d{2}$/.test(a.bis)
 
 /** Offene Anträge und Meldungen mit Person, älteste zuerst. */
 export function openRequests(list, index) {
@@ -127,6 +127,7 @@ export function openRequests(list, index) {
 /** Text einer Anfrage, z. B. „Krankmeldung ab Mo 02.11. bis Mi 04.11.“ */
 export function requestText(a, formatDate) {
   if (a.art === 'Einsatz') return `übernimmt Einsatz ${formatDate(a.von)} ${a.text || ''}`.trim()
+  if (a.art === 'Abgabe') return `möchte abgeben: ${formatDate(a.von)} ${a.text || ''}`.trim()
   const range = a.von === a.bis ? formatDate(a.von) : `${formatDate(a.von)} – ${formatDate(a.bis)}`
   if (a.art === 'Krankenstand') return `Krankmeldung ab ${formatDate(a.von)}${a.bis !== a.von ? `, voraussichtlich bis ${formatDate(a.bis)}` : ''}`
   return `${a.art} ${range}`
@@ -134,10 +135,16 @@ export function requestText(a, formatDate) {
 
 // ---------------------------------------------------------------- Einsatzbörse
 
-/** Offene Einsätze (nicht abgesagt, zu wenig Personen) von from bis to, frühestens ab notBefore (Minuten). */
+/** Zum Abgeben angeboten: eine eingeteilte Person hat „offered“ (bleibt eingeteilt, bis jemand übernimmt). */
+export const offeredBy = (state, key) => state.assigned(key).find((a) => a.offered) || null
+
+/**
+ * Einsätze für die Börse von from bis to, frühestens ab notBefore (Minuten): nicht abgesagt und
+ * entweder zu wenig Personen oder von jemandem zum Abgeben angeboten.
+ */
 export function openShifts(instances, state, { from, to, notBefore = -Infinity }) {
   return instances
-    .filter((i) => i.status !== 'cancelled' && i.date >= from && i.date <= to && i.start >= notBefore && state.count(i.key) < (i.staff || 1))
+    .filter((i) => i.status !== 'cancelled' && i.date >= from && i.date <= to && i.start >= notBefore && (state.count(i.key) < (i.staff || 1) || offeredBy(state, i.key)))
     .sort((a, b) => a.start - b.start)
 }
 
@@ -158,7 +165,8 @@ export function shiftOffers({ ctx, state, instances, from, to, notBefore, employ
       if (state.has(emp.id, inst.key) || (out.get(emp.id)?.length || 0) >= max) continue
       if (!evaluate(ctx, state, emp, inst).allowed) continue
       if (!out.has(emp.id)) out.set(emp.id, [])
-      out.get(emp.id).push(offerOf(inst, objectsById))
+      const swap = state.count(inst.key) >= (inst.staff || 1) && offeredBy(state, inst.key)
+      out.get(emp.id).push({ ...offerOf(inst, objectsById), ...(swap ? { tausch: true } : {}) })
     }
   }
   return out

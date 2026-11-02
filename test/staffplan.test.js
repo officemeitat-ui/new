@@ -6,7 +6,7 @@ import { holidayCalendar } from '../src/core/holidays.js'
 import { buildInstances, PlanState } from '../src/core/plan.js'
 import { createContext } from '../src/core/rules.js'
 import { dayIndex } from '../src/core/dates.js'
-import { hashIndex, newCode, offerOf, openRequests, openShifts, personalLink, portalEmployees, portalFile, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../src/core/staffplan.js'
+import { hashIndex, newCode, offerOf, offeredBy, openRequests, openShifts, personalLink, portalEmployees, portalFile, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../src/core/staffplan.js'
 import { buildTimesheet } from '../src/core/timesheet.js'
 
 const allDays = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((d) => [d, { from: '00:00', to: '24:00' }]))
@@ -137,4 +137,25 @@ test('Einsatzbörse: Meldung „Ich übernehme“ als Antrag mit Einsatz', async
   ], await hashIndex({ codes: { e1: 'CodeAnna' } }))
   assert.deepEqual(list.map((a) => [a.id, a.employeeId]), [['1', 'e1']], 'Einsatz muss zum Tag passen')
   assert.equal(requestText(list[0], formatDate), 'übernimmt Einsatz Di 03.11. 10:30–12:00 Labor')
+})
+
+test('Tausch: abgegebener Einsatz kommt in die Börse (als Tausch), nicht an die abgebende Person', async () => {
+  const objects = [{ id: 'o1', name: 'Wohnanlage Rif' }]
+  const tasks = [task('Stiege', 'o1', [3], '06:00', '08:00')]
+  const employees = [emp('x', { name: 'Anna' }), emp('y', { name: 'Bernd' })]
+  const data = { employees, objects, tasks, absences: [], rules: {}, overrides: {} }
+  const holidays = holidayCalendar('2026-10-26', '2026-11-15')
+  const ctx = createContext(data, holidays)
+  const instances = buildInstances(data, '2026-10-26', '2026-11-15', holidays, ctx.rules)
+  const week = { from: '2026-11-02', to: '2026-11-08' }
+  const voll = new PlanState(instances, { '2026-11-04|Stiege': [{ employeeId: 'x' }] })
+  assert.deepEqual(openShifts(instances, voll, week), [], 'besetzt, nicht angeboten')
+  const angeboten = new PlanState(instances, { '2026-11-04|Stiege': [{ employeeId: 'x', offered: true, request: 'r1' }] })
+  assert.equal(offeredBy(angeboten, '2026-11-04|Stiege').request, 'r1')
+  const offers = shiftOffers({ ctx, state: angeboten, instances, ...week, employees: ctx.employees, objectsById: new Map(objects.map((o) => [o.id, o])) })
+  assert.equal(offers.get('x'), undefined, 'nicht an die abgebende Person')
+  assert.deepEqual(offers.get('y').map((o) => [o.id, o.tausch]), [['2026-11-04|Stiege', true]])
+  const list = openRequests([{ id: '1', hash: await sha256Hex('CodeAnna'), art: 'Abgabe', von: '2026-11-04', bis: '2026-11-04', einsatz: '2026-11-04|Stiege', text: '06:00–08:00 Wohnanlage Rif', status: 'offen', erstellt: 1 }], await hashIndex({ codes: { x: 'CodeAnna' } }))
+  assert.equal(list[0].employeeId, 'x')
+  assert.equal(requestText(list[0], formatDate), 'möchte abgeben: Mi 04.11. 06:00–08:00 Wohnanlage Rif')
 })
