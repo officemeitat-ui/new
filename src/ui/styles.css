@@ -745,6 +745,7 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .impact-stats .stat small { display: block; font-size: 0.78rem; }
 .tc-stats { margin: 0 0 12px; }
 .input-btn { display: flex; gap: 6px; align-items: center; }
+.pe-preview { background: var(--surface-2, #f3f6f8); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; overflow-x: auto; white-space: pre; }
 .input-btn input { flex: 1 1 auto; min-width: 0; }
 .tc-table tr.clickable { cursor: pointer; }
 .tc-list { margin: 0; padding-left: 1.1rem; }

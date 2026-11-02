@@ -51,7 +51,7 @@ export function payroll(month) {
   const modesOf = (id) => closures[month]?.modes?.[id] || {}
   const rows = range.ctx.employees.map((emp) => payMonth(range.ctx, emp, month, weeksOf(emp).map((m) => classifyWeek(range.ctx, buildTimesheet(range.ctx, emp, m, range.instances, range.state))), { closures, modes: modesOf(emp.id) }))
   const monthWeeks = mondaysBetween(`${month}-01`, lastOfMonth(`${month}-01`))
-  const result = { rows, rules: range.ctx.rules, missing: monthWeeks.filter((m) => !known.has(m)) }
+  const result = { rows, rules: range.ctx.rules, missing: monthWeeks.filter((m) => !known.has(m)), range }
   cache.set(key, result)
   return result
 }
@@ -130,7 +130,7 @@ function overtimeView(c) {
     <div class="toolbar">
       <button class="filter" data-action="ot-all" aria-pressed="${!!app.ui.otAll}">Alle Mitarbeitenden</button>
       <button class="btn" data-action="ot-copy">${ICON.copy} Für Excel kopieren</button>
-      ${app.config.features.download ? `<button class="btn" data-action="ot-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}
+      ${app.config.features.download ? `<button class="btn" data-action="ot-csv">${ICON.sheet} CSV für Lohnverrechnung</button><button class="btn" data-action="pe-open" data-month="${esc(c.month)}" title="Bewegungsdaten je Person und Lohnart für den Import in BMD, RZL u. a.">${ICON.download} Export Lohnprogramm</button>` : ''}
       <button class="btn ${closed ? 'primary' : ''}" data-action="ot-send" data-month="${month}">${ICON.send} Auszahlungen versenden</button>
       <span class="spacer"></span>
       ${closed ? `<button class="btn edit-only ${app.ui.confirm === 'ot-reopen' ? 'danger confirm' : ''}" data-action="ot-reopen" data-month="${month}">${app.ui.confirm === 'ot-reopen' ? 'Abschluss wirklich aufheben?' : 'Abschluss aufheben'}</button>` : `<button class="btn primary edit-only ${confirmClose ? 'confirm' : ''}" data-action="ot-close" data-month="${month}">${confirmClose ? `${monthName} jetzt abschließen?` : 'Monat abschließen'}</button>`}

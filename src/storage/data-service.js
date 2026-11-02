@@ -150,7 +150,7 @@ export function splitData(data, weeks) {
     [DOC.objects]: { objects: data.objects || [] },
     [DOC.absences]: { absences: data.absences || [] },
     // pay immer schreiben (auch leer): ein gelöschter Lohn muss bei anderen Geräten ankommen
-    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), pay },
+    [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), pay },
   }
   for (const [key, m] of Object.entries(MODULE_DOCS)) docs[m.path] = data[key] ?? m.empty()
   for (const monday of weeks) docs[weekPath(monday)] = { monday, assignments: {}, overrides: {}, log: data.logs?.[monday] || [] }
@@ -187,6 +187,9 @@ export function applyDoc(data, path, doc) {
     data.published = doc.weeks || {}
     if (doc.payroll) data.payroll = doc.payroll
     else delete data.payroll
+    // Export für die Lohnverrechnung: Lohnarten und Dateiformat
+    if (doc.export) data.payrollExport = doc.export
+    else delete data.payrollExport
     // mit pay (auch leer) gilt nur, was dort steht; ältere Dateien ohne pay lassen Löhne aus den Stammdaten stehen
     if (doc.pay) {
       const known = new Set((data.employees || []).map((e) => e.id))

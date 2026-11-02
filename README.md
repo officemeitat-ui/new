@@ -31,7 +31,7 @@ Ob die App im Browser oder in SharePoint speichert, legt `config.json` fest (`"s
 | Ablauf-Leiste: Einteilen → Offene → Prüfen → Veröffentlichen → Versenden | Objekt-Controlling: Budget gegen Plan je Objekt | Mitarbeitende inkl. Import aus Excel, Lohngruppe, Stundenlohn |
 | Wochenübersicht mit Revier-Filter, Saldo und Zeitkonto; Einsätze per Ziehen umverteilen | Überstunden & Auszahlung: Mehrarbeit, Überstunden, Zuschläge in €, Monatsabschluss, Versand | Zuweisung: Reinigungsplan → feste Person je Leistung, mit Vorschlägen und Auslastung |
 | Zeitlinie je Tag: Einsätze und Fahrten als Balken | | |
-| Wochenzettel wie bisher (PDF, Excel, Druck) | Monatsauswertung für die Lohnverrechnung (CSV) | Objekte & Leistungen, Objektinfo, Schlüssel, Budget |
+| Wochenzettel wie bisher (PDF, Excel, Druck) | Monatsauswertung für die Lohnverrechnung (CSV), Export ins Lohnprogramm (BMD, RZL) mit Lohnarten | Objekte & Leistungen, Objektinfo, Schlüssel, Budget |
 | Versand: PDF je Person per E-Mail, Teilen (WhatsApp) oder ZIP, mit Versandstand | | |
 | Objektplan | | Abwesenheiten mit Kalender und Resturlaub |
 | Vertretungs-Cockpit mit Vorschlägen | Nachträgliche Korrekturen für die Lohnverrechnung | Regeln, Regelkatalog, Fahrzeiten, Feiertage |

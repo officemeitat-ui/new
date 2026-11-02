@@ -210,6 +210,18 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 
 **Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
 
+## Export für das Lohnprogramm (BMD, RZL)
+
+Unter *Überstunden & Auszahlung* → **„Export Lohnprogramm“** (Rolle Lohnverrechnung oder Vollzugriff): eine Textdatei mit Bewegungsdaten je Person und Lohnart für den Monat, zum Einlesen in BMD, RZL oder ein anderes Lohnprogramm.
+
+- **Lohnarten:** Je Kennzahl die Lohnart-Nummer aus dem eigenen Lohnprogramm eintragen (die Nummern legt jede Lohnverrechnung selbst fest). Kennzahlen: Normalstunden, Mehrarbeit ausbezahlt, Überstunden je Tag/Nacht/Sonntag/Sonntagnacht/Feiertag, 11./12. Stunde, nur Überstundenzuschlag (bei „Zeitausgleich 1:1 + Zuschlag in Geld“), Nacht-, Sonntags- und Feiertagsstunden für die Zuschläge, Feiertag angerechnet, Urlaub und Krankenstand (Tage und angerechnete Stunden), Fahrzeit. Leer = nicht exportieren. Der Dialog zeigt je Kennzahl die Summe im Monat.
+- **Überstunden** kommen nur in die Datei, wenn sie ausbezahlt werden; bei Zeitausgleich 1:1,5 bleiben sie im Zeitkonto.
+- **Dateiformat:** Spalten und Reihenfolge (Personalnummer, Name, Lohnart, Menge, Einheit, Satz, Betrag, Von, Bis, Monat, Text), Kopfzeile, Trennzeichen (Strichpunkt, Komma, Tabulator), Dezimalzeichen, Datum (TT.MM.JJJJ, JJJJ-MM-TT, MM/JJJJ). Vorgabe: `Personalnummer;Lohnart;Menge;Satz;Von;Bis;Text`, UTF-8, Zeilenende wie unter Windows. Im Lohnprogramm einmal ein Importformat mit genau diesen Spalten anlegen (BMD: Bewegungsdaten-Import, RZL: Import der variablen Bezüge) oder hier die Spalten an eine vorhandene Vorlage anpassen.
+- **Hinweise** vor dem Herunterladen: Monat noch nicht abgeschlossen, fehlende Wochen, Personen ohne Personalnummer, Werte ohne Lohnart. Vorschau der ersten Zeilen.
+- Gespeichert werden Lohnarten und Format im Zeitkonto (`lohn/zeitkonto.json`), also nur für Lohnverrechnung und Vollzugriff.
+
+**Einmal mit der Lohnverrechnung abstimmen:** Lohnart-Nummern, ob der Stundenlohn als Satz mitgehen soll oder das Lohnprogramm ihn selbst kennt, und ob Urlaub und Krankenstand in Tagen oder Stunden gebucht werden. Den ersten Monat parallel zur bisherigen Erfassung prüfen.
+
 ## Fahrzeiten aus Adressen
 
 Zwischen zwei Einsätzen am selben Tag rechnet die App eine Fahrt (zählt als Arbeitszeit). Woher die Minuten kommen, in dieser Reihenfolge:
