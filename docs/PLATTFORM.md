@@ -83,7 +83,7 @@ Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen ode
 }
 ```
 
-Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`.
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`.
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
@@ -99,6 +99,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `personal/` | Urlaub und Krankenstände (Gesundheitsdaten) | Bearbeiten | – | – |
 | `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
 | `fahrzeuge/` | Fahrzeuge, Reifen, Service, Pickerl | Bearbeiten | – | – |
+| `reklamationen/` | Reklamationen je Objekt | Bearbeiten | Bearbeiten | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
@@ -208,6 +209,17 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 **Erledigt:** km-Stand, Kosten, nächstes Service (vorgeschlagen aus dem Intervall), Pickerl-Ergebnis und Monat der neuen Plakette, weitere Fälligkeiten abhaken (wiederkehrende rücken weiter).
 
 **Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
+
+## Reklamationen
+
+Eigener Punkt unter *Objektservice* (Modul „Reklamationen“; Rollen Objektmanagement, Objektleitung, Objektservice und Vollzugriff). Gespeichert in `reklamationen/reklamationen.json`.
+
+- **Erfassen:** Objekt, Tag des Mangels, Eingang (Telefon, E-Mail, vor Ort, Objektkontrolle, intern), Art (Reinigung mangelhaft, Leistung nicht erbracht, nicht erschienen, Schaden, Schlüssel/Sicherheit, Verhalten, Sonstiges), Beschreibung, Ansprechperson. Auch direkt aus dem Einsatz-Dialog („Reklamation erfassen“, Objekt und Tag vorbelegt).
+- **Laut Plan dort:** Die App zeigt, wer am Tag und am Vortag (Abendreinigung) im Objekt eingeteilt war; ankreuzen, wer betroffen ist. Nur intern.
+- **Maßnahme und Frist:** Die Frist wird nach der Art vorgeschlagen (Reinigung, nicht erbracht, Schlüssel: 1 Tag; Schaden, Verhalten: 3 Tage; Sonstiges: 7 Tage). Status offen, in Arbeit, erledigt; **Erledigt** nur mit Ergebnis, dazu „Kunde informiert“. Jede Änderung steht im Verlauf.
+- **Übersicht:** offen (überfällige zuerst), erledigt, alle, je Objekt; Kennzahlen (offen, überfällig, letzte 90 Tage, Tage bis erledigt) und ein Hinweis bei **Häufung** (3 oder mehr in 90 Tagen im selben Objekt). CSV für die Auswertung.
+- **PDF für den Kunden:** Eingang, Mangel, Maßnahme, Ergebnis und Verlauf, **ohne Namen der Mitarbeitenden**.
+- **Zu erledigen** meldet Reklamationen mit überschrittener Frist; der Einsatz-Dialog zeigt offene Reklamationen des Objekts.
 
 ## Wetter & Winterdienst
 
@@ -327,7 +339,7 @@ Mit SharePoint arbeitet die App auch ohne Netz weiter:
 ## Was die Plattform einfacher macht
 
 - **Eine Anmeldung, eine Adresse, eine App am Handy.** Dienstplan und Werkzeuge in einer Seitenleiste, je nach Rolle.
-- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte, Anträge und Krankmeldungen vom Handy, Meldungen aus der Einsatzbörse, nicht eingestempelte Einsätze.
+- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte, Anträge und Krankmeldungen vom Handy, Meldungen aus der Einsatzbörse, nicht eingestempelte Einsätze, überfällige Reklamationen.
 - **Schnellsuche** mit Strg+K oder der Lupe: Personen, Objekte, Fahrzeuge und Bereiche (auch die Werkzeuge). Suchen in den Werkzeugen geht dort selbst.
 
 ## Vorschau

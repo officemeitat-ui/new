@@ -5,7 +5,7 @@ import { addDays, eachDay, formatDate, formatHours, formatTime, mondayOf } from 
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES } from '../../core/plan.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { dutyText } from '../../core/waste.js'
-import { addLog, app, empName, mutateAssignments, objectHints, openModal, persist, recordUndo, mayEdit, registerActions, registerModal, renderNow, toast } from '../context.js'
+import { addLog, app, canEdit, empName, mutateAssignments, objectHints, openModal, persist, recordUndo, mayEdit, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { esc, ICON, issueList, modalFrame, objectOf, reasonsHtml, val } from '../shared.js'
 import { offerButton } from '../staffplan.js'
 import { stampBlock } from '../timeclock.js'
@@ -118,6 +118,7 @@ function shiftModal(c, { key }) {
     color: obj.color,
     body: `<div class="meta">${tags}</div>
       ${objectHints(obj.id).map((h) => `<div class="banner hint-banner"><p>${h}</p></div>`).join('')}
+      ${canEdit('reklamationen') && !app.readOnly ? `<p><button class="btn small" data-action="complaint-new" data-obj="${esc(obj.id)}" data-date="${esc(inst.date)}">Reklamation erfassen</button></p>` : ''}
       ${inst.status === 'cancelled' && inst.reason === 'holiday' && mayEdit('planung') ? `<div class="banner"><p>${inst.origHoliday?.legal ? `Entfällt am Feiertag (${esc(inst.origHoliday.name)}), weil bei der Leistung „entfällt“ eingestellt ist.` : `Betrieb geschlossen: ${esc(inst.origHoliday?.name || 'betriebsfrei')}.`}</p><button class="btn primary" data-action="ov-work" data-key="${esc(key)}">Trotzdem stattfinden</button></div>` : ''}
       ${staffingIssues.length ? issueList(staffingIssues) : ''}
       ${objectFolder(obj)}

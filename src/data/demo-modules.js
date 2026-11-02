@@ -1,4 +1,4 @@
-// Beispieldaten für Fahrzeuge & Reifen (Vorschau im Browser-Modus).
+// Beispieldaten für Fahrzeuge & Reifen und Reklamationen (Vorschau im Browser-Modus).
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
@@ -51,7 +51,18 @@ function demoVehicles(monday) {
   }
 }
 
+/** Zwei Reklamationen (eine offen, eine erledigt), Objekte aus den Beispieldaten. */
+function demoComplaints(monday) {
+  const day = (n) => addDays(monday, n)
+  return {
+    items: [
+      { id: 'r-demo1', objectId: 'o5', date: day(-3), received: `${day(-3)}T08:15:00.000Z`, source: 'Kunde (Telefon)', kind: 'Reinigung mangelhaft', text: 'Stiegenhaus 2. Stock: Geländer nicht gewischt, Eingangsmatte nicht ausgeklopft.', contact: 'Hausverwaltung, Frau Berger', employees: [], measure: 'Nachreinigung am selben Tag, Hinweis an das Team.', due: day(-2), status: 'erledigt', doneAt: `${day(-3)}T15:30:00.000Z`, result: 'Nachgereinigt, Kunde telefonisch informiert.', informed: true, by: 'Beispieldaten', history: [{ at: `${day(-3)}T08:15:00.000Z`, by: 'Beispieldaten', text: 'erfasst (Reinigung mangelhaft, Kunde (Telefon))' }, { at: `${day(-3)}T15:30:00.000Z`, by: 'Beispieldaten', text: 'Status: erledigt' }] },
+      { id: 'r-demo2', objectId: 'o2', date: day(-1), received: `${day(-1)}T07:40:00.000Z`, source: 'Kunde (E-Mail)', kind: 'Leistung nicht erbracht', text: 'Mistkübel im Schauraum nicht geleert.', contact: 'Autohaus, Empfang', employees: [], measure: '', due: day(0), status: 'offen', result: '', informed: false, by: 'Beispieldaten', history: [{ at: `${day(-1)}T07:40:00.000Z`, by: 'Beispieldaten', text: 'erfasst (Leistung nicht erbracht, Kunde (E-Mail))' }] },
+    ],
+  }
+}
+
 export function createModuleDemo(monday) {
-  return { fahrzeuge: demoVehicles(monday) }
+  return { fahrzeuge: demoVehicles(monday), reklamationen: demoComplaints(monday) }
 }
 

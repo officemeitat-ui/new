@@ -8,6 +8,7 @@
 //   personal/abwesenheiten.json       Urlaub, Krankenstand, … (Gesundheitsdaten)
 //   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
+//   reklamationen/reklamationen.json  Reklamationen je Objekt
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -46,6 +47,7 @@ export const oldPathOf = (path) => OLD_PATHS[path] || (path.startsWith('plaene/'
 /** Dateien der Module: app.data[key] ist der Inhalt der Datei. */
 export const MODULE_DOCS = {
   fahrzeuge: { path: 'fahrzeuge/fahrzeuge.json', empty: () => ({ vehicles: [], workshops: [], changes: [], settings: {} }) },
+  reklamationen: { path: 'reklamationen/reklamationen.json', empty: () => ({ items: [] }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -61,12 +63,13 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge'), () => edits('stammdaten', 'planung')],
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
+    [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -80,6 +83,7 @@ export const FOLDERS = [
   ['personal', 'Urlaub und Krankenstände', DOC.absences],
   ['lohn', 'Zeitkonto, Löhne, Monatsabschlüsse', DOC.account],
   ['fahrzeuge', 'Fahrzeuge, Reifen, Service', MODULE_DOCS.fahrzeuge.path],
+  ['reklamationen', 'Reklamationen je Objekt', MODULE_DOCS.reklamationen.path],
 ]
 
 /**
