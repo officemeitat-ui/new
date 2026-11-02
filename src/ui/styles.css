@@ -755,12 +755,13 @@ tr.row-open td:first-child { box-shadow: inset 3px 0 0 var(--err); }
 .todo-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .todo-item:last-child { border-bottom: 0; }
 .todo-text .pill { margin-left: 4px; }
+.todo-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .pub-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: center; padding: 6px 0; }
 .filter-label { font-size: 0.78rem; color: var(--muted); align-self: center; margin-right: 4px; }
 @media (max-width: 640px) {
   .bell-label { display: none; }
   .todo-item { grid-template-columns: auto 1fr; }
-  .todo-item > .btn { grid-column: 2; justify-self: start; }
+  .todo-item > .btn, .todo-item > .todo-acts { grid-column: 2; justify-self: start; }
   .impact-acts { white-space: normal; }
 }
 

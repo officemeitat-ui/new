@@ -7,6 +7,7 @@ import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, euro, ICON, modalFrame, num, options, uid, val } from '../shared.js'
+import { portalSettings } from '../staffplan.js'
 import { copyText } from './sheet.js'
 import { filterBar, filteredEmployees } from './week.js'
 
@@ -26,7 +27,7 @@ function staffView(c) {
     )
     .join('')
   return `<div class="section-head"><div><h2>Mitarbeitende <span class="muted">(${app.data.employees.length})</span></h2><p>Wochenstunden laut Vertrag (Soll), Revier, Qualifikationen, Einschulung in Objekten (Schlüssel, Alarm, Abläufe) und Verfügbarkeit.</p></div>
-    <div class="actions edit-only"><button class="btn" data-action="import-open" data-kind="employees">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="emp-edit" data-id="new">${ICON.plus} Mitarbeiter:in anlegen</button></div></div>
+    <div class="actions edit-only"><button class="btn" data-action="portal-open" title="Persönliche Links: Mitarbeitende sehen ihren Plan am Handy und schicken Anträge">${ICON.user} Plan am Handy${portalSettings().enabled ? ' <span class="tag">ein</span>' : ''}</button><button class="btn" data-action="import-open" data-kind="employees">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="emp-edit" data-id="new">${ICON.plus} Mitarbeiter:in anlegen</button></div></div>
     ${filterBar(c, { problems: false })}
     <div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Revier</th><th>Beschäftigung</th><th>Soll</th><th>Qualifikationen</th><th>Eingeschult</th><th>Verfügbar</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>`
 }

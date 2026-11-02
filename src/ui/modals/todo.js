@@ -82,6 +82,8 @@ export function computeTodo(today = todayISO()) {
 
 // Berechnung nur nach Änderungen
 let cache = { key: null, todo: null }
+/** Neu berechnen beim nächsten Mal (z. B. wenn eine Quelle Daten vom Webspace bekommen hat). */
+export const invalidateTodo = () => (cache.key = null)
 export function todo() {
   const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
   if (cache.key !== key) cache = { key, todo: computeTodo() }

@@ -112,6 +112,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Zeiterfassung im Objekt (NFC, QR, Geofence) | TimeTac, Miele, Swept, Connecteam | Ausbaustufe 2 |
 | Alarm bei Nichterscheinen | Swept | Ausbaustufe 2 (setzt Zeiterfassung voraus) |
 | Qualitätskontrolle, Reklamationen | KleanApp, iQTrust, Miele, Janitorial Manager | Ausbaustufe 3 |
+| Mitarbeiter-App: eigener Plan, Anträge, Krankmeldung | Teams Shifts, Papershift, Shiftbase, Planday | umgesetzt (Plan am Handy) |
 | Mitarbeiter-App: offene Einsätze, Tausch | Teams Shifts, Papershift, Shiftbase, Planday | Ausbaustufe 2 |
 | Objektkalkulation (m² × Leistungswert) | A.S.E., MR.Clean, Janitorial Manager | Ausbaustufe 3 |
 
@@ -155,7 +156,7 @@ Seit Oktober 2026 laufen Wasserzähler-Ablesung, Objektkontrolle, Objektdokument
 | Stufe | Inhalt |
 |---|---|
 | **1. Einführung** (jetzt) | Einrichtung SharePoint/Entra/Domain, Stammdaten aus Excel übernehmen, zwei Wochen parallel zum Excel planen, Regeln mit KV und Lohnverrechnung abgleichen |
-| **2. Mitarbeiter-App** | Eigener Wochenplan am Handy (PWA), Push bei Änderungen, Urlaubsantrag, offene Einsätze übernehmen; Zeiterfassung per QR/NFC im Objekt. Braucht einen kleinen Server für Rechte je Person |
+| **2. Mitarbeiter-App** | **Seit November 2026:** eigener Wochenplan am Handy über einen persönlichen Link (ohne Anmeldung, `mein-plan.php` am Webspace), Push bei neuen und geänderten Wochen, Urlaubs-, Zeitausgleichs- und Pflegefreistellungsantrag, Krankmeldung; im Büro unter „Zu erledigen“ eintragen, genehmigen oder ablehnen. Offen: offene Einsätze übernehmen, Tausch, Zeiterfassung per QR/NFC im Objekt |
 | **3. Qualität & Kalkulation** | Begehungen (eigenes Werkzeug Objektkontrolle), Leistungsverzeichnis (eigenes Werkzeug Objektdoku), Zählerablesung (eigenes Werkzeug Wasserzähler), Mattenwechsel mit Touren (eigenes Werkzeug), alle in der App eingebunden; offen: Reklamationen, Objektkalkulation aus Flächen und Leistungswerten |
 | **4. Anbindungen** | Teams Shifts, BMD/RZL mit Lohnarten-Mapping, Fahrzeiten aus Adressen |
 

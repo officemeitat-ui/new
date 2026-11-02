@@ -60,8 +60,13 @@ if (appConfig.storage === 'sharepoint') {
 for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, source), join(dist, target))
 // Wetter am Webspace (PHP): Umweg, falls der Browser GeoSphere nicht direkt erreicht, und
 // Schnee-Alarm (Cronjob). Einstellungen und Stand des Alarms liegen in privat/ (gesperrt).
-if (appConfig.weather !== false) {
-  for (const file of ['wetter.php', 'wetter-lib.php', 'wetter-alarm.php', 'wetter-foto.js']) await copy(file)
+// „Mein Dienstplan“ (mein-plan.php): persönlicher Link für Mitarbeitende, braucht dieselben Bausteine.
+const webspace = [
+  ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
+  ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
+]
+if (webspace.length) {
+  for (const file of ['wetter-lib.php', 'webspace-lib.php', ...webspace]) await copy(file)
   await mkdir(join(dist, 'privat'), { recursive: true })
 }
 

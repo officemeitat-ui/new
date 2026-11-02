@@ -10,6 +10,7 @@ import { PlanState } from '../../core/plan.js'
 import { autoPlan, rankCandidates } from '../../core/scheduler.js'
 import { addLog, app, compute, computeRange, dataStamp, recordUndo, empName, ensureRange, openModal, persist, plannedWeeks, mayEdit, registerActions, registerModal, renderNow, toast } from '../context.js'
 import { changedEmployees, publishWeek } from '../planning.js'
+import { portalNote } from './publish.js'
 import { ABSENCE_TYPES, reasonsText, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
 
 const absenceOf = (id) => (app.data.absences || []).find((a) => a.id === id)
@@ -288,7 +289,7 @@ registerActions(
       el.disabled = true
       try {
         const res = await publishWeek({ c: compute(el.dataset.monday) })
-        toast(`Korrektur KW ${isoWeek(el.dataset.monday).week} gebucht${res.corrections ? `: ${res.corrections} Saldo-Änderungen` : ''}.`)
+        toast(`Korrektur KW ${isoWeek(el.dataset.monday).week} gebucht${res.corrections ? `: ${res.corrections} Saldo-Änderungen` : ''}.${portalNote(res)}`)
       } catch (err) {
         el.disabled = false
         toast(`Korrektur fehlgeschlagen: ${err.message}`)

@@ -8,6 +8,7 @@ import { timesheetSignature } from '../core/timesheet.js'
 import { weekFileBase } from '../export/excel.js'
 import { addLog, app, compute, currentMonth, persist, recordUndo, renderNow, toast, touch, windowFor } from './context.js'
 import { allPdfName, pdfFileName, weekPdfBlob } from './pdf.js'
+import { sendWeeks } from './staffplan.js'
 import { download } from './shared.js'
 import { weekWorkbookBlob } from './views/sheet.js'
 
@@ -144,9 +145,10 @@ async function exportFiles(c, result) {
  * Änderungserkennung, Excel- und PDF-Wochenpläne in die Ablage (SharePoint)
  * bzw. als Download. War die Woche schon veröffentlicht, wird die Korrektur
  * gebucht. Scheitert der Dateiexport, bleibt die Veröffentlichung gültig.
+ * Mit „Plan am Handy“ gehen die Wochen der Personen an den Webspace.
  */
 export async function publishWeek({ files = true, c = app.cur } = {}) {
-  const result = { webUrl: null, files: 0, corrections: 0, fileError: null }
+  const result = { webUrl: null, files: 0, corrections: 0, fileError: null, portal: null, portalError: null }
   const wasPublished = !!app.data.published?.[c.monday]
   result.corrections = snapshotWeek(c)
   if (files) {
@@ -157,7 +159,13 @@ export async function publishWeek({ files = true, c = app.cur } = {}) {
     }
     if (result.webUrl) app.data.published[c.monday].files = result.webUrl
   }
-  addLog(c.monday, `${wasPublished ? 'Korrektur gebucht' : 'Woche veröffentlicht'}${result.corrections ? ` (${result.corrections} Saldo-Korrekturen)` : ''}${result.files ? `, ${result.files} Dateien` : ''}${result.fileError ? `, Dateiexport fehlgeschlagen: ${result.fileError}` : ''}`)
+  // Plan am Handy (mein-plan.php): je Person ihre Woche, Push bei neuen oder geänderten Wochen
+  try {
+    result.portal = await sendWeeks([c.monday])
+  } catch (err) {
+    result.portalError = err.message
+  }
+  addLog(c.monday, `${wasPublished ? 'Korrektur gebucht' : 'Woche veröffentlicht'}${result.corrections ? ` (${result.corrections} Saldo-Korrekturen)` : ''}${result.files ? `, ${result.files} Dateien` : ''}${result.fileError ? `, Dateiexport fehlgeschlagen: ${result.fileError}` : ''}${result.portal ? `, Plan am Handy für ${result.portal.personen} Personen` : ''}${result.portalError ? `, Plan am Handy nicht übertragen: ${result.portalError}` : ''}`)
   persist()
   await app.service.flush()
   renderNow()

@@ -265,6 +265,42 @@ Wer wann wo geräumt und gestreut hat. Kommt es zu einem Sturz, ist ein lückenl
 
 **Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.
 
+## Plan am Handy (Mein Dienstplan)
+
+Für Mitarbeitende ohne Firmenkonto: Jede Person bekommt einen **persönlichen Link** und sieht damit am Handy ihre veröffentlichten Wochen, ohne Anmeldung. Einrichten unter *Mitarbeitende → Plan am Handy* (Rolle mit Einsatzplanung, bearbeiten).
+
+**Was die Person sieht** (`mein-plan.php` am Webspace):
+
+- diese und die kommenden veröffentlichten Wochen: je Tag Uhrzeit, Objekt, Leistung, Adresse mit Link zur Karte, Hinweise (Fahrt danach, Vertretung, Müll, Zuschlag);
+- entfallene Einsätze durchgestrichen (Feiertag, Urlaub, Zeitausgleich), Feiertage und eigene Abwesenheiten markiert;
+- Stunden der Woche, Soll und Zeitkonto danach;
+- „geändert am …“, wenn eine Woche nach dem Veröffentlichen korrigiert wurde;
+- ihre Anträge mit Status (offen, genehmigt, abgelehnt mit Begründung, eingetragen).
+
+Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach genügt das Symbol am Startbildschirm. „Auf diesem Gerät vergessen“ löscht ihn wieder.
+
+**Anträge vom Handy:**
+
+- **Krank melden:** ab heute, voraussichtlich bis (wenn bekannt), Notiz ohne Diagnose. Das Büro-Handy bekommt einen dringlichen Push, dazu auf Wunsch eine E-Mail. Der Hinweis „zusätzlich anrufen, wenn der Dienst bald beginnt“ steht dabei; die Krankenstandsbestätigung bleibt nötig.
+- **Urlaub, Zeitausgleich, Pflegefreistellung beantragen:** von, bis, Notiz.
+- Grenzen: höchstens 60 Tage je Antrag, Beginn höchstens 7 Tage zurück, höchstens 10 Anträge am Tag.
+
+**Im Büro** stehen die Anträge unter **„Zu erledigen → Anträge von Mitarbeitenden“** (die App holt sie alle 3 Minuten):
+
+- **Eintragen** (Krankmeldung) bzw. **Genehmigen** trägt die Abwesenheit ein und öffnet sofort den Abwesenheits-Assistenten: welche Einsätze neu zu besetzen sind, Vertretung vorschlagen, veröffentlichte Wochen korrigieren.
+- **Ablehnen** verlangt eine kurze Begründung, die die Person aufs Handy bekommt.
+- **Schon erledigt** (Krankmeldung, z. B. schon telefonisch eingetragen) schließt sie ohne Eintrag.
+
+**Push (ntfy, wie beim Schnee-Alarm):** „Push einrichten“ gibt der Person ein Thema; wer schon ein Thema für den Schnee-Alarm hat, behält es. Die Person bekommt eine Nachricht, wenn ihr Plan für eine neue Woche da ist oder eine Woche geändert wurde, und wenn über einen Antrag entschieden ist. Ohne Push sieht sie alles beim Öffnen.
+
+**Veröffentlichen:** „Woche veröffentlichen“ und „Korrektur buchen“ schicken die Woche je Person automatisch an den Webspace. Unveränderte Wochen lösen keinen Push aus.
+
+**Link verloren?** „Neuer Link“: Nach „Speichern und übertragen“ gilt der alte nicht mehr; offene Anträge vom alten Link bleiben zuordenbar.
+
+**Einmalig am Webspace:** „Einrichtungs-Datei herunterladen“ und `mitarbeiter.json` in den Ordner `privat/` laden (wie die Alarm-Datei, Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)). Danach überträgt „Speichern und übertragen“ Einstellungen und Pläne direkt.
+
+**Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto), unter dem Hashwert des Links. Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
+
 ## Ohne Netz (Keller, Tiefgarage)
 
 Mit SharePoint arbeitet die App auch ohne Netz weiter:
@@ -277,7 +313,7 @@ Mit SharePoint arbeitet die App auch ohne Netz weiter:
 ## Was die Plattform einfacher macht
 
 - **Eine Anmeldung, eine Adresse, eine App am Handy.** Dienstplan und Werkzeuge in einer Seitenleiste, je nach Rolle.
-- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte.
+- **Zu erledigen** sammelt, was in der Einsatzplanung ansteht: Abwesenheiten, periodische Leistungen, Korrekturen, Fahrzeug-Termine, Winterdienst bei Schnee und Glätte, Anträge und Krankmeldungen vom Handy.
 - **Schnellsuche** mit Strg+K oder der Lupe: Personen, Objekte, Fahrzeuge und Bereiche (auch die Werkzeuge). Suchen in den Werkzeugen geht dort selbst.
 
 ## Vorschau

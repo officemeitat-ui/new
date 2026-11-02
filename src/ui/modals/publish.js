@@ -74,6 +74,10 @@ registerActions({
   },
 })
 
+/** Hinweis zu „Plan am Handy“ nach dem Veröffentlichen. */
+export const portalNote = (res) =>
+  res.portal ? ` Plan am Handy: ${res.portal.personen} ${res.portal.personen === 1 ? 'Person' : 'Personen'}${res.portal.benachrichtigt ? `, ${res.portal.benachrichtigt} Push` : ''}.` : res.portalError ? ` Plan am Handy nicht übertragen: ${res.portalError}` : ''
+
 registerActions(
   {
     'publish-run': async (el) => {
@@ -82,7 +86,7 @@ registerActions(
       try {
         const res = await publishWeek()
         openModal({ type: 'send' })
-        toast(`${res.corrections ? `Korrektur gebucht: ${res.corrections} Saldo-Änderungen.` : 'Veröffentlicht.'} ${res.files ? `${res.files} ${res.files === 1 ? 'Datei' : 'Dateien'} erstellt.` : ''}${res.fileError ? ` Dateiexport fehlgeschlagen: ${res.fileError}` : ''}`)
+        toast(`${res.corrections ? `Korrektur gebucht: ${res.corrections} Saldo-Änderungen.` : 'Veröffentlicht.'} ${res.files ? `${res.files} ${res.files === 1 ? 'Datei' : 'Dateien'} erstellt.` : ''}${res.fileError ? ` Dateiexport fehlgeschlagen: ${res.fileError}` : ''}${portalNote(res)}`)
       } catch (err) {
         el.disabled = false
         toast(`Veröffentlichen fehlgeschlagen: ${err.message}`)

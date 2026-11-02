@@ -6,7 +6,7 @@
 //   .htaccess            ganze App (CSP, Header, Cache von index.html usw.)
 //   app/.htaccess        gebündelter Code mit Hash im Namen: dauerhaft cachen
 //   werkzeuge/.htaccess  Regeln der Werkzeuge (dürfen im Rahmen der App laufen)
-//   privat/.htaccess     Schnee-Alarm: Einstellungen und Stand, gesperrt
+//   privat/.htaccess     Schnee-Alarm und Mein Dienstplan: Einstellungen, Pläne, Anträge, gesperrt
 // Alles in <IfModule>: Fehlt ein Modul, liefert der Webspace trotzdem aus
 // (ohne die Header) statt mit „500 Internal Server Error“ abzubrechen.
 // Kein Seitenschutz wie auf Azure: Der Code ist abrufbar, die Daten nur nach
@@ -66,10 +66,10 @@ export function htaccessFor(swa) {
     '</IfModule>',
     '',
   ].join('\n')
-  // Schnee-Alarm: Einstellungen (Namen, E-Mail, Schlüssel) und Stand nie ausliefern
+  // Schnee-Alarm und Mein Dienstplan: Einstellungen (Namen, E-Mail, Schlüssel), Pläne, Anträge nie ausliefern
   const privat = [
     KOPF,
-    '# Schnee-Alarm (wetter-alarm.php): Einstellungen und Stand, nur für PHP lesbar.',
+    '# Schnee-Alarm (wetter-alarm.php) und Mein Dienstplan (mein-plan.php): Einstellungen, Pläne, Anträge, nur für PHP lesbar.',
     '<IfModule mod_authz_core.c>',
     '  Require all denied',
     '</IfModule>',
