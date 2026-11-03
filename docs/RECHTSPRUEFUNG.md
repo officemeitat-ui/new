@@ -118,6 +118,15 @@ Das ist keine Rechtsberatung. Die Volltexte von KV und WKO konnten in dieser Pr�
 | Ruhepause | Hinweis bei mehr als 6 Stunden ohne 30 Minuten Unterbrechung (eingetragen oder Lücke zwischen Einsätzen) | § 11 Abs 1 AZG; Teilung (2 × 15 oder 3 × 10 Minuten) nur bei betrieblichem Bedarf bzw. laut Kollektivvertrag: der Hinweis prüft nur 30 Minuten am Stück |
 | Kontrolle der Mitarbeitenden | Zeiterfassung ist ein Kontrollsystem; die App erfasst nur Zeiten je Objekt, kein GPS | § 96 Abs 1 Z 3 ArbVG (Betriebsvereinbarung) bzw. § 10 AVRAG, siehe „Plan am Handy“ |
 
+## Digitale Mitarbeiter (neu)
+
+| Thema | Umsetzung | Grundlage / Hinweis |
+|---|---|---|
+| Automatisierte Entscheidungen | Die Routinen schlagen nur vor; ausgeführt wird erst nach Klick einer Person (Vertretung, Rechnungsentwurf, Bestellung, Termin). Nichts wird ohne Freigabe versendet oder festgeschrieben. | keine ausschließlich automatisierte Entscheidung im Sinn von Art. 22 DSGVO |
+| Einteilung von Personen | Vertretungsvorschläge nach denselben Regeln wie „Woche planen“ (Arbeitszeit, Ruhezeiten, Vertrag, Revier, Einschulung); begründet und änderbar | wie bisher Einsatzplanung; § 96a ArbVG (Personaldatensystem) bzw. Betriebsvereinbarung |
+| Kein KI-Modell | Regeln fest im Programm, keine Daten an Dritte; nur „KI fragen“ nutzt den KI-Assistenten (siehe dort) | – |
+| Entscheidungen | „Später“/„Ablehnen“ mit Name und Zeitpunkt in `assistenz/entscheidungen.json`, nach 60 Tagen gelöscht | Datenminimierung |
+
 ## Offen: bitte prüfen oder entscheiden
 
 1. **Sonntag: Grundlage eintragen.** Unter *Regeln & Feiertage* bei „Sonntagsarbeit erlaubt aufgrund“ die Ausnahme eintragen, auf die ihr euch stützt (oder je Objekt). Bis dahin warnt die App bei jedem Sonntagseinsatz. Eine Betriebsvereinbarung nach § 12a ARG erlaubt Sonntagsarbeit höchstens an 4 Wochenenden im Jahr, nicht an 4 aufeinanderfolgenden.
