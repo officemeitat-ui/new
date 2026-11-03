@@ -14,7 +14,15 @@ const WETTER_ALIASE = [
     'snow' => ['sf', 'snow', 'snow_acc'],
     'gust' => ['10fg', 'fg10'],
 ];
-const WETTER_PARAMETER = ['2t', 't2m', 'tp', 'rain', 'rr', 'rr_acc', 'rain_acc', 'sf', 'snow', 'snow_acc', '10fg', 'fg10'];
+// dazu für die Grafik der App: Bewölkung, Wettersymbol, Schneefallgrenze, Wind (u/v)
+const WETTER_PARAMETER = ['2t', 't2m', 'tp', 'rain', 'rr', 'rr_acc', 'rain_acc', 'sf', 'snow', 'snow_acc', '10fg', 'fg10', 'tcc', 'sy', 'snowlmt', '10u', '10v'];
+// Niederschlag der nächsten Stunden (wie src/core/nowcast.js): Quelle → [Typ-Modus/Datensatz, Parameter]
+const WETTER_RASTER = [
+    'nowcast' => ['forecast/nowcast-v1-15min-1km', ['rr', 'pt']],
+    'inca' => ['historical/inca-v1-1h-1km', ['RR', 'T2M']],
+    'modell' => ['forecast/nwp-v2-1h-1km', ['tp', 'sf']],
+];
+const WETTER_NOWCAST_PUNKTE = ['rr', 'pt', 't2m'];
 const WETTER_SAETZE = [['2t', 'tp', 'sf', '10fg'], ['2t', 'tp', 'sf'], ['2t', 'tp']];
 const WETTER_ARTEN = [1 => 'sturm', 2 => 'regen', 3 => 'schnee', 4 => 'glatteis', 5 => 'gewitter', 6 => 'hitze', 7 => 'kaelte'];
 
@@ -32,13 +40,56 @@ function wetter_vorhersage_url(float $lat, float $lon, array $parameter): string
     return wetter_ziel('vorhersage') . sprintf('?lat_lon=%.4F,%.4F&parameters=', $lat, $lon) . implode(',', $parameter);
 }
 
+function wetter_api(): string
+{
+    return rtrim(getenv('WETTER_API') ?: 'https://dataset.api.hub.geosphere.at/v1', '/');
+}
+
+/** Nowcast an mehreren Orten: [[lat, lon], …] */
+function wetter_nowcast_url(array $punkte): string
+{
+    $q = array_map(fn ($p) => sprintf('lat_lon=%.4F,%.4F', $p[0], $p[1]), $punkte);
+    return wetter_api() . '/timeseries/' . WETTER_RASTER['nowcast'][0] . '?' . implode('&', $q) . '&parameters=' . implode(',', WETTER_NOWCAST_PUNKTE) . '&output_format=geojson';
+}
+
+/**
+ * Radarbild: Gitter im Ausschnitt [s, w, n, e] oder (raster > 0) Zeitreihen an
+ * raster × raster Punkten. Zeitraum wie in der App, auf die Stunde gerundet
+ * (damit der Zwischenspeicher greift).
+ */
+function wetter_raster_url(string $quelle, array $bbox, int $raster = 0, ?int $jetzt = null): string
+{
+    [$pfad, $parameter] = WETTER_RASTER[$quelle];
+    $stunde = intdiv($jetzt ?? time(), 3600) * 3600;
+    $q = ['parameters=' . implode(',', $parameter)];
+    if ($raster > 0) {
+        [$s, $w, $n, $e] = $bbox;
+        for ($i = 0; $i < $raster; $i++) {
+            for ($j = 0; $j < $raster; $j++) {
+                $q[] = sprintf('lat_lon=%.4F,%.4F', $s + ($n - $s) * ($i + 0.5) / $raster, $w + ($e - $w) * ($j + 0.5) / $raster);
+            }
+        }
+    } else {
+        $q[] = 'bbox=' . implode(',', array_map(fn ($v) => rtrim(rtrim(sprintf('%.2F', $v), '0'), '.'), $bbox));
+    }
+    if ($quelle === 'inca') {
+        $q[] = 'start=' . gmdate('Y-m-d\TH:i', $stunde - 3 * 3600);
+        $q[] = 'end=' . gmdate('Y-m-d\TH:i', $stunde);
+    } elseif ($quelle === 'modell') {
+        $q[] = 'start=' . gmdate('Y-m-d\TH:i', $stunde + 3 * 3600);
+        $q[] = 'end=' . gmdate('Y-m-d\TH:i', $stunde + 9 * 3600);
+    }
+    $q[] = 'output_format=geojson';
+    return wetter_api() . '/' . ($raster > 0 ? 'timeseries' : 'grid') . '/' . $pfad . '?' . implode('&', $q);
+}
+
 function wetter_warnungen_url(float $lat, float $lon): string
 {
     return wetter_ziel('warnungen') . sprintf('?lat=%.4F&lon=%.4F&lang=de', $lat, $lon);
 }
 
 /** HTTP mit Zeitlimit, ohne Weiterleitungen; liefert [Status, Inhalt] (Status 0 = nicht erreichbar). */
-function holen(string $url, ?string $json = null): array
+function holen(string $url, ?string $json = null, int $zeit = 12): array
 {
     $kopf = ['Accept: application/json'];
     if ($json !== null) {
@@ -50,7 +101,7 @@ function holen(string $url, ?string $json = null): array
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT => 12,
+            CURLOPT_TIMEOUT => $zeit,
             CURLOPT_HTTPHEADER => $kopf,
             CURLOPT_USERAGENT => 'App-Wetter/1 (Webspace)',
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP,
@@ -64,7 +115,7 @@ function holen(string $url, ?string $json = null): array
         curl_close($c);
         return [$inhalt === false ? 0 : $status, $inhalt === false ? '' : (string) $inhalt];
     }
-    $http = ['timeout' => 12, 'follow_location' => 0, 'ignore_errors' => true, 'header' => implode("\r\n", $kopf) . "\r\nUser-Agent: App-Wetter/1 (Webspace)\r\n"];
+    $http = ['timeout' => $zeit, 'follow_location' => 0, 'ignore_errors' => true, 'header' => implode("\r\n", $kopf) . "\r\nUser-Agent: App-Wetter/1 (Webspace)\r\n"];
     if ($json !== null) {
         $http += ['method' => 'POST', 'content' => $json];
     }
@@ -83,14 +134,14 @@ function holen(string $url, ?string $json = null): array
  * Herkunft: '' (frisch geholt), 'Zwischenspeicher' (jünger als 10 min) oder
  * 'letzter Stand' (GeoSphere fällt aus, Stand bis 6 h alt). 400/404 kommen unverändert zurück.
  */
-function wetter_abruf(string $url): array
+function wetter_abruf(string $url, int $zeit = 12): array
 {
     $datei = rtrim(sys_get_temp_dir(), '/\\') . '/app-wetter-' . sha1($url) . '.json';
     $alter = is_file($datei) ? time() - (int) filemtime($datei) : PHP_INT_MAX;
     if ($alter < WETTER_FRISCH) {
         return [200, (string) file_get_contents($datei), 'Zwischenspeicher'];
     }
-    [$status, $inhalt] = holen($url);
+    [$status, $inhalt] = holen($url, null, $zeit);
     if ($status === 200 && json_decode($inhalt) !== null) {
         @file_put_contents($datei, $inhalt, LOCK_EX);
         return [200, $inhalt, ''];

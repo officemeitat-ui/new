@@ -19,7 +19,7 @@ const hoursOf = (n, row) => Array.from({ length: n }, (_, i) => (typeof row === 
 const warnJson = (list) => ({ type: 'Feature', properties: { warnings: list.map(([warntypid, warnstufeid, start, end, text = '']) => ({ type: 'Feature', properties: { warntypid, warnstufeid, rawinfo: { wtype: warntypid, wlevel: warnstufeid, start: String(start / 1000), end: String(end / 1000) }, text } })) } })
 
 test('Wetter: Adressen von GeoSphere (Vorhersage C-LAEF 1 km, Warnungen je Ort)', () => {
-  assert.equal(forecastUrl(47.8095, 13.055), 'https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km?lat_lon=47.8095,13.055&parameters=2t,tp,sf,10fg')
+  assert.equal(forecastUrl(47.8095, 13.055), 'https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/nwp-v2-1h-1km?lat_lon=47.8095,13.055&parameters=2t,tp,sf,10fg,tcc,sy,snowlmt,10u,10v')
   assert.equal(warningsUrl(47.8095, 13.055), 'https://warnungen.zamg.at/wsapp/api/getWarningsForCoords?lon=13.055&lat=47.8095&lang=de')
 })
 

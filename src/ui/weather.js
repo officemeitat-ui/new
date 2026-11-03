@@ -7,6 +7,8 @@
 // Wetterdaten sind keine Firmendaten: sie liegen nicht in SharePoint.
 
 import { dayOutlook, FORECAST_PARAMS, forecastUrl, heatCheck, locationFor, metadataUrl, parseForecast, parseWarnings, pickParams, stormCheck, warningsUrl, WEATHER_DEFAULTS, winterCheck } from '../core/weather.js'
+import { latticePoints, nowcastProxyUrl, nowcastUrl, parseNowcast, parsePoints, RADAR_SOURCES, radarBbox, radarFrames, radarProxyUrl, radarUrl } from '../core/nowcast.js'
+import { hasCoords } from '../core/geo.js'
 import { employedOn } from '../core/contract.js'
 import { addDays, todayISO } from '../core/dates.js'
 import { app, renderNow, touch } from './context.js'
@@ -182,6 +184,109 @@ export function weatherOverview(today = todayISO()) {
       }),
     }
   })
+}
+
+// ---------------------------------------------------------------- Nowcast und Radar (nur bei offener Ansicht)
+
+const NOWCAST_AGE = 10 * 60e3 // Nowcast kommt alle 15 min neu
+const RADAR_AGE = 10 * 60e3
+const LATTICE = 12 // Ersatz fürs Gitter: 12 × 12 Punkte
+
+/** Nowcast (jetzt bis +3 h) an allen Orten in einer Anfrage; höchstens alle 10 min. */
+export function refreshNowcast({ force = false } = {}) {
+  const st = weatherState()
+  const nc = (st.nowcast ||= { byLoc: {}, at: 0, tried: 0, error: '', loading: false })
+  if (!weatherEnabled()) return Promise.resolve()
+  if (nc.running) return nc.running
+  const now = Date.now()
+  if (!force && (now - nc.at < NOWCAST_AGE || now - nc.tried < 2 * 60e3)) return Promise.resolve()
+  const locs = weatherLocations().slice(0, 16)
+  nc.loading = true
+  nc.tried = now
+  nc.running = getJson(nowcastUrl(locs), nowcastProxyUrl(locs))
+    .then((r) => {
+      const parsed = parseNowcast(r.json)
+      // Punkte kommen in der Reihenfolge der Anfrage
+      nc.byLoc = Object.fromEntries(locs.map((l, i) => [locKey(l), parsed.points[i]]).filter(([, p]) => p))
+      nc.at = Date.now()
+      nc.reference = parsed.reference
+      nc.source = r.source
+      nc.error = ''
+    })
+    .catch((err) => {
+      nc.error = err.status === 400 ? 'Nowcast gibt es nur für Orte in Österreich' : err.message || String(err)
+    })
+    .finally(() => {
+      nc.loading = false
+      nc.running = null
+      if (app.ui?.view === 'wetter') renderNow()
+    })
+  return nc.running
+}
+
+/** Nowcast-Schritte eines Orts oder null. */
+export const nowcastFor = (loc) => weatherState().nowcast?.byLoc?.[locKey(loc)] || null
+
+/** Orte und Objekte mit Winterdienst (mit Koordinaten) für die Karte. */
+export function radarMarks() {
+  const locs = weatherLocations().map((l) => ({ lat: Number(l.lat), lon: Number(l.lon), label: l.name, kind: 'ort' }))
+  const objects = (app.data?.objects || []).filter((o) => o.winter?.active && hasCoords(o)).map((o) => ({ lat: o.lat, lon: o.lon, label: o.short || o.name, title: `${o.name} (Winterdienst)`, kind: 'objekt' }))
+  return [...locs, ...objects]
+}
+
+/** Eine Quelle laden: erst als Gitter, sonst als Raster von Punkten (Zeitreihen). */
+async function loadRadarSource(name, bbox, now) {
+  const params = RADAR_SOURCES[name].params
+  try {
+    const r = await getJson(radarUrl(name, { bbox, now }), radarProxyUrl(name, { bbox }))
+    return { points: parsePoints(r.json, params), lattice: 0, via: r.source }
+  } catch (err) {
+    if (!err.status && /kein Netz/.test(err.message)) throw err
+    const points = latticePoints(bbox, LATTICE)
+    const r = await getJson(radarUrl(name, { bbox, points, now }), radarProxyUrl(name, { bbox, lattice: LATTICE }))
+    return { points: parsePoints(r.json, params), lattice: LATTICE, via: r.source }
+  }
+}
+
+/**
+ * Radarbilder laden (vergangene Stunden, Nowcast, Modell) für den Ausschnitt um
+ * die Orte; höchstens alle 10 min. Nur im Arbeitsspeicher (Bilder sind groß).
+ * Liefert den Stand { frames, bbox, at, error, partial }.
+ */
+export function loadRadar({ force = false, aspect = 0, onDone = () => {} } = {}) {
+  const st = weatherState()
+  const radar = (st.radar ||= { frames: [], at: 0, error: '', partial: '', loading: false })
+  if (radar.running) return radar.running.then(onDone)
+  if (!force && radar.frames.length && Date.now() - radar.at < RADAR_AGE) return Promise.resolve(onDone())
+  const bbox = radarBbox([...weatherLocations(), ...radarMarks()], { aspect })
+  if (!bbox) {
+    radar.error = 'Kein Ort in Österreich für das Radar'
+    return Promise.resolve(onDone())
+  }
+  radar.loading = true
+  radar.running = (async () => {
+    const now = Date.now()
+    const names = ['inca', 'nowcast', 'modell']
+    const results = await Promise.allSettled(names.map((n) => loadRadarSource(n, bbox, now)))
+    const got = Object.fromEntries(names.map((n, i) => [n, results[i].status === 'fulfilled' ? results[i].value : null]))
+    const failed = names.filter((n, i) => results[i].status === 'rejected')
+    if (failed.length === names.length) throw results[1].reason || results[0].reason
+    radar.frames = radarFrames(got, { bbox, now })
+    radar.bbox = bbox
+    radar.at = Date.now()
+    radar.lattice = Object.values(got).some((g) => g?.lattice)
+    radar.via = [...new Set(Object.values(got).filter(Boolean).map((g) => g.via))].join(', ')
+    radar.error = ''
+    radar.partial = failed.length ? `fehlt: ${failed.map((n) => ({ inca: 'letzte Stunden', nowcast: 'Nowcast', modell: 'Modell' })[n]).join(', ')}` : ''
+  })()
+    .catch((err) => {
+      radar.error = navigator.onLine === false ? 'kein Netz' : `Radar gerade nicht erreichbar (${err.message || err})`
+    })
+    .finally(() => {
+      radar.loading = false
+      radar.running = null
+    })
+  return radar.running.then(onDone)
 }
 
 // Für die Prüfregel „Wetter“ (context.js setzt ctx.weather, ohne Kreis-Import)

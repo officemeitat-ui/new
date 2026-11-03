@@ -6,7 +6,10 @@ import { WARN_LEVEL, warningText } from '../../core/weather.js'
 import { app, canEdit, persist, recordUndo, registerActions, registerView, render, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { esc, ICON } from '../shared.js'
-import { cancelWinterCall, createWinterCalls, refreshWeather, weatherEnabled, weatherOverview, weatherState, winterOpen } from '../weather.js'
+import { cancelWinterCall, createWinterCalls, nowcastFor, refreshNowcast, refreshWeather, weatherEnabled, weatherOverview, weatherRules, weatherState, winterOpen } from '../weather.js'
+import { dayCards, hourlyChart, nowcastStrip } from '../weather-charts.js'
+import { mountRadar, radarSlot, reloadRadar } from '../weather-radar.js'
+import { KIND, nowcastHint } from '../../core/nowcast.js'
 import { logSection } from '../winterlog.js'
 import { alarmCard } from './weather-alarm.js'
 
@@ -36,9 +39,46 @@ function outdoorList(row, d, today) {
   return `<div class="wx-alert">${rows.join('')}<p class="note">Betroffene Einsätze (Leistungen „im Freien“) sind in der Wochenübersicht und im Prüfbericht markiert.</p></div>`
 }
 
+/** Grafik für einen Ort: Nowcast, Tageskarten, Stundenverlauf; Orte als Reiter mit „Regen in 20 Min.“. */
+function graphSection(rows, today) {
+  const withData = rows.filter((r) => r.entry)
+  if (!withData.length) return ''
+  const sel = withData.find((r) => r.loc.name === app.ui.weatherLoc) || withData[0]
+  const now = Date.now()
+  const nc = weatherState().nowcast
+  const tabs =
+    withData.length > 1
+      ? `<div class="filters wx-tabs" aria-label="Ort">${withData
+          .map((r) => {
+            const hint = nowcastHint(nowcastFor(r.loc)?.steps, now)
+            const short = hint.state === 'soon' || hint.state === 'now' ? ` <span class="wx-tab-hint ${hint.kind === KIND.snow ? 'snow' : ''}">${esc(hint.short)}</span>` : ''
+            return `<button class="filter" data-action="wx-loc" data-loc="${esc(r.loc.name)}" aria-pressed="${r === sel}">${esc(r.loc.name)}${short}</button>`
+          })
+          .join('')}</div>`
+      : ''
+  const point = nowcastFor(sel.loc)
+  const now3 = point ? nowcastStrip(point, { now }) : nc?.error ? `<div class="wx-now"><p class="muted">Nowcast: ${esc(nc.error)}</p></div>` : '<div class="wx-now"><p class="muted">Nowcast wird geladen …</p></div>'
+  const dates = [today, addDays(today, 1), addDays(today, 2)]
+  return `<section class="wx-graph">
+    <div class="wx-graph-head"><h3>${esc(sel.loc.name)}: nächste Stunden und Tage</h3>${tabs}</div>
+    ${now3}
+    ${dayCards(sel.entry, sel.loc, dates, today)}
+    <h4 class="wx-sub">Stundenverlauf</h4>
+    ${hourlyChart(sel.entry, sel.loc, { now, cfg: weatherRules() })}
+    <p class="note">Linie: Temperatur · Balken: Niederschlag je Stunde (blau Regen, lila Schnee) · darunter Böen in km/h mit Windrichtung${sel.entry.hours?.some((h) => h.snowLimit !== undefined) ? ', SFG = Schneefallgrenze' : ''} · dunkel: Nacht. GeoSphere rechnet rund 2½ Tage voraus.</p>
+  </section>`
+}
+
+function radarSection() {
+  // nach dem Zeichnen die Karte in den Platzhalter hängen (sie bleibt zwischen dem Neuzeichnen erhalten)
+  queueMicrotask(mountRadar)
+  return `<section class="wx-radar-card"><h3>Niederschlagsradar</h3><p class="muted">Letzte Stunden, jetzt und die nächsten Stunden: abspielen oder am Regler ziehen. Der Streifen darunter zeigt, wann es im Ausschnitt nass ist.</p>${radarSlot()}</section>`
+}
+
 function weatherView() {
   const today = todayISO()
   refreshWeather() // nur wenn älter als 30 min (z. B. Rolle ohne Einsatzplanung beim Start)
+  refreshNowcast() // nur bei offener Ansicht, höchstens alle 10 min
   const st = weatherState()
   const editable = canEdit('planung') && !app.readOnly
   const rows = weatherOverview(today)
@@ -65,7 +105,7 @@ function weatherView() {
         <p class="note">Stand ${time(row.entry.at)} · ${esc(row.entry.source || 'GeoSphere')}${row.entry.partial ? ` · ${esc(row.entry.partial)}` : ''}</p></section>`
     })
     .join('')
-  return `${head}${status}${hint}${alarmCard()}${logSection(today)}${sections}
+  return `${head}${status}${hint}${graphSection(rows, today)}${radarSection()}${alarmCard()}${logSection(today)}${sections}
     <p class="note">Daten: <a href="https://data.hub.geosphere.at" target="_blank" rel="noopener">GeoSphere Austria</a> (CC BY 4.0), Warnungen je Gemeinde. Orte und Schwellen (Neuschnee, Glätte, Hitze, Böen) unter <em>Regeln & Feiertage</em>.</p>`
 }
 
@@ -98,6 +138,12 @@ registerTodo({
 registerActions({
   'wx-refresh': () => {
     refreshWeather({ force: true })
+    refreshNowcast({ force: true })
+    reloadRadar()
+    renderNow()
+  },
+  'wx-loc': (el) => {
+    app.ui.weatherLoc = el.dataset.loc
     renderNow()
   },
   'wx-create': async (el) => {
