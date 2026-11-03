@@ -33,6 +33,12 @@ export const envSchema = z
     MICROSOFT_CLIENT_ID: z.string().optional(),
     MICROSOFT_CLIENT_SECRET: z.string().optional(),
     MICROSOFT_TENANT_ID: z.string().default("common"),
+    // Microsoft 365 / Intune connection (ADR 0008): multi-tenant Entra app with application
+    // permissions, granted per customer by admin consent. Separate from the SSO app.
+    MICROSOFT_GRAPH_CLIENT_ID: z.string().optional(),
+    MICROSOFT_GRAPH_CLIENT_SECRET: z.string().optional(),
+    MICROSOFT_LOGIN_URL: z.url().default("https://login.microsoftonline.com"),
+    MICROSOFT_GRAPH_URL: z.url().default("https://graph.microsoft.com/v1.0"),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
 

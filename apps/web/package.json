@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@nexus/agents": "workspace:*",
+    "@nexus/connectors": "workspace:*",
     "@nexus/core": "workspace:*",
     "@nexus/db": "workspace:*",
     "@nexus/domain": "workspace:*",

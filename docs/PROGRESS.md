@@ -2,6 +2,27 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Microsoft 365 und Intune (MDM) – Geräte im Blick, Agenten helfen mit Freigabe ✅
+
+**Erledigt**
+
+- **Verbindung per Administrator-Zustimmung** (Integrationen → „Mit Microsoft 365 verbinden“): signierter `state`, Rückweg nur in dieselbe Sitzung, Zugriff wird vor dem Speichern geprüft. Gespeichert wird nur die Verzeichnis-ID des Kunden (ADR 0008). Trennen und erneut verbinden in der UI; Hinweis zum vollständigen Widerruf in Entra ID.
+- **Neues Paket `packages/connectors`:** Microsoft-Graph-Client mit App-Token-Cache, Paging über `@odata.nextLink` (nur zu Graph selbst), Wiederholung bei 429/503 mit `Retry-After`, verständliche Fehlermeldungen; Intune-Funktionen mit Links zur Herstellerdoku. Endpunkte aus dem offiziellen Graph-Doku-Repository geprüft.
+- **Seite „Geräte“ (MDM-Überblick):** Kacheln (gesamt, nicht konform, nicht verschlüsselt, über 7 Tage ohne Sync), Suche, Filter „Nur mit Handlungsbedarf“, je Gerät Status-Badges und Aktionen Sync, Neu starten, Sperren (mit Rückfrage, nur mit `integration.manage`, im Audit-Log).
+- **Agenten-Werkzeuge:** Geräte suchen, Gerätedetails, synchronisieren (automatisch), neu starten und sperren (Freigabe). Gerätename und ID müssen zusammenpassen, sonst passiert nichts. Ohne Verbindung werden die Werkzeuge nicht angeboten; das Agent Studio zeigt „Microsoft 365 verbinden“.
+- **IT-Support-Agent** (Vorlage 11) nutzt die Geräte-Werkzeuge, mit Anweisungen, wann synchronisiert, neu gestartet oder gesperrt wird.
+- Freigabe-Karten zeigen Werkzeug-Eingaben lesbar („Gerät: LAPTOP-GRUBER-07“) statt JSON.
+- **Tests:** Graph-Client gegen einen Mock von Login und Graph (Token-Cache, Paging, fremde Links, Drosselung, Fehler), Domäne (state, Verbinden, Namensprüfung, Audit, Trennen), Worker (ohne Verbindung keine Werkzeuge; Sperren erst nach Freigabe), E2E: verbinden → Überblick → Sync → Agent findet Problemgerät → Sperren über die Freigabe-Inbox. Insgesamt 16 Browser-Tests.
+
+**Für den Echtbetrieb nötig (ME-IT)**
+
+- App-Registrierung in Entra ID (mandantenfähig) mit den drei Anwendungsberechtigungen aus ADR 0008, Redirect-URI `<APP_URL>/api/integrations/microsoft365/callback`, Client-ID und -Secret als `MICROSOFT_GRAPH_CLIENT_ID` / `MICROSOFT_GRAPH_CLIENT_SECRET`. Ein Live-Test gegen einen echten Intune-Testmandanten steht noch aus.
+
+**Noch offen**
+
+- Wipe/Retire mit Vier-Augen-Freigabe, Compliance-Richtlinien und Apps anzeigen, regelmäßiger Bericht („Wochenbericht Geräte“) über Workflows
+- Microsoft 365 im Namen einer Person (Postfach, Kalender) mit delegiertem OAuth, weitere MDM-Systeme bei Bedarf
+
 ## Wissensdatenbank v1 – Dokumente hochladen, durchsuchen, mit Quelle antworten ✅
 
 **Erledigt**

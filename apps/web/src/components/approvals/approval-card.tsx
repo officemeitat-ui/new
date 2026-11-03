@@ -11,7 +11,7 @@ import {
   Input,
   Label,
 } from "@nexus/ui";
-import { Check, Mail, MessagesSquare, Pencil, X } from "lucide-react";
+import { Check, Mail, MessagesSquare, Pencil, ShieldAlert, X } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState, useTransition, type ReactNode } from "react";
@@ -29,6 +29,13 @@ type Approval = {
 };
 
 type Email = { an: string[]; betreff: string; text: string };
+
+function formatValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map(formatValue).join(", ");
+  if (value === null || value === undefined) return "–";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value as string | number | boolean);
+}
 
 function asEmail(input: Record<string, unknown>): Email | null {
   const { an, betreff, text } = input as Partial<Email>;
@@ -109,7 +116,11 @@ function ApprovalCard({
     <Card data-testid="approval">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Mail className="size-4 text-muted-foreground" aria-hidden />
+          {email ? (
+            <Mail className="size-4 text-muted-foreground" aria-hidden />
+          ) : (
+            <ShieldAlert className="size-4 text-muted-foreground" aria-hidden />
+          )}
           {t("proposal", { agent: approval.agentName, tool: approval.toolLabel })}
         </CardTitle>
         <CardDescription>
@@ -161,9 +172,18 @@ function ApprovalCard({
             </dl>
           )
         ) : (
-          <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-            {JSON.stringify(approval.input, null, 2)}
-          </pre>
+          <dl className="space-y-2 rounded-md border bg-muted/40 p-4 text-sm">
+            {Object.entries(approval.input).map(([key, value]) => (
+              <div key={key} className="flex gap-2">
+                <dt className="w-24 shrink-0 text-muted-foreground">
+                  {t.has(`fields.${key}`) ? t(`fields.${key}`) : key}
+                </dt>
+                <dd className={key.endsWith("_id") ? "font-mono text-xs" : "font-medium"}>
+                  {formatValue(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
         )}
 
         {rejecting ? (

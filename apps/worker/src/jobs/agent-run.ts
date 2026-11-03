@@ -16,7 +16,11 @@ import { withTenant, type Database } from "@nexus/db";
 import {
   createApprovals,
   createEmailTool,
+  createIntuneTools,
   createKnowledgeTool,
+  getIntegration,
+  microsoftAppConfig,
+  type MicrosoftAppConfig,
   failRun,
   finishRun,
   loadDecisions,
@@ -46,6 +50,8 @@ export type AgentRunDeps = {
   provider: () => Promise<LlmProvider>;
   publish: RunEventPublisher;
   platformName: string;
+  /** Platform Entra app for Microsoft 365; defaults to the environment (null = not set up). */
+  microsoft?: MicrosoftAppConfig | null;
   /** Current model prices; defaults to the built-in list (tests). */
   loadPrices?: () => Promise<Record<string, ModelPrice>>;
   log: Logger;
@@ -85,10 +91,17 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
     const modes = new Map(ctx.config.tools.map((tool) => [tool.name, tool.mode]));
     // Tools in "deny" mode are not offered to the model at all.
     // Platform tools: built-in ones plus tools that need tenant context (e-mail, knowledge).
+    // Intune tools exist only for tenants with a Microsoft 365 connection.
+    const microsoft = deps.microsoft === undefined ? microsoftAppConfig() : deps.microsoft;
+    const connected =
+      microsoft !== null &&
+      (await withTenant(db, tenantId, (tx) => getIntegration(tx, tenantId, "microsoft365"))) !==
+        null;
     const platformTools = [
       ...BUILTIN_TOOLS,
       createEmailTool({ tenantName: ctx.tenant.name }),
       createKnowledgeTool({ db, collectionIds: ctx.config.knowledgeCollectionIds ?? [] }),
+      ...(connected && microsoft ? createIntuneTools({ db, config: microsoft }) : []),
     ];
     const tools = platformTools.filter(
       (tool) => modes.has(tool.name) && modes.get(tool.name) !== "deny",

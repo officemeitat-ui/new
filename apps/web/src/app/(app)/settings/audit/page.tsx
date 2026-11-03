@@ -41,6 +41,11 @@ const KNOWN_ACTIONS = new Set([
   "knowledge.collection_deleted",
   "knowledge.document_added",
   "knowledge.document_deleted",
+  "integration.connected",
+  "integration.disconnected",
+  "device.synced",
+  "device.restarted",
+  "device.locked",
 ]);
 
 export default async function AuditPage() {

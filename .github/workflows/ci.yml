@@ -45,6 +45,11 @@ jobs:
       # E2E: every e-mail goes to the SMTP sink in apps/web/e2e/smtp-sink.mjs.
       SMTP_HOST: localhost
       SMTP_PORT: "2525"
+      # E2E: Microsoft 365 / Intune against packages/connectors/src/testing/mock-microsoft.ts.
+      MICROSOFT_GRAPH_CLIENT_ID: e2e-app
+      MICROSOFT_GRAPH_CLIENT_SECRET: e2e-secret
+      MICROSOFT_LOGIN_URL: http://localhost:4020/login
+      MICROSOFT_GRAPH_URL: http://localhost:4020/graph/v1.0
 
     steps:
       - uses: actions/checkout@v4

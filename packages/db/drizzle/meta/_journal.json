@@ -92,6 +92,20 @@
       "when": 1793741033388,
       "tag": "0012_rls_knowledge",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793742468382,
+      "tag": "0013_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793742469077,
+      "tag": "0014_rls_integrations",
+      "breakpoints": true
     }
   ]
 }

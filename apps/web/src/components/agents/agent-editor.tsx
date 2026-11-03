@@ -48,6 +48,7 @@ export function AgentEditor({
   initial,
   catalog,
   collections,
+  connected,
 }: {
   agentId: string;
   isDefault: boolean;
@@ -55,7 +56,9 @@ export function AgentEditor({
   canPublish: boolean;
   currency: "EUR" | "USD";
   initial: Initial;
-  catalog: { name: string; risk: string; available: boolean }[];
+  catalog: { name: string; risk: string; available: boolean; requires?: string }[];
+  /** Integrations this tenant has connected, e.g. microsoft365. */
+  connected: string[];
   collections: { id: string; name: string; documents: number }[];
 }) {
   const t = useTranslations("agents");
@@ -207,6 +210,14 @@ export function AgentEditor({
                     {!tool.available ? <Badge variant="secondary">{t("toolSoon")}</Badge> : null}
                     {tool.risk === "external_write" ? (
                       <Badge variant="warning">{t("toolExternal")}</Badge>
+                    ) : null}
+                    {tool.risk === "destructive" ? (
+                      <Badge variant="danger">{t("toolDestructive")}</Badge>
+                    ) : null}
+                    {tool.requires && !connected.includes(tool.requires) ? (
+                      <Link href="/integrations">
+                        <Badge variant="secondary">{t("toolNeedsMicrosoft")}</Badge>
+                      </Link>
                     ) : null}
                   </p>
                   <p className="text-xs text-muted-foreground">

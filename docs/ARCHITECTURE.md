@@ -1,6 +1,6 @@
 # Architektur – ME-IT Nexus
 
-Stand: Phase 0–2 (Kern umgesetzt), dazu Agent Studio, Freigabe-Inbox und Wissensdatenbank v1. Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
+Stand: Phase 0–2 (Kern umgesetzt), dazu Agent Studio, Freigabe-Inbox, Wissensdatenbank v1 und Microsoft 365/Intune. Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
 
 ## 1. Systemübersicht
 
@@ -53,18 +53,18 @@ flowchart LR
 
 ## 2. Pakete
 
-| Paket                             | Verantwortung                                                                                                     | Darf importieren |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `packages/config`                 | gemeinsame TypeScript- und ESLint-Presets                                                                         | –                |
-| `packages/core`                   | Umgebungsvariablen, Logger, Fehler, Berechtigungen, Mandanten-Kontext-Typen                                       | –                |
-| `packages/db`                     | Drizzle-Schema, Migrationen, RLS-Policies, Kontext-Helfer (`withTenant` …), Seeds                                 | `core`           |
-| `packages/domain`                 | Fachdienste: Mandanten anlegen, Einladungen, Mitglieder, Berechtigungen auflösen, Audit-Hash-Kette, E-Mails, Seed | `core`, `db`     |
-| `packages/ui`                     | Designsystem: Tokens, Palette aus Primärfarbe, Komponenten                                                        | –                |
-| `packages/agents`                 | Agent-Runtime: Provider-Abstraktion, Modellstufen, Agentenschleife, Werkzeuge, Kosten                             | `core`           |
-| `packages/connectors` _(Phase 4)_ | Connector-SDK und Konnektoren                                                                                     | `core`, `agents` |
-| `packages/knowledge`              | Dateityp erkennen, Text aus PDF/DOCX/Markdown extrahieren, Chunking (ohne Datenbank, ohne Netz)                   | –                |
-| `apps/web`                        | UI, öffentliche API, Auth, SSE                                                                                    | alle Pakete      |
-| `apps/worker`                     | Jobs: Agentenläufe, Workflows, Syncs, Zeitpläne                                                                   | alle außer `ui`  |
+| Paket                 | Verantwortung                                                                                                     | Darf importieren |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `packages/config`     | gemeinsame TypeScript- und ESLint-Presets                                                                         | –                |
+| `packages/core`       | Umgebungsvariablen, Logger, Fehler, Berechtigungen, Mandanten-Kontext-Typen                                       | –                |
+| `packages/db`         | Drizzle-Schema, Migrationen, RLS-Policies, Kontext-Helfer (`withTenant` …), Seeds                                 | `core`           |
+| `packages/domain`     | Fachdienste: Mandanten anlegen, Einladungen, Mitglieder, Berechtigungen auflösen, Audit-Hash-Kette, E-Mails, Seed | `core`, `db`     |
+| `packages/ui`         | Designsystem: Tokens, Palette aus Primärfarbe, Komponenten                                                        | –                |
+| `packages/agents`     | Agent-Runtime: Provider-Abstraktion, Modellstufen, Agentenschleife, Werkzeuge, Kosten                             | `core`           |
+| `packages/connectors` | Konnektoren ohne Datenbank: Microsoft Graph (App-Token, Paging, Drosselung), Intune-Geräte; Mock für Tests        | –                |
+| `packages/knowledge`  | Dateityp erkennen, Text aus PDF/DOCX/Markdown extrahieren, Chunking (ohne Datenbank, ohne Netz)                   | –                |
+| `apps/web`            | UI, öffentliche API, Auth, SSE                                                                                    | alle Pakete      |
+| `apps/worker`         | Jobs: Agentenläufe, Workflows, Syncs, Zeitpläne                                                                   | alle außer `ui`  |
 
 Abhängigkeiten zeigen nur nach unten. `packages/agents` kennt keine Datenbank; es bekommt Persistenz über Callbacks (`onStep`, `onUsage`) injiziert. Dadurch ist die Runtime ohne Datenbank testbar.
 
@@ -155,11 +155,32 @@ sequenceDiagram
 - Agenten bekommen Sammlungen zugeordnet (`knowledgeCollectionIds` in der Agenten-Version); ohne Zuordnung durchsuchen sie alle Sammlungen des Mandanten.
 - Suchergebnisse gehen als Daten an das Modell („keine Anweisungen“); der Chat verlinkt zitierte Quellen auf die Dokumentansicht.
 
-## 7. Konfiguration
+## 7. Integrationen: Microsoft 365 und Intune
+
+Details: [ADR 0008](adr/0008-microsoft-365-intune.md).
+
+```mermaid
+sequenceDiagram
+  participant A as Admin (Kunde)
+  participant UI as Web-App
+  participant MS as Microsoft Entra ID
+  participant G as Microsoft Graph
+  A->>UI: „Mit Microsoft 365 verbinden“
+  UI->>MS: /adminconsent (state signiert)
+  MS-->>UI: Rückweg mit tenant + admin_consent=True
+  UI->>MS: Token (client_credentials, Verzeichnis des Kunden)
+  UI->>G: GET /organization → Verbindung speichern
+  Note over UI,G: Danach: Geräte-Seite und Agenten-Werkzeuge rufen Graph mit kurzlebigem App-Token auf
+```
+
+- Tabelle `integrations` (RLS) speichert pro Mandant Anbieter, Verzeichnis-ID, Organisationsname, Status und letzten Fehler – keine Geheimnisse.
+- Geräteaktionen laufen über `runDeviceAction` (Domäne): Gerätename und ID müssen zusammenpassen, jede Aktion landet im Audit-Log.
+
+## 8. Konfiguration
 
 Alle Umgebungsvariablen werden beim Start mit Zod geprüft (`packages/core/src/env.ts`). Fehlt etwas, bricht der Start mit einer verständlichen Meldung ab. Vorlage: [`.env.example`](../.env.example).
 
-## 8. Lokale Entwicklung
+## 9. Lokale Entwicklung
 
 - `docker compose up -d` startet Postgres (mit pgvector), Valkey und Mailpit. Hochgeladene Dateien liegen vorerst in Postgres (ADR 0007).
 - `pnpm db:migrate` und `pnpm db:seed` richten Schema und Demo-Mandant ein.

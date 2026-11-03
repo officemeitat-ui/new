@@ -14,6 +14,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
     "@nexus/agents": "workspace:*",
+    "@nexus/connectors": "workspace:*",
     "@nexus/core": "workspace:*",
     "@nexus/db": "workspace:*",
     "@nexus/knowledge": "workspace:*",

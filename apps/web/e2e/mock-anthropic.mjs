@@ -4,6 +4,8 @@
 //   "Berechne …"           → calls the tool "rechner", then answers with its result
 //   "… E-Mail an x@y …"    → calls "email_senden" (if the agent has it), then reports the outcome
 //   "Laut Wissen: …"       → calls "wissen_suchen" (if the agent has it), then cites the first hit
+//   "Welche Geräte …"      → calls "geraete_suchen" (only problems), then lists the devices
+//   "Sperre <Gerät>"       → searches the device, calls "geraet_sperren", then reports
 //   anything else          → streams a greeting that quotes the message
 import { createServer } from "node:http";
 
@@ -28,6 +30,28 @@ function lastUserText(messages) {
     .map((b) => b.text)
     .join(" ");
 }
+
+/** The person's latest question (the last user message with text, not a tool result). */
+function currentQuestion(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    const blocks = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content;
+    const text = blocks
+      .filter((b) => b.type === "text" && !b.text.startsWith("<kontext>"))
+      .map((b) => b.text)
+      .join(" ");
+    if (text) return text;
+  }
+  return "";
+}
+
+const toolUse = (name, input) => ({
+  type: "tool_use",
+  id: `toolu_mock_${counter + 1}`,
+  name,
+  input,
+});
 
 async function streamMessage(res, model, blocks, stopReason) {
   const id = `msg_mock_${++counter}`;
@@ -106,6 +130,29 @@ createServer((req, res) => {
     const calledTool = Array.isArray(previous?.content)
       ? previous.content.find((b) => b.type === "tool_use")?.name
       : undefined;
+    if (toolResult && calledTool === "geraete_suchen") {
+      const result = JSON.parse(toolResult.content);
+      const lock = /^sperre\s+(.+)$/i.exec(currentQuestion(request.messages).trim());
+      if (lock && result.geraete?.length) {
+        const device = result.geraete[0];
+        return void streamMessage(
+          res,
+          request.model,
+          [toolUse("geraet_sperren", { geraet_id: device.geraet_id, geraet_name: device.name })],
+          "tool_use",
+        );
+      }
+      const answer = result.geraete?.length
+        ? `Handlungsbedarf bei: ${result.geraete.map((d) => `${d.name} (${d.probleme.join(", ")})`).join("; ")}.`
+        : "Alle Geräte sind in Ordnung.";
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
+    if (toolResult && calledTool === "geraet_sperren") {
+      const answer = toolResult.is_error
+        ? `Das Gerät wurde nicht gesperrt. ${toolResult.content}`
+        : `Das Gerät ${JSON.parse(toolResult.content).geraet} ist gesperrt.`;
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
     if (toolResult && calledTool === "wissen_suchen") {
       const { treffer } = JSON.parse(toolResult.content);
       const answer = treffer.length
@@ -132,6 +179,24 @@ createServer((req, res) => {
     const text = lastUserText(request.messages);
     const recipient = /E-Mail an ([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/i.exec(text)?.[1];
     const canMail = request.tools?.some((tool) => tool.name === "email_senden");
+    const hasTool = (name) => request.tools?.some((tool) => tool.name === name);
+    if (/^welche geräte/i.test(text.trim()) && hasTool("geraete_suchen")) {
+      return void streamMessage(
+        res,
+        request.model,
+        [toolUse("geraete_suchen", { suche: "", nur_probleme: true })],
+        "tool_use",
+      );
+    }
+    const lockTarget = /^sperre\s+(.+)$/i.exec(text.trim())?.[1];
+    if (lockTarget && hasTool("geraete_suchen") && hasTool("geraet_sperren")) {
+      return void streamMessage(
+        res,
+        request.model,
+        [toolUse("geraete_suchen", { suche: lockTarget, nur_probleme: false })],
+        "tool_use",
+      );
+    }
     const knowledgeQuery = /^laut wissen:\s*(.+)$/i.exec(text.trim())?.[1];
     if (knowledgeQuery && request.tools?.some((tool) => tool.name === "wissen_suchen")) {
       return void streamMessage(

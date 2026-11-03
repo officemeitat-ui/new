@@ -12,6 +12,7 @@
     "workflows": "Workflows",
     "approvals": "Freigaben",
     "knowledge": "Wissen",
+    "devices": "Geräte",
     "integrations": "Integrationen",
     "analytics": "Auswertungen",
     "settings": "Einstellungen",
@@ -213,7 +214,12 @@
         "knowledge_collection_created": "Wissenssammlung angelegt",
         "knowledge_collection_deleted": "Wissenssammlung gelöscht",
         "knowledge_document_added": "Dokument hochgeladen",
-        "knowledge_document_deleted": "Dokument gelöscht"
+        "knowledge_document_deleted": "Dokument gelöscht",
+        "integration_connected": "Integration verbunden",
+        "integration_disconnected": "Integration getrennt",
+        "device_synced": "Gerät synchronisiert",
+        "device_restarted": "Gerät neu gestartet",
+        "device_locked": "Gerät gesperrt"
       },
       "actors": {
         "user": "Benutzer",
@@ -494,7 +500,9 @@
     "knowledgeHint": "Welche Sammlungen dieser Agent mit dem Werkzeug „Wissensdatenbank“ durchsucht. Ohne Auswahl durchsucht er alle Sammlungen.",
     "knowledgeNone": "Es gibt noch keine Wissenssammlungen.",
     "knowledgeManage": "Sammlung anlegen",
-    "knowledgeDocuments": "{count, plural, =0 {leer} =1 {1 Dokument} other {# Dokumente}}"
+    "knowledgeDocuments": "{count, plural, =0 {leer} =1 {1 Dokument} other {# Dokumente}}",
+    "toolDestructive": "Eingriff am Gerät",
+    "toolNeedsMicrosoft": "Microsoft 365 verbinden"
   },
   "tools": {
     "aktuelle_zeit": {
@@ -512,6 +520,26 @@
     "email_senden": {
       "label": "E-Mail senden",
       "description": "Verschickt E-Mails im Namen Ihrer Firma."
+    },
+    "geraete_suchen": {
+      "label": "Geräte suchen (Intune)",
+      "description": "Findet verwaltete Laptops, PCs und Handys und zeigt Probleme wie fehlende Verschlüsselung."
+    },
+    "geraet_details": {
+      "label": "Gerätedetails (Intune)",
+      "description": "Zeigt Betriebssystem, Speicher, Besitzer und Status eines Geräts."
+    },
+    "geraet_synchronisieren": {
+      "label": "Gerät synchronisieren (Intune)",
+      "description": "Fordert ein Gerät auf, Richtlinien und Apps sofort neu abzurufen."
+    },
+    "geraet_neu_starten": {
+      "label": "Gerät neu starten (Intune)",
+      "description": "Startet ein Gerät aus der Ferne neu."
+    },
+    "geraet_sperren": {
+      "label": "Gerät sperren (Intune)",
+      "description": "Sperrt ein Gerät aus der Ferne, z. B. bei Verlust."
     }
   },
   "integrations": {
@@ -527,7 +555,8 @@
     "tickets": "Ticketsystem",
     "monitoring": "IT-Überwachung",
     "web": "Web-Recherche",
-    "delegation": "Zusammenarbeit von Agenten"
+    "delegation": "Zusammenarbeit von Agenten",
+    "mdm": "Geräteverwaltung (Intune)"
   },
   "runStatus": {
     "queued": "wartet",
@@ -566,7 +595,13 @@
     "approve": "Freigeben",
     "edit": "Bearbeiten",
     "reject": "Ablehnen",
-    "openConversation": "Zum Gespräch"
+    "openConversation": "Zum Gespräch",
+    "fields": {
+      "geraet_name": "Gerät",
+      "geraet_id": "Intune-ID",
+      "suche": "Suche",
+      "anfrage": "Anfrage"
+    }
   },
   "knowledge": {
     "title": "Wissen",
@@ -620,5 +655,83 @@
     "dropHint": "Dateien hierher ziehen oder",
     "chooseFiles": "Dateien auswählen",
     "noFiles": "Keine Datei ausgewählt"
+  },
+  "integrationsPage": {
+    "title": "Integrationen",
+    "subtitle": "Verbinden Sie Ihre Systeme, damit Agenten dort nachsehen und – mit Ihrer Freigabe – handeln können.",
+    "microsoftDescription": "Geräteverwaltung mit Microsoft Intune: Laptops, PCs und Handys überblicken, synchronisieren, neu starten und bei Verlust sperren.",
+    "statusConnected": "Verbunden",
+    "statusError": "Fehler",
+    "statusNotConnected": "Nicht verbunden",
+    "connectedMessage": "Microsoft 365 ist verbunden: {name}.",
+    "organisation": "Organisation",
+    "directory": "Verzeichnis-ID",
+    "connectedBy": "Verbunden von",
+    "lastError": "Letzter Fehler",
+    "showDevices": "Geräte ansehen",
+    "reconnect": "Erneut verbinden",
+    "disconnect": "Trennen",
+    "confirmDisconnect": "Die Verbindung zu Microsoft 365 trennen? Agenten können danach keine Geräte mehr abfragen.",
+    "revokeHint": "Trennen entfernt die Verbindung hier. Um den Zugriff vollständig zu entziehen, löschen Sie zusätzlich die Unternehmensanwendung im Microsoft Entra Admin Center.",
+    "connectExplain": "Eine globale Administratorin oder ein globaler Administrator Ihres Microsoft-365-Kontos meldet sich bei Microsoft an und stimmt einmal zu. Die Plattform erhält damit nur diese Rechte:",
+    "permissionRead": "Intune-Geräte lesen (Name, Benutzer, Betriebssystem, Status)",
+    "permissionActions": "Geräte synchronisieren, neu starten und sperren – Agenten nur mit Ihrer Freigabe",
+    "permissionOrganisation": "den Namen Ihrer Organisation lesen",
+    "connect": "Mit Microsoft 365 verbinden",
+    "askAdmin": "Bitten Sie eine Administratorin oder einen Administrator Ihrer Firma, die Verbindung herzustellen.",
+    "notConfigured": "Die Microsoft-365-Anbindung ist auf dieser Plattform noch nicht eingerichtet. ME-IT hinterlegt dafür eine App-Registrierung bei Microsoft.",
+    "more": "Weitere Integrationen folgen: Google Workspace, Outlook-Postfach und Kalender, CRM und Buchhaltung.",
+    "errors": {
+      "abgelehnt": "Die Zustimmung bei Microsoft wurde nicht erteilt. Es wurde nichts verbunden.",
+      "sitzung": "Die Rückmeldung von Microsoft passte nicht zu Ihrer Sitzung. Bitte starten Sie die Verbindung erneut.",
+      "zugriff": "Microsoft 365 hat den Zugriff nicht bestätigt. Prüfen Sie die Zustimmung und die Intune-Lizenz und versuchen Sie es erneut.",
+      "berechtigung": "Integrationen verwalten Owner und Admins.",
+      "nicht_eingerichtet": "Die Microsoft-365-Anbindung ist auf dieser Plattform noch nicht eingerichtet."
+    }
+  },
+  "devices": {
+    "title": "Geräte",
+    "subtitle": "Laptops, PCs und Handys aus Microsoft Intune.",
+    "subtitleConnected": "Laptops, PCs und Handys aus Microsoft Intune – {name}.",
+    "notConnectedTitle": "Noch keine Geräteverwaltung verbunden",
+    "notConnectedDescription": "Verbinden Sie Microsoft 365, um Ihre Intune-Geräte hier zu sehen und Agenten bei IT-Fragen helfen zu lassen.",
+    "toIntegrations": "Zu den Integrationen",
+    "loadError": "Die Geräte konnten nicht geladen werden. Bitte versuchen Sie es später erneut.",
+    "overview": "Überblick",
+    "total": "Geräte gesamt",
+    "noncompliant": "Nicht konform",
+    "unencrypted": "Nicht verschlüsselt",
+    "stale": "Über 7 Tage ohne Sync",
+    "searchLabel": "Geräte durchsuchen",
+    "searchPlaceholder": "Gerät, Person oder Seriennummer",
+    "onlyProblems": "Nur mit Handlungsbedarf",
+    "filter": "Filtern",
+    "noDevices": "Keine Geräte gefunden.",
+    "noProblems": "Kein Gerät mit Handlungsbedarf – sehr gut.",
+    "compliance": {
+      "compliant": "Konform",
+      "noncompliant": "Nicht konform",
+      "inGracePeriod": "Übergangsfrist",
+      "conflict": "Konflikt",
+      "error": "Fehler",
+      "configManager": "Config Manager",
+      "unknown": "Unbekannt"
+    },
+    "problemUnencrypted": "Nicht verschlüsselt",
+    "problemStale": "Lange nicht synchronisiert",
+    "personal": "privat",
+    "lastSync": "Sync {when}",
+    "truncated": "Es werden höchstens 2.000 Geräte angezeigt.",
+    "actions": {
+      "sync": "Sync",
+      "restart": "Neu starten",
+      "lock": "Sperren",
+      "restartFor": "{name} neu starten",
+      "lockFor": "{name} sperren"
+    },
+    "confirm": {
+      "restart": "„{name}“ jetzt neu starten? Ungespeicherte Arbeit geht verloren.",
+      "lock": "„{name}“ jetzt sperren? Die Person muss sich danach neu anmelden."
+    }
   }
 }

@@ -15,7 +15,7 @@ META = {
   8: ("firmenwissen", "balanced", "low", ["wissen_suchen:auto"], []),
   9: ("vertraege", "smart", "high", ["wissen_suchen:auto", "aktuelle_zeit:auto", "rechner:auto"], ["calendar", "tasks"]),
   10: ("leads", "balanced", "medium", ["email_senden:approve"], ["crm", "web"]),
-  11: ("it-support", "balanced", "medium", ["wissen_suchen:auto"], ["tickets", "monitoring"]),
+  11: ("it-support", "balanced", "medium", ["wissen_suchen:auto", "geraete_suchen:auto", "geraet_details:auto", "geraet_synchronisieren:auto", "geraet_neu_starten:approve", "geraet_sperren:approve"], ["mdm", "tickets", "monitoring"]),
   12: ("chef-assistent", "smart", "medium", ["aktuelle_zeit:auto"], ["email", "calendar", "tasks", "delegation"]),
 }
 INDUSTRIES = {

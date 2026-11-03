@@ -7,6 +7,7 @@ export * from "./branding";
 export * from "./chat";
 export * from "./dashboard";
 export * from "./email-tool";
+export * from "./integrations";
 export * from "./invitations";
 export * from "./knowledge";
 export * from "./mail";

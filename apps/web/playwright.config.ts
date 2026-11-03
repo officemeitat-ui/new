@@ -37,6 +37,14 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
         },
         {
+          // Microsoft identity platform + Graph (Intune). Web and worker need
+          // MICROSOFT_GRAPH_CLIENT_ID/SECRET (any value), MICROSOFT_LOGIN_URL=http://localhost:4020/login
+          // and MICROSOFT_GRAPH_URL=http://localhost:4020/graph/v1.0.
+          command: "node ../../packages/connectors/src/testing/mock-microsoft.ts",
+          url: "http://localhost:4020/health",
+          reuseExistingServer: !process.env.CI,
+        },
+        {
           // Receives every e-mail; web and worker need SMTP_HOST=localhost, SMTP_PORT=2525.
           command: "node e2e/smtp-sink.mjs",
           url: "http://localhost:2526/health",

@@ -11,6 +11,8 @@ export type CatalogTool = {
   available: boolean;
   /** Default approval mode for new agents, derived from the risk class (section 9.1). */
   defaultMode: "auto" | "approve" | "deny";
+  /** Integration the tool needs; without it the runtime does not offer the tool. */
+  requires?: "microsoft365";
 };
 
 export const TOOL_CATALOG: readonly CatalogTool[] = [
@@ -18,6 +20,42 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
   { name: "rechner", risk: "read", available: true, defaultMode: "auto" },
   { name: "wissen_suchen", risk: "read", available: true, defaultMode: "auto" },
   { name: "email_senden", risk: "external_write", available: true, defaultMode: "approve" },
+  // Microsoft Intune (MDM) via the Microsoft 365 connection – ADR 0008.
+  {
+    name: "geraete_suchen",
+    risk: "read",
+    available: true,
+    defaultMode: "auto",
+    requires: "microsoft365",
+  },
+  {
+    name: "geraet_details",
+    risk: "read",
+    available: true,
+    defaultMode: "auto",
+    requires: "microsoft365",
+  },
+  {
+    name: "geraet_synchronisieren",
+    risk: "internal_write",
+    available: true,
+    defaultMode: "auto",
+    requires: "microsoft365",
+  },
+  {
+    name: "geraet_neu_starten",
+    risk: "internal_write",
+    available: true,
+    defaultMode: "approve",
+    requires: "microsoft365",
+  },
+  {
+    name: "geraet_sperren",
+    risk: "destructive",
+    available: true,
+    defaultMode: "approve",
+    requires: "microsoft365",
+  },
 ];
 
 export function catalogTool(name: string): CatalogTool | undefined {

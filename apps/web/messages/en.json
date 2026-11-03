@@ -12,6 +12,7 @@
     "workflows": "Workflows",
     "approvals": "Approvals",
     "knowledge": "Knowledge",
+    "devices": "Devices",
     "integrations": "Integrations",
     "analytics": "Analytics",
     "settings": "Settings",
@@ -213,7 +214,12 @@
         "knowledge_collection_created": "Knowledge collection created",
         "knowledge_collection_deleted": "Knowledge collection deleted",
         "knowledge_document_added": "Document uploaded",
-        "knowledge_document_deleted": "Document deleted"
+        "knowledge_document_deleted": "Document deleted",
+        "integration_connected": "Integration connected",
+        "integration_disconnected": "Integration disconnected",
+        "device_synced": "Device synced",
+        "device_restarted": "Device restarted",
+        "device_locked": "Device locked"
       },
       "actors": {
         "user": "User",
@@ -494,7 +500,9 @@
     "knowledgeHint": "Which collections this agent searches with the “knowledge base” tool. Without a selection it searches all collections.",
     "knowledgeNone": "There are no knowledge collections yet.",
     "knowledgeManage": "Create a collection",
-    "knowledgeDocuments": "{count, plural, =0 {empty} =1 {1 document} other {# documents}}"
+    "knowledgeDocuments": "{count, plural, =0 {empty} =1 {1 document} other {# documents}}",
+    "toolDestructive": "Acts on devices",
+    "toolNeedsMicrosoft": "Connect Microsoft 365"
   },
   "tools": {
     "aktuelle_zeit": {
@@ -512,6 +520,26 @@
     "email_senden": {
       "label": "Send e-mail",
       "description": "Sends e-mails on behalf of your company."
+    },
+    "geraete_suchen": {
+      "label": "Search devices (Intune)",
+      "description": "Finds managed laptops, PCs and phones and shows problems such as missing encryption."
+    },
+    "geraet_details": {
+      "label": "Device details (Intune)",
+      "description": "Shows operating system, storage, owner and status of a device."
+    },
+    "geraet_synchronisieren": {
+      "label": "Sync device (Intune)",
+      "description": "Asks a device to fetch policies and apps right away."
+    },
+    "geraet_neu_starten": {
+      "label": "Restart device (Intune)",
+      "description": "Restarts a device remotely."
+    },
+    "geraet_sperren": {
+      "label": "Lock device (Intune)",
+      "description": "Locks a device remotely, e.g. when it is lost."
     }
   },
   "integrations": {
@@ -527,7 +555,8 @@
     "tickets": "Ticket system",
     "monitoring": "IT monitoring",
     "web": "Web research",
-    "delegation": "Agent collaboration"
+    "delegation": "Agent collaboration",
+    "mdm": "Device management (Intune)"
   },
   "runStatus": {
     "queued": "queued",
@@ -566,7 +595,13 @@
     "approve": "Approve",
     "edit": "Edit",
     "reject": "Reject",
-    "openConversation": "Open conversation"
+    "openConversation": "Open conversation",
+    "fields": {
+      "geraet_name": "Device",
+      "geraet_id": "Intune ID",
+      "suche": "Search",
+      "anfrage": "Query"
+    }
   },
   "knowledge": {
     "title": "Knowledge",
@@ -620,5 +655,83 @@
     "dropHint": "Drop files here or",
     "chooseFiles": "Choose files",
     "noFiles": "No file selected"
+  },
+  "integrationsPage": {
+    "title": "Integrations",
+    "subtitle": "Connect your systems so agents can look things up there and – with your approval – act.",
+    "microsoftDescription": "Device management with Microsoft Intune: overview of laptops, PCs and phones, sync, restart and lock when lost.",
+    "statusConnected": "Connected",
+    "statusError": "Error",
+    "statusNotConnected": "Not connected",
+    "connectedMessage": "Microsoft 365 is connected: {name}.",
+    "organisation": "Organisation",
+    "directory": "Directory ID",
+    "connectedBy": "Connected by",
+    "lastError": "Last error",
+    "showDevices": "View devices",
+    "reconnect": "Reconnect",
+    "disconnect": "Disconnect",
+    "confirmDisconnect": "Disconnect Microsoft 365? Agents can no longer look up devices.",
+    "revokeHint": "Disconnecting removes the connection here. To revoke access completely, also delete the enterprise application in the Microsoft Entra admin center.",
+    "connectExplain": "A global administrator of your Microsoft 365 account signs in at Microsoft and consents once. The platform only gets these permissions:",
+    "permissionRead": "Read Intune devices (name, user, operating system, status)",
+    "permissionActions": "Sync, restart and lock devices – agents only with your approval",
+    "permissionOrganisation": "Read your organisation's name",
+    "connect": "Connect Microsoft 365",
+    "askAdmin": "Ask an administrator of your company to connect it.",
+    "notConfigured": "The Microsoft 365 connection is not set up on this platform yet. ME-IT registers an app with Microsoft for it.",
+    "more": "More integrations follow: Google Workspace, Outlook mailbox and calendar, CRM and accounting.",
+    "errors": {
+      "abgelehnt": "Consent at Microsoft was not given. Nothing was connected.",
+      "sitzung": "Microsoft's response did not match your session. Please start the connection again.",
+      "zugriff": "Microsoft 365 did not confirm access. Check the consent and the Intune licence and try again.",
+      "berechtigung": "Owners and admins manage integrations.",
+      "nicht_eingerichtet": "The Microsoft 365 connection is not set up on this platform yet."
+    }
+  },
+  "devices": {
+    "title": "Devices",
+    "subtitle": "Laptops, PCs and phones from Microsoft Intune.",
+    "subtitleConnected": "Laptops, PCs and phones from Microsoft Intune – {name}.",
+    "notConnectedTitle": "No device management connected yet",
+    "notConnectedDescription": "Connect Microsoft 365 to see your Intune devices here and let agents help with IT questions.",
+    "toIntegrations": "Go to integrations",
+    "loadError": "The devices could not be loaded. Please try again later.",
+    "overview": "Overview",
+    "total": "Devices",
+    "noncompliant": "Not compliant",
+    "unencrypted": "Not encrypted",
+    "stale": "No sync for 7+ days",
+    "searchLabel": "Search devices",
+    "searchPlaceholder": "Device, person or serial number",
+    "onlyProblems": "Only needing attention",
+    "filter": "Filter",
+    "noDevices": "No devices found.",
+    "noProblems": "No device needs attention – well done.",
+    "compliance": {
+      "compliant": "Compliant",
+      "noncompliant": "Not compliant",
+      "inGracePeriod": "Grace period",
+      "conflict": "Conflict",
+      "error": "Error",
+      "configManager": "Config Manager",
+      "unknown": "Unknown"
+    },
+    "problemUnencrypted": "Not encrypted",
+    "problemStale": "Not synced for a while",
+    "personal": "personal",
+    "lastSync": "synced {when}",
+    "truncated": "At most 2,000 devices are shown.",
+    "actions": {
+      "sync": "Sync",
+      "restart": "Restart",
+      "lock": "Lock",
+      "restartFor": "Restart {name}",
+      "lockFor": "Lock {name}"
+    },
+    "confirm": {
+      "restart": "Restart “{name}” now? Unsaved work will be lost.",
+      "lock": "Lock “{name}” now? The person has to sign in again."
+    }
   }
 }

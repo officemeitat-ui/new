@@ -137,6 +137,11 @@ export const TOOL_LABELS: Record<string, string> = {
   aktuelle_zeit: "Datum und Uhrzeit",
   email_senden: "E-Mail senden",
   wissen_suchen: "Wissensdatenbank",
+  geraete_suchen: "Geräte suchen",
+  geraet_details: "Gerätedetails",
+  geraet_synchronisieren: "Gerät synchronisieren",
+  geraet_neu_starten: "Gerät neu starten",
+  geraet_sperren: "Gerät sperren",
 };
 
 export function toolLabel(name: string): string {

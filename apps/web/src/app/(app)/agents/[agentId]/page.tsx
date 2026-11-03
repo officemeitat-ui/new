@@ -1,7 +1,7 @@
 import { convertUsdMicros, formatDateTime, isAppError, isUuid } from "@nexus/core";
 import { TOOL_CATALOG } from "@nexus/agents/catalog";
 import { getDatabase, withTenant } from "@nexus/db";
-import { can, findTemplate, getAgentDetail, listCollections } from "@nexus/domain";
+import { can, findTemplate, getAgentDetail, getIntegration, listCollections } from "@nexus/domain";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@nexus/ui";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -30,8 +30,13 @@ export default async function AgentPage({
     throw error;
   });
   if (!detail) notFound();
-  const collections = await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
-    listCollections(tx, ctx.tenant.tenantId),
+  const { collections, microsoft } = await withTenant(
+    getDatabase().db,
+    ctx.tenant.tenantId,
+    async (tx) => ({
+      collections: await listCollections(tx, ctx.tenant.tenantId),
+      microsoft: await getIntegration(tx, ctx.tenant.tenantId, "microsoft365"),
+    }),
   );
 
   const { agent, current, versions } = detail;
@@ -90,7 +95,9 @@ export default async function AgentPage({
             name: tool.name,
             risk: tool.risk,
             available: tool.available,
+            ...(tool.requires ? { requires: tool.requires } : {}),
           }))}
+          connected={microsoft ? ["microsoft365"] : []}
         />
       </div>
 

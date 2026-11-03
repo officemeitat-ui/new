@@ -5,6 +5,7 @@ import {
   ChartLine,
   House,
   Inbox,
+  Laptop,
   MessagesSquare,
   Plug,
   Settings,
@@ -19,6 +20,7 @@ export type NavKey =
   | "workflows"
   | "approvals"
   | "knowledge"
+  | "devices"
   | "integrations"
   | "analytics"
   | "settings"
@@ -42,7 +44,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "workflows", href: "/workflows", icon: Workflow, available: false, section: "main" },
   { key: "approvals", href: "/approvals", icon: Inbox, available: true, section: "main" },
   { key: "knowledge", href: "/knowledge", icon: BookOpen, available: true, section: "main" },
-  { key: "integrations", href: "/integrations", icon: Plug, available: false, section: "main" },
+  { key: "devices", href: "/devices", icon: Laptop, available: true, section: "main" },
+  { key: "integrations", href: "/integrations", icon: Plug, available: true, section: "main" },
   { key: "analytics", href: "/analytics", icon: ChartLine, available: false, section: "main" },
   { key: "settings", href: "/settings", icon: Settings, available: true, section: "admin" },
   {
