@@ -69,7 +69,9 @@ export function correctStamp(stamp, { from, to = '', pause, reason, note = '', b
 /** Netto-Minuten einer Stempelung (ohne Pause); null, solange nicht gegangen. */
 export function netMinutes(stamp) {
   if (!stamp?.in || !stamp.out) return null
-  return Math.max(0, absMinutes(stamp.out) - absMinutes(stamp.in) - (Number(stamp.pause) || 0))
+  // echte Dauer, auch über eine Zeitumstellung (Nachtdienst), auf ganze Minuten wie absMinutes
+  const span = Math.floor(Date.parse(stamp.out) / 6e4) - Math.floor(Date.parse(stamp.in) / 6e4)
+  return Math.max(0, span - (Number(stamp.pause) || 0))
 }
 
 /**
