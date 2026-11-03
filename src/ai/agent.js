@@ -20,6 +20,7 @@ export const TOOL_LABEL = {
   objekte_suchen: 'Objekte nachgeschlagen',
   abwesenheiten_abfragen: 'Abwesenheiten nachgeschlagen',
   zu_erledigen: '„Zu erledigen“ gelesen',
+  digitale_mitarbeiter: 'Vorschläge der digitalen Mitarbeiter gelesen',
   kalender_lesen: 'Kalender gelesen',
   vertretung_vorschlagen: 'Vertretungen gesucht',
   material_bestand: 'Lagerbestand nachgeschlagen',

@@ -2,6 +2,7 @@
 // Eine neue Ansicht: Datei anlegen, registerView(...) aufrufen, hier importieren.
 
 import './home.js'
+import './disponent.js'
 import './week.js'
 import './timeline.js'
 import './appointments.js'

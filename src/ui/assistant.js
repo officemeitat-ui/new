@@ -76,7 +76,7 @@ function assistantModal() {
     body: `${notice}
       <div class="ai-log" aria-live="polite">${empty ? `<div class="ai-intro"><p>Sag oder schreib, was zu tun ist, zum Beispiel:</p><div class="ai-starters">${STARTERS.map((x, i) => `<button class="btn small" data-action="ai-starter" data-i="${i}">${esc(x.trim() || x)}${x.endsWith(' ') ? '…' : ''}</button>`).join('')}</div></div>` : logHtml()}${s.busy && !s.pending ? '<div class="ai-step running"><span class="ai-dots"></span> arbeitet …</div>' : ''}</div>
       <div class="ai-input">
-        <textarea id="ai-text" rows="2" placeholder="${ready ? 'z. B. „Termin morgen 12 Uhr in Salzburg mit Herrn Maier“' : 'noch nicht verfügbar'}" ${ready && !s.busy ? '' : 'disabled'} data-ai-enter="1"></textarea>
+        <textarea id="ai-text" rows="2" placeholder="${ready ? 'z. B. „Termin morgen 12 Uhr in Salzburg mit Herrn Maier“' : 'noch nicht verfügbar'}" ${ready && !s.busy ? '' : 'disabled'} data-ai-enter="1">${esc(app.ui.modal?.prefill || '')}</textarea>
         ${speech() ? `<button class="btn icon ai-mic ${s.listening ? 'on' : ''}" data-action="ai-mic" title="Sprechen" aria-label="Sprechen" ${ready && !s.busy ? '' : 'disabled'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5" fill="currentColor"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
         <button class="btn primary" data-action="ai-send" ${ready && !s.busy ? '' : 'disabled'}>Senden</button>
       </div>`,

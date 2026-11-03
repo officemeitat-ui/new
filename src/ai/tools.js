@@ -15,6 +15,7 @@ import { PlanState } from '../core/plan.js'
 import { evaluateCandidate, explain, rankCandidates } from '../core/scheduler.js'
 import { ACTIONS, addLog, app, canEdit, computeRange, empName, ensureRange, persist, recordUndo, renderNow } from '../ui/context.js'
 import { saveAppointment } from '../ui/views/appointments.js'
+import { AGENTS, proposals } from '../ui/views/disponent.js'
 import { computeTodo } from '../ui/modals/todo.js'
 import { uid } from '../ui/shared.js'
 import { registerAgentTool } from './registry.js'
@@ -147,6 +148,20 @@ registerAgentTool({
     const emp = person ? findEmployee(person) : null
     const list = (app.data.absences || []).filter((a) => a.from <= bis && a.to >= von && (!emp || a.employeeId === emp.id)).sort((a, b) => a.from.localeCompare(b.from))
     return { anzahl: list.length, abwesenheiten: list.map((a) => ({ name: empName(a.employeeId), art: a.type, von: a.from, bis: a.to })) }
+  },
+})
+
+registerAgentTool({
+  name: 'digitale_mitarbeiter',
+  modules: '*',
+  description: 'Was die digitalen Mitarbeiter (Disponent, Buchhaltung, Lager, Fristen) vorbereitet haben: Vorschläge mit Begründung und ob sie mit einem Klick ausführbar sind. Ausführen tut die Person in der Ansicht „Digitale Mitarbeiter“ oder du mit den passenden Werkzeugen.',
+  input_schema: { type: 'object', properties: {} },
+  run() {
+    const list = proposals()
+    return {
+      anzahl: list.length,
+      vorschlaege: list.slice(0, 30).map((p) => ({ von: AGENTS.find((a) => a.id === p.agent)?.name, dringend: p.prio === 1, was: p.title, warum: p.text, details: p.lines?.slice(0, 6), mit_einem_klick: p.run?.label || null })),
+    }
   },
 })
 

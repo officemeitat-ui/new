@@ -294,7 +294,7 @@ function draftFrom(m) {
   const date = m.date || todayISO()
   const start = m.time || '09:00'
   const startAt = `${date}T${start}`
-  return { title: m.title || '', kind: m.kind || 'kunde', start: startAt, end: addMinutes(startAt, Number(m.minutes) || 60), allDay: !!m.allDay, objectId: m.objectId || '', location: '', note: '', attendees: [], employeeIds: m.employeeId ? [m.employeeId] : [], online: false, reminder: 15, responseRequested: true }
+  return { title: m.title || '', kind: m.kind || 'kunde', start: startAt, end: addMinutes(startAt, Number(m.minutes) || 60), allDay: !!m.allDay, objectId: m.objectId || '', location: '', note: '', attendees: [], employeeIds: m.employeeIds?.length ? [...m.employeeIds] : m.employeeId ? [m.employeeId] : [], online: false, reminder: 15, responseRequested: true }
 }
 
 /** Felder des Dialogs in den Entwurf übernehmen. */

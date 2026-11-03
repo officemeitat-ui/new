@@ -15,6 +15,7 @@
 //   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
 //   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
+//   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
@@ -67,6 +68,7 @@ export const MODULE_DOCS = {
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
+  assistenz: { path: 'assistenz/entscheidungen.json', empty: () => ({ decided: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -98,6 +100,8 @@ export function dataRights(access) {
     [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
+    // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen'), () => edits('planung', 'fakturierung', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen')],
     // Löhne und Margen: nur Auswertung & Lohn
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
@@ -123,6 +127,7 @@ export const FOLDERS = [
   ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
+  ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
 ]
 
 /**

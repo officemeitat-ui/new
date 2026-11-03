@@ -1419,3 +1419,25 @@ tr.muted td { color: var(--muted); }
 .quick-item { display: flex; justify-content: space-between; align-items: center; }
 .keys-table td:first-child { width: 9rem; white-space: nowrap; }
 @media (max-width: 1180px) { .quick-label { display: none; } }
+
+/* Digitale Mitarbeiter */
+.dm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 14px; align-items: start; }
+.dm-agent { padding: 12px; border: 1px solid var(--card-border, var(--line)); border-radius: var(--radius-card, 10px); background: var(--surface); }
+.dm-agent > header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dm-agent > header svg { width: 28px; height: 28px; flex: none; padding: 4px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); }
+.dm-agent > header div { flex: 1 1 auto; min-width: 0; }
+.dm-agent h3 { margin: 0; font-size: 1rem; }
+.dm-agent small { color: var(--muted); }
+.dm-agent > header .flag.ok { background: var(--ok-soft, var(--info-soft)); color: var(--ok); }
+.dm-card { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--surface); }
+.dm-card[data-prio='1'] { border-left-color: var(--err); }
+.dm-card[data-prio='2'] { border-left-color: var(--warn); }
+.dm-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.dm-card h4 { margin: 0; font-size: 0.92rem; }
+.dm-card p { margin: 4px 0; font-size: 0.86rem; color: var(--muted); }
+.dm-lines { margin: 4px 0 6px; padding-left: 18px; font-size: 0.84rem; }
+.dm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.dm-empty { margin: 4px 0; }
+.home-staff { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--card-border, var(--line)); border-left: 4px solid var(--accent); border-radius: var(--radius-card, 10px); background: var(--surface); }
+.home-staff h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.home-staff-list { display: flex; flex-wrap: wrap; gap: 6px; }

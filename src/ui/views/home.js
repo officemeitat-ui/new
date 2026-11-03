@@ -10,6 +10,7 @@ import { todo } from '../modals/todo.js'
 import { esc, ICON } from '../shared.js'
 import { navIcon } from '../sidebar.js'
 import { appointmentsOfDay } from './appointments.js'
+import { proposalSummary } from './disponent.js'
 
 const greeting = (hour = new Date().getHours()) => (hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend')
 const firstName = (name = '') => name.split(/[\s,]+/).find(Boolean) || ''
@@ -44,9 +45,18 @@ function homeView(c) {
   const apptCard = nextAppts.length
     ? `<section class="home-appts"><h3>${ICON.calendar} Termine heute und morgen</h3><ul>${nextAppts.map(({ a, d, allDay }) => `<li><button class="link-row" data-action="appt-open" data-id="${esc(a.id)}"><span class="muted">${d === todayISO() ? 'heute' : 'morgen'} ${allDay ? 'ganztägig' : esc(a.start.slice(11, 16))}</span> <b>${esc(a.title)}</b>${ICON.right}</button></li>`).join('')}</ul></section>`
     : ''
+  // Digitale Mitarbeiter: was sie vorbereitet haben
+  const staff = views.some((v) => v.id === 'assistenz') ? proposalSummary() : []
+  const staffTotal = staff.reduce((n, a) => n + a.count, 0)
+  const staffCard = staffTotal
+    ? `<section class="home-staff"><h3>Deine digitalen Mitarbeiter haben ${staffTotal === 1 ? 'einen Vorschlag' : `${staffTotal} Vorschläge`} vorbereitet</h3><div class="home-staff-list">${staff
+        .filter((a) => a.count)
+        .map((a) => `<button class="btn small ${a.urgent ? 'primary' : ''}" data-action="view" data-view="assistenz">${esc(a.name)} <span class="flag ${a.urgent ? 'error' : 'info'}">${a.count}</span></button>`)
+        .join('')}</div></section>`
+    : ''
   return `<div class="home-head"><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="muted">${formatDate(todayISO(), { year: true })}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p></div>
   ${t.count ? `<div class="banner"><p><strong>${t.count} ${t.count === 1 ? 'Punkt' : 'Punkte'} zu erledigen</strong> in deinen Bereichen.</p><button class="btn primary" data-action="open-todo">${ICON.bell} Ansehen</button></div>` : ''}
-  ${apptCard}
+  ${staffCard}${apptCard}
   <section class="home-grid" aria-label="Bereiche">${cards}</section>`
 }
 
