@@ -24,9 +24,10 @@ function regularChip(ctx, task, id, load) {
 }
 
 function taskRow(ctx, task, load) {
-  const ranked = rankRegulars(ctx, task, { load })
-  const best = ranked.find((x) => x.allowed)
   const slots = openSlots(task)
+  // Vorschläge nur für Leistungen mit offenem Platz (besetzte zeigen keine)
+  const ranked = slots ? rankRegulars(ctx, task, { load }) : []
+  const best = ranked.find((x) => x.allowed)
   const why = best ? explain(best.factors, { good: 3, bad: 2 }) : null
   const suggestion = !slots
     ? '<span class="muted">besetzt</span>'

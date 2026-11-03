@@ -6,6 +6,8 @@ import { roleOptions } from '../core/access.js'
 import { app, canEdit, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, visibleViews } from './context.js'
 import { assistantButton } from './assistant.js'
 import { bellButton, todo } from './modals/todo.js'
+import { agoText, syncState } from './sync.js'
+import { quickItems } from './quick.js'
 import { esc, ICON, modalFrame, options } from './shared.js'
 
 const phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 700px)') : null
@@ -96,6 +98,7 @@ function moreModal(c) {
     plan && ['open-publish', `${ICON.send} Veröffentlichen`, ''],
     plan && ['open-send', `${ICON.send} An Mitarbeitende versenden`, ''],
     ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
+    quickItems().some((q) => q.id !== 'abwesenheit') && ['quick-open', `${ICON.plus} Neu anlegen …`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
   ].filter(Boolean)
   const visible = visibleViews()
@@ -125,7 +128,8 @@ function moreModal(c) {
       <section><h3>Konto & Daten</h3>
         <p class="note">${saveStatusText(app.service.status)}${app.user ? ` · ${esc(app.user.name)}` : ''}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p>
         ${app.user ? '' : roleSwitch()}
-        <div class="more-actions"><button class="btn" data-action="theme-open">${ICON.palette} Darstellung</button>${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten & Sicherung</button>' : ''}${app.signOut ? '<button class="btn" data-action="sign-out">Abmelden</button>' : ''}</div>
+        <p class="note">Zuletzt abgeglichen ${esc(agoText(syncState.lastAt))}.</p>
+        <div class="more-actions"><button class="btn" data-action="sync-now">${ICON.refresh} Jetzt abgleichen</button><button class="btn" data-action="theme-open">${ICON.palette} Darstellung</button>${!app.access || app.access.all ? '<button class="btn" data-action="open-data">Daten & Sicherung</button>' : ''}${app.signOut ? '<button class="btn" data-action="sign-out">Abmelden</button>' : ''}</div>
       </section>
       <section><h3>App</h3>${install}</section>`,
   })

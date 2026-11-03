@@ -84,7 +84,7 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Termine mit Outlook:** Kundentermine, Begehungen, Schulungen und Werkstatt im Kalender der App; Teilnehmende aus dem Dienstplan, dem Firmenverzeichnis oder per E-Mail bekommen eine Outlook-Einladung und haben den Termin im eigenen Kalender. Frei/Belegt, Antworten, Teams, Konflikte mit Einsätzen; Termine auch in der Zeitlinie und am Handy. Mitarbeitende können ihren Plan samt Terminen als **Kalender abonnieren** (Outlook, Google, iPhone).
 
-**Schnell und übersichtlich:** Start mit dem Stand im Gerät, SharePoint gebündelt im Hintergrund; Menü in sechs Abschnitten, einklappbar, mit angehefteten Bereichen und „Springen zu …“.
+**Schnell und übersichtlich:** Start mit dem Stand im Gerät, SharePoint gebündelt im Hintergrund; Abgleich alle 20 Sekunden, solange jemand arbeitet, zwischen offenen Fenstern sofort, Speichern beim Wechsel in den Hintergrund; Ansichten zeichnen nur Geändertes neu. Menü in sechs Abschnitten, einklappbar, mit angehefteten Bereichen und „Springen zu …“; **„+ Neu“** und Tastenkürzel (T Termin, A Abwesenheit, Z Zeit, R Reklamation, M Material, F Rechnung, ← → Woche, ? Übersicht).
 
 **KI-Assistent:** schreiben oder sprechen, was zu tun ist („Termin morgen 12 Uhr in Salzburg mit Herrn Maier“, „Elif ist bis Freitag krank, bitte Vertretung organisieren“): schlägt im Plan, bei Personen, Objekten, Lager und Kalender nach, legt Outlook-Termine an, trägt Abwesenheiten ein, verteilt Vertretungen, teilt ein, erfasst Reklamationen, fordert Material an, schreibt E-Mails. Jede Änderung erst nach „Ausführen“, mit den Rechten der Person. Claude-API über `ki.php` (Schlüssel nur am Webspace), Tageslimits und Kostenanzeige.
 

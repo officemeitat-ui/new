@@ -20,10 +20,12 @@ import { sidebar } from './sidebar.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { syncTools, toolUrls, warmLastTool } from './views/tools.js'
 import { searchButton } from './search.js'
+import { quickButton } from './quick.js'
 import { assistantButton } from './assistant.js'
 import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
 import { startWeather } from './weather.js'
+import { agoText, startSync, syncState } from './sync.js'
 import { download, esc, ICON } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
@@ -114,6 +116,7 @@ function topbar(c) {
     <div class="page-head">${head}</div>
     <div class="actions">
       ${view?.actions ? view.actions(c) : ''}
+      ${quickButton()}
       ${searchButton()}
       ${assistantButton()}
       ${bellButton()}
@@ -130,7 +133,8 @@ function sidebarFoot() {
     ? `<div class="sb-user"><span class="user">${ICON.user} <span>${esc(app.user.name)}</span></span>${role ? `<small>${esc(role)}</small>` : ''}</div>`
     : roleSwitch()
   const status = saveStatusText(app.service.status)
-  return `<div class="sb-status"><span id="save-status" class="save-status" title="${esc(status.replace(/<[^>]+>/g, ''))}">${status}</span></div>
+  const canSync = app.store?.kind === 'sharepoint' || app.config?.storage === 'local'
+  return `<div class="sb-status"><span id="save-status" class="save-status" title="${esc(status.replace(/<[^>]+>/g, ''))}">${status}</span>${canSync ? `<button class="sb-sync" data-action="sync-now" title="${esc(syncTitle())}" aria-label="Jetzt abgleichen">${ICON.refresh}</button>` : ''}</div>
     <div class="sb-account">${who}</div>
     <div class="sb-tools">${themeButton()}${app.signOut ? `<button class="btn small" data-action="sign-out" title="Abmelden">Abmelden</button>` : ''}</div>`
 }
@@ -204,9 +208,28 @@ setFrame({
   },
 })
 
+// ---------------------------------------------------------------- Abgleich
+
+const syncTitle = () => `Jetzt mit ${app.store?.kind === 'sharepoint' ? 'SharePoint' : 'der Ablage'} abgleichen · zuletzt ${agoText(syncState.lastAt)}${syncState.error ? ` · Fehler: ${syncState.error}` : ''}`
+function updateSyncTitle() {
+  const btn = document.querySelector('.sb-sync')
+  if (btn) {
+    btn.title = syncTitle()
+    btn.classList.toggle('spinning', syncState.running)
+  }
+}
+setInterval(updateSyncTitle, 15e3)
+
 // ---------------------------------------------------------------- Aktionen
 
 Object.assign(ACTIONS, {
+  'sync-now': async () => {
+    document.querySelector('.sb-sync')?.classList.add('spinning')
+    await app.service.flushNow?.()
+    await app.sync?.sync()
+    updateSyncTitle()
+    toast(syncState.error ? `Abgleich nicht möglich: ${syncState.error}` : `Abgeglichen ${new Date().toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`)
+  },
   nav: (el) => {
     app.ui.monday = addDays(app.ui.monday, Number(el.dataset.delta))
     app.ui.month = null
@@ -391,6 +414,7 @@ async function boot() {
       }
       if (status === 'error') toast(`Speichern fehlgeschlagen: ${detail}`)
     },
+    onSaved: (paths) => app.sync?.saved(paths),
     onRemoteChange: (kind, changed) => {
       app.dataVersion = (app.dataVersion || 0) + 1
       clearUndo()
@@ -417,7 +441,8 @@ async function boot() {
     await seedDemoHistory()
     renderNow()
   }
-  await showTodoIfNew()
+  // „Zu erledigen“ lädt Wochen und rechnet: nicht den Start aufhalten
+  setTimeout(() => showTodoIfNew().catch(() => {}), 60)
   // Wetter (Winterdienst, Hitze, Sturm) im Hintergrund laden
   startWeather()
   // zuletzt benutztes Werkzeug (z. B. Wasserzähler) schon vorladen, damit es beim Öffnen bereit ist
@@ -427,16 +452,9 @@ async function boot() {
     toast(`${app.service.restored} ${app.service.restored === 1 ? 'Änderung' : 'Änderungen'} aus der Zeit ohne Netz übernommen, wird gespeichert.`)
     app.service.refresh().catch(() => {})
   }
-  const sync = () => {
-    app.service.refresh().catch(() => {})
-  }
-  const every = (config.storage === 'sharepoint' ? config.sharepoint.refreshSeconds || 60 : 30) * 1000
-  setInterval(sync, every)
-  // Zurück in der App (Handy entsperrt, Tab gewechselt) oder wieder Netz: sofort abgleichen
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') sync()
-  })
-  window.addEventListener('online', sync)
+  // Abgleich: schnell, solange jemand arbeitet; sofort beim Zurückkommen und zwischen Fenstern (sync.js)
+  const sp = config.storage === 'sharepoint' ? config.sharepoint || {} : {}
+  app.sync = startSync({ service: app.service, fastSeconds: sp.fastSeconds || (config.storage === 'sharepoint' ? 20 : 15), idleSeconds: sp.refreshSeconds || (config.storage === 'sharepoint' ? 60 : 30), onChange: () => updateSyncTitle() })
   // Lesezeichen/Link mit #ansicht im laufenden Fenster
   window.addEventListener('hashchange', () => {
     const view = viewFromHash(location.hash)

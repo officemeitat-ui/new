@@ -9,6 +9,7 @@ import { buildInstances, PlanState } from '../core/plan.js'
 import { mondaysBetween } from '../core/reports.js'
 import { createContext, validatePlan } from '../core/rules.js'
 import { buildTimesheet, timesheetSignature } from '../core/timesheet.js'
+import { patch } from './morph.js'
 import { esc } from './shared.js'
 
 export const app = {
@@ -292,17 +293,33 @@ function prefetchNeighbours() {
   }, 400)
 }
 
+// Ergebnisse, die nur von den Daten abhängen (z. B. Vorschläge je Einsatz), je Berechnung merken:
+// compute() liefert dasselbe Objekt, bis sich Daten ändern; danach wird neu gerechnet.
+const memos = new WeakMap()
+export function memo(c, key, fn) {
+  if (!c || typeof c !== 'object') return fn()
+  let m = memos.get(c)
+  if (!m) memos.set(c, (m = new Map()))
+  if (!m.has(key)) m.set(key, fn())
+  return m.get(key)
+}
+
+let lastView = null
 export function renderNow() {
   const $app = document.getElementById('app')
   const scroller = document.querySelector('.grid-wrap, .sheet-wrap')
   const scrollLeft = scroller?.scrollLeft || 0
   app.cur = compute()
-  $app.innerHTML = renderHooks.frame(app.cur)
+  // gleiche Ansicht: nur Geändertes anpassen (schneller, Scrollen und Eingaben bleiben); andere Ansicht: ersetzen
+  const view = `${app.ui.view}|${isMobileLayout()}`
+  patch($app, renderHooks.frame(app.cur), { replace: view !== lastView })
+  lastView = view
   const next = document.querySelector('.grid-wrap, .sheet-wrap')
-  if (next) next.scrollLeft = scrollLeft
+  if (next && next.scrollLeft !== scrollLeft) next.scrollLeft = scrollLeft
   renderModal()
   renderHooks.afterRender(app.cur)
 }
+const isMobileLayout = () => (typeof document !== 'undefined' && document.body.classList.contains('mobile') ? 1 : 0)
 
 const MODAL_HOOKS = []
 /** Nach jedem Zeichnen eines Dialogs (z. B. Unterschriftsfelder füllen). */

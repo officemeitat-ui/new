@@ -3,6 +3,7 @@
 // Suchen in den Werkzeugen (Zählstellen, Kontrollen, Akten) geht dort selbst.
 
 import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, sectionLabel, sectionOf, visibleViews } from './context.js'
+import { quickResults } from './quick.js'
 import { esc, ICON, modalFrame } from './shared.js'
 
 // weitere Suchwörter je Ansicht (so wie man sie im Büro nennt)
@@ -40,6 +41,8 @@ function results(q) {
   if (!n) return []
   const hit = (...texts) => texts.some((t) => norm(t).includes(n))
   const out = []
+  // Befehle zuerst: „termin“ → Neuer Termin, „urlaub“ → Abwesenheit eintragen
+  out.push(...quickResults(hit))
   for (const v of visibleViews()) if (hit(v.label, v.text, KEYWORDS[v.id], sectionLabel(sectionOf(v)))) out.push({ group: 'Ansicht', label: v.label, sub: sectionLabel(sectionOf(v)), action: 'view', data: { view: v.id } })
   if (sees('planung') || sees('stammdaten'))
     for (const e of app.data.employees) if (hit(e.name, e.personnelNo, e.team)) out.push({ group: 'Mitarbeitende', label: e.name, sub: [e.personnelNo, e.team].filter(Boolean).join(' · '), action: sees('planung') ? 'open-person' : 'emp-edit', data: sees('planung') ? { emp: e.id } : { id: e.id } })

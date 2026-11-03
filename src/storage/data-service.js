@@ -256,7 +256,8 @@ export class DataService {
    * blank:   Grunddaten (leere Listen, Regeln) für Personen ohne Zugriff auf die Stammdaten.
    * session: Kennung dieses Fensters (ungespeicherte Änderungen anderer Fenster bleiben unberührt).
    */
-  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null, rights = null, blank = () => ({}), session = Math.random().toString(36).slice(2), quickStart = false } = {}) {
+  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null, rights = null, blank = () => ({}), session = Math.random().toString(36).slice(2), quickStart = false, onSaved = () => {} } = {}) {
+    this.onSaved = onSaved // nach erfolgreichem Speichern: Pfade (z. B. andere Fenster benachrichtigen)
     this.quickStart = quickStart // Start mit dem Stand im Gerät, Abgleich im Hintergrund (SharePoint)
     this.store = store
     this.local = local // Gerätespeicher für ungespeicherte Änderungen (offline.js)
@@ -522,7 +523,7 @@ export class DataService {
    * Abgleich nach dem Schnellstart bzw. nach Wochen aus dem Gerät: SharePoint lesen und Neueres
    * übernehmen. Wurde hier inzwischen geändert, wird zusammengeführt und gespeichert.
    */
-  async #revalidate(paths, { verify = false } = {}) {
+  async #revalidate(paths, { verify = false, fromDevice = false } = {}) {
     if (verify && this.store.verified) {
       try {
         await this.store.verified
@@ -532,7 +533,7 @@ export class DataService {
       }
     }
     const before = new Map(paths.map((p) => [p, this.etags.get(p)]))
-    const docs = await this.#readAll(paths)
+    const docs = fromDevice ? await Promise.all(paths.map(async (p) => (await this.store.cached(p)) ?? undefined)) : await this.#readAll(paths)
     const changed = []
     let merged = false
     for (const [i, path] of paths.entries()) {
@@ -733,6 +734,33 @@ export class DataService {
     clearTimeout(this.timer)
     this.#setStatus('pending')
     this.timer = setTimeout(() => this.flush().catch(() => {}), this.debounceMs)
+    // Änderungen gleich im Gerät sichern: wird die App vor dem Speichern geschlossen (Handy: App gewechselt),
+    // holt der nächste Start sie nach
+    if (this.local && !this.pendingTimer)
+      this.pendingTimer = setTimeout(() => {
+        this.pendingTimer = null
+        if (!this.timer || this.saving) return
+        this.#savePending(this.#dirty().map(([path, doc]) => [path, clone(doc)])).catch(() => {})
+      }, 250)
+  }
+
+  /** Sofort speichern (z. B. wenn die App in den Hintergrund geht). */
+  flushNow() {
+    if (!this.timer && !this.hasPendingChanges()) return Promise.resolve()
+    return this.flush().catch(() => {})
+  }
+
+  /**
+   * Stand aus dem Gerät übernehmen, den ein anderes Fenster gerade gespeichert hat (gleicher Browser):
+   * ohne Anfrage an SharePoint. Hier Ungespeichertes wird zusammengeführt.
+   */
+  async adoptSaved(paths) {
+    if (!this.data) return []
+    if (!this.store.cached) return this.refresh() // Browser-Ablage: gemeinsamer Speicher, normal abgleichen
+    // Wochen nur, wenn sie hier geladen sind; sonst jede Datei, die diese Rolle liest (auch neu angelegte)
+    const known = paths.filter((p) => (isWeekPath(p) ? this.weeks.has(p.split('/').pop().replace('.json', '')) : this.rights.read(p) && !this.denied.has(p)))
+    if (!known.length) return []
+    return this.#revalidate(known, { fromDevice: true })
   }
 
   hasPendingChanges() {
@@ -764,23 +792,36 @@ export class DataService {
     this.#setStatus('saving')
     await this.#savePending(snaps)
     let merged = false
+    let offline = false
     const errors = []
-    for (const [path, doc] of snaps) {
+    const saved = []
+    const saveOne = async ([path, doc]) => {
       // Stammdaten ohne Objekte erst, wenn objekte/objekte.json sicher liegt
-      if (path === DOC.master && this.mustWrite.has(DOC.objects)) continue
+      if (offline || (path === DOC.master && this.mustWrite.has(DOC.objects))) return
       try {
         merged = (await this.#save(path, doc)) || merged
         await this.#dropPending(path)
+        saved.push(path)
       } catch (err) {
         if (isNetworkError(err)) {
           // ohne Netz: Änderungen bleiben im Gerät, gespeichert wird beim nächsten Versuch
-          this.#setStatus('offline', String(this.pendingCount()))
+          offline = true
           return
         }
         // eine Datei, die nicht geht, hält die anderen nicht auf
         this.failed.set(path, err.message)
         errors.push(err)
       }
+    }
+    // Neues (Umzug, Objekte) der Reihe nach, der Rest gleichzeitig (höchstens 4 auf einmal)
+    const ordered = snaps.filter(([path]) => this.mustWrite.has(path))
+    const rest = snaps.filter(([path]) => !this.mustWrite.has(path))
+    for (const snap of ordered) await saveOne(snap)
+    for (let i = 0; i < rest.length; i += 4) await Promise.all(rest.slice(i, i + 4).map(saveOne))
+    if (saved.length) this.onSaved(saved)
+    if (offline) {
+      this.#setStatus('offline', String(this.pendingCount()))
+      return
     }
     if (errors.length) {
       this.#setStatus('error', errors[0].message)

@@ -10,3 +10,4 @@ pakete/
 
 # Arbeitskopien paralleler Arbeit (nicht ins Repository)
 .claude/worktrees/
+dist-messung/

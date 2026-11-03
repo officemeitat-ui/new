@@ -1399,3 +1399,23 @@ tr.muted td { color: var(--muted); }
 .tc-actions { white-space: nowrap; text-align: right; }
 .tc-month tfoot th { border-top: 2px solid var(--line-strong, var(--line)); }
 #tool-host:fullscreen { border-radius: 0; border: 0; }
+.sb-status { display: flex; align-items: flex-start; gap: 6px; }
+.sb-status .save-status { flex: 1 1 auto; min-width: 0; }
+.sb-sync { flex: none; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--sb-muted); cursor: pointer; }
+.sb-sync:hover { background: var(--sb-hover); color: var(--sb-fg); }
+.sb-sync svg { width: 14px; height: 14px; }
+.sb-sync.spinning svg { animation: sb-spin 0.9s linear infinite; }
+@keyframes sb-spin { to { transform: rotate(360deg); } }
+@media (min-width: 701px) and (max-width: 1180px) { .sb-status { flex-direction: column; align-items: center; } }
+
+/* Schnellfunktionen */
+.quick-wrap > summary { display: inline-flex; align-items: center; gap: 4px; }
+.quick-wrap .menu { right: auto; left: 0; min-width: 260px; }
+.quick-wrap .menu .btn { display: flex; justify-content: space-between; gap: 12px; border-color: transparent; background: none; }
+.quick-wrap .menu .btn:hover, .quick-wrap .menu .btn:focus-visible { background: var(--surface-2); }
+.menu kbd, .quick-item kbd, .keys-table kbd { font: inherit; font-size: 0.72rem; padding: 0 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--muted); background: var(--surface-2); }
+.muted-btn { color: var(--muted); }
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quick-item { display: flex; justify-content: space-between; align-items: center; }
+.keys-table td:first-child { width: 9rem; white-space: nowrap; }
+@media (max-width: 1180px) { .quick-label { display: none; } }

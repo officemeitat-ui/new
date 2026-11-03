@@ -3,13 +3,13 @@
 
 import { formatDate } from '../../core/dates.js'
 import { rankCandidates } from '../../core/scheduler.js'
-import { app, empName, mutateAssignments, registerActions, registerView, toast } from '../context.js'
+import { app, empName, memo, mutateAssignments, registerActions, registerView, toast } from '../context.js'
 import { planWeek } from '../planning.js'
 import { byStart, esc, ICON, objectOf, reasonsHtml } from '../shared.js'
 
 function suggestion(c, inst) {
-  const best = rankCandidates(c.ctx, c.state, inst).find((x) => x.allowed)
-  return best || null
+  // je Berechnung einmal: weitere Zeichnungen ohne Datenänderung kosten nichts
+  return memo(c, `cover:${inst.key}`, () => rankCandidates(c.ctx, c.state, inst).find((x) => x.allowed) || null)
 }
 
 function row(c, inst, reason, absentId = null) {

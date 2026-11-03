@@ -509,3 +509,55 @@ test('Schnellstart: erst nach einem normalen Start und nur mit Kernliste im Ger�
   await s3.verified
   assert.ok(g.calls.some((c) => c.includes('/sites/')), 'Nachprüfung im Hintergrund')
 })
+
+test('Abgleich: anderes Fenster übernimmt Gespeichertes aus dem Gerät, ohne SharePoint zu fragen', async () => {
+  const { CachedDocStore, memoryCache } = await import('../src/storage/offline.js')
+  const g = fakeGraph()
+  const make = () => new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  const cache = memoryCache()
+  const saved = []
+  const a = new DataService(new CachedDocStore(make(), cache), { debounceMs: 0, local: cache, onSaved: (p) => saved.push(...p) })
+  await a.store.init()
+  await a.load(seed)
+  const b = new DataService(new CachedDocStore(make(), cache), { debounceMs: 0, local: cache })
+  await b.store.init()
+  await b.load(seed)
+  // A ändert zwei Dateien: gleichzeitig gespeichert, onSaved meldet beide
+  saved.length = 0
+  a.data.employees[1].name = 'Markus Neu'
+  a.data.absences.push({ id: 'x1', employeeId: 'e1', type: 'Urlaub', from: '2026-11-02', to: '2026-11-03' })
+  await a.flush()
+  assert.deepEqual(saved.sort(), [DOC.absences, DOC.master].sort())
+  // B hat inzwischen selbst etwas geändert (ungespeichert)
+  b.data.employees[0].name = 'Ana B'
+  g.calls.length = 0
+  const changed = await b.adoptSaved(saved)
+  assert.equal(g.calls.length, 0, 'keine Anfrage an SharePoint')
+  assert.deepEqual(changed.map((c) => c.path).sort(), [DOC.absences, DOC.master].sort())
+  assert.deepEqual(b.data.employees.map((e) => e.name), ['Ana B', 'Markus Neu'], 'zusammengeführt')
+  assert.equal(b.data.absences.length, 1)
+  await b.flush()
+  const check = new DataService(make(), { debounceMs: 0 })
+  await check.store.init()
+  await check.load(seed)
+  assert.deepEqual(check.data.employees.map((e) => e.name), ['Ana B', 'Markus Neu'])
+})
+
+test('Abgleich: Änderung wird gleich im Gerät gesichert (App vor dem Speichern geschlossen)', async () => {
+  const { memoryCache } = await import('../src/storage/offline.js')
+  const cache = memoryCache()
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  const a = new DataService(store, { debounceMs: 5000, local: cache })
+  await a.load(seed)
+  a.data.employees[0].name = 'Ana geändert'
+  a.schedule()
+  await new Promise((r) => setTimeout(r, 400))
+  const pending = await cache.all('pending')
+  assert.ok(pending.some(([path, p]) => path === DOC.master && p.doc.employees[0].name === 'Ana geändert'))
+  clearTimeout(a.timer)
+  // „neu gestartet“: holt die Änderung nach
+  const b = new DataService(store, { debounceMs: 0, local: cache })
+  await b.load(seed)
+  assert.equal(b.data.employees[0].name, 'Ana geändert')
+  assert.equal(b.restored, 1)
+})

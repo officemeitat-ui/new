@@ -10,11 +10,34 @@ import { weeklyHoursAt } from './contract.js'
 import { buildInstances, PlanState } from './plan.js'
 import { evaluateEmployee, fitsWindow } from './rules.js'
 
+// Ergebnisse der Probe je (Leistung, Person, ihre Stammeinsätze, Objekte, Regeln): bleiben gültig, bis sich
+// eines davon ändert. Spart beim Zeichnen der Zuweisung fast die ganze Rechenzeit.
+const probeCache = new Map()
+const rulesKey = new WeakMap()
+const keyOfRules = (rules) => {
+  if (!rules || typeof rules !== 'object') return ''
+  if (!rulesKey.has(rules)) rulesKey.set(rules, JSON.stringify(rules))
+  return rulesKey.get(rules)
+}
+
 /** Probe: 6 Wochen mit allen Stammeinsätzen + der neuen Leistung einplanen und mit den Prüfregeln bewerten. */
 function probeErrors(ctx, task, emp, mine) {
+  const others = mine.tasks.filter((t) => t.id !== task.id)
+  const objectIds = [...new Set([task.objectId, ...others.map((t) => t.objectId)])]
+  // nur die beteiligten Objekte (sonst rechnet jede Probe die Müllpläne aller Objekte)
+  const objects = objectIds.map((id) => ctx.objectsById.get(id)).filter(Boolean)
+  const key = JSON.stringify([task, emp, others, objects]) + keyOfRules(ctx.rules)
+  if (probeCache.has(key)) return probeCache.get(key)
+  const res = probeUncached(ctx, task, emp, others, objects)
+  if (probeCache.size > 20000) probeCache.clear()
+  probeCache.set(key, res)
+  return res
+}
+
+function probeUncached(ctx, task, emp, others, objects) {
   const from = mondayOf(task.recurrence.anchor || task.recurrence.date || '2026-01-05')
-  const tasks = [...mine.tasks.filter((t) => t.id !== task.id), task].map((t) => ({ ...t, regulars: [emp.id] }))
-  const insts = buildInstances({ objects: [...ctx.objectsById.values()], tasks }, from, addDays(from, 41), new Map(), ctx.rules)
+  const tasks = [...others, task].map((t) => ({ ...t, regulars: [emp.id] }))
+  const insts = buildInstances({ objects, tasks }, from, addDays(from, 41), new Map(), ctx.rules)
   const st = new PlanState(insts, Object.fromEntries(insts.map((i) => [i.key, [{ employeeId: emp.id }]])))
   const own = new Set(insts.filter((i) => i.taskId === task.id).map((i) => i.key))
   const out = new Set()
@@ -124,11 +147,12 @@ export function evaluateRegular(ctx, task, emp, { tasks, load } = {}) {
     const ne = toMinutes(r.minor.nightEnd)
     if (span.end > ns || span.start < ne) blockers.push(`unter 18: Nachtruhe ${r.minor.nightStart}–${r.minor.nightEnd}`)
   }
-  if (task.recurrence.type !== 'once') for (const m of probeErrors(ctx, task, emp, mine)) if (!blockers.includes(m)) blockers.push(m)
   for (const c of conflictsWith(ctx, task, mine.tasks)) {
     const o = ctx.objectsById.get(c.task.objectId)
     blockers.push(c.kind === 'overlap' ? `überschneidet sich mit ${o?.short || o?.name || ''} ${c.days.map((d) => WEEKDAY_SHORT[d - 1]).join(', ')} ${c.task.start}–${c.task.end}` : `Fahrzeit ${c.travel} min zu ${o?.short || o?.name || ''} reicht nicht`)
   }
+  // die teure Probe (6 Wochen einplanen) nur, wenn nichts anderes dagegen spricht
+  if (!blockers.length && task.recurrence.type !== 'once') for (const m of probeErrors(ctx, task, emp, mine)) if (!blockers.includes(m)) blockers.push(m)
 
   // Auslastung: freie Vertragsstunden zuerst
   const minutes = weeklyMinutes(task, r)

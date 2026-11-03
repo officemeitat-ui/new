@@ -383,6 +383,23 @@ Ein Tag, je Person eine Zeile: Einsätze in Objektfarbe, geplante Fahrten (rot, 
 - Das zuletzt benutzte Werkzeug (z. B. Wasserzähler) lädt nach dem Start unsichtbar vor, damit es beim Öffnen schon seine Daten hat (nicht bei „Daten sparen“ am Handy).
 - Der allererste Start auf einem Gerät lädt alles aus SharePoint (danach geht es schnell). Abschalten: `"sharepoint": { "quickStart": false }` in `config.production.json`.
 
+**Abgleich mit SharePoint**
+
+- **Takt:** Solange jemand arbeitet (Tippen, Klicken in den letzten 2 Minuten), alle **20 Sekunden**; sonst alle 60 Sekunden; im Hintergrund (anderer Tab, Handy gesperrt) gar nicht. Beim Zurückkommen und wenn das Netz wiederkommt sofort. Einstellbar mit `sharepoint.fastSeconds` und `sharepoint.refreshSeconds`.
+- **Ein Abgleich** fragt alle offenen Dateien mit einer Anfrage je 20 Dateien ab (nur die Kennungen) und lädt nur, was sich geändert hat. Hat hier jemand gleichzeitig etwas geändert, wird zusammengeführt.
+- **Mehrere Fenster** im selben Browser (z. B. Wochenübersicht und Termine nebeneinander): Speichert eines, haben die anderen den Stand nach etwa einer Sekunde, direkt aus dem Gerät, ohne Anfrage an SharePoint.
+- **Speichern:** kurz nach der letzten Änderung, mehrere Dateien gleichzeitig. Jede Änderung liegt nach einer Viertelsekunde auch im Gerät; wird die App in den Hintergrund geschickt (Handy: App gewechselt) oder geschlossen, speichert sie sofort. Geht das nicht mehr, holt der nächste Start die Änderung nach.
+- **Jetzt abgleichen:** der Pfeil neben dem Speicherstand unten links (am Handy: Mehr → Konto & Daten); der Tooltip sagt, wann zuletzt abgeglichen wurde.
+
+**Rechenzeit:** Die Ansichten werden nur dort neu gezeichnet, wo sich etwas geändert hat (Scrollposition und angefangene Eingaben bleiben stehen). Vorschläge für Vertretungen und die Zuweisung werden je Datenstand einmal gerechnet und gemerkt; die Zuweisung braucht dadurch statt rund 30 Sekunden (Handy) nur noch einen Bruchteil einer Sekunde. „Zu erledigen“ wird nach dem Start im Hintergrund berechnet und hält den Start nicht mehr auf.
+
+## Schnellfunktionen und Tastenkürzel
+
+- **„+ Neu“** in der Kopfleiste (Taste **N**): Termin (**T**), Abwesenheit (**A**), Zeit nachtragen (**Z**), Reklamation (**R**), Material anfordern (**M**), Rechnung (**F**), Angebot, Leistung im Reinigungsplan, KI-Assistent (**K**). Es erscheint nur, was die eigene Rolle darf. Am Handy: Mehr → „Neu anlegen …“.
+- **Springen zu …** (Strg+K oder **/**) findet auch Befehle: „urlaub“ → Abwesenheit eintragen, „rechnung“ → Rechnung schreiben, „termin“ → Termin.
+- **← / →** blättert die Woche, **H** springt zur aktuellen Woche, **?** zeigt alle Kürzel. Beim Tippen in einem Feld lösen die Tasten nichts aus.
+
+
 ## Menü
 
 Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Zeitlinie, Termine, Vertretungen, Abwesenheiten, Objektplan, Prüfbericht), **Einsätze & Zeiten** (Zeiterfassung, Wochenzettel, periodische Leistungen, Müllplan, Wetter & Winterdienst), **Objekte & Kunden** (Reklamationen, Leistungsnachweis, Schlüsselbuch, Werkzeuge), **Material & Fuhrpark**, **Finanzen** (Fakturierung, Kalkulation, Controlling, Monatsauswertung, Überstunden) und **Verwaltung** (Mitarbeitende, Objekte & Leistungen, Zuweisung, Unterweisungen, Regeln, Berechtigungen, Systemcheck).
