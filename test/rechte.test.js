@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', fakturierung: '', exporte: '' })
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
   assert.ok(dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true })).write(MODULE_DOCS.unterweisungen.path) && !om.read(MODULE_DOCS.unterweisungen.path))
   // Schlüsselbuch: Objektmanagement bearbeitet, Vorarbeiter sieht es nicht
@@ -94,6 +94,13 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   assert.ok(lager.read(MODULE_DOCS.material.path) && lager.write(MODULE_DOCS.material.path))
   assert.ok(lager.read(DOC.objects) && lager.read(DOC.master) && !lager.write(DOC.master))
   for (const p of [DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.kalkulation.path, MODULE_DOCS.reklamationen.path]) assert.ok(!lager.read(p), p)
+  // Fakturierung: nur Buchhaltung (und Vollzugriff); Buchhaltung liest dazu nur die Objekte
+  const fak = dataRights(resolveAccess({ roleClaims: ['Dienstplan.Buchhaltung'], access, strict: true }))
+  assert.ok(fak.read(MODULE_DOCS.fakturierung.path) && fak.write(MODULE_DOCS.fakturierung.path))
+  assert.ok(fak.read(DOC.objects) && !fak.write(DOC.objects))
+  for (const p of [DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.kalkulation.path, MODULE_DOCS.material.path]) assert.ok(!fak.read(p), p)
+  for (const r of [om, va, lager]) assert.ok(!r.read(MODULE_DOCS.fakturierung.path))
+  assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).fakturierung, 'Bearbeiten')
   // Reklamationen: Objektmanagement bearbeitet, Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.reklamationen.path) && om.write(MODULE_DOCS.reklamationen.path))
   assert.ok(!va.read(MODULE_DOCS.reklamationen.path))

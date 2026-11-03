@@ -14,6 +14,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | **Objektdoku** | Werkzeug Objektdokumentation (Leistungsverzeichnis) | Objektmanagement |
 | **Mattenwechsel** | Werkzeug Mattenwechsel | Disposition, Gruppe Mattenwechsel |
 | **Fahrzeuge & Reifen** | Reifenwechsel, Service, Pickerl | Disposition, Fuhrpark |
+| **Fakturierung** | Angebote, Rechnungen, Daueraufträge, offene Posten, Mahnungen | Disposition, Buchhaltung |
 
 ## Rollen
 
@@ -30,6 +31,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | `ableser` | Wasserzähler | Wasserzähler |
 | `pruefer` – Prüfer/in | Objektkontrolle, Objektdoku | Objektkontrolle |
 | `fuhrpark` – Fuhrpark | Fahrzeuge & Reifen | Fahrzeuge & Reifen |
+| `buchhaltung` – Buchhaltung | Fakturierung (dazu nur die Objektliste) | Fakturierung |
 | `lesen` | Dienstplan | nichts |
 
 - Mehrere Rollen addieren sich (z. B. Objektmanagement und Vorarbeiter).
@@ -106,6 +108,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `schluessel/` | Schlüsselbuch (wer hat welchen Schlüssel, Verlauf, Unterschriften) | Bearbeiten | Bearbeiten | – |
 | `nachweise/` | Leistungsnachweis: Einstellungen und Versand-Vermerke | Bearbeiten | Bearbeiten | – |
 | `unterweisungen/` | Unterweisungen & Fristen je Person (mit Unterschriften) | Bearbeiten | – | – |
+| `fakturierung/` | Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen; PDFs unter `fakturierung/belege/` | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
@@ -307,6 +310,25 @@ Unter *Stammdaten* (Modul „Unterweisungen & Fristen“; Vollzugriff und Objekt
 - **Unterweisung durchführen:** Art, Datum, Ort, wer unterweist, Inhalt; vorausgewählt sind alle mit Bedarf (abgelaufen, fehlt, läuft bald ab). Wahlweise **Unterschrift jeder Person am Tablet**; der **Nachweis als PDF** (Teilnehmerliste mit Unterschriften bzw. leeren Feldern zum Unterschreiben) lässt sich jederzeit wieder erstellen.
 - **Im Plan:** abgelaufener Aufenthaltstitel = Fehler (nicht einteilen), abgelaufene Führerscheinkontrolle = Warnung bei Einsätzen mit Qualifikation „Führerschein“. Fehlende Einträge meldet nur „Zu erledigen“ (je Art gesammelt, sperrende Dokumente je Person schon 30 Tage vorher).
 - Gesetzliche Grundlagen und offene Punkte: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md).
+
+## Fakturierung
+
+Eigenes Modul unter *Auswertung* (Rolle `buchhaltung` oder Vollzugriff), gespeichert in `fakturierung/fakturierung.json`, die PDFs in `fakturierung/belege/JAHR/`. Wie bei orgamax oder FreeFinance, abgestimmt auf die Gebäudereinigung:
+
+- **Kunden** (Rechnungsempfänger, oft die Hausverwaltung) mit Kundennummer, Anschrift, UID, E-Mail, Zahlungsziel, Stundensatz, Debitorenkonto und den **Objekten**, die zu ihnen gehören. „Kunden aus Objekten anlegen“ übernimmt Name, Adresse und die E-Mail des Leistungsnachweises. **Reverse Charge** je Kunde (siehe unten), **Verbraucher** für private Auftraggeber.
+- **Artikel** als Vorlagen für Positionen (übliche Leistungen auf Knopfdruck, ohne Preise).
+- **Angebot → Auftragsbestätigung → Rechnung** mit einem Klick; Positionen mit Menge, Einheit, Einzelpreis, Positionsrabatt und USt-Satz (20, 13, 10, 0 %), Rabatt auf alles, Leistungszeitraum, Fälligkeit nach Zahlungsziel. „Preis aus Kalkulation“ setzt den Monatspreis aus der Objektkalkulation ein (wer die Kalkulation sehen darf).
+- **Pflichtangaben** werden vor dem Festschreiben geprüft (§ 11 UStG): Absender mit UID, Empfänger mit Anschrift, Leistungszeitraum, Positionen; über 10.000 € brutto die UID des Empfängers; bis 400 € brutto genügt eine **Kleinbetragsrechnung**.
+- **Festschreiben** vergibt die nächste **fortlaufende Nummer** je Belegart und Jahr (`RE-2026-0001`, Storno `ST-…`, Korrektur `KO-…`, Angebot `AN-…`, Auftrag `AB-…`; Kürzel, Stellen und eine Startnummer beim Umstieg einstellbar). Danach ist der Beleg **unveränderlich** (Prüfsumme; eine nachträgliche Änderung in der Datei wird angezeigt). Korrigiert wird mit **Stornorechnung** (ganzer Beleg mit umgekehrtem Vorzeichen, mit Grund) oder **Rechnungskorrektur** (z. B. Preisminderung nach Reklamation), jeweils ein eigener Beleg mit Bezug.
+- **Gleichzeitig festgeschrieben:** Die App holt vor der Nummernvergabe den Stand der anderen und speichert gleich danach. Haben trotzdem zwei Personen im selben Moment dieselbe Nummer vergeben, bekommt der spätere, noch nicht versendete Beleg beim nächsten Öffnen die nächste freie Nummer (mit Vermerk im Verlauf). Sind beide schon versendet, meldet „Zu erledigen“ das zum Stornieren.
+- **Daueraufträge** je Kunde und Objekt (monatlich, quartalsweise, halbjährlich, jährlich, mit Laufzeit). Der **Monatslauf** erstellt die Rechnungsentwürfe des Monats, nie doppelt. **Wertsicherung** nach VPI: Indexzahlen monatlich eintragen (Statistik Austria); ab der Schwelle (z. B. 3 %) passt der Lauf die Preise um die ganze Veränderung an, vermerkt das auf der Rechnung, und der neue Wert wird die Basis (wahlweise nur Erhöhungen).
+- **Aus dem Leistungsnachweis:** je Objekt ein Entwurf für den Monat, regelmäßige Einsätze als Stunden × Stundensatz, Sonderleistungen einzeln mit Datum; Objekte mit Dauerauftrag bekommen nur ihre Sonderleistungen.
+- **Offene Posten:** Zahlungseingang (auch in Teilen), Status offen, überfällig, teilweise bezahlt, bezahlt, storniert. **Mahnwesen** in drei Stufen (Zahlungserinnerung, 1. und 2. Mahnung; Tage und Inhalt einstellbar) mit Verzugszinsen (Unternehmer: Basiszinssatz + 9,2 Prozentpunkte, Verbraucher 4 %) und einmal 40 € Pauschale unter Unternehmern; Mahnung als PDF oder per E-Mail.
+- **PDF** mit Logo, Anschriftfeld für Fensterkuverts, allen Rechnungsmerkmalen, Hinweis bei Reverse Charge bzw. Kleinunternehmer und einem **QR-Code zum Bezahlen** (EPC/Stuzza: Banking-Apps übernehmen Empfänger, IBAN, Betrag und Rechnungsnummer). Entwürfe tragen „ENTWURF“ und keinen QR-Code.
+- **Versand per E-Mail** mit dem PDF im Anhang (Mail.Send, sonst E-Mail-Programm); jeder Versand wird vermerkt, das PDF liegt danach auch in SharePoint.
+- **Export für die Steuerberatung:** CSV je Zeitraum, eine Zeile je Beleg und Steuersatz (Belegnummer, Datum, AR/GU, Debitor, Erlöskonto je Steuersatz bzw. Reverse Charge, Kunde, UID, Steuercode, Netto, Steuer, Brutto, Leistungszeitraum); Konten in den Einstellungen, mit der Steuerberatung abstimmen.
+- **Übersicht:** Umsatz netto je Monat und Kunde, offene und überfällige Summe, fällige Mahnungen und Daueraufträge (auch in „Zu erledigen“); beim Objekt der Rechnungsempfänger und offene Rechnungen.
+- **Reverse Charge** (§ 19 Abs. 1a UStG) gilt für die Reinigung von Bauwerken **nur**, wenn der Auftraggeber selbst üblicherweise Bauleistungen erbringt oder mit der Leistung beauftragt ist (typisch: Subauftrag einer anderen Reinigungs- oder Baufirma). Hausverwaltungen, Büros, Geschäfte: normale Rechnung mit 20 % USt. Rechtliches und offene Punkte: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#fakturierung).
 
 ## KI-Assistent
 

@@ -14,6 +14,7 @@
 //   schluessel/schluessel.json        Schlüsselbuch (Schlüssel je Objekt, Ausgabe, Rückgabe, Verlust)
 //   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
 //   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
+//   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -32,6 +33,7 @@
 // wieder Netz da ist gespeichert.
 
 import { mondayOf } from '../core/dates.js'
+import { emptyInvoicing } from '../core/invoicing.js'
 import { emptyKeys } from '../core/keys.js'
 import { emptyMaterial } from '../core/material.js'
 import { emptyTrainings } from '../core/trainings.js'
@@ -61,6 +63,7 @@ export const MODULE_DOCS = {
   schluessel: { path: 'schluessel/schluessel.json', empty: emptyKeys },
   nachweise: { path: 'nachweise/versand.json', empty: () => ({ sent: {}, settings: {} }) },
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
+  fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -76,7 +79,7 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'fakturierung'), () => edits('stammdaten', 'planung')],
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
@@ -92,6 +95,8 @@ export function dataRights(access) {
     [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
     // Löhne und Margen: nur Auswertung & Lohn
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
+    // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
+    [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -111,6 +116,7 @@ export const FOLDERS = [
   ['nachweise', 'Leistungsnachweis: Versand-Vermerke', MODULE_DOCS.nachweise.path],
   ['unterweisungen', 'Unterweisungen & Fristen je Person', MODULE_DOCS.unterweisungen.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
+  ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
 ]
 
 /**

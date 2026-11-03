@@ -1125,3 +1125,32 @@ tr.muted td { color: var(--muted); }
 .ai-dots::after { content: '…'; animation: ai-blink 1s steps(3, end) infinite; }
 @keyframes ai-blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
 @media (max-width: 640px) { .ai-msg { max-width: 92%; } .ai-log { max-height: 52vh; } }
+
+/* Fakturierung */
+.fak-tabs { margin: 2px 0 14px; }
+.fak-tabs .flag { margin-left: 4px; }
+.fak-table td:nth-child(5), .fak-table td:nth-child(6) { white-space: nowrap; }
+.fak-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; align-items: end; height: 150px; margin: 6px 0 18px; padding: 8px 10px 0; border: 1px solid var(--line); border-radius: 10px; }
+.fak-bar { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; }
+.fak-bar-fill { width: 100%; max-width: 34px; background: var(--accent, #0c6cb4); border-radius: 4px 4px 0 0; }
+.fak-bar small { font-size: 0.7rem; color: var(--muted); padding-bottom: 4px; }
+.fak-lines textarea { width: 100%; min-width: 14rem; box-sizing: border-box; resize: vertical; font: inherit; }
+.fak-lines input { width: 6.5rem; box-sizing: border-box; text-align: right; }
+.fak-lines select { min-width: 0; }
+.fak-foot-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem); gap: 16px; align-items: start; margin: 10px 0; }
+.fak-sums { width: 100%; border-collapse: collapse; }
+.fak-sums td { padding: 3px 0; }
+.fak-sums td.num { text-align: right; white-space: nowrap; }
+.fak-sums tr.sum td { border-top: 2px solid currentColor; font-weight: 700; font-size: 1.05em; padding-top: 6px; }
+.fak-problems { margin: 6px 0 0; padding-left: 18px; }
+.fak-recipient { margin: 10px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.fak-recipient summary { cursor: pointer; }
+.fak-recipient .form-grid { margin-top: 10px; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 12px; }
+@media (max-width: 700px) {
+  .fak-foot-grid { grid-template-columns: 1fr; }
+  .fak-lines textarea { min-width: 0; }
+  .fak-lines input { width: 100%; }
+  .fak-bars { gap: 3px; padding: 8px 4px 0; }
+  .fak-bar small { font-size: 0.6rem; }
+}
