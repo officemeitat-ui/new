@@ -546,10 +546,12 @@ export function applyAllocation(tx, allocations, docs, { by = '', at = new Date(
   const sum = round2(allocations.reduce((s, a) => s + Number(a.amount || 0), 0))
   if (!allocations.length) throw new Error('Keine Rechnung gewählt.')
   if (Math.abs(cents(sum) - cents(tx.amount)) > 1) throw new Error(`Die Beträge (${fmt(sum)}) ergeben nicht den Eingang (${fmt(tx.amount)}).`)
+  // erst alle Rechnungen suchen, dann buchen: sonst stünde bei einem Fehler schon eine Zahlung ohne zugeordnete Buchung
+  const targets = allocations.map((a) => docs.find((x) => x.id === a.docId))
+  if (targets.some((d) => !d)) throw new Error('Rechnung nicht gefunden.')
   const touched = []
-  for (const a of allocations) {
-    const d = docs.find((x) => x.id === a.docId)
-    if (!d) throw new Error('Rechnung nicht gefunden.')
+  for (const [i, a] of allocations.entries()) {
+    const d = targets[i]
     d.payments = [...(d.payments || []), { id: newId(), date: tx.date, amount: round2(a.amount), note: `Bank${tx.name ? `: ${tx.name}` : ''}`, bank: tx.id, by, at }]
     d.history = [...(d.history || []), { at, by, text: `Zahlung ${fmt(a.amount)} vom ${tx.date.split('-').reverse().join('.')} (Bankabgleich)` }]
     touched.push(d)

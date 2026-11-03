@@ -294,6 +294,8 @@ export function icsData(a) {
     date: dateOf(a.start),
     time: a.allDay ? '' : timeOf(a.start),
     minutes: a.allDay ? 0 : Math.max(5, minutesFrom(dateOf(a.start), a.end) - minutesFrom(dateOf(a.start), a.start)),
+    // ganztägig über mehrere Tage (Ende ist der letzte Tag, einschließlich)
+    days: a.allDay ? Math.round(minutesFrom(dateOf(a.start), `${daysOf(a).to}T00:00`) / 1440) + 1 : 1,
     title: a.title,
     description: a.note || '',
     location: a.location || '',
@@ -309,5 +311,6 @@ export function rruleOf(a) {
   const d = utcDay(dateOf(a.start))
   const by = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d.getUTCDay()]
   const rule = { weekly: `FREQ=WEEKLY;BYDAY=${by}`, biweekly: `FREQ=WEEKLY;INTERVAL=2;BYDAY=${by}`, monthly: `FREQ=MONTHLY;BYMONTHDAY=${d.getUTCDate()}`, monthlyNth: `FREQ=MONTHLY;BYDAY=${nthOf(dateOf(a.start)) === 4 ? -1 : nthOf(dateOf(a.start)) + 1}${by}` }[r.freq]
-  return `${rule}${r.until ? `;UNTIL=${r.until.replace(/-/g, '')}T235959` : r.count ? `;COUNT=${Number(r.count)}` : ''}`
+  // UNTIL hat denselben Werttyp wie DTSTART (RFC 5545): ganztägig ein Datum, sonst Datum mit Uhrzeit
+  return `${rule}${r.until ? `;UNTIL=${r.until.replace(/-/g, '')}${a.allDay ? '' : 'T235959'}` : r.count ? `;COUNT=${Number(r.count)}` : ''}`
 }

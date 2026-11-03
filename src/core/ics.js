@@ -30,9 +30,9 @@ const utcStamp = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, 
 
 /**
  * { uid, date: 'JJJJ-MM-TT', title, description?, location?, remindHours? } → Inhalt der .ics-Datei.
- * Mit time ('07:30') und minutes ein Termin mit Uhrzeit (Ortszeit), sonst ganztägig.
+ * Mit time ('07:30') und minutes ein Termin mit Uhrzeit (Ortszeit), sonst ganztägig (days Tage lang).
  */
-export function icsEvent({ uid, date, time = '', minutes = 60, title, description = '', location = '', remindHours = 15, rrule = '', now = new Date() }) {
+export function icsEvent({ uid, date, time = '', minutes = 60, days = 1, title, description = '', location = '', remindHours = 15, rrule = '', now = new Date() }) {
   const day = (iso) => iso.replace(/-/g, '')
   const at = (iso, min) => {
     const d = addDays(iso, Math.floor(min / 1440))
@@ -49,7 +49,7 @@ export function icsEvent({ uid, date, time = '', minutes = 60, title, descriptio
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${utcStamp(now)}`,
-    ...(time ? [`DTSTART:${at(date, start)}`, `DTEND:${at(date, start + minutes)}`] : [`DTSTART;VALUE=DATE:${day(date)}`, `DTEND;VALUE=DATE:${day(addDays(date, 1))}`]),
+    ...(time ? [`DTSTART:${at(date, start)}`, `DTEND:${at(date, start + minutes)}`] : [`DTSTART;VALUE=DATE:${day(date)}`, `DTEND;VALUE=DATE:${day(addDays(date, Math.max(1, Number(days) || 1)))}`]),
     ...(rrule ? [`RRULE:${rrule}`] : []),
     `SUMMARY:${text(title)}`,
     ...(location ? [`LOCATION:${text(location)}`] : []),
