@@ -17,7 +17,15 @@ export default defineConfig({
     timezoneId: "Europe/Vienna",
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "chromium",
+      dependencies: ["setup"],
+      // Tests start signed in as the seeded admin; anonymous tests reset this themselves.
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/admin.json" },
+    },
+  ],
   // Full stack: mock Claude API, worker and web app. Needs ANTHROPIC_API_KEY (any value) and
   // ANTHROPIC_BASE_URL=http://localhost:4010 in the environment of worker and web.
   webServer: process.env.E2E_BASE_URL

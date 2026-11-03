@@ -126,7 +126,8 @@
     "tabs": {
       "label": "Settings sections",
       "members": "Members",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "branding": "Branding"
     },
     "members": {
       "inviteTitle": "Invite someone",
@@ -159,7 +160,8 @@
         "invitation_revoked": "Invitation revoked",
         "member_added": "Member added",
         "member_removed": "Member removed",
-        "member_role_changed": "Role changed"
+        "member_role_changed": "Role changed",
+        "tenant_branding_changed": "Branding changed"
       },
       "actors": {
         "user": "User",
@@ -167,6 +169,25 @@
         "system": "System",
         "agent": "Agent"
       }
+    },
+    "branding": {
+      "title": "Branding",
+      "description": "Your company colour for {product}. We derive a light and dark palette from it that meets the accessibility contrast rules (WCAG).",
+      "color": "Company colour",
+      "colorPicker": "Pick a colour",
+      "presets": "Suggestions",
+      "previewLight": "Light preview",
+      "previewDark": "Dark preview",
+      "adjusted": "For good readability we use {color} instead of the chosen colour.",
+      "contrastOk": "Button contrast: {ratio}:1 – easy to read.",
+      "invalid": "Please enter a colour in the format #RRGGBB.",
+      "save": "Save colour",
+      "reset": "Use partner colour ({color})",
+      "forbiddenTitle": "No access",
+      "forbiddenDescription": "Only owners and admins can change the branding.",
+      "previewButton": "Save",
+      "previewBadge": "Active",
+      "previewLink": "Link"
     }
   },
   "partner": {

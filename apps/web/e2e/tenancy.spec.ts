@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@me-it.local";
-const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "Demo-Passwort-2026";
+const anonymous = { cookies: [], origins: [] };
 
 async function signIn(page: Page, email: string, password: string) {
   await page.goto("/login");
@@ -10,16 +10,20 @@ async function signIn(page: Page, email: string, password: string) {
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
 }
 
-test("unauthenticated visitors are sent to the login and back", async ({ page }) => {
-  await page.goto("/settings/members");
-  await expect(page).toHaveURL(/\/login\?next=%2Fsettings%2Fmembers/);
-});
+test.describe("anonymous visitors", () => {
+  test.use({ storageState: anonymous });
 
-test("wrong password shows a neutral message", async ({ page }) => {
-  await signIn(page, ADMIN_EMAIL, "definitiv-falsch");
-  await expect(page.locator("p[role=alert]")).toHaveText(
-    "E-Mail-Adresse oder Passwort stimmen nicht.",
-  );
+  test("unauthenticated visitors are sent to the login and back", async ({ page }) => {
+    await page.goto("/settings/members");
+    await expect(page).toHaveURL(/\/login\?next=%2Fsettings%2Fmembers/);
+  });
+
+  test("wrong password shows a neutral message", async ({ page }) => {
+    await signIn(page, ADMIN_EMAIL, "definitiv-falsch");
+    await expect(page.locator("p[role=alert]")).toHaveText(
+      "E-Mail-Adresse oder Passwort stimmen nicht.",
+    );
+  });
 });
 
 test("partner provisions a tenant, the owner joins and the audit chain holds", async ({
@@ -29,7 +33,7 @@ test("partner provisions a tenant, the owner joins and the audit chain holds", a
   const suffix = Date.now().toString(36);
   const ownerEmail = `owner-${suffix}@e2e.test`;
 
-  await signIn(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/Guten (Morgen|Tag|Abend)/);
 
   await page.goto("/partner");
@@ -46,7 +50,8 @@ test("partner provisions a tenant, the owner joins and the audit chain holds", a
     .catch(() => null);
   test.skip(!link, "Invitation e-mail was delivered; link not shown in the UI.");
 
-  const owner = await browser.newPage();
+  // A fresh browser without the admin session, as the invited person would have.
+  const owner = await (await browser.newContext({ storageState: anonymous })).newPage();
   await owner.goto(link!);
   await expect(owner.getByRole("heading", { name: /Einladung zu E2E Tischlerei/ })).toBeVisible();
   await owner.getByLabel("Ihr Name").fill("Olga Owner");

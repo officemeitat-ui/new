@@ -1,14 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@me-it.local";
-const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "Demo-Passwort-2026";
-
 // Runs against the mock Claude API (e2e/mock-anthropic.mjs) through web → queue → worker → SSE.
 test("the assistant answers live, uses a tool and keeps the conversation", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("E-Mail-Adresse").fill(ADMIN_EMAIL);
-  await page.getByLabel("Passwort", { exact: true }).fill(ADMIN_PASSWORD);
-  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
   await page.getByRole("link", { name: "Chat" }).first().click();

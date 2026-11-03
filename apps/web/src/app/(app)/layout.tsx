@@ -5,12 +5,12 @@ import { CommandPalette } from "@/components/shell/command-palette";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
-import { getBrand } from "@/lib/brand";
+import { resolveBranding } from "@/lib/branding";
 import { getAppContext } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const t = await getTranslations("app");
-  const { productName } = getBrand();
+  const { productName } = await resolveBranding();
   const ctx = await getAppContext();
   const isPartner = Boolean(ctx.partner);
   const tenants = ctx.overview.tenants

@@ -126,7 +126,8 @@
     "tabs": {
       "label": "Einstellungsbereiche",
       "members": "Mitglieder",
-      "audit": "Audit-Log"
+      "audit": "Audit-Log",
+      "branding": "Branding"
     },
     "members": {
       "inviteTitle": "Person einladen",
@@ -159,7 +160,8 @@
         "invitation_revoked": "Einladung zurückgezogen",
         "member_added": "Mitglied hinzugefügt",
         "member_removed": "Mitglied entfernt",
-        "member_role_changed": "Rolle geändert"
+        "member_role_changed": "Rolle geändert",
+        "tenant_branding_changed": "Branding geändert"
       },
       "actors": {
         "user": "Benutzer",
@@ -167,6 +169,25 @@
         "system": "System",
         "agent": "Agent"
       }
+    },
+    "branding": {
+      "title": "Branding",
+      "description": "Ihre Firmenfarbe für {product}. Wir erzeugen daraus automatisch eine Farbpalette für hell und dunkel, die die Kontrastregeln der Barrierefreiheit (WCAG) einhält.",
+      "color": "Firmenfarbe",
+      "colorPicker": "Farbe auswählen",
+      "presets": "Vorschläge",
+      "previewLight": "Vorschau hell",
+      "previewDark": "Vorschau dunkel",
+      "adjusted": "Für gute Lesbarkeit verwenden wir {color} statt der gewählten Farbe.",
+      "contrastOk": "Kontrast der Schaltflächen: {ratio}:1 – gut lesbar.",
+      "invalid": "Bitte eine Farbe im Format #RRGGBB eingeben.",
+      "save": "Farbe speichern",
+      "reset": "Partner-Farbe verwenden ({color})",
+      "forbiddenTitle": "Kein Zugriff",
+      "forbiddenDescription": "Das Branding ändern nur Owner und Admins.",
+      "previewButton": "Speichern",
+      "previewBadge": "Aktiv",
+      "previewLink": "Link"
     }
   },
   "partner": {

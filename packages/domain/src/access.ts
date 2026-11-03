@@ -11,6 +11,12 @@ import {
 import { and, eq, withPartner, withTenant, withUser, type Database } from "@nexus/db";
 import { memberships, partnerMemberships, partners, roles, tenants } from "@nexus/db/schema";
 
+export type Branding = {
+  productName: string;
+  /** Effective brand colour: the tenant's own, otherwise the partner's. */
+  primaryColor: string;
+};
+
 export type TenantAccess = {
   userId: string;
   tenantId: string;
@@ -18,6 +24,7 @@ export type TenantAccess = {
   role: SystemTenantRole;
   customRoleName: string | null;
   permissions: readonly TenantPermission[];
+  branding: Branding & { tenantColor: string | null; partnerColor: string };
 };
 
 export type PartnerAccess = {
@@ -26,6 +33,7 @@ export type PartnerAccess = {
   partnerName: string;
   role: PartnerRole;
   permissions: readonly PartnerPermission[];
+  branding: Branding;
 };
 
 export type UserOverview = {
@@ -73,9 +81,13 @@ export async function getTenantAccess(
         status: tenants.status,
         customRoleName: roles.name,
         customPermissions: roles.permissions,
+        tenantColor: tenants.brandColor,
+        partnerColor: partners.brandColor,
+        productName: partners.productName,
       })
       .from(memberships)
       .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
+      .innerJoin(partners, eq(partners.id, tenants.partnerId))
       .leftJoin(roles, eq(roles.id, memberships.customRoleId))
       .where(and(eq(memberships.userId, userId), eq(memberships.tenantId, tenantId)));
     if (!row || row.status !== "active") return null;
@@ -86,6 +98,12 @@ export async function getTenantAccess(
       role: row.role,
       customRoleName: row.customRoleName,
       permissions: row.customPermissions ?? SYSTEM_TENANT_ROLE_PERMISSIONS[row.role],
+      branding: {
+        productName: row.productName,
+        primaryColor: row.tenantColor ?? row.partnerColor,
+        tenantColor: row.tenantColor,
+        partnerColor: row.partnerColor,
+      },
     };
   });
 }
@@ -97,7 +115,12 @@ export async function getPartnerAccess(
 ): Promise<PartnerAccess | null> {
   return withPartner(db, partnerId, async (tx) => {
     const [row] = await tx
-      .select({ role: partnerMemberships.role, partnerName: partners.name })
+      .select({
+        role: partnerMemberships.role,
+        partnerName: partners.name,
+        productName: partners.productName,
+        brandColor: partners.brandColor,
+      })
       .from(partnerMemberships)
       .innerJoin(partners, eq(partners.id, partnerMemberships.partnerId))
       .where(
@@ -110,6 +133,7 @@ export async function getPartnerAccess(
       partnerName: row.partnerName,
       role: row.role,
       permissions: PARTNER_ROLE_PERMISSIONS[row.role],
+      branding: { productName: row.productName, primaryColor: row.brandColor },
     };
   });
 }

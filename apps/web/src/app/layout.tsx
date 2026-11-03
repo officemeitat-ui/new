@@ -5,11 +5,11 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
-import { getBrand } from "@/lib/brand";
+import { resolveBranding } from "@/lib/branding";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { productName } = getBrand();
+  const { productName } = await resolveBranding();
   return {
     title: { default: productName, template: `%s · ${productName}` },
     description: "Digitale Mitarbeiter für KMU – sicher, DSGVO-konform, in der EU betrieben.",
@@ -26,7 +26,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
-  const { primaryColor } = getBrand();
+  const { primaryColor } = await resolveBranding();
 
   return (
     <html lang={locale} className={GeistSans.variable} suppressHydrationWarning>
