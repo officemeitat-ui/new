@@ -406,6 +406,23 @@ Kalender der Firma in der App (Planung → **Termine**): Woche mit Uhrzeiten (am
 
 **Kalender-Abo für Mitarbeitende (Plan am Handy):** Unter „Im Kalender“ auf der eigenen Plan-Seite: „Kalender abonnieren“ (iPhone, Android) oder die Adresse in Outlook („Kalender hinzufügen → Aus dem Internet abonnieren“) bzw. Google Kalender („Per URL“) einfügen. Dann stehen Einsätze, Termine und Abwesenheiten der veröffentlichten Wochen im eigenen Kalender und aktualisieren sich von selbst (je nach Kalender alle paar Stunden). Wer Push (ntfy) eingerichtet hat, bekommt eine Stunde vor einem Termin eine Erinnerung aufs Handy (über den Cronjob der Zeiterfassung, `aktion=pruefen`). Die Adresse ist persönlich wie der Link zum Plan; bei „Neuer Link“ gilt auch das alte Abo nicht mehr.
 
+## Kennzahlen
+
+Für die Geschäftsführung, im Menü unter *Start* gleich nach der Übersicht. Jede Kachel und jedes Diagramm erscheint nur, wenn die Rolle das Modul dahinter sieht (Umsatz und offene Posten also nur mit Fakturierung, Plus-Stunden nur mit Auswertung). Zeitraum oben wählbar: **4 Wochen · 3 Monate**, **8 Wochen · 6 Monate** (Vorgabe) oder **13 Wochen · 12 Monate**.
+
+- **Kacheln** mit einer großen Zahl (die erste), Trend gegen die Vorwoche bzw. den Vormonat (▲▼ grün, wenn es gut ist, rot, wenn nicht) und einer kleinen Verlaufslinie. Monatswerte zeigen den **letzten abgeschlossenen Monat**, Wochenwerte die laufende Woche. Ein Klick auf die Kachel öffnet den Bereich (z. B. Besetzungsgrad → Vertretungen, Umsatz → Fakturierung).
+- **Stunden je Woche:** laut Plan, eingeteilt und – sobald gestempelt wird – Ist aus der Zeiterfassung; **Fahrzeit** je Woche aus den Wochenzetteln.
+- **Besetzung:** Besetzungsgrad (eingeteilte Plätze ÷ benötigte) und offene Einsätze je Woche, nur für Wochen, die schon eingeteilt sind.
+- **Krankenstand und Urlaub** je Monat als Anteil an den Soll-Tagen (Mo–Fr laut Vertrag, ohne gesetzliche Feiertage).
+- **Auslastung je Person:** eingeteilte Stunden gegen Vertragsstunden, sortiert; bei mehr als zehn Personen die fünf meisten und die fünf wenigsten, Strich bei 100 %.
+- **Plus-Stunden** je Monat: Ist über Soll laut Plan je Person summiert, getrennt nach Vollzeit (Überstunden) und Teilzeit (Mehrarbeit). Das ist eine Näherung; die abgerechneten Werte stehen in „Überstunden & Auszahlung“.
+- **Reklamationen** je Monat, die fünf Objekte mit den meisten und die Zahl der offenen.
+- **Fakturierung:** Umsatz netto je Monat (festgeschriebene Rechnungen; Storno und Korrekturen mindern), **offene Posten nach Fälligkeit** (nicht fällig, 1–30, 31–60, über 60 Tage), Kunden mit dem meisten Umsatz.
+- **Material:** Verbrauch (Ausgaben an Objekte und Personen × Einzelpreis) und Bestellwert je Monat.
+- **Deckungsbeitrag je Objekt** (mit Fakturierung und Auswertung): Umsatz − Personal (eingeteilte Stunden × Stundenlohn aus der Kalkulation samt Lohnnebenkosten) − Material des Objekts.
+
+Jedes Diagramm zeigt beim Zeigen oder Antippen die Werte (auch mit der Tastatur), hat eine **Tabellenansicht** („Als Tabelle“) und den Knopf „Öffnen“. Farben nach eigenen Stufen für hell und dunkel, am Handy einspaltig. Gerechnet wird in `src/core/kpi.js` (reine Funktionen, Tests in `test/kpi.test.js`), die Ansicht ist `src/ui/views/kpi.js`, die Diagramme sind eigenes SVG ohne Bibliothek (`src/ui/kpi-charts.js`). Das Ergebnis wird je Zeitraum und Tag gemerkt und nach jeder Datenänderung neu gerechnet.
+
 ## Zeitlinie
 
 Ein Tag, je Person eine Zeile: Einsätze in Objektfarbe, geplante Fahrten (rot, wenn sie nicht bis zum nächsten Einsatz passen), **Termine** (schraffiert mit Kalender-Symbol; Termine ohne Person in der Zeile „Termine“), **Ist-Zeiten** aus der Zeiterfassung als grüne Linie unter den Einsätzen, Abwesenheiten schraffiert, entfallene Einsätze durchgestrichen, heute eine rote **Jetzt-Linie**. Ein Klick in eine freie Stelle legt einen Termin für diese Person zu dieser Uhrzeit an.

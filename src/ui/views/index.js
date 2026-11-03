@@ -3,6 +3,7 @@
 
 import './home.js'
 import './disponent.js'
+import './kpi.js'
 import './week.js'
 import './timeline.js'
 import './appointments.js'
