@@ -39,6 +39,9 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
       SEED_ADMIN_EMAIL: admin@me-it.local
       SEED_ADMIN_PASSWORD: Demo-Passwort-2026
+      # E2E: the real SDK talks to the mock Claude API in apps/web/e2e/mock-anthropic.mjs.
+      ANTHROPIC_API_KEY: e2e-mock-key
+      ANTHROPIC_BASE_URL: http://localhost:4010
 
     steps:
       - uses: actions/checkout@v4

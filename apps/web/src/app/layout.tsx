@@ -38,7 +38,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body>
-        <NextIntlClientProvider>
+        <NextIntlClientProvider timeZone="Europe/Vienna">
           <ThemeProvider>{children}</ThemeProvider>
         </NextIntlClientProvider>
       </body>

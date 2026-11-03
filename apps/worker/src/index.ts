@@ -1,10 +1,13 @@
+import { providerFromEnv } from "@nexus/agents";
+import { QUEUES, type AgentRunJob } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
+import { getDatabase } from "@nexus/db";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { startHealthServer } from "./health-server";
+import { processAgentRun, redisPublisher } from "./jobs/agent-run";
 import { handleSystemJob } from "./jobs/system";
-import { QUEUES } from "./queues";
 
 const env = getEnv();
 const log = createLogger("worker");
@@ -12,7 +15,22 @@ const log = createLogger("worker");
 // BullMQ requires maxRetriesPerRequest: null for blocking connections.
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
-const workers = [new Worker(QUEUES.system, handleSystemJob, { connection, concurrency: 5 })];
+const publisher = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+const agentDeps = {
+  db: getDatabase(env.DATABASE_URL).db,
+  provider: providerFromEnv(env),
+  publish: redisPublisher(publisher),
+  platformName: env.BRAND_PRODUCT_NAME,
+  log,
+};
+
+const workers = [
+  new Worker(QUEUES.system, handleSystemJob, { connection, concurrency: 5 }),
+  new Worker<AgentRunJob>(QUEUES.agentRuns, (job) => processAgentRun(job.data, agentDeps), {
+    connection,
+    concurrency: Number(process.env.WORKER_AGENT_CONCURRENCY ?? 4),
+  }),
+];
 
 for (const worker of workers) {
   worker.on("failed", (job, error) =>
@@ -33,6 +51,8 @@ async function shutdown(signal: string) {
   await Promise.all(workers.map((w) => w.close()));
   healthServer.close();
   connection.disconnect();
+  publisher.disconnect();
+  await getDatabase(env.DATABASE_URL).close();
   log.info("worker stopped");
   process.exit(0);
 }

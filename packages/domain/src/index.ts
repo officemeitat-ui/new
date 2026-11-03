@@ -1,5 +1,6 @@
 export * from "./access";
 export * from "./audit";
+export * from "./chat";
 export * from "./invitations";
 export * from "./mail";
 export * from "./members";

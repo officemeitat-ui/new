@@ -185,5 +185,32 @@
     "suspended": "Gesperrt",
     "emptyTitle": "Noch keine Mandanten",
     "emptyDescription": "Legen Sie oben Ihren ersten Kunden an."
+  },
+  "chat": {
+    "newConversation": "Neues Gespräch",
+    "historyLabel": "Bisherige Gespräche",
+    "historyEmpty": "Noch keine Gespräche.",
+    "emptyTitle": "Womit kann ich helfen?",
+    "emptyDescription": "Ihr Assistent formuliert Texte, beantwortet Fragen und rechnet exakt nach.",
+    "example1": "Formuliere eine freundliche Zahlungserinnerung für eine Rechnung über 1.250 €.",
+    "example2": "Berechne 20 % Umsatzsteuer auf 3.480 € netto.",
+    "example3": "Schreib eine kurze Terminbestätigung für Dienstag, 9 Uhr.",
+    "inputLabel": "Nachricht an den Assistenten",
+    "placeholder": "Nachricht schreiben … (Umschalt+Enter für neue Zeile)",
+    "send": "Senden",
+    "disclaimer": "KI-generierte Antworten können Fehler enthalten. Bitte prüfen Sie wichtige Angaben.",
+    "notConfigured": "Es ist noch kein KI-Anbieter eingerichtet. Ihr Administrator hinterlegt den Zugang in der Konfiguration.",
+    "activityThinking": "Denkt nach …",
+    "activityTool": "Verwendet {tool} …",
+    "metaSteps": "{count, plural, =1 {1 Schritt} other {# Schritte}}",
+    "metaTokens": "{count, number} Tokens",
+    "metaCached": "{count, number} aus dem Cache",
+    "statusRefused": "Der Agent hat diese Anfrage aus Sicherheitsgründen abgelehnt.",
+    "statusFailed": "Der Agent konnte die Aufgabe nicht abschließen.",
+    "statusBudget": "Das Kostenlimit dieses Agenten wurde erreicht.",
+    "statusMaxSteps": "Das Schrittlimit wurde erreicht. Teilen Sie die Aufgabe bitte auf.",
+    "statusIncomplete": "Die Antwort wurde abgeschnitten.",
+    "statusApproval": "Der Agent wartet auf eine Freigabe.",
+    "statusCancelled": "Abgebrochen."
   }
 }

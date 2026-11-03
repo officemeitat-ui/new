@@ -185,5 +185,32 @@
     "suspended": "Suspended",
     "emptyTitle": "No tenants yet",
     "emptyDescription": "Create your first customer above."
+  },
+  "chat": {
+    "newConversation": "New conversation",
+    "historyLabel": "Previous conversations",
+    "historyEmpty": "No conversations yet.",
+    "emptyTitle": "How can I help?",
+    "emptyDescription": "Your assistant drafts texts, answers questions and calculates exactly.",
+    "example1": "Write a friendly payment reminder for an invoice of €1,250.",
+    "example2": "Calculate 20% VAT on €3,480 net.",
+    "example3": "Write a short appointment confirmation for Tuesday, 9 am.",
+    "inputLabel": "Message to the assistant",
+    "placeholder": "Write a message … (Shift+Enter for a new line)",
+    "send": "Send",
+    "disclaimer": "AI-generated answers can contain mistakes. Please check important details.",
+    "notConfigured": "No AI provider is set up yet. Your administrator adds the access in the configuration.",
+    "activityThinking": "Thinking …",
+    "activityTool": "Using {tool} …",
+    "metaSteps": "{count, plural, =1 {1 step} other {# steps}}",
+    "metaTokens": "{count, number} tokens",
+    "metaCached": "{count, number} from cache",
+    "statusRefused": "The agent declined this request for safety reasons.",
+    "statusFailed": "The agent could not complete the task.",
+    "statusBudget": "This agent's cost limit was reached.",
+    "statusMaxSteps": "The step limit was reached. Please split the task.",
+    "statusIncomplete": "The answer was cut off.",
+    "statusApproval": "The agent is waiting for an approval.",
+    "statusCancelled": "Cancelled."
   }
 }

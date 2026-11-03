@@ -1,6 +1,6 @@
 # Architektur – ME-IT Nexus
 
-Stand: Phase 0–2. Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
+Stand: Phase 0–2 (Kern umgesetzt). Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
 
 ## 1. Systemübersicht
 
@@ -44,12 +44,12 @@ flowchart LR
   Q --> LLM
   Q --> INT
   Q -- Fortschritt --> R
-  R -- Pub/Sub --> API
+  R -- Stream --> API
   UI --> S3
   Q --> S3
 ```
 
-**Grundsatz:** Die Web-App nimmt Anfragen an, prüft Rechte und reiht langlaufende Arbeit ein. Der Worker führt Agentenläufe und Workflows aus. Der Fortschritt läuft über Redis Pub/Sub zurück und wird per Server-Sent Events (SSE) an den Browser gestreamt. Der dauerhafte Zustand liegt immer in Postgres; Redis ist nur Transport und Queue.
+**Grundsatz:** Die Web-App nimmt Anfragen an, prüft Rechte und reiht langlaufende Arbeit ein. Der Worker führt Agentenläufe und Workflows aus. Der Fortschritt läuft über einen Redis-Stream pro Lauf zurück (`nexus:run:<id>:events`, eine Stunde gültig) und wird per Server-Sent Events (SSE) an den Browser gestreamt. Weil der Stream von Anfang an gelesen wird, verpasst auch ein später verbundener Browser kein Ereignis. Der dauerhafte Zustand liegt immer in Postgres; Redis ist nur Transport und Queue.
 
 ## 2. Pakete
 

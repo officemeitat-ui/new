@@ -11,3 +11,7 @@ next-env.d.ts
 playwright-report/
 test-results/
 .DS_Store
+
+# Local Redis/Valkey snapshots
+dump.rdb
+*.rdb

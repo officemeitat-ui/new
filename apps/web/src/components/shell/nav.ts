@@ -37,7 +37,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "start", href: "/", icon: House, available: true, section: "main" },
-  { key: "chat", href: "/chat", icon: MessagesSquare, available: false, section: "main" },
+  { key: "chat", href: "/chat", icon: MessagesSquare, available: true, section: "main" },
   { key: "agents", href: "/agents", icon: Bot, available: false, section: "main" },
   { key: "workflows", href: "/workflows", icon: Workflow, available: false, section: "main" },
   { key: "approvals", href: "/approvals", icon: Inbox, available: false, section: "main" },

@@ -28,3 +28,14 @@ export function isModelTier(value: string): value is ModelTier {
 export function isEffort(value: string): value is Effort {
   return (EFFORTS as readonly string[]).includes(value);
 }
+
+const DISPLAY_NAMES: Record<string, string> = {
+  "claude-opus-5-5": "Claude Opus 5.5",
+  "claude-sonnet-5-5": "Claude Sonnet 5.5",
+  "claude-haiku-5-5": "Claude Haiku 5.5",
+};
+
+export function modelDisplayName(model: string): string {
+  const plain = model.replace(/^anthropic\./, "");
+  return DISPLAY_NAMES[plain] ?? plain;
+}

@@ -2,6 +2,36 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Phase 2 – Agent-Runtime und Chat ✅ (Kern)
+
+**Erledigt**
+
+- **`packages/agents` – eigene Agentenschleife** über das offizielle Anthropic-SDK (ADR 0003): Streaming, alle `stop_reason`-Werte, parallele Werkzeugaufrufe mit gemeinsamem Ergebnis-Turn, Fehler als `is_error`, Verlauf nur angehängt (Thinking-Blöcke bleiben erhalten)
+- **Freigabe-Logik im Code:** pro Werkzeug „automatisch / Freigabe / verboten“; der Lauf pausiert vor freigabepflichtigen Aktionen und setzt mit der Entscheidung fort (auch bearbeitet oder abgelehnt). Die Inbox dazu kommt in Phase 5.
+- **Aktuelle API-Regeln:** adaptive Thinking mit Zusammenfassung, Effort immer explizit, keine Sampling-Parameter, kein Prefill, `tool_choice` automatisch, `strict`-Werkzeuge plus Zod-Prüfung, serverseitige Fallbacks bei Ablehnungen (nur auf der Claude API)
+- **Prompt-Caching:** stabiler Präfix (sortierte Werkzeuge → Basis-Systemprompt → Agenten-Anweisungen), Datum/Nutzer im `<kontext>`-Block der ersten Nachricht; ein Test beweist, dass der Präfix byte-identisch bleibt
+- **Provider:** Claude API, Amazon Bedrock (EU) und Google Vertex AI über eine gemeinsame Schnittstelle mit Capability-Matrix; Modellstufen `smart` / `balanced` / `fast` → `claude-opus-5-5` / `claude-sonnet-5-5` / `claude-haiku-5-5`
+- **Kosten und Limits:** Kosten pro Aufruf inklusive Cache-Tokens, Schritt- und Kostenlimit pro Lauf, Abbruch
+- **Datenmodell mit RLS:** Agenten mit Versionen, Gespräche, Nachrichten (nur anhängen), Läufe, Trace-Schritte, Nutzungsereignisse (Partner sehen nur Nutzungszahlen ihrer Mandanten, keine Inhalte)
+- **Worker-Job:** führt Läufe aus, speichert jeden Schritt, meldet Ereignisse live in einen Redis-Stream; idempotent, ohne automatische Wiederholung (keine doppelten Aktionen), verständliche Fehlermeldungen
+- **Chat-Oberfläche:** Gesprächsliste, Beispiel-Prompts, Live-Antworten per Server-Sent Events mit Status („Denkt nach …“, „Verwendet Rechner …“), Markdown ohne HTML-Injektion, Werkzeug-Chips, Modell/Schritte/Tokens/Cache/Kosten pro Antwort, Hinweis bei Ablehnung oder Limit, Warnung wenn kein KI-Anbieter eingerichtet ist
+- **Standard-Agent „Assistent“** pro Mandant mit den Werkzeugen „Datum und Uhrzeit“ und „Rechner“ (sicherer Parser, kein `eval`)
+- **Tests:** 33 Runtime-Tests ohne Netzwerk, 6 Worker-Integrationstests gegen die echte Datenbank, E2E-Chat über die gesamte Kette (Web → Queue → Worker → SDK → Live-Stream → Datenbank) mit einem Mock der Claude API – im Produktivcode gibt es keine Attrappen
+
+**So probieren Sie es aus**
+
+1. `ANTHROPIC_API_KEY` in `.env` eintragen (oder `LLM_PROVIDER=bedrock` bzw. `vertex` mit EU-Region)
+2. `pnpm db:migrate && pnpm dev`
+3. Chat öffnen und z. B. „Berechne 20 % Umsatzsteuer auf 3.480 € netto.“ fragen
+
+**Noch offen in Phase 2** (als Nächstes)
+
+- Trace-Ansicht pro Lauf in der Oberfläche (die Schritte werden bereits gespeichert)
+- Datei-Upload im Chat (PDF/Bilder an Claude)
+- Preistabelle in der Datenbank (Standardpreise liegen derzeit im Code) und Kosten in Euro
+- Faire Warteschlange pro Mandant (derzeit globale Parallelität)
+- Lange Gespräche: Compaction bzw. Context Editing
+
 ## Phase 1 – Mandanten, Anmeldung und Rechte ✅ (Kern)
 
 **Erledigt**

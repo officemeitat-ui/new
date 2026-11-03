@@ -10,12 +10,17 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
+    "@nexus/agents": "workspace:*",
     "@nexus/core": "workspace:*",
+    "@nexus/db": "workspace:*",
+    "@nexus/domain": "workspace:*",
     "bullmq": "^6.5.4",
     "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@nexus/config": "workspace:*",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
   }
 }

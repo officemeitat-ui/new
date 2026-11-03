@@ -39,10 +39,11 @@ export type AppContext = {
 
 /**
  * Resolves the signed-in user, the active tenant (cookie, verified against the memberships –
- * never trusted on its own) and partner access.
+ * never trusted on its own) and partner access. Returns null without a session.
  */
-export const getAppContext = cache(async (): Promise<AppContext> => {
-  const user = await requireUser();
+export const resolveAppContext = cache(async (): Promise<AppContext | null> => {
+  const user = await getSessionUser();
+  if (!user) return null;
   const db = getDatabase().db;
   const overview = await getUserOverview(db, user.id);
 
@@ -57,6 +58,12 @@ export const getAppContext = cache(async (): Promise<AppContext> => {
   const partner = firstPartner ? await getPartnerAccess(db, user.id, firstPartner.partnerId) : null;
   return { user, overview, tenant, partner };
 });
+
+export async function getAppContext(): Promise<AppContext> {
+  const ctx = await resolveAppContext();
+  if (!ctx) redirect("/login");
+  return ctx;
+}
 
 /** For pages that work inside a tenant. Sends users without an active tenant to the picker. */
 export async function requireTenant(): Promise<AppContext & { tenant: TenantAccess }> {
