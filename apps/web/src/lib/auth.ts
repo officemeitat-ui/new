@@ -55,7 +55,20 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
   },
-  rateLimit: { enabled: true, window: 60, max: 30 },
+  // Limits per IP address and path. Offices often share one IP behind NAT, so the limits are
+  // per minute rather than Better Auth's default 3 per 10 seconds; brute force on passwords
+  // and codes stays impractical (10 attempts/minute, 2FA codes additionally lock after 5).
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/*": { window: 60, max: 10 },
+      "/sign-up/*": { window: 60, max: 10 },
+      "/two-factor/*": { window: 60, max: 10 },
+      "/magic-link/*": { window: 60, max: 5 },
+    },
+  },
   socialProviders: socialProviders(),
   plugins: [
     magicLink({

@@ -29,6 +29,8 @@ export type TenantAccess = {
   requireAdminTwoFactor: boolean;
   /** EUR per USD set by the partner; null = show costs in US dollars. */
   usdEurRate: number | null;
+  /** Set when partner staff work in the tenant through a granted support session. */
+  support?: { expiresAt: Date; partnerName: string };
 };
 
 export type PartnerAccess = {

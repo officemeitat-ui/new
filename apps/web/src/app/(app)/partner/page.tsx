@@ -1,9 +1,10 @@
-import { formatDate } from "@nexus/core";
+import { formatDate, formatDateTime } from "@nexus/core";
 import { getDatabase } from "@nexus/db";
-import { can, listPartnerTenants, loadCurrentPrices } from "@nexus/domain";
+import { can, listActiveSupportGrants, listPartnerTenants, loadCurrentPrices } from "@nexus/domain";
 import { modelDisplayName } from "@nexus/agents/models";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -13,6 +14,7 @@ import {
 } from "@nexus/ui";
 import { Building2 } from "lucide-react";
 import { getFormatter, getTranslations } from "next-intl/server";
+import { startSupportSessionAction } from "@/app/(app)/partner/actions";
 import { CreateTenantForm } from "@/components/partner/create-tenant-form";
 import { ExchangeRateForm } from "@/components/partner/exchange-rate-form";
 import { requirePartner } from "@/lib/session";
@@ -24,10 +26,13 @@ export default async function PartnerPage() {
   const tPlans = await getTranslations("plans");
   const ctx = await requirePartner();
   const db = getDatabase().db;
-  const [tenants, prices] = await Promise.all([
+  const [tenants, prices, grants] = await Promise.all([
     listPartnerTenants(db, ctx.partner.partnerId),
     loadCurrentPrices(db),
+    listActiveSupportGrants(db, ctx.partner.partnerId),
   ]);
+  const supportUntil = new Map(grants.map((grant) => [grant.tenantId, grant.expiresAt]));
+  const canOpen = can(ctx.partner, "partner.tenants.manage");
   const format = await getFormatter();
 
   return (
@@ -81,6 +86,20 @@ export default async function PartnerPage() {
                     <Badge variant="danger">{t("suspended")}</Badge>
                   ) : null}
                   <Badge variant="accent">{tPlans(tenant.plan)}</Badge>
+                  {supportUntil.has(tenant.id) ? (
+                    <>
+                      <Badge variant="warning">
+                        {t("supportUntil", { date: formatDateTime(supportUntil.get(tenant.id)!) })}
+                      </Badge>
+                      {canOpen ? (
+                        <form action={startSupportSessionAction.bind(null, tenant.id)}>
+                          <Button type="submit" size="sm" variant="outline">
+                            {t("openTenant")}
+                          </Button>
+                        </form>
+                      ) : null}
+                    </>
+                  ) : null}
                 </li>
               ))}
             </ul>

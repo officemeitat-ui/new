@@ -1,8 +1,24 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { asc, desc, eq, sql, type Tx } from "@nexus/db";
 import { auditLogs, authUser, type AuditActorType } from "@nexus/db/schema";
 
 export const GENESIS_HASH = "0".repeat(64);
+
+/**
+ * Request metadata for audit entries. The web app sets it once per server action, so every
+ * entry written during that request records IP address and user agent without threading
+ * them through each domain function.
+ */
+export type AuditRequestContext = { ip?: string | null; userAgent?: string | null };
+const requestContext = new AsyncLocalStorage<AuditRequestContext>();
+
+export function withAuditRequestContext<T>(
+  context: AuditRequestContext,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return requestContext.run(context, fn);
+}
 
 export type AuditInput = {
   actorType: AuditActorType;
@@ -77,8 +93,8 @@ export async function appendAudit(tx: Tx, tenantId: string, input: AuditInput) {
     .values({
       ...fields,
       createdAt,
-      ip: input.ip ?? null,
-      userAgent: input.userAgent ?? null,
+      ip: input.ip ?? requestContext.getStore()?.ip ?? null,
+      userAgent: input.userAgent ?? requestContext.getStore()?.userAgent?.slice(0, 500) ?? null,
       prevHash,
       hash: computeAuditHash(prevHash, fields),
     })

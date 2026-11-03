@@ -2,6 +2,29 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Abschluss Phase 1 und 2 – Branding, 2FA, Euro-Kosten, Trace, Support-Zugriff ✅
+
+**Erledigt**
+
+- **Branding pro Mandant:** Einstellungen → Branding mit Farbwahl, Vorschlägen und Live-Vorschau hell/dunkel. Schwer lesbare Farben werden automatisch angepasst (WCAG). Ohne eigene Farbe gilt die des Partners; der Produktname kommt vom Partner.
+- **Zwei-Faktor-Anmeldung (TOTP):** Seite „Konto und Sicherheit“ mit QR-Code, manuellem Schlüssel und 10 Backup-Codes; Login mit zweitem Schritt (App-Code oder Backup-Code, Gerät 30 Tage vertrauen).
+- **2FA-Pflicht für Owner und Admins** als Firmen-Richtlinie (Einstellungen → Sicherheit) mit Übersicht, wer 2FA hat; ohne Einrichtung leitet die App auf die Kontoseite um.
+- **Preise in der Datenbank:** Tabelle `price_tables` mit Gültigkeitsdatum (Seed: Preisliste 2026-10); der Worker lädt sie alle fünf Minuten.
+- **Kosten in Euro:** ME-IT legt in der Partner-Konsole den Kurs Euro je US-Dollar fest; Kunden sehen Kosten in Euro (ohne Kurs in US-Dollar).
+- **Trace im Chat:** „Details anzeigen“ unter jeder Antwort zeigt Modellaufrufe (Ende-Grund, Tokens, Cache, Dauer, Kosten), Überlegungen und Werkzeug-Ein-/Ausgaben.
+- **Support-Zugriff:** Der Owner gibt ME-IT für 1, 4, 24 oder 72 Stunden Zugriff; die Partner-Konsole zeigt „Support bis …“ und „Öffnen“. Während der Sitzung sehen alle ein Banner, Support hat eingeschränkte Rechte (keine Personen, keine Sicherheit, keine Freigaben). Beginn und Ende stehen im Audit-Log; mit Ablauf oder Widerruf endet die Sitzung von selbst.
+- **Audit-Einträge mit IP-Adresse und Browser** (aus `X-Forwarded-For`, der Reverse-Proxy muss den Header setzen).
+- **Rate-Limits** pro IP und Minute statt 3 pro 10 Sekunden (Büros hinter einer gemeinsamen IP): Anmelden, Registrieren und 2FA je 10/Minute, Magic Link 5/Minute.
+- **E2E:** 10 Browser-Tests (u. a. Branding, 2FA mit echten TOTP-Codes, Euro-Anzeige, Trace, Support-Sitzung); die Suite meldet sich einmal an und nutzt die Sitzung weiter.
+
+**Noch offen**
+
+- Passkeys (eigenes Better-Auth-Paket), SAML/SCIM für Enterprise
+- Konto-Sperre nach wiederholten falschen Passwörtern (derzeit nur Rate-Limit pro IP); Rate-Limit-Speicher in Redis statt im Prozess, sobald mehrere Web-Instanzen laufen
+- Partner-Audit-Log (z. B. Kursänderungen; derzeit nur im Server-Log)
+- Wechselkurs automatisch von der EZB (die EZB-API war aus der Entwicklungsumgebung nicht erreichbar und ist daher nicht eingebaut)
+- Datei-Upload im Chat, faire Warteschlange pro Mandant, Compaction langer Gespräche
+
 ## Phase 2 – Agent-Runtime und Chat ✅ (Kern)
 
 **Erledigt**

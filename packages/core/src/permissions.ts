@@ -69,3 +69,21 @@ export function hasPermission<P extends string>(granted: Iterable<P>, needed: P)
   }
   return false;
 }
+
+/**
+ * What partner staff may do inside a tenant during a support session the tenant granted
+ * (M12): configure agents, workflows, knowledge and integrations – not manage people,
+ * billing, security policies or support access itself.
+ */
+export const SUPPORT_PERMISSIONS: readonly TenantPermission[] = [
+  "agent.run",
+  "agent.edit",
+  "agent.publish",
+  "workflow.run",
+  "workflow.edit",
+  "knowledge.read",
+  "knowledge.manage",
+  "integration.manage",
+  "analytics.read",
+  "tenant.audit.read",
+];

@@ -1,6 +1,8 @@
 {
   "app": {
-    "skipToContent": "Zum Inhalt springen"
+    "skipToContent": "Zum Inhalt springen",
+    "supportBanner": "{partner}-Support arbeitet in {tenant} (bis {until}). Alle Aktionen werden protokolliert.",
+    "supportEnd": "Sitzung beenden"
   },
   "nav": {
     "label": "Hauptnavigation",
@@ -104,7 +106,8 @@
     "passwordTooShort": "Das Passwort braucht mindestens {min} Zeichen.",
     "passwordMismatch": "Die Passwörter stimmen nicht überein.",
     "signUpFailed": "Das Konto konnte nicht angelegt werden. Bitte versuchen Sie es erneut.",
-    "createAccount": "Konto anlegen und beitreten"
+    "createAccount": "Konto anlegen und beitreten",
+    "tooManyAttempts": "Zu viele Versuche. Bitte warten Sie eine Minute."
   },
   "selectTenant": {
     "title": "Mandant wählen",
@@ -139,7 +142,8 @@
       "members": "Mitglieder",
       "audit": "Audit-Log",
       "branding": "Branding",
-      "security": "Sicherheit"
+      "security": "Sicherheit",
+      "support": "Support-Zugriff"
     },
     "members": {
       "inviteTitle": "Person einladen",
@@ -174,7 +178,11 @@
         "member_removed": "Mitglied entfernt",
         "member_role_changed": "Rolle geändert",
         "tenant_branding_changed": "Branding geändert",
-        "tenant_security_changed": "Sicherheitsrichtlinie geändert"
+        "tenant_security_changed": "Sicherheitsrichtlinie geändert",
+        "support_granted": "Support-Zugriff freigegeben",
+        "support_revoked": "Support-Zugriff beendet",
+        "support_session_started": "Support-Sitzung gestartet",
+        "support_session_ended": "Support-Sitzung beendet"
       },
       "actors": {
         "user": "Benutzer",
@@ -215,6 +223,26 @@
       "twoFactorOff": "Ohne 2FA",
       "forbiddenTitle": "Kein Zugriff",
       "forbiddenDescription": "Die Sicherheitsrichtlinien ändern nur Owner und Admins."
+    },
+    "support": {
+      "title": "Support-Zugriff",
+      "description": "Geben Sie dem Team von {partner} zeitlich begrenzt Zugriff, z. B. um einen Agenten einzurichten. Ohne Freigabe sieht der Partner keine Inhalte Ihrer Firma.",
+      "activeUntil": "Aktiv bis {date} – Anlass: {reason}",
+      "revoke": "Zugriff beenden",
+      "reason": "Anlass",
+      "reasonPlaceholder": "z. B. Angebots-Agent einrichten",
+      "duration": "Dauer",
+      "hours": "{count, plural, =1 {1 Stunde} other {# Stunden}}",
+      "grant": "Zugriff freigeben",
+      "historyTitle": "Verlauf",
+      "historyDescription": "Jede Sitzung des Supports steht zusätzlich im Audit-Log.",
+      "historyEmpty": "Noch keine Freigaben.",
+      "grantedBy": "von {name} am {date}",
+      "state_active": "aktiv",
+      "state_expired": "abgelaufen",
+      "state_revoked": "beendet",
+      "forbiddenTitle": "Kein Zugriff",
+      "forbiddenDescription": "Den Support-Zugriff vergeben nur Owner."
     }
   },
   "partner": {
@@ -243,7 +271,9 @@
     "priceUnit": "US-Dollar je 1 Million Tokens. Neue Preise kommen als Datenbankeintrag mit Gültigkeitsdatum (Tabelle price_tables).",
     "rateLabel": "Euro je US-Dollar",
     "rateSave": "Kurs speichern",
-    "rateHint": "Zum Beispiel der EZB-Referenzkurs, gerne mit Währungspuffer. Leer lassen, um Kosten in US-Dollar anzuzeigen."
+    "rateHint": "Zum Beispiel der EZB-Referenzkurs, gerne mit Währungspuffer. Leer lassen, um Kosten in US-Dollar anzuzeigen.",
+    "supportUntil": "Support bis {date}",
+    "openTenant": "Öffnen"
   },
   "chat": {
     "newConversation": "Neues Gespräch",

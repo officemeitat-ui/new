@@ -6,6 +6,7 @@ export * from "./invitations";
 export * from "./mail";
 export * from "./members";
 export * from "./pricing";
+export * from "./support";
 export * from "./tenants";
 export * from "./tokens";
 export * from "./users";

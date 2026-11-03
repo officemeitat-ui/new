@@ -31,7 +31,7 @@ export function InviteSignUpForm({ token, email }: { token: string; email: strin
     try {
       const { error: signUpError } = await authClient.signUp.email({ email, password, name });
       if (signUpError) {
-        setError(t("signUpFailed"));
+        setError(signUpError.status === 429 ? t("tooManyAttempts") : t("signUpFailed"));
         return;
       }
       const result = await acceptInvitationAction(token);

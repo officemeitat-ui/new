@@ -1,6 +1,8 @@
 {
   "app": {
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "supportBanner": "{partner} support is working in {tenant} (until {until}). Every action is logged.",
+    "supportEnd": "End session"
   },
   "nav": {
     "label": "Main navigation",
@@ -104,7 +106,8 @@
     "passwordTooShort": "The password needs at least {min} characters.",
     "passwordMismatch": "The passwords do not match.",
     "signUpFailed": "The account could not be created. Please try again.",
-    "createAccount": "Create account and join"
+    "createAccount": "Create account and join",
+    "tooManyAttempts": "Too many attempts. Please wait a minute."
   },
   "selectTenant": {
     "title": "Choose a company",
@@ -139,7 +142,8 @@
       "members": "Members",
       "audit": "Audit log",
       "branding": "Branding",
-      "security": "Security"
+      "security": "Security",
+      "support": "Support access"
     },
     "members": {
       "inviteTitle": "Invite someone",
@@ -174,7 +178,11 @@
         "member_removed": "Member removed",
         "member_role_changed": "Role changed",
         "tenant_branding_changed": "Branding changed",
-        "tenant_security_changed": "Security policy changed"
+        "tenant_security_changed": "Security policy changed",
+        "support_granted": "Support access granted",
+        "support_revoked": "Support access ended",
+        "support_session_started": "Support session started",
+        "support_session_ended": "Support session ended"
       },
       "actors": {
         "user": "User",
@@ -215,6 +223,26 @@
       "twoFactorOff": "Without 2FA",
       "forbiddenTitle": "No access",
       "forbiddenDescription": "Only owners and admins can change the security policies."
+    },
+    "support": {
+      "title": "Support access",
+      "description": "Give the {partner} team time-limited access, e.g. to set up an agent. Without a grant the partner sees none of your company's content.",
+      "activeUntil": "Active until {date} – reason: {reason}",
+      "revoke": "End access",
+      "reason": "Reason",
+      "reasonPlaceholder": "e.g. set up the quote agent",
+      "duration": "Duration",
+      "hours": "{count, plural, =1 {1 hour} other {# hours}}",
+      "grant": "Grant access",
+      "historyTitle": "History",
+      "historyDescription": "Every support session is also recorded in the audit log.",
+      "historyEmpty": "No grants yet.",
+      "grantedBy": "by {name} on {date}",
+      "state_active": "active",
+      "state_expired": "expired",
+      "state_revoked": "ended",
+      "forbiddenTitle": "No access",
+      "forbiddenDescription": "Only owners can grant support access."
     }
   },
   "partner": {
@@ -243,7 +271,9 @@
     "priceUnit": "US dollars per million tokens. New prices are added as a database row with a validity date (table price_tables).",
     "rateLabel": "Euros per US dollar",
     "rateSave": "Save rate",
-    "rateHint": "For example the ECB reference rate, with a currency buffer if you like. Leave empty to show costs in US dollars."
+    "rateHint": "For example the ECB reference rate, with a currency buffer if you like. Leave empty to show costs in US dollars.",
+    "supportUntil": "Support until {date}",
+    "openTenant": "Open"
   },
   "chat": {
     "newConversation": "New conversation",

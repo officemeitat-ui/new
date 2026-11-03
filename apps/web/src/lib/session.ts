@@ -1,7 +1,9 @@
 import "server-only";
+import { isUuid } from "@nexus/core";
 import { getDatabase } from "@nexus/db";
 import {
   getPartnerAccess,
+  getSupportAccess,
   getTenantAccess,
   getUserOverview,
   needsTwoFactorSetup,
@@ -15,6 +17,8 @@ import { cache } from "react";
 import { auth } from "./auth";
 
 export const ACTIVE_TENANT_COOKIE = "nexus_tenant";
+/** Tenant ID of a support session started from the partner console (M12). */
+export const SUPPORT_COOKIE = "nexus_support";
 
 export type SessionUser = { id: string; name: string; email: string; twoFactorEnabled: boolean };
 
@@ -59,9 +63,21 @@ export const resolveAppContext = cache(async (): Promise<AppContext | null> => {
     active.find((t) => t.tenantId === wanted)?.tenantId ??
     (active.length === 1 ? active[0]!.tenantId : undefined);
 
-  const tenant = tenantId ? await getTenantAccess(db, user.id, tenantId) : null;
   const firstPartner = overview.partners[0];
   const partner = firstPartner ? await getPartnerAccess(db, user.id, firstPartner.partnerId) : null;
+
+  // A support session (granted by the tenant, still valid) takes precedence.
+  const supportTenantId = (await cookies()).get(SUPPORT_COOKIE)?.value;
+  const support =
+    partner && supportTenantId && isUuid(supportTenantId)
+      ? await getSupportAccess(db, {
+          userId: user.id,
+          partnerId: partner.partnerId,
+          tenantId: supportTenantId,
+        })
+      : null;
+
+  const tenant = support ?? (tenantId ? await getTenantAccess(db, user.id, tenantId) : null);
   return { user, overview, tenant, partner };
 });
 

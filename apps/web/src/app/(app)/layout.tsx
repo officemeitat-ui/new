@@ -7,6 +7,10 @@ import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
 import { resolveBranding } from "@/lib/branding";
 import { getAppContext } from "@/lib/session";
+import { endSupportSessionAction } from "@/app/actions/session";
+import { formatDateTime } from "@nexus/core";
+import { Button } from "@nexus/ui";
+import { LifeBuoy } from "lucide-react";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const t = await getTranslations("app");
@@ -34,6 +38,27 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {ctx.tenant?.support ? (
+          // Everyone must see that partner staff are working in this tenant (M12).
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-3 border-b border-warning/40 bg-warning/15 px-4 py-2 text-sm text-foreground md:px-8"
+          >
+            <LifeBuoy className="size-4 shrink-0 text-warning" aria-hidden />
+            <span className="flex-1">
+              {t("supportBanner", {
+                partner: ctx.tenant.support.partnerName,
+                tenant: ctx.tenant.tenantName,
+                until: formatDateTime(ctx.tenant.support.expiresAt),
+              })}
+            </span>
+            <form action={endSupportSessionAction}>
+              <Button type="submit" size="sm" variant="outline">
+                {t("supportEnd")}
+              </Button>
+            </form>
+          </div>
+        ) : null}
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-8">
           <div className="md:hidden">
             <BrandMark productName={productName} compact />
