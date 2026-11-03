@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Beispiel-Kontoauszug (erfundene Daten, Test-IBANs) -->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <BkToCstmrStmt>
+    <GrpHdr><MsgId>BEISPIEL-2026-11-04</MsgId><CreDtTm>2026-11-04T06:00:00</CreDtTm></GrpHdr>
+    <Stmt>
+      <Id>STMT-1</Id>
+      <FrToDt><FrDtTm>2026-11-03T00:00:00</FrDtTm><ToDtTm>2026-11-03T23:59:59</ToDtTm></FrToDt>
+      <Acct><Id><IBAN>AT611904300234573201</IBAN></Id><Ccy>EUR</Ccy></Acct>
+      <Ntry>
+        <Amt Ccy="EUR">1234.56</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-03</Dt></BookgDt><ValDt><Dt>2026-11-03</Dt></ValDt>
+        <AcctSvcrRef>BANK-0001</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Refs><EndToEndId>NOTPROVIDED</EndToEndId></Refs>
+          <RltdPties><Dbtr><Pty><Nm>Hausverwaltung Beispiel GmbH</Nm></Pty></Dbtr><DbtrAcct><Id><IBAN>AT483200000012345864</IBAN></Id></DbtrAcct></RltdPties>
+          <RmtInf><Ustrd>Rechnung RE-2026-0003</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">900.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-03</Dt></BookgDt><ValDt><Dt>2026-11-03</Dt></ValDt>
+        <AcctSvcrRef>BANK-0002</AcctSvcrRef>
+        <AddtlNtryInf>SEPA Sammelgutschrift</AddtlNtryInf>
+        <NtryDtls>
+          <TxDtls>
+            <Amt Ccy="EUR">600.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+            <Refs><EndToEndId>E2E-A</EndToEndId></Refs>
+            <RltdPties><Dbtr><Nm>Autohaus Maxglan Beispiel KG</Nm></Dbtr></RltdPties>
+            <RmtInf><Strd><CdtrRefInf><Ref>RE20260004</Ref></CdtrRefInf></Strd></RmtInf>
+          </TxDtls>
+          <TxDtls>
+            <Amt Ccy="EUR">300.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+            <Refs><EndToEndId>E2E-B</EndToEndId></Refs>
+            <RltdPties><Dbtr><Nm>Unbekannt &amp; Söhne</Nm></Dbtr></RltdPties>
+            <RmtInf><Ustrd>Danke</Ustrd></RmtInf>
+          </TxDtls>
+        </NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">75.40</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-03</Dt></BookgDt><ValDt><Dt>2026-11-03</Dt></ValDt>
+        <NtryDtls><TxDtls>
+          <RltdPties><Cdtr><Nm>Reinigungsmittel Großhandel</Nm></Cdtr><CdtrAcct><Id><IBAN>AT022050302101023600</IBAN></Id></CdtrAcct></RltdPties>
+          <RmtInf><Ustrd>Lieferung 4711</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">50.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><RvslInd>true</RvslInd><Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-11-03</Dt></BookgDt>
+        <AddtlNtryInf>Rückbuchung Lastschrift</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">10.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Sts><Cd>PDNG</Cd></Sts>
+        <BookgDt><Dt>2026-11-04</Dt></BookgDt>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>
