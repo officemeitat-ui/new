@@ -1,8 +1,9 @@
 "use server";
 
-import { isUuid, validationError } from "@nexus/core";
-import { getDatabase, withTenant } from "@nexus/db";
-import { requirePermission, startRun } from "@nexus/domain";
+import { isUuid, notFound, validationError } from "@nexus/core";
+import { eq, getDatabase, withTenant } from "@nexus/db";
+import { runs } from "@nexus/db/schema";
+import { can, listRunSteps, requirePermission, startRun } from "@nexus/domain";
 import { revalidatePath } from "next/cache";
 import { runAction, type ActionResult } from "@/lib/actions";
 import { enqueueAgentRun } from "@/lib/queue";
@@ -36,5 +37,44 @@ export async function sendMessageAction(
     await enqueueAgentRun({ runId: ids.runId, tenantId });
     revalidatePath("/chat", "layout");
     return { data: ids };
+  });
+}
+
+export type TraceStep = {
+  seq: number;
+  type: "llm" | "thinking" | "tool" | "approval";
+  name: string | null;
+  data: Record<string, unknown>;
+  isError: boolean;
+  costUsdMicros: number;
+  durationMs: number | null;
+};
+
+/** Steps of one run for the trace panel. Only the author (or conversation.read_all) may see it. */
+export async function getRunTraceAction(runId: string): Promise<ActionResult<TraceStep[]>> {
+  return runAction("getRunTrace", async () => {
+    const ctx = await requireTenant();
+    if (!isUuid(runId)) throw validationError("Ungültiger Lauf.");
+    const steps = await withTenant(getDatabase().db, ctx.tenant.tenantId, async (tx) => {
+      const [run] = await tx
+        .select({ triggeredBy: runs.triggeredBy })
+        .from(runs)
+        .where(eq(runs.id, runId));
+      if (!run || (run.triggeredBy !== ctx.user.id && !can(ctx.tenant, "conversation.read_all"))) {
+        throw notFound("Lauf nicht gefunden.");
+      }
+      return listRunSteps(tx, runId);
+    });
+    return {
+      data: steps.map((step) => ({
+        seq: step.seq,
+        type: step.type,
+        name: step.name,
+        data: step.data,
+        isError: step.isError,
+        costUsdMicros: step.costUsdMicros,
+        durationMs: step.durationMs,
+      })),
+    };
   });
 }

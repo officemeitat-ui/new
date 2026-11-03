@@ -43,7 +43,10 @@ export function ConversationList({
                   >
                     <span className="block truncate">{conversation.title}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {format.relativeTime(new Date(conversation.lastMessageAt), now)}
+                      {format.relativeTime(
+                        new Date(Math.min(Date.parse(conversation.lastMessageAt), now.getTime())),
+                        now,
+                      )}
                     </span>
                   </Link>
                 </li>

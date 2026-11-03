@@ -3,4 +3,5 @@
 export * from "./agents";
 export * from "./audit";
 export * from "./auth";
+export * from "./pricing";
 export * from "./tenancy";

@@ -43,6 +43,20 @@
       "when": 1793728039359,
       "tag": "0005_tenant_admin_two_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793728356686,
+      "tag": "0006_price_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793728357378,
+      "tag": "0007_seed_prices",
+      "breakpoints": true
     }
   ]
 }

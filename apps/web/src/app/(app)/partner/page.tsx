@@ -1,6 +1,7 @@
 import { formatDate } from "@nexus/core";
 import { getDatabase } from "@nexus/db";
-import { can, listPartnerTenants } from "@nexus/domain";
+import { can, listPartnerTenants, loadCurrentPrices } from "@nexus/domain";
+import { modelDisplayName } from "@nexus/agents/models";
 import {
   Badge,
   Card,
@@ -11,8 +12,9 @@ import {
   EmptyState,
 } from "@nexus/ui";
 import { Building2 } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { CreateTenantForm } from "@/components/partner/create-tenant-form";
+import { ExchangeRateForm } from "@/components/partner/exchange-rate-form";
 import { requirePartner } from "@/lib/session";
 
 export const metadata = { title: "Partner-Konsole" };
@@ -21,7 +23,12 @@ export default async function PartnerPage() {
   const t = await getTranslations("partner");
   const tPlans = await getTranslations("plans");
   const ctx = await requirePartner();
-  const tenants = await listPartnerTenants(getDatabase().db, ctx.partner.partnerId);
+  const db = getDatabase().db;
+  const [tenants, prices] = await Promise.all([
+    listPartnerTenants(db, ctx.partner.partnerId),
+    loadCurrentPrices(db),
+  ]);
+  const format = await getFormatter();
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -78,6 +85,53 @@ export default async function PartnerPage() {
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("pricingTitle")}</CardTitle>
+          <CardDescription>{t("pricingDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">{t("priceModel")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("priceInput")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("priceOutput")}</th>
+                  <th className="py-2 pr-4 font-medium">{t("priceCacheRead")}</th>
+                  <th className="py-2 font-medium">{t("priceCacheWrite")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(prices).map(([model, price]) => (
+                  <tr key={model} className="border-b last:border-0">
+                    <td className="py-2 pr-4">{modelDisplayName(model)}</td>
+                    {[
+                      price.inputPerMTok,
+                      price.outputPerMTok,
+                      price.cacheReadPerMTok,
+                      price.cacheWritePerMTok,
+                    ].map((value, index) => (
+                      <td key={index} className="py-2 pr-4 tabular-nums">
+                        {format.number(value, {
+                          style: "currency",
+                          currency: "USD",
+                          maximumFractionDigits: 3,
+                        })}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-xs text-muted-foreground">{t("priceUnit")}</p>
+          </div>
+          {can(ctx.partner, "partner.pricing.manage") ? (
+            <ExchangeRateForm rate={ctx.partner.usdEurRate} />
+          ) : null}
         </CardContent>
       </Card>
     </div>

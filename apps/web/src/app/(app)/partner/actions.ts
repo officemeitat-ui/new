@@ -3,8 +3,13 @@
 import { validationError } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
-import { getDatabase } from "@nexus/db";
-import { provisionTenant, requirePermission, sendInvitationEmail } from "@nexus/domain";
+import { getDatabase, withPartner } from "@nexus/db";
+import {
+  provisionTenant,
+  requirePermission,
+  sendInvitationEmail,
+  updatePartnerExchangeRate,
+} from "@nexus/domain";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { runAction, type ActionResult } from "@/lib/actions";
@@ -59,5 +64,35 @@ export async function createTenantAction(
         data: { link },
       };
     }
+  });
+}
+
+export async function updateExchangeRateAction(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction("updateExchangeRate", async () => {
+    const ctx = await requirePartner();
+    requirePermission(ctx.partner, "partner.pricing.manage");
+    const raw = String(formData.get("usdEurRate") ?? "")
+      .trim()
+      .replace(",", ".");
+    const rate = raw === "" ? null : Number(raw);
+    if (rate !== null && Number.isNaN(rate))
+      throw validationError("Bitte eine Zahl eingeben, z. B. 0,92.");
+    await withPartner(getDatabase().db, ctx.partner.partnerId, (tx) =>
+      updatePartnerExchangeRate(tx, { partnerId: ctx.partner.partnerId, usdEurRate: rate }),
+    );
+    log.info(
+      { partnerId: ctx.partner.partnerId, actorId: ctx.user.id, usdEurRate: rate },
+      "exchange rate changed",
+    );
+    revalidatePath("/", "layout");
+    return {
+      message:
+        rate === null
+          ? "Kosten werden wieder in US-Dollar angezeigt."
+          : "Der Kurs ist gespeichert.",
+    };
   });
 }

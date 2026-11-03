@@ -232,7 +232,18 @@
     "invitationPending": "Einladung offen",
     "suspended": "Gesperrt",
     "emptyTitle": "Noch keine Mandanten",
-    "emptyDescription": "Legen Sie oben Ihren ersten Kunden an."
+    "emptyDescription": "Legen Sie oben Ihren ersten Kunden an.",
+    "pricingTitle": "Preise und Umrechnung",
+    "pricingDescription": "Modellpreise des KI-Anbieters (Einkauf) und der Kurs, mit dem Kosten Ihren Kunden in Euro angezeigt werden.",
+    "priceModel": "Modell",
+    "priceInput": "Eingabe",
+    "priceOutput": "Ausgabe",
+    "priceCacheRead": "Cache lesen",
+    "priceCacheWrite": "Cache schreiben",
+    "priceUnit": "US-Dollar je 1 Million Tokens. Neue Preise kommen als Datenbankeintrag mit Gültigkeitsdatum (Tabelle price_tables).",
+    "rateLabel": "Euro je US-Dollar",
+    "rateSave": "Kurs speichern",
+    "rateHint": "Zum Beispiel der EZB-Referenzkurs, gerne mit Währungspuffer. Leer lassen, um Kosten in US-Dollar anzuzeigen."
   },
   "chat": {
     "newConversation": "Neues Gespräch",
@@ -259,7 +270,31 @@
     "statusMaxSteps": "Das Schrittlimit wurde erreicht. Teilen Sie die Aufgabe bitte auf.",
     "statusIncomplete": "Die Antwort wurde abgeschnitten.",
     "statusApproval": "Der Agent wartet auf eine Freigabe.",
-    "statusCancelled": "Abgebrochen."
+    "statusCancelled": "Abgebrochen.",
+    "trace": {
+      "show": "Details anzeigen",
+      "loading": "Lädt …",
+      "empty": "Keine Schritte aufgezeichnet.",
+      "label": "Schritte dieser Antwort",
+      "llm": "Modellaufruf – {model}",
+      "stopReason": "Ende: {reason}",
+      "tokensInOut": "{input} → {output} Tokens",
+      "cacheRead": "{count} aus dem Cache",
+      "cacheWrite": "{count} in den Cache",
+      "seconds": "{seconds} s",
+      "thinking": "Überlegung (Zusammenfassung)",
+      "toolCall": "Werkzeug „{tool}“ aufgerufen",
+      "toolResult": "Ergebnis von „{tool}“",
+      "approval": "Freigabe angefordert",
+      "reasons": {
+        "end_turn": "fertig",
+        "tool_use": "Werkzeug benötigt",
+        "max_tokens": "Längenlimit",
+        "refusal": "abgelehnt",
+        "pause_turn": "pausiert",
+        "stop_sequence": "Stoppsequenz"
+      }
+    }
   },
   "account": {
     "title": "Konto und Sicherheit",

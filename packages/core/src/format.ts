@@ -72,3 +72,17 @@ export function dayPeriod(date: Date = new Date(), timeZone = DEFAULT_TIME_ZONE)
   if (hour >= 11 && hour < 18) return "day";
   return "evening";
 }
+
+/**
+ * Costs are stored in micro-dollars (provider prices are in USD). With the partner's
+ * EUR-per-USD rate they are shown in euros, otherwise in US dollars.
+ */
+export function convertUsdMicros(
+  costUsdMicros: number,
+  usdEurRate: number | null,
+): { amount: number; currency: "EUR" | "USD" } {
+  const usd = costUsdMicros / 1_000_000;
+  return usdEurRate
+    ? { amount: usd * usdEurRate, currency: "EUR" }
+    : { amount: usd, currency: "USD" };
+}

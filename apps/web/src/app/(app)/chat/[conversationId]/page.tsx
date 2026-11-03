@@ -40,6 +40,7 @@ export default async function ConversationPage({
       turns={turns}
       activeRunId={active?.id ?? null}
       llmConfigured={llmConfigured()}
+      usdEurRate={ctx.tenant.usdEurRate}
       examples={[]}
     />
   );

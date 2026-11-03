@@ -27,6 +27,8 @@ export type TenantAccess = {
   branding: Branding & { tenantColor: string | null; partnerColor: string };
   /** Owners and admins of this tenant must have two-factor authentication enabled. */
   requireAdminTwoFactor: boolean;
+  /** EUR per USD set by the partner; null = show costs in US dollars. */
+  usdEurRate: number | null;
 };
 
 export type PartnerAccess = {
@@ -36,6 +38,7 @@ export type PartnerAccess = {
   role: PartnerRole;
   permissions: readonly PartnerPermission[];
   branding: Branding;
+  usdEurRate: number | null;
 };
 
 export type UserOverview = {
@@ -87,6 +90,7 @@ export async function getTenantAccess(
         partnerColor: partners.brandColor,
         productName: partners.productName,
         requireAdminTwoFactor: tenants.requireAdminTwoFactor,
+        usdEurRate: partners.usdEurRate,
       })
       .from(memberships)
       .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
@@ -108,6 +112,7 @@ export async function getTenantAccess(
         partnerColor: row.partnerColor,
       },
       requireAdminTwoFactor: row.requireAdminTwoFactor,
+      usdEurRate: row.usdEurRate,
     };
   });
 }
@@ -124,6 +129,7 @@ export async function getPartnerAccess(
         partnerName: partners.name,
         productName: partners.productName,
         brandColor: partners.brandColor,
+        usdEurRate: partners.usdEurRate,
       })
       .from(partnerMemberships)
       .innerJoin(partners, eq(partners.id, partnerMemberships.partnerId))
@@ -138,6 +144,7 @@ export async function getPartnerAccess(
       role: row.role,
       permissions: PARTNER_ROLE_PERMISSIONS[row.role],
       branding: { productName: row.productName, primaryColor: row.brandColor },
+      usdEurRate: row.usdEurRate,
     };
   });
 }

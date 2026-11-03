@@ -6,7 +6,7 @@ import { requireTenant } from "@/lib/session";
 export const metadata = { title: "Chat" };
 
 export default async function NewChatPage() {
-  await requireTenant();
+  const ctx = await requireTenant();
   const t = await getTranslations("chat");
   return (
     <ChatView
@@ -14,6 +14,7 @@ export default async function NewChatPage() {
       turns={[]}
       activeRunId={null}
       llmConfigured={llmConfigured()}
+      usdEurRate={ctx.tenant.usdEurRate}
       examples={[t("example1"), t("example2"), t("example3")]}
     />
   );

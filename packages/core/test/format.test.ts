@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  convertUsdMicros,
   dayPeriod,
   formatCurrency,
   formatDate,
@@ -36,5 +37,14 @@ describe("dayPeriod", () => {
   it("follows daylight saving time", () => {
     // 06:30 UTC = 08:30 in Vienna (summer time)
     expect(hourInTimeZone(new Date("2026-07-01T06:30:00Z"))).toBe(8);
+  });
+});
+
+describe("convertUsdMicros", () => {
+  it("shows euros with the partner rate and dollars without", () => {
+    const eur = convertUsdMicros(10_000, 0.9);
+    expect(eur.currency).toBe("EUR");
+    expect(eur.amount).toBeCloseTo(0.009, 12);
+    expect(convertUsdMicros(10_000, null)).toEqual({ amount: 0.01, currency: "USD" });
   });
 });

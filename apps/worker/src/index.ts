@@ -2,7 +2,9 @@ import { providerFromEnv } from "@nexus/agents";
 import { QUEUES, type AgentRunJob } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
+import { DEFAULT_PRICES, type ModelPrice } from "@nexus/agents";
 import { getDatabase } from "@nexus/db";
+import { loadCurrentPrices } from "@nexus/domain";
 import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { startHealthServer } from "./health-server";
@@ -16,9 +18,24 @@ const log = createLogger("worker");
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
 const publisher = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+const db = getDatabase(env.DATABASE_URL).db;
+
+// Prices come from the price_tables table (ADR 0006), refreshed every five minutes.
+// Built-in defaults only fill models that are missing there – and that is logged.
+let priceCache: { at: number; prices: Record<string, ModelPrice> } | undefined;
+async function loadPrices(): Promise<Record<string, ModelPrice>> {
+  if (priceCache && Date.now() - priceCache.at < 5 * 60_000) return priceCache.prices;
+  const fromDb = await loadCurrentPrices(db);
+  const missing = Object.keys(DEFAULT_PRICES).filter((model) => !(model in fromDb));
+  if (missing.length > 0)
+    log.warn({ missing }, "models without a price in price_tables – using defaults");
+  priceCache = { at: Date.now(), prices: { ...DEFAULT_PRICES, ...fromDb } };
+  return priceCache.prices;
+}
 const agentDeps = {
-  db: getDatabase(env.DATABASE_URL).db,
+  db,
   provider: providerFromEnv(env),
+  loadPrices,
   publish: redisPublisher(publisher),
   platformName: env.BRAND_PRODUCT_NAME,
   log,

@@ -3,6 +3,7 @@ import {
   boolean,
   index,
   integer,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -22,6 +23,8 @@ export const partners = pgTable("partners", {
   slug: text().notNull().unique(),
   productName: text().notNull().default("ME-IT Nexus"),
   brandColor: text().notNull().default("#2454d6"),
+  /** EUR per USD, set by the partner for showing and billing costs in euros (M11). */
+  usdEurRate: numeric({ precision: 10, scale: 6, mode: "number" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

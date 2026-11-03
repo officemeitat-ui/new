@@ -232,7 +232,18 @@
     "invitationPending": "Invitation pending",
     "suspended": "Suspended",
     "emptyTitle": "No tenants yet",
-    "emptyDescription": "Create your first customer above."
+    "emptyDescription": "Create your first customer above.",
+    "pricingTitle": "Prices and conversion",
+    "pricingDescription": "Model prices of the AI provider (purchase) and the rate used to show costs to your customers in euros.",
+    "priceModel": "Model",
+    "priceInput": "Input",
+    "priceOutput": "Output",
+    "priceCacheRead": "Cache read",
+    "priceCacheWrite": "Cache write",
+    "priceUnit": "US dollars per million tokens. New prices are added as a database row with a validity date (table price_tables).",
+    "rateLabel": "Euros per US dollar",
+    "rateSave": "Save rate",
+    "rateHint": "For example the ECB reference rate, with a currency buffer if you like. Leave empty to show costs in US dollars."
   },
   "chat": {
     "newConversation": "New conversation",
@@ -259,7 +270,31 @@
     "statusMaxSteps": "The step limit was reached. Please split the task.",
     "statusIncomplete": "The answer was cut off.",
     "statusApproval": "The agent is waiting for an approval.",
-    "statusCancelled": "Cancelled."
+    "statusCancelled": "Cancelled.",
+    "trace": {
+      "show": "Show details",
+      "loading": "Loading …",
+      "empty": "No steps recorded.",
+      "label": "Steps of this answer",
+      "llm": "Model call – {model}",
+      "stopReason": "Stop: {reason}",
+      "tokensInOut": "{input} → {output} tokens",
+      "cacheRead": "{count} from cache",
+      "cacheWrite": "{count} written to cache",
+      "seconds": "{seconds} s",
+      "thinking": "Reasoning (summary)",
+      "toolCall": "Called tool “{tool}”",
+      "toolResult": "Result of “{tool}”",
+      "approval": "Approval requested",
+      "reasons": {
+        "end_turn": "done",
+        "tool_use": "tool needed",
+        "max_tokens": "length limit",
+        "refusal": "declined",
+        "pause_turn": "paused",
+        "stop_sequence": "stop sequence"
+      }
+    }
   },
   "account": {
     "title": "Account and security",

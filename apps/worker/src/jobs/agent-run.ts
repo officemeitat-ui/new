@@ -42,7 +42,8 @@ export type AgentRunDeps = {
   provider: () => Promise<LlmProvider>;
   publish: RunEventPublisher;
   platformName: string;
-  prices?: Record<string, ModelPrice>;
+  /** Current model prices; defaults to the built-in list (tests). */
+  loadPrices?: () => Promise<Record<string, ModelPrice>>;
   log: Logger;
 };
 
@@ -182,7 +183,7 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       tools,
       policy,
       messages: ctx.messages,
-      prices: deps.prices ?? DEFAULT_PRICES,
+      prices: deps.loadPrices ? await deps.loadPrices() : DEFAULT_PRICES,
       limits: {
         maxSteps: ctx.config.maxSteps,
         ...(ctx.config.maxCostUsdMicros !== undefined

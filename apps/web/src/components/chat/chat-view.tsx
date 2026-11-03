@@ -1,6 +1,7 @@
 "use client";
 
 import { modelDisplayName } from "@nexus/agents/models";
+import { convertUsdMicros } from "@nexus/core";
 import { Badge, Button, cn, FieldError } from "@nexus/ui";
 import { ArrowUp, Bot, Calculator, Loader2, Sparkles, TriangleAlert, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,7 @@ import {
 } from "react";
 import { sendMessageAction } from "@/app/(app)/chat/actions";
 import { toolLabel, type ChatTurn } from "@/lib/chat";
+import { RunTrace } from "./run-trace";
 import { Markdown } from "./markdown";
 
 type LiveRun = { runId: string; text: string; activity: string | null; tools: string[] };
@@ -94,27 +96,27 @@ function useRunStream(runId: string | null, onDone: () => void) {
     : { runId, text: "", activity: t("activityThinking"), tools: [] };
 }
 
-function TurnMeta({ turn }: { turn: ChatTurn }) {
+function TurnMeta({ turn, usdEurRate }: { turn: ChatTurn; usdEurRate: number | null }) {
   const t = useTranslations("chat");
   const format = useFormatter();
   if (turn.steps === 0) return null;
-  const cost = format.number(turn.costUsdMicros / 1_000_000, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 4,
-  });
+  const { amount, currency } = convertUsdMicros(turn.costUsdMicros, usdEurRate);
+  const cost = format.number(amount, { style: "currency", currency, maximumFractionDigits: 4 });
   return (
-    <p className="mt-2 text-xs text-muted-foreground">
-      {[
-        modelDisplayName(turn.model),
-        t("metaSteps", { count: turn.steps }),
-        t("metaTokens", { count: turn.tokens }),
-        turn.cacheReadTokens > 0 ? t("metaCached", { count: turn.cacheReadTokens }) : null,
-        cost,
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-    </p>
+    <>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {[
+          modelDisplayName(turn.model),
+          t("metaSteps", { count: turn.steps }),
+          t("metaTokens", { count: turn.tokens }),
+          turn.cacheReadTokens > 0 ? t("metaCached", { count: turn.cacheReadTokens }) : null,
+          cost,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+      <RunTrace runId={turn.runId} usdEurRate={usdEurRate} />
+    </>
   );
 }
 
@@ -153,12 +155,15 @@ export function ChatView({
   activeRunId,
   llmConfigured,
   examples,
+  usdEurRate,
 }: {
   conversationId: string | null;
   turns: ChatTurn[];
   activeRunId: string | null;
   llmConfigured: boolean;
   examples: string[];
+  /** EUR per USD from the partner; null shows dollars. */
+  usdEurRate: number | null;
 }) {
   const t = useTranslations("chat");
   const router = useRouter();
@@ -274,7 +279,7 @@ export function ChatView({
                           {turn.status === "failed" && turn.error ? turn.error : t(note)}
                         </p>
                       ) : null}
-                      <TurnMeta turn={turn} />
+                      <TurnMeta turn={turn} usdEurRate={usdEurRate} />
                     </>
                   )}
                 </AssistantBubble>

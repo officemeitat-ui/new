@@ -19,6 +19,13 @@ test("the assistant answers live, uses a tool and keeps the conversation", async
   await expect(page.getByText("Rechner", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Claude Opus 5\.5 · 2 Schritte/)).toBeVisible();
 
+  // The trace shows what happened behind the answer.
+  await page.getByText("Details anzeigen").first().click();
+  const trace = page.getByRole("list", { name: "Schritte dieser Antwort" });
+  await expect(trace.getByText("Modellaufruf – Claude Opus 5.5").first()).toBeVisible();
+  await expect(trace.getByText("Werkzeug „Rechner“ aufgerufen")).toBeVisible();
+  await expect(trace.getByText(/"ausdruck": "3480 \* 0,2"/)).toBeVisible();
+
   await page.getByLabel("Nachricht an den Assistenten").fill("Danke");
   await page.getByLabel("Nachricht an den Assistenten").press("Enter");
   await expect(page.getByText("Grüß Gott! Sie schrieben: „Danke“")).toBeVisible({
