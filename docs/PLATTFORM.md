@@ -330,7 +330,25 @@ Eigenes Modul unter *Auswertung* (Rolle `buchhaltung` oder Vollzugriff), gespeic
 - **Versand per E-Mail** mit dem PDF im Anhang (Mail.Send, sonst E-Mail-Programm); jeder Versand wird vermerkt, das PDF liegt danach auch in SharePoint.
 - **Export für die Steuerberatung:** CSV je Zeitraum, eine Zeile je Beleg und Steuersatz (Belegnummer, Datum, AR/GU, Debitor, Erlöskonto je Steuersatz bzw. Reverse Charge, Kunde, UID, Steuercode, Netto, Steuer, Brutto, Leistungszeitraum); Konten in den Einstellungen, mit der Steuerberatung abstimmen.
 - **Übersicht:** Umsatz netto je Monat und Kunde, offene und überfällige Summe, fällige Mahnungen und Daueraufträge (auch in „Zu erledigen“); beim Objekt der Rechnungsempfänger und offene Rechnungen.
+- **Bankabgleich** (Reiter „Bank“): siehe unten.
 - **Reverse Charge** (§ 19 Abs. 1a UStG) gilt für die Reinigung von Bauwerken **nur**, wenn der Auftraggeber selbst üblicherweise Bauleistungen erbringt oder mit der Leistung beauftragt ist (typisch: Subauftrag einer anderen Reinigungs- oder Baufirma). Hausverwaltungen, Büros, Geschäfte: normale Rechnung mit 20 % USt. Rechtliches und offene Punkte: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#fakturierung).
+
+### Bankabgleich
+
+Kontoauszug im Online-Banking herunterladen und unter Fakturierung → **Bank** → „Kontoauszug einlesen“ wählen. Die App ordnet die Eingänge den offenen Rechnungen zu; gebucht wird erst nach Bestätigung.
+
+- **Formate:** **camt.053** (Tagesauszug), **camt.052** (Umsätze untertags) und **camt.054** als XML (ISO 20022, in George, ELBA und den Business-Banking-Programmen der österreichischen Banken als „camt“ bzw. „XML“). **CSV** aus George (Erste Bank, Sparkassen), ELBA (Raiffeisen, Volksbank, Hypo; ohne Kopfzeile), Bank Austria und BAWAG; jede andere CSV mit **Spaltenzuordnung** in der Vorschau (Datum, Betrag oder Haben/Soll, Name, IBAN, Text, Zahlungsreferenz). Trennzeichen (; , Tab) und Dezimalkomma werden erkannt. Bei ELBA stehen Auftraggeber, IBAN, Zahlungsreferenz und Verwendungszweck im Buchungstext und werden daraus gelesen.
+- **Vorschau** vor dem Übernehmen: erkanntes Format, Konto, Zeitraum, Eingänge und Abbuchungen, die ersten Buchungen. Schon eingelesene Buchungen werden erkannt (Kennung aus Datum, Betrag, IBAN und Text) und nicht doppelt übernommen; zwei gleiche Zahlungen am selben Tag in einer Datei bleiben beide.
+- **Sammelgutschriften** (mehrere Zahlungen in einer Buchung, camt `TxDtls`) werden in die einzelnen Zahlungen aufgeteilt. Vorgemerkte Buchungen (noch nicht gebucht) werden übersprungen, Rückbuchungen der Bank markiert.
+- **Zuordnung** je Eingang, mit Sicherheit und Begründung:
+  - **sicher:** Rechnungsnummer im Verwendungszweck oder in der Zahlungsreferenz (auch „RE 2026 7“, „RE20260007“; so steht sie im QR-Code der Rechnung) und der Betrag stimmt, auch mehrere Rechnungen in einer Zahlung; **Teilzahlungen** mit Nummer (danach offen …); ohne Nummer, wenn die **IBAN des Kunden** bekannt ist und der Betrag genau einer offenen Rechnung entspricht.
+  - **wahrscheinlich:** Name des Zahlers passt zum Kunden bzw. Rechnungsempfänger und der Betrag zu einer Rechnung oder zur Summe mehrerer; **Überzahlung** mit Nummer (der Mehrbetrag bleibt bei der Rechnung, Gutschrift oder Rückzahlung klären).
+  - **unsicher:** nur der Betrag passt, oder die genannte Rechnung ist **storniert** bzw. schon **bezahlt** (Hinweis auf Doppelzahlung oder Rückzahlung, keine Buchung vorgeschlagen).
+- **Zuordnen** bucht die Zahlung bei der Rechnung (Datum der Bank, Vermerk „Bank: Name“), die offenen Posten und Mahnstufen richten sich danach. **Alle sicheren übernehmen** erledigt die sicheren auf einmal. **Andere Rechnung** wählt von Hand eine oder mehrere Rechnungen mit Beträgen. **Ignorieren** für Eingänge, die keine Kundenzahlungen sind. **Lösen** nimmt eine Zuordnung samt Zahlung wieder zurück.
+- Die **IBAN des Zahlers** wird beim Kunden gemerkt; die nächste Zahlung ohne Rechnungsnummer wird dann sicher erkannt.
+- **Abbuchungen** werden nur angezeigt (keine Eingangsrechnungen in der App).
+- **Zu erledigen:** Eingänge, die seit über 7 Tagen keiner Rechnung zugeordnet sind.
+- **Gespeichert** in `fakturierung/fakturierung.json` (Teil `bank`): die Buchungen der letzten 13 Monate (Datum, Betrag, Name, IBAN, Text gekürzt, Zuordnung) und die Kennungen gegen doppeltes Einlesen; ältere werden beim nächsten Einlesen entfernt. Die Zahlungen selbst stehen dauerhaft bei den Rechnungen. Rechte wie die Fakturierung.
 
 ## KI-Assistent
 

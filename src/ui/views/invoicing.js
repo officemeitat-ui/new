@@ -65,6 +65,7 @@ import { absMinutes } from '../../core/timeclock.js'
 import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
+import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, download, esc, euro, ICON, modalFrame, options, uid, val } from '../shared.js'
@@ -123,6 +124,7 @@ const TABS = [
   ['rechnungen', 'Rechnungen'],
   ['angebote', 'Angebote & Aufträge'],
   ['offen', 'Offene Posten'],
+  ['bank', 'Bank'],
   ['dauer', 'Daueraufträge'],
   ['kunden', 'Kunden'],
   ['artikel', 'Artikel'],
@@ -150,10 +152,10 @@ function invoicingView() {
   checkNumbers()
   const tab = TABS.some(([k]) => k === app.ui.fakTab) ? app.ui.fakTab : 'start'
   const n = counts()
-  const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due }
+  const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, offen: openTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button><button class="btn" data-action="fak-new" data-kind="angebot">${ICON.plus} Angebot</button>` : ''}</div></div>
@@ -1357,6 +1359,9 @@ registerTodo({
     if (remind.length) out.push({ id: `remind:${remind.map((x) => `${x.doc.id}.${x.level}`).join(',')}`, kind: 'remind', list: remind })
     const conflicts = resolveDuplicates(F().documents, s).conflicts
     if (conflicts.length) out.push({ id: `dup:${conflicts.flat().join(',')}`, kind: 'dup', conflicts })
+    // Bankabgleich: Eingänge, die seit über 7 Tagen keiner Rechnung zugeordnet sind
+    const stale = staleBankCredits(today)
+    if (stale.length) out.push({ id: `bank:${stale.map((t) => t.id).join(',')}`, kind: 'bank', count: stale.length, sum: round2(stale.reduce((a, t) => a + t.amount, 0)) })
     return out
   },
   render: (items) =>
@@ -1364,6 +1369,8 @@ registerTodo({
       .map((x) =>
         x.kind === 'run'
           ? `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Daueraufträge ${esc(monthLabel(x.ym))}</strong> noch nicht abgerechnet</div><button class="btn small primary" data-action="fak-run" data-ym="${x.ym}">Monatslauf</button></div>`
+          : x.kind === 'bank'
+            ? `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Zahlungseingänge ohne Rechnung</strong> seit über 7 Tagen (${money(x.sum)})</div><button class="btn small primary" data-action="fak-bank-goto">Zuordnen</button></div>`
           : x.kind === 'remind'
             ? `<div class="todo-item"><span class="flag error">${x.list.length}</span><div class="todo-text"><strong>Mahnung fällig:</strong> ${esc(x.list.slice(0, 4).map((i) => `${i.doc.number} (${i.doc.recipient?.name || ''})`).join(', '))}${x.list.length > 4 ? ' …' : ''}</div><button class="btn small" data-action="view" data-view="fakturierung">Offene Posten</button></div>`
             : `<div class="todo-item"><span class="flag error">!</span><div class="todo-text"><strong>Rechnungsnummer doppelt vergeben</strong> und beide schon versendet. Eine davon stornieren und neu ausstellen.</div></div>`,

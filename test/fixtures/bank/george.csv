@@ -1,0 +1,4 @@
+"Buchungsdatum";"Partnername";"Partner IBAN";"Partner BIC";"Betrag";"Währung";"Buchungs-Info";"Zahlungsreferenz";"Valutadatum"
+"04.11.2026";"Hausverwaltung Beispiel GmbH";"AT48 3200 0000 1234 5864";"RLNWATWW";"1.234,56";"EUR";"Überweisung RE-2026-0003";"";"04.11.2026"
+"04.11.2026";"Reinigungsmittel Großhandel";"AT022050302101023600";"";"-75,40";"EUR";"Lieferung 4711";"";"04.11.2026"
+"05.11.2026";"Autohaus Maxglan Beispiel KG";"";"";"500,00";"EUR";"Anzahlung";"RE 2026 4";"05.11.2026"

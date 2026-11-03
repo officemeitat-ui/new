@@ -1381,6 +1381,32 @@ tr.muted td { color: var(--muted); }
 .fak-recipient summary { cursor: pointer; }
 .fak-recipient .form-grid { margin-top: 10px; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 12px; }
+/* Bankabgleich */
+.bank-file { cursor: pointer; }
+.bank-list { display: grid; gap: 10px; margin-bottom: 14px; }
+.bank-card { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) auto; gap: 6px 16px; align-items: start; padding: 10px 14px; border: 1px solid var(--line); border-left: 4px solid var(--line-strong, var(--line)); border-radius: 10px; background: var(--surface); }
+.bank-card.level-sicher { border-left-color: var(--ok); }
+.bank-card.level-wahrscheinlich { border-left-color: var(--info, var(--accent)); }
+.bank-card.level-unsicher { border-left-color: var(--warn); }
+.bank-card > .bank-head, .bank-card > .bank-who, .bank-card > .bank-text { grid-column: 1; }
+.bank-card > .bank-proposal { grid-column: 2; grid-row: 1 / span 3; }
+.bank-card > .bank-actions { grid-column: 3; grid-row: 1 / span 3; display: flex; flex-direction: column; gap: 6px; }
+.bank-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.bank-amount { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bank-amount.pos { color: var(--ok); }
+.bank-text { color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
+.bank-why { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.84rem; }
+.bank-section { margin: 10px 0; }
+.bank-section summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.bank-plain { margin: 6px 0; padding-left: 18px; font-size: 0.88rem; }
+.bank-plain li { margin: 3px 0; overflow-wrap: anywhere; }
+.bank-map { margin: 8px 0 12px; }
+.bank-amt { width: 7rem; text-align: right; }
+@media (max-width: 700px) {
+  .bank-card { grid-template-columns: 1fr; }
+  .bank-card > .bank-proposal, .bank-card > .bank-actions { grid-column: 1; grid-row: auto; }
+  .bank-card > .bank-actions { flex-direction: row; flex-wrap: wrap; }
+}
 @media (max-width: 700px) {
   .fak-foot-grid { grid-template-columns: 1fr; }
   .fak-lines textarea { min-width: 0; }
