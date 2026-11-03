@@ -20,6 +20,7 @@ import { sidebar } from './sidebar.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { syncTools, toolUrls } from './views/tools.js'
 import { searchButton } from './search.js'
+import { assistantButton } from './assistant.js'
 import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
 import { startWeather } from './weather.js'
@@ -114,6 +115,7 @@ function topbar(c) {
     <div class="actions">
       ${view?.actions ? view.actions(c) : ''}
       ${searchButton()}
+      ${assistantButton()}
       ${bellButton()}
       ${plan ? `<button class="btn primary" data-action="plan" title="Freie Einsätze besetzen: zuerst Stammkräfte, dann Vertretungen. Bestehende Einteilungen bleiben.">${ICON.bolt} Woche planen</button>` : ''}
       ${moreMenu(plan)}

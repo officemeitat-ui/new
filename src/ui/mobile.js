@@ -4,6 +4,7 @@
 
 import { roleOptions } from '../core/access.js'
 import { app, canEdit, openModal, registerActions, registerModal, renderModal, renderNow, saveStatusText, VIEW_GROUPS, visibleViews } from './context.js'
+import { assistantButton } from './assistant.js'
 import { bellButton, todo } from './modals/todo.js'
 import { esc, ICON, modalFrame, options } from './shared.js'
 
@@ -81,6 +82,7 @@ export function mobileTopbar(c, { brand, week, year, range, status, title = null
       <button class="kw link-btn" data-action="nav-today" title="Zur aktuellen Woche">KW ${week}<small>${range} · ${status}</small></button>
       <button class="btn icon" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
     </div>`}
+    ${assistantButton({ compact: true })}
     ${bellButton()}
   </div></header>`
 }

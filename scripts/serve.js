@@ -10,6 +10,7 @@ import { fuerApp } from './werkzeuge.js'
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const base = process.argv[2] ? join(root, process.argv[2]) : root
 const port = Number(process.env.PORT) || 8080
+let sdkBundle = null
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' }
 
 createServer(async (req, res) => {
@@ -21,6 +22,12 @@ createServer(async (req, res) => {
     return
   }
   try {
+    // npm-Pakete im Browser (KI-Assistent: Anthropic-SDK): diese eine Datei bei Bedarf bündeln
+    if (base === root && rel === 'src/ai/sdk.js') {
+      sdkBundle ||= import('esbuild').then((esbuild) => esbuild.build({ entryPoints: [file], bundle: true, format: 'esm', platform: 'browser', write: false, logLevel: 'error' })).then((r) => r.outputFiles[0].contents)
+      res.writeHead(200, { 'content-type': types['.js'], 'cache-control': 'no-store' }).end(Buffer.from(await sdkBundle))
+      return
+    }
     let body = await readFile(file)
     // Werkzeuge aus dem Quellordner: Anmeldebrücke wie beim Bau einsetzen
     const tool = base === root && rel.match(/^werkzeuge\/([a-z0-9-]+)\/index\.html$/)

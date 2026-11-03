@@ -308,6 +308,28 @@ Unter *Stammdaten* (Modul „Unterweisungen & Fristen“; Vollzugriff und Objekt
 - **Im Plan:** abgelaufener Aufenthaltstitel = Fehler (nicht einteilen), abgelaufene Führerscheinkontrolle = Warnung bei Einsätzen mit Qualifikation „Führerschein“. Fehlende Einträge meldet nur „Zu erledigen“ (je Art gesammelt, sperrende Dokumente je Person schon 30 Tage vorher).
 - Gesetzliche Grundlagen und offene Punkte: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md).
 
+## KI-Assistent
+
+Knopf **„Assistent“** in der Kopfleiste (am Handy das Sternsymbol), Tastatur **Strg+J**. Man schreibt oder **spricht** (Mikrofon im Chat, Deutsch/Österreich), was zu tun ist; der Assistent schlägt in der App nach und erledigt es mit denselben Rechten wie die angemeldete Person. **Alles, was etwas ändert oder verschickt, zeigt er vorher als Karte mit „Ausführen“ und „Abbrechen“.** Nachschlagen geht ohne Rückfrage.
+
+| Kann nachschlagen | Kann erledigen (nach Bestätigung) |
+|---|---|
+| Dienstplan eines Zeitraums (auch je Person, Objekt, nur offene) | **Termin in Outlook** anlegen, mit Ort, Einladungen an Mitarbeitende oder E-Mail-Adressen, optional als Teams-Besprechung |
+| Personen, Objekte (Adresse, Anweisungen, Schlüssel, offene Reklamationen) | **Abwesenheit** eintragen (Urlaub, Krankenstand …) und sagen, welche Einsätze betroffen sind |
+| Abwesenheiten, „Zu erledigen“ | **Vertretungen verteilen** wie „Automatisch verteilen“ im Abwesenheits-Assistenten |
+| eigener Outlook-Kalender | **Einteilen oder Austragen** (vorher geprüft nach AZG, Verfügbarkeit, Einschulung; bei einem Verstoß nicht) |
+| Vertretungsvorschläge mit Begründung | **Reklamation** erfassen, **Material** für ein Objekt anfordern |
+| Lagerbestand, Schlüsselbuch | **E-Mail** aus dem eigenen Postfach senden |
+
+Beispiele: „Termin morgen 12 Uhr in Salzburg mit Herrn Maier, maier@beispiel.at“, „Elif ist bis Freitag krank, bitte Vertretung organisieren“, „Wer arbeitet morgen in der Kanzlei?“, „Wie viele Müllsäcke 120 l haben wir noch?“, „Schreib Ana, dass sie am Donnerstag in Lehen einspringt“. Unklares fragt er nach (z. B. die Uhrzeit), Übliches nimmt er an und sagt es (ein Termin dauert eine Stunde, wenn nichts anderes gesagt wird).
+
+- **Rechte:** Der Assistent bekommt nur die Werkzeuge, die die Person nutzen darf (Lesen: Bereich sichtbar, Ändern: Schreibrecht). Wer nur das Lager sieht, kann keine Einteilungen ändern.
+- **Spuren:** Einteilungen und Abwesenheiten stehen im Änderungsprotokoll der Woche („über den KI-Assistenten“), Reklamationen im Verlauf; „Rückgängig“ wirkt wie gewohnt.
+- **Gespräch:** bleibt bis zum Neuladen der Seite oder „Neues Gespräch“; nichts davon wird in SharePoint gespeichert.
+- **Einstellungen (Vollzugriff):** API-Schlüssel, Modell (Claude Opus 5.5 empfohlen; Sonnet 5.5 günstiger; Haiku 5.5 sehr günstig, für einfache Fragen), Aufwand (schnell, ausgewogen, gründlich), Tageslimits je Person und gesamt, Ein/Aus, Verbrauch und geschätzte Kosten des Monats.
+- **Kosten** (Listenpreise Anthropic, Stand 11/2026): Claude Opus 5.5 $4 je Million Tokens Eingabe, $20 Ausgabe; der gleichbleibende Teil (Anweisungen, Werkzeuge, Verlauf) wird zwischengespeichert und kostet beim Wiederlesen nur einen Bruchteil. Eine typische Aufgabe kostet grob 2–5 Cent; bei 30 Aufgaben am Tag etwa 20–40 $ im Monat. Maßgeblich ist die Anzeige in den Einstellungen bzw. die Abrechnung in der Anthropic Console (dort Ausgabenlimit setzen).
+- **Technik:** Das offizielle Anthropic-SDK läuft im Browser mit dem Tool Runner; die Anfragen gehen an `ki.php` am Webspace, das die Microsoft-Anmeldung prüft (eigener Tenant, eigene App, echtes Token), Modell, Aufwand und Tageslimit festlegt und mit dem Schlüssel an die Claude-API weiterreicht. Ausweich-Modelle bei Ablehnungen sind eingeschaltet. Einrichtung: [EINRICHTUNG.md](EINRICHTUNG.md#8-ki-assistent-einschalten-optional).
+
 ## Wetter & Winterdienst
 
 Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.

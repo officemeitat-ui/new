@@ -82,6 +82,8 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Systemcheck für die Inbetriebnahme:** prüft HTTPS, `.htaccess`, gesperrten Ordner `privat/`, PHP 8, Einrichtungsdateien, Schlüssel, Cronjobs und SharePoint, mit Hinweis je Punkt.
 
+**KI-Assistent:** schreiben oder sprechen, was zu tun ist („Termin morgen 12 Uhr in Salzburg mit Herrn Maier“, „Elif ist bis Freitag krank, bitte Vertretung organisieren“): schlägt im Plan, bei Personen, Objekten, Lager und Kalender nach, legt Outlook-Termine an, trägt Abwesenheiten ein, verteilt Vertretungen, teilt ein, erfasst Reklamationen, fordert Material an, schreibt E-Mails. Jede Änderung erst nach „Ausführen“, mit den Rechten der Person. Claude-API über `ki.php` (Schlüssel nur am Webspace), Tageslimits und Kostenanzeige.
+
 **Schlüsselbuch:** wer welchen Schlüssel hat, Ausgabe und Rückgabe mit Unterschrift am Tablet und Quittung (PDF), Verlustmeldung für den Kunden, Hinweise beim Austritt, Übergaben laut Plan; die Prüfregel „Schlüsselübergabe nötig“ liest das Buch.
 
 **Leistungsnachweis für Kunden:** je Objekt und Monat die Einsätze laut Plan mit Status, gestempelten Zeiten und Winterdienst, wahlweise mit Namen; PDF, alle als ZIP, Versand per E-Mail mit Vermerk.

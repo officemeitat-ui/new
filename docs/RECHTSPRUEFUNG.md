@@ -72,6 +72,17 @@ Das ist keine Rechtsberatung. Die Volltexte von KV und WKO konnten in dieser Pr�
 | **Schlüssel:** Übergabe nachvollziehbar, Verlust sofort melden; Haftung richtet sich nach Vertrag und DHG | Vereinbarung mit dem Kunden, DHG | Schlüsselbuch mit Datum, Unterschrift und Quittung, Verlustmeldung ohne Namen für den Kunden |
 | **Datenschutz:** Unterschriften am Bildschirm werden nur als Bild (Linie) gespeichert, nicht biometrisch ausgewertet; Leistungsnachweis für Kunden standardmäßig ohne Namen | Art. 5, 6 DSGVO | Namen im Nachweis nur, wenn mit dem Kunden vereinbart (Einstellung „Vornamen“ oder „ganze Namen“) |
 
+## KI-Assistent
+
+| Vorgabe | Rechtsgrundlage | App |
+|---|---|---|
+| **Auftragsverarbeitung:** Was der Assistent nachschlägt (Namen, Einsätze, Abwesenheiten mit Art, Objekte, E-Mail-Texte), geht zur Verarbeitung an Anthropic. Anthropic ist dabei Auftragsverarbeiter; der Datenschutzzusatz (DPA) ist Teil der Commercial Terms. API-Eingaben und -Ausgaben löscht Anthropic laut eigener Auskunft nach 30 Tagen (Ausnahmen: Missbrauchsprüfung, gesetzliche Pflichten) | Art. 28 DSGVO; Drittlandübermittlung Art. 44 ff. DSGVO (Standardvertragsklauseln) | nur nötige Felder je Werkzeug, keine Löhne, keine Diagnosen; nichts aus dem Gespräch in SharePoint; der Schlüssel nur am Webspace |
+| **Information der Beschäftigten** über den Einsatz und die übermittelten Daten | Art. 13 DSGVO | in die Datenschutzinformation aufnehmen |
+| **Betriebsrat:** System, das Daten der Beschäftigten automationsunterstützt verarbeitet | § 96a ArbVG | in die bestehende Betriebsvereinbarung aufnehmen (ohne Betriebsrat: Information wie oben) |
+| **Menschliche Entscheidung:** KI-Systeme, die über Arbeitsbedingungen entscheiden, Aufgaben nach Verhalten oder persönlichen Merkmalen zuteilen oder Leistung überwachen, gelten als Hochrisiko (Anhang III Nr. 4 AI Act); die Pflichten dafür gelten laut den Fundstellen nach dem „Digital Omnibus“ ab 2. 12. 2027 | Art. 6, Anhang III AI Act | Der Assistent entscheidet nicht selbst: jede Änderung zeigt er zur Bestätigung; die Einteilung prüft die regelbasierte Planung (AZG, Verfügbarkeit), nicht das Sprachmodell; keine Leistungsbewertung |
+| **KI-Kompetenz:** Wer KI im Betrieb nutzt, braucht ausreichende Kenntnisse | Art. 4 AI Act | kurze Einweisung beim Einschalten (was er kann, dass er sich irren kann, dass man die Karte vor „Ausführen“ liest) |
+| **Kennzeichnung:** Menschen müssen wissen, dass sie mit einer KI sprechen | Art. 50 AI Act | in der App als „KI-Assistent“ gekennzeichnet; E-Mails gehen aus dem Postfach der Person, die sie bestätigt |
+
 ## Offen: bitte prüfen oder entscheiden
 
 1. **Sonntag: Grundlage eintragen.** Unter *Regeln & Feiertage* bei „Sonntagsarbeit erlaubt aufgrund“ die Ausnahme eintragen, auf die ihr euch stützt (oder je Objekt). Bis dahin warnt die App bei jedem Sonntagseinsatz. Eine Betriebsvereinbarung nach § 12a ARG erlaubt Sonntagsarbeit höchstens an 4 Wochenenden im Jahr, nicht an 4 aufeinanderfolgenden.
@@ -91,6 +102,7 @@ Das ist keine Rechtsberatung. Die Volltexte von KV und WKO konnten in dieser Pr�
 15. **Zeiterfassung vor dem Einschalten regeln:** mit Betriebsrat Betriebsvereinbarung (Zweck, erfasste Daten, Speicherdauer, wer sieht was, keine Leistungsbewertung daraus), ohne Betriebsrat schriftliche Zustimmung der Personen. Klären, ob die Ist-Zeiten die geplanten Stunden in der Lohnverrechnung ersetzen sollen (derzeit nicht automatisch: Abweichungen über 10 Minuten werden geprüft und mit „Ist übernehmen“ minutengenau, ohne Rundung, in den Plan übernommen) und wie mit vergessenem Ausstempeln umgegangen wird.
 16. **Unterweisungsintervalle festlegen:** Die Vorgaben (12 Monate Unterweisung, 6 Monate Führerscheinkontrolle) sind Richtwerte. Das Intervall aus der Evaluierung bzw. mit der Sicherheitsfachkraft festlegen und unter *Unterweisungen & Fristen → Arten* eintragen.
 17. **Schlüssel und Haftung:** Was bei Verlust gilt (Zylindertausch, Kostenersatz), mit dem Kunden vereinbaren; ein Abzug vom Lohn ist nur in den Grenzen des DHG und mit Vereinbarung möglich. Die Quittung hält nur die Übergabe fest.
+18. **KI-Assistent vor dem Einschalten:** Datenschutzinformation ergänzen, Betriebsvereinbarung (§ 96a ArbVG) prüfen, kurze Einweisung (Art. 4 AI Act), Ausgabenlimit in der Anthropic Console setzen. Die Daten zum AI Act (2. 12. 2027) stammen aus Fachartikeln, nicht aus dem Amtsblatt: vor einem Verkauf an andere Firmen gegenlesen lassen.
 
 ## Fundstellen
 
@@ -107,4 +119,5 @@ Das ist keine Rechtsberatung. Die Volltexte von KV und WKO konnten in dieser Pr�
 - Unterweisung: [§ 14 ASchG (JUSLINE)](https://www.jusline.at/14_Unterweisung_ASchG.html), [FORUM Verlag, § 14 ASchG](https://www.forum-media.at/arbeitssicherheit/Vorschriften/ArbeitnehmerInnenschutzgesetz/1.-Abschnitt/14.-Unterweisung), [FORUM Verlag, Unterweisungspflicht](https://www.forum-media.at/news/Arbeitssicherheit-Brandschutz/Unterweisung-und-Unterweisungspflicht-in-der-Arbeitssicherheit-1178988)
 - Ersthelfer:innen: [§ 40 AStV (JUSLINE, PDF)](https://www.jusline.at/gesetz/astv/paragraf/40.pdf), [FORUM Verlag, § 40 AStV](https://www.forum-media.at/arbeitssicherheit/Vorschriften/Arbeitsstaettenverordnung/5.-Abschnitt/40.-Erst-Helfer-innen?print=1)
 - Firmenfahrzeuge: [§ 103 KFG (RIS)](https://www.ris.bka.gv.at/eli/bgbl/1967/267/P103/NOR40060848), [§ 103 KFG (JUSLINE, PDF)](https://www.jusline.at/gesetz/kfg/paragraf/103.pdf)
+- KI-Assistent: [Anthropic, Data Processing Addendum](https://www.anthropic.com/legal/data-processing-addendum), [Anthropic, Wie lange werden Daten gespeichert](https://privacy.anthropic.com/en/articles/7996866-how-long-do-you-store-personal-data), [secureprivacy.ai, AI Act Digital Omnibus: neue Fristen für Hochrisiko-KI](https://secureprivacy.ai/blog/eu-ai-act-digital-omnibus-the-new-high-risk-ai-deadlines-after-council-approval), [IAPP, AI Act reform talks](https://iapp.org/news/a/eu-ai-act-reform-talks-stall-as-key-compliance-deadline-looms)
 - Geringfügigkeitsgrenze 2026: [oesterreich.gv.at](https://www.oesterreich.gv.at/de/lexicon/G/Seite.990119), [AMS](https://www.ams.at/arbeitsuchende/topicliste/geringfuegigkeitsgrenze)

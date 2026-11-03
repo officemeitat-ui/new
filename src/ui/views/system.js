@@ -104,6 +104,20 @@ export async function runChecks() {
     }
   }
 
+  // ---- KI-Assistent (ki.php, Claude-API)
+  const K = 'KI-Assistent'
+  if (app.config.assistant === false) add(K, 'KI-Assistent', 'info', 'ausgeschaltet (config.json)')
+  else {
+    try {
+      const { kiRequest } = await import('../../ai/agent.js')
+      const st = await kiRequest('status')
+      add(K, 'Eingerichtet', st.eingerichtet ? (st.aktiv ? 'ok' : 'warn') : 'info', st.eingerichtet ? `${st.modellName || st.modell}${st.aktiv ? '' : ', ausgeschaltet'}` : 'noch kein API-Schlüssel', 'Assistent (Kopfleiste) → Einstellungen: API-Schlüssel von console.anthropic.com eintragen.')
+      if (st.php?.zeitlimit && st.php.zeitlimit < 120) add(K, 'PHP-Zeitlimit', 'warn', `${st.php.zeitlimit} s`, 'Längere Aufgaben brauchen bis zu 3 Minuten: max_execution_time im World4You-Kundenbereich auf 180 stellen.')
+    } catch (err) {
+      add(K, 'ki.php', err.status === 401 ? 'info' : 'warn', err.status === 401 ? 'nur mit Microsoft-Anmeldung prüfbar' : err.message, 'ki.php mit hochladen (liegt im Paket).')
+    }
+  }
+
   // ---- Microsoft und SharePoint
   const M = 'Microsoft 365 und SharePoint'
   const sp = app.config.sharepoint || {}

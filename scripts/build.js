@@ -61,12 +61,13 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 // Wetter am Webspace (PHP): Umweg, falls der Browser GeoSphere nicht direkt erreicht, und
 // Schnee-Alarm (Cronjob). Einstellungen und Stand des Alarms liegen in privat/ (gesperrt).
 // „Mein Dienstplan“ (mein-plan.php): persönlicher Link für Mitarbeitende, braucht dieselben Bausteine.
+// KI-Assistent (ki.php): Durchreicher zur Claude-API, Schlüssel in privat/ki.json.
 const webspace = [
   ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
   ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
 ]
 if (webspace.length) {
-  for (const file of ['wetter-lib.php', 'webspace-lib.php', 'system.php', ...webspace]) await copy(file)
+  for (const file of ['wetter-lib.php', 'webspace-lib.php', 'system.php', ...(appConfig.assistant !== false ? ['ki.php'] : []), ...webspace]) await copy(file)
   await mkdir(join(dist, 'privat'), { recursive: true })
 }
 

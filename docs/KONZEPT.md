@@ -119,6 +119,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Material, Lager, Bestellungen, Materialanforderung vom Personal | Janitorial Manager, Swept | umgesetzt (Material & Lager: Bestand aus Buchungen, Bestellvorschlag, Bestellung per E-Mail, „Material fehlt?“ am Handy, Verbrauch je Objekt gegen Kalkulation) |
 | Leistungsnachweis für Kunden | verbreitet in Reinigungs- und Zeiterfassungssoftware | umgesetzt (je Objekt und Monat, mit Zeiterfassung, PDF und E-Mail) |
 | Unterweisungen, Schulungen, Dokumente mit Ablauf | verbreitet in Mitarbeiter-Apps (z. B. Connecteam) | umgesetzt (Ampel je Person, Unterweisung mit Unterschrift, Arbeitserlaubnis sperrt im Plan) |
+| KI-Assistent, der in der Software arbeitet (Termine, Krankmeldung, Vertretung, Reklamation per Sprache) | verbreitet als „Copilot“ in Bürosoftware | umgesetzt (Claude über ki.php, Werkzeuge mit Rechten, jede Änderung mit Bestätigung) |
 
 Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der Dienstplan schon Microsoft Graph nutzt, ist das eine naheliegende nächste Erweiterung.
 

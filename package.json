@@ -16,6 +16,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.4.0",
     "@azure/msal-browser": "3.30.0",
     "exceljs": "4.4.0",
     "jszip": "3.10.1",

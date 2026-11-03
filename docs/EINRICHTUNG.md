@@ -188,6 +188,18 @@ Alle Geräte arbeiten mit denselben Daten in SharePoint. Ändert jemand am PC, s
 
 `npm start` und `http://localhost:8080` öffnen. `config.json` allein speichert im Browser und startet mit Beispieldaten (35 Mitarbeitende, 4 veröffentlichte Wochen). Oben „Ansicht als …“ zeigt, was Objektmanagement, Vorarbeiter usw. sehen.
 
+## 8. KI-Assistent einschalten (optional)
+
+Der Assistent (Knopf „Assistent“ oben, Strg+J) nutzt die Claude-API von Anthropic. Der API-Schlüssel liegt nur am Webspace in `privat/ki.json`; die App schickt ihre Anfragen über `ki.php`, das die Microsoft-Anmeldung prüft und den Schlüssel dazugibt.
+
+1. **Konto bei Anthropic:** unter [console.anthropic.com](https://console.anthropic.com) ein Firmenkonto anlegen, Zahlungsmittel hinterlegen, unter *Limits* ein monatliches Ausgabenlimit setzen, unter *API Keys* einen Schlüssel erstellen (beginnt mit `sk-ant-`). Den Schlüssel niemandem schicken und nirgends ablegen außer im nächsten Schritt.
+2. **In der App** mit Vollzugriff (office@ oder it@): Assistent → **Einstellungen** → Schlüssel einfügen, Modell (empfohlen Claude Opus 5.5), Aufwand und Tageslimits wählen, speichern. Danach zeigen die Einstellungen Anfragen und geschätzte Kosten des Monats.
+3. **Termine und E-Mails:** Damit der Assistent Outlook-Termine anlegen und E-Mails senden kann, in der App-Registrierung (Entra ID) unter *API-Berechtigungen* **Calendars.ReadWrite** und **Mail.Send** (Microsoft Graph, delegiert) hinzufügen und die Administratorzustimmung erteilen. Fehlt das, sagt der Assistent, was zu tun ist; alles andere geht trotzdem.
+4. **PHP-Zeitlimit:** Eine längere Aufgabe kann bis zu drei Minuten dauern. Im World4You-Kundenbereich `max_execution_time` auf 180 stellen, wenn es niedriger ist (der Systemcheck zeigt den Wert).
+5. **Prüfen:** Stammdaten → Systemcheck → Abschnitt „KI-Assistent“. Dann im Assistenten „Was steht heute an?“.
+
+Ausschalten: in den Einstellungen „eingeschaltet“ abhaken, oder `"assistant": false` in `config.production.json` (dann fehlt auch `ki.php` im Paket). Was an Daten zu Anthropic geht und was vorher zu klären ist: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#ki-assistent).
+
 ## Datenschutz und Betriebsrat
 
 - Krankenstände sind Gesundheitsdaten. Die App speichert nur „Krankenstand von–bis“, keine Diagnosen, im eigenen Ordner `personal/`, den nur Vollzugriff öffnen darf.
