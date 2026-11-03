@@ -137,6 +137,20 @@ function buchhaltung(today) {
       open: { label: 'Offene Posten', view: 'fakturierung', fakTab: 'offen' },
     })
   }
+  // Zahlungseingänge aus dem Kontoauszug, die noch keiner Rechnung zugeordnet sind
+  const credits = (d.bank?.tx || []).filter((t) => t.status === 'offen' && t.amount > 0)
+  if (credits.length) {
+    const sum = credits.reduce((n, t) => n + t.amount, 0)
+    out.push({
+      id: `bank:${credits.map((t) => t.hash || t.id).join(',')}`,
+      agent: 'buchhaltung',
+      prio: credits.some((t) => (t.date || today) < addDays(today, -7)) ? 1 : 2,
+      title: `${plural(credits.length, 'Zahlungseingang', 'Zahlungseingänge')} zuordnen (${sum.toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })})`,
+      text: 'Aus dem eingelesenen Kontoauszug. Sichere Zuordnungen (Rechnungsnummer und Betrag passen) lassen sich mit einem Klick übernehmen.',
+      lines: credits.slice(0, 5).map((t) => `${t.date ? formatDate(t.date) : ''} ${t.name || ''} ${t.amount.toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })}`.trim()),
+      open: { label: 'Bankabgleich', view: 'fakturierung', fakTab: 'bank' },
+    })
+  }
   const items = openItems(docs, today, settings)
   const sum = items.reduce((s, x) => s + (x.open || 0), 0)
   if (items.length && !remind.length && items.some((x) => x.overdueDays > 0)) {
