@@ -9,9 +9,9 @@
 // Überschneidungen mit Einsätzen.
 
 import { addDays, dayIndex, formatDate, isoWeekday, todayISO, WEEKDAY_SHORT } from '../../core/dates.js'
-import { addMinutes, APPOINTMENT_KINDS, appointmentsBetween, conflicts, dateOf, dayPart, emptyAppointments, employeesOf, graphEvent, icsData, inviteList, inviteText, kindLabel, minutesFrom, outlookState, REMINDERS, timeOf, validateAppointment, whenText } from '../../core/appointments.js'
+import { addMinutes, APPOINTMENT_KINDS, appointmentsBetween, REPEATS, repeatText, conflicts, dateOf, dayPart, emptyAppointments, employeesOf, graphEvent, icsData, inviteList, inviteText, kindLabel, minutesFrom, outlookState, REMINDERS, timeOf, validateAppointment, whenText } from '../../core/appointments.js'
 import { icsEvent } from '../../core/ics.js'
-import { cancelGraphEvent, createGraphEvent, eventResponses, findPeople, freeBusy, listEvents, TIME_ZONE, updateGraphEvent } from '../../auth/graph-calendar.js'
+import { cancelGraphEvent, cancelOccurrence, createGraphEvent, eventResponses, findPeople, freeBusy, listEvents, TIME_ZONE, updateGraphEvent } from '../../auth/graph-calendar.js'
 import { appName } from '../config.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
@@ -210,7 +210,7 @@ function weekGrid(c) {
   const edit = canEdit(MODULE)
   const head = perDay.map(({ date }) => `<div class="ap-dayhead ${date === today ? 'today' : ''} ${c.holidays.get(date) ? 'holiday' : ''}" title="${esc(c.holidays.get(date)?.name || '')}"><b>${WEEKDAY_SHORT[isoWeekday(date) - 1]}</b> ${date.slice(8)}.${date.slice(5, 7)}.</div>`).join('')
   const allRow = perDay
-    .map(({ date, allDay }) => `<div class="ap-allday" ${edit ? `data-action="appt-new" data-date="${date}" data-allday="1"` : ''}>${allDay.map(({ a, e }) => (a ? `<button class="ap-chip" style="--obj:var(--o${KIND_COLOR[a.kind] || 8})" data-action="appt-open" data-id="${esc(a.id)}">${esc(a.title)}</button>` : `<span class="ap-chip outlook" title="Aus deinem Outlook-Kalender">${esc(e.subject)}</span>`)).join('')}</div>`)
+    .map(({ date, allDay }) => `<div class="ap-allday" ${edit ? `data-action="appt-new" data-date="${date}" data-allday="1"` : ''}>${allDay.map(({ a, e }) => (a ? `<button class="ap-chip" style="--obj:var(--o${KIND_COLOR[a.kind] || 8})" data-action="appt-open" data-id="${esc(a.id)}" data-occ="${esc(a.occ || '')}">${esc(a.title)}</button>` : `<span class="ap-chip outlook" title="Aus deinem Outlook-Kalender">${esc(e.subject)}</span>`)).join('')}</div>`)
     .join('')
   const cols = perDay
     .map(({ date, blocks }) => {
@@ -220,7 +220,7 @@ function weekGrid(c) {
           if (b.e) return `<div class="ap-ev outlook" style="${style}" title="${esc(`${b.e.subject}\n${b.e.start.slice(11)}–${b.e.end.slice(11)}${b.e.location ? `\n${b.e.location}` : ''}\naus deinem Outlook-Kalender`)}"><span class="ap-time">${b.e.start.slice(11)}</span> ${esc(b.e.subject)}</div>`
           const a = b.a
           const who = employeesOf(a, app.data.employees).map((id) => app.data.employees.find((x) => x.id === id)?.name.split(' ')[0]).filter(Boolean)
-          return `<button class="ap-ev" style="${style};--obj:var(--o${KIND_COLOR[a.kind] || 8})" data-action="appt-open" data-id="${esc(a.id)}" title="${esc(`${a.title}\n${whenText(a, formatDate)}${locationText(a) ? `\n${locationText(a)}` : ''}${who.length ? `\nMit: ${who.join(', ')}` : ''}`)}"><span class="ap-time">${timeOf(a.start)}</span> <b>${esc(a.title)}</b>${stateBadge(a)}${who.length && b.end - b.start >= 45 ? `<small>${esc(who.join(', '))}</small>` : ''}</button>`
+          return `<button class="ap-ev" style="${style};--obj:var(--o${KIND_COLOR[a.kind] || 8})" data-action="appt-open" data-id="${esc(a.id)}" data-occ="${esc(a.occ || '')}" title="${esc(`${a.title}\n${whenText(a, formatDate)}${locationText(a) ? `\n${locationText(a)}` : ''}${who.length ? `\nMit: ${who.join(', ')}` : ''}`)}"><span class="ap-time">${timeOf(a.start)}</span> <b>${esc(a.title)}</b>${stateBadge(a)}${who.length && b.end - b.start >= 45 ? `<small>${esc(who.join(', '))}</small>` : ''}</button>`
         })
         .join('')
       const now = date === today && nowMin >= from && nowMin <= to ? `<span class="ap-now" style="top:${((nowMin - from) / 60) * HOUR_PX}px"></span>` : ''
@@ -248,7 +248,7 @@ function agenda(from, days, { empty = 'Keine Termine.' } = {}) {
       const d = dateOf(a.start) < from ? from : dateOf(a.start)
       const head = d !== last ? `<li class="ap-agenda-day">${esc(label((last = d)))}</li>` : ''
       const who = [...employeesOf(a, app.data.employees).map((id) => app.data.employees.find((e) => e.id === id)?.name), ...(a.attendees || []).filter((x) => !app.data.employees.some((e) => e.email && e.email.toLowerCase() === x.email)).map((x) => x.name || x.email)].filter(Boolean)
-      return `${head}<li><button class="ap-row" data-action="appt-open" data-id="${esc(a.id)}" style="--obj:var(--o${KIND_COLOR[a.kind] || 8})"><span class="ap-row-time">${a.allDay ? 'ganztägig' : `${timeOf(a.start)}–${timeOf(a.end)}`}</span><span class="ap-row-main"><b>${esc(a.title)}</b> <span class="muted">${esc(kindLabel(a.kind))}${locationText(a) ? ` · ${esc(locationText(a))}` : ''}</span>${who.length ? `<br><small>${esc(who.join(', '))}</small>` : ''}</span>${stateBadge(a)}</button></li>`
+      return `${head}<li><button class="ap-row" data-action="appt-open" data-id="${esc(a.id)}" data-occ="${esc(a.occ || '')}" style="--obj:var(--o${KIND_COLOR[a.kind] || 8})"><span class="ap-row-time">${a.allDay ? 'ganztägig' : `${timeOf(a.start)}–${timeOf(a.end)}`}</span><span class="ap-row-main"><b>${esc(a.title)}</b> <span class="muted">${esc(kindLabel(a.kind))}${locationText(a) ? ` · ${esc(locationText(a))}` : ''}</span>${who.length ? `<br><small>${esc(who.join(', '))}</small>` : ''}</span>${stateBadge(a)}</button></li>`
     })
     .join('')}</ul>`
 }
@@ -323,6 +323,9 @@ function collect() {
   d.online = on('ap-online')
   d.reminder = Number(v('ap-reminder'))
   d.responseRequested = on('ap-response')
+  const freq = v('ap-repeat')
+  d.repeat = freq ? { freq, ...(v('ap-until') ? { until: v('ap-until') } : {}) } : undefined
+  if (!d.repeat) delete d.repeat
   m.draft = d
   return d
 }
@@ -401,7 +404,8 @@ function apptModal(c, m) {
         ? `<p class="notice warn">Nicht in Outlook: ${esc(a.outlook?.error || '')}</p>`
         : '<p class="note">Noch nicht in Outlook eingetragen.</p>'
   const objects = [['', '– kein Objekt –'], ...app.data.objects.filter((o) => !o.inactive).map((o) => [o.id, o.name])]
-  const body = `${cancelled ? `<p class="notice warn">Abgesagt${a.cancelledBy ? ` von ${esc(a.cancelledBy)}` : ''}${a.cancelNote ? `: ${esc(a.cancelNote)}` : ''}.</p>` : ''}${olInfo}
+  const seriesNote = a?.repeat?.freq ? `<p class="note">${ICON.refresh} Serie: ${esc(repeatText(a, formatDate))}${(a.exdates || []).length ? ` · ${a.exdates.length} einzeln abgesagt` : ''}. Änderungen gelten für die ganze Serie${m.occ ? `; geöffnet am ${esc(formatDate(m.occ))}` : ''}.</p>` : ''
+  const body = `${seriesNote}${cancelled ? `<p class="notice warn">Abgesagt${a.cancelledBy ? ` von ${esc(a.cancelledBy)}` : ''}${a.cancelNote ? `: ${esc(a.cancelNote)}` : ''}.</p>` : ''}${olInfo}
     <div class="form-grid">
       <label class="field wide"><span>Titel</span><input id="ap-title" value="${esc(d.title)}" placeholder="z. B. Begehung mit Hausverwaltung" ${edit ? '' : 'disabled'}></label>
       <label class="field"><span>Art</span><select id="ap-kind">${options(APPOINTMENT_KINDS, d.kind)}</select></label>
@@ -410,6 +414,8 @@ function apptModal(c, m) {
       <label class="field ap-time-field" ${d.allDay ? 'hidden' : ''}><span>bis</span><input type="time" id="ap-to" value="${d.allDay ? '10:00' : timeOf(d.end)}" step="300"></label>
       <label class="field ap-day-field" ${d.allDay ? '' : 'hidden'}><span>bis (Datum)</span><input type="date" id="ap-enddate" value="${dateOf(d.end) || date}"></label>
       <label class="check field-check"><input type="checkbox" id="ap-allday" data-change="appt-allday" ${d.allDay ? 'checked' : ''}><span>ganztägig</span></label>
+      <label class="field"><span>Wiederholen</span><select id="ap-repeat" data-change="appt-repeat">${options(REPEATS, d.repeat?.freq || '')}</select></label>
+      <label class="field" ${d.repeat?.freq ? '' : 'hidden'}><span>endet am (leer = ohne Ende)</span><input type="date" id="ap-until" value="${esc(d.repeat?.until || '')}"></label>
       <label class="field"><span>Objekt</span><select id="ap-object" data-change="appt-object">${options(objects, d.objectId || '')}</select></label>
       <label class="field wide"><span>Ort</span><input id="ap-location" value="${esc(d.location || '')}" placeholder="${esc(locationText({ ...d, location: '' }) || 'Adresse oder Raum')}"></label>
     </div>
@@ -428,7 +434,8 @@ function apptModal(c, m) {
     <p class="field-error" id="ap-error" role="alert">${esc(m.error || '')}</p>`
   const foot = !edit
     ? `<button class="btn" data-action="close-modal">Schließen</button>`
-    : `${a && !cancelled ? `<button class="btn danger ${app.ui.confirm === `ap-cancel:${a.id}` ? 'confirm' : ''}" data-action="appt-cancel" data-id="${esc(a.id)}">${app.ui.confirm === `ap-cancel:${a.id}` ? 'Wirklich absagen?' : a.outlook?.id ? 'Absagen' : 'Löschen'}</button>` : ''}
+    : `${a && !cancelled && a.repeat?.freq && m.occ ? `<button class="btn danger ${app.ui.confirm === `ap-one:${a.id}` ? 'confirm' : ''}" data-action="appt-cancel-one" data-id="${esc(a.id)}">${app.ui.confirm === `ap-one:${a.id}` ? `Wirklich nur ${esc(formatDate(m.occ))} absagen?` : `Nur ${esc(formatDate(m.occ))} absagen`}</button>` : ''}
+       ${a && !cancelled ? `<button class="btn danger ${app.ui.confirm === `ap-cancel:${a.id}` ? 'confirm' : ''}" data-action="appt-cancel" data-id="${esc(a.id)}">${app.ui.confirm === `ap-cancel:${a.id}` ? 'Wirklich absagen?' : a.repeat?.freq ? (a.outlook?.id ? 'Serie absagen' : 'Serie löschen') : a.outlook?.id ? 'Absagen' : 'Löschen'}</button>` : ''}
        ${a && cancelled ? `<button class="btn danger" data-action="appt-delete" data-id="${esc(a.id)}">Endgültig löschen</button>` : ''}
        <span class="spacer"></span>
        ${!outlookOn() ? `<button class="btn" data-action="appt-ics">${ICON.download} .ics herunterladen</button>` : ''}
@@ -498,6 +505,28 @@ registerActions(
     'appt-object': () => {
       collect()
       refreshModal()
+    },
+    'appt-repeat': () => {
+      collect()
+      refreshModal()
+    },
+    'appt-cancel-one': async (el) => {
+      const a = byId(el.dataset.id)
+      const occ = app.ui.modal?.occ
+      if (!a || !occ || !confirmStep(`ap-one:${a.id}`, refreshModal)) return
+      if (a.outlook?.id && outlookOn() && isOrganizer(a)) {
+        try {
+          await cancelOccurrence(await calendarToken(), a.outlook.id, occ)
+        } catch (err) {
+          return toast(`Absage in Outlook nicht möglich: ${err.message}`)
+        }
+      }
+      const live = byId(a.id)
+      live.exdates = [...new Set([...(live.exdates || []), occ])].sort()
+      persist()
+      closeModal()
+      renderNow()
+      toast(`Termin am ${formatDate(occ)} abgesagt, die Serie bleibt.`)
     },
     'appt-q': (el) => {
       collect()
@@ -596,7 +625,7 @@ registerActions(
 
 registerActions({
   'appt-open': async (el) => {
-    openModal({ type: 'appt', id: el.dataset.id })
+    openModal({ type: 'appt', id: el.dataset.id, occ: el.dataset.occ || '' })
     // Antworten der Eingeladenen aus Outlook holen (nur wer den Termin angelegt hat, sieht sie)
     const a = byId(el.dataset.id)
     if (a?.outlook?.id && outlookOn() && isOrganizer(a)) {
@@ -644,7 +673,7 @@ registerObjectHint({
     if (!next.length) return ''
     return `<p><strong>Termine:</strong> ${next
       .slice(0, 3)
-      .map((a) => `<button class="link-btn" data-action="appt-open" data-id="${esc(a.id)}">${esc(whenText(a, formatDate))} ${esc(a.title)}</button>`)
+      .map((a) => `<button class="link-btn" data-action="appt-open" data-id="${esc(a.id)}" data-occ="${esc(a.occ || '')}">${esc(whenText(a, formatDate))} ${esc(a.title)}</button>`)
       .join(', ')}</p>`
   },
 })

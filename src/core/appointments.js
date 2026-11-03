@@ -30,6 +30,108 @@ export const REMINDERS = [
 
 export const emptyAppointments = () => ({ items: [], settings: {} })
 
+/** Wiederholung: repeat { freq, until?, count? }, einzelne abgesagte Tage in exdates. */
+export const REPEATS = [
+  ['', 'keine Wiederholung'],
+  ['weekly', 'jede Woche'],
+  ['biweekly', 'alle 2 Wochen'],
+  ['monthly', 'jeden Monat am selben Tag'],
+  ['monthlyNth', 'jeden Monat am selben Wochentag (z. B. 2. Dienstag)'],
+]
+const WEEKDAY_EN = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+const NTH = ['first', 'second', 'third', 'fourth', 'last']
+const NTH_DE = ['1.', '2.', '3.', '4.', 'letzten']
+const WEEKDAY_DE = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+const utcDay = (d) => new Date(`${d}T12:00:00Z`)
+const iso = (dt) => dt.toISOString().slice(0, 10)
+const daysInMonth = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+/** Welcher Wochentag im Monat (0 = erster … 4 = letzter, wenn es der letzte ist). */
+function nthOf(date) {
+  const d = utcDay(date)
+  const n = Math.floor((d.getUTCDate() - 1) / 7)
+  const last = d.getUTCDate() + 7 > daysInMonth(d.getUTCFullYear(), d.getUTCMonth())
+  return last && n >= 3 ? 4 : n
+}
+function nthWeekday(y, m, weekday, n) {
+  if (n === 4) {
+    const last = daysInMonth(y, m)
+    const wd = new Date(Date.UTC(y, m, last)).getUTCDay()
+    return iso(new Date(Date.UTC(y, m, last - ((wd - weekday + 7) % 7))))
+  }
+  const firstWd = new Date(Date.UTC(y, m, 1)).getUTCDay()
+  const day = 1 + ((weekday - firstWd + 7) % 7) + n * 7
+  return day <= daysInMonth(y, m) ? iso(new Date(Date.UTC(y, m, day))) : null
+}
+
+/** Text der Wiederholung: „jede Woche am Montag bis 31.12.“ */
+export function repeatText(a, formatDate = (d) => d) {
+  const r = a.repeat
+  if (!r?.freq) return ''
+  const d = utcDay(dateOf(a.start))
+  const wd = WEEKDAY_DE[d.getUTCDay()]
+  const base = { weekly: `jede Woche am ${wd}`, biweekly: `alle 2 Wochen am ${wd}`, monthly: `jeden Monat am ${d.getUTCDate()}.`, monthlyNth: `jeden ${NTH_DE[nthOf(dateOf(a.start))]} ${wd} im Monat` }[r.freq] || ''
+  return `${base}${r.until ? ` bis ${formatDate(r.until)}` : r.count ? `, ${r.count}-mal` : ''}`
+}
+
+/**
+ * Termine einer Serie im Zeitraum (je Vorkommen eine Kopie mit verschobenem Beginn/Ende und occ = Datum).
+ * Ohne Wiederholung: der Termin selbst. exdates: abgesagte einzelne Tage.
+ */
+export function occurrences(a, from, to, { max = 400 } = {}) {
+  if (!a.repeat?.freq) return [a]
+  const first = dateOf(a.start)
+  const span = Math.round((Date.parse(`${dateOf(a.end || a.start)}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / 864e5)
+  const until = a.repeat.until || '9999-12-31'
+  const count = Number(a.repeat.count) || 0
+  const ex = new Set(a.exdates || [])
+  const out = []
+  const shift = (date) => {
+    const delta = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / 864e5)
+    const move = (t) => (t ? `${iso(new Date(Date.parse(`${dateOf(t)}T12:00:00Z`) + delta * 864e5))}T${timeOf(t) || '00:00'}` : t)
+    return { ...a, start: move(a.start), end: move(a.end), occ: date, series: a.id }
+  }
+  const start = utcDay(first)
+  const wd = start.getUTCDay()
+  const dom = start.getUTCDate()
+  const nth = nthOf(first)
+  let n = 0
+  for (let i = 0; i < 2000 && out.length < max; i++) {
+    let date
+    if (a.repeat.freq === 'weekly' || a.repeat.freq === 'biweekly') date = iso(new Date(start.getTime() + i * (a.repeat.freq === 'weekly' ? 7 : 14) * 864e5))
+    else {
+      const y = start.getUTCFullYear() + Math.floor((start.getUTCMonth() + i) / 12)
+      const m = (start.getUTCMonth() + i) % 12
+      date = a.repeat.freq === 'monthly' ? (dom <= daysInMonth(y, m) ? iso(new Date(Date.UTC(y, m, dom))) : null) : nthWeekday(y, m, wd, nth)
+      if (!date) continue
+    }
+    if (date > until || date > to) break
+    n++
+    if (count && n > count) break
+    const endDay = iso(new Date(utcDay(date).getTime() + span * 864e5))
+    if (endDay < from || ex.has(date)) continue
+    out.push(shift(date))
+  }
+  return out
+}
+
+/** Wiederholung für Outlook (Graph recurrence). */
+export function graphRecurrence(a) {
+  const r = a.repeat
+  if (!r?.freq) return null
+  const startDate = dateOf(a.start)
+  const d = utcDay(startDate)
+  const day = WEEKDAY_EN[d.getUTCDay()]
+  const pattern = {
+    weekly: { type: 'weekly', interval: 1, daysOfWeek: [day], firstDayOfWeek: 'monday' },
+    biweekly: { type: 'weekly', interval: 2, daysOfWeek: [day], firstDayOfWeek: 'monday' },
+    monthly: { type: 'absoluteMonthly', interval: 1, dayOfMonth: d.getUTCDate() },
+    monthlyNth: { type: 'relativeMonthly', interval: 1, daysOfWeek: [day], index: NTH[nthOf(startDate)] },
+  }[r.freq]
+  if (!pattern) return null
+  const range = r.until ? { type: 'endDate', startDate, endDate: r.until } : r.count ? { type: 'numbered', startDate, numberOfOccurrences: Number(r.count) } : { type: 'noEnd', startDate }
+  return { pattern, range }
+}
+
 const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
 export const dateOf = (t) => String(t || '').slice(0, 10)
 export const timeOf = (t) => String(t || '').slice(11, 16)
@@ -61,6 +163,7 @@ export function validateAppointment(a) {
     else if (a.end <= a.start) errors.push('Das Ende liegt vor dem Beginn.')
   }
   for (const x of a.attendees || []) if (x.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email)) errors.push(`Keine gültige E-Mail-Adresse: ${x.email}`)
+  if (a.repeat?.freq && a.repeat.until && a.repeat.until < dateOf(a.start)) errors.push('Die Wiederholung endet vor dem ersten Termin.')
   return errors
 }
 
@@ -75,6 +178,7 @@ export function daysOf(a) {
 export function appointmentsBetween(items = [], from, to, { cancelled = false } = {}) {
   return items
     .filter((a) => (cancelled || !a.cancelled) && a.start)
+    .flatMap((a) => occurrences(a, from, to))
     .filter((a) => {
       const d = daysOf(a)
       return d.from <= to && d.to >= from
@@ -164,6 +268,7 @@ export function graphEvent(a, { employeesById = new Map(), timeZone = 'W. Europe
     showAs: a.allDay ? 'free' : 'busy',
     ...(a.online ? { isOnlineMeeting: true, onlineMeetingProvider: 'teamsForBusiness' } : {}),
     categories: a.category ? [a.category] : [],
+    ...(graphRecurrence(a) ? { recurrence: graphRecurrence(a) } : {}),
   }
 }
 
@@ -193,5 +298,16 @@ export function icsData(a) {
     description: a.note || '',
     location: a.location || '',
     remindHours: Number(a.reminder ?? 15) >= 60 ? Math.round(Number(a.reminder) / 60) : 0,
+    rrule: rruleOf(a),
   }
+}
+
+/** RRULE für .ics (Serie). */
+export function rruleOf(a) {
+  const r = a.repeat
+  if (!r?.freq) return ''
+  const d = utcDay(dateOf(a.start))
+  const by = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d.getUTCDay()]
+  const rule = { weekly: `FREQ=WEEKLY;BYDAY=${by}`, biweekly: `FREQ=WEEKLY;INTERVAL=2;BYDAY=${by}`, monthly: `FREQ=MONTHLY;BYMONTHDAY=${d.getUTCDate()}`, monthlyNth: `FREQ=MONTHLY;BYDAY=${nthOf(dateOf(a.start)) === 4 ? -1 : nthOf(dateOf(a.start)) + 1}${by}` }[r.freq]
+  return `${rule}${r.until ? `;UNTIL=${r.until.replace(/-/g, '')}T235959` : r.count ? `;COUNT=${Number(r.count)}` : ''}`
 }

@@ -34,7 +34,7 @@ function blockHtml(c, b, axis) {
   if (b.kind === 'appt') {
     const a = b.appt
     const where = appointmentLocation(a)
-    return `<button class="tl-appt" style="${style};--obj:var(--o${appointmentColor(a)})" data-action="appt-open" data-id="${esc(a.id)}" title="${esc(`Termin: ${a.title}\n${formatTime(b.start % 1440)}–${formatTime(b.end % 1440)}${where ? `\n${where}` : ''}`)}">${ICON.calendar}<span>${esc(a.title)}</span></button>`
+    return `<button class="tl-appt" style="${style};--obj:var(--o${appointmentColor(a)})" data-action="appt-open" data-id="${esc(a.id)}" data-occ="${esc(a.occ || '')}" title="${esc(`Termin: ${a.title}\n${formatTime(b.start % 1440)}–${formatTime(b.end % 1440)}${where ? `\n${where}` : ''}`)}">${ICON.calendar}<span>${esc(a.title)}</span></button>`
   }
   if (b.kind === 'stamp') {
     const st = b.stamp

@@ -43,7 +43,7 @@ function homeView(c) {
   // Termine heute und morgen (wer Termine sieht)
   const nextAppts = views.some((v) => v.id === 'termine') ? [todayISO(), addDays(todayISO(), 1)].flatMap((d) => appointmentsOfDay(d).map((x) => ({ ...x, d }))).filter((x, i, all) => all.findIndex((y) => y.a.id === x.a.id) === i).slice(0, 6) : []
   const apptCard = nextAppts.length
-    ? `<section class="home-appts"><h3>${ICON.calendar} Termine heute und morgen</h3><ul>${nextAppts.map(({ a, d, allDay }) => `<li><button class="link-row" data-action="appt-open" data-id="${esc(a.id)}"><span class="muted">${d === todayISO() ? 'heute' : 'morgen'} ${allDay ? 'ganztägig' : esc(a.start.slice(11, 16))}</span> <b>${esc(a.title)}</b>${ICON.right}</button></li>`).join('')}</ul></section>`
+    ? `<section class="home-appts"><h3>${ICON.calendar} Termine heute und morgen</h3><ul>${nextAppts.map(({ a, d, allDay }) => `<li><button class="link-row" data-action="appt-open" data-id="${esc(a.id)}" data-occ="${esc(a.occ || '')}"><span class="muted">${d === todayISO() ? 'heute' : 'morgen'} ${allDay ? 'ganztägig' : esc(a.start.slice(11, 16))}</span> <b>${esc(a.title)}</b>${ICON.right}</button></li>`).join('')}</ul></section>`
     : ''
   // Digitale Mitarbeiter: was sie vorbereitet haben
   const staff = views.some((v) => v.id === 'assistenz') ? proposalSummary() : []

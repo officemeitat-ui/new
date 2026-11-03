@@ -68,3 +68,35 @@ test('Plan am Handy: Termine der Person je Tag', () => {
   assert.deepEqual(week.tage[0].termine, [{ id: 'a', titel: 'Schulung', beginn: '07:00', zeit: '07:00–08:30', ort: 'Büro' }, { id: 'm', titel: 'Messe', ganztags: true }])
   assert.deepEqual(week.tage[1].termine, [{ id: 'm', titel: 'Messe', ganztags: true }])
 })
+
+import { graphRecurrence, occurrences, repeatText, rruleOf } from '../src/core/appointments.js'
+
+test('Serientermine: wöchentlich, 14-tägig, monatlich, n-ter Wochentag, Ende und Ausnahmen', () => {
+  const base = { id: 's1', title: 'Team', start: '2026-11-02T07:00', end: '2026-11-02T08:00' } // Montag
+  const weekly = occurrences({ ...base, repeat: { freq: 'weekly', until: '2026-11-30' }, exdates: ['2026-11-16'] }, '2026-11-01', '2026-12-31')
+  assert.deepEqual(weekly.map((o) => o.start), ['2026-11-02T07:00', '2026-11-09T07:00', '2026-11-23T07:00', '2026-11-30T07:00'])
+  assert.equal(weekly[1].end, '2026-11-09T08:00')
+  assert.equal(weekly[1].series, 's1')
+  assert.deepEqual(occurrences({ ...base, repeat: { freq: 'biweekly', count: 3 } }, '2026-11-01', '2027-03-01').map((o) => o.occ), ['2026-11-02', '2026-11-16', '2026-11-30'])
+  // am 31.: Monate ohne 31. fallen weg
+  const m31 = occurrences({ ...base, start: '2026-10-31T09:00', end: '2026-10-31T10:00', repeat: { freq: 'monthly' } }, '2026-10-01', '2027-01-31').map((o) => o.occ)
+  assert.deepEqual(m31, ['2026-10-31', '2026-12-31', '2027-01-31'])
+  // 1. Dienstag im Monat
+  const nth = occurrences({ ...base, start: '2026-11-03T09:00', end: '2026-11-03T10:00', repeat: { freq: 'monthlyNth' } }, '2026-11-01', '2027-02-28').map((o) => o.occ)
+  assert.deepEqual(nth, ['2026-11-03', '2026-12-01', '2027-01-05', '2027-02-02'])
+  // letzter Montag
+  const last = occurrences({ ...base, start: '2026-11-30T09:00', end: '2026-11-30T10:00', repeat: { freq: 'monthlyNth' } }, '2026-11-01', '2027-01-31').map((o) => o.occ)
+  assert.deepEqual(last, ['2026-11-30', '2026-12-28', '2027-01-25'])
+  // Zeitraum mitten in der Serie
+  assert.deepEqual(occurrences({ ...base, repeat: { freq: 'weekly' } }, '2027-06-01', '2027-06-14').map((o) => o.occ), ['2027-06-07', '2027-06-14'])
+})
+
+test('Serientermine: Outlook-Serie, RRULE und Text', () => {
+  const a = { start: '2026-11-03T09:00', end: '2026-11-03T10:00', repeat: { freq: 'monthlyNth', until: '2027-06-30' } }
+  assert.deepEqual(graphRecurrence(a), { pattern: { type: 'relativeMonthly', interval: 1, daysOfWeek: ['tuesday'], index: 'first' }, range: { type: 'endDate', startDate: '2026-11-03', endDate: '2027-06-30' } })
+  assert.deepEqual(graphRecurrence({ start: '2026-11-02T07:00', repeat: { freq: 'biweekly' } }).pattern, { type: 'weekly', interval: 2, daysOfWeek: ['monday'], firstDayOfWeek: 'monday' })
+  assert.equal(graphRecurrence({ start: '2026-11-02T07:00', repeat: { freq: 'weekly', count: 5 } }).range.numberOfOccurrences, 5)
+  assert.equal(rruleOf(a), 'FREQ=MONTHLY;BYDAY=1TU;UNTIL=20270630T235959')
+  assert.equal(rruleOf({ start: '2026-11-30T09:00', repeat: { freq: 'monthlyNth' } }), 'FREQ=MONTHLY;BYDAY=-1MO')
+  assert.equal(repeatText(a, (d) => d), 'jeden 1. Dienstag im Monat bis 2027-06-30')
+})

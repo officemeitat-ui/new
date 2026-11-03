@@ -120,6 +120,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Leistungsnachweis für Kunden | verbreitet in Reinigungs- und Zeiterfassungssoftware | umgesetzt (je Objekt und Monat, mit Zeiterfassung, PDF und E-Mail) |
 | Unterweisungen, Schulungen, Dokumente mit Ablauf | verbreitet in Mitarbeiter-Apps (z. B. Connecteam) | umgesetzt (Ampel je Person, Unterweisung mit Unterschrift, Arbeitserlaubnis sperrt im Plan) |
 | Termine mit Outlook-Einladung für Mitarbeitende und Kunden, Kalender-Abo des Dienstplans | Microsoft Bookings, Shiftbase (Kalender-Sync) | umgesetzt (Modul Termine über Microsoft Graph, Abo über mein-plan.php) |
+| Digitale Mitarbeiter: Routinen, die Arbeit vorbereiten und zur Freigabe vorlegen | Workflow-Automatik in ERP-Systemen | umgesetzt (Disponent, Buchhaltung, Lager, Fristen; Ausführen/Später/Ablehnen) |
 | KI-Assistent, der in der Software arbeitet (Termine, Krankmeldung, Vertretung, Reklamation per Sprache) | verbreitet als „Copilot“ in Bürosoftware | umgesetzt (Claude über ki.php, Werkzeuge mit Rechten, jede Änderung mit Bestätigung) |
 | Fakturierung mit Daueraufträgen, Wertsicherung, Mahnwesen und Export für die Steuerberatung | orgamax, FreeFinance, BMD; in Reinigungs-Software meist als Zusatzmodul | umgesetzt (Angebot → Rechnung, Storno/Korrektur, Reverse Charge, Monatslauf mit VPI, Zahlungs-QR-Code, Mahnstufen, CSV) |
 

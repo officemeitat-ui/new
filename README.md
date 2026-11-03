@@ -82,7 +82,9 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Systemcheck für die Inbetriebnahme:** prüft HTTPS, `.htaccess`, gesperrten Ordner `privat/`, PHP 8, Einrichtungsdateien, Schlüssel, Cronjobs und SharePoint, mit Hinweis je Punkt.
 
-**Termine mit Outlook:** Kundentermine, Begehungen, Schulungen und Werkstatt im Kalender der App; Teilnehmende aus dem Dienstplan, dem Firmenverzeichnis oder per E-Mail bekommen eine Outlook-Einladung und haben den Termin im eigenen Kalender. Frei/Belegt, Antworten, Teams, Konflikte mit Einsätzen; Termine auch in der Zeitlinie und am Handy. Mitarbeitende können ihren Plan samt Terminen als **Kalender abonnieren** (Outlook, Google, iPhone).
+**Digitale Mitarbeiter:** Disponent, Buchhaltung, Lager und Fristen gehen die Daten laufend durch und bereiten fertige Schritte vor: Vertretungen verteilen, offene Einsätze besetzen, Woche veröffentlichen, Daueraufträge abrechnen, Mahnungen, Bestellungen unter Mindestbestand, Schulungstermine für ablaufende Unterweisungen, Werkstatt, überfällige Reklamationen. Ausführen mit einem Klick, später oder ablehnen; der KI-Assistent kann mitreden.
+
+**Termine mit Outlook:** Kundentermine, Begehungen, Schulungen und Werkstatt im Kalender der App; Teilnehmende aus dem Dienstplan, dem Firmenverzeichnis oder per E-Mail bekommen eine Outlook-Einladung und haben den Termin im eigenen Kalender. Serientermine, Frei/Belegt, Antworten, Teams, Konflikte mit Einsätzen; Termine auch in der Zeitlinie und am Handy. Mitarbeitende können ihren Plan samt Terminen als **Kalender abonnieren** (Outlook, Google, iPhone).
 
 **Schnell und übersichtlich:** Start mit dem Stand im Gerät, SharePoint gebündelt im Hintergrund; Abgleich alle 20 Sekunden, solange jemand arbeitet, zwischen offenen Fenstern sofort, Speichern beim Wechsel in den Hintergrund; Ansichten zeichnen nur Geändertes neu. Menü in sechs Abschnitten, einklappbar, mit angehefteten Bereichen und „Springen zu …“; **„+ Neu“** und Tastenkürzel (T Termin, A Abwesenheit, Z Zeit, R Reklamation, M Material, F Rechnung, ← → Woche, ? Übersicht).
 

@@ -354,6 +354,22 @@ Beispiele: „Termin morgen 12 Uhr in Salzburg mit Herrn Maier, maier@beispiel.a
 - **Kosten** (Listenpreise Anthropic, Stand 11/2026): Claude Opus 5.5 $4 je Million Tokens Eingabe, $20 Ausgabe; der gleichbleibende Teil (Anweisungen, Werkzeuge, Verlauf) wird zwischengespeichert und kostet beim Wiederlesen nur einen Bruchteil. Eine typische Aufgabe kostet grob 2–5 Cent; bei 30 Aufgaben am Tag etwa 20–40 $ im Monat. Maßgeblich ist die Anzeige in den Einstellungen bzw. die Abrechnung in der Anthropic Console (dort Ausgabenlimit setzen).
 - **Technik:** Das offizielle Anthropic-SDK läuft im Browser mit dem Tool Runner; die Anfragen gehen an `ki.php` am Webspace, das die Microsoft-Anmeldung prüft (eigener Tenant, eigene App, echtes Token), Modell, Aufwand und Tageslimit festlegt und mit dem Schlüssel an die Claude-API weiterreicht. Ausweich-Modelle bei Ablehnungen sind eingeschaltet. Einrichtung: [EINRICHTUNG.md](EINRICHTUNG.md#8-ki-assistent-einschalten-optional).
 
+## Digitale Mitarbeiter
+
+Vier Routinen gehen laufend die Daten der App durch, wie eine erfahrene Bürokraft, und bereiten fertige Arbeitsschritte vor (Bereich **Digitale Mitarbeiter** ganz oben im Menü; die Übersicht sagt, wie viele Vorschläge warten):
+
+| Digitaler Mitarbeiter | bereitet vor | „Ausführen“ |
+|---|---|---|
+| **Disponent** | Vertretungen bei Urlaub und Krankenstand; offene Einsätze dieser und nächster Woche; Woche veröffentlichen (ab 3 Tage vorher); Korrektur buchen, wenn sich eine veröffentlichte Woche geändert hat | Vertretungen regelkonform verteilen, Woche planen, Veröffentlichen öffnen |
+| **Buchhaltung** | Daueraufträge des Monats; überfällige Rechnungen (Mahnstufe fällig); Leistungsnachweise des Vormonats ohne Versand | Rechnungsentwürfe erstellen (Festschreiben bleibt bei dir), offene Posten öffnen |
+| **Lager** | Bestellung je Lieferant, wenn Artikel unter dem Mindestbestand sind (offene Bestellungen eingerechnet, auf Packungen gerundet); Anforderungen aus den Objekten | Bestellung vorbereiten (Dialog zum Prüfen und Senden) |
+| **Fristen** | ablaufende oder fehlende Unterweisungen und Kurse (je Art gesammelt); Kontrollen und Dokumente (Führerschein, Aufenthaltstitel); Fahrzeuge (Pickerl, Service); überfällige Reklamationen | gemeinsamen Schulungstermin mit allen Betroffenen anlegen |
+
+- Je Vorschlag: **Ausführen** (in der Planung mit Rückgängig), **Öffnen** (selbst erledigen), **Später** (bis morgen), **Ablehnen** (bis sich die Lage ändert, z. B. mehr offene Einsätze), **KI fragen** (den Vorschlag mit dem KI-Assistenten besprechen).
+- Ein Vorschlag verschwindet von selbst, wenn die Sache erledigt ist. „Später“ und „Ablehnen“ gelten für alle im Büro (Ordner `assistenz/`).
+- Jede Rolle sieht nur die digitalen Mitarbeiter ihrer Bereiche (z. B. Lager & Einkauf nur „Lager“).
+- Die Regeln sind fest und nachvollziehbar, ohne KI-Modell und ohne Kosten. Der KI-Assistent kann die Vorschläge lesen („Was haben die digitalen Mitarbeiter vorbereitet?“).
+
 ## Termine (mit Outlook)
 
 Kalender der Firma in der App (Planung → **Termine**): Woche mit Uhrzeiten (am Handy als Liste), darunter die nächsten 14 Tage. Ein Klick in den Kalender oder in eine freie Stelle der Zeitlinie legt einen Termin zu dieser Zeit an (in der Zeitlinie gleich für diese Person).
@@ -362,6 +378,7 @@ Kalender der Firma in der App (Planung → **Termine**): Woche mit Uhrzeiten (am
 - **Teilnehmende:** Mitarbeitende aus dem Dienstplan (stehen auch in der Zeitlinie), Personen der Firma aus dem Microsoft-Verzeichnis (Suche nach Name oder E-Mail) und freie E-Mail-Adressen (z. B. Hausverwaltung).
 - **Outlook:** „Speichern und einladen“ legt den Termin im Outlook-Kalender der Person an, die ihn einträgt, und schickt allen Teilnehmenden eine Einladung. Exchange Online stellt die Einladung bei ihnen von selbst in den Kalender (vorläufig, mit Zusage fest). Änderungen und Absagen gehen ebenso an alle. Auf Wunsch als Teams-Besprechung.
 - **Vor dem Speichern:** „Frei/Belegt prüfen“ zeigt je Person der Firma, ob sie zu der Zeit frei ist; Hinweise, wenn jemand laut Plan einen Einsatz hat oder abwesend ist. Bei bestehenden Terminen stehen die Antworten (zugesagt, abgesagt, vorläufig) dabei.
+- **Serientermine:** jede Woche, alle 2 Wochen, jeden Monat am selben Tag oder am selben Wochentag (z. B. jeden 1. Dienstag), mit oder ohne Ende. In Outlook als echte Serie; „Nur diesen Termin absagen“ sagt ein einzelnes Vorkommen ab (auch in Outlook), die Serie bleibt.
 - **Mein Outlook einblenden:** zeigt die eigenen Outlook-Termine der Woche grau im Kalender (nur lesen).
 - **Wer darf:** Vollzugriff, Objektmanagement und Objektleitung tragen ein; wer plant, sieht die Termine (Zeitlinie, Konflikte). Ablage: `termine/termine.json`.
 - **Ohne Microsoft-Anmeldung** (Browser-Modus) bleiben Termine in der App; „.ics herunterladen“ öffnet sie in Outlook, Google oder Apple Kalender.
@@ -369,7 +386,7 @@ Kalender der Firma in der App (Planung → **Termine**): Woche mit Uhrzeiten (am
 - Den Outlook-Termin ändern oder absagen kann nur, wer ihn angelegt hat (Organisator). Ändert jemand anderer in der App, sagt die App das dazu.
 - Der **KI-Assistent** legt Termine über dieses Modul an („Termin morgen 12 Uhr in Salzburg mit …“).
 
-**Kalender-Abo für Mitarbeitende (Plan am Handy):** Unter „Im Kalender“ auf der eigenen Plan-Seite: „Kalender abonnieren“ (iPhone, Android) oder die Adresse in Outlook („Kalender hinzufügen → Aus dem Internet abonnieren“) bzw. Google Kalender („Per URL“) einfügen. Dann stehen Einsätze, Termine und Abwesenheiten der veröffentlichten Wochen im eigenen Kalender und aktualisieren sich von selbst (je nach Kalender alle paar Stunden). Die Adresse ist persönlich wie der Link zum Plan; bei „Neuer Link“ gilt auch das alte Abo nicht mehr.
+**Kalender-Abo für Mitarbeitende (Plan am Handy):** Unter „Im Kalender“ auf der eigenen Plan-Seite: „Kalender abonnieren“ (iPhone, Android) oder die Adresse in Outlook („Kalender hinzufügen → Aus dem Internet abonnieren“) bzw. Google Kalender („Per URL“) einfügen. Dann stehen Einsätze, Termine und Abwesenheiten der veröffentlichten Wochen im eigenen Kalender und aktualisieren sich von selbst (je nach Kalender alle paar Stunden). Wer Push (ntfy) eingerichtet hat, bekommt eine Stunde vor einem Termin eine Erinnerung aufs Handy (über den Cronjob der Zeiterfassung, `aktion=pruefen`). Die Adresse ist persönlich wie der Link zum Plan; bei „Neuer Link“ gilt auch das alte Abo nicht mehr.
 
 ## Zeitlinie
 

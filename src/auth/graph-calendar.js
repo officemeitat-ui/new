@@ -126,3 +126,13 @@ export async function freeBusy(token, emails, { from, to }, opts = {}) {
   }
   return out
 }
+
+/** Einen Termin einer Outlook-Serie absagen (Tag in Ortszeit). */
+export async function cancelOccurrence(token, seriesId, date, comment = '', opts = {}) {
+  const q = new URLSearchParams({ startDateTime: `${date}T00:00:00`, endDateTime: `${date}T23:59:59`, $select: 'id,start' })
+  const res = await graph(token, `/me/events/${encodeURIComponent(seriesId)}/instances?${q}`, { headers: { Prefer: `outlook.timezone="${TIME_ZONE}"` }, ...opts })
+  const inst = (res?.value || [])[0]
+  if (!inst) return false // in Outlook an dem Tag keiner (z. B. schon abgesagt)
+  await cancelGraphEvent(token, inst.id, comment, opts)
+  return true
+}

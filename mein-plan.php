@@ -318,6 +318,58 @@ $stunden = fn ($min): string => str_replace('.', ',', (string) round(((int) $min
 $konto = fn ($min): string => ($min > 0 ? '+' : ($min < 0 ? '−' : '±')) . str_replace('.', ',', (string) round(abs((int) $min) / 60, 2));
 
 $e = einstellungen();
+// ---------------------------------------------------------------- Termin-Erinnerung per Push
+
+/**
+ * Termine laut veröffentlichtem Plan (Schulung, Begehung …), die in den nächsten 60 Minuten beginnen:
+ * je Person mit Push-Thema einmal erinnern. Läuft mit dem Cronjob (aktion=pruefen).
+ */
+function termin_erinnerungen(array $e, int $vorlauf = 60): array
+{
+    $datei = speicher() . '/erinnert.json';
+    $erinnert = json_lesen($datei);
+    $jetzt = jetzt();
+    $heute = heute();
+    $n = 0;
+    $geprueft = 0;
+    foreach (glob(speicher() . '/*.json') ?: [] as $f) {
+        $hash = basename($f, '.json');
+        if (!preg_match('/^[a-f0-9]{64}$/', $hash)) {
+            continue;
+        }
+        $p = json_lesen($f);
+        if (empty($p['ntfy'])) {
+            continue;
+        }
+        foreach ((array) ($p['wochen'] ?? []) as $w) {
+            foreach ((array) ($w['tage'] ?? []) as $t) {
+                if (($t['datum'] ?? '') !== $heute) {
+                    continue;
+                }
+                foreach ((array) ($t['termine'] ?? []) as $x) {
+                    if (!empty($x['ganztags']) || empty($x['beginn']) || empty($x['id'])) {
+                        continue;
+                    }
+                    $geprueft++;
+                    $ts = wien_ts($heute, (string) $x['beginn']);
+                    $key = $hash . '|' . $x['id'] . '|' . $heute;
+                    if ($ts < $jetzt || $ts - $jetzt > $vorlauf * 60 || isset($erinnert[$key])) {
+                        continue;
+                    }
+                    if (ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => 'Termin um ' . $x['beginn'] . ': ' . ($x['titel'] ?? ''), 'message' => (string) ($x['ort'] ?? 'Details in deinem Dienstplan.'), 'priority' => 4, 'tags' => ['calendar'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php'])) {
+                        $erinnert[$key] = $jetzt;
+                        $n++;
+                    }
+                }
+            }
+        }
+    }
+    // alte Einträge (über 3 Tage) entfernen
+    $erinnert = array_filter($erinnert, fn ($ts) => $ts > $jetzt - 3 * 86400);
+    json_schreiben($datei, $erinnert);
+    return ['termine' => $geprueft, 'erinnert' => $n];
+}
+
 // ---------------------------------------------------------------- Kalender-Abo (iCalendar)
 
 function ics_text(string $s): string
@@ -427,7 +479,7 @@ if ($aktion === 'pruefen' || $cli) {
     if (!$cli && !hash_equals($schluessel, (string) ($_GET['schluessel'] ?? ''))) {
         json_ausgabe(403, ['fehler' => 'Prüfschlüssel fehlt oder falsch']);
     }
-    $ergebnis = nicht_erschienen($e, $z);
+    $ergebnis = nicht_erschienen($e, $z) + ['terminErinnerung' => termin_erinnerungen($e)];
     json_schreiben(speicher() . '/pruefung.json', ['zuletzt' => jetzt()] + $ergebnis); // für den Systemcheck
     if ($cli) {
         echo json_encode($ergebnis) . "\n";
