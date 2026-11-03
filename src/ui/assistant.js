@@ -5,7 +5,8 @@
 import { app, closeModal, onModalRender, openModal, registerActions, registerModal, renderModal, renderModalKeepingInput, toast, VIEWS } from './context.js'
 import { esc, modalFrame, options, val } from './shared.js'
 
-const SPARK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8l5.1-1.4z" fill="currentColor"/><path d="M13 1.5l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5L11 3.5l1.5-.5z" fill="currentColor"/></svg>'
+// Sprechblase statt „Funkeln“: der Assistent ist ein Gesprächspartner, kein Effekt
+const SPARK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3.2 2.6V11.5H2.5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="5.3" cy="7.5" r="1" fill="currentColor"/><circle cx="8" cy="7.5" r="1" fill="currentColor"/><circle cx="10.7" cy="7.5" r="1" fill="currentColor"/></svg>'
 const MODEL_INFO = {
   'claude-opus-5-5': 'Claude Opus 5.5 – am stärksten (empfohlen), $4 / $20 je Mio. Tokens',
   'claude-sonnet-5-5': 'Claude Sonnet 5.5 – schnell und günstiger, $2 / $10 je Mio. Tokens',

@@ -9,6 +9,7 @@ import { weekSteps } from '../flow.js'
 import { todo } from '../modals/todo.js'
 import { esc, ICON } from '../shared.js'
 import { navIcon } from '../sidebar.js'
+import { cleo, moodFor } from '../mascot.js'
 import { appointmentsOfDay } from './appointments.js'
 import { proposalSummary } from './disponent.js'
 
@@ -55,7 +56,8 @@ function hero(c, views, { name, todoCount, staffTotal }) {
   ].filter(Boolean)
   const role = app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''
   return `<section class="home-hero" aria-label="Begrüßung">
-    <div class="home-hero-text"><p class="home-hero-date">${esc(formatDate(today, { year: true }))} · KW ${week}${role}</p><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="home-hero-sub">${todoCount ? `${todoCount} ${todoCount === 1 ? 'Punkt wartet' : 'Punkte warten'} in deinen Bereichen.` : 'Alles erledigt – schönen Tag!'}</p></div>
+    <button class="home-hero-cleo" data-action="help-open" title="Cleo fragen: Hilfe zu jeder Funktion" aria-label="Cleo fragen">${cleo({ mood: moodFor({ open: todoCount }), size: 84 })}</button>
+    <div class="home-hero-text"><p class="home-hero-date">${esc(formatDate(today, { year: true }))} · KW ${week}${role}</p><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="home-hero-sub">${todoCount ? `${todoCount} ${todoCount === 1 ? 'Punkt wartet' : 'Punkte warten'} in deinen Bereichen.` : 'Alles erledigt – schönen Tag!'} <button class="link-btn" data-action="help-open">Frag Cleo</button>, wenn du etwas suchst.</p></div>
     ${stats.length ? `<div class="home-hero-stats">${stats.join('')}</div>` : ''}
   </section>`
 }

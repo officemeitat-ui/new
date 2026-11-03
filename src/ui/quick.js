@@ -53,6 +53,7 @@ const KEYS = [
   ['/', 'Springen zu … (Suche)'],
   ['Strg + K', 'Springen zu … (Suche)'],
   ['Strg + J', 'KI-Assistent'],
+  ['F1', 'Cleo fragen (Hilfe zu jeder Funktion)'],
   ['← / →', 'vorige / nächste Woche'],
   ['H', 'heute (diese Woche)'],
   ['Strg + Z', 'Rückgängig (Planung)'],

@@ -10,7 +10,8 @@
     "preview": "node scripts/build.js && node scripts/serve.js dist",
     "hochladen": "node scripts/build.js && node scripts/hochladen.js",
     "test": "node --test",
-    "theme": "node scripts/theme-from-site.js"
+    "theme": "node scripts/theme-from-site.js",
+    "anleitung": "node scripts/anleitung.js"
   },
   "engines": {
     "node": ">=20"

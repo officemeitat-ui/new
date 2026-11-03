@@ -23,6 +23,7 @@ import { syncTools, toolUrls, warmLastTool } from './views/tools.js'
 import { searchButton } from './search.js'
 import { quickButton } from './quick.js'
 import { assistantButton } from './assistant.js'
+import { renderHelp } from './help.js'
 import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
 import { startWeather } from './weather.js'
@@ -239,6 +240,7 @@ setFrame({
     writePrefs()
     refreshBell()
     syncTools()
+    renderHelp()
   },
 })
 

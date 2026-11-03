@@ -42,7 +42,7 @@ export const app = {
 export const VIEWS = []
 
 /** Kurznamen für Adressen wie app.firma.at/#zaehler (auch die Namen der früheren Werkzeuge). */
-export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe', leistungsverzeichnis: 'objektmappe', mattenwechsel: 'matten' }
+export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', hilfe: 'anleitung', handbuch: 'anleitung', cleo: 'anleitung', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe', leistungsverzeichnis: 'objektmappe', mattenwechsel: 'matten' }
 
 /** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
 export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {

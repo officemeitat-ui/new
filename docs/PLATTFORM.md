@@ -445,6 +445,27 @@ Ein Tag, je Person eine Zeile: Einsätze in Objektfarbe, geplante Fahrten (rot, 
 
 **Rechenzeit:** Die Ansichten werden nur dort neu gezeichnet, wo sich etwas geändert hat (Scrollposition und angefangene Eingaben bleiben stehen). Vorschläge für Vertretungen und die Zuweisung werden je Datenstand einmal gerechnet und gemerkt; die Zuweisung braucht dadurch statt rund 30 Sekunden (Handy) nur noch einen Bruchteil einer Sekunde. „Zu erledigen“ wird nach dem Start im Hintergrund berechnet und hält den Start nicht mehr auf.
 
+## Cleo – Hilfe zu jeder Funktion
+
+**Cleo** ist das Maskottchen der Cleanos App: ein Wassertropfen mit grünem Stirnband, unten rechts auf jeder Seite (am Handy über der Leiste unten). Ein Klick (oder **F1**) öffnet den Hilfe-Chat:
+
+- **Fragen in eigenen Worten:** „Wie trage ich Urlaub ein?“, „es schneit, was tun“, „Zählerstände eintragen“, „Rechnung stornieren“. Cleo versteht Umlaute, Tippfehler, Mehrzahl und Wörter aus dem Betrieb (Dienstplan, Krankmeldung, streuen, Pickerl …) und antwortet mit einer kurzen Erklärung und den Schritten.
+- **„Zeig es mir“** springt in die richtige Ansicht und markiert dort den passenden Knopf; ein zweiter Knopf startet die Aktion gleich (z. B. „Abwesenheit eintragen“, „Woche jetzt planen“). „In der Anleitung“ öffnet das Thema zum Nachlesen.
+- **Vorschläge** passend zur offenen Ansicht und zu jedem Bereich; **Begriffe** („Was ist eine Stammkraft?“, „Was bedeutet Reverse Charge?“).
+- **Nur was die Rolle sieht:** Fragen zu Bereichen ohne Recht beantwortet Cleo mit dem Hinweis, das Büro zu fragen.
+- **Ohne KI und ohne Netz:** Cleo arbeitet mit den Hilfe-Themen in der App (`src/help/topics.js`, Suche in `src/help/match.js`), speichert nichts und schickt nichts weg. Findet Cleo nichts, bietet sie die Übergabe an den **KI-Assistenten** an (falls eingerichtet), mit der Frage schon eingetragen.
+- Cleo hat Stimmungen (winkt, denkt nach, zeigt, freut sich, schläft nachts, trägt im Winter eine Mütze) und blinzelt; bei „Bewegung reduzieren“ im System bleibt sie ruhig.
+
+## Anleitung
+
+Unter **Anleitung** (ganz oben im Menü, Suche „Hilfe“) stehen alle Funktionen zum Nachlesen: nach Bereichen wie im Menü, je Thema Kurzantwort, Schritte, Tipps und „Zeig es mir“, dazu die wichtigsten Begriffe. Die Suche findet dieselben Themen wie Cleo. **Drucken / PDF** ergibt ein sauberes Handbuch (ohne Seitenleiste und Knöpfe). Dieselben Texte stehen in [`docs/ANLEITUNG.md`](ANLEITUNG.md) (`npm run anleitung` erzeugt die Datei neu, wenn Themen dazukommen).
+
+**Neue Funktion, neues Thema:** in `src/help/topics.js` einen Eintrag ergänzen (id, Bereich, Ansicht, Titel, typische Fragen, Antwort, Schritte, optional Aktion). `test/help-topics.test.js` prüft, dass Ansichten, Aktionen und Verweise existieren.
+
+## Aussehen
+
+Stil **Modern** (Voreinstellung): ruhige weiße Flächen mit feinen Linien, eine Akzentfarbe (Cleanos-Blau), klare Schrift, keine Verläufe, kein Leuchten, kein Glas. Die aktive Ansicht ist eine helle Fläche mit Akzentkante, Bereiche haben eine eigene Farbe für Symbole (Planung blau, Einsätze petrol, Objekte violett, Material orange, Finanzen grün, Verwaltung schiefer), Reiter sind Umschalter, Kacheln zeigen Zustände als Punkt. Die Übersicht beginnt mit Cleo, Begrüßung und den wichtigsten Zahlen. Unter Darstellung lässt sich **Schlicht** wählen (flacher, ohne Bereichsfarben); bei den Kontrast-Schemata immer schlicht.
+
 ## Schnellfunktionen und Tastenkürzel
 
 - **„+ Neu“** in der Kopfleiste (Taste **N**): Termin (**T**), Abwesenheit (**A**), Zeit nachtragen (**Z**), Reklamation (**R**), Material anfordern (**M**), Rechnung (**F**), Angebot, Leistung im Reinigungsplan, KI-Assistent (**K**). Es erscheint nur, was die eigene Rolle darf. Am Handy: Mehr → „Neu anlegen …“.
