@@ -8,6 +8,8 @@ import { esc, ICON, modalFrame } from './shared.js'
 
 // weitere Suchwörter je Ansicht (so wie man sie im Büro nennt)
 const KEYWORDS = {
+  assistenz: 'digitale Mitarbeiter Disponent Vorschläge Automatik erledigen',
+  kennzahlen: 'Dashboard KPI Statistik Auswertung Umsatz Krankenstand Auslastung Diagramm',
   week: 'Dienstplan Einsatzplan Woche',
   timeline: 'Tag Tagesplan Gantt Balken',
   termine: 'Kalender Outlook Besprechung Begehung Meeting',
