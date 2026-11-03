@@ -182,7 +182,11 @@
         "support_granted": "Support-Zugriff freigegeben",
         "support_revoked": "Support-Zugriff beendet",
         "support_session_started": "Support-Sitzung gestartet",
-        "support_session_ended": "Support-Sitzung beendet"
+        "support_session_ended": "Support-Sitzung beendet",
+        "agent_created": "Agent angelegt",
+        "agent_published": "Agent veröffentlicht",
+        "agent_archived": "Agent archiviert",
+        "agent_restored": "Agent reaktiviert"
       },
       "actors": {
         "user": "Benutzer",
@@ -324,7 +328,9 @@
         "pause_turn": "pausiert",
         "stop_sequence": "Stoppsequenz"
       }
-    }
+    },
+    "agentLabel": "Agent:",
+    "withAgent": "Gespräch mit {name}"
   },
   "account": {
     "title": "Konto und Sicherheit",
@@ -357,5 +363,125 @@
     "downloadCodes": "Als Datei speichern",
     "codeLabel": "Code aus der App",
     "confirmSetup": "Einrichtung abschließen"
+  },
+  "agents": {
+    "title": "Agenten",
+    "subtitle": "Ihre digitalen Teammitglieder. Jeder Agent hat eine Aufgabe, eigene Anweisungen und klare Freigaberegeln.",
+    "new": "Neuer Agent",
+    "newCardTitle": "Neuen Agenten hinzufügen",
+    "newCardDescription": "Aus 12 fertigen Vorlagen oder leer beginnen",
+    "noDescription": "Ohne Beschreibung",
+    "version": "Version {version}",
+    "runs30d": "{count, plural, =0 {noch keine Läufe} =1 {1 Lauf in 30 Tagen} other {# Läufe in 30 Tagen}}",
+    "default": "Standard",
+    "chat": "Chat starten",
+    "edit": "Bearbeiten",
+    "archived": "Archiviert",
+    "galleryTitle": "Neuen Agenten hinzufügen",
+    "gallerySubtitle": "Wählen Sie eine Vorlage. Sie können danach alles anpassen – Anweisungen, Modell, Werkzeuge und Freigaben.",
+    "industryFilter": "Nach Branche filtern",
+    "allIndustries": "Alle",
+    "industries": {
+      "handwerk": "Handwerk & Haustechnik",
+      "steuerberatung": "Steuerberatung",
+      "immobilien": "Immobilien",
+      "handel": "Handel & E-Commerce",
+      "agenturen": "Agenturen",
+      "industrie": "Industrie",
+      "it": "IT-Betreuung"
+    },
+    "saves": "spart ca. {minutes} Min. {unit}",
+    "needs": "Volle Wirkung mit: {list}",
+    "readyNow": "Sofort einsatzbereit",
+    "useTemplate": "Vorlage übernehmen",
+    "useTemplateFor": "Vorlage {name} übernehmen",
+    "blankTitle": "Eigenen Agenten erstellen",
+    "blankDescription": "Ohne Vorlage beginnen und die Anweisungen selbst schreiben.",
+    "blankName": "Name des Agenten",
+    "blankPlaceholder": "z. B. Reklamations-Assistent",
+    "blankCreate": "Erstellen",
+    "createdHint": "Der Agent ist angelegt. Prüfen Sie die Anweisungen und füllen Sie offene Platzhalter aus – dann ist er startklar.",
+    "editSubtitle": "Jede Änderung wird als neue Version veröffentlicht und kann zurückgeholt werden.",
+    "sectionBasics": "Grunddaten",
+    "name": "Name",
+    "description": "Kurzbeschreibung",
+    "sectionInstructions": "Anweisungen",
+    "instructionsHint": "Was soll der Agent tun, worauf kommt es an, wie soll das Ergebnis aussehen? Firmenname und Plattformregeln ergänzt die Plattform automatisch.",
+    "openPlaceholders": "{count, plural, =1 {1 Platzhalter ist noch offen. Ersetzen Sie ihn} other {# Platzhalter sind noch offen. Ersetzen Sie sie}} durch Ihre firmenspezifischen Angaben, sonst sieht der Agent nur den Platzhalter.",
+    "sectionModel": "KI-Modell",
+    "modelHint": "Smart für anspruchsvolle Aufgaben, Ausgewogen für den Alltag, Schnell für große Mengen einfacher Aufgaben.",
+    "tiers": {
+      "smart": "Smart",
+      "balanced": "Ausgewogen",
+      "fast": "Schnell"
+    },
+    "tierHints": {
+      "smart": "Beste Qualität bei mehrstufigen Aufgaben",
+      "balanced": "Gute Qualität, halbe Kosten",
+      "fast": "Sehr günstig für Routine"
+    },
+    "effort": "Gründlichkeit",
+    "effortHint": "Mehr Gründlichkeit kostet mehr Zeit und Tokens. Für Routine reicht meist „Mittel“.",
+    "efforts": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch",
+      "xhigh": "Sehr hoch",
+      "max": "Maximal"
+    },
+    "sectionTools": "Werkzeuge und Freigaben",
+    "toolsHint": "Was der Agent tun darf. „Mit Freigabe“ heißt: Ein Mensch bestätigt jede Ausführung vorher.",
+    "toolSoon": "kommt bald",
+    "toolExternal": "wirkt nach außen",
+    "modeOff": "Aus",
+    "modeAuto": "Automatisch",
+    "modeApprove": "Mit Freigabe",
+    "sectionLimits": "Grenzen und Nutzen",
+    "limitsHint": "Schützt vor Kostenausreißern. Die Minuten pro Vorgang fließen in die Berechnung der gesparten Zeit.",
+    "maxSteps": "Max. Schritte pro Lauf",
+    "maxCost": "Kostenlimit pro Lauf ({currency})",
+    "roiMinutes": "Minuten Handarbeit pro Vorgang",
+    "save": "Speichern und veröffentlichen",
+    "testInChat": "Im Chat testen",
+    "archive": "Archivieren",
+    "unarchive": "Wieder aktivieren",
+    "testCasesTitle": "So testen Sie den Agenten",
+    "testCasesDescription": "Typische Fälle aus der Vorlage – probieren Sie sie im Chat aus.",
+    "versionsTitle": "Versionen",
+    "current": "aktiv",
+    "restore": "Wiederherstellen"
+  },
+  "tools": {
+    "aktuelle_zeit": {
+      "label": "Datum und Uhrzeit",
+      "description": "Aktuelles Datum, Uhrzeit und Wochentag (Wien)."
+    },
+    "rechner": {
+      "label": "Rechner",
+      "description": "Rechnet Beträge, Prozente und Steuern exakt."
+    },
+    "wissen_suchen": {
+      "label": "Wissensdatenbank",
+      "description": "Sucht in Ihren Dokumenten (Preislisten, AGB, Handbücher) und nennt die Quelle."
+    },
+    "email_senden": {
+      "label": "E-Mail senden",
+      "description": "Verschickt E-Mails im Namen Ihrer Firma."
+    }
+  },
+  "integrations": {
+    "email": "E-Mail (Microsoft 365/Google)",
+    "calendar": "Kalender",
+    "crm": "CRM",
+    "documents": "Dokumentvorlagen",
+    "channels": "Website-Chat/WhatsApp",
+    "accounting": "Buchhaltung",
+    "files": "Dateiablage",
+    "tasks": "Aufgaben",
+    "meetings": "Besprechungs-Transkripte",
+    "tickets": "Ticketsystem",
+    "monitoring": "IT-Überwachung",
+    "web": "Web-Recherche",
+    "delegation": "Zusammenarbeit von Agenten"
   }
 }

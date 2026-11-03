@@ -110,7 +110,11 @@ export async function getConversation(
     .from(runs)
     .where(eq(runs.conversationId, conversation.id))
     .orderBy(asc(runs.createdAt));
-  return { conversation, messages: history, runs: runRows };
+  const [agent] = await tx
+    .select({ name: agents.name })
+    .from(agents)
+    .where(eq(agents.id, conversation.agentId));
+  return { conversation, messages: history, runs: runRows, agentName: agent?.name ?? null };
 }
 
 function titleFrom(text: string): string {
@@ -130,6 +134,8 @@ export async function startRun(
     userName: string;
     text: string;
     conversationId?: string | null;
+    /** Agent for a new conversation; defaults to the tenant's general assistant. */
+    agentId?: string | null;
     now?: Date;
   },
 ): Promise<{ conversationId: string; runId: string }> {
@@ -155,8 +161,16 @@ export async function startRun(
     if (active) throw new Error("Der Agent arbeitet noch an der letzten Nachricht.");
     agentId = conversation.agentId;
   } else {
-    const agent = await ensureDefaultAgent(tx, input.tenantId, input.userId);
-    agentId = agent.id;
+    if (input.agentId) {
+      const [chosen] = await tx
+        .select({ id: agents.id, status: agents.status })
+        .from(agents)
+        .where(and(eq(agents.id, input.agentId), eq(agents.tenantId, input.tenantId)));
+      if (!chosen || chosen.status !== "active") throw notFound("Agent nicht gefunden.");
+      agentId = chosen.id;
+    } else {
+      agentId = (await ensureDefaultAgent(tx, input.tenantId, input.userId)).id;
+    }
     const [created] = await tx
       .insert(conversations)
       .values({ tenantId: input.tenantId, agentId, userId: input.userId, title: titleFrom(text) })

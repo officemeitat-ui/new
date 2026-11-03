@@ -182,7 +182,11 @@
         "support_granted": "Support access granted",
         "support_revoked": "Support access ended",
         "support_session_started": "Support session started",
-        "support_session_ended": "Support session ended"
+        "support_session_ended": "Support session ended",
+        "agent_created": "Agent created",
+        "agent_published": "Agent published",
+        "agent_archived": "Agent archived",
+        "agent_restored": "Agent reactivated"
       },
       "actors": {
         "user": "User",
@@ -324,7 +328,9 @@
         "pause_turn": "paused",
         "stop_sequence": "stop sequence"
       }
-    }
+    },
+    "agentLabel": "Agent:",
+    "withAgent": "Conversation with {name}"
   },
   "account": {
     "title": "Account and security",
@@ -357,5 +363,125 @@
     "downloadCodes": "Save as file",
     "codeLabel": "Code from the app",
     "confirmSetup": "Finish setup"
+  },
+  "agents": {
+    "title": "Agents",
+    "subtitle": "Your digital team members. Each agent has a task, its own instructions and clear approval rules.",
+    "new": "New agent",
+    "newCardTitle": "Add a new agent",
+    "newCardDescription": "From 12 ready-made templates or from scratch",
+    "noDescription": "No description",
+    "version": "Version {version}",
+    "runs30d": "{count, plural, =0 {no runs yet} =1 {1 run in 30 days} other {# runs in 30 days}}",
+    "default": "Default",
+    "chat": "Start chat",
+    "edit": "Edit",
+    "archived": "Archived",
+    "galleryTitle": "Add a new agent",
+    "gallerySubtitle": "Choose a template. You can adjust everything afterwards – instructions, model, tools and approvals.",
+    "industryFilter": "Filter by industry",
+    "allIndustries": "All",
+    "industries": {
+      "handwerk": "Trades & building services",
+      "steuerberatung": "Tax advisors",
+      "immobilien": "Real estate",
+      "handel": "Retail & e-commerce",
+      "agenturen": "Agencies",
+      "industrie": "Industry",
+      "it": "IT services"
+    },
+    "saves": "saves approx. {minutes} min {unit}",
+    "needs": "Full effect with: {list}",
+    "readyNow": "Ready to use",
+    "useTemplate": "Use template",
+    "useTemplateFor": "Use template {name}",
+    "blankTitle": "Create your own agent",
+    "blankDescription": "Start without a template and write the instructions yourself.",
+    "blankName": "Agent name",
+    "blankPlaceholder": "e.g. complaints assistant",
+    "blankCreate": "Create",
+    "createdHint": "The agent has been created. Review the instructions and fill in open placeholders – then it is ready.",
+    "editSubtitle": "Every change is published as a new version and can be rolled back.",
+    "sectionBasics": "Basics",
+    "name": "Name",
+    "description": "Short description",
+    "sectionInstructions": "Instructions",
+    "instructionsHint": "What should the agent do, what matters, what should the result look like? The platform adds the company name and platform rules automatically.",
+    "openPlaceholders": "{count, plural, =1 {1 placeholder is still open. Replace it} other {# placeholders are still open. Replace them}} with your company-specific details, otherwise the agent only sees the placeholder.",
+    "sectionModel": "AI model",
+    "modelHint": "Smart for demanding tasks, Balanced for everyday work, Fast for large volumes of simple tasks.",
+    "tiers": {
+      "smart": "Smart",
+      "balanced": "Balanced",
+      "fast": "Fast"
+    },
+    "tierHints": {
+      "smart": "Best quality for multi-step tasks",
+      "balanced": "Good quality, half the cost",
+      "fast": "Very cheap for routine work"
+    },
+    "effort": "Thoroughness",
+    "effortHint": "More thoroughness costs more time and tokens. “Medium” is usually enough for routine work.",
+    "efforts": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "Very high",
+      "max": "Maximum"
+    },
+    "sectionTools": "Tools and approvals",
+    "toolsHint": "What the agent may do. “With approval” means a person confirms every execution first.",
+    "toolSoon": "coming soon",
+    "toolExternal": "acts externally",
+    "modeOff": "Off",
+    "modeAuto": "Automatic",
+    "modeApprove": "With approval",
+    "sectionLimits": "Limits and value",
+    "limitsHint": "Protects against cost outliers. The minutes per task feed into the time-saved calculation.",
+    "maxSteps": "Max. steps per run",
+    "maxCost": "Cost limit per run ({currency})",
+    "roiMinutes": "Manual minutes per task",
+    "save": "Save and publish",
+    "testInChat": "Test in chat",
+    "archive": "Archive",
+    "unarchive": "Reactivate",
+    "testCasesTitle": "How to test this agent",
+    "testCasesDescription": "Typical cases from the template – try them in the chat.",
+    "versionsTitle": "Versions",
+    "current": "active",
+    "restore": "Restore"
+  },
+  "tools": {
+    "aktuelle_zeit": {
+      "label": "Date and time",
+      "description": "Current date, time and weekday (Vienna)."
+    },
+    "rechner": {
+      "label": "Calculator",
+      "description": "Calculates amounts, percentages and taxes exactly."
+    },
+    "wissen_suchen": {
+      "label": "Knowledge base",
+      "description": "Searches your documents (price lists, terms, manuals) and cites the source."
+    },
+    "email_senden": {
+      "label": "Send e-mail",
+      "description": "Sends e-mails on behalf of your company."
+    }
+  },
+  "integrations": {
+    "email": "E-mail (Microsoft 365/Google)",
+    "calendar": "Calendar",
+    "crm": "CRM",
+    "documents": "Document templates",
+    "channels": "Website chat/WhatsApp",
+    "accounting": "Accounting",
+    "files": "File storage",
+    "tasks": "Tasks",
+    "meetings": "Meeting transcripts",
+    "tickets": "Ticket system",
+    "monitoring": "IT monitoring",
+    "web": "Web research",
+    "delegation": "Agent collaboration"
   }
 }

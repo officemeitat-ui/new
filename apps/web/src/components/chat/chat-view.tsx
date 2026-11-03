@@ -156,6 +156,9 @@ export function ChatView({
   llmConfigured,
   examples,
   usdEurRate,
+  agents = [],
+  initialAgentId = null,
+  agentName = null,
 }: {
   conversationId: string | null;
   turns: ChatTurn[];
@@ -164,10 +167,19 @@ export function ChatView({
   examples: string[];
   /** EUR per USD from the partner; null shows dollars. */
   usdEurRate: number | null;
+  /** Agents to choose from when starting a new conversation. */
+  agents?: { id: string; name: string; description: string | null; isDefault: boolean }[];
+  initialAgentId?: string | null;
+  /** Name of the agent of an existing conversation. */
+  agentName?: string | null;
 }) {
   const t = useTranslations("chat");
   const router = useRouter();
   const [draft, setDraft] = useState("");
+  const [agentId, setAgentId] = useState<string | null>(
+    initialAgentId ?? agents.find((agent) => agent.isDefault)?.id ?? agents[0]?.id ?? null,
+  );
+  const selectedAgent = agents.find((agent) => agent.id === agentId);
   const [error, setError] = useState<string | null>(null);
   const [sending, startSending] = useTransition();
   const live = useRunStream(activeRunId, () => router.refresh());
@@ -182,7 +194,7 @@ export function ChatView({
     if (!text.trim() || busy || !llmConfigured) return;
     setError(null);
     startSending(async () => {
-      const result = await sendMessageAction(conversationId, text);
+      const result = await sendMessageAction(conversationId, text, conversationId ? null : agentId);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -209,6 +221,12 @@ export function ChatView({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex-1 overflow-y-auto" aria-live="polite">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-1 py-4">
+          {agentName && turns.length > 0 ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Bot className="size-3.5" aria-hidden />
+              {t("withAgent", { name: agentName })}
+            </p>
+          ) : null}
           {turns.length === 0 ? (
             <div className="flex flex-col items-center gap-4 py-12 text-center">
               <span className="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
@@ -216,10 +234,33 @@ export function ChatView({
               </span>
               <div className="space-y-1">
                 <h2 className="text-lg font-semibold">{t("emptyTitle")}</h2>
-                <p className="text-sm text-muted-foreground">{t("emptyDescription")}</p>
+                <p className="max-w-xl text-sm text-muted-foreground">
+                  {selectedAgent && !selectedAgent.isDefault
+                    ? (selectedAgent.description ?? t("emptyDescription"))
+                    : t("emptyDescription")}
+                </p>
               </div>
+              {agents.length > 1 ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <label htmlFor="chat-agent" className="text-muted-foreground">
+                    {t("agentLabel")}
+                  </label>
+                  <select
+                    id="chat-agent"
+                    value={agentId ?? ""}
+                    onChange={(event) => setAgentId(event.target.value)}
+                    className="h-9 rounded-md border bg-background px-3 text-sm"
+                  >
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div className="flex max-w-xl flex-wrap justify-center gap-2">
-                {examples.map((example) => (
+                {(selectedAgent && !selectedAgent.isDefault ? [] : examples).map((example) => (
                   <button
                     key={example}
                     type="button"

@@ -30,6 +30,10 @@ const KNOWN_ACTIONS = new Set([
   "support.revoked",
   "support.session_started",
   "support.session_ended",
+  "agent.created",
+  "agent.published",
+  "agent.archived",
+  "agent.restored",
 ]);
 
 export default async function AuditPage() {

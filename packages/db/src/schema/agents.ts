@@ -40,6 +40,8 @@ export const agents = pgTable(
     description: text(),
     status: text().$type<"active" | "archived">().notNull().default("active"),
     isDefault: boolean().notNull().default(false),
+    /** Agent template this agent was created from (packages/domain/src/agent-templates.ts). */
+    templateId: text(),
     currentVersionId: uuid(),
     createdBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
     createdAt: createdAt(),

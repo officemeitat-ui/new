@@ -1,4 +1,6 @@
 export * from "./access";
+export * from "./agent-templates";
+export * from "./agents";
 export * from "./audit";
 export * from "./branding";
 export * from "./chat";

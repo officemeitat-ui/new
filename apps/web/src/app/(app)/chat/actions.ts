@@ -14,6 +14,7 @@ const MAX_MESSAGE_LENGTH = 20_000;
 export async function sendMessageAction(
   conversationId: string | null,
   text: string,
+  agentId: string | null = null,
 ): Promise<ActionResult<{ conversationId: string; runId: string }>> {
   return runAction("sendMessage", async () => {
     const ctx = await requireTenant();
@@ -23,6 +24,7 @@ export async function sendMessageAction(
     if (trimmed.length > MAX_MESSAGE_LENGTH) throw validationError("Die Nachricht ist zu lang.");
     if (conversationId !== null && !isUuid(conversationId))
       throw validationError("Ungültiges Gespräch.");
+    if (agentId !== null && !isUuid(agentId)) throw validationError("Ungültiger Agent.");
 
     const tenantId = ctx.tenant.tenantId;
     const ids = await withTenant(getDatabase().db, tenantId, (tx) =>
@@ -32,6 +34,7 @@ export async function sendMessageAction(
         userName: ctx.user.name,
         text: trimmed,
         conversationId,
+        agentId,
       }),
     );
     await enqueueAgentRun({ runId: ids.runId, tenantId });

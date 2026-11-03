@@ -1,4 +1,5 @@
 export * from "./builtin-tools";
+export * from "./catalog";
 export * from "./env-provider";
 export * from "./models";
 export * from "./pricing";

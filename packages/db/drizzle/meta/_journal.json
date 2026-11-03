@@ -57,6 +57,13 @@
       "when": 1793728357378,
       "tag": "0007_seed_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793738642172,
+      "tag": "0008_agent_template_id",
+      "breakpoints": true
     }
   ]
 }
