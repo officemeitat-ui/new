@@ -206,3 +206,36 @@ export const usageEvents = pgTable(
   },
   (t) => [index("usage_events_tenant_created_idx").on(t.tenantId, t.createdAt)],
 );
+
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
+/**
+ * A tool call that waits for a human decision (M9). The run pauses with status
+ * "awaiting_approval" and continues once every approval of the run is decided.
+ */
+export const approvals = pgTable(
+  "approvals",
+  {
+    id: id(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    runId: uuid()
+      .notNull()
+      .references(() => runs.id, { onDelete: "cascade" }),
+    toolUseId: text().notNull(),
+    toolName: text().notNull(),
+    input: jsonb().$type<Record<string, unknown>>().notNull(),
+    status: text().$type<ApprovalStatus>().notNull().default("pending"),
+    /** The input as approved, if the person edited it. */
+    editedInput: jsonb().$type<Record<string, unknown>>(),
+    reason: text(),
+    decidedBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
+    decidedAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("approvals_run_tool_use_uq").on(t.runId, t.toolUseId),
+    index("approvals_tenant_status_idx").on(t.tenantId, t.status, t.createdAt),
+  ],
+);

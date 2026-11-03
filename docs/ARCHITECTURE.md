@@ -1,6 +1,6 @@
 # Architektur – ME-IT Nexus
 
-Stand: Phase 0–2 (Kern umgesetzt). Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
+Stand: Phase 0–2 (Kern umgesetzt), dazu Agent Studio und Freigabe-Inbox. Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
 
 ## 1. Systemübersicht
 
@@ -130,6 +130,7 @@ sequenceDiagram
 - Der Code kennt nur **Modellstufen** (`smart`, `balanced`, `fast`); die Zuordnung zu Modell-IDs liegt in der Datenbank.
 - **Gecachter Prefix:** Werkzeuge (sortiert) → Basis-Systemprompt → Agenten-Anweisungen. Datum, Nutzer und Kanal kommen als `<kontext>` in die erste Nachricht. Ein Test beweist, dass der Prefix zwischen zwei Läufen byte-identisch bleibt.
 - Berechtigungen für Werkzeuge prüft der Code vor der Ausführung, nie das Modell.
+- **Freigaben:** Braucht ein Werkzeugaufruf eine Freigabe, endet der Lauf mit `awaiting_approval`, und für jeden offenen Aufruf entsteht eine Zeile in `approvals`. Nach der letzten Entscheidung setzt die Web-App den Lauf auf `queued` und reiht ihn neu ein; der Worker lädt die Entscheidungen und macht beim offenen `tool_use` weiter (Schrittnummern laufen fort, Summen werden addiert). Der Redis-Stream des Laufs bleibt bestehen; das SSE-Endpoint überspringt das alte `done` der Pause, solange der Lauf wieder aktiv ist.
 
 ## 6. Konfiguration
 

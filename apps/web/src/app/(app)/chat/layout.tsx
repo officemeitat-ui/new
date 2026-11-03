@@ -11,7 +11,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
   );
   return (
     // Fill the viewport below the top bar; the message list scrolls, the composer stays.
-    <div className="-mx-4 -my-6 flex h-[calc(100dvh-3.5rem)] md:-mx-8 md:-my-8">
+    <div className="-mx-4 -mb-24 -mt-6 flex h-[calc(100dvh_-_7rem_-_env(safe-area-inset-bottom))] md:-mx-8 md:-my-8 md:h-[calc(100dvh-3.5rem)]">
       <aside className="hidden w-64 shrink-0 flex-col border-r lg:flex">
         <ConversationList
           conversations={conversations.map((c) => ({

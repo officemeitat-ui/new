@@ -78,6 +78,8 @@ export function buildTurns(messages: StoredMessage[], runs: StoredRun[]): ChatTu
 export const TOOL_LABELS: Record<string, string> = {
   rechner: "Rechner",
   aktuelle_zeit: "Datum und Uhrzeit",
+  email_senden: "E-Mail senden",
+  wissen_suchen: "Wissensdatenbank",
 };
 
 export function toolLabel(name: string): string {

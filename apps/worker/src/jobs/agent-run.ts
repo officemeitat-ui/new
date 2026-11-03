@@ -14,8 +14,11 @@ import { RUN_EVENTS_TTL_SECONDS, runEventsKey, type AgentRunJob } from "@nexus/c
 import type { Logger } from "@nexus/core/logger";
 import { withTenant, type Database } from "@nexus/db";
 import {
+  createApprovals,
+  createEmailTool,
   failRun,
   finishRun,
+  loadDecisions,
   loadRunForExecution,
   markRunStarted,
   recordRunStep,
@@ -80,15 +83,20 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
     const provider = await deps.provider();
     const modes = new Map(ctx.config.tools.map((tool) => [tool.name, tool.mode]));
     // Tools in "deny" mode are not offered to the model at all.
-    const tools = BUILTIN_TOOLS.filter(
+    // Platform tools: built-in ones plus tools that need tenant context (e-mail).
+    const platformTools = [...BUILTIN_TOOLS, createEmailTool({ tenantName: ctx.tenant.name })];
+    const tools = platformTools.filter(
       (tool) => modes.has(tool.name) && modes.get(tool.name) !== "deny",
     );
+    // Decisions for tool calls the run paused on (empty for a fresh run).
+    const decisions = await withTenant(db, tenantId, (tx) => loadDecisions(tx, runId));
+
     const policy: ToolPolicy = (tool) => {
       const mode = modes.get(tool.name);
       return mode === "approve" ? "approve" : mode === "auto" ? "allow" : "deny";
     };
 
-    let seq = 0;
+    let seq = ctx.lastStepSeq;
     const onEvent = async (event: RunEvent) => {
       await publish(runId, event);
       if (event.type === "text_delta" || event.type === "llm_request") return;
@@ -191,12 +199,16 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
           : {}),
       },
       toolContext: { tenantId, userId: ctx.run.triggeredBy, runId },
+      decisions,
       onEvent,
     });
 
-    await withTenant(db, tenantId, (tx) =>
-      finishRun(tx, { tenantId, runId, conversationId: ctx.run.conversationId, result }),
-    );
+    await withTenant(db, tenantId, async (tx) => {
+      await finishRun(tx, { tenantId, runId, conversationId: ctx.run.conversationId, result });
+      if (result.status === "awaiting_approval") {
+        await createApprovals(tx, { tenantId, runId, approvals: result.pendingApprovals });
+      }
+    });
     await publish(runId, { type: "done", status: result.status });
     log.info(
       { runId, status: result.status, steps: result.steps, costUsdMicros: result.costUsdMicros },

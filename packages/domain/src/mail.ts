@@ -69,3 +69,24 @@ export async function sendMagicLinkEmail(to: string, url: string): Promise<void>
     layout("Anmelden", escapeHtml(sentence), { label: "Jetzt anmelden", url }),
   );
 }
+
+/** Plain e-mail sent by an agent tool. Returns the Message-ID. */
+export async function sendRawMail(input: {
+  fromName: string;
+  to: string[];
+  subject: string;
+  text: string;
+  messageId: string;
+}): Promise<string> {
+  const from = getEnv().SMTP_FROM;
+  const address = /<([^>]+)>/.exec(from)?.[1] ?? from;
+  const info = await getTransporter().sendMail({
+    from: { name: input.fromName.replace(/["<>]/g, ""), address },
+    to: input.to,
+    subject: input.subject,
+    text: input.text,
+    messageId: input.messageId,
+  });
+  log.info({ to: input.to.length, subject: input.subject }, "agent mail sent");
+  return String(info.messageId ?? input.messageId);
+}

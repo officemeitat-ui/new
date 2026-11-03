@@ -2,6 +2,7 @@
 // The real SDK talks to it via ANTHROPIC_BASE_URL – production code contains no fakes.
 //
 //   "Berechne …"           → calls the tool "rechner", then answers with its result
+//   "… E-Mail an x@y …"    → calls "email_senden" (if the agent has it), then reports the outcome
 //   anything else          → streams a greeting that quotes the message
 import { createServer } from "node:http";
 
@@ -100,6 +101,16 @@ createServer((req, res) => {
     const toolResult = Array.isArray(last?.content)
       ? last.content.find((b) => b.type === "tool_result")
       : null;
+    const previous = request.messages.at(-2);
+    const calledTool = Array.isArray(previous?.content)
+      ? previous.content.find((b) => b.type === "tool_use")?.name
+      : undefined;
+    if (toolResult && calledTool === "email_senden") {
+      const answer = toolResult.is_error
+        ? `Verstanden, ich sende die E-Mail nicht. ${toolResult.content}`
+        : `Die E-Mail an ${JSON.parse(toolResult.content).an.join(", ")} ist versendet.`;
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
     if (toolResult) {
       const { ergebnis } = JSON.parse(toolResult.content);
       const amount = new Intl.NumberFormat("de-AT", { minimumFractionDigits: 2 }).format(ergebnis);
@@ -111,6 +122,28 @@ createServer((req, res) => {
       );
     }
     const text = lastUserText(request.messages);
+    const recipient = /E-Mail an ([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/i.exec(text)?.[1];
+    const canMail = request.tools?.some((tool) => tool.name === "email_senden");
+    if (recipient && canMail) {
+      return void streamMessage(
+        res,
+        request.model,
+        [
+          { type: "text", text: "Ich bereite die E-Mail vor." },
+          {
+            type: "tool_use",
+            id: `toolu_mock_${counter + 1}`,
+            name: "email_senden",
+            input: {
+              an: [recipient],
+              betreff: "Terminbestätigung",
+              text: "Sehr geehrte Damen und Herren,\n\nwir bestätigen Ihren Termin am Dienstag um 9 Uhr.\n\nMit freundlichen Grüßen",
+            },
+          },
+        ],
+        "tool_use",
+      );
+    }
     if (/berechne/i.test(text)) {
       return void streamMessage(
         res,

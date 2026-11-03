@@ -4,6 +4,7 @@ import { modelDisplayName } from "@nexus/agents/models";
 import { convertUsdMicros } from "@nexus/core";
 import { Badge, Button, cn, FieldError } from "@nexus/ui";
 import { ArrowUp, Bot, Calculator, Loader2, Sparkles, TriangleAlert, Wrench } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -184,7 +185,15 @@ export function ChatView({
   const [sending, startSending] = useTransition();
   const live = useRunStream(activeRunId, () => router.refresh());
   const bottomRef = useRef<HTMLDivElement>(null);
-  const busy = sending || activeRunId !== null;
+  const waitingForApproval = turns.at(-1)?.status === "awaiting_approval";
+  const busy = sending || activeRunId !== null || waitingForApproval;
+
+  // The approval may be decided elsewhere (approval inbox, phone): look for the result.
+  useEffect(() => {
+    if (!waitingForApproval) return;
+    const timer = setInterval(() => router.refresh(), 10_000);
+    return () => clearInterval(timer);
+  }, [waitingForApproval, router]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
@@ -317,7 +326,17 @@ export function ChatView({
                           )}
                         >
                           <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                          {turn.status === "failed" && turn.error ? turn.error : t(note)}
+                          <span>
+                            {turn.status === "failed" && turn.error ? turn.error : t(note)}
+                            {turn.status === "awaiting_approval" ? (
+                              <>
+                                {" "}
+                                <Link href="/approvals" className="font-medium underline">
+                                  {t("openApprovals")}
+                                </Link>
+                              </>
+                            ) : null}
+                          </span>
                         </p>
                       ) : null}
                       <TurnMeta turn={turn} usdEurRate={usdEurRate} />
@@ -350,7 +369,7 @@ export function ChatView({
             onKeyDown={onKeyDown}
             rows={1}
             maxLength={20_000}
-            placeholder={t("placeholder")}
+            placeholder={waitingForApproval ? t("placeholderWaiting") : t("placeholder")}
             disabled={!llmConfigured}
             className="max-h-48 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground [field-sizing:content]"
           />
@@ -360,7 +379,11 @@ export function ChatView({
             aria-label={t("send")}
             disabled={!draft.trim() || busy || !llmConfigured}
           >
-            {busy ? <Loader2 className="animate-spin" aria-hidden /> : <ArrowUp aria-hidden />}
+            {busy && !waitingForApproval ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : (
+              <ArrowUp aria-hidden />
+            )}
           </Button>
         </div>
         <p className="mt-1.5 text-center text-xs text-muted-foreground">{t("disclaimer")}</p>

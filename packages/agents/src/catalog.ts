@@ -17,7 +17,7 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
   { name: "aktuelle_zeit", risk: "read", available: true, defaultMode: "auto" },
   { name: "rechner", risk: "read", available: true, defaultMode: "auto" },
   { name: "wissen_suchen", risk: "read", available: false, defaultMode: "auto" },
-  { name: "email_senden", risk: "external_write", available: false, defaultMode: "approve" },
+  { name: "email_senden", risk: "external_write", available: true, defaultMode: "approve" },
 ];
 
 export function catalogTool(name: string): CatalogTool | undefined {

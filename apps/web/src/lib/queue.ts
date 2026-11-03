@@ -14,10 +14,11 @@ function agentRunQueue(): Queue<AgentRunJob> {
   return globalForQueue.__nexusAgentQueue;
 }
 
-/** One job per run; the run ID as job ID makes enqueueing idempotent. No automatic retries (ADR 0005). */
+/** No automatic retries (ADR 0005); the worker skips runs that are not queued, so duplicates are harmless. */
 export async function enqueueAgentRun(job: AgentRunJob): Promise<void> {
   await agentRunQueue().add("run", job, {
-    jobId: job.runId,
+    // One job per run segment: a run resumed after an approval gets a new job.
+    jobId: `${job.runId}-${Date.now()}`,
     attempts: 1,
     removeOnComplete: 1000,
     removeOnFail: 5000,

@@ -17,7 +17,9 @@
     "settings": "Settings",
     "partner": "Partner console",
     "soon": "Soon",
-    "soonHint": "This area is being prepared."
+    "soonHint": "This area is being prepared.",
+    "mobileLabel": "Quick navigation",
+    "openCount": "{count} open"
   },
   "commandPalette": {
     "open": "Open command palette",
@@ -205,7 +207,9 @@
         "agent_published": "Agent published",
         "agent_archived": "Agent archived",
         "agent_restored": "Agent reactivated",
-        "tenant_settings_changed": "Company settings changed"
+        "tenant_settings_changed": "Company settings changed",
+        "approval_approved": "Action approved",
+        "approval_rejected": "Action rejected"
       },
       "actors": {
         "user": "User",
@@ -359,7 +363,9 @@
       }
     },
     "agentLabel": "Agent:",
-    "withAgent": "Conversation with {name}"
+    "withAgent": "Conversation with {name}",
+    "openApprovals": "Review it",
+    "placeholderWaiting": "The agent is waiting for an approval …"
   },
   "account": {
     "title": "Account and security",
@@ -524,5 +530,32 @@
     "budget_exceeded": "cost limit",
     "cancelled": "cancelled",
     "failed": "error"
+  },
+  "approvals": {
+    "title": "Approvals",
+    "subtitle": "Actions your agents want to take outside the platform wait here for your decision. Nothing happens until you approve.",
+    "emptyTitle": "All done",
+    "emptyDescription": "No action is waiting for approval.",
+    "historyTitle": "Recently decided",
+    "historyDescription": "The latest decisions. Details are in the audit log.",
+    "approved": "Approved",
+    "approvedEdited": "Approved with changes",
+    "rejected": "Rejected",
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Owners and admins decide on approvals. Please contact your administrator.",
+    "proposal": "{agent} wants to: {tool}",
+    "requested": "Requested in a conversation by {name} · {date}",
+    "to": "To",
+    "subject": "Subject",
+    "text": "Text",
+    "reason": "Reason (optional)",
+    "reasonPlaceholder": "e.g. too formal, please shorter",
+    "confirmReject": "Confirm rejection",
+    "cancel": "Cancel",
+    "approveEdited": "Approve changes",
+    "approve": "Approve",
+    "edit": "Edit",
+    "reject": "Reject",
+    "openConversation": "Open conversation"
   }
 }

@@ -1,5 +1,5 @@
 import type { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages";
-import { notFound } from "@nexus/core";
+import { conflict, notFound } from "@nexus/core";
 import { and, asc, desc, eq, sql, type Tx } from "@nexus/db";
 import {
   agents,
@@ -153,12 +153,20 @@ export async function startRun(
     if (!conversation || conversation.userId !== input.userId)
       throw notFound("Gespräch nicht gefunden.");
     const [active] = await tx
-      .select({ id: runs.id })
+      .select({ status: runs.status })
       .from(runs)
       .where(
-        and(eq(runs.conversationId, conversationId), sql`${runs.status} in ('queued','running')`),
+        and(
+          eq(runs.conversationId, conversationId),
+          sql`${runs.status} in ('queued','running','awaiting_approval')`,
+        ),
       );
-    if (active) throw new Error("Der Agent arbeitet noch an der letzten Nachricht.");
+    // The history ends with an open tool call until the approval is decided, so a new
+    // message would make the conversation invalid for the model.
+    if (active?.status === "awaiting_approval") {
+      throw conflict("Der Agent wartet auf eine Freigabe. Bitte entscheiden Sie zuerst darüber.");
+    }
+    if (active) throw conflict("Der Agent arbeitet noch an der letzten Nachricht.");
     agentId = conversation.agentId;
   } else {
     if (input.agentId) {
@@ -244,11 +252,17 @@ export async function loadRunForExecution(tx: Tx, runId: string) {
     .from(messages)
     .where(eq(messages.conversationId, run.conversationId))
     .orderBy(asc(messages.seq));
+  // A run resumed after an approval continues its trace numbering.
+  const [lastStep] = await tx
+    .select({ seq: sql<number>`coalesce(max(${runSteps.seq}), 0)` })
+    .from(runSteps)
+    .where(eq(runSteps.runId, runId));
   return {
     run,
     agent: agent!,
     config: version!.config,
     tenant: tenant!,
+    lastStepSeq: Number(lastStep?.seq ?? 0),
     messages: history.map((m) => ({ role: m.role, content: m.content }) as BetaMessageParam),
   };
 }
@@ -341,16 +355,17 @@ export async function finishRun(
   if (rows.length > 0) await tx.insert(messages).values(rows);
 
   const { usage } = input.result;
+  // A run that paused for approval continues later: add up, don't overwrite.
   await tx
     .update(runs)
     .set({
       status: input.result.status satisfies RunStatus,
-      steps: input.result.steps,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-      cacheReadTokens: usage.cacheReadTokens,
-      cacheWriteTokens: usage.cacheWriteTokens,
-      costUsdMicros: input.result.costUsdMicros,
+      steps: sql`${runs.steps} + ${input.result.steps}`,
+      inputTokens: sql`${runs.inputTokens} + ${usage.inputTokens}`,
+      outputTokens: sql`${runs.outputTokens} + ${usage.outputTokens}`,
+      cacheReadTokens: sql`${runs.cacheReadTokens} + ${usage.cacheReadTokens}`,
+      cacheWriteTokens: sql`${runs.cacheWriteTokens} + ${usage.cacheWriteTokens}`,
+      costUsdMicros: sql`${runs.costUsdMicros} + ${input.result.costUsdMicros}`,
       finalText: input.result.finalText || null,
       error: input.result.refusal
         ? `Abgelehnt (${input.result.refusal.category ?? "unbekannt"})`

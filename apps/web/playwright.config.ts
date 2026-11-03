@@ -26,14 +26,20 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/admin.json" },
     },
   ],
-  // Full stack: mock Claude API, worker and web app. Needs ANTHROPIC_API_KEY (any value) and
-  // ANTHROPIC_BASE_URL=http://localhost:4010 in the environment of worker and web.
+  // Full stack: mock Claude API, SMTP sink, worker and web app. Needs ANTHROPIC_API_KEY (any
+  // value), ANTHROPIC_BASE_URL=http://localhost:4010 and SMTP_PORT=2525 for worker and web.
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : [
         {
           command: "node e2e/mock-anthropic.mjs",
           url: "http://localhost:4010/health",
+          reuseExistingServer: !process.env.CI,
+        },
+        {
+          // Receives every e-mail; web and worker need SMTP_HOST=localhost, SMTP_PORT=2525.
+          command: "node e2e/smtp-sink.mjs",
+          url: "http://localhost:2526/health",
           reuseExistingServer: !process.env.CI,
         },
         {

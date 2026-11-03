@@ -17,7 +17,9 @@
     "settings": "Einstellungen",
     "partner": "Partner-Konsole",
     "soon": "Bald",
-    "soonHint": "Dieser Bereich ist in Vorbereitung."
+    "soonHint": "Dieser Bereich ist in Vorbereitung.",
+    "mobileLabel": "Schnellnavigation",
+    "openCount": "{count, plural, =1 {1 offen} other {# offen}}"
   },
   "commandPalette": {
     "open": "Befehlspalette öffnen",
@@ -205,7 +207,9 @@
         "agent_published": "Agent veröffentlicht",
         "agent_archived": "Agent archiviert",
         "agent_restored": "Agent reaktiviert",
-        "tenant_settings_changed": "Firmendaten geändert"
+        "tenant_settings_changed": "Firmendaten geändert",
+        "approval_approved": "Aktion freigegeben",
+        "approval_rejected": "Aktion abgelehnt"
       },
       "actors": {
         "user": "Benutzer",
@@ -359,7 +363,9 @@
       }
     },
     "agentLabel": "Agent:",
-    "withAgent": "Gespräch mit {name}"
+    "withAgent": "Gespräch mit {name}",
+    "openApprovals": "Zur Freigabe",
+    "placeholderWaiting": "Der Agent wartet auf eine Freigabe …"
   },
   "account": {
     "title": "Konto und Sicherheit",
@@ -524,5 +530,32 @@
     "budget_exceeded": "Kostenlimit",
     "cancelled": "abgebrochen",
     "failed": "Fehler"
+  },
+  "approvals": {
+    "title": "Freigaben",
+    "subtitle": "Aktionen, die Ihre Agenten nach außen setzen wollen, warten hier auf Ihre Entscheidung. Erst nach Ihrer Freigabe passiert etwas.",
+    "emptyTitle": "Alles erledigt",
+    "emptyDescription": "Es wartet keine Aktion auf eine Freigabe.",
+    "historyTitle": "Zuletzt entschieden",
+    "historyDescription": "Die letzten Entscheidungen. Details stehen im Audit-Log.",
+    "approved": "Freigegeben",
+    "approvedEdited": "Geändert freigegeben",
+    "rejected": "Abgelehnt",
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Über Freigaben entscheiden Owner und Admins. Bitte wenden Sie sich an Ihren Administrator.",
+    "proposal": "{agent} möchte: {tool}",
+    "requested": "Angefragt im Gespräch von {name} · {date}",
+    "to": "An",
+    "subject": "Betreff",
+    "text": "Text",
+    "reason": "Begründung (optional)",
+    "reasonPlaceholder": "z. B. Ton zu förmlich, bitte kürzer",
+    "confirmReject": "Ablehnen bestätigen",
+    "cancel": "Abbrechen",
+    "approveEdited": "Geändert freigeben",
+    "approve": "Freigeben",
+    "edit": "Bearbeiten",
+    "reject": "Ablehnen",
+    "openConversation": "Zum Gespräch"
   }
 }

@@ -2,6 +2,25 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Bessere Funktionen – Agent Studio, Kennzahlen, Freigabe-Inbox mit E-Mail-Versand ✅
+
+**Erledigt**
+
+- **Agent Studio:** Galerie mit den 12 Vorlagen aus `prompts/02_AGENTEN_BIBLIOTHEK.md` (Filter nach Branche, Suche, ROI je Aufgabe), „Vorlage übernehmen“ mit vorausgefüllten Firmendaten, Editor (Anweisungen mit Hinweis auf offene Platzhalter, Modellstufe, Effort, Werkzeuge je _aus / automatisch / mit Freigabe_, Schritt- und Kostenlimit, Minuten je Aufgabe), unveränderliche Versionen mit Wiederherstellen, Archivieren. Im Chat lässt sich der Agent für ein neues Gespräch wählen (`/chat?agent=<id>`).
+- **Startseite mit echten Kennzahlen:** offene Freigaben (Kachel führt zur Inbox), Läufe heute, gesparte Stunden und Euro (Woche/Monat, Stundensatz pro Firma unter Einstellungen → Allgemein), KI-Kosten im Monat, Balkendiagramm der letzten 7 Tage, letzte Aktivitäten, Systemstatus.
+- **Freigabe-Inbox (M9):** Werkzeuge im Modus „mit Freigabe“ pausieren den Lauf; für jeden offenen Werkzeugaufruf entsteht ein Eintrag in `approvals` (RLS). Die Inbox zeigt die E-Mail-Vorschau mit _Freigeben_, _Bearbeiten und freigeben_ und _Ablehnen mit Begründung_. Nach der letzten Entscheidung läuft der Agent dort weiter, wo er pausiert hat; eine Ablehnung bekommt er samt Begründung als Werkzeug-Fehler zurück. Entscheidungen stehen im Audit-Log.
+- **Sichtbarkeit:** Owner und Admins sehen alle Freigaben der Firma, Mitglieder nur die aus ihren eigenen Gesprächen (geprüft in der Abfrage, nicht nur in der UI).
+- **Werkzeug „E-Mail senden“:** höchstens 5 Empfänger, Absendername = Firma, Fußzeile mit KI-Kennzeichnung (EU AI Act Art. 50), Message-ID aus dem Idempotenzschlüssel (kein Doppelversand bei Wiederholung). Standardmodus: mit Freigabe.
+- **Chat:** Hinweis „Der Agent wartet auf eine Freigabe. Zur Freigabe“, Eingabe gesperrt bis zur Entscheidung (auch serverseitig), der Chat aktualisiert sich selbst, wenn anderswo (z. B. am Handy) entschieden wurde. Der Live-Stream eines fortgesetzten Laufs springt nicht mehr beim alten Pausen-Ereignis ab.
+- **Navigation:** „Freigaben“ mit Zähler; am Handy eine Leiste unten (Start, Chat, Freigaben, Agenten).
+- **Tests:** Worker-Tests mit echtem SMTP-Server (pausieren → geändert freigeben → gesendet und weiter; ablehnen → nichts gesendet; Sichtbarkeit; gesperrte Folgenachricht). E2E: 14 Browser-Tests, neu u. a. beide Freigabe-Abläufe. Ein SMTP-Auffangserver (`apps/web/e2e/smtp-sink.mjs`) nimmt alle E-Mails der E2E-Läufe an; die Einladungs-Tests lesen den Link jetzt aus der E-Mail und werden nicht mehr übersprungen.
+
+**Noch offen**
+
+- Benachrichtigung über neue Freigaben per Web-Push und E-Mail (M9), Schwellenwerte (z. B. nur externe Empfänger), Eskalation nach X Stunden, Vertretungen
+- Evals/Testfälle der Vorlagen im Studio ausführen, „Agent aus Beschreibung“ (Agent-Architekt)
+- E-Mail-Versand über das Postfach des Kunden (Microsoft 365/Google) statt über das Plattform-SMTP – kommt mit den Integrationen (Phase 4)
+
 ## Abschluss Phase 1 und 2 – Branding, 2FA, Euro-Kosten, Trace, Support-Zugriff ✅
 
 **Erledigt**

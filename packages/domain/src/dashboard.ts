@@ -1,6 +1,7 @@
 import { notFound, validationError } from "@nexus/core";
 import { desc, eq, sql, type Tx } from "@nexus/db";
 import { agents, agentVersions, runs, tenants, usageEvents } from "@nexus/db/schema";
+import { countPendingApprovals, type ApprovalScope } from "./approvals";
 import { appendAudit } from "./audit";
 
 const TZ = "Europe/Vienna";
@@ -30,14 +31,17 @@ export type Dashboard = {
 };
 
 /** Key figures for the start page (M10). All numbers are tenant-scoped through RLS. */
-export async function getDashboard(tx: Tx, tenantId: string): Promise<Dashboard> {
+export async function getDashboard(
+  tx: Tx,
+  tenantId: string,
+  approvalScope: ApprovalScope,
+): Promise<Dashboard> {
   const roiMinutes = sql<number>`coalesce((${agentVersions.config}->>'roiMinutesPerTask')::int, 0)`;
 
   const [counts] = await tx
     .select({
       runsToday: sql<number>`count(*) filter (where ${runs.createdAt} >= ${startOf("day")})::int`,
       completedToday: sql<number>`count(*) filter (where ${runs.createdAt} >= ${startOf("day")} and ${runs.status} = 'completed')::int`,
-      openApprovals: sql<number>`count(*) filter (where ${runs.status} = 'awaiting_approval')::int`,
       savedMinutesWeek: sql<number>`coalesce(sum(${roiMinutes}) filter (where ${runs.status} = 'completed' and ${runs.createdAt} >= ${startOf("week")}), 0)::int`,
       savedMinutesMonth: sql<number>`coalesce(sum(${roiMinutes}) filter (where ${runs.status} = 'completed' and ${runs.createdAt} >= ${startOf("month")}), 0)::int`,
     })
@@ -88,7 +92,7 @@ export async function getDashboard(tx: Tx, tenantId: string): Promise<Dashboard>
   return {
     runsToday: counts?.runsToday ?? 0,
     completedToday: counts?.completedToday ?? 0,
-    openApprovals: counts?.openApprovals ?? 0,
+    openApprovals: await countPendingApprovals(tx, tenantId, approvalScope),
     activeAgents: agentCount?.active ?? 0,
     savedMinutesWeek: counts?.savedMinutesWeek ?? 0,
     savedMinutesMonth: counts?.savedMinutesMonth ?? 0,

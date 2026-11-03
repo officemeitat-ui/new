@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { invitationLink } from "./mail";
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@me-it.local";
 const anonymous = { cookies: [], origins: [] };
@@ -43,16 +44,11 @@ test("partner provisions a tenant, the owner joins and the audit chain holds", a
   const status = page.locator("[role=status]");
   await expect(status).toContainText(`E2E Tischlerei ${suffix}`);
 
-  // Locally and in CI there may be no SMTP server: then the invitation link is shown instead.
-  const link = await status
-    .locator("code")
-    .textContent({ timeout: 2_000 })
-    .catch(() => null);
-  test.skip(!link, "Invitation e-mail was delivered; link not shown in the UI.");
+  const link = await invitationLink(page, ownerEmail);
 
   // A fresh browser without the admin session, as the invited person would have.
   const owner = await (await browser.newContext({ storageState: anonymous })).newPage();
-  await owner.goto(link!);
+  await owner.goto(link);
   await expect(owner.getByRole("heading", { name: /Einladung zu E2E Tischlerei/ })).toBeVisible();
   await owner.getByLabel("Ihr Name").fill("Olga Owner");
   await owner.getByLabel("Passwort wählen").fill("Ein-sicheres-Passwort-1");
@@ -68,7 +64,7 @@ test("partner provisions a tenant, the owner joins and the audit chain holds", a
   await expect(owner).toHaveURL(/\/$/);
 
   // The link cannot be used twice.
-  await owner.goto(link!);
+  await owner.goto(link);
   await expect(owner.getByText("Einladung nicht gültig")).toBeVisible();
 });
 

@@ -19,6 +19,13 @@ const FINISHED = new Set([
   "failed",
 ]);
 
+async function isActiveAgain(tenantId: string, runId: string): Promise<boolean> {
+  const [run] = await withTenant(getDatabase().db, tenantId, (tx) =>
+    tx.select({ status: runs.status }).from(runs).where(eq(runs.id, runId)),
+  );
+  return run?.status === "queued" || run?.status === "running";
+}
+
 /**
  * Server-Sent Events with the live events of a run. Reads the run's Redis stream from the
  * beginning, so a client that connects late still gets every event (docs/ARCHITECTURE.md §5).
@@ -74,8 +81,18 @@ export async function GET(
             for (const [id, fields] of entries) {
               lastId = id;
               const payload = fields[1] ?? "{}";
+              const event = JSON.parse(payload) as { type?: string; status?: string };
+              // A run that paused for an approval and was resumed keeps its stream: the old
+              // "done" of the paused pass is skipped while the run is active again.
+              if (
+                event.type === "done" &&
+                event.status === "awaiting_approval" &&
+                (await isActiveAgain(ctx.tenant.tenantId, runId))
+              ) {
+                continue;
+              }
               controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
-              if ((JSON.parse(payload) as { type?: string }).type === "done") return;
+              if (event.type === "done") return;
             }
           }
         }

@@ -3,9 +3,12 @@ import { runs, usageEvents } from "@nexus/db/schema";
 import { openTestDatabase } from "@nexus/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAgentFromTemplate } from "../src/agents";
+import { createApprovals } from "../src/approvals";
 import { startRun } from "../src/chat";
 import { getDashboard, updateTenantGeneral } from "../src/dashboard";
 import { createPartnerWithTenant } from "./fixtures";
+
+const ALL = { userId: "00000000-0000-0000-0000-000000000000", all: true };
 
 const handle = openTestDatabase();
 const db = handle.db;
@@ -18,7 +21,9 @@ afterAll(() => handle.close());
 
 describe("dashboard", () => {
   it("is empty for a new tenant", async () => {
-    const dashboard = await withTenant(db, fx.tenant.id, (tx) => getDashboard(tx, fx.tenant.id));
+    const dashboard = await withTenant(db, fx.tenant.id, (tx) =>
+      getDashboard(tx, fx.tenant.id, ALL),
+    );
     expect(dashboard).toMatchObject({
       runsToday: 0,
       openApprovals: 0,
@@ -62,9 +67,16 @@ describe("dashboard", () => {
           cacheWriteTokens: 0,
           costUsdMicros: 20_000,
         });
+        if (status === "awaiting_approval") {
+          await createApprovals(tx, {
+            tenantId,
+            runId,
+            approvals: [{ toolUseId: "t1", toolName: "email_senden", input: {} }],
+          });
+        }
       });
     }
-    const dashboard = await withTenant(db, tenantId, (tx) => getDashboard(tx, tenantId));
+    const dashboard = await withTenant(db, tenantId, (tx) => getDashboard(tx, tenantId, ALL));
     expect(dashboard.runsToday).toBe(3);
     expect(dashboard.completedToday).toBe(2);
     expect(dashboard.openApprovals).toBe(1);
@@ -83,7 +95,9 @@ describe("dashboard", () => {
         actorId: fx.owner.id,
       }),
     );
-    const dashboard = await withTenant(db, fx.tenant.id, (tx) => getDashboard(tx, fx.tenant.id));
+    const dashboard = await withTenant(db, fx.tenant.id, (tx) =>
+      getDashboard(tx, fx.tenant.id, ALL),
+    );
     expect(dashboard.hourlyRateCents).toBe(6200);
     await expect(
       withTenant(db, fx.tenant.id, (tx) =>

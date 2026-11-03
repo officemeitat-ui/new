@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/shell/brand-mark";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { MobileNav } from "@/components/shell/mobile-nav";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
@@ -9,6 +10,8 @@ import { resolveBranding } from "@/lib/branding";
 import { getAppContext } from "@/lib/session";
 import { endSupportSessionAction } from "@/app/actions/session";
 import { formatDateTime } from "@nexus/core";
+import { getDatabase, withTenant } from "@nexus/db";
+import { approvalScopeFor, can, countPendingApprovals } from "@nexus/domain";
 import { Button } from "@nexus/ui";
 import { LifeBuoy } from "lucide-react";
 
@@ -17,6 +20,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { productName } = await resolveBranding();
   const ctx = await getAppContext();
   const isPartner = Boolean(ctx.partner);
+  const tenant = ctx.tenant;
+  const openApprovals =
+    tenant && can(tenant, "approval.decide")
+      ? await withTenant(getDatabase().db, tenant.tenantId, (tx) =>
+          countPendingApprovals(tx, tenant.tenantId, approvalScopeFor(tenant)),
+        )
+      : 0;
+  const badges = { approvals: openApprovals };
   const tenants = ctx.overview.tenants
     .filter((tenant) => tenant.status === "active")
     .map(({ tenantId, name }) => ({ tenantId, name }));
@@ -34,7 +45,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <div className="px-2 pt-1">
           <BrandMark productName={productName} />
         </div>
-        <SidebarNav isPartner={isPartner} />
+        <SidebarNav isPartner={isPartner} badges={badges} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -73,10 +84,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             activeTenantId={ctx.tenant?.tenantId ?? null}
           />
         </header>
-        <main id="main" className="flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main id="main" className="flex-1 px-4 pb-24 pt-6 md:px-8 md:py-8">
           {children}
         </main>
       </div>
+      {tenant ? <MobileNav badges={badges} /> : null}
     </div>
   );
 }

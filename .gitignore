@@ -15,4 +15,4 @@ test-results/
 # Local Redis/Valkey snapshots
 dump.rdb
 *.rdb
-e2e/.auth/
+**/e2e/.auth/

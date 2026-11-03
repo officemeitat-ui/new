@@ -40,7 +40,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "chat", href: "/chat", icon: MessagesSquare, available: true, section: "main" },
   { key: "agents", href: "/agents", icon: Bot, available: true, section: "main" },
   { key: "workflows", href: "/workflows", icon: Workflow, available: false, section: "main" },
-  { key: "approvals", href: "/approvals", icon: Inbox, available: false, section: "main" },
+  { key: "approvals", href: "/approvals", icon: Inbox, available: true, section: "main" },
   { key: "knowledge", href: "/knowledge", icon: BookOpen, available: false, section: "main" },
   { key: "integrations", href: "/integrations", icon: Plug, available: false, section: "main" },
   { key: "analytics", href: "/analytics", icon: ChartLine, available: false, section: "main" },
@@ -58,6 +58,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** Small counters next to nav items, e.g. open approvals. */
+export type NavBadges = Partial<Record<NavKey, number>>;
+
+/** The few destinations of the bottom bar on phones. */
+export const MOBILE_NAV_KEYS: readonly NavKey[] = ["start", "chat", "approvals", "agents"];
 
 export function visibleNavItems(isPartner: boolean): readonly NavItem[] {
   return NAV_ITEMS.filter((item) => !item.partnerOnly || isPartner);

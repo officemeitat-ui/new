@@ -42,6 +42,9 @@ jobs:
       # E2E: the real SDK talks to the mock Claude API in apps/web/e2e/mock-anthropic.mjs.
       ANTHROPIC_API_KEY: e2e-mock-key
       ANTHROPIC_BASE_URL: http://localhost:4010
+      # E2E: every e-mail goes to the SMTP sink in apps/web/e2e/smtp-sink.mjs.
+      SMTP_HOST: localhost
+      SMTP_PORT: "2525"
 
     steps:
       - uses: actions/checkout@v4

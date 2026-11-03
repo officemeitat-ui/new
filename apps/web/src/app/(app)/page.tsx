@@ -1,6 +1,6 @@
 import { convertUsdMicros, dayPeriod } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
-import { getDashboard } from "@nexus/domain";
+import { approvalScopeFor, getDashboard } from "@nexus/domain";
 import {
   Badge,
   Button,
@@ -33,14 +33,17 @@ function Tile({
   icon,
   value,
   hint,
+  href,
 }: {
   label: string;
   icon: ReactNode;
   value: string;
   hint: ReactNode;
+  /** Makes the whole tile a link. */
+  href?: string;
 }) {
-  return (
-    <Card>
+  const card = (
+    <Card className={href ? "h-full transition-colors hover:bg-muted/50" : undefined}>
       <CardHeader className="flex-row items-center justify-between">
         <CardDescription>{label}</CardDescription>
         <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
@@ -50,6 +53,13 @@ function Tile({
         <p className="text-xs text-muted-foreground">{hint}</p>
       </CardContent>
     </Card>
+  );
+  return href ? (
+    <Link href={href} className="rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }
 
@@ -66,7 +76,9 @@ export default async function StartPage() {
   }[dayPeriod()];
 
   const [dashboard, health] = await Promise.all([
-    withTenant(getDatabase().db, tenant.tenantId, (tx) => getDashboard(tx, tenant.tenantId)),
+    withTenant(getDatabase().db, tenant.tenantId, (tx) =>
+      getDashboard(tx, tenant.tenantId, approvalScopeFor(tenant)),
+    ),
     checkHealth(),
   ]);
 
@@ -101,6 +113,7 @@ export default async function StartPage() {
           icon={<Inbox aria-hidden />}
           value={format.number(dashboard.openApprovals)}
           hint={dashboard.openApprovals > 0 ? t("approvalsWaiting") : t("approvalsNone")}
+          href="/approvals"
         />
         <Tile
           label={t("kpiRuns")}

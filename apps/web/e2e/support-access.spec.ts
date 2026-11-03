@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { invitationLink } from "./mail";
 
 const anonymous = { cookies: [], origins: [] };
 
@@ -12,13 +13,14 @@ test("a customer grants ME-IT support access; the session is visible and logged"
   // Partner creates the customer, the owner joins.
   await page.goto("/partner");
   await page.getByLabel("Firmenname").fill(tenantName);
-  await page.getByLabel("E-Mail des Owners").fill(`support-${suffix}@e2e.test`);
+  const ownerEmail = `support-${suffix}@e2e.test`;
+  await page.getByLabel("E-Mail des Owners").fill(ownerEmail);
   await page.getByRole("button", { name: "Anlegen" }).click();
-  const link = await page.locator("[role=status] code").textContent();
-  test.skip(!link, "Invitation e-mail was delivered; link not shown in the UI.");
+  await expect(page.locator("[role=status]")).toContainText(tenantName);
+  const link = await invitationLink(page, ownerEmail);
 
   const owner = await (await browser.newContext({ storageState: anonymous })).newPage();
-  await owner.goto(link!);
+  await owner.goto(link);
   await owner.getByLabel("Ihr Name").fill("Otto Owner");
   await owner.getByLabel("Passwort wählen").fill("Ein-sicheres-Passwort-3");
   await owner.getByLabel("Passwort wiederholen").fill("Ein-sicheres-Passwort-3");
