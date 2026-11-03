@@ -3,7 +3,11 @@
 //
 //  - Vorhersage: C-LAEF 1 km, stündlich, rund 60 Stunden (nwp-v2-1h-1km; das
 //    frühere AROME-Modell nwp-v1 endet am 4.11.2026). Parameter: 2t (Temperatur),
-//    tp/rain (Niederschlag), sf (Schneefall, je Stunde), 10fg (Böen).
+//    tp/rain (Niederschlag), sf (Schneefall, je Stunde), 10fg (Böen), dazu für
+//    die Grafik tcc (Bewölkung), sy (Wettersymbol), snowlmt (Schneefallgrenze),
+//    10u/10v (Wind). tp, sf, 10fg und sy gelten für die Stunde, die zum
+//    Zeitpunkt endet; Temperatur, Bewölkung und Wind für den Zeitpunkt selbst.
+//    Länger als rund 2½ Tage rechnet kein freier GeoSphere-Datensatz voraus.
 //  - Warnungen: je Gemeinde (Sturm, Regen, Schnee, Glatteis, Gewitter, Hitze,
 //    Kälte; Stufe gelb, orange, rot).
 //
@@ -27,8 +31,8 @@ export const WEATHER_DEFAULTS = {
 }
 
 export const FORECAST_RESOURCE = 'nwp-v2-1h-1km'
-// Parameter-Sätze: erst alles, bei Ablehnung schrittweise weniger (Namen können sich ändern)
-export const FORECAST_PARAMS = [['2t', 'tp', 'sf', '10fg'], ['2t', 'tp', 'sf'], ['2t', 'tp']]
+// Parameter-Sätze: erst alles (mit Grafik), bei Ablehnung schrittweise weniger (Namen können sich ändern)
+export const FORECAST_PARAMS = [['2t', 'tp', 'sf', '10fg', 'tcc', 'sy', 'snowlmt', '10u', '10v'], ['2t', 'tp', 'sf', '10fg'], ['2t', 'tp', 'sf'], ['2t', 'tp']]
 export const forecastUrl = (lat, lon, params = FORECAST_PARAMS[0]) =>
   `https://dataset.api.hub.geosphere.at/v1/timeseries/forecast/${FORECAST_RESOURCE}?lat_lon=${lat},${lon}&parameters=${params.join(',')}`
 // Welche Parameter der Datensatz hat (falls sich Namen ändern): …/metadata
@@ -71,6 +75,11 @@ export const PARAM_ALIASES = {
   precip: ['tp', 'rain', 'rr', 'rr_acc', 'rain_acc'],
   snow: ['sf', 'snow', 'snow_acc'],
   gust: ['10fg', 'fg10'],
+  cloud: ['tcc'],
+  symbol: ['sy'],
+  snowLimit: ['snowlmt'],
+  u: ['10u'],
+  v: ['10v'],
 }
 
 /** Aus den Metadaten des Datensatzes die passenden Parameter wählen; ohne Temperatur und Niederschlag: null. */
@@ -111,13 +120,165 @@ export function parseForecast(json) {
   const precip = series(params, 'precip')
   const snow = series(params, 'snow')
   const gust = series(params, 'gust')
-  return times.map((ts, i) => ({
-    at: Date.parse(ts),
-    t: t?.[i] ?? null,
-    precip: precip?.[i] ?? null,
-    snow: snow?.[i] ?? null, // mm Wasser je Stunde ≈ cm Neuschnee
-    gust: gust?.[i] ?? null,
-  })).filter((h) => Number.isFinite(h.at))
+  // für die Grafik; nur wenn vorhanden (ältere Antworten und der Umweg ohne diese Parameter bleiben gleich)
+  const extra = { cloud: series(params, 'cloud'), symbol: series(params, 'symbol'), snowLimit: series(params, 'snowLimit') }
+  const u = series(params, 'u')
+  const v = series(params, 'v')
+  return times
+    .map((ts, i) => {
+      const h = {
+        at: Date.parse(ts),
+        t: t?.[i] ?? null,
+        precip: precip?.[i] ?? null,
+        snow: snow?.[i] ?? null, // mm Wasser je Stunde ≈ cm Neuschnee
+        gust: gust?.[i] ?? null,
+      }
+      for (const [k, list] of Object.entries(extra)) if (list) h[k] = list[i] ?? null
+      if (u && v && u[i] !== null && v[i] !== null) {
+        h.wind = round1(Math.hypot(u[i], v[i]) * 3.6) // km/h
+        h.windFrom = Math.round((Math.atan2(-u[i], -v[i]) * 180) / Math.PI + 360) % 360 // Richtung, aus der der Wind kommt (0 = Nord)
+      }
+      return h
+    })
+    .filter((h) => Number.isFinite(h.at))
+}
+
+// ---------------------------------------------------------------- Wettersymbol (sy) und Sonne
+
+// Tabelle der Wettersymbole von GeoSphere (dataset-api-docs#30), gruppiert für die Anzeige.
+// kind: clear, partly, cloudy, overcast, fog, rain, heavyrain, sleet, snow, shower, snowshower, thunder
+const SYMBOL_TABLE = [
+  [[1], 'clear', 'Wolkenlos'],
+  [[2], 'clear', 'Heiter'],
+  [[3], 'partly', 'Wolkig'],
+  [[4], 'cloudy', 'Stark bewölkt'],
+  [[5], 'overcast', 'Bedeckt'],
+  [[6], 'fog', 'Bodennebel'],
+  [[7], 'fog', 'Hochnebel'],
+  [[8], 'rain', 'Leichter Regen'],
+  [[9], 'rain', 'Mäßiger Regen'],
+  [[10], 'heavyrain', 'Starker Regen'],
+  [[11, 12, 13], 'sleet', 'Schneeregen'],
+  [[14], 'snow', 'Leichter Schneefall'],
+  [[15], 'snow', 'Mäßiger Schneefall'],
+  [[16], 'snow', 'Starker Schneefall'],
+  [[17, 18], 'shower', 'Regenschauer'],
+  [[19], 'heavyrain', 'Starker Regenschauer'],
+  [[20, 21, 22], 'sleet', 'Schneeregenschauer'],
+  [[23, 24], 'snowshower', 'Schneeschauer'],
+  [[25], 'snow', 'Starker Schneeschauer'],
+  [[26, 27], 'thunder', 'Gewitter'],
+  [[28], 'thunder', 'Starkes Gewitter'],
+  [[29, 30, 31, 32], 'thunder', 'Gewitter mit Schneeregen oder Schnee'],
+]
+const SYMBOLS = new Map(SYMBOL_TABLE.flatMap(([codes, kind, label]) => codes.map((c) => [c, { code: c, kind, label }])))
+// Rangfolge für „das Wetter des Tages“: was man draußen am meisten merkt
+export const KIND_RANK = ['clear', 'partly', 'cloudy', 'overcast', 'fog', 'shower', 'rain', 'snowshower', 'sleet', 'heavyrain', 'snow', 'thunder']
+
+/**
+ * Wetter einer Stunde: aus dem Symbol von GeoSphere, sonst aus Bewölkung und
+ * Niederschlag. { kind, label } oder null (nichts bekannt).
+ */
+export function weatherKind(h) {
+  const sy = h?.symbol !== null && h?.symbol !== undefined ? SYMBOLS.get(Math.round(h.symbol)) : null
+  if (sy) return { kind: sy.kind, label: sy.label }
+  const p = h?.precip
+  if (p !== null && p !== undefined && p >= 0.1) {
+    const share = h.snow ? Math.min(1, h.snow / p) : 0
+    if (share >= 0.7) return { kind: 'snow', label: p >= 2.5 ? 'Starker Schneefall' : 'Schneefall' }
+    if (share >= 0.2) return { kind: 'sleet', label: 'Schneeregen' }
+    return p >= 4 ? { kind: 'heavyrain', label: 'Starker Regen' } : { kind: 'rain', label: p >= 1 ? 'Regen' : 'Leichter Regen' }
+  }
+  const c = h?.cloud
+  if (c === null || c === undefined) return p === 0 ? { kind: 'clear', label: 'Trocken' } : null
+  if (c < 20) return { kind: 'clear', label: 'Heiter' }
+  if (c < 55) return { kind: 'partly', label: 'Wolkig' }
+  if (c < 85) return { kind: 'cloudy', label: 'Stark bewölkt' }
+  return { kind: 'overcast', label: 'Bedeckt' }
+}
+
+const RAD = Math.PI / 180
+/**
+ * Sonnenaufgang und -untergang (ms) an einem Tag und Ort (Näherung nach NOAA,
+ * auf wenige Minuten genau). Polarnacht/-tag kommen in Österreich nicht vor.
+ */
+export function sunTimes(date, lat, lon) {
+  const noon = Date.parse(`${date}T12:00:00Z`)
+  const n = Math.round(noon / 86400e3 + 2440587.5 - 2451545.0)
+  const jStar = n - lon / 360
+  const m = (357.5291 + 0.98560028 * jStar) % 360
+  const c = 1.9148 * Math.sin(m * RAD) + 0.02 * Math.sin(2 * m * RAD) + 0.0003 * Math.sin(3 * m * RAD)
+  const lambda = (m + c + 180 + 102.9372) % 360
+  const transit = 2451545.0 + jStar + 0.0053 * Math.sin(m * RAD) - 0.0069 * Math.sin(2 * lambda * RAD)
+  const decl = Math.asin(Math.sin(lambda * RAD) * Math.sin(23.4397 * RAD))
+  const cosW = (Math.sin(-0.833 * RAD) - Math.sin(lat * RAD) * Math.sin(decl)) / (Math.cos(lat * RAD) * Math.cos(decl))
+  const w = Math.acos(Math.max(-1, Math.min(1, cosW))) / RAD
+  const toMs = (j) => Math.round((j - 2440587.5) * 86400e3)
+  return { rise: toMs(transit - w / 360), set: toMs(transit + w / 360) }
+}
+
+/** Nacht zu einem Zeitpunkt (Sonne unter dem Horizont)? */
+export function isNight(at, lat, lon) {
+  const { date } = viennaParts(at)
+  const { rise, set } = sunTimes(date, lat, lon)
+  return at < rise || at >= set
+}
+
+/**
+ * Stunden für die Grafik: je Stunde [at, at+1h) Temperatur, Bewölkung und
+ * Wind zu Beginn, Niederschlag, Schnee, Böen und Symbol der Stunde (stehen bei
+ * GeoSphere am Ende der Stunde). Ab `from` (ms, auf die Stunde abgerundet), höchstens `count` Stunden.
+ */
+export function hourSlots(hours = [], { from = Date.now(), count = 48 } = {}) {
+  const start = Math.floor(from / 3600e3) * 3600e3
+  const byAt = new Map(hours.map((h) => [h.at, h]))
+  const out = []
+  for (const h of hours) {
+    if (h.at < start || out.length >= count) continue
+    const next = byAt.get(h.at + 3600e3)
+    if (!next) break
+    out.push({
+      at: h.at,
+      end: next.at,
+      t: h.t,
+      cloud: h.cloud ?? null,
+      wind: h.wind ?? null,
+      windFrom: h.windFrom ?? null,
+      snowLimit: h.snowLimit ?? null,
+      precip: next.precip,
+      snow: next.snow,
+      gust: next.gust,
+      symbol: next.symbol ?? null,
+    })
+  }
+  return out
+}
+
+/**
+ * Tage für die Vorhersage-Karten: je Tag Min/Max, Summen, Böen, Warnungen,
+ * Wetter des Tages (7–19 Uhr, das Merklichste), Regenstunden, Sonnenzeiten.
+ */
+export function forecastDays(entry, dates, loc) {
+  const slots = hourSlots(entry?.hours || [], { from: 0, count: 1000 })
+  return dates.map((date) => {
+    const o = dayOutlook(entry || {}, date)
+    const from = viennaTime(date, '00:00')
+    const day = slots.filter((s) => s.at >= from && s.at < from + 24 * 3600e3)
+    const daytime = day.filter((s) => {
+      const h = viennaParts(s.at).hour
+      return h >= 7 && h < 19
+    })
+    let best = null
+    for (const s of daytime.length ? daytime : day) {
+      const k = weatherKind(s)
+      if (k && (!best || KIND_RANK.indexOf(k.kind) > KIND_RANK.indexOf(best.kind))) best = k
+    }
+    const sun = loc ? sunTimes(date, Number(loc.lat), Number(loc.lon)) : null
+    // Vorhersage endet vor Tagesende (letzter Tag): bis wann
+    const last = day.at(-1)
+    const until = last && last.end < from + 23 * 3600e3 ? last.end : null
+    return { ...o, kind: best, wetHours: day.filter((s) => (s.precip || 0) >= 0.1).length, hoursKnown: day.length, until, sun }
+  })
 }
 
 // ---------------------------------------------------------------- Warnungen

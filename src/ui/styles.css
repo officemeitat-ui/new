@@ -674,6 +674,127 @@ code.wrap { word-break: break-all; white-space: normal; }
 .wl-photos img { width: 100%; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); min-height: 120px; object-fit: cover; }
 .wl-photos figcaption { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
 .link-btn { background: none; border: 0; padding: 0 2px; color: var(--accent); text-decoration: underline; font: inherit; font-size: 0.85em; cursor: pointer; }
+/* Wetter grafisch: Nowcast, Tageskarten, Stundenverlauf, Radar */
+.wx-graph, .wx-radar-card { min-width: 0; max-width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); padding: 12px 14px; margin-top: 14px; }
+.wx-graph h3, .wx-radar-card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.wx-radar-card > p.muted { margin: 0 0 8px; font-size: 0.88rem; }
+.wx-graph-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.wx-tabs .filter { display: inline-flex; align-items: center; gap: 6px; }
+.wx-tab-hint { font-size: 0.75rem; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, #2f80ed 18%, transparent); }
+.wx-tab-hint.snow { background: color-mix(in srgb, #8a5cf5 22%, transparent); }
+.wx-sub { margin: 14px 0 6px; font-size: 0.95rem; }
+.wx-now { margin: 6px 0 10px; padding: 8px 10px; border-radius: var(--radius); background: var(--surface-2); }
+.wx-now.wet { background: color-mix(in srgb, #2f80ed 10%, var(--surface-2)); }
+.wx-now.snow { background: color-mix(in srgb, #8a5cf5 12%, var(--surface-2)); }
+.wx-now-text { margin: 0 0 6px; }
+.wx-now-bar { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; height: 30px; align-items: end; }
+.wx-now-cell { height: 100%; display: flex; align-items: flex-end; background: color-mix(in srgb, var(--line) 45%, transparent); border-radius: 3px; overflow: hidden; }
+.wx-now-cell span { display: block; width: 100%; border-radius: 3px 3px 0 0; }
+.wx-now-marks { position: relative; height: 16px; font-size: 0.75rem; color: var(--muted); }
+.wx-now-marks span { position: absolute; top: 2px; }
+.wx-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.wx-day { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
+.wx-day header { font-size: 0.92rem; }
+.wx-day-main { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+.wx-temps .hi { font-size: 1.5rem; font-weight: 600; }
+.wx-temps .lo { font-size: 1.05rem; color: var(--muted); }
+.wx-kind { font-size: 0.85rem; color: var(--muted); }
+.wx-range { position: relative; height: 5px; border-radius: 3px; background: var(--surface-2); margin: 6px 0 8px; }
+.wx-range span { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, #4f8fe8, #f0a030); min-width: 6px; }
+.wx-facts { margin: 0; display: grid; gap: 2px; font-size: 0.85rem; }
+.wx-facts div { display: flex; justify-content: space-between; gap: 8px; }
+.wx-facts dt { color: var(--muted); }
+.wx-facts dd { margin: 0; text-align: right; }
+.wx-day-warn { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+.wx-day-warn .pill { white-space: normal; }
+.wx-icon { flex: none; overflow: visible; }
+.i-sun { fill: #f6b40e; }
+.i-ray { stroke: #f6b40e; stroke-width: 1.6; stroke-linecap: round; fill: none; }
+.i-moon { fill: #c8c19a; }
+.i-cloud { fill: #e9eef4; stroke: #9aa8b8; stroke-width: 1.1; }
+.i-cloud.back { fill: #cfd8e3; }
+.i-cloud.dark { fill: #b3bfcc; stroke: #7d8b9b; }
+.i-rain { stroke: #2f80ed; stroke-width: 1.7; stroke-linecap: round; fill: none; }
+.i-snow { fill: #8a5cf5; }
+.i-snow circle { fill: #8a5cf5; }
+.i-bolt { fill: #f2a900; stroke: #c98a00; stroke-width: 0.6; }
+.i-fog { stroke: #9aa8b8; stroke-width: 1.7; stroke-linecap: round; }
+.wx-chart-scroll { position: relative; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.wx-c-gutter { fill: var(--surface); }
+.wx-c-unit { font-size: 9.5px; fill: var(--muted); }
+.wx-until { margin: 6px 0 0; }
+.wx-chart { display: block; font-family: var(--font-body); }
+.wx-c-night { fill: var(--night); }
+.wx-c-daysep { stroke: var(--line-strong); stroke-width: 1; }
+.wx-c-day { font-size: 11px; font-weight: 600; fill: var(--fg); }
+.wx-c-hour { font-size: 10.5px; fill: var(--muted); }
+.wx-c-tline { fill: none; stroke: #e2702a; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.wx-c-tarea { fill: color-mix(in srgb, #e2702a 10%, transparent); }
+.wx-c-tdot { fill: #e2702a; }
+.wx-c-tval { font-size: 10.5px; fill: var(--fg); }
+.wx-c-tval.key { font-weight: 700; }
+.wx-c-tval.frost { fill: #2f6fde; }
+.wx-c-zero { stroke: #2f6fde; stroke-dasharray: 3 3; stroke-width: 1; opacity: 0.7; }
+.wx-c-zero-t { font-size: 9px; fill: #2f6fde; }
+.wx-c-base { stroke: var(--line); }
+.wx-c-rain { fill: #3d8bef; }
+.wx-c-snow { fill: #8a5cf5; }
+.wx-c-pval { font-size: 9.5px; fill: var(--muted); }
+.wx-c-gust { font-size: 10px; fill: var(--muted); }
+.wx-c-gust.warn { fill: var(--warn); font-weight: 700; }
+.wx-c-arrow { fill: var(--muted); }
+.wx-c-limit { font-size: 9.5px; fill: #8a5cf5; }
+.wx-c-now { stroke: var(--err); stroke-width: 1.4; }
+.wx-c-now-t { font-size: 10px; fill: var(--err); font-weight: 600; }
+.wx-radar { display: grid; gap: 8px; }
+.wx-map { position: relative; height: 420px; overflow: hidden; border-radius: var(--radius); border: 1px solid var(--line); background: #e8ecef; touch-action: none; cursor: grab; user-select: none; outline-offset: 2px; }
+.wx-map.dragging { cursor: grabbing; }
+.wx-map-tiles img { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; pointer-events: none; transform-origin: 0 0; }
+.wx-map-tiles img.missing { visibility: hidden; }
+.wx-map-radar { position: absolute; left: 0; top: 0; pointer-events: none; }
+.wx-map-marks { position: absolute; inset: 0; pointer-events: none; }
+.wx-mark { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; pointer-events: auto; }
+.wx-mark i { display: block; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35); }
+.wx-mark.objekt i { width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 2px; background: #13844a; }
+.wx-mark-label { margin-top: -5px; font-size: 0.75rem; font-weight: 600; color: #13232f; background: rgb(255 255 255 / 0.85); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+.wx-map-zoom { position: absolute; right: 8px; top: 8px; display: grid; gap: 4px; }
+.wx-map-zoom .btn { min-width: 32px; font-size: 1.05rem; line-height: 1; background: var(--surface); }
+.wx-map-attr { position: absolute; right: 0; bottom: 0; font-size: 0.68rem; padding: 1px 6px; background: rgb(255 255 255 / 0.8); color: #33404d; border-top-left-radius: 4px; }
+.wx-map-attr a { color: inherit; }
+.wx-radar-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wx-slider { flex: 1 1 220px; accent-color: var(--accent); }
+.wx-play { min-width: 40px; }
+.wx-frame-label { flex: 1 1 100%; font-size: 0.88rem; }
+.wx-hist { display: flex; gap: 2px; height: 34px; align-items: stretch; }
+.wx-hist-bar { flex: 1; min-width: 4px; padding: 0; border: 0; border-radius: 3px; background: color-mix(in srgb, var(--line) 40%, transparent); display: flex; align-items: flex-end; overflow: hidden; cursor: pointer; }
+.wx-hist-bar.past { background: color-mix(in srgb, var(--line) 70%, transparent); }
+.wx-hist-bar.model { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--line) 40%, transparent) 0 4px, transparent 4px 7px); }
+.wx-hist-bar span { display: block; width: 100%; background: #3d8bef; }
+.wx-hist-bar span.snow { background: #8a5cf5; }
+.wx-hist-bar.cur { box-shadow: inset 0 -3px 0 var(--err); }
+.wx-hist-bar.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wx-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.8rem; color: var(--muted); }
+.wx-leg { display: inline-flex; align-items: center; gap: 3px; }
+.wx-leg-label { margin-right: 3px; color: var(--fg); }
+.wx-leg-chip { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+.wx-radar.empty .wx-radar-bar, .wx-radar.empty .wx-hist { opacity: 0.5; pointer-events: none; }
+.wx-radar-status { margin: 0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .wx-map-tiles img { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9); }
+  :root:not([data-theme='light']) .wx-map { background: #1b232c; }
+  :root:not([data-theme='light']) .i-cloud { fill: #6b7a8b; stroke: #a7b4c2; }
+  :root:not([data-theme='light']) .i-cloud.back { fill: #4d5b6b; }
+}
+:root[data-theme='dark'] .wx-map-tiles img { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9); }
+:root[data-theme='dark'] .wx-map { background: #1b232c; }
+:root[data-theme='dark'] .i-cloud { fill: #6b7a8b; stroke: #a7b4c2; }
+:root[data-theme='dark'] .i-cloud.back { fill: #4d5b6b; }
+@media (max-width: 700px) {
+  .wx-map { height: 300px; }
+  .wx-days { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(220px, 80%); overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; padding-bottom: 4px; }
+  .wx-day { scroll-snap-align: start; }
+  .wx-graph, .wx-radar-card { padding: 10px; }
+}
 /* Müllplan */
 .tag.waste { color: var(--ok); border-color: currentColor; background: var(--ok-soft); white-space: normal; }
 .tag.waste svg, .waste-line svg, .waste-form h3 svg, .section-head h2 svg { width: 14px; height: 14px; vertical-align: -2px; }

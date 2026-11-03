@@ -69,6 +69,14 @@ export async function runChecks() {
   } catch (err) {
     add(W, 'Webspace erreicht das Internet', 'warn', err.message)
   }
+  // Niederschlag der nächsten Stunden (Nowcast) für Radar und „Regen in 20 Min.“, Umweg über den Webspace
+  try {
+    const r = await json('wetter.php?art=nowcast&punkte=47.8095,13.055')
+    const ok = r.status === 200 && Array.isArray(r.data?.features) && r.data.features.length === 1
+    add(W, 'Nowcast und Radar (GeoSphere)', ok ? 'ok' : 'warn', ok ? `${r.data.timestamps?.length || 0} Viertelstunden ab ${String(r.data.reference_time || '').slice(11, 16)} UTC` : `wetter.php?art=nowcast: Antwort ${r.status}`, 'wetter.php und wetter-lib.php in der neuen Fassung hochladen. Der Browser holt Nowcast und Radar sonst direkt bei GeoSphere; geht das auch nicht, fehlt nur das Radar, die Vorhersage bleibt.')
+  } catch (err) {
+    add(W, 'Nowcast und Radar (GeoSphere)', 'warn', err.message)
+  }
 
   // ---- Schnee-Alarm
   const S = 'Schnee-Alarm'

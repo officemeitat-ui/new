@@ -338,6 +338,17 @@ Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und 
 
 **Hitze und Sturm:** Leistungen mit Häkchen **„Arbeit im Freien“** (Außenanlage, Fassade, Glas außen). Gibt GeoSphere für den Tag eine Hitzewarnung aus, markiert der Plan diese Einsätze mit dem Hinweis auf den Hitzeschutzplan (Hitzeschutzverordnung, seit 1.1.2026); ab 30 °C laut Vorhersage gibt es einen Hinweis. Bei Sturm- oder Gewitterwarnung bzw. Böen ab 60 km/h: Hinweis, Arbeit im Freien und in der Höhe zu prüfen. Die Regel „Wetter“ lässt sich im Regelkatalog abschalten.
 
+**Grafisch wie in Wetter-Apps** (oben in der Ansicht, je Ort als Reiter):
+
+- **Nächste 3 Stunden (Nowcast):** „Leichter Regen ab ca. 14:45 (in 25 Min.)“, „Jetzt mäßiger Schneefall, hört ca. 16:30 auf“ oder „Trocken in den nächsten 3 Stunden“, darunter ein Streifen mit 12 Viertelstunden (Farbe = Art und Stärke). Die Reiter der Orte zeigen den Kurzhinweis („Regen in 25 Min.“).
+- **Tageskarten** heute bis übermorgen: Symbol, Höchst- und Tiefstwert, Niederschlag und Regenstunden, Neuschnee, Böen, Sonnenauf- und -untergang, Warnungen.
+- **Stundenverlauf** (waagrecht scrollbar, rund 48 Stunden): Temperaturlinie mit 0-°C-Linie, Niederschlagsbalken (blau Regen, lila Schnee), Wettersymbole, Böen mit Windrichtung (ab 60 km/h hervorgehoben), Schneefallgrenze bei Niederschlag, Nacht dunkel, „jetzt“ rot.
+- **Niederschlagsradar** auf einer Karte mit den Orten und den Objekten mit Winterdienst: die letzten 3 Stunden (INCA-Analyse aus Radar und Stationen), jetzt bis +3 Stunden in Viertelstunden (Nowcast) und danach bis +9 Stunden (Modell C-LAEF). Zeitregler, „Abspielen“, „Jetzt“; der Streifen darunter zeigt je Bild, wie viel vom Ausschnitt nass ist (lila = Schnee), ein Klick springt hin. Karte ziehen, Mausrad, zwei Finger oder +/− zoomen. Regen hellblau bis violett nach Stärke (0,1 bis über 50 mm/h), Schnee lila, Schneeregen und gefrierender Regen eigene Farben.
+
+Länger als rund 2½ Tage rechnet kein freier Datensatz von GeoSphere voraus; eine 7-Tage-Vorhersage gäbe es nur aus einer weiteren Quelle (z. B. ECMWF-Open-Data oder ein Vertrag mit einem Wetterdienst).
+
+**Quellen und Namensnennung:** GeoSphere Austria Data Hub (CC BY 4.0): Vorhersage `nwp-v2-1h-1km` (Temperatur, Niederschlag, Schnee, Böen, Bewölkung, Wettersymbol, Schneefallgrenze, Wind), Nowcast `nowcast-v1-15min-1km`, INCA `inca-v1-1h-1km`; Karte © OpenStreetMap-Mitwirkende (ODbL), wahlweise basemap.at (CC BY 4.0, `config.json` → `"weatherMap": { "tiles": "basemap" }`; nur Österreich, außerhalb leer). Beides steht auf der Karte. Das Radar wird nur geladen, solange die Ansicht offen ist (höchstens alle 10 Minuten, nur im Arbeitsspeicher), als Gitter mit 1 km im Ausschnitt um die Orte (in der Form der Karte, höchstens etwa 1,1° × 1,8°); liefert GeoSphere das Gitter nicht, nimmt die App ein gröberes Raster aus 12 × 12 Punkten. Lässt der Browser GeoSphere nicht zu, gehen Nowcast und Radar über `wetter.php` (`art=nowcast`, `art=raster`, nur Österreich, Zwischenspeicher 10 Minuten). GeoSphere erlaubt 240 Abfragen je Stunde und Adresse; das Radar braucht 3 je Aktualisierung. Der Systemcheck prüft „Nowcast und Radar“.
+
 **Einstellungen** unter *Regeln & Feiertage → Wetter & Winterdienst*: Orte je Revier („Flachgau = 47.90, 13.13“, ein Objekt nimmt den Ort seines Reviers, sonst den ersten), fertig bis, Dauer, ab wie viel Neuschnee, Glätte-Temperatur, Hitze- und Böen-Schwelle.
 
 ### Schnee-Alarm: das Team wecken
