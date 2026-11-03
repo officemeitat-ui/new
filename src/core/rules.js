@@ -5,6 +5,8 @@
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
 import { estimateTravel } from './geo.js'
+import { effectiveKeys } from './keys.js'
+import { shiftProblems } from './trainings.js'
 import { DR_LIMITS, drMaxWeeks, drPeriod, employedOn, weeklyHoursAt } from './contract.js'
 import { WEATHER_DEFAULTS, warningText } from './weather.js'
 import { addDays, dayIndex, dstMinutes, formatDate, formatHours, formatTime, isoWeek, mondayOf, toMinutes, MONTH_LONG, WEEKDAY_SHORT } from './dates.js'
@@ -88,7 +90,7 @@ export function mergeRules(rules = {}) {
 
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
-export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {}, payroll = {} }, holidays) {
+export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {}, payroll = {}, schluessel = null, unterweisungen = null }, holidays) {
   const absencesByEmployee = new Map()
   for (const a of absences) {
     if (!absencesByEmployee.has(a.employeeId)) absencesByEmployee.set(a.employeeId, [])
@@ -106,6 +108,8 @@ export function createContext({ employees, objects, absences = [], rules, travel
     return { minutes: merged.travelMin, source: 'pauschale' }
   }
   const between = (a, b) => travelInfo(a, b).minutes
+  // Schlüssel je Objekt: Schlüsselbuch (Modul), sonst am Objekt eingetragen
+  const keysByObject = effectiveKeys(objects, schluessel?.keys || [])
   return {
     rules: merged,
     employees,
@@ -117,6 +121,11 @@ export function createContext({ employees, objects, absences = [], rules, travel
     published,
     /** Monatsabschlüsse (ausbezahlte Stunden, Zeitausgleich-Zuschläge). */
     payroll,
+    /** Schlüssel eines Objekts ({ id, label, holderId }), aus dem Schlüsselbuch oder vom Objekt. */
+    keysOf: (objectId) => keysByObject.get(objectId) || [],
+    keysByObject,
+    /** Unterweisungen & Fristen (Modul), falls geladen: { types, records } */
+    trainings: unterweisungen,
     /** Fahrzeit in Minuten zwischen zwei Objekten (Strecke, Schätzung aus Koordinaten, sonst Pauschale). */
     travel: between,
     travelInfo,
@@ -333,11 +342,21 @@ export const RULES = [
     description: 'Für das Objekt sind Schlüssel hinterlegt, die eingeteilte Person hat keinen: Übergabe organisieren.',
     check({ emp, items, ctx, add, objName }) {
       for (const it of items) {
-        const keys = ctx.objectsById.get(it.objectId)?.keys || []
+        const keys = ctx.keysOf ? ctx.keysOf(it.objectId) : ctx.objectsById.get(it.objectId)?.keys || []
         if (!keys.length || keys.some((k) => k.holderId === emp.id)) continue
         const holders = keys.map((k) => ctx.employeesById.get(k.holderId)?.name).filter(Boolean)
         add('warning', 'KEY_HANDOVER', 'shift', `Schlüsselübergabe nötig für ${objName(it)}${holders.length ? ` (Schlüssel bei ${holders.join(', ')})` : ''}`, [it])
       }
+    },
+  },
+  {
+    id: 'fristen',
+    title: 'Fristen je Person',
+    law: 'AuslBG, § 103 KFG',
+    description: 'Aufenthaltstitel bzw. Arbeitserlaubnis am Einsatztag abgelaufen (Fehler); Führerscheinkontrolle abgelaufen bei Einsätzen mit Qualifikation „Führerschein“ (Warnung). Aus „Unterweisungen & Fristen“.',
+    check({ emp, items, ctx, add }) {
+      if (!ctx.trainings?.records?.length) return
+      for (const it of items) for (const p of shiftProblems({ doc: ctx.trainings, emp, date: it.date, skills: it.skills || [] })) add(p.severity, p.severity === 'error' ? 'PERMIT_EXPIRED' : 'CHECK_EXPIRED', 'shift', p.text, [it])
     },
   },
   {

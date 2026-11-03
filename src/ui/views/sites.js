@@ -5,6 +5,7 @@ import { holidayCalendar } from '../../core/holidays.js'
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
 import { coordsText, parseCoords } from '../../core/geo.js'
 import { wasteSummary } from '../../core/waste.js'
+import { objectKeys } from '../../core/keys.js'
 import { locationFor } from '../../core/weather.js'
 import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
@@ -32,7 +33,7 @@ function sitesView() {
           <td class="edit-only"><button class="btn small" data-action="task-edit" data-id="${esc(t.id)}">Bearbeiten</button></td></tr>`,
         )
         .join('')
-      const keys = obj.keys || []
+      const keys = bookKeys(obj.id) || obj.keys || []
       return `<article class="object-card" style="--obj:var(--o${obj.color})">
         <header><h3>${esc(obj.name)}</h3><span class="addr">${esc([obj.address, obj.region].filter(Boolean).join(' · '))}${obj.onlyTrained ? ' · nur eingeschultes Personal' : ''}${obj.budgetHoursMonth ? ` · Budget ${formatHours(obj.budgetHoursMonth * 60)} h/Monat` : ''}</span>
           <span class="edit-only"><button class="btn small" data-action="task-edit" data-id="new" data-obj="${esc(obj.id)}">${ICON.plus} Leistung</button>
@@ -48,6 +49,13 @@ function sitesView() {
     <div class="actions edit-only"><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="obj-edit" data-id="new">${ICON.plus} Objekt anlegen</button></div></div>
     ${regionFilter()}
     <div class="objects">${cards}</div>`
+}
+
+/** Schlüssel des Objekts aus dem Schlüsselbuch (null, wenn das Objekt dort nicht geführt wird oder das Modul fehlt). */
+function bookKeys(objectId) {
+  const book = app.data.schluessel?.keys || []
+  if (!objectId || !book.some((k) => k.objectId === objectId)) return null
+  return objectKeys(book, objectId)
 }
 
 function objectModal(c, { id }) {
@@ -74,11 +82,15 @@ function objectModal(c, { id }) {
       <section><h3>Objektinfo</h3><div class="form-grid">
         <label class="field wide"><span>Anweisungen für das Personal (erscheint im Einsatz und für Vertretungen)</span><textarea id="obj-instructions" rows="3" style="font-family:inherit;font-size:inherit">${esc(o.instructions || '')}</textarea></label>
         <label class="field wide"><span>Ansprechperson beim Kunden</span><input type="text" id="obj-contact" value="${esc(o.contact || '')}"></label>
+        <label class="field wide"><span>E-Mail für den Leistungsnachweis</span><input type="email" id="obj-proofemail" value="${esc(o.proofEmail || '')}" placeholder="z. B. hausverwaltung@beispiel.at"></label>
       </div><p class="note">Keine Alarmcodes oder Passwörter eintragen: diese Daten liegen für alle Disponent:innen lesbar in SharePoint.</p></section>
-      <section><h3>Schlüssel</h3>
+      ${bookKeys(o.id)
+        ? `<section><h3>Schlüssel</h3><p>${bookKeys(o.id).map((k) => `${esc(k.label)}${k.no ? ` (${esc(k.no)})` : ''}: <strong>${k.holderId ? esc(empName(k.holderId)) : 'im Büro'}</strong>`).join(' · ') || 'keine aktiven Schlüssel'}</p>
+        <p class="note">Die Schlüssel dieses Objekts stehen im Schlüsselbuch (Ausgabe, Rückgabe, Quittung). <button class="btn small" data-action="keys-open-object" data-obj="${esc(o.id)}">Im Schlüsselbuch öffnen</button></p></section>`
+        : `<section><h3>Schlüssel</h3>
         ${keys.map((k, i) => `<div class="inline-row"><input type="text" id="key-label-${i}" value="${esc(k.label)}" aria-label="Schlüssel"><select id="key-holder-${i}" aria-label="Bei">${options(empOptions, k.holderId, { empty: 'im Büro' })}</select><button class="btn small danger" data-action="key-remove" data-idx="${i}">Entfernen</button></div>`).join('')}
         <button class="btn small" data-action="key-add">${ICON.plus} Schlüssel</button>
-        <p class="note">Ist ein Schlüssel hinterlegt, markiert der Plan jede Vertretung ohne Schlüssel mit „Schlüsselübergabe nötig“.</p></section>
+        <p class="note">Ist ein Schlüssel hinterlegt, markiert der Plan jede Vertretung ohne Schlüssel mit „Schlüsselübergabe nötig“.</p></section>`}
       ${wasteSection(o)}
       ${weatherEnabled() ? winterSection(o) : ''}`,
     foot: `${id === 'new' ? '<span></span>' : `<button class="btn ${confirmDel ? 'danger confirm' : 'danger'}" data-action="obj-delete" data-id="${esc(o.id)}">${confirmDel ? 'Objekt samt Leistungen löschen?' : 'Löschen'}</button>`}
@@ -308,13 +320,15 @@ registerActions(
         sundayBasis: val('obj-sundaybasis').trim() || undefined,
         instructions: val('obj-instructions').trim() || undefined,
         contact: val('obj-contact').trim() || undefined,
-        keys: readKeys(),
+        proofEmail: val('obj-proofemail').trim() || undefined,
+        keys: bookKeys(existing.id) ? existing.keys || [] : readKeys(),
         winter: readWinter(existing),
         weatherPlace: document.getElementById('obj-weatherplace') ? val('obj-weatherplace') || undefined : existing.weatherPlace,
       }
       const waste = readWaste()
       obj.waste = waste.streams?.length ? waste : undefined
       if (!obj.name) return toast('Bitte einen Namen eingeben.')
+      if (obj.proofEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(obj.proofEmail)) return toast('Die E-Mail-Adresse für den Leistungsnachweis sieht nicht richtig aus.')
       if (val('obj-coords').trim() && !parseCoords(val('obj-coords'))) return toast('Koordinaten bitte als „Breite, Länge“ eintragen, z. B. 47.80950, 13.05500.')
       if (!obj.short) obj.short = obj.name.split(' ')[0]
       for (const k of Object.keys(obj)) if (obj[k] === undefined) delete obj[k]

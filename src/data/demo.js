@@ -170,7 +170,7 @@ export function createDemoData(monday) {
         ],
       },
     },
-    ...createModuleDemo(monday),
+    ...createModuleDemo(monday, employees),
   }
 }
 

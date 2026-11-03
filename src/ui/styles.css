@@ -1081,3 +1081,20 @@ tr.muted td { color: var(--muted); }
   .mat-line { grid-template-columns: minmax(0, 1fr) 6rem auto; }
   .mat-line .muted { grid-column: 1 / -1; order: 3; }
 }
+
+/* Unterschrift am Bildschirm */
+.sig-field { display: grid; gap: 4px; margin: 10px 0; max-width: 420px; }
+.sig-label { font-size: 0.9em; color: var(--muted); }
+.sig-pad { width: 100%; aspect-ratio: 3 / 1; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); touch-action: none; cursor: crosshair; }
+.sig-field .btn { justify-self: start; }
+/* Schlüsselbuch */
+.keys-table .actions-cell { white-space: nowrap; }
+/* Unterweisungen & Fristen */
+.tr-matrix th.tr-head { min-width: 110px; font-size: 0.9em; }
+.tr-matrix td { white-space: nowrap; }
+.tr-cell { border: 0; cursor: pointer; font: inherit; font-size: 0.85em; }
+.tr-cell:not(.ok):not(.warning):not(.error) { background: transparent; color: var(--muted); }
+.tr-signs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
+.tr-people { max-height: 260px; overflow: auto; }
+.tr-types input[type="text"] { min-width: 120px; }
+.num-input { width: 5rem; }

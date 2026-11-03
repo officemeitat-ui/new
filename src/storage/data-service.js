@@ -11,6 +11,9 @@
 //   reklamationen/reklamationen.json  Reklamationen je Objekt
 //   kalkulation/kalkulation.json      Objektkalkulation (Flächen, Leistungswerte, Zuschläge)
 //   material/material.json            Material & Lager (Artikel, Buchungen, Bestellungen, Anforderungen)
+//   schluessel/schluessel.json        Schlüsselbuch (Schlüssel je Objekt, Ausgabe, Rückgabe, Verlust)
+//   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
+//   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -29,7 +32,9 @@
 // wieder Netz da ist gespeichert.
 
 import { mondayOf } from '../core/dates.js'
+import { emptyKeys } from '../core/keys.js'
 import { emptyMaterial } from '../core/material.js'
+import { emptyTrainings } from '../core/trainings.js'
 import { mergeDoc } from '../core/merge.js'
 import { ConflictError } from './docstore-local.js'
 import { isNetworkError } from './offline.js'
@@ -53,6 +58,9 @@ export const MODULE_DOCS = {
   reklamationen: { path: 'reklamationen/reklamationen.json', empty: () => ({ items: [] }) },
   kalkulation: { path: 'kalkulation/kalkulation.json', empty: () => ({ settings: {}, objects: {} }) },
   material: { path: 'material/material.json', empty: emptyMaterial },
+  schluessel: { path: 'schluessel/schluessel.json', empty: emptyKeys },
+  nachweise: { path: 'nachweise/versand.json', empty: () => ({ sent: {}, settings: {} }) },
+  unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -68,14 +76,20 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material'), () => edits('stammdaten', 'planung')],
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
     [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
     [MODULE_DOCS.material.path, () => sees('material'), () => edits('material')],
+    // Schlüsselbuch: auch wer plant, liest es (Prüfregel „Schlüsselübergabe nötig“)
+    [MODULE_DOCS.schluessel.path, () => sees('schluessel') || edits('planung'), () => edits('schluessel')],
+    // Leistungsnachweis: wer den Plan sieht, darf Nachweise erstellen und den Versand vermerken
+    [MODULE_DOCS.nachweise.path, () => sees('planung'), () => sees('planung')],
+    // Fristen: auch wer plant, liest sie (Prüfregel „Fristen je Person“)
+    [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
     // Löhne und Margen: nur Auswertung & Lohn
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
   ]
@@ -93,6 +107,9 @@ export const FOLDERS = [
   ['fahrzeuge', 'Fahrzeuge, Reifen, Service', MODULE_DOCS.fahrzeuge.path],
   ['reklamationen', 'Reklamationen je Objekt', MODULE_DOCS.reklamationen.path],
   ['material', 'Material, Lager, Bestellungen', MODULE_DOCS.material.path],
+  ['schluessel', 'Schlüsselbuch', MODULE_DOCS.schluessel.path],
+  ['nachweise', 'Leistungsnachweis: Versand-Vermerke', MODULE_DOCS.nachweise.path],
+  ['unterweisungen', 'Unterweisungen & Fristen je Person', MODULE_DOCS.unterweisungen.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
 ]
 

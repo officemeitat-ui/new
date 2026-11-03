@@ -104,8 +104,46 @@ function demoMaterial() {
   return { articles, locations: [{ id: 'lager', name: 'Hauptlager' }, { id: 'l-demo2', name: 'Bus S-284 KL' }], suppliers, moves, orders, requests, settings: { deliveryAddress: 'Cleanos, Lagerweg 1, 5020 Salzburg', contact: 'Büro, 0662 000 001' } }
 }
 
-export function createModuleDemo(monday) {
+// Schlüsselbuch: Kanzlei und Wohnanlage im Buch (eine Rückgabe überfällig, ein Schlüssel verloren);
+// die Schlüssel von Tankstelle und Arztpraxis stehen noch am Objekt (Übernehmen zeigen).
+function demoKeys() {
+  const day = (n) => addDays(todayISO(), n)
+  const at = (n) => `${day(n)}T08:00:00.000Z`
+  const key = (id, objectId, label, no, kind, holderId, since, extra = {}) => ({ id, objectId, label, no, kind, storage: holderId ? '' : 'Schlüsselkasten 3', holderId, since: day(since), due: '', status: 'aktiv', note: '', history: [{ at: at(-90), date: day(-90), kind: 'angelegt', by: 'Beispieldaten' }, ...(holderId ? [{ at: at(since), date: day(since), kind: 'ausgabe', to: holderId, by: 'Beispieldaten' }] : [])], ...extra })
   return {
+    keys: [
+      key('k-demo1', 'o1', 'Haupteingang', '1', 'schluessel', 'e1', -60),
+      key('k-demo2', 'o1', 'Haupteingang', '2', 'schluessel', '', -90),
+      key('k-demo3', 'o1', 'Tiefgarage', 'T-17', 'transponder', 'e4', -20, { due: day(-2) }),
+      key('k-demo4', 'o5', 'Stiegenhaus', '5', 'schluessel', 'e2', -45),
+      key('k-demo5', 'o5', 'Müllraum', '6', 'schluessel', '', -90, { status: 'verloren', lost: { date: day(-1), text: 'Bund im Stiegenhaus nicht mehr gefunden', informed: false, measure: '' } }),
+    ],
+  }
+}
+
+// Unterweisungen & Fristen: Sicherheitsunterweisung vor knapp einem Jahr (einige bald fällig, zwei
+// abgelaufen, eine Person ohne), Führerscheinkontrolle bei allen mit Führerschein, zwei Aufenthaltstitel.
+function demoTrainings(employees) {
+  const day = (n) => addDays(todayISO(), n)
+  let n = 0
+  const rec = (empId, typeId, date, extra = {}) => ({ id: `u-demo${++n}`, empId, typeId, date, until: '', note: '', by: 'Beispieldaten', at: `${date}T09:00:00.000Z`, ...extra })
+  const records = []
+  employees.forEach((e, i) => {
+    if (i === 5) return // fehlt
+    records.push(rec(e.id, 'sicherheit', day(i < 2 ? -380 : i < 8 ? -345 : -200)))
+    if (i % 3 === 0) records.push(rec(e.id, 'chemie', day(-120)))
+    if ((e.skills || []).includes('Führerschein')) records.push(rec(e.id, 'fuehrerschein', day(-60)))
+  })
+  records.push(rec(employees[3].id, 'aufenthalt', day(-300), { until: day(25), note: 'Rot-Weiß-Rot – Karte plus' }))
+  records.push(rec(employees[9].id, 'aufenthalt', day(-100), { until: day(400) }))
+  records.push(rec(employees[1].id, 'ersthilfe', day(-700), { note: '8 Stunden, Rotes Kreuz' }))
+  return { types: [], records, sessions: [] }
+}
+
+export function createModuleDemo(monday, employees = []) {
+  return {
+    unterweisungen: employees.length > 10 ? demoTrainings(employees) : { types: [], records: [], sessions: [] },
+    schluessel: demoKeys(),
     material: demoMaterial(),
     fahrzeuge: demoVehicles(monday),
     reklamationen: demoComplaints(monday),

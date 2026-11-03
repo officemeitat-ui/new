@@ -82,6 +82,12 @@ Alle Sätze, Grenzen und Stundenlöhne stehen unter „Regeln“ und lassen sich
 
 **Systemcheck für die Inbetriebnahme:** prüft HTTPS, `.htaccess`, gesperrten Ordner `privat/`, PHP 8, Einrichtungsdateien, Schlüssel, Cronjobs und SharePoint, mit Hinweis je Punkt.
 
+**Schlüsselbuch:** wer welchen Schlüssel hat, Ausgabe und Rückgabe mit Unterschrift am Tablet und Quittung (PDF), Verlustmeldung für den Kunden, Hinweise beim Austritt, Übergaben laut Plan; die Prüfregel „Schlüsselübergabe nötig“ liest das Buch.
+
+**Leistungsnachweis für Kunden:** je Objekt und Monat die Einsätze laut Plan mit Status, gestempelten Zeiten und Winterdienst, wahlweise mit Namen; PDF, alle als ZIP, Versand per E-Mail mit Vermerk.
+
+**Unterweisungen & Fristen:** Sicherheitsunterweisung, Reinigungsmittel, Erste Hilfe, Führerscheinkontrolle, Aufenthaltstitel mit Ampel je Person; Unterweisung für viele mit Unterschrift am Tablet und Teilnehmerliste (PDF); abgelaufene Arbeitserlaubnis sperrt im Plan.
+
 **Material & Lager:** Bestand je Lager, Ausgabe an Objekte und Personen, Inventur, Bestellvorschlag je Lieferant, Bestellung per E-Mail mit PDF, Wareneingang auch in Teilen, Anforderungen aus den Objekten (auch „Material fehlt?“ am Handy), Verbrauch je Objekt mit Materialbudget aus der Kalkulation.
 
 **Reklamationen je Objekt:** erfassen (auch aus dem Einsatz-Dialog), wer laut Plan dort war, Maßnahme mit Frist, erledigen mit Ergebnis, PDF für den Kunden ohne Namen, Häufungen je Objekt, überfällige unter „Zu erledigen“.

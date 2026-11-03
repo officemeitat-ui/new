@@ -81,7 +81,11 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', exporte: '' })
+  // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
+  assert.ok(dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true })).write(MODULE_DOCS.unterweisungen.path) && !om.read(MODULE_DOCS.unterweisungen.path))
+  // Schlüsselbuch: Objektmanagement bearbeitet, Vorarbeiter sieht es nicht
+  assert.ok(om.read(MODULE_DOCS.schluessel.path) && om.write(MODULE_DOCS.schluessel.path) && !va.read(MODULE_DOCS.schluessel.path))
   // Material & Lager: Objektmanagement fordert an und gibt aus; Vorarbeiter sieht es nicht
   assert.ok(om.read(MODULE_DOCS.material.path) && om.write(MODULE_DOCS.material.path))
   assert.ok(!va.read(MODULE_DOCS.material.path))

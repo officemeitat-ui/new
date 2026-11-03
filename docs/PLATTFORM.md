@@ -20,12 +20,12 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | Rolle (Wert in Entra ID) | sieht | darf ändern |
 |---|---|---|
 | `disposition` – Vollzugriff (Büro, IT) | alles | alles |
-| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Objektkontrolle, Objektdoku, Reklamationen, Material & Lager | Objektkontrolle, Objektdoku, Reklamationen, Material & Lager |
+| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Leistungsnachweis, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager | Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager |
 | `vorarbeiter` – Vorarbeiter/in | Wasserzähler | Wasserzähler |
 | `mattenwechsel` – Mattenwechsel | Mattenwechsel | Mattenwechsel |
 | `lohnverrechnung` | Auswertung & Lohn | Auswertung & Lohn |
-| `objektleitung` | Dienstplan (lesen), Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Material & Lager | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Material & Lager |
-| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Material & Lager | Wasserzähler, Objektkontrolle, Reklamationen, Material & Lager |
+| `objektleitung` | Dienstplan (lesen), Leistungsnachweis, Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Unterweisungen & Fristen | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Unterweisungen & Fristen |
+| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager | Wasserzähler, Objektkontrolle, Reklamationen, Material & Lager |
 | `lager` – Lager & Einkauf | Material & Lager | Material & Lager |
 | `ableser` | Wasserzähler | Wasserzähler |
 | `pruefer` – Prüfer/in | Objektkontrolle, Objektdoku | Objektkontrolle |
@@ -84,7 +84,7 @@ Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen ode
 }
 ```
 
-Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager).
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager), `schluessel` (Schlüsselbuch), `unterweisungen` (Unterweisungen & Fristen). Der Leistungsnachweis gehört zur Einsatzplanung (`planung`).
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
@@ -103,6 +103,9 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `reklamationen/` | Reklamationen je Objekt | Bearbeiten | Bearbeiten | – |
 | `kalkulation/` | Objektkalkulation (Löhne, Margen) | Bearbeiten | – | – |
 | `material/` | Material & Lager (Artikel, Buchungen, Bestellungen, Anforderungen) | Bearbeiten | Bearbeiten | – |
+| `schluessel/` | Schlüsselbuch (wer hat welchen Schlüssel, Verlauf, Unterschriften) | Bearbeiten | Bearbeiten | – |
+| `nachweise/` | Leistungsnachweis: Einstellungen und Versand-Vermerke | Bearbeiten | Bearbeiten | – |
+| `unterweisungen/` | Unterweisungen & Fristen je Person (mit Unterschriften) | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
@@ -272,6 +275,38 @@ Eigener Punkt *Material* in der Seitenleiste (Modul „Material & Lager“; Roll
 - **Verbrauch** je Objekt, je Person und je Kategorie für Monat, Quartal oder 12 Monate, zum Preis bei der Ausgabe; CSV. Wer die Kalkulation sehen darf, bekommt daneben das **Materialbudget** aus der Objektkalkulation (kalkulierte Stunden × Zuschlag „Material und Geräte“ je Stunde) und die Abweichung.
 - **Sicherheitsdatenblatt:** Je Artikel lässt sich ein Link hinterlegen (z. B. auf die Datei in SharePoint oder beim Hersteller).
 - **Zu erledigen** meldet: Artikel zum Nachbestellen, überfällige Lieferungen, offene Anforderungen.
+
+## Schlüsselbuch
+
+Eigener Punkt unter *Objektservice* (Modul „Schlüsselbuch“; Rollen Objektmanagement, Objektleitung, Vollzugriff bearbeiten, Objektservice liest). Gespeichert in `schluessel/schluessel.json`.
+
+- **Schlüssel anlegen** je Objekt: Bezeichnung, Nummer/Prägung, Art (Schlüssel, Transponder, Zutrittskarte, Fernbedienung), Aufbewahrung im Büro. Mehrere gleiche auf einmal (bekommen Nummer 1, 2, 3 …). Schlüssel, die bisher direkt beim Objekt eingetragen waren, übernimmt „Übernehmen“ einmal ins Buch (mit der Person, die ihn hat); danach zeigt *Objekt bearbeiten* sie nur noch an.
+- **Ausgeben** (auch Weitergabe von Person zu Person) mit Datum, optional „Rückgabe bis“, **Unterschrift am Handy oder Tablet** und **Quittung als PDF**; **Rückgabe** einzeln oder alle Schlüssel einer Person (z. B. beim Austritt, mit Liste als PDF zum Abhaken).
+- **Verlust melden** mit Umständen und Maßnahme (Zylinder tauschen, Transponder sperren); **Verlustmeldung als PDF** für den Kunden (ohne Namen). Bis „Kunde informiert“ angehakt ist, steht der Verlust unter „Zu erledigen“. „Wieder da“ und „an Kunden zurück“ schließen den Fall.
+- **Hinweise:** Person ausgetreten und hat noch Schlüssel (Fehler), Austritt in 14 Tagen, vereinbarte Rückgabe überschritten, Person länger abwesend.
+- **Übergaben laut Plan:** Wer in den nächsten 7 Tagen in einem Objekt eingeteilt ist und keinen Schlüssel hat, mit „Übergeben“ direkt daneben. Die Prüfregel „Schlüsselübergabe nötig“ im Plan liest das Schlüsselbuch (Objekte ohne Eintrag im Buch: weiter die Schlüssel am Objekt).
+- Jeder Schritt steht im **Verlauf** des Schlüssels (wann, wer, von wem an wen, unterschrieben ja/nein). Der Einsatz-Dialog zeigt, wer im Objekt welchen Schlüssel hat.
+
+## Leistungsnachweis
+
+Unter *Auswertung* (für alle, die die Einsatzplanung sehen). Je Objekt und Monat, was laut Plan geleistet wurde:
+
+- je Einsatz: Datum, Zeit laut Plan, Leistung (Sonderleistungen markiert), Status **erbracht**, **entfällt** (Feiertag oder abgesagt, mit Grund), **geplant** (noch nicht vorbei) oder **nicht besetzt** (vor dem Versand im Plan klären; die Übersicht warnt);
+- mit **Zeiterfassung im Objekt:** die gestempelten Zeiten je Einsatz („erfasst im Objekt 05:58–08:03“) und der Anteil der Einsätze mit Stempelung;
+- **Winterdienst** laut Protokoll (Datum, Uhrzeit, geräumt/gestreut);
+- Summen: Einsätze, Stunden laut Plan; Feld für die Unterschrift des Auftraggebers (abschaltbar).
+
+**Namen der Mitarbeitenden** stehen nur drin, wenn eingestellt („Vornamen“ oder „ganze Namen“), Standard ist ohne Namen. **PDF** je Objekt oder **alle als ZIP**; **E-Mail an den Kunden** mit dem PDF im Anhang (mit Mail.Send aus dem eigenen Postfach, sonst E-Mail-Programm), einzeln oder „Alle mit E-Mail senden“ für alle Objekte mit hinterlegter Adresse, die den Monat noch nicht bekommen haben. Die Adresse steht beim Objekt (*Objekt bearbeiten → E-Mail für den Leistungsnachweis*) oder wird beim ersten Versand gemerkt. Jeder Versand wird vermerkt (wann, an wen, wie). Standardmonat ist der Vormonat.
+
+## Unterweisungen & Fristen
+
+Unter *Stammdaten* (Modul „Unterweisungen & Fristen“; Vollzugriff und Objektleitung). Gespeichert in `unterweisungen/unterweisungen.json`.
+
+- **Matrix** Person × Art mit Ampel: grün gültig, gelb läuft in 30 Tagen ab, rot abgelaufen oder fehlt (bei Pflicht). Feld anklicken zum Eintragen (Datum, gültig bis: Vorschlag aus der Gültigkeit der Art, Notiz). Filter Team, Suche, „nur mit Handlungsbedarf“, CSV.
+- **Arten** (änderbar): Sicherheitsunterweisung und Unterweisung Reinigungsmittel (§ 14 ASchG, Vorgabe 12 Monate, Pflicht für alle), Erste-Hilfe-Auffrischung (§ 40 AStV, 48 Monate, nur Ersthelfer:innen), Führerscheinkontrolle (§ 103 KFG, 6 Monate, Pflicht mit Qualifikation „Führerschein“), Aufenthaltstitel/Arbeitserlaubnis (AuslBG, Ablaufdatum von Hand, **sperrt**). Eigene Arten dazu, z. B. Hygieneschulung; nicht mehr benötigte auf „aktiv“ aus (Einträge bleiben).
+- **Unterweisung durchführen:** Art, Datum, Ort, wer unterweist, Inhalt; vorausgewählt sind alle mit Bedarf (abgelaufen, fehlt, läuft bald ab). Wahlweise **Unterschrift jeder Person am Tablet**; der **Nachweis als PDF** (Teilnehmerliste mit Unterschriften bzw. leeren Feldern zum Unterschreiben) lässt sich jederzeit wieder erstellen.
+- **Im Plan:** abgelaufener Aufenthaltstitel = Fehler (nicht einteilen), abgelaufene Führerscheinkontrolle = Warnung bei Einsätzen mit Qualifikation „Führerschein“. Fehlende Einträge meldet nur „Zu erledigen“ (je Art gesammelt, sperrende Dokumente je Person schon 30 Tage vorher).
+- Gesetzliche Grundlagen und offene Punkte: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md).
 
 ## Wetter & Winterdienst
 
