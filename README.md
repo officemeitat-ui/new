@@ -134,6 +134,7 @@ Die vier Werkzeuge bekommen beim Bauen dieselben Farben (ihre Dateien bleiben un
 **Darstellung je Person:** Über das Paletten-Symbol unten in der Seitenleiste oder „⋯ → Darstellung“ (am Handy „Mehr → Darstellung“) wählt jede Person für ihr Gerät:
 
 - **Farbschema:** Cleanos (helle Seitenleiste wie die Website), Cleanos Nachtblau (Seitenleiste in Nachtblau), Cleanos Kontrast (kräftige Rahmen und dunklere Schrift, für Sonne am Handy). Es ist eine interne Cleanos App: Andere Farbschemata gibt es nicht (`brand.builtinThemes: false`); wer früher „Standard“, „Ruhig“ oder „Hoher Kontrast“ gewählt hatte, sieht wieder Cleanos.
+- **Stil:** *Modern* (Voreinstellung): Übersicht mit Begrüßung im Cleanos-Verlauf und den wichtigsten Zahlen, Bereiche mit eigener Farbe (Planung blau, Einsätze petrol, Objekte violett, Material orange, Finanzen grün, Verwaltung schiefer), Hauptknöpfe und aktive Ansicht im Verlauf, Kopfleiste aus Glas, Reiter als Umschalter, Kacheln mit Farbkante, sanftes Einblenden von Seiten, Menüs und Dialogen. *Schlicht*: flach wie bisher. Beim Kontrast-Schema immer schlicht; bei „Bewegung reduzieren“ im System ohne Animation. Auch im Stil Modern bleiben die Regeln der Website: keine Großbuchstaben oder Sperrschrift, Schrift mindestens 4,5:1.
 - **Hell, dunkel oder wie das Gerät.**
 - **Schriftgröße:** normal oder groß.
 

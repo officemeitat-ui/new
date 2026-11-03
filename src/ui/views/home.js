@@ -27,12 +27,37 @@ function card(c, { id: group, label, views: items }) {
   if (!items.length) return ''
   const open = items.map((v) => ({ v, n: Number(v.badge?.(c)) || 0 })).filter((x) => x.n > 0)
   const main = items[0]
-  return `<article class="home-card">
-    <header>${navIcon(main)}<h3>${esc(label)}</h3>${open.length ? '' : '<span class="pill ok">alles erledigt</span>'}</header>
+  const total = open.reduce((n, x) => n + x.n, 0)
+  return `<article class="home-card" data-section="${esc(group)}">
+    <header><span class="home-icon">${navIcon(main)}</span><h3>${esc(label)}</h3>${open.length ? `<span class="home-count" title="offen">${total}</span>` : '<span class="pill ok">alles erledigt</span>'}</header>
     ${group === 'planung' && items.some((v) => v.id === 'week') ? planCard(c) : ''}
     ${open.length ? `<ul class="home-open">${open.map(({ v, n }) => `<li><button class="link-row" data-action="view" data-view="${v.id}"><span class="flag error">${n}</span><span>${esc(v.label)}</span>${ICON.right}</button></li>`).join('')}</ul>` : ''}
     <div class="home-links">${items.map((v) => `<button class="btn small" data-action="view" data-view="${v.id}">${esc(v.label)}</button>`).join('')}</div>
   </article>`
+}
+
+/** Offene Plätze der Woche (Einsätze ohne genug Personen). */
+function openSlots(c) {
+  return c.week.filter((i) => i.status !== 'cancelled' && i.date >= c.monday && i.date <= c.sunday).reduce((n, i) => n + Math.max(0, i.staff - Math.min(c.state.count(i.key), i.staff)), 0)
+}
+
+/** Kopf der Übersicht: Begrüßung, Datum, die wichtigsten Zahlen als Knöpfe. */
+function hero(c, views, { name, todoCount, staffTotal }) {
+  const has = (id) => views.some((v) => v.id === id)
+  const today = todayISO()
+  const { week } = isoWeek(today)
+  const stat = (n, label, action, data = '', tone = '') => `<button class="home-hero-stat ${tone}" data-action="${action}" ${data}><b>${n}</b><span>${label}</span></button>`
+  const stats = [
+    stat(todoCount, todoCount === 1 ? 'Punkt zu erledigen' : 'zu erledigen', 'open-todo', '', todoCount ? 'hot' : ''),
+    has('week') && c?.week ? (() => { const n = openSlots(c); return stat(n, n === 1 ? 'offener Einsatz' : 'offene Einsätze', 'view', 'data-view="week"', n ? 'hot' : '') })() : '',
+    has('termine') ? (() => { const n = appointmentsOfDay(today).length; return stat(n, n === 1 ? 'Termin heute' : 'Termine heute', 'view', 'data-view="termine"') })() : '',
+    has('assistenz') ? stat(staffTotal, staffTotal === 1 ? 'Vorschlag' : 'Vorschläge', 'view', 'data-view="assistenz"') : '',
+  ].filter(Boolean)
+  const role = app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''
+  return `<section class="home-hero" aria-label="Begrüßung">
+    <div class="home-hero-text"><p class="home-hero-date">${esc(formatDate(today, { year: true }))} · KW ${week}${role}</p><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="home-hero-sub">${todoCount ? `${todoCount} ${todoCount === 1 ? 'Punkt wartet' : 'Punkte warten'} in deinen Bereichen.` : 'Alles erledigt – schönen Tag!'}</p></div>
+    ${stats.length ? `<div class="home-hero-stats">${stats.join('')}</div>` : ''}
+  </section>`
 }
 
 function homeView(c) {
@@ -54,8 +79,7 @@ function homeView(c) {
         .map((a) => `<button class="btn small ${a.urgent ? 'primary' : ''}" data-action="view" data-view="assistenz">${esc(a.name)} <span class="flag ${a.urgent ? 'error' : 'info'}">${a.count}</span></button>`)
         .join('')}</div></section>`
     : ''
-  return `<div class="home-head"><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="muted">${formatDate(todayISO(), { year: true })}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p></div>
-  ${t.count ? `<div class="banner"><p><strong>${t.count} ${t.count === 1 ? 'Punkt' : 'Punkte'} zu erledigen</strong> in deinen Bereichen.</p><button class="btn primary" data-action="open-todo">${ICON.bell} Ansehen</button></div>` : ''}
+  return `${hero(c, views, { name, todoCount: t.count, staffTotal })}
   ${staffCard}${apptCard}
   <section class="home-grid" aria-label="Bereiche">${cards}</section>`
 }

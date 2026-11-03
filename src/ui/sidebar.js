@@ -74,7 +74,7 @@ export function sidebar(c, { foot = '' } = {}) {
     .map(({ id, label, views: items }) => {
       const open = sectionOpen(id)
       const open_ = items.reduce((n, v) => n + (Number(v.badge?.(c)) || 0), 0)
-      return `<div class="sb-group ${open ? '' : 'closed'}"><button class="sb-group-head" data-action="nav-section" data-section="${id}" aria-expanded="${open}"><span class="sb-group-label">${esc(label)}</span>${!open && open_ ? `<span class="flag error">${open_}</span>` : ''}${CHEVRON}</button><div class="sb-group-items">${items.map((v) => navItem(c, v, { pinned: pinnedIds.has(v.id) })).join('')}</div></div>`
+      return `<div class="sb-group ${open ? '' : 'closed'}" data-section="${id}"><button class="sb-group-head" data-action="nav-section" data-section="${id}" aria-expanded="${open}"><span class="sb-group-label">${esc(label)}</span>${!open && open_ ? `<span class="flag error">${open_}</span>` : ''}${CHEVRON}</button><div class="sb-group-items">${items.map((v) => navItem(c, v, { pinned: pinnedIds.has(v.id) })).join('')}</div></div>`
     })
     .join('')
   return `<aside class="sidebar" aria-label="Bereiche">

@@ -42,9 +42,9 @@ function readPrefs() {
 }
 
 function writePrefs() {
-  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, lastTool, pinned, navOpen } = app.ui
+  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen } = app.ui
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, lastTool, pinned, navOpen }))
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen }))
   } catch {
     /* Browser erlaubt keine Speicherung */
   }

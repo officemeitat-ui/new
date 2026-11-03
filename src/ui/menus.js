@@ -19,6 +19,7 @@ export function place(d) {
   if (!m || !s) return
   m.style.cssText = ''
   if (narrow()) return
+  m.style.animation = 'none' // beim Messen ohne Einblend-Bewegung, danach startet sie neu
   const vw = document.documentElement.clientWidth || innerWidth
   const vh = innerHeight
   const sr = s.getBoundingClientRect()
@@ -44,6 +45,7 @@ export function place(d) {
   m.style.top = `${Math.round(top - origin.top)}px`
   m.style.maxHeight = `${Math.round(vh - 16)}px`
   m.style.overflowY = natural.height > vh - 16 ? 'auto' : ''
+  m.style.removeProperty('animation')
 }
 
 /** Alle offenen Menüs schließen; Anzahl. keep: dieses offen lassen. */

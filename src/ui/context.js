@@ -341,7 +341,8 @@ export function renderModal() {
     $modal.innerHTML = ''
     return
   }
-  $modal.innerHTML = `<div class="modal-backdrop" data-action="backdrop">${html}</div>`
+  // „opening“ nur beim Öffnen: Einblenden einmal, nicht bei jedem Neuzeichnen
+  $modal.innerHTML = `<div class="modal-backdrop${ui.modal.justOpened ? ' opening' : ''}" data-action="backdrop">${html}</div>`
   // Eingaben im Dialog nach dem Recht seines Bereichs (nicht der Ansicht, aus der er geöffnet wurde)
   const module = MODAL_MODULES[ui.modal.type]
   $modal.classList.toggle('readonly', module ? !mayEdit(module) : app.readOnly)

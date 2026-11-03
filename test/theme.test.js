@@ -107,8 +107,8 @@ test('Darstellung: nur Cleanos-Farbschemata (interne App), Auswahl je Gerät', a
   assert.deepEqual(themeList(config.brand).map((t) => t.id), ['cleanos', 'cleanos-nacht', 'cleanos-kontrast'])
   assert.deepEqual(themeList({ ...config.brand, builtinThemes: true }).map((t) => t.id), ['cleanos', 'cleanos-nacht', 'cleanos-kontrast', 'standard', 'ruhig', 'kontrast'], 'andere Marke: eingebaute dazu')
   assert.deepEqual(themeList({}).map((t) => t.id), ['standard', 'ruhig', 'kontrast'], 'ohne Marke (neutrale Vorschau) nur die eingebauten')
-  assert.deepEqual(resolveTheme({}, config.brand), { skin: 'cleanos', mode: 'auto', scale: 'normal' }, 'Voreinstellung aus config.json')
-  assert.deepEqual(resolveTheme({ skin: 'cleanos-kontrast', mode: 'dunkel', scale: 'gross' }, config.brand), { skin: 'cleanos-kontrast', mode: 'dunkel', scale: 'gross' })
+  assert.deepEqual(resolveTheme({}, config.brand), { skin: 'cleanos', mode: 'auto', scale: 'normal', look: 'modern' }, 'Voreinstellung aus config.json')
+  assert.deepEqual(resolveTheme({ skin: 'cleanos-kontrast', mode: 'dunkel', scale: 'gross', look: 'schlicht' }, config.brand), { skin: 'cleanos-kontrast', mode: 'dunkel', scale: 'gross', look: 'schlicht' })
   assert.equal(resolveTheme({ skin: 'kontrast' }, config.brand).skin, 'cleanos', 'früher gewähltes „Standard“/„Ruhig“/„Hoher Kontrast“: zurück auf Cleanos')
   assert.equal(resolveTheme({ skin: 'ruhig' }, config.brand).skin, 'cleanos')
   assert.equal(resolveTheme({ skin: 'gibtsnicht' }, {}).skin, 'standard')
@@ -118,11 +118,14 @@ test('Darstellung: nur Cleanos-Farbschemata (interne App), Auswahl je Gerät', a
   globalThis.document = { querySelector: () => meta, head: { appendChild: (x) => x } }
   const root = { dataset: {} }
   applyTheme({ skin: 'cleanos-nacht', mode: 'hell', scale: 'gross' }, config.brand, root)
-  assert.deepEqual({ ...root.dataset }, { skin: 'cleanos-nacht', theme: 'light', scale: 'gross' })
+  assert.deepEqual({ ...root.dataset }, { skin: 'cleanos-nacht', theme: 'light', scale: 'gross', look: 'modern' })
   assert.equal(meta.content, '#0e2433')
   applyTheme({ skin: 'standard', mode: 'auto' }, config.brand, root)
-  assert.deepEqual({ ...root.dataset }, { skin: 'cleanos' }, 'nicht mehr wählbar: Cleanos')
+  assert.deepEqual({ ...root.dataset }, { skin: 'cleanos', look: 'modern' }, 'nicht mehr wählbar: Cleanos')
   applyTheme({ skin: 'cleanos-kontrast', mode: 'dunkel' }, config.brand, root)
   assert.equal(meta.content, '#000000')
+  assert.equal(root.dataset.look, 'schlicht', 'Kontrast immer schlicht')
+  applyTheme({ skin: 'cleanos', look: 'schlicht' }, config.brand, root)
+  assert.equal(root.dataset.look, 'schlicht', 'Stil wählbar')
   delete globalThis.document
 })

@@ -17,6 +17,9 @@ export const BUILTIN_THEMES = {
 
 export const MODES = { auto: 'Wie das Gerät', hell: 'Hell', dunkel: 'Dunkel' }
 export const SCALES = { normal: 'Normal', gross: 'Groß' }
+/** Stil: „Modern“ mit Verläufen, Tiefe und Bewegung; „Schlicht“ flach wie bisher. Kontrast-Schemata immer schlicht. */
+export const LOOKS = { modern: 'Modern', schlicht: 'Schlicht' }
+const sober = (skin) => /kontrast/.test(skin)
 
 /**
  * Alle wählbaren Farbschemata: Marke zuerst, dann die eingebauten.
@@ -37,6 +40,7 @@ export function resolveTheme(prefs = {}, brand = {}) {
     skin: ids.includes(prefs.skin) ? prefs.skin : fallback,
     mode: MODES[prefs.mode] ? prefs.mode : 'auto',
     scale: SCALES[prefs.scale] ? prefs.scale : 'normal',
+    look: LOOKS[prefs.look] ? prefs.look : 'modern',
   }
 }
 
@@ -50,6 +54,7 @@ export function applyTheme(prefs, brand, root = document.documentElement) {
   else root.dataset.theme = t.mode === 'dunkel' ? 'dark' : 'light'
   if (t.scale === 'normal') delete root.dataset.scale
   else root.dataset.scale = t.scale
+  root.dataset.look = sober(t.skin) ? 'schlicht' : t.look
   const theme = themeList(brand).find((x) => x.id === t.skin)
   const meta = document.querySelector('meta[name="theme-color"]') || document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color' }))
   meta.content = darkNow(t.mode) ? theme?.dark || '#0e141b' : theme?.preview?.header || '#ffffff'
@@ -82,6 +87,7 @@ function appearanceModal() {
           <strong>${esc(x.label)}${t.skin === x.id ? ' <span class="theme-check">✓</span>' : ''}</strong><span class="muted">${esc(x.note || '')}</span></button>`,
       )
       .join('')}</div></section>
+      <section><h3>Stil</h3>${sober(t.skin) ? '<p class="muted">Beim Kontrast-Schema immer schlicht (ohne Verläufe und Schatten).</p>' : `${seg('look', LOOKS, t.look)}<p class="muted">Modern: Verläufe, Tiefe und sanfte Bewegung. Schlicht: flach und ruhig.</p>`}</section>
       <section><h3>Hell oder dunkel</h3>${seg('mode', MODES, t.mode)}</section>
       <section><h3>Schriftgröße</h3>${seg('scale', SCALES, t.scale)}</section>
       <p class="note">Die Voreinstellung für alle steht in config.json (brand.theme). Was hier gewählt ist, gilt nur auf diesem Gerät und bleibt gespeichert.</p>`,
@@ -104,8 +110,9 @@ registerActions({
   'theme-skin': (el) => set('skin', el.dataset.v),
   'theme-mode': (el) => set('mode', el.dataset.v),
   'theme-scale': (el) => set('scale', el.dataset.v),
+  'theme-look': (el) => set('look', el.dataset.v),
   'theme-reset': () => {
-    for (const k of ['skin', 'mode', 'scale']) delete app.ui[k]
+    for (const k of ['skin', 'mode', 'scale', 'look']) delete app.ui[k]
     applyTheme(app.ui, app.config.brand)
     app.savePrefs?.()
     renderNow()
