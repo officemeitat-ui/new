@@ -1,7 +1,8 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Building2, Check, ChevronsUpDown, LogOut } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, LogOut, UserCog } from "lucide-react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { selectTenantAction, signOutAction } from "@/app/actions/session";
@@ -74,6 +75,12 @@ export function UserMenu({
             </>
           ) : null}
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          <DropdownMenu.Item asChild className={itemClass}>
+            <Link href="/account">
+              <UserCog className="text-muted-foreground" aria-hidden />
+              {t("account")}
+            </Link>
+          </DropdownMenu.Item>
           <DropdownMenu.Item
             className={itemClass}
             onSelect={() => startTransition(() => signOutAction())}

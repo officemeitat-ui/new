@@ -25,6 +25,8 @@ export type TenantAccess = {
   customRoleName: string | null;
   permissions: readonly TenantPermission[];
   branding: Branding & { tenantColor: string | null; partnerColor: string };
+  /** Owners and admins of this tenant must have two-factor authentication enabled. */
+  requireAdminTwoFactor: boolean;
 };
 
 export type PartnerAccess = {
@@ -84,6 +86,7 @@ export async function getTenantAccess(
         tenantColor: tenants.brandColor,
         partnerColor: partners.brandColor,
         productName: partners.productName,
+        requireAdminTwoFactor: tenants.requireAdminTwoFactor,
       })
       .from(memberships)
       .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
@@ -104,6 +107,7 @@ export async function getTenantAccess(
         tenantColor: row.tenantColor,
         partnerColor: row.partnerColor,
       },
+      requireAdminTwoFactor: row.requireAdminTwoFactor,
     };
   });
 }
@@ -164,4 +168,12 @@ export function assertCanAssignRole(
   if (actorRole !== "owner" && (change.from === "owner" || change.to === "owner")) {
     throw forbidden("Nur Owner dürfen die Owner-Rolle vergeben oder entziehen.");
   }
+}
+
+/** True if this role in this tenant must set up two-factor authentication before working. */
+export function needsTwoFactorSetup(
+  access: Pick<TenantAccess, "role" | "requireAdminTwoFactor">,
+  twoFactorEnabled: boolean,
+): boolean {
+  return access.requireAdminTwoFactor && access.role !== "member" && !twoFactorEnabled;
 }

@@ -36,6 +36,13 @@
       "when": 1793689460415,
       "tag": "0004_rls_agents",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793728039359,
+      "tag": "0005_tenant_admin_two_factor",
+      "breakpoints": true
     }
   ]
 }

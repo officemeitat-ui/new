@@ -10,6 +10,7 @@ export async function listMembers(tx: Tx, tenantId: string) {
       userId: authUser.id,
       name: authUser.name,
       email: authUser.email,
+      twoFactorEnabled: authUser.twoFactorEnabled,
       role: memberships.role,
       createdAt: memberships.createdAt,
     })

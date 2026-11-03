@@ -25,6 +25,7 @@ const KNOWN_ACTIONS = new Set([
   "member.removed",
   "member.role_changed",
   "tenant.branding_changed",
+  "tenant.security_changed",
 ]);
 
 export default async function AuditPage() {

@@ -76,7 +76,17 @@
     "magicLinkSentDescription": "Falls ein Konto zu dieser Adresse existiert, haben wir Ihnen einen Anmeldelink geschickt. Er ist 10 Minuten gültig.",
     "signInMicrosoft": "Mit Microsoft anmelden",
     "signInGoogle": "Mit Google anmelden",
-    "noSelfSignup": "Noch kein Konto? Zugänge vergibt Ihr Administrator per Einladung."
+    "noSelfSignup": "Noch kein Konto? Zugänge vergibt Ihr Administrator per Einladung.",
+    "twoFactorTitle": "Bestätigung",
+    "twoFactorDescription": "Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.",
+    "backupCodeDescription": "Geben Sie einen Ihrer Backup-Codes ein.",
+    "codeLabel": "Code",
+    "backupCodeLabel": "Backup-Code",
+    "trustDevice": "Diesem Gerät 30 Tage vertrauen",
+    "verify": "Bestätigen",
+    "useBackupCode": "Backup-Code verwenden",
+    "useAuthenticator": "Code aus der App verwenden",
+    "invalidCode": "Der Code stimmt nicht."
   },
   "invite": {
     "title": "Einladung zu {tenant}",
@@ -108,7 +118,8 @@
   "userMenu": {
     "open": "Benutzermenü öffnen",
     "tenants": "Firma wechseln",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "account": "Konto und Sicherheit"
   },
   "roles": {
     "owner": "Owner",
@@ -127,7 +138,8 @@
       "label": "Einstellungsbereiche",
       "members": "Mitglieder",
       "audit": "Audit-Log",
-      "branding": "Branding"
+      "branding": "Branding",
+      "security": "Sicherheit"
     },
     "members": {
       "inviteTitle": "Person einladen",
@@ -161,7 +173,8 @@
         "member_added": "Mitglied hinzugefügt",
         "member_removed": "Mitglied entfernt",
         "member_role_changed": "Rolle geändert",
-        "tenant_branding_changed": "Branding geändert"
+        "tenant_branding_changed": "Branding geändert",
+        "tenant_security_changed": "Sicherheitsrichtlinie geändert"
       },
       "actors": {
         "user": "Benutzer",
@@ -188,6 +201,20 @@
       "previewButton": "Speichern",
       "previewBadge": "Aktiv",
       "previewLink": "Link"
+    },
+    "security": {
+      "title": "Sicherheit",
+      "description": "Richtlinien, die für alle Personen in Ihrer Firma gelten.",
+      "requireLabel": "Zwei-Faktor-Anmeldung für Owner und Admins verlangen",
+      "requireHint": "Wer die Firma verwaltet, muss die Anmeldung zusätzlich mit einem Code aus einer Authenticator-App bestätigen. Ohne Einrichtung geht es nicht weiter.",
+      "selfHint": "Sie selbst haben die Zwei-Faktor-Anmeldung noch nicht eingerichtet. Nach dem Speichern werden Sie dazu aufgefordert.",
+      "save": "Speichern",
+      "adminsTitle": "Owner und Admins",
+      "adminsDescription": "Stand der Zwei-Faktor-Anmeldung je Person.",
+      "twoFactorOn": "2FA aktiv",
+      "twoFactorOff": "Ohne 2FA",
+      "forbiddenTitle": "Kein Zugriff",
+      "forbiddenDescription": "Die Sicherheitsrichtlinien ändern nur Owner und Admins."
     }
   },
   "partner": {
@@ -233,5 +260,37 @@
     "statusIncomplete": "Die Antwort wurde abgeschnitten.",
     "statusApproval": "Der Agent wartet auf eine Freigabe.",
     "statusCancelled": "Abgebrochen."
+  },
+  "account": {
+    "title": "Konto und Sicherheit",
+    "subtitle": "Ihr persönliches Konto, unabhängig von der Firma.",
+    "requiredNotice": "Ihre Firma verlangt für Owner und Admins die Zwei-Faktor-Anmeldung. Bitte richten Sie sie jetzt ein; danach geht es wie gewohnt weiter.",
+    "profileTitle": "Profil",
+    "name": "Name",
+    "email": "E-Mail-Adresse",
+    "twoFactorTitle": "Zwei-Faktor-Anmeldung",
+    "twoFactorDescription": "Zusätzlich zum Passwort bestätigen Sie die Anmeldung mit einem Code aus einer Authenticator-App (z. B. Microsoft Authenticator oder Google Authenticator).",
+    "statusOn": "Aktiv",
+    "statusOff": "Nicht aktiv",
+    "enable": "Zwei-Faktor-Anmeldung einrichten",
+    "disable": "Deaktivieren",
+    "newBackupCodes": "Neue Backup-Codes erzeugen",
+    "passwordLabel": "Zur Bestätigung: Ihr Passwort",
+    "continue_enable": "Weiter",
+    "continue_disable": "Deaktivieren",
+    "continue_backup": "Codes erzeugen",
+    "cancel": "Abbrechen",
+    "wrongPassword": "Das Passwort stimmt nicht.",
+    "wrongCode": "Der Code stimmt nicht. Bitte nehmen Sie den aktuellen Code aus der App.",
+    "setupStep1": "Öffnen Sie Ihre Authenticator-App und scannen Sie den QR-Code (oder geben Sie den Schlüssel ein).",
+    "setupStep2": "Speichern Sie die Backup-Codes an einem sicheren Ort – damit kommen Sie hinein, falls das Handy fehlt.",
+    "setupStep3": "Geben Sie den 6-stelligen Code aus der App ein, um die Einrichtung abzuschließen.",
+    "qrAlt": "QR-Code für die Authenticator-App",
+    "manualKey": "Schlüssel zum manuellen Eingeben:",
+    "backupCodesTitle": "Backup-Codes",
+    "backupCodesHint": "Jeder Code funktioniert genau einmal.",
+    "downloadCodes": "Als Datei speichern",
+    "codeLabel": "Code aus der App",
+    "confirmSetup": "Einrichtung abschließen"
   }
 }

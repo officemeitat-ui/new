@@ -76,7 +76,17 @@
     "magicLinkSentDescription": "If an account exists for this address, we sent you a sign-in link. It is valid for 10 minutes.",
     "signInMicrosoft": "Sign in with Microsoft",
     "signInGoogle": "Sign in with Google",
-    "noSelfSignup": "No account yet? Your administrator grants access by invitation."
+    "noSelfSignup": "No account yet? Your administrator grants access by invitation.",
+    "twoFactorTitle": "Confirmation",
+    "twoFactorDescription": "Enter the 6-digit code from your authenticator app.",
+    "backupCodeDescription": "Enter one of your backup codes.",
+    "codeLabel": "Code",
+    "backupCodeLabel": "Backup code",
+    "trustDevice": "Trust this device for 30 days",
+    "verify": "Confirm",
+    "useBackupCode": "Use a backup code",
+    "useAuthenticator": "Use the code from the app",
+    "invalidCode": "The code is incorrect."
   },
   "invite": {
     "title": "Invitation to {tenant}",
@@ -108,7 +118,8 @@
   "userMenu": {
     "open": "Open user menu",
     "tenants": "Switch company",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "account": "Account and security"
   },
   "roles": {
     "owner": "Owner",
@@ -127,7 +138,8 @@
       "label": "Settings sections",
       "members": "Members",
       "audit": "Audit log",
-      "branding": "Branding"
+      "branding": "Branding",
+      "security": "Security"
     },
     "members": {
       "inviteTitle": "Invite someone",
@@ -161,7 +173,8 @@
         "member_added": "Member added",
         "member_removed": "Member removed",
         "member_role_changed": "Role changed",
-        "tenant_branding_changed": "Branding changed"
+        "tenant_branding_changed": "Branding changed",
+        "tenant_security_changed": "Security policy changed"
       },
       "actors": {
         "user": "User",
@@ -188,6 +201,20 @@
       "previewButton": "Save",
       "previewBadge": "Active",
       "previewLink": "Link"
+    },
+    "security": {
+      "title": "Security",
+      "description": "Policies that apply to everyone in your company.",
+      "requireLabel": "Require two-factor authentication for owners and admins",
+      "requireHint": "Whoever manages the company must also confirm the sign-in with a code from an authenticator app. Without setup they cannot continue.",
+      "selfHint": "You have not set up two-factor authentication yourself. After saving you will be asked to do so.",
+      "save": "Save",
+      "adminsTitle": "Owners and admins",
+      "adminsDescription": "Two-factor status per person.",
+      "twoFactorOn": "2FA active",
+      "twoFactorOff": "Without 2FA",
+      "forbiddenTitle": "No access",
+      "forbiddenDescription": "Only owners and admins can change the security policies."
     }
   },
   "partner": {
@@ -233,5 +260,37 @@
     "statusIncomplete": "The answer was cut off.",
     "statusApproval": "The agent is waiting for an approval.",
     "statusCancelled": "Cancelled."
+  },
+  "account": {
+    "title": "Account and security",
+    "subtitle": "Your personal account, independent of the company.",
+    "requiredNotice": "Your company requires two-factor authentication for owners and admins. Please set it up now; afterwards everything works as usual.",
+    "profileTitle": "Profile",
+    "name": "Name",
+    "email": "Email address",
+    "twoFactorTitle": "Two-factor authentication",
+    "twoFactorDescription": "In addition to your password you confirm the sign-in with a code from an authenticator app (e.g. Microsoft Authenticator or Google Authenticator).",
+    "statusOn": "Active",
+    "statusOff": "Not active",
+    "enable": "Set up two-factor authentication",
+    "disable": "Disable",
+    "newBackupCodes": "Generate new backup codes",
+    "passwordLabel": "To confirm: your password",
+    "continue_enable": "Continue",
+    "continue_disable": "Disable",
+    "continue_backup": "Generate codes",
+    "cancel": "Cancel",
+    "wrongPassword": "The password is incorrect.",
+    "wrongCode": "The code is incorrect. Please use the current code from the app.",
+    "setupStep1": "Open your authenticator app and scan the QR code (or enter the key).",
+    "setupStep2": "Store the backup codes in a safe place – they get you in if your phone is missing.",
+    "setupStep3": "Enter the 6-digit code from the app to finish the setup.",
+    "qrAlt": "QR code for the authenticator app",
+    "manualKey": "Key for manual entry:",
+    "backupCodesTitle": "Backup codes",
+    "backupCodesHint": "Each code works exactly once.",
+    "downloadCodes": "Save as file",
+    "codeLabel": "Code from the app",
+    "confirmSetup": "Finish setup"
   }
 }

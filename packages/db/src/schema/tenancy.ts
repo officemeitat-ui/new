@@ -1,5 +1,14 @@
 import type { PartnerRole, SystemTenantRole, TenantPermission } from "@nexus/core";
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./_columns";
 import { authUser } from "./auth";
 
@@ -53,6 +62,8 @@ export const tenants = pgTable(
     locale: text().notNull().default("de-AT"),
     /** Internal hourly rate in cents, used for ROI (M10). */
     hourlyRateCents: integer().notNull().default(4500),
+    /** Owners and admins must use two-factor authentication (M2). */
+    requireAdminTwoFactor: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

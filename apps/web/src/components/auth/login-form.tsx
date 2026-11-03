@@ -32,6 +32,7 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
+  const [twoFactor, setTwoFactor] = useState<"totp" | "backup" | null>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,12 +50,17 @@ export function LoginForm({
         else setMagicSent(true);
         return;
       }
-      const { error: signInError } = await authClient.signIn.email({
+      const { data, error: signInError } = await authClient.signIn.email({
         email,
         password: String(form.get("password") ?? ""),
       });
       if (signInError) {
         setError(signInError.status === 429 ? t("tooManyAttempts") : t("invalidCredentials"));
+        return;
+      }
+      // Password was right, but the account uses two-factor authentication.
+      if ((data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) {
+        setTwoFactor("totp");
         return;
       }
       // Full navigation: the client router may hold a prefetched "redirect to /login" for the
@@ -63,6 +69,82 @@ export function LoginForm({
     } finally {
       setPending(false);
     }
+  }
+
+  async function onSecondFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const code = String(form.get("code") ?? "").replace(/\s/g, "");
+    setError(null);
+    setPending(true);
+    try {
+      const { error: verifyError } =
+        twoFactor === "backup"
+          ? await authClient.twoFactor.verifyBackupCode({ code })
+          : await authClient.twoFactor.verifyTotp({
+              code,
+              trustDevice: form.get("trust") === "on",
+            });
+      if (verifyError) {
+        setError(verifyError.status === 429 ? t("tooManyAttempts") : t("invalidCode"));
+        return;
+      }
+      window.location.assign(next);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (twoFactor) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">{t("twoFactorTitle")}</CardTitle>
+          <CardDescription>
+            {twoFactor === "totp" ? t("twoFactorDescription") : t("backupCodeDescription")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={onSecondFactor} className="space-y-4" noValidate>
+            <div className="space-y-2">
+              <Label htmlFor="code">
+                {twoFactor === "totp" ? t("codeLabel") : t("backupCodeLabel")}
+              </Label>
+              <Input
+                id="code"
+                name="code"
+                autoComplete="one-time-code"
+                inputMode={twoFactor === "totp" ? "numeric" : "text"}
+                autoFocus
+                required
+                className="font-mono"
+              />
+            </div>
+            {twoFactor === "totp" ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="trust" className="size-4" />
+                {t("trustDevice")}
+              </label>
+            ) : null}
+            {error ? <FieldError>{error}</FieldError> : null}
+            <Button type="submit" className="w-full" disabled={pending}>
+              {t("verify")}
+            </Button>
+          </form>
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto w-full p-0"
+            onClick={() => {
+              setTwoFactor(twoFactor === "totp" ? "backup" : "totp");
+              setError(null);
+            }}
+          >
+            {twoFactor === "totp" ? t("useBackupCode") : t("useAuthenticator")}
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (magicSent) {

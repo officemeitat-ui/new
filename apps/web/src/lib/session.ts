@@ -4,6 +4,7 @@ import {
   getPartnerAccess,
   getTenantAccess,
   getUserOverview,
+  needsTwoFactorSetup,
   type PartnerAccess,
   type TenantAccess,
   type UserOverview,
@@ -15,13 +16,18 @@ import { auth } from "./auth";
 
 export const ACTIVE_TENANT_COOKIE = "nexus_tenant";
 
-export type SessionUser = { id: string; name: string; email: string };
+export type SessionUser = { id: string; name: string; email: string; twoFactorEnabled: boolean };
 
 /** Data access layer: every page and server action verifies the session here (not in proxy.ts). */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
-  return { id: session.user.id, name: session.user.name, email: session.user.email };
+  return {
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
+  };
 });
 
 export async function requireUser(): Promise<SessionUser> {
@@ -72,6 +78,8 @@ export async function requireTenant(): Promise<AppContext & { tenant: TenantAcce
     redirect(
       ctx.overview.tenants.length > 0 ? "/select-tenant" : ctx.partner ? "/partner" : "/no-access",
     );
+  // Tenant policy: owners and admins must set up 2FA before they can work (M2).
+  if (needsTwoFactorSetup(ctx.tenant, ctx.user.twoFactorEnabled)) redirect("/account?2fa=required");
   return ctx as AppContext & { tenant: TenantAccess };
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN "require_admin_two_factor" boolean DEFAULT false NOT NULL;

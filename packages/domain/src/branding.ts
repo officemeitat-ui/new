@@ -37,3 +37,28 @@ export async function updateTenantBranding(
     metadata: { from: before.brandColor, to: brandColor },
   });
 }
+
+/** Tenant security policy (M2): require two-factor authentication for owners and admins. */
+export async function updateTenantSecurity(
+  tx: Tx,
+  input: { tenantId: string; requireAdminTwoFactor: boolean; actorId: string },
+): Promise<void> {
+  const [before] = await tx
+    .select({ requireAdminTwoFactor: tenants.requireAdminTwoFactor })
+    .from(tenants)
+    .where(eq(tenants.id, input.tenantId));
+  if (!before) throw notFound("Mandant nicht gefunden.");
+  if (before.requireAdminTwoFactor === input.requireAdminTwoFactor) return;
+  await tx
+    .update(tenants)
+    .set({ requireAdminTwoFactor: input.requireAdminTwoFactor })
+    .where(eq(tenants.id, input.tenantId));
+  await appendAudit(tx, input.tenantId, {
+    actorType: "user",
+    actorId: input.actorId,
+    action: "tenant.security_changed",
+    targetType: "tenant",
+    targetId: input.tenantId,
+    metadata: { requireAdminTwoFactor: input.requireAdminTwoFactor },
+  });
+}
