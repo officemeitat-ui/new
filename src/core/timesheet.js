@@ -51,8 +51,11 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
     for (const a of inst.addOns || []) notes.push(`${dutyText(a)} (+${a.minutes} min)`)
     const wasteNote = (inst.waste || inst.addOns?.length) && ctx.objectsById.get(inst.objectId)?.waste?.note
     if (wasteNote) notes.push(wasteNote)
-    if (bonus) notes.push(`inkl. ${bonusPct} % ${sundayHoliday === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag`)
-    else if (bonusAsMoney && bonusPct) notes.push(`${bonusPct} % ${sundayHoliday === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag wird ausbezahlt`)
+    if (bonus) {
+      // Schicht reicht nach Mitternacht in einen Sonn-/Feiertag: Zuschlag (Art und Satz) kommt von dort
+      const kind = sundayHoliday || (ctx.holidays.get(fromDayIndex(Math.floor((inst.start + inst.net - 1) / 1440)))?.legal ? 'holiday' : 'sunday')
+      notes.push(`inkl. ${kind === 'holiday' ? r.holidayBonusPct : r.sundayBonusPct} % ${kind === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag`)
+    } else if (bonusAsMoney && bonusPct) notes.push(`${bonusPct} % ${sundayHoliday === 'holiday' ? 'Feiertags' : 'Sonntags'}zuschlag wird ausbezahlt`)
     if (inst.breakMin) notes.push(`${inst.breakMin} min Pause abgezogen`)
     if (inst.note) notes.push(inst.note)
     dayMap.get(inst.date).lines.push({
