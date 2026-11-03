@@ -237,9 +237,10 @@ export function glossary(entries, query) {
 /** Plaudern: Gruß, Dank, Wer bist du … → Antwort und Stimmung, sonst null. */
 export function smalltalk(query) {
   const n = ` ${normalize(query)} `
-  if (/ (hallo|hi|hey|servus|gruess gott|guten (morgen|tag|abend)|moin|griass di) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'hallo', text: 'Servus! Frag mich einfach, was du machen möchtest – zum Beispiel „Urlaub eintragen“ oder „Wie schreibe ich eine Rechnung?“.' }
-  if (/ (danke|dankeschoen|merci|super|passt|top|perfekt) /.test(n)) return { mood: 'fertig', text: 'Gern geschehen! Sag Bescheid, wenn du noch etwas brauchst.' }
-  if (/ wer bist du | was bist du | wie heisst du /.test(n)) return { mood: 'froh', text: 'Ich bin Cleo, der Cleanos-Tropfen. Ich kenne jede Funktion der App, zeige dir, wo sie ist, und erkläre sie Schritt für Schritt. Ich brauche dafür kein Internet und speichere nichts.' }
-  if (/ (was kannst du|hilfe|help|anleitung) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'zeigt', text: 'Ich erkläre dir alle Bereiche: Planung, Zeiterfassung, Wetter und Winterdienst, Objekte, Material, Fahrzeuge, Fakturierung und Verwaltung. Tipp eine Frage oder wähle unten ein Thema. Die ganze Anleitung findest du unter „Anleitung“.' }
+  if (/ (hallo|hi|hey|servus|gruess gott|guten (morgen|tag|abend)|moin|griass di) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'hallo', text: 'Servus! Cleo, Sauberheld, zu Diensten. Sag mir, was du vorhast – zum Beispiel „Urlaub eintragen“ oder „Wie schreibe ich eine Rechnung?“ – und ich flieg dich hin.' }
+  if (/ (danke|dankeschoen|merci|super|passt|top|perfekt) /.test(n)) return { mood: 'fertig', text: 'Gern geschehen – sauber gelöst! Wenn du mich wieder brauchst: Ich häng hier unten rechts ab.' }
+  if (/ wer bist du | was bist du | wie heisst du /.test(n)) return { mood: 'froh', text: 'Ich bin Cleo, der Sauberheld der Cleanos App! Meine Superkräfte: Ich kenne jede Funktion, zeige dir, wo sie ist, und erkläre sie Schritt für Schritt. Kein Internet nötig, nichts wird gespeichert – und Fenster putze ich nebenbei auch.' }
+  if (/ (witz|lustig|superkraft|superkraefte|held) /.test(n) && n.trim().split(' ').length <= 6) return { mood: 'froh', text: 'Warum putzen Superhelden so gern Fenster? Damit sie den Durchblick behalten! Und jetzt: Womit kann ich dir helfen?' }
+  if (/ (was kannst du|hilfe|help|anleitung) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'zeigt', text: 'Mein Revier ist die ganze App: Planung, Zeiterfassung, Wetter und Winterdienst, Objekte, Material, Fahrzeuge, Fakturierung und Verwaltung. Tipp eine Frage oder wähle unten ein Thema. Zum Schmökern gibt es die „Anleitung“.' }
   return null
 }

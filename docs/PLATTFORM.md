@@ -447,14 +447,14 @@ Ein Tag, je Person eine Zeile: Einsätze in Objektfarbe, geplante Fahrten (rot, 
 
 ## Cleo – Hilfe zu jeder Funktion
 
-**Cleo** ist das Maskottchen der Cleanos App: ein Wassertropfen mit grünem Stirnband, unten rechts auf jeder Seite (am Handy über der Leiste unten). Ein Klick (oder **F1**) öffnet den Hilfe-Chat:
+**Cleo, der Sauberheld**, ist das Maskottchen der Cleanos App: ein Wassertropfen als Superheld mit Heldenmaske, Umhang in Cleanos-Grün, „C“-Wappen, Gürtel mit goldener Schnalle und dem Fensterabzieher als Heldenwaffe (im Winter Schal und Schneeschaufel). Cleo steht unten rechts auf jeder Seite (am Handy über der Leiste unten); ein Klick (oder **F1**) öffnet den Hilfe-Chat:
 
 - **Fragen in eigenen Worten:** „Wie trage ich Urlaub ein?“, „es schneit, was tun“, „Zählerstände eintragen“, „Rechnung stornieren“. Cleo versteht Umlaute, Tippfehler, Mehrzahl und Wörter aus dem Betrieb (Dienstplan, Krankmeldung, streuen, Pickerl …) und antwortet mit einer kurzen Erklärung und den Schritten.
 - **„Zeig es mir“** springt in die richtige Ansicht und markiert dort den passenden Knopf; ein zweiter Knopf startet die Aktion gleich (z. B. „Abwesenheit eintragen“, „Woche jetzt planen“). „In der Anleitung“ öffnet das Thema zum Nachlesen.
 - **Vorschläge** passend zur offenen Ansicht und zu jedem Bereich; **Begriffe** („Was ist eine Stammkraft?“, „Was bedeutet Reverse Charge?“).
 - **Nur was die Rolle sieht:** Fragen zu Bereichen ohne Recht beantwortet Cleo mit dem Hinweis, das Büro zu fragen.
-- **Ohne KI und ohne Netz:** Cleo arbeitet mit den Hilfe-Themen in der App (`src/help/topics.js`, Suche in `src/help/match.js`), speichert nichts und schickt nichts weg. Findet Cleo nichts, bietet sie die Übergabe an den **KI-Assistenten** an (falls eingerichtet), mit der Frage schon eingetragen.
-- Cleo hat Stimmungen (winkt, denkt nach, zeigt, freut sich, schläft nachts, trägt im Winter eine Mütze) und blinzelt; bei „Bewegung reduzieren“ im System bleibt sie ruhig.
+- **Ohne KI und ohne Netz:** Cleo arbeitet mit den Hilfe-Themen in der App (`src/help/topics.js`, Suche in `src/help/match.js`), speichert nichts und schickt nichts weg. Findet Cleo nichts, gibt es die Übergabe an den **KI-Assistenten** (falls eingerichtet), mit der Frage schon eingetragen.
+- Cleo hat Stimmungen: Heldenpose mit erhobenem Abzieher, fliegt mit wehendem Umhang zur richtigen Stelle, Siegerfaust, nachdenklich mit hochgezogener Braue, zeigt, verlegen („hoppla“), schläft nachts mit hochgeschobener Maske, im Winter mit Schal und Schaufel. Umhang und Maskenbänder wehen, Cleo blinzelt; bei „Bewegung reduzieren“ im System bleibt alles ruhig. Cleo antwortet mit einem Augenzwinkern (fragt man nach einem Witz, kommt einer).
 
 ## Anleitung
 

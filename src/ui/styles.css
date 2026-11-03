@@ -1751,11 +1751,17 @@ tr.muted td { color: var(--muted); }
 .cleo-icon { width: 1.15em; height: 1.15em; flex: none; }
 .cleo-anim .cleo-body { animation: cleo-float 4.5s ease-in-out infinite; transform-origin: 50% 90%; }
 .cleo-anim .cleo-eyes { animation: cleo-blink 5.5s infinite; transform-box: fill-box; transform-origin: center; }
-.cleo-anim .cleo-wave { animation: cleo-wave 2.6s ease-in-out infinite; transform-box: view-box; transform-origin: 100px 96px; }
+.cleo-anim .cleo-wave { animation: cleo-wave 2.6s ease-in-out infinite; transform-box: view-box; transform-origin: 118px 98px; }
+.cleo-anim .cleo-cape { animation: cleo-cape 2.4s ease-in-out infinite; transform-box: view-box; transform-origin: 80px 80px; }
+.cleo-anim .cleo-tails { animation: cleo-tails 0.9s ease-in-out infinite alternate; transform-box: view-box; transform-origin: 117px 70px; }
+.cleo-anim.cleo-fliegt .cleo-body { animation: cleo-fly 1.6s ease-in-out infinite; transform-box: view-box; transform-origin: 80px 100px; }
+@keyframes cleo-cape { 0%, 100% { transform: skewX(0deg); } 50% { transform: skewX(-4deg) scaleX(1.03); } }
+@keyframes cleo-tails { from { transform: rotate(-6deg); } to { transform: rotate(8deg); } }
+@keyframes cleo-fly { 0%, 100% { transform: rotate(14deg) translate(0, 0); } 50% { transform: rotate(14deg) translate(3px, -4px); } }
 @keyframes cleo-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
 @keyframes cleo-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
 @keyframes cleo-wave { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-14deg); } 80% { transform: rotate(8deg); } 90% { transform: rotate(-8deg); } }
-@media (prefers-reduced-motion: reduce) { .cleo-anim .cleo-body, .cleo-anim .cleo-eyes, .cleo-anim .cleo-wave { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .cleo-anim .cleo-body, .cleo-anim .cleo-eyes, .cleo-anim .cleo-wave, .cleo-anim .cleo-cape, .cleo-anim .cleo-tails { animation: none !important; } }
 
 #help-root { position: fixed; right: 18px; bottom: 18px; z-index: 45; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
 #help-root > * { pointer-events: auto; }
