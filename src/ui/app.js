@@ -12,11 +12,12 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, navSections, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
-import { sidebar } from './sidebar.js'
+import { navIcon, sidebar } from './sidebar.js'
+import { closeMenus } from './menus.js'
 import { planWeek, seedDemoHistory } from './planning.js'
 import { syncTools, toolUrls, warmLastTool } from './views/tools.js'
 import { searchButton } from './search.js'
@@ -26,7 +27,7 @@ import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
 import { startWeather } from './weather.js'
 import { agoText, startSync, syncState } from './sync.js'
-import { download, esc, ICON } from './shared.js'
+import { download, esc, ICON, menu } from './shared.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
 const PREFS_KEY = 'einsatzplaner.prefs.v2'
@@ -73,17 +74,50 @@ function brandBlock() {
   return `<div class="brand">${logo}<div class="brand-text"><strong>${esc(b.product)}</strong><small>${esc(b.tagline)}</small></div></div>`
 }
 
-/** Weniger gebrauchte Aktionen im Menü „⋯“. */
+/** Weniger gebrauchte Aktionen im Menü „⋯“, nach Zweck gegliedert. */
 function moreMenu(plan) {
-  const items = [
-    plan && `<button class="btn" data-action="open-publish">${ICON.send} Veröffentlichen</button>`,
-    plan && `<button class="btn" data-action="replan" title="Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen">${ICON.bolt} Neu planen</button>`,
-    plan && `<button class="btn" data-action="open-send">${ICON.send} An Mitarbeitende versenden</button>`,
-    (!app.access || app.access.all) && `<button class="btn" data-action="open-data">${ICON.folder} Daten & Sicherung</button>`,
-    `<button class="btn" data-action="theme-open">${ICON.palette} Darstellung</button>`,
-    app.signOut && `<button class="btn" data-action="sign-out">${ICON.user} Abmelden</button>`,
-  ].filter(Boolean)
-  return `<details class="menu-wrap"><summary class="btn icon ghost" aria-label="Weitere Aktionen" title="Weitere Aktionen">${ICON.more}</summary><div class="menu" role="menu">${items.join('')}</div></details>`
+  const canSync = app.store?.kind === 'sharepoint' || app.config?.storage === 'local'
+  return menu({
+    icon: ICON.more,
+    title: 'Weitere Aktionen',
+    btn: 'icon ghost',
+    caret: false,
+    single: false,
+    cls: 'more-menu',
+    items: [
+      plan && { heading: 'Diese Woche' },
+      plan && { label: 'Veröffentlichen', icon: ICON.send, action: 'open-publish' },
+      plan && { label: 'Neu planen', icon: ICON.bolt, action: 'replan', title: 'Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen' },
+      plan && { label: 'An Mitarbeitende versenden', icon: ICON.send, action: 'open-send' },
+      { heading: 'App' },
+      canSync && { label: 'Jetzt abgleichen', icon: ICON.refresh, action: 'sync-now', hint: `zuletzt ${agoText(syncState.lastAt)}` },
+      (!app.access || app.access.all) && { label: 'Daten & Sicherung', icon: ICON.folder, action: 'open-data' },
+      { label: 'Darstellung', icon: ICON.palette, action: 'theme-open' },
+      ACTIONS['quick-keys'] && { label: 'Tastenkürzel', icon: ICON.list, action: 'quick-keys', kbd: '?' },
+      app.signOut && { heading: 'Konto' },
+      app.signOut && { label: 'Abmelden', icon: ICON.user, action: 'sign-out', hint: app.user?.name ? esc(app.user.name) : '' },
+    ],
+  })
+}
+
+/** Bereich der Ansicht als Aufklappmenü: springt zu den anderen Ansichten desselben Bereichs. */
+function sectionSwitch(c, view) {
+  const id = sectionOf(view)
+  const label = sectionLabel(id)
+  if (!label) return ''
+  const views = navSections().find((s) => s.id === id)?.views || []
+  if (views.length < 2) return `<span class="crumb-label">${esc(label)}</span>`
+  return menu({
+    label: esc(label),
+    btn: 'ghost small crumb-btn',
+    cls: 'start crumb-menu',
+    title: `Andere Ansichten unter „${label}“`,
+    single: false,
+    items: [
+      { heading: esc(label) },
+      ...views.map((v) => ({ label: esc(v.label), icon: navIcon(v), action: 'view', data: { view: v.id }, current: v.id === view.id, flag: v.badge?.(c) || 0 })),
+    ],
+  })
 }
 
 function topbar(c) {
@@ -98,12 +132,12 @@ function topbar(c) {
     return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short, title })
   }
   const status = published ? (changed ? `<span class="pill warning">veröffentlicht · ${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info">Entwurf</span>'
-  const group = sectionLabel(sectionOf(view))
+  const crumb = view ? sectionSwitch(c, view) : ''
   const head = !view
     ? ''
     : title
-      ? `<nav class="crumbs" aria-label="Pfad">${group ? `<span>${esc(group)}</span><span class="sep" aria-hidden="true">/</span>` : ''}<b>${esc(view.label)}</b></nav>`
-      : `<h1 class="page-title">${esc(view.label)}</h1><div class="weeknav">
+      ? `<nav class="crumbs" aria-label="Pfad">${crumb ? `${crumb}<span class="sep" aria-hidden="true">/</span>` : ''}<b>${esc(view.label)}</b></nav>`
+      : `<div class="crumbs page-crumbs">${crumb ? `${crumb}<span class="sep" aria-hidden="true">/</span>` : ''}<h1 class="page-title">${esc(view.label)}</h1></div><div class="weeknav">
       <button class="btn icon ghost" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
       <div class="kw">KW ${week} / ${year}<small>${formatDate(c.monday, { weekday: false })} – ${formatDate(c.sunday, { weekday: false, year: true })}</small></div>
       <button class="btn icon ghost" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
@@ -288,7 +322,7 @@ Object.assign(ACTIONS, {
 
 function bindEvents() {
   document.addEventListener('click', (e) => {
-    // Menü „⋯“: Klick daneben oder auf einen Eintrag schließt es
+    // Aufklappmenüs: Klick daneben oder auf einen Eintrag schließt sie (menus.js)
     for (const menu of document.querySelectorAll('details.menu-wrap[open]')) if (!menu.contains(e.target) || e.target.closest('.menu [data-action]')) menu.open = false
     const el = e.target.closest('[data-action]')
     if (!el || el.disabled) return
@@ -319,7 +353,7 @@ function bindEvents() {
   bindDragEvents(document)
   watchDevice()
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') for (const menu of document.querySelectorAll('details.menu-wrap[open]')) menu.open = false
+    if (e.key === 'Escape' && closeMenus()) return // erst das Menü, beim nächsten Esc der Dialog
     if (e.key === 'Escape' && app.ui.modal) closeModal()
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !app.readOnly) {

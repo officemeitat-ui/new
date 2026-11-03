@@ -11,7 +11,7 @@ import { sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
 import { app, canEdit, closeModal, confirmStep, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, checkedValues, download, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 
 const MODULE = 'unterweisungen'
@@ -72,7 +72,16 @@ function trainingsView() {
     .map((s) => `<tr><td>${formatDate(s.date)}</td><td>${esc(typeOf(s.typeId)?.name || '')}</td><td class="num">${s.participants.length}</td><td>${esc(s.trainer || '')}</td><td>${esc(s.place || '')}</td><td><button class="btn small" data-action="tr-session-pdf" data-id="${esc(s.id)}">${ICON.download} Nachweis</button></td></tr>`)
     .join('')
   return `<div class="section-head"><div><h2>Unterweisungen &amp; Fristen</h2><p>Je Person: Unterweisungen, Kurse, Kontrollen und Dokumente mit Ablaufdatum. Unterweisung für viele auf einmal mit Unterschrift am Tablet und Nachweis als PDF. Der Plan warnt bei abgelaufener Arbeitserlaubnis oder Führerscheinkontrolle.</p></div>
-      <div class="actions">${ed ? `<button class="btn primary" data-action="tr-session-open">Unterweisung durchführen</button><button class="btn" data-action="tr-record-open">${ICON.plus} Eintragen</button><button class="btn" data-action="tr-types-open">Arten</button>` : ''}<button class="btn" data-action="tr-csv">${ICON.download} CSV</button></div></div>
+      <div class="actions">${ed ? `<button class="btn primary" data-action="tr-session-open">Unterweisung durchführen</button>` : ''}${menu({
+        label: 'Mehr',
+        single: false,
+        items: [
+          ed && { label: 'Einzeln eintragen', icon: ICON.plus, action: 'tr-record-open', hint: 'z. B. Kurs oder Nachweis von außen' },
+          ed && { label: 'Arten verwalten', icon: ICON.gear, action: 'tr-types-open', hint: 'Unterweisungen, Kurse, Fristen' },
+          { heading: 'Export' },
+          { label: 'Übersicht (CSV)', icon: ICON.download, action: 'tr-csv' },
+        ],
+      })}</div></div>
     <div class="impact-stats tc-stats">${tile('abgelaufen', n('abgelaufen'), n('abgelaufen') ? 'err' : '')}${tile('fehlt (Pflicht)', n('fehlt'), n('fehlt') ? 'err' : '')}${tile('läuft in 30 Tagen ab', n('bald'))}${tile('Personen', all.length)}</div>
     <div class="filters">${teams.length > 1 ? `<label class="field inline"><span>Team</span><select id="tr-team" data-change="tr-team">${options(teams.map((x) => [x, x]), team, { empty: 'alle' })}</select></label>` : ''}
       <label class="field inline"><span>Suche</span><input type="search" id="tr-search" value="${esc(app.ui.trSearch || '')}" data-input="tr-search" placeholder="Name"></label>

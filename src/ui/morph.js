@@ -18,9 +18,13 @@ function syncAttributes(a, b) {
   const have = a.attributes
   for (let i = have.length - 1; i >= 0; i--) {
     const name = have[i].name
-    if (!b.hasAttribute(name)) a.removeAttribute(name)
+    if (b.hasAttribute(name) || kept(a, name)) continue
+    a.removeAttribute(name)
   }
 }
+
+// Zur Laufzeit gesetzt, nicht im HTML: offenes Aufklappmenü und seine Lage (menus.js) bleiben
+const kept = (a, name) => (name === 'open' && a.tagName === 'DETAILS' && a.classList.contains('menu-wrap')) || (name === 'style' && a.classList?.contains('menu') && a.parentElement?.open)
 
 function syncFormState(a, b) {
   if (a === document.activeElement) return // dort tippt jemand: Wert nicht überschreiben

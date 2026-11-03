@@ -10,7 +10,7 @@ import { lossDocument, personListDocument, receiptDocument, receiptPdfName } fro
 import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, checkedValues, download, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 
 const MODULE = 'schluessel'
@@ -79,7 +79,15 @@ function keysView() {
     : ''
   const list = mode === 'person' ? personTable() : objectTable()
   return `<div class="section-head"><div><h2>Schlüsselbuch</h2><p>Wer hat welchen Schlüssel: Ausgabe und Rückgabe mit Unterschrift und Quittung, Verlust, Hinweise beim Austritt. Der Plan meldet daraus „Schlüsselübergabe nötig“.</p></div>
-      <div class="actions">${ed ? `<button class="btn primary" data-action="key-move-open" data-mode="ausgabe">${ICON.key} Ausgeben</button><button class="btn" data-action="key-move-open" data-mode="rueckgabe">Rückgabe</button><button class="btn" data-action="key-edit-open">${ICON.plus} Schlüssel</button>` : ''}<button class="btn" data-action="keys-csv">${ICON.download} CSV</button></div></div>
+      <div class="actions">${ed ? `<button class="btn primary" data-action="key-move-open" data-mode="ausgabe">${ICON.key} Ausgeben</button><button class="btn" data-action="key-move-open" data-mode="rueckgabe">Rückgabe</button>` : ''}${menu({
+        label: 'Mehr',
+        single: false,
+        items: [
+          ed && { label: 'Schlüssel anlegen', icon: ICON.plus, action: 'key-edit-open', hint: 'Bezeichnung, Nummer, Objekt, Schließanlage' },
+          { heading: 'Export' },
+          { label: 'Schlüsselliste (CSV)', icon: ICON.download, action: 'keys-csv' },
+        ],
+      })}</div></div>
     ${banner}${empty}
     ${d.keys.length ? `<div class="impact-stats tc-stats">${tile('Schlüssel', active.length)}${tile('ausgegeben', out.length)}${tile('im Büro', active.length - out.length)}${tile('Hinweise', warn.filter((w) => w.severity !== 'info').length, warn.some((w) => w.severity === 'error') ? 'err' : '')}</div>` : ''}
     ${warnHtml}${hoHtml}

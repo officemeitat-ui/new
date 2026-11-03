@@ -10,7 +10,7 @@ import { mondaysBetween, toCSV } from '../../core/reports.js'
 import { mergeRules } from '../../core/rules.js'
 import { buildTimesheet } from '../../core/timesheet.js'
 import { app, computeRange, confirmStep, currentMonth, dataStamp, openModal, persist, recordUndo, registerActions, registerModal, registerView, renderNow, toast } from '../context.js'
-import { download, esc, euro, ICON, modalFrame, options, saldoClass, signed } from '../shared.js'
+import { download, esc, euro, ICON, menu, modalFrame, options, saldoClass, signed } from '../shared.js'
 import { monthPicker } from './controlling.js'
 import { copyText } from './sheet.js'
 import { filterBar, filteredEmployees } from './week.js'
@@ -129,8 +129,16 @@ function overtimeView(c) {
     ${t.noWage ? `<p class="note err-text">${t.noWage} ${t.noWage === 1 ? 'Person hat' : 'Personen haben'} keinen Stundenlohn: unter „Mitarbeitende“ Lohngruppe oder Stundenlohn eintragen.</p>` : ''}
     <div class="toolbar">
       <button class="filter" data-action="ot-all" aria-pressed="${!!app.ui.otAll}">Alle Mitarbeitenden</button>
-      <button class="btn" data-action="ot-copy">${ICON.copy} Für Excel kopieren</button>
-      ${app.config.features.download ? `<button class="btn" data-action="ot-csv">${ICON.sheet} CSV für Lohnverrechnung</button><button class="btn" data-action="pe-open" data-month="${esc(c.month)}" title="Bewegungsdaten je Person und Lohnart für den Import in BMD, RZL u. a.">${ICON.download} Export Lohnprogramm</button>` : ''}
+      ${menu({
+        label: 'Export',
+        icon: ICON.download,
+        single: false,
+        items: [
+          { label: 'Für Excel kopieren', icon: ICON.copy, action: 'ot-copy', hint: 'in die Zwischenablage' },
+          app.config.features.download && { label: 'CSV für Lohnverrechnung', icon: ICON.sheet, action: 'ot-csv' },
+          app.config.features.download && { label: 'Export Lohnprogramm', icon: ICON.download, action: 'pe-open', data: { month: c.month }, hint: 'Lohnarten je Person für BMD, RZL u. a.' },
+        ],
+      })}
       <button class="btn ${closed ? 'primary' : ''}" data-action="ot-send" data-month="${month}">${ICON.send} Auszahlungen versenden</button>
       <span class="spacer"></span>
       ${closed ? `<button class="btn edit-only ${app.ui.confirm === 'ot-reopen' ? 'danger confirm' : ''}" data-action="ot-reopen" data-month="${month}">${app.ui.confirm === 'ot-reopen' ? 'Abschluss wirklich aufheben?' : 'Abschluss aufheben'}</button>` : `<button class="btn primary edit-only ${confirmClose ? 'confirm' : ''}" data-action="ot-close" data-month="${month}">${confirmClose ? `${monthName} jetzt abschließen?` : 'Monat abschließen'}</button>`}

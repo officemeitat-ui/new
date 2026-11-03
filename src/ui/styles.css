@@ -254,7 +254,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .sb-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sb-tools .btn { background: transparent; color: var(--sb-fg); border-color: var(--sb-line); }
 
-.layout .topbar { top: 0; }
+.layout .topbar { top: 0; z-index: 26; } /* über der Seitenleiste: Menüs der Kopfleiste dürfen sie überdecken */
 .layout .topbar-inner { flex-wrap: nowrap; justify-content: space-between; gap: 16px; padding: 10px 24px; min-height: 60px; }
 .layout .actions { flex-wrap: nowrap; align-items: center; gap: 6px; }
 .layout .actions > :is([data-action='open-search'], .bell) { border-color: transparent; background: transparent; }
@@ -276,6 +276,58 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; display: grid; gap: 2px; min-width: 230px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
 .menu .btn { justify-content: flex-start; width: 100%; border-color: transparent; background: none; }
 .menu .btn:hover { background: var(--surface-2); }
+
+/* Aufklappmenüs (shared.js menu, rowMenu, tabBar; Verhalten menus.js) */
+.menu-wrap > summary { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.menu-wrap[open] > summary { margin-bottom: 0; } /* nicht wie aufgeklappte Abschnitte (details[open] summary) */
+.menu-wrap.start > .menu { right: auto; left: 0; }
+.dd > summary, .quick-wrap > summary { display: flex; align-items: center; gap: 6px; } /* block: keine Zeilenbox, die beim Öffnen wächst */
+.dd > summary .caret { display: inline-grid; margin-right: -3px; color: var(--muted); }
+.dd > summary.primary .caret { color: inherit; }
+.dd > summary .caret svg { width: 12px; height: 12px; transition: transform 0.15s; }
+.dd[open] > summary .caret svg { transform: rotate(180deg); }
+.dd[open] > summary { border-color: var(--line-strong); }
+.dd > summary .flag { margin-left: 2px; }
+.menu { max-width: min(380px, calc(100vw - 16px)); }
+.dd .menu .btn { display: flex; align-items: center; gap: 9px; text-align: left; white-space: normal; padding: 7px 10px; }
+.dd .menu .btn > svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.dd .menu .btn.danger, .dd .menu .btn.danger > svg { color: var(--err); }
+.dd .menu .btn.strong { font-weight: 650; }
+.menu .mi-label { flex: 1 1 auto; display: grid; gap: 1px; line-height: 1.25; }
+.menu .mi-label small { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
+.menu .btn .flag { margin-left: auto; }
+.menu .btn[aria-checked='true'] { background: var(--surface-2); font-weight: 650; }
+.menu .btn[aria-checked='true']::after { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.menu .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--surface-2); }
+.menu .btn[disabled] { opacity: 0.5; cursor: default; }
+.menu-head { padding: 6px 10px 3px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.menu-head:not(:first-child) { margin-top: 4px; padding-top: 9px; border-top: 1px solid var(--line); }
+.menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+.row-menu > summary { padding: 3px 6px; }
+.row-menu > summary svg { width: 15px; height: 15px; }
+td .row-menu, .actions-cell .row-menu { display: inline-block; vertical-align: middle; }
+/* Reiter mit Gruppen */
+.tabbar { align-items: center; }
+.tab-group > summary .tab-sub { white-space: pre; }
+.tab-group .menu { min-width: 220px; }
+/* Bereich in der Kopfleiste: Klick zeigt die anderen Ansichten des Bereichs */
+.page-crumbs { gap: 6px; min-width: 0; }
+.crumb-btn { color: var(--muted); font-weight: 500; font-size: 0.9rem; padding: 3px 6px; margin-left: -6px; }
+.crumb-btn:hover, .crumb-menu[open] > .crumb-btn { color: var(--fg); }
+.crumb-menu .menu { min-width: 250px; }
+.crumb-menu .menu .btn > svg { width: 18px; height: 18px; }
+@media (min-width: 701px) and (max-width: 980px) { .page-crumbs .crumb-menu, .page-crumbs .sep { display: none; } }
+
+/* Handy: Menüs als Blatt von unten, Hintergrund abgedunkelt (Tipp daneben schließt) */
+@media (max-width: 700px) {
+  .menu-wrap[open] > summary { filter: none !important; }
+  .menu-wrap[open] > summary::before { content: ''; position: fixed; inset: 0; z-index: 70; background: rgb(10 16 24 / 0.38); cursor: default; }
+  .menu-wrap > .menu { position: fixed; left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); top: auto; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 71; max-width: none; min-width: 0; max-height: 75dvh; overflow-y: auto; padding: 8px; border-radius: 16px; }
+  .menu .btn { min-height: 46px; font-size: 1rem; }
+  .menu-head { font-size: 0.74rem; }
+  .section-head > .actions > .menu-wrap { flex: 1 1 auto; }
+  .section-head > .actions > .menu-wrap > summary { justify-content: center; }
+}
 
 /* Tablet quer und kleine Bildschirme: Seitenleiste nur mit Symbolen */
 @media (min-width: 701px) and (max-width: 1180px) {
@@ -1435,7 +1487,7 @@ tr.muted td { color: var(--muted); }
 @media (min-width: 701px) and (max-width: 1180px) { .sb-status { flex-direction: column; align-items: center; } }
 
 /* Schnellfunktionen */
-.quick-wrap > summary { display: inline-flex; align-items: center; gap: 4px; }
+.quick-wrap > summary { gap: 4px; }
 .quick-wrap .menu { right: auto; left: 0; min-width: 260px; }
 .quick-wrap .menu .btn { display: flex; justify-content: space-between; gap: 12px; border-color: transparent; background: none; }
 .quick-wrap .menu .btn:hover, .quick-wrap .menu .btn:focus-visible { background: var(--surface-2); }

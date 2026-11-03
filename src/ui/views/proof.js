@@ -14,7 +14,7 @@ import { app, canEdit, closeModal, computeRange, ensureRange, openModal, persist
 import { loadScript } from '../load-script.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, ICON, modalFrame, options, val } from '../shared.js'
+import { checked, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
 import { syncStamps } from '../timeclock.js'
 
 const ICON_PROOF = '<path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M8.5 14.5l2.3 2.3 4.7-4.8"/>'
@@ -76,7 +76,7 @@ function proofView() {
         <td class="num">${t.confirmed ? `${t.confirmed} (${share} %)` : '–'}</td><td class="num">${winter.length || ''}</td>
         <td>${o.proofEmail ? esc(o.proofEmail) : '<span class="muted">–</span>'}</td>
         <td>${sent ? `<span class="pill ok">${formatDate(sent.at.slice(0, 10))}</span>` : ''}</td>
-        <td class="actions-cell"><button class="btn small" data-action="proof-open" data-obj="${esc(o.id)}">Ansehen</button> <button class="btn small" data-action="proof-pdf" data-obj="${esc(o.id)}">${ICON.download} PDF</button> <button class="btn small" data-action="proof-mail-open" data-obj="${esc(o.id)}">${ICON.send} E-Mail</button></td></tr>`
+        <td class="actions-cell"><button class="btn small" data-action="proof-open" data-obj="${esc(o.id)}">Ansehen</button> ${rowMenu([{ label: 'PDF herunterladen', icon: ICON.download, action: 'proof-pdf', data: { obj: o.id } }, { label: 'Per E-Mail senden', icon: ICON.send, action: 'proof-mail-open', data: { obj: o.id } }], `Nachweis für ${o.name || 'Objekt'}`)}</td></tr>`
     })
     .join('')
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`

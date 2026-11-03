@@ -49,7 +49,7 @@ import { registerTodo } from '../modals/todo.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { call, onPortalRequests, portalSettings } from '../staffplan.js'
-import { checked, download, esc, euro, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { checked, download, esc, euro, ICON, menu, modalFrame, options, rowMenu, tabBar, uid, val } from '../shared.js'
 
 const MODULE = 'material'
 const ICON_BOX = '<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9M7.8 5.2l8.5 4.6"/>'
@@ -109,6 +109,45 @@ const TABS = [
   ['buchungen', 'Buchungen'],
   ['stamm', 'Lieferanten & Lager'],
 ]
+// Auswertungen zusammen als Aufklappmenü
+const TAB_GROUPS = ['bestand', 'bestellen', 'anforderungen', { label: 'Auswertung', items: ['verbrauch', 'buchungen'] }, 'stamm']
+const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
+
+/** Kopf: Ausgabe sofort, alles andere gegliedert in „Buchen“, „Neu“ und „Export“. */
+function headActions(ed) {
+  const d = M()
+  const has = d.articles.length > 0
+  return `${ed && has ? `<button class="btn primary" data-action="mat-book-open" data-mode="ausgabe">${ICON.send} Ausgabe</button>` : ''}${menu({
+    label: 'Buchen',
+    items: [
+      ed && has && { label: 'Wareneingang', icon: ICON.plus, action: 'mat-book-open', data: { mode: 'eingang' }, hint: 'Lieferung ohne Bestellung' },
+      ed && has && d.locations.length > 1 && { label: 'Umbuchen', action: 'mat-book-open', data: { mode: 'umbuchung' }, hint: 'zwischen Lagern' },
+      ed && has && { label: 'Inventur', icon: ICON.check, action: 'mat-inventory-open', hint: 'Zählliste und Korrektur' },
+    ],
+    single: false,
+  })}${menu({
+    label: 'Anlegen',
+    icon: ICON.plus,
+    items: [
+      ed && { label: 'Anforderung erfassen', action: 'mat-request-new', hint: 'für ein Objekt oder eine Person' },
+      ed && has && { label: 'Bestellung', action: 'mat-order-new' },
+      ed && { heading: 'Stammdaten' },
+      ed && { label: 'Artikel', action: 'mat-article-open' },
+      ed && { label: 'Lieferant', action: 'mat-supplier-open' },
+      ed && { label: 'Lager', action: 'mat-location-open' },
+      ed && { label: 'Liste aus Excel einfügen', icon: ICON.upload, action: 'mat-import-open' },
+    ],
+    single: false,
+  })}${menu({
+    label: 'Export',
+    icon: ICON.download,
+    items: [
+      has && { label: 'Lagerbestand (CSV)', action: 'mat-stock-csv' },
+      has && { label: 'Verbrauch (CSV)', action: 'mat-usage-csv', hint: 'Zeitraum wie im Reiter Verbrauch' },
+    ],
+    single: false,
+  })}`
+}
 
 function counts() {
   const d = M()
@@ -126,8 +165,8 @@ function materialView() {
   const body = { bestand: stockTab, bestellen: orderTab, anforderungen: requestTab, verbrauch: usageTab, buchungen: journalTab, stamm: masterTab }[tab]()
   return `<div class="section-head"><div><h2>Material &amp; Lager</h2>
       <p>Bestand je Lager, Ausgabe an Objekte und Personen, Bestellvorschlag und Bestellung beim Lieferanten, Anforderungen aus den Objekten (auch vom Handy), Verbrauch je Objekt.</p></div>
-      <div class="actions">${ed && M().articles.length ? `<button class="btn primary" data-action="mat-book-open" data-mode="ausgabe">${ICON.send} Ausgabe</button><button class="btn" data-action="mat-book-open" data-mode="eingang">${ICON.plus} Wareneingang</button>` : ''}${ed ? `<button class="btn" data-action="mat-request-new">Anforderung erfassen</button>` : ''}</div></div>
-    <div class="seg mat-tabs" role="tablist">${TABS.map(([k, label]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="mat-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${flags[k] ? ` <span class="flag ${tab === k ? '' : 'warning'}">${flags[k]}</span>` : ''}</button>`).join('')}</div>
+      <div class="actions">${headActions(ed)}</div></div>
+    ${tabBar({ action: 'mat-tab', current: tab, cls: 'mat-tabs', tabs: TAB_GROUPS.map((g) => (g.items ? { label: g.label, items: g.items.map((k) => tabOf(k, flags)) } : tabOf(g, flags))) })}
     ${body}`
 }
 
@@ -164,8 +203,8 @@ function stockTab() {
       <label class="field inline"><span>Suche</span><input type="search" id="mat-search" value="${esc(app.ui.matSearch || '')}" placeholder="Artikel, Nummer, Lieferant" data-input="mat-search"></label>
       <label class="check"><input type="checkbox" id="mat-only" ${app.ui.matOnly ? 'checked' : ''} data-change="mat-only"><span>nur nachbestellen</span></label>
       <span class="spacer"></span>
-      ${ed ? `${multi ? `<button class="btn small" data-action="mat-book-open" data-mode="umbuchung">Umbuchen</button>` : ''}<button class="btn small" data-action="mat-inventory-open">Inventur</button><button class="btn small" data-action="mat-article-open">${ICON.plus} Artikel</button>` : ''}
-      <button class="btn small" data-action="mat-stock-csv">${ICON.download} CSV</button>
+      ${ed ? `<button class="btn small" data-action="mat-article-open">${ICON.plus} Artikel</button>` : ''}
+      ${rowMenu([ed && multi && { label: 'Umbuchen', action: 'mat-book-open', data: { mode: 'umbuchung' } }, ed && { label: 'Inventur', icon: ICON.check, action: 'mat-inventory-open' }, ed && '-', { label: 'Bestand als CSV', icon: ICON.download, action: 'mat-stock-csv' }], 'Weitere Aktionen zum Bestand')}
     </div>
     ${body ? `<div class="table-wrap"><table class="data mat-stock"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>` : '<p class="empty">Kein Artikel passt zu dieser Auswahl.</p>'}`
 }

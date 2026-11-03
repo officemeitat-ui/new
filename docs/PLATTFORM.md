@@ -461,6 +461,28 @@ Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Ze
 - **Springen zu …** (oder Strg+K) findet Bereiche auch unter Alltagswörtern („Urlaub“, „Rechnung“, „Radar“, „Stempeln“), dazu Personen, Objekte und Fahrzeuge.
 - Am Handy ist das Menü „Mehr“ gleich gegliedert, mit Suche oben.
 
+**Aufklappmenüs in den Ansichten.** Damit die Kopfzeilen nicht mit Knöpfen zugepflastert sind, bleibt je Ansicht nur das Wichtigste direkt sichtbar (z. B. „+ Rechnung“, „Ausgabe“, „Unterweisung durchführen“); der Rest steckt gegliedert in Aufklappmenüs:
+
+| Ansicht | direkt | Aufklappmenüs |
+|---|---|---|
+| Fakturierung | + Rechnung | **Anlegen** (Beleg: Angebot, Auftragsbestätigung, Dauerauftrag, aus Leistungsnachweis · Stammdaten: Kunde, Artikel), **Export** (Steuerberatung, Kontoauszug) |
+| Material & Lager | Ausgabe | **Buchen** (Wareneingang, Umbuchen, Inventur), **Anlegen** (Anforderung, Bestellung · Stammdaten: Artikel, Lieferant, Lager, Excel-Liste), **Export** (Bestand, Verbrauch) |
+| Fahrzeuge | + Fahrzeug | **Verwalten** (Werkstätten, Excel-Liste · Export CSV); je Zeile Termin/Erledigt, dahinter **⋯** (Termin ändern, Fahrer/in informieren, bearbeiten) |
+| Schlüsselbuch | Ausgeben, Rückgabe | **Mehr** (Schlüssel anlegen · Export CSV) |
+| Unterweisungen | Unterweisung durchführen | **Mehr** (einzeln eintragen, Arten verwalten · Export CSV) |
+| Zeiterfassung | Zeit nachtragen, Woche freigeben | **Mehr** (alle Abweichungen übernehmen, jetzt abrufen · Export CSV) |
+| Wochenzettel, Monatsauswertung, Überstunden | Versenden, Monat abschließen | **Export** (für Excel kopieren, Excel, PDF, CSV, Lohnprogramm · Drucken) |
+| Mitarbeitende | + Mitarbeiter:in | **Mehr** (Plan am Handy, aus Excel einfügen) |
+| Kalkulation | Angebot (PDF) | **Mehr** (Kalkulation intern, als Budget übernehmen) |
+| Leistungsnachweis | je Zeile „Ansehen“ | **⋯** je Zeile (PDF, E-Mail) |
+
+- **Reiter gruppiert:** Fakturierung hat statt neun Reitern fünf: Übersicht · **Belege ▾** (Rechnungen, Angebote & Aufträge, Daueraufträge) · **Zahlungen ▾** (Offene Posten, Bank) · **Stammdaten ▾** (Kunden, Artikel) · Einstellungen. Material: Bestand · Bestellen · Anforderungen · **Auswertung ▾** (Verbrauch, Buchungen) · Lieferanten & Lager. Der gewählte Unterpunkt steht im Reiter („Zahlungen: Offene Posten“), Zähler werden je Gruppe zusammengezählt.
+- **Bereich oben in der Kopfleiste** („Finanzen ▾ / Fakturierung“): ein Klick zeigt alle Ansichten dieses Bereichs mit Zählern und wechselt direkt dorthin, ohne Seitenleiste.
+- **„⋯“ oben rechts** ist gegliedert: *Diese Woche* (Veröffentlichen, Neu planen, Versenden), *App* (Jetzt abgleichen mit letztem Stand, Daten & Sicherung, Darstellung, Tastenkürzel), *Konto* (Abmelden).
+- **Bedienung:** Es ist immer nur ein Menü offen; ein Klick daneben, ein Bildlauf oder **Esc** schließt es (Esc schließt erst das Menü, nicht gleich den Dialog dahinter). Mit der Tastatur: **Pfeil runter** öffnet und springt in die Liste, Pfeile, Pos1 und Ende wandern, Tab verlässt das Menü. Menüs passen sich dem Platz an (nach oben oder zur anderen Seite) und werden in Tabellen nicht abgeschnitten.
+- **Am Handy** gehen Menüs als Blatt von unten auf (große Einträge, Hintergrund abgedunkelt; Tipp daneben schließt).
+- Was eine Rolle nicht darf, fehlt auch im Menü; bleibt nur ein Eintrag übrig, erscheint er als normaler Knopf.
+
 ## Wetter & Winterdienst
 
 Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.

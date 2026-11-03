@@ -85,6 +85,23 @@ registerView({
 
 In `src/ui/views/index.js` importieren, fertig. `c` ist die berechnete Woche (Einsätze, Prüfung, Wochenzettel über `c.timesheet(emp)`). Klicks laufen über `data-action="name"` und `registerActions({ name: (el) => … }, { edit: 'planung' })`. Mit `edit: '<Modul>'` (oder einer Liste, `'*'` = nur Vollzugriff) ist die Aktion ohne Schreibrecht in diesem Bereich gesperrt, egal aus welcher Ansicht sie kommt (Suche und Übersicht öffnen Dialoge aller Bereiche). Dialoge geben ihren Bereich mit: `registerModal('typ', render, { module: 'planung' })`; dann blendet die App `.edit-only` im Dialog nach diesem Recht aus. `edit: true` richtet sich nur nach der aktuellen Ansicht und passt nur für Aktionen, die es ausschließlich dort gibt. Änderungen an `app.data` mit `persist()` speichern und mit `renderNow()` neu zeichnen.
 
+**Knöpfe gliedern** (src/ui/shared.js, Verhalten in src/ui/menus.js): Neben dem einen Hauptknopf kommen weitere Aktionen in ein Aufklappmenü, seltene Zeilen-Aktionen in „⋯“, viele Reiter in Gruppen.
+
+```js
+import { menu, rowMenu, tabBar, ICON } from '../shared.js'
+
+menu({ label: 'Export', icon: ICON.download, items: [
+  { heading: 'Liste' },                                      // Überschrift
+  { label: 'CSV', action: 'keys-csv', hint: 'für Excel' },   // label/hint sind HTML (Daten mit esc)
+  ed && { label: 'Löschen', action: 'keys-del', data: { id }, danger: true }, // false fällt weg
+  '-',                                                       // Trennlinie
+] })
+rowMenu([{ label: 'PDF', action: 'x-pdf', data: { id } }])    // „⋯“ in einer Tabellenzeile
+tabBar({ action: 'x-tab', current, tabs: ['a', { label: 'Gruppe', items: [{ id: 'b', label: 'B', flag: 2 }] }].map(…) })
+```
+
+Leere Menüs ergeben `''`, ein einzelner Eintrag wird als normaler Knopf gezeigt; Überschriften ohne Einträge darunter fallen weg. Einträge rufen die Aktion wie ein Knopf (`data` landet in `el.dataset`).
+
 ## Andere Ablage (z. B. eigene Datenbank)
 
 Eine Ablage braucht vier Methoden, siehe `docstore-local.js`:

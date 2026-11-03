@@ -10,7 +10,7 @@ import { mergeRules } from '../../core/rules.js'
 import { calcDocument, calcPdfName, offerDocument } from '../../export/calc-pdf.js'
 import { app, canEdit, closeModal, computeRange, openModal, persist, registerActions, registerModal, registerView, renderNow, toast } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { download, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
 
 const MODULE = 'auswertung'
 const doc = () => (app.data.kalkulation ||= { settings: {}, objects: {} })
@@ -78,7 +78,14 @@ function calcView() {
       ${tile('Budget im Objekt', budget ? `${de(budget)} h` : '–', diff(budget))}
       ${tile('Laut Reinigungsplan', planned === null ? '–' : `${de(planned)} h`, diff(planned))}
     </div>
-    <div class="actions">${canEdit('stammdaten') || canEdit('planung') ? `<button class="btn" data-action="calc-budget" ${calc.hours ? '' : 'disabled'} title="Stunden der Kalkulation als Budget (Sollstunden/Monat) ins Objekt übernehmen">Als Budget übernehmen</button>` : ''}<button class="btn" data-action="calc-pdf" data-kind="Kalkulation" ${calc.hours ? '' : 'disabled'}>${ICON.download} Kalkulation (intern)</button><button class="btn primary" data-action="calc-pdf" data-kind="Angebot" ${calc.hours ? '' : 'disabled'}>${ICON.download} Angebot (PDF)</button></div>
+    <div class="actions">${menu({
+      label: 'Mehr',
+      single: false,
+      items: [
+        { label: 'Kalkulation (intern, PDF)', icon: ICON.download, action: 'calc-pdf', data: { kind: 'Kalkulation' }, disabled: !calc.hours, hint: 'mit Lohn, Zuschlägen und Marge' },
+        (canEdit('stammdaten') || canEdit('planung')) && { label: 'Als Budget übernehmen', action: 'calc-budget', disabled: !calc.hours, hint: 'Sollstunden je Monat ins Objekt' },
+      ],
+    })}<button class="btn primary" data-action="calc-pdf" data-kind="Angebot" ${calc.hours ? '' : 'disabled'}>${ICON.download} Angebot (PDF)</button></div>
     <details class="calc-steps"><summary>So rechnet die Kalkulation</summary><table class="data"><tbody>${calc.steps.map((st) => `<tr><td>${esc(st.label)}</td><td class="num">${st.pct === null ? '' : `${de(st.pct)} %`}</td><td class="num">${eur(st.amount)}</td></tr>`).join('')}<tr><td><strong>Verrechnungssatz netto</strong></td><td></td><td class="num"><strong>${eur(calc.rate)}</strong></td></tr></tbody></table>
       <p class="note">Je Fläche: m² ÷ Leistungswert × Reinigungen je Woche × 4,33 Wochen; dazu Rüst- und Nebenzeiten. Die Zuschläge laufen nacheinander (jeder auf die Summe davor). Leistungswerte und Zuschläge unter „Grundlagen“; Richtwerte, mit der eigenen Erfahrung abgleichen.</p></details>`
 }

@@ -5,7 +5,7 @@ import { correctionsInMonth } from '../../core/attention.js'
 import { formatDate, formatHours, isoWeek, MONTH_LONG } from '../../core/dates.js'
 import { monthReport, PAYROLL_COLUMNS, timeAccount, toCSV } from '../../core/reports.js'
 import { app, empName, registerActions, registerView } from '../context.js'
-import { download, esc, ICON, saldoClass, signed } from '../shared.js'
+import { download, esc, ICON, menu, saldoClass, signed } from '../shared.js'
 import { copyText } from './sheet.js'
 import { filterBar, filteredEmployees } from './week.js'
 import { monthPicker } from './controlling.js'
@@ -36,7 +36,15 @@ function payrollView(c) {
   const [y, m] = c.month.split('-').map(Number)
   return `<div class="section-head"><div><h2>Monatsauswertung ${MONTH_LONG[m - 1]} ${y}</h2><p>Grundlage für die Lohnverrechnung: geleistete Stunden, Fahrzeit, Sonn- und Feiertagsstunden mit Zuschlag, Nachtarbeit, angerechnete Feiertage, Urlaub und Krankenstand. Die Zuordnung zu Lohnarten erfolgt beim Import in BMD/RZL. Das Monats-Soll ist rechnerisch (je Werktag Mo–Fr ein Fünftel der Wochenstunden); wer auch am Wochenende arbeitet, hat deshalb je nach Monat einen anderen Monatssaldo. Maßgeblich für Mehr- und Überstunden ist das Zeitkonto je Woche.</p></div>${monthPicker(c)}</div>
     ${filterBar(c, { problems: false })}
-    <div class="toolbar"><button class="btn" data-action="view" data-view="overtime">Überstunden & Auszahlung</button><button class="btn" data-action="payroll-copy">${ICON.copy} Für Excel kopieren</button>${app.config.features.download ? `<button class="btn" data-action="payroll-csv">${ICON.sheet} CSV für Lohnverrechnung</button>` : ''}</div>
+    <div class="toolbar"><button class="btn" data-action="view" data-view="overtime">Überstunden & Auszahlung</button>${menu({
+      label: 'Export',
+      icon: ICON.download,
+      single: false,
+      items: [
+        { label: 'Für Excel kopieren', icon: ICON.copy, action: 'payroll-copy', hint: 'in die Zwischenablage' },
+        app.config.features.download && { label: 'CSV für Lohnverrechnung', icon: ICON.sheet, action: 'payroll-csv' },
+      ],
+    })}</div>
     <div class="table-wrap"><table class="data payroll"><thead><tr><th>Mitarbeiter:in</th><th>Soll</th><th>Gearbeitet</th><th>Fahrzeit</th><th>Sonn-/Feiertag</th><th>Nacht</th><th>Feiertag angerechnet</th><th>Urlaub</th><th>Krankenstand</th><th>Ist</th><th>Saldo</th><th>Zeitkonto</th></tr></thead><tbody>${body}</tbody></table></div>
     <p class="note">Soll = Wochenstunden / 5 je Werktag (Mo–Fr) im Monat. Wochen, die noch nicht eingeteilt sind, zählen nur mit Anrechnungen. Zeitkonto = Startsaldo + veröffentlichte Wochen (inkl. gebuchter Korrekturen).</p>
     ${correctionsSection(c)}`

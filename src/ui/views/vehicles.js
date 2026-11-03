@@ -16,7 +16,7 @@ import { activeVehicles, applyDone, campaignFor, campaignSummary, changeWhat, co
 import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { canMail } from '../modals/send.js'
 import { registerTodo } from '../modals/todo.js'
-import { download, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { download, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
 
 const MODULE = 'fahrzeuge'
 const FZ = () => {
@@ -97,7 +97,17 @@ function sectionHead(total) {
   const serviceOpen = serviceRows(today).filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length
   return `<div class="section-head"><div><h2>${ICON.car} Fahrzeuge &amp; Reifen</h2>
       <p>Firmenfahrzeuge mit Fahrer/in, Reifen, Service und Pickerl. Termine werden neben den Diensten vorgeschlagen, Fahrer/innen bekommen eine E-Mail mit Kalendertermin, die Werkstatt eine Sammelliste.</p></div>
-      <div class="actions">${editable() ? `<button class="btn" data-action="veh-edit-open">${ICON.plus} Fahrzeug</button><button class="btn" data-action="veh-ws-open">Werkstätten (${FZ().workshops.length})</button><button class="btn" data-action="veh-import-open">${ICON.upload} Liste einfügen</button>` : ''}${total && canDownload() ? `<button class="btn" data-action="veh-csv">${ICON.download} CSV</button>` : ''}</div></div>
+      <div class="actions">${editable() ? `<button class="btn" data-action="veh-edit-open">${ICON.plus} Fahrzeug</button>` : ''}${menu({
+        label: 'Verwalten',
+        icon: ICON.gear,
+        single: false,
+        items: [
+          editable() && { label: `Werkstätten (${FZ().workshops.length})`, action: 'veh-ws-open', hint: 'Adresse, E-Mail, Öffnungszeiten' },
+          editable() && { label: 'Liste aus Excel einfügen', icon: ICON.upload, action: 'veh-import-open' },
+          total && canDownload() && { heading: 'Export' },
+          total && canDownload() && { label: 'Fahrzeugliste (CSV)', icon: ICON.download, action: 'veh-csv' },
+        ],
+      })}</div></div>
     ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`
 }
 
@@ -125,11 +135,17 @@ function vehiclesView() {
           ${c.status === 'geplant' ? `<br>${informed(c) ? '<span class="pill ok">✓ informiert</span>' : '<span class="pill warning">noch nicht informiert</span>'}${informed(c, 'werkstatt') ? ' <span class="pill info">Werkstatt</span>' : ''}` : ''}
           ${clash.length ? `<br><span class="check warning">⚠ ${esc(clash.map((x) => x.text).join('; '))}</span>` : ''}${st.early ? '<br><span class="check warning">⚠ vor dem 16. April</span>' : ''}`
         : '<span class="muted">–</span>'
+      const booked = st.status === 'geplant' || st.status === 'vorbei'
       const acts = editable()
-        ? `${['offen', 'ueberfaellig'].includes(st.status) ? `<button class="btn small primary" data-action="veh-plan-open" data-id="${esc(v.id)}">${ICON.calendar} Termin</button>` : ''}
-          ${st.status === 'geplant' || st.status === 'vorbei' ? `<button class="btn small ${st.status === 'vorbei' ? 'primary' : ''}" data-action="veh-done-open" data-change="${esc(c.id)}">${ICON.check} Erledigt</button> <button class="btn small" data-action="veh-plan-open" data-id="${esc(v.id)}" data-change="${esc(c.id)}">Ändern</button>` : ''}
-          ${st.status === 'geplant' ? `<button class="btn small" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(c.id)}">${ICON.send} Mail</button>` : ''}
-          <button class="btn small" data-action="veh-edit-open" data-id="${esc(v.id)}">Bearbeiten</button>`
+        ? `${['offen', 'ueberfaellig'].includes(st.status) ? `<button class="btn small primary" data-action="veh-plan-open" data-id="${esc(v.id)}">${ICON.calendar} Termin</button>` : ''}${booked ? `<button class="btn small ${st.status === 'vorbei' ? 'primary' : ''}" data-action="veh-done-open" data-change="${esc(c.id)}">${ICON.check} Erledigt</button>` : ''} ${rowMenu(
+            [
+              booked && { label: 'Termin ändern', icon: ICON.calendar, action: 'veh-plan-open', data: { id: v.id, change: c.id } },
+              st.status === 'geplant' && { label: 'Fahrer/in per E-Mail informieren', icon: ICON.send, action: 'veh-mail-open', data: { kind: 'fahrer', ids: c.id } },
+              booked && '-',
+              { label: 'Fahrzeug bearbeiten', icon: ICON.car, action: 'veh-edit-open', data: { id: v.id } },
+            ],
+            `Weitere Aktionen für ${v.plate}`,
+          )}`
         : ''
       return `<tr><td><strong>${esc(v.plate)}</strong><br><span class="muted">${esc([v.label, VEHICLE_KINDS[v.kind]?.label].filter(Boolean).join(' · '))}</span></td>
         <td>${driver ? esc(driver.name) : '<span class="muted">ohne feste/n Fahrer/in</span>'}${driver && !driver.email ? '<br><span class="muted">keine E-Mail</span>' : ''}</td>
@@ -204,9 +220,15 @@ function serviceView() {
         ? `${formatDate(change.date)} ${esc(change.time)}<br><span class="muted">${esc(wsOf(change.workshopId)?.name || '')} · ${esc(changeWhat(change, v))}</span><br>${informed(change) ? '<span class="pill ok">✓ informiert</span>' : '<span class="pill warning">noch nicht informiert</span>'}${clash.length ? `<br><span class="check warning">⚠ ${esc(clash.map((x) => x.text).join('; '))}</span>` : ''}${change.date < today ? '<br><span class="check warning">Termin vorbei, bitte bestätigen</span>' : ''}`
         : '<span class="muted">–</span>'
       const acts = editable()
-        ? `${open.length && !change ? `<button class="btn small primary" data-action="veh-plan-open" data-id="${esc(v.id)}" data-kind="werkstatt">${ICON.calendar} Werkstatttermin</button>` : ''}
-          ${change ? `<button class="btn small ${change.date < today ? 'primary' : ''}" data-action="veh-done-open" data-change="${esc(change.id)}">${ICON.check} Erledigt</button> <button class="btn small" data-action="veh-plan-open" data-id="${esc(v.id)}" data-change="${esc(change.id)}">Ändern</button> <button class="btn small" data-action="veh-mail-open" data-kind="fahrer" data-ids="${esc(change.id)}">${ICON.send} Mail</button>` : ''}
-          <button class="btn small" data-action="veh-km-open" data-id="${esc(v.id)}">km</button> <button class="btn small" data-action="veh-edit-open" data-id="${esc(v.id)}">Bearbeiten</button>`
+        ? `${open.length && !change ? `<button class="btn small primary" data-action="veh-plan-open" data-id="${esc(v.id)}" data-kind="werkstatt">${ICON.calendar} Werkstatttermin</button>` : ''}${change ? `<button class="btn small ${change.date < today ? 'primary' : ''}" data-action="veh-done-open" data-change="${esc(change.id)}">${ICON.check} Erledigt</button>` : ''} <button class="btn small" data-action="veh-km-open" data-id="${esc(v.id)}">km</button> ${rowMenu(
+            [
+              change && { label: 'Termin ändern', icon: ICON.calendar, action: 'veh-plan-open', data: { id: v.id, change: change.id } },
+              change && { label: 'Fahrer/in per E-Mail informieren', icon: ICON.send, action: 'veh-mail-open', data: { kind: 'fahrer', ids: change.id } },
+              change && '-',
+              { label: 'Fahrzeug bearbeiten', icon: ICON.car, action: 'veh-edit-open', data: { id: v.id } },
+            ],
+            `Weitere Aktionen für ${v.plate}`,
+          )}`
         : ''
       return `<tr><td><strong>${esc(v.plate)}</strong><br><span class="muted">${esc([v.label, classOf(v)].filter(Boolean).join(' · '))}</span></td>
         <td>${esc(empOf(v.driverId)?.name || '–')}</td>

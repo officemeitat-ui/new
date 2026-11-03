@@ -50,6 +50,90 @@ export const ICON = {
   refresh: svg('<path d="M13 3.5v3.2H9.8M3 12.5V9.3h3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 6.5A5 5 0 0 0 3.6 5M3.4 9.5a5 5 0 0 0 9 1.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
   snow: svg('<path d="M8 1.5v13M2.4 4.8l11.2 6.4M2.4 11.2l11.2-6.4M6.3 2.6 8 4.2l1.7-1.6M6.3 13.4 8 11.8l1.7 1.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>'),
   camera: svg('<path d="M2 5.5a1 1 0 0 1 1-1h2l1.2-1.7h3.6L11 4.5h2a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.5"/>'),
+  caret: svg('<path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'),
+  gear: svg('<circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
+  list: svg('<path d="M5.5 4h8M5.5 8h8M5.5 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="2.6" cy="4" r="1" fill="currentColor"/><circle cx="2.6" cy="8" r="1" fill="currentColor"/><circle cx="2.6" cy="12" r="1" fill="currentColor"/>'),
+}
+
+// ---------------------------------------------------------------- Aufklappmenüs
+// Verhalten (immer nur eines offen, Lage am Bildschirm, Pfeiltasten, am Handy als Blatt von
+// unten) steckt in menus.js; hier nur das HTML.
+
+const kebab = (k) => k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
+const dataAttrs = (data = {}) =>
+  Object.entries(data)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => ` data-${kebab(k)}="${esc(v)}"`)
+    .join('')
+
+/** Leere Einträge weg, Überschriften und Trennlinien nur, wenn danach noch Einträge kommen. */
+function tidyItems(items) {
+  const list = items.filter((x) => x && (x === '-' || x.heading || x.action))
+  const out = []
+  for (let i = 0; i < list.length; i++) {
+    const x = list[i]
+    if (x === '-' || x.heading) {
+      const next = list.slice(i + 1).find((y) => y === '-' || y.heading || y.action)
+      if (!next || next === '-' || next.heading || !out.length && x === '-') continue
+      if (x === '-' && out.at(-1) === '-') continue
+    }
+    out.push(x)
+  }
+  return out
+}
+
+/** Ein Eintrag im Menü. label und hint sind HTML (Nutzerdaten vorher mit esc). */
+function menuItem(x) {
+  if (x === '-') return '<hr class="menu-sep">'
+  if (x.heading) return `<div class="menu-head">${x.heading}</div>`
+  const cls = ['btn ghost', x.danger && 'danger', x.primary && 'strong', x.current && 'current'].filter(Boolean).join(' ')
+  const role = x.current !== undefined ? `role="menuitemradio" aria-checked="${!!x.current}"` : 'role="menuitem"'
+  return `<button class="${cls}" ${role} data-action="${esc(x.action)}"${dataAttrs(x.data)}${x.title ? ` title="${esc(x.title)}"` : ''}${x.disabled ? ' disabled' : ''}>${x.icon || ''}<span class="mi-label">${x.label}${x.hint ? `<small>${x.hint}</small>` : ''}</span>${x.flag ? `<span class="flag warning">${x.flag}</span>` : ''}${x.kbd ? `<kbd>${esc(x.kbd)}</kbd>` : ''}</button>`
+}
+
+/**
+ * Aufklappmenü (Dropdown) als <details class="menu-wrap">.
+ * items: { label, action, data?, icon?, hint?, title?, disabled?, danger?, flag?, kbd?, current? },
+ *        { heading: 'Export' } oder '-' (Trennlinie); false/null/'' fallen weg.
+ * Bleibt nur ein Eintrag übrig, wird er (single) direkt als Knopf gezeigt. Keiner: ''.
+ * btn: Klassen des Knopfs (primary, small, ghost, icon), cls: Klassen am Menü (start = links bündig).
+ */
+export function menu({ label = '', icon = '', title = '', btn = '', cls = '', items = [], single = true, caret = true, flag = 0 }) {
+  const list = tidyItems(items)
+  const acts = list.filter((x) => x !== '-' && !x.heading)
+  if (!acts.length) return ''
+  if (single && acts.length === 1) {
+    const x = acts[0]
+    return `<button class="btn ${btn.replace(/\b(icon|ghost)\b/g, '')} ${x.danger ? 'danger' : ''}" data-action="${esc(x.action)}"${dataAttrs(x.data)}${x.title ? ` title="${esc(x.title)}"` : ''}${x.disabled ? ' disabled' : ''}>${x.icon || ''}${x.label}</button>`
+  }
+  const tip = title ? ` title="${esc(title)}"${label ? '' : ` aria-label="${esc(title)}"`}` : ''
+  return `<details class="menu-wrap dd ${cls}"><summary class="btn ${btn}"${tip} aria-haspopup="menu">${icon}${label ? `<span class="dd-label">${label}</span>` : ''}${flag ? `<span class="flag warning">${flag}</span>` : ''}${caret ? `<span class="caret">${ICON.caret}</span>` : ''}</summary><div class="menu" role="menu">${list.map(menuItem).join('')}</div></details>`
+}
+
+/** „⋯“ am Ende einer Tabellenzeile oder Karte: seltene Aktionen. */
+export const rowMenu = (items, title = 'Weitere Aktionen') => menu({ icon: ICON.more, title, btn: 'small ghost icon', caret: false, items, cls: 'row-menu' })
+
+/**
+ * Reiter, auf Wunsch gruppiert: { id, label, flag? } ist ein Reiter, { label, items: [...] } eine
+ * Gruppe als Aufklappmenü (zeigt den gewählten Unterpunkt und die Summe der Zähler).
+ * action bekommt data-v = id.
+ */
+export function tabBar({ action, current, tabs, cls = '' }) {
+  const flagHtml = (n, on) => (n ? ` <span class="flag ${on ? '' : 'warning'}">${n}</span>` : '')
+  const html = tabs.filter(Boolean).map((t) => {
+    if (!t.items) {
+      const on = t.id === current
+      return `<button class="btn ${on ? 'primary' : ''}" data-action="${action}" data-v="${esc(t.id)}" role="tab" aria-selected="${on}">${t.label}${flagHtml(t.flag, on)}</button>`
+    }
+    const items = t.items.filter(Boolean)
+    if (!items.length) return ''
+    const active = items.find((i) => i.id === current)
+    const sum = items.reduce((s, i) => s + (Number(i.flag) || 0), 0)
+    return `<details class="menu-wrap dd tab-group start ${active ? 'active' : ''}"><summary class="btn ${active ? 'primary' : ''}" role="tab" aria-selected="${!!active}" aria-haspopup="menu"><span class="dd-label">${t.label}${active ? `<span class="tab-sub">: ${active.label}</span>` : ''}</span>${flagHtml(sum, !!active)}<span class="caret">${ICON.caret}</span></summary><div class="menu" role="menu">${items
+      .map((i) => menuItem({ label: i.label, hint: i.hint, action, data: { v: i.id }, flag: i.flag, current: i.id === current }))
+      .join('')}</div></details>`
+  })
+  return `<div class="seg tabbar ${cls}" role="tablist">${html.join('')}</div>`
 }
 
 export function objectOf(c, inst) {

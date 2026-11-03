@@ -13,7 +13,7 @@ import { addLog, app, canEdit, closeModal, compute, computeRange, confirmStep, e
 import { loadScript } from './load-script.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { loadLogo, pdfBlob } from './pdf.js'
-import { download, esc, ICON, modalFrame, options } from './shared.js'
+import { download, esc, ICON, menu, modalFrame, options } from './shared.js'
 import { call, portalSettings } from './staffplan.js'
 
 const stampsOf = () => (app.data.stamps ||= {})
@@ -202,7 +202,16 @@ function timesView(c) {
   const future = c.monday > current ? `<div class="banner"><p>Diese Woche liegt noch vor uns. <button class="btn small" data-action="nav-today">Zur aktuellen Woche</button></p></div>` : ''
   const pause = breaks.length ? `<div class="banner warn-banner"><p><strong>Ruhepause fehlt (§ 11 AZG: mehr als 6 Stunden, mindestens 30 Minuten):</strong> ${breaks.map((b) => `${esc(empName(b.empId))} ${esc(formatDate(b.date))} (${hm(b.minutes)} h)`).join(', ')}. Pause beim Eintrag ergänzen oder Einteilung prüfen.</p></div>` : ''
   const tabs = `<div class="filters tc-tabs"><button class="filter" data-action="tc-tab" data-tab="woche" aria-pressed="${tab === 'woche'}">Woche</button><button class="filter" data-action="tc-tab" data-tab="monat" aria-pressed="${tab === 'monat'}">Monat je Person</button></div>`
-  const actions = `${ed ? `<button class="btn primary" data-action="tc-edit-open">${ICON.plus} Zeit nachtragen</button>` : ''}${ed && tab === 'woche' && toApprove.length ? `<button class="btn" data-action="tc-approve" title="Alle vollständigen Zeiten der Woche als geprüft markieren">${ICON.check} Woche freigeben (${toApprove.length})</button>` : ''}${ed && tab === 'woche' && toAdopt.length > 1 ? `<button class="btn" data-action="tc-adopt-all" title="Alle Abweichungen über der Toleranz in den Plan übernehmen">Alle ${toAdopt.length} Abweichungen übernehmen</button>` : ''}${on() ? `<button class="btn" data-action="tc-sync">${ICON.refresh} Jetzt abrufen</button>` : ''}${tab === 'woche' ? `<button class="btn" data-action="tc-csv">${ICON.download} CSV</button>` : ''}`
+  const actions = `${ed ? `<button class="btn primary" data-action="tc-edit-open">${ICON.plus} Zeit nachtragen</button>` : ''}${ed && tab === 'woche' && toApprove.length ? `<button class="btn" data-action="tc-approve" title="Alle vollständigen Zeiten der Woche als geprüft markieren">${ICON.check} Woche freigeben (${toApprove.length})</button>` : ''}${menu({
+    label: 'Mehr',
+    single: false,
+    items: [
+      ed && tab === 'woche' && toAdopt.length > 1 && { label: `Alle ${toAdopt.length} Abweichungen übernehmen`, action: 'tc-adopt-all', hint: 'Ist-Zeiten über der Toleranz in den Plan' },
+      on() && { label: 'Jetzt abrufen', icon: ICON.refresh, action: 'tc-sync', hint: 'neue Stempelungen vom Webspace' },
+      tab === 'woche' && { heading: 'Export' },
+      tab === 'woche' && { label: 'Woche als CSV', icon: ICON.download, action: 'tc-csv' },
+    ],
+  })}`
   const week = `<div class="impact-stats tc-stats">${tile('Passt', count('ok'))}${tile('Später / früher', count('spaet') + count('frueh'), count('spaet') + count('frueh') ? 'warn' : '')}${tile('Nicht eingestempelt', count('fehlt'), count('fehlt') ? 'err' : '')}${tile('Noch offen', count('offen'))}${tile('Zur Freigabe', toApprove.length, toApprove.length ? 'warn' : '')}</div>${weekTable(c, rows, ed)}
     <p class="note">„Nicht eingestempelt“ gilt nur für Personen, die die Zeiterfassung schon benutzen. Toleranz 10 Minuten. Nachträge und Korrekturen brauchen einen Grund und bleiben mit dem früheren Stand nachvollziehbar. „Ist übernehmen“ setzt Beginn und Ende des Einsatzes an diesem Tag auf die erfassten Zeiten (nur bei einer Person im Einsatz); in veröffentlichten Wochen danach die Korrektur buchen.</p>`
   return `<div class="section-head"><div><h2>Zeiterfassung ${tab === 'woche' ? `KW ${isoWeek(c.monday).week}` : ''}</h2><p>Kommen und Gehen laut QR-Code im Objekt neben dem Plan, Nachträge des Büros, Freigabe und Monatsliste je Person.</p></div>

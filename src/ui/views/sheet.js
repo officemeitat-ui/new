@@ -6,7 +6,7 @@ import { maxSeverity } from '../../core/rules.js'
 import { buildTimesheetWorkbook, weekFileBase, workbookBlob } from '../../export/excel.js'
 import { app, registerActions, registerView, renderNow, toast } from '../context.js'
 import { loadScript } from '../load-script.js'
-import { download, esc, hoursCell, ICON, saldoClass, signed } from '../shared.js'
+import { download, esc, hoursCell, ICON, menu, saldoClass, signed } from '../shared.js'
 import { reportRow } from './report.js'
 import { filteredEmployees } from './week.js'
 
@@ -64,10 +64,19 @@ function sheetView(c) {
       <button class="btn icon" data-action="sheet-step" data-delta="-1" aria-label="Vorherige Person" ${idx <= 0 ? 'disabled' : ''}>${ICON.left}</button>
       <select id="ts-employee" aria-label="Mitarbeiter:in">${list.map((e) => `<option value="${esc(e.id)}" ${e.id === emp.id ? 'selected' : ''}>${esc(e.name)}${e.team ? ` (${esc(e.team)})` : ''}</option>`).join('')}</select>
       <button class="btn icon" data-action="sheet-step" data-delta="1" aria-label="Nächste Person" ${idx >= list.length - 1 ? 'disabled' : ''}>${ICON.right}</button>
-      <button class="btn" data-action="copy-sheet">${ICON.copy} Für Excel kopieren</button>
-      ${f.download ? `<button class="btn" data-action="excel-sheet">${ICON.sheet} Excel</button>` : ''}
-      ${f.pdf && f.download ? `<button class="btn" data-action="send-pdf" data-emp="${esc(emp.id)}">${ICON.sheet} PDF</button>` : ''}
-      ${f.print ? `<button class="btn" data-action="print-sheet">${ICON.print} Drucken</button><button class="btn" data-action="print-all">${ICON.print} Alle ${list.length} drucken</button>` : ''}
+      ${menu({
+        label: 'Export',
+        icon: ICON.download,
+        single: false,
+        items: [
+          { label: 'Für Excel kopieren', icon: ICON.copy, action: 'copy-sheet', hint: 'in die Zwischenablage' },
+          f.download && { label: 'Excel-Datei', icon: ICON.sheet, action: 'excel-sheet' },
+          f.pdf && f.download && { label: 'PDF', icon: ICON.sheet, action: 'send-pdf', data: { emp: emp.id } },
+          f.print && { heading: 'Drucken' },
+          f.print && { label: `${esc(emp.name)} drucken`, icon: ICON.print, action: 'print-sheet' },
+          f.print && { label: `Alle ${list.length} drucken`, icon: ICON.print, action: 'print-all' },
+        ],
+      })}
       ${f.pdf ? `<button class="btn" data-action="open-send">${ICON.send} Versenden</button>` : ''}
       <button class="btn edit-only" data-action="open-absence-new" data-emp="${esc(emp.id)}" data-date="${esc(c.monday)}">${ICON.plus} Abwesenheit</button>
       ${changed ? `<span class="pill warning">nach Veröffentlichung geändert</span>${c.monday <= todayISO() ? ' <button class="btn small primary edit-only" data-action="open-publish">Korrektur buchen</button>' : ''}` : ''}

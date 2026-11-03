@@ -68,7 +68,7 @@ import { registerTodo } from '../modals/todo.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, euro, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { checked, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 
 const MODULE = 'fakturierung'
 const ICON_INVOICE = '<path d="M6 2.5h12v19l-3-2-3 2-3-2-3 2z"/><path d="M9 7.5h6M9 11h6M9 14.5h3.5"/>'
@@ -130,6 +130,36 @@ const TABS = [
   ['artikel', 'Artikel'],
   ['einstellungen', 'Einstellungen'],
 ]
+// Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel'] }, 'einstellungen']
+const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
+
+/** Neben „+ Rechnung“: weitere Belege anlegen, Übernahmen, Export. */
+function headMenus(ed) {
+  const proofOk = sees('planung')
+  return `${menu({
+    label: 'Anlegen',
+    icon: ICON.plus,
+    items: [
+      ed && { heading: 'Beleg' },
+      ed && { label: 'Angebot', action: 'fak-new', data: { kind: 'angebot' } },
+      ed && { label: 'Auftragsbestätigung', action: 'fak-new', data: { kind: 'auftrag' } },
+      ed && { label: 'Dauerauftrag', action: 'fak-rec-open', hint: 'monatlich, quartalsweise … abrechnen' },
+      ed && proofOk && { label: 'Aus Leistungsnachweis', action: 'fak-proof-open', hint: 'Entwürfe je Objekt und Monat' },
+      ed && { heading: 'Stammdaten' },
+      ed && { label: 'Kunde', action: 'fak-cust-open' },
+      ed && { label: 'Artikel / Leistung', action: 'fak-art-open' },
+    ],
+    single: false,
+  })}${menu({
+    label: 'Export',
+    icon: ICON.download,
+    items: [
+      { label: 'Export Steuerberatung', action: 'fak-export-open', hint: 'Belege und Zahlungen als CSV' },
+      ed && { label: 'Kontoauszug einlesen', action: 'fak-tab', data: { v: 'bank' }, hint: 'camt.053 oder CSV im Reiter Bank' },
+    ],
+  })}`
+}
 
 function counts() {
   const d = F()
@@ -158,9 +188,9 @@ function invoicingView() {
   const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
-      <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button><button class="btn" data-action="fak-new" data-kind="angebot">${ICON.plus} Angebot</button>` : ''}</div></div>
+      <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
     ${setup && tab !== 'einstellungen' ? `<div class="banner warn-banner"><p><strong>Noch nicht eingerichtet:</strong> Firmenname, Anschrift, UID und Bankverbindung für die Belege fehlen.</p>${ed ? '<button class="btn primary" data-action="fak-tab" data-v="einstellungen">Einstellungen</button>' : ''}</div>` : ''}
-    <div class="seg fak-tabs" role="tablist">${TABS.map(([k, label]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="fak-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${flags[k] ? ` <span class="flag ${tab === k ? '' : 'warning'}">${flags[k]}</span>` : ''}</button>`).join('')}</div>
+    ${tabBar({ action: 'fak-tab', current: tab, cls: 'fak-tabs', tabs: TAB_GROUPS.map((g) => (g.items ? { label: g.label, items: g.items.map((k) => tabOf(k, flags)) } : tabOf(g, flags))) })}
     ${body}`
 }
 
