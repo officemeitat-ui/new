@@ -54,6 +54,32 @@ export async function withSystem<T>(
   });
 }
 
+/**
+ * Resolves what a signed-in user belongs to (memberships, tenants, partner roles) before a
+ * tenant is selected. Sees only rows of this user.
+ */
+export async function withUser<T>(
+  db: Database,
+  userId: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  assertUuid(userId, "userId");
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
+    return fn(tx);
+  });
+}
+
+/**
+ * Adds a tenant to the context of an open transaction. Only for server-side flows that
+ * legitimately act on a tenant they just created or verified (e.g. partner provisioning,
+ * accepting an invitation) and must stay in one transaction.
+ */
+export async function enterTenant(tx: Tx, tenantId: string): Promise<void> {
+  assertUuid(tenantId, "tenantId");
+  await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
+}
+
 function assertUuid(value: string, name: string): void {
   if (!isUuid(value)) throw new Error(`${name} ist keine gültige UUID.`);
 }

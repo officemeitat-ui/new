@@ -4,11 +4,18 @@ import { BrandMark } from "@/components/shell/brand-mark";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { SidebarNav } from "@/components/shell/sidebar-nav";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { UserMenu } from "@/components/shell/user-menu";
 import { getBrand } from "@/lib/brand";
+import { getAppContext } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const t = await getTranslations("app");
   const { productName } = getBrand();
+  const ctx = await getAppContext();
+  const isPartner = Boolean(ctx.partner);
+  const tenants = ctx.overview.tenants
+    .filter((tenant) => tenant.status === "active")
+    .map(({ tenantId, name }) => ({ tenantId, name }));
 
   return (
     <div className="flex min-h-dvh">
@@ -23,7 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <div className="px-2 pt-1">
           <BrandMark productName={productName} />
         </div>
-        <SidebarNav />
+        <SidebarNav isPartner={isPartner} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -32,9 +39,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <BrandMark productName={productName} compact />
           </div>
           <div className="flex min-w-0 flex-1 justify-end md:justify-start">
-            <CommandPalette />
+            <CommandPalette isPartner={isPartner} />
           </div>
           <ThemeToggle />
+          <UserMenu
+            user={{ name: ctx.user.name, email: ctx.user.email }}
+            tenants={tenants}
+            activeTenantId={ctx.tenant?.tenantId ?? null}
+          />
         </header>
         <main id="main" className="flex-1 px-4 py-6 md:px-8 md:py-8">
           {children}

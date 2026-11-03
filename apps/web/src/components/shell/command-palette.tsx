@@ -8,14 +8,14 @@ import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useTransition } from "react";
 import { setLocale } from "@/app/actions/locale";
-import { NAV_ITEMS } from "./nav";
+import { visibleNavItems } from "./nav";
 
 const itemClass =
   "flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm aria-selected:bg-accent aria-selected:text-accent-foreground [&_svg]:size-4 [&_svg]:text-muted-foreground";
 const groupClass =
   "px-2 py-1.5 [&_[cmdk-group-heading]]:px-1 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground";
 
-export function CommandPalette() {
+export function CommandPalette({ isPartner }: { isPartner: boolean }) {
   const t = useTranslations("commandPalette");
   const tNav = useTranslations("nav");
   const router = useRouter();
@@ -74,20 +74,22 @@ export function CommandPalette() {
             {t("empty")}
           </Command.Empty>
           <Command.Group heading={t("navigation")} className={groupClass}>
-            {NAV_ITEMS.filter((item) => item.available).map((item) => {
-              const Icon = item.icon;
-              return (
-                <Command.Item
-                  key={item.key}
-                  value={tNav(item.key)}
-                  onSelect={() => run(() => router.push(item.href))}
-                  className={itemClass}
-                >
-                  <Icon aria-hidden />
-                  {tNav(item.key)}
-                </Command.Item>
-              );
-            })}
+            {visibleNavItems(isPartner)
+              .filter((item) => item.available)
+              .map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Command.Item
+                    key={item.key}
+                    value={tNav(item.key)}
+                    onSelect={() => run(() => router.push(item.href))}
+                    className={itemClass}
+                  >
+                    <Icon aria-hidden />
+                    {tNav(item.key)}
+                  </Command.Item>
+                );
+              })}
           </Command.Group>
           <Command.Group heading={t("preferences")} className={groupClass}>
             <Command.Item onSelect={() => run(() => setTheme("light"))} className={itemClass}>

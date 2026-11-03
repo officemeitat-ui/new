@@ -59,5 +59,131 @@
     "unexpectedTitle": "Something went wrong",
     "unexpectedDescription": "The error has been logged. Please try again.",
     "retry": "Try again"
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "loginDescription": "Welcome back. Sign in with your email address.",
+    "email": "Email address",
+    "password": "Password",
+    "signIn": "Sign in",
+    "sendMagicLink": "Send sign-in link",
+    "useMagicLink": "Sign in with an email link instead",
+    "usePassword": "Sign in with password",
+    "invalidCredentials": "Email address or password is incorrect.",
+    "tooManyAttempts": "Too many attempts. Please wait a minute.",
+    "magicLinkFailed": "The link could not be sent. Please check the address.",
+    "magicLinkSentTitle": "Please check your inbox",
+    "magicLinkSentDescription": "If an account exists for this address, we sent you a sign-in link. It is valid for 10 minutes.",
+    "signInMicrosoft": "Sign in with Microsoft",
+    "signInGoogle": "Sign in with Google",
+    "noSelfSignup": "No account yet? Your administrator grants access by invitation."
+  },
+  "invite": {
+    "title": "Invitation to {tenant}",
+    "description": "This invitation is for {email}.",
+    "invalidTitle": "Invitation not valid",
+    "invalidDescription": "This link has expired, was already used or was revoked. Please ask for a new invitation.",
+    "wrongAccount": "You are signed in as {email}. Sign out and open the link again.",
+    "signOut": "Sign out",
+    "accept": "Accept invitation",
+    "existingAccount": "An account already exists for this address. Sign in to accept the invitation.",
+    "signInToAccept": "Sign in and accept",
+    "name": "Your name",
+    "password": "Choose a password",
+    "passwordConfirm": "Repeat password",
+    "passwordTooShort": "The password needs at least {min} characters.",
+    "passwordMismatch": "The passwords do not match.",
+    "signUpFailed": "The account could not be created. Please try again.",
+    "createAccount": "Create account and join"
+  },
+  "selectTenant": {
+    "title": "Choose a company",
+    "description": "Your account belongs to several companies. Which one do you want to work with?"
+  },
+  "noAccess": {
+    "title": "No access yet",
+    "description": "Your account is not assigned to a company yet. Ask your administrator for an invitation.",
+    "signOut": "Sign out"
+  },
+  "userMenu": {
+    "open": "Open user menu",
+    "tenants": "Switch company",
+    "signOut": "Sign out"
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "member": "Member"
+  },
+  "plans": {
+    "starter": "Starter",
+    "business": "Business",
+    "enterprise": "Enterprise"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Administration for {tenant}",
+    "tabs": {
+      "label": "Settings sections",
+      "members": "Members",
+      "audit": "Audit log"
+    },
+    "members": {
+      "inviteTitle": "Invite someone",
+      "inviteDescription": "The invitation is sent by email and is valid for 7 days.",
+      "email": "Email address",
+      "role": "Role",
+      "invite": "Invite",
+      "listTitle": "{count, plural, =1 {1 member} other {# members}}",
+      "you": "you",
+      "since": "since {date}",
+      "remove": "Remove",
+      "removeConfirm": "Really remove this person from the company?",
+      "ownerLocked": "Owner",
+      "pendingTitle": "Pending invitations",
+      "expires": "valid until {date}",
+      "revoke": "Revoke"
+    },
+    "audit": {
+      "title": "Audit log",
+      "description": "Every security-relevant change, immutable and chained with checksums.",
+      "chainValid": "Chain verified · {count} entries",
+      "chainBroken": "Chain broken at #{seq}",
+      "empty": "No entries yet.",
+      "forbiddenTitle": "No access",
+      "forbiddenDescription": "Only owners and admins can see the audit log.",
+      "actions": {
+        "tenant_created": "Tenant created",
+        "invitation_created": "Invitation sent",
+        "invitation_accepted": "Invitation accepted",
+        "invitation_revoked": "Invitation revoked",
+        "member_added": "Member added",
+        "member_removed": "Member removed",
+        "member_role_changed": "Role changed"
+      },
+      "actors": {
+        "user": "User",
+        "partner": "Partner",
+        "system": "System",
+        "agent": "Agent"
+      }
+    }
+  },
+  "partner": {
+    "title": "Partner console",
+    "subtitle": "All customers of {partner} at a glance",
+    "createTitle": "Create a new tenant",
+    "createDescription": "The owner immediately receives an invitation by email. Setup takes less than a minute.",
+    "name": "Company name",
+    "plan": "Plan",
+    "ownerEmail": "Owner's email",
+    "create": "Create",
+    "listTitle": "{count, plural, =1 {1 tenant} other {# tenants}}",
+    "listDescription": "You see administrative data here – none of your customers' content.",
+    "createdAt": "created on {date}",
+    "invitationPending": "Invitation pending",
+    "suspended": "Suspended",
+    "emptyTitle": "No tenants yet",
+    "emptyDescription": "Create your first customer above."
   }
 }

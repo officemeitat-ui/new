@@ -16,7 +16,7 @@
     "format:check": "prettier --check .",
     "db:generate": "pnpm --filter @nexus/db run generate",
     "db:migrate": "pnpm --filter @nexus/db run migrate",
-    "db:seed": "pnpm --filter @nexus/db run seed"
+    "db:seed": "pnpm --filter @nexus/domain run seed"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

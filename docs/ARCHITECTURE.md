@@ -53,17 +53,18 @@ flowchart LR
 
 ## 2. Pakete
 
-| Paket                             | Verantwortung                                                                         | Darf importieren |
-| --------------------------------- | ------------------------------------------------------------------------------------- | ---------------- |
-| `packages/config`                 | gemeinsame TypeScript- und ESLint-Presets                                             | –                |
-| `packages/core`                   | Umgebungsvariablen, Logger, Fehler, Berechtigungen, Mandanten-Kontext-Typen           | –                |
-| `packages/db`                     | Drizzle-Schema, Migrationen, RLS-Policies, Kontext-Helfer (`withTenant` …), Seeds     | `core`           |
-| `packages/ui`                     | Designsystem: Tokens, Palette aus Primärfarbe, Komponenten                            | –                |
-| `packages/agents`                 | Agent-Runtime: Provider-Abstraktion, Modellstufen, Agentenschleife, Werkzeuge, Kosten | `core`           |
-| `packages/connectors` _(Phase 4)_ | Connector-SDK und Konnektoren                                                         | `core`, `agents` |
-| `packages/knowledge` _(Phase 3)_  | Parsing, Chunking, Embeddings, Suche                                                  | `core`, `db`     |
-| `apps/web`                        | UI, öffentliche API, Auth, SSE                                                        | alle Pakete      |
-| `apps/worker`                     | Jobs: Agentenläufe, Workflows, Syncs, Zeitpläne                                       | alle außer `ui`  |
+| Paket                             | Verantwortung                                                                                                     | Darf importieren |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `packages/config`                 | gemeinsame TypeScript- und ESLint-Presets                                                                         | –                |
+| `packages/core`                   | Umgebungsvariablen, Logger, Fehler, Berechtigungen, Mandanten-Kontext-Typen                                       | –                |
+| `packages/db`                     | Drizzle-Schema, Migrationen, RLS-Policies, Kontext-Helfer (`withTenant` …), Seeds                                 | `core`           |
+| `packages/domain`                 | Fachdienste: Mandanten anlegen, Einladungen, Mitglieder, Berechtigungen auflösen, Audit-Hash-Kette, E-Mails, Seed | `core`, `db`     |
+| `packages/ui`                     | Designsystem: Tokens, Palette aus Primärfarbe, Komponenten                                                        | –                |
+| `packages/agents`                 | Agent-Runtime: Provider-Abstraktion, Modellstufen, Agentenschleife, Werkzeuge, Kosten                             | `core`           |
+| `packages/connectors` _(Phase 4)_ | Connector-SDK und Konnektoren                                                                                     | `core`, `agents` |
+| `packages/knowledge` _(Phase 3)_  | Parsing, Chunking, Embeddings, Suche                                                                              | `core`, `db`     |
+| `apps/web`                        | UI, öffentliche API, Auth, SSE                                                                                    | alle Pakete      |
+| `apps/worker`                     | Jobs: Agentenläufe, Workflows, Syncs, Zeitpläne                                                                   | alle außer `ui`  |
 
 Abhängigkeiten zeigen nur nach unten. `packages/agents` kennt keine Datenbank; es bekommt Persistenz über Callbacks (`onStep`, `onUsage`) injiziert. Dadurch ist die Runtime ohne Datenbank testbar.
 
@@ -80,6 +81,7 @@ Details: [ADR 0002](adr/0002-mandanten-isolation-rls.md).
 | ---------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `withTenant(tenantId, fn)`   | `app.tenant_id`   | Daten genau eines Mandanten                                                                                           |
 | `withPartner(partnerId, fn)` | `app.partner_id`  | Mandantenliste und Verwaltungsdaten (Nutzung, Abos) der eigenen Mandanten, **keine** Inhalte wie Chats oder Dokumente |
+| `withUser(userId, fn)`       | `app.user_id`     | nur die eigenen Mitgliedschaften und deren Mandanten (Auswahl nach dem Login)                                         |
 | `withSystem(reason, fn)`     | `app.system = on` | alles; nur für Worker-Systemjobs und Migrationen, jeder Aufruf wird geloggt                                           |
 
 - Ohne Kontext liefert jede Abfrage auf mandantenbezogene Tabellen **null Zeilen**. Ein vergessener Filter führt also zu „nichts gefunden“, nie zu einem Datenleck.

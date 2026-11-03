@@ -12,7 +12,8 @@
     },
     "test": {
       "passThroughEnv": ["*"],
-      "cache": false
+      "cache": false,
+      "dependsOn": ["^test"]
     },
     "dev": {
       "cache": false,

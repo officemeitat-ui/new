@@ -11,11 +11,14 @@ import {
 import { Bot, CheckCheck, Clock, Inbox } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { checkHealth, type CheckResult } from "@/lib/health";
+import { requireTenant } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function StartPage() {
   const t = await getTranslations("start");
+  const { user } = await requireTenant();
+  const firstName = user.name.split(/\s+/)[0];
   const greeting = {
     morning: t("greetingMorning"),
     day: t("greetingDay"),
@@ -37,7 +40,10 @@ export default async function StartPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {greeting}
+          {firstName ? `, ${firstName}` : ""}
+        </h1>
         <p className="text-muted-foreground">{t("subtitle")}</p>
       </div>
 

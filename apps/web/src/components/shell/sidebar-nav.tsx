@@ -4,7 +4,7 @@ import { Badge, cn } from "@nexus/ui";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { isActive, NAV_ITEMS, type NavItem } from "./nav";
+import { isActive, visibleNavItems, type NavItem } from "./nav";
 
 function NavLink({ item }: { item: NavItem }) {
   const t = useTranslations("nav");
@@ -46,23 +46,28 @@ function NavLink({ item }: { item: NavItem }) {
   );
 }
 
-export function SidebarNav() {
+export function SidebarNav({ isPartner }: { isPartner: boolean }) {
   const t = useTranslations("nav");
+  const items = visibleNavItems(isPartner);
   return (
     <nav aria-label={t("label")} className="flex flex-1 flex-col gap-6">
       <ul className="flex flex-col gap-0.5">
-        {NAV_ITEMS.filter((i) => i.section === "main").map((item) => (
-          <li key={item.key}>
-            <NavLink item={item} />
-          </li>
-        ))}
+        {items
+          .filter((i) => i.section === "main")
+          .map((item) => (
+            <li key={item.key}>
+              <NavLink item={item} />
+            </li>
+          ))}
       </ul>
       <ul className="mt-auto flex flex-col gap-0.5">
-        {NAV_ITEMS.filter((i) => i.section === "admin").map((item) => (
-          <li key={item.key}>
-            <NavLink item={item} />
-          </li>
-        ))}
+        {items
+          .filter((i) => i.section === "admin")
+          .map((item) => (
+            <li key={item.key}>
+              <NavLink item={item} />
+            </li>
+          ))}
       </ul>
     </nav>
   );

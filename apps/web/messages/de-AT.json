@@ -59,5 +59,131 @@
     "unexpectedTitle": "Da ist etwas schiefgelaufen",
     "unexpectedDescription": "Der Fehler wurde protokolliert. Versuchen Sie es bitte noch einmal.",
     "retry": "Erneut versuchen"
+  },
+  "auth": {
+    "loginTitle": "Anmelden",
+    "loginDescription": "Willkommen zurück. Melden Sie sich mit Ihrer E-Mail-Adresse an.",
+    "email": "E-Mail-Adresse",
+    "password": "Passwort",
+    "signIn": "Anmelden",
+    "sendMagicLink": "Anmeldelink senden",
+    "useMagicLink": "Ohne Passwort per E-Mail-Link anmelden",
+    "usePassword": "Mit Passwort anmelden",
+    "invalidCredentials": "E-Mail-Adresse oder Passwort stimmen nicht.",
+    "tooManyAttempts": "Zu viele Versuche. Bitte warten Sie eine Minute.",
+    "magicLinkFailed": "Der Link konnte nicht gesendet werden. Bitte prüfen Sie die Adresse.",
+    "magicLinkSentTitle": "Bitte prüfen Sie Ihr Postfach",
+    "magicLinkSentDescription": "Falls ein Konto zu dieser Adresse existiert, haben wir Ihnen einen Anmeldelink geschickt. Er ist 10 Minuten gültig.",
+    "signInMicrosoft": "Mit Microsoft anmelden",
+    "signInGoogle": "Mit Google anmelden",
+    "noSelfSignup": "Noch kein Konto? Zugänge vergibt Ihr Administrator per Einladung."
+  },
+  "invite": {
+    "title": "Einladung zu {tenant}",
+    "description": "Diese Einladung gilt für {email}.",
+    "invalidTitle": "Einladung nicht gültig",
+    "invalidDescription": "Dieser Link ist abgelaufen, wurde bereits verwendet oder zurückgezogen. Bitten Sie um eine neue Einladung.",
+    "wrongAccount": "Sie sind als {email} angemeldet. Melden Sie sich ab und öffnen Sie den Link erneut.",
+    "signOut": "Abmelden",
+    "accept": "Einladung annehmen",
+    "existingAccount": "Zu dieser Adresse gibt es bereits ein Konto. Melden Sie sich an, um die Einladung anzunehmen.",
+    "signInToAccept": "Anmelden und annehmen",
+    "name": "Ihr Name",
+    "password": "Passwort wählen",
+    "passwordConfirm": "Passwort wiederholen",
+    "passwordTooShort": "Das Passwort braucht mindestens {min} Zeichen.",
+    "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+    "signUpFailed": "Das Konto konnte nicht angelegt werden. Bitte versuchen Sie es erneut.",
+    "createAccount": "Konto anlegen und beitreten"
+  },
+  "selectTenant": {
+    "title": "Mandant wählen",
+    "description": "Ihr Konto gehört zu mehreren Firmen. Mit welcher möchten Sie arbeiten?"
+  },
+  "noAccess": {
+    "title": "Noch kein Zugang",
+    "description": "Ihr Konto ist noch keiner Firma zugeordnet. Bitten Sie Ihren Administrator um eine Einladung.",
+    "signOut": "Abmelden"
+  },
+  "userMenu": {
+    "open": "Benutzermenü öffnen",
+    "tenants": "Firma wechseln",
+    "signOut": "Abmelden"
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "member": "Mitglied"
+  },
+  "plans": {
+    "starter": "Starter",
+    "business": "Business",
+    "enterprise": "Enterprise"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "subtitle": "Verwaltung für {tenant}",
+    "tabs": {
+      "label": "Einstellungsbereiche",
+      "members": "Mitglieder",
+      "audit": "Audit-Log"
+    },
+    "members": {
+      "inviteTitle": "Person einladen",
+      "inviteDescription": "Die Einladung kommt per E-Mail und ist 7 Tage gültig.",
+      "email": "E-Mail-Adresse",
+      "role": "Rolle",
+      "invite": "Einladen",
+      "listTitle": "{count, plural, =1 {1 Mitglied} other {# Mitglieder}}",
+      "you": "Sie",
+      "since": "seit {date}",
+      "remove": "Entfernen",
+      "removeConfirm": "Diese Person wirklich aus der Firma entfernen?",
+      "ownerLocked": "Owner",
+      "pendingTitle": "Offene Einladungen",
+      "expires": "gültig bis {date}",
+      "revoke": "Zurückziehen"
+    },
+    "audit": {
+      "title": "Audit-Log",
+      "description": "Jede sicherheitsrelevante Änderung, unveränderbar und mit Prüfsumme verkettet.",
+      "chainValid": "Kette geprüft · {count} Einträge",
+      "chainBroken": "Kette unterbrochen bei #{seq}",
+      "empty": "Noch keine Einträge.",
+      "forbiddenTitle": "Kein Zugriff",
+      "forbiddenDescription": "Das Audit-Log sehen nur Owner und Admins.",
+      "actions": {
+        "tenant_created": "Mandant angelegt",
+        "invitation_created": "Einladung verschickt",
+        "invitation_accepted": "Einladung angenommen",
+        "invitation_revoked": "Einladung zurückgezogen",
+        "member_added": "Mitglied hinzugefügt",
+        "member_removed": "Mitglied entfernt",
+        "member_role_changed": "Rolle geändert"
+      },
+      "actors": {
+        "user": "Benutzer",
+        "partner": "Partner",
+        "system": "System",
+        "agent": "Agent"
+      }
+    }
+  },
+  "partner": {
+    "title": "Partner-Konsole",
+    "subtitle": "Alle Kunden von {partner} auf einen Blick",
+    "createTitle": "Neuen Mandanten anlegen",
+    "createDescription": "Der Owner bekommt sofort eine Einladung per E-Mail. Die Einrichtung dauert unter einer Minute.",
+    "name": "Firmenname",
+    "plan": "Paket",
+    "ownerEmail": "E-Mail des Owners",
+    "create": "Anlegen",
+    "listTitle": "{count, plural, =1 {1 Mandant} other {# Mandanten}}",
+    "listDescription": "Hier sehen Sie Verwaltungsdaten – keine Inhalte Ihrer Kunden.",
+    "createdAt": "angelegt am {date}",
+    "invitationPending": "Einladung offen",
+    "suspended": "Gesperrt",
+    "emptyTitle": "Noch keine Mandanten",
+    "emptyDescription": "Legen Sie oben Ihren ersten Kunden an."
   }
 }
