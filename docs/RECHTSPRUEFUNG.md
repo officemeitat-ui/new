@@ -98,6 +98,25 @@ Das ist keine Rechtsberatung. Die Volltexte von KV und WKO konnten in dieser Pr�
 | **Zahlungs-QR-Code:** EPC-Format (in Österreich von der Stuzza entwickelt), Version 002, UTF-8 | EPC069-12 | QR-Code mit Empfänger, IBAN (Prüfziffer geprüft), Betrag und Rechnungsnummer; nur auf festgeschriebenen Rechnungen und Mahnungen |
 | **E-Rechnung an den Bund:** Bundesdienststellen nehmen seit 2014 nur strukturierte Rechnungen (ebInterface oder PEPPOL) über e-rechnung.gv.at bzw. das USP an, kein PDF per E-Mail | IKT-Konsolidierungsgesetz, E-Rechnungs-Verordnung | nicht eingebaut: für einen Bundeskunden die Rechnung im USP erfassen (offener Punkt 19) |
 
+## Termine und Kalender-Abo (neu)
+
+| Thema | Umsetzung | Grundlage / Hinweis |
+|---|---|---|
+| Einladungen über Outlook | Der Termin entsteht im Postfach der Person, die einträgt (Microsoft 365 der Firma); Eingeladene bekommen die übliche Outlook-Einladung. Keine weiteren Empfänger oder Dienste. | Verarbeitung im bestehenden Microsoft-365-Vertrag (Auftragsverarbeitung nach Art. 28 DSGVO) |
+| Frei/Belegt und Personensuche | Nur Name, E-Mail, Funktion und belegt/frei (ohne Inhalte fremder Termine, außer Betreff, wenn der Kalender das freigibt) | Rechte User.ReadBasic.All und Calendars.ReadWrite, delegiert: nur was die angemeldete Person ohnehin sehen darf |
+| Externe Teilnehmende (z. B. Hausverwaltung) | E-Mail-Adresse steht im Termin in SharePoint und in der Einladung | berechtigtes Interesse (Terminvereinbarung, Art. 6 Abs. 1 lit. b/f DSGVO) |
+| Kalender-Abo der Mitarbeitenden | Adresse mit dem persönlichen Code; liefert nur die veröffentlichten Wochen dieser Person (Einsätze, Termine, Art der Abwesenheit ohne Grund) | wie „Plan am Handy“: freiwillig anbieten, „Neuer Link“ sperrt auch das Abo; Google/Apple/Outlook laden den Kalender bei sich, darauf hinweisen (Art. 13 DSGVO) |
+| Termine und Arbeitszeit | Schulungen und Unterweisungen sind Arbeitszeit; die App prüft Überschneidungen mit Einsätzen und Abwesenheiten, zählt Termine aber (noch) nicht in den Wochenzettel | § 2 AZG; § 14 ASchG (Unterweisung während der Arbeitszeit). Stunden für Schulungen bei Bedarf als Sondereinsatz einplanen |
+
+## Zeiterfassung: Nachträge, Pausen, Monatsliste (neu)
+
+| Thema | Umsetzung | Grundlage / Hinweis |
+|---|---|---|
+| Arbeitszeitaufzeichnung | Monatsliste je Person als PDF: Tag, Objekt, Plan, Kommen, Gehen, Pause, Ist; Summen Soll/Ist; Unterschriftsfelder | § 26 AZG (Aufzeichnungen über die geleisteten Arbeitsstunden); Aufbewahrung wie Lohnunterlagen |
+| Nachträge und Korrekturen | nur mit Grund; erster Stand, jede Änderung mit Person und Zeitpunkt bleiben erhalten; gestempelte Zeiten nicht löschbar; Protokoll der Woche | Nachvollziehbarkeit der Aufzeichnung; Versionsverlauf in SharePoint zusätzlich |
+| Ruhepause | Hinweis bei mehr als 6 Stunden ohne 30 Minuten Unterbrechung (eingetragen oder Lücke zwischen Einsätzen) | § 11 Abs 1 AZG; Teilung (2 × 15 oder 3 × 10 Minuten) nur bei betrieblichem Bedarf bzw. laut Kollektivvertrag: der Hinweis prüft nur 30 Minuten am Stück |
+| Kontrolle der Mitarbeitenden | Zeiterfassung ist ein Kontrollsystem; die App erfasst nur Zeiten je Objekt, kein GPS | § 96 Abs 1 Z 3 ArbVG (Betriebsvereinbarung) bzw. § 10 AVRAG, siehe „Plan am Handy“ |
+
 ## Offen: bitte prüfen oder entscheiden
 
 1. **Sonntag: Grundlage eintragen.** Unter *Regeln & Feiertage* bei „Sonntagsarbeit erlaubt aufgrund“ die Ausnahme eintragen, auf die ihr euch stützt (oder je Objekt). Bis dahin warnt die App bei jedem Sonntagseinsatz. Eine Betriebsvereinbarung nach § 12a ARG erlaubt Sonntagsarbeit höchstens an 4 Wochenenden im Jahr, nicht an 4 aufeinanderfolgenden.

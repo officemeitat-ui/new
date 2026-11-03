@@ -211,6 +211,17 @@ Ausschalten: in den Einstellungen „eingeschaltet“ abhaken, oder `"assistant"
 
 Für den E-Mail-Versand braucht die App-Registrierung **Mail.Send** (wie beim Leistungsnachweis). Rechtliches: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#fakturierung).
 
+## 10. Termine mit Outlook
+
+Für das Modul Termine in der App-Registrierung (Entra ID → API-Berechtigungen → Microsoft Graph → **Delegiert**) hinzufügen und die **Administratorzustimmung** erteilen:
+
+- **Calendars.ReadWrite**: Termin im eigenen Kalender anlegen, ändern, absagen, Frei/Belegt der Eingeladenen (falls für den KI-Assistenten schon geschehen: nichts zu tun).
+- **User.ReadBasic.All**: Personen der Firma bei „Teilnehmende“ suchen (nur Name, E-Mail, Funktion). Ohne dieses Recht gehen Mitarbeitende aus dem Dienstplan und eingetippte E-Mail-Adressen trotzdem.
+
+Danach einmal neu anmelden. Damit Mitarbeitende im Dienstplan zu Outlook passen, bei „Mitarbeitende“ die **E-Mail (Microsoft 365)** eintragen. Wer die Termine sieht und einträgt, steht in [PLATTFORM.md](PLATTFORM.md#termine-mit-outlook); die SharePoint-Rechte für den neuen Ordner `termine/` zeigt **Stammdaten → Berechtigungen**.
+
+Das **Kalender-Abo** für Mitarbeitende (Plan am Handy) braucht nichts weiter: Es kommt mit dem neuen `mein-plan.php`.
+
 ## Datenschutz und Betriebsrat
 
 - Krankenstände sind Gesundheitsdaten. Die App speichert nur „Krankenstand von–bis“, keine Diagnosen, im eigenen Ordner `personal/`, den nur Vollzugriff öffnen darf.

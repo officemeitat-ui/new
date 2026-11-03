@@ -1388,3 +1388,14 @@ tr.muted td { color: var(--muted); }
   .fak-bars { gap: 3px; padding: 8px 4px 0; }
   .fak-bar small { font-size: 0.6rem; }
 }
+
+/* Zeiterfassung */
+.tc-tabs { margin: 4px 0 12px; }
+.tc-monthnav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.tc-monthnav strong { min-width: 9rem; text-align: center; font-size: 1.05rem; }
+.tc-monthnav .spacer { flex: 1 1 auto; }
+.tc-ok { display: inline-flex; color: var(--ok); vertical-align: -2px; }
+.tc-ok svg { width: 14px; height: 14px; }
+.tc-actions { white-space: nowrap; text-align: right; }
+.tc-month tfoot th { border-top: 2px solid var(--line-strong, var(--line)); }
+#tool-host:fullscreen { border-radius: 0; border: 0; }

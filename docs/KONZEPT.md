@@ -119,6 +119,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Material, Lager, Bestellungen, Materialanforderung vom Personal | Janitorial Manager, Swept | umgesetzt (Material & Lager: Bestand aus Buchungen, Bestellvorschlag, Bestellung per E-Mail, „Material fehlt?“ am Handy, Verbrauch je Objekt gegen Kalkulation) |
 | Leistungsnachweis für Kunden | verbreitet in Reinigungs- und Zeiterfassungssoftware | umgesetzt (je Objekt und Monat, mit Zeiterfassung, PDF und E-Mail) |
 | Unterweisungen, Schulungen, Dokumente mit Ablauf | verbreitet in Mitarbeiter-Apps (z. B. Connecteam) | umgesetzt (Ampel je Person, Unterweisung mit Unterschrift, Arbeitserlaubnis sperrt im Plan) |
+| Termine mit Outlook-Einladung für Mitarbeitende und Kunden, Kalender-Abo des Dienstplans | Microsoft Bookings, Shiftbase (Kalender-Sync) | umgesetzt (Modul Termine über Microsoft Graph, Abo über mein-plan.php) |
 | KI-Assistent, der in der Software arbeitet (Termine, Krankmeldung, Vertretung, Reklamation per Sprache) | verbreitet als „Copilot“ in Bürosoftware | umgesetzt (Claude über ki.php, Werkzeuge mit Rechten, jede Änderung mit Bestätigung) |
 | Fakturierung mit Daueraufträgen, Wertsicherung, Mahnwesen und Export für die Steuerberatung | orgamax, FreeFinance, BMD; in Reinigungs-Software meist als Zusatzmodul | umgesetzt (Angebot → Rechnung, Storno/Korrektur, Reverse Charge, Monatslauf mit VPI, Zahlungs-QR-Code, Mahnstufen, CSV) |
 
@@ -130,7 +131,7 @@ Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der D
 - **Hosting** als statische Web-App auf `app.cleanos.at` (Azure Static Web Apps oder eigener Webspace), Anleitung in [EINRICHTUNG.md](EINRICHTUNG.md).
 - **Ausgelegt für 35+ Mitarbeitende**: Reviere/Teams, Filter und Suche. Die Automatik plant rund 230 Einsätze in einer Zehntelsekunde.
 - **Ansichten**:
-  - Planung: Wochenübersicht, Zeitlinie, Wochenzettel, Objektplan, Vertretungen, Periodische Leistungen, Müllplan, Prüfbericht
+  - Planung: Wochenübersicht, Zeitlinie, Termine, Vertretungen, Abwesenheiten, Objektplan, Prüfbericht; Einsätze & Zeiten: Zeiterfassung, Wochenzettel, Periodische Leistungen, Müllplan, Wetter
   - Auswertung: Objekt-Controlling, Monatsauswertung, Überstunden & Auszahlung
   - Stammdaten: Mitarbeitende, Objekte & Leistungen (Reinigungsplan), Zuweisung (Stammkräfte), Abwesenheiten (Kalender, Resturlaub), Regeln & Feiertage
 - **Alle Geräte**: PC, Tablet und Handy mit vollem Funktionsumfang. Handy-Ansicht mit Tagesliste, Leiste unten (Woche, Vertretung, ＋ Abwesend, Wochenzettel, Menü), Dialogen als Blatt von unten und Tabellen als Karten. Tauschen per Fingertipp statt Ziehen. Installierbar als App (PWA) mit Symbol aus dem Logo; startet schneller und gleicht beim Zurückwechseln sofort ab.

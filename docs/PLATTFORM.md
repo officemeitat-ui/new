@@ -148,6 +148,8 @@ Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für de
 
 - **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.
 - **Alles wie gewohnt.** Ablesen, Fotos, Berichte, Kontrollen mit Unterschrift, Objektblatt mit Öffnungscode, Touren und Lieferscheine: Es ist dieselbe Datei, mit denselben Daten in denselben SharePoint-Ordnern. Ohne Netz arbeiten die Werkzeuge weiter wie bisher.
+- **Alle Funktionen wie im eigenen Fenster.** Braucht ein Werkzeug ein Recht, dem noch niemand zugestimmt hat (Routen im Mattenwechsel über **Azure Maps**, E-Mail direkt senden mit **Mail.Send**, Nachkontroll-Termin mit **Calendars.ReadWrite**), läuft es ohne diese Funktion weiter, und die App zeigt oben im Werkzeug, was fehlt, mit „Zustimmen“. Darf die Person nicht selbst zustimmen, meldet Microsoft „Genehmigung durch Administrator erforderlich“: dann in Entra die Berechtigung hinzufügen und die Administratorzustimmung erteilen (EINRICHTUNG, Schritt 2). Kamera, Standort und Zwischenablage sind im Rahmen erlaubt wie im eigenen Fenster; **Vollbild** zeigt das Werkzeug über den ganzen Bildschirm.
+- **Schneller bereit.** Das zuletzt benutzte Werkzeug lädt nach dem Start der App unsichtbar vor.
 - **Bleibt offen.** Wer zwischendurch in den Dienstplan wechselt, findet das Werkzeug unverändert wieder (auch eine halb erfasste Liste).
 - **Startet auch im Keller.** Die installierte App hält die Werkzeuge der eigenen Rolle beim Start (mit Netz) im Gerät vor, in einem eigenen Speicher, den App-Updates nicht löschen. Ein Werkzeug öffnet sich dadurch auch ohne Netz, selbst wenn es auf diesem Gerät noch nie geöffnet wurde. Mit Netz kommt immer die neueste Fassung.
 - **„Abschließen“ legt alles in SharePoint ab, auch das PDF.** Ein Klick genügt, niemand muss ans Ablegen denken:
@@ -352,6 +354,44 @@ Beispiele: „Termin morgen 12 Uhr in Salzburg mit Herrn Maier, maier@beispiel.a
 - **Kosten** (Listenpreise Anthropic, Stand 11/2026): Claude Opus 5.5 $4 je Million Tokens Eingabe, $20 Ausgabe; der gleichbleibende Teil (Anweisungen, Werkzeuge, Verlauf) wird zwischengespeichert und kostet beim Wiederlesen nur einen Bruchteil. Eine typische Aufgabe kostet grob 2–5 Cent; bei 30 Aufgaben am Tag etwa 20–40 $ im Monat. Maßgeblich ist die Anzeige in den Einstellungen bzw. die Abrechnung in der Anthropic Console (dort Ausgabenlimit setzen).
 - **Technik:** Das offizielle Anthropic-SDK läuft im Browser mit dem Tool Runner; die Anfragen gehen an `ki.php` am Webspace, das die Microsoft-Anmeldung prüft (eigener Tenant, eigene App, echtes Token), Modell, Aufwand und Tageslimit festlegt und mit dem Schlüssel an die Claude-API weiterreicht. Ausweich-Modelle bei Ablehnungen sind eingeschaltet. Einrichtung: [EINRICHTUNG.md](EINRICHTUNG.md#8-ki-assistent-einschalten-optional).
 
+## Termine (mit Outlook)
+
+Kalender der Firma in der App (Planung → **Termine**): Woche mit Uhrzeiten (am Handy als Liste), darunter die nächsten 14 Tage. Ein Klick in den Kalender oder in eine freie Stelle der Zeitlinie legt einen Termin zu dieser Zeit an (in der Zeitlinie gleich für diese Person).
+
+- **Arten:** Kundentermin, Objektbegehung, Qualitätskontrolle, Schulung/Unterweisung, Werkstatt, Bewerbungsgespräch, intern, sonstiges; mit Objekt (Ort kommt aus der Adresse), Notiz, Erinnerung, ganztägig oder mehrtägig.
+- **Teilnehmende:** Mitarbeitende aus dem Dienstplan (stehen auch in der Zeitlinie), Personen der Firma aus dem Microsoft-Verzeichnis (Suche nach Name oder E-Mail) und freie E-Mail-Adressen (z. B. Hausverwaltung).
+- **Outlook:** „Speichern und einladen“ legt den Termin im Outlook-Kalender der Person an, die ihn einträgt, und schickt allen Teilnehmenden eine Einladung. Exchange Online stellt die Einladung bei ihnen von selbst in den Kalender (vorläufig, mit Zusage fest). Änderungen und Absagen gehen ebenso an alle. Auf Wunsch als Teams-Besprechung.
+- **Vor dem Speichern:** „Frei/Belegt prüfen“ zeigt je Person der Firma, ob sie zu der Zeit frei ist; Hinweise, wenn jemand laut Plan einen Einsatz hat oder abwesend ist. Bei bestehenden Terminen stehen die Antworten (zugesagt, abgesagt, vorläufig) dabei.
+- **Mein Outlook einblenden:** zeigt die eigenen Outlook-Termine der Woche grau im Kalender (nur lesen).
+- **Wer darf:** Vollzugriff, Objektmanagement und Objektleitung tragen ein; wer plant, sieht die Termine (Zeitlinie, Konflikte). Ablage: `termine/termine.json`.
+- **Ohne Microsoft-Anmeldung** (Browser-Modus) bleiben Termine in der App; „.ics herunterladen“ öffnet sie in Outlook, Google oder Apple Kalender.
+- Gelingt das Eintragen nicht (z. B. Recht fehlt), steht der Termin unter „Zu erledigen“ mit „Erneut eintragen“.
+- Den Outlook-Termin ändern oder absagen kann nur, wer ihn angelegt hat (Organisator). Ändert jemand anderer in der App, sagt die App das dazu.
+- Der **KI-Assistent** legt Termine über dieses Modul an („Termin morgen 12 Uhr in Salzburg mit …“).
+
+**Kalender-Abo für Mitarbeitende (Plan am Handy):** Unter „Im Kalender“ auf der eigenen Plan-Seite: „Kalender abonnieren“ (iPhone, Android) oder die Adresse in Outlook („Kalender hinzufügen → Aus dem Internet abonnieren“) bzw. Google Kalender („Per URL“) einfügen. Dann stehen Einsätze, Termine und Abwesenheiten der veröffentlichten Wochen im eigenen Kalender und aktualisieren sich von selbst (je nach Kalender alle paar Stunden). Die Adresse ist persönlich wie der Link zum Plan; bei „Neuer Link“ gilt auch das alte Abo nicht mehr.
+
+## Zeitlinie
+
+Ein Tag, je Person eine Zeile: Einsätze in Objektfarbe, geplante Fahrten (rot, wenn sie nicht bis zum nächsten Einsatz passen), **Termine** (schraffiert mit Kalender-Symbol; Termine ohne Person in der Zeile „Termine“), **Ist-Zeiten** aus der Zeiterfassung als grüne Linie unter den Einsätzen, Abwesenheiten schraffiert, entfallene Einsätze durchgestrichen, heute eine rote **Jetzt-Linie**. Ein Klick in eine freie Stelle legt einen Termin für diese Person zu dieser Uhrzeit an.
+
+## Schneller Start und Laden aus SharePoint
+
+- Die App startet mit dem **letzten Stand im Gerät** und gleicht SharePoint im Hintergrund ab (unten links „Gleicht mit SharePoint ab …“). Hat inzwischen jemand anderer gespeichert, kommt dessen Stand nach; gleichzeitige Änderungen werden zusammengeführt wie bisher.
+- Dateien werden **gebündelt** gelesen (Microsoft Graph `$batch`, bis zu 20 Dateien in einer Anfrage), ebenso der minütliche Abgleich. Das spart Wartezeit und schont die Drosselung von Microsoft.
+- Die vorige und die nächste Woche werden im Hintergrund vorgeladen, Blättern geht dadurch sofort.
+- Das zuletzt benutzte Werkzeug (z. B. Wasserzähler) lädt nach dem Start unsichtbar vor, damit es beim Öffnen schon seine Daten hat (nicht bei „Daten sparen“ am Handy).
+- Der allererste Start auf einem Gerät lädt alles aus SharePoint (danach geht es schnell). Abschalten: `"sharepoint": { "quickStart": false }` in `config.production.json`.
+
+## Menü
+
+Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Zeitlinie, Termine, Vertretungen, Abwesenheiten, Objektplan, Prüfbericht), **Einsätze & Zeiten** (Zeiterfassung, Wochenzettel, periodische Leistungen, Müllplan, Wetter & Winterdienst), **Objekte & Kunden** (Reklamationen, Leistungsnachweis, Schlüsselbuch, Werkzeuge), **Material & Fuhrpark**, **Finanzen** (Fakturierung, Kalkulation, Controlling, Monatsauswertung, Überstunden) und **Verwaltung** (Mitarbeitende, Objekte & Leistungen, Zuweisung, Unterweisungen, Regeln, Berechtigungen, Systemcheck).
+
+- Abschnitte lassen sich auf- und zuklappen (gemerkt je Gerät); der Abschnitt der offenen Ansicht ist immer offen. Zugeklappte Abschnitte zeigen die Summe ihrer Zähler.
+- Mit dem Stern (beim Darüberfahren) wird ein Bereich oben **angeheftet**.
+- **Springen zu …** (oder Strg+K) findet Bereiche auch unter Alltagswörtern („Urlaub“, „Rechnung“, „Radar“, „Stempeln“), dazu Personen, Objekte und Fahrzeuge.
+- Am Handy ist das Menü „Mehr“ gleich gegliedert, mit Suche oben.
+
 ## Wetter & Winterdienst
 
 Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.
@@ -455,7 +495,12 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 **Zeiterfassung im Objekt (QR-Code):** im selben Dialog einschalten (anfangs aus). Je Objekt gibt es einen Code; **„QR-Aushänge (PDF)“** erstellt je Objekt eine A4-Seite zum Aufhängen (innen, z. B. Putzraum; laminiert). Statt Papier geht auch ein NFC-Aufkleber mit derselben Adresse.
 
 - **Am Objekt:** Handy-Kamera auf den Code, Link öffnen, **„Kommen erfassen“**; nach der Arbeit wieder scannen, **„Gehen erfassen“**. Die Uhrzeit nimmt der Server, nicht das Handy. Die Seite zeigt den Einsatz laut Plan; ohne Einsatz (eingesprungen) geht es trotzdem. Zweimal getippt zählt einmal. Wer den persönlichen Link auf dem Handy noch nie geöffnet hat, wird dazu aufgefordert (so weiß der Server, wer stempelt). Im Plan am Handy steht danach „✓ 05:57–08:32“ beim Einsatz.
-- **In der App:** Ansicht **„Ist-Zeiten“** (unter Einsatzplanung) mit Plan, Kommen, Gehen, Ist-Stunden und Status je Einsatz: passt, später gekommen, früher gegangen (Toleranz 10 Minuten), noch nicht ausgestempelt, nicht eingestempelt, ohne Einsatz laut Plan. „Jetzt abrufen“ holt die letzten 14 Tage, sonst holt die App alle 2 Minuten, was neu ist, solange jemand mit Einsatzplanung sie offen hat. CSV für die Lohnverrechnung. Im Einsatz-Dialog steht der Block „Zeiterfassung“. Gespeichert wird je Woche in SharePoint.
+- **In der App:** Ansicht **„Zeiterfassung“** (unter Einsätze & Zeiten) mit Plan, Kommen, Gehen, Ist-Stunden und Status je Einsatz: passt, später gekommen, früher gegangen (Toleranz 10 Minuten), noch nicht ausgestempelt, nicht eingestempelt, ohne Einsatz laut Plan. „Jetzt abrufen“ holt die letzten 14 Tage, sonst holt die App alle 2 Minuten, was neu ist, solange jemand mit Einsatzplanung sie offen hat. CSV für die Lohnverrechnung. Im Einsatz-Dialog steht der Block „Zeiterfassung“. Gespeichert wird je Woche in SharePoint.
+- **Nachtragen und korrigieren:** „Zeit nachtragen“ (auch direkt bei „nicht eingestempelt“) mit Person, Einsatz oder Objekt, Kommen, Gehen, Pause und einem **Grund** (Stempeln vergessen, Handy/Netz, falsch gestempelt, länger, früher beendet, Sonstiges). Korrekturen gestempelter Zeiten behalten den ersten Stand und jede Änderung mit Grund, Person und Zeitpunkt; nachgetragene Zeiten lassen sich löschen, gestempelte nicht.
+- **Ruhepause:** Arbeitet jemand an einem Tag mehr als 6 Stunden ohne 30 Minuten Pause (eingetragen oder als Lücke zwischen den Einsätzen), steht oben ein Hinweis (§ 11 AZG).
+- **Freigabe:** „Woche freigeben“ markiert alle vollständigen Zeiten als geprüft (mit Person und Zeitpunkt); eine spätere Korrektur hebt die Freigabe auf.
+- **Monat je Person:** Soll laut Plan, Ist laut Zeiterfassung (ohne Pausen), Differenz, Abweichungen, fehlende, nachgetragene und noch nicht freigegebene Zeiten; je Person die **Arbeitszeitaufzeichnung als PDF** (mit Nachträgen, Korrekturen und Unterschriftsfeldern), alle als ZIP, Übersicht als CSV.
+- Ohne QR-Zeiterfassung ist die Ansicht trotzdem da: Zeiten lassen sich von Hand erfassen und auswerten.
 - **Nicht eingestempelt:** Unter „Zu erledigen“ (und als Zahl bei „Ist-Zeiten“) stehen begonnene Einsätze ohne Stempelung, nach der eingestellten Zeit (Standard 20 Minuten). Zusätzlich meldet der Webspace es per Push ans Büro-Handy und an die Person, auch nachts und wenn niemand die App offen hat; dafür braucht es einen **Cronjob** wie beim Schnee-Alarm (Adresse im Dialog). Der Alarm gilt nur für Personen, die schon einmal gestempelt haben, damit es beim Einführen keine Fehlalarme gibt, und höchstens einmal je Einsatz.
 - **Stunden:** Der Wochenzettel und die Lohnverrechnung rechnen weiter mit den geplanten Zeiten. Weicht die Ist-Zeit um mehr als 10 Minuten ab, setzt **„Ist übernehmen“** (je Zeile, im Einsatz-Dialog oder „Alle Abweichungen übernehmen“) Beginn und Ende des Einsatzes an diesem Tag auf die erfassten Zeiten, mit Vermerk „Ist-Zeit laut Zeiterfassung“. Das geht nur, wenn eine Person im Einsatz ist (die Zeit gilt für den ganzen Einsatz). In veröffentlichten Wochen danach wie gewohnt die Korrektur buchen; „Rückgängig“ geht auch.
 - **Grenzen:** Ein Foto des Codes ließe sich auch anderswo scannen; der Code beweist die Anwesenheit nicht sicher, reicht aber für den Alltag und für Stichproben. Kein GPS, keine Ortung.
