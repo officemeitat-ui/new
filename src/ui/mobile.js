@@ -3,7 +3,7 @@
 // App installieren (Startbildschirm).
 
 import { roleOptions } from '../core/access.js'
-import { app, canEdit, openModal, registerActions, registerModal, renderModal, renderNow, saveStatusText, VIEW_GROUPS, visibleViews } from './context.js'
+import { app, canEdit, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, visibleViews } from './context.js'
 import { assistantButton } from './assistant.js'
 import { bellButton, todo } from './modals/todo.js'
 import { esc, ICON, modalFrame, options } from './shared.js'
@@ -95,14 +95,13 @@ function moreModal(c) {
     plan && ['replan', 'Neu planen', ''],
     plan && ['open-publish', `${ICON.send} Veröffentlichen`, ''],
     plan && ['open-send', `${ICON.send} An Mitarbeitende versenden`, ''],
-    ['open-search', `${ICON.search} Suchen`, ''],
     ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
   ].filter(Boolean)
   const visible = visibleViews()
-  const views = VIEW_GROUPS.map(([group, label]) => {
-    const items = visible.filter((v) => v.group === group)
-    if (!items.length) return ''
+  const pinned = pinnedViews(visible)
+  const sections = [...(pinned.length ? [{ id: 'pinned', label: 'Angeheftet', views: pinned }] : []), ...navSections(visible)]
+  const views = sections.map(({ label, views: items }) => {
     return `<section><h3>${label || 'Start'}</h3><div class="more-grid">${items
       .map((v) => {
         const badge = v.badge?.(c)
@@ -120,7 +119,8 @@ function moreModal(c) {
   return modalFrame({
     title: 'Menü',
     subtitle: `${esc(app.config.brand.name)} · ${esc(app.config.brand.product)}`,
-    body: `<section><h3>Aktionen</h3><div class="more-actions">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
+    body: `<button class="more-search" data-action="open-search">${ICON.search}<span>Bereich, Person, Objekt suchen …</span></button>
+      <section><h3>Aktionen</h3><div class="more-actions two">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       ${views}
       <section><h3>Konto & Daten</h3>
         <p class="note">${saveStatusText(app.service.status)}${app.user ? ` · ${esc(app.user.name)}` : ''}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p>

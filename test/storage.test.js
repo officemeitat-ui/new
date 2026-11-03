@@ -137,8 +137,25 @@ function fakeGraph(opts = {}) {
   const calls = []
   const json = (status, body, headers = {}) => new Response(body === null ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
   const fetchImpl = async (url, { method = 'GET', body, headers = {} } = {}) => {
-    calls.push(`${method} ${url}`)
+    if (!headers['X-Teil']) calls.push(`${method} ${url}`)
     const u = new URL(url)
+    if (u.pathname === '/v1.0/$batch' && method === 'POST') {
+      // Graph $batch: je Teilanfrage wie eine einzelne beantworten
+      assert.equal(headers.Authorization, 'Bearer TOKEN')
+      const { requests } = JSON.parse(body)
+      assert.ok(requests.length <= 20, 'höchstens 20 je $batch')
+      const responses = []
+      for (const r of requests) {
+        if (opts.throttleOnce && !opts.throttled?.has(r.url)) {
+          ;(opts.throttled ||= new Set()).add(r.url)
+          responses.push({ id: r.id, status: 429, headers: { 'Retry-After': '0' }, body: { error: { message: 'throttled' } } })
+          continue
+        }
+        const res = await fetchImpl(`https://graph.microsoft.com/v1.0${r.url}`, { method: r.method, headers: { Authorization: 'Bearer TOKEN', 'X-Teil': '1' } })
+        responses.push({ id: r.id, status: res.status, headers: {}, body: await res.json().catch(() => null) })
+      }
+      return json(200, { responses })
+    }
     if (u.hostname === 'download.example') {
       const f = files.get(decodeURIComponent(u.pathname.slice(1)))
       return f ? new Response(f.body, { status: 200 }) : new Response(null, { status: 404 })
@@ -376,4 +393,119 @@ test('Umzug: alle Wochen unter daten/plaene/ landen in plaene/', async () => {
   assert.equal(await svc.migrateOldWeeks(), 1)
   assert.equal(await store.read('daten/plaene/2025/2025-03-03.json'), null)
   assert.deepEqual((await store.read(weekPath('2025-03-03'))).data.assignments, { '2025-03-04|t1': ['e1'] })
+})
+
+
+// ---------------------------------------------------------------- Gebündelt lesen, Schnellstart
+
+test('SharePoint: viele Dateien gebündelt lesen ($batch), eTags in einer Anfrage', async () => {
+  const g = fakeGraph({ throttleOnce: true })
+  const store = new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  await store.init()
+  const paths = Array.from({ length: 23 }, (_, i) => `plaene/2026/w${String(i).padStart(2, '0')}.json`)
+  for (const p of paths.slice(0, 20)) await store.write(p, { p }, null)
+  g.calls.length = 0
+  const res = await store.readMany(paths)
+  // 23 Metadaten in zwei $batch-Anfragen (20 + 3), gedrosselte Teile nochmals, Inhalte direkt
+  const batches = g.calls.filter((c) => c.startsWith('POST https://graph.microsoft.com/v1.0/$batch')).length
+  assert.ok(batches >= 2 && batches <= 4, `Anzahl $batch: ${batches}`)
+  assert.equal(g.calls.filter((c) => c.startsWith('GET https://download.example/')).length, 20)
+  assert.deepEqual(res.get(paths[3]).doc.data, { p: paths[3] })
+  assert.ok(res.get(paths[3]).doc.etag)
+  assert.equal(res.get(paths[22]).doc, null)
+  g.calls.length = 0
+  const etags = await store.etagsOf(paths)
+  assert.equal(etags.get(paths[0]), res.get(paths[0]).doc.etag)
+  assert.equal(etags.get(paths[21]), null)
+  assert.ok(g.calls.every((c) => !c.startsWith('GET https://graph.microsoft.com')), 'keine Einzelanfragen')
+})
+
+test('Schnellstart: zweiter Start aus dem Gerät ohne Warten auf SharePoint, Neueres kommt im Hintergrund', async () => {
+  const { CachedDocStore, memoryCache } = await import('../src/storage/offline.js')
+  const g = fakeGraph()
+  const make = () => new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  const cache = memoryCache()
+  // erster Start: normal (legt an), dann eine Woche öffnen
+  const s1 = new CachedDocStore(make(), cache)
+  await s1.init({ quick: true })
+  const a = new DataService(s1, { debounceMs: 0, local: cache, quickStart: true })
+  await a.load(seed)
+  await a.ensureWeeks(['2026-10-26'])
+  a.data.assignments['2026-10-28|t1'] = [{ employeeId: 'e2', locked: true }]
+  await a.flush()
+  // zweiter Start: zuerst nur Gerätespeicher
+  const remoteB = make()
+  const s2 = new CachedDocStore(remoteB, cache)
+  g.calls.length = 0
+  let gate
+  const hold = new Promise((r) => (gate = r))
+  const origFetch = remoteB.fetch
+  remoteB.fetch = async (...args) => {
+    await hold // SharePoint „hängt“, bis der Start fertig ist
+    return origFetch(...args)
+  }
+  const changes = []
+  await s2.init({ quick: true })
+  const b = new DataService(s2, { debounceMs: 0, local: cache, quickStart: true, onRemoteChange: (kind, changed) => changes.push([kind, changed.map((c) => c.path)]) })
+  const data = await b.load(seed)
+  assert.equal(b.fromCache, true)
+  assert.equal(b.status, 'syncing')
+  assert.equal(data.employees.length, 2)
+  await b.ensureWeeks(['2026-10-26'])
+  assert.deepEqual(data.assignments['2026-10-28|t1'], [{ employeeId: 'e2', locked: true }], 'Woche aus dem Gerät')
+  // inzwischen ändert jemand anderes die Stammdaten in SharePoint
+  const other = new DataService(make(), { debounceMs: 0 })
+  await other.store.init()
+  await other.load(seed)
+  other.data.employees.push({ id: 'e3', name: 'Neu' })
+  await other.flush()
+  // und hier wird gleichzeitig etwas geändert
+  data.employees[0].name = 'Ana Lokal'
+  gate()
+  await b.synced()
+  await b.flush()
+  assert.deepEqual(data.employees.map((e) => e.name), ['Ana Lokal', 'Markus', 'Neu'], 'zusammengeführt')
+  assert.ok(changes.some(([kind, paths]) => kind === 'loaded' && paths.includes(DOC.master)))
+  // gespeichert: SharePoint hat beides
+  const check = new DataService(make(), { debounceMs: 0 })
+  await check.store.init()
+  await check.load(seed)
+  assert.deepEqual(check.data.employees.map((e) => e.name), ['Ana Lokal', 'Markus', 'Neu'])
+  assert.notEqual(b.status, 'syncing')
+})
+
+test('Schnellstart: erst nach einem normalen Start und nur mit Kernliste im Gerät', async () => {
+  const { CachedDocStore, memoryCache } = await import('../src/storage/offline.js')
+  const g = fakeGraph()
+  const make = () => new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', folder: 'Plattform', fetchImpl: g.fetchImpl })
+  const cache = memoryCache()
+  const first = new DataService(new CachedDocStore(make(), cache), { debounceMs: 0, local: cache, quickStart: true })
+  await first.store.init({ quick: true })
+  await first.load(seed)
+  assert.equal(first.fromCache, undefined, 'erster Start normal')
+  assert.equal(first.firstRun, true)
+  assert.equal(await cache.get('meta', 'ablage'), 2)
+  // Gerät ohne Kopie der Stammdaten: normal laden
+  await cache.del('docs', DOC.master)
+  const second = new DataService(new CachedDocStore(make(), cache), { debounceMs: 0, local: cache, quickStart: true })
+  await second.store.init({ quick: true })
+  await second.load(seed)
+  assert.equal(second.fromCache, undefined)
+  // gemerktes Laufwerk: init fragt die Website nicht mehr ab, prüft aber im Hintergrund
+  g.calls.length = 0
+  const r3 = make()
+  let gate
+  const hold = new Promise((r) => (gate = r))
+  const orig = r3.fetch
+  r3.fetch = async (...args) => {
+    await hold
+    return orig(...args)
+  }
+  const s3 = new CachedDocStore(r3, cache)
+  const res = await s3.init({ quick: true }) // wartet nicht auf SharePoint
+  assert.equal(res.quick, true)
+  assert.equal(r3.driveId, 'drive1')
+  gate()
+  await s3.verified
+  assert.ok(g.calls.some((c) => c.includes('/sites/')), 'Nachprüfung im Hintergrund')
 })

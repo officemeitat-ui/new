@@ -50,7 +50,13 @@ const dash = (time) => String(time || '').replace(' - ', '–')
  * Woche einer Person für das Handy aus dem Wochenzettel (buildTimesheet).
  * Minuten wie im Wochenzettel (ist, soll, Zeitkonto).
  */
-export function staffWeek(ts, { objectsById = new Map(), account = null } = {}) {
+export function staffWeek(ts, { objectsById = new Map(), account = null, appointments = [] } = {}) {
+  // Termine der Person (Schulung, Begehung …): je Tag, für den Plan am Handy und das Kalender-Abo
+  const termine = (date) =>
+    appointments
+      .filter((a) => String(a.start || '').slice(0, 10) <= date && String(a.allDay ? a.end || a.start : a.end || a.start).slice(0, 10) >= date)
+      .filter((a) => a.allDay || String(a.start).slice(0, 10) === date)
+      .map((a) => ({ id: a.id, titel: a.title, ...(a.allDay ? { ganztags: true } : { beginn: a.start.slice(11, 16), zeit: `${a.start.slice(11, 16)}–${a.end.slice(11, 16)}` }), ...(a.where ? { ort: a.where } : {}) }))
   const line = (l) => {
     const obj = objectsById.get(l.inst?.objectId)
     const notizen = [...(l.notes || [])]
@@ -74,6 +80,7 @@ export function staffWeek(ts, { objectsById = new Map(), account = null } = {}) 
     tage: ts.days.map((d) => ({
       datum: d.date,
       eintraege: d.lines.map(line),
+      ...(termine(d.date).length ? { termine: termine(d.date) } : {}),
       ...(d.holiday ? { feiertag: d.holiday.name } : {}),
       ...(d.absence ? { abwesend: d.absence.type } : {}),
     })),

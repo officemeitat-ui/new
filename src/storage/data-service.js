@@ -14,6 +14,7 @@
 //   schluessel/schluessel.json        Schlüsselbuch (Schlüssel je Objekt, Ausgabe, Rückgabe, Verlust)
 //   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
 //   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
+//   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -32,6 +33,7 @@
 // wieder Netz da ist gespeichert.
 
 import { mondayOf } from '../core/dates.js'
+import { emptyAppointments } from '../core/appointments.js'
 import { emptyKeys } from '../core/keys.js'
 import { emptyMaterial } from '../core/material.js'
 import { emptyTrainings } from '../core/trainings.js'
@@ -61,6 +63,7 @@ export const MODULE_DOCS = {
   schluessel: { path: 'schluessel/schluessel.json', empty: emptyKeys },
   nachweise: { path: 'nachweise/versand.json', empty: () => ({ sent: {}, settings: {} }) },
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
+  termine: { path: 'termine/termine.json', empty: emptyAppointments },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -76,8 +79,8 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen'), () => edits('stammdaten', 'planung')],
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
@@ -90,6 +93,8 @@ export function dataRights(access) {
     [MODULE_DOCS.nachweise.path, () => sees('planung'), () => sees('planung')],
     // Fristen: auch wer plant, liest sie (Prüfregel „Fristen je Person“)
     [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
+    // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
+    [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Löhne und Margen: nur Auswertung & Lohn
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
   ]
@@ -110,6 +115,7 @@ export const FOLDERS = [
   ['schluessel', 'Schlüsselbuch', MODULE_DOCS.schluessel.path],
   ['nachweise', 'Leistungsnachweis: Versand-Vermerke', MODULE_DOCS.nachweise.path],
   ['unterweisungen', 'Unterweisungen & Fristen je Person', MODULE_DOCS.unterweisungen.path],
+  ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
 ]
 
@@ -244,7 +250,8 @@ export class DataService {
    * blank:   Grunddaten (leere Listen, Regeln) für Personen ohne Zugriff auf die Stammdaten.
    * session: Kennung dieses Fensters (ungespeicherte Änderungen anderer Fenster bleiben unberührt).
    */
-  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null, rights = null, blank = () => ({}), session = Math.random().toString(36).slice(2) } = {}) {
+  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null, rights = null, blank = () => ({}), session = Math.random().toString(36).slice(2), quickStart = false } = {}) {
+    this.quickStart = quickStart // Start mit dem Stand im Gerät, Abgleich im Hintergrund (SharePoint)
     this.store = store
     this.local = local // Gerätespeicher für ungespeicherte Änderungen (offline.js)
     this.rights = rights || { read: () => true, write: () => true }
@@ -287,17 +294,43 @@ export class DataService {
     try {
       return await this.store.read(path)
     } catch (err) {
-      if (isNetworkError(err)) return undefined
-      if (err.name === 'SyntaxError') {
-        // abgeschnittene oder von Hand kaputt gemachte Datei: Bereich sperren statt die App nicht zu starten
-        this.denied.add(path)
-        this.broken.add(path)
-        return null
-      }
-      if (err.status !== 403) throw err
+      return this.#readError(path, err)
+    }
+  }
+
+  #readError(path, err) {
+    if (isNetworkError(err)) return undefined
+    if (err.name === 'SyntaxError') {
+      // abgeschnittene oder von Hand kaputt gemachte Datei: Bereich sperren statt die App nicht zu starten
       this.denied.add(path)
+      this.broken.add(path)
       return null
     }
+    if (err.status !== 403) throw err
+    this.denied.add(path)
+    return null
+  }
+
+  /** Mehrere Dateien lesen, gebündelt, wenn die Ablage das kann (SharePoint: eine Anfrage je 20 Dateien). Ergebnis je Pfad wie #read. */
+  async #readAll(paths) {
+    const allowed = paths.filter((p) => this.rights.read(p))
+    if (!this.store.readMany || allowed.length < 2) return Promise.all(paths.map((p) => this.#read(p)))
+    let res
+    try {
+      res = await this.store.readMany(allowed)
+    } catch (err) {
+      if (!isNetworkError(err)) throw err
+      res = new Map()
+    }
+    return paths.map((p) => {
+      if (!this.rights.read(p)) {
+        this.denied.add(p)
+        return null
+      }
+      const r = res.get(p)
+      if (!r) return undefined
+      return r.error ? this.#readError(p, r.error) : r.doc
+    })
   }
 
   /** Frühere Ablage lesen (Umzug); Fehler zählen als „gibt es nicht“. */
@@ -371,7 +404,12 @@ export class DataService {
   async load(seed) {
     this.#setStatus('loading')
     const paths = [DOC.master, DOC.objects, DOC.absences, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
-    const docs = await Promise.all(paths.map((p) => this.#read(p)))
+    // Schnellstart: mit dem letzten Stand im Gerät sofort loslegen, SharePoint im Hintergrund abgleichen
+    if (this.quickStart && this.store.cached) {
+      const data = await this.#loadCached(paths)
+      if (data) return data
+    }
+    const docs = await this.#readAll(paths)
     const needsMaster = this.rights.read(DOC.master)
     if (needsMaster && this.broken.has(DOC.master)) throw new Error('Die Datei daten/stammdaten.json ist beschädigt (kein gültiges JSON). In SharePoint im Versionsverlauf eine frühere Fassung wiederherstellen.')
     if (needsMaster && this.denied.has(DOC.master)) throw new Error('Kein Leserecht auf die Stammdaten (daten/stammdaten.json). Bitte in SharePoint freigeben lassen.')
@@ -421,8 +459,117 @@ export class DataService {
       this.mustWrite.add(DOC.objects)
     }
     const migrate = this.mustWrite.size > 0
-    // Änderungen, die zuletzt ohne Netz gemacht wurden: wieder übernehmen (beim Speichern zusammengeführt).
-    // Einträge ohne Schreibrecht (anderes Konto, andere Rolle) bleiben unangetastet im Gerät.
+    if (!migrate && !docs.includes(undefined)) await this.local?.put('meta', 'ablage', 2)
+    await this.#restorePending(data)
+    this.loadedAt = new Date().toISOString()
+    this.#setStatus('saved')
+    for (const old of cleanup) this.store.remove?.(old).catch(() => {})
+    if (this.firstRun) {
+      // Startdaten enthalten ggf. schon Einteilungen: deren Wochen gelten als geladen
+      for (const key of Object.keys(data.assignments)) this.weeks.add(weekOfKey(key))
+      await this.flush()
+    } else if (migrate) {
+      await this.flush().catch(() => {})
+    }
+    return data
+  }
+
+  /**
+   * Start aus dem Gerät: nur, wenn die Kernliste (Stammdaten bzw. Objekte) dort liegt und kein Umzug
+   * aus der früheren Ablage ansteht. Liefert die Daten oder null (dann normal laden).
+   */
+  async #loadCached(paths) {
+    const core = this.rights.read(DOC.master) ? DOC.master : DOC.objects
+    const cached = await Promise.all(paths.map((p) => (this.rights.read(p) ? this.store.cached(p) : null)))
+    if (!cached[paths.indexOf(core)]) return null
+    // erst, wenn ein normaler Start gezeigt hat, dass nichts mehr aus der früheren Ablage umzuziehen ist
+    if ((await this.local?.get('meta', 'ablage')) !== 2) return null
+    const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {} }
+    this.data = data
+    Object.assign(data, await this.blank())
+    for (const [i, path] of paths.entries()) {
+      if (!this.rights.read(path)) {
+        this.denied.add(path)
+        continue
+      }
+      const doc = cached[i]
+      if (!doc) continue
+      applyDoc(data, path, doc.data)
+      this.version++
+      this.base.set(path, clone(doc.data))
+      if (doc.etag) this.etags.set(path, doc.etag)
+    }
+    data.objects ||= []
+    await this.#restorePending(data)
+    this.loadedAt = new Date().toISOString()
+    this.fromCache = true
+    this.#setStatus('syncing')
+    this.syncing = this.#revalidate(paths, { verify: true }).finally(() => {
+      this.syncing = null
+      if (this.status === 'syncing') this.#setStatus('saved')
+    })
+    this.syncing.catch(() => {})
+    return data
+  }
+
+  /**
+   * Abgleich nach dem Schnellstart bzw. nach Wochen aus dem Gerät: SharePoint lesen und Neueres
+   * übernehmen. Wurde hier inzwischen geändert, wird zusammengeführt und gespeichert.
+   */
+  async #revalidate(paths, { verify = false } = {}) {
+    if (verify && this.store.verified) {
+      try {
+        await this.store.verified
+      } catch (err) {
+        this.#setStatus('error', err.message)
+        throw err
+      }
+    }
+    const before = new Map(paths.map((p) => [p, this.etags.get(p)]))
+    const docs = await this.#readAll(paths)
+    const changed = []
+    let merged = false
+    for (const [i, path] of paths.entries()) {
+      const doc = docs[i]
+      // inzwischen hier gespeichert: das Gelesene ist älter
+      if (doc === undefined || this.etags.get(path) !== before.get(path)) continue
+      if (doc === null) {
+        if (this.denied.has(path) && this.base.has(path)) {
+          // kein Leserecht mehr (z. B. Rolle geändert): Bereich leeren
+          applyDoc(this.data, path, emptyDoc(path) ?? {})
+          this.base.delete(path)
+          this.etags.delete(path)
+          this.version++
+          changed.push({ path, by: null })
+        } else this.etags.delete(path)
+        continue
+      }
+      if (doc.etag && doc.etag === this.etags.get(path)) continue
+      const base = this.base.get(path)
+      const live = this.#live(path)
+      const local = live !== undefined && !same(live, base ?? emptyDoc(path))
+      applyDoc(this.data, path, clone(local ? mergeDoc(base, live, doc.data) : doc.data))
+      this.version++
+      this.base.set(path, clone(doc.data))
+      if (doc.etag) this.etags.set(path, doc.etag)
+      changed.push({ path, by: doc.modifiedBy })
+      merged ||= local
+    }
+    if (merged && this.status !== 'offline') this.schedule()
+    if (changed.length) this.onRemoteChange('loaded', changed)
+    return changed
+  }
+
+  /** Abgleich läuft (Schnellstart): darauf warten, z. B. vor einer Auswertung. */
+  async synced() {
+    await this.syncing?.catch(() => {})
+  }
+
+  /**
+   * Änderungen, die zuletzt ohne Netz gemacht wurden: wieder übernehmen (beim Speichern zusammengeführt).
+   * Einträge ohne Schreibrecht (anderes Konto, andere Rolle) bleiben unangetastet im Gerät.
+   */
+  async #restorePending(data) {
     const pending = this.local ? await this.local.all('pending') : []
     let restored = 0
     for (const [path, p] of pending) {
@@ -437,25 +584,68 @@ export class DataService {
       else this.etags.delete(path)
     }
     this.restored = restored
-    this.loadedAt = new Date().toISOString()
-    this.#setStatus('saved')
-    for (const old of cleanup) this.store.remove?.(old).catch(() => {})
-    if (this.firstRun) {
-      // Startdaten enthalten ggf. schon Einteilungen: deren Wochen gelten als geladen
-      for (const key of Object.keys(data.assignments)) this.weeks.add(weekOfKey(key))
-      await this.flush()
-    } else if (migrate) {
-      await this.flush().catch(() => {})
-    }
-    return data
   }
 
-  /** Lädt fehlende Wochen-Dateien nach (beim Blättern). Ohne Netz und ohne Kopie bleibt eine Woche ungeladen. */
+  /**
+   * Lädt fehlende Wochen-Dateien nach (beim Blättern). Ohne Netz und ohne Kopie bleibt eine Woche ungeladen.
+   * Mit Schnellstart gilt zuerst die Kopie im Gerät; SharePoint wird im Hintergrund abgeglichen.
+   */
   async ensureWeeks(mondays) {
-    const missing = mondays.filter((m) => !this.weeks.has(m))
+    const missing = [...new Set(mondays)].filter((m) => !this.weeks.has(m))
     if (!missing.length) return false
-    await Promise.all(missing.map((m) => this.#loadWeek(m)))
+    let fetch = missing
+    if (this.quickStart && this.store.cached) {
+      const fromDevice = []
+      fetch = []
+      for (const m of missing) {
+        if (this.loadingWeeks.has(m)) fetch.push(m)
+        else if (await this.#useCachedWeek(m)) fromDevice.push(m)
+        else fetch.push(m)
+      }
+      if (fromDevice.length) {
+        const check = this.#revalidate(fromDevice.map(weekPath)).catch(() => [])
+        this.syncing = this.syncing ? Promise.all([this.syncing, check]) : check
+      }
+    }
+    await this.#loadWeeks(fetch)
     return true
+  }
+
+  /** Wochen im Hintergrund vorladen (z. B. die nächste und vorige), ohne Fehler zu melden. */
+  prefetchWeeks(mondays) {
+    return this.ensureWeeks(mondays).catch(() => false)
+  }
+
+  /** Woche aus dem Gerät übernehmen (Schnellstart); false, wenn dort keine liegt. */
+  async #useCachedWeek(monday) {
+    const path = weekPath(monday)
+    if (!this.rights.read(path) || this.weeks.has(monday)) return false
+    const doc = await this.store.cached(path)
+    if (!doc || this.weeks.has(monday)) return false
+    const local = this.#touchedWeeks().has(monday) ? this.#live(path) : null
+    this.weeks.add(monday)
+    this.unavailable.delete(monday)
+    applyDoc(this.data, path, clone(local ? mergeDoc(this.base.get(path), local, doc.data) : doc.data))
+    this.version++
+    this.base.set(path, clone(doc.data))
+    if (doc.etag) this.etags.set(path, doc.etag)
+    if (local && this.writable(path)) this.schedule()
+    return true
+  }
+
+  /** Wochen gebündelt laden; laufende Ladevorgänge (schnelles Blättern) abwarten statt doppelt anzufragen. */
+  async #loadWeeks(mondays) {
+    const todo = mondays.filter((m) => !this.loadingWeeks.has(m) && !this.weeks.has(m))
+    if (todo.length) {
+      const batch = this.#readAll(todo.map(weekPath))
+      todo.forEach((m, i) =>
+        this.loadingWeeks.set(
+          m,
+          batch.then((docs) => this.#fetchWeek(m, docs[i])).finally(() => this.loadingWeeks.delete(m)),
+        ),
+      )
+    }
+    await Promise.all(mondays.map((m) => this.loadingWeeks.get(m)))
   }
 
   /** Eine Woche laden; läuft der Ladevorgang schon (schnelles Blättern), darauf warten. */
@@ -464,9 +654,10 @@ export class DataService {
     return this.loadingWeeks.get(monday)
   }
 
-  async #fetchWeek(monday) {
+  /** preread: schon gebündelt gelesen (sonst einzeln lesen). */
+  async #fetchWeek(monday, preread) {
     const path = weekPath(monday)
-    let doc = await this.#read(path)
+    let doc = preread === undefined && arguments.length < 2 ? await this.#read(path) : preread
     let moved = false
     if (doc === null && !this.denied.has(path)) {
       // frühere Ablage daten/plaene/…
@@ -636,7 +827,7 @@ export class DataService {
    * Stand nach, sofern hier nichts Ungespeichertes ansteht.
    */
   async refresh() {
-    if (this.saving || (this.timer && this.status === 'pending')) return []
+    if (this.saving || this.syncing || (this.timer && this.status === 'pending')) return []
     // zuerst nachholen, was ohne Netz liegen geblieben ist
     if (this.status === 'offline' || this.restored) {
       this.restored = 0
@@ -651,8 +842,11 @@ export class DataService {
       if (loaded.length) this.onRemoteChange('loaded', loaded)
     }
     const changed = []
-    for (const [path, doc] of this.#docs()) {
-      const etag = await this.store.etagOf(path)
+    const docs = this.#docs()
+    // SharePoint: alle eTags in einer Anfrage (je 20 Dateien) statt einer Anfrage je Datei
+    const etags = this.store.etagsOf ? await this.store.etagsOf(docs.map(([path]) => path)) : null
+    for (const [path, doc] of docs) {
+      const etag = etags ? etags.get(path) : await this.store.etagOf(path)
       if (!etag || etag === this.etags.get(path)) continue
       if (!same(doc, this.base.get(path) ?? emptyDoc(path))) continue
       const remote = await this.store.read(path)

@@ -129,13 +129,25 @@ export class CachedDocStore {
     this.offline = offline
   }
 
-  async init() {
+  /**
+   * Laufwerk finden. quick: war das Gerät schon verbunden, gleich mit dem gemerkten Laufwerk
+   * weiterarbeiten und im Hintergrund nachprüfen (this.verified), statt auf zwei Anfragen zu warten.
+   */
+  async init({ quick = false } = {}) {
+    const known = quick ? await this.cache.get('meta', 'init') : null
+    if (known?.driveId) {
+      Object.assign(this.remote, known)
+      this.verified = this.#connect().catch((err) => {
+        if (!isNetworkError(err)) throw err
+        Object.assign(this.remote, known)
+        this.#mark(true)
+        return { site: null, offline: true }
+      })
+      this.verified.catch(() => {}) // Fehler meldet der Abgleich (DataService)
+      return { site: null, quick: true }
+    }
     try {
-      const res = await this.remote.init()
-      const { driveId, driveWebUrl, label, webUrl, folderOnly } = this.remote
-      await this.cache.put('meta', 'init', { driveId, driveWebUrl, label, webUrl, folderOnly })
-      this.#mark(false)
-      return res
+      return await this.#connect()
     } catch (err) {
       if (!isNetworkError(err)) throw err
       const meta = await this.cache.get('meta', 'init')
@@ -146,18 +158,75 @@ export class CachedDocStore {
     }
   }
 
+  async #connect() {
+    const res = await this.remote.init()
+    const { driveId, driveWebUrl, label, webUrl, folderOnly } = this.remote
+    await this.cache.put('meta', 'init', { driveId, driveWebUrl, label, webUrl, folderOnly })
+    this.#mark(false)
+    return res
+  }
+
+  /** Letzter Stand einer Datei im Gerät (ohne Netz), sonst null. */
+  async cached(path) {
+    const c = await this.cache.get('docs', path)
+    return c ? { ...c, modifiedBy: null, cached: true } : null
+  }
+
+  async #remember(path, doc) {
+    if (doc) await this.cache.put('docs', path, { data: doc.data, etag: doc.etag, modifiedAt: doc.modifiedAt || null })
+    else await this.cache.del('docs', path) // in SharePoint gelöscht: keine alte Kopie wieder auftauchen lassen
+  }
+
   async read(path) {
     try {
       const doc = await this.remote.read(path)
-      if (doc) await this.cache.put('docs', path, { data: doc.data, etag: doc.etag, modifiedAt: doc.modifiedAt || null })
+      await this.#remember(path, doc)
       this.#mark(false)
       return doc
     } catch (err) {
       if (!isNetworkError(err)) throw err
       this.#mark(true)
-      const cached = await this.cache.get('docs', path)
-      if (cached) return { ...cached, modifiedBy: null, cached: true }
+      const cached = await this.cached(path)
+      if (cached) return cached
       throw new OfflineError(`Ohne Verbindung nicht verfügbar: ${path}`)
+    }
+  }
+
+  /** Viele Dateien gebündelt lesen; je Datei ohne Netz die Kopie im Gerät. Map Pfad → { doc } | { error }. */
+  async readMany(paths) {
+    let res
+    try {
+      res = this.remote.readMany ? await this.remote.readMany(paths) : new Map(await Promise.all(paths.map(async (p) => [p, await this.remote.read(p).then((doc) => ({ doc }), (error) => ({ error }))])))
+    } catch (err) {
+      if (!isNetworkError(err)) throw err
+      res = new Map(paths.map((p) => [p, { error: err }]))
+    }
+    let offline = false
+    for (const path of paths) {
+      const r = res.get(path) || { error: new OfflineError() }
+      if (!r.error) {
+        await this.#remember(path, r.doc)
+        continue
+      }
+      if (!isNetworkError(r.error)) continue
+      offline = true
+      const cached = await this.cached(path)
+      res.set(path, cached ? { doc: cached } : { error: new OfflineError(`Ohne Verbindung nicht verfügbar: ${path}`) })
+    }
+    this.#mark(offline)
+    return res
+  }
+
+  /** eTags gebündelt; ohne Netz leer (nichts zu aktualisieren). */
+  async etagsOf(paths) {
+    try {
+      const res = this.remote.etagsOf ? await this.remote.etagsOf(paths) : new Map(await Promise.all(paths.map(async (p) => [p, await this.remote.etagOf(p)])))
+      this.#mark(false)
+      return res
+    } catch (err) {
+      if (!isNetworkError(err)) throw err
+      this.#mark(true)
+      return new Map()
     }
   }
 

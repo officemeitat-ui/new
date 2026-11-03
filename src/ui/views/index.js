@@ -4,6 +4,7 @@
 import './home.js'
 import './week.js'
 import './timeline.js'
+import './appointments.js'
 import './sheet.js'
 import './objects.js'
 import './coverage.js'

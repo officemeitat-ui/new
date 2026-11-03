@@ -318,6 +318,100 @@ $stunden = fn ($min): string => str_replace('.', ',', (string) round(((int) $min
 $konto = fn ($min): string => ($min > 0 ? '+' : ($min < 0 ? '−' : '±')) . str_replace('.', ',', (string) round(abs((int) $min) / 60, 2));
 
 $e = einstellungen();
+// ---------------------------------------------------------------- Kalender-Abo (iCalendar)
+
+function ics_text(string $s): string
+{
+    return str_replace(['\\', "\r\n", "\n", ',', ';'], ['\\\\', '\\n', '\\n', '\\,', '\\;'], $s);
+}
+
+/** Zeile nach RFC 5545 auf 75 Byte falten, ohne UTF-8-Zeichen zu zerteilen. */
+function ics_falten(string $zeile): string
+{
+    $teile = [];
+    $akt = '';
+    foreach (mb_str_split($zeile) as $z) {
+        if (strlen($akt . $z) > ($teile ? 74 : 75)) {
+            $teile[] = $akt;
+            $akt = '';
+        }
+        $akt .= $z;
+    }
+    $teile[] = $akt;
+    return implode("\r\n ", $teile);
+}
+
+function ics_utc(string $datum, string $uhr): string
+{
+    $d = new DateTimeImmutable($datum . ' ' . $uhr, new DateTimeZone('Europe/Vienna'));
+    return $d->setTimezone(new DateTimeZone('UTC'))->format('Ymd\THis\Z');
+}
+
+/** Von–bis aus „06:00–10:00“; Ende vor Beginn = nächster Tag. */
+function ics_spanne(string $datum, string $zeit, string $beginn = ''): ?array
+{
+    $teile = preg_split('/\s*[–-]\s*/u', $zeit);
+    $von = preg_match('/^\d{2}:\d{2}$/', $beginn) ? $beginn : ($teile[0] ?? '');
+    $bis = $teile[1] ?? '';
+    if (!preg_match('/^\d{2}:\d{2}$/', $von) || !preg_match('/^\d{2}:\d{2}$/', $bis)) {
+        return null;
+    }
+    return [ics_utc($datum, $von), ics_utc($bis <= $von ? tag_plus($datum, 1) : $datum, $bis)];
+}
+
+/** Dienstplan einer Person als Kalender: Einsätze, Termine und Abwesenheiten der veröffentlichten Wochen. */
+function kalender_ics(array $person, string $hash): string
+{
+    $jetzt = gmdate('Ymd\THis\Z', jetzt());
+    $z = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cleanos App//Mein Dienstplan//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+        'X-WR-CALNAME:' . ics_text('Dienstplan' . (!empty($person['name']) ? ' ' . $person['name'] : '')), 'X-WR-TIMEZONE:Europe/Vienna', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'];
+    $ereignis = function (string $uid, array $felder) use (&$z, $jetzt) {
+        $z[] = 'BEGIN:VEVENT';
+        $z[] = 'UID:' . $uid . '@mein-plan';
+        $z[] = 'DTSTAMP:' . $jetzt;
+        foreach ($felder as $f) {
+            $z[] = $f;
+        }
+        $z[] = 'END:VEVENT';
+    };
+    foreach ((array) ($person['wochen'] ?? []) as $w) {
+        foreach ((array) ($w['tage'] ?? []) as $t) {
+            $datum = (string) ($t['datum'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum)) {
+                continue;
+            }
+            foreach ((array) ($t['eintraege'] ?? []) as $x) {
+                if (!empty($x['entfaellt']) || empty($x['zeit'])) {
+                    continue;
+                }
+                $sp = ics_spanne($datum, (string) $x['zeit'], (string) ($x['beginn'] ?? ''));
+                if (!$sp) {
+                    continue;
+                }
+                $titel = (string) ($x['objekt'] ?? 'Einsatz') . (!empty($x['leistung']) ? ' – ' . $x['leistung'] : '');
+                $ereignis(sha1($hash . '|' . ($x['id'] ?? $datum . $x['zeit'])), array_filter(['DTSTART:' . $sp[0], 'DTEND:' . $sp[1], 'SUMMARY:' . ics_text($titel), !empty($x['adresse']) ? 'LOCATION:' . ics_text((string) $x['adresse']) : '', !empty($x['notizen']) ? 'DESCRIPTION:' . ics_text(implode("\n", (array) $x['notizen'])) : '']));
+            }
+            foreach ((array) ($t['termine'] ?? []) as $x) {
+                $titel = 'Termin: ' . (string) ($x['titel'] ?? '');
+                $ort = !empty($x['ort']) ? 'LOCATION:' . ics_text((string) $x['ort']) : '';
+                if (!empty($x['ganztags'])) {
+                    $ereignis(sha1($hash . '|t|' . ($x['id'] ?? '') . '|' . $datum), array_filter(['DTSTART;VALUE=DATE:' . str_replace('-', '', $datum), 'DTEND;VALUE=DATE:' . str_replace('-', '', tag_plus($datum, 1)), 'SUMMARY:' . ics_text($titel), $ort, 'TRANSP:TRANSPARENT']));
+                    continue;
+                }
+                $sp = ics_spanne($datum, (string) ($x['zeit'] ?? ''), (string) ($x['beginn'] ?? ''));
+                if ($sp) {
+                    $ereignis(sha1($hash . '|t|' . ($x['id'] ?? $datum)), array_filter(['DTSTART:' . $sp[0], 'DTEND:' . $sp[1], 'SUMMARY:' . ics_text($titel), $ort]));
+                }
+            }
+            if (!empty($t['abwesend'])) {
+                $ereignis(sha1($hash . '|a|' . $datum), ['DTSTART;VALUE=DATE:' . str_replace('-', '', $datum), 'DTEND;VALUE=DATE:' . str_replace('-', '', tag_plus($datum, 1)), 'SUMMARY:' . ics_text((string) $t['abwesend']), 'TRANSP:TRANSPARENT']);
+            }
+        }
+    }
+    $z[] = 'END:VCALENDAR';
+    return implode("\r\n", array_map('ics_falten', $z)) . "\r\n";
+}
+
 $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -512,6 +606,15 @@ if (!$person && $token !== '') {
 }
 if (!$person) {
     html_seite('<h1>Mein Dienstplan</h1><p>Dieser Link gilt nicht (mehr). Bitte im Büro um einen neuen Link bitten.</p>', 404, '', 'Mein Dienstplan');
+    exit;
+}
+// Kalender-Abo (Outlook, Google, iPhone): persönlicher Link mit aktion=kalender, ohne Cookie
+if ($aktion === 'kalender') {
+    header('Content-Type: text/calendar; charset=utf-8');
+    header('Content-Disposition: inline; filename="dienstplan.ics"');
+    header('Cache-Control: private, max-age=900');
+    header('X-Robots-Tag: noindex');
+    echo kalender_ics($person, $hash);
     exit;
 }
 if (isset($_GET['p'])) {
@@ -848,10 +951,15 @@ foreach ($wochen as $mo => $w) {
     $tageHtml = '';
     foreach ((array) ($w['tage'] ?? []) as $t) {
         $eintraege = (array) ($t['eintraege'] ?? []);
-        if (!$eintraege && empty($t['abwesend']) && empty($t['feiertag'])) {
+        $termine = (array) ($t['termine'] ?? []);
+        if (!$eintraege && !$termine && empty($t['abwesend']) && empty($t['feiertag'])) {
             continue;
         }
         $zeilen = '';
+        foreach ($termine as $x) {
+            $zeilen .= '<div class="einsatz termin"><b>' . $h(!empty($x['ganztags']) ? 'ganztägig' : (string) ($x['zeit'] ?? '')) . '</b> <span class="pill">Termin</span> ' . $h((string) ($x['titel'] ?? ''))
+                . (!empty($x['ort']) ? '<br><span class="leise">' . $h((string) $x['ort']) . '</span>' : '') . '</div>';
+        }
         foreach ($eintraege as $x) {
             $adresse = (string) ($x['adresse'] ?? '');
             $karte = $adresse !== '' ? ' · <a href="https://www.google.com/maps/search/?api=1&amp;query=' . rawurlencode($adresse) . '" target="_blank" rel="noopener">Karte</a>' : '';
@@ -904,8 +1012,19 @@ $formulare = $materialForm . '<h2>Abwesenheit</h2>'
     . '<label for="a-von">Von</label><input type="date" id="a-von" name="von" required><label for="a-bis">Bis</label><input type="date" id="a-bis" name="bis" required>'
     . '<label for="a-notiz">Notiz (optional)</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
     . '<button type="submit">Antrag senden</button></form></details>';
+// Kalender-Abo: Plan und Termine erscheinen im eigenen Kalender (Outlook, Google, iPhone) und bleiben aktuell
+$aboAdresse = rtrim((string) ($e['adresse'] ?? ''), '/');
+if ($aboAdresse === '') {
+    $aboAdresse = (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '') . rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+}
+$aboLink = $aboAdresse . '/mein-plan.php?aktion=kalender&p=' . rawurlencode($code);
+$aboHtml = $code !== '' ? '<h2>Im Kalender</h2><details><summary>Dienstplan im eigenen Kalender anzeigen (Outlook, Google, iPhone)</summary>'
+    . '<p><a class="knopf" href="' . $h(preg_replace('#^https?://#', 'webcal://', $aboLink)) . '">Kalender abonnieren</a></p>'
+    . '<p class="leise">Oder in Outlook: Kalender → „Kalender hinzufügen“ → „Aus dem Internet abonnieren“ und diese Adresse einfügen. In Google Kalender: „Andere Kalender“ → „Per URL“.</p>'
+    . '<input readonly value="' . $h($aboLink) . '" onclick="this.select()" style="width:100%">'
+    . '<p class="leise">Die Adresse ist persönlich wie dieser Link. Der Kalender aktualisiert sich von selbst (je nach Kalender alle paar Stunden).</p></details>' : '';
 html_seite('<h1>Mein Dienstplan</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
-    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
+    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
     . ($planHtml ?: '<p class="leise">Noch kein veröffentlichter Plan.</p>')
-    . $boerseHtml . $antraegeHtml . $formulare
+    . $boerseHtml . $antraegeHtml . $formulare . $aboHtml
     . '<p class="leise" style="margin-top:2rem;font-size:.9rem">Diese Seite ist persönlich: den Link nicht weitergeben. Tipp: im Browser-Menü „Zum Startbildschirm“ wählen. <a href="mein-plan.php?aktion=vergessen">Auf diesem Gerät vergessen</a></p>', 200, '', 'Mein Dienstplan');

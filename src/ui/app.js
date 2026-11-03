@@ -12,13 +12,13 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, setFrame, toast, undo, VIEW_GROUPS, viewFromHash, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
 import { sidebar } from './sidebar.js'
 import { planWeek, seedDemoHistory } from './planning.js'
-import { syncTools, toolUrls } from './views/tools.js'
+import { syncTools, toolUrls, warmLastTool } from './views/tools.js'
 import { searchButton } from './search.js'
 import { assistantButton } from './assistant.js'
 import { setupActions, setupHtml } from './setup.js'
@@ -39,9 +39,9 @@ function readPrefs() {
 }
 
 function writePrefs() {
-  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale } = app.ui
+  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, lastTool, pinned, navOpen } = app.ui
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale }))
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, lastTool, pinned, navOpen }))
   } catch {
     /* Browser erlaubt keine Speicherung */
   }
@@ -96,7 +96,7 @@ function topbar(c) {
     return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short, title })
   }
   const status = published ? (changed ? `<span class="pill warning">veröffentlicht · ${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info">Entwurf</span>'
-  const group = VIEW_GROUPS.find(([g]) => g === view?.group)?.[1] || ''
+  const group = sectionLabel(sectionOf(view))
   const head = !view
     ? ''
     : title
@@ -359,7 +359,8 @@ async function boot() {
     if (FOLDERS.some(([, , path]) => rights.read(path))) {
       store = new CachedDocStore(new SharePointDocStore({ getToken: auth.getToken, ...config.sharepoint }), local)
       showMessage('<p>Verbinde mit SharePoint …</p>')
-      await store.init()
+      // war das Gerät schon verbunden: gleich mit dem gemerkten Laufwerk starten, im Hintergrund prüfen
+      await store.init({ quick: true })
     } else {
       // Rolle nur mit Werkzeugen (z. B. Vorarbeiter: Wasserzähler): kein Ordner der App nötig,
       // die Werkzeuge speichern selbst in SharePoint
@@ -379,6 +380,8 @@ async function boot() {
     local,
     // nur die Ordner der eigenen Rolle lesen und schreiben (im Browser-Modus alles)
     rights: config.storage === 'sharepoint' ? dataRights(app.access) : null,
+    // SharePoint: mit dem letzten Stand im Gerät starten, Neueres im Hintergrund nachladen
+    quickStart: config.storage === 'sharepoint' && config.sharepoint?.quickStart !== false,
     blank: emptyData,
     onStatus: (status, detail) => {
       const el = document.getElementById('save-status')
@@ -417,6 +420,8 @@ async function boot() {
   await showTodoIfNew()
   // Wetter (Winterdienst, Hitze, Sturm) im Hintergrund laden
   startWeather()
+  // zuletzt benutztes Werkzeug (z. B. Wasserzähler) schon vorladen, damit es beim Öffnen bereit ist
+  if (config.storage === 'sharepoint') setTimeout(warmLastTool, 2500)
   // Zuletzt ohne Netz Erfasstes gleich nachholen
   if (app.service.restored) {
     toast(`${app.service.restored} ${app.service.restored === 1 ? 'Änderung' : 'Änderungen'} aus der Zeit ohne Netz übernommen, wird gespeichert.`)

@@ -3,12 +3,13 @@
 // einem Klick hinein; für die Einsatzplanung der Stand der Woche. Wer nur
 // ein Werkzeug darf, sieht nur dessen Karte.
 
-import { formatDate, isoWeek, todayISO } from '../../core/dates.js'
-import { app, registerView, VIEW_GROUPS, visibleViews } from '../context.js'
+import { addDays, formatDate, isoWeek, todayISO } from '../../core/dates.js'
+import { app, navSections, registerView, visibleViews } from '../context.js'
 import { weekSteps } from '../flow.js'
 import { todo } from '../modals/todo.js'
 import { esc, ICON } from '../shared.js'
 import { navIcon } from '../sidebar.js'
+import { appointmentsOfDay } from './appointments.js'
 
 const greeting = (hour = new Date().getHours()) => (hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend')
 const firstName = (name = '') => name.split(/[\s,]+/).find(Boolean) || ''
@@ -21,14 +22,13 @@ function planCard(c) {
     <ol class="home-steps">${steps.map((s) => `<li class="${s.done ? 'done' : s === next ? 'next' : ''}" title="${esc(s.info)}">${s.done ? '✓' : ''}<span>${esc(s.label)}</span></li>`).join('')}</ol>`
 }
 
-function card(c, [group, label], views) {
-  const items = views.filter((v) => v.group === group)
+function card(c, { id: group, label, views: items }) {
   if (!items.length) return ''
   const open = items.map((v) => ({ v, n: Number(v.badge?.(c)) || 0 })).filter((x) => x.n > 0)
   const main = items[0]
   return `<article class="home-card">
     <header>${navIcon(main)}<h3>${esc(label)}</h3>${open.length ? '' : '<span class="pill ok">alles erledigt</span>'}</header>
-    ${group === 'plan' ? planCard(c) : ''}
+    ${group === 'planung' && items.some((v) => v.id === 'week') ? planCard(c) : ''}
     ${open.length ? `<ul class="home-open">${open.map(({ v, n }) => `<li><button class="link-row" data-action="view" data-view="${v.id}"><span class="flag error">${n}</span><span>${esc(v.label)}</span>${ICON.right}</button></li>`).join('')}</ul>` : ''}
     <div class="home-links">${items.map((v) => `<button class="btn small" data-action="view" data-view="${v.id}">${esc(v.label)}</button>`).join('')}</div>
   </article>`
@@ -38,9 +38,15 @@ function homeView(c) {
   const views = visibleViews().filter((v) => v.id !== 'home')
   const t = todo()
   const name = firstName(app.user?.name)
-  const cards = VIEW_GROUPS.filter(([g]) => g !== 'start').map((g) => card(c, g, views)).join('')
+  const cards = navSections(views).filter((s) => s.id !== 'start').map((s) => card(c, s)).join('')
+  // Termine heute und morgen (wer Termine sieht)
+  const nextAppts = views.some((v) => v.id === 'termine') ? [todayISO(), addDays(todayISO(), 1)].flatMap((d) => appointmentsOfDay(d).map((x) => ({ ...x, d }))).filter((x, i, all) => all.findIndex((y) => y.a.id === x.a.id) === i).slice(0, 6) : []
+  const apptCard = nextAppts.length
+    ? `<section class="home-appts"><h3>${ICON.calendar} Termine heute und morgen</h3><ul>${nextAppts.map(({ a, d, allDay }) => `<li><button class="link-row" data-action="appt-open" data-id="${esc(a.id)}"><span class="muted">${d === todayISO() ? 'heute' : 'morgen'} ${allDay ? 'ganztägig' : esc(a.start.slice(11, 16))}</span> <b>${esc(a.title)}</b>${ICON.right}</button></li>`).join('')}</ul></section>`
+    : ''
   return `<div class="home-head"><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="muted">${formatDate(todayISO(), { year: true })}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p></div>
   ${t.count ? `<div class="banner"><p><strong>${t.count} ${t.count === 1 ? 'Punkt' : 'Punkte'} zu erledigen</strong> in deinen Bereichen.</p><button class="btn primary" data-action="open-todo">${ICON.bell} Ansehen</button></div>` : ''}
+  ${apptCard}
   <section class="home-grid" aria-label="Bereiche">${cards}</section>`
 }
 

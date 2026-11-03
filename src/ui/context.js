@@ -65,6 +65,47 @@ export const VIEW_GROUPS = [
   ['auswertung', 'Auswertung'],
   ['stamm', 'Stammdaten'],
 ]
+/**
+ * Menü-Abschnitte (Seitenleiste, Handy-Menü, Übersicht). Unabhängig von `group`, das die Rechte
+ * bestimmt: eine Ansicht kann z. B. zur Einsatzplanung gehören (Rechte), im Menü aber unter
+ * „Objekte & Kunden“ stehen. Eigene Ansichten geben `section` bei registerView mit.
+ */
+export const NAV_SECTIONS = [
+  ['start', ''],
+  ['planung', 'Planung'],
+  ['einsatz', 'Einsätze & Zeiten'],
+  ['objekte', 'Objekte & Kunden'],
+  ['betrieb', 'Material & Fuhrpark'],
+  ['finanzen', 'Finanzen'],
+  ['verwaltung', 'Verwaltung'],
+]
+const SECTION_OF_GROUP = { start: 'start', plan: 'planung', service: 'objekte', lager: 'betrieb', fuhrpark: 'betrieb', auswertung: 'finanzen', stamm: 'verwaltung' }
+// Reihenfolge im Menü (was man täglich braucht, zuerst); nicht genannte Ansichten kommen ans Ende ihres Abschnitts
+const NAV_ORDER = {
+  planung: ['week', 'timeline', 'termine', 'coverage', 'absences', 'objects', 'report'],
+  einsatz: ['zeiten', 'sheet', 'due', 'waste', 'wetter'],
+  objekte: ['reklamationen', 'nachweis', 'schluessel', 'zaehler', 'kontrolle', 'objektmappe', 'matten'],
+  betrieb: ['material', 'fahrzeuge'],
+  finanzen: ['fakturierung', 'kalkulation', 'controlling', 'payroll', 'overtime'],
+  verwaltung: ['staff', 'sites', 'assign', 'unterweisungen', 'rules', 'berechtigungen', 'system'],
+}
+const SECTION_OF_VIEW = Object.fromEntries(Object.entries(NAV_ORDER).flatMap(([s, ids]) => ids.map((id) => [id, s])))
+/** Menü-Abschnitt einer Ansicht. */
+export const sectionOf = (view) => view?.section || SECTION_OF_VIEW[view?.id] || SECTION_OF_GROUP[view?.group] || 'verwaltung'
+export const sectionLabel = (id) => NAV_SECTIONS.find(([s]) => s === id)?.[1] || ''
+/** Sichtbare Ansichten nach Menü-Abschnitten: [{ id, label, views }], leere Abschnitte fehlen. */
+export function navSections(views = visibleViews()) {
+  const rank = (v) => {
+    const i = (NAV_ORDER[sectionOf(v)] || []).indexOf(v.id)
+    return i < 0 ? 1000 + (v.order ?? 100) : i
+  }
+  return NAV_SECTIONS.map(([id, label]) => ({ id, label, views: views.filter((v) => sectionOf(v) === id).sort((a, b) => rank(a) - rank(b)) })).filter((s) => s.views.length)
+}
+/** Angeheftete Ansichten (Reihenfolge wie angeheftet), nur sichtbare. */
+export function pinnedViews(views = visibleViews()) {
+  return (app.ui.pinned || []).map((id) => views.find((v) => v.id === id)).filter(Boolean)
+}
+
 export const MODALS = {}
 export const ACTIONS = {}
 /** Hinweise anderer Module zu einem Objekt (z. B. Fahrzeug am Objekt): [{ module, html(objectId) }] */
@@ -232,6 +273,23 @@ export async function render() {
     toast(`Wochen konnten nicht geladen werden: ${err.message}`)
   }
   renderNow()
+  prefetchNeighbours()
+}
+
+/** Vorige und nächste Woche im Hintergrund laden, damit Blättern sofort geht. */
+let prefetchTimer = null
+function prefetchNeighbours() {
+  if (!app.service?.prefetchWeeks || app.store?.kind !== 'sharepoint') return
+  clearTimeout(prefetchTimer)
+  prefetchTimer = setTimeout(() => {
+    const mondays = []
+    for (const step of [7, -7]) {
+      const m = addDays(app.ui.monday, step)
+      const w = windowFor(m, addDays(m, 3).slice(0, 7))
+      mondays.push(...mondaysBetween(w.from, w.to))
+    }
+    app.service.prefetchWeeks(mondays)
+  }, 400)
 }
 
 export function renderNow() {
@@ -428,6 +486,8 @@ export function saveStatusText(status, detail) {
   switch (status) {
     case 'loading':
       return 'Lädt …'
+    case 'syncing':
+      return `<span class="sync-text">Gleicht mit SharePoint ab …</span>`
     case 'pending':
     case 'saving':
       return 'Speichert …'

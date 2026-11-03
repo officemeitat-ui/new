@@ -2,9 +2,36 @@
 // Objekte und Fahrzeuge in einem Feld. Zeigt nur, was die Rolle sehen darf.
 // Suchen in den Werkzeugen (Zählstellen, Kontrollen, Akten) geht dort selbst.
 
-import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, visibleViews } from './context.js'
+import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, sectionLabel, sectionOf, visibleViews } from './context.js'
 import { esc, ICON, modalFrame } from './shared.js'
 
+// weitere Suchwörter je Ansicht (so wie man sie im Büro nennt)
+const KEYWORDS = {
+  week: 'Dienstplan Einsatzplan Woche',
+  timeline: 'Tag Tagesplan Gantt Balken',
+  termine: 'Kalender Outlook Besprechung Begehung Meeting',
+  coverage: 'Vertretung Krankenstand Ersatz offen',
+  absences: 'Urlaub Krank Krankenstand Zeitausgleich',
+  zeiten: 'Zeiterfassung Stempeln QR Ist Kommen Gehen Arbeitszeit',
+  sheet: 'Stundenzettel Wochenzettel Arbeitszeit',
+  wetter: 'Radar Regen Schnee Glätte Winterdienst Vorhersage',
+  waste: 'Müll Tonnen Abfall',
+  reklamationen: 'Beschwerde Mangel Kunde',
+  nachweis: 'Leistungsnachweis Kunde Bericht',
+  schluessel: 'Schlüssel Transponder Code',
+  zaehler: 'Wasserzähler Ablesung Zählerstand',
+  kontrolle: 'Prüfprotokoll Qualitätskontrolle',
+  matten: 'Matten Mattenwechsel Tour Lieferschein',
+  material: 'Lager Bestand Bestellung Reinigungsmittel',
+  fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
+  fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten',
+  kalkulation: 'Preis Angebot Leistungswert',
+  payroll: 'Lohn Monatsabschluss',
+  overtime: 'Überstunden Mehrarbeit Auszahlung',
+  staff: 'Personal Mitarbeiter Team',
+  sites: 'Objekte Kunden Leistungen Adressen',
+  berechtigungen: 'Rechte Gruppen Rollen',
+}
 const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 const sees = (m) => !app.access || app.access.sees(m)
 
@@ -13,7 +40,7 @@ function results(q) {
   if (!n) return []
   const hit = (...texts) => texts.some((t) => norm(t).includes(n))
   const out = []
-  for (const v of visibleViews()) if (hit(v.label)) out.push({ group: 'Ansicht', label: v.label, action: 'view', data: { view: v.id } })
+  for (const v of visibleViews()) if (hit(v.label, v.text, KEYWORDS[v.id], sectionLabel(sectionOf(v)))) out.push({ group: 'Ansicht', label: v.label, sub: sectionLabel(sectionOf(v)), action: 'view', data: { view: v.id } })
   if (sees('planung') || sees('stammdaten'))
     for (const e of app.data.employees) if (hit(e.name, e.personnelNo, e.team)) out.push({ group: 'Mitarbeitende', label: e.name, sub: [e.personnelNo, e.team].filter(Boolean).join(' · '), action: sees('planung') ? 'open-person' : 'emp-edit', data: sees('planung') ? { emp: e.id } : { id: e.id } })
   if (sees('stammdaten')) for (const o of app.data.objects) if (hit(o.name, o.short, o.address)) out.push({ group: 'Objekte', label: o.name, sub: o.address || '', action: 'search-goto-sites', data: { id: o.id } })

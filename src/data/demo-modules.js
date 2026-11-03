@@ -140,10 +140,25 @@ function demoTrainings(employees) {
   return { types: [], records, sessions: [] }
 }
 
+/** Termine der Woche: Begehung, Kundentermin, Schulung, Werkstatt (ohne Outlook, Browser-Modus). */
+function demoAppointments(monday, employees) {
+  const day = (n, t) => `${addDays(monday, n)}T${t}`
+  const emp = (i) => employees[i]?.id
+  const items = [
+    { id: 'ter-d1', title: 'Begehung mit der Hausverwaltung', kind: 'begehung', start: day(1, '10:00'), end: day(1, '11:00'), objectId: 'o5', attendees: [{ email: 'verwaltung@hausverwaltung-beispiel.at', name: 'Hausverwaltung Beispiel' }], employeeIds: [emp(0)].filter(Boolean), note: 'Stiegenhaus und Kellergang ansehen, neue Fläche Fahrradraum.' },
+    { id: 'ter-d2', title: 'Angebotsgespräch Kanzlei', kind: 'kunde', start: day(2, '14:00'), end: day(2, '15:00'), objectId: 'o1', attendees: [], employeeIds: [], note: '' },
+    { id: 'ter-d3', title: 'Unterweisung Reinigungschemie', kind: 'schulung', start: day(3, '07:00'), end: day(3, '08:30'), objectId: '', location: 'Büro', attendees: [], employeeIds: [emp(2), emp(3), emp(5)].filter(Boolean), note: 'Sicherheitsdatenblätter mitnehmen.' },
+    { id: 'ter-d4', title: 'Reifenwechsel Firmenbus', kind: 'werkstatt', start: day(4, '08:00'), end: day(4, '08:45'), location: 'Werkstatt', attendees: [], employeeIds: [emp(1)].filter(Boolean), note: '' },
+    { id: 'ter-d5', title: 'Messe Reinigungstechnik', kind: 'sonstiges', allDay: true, start: day(9, '00:00'), end: day(10, '00:00'), attendees: [], employeeIds: [], note: '' },
+  ]
+  return { items: items.map((a) => ({ reminder: 15, responseRequested: true, ...a })), settings: {} }
+}
+
 export function createModuleDemo(monday, employees = []) {
   return {
     unterweisungen: employees.length > 10 ? demoTrainings(employees) : { types: [], records: [], sessions: [] },
     schluessel: demoKeys(),
+    termine: demoAppointments(monday, employees),
     material: demoMaterial(),
     fahrzeuge: demoVehicles(monday),
     reklamationen: demoComplaints(monday),

@@ -10,6 +10,7 @@
 // übernehmen darf. „Ich übernehme“ steht dann unter „Zu erledigen“; „Einteilen“ prüft noch einmal,
 // teilt ein, sagt weiteren Meldungen ab und veröffentlicht die Woche neu.
 
+import { appointmentsBetween, employeesOf } from '../core/appointments.js'
 import { employedOn } from '../core/contract.js'
 import { addDays, dayIndex, formatDate, mondayOf, todayISO } from '../core/dates.js'
 import { PlanState } from '../core/plan.js'
@@ -24,6 +25,16 @@ import { accountAfterWeek } from './pdf.js'
 import { publishWeek } from './planning.js'
 import { downloadQrPosters } from './timeclock.js'
 import { checked, download, esc, ICON, modalFrame, val } from './shared.js'
+
+/** Termine einer Person in der Woche (Modul Termine), ohne abgesagte, mit Ort für das Handy. */
+function appointmentsFor(empId, monday) {
+  const list = appointmentsBetween(app.data.termine?.items || [], monday, addDays(monday, 6))
+  const place = (a) => {
+    const o = app.data.objects.find((x) => x.id === a.objectId)
+    return a.location || [o?.name, o?.address].filter(Boolean).join(', ')
+  }
+  return list.filter((a) => employeesOf(a, app.data.employees).includes(empId)).map((a) => ({ ...a, where: place(a) }))
+}
 
 const hex = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
 const address = () => new URL('.', location.href).href
@@ -112,7 +123,7 @@ export async function sendWeeks(mondays) {
     if (!app.data.published?.[monday]) continue
     const c = compute(monday)
     for (const emp of portalEmployees(c.ctx.employees, p.codes, monday)) {
-      entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp) }) })
+      entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp), appointments: appointmentsFor(emp.id, monday) }) })
     }
   }
   const offers = p.exchange === false ? { angebote: {}, byEmp: new Map() } : await offersByHash(p)

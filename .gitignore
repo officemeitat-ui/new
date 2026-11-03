@@ -7,3 +7,6 @@ hochladen.json
 # lokale Prüfungen und Auslieferungspakete (nicht ins Repository)
 .pruefung/
 pakete/
+
+# Arbeitskopien paralleler Arbeit (nicht ins Repository)
+.claude/worktrees/

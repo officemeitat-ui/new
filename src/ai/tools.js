@@ -13,7 +13,8 @@ import { isActive, keysOf, objectKeys } from '../core/keys.js'
 import { stockRows } from '../core/material.js'
 import { PlanState } from '../core/plan.js'
 import { evaluateCandidate, explain, rankCandidates } from '../core/scheduler.js'
-import { ACTIONS, addLog, app, computeRange, empName, ensureRange, persist, recordUndo, renderNow } from '../ui/context.js'
+import { ACTIONS, addLog, app, canEdit, computeRange, empName, ensureRange, persist, recordUndo, renderNow } from '../ui/context.js'
+import { saveAppointment } from '../ui/views/appointments.js'
 import { computeTodo } from '../ui/modals/todo.js'
 import { uid } from '../ui/shared.js'
 import { registerAgentTool } from './registry.js'
@@ -245,21 +246,23 @@ registerAgentTool({
 function attendees(list = []) {
   const found = []
   const unknown = []
+  const employeeIds = []
   for (const t of list) {
     const s = String(t || '').trim()
     if (!s) continue
-    if (emailOk(s)) found.push({ email: s, name: '' })
+    if (emailOk(s)) found.push({ email: s.toLowerCase(), name: '' })
     else {
       try {
         const e = findEmployee(s)
-        if (e.email) found.push({ email: e.email, name: e.name })
+        employeeIds.push(e.id)
+        if (e.email) found.push({ email: e.email.toLowerCase(), name: e.name })
         else unknown.push(`${e.name} (keine E-Mail hinterlegt)`)
       } catch {
         unknown.push(s)
       }
     }
   }
-  return { found, unknown }
+  return { found, unknown, employeeIds }
 }
 
 function eventTimes({ beginn, ende, dauer_minuten }) {
@@ -294,6 +297,7 @@ registerAgentTool({
       teilnehmer: { type: 'array', items: { type: 'string' }, description: 'Namen von Mitarbeitenden oder E-Mail-Adressen' },
       notiz: { type: 'string' },
       teams: { type: 'boolean', description: 'als Teams-Besprechung' },
+      art: { type: 'string', enum: ['kunde', 'begehung', 'kontrolle', 'schulung', 'werkstatt', 'bewerbung', 'intern', 'sonstiges'], description: 'Art des Termins' },
     },
     required: ['titel', 'beginn'],
   },
@@ -306,6 +310,13 @@ registerAgentTool({
     const { start, end } = eventTimes(input)
     const a = attendees(input.teilnehmer)
     const body = [input.notiz || '', a.unknown.length ? `Mit: ${a.unknown.join(', ')}` : ''].filter(Boolean).join('\n')
+    if (canEdit('termine')) {
+      // über das Modul Termine: steht in der App (Kalender, Zeitlinie) und in Outlook mit Einladung
+      const external = a.found.filter((x) => !a.employeeIds.some((id) => app.data.employees.find((e) => e.id === id)?.email?.toLowerCase() === x.email))
+      const saved = await saveAppointment({ title: input.titel, kind: input.art || 'sonstiges', start, end, location: input.ort || '', note: body, attendees: external.map((x) => ({ email: x.email, name: x.name || x.email })), employeeIds: a.employeeIds, online: !!input.teams, reminder: 15, responseRequested: true }, { quiet: true })
+      if (saved?.outlook?.error) throw new ToolError(`In der App gespeichert, aber nicht in Outlook: ${saved.outlook.error}`)
+      return { angelegt: true, wann: when(start, end), eingeladen: a.found.map((x) => x.name || x.email), nicht_eingeladen: a.unknown, link: saved?.outlook?.webLink || undefined, teams: saved?.outlook?.onlineMeetingUrl || undefined, in_app: 'Termine' }
+    }
     const res = await createEvent(await graphToken('Calendars.ReadWrite'), { subject: input.titel, start, end, location: input.ort || '', body, attendees: a.found, online: !!input.teams })
     return { angelegt: true, wann: when(start, end), eingeladen: a.found.map((x) => x.name || x.email), nicht_eingeladen: a.unknown, link: res.webLink, teams: res.onlineMeetingUrl || undefined }
   },

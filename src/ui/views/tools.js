@@ -63,6 +63,10 @@ export function syncTools() {
     return
   }
   frameFor(active).hidden = false
+  if (app.ui.lastTool !== active.name) {
+    app.ui.lastTool = active.name
+    app.savePrefs?.()
+  }
   const el = hostEl()
   el.hidden = false
   // Platzhalter bis zum unteren Rand (am Handy über der Leiste unten)
@@ -73,6 +77,19 @@ export function syncTools() {
   Object.assign(el.style, { top: `${r.top + window.scrollY}px`, left: `${r.left + window.scrollX}px`, width: `${r.width}px`, height: `${r.height}px` })
 }
 window.addEventListener('resize', () => syncTools())
+
+/**
+ * Zuletzt benutztes Werkzeug im Hintergrund vorladen (unsichtbar), damit es beim Öffnen schon seine
+ * Daten aus SharePoint hat. Nur am großen Bildschirm bzw. im WLAN-tauglichen Fall: nicht bei „Daten sparen“.
+ */
+export function warmLastTool() {
+  const tool = toolOf(app.ui.lastTool)
+  if (!tool || frames.has(tool.name) || navigator.connection?.saveData) return
+  if (!visibleViews().some((v) => v.id === tool.id) || app.config?.tools === false) return
+  const frame = frameFor(tool)
+  frame.hidden = true
+  hostEl()
+}
 
 /** Adressen der Werkzeuge, die die eigene Rolle sieht (samt Anmeldebrücke): zum Vorhalten für ohne Netz. */
 export function toolUrls() {

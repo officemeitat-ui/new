@@ -123,9 +123,79 @@ export class SharePointDocStore {
   async read(path) {
     const meta = await this.#meta(path)
     if (!meta) return null
+    return this.#download(path, meta)
+  }
+
+  async #download(path, meta) {
     const res = await this.fetch(meta['@microsoft.graph.downloadUrl'])
     if (!res.ok) throw new GraphError(res.status, `Datei ${path} konnte nicht gelesen werden`)
     return { data: await res.json(), etag: meta.eTag, modifiedBy: meta.lastModifiedBy?.user?.displayName || null, modifiedAt: meta.lastModifiedDateTime || null }
+  }
+
+  /**
+   * Mehrere GET-Anfragen in einer: Graph $batch (je 20). Liefert Map id → { status, body }.
+   * Einzelne gedrosselte Antworten (429/503) werden nach Retry-After nochmals gestellt.
+   */
+  async #batch(requests) {
+    const out = new Map()
+    const chunks = []
+    for (let i = 0; i < requests.length; i += 20) chunks.push(requests.slice(i, i + 20))
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        let todo = chunk
+        for (let attempt = 0; todo.length; attempt++) {
+          const res = await this.#request('POST', '/$batch', { body: JSON.stringify({ requests: todo.map((r) => ({ id: r.id, method: 'GET', url: r.url })) }), headers: { 'Content-Type': 'application/json' } })
+          const answers = (await res.json()).responses || []
+          const again = []
+          let wait = 0
+          for (const a of answers) {
+            if ((a.status === 429 || a.status === 503) && attempt < 3) {
+              again.push(todo.find((t) => t.id === a.id))
+              const h = a.headers || {}
+              const after = h['Retry-After'] ?? h['retry-after']
+              wait = Math.max(wait, after !== undefined && after !== '' && Number.isFinite(Number(after)) ? Number(after) : 2 ** attempt)
+            } else out.set(a.id, a)
+          }
+          todo = again.filter(Boolean)
+          if (todo.length) await sleep(wait * 1000)
+        }
+      }),
+    )
+    return out
+  }
+
+  /**
+   * Viele Dateien auf einmal lesen: Metadaten gebündelt (eine Anfrage je 20 Dateien),
+   * Inhalte parallel. Liefert Map Pfad → { doc } (null = gibt es nicht) oder { error } je Datei.
+   */
+  async readMany(paths) {
+    const metas = await this.#batch(paths.map((path, i) => ({ id: String(i + 1), url: this.#itemUrl(path) })))
+    const out = new Map()
+    await Promise.all(
+      paths.map(async (path, i) => {
+        const a = metas.get(String(i + 1))
+        try {
+          if (!a) throw new GraphError(0, `Keine Antwort für ${path}`)
+          if (a.status === 404) return out.set(path, { doc: null })
+          if (a.status >= 400) throw new GraphError(a.status, a.body?.error?.message || `Graph-Fehler ${a.status}`, a.body)
+          out.set(path, { doc: await this.#download(path, a.body) })
+        } catch (error) {
+          out.set(path, { error })
+        }
+      }),
+    )
+    return out
+  }
+
+  /** eTags vieler Dateien in einer Anfrage (je 20): Map Pfad → eTag, null (gibt es nicht) oder undefined (gerade nicht lesbar). */
+  async etagsOf(paths) {
+    const answers = await this.#batch(paths.map((path, i) => ({ id: String(i + 1), url: `${this.#itemUrl(path)}?$select=eTag` })))
+    const out = new Map()
+    paths.forEach((path, i) => {
+      const a = answers.get(String(i + 1))
+      out.set(path, a && a.status < 300 ? (a.body?.eTag ?? null) : a?.status === 404 ? null : undefined)
+    })
+    return out
   }
 
   /** Datei löschen (landet im Papierkorb der Website); fehlt sie schon, ist das kein Fehler. */
