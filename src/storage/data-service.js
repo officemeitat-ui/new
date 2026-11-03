@@ -15,6 +15,7 @@
 //   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
 //   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
+//   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -34,6 +35,7 @@
 
 import { mondayOf } from '../core/dates.js'
 import { emptyAppointments } from '../core/appointments.js'
+import { emptyInvoicing } from '../core/invoicing.js'
 import { emptyKeys } from '../core/keys.js'
 import { emptyMaterial } from '../core/material.js'
 import { emptyTrainings } from '../core/trainings.js'
@@ -64,6 +66,7 @@ export const MODULE_DOCS = {
   nachweise: { path: 'nachweise/versand.json', empty: () => ({ sent: {}, settings: {} }) },
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
+  fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -79,7 +82,7 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung'), () => edits('stammdaten', 'planung')],
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
@@ -97,6 +100,8 @@ export function dataRights(access) {
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Löhne und Margen: nur Auswertung & Lohn
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
+    // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
+    [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -117,6 +122,7 @@ export const FOLDERS = [
   ['unterweisungen', 'Unterweisungen & Fristen je Person', MODULE_DOCS.unterweisungen.path],
   ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
+  ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
 ]
 
 /**

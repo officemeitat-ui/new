@@ -26,6 +26,7 @@ export const MODULES = {
   schluessel: 'Schlüsselbuch',
   unterweisungen: 'Unterweisungen & Fristen',
   termine: 'Termine',
+  fakturierung: 'Fakturierung',
 }
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
@@ -46,6 +47,8 @@ export const DEFAULT_ROLES = {
   ableser: { label: 'Ableser', modules: ['zaehler'], edit: ['zaehler'] },
   pruefer: { label: 'Prüfer/in', modules: ['kontrolle', 'objektmappe'], edit: ['kontrolle'] },
   fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] },
+  // Angebote, Rechnungen, Zahlungseingänge, Mahnungen (Fakturierung)
+  buchhaltung: { label: 'Buchhaltung', modules: ['fakturierung'], edit: ['fakturierung'] },
   lesen: { label: 'Nur lesen', modules: ['planung'], edit: [] },
 }
 

@@ -3,7 +3,8 @@
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
 
-import { addDays, todayISO } from '../core/dates.js'
+import { addDays, firstOfMonth, todayISO } from '../core/dates.js'
+import { finalize } from '../core/invoicing.js'
 import { monthAdd } from '../core/vehicle-dues.js'
 import { campaignFor } from '../core/vehicles.js'
 
@@ -154,8 +155,63 @@ function demoAppointments(monday, employees) {
   return { items: items.map((a) => ({ reminder: 15, responseRequested: true, ...a })), settings: {} }
 }
 
+// Fakturierung: Absender, drei Kunden (Hausverwaltung mit zwei Objekten), Daueraufträge mit Wertsicherung,
+// Rechnungen der letzten Monate (bezahlt, offen, überfällig), ein Entwurf und ein Angebot.
+function demoInvoicing() {
+  const today = todayISO()
+  const first = firstOfMonth(today)
+  const prev = addDays(first, -1) // letzter Tag des Vormonats
+  const prevFirst = firstOfMonth(prev)
+  const prev2 = addDays(prevFirst, -1)
+  const prev2First = firstOfMonth(prev2)
+  const settings = {
+    sender: { name: 'Gebäudereinigung Beispiel GmbH', address: 'Musterstraße 1\n5020 Salzburg', uid: 'ATU12345678', email: 'office@reinigung-beispiel.example', phone: '+43 662 000000', web: 'www.reinigung-beispiel.example', register: 'FN 000000 x, LG Salzburg' },
+    bank: { iban: 'AT611904300234573201', bic: 'BKAUATWW', name: 'Bank Beispiel' },
+    paymentDays: 14,
+    baseRate: 1.53,
+  }
+  const customers = [
+    { id: 'c-demo1', customerNo: '10001', name: 'Hausverwaltung Beispiel GmbH', address: 'Ringstraße 3\n5020 Salzburg', uid: 'ATU87654321', email: 'buchhaltung@hv-beispiel.example', paymentDays: 14, objectIds: ['o5', 'o11'], reverseCharge: false, consumer: false },
+    { id: 'c-demo2', customerNo: '10002', name: 'Autohaus Maxglan Beispiel KG', address: 'Autoweg 7\n5020 Salzburg', uid: 'ATU11223344', email: 'rechnung@autohaus-beispiel.example', paymentDays: 10, objectIds: ['o2'], reverseCharge: false, consumer: false, hourRate: 34 },
+    { id: 'c-demo3', customerNo: '10003', name: 'Reinigung Partner Beispiel GmbH', address: 'Gewerbestraße 9\n5101 Bergheim', uid: 'ATU55667788', email: 'office@partner-beispiel.example', paymentDays: 30, objectIds: ['o8'], reverseCharge: true, consumer: false, note: 'Subauftrag: Partner erbringt selbst Reinigungsleistungen (Bauleistung)' },
+  ]
+  const recipient = (c) => ({ name: c.name, address: c.address, uid: c.uid, email: c.email, customerNo: c.customerNo, consumer: false })
+  const docs = []
+  const add = (draft, extra = {}) => {
+    const fixed = finalize(draft, docs, settings, { now: `${draft.date}T09:00:00.000Z`, by: 'Beispieldaten' })
+    docs.push({ ...fixed, ...extra })
+  }
+  const line = (text, qty, unit, price, vat = 20) => ({ id: `l-${Math.random().toString(36).slice(2, 7)}`, text, qty, unit, price, vat, discount: 0 })
+  const monthName = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('de-AT', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  add({ id: 'inv-demo1', kind: 'rechnung', date: addDays(prev2, 2), serviceFrom: prev2First, serviceTo: prev2, dueDate: addDays(prev2, 16), customerId: 'c-demo1', objectId: 'o5', objectName: 'Wohnanlage Lehen', recipient: recipient(customers[0]), title: `Unterhaltsreinigung Wohnanlage Lehen ${monthName(prev2First)}`, lines: [line('Unterhaltsreinigung Stiegenhaus lt. Vertrag', 1, 'Monat', 980)] }, { payments: [{ id: 'p-demo1', date: addDays(prev2, 12), amount: 1176, note: 'Kontoauszug' }] })
+  add({ id: 'inv-demo2', kind: 'rechnung', date: addDays(prev2, 2), serviceFrom: prev2First, serviceTo: prev2, dueDate: addDays(prev2, 12), customerId: 'c-demo2', objectId: 'o2', objectName: 'Autohaus Maxglan', recipient: recipient(customers[1]), title: `Reinigung Autohaus ${monthName(prev2First)}`, lines: [line('Unterhaltsreinigung Schauraum und Büros', 46.5, 'Std.', 34), line('Glasreinigung Schaufenster', 120, 'm²', 2.4)] })
+  add({ id: 'inv-demo3', kind: 'rechnung', date: addDays(prev, 2), serviceFrom: prevFirst, serviceTo: prev, dueDate: addDays(prev, 16), customerId: 'c-demo1', objectId: 'o5', objectName: 'Wohnanlage Lehen', recipient: recipient(customers[0]), title: `Unterhaltsreinigung Wohnanlage Lehen ${monthName(prevFirst)}`, lines: [line('Unterhaltsreinigung Stiegenhaus lt. Vertrag', 1, 'Monat', 980)] })
+  add({ id: 'inv-demo4', kind: 'rechnung', date: addDays(prev, 3), serviceFrom: prevFirst, serviceTo: prev, dueDate: addDays(prev, 33), customerId: 'c-demo3', objectId: 'o8', objectName: 'Gewerbepark Bergheim', recipient: recipient(customers[2]), reverseCharge: true, title: `Subauftrag Gewerbepark Bergheim ${monthName(prevFirst)}`, lines: [line('Bauendreinigung Halle 2', 640, 'm²', 3.1)] })
+  docs.push({ id: 'inv-demo5', kind: 'rechnung', status: 'entwurf', date: today, serviceFrom: prevFirst, serviceTo: prev, dueDate: addDays(today, 10), customerId: 'c-demo2', objectId: 'o2', objectName: 'Autohaus Maxglan', recipient: recipient(customers[1]), reverseCharge: false, discount: 0, title: `Reinigung Autohaus ${monthName(prevFirst)}`, intro: 'Für unsere Leistungen erlauben wir uns zu verrechnen:', outro: 'Vielen Dank für den Auftrag.', lines: [line('Unterhaltsreinigung Schauraum und Büros', 44, 'Std.', 34), line('Sonderreinigung Werkstattboden', 3.5, 'Std.', 34)], createdAt: `${today}T08:00:00.000Z`, createdBy: 'Beispieldaten' })
+  add({ id: 'off-demo1', kind: 'angebot', date: addDays(today, -6), validUntil: addDays(today, 24), customerId: 'c-demo1', objectId: 'o11', objectName: 'Versicherungsbüro Lehen', recipient: recipient(customers[0]), title: 'Unterhaltsreinigung Versicherungsbüro', intro: 'Gerne bieten wir Ihnen an:', lines: [line('Unterhaltsreinigung Büro 3× pro Woche lt. Leistungsverzeichnis', 1, 'Monat', 640), line('Grundreinigung Bodenbeläge (einmalig)', 210, 'm²', 2.9)] })
+  return {
+    settings,
+    customers,
+    articles: [
+      { id: 'a-fdemo1', name: 'Unterhaltsreinigung lt. Vertrag', unit: 'Monat', price: 0, vat: 20 },
+      { id: 'a-fdemo2', name: 'Reinigung nach Aufwand', unit: 'Std.', price: 34, vat: 20 },
+      { id: 'a-fdemo3', name: 'Glas- und Fensterreinigung', unit: 'm²', price: 2.4, vat: 20 },
+      { id: 'a-fdemo4', name: 'Grundreinigung', unit: 'm²', price: 2.9, vat: 20 },
+      { id: 'a-fdemo5', name: 'Winterdienst Pauschale', unit: 'Monat', price: 120, vat: 20 },
+    ],
+    documents: docs,
+    recurring: [
+      { id: 'rec-demo1', customerId: 'c-demo1', objectId: 'o5', title: 'Unterhaltsreinigung Wohnanlage Lehen', interval: 'monat', startMonth: prev2First.slice(0, 7), endMonth: '', active: true, lastRun: prevFirst.slice(0, 7), lines: [line('Unterhaltsreinigung Stiegenhaus lt. Vertrag', 1, 'Monat', 980)], index: { active: true, baseValue: 127.9, baseMonth: '2025-12', threshold: 3, onlyUp: false } },
+      { id: 'rec-demo2', customerId: 'c-demo1', objectId: 'o5', title: 'Winterdienst Wohnanlage Lehen', interval: 'monat', startMonth: first.slice(0, 7), endMonth: '', active: true, lines: [line('Winterdienst Gehsteig und Hauszugang (Pauschale)', 1, 'Monat', 120)] },
+    ],
+    // Beispielwerte, keine amtlichen Zahlen
+    indexValues: { '2025-12': 127.9 },
+  }
+}
+
 export function createModuleDemo(monday, employees = []) {
   return {
+    fakturierung: demoInvoicing(),
     unterweisungen: employees.length > 10 ? demoTrainings(employees) : { types: [], records: [], sessions: [] },
     schluessel: demoKeys(),
     termine: demoAppointments(monday, employees),

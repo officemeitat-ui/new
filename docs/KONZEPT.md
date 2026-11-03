@@ -120,6 +120,7 @@ Untersucht wurden Branchenlösungen für Gebäudereiniger (PlanD, Profacilo, MR.
 | Leistungsnachweis für Kunden | verbreitet in Reinigungs- und Zeiterfassungssoftware | umgesetzt (je Objekt und Monat, mit Zeiterfassung, PDF und E-Mail) |
 | Unterweisungen, Schulungen, Dokumente mit Ablauf | verbreitet in Mitarbeiter-Apps (z. B. Connecteam) | umgesetzt (Ampel je Person, Unterweisung mit Unterschrift, Arbeitserlaubnis sperrt im Plan) |
 | KI-Assistent, der in der Software arbeitet (Termine, Krankmeldung, Vertretung, Reklamation per Sprache) | verbreitet als „Copilot“ in Bürosoftware | umgesetzt (Claude über ki.php, Werkzeuge mit Rechten, jede Änderung mit Bestätigung) |
+| Fakturierung mit Daueraufträgen, Wertsicherung, Mahnwesen und Export für die Steuerberatung | orgamax, FreeFinance, BMD; in Reinigungs-Software meist als Zusatzmodul | umgesetzt (Angebot → Rechnung, Storno/Korrektur, Reverse Charge, Monatslauf mit VPI, Zahlungs-QR-Code, Mahnstufen, CSV) |
 
 Microsoft Teams Shifts lässt sich über die Graph-Shifts-API anbinden. Da der Dienstplan schon Microsoft Graph nutzt, ist das eine naheliegende nächste Erweiterung.
 
