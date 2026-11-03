@@ -46,13 +46,30 @@
     "kpiSaved": "Time saved this week",
     "kpiNoData": "No data yet",
     "firstAgentTitle": "Your first digital team member",
-    "firstAgentDescription": "As soon as your first agent is working, you will see running tasks, pending approvals and time saved here.",
+    "firstAgentDescription": "Pick one of the 12 ready-made agents or start with the assistant in the chat. You will then see runs, approvals and time saved here.",
     "systemTitle": "System status",
     "systemDescription": "Connection to the platform services",
     "checkDatabase": "Database",
     "checkRedis": "Queue (Redis)",
     "statusOk": "Connected",
-    "statusDown": "Unreachable"
+    "statusDown": "Unreachable",
+    "kpiLabel": "Key figures",
+    "kpiCost": "AI costs this month",
+    "approvalsWaiting": "waiting for your decision",
+    "approvalsNone": "all done",
+    "runsCompleted": "{count, plural, =0 {none completed yet} =1 {1 completed} other {# completed}}",
+    "hours": "{hours} h",
+    "savedValue": "≈ {amount} at {rate}/h",
+    "changeRate": "change",
+    "roiFactor": "Value ≈ {factor}× the cost",
+    "costHint": "Purchase price of the AI provider",
+    "chartTitle": "Agent runs in the last 7 days",
+    "chartDescription": "{agents, plural, =1 {1 active agent} other {# active agents}}",
+    "chartRuns": "{count, plural, =1 {1 run} other {# runs}}",
+    "activityTitle": "Recent activity",
+    "activityDescription": "What your agents did recently",
+    "openChat": "Open chat",
+    "chooseTemplate": "Choose an agent template"
   },
   "errors": {
     "notFoundTitle": "Page not found",
@@ -143,7 +160,8 @@
       "audit": "Audit log",
       "branding": "Branding",
       "security": "Security",
-      "support": "Support access"
+      "support": "Support access",
+      "general": "General"
     },
     "members": {
       "inviteTitle": "Invite someone",
@@ -186,7 +204,8 @@
         "agent_created": "Agent created",
         "agent_published": "Agent published",
         "agent_archived": "Agent archived",
-        "agent_restored": "Agent reactivated"
+        "agent_restored": "Agent reactivated",
+        "tenant_settings_changed": "Company settings changed"
       },
       "actors": {
         "user": "User",
@@ -247,6 +266,16 @@
       "state_revoked": "ended",
       "forbiddenTitle": "No access",
       "forbiddenDescription": "Only owners can grant support access."
+    },
+    "general": {
+      "title": "General",
+      "description": "Basic data of your company.",
+      "name": "Company name",
+      "hourlyRate": "Internal hourly rate (€)",
+      "hourlyRateHint": "Used to convert time saved into euros.",
+      "save": "Save",
+      "forbiddenTitle": "No access",
+      "forbiddenDescription": "Only owners and admins can change these settings."
     }
   },
   "partner": {
@@ -483,5 +512,17 @@
     "monitoring": "IT monitoring",
     "web": "Web research",
     "delegation": "Agent collaboration"
+  },
+  "runStatus": {
+    "queued": "queued",
+    "running": "running",
+    "completed": "done",
+    "awaiting_approval": "needs approval",
+    "refused": "declined",
+    "incomplete": "incomplete",
+    "max_steps": "step limit",
+    "budget_exceeded": "cost limit",
+    "cancelled": "cancelled",
+    "failed": "error"
   }
 }

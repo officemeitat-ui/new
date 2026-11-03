@@ -4,6 +4,7 @@ export * from "./agents";
 export * from "./audit";
 export * from "./branding";
 export * from "./chat";
+export * from "./dashboard";
 export * from "./invitations";
 export * from "./mail";
 export * from "./members";

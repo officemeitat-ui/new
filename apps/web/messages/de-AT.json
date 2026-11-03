@@ -46,13 +46,30 @@
     "kpiSaved": "Gesparte Zeit diese Woche",
     "kpiNoData": "Noch keine Daten",
     "firstAgentTitle": "Ihr erstes digitales Teammitglied",
-    "firstAgentDescription": "Sobald Ihr erster Agent arbeitet, sehen Sie hier laufende Aufgaben, offene Freigaben und die gesparte Zeit.",
+    "firstAgentDescription": "Wählen Sie einen der 12 fertigen Agenten oder starten Sie mit dem Assistenten im Chat. Hier sehen Sie dann Läufe, Freigaben und die gesparte Zeit.",
     "systemTitle": "Systemstatus",
     "systemDescription": "Verbindung zu den Diensten der Plattform",
     "checkDatabase": "Datenbank",
     "checkRedis": "Warteschlange (Redis)",
     "statusOk": "Verbunden",
-    "statusDown": "Nicht erreichbar"
+    "statusDown": "Nicht erreichbar",
+    "kpiLabel": "Kennzahlen",
+    "kpiCost": "KI-Kosten diesen Monat",
+    "approvalsWaiting": "warten auf Ihre Entscheidung",
+    "approvalsNone": "alles erledigt",
+    "runsCompleted": "{count, plural, =0 {noch keiner abgeschlossen} =1 {1 abgeschlossen} other {# abgeschlossen}}",
+    "hours": "{hours} Std.",
+    "savedValue": "≈ {amount} bei {rate}/Std.",
+    "changeRate": "ändern",
+    "roiFactor": "Nutzen ≈ {factor}-fach der Kosten",
+    "costHint": "Einkaufspreis des KI-Anbieters",
+    "chartTitle": "Agentenläufe der letzten 7 Tage",
+    "chartDescription": "{agents, plural, =1 {1 aktiver Agent} other {# aktive Agenten}}",
+    "chartRuns": "{count, plural, =1 {1 Lauf} other {# Läufe}}",
+    "activityTitle": "Letzte Aktivitäten",
+    "activityDescription": "Was Ihre Agenten zuletzt erledigt haben",
+    "openChat": "Zum Chat",
+    "chooseTemplate": "Agenten aus Vorlage wählen"
   },
   "errors": {
     "notFoundTitle": "Seite nicht gefunden",
@@ -143,7 +160,8 @@
       "audit": "Audit-Log",
       "branding": "Branding",
       "security": "Sicherheit",
-      "support": "Support-Zugriff"
+      "support": "Support-Zugriff",
+      "general": "Allgemein"
     },
     "members": {
       "inviteTitle": "Person einladen",
@@ -186,7 +204,8 @@
         "agent_created": "Agent angelegt",
         "agent_published": "Agent veröffentlicht",
         "agent_archived": "Agent archiviert",
-        "agent_restored": "Agent reaktiviert"
+        "agent_restored": "Agent reaktiviert",
+        "tenant_settings_changed": "Firmendaten geändert"
       },
       "actors": {
         "user": "Benutzer",
@@ -247,6 +266,16 @@
       "state_revoked": "beendet",
       "forbiddenTitle": "Kein Zugriff",
       "forbiddenDescription": "Den Support-Zugriff vergeben nur Owner."
+    },
+    "general": {
+      "title": "Allgemein",
+      "description": "Grunddaten Ihrer Firma.",
+      "name": "Firmenname",
+      "hourlyRate": "Interner Stundensatz (€)",
+      "hourlyRateHint": "Damit rechnen wir die gesparte Zeit in Euro um.",
+      "save": "Speichern",
+      "forbiddenTitle": "Kein Zugriff",
+      "forbiddenDescription": "Diese Einstellungen ändern nur Owner und Admins."
     }
   },
   "partner": {
@@ -483,5 +512,17 @@
     "monitoring": "IT-Überwachung",
     "web": "Web-Recherche",
     "delegation": "Zusammenarbeit von Agenten"
+  },
+  "runStatus": {
+    "queued": "wartet",
+    "running": "läuft",
+    "completed": "erledigt",
+    "awaiting_approval": "Freigabe nötig",
+    "refused": "abgelehnt",
+    "incomplete": "unvollständig",
+    "max_steps": "Schrittlimit",
+    "budget_exceeded": "Kostenlimit",
+    "cancelled": "abgebrochen",
+    "failed": "Fehler"
   }
 }

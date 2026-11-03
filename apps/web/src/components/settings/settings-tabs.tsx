@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 const TABS = [
+  { href: "/settings/general", key: "general" },
   { href: "/settings/members", key: "members" },
   { href: "/settings/branding", key: "branding" },
   { href: "/settings/security", key: "security" },

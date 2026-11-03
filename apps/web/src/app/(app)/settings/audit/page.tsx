@@ -34,6 +34,7 @@ const KNOWN_ACTIONS = new Set([
   "agent.published",
   "agent.archived",
   "agent.restored",
+  "tenant.settings_changed",
 ]);
 
 export default async function AuditPage() {
