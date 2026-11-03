@@ -3,23 +3,24 @@
 Nach dem [Master-Prompt](00_MASTER_PROMPT.md) bauen Sie die Plattform **Phase für Phase**. Kopieren Sie jeweils den Block einer Phase in Claude Code.
 
 **Tipps**
+
 - Starten Sie für jede Phase am besten eine **neue Session**. `CLAUDE.md`, `docs/ROADMAP.md` und `docs/PROGRESS.md` übertragen den Kontext.
 - Prüfen Sie nach jeder Phase selbst: App starten, Abläufe durchklicken, erst dann die nächste Phase.
 - Die Reihenfolge ist so gewählt, dass **nach Phase 6 eine verkaufsfähige Demo** steht.
 
-| Phase | Inhalt | Ergebnis |
-|---|---|---|
-| 0 | Fundament | Monorepo, CI, Docker, Designsystem |
-| 1 | Mandanten und Anmeldung | sicheres Multi-Tenant-Grundgerüst |
-| 2 | Agent-Runtime und Chat | erster Agent antwortet live |
-| 3 | Wissensdatenbank | Antworten mit Quellen aus Firmendokumenten |
-| 4 | Integrationen und MCP | Microsoft 365, Google, IMAP, OpenAPI, MCP |
-| 5 | Workflows und Freigaben | Automationen mit Human-in-the-loop |
-| 6 | Agent Studio und Vorlagen | No-Code-Baukasten, 12 Vorlagen, Evals → **Demo-fähig** |
-| 7 | Kanäle | Web-Widget, E-Mail-Agent, PWA-Push |
-| 8 | ROI, Abrechnung, Partner-Konsole | Geschäftsmodell läuft |
-| 9 | Compliance und Hardening | DSGVO, AI Act, Security-Review |
-| 10 | Launch | Demo-Mandant, Doku, Onboarding, Release |
+| Phase | Inhalt                           | Ergebnis                                               |
+| ----- | -------------------------------- | ------------------------------------------------------ |
+| 0     | Fundament                        | Monorepo, CI, Docker, Designsystem                     |
+| 1     | Mandanten und Anmeldung          | sicheres Multi-Tenant-Grundgerüst                      |
+| 2     | Agent-Runtime und Chat           | erster Agent antwortet live                            |
+| 3     | Wissensdatenbank                 | Antworten mit Quellen aus Firmendokumenten             |
+| 4     | Integrationen und MCP            | Microsoft 365, Google, IMAP, OpenAPI, MCP              |
+| 5     | Workflows und Freigaben          | Automationen mit Human-in-the-loop                     |
+| 6     | Agent Studio und Vorlagen        | No-Code-Baukasten, 12 Vorlagen, Evals → **Demo-fähig** |
+| 7     | Kanäle                           | Web-Widget, E-Mail-Agent, PWA-Push                     |
+| 8     | ROI, Abrechnung, Partner-Konsole | Geschäftsmodell läuft                                  |
+| 9     | Compliance und Hardening         | DSGVO, AI Act, Security-Review                         |
+| 10    | Launch                           | Demo-Mandant, Doku, Onboarding, Release                |
 
 ---
 
@@ -266,36 +267,43 @@ Akzeptanzkriterien:
 ## 🧰 Werkzeugkasten – Prompts für den Alltag
 
 ### Weiterarbeiten nach einer Pause
+
 ```text
 Lesen Sie CLAUDE.md, docs/ROADMAP.md und docs/PROGRESS.md. Fassen Sie in 5 Sätzen zusammen, wo wir stehen, was als Nächstes kommt und welche Risiken offen sind. Dann machen Sie mit dem nächsten offenen Punkt weiter.
 ```
 
 ### Code-Review vor dem Merge
+
 ```text
 Prüfen Sie alle Änderungen seit dem letzten Release wie ein strenger Senior-Reviewer: Korrektheit, Mandanten-Isolation, Sicherheit (inkl. Prompt-Injection), Fehlerbehandlung, Tests, Performance, UX-Texte. Liefern Sie eine priorisierte Liste mit Datei:Zeile und beheben Sie alles Kritische und Hohe direkt.
 ```
 
 ### Neuen Konnektor bauen
+
 ```text
 Bauen Sie einen neuen Konnektor für <SYSTEM> mit dem Connector-SDK. Lesen Sie zuerst die offizielle API-Doku von <SYSTEM> und listen Sie die Endpunkte auf, die Sie verwenden (mit Link). Aktionen: <LISTE>. Trigger: <LISTE>. Risikoklassen vorschlagen, Contract-Tests mit Mocks, Eintrag im Integrations-Katalog, kurze Kundendoku.
 ```
 
 ### Neue Agenten-Vorlage
+
 ```text
 Erstellen Sie eine neue Agenten-Vorlage „<NAME>“ für <BRANCHE/AUFGABE> im Format von prompts/02_AGENTEN_BIBLIOTHEK.md: Zweck, Auslöser, Werkzeuge mit Risikoklassen, Freigaberegeln, ROI-Minuten, Systemprompt, mindestens 10 Testfälle (inkl. 2 Angriffe). Prüfen Sie, ob die Vorlage in einen AI-Act-Hochrisikobereich fällt. Importieren Sie sie und lassen Sie die Evals laufen.
 ```
 
 ### Fehler beheben
+
 ```text
 Fehlerbild: <BESCHREIBUNG / LOG / SCREENSHOT>. Reproduzieren Sie den Fehler zuerst mit einem fehlschlagenden Test, finden Sie die Ursache (nicht nur das Symptom), beheben Sie sie und zeigen Sie, dass der Test jetzt grün ist. Prüfen Sie, ob derselbe Fehler an anderen Stellen existiert.
 ```
 
 ### Kundendemo vorbereiten
+
 ```text
 Bereiten Sie den Demo-Mandanten für eine Präsentation bei <KUNDE, BRANCHE> vor: Branding anpassen (Logo/Farbe als Platzhalter), 3 passende Vorlagen aktivieren, Seed-Daten an die Branche anpassen, Demo-Ablauf aus sales/VERKAUFSSKRIPT.md einmal komplett durchspielen und Probleme beheben.
 ```
 
 ### Kosten optimieren
+
 ```text
 Analysieren Sie die usage_events der letzten 30 Tage: Kosten pro Agent, Cache-Trefferquote, Tokens pro Vorgang, Effort-Einstellungen. Schlagen Sie Maßnahmen vor (zuerst Caching und Effort, dann Modellstufe), messen Sie jede Änderung mit den Evals und setzen Sie nur um, was die Qualität hält.
 ```

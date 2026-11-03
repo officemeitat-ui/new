@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "@nexus/ui/theme.css";
+
+/* Tailwind must also scan the shared UI package for class names. */
+@source "../../../../packages/ui/src";
+
+:root {
+  --font-sans-family: var(--font-geist-sans);
+}

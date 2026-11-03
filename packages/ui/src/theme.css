@@ -1,0 +1,85 @@
+/*
+ * Design tokens for Tailwind CSS v4. Colour values come from CSS variables that the app
+ * generates per tenant from one brand colour (see palette.ts). The defaults below are the
+ * ME-IT brand and apply until the tenant palette is injected.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #0b1220;
+  --muted: #f4f5f7;
+  --muted-foreground: #5b6474;
+  --border: #e3e6eb;
+  --card: #ffffff;
+  --primary: #2454d6;
+  --primary-foreground: #ffffff;
+  --accent: #e9eefb;
+  --accent-foreground: #142f78;
+  --ring: #2454d6;
+  --success: #067647;
+  --warning: #b54708;
+  --danger: #b42318;
+}
+
+.dark {
+  --background: #0b0f17;
+  --foreground: #eef1f6;
+  --muted: #161b25;
+  --muted-foreground: #9aa3b2;
+  --border: #252c39;
+  --card: #10151f;
+  --primary: #5b80e0;
+  --primary-foreground: #0b1220;
+  --accent: #091535;
+  --accent-foreground: #a7bbef;
+  --ring: #5b80e0;
+  --success: #47cd89;
+  --warning: #fdb022;
+  --danger: #f97066;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans:
+    var(--font-sans-family), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}

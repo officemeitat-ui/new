@@ -1,0 +1,63 @@
+{
+  "app": {
+    "skipToContent": "Skip to content"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "start": "Home",
+    "chat": "Chat",
+    "agents": "Agents",
+    "workflows": "Workflows",
+    "approvals": "Approvals",
+    "knowledge": "Knowledge",
+    "integrations": "Integrations",
+    "analytics": "Analytics",
+    "settings": "Settings",
+    "partner": "Partner console",
+    "soon": "Soon",
+    "soonHint": "This area is being prepared."
+  },
+  "commandPalette": {
+    "open": "Open command palette",
+    "title": "Command palette",
+    "placeholder": "Where do you want to go? Search or type a command …",
+    "empty": "No results.",
+    "navigation": "Navigation",
+    "preferences": "Preferences",
+    "themeLight": "Light theme",
+    "themeDark": "Dark theme",
+    "themeSystem": "Match system theme",
+    "languageDe": "Language: German",
+    "languageEn": "Language: English",
+    "searchButton": "Search or jump to …"
+  },
+  "theme": {
+    "toggle": "Toggle theme"
+  },
+  "start": {
+    "greetingMorning": "Good morning",
+    "greetingDay": "Good afternoon",
+    "greetingEvening": "Good evening",
+    "subtitle": "Everything that matters today at a glance.",
+    "kpiApprovals": "Pending approvals",
+    "kpiRuns": "Agent runs today",
+    "kpiSaved": "Time saved this week",
+    "kpiNoData": "No data yet",
+    "firstAgentTitle": "Your first digital team member",
+    "firstAgentDescription": "As soon as your first agent is working, you will see running tasks, pending approvals and time saved here.",
+    "systemTitle": "System status",
+    "systemDescription": "Connection to the platform services",
+    "checkDatabase": "Database",
+    "checkRedis": "Queue (Redis)",
+    "statusOk": "Connected",
+    "statusDown": "Unreachable"
+  },
+  "errors": {
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "This page does not exist or no longer exists.",
+    "backToStart": "Back to home",
+    "unexpectedTitle": "Something went wrong",
+    "unexpectedDescription": "The error has been logged. Please try again.",
+    "retry": "Try again"
+  }
+}

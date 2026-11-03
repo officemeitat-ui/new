@@ -1,0 +1,63 @@
+{
+  "app": {
+    "skipToContent": "Zum Inhalt springen"
+  },
+  "nav": {
+    "label": "Hauptnavigation",
+    "start": "Start",
+    "chat": "Chat",
+    "agents": "Agenten",
+    "workflows": "Workflows",
+    "approvals": "Freigaben",
+    "knowledge": "Wissen",
+    "integrations": "Integrationen",
+    "analytics": "Auswertungen",
+    "settings": "Einstellungen",
+    "partner": "Partner-Konsole",
+    "soon": "Bald",
+    "soonHint": "Dieser Bereich ist in Vorbereitung."
+  },
+  "commandPalette": {
+    "open": "Befehlspalette öffnen",
+    "title": "Befehlspalette",
+    "placeholder": "Wohin möchten Sie? Suchen oder Befehl eingeben …",
+    "empty": "Keine Treffer.",
+    "navigation": "Navigation",
+    "preferences": "Einstellungen",
+    "themeLight": "Helles Design",
+    "themeDark": "Dunkles Design",
+    "themeSystem": "Design wie im System",
+    "languageDe": "Sprache: Deutsch",
+    "languageEn": "Sprache: Englisch",
+    "searchButton": "Suchen oder springen …"
+  },
+  "theme": {
+    "toggle": "Design wechseln"
+  },
+  "start": {
+    "greetingMorning": "Guten Morgen",
+    "greetingDay": "Guten Tag",
+    "greetingEvening": "Guten Abend",
+    "subtitle": "Hier sehen Sie auf einen Blick, was heute ansteht.",
+    "kpiApprovals": "Offene Freigaben",
+    "kpiRuns": "Agentenläufe heute",
+    "kpiSaved": "Gesparte Zeit diese Woche",
+    "kpiNoData": "Noch keine Daten",
+    "firstAgentTitle": "Ihr erstes digitales Teammitglied",
+    "firstAgentDescription": "Sobald Ihr erster Agent arbeitet, sehen Sie hier laufende Aufgaben, offene Freigaben und die gesparte Zeit.",
+    "systemTitle": "Systemstatus",
+    "systemDescription": "Verbindung zu den Diensten der Plattform",
+    "checkDatabase": "Datenbank",
+    "checkRedis": "Warteschlange (Redis)",
+    "statusOk": "Verbunden",
+    "statusDown": "Nicht erreichbar"
+  },
+  "errors": {
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundDescription": "Diese Seite gibt es nicht oder nicht mehr.",
+    "backToStart": "Zur Startseite",
+    "unexpectedTitle": "Da ist etwas schiefgelaufen",
+    "unexpectedDescription": "Der Fehler wurde protokolliert. Versuchen Sie es bitte noch einmal.",
+    "retry": "Erneut versuchen"
+  }
+}

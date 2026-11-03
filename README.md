@@ -4,16 +4,16 @@ Mit diesem Paket lässt ME-IT von **Claude Code** eine verkaufsfertige SaaS-Plat
 
 ## Inhalt
 
-| Datei | Wofür |
-|---|---|
-| [`prompts/00_MASTER_PROMPT.md`](prompts/00_MASTER_PROMPT.md) | **Der Haupt-Prompt.** Vollständige Produkt- und Technikspezifikation; damit startet der Bau |
-| [`prompts/01_BUILD_PHASEN.md`](prompts/01_BUILD_PHASEN.md) | Elf Phasen-Prompts (0–10) zum Kopieren, plus Prompts für den Alltag (Review, Bugfix, neuer Konnektor …) |
+| Datei                                                                  | Wofür                                                                                                                       |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [`prompts/00_MASTER_PROMPT.md`](prompts/00_MASTER_PROMPT.md)           | **Der Haupt-Prompt.** Vollständige Produkt- und Technikspezifikation; damit startet der Bau                                 |
+| [`prompts/01_BUILD_PHASEN.md`](prompts/01_BUILD_PHASEN.md)             | Elf Phasen-Prompts (0–10) zum Kopieren, plus Prompts für den Alltag (Review, Bugfix, neuer Konnektor …)                     |
 | [`prompts/02_AGENTEN_BIBLIOTHEK.md`](prompts/02_AGENTEN_BIBLIOTHEK.md) | Basis-Systemprompt, zwei Meta-Agenten und 12 fertige Agenten-Vorlagen mit Systemprompts und Testfällen, dazu Branchenpakete |
-| [`sales/VERKAUFSSKRIPT.md`](sales/VERKAUFSSKRIPT.md) | Positionierung, Pakete und Preise, Gesprächsleitfaden, Demo mit drei Wow-Momenten, ROI-Rechnung, Einwandbehandlung |
+| [`sales/VERKAUFSSKRIPT.md`](sales/VERKAUFSSKRIPT.md)                   | Positionierung, Pakete und Preise, Gesprächsleitfaden, Demo mit drei Wow-Momenten, ROI-Rechnung, Einwandbehandlung          |
 
 ## In drei Schritten loslegen
 
-1. **Anpassen:** Tragen Sie in `prompts/00_MASTER_PROMPT.md` unter *Abschnitt 0* Produktname, Markenfarbe und Domain ein.
+1. **Anpassen:** Tragen Sie in `prompts/00_MASTER_PROMPT.md` unter _Abschnitt 0_ Produktname, Markenfarbe und Domain ein.
 2. **Starten:** Öffnen Sie dieses Repository in Claude Code und senden Sie den Master-Prompt (alles zwischen `PROMPT START` und `PROMPT ENDE`). Claude liefert zuerst Architektur, Roadmap und Rückfragen und wartet auf Ihr OK.
 3. **Bauen:** Arbeiten Sie die Phasen aus `prompts/01_BUILD_PHASEN.md` der Reihe nach ab. Ab **Phase 6** ist die Plattform demo-fähig.
 
@@ -33,6 +33,18 @@ Mit diesem Paket lässt ME-IT von **Claude Code** eine verkaufsfertige SaaS-Plat
 - 📈 **ROI-Dashboard und Monatsreport als PDF:** gesparte Stunden und Euro, schwarz auf weiß
 - 🏢 **Partner-Konsole für ME-IT:** alle Kunden, Nutzung, Kosten, Marge und Health-Score auf einen Blick
 - 🇪🇺 **DSGVO und EU AI Act:** EU-Hosting, Audit-Log, KI-Kennzeichnung, Agenten-Steckbriefe
+
+## Entwicklung
+
+Der Code der Plattform liegt in diesem Repository (`apps/`, `packages/`). Voraussetzungen: Node.js 22, pnpm 10, Docker.
+
+1. `cp .env.example .env`
+2. `docker compose up -d` – startet Postgres (mit pgvector), Valkey und Mailpit
+3. `pnpm install`
+4. `pnpm db:migrate`
+5. `pnpm dev` – Web-App auf http://localhost:3000, Worker mit Health-Check auf http://localhost:3001/health
+
+Prüfen vor jedem Commit: `pnpm lint && pnpm typecheck && pnpm test`. Architektur und Stand: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Hinweise
 
