@@ -11,7 +11,8 @@ import { createModuleDemo } from './demo-modules.js'
 
 const avail = (days, from, to) => Object.fromEntries(days.map((d) => [d, { from, to }]))
 
-export const DEFAULT_SKILLS = ['Grundreinigung', 'Glasreinigung', 'Hygienebereich', 'Führerschein']
+import { DEFAULT_SKILLS } from '../core/skills.js'
+export { DEFAULT_SKILLS }
 
 export function createDemoData(monday) {
   const day = (n) => addDays(monday, n)

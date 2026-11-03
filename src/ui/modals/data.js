@@ -1,6 +1,5 @@
 // Daten-Dialog: Ablageort, Datensicherung (JSON), Einspielen, Beispieldaten.
 
-import { createDemoData } from '../../data/demo.js'
 import { MODULE_DOCS } from '../../storage/data-service.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { seedDemoHistory } from '../planning.js'
@@ -63,7 +62,7 @@ registerActions(
         app.ui.confirm = 'reset'
         return renderModal()
       }
-      const demo = createDemoData(app.ui.monday)
+      const demo = (await import('../../data/demo.js')).createDemoData(app.ui.monday)
       for (const k of BACKUP_KEYS) app.data[k] = demo[k] ?? (k === 'published' || k === 'logs' ? {} : app.data[k])
       app.data.published = {}
       app.data.logs = {}

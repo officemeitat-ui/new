@@ -6,7 +6,7 @@ import './views/index.js'
 import { MODULES, resolveAccess } from '../core/access.js'
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../core/dates.js'
 import { DEFAULT_RULES } from '../core/rules.js'
-import { createDemoData, DEFAULT_SKILLS } from '../data/demo.js'
+import { DEFAULT_SKILLS } from '../core/skills.js'
 import { LocalDocStore } from '../storage/docstore-local.js'
 import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
@@ -425,11 +425,12 @@ async function boot() {
     },
   })
 
-  const seed = () => {
+  // Beispieldaten nur im Browser-Modus mit Demo: eigenes Bündel, im Betrieb nicht geladen
+  const seed = async () => {
     if (config.storage !== 'local') return emptyData()
     const legacy = config.migrateLegacy === false ? null : legacyData()
     if (legacy) return { ...emptyData(), ...legacy }
-    return config.demo ? createDemoData(app.ui.monday) : emptyData()
+    return config.demo ? (await import('../data/demo.js')).createDemoData(app.ui.monday) : emptyData()
   }
   app.data = await app.service.load(seed)
   await render()
