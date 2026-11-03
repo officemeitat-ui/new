@@ -415,6 +415,7 @@ export class DataService {
   /** Lädt Stammdaten, Abwesenheiten, Zeitkonto und die Modul-Dateien. `seed()` liefert Startdaten, falls noch nichts existiert. */
   async load(seed) {
     this.#setStatus('loading')
+    this.oldWeeksGone = (await this.local?.get('meta', 'wochen-alt')) === 'leer'
     const paths = [DOC.master, DOC.objects, DOC.absences, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
     // Schnellstart: mit dem letzten Stand im Gerät sofort loslegen, SharePoint im Hintergrund abgleichen
     if (this.quickStart && this.store.cached) {
@@ -671,8 +672,8 @@ export class DataService {
     const path = weekPath(monday)
     let doc = preread === undefined && arguments.length < 2 ? await this.#read(path) : preread
     let moved = false
-    if (doc === null && !this.denied.has(path)) {
-      // frühere Ablage daten/plaene/…
+    if (doc === null && !this.denied.has(path) && !this.oldWeeksGone) {
+      // frühere Ablage daten/plaene/… (nur solange dort noch Wochen liegen könnten)
       const old = await this.#readOld(oldPathOf(path))
       if (old) {
         doc = { data: old.data, etag: null }
@@ -710,9 +711,22 @@ export class DataService {
    * liegen. Nur mit Schreibrecht auf die Pläne; liefert die Anzahl.
    */
   async migrateOldWeeks() {
-    if (!this.store.listDocs || !this.writable(weekPath('2026-01-05'))) return 0
+    if (this.oldWeeksGone || !this.store.listDocs || !this.writable(weekPath('2026-01-05'))) return 0
     let moved = 0
-    for (const old of await this.store.listDocs('daten/plaene/').catch(() => [])) {
+    let list
+    try {
+      list = await this.store.listDocs('daten/plaene/')
+    } catch {
+      return 0
+    }
+    if (!list.length) {
+      if (this.store.offline) return 0 // ohne Netz weiß man es nicht
+      // nichts mehr umzuziehen: künftig weder suchen noch beim Laden je Woche nachsehen
+      this.oldWeeksGone = true
+      await this.local?.put('meta', 'wochen-alt', 'leer')
+      return 0
+    }
+    for (const old of list) {
       const monday = old.match(/(\d{4}-\d{2}-\d{2})\.json$/)?.[1]
       if (!monday || this.weeks.has(monday) || this.loadingWeeks.has(monday)) continue
       const path = weekPath(monday)
