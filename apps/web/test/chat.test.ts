@@ -60,4 +60,36 @@ describe("buildTurns", () => {
     );
     expect(turns[0]).toMatchObject({ userText: "Hallo", assistantText: "", status: "queued" });
   });
+
+  it("lists only the knowledge sources the answer cites", () => {
+    const result = JSON.stringify({
+      treffer: [
+        { nr: 1, quelle: "Preisliste 2026, S. 2", dokumentId: "d1", seite: 2, text: "…" },
+        { nr: 2, quelle: "AGB", dokumentId: "d2", seite: null, text: "…" },
+        { nr: 3, quelle: "Preisliste 2026, S. 2", dokumentId: "d1", seite: 2, text: "…" },
+      ],
+    });
+    const [turn] = buildTurns(
+      [
+        { runId: "r", role: "user", content: [{ type: "text", text: "Skonto?" }] },
+        {
+          runId: "r",
+          role: "assistant",
+          content: [{ type: "tool_use", id: "k", name: "wissen_suchen", input: {} }],
+        },
+        {
+          runId: "r",
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "k", content: result }],
+        },
+        {
+          runId: "r",
+          role: "assistant",
+          content: [{ type: "text", text: "2 % Skonto [Preisliste 2026, S. 2]." }],
+        },
+      ],
+      [run("r")],
+    );
+    expect(turn!.sources).toEqual([{ documentId: "d1", label: "Preisliste 2026, S. 2", page: 2 }]);
+  });
 });

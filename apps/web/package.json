@@ -16,6 +16,7 @@
     "@nexus/core": "workspace:*",
     "@nexus/db": "workspace:*",
     "@nexus/domain": "workspace:*",
+    "@nexus/knowledge": "workspace:*",
     "@nexus/ui": "workspace:*",
     "@radix-ui/react-dropdown-menu": "^2.2.1",
     "better-auth": "^1.7.15",

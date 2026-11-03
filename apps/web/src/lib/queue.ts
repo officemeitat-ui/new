@@ -1,17 +1,39 @@
 import "server-only";
-import { QUEUES, type AgentRunJob } from "@nexus/core";
+import { QUEUES, type AgentRunJob, type KnowledgeIngestJob } from "@nexus/core";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 
-const globalForQueue = globalThis as unknown as { __nexusAgentQueue?: Queue<AgentRunJob> };
+const globalForQueue = globalThis as unknown as {
+  __nexusAgentQueue?: Queue<AgentRunJob>;
+  __nexusKnowledgeQueue?: Queue<KnowledgeIngestJob>;
+};
+
+const connection = () =>
+  new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", { maxRetriesPerRequest: null });
 
 function agentRunQueue(): Queue<AgentRunJob> {
   globalForQueue.__nexusAgentQueue ??= new Queue<AgentRunJob>(QUEUES.agentRuns, {
-    connection: new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
-      maxRetriesPerRequest: null,
-    }),
+    connection: connection(),
   });
   return globalForQueue.__nexusAgentQueue;
+}
+
+function knowledgeQueue(): Queue<KnowledgeIngestJob> {
+  globalForQueue.__nexusKnowledgeQueue ??= new Queue<KnowledgeIngestJob>(QUEUES.knowledge, {
+    connection: connection(),
+  });
+  return globalForQueue.__nexusKnowledgeQueue;
+}
+
+/** Parsing is deterministic, so failed ingests may be retried. */
+export async function enqueueKnowledgeIngest(job: KnowledgeIngestJob): Promise<void> {
+  await knowledgeQueue().add("ingest", job, {
+    jobId: `ingest-${job.documentId}`,
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5_000 },
+    removeOnComplete: 1000,
+    removeOnFail: 5000,
+  });
 }
 
 /** No automatic retries (ADR 0005); the worker skips runs that are not queued, so duplicates are harmless. */

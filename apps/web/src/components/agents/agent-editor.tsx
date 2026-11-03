@@ -14,7 +14,7 @@ import {
   Input,
   Label,
 } from "@nexus/ui";
-import { Archive, ArchiveRestore, MessagesSquare, TriangleAlert } from "lucide-react";
+import { Archive, ArchiveRestore, BookOpen, MessagesSquare, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useActionState, useMemo, useState, useTransition } from "react";
@@ -30,6 +30,7 @@ type Initial = {
   maxSteps: number;
   maxCost: string;
   roiMinutes: string;
+  knowledgeCollectionIds: string[];
 };
 
 const TIERS = ["smart", "balanced", "fast"] as const;
@@ -46,6 +47,7 @@ export function AgentEditor({
   currency,
   initial,
   catalog,
+  collections,
 }: {
   agentId: string;
   isDefault: boolean;
@@ -54,6 +56,7 @@ export function AgentEditor({
   currency: "EUR" | "USD";
   initial: Initial;
   catalog: { name: string; risk: string; available: boolean }[];
+  collections: { id: string; name: string; documents: number }[];
 }) {
   const t = useTranslations("agents");
   const tTools = useTranslations("tools");
@@ -226,6 +229,46 @@ export function AgentEditor({
               </li>
             ))}
           </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("sectionKnowledge")}</CardTitle>
+          <CardDescription>{t("knowledgeHint")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {collections.length === 0 ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <BookOpen className="size-4" aria-hidden />
+              {t("knowledgeNone")}{" "}
+              <Link href="/knowledge" className="font-medium text-foreground underline">
+                {t("knowledgeManage")}
+              </Link>
+            </p>
+          ) : (
+            <fieldset className="grid gap-2 sm:grid-cols-2">
+              <legend className="sr-only">{t("sectionKnowledge")}</legend>
+              {collections.map((collection) => (
+                <label
+                  key={collection.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    name="knowledge"
+                    value={collection.id}
+                    defaultChecked={initial.knowledgeCollectionIds.includes(collection.id)}
+                    className="size-4 accent-primary"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-medium">{collection.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("knowledgeDocuments", { count: collection.documents })}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
         </CardContent>
       </Card>
 

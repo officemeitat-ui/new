@@ -16,6 +16,11 @@ const config: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@nexus/core", "@nexus/db", "@nexus/ui", "@nexus/agents"],
   serverExternalPackages: ["pino", "pg"],
+  experimental: {
+    // Knowledge uploads: files up to 10 MB (packages/knowledge/src/detect.ts) plus form overhead.
+    serverActions: { bodySizeLimit: "11mb" },
+    proxyClientMaxBodySize: "11mb",
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

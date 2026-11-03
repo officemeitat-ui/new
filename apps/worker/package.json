@@ -15,6 +15,7 @@
     "@nexus/core": "workspace:*",
     "@nexus/db": "workspace:*",
     "@nexus/domain": "workspace:*",
+    "@nexus/knowledge": "workspace:*",
     "bullmq": "^6.5.4",
     "ioredis": "^6.0.0"
   },

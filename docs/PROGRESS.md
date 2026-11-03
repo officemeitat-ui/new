@@ -2,6 +2,24 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Wissensdatenbank v1 – Dokumente hochladen, durchsuchen, mit Quelle antworten ✅
+
+**Erledigt**
+
+- **Sammlungen** (z. B. „Preise und AGB“, „Personal“) unter „Wissen“; anlegen und löschen mit `knowledge.manage`, lesen mit `knowledge.read`.
+- **Upload** per Auswahl oder Drag & Drop: PDF, Word (.docx), Markdown, Text; bis 10 MB je Datei, 10 Dateien auf einmal. Der Typ wird aus Endung und Inhalt geprüft (eine umbenannte Datei wird abgelehnt), Duplikate pro Sammlung erkannt.
+- **Verarbeitung im Worker** (neues Paket `packages/knowledge`, Queue `knowledge`): Text seitenweise aus PDFs, aus Word-Dateien und Markdown; Abschnitte mit Überschrift und Seitenzahl. Status „Wird verarbeitet / Bereit / Fehler“ aktualisiert sich von selbst; verständliche Fehlermeldungen (z. B. passwortgeschütztes oder gescanntes PDF).
+- **Deutsche Volltextsuche** in Postgres (Stammformen: „Rechnungen“ findet „Rechnung“), Überschriften höher gewichtet, „Suche testen“ mit markierten Treffern.
+- **Werkzeug „Wissensdatenbank“** (`wissen_suchen`) ist verfügbar; im Agent Studio wählt man die Sammlungen des Agenten. Antworten zitieren „[Dokument, S. x]“, der Chat zeigt diese Quellen als Links auf die Dokumentansicht (an die richtige Seite).
+- **Dokumentansicht** mit dem erkannten Text, Seitenmarken und Überschriften.
+- Audit-Einträge für Sammlungen und Dokumente; RLS auf allen vier neuen Tabellen (Meta-Test grün).
+- **Tests:** Paket-Tests mit echtem PDF und DOCX, Integrationstests (Suche, Stammformen, Sammlungsfilter, Mandantentrennung, Duplikate, Löschen), Worker-Tests (PDF indexieren, kaputtes PDF, Agent zitiert Seite 2), E2E: hochladen → bereit → Suche → Agent antwortet mit Quelle → Dokumentansicht. Insgesamt 15 Browser-Tests.
+
+**Noch offen**
+
+- Embeddings und hybride Suche (Anbieter mit ME-IT klären, ADR 0007), OCR für Scans, weitere Formate (Excel, PowerPoint, Webseiten)
+- Rechte pro Sammlung (z. B. Personal nur für HR), automatischer Abgleich mit SharePoint/Google Drive (Phase 4), „Erneut verarbeiten“-Knopf für fehlgeschlagene Dokumente
+
 ## Bessere Funktionen – Agent Studio, Kennzahlen, Freigabe-Inbox mit E-Mail-Versand ✅
 
 **Erledigt**

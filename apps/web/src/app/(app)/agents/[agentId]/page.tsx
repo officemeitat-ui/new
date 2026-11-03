@@ -1,7 +1,7 @@
 import { convertUsdMicros, formatDateTime, isAppError, isUuid } from "@nexus/core";
 import { TOOL_CATALOG } from "@nexus/agents/catalog";
 import { getDatabase, withTenant } from "@nexus/db";
-import { can, findTemplate, getAgentDetail } from "@nexus/domain";
+import { can, findTemplate, getAgentDetail, listCollections } from "@nexus/domain";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@nexus/ui";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -30,6 +30,9 @@ export default async function AgentPage({
     throw error;
   });
   if (!detail) notFound();
+  const collections = await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
+    listCollections(tx, ctx.tenant.tenantId),
+  );
 
   const { agent, current, versions } = detail;
   const template = agent.templateId ? findTemplate(agent.templateId) : undefined;
@@ -76,7 +79,13 @@ export default async function AgentPage({
               current.config.roiMinutesPerTask === undefined
                 ? ""
                 : String(current.config.roiMinutesPerTask),
+            knowledgeCollectionIds: current.config.knowledgeCollectionIds ?? [],
           }}
+          collections={collections.map((c) => ({
+            id: c.id,
+            name: c.name,
+            documents: c.documents,
+          }))}
           catalog={TOOL_CATALOG.map((tool) => ({
             name: tool.name,
             risk: tool.risk,

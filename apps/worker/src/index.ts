@@ -1,5 +1,5 @@
 import { providerFromEnv } from "@nexus/agents";
-import { QUEUES, type AgentRunJob } from "@nexus/core";
+import { QUEUES, type AgentRunJob, type KnowledgeIngestJob } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
 import { DEFAULT_PRICES, type ModelPrice } from "@nexus/agents";
@@ -9,6 +9,7 @@ import { Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { startHealthServer } from "./health-server";
 import { processAgentRun, redisPublisher } from "./jobs/agent-run";
+import { processKnowledgeIngest } from "./jobs/knowledge-ingest";
 import { handleSystemJob } from "./jobs/system";
 
 const env = getEnv();
@@ -47,6 +48,12 @@ const workers = [
     connection,
     concurrency: Number(process.env.WORKER_AGENT_CONCURRENCY ?? 4),
   }),
+  // Parsing is CPU-bound; two at a time keep agent runs responsive.
+  new Worker<KnowledgeIngestJob>(
+    QUEUES.knowledge,
+    (job) => processKnowledgeIngest(job.data, { db, log }),
+    { connection, concurrency: 2 },
+  ),
 ];
 
 for (const worker of workers) {

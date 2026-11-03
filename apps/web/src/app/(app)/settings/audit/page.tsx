@@ -37,6 +37,10 @@ const KNOWN_ACTIONS = new Set([
   "tenant.settings_changed",
   "approval.approved",
   "approval.rejected",
+  "knowledge.collection_created",
+  "knowledge.collection_deleted",
+  "knowledge.document_added",
+  "knowledge.document_deleted",
 ]);
 
 export default async function AuditPage() {

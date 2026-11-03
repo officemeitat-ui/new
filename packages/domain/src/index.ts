@@ -8,6 +8,7 @@ export * from "./chat";
 export * from "./dashboard";
 export * from "./email-tool";
 export * from "./invitations";
+export * from "./knowledge";
 export * from "./mail";
 export * from "./members";
 export * from "./pricing";

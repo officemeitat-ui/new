@@ -16,6 +16,7 @@ import { withTenant, type Database } from "@nexus/db";
 import {
   createApprovals,
   createEmailTool,
+  createKnowledgeTool,
   failRun,
   finishRun,
   loadDecisions,
@@ -83,8 +84,12 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
     const provider = await deps.provider();
     const modes = new Map(ctx.config.tools.map((tool) => [tool.name, tool.mode]));
     // Tools in "deny" mode are not offered to the model at all.
-    // Platform tools: built-in ones plus tools that need tenant context (e-mail).
-    const platformTools = [...BUILTIN_TOOLS, createEmailTool({ tenantName: ctx.tenant.name })];
+    // Platform tools: built-in ones plus tools that need tenant context (e-mail, knowledge).
+    const platformTools = [
+      ...BUILTIN_TOOLS,
+      createEmailTool({ tenantName: ctx.tenant.name }),
+      createKnowledgeTool({ db, collectionIds: ctx.config.knowledgeCollectionIds ?? [] }),
+    ];
     const tools = platformTools.filter(
       (tool) => modes.has(tool.name) && modes.get(tool.name) !== "deny",
     );

@@ -3,6 +3,7 @@
 //
 //   "Berechne …"           → calls the tool "rechner", then answers with its result
 //   "… E-Mail an x@y …"    → calls "email_senden" (if the agent has it), then reports the outcome
+//   "Laut Wissen: …"       → calls "wissen_suchen" (if the agent has it), then cites the first hit
 //   anything else          → streams a greeting that quotes the message
 import { createServer } from "node:http";
 
@@ -105,6 +106,13 @@ createServer((req, res) => {
     const calledTool = Array.isArray(previous?.content)
       ? previous.content.find((b) => b.type === "tool_use")?.name
       : undefined;
+    if (toolResult && calledTool === "wissen_suchen") {
+      const { treffer } = JSON.parse(toolResult.content);
+      const answer = treffer.length
+        ? `${treffer[0].text} [${treffer[0].quelle}]`
+        : "Dazu habe ich in den Dokumenten nichts gefunden.";
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
     if (toolResult && calledTool === "email_senden") {
       const answer = toolResult.is_error
         ? `Verstanden, ich sende die E-Mail nicht. ${toolResult.content}`
@@ -124,6 +132,22 @@ createServer((req, res) => {
     const text = lastUserText(request.messages);
     const recipient = /E-Mail an ([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/i.exec(text)?.[1];
     const canMail = request.tools?.some((tool) => tool.name === "email_senden");
+    const knowledgeQuery = /^laut wissen:\s*(.+)$/i.exec(text.trim())?.[1];
+    if (knowledgeQuery && request.tools?.some((tool) => tool.name === "wissen_suchen")) {
+      return void streamMessage(
+        res,
+        request.model,
+        [
+          {
+            type: "tool_use",
+            id: `toolu_mock_${counter + 1}`,
+            name: "wissen_suchen",
+            input: { anfrage: knowledgeQuery },
+          },
+        ],
+        "tool_use",
+      );
+    }
     if (recipient && canMail) {
       return void streamMessage(
         res,

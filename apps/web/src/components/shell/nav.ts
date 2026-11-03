@@ -41,7 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "agents", href: "/agents", icon: Bot, available: true, section: "main" },
   { key: "workflows", href: "/workflows", icon: Workflow, available: false, section: "main" },
   { key: "approvals", href: "/approvals", icon: Inbox, available: true, section: "main" },
-  { key: "knowledge", href: "/knowledge", icon: BookOpen, available: false, section: "main" },
+  { key: "knowledge", href: "/knowledge", icon: BookOpen, available: true, section: "main" },
   { key: "integrations", href: "/integrations", icon: Plug, available: false, section: "main" },
   { key: "analytics", href: "/analytics", icon: ChartLine, available: false, section: "main" },
   { key: "settings", href: "/settings", icon: Settings, available: true, section: "admin" },

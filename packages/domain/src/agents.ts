@@ -25,6 +25,7 @@ export const agentConfigSchema = z.object({
   maxSteps: z.number().int().min(1, "Mindestens 1 Schritt").max(50, "Höchstens 50 Schritte"),
   maxCostUsdMicros: z.number().int().min(10_000).max(50_000_000).optional(),
   roiMinutesPerTask: z.number().int().min(0).max(600).optional(),
+  knowledgeCollectionIds: z.array(z.uuid()).max(50).optional(),
 }) satisfies z.ZodType<AgentConfig>;
 
 const PLACEHOLDER = /\{\{([a-z_.]+)\}\}/g;

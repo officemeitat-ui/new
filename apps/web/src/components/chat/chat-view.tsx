@@ -3,7 +3,17 @@
 import { modelDisplayName } from "@nexus/agents/models";
 import { convertUsdMicros } from "@nexus/core";
 import { Badge, Button, cn, FieldError } from "@nexus/ui";
-import { ArrowUp, Bot, Calculator, Loader2, Sparkles, TriangleAlert, Wrench } from "lucide-react";
+import {
+  ArrowUp,
+  BookOpen,
+  Bot,
+  Calculator,
+  FileText,
+  Loader2,
+  Sparkles,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
@@ -16,7 +26,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { sendMessageAction } from "@/app/(app)/chat/actions";
-import { toolLabel, type ChatTurn } from "@/lib/chat";
+import { toolLabel, type ChatSource, type ChatTurn } from "@/lib/chat";
 import { RunTrace } from "./run-trace";
 import { Markdown } from "./markdown";
 
@@ -129,11 +139,33 @@ function ToolChips({ names, errors }: { names: string[]; errors?: boolean[] }) {
         <Badge key={`${name}-${index}`} variant={errors?.[index] ? "danger" : "secondary"}>
           {name === "rechner" ? (
             <Calculator className="size-3" aria-hidden />
+          ) : name === "wissen_suchen" ? (
+            <BookOpen className="size-3" aria-hidden />
           ) : (
             <Wrench className="size-3" aria-hidden />
           )}
           {toolLabel(name)}
         </Badge>
+      ))}
+    </div>
+  );
+}
+
+function Sources({ sources }: { sources: ChatSource[] }) {
+  const t = useTranslations("chat");
+  if (sources.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs" aria-label={t("sources")}>
+      <span className="text-muted-foreground">{t("sources")}:</span>
+      {sources.map((source) => (
+        <Link
+          key={`${source.documentId}-${source.page}`}
+          href={`/knowledge/documents/${source.documentId}${source.page ? `#seite-${source.page}` : ""}`}
+          className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 hover:bg-muted"
+        >
+          <FileText className="size-3" aria-hidden />
+          {source.label}
+        </Link>
       ))}
     </div>
   );
@@ -316,6 +348,7 @@ export function ChatView({
                         errors={turn.tools.map((tool) => tool.isError)}
                       />
                       {turn.assistantText ? <Markdown text={turn.assistantText} /> : null}
+                      <Sources sources={turn.sources} />
                       {note ? (
                         <p
                           className={cn(

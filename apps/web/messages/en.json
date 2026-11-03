@@ -209,7 +209,11 @@
         "agent_restored": "Agent reactivated",
         "tenant_settings_changed": "Company settings changed",
         "approval_approved": "Action approved",
-        "approval_rejected": "Action rejected"
+        "approval_rejected": "Action rejected",
+        "knowledge_collection_created": "Knowledge collection created",
+        "knowledge_collection_deleted": "Knowledge collection deleted",
+        "knowledge_document_added": "Document uploaded",
+        "knowledge_document_deleted": "Document deleted"
       },
       "actors": {
         "user": "User",
@@ -365,7 +369,8 @@
     "agentLabel": "Agent:",
     "withAgent": "Conversation with {name}",
     "openApprovals": "Review it",
-    "placeholderWaiting": "The agent is waiting for an approval …"
+    "placeholderWaiting": "The agent is waiting for an approval …",
+    "sources": "Sources"
   },
   "account": {
     "title": "Account and security",
@@ -484,7 +489,12 @@
     "testCasesDescription": "Typical cases from the template – try them in the chat.",
     "versionsTitle": "Versions",
     "current": "active",
-    "restore": "Restore"
+    "restore": "Restore",
+    "sectionKnowledge": "Knowledge",
+    "knowledgeHint": "Which collections this agent searches with the “knowledge base” tool. Without a selection it searches all collections.",
+    "knowledgeNone": "There are no knowledge collections yet.",
+    "knowledgeManage": "Create a collection",
+    "knowledgeDocuments": "{count, plural, =0 {empty} =1 {1 document} other {# documents}}"
   },
   "tools": {
     "aktuelle_zeit": {
@@ -557,5 +567,58 @@
     "edit": "Edit",
     "reject": "Reject",
     "openConversation": "Open conversation"
+  },
+  "knowledge": {
+    "title": "Knowledge",
+    "subtitle": "Documents your agents answer from: price lists, terms, manuals, policies. Every answer names its source.",
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Your role has no access to the knowledge base.",
+    "newCollection": "Create collection",
+    "collectionName": "Collection name",
+    "collectionNamePlaceholder": "e.g. Prices and terms",
+    "collectionDescription": "Description (optional)",
+    "emptyTitle": "No collections yet",
+    "emptyDescription": "Create a collection and upload documents. Your agents find answers there and name the source.",
+    "emptyReadOnly": "Your administrator has not added any documents yet.",
+    "documentsCount": "{count, plural, =0 {No documents} =1 {1 document} other {# documents}}",
+    "notReadyCount": "{count} not ready",
+    "back": "All collections",
+    "deleteCollection": "Delete collection",
+    "confirmDeleteCollection": "Delete the collection “{name}” with all documents? This cannot be undone.",
+    "uploadTitle": "Upload documents",
+    "uploadHint": "PDF, Word (.docx), Markdown or text, up to 10 MB per file and at most 10 files at once. Scanned PDFs without a text layer are not recognised yet.",
+    "upload": "Upload",
+    "uploading": "Uploading …",
+    "documentsTitle": "Documents",
+    "documentsEmpty": "There are no documents in this collection yet.",
+    "status": {
+      "processing": "Processing",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "kinds": {
+      "pdf": "PDF",
+      "docx": "Word",
+      "markdown": "Markdown",
+      "text": "Text"
+    },
+    "pages": "{count, plural, =1 {1 page} other {# pages}}",
+    "chunks": "{count, plural, =1 {1 section} other {# sections}}",
+    "deleteDocument": "Delete “{name}”",
+    "confirmDeleteDocument": "Delete “{name}” from the collection?",
+    "searchTitle": "Test the search",
+    "searchHint": "This is how your agents find content in this collection.",
+    "searchLabel": "Search terms",
+    "searchPlaceholder": "e.g. discount payment terms",
+    "search": "Search",
+    "hitsLabel": "Results",
+    "noHits": "No results. Try other terms.",
+    "documentBack": "Back to {name}",
+    "extractedText": "Extracted text",
+    "extractedHint": "Your agents search this text. Sources in the chat link here.",
+    "page": "Page {page}",
+    "dropHint": "Drop files here or",
+    "chooseFiles": "Choose files",
+    "noFiles": "No file selected"
   }
 }

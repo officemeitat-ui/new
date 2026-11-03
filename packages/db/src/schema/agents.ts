@@ -27,6 +27,8 @@ export type AgentConfig = {
   maxCostUsdMicros?: number;
   /** Manual minutes a human needs per task – basis for ROI (M10). */
   roiMinutesPerTask?: number;
+  /** Knowledge collections the agent searches; empty or missing = all of the tenant. */
+  knowledgeCollectionIds?: string[];
 };
 
 export const agents = pgTable(

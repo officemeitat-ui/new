@@ -209,7 +209,11 @@
         "agent_restored": "Agent reaktiviert",
         "tenant_settings_changed": "Firmendaten geändert",
         "approval_approved": "Aktion freigegeben",
-        "approval_rejected": "Aktion abgelehnt"
+        "approval_rejected": "Aktion abgelehnt",
+        "knowledge_collection_created": "Wissenssammlung angelegt",
+        "knowledge_collection_deleted": "Wissenssammlung gelöscht",
+        "knowledge_document_added": "Dokument hochgeladen",
+        "knowledge_document_deleted": "Dokument gelöscht"
       },
       "actors": {
         "user": "Benutzer",
@@ -365,7 +369,8 @@
     "agentLabel": "Agent:",
     "withAgent": "Gespräch mit {name}",
     "openApprovals": "Zur Freigabe",
-    "placeholderWaiting": "Der Agent wartet auf eine Freigabe …"
+    "placeholderWaiting": "Der Agent wartet auf eine Freigabe …",
+    "sources": "Quellen"
   },
   "account": {
     "title": "Konto und Sicherheit",
@@ -484,7 +489,12 @@
     "testCasesDescription": "Typische Fälle aus der Vorlage – probieren Sie sie im Chat aus.",
     "versionsTitle": "Versionen",
     "current": "aktiv",
-    "restore": "Wiederherstellen"
+    "restore": "Wiederherstellen",
+    "sectionKnowledge": "Wissen",
+    "knowledgeHint": "Welche Sammlungen dieser Agent mit dem Werkzeug „Wissensdatenbank“ durchsucht. Ohne Auswahl durchsucht er alle Sammlungen.",
+    "knowledgeNone": "Es gibt noch keine Wissenssammlungen.",
+    "knowledgeManage": "Sammlung anlegen",
+    "knowledgeDocuments": "{count, plural, =0 {leer} =1 {1 Dokument} other {# Dokumente}}"
   },
   "tools": {
     "aktuelle_zeit": {
@@ -557,5 +567,58 @@
     "edit": "Bearbeiten",
     "reject": "Ablehnen",
     "openConversation": "Zum Gespräch"
+  },
+  "knowledge": {
+    "title": "Wissen",
+    "subtitle": "Dokumente, aus denen Ihre Agenten antworten: Preislisten, AGB, Handbücher, Richtlinien. Jede Antwort nennt die Quelle.",
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Ihre Rolle hat keinen Zugriff auf die Wissensdatenbank.",
+    "newCollection": "Sammlung anlegen",
+    "collectionName": "Name der Sammlung",
+    "collectionNamePlaceholder": "z. B. Preise und AGB",
+    "collectionDescription": "Beschreibung (optional)",
+    "emptyTitle": "Noch keine Sammlungen",
+    "emptyDescription": "Legen Sie eine Sammlung an und laden Sie Dokumente hoch. Ihre Agenten finden darin Antworten und nennen die Quelle.",
+    "emptyReadOnly": "Ihr Administrator hat noch keine Dokumente hinterlegt.",
+    "documentsCount": "{count, plural, =0 {Keine Dokumente} =1 {1 Dokument} other {# Dokumente}}",
+    "notReadyCount": "{count, plural, =1 {1 nicht bereit} other {# nicht bereit}}",
+    "back": "Alle Sammlungen",
+    "deleteCollection": "Sammlung löschen",
+    "confirmDeleteCollection": "Die Sammlung „{name}“ mit allen Dokumenten löschen? Das lässt sich nicht rückgängig machen.",
+    "uploadTitle": "Dokumente hochladen",
+    "uploadHint": "PDF, Word (.docx), Markdown oder Text, bis 10 MB je Datei und höchstens 10 Dateien auf einmal. Gescannte PDFs ohne Textebene werden noch nicht erkannt.",
+    "upload": "Hochladen",
+    "uploading": "Wird hochgeladen …",
+    "documentsTitle": "Dokumente",
+    "documentsEmpty": "In dieser Sammlung sind noch keine Dokumente.",
+    "status": {
+      "processing": "Wird verarbeitet",
+      "ready": "Bereit",
+      "failed": "Fehler"
+    },
+    "kinds": {
+      "pdf": "PDF",
+      "docx": "Word",
+      "markdown": "Markdown",
+      "text": "Text"
+    },
+    "pages": "{count, plural, =1 {1 Seite} other {# Seiten}}",
+    "chunks": "{count, plural, =1 {1 Abschnitt} other {# Abschnitte}}",
+    "deleteDocument": "„{name}“ löschen",
+    "confirmDeleteDocument": "„{name}“ aus der Sammlung löschen?",
+    "searchTitle": "Suche testen",
+    "searchHint": "So finden Ihre Agenten Inhalte in dieser Sammlung.",
+    "searchLabel": "Suchbegriffe",
+    "searchPlaceholder": "z. B. Skonto Zahlungsziel",
+    "search": "Suchen",
+    "hitsLabel": "Treffer",
+    "noHits": "Keine Treffer. Versuchen Sie andere Begriffe.",
+    "documentBack": "Zur Sammlung {name}",
+    "extractedText": "Erkannter Text",
+    "extractedHint": "Diesen Text durchsuchen Ihre Agenten. Quellenangaben im Chat führen hierher.",
+    "page": "Seite {page}",
+    "dropHint": "Dateien hierher ziehen oder",
+    "chooseFiles": "Dateien auswählen",
+    "noFiles": "Keine Datei ausgewählt"
   }
 }

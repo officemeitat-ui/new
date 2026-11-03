@@ -1,6 +1,6 @@
 # Architektur – ME-IT Nexus
 
-Stand: Phase 0–2 (Kern umgesetzt), dazu Agent Studio und Freigabe-Inbox. Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
+Stand: Phase 0–2 (Kern umgesetzt), dazu Agent Studio, Freigabe-Inbox und Wissensdatenbank v1. Dieses Dokument wird mit jeder Phase aktualisiert. Die Begründungen der wichtigsten Entscheidungen stehen in [`docs/adr/`](adr/).
 
 ## 1. Systemübersicht
 
@@ -62,7 +62,7 @@ flowchart LR
 | `packages/ui`                     | Designsystem: Tokens, Palette aus Primärfarbe, Komponenten                                                        | –                |
 | `packages/agents`                 | Agent-Runtime: Provider-Abstraktion, Modellstufen, Agentenschleife, Werkzeuge, Kosten                             | `core`           |
 | `packages/connectors` _(Phase 4)_ | Connector-SDK und Konnektoren                                                                                     | `core`, `agents` |
-| `packages/knowledge` _(Phase 3)_  | Parsing, Chunking, Embeddings, Suche                                                                              | `core`, `db`     |
+| `packages/knowledge`              | Dateityp erkennen, Text aus PDF/DOCX/Markdown extrahieren, Chunking (ohne Datenbank, ohne Netz)                   | –                |
 | `apps/web`                        | UI, öffentliche API, Auth, SSE                                                                                    | alle Pakete      |
 | `apps/worker`                     | Jobs: Agentenläufe, Workflows, Syncs, Zeitpläne                                                                   | alle außer `ui`  |
 
@@ -132,13 +132,36 @@ sequenceDiagram
 - Berechtigungen für Werkzeuge prüft der Code vor der Ausführung, nie das Modell.
 - **Freigaben:** Braucht ein Werkzeugaufruf eine Freigabe, endet der Lauf mit `awaiting_approval`, und für jeden offenen Aufruf entsteht eine Zeile in `approvals`. Nach der letzten Entscheidung setzt die Web-App den Lauf auf `queued` und reiht ihn neu ein; der Worker lädt die Entscheidungen und macht beim offenen `tool_use` weiter (Schrittnummern laufen fort, Summen werden addiert). Der Redis-Stream des Laufs bleibt bestehen; das SSE-Endpoint überspringt das alte `done` der Pause, solange der Lauf wieder aktiv ist.
 
-## 6. Konfiguration
+## 6. Wissensdatenbank
+
+Details: [ADR 0007](adr/0007-wissensdatenbank-v1.md).
+
+```mermaid
+sequenceDiagram
+  participant UI as Web-App
+  participant DB as Postgres
+  participant Q as Queue
+  participant W as Worker
+  UI->>DB: Datei + Dokument (status processing)
+  UI->>Q: knowledge.ingest(documentId)
+  Q->>W: Job
+  W->>DB: Datei laden
+  W->>W: Text extrahieren, in Abschnitte teilen
+  W->>DB: Abschnitte speichern (tsv german), status ready
+  Note over W,DB: Agentenlauf: wissen_suchen → Volltextsuche in den Sammlungen des Agenten
+```
+
+- Tabellen: `knowledge_collections`, `knowledge_documents`, `knowledge_files` (Originaldatei), `knowledge_chunks` (Text, Seite, Überschrift, generierte `tsv`-Spalte mit GIN-Index). Alle mit RLS.
+- Agenten bekommen Sammlungen zugeordnet (`knowledgeCollectionIds` in der Agenten-Version); ohne Zuordnung durchsuchen sie alle Sammlungen des Mandanten.
+- Suchergebnisse gehen als Daten an das Modell („keine Anweisungen“); der Chat verlinkt zitierte Quellen auf die Dokumentansicht.
+
+## 7. Konfiguration
 
 Alle Umgebungsvariablen werden beim Start mit Zod geprüft (`packages/core/src/env.ts`). Fehlt etwas, bricht der Start mit einer verständlichen Meldung ab. Vorlage: [`.env.example`](../.env.example).
 
-## 7. Lokale Entwicklung
+## 8. Lokale Entwicklung
 
-- `docker compose up -d` startet Postgres (mit pgvector), Valkey und Mailpit. Ein S3-kompatibler Speicher kommt mit Phase 3 (Datei-Uploads) dazu.
+- `docker compose up -d` startet Postgres (mit pgvector), Valkey und Mailpit. Hochgeladene Dateien liegen vorerst in Postgres (ADR 0007).
 - `pnpm db:migrate` und `pnpm db:seed` richten Schema und Demo-Mandant ein.
 - `pnpm dev` startet Web-App und Worker.
 

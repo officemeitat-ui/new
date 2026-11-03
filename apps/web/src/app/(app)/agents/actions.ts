@@ -78,6 +78,7 @@ export async function saveAgentAction(
     const rate = ctx.tenant.usdEurRate;
     const maxCostUsdMicros =
       limit === undefined ? undefined : Math.round((rate ? limit / rate : limit) * 1_000_000);
+    const knowledgeCollectionIds = formData.getAll("knowledge").map(String).filter(isUuid);
     const steps = numberField(formData, "maxSteps");
     const roi = numberField(formData, "roiMinutes");
 
@@ -95,6 +96,8 @@ export async function saveAgentAction(
           maxSteps: steps === undefined ? 10 : Math.round(steps),
           ...(maxCostUsdMicros !== undefined ? { maxCostUsdMicros } : {}),
           ...(roi !== undefined ? { roiMinutesPerTask: Math.round(roi) } : {}),
+          // Empty = all collections; left out so unchanged agents keep an identical config.
+          ...(knowledgeCollectionIds.length > 0 ? { knowledgeCollectionIds } : {}),
         },
         actorId: ctx.user.id,
       }),

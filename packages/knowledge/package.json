@@ -1,0 +1,22 @@
+{
+  "name": "@nexus/knowledge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./detect": "./src/detect.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "mammoth": "1.13.0",
+    "unpdf": "1.9.1"
+  },
+  "devDependencies": {
+    "@nexus/config": "workspace:*",
+    "vitest": "^5.1.0"
+  }
+}

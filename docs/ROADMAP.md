@@ -7,7 +7,7 @@ Die Phasen folgen [`prompts/01_BUILD_PHASEN.md`](../prompts/01_BUILD_PHASEN.md).
 | 0     | Fundament: Monorepo, CI, Docker, Datenbank-Grundlage, Designsystem, App-Shell | siehe [PROGRESS](PROGRESS.md) |
 | 1     | Mandanten, Anmeldung, Rechte, Audit-Log, Partner-Konsole (Grundgerüst)        | siehe [PROGRESS](PROGRESS.md) |
 | 2     | Agent-Runtime und Chat                                                        | siehe [PROGRESS](PROGRESS.md) |
-| 3     | Wissensdatenbank (RAG)                                                        | ⬜                            |
+| 3     | Wissensdatenbank (RAG)                                                        | 🟡 v1 mit Volltextsuche       |
 | 4     | Integrationen und MCP                                                         | ⬜                            |
 | 5     | Workflows und Freigabe-Inbox                                                  | 🟡 Freigabe-Inbox fertig      |
 | 6     | Agent Studio, Vorlagen, Evals → **demo-fähig**                                | 🟡 Studio und Vorlagen fertig |
@@ -43,10 +43,13 @@ Siehe Akzeptanzkriterien in [`prompts/01_BUILD_PHASEN.md`](../prompts/01_BUILD_P
 
 ## Bewusst später (Feature-Flags)
 
-| Funktion                       | Geplant für                     |
-| ------------------------------ | ------------------------------- |
-| SAML 2.0, SCIM                 | Phase 9 / Enterprise            |
-| Eigene Domain pro Mandant      | Phase 8                         |
-| Stripe Billing                 | nach Phase 8                    |
-| Teams-, WhatsApp-, Slack-Kanal | nach Phase 7                    |
-| Telefon/Voice                  | Phase 3 der Konnektoren-Roadmap |
+| Funktion                       | Geplant für                                 |
+| ------------------------------ | ------------------------------------------- |
+| SAML 2.0, SCIM                 | Phase 9 / Enterprise                        |
+| Eigene Domain pro Mandant      | Phase 8                                     |
+| Stripe Billing                 | nach Phase 8                                |
+| Teams-, WhatsApp-, Slack-Kanal | nach Phase 7                                |
+| Telefon/Voice                  | Phase 3 der Konnektoren-Roadmap             |
+| Embeddings und hybride Suche   | Phase 3, nach Wahl des Anbieters (ADR 0007) |
+| OCR für gescannte PDFs         | Phase 3                                     |
+| Datei-Ablage in S3             | mit dem Deployment (ADR 0007)               |
