@@ -10,9 +10,11 @@ import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 /**
  * month „JJJJ-MM“; log = data.winterlog; photos: Map Dateiname → data-URL (JPEG/PNG), fehlende
  * Fotos stehen als Dateiname im Anhang. objectId: nur ein Objekt (z. B. für den Kunden).
+ * names: 'voll' (Standard), 'vorname' oder 'keine' (Kundenbereich: wie beim Leistungsnachweis eingestellt).
  */
-export function winterLogDocument({ month, log = {}, objects = [], brand = {}, logo = null, photos = new Map(), objectId = '', createdAt = new Date() }) {
+export function winterLogDocument({ month, log = {}, objects = [], brand = {}, logo = null, photos = new Map(), objectId = '', names = 'voll', createdAt = new Date() }) {
   const colors = inkColors(brand)
+  const who = (r) => (names === 'keine' ? '' : names === 'vorname' ? String(r.person || '').split(/\s+/)[0] : r.person || '')
   const objectsById = new Map(objects.map((o) => [o.id, o]))
   const rows = logRows(log, { from: `${month}-01`, to: `${month}-31`, objectsById }).filter((r) => !objectId || r.objectId === objectId)
   const [y, m] = month.split('-').map(Number)
@@ -20,13 +22,14 @@ export function winterLogDocument({ month, log = {}, objects = [], brand = {}, l
   const only = objectId ? objectsById.get(objectId) : null
   const subtitle = `${MONTH_LONG[m - 1]} ${y}${only ? ` · ${only.name}` : ''}`
   const th = (text) => ({ text, style: 'th' })
-  const body = [[th('Tag'), th('Objekt'), th('Uhrzeit'), th('Durchgeführt von'), th('Tätigkeit'), th('Wetterlage'), th('Notiz'), th('Fotos')]]
+  const withNames = names !== 'keine'
+  const body = [[th('Tag'), th('Objekt'), th('Uhrzeit'), ...(withNames ? [th('Durchgeführt von')] : []), th('Tätigkeit'), th('Wetterlage'), th('Notiz'), th('Fotos')]]
   for (const r of rows) {
     body.push([
       { text: formatDate(r.date), noWrap: true },
       { stack: [{ text: r.objectName, bold: true }, r.address ? { text: r.address, fontSize: 7, color: colors.grey } : ''] },
       { text: r.time, alignment: 'center' },
-      r.person || '–',
+      ...(withNames ? [who(r) || '–'] : []),
       workText(r) || '–',
       { text: r.lage && r.lage !== 'ruhig' ? r.lage : '', fontSize: 7, color: colors.grey },
       { text: r.notiz || '', fontSize: 7.5 },
@@ -36,7 +39,7 @@ export function winterLogDocument({ month, log = {}, objects = [], brand = {}, l
   const content = [
     ...header({ title, subtitle, brand, logo, colors }),
     rows.length
-      ? { table: { headerRows: 1, dontBreakRows: true, widths: [44, '*', 34, 70, 70, 70, 70, 26], body }, layout: tableLayout(colors) }
+      ? { table: { headerRows: 1, dontBreakRows: true, widths: withNames ? [44, '*', 34, 70, 70, 70, 70, 26] : [44, '*', 34, 80, 80, 90, 26], body }, layout: tableLayout(colors) }
       : { text: 'Keine Einträge in diesem Monat.', italics: true, color: colors.grey, margin: [0, 6, 0, 0] },
     { text: `Einträge: ${rows.length}${rows.length ? ` · Objekte: ${new Set(rows.map((r) => r.objectId)).size} · Tage: ${new Set(rows.map((r) => r.date)).size}` : ''}. Erfasst am Handy (Link aus dem Schnee-Alarm) oder in der App; Wetterlage laut GeoSphere Austria zum Zeitpunkt des Alarms.`, fontSize: 7, color: colors.grey, margin: [0, 5, 0, 0] },
   ]
@@ -45,7 +48,7 @@ export function winterLogDocument({ month, log = {}, objects = [], brand = {}, l
   if (withPhotos.length) {
     content.push({ text: 'Fotos', style: 'section', pageBreak: 'before' })
     for (const r of withPhotos) {
-      content.push({ text: `${formatDate(r.date)} ${r.time} · ${r.objectName} · ${r.person || ''} · ${workText(r)}`, bold: true, margin: [0, 6, 0, 3] })
+      content.push({ text: [`${formatDate(r.date)} ${r.time}`, r.objectName, who(r), workText(r)].filter(Boolean).join(' · '), bold: true, margin: [0, 6, 0, 3] })
       const cells = r.fotos.map((f) => {
         const url = photos.get(f.datei)
         return url ? { image: url, fit: [250, 190], margin: [0, 0, 0, 4] } : { text: `Foto ${f.datei}${f.pfad ? ` (SharePoint: ${f.pfad})` : ''}`, fontSize: 7, color: colors.grey }

@@ -1,7 +1,7 @@
 // Systemcheck für die Inbetriebnahme (nur Vollzugriff): prüft vom Browser aus, ob der Webspace und
 // die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ordner privat/ gesperrt, PHP-Version
-// und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm und Plan am Handy
-// (Datei, Schlüssel, Cronjob), Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
+// und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm, Plan am Handy und
+// Kundenbereich (Datei, Schlüssel, Cronjob), Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
 
 import { app, registerActions, registerView, renderNow, toast } from '../context.js'
 import { esc, ICON } from '../shared.js'
@@ -35,7 +35,7 @@ export async function runChecks() {
     add(W, 'Sicherheitsregeln (.htaccess)', 'warn', err.message)
   }
   let open = []
-  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/.htaccess']) {
+  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/.htaccess']) {
     try {
       if ((await fetch(f, { cache: 'no-store' })).status === 200) open.push(f)
     } catch {
@@ -46,6 +46,7 @@ export async function runChecks() {
 
   const key = alarmSettings().key || portalSettings().key
   let sys = null
+  let ext = {}
   try {
     sys = (await json('system.php', { headers: key ? { 'X-Schluessel': key } : {} })).data
   } catch {
@@ -55,7 +56,7 @@ export async function runChecks() {
     add(W, 'PHP', 'error', 'system.php antwortet nicht', 'Im World4You-Kundenbereich PHP für die Subdomain einschalten (Version 8.x) und system.php mit hochladen. Ohne PHP fehlen Schnee-Alarm, Plan am Handy, Zeiterfassung und der Wetter-Umweg; Dienstplan und Werkzeuge laufen.')
   } else {
     add(W, 'PHP-Version', sys.php.ok ? 'ok' : 'error', sys.php.version ? `PHP ${sys.php.version}` : sys.php.ok ? '8 oder neuer' : 'älter als 8', 'Im World4You-Kundenbereich PHP 8.0 oder neuer einstellen (mein-plan.php braucht PHP 8).')
-    const ext = sys.erweiterungen || {}
+    ext = sys.erweiterungen || {}
     const missingHard = ['json', 'mbstring'].filter((x) => !ext[x])
     const missingSoft = ['curl', 'openssl', 'fileinfo'].filter((x) => !ext[x])
     add(W, 'PHP-Erweiterungen', missingHard.length ? 'error' : missingSoft.length ? 'warn' : 'ok', missingHard.length || missingSoft.length ? `fehlt: ${[...missingHard, ...missingSoft].join(', ')}` : 'json, mbstring, curl, openssl, fileinfo', 'Beim Hoster einschalten lassen. curl/openssl: Abfragen an GeoSphere und ntfy; fileinfo: Prüfung der Fotos.')
@@ -110,6 +111,21 @@ export async function runChecks() {
       const last = sys?.cron?.meinPlan
       add(H, 'Cronjob Zeiterfassung (Nichterscheinen)', last && Date.now() / 1000 - last < 30 * 60 ? 'ok' : 'warn', last ? `zuletzt ${ago(last)}` : 'noch nie gelaufen', 'Zweiten Cronjob alle 5–10 Minuten: „php mein-plan.php pruefen“ oder die Adresse aus dem Dialog „Plan am Handy“.')
     }
+  }
+
+  // ---- Kundenbereich (kunden.php)
+  const KB = 'Kundenbereich'
+  const kb = { ...(app.data?.kundenbereich?.settings || {}) }
+  if (!kb.enabled || !kb.key) add(KB, 'Kundenbereich', 'info', 'ausgeschaltet')
+  else {
+    add(KB, 'Einrichtungs-Datei in privat/', sys?.dateien.kundenbereich ? 'ok' : 'error', sys?.dateien.kundenbereich ? 'vorhanden' : 'fehlt', 'Kundenbereich → Einstellungen → „Speichern und übertragen“ oder „Einrichtungs-Datei herunterladen“ und kundenbereich.json per FTP nach privat/ laden.')
+    try {
+      const r = await json('kunden.php?aktion=status', { headers: { 'X-Schluessel': kb.key } })
+      add(KB, 'Schlüssel stimmt', r.status === 200 ? 'ok' : 'error', r.status === 200 ? `${r.data?.links ?? 0} Links am Webspace${r.data?.neueMeldungen ? `, ${r.data.neueMeldungen} Meldungen noch nicht übernommen` : ''}` : `Antwort ${r.status}`, r.status === 403 ? 'kundenbereich.json neu herunterladen und nach privat/ laden.' : 'kunden.php mit hochladen.')
+    } catch (err) {
+      add(KB, 'Schlüssel stimmt', 'error', err.message)
+    }
+    if (sys) add(KB, 'Fotos neu speichern (GD)', ext.gd ? 'ok' : 'warn', ext.gd ? 'Fotos werden verkleinert und ohne Metadaten gespeichert' : 'GD fehlt', 'PHP-Erweiterung GD beim Hoster einschalten lassen. Ohne GD nimmt kunden.php nur JPEG und PNG nach strenger Prüfung, mit Metadaten (z. B. Ort der Aufnahme).')
   }
 
   // ---- KI-Assistent (ki.php, Claude-API)

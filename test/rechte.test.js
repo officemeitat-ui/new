@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', termine: 'Bearbeiten', fakturierung: '', assistenz: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', termine: 'Bearbeiten', fakturierung: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -103,6 +103,9 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   for (const p of [DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.kalkulation.path, MODULE_DOCS.material.path]) assert.ok(!fak.read(p), p)
   for (const r of [om, va, lager]) assert.ok(!r.read(MODULE_DOCS.fakturierung.path))
   assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).fakturierung, 'Bearbeiten')
+  // Kundenbereich (Links wirken wie Passwörter): wer Reklamationen oder die Planung bearbeitet; Lager, Buchhaltung, Vorarbeiter nicht
+  assert.ok(om.read(MODULE_DOCS.kundenbereich.path) && om.write(MODULE_DOCS.kundenbereich.path))
+  for (const r of [va, lager, fak, dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true }))]) assert.ok(!r.read(MODULE_DOCS.kundenbereich.path))
   // Reklamationen: Objektmanagement bearbeitet, Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.reklamationen.path) && om.write(MODULE_DOCS.reklamationen.path))
   assert.ok(!va.read(MODULE_DOCS.reklamationen.path))
@@ -283,4 +286,41 @@ test('Oberfläche: Schreibrecht je Bereich, nicht je Ansicht (Suche/Übersicht �
   } finally {
     Object.assign(app, before)
   }
+})
+
+test('Rechte: „abwesend“ ohne Grund für Objektmanagement, Krankenstand bleibt in personal/', async () => {
+  const om = dataRights(resolveAccess({ groupClaims: [OM], access, strict: true }))
+  assert.ok(om.read(DOC.absent) && !om.write(DOC.absent) && !om.read(DOC.absences))
+  const ol = dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true }))
+  assert.ok(ol.read(DOC.absent) && !ol.read(DOC.absences))
+  const va = dataRights(resolveAccess({ groupClaims: [VA], access, strict: true }))
+  assert.ok(!va.read(DOC.absent))
+
+  const { store, log } = spyStore()
+  const admin = new DataService(store, { debounceMs: 0 })
+  const data = await admin.load(() => ({ ...blank(), employees: [{ id: 'e1', name: 'Ana' }, { id: 'e2', name: 'Bo' }], absences: [{ id: 'a1', employeeId: 'e1', type: 'Krankenstand', from: '2026-10-26', to: '2026-10-30', note: 'Grippe' }] }))
+  data.absences.push({ id: 'a2', employeeId: 'e2', type: 'Urlaub', from: '2026-11-02' })
+  await admin.flush()
+  const saved = (await store.read(DOC.absent)).data.absent
+  assert.deepEqual(saved, [
+    { id: 'a1', employeeId: 'e1', from: '2026-10-26', to: '2026-10-30' },
+    { id: 'a2', employeeId: 'e2', from: '2026-11-02', to: '2026-11-02' },
+  ])
+  assert.ok(!JSON.stringify(saved).includes('Krankenstand') && !JSON.stringify(saved).includes('Grippe'))
+
+  // Objektmanagement: sieht wer wann fehlt, ohne Grund, und schreibt nichts
+  log.write.length = 0
+  const o = new DataService(store, { debounceMs: 0, rights: om, blank })
+  const od = await o.load(() => assert.fail())
+  assert.deepEqual(od.absences.map((a) => [a.employeeId, a.type, a.from, a.to, a.note]), [
+    ['e1', 'Abwesend', '2026-10-26', '2026-10-30', undefined],
+    ['e2', 'Abwesend', '2026-11-02', '2026-11-02', undefined],
+  ])
+  await o.flush()
+  assert.deepEqual(log.write, [])
+
+  // Vollzugriff behält die vollständigen Abwesenheiten (nicht von der Liste überschrieben)
+  const again = await new DataService(store, { debounceMs: 0 }).load(() => assert.fail())
+  assert.deepEqual(again.absences.map((a) => a.type), ['Krankenstand', 'Urlaub'])
+  assert.equal(again.absences[0].note, 'Grippe')
 })

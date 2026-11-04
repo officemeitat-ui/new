@@ -97,7 +97,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | Ordner | Inhalt | Vollzugriff | Objektmanagement | Vorarbeiter |
 |---|---|---|---|---|
 | `objekte/` | Objekte (Name, Adresse, Revier) | Bearbeiten | Lesen | – |
-| `daten/` | Mitarbeitende, Leistungen, Regeln | Bearbeiten | Lesen | – |
+| `daten/` | Mitarbeitende, Leistungen, Regeln; `abwesend.json`: wer wann fehlt, **ohne Grund** | Bearbeiten | Lesen | – |
 | `plaene/` | Wochenpläne (Einteilungen, Änderungsprotokoll) | Bearbeiten | Lesen | – |
 | `personal/` | Urlaub und Krankenstände (Gesundheitsdaten) | Bearbeiten | – | – |
 | `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
@@ -109,10 +109,12 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `nachweise/` | Leistungsnachweis: Einstellungen und Versand-Vermerke | Bearbeiten | Bearbeiten | – |
 | `unterweisungen/` | Unterweisungen & Fristen je Person (mit Unterschriften) | Bearbeiten | – | – |
 | `fakturierung/` | Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen; PDFs unter `fakturierung/belege/` | Bearbeiten | – | – |
+| `berichte/` | Berichte automatisch per E-Mail: Abos (Empfänger, Zeitplan, zuletzt gesendet) | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
 
+- **Abwesend ohne Grund:** Objektmanagement und Objektleitung sehen unter *Abwesenheiten*, im Plan und in den Prüfregeln, wer wann fehlt – aber nicht, warum. Dafür schreibt die App beim Speichern der Abwesenheiten eine Liste nur mit Person, von und bis nach `daten/abwesend.json`; Art (Urlaub, Krankenstand …) und Notiz bleiben in `personal/`. Eintragen und ändern bleibt beim Büro.
 - **Lohn und Krankenstände** liegen in eigenen Ordnern (`lohn/`, `personal/`), die nur Vollzugriff (und ggf. Lohnverrechnung) öffnen kann. Wer früher schon Daten unter `daten/` hatte: Beim ersten Start mit Vollzugriff verschiebt die App `abwesenheiten.json`, `zeitkonto.json` und alle Wochenpläne aus `daten/plaene/` in die neuen Ordner und löscht die alten Dateien (Papierkorb der Website). Scheitert das Löschen, versucht sie es beim nächsten Start wieder. Das Änderungsprotokoll der Wochen nennt keinen Grund einer Abwesenheit (es steht bei den Plänen, die auch Objektmanagement liest).
 - **Vorarbeiter** brauchen keinen Ordner unter `Plattform`: Sie arbeiten nur im Werkzeug Wasserzähler, die App lädt für sie keine eigene Datei.
 - **Gerätespeicher je Konto:** Jedes Microsoft-Konto hat im Gerät einen eigenen Speicher. Auf einem geteilten Tablet liest niemand ohne Netz die Kopie eines anderen.
@@ -302,6 +304,37 @@ Unter *Objekte & Kunden* (für alle, die die Einsatzplanung sehen). Je Objekt un
 - Summen: Einsätze, Stunden laut Plan; Feld für die Unterschrift des Auftraggebers (abschaltbar).
 
 **Namen der Mitarbeitenden** stehen nur drin, wenn eingestellt („Vornamen“ oder „ganze Namen“), Standard ist ohne Namen. **PDF** je Objekt oder **alle als ZIP**; **E-Mail an den Kunden** mit dem PDF im Anhang (mit Mail.Send aus dem eigenen Postfach, sonst E-Mail-Programm), einzeln oder „Alle mit E-Mail senden“ für alle Objekte mit hinterlegter Adresse, die den Monat noch nicht bekommen haben. Die Adresse steht beim Objekt (*Objekt bearbeiten → E-Mail für den Leistungsnachweis*) oder wird beim ersten Versand gemerkt. Jeder Versand wird vermerkt (wann, an wen, wie). Standardmonat ist der Vormonat.
+
+## Kundenbereich
+
+Unter *Objekte & Kunden → Kundenbereich* (Vollzugriff und alle Rollen, die Reklamationen oder die Einsatzplanung bearbeiten: Objektmanagement, Objektleitung, Objektservice). Jeder Kunde oder jedes Objekt bekommt einen **persönlichen Link** (`kunden.php?k=CODE`) und sieht damit ohne Anmeldung eine eigene Seite, so wie „Mein Dienstplan“ für die Mitarbeitenden. Gespeichert in `kundenbereich/kundenbereich.json` (Links mit Code, Einstellungen); den Ordner dürfen nur diese Rollen lesen, weil die Links wie Passwörter wirken.
+
+**Was der Kunde sieht** (je Link einstellbar, Standard: alles):
+
+- **Leistungsnachweise** je Monat als PDF, genau wie unter [Leistungsnachweis](#leistungsnachweis) (gleiche Einstellungen für Namen, erfasste Zeiten und Unterschriftsfeld), für die letzten 3, 6, 12 oder 24 Monate. Der Vormonat erscheint ab dem 5. des Folgemonats (einstellbar), damit das Büro vorher prüfen kann. Hat ein Monat nicht besetzte Einsätze, hält die App ihn zurück und zeigt oben „Zurückgehalten“; erst nach dem Klären im Plan erscheint er. Monate ganz ohne Einteilung (vor der App) entfallen.
+- **Winterdienst-Nachweis** je Monat als PDF für Objekte mit Winterdienst-Protokoll: Tag, Uhrzeit, Tätigkeit, Wetterlage, Notiz; ohne Fotos (die bleiben im Büro) und ohne Namen, außer der Leistungsnachweis zeigt Namen.
+- **Nächste Termine:** periodische Leistungen der nächsten 13 Wochen (alles außer wöchentlich: 14-tägig, monatlich, quartalsweise, einmalig, z. B. Grund- oder Glasreinigung), verschobene mit Hinweis, entfallene nicht; dazu Termine der Art *Kundentermin* und *Objektbegehung* am Objekt, mit Titel und Uhrzeit, ohne Notiz und Teilnehmende. Qualitätskontrollen und interne Termine nie.
+- **Reklamation melden:** Objekt, Art (Reinigung nicht in Ordnung, Leistung nicht erbracht, Schaden, Sonstiges), Beschreibung, aufgefallen am, ein Foto (optional), Name und Telefon oder E-Mail; auf Wunsch eine E-Mail bei jedem neuen Stand. **„Ihre Meldungen“** zeigt eingegangen, in Arbeit oder erledigt, bei erledigt „Unsere Rückmeldung“ (das Ergebnis aus der Reklamation).
+
+Die Seite spricht den Kunden mit „Sie“ an, hat Logo und Hausfarbe der App, ist fürs Handy gebaut (am PC zwei Spalten) und zeigt unten Telefon, E-Mail und die Datenschutzerklärung aus den Einstellungen.
+
+**Links verwalten:**
+
+- **Link anlegen:** Bezeichnung (Überschrift beim Kunden), Objekte (Suche; mit Fakturierung auch „Aus der Kundenliste übernehmen“), E-Mail des Kunden, Zeitraum der Nachweise, was der Link zeigt. „Speichern und übertragen“.
+- **„Link“** kopiert ihn, **„E-Mail“** öffnet das Senden-Fenster (siehe [E-Mail aus der App](#e-mail-aus-der-app)) mit fertigem Text in der Sie-Form; die Adresse kommt vom Link oder vom Objekt (E-Mail für den Leistungsnachweis). Im Menü „⋯“: **Kundenseite ansehen**, **Neuer Link** (neuer Code, der alte gilt sofort nicht mehr, die PDFs bleiben) und **Sperren** (die Seite gilt nicht mehr, ihre Daten am Webspace werden gelöscht). Gesperrte Links lassen sich mit neuem Code wieder freigeben oder löschen. Neuer Link und Sperren brauchen einen zweiten Klick.
+- Der Code hat 20 Zeichen (rund 117 Bit). Im Link steht nur er, nichts über den Kunden; der Webspace kennt nur seinen Hashwert (SHA-256).
+
+**Übertragen wie bei Plan am Handy:** Je Link geht ein kleines JSON an `kunden.php` (Bezeichnung, Objekte mit Adresse, Termine, Liste der Nachweise mit Prüfsumme). Der Webspace antwortet, welche PDFs fehlen oder sich geändert haben; nur diese erstellt die App und schickt sie hinterher. Ältere Monate rechnet sie nicht jedes Mal neu (im Menü „⋯“ erzwingt **„Alle Nachweise neu erstellen“** das). Übertragen wird beim Speichern eines Links, mit „Jetzt übertragen“ und **einmal am Tag von selbst**, sobald jemand mit Einsatzplanung die App offen hat. Rollen ohne Plan (z. B. Objektservice) übertragen nur Links und Stand; Nachweise und Termine bleiben dann, wie sie waren.
+
+**Reklamationen zurück in die App:** Das Büro-Handy bekommt einen Push (nur Objekt und Art, ohne Text, weil ntfy ein fremder Dienst ist), die E-Mail-Adressen aus den Einstellungen die ganze Meldung. Die App holt neue Meldungen alle 3 Minuten, solange jemand mit Reklamationen (bearbeiten) sie offen hat (im Menü „⋯“ auch sofort), und legt je Meldung eine **Reklamation mit Eingang „Kundenbereich“** an: Objekt, Tag, Art, Beschreibung, Kontakt, Frist nach der Art. Das Foto kommt nach SharePoint (`reklamationen/fotos/<Monat>/`) und wird dann am Webspace gelöscht; ohne SharePoint bleibt es dort („Foto vom Kunden laden“ im Dialog, nach 60 Tagen gelöscht). Neue Meldungen ohne Maßnahme stehen unter **„Zu erledigen“**. Ändert sich der Status oder wird die Reklamation mit Ergebnis erledigt, geht das beim nächsten Abruf an die Kundenseite; Maßnahme, betroffene Personen und Verlauf bleiben intern.
+
+**Grenzen und Schutz am Webspace:** nach 20 ungültigen Codes von derselben Adresse in 15 Minuten ist für sie 15 Minuten Pause; höchstens 5 Meldungen je Link und 10 je Adresse am Tag; Fotos nur JPEG, PNG oder WebP bis 8 MB, am Inhalt geprüft (fileinfo, Bildmaße) und mit der PHP-Erweiterung GD neu als JPEG gespeichert (längste Seite 1600 px, ohne Metadaten wie den Aufnahmeort), am Handy vorher verkleinert; PDFs nur als PDF (Kopf und Ende geprüft), bis 8 MB und nur Dateien aus der Liste des Links; Formular nur von der eigenen Seite; Seite ohne Zwischenspeicher, nicht für Suchmaschinen, ohne Referrer.
+
+**Einrichten:** *Kundenbereich → Einstellungen*: einschalten, Büro-Handy (Push) und E-Mail für neue Reklamationen, Absender, Telefon, E-Mail und Datenschutzerklärung für die Kundenseite, ab welchem Tag der Vormonat erscheint. „Speichern und übertragen“ richtet den Webspace direkt ein, wenn dort schon Plan am Handy oder der Schnee-Alarm läuft (deren Schlüssel schaltet die erste Einrichtung frei); sonst einmalig „Einrichtungs-Datei herunterladen“ und `kundenbereich.json` nach `privat/` laden ([EINRICHTUNG.md](EINRICHTUNG.md), Schritt 8). Der Systemcheck prüft Datei, Schlüssel und GD.
+
+**Datenschutz:** Am Webspace liegen je Link der Hashwert, Bezeichnung, Name und Adresse der Objekte, Termine und PDFs, dazu die Meldungen mit Kontakt (erledigte nach 180 Tagen gelöscht, Fotos nach der Übernahme bzw. nach 60 Tagen). Keine Namen von Mitarbeitenden außer laut Einstellung des Leistungsnachweises, keine Daten anderer Kunden, keine Lohn- oder Gesundheitsdaten. Was vor dem Einschalten zu klären ist: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#kundenbereich-neu). `config.json` → `"customerPortal": false` lässt `kunden.php` beim Bauen weg.
+
+Technik: `kunden.php` (Webspace), `src/ui/views/customer-portal.js` (App), `src/core/customer-portal.js` (Rechenkern). Tests: `test/customer-portal.test.js`.
 
 ## Unterweisungen & Fristen
 
@@ -639,6 +672,7 @@ Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per 
 - **Diese Ansicht per E-Mail** (⋯ rechts oben, am Handy unter „Mehr“): macht aus dem, was gerade zu sehen ist, einen PDF-Bericht mit Logo, Kennzahlen als Kacheln, Tabellen und Listen (mit Filter; Knöpfe und Menüs fallen weg) und eine CSV-Datei der Tabellen. Geht in jeder Ansicht, z. B. Kennzahlen, Prüfbericht, Schlüsselbuch, Monatsauswertung. Breite Tabellen kommen quer, sehr lange gekürzt (vollständig in der CSV).
 - **Aufgabe per E-Mail** („+ Neu“, Taste **E**, oder ⋯): Empfänger, Aufgabe, Fälligkeit, Objekt, Beschreibung. Im Anhang eine Kalender-Erinnerung (.ics, ganztägig am Fälligkeitstag, Erinnerung am Vortag 9 Uhr), damit die Aufgabe auch ohne Microsoft 365 im Kalender des Empfängers steht.
 - **„Zu erledigen“ weitergeben:** jeder Abschnitt hat „E-Mail“, unten „Per E-Mail weitergeben“ für die ganze Liste – als Text mit Link in die App.
+- **Berichte automatisch** (⋯ → „Berichte automatisch“, nur Vollzugriff): Abos wie „Kennzahlen jeden Montag ab 7 Uhr an die Geschäftsführung“. Wählbar sind Kennzahlen, Prüfbericht der Woche, Vertretungen und offene Einsätze, Periodische Leistungen, Reklamationen, Material & Lager (je als PDF mit CSV) und Zu erledigen (als Text mit Link). Rhythmus wöchentlich (Wochentag), jeden Werktag oder monatlich am 1., jeweils ab einer Uhrzeit (Wien). **Gesendet wird ohne Server und ohne gespeichertes Passwort** aus dem Postfach der Person, die das Abo angelegt hat, sobald sie die App an oder nach dem Termin offen hat (PC oder Handy, Prüfung beim Start, alle 5 Minuten und beim Zurückkehren in die App). Ein verpasster Termin wird einmal nachgeholt, ältere nicht; zwei offene Fenster senden nicht doppelt. Fehler (z. B. fehlende Berechtigung) stehen beim Abo und werden frühestens nach 6 Stunden wiederholt. „Jetzt“ erstellt den Bericht sofort im Senden-Fenster. Die Abos liegen in `berichte/abos.json` (nur Vollzugriff); Zeitplan in `src/core/report-schedule.js`, Versand in `src/ui/report-subscriptions.js`. Wer ganz ohne geöffnete App senden will, braucht einen Server-Dienst mit eigener Microsoft-365-Berechtigung (Anwendungsberechtigung Mail.Send) – bewusst nicht eingebaut.
 - **Senden-Fenster:** An und Kopie (mehrere mit Strichpunkt, „Name <adresse>“ geht auch), „+ aus der Liste …“ mit Mitarbeitenden, Kundschaft, Objekten (Adresse für den Leistungsnachweis), Lieferanten und Werkstätten – je nachdem, was die Rolle sieht – und den zuletzt verwendeten Adressen (nur auf diesem Gerät, höchstens 10). Betreff und Text sind vorbereitet; Anhänge einzeln entfernen oder herunterladen. Ungültige Adressen werden vor dem Senden gemeldet.
 - **Versand:** Mit `features.mail` und Mail.Send geht die Mail aus dem eigenen Postfach (oder aus `mail.from`) und liegt unter „Gesendete Elemente“; „Kopie an mich“ setzt die eigene Adresse in Bcc. Anhänge bis rund 3 MB je Mail (Grenze von Microsoft Graph für eine Anfrage), sonst Hinweis. Ohne Microsoft 365 öffnet sich das E-Mail-Programm (mailto) und die Anhänge landen im Download-Ordner.
 - Die eigenen Versand-Wege mit Versandstand bleiben: Wochenpläne an Mitarbeitende, Leistungsnachweise, Rechnungen und Mahnungen, Bestellungen, Auszahlungen, Werkstatt-Termine.
@@ -650,7 +684,7 @@ Tests: `test/mail.test.js` (Adressen, Betreff, CSV, mailto, Aufgabe mit .ics, Be
 Unter *Verwaltung → Systemcheck* (nur Vollzugriff): prüft vom Browser aus Webspace, Einrichtung und Microsoft 365 und sagt je Punkt, was zu tun ist. Nur lesend.
 
 - **Webspace:** HTTPS, Sicherheitsregeln (`.htaccess`), `privat/` von außen gesperrt, PHP 8 und Erweiterungen (json, mbstring, curl, openssl, fileinfo), `privat/` beschreibbar, Upload-Grenze für Fotos (8 MB), freier Speicher, Webspace erreicht das Internet (GeoSphere über `wetter.php`; nötig für Schnee-Alarm und Push).
-- **Schnee-Alarm** und **Plan am Handy** (wenn eingeschaltet): Einrichtungsdatei in `privat/`, Schlüssel von App und Webspace passen, letzter Lauf der Cronjobs (Warnung, wenn länger als 30 Minuten her).
+- **Schnee-Alarm**, **Plan am Handy** und **Kundenbereich** (wenn eingeschaltet): Einrichtungsdatei in `privat/`, Schlüssel von App und Webspace passen, letzter Lauf der Cronjobs (Warnung, wenn länger als 30 Minuten her), beim Kundenbereich die PHP-Erweiterung GD für die Fotos.
 - **Microsoft 365:** Daten in SharePoint (nicht im Browser-Modus), Anwendungs-ID eingetragen, angemeldete Person und Rolle, Daten geladen.
 - „Bericht kopieren“ gibt alles als Text, z. B. für IT oder Support.
 

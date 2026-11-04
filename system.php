@@ -1,7 +1,7 @@
 <?php
 // Systemcheck für die Inbetriebnahme (App → Systemcheck): Was der Webspace kann und ob die
 // Einrichtung stimmt. Liefert nur Ja/Nein-Werte und Zeitpunkte, keine Inhalte. PHP-Version und
-// freier Speicher nur mit Schlüssel (X-Schluessel: Schlüssel von Schnee-Alarm oder Plan am Handy)
+// freier Speicher nur mit Schlüssel (X-Schluessel: Schlüssel von Schnee-Alarm, Plan am Handy oder Kundenbereich)
 // oder solange noch keiner eingerichtet ist (erste Inbetriebnahme).
 
 header('Content-Type: application/json; charset=utf-8');
@@ -15,7 +15,9 @@ $lesen = function ($datei) {
 };
 $alarm = $lesen("$alarmOrdner/wetter-alarm.json");
 $plan = $lesen("$planOrdner/mitarbeiter.json");
-$schluessel = array_values(array_filter([isset($alarm['schluessel']) ? $alarm['schluessel'] : '', isset($plan['schluessel']) ? $plan['schluessel'] : ''], function ($k) {
+$kundenOrdner = getenv('KUNDEN_ORDNER') ?: __DIR__ . '/privat';
+$kunden = $lesen("$kundenOrdner/kundenbereich.json");
+$schluessel = array_values(array_filter([isset($alarm['schluessel']) ? $alarm['schluessel'] : '', isset($plan['schluessel']) ? $plan['schluessel'] : '', isset($kunden['schluessel']) ? $kunden['schluessel'] : ''], function ($k) {
     return is_string($k) && strlen($k) >= 32;
 }));
 $gegeben = isset($_SERVER['HTTP_X_SCHLUESSEL']) ? (string) $_SERVER['HTTP_X_SCHLUESSEL'] : '';
@@ -50,10 +52,11 @@ echo json_encode([
         'curl' => function_exists('curl_init'),
         'openssl' => extension_loaded('openssl'),
         'fileinfo' => class_exists('finfo'),
+        'gd' => function_exists('imagejpeg'),
     ],
     'privat' => ['vorhanden' => is_dir($alarmOrdner), 'beschreibbar' => is_dir($alarmOrdner) && is_writable($alarmOrdner)],
     'upload' => ['bytes' => $upload, 'ok' => $upload >= 8 * 1024 * 1024],
-    'dateien' => ['wetterAlarm' => $alarm !== null, 'mitarbeiter' => $plan !== null],
+    'dateien' => ['wetterAlarm' => $alarm !== null, 'mitarbeiter' => $plan !== null, 'kundenbereich' => $kunden !== null],
     'cron' => [
         'wetterAlarm' => isset($stand['letztePruefung']) ? (int) $stand['letztePruefung'] : null,
         'meinPlan' => isset($planPruefung['zuletzt']) ? (int) $planPruefung['zuletzt'] : null,

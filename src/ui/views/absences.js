@@ -2,13 +2,20 @@
 
 import { eachDay, formatDate, isoWeekday, lastOfMonth, MONTH_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { vacationSummary } from '../../core/reports.js'
+import { dataRights, DOC } from '../../storage/data-service.js'
 import { app, confirmStep, empName, persist, registerActions, registerView, renderNow } from '../context.js'
 import { addAbsence } from '../modals/absence.js'
 import { ABSENCE_CLASS, ABSENCE_TYPES, esc, ICON, val } from '../shared.js'
 import { monthPicker } from './controlling.js'
 import { filterBar, filteredEmployees } from './week.js'
 
-function calendar(c, employees) {
+/**
+ * Darf diese Person den Grund sehen (Urlaub, Krankenstand …)? Nur mit Recht auf personal/ – sonst
+ * kommt aus daten/abwesend.json nur „abwesend von–bis“ (Krankenstand ist ein Gesundheitsdatum).
+ */
+export const seesReasons = () => app.data.absencesFull !== false && dataRights(app.access).read(DOC.absences)
+
+function calendar(c, employees, full = true) {
   const from = `${c.month}-01`
   const days = eachDay(from, lastOfMonth(from))
   const head = days.map((d) => `<th class="${isoWeekday(d) > 5 ? 'weekend' : ''} ${c.holidays.has(d) ? 'holiday' : ''}" title="${esc(c.holidays.get(d)?.name || '')}"><span class="dname">${WEEKDAY_SHORT[isoWeekday(d) - 1].slice(0, 2)}</span><span class="ddate">${d.slice(8)}</span></th>`).join('')
@@ -19,19 +26,25 @@ function calendar(c, employees) {
       const cells = days
         .map((d) => {
           const a = list.find((x) => d >= x.from && d <= x.to)
-          const cls = [isoWeekday(d) > 5 ? 'weekend' : '', c.holidays.has(d) ? 'holiday' : '', a ? ABSENCE_CLASS[a.type] || 'abs-sonst' : ''].join(' ')
-          return `<td class="cal-cell ${cls}" title="${a ? esc(`${a.type} ${formatDate(a.from)}–${formatDate(a.to)}`) : ''}">${a ? esc(a.type[0]) : ''}</td>`
+          const cls = [isoWeekday(d) > 5 ? 'weekend' : '', c.holidays.has(d) ? 'holiday' : '', a ? (full ? ABSENCE_CLASS[a.type] || 'abs-sonst' : 'abs-sonst') : ''].join(' ')
+          const label = full ? a?.type : 'abwesend'
+          return `<td class="cal-cell ${cls}" title="${a ? esc(`${label} ${formatDate(a.from)}–${formatDate(a.to)}`) : ''}">${a ? (full ? esc(a.type[0]) : '–') : ''}</td>`
         })
         .join('')
+      if (!full) return `<tr><th class="name-col">${esc(e.name)}</th>${cells}</tr>`
       const v = vacationSummary(e, app.data.absences || [], year, app.data.extraFreeDays)
       return `<tr><th class="name-col">${esc(e.name)}</th>${cells}<td class="sum num ${v.rest < 0 ? 'err-text' : ''}" title="Anspruch ${v.entitlement}, verplant ${v.used}">${v.rest} / ${v.entitlement}</td></tr>`
     })
     .join('')
+  if (!full)
+    return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="legend"><span><span class="cal-key abs-sonst">–</span> abwesend</span><span>Den Grund (Urlaub, Krankenstand …) sieht nur das Büro.</span></div>`
   return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}<th class="sum-col">Resturlaub ${year}</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="legend">${ABSENCE_TYPES.map((t) => `<span><span class="cal-key ${ABSENCE_CLASS[t]}">${t[0]}</span> ${t}</span>`).join('')}<span>Resturlaub = Anspruch − verplante Urlaubstage (Mo–Fr ohne Feiertage)</span></div>`
 }
 
 function absencesView(c) {
+  if (!seesReasons()) return limitedView(c)
   const employees = filteredEmployees(c)
   const ids = new Set(employees.map((e) => e.id))
   const sorted = [...(app.data.absences || [])].filter((a) => ids.has(a.employeeId)).sort((a, b) => b.from.localeCompare(a.from))
@@ -66,7 +79,26 @@ function absencesView(c) {
     ${sorted.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Mitarbeiter:in</th><th>Art</th><th>Von</th><th>Bis</th><th>Status</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Keine Abwesenheiten eingetragen.</p>'}`
 }
 
-registerView({ id: 'absences', order: 100, label: 'Abwesenheiten', group: 'stamm', render: absencesView })
+/** Ohne Recht auf personal/: wer wann fehlt, ohne Grund, nur lesen (Objektmanagement, Objektleitung). */
+function limitedView(c) {
+  const employees = filteredEmployees(c)
+  const ids = new Set(employees.map((e) => e.id))
+  const sorted = [...(app.data.absences || [])].filter((a) => ids.has(a.employeeId) && a.to >= `${c.month}-01`).sort((a, b) => a.from.localeCompare(b.from))
+  const [y, m] = c.month.split('-').map(Number)
+  const rows = sorted
+    .slice(0, 80)
+    .map((a) => `<tr><td><strong>${esc(empName(a.employeeId))}</strong></td><td class="num">${formatDate(a.from, { year: true })}</td><td class="num">${formatDate(a.to, { year: true })}</td></tr>`)
+    .join('')
+  return `<div class="section-head"><div><h2>Abwesenheiten</h2><p>Wer wann fehlt, für die Planung im Objekt. Den Grund (Urlaub, Krankenstand, Zeitausgleich) sieht nur das Büro; eingetragen wird dort.</p></div>${monthPicker(c)}</div>
+    ${filterBar(c, { problems: false })}
+    <h3>${MONTH_LONG[m - 1]} ${y}</h3>
+    ${calendar(c, employees, false)}
+    <h3>Ab ${MONTH_LONG[m - 1]}</h3>
+    ${sorted.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Mitarbeiter:in</th><th>Von</th><th>Bis</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Niemand ist abwesend eingetragen.</p>'}`
+}
+
+// module planung: Objektmanagement und Objektleitung sehen „abwesend“; eintragen nur mit Recht auf Planung bzw. Stammdaten
+registerView({ id: 'absences', order: 100, label: 'Abwesenheiten', group: 'stamm', module: 'planung', render: absencesView })
 
 registerActions(
   {

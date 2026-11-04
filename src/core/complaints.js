@@ -1,7 +1,9 @@
 // Reklamationen je Objekt: erfassen, wer laut Plan dort war, Maßnahme mit Frist, erledigen mit
 // Ergebnis (Rückmeldung an den Kunden). Datei reklamationen/reklamationen.json:
 //   { items: [{ id, objectId, date, received, source, kind, text, contact, employees: [empId],
-//               measure, due, status, doneAt, result, informed, by, history: [{ at, by, text }] }] }
+//               measure, due, status, doneAt, result, informed, by, history: [{ at, by, text }],
+//               photos?: [{ path, url } | { datei }], portal?: { id, link, sent } }] }
+// portal: gemeldet über den Kundenbereich (kunden.php); der Kunde sieht Status und Ergebnis.
 
 import { addDays } from './dates.js'
 
@@ -14,7 +16,7 @@ export function dayOf(iso) {
   return Number.isFinite(t) ? VIENNA_DAY.format(t) : v.slice(0, 10)
 }
 
-export const SOURCES = ['Kunde (Telefon)', 'Kunde (E-Mail)', 'Kunde (vor Ort)', 'Objektkontrolle', 'Intern']
+export const SOURCES = ['Kunde (Telefon)', 'Kunde (E-Mail)', 'Kunde (vor Ort)', 'Kundenbereich', 'Objektkontrolle', 'Intern']
 export const KINDS = ['Reinigung mangelhaft', 'Leistung nicht erbracht', 'Nicht erschienen / zu spät', 'Schaden', 'Schlüssel / Sicherheit', 'Verhalten', 'Sonstiges']
 export const STATUS = { offen: 'offen', arbeit: 'in Arbeit', erledigt: 'erledigt' }
 

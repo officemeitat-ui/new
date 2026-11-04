@@ -2,18 +2,18 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 214 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 219 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (10)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (21)
+- [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (27)
 - [Verwaltung](#verwaltung) (35)
-- [Bedienung & Allgemeines](#bedienung-allgemeines) (37)
+- [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
 ## Start & Übersicht
@@ -464,6 +464,7 @@ Abwesenheiten (Urlaub, Krankenstand, Zeitausgleich, Pflegefreistellung, Sonstige
 
 > Tipp: Am Handy unten der Knopf „Abwesend“.
 > Tipp: Die abwesende Person bekommt ihre Stammeinsätze angerechnet (Ausfallprinzip).
+> Tipp: Objektmanagement und Objektleitung sehen nur „abwesend von–bis“, ohne Grund – Krankenstände sind Gesundheitsdaten und bleiben beim Büro.
 
 *Vollzugriff (Einsatzplanung und Stammdaten)*
 
@@ -1038,6 +1039,64 @@ Oben stellst du bei „Namen“ „keine Namen“ (Standard), „Vornamen“ ode
 
 1. „Leistungsnachweis“ öffnen.
 2. Bei „Namen“ wählen und die Häkchen setzen.
+
+### Kundenbereich: eine Seite für Kunden ohne Anmeldung
+
+*In der App: Kundenbereich*
+
+Im Kundenbereich bekommt jeder Kunde oder jedes Objekt einen persönlichen Link, ohne Anmeldung. Dort sieht der Kunde die Leistungsnachweise und den Winterdienst-Nachweis als PDF, die nächsten Termine im Objekt und kann eine Reklamation melden und ihren Stand verfolgen. Je Link legst du fest, was er zeigt.
+
+1. „Kundenbereich“ unter „Objekte & Kunden“ öffnen.
+2. Beim ersten Mal „Einstellungen“ → „Kundenbereich ein“ → „Speichern und übertragen“.
+3. „Link anlegen“: Bezeichnung, Objekte und was der Link zeigt wählen.
+4. „Speichern und übertragen“ klicken.
+5. Beim Link „E-Mail“ (fertiger Text) oder „Link“ zum Kopieren.
+
+> Tipp: Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn der Leistungsnachweis so eingestellt ist.
+> Tipp: Der Nachweis eines Monats erscheint ab dem 5. des Folgemonats und nur, wenn alle Einsätze besetzt sind; sonst steht oben „Zurückgehalten“.
+> Tipp: Einmal am Tag überträgt die App neue Monate und Termine von selbst.
+
+*Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten*
+
+### Kundenlink senden, erneuern oder sperren
+
+*In der App: Kundenbereich*
+
+„E-Mail“ öffnet das Senden-Fenster mit fertigem Text und dem Link, „Link“ kopiert ihn. Über „⋯“ macht „Neuer Link“ einen neuen Code (der alte gilt sofort nicht mehr), „Sperren“ schaltet die Seite ab und löscht ihre Daten am Webspace. Ein gesperrter Link lässt sich mit neuem Code wieder freigeben.
+
+1. „Kundenbereich“ öffnen.
+2. Beim Link „E-Mail“ oder „Link“ wählen.
+3. Zum Erneuern oder Sperren „⋯“ → „Neuer Link“ bzw. „Sperren“ und zum Bestätigen noch einmal klicken.
+
+> Tipp: Der Link wirkt wie ein Passwort. Im Link steht nur ein Code, nichts über den Kunden.
+> Tipp: „Kundenseite ansehen“ zeigt die Seite so, wie der Kunde sie sieht.
+
+### Reklamationen aus dem Kundenbereich
+
+*In der App: Reklamationen*
+
+Meldet ein Kunde über seinen Link eine Reklamation (Text, Foto, Kontakt), bekommt das Büro einen Push bzw. eine E-Mail. Die App übernimmt sie unter „Reklamationen“ mit Eingang „Kundenbereich“, das Foto kommt nach SharePoint. Der Kunde sieht „eingegangen“, „in Arbeit“ oder „erledigt“ und dann das Ergebnis.
+
+1. Neue Meldungen stehen unter „Zu erledigen“ und in „Reklamationen“.
+2. „Öffnen“, Maßnahme und Frist eintragen, Status „in Arbeit“.
+3. Zum Schluss das Ergebnis schreiben und „Erledigt“: der Kunde sieht es auf seiner Seite.
+
+> Tipp: Die Maßnahme bleibt intern; der Kunde sieht nur Status und Ergebnis.
+> Tipp: Hat der Kunde es angehakt, bekommt er bei jedem neuen Status eine E-Mail.
+
+### Kundenbereich einrichten
+
+*In der App: Kundenbereich*
+
+In „Einstellungen“ den Kundenbereich einschalten, Push oder E-Mail fürs Büro und Telefon, E-Mail und Datenschutzerklärung für die Kundenseite eintragen. „Speichern und übertragen“ richtet den Webspace ein, wenn dort Plan am Handy oder der Schnee-Alarm läuft; sonst einmal kundenbereich.json in den Ordner privat/ am Webspace laden.
+
+1. „Kundenbereich“ → „Einstellungen“ öffnen.
+2. „Kundenbereich ein“ anhaken, Büro-Handy und E-Mail wählen.
+3. Telefon, E-Mail und die Adresse der Datenschutzerklärung eintragen.
+4. „Speichern und übertragen“ klicken (oder einmalig „Einrichtungs-Datei herunterladen“).
+5. Unter „Systemcheck“ prüfen, ob der Schlüssel stimmt.
+
+*Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten*
 
 ### Schlüsselbuch: wer hat welchen Schlüssel
 
@@ -2242,6 +2301,20 @@ In den Export-Menüs steht unter „Per E-Mail senden“ jeder Export noch einma
 
 > Tipp: In „Zu erledigen“ hat jeder Abschnitt einen Knopf „E-Mail“; unten „Per E-Mail weitergeben“ schickt die ganze Liste mit Link in die App.
 > Tipp: Ohne Fälligkeit gibt es keine Kalender-Erinnerung.
+
+### Berichte automatisch per E-Mail
+
+Unter „⋯ → Berichte automatisch“ legst du Abos an, z. B. jeden Montag ab 7 Uhr die Kennzahlen an die Geschäftsführung. Gesendet wird aus deinem Postfach, sobald du die App an dem Tag ab der Uhrzeit offen hast – am PC oder am Handy. Ein verpasster Termin wird einmal nachgeholt.
+
+1. Rechts oben „⋯“ → „Berichte automatisch“.
+2. Bericht wählen (Kennzahlen, Prüfbericht, Vertretungen, Periodische Leistungen, Reklamationen, Material, Zu erledigen).
+3. Rhythmus (wöchentlich, jeden Werktag, monatlich am 1.), Uhrzeit und Empfänger eintragen, „Abo anlegen“.
+4. „Jetzt“ erstellt den Bericht sofort zum Ansehen und Senden.
+
+> Tipp: Nur mit Vollzugriff und Microsoft 365 (features.mail, Mail.Send).
+> Tipp: Abos lassen sich pausieren; „zuletzt“ zeigt, wann gesendet wurde oder warum nicht.
+
+*Vollzugriff*
 
 ### E-Mail-Versand einrichten (Microsoft 365)
 

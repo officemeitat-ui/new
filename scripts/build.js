@@ -65,6 +65,8 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 const webspace = [
   ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
   ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
+  // Kundenbereich (kunden.php): Link für Kunden; wetter-foto.js verkleinert die Fotos der Reklamation
+  ...(appConfig.customerPortal !== false ? ['kunden.php', ...(appConfig.weather === false ? ['wetter-foto.js'] : [])] : []),
 ]
 if (webspace.length) {
   for (const file of ['wetter-lib.php', 'webspace-lib.php', 'system.php', ...(appConfig.assistant !== false ? ['ki.php'] : []), ...webspace]) await copy(file)

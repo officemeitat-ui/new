@@ -17,6 +17,7 @@
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
+//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden (mit Code), Einstellungen
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -48,6 +49,8 @@ export const DOC = {
   master: 'daten/stammdaten.json',
   objects: 'objekte/objekte.json',
   absences: 'personal/abwesenheiten.json',
+  // wer wann fehlt – ohne Art und Notiz (Krankenstand ist ein Gesundheitsdatum): für alle, die den Plan sehen
+  absent: 'daten/abwesend.json',
   account: 'lohn/zeitkonto.json',
 }
 /** Frühere Ablage (alles unter daten/): wird beim ersten Speichern in die eigenen Ordner verschoben. */
@@ -69,6 +72,9 @@ export const MODULE_DOCS = {
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
   assistenz: { path: 'assistenz/entscheidungen.json', empty: () => ({ decided: {} }) },
+  // Berichte automatisch per E-Mail: Abos (Empfänger, Rhythmus, zuletzt gesendet) – nur Vollzugriff
+  berichte: { path: 'berichte/abos.json', empty: () => ({ abos: [] }) },
+  kundenbereich: { path: 'kundenbereich/kundenbereich.json', empty: () => ({ links: [], settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -88,6 +94,8 @@ export function dataRights(access) {
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
+    // „abwesend von–bis“ ohne Grund: geschrieben, wo die Abwesenheiten gepflegt werden
+    [DOC.absent, () => sees('planung', 'auswertung', 'stammdaten'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
     [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
@@ -106,6 +114,8 @@ export function dataRights(access) {
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
+    // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
+    [MODULE_DOCS.kundenbereich.path, () => edits('reklamationen', 'planung'), () => edits('reklamationen', 'planung')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -128,6 +138,8 @@ export const FOLDERS = [
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
+  ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
+  ['kundenbereich', 'Kundenbereich: Links für Kunden (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
 ]
 
 /**
@@ -179,6 +191,18 @@ const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))
 
+/** Art einer Abwesenheit, wenn nur „abwesend“ bekannt ist (ohne Recht auf personal/). */
+export const ABSENT = 'Abwesend'
+
+/**
+ * Wer wann fehlt, ohne Art und Notiz. Aus den vollständigen Abwesenheiten; wer nur die Liste kennt,
+ * gibt sie unverändert weiter (schreibt sie ohnehin nicht).
+ */
+export function absentList(data) {
+  if (!data.absencesFull && data.absentOnly) return data.absentOnly
+  return (data.absences || []).filter((a) => !a.limited && a.employeeId && a.from).map((a) => ({ id: a.id, employeeId: a.employeeId, from: a.from, to: a.to || a.from }))
+}
+
 /** App-Daten → Dateien. Nur Wochen in `weeks` werden erzeugt. */
 export function splitData(data, weeks) {
   const master = Object.fromEntries(MASTER_KEYS.map((k) => [k, data[k]]).filter(([, v]) => v !== undefined))
@@ -193,6 +217,7 @@ export function splitData(data, weeks) {
     [DOC.master]: master,
     [DOC.objects]: { objects: data.objects || [] },
     [DOC.absences]: { absences: data.absences || [] },
+    [DOC.absent]: { absent: absentList(data) },
     // pay immer schreiben (auch leer): ein gelöschter Lohn muss bei anderen Geräten ankommen
     [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), pay },
   }
@@ -227,6 +252,11 @@ export function applyDoc(data, path, doc) {
     data.objects = doc.objects || []
   } else if (path === DOC.absences) {
     data.absences = doc.absences || []
+    data.absencesFull = true
+  } else if (path === DOC.absent) {
+    data.absentOnly = doc.absent || []
+    // ohne Leserecht auf personal/ (Gesundheitsdaten): nur „abwesend“, für Plan, Prüfregeln und Vertretung
+    if (!data.absencesFull) data.absences = data.absentOnly.map((a) => ({ ...a, type: ABSENT, limited: true }))
   } else if (path === DOC.account) {
     data.published = doc.weeks || {}
     if (doc.payroll) data.payroll = doc.payroll
@@ -416,7 +446,8 @@ export class DataService {
   async load(seed) {
     this.#setStatus('loading')
     this.oldWeeksGone = (await this.local?.get('meta', 'wochen-alt')) === 'leer'
-    const paths = [DOC.master, DOC.objects, DOC.absences, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
+    // DOC.absent nach DOC.absences: wer die vollständigen Abwesenheiten liest, behält sie
+    const paths = [DOC.master, DOC.objects, DOC.absences, DOC.absent, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
     // Schnellstart: mit dem letzten Stand im Gerät sofort loslegen, SharePoint im Hintergrund abgleichen
     if (this.quickStart && this.store.cached) {
       const data = await this.#loadCached(paths)
@@ -448,7 +479,8 @@ export class DataService {
       }
     }
     for (const path of [DOC.master, DOC.objects]) if (docs[paths.indexOf(path)] === null && !this.denied.has(path) && this.rights.read(path) && !this.rights.write(path)) this.missing.add(path)
-    const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {} }
+    // absencesFull: darf die vollständigen Abwesenheiten lesen (auch wenn die Datei noch fehlt)
+    const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {}, absencesFull: this.rights.read(DOC.absences) }
     this.data = data
     if (fresh) {
       Object.assign(data, await seed())
@@ -497,7 +529,8 @@ export class DataService {
     if (!cached[paths.indexOf(core)]) return null
     // erst, wenn ein normaler Start gezeigt hat, dass nichts mehr aus der früheren Ablage umzuziehen ist
     if ((await this.local?.get('meta', 'ablage')) !== 2) return null
-    const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {} }
+    // absencesFull: darf die vollständigen Abwesenheiten lesen (auch wenn die Datei noch fehlt)
+    const data = { assignments: {}, overrides: {}, trips: {}, logs: {}, absences: [], published: {}, absencesFull: this.rights.read(DOC.absences) }
     this.data = data
     Object.assign(data, await this.blank())
     for (const [i, path] of paths.entries()) {
@@ -934,6 +967,7 @@ function emptyDoc(path) {
   if (MODULE_BY_PATH[path]) return MODULE_BY_PATH[path].empty()
   if (path === DOC.objects) return { objects: [] }
   if (path === DOC.absences) return { absences: [] }
+  if (path === DOC.absent) return { absent: [] }
   if (path === DOC.account) return { weeks: {}, pay: {} }
   if (isWeekPath(path)) {
     const monday = path.split('/').pop().replace('.json', '')
