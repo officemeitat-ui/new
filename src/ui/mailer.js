@@ -87,8 +87,9 @@ export async function deliver({ to, cc = [], bcc = [], subject, text, attachment
     return 'graph'
   }
   for (const a of attachments) download(a.name, a.blob)
-  const hint = attachments.length ? `\n\n(Bitte anhängen: ${attachments.map((a) => a.name).join(', ')} – liegt im Download-Ordner)` : ''
-  clickLink(mailtoUrl({ to, cc, subject, body: `${text}${hint}` }))
+  // Hinweis oben: E-Mail-Programme kürzen lange mailto-Texte am Ende
+  const hint = attachments.length ? `(Bitte anhängen: ${attachments.map((a) => a.name).join(', ')} – liegt im Download-Ordner)\n\n` : ''
+  clickLink(mailtoUrl({ to, cc, subject, body: `${hint}${text}` }))
   return 'mailto'
 }
 
