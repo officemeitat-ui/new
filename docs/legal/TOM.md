@@ -4,15 +4,16 @@
 
 ## Vertraulichkeit
 
-| Maßnahme                    | Umsetzung                                                                                                                              | Status |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Zutrittskontrolle           | Rechenzentrum des Hosting-Anbieters (Zertifizierung, z. B. ISO 27001, im AVV nennen)                                                   | ⬜     |
-| Zugangskontrolle            | Anmeldung mit Passwort (gehasht), Zwei-Faktor-Anmeldung (TOTP), 2FA-Pflicht für Admins per Richtlinie, Rate-Limits gegen Ratenangriffe | ✅     |
-| Zugriffskontrolle           | Rollen und feingranulare Rechte, serverseitig geprüft; Datenbank-Zeilenschutz (Row Level Security, erzwungen) pro Mandant              | ✅     |
-| Trennungskontrolle          | Jede Mandantentabelle mit `tenant_id`, RLS-Policy und automatischem Test, der fehlende Policies erkennt                                | ✅     |
-| Pseudonymisierung           | Audit-Log enthält Personen-IDs statt Namen; Kostenzahlen ohne Bezug zu Inhalten                                                        | ✅     |
-| Verschlüsselung (Transport) | TLS für alle Verbindungen; HSTS; Content Security Policy mit Nonce                                                                     | ✅     |
-| Verschlüsselung (ruhend)    | Datenträgerverschlüsselung beim Hosting-Anbieter                                                                                       | ⬜     |
+| Maßnahme                    | Umsetzung                                                                                                                               | Status |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Zutrittskontrolle           | Rechenzentrum des Hosting-Anbieters (Zertifizierung, z. B. ISO 27001, im AVV nennen)                                                    | ⬜     |
+| Zugangskontrolle            | Anmeldung mit Passwort (gehasht), Zwei-Faktor-Anmeldung (TOTP), 2FA-Pflicht für Admins per Richtlinie, Rate-Limits gegen Ratenangriffe  | ✅     |
+| Zugriffskontrolle           | Rollen und feingranulare Rechte, serverseitig geprüft; Datenbank-Zeilenschutz (Row Level Security, erzwungen) pro Mandant               | ✅     |
+| Trennungskontrolle          | Jede Mandantentabelle mit `tenant_id`, RLS-Policy und automatischem Test, der fehlende Policies erkennt                                 | ✅     |
+| Pseudonymisierung           | Audit-Log enthält Personen-IDs statt Namen; Kostenzahlen ohne Bezug zu Inhalten                                                         | ✅     |
+| Datenminimierung            | Öffentliche Mängelmeldungen ohne Pflicht zu personenbezogenen Daten; E-Mail optional und mit Erledigung gelöscht; Agenten sehen sie nie | ✅     |
+| Verschlüsselung (Transport) | TLS für alle Verbindungen; HSTS; Content Security Policy mit Nonce                                                                      | ✅     |
+| Verschlüsselung (ruhend)    | Datenträgerverschlüsselung beim Hosting-Anbieter                                                                                        | ⬜     |
 
 ## Integrität
 
@@ -24,11 +25,12 @@
 
 ## Verfügbarkeit und Belastbarkeit
 
-| Maßnahme                           | Umsetzung                                                       | Status |
-| ---------------------------------- | --------------------------------------------------------------- | ------ |
-| Backups mit Point-in-Time-Recovery | beim Betrieb einzurichten, Restore-Test dokumentieren           | ⬜     |
-| Wiederherstellbarkeit              | Hintergrundjobs idempotent; Zustand in Postgres, nicht in Redis | ✅     |
-| Überwachung                        | Health-Checks für Web und Worker                                | 🟡     |
+| Maßnahme                           | Umsetzung                                                                                                                                 | Status |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Backups mit Point-in-Time-Recovery | beim Betrieb einzurichten, Restore-Test dokumentieren                                                                                     | ⬜     |
+| Wiederherstellbarkeit              | Hintergrundjobs idempotent; Zustand in Postgres, nicht in Redis; Reparatur-Job alle 5 Minuten für hängende Läufe, Dokumente und Abgleiche | ✅     |
+| Belastbarkeit                      | Timeouts für alle externen Aufrufe (KI, Datenbank, E-Mail, Microsoft), Begrenzung von Live-Verbindungen und öffentlichen Meldungen        | ✅     |
+| Überwachung                        | Health-Checks für Web und Worker                                                                                                          | 🟡     |
 
 ## Verfahren zur regelmäßigen Überprüfung
 

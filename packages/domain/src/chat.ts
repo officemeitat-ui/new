@@ -270,7 +270,7 @@ export async function loadRunForExecution(tx: Tx, runId: string) {
 export async function markRunStarted(tx: Tx, runId: string): Promise<boolean> {
   const updated = await tx
     .update(runs)
-    .set({ status: "running", startedAt: new Date() })
+    .set({ status: "running", startedAt: new Date(), heartbeatAt: new Date() })
     .where(and(eq(runs.id, runId), eq(runs.status, "queued")))
     .returning({ id: runs.id });
   return updated.length === 1;

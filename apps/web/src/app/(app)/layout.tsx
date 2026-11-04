@@ -11,7 +11,7 @@ import { getAppContext } from "@/lib/session";
 import { endSupportSessionAction } from "@/app/actions/session";
 import { formatDateTime } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
-import { approvalScopeFor, can, countPendingApprovals } from "@nexus/domain";
+import { approvalScopeFor, can, countOpenReports, countPendingApprovals } from "@nexus/domain";
 import { Button } from "@nexus/ui";
 import { LifeBuoy } from "lucide-react";
 
@@ -27,7 +27,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           countPendingApprovals(tx, tenant.tenantId, approvalScopeFor(tenant)),
         )
       : 0;
-  const badges = { approvals: openApprovals };
+  const openReports =
+    tenant && can(tenant, "reports.manage")
+      ? await withTenant(getDatabase().db, tenant.tenantId, (tx) =>
+          countOpenReports(tx, tenant.tenantId),
+        )
+      : 0;
+  const badges = { approvals: openApprovals, reports: openReports };
   const tenants = ctx.overview.tenants
     .filter((tenant) => tenant.status === "active")
     .map(({ tenantId, name }) => ({ tenantId, name }));

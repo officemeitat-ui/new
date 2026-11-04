@@ -1,5 +1,13 @@
 import type { ApprovalDecision, PendingApproval } from "@nexus/agents";
-import { conflict, hasPermission, notFound, type TenantPermission } from "@nexus/core";
+import {
+  conflict,
+  forbidden,
+  hasPermission,
+  notFound,
+  validationError,
+  type TenantPermission,
+} from "@nexus/core";
+import { catalogTool } from "@nexus/agents/catalog";
 import { and, desc, eq, sql, type Tx } from "@nexus/db";
 import { agents, approvals, authUser, runs } from "@nexus/db/schema";
 import { appendAudit } from "./audit";
@@ -111,6 +119,8 @@ export async function decideApproval(
     reason?: string | null;
     actorId: string;
     scope: ApprovalScope;
+    /** The approver's permissions: some tools need more than approval.decide (finding 4). */
+    permissions: readonly TenantPermission[];
   },
 ): Promise<{ runId: string; resume: boolean }> {
   const [row] = await tx
@@ -130,6 +140,23 @@ export async function decideApproval(
   if (approval.status !== "pending")
     throw conflict("Über diese Freigabe wurde bereits entschieden.");
 
+  const tool = catalogTool(approval.toolName);
+  if (tool?.approvalPermission && !hasPermission(input.permissions, tool.approvalPermission)) {
+    throw forbidden(
+      "Über diese Aktion entscheiden Personen mit der Berechtigung „Integrationen verwalten“.",
+    );
+  }
+  if (input.approve && input.editedInput && !tool?.editable) {
+    throw validationError("Diese Aktion kann vor der Freigabe nicht geändert werden.");
+  }
+  // For the audit log: what exactly the approver changed (e-mails: recipients and subject).
+  const changes =
+    input.approve && input.editedInput
+      ? Object.keys(input.editedInput).filter(
+          (key) => JSON.stringify(input.editedInput![key]) !== JSON.stringify(approval.input[key]),
+        )
+      : [];
+
   await tx
     .update(approvals)
     .set({
@@ -148,7 +175,10 @@ export async function decideApproval(
     targetId: approval.id,
     metadata: {
       tool: approval.toolName,
-      edited: Boolean(input.editedInput),
+      edited: changes.length > 0,
+      changedFields: changes,
+      ...(changes.includes("an") ? { recipients: input.editedInput!.an } : {}),
+      ...(changes.includes("betreff") ? { subject: input.editedInput!.betreff } : {}),
       runId: approval.runId,
     },
   });

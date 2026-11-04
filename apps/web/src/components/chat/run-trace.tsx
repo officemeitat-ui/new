@@ -109,10 +109,16 @@ export function RunTrace({ runId, usdEurRate }: { runId: string; usdEurRate: num
   async function load() {
     if (steps || loading) return;
     setLoading(true);
-    const result = await getRunTraceAction(runId);
-    setLoading(false);
-    if (result.ok) setSteps(result.data ?? []);
-    else setError(result.error);
+    try {
+      const result = await getRunTraceAction(runId);
+      if (result.ok) setSteps(result.data ?? []);
+      else setError(result.error);
+    } catch {
+      // Network error or a new deployment: the spinner must stop and a retry stay possible.
+      setError(t("loadFailed"));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

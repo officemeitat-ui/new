@@ -1,3 +1,4 @@
+import { ALWAYS_APPROVE, catalogTool } from "@nexus/agents";
 import { withTenant } from "@nexus/db";
 import { openTestDatabase } from "@nexus/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -27,13 +28,23 @@ beforeAll(async () => {
 afterAll(() => handle.close());
 
 describe("agent templates", () => {
-  it("contains the twelve library agents with prompts and test cases", () => {
-    expect(AGENT_TEMPLATES).toHaveLength(12);
+  it("contains the fifteen library agents with prompts and test cases", () => {
+    expect(AGENT_TEMPLATES).toHaveLength(15);
     for (const template of AGENT_TEMPLATES) {
       expect(template.instructions.length).toBeGreaterThan(300);
       expect(template.testCases.length).toBeGreaterThanOrEqual(3);
       expect(template.roiMinutesPerTask).toBeGreaterThan(0);
       expect(template.industries.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("only uses tools from the catalog, and never runs risky ones without approval", () => {
+    for (const template of AGENT_TEMPLATES) {
+      for (const tool of template.tools) {
+        const entry = catalogTool(tool.name);
+        expect(entry, `${template.id}: ${tool.name}`).toBeDefined();
+        if (ALWAYS_APPROVE.has(entry!.risk)) expect(tool.mode).not.toBe("auto");
+      }
     }
   });
 

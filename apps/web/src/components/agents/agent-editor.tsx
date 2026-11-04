@@ -241,7 +241,12 @@ export function AgentEditor({
                   className={selectClass}
                 >
                   <option value="off">{t("modeOff")}</option>
-                  <option value="auto">{t("modeAuto")}</option>
+                  {/* External and destructive actions always need an approval (finding 7). */}
+                  {tool.risk === "external_write" ||
+                  tool.risk === "destructive" ||
+                  tool.risk === "financial" ? null : (
+                    <option value="auto">{t("modeAuto")}</option>
+                  )}
                   <option value="approve">{t("modeApprove")}</option>
                 </select>
               </li>

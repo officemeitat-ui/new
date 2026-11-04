@@ -53,6 +53,16 @@ export default async function DevicesPage({
   const format = await getFormatter();
   const query = await searchParams;
   const ctx = await requireTenant();
+  // Device lists show people, serial numbers and security gaps: admins only (finding 9).
+  if (!can(ctx.tenant, "integration.manage")) {
+    return (
+      <EmptyState
+        icon={<Lock aria-hidden />}
+        title={t("forbiddenTitle")}
+        description={t("forbiddenDescription")}
+      />
+    );
+  }
   const db = getDatabase().db;
   const integration = await withTenant(db, ctx.tenant.tenantId, (tx) =>
     getIntegration(tx, ctx.tenant.tenantId, "microsoft365"),

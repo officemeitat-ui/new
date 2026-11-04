@@ -11,7 +11,10 @@ async function graphCalls(): Promise<{ method: string; path: string }[]> {
 /** Earlier runs may have left the demo tenant connected. */
 async function disconnectIfConnected(page: Page) {
   await page.goto("/integrations");
-  const disconnect = page.getByRole("button", { name: "Trennen" });
+  // The page streams in after a loading state: look only once the card is there.
+  const card = page.getByTestId("integration-microsoft365");
+  await expect(card.getByRole("heading")).toBeVisible();
+  const disconnect = card.getByRole("button", { name: "Trennen" });
   if (await disconnect.isVisible()) {
     page.once("dialog", (dialog) => void dialog.accept());
     await disconnect.click();

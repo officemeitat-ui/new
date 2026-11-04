@@ -110,6 +110,8 @@ export async function listDocuments(tx: Tx, tenantId: string, collectionId: stri
       chunkCount: knowledgeDocuments.chunkCount,
       createdAt: knowledgeDocuments.createdAt,
       createdByName: authUser.name,
+      sourceUrl: knowledgeDocuments.sourceUrl,
+      fromSource: sql<boolean>`${knowledgeDocuments.sourceId} is not null`,
     })
     .from(knowledgeDocuments)
     .leftJoin(authUser, eq(authUser.id, knowledgeDocuments.createdBy))

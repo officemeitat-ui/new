@@ -1,5 +1,6 @@
 import { DEFAULT_TIME_ZONE, formatDateWithWeekday } from "@nexus/core";
 import { z } from "zod";
+import { cleaningCalculationTool } from "./cleaning";
 import { defineTool } from "./tools";
 
 /** Current date and time. Agents use it for deadlines and appointments. */
@@ -110,4 +111,4 @@ export const calculatorTool = defineTool({
   },
 });
 
-export const BUILTIN_TOOLS = [currentTimeTool, calculatorTool];
+export const BUILTIN_TOOLS = [currentTimeTool, calculatorTool, cleaningCalculationTool];

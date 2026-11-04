@@ -1,6 +1,6 @@
 import { conflict, notFound, validationError, type SystemTenantRole } from "@nexus/core";
 import { and, eq, gt, isNull, withSystem, withTenant, type Database, type Tx } from "@nexus/db";
-import { invitations, memberships, tenants } from "@nexus/db/schema";
+import { authUser, invitations, memberships, tenants } from "@nexus/db/schema";
 import { appendAudit } from "./audit";
 import { generateToken, hashToken } from "./tokens";
 
@@ -209,5 +209,30 @@ export async function revokeInvitation(
     action: "invitation.revoked",
     targetType: "invitation",
     targetId: input.invitationId,
+  });
+}
+
+/**
+ * E-mail sign-up is only allowed with the invitation link itself (token), not just for an
+ * address that has an invitation – otherwise anyone could register the address first and keep
+ * a session after the real person joins (security review, finding 2).
+ */
+export async function isValidInvitationForEmail(db: Database, token: string, email: string) {
+  const invitation = await findInvitationByToken(db, token);
+  return (
+    invitation !== null &&
+    invitation.status === "valid" &&
+    normalizeEmail(invitation.email) === normalizeEmail(email)
+  );
+}
+
+/** Whether an account (by e-mail) uses two-factor authentication. */
+export async function accountUsesTwoFactor(db: Database, email: string): Promise<boolean> {
+  return withSystem(db, "Anmeldung: Zwei-Faktor-Status prüfen", async (tx) => {
+    const [row] = await tx
+      .select({ enabled: authUser.twoFactorEnabled })
+      .from(authUser)
+      .where(eq(authUser.email, normalizeEmail(email)));
+    return Boolean(row?.enabled);
   });
 }

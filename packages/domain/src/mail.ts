@@ -12,6 +12,10 @@ function getTransporter(): Transporter {
     port: env.SMTP_PORT,
     secure: env.SMTP_PORT === 465,
     auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD ?? "" } : undefined,
+    // Defaults are 2 and 10 minutes; a blocked mail server must not hold a request that long.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
   });
   return transporter;
 }
@@ -67,6 +71,59 @@ export async function sendMagicLinkEmail(to: string, url: string): Promise<void>
     "Ihr Anmeldelink",
     `${sentence}\n\n${url}`,
     layout("Anmelden", escapeHtml(sentence), { label: "Jetzt anmelden", url }),
+  );
+}
+
+/**
+ * Sent instead of a magic link when the account uses two-factor authentication: a link alone
+ * would bypass the second factor (security review, finding 3).
+ */
+export async function sendTwoFactorLoginHintEmail(to: string, loginUrl: string): Promise<void> {
+  const sentence =
+    "Für Ihr Konto ist die Zwei-Faktor-Anmeldung aktiv. Bitte melden Sie sich mit Passwort und Code aus Ihrer Authenticator-App an – ein Anmeldelink ist dafür nicht möglich.";
+  await send(
+    to,
+    "Anmeldung mit Passwort und Code",
+    `${sentence}\n\n${loginUrl}`,
+    layout("Anmelden", escapeHtml(sentence), { label: "Zur Anmeldung", url: loginUrl }),
+  );
+}
+
+/** New defect report for the facility's manager (QR report, no AI involved). */
+export async function sendDefectReportEmail(input: {
+  to: string;
+  facilityName: string;
+  category: string;
+  location: string | null;
+  description: string;
+  url: string;
+}): Promise<void> {
+  const where = input.location ? ` (${input.location})` : "";
+  const sentence = `Neue Meldung für ${input.facilityName}${where}: ${input.category}.`;
+  await send(
+    input.to,
+    `Neue Meldung: ${input.facilityName}`,
+    `${sentence}\n\n${input.description}\n\n${input.url}`,
+    layout("Neue Meldung", `${escapeHtml(sentence)}<br><br>${escapeHtml(input.description)}`, {
+      label: "Meldung ansehen",
+      url: input.url,
+    }),
+  );
+}
+
+/** Tells the person who reported a defect that it has been taken care of. */
+export async function sendDefectResolvedEmail(input: {
+  to: string;
+  facilityName: string;
+  note: string | null;
+}): Promise<void> {
+  const sentence = `Danke für Ihre Meldung zu ${input.facilityName} – sie ist erledigt.`;
+  const text = input.note ? `${sentence}\n\n${input.note}` : sentence;
+  await send(
+    input.to,
+    `Ihre Meldung ist erledigt: ${input.facilityName}`,
+    text,
+    `<!doctype html><html lang="de"><body style="font-family:system-ui,sans-serif;line-height:1.6"><p>${escapeHtml(sentence)}</p>${input.note ? `<p>${escapeHtml(input.note)}</p>` : ""}</body></html>`,
   );
 }
 

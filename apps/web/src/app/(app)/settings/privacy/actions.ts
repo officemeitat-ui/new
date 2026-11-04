@@ -48,7 +48,7 @@ export async function erasePersonAction(userId: string): Promise<ActionResult> {
     const db = getDatabase().db;
     const tenantId = ctx.tenant.tenantId;
     const { conversations } = await withTenant(db, tenantId, (tx) =>
-      erasePerson(tx, { tenantId, userId, actorId: ctx.user.id }),
+      erasePerson(tx, { tenantId, userId, actorId: ctx.user.id, actorRole: ctx.tenant.role }),
     );
     const accountDeleted = await deleteAccountIfOrphaned(db, { userId, tenantId });
     revalidatePath("/settings/privacy");

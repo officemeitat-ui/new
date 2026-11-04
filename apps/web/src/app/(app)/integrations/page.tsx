@@ -19,7 +19,14 @@ import { requireTenant } from "@/lib/session";
 export const metadata = { title: "Integrationen" };
 export const dynamic = "force-dynamic";
 
-const ERRORS = new Set(["abgelehnt", "sitzung", "zugriff", "berechtigung", "nicht_eingerichtet"]);
+const ERRORS = new Set([
+  "abgelehnt",
+  "sitzung",
+  "zugriff",
+  "berechtigung",
+  "nicht_eingerichtet",
+  "vergeben",
+]);
 
 export default async function IntegrationsPage({
   searchParams,
@@ -122,6 +129,7 @@ export default async function IntegrationsPage({
               <ul className="list-inside list-disc text-muted-foreground">
                 <li>{t("permissionRead")}</li>
                 <li>{t("permissionActions")}</li>
+                <li>{t("permissionSharePoint")}</li>
                 <li>{t("permissionOrganisation")}</li>
               </ul>
               {canManage ? (

@@ -1,6 +1,6 @@
 import { convertUsdMicros, dayPeriod } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
-import { approvalScopeFor, getDashboard } from "@nexus/domain";
+import { approvalScopeFor, can, getDashboard } from "@nexus/domain";
 import {
   Badge,
   Button,
@@ -137,16 +137,19 @@ export default async function StartPage() {
             </>
           }
         />
-        <Tile
-          label={t("kpiCost")}
-          icon={<Coins aria-hidden />}
-          value={money(cost.amount, cost.currency, cost.amount < 10 ? 2 : 0)}
-          hint={
-            roiFactor && roiFactor >= 1
-              ? t("roiFactor", { factor: format.number(roiFactor, { maximumFractionDigits: 0 }) })
-              : t("costHint")
-          }
-        />
+        {/* Company-wide costs only for people with analytics rights (finding 14). */}
+        {can(tenant, "analytics.read") ? (
+          <Tile
+            label={t("kpiCost")}
+            icon={<Coins aria-hidden />}
+            value={money(cost.amount, cost.currency, cost.amount < 10 ? 2 : 0)}
+            hint={
+              roiFactor && roiFactor >= 1
+                ? t("roiFactor", { factor: format.number(roiFactor, { maximumFractionDigits: 0 }) })
+                : t("costHint")
+            }
+          />
+        ) : null}
       </section>
 
       {hasActivity ? (

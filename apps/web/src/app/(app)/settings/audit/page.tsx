@@ -42,6 +42,8 @@ const KNOWN_ACTIONS = new Set([
   "knowledge.collection_deleted",
   "knowledge.document_added",
   "knowledge.document_deleted",
+  "knowledge.source_connected",
+  "knowledge.source_disconnected",
   "integration.connected",
   "integration.disconnected",
   "device.synced",
@@ -52,6 +54,9 @@ const KNOWN_ACTIONS = new Set([
   "privacy.person_erased",
   "privacy.account_deleted",
   "privacy.data_exported",
+  "facility.created",
+  "facility.activated",
+  "facility.deactivated",
 ]);
 
 export default async function AuditPage() {

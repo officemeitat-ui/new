@@ -1,5 +1,10 @@
 import { providerFromEnv } from "@nexus/agents";
-import { QUEUES, type AgentRunJob, type KnowledgeIngestJob } from "@nexus/core";
+import {
+  QUEUES,
+  type AgentRunJob,
+  type KnowledgeIngestJob,
+  type KnowledgeSyncJob,
+} from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
 import { DEFAULT_PRICES, type ModelPrice } from "@nexus/agents";
@@ -10,6 +15,7 @@ import { Redis } from "ioredis";
 import { startHealthServer } from "./health-server";
 import { processAgentRun, redisPublisher } from "./jobs/agent-run";
 import { processKnowledgeIngest } from "./jobs/knowledge-ingest";
+import { processKnowledgeSync } from "./jobs/knowledge-sync";
 import { handleSystemJob } from "./jobs/system";
 
 const env = getEnv();
@@ -42,19 +48,62 @@ const agentDeps = {
   log,
 };
 
+// Producers inside the worker: sync jobs hand new files to ingest, the hourly job queues syncs.
+const knowledgeQueue = new Queue<KnowledgeIngestJob | KnowledgeSyncJob>(QUEUES.knowledge, {
+  connection,
+});
+const enqueueIngest = async (job: KnowledgeIngestJob) => {
+  await knowledgeQueue.add("ingest", job, {
+    jobId: `ingest-${job.documentId}-${Date.now()}`,
+    attempts: 2,
+    backoff: { type: "exponential", delay: 5_000 },
+    removeOnComplete: 1000,
+    removeOnFail: 5000,
+  });
+};
+const enqueueSync = async (job: KnowledgeSyncJob) => {
+  await knowledgeQueue.add("sync", job, {
+    jobId: `sync-${job.sourceId}-${Date.now()}`,
+    attempts: 1,
+    removeOnComplete: 200,
+    removeOnFail: 500,
+  });
+};
+
+const agentQueue = new Queue<AgentRunJob>(QUEUES.agentRuns, { connection });
+const enqueueRun = async (job: AgentRunJob) => {
+  await agentQueue.add("run", job, {
+    jobId: `${job.runId}-${Date.now()}`,
+    attempts: 1,
+    removeOnComplete: 1000,
+    removeOnFail: 5000,
+  });
+};
+
 const workers = [
-  new Worker(QUEUES.system, (job) => handleSystemJob(job, { db, log }), {
-    connection,
-    concurrency: 5,
-  }),
+  new Worker(
+    QUEUES.system,
+    (job) => handleSystemJob(job, { db, log, enqueueSync, enqueueRun, enqueueIngest }),
+    {
+      connection,
+      concurrency: 5,
+    },
+  ),
   new Worker<AgentRunJob>(QUEUES.agentRuns, (job) => processAgentRun(job.data, agentDeps), {
     connection,
     concurrency: Number(process.env.WORKER_AGENT_CONCURRENCY ?? 4),
   }),
   // Parsing is CPU-bound; two at a time keep agent runs responsive.
-  new Worker<KnowledgeIngestJob>(
+  new Worker<KnowledgeIngestJob | KnowledgeSyncJob>(
     QUEUES.knowledge,
-    (job) => processKnowledgeIngest(job.data, { db, log }),
+    (job) =>
+      job.name === "sync"
+        ? processKnowledgeSync(job.data as KnowledgeSyncJob, { db, log, enqueueIngest })
+        : processKnowledgeIngest(job.data as KnowledgeIngestJob, {
+            db,
+            log,
+            finalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
+          }),
     { connection, concurrency: 2 },
   ),
 ];
@@ -73,6 +122,23 @@ await systemQueue.upsertJobScheduler(
   { pattern: "30 2 * * *", tz: "Europe/Vienna" },
   { name: "retention", opts: { removeOnComplete: 30, removeOnFail: 100 } },
 );
+// Repairs stuck runs, documents and syncs (worker crash, lost jobs) – every five minutes.
+await systemQueue.upsertJobScheduler(
+  "recover-stuck",
+  { pattern: "*/5 * * * *" },
+  { name: "recover", opts: { removeOnComplete: 20, removeOnFail: 100 } },
+);
+await systemQueue.add(
+  "recover",
+  {},
+  { jobId: `recover-start-${Date.now()}`, removeOnComplete: 20 },
+);
+// SharePoint libraries: hourly incremental sync (delta – only changes are fetched).
+await systemQueue.upsertJobScheduler(
+  "sharepoint-hourly",
+  { pattern: "17 * * * *", tz: "Europe/Vienna" },
+  { name: "sharepoint-sync-all", opts: { removeOnComplete: 50, removeOnFail: 100 } },
+);
 
 const port = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
 const healthServer = startHealthServer(port, () => workers.every((w) => w.isRunning()));
@@ -85,6 +151,8 @@ async function shutdown(signal: string) {
   log.info({ signal }, "shutting down: finishing running jobs");
   await Promise.all(workers.map((w) => w.close()));
   await systemQueue.close();
+  await knowledgeQueue.close();
+  await agentQueue.close();
   healthServer.close();
   connection.disconnect();
   publisher.disconnect();
@@ -93,5 +161,7 @@ async function shutdown(signal: string) {
   process.exit(0);
 }
 
+// A stray rejection (e.g. a Redis hiccup) must not take every running job down with it.
+process.on("unhandledRejection", (reason) => log.error({ err: reason }, "unhandled rejection"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));

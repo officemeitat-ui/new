@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { invitationLink } from "./mail";
+import { invitationLink, waitForMail } from "./mail";
 import { totp } from "./totp";
 
 const anonymous = { cookies: [], origins: [] };
@@ -58,4 +58,15 @@ test("an owner sets up two-factor authentication and needs the code at the next 
   await owner.getByLabel("Code", { exact: true }).fill(totp(secret));
   await owner.getByRole("button", { name: "Bestätigen" }).click();
   await expect(owner.getByRole("heading", { level: 1 })).toContainText("Sabine");
+
+  // The e-mail link must not skip the second factor: the account gets a hint, not a link.
+  await context.clearCookies();
+  await owner.goto("/login");
+  await owner.getByRole("button", { name: "Ohne Passwort per E-Mail-Link anmelden" }).click();
+  await owner.getByLabel("E-Mail-Adresse").fill(email);
+  await owner.getByRole("button", { name: "Anmeldelink senden" }).click();
+  await expect(owner.getByText("Bitte prüfen Sie Ihr Postfach")).toBeVisible();
+  const hint = await waitForMail(email, (m) => m.subject === "Anmeldung mit Passwort und Code");
+  expect(hint.text).not.toContain("token=");
+  await context.close();
 });

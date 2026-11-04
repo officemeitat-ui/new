@@ -130,6 +130,7 @@ sequenceDiagram
 - Der Code kennt nur **Modellstufen** (`smart`, `balanced`, `fast`); die Zuordnung zu Modell-IDs liegt in der Datenbank.
 - **Gecachter Prefix:** Werkzeuge (sortiert) → Basis-Systemprompt → Agenten-Anweisungen. Datum, Nutzer und Kanal kommen als `<kontext>` in die erste Nachricht. Ein Test beweist, dass der Prefix zwischen zwei Läufen byte-identisch bleibt.
 - Berechtigungen für Werkzeuge prüft der Code vor der Ausführung, nie das Modell.
+- **Robustheit:** Der Worker schreibt alle 15 Sekunden einen Herzschlag (`runs.heartbeat_at`). Kommt 2 Minuten lang kein Ereignis vom Modell, bricht ein Leerlauf-Wächter den Lauf mit einer verständlichen Meldung ab. Live-Ereignisse über Redis sind „best effort“; der Endstand steht immer in Postgres, und das SSE-Endpoint fällt darauf zurück (Fortsetzen über `Last-Event-ID`, höchstens 5 Minuten pro Verbindung, höchstens 8 Verbindungen pro Person). Ein **Reparatur-Job** (alle 5 Minuten, `recoverStuckWork`) beendet Läufe ohne Herzschlag, reiht verlorene Jobs neu ein, verarbeitet hängende Dokumente neu bzw. gibt sie auf und setzt abgestürzte SharePoint-Abgleiche zurück. Alle externen Aufrufe haben Timeouts.
 - **Freigaben:** Braucht ein Werkzeugaufruf eine Freigabe, endet der Lauf mit `awaiting_approval`, und für jeden offenen Aufruf entsteht eine Zeile in `approvals`. Nach der letzten Entscheidung setzt die Web-App den Lauf auf `queued` und reiht ihn neu ein; der Worker lädt die Entscheidungen und macht beim offenen `tool_use` weiter (Schrittnummern laufen fort, Summen werden addiert). Der Redis-Stream des Laufs bleibt bestehen; das SSE-Endpoint überspringt das alte `done` der Pause, solange der Lauf wieder aktiv ist.
 
 ## 6. Wissensdatenbank
@@ -154,6 +155,7 @@ sequenceDiagram
 - Tabellen: `knowledge_collections`, `knowledge_documents`, `knowledge_files` (Originaldatei), `knowledge_chunks` (Text, Seite, Überschrift, generierte `tsv`-Spalte mit GIN-Index). Alle mit RLS.
 - Agenten bekommen Sammlungen zugeordnet (`knowledgeCollectionIds` in der Agenten-Version); ohne Zuordnung durchsuchen sie alle Sammlungen des Mandanten.
 - Suchergebnisse gehen als Daten an das Modell („keine Anweisungen“); der Chat verlinkt zitierte Quellen auf die Dokumentansicht.
+- **SharePoint-Abgleich:** Eine Sammlung kann mit einer Dokumentbibliothek verbunden werden (`knowledge_sources`, RLS). Der Job `knowledge-sync` (stündlich für alle Quellen und auf Knopfdruck) liest `drives/{id}/root/delta` seitenweise, speichert den `deltaLink` und übernimmt nur neue oder geänderte Dateien (Version über cTag/eTag); gelöschte Einträge werden entfernt. Jede Datei läuft danach durch denselben Ingest wie ein Upload. Ein Abgleich gehört immer nur einem Job (`claimSync`), Fortschritt steht in der Quelle und wird in der UI angezeigt.
 
 ## 7. Integrationen: Microsoft 365 und Intune
 
@@ -166,21 +168,30 @@ sequenceDiagram
   participant MS as Microsoft Entra ID
   participant G as Microsoft Graph
   A->>UI: „Mit Microsoft 365 verbinden“
-  UI->>MS: /adminconsent (state signiert)
-  MS-->>UI: Rückweg mit tenant + admin_consent=True
-  UI->>MS: Token (client_credentials, Verzeichnis des Kunden)
-  UI->>G: GET /organization → Verbindung speichern
+  UI->>MS: 1. Anmeldung (authorize, User.Read, state signiert)
+  MS-->>UI: Code
+  UI->>G: GET /organization (delegiert) → Verzeichnis bewiesen
+  UI->>MS: 2. /{verzeichnis}/adminconsent (Verzeichnis im state)
+  MS-->>UI: Rückweg mit admin_consent=True
+  UI->>MS: Token (client_credentials, genau dieses Verzeichnis)
+  UI->>G: GET /organization → Verbindung speichern (ein Verzeichnis je Firma)
   Note over UI,G: Danach: Geräte-Seite und Agenten-Werkzeuge rufen Graph mit kurzlebigem App-Token auf
 ```
 
 - Tabelle `integrations` (RLS) speichert pro Mandant Anbieter, Verzeichnis-ID, Organisationsname, Status und letzten Fehler – keine Geheimnisse.
 - Geräteaktionen laufen über `runDeviceAction` (Domäne): Gerätename und ID müssen zusammenpassen, jede Aktion landet im Audit-Log.
 
-## 8. Konfiguration
+## 8. Branchenpaket Gebäudereinigung: QR-Mängelmeldungen
+
+- Tabellen `facilities` (Objekt mit zufälligem `public_token`, 144 Bit) und `defect_reports` (Kategorie, Ort, Beschreibung, optional E-Mail, Status), beide mit RLS.
+- Öffentliche Seite `/m/<token>` (ohne Anmeldung, in `proxy.ts` freigegeben): Der Token wird im System-Kontext aufgelöst (`findFacilityByToken`), gespeichert wird im Kontext des Mandanten. Rate-Limit in Redis pro IP und Objekt, Bot-Falle. Objektleitung bekommt eine E-Mail; die Danke-Mail an die meldende Person geht bei „Erledigt“ raus, danach wird ihre Adresse gelöscht.
+- Agenten lesen Meldungen über `meldungen_abfragen` (ohne E-Mail-Adressen); `reinigung_kalkulieren` rechnet Angebote deterministisch im Code, nicht im Modell.
+
+## 9. Konfiguration
 
 Alle Umgebungsvariablen werden beim Start mit Zod geprüft (`packages/core/src/env.ts`). Fehlt etwas, bricht der Start mit einer verständlichen Meldung ab. Vorlage: [`.env.example`](../.env.example).
 
-## 9. Lokale Entwicklung
+## 10. Lokale Entwicklung
 
 - `docker compose up -d` startet Postgres (mit pgvector), Valkey und Mailpit. Hochgeladene Dateien liegen vorerst in Postgres (ADR 0007).
 - `pnpm db:migrate` und `pnpm db:seed` richten Schema und Demo-Mandant ein.

@@ -1,6 +1,14 @@
 import { formatDateTime, isUuid } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
-import { can, getCollection, listDocuments } from "@nexus/domain";
+import {
+  can,
+  getCollection,
+  getIntegration,
+  getKnowledgeSource,
+  isSyncStale,
+  listDocuments,
+  microsoftAppConfig,
+} from "@nexus/domain";
 import { EmptyState } from "@nexus/ui";
 import { ArrowLeft, Lock } from "lucide-react";
 import Link from "next/link";
@@ -9,6 +17,7 @@ import { getTranslations } from "next-intl/server";
 import { DeleteCollectionButton } from "@/components/knowledge/delete-collection-button";
 import { DocumentList } from "@/components/knowledge/document-list";
 import { SearchTest } from "@/components/knowledge/search-test";
+import { SharePointSource } from "@/components/knowledge/sharepoint-source";
 import { UploadForm } from "@/components/knowledge/upload-form";
 import { requireTenant } from "@/lib/session";
 
@@ -38,13 +47,15 @@ export default async function CollectionPage({
       return {
         collection: await getCollection(tx, ctx.tenant.tenantId, collectionId),
         documents: await listDocuments(tx, ctx.tenant.tenantId, collectionId),
+        source: await getKnowledgeSource(tx, ctx.tenant.tenantId, collectionId),
+        microsoft: await getIntegration(tx, ctx.tenant.tenantId, "microsoft365"),
       };
     } catch {
       return null;
     }
   });
   if (!data) notFound();
-  const { collection, documents } = data;
+  const { collection, documents, source, microsoft } = data;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -71,6 +82,28 @@ export default async function CollectionPage({
 
       {canManage ? <UploadForm collectionId={collection.id} /> : null}
 
+      <SharePointSource
+        collectionId={collection.id}
+        canManage={canManage}
+        microsoftConnected={Boolean(microsoft) && microsoftAppConfig() !== null}
+        source={
+          source
+            ? {
+                siteName: source.siteName,
+                siteUrl: source.siteUrl,
+                driveName: source.driveName,
+                status: source.status,
+                stale: isSyncStale(source),
+                lastSync: source.lastSyncAt ? formatDateTime(source.lastSyncAt) : null,
+                lastError: source.lastError,
+                itemsSeen: source.itemsSeen,
+                itemsImported: source.itemsImported,
+                itemsSkipped: source.itemsSkipped,
+              }
+            : null
+        }
+      />
+
       <DocumentList
         collectionId={collection.id}
         canManage={canManage}
@@ -84,7 +117,8 @@ export default async function CollectionPage({
           error: d.error,
           pageCount: d.pageCount,
           chunkCount: d.chunkCount,
-          uploaded: `${d.createdByName ?? "–"} · ${formatDateTime(d.createdAt)}`,
+          uploaded: `${d.fromSource ? "SharePoint" : (d.createdByName ?? "–")} · ${formatDateTime(d.createdAt)}`,
+          sourceUrl: d.sourceUrl,
         }))}
       />
 

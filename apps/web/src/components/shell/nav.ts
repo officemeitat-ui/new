@@ -6,6 +6,7 @@ import {
   House,
   Inbox,
   Laptop,
+  MessageSquareWarning,
   MessagesSquare,
   Plug,
   Settings,
@@ -19,6 +20,7 @@ export type NavKey =
   | "agents"
   | "workflows"
   | "approvals"
+  | "reports"
   | "knowledge"
   | "devices"
   | "integrations"
@@ -43,6 +45,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "agents", href: "/agents", icon: Bot, available: true, section: "main" },
   { key: "workflows", href: "/workflows", icon: Workflow, available: false, section: "main" },
   { key: "approvals", href: "/approvals", icon: Inbox, available: true, section: "main" },
+  {
+    key: "reports",
+    href: "/reports",
+    icon: MessageSquareWarning,
+    available: true,
+    section: "main",
+  },
   { key: "knowledge", href: "/knowledge", icon: BookOpen, available: true, section: "main" },
   { key: "devices", href: "/devices", icon: Laptop, available: true, section: "main" },
   { key: "integrations", href: "/integrations", icon: Plug, available: true, section: "main" },

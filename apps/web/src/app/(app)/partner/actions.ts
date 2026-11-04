@@ -9,6 +9,7 @@ import {
   recordSupportSession,
   requirePermission,
   sendInvitationEmail,
+  signSupportCookie,
   updatePartnerExchangeRate,
   withAuditRequestContext,
 } from "@nexus/domain";
@@ -121,7 +122,10 @@ export async function startSupportSessionAction(tenantId: string): Promise<void>
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
   };
-  store.set(SUPPORT_COOKIE, tenantId, { ...options, maxAge: 60 * 60 * 72 });
+  store.set(SUPPORT_COOKIE, signSupportCookie(ctx.user.id, tenantId), {
+    ...options,
+    maxAge: 60 * 60 * 72,
+  });
   redirect("/");
 }
 

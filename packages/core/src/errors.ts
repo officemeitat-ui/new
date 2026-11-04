@@ -6,7 +6,8 @@ export type ErrorCode =
   | "conflict"
   | "rate_limited"
   | "budget_exceeded"
-  | "internal";
+  | "internal"
+  | "unavailable";
 
 const STATUS: Record<ErrorCode, number> = {
   unauthorized: 401,
@@ -17,6 +18,7 @@ const STATUS: Record<ErrorCode, number> = {
   rate_limited: 429,
   budget_exceeded: 402,
   internal: 500,
+  unavailable: 503,
 };
 
 /** Error with a stable code that can be shown to users and mapped to an HTTP status. */
@@ -41,6 +43,7 @@ export const forbidden = (message = "Dafür fehlt Ihnen die Berechtigung.") =>
 export const notFound = (message = "Nicht gefunden.") => new AppError("not_found", message);
 export const conflict = (message: string) => new AppError("conflict", message);
 export const validationError = (message: string) => new AppError("validation", message);
+export const unavailable = (message: string) => new AppError("unavailable", message);
 
 export function isAppError(error: unknown): error is AppError {
   return error instanceof AppError;

@@ -142,6 +142,8 @@ export const TOOL_LABELS: Record<string, string> = {
   geraet_synchronisieren: "Gerät synchronisieren",
   geraet_neu_starten: "Gerät neu starten",
   geraet_sperren: "Gerät sperren",
+  reinigung_kalkulieren: "Reinigung kalkulieren",
+  meldungen_abfragen: "Meldungen",
 };
 
 export function toolLabel(name: string): string {

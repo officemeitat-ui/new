@@ -19,6 +19,7 @@ export const TENANT_PERMISSIONS = [
   "integration.manage",
   "analytics.read",
   "conversation.read_all",
+  "reports.manage",
 ] as const;
 
 export type TenantPermission = (typeof TENANT_PERMISSIONS)[number];
@@ -35,7 +36,8 @@ export const SYSTEM_TENANT_ROLE_PERMISSIONS: Record<SystemTenantRole, readonly T
   {
     owner: TENANT_PERMISSIONS,
     admin: TENANT_PERMISSIONS.filter((p) => !ADMIN_EXCLUDED.has(p)),
-    member: ["agent.run", "workflow.run", "knowledge.read", "approval.decide"],
+    // Object managers are often members: they handle the defect reports of their buildings.
+    member: ["agent.run", "workflow.run", "knowledge.read", "approval.decide", "reports.manage"],
   };
 
 export const PARTNER_PERMISSIONS = [

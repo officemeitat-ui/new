@@ -19,6 +19,8 @@ type Document = {
   pageCount: number | null;
   chunkCount: number;
   uploaded: string;
+  /** Link to the original in SharePoint, for synced documents. */
+  sourceUrl: string | null;
 };
 
 const STATUS_VARIANT = { processing: "warning", ready: "success", failed: "danger" } as const;
@@ -39,11 +41,16 @@ export function DocumentList({
   const [error, setError] = useState<string | null>(null);
   const processing = documents.some((d) => d.status === "processing");
 
-  // While the worker extracts text, look for the result every two seconds.
+  // While the worker extracts text, look for the result – every 3 s, for at most 10 minutes per
+  // page view (the worker's recovery job resolves anything that takes longer).
   useEffect(() => {
     if (!processing) return;
-    const timer = setInterval(() => router.refresh(), 2_000);
-    return () => clearInterval(timer);
+    const timer = setInterval(() => router.refresh(), 3_000);
+    const stop = setTimeout(() => clearInterval(timer), 10 * 60_000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(stop);
+    };
   }, [processing, router]);
 
   const size = (bytes: number) =>
@@ -108,6 +115,16 @@ export function DocumentList({
                     </p>
                     {status === "failed" && document.error ? (
                       <p className="text-xs text-danger">{document.error}</p>
+                    ) : null}
+                    {document.sourceUrl ? (
+                      <a
+                        href={document.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary underline"
+                      >
+                        {t("openInSharePoint")}
+                      </a>
                     ) : null}
                   </div>
                   {canManage ? (

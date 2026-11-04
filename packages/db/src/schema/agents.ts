@@ -156,11 +156,14 @@ export const runs = pgTable(
     finalText: text(),
     error: text(),
     startedAt: timestamp({ withTimezone: true }),
+    /** Set by the worker while it works on the run; a stale heartbeat means the worker died. */
+    heartbeatAt: timestamp({ withTimezone: true }),
     finishedAt: timestamp({ withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
     index("runs_conversation_idx").on(t.conversationId),
+    index("runs_status_idx").on(t.status),
     index("runs_tenant_created_idx").on(t.tenantId, t.createdAt),
   ],
 );

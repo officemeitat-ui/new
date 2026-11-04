@@ -14,9 +14,11 @@ import {
   startRun,
 } from "@nexus/domain";
 import { SMTPServer } from "smtp-server";
+import { SYSTEM_TENANT_ROLE_PERMISSIONS } from "@nexus/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { processAgentRun } from "../src/jobs/agent-run";
 
+const OWNER = SYSTEM_TENANT_ROLE_PERMISSIONS.owner;
 const handle = openTestDatabase();
 const db = handle.db;
 const log = createLogger("test");
@@ -129,6 +131,7 @@ describe("approval flow", () => {
         editedInput: { ...mail, betreff: "Ihr Termin am Dienstag" },
         actorId: userId,
         scope: { userId, all: true },
+        permissions: OWNER,
       }),
     );
     expect(decision).toEqual({ runId, resume: true });
@@ -173,6 +176,7 @@ describe("approval flow", () => {
         reason: "Falscher Empfänger",
         actorId: userId,
         scope: { userId, all: true },
+        permissions: OWNER,
       }),
     );
     await expect(
@@ -183,6 +187,7 @@ describe("approval flow", () => {
           approve: true,
           actorId: userId,
           scope: { userId, all: true },
+          permissions: OWNER,
         }),
       ),
     ).rejects.toThrow(/bereits entschieden/);
@@ -234,6 +239,7 @@ describe("approval flow", () => {
           approve: true,
           actorId: colleague.userId,
           scope: colleague,
+          permissions: OWNER,
         }),
       ),
     ).rejects.toThrow(/nicht gefunden/);

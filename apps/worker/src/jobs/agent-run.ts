@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  ALWAYS_APPROVE,
   BUILTIN_TOOLS,
   buildSystem,
   DEFAULT_PRICES,
@@ -15,6 +16,7 @@ import type { Logger } from "@nexus/core/logger";
 import { withTenant, type Database } from "@nexus/db";
 import {
   createApprovals,
+  createDefectReportsTool,
   createEmailTool,
   createIntuneTools,
   createKnowledgeTool,
@@ -28,6 +30,7 @@ import {
   markRunStarted,
   recordRunStep,
   recordUsage,
+  touchRun,
 } from "@nexus/domain";
 import type { Redis } from "ioredis";
 
@@ -50,6 +53,8 @@ export type AgentRunDeps = {
   provider: () => Promise<LlmProvider>;
   publish: RunEventPublisher;
   platformName: string;
+  /** Abort after this long without any event (tests use a small value). */
+  idleTimeoutMs?: number;
   /** Platform Entra app for Microsoft 365; defaults to the environment (null = not set up). */
   microsoft?: MicrosoftAppConfig | null;
   /** Current model prices; defaults to the built-in list (tests). */
@@ -59,6 +64,9 @@ export type AgentRunDeps = {
 
 /** Message for the user; details stay in the logs. */
 function userFacingError(error: unknown): string {
+  if (error instanceof IdleTimeoutError) {
+    return "Der KI-Anbieter hat zu lange nicht geantwortet. Bitte versuchen Sie es erneut.";
+  }
   if (error instanceof Anthropic.AuthenticationError) {
     return "Der KI-Anbieter hat die Zugangsdaten abgelehnt. Bitte informieren Sie Ihren Administrator.";
   }
@@ -75,9 +83,29 @@ function userFacingError(error: unknown): string {
  * Executes one agent run. Idempotent: a run that is no longer "queued" is skipped. Runs are
  * deliberately not retried automatically – a retry could repeat tool actions (ADR 0005).
  */
+/** Without any event from the model for this long, the run is aborted (robustness review). */
+export const IDLE_TIMEOUT_MS = 120_000;
+const HEARTBEAT_EVERY_MS = 15_000;
+
 export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
   const { runId, tenantId } = job;
-  const { db, publish, log } = deps;
+  const { db, log } = deps;
+  // Live events are best-effort: a Redis hiccup must neither abort nor fail a run. The final
+  // state is always in Postgres, and the SSE route falls back to it.
+  const publish = async (id: string, event: Record<string, unknown>) => {
+    try {
+      await deps.publish(id, event);
+    } catch (error) {
+      log.warn({ runId: id, err: error }, "could not publish run event");
+    }
+  };
+  let lastBeat = Date.now();
+  const idle = new AbortController();
+  let idleTimer: NodeJS.Timeout | undefined;
+  const resetIdle = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => idle.abort("idle"), deps.idleTimeoutMs ?? IDLE_TIMEOUT_MS);
+  };
 
   const started = await withTenant(db, tenantId, (tx) => markRunStarted(tx, runId));
   if (!started) {
@@ -101,6 +129,7 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       ...BUILTIN_TOOLS,
       createEmailTool({ tenantName: ctx.tenant.name }),
       createKnowledgeTool({ db, collectionIds: ctx.config.knowledgeCollectionIds ?? [] }),
+      createDefectReportsTool({ db }),
       ...(connected && microsoft ? createIntuneTools({ db, config: microsoft }) : []),
     ];
     const tools = platformTools.filter(
@@ -111,12 +140,19 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
 
     const policy: ToolPolicy = (tool) => {
       const mode = modes.get(tool.name);
+      // Defence in depth: risky tools need an approval even if an old config says "auto".
+      if (mode === "auto" && ALWAYS_APPROVE.has(tool.risk)) return "approve";
       return mode === "approve" ? "approve" : mode === "auto" ? "allow" : "deny";
     };
 
     let seq = ctx.lastStepSeq;
     const onEvent = async (event: RunEvent) => {
+      resetIdle();
       await publish(runId, event);
+      if (Date.now() - lastBeat > HEARTBEAT_EVERY_MS) {
+        lastBeat = Date.now();
+        await touchRun(db, tenantId, runId).catch(() => undefined);
+      }
       if (event.type === "text_delta" || event.type === "llm_request") return;
       seq += 1;
       const stepSeq = seq;
@@ -195,7 +231,9 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       });
     };
 
+    resetIdle();
     const result = await runAgent({
+      signal: idle.signal,
       client: provider.client,
       capabilities: provider.capabilities,
       model: provider.modelId(ctx.run.model),
@@ -210,10 +248,11 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       policy,
       messages: ctx.messages,
       prices: deps.loadPrices ? await deps.loadPrices() : DEFAULT_PRICES,
+      // Limits apply to the whole run, also across pauses for approvals (finding 11).
       limits: {
-        maxSteps: ctx.config.maxSteps,
+        maxSteps: Math.max(1, ctx.config.maxSteps - ctx.run.steps),
         ...(ctx.config.maxCostUsdMicros !== undefined
-          ? { maxCostUsdMicros: ctx.config.maxCostUsdMicros }
+          ? { maxCostUsdMicros: Math.max(1, ctx.config.maxCostUsdMicros - ctx.run.costUsdMicros) }
           : {}),
       },
       toolContext: { tenantId, userId: ctx.run.triggeredBy, runId },
@@ -221,23 +260,31 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       onEvent,
     });
 
+    clearTimeout(idleTimer);
+    if (result.status === "cancelled" && idle.signal.aborted) {
+      throw new IdleTimeoutError();
+    }
     await withTenant(db, tenantId, async (tx) => {
       await finishRun(tx, { tenantId, runId, conversationId: ctx.run.conversationId, result });
       if (result.status === "awaiting_approval") {
         await createApprovals(tx, { tenantId, runId, approvals: result.pendingApprovals });
       }
     });
-    await publish(runId, { type: "done", status: result.status });
     log.info(
       { runId, status: result.status, steps: result.steps, costUsdMicros: result.costUsdMicros },
       "run finished",
     );
+    await publish(runId, { type: "done", status: result.status });
     return { status: result.status };
   } catch (error) {
+    clearTimeout(idleTimer);
     log.error({ runId, err: error }, "run failed");
-    const message = userFacingError(error);
+    // An aborted, hanging request surfaces as an abort error: report it as the timeout it is.
+    const message = userFacingError(idle.signal.aborted ? new IdleTimeoutError() : error);
     await withTenant(db, tenantId, (tx) => failRun(tx, runId, message));
     await publish(runId, { type: "done", status: "failed", error: message });
     return { status: "failed" as const };
   }
 }
+
+class IdleTimeoutError extends Error {}

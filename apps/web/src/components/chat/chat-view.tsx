@@ -97,7 +97,12 @@ function useRunStream(runId: string | null, onDone: () => void) {
         onDoneRef.current();
       }
     };
-    // On network errors the browser reconnects by itself; the stream replays from the start.
+    // On network errors the browser reconnects by itself and continues at the last event id.
+    // If the stream is closed for good (expired session, server error), the page shows the
+    // state from the database instead of spinning forever (robustness review).
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) onDoneRef.current();
+    };
     return () => source.close();
   }, [runId, t]);
 

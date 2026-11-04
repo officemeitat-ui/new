@@ -6,6 +6,7 @@ import {
   getManagedDevice,
   getOrganizationName,
   GraphClient,
+  GraphError,
   isDirectoryTenantId,
   listManagedDevices,
   lockDevice,
@@ -13,9 +14,9 @@ import {
   syncDevice,
   type ManagedDevice,
 } from "@nexus/connectors";
-import { notFound, validationError } from "@nexus/core";
+import { conflict, notFound, validationError } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
-import { and, eq, withTenant, type Database, type Tx } from "@nexus/db";
+import { and, eq, sql, withSystem, withTenant, type Database, type Tx } from "@nexus/db";
 import { authUser, integrations } from "@nexus/db/schema";
 import { z } from "zod";
 import { appendAudit } from "./audit";
@@ -50,17 +51,30 @@ function stateKey(): Buffer {
   return createHmac("sha256", secret).update("nexus:integration-consent").digest();
 }
 
-export type ConsentState = { tenantId: string; userId: string; expiresAt: number };
+export type ConsentStep = "signin" | "consent";
+export type ConsentState = {
+  tenantId: string;
+  userId: string;
+  step: ConsentStep;
+  /** Microsoft directory proven by the sign-in step (only in the consent step). */
+  directoryId: string | null;
+  expiresAt: number;
+};
 
 /**
- * The `state` for the admin consent round trip: tenant and user, signed and short-lived, so a
- * callback can neither be forged nor replayed into another tenant.
+ * The `state` for the Microsoft round trips: company, person, step and – after the sign-in –
+ * the proven directory, signed and short-lived. The callback trusts nothing else.
  */
-export function signConsentState(input: { tenantId: string; userId: string }, now = Date.now()) {
+export function signConsentState(
+  input: { tenantId: string; userId: string; step?: ConsentStep; directoryId?: string },
+  now = Date.now(),
+) {
   const payload = Buffer.from(
     JSON.stringify({
       t: input.tenantId,
       u: input.userId,
+      s: input.step ?? "signin",
+      d: input.directoryId ?? null,
       e: now + STATE_TTL_MS,
       n: randomBytes(8).toString("hex"),
     }),
@@ -80,24 +94,61 @@ export function verifyConsentState(state: string, now = Date.now()): ConsentStat
   const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as {
     t: string;
     u: string;
+    s?: ConsentStep;
+    d?: string | null;
     e: number;
   };
   if (data.e < now) {
     throw validationError("Die Verbindung hat zu lange gedauert. Bitte starten Sie sie erneut.");
   }
-  return { tenantId: data.t, userId: data.u, expiresAt: data.e };
+  return {
+    tenantId: data.t,
+    userId: data.u,
+    step: data.s === "consent" ? "consent" : "signin",
+    directoryId: data.d ?? null,
+    expiresAt: data.e,
+  };
 }
 
-/** https://learn.microsoft.com/graph/auth-v2-service#step-2-request-administrator-consent */
+/**
+ * Admin consent for exactly the directory proven by the sign-in
+ * (https://learn.microsoft.com/graph/auth-v2-service#step-2-request-administrator-consent).
+ */
 export function adminConsentUrl(
   config: MicrosoftAppConfig,
-  input: { redirectUri: string; state: string },
+  input: { directoryId: string; redirectUri: string; state: string },
 ) {
-  const url = new URL(`${config.loginUrl.replace(/\/+$/, "")}/common/adminconsent`);
+  if (!isDirectoryTenantId(input.directoryId)) throw validationError("Ungültiges Microsoft-Konto.");
+  const url = new URL(`${config.loginUrl.replace(/\/+$/, "")}/${input.directoryId}/adminconsent`);
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("state", input.state);
   return url.toString();
+}
+
+/** A Microsoft directory may belong to one company only (else company A could act in B's). */
+export async function assertDirectoryAvailable(
+  db: Database,
+  tenantId: string,
+  directoryId: string,
+) {
+  const [other] = await withSystem(db, "integrations: directory already linked elsewhere?", (tx) =>
+    tx
+      .select({ tenantId: integrations.tenantId })
+      .from(integrations)
+      .where(
+        and(
+          eq(integrations.provider, "microsoft365"),
+          eq(integrations.externalTenantId, directoryId),
+          sql`${integrations.tenantId} <> ${tenantId}`,
+        ),
+      ),
+  );
+  if (other) {
+    throw conflict(
+      "Dieses Microsoft-365-Konto ist bereits mit einer anderen Firma verbunden. Bitte wenden Sie sich an ME-IT.",
+    );
+  }
 }
 
 /* ----------------------------------------------------------------- connection */
@@ -141,6 +192,7 @@ export async function connectMicrosoft365(
   if (!isDirectoryTenantId(input.directoryTenantId)) {
     throw validationError("Ungültige Rückmeldung von Microsoft.");
   }
+  await assertDirectoryAvailable(db, input.tenantId, input.directoryTenantId);
   const displayName = await getOrganizationName(graphClient(input.config, input.directoryTenantId));
   return withTenant(db, input.tenantId, async (tx) => {
     await tx
@@ -173,6 +225,7 @@ export async function connectMicrosoft365(
       targetId: null,
       metadata: { provider: "microsoft365", organisation: displayName },
     });
+    deviceCache.delete(input.tenantId);
     return { displayName };
   });
 }
@@ -188,6 +241,8 @@ export async function disconnectIntegration(
     )
     .returning({ id: integrations.id });
   if (removed.length === 0) throw notFound("Keine Verbindung vorhanden.");
+  // No devices of the old connection may show up after a reconnect.
+  deviceCache.delete(input.tenantId);
   await appendAudit(tx, input.tenantId, {
     actorType: "user",
     actorId: input.actorId,
@@ -231,21 +286,53 @@ const ACTION_AUDIT: Record<DeviceAction, string> = {
   lock: "device.locked",
 };
 
-/** All Intune devices of the tenant, newest sync first; records the health of the connection. */
+const DEVICE_CACHE_MS = 60_000;
+const DEVICE_DEADLINE_MS = 25_000;
+const deviceCache = new Map<
+  string,
+  { at: number; value: { devices: ManagedDevice[]; truncated: boolean } }
+>();
+
+/**
+ * All Intune devices of the tenant, newest sync first; records the health of the connection.
+ * Cached for a minute per tenant (filters, page reloads and agent searches reuse it) and bounded
+ * by an overall deadline, so a slow Microsoft API never keeps a page loading (robustness review).
+ */
 export async function listTenantDevices(
   db: Database,
   tenantId: string,
   config = microsoftAppConfig(),
 ) {
+  const cached = deviceCache.get(tenantId);
+  if (cached && Date.now() - cached.at < DEVICE_CACHE_MS) return cached.value;
   const graph = await tenantGraph(db, tenantId, config);
+  let timer: NodeJS.Timeout | undefined;
   try {
-    const { items, truncated } = await listManagedDevices(graph);
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new GraphError(
+              504,
+              "timeout",
+              "Microsoft 365 antwortet gerade zu langsam. Bitte versuchen Sie es gleich erneut.",
+            ),
+          ),
+        DEVICE_DEADLINE_MS,
+      );
+    });
+    const { items, truncated } = await Promise.race([listManagedDevices(graph), deadline]);
     await recordCheck(db, tenantId, null);
     items.sort((a, b) => (b.lastSyncDateTime ?? "").localeCompare(a.lastSyncDateTime ?? ""));
-    return { devices: items, truncated };
+    const value = { devices: items, truncated };
+    if (deviceCache.size > 1000) deviceCache.clear(); // bounded
+    deviceCache.set(tenantId, { at: Date.now(), value });
+    return value;
   } catch (error) {
     await recordCheck(db, tenantId, error instanceof Error ? error.message : "Fehler");
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -274,6 +361,7 @@ export async function runDeviceAction(
       `Die Geräte-ID gehört zu „${device.deviceName ?? "?"}“, nicht zu „${input.expectedName}“. Es wurde nichts ausgeführt.`,
     );
   }
+  deviceCache.delete(input.tenantId);
   if (input.action === "sync") await syncDevice(graph, device.id);
   if (input.action === "restart") await rebootDevice(graph, device.id);
   if (input.action === "lock") await lockDevice(graph, device.id);

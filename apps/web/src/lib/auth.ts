@@ -2,7 +2,13 @@ import "server-only";
 import { getEnv } from "@nexus/core/env";
 import { getDatabase } from "@nexus/db";
 import { authSchema } from "@nexus/db/schema";
-import { hasPendingInvitation, sendMagicLinkEmail } from "@nexus/domain";
+import {
+  accountUsesTwoFactor,
+  hasPendingInvitation,
+  isValidInvitationForEmail,
+  sendMagicLinkEmail,
+  sendTwoFactorLoginHintEmail,
+} from "@nexus/domain";
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -40,12 +46,26 @@ export const auth = betterAuth({
       create: {
         // No public self-registration (M1): accounts – including first SSO logins – are only
         // created for addresses with a pending invitation. Partner staff are seeded.
-        before: async (user) => {
-          if (!(await hasPendingInvitation(getDatabase().db, user.email))) {
-            throw new APIError("FORBIDDEN", {
-              message: "Für diese E-Mail-Adresse liegt keine Einladung vor.",
+        //
+        // E-mail sign-up additionally needs the invitation token (header x-invite-token, sent by
+        // the invite page): an address with a pending invitation is not enough, or someone could
+        // register it first and keep a session once the real person joins. First SSO logins
+        // keep the plain invitation check – the identity provider has verified the address.
+        before: async (user, context) => {
+          const db = getDatabase().db;
+          const forbidden = () =>
+            new APIError("FORBIDDEN", {
+              message: "Bitte nutzen Sie den Link aus Ihrer Einladung, um ein Konto anzulegen.",
             });
+          if (context?.path?.startsWith("/sign-up/")) {
+            const token =
+              context.headers?.get("x-invite-token") ??
+              context.request?.headers.get("x-invite-token") ??
+              "";
+            if (!(await isValidInvitationForEmail(db, token, user.email))) throw forbidden();
+            return { data: user };
           }
+          if (!(await hasPendingInvitation(db, user.email))) throw forbidden();
           return { data: user };
         },
       },
@@ -74,7 +94,11 @@ export const auth = betterAuth({
     magicLink({
       expiresIn: 60 * 10,
       disableSignUp: true,
-      sendMagicLink: async ({ email, url }) => sendMagicLinkEmail(email, url),
+      // A link alone would bypass the second factor: accounts with 2FA get a hint instead.
+      sendMagicLink: async ({ email, url }) =>
+        (await accountUsesTwoFactor(getDatabase().db, email))
+          ? sendTwoFactorLoginHintEmail(email, `${env.APP_URL}/login`)
+          : sendMagicLinkEmail(email, url),
     }),
     twoFactor({ issuer: env.BRAND_PRODUCT_NAME }),
     nextCookies(),

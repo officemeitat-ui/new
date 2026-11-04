@@ -10,7 +10,12 @@ import {
   type KnowledgeKind,
 } from "@nexus/knowledge";
 
-export type KnowledgeIngestDeps = { db: Database; log: Logger };
+export type KnowledgeIngestDeps = {
+  db: Database;
+  log: Logger;
+  /** Whether BullMQ will not retry this job again; defaults to true (tests, single attempt). */
+  finalAttempt?: boolean;
+};
 
 const isKind = (value: string): value is KnowledgeKind =>
   (KNOWLEDGE_KINDS as readonly string[]).includes(value);
@@ -48,6 +53,9 @@ export async function processKnowledgeIngest(job: KnowledgeIngestJob, deps: Know
     log.info({ documentId: document.id, chunks: chunks.length }, "document indexed");
     return { status: "ready" as const, chunks: chunks.length };
   } catch (error) {
+    // Unexpected errors (e.g. a database blip) are retried by BullMQ; only the last attempt
+    // marks the document as failed, so it never stays "processing" (robustness review).
+    if (!(error instanceof ParseError) && deps.finalAttempt === false) throw error;
     const message =
       error instanceof ParseError
         ? error.message

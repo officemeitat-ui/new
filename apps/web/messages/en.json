@@ -11,6 +11,7 @@
     "agents": "Agents",
     "workflows": "Workflows",
     "approvals": "Approvals",
+    "reports": "Reports",
     "knowledge": "Knowledge",
     "devices": "Devices",
     "integrations": "Integrations",
@@ -225,7 +226,12 @@
         "privacy_retention_applied": "Expired data deleted",
         "privacy_person_erased": "Personal data erased",
         "privacy_account_deleted": "User account deleted",
-        "privacy_data_exported": "Data export created"
+        "privacy_data_exported": "Data export created",
+        "knowledge_source_connected": "SharePoint library connected",
+        "knowledge_source_disconnected": "SharePoint library disconnected",
+        "facility_created": "Object created",
+        "facility_activated": "Object activated",
+        "facility_deactivated": "Object deactivated"
       },
       "actors": {
         "user": "User",
@@ -377,7 +383,8 @@
         "refusal": "declined",
         "pause_turn": "paused",
         "stop_sequence": "stop sequence"
-      }
+      },
+      "loadFailed": "The details could not be loaded. Please try again."
     },
     "agentLabel": "Agent:",
     "withAgent": "Conversation with {name}",
@@ -444,7 +451,8 @@
       "handel": "Retail & e-commerce",
       "agenturen": "Agencies",
       "industrie": "Industry",
-      "it": "IT services"
+      "it": "IT services",
+      "gebaeudereinigung": "Commercial cleaning"
     },
     "saves": "saves approx. {minutes} min {unit}",
     "needs": "Full effect with: {list}",
@@ -551,6 +559,14 @@
     "geraet_sperren": {
       "label": "Lock device (Intune)",
       "description": "Locks a device remotely, e.g. when it is lost."
+    },
+    "reinigung_kalkulieren": {
+      "label": "Calculate cleaning",
+      "description": "Computes hours, billing rate and monthly price from areas, performance values and your surcharges – checks maximum values."
+    },
+    "meldungen_abfragen": {
+      "label": "Query reports",
+      "description": "Reads the defect reports from your objects' QR codes (without reporters' e-mail addresses)."
     }
   },
   "integrations": {
@@ -665,12 +681,13 @@
     "page": "Page {page}",
     "dropHint": "Drop files here or",
     "chooseFiles": "Choose files",
-    "noFiles": "No file selected"
+    "noFiles": "No file selected",
+    "openInSharePoint": "Open in SharePoint"
   },
   "integrationsPage": {
     "title": "Integrations",
     "subtitle": "Connect your systems so agents can look things up there and – with your approval – act.",
-    "microsoftDescription": "Device management with Microsoft Intune: overview of laptops, PCs and phones, sync, restart and lock when lost.",
+    "microsoftDescription": "Device management with Microsoft Intune and documents from SharePoint: overview, sync, restart and lock devices; take libraries into the knowledge base.",
     "statusConnected": "Connected",
     "statusError": "Error",
     "statusNotConnected": "Not connected",
@@ -697,8 +714,10 @@
       "sitzung": "Microsoft's response did not match your session. Please start the connection again.",
       "zugriff": "Microsoft 365 did not confirm access. Check the consent and the Intune licence and try again.",
       "berechtigung": "Owners and admins manage integrations.",
-      "nicht_eingerichtet": "The Microsoft 365 connection is not set up on this platform yet."
-    }
+      "nicht_eingerichtet": "The Microsoft 365 connection is not set up on this platform yet.",
+      "vergeben": "This Microsoft 365 account is already connected to another company. Please contact ME-IT."
+    },
+    "permissionSharePoint": "Read documents from SharePoint (for the knowledge base)"
   },
   "devices": {
     "title": "Devices",
@@ -743,7 +762,9 @@
     "confirm": {
       "restart": "Restart “{name}” now? Unsaved work will be lost.",
       "lock": "Lock “{name}” now? The person has to sign in again."
-    }
+    },
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Owners and admins see the device overview."
   },
   "privacy": {
     "forbiddenTitle": "No permission",
@@ -816,5 +837,112 @@
     "loggingKeep": "Every run is logged with all steps (trace in the chat) and kept until deleted manually.",
     "risks": "Risks and measures",
     "footer": "Generated from the published configuration; when the agent changes, this profile changes with it. No high-risk use under Annex III of the AI Act is intended – otherwise please have it reviewed before use."
+  },
+  "sharepoint": {
+    "title": "SharePoint sync",
+    "description": "Take over the documents of a SharePoint library automatically. The sync runs in the background, hourly and on demand – after the first run only changes are fetched.",
+    "statusIdle": "Up to date",
+    "statusSyncing": "Syncing",
+    "statusError": "Error",
+    "statusStale": "Sync stuck",
+    "progress": "{seen} entries checked, {imported} taken over …",
+    "lastSync": "Last synced {when}: {imported} new or changed, {skipped} skipped.",
+    "neverSynced": "The first sync starts shortly.",
+    "hint": "PDF, Word (.docx), Markdown and text up to 10 MB are taken over. Files deleted in SharePoint are removed here as well.",
+    "syncNow": "Sync now",
+    "disconnect": "Disconnect",
+    "confirmDisconnect": "Disconnect SharePoint? Documents taken over from SharePoint are removed from this collection; uploads stay.",
+    "needsMicrosoft": "Connect Microsoft 365 first to sync.",
+    "toIntegrations": "Go to integrations",
+    "notConnected": "This collection is not connected to SharePoint.",
+    "connect": "Connect SharePoint",
+    "siteSearch": "Search SharePoint site",
+    "siteSearchPlaceholder": "e.g. team, sites, admin",
+    "searchSites": "Search",
+    "noSites": "No site found. Try another term.",
+    "sitesLabel": "Sites found",
+    "chooseSite": "Choose",
+    "librariesLabel": "Document libraries",
+    "connectLibrary": "Connect"
+  },
+  "report": {
+    "title": "Report a problem: {facility}",
+    "intro": "Something is not right? Let us know briefly – we will take care of it.",
+    "category": "What is wrong?",
+    "categories": {
+      "verschmutzung": "Dirt",
+      "nachfuellen": "Refill (soap, paper …)",
+      "schaden": "Damage or defect",
+      "sonstiges": "Other"
+    },
+    "location": "Where exactly? (optional)",
+    "locationPlaceholder": "e.g. ladies' toilet, 2nd floor",
+    "description": "Description",
+    "email": "E-mail for a reply (optional)",
+    "emailHint": "Only if you want to know when it is done.",
+    "submit": "Send report",
+    "thanks": "Thank you! Your report has arrived and is being handled.",
+    "privacy": "We store your report and – if given – your e-mail address only to handle it and delete them after completion according to our retention periods.",
+    "invalidTitle": "This QR code is no longer valid",
+    "invalidDescription": "Please contact the object manager directly."
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "Problems that customers, visitors and staff report through your objects' QR codes.",
+    "manageObjects": "Objects & QR codes",
+    "filterLabel": "Filter",
+    "filters": {
+      "unresolved": "Unresolved",
+      "open": "Open",
+      "in_progress": "In progress",
+      "done": "Done",
+      "all": "All"
+    },
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "done": "Done"
+    },
+    "categories": {
+      "verschmutzung": "Dirt",
+      "nachfuellen": "Refill (soap, paper …)",
+      "schaden": "Damage or defect",
+      "sonstiges": "Other"
+    },
+    "emptyTitle": "No reports",
+    "emptyDescription": "Reports appear here as soon as someone scans a QR code.",
+    "withEmail": "reply requested",
+    "resolved": "done by {name} · {date}",
+    "start": "Start",
+    "done": "Done",
+    "notePrompt": "Short note on the resolution (optional) – sent to the reporter if they gave an e-mail:",
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Your role has no access to reports."
+  },
+  "facilities": {
+    "back": "Back to reports",
+    "title": "Objects & QR codes",
+    "subtitle": "Every object gets a QR notice. Whoever scans it can report a problem without signing in.",
+    "newTitle": "Create object",
+    "newDescription": "The object manager receives every new report by e-mail.",
+    "name": "Object name",
+    "namePlaceholder": "e.g. Office building Ring 12",
+    "address": "Address (optional)",
+    "contact": "Object manager's e-mail",
+    "create": "Create object",
+    "inactive": "deactivated",
+    "open": "{count} open",
+    "notifies": "reports to {email}",
+    "noContact": "no notification",
+    "poster": "QR notice",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "backToObjects": "Back to objects",
+    "print": "Print / save as PDF",
+    "posterHeadline": "Something not right?",
+    "posterText": "Scan the QR code and let us know – we will take care of it.",
+    "posterNoLogin": "No sign-in, takes a minute.",
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Owners and admins manage objects."
   }
 }

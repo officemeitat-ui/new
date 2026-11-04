@@ -185,18 +185,23 @@ describe("export and erasure", () => {
 
     await expect(
       withTenant(db, tenantId, (tx) =>
-        erasePerson(tx, { tenantId, userId: fx.owner.id, actorId: fx.owner.id }),
+        erasePerson(tx, {
+          tenantId,
+          userId: fx.owner.id,
+          actorId: fx.owner.id,
+          actorRole: "owner",
+        }),
       ),
     ).rejects.toThrow(/Sich selbst/);
     const admin = await addMember(tenantId, "Ada", "admin");
     await expect(
       withTenant(db, tenantId, (tx) =>
-        erasePerson(tx, { tenantId, userId: fx.owner.id, actorId: admin.id }),
+        erasePerson(tx, { tenantId, userId: fx.owner.id, actorId: admin.id, actorRole: "admin" }),
       ),
-    ).rejects.toThrow(/letzte Owner/);
+    ).rejects.toThrow(/Nur Owner/);
 
     const result = await withTenant(db, tenantId, (tx) =>
-      erasePerson(tx, { tenantId, userId: karl.id, actorId: fx.owner.id }),
+      erasePerson(tx, { tenantId, userId: karl.id, actorId: fx.owner.id, actorRole: "owner" }),
     );
     expect(result).toEqual({ conversations: 1 });
     expect(await deleteAccountIfOrphaned(db, { userId: karl.id, tenantId })).toBe(true);
@@ -222,7 +227,12 @@ describe("export and erasure", () => {
       tx.insert(memberships).values({ tenantId: other.tenant.id, userId: both.id, role: "member" }),
     );
     await withTenant(db, fx.tenant.id, (tx) =>
-      erasePerson(tx, { tenantId: fx.tenant.id, userId: both.id, actorId: fx.owner.id }),
+      erasePerson(tx, {
+        tenantId: fx.tenant.id,
+        userId: both.id,
+        actorId: fx.owner.id,
+        actorRole: "owner",
+      }),
     );
     expect(await deleteAccountIfOrphaned(db, { userId: both.id, tenantId: fx.tenant.id })).toBe(
       false,

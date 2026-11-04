@@ -1,4 +1,4 @@
-import { conflict, forbidden, notFound, validationError } from "@nexus/core";
+import { conflict, forbidden, notFound, validationError, type SystemTenantRole } from "@nexus/core";
 import {
   and,
   asc,
@@ -18,6 +18,7 @@ import {
   auditLogs,
   authUser,
   conversations,
+  defectReports,
   integrations,
   knowledgeCollections,
   knowledgeDocuments,
@@ -27,6 +28,7 @@ import {
   runs,
   tenants,
 } from "@nexus/db/schema";
+import { assertCanAssignRole } from "./access";
 import { appendAudit } from "./audit";
 
 /* ----------------------------------------------------------------- retention */
@@ -96,8 +98,8 @@ const ACTIVE_RUN = sql`exists (select 1 from ${runs} r where r.conversation_id =
  * written to its audit log.
  */
 export async function applyRetention(db: Database, now = new Date()) {
-  return withSystem(db, "retention: nightly deletion of expired data", async (tx) => {
-    const configured = await tx
+  const configured = await withSystem(db, "retention: tenants with retention periods", (tx) =>
+    tx
       .select({
         id: tenants.id,
         chatDays: tenants.chatRetentionDays,
@@ -109,57 +111,79 @@ export async function applyRetention(db: Database, now = new Date()) {
           sql`${tenants.chatRetentionDays} is not null`,
           sql`${tenants.documentRetentionDays} is not null`,
         ),
-      );
+      ),
+  );
 
-    const results: { tenantId: string; conversations: number; documents: number }[] = [];
-    for (const tenant of configured) {
-      let deletedConversations = 0;
-      let deletedDocuments = 0;
-      if (tenant.chatDays) {
-        const cutoff = new Date(now.getTime() - tenant.chatDays * 86_400_000);
-        const deleted = await tx
-          .delete(conversations)
-          .where(
-            and(
-              eq(conversations.tenantId, tenant.id),
-              sql`${conversations.lastMessageAt} < ${cutoff}`,
-              sql`not ${ACTIVE_RUN}`,
-            ),
-          )
-          .returning({ id: conversations.id });
-        deletedConversations = deleted.length;
-      }
-      if (tenant.documentDays) {
-        const cutoff = new Date(now.getTime() - tenant.documentDays * 86_400_000);
-        const deleted = await tx
-          .delete(knowledgeDocuments)
-          .where(
-            and(
-              eq(knowledgeDocuments.tenantId, tenant.id),
-              sql`${knowledgeDocuments.createdAt} < ${cutoff}`,
-            ),
-          )
-          .returning({ id: knowledgeDocuments.id });
-        deletedDocuments = deleted.length;
-      }
-      if (deletedConversations + deletedDocuments > 0) {
-        await appendAudit(tx, tenant.id, {
-          actorType: "system",
-          actorId: null,
-          action: "privacy.retention_applied",
-          targetType: "tenant",
-          targetId: tenant.id,
-          metadata: { conversations: deletedConversations, documents: deletedDocuments },
-        });
-      }
-      results.push({
-        tenantId: tenant.id,
-        conversations: deletedConversations,
-        documents: deletedDocuments,
-      });
-    }
-    return results;
-  });
+  const results: { tenantId: string; conversations: number; documents: number }[] = [];
+  // One transaction per tenant: a large deletion never holds the locks of all tenants.
+  for (const tenant of configured) {
+    const result = await withSystem(
+      db,
+      "retention: nightly deletion of expired data",
+      async (tx) => {
+        let deletedConversations = 0;
+        let deletedDocuments = 0;
+        if (tenant.chatDays) {
+          const cutoff = new Date(now.getTime() - tenant.chatDays * 86_400_000);
+          const deleted = await tx
+            .delete(conversations)
+            .where(
+              and(
+                eq(conversations.tenantId, tenant.id),
+                sql`${conversations.lastMessageAt} < ${cutoff}`,
+                sql`not ${ACTIVE_RUN}`,
+              ),
+            )
+            .returning({ id: conversations.id });
+          deletedConversations = deleted.length;
+        }
+        if (tenant.chatDays) {
+          // Defect reports (with the reporter's optional e-mail) follow the conversation period
+          // once they are done.
+          const cutoff = new Date(now.getTime() - tenant.chatDays * 86_400_000);
+          await tx
+            .delete(defectReports)
+            .where(
+              and(
+                eq(defectReports.tenantId, tenant.id),
+                eq(defectReports.status, "done"),
+                sql`${defectReports.resolvedAt} < ${cutoff}`,
+              ),
+            );
+        }
+        if (tenant.documentDays) {
+          const cutoff = new Date(now.getTime() - tenant.documentDays * 86_400_000);
+          const deleted = await tx
+            .delete(knowledgeDocuments)
+            .where(
+              and(
+                eq(knowledgeDocuments.tenantId, tenant.id),
+                sql`${knowledgeDocuments.createdAt} < ${cutoff}`,
+              ),
+            )
+            .returning({ id: knowledgeDocuments.id });
+          deletedDocuments = deleted.length;
+        }
+        if (deletedConversations + deletedDocuments > 0) {
+          await appendAudit(tx, tenant.id, {
+            actorType: "system",
+            actorId: null,
+            action: "privacy.retention_applied",
+            targetType: "tenant",
+            targetId: tenant.id,
+            metadata: { conversations: deletedConversations, documents: deletedDocuments },
+          });
+        }
+        return {
+          tenantId: tenant.id,
+          conversations: deletedConversations,
+          documents: deletedDocuments,
+        };
+      },
+    );
+    results.push(result);
+  }
+  return results;
 }
 
 /* ------------------------------------------------------------ export (Art. 15) */
@@ -322,7 +346,7 @@ export async function exportPersonData(tx: Tx, input: { tenantId: string; userId
  */
 export async function erasePerson(
   tx: Tx,
-  input: { tenantId: string; userId: string; actorId: string },
+  input: { tenantId: string; userId: string; actorId: string; actorRole: SystemTenantRole },
 ): Promise<{ conversations: number }> {
   if (input.userId === input.actorId) {
     throw forbidden("Sich selbst können Sie hier nicht löschen. Bitten Sie einen anderen Owner.");
@@ -332,6 +356,8 @@ export async function erasePerson(
     .from(memberships)
     .where(and(eq(memberships.tenantId, input.tenantId), eq(memberships.userId, input.userId)));
   if (!membership) throw notFound("Diese Person gehört nicht zu Ihrer Firma.");
+  // Like removing a member: only owners may act on owners (finding 5).
+  assertCanAssignRole(input.actorRole, { from: membership.role });
   if (membership.role === "owner") {
     const [owners] = await tx
       .select({ count: sql<number>`count(*)::int` })

@@ -1,8 +1,4 @@
-import {
-  MOCK_DIRECTORY_TENANT_ID,
-  startMockMicrosoft,
-  type MockMicrosoft,
-} from "@nexus/connectors/testing";
+import { startMockMicrosoft, type MockMicrosoft } from "@nexus/connectors/testing";
 import { clearGraphTokenCache } from "@nexus/connectors";
 import { withTenant } from "@nexus/db";
 import { openTestDatabase } from "@nexus/db/testing";
@@ -28,7 +24,10 @@ let config: MicrosoftAppConfig;
 let fx: Awaited<ReturnType<typeof createPartnerWithTenant>>;
 
 beforeAll(async () => {
-  mock = await startMockMicrosoft({ clientSecret: "geheim" });
+  mock = await startMockMicrosoft({
+    directoryId: "a2000000-0000-4000-8000-000000000003",
+    clientSecret: "geheim",
+  });
   config = {
     clientId: "app",
     clientSecret: "geheim",
@@ -54,15 +53,39 @@ describe("consent state", () => {
     expect(() => verifyConsentState(state, 1_000 + 16 * 60_000)).toThrow(/zu lange/);
   });
 
-  it("builds the documented admin consent URL", () => {
+  it("builds the documented admin consent URL for the proven directory only", () => {
     const url = new URL(
-      adminConsentUrl(config, { redirectUri: "https://app.example/cb", state: "s" }),
+      adminConsentUrl(config, {
+        directoryId: mock.directoryId,
+        redirectUri: "https://app.example/cb",
+        state: "s",
+      }),
     );
-    expect(url.pathname).toBe("/login/common/adminconsent");
+    expect(url.pathname).toBe(`/login/${mock.directoryId}/adminconsent`);
     expect(Object.fromEntries(url.searchParams)).toEqual({
       client_id: "app",
       redirect_uri: "https://app.example/cb",
       state: "s",
+    });
+    expect(() =>
+      adminConsentUrl(config, { directoryId: "common", redirectUri: "https://x", state: "s" }),
+    ).toThrow(/Ungültiges/);
+  });
+
+  it("carries the step and the proven directory in the signed state", () => {
+    const state = signConsentState({
+      tenantId: "t",
+      userId: "u",
+      step: "consent",
+      directoryId: mock.directoryId,
+    });
+    expect(verifyConsentState(state)).toMatchObject({
+      step: "consent",
+      directoryId: mock.directoryId,
+    });
+    expect(verifyConsentState(signConsentState({ tenantId: "t", userId: "u" }))).toMatchObject({
+      step: "signin",
+      directoryId: null,
     });
   });
 });
@@ -80,11 +103,22 @@ describe("Microsoft 365 connection", () => {
     ).rejects.toThrow(/Ungültige/);
     const { displayName } = await connectMicrosoft365(db, {
       tenantId,
-      directoryTenantId: MOCK_DIRECTORY_TENANT_ID,
+      directoryTenantId: mock.directoryId,
       actorId: fx.owner.id,
       config,
     });
     expect(displayName).toBe("Contoso Test GmbH");
+
+    // The same Microsoft directory cannot be linked to a second company.
+    const other = await createPartnerWithTenant(db);
+    await expect(
+      connectMicrosoft365(db, {
+        tenantId: other.tenant.id,
+        directoryTenantId: mock.directoryId,
+        actorId: other.owner.id,
+        config,
+      }),
+    ).rejects.toThrow(/bereits mit einer anderen Firma/);
 
     const { devices } = await listTenantDevices(db, tenantId, config);
     expect(devices[0]?.deviceName).toBe("LAPTOP-HUBER-01"); // most recent sync first

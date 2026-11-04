@@ -1,11 +1,7 @@
 import { CAPABILITIES, type LlmProvider } from "@nexus/agents";
 import { scriptedClient, textResponse, toolUseResponse } from "@nexus/agents/testing";
 import { clearGraphTokenCache } from "@nexus/connectors";
-import {
-  MOCK_DIRECTORY_TENANT_ID,
-  startMockMicrosoft,
-  type MockMicrosoft,
-} from "@nexus/connectors/testing";
+import { startMockMicrosoft, type MockMicrosoft } from "@nexus/connectors/testing";
 import { createLogger } from "@nexus/core/logger";
 import { withSystem, withTenant } from "@nexus/db";
 import { authUser, partners, tenants } from "@nexus/db/schema";
@@ -20,9 +16,11 @@ import {
   startRun,
   type MicrosoftAppConfig,
 } from "@nexus/domain";
+import { SYSTEM_TENANT_ROLE_PERMISSIONS } from "@nexus/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { processAgentRun } from "../src/jobs/agent-run";
 
+const OWNER = SYSTEM_TENANT_ROLE_PERMISSIONS.owner;
 const handle = openTestDatabase();
 const db = handle.db;
 const log = createLogger("test");
@@ -34,7 +32,10 @@ let agentId: string;
 const GRUBER = "a1f0c2d4-0000-4000-8000-000000000002";
 
 beforeAll(async () => {
-  mock = await startMockMicrosoft({ clientSecret: "geheim" });
+  mock = await startMockMicrosoft({
+    directoryId: "a2000000-0000-4000-8000-000000000001",
+    clientSecret: "geheim",
+  });
   microsoft = {
     clientId: "app",
     clientSecret: "geheim",
@@ -120,7 +121,7 @@ describe("Intune tools", () => {
   it("find a device and lock it only after a person approved it", async () => {
     await connectMicrosoft365(db, {
       tenantId,
-      directoryTenantId: MOCK_DIRECTORY_TENANT_ID,
+      directoryTenantId: mock.directoryId,
       actorId: userId,
       config: microsoft,
     });
@@ -165,6 +166,36 @@ describe("Intune tools", () => {
       toolName: "geraet_sperren",
       input: { geraet_name: "LAPTOP-GRUBER-07" },
     });
+    // A member may decide approvals, but not about device actions (finding 4).
+    await expect(
+      withTenant(db, tenantId, (tx) =>
+        decideApproval(tx, {
+          tenantId,
+          approvalId: pending!.id,
+          approve: true,
+          actorId: userId,
+          scope: { userId, all: true },
+          permissions: SYSTEM_TENANT_ROLE_PERMISSIONS.member,
+        }),
+      ),
+    ).rejects.toThrow(/Integrationen verwalten/);
+    // Device actions cannot be edited before approval.
+    await expect(
+      withTenant(db, tenantId, (tx) =>
+        decideApproval(tx, {
+          tenantId,
+          approvalId: pending!.id,
+          approve: true,
+          editedInput: {
+            geraet_id: "a1f0c2d4-0000-4000-8000-000000000001",
+            geraet_name: "LAPTOP-HUBER-01",
+          },
+          actorId: userId,
+          scope: { userId, all: true },
+          permissions: OWNER,
+        }),
+      ),
+    ).rejects.toThrow(/nicht geändert/);
     await withTenant(db, tenantId, (tx) =>
       decideApproval(tx, {
         tenantId,
@@ -172,6 +203,7 @@ describe("Intune tools", () => {
         approve: true,
         actorId: userId,
         scope: { userId, all: true },
+        permissions: OWNER,
       }),
     );
     const second = provider([textResponse("Das Gerät ist gesperrt.")]);

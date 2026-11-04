@@ -29,7 +29,11 @@ export function InviteSignUpForm({ token, email }: { token: string; email: strin
     setError(null);
     setPending(true);
     try {
-      const { error: signUpError } = await authClient.signUp.email({ email, password, name });
+      const { error: signUpError } = await authClient.signUp.email(
+        { email, password, name },
+        // The server only creates the account with the invitation itself (src/lib/auth.ts).
+        { headers: { "x-invite-token": token } },
+      );
       if (signUpError) {
         setError(signUpError.status === 429 ? t("tooManyAttempts") : t("signUpFailed"));
         return;

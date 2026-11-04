@@ -2,6 +2,38 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## SharePoint-Abgleich, „lädt ewig“ behoben, Sicherheits-Review, Branchenpaket Gebäudereinigung ✅
+
+**Erledigt**
+
+- **SharePoint-Abgleich (neu, gab es vorher nicht):** Wissen → Sammlung → „Mit SharePoint verbinden“: Website suchen, Dokumentbibliothek wählen. Der Abgleich läuft **im Hintergrund** (eigene Queue `knowledge-sync`), stündlich und auf Knopfdruck, mit Fortschritt („120 Einträge geprüft, 34 übernommen …“). Nach dem ersten Lauf lädt er über die Graph-**Delta-Abfrage** nur Änderungen; in SharePoint gelöschte Dateien verschwinden auch hier, geänderte werden neu eingelesen (Version über cTag/eTag). PDF, DOCX, Markdown, Text bis 10 MB; vier Downloads parallel, mit Größenlimit beim Streamen. Endpunkte aus der offiziellen Graph-Doku (`/sites?search=`, `/sites/{id}/drives`, `/drives/{id}/root/delta`, `@microsoft.graph.downloadUrl`), Link zur Doku im Code.
+- **„Lädt ewig“ – echte Ursachen gefunden und behoben** (eigener Robustheits-Review):
+  - Läufe blieben nach einem Worker-Absturz für immer auf „läuft“ → **Herzschlag** pro Lauf und **Reparatur-Job** alle 5 Minuten (hängende Läufe mit klarer Meldung beenden, verlorene Jobs neu einreihen, Dokumente nach 10 Minuten neu verarbeiten bzw. nach 1 Stunde aufgeben, abgestürzte Abgleiche zurücksetzen).
+  - Kein einziger Timeout: jetzt Claude API (120 s, 2 Wiederholungen, plus **Leerlauf-Wächter**: 2 Minuten ohne Ereignis → Abbruch mit verständlicher Meldung), Datenbank (Verbindung 10 s, Statement 60 s), SMTP, Graph (20 s, Downloads 60 s), Einreihen in die Queue (5 s statt endlos, wenn Redis fehlt).
+  - Redis-Aussetzer ließen Läufe scheitern → Live-Ereignisse sind „best effort“, der Endstand steht immer in Postgres; die Live-Verbindung (SSE) fällt auf die Datenbank zurück, setzt nach einem Verbindungsabbruch an der letzten Stelle fort (kein doppelter Text) und endet spätestens nach 5 Minuten.
+  - Die Geräte-Seite lud bei jedem Aufruf alle Geräte → 60 Sekunden Zwischenspeicher, 25 Sekunden Höchstdauer.
+  - Dokumentliste fragt höchstens 10 Minuten lang nach dem Status.
+- **Sicherheits-Review (unabhängig) – alle kritischen, hohen und mittleren Befunde behoben**, Details in `docs/SECURITY.md`:
+  - **Kritisch:** Eine Firma hätte sich mit dem Microsoft-Verzeichnis einer anderen Firma verbinden können. Jetzt zweistufig: erst Anmeldung (beweist das Verzeichnis), dann Zustimmung genau für dieses Verzeichnis; ein Verzeichnis gehört höchstens einer Firma (eindeutiger Index).
+  - **Hoch:** Konto-Übernahme vor der Registrierung (Registrierung nur mit dem Einladungs-Token), 2FA wurde beim Magic Link übersprungen, Mitglieder konnten eigene Geräteaktionen freigeben.
+  - **Mittel/niedrig:** Admins konnten Owner löschen, offene Weiterleitung über `next`, riskante Werkzeuge ohne Freigabe konfigurierbar, Limits wurden nach jeder Freigabe zurückgesetzt, Geräteliste und Kosten für alle sichtbar, Support-Cookie ohne Audit (jetzt signiert), unbegrenzte Redis-Verbindungen (Limit pro Person, Health-Check zwischengespeichert).
+- **Branchenpaket Gebäudereinigung** (Recherche: Kalkulationsschema der Branche, ÖNORM D 2050 und EN 13549, QR-Reklamationsmanagement gängiger Reinigungs-Software):
+  - **Werkzeug `reinigung_kalkulieren`:** exakte Angebotskalkulation (Fläche ÷ Leistungswert, Reinigungen pro Jahr abzüglich Feiertage, Verrechnungssatz aus Lohn + Lohnnebenkosten + Gemeinkosten + Wagnis/Gewinn, Monatspreis netto/brutto) und Prüfung gegen Höchstwerte. Rechnet nie mit geschätzten Zahlen – die Firma hinterlegt ihre Werte.
+  - **QR-Mängelmeldungen:** Objekte anlegen, QR-Aushang drucken; wer scannt, meldet ohne Anmeldung (Kategorie, Ort, Beschreibung, optional E-Mail). Objektleitung bekommt sofort eine E-Mail, das Team arbeitet die Liste ab (Unerledigt/In Arbeit/Erledigt, Zähler in der Navigation), die meldende Person bekommt eine Danke-Mail. Rate-Limit und Bot-Falle; die E-Mail wird mit der Erledigung gelöscht; erledigte Meldungen fallen unter die Löschfrist.
+  - **Werkzeug `meldungen_abfragen`** für Agenten (ohne E-Mail-Adressen) und drei neue Vorlagen: **Angebotskalkulator Gebäudereinigung**, **Reklamations-Manager (QR-Meldungen)**, **Ausschreibungs-Assistent Reinigung**; Branchenfilter „Gebäudereinigung“ in der Galerie.
+- **Tests:** 193 Unit-/Integrationstests (u. a. SharePoint-Delta mit Löschen/Ändern/Neustart, Reparatur-Job, Leerlauf-Wächter, Redis-Ausfall, Verzeichnis-Bindung, Freigaberechte, Kalkulation, Meldungen inkl. Mandantentrennung), 24 Browser-Tests – zweimal hintereinander grün, darunter neu SharePoint, Sicherheit und Gebäudereinigung (QR-Meldung vom Handy bis zur Danke-Mail, Kalkulator-Agent).
+
+**Für den Echtbetrieb nötig (ME-IT)**
+
+- In der Entra-App zusätzlich **Sites.Read.All** (Anwendung) und **User.Read** (delegiert, für den Verzeichnis-Nachweis) eintragen und neu zustimmen lassen. Ein Test gegen einen echten Microsoft-365-Mandanten steht noch aus.
+- Kollektivvertrags-Werte und ÖNORM-Höchstwerte hinterlegt jede Reinigungsfirma selbst (die Norm ist kostenpflichtig, Lohntabellen ändern sich jährlich).
+
+**Noch offen**
+
+- Befund #12 (niedrig): Dateien, die beim Entpacken riesig werden (DOCX/PDF), in einem eigenen Prozess mit Speicherlimit verarbeiten.
+- SharePoint: Änderungsbenachrichtigungen (Webhooks) statt stündlich, Berechtigungen aus SharePoint übernehmen (derzeit sieht jede Person mit Zugriff auf die Sammlung alle übernommenen Dokumente – beim Verbinden bewusst wählen).
+- Gebäudereinigung: Qualitätskontrollen nach EN 13549 als Checkliste am Handy, Revierpläne, Arbeitszeiterfassung pro Objekt.
+
 ## Compliance, DSGVO und Sicherheit (Phase 9, Kern) ✅
 
 **Erledigt**

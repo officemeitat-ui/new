@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "integrations_provider_external_uq" ON "integrations" USING btree ("provider","external_tenant_id");

@@ -22,7 +22,20 @@ async function timed(fn: () => Promise<unknown>): Promise<CheckResult> {
   }
 }
 
-export async function checkHealth(): Promise<HealthReport> {
+/** Results are shared for a few seconds: the public health route must not open a Redis
+ * connection per request (security review). */
+const CACHE_MS = 5_000;
+let cached: { at: number; report: Promise<HealthReport> } | null = null;
+
+export function checkHealth(): Promise<HealthReport> {
+  const now = Date.now();
+  if (cached && now - cached.at < CACHE_MS) return cached.report;
+  const report = runChecks();
+  cached = { at: now, report };
+  return report;
+}
+
+async function runChecks(): Promise<HealthReport> {
   const [database, redis] = await Promise.all([
     timed(() => getDatabase().db.execute(sql`select 1`)),
     timed(async () => {

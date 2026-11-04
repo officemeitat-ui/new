@@ -28,6 +28,7 @@ export async function decideApprovalAction(input: {
         reason: input.reason ?? null,
         actorId: ctx.user.id,
         scope: approvalScopeFor(ctx.tenant),
+        permissions: ctx.tenant.permissions,
       }),
     );
     // The last open decision of the run lets the agent continue where it paused.

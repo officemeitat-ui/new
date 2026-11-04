@@ -53,6 +53,12 @@ export type LlmProvider = {
   modelId(model: string): string;
 };
 
+/**
+ * Per request: at most 2 minutes until the response starts (SDK default: 10), two retries on
+ * overload. The worker additionally aborts a run after 2 minutes without any stream event.
+ */
+const CLIENT_LIMITS = { timeout: 120_000, maxRetries: 2 } as const;
+
 export async function createProvider(config: ProviderConfig): Promise<LlmProvider> {
   switch (config.name) {
     case "anthropic": {
@@ -60,6 +66,7 @@ export async function createProvider(config: ProviderConfig): Promise<LlmProvide
       const client = new Anthropic({
         ...(config.apiKey ? { apiKey: config.apiKey } : {}),
         ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+        ...CLIENT_LIMITS,
       });
       return {
         name: "anthropic",
@@ -70,7 +77,7 @@ export async function createProvider(config: ProviderConfig): Promise<LlmProvide
     }
     case "bedrock": {
       const { AnthropicBedrockMantle } = await import("@anthropic-ai/bedrock-sdk");
-      const client = new AnthropicBedrockMantle({ awsRegion: config.region });
+      const client = new AnthropicBedrockMantle({ awsRegion: config.region, ...CLIENT_LIMITS });
       return {
         name: "bedrock",
         client: client as unknown as LlmClient,
@@ -80,7 +87,11 @@ export async function createProvider(config: ProviderConfig): Promise<LlmProvide
     }
     case "vertex": {
       const { AnthropicVertex } = await import("@anthropic-ai/vertex-sdk");
-      const client = new AnthropicVertex({ projectId: config.projectId, region: config.region });
+      const client = new AnthropicVertex({
+        projectId: config.projectId,
+        region: config.region,
+        ...CLIENT_LIMITS,
+      });
       return {
         name: "vertex",
         client: client as unknown as LlmClient,

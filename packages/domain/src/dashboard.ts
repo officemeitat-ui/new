@@ -85,7 +85,12 @@ export async function getDashboard(
     })
     .from(runs)
     .innerJoin(agents, eq(agents.id, runs.agentId))
-    .where(eq(runs.tenantId, tenantId))
+    // Members see their own activity only; owners/admins the whole company's (finding 14).
+    .where(
+      approvalScope.all
+        ? eq(runs.tenantId, tenantId)
+        : sql`${runs.tenantId} = ${tenantId} and ${runs.triggeredBy} = ${approvalScope.userId}`,
+    )
     .orderBy(desc(runs.createdAt))
     .limit(6);
 

@@ -14,7 +14,16 @@ export interface DatabaseHandle {
 }
 
 export function createDatabase(url: string, options: { max?: number } = {}): DatabaseHandle {
-  const pool = new pg.Pool({ connectionString: url, max: options.max ?? 10 });
+  // No request may wait forever for the database (robustness review): a free connection within
+  // 10 s, statements within 60 s, and no transaction left idle for more than 2 minutes.
+  const pool = new pg.Pool({
+    connectionString: url,
+    max: options.max ?? 10,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    statement_timeout: 60_000,
+    idle_in_transaction_session_timeout: 120_000,
+  });
   const db = drizzle({ client: pool, schema, casing: "snake_case" });
   return { db, pool, close: () => pool.end() };
 }

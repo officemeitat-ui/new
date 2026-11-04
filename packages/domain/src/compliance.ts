@@ -221,6 +221,18 @@ export async function getProcessingRegister(tx: Tx, tenantId: string) {
       recipients: `${llm.name} (nur gefundene Textstellen)`,
       retention: keep(settings.documentRetentionDays),
     },
+    {
+      title: "Mängelmeldungen per QR-Code",
+      purpose: "Meldungen von Kunden, Besuchern und Personal zu Mängeln in den betreuten Objekten",
+      legalBasis: "Art. 6 Abs. 1 lit. b und f DSGVO",
+      subjects: "Meldende Personen (freiwillige E-Mail-Angabe)",
+      data: "Objekt, Ort, Beschreibung, Zeitpunkt; optional E-Mail-Adresse für die Rückmeldung (wird mit der Erledigung gelöscht)",
+      recipients:
+        "Objektleitung (E-Mail-Benachrichtigung), Mitarbeitende mit Zugriff auf Meldungen",
+      retention: settings.chatRetentionDays
+        ? `${settings.chatRetentionDays} Tage nach Erledigung`
+        : "bis zur manuellen Löschung",
+    },
     ...(microsoft
       ? [
           {

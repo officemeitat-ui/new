@@ -1,5 +1,4 @@
 import "server-only";
-import { isUuid } from "@nexus/core";
 import { getDatabase } from "@nexus/db";
 import {
   getPartnerAccess,
@@ -10,6 +9,7 @@ import {
   type PartnerAccess,
   type TenantAccess,
   type UserOverview,
+  verifySupportCookie,
 } from "@nexus/domain";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -67,9 +67,12 @@ export const resolveAppContext = cache(async (): Promise<AppContext | null> => {
   const partner = firstPartner ? await getPartnerAccess(db, user.id, firstPartner.partnerId) : null;
 
   // A support session (granted by the tenant, still valid) takes precedence.
-  const supportTenantId = (await cookies()).get(SUPPORT_COOKIE)?.value;
+  const supportTenantId = verifySupportCookie(
+    (await cookies()).get(SUPPORT_COOKIE)?.value,
+    user.id,
+  );
   const support =
-    partner && supportTenantId && isUuid(supportTenantId)
+    partner && supportTenantId
       ? await getSupportAccess(db, {
           userId: user.id,
           partnerId: partner.partnerId,

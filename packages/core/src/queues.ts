@@ -12,8 +12,11 @@ export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
 export type AgentRunJob = { runId: string; tenantId: string };
 
-/** Extract, chunk and index an uploaded knowledge document. */
+/** Extract, chunk and index an uploaded knowledge document (job name "ingest"). */
 export type KnowledgeIngestJob = { documentId: string; tenantId: string };
+
+/** Synchronise a SharePoint library into its collection (job name "sync", same queue). */
+export type KnowledgeSyncJob = { sourceId: string; tenantId: string };
 
 /** Redis stream with the live events of one run (replayable for late SSE subscribers). */
 export const runEventsKey = (runId: string) => `nexus:run:${runId}:events`;

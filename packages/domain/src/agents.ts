@@ -1,4 +1,4 @@
-import { catalogTool, EFFORTS, MODEL_TIERS } from "@nexus/agents";
+import { ALWAYS_APPROVE, catalogTool, EFFORTS, MODEL_TIERS } from "@nexus/agents";
 import { conflict, notFound, validationError } from "@nexus/core";
 import { and, desc, eq, sql, type Tx } from "@nexus/db";
 import { agents, agentVersions, authUser, runs, type AgentConfig } from "@nexus/db/schema";
@@ -6,27 +6,37 @@ import { z } from "zod";
 import { AGENT_TEMPLATES, type AgentTemplate } from "./agent-templates";
 import { appendAudit } from "./audit";
 
-export const agentConfigSchema = z.object({
-  instructions: z
-    .string()
-    .trim()
-    .min(20, "Die Anweisungen sind zu kurz – beschreiben Sie Aufgabe und Ziel des Agenten.")
-    .max(20_000, "Die Anweisungen sind zu lang (höchstens 20.000 Zeichen)."),
-  tier: z.enum(MODEL_TIERS),
-  effort: z.enum(EFFORTS),
-  tools: z
-    .array(
-      z.object({
-        name: z.string().refine((name) => Boolean(catalogTool(name)), "Unbekanntes Werkzeug"),
-        mode: z.enum(["auto", "approve", "deny"]),
+export const agentConfigSchema = z
+  .object({
+    instructions: z
+      .string()
+      .trim()
+      .min(20, "Die Anweisungen sind zu kurz – beschreiben Sie Aufgabe und Ziel des Agenten.")
+      .max(20_000, "Die Anweisungen sind zu lang (höchstens 20.000 Zeichen)."),
+    tier: z.enum(MODEL_TIERS),
+    effort: z.enum(EFFORTS),
+    tools: z
+      .array(
+        z.object({
+          name: z.string().refine((name) => Boolean(catalogTool(name)), "Unbekanntes Werkzeug"),
+          mode: z.enum(["auto", "approve", "deny"]),
+        }),
+      )
+      .max(50),
+    maxSteps: z.number().int().min(1, "Mindestens 1 Schritt").max(50, "Höchstens 50 Schritte"),
+    maxCostUsdMicros: z.number().int().min(10_000).max(50_000_000).optional(),
+    roiMinutesPerTask: z.number().int().min(0).max(600).optional(),
+    knowledgeCollectionIds: z.array(z.uuid()).max(50).optional(),
+  })
+  // E-mails to third parties and actions on devices always need a person's approval (finding 7).
+  .refine(
+    (config) =>
+      config.tools.every((tool) => {
+        const risk = catalogTool(tool.name)?.risk;
+        return !(risk && ALWAYS_APPROVE.has(risk) && tool.mode === "auto");
       }),
-    )
-    .max(50),
-  maxSteps: z.number().int().min(1, "Mindestens 1 Schritt").max(50, "Höchstens 50 Schritte"),
-  maxCostUsdMicros: z.number().int().min(10_000).max(50_000_000).optional(),
-  roiMinutesPerTask: z.number().int().min(0).max(600).optional(),
-  knowledgeCollectionIds: z.array(z.uuid()).max(50).optional(),
-}) satisfies z.ZodType<AgentConfig>;
+    "E-Mails an Dritte und Eingriffe an Geräten brauchen immer eine Freigabe – „automatisch“ ist dafür nicht möglich.",
+  ) satisfies z.ZodType<AgentConfig>;
 
 const PLACEHOLDER = /\{\{([a-z_.]+)\}\}/g;
 

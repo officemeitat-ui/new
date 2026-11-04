@@ -166,6 +166,20 @@ createServer((req, res) => {
         : `Die E-Mail an ${JSON.parse(toolResult.content).an.join(", ")} ist versendet.`;
       return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
     }
+    if (toolResult && calledTool === "reinigung_kalkulieren") {
+      const result = JSON.parse(toolResult.content);
+      const eur = (value) =>
+        `${new Intl.NumberFormat("de-AT", { minimumFractionDigits: 2 }).format(value)} €`;
+      const answer = `Verrechnungssatz ${eur(result.stundensatz.verrechnungssatz)} pro Stunde, ${result.stunden.pro_monat} Stunden pro Monat, Monatspreis ${eur(result.preis_pro_monat.netto)} netto (${eur(result.preis_pro_monat.brutto)} brutto). Hinweis: ${result.hinweise[0]}`;
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
+    if (toolResult && calledTool === "meldungen_abfragen") {
+      const { anzahl, meldungen } = JSON.parse(toolResult.content);
+      const answer = anzahl
+        ? `${anzahl} offene Meldung(en): ${meldungen.map((m) => `${m.objekt} – ${m.ort}: ${m.beschreibung}`).join("; ")}.`
+        : "Es gibt keine offenen Meldungen.";
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
     if (toolResult) {
       const { ergebnis } = JSON.parse(toolResult.content);
       const amount = new Intl.NumberFormat("de-AT", { minimumFractionDigits: 2 }).format(ergebnis);
@@ -194,6 +208,50 @@ createServer((req, res) => {
         res,
         request.model,
         [toolUse("geraete_suchen", { suche: lockTarget, nur_probleme: false })],
+        "tool_use",
+      );
+    }
+    if (/^kalkuliere/i.test(text.trim()) && hasTool("reinigung_kalkulieren")) {
+      return void streamMessage(
+        res,
+        request.model,
+        [
+          toolUse("reinigung_kalkulieren", {
+            raeume: [
+              {
+                bezeichnung: "Büros EG",
+                raumgruppe: "Büro",
+                flaeche_m2: 400,
+                leistungswert_m2_h: 200,
+                reinigungen_pro_woche: 5,
+              },
+              {
+                bezeichnung: "Sanitär",
+                raumgruppe: "Sanitär",
+                flaeche_m2: 40,
+                leistungswert_m2_h: 60,
+                reinigungen_pro_woche: 5,
+              },
+            ],
+            reinigungswochen_pro_jahr: 52,
+            ausfalltage_pro_jahr: 11,
+            stundenlohn_eur: 12.5,
+            lohnnebenkosten_prozent: 80,
+            gemeinkosten_prozent: 15,
+            wagnis_gewinn_prozent: 8,
+            material_eur_pro_monat: 45,
+            ust_prozent: 20,
+            hoechstwerte: [{ raumgruppe: "Büro", max_m2_h: 180 }],
+          }),
+        ],
+        "tool_use",
+      );
+    }
+    if (/^offene meldungen/i.test(text.trim()) && hasTool("meldungen_abfragen")) {
+      return void streamMessage(
+        res,
+        request.model,
+        [toolUse("meldungen_abfragen", { status: "offen", tage: 30, objekt: "" })],
         "tool_use",
       );
     }

@@ -1,4 +1,6 @@
-import { conflict, notFound, SUPPORT_PERMISSIONS, validationError } from "@nexus/core";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { conflict, isUuid, notFound, SUPPORT_PERMISSIONS, validationError } from "@nexus/core";
+import { getEnv } from "@nexus/core/env";
 import {
   and,
   desc,
@@ -15,6 +17,34 @@ import type { TenantAccess } from "./access";
 import { appendAudit } from "./audit";
 
 export const SUPPORT_DURATIONS_HOURS = [1, 4, 24, 72] as const;
+
+/* -------------------------------------------------------------- session cookie */
+
+function cookieKey(): Buffer {
+  const secret = getEnv().BETTER_AUTH_SECRET ?? "development-secret-change-me-0000000000";
+  return createHmac("sha256", secret).update("nexus:support-session").digest();
+}
+
+const cookieSignature = (userId: string, tenantId: string) =>
+  createHmac("sha256", cookieKey()).update(`${userId}:${tenantId}`).digest();
+
+/**
+ * Value of the support-session cookie: the tenant plus an HMAC bound to the person. Only the
+ * start action (which writes the audit entry) can create it, so a hand-made cookie does not
+ * open a support session without a trace.
+ */
+export function signSupportCookie(userId: string, tenantId: string): string {
+  return `${tenantId}.${cookieSignature(userId, tenantId).toString("base64url")}`;
+}
+
+/** The tenant of a valid support cookie for this person, otherwise null. */
+export function verifySupportCookie(value: string | undefined, userId: string): string | null {
+  const [tenantId, signature, ...rest] = (value ?? "").split(".");
+  if (!tenantId || !signature || rest.length > 0 || !isUuid(tenantId)) return null;
+  const given = Buffer.from(signature, "base64url");
+  const expected = cookieSignature(userId, tenantId);
+  return given.length === expected.length && timingSafeEqual(given, expected) ? tenantId : null;
+}
 
 /**
  * The tenant grants its partner time-limited access (M12). Only one grant is active at a time;

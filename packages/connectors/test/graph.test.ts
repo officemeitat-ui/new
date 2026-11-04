@@ -12,25 +12,25 @@ import {
   syncDevice,
   type ManagedDevice,
 } from "../src";
-import {
-  MOCK_DIRECTORY_TENANT_ID,
-  startMockMicrosoft,
-  type MockMicrosoft,
-} from "../src/testing/mock-microsoft";
+import { startMockMicrosoft, type MockMicrosoft } from "../src/testing/mock-microsoft";
 
 let mock: MockMicrosoft;
 const client = (overrides: Partial<ConstructorParameters<typeof GraphClient>[0]> = {}) =>
   new GraphClient({
     clientId: "app",
     clientSecret: "geheim",
-    directoryTenantId: MOCK_DIRECTORY_TENANT_ID,
+    directoryTenantId: mock.directoryId,
     loginUrl: mock.loginUrl,
     graphUrl: mock.graphUrl,
     ...overrides,
   });
 
 beforeAll(async () => {
-  mock = await startMockMicrosoft({ clientSecret: "geheim", pageSize: 3 });
+  mock = await startMockMicrosoft({
+    directoryId: "a2000000-0000-4000-8000-000000000004",
+    clientSecret: "geheim",
+    pageSize: 3,
+  });
 });
 afterAll(() => mock.close());
 beforeEach(() => {
@@ -75,7 +75,10 @@ describe("GraphClient", () => {
     });
     await expect(
       getManagedDevice(client(), "a1f0c2d4-0000-4000-8000-0000000000ff"),
-    ).rejects.toMatchObject({ status: 404, message: "Das Gerät wurde in Intune nicht gefunden." });
+    ).rejects.toMatchObject({
+      status: 404,
+      message: "Der Eintrag wurde in Microsoft 365 nicht gefunden.",
+    });
     expect(() => client({ directoryTenantId: "evil.example" })).toThrow(GraphError);
   });
 

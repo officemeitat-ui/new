@@ -14,7 +14,8 @@ test("the start page shows real figures after the agents worked", async ({ page 
   const figures = page.getByRole("region", { name: "Kennzahlen" });
   await expect(figures.getByText("Agentenläufe heute")).toBeVisible();
   await expect(figures.getByText(/\d+ abgeschlossen/)).toBeVisible();
-  await expect(figures.getByText(/≈ €\s\d+ bei €\s45\/Std\./)).toBeVisible();
+  // Grows with every test run, so thousands separators appear ("€ 1.102").
+  await expect(figures.getByText(/≈ €\s\d{1,3}(?:\.\d{3})* bei €\s45\/Std\./)).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Agentenläufe der letzten 7 Tage" }),
   ).toBeVisible();

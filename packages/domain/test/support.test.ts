@@ -15,6 +15,8 @@ import {
   listActiveSupportGrants,
   recordSupportSession,
   revokeSupportAccess,
+  signSupportCookie,
+  verifySupportCookie,
 } from "../src/support";
 import { createPartnerWithTenant } from "./fixtures";
 
@@ -90,6 +92,18 @@ describe("support access", () => {
         tenantId: other.tenant.id,
       }),
     ).toBeNull();
+  });
+
+  it("only accepts a support cookie written by the start action for this person", () => {
+    const value = signSupportCookie(fx.staff.id, fx.tenant.id);
+    expect(verifySupportCookie(value, fx.staff.id)).toBe(fx.tenant.id);
+    // A hand-made cookie (just the tenant ID) or another person's cookie opens nothing.
+    expect(verifySupportCookie(fx.tenant.id, fx.staff.id)).toBeNull();
+    expect(verifySupportCookie(value, fx.owner.id)).toBeNull();
+    const [, signature] = value.split(".");
+    expect(verifySupportCookie(`${other.tenant.id}.${signature}`, fx.staff.id)).toBeNull();
+    expect(verifySupportCookie(`${value}.x`, fx.staff.id)).toBeNull();
+    expect(verifySupportCookie(undefined, fx.staff.id)).toBeNull();
   });
 
   it("rejects durations outside the offered options", async () => {

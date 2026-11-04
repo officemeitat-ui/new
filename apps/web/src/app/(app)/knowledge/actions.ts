@@ -4,7 +4,12 @@ import { isAppError, isUuid, validationError } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
 import {
   addDocument,
+  connectSharePointLibrary,
   createCollection,
+  disconnectKnowledgeSource,
+  findSharePointLibraries,
+  findSharePointSites,
+  getKnowledgeSource,
   deleteCollection,
   deleteDocument,
   requirePermission,
@@ -14,7 +19,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { runAction, type ActionResult } from "@/lib/actions";
-import { enqueueKnowledgeIngest } from "@/lib/queue";
+import { enqueueKnowledgeIngest, enqueueKnowledgeSync } from "@/lib/queue";
 import { requireTenant } from "@/lib/session";
 
 const MAX_FILES_PER_UPLOAD = 10;
@@ -143,5 +148,99 @@ export async function searchKnowledgeAction(
       }),
     );
     return { data: hits };
+  });
+}
+
+/* ------------------------------------------------------------- SharePoint */
+
+export async function searchSharePointSitesAction(
+  query: string,
+): Promise<ActionResult<{ id: string; name: string; webUrl: string }[]>> {
+  return runAction("searchSharePointSites", async () => {
+    const ctx = await managerContext();
+    return {
+      data: await findSharePointSites(getDatabase().db, ctx.tenant.tenantId, query.slice(0, 100)),
+    };
+  });
+}
+
+export async function listSharePointLibrariesAction(
+  siteId: string,
+): Promise<ActionResult<{ id: string; name: string; webUrl: string }[]>> {
+  return runAction("listSharePointLibraries", async () => {
+    const ctx = await managerContext();
+    return { data: await findSharePointLibraries(getDatabase().db, ctx.tenant.tenantId, siteId) };
+  });
+}
+
+/**
+ * Connects a library chosen in the wizard. Site and library are looked up again on the server,
+ * so the browser cannot connect something the tenant's Microsoft 365 does not have.
+ */
+export async function connectSharePointAction(input: {
+  collectionId: string;
+  siteId: string;
+  /** Display only; the site itself is verified through its libraries. */
+  siteName: string;
+  siteUrl: string;
+  libraryId: string;
+}): Promise<ActionResult> {
+  return runAction("connectSharePoint", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(input.collectionId)) throw validationError("Ungültige Sammlung.");
+    const db = getDatabase().db;
+    const tenantId = ctx.tenant.tenantId;
+    const libraries = await findSharePointLibraries(db, tenantId, input.siteId);
+    const library = libraries.find((l) => l.id === input.libraryId);
+    if (!library) throw validationError("Die Bibliothek wurde nicht gefunden.");
+    const site = {
+      id: input.siteId,
+      name: input.siteName.trim().slice(0, 200) || library.name,
+      webUrl: /^https:\/\//.test(input.siteUrl) ? input.siteUrl.slice(0, 500) : "",
+    };
+    const source = await withTenant(db, tenantId, (tx) =>
+      connectSharePointLibrary(tx, {
+        tenantId,
+        collectionId: input.collectionId,
+        site,
+        library,
+        actorId: ctx.user.id,
+      }),
+    );
+    await enqueueKnowledgeSync({ sourceId: source.id, tenantId });
+    revalidatePath(`/knowledge/${input.collectionId}`);
+    return {
+      message: "Verbunden. Der erste Abgleich läuft im Hintergrund – Sie können weiterarbeiten.",
+    };
+  });
+}
+
+export async function syncSharePointAction(collectionId: string): Promise<ActionResult> {
+  return runAction("syncSharePoint", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
+    const source = await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
+      getKnowledgeSource(tx, ctx.tenant.tenantId, collectionId),
+    );
+    if (!source) throw validationError("Keine SharePoint-Verbindung vorhanden.");
+    await enqueueKnowledgeSync({ sourceId: source.id, tenantId: ctx.tenant.tenantId });
+    revalidatePath(`/knowledge/${collectionId}`);
+    return { message: "Abgleich gestartet." };
+  });
+}
+
+export async function disconnectSharePointAction(collectionId: string): Promise<ActionResult> {
+  return runAction("disconnectSharePoint", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
+    await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
+      disconnectKnowledgeSource(tx, {
+        tenantId: ctx.tenant.tenantId,
+        collectionId,
+        actorId: ctx.user.id,
+      }),
+    );
+    revalidatePath(`/knowledge/${collectionId}`);
+    return { message: "Die Verbindung ist getrennt; Dokumente aus SharePoint wurden entfernt." };
   });
 }

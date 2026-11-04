@@ -113,6 +113,48 @@
       "when": 1793772146706,
       "tag": "0015_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793799088318,
+      "tag": "0016_knowledge_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793799089272,
+      "tag": "0017_rls_knowledge_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793799616750,
+      "tag": "0018_integrations_directory_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793800114629,
+      "tag": "0019_run_heartbeat",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793800827707,
+      "tag": "0020_facilities",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793800828656,
+      "tag": "0021_rls_facilities",
+      "breakpoints": true
     }
   ]
 }

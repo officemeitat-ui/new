@@ -11,6 +11,7 @@
     "agents": "Agenten",
     "workflows": "Workflows",
     "approvals": "Freigaben",
+    "reports": "Meldungen",
     "knowledge": "Wissen",
     "devices": "Geräte",
     "integrations": "Integrationen",
@@ -225,7 +226,12 @@
         "privacy_retention_applied": "Abgelaufene Daten gelöscht",
         "privacy_person_erased": "Personendaten gelöscht",
         "privacy_account_deleted": "Benutzerkonto gelöscht",
-        "privacy_data_exported": "Datenauskunft erstellt"
+        "privacy_data_exported": "Datenauskunft erstellt",
+        "knowledge_source_connected": "SharePoint-Bibliothek verbunden",
+        "knowledge_source_disconnected": "SharePoint-Bibliothek getrennt",
+        "facility_created": "Objekt angelegt",
+        "facility_activated": "Objekt aktiviert",
+        "facility_deactivated": "Objekt deaktiviert"
       },
       "actors": {
         "user": "Benutzer",
@@ -377,7 +383,8 @@
         "refusal": "abgelehnt",
         "pause_turn": "pausiert",
         "stop_sequence": "Stoppsequenz"
-      }
+      },
+      "loadFailed": "Die Details konnten nicht geladen werden. Bitte versuchen Sie es erneut."
     },
     "agentLabel": "Agent:",
     "withAgent": "Gespräch mit {name}",
@@ -444,7 +451,8 @@
       "handel": "Handel & E-Commerce",
       "agenturen": "Agenturen",
       "industrie": "Industrie",
-      "it": "IT-Betreuung"
+      "it": "IT-Betreuung",
+      "gebaeudereinigung": "Gebäudereinigung"
     },
     "saves": "spart ca. {minutes} Min. {unit}",
     "needs": "Volle Wirkung mit: {list}",
@@ -551,6 +559,14 @@
     "geraet_sperren": {
       "label": "Gerät sperren (Intune)",
       "description": "Sperrt ein Gerät aus der Ferne, z. B. bei Verlust."
+    },
+    "reinigung_kalkulieren": {
+      "label": "Reinigung kalkulieren",
+      "description": "Rechnet Stunden, Verrechnungssatz und Monatspreis aus Flächen, Leistungswerten und Ihren Zuschlägen – prüft Höchstwerte."
+    },
+    "meldungen_abfragen": {
+      "label": "Meldungen abfragen",
+      "description": "Liest die Mängelmeldungen aus den QR-Codes Ihrer Objekte (ohne E-Mail-Adressen der Meldenden)."
     }
   },
   "integrations": {
@@ -665,12 +681,13 @@
     "page": "Seite {page}",
     "dropHint": "Dateien hierher ziehen oder",
     "chooseFiles": "Dateien auswählen",
-    "noFiles": "Keine Datei ausgewählt"
+    "noFiles": "Keine Datei ausgewählt",
+    "openInSharePoint": "In SharePoint öffnen"
   },
   "integrationsPage": {
     "title": "Integrationen",
     "subtitle": "Verbinden Sie Ihre Systeme, damit Agenten dort nachsehen und – mit Ihrer Freigabe – handeln können.",
-    "microsoftDescription": "Geräteverwaltung mit Microsoft Intune: Laptops, PCs und Handys überblicken, synchronisieren, neu starten und bei Verlust sperren.",
+    "microsoftDescription": "Geräteverwaltung mit Microsoft Intune und Dokumente aus SharePoint: Laptops, PCs und Handys überblicken, synchronisieren, neu starten und bei Verlust sperren; Bibliotheken in die Wissensdatenbank übernehmen.",
     "statusConnected": "Verbunden",
     "statusError": "Fehler",
     "statusNotConnected": "Nicht verbunden",
@@ -697,8 +714,10 @@
       "sitzung": "Die Rückmeldung von Microsoft passte nicht zu Ihrer Sitzung. Bitte starten Sie die Verbindung erneut.",
       "zugriff": "Microsoft 365 hat den Zugriff nicht bestätigt. Prüfen Sie die Zustimmung und die Intune-Lizenz und versuchen Sie es erneut.",
       "berechtigung": "Integrationen verwalten Owner und Admins.",
-      "nicht_eingerichtet": "Die Microsoft-365-Anbindung ist auf dieser Plattform noch nicht eingerichtet."
-    }
+      "nicht_eingerichtet": "Die Microsoft-365-Anbindung ist auf dieser Plattform noch nicht eingerichtet.",
+      "vergeben": "Dieses Microsoft-365-Konto ist bereits mit einer anderen Firma verbunden. Bitte wenden Sie sich an ME-IT."
+    },
+    "permissionSharePoint": "Dokumente aus SharePoint lesen (für die Wissensdatenbank)"
   },
   "devices": {
     "title": "Geräte",
@@ -743,7 +762,9 @@
     "confirm": {
       "restart": "„{name}“ jetzt neu starten? Ungespeicherte Arbeit geht verloren.",
       "lock": "„{name}“ jetzt sperren? Die Person muss sich danach neu anmelden."
-    }
+    },
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Die Geräteübersicht sehen Owner und Admins."
   },
   "privacy": {
     "forbiddenTitle": "Keine Berechtigung",
@@ -816,5 +837,112 @@
     "loggingKeep": "Jeder Lauf wird mit allen Schritten protokolliert (Trace im Chat) und bis zur manuellen Löschung aufbewahrt.",
     "risks": "Risiken und Maßnahmen",
     "footer": "Erstellt aus der veröffentlichten Konfiguration; ändert sich der Agent, ändert sich dieser Steckbrief mit. Kein Hochrisiko-Einsatz nach Anhang III der KI-Verordnung vorgesehen – andernfalls bitte vor Einsatz prüfen lassen."
+  },
+  "sharepoint": {
+    "title": "SharePoint-Abgleich",
+    "description": "Dokumente einer SharePoint-Bibliothek automatisch übernehmen. Der Abgleich läuft im Hintergrund, stündlich und auf Knopfdruck – nach dem ersten Mal werden nur Änderungen geladen.",
+    "statusIdle": "Aktuell",
+    "statusSyncing": "Abgleich läuft",
+    "statusError": "Fehler",
+    "statusStale": "Abgleich hängt",
+    "progress": "{seen} Einträge geprüft, {imported} übernommen …",
+    "lastSync": "Zuletzt abgeglichen {when}: {imported} neu oder geändert, {skipped} übersprungen.",
+    "neverSynced": "Der erste Abgleich startet in Kürze.",
+    "hint": "Übernommen werden PDF, Word (.docx), Markdown und Text bis 10 MB. In SharePoint gelöschte Dateien werden auch hier entfernt.",
+    "syncNow": "Jetzt abgleichen",
+    "disconnect": "Trennen",
+    "confirmDisconnect": "SharePoint-Verbindung trennen? Die aus SharePoint übernommenen Dokumente werden aus dieser Sammlung entfernt, hochgeladene bleiben.",
+    "needsMicrosoft": "Für den Abgleich muss zuerst Microsoft 365 verbunden sein.",
+    "toIntegrations": "Zu den Integrationen",
+    "notConnected": "Diese Sammlung ist nicht mit SharePoint verbunden.",
+    "connect": "Mit SharePoint verbinden",
+    "siteSearch": "SharePoint-Website suchen",
+    "siteSearchPlaceholder": "z. B. Team, Objekte, Verwaltung",
+    "searchSites": "Suchen",
+    "noSites": "Keine Website gefunden. Versuchen Sie einen anderen Begriff.",
+    "sitesLabel": "Gefundene Websites",
+    "chooseSite": "Auswählen",
+    "librariesLabel": "Dokumentbibliotheken",
+    "connectLibrary": "Verbinden"
+  },
+  "report": {
+    "title": "Mangel melden: {facility}",
+    "intro": "Etwas ist nicht in Ordnung? Sagen Sie uns kurz Bescheid – wir kümmern uns darum.",
+    "category": "Was ist los?",
+    "categories": {
+      "verschmutzung": "Verschmutzung",
+      "nachfuellen": "Nachfüllen (Seife, Papier …)",
+      "schaden": "Schaden oder Defekt",
+      "sonstiges": "Sonstiges"
+    },
+    "location": "Wo genau? (optional)",
+    "locationPlaceholder": "z. B. WC Damen, 2. Stock",
+    "description": "Beschreibung",
+    "email": "E-Mail für eine Rückmeldung (optional)",
+    "emailHint": "Nur wenn Sie erfahren möchten, wann es erledigt ist.",
+    "submit": "Meldung senden",
+    "thanks": "Danke! Ihre Meldung ist angekommen und wird bearbeitet.",
+    "privacy": "Wir speichern Ihre Meldung und – falls angegeben – Ihre E-Mail-Adresse nur zur Bearbeitung und löschen sie nach Erledigung gemäß unseren Fristen.",
+    "invalidTitle": "Dieser QR-Code ist nicht mehr gültig",
+    "invalidDescription": "Bitte wenden Sie sich direkt an die Objektleitung."
+  },
+  "reports": {
+    "title": "Meldungen",
+    "subtitle": "Mängel, die Kunden, Besucher und Personal über die QR-Codes Ihrer Objekte melden.",
+    "manageObjects": "Objekte & QR-Codes",
+    "filterLabel": "Filter",
+    "filters": {
+      "unresolved": "Unerledigt",
+      "open": "Offen",
+      "in_progress": "In Arbeit",
+      "done": "Erledigt",
+      "all": "Alle"
+    },
+    "status": {
+      "open": "Offen",
+      "in_progress": "In Arbeit",
+      "done": "Erledigt"
+    },
+    "categories": {
+      "verschmutzung": "Verschmutzung",
+      "nachfuellen": "Nachfüllen (Seife, Papier …)",
+      "schaden": "Schaden oder Defekt",
+      "sonstiges": "Sonstiges"
+    },
+    "emptyTitle": "Keine Meldungen",
+    "emptyDescription": "Hier erscheinen Meldungen, sobald jemand einen QR-Code scannt.",
+    "withEmail": "Rückmeldung gewünscht",
+    "resolved": "erledigt von {name} · {date}",
+    "start": "In Arbeit",
+    "done": "Erledigt",
+    "notePrompt": "Kurze Notiz zur Erledigung (optional) – sie geht an die meldende Person, falls eine E-Mail angegeben wurde:",
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Ihre Rolle hat keinen Zugriff auf Meldungen."
+  },
+  "facilities": {
+    "back": "Zu den Meldungen",
+    "title": "Objekte & QR-Codes",
+    "subtitle": "Jedes Objekt bekommt einen QR-Aushang. Wer scannt, kann ohne Anmeldung einen Mangel melden.",
+    "newTitle": "Objekt anlegen",
+    "newDescription": "Die Objektleitung bekommt jede neue Meldung per E-Mail.",
+    "name": "Name des Objekts",
+    "namePlaceholder": "z. B. Bürohaus Ring 12",
+    "address": "Adresse (optional)",
+    "contact": "E-Mail der Objektleitung",
+    "create": "Objekt anlegen",
+    "inactive": "deaktiviert",
+    "open": "{count} offen",
+    "notifies": "Meldungen an {email}",
+    "noContact": "keine Benachrichtigung",
+    "poster": "QR-Aushang",
+    "deactivate": "Deaktivieren",
+    "activate": "Aktivieren",
+    "backToObjects": "Zu den Objekten",
+    "print": "Drucken / als PDF",
+    "posterHeadline": "Etwas nicht in Ordnung?",
+    "posterText": "QR-Code scannen und kurz melden – wir kümmern uns darum.",
+    "posterNoLogin": "Ohne Anmeldung, in einer Minute.",
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Objekte verwalten Owner und Admins."
   }
 }

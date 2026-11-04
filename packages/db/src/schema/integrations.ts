@@ -29,5 +29,9 @@ export const integrations = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("integrations_tenant_provider_uq").on(t.tenantId, t.provider)],
+  (t) => [
+    uniqueIndex("integrations_tenant_provider_uq").on(t.tenantId, t.provider),
+    // One Microsoft directory belongs to one company (security review, finding 1).
+    uniqueIndex("integrations_provider_external_uq").on(t.provider, t.externalTenantId),
+  ],
 );

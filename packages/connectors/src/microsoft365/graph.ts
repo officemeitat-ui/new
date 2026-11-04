@@ -44,6 +44,20 @@ export function clearGraphTokenCache() {
 
 const MAX_RETRIES = 3;
 const MAX_WAIT_MS = 30_000;
+/** No call may hang a page or a job: Graph answers within seconds when it is healthy. */
+const REQUEST_TIMEOUT_MS = 20_000;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+
+function timeoutError(): GraphError {
+  return new GraphError(
+    504,
+    "timeout",
+    "Microsoft 365 antwortet gerade nicht. Bitte versuchen Sie es später erneut.",
+  );
+}
+
+const isTimeout = (error: unknown) =>
+  error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 
 export class GraphClient {
   private readonly fetch: typeof fetch;
@@ -69,6 +83,7 @@ export class GraphClient {
     const url = `${this.config.loginUrl.replace(/\/+$/, "")}/${this.config.directoryTenantId}/oauth2/v2.0/token`;
     const response = await this.fetch(url, {
       method: "POST",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: this.config.clientId,
@@ -76,6 +91,8 @@ export class GraphClient {
         scope: "https://graph.microsoft.com/.default",
         grant_type: "client_credentials",
       }),
+    }).catch((error: unknown) => {
+      throw isTimeout(error) ? timeoutError() : error;
     });
     const body = (await response.json().catch(() => ({}))) as {
       access_token?: string;
@@ -107,23 +124,35 @@ export class GraphClient {
     for (let attempt = 0; ; attempt++) {
       const response = await this.fetch(url, {
         method,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         headers: {
           authorization: `Bearer ${await this.token()}`,
           accept: "application/json",
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      }).catch((error: unknown) => {
+        throw isTimeout(error) ? timeoutError() : error;
       });
       if ((response.status === 429 || response.status === 503) && attempt < MAX_RETRIES) {
+        await response.body?.cancel().catch(() => undefined); // free the connection
         const seconds = Number(response.headers.get("retry-after"));
         const wait = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 2 ** attempt * 1000;
         await this.sleep(Math.min(wait, MAX_WAIT_MS));
         continue;
       }
       if (response.status === 204) return undefined as T;
-      const json = (await response.json().catch(() => ({}))) as {
-        error?: { code?: string; message?: string };
-      };
+      let json: { error?: { code?: string; message?: string } };
+      try {
+        json = (await response.json()) as typeof json;
+      } catch (error) {
+        // A broken or timed-out body of a successful response is an error, not "no data".
+        if (response.ok)
+          throw isTimeout(error)
+            ? timeoutError()
+            : new GraphError(502, "bad_response", graphMessage(502));
+        json = {};
+      }
       if (!response.ok) {
         throw new GraphError(
           response.status,
@@ -133,6 +162,57 @@ export class GraphClient {
       }
       return json as T;
     }
+  }
+
+  /**
+   * Downloads file content from a pre-authenticated URL (driveItem `@microsoft.graph.downloadUrl`,
+   * https://learn.microsoft.com/graph/api/driveitem-get-content). No token is sent: the URL
+   * carries its own short-lived authorisation. Stops at `maxBytes`.
+   */
+  async download(url: string, maxBytes: number): Promise<Uint8Array> {
+    const parsed = new URL(url);
+    const graph = new URL(this.graphBase);
+    // Only https in production; http is accepted only when Graph itself is http (tests).
+    if (parsed.protocol !== "https:" && parsed.protocol !== graph.protocol) {
+      throw new GraphError(400, "foreign_url", "Unerwartete Download-Adresse.");
+    }
+    const response = await this.fetch(url, {
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    }).catch((error: unknown) => {
+      throw isTimeout(error) ? timeoutError() : error;
+    });
+    if (!response.ok || !response.body) {
+      throw new GraphError(
+        response.status,
+        `http_${response.status}`,
+        graphMessage(response.status),
+      );
+    }
+    const declared = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      await response.body.cancel();
+      throw new GraphError(413, "too_large", "Die Datei ist zu groß.");
+    }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const reader = response.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new GraphError(413, "too_large", "Die Datei ist zu groß.");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
   }
 
   /** Follows @odata.nextLink until `limit` items are collected. */
@@ -153,7 +233,8 @@ function graphMessage(status: number): string {
   if (status === 401 || status === 403) {
     return "Microsoft 365 verweigert den Zugriff. Bitte prüfen Sie die Zustimmung des Administrators und die Intune-Lizenz.";
   }
-  if (status === 404) return "Das Gerät wurde in Intune nicht gefunden.";
+  if (status === 404) return "Der Eintrag wurde in Microsoft 365 nicht gefunden.";
+  if (status === 410) return "Der Abgleich muss neu beginnen.";
   if (status === 429)
     return "Microsoft 365 drosselt gerade die Anfragen. Bitte versuchen Sie es gleich erneut.";
   return "Microsoft 365 ist gerade nicht erreichbar. Bitte versuchen Sie es später erneut.";

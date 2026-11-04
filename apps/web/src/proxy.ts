@@ -1,8 +1,8 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
-/** Pages and endpoints reachable without a session. */
-const PUBLIC = /^\/(login|invite|no-access|api\/auth|api\/health)(\/|$)/;
+/** Pages and endpoints reachable without a session (/m/<token>: QR defect reports). */
+const PUBLIC = /^\/(login|invite|no-access|m|api\/auth|api\/health)(\/|$)/;
 
 /**
  * Content Security Policy with a fresh nonce per request (Next.js guide "Content Security

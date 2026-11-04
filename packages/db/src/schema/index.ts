@@ -3,6 +3,7 @@
 export * from "./agents";
 export * from "./audit";
 export * from "./auth";
+export * from "./facilities";
 export * from "./integrations";
 export * from "./knowledge";
 export * from "./pricing";

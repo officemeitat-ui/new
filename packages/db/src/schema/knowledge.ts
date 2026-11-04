@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { customType, index, integer, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  type AnyPgColumn,
+  customType,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./_columns";
 import { authUser } from "./auth";
 import { tenants } from "./tenancy";
@@ -13,6 +23,7 @@ const tsvector = customType<{ data: string }>({
 });
 
 export type KnowledgeDocumentStatus = "processing" | "ready" | "failed";
+export type KnowledgeSourceStatus = "idle" | "syncing" | "error";
 
 /** A folder of documents (M5). Agents are given collections, not single documents. */
 export const knowledgeCollections = pgTable(
@@ -52,11 +63,18 @@ export const knowledgeDocuments = pgTable(
     pageCount: integer(),
     chunkCount: integer().notNull().default(0),
     createdBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
+    /** Set for documents that come from a synced source (SharePoint). */
+    sourceId: uuid().references((): AnyPgColumn => knowledgeSources.id, { onDelete: "cascade" }),
+    /** SharePoint driveItem id and content tag (cTag) – unchanged files are skipped. */
+    sourceItemId: text(),
+    sourceVersion: text(),
+    sourceUrl: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     uniqueIndex("knowledge_documents_collection_sha_uq").on(t.collectionId, t.sha256),
+    uniqueIndex("knowledge_documents_source_item_uq").on(t.sourceId, t.sourceItemId),
     index("knowledge_documents_tenant_collection_idx").on(t.tenantId, t.collectionId),
   ],
 );
@@ -103,5 +121,44 @@ export const knowledgeChunks = pgTable(
     uniqueIndex("knowledge_chunks_document_seq_uq").on(t.documentId, t.seq),
     index("knowledge_chunks_tsv_idx").using("gin", t.tsv),
     index("knowledge_chunks_tenant_collection_idx").on(t.tenantId, t.collectionId),
+  ],
+);
+
+/**
+ * A SharePoint document library synced into a collection (M5/M6). The delta link makes every
+ * sync after the first one incremental (only changes). One source per collection.
+ */
+export const knowledgeSources = pgTable(
+  "knowledge_sources",
+  {
+    id: id(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    collectionId: uuid()
+      .notNull()
+      .references(() => knowledgeCollections.id, { onDelete: "cascade" }),
+    provider: text().$type<"sharepoint">().notNull().default("sharepoint"),
+    siteId: text().notNull(),
+    siteName: text().notNull(),
+    siteUrl: text(),
+    driveId: text().notNull(),
+    driveName: text().notNull(),
+    deltaLink: text(),
+    status: text().$type<KnowledgeSourceStatus>().notNull().default("idle"),
+    syncStartedAt: timestamp({ withTimezone: true }),
+    lastSyncAt: timestamp({ withTimezone: true }),
+    lastError: text(),
+    /** Progress of the current or last sync. */
+    itemsSeen: integer().notNull().default(0),
+    itemsImported: integer().notNull().default(0),
+    itemsSkipped: integer().notNull().default(0),
+    createdBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("knowledge_sources_collection_uq").on(t.collectionId),
+    index("knowledge_sources_tenant_idx").on(t.tenantId),
   ],
 );

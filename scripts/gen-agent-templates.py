@@ -17,10 +17,14 @@ META = {
   10: ("leads", "balanced", "medium", ["email_senden:approve"], ["crm", "web"]),
   11: ("it-support", "balanced", "medium", ["wissen_suchen:auto", "geraete_suchen:auto", "geraet_details:auto", "geraet_synchronisieren:auto", "geraet_neu_starten:approve", "geraet_sperren:approve"], ["mdm", "tickets", "monitoring"]),
   12: ("chef-assistent", "smart", "medium", ["aktuelle_zeit:auto"], ["email", "calendar", "tasks", "delegation"]),
+  13: ("reinigung-kalkulation", "smart", "medium", ["reinigung_kalkulieren:auto", "wissen_suchen:auto", "email_senden:approve"], ["documents"]),
+  14: ("reklamationen", "balanced", "low", ["meldungen_abfragen:auto", "wissen_suchen:auto", "email_senden:approve"], ["email"]),
+  15: ("ausschreibungen", "smart", "high", ["wissen_suchen:auto", "reinigung_kalkulieren:auto", "aktuelle_zeit:auto"], ["documents"]),
 }
 INDUSTRIES = {
   "handwerk": [1, 2, 3, 4, 6, 12], "steuerberatung": [1, 5, 7, 8, 9], "immobilien": [1, 3, 4, 7, 9],
   "handel": [1, 3, 5, 10], "agenturen": [2, 7, 10, 12], "industrie": [2, 5, 8, 9, 11], "it": [11],
+  "gebaeudereinigung": [1, 4, 8, 13, 14, 15],
 }
 
 # ROI from the summary table: "| 1   | Posteingangs-Manager | Ausgewogen / low | 4 Min. pro E-Mail |"
@@ -62,7 +66,7 @@ for i in range(1, len(sections), 3):
         "testCases": test_cases,
     })
 
-assert len(templates) == 12, len(templates)
+assert len(templates) == 15, len(templates)
 body = json.dumps(templates, ensure_ascii=False, indent=2)
 open(out, "w", encoding="utf-8").write(f'''// GENERATED from prompts/02_AGENTEN_BIBLIOTHEK.md – do not edit by hand.
 // Regenerate: python3 scripts/gen-agent-templates.py
