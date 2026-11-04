@@ -11,4 +11,5 @@ export function fileSafe(text) {
     .replace(/[\\/:*?"<>|]/g, '')
     .replace(/\s+/g, '_')
     .replace(/[^\w.-]/g, '')
+    .replace(/_{2,}/g, '_') // „Wetter & Winterdienst“ → Wetter_Winterdienst, nicht Wetter__Winterdienst
 }

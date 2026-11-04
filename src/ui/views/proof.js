@@ -80,13 +80,14 @@ function proofView() {
     })
     .join('')
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
+  const dis = app.readOnly ? 'disabled' : '' // Einstellungen gelten für alle: nur mit Schreibrecht
   return `<div class="section-head"><div><h2>Leistungsnachweis</h2><p>Für Kunden: was im Objekt im Monat geleistet wurde, mit den Zeiten aus der Zeiterfassung im Objekt und dem Winterdienst-Protokoll. PDF je Objekt oder alle als ZIP, Versand per E-Mail.</p></div>
       <div class="actions"><button class="btn" data-action="proof-zip" ${list.length ? '' : 'disabled'}>${ICON.download} Alle als ZIP</button>${canMail() ? `<button class="btn primary" data-action="proof-mail-all" ${withMail.length ? '' : 'disabled'} title="an alle Objekte mit E-Mail-Adresse">${ICON.send} Alle mit E-Mail senden (${withMail.length})</button>` : ''}</div></div>
     <div class="filters">
       <label class="field inline"><span>Monat</span><input type="month" id="proof-month" value="${month()}" data-change="proof-month"></label>
-      <label class="field inline"><span>Namen</span><select id="proof-names" data-change="proof-settings">${options(Object.entries(NAME_MODES), s.names)}</select></label>
-      <label class="check"><input type="checkbox" id="proof-times" ${s.times ? 'checked' : ''} data-change="proof-settings"><span>erfasste Zeiten</span></label>
-      <label class="check"><input type="checkbox" id="proof-sign" ${s.signature ? 'checked' : ''} data-change="proof-settings"><span>Feld für Unterschrift</span></label>
+      <label class="field inline"><span>Namen</span><select id="proof-names" data-change="proof-settings" ${dis}>${options(Object.entries(NAME_MODES), s.names)}</select></label>
+      <label class="check"><input type="checkbox" id="proof-times" ${s.times ? 'checked' : ''} data-change="proof-settings" ${dis}><span>erfasste Zeiten</span></label>
+      <label class="check"><input type="checkbox" id="proof-sign" ${s.signature ? 'checked' : ''} data-change="proof-settings" ${dis}><span>Feld für Unterschrift</span></label>
       <label class="field inline"><span>Suche</span><input type="search" id="proof-search" value="${esc(app.ui.proofSearch || '')}" data-input="proof-search" placeholder="Objekt"></label>
     </div>
     <div class="impact-stats tc-stats">${tile('Objekte', list.length)}${tile('mit E-Mail-Adresse', withMail.length)}${tile('versendet', `${sentCount} von ${list.length}`)}${tile('nicht besetzt', open, open ? 'err' : '')}</div>
@@ -175,6 +176,7 @@ registerActions({
     renderNow()
   },
   'proof-settings': () => {
+    if (app.readOnly) return // Nur lesen: gemeinsame Einstellungen nicht ändern
     Object.assign(doc().settings, { names: val('proof-names'), times: checked('proof-times'), signature: checked('proof-sign') })
     persist()
     renderNow()

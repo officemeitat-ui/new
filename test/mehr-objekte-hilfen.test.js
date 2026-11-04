@@ -200,6 +200,8 @@ const names = [
   ['Straße: Plan?*', 'Strasse_Plan'],
   ['  zwei   Leerzeichen ', '_zwei_Leerzeichen_'],
   ['Æsop Ørsted', 'Aesop_Orsted'],
+  ['Wetter & Winterdienst 2026', 'Wetter_Winterdienst_2026'],
+  ['Material – Lager', 'Material_Lager'],
 ]
 for (const [input, out] of names) test(`Dateiname ohne Sonderzeichen: „${input}“ → ${out}`, () => assert.equal(fileSafe(input), out))
 
