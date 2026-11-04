@@ -563,7 +563,10 @@ function registerServiceWorker() {
     .catch(() => {})
 }
 
-boot().catch((err) => {
+// Unsichtbares Fenster der Microsoft-Anmeldung (Token still erneuern): Die Anmeldung liest nur die
+// Adresse aus, die App muss darin nicht starten (sonst dauert es und läuft in eine Zeitüberschreitung)
+const inAuthFrame = window.self !== window.top && /(^|[#&?])(code|error|state)=/.test(`${location.hash}&${location.search}`)
+if (!inAuthFrame) boot().catch((err) => {
   // falsches Konto (Gast, anderer Tenant): abmelden und mit dem Firmenkonto neu anmelden
   if (err.signOut) {
     app.switchAccount = err.signOut
@@ -575,6 +578,17 @@ boot().catch((err) => {
     return showMessage(setupHtml(app.config || {}, err.redirectUri))
   }
   console.error(err)
+  // SharePoint verweigert (oft nach „Vererbung beenden“ ohne eigenes Konto/Gruppe): klar sagen, was zu tun ist
+  if (err.status === 403 || /access ?denied|accessdenied/i.test(err.message || '')) {
+    const sp = app.config?.sharepoint || {}
+    ACTIONS.reload = () => location.reload()
+    return showMessage(`<h2>Kein Zugriff auf die Daten in SharePoint</h2>
+      <p>SharePoint lässt dein Konto${app.user?.email ? ` (<b>${esc(app.user.email)}</b>)` : ''} nicht in den Ordner <b>${esc(sp.folder || 'Plattform')}</b> der Bibliothek <b>${esc(sp.library || 'Cleanos_Daten')}</b>. Die App kann deshalb nichts lesen oder speichern.</p>
+      <ol><li>In SharePoint die Bibliothek öffnen → Ordner <b>${esc(sp.folder || 'Plattform')}</b> → ⋯ → <b>Zugriff verwalten</b> → „Berechtigungen prüfen“ mit deinem Namen.</li>
+      <li>Steht dort nicht „Bearbeiten“: dein Konto oder die Büro-Gruppe mit <b>Bearbeiten</b> hinzufügen. Nach „Vererbung beenden“ fehlt das oft.</li>
+      <li>Danach hier „Erneut versuchen“.</li></ol>
+      <p class="note">Technisch: ${esc(err.message)}</p><p><button class="btn primary" data-action="reload">Erneut versuchen</button></p>`)
+  }
   if (err.offline) return showMessage(`<h2>Keine Verbindung</h2><p>${esc(err.message)}</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`) || (ACTIONS.reload = () => location.reload())
   showMessage(`<h2>Die App konnte nicht gestartet werden</h2><p>${esc(err.message)}</p><p class="note">Bei SharePoint-Fehlern: Einträge in config.json prüfen (tenantId, clientId, siteUrl, library) und ob dein Konto Zugriff auf die Website hat. Details in docs/EINRICHTUNG.md.</p><p><button class="btn" data-action="reload">Erneut versuchen</button></p>`)
   ACTIONS.reload = () => location.reload()
