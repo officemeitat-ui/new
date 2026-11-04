@@ -1645,8 +1645,10 @@ tr.muted td { color: var(--muted); }
 .home-icon svg { width: 22px; height: 22px; }
 .home-count { min-width: 24px; height: 22px; padding: 0 7px; border-radius: 11px; display: inline-grid; place-items: center; font-size: 0.78rem; font-weight: 700; background: var(--err-soft); color: var(--err); }
 @media (max-width: 700px) {
-  .home-hero { align-items: stretch; }
-  .home-hero-stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .home-hero { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px 14px; padding: 14px 16px; }
+  .home-hero-cleo .cleo { width: 92px; height: auto; }
+  .home-hero h2 { font-size: 1.35rem; }
+  .home-hero-stats { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .home-hero-stat { min-width: 0; }
 }
 
@@ -1765,10 +1767,10 @@ tr.muted td { color: var(--muted); }
 
 #help-root { position: fixed; right: 18px; bottom: 18px; z-index: 45; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
 #help-root > * { pointer-events: auto; }
-.cleo-fab { width: 68px; height: 68px; display: grid; place-items: center; padding: 2px 0 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 8px rgb(16 32 48 / 0.16); cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.cleo-fab { width: 74px; height: 74px; display: grid; place-items: center; padding: 2px 0 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); box-shadow: 0 2px 8px rgb(16 32 48 / 0.16); cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
 .cleo-fab:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgb(16 32 48 / 0.2); }
 .cleo-fab.open { border-color: var(--accent); }
-.cleo-fab .cleo { width: 52px; height: auto; }
+.cleo-fab .cleo { width: 60px; height: auto; margin-top: -4px; }
 .cleo-bubble { position: absolute; right: 76px; bottom: 22px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 12px 12px 2px 12px; background: var(--surface); color: var(--fg); font-size: 0.88rem; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); animation: look-in 0.3s ease-out; }
 .cleo-panel { width: min(400px, calc(100vw - 24px)); height: min(600px, calc(100dvh - 120px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); box-shadow: 0 12px 40px rgb(16 32 48 / 0.22); animation: look-in 0.16s ease-out; }
 .cleo-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line); }

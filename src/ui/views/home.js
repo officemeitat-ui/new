@@ -56,7 +56,7 @@ function hero(c, views, { name, todoCount, staffTotal }) {
   ].filter(Boolean)
   const role = app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''
   return `<section class="home-hero" aria-label="Begrüßung">
-    <button class="home-hero-cleo" data-action="help-open" title="Cleo fragen: Hilfe zu jeder Funktion" aria-label="Cleo fragen">${cleo({ mood: moodFor({ open: todoCount }), size: 84 })}</button>
+    <button class="home-hero-cleo" data-action="help-open" title="Cleo fragen: Hilfe zu jeder Funktion" aria-label="Cleo fragen">${cleo({ mood: moodFor({ open: todoCount }), size: 124, label: 'Cleo, der Sauberheld' })}</button>
     <div class="home-hero-text"><p class="home-hero-date">${esc(formatDate(today, { year: true }))} · KW ${week}${role}</p><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="home-hero-sub">${todoCount ? `${todoCount} ${todoCount === 1 ? 'Punkt wartet' : 'Punkte warten'} in deinen Bereichen.` : 'Alles erledigt – schönen Tag!'} <button class="link-btn" data-action="help-open">Frag Cleo</button>, wenn du etwas suchst.</p></div>
     ${stats.length ? `<div class="home-hero-stats">${stats.join('')}</div>` : ''}
   </section>`
