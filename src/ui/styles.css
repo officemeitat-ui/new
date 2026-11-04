@@ -1520,6 +1520,8 @@ tr.muted td { color: var(--muted); }
 .quick-wrap .menu .btn { display: flex; justify-content: space-between; gap: 12px; border-color: transparent; background: none; }
 .quick-wrap .menu .btn:hover, .quick-wrap .menu .btn:focus-visible { background: var(--surface-2); }
 .menu kbd, .quick-item kbd, .keys-table kbd { font: inherit; font-size: 0.72rem; padding: 0 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--muted); background: var(--surface-2); }
+/* Am Handy ohne Tastatur: Tastenkürzel nicht anzeigen */
+@media (hover: none) and (pointer: coarse) { .quick-item kbd, .menu .btn kbd { display: none; } }
 .muted-btn { color: var(--muted); }
 .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .quick-item { display: flex; justify-content: space-between; align-items: center; }

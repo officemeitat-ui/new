@@ -101,6 +101,8 @@ function moreModal(c) {
     ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
     quickItems().some((q) => q.id !== 'abwesenheit') && ['quick-open', `${ICON.plus} Neu anlegen …`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
+    // wie „⋯ → Diese Ansicht per E-Mail“ am PC (das „⋯“ gibt es am Handy nicht)
+    app.ui.view !== 'anleitung' && ['mail-view', `${ICON.send} Diese Ansicht per E-Mail`, ''],
   ].filter(Boolean)
   const visible = visibleViews()
   const pinned = pinnedViews(visible)

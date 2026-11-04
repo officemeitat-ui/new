@@ -2199,7 +2199,7 @@ Mit Vollzugriff öffnest du im Assistenten „Einstellungen“, trägst den API-
 
 Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per E-Mail. Es öffnet sich immer dasselbe Senden-Fenster: Empfänger (auch aus der Liste), Kopie, Betreff, Text und die Anhänge zum Prüfen. Mit Microsoft 365 geht die Mail aus deinem Postfach, sonst öffnet sich dein E-Mail-Programm.
 
-1. Rechts oben auf „⋯“ tippen, unter „E-Mail“ wählen: „Diese Ansicht per E-Mail“, „Aufgabe per E-Mail“ oder „Neue E-Mail“.
+1. Rechts oben auf „⋯“ tippen, unter „E-Mail“ wählen: „Diese Ansicht per E-Mail“, „Aufgabe per E-Mail“ oder „Neue E-Mail“ (am Handy unter „Mehr“: „Diese Ansicht per E-Mail“, Aufgaben unter „Neu anlegen …“).
 2. Unter „An“ die Adresse eintragen oder rechts „+ aus der Liste …“ wählen (Mitarbeitende, Kundschaft, Objekte, Lieferanten, Werkstätten, zuletzt verwendet).
 3. Betreff und Text sind vorbereitet; bei Bedarf anpassen, einzelne Anhänge mit × entfernen.
 4. „Senden“ – oder ohne Microsoft 365 „Im E-Mail-Programm öffnen“ (die Anhänge landen dann im Download-Ordner).
@@ -2214,7 +2214,7 @@ Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per 
 „Diese Ansicht per E-Mail“ macht aus dem, was du gerade siehst, einen PDF-Bericht: Kennzahlen als Kacheln, Tabellen und Listen – mit deinen Filtern. Dazu kommt eine CSV-Datei der Tabellen für Excel.
 
 1. Die Ansicht öffnen und filtern, z. B. Kennzahlen, Prüfbericht, Schlüsselbuch, Monatsauswertung.
-2. Rechts oben „⋯“ → „Diese Ansicht per E-Mail“.
+2. Rechts oben „⋯“ → „Diese Ansicht per E-Mail“ (am Handy: „Mehr“ → „Diese Ansicht per E-Mail“).
 3. Empfänger wählen, Text prüfen, „Senden“.
 
 > Tipp: Knöpfe und Menüs kommen nicht mit, nur Zahlen und Text.
