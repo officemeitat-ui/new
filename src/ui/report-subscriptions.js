@@ -173,6 +173,7 @@ function aboRow(a, now) {
   const confirming = app.ui.confirm === `ra-del-${a.id}`
   return `<tr><td><strong>${esc(r?.label || a.report)}</strong>${mine ? '' : `<br><span class="muted">sendet ${esc(a.byName || a.by)}</span>`}</td><td>${esc(parseAddresses(a.to).valid.join(', '))}</td><td>${when}</td><td>${last}</td>
     <td class="actions-cell"><button class="btn small" data-action="ra-now" data-id="${esc(a.id)}" title="Bericht jetzt erstellen und im Senden-Fenster öffnen">${ICON.send} Jetzt</button>
+      ${mine ? '' : `<button class="btn small edit-only" data-action="ra-take" data-id="${esc(a.id)}" title="Ab jetzt aus deinem Postfach senden (z. B. wenn ${esc(a.byName || a.by)} nicht mehr da ist)">Übernehmen</button>`}
       <button class="btn small edit-only" data-action="ra-edit" data-id="${esc(a.id)}">Bearbeiten</button>
       <button class="btn small edit-only" data-action="ra-toggle" data-id="${esc(a.id)}">${a.active === false ? 'Fortsetzen' : 'Pausieren'}</button>
       <button class="btn small edit-only ${confirming ? 'danger confirm' : 'danger'}" data-action="ra-delete" data-id="${esc(a.id)}">${confirming ? 'Wirklich?' : 'Löschen'}</button></td></tr>`
@@ -245,6 +246,14 @@ registerActions(
       Object.assign(app.ui.modal, { edit: abo.id, draft: { ...abo } })
       renderModal()
       document.getElementById('ra-to')?.focus()
+    },
+    'ra-take': (el) => {
+      const abo = aboOf(el.dataset.id)
+      if (!abo) return
+      Object.assign(abo, { by: me(), byName: app.user?.name || '' })
+      persist()
+      renderModal()
+      toast('Abo übernommen: wird ab jetzt aus deinem Postfach gesendet.')
     },
     'ra-cancel': () => {
       Object.assign(app.ui.modal, { edit: null, draft: null })
