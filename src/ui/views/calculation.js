@@ -82,7 +82,8 @@ function calcView() {
       label: 'Mehr',
       single: false,
       items: [
-        { label: 'Kalkulation (intern, PDF)', icon: ICON.download, action: 'calc-pdf', data: { kind: 'Kalkulation' }, disabled: !calc.hours, hint: 'mit Lohn, Zuschlägen und Marge' },
+        { label: 'Kalkulation (intern, PDF)', icon: ICON.download, action: 'calc-pdf', data: { kind: 'Kalkulation' }, disabled: !calc.hours, hint: 'mit Lohn, Zuschlägen und Marge', mail: { hint: 'intern, nicht an Kunden' } },
+        { label: 'Angebot (PDF)', icon: ICON.download, action: 'calc-pdf', data: { kind: 'Angebot' }, disabled: !calc.hours, mail: { hint: 'an die Kundschaft' } },
         (canEdit('stammdaten') || canEdit('planung')) && { label: 'Als Budget übernehmen', action: 'calc-budget', disabled: !calc.hours, hint: 'Sollstunden je Monat ins Objekt' },
       ],
     })}<button class="btn primary" data-action="calc-pdf" data-kind="Angebot" ${calc.hours ? '' : 'disabled'}>${ICON.download} Angebot (PDF)</button></div>

@@ -14,6 +14,7 @@ export const QUICK = [
   { id: 'material', label: 'Material anfordern', key: 'm', module: 'material', action: 'mat-request-new', words: 'lager bestellen reinigungsmittel' },
   { id: 'rechnung', label: 'Rechnung', key: 'f', module: 'fakturierung', action: 'fak-new', data: { kind: 'rechnung' }, words: 'faktura fakturieren verrechnen' },
   { id: 'angebot', label: 'Angebot', module: 'fakturierung', action: 'fak-new', data: { kind: 'angebot' }, words: 'offert kostenvoranschlag' },
+  { id: 'aufgabe', label: 'Aufgabe per E-Mail', key: 'e', module: '*', action: 'mail-task-new', words: 'aufgabe auftrag mail email senden erinnerung weiterleiten delegieren' },
   { id: 'leistung', label: 'Leistung im Reinigungsplan', module: 'stammdaten', action: 'task-edit', data: { id: 'new' }, words: 'reinigungsplan objekt leistung' },
   { id: 'assistent', label: 'KI-Assistent fragen', key: 'k', module: '*', action: 'ai-open', words: 'ki assistent frage hilfe' },
 ]

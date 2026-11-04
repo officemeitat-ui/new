@@ -180,7 +180,7 @@ export function logSection(today = todayISO()) {
     ${list.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Objekt</th><th>Protokoll</th><th></th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="muted">Noch kein Winterdienst in den letzten 14 Tagen.</p>'}
     ${syncLine}
     <div class="toolbar">${ed ? `<button class="btn" data-action="winterlog-add">${ICON.plus} Eintragen</button>` : ''}${a.enabled ? `<button class="btn" data-action="winterlog-sync">${ICON.refresh} Vom Handy holen</button>` : ''}
-      <label class="field inline"><span>PDF</span><select id="wl-month">${options(months.map((m) => [m, `${MONTH_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`]), months[0])}</select></label><button class="btn" data-action="winterlog-pdf">${ICON.sheet || ''} PDF-Nachweis</button></div>
+      <label class="field inline"><span>PDF</span><select id="wl-month">${options(months.map((m) => [m, `${MONTH_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`]), months[0])}</select></label><button class="btn" data-action="winterlog-pdf">${ICON.sheet || ''} PDF-Nachweis</button><button class="btn" data-action="mail-export" data-of="winterlog-pdf" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></div>
   </section>`
 }
 

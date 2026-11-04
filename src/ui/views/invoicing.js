@@ -703,7 +703,7 @@ function exportModal() {
     subtitle: 'Ausgangsrechnungen als CSV (BMD, RZL u. a.)',
     body: `<div class="form-grid"><label class="field"><span>von</span><input type="date" id="fx-from" value="${esc(app.ui.fakExFrom || addDays(firstOfMonth(today), -1).slice(0, 8) + '01')}"></label><label class="field"><span>bis</span><input type="date" id="fx-to" value="${esc(app.ui.fakExTo || addDays(firstOfMonth(today), -1))}"></label></div>
       <p class="muted">Eine Zeile je Beleg und Steuersatz: Belegnummer, Datum, Belegart (AR Rechnung, GU Storno/Korrektur), Debitor, Erlöskonto, Kunde, UID, Steuersatz, Steuercode, Netto, Steuer, Brutto, Leistungszeitraum. Trennzeichen Strichpunkt, Dezimalkomma. Spalten: ${EXPORT_DEFAULT_COLUMNS.length}. Zeitraum frei wählbar (z. B. Monat oder Quartal für die UVA, ganzes Jahr ${esc(y)}).</p>`,
-    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-export">${ICON.download} CSV herunterladen</button></div>`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="mail-export" data-of="fak-export" data-subject="Ausgangsrechnungen" title="Als Anhang per E-Mail senden">${ICON.send} Per E-Mail (z. B. Steuerberatung)</button><button class="btn primary" data-action="fak-export">${ICON.download} CSV herunterladen</button></div>`,
   })
 }
 registerModal('fak-export', exportModal, { module: MODULE })

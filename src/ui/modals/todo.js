@@ -180,12 +180,15 @@ function todoModal(c, { auto }) {
       .join('')}</section>`)
   }
   for (const { source, items } of t.extra) sections.push(`<section><h3>${esc(source.title)}</h3>${source.render(items, c)}</section>`)
+  // je Abschnitt „Per E-Mail weitergeben“ (mailer.js)
+  const mailBtn = (i) => ` <button class="btn small ghost todo-mail" data-action="mail-todo" data-sec="${i}" title="Diesen Abschnitt per E-Mail weitergeben">${ICON.send}<span>E-Mail</span></button>`
+  const body = sections.map((s, i) => s.replace('</h3>', `${mailBtn(i)}</h3>`))
   return modalFrame({
     title: 'Zu erledigen',
     subtitle: `${auto ? 'Neu oder geändert seit deinem letzten Besuch · ' : ''}Stand ${formatDate(t.today, { year: true })}`,
     wide: true,
-    body: sections.join('') || '<p class="empty">Alles erledigt: keine offenen Zuteilungen, keine Korrekturen.</p>',
-    foot: `${mayDo('planung') ? '<button class="btn" data-action="view" data-view="due">Alle periodischen Leistungen</button>' : '<span></span>'}<div class="actions"><button class="btn primary" data-action="close-modal">Schließen</button></div>`,
+    body: body.join('') || '<p class="empty">Alles erledigt: keine offenen Zuteilungen, keine Korrekturen.</p>',
+    foot: `${mayDo('planung') ? '<button class="btn" data-action="view" data-view="due">Alle periodischen Leistungen</button>' : '<span></span>'}<div class="actions">${sections.length ? `<button class="btn" data-action="mail-todo">${ICON.send} Per E-Mail weitergeben</button>` : ''}<button class="btn primary" data-action="close-modal">Schließen</button></div>`,
   })
 }
 

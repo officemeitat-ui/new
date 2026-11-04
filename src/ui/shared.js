@@ -99,6 +99,15 @@ function menuItem(x) {
  * btn: Klassen des Knopfs (primary, small, ghost, icon), cls: Klassen am Menü (start = links bündig).
  */
 export function menu({ label = '', icon = '', title = '', btn = '', cls = '', items = [], single = true, caret = true, flag = 0 }) {
+  // Exporte mit mail: true gibt es zusätzlich „Per E-Mail senden“ (als Anhang, mailer.js)
+  const mailable = items.filter((x) => x && x.action && x.mail && !x.disabled)
+  if (mailable.length) {
+    items = [
+      ...items,
+      { heading: 'Per E-Mail senden' },
+      ...mailable.map((x) => ({ label: x.label, icon: ICON.send, action: 'mail-export', data: { ...(x.data || {}), of: x.action, ...(typeof x.mail === 'object' && x.mail.subject ? { subject: x.mail.subject } : {}) }, hint: typeof x.mail === 'object' && x.mail.hint ? x.mail.hint : 'als Anhang' })),
+    ]
+  }
   const list = tidyItems(items)
   const acts = list.filter((x) => x !== '-' && !x.heading)
   if (!acts.length) return ''
@@ -221,8 +230,15 @@ export const num = (id) => {
 export const checked = (id) => !!document.getElementById(id)?.checked
 export const checkedValues = (name) => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((el) => el.value)
 
+// „Per E-Mail senden“ (mailer.js): Exporte werden dann nicht heruntergeladen, sondern als Anhang gesammelt
+let capture = null
+export function captureDownloads(fn) {
+  capture = fn
+}
+
 /** Datei im Browser speichern (auf der eigenen Domain; in eingebetteten Vorschauen ggf. blockiert). */
 export function download(filename, blob) {
+  if (capture) return capture(filename, blob)
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

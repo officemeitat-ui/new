@@ -105,7 +105,7 @@ function sectionHead(total) {
           editable() && { label: `Werkstätten (${FZ().workshops.length})`, action: 'veh-ws-open', hint: 'Adresse, E-Mail, Öffnungszeiten' },
           editable() && { label: 'Liste aus Excel einfügen', icon: ICON.upload, action: 'veh-import-open' },
           total && canDownload() && { heading: 'Export' },
-          total && canDownload() && { label: 'Fahrzeugliste (CSV)', icon: ICON.download, action: 'veh-csv' },
+          total && canDownload() && { label: 'Fahrzeugliste (CSV)', icon: ICON.download, action: 'veh-csv', mail: true },
         ],
       })}</div></div>
     ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`

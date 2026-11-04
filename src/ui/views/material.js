@@ -142,8 +142,8 @@ function headActions(ed) {
     label: 'Export',
     icon: ICON.download,
     items: [
-      has && { label: 'Lagerbestand (CSV)', action: 'mat-stock-csv' },
-      has && { label: 'Verbrauch (CSV)', action: 'mat-usage-csv', hint: 'Zeitraum wie im Reiter Verbrauch' },
+      has && { label: 'Lagerbestand (CSV)', action: 'mat-stock-csv', mail: true },
+      has && { label: 'Verbrauch (CSV)', action: 'mat-usage-csv', hint: 'Zeitraum wie im Reiter Verbrauch', mail: true },
     ],
     single: false,
   })}`

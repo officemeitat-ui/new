@@ -42,7 +42,7 @@ function payrollView(c) {
       single: false,
       items: [
         { label: 'Für Excel kopieren', icon: ICON.copy, action: 'payroll-copy', hint: 'in die Zwischenablage' },
-        app.config.features.download && { label: 'CSV für Lohnverrechnung', icon: ICON.sheet, action: 'payroll-csv' },
+        app.config.features.download && { label: 'CSV für Lohnverrechnung', icon: ICON.sheet, action: 'payroll-csv', mail: { hint: 'z. B. an die Lohnverrechnung' } },
       ],
     })}</div>
     <div class="table-wrap"><table class="data payroll"><thead><tr><th>Mitarbeiter:in</th><th>Soll</th><th>Gearbeitet</th><th>Fahrzeit</th><th>Sonn-/Feiertag</th><th>Nacht</th><th>Feiertag angerechnet</th><th>Urlaub</th><th>Krankenstand</th><th>Ist</th><th>Saldo</th><th>Zeitkonto</th></tr></thead><tbody>${body}</tbody></table></div>

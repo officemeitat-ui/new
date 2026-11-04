@@ -56,3 +56,23 @@ test('tabBar: Gruppe zeigt gewählten Unterpunkt und Summe der Zähler', () => {
   assert.ok(!other.includes('tab-sub'))
   assert.match(other, /flag warning">5</)
 })
+
+test('menu: Exporte mit mail: true bekommen „Per E-Mail senden“ mit data-of', () => {
+  const html = menu({
+    label: 'Export',
+    items: [
+      { label: 'Lagerbestand (CSV)', action: 'mat-stock-csv', mail: true },
+      { label: 'Angebot', action: 'calc-pdf', data: { kind: 'Angebot' }, mail: { hint: 'an die Kundschaft', subject: 'Angebot Lehen' } },
+      { label: 'Gesperrt', action: 'x-csv', mail: true, disabled: true },
+      { label: 'Ohne', action: 'y-csv' },
+    ],
+  })
+  assert.match(html, /Per E-Mail senden/)
+  assert.equal((html.match(/data-action="mail-export"/g) || []).length, 2, 'gesperrte und unmarkierte nicht')
+  assert.match(html, /data-action="mail-export" data-of="mat-stock-csv"/)
+  assert.match(html, /data-kind="Angebot" data-of="calc-pdf" data-subject="Angebot Lehen"/)
+  assert.match(html, /an die Kundschaft/)
+  // ein einzelner Export mit mail: true wird zum Menü (Download + E-Mail)
+  const single = menu({ label: 'Export', items: [{ label: 'CSV', action: 'a-csv', mail: true }] })
+  assert.match(single, /<details class="menu-wrap/)
+})

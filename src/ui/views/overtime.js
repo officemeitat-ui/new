@@ -135,7 +135,7 @@ function overtimeView(c) {
         single: false,
         items: [
           { label: 'Für Excel kopieren', icon: ICON.copy, action: 'ot-copy', hint: 'in die Zwischenablage' },
-          app.config.features.download && { label: 'CSV für Lohnverrechnung', icon: ICON.sheet, action: 'ot-csv' },
+          app.config.features.download && { label: 'CSV für Lohnverrechnung', icon: ICON.sheet, action: 'ot-csv', mail: { hint: 'z. B. an die Lohnverrechnung' } },
           app.config.features.download && { label: 'Export Lohnprogramm', icon: ICON.download, action: 'pe-open', data: { month: c.month }, hint: 'Lohnarten je Person für BMD, RZL u. a.' },
         ],
       })}

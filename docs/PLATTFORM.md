@@ -468,7 +468,7 @@ Stil **Modern** (Voreinstellung): ruhige weiße Flächen mit feinen Linien, eine
 
 ## Schnellfunktionen und Tastenkürzel
 
-- **„+ Neu“** in der Kopfleiste (Taste **N**): Termin (**T**), Abwesenheit (**A**), Zeit nachtragen (**Z**), Reklamation (**R**), Material anfordern (**M**), Rechnung (**F**), Angebot, Leistung im Reinigungsplan, KI-Assistent (**K**). Es erscheint nur, was die eigene Rolle darf. Am Handy: Mehr → „Neu anlegen …“.
+- **„+ Neu“** in der Kopfleiste (Taste **N**): Termin (**T**), Abwesenheit (**A**), Zeit nachtragen (**Z**), Reklamation (**R**), Material anfordern (**M**), Rechnung (**F**), Angebot, Aufgabe per E-Mail (**E**), Leistung im Reinigungsplan, KI-Assistent (**K**). Es erscheint nur, was die eigene Rolle darf. Am Handy: Mehr → „Neu anlegen …“.
 - **Springen zu …** (Strg+K oder **/**) findet auch Befehle: „urlaub“ → Abwesenheit eintragen, „rechnung“ → Rechnung schreiben, „termin“ → Termin.
 - **← / →** blättert die Woche, **H** springt zur aktuellen Woche, **?** zeigt alle Kürzel. Beim Tippen in einem Feld lösen die Tasten nichts aus.
 
@@ -629,6 +629,20 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 **Einmalig am Webspace:** „Einrichtungs-Datei herunterladen“ und `mitarbeiter.json` in den Ordner `privat/` laden (wie die Alarm-Datei, Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)). Danach überträgt „Speichern und übertragen“ Einstellungen und Pläne direkt.
 
 **Datenschutz:** Am Webspace liegen je Person nur Name und ihre Wochen (Einsätze, Stunden, Zeitkonto) sowie die offenen Einsätze für sie, unter dem Hashwert des Links; mit Zeiterfassung dazu Kommen und Gehen je Objekt (62 Tage, dann gelöscht; dauerhaft in SharePoint). Die Links selbst, Lohndaten und Gründe von Krankenständen liegen dort nicht. Der Ordner `privat/` ist gesperrt; Pläne älter als 8 Wochen fallen weg. `config.json` → `"staffPortal": false` lässt `mein-plan.php` beim Bauen weg.
+
+## E-Mail aus der App
+
+Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per E-Mail – immer über dasselbe **Senden-Fenster** (`src/ui/mailer.js`, reine Hilfen in `src/core/mail.js`):
+
+- **Exporte per E-Mail:** In den Export-Menüs steht unter „Per E-Mail senden“ jeder Export noch einmal (Lagerbestand, Verbrauch, Schlüsselliste, Unterweisungen, Fahrzeugliste, Monatsauswertung, Überstunden, Wochen-Excel, Ist-Zeiten, Kalkulation und Angebot). Neben einzelnen Download-Knöpfen steht „E-Mail“ (Reklamation als PDF und CSV, Winterdienst-Nachweis, Arbeitszeit-PDFs, Datei fürs Lohnprogramm, Ausgangsrechnungen für die Steuerberatung). Die Datei wird dann nicht heruntergeladen, sondern als Anhang eingesammelt; der Betreff kommt aus dem Dateinamen („Lagerbestand 04.11.2026“). Für Entwickler: einen Menüeintrag mit `mail: true` (oder `mail: { hint, subject }`) markieren, oder einen Knopf `data-action="mail-export" data-of="<export-aktion>"` setzen – die Export-Aktion bleibt unverändert.
+- **Diese Ansicht per E-Mail** (⋯ rechts oben): macht aus dem, was gerade zu sehen ist, einen PDF-Bericht mit Logo, Kennzahlen als Kacheln, Tabellen und Listen (mit Filter; Knöpfe und Menüs fallen weg) und eine CSV-Datei der Tabellen. Geht in jeder Ansicht, z. B. Kennzahlen, Prüfbericht, Schlüsselbuch, Monatsauswertung. Breite Tabellen kommen quer, sehr lange gekürzt (vollständig in der CSV).
+- **Aufgabe per E-Mail** („+ Neu“, Taste **E**, oder ⋯): Empfänger, Aufgabe, Fälligkeit, Objekt, Beschreibung. Im Anhang eine Kalender-Erinnerung (.ics, ganztägig am Fälligkeitstag, Erinnerung am Vortag 9 Uhr), damit die Aufgabe auch ohne Microsoft 365 im Kalender des Empfängers steht.
+- **„Zu erledigen“ weitergeben:** jeder Abschnitt hat „E-Mail“, unten „Per E-Mail weitergeben“ für die ganze Liste – als Text mit Link in die App.
+- **Senden-Fenster:** An und Kopie (mehrere mit Strichpunkt, „Name <adresse>“ geht auch), „+ aus der Liste …“ mit Mitarbeitenden, Kundschaft, Objekten (Adresse für den Leistungsnachweis), Lieferanten und Werkstätten – je nachdem, was die Rolle sieht – und den zuletzt verwendeten Adressen (nur auf diesem Gerät, höchstens 10). Betreff und Text sind vorbereitet; Anhänge einzeln entfernen oder herunterladen. Ungültige Adressen werden vor dem Senden gemeldet.
+- **Versand:** Mit `features.mail` und Mail.Send geht die Mail aus dem eigenen Postfach (oder aus `mail.from`) und liegt unter „Gesendete Elemente“; „Kopie an mich“ setzt die eigene Adresse in Bcc. Anhänge bis rund 3 MB je Mail (Grenze von Microsoft Graph für eine Anfrage), sonst Hinweis. Ohne Microsoft 365 öffnet sich das E-Mail-Programm (mailto) und die Anhänge landen im Download-Ordner.
+- Die eigenen Versand-Wege mit Versandstand bleiben: Wochenpläne an Mitarbeitende, Leistungsnachweise, Rechnungen und Mahnungen, Bestellungen, Auszahlungen, Werkstatt-Termine.
+
+Tests: `test/mail.test.js` (Adressen, Betreff, CSV, mailto, Aufgabe mit .ics, Bericht-PDF), `test/menu.test.js` (Menüeinträge), Browser-Prüfung beider Wege (E-Mail-Programm und Microsoft 365 mit Graph-Attrappe).
 
 ## Systemcheck (Inbetriebnahme)
 

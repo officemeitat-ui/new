@@ -70,7 +70,7 @@ function sheetView(c) {
         single: false,
         items: [
           { label: 'Für Excel kopieren', icon: ICON.copy, action: 'copy-sheet', hint: 'in die Zwischenablage' },
-          f.download && { label: 'Excel-Datei', icon: ICON.sheet, action: 'excel-sheet' },
+          f.download && { label: 'Excel-Datei', icon: ICON.sheet, action: 'excel-sheet', mail: true },
           f.pdf && f.download && { label: 'PDF', icon: ICON.sheet, action: 'send-pdf', data: { emp: emp.id } },
           f.print && { heading: 'Drucken' },
           f.print && { label: `${esc(emp.name)} drucken`, icon: ICON.print, action: 'print-sheet' },

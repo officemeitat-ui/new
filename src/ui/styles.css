@@ -1161,6 +1161,23 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
 
 /* Hilfsklassen, Prüfhinweise, Suche */
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- E-Mail aus der App (mailer.js) ---------- */
+.mc-row { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
+.mc-row input { flex: 1 1 auto; min-width: 0; }
+.mc-pick { flex: 0 1 190px; min-width: 0; max-width: 46%; }
+.mc-head { margin: 14px 0 6px; font-size: 0.95rem; }
+.mc-files { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.mc-files li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.mc-files li > svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.mc-file-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.mc-files .muted { white-space: nowrap; font-size: 0.85rem; }
+.todo-mail { margin-left: 8px; vertical-align: middle; font-weight: 400; }
+.todo-mail span { margin-left: 4px; }
+@media (max-width: 640px) {
+  .mc-row { flex-wrap: wrap; }
+  .mc-pick { flex-basis: 100%; max-width: none; }
+}
 .seg { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .file-btn { position: relative; cursor: pointer; }
 .check.error { background: var(--err-soft); color: var(--err); font-weight: 600; }

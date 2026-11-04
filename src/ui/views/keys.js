@@ -85,7 +85,7 @@ function keysView() {
         items: [
           ed && { label: 'Schlüssel anlegen', icon: ICON.plus, action: 'key-edit-open', hint: 'Bezeichnung, Nummer, Objekt, Schließanlage' },
           { heading: 'Export' },
-          { label: 'Schlüsselliste (CSV)', icon: ICON.download, action: 'keys-csv' },
+          { label: 'Schlüsselliste (CSV)', icon: ICON.download, action: 'keys-csv', mail: true },
         ],
       })}</div></div>
     ${banner}${empty}

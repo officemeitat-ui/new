@@ -135,3 +135,14 @@ for (const [frage, id] of [
     assert.ok(top.score >= SURE, `nur ${top.score.toFixed(2)}`)
   })
 }
+
+test('Cleo: E-Mail aus der App (Bericht, Aufgabe, Export, Einrichtung) – ohne die alten Versand-Themen zu verdrängen', () => {
+  const top = (q) => search(TOPICS, q, { limit: 1 })[0]?.topic.id
+  assert.equal(top('bericht per mail senden'), 'bericht-per-mail')
+  assert.equal(top('wie schicke ich eine aufgabe per mail'), 'aufgabe-per-mail')
+  assert.equal(top('kann ich exporte mailen'), 'export-per-mail')
+  assert.equal(top('mail geht nicht direkt aus der app'), 'email-einrichten')
+  assert.equal(top('rechnung per mail'), 'rechnung-versenden')
+  assert.equal(top('dienstplan per mail an mitarbeiter'), 'versenden')
+  assert.equal(top('leistungsnachweis per mail'), 'leistungsnachweis-versenden')
+})

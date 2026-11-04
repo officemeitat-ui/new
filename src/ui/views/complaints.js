@@ -46,7 +46,7 @@ function complaintsView() {
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
   const overdue = items().filter((c) => isOverdue(c, today)).length
   return `<div class="section-head"><div><h2>Reklamationen</h2><p>Beschwerden von Kunden je Objekt: wer laut Plan dort war, Maßnahme mit Frist, Ergebnis und Rückmeldung an den Kunden. PDF als Nachweis für den Kunden.</p></div>
-      <div class="actions">${ed ? `<button class="btn primary" data-action="complaint-new">${ICON.plus} Reklamation erfassen</button>` : ''}<button class="btn" data-action="complaint-csv">${ICON.download} CSV</button></div></div>
+      <div class="actions">${ed ? `<button class="btn primary" data-action="complaint-new">${ICON.plus} Reklamation erfassen</button>` : ''}<button class="btn" data-action="complaint-csv">${ICON.download} CSV</button><button class="btn" data-action="mail-export" data-of="complaint-csv" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></div></div>
     <div class="impact-stats tc-stats">${tile('Offen', items().filter(isOpen).length)}${tile('Überfällig', overdue, overdue ? 'err' : '')}${tile('Letzte 90 Tage', stats.total)}${tile('Erledigt nach (Tage, Schnitt)', stats.avgDays ?? '–')}</div>
     ${hot.length ? `<div class="banner warn-banner"><p><strong>Häufung:</strong> ${hot.map((x) => `${esc(objName(x.objectId))} (${x.n} in 90 Tagen)`).join(', ')}. Ursache klären, z. B. Objektkontrolle, Einschulung oder Leistungsumfang.</p></div>` : ''}
     <div class="filters">${tab('offen', 'Offen')}${tab('erledigt', 'Erledigt')}${tab('alle', 'Alle')}
@@ -127,7 +127,7 @@ function complaintModal() {
         <label class="check"><input type="checkbox" id="cp-informed" ${d.informed ? 'checked' : ''} ${dis}><span>Kunde informiert</span></label>
       </div></section>
       ${d.history?.length ? `<section><h3>Verlauf</h3><ul class="tc-list">${d.history.map((h) => `<li>${esc(when(h.at))} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')}</ul></section>` : ''}`,
-    foot: `${d.id ? `<button class="btn" data-action="complaint-pdf" data-id="${esc(d.id)}">${ICON.download} PDF für den Kunden</button>` : '<span></span>'}
+    foot: `${d.id ? `<span class="actions"><button class="btn" data-action="complaint-pdf" data-id="${esc(d.id)}">${ICON.download} PDF für den Kunden</button><button class="btn" data-action="mail-export" data-of="complaint-pdf" data-id="${esc(d.id)}" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></span>` : '<span></span>'}
       <div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? `${d.id && d.status !== 'erledigt' ? `<button class="btn" data-action="complaint-save" data-done="1">Erledigt</button>` : ''}<button class="btn primary" data-action="complaint-save">Speichern</button>` : ''}</div>`,
   })
 }

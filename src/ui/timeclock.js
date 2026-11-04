@@ -181,7 +181,7 @@ function monthTable(c) {
     .join('')
   const sum = (k) => list.reduce((n, p) => n + p[k], 0)
   return `<div class="tc-monthnav"><button class="btn icon ghost" data-action="tc-month" data-month="${prev}" aria-label="Voriger Monat">${ICON.left}</button><strong>${esc(monthLabel(month))}</strong><button class="btn icon ghost" data-action="tc-month" data-month="${next}" aria-label="Nächster Monat">${ICON.right}</button>
-      <span class="spacer"></span>${list.length ? `<button class="btn" data-action="tc-pdf-all" data-month="${month}">${ICON.download} Alle als PDF (ZIP)</button><button class="btn" data-action="tc-month-csv" data-month="${month}">${ICON.download} CSV</button>` : ''}</div>
+      <span class="spacer"></span>${list.length ? `<button class="btn" data-action="tc-pdf-all" data-month="${month}">${ICON.download} Alle als PDF (ZIP)</button><button class="btn" data-action="tc-month-csv" data-month="${month}">${ICON.download} CSV</button><button class="btn" data-action="mail-export" data-of="tc-pdf-all" data-month="${month}" title="Als Anhang per E-Mail senden">${ICON.send} PDFs per E-Mail</button>` : ''}</div>
     ${list.length ? `<div class="table-wrap"><table class="data tc-month"><thead><tr><th>Person</th><th class="num">Soll (Plan)</th><th class="num">Ist</th><th class="num">Differenz</th><th class="num">Tage</th><th class="num">Abweichung</th><th class="num">fehlt</th><th class="num">nachgetragen</th><th class="num">offen</th><th></th></tr></thead><tbody>${body}</tbody><tfoot><tr><th>Summe</th><th class="num">${hm(sum('soll'))}</th><th class="num">${hm(sum('ist'))}</th><th class="num">${sign(sum('ist') - sum('soll'))}</th><th colspan="6"></th></tr></tfoot></table></div>` : '<p class="empty">Keine Zeiten in diesem Monat.</p>'}
     <p class="note">Soll zählt die Einsätze laut Plan von allen, die die Zeiterfassung benutzen; Ist die erfassten Zeiten ohne Pausen. „offen“: noch nicht freigegeben. Das PDF ist die Arbeitszeitaufzeichnung der Person für den Monat (§ 26 AZG), mit Nachträgen und Korrekturen samt Grund.</p>`
 }
@@ -209,7 +209,7 @@ function timesView(c) {
       ed && tab === 'woche' && toAdopt.length > 1 && { label: `Alle ${toAdopt.length} Abweichungen übernehmen`, action: 'tc-adopt-all', hint: 'Ist-Zeiten über der Toleranz in den Plan' },
       on() && { label: 'Jetzt abrufen', icon: ICON.refresh, action: 'tc-sync', hint: 'neue Stempelungen vom Webspace' },
       tab === 'woche' && { heading: 'Export' },
-      tab === 'woche' && { label: 'Woche als CSV', icon: ICON.download, action: 'tc-csv' },
+      tab === 'woche' && { label: 'Woche als CSV', icon: ICON.download, action: 'tc-csv', mail: true },
     ],
   })}`
   const week = `<div class="impact-stats tc-stats">${tile('Passt', count('ok'))}${tile('Später / früher', count('spaet') + count('frueh'), count('spaet') + count('frueh') ? 'warn' : '')}${tile('Nicht eingestempelt', count('fehlt'), count('fehlt') ? 'err' : '')}${tile('Noch offen', count('offen'))}${tile('Zur Freigabe', toApprove.length, toApprove.length ? 'warn' : '')}</div>${weekTable(c, rows, ed)}

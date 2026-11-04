@@ -79,7 +79,7 @@ function trainingsView() {
           ed && { label: 'Einzeln eintragen', icon: ICON.plus, action: 'tr-record-open', hint: 'z. B. Kurs oder Nachweis von außen' },
           ed && { label: 'Arten verwalten', icon: ICON.gear, action: 'tr-types-open', hint: 'Unterweisungen, Kurse, Fristen' },
           { heading: 'Export' },
-          { label: 'Übersicht (CSV)', icon: ICON.download, action: 'tr-csv' },
+          { label: 'Übersicht (CSV)', icon: ICON.download, action: 'tr-csv', mail: true },
         ],
       })}</div></div>
     <div class="impact-stats tc-stats">${tile('abgelaufen', n('abgelaufen'), n('abgelaufen') ? 'err' : '')}${tile('fehlt (Pflicht)', n('fehlt'), n('fehlt') ? 'err' : '')}${tile('läuft in 30 Tagen ab', n('bald'))}${tile('Personen', all.length)}</div>

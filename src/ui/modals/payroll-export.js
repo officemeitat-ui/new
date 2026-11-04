@@ -6,7 +6,7 @@ import { MONTH_LONG } from '../../core/dates.js'
 import { COLUMNS, EXPORT_DEFAULTS, exportFileName, exportLines, exportProblems, exportText, keyTotals, WAGE_KEYS } from '../../core/payroll-export.js'
 import { monthReport } from '../../core/reports.js'
 import { app, canEdit, openModal, persist, registerActions, registerModal, renderModal, toast } from '../context.js'
-import { checked, download, esc, modalFrame, options, val } from '../shared.js'
+import { checked, download, esc, ICON, modalFrame, options, val } from '../shared.js'
 import { payroll } from '../views/overtime.js'
 
 const settings = () => ({ ...EXPORT_DEFAULTS, ...(app.data.payrollExport || {}), wageTypes: { ...(app.data.payrollExport?.wageTypes || {}) } })
@@ -63,7 +63,7 @@ function exportModal(c, m) {
       <h3>Vorschau (${lines.length} ${lines.length === 1 ? 'Zeile' : 'Zeilen'})</h3>
       <pre class="pe-preview">${lines.length ? esc(preview) : '(keine Zeilen: Lohnarten eintragen)'}${lines.length > 12 ? '\n…' : ''}</pre>`,
     foot: `${ed ? '<button class="btn" data-action="pe-refresh">Vorschau aktualisieren</button>' : '<span></span>'}
-      <div class="actions"><button class="btn" data-action="close-modal">Schließen</button>${ed ? '<button class="btn" data-action="pe-save">Einstellungen speichern</button>' : ''}<button class="btn primary" data-action="pe-download">Datei herunterladen</button></div>`,
+      <div class="actions"><button class="btn" data-action="close-modal">Schließen</button>${ed ? '<button class="btn" data-action="pe-save">Einstellungen speichern</button>' : ''}<button class="btn" data-action="mail-export" data-of="pe-download" title="Als Anhang per E-Mail senden">${ICON.send} Per E-Mail</button><button class="btn primary" data-action="pe-download">Datei herunterladen</button></div>`,
   })
 }
 
