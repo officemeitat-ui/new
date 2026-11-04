@@ -311,7 +311,7 @@ export function glossary(entries, query) {
 export function smalltalk(query) {
   const n = ` ${normalize(query)} `
   if (/ (hallo|hi|hey|servus|gruess gott|guten (morgen|tag|abend)|moin|griass di) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'hallo', text: 'Servus! Cleo, Sauberheld, zu Diensten. Sag mir, was du vorhast – zum Beispiel „Urlaub eintragen“ oder „Wie schreibe ich eine Rechnung?“ – und ich flieg dich hin.' }
-  if (/ (danke|dankeschoen|merci|super|passt|top|perfekt) /.test(n)) return { mood: 'herz', text: 'Gern geschehen – sauber gelöst! Wenn du mich wieder brauchst: Ich häng hier unten rechts ab.' }
+  if (/ (danke|dankeschoen|merci|super|passt|top|perfekt) /.test(n)) return { mood: 'herz', text: 'Gern geschehen – sauber gelöst! Wenn du mich wieder brauchst: Ich häng hier ab – am PC unten rechts, am Handy oben neben der Glocke.' }
   const words = n.trim().split(' ').length
   // Jahreszeiten-Kostüme (nur kurze Fragen oder an Cleo gerichtet, nicht „Ist Ostermontag ein Feiertag?“)
   const season = / (halloween|advent|adventzeit|weihnachten|weihnacht|christkind|nikolaus|silvester|neujahr|fasching|krapfen|ostern|osterhase|fruehjahrsputz|saison|kostuem|kostuems|verkleidung|verkleidet) /.exec(n)

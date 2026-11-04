@@ -490,7 +490,7 @@ Ein Tag, je Person eine Zeile: Einsätze in Objektfarbe, geplante Fahrten (rot, 
 
 ## Cleo – Hilfe zu jeder Funktion
 
-**Cleo, der Sauberheld**, ist das Maskottchen der Cleanos App: ein freundlicher Wassertropfen als Superheld – Tropfenkopf mit Locke, runde Heldenmaske, große Augen, rote Bäckchen, blauer Anzug, Umhang in Cleanos-Grün, gelber Gürtel und weißes Wappen mit „C“. Cleo steht unten rechts auf jeder Seite (am Handy über der Leiste unten); ein Klick (oder **F1**) öffnet den Hilfe-Chat:
+**Cleo, der Sauberheld**, ist das Maskottchen der Cleanos App: ein freundlicher Wassertropfen als Superheld – Tropfenkopf mit Locke, runde Heldenmaske, große Augen, rote Bäckchen, blauer Anzug, Umhang in Cleanos-Grün, gelber Gürtel und weißes Wappen mit „C“. Cleo steht unten rechts auf jeder Seite (am Handy oben in der Kopfzeile neben der Glocke; auf der Übersicht spricht er dich mit dem Wichtigsten an); ein Klick (oder **F1**) öffnet den Hilfe-Chat:
 
 - **Fragen in eigenen Worten:** „Wie trage ich Urlaub ein?“, „es schneit, was tun“, „Zählerstände eintragen“, „Rechnung stornieren“. Cleo versteht Umlaute, Tippfehler, Mehrzahl und Wörter aus dem Betrieb (Dienstplan, Krankmeldung, streuen, Pickerl …) und antwortet mit einer kurzen Erklärung und den Schritten.
 - **„Zeig es mir“** springt in die richtige Ansicht und markiert dort den passenden Knopf; ein zweiter Knopf startet die Aktion gleich (z. B. „Abwesenheit eintragen“, „Woche jetzt planen“). „In der Anleitung“ öffnet das Thema zum Nachlesen.

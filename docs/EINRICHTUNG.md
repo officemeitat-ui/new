@@ -229,6 +229,18 @@ Danach einmal neu anmelden. Damit Mitarbeitende im Dienstplan zu Outlook passen,
 
 Das **Kalender-Abo** für Mitarbeitende (Plan am Handy) braucht nichts weiter: Es kommt mit dem neuen `mein-plan.php`.
 
+## 11. Noch offen: Rechte ausbauen (vorgemerkt)
+
+Stand jetzt: Die Ordner in `Cleanos_Daten` sind von Hand freigegeben, die Werkzeug-Ordner für die Leute vor Ort ebenso. Das wird noch umgebaut und ausgebaut:
+
+1. **Eigene Sicherheitsgruppen je Rolle** in Entra ID (z. B. `Cleanos_App_Objektleitung`, `Cleanos_App_Buchhaltung`, `Cleanos_App_Lager`, `Cleanos_App_Lohn`, `Cleanos_App_Fuhrpark`, `Cleanos_App_Vorort`) statt der Microsoft-365-Gruppen der Website. Mitglieder kommen und gehen dann an einer Stelle.
+2. **Ordnerrechte je Gruppe** genau wie unter **Stammdaten → Berechtigungen** angezeigt (Lesen oder Bearbeiten je Ordner); `personal/`, `lohn/`, `kalkulation/`, `berichte/` und `exporte/` bleiben beim Büro.
+3. **Unterordner der Plattform** (Werkzeuge, Objektdoku, Kontrollen) je Revier oder Objekt trennen, damit Vor-Ort-Konten nur ihre Objekte sehen.
+4. **`access.groups` in `config.json`** auf die neuen Gruppen-IDs umstellen, danach je Rolle mit „Ansicht als“ und einem Testkonto prüfen.
+5. Klären: Bekommt die **Verwaltung** Vollzugriff oder eine eigene Rolle?
+
+Bis dahin gilt: Was eine Rolle in der App nicht sieht, bietet die App nicht an; geschützt sind die Daten aber erst durch die SharePoint-Ordnerrechte.
+
 ## Datenschutz und Betriebsrat
 
 - Krankenstände sind Gesundheitsdaten. Die App speichert nur „Krankenstand von–bis“, keine Diagnosen, im eigenen Ordner `personal/`, den nur Vollzugriff öffnen darf.

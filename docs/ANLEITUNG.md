@@ -28,7 +28,7 @@ Die Cleanos App ist unser Arbeitsplatz für Dienstplan, Einsätze und Zeiten, Ob
 2. Links in der Seitenleiste einen Bereich wählen, am Handy unten „Mehr“.
 3. Mit „Springen zu …“ (Strg+K) findest du jeden Bereich, jede Person und jedes Objekt.
 4. Die Glocke „Zu erledigen“ zeigt, was gerade bei dir ansteht.
-5. Fragen? Cleo unten rechts (F1) oder die „Anleitung“ ganz oben im Menü.
+5. Fragen? Cleo unten rechts (am Handy oben neben der Glocke, F1) oder die „Anleitung“ ganz oben im Menü.
 
 ### Die Übersicht (Startseite)
 
@@ -59,7 +59,7 @@ Die Glocke „Zu erledigen“ sammelt, was in deinen Bereichen ansteht: Abwesenh
 
 ### Cleo, der Sauberheld: Hilfe-Chat
 
-Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI und ohne Internet. Du öffnest Cleo mit dem runden Knopf unten rechts (am Handy über der Leiste unten) oder mit F1 und fragst in deinen eigenen Worten.
+Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI und ohne Internet. Du öffnest Cleo mit dem runden Knopf unten rechts (am Handy oben in der Kopfzeile neben der Glocke) oder mit F1 und fragst in deinen eigenen Worten.
 
 1. Unten rechts auf Cleo klicken oder F1 drücken.
 2. Frage tippen, z. B. „Urlaub eintragen“, und Enter drücken, oder ein vorgeschlagenes Thema antippen.

@@ -22,7 +22,7 @@ export const TOPICS = [
     title: 'Was kann die Cleanos App?',
     q: ['was kann die app', 'wofür ist die app', 'überblick funktionen', 'was ist die cleanos app', 'wie fange ich an', 'erste schritte app', 'hilfe'],
     answer: 'Die Cleanos App ist unser Arbeitsplatz für Dienstplan, Einsätze und Zeiten, Objekte und Kunden, Material, Fuhrpark und Finanzen. Du meldest dich einmal mit dem Firmenkonto an und siehst in der Seitenleiste alle Bereiche, die deine Rolle darf. Die Daten liegen in SharePoint.',
-    steps: ['Mit dem Firmenkonto (Microsoft 365) anmelden.', 'Links in der Seitenleiste einen Bereich wählen, am Handy unten „Mehr“.', 'Mit „Springen zu …“ (Strg+K) findest du jeden Bereich, jede Person und jedes Objekt.', 'Die Glocke „Zu erledigen“ zeigt, was gerade bei dir ansteht.', 'Fragen? Cleo unten rechts (F1) oder die „Anleitung“ ganz oben im Menü.'],
+    steps: ['Mit dem Firmenkonto (Microsoft 365) anmelden.', 'Links in der Seitenleiste einen Bereich wählen, am Handy unten „Mehr“.', 'Mit „Springen zu …“ (Strg+K) findest du jeden Bereich, jede Person und jedes Objekt.', 'Die Glocke „Zu erledigen“ zeigt, was gerade bei dir ansteht.', 'Fragen? Cleo unten rechts (am Handy oben neben der Glocke, F1) oder die „Anleitung“ ganz oben im Menü.'],
     related: ['uebersicht', 'cleo', 'springen-zu', 'wer-sieht-was', 'zu-erledigen'],
   },
   {
@@ -53,7 +53,7 @@ export const TOPICS = [
     section: 'start',
     title: 'Cleo, der Sauberheld: Hilfe-Chat',
     q: ['hilfe zur app', 'hilfe', 'maskottchen', 'sauberheld', 'wie funktioniert die app', 'hilfe chat', 'wassertropfen', 'f1 hilfe'],
-    answer: 'Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI und ohne Internet. Du öffnest Cleo mit dem runden Knopf unten rechts (am Handy über der Leiste unten) oder mit F1 und fragst in deinen eigenen Worten.',
+    answer: 'Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI und ohne Internet. Du öffnest Cleo mit dem runden Knopf unten rechts (am Handy oben in der Kopfzeile neben der Glocke) oder mit F1 und fragst in deinen eigenen Worten.',
     steps: ['Unten rechts auf Cleo klicken oder F1 drücken.', 'Frage tippen, z. B. „Urlaub eintragen“, und Enter drücken, oder ein vorgeschlagenes Thema antippen.', '„Zeig es mir“ springt in die richtige Ansicht und markiert den Knopf; der zweite Knopf startet die Aktion gleich.', '„In der Anleitung“ öffnet das Thema zum Nachlesen.'],
     tips: ['Cleo zeigt nur, was deine Rolle sehen darf.', 'Cleo kennt auch Begriffe, z. B. „Was ist eine Stammkraft?“.', 'Findet Cleo nichts, gibt es „KI-Assistent fragen“ (falls eingerichtet), mit der Frage schon eingetragen.'],
     action: { action: 'help-open', label: 'Cleo fragen' },

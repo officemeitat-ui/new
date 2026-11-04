@@ -124,7 +124,7 @@ function mobileWeek(c) {
   return `<div class="day-tabs" role="tablist" aria-label="Tag">${days}</div>
     <div class="m-swipe">
       <h2 class="m-date">${WEEKDAY_LONG[isoWeekday(date) - 1]}, ${formatDate(date, { weekday: false })}${holiday ? ` <span class="pill info">${esc(holiday.name)}</span>` : ''}</h2>
-      ${filterBar(c, { problems: false })}
+      <details class="m-filter" ${app.ui.team || app.ui.search ? 'open' : ''}><summary>${ICON.search} Filter${app.ui.team || app.ui.search ? ` <span class="pill info">${esc([app.ui.team, app.ui.search].filter(Boolean).join(' · '))}</span>` : ''}</summary>${filterBar(c, { problems: false })}</details>
       ${open.length ? `<section class="m-open"><h3>Offen (${open.length})</h3><div class="m-chips">${open.map((inst) => openChip(c, inst)).join('')}</div><p class="note">Antippen: wer kann einspringen?</p></section>` : '<p><span class="pill ok">An diesem Tag alles besetzt</span></p>'}
       <section class="m-list">${cards.join('') || '<p class="empty">Niemand eingeteilt.</p>'}</section>
       ${free.length ? `<details class="m-free"><summary>Frei an diesem Tag (${free.length})</summary><p>${free.map((e) => `<button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}">${esc(e.name)}</button>`).join(' · ')}</p></details>` : ''}

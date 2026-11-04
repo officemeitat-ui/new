@@ -4,7 +4,8 @@
 
 import { roleOptions } from '../core/access.js'
 import { app, canEdit, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, visibleViews } from './context.js'
-import { assistantButton } from './assistant.js'
+import { cleo } from './mascot.js'
+import { seasonOutfit } from './season.js'
 import { appName } from './config.js'
 import { bellButton, todo } from './modals/todo.js'
 import { agoText, syncState } from './sync.js'
@@ -87,7 +88,7 @@ export function roleSwitch() {
   return `<label class="role-switch" title="Vorschau: was eine Rolle sieht und ändern darf"><span>Ansicht als</span><select data-change="preview-role">${options(roleOptions(app.config.access), app.ui.previewRole || 'disposition')}</select></label>`
 }
 
-/** Kopfzeile fürs Handy: Logo, Woche, Glocke. */
+/** Kopfzeile fürs Handy: Logo, Woche, Cleo, Glocke (den KI-Assistenten gibt es im Menü und bei Cleo). */
 export function mobileTopbar(c, { brand, week, year, range, status, title = null }) {
   return `<header class="topbar m-topbar"><div class="topbar-inner wrap">
     ${brand}
@@ -96,7 +97,7 @@ export function mobileTopbar(c, { brand, week, year, range, status, title = null
       <button class="kw link-btn" data-action="nav-today" title="Zur aktuellen Woche">KW ${week}<small>${range} · ${status}</small></button>
       <button class="btn icon" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
     </div>`}
-    ${assistantButton({ compact: true })}
+    <button class="m-cleo" data-action="help-toggle" aria-label="Cleo fragen" title="Cleo fragen">${cleo({ mood: 'hallo', size: 34, anim: false, outfit: seasonOutfit() })}</button>
     ${bellButton()}
   </div></header>`
 }
@@ -110,6 +111,7 @@ function moreModal(c) {
     plan && ['open-publish', `${ICON.send} Veröffentlichen`, ''],
     plan && ['open-send', `${ICON.send} An Mitarbeitende versenden`, ''],
     ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
+    ['ai-open', 'KI-Assistent', ''],
     quickItems().some((q) => q.id !== 'abwesenheit') && ['quick-open', `${ICON.plus} Neu anlegen …`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
     // wie „⋯ → Diese Ansicht per E-Mail“ am PC (das „⋯“ gibt es am Handy nicht)
@@ -120,10 +122,11 @@ function moreModal(c) {
   const pinned = pinnedViews(visible)
   const sections = [...(pinned.length ? [{ id: 'pinned', label: 'Angeheftet', views: pinned }] : []), ...navSections(visible)]
   const views = sections.map(({ label, views: items }) => {
-    return `<section><h3>${label || 'Start'}</h3><div class="more-grid">${items
+    // Liste wie in der Handy-Übersicht: Symbol, Name, Zähler (statt großer Kästen)
+    return `<section class="m-sec"><h3>${label || 'Start'}</h3><div class="m-list">${items
       .map((v) => {
         const badge = v.badge?.(c)
-        return `<button class="more-item" data-action="view" data-view="${v.id}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}>${esc(v.label)}${badge ? ` <span class="flag error">${badge}</span>` : ''}</button>`
+        return `<button class="m-row more-item" data-action="view" data-view="${v.id}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}><span class="m-row-icon">${navIcon(v)}</span><span class="m-row-label">${esc(v.label)}</span>${badge ? `<span class="flag error">${badge}</span>` : ''}${ICON.right}</button>`
       })
       .join('')}</div></section>`
   }).join('')
@@ -138,8 +141,8 @@ function moreModal(c) {
     title: 'Menü',
     subtitle: esc(appName(app.config.brand)), // wie in der Seitenleiste („Cleanos App“)
     body: `<button class="more-search" data-action="open-search">${ICON.search}<span>Bereich, Person, Objekt suchen …</span></button>
-      <section><h3>Aktionen</h3><div class="more-actions two">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       ${views}
+      <section><h3>Aktionen</h3><div class="more-actions two compact">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       <section><h3>Konto & Daten</h3>
         <p class="note">${saveStatusText(app.service.status)}${app.user ? ` · ${esc(app.user.name)}` : ''}${app.access && !app.access.all ? ` · ${esc(app.access.label)}` : ''}</p>
         ${app.user ? '' : roleSwitch()}

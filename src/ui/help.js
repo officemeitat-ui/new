@@ -1,4 +1,4 @@
-// Cleo, der Hilfe-Chat: Fenster unten rechts (am Handy über die ganze Breite), offen über alle
+// Cleo, der Hilfe-Chat: Fenster unten rechts (am Handy über die ganze Breite, Knopf oben in der Kopfzeile), offen über alle
 // Ansichten hinweg. Cleo beantwortet Fragen zu jeder Funktion aus den Hilfe-Themen
 // (src/help/topics.js) – ohne KI und ohne Netz –, springt mit „Zeig es mir“ in die richtige Ansicht
 // und markiert dort den passenden Knopf, startet auf Wunsch gleich die Aktion und verweist auf die

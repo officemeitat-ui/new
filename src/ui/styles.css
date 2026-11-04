@@ -1171,6 +1171,67 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
 /* Hilfsklassen, Prüfhinweise, Suche */
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
+/* ---------- Handy aufgeräumt: Übersicht „Heute“, Kennzahlen in einer Zeile, Filter einklappbar, Cleo klein ---------- */
+.m-home { display: grid; gap: 14px; }
+.m-head { display: flex; align-items: center; gap: 12px; }
+.m-cleo { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); line-height: 0; }
+.m-cleo .cleo { width: 34px; height: auto; margin-top: -2px; }
+.m-cleo:active { transform: scale(0.94); }
+/* Cleo spricht dich an: Sprechblase mit dem Wichtigsten jetzt, darunter das Fragefeld */
+.m-cleo-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: end; }
+.m-cleo-avatar { grid-row: span 1; border: 0; background: none; padding: 0; line-height: 0; align-self: end; }
+.m-cleo-avatar .cleo { width: 64px; height: auto; }
+.m-cleo-bubble { position: relative; display: grid; gap: 8px; justify-items: start; padding: 10px 12px; border: 1px solid var(--card-border, var(--line)); border-radius: 14px 14px 14px 4px; background: var(--surface); box-shadow: var(--shadow); animation: look-in 0.3s ease-out; }
+.m-cleo-bubble p { margin: 0; font-size: 0.95rem; line-height: 1.35; }
+.m-ask { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); color: var(--muted); font: inherit; font-size: 0.92rem; text-align: left; }
+.m-ask svg { flex: none; width: 16px; height: 16px; }
+.m-ask span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .m-cleo-bubble { animation: none; } }
+.m-head h2 { font-size: 1.3rem; line-height: 1.2; }
+.m-head p { font-size: 0.85rem; }
+.m-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; gap: 8px; }
+.m-stat { display: grid; gap: 2px; justify-items: start; padding: 10px 12px; border: 1px solid var(--card-border, var(--line)); border-radius: var(--radius-card, 12px); background: var(--surface); color: var(--fg); text-align: left; min-width: 0; }
+.m-stat b { font-size: 1.45rem; line-height: 1.1; }
+.m-stat span { font-size: 0.78rem; color: var(--muted); line-height: 1.2; }
+.m-stat.hot b { color: var(--error, #b42318); }
+.m-sec { padding: 4px 0 0; }
+.m-sec > h3 { font-size: 0.95rem; color: var(--muted); font-weight: 600; margin: 0 2px 6px; }
+.m-list { display: grid; border: 1px solid var(--card-border, var(--line)); border-radius: var(--radius-card, 12px); background: var(--surface); overflow: hidden; }
+.m-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--fg); text-align: left; font: inherit; }
+.m-row:last-child { border-bottom: 0; }
+.m-row:active { background: var(--surface-2); }
+.m-row[aria-current='page'] { background: var(--accent-soft, var(--surface-2)); font-weight: 600; }
+.m-row.more-item { border-radius: 0; min-height: 50px; }
+.m-row-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); color: var(--sec, var(--accent)); }
+.m-row-icon svg { width: 18px; height: 18px; }
+.m-row-label { flex: 1 1 auto; min-width: 0; display: grid; line-height: 1.25; overflow-wrap: anywhere; }
+.m-row-label small { font-size: 0.8rem; }
+.m-row > svg { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.m-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.m-tile { position: relative; display: grid; justify-items: center; align-content: center; gap: 6px; min-height: 88px; padding: 10px 6px; border: 1px solid var(--card-border, var(--line)); border-radius: var(--radius-card, 12px); background: var(--surface); color: var(--fg); font-size: 0.82rem; font-weight: 600; text-align: center; line-height: 1.2; }
+.m-tile:active { background: var(--surface-2); }
+.m-tile-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--sec, var(--accent)); }
+.m-tile-icon svg { width: 20px; height: 20px; }
+.m-tile .flag { position: absolute; top: 6px; right: 6px; }
+.m-done { display: flex; align-items: center; gap: 8px; }
+.m-filter { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.m-filter > summary { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; font-weight: 600; list-style: none; }
+.m-filter > summary::-webkit-details-marker { display: none; }
+.m-filter > summary svg { width: 16px; height: 16px; }
+.m-filter[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 0; }
+.m-filter .filters-bar { padding: 10px 12px; margin: 0; }
+@media (max-width: 700px) {
+  /* Kennzahlen der Woche: eine wischbare Zeile statt fünf großer Kacheln */
+  .summary { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; scrollbar-width: none; padding-bottom: 2px; }
+  .summary::-webkit-scrollbar { display: none; }
+  .summary .stat { flex: 0 0 auto; min-width: 96px; padding: 8px 10px; }
+  .summary .stat .value { font-size: 1.1rem; }
+  .summary .stat .label { font-size: 0.75rem; }
+  .flow { padding: 8px 10px; }
+  /* Menü: Aktionen kompakt */
+  .more-actions.compact .btn { min-height: 44px; padding: 8px 10px; font-size: 0.9rem; }
+}
+
 /* ---------- E-Mail aus der App (mailer.js) ---------- */
 .mc-row { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
 .mc-row input { flex: 1 1 auto; min-width: 0; }
@@ -1900,11 +1961,9 @@ tr.muted td { color: var(--muted); }
 @keyframes cleo-spot { 50% { outline-color: var(--accent); } }
 @media (max-width: 700px) {
   #help-root { right: 10px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  .cleo-fab { width: 54px; height: 54px; }
-  .cleo-fab .cleo { width: 40px; }
+  /* Cleo sitzt oben in der Kopfzeile (.m-cleo), schwebt nicht über dem Inhalt */
+  .cleo-fab, .cleo-bubble { display: none; }
   .cleo-panel { position: fixed; inset: auto 0 0 0; width: 100%; height: min(86dvh, 680px); border-radius: 16px 16px 0 0; }
-  .cleo-panel ~ .cleo-fab { display: none; }
-  .cleo-bubble { right: 62px; bottom: 14px; width: max-content; max-width: calc(100vw - 86px); white-space: normal; }
 }
 @media print { #help-root { display: none !important; } }
 
