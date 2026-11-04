@@ -237,7 +237,7 @@ registerActions(
       const fields = { report: val('ra-report'), rhythm: val('ra-rhythm'), weekday: Number(val('ra-weekday')) || 1, hour: Number(val('ra-hour')), to: to.valid.join('; ') }
       const existing = m.edit ? aboOf(m.edit) : null
       if (existing) Object.assign(existing, fields)
-      else doc().abos.push({ id: uid(), ...fields, active: true, since: viennaNow().day, by: me(), byName: app.user?.name || '' })
+      else doc().abos.push({ id: uid('ra'), ...fields, active: true, since: viennaNow().day, by: me(), byName: app.user?.name || '' })
       persist()
       m.edit = null
       m.draft = null

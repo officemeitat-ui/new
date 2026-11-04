@@ -6,7 +6,7 @@ import { timeAccount } from '../../core/reports.js'
 import { maxSeverity, SEVERITY_LABEL } from '../../core/rules.js'
 import { rankCandidates } from '../../core/scheduler.js'
 import { dutyText } from '../../core/waste.js'
-import { app, empName, mutateAssignments, registerView, renderNow, toast } from '../context.js'
+import { app, empName, mutateAssignments, registerView, renderNow, seesAccount, toast } from '../context.js'
 import { isMobile } from '../mobile.js'
 import { byStart, dayClass, dayHeads, esc, ICON, objectOf, options, saldoClass, signed } from '../shared.js'
 
@@ -158,7 +158,7 @@ function weekView(c) {
       const groupRow = !team && emp.team && emp.team !== lastTeam ? `<tr class="group-row"><th class="name-col" colspan="1">${esc(emp.team)}</th><td colspan="8"></td></tr>` : ''
       lastTeam = emp.team
       return `${groupRow}<tr class="${changed ? 'row-changed' : ''}"><th class="name-col"><button class="emp-name" data-action="open-person" data-emp="${esc(emp.id)}" title="Dienstplan der Person: Woche, feste Objekte, Objekte zuweisen">${esc(emp.name)}</button><span class="emp-meta">${esc(emp.type)} · ${formatHours(emp.weeklyHours * 60)} h${emp.minor ? ' · unter 18' : ''}${emp.note ? ` · ${esc(emp.note)}` : ''}</span>${changed ? '<span class="pill warning changed-pill" title="Nach dem Veröffentlichen geändert: Person informieren">geändert</span>' : ''}</th>${cells}
-        <td class="sum"><div class="hours"><b>${formatHours(t.ist)}</b> / ${formatHours(t.soll)} h</div><div class="saldo ${saldoClass(t.saldo)}">Woche ${signed(t.saldo)}</div><div class="account" title="Zeitkonto: Startsaldo + veröffentlichte Wochen">Konto ${signed(account)}</div>${weekFlags(c, emp)}</td></tr>`
+        <td class="sum"><div class="hours"><b>${formatHours(t.ist)}</b> / ${formatHours(t.soll)} h</div><div class="saldo ${saldoClass(t.saldo)}">Woche ${signed(t.saldo)}</div>${seesAccount() ? `<div class="account" title="Zeitkonto: Startsaldo + veröffentlichte Wochen">Konto ${signed(account)}</div>` : ''}${weekFlags(c, emp)}</td></tr>`
     })
     .join('')
 

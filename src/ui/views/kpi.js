@@ -12,7 +12,7 @@ import { addDays, formatDate, isoWeek, mondayOf, MONTH_LONG, todayISO } from '..
 import { absenceRates, aging, complaintsByMonth, complaintsTopObjects, contribution, lastMonths, lastWeeks, materialByObject, materialMonths, PERIODS, plusHours, revenueByObject, revenueMonths, topCustomers, trend, utilization, weekStats } from '../../core/kpi.js'
 import { mergeRules } from '../../core/rules.js'
 import { buildTimesheet, summarizeDays } from '../../core/timesheet.js'
-import { app, computeRange, memo, registerActions, registerView, render } from '../context.js'
+import { app, computeRange, memo, registerActions, registerView, render, seesAbsenceReasons } from '../context.js'
 import { barList, columnChart, legend, lineChart, sparkline, tableView } from '../kpi-charts.js'
 import { esc } from '../shared.js'
 import { kpiAvailable } from './lazy.js'
@@ -75,7 +75,8 @@ function build(p) {
     out.hasStamps = out.week.some((w) => w.ist > 0)
     out.util = utilization({ employees, instances: r.instances, state: r.state, from: weeks[0].from, to: weeks.at(-1).to })
     const legal = new Set([...r.holidays.entries()].filter(([, h]) => h.legal !== false).map(([d]) => d))
-    out.absence = absenceRates({ months, employees, absences: data.absences || [], holidays: legal })
+    // Krankenstand und Urlaub nur, wer den Grund lesen darf (sonst stünde im Betrieb 0 %, in der Vorschau der echte Wert)
+    if (seesAbsenceReasons()) out.absence = absenceRates({ months, employees, absences: data.absences || [], holidays: legal })
     out.plus = months.map((m) => {
       const rows = employees.map((emp) => {
         const days = (daysOf.get(emp.id) || []).filter((d) => d.date >= m.from && d.date <= m.to)

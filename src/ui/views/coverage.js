@@ -3,7 +3,7 @@
 
 import { formatDate } from '../../core/dates.js'
 import { rankCandidates } from '../../core/scheduler.js'
-import { app, empName, memo, mutateAssignments, registerActions, registerView, toast } from '../context.js'
+import { app, empName, memo, mutateAssignments, registerActions, registerView, toast, visibleAbsences } from '../context.js'
 import { planWeek } from '../planning.js'
 import { byStart, esc, ICON, objectOf, reasonsHtml } from '../shared.js'
 
@@ -12,7 +12,7 @@ function suggestion(c, inst) {
   return memo(c, `cover:${inst.key}`, () => rankCandidates(c.ctx, c.state, inst).find((x) => x.allowed) || null)
 }
 
-function row(c, inst, reason, absentId = null) {
+function row(c, inst, reason, absentId = null, why = '') {
   const obj = objectOf(c, inst)
   const ids = c.state.assigned(inst.key).map((a) => a.employeeId)
   const blocked = absentId && ids.includes(absentId) ? absentId : null
@@ -28,22 +28,22 @@ function row(c, inst, reason, absentId = null) {
   return `<tr>
     <td class="num">${formatDate(inst.date)}</td><td class="num">${inst.startTime}–${inst.endTime}</td>
     <td><span class="swatch" style="--obj:var(--o${obj.color})"></span><button class="link-btn" data-action="open-shift" data-key="${esc(inst.key)}">${esc(obj.name)}</button><br><span class="muted">${esc(inst.label)}</span></td>
-    <td>${esc(reason)}</td>
+    <td>${esc(reason)}${why ? ` <span class="abs-why">${esc(why)}</span>` : ''}</td>
     <td>${status}</td>
     <td>${best ? `<button class="btn small primary edit-only" data-action="cover-take" data-key="${esc(inst.key)}" data-emp="${esc(best.emp.id)}" data-replace="${esc(blocked || '')}">${esc(label)}</button><br>${reasonsHtml(best.factors, { good: 2, bad: 1 })}${best.issues.some((i) => i.severity === 'warning') ? `<br><span class="muted">${esc(best.issues.filter((i) => i.severity === 'warning').map((i) => i.message).join('; '))}</span>` : ''}` : open > 0 ? '<span class="muted">kein regelkonformer Vorschlag, Einsatz öffnen</span>' : ''}</td>
   </tr>`
 }
 
 function coverageView(c) {
-  const absent = (app.data.absences || []).filter((a) => a.from <= c.sunday && a.to >= c.monday).sort((a, b) => a.from.localeCompare(b.from))
+  const absent = visibleAbsences().filter((a) => a.from <= c.sunday && a.to >= c.monday).sort((a, b) => a.from.localeCompare(b.from))
   const handled = new Set()
   const blocks = absent
     .map((a) => {
       const insts = c.week.filter((i) => i.status !== 'cancelled' && (i.regulars.includes(a.employeeId) || c.state.has(a.employeeId, i.key)) && i.date >= a.from && i.date <= a.to).sort(byStart)
       insts.forEach((i) => handled.add(i.key))
       const emp = c.ctx.employeesById.get(a.employeeId)
-      return `<section class="cover-block"><h3>${esc(emp?.name || '?')} · ${esc(a.type)} <span class="muted">${formatDate(a.from)} – ${formatDate(a.to)}</span> <button class="btn small edit-only" data-action="open-impact" data-id="${esc(a.id)}">${ICON.user} Gesamten Zeitraum planen / übergeben</button></h3>
-        ${insts.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Zeit</th><th>Objekt</th><th>Grund</th><th>Besetzung</th><th>Vorschlag</th></tr></thead><tbody>${insts.map((i) => row(c, i, `Stammkraft ${a.type}`, a.employeeId)).join('')}</tbody></table></div>` : '<p class="note">Keine Stammeinsätze in dieser Woche betroffen.</p>'}</section>`
+      return `<section class="cover-block"><h3>${esc(emp?.name || '?')} · <span class="abs-why">${esc(a.type)}</span> <span class="muted">${formatDate(a.from)} – ${formatDate(a.to)}</span> <button class="btn small edit-only" data-action="open-impact" data-id="${esc(a.id)}">${ICON.user} Gesamten Zeitraum planen / übergeben</button></h3>
+        ${insts.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Zeit</th><th>Objekt</th><th>Grund</th><th>Besetzung</th><th>Vorschlag</th></tr></thead><tbody>${insts.map((i) => row(c, i, 'Stammkraft', a.employeeId, a.type)).join('')}</tbody></table></div>` : '<p class="note">Keine Stammeinsätze in dieser Woche betroffen.</p>'}</section>`
     })
     .join('')
   const otherOpen = c.week.filter((i) => i.status !== 'cancelled' && i.date >= c.monday && i.date <= c.sunday && c.state.count(i.key) < i.staff && !handled.has(i.key)).sort(byStart)

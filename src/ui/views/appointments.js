@@ -13,7 +13,7 @@ import { addMinutes, APPOINTMENT_KINDS, appointmentsBetween, REPEATS, repeatText
 import { icsEvent } from '../../core/ics.js'
 import { cancelGraphEvent, cancelOccurrence, createGraphEvent, eventResponses, findPeople, freeBusy, listEvents, TIME_ZONE, updateGraphEvent } from '../../auth/graph-calendar.js'
 import { appName } from '../config.js'
-import { app, canEdit, closeModal, computeRange, confirmStep, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, confirmStep, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast, visibleAbsences } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { download, esc, ICON, modalFrame, options, uid } from '../shared.js'
 
@@ -382,10 +382,10 @@ function conflictText(d) {
     list = []
   }
   const absent = ids
-    .map((id) => ({ id, abs: (app.data.absences || []).find((x) => x.employeeId === id && x.from <= day && x.to >= day) }))
+    .map((id) => ({ id, abs: visibleAbsences().find((x) => x.employeeId === id && x.from <= day && x.to >= day) }))
     .filter((x) => x.abs)
   if (!list.length && !absent.length) return ''
-  return `<div class="notice warn">${list.map(({ empId, inst }) => `<div>${esc(employeesById().get(empId)?.name || '?')} hat ${inst.startTime}–${inst.endTime} einen Einsatz in ${esc(objectName(inst.objectId))}.</div>`).join('')}${absent.map(({ id, abs }) => `<div>${esc(employeesById().get(id)?.name || '?')} ist an dem Tag abwesend (${esc(abs.type)}).</div>`).join('')}</div>`
+  return `<div class="notice warn">${list.map(({ empId, inst }) => `<div>${esc(employeesById().get(empId)?.name || '?')} hat ${inst.startTime}–${inst.endTime} einen Einsatz in ${esc(objectName(inst.objectId))}.</div>`).join('')}${absent.map(({ id, abs }) => `<div>${esc(employeesById().get(id)?.name || '?')} ist an dem Tag abwesend${abs.limited ? '' : ` (${esc(abs.type)})`}.</div>`).join('')}</div>`
 }
 
 function apptModal(c, m) {

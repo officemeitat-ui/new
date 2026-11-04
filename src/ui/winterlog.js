@@ -180,8 +180,14 @@ export function logSection(today = todayISO()) {
     ${list.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Objekt</th><th>Protokoll</th><th></th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="muted">Noch kein Winterdienst in den letzten 14 Tagen.</p>'}
     ${syncLine}
     <div class="toolbar">${ed ? `<button class="btn" data-action="winterlog-add">${ICON.plus} Eintragen</button>` : ''}${a.enabled ? `<button class="btn" data-action="winterlog-sync">${ICON.refresh} Vom Handy holen</button>` : ''}
-      <label class="field inline"><span>PDF</span><select id="wl-month">${options(months.map((m) => [m, `${MONTH_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`]), months[0])}</select></label><button class="btn" data-action="winterlog-pdf">${ICON.sheet || ''} PDF-Nachweis</button><button class="btn" data-action="mail-export" data-of="winterlog-pdf" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></div>
+      <label class="field inline"><span>PDF</span><select id="wl-month">${options(months.map((m) => [m, `${MONTH_LONG[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`]), months[0])}</select></label><label class="field inline"><span>für</span><select id="wl-pdf-obj"><option value="">alle Objekte (intern)</option>${options(pdfObjects().map((o) => [o.id, o.name]))}</select></label><button class="btn" data-action="winterlog-pdf">${ICON.sheet || ''} PDF-Nachweis</button><button class="btn" data-action="mail-export" data-of="winterlog-pdf" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></div>
   </section>`
+}
+
+/** Objekte für den Nachweis an einen Kunden: mit Winterdienst oder mit Protokoll. */
+const pdfObjects = () => {
+  const logged = new Set(Object.values(logOf()).map((e) => e.objectId))
+  return (app.data.objects || []).filter((o) => o.winter?.active || logged.has(o.id)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'))
 }
 
 // ---------------------------------------------------------------- Eintrag im Einsatz-Dialog
@@ -273,10 +279,13 @@ registerActions({
   },
   'winterlog-pdf': async (el) => {
     const month = document.getElementById('wl-month')?.value || todayISO().slice(0, 7)
+    // für einen Kunden: nur sein Objekt, Namen wie beim Leistungsnachweis eingestellt (Kundenbereich ebenso)
+    const object = objOf(document.getElementById('wl-pdf-obj')?.value || '')
+    const names = object ? { names: 'keine', ...(app.data.nachweise?.settings || {}) }.names : 'voll'
     el.disabled = true
     try {
       const photos = new Map()
-      for (const r of logRows(logOf(), { from: `${month}-01`, to: `${month}-31` })) {
+      for (const r of logRows(logOf(), { from: `${month}-01`, to: `${month}-31` }).filter((x) => !object || x.objectId === object.id)) {
         for (const f of r.fotos || []) {
           try {
             photos.set(f.datei, await photoDataUrl(f))
@@ -285,9 +294,9 @@ registerActions({
           }
         }
       }
-      const doc = winterLogDocument({ month, log: logOf(), objects: app.data.objects, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), photos })
+      const doc = winterLogDocument({ month, log: logOf(), objects: app.data.objects, objectId: object?.id || '', names, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), photos })
       const blob = await pdfBlob(doc)
-      const name = winterLogPdfName(month)
+      const name = winterLogPdfName(month, object?.name || '')
       if (app.store.kind === 'sharepoint') {
         await app.store.upload(`exporte/Winterdienst/${month}/${name}`, blob, 'application/pdf')
         toast(`PDF-Nachweis in SharePoint: exporte/Winterdienst/${month}/${name}`)

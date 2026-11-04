@@ -55,7 +55,7 @@ export const stampUsers = (stamps) => new Set(Object.values(stamps || {}).map((s
 
 /**
  * Plan gegen Ist je eingeteilter Person: Zeilen { date, inst, empId, stamp, status, late, early, minutes }.
- * status: ok | spaet | frueh | offen (noch nicht gegangen) | fehlt | kommt (noch nicht begonnen) | ohnePlan.
+ * status: ok | spaet | frueh | laenger (früher gekommen oder später gegangen) | offen (noch nicht gegangen) | fehlt | kommt (noch nicht begonnen) | ohnePlan.
  * Nur Personen in users bekommen „fehlt“/„kommt“-Zeilen; Stempelungen ohne passenden Einsatz kommen dazu.
  */
 export function stampRows({ instances, state, stamps, from, to, users, now, tolerance = 10 }) {
@@ -81,10 +81,12 @@ function judge(inst, stamp, now, tolerance) {
   const outM = stamp.out ? absMinutes(stamp.out) : null
   const late = Math.max(0, inM - inst.start)
   const early = outM === null ? 0 : Math.max(0, inst.end - outM)
-  const status = outM === null ? 'offen' : late > tolerance ? 'spaet' : early > tolerance ? 'frueh' : 'ok'
+  // länger als geplant (früher gekommen, später gegangen): Mehrstunden, die erst mit „Ist übernehmen“ zählen
+  const over = outM === null ? 0 : Math.max(0, outM - inst.end) + Math.max(0, inst.start - inM)
+  const status = outM === null ? 'offen' : late > tolerance ? 'spaet' : early > tolerance ? 'frueh' : over > tolerance ? 'laenger' : 'ok'
   // Dauer echt gemessen (auch in der Nacht der Zeitumstellung), Verspätung gegen den Plan in Ortszeit
   const minutes = outM === null ? null : Math.floor(Date.parse(stamp.out) / 6e4) - Math.floor(Date.parse(stamp.in) / 6e4)
-  return { status, late, early, minutes }
+  return { status, late, early, over, minutes }
 }
 
 /** Nicht eingestempelt: begonnene Einsätze (seit mehr als grace Minuten, bis zum Ende) ohne Stempelung. */
@@ -96,4 +98,4 @@ export function missingCheckins({ instances, state, stamps, users, now, grace = 
   return stampRows({ instances, state, stamps, from, to, users, now, tolerance: grace }).filter((r) => r.status === 'fehlt' && r.inst.end >= now)
 }
 
-export const STATUS_TEXT = { ok: 'passt', spaet: 'später gekommen', frueh: 'früher gegangen', offen: 'noch nicht ausgestempelt', fehlt: 'nicht eingestempelt', kommt: 'beginnt noch', ohnePlan: 'ohne Einsatz laut Plan' }
+export const STATUS_TEXT = { ok: 'passt', spaet: 'später gekommen', frueh: 'früher gegangen', laenger: 'länger als geplant', offen: 'noch nicht ausgestempelt', fehlt: 'nicht eingestempelt', kommt: 'beginnt noch', ohnePlan: 'ohne Einsatz laut Plan' }

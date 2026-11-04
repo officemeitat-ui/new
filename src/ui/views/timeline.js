@@ -116,7 +116,7 @@ function timelineView(c) {
     blocks.forEach((b) => span(b.start, b.end))
     const workMin = work.reduce((s, i) => s + i.net, 0)
     const travelMin = blocks.filter((b) => b.kind === 'trip').reduce((s, b) => s + b.trip.minutes, 0)
-    const meta = workMin ? `${formatHours(workMin)} h${travelMin ? ` + ${formatHours(travelMin)} h Fahrt` : ''}` : day?.absence ? esc(day.absence.type) : 'frei'
+    const meta = workMin ? `${formatHours(workMin)} h${travelMin ? ` + ${formatHours(travelMin)} h Fahrt` : ''}` : day?.absence ? `<span class="abs-why">${esc(day.absence.type)}</span>` : 'frei'
     const personAllDay = appts.filter((x) => x.allDay && x.employeeIds.includes(emp.id)).map((x) => x.a.title)
     rows.push({ empId: emp.id, name: `<button class="emp-name" data-action="open-person" data-emp="${esc(emp.id)}">${esc(emp.name)}</button>`, meta, blocks, cls: `${day?.absence ? 'absent' : ''} ${workMin || blocks.some((b) => b.kind === 'appt') ? '' : 'idle'}`, note: day?.absence ? day.absence.type : personAllDay.join(' · ') })
   }

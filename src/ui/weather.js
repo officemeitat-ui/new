@@ -11,7 +11,8 @@ import { latticePoints, nowcastProxyUrl, nowcastUrl, parseNowcast, parsePoints, 
 import { hasCoords } from '../core/geo.js'
 import { employedOn } from '../core/contract.js'
 import { addDays, todayISO } from '../core/dates.js'
-import { app, renderNow, touch } from './context.js'
+import { pickTeam } from '../core/scheduler.js'
+import { app, computeRange, renderNow, touch } from './context.js'
 
 const STORE = 'wetter.v1'
 const MAX_AGE = 30 * 60e3
@@ -332,7 +333,14 @@ export function createWinterCalls(date, objects, reason) {
       const e = data.employees.find((x) => x.id === id)
       return e && employedOn(e, date) && !away(id)
     })
-    if (team.length && !(data.assignments[instKey] || []).length) data.assignments[instKey] = team.slice(0, Math.max(1, Number(o.winter.staff) || 1)).map((employeeId) => ({ employeeId }))
+    if (team.length && !(data.assignments[instKey] || []).length) {
+      // wer ohne Verstoß kann (Ruhezeit, Überschneidung), zuerst; der Einsatz entsteht erst mit data.winter
+      const r = computeRange(date, date)
+      const inst = r.state.instByKey.get(instKey)
+      const staff = Math.max(1, Number(o.winter.staff) || 1)
+      const picked = inst ? pickTeam(r.ctx, r.state, inst, team, staff) : team.slice(0, staff)
+      data.assignments[instKey] = picked.map((employeeId) => ({ employeeId }))
+    }
     n++
   }
   return n

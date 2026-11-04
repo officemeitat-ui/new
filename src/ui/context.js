@@ -9,6 +9,7 @@ import { buildInstances, PlanState } from '../core/plan.js'
 import { mondaysBetween } from '../core/reports.js'
 import { createContext, validatePlan } from '../core/rules.js'
 import { buildTimesheet, timesheetSignature } from '../core/timesheet.js'
+import { ABSENT, absentList, dataRights, DOC } from '../storage/data-service.js'
 import { patch } from './morph.js'
 import { esc, modalFrame } from './shared.js'
 
@@ -296,6 +297,26 @@ export function windowFor(monday, month) {
   }
 }
 
+/**
+ * Daten für Plan und Ansichten. Ohne Leserecht auf personal/ kennt die App im Betrieb nur „abwesend
+ * von–bis“ (daten/abwesend.json); die Rollen-Vorschau im Browser zeigt es genauso, damit der Grund
+ * (Krankenstand ist ein Gesundheitsdatum) weder im Plan noch in Tooltips, PDF oder E-Mail erscheint.
+ */
+/** Grund der Abwesenheit (personal/abwesenheiten.json) lesbar? Ohne Recht nur „abwesend von–bis“. */
+export const seesAbsenceReasons = () => !app.access || dataRights(app.access).read(DOC.absences)
+
+function planData() {
+  const { data } = app
+  if (seesAbsenceReasons()) return data
+  return { ...data, absences: absentList(data).map((a) => ({ ...a, type: ABSENT, limited: true })) }
+}
+
+/** Zeitkonto (lohn/zeitkonto.json) lesbar? Ohne Recht stünde dort im Betrieb ±0, nicht der echte Stand. */
+export const seesAccount = () => !app.access || dataRights(app.access).read(DOC.account)
+
+/** Abwesenheiten, wie die Rolle sie sehen darf (ohne Recht auf personal/: nur „Abwesend“). */
+export const visibleAbsences = () => planData().absences || []
+
 // Ergebnisse von compute() bleiben gültig, bis sich Daten ändern (persist,
 // geladene oder zusammengeführte Dokumente). Ansichtswechsel, Filter und
 // Suche rechnen dadurch nicht neu.
@@ -304,7 +325,8 @@ export const dataStamp = () => `${app.dataVersion || 0}|${app.service?.version |
 
 /** Berechnete Woche (Standard: angezeigte Woche). */
 export function compute(monday = app.ui.monday, month = monday === app.ui.monday ? currentMonth() : addDays(monday, 3).slice(0, 7)) {
-  const key = `${dataStamp()}|${monday}|${month}`
+  // Rolle gehört dazu: die Vorschau einer Rolle ohne personal/ rechnet mit „abwesend“ (planData)
+  const key = `${dataStamp()}|${app.access?.roles?.join() || ''}|${monday}|${month}`
   if (!computed.has(key)) {
     if (computed.size > 8) computed.delete(computed.keys().next().value)
     computed.set(key, computeFresh(monday, month))
@@ -313,7 +335,7 @@ export function compute(monday = app.ui.monday, month = monday === app.ui.monday
 }
 
 function computeFresh(monday, month) {
-  const { data } = app
+  const data = planData()
   const sunday = addDays(monday, 6)
   const { from, to } = windowFor(monday, month)
   const holidays = holidayCalendar(from, to, data.extraFreeDays)
@@ -337,7 +359,7 @@ function computeFresh(monday, month) {
 
 /** Berechnung für einen beliebigen Zeitraum (z. B. Abwesenheit über mehrere Wochen). */
 export function computeRange(from, to) {
-  const { data } = app
+  const data = planData()
   const wFrom = [firstOfMonth(from), addDays(mondayOf(from), -7)].sort()[0]
   const wTo = [lastOfMonth(to), addDays(mondayOf(to), 13)].sort()[1]
   const holidays = holidayCalendar(wFrom, wTo, data.extraFreeDays)

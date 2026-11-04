@@ -211,6 +211,23 @@ export function autoPlan(ctx, instances, assignments, { from, to, replan = false
   return { assignments: state.toObject(), stats, open: open().map((i) => i.key) }
 }
 
+/**
+ * Winterdienst-Team für einen Einsatz: in der eingetragenen Reihenfolge, aber zuerst, wer ohne Verstoß
+ * kann (z. B. nicht 05:30 nach dem Abenddienst bis 21:30: Ruhezeit). Können zu wenige ohne Verstoß, rücken
+ * die übrigen in ihrer Reihenfolge nach (das Büro sieht den Verstoß im Prüfbericht).
+ */
+export function pickTeam(ctx, state, inst, team, staff = 1) {
+  const ok = []
+  const rest = []
+  for (const id of team) {
+    const emp = ctx.employeesById.get(id)
+    if (!emp) continue
+    const ev = evaluateCandidate(ctx, state, emp, inst, { asRegular: true })
+    ;(ev.issues.some((i) => i.severity === 'error') ? rest : ok).push(id)
+  }
+  return [...ok, ...rest].slice(0, Math.max(1, staff))
+}
+
 /** Kandidatenliste für "Wer kann einspringen?". */
 export function rankCandidates(ctx, state, inst) {
   return ctx.employees
