@@ -5,7 +5,7 @@
 // Anleitung. Was die eigene Rolle nicht sieht, bietet Cleo nicht an. Für alles andere: Übergabe an
 // den KI-Assistenten (falls eingerichtet), mit der Frage schon eingetragen.
 
-import { GLOSSARY, TOPICS } from '../help/topics.js'
+import { GLOSSARY, loadTopics, TOPICS } from '../help/lazy.js'
 import { glossary, search, smalltalk, SURE } from '../help/match.js'
 import { ACTIONS, app, registerActions, renderModal, sectionLabel, VIEWS, visibleViews } from './context.js'
 import { cleo, cleoIcon } from './mascot.js'
@@ -173,6 +173,8 @@ export function openHelp(question = '') {
   greet()
   h.scroll = true
   renderHelp()
+  // Themen kommen nach dem Start (help/lazy.js): noch nicht da, dann gleich laden und Vorschläge nachzeichnen
+  if (!TOPICS.length) loadTopics().then(renderHelp, () => {})
   if (question) ask(question)
   else setTimeout(() => document.getElementById('cleo-q')?.focus({ preventScroll: true }), 30)
 }
@@ -185,7 +187,8 @@ function ask(text) {
   h.busy = true
   h.scroll = true
   renderHelp()
-  setTimeout(
+  // erst antworten, wenn die Themen geladen sind (help/lazy.js; meist längst geschehen)
+  loadTopics().catch(() => {}).then(() => setTimeout(
     () => {
       h.busy = false
       respond(q)
@@ -194,7 +197,7 @@ function ask(text) {
       document.getElementById('cleo-q')?.focus({ preventScroll: true })
     },
     calm() ? 0 : 320,
-  )
+  ))
 }
 
 /** Knopf der Aktion in der Ansicht kurz hervorheben (Cleo „zeigt“ darauf). */

@@ -38,7 +38,10 @@ export function deepMerge(base, extra) {
 
 export async function loadConfig(url = 'config.json') {
   try {
-    const res = await fetch(url, { cache: 'no-store' })
+    // im Build schon mit der Seite angefragt (app/start-….js, scripts/build.js), sonst jetzt
+    const early = url === 'config.json' ? await globalThis.configRequest : null
+    delete globalThis.configRequest
+    const res = early || (await fetch(url, { cache: 'no-store' }))
     if (!res.ok) return DEFAULT_CONFIG
     return deepMerge(DEFAULT_CONFIG, await res.json())
   } catch {

@@ -10,7 +10,7 @@ import { listMail, parseAddresses, reportMail } from '../core/mail.js'
 import { mondaysBetween } from '../core/reports.js'
 import { isDue, lastSlot, mayRetry, nextSlot, RHYTHMS, rhythmText, viennaNow, WEEKDAYS } from '../core/report-schedule.js'
 import { reportDocument } from '../export/report-pdf.js'
-import { app, compute, confirmStep, ensureRange, MODALS, openModal, persist, registerActions, registerModal, renderModal, toast, VIEWS, windowFor } from './context.js'
+import { app, compute, confirmStep, ensureModal, ensureRange, ensureView, MODALS, openModal, persist, preloadLazy, registerActions, registerModal, renderModal, toast, VIEWS, windowFor } from './context.js'
 import { openCompose, pickSelect, readView, tablesCsv, todoSections } from './mailer.js'
 import { canMail } from './modals/send.js'
 import { loadLogo, pdfBlob } from './pdf.js'
@@ -43,11 +43,15 @@ async function renderOffscreen(def) {
   const monday = mondayOf(today)
   const { from, to } = windowFor(monday, addDays(monday, 3).slice(0, 7))
   await app.service?.ensureWeeks?.(mondaysBetween(from, to))
-  const view = def.view ? VIEWS.find((v) => v.id === def.view) : null
+  // später geladene Ansicht (views/lazy.js), die noch niemand geöffnet hat: erst laden; „Zu erledigen“
+  // enthält auch Punkte später geladener Module (Fakturierung, Material …): die der eigenen Bereiche laden
+  await preloadLazy()
+  const view = def.view ? await ensureView(def.view) : null
+  const modal = def.modal ? await ensureModal(def.modal) : null
   const extra = view?.range?.()
   if (extra) await ensureRange(extra.from, extra.to)
   const c = compute(monday)
-  const html = view ? view.render(c) : MODALS[def.modal](c, {})
+  const html = view ? view.render(c) : modal(c, {})
   const box = document.createElement('div')
   box.setAttribute('aria-hidden', 'true')
   box.style.cssText = 'position:fixed;left:-20000px;top:0;width:1200px;visibility:hidden;pointer-events:none'

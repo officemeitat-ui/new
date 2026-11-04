@@ -1,10 +1,10 @@
 // Alle Ansichten und Dialoge. Reihenfolge = Reihenfolge der Register.
 // Eine neue Ansicht: Datei anlegen, registerView(...) aufrufen, hier importieren.
+// Große, selten gebrauchte Ansichten erst bei Bedarf laden: in lazy.js eintragen statt hier
+// importieren (docs/ERWEITERN.md, „Später laden“).
 
 import './home.js'
 import './disponent.js'
-import './kpi.js'
-import './guide.js'
 import './week.js'
 import './timeline.js'
 import './appointments.js'
@@ -15,26 +15,14 @@ import './due.js'
 import './waste.js'
 import './report.js'
 import './controlling.js'
-import './calculation.js'
-import './proof.js'
 import './payroll.js'
 import './overtime.js'
-import './staff.js'
-import './sites.js'
 import './assign.js'
 import './absences.js'
-import './trainings.js'
-import './rules.js'
 import './access.js'
-import './system.js'
 import './tools.js'
-import './vehicles.js'
-import './complaints.js'
-import './customer-portal.js'
-import './material.js'
-import './keys.js'
-import './invoicing.js'
-import './weather.js'
+import './customer-portal.js' // immer geladen (fragt den Kundenbereich ab); Platz in „Zu erledigen“ hält lazy.js
+import './lazy.js' // Kennzahlen, Anleitung, Kalkulation, Leistungsnachweis, Mitarbeitende, Objekte & Leistungen, Unterweisungen, Regeln, Systemcheck, Fahrzeuge, Reklamationen, Material, Schlüsselbuch, Fakturierung, Wetter
 import '../timeclock.js'
 import '../quick.js'
 import '../mailer.js'
