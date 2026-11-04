@@ -4,6 +4,7 @@ import {
   customType,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -128,6 +129,8 @@ export const knowledgeChunks = pgTable(
  * A SharePoint document library synced into a collection (M5/M6). The delta link makes every
  * sync after the first one incremental (only changes). One source per collection.
  */
+export type KnowledgeSourceProvider = "sharepoint" | "bookstack" | "atera";
+
 export const knowledgeSources = pgTable(
   "knowledge_sources",
   {
@@ -138,13 +141,21 @@ export const knowledgeSources = pgTable(
     collectionId: uuid()
       .notNull()
       .references(() => knowledgeCollections.id, { onDelete: "cascade" }),
-    provider: text().$type<"sharepoint">().notNull().default("sharepoint"),
-    siteId: text().notNull(),
-    siteName: text().notNull(),
+    provider: text().$type<KnowledgeSourceProvider>().notNull().default("sharepoint"),
+    /** SharePoint only. */
+    siteId: text(),
+    siteName: text(),
     siteUrl: text(),
-    driveId: text().notNull(),
-    driveName: text().notNull(),
+    driveId: text(),
+    driveName: text(),
+    /** SharePoint delta link (other providers compare versions per item). */
     deltaLink: text(),
+    /** Shown in the UI, e.g. "doku.me-it.at" or "Atera – gelöste Tickets". */
+    displayName: text(),
+    /** Provider settings without secrets (BookStack URL, Atera filters …). */
+    settings: jsonb().$type<Record<string, unknown>>(),
+    /** API credentials, encrypted (packages/core/src/crypto.ts); never sent to the browser. */
+    secret: text(),
     status: text().$type<KnowledgeSourceStatus>().notNull().default("idle"),
     syncStartedAt: timestamp({ withTimezone: true }),
     lastSyncAt: timestamp({ withTimezone: true }),

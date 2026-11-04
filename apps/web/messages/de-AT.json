@@ -689,7 +689,7 @@
     "dropHint": "Dateien hierher ziehen oder",
     "chooseFiles": "Dateien auswählen",
     "noFiles": "Keine Datei ausgewählt",
-    "openInSharePoint": "In SharePoint öffnen"
+    "openSource": "Original öffnen"
   },
   "integrationsPage": {
     "title": "Integrationen",
@@ -995,5 +995,37 @@
     "selectVisible": "Alle angezeigten auswählen",
     "noMatch": "Keine Firma gefunden.",
     "rolloutCount": "{count, plural, =0 {Firmen auswählen} =1 {An 1 Firma ausrollen} other {An # Firmen ausrollen}}"
+  },
+  "sources": {
+    "title": "Quelle verbinden",
+    "titleSharepoint": "SharePoint-Abgleich",
+    "titleBookstack": "BookStack-Abgleich",
+    "titleAtera": "Atera-Tickets",
+    "chooseLabel": "Quelle auswählen",
+    "description": {
+      "none": "Dokumente automatisch übernehmen: aus einer SharePoint-Bibliothek, aus Ihrer BookStack-Dokumentation oder als gelöste Tickets aus Atera. Der Abgleich läuft im Hintergrund, stündlich und auf Knopfdruck.",
+      "sharepoint": "Dokumente einer SharePoint-Bibliothek, automatisch übernommen. Nach dem ersten Mal werden nur Änderungen geladen.",
+      "bookstack": "Alle veröffentlichten Seiten Ihrer BookStack-Dokumentation, stündlich abgeglichen. Geänderte Seiten werden neu eingelesen, gelöschte entfernt.",
+      "atera": "Gelöste und geschlossene Tickets aus Atera – Problem, Verlauf und Lösung –, damit Agenten und Technik nachlesen können, wie ein Fall gelöst wurde."
+    },
+    "hint": {
+      "sharepoint": "Übernommen werden PDF, Word (.docx), Markdown und Text bis 10 MB. In SharePoint gelöschte Dateien werden auch hier entfernt.",
+      "bookstack": "Entwürfe und Vorlagen werden nicht übernommen. Jede Seite verlinkt zurück nach BookStack.",
+      "atera": "E-Mail-Adressen, Telefonnummern und IBANs werden vor dem Speichern entfernt, Namen von Personen nicht übernommen. Offene Tickets bleiben draußen."
+    },
+    "connectBookstack": "Mit BookStack verbinden",
+    "connectAtera": "Mit Atera verbinden",
+    "connectTest": "Prüfen und verbinden",
+    "bookstackUrl": "Adresse Ihrer BookStack-Instanz",
+    "bookstackTokenId": "Token-ID",
+    "bookstackTokenSecret": "Token-Secret",
+    "bookstackHelp": "In BookStack unter „Mein Konto → Zugang & Sicherheit → API-Token“ anlegen. Ein Konto mit Leserechten reicht. Das Secret wird verschlüsselt gespeichert und nie wieder angezeigt.",
+    "ateraKey": "API-Schlüssel",
+    "ateraPeriod": "Zeitraum",
+    "months": "{count, plural, =1 {letzter Monat} other {letzte # Monate}}",
+    "ateraHelp": "In Atera unter „Admin → API“ kopieren. Der Schlüssel wird verschlüsselt gespeichert und nie wieder angezeigt. Übernommen werden gelöste und geschlossene Tickets aus dem gewählten Zeitraum.",
+    "ateraWindow": "{count, plural, =1 {Tickets des letzten Monats} other {Tickets der letzten # Monate}}",
+    "notConnected": "Diese Sammlung ist mit keiner Quelle verbunden.",
+    "confirmDisconnect": "Verbindung trennen? Die daraus übernommenen Dokumente werden aus dieser Sammlung entfernt, hochgeladene bleiben."
   }
 }

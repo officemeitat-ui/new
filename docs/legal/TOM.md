@@ -4,16 +4,17 @@
 
 ## Vertraulichkeit
 
-| Maßnahme                    | Umsetzung                                                                                                                               | Status |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Zutrittskontrolle           | Rechenzentrum des Hosting-Anbieters (Zertifizierung, z. B. ISO 27001, im AVV nennen)                                                    | ⬜     |
-| Zugangskontrolle            | Anmeldung mit Passwort (gehasht), Zwei-Faktor-Anmeldung (TOTP), 2FA-Pflicht für Admins per Richtlinie, Rate-Limits gegen Ratenangriffe  | ✅     |
-| Zugriffskontrolle           | Rollen und feingranulare Rechte, serverseitig geprüft; Datenbank-Zeilenschutz (Row Level Security, erzwungen) pro Mandant               | ✅     |
-| Trennungskontrolle          | Jede Mandantentabelle mit `tenant_id`, RLS-Policy und automatischem Test, der fehlende Policies erkennt                                 | ✅     |
-| Pseudonymisierung           | Audit-Log enthält Personen-IDs statt Namen; Kostenzahlen ohne Bezug zu Inhalten                                                         | ✅     |
-| Datenminimierung            | Öffentliche Mängelmeldungen ohne Pflicht zu personenbezogenen Daten; E-Mail optional und mit Erledigung gelöscht; Agenten sehen sie nie | ✅     |
-| Verschlüsselung (Transport) | TLS für alle Verbindungen; HSTS; Content Security Policy mit Nonce                                                                      | ✅     |
-| Verschlüsselung (ruhend)    | Datenträgerverschlüsselung beim Hosting-Anbieter                                                                                        | ⬜     |
+| Maßnahme                       | Umsetzung                                                                                                                               | Status |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Zutrittskontrolle              | Rechenzentrum des Hosting-Anbieters (Zertifizierung, z. B. ISO 27001, im AVV nennen)                                                    | ⬜     |
+| Zugangskontrolle               | Anmeldung mit Passwort (gehasht), Zwei-Faktor-Anmeldung (TOTP), 2FA-Pflicht für Admins per Richtlinie, Rate-Limits gegen Ratenangriffe  | ✅     |
+| Zugriffskontrolle              | Rollen und feingranulare Rechte, serverseitig geprüft; Datenbank-Zeilenschutz (Row Level Security, erzwungen) pro Mandant               | ✅     |
+| Trennungskontrolle             | Jede Mandantentabelle mit `tenant_id`, RLS-Policy und automatischem Test, der fehlende Policies erkennt                                 | ✅     |
+| Pseudonymisierung              | Audit-Log enthält Personen-IDs statt Namen; Kostenzahlen ohne Bezug zu Inhalten                                                         | ✅     |
+| Datenminimierung               | Öffentliche Mängelmeldungen ohne Pflicht zu personenbezogenen Daten; E-Mail optional und mit Erledigung gelöscht; Agenten sehen sie nie | ✅     |
+| Verschlüsselung (Transport)    | TLS für alle Verbindungen; HSTS; Content Security Policy mit Nonce                                                                      | ✅     |
+| Verschlüsselung (ruhend)       | Datenträgerverschlüsselung beim Hosting-Anbieter                                                                                        | ⬜     |
+| Verschlüsselung (Zugangsdaten) | API-Schlüssel angebundener Systeme (BookStack, Atera) AES-256-GCM-verschlüsselt, Schlüssel getrennt in der Konfiguration                | ✅     |
 
 ## Integrität
 

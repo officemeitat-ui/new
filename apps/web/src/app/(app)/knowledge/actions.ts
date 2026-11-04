@@ -4,6 +4,8 @@ import { isAppError, isUuid, validationError } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
 import {
   addDocument,
+  connectAtera,
+  connectBookStack,
   connectSharePointLibrary,
   createCollection,
   disconnectKnowledgeSource,
@@ -222,7 +224,7 @@ export async function syncSharePointAction(collectionId: string): Promise<Action
     const source = await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
       getKnowledgeSource(tx, ctx.tenant.tenantId, collectionId),
     );
-    if (!source) throw validationError("Keine SharePoint-Verbindung vorhanden.");
+    if (!source) throw validationError("Keine Verbindung vorhanden.");
     await enqueueKnowledgeSync({ sourceId: source.id, tenantId: ctx.tenant.tenantId });
     revalidatePath(`/knowledge/${collectionId}`);
     return { message: "Abgleich gestartet." };
@@ -241,6 +243,57 @@ export async function disconnectSharePointAction(collectionId: string): Promise<
       }),
     );
     revalidatePath(`/knowledge/${collectionId}`);
-    return { message: "Die Verbindung ist getrennt; Dokumente aus SharePoint wurden entfernt." };
+    return { message: "Die Verbindung ist getrennt; die übernommenen Dokumente wurden entfernt." };
+  });
+}
+
+/* ------------------------------------------------------ BookStack, Atera */
+
+const CONNECTED = "Verbunden. Der erste Abgleich läuft im Hintergrund – Sie können weiterarbeiten.";
+
+/** Tests the BookStack token, then stores it encrypted and starts the first sync. */
+export async function connectBookStackAction(
+  collectionId: string,
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction("connectBookStack", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
+    const tenantId = ctx.tenant.tenantId;
+    const source = await connectBookStack(getDatabase().db, {
+      tenantId,
+      collectionId,
+      baseUrl: String(formData.get("baseUrl") ?? "").slice(0, 500),
+      tokenId: String(formData.get("tokenId") ?? "").slice(0, 200),
+      tokenSecret: String(formData.get("tokenSecret") ?? "").slice(0, 200),
+      actorId: ctx.user.id,
+    });
+    await enqueueKnowledgeSync({ sourceId: source.id, tenantId });
+    revalidatePath(`/knowledge/${collectionId}`);
+    return { message: CONNECTED };
+  });
+}
+
+/** Tests the Atera key, then stores it encrypted and starts the first sync. */
+export async function connectAteraAction(
+  collectionId: string,
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction("connectAtera", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
+    const tenantId = ctx.tenant.tenantId;
+    const source = await connectAtera(getDatabase().db, {
+      tenantId,
+      collectionId,
+      apiKey: String(formData.get("apiKey") ?? "").slice(0, 4000),
+      monthsBack: Number(formData.get("monthsBack") ?? 12),
+      actorId: ctx.user.id,
+    });
+    await enqueueKnowledgeSync({ sourceId: source.id, tenantId });
+    revalidatePath(`/knowledge/${collectionId}`);
+    return { message: CONNECTED };
   });
 }

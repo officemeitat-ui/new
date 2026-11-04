@@ -66,7 +66,7 @@ export async function connectSharePointLibrary(
 ) {
   const collection = await getCollection(tx, input.tenantId, input.collectionId);
   if (await getKnowledgeSource(tx, input.tenantId, collection.id)) {
-    throw conflict("Diese Sammlung ist bereits mit einer SharePoint-Bibliothek verbunden.");
+    throw conflict("Diese Sammlung ist bereits mit einer Quelle verbunden.");
   }
   const [source] = await tx
     .insert(knowledgeSources)
@@ -87,7 +87,11 @@ export async function connectSharePointLibrary(
     action: "knowledge.source_connected",
     targetType: "knowledge_collection",
     targetId: collection.id,
-    metadata: { site: input.site.name, library: input.library.name },
+    metadata: {
+      provider: "sharepoint",
+      site: input.site.name,
+      library: input.library.name,
+    },
   });
   return source!;
 }
@@ -98,7 +102,7 @@ export async function disconnectKnowledgeSource(
   input: { tenantId: string; collectionId: string; actorId: string },
 ) {
   const source = await getKnowledgeSource(tx, input.tenantId, input.collectionId);
-  if (!source) throw notFound("Keine SharePoint-Verbindung vorhanden.");
+  if (!source) throw notFound("Keine Verbindung vorhanden.");
   await tx.delete(knowledgeSources).where(eq(knowledgeSources.id, source.id));
   await appendAudit(tx, input.tenantId, {
     actorType: "user",
@@ -106,13 +110,16 @@ export async function disconnectKnowledgeSource(
     action: "knowledge.source_disconnected",
     targetType: "knowledge_collection",
     targetId: input.collectionId,
-    metadata: { site: source.siteName, library: source.driveName },
+    metadata: {
+      provider: source.provider,
+      name: source.displayName ?? `${source.siteName ?? ""} / ${source.driveName ?? ""}`,
+    },
   });
 }
 
 /** All sources, for the hourly sync (system job). */
 export async function listAllKnowledgeSources(db: Database) {
-  return withSystem(db, "sharepoint: hourly sync of all sources", (tx) =>
+  return withSystem(db, "knowledge sources: hourly sync of all sources", (tx) =>
     tx
       .select({ id: knowledgeSources.id, tenantId: knowledgeSources.tenantId })
       .from(knowledgeSources),
@@ -164,13 +171,25 @@ export type SyncResult = {
   restarted: boolean;
 };
 
-async function upsertSyncedFile(
+/** One item of an external source, stored as a knowledge document (all providers). */
+export type SourceItem = {
+  /** Stable ID in the source system (SharePoint item, BookStack page, Atera ticket). */
+  id: string;
+  fileName: string;
+  title: string;
+  /** Changes whenever the item changes (cTag/eTag, updated_at …). */
+  version: string | null;
+  url: string | null;
+};
+
+/** Creates or replaces the document of a source item; parsing happens in the ingest job. */
+export async function upsertSourceDocument(
   tx: Tx,
   input: {
     tenantId: string;
     collectionId: string;
     sourceId: string;
-    item: DriveItem;
+    item: SourceItem;
     bytes: Uint8Array;
     kind: string;
   },
@@ -188,21 +207,16 @@ async function upsertSyncedFile(
     );
   if (duplicate) return { duplicate: true };
 
-  const name = (input.item.name ?? input.item.id).slice(0, 200);
   const values = {
-    title:
-      name
-        .replace(/\.[^.]+$/, "")
-        .replace(/_+/g, " ")
-        .trim() || name,
-    fileName: name,
+    title: input.item.title.slice(0, 200) || input.item.fileName,
+    fileName: input.item.fileName.slice(0, 200),
     kind: input.kind,
     sizeBytes: input.bytes.byteLength,
     sha256,
     status: "processing" as const,
     error: null,
-    sourceVersion: input.item.cTag ?? input.item.eTag ?? null,
-    sourceUrl: input.item.webUrl ?? null,
+    sourceVersion: input.item.version,
+    sourceUrl: input.item.url,
   };
   const [existing] = await tx
     .select({ id: knowledgeDocuments.id })
@@ -239,8 +253,23 @@ async function upsertSyncedFile(
   return { documentId: created!.id };
 }
 
+function sharePointItem(item: DriveItem): SourceItem {
+  const name = (item.name ?? item.id).slice(0, 200);
+  return {
+    id: item.id,
+    fileName: name,
+    title:
+      name
+        .replace(/\.[^.]+$/, "")
+        .replace(/_+/g, " ")
+        .trim() || name,
+    version: item.cTag ?? item.eTag ?? null,
+    url: item.webUrl ?? null,
+  };
+}
+
 /** Runs `fn` over `items` with at most `limit` in flight. */
-async function eachLimited<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
+export async function eachLimited<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
   let next = 0;
   await Promise.all(
     Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -278,10 +307,11 @@ export async function syncSharePointSource(
   if (!(await claimSync(db, tenantId, sourceId, input.now)))
     return { ...result, status: "skipped" };
 
-  const [source] = await withTenant(db, tenantId, (tx) =>
+  const [found] = await withTenant(db, tenantId, (tx) =>
     tx.select().from(knowledgeSources).where(eq(knowledgeSources.id, sourceId)),
   );
-  if (!source) return { ...result, status: "skipped" };
+  if (!found?.driveId) return { ...result, status: "skipped" };
+  const source = { ...found, driveId: found.driveId };
 
   const progress = () =>
     withTenant(db, tenantId, (tx) =>
@@ -365,11 +395,11 @@ export async function syncSharePointSource(
             return;
           }
           const stored = await withTenant(db, tenantId, (tx) =>
-            upsertSyncedFile(tx, {
+            upsertSourceDocument(tx, {
               tenantId,
               collectionId: source.collectionId,
               sourceId,
-              item,
+              item: sharePointItem(item),
               bytes,
               kind,
             }),

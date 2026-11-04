@@ -17,7 +17,7 @@ import { getTranslations } from "next-intl/server";
 import { DeleteCollectionButton } from "@/components/knowledge/delete-collection-button";
 import { DocumentList } from "@/components/knowledge/document-list";
 import { SearchTest } from "@/components/knowledge/search-test";
-import { SharePointSource } from "@/components/knowledge/sharepoint-source";
+import { KnowledgeSource } from "@/components/knowledge/knowledge-source";
 import { UploadForm } from "@/components/knowledge/upload-form";
 import { requireTenant } from "@/lib/session";
 
@@ -82,26 +82,11 @@ export default async function CollectionPage({
 
       {canManage ? <UploadForm collectionId={collection.id} /> : null}
 
-      <SharePointSource
+      <KnowledgeSource
         collectionId={collection.id}
         canManage={canManage}
         microsoftConnected={Boolean(microsoft) && microsoftAppConfig() !== null}
-        source={
-          source
-            ? {
-                siteName: source.siteName,
-                siteUrl: source.siteUrl,
-                driveName: source.driveName,
-                status: source.status,
-                stale: isSyncStale(source),
-                lastSync: source.lastSyncAt ? formatDateTime(source.lastSyncAt) : null,
-                lastError: source.lastError,
-                itemsSeen: source.itemsSeen,
-                itemsImported: source.itemsImported,
-                itemsSkipped: source.itemsSkipped,
-              }
-            : null
-        }
+        source={source ? sourceView(source) : null}
       />
 
       <DocumentList
@@ -117,7 +102,7 @@ export default async function CollectionPage({
           error: d.error,
           pageCount: d.pageCount,
           chunkCount: d.chunkCount,
-          uploaded: `${d.fromSource ? "SharePoint" : (d.createdByName ?? "–")} · ${formatDateTime(d.createdAt)}`,
+          uploaded: `${d.fromSource ? PROVIDER_LABEL[source?.provider ?? "sharepoint"] : (d.createdByName ?? "–")} · ${formatDateTime(d.createdAt)}`,
           sourceUrl: d.sourceUrl,
         }))}
       />
@@ -127,4 +112,48 @@ export default async function CollectionPage({
       ) : null}
     </div>
   );
+}
+
+const PROVIDER_LABEL = { sharepoint: "SharePoint", bookstack: "BookStack", atera: "Atera" } as const;
+
+/** What the browser may see of a source: never the secret. */
+function sourceView(source: NonNullable<Awaited<ReturnType<typeof getKnowledgeSource>>>) {
+  const settings = (source.settings ?? {}) as { baseUrl?: unknown; monthsBack?: unknown };
+  const common = {
+    status: source.status,
+    stale: isSyncStale(source),
+    lastSync: source.lastSyncAt ? formatDateTime(source.lastSyncAt) : null,
+    lastError: source.lastError,
+    itemsSeen: source.itemsSeen,
+    itemsImported: source.itemsImported,
+    itemsSkipped: source.itemsSkipped,
+  };
+  if (source.provider === "bookstack") {
+    return {
+      ...common,
+      provider: "bookstack" as const,
+      name: source.displayName ?? "BookStack",
+      detail: null,
+      url: typeof settings.baseUrl === "string" ? settings.baseUrl : null,
+      monthsBack: null,
+    };
+  }
+  if (source.provider === "atera") {
+    return {
+      ...common,
+      provider: "atera" as const,
+      name: source.displayName ?? "Atera",
+      detail: null,
+      url: null,
+      monthsBack: typeof settings.monthsBack === "number" ? settings.monthsBack : null,
+    };
+  }
+  return {
+    ...common,
+    provider: "sharepoint" as const,
+    name: source.driveName ?? "SharePoint",
+    detail: source.siteName,
+    url: source.siteUrl,
+    monthsBack: null,
+  };
 }

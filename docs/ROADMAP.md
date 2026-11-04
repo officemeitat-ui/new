@@ -2,19 +2,19 @@
 
 Die Phasen folgen [`prompts/01_BUILD_PHASEN.md`](../prompts/01_BUILD_PHASEN.md). Status: ✅ fertig · 🟡 in Arbeit · ⬜ offen.
 
-| Phase | Inhalt                                                                        | Status                               |
-| ----- | ----------------------------------------------------------------------------- | ------------------------------------ |
-| 0     | Fundament: Monorepo, CI, Docker, Datenbank-Grundlage, Designsystem, App-Shell | siehe [PROGRESS](PROGRESS.md)        |
-| 1     | Mandanten, Anmeldung, Rechte, Audit-Log, Partner-Konsole (Grundgerüst)        | siehe [PROGRESS](PROGRESS.md)        |
-| 2     | Agent-Runtime und Chat                                                        | siehe [PROGRESS](PROGRESS.md)        |
-| 3     | Wissensdatenbank (RAG)                                                        | 🟡 v1 mit Volltextsuche, SharePoint  |
-| 4     | Integrationen und MCP                                                         | 🟡 Microsoft 365: Intune, SharePoint |
-| 5     | Workflows und Freigabe-Inbox                                                  | 🟡 Freigabe-Inbox fertig             |
-| 6     | Agent Studio, Vorlagen, Evals → **demo-fähig**                                | 🟡 Studio und Vorlagen fertig        |
-| 7     | Kanäle: Web-Widget, E-Mail-Agent, PWA-Push                                    | ⬜                                   |
-| 8     | ROI, Abrechnung, Partner-Konsole vollständig                                  | 🟡 Agenten-Pakete (Rollout)          |
-| 9     | Compliance, Sicherheit, Hardening                                             | 🟡 DSGVO-Werkzeuge, Steckbriefe, CSP |
-| 10    | Launch: Onboarding, Doku, Release 1.0                                         | ⬜                                   |
+| Phase | Inhalt                                                                        | Status                                    |
+| ----- | ----------------------------------------------------------------------------- | ----------------------------------------- |
+| 0     | Fundament: Monorepo, CI, Docker, Datenbank-Grundlage, Designsystem, App-Shell | siehe [PROGRESS](PROGRESS.md)             |
+| 1     | Mandanten, Anmeldung, Rechte, Audit-Log, Partner-Konsole (Grundgerüst)        | siehe [PROGRESS](PROGRESS.md)             |
+| 2     | Agent-Runtime und Chat                                                        | siehe [PROGRESS](PROGRESS.md)             |
+| 3     | Wissensdatenbank (RAG)                                                        | 🟡 Volltext; SharePoint, BookStack, Atera |
+| 4     | Integrationen und MCP                                                         | 🟡 Microsoft 365: Intune, SharePoint      |
+| 5     | Workflows und Freigabe-Inbox                                                  | 🟡 Freigabe-Inbox fertig                  |
+| 6     | Agent Studio, Vorlagen, Evals → **demo-fähig**                                | 🟡 Studio und Vorlagen fertig             |
+| 7     | Kanäle: Web-Widget, E-Mail-Agent, PWA-Push                                    | ⬜                                        |
+| 8     | ROI, Abrechnung, Partner-Konsole vollständig                                  | 🟡 Agenten-Pakete (Rollout)               |
+| 9     | Compliance, Sicherheit, Hardening                                             | 🟡 DSGVO-Werkzeuge, Steckbriefe, CSP      |
+| 10    | Launch: Onboarding, Doku, Release 1.0                                         | ⬜                                        |
 
 ## Akzeptanzkriterien je Phase
 
@@ -58,6 +58,8 @@ Siehe Akzeptanzkriterien in [`prompts/01_BUILD_PHASEN.md`](../prompts/01_BUILD_P
 | Firma löschen per Knopf (Partner-Konsole)            | Phase 9                                     |
 | Datei-Ablage in S3                                   | mit dem Deployment (ADR 0007)               |
 | SharePoint: Webhooks statt stündlichem Abgleich      | Phase 4                                     |
+| Atera: Abgleich mit echtem Schlüssel verifizieren    | vor Go-live (ADR 0010)                      |
+| Atera: Tickets pro Kunde (Partner-gesteuert)         | Phase 4                                     |
 | SharePoint: Berechtigungen pro Datei übernehmen      | Phase 4 (ADR 0008)                          |
 | Dateiverarbeitung in eigenem Prozess (Speicherlimit) | Phase 9 (Sicherheits-Review, Befund 12)     |
 | Reinigung: Qualitätskontrolle (EN 13549) am Handy    | Branchenpaket Gebäudereinigung, Stufe 2     |

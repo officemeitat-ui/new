@@ -20,7 +20,7 @@ test("a SharePoint library is synced into a collection in the background", async
   await page.getByRole("button", { name: "Sammlung anlegen" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(collection);
 
-  const panel = page.getByTestId("sharepoint");
+  const panel = page.getByTestId("knowledge-source");
   await panel.getByRole("button", { name: "Mit SharePoint verbinden" }).click();
   await panel.getByLabel("SharePoint-Website suchen").fill("Team");
   await panel.getByRole("button", { name: "Suchen" }).click();
@@ -40,7 +40,7 @@ test("a SharePoint library is synced into a collection in the background", async
   const plan = page.getByTestId("document").filter({ hasText: "Reinigungsplan Büro" });
   await expect(plan).toContainText("Bereit", { timeout: 30_000 });
   await expect(plan).toContainText("SharePoint");
-  await expect(plan.getByRole("link", { name: "In SharePoint öffnen" })).toHaveAttribute(
+  await expect(plan.getByRole("link", { name: "Original öffnen" })).toHaveAttribute(
     "href",
     /contoso\.sharepoint\.com/,
   );

@@ -8,7 +8,8 @@
     "./env": "./src/env.ts",
     "./logger": "./src/logger.ts",
     "./permissions": "./src/permissions.ts",
-    "./format": "./src/format.ts"
+    "./format": "./src/format.ts",
+    "./crypto": "./src/crypto.ts"
   },
   "scripts": {
     "typecheck": "tsc",

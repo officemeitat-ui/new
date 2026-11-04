@@ -50,6 +50,11 @@ jobs:
       MICROSOFT_GRAPH_CLIENT_SECRET: e2e-secret
       MICROSOFT_LOGIN_URL: http://localhost:4020/login
       MICROSOFT_GRAPH_URL: http://localhost:4020/graph/v1.0
+      # E2E: BookStack and Atera against packages/connectors/src/testing/mock-tools.ts.
+      ATERA_API_URL: http://localhost:4030/atera/api/v3
+      CONNECTOR_ALLOW_PRIVATE_URLS: "true"
+      # Test-only key for secrets at rest (never used outside CI).
+      DATA_ENCRYPTION_KEY: ZTJlLXRlc3Qta2V5LW5leHVzLWNpLW9ubHktMzJieXQ=
 
     steps:
       - uses: actions/checkout@v4

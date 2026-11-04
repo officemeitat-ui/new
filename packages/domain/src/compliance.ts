@@ -1,8 +1,8 @@
 import { catalogTool, type CatalogTool } from "@nexus/agents/catalog";
 import { isModelTier, modelDisplayName, resolveModel } from "@nexus/agents/models";
 import { getEnv } from "@nexus/core/env";
-import type { Tx } from "@nexus/db";
-import type { AgentConfig } from "@nexus/db/schema";
+import { eq, type Tx } from "@nexus/db";
+import { knowledgeSources, type AgentConfig } from "@nexus/db/schema";
 import { listAgents } from "./agents";
 import { getIntegration } from "./integrations";
 import { listCollections } from "./knowledge";
@@ -166,6 +166,10 @@ export async function getProcessingRegister(tx: Tx, tenantId: string) {
     await getPrivacySettings(tx, tenantId),
     await getIntegration(tx, tenantId, "microsoft365"),
   ];
+  const sources = await tx
+    .select({ provider: knowledgeSources.provider })
+    .from(knowledgeSources)
+    .where(eq(knowledgeSources.tenantId, tenantId));
   const keep = (days: number | null) => (days ? `${days} Tage` : "bis zur manuellen Löschung");
   const llm = llmProcessor();
 
@@ -233,6 +237,34 @@ export async function getProcessingRegister(tx: Tx, tenantId: string) {
         ? `${settings.chatRetentionDays} Tage nach Erledigung`
         : "bis zur manuellen Löschung",
     },
+    ...(sources.some((source) => source.provider === "atera")
+      ? [
+          {
+            title: "Ticket-Wissen aus Atera",
+            purpose:
+              "Gelöste Support-Fälle als Wissen für Technik und Agenten („Wie haben wir das gelöst?“)",
+            legalBasis:
+              "Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an effizientem Support)",
+            subjects: "Ansprechpersonen der Kunden, Mitarbeitende der Technik",
+            data: "Ticket-Titel, Kundenfirma, Art, Status, Datum, Kommentare und interne Notizen; E-Mail-Adressen, Telefonnummern und IBANs werden vor dem Speichern entfernt, Namen von Personen nicht übernommen (in Freitext möglich)",
+            recipients: "Mitarbeitende mit Zugriff auf die Sammlung, Agenten dieser Sammlung",
+            retention: keep(settings.documentRetentionDays),
+          },
+        ]
+      : []),
+    ...(sources.some((source) => source.provider === "bookstack")
+      ? [
+          {
+            title: "Dokumentation aus BookStack",
+            purpose: "Eigene Dokumentation als durchsuchbares Wissen für Mitarbeitende und Agenten",
+            legalBasis: "Art. 6 Abs. 1 lit. f DSGVO",
+            subjects: "in der Dokumentation genannte Personen (z. B. Ansprechpartner)",
+            data: "Veröffentlichte BookStack-Seiten als Text (Entwürfe und Vorlagen nicht)",
+            recipients: "Mitarbeitende mit Zugriff auf die Sammlung, Agenten dieser Sammlung",
+            retention: `${keep(settings.documentRetentionDays)}; in BookStack gelöschte Seiten werden beim nächsten Abgleich entfernt`,
+          },
+        ]
+      : []),
     ...(microsoft
       ? [
           {

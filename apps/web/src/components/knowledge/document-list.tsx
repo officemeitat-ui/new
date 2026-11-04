@@ -19,7 +19,7 @@ type Document = {
   pageCount: number | null;
   chunkCount: number;
   uploaded: string;
-  /** Link to the original in SharePoint, for synced documents. */
+  /** Link to the original (SharePoint, BookStack), for synced documents. */
   sourceUrl: string | null;
 };
 
@@ -123,7 +123,7 @@ export function DocumentList({
                         rel="noopener noreferrer"
                         className="text-xs text-primary underline"
                       >
-                        {t("openInSharePoint")}
+                        {t("openSource")}
                       </a>
                     ) : null}
                   </div>

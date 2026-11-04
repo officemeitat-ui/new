@@ -2,6 +2,27 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Wissen aus BookStack und Atera – „Wie haben wir das gelöst?“ ✅
+
+**Erledigt** (Zeile 2 „Wissen: Wo liegt es heute?“ – bei ME-IT: BookStack-Doku und Atera-Tickets)
+
+- **BookStack-Abgleich:** Sammlung → „Mit BookStack verbinden“: Adresse, Token-ID, Token-Secret → wird sofort geprüft. Alle veröffentlichten Seiten kommen als Markdown in die Sammlung (Titel „Buch – Seite“, Link zurück), stündlich und auf Knopfdruck; geänderte Seiten werden neu eingelesen, gelöschte entfernt, Entwürfe bleiben draußen.
+- **Atera-Abgleich:** „Mit Atera verbinden“: API-Schlüssel und Zeitraum (6–36 Monate). Gelöste und geschlossene Tickets werden mit Verlauf und interner Lösung übernommen – **ohne E-Mail-Adressen, Telefonnummern, IBANs und ohne Personennamen**. Unveränderte Tickets werden nicht erneut geladen.
+- **Agenten antworten daraus:** z. B. „Drucker druckt nur leere Seiten“ → Lösung aus Ticket 1042 mit Quelle.
+- **Sicherheit:** Zugangsdaten AES-256-GCM-verschlüsselt (`DATA_ENCRYPTION_KEY`), nie im Browser; SSRF-Schutz für die BookStack-Adresse (nur öffentliches https, keine Weiterleitungen, Timeout, Größenlimit); Fehlermeldungen wie „BookStack hat die Zugangsdaten abgelehnt“ erscheinen direkt beim Verbinden.
+- **Gemeinsames Quellen-Panel** für SharePoint, BookStack und Atera; synchronisierte Dokumente zeigen ihre Herkunft. Verarbeitungsverzeichnis um „Ticket-Wissen aus Atera“ und „Dokumentation aus BookStack“ ergänzt.
+- **Nebenbei behoben:** BookStack-Instanzen mit kleinerer Seitengröße hätten Seiten übersprungen; Formularfelder wurden nach einem Fehlversuch geleert.
+- **Tests:** Connector (Paging, Token, Status-/Datumsfilter, SSRF-Prüfung), Verschlüsselung (inkl. Manipulation), Worker gegen echte Datenbank (Erstimport, keine Doppel-Downloads, Änderung, Löschung, Maskierung), E2E (BookStack verbinden mit Fehlversuch → Abgleich → Link; Atera verbinden → Tickets → Agent antwortet mit Lösung).
+
+**Für den Echtbetrieb nötig (ME-IT)**
+
+- `DATA_ENCRYPTION_KEY` setzen (`openssl rand -base64 32`), in BookStack ein Lese-Konto mit API-Token anlegen, in Atera einen API-Schlüssel erzeugen.
+- Atera: einmal mit echtem Schlüssel gegen die offizielle Referenz prüfen (Kommentarfelder, siehe ADR 0010). Dafür in den Netzwerk-Einstellungen der Entwicklungsumgebung `app.atera.com` freigeben.
+
+**Noch offen**
+
+- Atera-Kunden den Firmen der Plattform zuordnen (Tickets pro Kunde, vom Partner gesteuert), Webhooks statt stündlich, Anhänge.
+
 ## Agenten-Pakete: ein Agent für viele Kunden, zentral gepflegt ✅
 
 **Erledigt** (nach dem Just-Close-Rahmen „Task · Wissen · Kunden“: Zeile 1 = Angebote, Zeile 3 = „Wer braucht dasselbe?“)

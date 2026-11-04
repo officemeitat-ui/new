@@ -689,7 +689,7 @@
     "dropHint": "Drop files here or",
     "chooseFiles": "Choose files",
     "noFiles": "No file selected",
-    "openInSharePoint": "Open in SharePoint"
+    "openSource": "Open original"
   },
   "integrationsPage": {
     "title": "Integrations",
@@ -995,5 +995,37 @@
     "selectVisible": "Select all shown",
     "noMatch": "No company found.",
     "rolloutCount": "{count, plural, =0 {Select companies} =1 {Roll out to 1 company} other {Roll out to # companies}}"
+  },
+  "sources": {
+    "title": "Connect a source",
+    "titleSharepoint": "SharePoint sync",
+    "titleBookstack": "BookStack sync",
+    "titleAtera": "Atera tickets",
+    "chooseLabel": "Choose a source",
+    "description": {
+      "none": "Take documents over automatically: from a SharePoint library, from your BookStack documentation or as solved tickets from Atera. Syncing runs in the background, hourly and on demand.",
+      "sharepoint": "Documents of a SharePoint library, taken over automatically. After the first run only changes are loaded.",
+      "bookstack": "All published pages of your BookStack documentation, synced hourly. Changed pages are read again, deleted ones removed.",
+      "atera": "Solved and closed tickets from Atera – problem, course and solution – so agents and technicians can look up how a case was solved."
+    },
+    "hint": {
+      "sharepoint": "PDF, Word (.docx), Markdown and text up to 10 MB are taken over. Files deleted in SharePoint are removed here too.",
+      "bookstack": "Drafts and templates are not taken over. Every page links back to BookStack.",
+      "atera": "E-mail addresses, phone numbers and IBANs are removed before saving, names of people are not taken over. Open tickets stay out."
+    },
+    "connectBookstack": "Connect BookStack",
+    "connectAtera": "Connect Atera",
+    "connectTest": "Check and connect",
+    "bookstackUrl": "Address of your BookStack instance",
+    "bookstackTokenId": "Token ID",
+    "bookstackTokenSecret": "Token secret",
+    "bookstackHelp": "Create it in BookStack under “My account → Access & security → API tokens”. A read-only account is enough. The secret is stored encrypted and never shown again.",
+    "ateraKey": "API key",
+    "ateraPeriod": "Period",
+    "months": "{count, plural, =1 {last month} other {last # months}}",
+    "ateraHelp": "Copy it in Atera under “Admin → API”. The key is stored encrypted and never shown again. Solved and closed tickets of the chosen period are taken over.",
+    "ateraWindow": "{count, plural, =1 {tickets of the last month} other {tickets of the last # months}}",
+    "notConnected": "This collection is not connected to a source.",
+    "confirmDisconnect": "Disconnect? Documents taken over from it are removed from this collection; uploads stay."
   }
 }

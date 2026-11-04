@@ -45,6 +45,13 @@ export default defineConfig({
           reuseExistingServer: !process.env.CI,
         },
         {
+          // BookStack and Atera. Web and worker need ATERA_API_URL=http://localhost:4030/atera/api/v3
+          // and CONNECTOR_ALLOW_PRIVATE_URLS=true (the mock runs on localhost over http).
+          command: "node ../../packages/connectors/src/testing/mock-tools.ts",
+          url: "http://localhost:4030/health",
+          reuseExistingServer: !process.env.CI,
+        },
+        {
           // Receives every e-mail; web and worker need SMTP_HOST=localhost, SMTP_PORT=2525.
           command: "node e2e/smtp-sink.mjs",
           url: "http://localhost:2526/health",

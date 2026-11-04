@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./src/testing/mock-microsoft.ts"
+    "./testing": "./src/testing/mock-microsoft.ts",
+    "./testing/tools": "./src/testing/mock-tools.ts"
   },
   "scripts": {
     "typecheck": "tsc",

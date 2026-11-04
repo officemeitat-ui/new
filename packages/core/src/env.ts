@@ -49,6 +49,25 @@ export const envSchema = z
     BRAND_PRODUCT_NAME: z.string().default("ME-IT Nexus"),
     /** Hosting provider and location for the subprocessor list, e.g. "Hetzner Online GmbH, Falkenstein (DE)". */
     HOSTING_DESCRIPTION: z.string().optional(),
+
+    /**
+     * Key for secrets stored in the database (API keys of BookStack, Atera …): 32 random bytes,
+     * base64 (`openssl rand -base64 32`). Required in production as soon as such a secret is saved.
+     */
+    DATA_ENCRYPTION_KEY: z
+      .string()
+      .refine((value) => Buffer.from(value, "base64").length === 32, "muss 32 Byte (base64) sein")
+      .optional(),
+    /** Atera REST API (ADR 0010); only tests point this elsewhere. */
+    ATERA_API_URL: z.url().default("https://app.atera.com/api/v3"),
+    /**
+     * Allows connector URLs on private networks and plain http (development and tests only).
+     * In production, customer-entered URLs must be public https addresses (SSRF protection).
+     */
+    CONNECTOR_ALLOW_PRIVATE_URLS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
