@@ -470,6 +470,10 @@ function bookModal() {
     })
     .join('')
   const multi = d.locations.length > 1
+  // zur Anforderung: was ohne passenden Artikel angefordert wurde (Freitext) und die Notiz, damit nichts untergeht
+  const req = m.requestId ? d.requests.find((r) => r.id === m.requestId) : null
+  const unmatched = req ? (req.lines || []).filter((l) => !l.articleId && l.text && !matchArticle(l.text, d.articles)) : []
+  const reqNote = req && (unmatched.length || req.note) ? `<p class="note">${unmatched.length ? `Aus der Anforderung ohne passenden Artikel: ${unmatched.map((l) => `„${esc(l.text)}“`).join(', ')}. Bitte oben einen Artikel wählen oder anders besorgen.` : ''}${req.note ? ` Notiz der Anforderung: ${esc(req.note)}` : ''}</p>` : ''
   return modalFrame({
     title: BOOK_TITLE[m.mode] || 'Buchen',
     subtitle: m.requestId ? 'zur Anforderung' : '',
@@ -480,7 +484,7 @@ function bookModal() {
         ${m.mode === 'umbuchung' ? `<label class="field"><span>In Lager</span><select id="mb-to">${locationOptions(m.to)}</select></label>` : ''}
         ${m.mode === 'ausgabe' ? `<label class="field"><span>An Objekt</span><select id="mb-obj">${objectOptions(m.objectId || '')}</select></label><label class="field"><span>oder an Person (z. B. Arbeitskleidung)</span><select id="mb-emp">${employeeOptions(m.employeeId || '')}</select></label>` : ''}
       </div>
-      <section><h3>Positionen</h3><div class="mat-lines">${lines}</div><p><button class="btn small" data-action="mat-book-line-add">${ICON.plus} Position</button></p></section>
+      ${reqNote}<section><h3>Positionen</h3><div class="mat-lines">${lines}</div><p><button class="btn small" data-action="mat-book-line-add">${ICON.plus} Position</button></p></section>
       <label class="field wide"><span>Notiz</span><input type="text" id="mb-note" value="${esc(m.note || '')}" placeholder="${m.mode === 'eingang' ? 'z. B. Lieferschein-Nr.' : ''}"></label>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="mat-book-save">Buchen</button></div>`,
   })
@@ -1041,9 +1045,10 @@ registerActions(
       const lines = (m.lines || []).map((l, i) => ({ articleId: val(`mr-art-${i}`), qty: parseFloat(String(val(`mr-qty-${i}`)).replace(',', '.')) || 0, text: val(`mr-text-${i}`).trim() })).filter((l) => l.articleId || l.text)
       if (!val('mr-obj')) return toast('Bitte das Objekt wählen.')
       if (!lines.length) return toast('Bitte eintragen, was gebraucht wird.')
-      M().requests.push({ id: newId(), at: nowIso(), source: 'app', by: by(), employeeId: '', name: by(), objectId: val('mr-obj'), lines, note: val('mr-note').trim(), status: 'offen', answer: '' })
+      const objectId = val('mr-obj')
+      M().requests.push({ id: newId(), at: nowIso(), source: 'app', by: by(), employeeId: '', name: by(), objectId, lines, note: val('mr-note').trim(), status: 'offen', answer: '' })
       closeModal()
-      commit(`Anforderung für ${objName(val('mr-obj')) || 'das Objekt'} erfasst.`)
+      commit(`Anforderung für ${objName(objectId) || 'das Objekt'} erfasst.`)
     },
     'mat-request-issue': (el) => {
       const r = M().requests.find((x) => x.id === el.dataset.id)
