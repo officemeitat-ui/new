@@ -96,8 +96,16 @@ function series(parameters, kind) {
     const p = parameters?.[name]
     if (!p || !Array.isArray(p.data)) continue
     let data = p.data.map(num)
-    // Summen seit Modellstart (alte Namen *_acc): in Werte je Stunde umrechnen
-    if (/_acc$/.test(name)) data = data.map((v, i) => (v === null ? null : Math.max(0, v - (i && data[i - 1] !== null ? data[i - 1] : 0))))
+    // Summen seit Modellstart (alte Namen *_acc): in Werte je Stunde umrechnen (nach einer Lücke ab dem letzten bekannten Stand)
+    if (/_acc$/.test(name)) {
+      let prev = 0
+      data = data.map((v) => {
+        if (v === null) return null
+        const step = Math.max(0, v - prev)
+        prev = v
+        return step
+      })
+    }
     const unit = String(p.unit || '')
     if (kind === 't' && (unit === 'K' || data.some((v) => v !== null && v > 150))) data = data.map((v) => (v === null ? null : v - 273.15))
     if (kind === 'gust' && !/km/.test(unit)) data = data.map((v) => (v === null ? null : v * 3.6)) // m/s → km/h

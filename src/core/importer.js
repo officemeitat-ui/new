@@ -89,6 +89,7 @@ export function travelMinutes(text) {
   if (!t) return null
   const n = parseFloat(t)
   if (!Number.isFinite(n)) return null
+  if (t.includes('min') && !t.includes('h')) return Math.round(n) // „3 min“: ausdrücklich Minuten
   if (t.includes('h') || (n > 0 && n < 5)) return Math.round(n * 60)
   return Math.round(n)
 }
@@ -107,7 +108,7 @@ export function parseInterval(text) {
 /** "monatlich", "quartalsweise", "halbjährlich", "jährlich", "alle 2 Monate" → Monatsintervall, sonst null */
 export function parseMonthInterval(text) {
   const t = norm(text)
-  if (t.includes('quartal')) return 3
+  if (t.includes('quartal') || t.includes('viertelj')) return 3 // vor „jahr“: vierteljährlich ist nicht jährlich
   if (t.includes('halbjahr') || t.includes('halbjaehr') || t.includes('halbjahrl')) return 6
   if (t.includes('jahr') || t.includes('jaehr') || t.includes('jahrl')) return 12
   const m = t.match(/alle(\d+)monat/)
