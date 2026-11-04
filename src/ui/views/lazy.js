@@ -11,7 +11,7 @@
 // Beschriftung im Modul → hier nachtragen. Anleitung: docs/ERWEITERN.md, „Später laden“.
 
 import { app, registerLazy } from '../context.js'
-import { registerTodo } from '../modals/todo.js'
+import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
 // Zwei Pakete: „alle“ sieht jede Rolle (auch Vorarbeiter am Handy), „büro“ die übrigen Bereiche.
@@ -21,7 +21,12 @@ const BUERO = () => import('./lazy-buero.js')
 /** registerLazy plus Platzhalter in „Zu erledigen“. */
 function lazy(load, { todo = [], ...spec }) {
   const entry = registerLazy(load, spec)
-  for (const id of todo) registerTodo({ id, module: entry.module, lazy: entry, title: '', compute: () => [], render: () => '' })
+  for (const id of todo) {
+    // Quelle eines immer geladenen Moduls, schon registriert (customer-portal.js): nur an diese Stelle rücken
+    const idx = SOURCES.findIndex((s) => s.id === id)
+    if (idx >= 0) SOURCES.push(...SOURCES.splice(idx, 1))
+    else registerTodo({ id, module: entry.module, lazy: entry, title: '', compute: () => [], render: () => '' })
+  }
 }
 
 // kpi.js
@@ -161,7 +166,8 @@ lazy(BUERO, {
   modals: 'complaint',
   actions: 'complaint-filter complaint-object complaint-open complaint-redraw complaint-pdf complaint-csv complaint-new complaint-save',
   hints: true,
-  todo: ['reklamationen'],
+  // kundenbereich: Platz für customer-portal.js (immer geladen), damit „Zu erledigen“ die Reihenfolge behält
+  todo: ['reklamationen', 'kundenbereich'],
 })
 
 // material.js

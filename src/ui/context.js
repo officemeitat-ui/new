@@ -85,7 +85,7 @@ const SECTION_OF_GROUP = { start: 'start', plan: 'planung', service: 'objekte', 
 const NAV_ORDER = {
   planung: ['week', 'timeline', 'termine', 'coverage', 'absences', 'objects', 'report'],
   einsatz: ['zeiten', 'sheet', 'due', 'waste', 'wetter'],
-  objekte: ['reklamationen', 'nachweis', 'schluessel', 'zaehler', 'kontrolle', 'objektmappe', 'matten'],
+  objekte: ['reklamationen', 'nachweis', 'kundenbereich', 'schluessel', 'zaehler', 'kontrolle', 'objektmappe', 'matten'],
   betrieb: ['material', 'fahrzeuge'],
   finanzen: ['fakturierung', 'kalkulation', 'controlling', 'payroll', 'overtime'],
   verwaltung: ['staff', 'sites', 'assign', 'unterweisungen', 'rules', 'berechtigungen', 'system'],

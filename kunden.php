@@ -1,0 +1,815 @@
+<?php
+// Kundenbereich: persönliche Seite für Kunden bzw. Objekte, ohne Anmeldung (wie mein-plan.php).
+//
+// Jeder Link (kunden.php?k=CODE) gehört zu einem Kunden oder Objekt. Dort sieht der Kunde, was die
+// App für diesen Link veröffentlicht: die Leistungsnachweise je Monat als PDF, den Winterdienst-
+// Nachweis, die nächsten periodischen Leistungen und Termine im Objekt. Er kann eine Reklamation
+// melden (Text, optional Foto, Kontakt) und sieht ihren Stand: eingegangen, in Arbeit, erledigt.
+// Das Büro bekommt einen Push (ntfy, ohne Inhalt) bzw. eine E-Mail; die App übernimmt die Meldung
+// als Reklamation mit Eingang „Kundenbereich“ und meldet den Stand zurück.
+//
+// Gespeichert wird nur, was die App schickt, unter privat/kundenbereich/ (per .htaccess gesperrt):
+// je Link eine Datei mit Hashwert des Codes (der Code selbst liegt nie am Server), die PDFs je Link,
+// die Meldungen. Grenzen: falsche Codes je Adresse, Meldungen je Link und je Adresse, Fotos nur als
+// Bild (JPEG, PNG, WebP; mit GD neu gespeichert, ohne Metadaten), PDFs nur als PDF.
+//
+// Aufrufe der App (Schlüssel im Kopf X-Schluessel):
+//   aktion=einrichten | speichern | datei | meldungen | meldung-status | foto | status
+// Erste Einrichtung: privat/kundenbereich.json per FTP, oder „einrichten“ mit dem Schlüssel von
+// Plan am Handy bzw. Schnee-Alarm im Kopf X-Freigabe, solange es noch keine Einstellungen gibt.
+
+declare(strict_types=1);
+
+require __DIR__ . '/wetter-lib.php';
+require __DIR__ . '/webspace-lib.php';
+
+const ARTEN = ['Reinigung mangelhaft' => 'Reinigung nicht in Ordnung', 'Leistung nicht erbracht' => 'Leistung nicht erbracht', 'Schaden' => 'Schaden', 'Sonstiges' => 'Sonstiges'];
+const STATUS = ['eingegangen' => 'eingegangen', 'arbeit' => 'in Arbeit', 'erledigt' => 'erledigt'];
+const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation'];
+const BILD_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+const BILD_MAX = 8 * 1024 * 1024;
+const PDF_MAX = 8 * 1024 * 1024;
+const MONATE = ['Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+// Grenzen: [Anzahl, Sekunden]
+const GRENZE_FEHLVERSUCHE = [20, 900];
+const GRENZE_MELDUNG_LINK = [5, 86400];
+const GRENZE_MELDUNG_ADRESSE = [10, 86400];
+const DATEI_MUSTER = '/^\d{4}-\d{2}-(leistung|winter)-\d{1,3}\.pdf$/';
+const LINK_MUSTER = '/^kb[a-f0-9]{10}$/';
+
+function jetzt(): int
+{
+    $t = getenv('WETTER_JETZT'); // nur für Tests
+    return $t !== false && $t !== '' ? (int) $t : time();
+}
+
+function ordner(): string
+{
+    return getenv('KUNDEN_ORDNER') ?: __DIR__ . '/privat';
+}
+
+function heute(): string
+{
+    return (new DateTimeImmutable('@' . jetzt()))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d');
+}
+
+function tag_plus(string $datum, int $tage): string
+{
+    return (new DateTimeImmutable($datum, new DateTimeZone('UTC')))->modify(($tage >= 0 ? '+' : '') . $tage . ' days')->format('Y-m-d');
+}
+
+function speicher(string $unter = ''): string
+{
+    $d = ordner() . '/kundenbereich' . ($unter !== '' ? '/' . $unter : '');
+    if (!is_dir($d)) {
+        @mkdir($d, 0775, true);
+    }
+    return $d;
+}
+
+function json_lesen(string $datei): array
+{
+    $d = is_file($datei) ? json_decode((string) file_get_contents($datei), true) : null;
+    return is_array($d) ? $d : [];
+}
+
+function json_schreiben(string $datei, array $daten): bool
+{
+    $tmp = $datei . '.' . bin2hex(random_bytes(4));
+    return @file_put_contents($tmp, json_encode($daten, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX) !== false && @rename($tmp, $datei);
+}
+
+/** Datei gesperrt ändern; $fn bekommt den Inhalt per Referenz, Rückgabe wird durchgereicht (null: nicht schreibbar). */
+function gesperrt(string $datei, callable $fn)
+{
+    $h = @fopen($datei, 'c+');
+    if (!$h) {
+        return null;
+    }
+    flock($h, LOCK_EX);
+    $daten = json_decode((string) stream_get_contents($h), true);
+    $daten = is_array($daten) ? $daten : [];
+    $ergebnis = $fn($daten);
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, json_encode($daten, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ergebnis;
+}
+
+function einstellungen(): ?array
+{
+    $e = json_lesen(ordner() . '/kundenbereich.json');
+    return is_string($e['schluessel'] ?? null) && strlen($e['schluessel']) >= 32 ? $e : null;
+}
+
+function json_ausgabe(int $status, array $daten): void
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo json_encode($daten, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function kurz($wert, int $n): string
+{
+    return mb_substr(trim(preg_replace('/[\x00-\x09\x0B-\x1F\x7F]/u', '', (string) $wert) ?? ''), 0, $n);
+}
+
+function link_datei(string $id): string
+{
+    return speicher('links') . '/' . $id . '.json';
+}
+
+function link_ordner(string $id): string
+{
+    return speicher('dateien/' . $id);
+}
+
+/** Link zu einem Code (nur über den Hashwert auffindbar). */
+function link_zum_code(string $code): ?array
+{
+    if (!preg_match('/^[A-Za-z0-9]{16,40}$/', $code)) {
+        return null;
+    }
+    $hash = hash('sha256', $code);
+    $id = (string) (json_lesen(speicher() . '/index.json')[$hash] ?? '');
+    if (!preg_match(LINK_MUSTER, $id)) {
+        return null;
+    }
+    $link = json_lesen(link_datei($id));
+    return $link && hash_equals((string) ($link['hash'] ?? ''), $hash) ? $link : null;
+}
+
+function link_entfernen(string $id): bool
+{
+    if (!preg_match(LINK_MUSTER, $id)) {
+        return false;
+    }
+    gesperrt(speicher() . '/index.json', function (array &$index) use ($id) {
+        $index = array_filter($index, fn ($v) => $v !== $id);
+    });
+    foreach (glob(link_ordner($id) . '/*') ?: [] as $f) {
+        @unlink($f);
+    }
+    @rmdir(link_ordner($id));
+    return @unlink(link_datei($id));
+}
+
+/**
+ * Zähler je Art und Absender (Hashwert, kein Klartext): true, wenn die Grenze erreicht ist.
+ * $zaehlen: diesen Aufruf mitzählen. Alte Einträge fallen nach dem Zeitfenster weg.
+ */
+function grenze(string $art, string $wer, array $grenze, bool $zaehlen): bool
+{
+    [$max, $sekunden] = $grenze;
+    $schluessel = substr(hash('sha256', $art . '|' . $wer . '|' . date('Y')), 0, 20);
+    $erreicht = gesperrt(speicher() . '/grenzen.json', function (array &$alle) use ($schluessel, $max, $sekunden, $zaehlen) {
+        $ab = jetzt() - $sekunden;
+        $alle = array_filter(array_map(fn ($l) => array_values(array_filter((array) $l, fn ($t) => (int) $t > jetzt() - 86400)), $alle));
+        $liste = array_values(array_filter($alle[$schluessel] ?? [], fn ($t) => (int) $t > $ab));
+        if (count($liste) >= $max) {
+            return true;
+        }
+        if ($zaehlen) {
+            $liste[] = jetzt();
+            $alle[$schluessel] = $liste;
+        }
+        return false;
+    });
+    return $erreicht === true;
+}
+
+function adresse_des_aufrufs(): string
+{
+    return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+}
+
+/** Formular von einer fremden Seite? (Browser schicken Sec-Fetch-Site mit) */
+function fremde_herkunft(): bool
+{
+    $herkunft = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? '';
+    return $herkunft !== '' && $herkunft !== 'same-origin' && $herkunft !== 'none';
+}
+
+/** Meldungen gesperrt ändern; erledigte nach 180 Tagen, alle nach 400 Tagen weg (mit Foto). */
+function meldungen(callable $fn)
+{
+    return gesperrt(speicher() . '/meldungen.json', function (array &$liste) use ($fn) {
+        $ergebnis = $fn($liste);
+        $bleibt = [];
+        foreach ($liste as $m) {
+            $alt = ($m['status'] ?? '') === 'erledigt' ? (int) ($m['geaendert'] ?? 0) < jetzt() - 180 * 86400 : (int) ($m['erstellt'] ?? 0) < jetzt() - 400 * 86400;
+            if ($alt) {
+                foto_loeschen($m);
+                continue;
+            }
+            // Foto am Webspace höchstens 60 Tage (danach liegt es in SharePoint oder ist nicht mehr nötig)
+            if (!empty($m['foto']) && (int) ($m['erstellt'] ?? 0) < jetzt() - 60 * 86400) {
+                foto_loeschen($m);
+                $m['foto'] = '';
+            }
+            $bleibt[] = $m;
+        }
+        $liste = $bleibt;
+        return $ergebnis;
+    });
+}
+
+function foto_loeschen(array $m): void
+{
+    if (preg_match('/^[a-f0-9]{12}\.(jpg|png|webp)$/', (string) ($m['foto'] ?? ''))) {
+        @unlink(speicher('fotos') . '/' . $m['foto']);
+    }
+}
+
+/**
+ * Hochgeladenes Foto prüfen und speichern: Fehler, Größe, Typ laut Inhalt (fileinfo), Maße. Mit GD
+ * wird es neu als JPEG gespeichert (längste Seite 1600 px, ohne Metadaten wie GPS); ohne GD nur
+ * nach strenger Prüfung übernommen. Liefert [Dateiname, Fehlertext].
+ */
+function foto_speichern(?array $f, string $id): array
+{
+    if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return ['', ''];
+    }
+    if (is_array($f['error'])) {
+        return ['', 'Bitte nur ein Foto anhängen.'];
+    }
+    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $f['tmp_name'])) {
+        return ['', 'Das Foto ist zu groß oder nicht angekommen. Bitte ein kleineres Foto wählen.'];
+    }
+    if ((int) $f['size'] > BILD_MAX || (int) $f['size'] < 100) {
+        return ['', 'Das Foto darf höchstens 8 MB groß sein.'];
+    }
+    $typ = class_exists('finfo') ? (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $f['tmp_name']) : '';
+    $mass = @getimagesize((string) $f['tmp_name']);
+    if (!isset(BILD_TYPEN[$typ]) || !$mass || ($mass['mime'] ?? '') !== $typ || $mass[0] < 1 || $mass[1] < 1 || $mass[0] > 12000 || $mass[1] > 12000) {
+        return ['', 'Bitte ein Foto als JPEG, PNG oder WebP anhängen.'];
+    }
+    $ziel = speicher('fotos') . '/' . $id;
+    $lesen = ['image/jpeg' => 'imagecreatefromjpeg', 'image/png' => 'imagecreatefrompng', 'image/webp' => 'imagecreatefromwebp'][$typ];
+    if (function_exists($lesen) && function_exists('imagejpeg') && $mass[0] * $mass[1] <= 40e6) {
+        $bild = @$lesen((string) $f['tmp_name']);
+        if (!$bild) {
+            return ['', 'Das Foto lässt sich nicht öffnen. Bitte ein anderes wählen.'];
+        }
+        $faktor = min(1, 1600 / max($mass[0], $mass[1]));
+        $b = max(1, (int) round($mass[0] * $faktor));
+        $hoehe = max(1, (int) round($mass[1] * $faktor));
+        $neu = imagecreatetruecolor($b, $hoehe);
+        imagefill($neu, 0, 0, imagecolorallocate($neu, 255, 255, 255)); // durchsichtige PNG auf Weiß
+        imagecopyresampled($neu, $bild, 0, 0, 0, 0, $b, $hoehe, $mass[0], $mass[1]);
+        $ok = imagejpeg($neu, $ziel . '.jpg', 82);
+        imagedestroy($bild);
+        imagedestroy($neu);
+        return $ok ? [$id . '.jpg', ''] : ['', 'Das Foto konnte nicht gespeichert werden.'];
+    }
+    if ($typ === 'image/webp') {
+        return ['', 'Bitte das Foto als JPEG oder PNG anhängen.'];
+    }
+    return move_uploaded_file((string) $f['tmp_name'], $ziel . '.' . BILD_TYPEN[$typ]) ? [$id . '.' . BILD_TYPEN[$typ], ''] : ['', 'Das Foto konnte nicht gespeichert werden.'];
+}
+
+// ---------------------------------------------------------------- Darstellung
+
+$h = fn ($t): string => htmlspecialchars((string) $t, ENT_QUOTES);
+
+function datum_text(string $d, bool $tag = true, bool $jahr = true): string
+{
+    $t = DateTimeImmutable::createFromFormat('!Y-m-d', $d);
+    return $t ? ($tag ? TAGE[(int) $t->format('N') - 1] . ' ' : '') . $t->format($jahr ? 'd.m.Y' : 'd.m.') : $d;
+}
+
+function monat_text(string $m): string
+{
+    return preg_match('/^(\d{4})-(\d{2})$/', $m, $x) ? MONATE[(int) $x[2] - 1] . ' ' . $x[1] : $m;
+}
+
+function groesse_text(int $bytes): string
+{
+    return $bytes >= 1048576 ? str_replace('.', ',', (string) round($bytes / 1048576, 1)) . ' MB' : max(1, (int) round($bytes / 1024)) . ' KB';
+}
+
+/** Seite für Kunden: eigenes, ruhiges Design (Sie-Form), Logo und Hausfarbe aus config.json. */
+function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich', string $firma = ''): void
+{
+    $m = marke();
+    $h = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES);
+    $name = $firma !== '' ? $firma : $m['app'];
+    http_response_code($status);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Referrer-Policy: no-referrer');
+    $f = $m['farbe'];
+    echo '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="' . $h($f) . '">'
+        . '<title>' . $h($titel) . ' – ' . $h($name) . '</title>'
+        . ($m['symbol'] ? '<link rel="icon" href="' . $h($m['symbol']) . '"><link rel="apple-touch-icon" href="' . $h($m['symbol']) . '">' : '')
+        . '<style>'
+        . ':root{--farbe:' . $f . ';--text:#13232f;--leise:#4b5b67;--linie:#dde5ea;--grund:#f3f6f8;--weich:#e8f1fa;--blau:#0a5a96;--ok:#3f6a12;--ok-grund:#eef6e2;--warn:#8a5300;--warn-grund:#fdf0d5;--fehler:#b3261e;--fehler-grund:#fce8e6}'
+        . '*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;background:var(--grund);color:var(--text);font:1rem/1.55 "Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif;overflow-wrap:anywhere}'
+        . 'a{color:var(--blau)}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--farbe);outline-offset:2px}'
+        . '.kopf{background:#fff;border-bottom:1px solid var(--linie)}.kopf-innen{max-width:68rem;margin:0 auto;padding:.9rem 1rem;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap}'
+        . '.kopf img{display:block;max-height:46px;max-width:180px}.kopf .marke{font-weight:700;font-size:1.15rem;color:var(--text)}.kopf .wo{margin-left:auto;color:var(--leise);font-size:.95rem}'
+        . '.seite{max-width:68rem;margin:0 auto;padding:1rem 1rem 2.5rem}'
+        . '.hallo{padding:.4rem 0 1rem}.hallo h1{font-size:1.6rem;line-height:1.25;margin:0 0 .25rem}.hallo p{margin:0;color:var(--leise)}'
+        . '.objekte{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0 0;padding:0;list-style:none}.objekte li{background:#fff;border:1px solid var(--linie);border-radius:10px;padding:.45rem .75rem;font-size:.95rem}.objekte b{display:block}.objekte span{color:var(--leise)}'
+        . '.sprung{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 1rem}.sprung a{background:#fff;border:1px solid var(--linie);border-radius:999px;padding:.35rem .9rem;text-decoration:none;color:var(--text);font-size:.95rem}.sprung a:hover{border-color:var(--farbe)}'
+        . '.spalten{display:grid;gap:1rem}@media(min-width:900px){.spalten{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}}.spalte{display:grid;gap:1rem;min-width:0}'
+        . '.karte{background:#fff;border-radius:14px;padding:1.1rem 1.1rem 1.2rem;box-shadow:0 1px 2px rgb(19 35 47/.06),0 4px 16px rgb(19 35 47/.06);min-width:0}'
+        . '.karte h2{font-size:1.15rem;margin:0 0 .15rem}.karte .unter{color:var(--leise);margin:0 0 .8rem;font-size:.95rem}'
+        . '.liste{list-style:none;margin:0;padding:0}.liste>li{display:flex;gap:.8rem;align-items:flex-start;padding:.65rem 0;border-top:1px solid var(--linie)}.liste>li:first-child{border-top:0}'
+        . '.datum{flex:0 0 3.6rem;text-align:center;background:var(--weich);color:var(--blau);border-radius:10px;padding:.3rem .2rem;line-height:1.15}.datum b{display:block;font-size:1.25rem}.datum span{font-size:.85rem}'
+        . '.was{min-width:0;flex:1}.was b{display:block}.was .leise{font-size:.92rem}'
+        . '.pill{display:inline-block;border-radius:999px;padding:.05rem .65rem;font-size:.85rem;font-weight:600;background:var(--weich);color:var(--blau);white-space:nowrap}.pill.termin{background:#efe9fa;color:#5b3fa6}'
+        . '.st-eingegangen{background:var(--weich);color:var(--blau)}.st-arbeit{background:var(--warn-grund);color:var(--warn)}.st-erledigt{background:var(--ok-grund);color:var(--ok)}'
+        . '.monat{margin:.9rem 0 .2rem;font-size:1rem;color:var(--leise);font-weight:600}.monat:first-of-type{margin-top:0}'
+        . '.pdf{display:flex;align-items:center;gap:.7rem;padding:.6rem .7rem;border:1px solid var(--linie);border-radius:10px;text-decoration:none;color:var(--text);margin:.4rem 0}.pdf:hover{border-color:var(--farbe);background:#fafcfd}'
+        . '.pdf svg{flex:0 0 auto;color:var(--farbe)}.pdf .was b{font-weight:600}.pdf .was .leise{display:block}.pdf .pfeil{margin-left:auto;color:var(--leise)}'
+        . 'details.aelter{margin-top:.6rem}details.aelter summary{cursor:pointer;color:var(--blau);font-weight:600;padding:.3rem 0}'
+        . 'label{display:block;margin:.85rem 0 .25rem;font-weight:600}label.haken{display:flex;gap:.6rem;align-items:flex-start;font-weight:400;margin:.8rem 0 .2rem}label.haken input{width:1.25rem;height:1.25rem;margin:.15rem 0 0;flex:0 0 auto}'
+        . 'input[type=text],input[type=tel],input[type=email],input[type=date],select,textarea{font:inherit;width:100%;padding:.6rem .7rem;border:1px solid #b9c7d1;border-radius:8px;background:#fff;color:inherit;min-height:2.75rem}textarea{resize:vertical}'
+        . 'input[type=file]{font:inherit;width:100%;padding:.5rem;border:1px dashed #b9c7d1;border-radius:8px;background:#fafcfd}'
+        . 'fieldset{border:0;padding:0;margin:1rem 0 0}legend{font-weight:700;padding:0;margin:0}.zwei{display:grid;gap:0 .8rem}@media(min-width:560px){.zwei{grid-template-columns:1fr 1fr}}'
+        . 'button{display:block;width:100%;font:inherit;font-weight:700;font-size:1.05rem;color:#fff;background:var(--farbe);border:0;border-radius:8px;padding:.85rem 1.2rem;margin-top:1.1rem;cursor:pointer}button:hover{filter:brightness(.95)}'
+        . '.hinweis{font-size:.9rem;color:var(--leise);margin:.6rem 0 0}'
+        . '.ok,.fehler{border-radius:10px;padding:.7rem .9rem;margin:0 0 1rem;font-weight:600}.ok{background:var(--ok-grund);color:var(--ok)}.fehler{background:var(--fehler-grund);color:var(--fehler)}'
+        . '.meldung{display:block!important}.zeile{display:flex;gap:.6rem;align-items:flex-start;justify-content:space-between}.meldung-text{margin:.35rem 0 0;white-space:pre-line}.antwort{margin:.5rem 0 0;padding:.5rem .7rem;background:var(--ok-grund);border-radius:8px;color:#26420b}.antwort b{display:block;font-size:.88rem}'
+        . '.leer{color:var(--leise);margin:.2rem 0}'
+        . '.fuss{max-width:68rem;margin:0 auto;padding:0 1rem 2rem;color:var(--leise);font-size:.9rem}.fuss p{margin:.4rem 0}'
+        . '</style>'
+        . '<script src="wetter-foto.js" defer></script></head><body>'
+        . '<header class="kopf"><div class="kopf-innen">' . ($m['logo'] ? '<img src="' . $h($m['logo']) . '" alt="' . $h($name) . '">' : '<span class="marke">' . $h($name) . '</span>') . '<span class="wo">Kundenbereich</span></div></header>'
+        . $inhalt . '</body></html>';
+}
+
+function fehlerseite(string $titel, string $text, int $status, string $firma = ''): void
+{
+    $h = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES);
+    seite('<main class="seite"><div class="karte"><h1 style="font-size:1.4rem;margin:0 0 .4rem">' . $h($titel) . '</h1><p>' . $h($text) . '</p></div></main>', $status, $titel, $firma);
+    exit;
+}
+
+// ---------------------------------------------------------------- Aufrufe der App (mit Schlüssel)
+
+$aktion = (string) ($_GET['aktion'] ?? '');
+$methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$e = einstellungen();
+
+if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status'], true)) {
+    $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
+    if (!$e) {
+        // erste Einrichtung ohne FTP: mit dem Schlüssel von Plan am Handy oder Schnee-Alarm
+        $freigabe = (string) ($_SERVER['HTTP_X_FREIGABE'] ?? '');
+        $andere = array_filter([
+            (string) (json_lesen((getenv('MEIN_PLAN_ORDNER') ?: ordner()) . '/mitarbeiter.json')['schluessel'] ?? ''),
+            (string) (json_lesen((getenv('WETTER_ALARM_ORDNER') ?: ordner()) . '/wetter-alarm.json')['schluessel'] ?? ''),
+        ], fn ($k) => strlen($k) >= 32);
+        $frei = $aktion === 'einrichten' && $freigabe !== '' && in_array(true, array_map(fn ($k) => hash_equals($k, $freigabe), $andere), true);
+        if (!$frei) {
+            json_ausgabe(503, ['fehler' => 'Kundenbereich noch nicht eingerichtet: privat/kundenbereich.json fehlt (App → Kundenbereich → Einstellungen).']);
+        }
+    } elseif ($gegeben === '' || !hash_equals((string) $e['schluessel'], $gegeben)) {
+        json_ausgabe(403, ['fehler' => 'Schlüssel fehlt oder falsch']);
+    }
+
+    if ($aktion === 'status') {
+        $offen = count(array_filter(json_lesen(speicher() . '/meldungen.json'), fn ($m) => empty($m['uebernommen'])));
+        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'neueMeldungen' => $offen, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+    }
+    if ($aktion === 'meldungen') {
+        json_ausgabe(200, ['meldungen' => meldungen(fn (array &$l) => $l) ?? [], 'jetzt' => jetzt()]);
+    }
+    if ($aktion === 'foto') {
+        $datei = (string) ($_GET['datei'] ?? '');
+        $pfad = speicher('fotos') . '/' . $datei;
+        if (!preg_match('/^[a-f0-9]{12}\.(jpg|png|webp)$/', $datei) || !is_file($pfad)) {
+            json_ausgabe(404, ['fehler' => 'Foto nicht gefunden']);
+        }
+        header('Content-Type: ' . array_search(pathinfo($datei, PATHINFO_EXTENSION), BILD_TYPEN, true));
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Length: ' . filesize($pfad));
+        readfile($pfad);
+        exit;
+    }
+    if ($methode !== 'POST') {
+        json_ausgabe(400, ['fehler' => 'POST erwartet']);
+    }
+
+    // PDF eines Links (Rohdaten im Rumpf), nur wenn er in der Liste des Links steht
+    if ($aktion === 'datei') {
+        $id = (string) ($_GET['link'] ?? '');
+        $datei = (string) ($_GET['datei'] ?? '');
+        $link = preg_match(LINK_MUSTER, $id) ? json_lesen(link_datei($id)) : [];
+        $eintrag = null;
+        foreach ((array) ($link['nachweise'] ?? []) as $n) {
+            if (($n['datei'] ?? '') === $datei) {
+                $eintrag = $n;
+            }
+        }
+        if (!$link || !preg_match(DATEI_MUSTER, $datei) || !$eintrag) {
+            json_ausgabe(404, ['fehler' => 'Link oder Datei unbekannt (zuerst speichern)']);
+        }
+        $laenge = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($laenge > PDF_MAX) {
+            json_ausgabe(413, ['fehler' => 'PDF zu groß (höchstens 8 MB)']);
+        }
+        $inhalt = (string) file_get_contents('php://input', false, null, 0, PDF_MAX + 1);
+        if (strlen($inhalt) > PDF_MAX || strlen($inhalt) < 200 || !str_starts_with($inhalt, '%PDF-') || !str_contains(substr($inhalt, -1024), '%%EOF')) {
+            json_ausgabe(400, ['fehler' => 'Kein gültiges PDF']);
+        }
+        $ziel = link_ordner($id) . '/' . $datei;
+        $tmp = $ziel . '.' . bin2hex(random_bytes(4));
+        if (@file_put_contents($tmp, $inhalt, LOCK_EX) === false || !@rename($tmp, $ziel)) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        $link['dateien'][$datei] = ['sig' => (string) $eintrag['sig'], 'groesse' => strlen($inhalt), 'stand' => jetzt()];
+        json_schreiben(link_datei($id), $link);
+        json_ausgabe(200, ['gespeichert' => $datei, 'groesse' => strlen($inhalt)]);
+    }
+
+    $daten = json_decode((string) file_get_contents('php://input'), true);
+    if (!is_array($daten)) {
+        json_ausgabe(400, ['fehler' => 'JSON erwartet']);
+    }
+
+    if ($aktion === 'einrichten') {
+        if (!is_string($daten['schluessel'] ?? null) || strlen($daten['schluessel']) < 32) {
+            json_ausgabe(400, ['fehler' => 'Ungültige Einstellungen']);
+        }
+        if (!$e && !hash_equals((string) $daten['schluessel'], $gegeben)) {
+            json_ausgabe(400, ['fehler' => 'Schlüssel im Kopf und in den Einstellungen müssen gleich sein']);
+        }
+        if (!json_schreiben(ordner() . '/kundenbereich.json', $daten)) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['gespeichert' => true]);
+    }
+
+    if ($aktion === 'meldung-status') {
+        $ergebnis = meldungen(function (array &$l) use ($daten, $e) {
+            $n = 0;
+            $mails = 0;
+            $updates = [];
+            foreach ((array) ($daten['updates'] ?? []) as $u) {
+                if (is_array($u) && isset(STATUS[$u['status'] ?? ''])) {
+                    $updates[(string) ($u['id'] ?? '')] = $u;
+                }
+            }
+            $uebernommen = array_map('strval', (array) ($daten['uebernommen'] ?? []));
+            $fotos = array_map('strval', (array) ($daten['fotosLoeschen'] ?? []));
+            foreach ($l as &$m) {
+                $id = (string) ($m['id'] ?? '');
+                if (in_array($id, $uebernommen, true) && empty($m['uebernommen'])) {
+                    $m['uebernommen'] = jetzt();
+                }
+                if (in_array($id, $fotos, true) && !empty($m['foto'])) {
+                    foto_loeschen($m);
+                    $m['foto'] = '';
+                }
+                $u = $updates[$id] ?? null;
+                if (!$u) {
+                    continue;
+                }
+                $antwort = kurz($u['antwort'] ?? '', 1000);
+                if (($m['status'] ?? '') === $u['status'] && ($m['antwort'] ?? '') === $antwort) {
+                    continue;
+                }
+                $vorher = $m['status'] ?? '';
+                $m['status'] = $u['status'];
+                $m['antwort'] = $antwort;
+                $m['geaendert'] = jetzt();
+                $n++;
+                // auf Wunsch den Kunden per E-Mail informieren (nur bei neuem Status)
+                $an = (string) ($m['kontakt']['email'] ?? '');
+                if (!empty($m['info']) && $vorher !== $u['status'] && filter_var($an, FILTER_VALIDATE_EMAIL)) {
+                    $firma = (string) ($e['firma']['name'] ?? marke()['app']);
+                    $text = "Guten Tag,\n\nIhre Meldung vom " . datum_text(date('Y-m-d', (int) $m['erstellt']), false) . ' (' . ($m['objekt'] ?? '') . ') ist jetzt: ' . STATUS[$u['status']] . '.'
+                        . ($antwort !== '' ? "\n\nUnsere Rückmeldung:\n" . $antwort : '') . "\n\nDen Stand sehen Sie jederzeit in Ihrem Kundenbereich.\n\nMit freundlichen Grüßen\n" . $firma . "\n";
+                    if (mail_senden($an, 'Ihre Meldung: ' . STATUS[$u['status']], $text, (string) ($e['absender'] ?? ''), 'Kundenbereich')) {
+                        $mails++;
+                    }
+                }
+            }
+            unset($m);
+            return ['aktualisiert' => $n, 'benachrichtigt' => $mails];
+        });
+        if ($ergebnis === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, $ergebnis);
+    }
+
+    // speichern: je Link Titel, Objekte, was er zeigt, Termine und die Liste der Nachweise.
+    // Antwort: welche PDFs fehlen oder sich geändert haben (die App lädt nur diese hoch).
+    $entfernt = 0;
+    foreach ((array) ($daten['entfernen'] ?? []) as $id) {
+        if (is_string($id) && link_entfernen($id)) {
+            $entfernt++;
+        }
+    }
+    $fehlend = [];
+    $anzahl = 0;
+    foreach ((array) ($daten['links'] ?? []) as $l) {
+        $id = (string) ($l['id'] ?? '');
+        $hash = (string) ($l['hash'] ?? '');
+        if (!preg_match(LINK_MUSTER, $id) || !preg_match('/^[a-f0-9]{64}$/', $hash)) {
+            continue;
+        }
+        $alt = json_lesen(link_datei($id));
+        $objekte = [];
+        foreach (array_slice((array) ($l['objekte'] ?? []), 0, 50) as $i => $o) {
+            $objekte[] = ['nr' => $i + 1, 'id' => kurz($o['id'] ?? '', 60), 'name' => kurz($o['name'] ?? '', 120) ?: 'Objekt', 'adresse' => kurz($o['adresse'] ?? '', 160)];
+        }
+        $zeige = [];
+        foreach (ZEIGE as $k) {
+            $zeige[$k] = !empty($l['zeige'][$k]);
+        }
+        $termine = $alt['termine'] ?? [];
+        if (is_array($l['termine'] ?? null)) {
+            $termine = [];
+            foreach (array_slice($l['termine'], 0, 40) as $t) {
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($t['datum'] ?? ''))) {
+                    continue;
+                }
+                $termine[] = ['datum' => $t['datum'], 'zeit' => kurz($t['zeit'] ?? '', 20), 'titel' => kurz($t['titel'] ?? '', 120), 'art' => ($t['art'] ?? '') === 'termin' ? 'termin' : 'leistung', 'objekt' => kurz($t['objekt'] ?? '', 120), 'hinweis' => kurz($t['hinweis'] ?? '', 80)];
+            }
+        }
+        $nachweise = $alt['nachweise'] ?? [];
+        if (is_array($l['nachweise'] ?? null)) {
+            $nachweise = [];
+            foreach (array_slice($l['nachweise'], 0, 200) as $n) {
+                $datei = (string) ($n['datei'] ?? '');
+                if (!preg_match(DATEI_MUSTER, $datei) || !preg_match('/^[a-f0-9]{16,64}$/', (string) ($n['sig'] ?? ''))) {
+                    continue;
+                }
+                $name = preg_replace('/[^A-Za-z0-9ÄÖÜäöüß._-]+/u', '-', kurz($n['name'] ?? $datei, 120)) ?: $datei;
+                $nachweise[] = ['datei' => $datei, 'monat' => substr($datei, 0, 7), 'art' => str_contains($datei, '-winter-') ? 'winter' : 'leistung', 'titel' => kurz($n['titel'] ?? '', 160), 'objekt' => kurz($n['objekt'] ?? '', 120), 'name' => str_ends_with($name, '.pdf') ? $name : $name . '.pdf', 'sig' => (string) $n['sig']];
+            }
+        }
+        // Dateien, die nicht mehr in der Liste stehen, löschen; fehlende oder geänderte melden
+        $liste = array_column($nachweise, null, 'datei');
+        $dateien = array_filter((array) ($alt['dateien'] ?? []), fn ($d, $name) => isset($liste[$name]) && is_file(link_ordner($id) . '/' . $name), ARRAY_FILTER_USE_BOTH);
+        foreach (glob(link_ordner($id) . '/*.pdf') ?: [] as $f) {
+            if (!isset($liste[basename($f)])) {
+                @unlink($f);
+            }
+        }
+        foreach ($nachweise as $n) {
+            if (($dateien[$n['datei']]['sig'] ?? '') !== $n['sig']) {
+                $fehlend[$id][] = $n['datei'];
+            }
+        }
+        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
+        if (!json_schreiben(link_datei($id), $link)) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        gesperrt(speicher() . '/index.json', function (array &$index) use ($id, $hash) {
+            $index = array_filter($index, fn ($v) => $v !== $id); // neuer Code: der alte gilt nicht mehr
+            $index[$hash] = $id;
+        });
+        $anzahl++;
+    }
+    json_ausgabe(200, ['links' => $anzahl, 'entfernt' => $entfernt, 'fehlend' => (object) $fehlend]);
+}
+
+// ---------------------------------------------------------------- Seite für den Kunden
+
+$firma = (string) ($e['firma']['name'] ?? '');
+if (!$e) {
+    fehlerseite('Kundenbereich', 'Diese Seite ist noch nicht eingerichtet. Bitte wenden Sie sich an Ihre Ansprechperson.', 503);
+}
+$wer = adresse_des_aufrufs();
+if (grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, false)) {
+    fehlerseite('Bitte später noch einmal', 'Von dieser Verbindung kamen zu viele ungültige Aufrufe. Bitte versuchen Sie es in einer Viertelstunde wieder.', 429, $firma);
+}
+$code = (string) ($_POST['k'] ?? $_GET['k'] ?? '');
+$link = link_zum_code($code);
+if (!$link) {
+    grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, true);
+    fehlerseite('Link ungültig', 'Dieser Link gilt nicht (mehr). Bitte fordern Sie bei Ihrer Ansprechperson einen neuen an.', 404, $firma);
+}
+$zeige = array_merge(array_fill_keys(ZEIGE, false), (array) ($link['zeige'] ?? []));
+$objekte = (array) ($link['objekte'] ?? []);
+$id = (string) $link['id'];
+
+// PDF herunterladen (nur Dateien aus der Liste dieses Links)
+if (isset($_GET['datei'])) {
+    $datei = (string) $_GET['datei'];
+    $eintrag = null;
+    foreach ((array) ($link['nachweise'] ?? []) as $n) {
+        if (($n['datei'] ?? '') === $datei && !empty($zeige[$n['art'] === 'winter' ? 'winter' : 'nachweise'])) {
+            $eintrag = $n;
+        }
+    }
+    $pfad = link_ordner($id) . '/' . $datei;
+    if (!$eintrag || !preg_match(DATEI_MUSTER, $datei) || !is_file($pfad)) {
+        fehlerseite('Nicht gefunden', 'Dieses Dokument ist nicht (mehr) verfügbar.', 404, $firma);
+    }
+    $name = (string) $eintrag['name'];
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '_', $name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+    header('Content-Length: ' . filesize($pfad));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Robots-Tag: noindex, nofollow');
+    readfile($pfad);
+    exit;
+}
+
+// Reklamation melden
+$fehler = '';
+$eingabe = [];
+if ($aktion === 'melden' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        fehlerseite('Nicht erlaubt', 'Das Formular kam von einer anderen Seite.', 403, $firma);
+    }
+    if (empty($zeige['reklamation'])) {
+        fehlerseite('Nicht möglich', 'Über diesen Link können keine Reklamationen gemeldet werden.', 403, $firma);
+    }
+    $eingabe = [
+        'objekt' => (int) ($_POST['objekt'] ?? (count($objekte) === 1 ? 1 : 0)),
+        'art' => (string) ($_POST['art'] ?? ''),
+        'datum' => (string) ($_POST['datum'] ?? ''),
+        'text' => kurz($_POST['text'] ?? '', 2000),
+        'name' => kurz($_POST['name'] ?? '', 80),
+        'telefon' => kurz($_POST['telefon'] ?? '', 40),
+        'email' => kurz($_POST['email'] ?? '', 120),
+        'info' => !empty($_POST['info']),
+    ];
+    $objekt = null;
+    foreach ($objekte as $o) {
+        if ((int) $o['nr'] === $eingabe['objekt']) {
+            $objekt = $o;
+        }
+    }
+    $gueltig = fn ($d) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && DateTimeImmutable::createFromFormat('!Y-m-d', $d);
+    if (!$objekt) {
+        $fehler = 'Bitte wählen Sie das Objekt.';
+    } elseif (!isset(ARTEN[$eingabe['art']])) {
+        $fehler = 'Bitte wählen Sie, worum es geht.';
+    } elseif (mb_strlen($eingabe['text']) < 5) {
+        $fehler = 'Bitte beschreiben Sie kurz, was Ihnen aufgefallen ist.';
+    } elseif ($eingabe['datum'] !== '' && (!$gueltig($eingabe['datum']) || $eingabe['datum'] > heute() || $eingabe['datum'] < tag_plus(heute(), -60))) {
+        $fehler = 'Bitte ein Datum aus den letzten 60 Tagen angeben.';
+    } elseif ($eingabe['name'] === '') {
+        $fehler = 'Bitte geben Sie Ihren Namen an.';
+    } elseif ($eingabe['telefon'] === '' && $eingabe['email'] === '') {
+        $fehler = 'Bitte geben Sie eine Telefonnummer oder E-Mail-Adresse an, damit wir Sie erreichen.';
+    } elseif ($eingabe['telefon'] !== '' && !preg_match('/^[0-9 +\/()-]{5,40}$/', $eingabe['telefon'])) {
+        $fehler = 'Bitte prüfen Sie die Telefonnummer.';
+    } elseif ($eingabe['email'] !== '' && !filter_var($eingabe['email'], FILTER_VALIDATE_EMAIL)) {
+        $fehler = 'Bitte prüfen Sie die E-Mail-Adresse.';
+    } elseif ($eingabe['info'] && $eingabe['email'] === '') {
+        $fehler = 'Für die Nachricht bei Änderungen bitte die E-Mail-Adresse angeben.';
+    } elseif (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, false) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, false)) {
+        $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
+    }
+    $mid = bin2hex(random_bytes(6));
+    $foto = '';
+    if (!$fehler) {
+        [$foto, $fehler] = foto_speichern($_FILES['foto'] ?? null, $mid);
+    }
+    if (!$fehler) {
+        $neu = ['id' => $mid, 'link' => $id, 'titel' => (string) ($link['titel'] ?? ''), 'objektNr' => (int) $objekt['nr'], 'objektId' => (string) $objekt['id'], 'objekt' => (string) $objekt['name'], 'art' => $eingabe['art'], 'datum' => $eingabe['datum'] ?: heute(), 'text' => $eingabe['text'],
+            'kontakt' => ['name' => $eingabe['name'], 'telefon' => $eingabe['telefon'], 'email' => $eingabe['email']], 'info' => $eingabe['info'], 'foto' => $foto, 'erstellt' => jetzt(), 'status' => 'eingegangen', 'antwort' => '', 'geaendert' => jetzt(), 'uebernommen' => null];
+        $ok = meldungen(function (array &$l) use ($neu) {
+            $l[] = $neu;
+            return true;
+        });
+        if (!$ok) {
+            foto_loeschen($neu);
+            $fehler = 'Ihre Meldung konnte nicht gespeichert werden. Bitte rufen Sie uns an.';
+        } else {
+            grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true);
+            grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true);
+            // Büro: Push nur mit Objekt und Art (geht über einen fremden Dienst), E-Mail mit allem
+            $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#reklamationen';
+            $titel = 'Reklamation im Kundenbereich: ' . $objekt['name'];
+            $text = ARTEN[$eingabe['art']] . ($eingabe['datum'] ? ', aufgefallen am ' . datum_text($neu['datum'], false) : '') . "\n„" . $eingabe['text'] . "“\n"
+                . 'Kontakt: ' . implode(', ', array_filter([$eingabe['name'], $eingabe['telefon'], $eingabe['email']])) . ($foto ? "\nMit Foto." : '') . "\nIn der App unter „Reklamationen“.";
+            foreach ((array) ($e['buero'] ?? []) as $b) {
+                if (!empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => ARTEN[$eingabe['art']] . '. In der App unter „Reklamationen“.', 'priority' => 4, 'tags' => ['speech_balloon'], 'click' => $app]);
+                }
+                if (!empty($b['email'])) {
+                    mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Kundenbereich');
+                }
+            }
+            header('Location: kunden.php?k=' . rawurlencode($code) . '&gesendet=1#meldungen', true, 303);
+            exit;
+        }
+    }
+}
+
+// Inhalte der Seite
+$heute = heute();
+$termine = array_values(array_filter((array) ($link['termine'] ?? []), fn ($t) => ($t['datum'] ?? '') >= $heute && !empty($zeige[($t['art'] ?? '') === 'termin' ? 'termine' : 'leistungen'])));
+$nachweise = array_values(array_filter((array) ($link['nachweise'] ?? []), fn ($n) => !empty($zeige[($n['art'] ?? '') === 'winter' ? 'winter' : 'nachweise']) && isset($link['dateien'][$n['datei']])));
+$meine = array_values(array_filter(meldungen(fn (array &$l) => $l) ?? [], fn ($m) => ($m['link'] ?? '') === $id));
+usort($meine, fn ($a, $b) => (int) $b['erstellt'] <=> (int) $a['erstellt']);
+$k = rawurlencode($code);
+$mehrere = count($objekte) > 1;
+
+$teile = [];
+$sprung = [];
+// Nächste Termine
+if (!empty($zeige['leistungen']) || !empty($zeige['termine'])) {
+    $zeilen = '';
+    foreach ($termine as $t) {
+        $d = DateTimeImmutable::createFromFormat('!Y-m-d', $t['datum']);
+        $zeilen .= '<li><div class="datum"><span>' . $h(TAGE[(int) $d->format('N') - 1]) . '</span><b>' . $d->format('d') . '</b><span>' . $h(mb_substr(MONATE[(int) $d->format('n') - 1], 0, 3)) . '</span></div><div class="was"><b>' . $h($t['titel']) . '</b>'
+            . '<span class="leise">' . $h(datum_text($t['datum'])) . ($t['zeit'] !== '' ? ', ' . $h($t['zeit'] === 'ganztägig' ? 'ganztägig' : $t['zeit'] . ' Uhr') : '') . ($mehrere && $t['objekt'] !== '' ? ' · ' . $h($t['objekt']) : '') . '</span>'
+            . ($t['hinweis'] !== '' || $t['art'] === 'termin' ? '<br><span class="pill' . ($t['art'] === 'termin' ? ' termin' : '') . '">' . $h($t['hinweis'] !== '' ? $t['hinweis'] : 'Termin') . '</span>' : '') . '</div></li>';
+    }
+    $sprung[] = '<a href="#termine">Termine</a>';
+    $teile['links'][] = '<section class="karte" id="termine"><h2>Nächste Termine</h2><p class="unter">' . (!empty($zeige['leistungen']) && !empty($zeige['termine']) ? 'Periodische Leistungen und vereinbarte Termine in Ihrem Objekt.' : (!empty($zeige['leistungen']) ? 'Periodische Leistungen in Ihrem Objekt, z. B. Grund- oder Glasreinigung.' : 'Vereinbarte Termine und Begehungen.')) . '</p>'
+        . ($zeilen ? '<ul class="liste">' . $zeilen . '</ul>' : '<p class="leer">In den nächsten Wochen stehen keine besonderen Termine an.</p>') . '</section>';
+}
+// Nachweise je Monat
+if (!empty($zeige['nachweise']) || !empty($zeige['winter'])) {
+    $symbol = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M9 13h6M9 17h4"/></svg>';
+    $pfeil = '<svg class="pfeil" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+    $monate = [];
+    foreach ($nachweise as $n) {
+        $monate[$n['monat']][] = $n;
+    }
+    krsort($monate);
+    $html = '';
+    $i = 0;
+    foreach ($monate as $monat => $liste) {
+        usort($liste, fn ($a, $b) => [$a['art'] === 'winter', $a['objekt']] <=> [$b['art'] === 'winter', $b['objekt']]);
+        $block = '<h3 class="monat">' . $h(monat_text($monat)) . '</h3>';
+        foreach ($liste as $n) {
+            $block .= '<a class="pdf" href="kunden.php?k=' . $k . '&amp;datei=' . $h($n['datei']) . '" target="_blank" rel="noopener">' . $symbol . '<span class="was"><b>' . ($n['art'] === 'winter' ? 'Winterdienst-Nachweis' : 'Leistungsnachweis') . '</b>'
+                . '<span class="leise">' . ($mehrere ? $h($n['objekt']) . ' · ' : '') . 'PDF, ' . groesse_text((int) ($link['dateien'][$n['datei']]['groesse'] ?? 0)) . '</span></span>' . $pfeil . '</a>';
+        }
+        $html .= $i === 3 ? '<details class="aelter"><summary>Ältere Nachweise</summary>' . $block : $block;
+        $i++;
+    }
+    if ($i > 3) {
+        $html .= '</details>';
+    }
+    $tag = max(1, min(28, (int) ($e['firma']['freigabeTag'] ?? 5)));
+    $sprung[] = '<a href="#nachweise">Nachweise</a>';
+    $teile['links'][] = '<section class="karte" id="nachweise"><h2>Leistungsnachweise</h2><p class="unter">Was wir in Ihrem Objekt geleistet haben, je Monat als PDF. Der Nachweis eines Monats erscheint ab dem ' . $tag . '. des Folgemonats.</p>'
+        . ($html ?: '<p class="leer">Noch keine Nachweise vorhanden.</p>') . '</section>';
+}
+// Reklamation melden und Stand
+if (!empty($zeige['reklamation'])) {
+    $gesendet = ($_GET['gesendet'] ?? '') === '1';
+    $wert = fn ($k) => $h($eingabe[$k] ?? '');
+    $auswahl = $mehrere
+        ? '<label for="r-objekt">Objekt</label><select id="r-objekt" name="objekt" required><option value="">Bitte wählen</option>' . implode('', array_map(fn ($o) => '<option value="' . (int) $o['nr'] . '"' . ((int) ($eingabe['objekt'] ?? 0) === (int) $o['nr'] ? ' selected' : '') . '>' . $h($o['name'] . ($o['adresse'] ? ', ' . $o['adresse'] : '')) . '</option>', $objekte)) . '</select>'
+        : '<input type="hidden" name="objekt" value="1">';
+    $arten = implode('', array_map(fn ($wertArt, $text) => '<option value="' . $h($wertArt) . '"' . (($eingabe['art'] ?? '') === $wertArt ? ' selected' : '') . '>' . $h($text) . '</option>', array_keys(ARTEN), ARTEN));
+    $datenschutz = (string) ($e['firma']['datenschutz'] ?? '');
+    $form = ($fehler ? '<p class="fehler" role="alert">' . $h($fehler) . '</p>' : '')
+        . '<form method="post" action="kunden.php?aktion=melden" enctype="multipart/form-data" data-fotos-verkleinern><input type="hidden" name="k" value="' . $h($code) . '">'
+        . $auswahl
+        . '<label for="r-art">Worum geht es?</label><select id="r-art" name="art" required>' . $arten . '</select>'
+        . '<label for="r-text">Beschreibung</label><textarea id="r-text" name="text" rows="4" maxlength="2000" required placeholder="Was ist Ihnen aufgefallen, und wo genau?">' . $wert('text') . '</textarea>'
+        . '<label for="r-datum">Aufgefallen am</label><input type="date" id="r-datum" name="datum" value="' . $h($eingabe['datum'] ?? $heute) . '" min="' . tag_plus($heute, -60) . '" max="' . $heute . '">'
+        . '<label for="r-foto">Foto (optional)</label><input type="file" id="r-foto" name="foto" accept="image/jpeg,image/png,image/webp">'
+        . '<fieldset><legend>So erreichen wir Sie</legend><label for="r-name">Name</label><input type="text" id="r-name" name="name" maxlength="80" autocomplete="name" required value="' . $wert('name') . '">'
+        . '<div class="zwei"><div><label for="r-tel">Telefon</label><input type="tel" id="r-tel" name="telefon" maxlength="40" autocomplete="tel" value="' . $wert('telefon') . '"></div>'
+        . '<div><label for="r-mail">E-Mail</label><input type="email" id="r-mail" name="email" maxlength="120" autocomplete="email" value="' . $wert('email') . '"></div></div>'
+        . '<label class="haken"><input type="checkbox" name="info" value="1"' . (!empty($eingabe['info']) ? ' checked' : '') . '> Bitte informieren Sie mich per E-Mail, wenn sich der Stand ändert.</label></fieldset>'
+        . '<button type="submit">Meldung senden</button>'
+        . '<p class="hinweis">Telefon oder E-Mail genügt. Bitte fotografieren Sie keine Personen. Ihre Angaben verwenden wir nur, um diese Meldung zu bearbeiten und Sie dazu zu kontaktieren.' . ($datenschutz !== '' && preg_match('#^https://#', $datenschutz) ? ' <a href="' . $h($datenschutz) . '" target="_blank" rel="noopener">Datenschutzerklärung</a>' : '') . '</p></form>';
+    $sprung[] = '<a href="#reklamation">Reklamation melden</a>';
+    // eigene Meldungen zuerst (wer wiederkommt, will den Stand sehen), dann das Formular
+    $zeilen = '';
+    foreach ($meine as $m) {
+        $st = (string) ($m['status'] ?? 'eingegangen');
+        $zeilen .= '<li class="meldung"><div class="zeile"><b>' . $h(ARTEN[$m['art']] ?? $m['art']) . '</b><span class="pill st-' . $h($st) . '">' . $h(STATUS[$st] ?? $st) . '</span></div>'
+            . '<span class="leise">gemeldet am ' . $h(datum_text(date('Y-m-d', (int) $m['erstellt']), false)) . ($mehrere ? ' · ' . $h($m['objekt'] ?? '') : '') . (($m['kontakt']['name'] ?? '') !== '' ? ' von ' . $h($m['kontakt']['name']) : '') . '</span>'
+            . '<p class="meldung-text">' . $h($m['text']) . '</p>'
+            . ($st === 'erledigt' && ($m['antwort'] ?? '') !== '' ? '<div class="antwort"><b>Unsere Rückmeldung</b>' . nl2br($h($m['antwort'])) . '</div>' : '') . '</li>';
+    }
+    if ($zeilen) {
+        $teile['rechts'][] = '<section class="karte" id="meldungen"><h2>Ihre Meldungen</h2><p class="unter">Stand: eingegangen, in Arbeit oder erledigt.</p>'
+            . ($gesendet ? '<p class="ok" role="status">Danke! Ihre Meldung ist bei uns eingegangen. Wir kümmern uns darum.</p>' : '') . '<ul class="liste">' . $zeilen . '</ul></section>';
+    }
+    $teile['rechts'][] = '<section class="karte" id="reklamation"><h2>' . ($zeilen ? 'Neue Reklamation melden' : 'Reklamation melden') . '</h2><p class="unter">Ist etwas nicht in Ordnung? Schreiben Sie uns, wir kümmern uns darum.</p>' . $form . '</section>';
+}
+
+$kontakt = array_filter([
+    !empty($e['firma']['telefon']) ? 'Telefon <a href="tel:' . $h(preg_replace('/[^0-9+]/', '', (string) $e['firma']['telefon'])) . '">' . $h($e['firma']['telefon']) . '</a>' : '',
+    !empty($e['firma']['email']) ? 'E-Mail <a href="mailto:' . $h($e['firma']['email']) . '">' . $h($e['firma']['email']) . '</a>' : '',
+]);
+$objekteHtml = '<ul class="objekte">' . implode('', array_map(fn ($o) => '<li><b>' . $h($o['name']) . '</b>' . ($o['adresse'] ? '<span>' . $h($o['adresse']) . '</span>' : '') . '</li>', $objekte)) . '</ul>';
+$spalten = isset($teile['links'], $teile['rechts'])
+    ? '<div class="spalten"><div class="spalte">' . implode('', $teile['links']) . '</div><div class="spalte">' . implode('', $teile['rechts']) . '</div></div>'
+    : '<div class="spalte">' . implode('', array_merge($teile['links'] ?? [], $teile['rechts'] ?? [])) . '</div>';
+seite('<main class="seite"><div class="hallo"><h1>' . $h($link['titel'] ?: 'Ihr Kundenbereich') . '</h1><p>Willkommen in Ihrem Kundenbereich' . ($firma !== '' ? ' bei ' . $h($firma) : '') . '.</p>' . $objekteHtml . '</div>'
+    . (count($sprung) > 1 ? '<nav class="sprung" aria-label="Bereiche">' . implode('', $sprung) . '</nav>' : '')
+    . $spalten . '</main>'
+    . '<footer class="fuss">' . ($kontakt ? '<p>Fragen? ' . implode(' · ', $kontakt) . '</p>' : '')
+    . '<p>Diese Seite ist persönlich für Sie: Bitte geben Sie den Link nur an Personen weiter, die ihn brauchen. Tipp: als Lesezeichen speichern.</p></footer>', $fehler ? 400 : 200, 'Kundenbereich', $firma);

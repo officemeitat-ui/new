@@ -527,13 +527,14 @@ test('Abgleich: anderes Fenster übernimmt Gespeichertes aus dem Gerät, ohne Sh
   a.data.employees[1].name = 'Markus Neu'
   a.data.absences.push({ id: 'x1', employeeId: 'e1', type: 'Urlaub', from: '2026-11-02', to: '2026-11-03' })
   await a.flush()
-  assert.deepEqual(saved.sort(), [DOC.absences, DOC.master].sort())
+  // mit den Abwesenheiten auch die Liste „abwesend“ ohne Grund (daten/abwesend.json)
+  assert.deepEqual(saved.sort(), [DOC.absences, DOC.absent, DOC.master].sort())
   // B hat inzwischen selbst etwas geändert (ungespeichert)
   b.data.employees[0].name = 'Ana B'
   g.calls.length = 0
   const changed = await b.adoptSaved(saved)
   assert.equal(g.calls.length, 0, 'keine Anfrage an SharePoint')
-  assert.deepEqual(changed.map((c) => c.path).sort(), [DOC.absences, DOC.master].sort())
+  assert.deepEqual(changed.map((c) => c.path).sort(), [DOC.absences, DOC.absent, DOC.master].sort())
   assert.deepEqual(b.data.employees.map((e) => e.name), ['Ana B', 'Markus Neu'], 'zusammengeführt')
   assert.equal(b.data.absences.length, 1)
   await b.flush()
