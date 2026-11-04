@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { resolveAccess } from '../src/core/access.js'
+import { pickTeam } from '../src/core/scheduler.js'
 import { createDemoData } from '../src/data/demo.js'
 import { app, compute, computeRange, seesAccount, visibleAbsences } from '../src/ui/context.js'
 
@@ -47,4 +48,21 @@ test('Wochenplanung: Zeitkonto nur für Rollen, die lohn/zeitkonto.json lesen (s
   assert.equal(seesAccount(), true)
   withRole(null)
   assert.equal(seesAccount(), true)
+})
+
+test('Schneenacht: Winterdienst-Team – zuerst, wer ohne Verstoß kann (Ruhezeit nach dem Abenddienst)', () => {
+  withRole(null)
+  app.data.absences = app.data.absences.filter((a) => a.id !== 'k1')
+  const WED = '2026-11-04'
+  app.data.winter = { [`${WED}|o5`]: { reason: 'Neuschnee', by: 'Test', at: '2026-11-03T19:30:00Z' } }
+  app.data.assignments['2026-11-03|t10'] = [{ employeeId: 'e3' }] // Ordination Di 19:30–21:30
+  app.dataVersion++
+  const r = computeRange(WED, WED)
+  const inst = r.state.instByKey.get(`${WED}|winter-o5`)
+  assert.equal(inst.startTime, '05:30')
+  // Elif putzt Di bis 21:30 die Praxis: 05:30 wären nur 8 h Ruhezeit → Irina (2. im Team)
+  assert.deepEqual(pickTeam(r.ctx, r.state, inst, ['e3', 'e7'], 1), ['e7'])
+  // niemand ohne Verstoß: Reihenfolge bleibt, das Büro sieht es im Prüfbericht
+  assert.deepEqual(pickTeam(r.ctx, r.state, inst, ['e3'], 1), ['e3'])
+  assert.deepEqual(pickTeam(r.ctx, r.state, inst, ['e3', 'e7'], 2), ['e7', 'e3'])
 })
