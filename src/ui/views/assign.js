@@ -4,9 +4,10 @@
 // Danach teilt „Woche planen“ jede Woche die Stammkräfte ein.
 
 import { evaluateRegular, openSlots, rankRegulars, regularLoad, suggestRegulars, weeklyMinutes, whenText } from '../../core/assign.js'
-import { formatHours } from '../../core/dates.js'
+import { employedOn } from '../../core/contract.js'
+import { formatHours, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { explain } from '../../core/scheduler.js'
-import { app, confirmStep, persist, recordUndo, registerActions, registerView, renderNow, toast } from '../context.js'
+import { app, confirmStep, persist, plannedWeeks, recordUndo, registerActions, registerView, renderNow, toast } from '../context.js'
 import { esc, ICON, rhythmText, saldoClass } from '../shared.js'
 import { regionFilter } from './objects.js'
 
@@ -108,6 +109,15 @@ function assignView(c) {
 
 registerView({ id: 'assign', order: 92, label: 'Zuweisung', group: 'stamm', render: assignView })
 
+/** Schon eingeteilte Wochen ab heute, in denen die Leistung andere hat: dort bleibt es bis „Neu planen“ (wie beim Entfernen). */
+function plannedNote(task, empId) {
+  const today = todayISO()
+  const planned = plannedWeeks()
+  const emp = app.data.employees.find((e) => e.id === empId)
+  const weeks = [...new Set(Object.entries(app.data.assignments || {}).filter(([k, list]) => k.endsWith(`|${task.id}`) && k.slice(0, 10) >= today && (!emp || employedOn(emp, k.slice(0, 10))) && planned.has(mondayOf(k.slice(0, 10))) && list.length && !list.some((a) => a.employeeId === empId)).map(([k]) => mondayOf(k.slice(0, 10))))].sort()
+  return weeks.length ? ` In KW ${weeks.map((m) => isoWeek(m).week).join(', ')} ist schon eingeteilt: dort bleibt die Einteilung, „Neu planen“ übernimmt die neue Stammkraft.` : ''
+}
+
 /** Person dauerhaft als Stammkraft eintragen (und im Objekt als eingeschult vermerken). */
 export function assignRegular(taskId, empId, { quiet = false } = {}) {
   const task = app.data.tasks.find((t) => t.id === taskId)
@@ -117,7 +127,7 @@ export function assignRegular(taskId, empId, { quiet = false } = {}) {
   if (!(emp.trained || []).includes(task.objectId)) emp.trained = [...(emp.trained || []), task.objectId]
   if (!quiet) {
     const obj = app.data.objects.find((o) => o.id === task.objectId)
-    toast(`${emp.name} ist jetzt Stammkraft für ${obj?.short || obj?.name || ''} – ${task.label} (${whenText(task)}). „Woche planen“ teilt ab jetzt automatisch ein.`)
+    toast(`${emp.name} ist jetzt Stammkraft für ${obj?.short || obj?.name || ''} – ${task.label} (${whenText(task)}). „Woche planen“ teilt ab jetzt automatisch ein.${plannedNote(task, empId)}`)
   }
   return task
 }
@@ -154,7 +164,7 @@ registerActions(
       assignRegular(task.id, emp.id, { quiet: true })
       persist()
       renderNow()
-      toast(ev.allowed ? `${emp.name} übernimmt ${task.label}.` : `${emp.name} zugewiesen, bitte prüfen: ${ev.blockers.join('; ')}`)
+      toast(`${ev.allowed ? `${emp.name} übernimmt ${task.label}.` : `${emp.name} zugewiesen, bitte prüfen: ${ev.blockers.join('; ')}`}${plannedNote(task, emp.id)}`)
     },
     'as-remove': (el) => {
       const task = app.data.tasks.find((t) => t.id === el.dataset.task)
