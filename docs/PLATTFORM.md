@@ -97,7 +97,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | Ordner | Inhalt | Vollzugriff | Objektmanagement | Vorarbeiter |
 |---|---|---|---|---|
 | `objekte/` | Objekte (Name, Adresse, Revier) | Bearbeiten | Lesen | – |
-| `daten/` | Mitarbeitende, Leistungen, Regeln | Bearbeiten | Lesen | – |
+| `daten/` | Mitarbeitende, Leistungen, Regeln; `abwesend.json`: wer wann fehlt, **ohne Grund** | Bearbeiten | Lesen | – |
 | `plaene/` | Wochenpläne (Einteilungen, Änderungsprotokoll) | Bearbeiten | Lesen | – |
 | `personal/` | Urlaub und Krankenstände (Gesundheitsdaten) | Bearbeiten | – | – |
 | `lohn/` | Zeitkonto, Stundenlöhne, Monatsabschlüsse | Bearbeiten | – | – |
@@ -113,6 +113,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 
 So geht's in SharePoint: Bibliothek öffnen → Ordner `Plattform` → **Zugriff verwalten** → nur die Gruppe Vollzugriff behalten. Dann je Unterordner: **⋯ → Zugriff verwalten → Erweitert → Berechtigungsvererbung beenden**, alle Einträge außer Vollzugriff entfernen und die Gruppe aus der Tabelle mit „Lesen“ bzw. „Bearbeiten“ hinzufügen. Die Ordner legt die App beim ersten Start mit Vollzugriff an.
 
+- **Abwesend ohne Grund:** Objektmanagement und Objektleitung sehen unter *Abwesenheiten*, im Plan und in den Prüfregeln, wer wann fehlt – aber nicht, warum. Dafür schreibt die App beim Speichern der Abwesenheiten eine Liste nur mit Person, von und bis nach `daten/abwesend.json`; Art (Urlaub, Krankenstand …) und Notiz bleiben in `personal/`. Eintragen und ändern bleibt beim Büro.
 - **Lohn und Krankenstände** liegen in eigenen Ordnern (`lohn/`, `personal/`), die nur Vollzugriff (und ggf. Lohnverrechnung) öffnen kann. Wer früher schon Daten unter `daten/` hatte: Beim ersten Start mit Vollzugriff verschiebt die App `abwesenheiten.json`, `zeitkonto.json` und alle Wochenpläne aus `daten/plaene/` in die neuen Ordner und löscht die alten Dateien (Papierkorb der Website). Scheitert das Löschen, versucht sie es beim nächsten Start wieder. Das Änderungsprotokoll der Wochen nennt keinen Grund einer Abwesenheit (es steht bei den Plänen, die auch Objektmanagement liest).
 - **Vorarbeiter** brauchen keinen Ordner unter `Plattform`: Sie arbeiten nur im Werkzeug Wasserzähler, die App lädt für sie keine eigene Datei.
 - **Gerätespeicher je Konto:** Jedes Microsoft-Konto hat im Gerät einen eigenen Speicher. Auf einem geteilten Tablet liest niemand ohne Netz die Kopie eines anderen.

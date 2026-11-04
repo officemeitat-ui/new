@@ -401,7 +401,7 @@ export const TOPICS = [
     q: ['abwesenheit eintragen', 'urlaub eintragen', 'krankenstand eintragen', 'mitarbeiter krank', 'zeitausgleich eintragen', 'pflegefreistellung', 'jemand ist krank', 'krankmeldung eintragen'],
     answer: 'Abwesenheiten (Urlaub, Krankenstand, Zeitausgleich, Pflegefreistellung, Sonstiges) trägst du mit Person, Art und Zeitraum ein, auch rückwirkend. Danach öffnet sich sofort der Abwesenheits-Assistent mit den betroffenen Einsätzen.',
     steps: ['„+ Neu“ → „Abwesenheit (Urlaub, Krankenstand)“ wählen, Taste A, oder im Einsatz „Abwesend“.', 'Person, Art, Von und Bis wählen, optional eine Notiz (keine Diagnose).', '„Eintragen und Vertretung planen“ klicken.', 'Im Assistenten die Einsätze neu vergeben.'],
-    tips: ['Am Handy unten der Knopf „Abwesend“.', 'Die abwesende Person bekommt ihre Stammeinsätze angerechnet (Ausfallprinzip).'],
+    tips: ['Am Handy unten der Knopf „Abwesend“.', 'Die abwesende Person bekommt ihre Stammeinsätze angerechnet (Ausfallprinzip).', 'Objektmanagement und Objektleitung sehen nur „abwesend von–bis“, ohne Grund – Krankenstände sind Gesundheitsdaten und bleiben beim Büro.'],
     action: { action: 'open-absence-new', label: 'Abwesenheit eintragen' },
     related: ['abwesenheits-assistent', 'abwesenheit-rueckwirkend', 'urlaubskalender'],
     roles: 'Vollzugriff (Einsatzplanung und Stammdaten)',

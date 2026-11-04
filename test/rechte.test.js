@@ -284,3 +284,40 @@ test('Oberfläche: Schreibrecht je Bereich, nicht je Ansicht (Suche/Übersicht �
     Object.assign(app, before)
   }
 })
+
+test('Rechte: „abwesend“ ohne Grund für Objektmanagement, Krankenstand bleibt in personal/', async () => {
+  const om = dataRights(resolveAccess({ groupClaims: [OM], access, strict: true }))
+  assert.ok(om.read(DOC.absent) && !om.write(DOC.absent) && !om.read(DOC.absences))
+  const ol = dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true }))
+  assert.ok(ol.read(DOC.absent) && !ol.read(DOC.absences))
+  const va = dataRights(resolveAccess({ groupClaims: [VA], access, strict: true }))
+  assert.ok(!va.read(DOC.absent))
+
+  const { store, log } = spyStore()
+  const admin = new DataService(store, { debounceMs: 0 })
+  const data = await admin.load(() => ({ ...blank(), employees: [{ id: 'e1', name: 'Ana' }, { id: 'e2', name: 'Bo' }], absences: [{ id: 'a1', employeeId: 'e1', type: 'Krankenstand', from: '2026-10-26', to: '2026-10-30', note: 'Grippe' }] }))
+  data.absences.push({ id: 'a2', employeeId: 'e2', type: 'Urlaub', from: '2026-11-02' })
+  await admin.flush()
+  const saved = (await store.read(DOC.absent)).data.absent
+  assert.deepEqual(saved, [
+    { id: 'a1', employeeId: 'e1', from: '2026-10-26', to: '2026-10-30' },
+    { id: 'a2', employeeId: 'e2', from: '2026-11-02', to: '2026-11-02' },
+  ])
+  assert.ok(!JSON.stringify(saved).includes('Krankenstand') && !JSON.stringify(saved).includes('Grippe'))
+
+  // Objektmanagement: sieht wer wann fehlt, ohne Grund, und schreibt nichts
+  log.write.length = 0
+  const o = new DataService(store, { debounceMs: 0, rights: om, blank })
+  const od = await o.load(() => assert.fail())
+  assert.deepEqual(od.absences.map((a) => [a.employeeId, a.type, a.from, a.to, a.note]), [
+    ['e1', 'Abwesend', '2026-10-26', '2026-10-30', undefined],
+    ['e2', 'Abwesend', '2026-11-02', '2026-11-02', undefined],
+  ])
+  await o.flush()
+  assert.deepEqual(log.write, [])
+
+  // Vollzugriff behält die vollständigen Abwesenheiten (nicht von der Liste überschrieben)
+  const again = await new DataService(store, { debounceMs: 0 }).load(() => assert.fail())
+  assert.deepEqual(again.absences.map((a) => a.type), ['Krankenstand', 'Urlaub'])
+  assert.equal(again.absences[0].note, 'Grippe')
+})
