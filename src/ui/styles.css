@@ -614,7 +614,7 @@ button.stat:hover { border-color: var(--line-strong); }
 .filters-bar { gap: 10px 18px; }
 .field.inline { display: flex; align-items: center; gap: 8px; }
 .field.inline > span { font-size: 0.85rem; }
-input[type='search'], input[type='email'] { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 6px 8px; min-width: 0; }
+input[type='search'], input[type='email'], input[type='tel'], input[type='url'], input[type='password'] { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 6px 8px; min-width: 0; }
 
 .grid .group-row th, .grid .group-row td { background: color-mix(in srgb, var(--surface-2) 60%, var(--surface)); padding-block: 7px; font-size: 0.82rem; font-weight: 700; color: var(--muted); }
 .grid tr.row-changed th.name-col { box-shadow: inset 4px 0 0 var(--warn); }
@@ -1077,7 +1077,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   .link-btn { min-height: 32px; }
   .flow-step { padding: 8px; }
   select, input[type='text'], input[type='search'], input[type='date'], input[type='time'], input[type='number'], input[type='month'] { min-height: 42px; font-size: 16px; }
-  textarea, input[type='email'] { font-size: 16px; } /* unter 16 px zoomt iOS beim Antippen in die Seite */
+  textarea, input[type='email'], input[type='tel'], input[type='url'], input[type='password'] { min-height: 42px; font-size: 16px; } /* unter 16 px zoomt iOS beim Antippen in die Seite */
 }
 
 @media (max-width: 700px) {
@@ -1128,7 +1128,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   .modal > header { position: relative; border-radius: 16px 16px 0 0; padding: 16px 14px 10px; }
   .modal > header::before { content: ''; position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   .modal > header h2 { font-size: 1.15rem; }
-  .modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 16px; }
+  .modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 16px; grid-auto-rows: max-content; } /* Listen mit eigenem Bildlauf (z. B. Objekte im Kundenbereich) nicht zusammenquetschen */
   .modal-foot { padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .candidates { max-height: none; }
   .impact-acts { white-space: normal; }
