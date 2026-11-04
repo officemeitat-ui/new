@@ -5,6 +5,15 @@
 
 import { addDays } from './dates.js'
 
+const VIENNA_DAY = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit' })
+/** Tag in Wien zu einem Zeitpunkt (ISO mit Uhrzeit) – 00:30 am 1. November ist der 1., nicht der 31. Oktober (UTC). */
+export function dayOf(iso) {
+  const v = String(iso || '')
+  if (!v.includes('T')) return v.slice(0, 10)
+  const t = Date.parse(v)
+  return Number.isFinite(t) ? VIENNA_DAY.format(t) : v.slice(0, 10)
+}
+
 export const SOURCES = ['Kunde (Telefon)', 'Kunde (E-Mail)', 'Kunde (vor Ort)', 'Objektkontrolle', 'Intern']
 export const KINDS = ['Reinigung mangelhaft', 'Leistung nicht erbracht', 'Nicht erschienen / zu spät', 'Schaden', 'Schlüssel / Sicherheit', 'Verhalten', 'Sonstiges']
 export const STATUS = { offen: 'offen', arbeit: 'in Arbeit', erledigt: 'erledigt' }
@@ -44,16 +53,16 @@ export function complaintList(items, { status = 'offen', objectId = '', today })
 export function hotspots(items, { today, days = 90, min = 3 }) {
   const from = addDays(today, -days)
   const count = new Map()
-  for (const c of items || []) if (c.received.slice(0, 10) >= from) count.set(c.objectId, (count.get(c.objectId) || 0) + 1)
+  for (const c of items || []) if (dayOf(c.received) >= from) count.set(c.objectId, (count.get(c.objectId) || 0) + 1)
   return [...count].filter(([, n]) => n >= min).sort((a, b) => b[1] - a[1]).map(([objectId, n]) => ({ objectId, n }))
 }
 
 /** Tage vom Eingang bis erledigt (für die Auswertung). */
-export const daysToDone = (c) => (c.doneAt ? Math.max(0, Math.round((Date.parse(c.doneAt.slice(0, 10)) - Date.parse(c.received.slice(0, 10))) / 86400e3)) : null)
+export const daysToDone = (c) => (c.doneAt ? Math.max(0, Math.round((Date.parse(dayOf(c.doneAt)) - Date.parse(dayOf(c.received))) / 86400e3)) : null)
 
 /** Kennzahlen eines Zeitraums (Eingang von–bis). */
 export function complaintStats(items, { from, to }) {
-  const list = (items || []).filter((c) => c.received.slice(0, 10) >= from && c.received.slice(0, 10) <= to)
+  const list = (items || []).filter((c) => dayOf(c.received) >= from && dayOf(c.received) <= to)
   const done = list.filter((c) => !isOpen(c))
   const byKind = {}
   for (const c of list) byKind[c.kind] = (byKind[c.kind] || 0) + 1

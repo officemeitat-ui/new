@@ -226,5 +226,5 @@ export function nowcastStrip(point, { now = Date.now() } = {}) {
     .join('')
   const marks = [0, 4, 8].filter((i) => steps[i]).map((i) => `<span style="left:${((i / steps.length) * 100).toFixed(1)}%">${i ? `+${i / 4} h` : 'jetzt'}</span>`).join('')
   const cls = hint.state === 'dry' ? 'dry' : hint.kind === KIND.snow ? 'snow' : 'wet'
-  return `<div class="wx-now ${cls}"><p class="wx-now-text"><strong>${esc(hint.text)}</strong></p><div class="wx-now-bar" role="img" aria-label="${esc(`Niederschlag der nächsten ${Math.round(steps.length / 4)} Stunden, je Viertelstunde`)}">${cells}</div><div class="wx-now-marks" aria-hidden="true">${marks}</div></div>`
+  return `<div class="wx-now ${cls}"><p class="wx-now-text"><strong>${esc(hint.text)}</strong></p><div class="wx-now-bar" role="img" aria-label="${esc(Math.round(steps.length / 4) === 1 ? 'Niederschlag der nächsten Stunde, je Viertelstunde' : `Niederschlag der nächsten ${Math.round(steps.length / 4)} Stunden, je Viertelstunde`)}">${cells}</div><div class="wx-now-marks" aria-hidden="true">${marks}</div></div>`
 }

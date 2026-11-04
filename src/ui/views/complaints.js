@@ -2,7 +2,7 @@
 // Plan dort war, Maßnahme und Frist, erledigen mit Ergebnis und „Kunde informiert“, PDF für den Kunden,
 // CSV. „Zu erledigen“ meldet überfällige Reklamationen, der Einsatz-Dialog die offenen des Objekts.
 
-import { complaintList, complaintStats, defaultDue, hotspots, isOpen, isOverdue, KINDS, SOURCES, STATUS, whoWorked } from '../../core/complaints.js'
+import { complaintList, complaintStats, dayOf, defaultDue, hotspots, isOpen, isOverdue, KINDS, SOURCES, STATUS, whoWorked } from '../../core/complaints.js'
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
 import { toCSV } from '../../core/reports.js'
 import { complaintDocument, complaintPdfName } from '../../export/complaint-pdf.js'
@@ -82,7 +82,7 @@ function readForm() {
   const d = draft()
   if (!document.getElementById('cp-text')) return d
   const kind = val('cp-kind')
-  if (kind !== d.kind && (!d.id || !d.due || d.due === defaultDue(d.kind, d.received.slice(0, 10)))) d.due = defaultDue(kind, d.received.slice(0, 10))
+  if (kind !== d.kind && (!d.id || !d.due || d.due === defaultDue(d.kind, dayOf(d.received)))) d.due = defaultDue(kind, dayOf(d.received))
   else d.due = val('cp-due')
   Object.assign(d, { objectId: val('cp-obj'), date: val('cp-date'), source: val('cp-source'), kind, text: val('cp-text').trim(), contact: val('cp-contact').trim(), measure: val('cp-measure').trim(), status: val('cp-status') || d.status, result: val('cp-result').trim(), informed: checked('cp-informed'), employees: checkedValues('cp-emp') })
   return d
@@ -171,7 +171,7 @@ const csvColumns = [
   ['Maßnahme', (c) => c.measure],
   ['Frist', (c) => c.due || ''],
   ['Status', (c) => STATUS[c.status]],
-  ['Erledigt am', (c) => (c.doneAt ? c.doneAt.slice(0, 10) : '')],
+  ['Erledigt am', (c) => (c.doneAt ? dayOf(c.doneAt) : '')],
   ['Ergebnis', (c) => c.result],
   ['Kunde informiert', (c) => (c.informed ? 'ja' : 'nein')],
 ]

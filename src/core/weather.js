@@ -449,11 +449,12 @@ export function onCallIndex(date, count) {
  * Einstellungen für den Server (privat/wetter-alarm.json): Orte mit Koordinaten,
  * je Stufe die Personen mit ntfy-Thema und E-Mail, Regeln, Schlüssel.
  */
-export function alarmFile({ alarm, locations, objects, employees, address }) {
+export function alarmFile({ alarm, locations, objects, employees, address, today = viennaParts(Date.now()).date }) {
   const a = { ...ALARM_DEFAULTS, ...alarm }
   const person = (id, withEmail) => {
     const e = employees.find((x) => x.id === id)
-    if (!e) return null
+    // ausgeschieden (Austritt vorbei): nicht mehr wecken, auch wenn noch im Winterteam eingetragen
+    if (!e || (e.exitDate && e.exitDate < today)) return null
     const out = { name: e.name }
     if (a.topics?.[id]) out.ntfy = a.topics[id]
     if (withEmail && e.email) out.email = e.email

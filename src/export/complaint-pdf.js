@@ -2,7 +2,7 @@
 // Ohne Namen der Mitarbeitenden (die stehen nur in der App), damit das PDF an den Kunden gehen kann.
 
 import { formatDate } from '../core/dates.js'
-import { STATUS } from '../core/complaints.js'
+import { dayOf, STATUS } from '../core/complaints.js'
 import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 
 const dateTime = (iso) => (iso ? `${formatDate(iso.slice(0, 10), { year: true })}${iso.length > 10 ? `, ${new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' })} Uhr` : ''}` : '–')
@@ -38,4 +38,4 @@ export function complaintDocument({ complaint: c, object = {}, brand = {}, logo 
   return docShell(content, { brand, colors, createdAt, title: `Reklamation ${object.name || ''}` })
 }
 
-export const complaintPdfName = (c, objectName = '') => `Reklamation_${c.received.slice(0, 10)}_${objectName.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g, '-')}.pdf`
+export const complaintPdfName = (c, objectName = '') => `Reklamation_${dayOf(c.received)}_${objectName.replace(/[^A-Za-z0-9ÄÖÜäöüß]+/g, '-')}.pdf`

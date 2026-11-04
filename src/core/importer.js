@@ -74,7 +74,11 @@ export function parseWeekdays(text) {
     if (range.length === 2) {
       const a = idx(range[0])
       const b = idx(range[1])
-      if (a && b) for (let d = a; d <= b; d++) out.add(d)
+      // auch über das Wochenende: „Fr-Mo“ = Fr, Sa, So, Mo
+      if (a && b) for (let i = 0, d = a; i < 7; i++, d = (d % 7) + 1) {
+        out.add(d)
+        if (d === b) break
+      }
     } else {
       const a = idx(part)
       if (a) out.add(a)

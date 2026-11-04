@@ -96,6 +96,6 @@ const timeOf = (iso) => {
 
 /** Dateiname eines Fotos in SharePoint: exporte/Winterdienst/2026-12/2026-12-02_Wohnanlage-Lehen_ab12cd34ef56-1.jpg */
 export function photoPath(e, datei, objectName = e.object) {
-  const safe = String(objectName || 'Objekt').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+  const safe = String(objectName || 'Objekt').replace(/ß/g, 'ss').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   return `exporte/Winterdienst/${e.date.slice(0, 7)}/${e.date}_${safe}_${datei}`
 }

@@ -27,6 +27,24 @@ export function proofFor({ objectId, from, to, instances = [], state, stamps = {
   const stampList = Object.values(stamps || {}).filter((s) => s.objectId === objectId && s.date >= from && s.date <= to)
   const used = new Set()
   const rows = []
+  // Stempelungen ohne Einsatz-Kennung: zum zeitlich nächsten Einsatz der Person an dem Tag (zwei Einsätze,
+  // zwei Stempelungen: je eine, nicht beide auf den ersten)
+  const best = new Map()
+  for (const s of stampList) {
+    if (s.instKey || !employeesById.has(s.empId)) continue
+    let pick = null
+    let dist = Infinity
+    for (const inst of instances) {
+      if (inst.objectId !== objectId || inst.status === 'cancelled' || inst.date !== s.date) continue
+      if (!state.assigned(inst.key).some((a) => a.employeeId === s.empId)) continue
+      const d = Math.abs(absMinutes(s.in) - inst.start)
+      if (d < dist) {
+        dist = d
+        pick = inst.key
+      }
+    }
+    if (pick) best.set(s.id, pick)
+  }
   for (const inst of instances) {
     if (inst.objectId !== objectId) continue
     if (inst.status === 'cancelled') {
@@ -36,10 +54,10 @@ export function proofFor({ objectId, from, to, instances = [], state, stamps = {
     }
     if (inst.date < from || inst.date > to) continue
     const assigned = state.assigned(inst.key).map((a) => a.employeeId).filter((id) => employeesById.has(id))
-    const own = stampList.filter((s) => !used.has(s.id) && (s.instKey === inst.key || (!s.instKey && s.date === inst.date && assigned.includes(s.empId))))
+    const own = stampList.filter((s) => !used.has(s.id) && (s.instKey === inst.key || (!s.instKey && best.get(s.id) === inst.key && assigned.includes(s.empId))))
     own.forEach((s) => used.add(s.id))
     const ist = own
-      .map((s) => ({ in: hhmm(s.in), out: s.out ? hhmm(s.out) : null, minutes: s.out ? absMinutes(s.out) - absMinutes(s.in) : null, at: s.in }))
+      .map((s) => ({ in: hhmm(s.in), out: s.out ? hhmm(s.out) : null, minutes: s.out ? Math.floor(Date.parse(s.out) / 6e4) - Math.floor(Date.parse(s.in) / 6e4) : null, at: s.in }))
       .sort((a, b) => a.at.localeCompare(b.at))
       .map(({ at, ...x }) => x)
     // noch nicht vorbei (später am Tag oder läuft gerade): geplant
