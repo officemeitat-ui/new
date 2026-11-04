@@ -538,7 +538,7 @@ legend { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; 
 .modal > header { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); border-top: 5px solid var(--obj, var(--accent)); border-radius: 10px 10px 0 0; }
 .modal > header h2 { font-size: 1.35rem; flex: 1; }
 .modal > header h2 small { display: block; font-family: var(--font-body); font-weight: 400; font-size: 0.9rem; color: var(--muted); }
-.modal-body { padding: 14px 18px 18px; display: grid; gap: 16px; }
+.modal-body { padding: 14px 18px 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } /* breiter Inhalt (lange Zeilen) sprengt den Dialog nicht */
 .modal-body h3 { font-size: 1.05rem; color: var(--fg); }
 .meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .person { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr auto; gap: 6px 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -968,7 +968,7 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .sys-list .flag { margin-top: 3px; }
 .calc-steps summary { cursor: pointer; font-weight: 600; }
 .pe-preview { background: var(--surface-2, #f3f6f8); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; overflow-x: auto; white-space: pre; }
-.input-btn input { flex: 1 1 auto; min-width: 0; }
+.input-btn input { flex: 1 1 auto; min-width: 0; width: 6rem; } /* kleine Grundbreite: sonst ragt „Suchen“ aus dem Dialog */
 .tc-table tr.clickable { cursor: pointer; }
 .tc-list { margin: 0; padding-left: 1.1rem; }
 .tc-list li { margin: 3px 0; }
@@ -1341,6 +1341,11 @@ tr.muted td { color: var(--muted); }
 .tr-signs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
 .tr-people { max-height: 260px; overflow: auto; }
 .tr-types input[type="text"] { min-width: 120px; }
+/* Arten-Dialog: alle Spalten (auch „sperrt“, „aktiv“) ohne seitlichen Bildlauf */
+.tr-types select { width: 9.5rem; min-width: 0; }
+.tr-types [id^='tt-name'] { width: 100%; min-width: 12rem; }
+.tr-types [id^='tt-law'] { width: 7.5rem; min-width: 0; }
+.tr-types th, .tr-types td { padding-inline: 5px; }
 .num-input { width: 5rem; }
 
 /* KI-Assistent */
