@@ -12,7 +12,9 @@ export function reportRow(c, issue) {
   const weekScope = issue.scope === 'week' || issue.scope === 'month'
   const action = weekScope ? `data-action="open-sheet" data-emp="${esc(emp?.id)}"` : `data-action="open-shift" data-key="${esc(issue.keys[0])}"`
   const where = weekScope ? 'ganze Woche' : `${obj ? `${obj.name}${inst.label ? ` – ${inst.label}` : ''}` : ''}${inst ? ` · ${inst.startTime}–${inst.endTime}` : ''}`
-  return `<button class="report-row" ${action}><span><span class="pill ${issue.severity}">${SEVERITY_LABEL[issue.severity]}</span></span><span class="tabular">${weekScope ? `KW ${isoWeek(issue.date).week}` : formatDate(issue.date)}</span><span><strong>${esc(emp ? emp.name : 'Einsatz')}</strong>${emp?.team ? `<br><span class="muted">${esc(emp.team)}</span>` : ''}</span><span class="rr-msg">${esc(issue.message)}<br><span class="muted">${esc(where)}</span></span></button>`
+  // „Krankenstand: … abwesend“: Grund markiert, damit er per E-Mail (Bericht, Abo) nur als „abwesend“ hinausgeht
+  const msg = issue.code === 'ABSENT' ? esc(issue.message).replace(/^([^:]+):/, '<span class="abs-why">$1</span>:') : esc(issue.message)
+  return `<button class="report-row" ${action}><span><span class="pill ${issue.severity}">${SEVERITY_LABEL[issue.severity]}</span></span><span class="tabular">${weekScope ? `KW ${isoWeek(issue.date).week}` : formatDate(issue.date)}</span><span><strong>${esc(emp ? emp.name : 'Einsatz')}</strong>${emp?.team ? `<br><span class="muted">${esc(emp.team)}</span>` : ''}</span><span class="rr-msg">${msg}<br><span class="muted">${esc(where)}</span></span></button>`
 }
 
 function reportView(c) {

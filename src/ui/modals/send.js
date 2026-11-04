@@ -140,7 +140,8 @@ registerActions({
     try {
       setBusy(`PDF für ${emp.name} wird erstellt …`)
       download(pdfFileName(c.monday, emp.name), await weekPdfBlob(c, [emp]))
-      if (c.published && !c.published.sent?.[emp.id]) markSent(c, [emp], 'PDF')
+      // neuer Stand als PDF (auch nach einer Korrektur): Versandstand nachziehen, ein aktueller Versand bleibt
+      if (c.published && sendState(c, emp).key !== 'aktuell') markSent(c, [emp], 'PDF')
       setBusy('')
     } catch (err) {
       setBusy('')

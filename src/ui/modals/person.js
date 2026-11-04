@@ -7,7 +7,7 @@ import { evaluateRegular, openSlots, regularLoad, weeklyMinutes } from '../../co
 import { formatDate, formatHours, isoWeek } from '../../core/dates.js'
 import { timeAccount } from '../../core/reports.js'
 import { evaluateCandidate, explain } from '../../core/scheduler.js'
-import { app, mutateAssignments, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
+import { app, mutateAssignments, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, seesAccount, toast } from '../context.js'
 import { availabilitySummary, dayClass, esc, modalFrame, rhythmText, signed } from '../shared.js'
 import { assignRegular } from '../views/assign.js'
 import { struckChip, workChip } from '../views/week.js'
@@ -112,7 +112,7 @@ function personModal(c, { empId, objectId }) {
     title: `Dienstplan: ${emp.name}`,
     subtitle: `${esc(emp.type)} · ${esc(emp.team || '')} · KW ${isoWeek(c.monday).week}`,
     wide: true,
-    body: `<div class="tags"><span class="tag">Vertrag ${h(contract)} h/Woche</span><span class="tag ${free < 0 ? 'warn-tag' : ''}">Stammplan ${h(mine.minutes)} h/Woche · ${free >= 0 ? `${h(free)} h frei` : `${h(-free)} h über Vertrag`}</span><span class="tag">diese Woche ${formatHours(ts.totals.ist)} / ${formatHours(ts.totals.soll)} h</span><span class="tag">Zeitkonto ${signed(account)} h</span><span class="tag">${esc(availabilitySummary(emp))}</span></div>
+    body: `<div class="tags"><span class="tag">Vertrag ${h(contract)} h/Woche</span><span class="tag ${free < 0 ? 'warn-tag' : ''}">Stammplan ${h(mine.minutes)} h/Woche · ${free >= 0 ? `${h(free)} h frei` : `${h(-free)} h über Vertrag`}</span><span class="tag">diese Woche ${formatHours(ts.totals.ist)} / ${formatHours(ts.totals.soll)} h</span>${seesAccount() ? `<span class="tag">Zeitkonto ${signed(account)} h</span>` : ''}<span class="tag">${esc(availabilitySummary(emp))}</span></div>
       <section><h3>Woche ${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}</h3>${weekGrid(c, emp)}</section>
       <section><h3>Feste Objekte (Stammplan, jede Woche)</h3>${regularTable(ctx, emp, mine)}</section>
       <section class="pp-assign"><h3>Objekt zuweisen</h3><div class="form-grid">${objectPicker(ctx, emp, objectId)}</div>

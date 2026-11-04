@@ -65,7 +65,9 @@ function suggestions(a, an) {
 // ---------------------------------------------------------------- Schnellerfassung
 
 function absenceNewModal(c, { employeeId, date, absenceType }) {
-  const from = date || c.monday
+  // Krankmeldung kommt meist für heute: in der laufenden Woche ab heute, sonst ab Montag der angezeigten Woche
+  const today = todayISO()
+  const from = date || (today >= c.monday && today <= c.sunday ? today : c.monday)
   return modalFrame({
     title: 'Abwesenheit eintragen',
     subtitle: 'Danach siehst du sofort, welche Einsätze und Stunden neu zu planen sind.',

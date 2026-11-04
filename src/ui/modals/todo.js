@@ -169,7 +169,7 @@ function todoModal(c, { auto }) {
     sections.push(`<section><h3>Abwesenheiten: Stunden neu planen</h3>${t.absences
       .map(({ absence: a, count, minutes, stillAssigned, retro, unplanned }) => `<div class="todo-item">
         <span class="cal-key ${ABSENCE_CLASS[a.type] || 'abs-sonst'}">${esc(a.type[0])}</span>
-        <div class="todo-text"><strong>${esc(empName(a.employeeId))}</strong> · ${esc(a.type)} ${formatDate(a.from)}${a.to !== a.from ? `–${formatDate(a.to)}` : ''}
+        <div class="todo-text"><strong>${esc(empName(a.employeeId))}</strong> · <span class="abs-why">${esc(a.type)}</span> ${formatDate(a.from)}${a.to !== a.from ? `–${formatDate(a.to)}` : ''}
           <br><span class="muted">${count} ${count === 1 ? 'Einsatz' : 'Einsätze'}, ${formatHours(minutes)} h neu zu planen${stillAssigned ? `, davon ${stillAssigned} noch eingeteilt` : ''}</span>
           ${retro ? '<span class="pill warning">rückwirkend</span>' : ''}${unplanned ? ' <span class="pill info">Woche noch nicht eingeteilt</span>' : ''}</div>
         <button class="btn small primary" data-action="open-impact" data-id="${esc(a.id)}">Vertretung planen</button></div>`)

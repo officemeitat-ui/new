@@ -187,6 +187,8 @@ function cleanText(el) {
   const copy = el.cloneNode(true)
   for (const x of copy.querySelectorAll('.btn:not(.link-btn), details, svg, .visually-hidden, .caret, kbd, input[type=checkbox]')) x.remove()
   for (const x of copy.querySelectorAll('input, select, textarea')) x.replaceWith(x.tagName === 'SELECT' ? x.options[x.selectedIndex]?.text || '' : x.value || '')
+  // Grund einer Abwesenheit (Krankenstand ist ein Gesundheitsdatum) geht nicht per E-Mail hinaus: nur „abwesend“
+  for (const x of copy.querySelectorAll('.abs-tag, .abs-why, .tl-row.absent .tl-note')) x.replaceWith('abwesend')
   for (const br of copy.querySelectorAll('br')) br.replaceWith(' · ')
   // Kennzeichen wie „rückwirkend“ nicht direkt an den Text kleben
   for (const x of copy.querySelectorAll('.pill, .tag, .flag')) x.before(' · ')
