@@ -163,6 +163,7 @@
       "audit": "Audit-Log",
       "branding": "Branding",
       "security": "Sicherheit",
+      "privacy": "Datenschutz",
       "support": "Support-Zugriff",
       "general": "Allgemein"
     },
@@ -219,14 +220,20 @@
         "integration_disconnected": "Integration getrennt",
         "device_synced": "Gerät synchronisiert",
         "device_restarted": "Gerät neu gestartet",
-        "device_locked": "Gerät gesperrt"
+        "device_locked": "Gerät gesperrt",
+        "privacy_retention_changed": "Aufbewahrungsfristen geändert",
+        "privacy_retention_applied": "Abgelaufene Daten gelöscht",
+        "privacy_person_erased": "Personendaten gelöscht",
+        "privacy_account_deleted": "Benutzerkonto gelöscht",
+        "privacy_data_exported": "Datenauskunft erstellt"
       },
       "actors": {
         "user": "Benutzer",
         "partner": "Partner",
         "system": "System",
         "agent": "Agent"
-      }
+      },
+      "export": "Als CSV exportieren"
     },
     "branding": {
       "title": "Branding",
@@ -408,7 +415,10 @@
     "backupCodesHint": "Jeder Code funktioniert genau einmal.",
     "downloadCodes": "Als Datei speichern",
     "codeLabel": "Code aus der App",
-    "confirmSetup": "Einrichtung abschließen"
+    "confirmSetup": "Einrichtung abschließen",
+    "dataTitle": "Meine Daten",
+    "dataDescription": "Laden Sie alle Daten herunter, die {tenant} in der Plattform zu Ihrer Person speichert (Art. 15 und 20 DSGVO).",
+    "dataExport": "Meine Daten herunterladen"
   },
   "agents": {
     "title": "Agenten",
@@ -502,7 +512,8 @@
     "knowledgeManage": "Sammlung anlegen",
     "knowledgeDocuments": "{count, plural, =0 {leer} =1 {1 Dokument} other {# Dokumente}}",
     "toolDestructive": "Eingriff am Gerät",
-    "toolNeedsMicrosoft": "Microsoft 365 verbinden"
+    "toolNeedsMicrosoft": "Microsoft 365 verbinden",
+    "profile": "Steckbrief"
   },
   "tools": {
     "aktuelle_zeit": {
@@ -733,5 +744,77 @@
       "restart": "„{name}“ jetzt neu starten? Ungespeicherte Arbeit geht verloren.",
       "lock": "„{name}“ jetzt sperren? Die Person muss sich danach neu anmelden."
     }
+  },
+  "privacy": {
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Datenschutz-Einstellungen verwalten Owner und Admins.",
+    "retentionTitle": "Aufbewahrungsfristen",
+    "retentionDescription": "Legen Sie fest, wie lange Gespräche und Dokumente gespeichert bleiben. Abgelaufene Daten löscht die Plattform jede Nacht endgültig.",
+    "chats": "Gespräche mit Agenten",
+    "chatsHint": "Gezählt ab der letzten Nachricht. Mit dem Gespräch werden Verlauf, Schritte und Freigaben gelöscht; Kostenzahlen bleiben ohne Inhalt erhalten.",
+    "documents": "Dokumente in der Wissensdatenbank",
+    "documentsHint": "Gezählt ab dem Hochladen.",
+    "keep": "Unbegrenzt (manuell löschen)",
+    "days": "{days, plural, other {# Tage}}",
+    "auditHint": "Das Audit-Log bleibt unverändert bestehen (Rechenschaftspflicht, Art. 5 Abs. 2 DSGVO). Es enthält Personen-IDs, aber keine Inhalte.",
+    "save": "Fristen speichern",
+    "personsTitle": "Auskunft und Löschung pro Person",
+    "personsDescription": "Datenauskunft nach Art. 15/20 DSGVO als Datei, Löschung nach Art. 17 DSGVO: Gespräche, Mitgliedschaft und – wenn die Person zu keiner anderen Firma gehört – das Konto.",
+    "export": "Daten exportieren",
+    "erase": "Daten löschen",
+    "eraseConfirm": "Alle Gespräche und die Mitgliedschaft von „{name}“ endgültig löschen? Zur Bestätigung den Namen eingeben:",
+    "eraseMismatch": "Der Name stimmt nicht überein. Es wurde nichts gelöscht.",
+    "registerTitle": "Verzeichnis von Verarbeitungstätigkeiten",
+    "registerDescription": "Vorlage nach Art. 30 DSGVO, erstellt aus Ihren Agenten, Sammlungen und Integrationen. Prüfen, ergänzen und als PDF ablegen.",
+    "registerOpen": "Verzeichnis öffnen",
+    "subprocessorsTitle": "Unterauftragsverarbeiter",
+    "subprocessorsDescription": "Diese Dienste verarbeiten Daten im Auftrag der Plattform. Grundlage ist der Auftragsverarbeitungsvertrag (AVV) mit ME-IT.",
+    "back": "Zurück zum Datenschutz",
+    "print": "Drucken / als PDF",
+    "register": {
+      "title": "Verzeichnis von Verarbeitungstätigkeiten (Art. 30 DSGVO)",
+      "controller": "Verantwortlicher: {name}",
+      "created": "erstellt am {date}",
+      "draftNote": "Vorlage aus der Plattform-Konfiguration. Rechtsgrundlagen und Zwecke prüft und ergänzt der Verantwortliche, am besten gemeinsam mit der Datenschutzberatung.",
+      "purpose": "Zweck",
+      "legalBasis": "Rechtsgrundlage",
+      "subjects": "Betroffene",
+      "data": "Datenkategorien",
+      "recipients": "Empfänger",
+      "retention": "Löschfrist",
+      "toms": "Technische und organisatorische Maßnahmen",
+      "tomsText": "Mandantentrennung in der Datenbank (Row Level Security), Verschlüsselung der Verbindungen (TLS), Zwei-Faktor-Anmeldung, Rollen und Rechte, Freigaben für Aktionen nach außen, unveränderliches Audit-Log. Details: TOM-Dokument von ME-IT."
+    }
+  },
+  "profile": {
+    "back": "Zurück zum Agenten",
+    "print": "Drucken / als PDF",
+    "kicker": "Agenten-Steckbrief (EU-KI-Verordnung)",
+    "meta": "{tenant} · Version {version} vom {date}",
+    "purpose": "Zweck",
+    "noPurpose": "Noch keine Beschreibung hinterlegt – bitte im Agent Studio ergänzen.",
+    "model": "KI-Modell und Anbieter",
+    "data": "Verwendete Daten",
+    "dataConversations": "Nachrichten der Gespräche, in denen der Agent eingesetzt wird",
+    "dataKnowledge": "Textstellen aus den Wissenssammlungen: {names}",
+    "dataDevices": "Gerätedaten aus Microsoft Intune (Gerätename, Benutzer, Status)",
+    "tools": "Werkzeuge und Freigaberegeln",
+    "noTools": "Keine Werkzeuge – der Agent antwortet nur mit Text.",
+    "inactive": "nicht verbunden",
+    "modes": {
+      "auto": "automatisch",
+      "approve": "Freigabe nötig",
+      "deny": "verboten"
+    },
+    "oversight": "Menschliche Aufsicht",
+    "oversightApprovals": "Vor diesen Aktionen entscheidet eine Person in der Freigabe-Inbox: {tools}.",
+    "oversightNone": "Der Agent führt keine freigabepflichtigen Aktionen aus.",
+    "limits": "Grenzen pro Auftrag: höchstens {steps} Schritte, Kostenlimit {cost}.",
+    "noLimit": "keines",
+    "logging": "Protokollierung",
+    "loggingRetention": "Jeder Lauf wird mit allen Schritten protokolliert (Trace im Chat) und nach {days} Tagen ohne Aktivität gelöscht.",
+    "loggingKeep": "Jeder Lauf wird mit allen Schritten protokolliert (Trace im Chat) und bis zur manuellen Löschung aufbewahrt.",
+    "risks": "Risiken und Maßnahmen",
+    "footer": "Erstellt aus der veröffentlichten Konfiguration; ändert sich der Agent, ändert sich dieser Steckbrief mit. Kein Hochrisiko-Einsatz nach Anhang III der KI-Verordnung vorgesehen – andernfalls bitte vor Einsatz prüfen lassen."
   }
 }

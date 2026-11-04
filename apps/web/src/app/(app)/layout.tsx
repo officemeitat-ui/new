@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         {t("skipToContent")}
       </a>
 
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r bg-muted/30 p-4 md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-6 border-r bg-muted/30 p-4 md:flex print:hidden">
         <div className="px-2 pt-1">
           <BrandMark productName={productName} />
         </div>
@@ -70,7 +70,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             </form>
           </div>
         ) : null}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-8 print:hidden">
           <div className="md:hidden">
             <BrandMark productName={productName} compact />
           </div>
@@ -84,7 +84,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             activeTenantId={ctx.tenant?.tenantId ?? null}
           />
         </header>
-        <main id="main" className="flex-1 px-4 pb-24 pt-6 md:px-8 md:py-8">
+        <main id="main" className="flex-1 px-4 pb-24 pt-6 md:px-8 md:py-8 print:p-0">
           {children}
         </main>
       </div>

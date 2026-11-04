@@ -3,6 +3,9 @@ import remarkGfm from "remark-gfm";
 
 // Raw HTML is not rendered (react-markdown default), so model output cannot inject markup.
 const components: Components = {
+  // No images from model output: an injected image URL could carry data out of the company
+  // (prompt injection). The CSP blocks external images as well; this is the second layer.
+  img: ({ alt }) => (alt ? <span className="italic text-muted-foreground">[{alt}]</span> : null),
   p: ({ children }) => <p className="my-2 leading-relaxed first:mt-0 last:mb-0">{children}</p>,
   ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
   ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,

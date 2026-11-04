@@ -5,7 +5,7 @@ import { createLogger } from "@nexus/core/logger";
 import { DEFAULT_PRICES, type ModelPrice } from "@nexus/agents";
 import { getDatabase } from "@nexus/db";
 import { loadCurrentPrices } from "@nexus/domain";
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { startHealthServer } from "./health-server";
 import { processAgentRun, redisPublisher } from "./jobs/agent-run";
@@ -43,7 +43,10 @@ const agentDeps = {
 };
 
 const workers = [
-  new Worker(QUEUES.system, handleSystemJob, { connection, concurrency: 5 }),
+  new Worker(QUEUES.system, (job) => handleSystemJob(job, { db, log }), {
+    connection,
+    concurrency: 5,
+  }),
   new Worker<AgentRunJob>(QUEUES.agentRuns, (job) => processAgentRun(job.data, agentDeps), {
     connection,
     concurrency: Number(process.env.WORKER_AGENT_CONCURRENCY ?? 4),
@@ -63,6 +66,14 @@ for (const worker of workers) {
   worker.on("error", (error) => log.error({ queue: worker.name, err: error }, "worker error"));
 }
 
+// Nightly deletion of expired data (DSGVO retention, M13). Idempotent: upsert keeps one schedule.
+const systemQueue = new Queue(QUEUES.system, { connection });
+await systemQueue.upsertJobScheduler(
+  "retention-nightly",
+  { pattern: "30 2 * * *", tz: "Europe/Vienna" },
+  { name: "retention", opts: { removeOnComplete: 30, removeOnFail: 100 } },
+);
+
 const port = Number(process.env.WORKER_HEALTH_PORT ?? 3001);
 const healthServer = startHealthServer(port, () => workers.every((w) => w.isRunning()));
 log.info({ queues: workers.map((w) => w.name), healthPort: port }, "worker started");
@@ -73,6 +84,7 @@ async function shutdown(signal: string) {
   shuttingDown = true;
   log.info({ signal }, "shutting down: finishing running jobs");
   await Promise.all(workers.map((w) => w.close()));
+  await systemQueue.close();
   healthServer.close();
   connection.disconnect();
   publisher.disconnect();

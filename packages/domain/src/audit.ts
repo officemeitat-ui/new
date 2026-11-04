@@ -165,3 +165,78 @@ export async function listAuditEntries(tx: Tx, tenantId: string, limit = 100) {
     .orderBy(desc(auditLogs.seq))
     .limit(limit);
 }
+
+const csvCell = (value: unknown): string => {
+  const text =
+    value === null || value === undefined
+      ? ""
+      : typeof value === "string"
+        ? value
+        : JSON.stringify(value);
+  // Quote everything; neutralise spreadsheet formulas (CSV injection).
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+};
+
+/**
+ * The full audit log as CSV (M13: exportable), oldest first, including both hashes so the
+ * chain can be verified outside the platform.
+ */
+export async function exportAuditCsv(tx: Tx, tenantId: string): Promise<string> {
+  const rows = await tx
+    .select({
+      seq: auditLogs.seq,
+      createdAt: auditLogs.createdAt,
+      actorType: auditLogs.actorType,
+      actorId: auditLogs.actorId,
+      actorName: authUser.name,
+      action: auditLogs.action,
+      targetType: auditLogs.targetType,
+      targetId: auditLogs.targetId,
+      metadata: auditLogs.metadata,
+      ip: auditLogs.ip,
+      userAgent: auditLogs.userAgent,
+      prevHash: auditLogs.prevHash,
+      hash: auditLogs.hash,
+    })
+    .from(auditLogs)
+    .leftJoin(authUser, sql`${authUser.id}::text = ${auditLogs.actorId}`)
+    .where(eq(auditLogs.tenantId, tenantId))
+    .orderBy(asc(auditLogs.seq));
+  const header = [
+    "seq",
+    "zeit",
+    "akteur_typ",
+    "akteur_id",
+    "akteur_name",
+    "aktion",
+    "ziel_typ",
+    "ziel_id",
+    "details",
+    "ip",
+    "browser",
+    "prev_hash",
+    "hash",
+  ];
+  const lines = rows.map((r) =>
+    [
+      r.seq,
+      r.createdAt.toISOString(),
+      r.actorType,
+      r.actorId,
+      r.actorName,
+      r.action,
+      r.targetType,
+      r.targetId,
+      r.metadata,
+      r.ip,
+      r.userAgent,
+      r.prevHash,
+      r.hash,
+    ]
+      .map((v) => csvCell(typeof v === "number" ? String(v) : v))
+      .join(","),
+  );
+  // BOM so Excel opens UTF-8 (umlauts) correctly.
+  return `\ufeff${header.join(",")}\r\n${lines.join("\r\n")}\r\n`;
+}

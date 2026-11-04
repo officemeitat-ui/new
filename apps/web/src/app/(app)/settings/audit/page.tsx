@@ -3,6 +3,7 @@ import { getDatabase, withTenant } from "@nexus/db";
 import { can, listAuditEntries, verifyAuditChain } from "@nexus/domain";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -10,7 +11,7 @@ import {
   CardTitle,
   EmptyState,
 } from "@nexus/ui";
-import { Lock, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Download, Lock, ShieldAlert, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireTenant } from "@/lib/session";
 
@@ -46,6 +47,11 @@ const KNOWN_ACTIONS = new Set([
   "device.synced",
   "device.restarted",
   "device.locked",
+  "privacy.retention_changed",
+  "privacy.retention_applied",
+  "privacy.person_erased",
+  "privacy.account_deleted",
+  "privacy.data_exported",
 ]);
 
 export default async function AuditPage() {
@@ -77,17 +83,25 @@ export default async function AuditPage() {
           <CardTitle>{t("title")}</CardTitle>
           <CardDescription>{t("description")}</CardDescription>
         </div>
-        {chain.valid ? (
-          <Badge variant="success">
-            <ShieldCheck className="size-3.5" aria-hidden />
-            {t("chainValid", { count: chain.count })}
-          </Badge>
-        ) : (
-          <Badge variant="danger">
-            <ShieldAlert className="size-3.5" aria-hidden />
-            {t("chainBroken", { seq: chain.brokenAtSeq })}
-          </Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <a href="/api/audit/export" download>
+              <Download aria-hidden />
+              {t("export")}
+            </a>
+          </Button>
+          {chain.valid ? (
+            <Badge variant="success">
+              <ShieldCheck className="size-3.5" aria-hidden />
+              {t("chainValid", { count: chain.count })}
+            </Badge>
+          ) : (
+            <Badge variant="danger">
+              <ShieldAlert className="size-3.5" aria-hidden />
+              {t("chainBroken", { seq: chain.brokenAtSeq })}
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-0">
         {entries.length === 0 ? (

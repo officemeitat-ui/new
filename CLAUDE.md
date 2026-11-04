@@ -6,6 +6,7 @@ Diese Datei lesen Claude-Code-Sessions automatisch. Sie fasst die verbindlichen 
 
 - Spezifikation: `prompts/00_MASTER_PROMPT.md` · Phasen: `prompts/01_BUILD_PHASEN.md` · Agenten-Vorlagen: `prompts/02_AGENTEN_BIBLIOTHEK.md`
 - Architektur: `docs/ARCHITECTURE.md` · Entscheidungen: `docs/adr/` · Stand: `docs/PROGRESS.md` · Plan: `docs/ROADMAP.md`
+- Sicherheit: `docs/SECURITY.md` (bei sicherheitsrelevanten Änderungen aktualisieren) · Rechtliches (Entwürfe): `docs/legal/`
 - Zu Beginn einer Session: `docs/PROGRESS.md` lesen und dort weitermachen.
 
 ## Befehle
@@ -23,6 +24,7 @@ Diese Datei lesen Claude-Code-Sessions automatisch. Sie fasst die verbindlichen 
 - **Berechtigungen** im Server prüfen (`requirePermission`), nie nur in der UI.
 - **Claude API:** offizielles SDK `@anthropic-ai/sdk`; Modellstufen statt Modell-IDs im Code; adaptive Thinking und expliziter Effort; kein `temperature`/`top_p`/`top_k`, kein Prefill, `tool_choice` nur `auto`; jeden `stop_reason` behandeln; stabiler Prefix für Prompt-Caching (veränderliche Werte in die Nachrichten). Vor neuem SDK-Code die aktuelle Doku prüfen.
 - **Externe APIs:** keine Endpunkte erfinden; Link zur Herstellerdoku im Code.
+- **Datenschutz:** Neue personenbezogene Daten in Export (`exportPersonData`), Löschung (`erasePerson`), Fristen und im Verzeichnis (`getProcessingRegister`) berücksichtigen.
 - **Kein Fake:** keine Platzhalter-Implementierungen in fertigen Features. Was später kommt: Feature-Flag + Eintrag in `docs/ROADMAP.md`.
 - **Tests gehören dazu:** Unit, Integration (echte Postgres-DB), E2E für Hauptabläufe.
 - **UI-Texte:** österreichisches Deutsch, Sie-Form, über `next-intl` (`apps/web/messages/*.json`), Formate `de-AT`.

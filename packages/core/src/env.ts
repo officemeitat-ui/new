@@ -47,6 +47,8 @@ export const envSchema = z
       .regex(/^#[0-9a-fA-F]{6}$/, "muss eine Hex-Farbe wie #2454d6 sein")
       .default("#2454d6"),
     BRAND_PRODUCT_NAME: z.string().default("ME-IT Nexus"),
+    /** Hosting provider and location for the subprocessor list, e.g. "Hetzner Online GmbH, Falkenstein (DE)". */
+    HOSTING_DESCRIPTION: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {

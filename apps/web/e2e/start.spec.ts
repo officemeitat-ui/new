@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test("the start page shows real figures after the agents worked", async ({ page }) => {
   await page.goto("/chat");
+  // Type only after hydration; before it, React would reset the controlled input.
+  await page.waitForLoadState("networkidle");
   await page
     .getByLabel("Nachricht an den Assistenten")
     .fill("Berechne 20 % Umsatzsteuer auf 3.480 € netto.");

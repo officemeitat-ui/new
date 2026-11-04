@@ -163,6 +163,7 @@
       "audit": "Audit log",
       "branding": "Branding",
       "security": "Security",
+      "privacy": "Privacy",
       "support": "Support access",
       "general": "General"
     },
@@ -219,14 +220,20 @@
         "integration_disconnected": "Integration disconnected",
         "device_synced": "Device synced",
         "device_restarted": "Device restarted",
-        "device_locked": "Device locked"
+        "device_locked": "Device locked",
+        "privacy_retention_changed": "Retention periods changed",
+        "privacy_retention_applied": "Expired data deleted",
+        "privacy_person_erased": "Personal data erased",
+        "privacy_account_deleted": "User account deleted",
+        "privacy_data_exported": "Data export created"
       },
       "actors": {
         "user": "User",
         "partner": "Partner",
         "system": "System",
         "agent": "Agent"
-      }
+      },
+      "export": "Export as CSV"
     },
     "branding": {
       "title": "Branding",
@@ -408,7 +415,10 @@
     "backupCodesHint": "Each code works exactly once.",
     "downloadCodes": "Save as file",
     "codeLabel": "Code from the app",
-    "confirmSetup": "Finish setup"
+    "confirmSetup": "Finish setup",
+    "dataTitle": "My data",
+    "dataDescription": "Download all data {tenant} stores about you on the platform (Art. 15 and 20 GDPR).",
+    "dataExport": "Download my data"
   },
   "agents": {
     "title": "Agents",
@@ -502,7 +512,8 @@
     "knowledgeManage": "Create a collection",
     "knowledgeDocuments": "{count, plural, =0 {empty} =1 {1 document} other {# documents}}",
     "toolDestructive": "Acts on devices",
-    "toolNeedsMicrosoft": "Connect Microsoft 365"
+    "toolNeedsMicrosoft": "Connect Microsoft 365",
+    "profile": "Agent profile"
   },
   "tools": {
     "aktuelle_zeit": {
@@ -733,5 +744,77 @@
       "restart": "Restart “{name}” now? Unsaved work will be lost.",
       "lock": "Lock “{name}” now? The person has to sign in again."
     }
+  },
+  "privacy": {
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Owners and admins manage privacy settings.",
+    "retentionTitle": "Retention periods",
+    "retentionDescription": "Decide how long conversations and documents are kept. The platform deletes expired data permanently every night.",
+    "chats": "Conversations with agents",
+    "chatsHint": "Counted from the last message. History, steps and approvals are deleted with the conversation; cost figures remain without content.",
+    "documents": "Documents in the knowledge base",
+    "documentsHint": "Counted from upload.",
+    "keep": "Unlimited (delete manually)",
+    "days": "{days, plural, other {# days}}",
+    "auditHint": "The audit log remains unchanged (accountability, Art. 5(2) GDPR). It contains person IDs but no content.",
+    "save": "Save periods",
+    "personsTitle": "Access and erasure per person",
+    "personsDescription": "Data access under Art. 15/20 GDPR as a file, erasure under Art. 17 GDPR: conversations, membership and – if the person belongs to no other company – the account.",
+    "export": "Export data",
+    "erase": "Erase data",
+    "eraseConfirm": "Permanently delete all conversations and the membership of “{name}”? Type the name to confirm:",
+    "eraseMismatch": "The name does not match. Nothing was deleted.",
+    "registerTitle": "Record of processing activities",
+    "registerDescription": "Template under Art. 30 GDPR, generated from your agents, collections and integrations. Review, complete and file as PDF.",
+    "registerOpen": "Open record",
+    "subprocessorsTitle": "Subprocessors",
+    "subprocessorsDescription": "These services process data on behalf of the platform, based on the data processing agreement with ME-IT.",
+    "back": "Back to privacy",
+    "print": "Print / save as PDF",
+    "register": {
+      "title": "Record of processing activities (Art. 30 GDPR)",
+      "controller": "Controller: {name}",
+      "created": "created on {date}",
+      "draftNote": "Template generated from the platform configuration. The controller reviews and completes legal bases and purposes, ideally with their data protection advisor.",
+      "purpose": "Purpose",
+      "legalBasis": "Legal basis",
+      "subjects": "Data subjects",
+      "data": "Data categories",
+      "recipients": "Recipients",
+      "retention": "Deletion period",
+      "toms": "Technical and organisational measures",
+      "tomsText": "Tenant isolation in the database (row level security), encrypted connections (TLS), two-factor sign-in, roles and permissions, approvals for outbound actions, immutable audit log. Details: ME-IT's TOM document."
+    }
+  },
+  "profile": {
+    "back": "Back to the agent",
+    "print": "Print / save as PDF",
+    "kicker": "Agent profile (EU AI Act)",
+    "meta": "{tenant} · version {version} of {date}",
+    "purpose": "Purpose",
+    "noPurpose": "No description yet – please add one in Agent Studio.",
+    "model": "AI model and provider",
+    "data": "Data used",
+    "dataConversations": "Messages of the conversations the agent is used in",
+    "dataKnowledge": "Passages from the knowledge collections: {names}",
+    "dataDevices": "Device data from Microsoft Intune (device name, user, status)",
+    "tools": "Tools and approval rules",
+    "noTools": "No tools – the agent only answers with text.",
+    "inactive": "not connected",
+    "modes": {
+      "auto": "automatic",
+      "approve": "approval needed",
+      "deny": "forbidden"
+    },
+    "oversight": "Human oversight",
+    "oversightApprovals": "A person decides in the approval inbox before these actions: {tools}.",
+    "oversightNone": "The agent performs no actions that need approval.",
+    "limits": "Limits per task: at most {steps} steps, cost limit {cost}.",
+    "noLimit": "none",
+    "logging": "Logging",
+    "loggingRetention": "Every run is logged with all steps (trace in the chat) and deleted after {days} days without activity.",
+    "loggingKeep": "Every run is logged with all steps (trace in the chat) and kept until deleted manually.",
+    "risks": "Risks and measures",
+    "footer": "Generated from the published configuration; when the agent changes, this profile changes with it. No high-risk use under Annex III of the AI Act is intended – otherwise please have it reviewed before use."
   }
 }

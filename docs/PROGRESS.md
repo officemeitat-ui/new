@@ -2,6 +2,24 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Compliance, DSGVO und Sicherheit (Phase 9, Kern) ✅
+
+**Erledigt**
+
+- **Einstellungen → Datenschutz:** Aufbewahrungsfristen für Gespräche (ab letzter Nachricht) und Dokumente (ab Upload): 30/90/180/365/730 Tage oder unbegrenzt. Nächtlicher Löschlauf im Worker (02:30 Uhr Wien, BullMQ-Scheduler), Kostenzahlen bleiben ohne Inhaltsbezug, laufende Gespräche werden nie gelöscht, jeder Löschlauf im Audit-Log.
+- **Auskunft und Export pro Person (Art. 15/20)** als JSON-Datei: Konto, Mitgliedschaft, eigene Gespräche (lesbar, ohne Kontextblock), Freigaben, Uploads, eigene Audit-Einträge. Selbstbedienung unter „Konto“, für Admins pro Person; jede Auskunft im Audit-Log.
+- **Löschung pro Person (Art. 17):** Gespräche, Mitgliedschaft, Verknüpfungen zu erstellten Inhalten; das Konto (Sitzungen, Logins, 2FA), wenn die Person zu keiner anderen Firma gehört. Schutz: nicht sich selbst, nicht den letzten Owner, Bestätigung durch Eintippen des Namens. Zwei getrennte Transaktionen (keine Sperrkonflikte).
+- **Verzeichnis von Verarbeitungstätigkeiten (Art. 30)** als druckbare Vorlage, erzeugt aus Agenten, Sammlungen, Integrationen und Fristen; **Unterauftragsverarbeiter** aus der Konfiguration (`LLM_PROVIDER`, `SMTP_HOST`, neu `HOSTING_DESCRIPTION`), Unbekanntes wird als offen markiert statt geraten.
+- **Agenten-Steckbrief (EU-KI-Verordnung)** pro Agent, druckbar: Zweck, Modell und Anbieter mit Ort, verwendete Daten, Werkzeuge mit Risikoklasse und Freigaberegel, menschliche Aufsicht, Grenzen, Protokollierung, Risiken. Immer aus der veröffentlichten Version erzeugt.
+- **Sicherheit:** Content Security Policy mit Nonce pro Request (auch auf Login-Seiten), keine Bilder und kein HTML aus Modellantworten (Schutz vor Datenabfluss per Prompt Injection), Audit-Log als CSV mit Hashes und Schutz vor CSV-Injection, Abhängigkeits-Audit dokumentiert, Chat-Seite mit Überschrift für Screenreader.
+- **Dokumente:** `docs/SECURITY.md` (Checkliste ASVS-Auszug, OWASP LLM Top 10, offene Punkte), `docs/legal/` mit AVV-Vorlage, TOM, Unterauftragsverarbeitern und Löschkonzept – alle als **Entwurf zur rechtlichen Prüfung** markiert.
+- **Tests:** Domäne (Fristen, Löschlauf, Export, Löschung, Konto bleibt bei weiterer Firma, Steckbrief, Verzeichnis, CSV), Worker (Löschlauf als Job), Web (Markdown-Sicherheit), E2E (CSP ohne Verstöße auf allen Hauptseiten, Fristen, Export-Download, Verzeichnis, Audit-CSV, Steckbrief).
+
+**Noch offen** (siehe `docs/SECURITY.md`)
+
+- Backups/PITR mit Restore-Test und Runbooks, Penetrationstest, Lasttests, Verbrauchslimits pro Mandant, Red-Team-Evals, PII-Maskierung, axe-Prüfung, Firma löschen per Knopf
+- Rechtliche Prüfung der Unterlagen in `docs/legal/` durch ME-IT bzw. Anwalt
+
 ## Microsoft 365 und Intune (MDM) – Geräte im Blick, Agenten helfen mit Freigabe ✅
 
 **Erledigt**

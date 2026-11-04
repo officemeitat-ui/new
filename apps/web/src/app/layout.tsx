@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { resolveBranding } from "@/lib/branding";
@@ -27,6 +28,8 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale();
   const { primaryColor } = await resolveBranding();
+  // Set per request by src/proxy.ts for the Content Security Policy.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang={locale} className={GeistSans.variable} suppressHydrationWarning>
@@ -39,7 +42,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body>
         <NextIntlClientProvider timeZone="Europe/Vienna">
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider {...(nonce ? { nonce } : {})}>{children}</ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>

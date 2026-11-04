@@ -9,6 +9,8 @@ test("the partner sets a USD→EUR rate and customers see costs in euros", async
   await expect(page.getByRole("status").last()).toHaveText("Der Kurs ist gespeichert.");
 
   await page.goto("/chat");
+  // Type only after hydration; before it, React would reset the controlled input.
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Nachricht an den Assistenten").fill("Hallo");
   await page.getByLabel("Nachricht an den Assistenten").press("Enter");
   await expect(page.getByText("Grüß Gott! Sie schrieben: „Hallo“")).toBeVisible({

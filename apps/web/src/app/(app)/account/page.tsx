@@ -1,5 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@nexus/ui";
-import { ShieldAlert } from "lucide-react";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@nexus/ui";
+import { Download, ShieldAlert } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { TwoFactorPanel } from "@/components/account/two-factor-panel";
 import { getAppContext } from "@/lib/session";
@@ -13,7 +13,7 @@ export default async function AccountPage({
 }) {
   const t = await getTranslations("account");
   // Not requireTenant(): this page must stay reachable while the 2FA policy blocks the rest.
-  const { user } = await getAppContext();
+  const { user, tenant } = await getAppContext();
   const required = (await searchParams)["2fa"] === "required" && !user.twoFactorEnabled;
 
   return (
@@ -56,6 +56,23 @@ export default async function AccountPage({
           <TwoFactorPanel enabled={user.twoFactorEnabled} />
         </CardContent>
       </Card>
+
+      {tenant ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("dataTitle")}</CardTitle>
+            <CardDescription>{t("dataDescription", { tenant: tenant.tenantName })}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <a href="/api/privacy/export" download>
+                <Download aria-hidden />
+                {t("dataExport")}
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

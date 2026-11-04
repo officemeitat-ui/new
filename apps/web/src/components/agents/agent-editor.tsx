@@ -14,7 +14,14 @@ import {
   Input,
   Label,
 } from "@nexus/ui";
-import { Archive, ArchiveRestore, BookOpen, MessagesSquare, TriangleAlert } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  BookOpen,
+  FileBadge,
+  MessagesSquare,
+  TriangleAlert,
+} from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useActionState, useMemo, useState, useTransition } from "react";
@@ -343,6 +350,12 @@ export function AgentEditor({
           <Link href={`/chat?agent=${agentId}`}>
             <MessagesSquare aria-hidden />
             {t("testInChat")}
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href={`/agents/${agentId}/steckbrief`}>
+            <FileBadge aria-hidden />
+            {t("profile")}
           </Link>
         </Button>
         {!isDefault ? (

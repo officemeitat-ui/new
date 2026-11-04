@@ -67,6 +67,10 @@ export const tenants = pgTable(
     hourlyRateCents: integer().notNull().default(4500),
     /** Owners and admins must use two-factor authentication (M2). */
     requireAdminTwoFactor: boolean().notNull().default(false),
+    /** GDPR retention (M13): conversations without activity are deleted after N days; null = keep. */
+    chatRetentionDays: integer(),
+    /** Knowledge documents are deleted N days after upload; null = keep. */
+    documentRetentionDays: integer(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
