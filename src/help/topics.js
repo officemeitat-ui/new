@@ -2018,6 +2018,18 @@ export const TOPICS = [
     related: ['email-aus-der-app', 'zu-erledigen', 'termin-anlegen'],
   },
   {
+    id: 'berichte-automatisch',
+    section: 'allgemein',
+    title: 'Berichte automatisch per E-Mail',
+    q: ['bericht automatisch', 'jeden montag bericht', 'kennzahlen automatisch senden', 'wöchentlicher bericht', 'bericht abonnieren', 'regelmäßig per mail', 'monatsbericht automatisch', 'bericht abo'],
+    answer: 'Unter „⋯ → Berichte automatisch“ legst du Abos an, z. B. jeden Montag ab 7 Uhr die Kennzahlen an die Geschäftsführung. Gesendet wird aus deinem Postfach, sobald du die App an dem Tag ab der Uhrzeit offen hast – am PC oder am Handy. Ein verpasster Termin wird einmal nachgeholt.',
+    steps: ['Rechts oben „⋯“ → „Berichte automatisch“.', 'Bericht wählen (Kennzahlen, Prüfbericht, Vertretungen, Periodische Leistungen, Reklamationen, Material, Zu erledigen).', 'Rhythmus (wöchentlich, jeden Werktag, monatlich am 1.), Uhrzeit und Empfänger eintragen, „Abo anlegen“.', '„Jetzt“ erstellt den Bericht sofort zum Ansehen und Senden.'],
+    tips: ['Nur mit Vollzugriff und Microsoft 365 (features.mail, Mail.Send).', 'Abos lassen sich pausieren; „zuletzt“ zeigt, wann gesendet wurde oder warum nicht.'],
+    action: { action: 'mail-reports-open', label: 'Berichte automatisch' },
+    roles: 'Vollzugriff',
+    related: ['email-aus-der-app', 'bericht-per-mail', 'kennzahlen'],
+  },
+  {
     id: 'email-einrichten',
     section: 'allgemein',
     title: 'E-Mail-Versand einrichten (Microsoft 365)',

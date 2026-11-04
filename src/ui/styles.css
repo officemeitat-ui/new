@@ -1173,6 +1173,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
 .mc-file-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .mc-files .muted { white-space: nowrap; font-size: 0.85rem; }
 .todo-mail { margin-left: 8px; vertical-align: middle; font-weight: 400; }
+.ra-actions { display: flex; justify-content: flex-end; gap: 8px; margin: 8px 0 4px; }
 .todo-mail span { margin-left: 4px; }
 @media (max-width: 640px) {
   .mc-row { flex-wrap: wrap; }

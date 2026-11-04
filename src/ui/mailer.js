@@ -61,7 +61,7 @@ export function addressBook() {
   return groups
 }
 
-const pickSelect = (id, target) => {
+export const pickSelect = (id, target) => {
   const groups = addressBook()
   if (!groups.length) return ''
   return `<select id="${id}" class="mc-pick" data-change="mail-pick" data-target="${target}" aria-label="Adresse aus der Liste hinzufügen"><option value="">+ aus der Liste …</option>${groups
@@ -208,8 +208,8 @@ function tableData(table) {
 }
 
 /** Was die Ansicht gerade zeigt: Titel, Kennzahlen-Kacheln, Tabellen, Listen. */
-export function readView(root = document.querySelector('main')) {
-  const view = VIEWS.find((v) => v.id === app.ui.view)
+export function readView(root = document.querySelector('main'), { viewId = app.ui.view, monday = null } = {}) {
+  const view = VIEWS.find((v) => v.id === viewId)
   const title = cleanText(root.querySelector('.section-head h2') || document.createElement('i')) || view?.label || 'Bericht'
   const tiles = [...root.querySelectorAll('.stat, .kpi-tile')]
     .filter(shown)
@@ -220,7 +220,7 @@ export function readView(root = document.querySelector('main')) {
   const lists = []
   const report = [...root.querySelectorAll('.report-row, .todo-item')].filter(shown).map(cleanText).filter(Boolean)
   if (report.length) lists.push({ title: '', items: report })
-  const week = view && !view.noWeek && app.ui.monday ? app.cur?.monday : null
+  const week = view && !view.noWeek ? monday || (app.ui.monday ? app.cur?.monday : null) : null
   const today = new Date().toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const subtitle = `${week ? `Woche ab ${new Date(`${week}T12:00`).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' })} · ` : ''}Stand ${today}`
   return { title, subtitle, tiles, tables, lists }
@@ -262,8 +262,8 @@ registerModal('mail-task', taskModal)
 
 // ---------------------------------------------------------------- „Zu erledigen“ weitergeben
 
-function todoSections(only = null) {
-  const secs = [...document.querySelectorAll('#modal-root .modal-body > section')]
+export function todoSections(only = null, root = document.querySelector('#modal-root')) {
+  const secs = [...(root?.querySelectorAll('.modal-body > section') || [])]
   return secs
     .filter((_, i) => only === null || i === only)
     .map((sec) => {

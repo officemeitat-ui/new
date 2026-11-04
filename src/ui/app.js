@@ -94,6 +94,7 @@ function moreMenu(plan) {
       app.ui.view !== 'anleitung' && { label: 'Diese Ansicht per E-Mail', icon: ICON.send, action: 'mail-view', hint: 'als PDF-Bericht mit Tabellen' },
       { label: 'Aufgabe per E-Mail', icon: ICON.check, action: 'mail-task-new', hint: 'mit Kalender-Erinnerung' },
       { label: 'Neue E-Mail', icon: ICON.send, action: 'mail-compose-open' },
+      (!app.access || app.access.all) && { label: 'Berichte automatisch', icon: ICON.calendar, action: 'mail-reports-open', hint: 'z. B. jeden Montag die Kennzahlen' },
       { heading: 'App' },
       canSync && { label: 'Jetzt abgleichen', icon: ICON.refresh, action: 'sync-now', hint: `zuletzt ${agoText(syncState.lastAt)}` },
       (!app.access || app.access.all) && { label: 'Daten & Sicherung', icon: ICON.folder, action: 'open-data' },

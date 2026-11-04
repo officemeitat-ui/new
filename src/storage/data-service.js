@@ -71,6 +71,8 @@ export const MODULE_DOCS = {
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
   assistenz: { path: 'assistenz/entscheidungen.json', empty: () => ({ decided: {} }) },
+  // Berichte automatisch per E-Mail: Abos (Empfänger, Rhythmus, zuletzt gesendet) – nur Vollzugriff
+  berichte: { path: 'berichte/abos.json', empty: () => ({ abos: [] }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -132,6 +134,7 @@ export const FOLDERS = [
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
+  ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
 ]
 
 /**

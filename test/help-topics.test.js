@@ -247,7 +247,7 @@ const SAFE = new Set([
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'calc-settings', 'ot-send',
   'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open',
-  'mail-compose-open', 'mail-task-new',
+  'mail-compose-open', 'mail-task-new', 'mail-reports-open',
 ])
 
 test('Themen: Aktionen öffnen nur, nichts wird gelöscht oder gesendet', () => {
