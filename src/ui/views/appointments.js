@@ -436,7 +436,7 @@ function apptModal(c, m) {
     ? `<button class="btn" data-action="close-modal">Schließen</button>`
     : `${a && !cancelled && a.repeat?.freq && m.occ ? `<button class="btn danger ${app.ui.confirm === `ap-one:${a.id}` ? 'confirm' : ''}" data-action="appt-cancel-one" data-id="${esc(a.id)}">${app.ui.confirm === `ap-one:${a.id}` ? `Wirklich nur ${esc(formatDate(m.occ))} absagen?` : `Nur ${esc(formatDate(m.occ))} absagen`}</button>` : ''}
        ${a && !cancelled ? `<button class="btn danger ${app.ui.confirm === `ap-cancel:${a.id}` ? 'confirm' : ''}" data-action="appt-cancel" data-id="${esc(a.id)}">${app.ui.confirm === `ap-cancel:${a.id}` ? 'Wirklich absagen?' : a.repeat?.freq ? (a.outlook?.id ? 'Serie absagen' : 'Serie löschen') : a.outlook?.id ? 'Absagen' : 'Löschen'}</button>` : ''}
-       ${a && cancelled ? `<button class="btn danger" data-action="appt-delete" data-id="${esc(a.id)}">Endgültig löschen</button>` : ''}
+       ${a && cancelled ? `<button class="btn danger ${app.ui.confirm === `ap-delete:${a.id}` ? 'confirm' : ''}" data-action="appt-delete" data-id="${esc(a.id)}">${app.ui.confirm === `ap-delete:${a.id}` ? 'Wirklich endgültig löschen?' : 'Endgültig löschen'}</button>` : ''}
        <span class="spacer"></span>
        ${!outlookOn() ? `<button class="btn" data-action="appt-ics">${ICON.download} .ics herunterladen</button>` : ''}
        ${!cancelled ? `<button class="btn primary" data-action="appt-save">${outlookOn() ? `${ICON.send} ${a?.outlook?.id ? 'Speichern und Einladung aktualisieren' : 'Speichern und einladen'}` : 'Speichern'}</button>` : ''}`
@@ -600,10 +600,12 @@ registerActions(
       cancelAppointment(a.id)
     },
     'appt-delete': (el) => {
+      if (!confirmStep(`ap-delete:${el.dataset.id}`, refreshModal)) return
       data().items = items().filter((x) => x.id !== el.dataset.id)
       persist()
       closeModal()
       renderNow()
+      toast('Termin gelöscht.')
     },
     'appt-sync-all': async () => {
       const list = items().filter((a) => !a.cancelled && outlookState(a) !== 'ok' && a.sync !== false)
