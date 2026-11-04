@@ -3,6 +3,7 @@
 // Reverse Charge bzw. Kleinunternehmer und einem EPC-QR-Code zum Bezahlen mit der Banking-App.
 // Entwürfe tragen das Wasserzeichen „ENTWURF“ und keinen QR-Code.
 
+import { todayISO } from '../core/dates.js'
 import { deDate, epcPayload, formatIban, KINDS, lateInterest, periodLabel, RC_TEXT, round2, settingsOf, SMALL_AMOUNT, SMALL_BUSINESS_TEXT, totals } from '../core/invoicing.js'
 import { inkColors, tableLayout } from './pdf-parts.js'
 
@@ -167,7 +168,7 @@ export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null })
 }
 
 /** Mahnung bzw. Zahlungserinnerung zu einer Rechnung. reminder: core/invoicing.js → reminderFor(). */
-export function reminderDocument({ doc, reminder, settings = {}, brand = {}, logo = null, today = new Date().toISOString().slice(0, 10) }) {
+export function reminderDocument({ doc, reminder, settings = {}, brand = {}, logo = null, today = todayISO() }) {
   const s = settingsOf({ settings })
   const colors = inkColors(brand)
   const sender = { ...s.sender, ...(doc.sender || {}) }

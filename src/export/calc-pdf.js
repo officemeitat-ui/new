@@ -2,7 +2,7 @@
 // Monatspreis; ohne Stunden und Zuschläge) und Kalkulationsblatt für intern (Leistungswerte, Stunden,
 // Zuschlagskalkulation, Ergebnis).
 
-import { formatDate } from '../core/dates.js'
+import { formatDate, todayISO } from '../core/dates.js'
 import { AREA_TYPES, frequencyLabel } from '../core/calculation.js'
 import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 
@@ -16,7 +16,7 @@ export function offerDocument({ object = {}, calc, brand = {}, logo = null, crea
   const body = [[th('Bereich'), th('Art'), th('Fläche', { alignment: 'right' }), th('Häufigkeit')]]
   for (const r of calc.rows) body.push([r.area.name || typeLabel(r.area.type), typeLabel(r.area.type), { text: `${num(Number(r.area.m2) || 0)} m²`, alignment: 'right' }, frequencyLabel(r.area.perWeek)])
   body.push([{ text: 'Summe', bold: true }, '', { text: `${num(calc.totalM2)} m²`, alignment: 'right', bold: true }, ''])
-  const valid = new Date(createdAt.getTime() + validDays * 86400e3).toISOString().slice(0, 10)
+  const valid = todayISO(new Date(createdAt.getTime() + validDays * 86400e3))
   const content = [
     ...header({ title: 'Angebot Unterhaltsreinigung', subtitle: `${object.name || ''}`, brand, logo, colors }),
     { text: [object.name, object.address].filter(Boolean).join(', '), bold: true, margin: [0, 0, 0, 8] },

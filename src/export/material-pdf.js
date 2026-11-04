@@ -1,6 +1,6 @@
 // Material & Lager als PDF: Bestellschein für den Lieferanten und Zählliste für die Inventur.
 
-import { formatDate } from '../core/dates.js'
+import { formatDate, todayISO } from '../core/dates.js'
 import { euro, orderSum } from '../core/material.js'
 import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 
@@ -20,7 +20,7 @@ export function orderDocument({ order, supplier = {}, articles = [], settings = 
   if (withPrices) rows.push([{ text: 'Summe netto', colSpan: 6, bold: true, alignment: 'right' }, '', '', '', '', '', { text: euro(orderSum(order)), bold: true, alignment: 'right' }])
   const address = (lines) => lines.filter(Boolean).join('\n')
   const content = [
-    ...header({ title: `Bestellung ${order.no || ''}`, subtitle: formatDate(order.orderedAt || order.createdAt?.slice(0, 10) || createdAt.toISOString().slice(0, 10), { year: true }), brand, logo, colors }),
+    ...header({ title: `Bestellung ${order.no || ''}`, subtitle: formatDate(order.orderedAt || order.createdAt?.slice(0, 10) || todayISO(createdAt), { year: true }), brand, logo, colors }),
     {
       columns: [
         { stack: [{ text: 'An', bold: true, color: colors.ink }, { text: address([supplier.name, supplier.contact, supplier.email, supplier.phone]) || '–' }, supplier.customerNo ? { text: `Unsere Kundennummer: ${supplier.customerNo}`, margin: [0, 4, 0, 0] } : ''] },
@@ -49,7 +49,7 @@ export function countDocument({ rows, location, brand = {}, logo = null, created
   const head = ['Kategorie', 'Artikel', 'Einheit', ...(withStock ? ['laut App'] : []), 'gezählt'].map((text) => ({ text, style: 'th' }))
   const body = rows.map((r) => [r.article.category || '', r.article.name, r.article.unit || '', ...(withStock ? [{ text: qty(r.byLoc?.[location.id] ?? 0), alignment: 'right' }] : []), ''])
   const content = [
-    ...header({ title: 'Inventur', subtitle: `${location.name} · ${formatDate(createdAt.toISOString().slice(0, 10), { year: true })}`, brand, logo, colors }),
+    ...header({ title: 'Inventur', subtitle: `${location.name} · ${formatDate(todayISO(createdAt), { year: true })}`, brand, logo, colors }),
     { table: { headerRows: 1, widths: withStock ? [90, '*', 50, 50, 70] : [90, '*', 50, 90], heights: () => 18, body: [head, ...body] }, layout: tableLayout(colors), fontSize: 9.5 },
     { text: 'Gezählt von: ______________________     Datum: __________', margin: [0, 16, 0, 0] },
   ]

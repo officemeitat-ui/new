@@ -328,6 +328,20 @@ Object.assign(ACTIONS, {
   'switch-account': () => app.switchAccount?.(),
 })
 
+/** Tab bleibt im offenen Dialog (aria-modal): vom letzten Feld weiter zum ersten und umgekehrt. */
+function keepFocusInModal(e) {
+  const modal = document.querySelector('#modal-root .modal')
+  if (!modal) return
+  const list = [...modal.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')].filter((el) => !el.disabled && el.getClientRects().length)
+  if (!list.length) return
+  const inside = modal.contains(document.activeElement)
+  const edge = e.shiftKey ? list[0] : list.at(-1)
+  if (!inside || document.activeElement === edge) {
+    e.preventDefault()
+    ;(e.shiftKey ? list.at(-1) : list[0]).focus()
+  }
+}
+
 function bindEvents() {
   document.addEventListener('click', (e) => {
     // Aufklappmenüs: Klick daneben oder auf einen Eintrag schließt sie (menus.js)
@@ -363,6 +377,7 @@ function bindEvents() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && closeMenus()) return // erst das Menü, beim nächsten Esc der Dialog
     if (e.key === 'Escape' && app.ui.modal) closeModal()
+    if (e.key === 'Tab' && app.ui.modal) keepFocusInModal(e)
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !app.readOnly) {
       e.preventDefault()

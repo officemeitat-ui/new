@@ -483,7 +483,11 @@ export function renderModalKeepingInput(skip = /^$/) {
   }
 }
 
+// Knopf, der den Dialog geöffnet hat: nach dem Schließen bekommt er den Fokus zurück (Tastatur)
+let returnFocus = null
+
 export function openModal(modal) {
+  if (!app.ui.modal && typeof document !== 'undefined') returnFocus = document.activeElement?.closest?.('button, summary, a[href]') || null
   app.ui.modal = { ...modal, justOpened: true }
   app.ui.confirm = null
   renderModal()
@@ -493,6 +497,8 @@ export function closeModal() {
   app.ui.modal = null
   app.ui.confirm = null
   renderModal()
+  if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
+  returnFocus = null
 }
 
 let toastTimer = null
@@ -570,7 +576,8 @@ export function confirmStep(key, rerender = renderNow) {
  */
 export function labelTables(root = document) {
   for (const table of root.querySelectorAll('table.data:not([data-labelled])')) {
-    const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim())
+    // Zeilenumbrüche (<br>) in der Überschrift als Leerzeichen, sonst „Unterweisung§ 14 ASchG“
+    const heads = [...table.querySelectorAll('thead th')].map((th) => [...th.childNodes].map((n) => (n.nodeName === 'BR' ? ' ' : n.textContent)).join('').replace(/\s+/g, ' ').trim())
     for (const tr of table.querySelectorAll('tbody tr')) [...tr.children].forEach((cell, i) => cell.setAttribute('data-label', heads[i] || ''))
     table.setAttribute('data-labelled', '')
   }

@@ -1,5 +1,6 @@
 // Daten-Dialog: Ablageort, Datensicherung (JSON), Einspielen, Beispieldaten.
 
+import { todayISO } from '../../core/dates.js'
 import { MODULE_DOCS } from '../../storage/data-service.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { seedDemoHistory } from '../planning.js'
@@ -36,7 +37,7 @@ registerModal('data', dataModal, { module: '*' })
 registerActions({
   'open-data': () => openModal({ type: 'data' }),
   'backup-copy': () => copyText(backup()),
-  'backup-download': () => download(`dienstplan-sicherung-${new Date().toISOString().slice(0, 10)}.json`, new Blob([backup()], { type: 'application/json' })),
+  'backup-download': () => download(`dienstplan-sicherung-${todayISO()}.json`, new Blob([backup()], { type: 'application/json' })),
 })
 
 registerActions(

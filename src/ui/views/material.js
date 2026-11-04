@@ -723,7 +723,7 @@ function locationModal(c, m) {
   return modalFrame({
     title: l ? l.name : 'Lager anlegen',
     body: `<label class="field wide"><span>Name</span><input type="text" id="ml-name" value="${esc(l?.name || '')}" placeholder="z. B. Bus S-284 KL, Außenlager"></label>`,
-    foot: `${l && l.id !== MAIN_LOCATION.id && empty ? `<button class="btn danger" data-action="mat-location-delete" data-id="${esc(l.id)}">Löschen</button>` : '<span></span>'}<div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="mat-location-save" data-id="${esc(l?.id || '')}">Speichern</button></div>`,
+    foot: `${l && l.id !== MAIN_LOCATION.id && empty ? `<button class="btn danger" data-action="mat-location-delete" data-id="${esc(l.id)}">${app.ui.confirm === `mat-loc-del:${l.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : '<span></span>'}<div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="mat-location-save" data-id="${esc(l?.id || '')}">Speichern</button></div>`,
   })
 }
 registerModal('mat-location', locationModal, { module: MODULE })
@@ -1116,6 +1116,7 @@ registerActions(
       commit('Lager gespeichert.')
     },
     'mat-location-delete': (el) => {
+      if (!confirmStep(`mat-loc-del:${el.dataset.id}`, renderModal)) return
       M().locations = M().locations.filter((l) => l.id !== el.dataset.id)
       closeModal()
       commit('Lager gelöscht.')

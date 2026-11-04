@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 218 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 219 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -13,7 +13,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (27)
 - [Verwaltung](#verwaltung) (35)
-- [Bedienung & Allgemeines](#bedienung-allgemeines) (37)
+- [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
 ## Start & Übersicht
@@ -464,6 +464,7 @@ Abwesenheiten (Urlaub, Krankenstand, Zeitausgleich, Pflegefreistellung, Sonstige
 
 > Tipp: Am Handy unten der Knopf „Abwesend“.
 > Tipp: Die abwesende Person bekommt ihre Stammeinsätze angerechnet (Ausfallprinzip).
+> Tipp: Objektmanagement und Objektleitung sehen nur „abwesend von–bis“, ohne Grund – Krankenstände sind Gesundheitsdaten und bleiben beim Büro.
 
 *Vollzugriff (Einsatzplanung und Stammdaten)*
 
@@ -2257,7 +2258,7 @@ Mit Vollzugriff öffnest du im Assistenten „Einstellungen“, trägst den API-
 
 Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per E-Mail. Es öffnet sich immer dasselbe Senden-Fenster: Empfänger (auch aus der Liste), Kopie, Betreff, Text und die Anhänge zum Prüfen. Mit Microsoft 365 geht die Mail aus deinem Postfach, sonst öffnet sich dein E-Mail-Programm.
 
-1. Rechts oben auf „⋯“ tippen, unter „E-Mail“ wählen: „Diese Ansicht per E-Mail“, „Aufgabe per E-Mail“ oder „Neue E-Mail“.
+1. Rechts oben auf „⋯“ tippen, unter „E-Mail“ wählen: „Diese Ansicht per E-Mail“, „Aufgabe per E-Mail“ oder „Neue E-Mail“ (am Handy unter „Mehr“: „Diese Ansicht per E-Mail“, Aufgaben unter „Neu anlegen …“).
 2. Unter „An“ die Adresse eintragen oder rechts „+ aus der Liste …“ wählen (Mitarbeitende, Kundschaft, Objekte, Lieferanten, Werkstätten, zuletzt verwendet).
 3. Betreff und Text sind vorbereitet; bei Bedarf anpassen, einzelne Anhänge mit × entfernen.
 4. „Senden“ – oder ohne Microsoft 365 „Im E-Mail-Programm öffnen“ (die Anhänge landen dann im Download-Ordner).
@@ -2272,7 +2273,7 @@ Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per 
 „Diese Ansicht per E-Mail“ macht aus dem, was du gerade siehst, einen PDF-Bericht: Kennzahlen als Kacheln, Tabellen und Listen – mit deinen Filtern. Dazu kommt eine CSV-Datei der Tabellen für Excel.
 
 1. Die Ansicht öffnen und filtern, z. B. Kennzahlen, Prüfbericht, Schlüsselbuch, Monatsauswertung.
-2. Rechts oben „⋯“ → „Diese Ansicht per E-Mail“.
+2. Rechts oben „⋯“ → „Diese Ansicht per E-Mail“ (am Handy: „Mehr“ → „Diese Ansicht per E-Mail“).
 3. Empfänger wählen, Text prüfen, „Senden“.
 
 > Tipp: Knöpfe und Menüs kommen nicht mit, nur Zahlen und Text.
@@ -2300,6 +2301,20 @@ In den Export-Menüs steht unter „Per E-Mail senden“ jeder Export noch einma
 
 > Tipp: In „Zu erledigen“ hat jeder Abschnitt einen Knopf „E-Mail“; unten „Per E-Mail weitergeben“ schickt die ganze Liste mit Link in die App.
 > Tipp: Ohne Fälligkeit gibt es keine Kalender-Erinnerung.
+
+### Berichte automatisch per E-Mail
+
+Unter „⋯ → Berichte automatisch“ legst du Abos an, z. B. jeden Montag ab 7 Uhr die Kennzahlen an die Geschäftsführung. Gesendet wird aus deinem Postfach, sobald du die App an dem Tag ab der Uhrzeit offen hast – am PC oder am Handy. Ein verpasster Termin wird einmal nachgeholt.
+
+1. Rechts oben „⋯“ → „Berichte automatisch“.
+2. Bericht wählen (Kennzahlen, Prüfbericht, Vertretungen, Periodische Leistungen, Reklamationen, Material, Zu erledigen).
+3. Rhythmus (wöchentlich, jeden Werktag, monatlich am 1.), Uhrzeit und Empfänger eintragen, „Abo anlegen“.
+4. „Jetzt“ erstellt den Bericht sofort zum Ansehen und Senden.
+
+> Tipp: Nur mit Vollzugriff und Microsoft 365 (features.mail, Mail.Send).
+> Tipp: Abos lassen sich pausieren; „zuletzt“ zeigt, wann gesendet wurde oder warum nicht.
+
+*Vollzugriff*
 
 ### E-Mail-Versand einrichten (Microsoft 365)
 

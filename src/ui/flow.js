@@ -7,6 +7,8 @@ import { app, plannedWeeks } from './context.js'
 import { toSend } from './modals/send.js'
 import { esc, ICON } from './shared.js'
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+
 export function weekSteps(c) {
   const active = c.week.filter((i) => i.status !== 'cancelled' && i.date >= c.monday && i.date <= c.sunday)
   const slots = active.reduce((s, i) => s + i.staff, 0)
@@ -20,7 +22,7 @@ export function weekSteps(c) {
   return [
     { id: 'plan', label: 'Einteilen', done: planned, info: planned ? 'eingeteilt' : 'Stammkräfte + Vertretungen', action: 'plan', button: `${ICON.bolt} Woche planen`, edit: true },
     { id: 'open', label: 'Offene Einsätze', done: planned && open === 0, info: open ? `${open} offen` : 'alles besetzt', action: 'view', view: 'coverage', button: 'Vertretungen ansehen' },
-    { id: 'check', label: 'Prüfen', done: planned && errors === 0, info: errors ? `${errors} Verstöße` : `${c.validation.counts.warning || 0} Hinweise`, action: 'view', view: 'report', button: 'Prüfbericht' },
+    { id: 'check', label: 'Prüfen', done: planned && errors === 0, info: errors ? plural(errors, 'Verstoß', 'Verstöße') : plural(c.validation.counts.warning || 0, 'Warnung', 'Warnungen'), action: 'view', view: 'report', button: 'Prüfbericht' },
     { id: 'publish', label: 'Veröffentlichen', done: !!p && !changed, info: p ? (changed ? `${changed} geändert` : 'veröffentlicht') : 'Entwurf', action: 'open-publish', button: `${ICON.send} ${p ? 'Korrektur buchen' : `KW ${kw} veröffentlichen`}` },
     { id: 'send', label: 'Versenden', done: !!p && pending === 0, info: p ? (pending ? `${pending} zu versenden` : 'alle haben den Plan') : 'nach dem Veröffentlichen', action: 'open-send', button: `${ICON.send} ${pending} versenden` },
   ]

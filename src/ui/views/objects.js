@@ -66,6 +66,7 @@ function objectsView(c) {
       return `<tr class="obj-row"><th class="name-col"><span class="swatch" style="--obj:var(--o${obj.color})"></span>${esc(obj.name)}</th><td colspan="8" class="muted">${esc([obj.address, obj.region].filter(Boolean).join(' · '))}${obj.onlyTrained ? ' · nur eingeschultes Personal' : ''}</td></tr>${rows}`
     })
     .join('')
+  if (!blocks) return `${regionFilter()}<p class="empty">${app.data.objects.length ? `In dieser Woche keine Einsätze${region ? ` im Revier ${esc(region)}` : ''}.` : 'Noch keine Objekte angelegt (Verwaltung → Objekte & Leistungen).'}</p>`
   return `${regionFilter()}<div class="grid-wrap"><table class="grid"><thead><tr><th class="name-col">Objekt / Leistung</th>${dayHeads(c)}<th class="sum-col">Stammkraft</th></tr></thead><tbody>${blocks}</tbody></table></div>`
 }
 

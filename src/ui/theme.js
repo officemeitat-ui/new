@@ -19,7 +19,7 @@ export const BUILTIN_THEMES = {
 
 export const MODES = { auto: 'Wie das Gerät', hell: 'Hell', dunkel: 'Dunkel' }
 export const SCALES = { normal: 'Normal', gross: 'Groß' }
-/** Stil: „Modern“ mit Verläufen, Tiefe und Bewegung; „Schlicht“ flach wie bisher. Kontrast-Schemata immer schlicht. */
+/** Stil: „Modern“ mit feinen Schatten, Bereichsfarben und sanfter Bewegung (keine Verläufe); „Schlicht“ flach wie bisher. Kontrast-Schemata immer schlicht. */
 export const LOOKS = { modern: 'Modern', schlicht: 'Schlicht' }
 const sober = (skin) => /kontrast/.test(skin)
 
@@ -89,7 +89,7 @@ function appearanceModal() {
           <strong>${esc(x.label)}${t.skin === x.id ? ' <span class="theme-check">✓</span>' : ''}</strong><span class="muted">${esc(x.note || '')}</span></button>`,
       )
       .join('')}</div></section>
-      <section><h3>Stil</h3>${sober(t.skin) ? '<p class="muted">Beim Kontrast-Schema immer schlicht (ohne Verläufe und Schatten).</p>' : `${seg('look', LOOKS, t.look)}<p class="muted">Modern: Verläufe, Tiefe und sanfte Bewegung. Schlicht: flach und ruhig.</p>`}</section>
+      <section><h3>Stil</h3>${sober(t.skin) ? '<p class="muted">Beim Kontrast-Schema immer schlicht (ohne Schatten und Bereichsfarben).</p>' : `${seg('look', LOOKS, t.look)}<p class="muted">Modern: feine Schatten, Bereichsfarben und sanfte Bewegung. Schlicht: flach und ruhig.</p>`}</section>
       <section><h3>Hell oder dunkel</h3>${seg('mode', MODES, t.mode)}</section>
       <section><h3>Schriftgröße</h3>${seg('scale', SCALES, t.scale)}</section>
       ${seasonSection()}

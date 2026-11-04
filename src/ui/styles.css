@@ -267,7 +267,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .crumbs { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 .crumbs b { color: var(--fg); font-size: 1rem; font-weight: 700; }
 .crumbs .sep { color: var(--line-strong); }
-.layout main { padding: 20px 24px 48px; }
+.layout main { padding: 20px 24px 104px; } /* unten Platz für Cleo (rechts unten), sonst verdeckt Cleo die letzte Zeile */
 
 /* Menü „⋯“ */
 .menu-wrap { position: relative; }
@@ -450,7 +450,9 @@ td.sum { font-size: 0.85rem; }
 select, input[type='text'], input[type='number'], input[type='date'], input[type='time'], textarea {
   border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 6px 8px; min-width: 0;
 }
-textarea { width: 100%; font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8rem; }
+textarea { width: 100%; }
+/* Nur Felder zum Einfügen aus Excel/JSON in Festbreitenschrift; Texte (E-Mail, Reklamation, Rechnung …) in der normalen Schrift */
+:is(#import-json, #import-text, #mat-import-text, #veh-import-text, #ws-paste) { font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 0.8rem; }
 .sheet-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); }
 table.sheet { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 0.88rem; }
 .sheet th, .sheet td { border: 1px solid var(--line-strong); padding: 3px 8px; }
@@ -486,7 +488,7 @@ table.sheet { border-collapse: collapse; width: 100%; min-width: 760px; font-siz
 .filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; }
 .filter[aria-pressed='true'] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-.filter[aria-pressed='true'] .muted { color: inherit; opacity: 0.75; }
+.filter[aria-pressed='true'] .muted { color: inherit; }
 .report { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); overflow: hidden; }
 .report-row { display: grid; grid-template-columns: 6.5rem 6.5rem minmax(8rem, 12rem) 1fr; gap: 4px 12px; align-items: baseline; padding: 9px 14px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; width: 100%; }
 .report-row:hover { background: var(--surface-2); }
@@ -536,7 +538,7 @@ legend { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; 
 .modal > header { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); border-top: 5px solid var(--obj, var(--accent)); border-radius: 10px 10px 0 0; }
 .modal > header h2 { font-size: 1.35rem; flex: 1; }
 .modal > header h2 small { display: block; font-family: var(--font-body); font-weight: 400; font-size: 0.9rem; color: var(--muted); }
-.modal-body { padding: 14px 18px 18px; display: grid; gap: 16px; }
+.modal-body { padding: 14px 18px 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } /* breiter Inhalt (lange Zeilen) sprengt den Dialog nicht */
 .modal-body h3 { font-size: 1.05rem; color: var(--fg); }
 .meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .person { display: grid; grid-template-columns: minmax(9rem, 13rem) 1fr auto; gap: 6px 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -612,7 +614,7 @@ button.stat:hover { border-color: var(--line-strong); }
 .filters-bar { gap: 10px 18px; }
 .field.inline { display: flex; align-items: center; gap: 8px; }
 .field.inline > span { font-size: 0.85rem; }
-input[type='search'], input[type='email'] { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 6px 8px; min-width: 0; }
+input[type='search'], input[type='email'], input[type='tel'], input[type='url'], input[type='password'] { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 6px 8px; min-width: 0; }
 
 .grid .group-row th, .grid .group-row td { background: color-mix(in srgb, var(--surface-2) 60%, var(--surface)); padding-block: 7px; font-size: 0.82rem; font-weight: 700; color: var(--muted); }
 .grid tr.row-changed th.name-col { box-shadow: inset 4px 0 0 var(--warn); }
@@ -650,6 +652,7 @@ table.grid.cal { min-width: 980px; table-layout: auto; }
 .folder svg, .keys svg { width: 15px; height: 15px; vertical-align: -2px; }
 .folder p { margin: 6px 0 0; }
 .folder-line { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 8px 14px; font-size: 0.85rem; color: var(--muted); border-bottom: 1px solid var(--line); }
+.folder-line > svg { width: 14px; height: 14px; flex: none; align-self: center; }
 .inline-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px; }
 /* Überstunden & Auszahlung */
 .toolbar .spacer { flex: 1 1 auto; }
@@ -965,7 +968,7 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .sys-list .flag { margin-top: 3px; }
 .calc-steps summary { cursor: pointer; font-weight: 600; }
 .pe-preview { background: var(--surface-2, #f3f6f8); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; overflow-x: auto; white-space: pre; }
-.input-btn input { flex: 1 1 auto; min-width: 0; }
+.input-btn input { flex: 1 1 auto; min-width: 0; width: 6rem; } /* kleine Grundbreite: sonst ragt „Suchen“ aus dem Dialog */
 .tc-table tr.clickable { cursor: pointer; }
 .tc-list { margin: 0; padding-left: 1.1rem; }
 .tc-list li { margin: 3px 0; }
@@ -1074,10 +1077,11 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   .link-btn { min-height: 32px; }
   .flow-step { padding: 8px; }
   select, input[type='text'], input[type='search'], input[type='date'], input[type='time'], input[type='number'], input[type='month'] { min-height: 42px; font-size: 16px; }
+  textarea, input[type='email'], input[type='tel'], input[type='url'], input[type='password'] { min-height: 42px; font-size: 16px; } /* unter 16 px zoomt iOS beim Antippen in die Seite */
 }
 
 @media (max-width: 700px) {
-  main { padding-block: 12px calc(88px + env(safe-area-inset-bottom, 0px)); gap: 12px; }
+  main { padding-block: 12px calc(146px + env(safe-area-inset-bottom, 0px)); gap: 12px; } /* Leiste unten + Cleo */
   .m-topbar .topbar-inner { flex-wrap: nowrap; gap: 6px; padding-block: 6px; }
   .m-topbar .brand { margin-right: 0; flex: none; }
   .m-topbar .brand-text { display: none; }
@@ -1100,6 +1104,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   main > *, .m-swipe > *, .modal-body > * { min-width: 0; }
   .btn { white-space: normal; text-align: center; max-width: 100%; }
   .toolbar select, .toolbar input { min-width: 0; flex: 1 1 100%; }
+  .toolbar .check input { flex: none; }
   .report-row { min-width: 0; }
   .section-head > .actions, .section-head > .btn { width: 100%; }
   .section-head > .actions .btn { flex: 1 1 auto; justify-content: center; }
@@ -1111,7 +1116,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   .flow-next { width: 100%; justify-content: center; margin: 2px 0 0; }
   .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .stat { min-width: 0; padding: 5px 8px; }
-  .stat .label { font-size: 0.64rem; letter-spacing: 0.03em; }
+  .stat .label { font-size: 0.64rem; }
   .stat .value { font-size: 1.15rem; }
   .stat.hol { display: none; }
   .section-head { flex-wrap: wrap; }
@@ -1123,7 +1128,7 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   .modal > header { position: relative; border-radius: 16px 16px 0 0; padding: 16px 14px 10px; }
   .modal > header::before { content: ''; position: absolute; top: 6px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   .modal > header h2 { font-size: 1.15rem; }
-  .modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 16px; }
+  .modal-body { overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px 16px; grid-auto-rows: max-content; } /* Listen mit eigenem Bildlauf (z. B. Objekte im Kundenbereich) nicht zusammenquetschen */
   .modal-foot { padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .candidates { max-height: none; }
   .impact-acts { white-space: normal; }
@@ -1153,7 +1158,9 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   table.sheet thead tr { grid-template-columns: 1fr; }
   table.sheet thead th:not(:first-child) { display: none; }
   table.sheet tr.line { border-bottom: 1px solid var(--line); }
-  table.sheet tr.day-row { background: var(--band); margin-top: 6px; border-radius: 6px; }
+  table.sheet tr.day-row { background: var(--band); margin-top: 6px; border-radius: 6px; grid-template-columns: auto 1fr; align-items: center; }
+  table.sheet tr.day-row > td:empty { display: none; }
+  table.sheet td.time { white-space: normal; }
   table.sheet tfoot tr { background: var(--total); border-radius: 6px; margin-top: 6px; }
   table.sheet tr.line td:nth-child(4):not(:empty)::before { content: 'Arbeit '; font-size: 0.7rem; color: var(--muted); }
   table.sheet tr.line td:nth-child(5):not(:empty)::before { content: 'Fahrt '; font-size: 0.7rem; color: var(--muted); }
@@ -1336,6 +1343,11 @@ tr.muted td { color: var(--muted); }
 .tr-signs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; }
 .tr-people { max-height: 260px; overflow: auto; }
 .tr-types input[type="text"] { min-width: 120px; }
+/* Arten-Dialog: alle Spalten (auch „sperrt“, „aktiv“) ohne seitlichen Bildlauf */
+.tr-types select { width: 9.5rem; min-width: 0; }
+.tr-types [id^='tt-name'] { width: 100%; min-width: 12rem; }
+.tr-types [id^='tt-law'] { width: 7.5rem; min-width: 0; }
+.tr-types th, .tr-types td { padding-inline: 5px; }
 .num-input { width: 5rem; }
 
 /* KI-Assistent */
@@ -1510,6 +1522,8 @@ tr.muted td { color: var(--muted); }
 .quick-wrap .menu .btn { display: flex; justify-content: space-between; gap: 12px; border-color: transparent; background: none; }
 .quick-wrap .menu .btn:hover, .quick-wrap .menu .btn:focus-visible { background: var(--surface-2); }
 .menu kbd, .quick-item kbd, .keys-table kbd { font: inherit; font-size: 0.72rem; padding: 0 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--muted); background: var(--surface-2); }
+/* Am Handy ohne Tastatur: Tastenkürzel nicht anzeigen */
+@media (hover: none) and (pointer: coarse) { .quick-item kbd, .menu .btn kbd { display: none; } }
 .muted-btn { color: var(--muted); }
 .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .quick-item { display: flex; justify-content: space-between; align-items: center; }
@@ -1654,6 +1668,7 @@ tr.muted td { color: var(--muted); }
 .home-hero h2 { font-size: 1.5rem; margin: 2px 0 0; }
 .home-hero-date { margin: 0; color: var(--muted); font-size: 0.88rem; }
 .home-hero-sub { margin: 4px 0 0; color: var(--muted); }
+.home-hero-sub .link-btn { padding: 0; font-size: inherit; } /* „Frag Cleo“ im Satz: gleiche Größe, kein Abstand vor dem Komma */
 .home-hero-stats { display: flex; flex-wrap: wrap; gap: 8px; }
 .home-hero-stat { display: grid; justify-items: start; gap: 0; min-width: 7.5rem; padding: 8px 14px; border: 1px solid var(--card-border, var(--line)); border-radius: var(--radius-card); background: var(--surface); color: var(--fg); text-align: left; cursor: pointer; }
 .home-hero-stat b { font-size: 1.45rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
@@ -1885,7 +1900,7 @@ tr.muted td { color: var(--muted); }
   .cleo-fab .cleo { width: 40px; }
   .cleo-panel { position: fixed; inset: auto 0 0 0; width: 100%; height: min(86dvh, 680px); border-radius: 16px 16px 0 0; }
   .cleo-panel ~ .cleo-fab { display: none; }
-  .cleo-bubble { right: 62px; bottom: 14px; }
+  .cleo-bubble { right: 62px; bottom: 14px; width: max-content; max-width: calc(100vw - 86px); white-space: normal; }
 }
 @media print { #help-root { display: none !important; } }
 

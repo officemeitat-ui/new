@@ -5,9 +5,11 @@
 import { roleOptions } from '../core/access.js'
 import { app, canEdit, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, visibleViews } from './context.js'
 import { assistantButton } from './assistant.js'
+import { appName } from './config.js'
 import { bellButton, todo } from './modals/todo.js'
 import { agoText, syncState } from './sync.js'
 import { quickItems } from './quick.js'
+import { navIcon } from './sidebar.js'
 import { esc, ICON, modalFrame, options } from './shared.js'
 
 const phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 700px)') : null
@@ -43,6 +45,15 @@ export function watchDevice() {
   }, { passive: true })
 }
 
+/**
+ * Leiste unten ohne Dienstplan-Recht: Start (und Ansichten mit eigenem Handy-Eintrag), dann die Ansichten
+ * der eigenen Bereiche (z. B. Fakturierung, Material), zuletzt allgemeine wie Kennzahlen oder Anleitung.
+ */
+export function ownNavViews(views) {
+  const rank = (v) => (v.mobile ? 0 : v.module === '*' ? 2 : 1)
+  return [...views].sort((a, b) => rank(a) - rank(b)).slice(0, 4)
+}
+
 /** Leiste unten (nur Handy). Ohne Dienstplan-Recht: die Ansichten der eigenen Module. */
 export function bottomNav(c) {
   const views = visibleViews()
@@ -59,9 +70,9 @@ export function bottomNav(c) {
       item('sheet', ICON.sheet, 'Zettel'),
     ]
   } else {
-    const own = [...views.filter((v) => v.mobile), ...views.filter((v) => !v.mobile)].slice(0, 4)
+    const own = ownNavViews(views)
     main = own.map((v) => v.id)
-    items = own.map((v) => item(v.id, v.mobile?.icon || ICON.sheet, esc(v.mobile?.label || v.label), v.badge?.(c) || 0))
+    items = own.map((v) => item(v.id, v.mobile?.icon || navIcon(v), esc(v.mobile?.label || v.label), v.badge?.(c) || 0))
   }
   return `<nav class="bottom-nav" aria-label="Navigation">
     ${items.join('')}
@@ -100,6 +111,8 @@ function moreModal(c) {
     ['open-todo', `${ICON.bell} Zu erledigen${count ? ` <span class="flag error">${count}</span>` : ''}`, ''],
     quickItems().some((q) => q.id !== 'abwesenheit') && ['quick-open', `${ICON.plus} Neu anlegen …`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
+    // wie „⋯ → Diese Ansicht per E-Mail“ am PC (das „⋯“ gibt es am Handy nicht)
+    app.ui.view !== 'anleitung' && ['mail-view', `${ICON.send} Diese Ansicht per E-Mail`, ''],
   ].filter(Boolean)
   const visible = visibleViews()
   const pinned = pinnedViews(visible)
@@ -121,7 +134,7 @@ function moreModal(c) {
         : '<p class="note"><strong>Als App installieren:</strong> Im Browser-Menü „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.</p>'
   return modalFrame({
     title: 'Menü',
-    subtitle: `${esc(app.config.brand.name)} · ${esc(app.config.brand.product)}`,
+    subtitle: esc(appName(app.config.brand)), // wie in der Seitenleiste („Cleanos App“)
     body: `<button class="more-search" data-action="open-search">${ICON.search}<span>Bereich, Person, Objekt suchen …</span></button>
       <section><h3>Aktionen</h3><div class="more-actions two">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       ${views}
