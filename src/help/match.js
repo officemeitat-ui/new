@@ -5,7 +5,7 @@
 // test/help.test.js.
 
 const STOP = new Set(
-  'a ab aber alle allem als also am an auch auf aus bei bin bis bitte da damit dann das dass dein deine dem den der des die dies diese dir doch du durch ein eine einem einen einer es etwas fuer gibt geht hab habe hallo hat hier ich ihr im in ist ja jetzt kann kannst man mein meine mich mir mit muss nach nicht noch nur ob oder sich sie sind so soll um und uns von vom was welche wenn wer wie wieso wird wo zu zum zur ueber mal gerne bitte hey hi mache machen macht tun tue geht gehts gehen funktioniert funktionieren brauche brauchen will moechte moechten sagen sag erklaer erklaere erklaeren ganz schnell einfach richtig'.split(' '),
+  'a ab aber alle allem als also am an auch auf aus bei bin bis bitte da damit dann das dass dein deine dem den der des die dies diese dir doch du durch ein eine einem einen einer es etwas fuer gibt geht hab habe hallo hat hier ich ihr im in ist ja jetzt kann kannst man mein meine mich mir mit muss nach nicht noch nur ob oder sich sie sind so soll um und uns von vom was welche wenn wer wie wieso wird wo zu zum zur ueber mal gerne bitte hey hi mache machen macht tun tue geht gehts gehen funktioniert funktionieren brauche brauchen will moechte moechten sagen sag erklaer erklaere erklaeren ganz schnell einfach richtig meinen meinem meiner meines deinen deinem deiner unser unsere unseren unserem euer eure euren ihren ihrem seine seinen seinem einen einem einer eines denn dort heute nun also'.split(' '),
 )
 
 /** Allgemeine Tätigkeiten (Stämme): zählen in längeren Fragen weniger als das, worum es geht. */
@@ -201,7 +201,8 @@ function index(topic) {
   add(topic.title, 2.5)
   add(topic.answer, 1)
   for (const s of [...(topic.steps || []), ...(topic.tips || [])]) add(s, 0.5)
-  const phrases = (topic.q || []).map(normalize).filter((p) => p.includes(' '))
+  // ganze Fragen zählen extra – aber nur mit einem Inhaltswort („wo finde ich“ allein sagt nichts)
+  const phrases = (topic.q || []).map(normalize).filter((p) => p.includes(' ') && terms(p, { synonyms: false }).some((t) => !VERBS.has(t)))
   const entry = { map, phrases, title: normalize(topic.title) }
   cache.set(topic, entry)
   return entry

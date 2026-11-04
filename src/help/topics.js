@@ -665,7 +665,7 @@ export const TOPICS = [
     section: 'einsatz',
     view: 'sheet',
     title: 'Wochenzettel',
-    q: ['wochenzettel', 'stundenzettel', 'wochenplan person', 'zettel', 'plan einer person', 'saldo woche', 'wochenzetel'],
+    q: ['wochenzettel', 'stundenzettel', 'meine stunden', 'stunden einer person', 'wochenplan person', 'zettel', 'plan einer person', 'saldo woche', 'wochenzetel'],
     answer: 'Der Wochenzettel zeigt je Person die Woche im gewohnten Layout: Tage, Einsätze, Stunden, angerechnete Zeit, Fahrzeit und Hinweise, unten Saldo, Soll und Ist. Vertretungen und Verschobenes sind rot, Sonderleistungen grün, Entfallenes durchgestrichen.',
     steps: ['„Wochenzettel“ öffnen (am Handy unten „Zettel“).', 'Oben die Person wählen oder mit den Pfeilen blättern.', 'Einen Einsatz anklicken öffnet ihn; bei der Fahrzeit plant „+“ eine Fahrt.'],
     tips: ['Unten steht die Prüfung für diese Person.', '„+ Abwesenheit“ trägt für die Person gleich eine Abwesenheit ein.'],
