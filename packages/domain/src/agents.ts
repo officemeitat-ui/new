@@ -38,6 +38,23 @@ export const agentConfigSchema = z
     "E-Mails an Dritte und Eingriffe an Geräten brauchen immer eine Freigabe – „automatisch“ ist dafür nicht möglich.",
   ) satisfies z.ZodType<AgentConfig>;
 
+/** JSON with sorted keys: Postgres stores jsonb with its own key order. */
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/** Whether two configurations are the same, independent of key order. */
+export function sameConfig(a: AgentConfig, b: AgentConfig): boolean {
+  return stableJson(a) === stableJson(b);
+}
+
 const PLACEHOLDER = /\{\{([a-z_.]+)\}\}/g;
 
 /** Placeholders like {{rabattregeln}} that still need company-specific content. */
@@ -59,7 +76,21 @@ export function findTemplate(id: string): AgentTemplate | undefined {
   return AGENT_TEMPLATES.find((template) => template.id === id);
 }
 
-async function insertVersion(
+/** Starting configuration of an agent made from a library template. */
+export function configFromTemplate(template: AgentTemplate, tenantName: string): AgentConfig {
+  return {
+    instructions: instantiateInstructions(template, tenantName),
+    tier: template.tier,
+    effort: template.effort,
+    tools: template.tools,
+    maxSteps: 15,
+    maxCostUsdMicros: template.tier === "smart" ? 1_000_000 : 500_000,
+    roiMinutesPerTask: template.roiMinutesPerTask,
+  };
+}
+
+/** Publishes a new, immutable version and makes it the agent's current one. */
+export async function insertAgentVersion(
   tx: Tx,
   input: { tenantId: string; agentId: string; config: AgentConfig; actorId: string },
 ) {
@@ -101,16 +132,8 @@ export async function createAgentFromTemplate(
       createdBy: input.actorId,
     })
     .returning();
-  const config: AgentConfig = {
-    instructions: instantiateInstructions(template, input.tenantName),
-    tier: template.tier,
-    effort: template.effort,
-    tools: template.tools,
-    maxSteps: 15,
-    maxCostUsdMicros: template.tier === "smart" ? 1_000_000 : 500_000,
-    roiMinutesPerTask: template.roiMinutesPerTask,
-  };
-  await insertVersion(tx, {
+  const config = configFromTemplate(template, input.tenantName);
+  await insertAgentVersion(tx, {
     tenantId: input.tenantId,
     agentId: agent!.id,
     config,
@@ -137,7 +160,7 @@ export async function createBlankAgent(
     .insert(agents)
     .values({ tenantId: input.tenantId, name: name.slice(0, 80), createdBy: input.actorId })
     .returning();
-  await insertVersion(tx, {
+  await insertAgentVersion(tx, {
     tenantId: input.tenantId,
     agentId: agent!.id,
     config: {
@@ -180,6 +203,9 @@ export async function listAgents(
       status: agents.status,
       isDefault: agents.isDefault,
       templateId: agents.templateId,
+      /** Rolled out by the partner (ADR 0009); adapted = changed by the tenant since then. */
+      managed: sql<boolean>`${agents.partnerTemplateId} is not null`,
+      adapted: sql<boolean>`${agents.currentVersionId} is distinct from ${agents.rolledOutVersionId}`,
       version: agentVersions.version,
       config: agentVersions.config,
       updatedAt: agentVersions.createdAt,
@@ -243,10 +269,10 @@ export async function saveAgentVersion(
     .update(agents)
     .set({ name: name.slice(0, 80), description: input.description?.trim().slice(0, 300) || null })
     .where(eq(agents.id, agent.id));
-  if (JSON.stringify(current.config) === JSON.stringify(parsed.data) && agent.name === name) {
+  if (sameConfig(current.config, parsed.data) && agent.name === name) {
     return current;
   }
-  const version = await insertVersion(tx, {
+  const version = await insertAgentVersion(tx, {
     tenantId: input.tenantId,
     agentId: agent.id,
     config: parsed.data,

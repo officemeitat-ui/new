@@ -91,6 +91,22 @@ describe("agent studio", () => {
     expect(second.agent.name).toBe("Angebote Wärmepumpen");
     expect(second.versions.map((v) => v.version)).toEqual([2, 1]);
 
+    // Saving without a change creates no new version (stored JSON has another key order).
+    await withTenant(db, fx.tenant.id, (tx) =>
+      saveAgentVersion(tx, {
+        tenantId: fx.tenant.id,
+        agentId: agent.id,
+        name: second.agent.name,
+        description: second.agent.description,
+        config: second.current.config,
+        actorId: fx.owner.id,
+      }),
+    );
+    const unchanged = await withTenant(db, fx.tenant.id, (tx) =>
+      getAgentDetail(tx, fx.tenant.id, agent.id),
+    );
+    expect(unchanged.current.version).toBe(2);
+
     await withTenant(db, fx.tenant.id, (tx) =>
       restoreAgentVersion(tx, {
         tenantId: fx.tenant.id,

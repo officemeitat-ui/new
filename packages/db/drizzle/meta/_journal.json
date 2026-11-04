@@ -155,6 +155,20 @@
       "when": 1793800828656,
       "tag": "0021_rls_facilities",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793803873754,
+      "tag": "0022_partner_agent_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793803874564,
+      "tag": "0023_rls_partner_agent_templates",
+      "breakpoints": true
     }
   ]
 }

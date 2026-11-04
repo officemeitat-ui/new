@@ -181,17 +181,37 @@ sequenceDiagram
 - Tabelle `integrations` (RLS) speichert pro Mandant Anbieter, Verzeichnis-ID, Organisationsname, Status und letzten Fehler – keine Geheimnisse.
 - Geräteaktionen laufen über `runDeviceAction` (Domäne): Gerätename und ID müssen zusammenpassen, jede Aktion landet im Audit-Log.
 
-## 8. Branchenpaket Gebäudereinigung: QR-Mängelmeldungen
+## 8. Agenten-Pakete des Partners
+
+Details: [ADR 0009](adr/0009-agenten-pakete-partner.md).
+
+```mermaid
+sequenceDiagram
+  participant P as Partner-Admin
+  participant UI as Partner-Konsole
+  participant DB as Postgres
+  P->>UI: Paket aus Vorlage anlegen, Anweisungen anpassen (Version n)
+  P->>UI: Firmen auswählen → ausrollen
+  loop je Firma (eigene Transaktion)
+    UI->>DB: Partner-Kontext: Firma gehört zum Partner und ist aktiv?
+    UI->>DB: enterTenant → Agent anlegen oder neue Version (nur wenn nicht angepasst)
+    UI->>DB: Audit-Eintrag in der Firma
+  end
+```
+
+- Tabelle `partner_agent_templates` (RLS Partner); `agents` mit `partner_template_id`, `partner_template_version`, `rolled_out_version_id`. Eine Lese-Policy zeigt dem Partner nur den Rollout-Stand seiner eigenen Pakete.
+
+## 9. Branchenpaket Gebäudereinigung: QR-Mängelmeldungen
 
 - Tabellen `facilities` (Objekt mit zufälligem `public_token`, 144 Bit) und `defect_reports` (Kategorie, Ort, Beschreibung, optional E-Mail, Status), beide mit RLS.
 - Öffentliche Seite `/m/<token>` (ohne Anmeldung, in `proxy.ts` freigegeben): Der Token wird im System-Kontext aufgelöst (`findFacilityByToken`), gespeichert wird im Kontext des Mandanten. Rate-Limit in Redis pro IP und Objekt, Bot-Falle. Objektleitung bekommt eine E-Mail; die Danke-Mail an die meldende Person geht bei „Erledigt“ raus, danach wird ihre Adresse gelöscht.
 - Agenten lesen Meldungen über `meldungen_abfragen` (ohne E-Mail-Adressen); `reinigung_kalkulieren` rechnet Angebote deterministisch im Code, nicht im Modell.
 
-## 9. Konfiguration
+## 10. Konfiguration
 
 Alle Umgebungsvariablen werden beim Start mit Zod geprüft (`packages/core/src/env.ts`). Fehlt etwas, bricht der Start mit einer verständlichen Meldung ab. Vorlage: [`.env.example`](../.env.example).
 
-## 10. Lokale Entwicklung
+## 11. Lokale Entwicklung
 
 - `docker compose up -d` startet Postgres (mit pgvector), Valkey und Mailpit. Hochgeladene Dateien liegen vorerst in Postgres (ADR 0007).
 - `pnpm db:migrate` und `pnpm db:seed` richten Schema und Demo-Mandant ein.

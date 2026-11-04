@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createdAt, id, updatedAt } from "./_columns";
 import { authUser } from "./auth";
-import { tenants } from "./tenancy";
+import { partners, tenants } from "./tenancy";
 
 export type ToolMode = "auto" | "approve" | "deny";
 
@@ -31,6 +31,32 @@ export type AgentConfig = {
   knowledgeCollectionIds?: string[];
 };
 
+/**
+ * An agent package of a partner (e.g. ME-IT's "Angebots-Assistent"), rolled out to several of
+ * its tenants and updated centrally (ADR 0009). Partner data: no tenant content in here.
+ */
+export const partnerAgentTemplates = pgTable(
+  "partner_agent_templates",
+  {
+    id: id(),
+    partnerId: uuid()
+      .notNull()
+      .references(() => partners.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    description: text(),
+    /** Library template it started from (packages/domain/src/agent-templates.ts). */
+    baseTemplateId: text(),
+    /** Raised on every change; rolled-out agents remember the version they got. */
+    version: integer().notNull().default(1),
+    /** {{firma.name}} stays a placeholder and is filled per tenant on rollout. */
+    config: jsonb().$type<AgentConfig>().notNull(),
+    createdBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("partner_agent_templates_partner_idx").on(t.partnerId)],
+);
+
 export const agents = pgTable(
   "agents",
   {
@@ -45,11 +71,19 @@ export const agents = pgTable(
     /** Agent template this agent was created from (packages/domain/src/agent-templates.ts). */
     templateId: text(),
     currentVersionId: uuid(),
+    /** Set when a partner rolled this agent out; such agents get central updates (ADR 0009). */
+    partnerTemplateId: uuid().references(() => partnerAgentTemplates.id, { onDelete: "set null" }),
+    partnerTemplateVersion: integer(),
+    /** Agent version written by the last rollout: differs from current = adapted by the tenant. */
+    rolledOutVersionId: uuid(),
     createdBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("agents_tenant_idx").on(t.tenantId)],
+  (t) => [
+    index("agents_tenant_idx").on(t.tenantId),
+    uniqueIndex("agents_tenant_partner_template_uq").on(t.tenantId, t.partnerTemplateId),
+  ],
 );
 
 export const agentVersions = pgTable(

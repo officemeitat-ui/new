@@ -33,6 +33,8 @@ const KNOWN_ACTIONS = new Set([
   "support.session_ended",
   "agent.created",
   "agent.published",
+  "agent.rolled_out",
+  "agent.updated_by_partner",
   "agent.archived",
   "agent.restored",
   "tenant.settings_changed",

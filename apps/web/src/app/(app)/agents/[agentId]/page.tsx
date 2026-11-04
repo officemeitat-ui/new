@@ -58,6 +58,13 @@ export default async function AgentPage({
           </div>
           <p className="text-muted-foreground">{isNew ? t("createdHint") : t("editSubtitle")}</p>
         </div>
+        {agent.partnerTemplateId ? (
+          <p role="note" className="rounded-md border bg-accent/40 px-3 py-2 text-sm">
+            {agent.currentVersionId === agent.rolledOutVersionId
+              ? t("managedHint")
+              : t("managedAdaptedHint")}
+          </p>
+        ) : null}
         <AgentEditor
           agentId={agent.id}
           isDefault={agent.isDefault}

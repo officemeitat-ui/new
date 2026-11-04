@@ -68,6 +68,11 @@ export default async function AgentsPage() {
                 <Badge variant="secondary">{t("version", { version: agent.version })}</Badge>
                 <Badge variant="outline">{t("runs30d", { count: agent.runs30d })}</Badge>
                 {agent.isDefault ? <Badge variant="accent">{t("default")}</Badge> : null}
+                {agent.managed ? (
+                  <Badge variant={agent.adapted ? "outline" : "accent"}>
+                    {agent.adapted ? t("managedAdapted") : t("managed")}
+                  </Badge>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <Button asChild size="sm">

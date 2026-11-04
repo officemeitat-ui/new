@@ -13,6 +13,7 @@ export * from "./integrations";
 export * from "./invitations";
 export * from "./knowledge";
 export * from "./mail";
+export * from "./partner-agents";
 export * from "./members";
 export * from "./pricing";
 export * from "./privacy";

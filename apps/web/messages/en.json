@@ -231,7 +231,9 @@
         "knowledge_source_disconnected": "SharePoint library disconnected",
         "facility_created": "Object created",
         "facility_activated": "Object activated",
-        "facility_deactivated": "Object deactivated"
+        "facility_deactivated": "Object deactivated",
+        "agent_rolled_out": "Agent provided by the IT partner",
+        "agent_updated_by_partner": "Agent updated by the IT partner"
       },
       "actors": {
         "user": "User",
@@ -333,7 +335,8 @@
     "rateSave": "Save rate",
     "rateHint": "For example the ECB reference rate, with a currency buffer if you like. Leave empty to show costs in US dollars.",
     "supportUntil": "Support until {date}",
-    "openTenant": "Open"
+    "openTenant": "Open",
+    "packagesLink": "Agent packages"
   },
   "chat": {
     "newConversation": "New conversation",
@@ -521,7 +524,11 @@
     "knowledgeDocuments": "{count, plural, =0 {empty} =1 {1 document} other {# documents}}",
     "toolDestructive": "Acts on devices",
     "toolNeedsMicrosoft": "Connect Microsoft 365",
-    "profile": "Agent profile"
+    "profile": "Agent profile",
+    "managed": "Managed centrally",
+    "managedAdapted": "Adapted",
+    "managedHint": "This agent comes from your IT partner and is improved centrally. If you adapt it here, you keep your version and no longer get automatic updates.",
+    "managedAdaptedHint": "You adapted this agent, so improvements from your IT partner are not applied automatically."
   },
   "tools": {
     "aktuelle_zeit": {
@@ -944,5 +951,45 @@
     "posterNoLogin": "No sign-in, takes a minute.",
     "forbiddenTitle": "No permission",
     "forbiddenDescription": "Owners and admins manage objects."
+  },
+  "agentPackages": {
+    "title": "Agent packages",
+    "subtitle": "Prepare an agent once and roll it out to every company with the same task. Improvements reach all of them centrally – except where a company adapted its agent.",
+    "back": "Back to the partner console",
+    "createTitle": "Create package",
+    "createDescription": "Start with a library template – ideally the task most customers need first, such as quotes.",
+    "template": "Template",
+    "create": "Create package",
+    "emptyTitle": "No packages yet",
+    "emptyDescription": "Create your first package and roll it out to the companies that need the same.",
+    "version": "Version {version}",
+    "rolledOut": "at {count} of {total} companies",
+    "base": "Based on the template “{template}”",
+    "name": "Name",
+    "description": "Description",
+    "instructions": "Instructions",
+    "instructionsHint": "The company name placeholder is replaced with each company's name on rollout. Company specifics such as prices and text blocks belong in the company's knowledge base.",
+    "save": "Save",
+    "rolloutTitle": "Companies",
+    "rolloutHint": "New companies get the agent, existing ones the update. Adapted and archived agents stay as they are.",
+    "rollout": "Roll out to selected companies",
+    "noTenants": "Create a company in the partner console first.",
+    "states": {
+      "none": "Not rolled out",
+      "current": "Up to date (version {version})",
+      "outdated": "Version {version} – update available",
+      "adapted": "Adapted by the company",
+      "archived": "Archived"
+    },
+    "outcomes": {
+      "created": "{count, plural, =1 {1 company new} other {# companies new}}",
+      "updated": "{count, plural, =1 {1 updated} other {# updated}}",
+      "current": "{count, plural, =1 {1 already up to date} other {# already up to date}}",
+      "adapted": "{count, plural, =1 {1 adapted – not overwritten} other {# adapted – not overwritten}}",
+      "archived": "{count, plural, =1 {1 archived – skipped} other {# archived – skipped}}",
+      "unavailable": "{count, plural, =1 {1 not available} other {# not available}}"
+    },
+    "forbiddenTitle": "No permission",
+    "forbiddenDescription": "Agent packages are managed by partner admins."
   }
 }

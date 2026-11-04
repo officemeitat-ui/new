@@ -2,6 +2,21 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Agenten-Pakete: ein Agent für viele Kunden, zentral gepflegt ✅
+
+**Erledigt** (nach dem Just-Close-Rahmen „Task · Wissen · Kunden“: Zeile 1 = Angebote, Zeile 3 = „Wer braucht dasselbe?“)
+
+- **Partner-Konsole → Agenten-Pakete:** Paket aus einer Bibliotheksvorlage anlegen (Standard: Angebots-Assistent), Name/Beschreibung/Anweisungen anpassen; jede Änderung erhöht die Version.
+- **Ausrollen an ausgewählte Firmen** mit Status je Firma: nicht ausgerollt · aktuell · Update verfügbar · von der Firma angepasst · archiviert. Der Firmenname wird pro Firma eingesetzt. Updates erreichen nur Firmen, die den Agenten nicht selbst angepasst haben – Kundenänderungen werden nie überschrieben (ADR 0009).
+- **Beim Kunden:** Badge „Zentral gepflegt“ bzw. „Angepasst“ in der Agentenliste, Hinweis im Agent Studio, Audit-Einträge „Agent vom IT-Partner bereitgestellt/aktualisiert“.
+- **Sicherheit:** nur Partner-Admins (`partner.templates.manage`), nur eigene, aktive Firmen, eine Transaktion pro Firma, RLS für Pakete; der Partner sieht nur den Rollout-Stand, keine Inhalte.
+- **Nebenbei behoben:** Speichern ohne Änderung erzeugte im Agent Studio immer eine neue Version (Postgres speichert JSON mit anderer Schlüsselreihenfolge); Zeilenumbrüche aus Formularen (CRLF) galten als Änderung.
+- **Tests:** Domäne (zwei Firmen, fremde Firma abgewiesen, Update vs. Anpassung, Archiv, RLS, Validierung), E2E (Paket anlegen → an Huber ausrollen → „Zentral gepflegt“ beim Kunden → Version 2 zentral ausrollen → Audit), CSP-Prüfung um Meldungen und Agenten-Pakete erweitert.
+
+**Noch offen**
+
+- Änderungen für angepasste Agenten zum Übernehmen anbieten (Vergleich alt/neu), Werkzeuge und Modell im Paket bearbeiten, Paket löschen.
+
 ## SharePoint-Abgleich, „lädt ewig“ behoben, Sicherheits-Review, Branchenpaket Gebäudereinigung ✅
 
 **Erledigt**

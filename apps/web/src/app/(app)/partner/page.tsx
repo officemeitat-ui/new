@@ -12,7 +12,8 @@ import {
   CardTitle,
   EmptyState,
 } from "@nexus/ui";
-import { Building2 } from "lucide-react";
+import { Building2, Package } from "lucide-react";
+import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { startSupportSessionAction } from "@/app/(app)/partner/actions";
 import { CreateTenantForm } from "@/components/partner/create-tenant-form";
@@ -37,11 +38,21 @@ export default async function PartnerPage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground">
-          {t("subtitle", { partner: ctx.partner.partnerName })}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-muted-foreground">
+            {t("subtitle", { partner: ctx.partner.partnerName })}
+          </p>
+        </div>
+        {can(ctx.partner, "partner.templates.manage") ? (
+          <Button asChild variant="outline">
+            <Link href="/partner/agents">
+              <Package aria-hidden />
+              {t("packagesLink")}
+            </Link>
+          </Button>
+        ) : null}
       </div>
 
       {can(ctx.partner, "partner.tenants.manage") ? (

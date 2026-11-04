@@ -6,7 +6,7 @@ const handle = openTestDatabase();
 afterAll(() => handle.close());
 
 /** Tables that are tenant data without a `tenant_id` column. */
-const EXTRA_PROTECTED = ["tenants", "partners", "partner_memberships"];
+const EXTRA_PROTECTED = ["tenants", "partners", "partner_memberships", "partner_agent_templates"];
 
 describe("Row Level Security coverage", () => {
   it("protects every tenant-scoped table with enabled, forced RLS and a policy", async () => {

@@ -23,6 +23,8 @@ test("every page is served with a strict CSP that our own code passes", async ({
     "/knowledge",
     "/approvals",
     "/devices",
+    "/reports",
+    "/partner/agents",
     "/settings/privacy",
     "/account",
   ]) {

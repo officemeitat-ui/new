@@ -231,7 +231,9 @@
         "knowledge_source_disconnected": "SharePoint-Bibliothek getrennt",
         "facility_created": "Objekt angelegt",
         "facility_activated": "Objekt aktiviert",
-        "facility_deactivated": "Objekt deaktiviert"
+        "facility_deactivated": "Objekt deaktiviert",
+        "agent_rolled_out": "Agent vom IT-Partner bereitgestellt",
+        "agent_updated_by_partner": "Agent vom IT-Partner aktualisiert"
       },
       "actors": {
         "user": "Benutzer",
@@ -333,7 +335,8 @@
     "rateSave": "Kurs speichern",
     "rateHint": "Zum Beispiel der EZB-Referenzkurs, gerne mit Währungspuffer. Leer lassen, um Kosten in US-Dollar anzuzeigen.",
     "supportUntil": "Support bis {date}",
-    "openTenant": "Öffnen"
+    "openTenant": "Öffnen",
+    "packagesLink": "Agenten-Pakete"
   },
   "chat": {
     "newConversation": "Neues Gespräch",
@@ -521,7 +524,11 @@
     "knowledgeDocuments": "{count, plural, =0 {leer} =1 {1 Dokument} other {# Dokumente}}",
     "toolDestructive": "Eingriff am Gerät",
     "toolNeedsMicrosoft": "Microsoft 365 verbinden",
-    "profile": "Steckbrief"
+    "profile": "Steckbrief",
+    "managed": "Zentral gepflegt",
+    "managedAdapted": "Angepasst",
+    "managedHint": "Dieser Agent kommt von Ihrem IT-Partner und wird zentral verbessert. Wenn Sie ihn hier anpassen, behalten Sie Ihre Version und bekommen keine automatischen Updates mehr.",
+    "managedAdaptedHint": "Sie haben diesen Agenten angepasst. Verbesserungen Ihres IT-Partners werden deshalb nicht automatisch übernommen."
   },
   "tools": {
     "aktuelle_zeit": {
@@ -944,5 +951,45 @@
     "posterNoLogin": "Ohne Anmeldung, in einer Minute.",
     "forbiddenTitle": "Keine Berechtigung",
     "forbiddenDescription": "Objekte verwalten Owner und Admins."
+  },
+  "agentPackages": {
+    "title": "Agenten-Pakete",
+    "subtitle": "Einen Agenten einmal vorbereiten und an alle Firmen ausrollen, die dieselbe Aufgabe haben. Verbesserungen kommen zentral bei allen an – außer dort, wo eine Firma ihren Agenten selbst angepasst hat.",
+    "back": "Zur Partner-Konsole",
+    "createTitle": "Paket anlegen",
+    "createDescription": "Starten Sie mit einer Vorlage aus der Bibliothek – am besten mit der Aufgabe, die bei den meisten Kunden zuerst dran ist, zum Beispiel Angebote.",
+    "template": "Vorlage",
+    "create": "Paket anlegen",
+    "emptyTitle": "Noch keine Pakete",
+    "emptyDescription": "Legen Sie Ihr erstes Paket an und rollen Sie es an die Firmen aus, die dasselbe brauchen.",
+    "version": "Version {version}",
+    "rolledOut": "bei {count} von {total} Firmen",
+    "base": "Auf Basis der Vorlage „{template}“",
+    "name": "Name",
+    "description": "Beschreibung",
+    "instructions": "Anweisungen",
+    "instructionsHint": "Der Platzhalter für den Firmennamen wird beim Ausrollen durch den Namen der jeweiligen Firma ersetzt. Firmenspezifisches wie Preise und Textbausteine gehört in die Wissensdatenbank der Firma.",
+    "save": "Speichern",
+    "rolloutTitle": "Firmen",
+    "rolloutHint": "Neue Firmen bekommen den Agenten, bestehende das Update. Angepasste und archivierte Agenten bleiben, wie sie sind.",
+    "rollout": "An ausgewählte Firmen ausrollen",
+    "noTenants": "Legen Sie zuerst in der Partner-Konsole eine Firma an.",
+    "states": {
+      "none": "Nicht ausgerollt",
+      "current": "Aktuell (Version {version})",
+      "outdated": "Version {version} – Update verfügbar",
+      "adapted": "Von der Firma angepasst",
+      "archived": "Archiviert"
+    },
+    "outcomes": {
+      "created": "{count, plural, =1 {1 Firma neu} other {# Firmen neu}}",
+      "updated": "{count, plural, =1 {1 aktualisiert} other {# aktualisiert}}",
+      "current": "{count, plural, =1 {1 bereits aktuell} other {# bereits aktuell}}",
+      "adapted": "{count, plural, =1 {1 angepasst – nicht überschrieben} other {# angepasst – nicht überschrieben}}",
+      "archived": "{count, plural, =1 {1 archiviert – ausgelassen} other {# archiviert – ausgelassen}}",
+      "unavailable": "{count, plural, =1 {1 nicht verfügbar} other {# nicht verfügbar}}"
+    },
+    "forbiddenTitle": "Keine Berechtigung",
+    "forbiddenDescription": "Agenten-Pakete verwalten Partner-Admins."
   }
 }

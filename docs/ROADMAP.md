@@ -12,7 +12,7 @@ Die Phasen folgen [`prompts/01_BUILD_PHASEN.md`](../prompts/01_BUILD_PHASEN.md).
 | 5     | Workflows und Freigabe-Inbox                                                  | 🟡 Freigabe-Inbox fertig             |
 | 6     | Agent Studio, Vorlagen, Evals → **demo-fähig**                                | 🟡 Studio und Vorlagen fertig        |
 | 7     | Kanäle: Web-Widget, E-Mail-Agent, PWA-Push                                    | ⬜                                   |
-| 8     | ROI, Abrechnung, Partner-Konsole vollständig                                  | ⬜                                   |
+| 8     | ROI, Abrechnung, Partner-Konsole vollständig                                  | 🟡 Agenten-Pakete (Rollout)          |
 | 9     | Compliance, Sicherheit, Hardening                                             | 🟡 DSGVO-Werkzeuge, Steckbriefe, CSP |
 | 10    | Launch: Onboarding, Doku, Release 1.0                                         | ⬜                                   |
 
