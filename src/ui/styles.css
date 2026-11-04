@@ -1845,7 +1845,9 @@ tr.muted td { color: var(--muted); }
 .cleo-fab .cleo { width: 60px; height: auto; margin-top: -4px; }
 .cleo-bubble { position: absolute; right: 76px; bottom: 22px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 12px 12px 2px 12px; background: var(--surface); color: var(--fg); font-size: 0.88rem; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); animation: look-in 0.3s ease-out; }
 .cleo-panel { width: min(400px, calc(100vw - 24px)); height: min(600px, calc(100dvh - 120px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); box-shadow: 0 12px 40px rgb(16 32 48 / 0.22); animation: look-in 0.16s ease-out; }
-.cleo-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.cleo-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
+/* Saison: Lichterkette oben, Titel darunter (am Handy sonst über „Cleo“) */
+.cleo-head.season-host { padding-top: 16px; }
 .cleo-head > div { flex: 1 1 auto; display: grid; line-height: 1.2; }
 .cleo-head small { color: var(--muted); font-size: 0.8rem; }
 .cleo-avatar .cleo { width: 40px; height: auto; }
