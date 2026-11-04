@@ -88,6 +88,13 @@ function readForm() {
   return d
 }
 
+/** Aus dem Kundenbereich: Hinweis, dass der Kunde Status und Ergebnis sieht, und sein Foto (SharePoint oder noch am Webspace). */
+function portalNote(d) {
+  if (!d.portal && !d.photos?.length) return ''
+  const photos = (d.photos || []).map((p) => (p.url ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">${ICON.camera || ''} Foto in SharePoint öffnen</a>` : p.datei ? `<div data-kb-photo><button class="btn small" data-action="kb-photo" data-file="${esc(p.datei)}">${ICON.camera || ''} Foto vom Kunden laden</button></div>` : '')).join(' ')
+  return `<div class="note">${d.portal ? 'Gemeldet über den <strong>Kundenbereich</strong>: Der Kunde sieht dort den Status und, wenn erledigt, das Ergebnis.' : ''}${photos ? `<p>${photos}</p>` : ''}</div>`
+}
+
 function complaintModal() {
   const d = draft()
   const ed = editable()
@@ -118,6 +125,7 @@ function complaintModal() {
         <label class="field wide"><span>Beschreibung (was genau, wo im Objekt)</span><textarea id="cp-text" rows="3" ${dis}>${esc(d.text)}</textarea></label>
         <label class="field"><span>Ansprechperson beim Kunden</span><input type="text" id="cp-contact" value="${esc(d.contact)}" placeholder="Name, Telefon" ${dis}></label>
       </div>
+      ${portalNote(d)}
       <section><h3>Laut Plan dort</h3><div class="form-grid">${plan}</div><p class="note">Nur zur Klärung intern; im PDF für den Kunden stehen keine Namen.</p></section>
       <section><h3>Maßnahme</h3><div class="form-grid">
         <label class="field wide"><span>Was wird getan (z. B. Nachreinigung, Gespräch, Einschulung)</span><textarea id="cp-measure" rows="2" ${dis}>${esc(d.measure)}</textarea></label>

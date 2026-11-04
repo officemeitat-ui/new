@@ -17,6 +17,7 @@
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
+//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden (mit Code), Einstellungen
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -69,6 +70,7 @@ export const MODULE_DOCS = {
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
   assistenz: { path: 'assistenz/entscheidungen.json', empty: () => ({ decided: {} }) },
+  kundenbereich: { path: 'kundenbereich/kundenbereich.json', empty: () => ({ links: [], settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -106,6 +108,8 @@ export function dataRights(access) {
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
+    // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
+    [MODULE_DOCS.kundenbereich.path, () => edits('reklamationen', 'planung'), () => edits('reklamationen', 'planung')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -128,6 +132,7 @@ export const FOLDERS = [
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
+  ['kundenbereich', 'Kundenbereich: Links für Kunden (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
 ]
 
 /**
