@@ -36,7 +36,7 @@ function staffView(c) {
       ],
     })}<button class="btn primary" data-action="emp-edit" data-id="new">${ICON.plus} Mitarbeiter:in anlegen</button></div></div>
     ${filterBar(c, { problems: false })}
-    <div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Revier</th><th>Beschäftigung</th><th>Soll</th><th>Qualifikationen</th><th>Eingeschult</th><th>Verfügbar</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Revier</th><th>Beschäftigung</th><th>Soll</th><th>Qualifikationen</th><th>Eingeschult</th><th>Verfügbar</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="empty">${app.data.employees.length ? 'Niemand in dieser Auswahl (Suche oder Revier).' : 'Noch keine Mitarbeitenden angelegt.'}</p>`}`
 }
 
 function employeeModal(c, { id }) {
