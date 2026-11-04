@@ -94,16 +94,52 @@ describe("support access", () => {
     ).toBeNull();
   });
 
-  it("only accepts a support cookie written by the start action for this person", () => {
-    const value = signSupportCookie(fx.staff.id, fx.tenant.id);
-    expect(verifySupportCookie(value, fx.staff.id)).toBe(fx.tenant.id);
-    // A hand-made cookie (just the tenant ID) or another person's cookie opens nothing.
+  it("only accepts a support cookie for this person, this grant and before it expires", async () => {
+    const tag = { tenantId: fx.tenant.id, grantId: "0199a1b2-0000-7000-8000-000000000001" };
+    const expiresAt = new Date(Date.now() + 3_600_000);
+    const value = signSupportCookie(fx.staff.id, { ...tag, expiresAt });
+    expect(verifySupportCookie(value, fx.staff.id)).toEqual(tag);
+    // A hand-made cookie, another person's cookie or a tampered value opens nothing.
     expect(verifySupportCookie(fx.tenant.id, fx.staff.id)).toBeNull();
     expect(verifySupportCookie(value, fx.owner.id)).toBeNull();
-    const [, signature] = value.split(".");
-    expect(verifySupportCookie(`${other.tenant.id}.${signature}`, fx.staff.id)).toBeNull();
+    const parts = value.split(".");
+    expect(
+      verifySupportCookie([other.tenant.id, ...parts.slice(1)].join("."), fx.staff.id),
+    ).toBeNull();
+    const later = String(Number(parts[2]) + 86_400);
+    expect(
+      verifySupportCookie([parts[0], parts[1], later, parts[3]].join("."), fx.staff.id),
+    ).toBeNull();
     expect(verifySupportCookie(`${value}.x`, fx.staff.id)).toBeNull();
     expect(verifySupportCookie(undefined, fx.staff.id)).toBeNull();
+    // Expired.
+    expect(
+      verifySupportCookie(value, fx.staff.id, new Date(expiresAt.getTime() + 1000)),
+    ).toBeNull();
+  });
+
+  it("ends a session when its grant is replaced, even if the cookie is kept", async () => {
+    const ids = { userId: fx.staff.id, partnerId: fx.partner.id, tenantId: fx.tenant.id };
+    await withTenant(db, fx.tenant.id, (tx) =>
+      grantSupportAccess(tx, {
+        tenantId: fx.tenant.id,
+        grantedBy: fx.owner.id,
+        hours: 1,
+        reason: "Test A",
+      }),
+    );
+    const first = await recordSupportSession(db, { ...ids, event: "started" });
+    expect(await getSupportAccess(db, { ...ids, grantId: first!.grantId })).not.toBeNull();
+    // A new grant replaces the old one: the old session (cookie) no longer opens anything.
+    await withTenant(db, fx.tenant.id, (tx) =>
+      grantSupportAccess(tx, {
+        tenantId: fx.tenant.id,
+        grantedBy: fx.owner.id,
+        hours: 1,
+        reason: "Test B",
+      }),
+    );
+    expect(await getSupportAccess(db, { ...ids, grantId: first!.grantId })).toBeNull();
   });
 
   it("rejects durations outside the offered options", async () => {

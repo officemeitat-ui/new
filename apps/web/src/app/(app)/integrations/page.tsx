@@ -26,6 +26,7 @@ const ERRORS = new Set([
   "berechtigung",
   "nicht_eingerichtet",
   "vergeben",
+  "kein_admin",
 ]);
 
 export default async function IntegrationsPage({

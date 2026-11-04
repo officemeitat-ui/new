@@ -71,6 +71,11 @@ export const tenants = pgTable(
     chatRetentionDays: integer(),
     /** Knowledge documents are deleted N days after upload; null = keep. */
     documentRetentionDays: integer(),
+    /**
+     * Set by the partner only: this company may connect BookStack and Atera (systems of the
+     * partner that hold data of many customers – security review 2, finding 6).
+     */
+    partnerSourcesAllowed: boolean().notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

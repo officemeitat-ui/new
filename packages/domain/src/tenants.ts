@@ -1,5 +1,5 @@
-import type { SystemTenantRole } from "@nexus/core";
-import { desc, enterTenant, eq, withPartner, type Database } from "@nexus/db";
+import { isUuid, notFound, type SystemTenantRole } from "@nexus/core";
+import { and, desc, enterTenant, eq, withPartner, type Database } from "@nexus/db";
 import { invitations, tenants, type TenantPlan } from "@nexus/db/schema";
 import { appendAudit } from "./audit";
 import { createInvitation } from "./invitations";
@@ -85,6 +85,7 @@ export async function listPartnerTenants(db: Database, partnerId: string) {
         slug: tenants.slug,
         plan: tenants.plan,
         status: tenants.status,
+        partnerSourcesAllowed: tenants.partnerSourcesAllowed,
         createdAt: tenants.createdAt,
       })
       .from(tenants)
@@ -97,5 +98,33 @@ export async function listPartnerTenants(db: Database, partnerId: string) {
       ...row,
       ownerInvitationPending: pending.some((i) => i.tenantId === row.id && !i.acceptedAt),
     }));
+  });
+}
+
+/**
+ * Allows or forbids a company to connect BookStack and Atera (partner systems with data of many
+ * customers, ADR 0010). Only the partner can change it; the database enforces that too.
+ */
+export async function setPartnerSourcesAllowed(
+  db: Database,
+  input: { partnerId: string; tenantId: string; allowed: boolean; actorUserId: string },
+) {
+  if (!isUuid(input.tenantId)) throw notFound("Firma nicht gefunden.");
+  await withPartner(db, input.partnerId, async (tx) => {
+    const [tenant] = await tx
+      .update(tenants)
+      .set({ partnerSourcesAllowed: input.allowed })
+      .where(and(eq(tenants.id, input.tenantId), eq(tenants.partnerId, input.partnerId)))
+      .returning({ id: tenants.id });
+    if (!tenant) throw notFound("Firma nicht gefunden.");
+    await enterTenant(tx, tenant.id);
+    await appendAudit(tx, tenant.id, {
+      actorType: "partner",
+      actorId: input.actorUserId,
+      action: input.allowed ? "tenant.partner_sources_allowed" : "tenant.partner_sources_revoked",
+      targetType: "tenant",
+      targetId: tenant.id,
+      metadata: { partnerId: input.partnerId },
+    });
   });
 }

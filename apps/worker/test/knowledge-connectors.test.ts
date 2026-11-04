@@ -80,7 +80,13 @@ beforeAll(async () => {
       .returning();
     const [tenant] = await tx
       .insert(tenants)
-      .values({ partnerId: partner!.id, name: "ME-IT intern", slug: `m-${tag}` })
+      .values({
+        partnerId: partner!.id,
+        name: "ME-IT intern",
+        slug: `m-${tag}`,
+        // The partner allowed BookStack and Atera for its own company (ADR 0010).
+        partnerSourcesAllowed: true,
+      })
       .returning();
     const [user] = await tx
       .insert(authUser)
@@ -137,7 +143,7 @@ describe("BookStack sync", () => {
       actorId: userId,
       env,
     });
-    expect(source.secret).toMatch(/^v1:/);
+    expect(source.secret).toMatch(/^v2:/);
     expect(source.secret).not.toContain(MOCK_BOOKSTACK_TOKEN.secret);
     expect(source.settings).toEqual({ baseUrl: mock.bookstackUrl });
 
@@ -230,6 +236,14 @@ describe("Atera sync", () => {
     const before = mock.calls.filter((c) => c.path.endsWith("/comments")).length;
     expect(await sync(source.id)).toMatchObject({ imported: 0 });
     expect(mock.calls.filter((c) => c.path.endsWith("/comments")).length).toBe(before);
+  });
+
+  it("removes credentials typed into tickets", () => {
+    expect(
+      maskPersonalData(
+        "Neues Passwort: Sommer2026! – WLAN-Schlüssel=abc123, PIN: 4711, Drucker ok",
+      ),
+    ).toBe("Neues Passwort: [entfernt] – WLAN-Schlüssel: [entfernt], PIN: [entfernt], Drucker ok");
   });
 
   it("masks contact data but keeps dates and ticket numbers", () => {

@@ -35,3 +35,23 @@ export const integrations = pgTable(
     uniqueIndex("integrations_provider_external_uq").on(t.provider, t.externalTenantId),
   ],
 );
+
+/**
+ * Directories a company was once connected to. Disconnecting removes the connection, but the
+ * customer's admin consent stays in Entra ID – so the directory stays bound to that company and
+ * cannot be connected to another one (security review 2, finding 3). ME-IT releases a binding
+ * deliberately by deleting the row.
+ */
+export const integrationDirectoryHistory = pgTable(
+  "integration_directory_history",
+  {
+    id: id(),
+    tenantId: uuid()
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    provider: text().$type<IntegrationProvider>().notNull(),
+    externalTenantId: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("integration_history_uq").on(t.provider, t.externalTenantId, t.tenantId)],
+);

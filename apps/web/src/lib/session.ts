@@ -67,16 +67,14 @@ export const resolveAppContext = cache(async (): Promise<AppContext | null> => {
   const partner = firstPartner ? await getPartnerAccess(db, user.id, firstPartner.partnerId) : null;
 
   // A support session (granted by the tenant, still valid) takes precedence.
-  const supportTenantId = verifySupportCookie(
-    (await cookies()).get(SUPPORT_COOKIE)?.value,
-    user.id,
-  );
+  const supportCookie = verifySupportCookie((await cookies()).get(SUPPORT_COOKIE)?.value, user.id);
   const support =
-    partner && supportTenantId
+    partner && supportCookie
       ? await getSupportAccess(db, {
           userId: user.id,
           partnerId: partner.partnerId,
-          tenantId: supportTenantId,
+          tenantId: supportCookie.tenantId,
+          grantId: supportCookie.grantId,
         })
       : null;
 

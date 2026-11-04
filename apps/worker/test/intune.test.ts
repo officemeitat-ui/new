@@ -4,7 +4,7 @@ import { clearGraphTokenCache } from "@nexus/connectors";
 import { startMockMicrosoft, type MockMicrosoft } from "@nexus/connectors/testing";
 import { createLogger } from "@nexus/core/logger";
 import { withSystem, withTenant } from "@nexus/db";
-import { authUser, partners, tenants } from "@nexus/db/schema";
+import { authUser, memberships, partners, tenants } from "@nexus/db/schema";
 import { openTestDatabase } from "@nexus/db/testing";
 import {
   connectMicrosoft365,
@@ -28,6 +28,8 @@ let mock: MockMicrosoft;
 let microsoft: MicrosoftAppConfig;
 let tenantId: string;
 let userId: string;
+/** A member: may chat with agents, but may not see the company's devices. */
+let memberId: string;
 let agentId: string;
 const GRUBER = "a1f0c2d4-0000-4000-8000-000000000002";
 
@@ -57,8 +59,17 @@ beforeAll(async () => {
       .insert(authUser)
       .values({ name: "Ida", email: `ida-${tag}@example.test` })
       .returning();
+    const [member] = await tx
+      .insert(authUser)
+      .values({ name: "Max", email: `max-${tag}@example.test` })
+      .returning();
     tenantId = tenant!.id;
     userId = user!.id;
+    memberId = member!.id;
+    await tx.insert(memberships).values([
+      { tenantId, userId, role: "admin" },
+      { tenantId, userId: memberId, role: "member" },
+    ]);
   });
   const agent = await withTenant(db, tenantId, (tx) =>
     createBlankAgent(tx, { tenantId, actorId: userId, name: "IT" }),
@@ -213,5 +224,20 @@ describe("Intune tools", () => {
     expect(
       mock.calls.filter((c) => c.path === `/deviceManagement/managedDevices/${GRUBER}/remoteLock`),
     ).toHaveLength(1);
+  });
+});
+
+describe("Intune tools and the person a run works for", () => {
+  it("are not offered to someone who may not see the devices (security review 2)", async () => {
+    // The connection from the previous test is still there.
+    const { runId } = await withTenant(db, tenantId, (tx) =>
+      startRun(tx, { tenantId, userId: memberId, userName: "Max", text: "Geräte?", agentId }),
+    );
+    const run = provider([textResponse("Dazu habe ich keinen Zugriff.")]);
+    await processAgentRun({ runId, tenantId }, deps(run.provider));
+    const offered = (run.client.requests[0]!.tools ?? []).map(
+      (tool) => (tool as { name: string }).name,
+    );
+    expect(offered.some((name) => name.startsWith("geraet"))).toBe(false);
   });
 });

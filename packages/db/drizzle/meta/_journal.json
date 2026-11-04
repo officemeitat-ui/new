@@ -176,6 +176,20 @@
       "when": 1793807485791,
       "tag": "0024_knowledge_source_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793818730579,
+      "tag": "0025_security_review_2",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793818731691,
+      "tag": "0026_rls_security_review_2",
+      "breakpoints": true
     }
   ]
 }

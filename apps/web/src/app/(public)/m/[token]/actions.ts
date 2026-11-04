@@ -4,7 +4,8 @@ import { isAppError } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
 import { getDatabase } from "@nexus/db";
-import { sendDefectReportEmail, submitDefectReport } from "@nexus/domain";
+import { findFacilityByToken, sendDefectReportEmail, submitDefectReport } from "@nexus/domain";
+import { isIP } from "node:net";
 import { headers } from "next/headers";
 import { allow } from "@/lib/rate-limit";
 
@@ -19,6 +20,10 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 export type ReportState = { ok: true } | { ok: false; error: string } | null;
 
+const PUBLIC_TOKEN = /^[\w-]{20,40}$/;
+const INVALID = "Dieser QR-Code ist nicht (mehr) gültig.";
+const TOO_MANY = "Zu viele Meldungen in kurzer Zeit. Bitte versuchen Sie es später erneut.";
+
 /** Public: anyone with the QR code may report. Rate-limited and with a bot trap. */
 export async function submitReportAction(
   token: string,
@@ -27,16 +32,21 @@ export async function submitReportAction(
 ): Promise<ReportState> {
   // Bots fill every field; people never see this one.
   if (String(formData.get("website") ?? "") !== "") return { ok: true };
+  // The token is client input: check its format before it is used anywhere (security review).
+  if (!PUBLIC_TOKEN.test(token)) return { ok: false, error: INVALID };
   const list = await headers();
-  const ip = list.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const forwarded = list.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+  const ip = isIP(forwarded) ? forwarded : "unknown";
+  const limited = { ok: false as const, error: TOO_MANY };
+  if (!(await allow(`report:ip:${ip}`, 10, 600, { failClosed: true }))) return limited;
+  const target = await findFacilityByToken(getDatabase().db, token);
+  if (!target) return { ok: false, error: INVALID };
+  // Per object and per company, so one QR code cannot flood the object manager's inbox.
   if (
-    !(await allow(`report:ip:${ip}`, 10, 600)) ||
-    !(await allow(`report:token:${token}`, 200, 86_400))
+    !(await allow(`report:facility:${target.id}`, 50, 86_400, { failClosed: true })) ||
+    !(await allow(`report:tenant:${target.tenantId}`, 300, 86_400, { failClosed: true }))
   ) {
-    return {
-      ok: false,
-      error: "Zu viele Meldungen in kurzer Zeit. Bitte versuchen Sie es später erneut.",
-    };
+    return limited;
   }
   try {
     const { facility, report } = await submitDefectReport(getDatabase().db, {

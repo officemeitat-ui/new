@@ -233,7 +233,9 @@
         "facility_activated": "Objekt aktiviert",
         "facility_deactivated": "Objekt deaktiviert",
         "agent_rolled_out": "Agent vom IT-Partner bereitgestellt",
-        "agent_updated_by_partner": "Agent vom IT-Partner aktualisiert"
+        "agent_updated_by_partner": "Agent vom IT-Partner aktualisiert",
+        "tenant_partner_sources_allowed": "BookStack/Atera vom IT-Partner erlaubt",
+        "tenant_partner_sources_revoked": "BookStack/Atera vom IT-Partner gesperrt"
       },
       "actors": {
         "user": "Benutzer",
@@ -336,7 +338,11 @@
     "rateHint": "Zum Beispiel der EZB-Referenzkurs, gerne mit Währungspuffer. Leer lassen, um Kosten in US-Dollar anzuzeigen.",
     "supportUntil": "Support bis {date}",
     "openTenant": "Öffnen",
-    "packagesLink": "Agenten-Pakete"
+    "packagesLink": "Agenten-Pakete",
+    "sourcesAllowed": "BookStack/Atera: erlaubt",
+    "sourcesOff": "BookStack/Atera: aus",
+    "sourcesToggleLabel": "BookStack und Atera für {name} erlauben oder sperren",
+    "sourcesConfirm": "BookStack und Atera für „{name}“ erlauben? Diese Systeme enthalten oft Daten vieler Kunden – erlauben Sie das nur für Ihre eigene Firma oder für Kunden mit eigener Instanz."
   },
   "chat": {
     "newConversation": "Neues Gespräch",
@@ -722,7 +728,8 @@
       "zugriff": "Microsoft 365 hat den Zugriff nicht bestätigt. Prüfen Sie die Zustimmung und die Intune-Lizenz und versuchen Sie es erneut.",
       "berechtigung": "Integrationen verwalten Owner und Admins.",
       "nicht_eingerichtet": "Die Microsoft-365-Anbindung ist auf dieser Plattform noch nicht eingerichtet.",
-      "vergeben": "Dieses Microsoft-365-Konto ist bereits mit einer anderen Firma verbunden. Bitte wenden Sie sich an ME-IT."
+      "vergeben": "Dieses Microsoft-365-Konto ist bereits mit einer anderen Firma verbunden. Bitte wenden Sie sich an ME-IT.",
+      "kein_admin": "Verbinden darf nur ein Globaler Administrator oder Administrator für privilegierte Rollen Ihres Microsoft-365-Verzeichnisses – kein Gastkonto. Es wurde nichts verbunden."
     },
     "permissionSharePoint": "Dokumente aus SharePoint lesen (für die Wissensdatenbank)"
   },
@@ -986,7 +993,8 @@
       "current": "{count, plural, =1 {1 bereits aktuell} other {# bereits aktuell}}",
       "adapted": "{count, plural, =1 {1 angepasst – nicht überschrieben} other {# angepasst – nicht überschrieben}}",
       "archived": "{count, plural, =1 {1 archiviert – ausgelassen} other {# archiviert – ausgelassen}}",
-      "unavailable": "{count, plural, =1 {1 nicht verfügbar} other {# nicht verfügbar}}"
+      "unavailable": "{count, plural, =1 {1 nicht verfügbar} other {# nicht verfügbar}}",
+      "failed": "{count, plural, =1 {1 fehlgeschlagen – bitte erneut versuchen} other {# fehlgeschlagen – bitte erneut versuchen}}"
     },
     "forbiddenTitle": "Keine Berechtigung",
     "forbiddenDescription": "Agenten-Pakete verwalten Partner-Admins.",

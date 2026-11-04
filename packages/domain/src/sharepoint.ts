@@ -17,6 +17,12 @@ import { getCollection } from "./knowledge";
 
 /** A sync that has been "running" this long is treated as crashed and may be restarted. */
 export const STALE_SYNC_MS = 30 * 60_000;
+/**
+ * Overall time limit of one sync, below STALE_SYNC_MS, so the recovery job never hands a source
+ * to a second sync while the first one still runs (security review 2). The next run continues:
+ * unchanged items are skipped by their version.
+ */
+export const SYNC_DEADLINE_MS = 20 * 60_000;
 const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "md", "markdown", "txt"]);
 const DOWNLOAD_CONCURRENCY = 4;
 
@@ -332,7 +338,15 @@ export async function syncSharePointSource(
     const seenIds = new Set<string>();
     let deltaLink: string | undefined;
 
+    const deadline = Date.now() + SYNC_DEADLINE_MS;
     while (true) {
+      if (Date.now() > deadline) {
+        throw new GraphError(
+          504,
+          "deadline",
+          "Der Abgleich hat das Zeitlimit von 20 Minuten erreicht; der nächste Lauf macht weiter.",
+        );
+      }
       let page;
       try {
         page = await deltaPage(graph, source.driveId, url);

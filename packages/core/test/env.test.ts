@@ -18,6 +18,21 @@ describe("parseEnv", () => {
     expect(env.SMTP_PORT).toBe(1025);
   });
 
+  it("refuses private connector URLs in production unless the app runs locally", () => {
+    const production = {
+      ...base,
+      NODE_ENV: "production",
+      BETTER_AUTH_SECRET: "x".repeat(32),
+      CONNECTOR_ALLOW_PRIVATE_URLS: "true",
+    };
+    expect(() => parseEnv({ ...production, APP_URL: "https://app.me-it.at" })).toThrowError(
+      /CONNECTOR_ALLOW_PRIVATE_URLS/,
+    );
+    expect(
+      parseEnv({ ...production, APP_URL: "http://localhost:3000" }).CONNECTOR_ALLOW_PRIVATE_URLS,
+    ).toBe(true);
+  });
+
   it("requires an auth secret in production", () => {
     expect(() => parseEnv({ ...base, NODE_ENV: "production" })).toThrowError(EnvError);
   });

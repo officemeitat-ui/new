@@ -2,6 +2,21 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Zweites Sicherheits-Review – alle Befunde behoben ✅
+
+**Erledigt** (unabhängiges Review aller neuen Funktionen; Details und Tabelle in `docs/SECURITY.md`)
+
+- **Hoch:** QR-Meldeseite konnte den gemeinsamen Redis-Speicher füllen → Token vorab geprüft, gehashte Schlüssel, atomare Zähler, bei Ausfall gesperrt, Limits pro Objekt und Firma, Valkey mit `maxmemory`. SSRF-Umgehung per IPv6-Schreibweise → BlockList + Prüfung beim Verbindungsaufbau (gegen DNS-Rebinding).
+- **Mittel:** Microsoft 365 nur noch von Globalen Administratoren bzw. Administratoren für privilegierte Rollen verbindbar (keine Gäste), Verzeichnis bleibt dauerhaft an seine Firma gebunden; Geräte-Neustart immer mit Freigabe; BookStack-Abgleich begrenzt (Einträge, Seitengröße, 20 Minuten); BookStack/Atera nur mit Freigabe des Partner-Admins (per Datenbank-Trigger abgesichert), Passwörter in Tickets geschwärzt.
+- **Niedrig/Härtung:** eigenes Recht `knowledge.connect` (nicht in Support-Sitzungen), Agenten-Werkzeuge nur mit den Rechten der auslösenden Person, Support-Cookie an Freigabe und Ablauf gebunden, Verschlüsselung mit AAD, QR-Abfrage ohne System-Kontext, Befund 12 aus Review 1 (Entpack-Bomben) geschlossen, nur http(s)-Links aus Quellen.
+- **Tests:** u. a. präparierte Word/PDF-Dateien (250 MB beim Entpacken), Rebinding- und IPv6-Formen, Nicht-Admin/Gast beim Microsoft-Verbinden, Bindung nach dem Trennen, Trigger gegen Selbstfreigabe, Token-Kontext sieht nur ein Objekt, Werkzeuge für Mitglieder ohne Geräte-Recht, Support-Cookie nach neuer Freigabe ungültig, Schlüssel nicht in fremde Firma kopierbar.
+
+**Für den Echtbetrieb nötig (ME-IT)**
+
+- In der Entra-App zusätzlich die delegierte Berechtigung **RoleManagement.Read.Directory** eintragen.
+- Valkey mit `--maxmemory` und `--maxmemory-policy noeviction` betreiben (docker-compose zeigt es); `CONNECTOR_ALLOW_PRIVATE_URLS` in Produktion nie setzen.
+- In der Partner-Konsole BookStack/Atera nur für die eigene Firma (bzw. Kunden mit eigener Instanz) erlauben.
+
 ## Wissen aus BookStack und Atera – „Wie haben wir das gelöst?“ ✅
 
 **Erledigt** (Zeile 2 „Wissen: Wo liegt es heute?“ – bei ME-IT: BookStack-Doku und Atera-Tickets)

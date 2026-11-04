@@ -1,4 +1,4 @@
-import { directoryOfSignedInUser } from "@nexus/connectors";
+import { directoryOfSignedInUser, GraphError } from "@nexus/connectors";
 import { isAppError } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { createLogger } from "@nexus/core/logger";
@@ -91,6 +91,7 @@ export async function GET(request: NextRequest) {
     );
     return back("verbunden=1");
   } catch (error) {
+    if (error instanceof GraphError && error.code === "not_admin") return back("fehler=kein_admin");
     if (isAppError(error) && error.code === "conflict") return back("fehler=vergeben");
     if (isAppError(error)) return back("fehler=sitzung");
     log.error({ err: error }, "microsoft 365 connection failed");

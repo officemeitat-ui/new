@@ -22,7 +22,17 @@ services:
   valkey:
     image: valkey/valkey:8
     # Queued jobs survive a restart (append-only file on a volume).
-    command: ["valkey-server", "--appendonly", "yes"]
+    # Memory is capped; noeviction is what BullMQ requires (never silently drop jobs).
+    command:
+      [
+        "valkey-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "1gb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
     ports:
       - "6379:6379"
     volumes:

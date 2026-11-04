@@ -1,4 +1,4 @@
-import { ALWAYS_APPROVE, catalogTool, EFFORTS, MODEL_TIERS } from "@nexus/agents";
+import { catalogTool, EFFORTS, MODEL_TIERS, mustApprove } from "@nexus/agents";
 import { conflict, notFound, validationError } from "@nexus/core";
 import { and, desc, eq, sql, type Tx } from "@nexus/db";
 import { agents, agentVersions, authUser, runs, type AgentConfig } from "@nexus/db/schema";
@@ -31,10 +31,7 @@ export const agentConfigSchema = z
   // E-mails to third parties and actions on devices always need a person's approval (finding 7).
   .refine(
     (config) =>
-      config.tools.every((tool) => {
-        const risk = catalogTool(tool.name)?.risk;
-        return !(risk && ALWAYS_APPROVE.has(risk) && tool.mode === "auto");
-      }),
+      config.tools.every((tool) => !(mustApprove(catalogTool(tool.name)) && tool.mode === "auto")),
     "E-Mails an Dritte und Eingriffe an Geräten brauchen immer eine Freigabe – „automatisch“ ist dafür nicht möglich.",
   ) satisfies z.ZodType<AgentConfig>;
 

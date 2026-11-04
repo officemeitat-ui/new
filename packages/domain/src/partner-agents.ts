@@ -41,7 +41,9 @@ export type RolloutOutcome =
   /** The tenant archived the agent: it stays archived. */
   | "archived"
   /** Not one of the partner's active tenants. */
-  | "unavailable";
+  | "unavailable"
+  /** Something went wrong for this tenant; the others still ran. */
+  | "failed";
 
 /** Packages stay tenant-neutral: no knowledge collections (those IDs belong to one tenant). */
 function packageConfig(config: AgentConfig): AgentConfig {
@@ -186,95 +188,102 @@ export async function rolloutAgentPackage(
   }
   const results: { tenantId: string; tenantName: string | null; outcome: RolloutOutcome }[] = [];
   for (const tenantId of tenantIds) {
-    results.push(
-      await withPartner(db, input.partnerId, async (tx) => {
-        const [pkg] = await tx
-          .select()
-          .from(partnerAgentTemplates)
-          .where(eq(partnerAgentTemplates.id, input.packageId));
-        if (!pkg) throw notFound("Paket nicht gefunden.");
-        // Row Level Security already limits this to the partner's tenants.
-        const [tenant] = await tx
-          .select({ id: tenants.id, name: tenants.name, status: tenants.status })
-          .from(tenants)
-          .where(and(eq(tenants.id, tenantId), eq(tenants.partnerId, input.partnerId)));
-        if (!tenant || tenant.status !== "active") {
-          return { tenantId, tenantName: tenant?.name ?? null, outcome: "unavailable" as const };
-        }
-        await enterTenant(tx, tenant.id);
-        const config: AgentConfig = {
-          ...pkg.config,
-          instructions: pkg.config.instructions.replaceAll(COMPANY, tenant.name),
-        };
-        const done = (outcome: RolloutOutcome) => ({
-          tenantId,
-          tenantName: tenant.name,
-          outcome,
-        });
+    try {
+      results.push(await rolloutToTenant(tenantId));
+    } catch (error) {
+      if (error instanceof Error && error.name === "AppError") throw error; // e.g. package gone
+      results.push({ tenantId, tenantName: null, outcome: "failed" });
+    }
+  }
+  return results;
 
-        const [existing] = await tx
-          .select()
-          .from(agents)
-          .where(and(eq(agents.tenantId, tenant.id), eq(agents.partnerTemplateId, pkg.id)))
-          .for("update");
+  async function rolloutToTenant(tenantId: string) {
+    return withPartner(db, input.partnerId, async (tx) => {
+      const [pkg] = await tx
+        .select()
+        .from(partnerAgentTemplates)
+        .where(eq(partnerAgentTemplates.id, input.packageId));
+      if (!pkg) throw notFound("Paket nicht gefunden.");
+      // Row Level Security already limits this to the partner's tenants.
+      const [tenant] = await tx
+        .select({ id: tenants.id, name: tenants.name, status: tenants.status })
+        .from(tenants)
+        .where(and(eq(tenants.id, tenantId), eq(tenants.partnerId, input.partnerId)));
+      if (!tenant || tenant.status !== "active") {
+        return { tenantId, tenantName: tenant?.name ?? null, outcome: "unavailable" as const };
+      }
+      await enterTenant(tx, tenant.id);
+      const config: AgentConfig = {
+        ...pkg.config,
+        instructions: pkg.config.instructions.replaceAll(COMPANY, tenant.name),
+      };
+      const done = (outcome: RolloutOutcome) => ({
+        tenantId,
+        tenantName: tenant.name,
+        outcome,
+      });
 
-        if (!existing) {
-          const [agent] = await tx
-            .insert(agents)
-            .values({
-              tenantId: tenant.id,
-              name: pkg.name,
-              description: pkg.description,
-              templateId: pkg.baseTemplateId,
-              partnerTemplateId: pkg.id,
-              createdBy: input.actorId,
-            })
-            .returning();
-          const version = await insertAgentVersion(tx, {
+      const [existing] = await tx
+        .select()
+        .from(agents)
+        .where(and(eq(agents.tenantId, tenant.id), eq(agents.partnerTemplateId, pkg.id)))
+        .for("update");
+
+      if (!existing) {
+        const [agent] = await tx
+          .insert(agents)
+          .values({
             tenantId: tenant.id,
-            agentId: agent!.id,
-            config,
-            actorId: input.actorId,
-          });
-          await tx
-            .update(agents)
-            .set({ partnerTemplateVersion: pkg.version, rolledOutVersionId: version.id })
-            .where(eq(agents.id, agent!.id));
-          await appendAudit(tx, tenant.id, {
-            actorType: "partner",
-            actorId: input.actorId,
-            action: "agent.rolled_out",
-            targetType: "agent",
-            targetId: agent!.id,
-            metadata: { name: pkg.name, packageVersion: pkg.version },
-          });
-          return done("created");
-        }
-        if (existing.status === "archived") return done("archived");
-        if (existing.partnerTemplateVersion === pkg.version) return done("current");
-        if (existing.currentVersionId !== existing.rolledOutVersionId) return done("adapted");
-
+            name: pkg.name,
+            description: pkg.description,
+            templateId: pkg.baseTemplateId,
+            partnerTemplateId: pkg.id,
+            createdBy: input.actorId,
+          })
+          .returning();
         const version = await insertAgentVersion(tx, {
           tenantId: tenant.id,
-          agentId: existing.id,
+          agentId: agent!.id,
           config,
           actorId: input.actorId,
         });
         await tx
           .update(agents)
           .set({ partnerTemplateVersion: pkg.version, rolledOutVersionId: version.id })
-          .where(eq(agents.id, existing.id));
+          .where(eq(agents.id, agent!.id));
         await appendAudit(tx, tenant.id, {
           actorType: "partner",
           actorId: input.actorId,
-          action: "agent.updated_by_partner",
+          action: "agent.rolled_out",
           targetType: "agent",
-          targetId: existing.id,
-          metadata: { name: existing.name, packageVersion: pkg.version, version: version.version },
+          targetId: agent!.id,
+          metadata: { name: pkg.name, packageVersion: pkg.version },
         });
-        return done("updated");
-      }),
-    );
+        return done("created");
+      }
+      if (existing.status === "archived") return done("archived");
+      if (existing.partnerTemplateVersion === pkg.version) return done("current");
+      if (existing.currentVersionId !== existing.rolledOutVersionId) return done("adapted");
+
+      const version = await insertAgentVersion(tx, {
+        tenantId: tenant.id,
+        agentId: existing.id,
+        config,
+        actorId: input.actorId,
+      });
+      await tx
+        .update(agents)
+        .set({ partnerTemplateVersion: pkg.version, rolledOutVersionId: version.id })
+        .where(eq(agents.id, existing.id));
+      await appendAudit(tx, tenant.id, {
+        actorType: "partner",
+        actorId: input.actorId,
+        action: "agent.updated_by_partner",
+        targetType: "agent",
+        targetId: existing.id,
+        metadata: { name: existing.name, packageVersion: pkg.version, version: version.version },
+      });
+      return done("updated");
+    });
   }
-  return results;
 }

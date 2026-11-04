@@ -77,6 +77,16 @@ export const envSchema = z
         message: "ist in Produktion Pflicht",
       });
     }
+    // Allowed only where the app itself runs locally (tests against a production build);
+    // never for an installation reachable under a real domain (SSRF protection).
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(new URL(env.APP_URL).hostname);
+    if (env.NODE_ENV === "production" && env.CONNECTOR_ALLOW_PRIVATE_URLS && !local) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["CONNECTOR_ALLOW_PRIVATE_URLS"],
+        message: "darf in Produktion nicht gesetzt sein (SSRF-Schutz)",
+      });
+    }
     if (env.LLM_PROVIDER === "vertex" && !env.GOOGLE_VERTEX_PROJECT_ID) {
       ctx.addIssue({
         code: "custom",

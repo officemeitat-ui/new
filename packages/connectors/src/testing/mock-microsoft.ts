@@ -155,6 +155,8 @@ export async function startMockMicrosoft(
   /** Each mock can play its own Microsoft directory (one directory = one company). */
   const directoryId = options.directoryId ?? MOCK_DIRECTORY_TENANT_ID;
   const calls: MockCall[] = [];
+  /** The person who signs in through the authorization code flow. */
+  const signedIn = { admin: true, guest: false };
   const devices = sampleDevices();
   const library = sampleLibrary();
   let changeSeq = library.length;
@@ -169,6 +171,11 @@ export async function startMockMicrosoft(
       const path = url.pathname;
       if (path === "/health") return res.end("ok");
       if (path === "/__calls") return json(res, 200, calls);
+      // Test hook: who signs in next (an administrator by default).
+      if (path === "/__signin" && req.method === "POST") {
+        Object.assign(signedIn, JSON.parse(await readBody(req)) as Partial<typeof signedIn>);
+        return json(res, 200, signedIn);
+      }
       // Test hooks: change or delete a file in the SharePoint library, expire delta tokens.
       if (path === "/__sharepoint/upsert" && req.method === "POST") {
         const { name, content } = JSON.parse(await readBody(req)) as {
@@ -290,12 +297,23 @@ export async function startMockMicrosoft(
       }
 
       if (!path.startsWith("/graph/v1.0/")) return json(res, 404, { error: { code: "NotFound" } });
-      // A signed-in user's token may only read the organisation (delegated User.Read).
-      if (
-        req.headers.authorization === `Bearer mock-user-${directoryId}` &&
-        path === "/graph/v1.0/organization"
-      ) {
-        return json(res, 200, { value: [{ id: directoryId, displayName: "Contoso Test GmbH" }] });
+      // A signed-in user's token reads the organisation, the user and their directory roles
+      // (delegated User.Read + RoleManagement.Read.Directory).
+      if (req.headers.authorization === `Bearer mock-user-${directoryId}`) {
+        if (path === "/graph/v1.0/organization") {
+          return json(res, 200, { value: [{ id: directoryId, displayName: "Contoso Test GmbH" }] });
+        }
+        if (path === "/graph/v1.0/me") {
+          return json(res, 200, { id: "mock-user", userType: signedIn.guest ? "Guest" : "Member" });
+        }
+        if (path === "/graph/v1.0/me/memberOf/microsoft.graph.directoryRole") {
+          if (req.headers.consistencylevel !== "eventual") return json(res, 400, { error: {} });
+          return json(res, 200, {
+            value: signedIn.admin
+              ? [{ roleTemplateId: "62e90394-69f5-4237-9190-012177145e10" }]
+              : [{ roleTemplateId: "88d8e3e3-8f55-4a1e-953a-9b9898b8876b" }], // Directory Readers
+          });
+        }
       }
       if (req.headers.authorization !== `Bearer mock-token-${directoryId}`) {
         return json(res, 401, { error: { code: "InvalidAuthenticationToken", message: "mock" } });

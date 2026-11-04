@@ -63,7 +63,13 @@ export function AgentEditor({
   canPublish: boolean;
   currency: "EUR" | "USD";
   initial: Initial;
-  catalog: { name: string; risk: string; available: boolean; requires?: string }[];
+  catalog: {
+    name: string;
+    risk: string;
+    available: boolean;
+    requires?: string;
+    mustApprove: boolean;
+  }[];
   /** Integrations this tenant has connected, e.g. microsoft365. */
   connected: string[];
   collections: { id: string; name: string; documents: number }[];
@@ -241,12 +247,8 @@ export function AgentEditor({
                   className={selectClass}
                 >
                   <option value="off">{t("modeOff")}</option>
-                  {/* External and destructive actions always need an approval (finding 7). */}
-                  {tool.risk === "external_write" ||
-                  tool.risk === "destructive" ||
-                  tool.risk === "financial" ? null : (
-                    <option value="auto">{t("modeAuto")}</option>
-                  )}
+                  {/* External, destructive and device actions always need an approval. */}
+                  {tool.mustApprove ? null : <option value="auto">{t("modeAuto")}</option>}
                   <option value="approve">{t("modeApprove")}</option>
                 </select>
               </li>

@@ -120,7 +120,15 @@ const STATE_VARIANT: Record<TenantRolloutState, "secondary" | "success" | "warni
   archived: "secondary",
 };
 
-const OUTCOMES = ["created", "updated", "current", "adapted", "archived", "unavailable"] as const;
+const OUTCOMES = [
+  "created",
+  "updated",
+  "current",
+  "adapted",
+  "archived",
+  "unavailable",
+  "failed",
+] as const;
 
 /** Update first, then rolled out, then the rest – each alphabetically. */
 const STATE_ORDER: Record<TenantRolloutState, number> = {

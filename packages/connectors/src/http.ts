@@ -35,6 +35,8 @@ export type HttpOptions = {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   timeoutMs?: number;
+  /** Response size limit (default 10 MB). */
+  maxBytes?: number;
 };
 
 const MAX_RETRIES = 2;
@@ -72,6 +74,7 @@ const BLOCKED = (() => {
     ["::", 128],
     ["::1", 128],
     ["::", 96], // IPv4-compatible (deprecated)
+    ["::ffff:0:0:0", 96], // IPv4-translated (SIIT)
     ["64:ff9b::", 96], // NAT64 – could reach internal IPv4 targets
     ["64:ff9b:1::", 48],
     ["100::", 64],
@@ -207,9 +210,13 @@ function publicOnlyFetch(
 const isTimeout = (error: unknown) =>
   error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 
-async function readLimited(response: Response, service: string): Promise<string> {
+async function readLimited(
+  response: Response,
+  service: string,
+  limit = MAX_RESPONSE_BYTES,
+): Promise<string> {
   const declared = Number(response.headers.get("content-length") ?? "0");
-  if (declared > MAX_RESPONSE_BYTES) {
+  if (declared > limit) {
     throw new ConnectorError(413, "too_large", `${service} liefert zu große Daten.`);
   }
   if (!response.body) return "";
@@ -220,7 +227,7 @@ async function readLimited(response: Response, service: string): Promise<string>
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_RESPONSE_BYTES) {
+    if (total > limit) {
       await reader.cancel();
       throw new ConnectorError(413, "too_large", `${service} liefert zu große Daten.`);
     }
@@ -298,7 +305,7 @@ export async function getText(url: string, options: HttpOptions): Promise<string
       );
     }
     try {
-      return await readLimited(response, options.service);
+      return await readLimited(response, options.service, options.maxBytes);
     } catch (error) {
       if (error instanceof ConnectorError) throw error;
       throw isTimeout(error)

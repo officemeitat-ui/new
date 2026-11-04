@@ -4,6 +4,7 @@ import {
   exportPageMarkdown,
   listBooks,
   listPages,
+  testBookStack,
   listTicketComments,
   listTickets,
   pageUrl,
@@ -14,11 +15,11 @@ import {
   type AteraTicket,
   type BookStackConfig,
 } from "@nexus/connectors";
-import { conflict, validationError } from "@nexus/core";
+import { conflict, forbidden, validationError } from "@nexus/core";
 import { decryptSecret, encryptSecret } from "@nexus/core/crypto";
 import { getEnv } from "@nexus/core/env";
 import { and, eq, inArray, withTenant, type Database } from "@nexus/db";
-import { knowledgeDocuments, knowledgeSources } from "@nexus/db/schema";
+import { knowledgeDocuments, knowledgeSources, tenants } from "@nexus/db/schema";
 import { detectKind, MAX_FILE_BYTES } from "@nexus/knowledge/detect";
 import { z } from "zod";
 import { appendAudit } from "./audit";
@@ -28,6 +29,7 @@ import {
   claimSync,
   eachLimited,
   getKnowledgeSource,
+  SYNC_DEADLINE_MS,
   syncSharePointSource,
   upsertSourceDocument,
   type SyncResult,
@@ -71,6 +73,28 @@ async function userFacing<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** AAD of a source's encrypted credentials: bound to company and collection. */
+const secretOwner = (tenantId: string, collectionId: string) =>
+  `knowledge_source:${tenantId}:${collectionId}`;
+
+/**
+ * BookStack and Atera are usually the partner's own systems with data of many customers: only
+ * companies the partner explicitly allowed may connect them (security review 2, finding 6).
+ */
+async function assertPartnerSourcesAllowed(db: Database, tenantId: string) {
+  const [tenant] = await withTenant(db, tenantId, (tx) =>
+    tx
+      .select({ allowed: tenants.partnerSourcesAllowed })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId)),
+  );
+  if (!tenant?.allowed) {
+    throw forbidden(
+      "BookStack und Atera können nur Firmen verbinden, die Ihr IT-Partner dafür freigegeben hat.",
+    );
+  }
+}
+
 async function assertNoSource(db: Database, tenantId: string, collectionId: string) {
   return withTenant(db, tenantId, async (tx) => {
     const collection = await getCollection(tx, tenantId, collectionId);
@@ -106,13 +130,14 @@ export async function connectBookStack(
   const tokenId = input.tokenId.trim();
   const tokenSecret = input.tokenSecret.trim();
   if (!tokenId || !tokenSecret) throw validationError("Bitte Token-ID und Token-Secret angeben.");
+  await assertPartnerSourcesAllowed(db, input.tenantId);
   const collection = await assertNoSource(db, input.tenantId, input.collectionId);
-  // Test before saving: wrong URL or token fail here, not in the background.
+  // Test before saving: wrong URL or token fail here, not in the background. One small request.
   const { baseUrl, books } = await userFacing(async () => {
     const url = await assertSafeBaseUrl(input.baseUrl.replace(/\/api\/?$/, ""), env.allowPrivate);
     return {
       baseUrl: url,
-      books: await listBooks({
+      books: await testBookStack({
         baseUrl: url,
         tokenId,
         tokenSecret,
@@ -130,7 +155,10 @@ export async function connectBookStack(
         provider: "bookstack",
         displayName: `BookStack ${host}`,
         settings: { baseUrl },
-        secret: encryptSecret(JSON.stringify({ tokenId, tokenSecret })),
+        secret: encryptSecret(
+          JSON.stringify({ tokenId, tokenSecret }),
+          secretOwner(input.tenantId, collection.id),
+        ),
         createdBy: input.actorId,
       })
       .returning();
@@ -140,7 +168,7 @@ export async function connectBookStack(
       action: "knowledge.source_connected",
       targetType: "knowledge_collection",
       targetId: collection.id,
-      metadata: { provider: "bookstack", host, books: books.length },
+      metadata: { provider: "bookstack", host, books },
     });
     return source!;
   });
@@ -157,10 +185,15 @@ export async function syncBookStackSource(
     now?: Date;
   },
 ): Promise<SyncResult> {
-  return runSync(db, input, "BookStack", async (source, result, progress) => {
+  return runSync(db, input, "BookStack", async (source, result, progress, checkTime) => {
     const env = input.env ?? connectorEnv();
     const { baseUrl } = bookStackSettings.parse(source.settings);
-    const secret = bookStackSecret.parse(JSON.parse(decryptSecret(source.secret ?? "")));
+    await assertPartnerSourcesAllowed(db, input.tenantId);
+    const secret = bookStackSecret.parse(
+      JSON.parse(
+        decryptSecret(source.secret ?? "", secretOwner(source.tenantId, source.collectionId)),
+      ),
+    );
     const config: BookStackConfig = {
       // Checked again on every run: the address could resolve differently by now.
       baseUrl: await assertSafeBaseUrl(baseUrl, env.allowPrivate),
@@ -172,6 +205,7 @@ export async function syncBookStackSource(
     const known = await knownVersions(db, input.tenantId, source.id);
 
     await eachLimited(pages, CONCURRENCY, async (page) => {
+      checkTime();
       result.seen += 1;
       const id = String(page.id);
       if (known.get(id) === page.updated_at) return;
@@ -239,6 +273,12 @@ const ateraSecret = z.object({ apiKey: z.string() });
 const ateraSettings = z.object({ monthsBack: z.number().int().min(1).max(60) });
 
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+/**
+ * Credentials typed into tickets ("Passwort: …", "PIN=…", "API-Key: …"): the value is removed,
+ * the label stays (security review 2, finding 6).
+ */
+const CREDENTIAL =
+  /\b(passw(?:ort|ord)|kennwort|pwd|pw|pin|puk|zugangsdaten|api[- ]?key|api[- ]?schlüssel|lizenzschlüssel|license key|token|secret|wlan[- ]?schlüssel|wpa[- ]?key)\b\s*[:=]\s*[^\s,;]+/gi;
 const IBAN = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b/g;
 const PHONE_CANDIDATE = /(?:\+|\b00)?\d[\d\s/().-]{5,}\d/g;
 const DATE_LIKE =
@@ -259,6 +299,7 @@ export function maskPersonalData(text: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(CREDENTIAL, (_match, label: string) => `${label}: [entfernt]`)
     .replace(EMAIL, "[E-Mail]")
     .replace(IBAN, "[IBAN]")
     .replace(PHONE_CANDIDATE, (match) => {
@@ -312,6 +353,7 @@ export async function connectAtera(
   if (apiKey.length < 10) throw validationError("Bitte den API-Schlüssel aus Atera angeben.");
   const settings = ateraSettings.safeParse({ monthsBack: input.monthsBack });
   if (!settings.success) throw validationError("Zeitraum: 1 bis 60 Monate.");
+  await assertPartnerSourcesAllowed(db, input.tenantId);
   const collection = await assertNoSource(db, input.tenantId, input.collectionId);
   await userFacing(() => testAtera({ apiKey, baseUrl: env.ateraUrl }));
   return withTenant(db, input.tenantId, async (tx) => {
@@ -323,7 +365,10 @@ export async function connectAtera(
         provider: "atera",
         displayName: "Atera – gelöste Tickets",
         settings: settings.data,
-        secret: encryptSecret(JSON.stringify({ apiKey })),
+        secret: encryptSecret(
+          JSON.stringify({ apiKey }),
+          secretOwner(input.tenantId, collection.id),
+        ),
         createdBy: input.actorId,
       })
       .returning();
@@ -360,10 +405,15 @@ export async function syncAteraSource(
     now?: Date;
   },
 ): Promise<SyncResult> {
-  return runSync(db, input, "Atera", async (source, result, progress) => {
+  return runSync(db, input, "Atera", async (source, result, progress, checkTime) => {
     const env = input.env ?? connectorEnv();
     const { monthsBack } = ateraSettings.parse(source.settings);
-    const { apiKey } = ateraSecret.parse(JSON.parse(decryptSecret(source.secret ?? "")));
+    await assertPartnerSourcesAllowed(db, input.tenantId);
+    const { apiKey } = ateraSecret.parse(
+      JSON.parse(
+        decryptSecret(source.secret ?? "", secretOwner(source.tenantId, source.collectionId)),
+      ),
+    );
     const config: AteraConfig = { apiKey, baseUrl: env.ateraUrl };
     const dateFrom = monthsAgo(input.now ?? new Date(), monthsBack);
     const known = await knownVersions(db, input.tenantId, source.id);
@@ -371,7 +421,9 @@ export async function syncAteraSource(
     for (const status of ATERA_STATUSES_FOR_KNOWLEDGE) {
       for (let page = 1; page <= MAX_ATERA_PAGES; page++) {
         const { tickets, hasMore } = await listTickets(config, { status, page, dateFrom });
+        checkTime();
         await eachLimited(tickets, CONCURRENCY, async (ticket) => {
+          checkTime();
           result.seen += 1;
           const id = String(ticket.TicketID);
           const version = ticket.LastUpdatedDate ?? ticket.CreatedDate ?? status;
@@ -439,7 +491,12 @@ async function runSync(
   db: Database,
   input: { tenantId: string; sourceId: string; now?: Date },
   service: string,
-  work: (source: SourceRow, result: SyncResult, progress: () => Promise<void>) => Promise<void>,
+  work: (
+    source: SourceRow,
+    result: SyncResult,
+    progress: () => Promise<void>,
+    checkTime: () => void,
+  ) => Promise<void>,
 ): Promise<SyncResult> {
   const { tenantId, sourceId } = input;
   const result: SyncResult = {
@@ -467,8 +524,18 @@ async function runSync(
       tx.update(knowledgeSources).set(counters()).where(eq(knowledgeSources.id, sourceId)),
     );
   };
+  const deadline = Date.now() + SYNC_DEADLINE_MS;
+  const checkTime = () => {
+    if (Date.now() > deadline) {
+      throw new ConnectorError(
+        504,
+        "deadline",
+        "Der Abgleich hat das Zeitlimit von 20 Minuten erreicht; der nächste Lauf macht weiter.",
+      );
+    }
+  };
   try {
-    await work(source, result, progress);
+    await work(source, result, progress, checkTime);
     await withTenant(db, tenantId, (tx) =>
       tx
         .update(knowledgeSources)

@@ -43,6 +43,7 @@ export default async function CollectionPage({
     );
   }
   const canManage = can(ctx.tenant, "knowledge.manage");
+  const canConnect = can(ctx.tenant, "knowledge.connect");
   const data = await withTenant(getDatabase().db, ctx.tenant.tenantId, async (tx) => {
     try {
       return {
@@ -85,7 +86,7 @@ export default async function CollectionPage({
 
       <KnowledgeSource
         collectionId={collection.id}
-        canManage={canManage}
+        canManage={canConnect}
         microsoftConnected={Boolean(microsoft) && microsoftAppConfig() !== null}
         source={source ? sourceView(source) : null}
       />

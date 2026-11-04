@@ -9,6 +9,7 @@ import {
   recordSupportSession,
   requirePermission,
   sendInvitationEmail,
+  setPartnerSourcesAllowed,
   signSupportCookie,
   updatePartnerExchangeRate,
   withAuditRequestContext,
@@ -107,7 +108,7 @@ export async function startSupportSessionAction(tenantId: string): Promise<void>
   const ctx = await requirePartner();
   requirePermission(ctx.partner, "partner.tenants.manage");
   if (!isUuid(tenantId)) redirect("/partner");
-  await withAuditRequestContext(await auditMeta(), () =>
+  const grant = await withAuditRequestContext(await auditMeta(), () =>
     recordSupportSession(getDatabase().db, {
       userId: ctx.user.id,
       partnerId: ctx.partner.partnerId,
@@ -115,6 +116,7 @@ export async function startSupportSessionAction(tenantId: string): Promise<void>
       event: "started",
     }),
   );
+  if (!grant) redirect("/partner");
   const store = await cookies();
   const options = {
     path: "/",
@@ -122,9 +124,10 @@ export async function startSupportSessionAction(tenantId: string): Promise<void>
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
   };
-  store.set(SUPPORT_COOKIE, signSupportCookie(ctx.user.id, tenantId), {
+  // Valid for this grant only and never longer than the grant itself.
+  store.set(SUPPORT_COOKIE, signSupportCookie(ctx.user.id, { tenantId, ...grant }), {
     ...options,
-    maxAge: 60 * 60 * 72,
+    maxAge: Math.max(60, Math.floor((grant.expiresAt.getTime() - Date.now()) / 1000)),
   });
   redirect("/");
 }
@@ -135,4 +138,22 @@ async function auditMeta() {
     ip: list.get("x-forwarded-for")?.split(",")[0]?.trim() || list.get("x-real-ip") || null,
     userAgent: list.get("user-agent"),
   };
+}
+
+/** BookStack and Atera only for companies the partner admin allowed (ADR 0010). */
+export async function setPartnerSourcesAction(
+  tenantId: string,
+  allowed: boolean,
+): Promise<ActionResult> {
+  return runAction("setPartnerSources", async () => {
+    const ctx = await requirePartner();
+    requirePermission(ctx.partner, "partner.sources.manage");
+    await setPartnerSourcesAllowed(getDatabase().db, {
+      partnerId: ctx.partner.partnerId,
+      tenantId,
+      allowed,
+      actorUserId: ctx.user.id,
+    });
+    revalidatePath("/partner");
+  });
 }

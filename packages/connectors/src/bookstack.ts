@@ -19,16 +19,22 @@ export type BookStackConfig = {
 };
 
 const PAGE_SIZE = 500;
+/** Bounds against a hostile or broken instance (security review 2, finding 5). */
+export const BOOKSTACK_LIMITS = { maxEntries: 20_000, maxListingBytes: 2 * 1024 * 1024 };
 
-const bookSchema = z.object({ id: z.number(), name: z.string(), slug: z.string() });
+const bookSchema = z.object({
+  id: z.number().int(),
+  name: z.string().max(500),
+  slug: z.string().max(300),
+});
 const pageSchema = z.object({
-  id: z.number(),
-  book_id: z.number(),
-  name: z.string(),
-  slug: z.string(),
+  id: z.number().int(),
+  book_id: z.number().int(),
+  name: z.string().max(500),
+  slug: z.string().max(300),
   draft: z.boolean().optional().default(false),
   template: z.boolean().optional().default(false),
-  updated_at: z.string(),
+  updated_at: z.string().max(40),
 });
 const listing = <T extends z.ZodType>(item: T) =>
   z.object({ data: z.array(item), total: z.number() });
@@ -36,8 +42,9 @@ const listing = <T extends z.ZodType>(item: T) =>
 export type BookStackBook = z.infer<typeof bookSchema>;
 export type BookStackPage = z.infer<typeof pageSchema>;
 
-function options(config: BookStackConfig): HttpOptions {
+function options(config: BookStackConfig, maxBytes?: number): HttpOptions {
   return {
+    ...(maxBytes ? { maxBytes } : {}),
     service: "BookStack",
     headers: { authorization: `Token ${config.tokenId}:${config.tokenSecret}` },
     // The address comes from the customer (SSRF protection, see http.ts).
@@ -56,18 +63,41 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   return parsed.data;
 }
 
-/** Reads every entry of a listing endpoint, 500 at a time. */
+/**
+ * Reads every entry of a listing endpoint, 500 at a time. Bounded: at most 20,000 entries,
+ * 2 MB per page, and it stops when the offset does not move – a hostile server cannot make
+ * the process run out of memory or loop forever.
+ */
 async function listAll<T>(config: BookStackConfig, path: string, schema: z.ZodType<T>) {
   const all: T[] = [];
   // The instance may cap the page size lower than requested (API_MAX_ITEM_COUNT): advance by
   // what actually came back.
   for (let offset = 0; ;) {
     const url = `${config.baseUrl}/api/${path}?count=${PAGE_SIZE}&offset=${offset}&sort=id`;
-    const page = parse(listing(schema), await getJson(url, options(config)));
+    const page = parse(
+      listing(schema),
+      await getJson(url, options(config, BOOKSTACK_LIMITS.maxListingBytes)),
+    );
+    if (page.data.length === 0 || offset + page.data.length >= page.total) {
+      all.push(...page.data);
+      return all;
+    }
     all.push(...page.data);
     offset += page.data.length;
-    if (page.data.length === 0 || offset >= page.total) return all;
+    if (all.length > BOOKSTACK_LIMITS.maxEntries) {
+      throw new ConnectorError(
+        413,
+        "too_many",
+        `BookStack liefert mehr als ${BOOKSTACK_LIMITS.maxEntries.toLocaleString("de-AT")} Einträge – bitte wenden Sie sich an ME-IT.`,
+      );
+    }
   }
+}
+
+/** Connection test: one small request (token valid, instance reachable). */
+export async function testBookStack(config: BookStackConfig): Promise<number> {
+  const url = `${config.baseUrl}/api/books?count=1&offset=0`;
+  return parse(listing(bookSchema), await getJson(url, options(config, 64 * 1024))).total;
 }
 
 export function listBooks(config: BookStackConfig): Promise<BookStackBook[]> {

@@ -20,6 +20,13 @@ export type CatalogTool = {
   approvalPermission?: "integration.manage";
   /** Whether an approver may change the input before approving (only where the UI supports it). */
   editable?: boolean;
+  /** Never "auto", whatever its risk class (security review 2, finding 4). */
+  alwaysApprove?: boolean;
+  /**
+   * The person a run acts for must have this permission, or the agent is not offered the tool
+   * (security review 2, finding 8): an agent never sees more than the person could see.
+   */
+  userPermission?: "integration.manage" | "reports.manage";
 };
 
 /** Risk classes that always need a person's approval – "auto" is refused (finding 7). */
@@ -29,11 +36,24 @@ export const ALWAYS_APPROVE: ReadonlySet<ToolRisk> = new Set([
   "financial",
 ]);
 
+/** Whether a tool needs a person's approval for every call, regardless of the agent's config. */
+export function mustApprove(
+  tool: { risk: ToolRisk; alwaysApprove?: boolean } | undefined,
+): boolean {
+  return Boolean(tool && (ALWAYS_APPROVE.has(tool.risk) || tool.alwaysApprove));
+}
+
 export const TOOL_CATALOG: readonly CatalogTool[] = [
   { name: "aktuelle_zeit", risk: "read", available: true, defaultMode: "auto" },
   { name: "rechner", risk: "read", available: true, defaultMode: "auto" },
   { name: "reinigung_kalkulieren", risk: "read", available: true, defaultMode: "auto" },
-  { name: "meldungen_abfragen", risk: "read", available: true, defaultMode: "auto" },
+  {
+    name: "meldungen_abfragen",
+    risk: "read",
+    available: true,
+    defaultMode: "auto",
+    userPermission: "reports.manage",
+  },
   { name: "wissen_suchen", risk: "read", available: true, defaultMode: "auto" },
   {
     name: "email_senden",
@@ -49,6 +69,7 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
     available: true,
     defaultMode: "auto",
     requires: "microsoft365",
+    userPermission: "integration.manage",
   },
   {
     name: "geraet_details",
@@ -56,6 +77,7 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
     available: true,
     defaultMode: "auto",
     requires: "microsoft365",
+    userPermission: "integration.manage",
   },
   {
     name: "geraet_synchronisieren",
@@ -63,6 +85,7 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
     available: true,
     defaultMode: "auto",
     requires: "microsoft365",
+    userPermission: "integration.manage",
     approvalPermission: "integration.manage",
   },
   {
@@ -70,7 +93,9 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
     risk: "internal_write",
     available: true,
     defaultMode: "approve",
+    alwaysApprove: true,
     requires: "microsoft365",
+    userPermission: "integration.manage",
     approvalPermission: "integration.manage",
   },
   {
@@ -79,6 +104,7 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
     available: true,
     defaultMode: "approve",
     requires: "microsoft365",
+    userPermission: "integration.manage",
     approvalPermission: "integration.manage",
   },
 ];

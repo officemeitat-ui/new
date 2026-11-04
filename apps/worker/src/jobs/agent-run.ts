@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
-  ALWAYS_APPROVE,
   BUILTIN_TOOLS,
+  catalogTool,
+  mustApprove,
   buildSystem,
   DEFAULT_PRICES,
   isEffort,
@@ -15,12 +16,14 @@ import { RUN_EVENTS_TTL_SECONDS, runEventsKey, type AgentRunJob } from "@nexus/c
 import type { Logger } from "@nexus/core/logger";
 import { withTenant, type Database } from "@nexus/db";
 import {
+  can,
   createApprovals,
   createDefectReportsTool,
   createEmailTool,
   createIntuneTools,
   createKnowledgeTool,
   getIntegration,
+  getTenantAccess,
   microsoftAppConfig,
   type MicrosoftAppConfig,
   failRun,
@@ -132,8 +135,17 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       createDefectReportsTool({ db }),
       ...(connected && microsoft ? createIntuneTools({ db, config: microsoft }) : []),
     ];
+    // An agent never sees more than the person it works for (security review 2, finding 8):
+    // tools with a user permission (devices, defect reports) need that permission.
+    const access = ctx.run.triggeredBy
+      ? await getTenantAccess(db, ctx.run.triggeredBy, tenantId)
+      : null;
+    const userMay = (name: string) => {
+      const needed = catalogTool(name)?.userPermission;
+      return !needed || (access !== null && can(access, needed));
+    };
     const tools = platformTools.filter(
-      (tool) => modes.has(tool.name) && modes.get(tool.name) !== "deny",
+      (tool) => modes.has(tool.name) && modes.get(tool.name) !== "deny" && userMay(tool.name),
     );
     // Decisions for tool calls the run paused on (empty for a fresh run).
     const decisions = await withTenant(db, tenantId, (tx) => loadDecisions(tx, runId));
@@ -141,7 +153,7 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
     const policy: ToolPolicy = (tool) => {
       const mode = modes.get(tool.name);
       // Defence in depth: risky tools need an approval even if an old config says "auto".
-      if (mode === "auto" && ALWAYS_APPROVE.has(tool.risk)) return "approve";
+      if (mode === "auto" && mustApprove(catalogTool(tool.name) ?? tool)) return "approve";
       return mode === "approve" ? "approve" : mode === "auto" ? "allow" : "deny";
     };
 

@@ -15,9 +15,9 @@ Die Spezifikation (§9.1) sieht für Konnektoren OAuth mit verschlüsselt gespei
   - `DeviceManagementManagedDevices.PrivilegedOperations.All` – synchronisieren, neu starten, sperren
   - `Organization.Read.All` – Namen der Organisation anzeigen
   - `Sites.Read.All` – SharePoint-Bibliotheken für die Wissensdatenbank lesen (Nachtrag 2026-11-04)
-  - dazu **eine delegierte Berechtigung `User.Read`**, nur für den Verzeichnis-Nachweis beim Verbinden
+  - dazu die **delegierten Berechtigungen `User.Read` und `RoleManagement.Read.Directory`**, nur für den Nachweis beim Verbinden (Verzeichnis und Admin-Rolle)
 - **Verbinden in zwei Schritten** (Nachtrag 2026-11-04 nach dem Sicherheits-Review, Befund 1):
-  1. **Anmeldung** über den Autorisierungscode-Fluss (`organizations/oauth2/v2.0/authorize`, Scope `User.Read`). Mit dem Code holt der Server ein Token und liest `GET /organization` – so ist **bewiesen**, zu welchem Verzeichnis die Person gehört. Ein `tenant`-Parameter aus der URL zählt nicht.
+  1. **Anmeldung** über den Autorisierungscode-Fluss (`organizations/oauth2/v2.0/authorize`, Scope `User.Read`). Mit dem Code holt der Server ein Token und liest `GET /organization` – so ist **bewiesen**, zu welchem Verzeichnis die Person gehört. Ein `tenant`-Parameter aus der URL zählt nicht. Außerdem muss die Person **Mitglied (kein Gast)** und **Globaler Administrator oder Administrator für privilegierte Rollen** sein (`GET /me`, `GET /me/memberOf/microsoft.graph.directoryRole`); nur diese Rollen dürfen Anwendungsberechtigungen von Microsoft Graph freigeben. Damit kann ein normales Mitglied ein früher freigegebenes Verzeichnis nicht an eine andere Firma binden (Nachtrag nach Sicherheits-Review 2, Befund 3).
   2. **Administrator-Zustimmung** genau für dieses Verzeichnis (`/{verzeichnis-id}/adminconsent`, Graph-Doku „Get access without a user“). Das Verzeichnis steht im signierten `state`; der Rückweg muss es bestätigen.
   - Der `state` ist HMAC-signiert, enthält Mandant, Person, Schritt und (im zweiten Schritt) das Verzeichnis und gilt 15 Minuten; der Rückweg muss zur selben Sitzung passen.
   - **Ein Microsoft-Verzeichnis gehört höchstens einer Firma** (eindeutiger Index auf Anbieter + Verzeichnis); ein zweiter Versuch endet mit einer klaren Meldung statt einer Umleitung der bestehenden Verbindung.

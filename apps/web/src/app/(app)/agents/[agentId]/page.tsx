@@ -1,5 +1,5 @@
 import { convertUsdMicros, formatDateTime, isAppError, isUuid } from "@nexus/core";
-import { TOOL_CATALOG } from "@nexus/agents/catalog";
+import { mustApprove, TOOL_CATALOG } from "@nexus/agents/catalog";
 import { getDatabase, withTenant } from "@nexus/db";
 import { can, findTemplate, getAgentDetail, getIntegration, listCollections } from "@nexus/domain";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@nexus/ui";
@@ -102,6 +102,7 @@ export default async function AgentPage({
             name: tool.name,
             risk: tool.risk,
             available: tool.available,
+            mustApprove: mustApprove(tool),
             ...(tool.requires ? { requires: tool.requires } : {}),
           }))}
           connected={microsoft ? ["microsoft365"] : []}

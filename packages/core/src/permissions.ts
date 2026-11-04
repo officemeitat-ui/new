@@ -16,6 +16,8 @@ export const TENANT_PERMISSIONS = [
   "approval.decide",
   "knowledge.read",
   "knowledge.manage",
+  /** Connect knowledge sources (SharePoint, BookStack, Atera) – not part of support sessions. */
+  "knowledge.connect",
   "integration.manage",
   "analytics.read",
   "conversation.read_all",
@@ -45,6 +47,8 @@ export const PARTNER_PERMISSIONS = [
   "partner.tenants.manage",
   "partner.templates.manage",
   "partner.pricing.manage",
+  /** Allow a company to connect BookStack and Atera (partner systems) – partner admins only. */
+  "partner.sources.manage",
 ] as const;
 
 export type PartnerPermission = (typeof PARTNER_PERMISSIONS)[number];
@@ -75,7 +79,9 @@ export function hasPermission<P extends string>(granted: Iterable<P>, needed: P)
 /**
  * What partner staff may do inside a tenant during a support session the tenant granted
  * (M12): configure agents, workflows, knowledge and integrations – not manage people,
- * billing, security policies or support access itself.
+ * billing, security policies or support access itself, and not connect knowledge sources
+ * (that would let a technician pull e.g. any SharePoint site of the company – security
+ * review 2, finding 7).
  */
 export const SUPPORT_PERMISSIONS: readonly TenantPermission[] = [
   "agent.run",

@@ -18,6 +18,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { startSupportSessionAction } from "@/app/(app)/partner/actions";
 import { CreateTenantForm } from "@/components/partner/create-tenant-form";
 import { ExchangeRateForm } from "@/components/partner/exchange-rate-form";
+import { PartnerSourcesToggle } from "@/components/partner/partner-sources-toggle";
 import { requirePartner } from "@/lib/session";
 
 export const metadata = { title: "Partner-Konsole" };
@@ -34,6 +35,7 @@ export default async function PartnerPage() {
   ]);
   const supportUntil = new Map(grants.map((grant) => [grant.tenantId, grant.expiresAt]));
   const canOpen = can(ctx.partner, "partner.tenants.manage");
+  const canSources = can(ctx.partner, "partner.sources.manage");
   const format = await getFormatter();
 
   return (
@@ -97,6 +99,13 @@ export default async function PartnerPage() {
                     <Badge variant="danger">{t("suspended")}</Badge>
                   ) : null}
                   <Badge variant="accent">{tPlans(tenant.plan)}</Badge>
+                  {canSources ? (
+                    <PartnerSourcesToggle
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                      allowed={tenant.partnerSourcesAllowed}
+                    />
+                  ) : null}
                   {supportUntil.has(tenant.id) ? (
                     <>
                       <Badge variant="warning">

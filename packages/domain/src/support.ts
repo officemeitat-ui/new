@@ -25,25 +25,40 @@ function cookieKey(): Buffer {
   return createHmac("sha256", secret).update("nexus:support-session").digest();
 }
 
-const cookieSignature = (userId: string, tenantId: string) =>
-  createHmac("sha256", cookieKey()).update(`${userId}:${tenantId}`).digest();
+const cookieSignature = (payload: string) =>
+  createHmac("sha256", cookieKey()).update(payload).digest();
+
+export type SupportCookie = { tenantId: string; grantId: string };
 
 /**
- * Value of the support-session cookie: the tenant plus an HMAC bound to the person. Only the
- * start action (which writes the audit entry) can create it, so a hand-made cookie does not
- * open a support session without a trace.
+ * Value of the support-session cookie: tenant, grant and expiry plus an HMAC bound to the
+ * person. Only the start action (which writes the audit entry) creates it, and it is valid for
+ * this one grant only – a saved value cannot reopen a later grant without a new audit entry
+ * (security review 2, finding 10).
  */
-export function signSupportCookie(userId: string, tenantId: string): string {
-  return `${tenantId}.${cookieSignature(userId, tenantId).toString("base64url")}`;
+export function signSupportCookie(
+  userId: string,
+  grant: { tenantId: string; grantId: string; expiresAt: Date },
+): string {
+  const expires = Math.floor(grant.expiresAt.getTime() / 1000);
+  const payload = `${userId}:${grant.tenantId}:${grant.grantId}:${expires}`;
+  return `${grant.tenantId}.${grant.grantId}.${expires}.${cookieSignature(payload).toString("base64url")}`;
 }
 
-/** The tenant of a valid support cookie for this person, otherwise null. */
-export function verifySupportCookie(value: string | undefined, userId: string): string | null {
-  const [tenantId, signature, ...rest] = (value ?? "").split(".");
-  if (!tenantId || !signature || rest.length > 0 || !isUuid(tenantId)) return null;
+/** Tenant and grant of a valid, unexpired support cookie for this person, otherwise null. */
+export function verifySupportCookie(
+  value: string | undefined,
+  userId: string,
+  now = new Date(),
+): SupportCookie | null {
+  const [tenantId, grantId, expires, signature, ...rest] = (value ?? "").split(".");
+  if (!tenantId || !grantId || !expires || !signature || rest.length > 0) return null;
+  if (!isUuid(tenantId) || !isUuid(grantId) || !/^\d{1,12}$/.test(expires)) return null;
+  if (Number(expires) * 1000 <= now.getTime()) return null;
   const given = Buffer.from(signature, "base64url");
-  const expected = cookieSignature(userId, tenantId);
-  return given.length === expected.length && timingSafeEqual(given, expected) ? tenantId : null;
+  const expected = cookieSignature(`${userId}:${tenantId}:${grantId}:${expires}`);
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+  return { tenantId, grantId };
 }
 
 /**
@@ -178,11 +193,12 @@ export async function listActiveSupportGrants(db: Database, partnerId: string) {
  */
 export async function getSupportAccess(
   db: Database,
-  input: { userId: string; partnerId: string; tenantId: string },
+  input: { userId: string; partnerId: string; tenantId: string; grantId?: string },
 ): Promise<TenantAccess | null> {
   return withPartner(db, input.partnerId, async (tx) => {
     const grant = await activeGrant(tx, input.partnerId, input.tenantId);
-    if (!grant) return null;
+    // A session belongs to the grant it was started under (with its audit entry).
+    if (!grant || (input.grantId !== undefined && grant.id !== input.grantId)) return null;
     const [row] = await tx
       .select({
         name: tenants.name,
@@ -218,13 +234,17 @@ export async function getSupportAccess(
   });
 }
 
-/** Records the start or end of a support session in the tenant's audit log. */
+/**
+ * Records the start or end of a support session in the tenant's audit log. For a start it
+ * returns the grant the session belongs to (for the session cookie).
+ */
 export async function recordSupportSession(
   db: Database,
   input: { userId: string; partnerId: string; tenantId: string; event: "started" | "ended" },
-): Promise<void> {
-  await withPartner(db, input.partnerId, async (tx) => {
-    if (input.event === "started" && !(await activeGrant(tx, input.partnerId, input.tenantId))) {
+): Promise<{ grantId: string; expiresAt: Date } | null> {
+  return withPartner(db, input.partnerId, async (tx) => {
+    const grant = await activeGrant(tx, input.partnerId, input.tenantId);
+    if (input.event === "started" && !grant) {
       throw conflict("Für diesen Mandanten ist kein Support-Zugriff freigegeben.");
     }
     // The partner acts on a tenant that granted access: write into its audit chain.
@@ -235,6 +255,8 @@ export async function recordSupportSession(
       action: `support.session_${input.event}`,
       targetType: "tenant",
       targetId: input.tenantId,
+      ...(grant ? { metadata: { grantId: grant.id } } : {}),
     });
+    return grant ? { grantId: grant.id, expiresAt: grant.expiresAt } : null;
   });
 }

@@ -2,6 +2,19 @@ import { expect, test, type Page } from "@playwright/test";
 
 const MOCK = "http://localhost:4030";
 
+/** BookStack and Atera need the partner's approval for the company (ADR 0010). */
+async function allowPartnerSources(page: Page) {
+  await page.goto("/partner");
+  const row = page.getByRole("listitem").filter({ hasText: "Huber Haustechnik GmbH" });
+  const toggle = row.getByRole("button", { name: /BookStack und Atera für Huber/ });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") {
+    page.once("dialog", (dialog) => void dialog.accept());
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  }
+}
+
 async function newCollection(page: Page, name: string) {
   await page.goto("/knowledge");
   await page.getByLabel("Name der Sammlung").fill(name);
@@ -11,6 +24,7 @@ async function newCollection(page: Page, name: string) {
 }
 
 test("own BookStack documentation is synced into a collection", async ({ page }) => {
+  await allowPartnerSources(page);
   const panel = await newCollection(page, `Doku ${Date.now().toString(36)}`);
   await panel.getByRole("button", { name: "Mit BookStack verbinden" }).click();
   await panel.getByLabel("Adresse Ihrer BookStack-Instanz").fill(`${MOCK}/bookstack`);
@@ -42,6 +56,7 @@ test("own BookStack documentation is synced into a collection", async ({ page })
 });
 
 test("solved Atera tickets become knowledge an agent answers from", async ({ page }) => {
+  await allowPartnerSources(page);
   const collection = `Tickets ${Date.now().toString(36)}`;
   const panel = await newCollection(page, collection);
   await panel.getByRole("button", { name: "Mit Atera verbinden" }).click();

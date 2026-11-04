@@ -55,6 +55,23 @@ export async function withSystem<T>(
 }
 
 /**
+ * Anonymous access by a public token (QR report page): the policies let the transaction see
+ * only the facility with this token and its company's name and status. No tenant, partner or
+ * system context is set.
+ */
+export async function withPublicToken<T>(
+  db: Database,
+  token: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  if (!/^[\w-]{20,40}$/.test(token)) throw new Error("Ungültiger öffentlicher Token.");
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.public_token', ${token}, true)`);
+    return fn(tx);
+  });
+}
+
+/**
  * Resolves what a signed-in user belongs to (memberships, tenants, partner roles) before a
  * tenant is selected. Sees only rows of this user.
  */

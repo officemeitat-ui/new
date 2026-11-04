@@ -4,8 +4,10 @@ import { withTenant } from "@nexus/db";
 import { openTestDatabase } from "@nexus/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { listAuditEntries } from "../src/audit";
+import { directoryOfSignedInUser } from "@nexus/connectors";
 import {
   adminConsentUrl,
+  assertDirectoryAvailable,
   connectMicrosoft365,
   disconnectIntegration,
   getIntegration,
@@ -159,5 +161,34 @@ describe("Microsoft 365 connection", () => {
       await withTenant(db, tenantId, (tx) => getIntegration(tx, tenantId, "microsoft365")),
     ).toBeNull();
     await expect(listTenantDevices(db, tenantId, config)).rejects.toThrow(/nicht verbunden/);
+
+    // The admin consent stays in Entra ID: the directory stays bound to this company.
+    const newcomer = await createPartnerWithTenant(db);
+    await expect(
+      assertDirectoryAvailable(db, newcomer.tenant.id, mock.directoryId),
+    ).rejects.toThrow(/bereits mit einer anderen Firma/);
+    await expect(assertDirectoryAvailable(db, tenantId, mock.directoryId)).resolves.toBeUndefined();
+  });
+});
+
+describe("Microsoft 365 sign-in before consent (security review 2, finding 3)", () => {
+  const signIn = async (who: { admin: boolean; guest: boolean }) => {
+    await fetch(`${mock.url}/__signin`, { method: "POST", body: JSON.stringify(who) });
+    const authorize = await fetch(
+      `${mock.loginUrl}/organizations/oauth2/v2.0/authorize?redirect_uri=${encodeURIComponent("https://app.example/cb")}&state=s`,
+      { redirect: "manual" },
+    );
+    const code = new URL(authorize.headers.get("location")!).searchParams.get("code")!;
+    return directoryOfSignedInUser(config, { code, redirectUri: "https://app.example/cb" });
+  };
+
+  it("accepts only administrators who may grant consent, and no guests", async () => {
+    await expect(signIn({ admin: true, guest: false })).resolves.toBe(mock.directoryId);
+    await expect(signIn({ admin: false, guest: false })).rejects.toThrow(/Globaler Administrator/);
+    await expect(signIn({ admin: true, guest: true })).rejects.toThrow(/kein Gastkonto/);
+    await fetch(`${mock.url}/__signin`, {
+      method: "POST",
+      body: JSON.stringify({ admin: true, guest: false }),
+    });
   });
 });

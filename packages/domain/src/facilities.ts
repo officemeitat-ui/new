@@ -1,7 +1,17 @@
 import { randomBytes } from "node:crypto";
 import { defineTool } from "@nexus/agents";
 import { notFound, validationError } from "@nexus/core";
-import { and, desc, eq, ne, sql, withSystem, withTenant, type Database, type Tx } from "@nexus/db";
+import {
+  and,
+  desc,
+  eq,
+  ne,
+  sql,
+  withPublicToken,
+  withTenant,
+  type Database,
+  type Tx,
+} from "@nexus/db";
 import {
   authUser,
   defectReports,
@@ -17,6 +27,8 @@ export const DEFECT_CATEGORIES = ["verschmutzung", "nachfuellen", "schaden", "so
 export const DEFECT_STATUSES = ["open", "in_progress", "done"] as const;
 
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+/** Each object can send notification e-mails, so their number is bounded (security review). */
+const MAX_FACILITIES = 500;
 
 /* -------------------------------------------------------------- facilities */
 
@@ -58,6 +70,13 @@ export async function createFacility(
   const name = input.name.trim();
   if (name.length < 2 || name.length > 120) {
     throw validationError("Der Objektname muss 2 bis 120 Zeichen lang sein.");
+  }
+  const [{ count }] = (await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(facilities)
+    .where(eq(facilities.tenantId, input.tenantId))) as [{ count: number }];
+  if (count >= MAX_FACILITIES) {
+    throw validationError(`Höchstens ${MAX_FACILITIES} Objekte pro Firma.`);
   }
   const contactEmail = input.contactEmail?.trim().toLowerCase() || null;
   if (contactEmail && !EMAIL.test(contactEmail)) {
@@ -103,10 +122,13 @@ export async function setFacilityActive(
 
 /* ------------------------------------------------------------ public intake */
 
-/** For the public report page: the facility behind a QR token (no login, system context). */
+/**
+ * For the public report page: the facility behind a QR token (no login). Runs with the public
+ * token context: Row Level Security shows only this facility and its company's name and status.
+ */
 export async function findFacilityByToken(db: Database, token: string) {
   if (!/^[\w-]{20,40}$/.test(token)) return null;
-  const [row] = await withSystem(db, "defect reports: resolve QR token", (tx) =>
+  const [row] = await withPublicToken(db, token, (tx) =>
     tx
       .select({
         id: facilities.id,

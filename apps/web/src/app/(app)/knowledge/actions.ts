@@ -32,6 +32,13 @@ async function managerContext() {
   return ctx;
 }
 
+/** Connecting, syncing and disconnecting sources: owners and admins, never support sessions. */
+async function connectorContext() {
+  const ctx = await requireTenant();
+  requirePermission(ctx.tenant, "knowledge.connect");
+  return ctx;
+}
+
 export async function createCollectionAction(
   _prev: ActionResult | null,
   formData: FormData,
@@ -159,7 +166,7 @@ export async function searchSharePointSitesAction(
   query: string,
 ): Promise<ActionResult<{ id: string; name: string; webUrl: string }[]>> {
   return runAction("searchSharePointSites", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     return {
       data: await findSharePointSites(getDatabase().db, ctx.tenant.tenantId, query.slice(0, 100)),
     };
@@ -170,7 +177,7 @@ export async function listSharePointLibrariesAction(
   siteId: string,
 ): Promise<ActionResult<{ id: string; name: string; webUrl: string }[]>> {
   return runAction("listSharePointLibraries", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     return { data: await findSharePointLibraries(getDatabase().db, ctx.tenant.tenantId, siteId) };
   });
 }
@@ -188,7 +195,7 @@ export async function connectSharePointAction(input: {
   libraryId: string;
 }): Promise<ActionResult> {
   return runAction("connectSharePoint", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     if (!isUuid(input.collectionId)) throw validationError("Ungültige Sammlung.");
     const db = getDatabase().db;
     const tenantId = ctx.tenant.tenantId;
@@ -219,7 +226,7 @@ export async function connectSharePointAction(input: {
 
 export async function syncSharePointAction(collectionId: string): Promise<ActionResult> {
   return runAction("syncSharePoint", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
     const source = await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
       getKnowledgeSource(tx, ctx.tenant.tenantId, collectionId),
@@ -233,7 +240,7 @@ export async function syncSharePointAction(collectionId: string): Promise<Action
 
 export async function disconnectSharePointAction(collectionId: string): Promise<ActionResult> {
   return runAction("disconnectSharePoint", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
     await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
       disconnectKnowledgeSource(tx, {
@@ -258,7 +265,7 @@ export async function connectBookStackAction(
   formData: FormData,
 ): Promise<ActionResult> {
   return runAction("connectBookStack", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
     const tenantId = ctx.tenant.tenantId;
     const source = await connectBookStack(getDatabase().db, {
@@ -282,7 +289,7 @@ export async function connectAteraAction(
   formData: FormData,
 ): Promise<ActionResult> {
   return runAction("connectAtera", async () => {
-    const ctx = await managerContext();
+    const ctx = await connectorContext();
     if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
     const tenantId = ctx.tenant.tenantId;
     const source = await connectAtera(getDatabase().db, {

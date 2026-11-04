@@ -233,7 +233,9 @@
         "facility_activated": "Object activated",
         "facility_deactivated": "Object deactivated",
         "agent_rolled_out": "Agent provided by the IT partner",
-        "agent_updated_by_partner": "Agent updated by the IT partner"
+        "agent_updated_by_partner": "Agent updated by the IT partner",
+        "tenant_partner_sources_allowed": "BookStack/Atera allowed by the IT partner",
+        "tenant_partner_sources_revoked": "BookStack/Atera blocked by the IT partner"
       },
       "actors": {
         "user": "User",
@@ -336,7 +338,11 @@
     "rateHint": "For example the ECB reference rate, with a currency buffer if you like. Leave empty to show costs in US dollars.",
     "supportUntil": "Support until {date}",
     "openTenant": "Open",
-    "packagesLink": "Agent packages"
+    "packagesLink": "Agent packages",
+    "sourcesAllowed": "BookStack/Atera: allowed",
+    "sourcesOff": "BookStack/Atera: off",
+    "sourcesToggleLabel": "Allow or block BookStack and Atera for {name}",
+    "sourcesConfirm": "Allow BookStack and Atera for “{name}”? These systems often hold data of many customers – allow it only for your own company or customers with their own instance."
   },
   "chat": {
     "newConversation": "New conversation",
@@ -722,7 +728,8 @@
       "zugriff": "Microsoft 365 did not confirm access. Check the consent and the Intune licence and try again.",
       "berechtigung": "Owners and admins manage integrations.",
       "nicht_eingerichtet": "The Microsoft 365 connection is not set up on this platform yet.",
-      "vergeben": "This Microsoft 365 account is already connected to another company. Please contact ME-IT."
+      "vergeben": "This Microsoft 365 account is already connected to another company. Please contact ME-IT.",
+      "kein_admin": "Only a Global Administrator or Privileged Role Administrator of your Microsoft 365 directory can connect – no guest account. Nothing was connected."
     },
     "permissionSharePoint": "Read documents from SharePoint (for the knowledge base)"
   },
@@ -986,7 +993,8 @@
       "current": "{count, plural, =1 {1 already up to date} other {# already up to date}}",
       "adapted": "{count, plural, =1 {1 adapted – not overwritten} other {# adapted – not overwritten}}",
       "archived": "{count, plural, =1 {1 archived – skipped} other {# archived – skipped}}",
-      "unavailable": "{count, plural, =1 {1 not available} other {# not available}}"
+      "unavailable": "{count, plural, =1 {1 not available} other {# not available}}",
+      "failed": "{count, plural, =1 {1 failed – please try again} other {# failed – please try again}}"
     },
     "forbiddenTitle": "No permission",
     "forbiddenDescription": "Agent packages are managed by partner admins.",

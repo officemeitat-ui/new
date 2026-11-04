@@ -17,7 +17,7 @@ import {
 import { conflict, notFound, validationError } from "@nexus/core";
 import { getEnv } from "@nexus/core/env";
 import { and, eq, sql, withSystem, withTenant, type Database, type Tx } from "@nexus/db";
-import { authUser, integrations } from "@nexus/db/schema";
+import { authUser, integrationDirectoryHistory, integrations } from "@nexus/db/schema";
 import { z } from "zod";
 import { appendAudit } from "./audit";
 
@@ -144,7 +144,24 @@ export async function assertDirectoryAvailable(
         ),
       ),
   );
-  if (other) {
+  // Once connected to a company, a directory stays bound to it – also after disconnecting,
+  // because the admin consent in Entra ID remains (security review 2, finding 3).
+  const [earlier] = await withSystem(
+    db,
+    "integrations: directory bound to another company?",
+    (tx) =>
+      tx
+        .select({ tenantId: integrationDirectoryHistory.tenantId })
+        .from(integrationDirectoryHistory)
+        .where(
+          and(
+            eq(integrationDirectoryHistory.provider, "microsoft365"),
+            eq(integrationDirectoryHistory.externalTenantId, directoryId),
+            sql`${integrationDirectoryHistory.tenantId} <> ${tenantId}`,
+          ),
+        ),
+  );
+  if (other || earlier) {
     throw conflict(
       "Dieses Microsoft-365-Konto ist bereits mit einer anderen Firma verbunden. Bitte wenden Sie sich an ME-IT.",
     );
@@ -239,8 +256,17 @@ export async function disconnectIntegration(
     .where(
       and(eq(integrations.tenantId, input.tenantId), eq(integrations.provider, input.provider)),
     )
-    .returning({ id: integrations.id });
+    .returning({ id: integrations.id, externalTenantId: integrations.externalTenantId });
   if (removed.length === 0) throw notFound("Keine Verbindung vorhanden.");
+  // The directory stays bound to this company (see assertDirectoryAvailable).
+  await tx
+    .insert(integrationDirectoryHistory)
+    .values({
+      tenantId: input.tenantId,
+      provider: input.provider,
+      externalTenantId: removed[0]!.externalTenantId,
+    })
+    .onConflictDoNothing();
   // No devices of the old connection may show up after a reconnect.
   deviceCache.delete(input.tenantId);
   await appendAudit(tx, input.tenantId, {
