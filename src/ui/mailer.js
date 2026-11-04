@@ -188,8 +188,16 @@ function cleanText(el) {
   for (const x of copy.querySelectorAll('.btn:not(.link-btn), details, svg, .visually-hidden, .caret, kbd, input[type=checkbox]')) x.remove()
   for (const x of copy.querySelectorAll('input, select, textarea')) x.replaceWith(x.tagName === 'SELECT' ? x.options[x.selectedIndex]?.text || '' : x.value || '')
   for (const br of copy.querySelectorAll('br')) br.replaceWith(' · ')
-  return copy.textContent.replace(/\s+/g, ' ').replace(/^[\s·]+|[\s·]+$/g, '').trim()
+  // Kennzeichen wie „rückwirkend“ nicht direkt an den Text kleben
+  for (const x of copy.querySelectorAll('.pill, .tag, .flag')) x.before(' · ')
+  return copy.textContent.replace(/\s+/g, ' ').replace(/(\s*·\s*)+/g, ' · ').replace(/^[\s·]+|[\s·]+$/g, '').trim()
 }
+
+/** Ansichten ohne Zahlen oder Tabellen zum Senden (Anleitung, eingebettete Werkzeuge); eigene mit mail: false. */
+const NOT_MAILABLE = new Set(['anleitung', 'zaehler', 'kontrolle', 'objektmappe', 'matten'])
+export const canMailView = (id = app.ui.view) => !NOT_MAILABLE.has(id) && VIEWS.find((v) => v.id === id)?.mail !== false
+/** Ansichten, die eine Woche zeigen (sonst steht „Woche ab …“ nicht im Betreff). */
+const WEEK_VIEWS = new Set(['week', 'timeline', 'coverage', 'report', 'sheet', 'zeiten'])
 
 const shown = (el) => el.getClientRects().length > 0 && !el.closest('.menu, .modal-backdrop, [hidden], details:not([open]) > :not(summary)')
 
@@ -210,7 +218,10 @@ function tableData(table) {
 /** Was die Ansicht gerade zeigt: Titel, Kennzahlen-Kacheln, Tabellen, Listen. */
 export function readView(root = document.querySelector('main'), { viewId = app.ui.view, monday = null } = {}) {
   const view = VIEWS.find((v) => v.id === viewId)
-  const title = cleanText(root.querySelector('.section-head h2') || document.createElement('i')) || view?.label || 'Bericht'
+  // Titel ohne Zusätze wie „(12 Gänge diese Woche)“
+  const head = (root.querySelector('.section-head h2') || document.createElement('i')).cloneNode(true)
+  for (const x of head.querySelectorAll('.muted, small, .pill, .flag')) x.remove()
+  const title = cleanText(head).replace(/\s*\(.*\)\s*$/, '') || view?.label || 'Bericht'
   const tiles = [...root.querySelectorAll('.stat, .kpi-tile')]
     .filter(shown)
     .map((el) => ({ label: cleanText(el.querySelector('.label, .kpi-tile-label') || el), value: cleanText(el.querySelector('.value, .kpi-tile-value') || el) }))
@@ -220,7 +231,7 @@ export function readView(root = document.querySelector('main'), { viewId = app.u
   const lists = []
   const report = [...root.querySelectorAll('.report-row, .todo-item')].filter(shown).map(cleanText).filter(Boolean)
   if (report.length) lists.push({ title: '', items: report })
-  const week = view && !view.noWeek ? monday || (app.ui.monday ? app.cur?.monday : null) : null
+  const week = view && WEEK_VIEWS.has(view.id) ? monday || (app.ui.monday ? app.cur?.monday : null) : null
   const today = new Date().toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const subtitle = `${week ? `Woche ab ${new Date(`${week}T12:00`).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' })} · ` : ''}Stand ${today}`
   return { title, subtitle, tiles, tables, lists }

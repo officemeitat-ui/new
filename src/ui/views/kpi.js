@@ -15,6 +15,7 @@ import { buildTimesheet, summarizeDays } from '../../core/timesheet.js'
 import { app, computeRange, memo, registerActions, registerView, render } from '../context.js'
 import { barList, columnChart, legend, lineChart, sparkline, tableView } from '../kpi-charts.js'
 import { esc } from '../shared.js'
+import { kpiAvailable } from './lazy.js'
 
 const ICON = '<path d="M3.5 20.5h17"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="6" width="3" height="12" rx="1"/><rect x="16" y="9" width="3" height="9" rx="1"/>'
 
@@ -267,6 +268,7 @@ registerView({
   module: '*',
   section: 'start',
   noWeek: true,
+  available: kpiAvailable,
   icon: ICON,
   text: 'Dashboard: Stunden, Besetzung, Krankenstand, Umsatz, offene Posten',
   range: () => {

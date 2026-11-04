@@ -14,6 +14,10 @@ import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
+const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'material']
+/** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
+export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
+
 // Zwei Pakete: „alle“ sieht jede Rolle (auch Vorarbeiter am Handy), „büro“ die übrigen Bereiche.
 const ALLE = () => import('./lazy-alle.js')
 const BUERO = () => import('./lazy-buero.js')
@@ -40,6 +44,8 @@ lazy(ALLE, {
       module: '*',
       section: 'start',
       noWeek: true,
+      // nur, wer mindestens eine Kennzahl sehen kann (nicht z. B. Vorarbeiter oder Prüfer)
+      available: kpiAvailable,
       icon: '<path d="M3.5 20.5h17"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="6" width="3" height="12" rx="1"/><rect x="16" y="9" width="3" height="9" rx="1"/>',
       text: 'Dashboard: Stunden, Besetzung, Krankenstand, Umsatz, offene Posten',
     },

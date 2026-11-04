@@ -12,7 +12,7 @@ export function header({ title, subtitle, brand, logo, colors }) {
   return [
     {
       columns: [
-        logo ? { stack: [logo.svg ? { svg: logo.svg, width: 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.product || 'Dienstplan', color: colors.grey, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name || '', style: 'brand' }, { text: brand.product || 'Dienstplan', color: colors.grey }] },
+        logo ? { stack: [logo.svg ? { svg: logo.svg, width: 120 } : { image: logo.image, fit: [130, 52] }, { text: brand.app || brand.product || 'Cleanos App', color: colors.grey, margin: [0, 2, 0, 0] }] } : { stack: [{ text: brand.name || '', style: 'brand' }, { text: brand.app || brand.product || 'Cleanos App', color: colors.grey }] },
         { stack: [{ text: title, style: 'title', alignment: 'right' }, { text: subtitle, alignment: 'right', color: colors.grey }] },
       ],
     },
@@ -29,7 +29,7 @@ export function docShell(content, { brand, colors, createdAt, title, labels = {}
   return {
     pageSize: 'A4',
     pageMargins: [36, 30, 36, 40],
-    info: { title, author: brand.name, creator: brand.product || 'Dienstplan' },
+    info: { title, author: brand.name, creator: brand.app || brand.product || 'Cleanos App' },
     content,
     footer: (page, pages) => ({ columns: [{ text: `${brand.name || ''}${brand.name ? ' · ' : ''}${labels.created || 'erstellt am'} ${created}`, fontSize: 7.5, color: colors.grey }, { text: pageText(page, pages), alignment: 'right', fontSize: 7.5, color: colors.grey }], margin: [36, 14, 36, 0] }),
     defaultStyle: { fontSize: 8.5, lineHeight: 1.1 },

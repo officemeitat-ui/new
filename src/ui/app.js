@@ -30,6 +30,7 @@ import { applyTheme, themeButton } from './theme.js'
 import { startWeather } from './weather.js'
 import { agoText, startSync, syncState } from './sync.js'
 import { download, esc, ICON, menu } from './shared.js'
+import { canMailView } from './mailer.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
 
 const PREFS_KEY = 'einsatzplaner.prefs.v2'
@@ -92,7 +93,7 @@ function moreMenu(plan) {
       plan && { label: 'Neu planen', icon: ICON.bolt, action: 'replan', title: 'Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen' },
       plan && { label: 'An Mitarbeitende versenden', icon: ICON.send, action: 'open-send' },
       { heading: 'E-Mail' },
-      app.ui.view !== 'anleitung' && { label: 'Diese Ansicht per E-Mail', icon: ICON.send, action: 'mail-view', hint: 'als PDF-Bericht mit Tabellen' },
+      canMailView() && { label: 'Diese Ansicht per E-Mail', icon: ICON.send, action: 'mail-view', hint: 'als PDF-Bericht mit Tabellen' },
       { label: 'Aufgabe per E-Mail', icon: ICON.check, action: 'mail-task-new', hint: 'mit Kalender-Erinnerung' },
       { label: 'Neue E-Mail', icon: ICON.send, action: 'mail-compose-open' },
       (!app.access || app.access.all) && { label: 'Berichte automatisch', icon: ICON.calendar, action: 'mail-reports-open', hint: 'z. B. jeden Montag die Kennzahlen' },

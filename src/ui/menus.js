@@ -68,6 +68,7 @@ function focusItem(d, which) {
   list[which === 'first' && current >= 0 ? current : next].focus({ preventScroll: true })
 }
 
+let openedAt = 0
 if (typeof document !== 'undefined') {
   document.addEventListener('pointerdown', () => (pointer = true), true)
   document.addEventListener(
@@ -77,6 +78,7 @@ if (typeof document !== 'undefined') {
       if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('menu-wrap')) return
       if (!d.open) return
       closeMenus(d)
+      openedAt = Date.now()
       place(d)
       if (!pointer) focusItem(d, 'first')
     },
@@ -116,6 +118,8 @@ if (typeof document !== 'undefined') {
     'scroll',
     (e) => {
       if (narrow()) return
+      // Nachlauf vom Trackpad oder Mausrad direkt nach dem Öffnen nicht als Bildlauf werten
+      if (Date.now() - openedAt < 200) return
       for (const d of document.querySelectorAll('details.menu-wrap[open]')) if (!(e.target instanceof Node && d.contains(e.target))) d.open = false
     },
     true,

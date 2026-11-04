@@ -11,6 +11,7 @@ import { agoText, syncState } from './sync.js'
 import { quickItems } from './quick.js'
 import { navIcon } from './sidebar.js'
 import { esc, ICON, modalFrame, options } from './shared.js'
+import { canMailView } from './mailer.js'
 
 const phone = typeof matchMedia === 'function' ? matchMedia('(max-width: 700px)') : null
 /** Schmaler Bildschirm (Handy, Tablet hochkant geteilt). */
@@ -112,7 +113,8 @@ function moreModal(c) {
     quickItems().some((q) => q.id !== 'abwesenheit') && ['quick-open', `${ICON.plus} Neu anlegen …`, ''],
     plan && ['open-absence-new', `${ICON.plus} Abwesenheit eintragen`, ''],
     // wie „⋯ → Diese Ansicht per E-Mail“ am PC (das „⋯“ gibt es am Handy nicht)
-    app.ui.view !== 'anleitung' && ['mail-view', `${ICON.send} Diese Ansicht per E-Mail`, ''],
+    canMailView() && ['mail-view', `${ICON.send} Diese Ansicht per E-Mail`, ''],
+    (!app.access || app.access.all) && ['mail-reports-open', `${ICON.calendar} Berichte automatisch`, ''],
   ].filter(Boolean)
   const visible = visibleViews()
   const pinned = pinnedViews(visible)
