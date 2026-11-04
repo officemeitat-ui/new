@@ -40,6 +40,8 @@ function options(config: BookStackConfig): HttpOptions {
   return {
     service: "BookStack",
     headers: { authorization: `Token ${config.tokenId}:${config.tokenSecret}` },
+    // The address comes from the customer (SSRF protection, see http.ts).
+    publicOnly: true,
     allowPrivate: config.allowPrivate,
     fetch: config.fetch,
     sleep: config.sleep,
@@ -59,7 +61,7 @@ async function listAll<T>(config: BookStackConfig, path: string, schema: z.ZodTy
   const all: T[] = [];
   // The instance may cap the page size lower than requested (API_MAX_ITEM_COUNT): advance by
   // what actually came back.
-  for (let offset = 0; ; ) {
+  for (let offset = 0; ;) {
     const url = `${config.baseUrl}/api/${path}?count=${PAGE_SIZE}&offset=${offset}&sort=id`;
     const page = parse(listing(schema), await getJson(url, options(config)));
     all.push(...page.data);

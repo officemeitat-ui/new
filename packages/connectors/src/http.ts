@@ -1,5 +1,8 @@
+import { lookup as lookupCallback, type LookupAddress, type LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { request as httpsRequest } from "node:https";
+import { BlockList, isIP, type LookupFunction } from "node:net";
+import { Readable } from "node:stream";
 
 /**
  * Shared HTTP helper for API-key connectors (BookStack, Atera): timeouts, size limit, retry on
@@ -22,6 +25,11 @@ export type HttpOptions = {
   /** Shown in error messages, e.g. "BookStack". */
   service: string;
   headers: Record<string, string>;
+  /**
+   * The URL was entered by a customer: connect only to public addresses, checked when the
+   * connection is made (no gap between check and connect, so DNS rebinding does not help).
+   */
+  publicOnly?: boolean;
   /** Plain http and private addresses (development and tests only). */
   allowPrivate?: boolean;
   fetch?: typeof fetch;
@@ -34,25 +42,54 @@ const MAX_WAIT_MS = 30_000;
 const DEFAULT_TIMEOUT_MS = 20_000;
 export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
-/** IPv4/IPv6 ranges that must not be reached from a customer-entered URL. */
-export function isPrivateAddress(address: string): boolean {
-  if (isIP(address) === 4) {
-    const [a, b] = address.split(".").map(Number) as [number, number];
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 100 && b >= 64 && b <= 127) ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      a >= 224
-    );
+/**
+ * Address ranges that must not be reached from a customer-entered URL: private, loopback,
+ * link-local, CGNAT, multicast, documentation and other reserved networks (IANA special-purpose
+ * registries). Node's BlockList also matches IPv4-mapped IPv6 forms such as ::ffff:7f00:1.
+ */
+const BLOCKED = (() => {
+  const list = new BlockList();
+  for (const [network, prefix] of [
+    ["0.0.0.0", 8],
+    ["10.0.0.0", 8],
+    ["100.64.0.0", 10],
+    ["127.0.0.0", 8],
+    ["169.254.0.0", 16],
+    ["172.16.0.0", 12],
+    ["192.0.0.0", 24],
+    ["192.0.2.0", 24],
+    ["192.88.99.0", 24],
+    ["192.168.0.0", 16],
+    ["198.18.0.0", 15],
+    ["198.51.100.0", 24],
+    ["203.0.113.0", 24],
+    ["224.0.0.0", 4],
+    ["240.0.0.0", 4],
+  ] as const) {
+    list.addSubnet(network, prefix, "ipv4");
   }
-  const v6 = address.toLowerCase();
-  if (v6 === "::" || v6 === "::1") return true;
-  if (v6.startsWith("::ffff:")) return isPrivateAddress(v6.slice(7));
-  return /^(fc|fd|fe8|fe9|fea|feb|ff)/.test(v6);
+  for (const [network, prefix] of [
+    ["::", 128],
+    ["::1", 128],
+    ["::", 96], // IPv4-compatible (deprecated)
+    ["64:ff9b::", 96], // NAT64 – could reach internal IPv4 targets
+    ["64:ff9b:1::", 48],
+    ["100::", 64],
+    ["2001:db8::", 32],
+    ["fc00::", 7],
+    ["fe80::", 10],
+    ["fec0::", 10],
+    ["ff00::", 8],
+  ] as const) {
+    list.addSubnet(network, prefix, "ipv6");
+  }
+  return list;
+})();
+
+export function isPrivateAddress(address: string): boolean {
+  const family = isIP(address);
+  if (family === 0) return true; // not an address at all: never treat as public
+  return BLOCKED.check(address, family === 4 ? "ipv4" : "ipv6");
 }
 
 /**
@@ -103,6 +140,70 @@ export async function assertSafeBaseUrl(raw: string, allowPrivate = false): Prom
   return url.toString().replace(/\/+$/, "");
 }
 
+const PRIVATE_ERROR = "EPRIVATEADDRESS";
+
+/**
+ * DNS lookup for outgoing connections that refuses private targets. Used as `lookup` of the
+ * socket itself, so the address that is checked is the address that is connected to.
+ */
+export const publicOnlyLookup: LookupFunction = (
+  hostname: string,
+  options: LookupOptions,
+  callback,
+) => {
+  lookupCallback(hostname, { family: options.family ?? 0, all: true }, (error, addresses) => {
+    if (error) return callback(error, "", 0);
+    const list = addresses as unknown as LookupAddress[];
+    if (list.length === 0 || list.some((entry) => isPrivateAddress(entry.address))) {
+      return callback(Object.assign(new Error("private address"), { code: PRIVATE_ERROR }), "", 0);
+    }
+    if (options.all) return callback(null, list);
+    callback(null, list[0]!.address, list[0]!.family);
+  });
+};
+
+/** GET over https with `publicOnlyLookup`; returns a standard Response. */
+function publicOnlyFetch(
+  url: string,
+  init: { headers: Record<string, string>; signal: AbortSignal; redirect?: string },
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    if (target.protocol !== "https:") {
+      reject(new ConnectorError(400, "invalid_url", "Die Adresse muss mit https:// beginnen."));
+      return;
+    }
+    // A literal IP skips the lookup entirely: check it here.
+    const literal = target.hostname.replace(/^\[|\]$/g, "");
+    if (isIP(literal) && isPrivateAddress(literal)) {
+      reject(Object.assign(new Error("private address"), { code: PRIVATE_ERROR }));
+      return;
+    }
+    const req = httpsRequest(
+      target,
+      { method: "GET", headers: init.headers, lookup: publicOnlyLookup, signal: init.signal },
+      (res) => {
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (value !== undefined)
+            headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+        }
+        const status = res.statusCode ?? 502;
+        const empty = [204, 205, 304].includes(status);
+        if (empty) res.resume();
+        resolve(
+          new Response(empty ? null : (Readable.toWeb(res) as ReadableStream<Uint8Array>), {
+            status: status >= 200 && status <= 599 ? status : 502,
+            headers,
+          }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 const isTimeout = (error: unknown) =>
   error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 
@@ -130,7 +231,8 @@ async function readLimited(response: Response, service: string): Promise<string>
 
 /** GET with timeout, size limit and up to two retries on 429/503 (Retry-After). */
 export async function getText(url: string, options: HttpOptions): Promise<string> {
-  const doFetch = options.fetch ?? fetch;
+  const doFetch =
+    options.fetch ?? (options.publicOnly && !options.allowPrivate ? publicOnlyFetch : fetch);
   const sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   for (let attempt = 0; ; attempt++) {
     let response: Response;
@@ -141,6 +243,14 @@ export async function getText(url: string, options: HttpOptions): Promise<string
         signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       });
     } catch (error) {
+      if (error instanceof ConnectorError) throw error;
+      if ((error as { code?: string }).code === PRIVATE_ERROR) {
+        throw new ConnectorError(
+          400,
+          "private_address",
+          "Interne Netzwerkadressen sind nicht erlaubt. Die Adresse muss aus dem Internet erreichbar sein.",
+        );
+      }
       throw isTimeout(error)
         ? new ConnectorError(
             504,

@@ -19,6 +19,7 @@ import { DocumentList } from "@/components/knowledge/document-list";
 import { SearchTest } from "@/components/knowledge/search-test";
 import { KnowledgeSource } from "@/components/knowledge/knowledge-source";
 import { UploadForm } from "@/components/knowledge/upload-form";
+import { safeExternalUrl } from "@/lib/redirect";
 import { requireTenant } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -103,7 +104,7 @@ export default async function CollectionPage({
           pageCount: d.pageCount,
           chunkCount: d.chunkCount,
           uploaded: `${d.fromSource ? PROVIDER_LABEL[source?.provider ?? "sharepoint"] : (d.createdByName ?? "–")} · ${formatDateTime(d.createdAt)}`,
-          sourceUrl: d.sourceUrl,
+          sourceUrl: safeExternalUrl(d.sourceUrl),
         }))}
       />
 
@@ -114,7 +115,11 @@ export default async function CollectionPage({
   );
 }
 
-const PROVIDER_LABEL = { sharepoint: "SharePoint", bookstack: "BookStack", atera: "Atera" } as const;
+const PROVIDER_LABEL = {
+  sharepoint: "SharePoint",
+  bookstack: "BookStack",
+  atera: "Atera",
+} as const;
 
 /** What the browser may see of a source: never the secret. */
 function sourceView(source: NonNullable<Awaited<ReturnType<typeof getKnowledgeSource>>>) {
@@ -134,7 +139,7 @@ function sourceView(source: NonNullable<Awaited<ReturnType<typeof getKnowledgeSo
       provider: "bookstack" as const,
       name: source.displayName ?? "BookStack",
       detail: null,
-      url: typeof settings.baseUrl === "string" ? settings.baseUrl : null,
+      url: typeof settings.baseUrl === "string" ? safeExternalUrl(settings.baseUrl) : null,
       monthsBack: null,
     };
   }
@@ -153,7 +158,7 @@ function sourceView(source: NonNullable<Awaited<ReturnType<typeof getKnowledgeSo
     provider: "sharepoint" as const,
     name: source.driveName ?? "SharePoint",
     detail: source.siteName,
-    url: source.siteUrl,
+    url: safeExternalUrl(source.siteUrl),
     monthsBack: null,
   };
 }

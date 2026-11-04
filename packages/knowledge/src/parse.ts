@@ -1,5 +1,5 @@
-import { extractRawText } from "mammoth";
-import { extractText, getDocumentProxy } from "unpdf";
+import { Worker } from "node:worker_threads";
+import { assertSafePdf, assertSafeZip, BombError } from "./bomb-check";
 import type { KnowledgeKind } from "./detect";
 
 /** Text of a document; PDFs keep their page numbers for citations. */
@@ -16,24 +16,83 @@ function normalise(text: string): string {
     .trim();
 }
 
+const EXTRACT_WORKER = new URL("./extract-worker.mjs", import.meta.url);
+/** Limits for one PDF/DOCX extraction (security review, finding 12). */
+export const EXTRACT_LIMITS = { timeoutMs: 60_000, maxHeapMb: 512 };
+
+/**
+ * Extracts raw text in a worker thread with a heap limit and a timeout. Out of memory, a crash
+ * or a hang end the thread, not the process that also runs other tenants' agents.
+ */
+function extractIsolated(kind: "pdf" | "docx", bytes: Uint8Array): Promise<string[]> {
+  const unreadable =
+    kind === "pdf"
+      ? "Das PDF konnte nicht gelesen werden."
+      : "Das Word-Dokument konnte nicht gelesen werden.";
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const worker = new Worker(EXTRACT_WORKER, {
+      workerData: { kind, bytes },
+      resourceLimits: {
+        maxOldGenerationSizeMb: EXTRACT_LIMITS.maxHeapMb,
+        maxYoungGenerationSizeMb: 64,
+      },
+    });
+    const finish = (error: Error | null, pages?: string[]) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      void worker.terminate();
+      if (error) reject(error);
+      else resolve(pages ?? []);
+    };
+    const timer = setTimeout(
+      () =>
+        finish(
+          new ParseError("Das Einlesen hat zu lange gedauert. Die Datei wird nicht verarbeitet."),
+        ),
+      EXTRACT_LIMITS.timeoutMs,
+    );
+    worker.once("message", (message: { ok: boolean; pages?: string[]; password?: boolean }) => {
+      if (message.ok) finish(null, message.pages);
+      else if (message.password && kind === "pdf")
+        finish(new ParseError("Das PDF ist passwortgeschützt."));
+      else finish(new ParseError(unreadable));
+    });
+    worker.once("error", (error: Error & { code?: string }) =>
+      finish(
+        new ParseError(
+          error.code === "ERR_WORKER_OUT_OF_MEMORY"
+            ? "Die Datei braucht beim Einlesen zu viel Speicher und wird nicht verarbeitet."
+            : unreadable,
+        ),
+      ),
+    );
+    worker.once("exit", (code) => {
+      if (code !== 0) finish(new ParseError(unreadable));
+    });
+  });
+}
+
+/** Measures the real decompressed size first (zip/flate bombs), see bomb-check.ts. */
+function assertNoBomb(kind: "pdf" | "docx", bytes: Uint8Array) {
+  try {
+    if (kind === "docx") assertSafeZip(bytes);
+    else assertSafePdf(bytes);
+  } catch (error) {
+    if (error instanceof BombError) throw new ParseError(error.message);
+    throw error;
+  }
+}
+
 export async function parseDocument(
   kind: KnowledgeKind,
   bytes: Uint8Array,
 ): Promise<ParsedDocument> {
   switch (kind) {
     case "pdf": {
-      let pages: string[];
-      try {
-        // unpdf (pdf.js) – https://github.com/unjs/unpdf
-        const pdf = await getDocumentProxy(new Uint8Array(bytes));
-        pages = (await extractText(pdf, { mergePages: false })).text;
-      } catch (error) {
-        throw new ParseError(
-          error instanceof Error && /password/i.test(error.message)
-            ? "Das PDF ist passwortgeschützt."
-            : "Das PDF konnte nicht gelesen werden.",
-        );
-      }
+      assertNoBomb("pdf", bytes);
+      const pages = await extractIsolated("pdf", bytes);
       const result = pages.map((text, index) => ({ page: index + 1, text: normalise(text) }));
       if (result.every((p) => p.text.length === 0)) {
         throw new ParseError(
@@ -43,13 +102,9 @@ export async function parseDocument(
       return { pages: result.filter((p) => p.text.length > 0) };
     }
     case "docx": {
-      try {
-        // mammoth – https://github.com/mwilliamson/mammoth.js
-        const { value } = await extractRawText({ buffer: Buffer.from(bytes) });
-        return { pages: [{ page: null, text: normalise(value) }] };
-      } catch {
-        throw new ParseError("Das Word-Dokument konnte nicht gelesen werden.");
-      }
+      assertNoBomb("docx", bytes);
+      const [value = ""] = await extractIsolated("docx", bytes);
+      return { pages: [{ page: null, text: normalise(value) }] };
     }
     case "markdown":
     case "text":

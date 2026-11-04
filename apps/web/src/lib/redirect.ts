@@ -16,3 +16,17 @@ export function safeNextPath(value: string | null | undefined): string {
     return "/";
   }
 }
+
+/**
+ * External links from connected systems (SharePoint, BookStack) are only rendered when they are
+ * plain http(s) URLs – never javascript:, data: or similar, even if a source returned one.
+ */
+export function safeExternalUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}

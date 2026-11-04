@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeNextPath } from "../src/lib/redirect";
+import { safeExternalUrl, safeNextPath } from "../src/lib/redirect";
 
 describe("safeNextPath", () => {
   it("keeps paths inside the app", () => {
@@ -16,5 +16,18 @@ describe("safeNextPath", () => {
     "javascript:alert(1)",
   ])("falls back to / for %s", (value) => {
     expect(safeNextPath(value)).toBe("/");
+  });
+});
+
+describe("safeExternalUrl", () => {
+  it("renders only http(s) links from connected systems", () => {
+    expect(safeExternalUrl("https://doku.example/books/a/page/b")).toBe(
+      "https://doku.example/books/a/page/b",
+    );
+    expect(safeExternalUrl("javascript:alert(1)")).toBeNull();
+    expect(safeExternalUrl("JaVaScRiPt:alert(1)")).toBeNull();
+    expect(safeExternalUrl("data:text/html,<script>")).toBeNull();
+    expect(safeExternalUrl("kein link")).toBeNull();
+    expect(safeExternalUrl(null)).toBeNull();
   });
 });

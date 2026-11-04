@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { listTicketComments, listTickets, testAtera } from "../src/atera";
 import { exportPageMarkdown, listBooks, listPages, pageUrl } from "../src/bookstack";
-import { assertSafeBaseUrl, ConnectorError, isPrivateAddress } from "../src/http";
+import { assertSafeBaseUrl, ConnectorError, getText, isPrivateAddress } from "../src/http";
 import {
   MOCK_ATERA_KEY,
   MOCK_BOOKSTACK_TOKEN,
@@ -90,5 +90,29 @@ describe("SSRF protection for customer-entered addresses", () => {
     expect(isPrivateAddress("::ffff:192.168.1.1")).toBe(true);
     expect(isPrivateAddress("fd12::1")).toBe(true);
     expect(isPrivateAddress("2a01:4f8::1")).toBe(false);
+    // Other spellings of internal addresses.
+    expect(isPrivateAddress("::ffff:7f00:1")).toBe(true);
+    expect(isPrivateAddress("::ffff:a9fe:a9fe")).toBe(true);
+    expect(isPrivateAddress("64:ff9b::7f00:1")).toBe(true);
+    expect(isPrivateAddress("0.0.0.0")).toBe(true);
+    expect(isPrivateAddress("::ffff:808:808")).toBe(false);
+    expect(isPrivateAddress("not-an-ip")).toBe(true);
+    // WHATWG URL parsing turns decimal and hex hosts into dotted IPv4 first.
+    await expect(assertSafeBaseUrl("https://2130706433")).rejects.toThrow(/Interne/);
+    await expect(assertSafeBaseUrl("https://0x7f.1")).rejects.toThrow(/Interne/);
+    await expect(assertSafeBaseUrl("https://[::ffff:127.0.0.1]")).rejects.toThrow(/Interne/);
+  });
+
+  it("checks the address again when the connection is made (DNS rebinding)", async () => {
+    const options = { service: "BookStack", headers: {}, publicOnly: true };
+    // Even if a name resolved to a public address during the check, the connection itself
+    // resolves again and refuses private targets.
+    await expect(getText("https://localhost:9/api/pages", options)).rejects.toThrow(/Interne/);
+    await expect(getText("https://127.0.0.1:9/api/pages", options)).rejects.toThrow(/Interne/);
+    await expect(getText("https://[::1]:9/api/pages", options)).rejects.toThrow(/Interne/);
+    await expect(getText("https://[::ffff:7f00:1]:9/api/pages", options)).rejects.toThrow(
+      /Interne/,
+    );
+    await expect(getText("http://93.184.215.14/api/pages", options)).rejects.toThrow(/https/);
   });
 });
