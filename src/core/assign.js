@@ -35,14 +35,16 @@ function probeErrors(ctx, task, emp, mine) {
 }
 
 function probeUncached(ctx, task, emp, others, objects) {
-  const from = mondayOf(task.recurrence.anchor || task.recurrence.date || '2026-01-05')
+  // Probe ab dem Anfang der Leistung, bei neuen Mitarbeitenden ab der ersten vollen Woche nach dem Eintritt
+  let from = mondayOf(task.recurrence.anchor || task.recurrence.date || '2026-01-05')
+  if (emp.entryDate && emp.entryDate > from) from = mondayOf(emp.entryDate) === emp.entryDate ? emp.entryDate : addDays(mondayOf(emp.entryDate), 7)
   const tasks = [...others, task].map((t) => ({ ...t, regulars: [emp.id] }))
   const insts = buildInstances({ objects, tasks }, from, addDays(from, 41), new Map(), ctx.rules)
   const st = new PlanState(insts, Object.fromEntries(insts.map((i) => [i.key, [{ employeeId: emp.id }]])))
   const own = new Set(insts.filter((i) => i.taskId === task.id).map((i) => i.key))
   const out = new Set()
   for (const i of evaluateEmployee(emp, st.instancesOf(emp.id), { ...ctx, absencesByEmployee: new Map() }))
-    if (i.severity === 'error' && !['SKILL', 'NOT_TRAINED', 'MONTHLY_LIMIT'].includes(i.code) && i.keys.some((k) => own.has(k))) out.add(i.message.replace(/ \(.*$|:.*$/, ''))
+    if (i.severity === 'error' && !['SKILL', 'NOT_TRAINED', 'MONTHLY_LIMIT', 'EMPLOYMENT'].includes(i.code) && i.keys.some((k) => own.has(k))) out.add(i.message.replace(/ \(.*$|:.*$/, ''))
   return [...out]
 }
 

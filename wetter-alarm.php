@@ -116,7 +116,8 @@ function protokoll(array &$stand, string $ort, string $text): void
 function lage(array $stunden, array $warnungen, array $r, int $jetzt): ?array
 {
     $bis = $jetzt + (int) round($r['vorlaufStunden'] * 3600);
-    $nah = array_values(array_filter($stunden, fn ($h) => $h['at'] >= $jetzt - 3600 && $h['at'] < $bis));
+    // Werte von GeoSphere gelten für die Stunde, die zum Zeitstempel endet: Beginn = Zeitstempel − 1 h
+    $nah = array_values(array_filter($stunden, fn ($h) => $h['at'] > $jetzt - 3600 && $h['at'] - 3600 < $bis));
     $texte = [];
     $arten = [];
     $stufe = 0;
@@ -135,14 +136,15 @@ function lage(array $stunden, array $warnungen, array $r, int $jetzt): ?array
                 $summe += (float) ($h['snow'] ?? 0);
             }
         }
-        $wann = $schnee['at'] <= $jetzt ? 'Es schneit' : 'Schneefall ab ' . uhrzeit($schnee['at']) . ' Uhr';
+        $beginn = $schnee['at'] - 3600;
+        $wann = $beginn <= $jetzt ? 'Es schneit' : 'Schneefall ab ' . uhrzeit($beginn) . ' Uhr';
         $texte[] = sprintf('%s, ca. %s cm in 12 h', $wann, str_replace('.', ',', (string) round($summe, 1)));
         $arten[] = 'schnee';
         $stufe = 1;
     }
     foreach ($nah as $h) {
         if ($h['t'] !== null && $h['t'] <= $r['glaetteC'] && ($h['precip'] ?? 0) >= 0.1 && !(($h['snow'] ?? 0) > 0)) {
-            $texte[] = sprintf('Glätte möglich ab %s Uhr (%s °C mit Niederschlag)', uhrzeit(max($h['at'], $jetzt)), str_replace('.', ',', (string) round($h['t'], 1)));
+            $texte[] = sprintf('Glätte möglich ab %s Uhr (%s °C mit Niederschlag)', uhrzeit(max($h['at'] - 3600, $jetzt)), str_replace('.', ',', (string) round($h['t'], 1)));
             $arten[] = 'glaette';
             $stufe = max($stufe, 1);
             break;
@@ -171,11 +173,33 @@ function gemeldet(array $wartend): string
 function stufe1(array $ort, int $ts): array
 {
     $liste = array_values((array) ($ort['stufe1'] ?? []));
+    // abwesend (Urlaub, Krankenstand laut App) am Tag des Einsatzes: nicht wecken
+    $da = array_values(array_filter($liste, fn ($p) => anwesend($p, $ts)));
     if (($ort['wechsel'] ?? '') !== 'woche' || count($liste) < 2) {
-        return $liste;
+        return $da;
     }
     $tag = intdiv((int) gmmktime(0, 0, 0, (int) uhrzeit($ts, 'n'), (int) uhrzeit($ts, 'j'), (int) uhrzeit($ts, 'Y')), 86400);
-    return [$liste[intdiv($tag + 3, 7) % count($liste)]];
+    // Bereitschaft dieser Woche; ist sie abwesend, der/die Nächste in der Reihe
+    $start = intdiv($tag + 3, 7) % count($liste);
+    for ($i = 0; $i < count($liste); $i++) {
+        $p = $liste[($start + $i) % count($liste)];
+        if (anwesend($p, $ts)) {
+            return [$p];
+        }
+    }
+    return [];
+}
+
+/** Ist die Person am Tag des Einsatzes da? Abends (ab 18 Uhr) zählt schon der nächste Morgen. */
+function anwesend(array $p, int $ts): bool
+{
+    $tag = uhrzeit($ts + 6 * 3600, 'Y-m-d');
+    foreach ((array) ($p['abwesend'] ?? []) as $z) {
+        if (is_array($z) && count($z) === 2 && $tag >= (string) $z[0] && $tag <= (string) $z[1]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function in_ruhezeit(array $r, int $ts): bool
@@ -382,7 +406,8 @@ function pruefen(array $e): array
                 protokoll($stand, $name, "Alarm nach der Ruhezeit: $text");
             }
             // niemand bestätigt: Stufe 2
-            if ($alarm && empty($alarm['test']) && !$alarm['wach'] && !$alarm['eskaliert'] && !empty($ort['stufe2']) && $jetzt - (int) $alarm['gesendet'] >= $r['eskalationMinuten'] * 60) {
+            // niemand geweckt (Ort ohne Stufe 1): keine nächtliche Eskalation ans Büro
+            if ($alarm && empty($alarm['test']) && !empty($alarm['empfaenger']) && !$alarm['wach'] && !$alarm['eskaliert'] && !empty($ort['stufe2']) && $jetzt - (int) $alarm['gesendet'] >= $r['eskalationMinuten'] * 60) {
                 $alarm['eskaliert'] = $jetzt;
                 $fehler = array_merge($fehler, alarm_senden($e, $alarm, (array) $ort['stufe2'], "$titel – niemand bestätigt", sprintf('%s. Seit %s Uhr hat niemand aus dem Winterdienst-Team bestätigt. Bitte übernehmen oder das Team anrufen.', $alarm['text'], uhrzeit((int) $alarm['gesendet']))));
                 protokoll($stand, $name, 'Niemand bestätigt: Stufe 2 alarmiert');
@@ -653,6 +678,6 @@ if ($aktion === 'speichern' && $methode === 'POST') {
     if (@file_put_contents($datei . '.neu', json_encode($neu, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX) === false || !@rename($datei . '.neu', $datei)) {
         ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
     }
-    ausgabe(200, ['gespeichert' => count($neu['orte']) . ' Orte']);
+    ausgabe(200, ['gespeichert' => count($neu['orte']) . (count($neu['orte']) === 1 ? ' Ort' : ' Orte')]);
 }
 ausgabe(400, ['fehler' => 'Unbekannte Aktion']);

@@ -493,7 +493,7 @@ registerActions(
       try {
         await call('einrichten', settingsFile(d))
         const r = await sendAll()
-        toast(`Übertragen: Pläne für ${r.personen} ${r.personen === 1 ? 'Person' : 'Personen'}${r.angebote ? `, ${r.angebote === 1 ? '1 offener Einsatz' : `${r.angebote} offene Einsätze`} in der Börse` : ''}${r.benachrichtigt ? `, ${r.benachrichtigt} Push-Nachrichten` : ''}.`)
+        toast(`Übertragen: Pläne für ${r.personen} ${r.personen === 1 ? 'Person' : 'Personen'}${r.angebote ? `, ${r.angebote === 1 ? '1 offener Einsatz' : `${r.angebote} offene Einsätze`} in der Börse` : ''}${r.benachrichtigt ? `, ${r.benachrichtigt} ${r.benachrichtigt === 1 ? 'Push-Nachricht' : 'Push-Nachrichten'}` : ''}.`)
         loadRequests({ force: true })
       } catch (err) {
         toast(`Gespeichert, aber nicht übertragen: ${err.message}`)

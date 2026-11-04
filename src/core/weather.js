@@ -431,7 +431,10 @@ export function winterAt(place, objects, locations) {
 /** Einstellungen eines Orts, ohne eigene Auswahl: Stufe 1 = Winterdienst-Teams der Objekte dort. */
 export function alarmPlace(alarm, place, objects, locations) {
   const own = alarm?.places?.[place.name]
-  return { active: own ? own.active !== false : true, level1: own?.level1 ?? winterAt(place, objects, locations).team, level2: own?.level2 ?? [], rotate: !!own?.rotate }
+  const at = winterAt(place, objects, locations)
+  // ohne eigene Einstellung: nur Orte mit Winterdienst-Objekten (sonst nächtliche Alarme an niemanden)
+  const active = own ? own.active !== false : at.objects.length > 0
+  return { active, level1: own?.level1 ?? at.team, level2: own?.level2 ?? [], rotate: !!own?.rotate }
 }
 
 /**
@@ -449,7 +452,10 @@ export function onCallIndex(date, count) {
  * Einstellungen für den Server (privat/wetter-alarm.json): Orte mit Koordinaten,
  * je Stufe die Personen mit ntfy-Thema und E-Mail, Regeln, Schlüssel.
  */
-export function alarmFile({ alarm, locations, objects, employees, address, today = viennaParts(Date.now()).date }) {
+export function alarmFile({ alarm, locations, objects, employees, address, absences = [], today = viennaParts(Date.now()).date }) {
+  // Abwesenheiten der nächsten 60 Tage je Person (der Server weckt niemanden, der krank oder auf Urlaub ist)
+  const until = new Date(Date.parse(`${today}T12:00:00Z`) + 60 * 86400e3).toISOString().slice(0, 10)
+  const away = (id) => absences.filter((a) => a.employeeId === id && a.to >= today && a.from <= until).map((a) => [a.from, a.to])
   const a = { ...ALARM_DEFAULTS, ...alarm }
   const person = (id, withEmail) => {
     const e = employees.find((x) => x.id === id)
@@ -458,6 +464,8 @@ export function alarmFile({ alarm, locations, objects, employees, address, today
     const out = { name: e.name }
     if (a.topics?.[id]) out.ntfy = a.topics[id]
     if (withEmail && e.email) out.email = e.email
+    const off = away(id)
+    if (off.length) out.abwesend = off
     return out.ntfy || out.email ? out : null
   }
   const office = [

@@ -86,7 +86,7 @@ registerActions(
       try {
         const res = await publishWeek()
         openModal({ type: 'send' })
-        toast(`${res.corrections ? `Korrektur gebucht: ${res.corrections} Saldo-Änderungen.` : 'Veröffentlicht.'} ${res.files ? `${res.files} ${res.files === 1 ? 'Datei' : 'Dateien'} erstellt.` : ''}${res.fileError ? ` Dateiexport fehlgeschlagen: ${res.fileError}` : ''}${portalNote(res)}`)
+        toast(`${res.corrections ? `Korrektur gebucht: ${res.corrections} ${res.corrections === 1 ? 'Saldo-Änderung' : 'Saldo-Änderungen'}.` : 'Veröffentlicht.'} ${res.files ? `${res.files} ${res.files === 1 ? 'Datei' : 'Dateien'} erstellt.` : ''}${res.fileError ? ` Dateiexport fehlgeschlagen: ${res.fileError}` : ''}${portalNote(res)}`)
       } catch (err) {
         el.disabled = false
         toast(`Veröffentlichen fehlgeschlagen: ${err.message}`)

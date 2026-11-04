@@ -223,7 +223,9 @@ function computeFresh(monday, month) {
     if (!sheets.has(emp.id)) sheets.set(emp.id, buildTimesheet(ctx, emp, monday, instances, state))
     return sheets.get(emp.id)
   }
-  const changedSincePublish = (emp) => !!published?.snapshot && published.snapshot[emp.id] !== undefined && published.snapshot[emp.id] !== timesheetSignature(timesheet(emp))
+  // neu dazu (nicht im Stand der Veröffentlichung) und jetzt mit Einsätzen: ebenfalls geändert
+  const hasWork = (emp) => timesheet(emp).days.some((d) => d.lines.some((l) => l.kind === 'work'))
+  const changedSincePublish = (emp) => !!published?.snapshot && (published.snapshot[emp.id] === undefined ? hasWork(emp) : published.snapshot[emp.id] !== timesheetSignature(timesheet(emp)))
   return { monday, sunday, month, from, to, holidays, ctx, instances, state, validation, week, days: eachDay(monday, sunday), published, timesheet, changedSincePublish }
 }
 

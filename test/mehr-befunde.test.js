@@ -52,3 +52,28 @@ test('Import: Wochentage über das Wochenende („Fr-Mo“), normale Bereiche bl
 test('Winterdienst-Fotos: „ß“ wird „ss“ im Dateinamen', () => {
   assert.equal(photoPath({ date: '2026-12-02', object: 'Hauptstraße 5' }, 'foto1.jpg'), 'exporte/Winterdienst/2026-12/2026-12-02_Hauptstrasse-5_foto1.jpg')
 })
+
+test('Schnee-Alarm: Abwesenheiten der nächsten 60 Tage stehen bei der Person (Server weckt sie nicht)', () => {
+  const loc = { name: 'Salzburg', lat: 47.81, lon: 13.05 }
+  const objects = [{ id: 'o1', name: 'Wohnanlage', region: 'Salzburg', winter: { active: true, team: ['e1', 'e2'] } }]
+  const employees = [{ id: 'e1', name: 'Anna' }, { id: 'e2', name: 'Boris' }]
+  const absences = [
+    { employeeId: 'e1', from: '2026-11-05', to: '2026-11-06', type: 'Krankenstand' },
+    { employeeId: 'e1', from: '2026-10-01', to: '2026-10-03', type: 'Urlaub' }, // vorbei
+    { employeeId: 'e2', from: '2027-03-01', to: '2027-03-05', type: 'Urlaub' }, // zu weit weg
+  ]
+  const f = alarmFile({ alarm: { topics: { e1: 'a', e2: 'b' } }, locations: [loc], objects, employees, absences, address: '', today: '2026-11-04' })
+  const [anna, boris] = f.orte[0].stufe1
+  assert.deepEqual(anna.abwesend, [['2026-11-05', '2026-11-06']])
+  assert.equal(boris.abwesend, undefined)
+})
+
+test('Schnee-Alarm: Orte ohne Winterdienst-Objekte sind von selbst aus, eigene Einstellung gilt', () => {
+  const locs = [{ name: 'Salzburg', lat: 47.81, lon: 13.05 }, { name: 'Hallein', lat: 47.68, lon: 13.1 }]
+  const objects = [{ id: 'o1', name: 'Wohnanlage', region: 'Salzburg', winter: { active: true, team: ['e1'] } }]
+  const employees = [{ id: 'e1', name: 'Anna' }]
+  const f = alarmFile({ alarm: { topics: { e1: 'a' } }, locations: locs, objects, employees, address: '' })
+  assert.deepEqual(f.orte.map((o) => o.name), ['Salzburg'])
+  const own = alarmFile({ alarm: { topics: { e1: 'a' }, places: { Hallein: { active: true, level1: ['e1'] } } }, locations: locs, objects, employees, address: '' })
+  assert.deepEqual(own.orte.map((o) => o.name), ['Salzburg', 'Hallein'])
+})

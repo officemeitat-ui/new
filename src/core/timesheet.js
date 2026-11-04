@@ -11,7 +11,7 @@
 // Jede Zeile trägt Kennzahlen für die Monatsauswertung (Lohnverrechnung):
 // hours, bonus, travel, credited, creditReason, nightMinutes, sundayHoliday.
 
-import { sollMinutes } from './contract.js'
+import { employedOn, sollMinutes } from './contract.js'
 import { addDays, eachDay, formatDate, fromDayIndex, isoWeekday } from './dates.js'
 import { dayTrips, findAbsence, firstAfterDay, windowMinutes } from './rules.js'
 import { dutyText } from './waste.js'
@@ -92,6 +92,8 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
   // Stammeinsätze, die diese Person diese Woche nicht selbst arbeitet
   for (const inst of instances) {
     if (!inst.regulars.includes(emp.id) || inst.origDate < monday || inst.origDate > sunday) continue
+    // vor dem Eintritt / nach dem Austritt nichts versäumt; Winterdienst-Team = Bereitschaft, nicht Stammkraft
+    if (!employedOn(emp, inst.origDate) || inst.category === 'winter') continue
     const base = {
       kind: 'missed',
       inst,

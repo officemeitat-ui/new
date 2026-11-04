@@ -52,7 +52,7 @@ function complete(alarm, locations) {
   return a
 }
 
-const fileFor = (alarm, locations) => alarmFile({ alarm, locations, objects: app.data.objects, employees: app.data.employees, address: address() })
+const fileFor = (alarm, locations) => alarmFile({ alarm, locations, objects: app.data.objects, employees: app.data.employees, absences: app.data.absences || [], address: address() })
 
 // ---------------------------------------------------------------- Stand am Server
 
@@ -87,6 +87,48 @@ async function post(aktion, body, extra = '') {
   if (res.status === 403) throw new Error('Der Webspace kennt einen anderen Schlüssel: Alarm-Datei neu herunterladen und nach privat/ hochladen.')
   if (!res.ok) throw new Error(json.fehler || `Antwort ${res.status}`)
   return json
+}
+
+// ---------------------------------------------------------------- von selbst aktuell halten
+// Abwesenheiten, Teams und Austritte ändern sich laufend: die Alarm-Datei am Webspace wird neu übertragen,
+// sobald sie sich ändert (alle 15 Minuten geprüft, nur wer die Planung ändern darf, nach dem ersten
+// „Speichern und übertragen“). So weckt der Server niemanden, der krank oder auf Urlaub ist.
+
+const hashOf = (text) => {
+  let h = 5381
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0
+  return String(h >>> 0)
+}
+let syncing = false
+export async function syncAlarmFile() {
+  const a = alarmSettings()
+  if (syncing || !app.data || !a.key || !a.transferred || !canEdit('planung') || (typeof navigator !== 'undefined' && navigator.onLine === false)) return false
+  const sig = hashOf(JSON.stringify(fileFor(a, weatherLocations())))
+  let last = ''
+  try {
+    last = localStorage.getItem('cleanos-alarm-gesendet') || ''
+  } catch {
+    /* privat */
+  }
+  if (last === sig) return false
+  syncing = true
+  try {
+    await post('speichern', fileFor(a, weatherLocations()))
+    try {
+      localStorage.setItem('cleanos-alarm-gesendet', sig)
+    } catch {
+      /* privat */
+    }
+    return true
+  } catch {
+    return false
+  } finally {
+    syncing = false
+  }
+}
+if (typeof window !== 'undefined' && typeof setInterval === 'function') {
+  setTimeout(() => syncAlarmFile(), 20e3)
+  setInterval(() => syncAlarmFile(), 15 * 60e3)
 }
 
 // ---------------------------------------------------------------- Karte in „Wetter & Winterdienst“
@@ -324,7 +366,15 @@ registerActions({
     renderNow()
     if (!el.dataset.send) return toast('Schnee-Alarm gespeichert. Für den Webspace „Speichern und übertragen“ oder die Alarm-Datei hochladen.')
     try {
-      const r = await post('speichern', fileFor(a, d.locations))
+      const file = fileFor(a, d.locations)
+      const r = await post('speichern', file)
+      // ab jetzt hält die App die Datei von selbst aktuell (Abwesenheiten, Teams)
+      saveSettings({ ...strip(a), transferred: true }, d.locations)
+      try {
+        localStorage.setItem('cleanos-alarm-gesendet', hashOf(JSON.stringify(fileFor({ ...a, transferred: true }, d.locations))))
+      } catch {
+        /* privat */
+      }
       toast(`Übertragen: ${r.gespeichert}.`)
       loadAlarmStatus(true)
     } catch (err) {

@@ -201,7 +201,9 @@ function addModal(c, m) {
   const date = m.date || todayISO()
   const objectId = m.objectId || ''
   const team = objOf(objectId)?.winter?.team || []
-  const emp = m.emp || team[0] || ''
+  // vorbelegt: wer an dem Tag für den Winterdienst eingeteilt ist, sonst die erste Person im Team
+  const assigned = (app.data.assignments?.[`${date}|winter-${objectId}`] || []).map((a) => a.employeeId)
+  const emp = m.emp || assigned[0] || team[0] || ''
   const people = [...new Set([...team, ...app.data.employees.map((e) => e.id)])].map((id) => [id, empName(id)]).filter(([, n]) => n)
   return modalFrame({
     title: 'Winterdienst eintragen',
