@@ -540,6 +540,9 @@ Was dann passiert:
 - Ein Ort meldet sich höchstens alle 8 Stunden neu, außer die Warnstufe steigt.
 - Optional gibt es eine **Ruhezeit** (z. B. 22–3 Uhr): Dann wird erst am Ende geweckt, Warnung orange oder rot weckt sofort.
 - Kommen 2 Stunden lang keine Wetterdaten, erfährt es Stufe 2.
+- **Wer abwesend ist** (Urlaub, Krankenstand laut App) am Tag des Einsatzes, wird nicht geweckt; abends ab 18 Uhr zählt schon der nächste Morgen. Bei wöchentlichem Wechsel springt dann der/die Nächste in der Reihe ein. Ausgeschiedene (Austritt vorbei) werden nie geweckt.
+- **Orte ohne Winterdienst-Objekte** sind von selbst aus (keine nächtlichen Alarme an niemanden); wurde niemand geweckt, gibt es auch keine Eskalation ans Büro.
+- Die Alarm-Datei am Webspace hält die App **von selbst aktuell**: Ändern sich Abwesenheiten, Teams oder Austritte, überträgt sie die Datei neu (geprüft alle 15 Minuten, sobald jemand mit Planungsrecht die App offen hat, nach dem ersten „Speichern und übertragen“).
 
 **Einrichten** unter *Wetter & Winterdienst → Alarm einrichten*:
 
