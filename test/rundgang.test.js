@@ -18,6 +18,27 @@ test('Wochen-Ablauf: „1 Verstoß“ und „1 Warnung“ in der Einzahl', () =>
   assert.equal(info(week({ warnings: 113 })), '113 Warnungen')
 })
 
+test('PDFs nach Mitternacht: Datum in Wiener Zeit, nicht in UTC (Inventur, Bestellung, Angebot)', async () => {
+  const tz = process.env.TZ
+  process.env.TZ = 'Europe/Vienna'
+  try {
+    const { countDocument, orderDocument } = await import('../src/export/material-pdf.js')
+    const { offerDocument } = await import('../src/export/calc-pdf.js')
+    const { calculate } = await import('../src/core/calculation.js')
+    const night = new Date('2026-11-04T23:30:00Z') // Do 05.11.2026, 00:30 in Wien
+    const count = JSON.stringify(countDocument({ rows: [], location: { id: 'l1', name: 'Hauptlager' }, createdAt: night }).content)
+    assert.match(count, /Hauptlager · Do 05\.11\.2026/)
+    const order = JSON.stringify(orderDocument({ order: { no: '2026-001', lines: [] }, createdAt: night }).content)
+    assert.match(order, /05\.11\.2026/)
+    const calc = calculate({ areas: [{ name: 'Büro', type: 'buero', m2: 100, perWeek: 5 }], settings: {}, wage: 13.54 })
+    const offer = JSON.stringify(offerDocument({ object: { name: 'Kanzlei' }, calc, createdAt: night, validDays: 30 }).content)
+    assert.match(offer, /Gültig bis Sa 05\.12\.2026/)
+  } finally {
+    if (tz === undefined) delete process.env.TZ
+    else process.env.TZ = tz
+  }
+})
+
 test('Leistungsnachweis: „Nur lesen“ ändert die gemeinsamen Einstellungen nicht', async () => {
   const { ACTIONS } = await import('../src/ui/context.js')
   await import('../src/ui/views/proof.js')

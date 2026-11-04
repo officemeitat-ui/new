@@ -80,8 +80,8 @@ const hoursFormat = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 2 })
 /** Minuten → Stunden im österreichischen Format, z. B. 450 → "7,5" */
 export const formatHours = (min) => hoursFormat.format(Math.round((min / 60) * 100) / 100)
 
-export function todayISO() {
-  const d = new Date()
+/** Heutiges Datum (oder das Datum eines Zeitpunkts) in der Zeit des Geräts – nicht in UTC wie toISOString(). */
+export function todayISO(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
