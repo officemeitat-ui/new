@@ -55,6 +55,28 @@ async function hostLogin() {
   }
 }
 
+// Fehler beim stillen Token-Holen, nach denen eine normale Anmeldung hilft (kein Netzfehler)
+const REAUTH_CODES = new Set(['monitor_window_timeout', 'timed_out', 'block_iframe_reload', 'login_required', 'consent_required', 'interaction_required', 'hash_empty_error', 'hash_does_not_contain_known_properties', 'no_tokens_found', 'refresh_token_expired', 'bad_token'])
+/** Hilft eine normale Anmeldung (Weiterleitung zu Microsoft)? Netzfehler (offline) nicht. */
+export const needsReauth = (err) => !!err && REAUTH_CODES.has(err.errorCode)
+const REAUTH_KEY = 'cleanos-reauth'
+const REAUTH_HINT = 'Die Anmeldung bei Microsoft ließ sich nicht still erneuern. Bitte „Erneut versuchen“. Klappt es wieder nicht: in diesem Browser Cookies für login.microsoftonline.com erlauben oder einmal abmelden und neu anmelden.'
+/** Gegen Schleifen: höchstens eine Weiterleitung je Minute. */
+function reauthJustTried(now = Date.now()) {
+  try {
+    return now - Number(sessionStorage.getItem(REAUTH_KEY) || 0) < 60000
+  } catch {
+    return false
+  }
+}
+function markReauth() {
+  try {
+    sessionStorage.setItem(REAUTH_KEY, String(Date.now()))
+  } catch {
+    /* ohne Speicher */
+  }
+}
+
 export async function signIn({ tenantId, clientId, allowGuests = false, redirectUri = `${location.origin}${location.pathname}`, scopes = GRAPH_SCOPES }) {
   if (!GUID.test(tenantId || '')) throw new Error('In config.json fehlt sharepoint.tenantId (Verzeichnis-ID des Microsoft-365-Tenants).')
   if (!GUID.test(clientId || '')) throw Object.assign(new Error('Die App ist noch nicht bei Microsoft registriert: In config.json fehlt sharepoint.clientId (Anwendungs-ID aus Entra ID, Einrichtung Schritt 2).'), { unregistered: true, redirectUri })
@@ -89,7 +111,11 @@ export async function signIn({ tenantId, clientId, allowGuests = false, redirect
     try {
       return (await pca.acquireTokenSilent({ scopes, account })).accessToken
     } catch (err) {
-      if (err instanceof InteractionRequiredAuthError) {
+      if (err instanceof InteractionRequiredAuthError || needsReauth(err)) {
+        // stilles Erneuern ging nicht (abgelaufen, Cookies gesperrt, Zeitüberschreitung im unsichtbaren Fenster):
+        // einmal zur normalen Anmeldung – mit bestehender Microsoft-Sitzung geht das ohne Eingabe
+        if (reauthJustTried()) throw Object.assign(new Error(REAUTH_HINT), { cause: err })
+        markReauth()
         await pca.acquireTokenRedirect({ scopes, account })
         return new Promise(() => {})
       }

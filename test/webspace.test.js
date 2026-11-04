@@ -42,3 +42,11 @@ test('Webspace: jeder Header-Block ist abgesichert, ungültige Werte brechen ab'
   bad.globalHeaders['X-Test'] = 'a"b'
   assert.throws(() => htaccessFor(bad), /Anführungszeichen/)
 })
+
+test('Anmeldung: die App darf sich selbst einbetten (stilles Token-Erneuern von Microsoft), fremde Seiten nicht', async () => {
+  const swa = JSON.parse((await import('node:fs')).readFileSync(new URL('../staticwebapp.config.json', import.meta.url), 'utf8'))
+  const csp = swa.globalHeaders['Content-Security-Policy']
+  assert.match(csp, /frame-ancestors 'self'/)
+  assert.doesNotMatch(csp, /frame-ancestors 'none'/)
+  assert.match(csp, /frame-src 'self' https:\/\/login\.microsoftonline\.com/)
+})

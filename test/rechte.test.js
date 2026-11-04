@@ -334,3 +334,12 @@ test('Rechte: Kalkulation nur Vollzugriff; Nachweise senden mit Schreibrecht, ni
   const ol = dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true }))
   assert.ok(ol.read(MODULE_DOCS.nachweise.path) && ol.write(MODULE_DOCS.nachweise.path))
 })
+
+test('Anmeldung: nach Zeitüberschreitung im unsichtbaren Fenster neu anmelden, bei Netzfehlern nicht', async () => {
+  const { needsReauth } = await import('../src/auth/msal.js')
+  assert.equal(needsReauth({ errorCode: 'monitor_window_timeout' }), true)
+  assert.equal(needsReauth({ errorCode: 'login_required' }), true)
+  assert.equal(needsReauth({ errorCode: 'no_network_connectivity' }), false)
+  assert.equal(needsReauth(new Error('x')), false)
+  assert.equal(needsReauth(null), false)
+})

@@ -563,7 +563,10 @@ function registerServiceWorker() {
     .catch(() => {})
 }
 
-boot().catch((err) => {
+// Unsichtbares Fenster der Microsoft-Anmeldung (Token still erneuern): Die Anmeldung liest nur die
+// Adresse aus, die App muss darin nicht starten (sonst dauert es und läuft in eine Zeitüberschreitung)
+const inAuthFrame = window.self !== window.top && /(^|[#&?])(code|error|state)=/.test(`${location.hash}&${location.search}`)
+if (!inAuthFrame) boot().catch((err) => {
   // falsches Konto (Gast, anderer Tenant): abmelden und mit dem Firmenkonto neu anmelden
   if (err.signOut) {
     app.switchAccount = err.signOut
