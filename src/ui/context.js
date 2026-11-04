@@ -302,9 +302,12 @@ export function windowFor(monday, month) {
  * von–bis“ (daten/abwesend.json); die Rollen-Vorschau im Browser zeigt es genauso, damit der Grund
  * (Krankenstand ist ein Gesundheitsdatum) weder im Plan noch in Tooltips, PDF oder E-Mail erscheint.
  */
+/** Grund der Abwesenheit (personal/abwesenheiten.json) lesbar? Ohne Recht nur „abwesend von–bis“. */
+export const seesAbsenceReasons = () => !app.access || dataRights(app.access).read(DOC.absences)
+
 function planData() {
   const { data } = app
-  if (!app.access || dataRights(app.access).read(DOC.absences)) return data
+  if (seesAbsenceReasons()) return data
   return { ...data, absences: absentList(data).map((a) => ({ ...a, type: ABSENT, limited: true })) }
 }
 

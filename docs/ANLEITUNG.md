@@ -632,7 +632,7 @@ Jede Woche hat ein Änderungsprotokoll mit Zeitpunkt, Person und Änderung. Du f
 
 *In der App: Zeiterfassung*
 
-Die Zeiterfassung zeigt je Einsatz Plan, Kommen, Gehen, Ist-Stunden und Status: passt, später gekommen, früher gegangen, noch nicht ausgestempelt, nicht eingestempelt oder ohne Einsatz laut Plan. Dazu Nachträge des Büros, Freigabe und die Monatsliste je Person.
+Die Zeiterfassung zeigt je Einsatz Plan, Kommen, Gehen, Ist-Stunden und Status: passt, später gekommen, früher gegangen, länger als geplant, noch nicht ausgestempelt, nicht eingestempelt oder ohne Einsatz laut Plan. Bei Abweichungen setzt „Ist übernehmen“ den Einsatz auf die erfassten Zeiten (erst dann zählen sie im Zeitkonto). Dazu Nachträge des Büros, Freigabe und die Monatsliste je Person.
 
 1. „Zeiterfassung“ unter „Einsätze & Zeiten“ öffnen.
 2. Reiter „Woche“ oder „Monat je Person“ wählen.
@@ -939,7 +939,7 @@ Das Protokoll hält fest, wer wann wo geräumt und gestreut hat; bei einem Sturz
 1. In „Wetter & Winterdienst“ beim „Winterdienst-Protokoll“ „Eintragen“ klicken (oder im Einsatz „Erledigt eintragen“).
 2. Tag, Uhrzeit, Objekt, Person, geräumt/gestreut und Streumittel eintragen.
 3. „Speichern“ klicken.
-4. Für den Monat „PDF-Nachweis“ erstellen.
+4. Für den Monat „PDF-Nachweis“ erstellen; für einen Kunden bei „für“ sein Objekt wählen (nur dieses Objekt, Namen wie beim Leistungsnachweis eingestellt), „E-Mail“ hängt das PDF an.
 
 ### Hitze und Sturm bei Arbeit im Freien
 
