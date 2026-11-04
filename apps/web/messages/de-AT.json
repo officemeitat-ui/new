@@ -972,7 +972,6 @@
     "save": "Speichern",
     "rolloutTitle": "Firmen",
     "rolloutHint": "Neue Firmen bekommen den Agenten, bestehende das Update. Angepasste und archivierte Agenten bleiben, wie sie sind.",
-    "rollout": "An ausgewählte Firmen ausrollen",
     "noTenants": "Legen Sie zuerst in der Partner-Konsole eine Firma an.",
     "states": {
       "none": "Nicht ausgerollt",
@@ -990,6 +989,11 @@
       "unavailable": "{count, plural, =1 {1 nicht verfügbar} other {# nicht verfügbar}}"
     },
     "forbiddenTitle": "Keine Berechtigung",
-    "forbiddenDescription": "Agenten-Pakete verwalten Partner-Admins."
+    "forbiddenDescription": "Agenten-Pakete verwalten Partner-Admins.",
+    "searchTenants": "Firma suchen",
+    "selectOutdated": "{count, plural, =0 {Keine Updates offen} =1 {1 mit Update auswählen} other {# mit Update auswählen}}",
+    "selectVisible": "Alle angezeigten auswählen",
+    "noMatch": "Keine Firma gefunden.",
+    "rolloutCount": "{count, plural, =0 {Firmen auswählen} =1 {An 1 Firma ausrollen} other {An # Firmen ausrollen}}"
   }
 }

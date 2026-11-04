@@ -3,7 +3,7 @@
 import { Badge, Button, FieldError, Input, Label } from "@nexus/ui";
 import { PackagePlus, Rocket, Save } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   createAgentPackageAction,
   rolloutAgentPackageAction,
@@ -122,6 +122,15 @@ const STATE_VARIANT: Record<TenantRolloutState, "secondary" | "success" | "warni
 
 const OUTCOMES = ["created", "updated", "current", "adapted", "archived", "unavailable"] as const;
 
+/** Update first, then rolled out, then the rest – each alphabetically. */
+const STATE_ORDER: Record<TenantRolloutState, number> = {
+  outdated: 0,
+  current: 1,
+  adapted: 2,
+  archived: 3,
+  none: 4,
+};
+
 export function RolloutForm({
   packageId,
   tenants,
@@ -130,10 +139,37 @@ export function RolloutForm({
   tenants: { id: string; name: string; state: TenantRolloutState; version: number | null }[];
 }) {
   const t = useTranslations("agentPackages");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [state, action, pending] = useActionState(
-    rolloutAgentPackageAction.bind(null, packageId),
+    async (
+      previous: Awaited<ReturnType<typeof rolloutAgentPackageAction>> | null,
+      form: FormData,
+    ) => {
+      const result = await rolloutAgentPackageAction(packageId, previous, form);
+      // Done: start the next selection from scratch.
+      if (result.ok) setSelected(new Set());
+      return result;
+    },
     null,
   );
+  const sorted = useMemo(
+    () =>
+      [...tenants].sort(
+        (a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.name.localeCompare(b.name, "de"),
+      ),
+    [tenants],
+  );
+  const needle = query.trim().toLowerCase();
+  const visible = needle ? sorted.filter((x) => x.name.toLowerCase().includes(needle)) : sorted;
+  const outdated = tenants.filter((x) => x.state === "outdated");
+  const toggle = (id: string, on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   const summary =
     state?.ok && state.data
       ? OUTCOMES.filter((key) => state.data?.[key])
@@ -142,16 +178,45 @@ export function RolloutForm({
       : null;
   return (
     <form action={action} className="space-y-3">
-      <fieldset className="space-y-1">
-        <legend className="mb-2 text-sm font-medium">{t("rolloutTitle")}</legend>
-        <ul className="divide-y rounded-md border">
-          {tenants.map((tenant) => (
+      <fieldset className="space-y-2">
+        <legend className="mb-1 text-sm font-medium">{t("rolloutTitle")}</legend>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("searchTenants")}
+            aria-label={t("searchTenants")}
+            className="h-8 min-w-0 flex-1"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={outdated.length === 0}
+            onClick={() => setSelected(new Set(outdated.map((x) => x.id)))}
+          >
+            {t("selectOutdated", { count: outdated.length })}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelected(new Set(visible.map((x) => x.id)))}
+          >
+            {t("selectVisible")}
+          </Button>
+        </div>
+        <ul className="max-h-80 divide-y overflow-y-auto rounded-md border">
+          {visible.map((tenant) => (
             <li key={tenant.id} data-testid="rollout-tenant">
               <label className="flex cursor-pointer flex-wrap items-center gap-3 px-3 py-2 text-sm">
                 <input
                   type="checkbox"
                   name="tenantId"
                   value={tenant.id}
+                  checked={selected.has(tenant.id)}
+                  onChange={(event) => toggle(tenant.id, event.target.checked)}
                   className="accent-primary"
                   aria-label={tenant.name}
                 />
@@ -162,13 +227,22 @@ export function RolloutForm({
               </label>
             </li>
           ))}
+          {visible.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted-foreground">{t("noMatch")}</li>
+          ) : null}
         </ul>
-        <p className="pt-1 text-xs text-muted-foreground">{t("rolloutHint")}</p>
+        {/* Selected companies outside the current search are still rolled out. */}
+        {[...selected]
+          .filter((id) => !visible.some((x) => x.id === id))
+          .map((id) => (
+            <input key={id} type="hidden" name="tenantId" value={id} />
+          ))}
+        <p className="text-xs text-muted-foreground">{t("rolloutHint")}</p>
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending || tenants.length === 0}>
+        <Button type="submit" disabled={pending || selected.size === 0}>
           <Rocket aria-hidden />
-          {t("rollout")}
+          {t("rolloutCount", { count: selected.size })}
         </Button>
         {summary ? (
           <p role="status" className="text-sm text-success">

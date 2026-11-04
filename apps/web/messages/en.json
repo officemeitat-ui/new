@@ -972,7 +972,6 @@
     "save": "Save",
     "rolloutTitle": "Companies",
     "rolloutHint": "New companies get the agent, existing ones the update. Adapted and archived agents stay as they are.",
-    "rollout": "Roll out to selected companies",
     "noTenants": "Create a company in the partner console first.",
     "states": {
       "none": "Not rolled out",
@@ -990,6 +989,11 @@
       "unavailable": "{count, plural, =1 {1 not available} other {# not available}}"
     },
     "forbiddenTitle": "No permission",
-    "forbiddenDescription": "Agent packages are managed by partner admins."
+    "forbiddenDescription": "Agent packages are managed by partner admins.",
+    "searchTenants": "Search companies",
+    "selectOutdated": "{count, plural, =0 {No updates pending} =1 {Select 1 with update} other {Select # with update}}",
+    "selectVisible": "Select all shown",
+    "noMatch": "No company found.",
+    "rolloutCount": "{count, plural, =0 {Select companies} =1 {Roll out to 1 company} other {Roll out to # companies}}"
   }
 }

@@ -23,8 +23,9 @@ test("ME-IT prepares an agent once, rolls it out to a customer and updates it ce
   // Roll it out to the demo customer.
   const huber = pkg.getByTestId("rollout-tenant").filter({ hasText: "Huber Haustechnik GmbH" });
   await expect(huber).toContainText("Nicht ausgerollt");
+  await pkg.getByLabel("Firma suchen").fill("Huber");
   await huber.getByRole("checkbox").check();
-  await pkg.getByRole("button", { name: "An ausgewählte Firmen ausrollen" }).click();
+  await pkg.getByRole("button", { name: "An 1 Firma ausrollen" }).click();
   await expect(pkg.getByRole("status").filter({ hasText: "Firma neu" })).toHaveText("1 Firma neu");
   await expect(huber).toContainText("Aktuell (Version 1)");
 
@@ -48,8 +49,10 @@ test("ME-IT prepares an agent once, rolls it out to a customer and updates it ce
     "Gespeichert als Version 2. Rollen Sie die Änderung jetzt aus.",
   );
   await expect(huber).toContainText("Version 1 – Update verfügbar");
-  await huber.getByRole("checkbox").check();
-  await pkg.getByRole("button", { name: "An ausgewählte Firmen ausrollen" }).click();
+  // One click selects every company with a pending update.
+  await pkg.getByRole("button", { name: "1 mit Update auswählen" }).click();
+  await expect(huber.getByRole("checkbox")).toBeChecked();
+  await pkg.getByRole("button", { name: "An 1 Firma ausrollen" }).click();
   await expect(pkg.getByRole("status").filter({ hasText: "aktualisiert" })).toHaveText(
     "1 aktualisiert",
   );
