@@ -311,7 +311,24 @@ export function glossary(entries, query) {
 export function smalltalk(query) {
   const n = ` ${normalize(query)} `
   if (/ (hallo|hi|hey|servus|gruess gott|guten (morgen|tag|abend)|moin|griass di) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'hallo', text: 'Servus! Cleo, Sauberheld, zu Diensten. Sag mir, was du vorhast – zum Beispiel „Urlaub eintragen“ oder „Wie schreibe ich eine Rechnung?“ – und ich flieg dich hin.' }
-  if (/ (danke|dankeschoen|merci|super|passt|top|perfekt) /.test(n)) return { mood: 'fertig', text: 'Gern geschehen – sauber gelöst! Wenn du mich wieder brauchst: Ich häng hier unten rechts ab.' }
+  if (/ (danke|dankeschoen|merci|super|passt|top|perfekt) /.test(n)) return { mood: 'herz', text: 'Gern geschehen – sauber gelöst! Wenn du mich wieder brauchst: Ich häng hier unten rechts ab.' }
+  const words = n.trim().split(' ').length
+  // Jahreszeiten-Kostüme (nur kurze Fragen oder an Cleo gerichtet, nicht „Ist Ostermontag ein Feiertag?“)
+  const season = / (halloween|advent|adventzeit|weihnachten|weihnacht|christkind|nikolaus|silvester|neujahr|fasching|krapfen|ostern|osterhase|fruehjahrsputz|saison|kostuem|kostuems|verkleidung|verkleidet) /.exec(n)
+  if (season && !/ (feiertag|feiertage|zuschlag|zuschlaege|urlaub|dienst|plan|frei|offen) /.test(n) && (words <= 3 || / (du|dich|dein|deine|cleo|deko|kostuem|hut|muetze) /.test(n))) {
+    const w = season[1]
+    const mood = /hallo/.test(w) ? 'kuerbis' : /advent|weihn|christ|nikol/.test(w) ? 'geschenk' : /silv|neuj/.test(w) ? 'feiert' : /fasch|krapf/.test(w) ? 'krapfen' : /oster/.test(w) ? 'korb' : /fruehj/.test(w) ? 'wedel' : 'froh'
+    return { mood, text: 'Je nach Jahreszeit zieh ich mich um: Hexenhut zu Halloween, Nikolausmütze im Advent, Partyhut zu Silvester, Narrenkappe und Krapfen im Fasching, Hasenohren zu Ostern und Kopftuch zum Frühjahrsputz – dazu ein bisschen Deko auf der Übersicht. Ausschalten oder vorab ansehen: Darstellung → Saison-Deko.' }
+  }
+  // Reinigungsbereiche: Cleo hat für alles das passende Werkzeug
+  // nur Wörter ohne eigenes Hilfe-Thema (Fenster, Tiefgarage, Grundreinigung … beantworten die Themen)
+  const service = / (tatortreinigung|tatort|graffiti|graffitientfernung|photovoltaik|pv anlage|solaranlage|bauendreinigung|veranstaltungsreinigung|eventreinigung|firmenevent|desinfektion|teppichreinigung|gruenpflege|rasenmaehen|hausbetreuung|muellraum) /.exec(n)
+  const what = / was (reinigt|putzt|macht) (ihr|cleanos|du) | was kann cleanos | (welche|alle) (reinigungsarten|reinigungsbereiche|bereiche reinigt) /.test(n)
+  if ((service && words <= 4) || what) {
+    const w = service?.[1] || ''
+    const mood = /tatort/.test(w) ? 'tatort' : /graffiti/.test(w) ? 'graffiti' : /photo|pv|solar/.test(w) ? 'pv' : /bau/.test(w) ? 'bau' : /veranstalt|event/.test(w) ? 'event' : /desinf/.test(w) ? 'desinfektion' : /teppich/.test(w) ? 'teppich' : /gruen|rasen/.test(w) ? 'gruen' : /hausbetr/.test(w) ? 'haus' : /muell/.test(w) ? 'muell' : 'stark'
+    return { mood, text: 'Für jede Reinigung hab ich das passende Werkzeug: Unterhalts- und Büroreinigung, Glas und Fenster, Fassade, Sanitär, Teppich und Polster, Stiegenhaus, Grund- und Bauendreinigung, Desinfektion, Hausbetreuung, Grünpflege, Laub und Dachrinne, Winterdienst, Müllraum, Graffiti, Photovoltaik, Tiefgarage, Tatortreinigung und Veranstaltungen. In der App planst du das alles als Leistungen im Reinigungsplan der Objekte – frag mich z. B. „Leistung anlegen“.' }
+  }
   if (/ wer bist du | was bist du | wie heisst du /.test(n)) return { mood: 'froh', text: 'Ich bin Cleo, der Sauberheld der Cleanos App! Meine Superkräfte: Ich kenne jede Funktion, zeige dir, wo sie ist, und erkläre sie Schritt für Schritt. Kein Internet nötig, nichts wird gespeichert – und Fenster putze ich nebenbei auch.' }
   if (/ (witz|lustig|superkraft|superkraefte|held) /.test(n) && n.trim().split(' ').length <= 6) return { mood: 'froh', text: 'Warum putzen Superhelden so gern Fenster? Damit sie den Durchblick behalten! Und jetzt: Womit kann ich dir helfen?' }
   if (/ (was kannst du|hilfe|help|anleitung) /.test(n) && n.trim().split(' ').length <= 4) return { mood: 'zeigt', text: 'Mein Revier ist die ganze App: Planung, Zeiterfassung, Wetter und Winterdienst, Objekte, Material, Fahrzeuge, Fakturierung und Verwaltung. Tipp eine Frage oder wähle unten ein Thema. Zum Schmökern gibt es die „Anleitung“.' }

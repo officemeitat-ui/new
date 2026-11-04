@@ -7,6 +7,7 @@ import { GLOSSARY, TOPICS } from '../../help/topics.js'
 import { search } from '../../help/match.js'
 import { app, NAV_SECTIONS, registerActions, registerView, renderNow, VIEWS, visibleViews } from '../context.js'
 import { cleo } from '../mascot.js'
+import { seasonOutfit } from '../season.js'
 import { esc, ICON } from '../shared.js'
 
 export const CHAPTERS = [...NAV_SECTIONS.map(([id, label]) => [id, label || 'Start & Übersicht']), ['allgemein', 'Bedienung & Allgemeines']]
@@ -43,7 +44,7 @@ function guideView() {
   }
   const toc = q ? '' : `<nav class="guide-toc" aria-label="Kapitel">${chapters.map(([id, label, list]) => `<a href="#kap-${id}" data-action="guide-chapter" data-id="${id}">${esc(label)} <span class="muted">${list.length}</span></a>`).join('')}<a href="#kap-begriffe" data-action="guide-chapter" data-id="begriffe">Begriffe <span class="muted">${GLOSSARY.length}</span></a></nav>`
   return `<div class="guide">
-    <header class="guide-head"><span class="guide-cleo">${cleo({ mood: 'zeigt', size: 92 })}</span>
+    <header class="guide-head"><span class="guide-cleo">${cleo({ mood: 'liste', size: 92, outfit: seasonOutfit() })}</span>
       <div><h2>Anleitung</h2><p>Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Lieber fragen? Cleo unten rechts antwortet sofort – auch ohne Internet.</p></div>
       <div class="actions"><button class="btn" data-action="guide-print">${ICON.print} Drucken / PDF</button><button class="btn primary" data-action="help-open">Cleo fragen</button></div></header>
     <div class="guide-search"><input type="search" id="guide-q" value="${esc(q)}" placeholder="Suchen, z. B. Urlaub, Rechnung, Schnee, Wasserzähler" aria-label="In der Anleitung suchen" data-input="guide-search"><span class="muted">${count} ${count === 1 ? 'Thema' : 'Themen'}</span></div>

@@ -7,6 +7,8 @@
 
 import { app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow } from './context.js'
 import { esc, ICON, modalFrame } from './shared.js'
+import { activeSeason, seasonInfo, seasonPref, setSeasonPref } from './season.js'
+import { SEASONS } from '../core/season.js'
 
 /** preview: Farben für die Vorschaukarte (header, headerLine, logo, bg, line, primary, text, ok, okSoft) */
 export const BUILTIN_THEMES = {
@@ -90,9 +92,20 @@ function appearanceModal() {
       <section><h3>Stil</h3>${sober(t.skin) ? '<p class="muted">Beim Kontrast-Schema immer schlicht (ohne Verläufe und Schatten).</p>' : `${seg('look', LOOKS, t.look)}<p class="muted">Modern: Verläufe, Tiefe und sanfte Bewegung. Schlicht: flach und ruhig.</p>`}</section>
       <section><h3>Hell oder dunkel</h3>${seg('mode', MODES, t.mode)}</section>
       <section><h3>Schriftgröße</h3>${seg('scale', SCALES, t.scale)}</section>
+      ${seasonSection()}
       <p class="note">Die Voreinstellung für alle steht in config.json (brand.theme). Was hier gewählt ist, gilt nur auf diesem Gerät und bleibt gespeichert.</p>`,
     foot: '<button class="btn" data-action="theme-reset">Voreinstellung</button><div class="actions"><button class="btn primary" data-action="close-modal">Fertig</button></div>',
   })
+}
+
+/** Saison-Deko: Cleo im Kostüm und Deko auf der Übersicht (an/aus, Vorschau). */
+function seasonSection() {
+  const pref = seasonPref()
+  const now = seasonInfo(activeSeason())
+  const mode = pref === 'aus' ? 'aus' : 'auto'
+  const seg = `<div class="seg" role="radiogroup">${[['auto', 'Nach Datum'], ['aus', 'Aus']].map(([k, label]) => `<button type="button" class="btn ${mode === k && !SEASONS[pref] ? 'primary' : ''}" role="radio" aria-checked="${mode === k && !SEASONS[pref]}" data-action="theme-season" data-v="${k}">${label}</button>`).join('')}</div>`
+  const preview = `<label class="field inline"><span>Vorschau</span><select id="theme-season-preview" data-change="theme-season-preview"><option value="">–</option>${Object.entries(SEASONS).map(([k, x]) => `<option value="${k}" ${pref === k ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>`
+  return `<section><h3>Saison-Deko</h3>${seg} ${preview}<p class="muted">${now ? `Gerade: ${esc(now.label)}. Cleo trägt das passende Kostüm, die Übersicht ist dezent geschmückt.` : 'Gerade kein Anlass: Cleo im Heldenanzug.'} Zu Halloween, im Advent, zu Silvester, im Fasching, zu Ostern und zum Frühjahrsputz.</p></section>`
 }
 
 registerModal('appearance', appearanceModal)
@@ -111,6 +124,16 @@ registerActions({
   'theme-mode': (el) => set('mode', el.dataset.v),
   'theme-scale': (el) => set('scale', el.dataset.v),
   'theme-look': (el) => set('look', el.dataset.v),
+  'theme-season': (el) => {
+    setSeasonPref(el.dataset.v)
+    renderNow()
+    renderModal()
+  },
+  'theme-season-preview': (el) => {
+    setSeasonPref(el.value || 'auto')
+    renderNow()
+    renderModal()
+  },
   'theme-reset': () => {
     for (const k of ['skin', 'mode', 'scale', 'look']) delete app.ui[k]
     applyTheme(app.ui, app.config.brand)
