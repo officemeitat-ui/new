@@ -146,3 +146,10 @@ test('Cleo: E-Mail aus der App (Bericht, Aufgabe, Export, Einrichtung) – ohne 
   assert.equal(top('dienstplan per mail an mitarbeiter'), 'versenden')
   assert.equal(top('leistungsnachweis per mail'), 'leistungsnachweis-versenden')
 })
+
+test('Cleo: Saison-Deko ausschalten findet das Thema', () => {
+  const top = (q) => search(TOPICS, q, { limit: 1 })[0]?.topic.id
+  assert.equal(top('wie schalte ich die weihnachtsdeko aus'), 'saison-deko')
+  assert.equal(top('schneeflocken ausschalten'), 'saison-deko')
+  assert.equal(top('farbschema ändern'), 'darstellung')
+})

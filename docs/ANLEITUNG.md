@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 208 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 214 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -13,7 +13,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (27)
 - [Verwaltung](#verwaltung) (35)
-- [Bedienung & Allgemeines](#bedienung-allgemeines) (31)
+- [Bedienung & Allgemeines](#bedienung-allgemeines) (37)
 - [Begriffe](#begriffe)
 
 ## Start & Übersicht
@@ -2195,6 +2195,66 @@ Mit Vollzugriff öffnest du im Assistenten „Einstellungen“, trägst den API-
 
 ## Bedienung & Allgemeines
 
+### E-Mail direkt aus der App
+
+Berichte, Exporte, Aufgaben und „Zu erledigen“ gehen direkt aus der App per E-Mail. Es öffnet sich immer dasselbe Senden-Fenster: Empfänger (auch aus der Liste), Kopie, Betreff, Text und die Anhänge zum Prüfen. Mit Microsoft 365 geht die Mail aus deinem Postfach, sonst öffnet sich dein E-Mail-Programm.
+
+1. Rechts oben auf „⋯“ tippen, unter „E-Mail“ wählen: „Diese Ansicht per E-Mail“, „Aufgabe per E-Mail“ oder „Neue E-Mail“.
+2. Unter „An“ die Adresse eintragen oder rechts „+ aus der Liste …“ wählen (Mitarbeitende, Kundschaft, Objekte, Lieferanten, Werkstätten, zuletzt verwendet).
+3. Betreff und Text sind vorbereitet; bei Bedarf anpassen, einzelne Anhänge mit × entfernen.
+4. „Senden“ – oder ohne Microsoft 365 „Im E-Mail-Programm öffnen“ (die Anhänge landen dann im Download-Ordner).
+
+> Tipp: Mehrere Empfänger mit Strichpunkt trennen; „Anna Berger <anna@firma.at>“ geht auch.
+> Tipp: „Kopie an mich“ legt dir die Mail zusätzlich in den Posteingang; gesendet steht sie ohnehin unter „Gesendete Elemente“.
+> Tipp: Bis rund 3 MB Anhang pro Mail; größere Dateien herunterladen und in Outlook anhängen.
+> Tipp: Anhänge können personenbezogene Daten enthalten: nur an Personen senden, die sie brauchen.
+
+### Bericht einer Ansicht per E-Mail
+
+„Diese Ansicht per E-Mail“ macht aus dem, was du gerade siehst, einen PDF-Bericht: Kennzahlen als Kacheln, Tabellen und Listen – mit deinen Filtern. Dazu kommt eine CSV-Datei der Tabellen für Excel.
+
+1. Die Ansicht öffnen und filtern, z. B. Kennzahlen, Prüfbericht, Schlüsselbuch, Monatsauswertung.
+2. Rechts oben „⋯“ → „Diese Ansicht per E-Mail“.
+3. Empfänger wählen, Text prüfen, „Senden“.
+
+> Tipp: Knöpfe und Menüs kommen nicht mit, nur Zahlen und Text.
+> Tipp: Sehr lange Tabellen stehen im PDF gekürzt, vollständig in der CSV-Datei.
+
+### Exporte als Anhang senden
+
+In den Export-Menüs steht unter „Per E-Mail senden“ jeder Export noch einmal: Die Datei wird dann nicht heruntergeladen, sondern hängt gleich an der Mail. Neben einzelnen Download-Knöpfen (Reklamation, Winterdienst-Nachweis, Lohnprogramm, Ausgangsrechnungen) steht dafür „E-Mail“.
+
+1. Im Bereich auf „Export“ (oder „Mehr“) tippen.
+2. Unter „Per E-Mail senden“ den gewünschten Export wählen.
+3. Betreff kommt aus dem Dateinamen; Empfänger wählen und „Senden“.
+
+> Tipp: Gibt es u. a. für Lagerbestand und Verbrauch, Schlüsselliste, Unterweisungen, Fahrzeugliste, Monatsauswertung, Überstunden, Wochen-Excel, Ist-Zeiten, Kalkulation und Angebot.
+> Tipp: Die interne Kalkulation (mit Lohn und Marge) ist nicht für Kunden gedacht – an Kunden das Angebot senden.
+> Tipp: Rechnungen, Leistungsnachweise, Bestellungen und Wochenpläne haben ihren eigenen Versand mit Versandstand.
+
+### Aufgabe per E-Mail (mit Kalender-Erinnerung)
+
+„Aufgabe per E-Mail“ schickt eine Aufgabe mit Frist, Objekt und Beschreibung. Im Anhang liegt eine Kalender-Erinnerung: Beim Empfänger steht die Aufgabe am Fälligkeitstag im Kalender, mit Erinnerung am Vortag um 9 Uhr – auch ohne Microsoft 365.
+
+1. „+ Neu“ → „Aufgabe per E-Mail“ (Taste E) oder „⋯“ → „Aufgabe per E-Mail“.
+2. Empfänger, Aufgabe, „Fällig bis“ und auf Wunsch das Objekt wählen.
+3. „Aufgabe senden“.
+
+> Tipp: In „Zu erledigen“ hat jeder Abschnitt einen Knopf „E-Mail“; unten „Per E-Mail weitergeben“ schickt die ganze Liste mit Link in die App.
+> Tipp: Ohne Fälligkeit gibt es keine Kalender-Erinnerung.
+
+### E-Mail-Versand einrichten (Microsoft 365)
+
+Direkt aus der App senden braucht in der Server-Datei config.json „features.mail: true“ und die delegierte Berechtigung Mail.Send (für ein freigegebenes Postfach Mail.Send.Shared und „mail.from“). Ohne das öffnet sich das E-Mail-Programm und die Anhänge werden heruntergeladen.
+
+1. IT: in Entra ID bei der App-Registrierung Mail.Send zustimmen.
+2. In config.json am Webspace „features“: { „mail“: true } setzen, optional „mail“: { „from“: „office@firma.at“ }.
+3. Einmal neu anmelden.
+
+> Tipp: Meldung „Keine Berechtigung zum Senden“: die Zustimmung für Mail.Send fehlt noch.
+
+*Einrichtung: IT bzw. Vollzugriff*
+
 ### Anmelden
 
 Du meldest dich mit deinem Firmenkonto (Microsoft 365) an; dieselbe Anmeldung gilt für alle Bereiche und Werkzeuge. Gastkonten und fremde Konten werden abgewiesen, dann erscheint „Anmeldung nicht möglich“ mit „Mit anderem Konto anmelden“.
@@ -2312,7 +2372,7 @@ N öffnet „+ Neu“, T Termin, A Abwesenheit, Z Zeit nachtragen, R Reklamation
 
 ### Darstellung: Farbschema und Stil
 
-Unter „Darstellung“ wählst du für dein Gerät das Farbschema (Cleanos, Cleanos Nachtblau, Cleanos Kontrast für Sonne am Handy), den Stil („Modern“ mit Verläufen und sanfter Bewegung oder „Schlicht“), hell oder dunkel und die Schriftgröße.
+Unter „Darstellung“ wählst du für dein Gerät das Farbschema (Cleanos, Cleanos Nachtblau, Cleanos Kontrast für Sonne am Handy), den Stil („Modern“ mit Bereichsfarben und sanfter Bewegung oder „Schlicht“), hell oder dunkel, die Schriftgröße und die Saison-Deko.
 
 1. Die Palette unten in der Seitenleiste klicken oder „⋯“ → „Darstellung“ (am Handy „Mehr“ → „Darstellung“).
 2. Farbschema und Stil wählen.
@@ -2320,6 +2380,17 @@ Unter „Darstellung“ wählst du für dein Gerät das Farbschema (Cleanos, Cle
 
 > Tipp: Beim Kontrast-Schema ist der Stil immer schlicht.
 > Tipp: Ist im System „Bewegung reduzieren“ an, gibt es keine Animation.
+
+### Saison-Deko: Cleo verkleidet sich
+
+Zu Halloween, im Advent, zu Silvester, im Fasching, zu Ostern und zum Frühjahrsputz verkleidet sich Cleo, und die Übersicht bekommt eine leichte Deko mit Animation. Unter „Darstellung → Saison-Deko“ stellst du „Nach Datum“ oder „Aus“ ein; die Vorschau zeigt jede Saison sofort.
+
+1. „⋯“ → „Darstellung“ öffnen.
+2. Bei „Saison-Deko“ „Aus“ wählen – oder in „Vorschau“ eine Saison zum Ansehen.
+3. Mit „Fertig“ schließen; „Voreinstellung“ stellt wieder auf „Nach Datum“.
+
+> Tipp: Die Deko nimmt keine Klicks und liegt hinter dem Inhalt.
+> Tipp: Bei „Schlicht“ oder „Bewegung reduzieren“ im System steht sie still.
 
 ### Hell oder dunkel
 

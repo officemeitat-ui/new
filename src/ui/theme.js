@@ -136,6 +136,7 @@ registerActions({
   },
   'theme-reset': () => {
     for (const k of ['skin', 'mode', 'scale', 'look']) delete app.ui[k]
+    setSeasonPref('auto') // Saison-Deko wieder nach Datum
     applyTheme(app.ui, app.config.brand)
     app.savePrefs?.()
     renderNow()
