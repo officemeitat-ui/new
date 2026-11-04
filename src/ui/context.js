@@ -374,7 +374,11 @@ export function renderModalKeepingInput(skip = /^$/) {
   }
 }
 
+// Knopf, der den Dialog geöffnet hat: nach dem Schließen bekommt er den Fokus zurück (Tastatur)
+let returnFocus = null
+
 export function openModal(modal) {
+  if (!app.ui.modal && typeof document !== 'undefined') returnFocus = document.activeElement?.closest?.('button, summary, a[href]') || null
   app.ui.modal = { ...modal, justOpened: true }
   app.ui.confirm = null
   renderModal()
@@ -384,6 +388,8 @@ export function closeModal() {
   app.ui.modal = null
   app.ui.confirm = null
   renderModal()
+  if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
+  returnFocus = null
 }
 
 let toastTimer = null
