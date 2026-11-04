@@ -207,7 +207,8 @@ export function nowcastHint(steps, now = Date.now()) {
   const wet = (s) => s.rate >= WET && s.kind !== KIND.none
   const horizon = Math.round((list.at(-1).at + 15 * 60e3 - now) / 60e3)
   const first = list.find(wet)
-  if (!first) return { state: 'dry', inMinutes: null, horizonMinutes: horizon, text: `Trocken in den nächsten ${Math.max(1, Math.round(horizon / 60))} Stunden`, short: 'trocken' }
+  const hours = Math.max(1, Math.round(horizon / 60))
+  if (!first) return { state: 'dry', inMinutes: null, horizonMinutes: horizon, text: hours === 1 ? 'Trocken in der nächsten Stunde' : `Trocken in den nächsten ${hours} Stunden`, short: 'trocken' }
   const startIdx = list.indexOf(first)
   let endIdx = startIdx
   while (endIdx + 1 < list.length && wet(list[endIdx + 1])) endIdx++

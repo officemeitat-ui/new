@@ -96,7 +96,8 @@ export function keyWarnings({ keys = [], employees = [], absences = [], today })
 export function handoversNeeded({ instances = [], state, keysByObject, from, to }) {
   const out = []
   const seen = new Set()
-  for (const inst of instances) {
+  // zeitlich: Winterdienst und Müll-Gänge stehen in der Liste hinter den übrigen Einsätzen
+  for (const inst of [...instances].sort((a, b) => a.start - b.start)) {
     if (inst.status === 'cancelled' || inst.date < from || inst.date > to) continue
     const keys = keysByObject.get(inst.objectId) || []
     if (!keys.length) continue
