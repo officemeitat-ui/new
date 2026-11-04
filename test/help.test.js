@@ -102,3 +102,36 @@ test('smalltalk: Gruß, Dank, wer bist du; sonst null', () => {
   assert.equal(smalltalk('Hallo, wie schreibe ich eine Rechnung für den Kunden Maier?'), null, 'lange Fragen mit Gruß sind keine Plauderei')
   assert.equal(smalltalk('rechnung schreiben'), null)
 })
+
+// Mit den echten Hilfe-Themen: typische Fragen aus dem Alltag landen beim richtigen Thema
+import { TOPICS } from '../src/help/topics.js'
+for (const [frage, id] of [
+  ['Wie trage ich Urlaub ein?', 'abwesenheit-eintragen'],
+  ['Cleo, wie plane ich die Woche', 'woche-planen'],
+  ['es schneit morgen was muss ich tun', 'winterdienst-anlegen'],
+  ['Zählerstände eintragen', 'wasserzaehler'],
+  ['wie schreibe ich eine Rechnung', 'rechnung-schreiben'],
+  ['Rechnung stornieren', 'storno-korrektur'],
+  ['Mitarbeiter krank gemeldet', 'abwesenheit-eintragen'],
+  ['Kunde hat sich beschwert', 'reklamation-erfassen'],
+  ['Pickerl fällig', 'pickerl'],
+  ['Material bestellen', 'material-bestellen'],
+  ['Wie stempeln Mitarbeiter mit dem Handy', 'qr-stempeln'],
+  ['Dienst tauschen', 'dienst-tauschen'],
+  ['Schlüssel verloren', 'schluessel-verlust'],
+  ['Kontoauszug einlesen', 'bankabgleich'],
+  ['Angebot erstellen', 'angebot'],
+  ['Schnee Alarm einrichten', 'schnee-alarm'],
+  ['radar', 'radar'],
+  ['inventur', 'material-inventur'],
+  ['mattenwechsel', 'mattenwechsel'],
+  ['objektdoku', 'objektdoku'],
+  ['passwort', 'anmeldung'],
+  ['installieren', 'app-installieren'],
+]) {
+  test(`Cleo mit allen Themen: „${frage}“ → ${id} (sicher)`, () => {
+    const [top] = search(TOPICS, frage)
+    assert.equal(top?.topic.id, id)
+    assert.ok(top.score >= SURE, `nur ${top.score.toFixed(2)}`)
+  })
+}

@@ -1,5 +1,5 @@
 // Zeiterfassung im Objekt (QR-Code) in der App: Stempelungen vom Webspace holen (alle 2 Minuten,
-// solange jemand mit Einsatzplanung die App offen hat), Ansicht „Ist-Zeiten“ (Plan gegen Ist, CSV),
+// solange jemand mit Einsatzplanung die App offen hat), Ansicht „Zeiterfassung“ (Plan gegen Ist, CSV),
 // Block im Einsatz-Dialog, „Zu erledigen: nicht eingestempelt“ und die QR-Aushänge als PDF.
 
 import { addDays, firstOfMonth, formatDate, formatHours, isoWeek, lastOfMonth, mondayOf, todayISO } from '../core/dates.js'
@@ -111,7 +111,7 @@ function statusText(r) {
   return STATUS_TEXT[r.status]
 }
 
-// ---------------------------------------------------------------- Ansicht „Ist-Zeiten“
+// ---------------------------------------------------------------- Ansicht „Zeiterfassung“
 
 /** Zeilen der Woche; was noch nicht begonnen hat, nur für heute. */
 function rowsOf(c) {

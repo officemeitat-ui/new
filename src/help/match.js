@@ -5,8 +5,11 @@
 // test/help.test.js.
 
 const STOP = new Set(
-  'a ab aber alle allem als also am an auch auf aus bei bin bis bitte da damit dann das dass dein deine dem den der des die dies diese dir doch du durch ein eine einem einen einer es etwas fuer gibt geht hab habe hallo hat hier ich ihr im in ist ja jetzt kann kannst man mein meine mich mir mit muss nach nicht noch nur ob oder sich sie sind so soll um und uns von vom was welche wenn wer wie wieso wird wo zu zum zur ueber mal gerne bitte cleo hey hi'.split(' '),
+  'a ab aber alle allem als also am an auch auf aus bei bin bis bitte da damit dann das dass dein deine dem den der des die dies diese dir doch du durch ein eine einem einen einer es etwas fuer gibt geht hab habe hallo hat hier ich ihr im in ist ja jetzt kann kannst man mein meine mich mir mit muss nach nicht noch nur ob oder sich sie sind so soll um und uns von vom was welche wenn wer wie wieso wird wo zu zum zur ueber mal gerne bitte hey hi mache machen macht tun tue geht gehts gehen funktioniert funktionieren brauche brauchen will moechte moechten sagen sag erklaer erklaere erklaeren ganz schnell einfach richtig'.split(' '),
 )
+
+/** Allgemeine Tätigkeiten (Stämme): zählen in längeren Fragen weniger als das, worum es geht. */
+const VERBS = new Set(['erstell', 'anleg', 'schreib', 'eintrag', 'erfass', 'schick', 'send', 'oeffn', 'find', 'such', 'seh', 'aender', 'loesch', 'bearbeit', 'wechsel', 'mitarbeit', 'arbeit', 'neu', 'neue'])
 
 /** Gleiche Bedeutung im Betrieb: Wort → zusätzliche Suchwörter. */
 export const SYNONYMS = {
@@ -18,6 +21,14 @@ export const SYNONYMS = {
   schicht: ['einsatz', 'dienst'],
   dienst: ['einsatz'],
   schnee: ['winterdienst', 'schneealarm'],
+  schneit: ['winterdienst', 'schnee'],
+  schneefall: ['winterdienst', 'schnee'],
+  frost: ['winterdienst', 'glatteis'],
+  eis: ['winterdienst', 'glatteis'],
+  schicken: ['versenden', 'senden'],
+  verschicken: ['versenden'],
+  erstellen: ['anlegen', 'neu'],
+  machen: ['anlegen'],
   glatteis: ['winterdienst', 'streuen'],
   streuen: ['winterdienst'],
   wetter: ['winterdienst', 'radar', 'vorhersage'],
@@ -101,11 +112,44 @@ export function stem(word) {
   return w
 }
 
+/** „Cleo, wie …“ / „Hey Cleo …“: Anrede vorne weg (sonst zöge sie das Thema „Cleo“ an). */
+const unaddress = (text) => normalize(text).replace(/^(?:(?:hey|hallo|hi|servus|liebe|lieber)\s+)?cleo\s+(?=\S)/, '')
+
+/**
+ * Suchwörter je Wort der Frage: { main: Stamm, alts: Synonym-Stämme }. Füllwörter fallen weg
+ * (außer die Frage besteht nur daraus).
+ */
+export function wordGroups(text) {
+  const all = unaddress(text)
+    .split(' ')
+    .filter((w) => w.length > 1)
+  const content = all.filter((w) => !STOP.has(w))
+  const words = content.length ? content : all
+  // trennbare Verben: „Wie trage ich Urlaub ein?“ → auch „eintrag…“
+  const particle = ['ein', 'an', 'aus', 'ab', 'zu', 'auf', 'vor', 'nach', 'um', 'weg', 'fest', 'frei', 'zurueck', 'los'].find((p) => all.at(-1) === p && all.length > 1)
+  const groups = []
+  for (const w of words) {
+    if (particle && w === particle) continue
+    const main = stem(w)
+    if (groups.some((g) => g.main === main)) continue
+    const alts = new Set()
+    if (particle) alts.add(stem(particle + w))
+    for (const [key, extra] of Object.entries(SYNONYMS)) {
+      if (w === key || main === stem(key) || (w.length > 5 && w.startsWith(key))) for (const x of extra) for (const part of normalize(x).split(' ')) if (stem(part) !== main) alts.add(stem(part))
+    }
+    groups.push({ main, alts: [...alts] })
+  }
+  return groups
+}
+
 /** Suchwörter einer Frage (ohne Füllwörter), gestemmt, mit Synonymen. */
 export function terms(text, { synonyms = true } = {}) {
-  const words = normalize(text)
+  const all = (synonyms ? unaddress(text) : normalize(text))
     .split(' ')
-    .filter((w) => w.length > 1 && !STOP.has(w))
+    .filter((w) => w.length > 1)
+  // nur Füllwörter (z. B. „Cleo?“): dann doch diese Wörter
+  const content = all.filter((w) => !STOP.has(w))
+  const words = content.length ? content : all
   const out = new Set()
   for (const w of words) {
     out.add(stem(w))
@@ -175,41 +219,69 @@ const hasTerm = (topic, q) => {
 export function rarity(topics, qs) {
   const n = topics.length
   const max = Math.log((n + 1) / 0.5)
-  return Object.fromEntries(qs.map((q) => [q, 0.4 + (0.6 * Math.log((n + 1) / (topics.filter((t) => hasTerm(t, q)).length + 0.5))) / max]))
+  return Object.fromEntries(
+    qs.map((q) => {
+      const r = Math.log((n + 1) / (topics.filter((t) => hasTerm(t, q)).length + 0.5)) / max
+      // Tätigkeitswörter („erstellen“, „schicken“) sagen weniger als Hauptwörter („Angebot“, „Stempeln“)
+      return [q, (0.15 + 0.85 * r ** 1.3) * (VERBS.has(q) ? 0.55 : 1)]
+    }),
+  )
 }
 
-/** Wie gut passt ein Thema zur Frage? (0 = gar nicht). weights: aus rarity() */
+/** Wie gut passt ein Thema zur Frage? (0 = gar nicht). weights: aus rarity() je Hauptwort */
 export function score(topic, query, weights = null) {
-  const qs = terms(query)
-  if (!qs.length) return 0
+  const groups = wordGroups(query)
+  if (!groups.length) return 0
   const { map, phrases, title } = index(topic)
-  let sum = 0
-  for (const q of qs) {
+  const hit = (q) => {
     let best = 0
     for (const [t, w] of map) {
       const s = similar(q, t)
       if (s) best = Math.max(best, s * w)
       if (best >= 3) break
     }
-    // lange Wörter (meist zusammengesetzte Hauptwörter wie „Zählerstand“) sagen mehr als kurze Zeitwörter
-    const specific = 1 + Math.max(0, Math.min(q.length, 14) - 7) * 0.05
-    sum += best * specific * (weights?.[q] ?? 1)
+    return best
   }
+  let sum = 0
+  for (const { main, alts } of groups) {
+    // Synonyme sind Alternativen zum Wort (etwas schwächer), keine zusätzlichen Wörter
+    const best = Math.max(hit(main), ...alts.map((a) => hit(a) * 0.85))
+    // lange Wörter (meist zusammengesetzte Hauptwörter wie „Zählerstand“) sagen mehr als kurze Zeitwörter
+    const specific = 1 + Math.max(0, Math.min(main.length, 14) - 7) * 0.05
+    sum += best * specific * (weights?.[main] ?? 1)
+  }
+  const qs = groups
   const n = normalize(query)
   if (phrases.some((p) => n.includes(p))) sum += 4
   if (title && n.includes(title)) sum += 3
-  return sum / Math.sqrt(qs.length)
+  // ein Wort zählt voll; mehrere: nach ihrer Seltenheit gewichtet (häufige Wörter verwässern weniger)
+  const norm = Math.sqrt(groups.reduce((n, g) => n + (weights?.[g.main] ?? 1) ** 2, 0))
+  return sum / norm
 }
 
 /**
  * Beste Themen zur Frage. visible: Ansicht sichtbar? (Rolle) – Themen ohne Ansicht gelten immer.
  * Ergebnis: [{ topic, score }] absteigend, nur mit Treffer.
  */
+/** Heißt das Thema genau so (Kennung oder Titel)? „pickerl“ → Thema „pickerl“, „kalkulation“ → „Kalkulation“. */
+function nameBonus(topic, query, qs) {
+  const n = normalize(query)
+  const id = topic.id.replace(/-/g, ' ')
+  if (n && (n === normalize(topic.title) || n === id)) return 2
+  const parts = new Set(topic.id.split('-').map(stem))
+  return qs.some((q) => parts.has(q)) ? 0.6 : 0
+}
+
 export function search(topics, query, { limit = 3, visible = () => true, view = '' } = {}) {
-  const weights = topics.length > 8 ? rarity(topics, terms(query)) : null
+  const qs = wordGroups(query).map((g) => g.main)
+  // Seltenheit nur, wenn mehrere Wörter zusammen gewichtet werden; ein einzelnes Wort zählt voll
+  const weights = topics.length > 8 && qs.length > 1 ? rarity(topics, qs) : null
   return topics
     .filter((t) => !t.view || visible(t.view))
-    .map((topic) => ({ topic, score: score(topic, query, weights) + (view && topic.view === view ? 0.4 : 0) }))
+    .map((topic) => {
+      const base = score(topic, query, weights)
+      return { topic, score: base ? base + nameBonus(topic, query, qs) + (view && topic.view === view ? 0.4 : 0) : 0 }
+    })
     .filter((x) => x.score >= 1)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)

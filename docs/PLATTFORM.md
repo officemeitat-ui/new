@@ -39,7 +39,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 - **Mattenwechsel wird pro Gruppe zugewiesen:** die Objekt-ID der Microsoft-Gruppe (z. B. Fahrer:innen der Touren) unter `access.groups.mattenwechsel` eintragen. Wer zusätzlich in einer anderen Gruppe ist, bekommt beides (z. B. Vorarbeiter + Mattenwechsel). Die Gruppe braucht in SharePoint „Bearbeiten“ auf `Mattenwechsel` und auf `Stammdaten` (der Mattenwechsel pflegt beim Abschließen den gemeinsamen Kundenstamm `Stammdaten/Kunden.json`).
 - **Im Betrieb (SharePoint) gilt: ohne Rolle kein Zugriff.** Wer keiner Gruppe zugeordnet ist, sieht „Kein Bereich freigegeben“, und die App lädt keine einzige Datei.
 - `office@cleanos.at` und `it@cleanos.at` haben Vollzugriff (`config.production.json` → `access.planners`), auch bevor die Gruppen eingerichtet sind.
-- Im Browser-Modus (Probe ohne SharePoint) gibt es oben „Ansicht als …“. Damit lässt sich ausprobieren, was eine Rolle sieht. Ohne jede Einrichtung darf dort jede Person alles.
+- Im Browser-Modus (Probe ohne SharePoint) gibt es unten in der Seitenleiste „Ansicht als …“ (am Handy unter „Mehr“ → „Konto & Daten“). Damit lässt sich ausprobieren, was eine Rolle sieht. Ohne jede Einrichtung darf dort jede Person alles.
 - Die Ansicht **Stammdaten → Berechtigungen** zeigt für Vollzugriff, welche Gruppe was sieht und welche SharePoint-Rechte sie braucht, berechnet aus denselben Regeln, nach denen die App arbeitet.
 
 ### Rechte über Microsoft-Gruppen (empfohlen, geht mit jeder Lizenz)
@@ -168,7 +168,7 @@ Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für de
 
 ## Fahrzeuge & Reifen
 
-Eigener Punkt unter *Stammdaten*: die Firmenfahrzeuge mit Fahrer/in (aus den Mitarbeitenden), Reifensätzen und Einlagerung. Daten liegen in `fahrzeuge/fahrzeuge.json`, mit eigener Rolle `fuhrpark`.
+Eigener Punkt unter *Material & Fuhrpark*: die Firmenfahrzeuge mit Fahrer/in (aus den Mitarbeitenden), Reifensätzen und Einlagerung. Daten liegen in `fahrzeuge/fahrzeuge.json`, mit eigener Rolle `fuhrpark`.
 
 **Je Fahrzeug:** Kennzeichen, Fahrzeug, Art (Pkw, Transporter bis 3,5 t, Lkw über 3,5 t), Fahrer/in, Werkstatt, was montiert ist (Sommer, Winter, Ganzjahr). Je Reifensatz: Größe, wo er eingelagert ist, DOT-Nummer (Alter) und Profiltiefe je Rad.
 
@@ -259,7 +259,7 @@ Zwischen zwei Einsätzen am selben Tag rechnet die App eine Fahrt (zählt als Ar
 
 ## Reklamationen
 
-Eigener Punkt unter *Objektservice* (Modul „Reklamationen“; Rollen Objektmanagement, Objektleitung, Objektservice und Vollzugriff). Gespeichert in `reklamationen/reklamationen.json`.
+Eigener Punkt unter *Objekte & Kunden* (Modul „Reklamationen“; Rollen Objektmanagement, Objektleitung, Objektservice und Vollzugriff). Gespeichert in `reklamationen/reklamationen.json`.
 
 - **Erfassen:** Objekt, Tag des Mangels, Eingang (Telefon, E-Mail, vor Ort, Objektkontrolle, intern), Art (Reinigung mangelhaft, Leistung nicht erbracht, nicht erschienen, Schaden, Schlüssel/Sicherheit, Verhalten, Sonstiges), Beschreibung, Ansprechperson. Auch direkt aus dem Einsatz-Dialog („Reklamation erfassen“, Objekt und Tag vorbelegt).
 - **Laut Plan dort:** Die App zeigt, wer am Tag und am Vortag (Abendreinigung) im Objekt eingeteilt war; ankreuzen, wer betroffen ist. Nur intern.
@@ -283,7 +283,7 @@ Eigener Punkt *Material* in der Seitenleiste (Modul „Material & Lager“; Roll
 
 ## Schlüsselbuch
 
-Eigener Punkt unter *Objektservice* (Modul „Schlüsselbuch“; Rollen Objektmanagement, Objektleitung, Vollzugriff bearbeiten, Objektservice liest). Gespeichert in `schluessel/schluessel.json`.
+Eigener Punkt unter *Objekte & Kunden* (Modul „Schlüsselbuch“; Rollen Objektmanagement, Objektleitung, Vollzugriff bearbeiten, Objektservice liest). Gespeichert in `schluessel/schluessel.json`.
 
 - **Schlüssel anlegen** je Objekt: Bezeichnung, Nummer/Prägung, Art (Schlüssel, Transponder, Zutrittskarte, Fernbedienung), Aufbewahrung im Büro. Mehrere gleiche auf einmal (bekommen Nummer 1, 2, 3 …). Schlüssel, die bisher direkt beim Objekt eingetragen waren, übernimmt „Übernehmen“ einmal ins Buch (mit der Person, die ihn hat); danach zeigt *Objekt bearbeiten* sie nur noch an.
 - **Ausgeben** (auch Weitergabe von Person zu Person) mit Datum, optional „Rückgabe bis“, **Unterschrift am Handy oder Tablet** und **Quittung als PDF**; **Rückgabe** einzeln oder alle Schlüssel einer Person (z. B. beim Austritt, mit Liste als PDF zum Abhaken).
@@ -294,7 +294,7 @@ Eigener Punkt unter *Objektservice* (Modul „Schlüsselbuch“; Rollen Objektma
 
 ## Leistungsnachweis
 
-Unter *Auswertung* (für alle, die die Einsatzplanung sehen). Je Objekt und Monat, was laut Plan geleistet wurde:
+Unter *Objekte & Kunden* (für alle, die die Einsatzplanung sehen). Je Objekt und Monat, was laut Plan geleistet wurde:
 
 - je Einsatz: Datum, Zeit laut Plan, Leistung (Sonderleistungen markiert), Status **erbracht**, **entfällt** (Feiertag oder abgesagt, mit Grund), **geplant** (noch nicht vorbei) oder **nicht besetzt** (vor dem Versand im Plan klären; die Übersicht warnt);
 - mit **Zeiterfassung im Objekt:** die gestempelten Zeiten je Einsatz („erfasst im Objekt 05:58–08:03“) und der Anteil der Einsätze mit Stempelung;
@@ -305,7 +305,7 @@ Unter *Auswertung* (für alle, die die Einsatzplanung sehen). Je Objekt und Mona
 
 ## Unterweisungen & Fristen
 
-Unter *Stammdaten* (Modul „Unterweisungen & Fristen“; Vollzugriff und Objektleitung). Gespeichert in `unterweisungen/unterweisungen.json`.
+Unter *Verwaltung* (Modul „Unterweisungen & Fristen“; Vollzugriff und Objektleitung). Gespeichert in `unterweisungen/unterweisungen.json`.
 
 - **Matrix** Person × Art mit Ampel: grün gültig, gelb läuft in 30 Tagen ab, rot abgelaufen oder fehlt (bei Pflicht). Feld anklicken zum Eintragen (Datum, gültig bis: Vorschlag aus der Gültigkeit der Art, Notiz). Filter Team, Suche, „nur mit Handlungsbedarf“, CSV.
 - **Arten** (änderbar): Sicherheitsunterweisung und Unterweisung Reinigungsmittel (§ 14 ASchG, Vorgabe 12 Monate, Pflicht für alle), Erste-Hilfe-Auffrischung (§ 40 AStV, 48 Monate, nur Ersthelfer:innen), Führerscheinkontrolle (§ 103 KFG, 6 Monate, Pflicht mit Qualifikation „Führerschein“), Aufenthaltstitel/Arbeitserlaubnis (AuslBG, Ablaufdatum von Hand, **sperrt**). Eigene Arten dazu, z. B. Hygieneschulung; nicht mehr benötigte auf „aktiv“ aus (Einträge bleiben).
@@ -315,7 +315,7 @@ Unter *Stammdaten* (Modul „Unterweisungen & Fristen“; Vollzugriff und Objekt
 
 ## Fakturierung
 
-Eigenes Modul unter *Auswertung* (Rolle `buchhaltung` oder Vollzugriff), gespeichert in `fakturierung/fakturierung.json`, die PDFs in `fakturierung/belege/JAHR/`. Wie bei orgamax oder FreeFinance, abgestimmt auf die Gebäudereinigung:
+Eigenes Modul unter *Finanzen* (Rolle `buchhaltung` oder Vollzugriff), gespeichert in `fakturierung/fakturierung.json`, die PDFs in `fakturierung/belege/JAHR/`. Wie bei orgamax oder FreeFinance, abgestimmt auf die Gebäudereinigung:
 
 - **Kunden** (Rechnungsempfänger, oft die Hausverwaltung) mit Kundennummer, Anschrift, UID, E-Mail, Zahlungsziel, Stundensatz, Debitorenkonto und den **Objekten**, die zu ihnen gehören. „Kunden aus Objekten anlegen“ übernimmt Name, Adresse und die E-Mail des Leistungsnachweises. **Reverse Charge** je Kunde (siehe unten), **Verbraucher** für private Auftraggeber.
 - **Artikel** als Vorlagen für Positionen (übliche Leistungen auf Knopfdruck, ohne Preise).
@@ -352,7 +352,7 @@ Kontoauszug im Online-Banking herunterladen und unter Fakturierung → **Bank** 
 
 ## KI-Assistent
 
-Knopf **„Assistent“** in der Kopfleiste (am Handy das Sternsymbol), Tastatur **Strg+J**. Man schreibt oder **spricht** (Mikrofon im Chat, Deutsch/Österreich), was zu tun ist; der Assistent schlägt in der App nach und erledigt es mit denselben Rechten wie die angemeldete Person. **Alles, was etwas ändert oder verschickt, zeigt er vorher als Karte mit „Ausführen“ und „Abbrechen“.** Nachschlagen geht ohne Rückfrage.
+Knopf **„Assistent“** in der Kopfleiste (Sprechblase; am Handy oben rechts), Tastatur **Strg+J**. Man schreibt oder **spricht** (Mikrofon im Chat, Deutsch/Österreich), was zu tun ist; der Assistent schlägt in der App nach und erledigt es mit denselben Rechten wie die angemeldete Person. **Alles, was etwas ändert oder verschickt, zeigt er vorher als Karte mit „Ausführen“ und „Abbrechen“.** Nachschlagen geht ohne Rückfrage.
 
 | Kann nachschlagen | Kann erledigen (nach Bestätigung) |
 |---|---|
@@ -475,7 +475,7 @@ Stil **Modern** (Voreinstellung): ruhige weiße Flächen mit feinen Linien, eine
 
 ## Menü
 
-Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Zeitlinie, Termine, Vertretungen, Abwesenheiten, Objektplan, Prüfbericht), **Einsätze & Zeiten** (Zeiterfassung, Wochenzettel, periodische Leistungen, Müllplan, Wetter & Winterdienst), **Objekte & Kunden** (Reklamationen, Leistungsnachweis, Schlüsselbuch, Werkzeuge), **Material & Fuhrpark**, **Finanzen** (Fakturierung, Kalkulation, Controlling, Monatsauswertung, Überstunden) und **Verwaltung** (Mitarbeitende, Objekte & Leistungen, Zuweisung, Unterweisungen, Regeln, Berechtigungen, Systemcheck).
+Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Zeitlinie, Termine, Vertretungen, Abwesenheiten, Objektplan, Prüfbericht), **Einsätze & Zeiten** (Zeiterfassung, Wochenzettel, periodische Leistungen, Müllplan, Wetter & Winterdienst), **Objekte & Kunden** (Reklamationen, Leistungsnachweis, Schlüsselbuch, Werkzeuge), **Material & Fuhrpark**, **Finanzen** (Fakturierung, Kalkulation, Objekt-Controlling, Monatsauswertung, Überstunden) und **Verwaltung** (Mitarbeitende, Objekte & Leistungen, Zuweisung, Unterweisungen, Regeln, Berechtigungen, Systemcheck).
 
 - Abschnitte lassen sich auf- und zuklappen (gemerkt je Gerät); der Abschnitt der offenen Ansicht ist immer offen. Zugeklappte Abschnitte zeigen die Summe ihrer Zähler.
 - Mit dem Stern (beim Darüberfahren) wird ein Bereich oben **angeheftet**.
@@ -506,7 +506,7 @@ Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Ze
 
 ## Wetter & Winterdienst
 
-Eigener Punkt unter *Einsatzplanung* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.
+Eigener Punkt unter *Einsätze & Zeiten* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.
 
 **Winterdienst (§ 93 StVO):** Beim Objekt unter *Objekte & Leistungen* „Winterdienst“ einschalten: fertig bis (Standard 6 Uhr), Dauer, Personen, Team und ein Hinweis (Flächen, Streugut). Nötig ist er, wenn vom Vorabend 16 Uhr bis 22 Uhr Neuschnee kommt (ab 1 cm), Niederschlag bei Frost fällt (Glätte) oder GeoSphere vor Schnee oder Glatteis warnt. Dann zeigt die Ansicht die betroffenen Objekte, „Zu erledigen“ meldet es, und der Knopf **„Winterdienst anlegen“** legt je Objekt einen Einsatz an (z. B. 05:15–06:00) und teilt das Team ein: in der eingetragenen Reihenfolge, wer an dem Tag abwesend oder nicht mehr beschäftigt ist, wird übersprungen. Fehlt jemand, bleibt der Einsatz offen wie jeder andere. Die Einsätze stehen in der Wochenübersicht mit Schneeflocke, im Wochenzettel und in den Stunden; Ruhezeit, Nachtruhe Jugendlicher usw. werden wie immer geprüft. „Absagen“ nimmt einen Einsatz wieder heraus (z. B. Schnee blieb aus), „Rückgängig“ geht auch.
 
@@ -613,7 +613,7 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 - **Freigabe:** „Woche freigeben“ markiert alle vollständigen Zeiten als geprüft (mit Person und Zeitpunkt); eine spätere Korrektur hebt die Freigabe auf.
 - **Monat je Person:** Soll laut Plan, Ist laut Zeiterfassung (ohne Pausen), Differenz, Abweichungen, fehlende, nachgetragene und noch nicht freigegebene Zeiten; je Person die **Arbeitszeitaufzeichnung als PDF** (mit Nachträgen, Korrekturen und Unterschriftsfeldern), alle als ZIP, Übersicht als CSV.
 - Ohne QR-Zeiterfassung ist die Ansicht trotzdem da: Zeiten lassen sich von Hand erfassen und auswerten.
-- **Nicht eingestempelt:** Unter „Zu erledigen“ (und als Zahl bei „Ist-Zeiten“) stehen begonnene Einsätze ohne Stempelung, nach der eingestellten Zeit (Standard 20 Minuten). Zusätzlich meldet der Webspace es per Push ans Büro-Handy und an die Person, auch nachts und wenn niemand die App offen hat; dafür braucht es einen **Cronjob** wie beim Schnee-Alarm (Adresse im Dialog). Der Alarm gilt nur für Personen, die schon einmal gestempelt haben, damit es beim Einführen keine Fehlalarme gibt, und höchstens einmal je Einsatz.
+- **Nicht eingestempelt:** Unter „Zu erledigen“ (und als Zahl bei „Zeiterfassung“) stehen begonnene Einsätze ohne Stempelung, nach der eingestellten Zeit (Standard 20 Minuten). Zusätzlich meldet der Webspace es per Push ans Büro-Handy und an die Person, auch nachts und wenn niemand die App offen hat; dafür braucht es einen **Cronjob** wie beim Schnee-Alarm (Adresse im Dialog). Der Alarm gilt nur für Personen, die schon einmal gestempelt haben, damit es beim Einführen keine Fehlalarme gibt, und höchstens einmal je Einsatz.
 - **Stunden:** Der Wochenzettel und die Lohnverrechnung rechnen weiter mit den geplanten Zeiten. Weicht die Ist-Zeit um mehr als 10 Minuten ab, setzt **„Ist übernehmen“** (je Zeile, im Einsatz-Dialog oder „Alle Abweichungen übernehmen“) Beginn und Ende des Einsatzes an diesem Tag auf die erfassten Zeiten, mit Vermerk „Ist-Zeit laut Zeiterfassung“. Das geht nur, wenn eine Person im Einsatz ist (die Zeit gilt für den ganzen Einsatz). In veröffentlichten Wochen danach wie gewohnt die Korrektur buchen; „Rückgängig“ geht auch.
 - **Grenzen:** Ein Foto des Codes ließe sich auch anderswo scannen; der Code beweist die Anwesenheit nicht sicher, reicht aber für den Alltag und für Stichproben. Kein GPS, keine Ortung.
 
@@ -629,7 +629,7 @@ Beim ersten Öffnen merkt sich das Handy den Link (Cookie, 400 Tage). Danach gen
 
 ## Systemcheck (Inbetriebnahme)
 
-Unter *Stammdaten → Systemcheck* (nur Vollzugriff): prüft vom Browser aus Webspace, Einrichtung und Microsoft 365 und sagt je Punkt, was zu tun ist. Nur lesend.
+Unter *Verwaltung → Systemcheck* (nur Vollzugriff): prüft vom Browser aus Webspace, Einrichtung und Microsoft 365 und sagt je Punkt, was zu tun ist. Nur lesend.
 
 - **Webspace:** HTTPS, Sicherheitsregeln (`.htaccess`), `privat/` von außen gesperrt, PHP 8 und Erweiterungen (json, mbstring, curl, openssl, fileinfo), `privat/` beschreibbar, Upload-Grenze für Fotos (8 MB), freier Speicher, Webspace erreicht das Internet (GeoSphere über `wetter.php`; nötig für Schnee-Alarm und Push).
 - **Schnee-Alarm** und **Plan am Handy** (wenn eingeschaltet): Einrichtungsdatei in `privat/`, Schlüssel von App und Webspace passen, letzter Lauf der Cronjobs (Warnung, wenn länger als 30 Minuten her).

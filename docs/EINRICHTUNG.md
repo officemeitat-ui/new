@@ -127,7 +127,7 @@ Erst `npm ci && npm run build` ausführen (oder das fertige Paket `cleanos-app-w
    - In der App unter *Mitarbeitende → Plan am Handy* einschalten, Büro-Handy (Push) bzw. E-Mail für neue Anträge eintragen, dann **„Einrichtungs-Datei herunterladen“** und `mitarbeiter.json` per FTP nach **`privat/`** laden. PHP muss dort schreiben dürfen (Ordner `privat/mitarbeiter/` legt es selbst an).
    - **„Speichern und übertragen“** schickt die veröffentlichten Wochen ab der Vorwoche. Prüfen: einen Link (Knopf „Link“) am Handy öffnen; es kommt „Mein Dienstplan“ mit Namen und Woche. Danach den Personen ihren Link schicken (WhatsApp oder E-Mail aus dem Dialog).
    - Ein neues Paket hochzuladen lässt `privat/mitarbeiter.json` und die Pläne stehen.
-   - **Zeiterfassung** (optional, vorher mit dem Betriebsrat bzw. schriftlich regeln): im selben Dialog „Zeiterfassung ein“, „QR-Aushänge (PDF)“ drucken und je Objekt aufhängen, „Speichern und übertragen“. Für den Alarm bei Nichterscheinen einen **zweiten Cronjob alle 5 bis 10 Minuten**: `php mein-plan.php pruefen` im Ordner der App oder die Adresse aus dem Dialog (`mein-plan.php?aktion=pruefen&schluessel=…`) bei cron-job.org. Prüfen: einen Aushang mit dem eigenen Handy scannen (vorher den eigenen Link öffnen), „Kommen“ und „Gehen“ erfassen, in der App unter „Ist-Zeiten“ „Jetzt abrufen“.
+   - **Zeiterfassung** (optional, vorher mit dem Betriebsrat bzw. schriftlich regeln): im selben Dialog „Zeiterfassung ein“, „QR-Aushänge (PDF)“ drucken und je Objekt aufhängen, „Speichern und übertragen“. Für den Alarm bei Nichterscheinen einen **zweiten Cronjob alle 5 bis 10 Minuten**: `php mein-plan.php pruefen` im Ordner der App oder die Adresse aus dem Dialog (`mein-plan.php?aktion=pruefen&schluessel=…`) bei cron-job.org. Prüfen: einen Aushang mit dem eigenen Handy scannen (vorher den eigenen Link öffnen), „Kommen“ und „Gehen“ erfassen, in der App unter „Zeiterfassung“ „Jetzt abrufen“.
 8. Optional: die alten Adressen der Werkzeuge im World4You-Kundenbereich weiterleiten, z. B. `wasserzaehler.cleanos.at` → `https://app.cleanos.at/#wasserzaehler`, `pruefprotokoll.cleanos.at` → `#objektkontrolle`, `objektdoku.cleanos.at` → `#objektdoku`, Mattenwechsel → `#matten`. Oder die alten Adressen einfach weiterlaufen lassen: Allein geöffnet melden sich die Werkzeuge wie bisher selbst an.
 
 **Neue Fassung einspielen:** neues Paket bauen und den Inhalt hochladen (vorhandene Dateien ersetzen; alte Dateien in `app/` stören nicht), **aber `config.json` am Server nicht überschreiben**: Dort steht die Anwendungs-ID aus der Einrichtung, und im Paket fehlt sie, solange sie nicht in `config.production.json` eingetragen ist. Am besten die Anwendungs-ID nach der Einrichtung auch in `config.production.json` eintragen; dann bringt jedes Paket sie mit. Handys, Tablets und PCs holen sich die neue Fassung beim nächsten Öffnen von selbst.
@@ -186,7 +186,7 @@ Alle Geräte arbeiten mit denselben Daten in SharePoint. Ändert jemand am PC, s
 
 ## 7. Testen ohne SharePoint
 
-`npm start` und `http://localhost:8080` öffnen. `config.json` allein speichert im Browser und startet mit Beispieldaten (35 Mitarbeitende, 4 veröffentlichte Wochen). Oben „Ansicht als …“ zeigt, was Objektmanagement, Vorarbeiter usw. sehen.
+`npm start` und `http://localhost:8080` öffnen. `config.json` allein speichert im Browser und startet mit Beispieldaten (35 Mitarbeitende, 4 veröffentlichte Wochen). Unten in der Seitenleiste „Ansicht als …“ zeigt, was Objektmanagement, Vorarbeiter usw. sehen.
 
 ## 8. KI-Assistent einschalten (optional)
 
