@@ -1,0 +1,16 @@
+// Später geladen (views/lazy.js), Paket mit den Bereichen des Büros. Ein Paket statt vieler
+// einzelner Dateien: esbuild teilt gemeinsamen Code je Kombination von Paketen auf, mit vielen
+// Paketen zerfiele der Start in viele kleine Dateien. Reihenfolge wie früher in index.js.
+import './calculation.js'
+import './proof.js'
+import './staff.js'
+import './sites.js'
+import './trainings.js'
+import './rules.js'
+import './system.js'
+import './vehicles.js'
+import './complaints.js'
+import './material.js'
+import './keys.js'
+import './invoicing.js'
+import './weather.js'

@@ -12,7 +12,8 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, navSections, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
+import { loadTopics } from '../help/lazy.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
 import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
@@ -308,7 +309,7 @@ Object.assign(ACTIONS, {
     app.ui.previewRole = el.value === 'disposition' ? null : el.value
     app.access = resolveAccess({ preview: app.ui.previewRole, access: app.config.access })
     app.ui.modal = null
-    render()
+    render().then(loadInBackground)
     toast(app.ui.previewRole ? `Vorschau: so sieht es die Rolle „${el.options[el.selectedIndex].text}“.` : 'Vorschau beendet: alle Bereiche.')
   },
   'close-modal': closeModal,
@@ -498,8 +499,9 @@ async function boot() {
     await seedDemoHistory()
     renderNow()
   }
-  // „Zu erledigen“ lädt Wochen und rechnet: nicht den Start aufhalten
-  setTimeout(() => showTodoIfNew().catch(() => {}), 60)
+  // „Zu erledigen“ lädt Wochen und rechnet: nicht den Start aufhalten. Davor die später geladenen
+  // Module der eigenen Bereiche (ihre Punkte gehören dazu) und Cleos Hilfe-Themen im Hintergrund holen.
+  setTimeout(() => loadInBackground().catch(() => {}).then(() => showTodoIfNew()).catch(() => {}), 60)
   // Wetter (Winterdienst, Hitze, Sturm) im Hintergrund laden
   startWeather()
   // zuletzt benutztes Werkzeug (z. B. Wasserzähler) schon vorladen, damit es beim Öffnen bereit ist
@@ -527,6 +529,16 @@ async function boot() {
     if (el && app.store?.kind === 'sharepoint') el.innerHTML = saveStatusText('offline', String(app.service.pendingCount()))
   })
   registerServiceWorker()
+}
+
+/**
+ * Nach dem ersten Zeichnen: Module, die erst bei Bedarf kommen (views/lazy.js), für die Bereiche der
+ * eigenen Rolle nachladen und Cleos Hilfe-Themen holen. Danach stimmen Zähler und Hinweise, und die
+ * App geht ganz ohne Netz.
+ */
+async function loadInBackground() {
+  loadTopics().then(renderHelp, () => {})
+  if ((await preloadLazy()) && !app.ui.modal) renderNow()
 }
 
 /** Installierbare App: nur im fertigen Build (dort gibt es das Manifest). */

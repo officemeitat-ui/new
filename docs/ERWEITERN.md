@@ -36,6 +36,7 @@ src/
     pdf.js        PDF im Browser erzeugen, ZIP
     shared.js     UI-Bausteine
     views/*.js    je Ansicht eine Datei (z. B. due.js: Periodische Leistungen)
+    views/lazy.js Ansichten, die erst bei Bedarf geladen werden (Kopfdaten, siehe „Später laden“)
     modals/*.js   Dialoge (absence.js: Abwesenheits-Assistent, todo.js: Zu erledigen, send.js: Versand)
 themes/        Corporate Design (CSS-Tokens)
 config.json    Laufzeit-Konfiguration
@@ -101,6 +102,16 @@ tabBar({ action: 'x-tab', current, tabs: ['a', { label: 'Gruppe', items: [{ id: 
 ```
 
 Leere Menüs ergeben `''`, ein einzelner Eintrag wird als normaler Knopf gezeigt; Überschriften ohne Einträge darunter fallen weg. Einträge rufen die Aktion wie ein Knopf (`data` landet in `el.dataset`).
+
+### Später laden (große, selten gebrauchte Ansichten)
+
+Was in `views/index.js` steht, lädt beim Start. Eine große Ansicht, die nicht jeder gleich braucht (z. B. Fakturierung, Material, Anleitung), kommt stattdessen erst, wenn ihre Ansicht, ein Dialog oder eine Aktion zum ersten Mal gebraucht wird, spätestens kurz nach dem Start im Hintergrund, und nur für Rollen, die den Bereich sehen. Die Datei selbst bleibt, wie sie ist:
+
+1. In `src/ui/views/index.js` den Import entfernen und das Modul stattdessen in `views/lazy-buero.js` importieren (`lazy-alle.js`: Ansichten, die jede Rolle sieht). Ein Paket statt vieler Einzeldateien hält den Start in wenigen Dateien.
+2. In `src/ui/views/lazy.js` die Kopfdaten eintragen: `lazy(BUERO, { views: [{ id, order, label, group, module, icon, noWeek, text }], modals: 'typ1 typ2', actions: 'aktion1 aktion2 …', hints: true, todo: ['kennung'] })`. `views` wie bei `registerView`, aber ohne `render` (`badge`, `range` und `actions` dürfen fehlen; der Zähler erscheint dann nach dem Laden). `modals` und `actions`: **alle** Namen, die das Modul registriert. `hints`, wenn es `registerObjectHint` aufruft, `todo` mit den Kennungen von `registerTodo`. Die Stelle in `lazy.js` bestimmt die Reihenfolge in „Zu erledigen“.
+3. `npm test`: `test/lazy.test.js` lädt das Modul und vergleicht. Fehlt eine Aktion, ist eine Beschriftung anders oder steht eine Kennung zu viel da, sagt der Test genau was. Er prüft auch, dass der Build das Modul nicht doch in den Start zieht (statischer Import aus einer Datei, die immer lädt).
+
+Bis zum Laden stehen Platzhalter in `VIEWS`, `MODALS` und `ACTIONS` (`registerLazy` in `context.js`): Seitenleiste, Suche, Cleo, Schnellfunktionen und Rollen sehen alles wie gewohnt, ein Klick lädt das Modul und führt dann die echte Aktion aus (mit ihrer Rechteprüfung). Platzhalter-Aktionen warten auf die echte und geben ihr Ergebnis (Promise) zurück. Wer eine Ansicht oder einen Dialog direkt aufruft, ohne dass jemand sie geöffnet hat (z. B. ein Bericht im Hintergrund), holt sie vorher mit `await ensureView(id)`, `await ensureModal(typ)` bzw. `await ensureAction(name)` aus `context.js`. Wird später im Modul eine Aktion ergänzt, gehört ihr Name auch nach `lazy.js`; der Test erinnert daran. Ein Modul, das andere Dateien beim Start brauchen (z. B. `appointmentsOfDay` für die Übersicht), bleibt in `index.js`.
 
 ## Andere Ablage (z. B. eigene Datenbank)
 
@@ -199,6 +210,7 @@ Ein **eigenes Werkzeug** (fertige HTML-Datei wie Wasserzähler oder Mattenwechse
 5. **Zu erledigen:** `registerTodo({ id, module, title, compute(today) → [{ id, … }], render(items) })`. Die `id` eines Punkts ändert sich, wenn er neu gemeldet werden soll.
 6. **Hinweis im Einsatz:** `registerObjectHint({ module, html(objectId) })` zeigt im Einsatz-Dialog etwas zum Objekt.
 7. **Suche:** in `src/ui/search.js` eine Gruppe ergänzen.
+8. **Ladezeit:** Ist das Modul groß und nur für wenige Rollen, erst bei Bedarf laden (siehe „Später laden“ unter „Eine Ansicht ergänzen“).
 
 ## Ideen für nächste Module
 

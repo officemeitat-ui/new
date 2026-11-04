@@ -4,6 +4,8 @@
 //
 // - Eigener Code wird mit esbuild zu wenigen, minimierten Dateien mit
 //   Inhalts-Hash gebündelt (app/…): schneller Start, sicheres Caching.
+//   Selten gebrauchte Bereiche (src/ui/views/lazy.js) sind eigene Teile und
+//   kommen erst bei Bedarf; app/start-….js lädt die Teile des Starts vor.
 // - Bibliotheken (MSAL, ExcelJS, pdfmake, JSZip) liegen unter vendor/ und
 //   werden erst bei Bedarf geladen.
 // - Die Werkzeuge kommen unverändert nach werkzeuge/ (scripts/werkzeuge.js).
@@ -25,6 +27,18 @@ import { werkzeugeBauen } from './werkzeuge.js'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
 const dist = join(root, 'dist')
+
+/** Ausgabedateien, die der Einstieg beim Start lädt: er selbst und alles, was er statisch importiert (ohne import()). */
+function startChunks(metafile, entryFile) {
+  const files = new Set()
+  const walk = (file) => {
+    if (files.has(file)) return
+    files.add(file)
+    for (const imp of metafile.outputs[file]?.imports || []) if (imp.kind === 'import-statement') walk(imp.path)
+  }
+  walk(entryFile)
+  return files
+}
 const copy = (item, target = item) =>
   cp(join(root, item), join(dist, target), { recursive: true }).catch((err) => {
     if (err.code !== 'ENOENT') throw err
@@ -101,6 +115,20 @@ if (esbuild) {
   html = html.replace('src/ui/app.js', entry('app')).replace('src/ui/styles.css', entry('styles'))
   const size = outputs.reduce((s, [, o]) => s + o.bytes, 0)
   console.log(`Gebündelt: ${outputs.length} Dateien, ${Math.round(size / 1024)} KB (${entry('app')})`)
+  // Ladezeit: Die Teile, die der Start braucht (statisch importiert), sollen gleich mit dem Einstieg
+  // kommen, nicht erst nach dem Lesen von app-….js. Ein kleines Skript im Kopf hängt dafür
+  // modulepreload-Links an. Der Browser führt es erst aus, wenn die Stile da sind: So kommen zuerst
+  // die Stile („Wird geladen …“ sofort sichtbar), dann alle Teile gleichzeitig. Alles andere
+  // (views/lazy.js, Hilfe-Themen, KI) kommt bei Bedarf; der Service Worker hält alles vor.
+  const start = startChunks(result.metafile, outputs.find(([, o]) => o.entryPoint === 'src/ui/app.js')[0])
+  const startFiles = [...start].map((file) => relative(dist, join(root, file)).replaceAll('\\', '/'))
+  // Dasselbe Skript fragt schon config.json an (loadConfig nimmt die Antwort), statt erst nach dem ganzen Code.
+  const preload = `// Startteile vorladen, sobald die Stile da sind, und config.json anfragen (erzeugt von scripts/build.js)\nfor (const href of ${JSON.stringify(startFiles.filter((f) => f !== entry('app')))}) document.head.append(Object.assign(document.createElement('link'), { rel: 'modulepreload', href }))\nself.configRequest = fetch('config.json', { cache: 'no-store' }).catch(() => null)\n`
+  const preloadFile = `app/start-${createHash('sha256').update(preload).digest('hex').slice(0, 8).toUpperCase()}.js`
+  await writeFile(join(dist, preloadFile), preload)
+  html = html.replace('</head>', `<script src="${preloadFile}"></script>\n</head>`)
+  const startSize = [...start].reduce((s, file) => s + result.metafile.outputs[file].bytes, 0)
+  console.log(`Start: ${startFiles.length} Dateien, ${Math.round(startSize / 1024)} KB; später bei Bedarf: ${Math.round((size - startSize - result.metafile.outputs[outputs.find(([f]) => f.endsWith('.css'))[0]].bytes) / 1024)} KB`)
 } else {
   await copy('src')
 }

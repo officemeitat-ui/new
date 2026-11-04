@@ -16,6 +16,8 @@ test('Webspace: .htaccess übernimmt die Sicherheitsregeln aus staticwebapp.conf
   assert.match(root, /<Files "config.json">\s+Header set Cache-Control "no-store"/)
   assert.match(root, /<FilesMatch "\^\(index\\\.html\|sw\\\.js\|manifest\\\.webmanifest\)\$">\s+Header set Cache-Control "no-cache"/)
   assert.match(root, /<Files "staticwebapp.config.json">[\s\S]*Require all denied/)
+  // Ladezeit: komprimiert, nur wenn die Module da sind (sonst kein Fehler 500)
+  assert.match(root, /<IfModule mod_deflate\.c>\s+<IfModule mod_filter\.c>\s+AddOutputFilterByType DEFLATE text\/html text\/css text\/javascript /)
   assert.match(files['app/.htaccess'], /Header set Cache-Control "public, max-age=31536000, immutable"/)
 
   // Werkzeuge: eigene CSP (dürfen im Rahmen der App laufen), Kamera für Fotos

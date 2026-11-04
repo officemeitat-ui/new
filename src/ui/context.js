@@ -10,7 +10,7 @@ import { mondaysBetween } from '../core/reports.js'
 import { createContext, validatePlan } from '../core/rules.js'
 import { buildTimesheet, timesheetSignature } from '../core/timesheet.js'
 import { patch } from './morph.js'
-import { esc } from './shared.js'
+import { esc, modalFrame } from './shared.js'
 
 export const app = {
   config: null,
@@ -111,7 +111,12 @@ export const MODALS = {}
 export const ACTIONS = {}
 /** Hinweise anderer Module zu einem Objekt (z. B. Fahrzeug am Objekt): [{ module, html(objectId) }] */
 export const OBJECT_HINTS = []
-export const registerObjectHint = (hint) => OBJECT_HINTS.push(hint)
+export const registerObjectHint = (hint) => {
+  // nachgeladenes Modul (registerLazy): an die Stelle seines Platzhalters, die Reihenfolge bleibt
+  const idx = OBJECT_HINTS.findIndex((h) => h.lazy && h.module === hint.module)
+  if (idx >= 0) OBJECT_HINTS.splice(idx, 1, hint)
+  else OBJECT_HINTS.push(hint)
+}
 /** Hinweise zu einem Objekt, die die Rolle sehen darf. */
 export const objectHints = (objectId) => OBJECT_HINTS.filter((h) => !app.access || app.access.sees(h.module)).map((h) => h.html(objectId)).filter(Boolean)
 
@@ -174,6 +179,107 @@ export function registerActions(handlers, { edit = false } = {}) {
         }
       : fn
   }
+}
+
+// ---------------------------------------------------------------- Später laden
+// Große, selten gebrauchte Module (Fakturierung, Material, Anleitung …) sind im Build eigene
+// Dateien und kommen erst, wenn ihre Ansicht, ein Dialog oder eine Aktion zum ersten Mal gebraucht
+// wird, spätestens kurz nach dem Start im Hintergrund (preloadLazy). Bis dahin stehen Platzhalter
+// in VIEWS, MODALS, ACTIONS und OBJECT_HINTS: Seitenleiste, Suche, Cleo, Rollen und ACTIONS[name]
+// sehen alles schon vorher. Beim Laden registriert sich das Modul wie gewohnt selbst und ersetzt
+// die Platzhalter. Angaben je Modul: views/lazy.js, Anleitung: docs/ERWEITERN.md.
+
+/** Später geladene Module: [{ views, module, loaded, load(), visible() }] */
+export const LAZY = []
+const LOADING = '<p class="muted">Wird geladen …</p>'
+
+function lazyFailed(err) {
+  console.error(err)
+  toast('Dieser Teil der App konnte nicht geladen werden (ohne Netz oder neue Version). Bitte die App neu laden.')
+}
+
+/**
+ * Modul erst bei Bedarf laden. load: () => import('./modul.js');
+ * views: Kopfdaten wie bei registerView, ohne render (badge, range, actions dürfen fehlen);
+ * modals, actions: alle Namen, die das Modul registriert (Liste oder Text mit Leerzeichen);
+ * hints: true, wenn es registerObjectHint aufruft. test/lazy.test.js prüft die Angaben gegen das Modul.
+ */
+export function registerLazy(load, { views = [], modals = [], actions = [], hints = false, module = null } = {}) {
+  const names = (x) => (Array.isArray(x) ? x : String(x).split(/\s+/)).filter(Boolean)
+  let pending = null
+  const entry = {
+    views: views.map((v) => v.id),
+    module: module || views[0]?.module || null,
+    loaded: false,
+    load: () =>
+      (pending ||= load().then(
+        () => void (entry.loaded = true),
+        (err) => {
+          pending = null
+          throw err
+        },
+      )),
+    // sieht die Rolle eine der Ansichten (ohne Ansicht: das Modul)?
+    visible: () => (entry.views.length ? visibleViews().some((v) => entry.views.includes(v.id)) : !app.access || app.access.sees(entry.module)),
+  }
+  LAZY.push(entry)
+  for (const view of views) {
+    const stub = { ...view, lazy: entry }
+    stub.render = () => {
+      entry.waiting ||= entry
+        .load()
+        .then(() => render(), lazyFailed)
+        .finally(() => (entry.waiting = null))
+      return LOADING
+    }
+    registerView(stub)
+  }
+  for (const type of names(modals)) {
+    const stub = (c, modal) => {
+      entry.load().then(() => app.ui.modal === modal && renderModal(), lazyFailed)
+      return modalFrame({ title: 'Wird geladen …', body: LOADING })
+    }
+    stub.lazy = entry
+    MODALS[type] = stub
+  }
+  for (const name of names(actions)) {
+    const stub = (...args) => entry.load().then(() => (ACTIONS[name] === stub ? undefined : ACTIONS[name]?.(...args)), lazyFailed)
+    stub.lazy = entry
+    ACTIONS[name] = stub
+  }
+  if (hints) OBJECT_HINTS.push({ module: entry.module, lazy: entry, html: () => '' })
+  return entry
+}
+
+// Für Code, der eine Ansicht, einen Dialog oder eine Aktion direkt aufruft, ohne dass die Person
+// sie geöffnet hat (z. B. Berichte im Hintergrund): erst laden, dann das echte Objekt nehmen.
+// Werfen, wenn das Modul nicht geladen werden kann. Platzhalter-Aktionen selbst warten ebenfalls
+// und geben das Ergebnis (Promise) der echten Aktion zurück.
+/** Ansicht bereit: `(await ensureView('material')).render(c)`. */
+export async function ensureView(id) {
+  await VIEWS.find((v) => v.id === id)?.lazy?.load()
+  return VIEWS.find((v) => v.id === id)
+}
+/** Dialog bereit: `(await ensureModal('todo'))(c, {})`. */
+export async function ensureModal(type) {
+  await MODALS[type]?.lazy?.load()
+  return MODALS[type]
+}
+/** Aktion bereit: `(await ensureAction('mat-stock-csv'))(el)`. */
+export async function ensureAction(name) {
+  await ACTIONS[name]?.lazy?.load()
+  return ACTIONS[name]
+}
+
+/**
+ * Nach dem Start im Hintergrund: noch nicht geladene Module der eigenen Bereiche laden. Danach
+ * stimmen Zähler, „Zu erledigen“ und Hinweise, und alles geht auch ohne Netz (Keller), selbst wenn
+ * der Service Worker die neue Version noch nicht ganz vorhält. true, wenn etwas neu geladen wurde.
+ */
+export async function preloadLazy() {
+  const list = LAZY.filter((l) => !l.loaded && l.visible())
+  await Promise.all(list.map((l) => l.load().catch(() => {})))
+  return list.some((l) => l.loaded)
 }
 
 // ---------------------------------------------------------------- Berechnung
@@ -268,8 +374,11 @@ export function setFrame(hooks) {
 
 export async function render() {
   const { from, to } = windowFor(app.ui.monday, currentMonth())
+  // Ansicht noch nicht geladen (registerLazy): gleichzeitig mit den Wochen holen
+  const lazy = visibleViews().find((v) => v.id === app.ui.view)?.lazy?.load().catch(lazyFailed)
   try {
     await app.service.ensureWeeks(mondaysBetween(from, to))
+    await lazy
     const extra = VIEWS.find((v) => v.id === app.ui.view)?.range?.()
     if (extra) await ensureRange(extra.from, extra.to)
   } catch (err) {

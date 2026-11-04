@@ -10,7 +10,7 @@ import { listMail, parseAddresses, reportMail } from '../core/mail.js'
 import { mondaysBetween } from '../core/reports.js'
 import { isDue, lastSlot, mayRetry, nextSlot, RHYTHMS, rhythmText, viennaNow, WEEKDAYS } from '../core/report-schedule.js'
 import { reportDocument } from '../export/report-pdf.js'
-import { app, compute, confirmStep, ensureRange, MODALS, openModal, persist, registerActions, registerModal, renderModal, toast, VIEWS, windowFor } from './context.js'
+import { app, compute, confirmStep, ensureModal, ensureRange, ensureView, MODALS, openModal, persist, preloadLazy, registerActions, registerModal, renderModal, toast, VIEWS, windowFor } from './context.js'
 import { openCompose, pickSelect, readView, tablesCsv, todoSections } from './mailer.js'
 import { canMail } from './modals/send.js'
 import { loadLogo, pdfBlob } from './pdf.js'
@@ -43,11 +43,15 @@ async function renderOffscreen(def) {
   const monday = mondayOf(today)
   const { from, to } = windowFor(monday, addDays(monday, 3).slice(0, 7))
   await app.service?.ensureWeeks?.(mondaysBetween(from, to))
-  const view = def.view ? VIEWS.find((v) => v.id === def.view) : null
+  // später geladene Ansicht (views/lazy.js), die noch niemand geöffnet hat: erst laden; „Zu erledigen“
+  // enthält auch Punkte später geladener Module (Fakturierung, Material …): die der eigenen Bereiche laden
+  await preloadLazy()
+  const view = def.view ? await ensureView(def.view) : null
+  const modal = def.modal ? await ensureModal(def.modal) : null
   const extra = view?.range?.()
   if (extra) await ensureRange(extra.from, extra.to)
   const c = compute(monday)
-  const html = view ? view.render(c) : MODALS[def.modal](c, {})
+  const html = view ? view.render(c) : modal(c, {})
   const box = document.createElement('div')
   box.setAttribute('aria-hidden', 'true')
   box.style.cssText = 'position:fixed;left:-20000px;top:0;width:1200px;visibility:hidden;pointer-events:none'
@@ -173,6 +177,7 @@ function aboRow(a, now) {
   const confirming = app.ui.confirm === `ra-del-${a.id}`
   return `<tr><td><strong>${esc(r?.label || a.report)}</strong>${mine ? '' : `<br><span class="muted">sendet ${esc(a.byName || a.by)}</span>`}</td><td>${esc(parseAddresses(a.to).valid.join(', '))}</td><td>${when}</td><td>${last}</td>
     <td class="actions-cell"><button class="btn small" data-action="ra-now" data-id="${esc(a.id)}" title="Bericht jetzt erstellen und im Senden-Fenster öffnen">${ICON.send} Jetzt</button>
+      ${mine ? '' : `<button class="btn small edit-only" data-action="ra-take" data-id="${esc(a.id)}" title="Ab jetzt aus deinem Postfach senden (z. B. wenn ${esc(a.byName || a.by)} nicht mehr da ist)">Übernehmen</button>`}
       <button class="btn small edit-only" data-action="ra-edit" data-id="${esc(a.id)}">Bearbeiten</button>
       <button class="btn small edit-only" data-action="ra-toggle" data-id="${esc(a.id)}">${a.active === false ? 'Fortsetzen' : 'Pausieren'}</button>
       <button class="btn small edit-only ${confirming ? 'danger confirm' : 'danger'}" data-action="ra-delete" data-id="${esc(a.id)}">${confirming ? 'Wirklich?' : 'Löschen'}</button></td></tr>`
@@ -245,6 +250,14 @@ registerActions(
       Object.assign(app.ui.modal, { edit: abo.id, draft: { ...abo } })
       renderModal()
       document.getElementById('ra-to')?.focus()
+    },
+    'ra-take': (el) => {
+      const abo = aboOf(el.dataset.id)
+      if (!abo) return
+      Object.assign(abo, { by: me(), byName: app.user?.name || '' })
+      persist()
+      renderModal()
+      toast('Abo übernommen: wird ab jetzt aus deinem Postfach gesendet.')
     },
     'ra-cancel': () => {
       Object.assign(app.ui.modal, { edit: null, draft: null })

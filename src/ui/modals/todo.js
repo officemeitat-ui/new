@@ -21,24 +21,31 @@ const AHEAD_DAYS = 35
 
 export const todoWindow = (today = todayISO()) => ({ from: addDays(today, -BACK_DAYS), to: addDays(today, AHEAD_DAYS) })
 
-const SOURCES = []
+export const SOURCES = []
 /**
  * Weitere Quelle für „Zu erledigen“: { id, module, title, compute(today) → [{ id, … }], render(items, c) → HTML }
  * Die id jedes Punkts ändert sich, wenn er wieder neu gemeldet werden soll.
  */
 export function registerTodo(source) {
   const idx = SOURCES.findIndex((s) => s.id === source.id)
+  // ersetzt den Platzhalter eines später geladenen Moduls (views/lazy.js): nur die Punkte der Module neu, nicht die Planung
+  if (idx >= 0 && SOURCES[idx].lazy) queueMicrotask(refreshSources)
   if (idx >= 0) SOURCES.splice(idx, 1, source)
   else SOURCES.push(source)
 }
 
 const mayDo = (module) => canEdit(module)
 
-export function computeTodo(today = todayISO()) {
+/** Punkte der weiteren Module (registerTodo). */
+function sourceItems(today) {
   const extra = SOURCES.filter((src) => mayDo(src.module))
     .map((source) => ({ source, items: source.compute(today) }))
     .filter((x) => x.items.length)
-  const extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
+  return { extra, extraIds: extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`)) }
+}
+
+export function computeTodo(today = todayISO()) {
+  const { extra, extraIds } = sourceItems(today)
   if (!mayDo('planung')) return { today, lead: 0, absences: [], periodic: [], weeks: [], extra, count: extraIds.length, ids: extraIds }
   const { from, to } = todoWindow(today)
   const r = computeRange(from, to)
@@ -88,6 +95,16 @@ export function todo() {
   const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
   if (cache.key !== key) cache = { key, todo: computeTodo() }
   return cache.todo
+}
+
+/** Modul nachgeladen: im gemerkten Ergebnis die Punkte der Module neu, die (teure) Planung bleibt. */
+function refreshSources() {
+  const t = cache.todo
+  if (!t) return
+  const planIds = t.ids.slice(0, t.ids.length - t.extra.reduce((n, x) => n + x.items.length, 0))
+  const { extra, extraIds } = sourceItems(t.today)
+  const ids = [...planIds, ...extraIds]
+  cache.todo = { ...t, extra, count: ids.length, ids }
 }
 
 function readSeen() {
