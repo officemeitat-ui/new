@@ -17,6 +17,7 @@
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
+//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden (mit Code), Einstellungen
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -73,6 +74,7 @@ export const MODULE_DOCS = {
   assistenz: { path: 'assistenz/entscheidungen.json', empty: () => ({ decided: {} }) },
   // Berichte automatisch per E-Mail: Abos (Empfänger, Rhythmus, zuletzt gesendet) – nur Vollzugriff
   berichte: { path: 'berichte/abos.json', empty: () => ({ abos: [] }) },
+  kundenbereich: { path: 'kundenbereich/kundenbereich.json', empty: () => ({ links: [], settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -112,6 +114,8 @@ export function dataRights(access) {
     [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
+    // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
+    [MODULE_DOCS.kundenbereich.path, () => edits('reklamationen', 'planung'), () => edits('reklamationen', 'planung')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -135,6 +139,7 @@ export const FOLDERS = [
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
+  ['kundenbereich', 'Kundenbereich: Links für Kunden (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
 ]
 
 /**
