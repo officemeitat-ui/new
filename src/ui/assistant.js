@@ -249,6 +249,16 @@ registerActions({
     if (!ai().status) loadStatus()
   },
   'ai-send': () => send(),
+  // von Cleo übergeben: Frage gleich stellen (nicht eingerichtet → Frage steht im Feld)
+  'ai-ask': async (el) => {
+    const q = el?.dataset?.q || ''
+    openModal({ type: 'assistant', prefill: q })
+    if (!ai().status) await loadStatus()
+    if (ai().status?.aktiv && q && !ai().busy) {
+      if (app.ui.modal?.type === 'assistant') app.ui.modal.prefill = ''
+      send(q)
+    }
+  },
   'ai-starter': (el) => {
     const x = STARTERS[Number(el.dataset.i)]
     if (!x.endsWith(' ') && !x.startsWith(' ')) return send(x)

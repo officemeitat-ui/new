@@ -3,11 +3,21 @@
 // (src/help/topics.js) – ohne KI und ohne Netz –, springt mit „Zeig es mir“ in die richtige Ansicht
 // und markiert dort den passenden Knopf, startet auf Wunsch gleich die Aktion und verweist auf die
 // Anleitung. Was die eigene Rolle nicht sieht, bietet Cleo nicht an. Für alles andere: Übergabe an
-// den KI-Assistenten (falls eingerichtet), mit der Frage schon eingetragen.
+// den KI-Assistenten (falls eingerichtet), der die Frage gleich beantwortet.
+// Dazu kennt Cleo den Betrieb (src/help/brain.js): „Wer arbeitet morgen?“, „Wo ist Anna am Freitag?“,
+// „Was ist offen?“, „Wer ist krank?“, Feiertage, Schlüssel, Reklamationen, Lager – aus den Daten der App,
+// nur was die eigene Rolle sieht, mit Rückfragen („und morgen?“) und Formularen schon ausgefüllt.
 
 import { GLOSSARY, loadTopics, TOPICS } from '../help/lazy.js'
+import { answer, dataExamples, rangeFor, understand } from '../help/brain.js'
 import { glossary, search, smalltalk, SURE } from '../help/match.js'
-import { ACTIONS, app, registerActions, renderModal, sectionLabel, VIEWS, visibleViews } from './context.js'
+import { mondayOf, todayISO } from '../core/dates.js'
+import { holidaysInRange } from '../core/holidays.js'
+import { findAbsence } from '../core/rules.js'
+import { ACTIONS, app, canEdit, computeRange, ensureRange, plannedWeeks, registerActions, renderModal, sectionLabel, VIEWS, visibleViews } from './context.js'
+import { todo } from './modals/todo.js'
+import { seesReasons } from './views/absences.js'
+import { appointmentsOfDay } from './views/appointments.js'
 import { cleo, cleoIcon } from './mascot.js'
 import { patch } from './morph.js'
 import { activeSeason, seasonDeco, seasonInfo, seasonOutfit } from './season.js'
@@ -81,15 +91,85 @@ export function respond(text) {
   if (all.length && all[0].score >= SURE && !hits.length) return push({ from: 'cleo', mood: 'hoppla', html: `<p>Das gehört zu „${esc(viewLabel(all[0].topic.view) || all[0].topic.title)}“ – da lässt mich deine Rolle nicht rein. Frag bitte das Büro, wenn du den Bereich brauchst.</p>` })
   if (hits.length) return push({ from: 'cleo', mood: 'denkt', html: `<p>Meinst du eines davon?</p>${chips(hits.map((x) => x.topic))}` })
   const ai = ACTIONS['ai-open'] ? `<div class="cleo-acts"><button class="btn small" data-action="help-ai" data-q="${esc(text)}">${cleoIcon()} KI-Assistent fragen</button></div>` : ''
-  return push({ from: 'cleo', mood: 'hoppla', html: `<p>Hoppla – da hat sogar mein Heldenblick nichts gefunden. Versuch es mit anderen Worten (z. B. „Urlaub eintragen“, „Rechnung schreiben“, „Schnee“) oder schau in die Anleitung.</p>${ai}${chips(suggestionsFor(app.ui.view, ids).slice(0, 4))}` })
+  return push({ from: 'cleo', mood: 'hoppla', html: `<p>Hoppla – da hat sogar mein Heldenblick nichts gefunden. Versuch es mit anderen Worten (z. B. „Urlaub eintragen“, „Rechnung schreiben“, „Wer arbeitet morgen?“) oder schau in die Anleitung.</p>${ai}${askChips(examples().slice(0, 2))}${chips(suggestionsFor(app.ui.view, ids).slice(0, 3))}` })
 }
+
+// ---------------------------------------------------------------- Cleo kennt den Betrieb
+
+const phone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 700px)').matches
+const sees = (m) => !app.access || app.access.sees(m)
+const activeEmployees = () => (app.data?.employees || []).filter((e) => !e.exitDate || e.exitDate >= todayISO())
+
+/** Was die eigene Rolle sehen und tun darf (für Cleos Antworten aus den Daten). */
+export function abilities() {
+  const ids = visibleIds()
+  return {
+    plan: sees('planung'),
+    planEdit: canEdit('planung'),
+    coverage: ids.has('coverage'),
+    absences: sees('planung') || sees('auswertung') || sees('stammdaten'),
+    reasons: !!app.data && seesReasons(),
+    absenceView: ids.has('absences'),
+    staff: sees('planung') || sees('stammdaten'),
+    keys: sees('schluessel'),
+    complaints: sees('reklamationen'),
+    material: sees('material'),
+  }
+}
+
+/** Frage aus den Daten beantworten (null = keine Datenfrage → Hilfe-Themen). */
+export async function dataAnswer(text) {
+  if (!app.data) return null
+  const h = H()
+  const today = todayISO()
+  const u = understand(text, { today, employees: activeEmployees(), objects: app.data.objects || [], last: h.last })
+  if (!u) return null
+  const w = rangeFor(u, today) || { from: today, to: today }
+  try {
+    await ensureRange(w.from, w.to)
+  } catch {
+    /* ohne Verbindung: was im Gerät ist */
+  }
+  const r = computeRange(w.from, w.to)
+  const planned = plannedWeeks()
+  const res = answer(u, {
+    today,
+    can: abilities(),
+    instances: r.instances,
+    state: r.state,
+    ctx: r.ctx,
+    absences: app.data.absences || [],
+    absenceOf: (id, date) => findAbsence(r.ctx, id, date),
+    isPlanned: (monday) => planned.has(monday),
+    holidays: (a, b) => holidaysInRange(a, b, app.data.extraFreeDays),
+    employees: activeEmployees(),
+    objects: app.data.objects || [],
+    keys: app.data.schluessel?.keys || [],
+    complaints: app.data.reklamationen?.items || [],
+    material: app.data.material || null,
+    todoCount: u.kind === 'summary' ? todo().count : 0,
+    appointments: u.kind === 'summary' && visibleIds().has('termine') ? appointmentsOfDay(w.from).map(({ a, allDay }) => ({ time: allDay ? '' : a.start.slice(11, 16), title: a.title })) : [],
+  })
+  if (!res) return null
+  h.last = u
+  return res
+}
+
+/** Beispiel-Fragen mit echten Namen (Chips im Gruß). */
+function examples() {
+  const emp = activeEmployees()[0]
+  const obj = (app.data?.objects || [])[0]
+  return dataExamples(abilities(), { person: emp?.name.split(/[\s,]+/)[0] || '', object: obj?.name || '' })
+}
+const askChips = (list) => (list.length ? `<div class="cleo-chips">${list.map((q) => `<button class="chip" data-action="help-ask" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>` : '')
 
 function greet() {
   const h = H()
   if (h.log.length) return
   const name = firstName()
   const season = seasonInfo(activeSeason())
-  push({ from: 'cleo', mood: 'hallo', html: `<p>Hallo${name ? ` ${esc(name)}` : ''}! Ich bin <b>Cleo, der Sauberheld</b> der Cleanos App. Keine Frage bleibt bei mir liegen: Frag einfach in deinen Worten – oder tipp auf ein Thema.</p>${season ? `<p class="cleo-tip">${esc(season.hello)}</p>` : ''}` })
+  const ex = examples().slice(0, 3)
+  push({ from: 'cleo', mood: 'hallo', html: `<p>Hallo${name ? ` ${esc(name)}` : ''}! Ich bin <b>Cleo, der Sauberheld</b> der Cleanos App. Keine Frage bleibt bei mir liegen: Frag einfach in deinen Worten – wie etwas geht oder was im Betrieb los ist.</p>${ex.length ? `<p class="cleo-more">Ich kenne auch euren Plan, zum Beispiel:</p>${askChips(ex)}` : ''}${season ? `<p class="cleo-tip">${esc(season.hello)}</p>` : ''}` })
 }
 
 function panel() {
@@ -100,7 +180,7 @@ function panel() {
     .map((m) => (m.from === 'me' ? `<div class="msg me"><p>${esc(m.text)}</p></div>` : `<div class="msg cleo">${m.html}</div>`))
     .join('')
   return `<section class="cleo-panel" role="dialog" aria-label="Cleo, Hilfe zur App">
-    <header class="cleo-head${activeSeason() ? ' season-host' : ''}">${seasonDeco(activeSeason(), 'panel')}<span class="cleo-avatar">${cleo({ mood: h.busy ? 'denkt' : h.mood, size: 46, outfit: seasonOutfit() })}</span><div><strong>Cleo</strong><small>${h.busy ? 'Heldenhirn arbeitet …' : 'Sauberheld · kennt jede Funktion der App'}</small></div>
+    <header class="cleo-head${activeSeason() ? ' season-host' : ''}">${seasonDeco(activeSeason(), 'panel')}<span class="cleo-avatar">${cleo({ mood: h.busy ? 'denkt' : h.mood, size: 46, outfit: seasonOutfit() })}</span><div><strong>Cleo</strong><small>${h.busy ? 'Heldenhirn arbeitet …' : 'Sauberheld · kennt die App und euren Plan'}</small></div>
       <button class="btn icon ghost" data-action="help-guide" title="Ganze Anleitung" aria-label="Ganze Anleitung">${ICON.list}</button>
       <button class="btn icon ghost" data-action="help-close" aria-label="Schließen" title="Schließen (Esc)">${ICON.close}</button></header>
     <div class="cleo-log" aria-live="polite">${log}${h.busy ? '<div class="msg cleo typing"><span></span><span></span><span></span></div>' : ''}</div>
@@ -130,7 +210,9 @@ export function renderHelp() {
   patch(el, `${h.open ? panel() : ''}<button class="cleo-fab ${h.open ? 'open' : ''}" data-action="help-toggle" aria-expanded="${h.open}" aria-label="${h.open ? 'Cleo schließen' : 'Cleo fragen: Hilfe zur App'}" title="Cleo fragen (F1)">${cleo({ mood: h.open ? 'froh' : 'hallo', size: 58, outfit: seasonOutfit() })}</button>${tip}`)
   const log = el.querySelector('.cleo-log')
   if (log && h.scroll) {
-    log.scrollTop = log.scrollHeight
+    // lange Antwort (z. B. Liste aus dem Plan): ab ihrem Anfang zeigen, sonst ans Ende
+    const msg = log.lastElementChild
+    log.scrollTop = msg && msg.offsetHeight > log.clientHeight - 24 ? msg.offsetTop - log.offsetTop - 8 : log.scrollHeight
     h.scroll = false
   }
 }
@@ -188,16 +270,24 @@ function ask(text) {
   h.scroll = true
   renderHelp()
   // erst antworten, wenn die Themen geladen sind (help/lazy.js; meist längst geschehen)
-  loadTopics().catch(() => {}).then(() => setTimeout(
-    () => {
-      h.busy = false
-      respond(q)
-      h.scroll = true
-      renderHelp()
-      document.getElementById('cleo-q')?.focus({ preventScroll: true })
-    },
-    calm() ? 0 : 320,
-  ))
+  const started = Date.now()
+  loadTopics()
+    .catch(() => {})
+    .then(() => dataAnswer(q).catch(() => null))
+    .then((data) => setTimeout(
+      () => {
+        h.busy = false
+        if (data) push({ from: 'cleo', mood: data.mood, html: data.html })
+        else {
+          h.last = null
+          respond(q)
+        }
+        h.scroll = true
+        renderHelp()
+        if (!phone()) document.getElementById('cleo-q')?.focus({ preventScroll: true })
+      },
+      calm() ? 0 : Math.max(0, 320 - (Date.now() - started)),
+    ))
 }
 
 /** Knopf der Aktion in der Ansicht kurz hervorheben (Cleo „zeigt“ darauf). */
@@ -277,11 +367,33 @@ registerActions({
   'help-ai': (el) => {
     H().open = false
     renderHelp()
+    // KI-Assistent beantwortet die Frage gleich (ist er nicht eingerichtet: Frage steht im Feld)
+    if (ACTIONS['ai-ask']) return ACTIONS['ai-ask'](el)
     ACTIONS['ai-open']?.()
     if (app.ui.modal?.type === 'assistant') {
       app.ui.modal.prefill = el.dataset.q || ''
       renderModal()
     }
+  },
+  'help-ask': (el) => ask(el.dataset.q || ''),
+  // Knöpfe in Cleos Antworten: Aktion der App ausführen (am Handy macht Cleo dafür Platz)
+  'help-run': (el) => {
+    const run = el.dataset.run
+    const b = document.createElement('button')
+    for (const [k, v] of Object.entries(el.dataset)) if (k !== 'action' && k !== 'run') b.dataset[k] = v
+    if (phone()) {
+      H().open = false
+      renderHelp()
+    }
+    if (run === 'goto-day') {
+      const date = b.dataset.date
+      app.ui.monday = mondayOf(date)
+      app.ui.timelineDay = date
+      app.ui.mobileDay = date
+      b.dataset.view = phone() ? 'week' : 'timeline'
+      return ACTIONS.view?.(b)
+    }
+    ACTIONS[run]?.(b)
   },
 })
 

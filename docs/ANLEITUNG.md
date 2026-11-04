@@ -2,11 +2,11 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 219 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 220 Themen, 45 Begriffe.*
 
 ## Inhalt
 
-- [Start & Übersicht](#start-uebersicht) (10)
+- [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
@@ -68,7 +68,22 @@ Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI
 
 > Tipp: Cleo zeigt nur, was deine Rolle sehen darf.
 > Tipp: Cleo kennt auch Begriffe, z. B. „Was ist eine Stammkraft?“.
-> Tipp: Findet Cleo nichts, gibt es „KI-Assistent fragen“ (falls eingerichtet), mit der Frage schon eingetragen.
+> Tipp: Cleo kennt auch euren Plan: „Wer arbeitet morgen?“, „Wo ist Anna am Freitag?“ (siehe „Cleo nach dem Plan fragen“).
+> Tipp: Findet Cleo nichts, gibt es „KI-Assistent fragen“ (falls eingerichtet): Der Assistent beantwortet die Frage gleich.
+
+### Cleo nach dem Plan fragen
+
+Cleo beantwortet auch Fragen zum Betrieb, direkt aus den Daten der App (ohne KI, ohne Internet, nur was deine Rolle sieht): wer heute oder morgen arbeitet, wo eine Person ist, wer im Objekt putzt, wer abwesend ist, was noch offen ist, was heute ansteht, Feiertage, Telefonnummern, Schlüssel, offene Reklamationen und der Lagerbestand. Rückfragen wie „und morgen?“ oder „und Ben?“ versteht Cleo auch.
+
+1. Cleo öffnen (unten rechts, am Handy oben neben der Glocke).
+2. Fragen, z. B. „Wer arbeitet morgen?“, „Wo ist Anna am Freitag?“, „Wer putzt nächste Woche im Bürohaus?“, „Wer ist diese Woche krank?“, „Was ist noch offen?“, „Ist der 8.12. ein Feiertag?“.
+3. Datum geht als „heute“, „morgen“, „Freitag“, „nächste Woche“, „am 12.11.“ oder „vom 10.11. bis 14.11.“.
+4. In der Antwort einen Einsatz antippen: er öffnet sich mit Vorschlägen, wer einspringen kann.
+5. „Anna ist morgen krank“: Cleo öffnet das Formular schon ausgefüllt – du prüfst und speicherst.
+
+> Tipp: Gibt es zwei Personen mit dem Vornamen, fragt Cleo nach, wen du meinst.
+> Tipp: Cleo trägt nie selbst etwas ein; Speichern tust immer du.
+> Tipp: Krankenstand und Urlaub nennt Cleo nur, wenn deine Rolle die Gründe sieht, sonst „abwesend“.
 
 ### Anleitung: alle Funktionen zum Nachlesen
 

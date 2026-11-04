@@ -64,7 +64,7 @@ function suggestions(a, an) {
 
 // ---------------------------------------------------------------- Schnellerfassung
 
-function absenceNewModal(c, { employeeId, date, absenceType }) {
+function absenceNewModal(c, { employeeId, date, to, absenceType }) {
   const from = date || c.monday
   return modalFrame({
     title: 'Abwesenheit eintragen',
@@ -73,7 +73,7 @@ function absenceNewModal(c, { employeeId, date, absenceType }) {
         <label class="field"><span>Mitarbeiter:in</span><select id="absn-emp">${options(c.ctx.employees.map((e) => [e.id, e.name]), employeeId)}</select></label>
         <label class="field"><span>Art</span><select id="absn-type">${options(ABSENCE_TYPES.map((t) => [t, t]), absenceType || 'Krankenstand')}</select></label>
         <label class="field"><span>Von</span><input type="date" id="absn-from" value="${esc(from)}"></label>
-        <label class="field"><span>Bis</span><input type="date" id="absn-to" value="${esc(from)}"></label>
+        <label class="field"><span>Bis</span><input type="date" id="absn-to" value="${esc(to && to >= from ? to : from)}"></label>
         <label class="field wide"><span>Notiz</span><input type="text" id="absn-note" placeholder="optional, z. B. Krankmeldung liegt vor"></label>
       </div>
       <p class="note">Auch rückwirkend möglich (z. B. nachgereichte Krankmeldung). Bereits veröffentlichte Wochen werden danach korrigiert.</p>`,
@@ -221,7 +221,7 @@ registerActions({
 
 registerActions(
   {
-    'open-absence-new': (el) => openModal({ type: 'absence-new', employeeId: el.dataset.emp || app.ui.employeeId || '', date: el.dataset.date || '', absenceType: el.dataset.type || '' }),
+    'open-absence-new': (el) => openModal({ type: 'absence-new', employeeId: el.dataset.emp || app.ui.employeeId || '', date: el.dataset.date || '', absenceType: el.dataset.type || '', to: el.dataset.to || '' }),
     'absence-save': () => {
       const from = val('absn-from')
       const entry = { employeeId: val('absn-emp'), type: val('absn-type'), from, to: val('absn-to') || from }
