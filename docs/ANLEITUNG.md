@@ -1017,7 +1017,7 @@ Der Leistungsnachweis zeigt je Objekt und Monat, was laut Plan geleistet wurde: 
 
 > Tipp: Steht „nicht besetzt“, vor dem Versand im Plan klären (nachtragen oder absagen).
 
-*Alle, die die Einsatzplanung sehen*
+*Ansehen und PDF: alle, die die Einsatzplanung sehen; an Kunden senden: Büro, Objektleitung und Objektmanagement (nicht „Nur lesen“)*
 
 ### Leistungsnachweise versenden
 
@@ -1691,7 +1691,7 @@ Aus Flächen (Art, m², Häufigkeit, Leistungswert) rechnet die Kalkulation die 
 3. „Fläche hinzufügen“: Bereich, Art, m² und Häufigkeit.
 4. „Speichern“ klicken; „So rechnet die Kalkulation“ zeigt jeden Schritt in Euro.
 
-*Lohnverrechnung (Auswertung & Lohn), Vollzugriff*
+*Vollzugriff (Büro) – Löhne und Margen sieht sonst niemand*
 
 ### Grundlagen der Kalkulation
 

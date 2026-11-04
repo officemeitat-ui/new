@@ -11,6 +11,7 @@ import { absMinutes } from '../../core/timeclock.js'
 import { logRows } from '../../core/winterlog.js'
 import { proofDocument, proofPdfName } from '../../export/proof-pdf.js'
 import { app, canEdit, closeModal, computeRange, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { MODULES } from '../../core/access.js'
 import { loadScript } from '../load-script.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
@@ -26,6 +27,8 @@ const doc = () => {
 }
 const settings = () => ({ names: 'keine', times: true, signature: true, ...doc().settings })
 const objOf = (id) => app.data.objects.find((o) => o.id === id)
+/** Nachweise an Kunden senden: mit irgendeinem Schreibrecht (Büro, Objektleitung …), nicht „Nur lesen“. */
+const maySend = () => !app.access || app.access.all || Object.keys(MODULES).some((m) => canEdit(m))
 const emailOk = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s || '').trim())
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
@@ -76,13 +79,13 @@ function proofView() {
         <td class="num">${t.confirmed ? `${t.confirmed} (${share} %)` : '–'}</td><td class="num">${winter.length || ''}</td>
         <td>${o.proofEmail ? esc(o.proofEmail) : '<span class="muted">–</span>'}</td>
         <td>${sent ? `<span class="pill ok">${formatDate(sent.at.slice(0, 10))}</span>` : ''}</td>
-        <td class="actions-cell"><button class="btn small" data-action="proof-open" data-obj="${esc(o.id)}">Ansehen</button> ${rowMenu([{ label: 'PDF herunterladen', icon: ICON.download, action: 'proof-pdf', data: { obj: o.id } }, { label: 'Per E-Mail senden', icon: ICON.send, action: 'proof-mail-open', data: { obj: o.id } }], `Nachweis für ${o.name || 'Objekt'}`)}</td></tr>`
+        <td class="actions-cell"><button class="btn small" data-action="proof-open" data-obj="${esc(o.id)}">Ansehen</button> ${rowMenu([{ label: 'PDF herunterladen', icon: ICON.download, action: 'proof-pdf', data: { obj: o.id } }, maySend() && { label: 'Per E-Mail senden', icon: ICON.send, action: 'proof-mail-open', data: { obj: o.id } }], `Nachweis für ${o.name || 'Objekt'}`)}</td></tr>`
     })
     .join('')
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
   const dis = app.readOnly ? 'disabled' : '' // Einstellungen gelten für alle: nur mit Schreibrecht
   return `<div class="section-head"><div><h2>Leistungsnachweis</h2><p>Für Kunden: was im Objekt im Monat geleistet wurde, mit den Zeiten aus der Zeiterfassung im Objekt und dem Winterdienst-Protokoll. PDF je Objekt oder alle als ZIP, Versand per E-Mail.</p></div>
-      <div class="actions"><button class="btn" data-action="proof-zip" ${list.length ? '' : 'disabled'}>${ICON.download} Alle als ZIP</button>${canMail() ? `<button class="btn primary" data-action="proof-mail-all" ${withMail.length ? '' : 'disabled'} title="an alle Objekte mit E-Mail-Adresse">${ICON.send} Alle mit E-Mail senden (${withMail.length})</button>` : ''}</div></div>
+      <div class="actions"><button class="btn" data-action="proof-zip" ${list.length ? '' : 'disabled'}>${ICON.download} Alle als ZIP</button>${canMail() && maySend() ? `<button class="btn primary" data-action="proof-mail-all" ${withMail.length ? '' : 'disabled'} title="an alle Objekte mit E-Mail-Adresse">${ICON.send} Alle mit E-Mail senden (${withMail.length})</button>` : ''}</div></div>
     <div class="filters">
       <label class="field inline"><span>Monat</span><input type="month" id="proof-month" value="${month()}" data-change="proof-month"></label>
       <label class="field inline"><span>Namen</span><select id="proof-names" data-change="proof-settings" ${dis}>${options(Object.entries(NAME_MODES), s.names)}</select></label>
@@ -128,7 +131,7 @@ function previewModal(c, m) {
     wide: true,
     body: `${rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Datum</th><th>Zeit laut Plan</th><th>Leistung</th><th>Status</th>${showTimes ? '<th>erfasst im Objekt</th>' : ''}${s.names !== 'keine' ? '<th>Personal</th>' : ''}</tr></thead><tbody>${body}</tbody></table></div>` : '<p class="empty">Keine Einsätze.</p>'}
       ${p.winter.length ? `<h3>Winterdienst laut Protokoll</h3><p>${p.winter.map((w) => `${formatDate(w.date)} ${esc(w.time)}`).join(' · ')}</p>` : ''}`,
-    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions"><button class="btn" data-action="proof-pdf" data-obj="${esc(p.object.id)}">${ICON.download} PDF</button><button class="btn primary" data-action="proof-mail-open" data-obj="${esc(p.object.id)}">${ICON.send} E-Mail</button></div>`,
+    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions"><button class="btn" data-action="proof-pdf" data-obj="${esc(p.object.id)}">${ICON.download} PDF</button>${maySend() ? `<button class="btn primary" data-action="proof-mail-open" data-obj="${esc(p.object.id)}">${ICON.send} E-Mail</button>` : ''}</div>`,
   })
 }
 registerModal('proof', previewModal)
@@ -211,8 +214,9 @@ registerActions({
       el.disabled = false
     }
   },
-  'proof-mail-open': (el) => openModal({ type: 'proof-mail', objectId: el.dataset.obj }),
+  'proof-mail-open': (el) => (maySend() ? openModal({ type: 'proof-mail', objectId: el.dataset.obj }) : toast('Nachweise an Kunden schickt das Büro oder die Objektleitung. Ansehen und als PDF laden geht.')),
   'proof-mail-send': async (el) => {
+    if (!maySend()) return toast('Nachweise an Kunden schickt das Büro oder die Objektleitung. Ansehen und als PDF laden geht.')
     const p = proofs().find((x) => x.object.id === el.dataset.obj)
     const to = val('pm-to').trim()
     if (!emailOk(to)) return toast('Bitte eine gültige E-Mail-Adresse eintragen.')
@@ -241,6 +245,7 @@ registerActions({
     }
   },
   'proof-mail-all': async (el) => {
+    if (!maySend()) return toast('Nachweise an Kunden schickt das Büro oder die Objektleitung. Ansehen und als PDF laden geht.')
     const list = proofs().filter((p) => emailOk(p.object.proofEmail) && !lastSent(p.object.id))
     if (!list.length) return toast('Alle Objekte mit E-Mail-Adresse haben den Nachweis für diesen Monat schon bekommen.')
     if (app.ui.confirm !== 'proof-all') {

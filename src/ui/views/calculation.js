@@ -91,7 +91,7 @@ function calcView() {
       <p class="note">Je Fläche: m² ÷ Leistungswert × Reinigungen je Woche × 4,33 Wochen; dazu Rüst- und Nebenzeiten. Die Zuschläge laufen nacheinander (jeder auf die Summe davor). Leistungswerte und Zuschläge unter „Grundlagen“; Richtwerte, mit der eigenen Erfahrung abgleichen.</p></details>`
 }
 
-registerView({ id: 'kalkulation', order: 62, label: 'Kalkulation', group: 'auswertung', module: MODULE, noWeek: true, text: 'Stunden und Preis je Objekt', render: calcView })
+registerView({ id: 'kalkulation', order: 62, label: 'Kalkulation', group: 'auswertung', module: MODULE, noWeek: true, available: () => !app.access || !!app.access.all, text: 'Stunden und Preis je Objekt', render: calcView })
 
 // ---------------------------------------------------------------- Formular lesen
 

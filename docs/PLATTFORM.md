@@ -225,7 +225,7 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 
 ## Kalkulation je Objekt
 
-Unter *Auswertung → Kalkulation* (Auswertung & Lohn, Vollzugriff), gespeichert in `kalkulation/kalkulation.json` (nur diese Rollen, weil Löhne und Margen darin stehen).
+Unter *Auswertung → Kalkulation* (nur Vollzugriff), gespeichert in `kalkulation/kalkulation.json` – nur für das Büro, weil Löhne, Zuschläge und Margen darin stehen (die Lohnverrechnung sieht Stunden, Überstunden und den Export, nicht die Kalkulation).
 
 - **Flächen je Objekt:** Bereich, Art (Büro, Sanitär, Stiegenhaus, Gang, Eingang, Küche, Lager, Sonstiges), Fläche in m², Häufigkeit (täglich Mo–Fr, Mo–Sa, 3×, 2×, 1× pro Woche, 14-tägig, monatlich, quartalsweise) und, falls abweichend, ein eigener Leistungswert.
 - **Stunden je Monat:** je Fläche m² ÷ Leistungswert (m² je Stunde) × Reinigungen je Woche × 4,33, dazu Rüst- und Nebenzeiten (Standard 10 %).

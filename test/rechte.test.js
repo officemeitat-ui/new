@@ -324,3 +324,13 @@ test('Rechte: „abwesend“ ohne Grund für Objektmanagement, Krankenstand blei
   assert.deepEqual(again.absences.map((a) => a.type), ['Krankenstand', 'Urlaub'])
   assert.equal(again.absences[0].note, 'Grippe')
 })
+
+test('Rechte: Kalkulation nur Vollzugriff; Nachweise senden mit Schreibrecht, nicht „Nur lesen“', () => {
+  const lohn = dataRights(resolveAccess({ roleClaims: ['lohnverrechnung'], access, strict: true }))
+  assert.ok(!lohn.read(MODULE_DOCS.kalkulation.path) && !lohn.write(MODULE_DOCS.kalkulation.path))
+  assert.ok(dataRights(resolveAccess({ email: 'office@cleanos.at', access, strict: true })).write(MODULE_DOCS.kalkulation.path))
+  const lesen = dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true }))
+  assert.ok(lesen.read(MODULE_DOCS.nachweise.path) && !lesen.write(MODULE_DOCS.nachweise.path))
+  const ol = dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true }))
+  assert.ok(ol.read(MODULE_DOCS.nachweise.path) && ol.write(MODULE_DOCS.nachweise.path))
+})

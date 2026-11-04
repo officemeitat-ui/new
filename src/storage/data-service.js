@@ -36,6 +36,7 @@
 // wieder Netz da ist gespeichert.
 
 import { mondayOf } from '../core/dates.js'
+import { MODULES } from '../core/access.js'
 import { emptyAppointments } from '../core/appointments.js'
 import { emptyInvoicing } from '../core/invoicing.js'
 import { emptyKeys } from '../core/keys.js'
@@ -102,16 +103,16 @@ export function dataRights(access) {
     [MODULE_DOCS.material.path, () => sees('material'), () => edits('material')],
     // Schlüsselbuch: auch wer plant, liest es (Prüfregel „Schlüsselübergabe nötig“)
     [MODULE_DOCS.schluessel.path, () => sees('schluessel') || edits('planung'), () => edits('schluessel')],
-    // Leistungsnachweis: wer den Plan sieht, darf Nachweise erstellen und den Versand vermerken
-    [MODULE_DOCS.nachweise.path, () => sees('planung'), () => sees('planung')],
+    // Leistungsnachweis: wer den Plan sieht, darf Nachweise ansehen; senden und vermerken nur mit
+    // irgendeinem Schreibrecht (Objektleitung, Objektmanagement …), nicht „Nur lesen“
+    [MODULE_DOCS.nachweise.path, () => sees('planung'), () => sees('planung') && Object.keys(MODULES).some((m) => edits(m))],
     // Fristen: auch wer plant, liest sie (Prüfregel „Fristen je Person“)
     [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
     [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen'), () => edits('planung', 'fakturierung', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen')],
-    // Löhne und Margen: nur Auswertung & Lohn
-    [MODULE_DOCS.kalkulation.path, () => sees('auswertung'), () => edits('auswertung')],
+    // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
     // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet

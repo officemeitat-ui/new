@@ -73,7 +73,8 @@ lazy(ALLE, {
 
 // calculation.js
 lazy(BUERO, {
-  views: [{ id: 'kalkulation', order: 62, label: 'Kalkulation', group: 'auswertung', module: 'auswertung', noWeek: true, text: 'Stunden und Preis je Objekt' }],
+  // Löhne, Zuschläge und Marge: nur Vollzugriff (nicht die Lohnverrechnung)
+  views: [{ id: 'kalkulation', order: 62, label: 'Kalkulation', group: 'auswertung', module: 'auswertung', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Stunden und Preis je Objekt' }],
   modals: 'calc-settings',
   actions: 'calc-object calc-settings calc-pdf calc-add calc-remove calc-save calc-settings-save calc-budget',
 })

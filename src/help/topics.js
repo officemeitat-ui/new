@@ -892,7 +892,7 @@ export const TOPICS = [
     steps: ['„Leistungsnachweis“ unter „Objekte & Kunden“ öffnen.', 'Oben den Monat wählen.', 'Beim Objekt „Ansehen“ klicken.', 'Über „⋯“ „PDF herunterladen“ oder „Per E-Mail senden“.'],
     tips: ['Steht „nicht besetzt“, vor dem Versand im Plan klären (nachtragen oder absagen).'],
     related: ['leistungsnachweis-versenden', 'leistungsnachweis-einstellungen', 'rechnung-aus-nachweis'],
-    roles: 'Alle, die die Einsatzplanung sehen',
+    roles: 'Ansehen und PDF: alle, die die Einsatzplanung sehen; an Kunden senden: Büro, Objektleitung und Objektmanagement (nicht „Nur lesen“)',
   },
   {
     id: 'leistungsnachweis-versenden',
@@ -1513,7 +1513,7 @@ export const TOPICS = [
     q: ['kalkulation', 'preis berechnen', 'objekt kalkulieren', 'quadratmeterpreis', 'verrechnungssatz', 'leistungswert', 'stunden je monat', 'kalkulieren'],
     answer: 'Aus Flächen (Art, m², Häufigkeit, Leistungswert) rechnet die Kalkulation die Stunden im Monat, dann über Zuschläge (Lohn, Lohnnebenkosten, Material, Verwaltung, Gewinn) den Verrechnungssatz, den Monatspreis und den Preis je m². Daneben stehen Budget und Stunden laut Reinigungsplan.',
     steps: ['„Kalkulation“ unter „Finanzen“ öffnen.', 'Objekt wählen.', '„Fläche hinzufügen“: Bereich, Art, m² und Häufigkeit.', '„Speichern“ klicken; „So rechnet die Kalkulation“ zeigt jeden Schritt in Euro.'],
-    roles: 'Lohnverrechnung (Auswertung & Lohn), Vollzugriff',
+    roles: 'Vollzugriff (Büro) – Löhne und Margen sieht sonst niemand',
     related: ['kalkulation-grundlagen', 'kalkulation-angebot', 'controlling'],
   },
   {
