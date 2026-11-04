@@ -25,7 +25,7 @@ const time = (iso) => (iso ? new Date(iso).toLocaleTimeString('de-AT', { timeZon
 const nowMinutes = () => absMinutes(new Date().toISOString())
 const objName = (id) => app.data.objects.find((o) => o.id === id)?.name || ''
 const hm = (min) => (min === null || min === undefined ? '' : `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`)
-const STATUS_CLASS = { ok: 'ok', spaet: 'warning', frueh: 'warning', offen: 'info', fehlt: 'error', kommt: 'info', ohnePlan: 'info' }
+const STATUS_CLASS = { ok: 'ok', spaet: 'warning', frueh: 'warning', laenger: 'warning', offen: 'info', fehlt: 'error', kommt: 'info', ohnePlan: 'info' }
 
 // ---------------------------------------------------------------- Abruf vom Webspace
 
@@ -84,7 +84,7 @@ export function stampBlock(inst, c) {
 // ---------------------------------------------------------------- Ist-Zeit übernehmen
 
 /** Übernehmbar: gekommen und gegangen, Abweichung über der Toleranz, nur eine Person im Einsatz (die Zeit gilt für den ganzen Einsatz). */
-const adoptable = (r, c) => !!(r.inst && r.stamp?.out && (r.status === 'spaet' || r.status === 'frueh') && c.state.count(r.inst.key) === 1)
+const adoptable = (r, c) => !!(r.inst && r.stamp?.out && ['spaet', 'frueh', 'laenger'].includes(r.status) && c.state.count(r.inst.key) === 1)
 
 /** Ist-Zeiten als Einzeländerung des Einsatzes übernehmen (Beginn und Ende für diesen Tag). */
 function adopt(rows) {
@@ -108,6 +108,7 @@ function adopt(rows) {
 function statusText(r) {
   if (r.status === 'spaet') return `${r.late} min später${r.early > 10 ? `, ${r.early} min früher weg` : ''}`
   if (r.status === 'frueh') return `${r.early} min früher gegangen`
+  if (r.status === 'laenger') return `${r.over} min länger`
   return STATUS_TEXT[r.status]
 }
 
@@ -119,7 +120,7 @@ function rowsOf(c) {
   return stampRows({ instances: c.instances, state: c.state, stamps: stampsOf(), from: c.monday, to: c.sunday, users: stampUsers(stampsOf()), now: nowMinutes() }).filter((r) => r.status !== 'kommt' || r.date === today)
 }
 
-const TONE = { ok: 'ok', spaet: 'warning', frueh: 'warning', offen: 'info', fehlt: 'error', kommt: 'info', ohnePlan: 'info' }
+const TONE = { ok: 'ok', spaet: 'warning', frueh: 'warning', laenger: 'warning', offen: 'info', fehlt: 'error', kommt: 'info', ohnePlan: 'info' }
 
 /** Hinweise je Zeile: nachgetragen, korrigiert, freigegeben, Pause. */
 function marks(st) {
@@ -212,7 +213,7 @@ function timesView(c) {
       tab === 'woche' && { label: 'Woche als CSV', icon: ICON.download, action: 'tc-csv', mail: true },
     ],
   })}`
-  const week = `<div class="impact-stats tc-stats">${tile('Passt', count('ok'))}${tile('Später / früher', count('spaet') + count('frueh'), count('spaet') + count('frueh') ? 'warn' : '')}${tile('Nicht eingestempelt', count('fehlt'), count('fehlt') ? 'err' : '')}${tile('Noch offen', count('offen'))}${tile('Zur Freigabe', toApprove.length, toApprove.length ? 'warn' : '')}</div>${weekTable(c, rows, ed)}
+  const week = `<div class="impact-stats tc-stats">${tile('Passt', count('ok'))}${tile('Später / früher / länger', count('spaet') + count('frueh') + count('laenger'), count('spaet') + count('frueh') + count('laenger') ? 'warn' : '')}${tile('Nicht eingestempelt', count('fehlt'), count('fehlt') ? 'err' : '')}${tile('Noch offen', count('offen'))}${tile('Zur Freigabe', toApprove.length, toApprove.length ? 'warn' : '')}</div>${weekTable(c, rows, ed)}
     <p class="note">„Nicht eingestempelt“ gilt nur für Personen, die die Zeiterfassung schon benutzen. Toleranz 10 Minuten. Nachträge und Korrekturen brauchen einen Grund und bleiben mit dem früheren Stand nachvollziehbar. „Ist übernehmen“ setzt Beginn und Ende des Einsatzes an diesem Tag auf die erfassten Zeiten (nur bei einer Person im Einsatz); in veröffentlichten Wochen danach die Korrektur buchen.</p>`
   return `<div class="section-head"><div><h2>Zeiterfassung ${tab === 'woche' ? `KW ${isoWeek(c.monday).week}` : ''}</h2><p>Kommen und Gehen laut QR-Code im Objekt neben dem Plan, Nachträge des Büros, Freigabe und Monatsliste je Person.</p></div>
       <div class="actions">${actions}</div></div>

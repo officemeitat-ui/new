@@ -3,7 +3,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { resolveAccess } from '../src/core/access.js'
+import { dayIndex } from '../src/core/dates.js'
+import { PlanState } from '../src/core/plan.js'
 import { pickTeam } from '../src/core/scheduler.js'
+import { stampRows } from '../src/core/timeclock.js'
+import { viennaTime } from '../src/core/weather.js'
 import { createDemoData } from '../src/data/demo.js'
 import { app, compute, computeRange, seesAccount, visibleAbsences } from '../src/ui/context.js'
 
@@ -65,4 +69,23 @@ test('Schneenacht: Winterdienst-Team – zuerst, wer ohne Verstoß kann (Ruhezei
   // niemand ohne Verstoß: Reihenfolge bleibt, das Büro sieht es im Prüfbericht
   assert.deepEqual(pickTeam(r.ctx, r.state, inst, ['e3'], 1), ['e3'])
   assert.deepEqual(pickTeam(r.ctx, r.state, inst, ['e3', 'e7'], 2), ['e7', 'e3'])
+})
+
+test('Monatsende: Zeiterfassung erkennt „länger als geplant“ (sonst käme die Mehrstunde nie ins Zeitkonto)', () => {
+  const D = '2026-11-24'
+  const min = (hm) => dayIndex(D) * 1440 + Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3))
+  const iso = (hm) => new Date(viennaTime(D, hm)).toISOString()
+  const inst = (k) => ({ key: `${D}|${k}`, date: D, objectId: 'o6', start: min('10:00'), end: min('16:30'), status: 'normal', staff: 1 })
+  const instances = ['a', 'b', 'c'].map(inst)
+  const state = new PlanState(instances, Object.fromEntries(instances.map((i) => [i.key, [{ employeeId: 'e2' }]])))
+  const stamps = {
+    s1: { id: 's1', empId: 'e2', instKey: `${D}|a`, date: D, objectId: 'o6', in: iso('10:00'), out: iso('17:30') },
+    s2: { id: 's2', empId: 'e2', instKey: `${D}|b`, date: D, objectId: 'o6', in: iso('09:40'), out: iso('16:30') },
+    s3: { id: 's3', empId: 'e2', instKey: `${D}|c`, date: D, objectId: 'o6', in: iso('09:55'), out: iso('16:35') },
+  }
+  const rows = stampRows({ instances, state, stamps, from: D, to: D, users: new Set(['e2']), now: min('23:00') })
+  const by = (k) => rows.find((r) => r.inst.key === `${D}|${k}`)
+  assert.deepEqual([by('a').status, by('a').over, by('a').minutes], ['laenger', 60, 450])
+  assert.deepEqual([by('b').status, by('b').over], ['laenger', 20], 'früher gekommen')
+  assert.deepEqual([by('c').status, by('c').over], ['ok', 10], 'innerhalb der Toleranz')
 })
