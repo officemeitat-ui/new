@@ -577,3 +577,13 @@ test('Beleg als PDF: Kleinbetrag ohne Empfänger mit Hinweis, Storno verrechnet,
   assert.match(offerText, /Gültig bis.*03\.12\.2026/)
   assert.equal(offer.watermark, undefined)
 })
+
+test('parseNumber: Punkt als Tausendertrennzeichen (1.500 = 1500), Dezimalpunkt bleibt', async () => {
+  const { parseNumber } = await import('../src/core/invoicing.js')
+  assert.equal(parseNumber('1.500'), 1500)
+  assert.equal(parseNumber('12.345.678'), 12345678)
+  assert.equal(parseNumber('1.500,50'), 1500.5)
+  assert.equal(parseNumber('1.5'), 1.5)
+  assert.equal(parseNumber('1234.56'), 1234.56)
+  assert.equal(parseNumber('-2.000'), -2000)
+})

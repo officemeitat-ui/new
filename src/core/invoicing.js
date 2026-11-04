@@ -102,8 +102,8 @@ export const parseNumber = (v) => {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
   const s = String(v ?? '').trim().replace(/\s/g, '')
   if (!s) return 0
-  // 1.234,56 → 1234.56; 1234.56 bleibt
-  const n = /,/.test(s) ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s)
+  // 1.234,56 → 1234.56; 1.500 → 1500 (Punkt als Tausender wie in Österreich üblich); 1234.56 bleibt
+  const n = /,/.test(s) ? Number(s.replace(/\./g, '').replace(',', '.')) : /^[-+]?\d{1,3}(\.\d{3})+$/.test(s) ? Number(s.replace(/\./g, '')) : Number(s)
   return Number.isFinite(n) ? n : 0
 }
 

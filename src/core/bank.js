@@ -280,11 +280,15 @@ const norm = (h) => String(h || '').toLowerCase().replace(/^﻿/, '').replace(/[
 export function mappingFromHeader(header) {
   const h = header.map(norm)
   const map = {}
-  for (const [field, names] of Object.entries(ALIASES)) {
-    let idx = h.findIndex((x) => names.includes(x))
-    if (idx < 0) idx = h.findIndex((x) => names.some((n) => n.length > 4 && x.startsWith(n)))
-    if (idx >= 0 && !Object.values(map).includes(idx)) map[field] = idx
+  const taken = new Set()
+  const take = (field, idx) => {
+    if (idx < 0) return
+    map[field] = idx
+    taken.add(idx)
   }
+  // erst genaue Namen für alle Felder, dann Anfänge: „Partner IBAN“ ist die IBAN, nicht der Name „Partner…“
+  for (const [field, names] of Object.entries(ALIASES)) take(field, h.findIndex((x, i) => !taken.has(i) && names.includes(x)))
+  for (const [field, names] of Object.entries(ALIASES)) if (!(field in map)) take(field, h.findIndex((x, i) => !taken.has(i) && names.some((n) => n.length > 4 && x.startsWith(n))))
   // „Buchungs-Info“ und „Verwendungszweck“: weitere Textspalten anhängen
   map.extraText = h.map((x, i) => i).filter((i) => i !== map.text && ALIASES.text.includes(h[i]))
   return map

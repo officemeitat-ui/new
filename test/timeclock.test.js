@@ -60,3 +60,13 @@ test('Plan gegen Ist: passt, später, früher gegangen, offen, fehlt, ohne Plan;
   assert.deepEqual(missingCheckins({ instances, state, stamps, users: stampUsers(stamps), now: min(D, '14:15'), grace: 20 }), [], 'noch in der Frist')
   assert.deepEqual(missingCheckins({ instances, state, stamps, users: stampUsers(stamps), now: min(D, '15:30'), grace: 20 }), [], 'Einsatz schon vorbei')
 })
+
+test('Plan gegen Ist: Dauer in der Nacht der Zeitumstellung echt gemessen (22:00–06:00 = 9 h)', () => {
+  const N = '2026-10-24'
+  const night = { key: `${N}|n1`, date: N, objectId: 'o1', start: min(N, '22:00'), end: min('2026-10-25', '06:00'), status: 'normal', staff: 1 }
+  const state = new PlanState([night], { [`${N}|n1`]: [{ employeeId: 'e1' }] })
+  const stamps = { a: { id: 'a', empId: 'e1', instKey: `${N}|n1`, date: N, objectId: 'o1', in: new Date(viennaTime(N, '22:00')).toISOString(), out: new Date(viennaTime('2026-10-25', '06:00')).toISOString() } }
+  const [row] = stampRows({ instances: [night], state, stamps, from: N, to: N, users: new Set(['e1']), now: min('2026-10-26', '00:00'), tolerance: 10 })
+  assert.equal(row.minutes, 540, 'Uhr wird um 3 Uhr auf 2 Uhr zurückgestellt: eine Stunde mehr')
+  assert.equal(row.status, 'ok', 'Plan in Ortszeit: pünktlich')
+})

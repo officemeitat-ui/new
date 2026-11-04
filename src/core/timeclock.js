@@ -82,7 +82,9 @@ function judge(inst, stamp, now, tolerance) {
   const late = Math.max(0, inM - inst.start)
   const early = outM === null ? 0 : Math.max(0, inst.end - outM)
   const status = outM === null ? 'offen' : late > tolerance ? 'spaet' : early > tolerance ? 'frueh' : 'ok'
-  return { status, late, early, minutes: outM === null ? null : outM - inM }
+  // Dauer echt gemessen (auch in der Nacht der Zeitumstellung), Verspätung gegen den Plan in Ortszeit
+  const minutes = outM === null ? null : Math.floor(Date.parse(stamp.out) / 6e4) - Math.floor(Date.parse(stamp.in) / 6e4)
+  return { status, late, early, minutes }
 }
 
 /** Nicht eingestempelt: begonnene Einsätze (seit mehr als grace Minuten, bis zum Ende) ohne Stempelung. */

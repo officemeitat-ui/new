@@ -288,3 +288,12 @@ test('Bank: IBAN merken nur gültig, bei vorhandenem Kunden und ohne Doppelte (a
   assert.equal(rememberIban(c, 'de89 3704 0044 0532 0130 00'), true)
   assert.deepEqual(c.ibans, [HV_IBAN, 'DE89370400440532013000'])
 })
+
+test('Kopfzeile: „Partner IBAN“ ohne Namensspalte wird IBAN, nicht Name', async () => {
+  const { readStatement } = await import('../src/core/bank.js')
+  const r = readStatement('Datum;Betrag;Partner IBAN;Verwendungszweck\n04.11.2026;240,00;AT48 3200 0000 1234 5864;Miete\n')
+  const t = r.transactions?.[0] || r.rows?.[0] || r[0]
+  assert.ok(t, JSON.stringify(r).slice(0, 200))
+  assert.equal(t.name || '', '')
+  assert.match(String(t.iban).replace(/\s/g, ''), /^AT483200000012345864$/)
+})
