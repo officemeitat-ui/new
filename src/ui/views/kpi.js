@@ -24,7 +24,9 @@ const ICON = '<path d="M3.5 20.5h17"/><rect x="5" y="11" width="3" height="7" rx
 const nf = (d = 0) => new Intl.NumberFormat('de-AT', { maximumFractionDigits: d, minimumFractionDigits: 0 })
 const hours = (min) => `${nf(0).format(Math.round(min / 60))} h`
 const hoursAxis = (min) => nf(0).format(Math.round(min / 60))
-const euro = (v) => `${nf(0).format(Math.round(v))} €`
+// wie überall in der App: „€ 2.849“ (Währungsformat Österreich, ohne Cent)
+const euroFmt = new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0, minimumFractionDigits: 0 })
+const euro = (v) => euroFmt.format(Math.round(v))
 const euroAxis = (v) => (Math.abs(v) >= 10000 ? `${nf(0).format(Math.round(v / 1000))} Tsd.` : nf(0).format(Math.round(v)))
 const pct = (v, d = 1) => (v === null || v === undefined ? '–' : `${nf(d).format(v * 100)} %`)
 const count = (v) => nf(0).format(v)

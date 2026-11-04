@@ -266,7 +266,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .layout .weeknav .kw small { display: inline; margin-left: 8px; font-size: 0.88rem; font-weight: 500; }
 .crumbs { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 .crumbs b { color: var(--fg); font-size: 1rem; font-weight: 700; }
-.crumbs .sep { color: var(--line-strong); }
+.crumbs .sep { color: var(--muted); } /* Kontrast ≥ 4.5:1 auch für den Trenner */
 .layout main { padding: 20px 24px 104px; } /* unten Platz für Cleo (rechts unten), sonst verdeckt Cleo die letzte Zeile */
 
 /* Menü „⋯“ */
