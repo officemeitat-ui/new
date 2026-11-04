@@ -97,7 +97,7 @@ test('glossary: „Was ist …“ findet den Begriff, Unbekanntes nicht', () => 
 
 test('smalltalk: Gruß, Dank, wer bist du; sonst null', () => {
   assert.equal(smalltalk('Hallo!')?.mood, 'hallo')
-  assert.equal(smalltalk('danke dir')?.mood, 'fertig')
+  assert.equal(smalltalk('danke dir')?.mood, 'herz')
   assert.match(smalltalk('Wer bist du?')?.text || '', /Cleo/)
   assert.equal(smalltalk('Hallo, wie schreibe ich eine Rechnung für den Kunden Maier?'), null, 'lange Fragen mit Gruß sind keine Plauderei')
   assert.equal(smalltalk('rechnung schreiben'), null)

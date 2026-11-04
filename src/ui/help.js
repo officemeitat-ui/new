@@ -10,7 +10,12 @@ import { glossary, search, smalltalk, SURE } from '../help/match.js'
 import { ACTIONS, app, registerActions, renderModal, sectionLabel, VIEWS, visibleViews } from './context.js'
 import { cleo, cleoIcon } from './mascot.js'
 import { patch } from './morph.js'
+import { activeSeason, seasonDeco, seasonInfo, seasonOutfit } from './season.js'
 import { esc, ICON } from './shared.js'
+
+// Pose zum Thema: Cleo zeigt das passende Werkzeug (sonst zeigt er auf die Stelle)
+const TOPIC_MOODS = { wetter: 'schnee', due: 'liste', kontrolle: 'liste', report: 'liste', coverage: 'liste', matten: 'teppich', objektmappe: 'wischt', objects: 'wischt', sites: 'wischt', zaehler: 'handy', zeiten: 'handy', termine: 'handy', waste: 'muell', fahrzeuge: 'haus', schluessel: 'haus', unterweisungen: 'idee', kalkulation: 'idee', kennzahlen: 'daumen', reklamationen: 'desinfektion' }
+export const topicMood = (t) => TOPIC_MOODS[t?.view] || 'zeigt'
 
 let seenBefore = false
 const H = () => (app.ui.help ||= { open: false, log: [], busy: false, mood: 'hallo', seen: seenBefore })
@@ -71,7 +76,7 @@ export function respond(text) {
   if (term && (!hits.length || hits[0].score < SURE + 2)) return push({ from: 'cleo', mood: 'froh', html: `<div class="cleo-answer"><strong class="cleo-title">${esc(term.term)}</strong><p>${esc(term.text)}</p></div>${chips(hits.slice(0, 2).map((x) => x.topic))}` })
   if (hits.length && hits[0].score >= SURE) {
     const others = hits.slice(1).filter((x) => x.score >= hits[0].score * 0.7).map((x) => x.topic)
-    return push({ from: 'cleo', mood: 'zeigt', topic: hits[0].topic.id, html: answerHtml(hits[0].topic) + (others.length ? `<p class="cleo-more">Oder meinst du:</p>${chips(others)}` : '') })
+    return push({ from: 'cleo', mood: topicMood(hits[0].topic), topic: hits[0].topic.id, html: answerHtml(hits[0].topic) + (others.length ? `<p class="cleo-more">Oder meinst du:</p>${chips(others)}` : '') })
   }
   if (all.length && all[0].score >= SURE && !hits.length) return push({ from: 'cleo', mood: 'hoppla', html: `<p>Das gehört zu „${esc(viewLabel(all[0].topic.view) || all[0].topic.title)}“ – da lässt mich deine Rolle nicht rein. Frag bitte das Büro, wenn du den Bereich brauchst.</p>` })
   if (hits.length) return push({ from: 'cleo', mood: 'denkt', html: `<p>Meinst du eines davon?</p>${chips(hits.map((x) => x.topic))}` })
@@ -83,7 +88,8 @@ function greet() {
   const h = H()
   if (h.log.length) return
   const name = firstName()
-  push({ from: 'cleo', mood: 'hallo', html: `<p>Hallo${name ? ` ${esc(name)}` : ''}! Ich bin <b>Cleo, der Sauberheld</b> der Cleanos App. Keine Frage bleibt bei mir liegen: Frag einfach in deinen Worten – oder tipp auf ein Thema.</p>` })
+  const season = seasonInfo(activeSeason())
+  push({ from: 'cleo', mood: 'hallo', html: `<p>Hallo${name ? ` ${esc(name)}` : ''}! Ich bin <b>Cleo, der Sauberheld</b> der Cleanos App. Keine Frage bleibt bei mir liegen: Frag einfach in deinen Worten – oder tipp auf ein Thema.</p>${season ? `<p class="cleo-tip">${esc(season.hello)}</p>` : ''}` })
 }
 
 function panel() {
@@ -94,7 +100,7 @@ function panel() {
     .map((m) => (m.from === 'me' ? `<div class="msg me"><p>${esc(m.text)}</p></div>` : `<div class="msg cleo">${m.html}</div>`))
     .join('')
   return `<section class="cleo-panel" role="dialog" aria-label="Cleo, Hilfe zur App">
-    <header class="cleo-head"><span class="cleo-avatar">${cleo({ mood: h.busy ? 'denkt' : h.mood, size: 46 })}</span><div><strong>Cleo</strong><small>${h.busy ? 'Heldenhirn arbeitet …' : 'Sauberheld · kennt jede Funktion der App'}</small></div>
+    <header class="cleo-head${activeSeason() ? ' season-host' : ''}">${seasonDeco(activeSeason(), 'panel')}<span class="cleo-avatar">${cleo({ mood: h.busy ? 'denkt' : h.mood, size: 46, outfit: seasonOutfit() })}</span><div><strong>Cleo</strong><small>${h.busy ? 'Heldenhirn arbeitet …' : 'Sauberheld · kennt jede Funktion der App'}</small></div>
       <button class="btn icon ghost" data-action="help-guide" title="Ganze Anleitung" aria-label="Ganze Anleitung">${ICON.list}</button>
       <button class="btn icon ghost" data-action="help-close" aria-label="Schließen" title="Schließen (Esc)">${ICON.close}</button></header>
     <div class="cleo-log" aria-live="polite">${log}${h.busy ? '<div class="msg cleo typing"><span></span><span></span><span></span></div>' : ''}</div>
@@ -121,7 +127,7 @@ export function renderHelp() {
   const el = root()
   if (!show) return patch(el, '')
   const tip = h.open ? '' : !h.seen ? '<span class="cleo-bubble" aria-hidden="true">Fragen? Sauberheld hilft!</span>' : firstVisit(h) ? `<span class="cleo-bubble" aria-hidden="true">Neu in „${esc(viewLabel(app.ui.view))}“? Ich erklär’s dir!</span>` : ''
-  patch(el, `${h.open ? panel() : ''}<button class="cleo-fab ${h.open ? 'open' : ''}" data-action="help-toggle" aria-expanded="${h.open}" aria-label="${h.open ? 'Cleo schließen' : 'Cleo fragen: Hilfe zur App'}" title="Cleo fragen (F1)">${cleo({ mood: h.open ? 'froh' : 'hallo', size: 58 })}</button>${tip}`)
+  patch(el, `${h.open ? panel() : ''}<button class="cleo-fab ${h.open ? 'open' : ''}" data-action="help-toggle" aria-expanded="${h.open}" aria-label="${h.open ? 'Cleo schließen' : 'Cleo fragen: Hilfe zur App'}" title="Cleo fragen (F1)">${cleo({ mood: h.open ? 'froh' : 'hallo', size: 58, outfit: seasonOutfit() })}</button>${tip}`)
   const log = el.querySelector('.cleo-log')
   if (log && h.scroll) {
     log.scrollTop = log.scrollHeight
@@ -234,7 +240,7 @@ registerActions({
     const t = topicById(el.dataset.id)
     if (!t) return
     push({ from: 'me', text: t.title })
-    push({ from: 'cleo', mood: 'zeigt', topic: t.id, html: answerHtml(t) })
+    push({ from: 'cleo', mood: topicMood(t), topic: t.id, html: answerHtml(t) })
     H().scroll = true
     renderHelp()
   },
