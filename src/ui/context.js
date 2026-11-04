@@ -461,7 +461,8 @@ export function confirmStep(key, rerender = renderNow) {
  */
 export function labelTables(root = document) {
   for (const table of root.querySelectorAll('table.data:not([data-labelled])')) {
-    const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim())
+    // Zeilenumbrüche (<br>) in der Überschrift als Leerzeichen, sonst „Unterweisung§ 14 ASchG“
+    const heads = [...table.querySelectorAll('thead th')].map((th) => [...th.childNodes].map((n) => (n.nodeName === 'BR' ? ' ' : n.textContent)).join('').replace(/\s+/g, ' ').trim())
     for (const tr of table.querySelectorAll('tbody tr')) [...tr.children].forEach((cell, i) => cell.setAttribute('data-label', heads[i] || ''))
     table.setAttribute('data-labelled', '')
   }

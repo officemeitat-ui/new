@@ -5,6 +5,7 @@
 import { roleOptions } from '../core/access.js'
 import { app, canEdit, openModal, registerActions, registerModal, navSections, pinnedViews, renderModal, renderNow, saveStatusText, visibleViews } from './context.js'
 import { assistantButton } from './assistant.js'
+import { appName } from './config.js'
 import { bellButton, todo } from './modals/todo.js'
 import { agoText, syncState } from './sync.js'
 import { quickItems } from './quick.js'
@@ -121,7 +122,7 @@ function moreModal(c) {
         : '<p class="note"><strong>Als App installieren:</strong> Im Browser-Menü „App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.</p>'
   return modalFrame({
     title: 'Menü',
-    subtitle: `${esc(app.config.brand.name)} · ${esc(app.config.brand.product)}`,
+    subtitle: esc(appName(app.config.brand)), // wie in der Seitenleiste („Cleanos App“)
     body: `<button class="more-search" data-action="open-search">${ICON.search}<span>Bereich, Person, Objekt suchen …</span></button>
       <section><h3>Aktionen</h3><div class="more-actions two">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       ${views}
