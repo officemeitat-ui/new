@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 
 import {
   acceptedLines,
+  advanceConflicts,
   advanceDraft,
   advancesFor,
   billedBy,
@@ -207,6 +208,13 @@ test('Schlussrechnung: zwei Steuersätze, zwei Abschläge je Steuersatz samt USt
   assert.equal(openAmount(sr, after, settings), 0)
   assert.equal(advancesFor(order, after).length, 2)
   assert.equal(round(revenueByMonth(after, '2026', settings).reduce((s, m) => s + m.net, 0)), 2920)
+  // Entwurf einer Schlussrechnung sperrt nichts; doppelt abziehen verhindert advanceConflicts beim Festschreiben
+  const twice = { ...finalDraft(order, { id: 'sr2', date: '2026-11-04', advances: [a1, a2], settings }), dueDate: '2026-11-18' }
+  assert.deepEqual(advanceConflicts(draft, docs), [])
+  assert.deepEqual(advanceConflicts(twice, all), [`Abschlagsrechnung ${a1.number} ist schon in der Schlussrechnung RE-2026-0003 abgezogen.`, `Abschlagsrechnung ${a2.number} ist schon in der Schlussrechnung RE-2026-0003 abgezogen.`])
+  assert.deepEqual(advancesFor(order, [...docs, draft]).length, 2, 'ein Entwurf sperrt die Abschläge nicht')
+  const a2st = fin(stornoDraft(a2, { id: 'a2st', date: '2026-10-20', reason: 'x' }), docs)
+  assert.match(advanceConflicts(draft, [...docs, a2st])[0], /RE-2026-0002 ist storniert/)
   // ohne Abschläge: gewöhnliche Rechnung
   const plain = finalDraft(order, { id: 'pl', date: '2026-11-03', settings })
   assert.equal(plain.stage, undefined)
@@ -311,6 +319,13 @@ test('E-Rechnung: Abschlag 386, Schlussrechnung mit vorausbezahltem Betrag, Text
   assert.ok(!eInvoiceProblems(sr, settings, { ref: order }).some((p) => p.level === 'error'))
   const one = fin({ ...finalDraft(order, { id: 'sr1', date: '2026-11-03', advances: [a1], settings }), dueDate: '2026-11-17' }, docs)
   assert.match(ciiXml(one, settings, { ref: order }), /<ram:InvoiceReferencedDocument>\s*<ram:IssuerAssignedID>RE-2026-0001<\/ram:IssuerAssignedID>/)
+  // Storno der Schlussrechnung: Bezug ist die Schlussrechnung, nicht der Abschlag
+  const st = fin(stornoDraft(one, { id: 'st1', date: '2026-11-05', reason: 'x' }), [...docs, one])
+  const stx = ciiXml(st, settings, { ref: one })
+  assert.match(stx, /<ram:TypeCode>381</)
+  assert.match(stx, new RegExp(`<ram:InvoiceReferencedDocument>\\s*<ram:IssuerAssignedID>${one.number}<`))
+  assert.match(ebInterfaceXml(st, settings, { ref: one }), new RegExp(`<CancelledOriginalDocument>\\s*<InvoiceNumber>${one.number}<`))
+  assert.doesNotMatch(ebInterfaceXml(st, settings, { ref: one }), /<RelatedDocument>/)
   const e = ebInterfaceXml(sr, settings, { ref: order })
   assert.match(e, /DocumentType="FinalSettlement"/)
   assert.match(e, /<TotalGrossAmount>7640\.00<\/TotalGrossAmount>\s*<PrepaidAmount>3485\.75<\/PrepaidAmount>\s*<PayableAmount>4154\.25<\/PayableAmount>/)

@@ -117,9 +117,12 @@ export function eInvoiceModel(doc, settings = {}, { ref = null, orderRef, suppli
   // Vorgängerrechnung (BG-3) nur, wenn der Bezug eine Rechnung ist (Storno, Korrektur) bzw. bei genau einem Abschlag;
   // ein Auftrag als Bezug ist die Auftragsnummer des Verkäufers (BT-14), ein Angebot hat kein Feld
   const advances = (doc.advances || []).map((a) => ({ number: a.number, date: a.date || '', net: round2(a.net * sign), vat: round2(a.vat * sign), gross: round2(a.gross * sign), groups: a.groups || [] }))
-  const refIsInvoice = ref ? isInvoice(ref) : ['storno', 'korrektur'].includes(doc.kind)
-  const refNumber = advances.length === 1 ? advances[0].number : advances.length ? '' : refIsInvoice ? ref?.number || doc.refNumber || '' : ''
-  const refDate = advances.length === 1 ? advances[0].date : ref?.date || ''
+  // Storno und Korrektur beziehen sich immer auf ihre Rechnung (auch die Schlussrechnung), nicht auf deren Abschläge
+  const own = ['storno', 'korrektur'].includes(doc.kind)
+  const refIsInvoice = ref ? isInvoice(ref) : own
+  const single = !own && advances.length === 1
+  const refNumber = single ? advances[0].number : own || (!advances.length && refIsInvoice) ? ref?.number || doc.refNumber || '' : ''
+  const refDate = single ? advances[0].date : ref?.date || ''
   const sellerOrder = ref?.kind === 'auftrag' ? ref.number || '' : ''
   const delivery = String(doc.deliveryAddress || '').trim() ? parseAddress(doc.deliveryAddress) : null
   // Text- und Titelzeilen: als Bemerkung (BT-22), nicht als Position mit 0 € (EN 16931 kennt keine Textzeilen)
@@ -393,7 +396,7 @@ export function ebInterfaceXml(doc, settings = {}, opts = {}) {
   else if (lists.length) lists.at(-1).foot.push(...cur.head)
   if (!lists.length || k !== m.lines.length) lists = [{ head: [], items: m.lines, foot: [] }]
   const itemLists = lists.map((x) => N('ItemList', [N('HeaderDescription', x.head.join('\n')), ...x.items.map(lineItem), N('FooterDescription', x.foot.join('\n'))]))
-  const related = m.advances.length
+  const related = m.advances.length && !m.credit
     ? m.advances.map((a) => N('RelatedDocument', [N('InvoiceNumber', a.number), a.date ? N('InvoiceDate', a.date) : null, N('DocumentType', 'InvoiceForAdvancePayment'), N('Comment', `Abschlagsrechnung, abgezogen: ${amt(a.gross)} EUR`)]))
     : m.ref && !cancelled
       ? [N('RelatedDocument', [N('InvoiceNumber', m.ref.number), m.ref.date ? N('InvoiceDate', m.ref.date) : null, N('DocumentType', 'Invoice'), N('Comment', `${KINDS[m.kind]} zu Rechnung ${m.ref.number}`)])]

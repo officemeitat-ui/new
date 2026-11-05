@@ -578,12 +578,31 @@ function orderChain(source, docs) {
   return ids
 }
 
-/** Schlussrechnungen (Entwurf oder festgeschrieben, nicht storniert), die eine Abschlagsrechnung schon abziehen. */
-export const deductedIn = (advance, docs) => docs.filter((x) => isFinal(x) && (x.advances || []).some((a) => a.id === advance.id) && !isCancelled(x, docs))
+/** Festgeschriebene, nicht stornierte Schlussrechnungen, die eine Abschlagsrechnung schon abziehen. */
+export const deductedIn = (advance, docs) => docs.filter((x) => isFinal(x) && x.number && (x.advances || []).some((a) => a.id === advance.id) && !isCancelled(x, docs))
+
+/**
+ * Vor dem Festschreiben einer Schlussrechnung: jede abgezogene Abschlagsrechnung muss es festgeschrieben und nicht
+ * storniert geben, und keine andere Schlussrechnung darf sie schon abziehen. Liefert Fehlertexte.
+ */
+export function advanceConflicts(d, docs) {
+  const out = []
+  for (const a of d.advances || []) {
+    const x = docs.find((y) => y.id === a.id)
+    if (!x?.number || !isAdvance(x)) out.push(`Abschlagsrechnung ${a.number} gibt es nicht (mehr).`)
+    else if (isCancelled(x, docs)) out.push(`Abschlagsrechnung ${a.number} ist storniert: Schlussrechnung neu erstellen.`)
+    else {
+      const other = deductedIn(x, docs).find((f) => f.id !== d.id)
+      if (other) out.push(`Abschlagsrechnung ${a.number} ist schon in der Schlussrechnung ${other.number} abgezogen.`)
+    }
+  }
+  return out
+}
 
 /**
  * Abschlagsrechnungen zu einem Angebot bzw. Auftrag (auch zum Angebot, aus dem der Auftrag kam): festgeschrieben,
- * nicht storniert und noch in keiner anderen Schlussrechnung abgezogen (exceptId: die gerade bearbeitete).
+ * nicht storniert und noch in keiner festgeschriebenen Schlussrechnung abgezogen (exceptId: die gerade bearbeitete).
+ * Entwürfe sperren nichts; doppelt abziehen verhindert advanceConflicts beim Festschreiben.
  */
 export function advancesFor(source, docs, { exceptId = '' } = {}) {
   const chain = orderChain(source, docs)

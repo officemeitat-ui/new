@@ -17,6 +17,7 @@ import { sendMail } from '../../auth/graph-mail.js'
 import { calcWage, calculate } from '../../core/calculation.js'
 import { addDays, firstOfMonth, formatDate, todayISO } from '../../core/dates.js'
 import {
+  advanceConflicts,
   advanceDraft,
   advancesFor,
   archivePath,
@@ -1787,6 +1788,8 @@ registerActions(
       const x = readForm(m)
       const list = blocking(problems(x, S()))
       if (list.length) return toast(list[0].text)
+      const clash = advanceConflicts(x, F().documents)
+      if (clash.length) return toast(clash[0])
       if (!confirmStep(`fak-final:${x.id}`, renderModal)) return
       el.disabled = true
       try {
@@ -1795,6 +1798,9 @@ registerActions(
         await app.service.flush().catch(() => {})
         await app.service.refresh?.().catch(() => [])
         const d = F()
+        // nach dem Abgleich noch einmal: Abschlag inzwischen storniert oder anderswo abgezogen?
+        const clash2 = advanceConflicts(x, d.documents)
+        if (clash2.length) throw new Error(clash2[0])
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
         const fixed = finalize(d.documents.find((y) => y.id === x.id) || x, d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
         upsertDoc(fixed)
