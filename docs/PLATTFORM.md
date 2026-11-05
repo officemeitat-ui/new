@@ -15,6 +15,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | **Mattenwechsel** | Werkzeug Mattenwechsel | Disposition, Gruppe Mattenwechsel |
 | **Fahrzeuge & Reifen** | Reifenwechsel, Service, Pickerl | Disposition, Fuhrpark |
 | **Fakturierung** | Angebote, Rechnungen, Daueraufträge, offene Posten, Mahnungen | Disposition, Buchhaltung |
+| **Einkauf & Kasse** | Lieferanten, Eingangsrechnungen, offene Zahlungen, Kassenbuch | Disposition, Buchhaltung |
 
 ## Rollen
 
@@ -31,7 +32,7 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | `ableser` | Wasserzähler | Wasserzähler |
 | `pruefer` – Prüfer/in | Objektkontrolle, Objektdoku | Objektkontrolle |
 | `fuhrpark` – Fuhrpark | Fahrzeuge & Reifen | Fahrzeuge & Reifen |
-| `buchhaltung` – Buchhaltung | Fakturierung (dazu nur die Objektliste) | Fakturierung |
+| `buchhaltung` – Buchhaltung | Fakturierung, Einkauf & Kasse (dazu nur die Objektliste) | Fakturierung, Einkauf & Kasse |
 | `lesen` | Dienstplan | nichts |
 
 - Mehrere Rollen addieren sich (z. B. Objektmanagement und Vorarbeiter).
@@ -86,7 +87,7 @@ Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen ode
 }
 ```
 
-Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager), `schluessel` (Schlüsselbuch), `unterweisungen` (Unterweisungen & Fristen). Der Leistungsnachweis gehört zur Einsatzplanung (`planung`).
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager), `schluessel` (Schlüsselbuch), `unterweisungen` (Unterweisungen & Fristen), `termine`, `fakturierung`, `einkauf` (Einkauf & Kasse). Der Leistungsnachweis gehört zur Einsatzplanung (`planung`).
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
@@ -109,6 +110,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `nachweise/` | Leistungsnachweis: Einstellungen und Versand-Vermerke | Bearbeiten | Bearbeiten | – |
 | `unterweisungen/` | Unterweisungen & Fristen je Person (mit Unterschriften) | Bearbeiten | – | – |
 | `fakturierung/` | Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen; PDFs unter `fakturierung/belege/` | Bearbeiten | – | – |
+| `einkauf/` | Einkauf & Kasse: Lieferanten (mit Bankverbindung), Eingangsrechnungen, Kassenbuch; Belege unter `einkauf/belege/` und `einkauf/kassenbuch/` (Rolle Buchhaltung: Bearbeiten) | Bearbeiten | – | – |
 | `berichte/` | Berichte automatisch per E-Mail: Abos (Empfänger, Zeitplan, zuletzt gesendet) | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
@@ -394,9 +396,38 @@ Kontoauszug im Online-Banking herunterladen und unter Fakturierung → **Bank** 
   - **unsicher:** nur der Betrag passt, oder die genannte Rechnung ist **storniert** bzw. schon **bezahlt** (Hinweis auf Doppelzahlung oder Rückzahlung, keine Buchung vorgeschlagen).
 - **Zuordnen** bucht die Zahlung bei der Rechnung (Datum der Bank, Vermerk „Bank: Name“), die offenen Posten und Mahnstufen richten sich danach. **Alle sicheren übernehmen** erledigt die sicheren auf einmal. **Andere Rechnung** wählt von Hand eine oder mehrere Rechnungen mit Beträgen. **Ignorieren** für Eingänge, die keine Kundenzahlungen sind. **Lösen** nimmt eine Zuordnung samt Zahlung wieder zurück.
 - Die **IBAN des Zahlers** wird beim Kunden gemerkt; die nächste Zahlung ohne Rechnungsnummer wird dann sicher erkannt.
-- **Abbuchungen** werden nur angezeigt (keine Eingangsrechnungen in der App).
+- **Abbuchungen** werden hier nur angezeigt; Eingangsrechnungen ordnet *Einkauf → Bank-Ausgänge* zu (siehe Einkauf & Kasse).
 - **Zu erledigen:** Eingänge, die seit über 7 Tagen keiner Rechnung zugeordnet sind.
 - **Gespeichert** in `fakturierung/fakturierung.json` (Teil `bank`): die Buchungen der letzten 13 Monate (Datum, Betrag, Name, IBAN, Text gekürzt, Zuordnung) und die Kennungen gegen doppeltes Einlesen; ältere werden beim nächsten Einlesen entfernt. Die Zahlungen selbst stehen dauerhaft bei den Rechnungen. Rechte wie die Fakturierung.
+
+## Einkauf & Kasse
+
+Eigenes Modul unter *Finanzen* (Modul `einkauf`, Rolle `buchhaltung` oder Vollzugriff) mit zwei Ansichten, **Einkauf** und **Kassenbuch**, damit Lieferanten, Eingangsrechnungen und das Kassenbuch nach dem Umstieg von orgaMAX in der App weiterlaufen. Gespeichert in `einkauf/einkauf.json` (Lieferanten, Eingangsrechnungen, Zahlungen) und `einkauf/kassenbuch.json`; Belege unter `einkauf/belege/JAHR/`, Kassenbelege und Monats-PDFs unter `einkauf/kassenbuch/JAHR/`. Rechenkerne: `src/core/purchase.js`, `src/core/cashbook.js`, `src/core/sepa-transfer.js` (mit Tests); Oberfläche `src/ui/views/purchase.js`, `src/ui/views/cashbook.js`.
+
+- **Lieferanten** mit Nummer, Firma, Ansprechpartner, Anschrift in Einzelfeldern (wie die Kunden der Fakturierung), UID, Steuernummer, IBAN/BIC, Zahlungsziel und Skonto, unserer Kundennummer beim Lieferanten, Kreditorenkonto, Vorschlag für Kategorie, Aufwandskonto und Steuersatz, Reverse Charge.
+- **Verbindung mit Material & Lager:** Die Lieferanten in `material/material.json` lesen Lager, Objektleitung und Objektservice – Bankverbindung, UID und Rechnungen gehören nicht dorthin. Darum gibt es keine gemeinsame Liste, sondern eine Verknüpfung (`materialId`): „übernehmen“ legt aus einem Material-Lieferanten einen verknüpften Lieferanten an, „verknüpfen“ verbindet einen vorhandenen; nichts wird verschoben oder gelöscht. Beim Speichern lassen sich Name und Kontaktdaten in Material & Lager angleichen; neue Lieferanten können dort gleich mit angelegt werden. Eine Eingangsrechnung kann auf eine Bestellung aus Material & Lager verweisen.
+- **Eingangsrechnungen** mit Beleg (Foto am Handy über die Kamera, PDF oder Bild; Fotos werden verkleinert), Lieferant, Rechnungsnummer des Lieferanten, Rechnungs-, Leistungs- und Eingangsdatum, Leistung (Menge und Bezeichnung), Netto und Vorsteuer je Steuersatz (Vorsteuer wird vorgeschlagen, auch „aus Brutto rechnen“), Reverse Charge, Fälligkeit und Skonto (vom Lieferanten vorbelegt), Kategorie mit Aufwandskonto, Objekt bzw. Kostenstelle, Notiz. Jede Erfassung bekommt eine laufende **Eingangsnummer** (`ER-2026-0001`) für Ablage und Export.
+- **E-Rechnung einlesen:** ZUGFeRD/Factur-X (PDF mit eingebetteter XML) und XRechnung (CII oder UBL) füllen Lieferant, Nummer, Daten, Fälligkeit und Beträge je Steuersatz; ein unbekannter Lieferant wird beim Speichern angelegt. Gelesen mit `parseEInvoice`/`eInvoiceFromPdf` aus `src/core/fak-import.js`.
+- **Prüfung für den Vorsteuerabzug** (§ 11/§ 12 UStG) beim Erfassen, mit Kleinbetragsrechnung bis 400 € brutto und Reverse Charge; was fehlt, steht als Hinweis da und in der Liste als „Vorsteuer?“. **Doppel-Erkennung:** gleicher Lieferant und gleiche Rechnungsnummer (Schreibweise egal) wird nicht gespeichert; gleicher Betrag am gleichen Tag ohne Nummer ergibt eine Warnung.
+- **Freigabe** („geprüft und freigegeben“ mit Name und Zeit); auf Wunsch Pflicht vor dem Zahlen. Freigegebene oder bezahlte Erfassungen sind nicht mehr änderbar; eine Fehlerfassung wird **storniert** (bleibt sichtbar, zählt nicht).
+- **Zahlstatus** offen, teilweise bezahlt, bezahlt, überfällig; **Zahlungen** mit Skonto (Zahlung in der Frist, der Rest wird als Skonto vermerkt), per Überweisung, Lastschrift oder **bar aus der Kasse** (dann Ausgabe im Kassenbuch; reicht das Bargeld nicht, wird nichts gebucht).
+- **Offene Zahlungen** nach Frist (zuerst das Ende der Skontofrist, dann die Fälligkeit). Ausgewählte Rechnungen ergeben eine **Überweisungsdatei** (SEPA **pain.001.001.09**, auf Wunsch .03) mit dem Betrag abzüglich Skonto, solange die Frist am Ausführungstag läuft; IBAN des Lieferanten und des eigenen Kontos werden geprüft. Der Lauf wird vermerkt und nach der Ausführung „als bezahlt gebucht“. Fällige Zahlungen der nächsten 3 Tage stehen in **Zu erledigen**.
+- **Bank-Ausgänge:** Abbuchungen aus dem Kontoauszug, den die Fakturierung einliest (`fakturierung.json` → `bank`), werden hier Eingangsrechnungen zugeordnet (Rechnungsnummer im Verwendungszweck, IBAN oder Name des Lieferanten, Betrag auch abzüglich Skonto). Die Zuordnung steht nur bei der Zahlung der Eingangsrechnung (`bank` = Buchungs-ID); an der Logik der Eingänge und an `bank.js` ändert sich nichts. Ausgänge ohne Rechnung (Lohn, Steuer, Gebühren) lassen sich ausblenden.
+- **Übersicht:** offene Verbindlichkeiten, fällig diese Woche, überfällig, mögliches Skonto, Kassenstand, Ausgaben je Monat und Kategorie; dieselben Zahlen in den **Kennzahlen**.
+- **Export für die Steuerberatung** (CSV wie die Fakturierung: Strichpunkt, Dezimalkomma): je Eingangsrechnung und Steuersatz eine Zeile (Belegart ER, Kreditor, Aufwandskonto, UID, Rechnungsnummer, Steuercode RC19-1a bei Reverse Charge, Netto, Vorsteuer, Brutto, Kostenstelle) und Skontoabzüge als SK-Zeilen (Vorsteuer berichtigen).
+
+### Kassenbuch
+
+- **Einnahmen und Ausgaben** mit fortlaufender Nummer, Datum, Text, Betrag, Steuersatz und Steuer, Gegenkonto/Kategorie, Belegnummer und Beleg (Foto oder PDF, auch nachreichen). **Kassenstand** läuft mit und kann **nie negativ** werden: Eine Buchung, die den Stand an irgendeinem Tag unter null brächte (auch rückdatiert), wird mit Hinweis verweigert.
+- **Kein Ändern, kein Löschen:** Korrektur nur als **Storno** (Gegenbuchung mit eigener Nummer und Grund); jeder Eintrag trägt eine Prüfsumme, jeder Monatsabschluss eine über alle Einträge des Monats. Wird die Datei von Hand verändert, meldet das Kassenbuch das.
+- **Anfangsbestand** als erster Eintrag (z. B. Endbestand aus orgaMAX). **Kassensturz** mit Stückelung: Differenz wird gebucht, mit „Tagesabschluss“ ist der Tag danach gesperrt. **Monatsabschluss** nach dem Monatsende, der Reihe nach: sperrt den Monat, PDF (in SharePoint unter `einkauf/kassenbuch/JAHR/`).
+- **Verknüpfung:** Barzahlung einer Ausgangsrechnung – im Kassenbuch („Zahlung einer Ausgangsrechnung“) oder in der Fakturierung mit dem Häkchen „bar bezahlt“ im Zahlungsdialog – bucht Einnahme und Zahlung zugleich; Barzahlung einer Eingangsrechnung ebenso als Ausgabe. Ein Storno im Kassenbuch nimmt die Zahlung bei der Rechnung wieder heraus; in der Fakturierung lässt sich eine solche Zahlung nicht einfach entfernen.
+- **Export für die Steuerberatung** (Belegart KA, Kassenkonto, Gegenkonto, Steuercode UST/VST, Einnahme positiv, Ausgabe negativ, Storno mit Bezug) und **Hinweis zur Registrierkassenpflicht** (§ 131b BAO, RKSV): Ab 15.000 € Jahresumsatz und mehr als 7.500 € Barumsätzen braucht es eine Registrierkasse; das Kassenbuch zählt die Barumsätze, warnt und ersetzt keine Registrierkasse.
+- **Zwei Geräte gleichzeitig:** Einträge haben eine Kennung und werden zusammengeführt; bekommen dabei zwei dieselbe Nummer, rückt der spätere ans Ende (vermerkt).
+
+### Übernahme aus orgaMAX (für die Übernahme-Werkzeuge)
+
+`mergePurchaseImport(data, { suppliers, invoices, cash }, { newId, now, by, system })` in `src/core/purchase.js` spielt Lieferanten (orgaMAX: `BAS_CUSTOMERS` mit `CONTACTTYPE` 3), Eingangsrechnungen (`MOV_PURCHINVOICES` u. a.) und Kassenbuch-Einträge ein – **idempotent**: gleiche Lieferantennummer, Quelle (`source: { system, id }`), UID oder IBAN ergänzt nur leere Felder; gleiche Nummer mit anderem Namen wird gemeldet, nicht zusammengelegt; Rechnungen mit gleicher Quelle oder gleichem Lieferanten und gleicher Nummer werden übersprungen; Kassenbuch-Einträge nur in zeitlicher Folge nach dem letzten vorhandenen Eintrag, fortlaufend nummeriert (`importCash` in `src/core/cashbook.js`). Die Felder stehen im Kopf von `src/core/purchase.js` bzw. `src/core/cashbook.js`.
 
 ## KI-Assistent
 

@@ -209,7 +209,7 @@ Ausschalten: in den Einstellungen „eingeschaltet“ abhaken, oder `"assistant"
 
 ## 9. Fakturierung einrichten
 
-1. **Wer darf:** Vollzugriff ohnehin; für die Buchhaltung die Rolle `buchhaltung` (App-Rolle in Entra ID oder Microsoft-Gruppe unter `access.groups.buchhaltung`). In SharePoint den Ordner `Plattform/fakturierung` nur für Vollzugriff und Buchhaltung freigeben; die Buchhaltung braucht dazu „Lesen“ auf `objekte/`.
+1. **Wer darf:** Vollzugriff ohnehin; für die Buchhaltung die Rolle `buchhaltung` (App-Rolle in Entra ID oder Microsoft-Gruppe unter `access.groups.buchhaltung`). In SharePoint den Ordner `Plattform/fakturierung` nur für Vollzugriff und Buchhaltung freigeben; die Buchhaltung braucht dazu „Lesen“ auf `objekte/`. Ebenso den Ordner `Plattform/einkauf` (Einkauf & Kasse: Lieferanten mit Bankverbindung, Eingangsrechnungen, Belege, Kassenbuch): nur Vollzugriff und Buchhaltung, „Bearbeiten“.
 2. **Fakturierung → Einstellungen:** Firmenname, Anschrift, **UID-Nummer**, Telefon, E-Mail, Firmenbuch; **IBAN** (wird geprüft, ohne gültige IBAN kein QR-Code), BIC, Bank; Zahlungsziel, Standard-USt, Texte. Wer im laufenden Jahr schon Rechnungen mit anderer Software geschrieben hat: **erste Rechnungsnummer** setzen (z. B. 153), damit die Nummern fortlaufend bleiben.
 3. **Mahnwesen:** Basiszinssatz der OeNB eintragen (je Halbjahr prüfen), Tage je Mahnstufe.
 4. **Export:** Debitorenkonto und Erlöskonten je Steuersatz und für Reverse Charge mit der Steuerberatung abstimmen.
