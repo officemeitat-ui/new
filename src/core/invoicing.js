@@ -94,6 +94,23 @@ export const SETTINGS_DEFAULTS = {
  *  recurring[]   wie bisher (Daueraufträge; orgaMAX: Abo-Rechnungen)
  *  settings      wie bisher, dazu numberFormats { Belegart: Vorlage mit {P} {JJJJ} {JJ} {MM} {NR} }, yearly { Belegart: bool }
  * Neue Belegfelder zählen zur Prüfsumme nur, wenn sie gesetzt sind (alte Prüfsummen bleiben gültig).
+ *
+ * Läufe und SEPA-Lastschrift (core/fak-laeufe.js, core/sepa.js; alle Felder optional):
+ *  customers[]   mandate { reference (Mandatsreferenz, bis 35 Zeichen), signedAt (Datum der Unterschrift), scheme ('CORE' |
+ *                  'B2B'), sequence ('FRST' | 'RCUR': nächste Lastschrift), preNoticeDays (leer: Einstellungen), active,
+ *                  revokedAt, lastCollection (letzter Einzugstermin), note } – IBAN/BIC stehen beim Kunden;
+ *                  dunningBlock { until, note, by, at } (Mahnsperre für alle Rechnungen des Kunden, z. B. Ratenvereinbarung)
+ *  documents[]   debitText (Hinweis auf den Lastschrifteinzug = Vorabankündigung auf der Rechnung, unveränderlich),
+ *                  debitNotice [{ at, to, dueDate, amount, by }] (Vorabankündigung per E-Mail),
+ *                  directDebit { status ('eingereicht' | 'zurueck'), batchId, dueDate, amount, mandateRef, scheme, seq,
+ *                  endToEndId, at, by, returnedAt, reason, fee }, payments[].kind 'ruecklastschrift' (negativ),
+ *                  dunningBlock { until, note, by, at } (Mahnsperre für diesen Beleg),
+ *                  followUp { date, note, doneAt, by } (Wiedervorlage eines Angebots),
+ *                  sent[].via 'post' (im Sammel-PDF gedruckt), reminders[].via 'post'
+ *  sepa          { batches: [{ id, msgId, createdAt, by, dueDate, version, count, sum, docIds, file, path }] }
+ *  bank.tx[]     endToEnd (EndToEnd-ID aus camt, für den Treffer „im Einzug“)
+ *  settings      sepa { creditorId (Gläubiger-ID der OeNB), version ('pain.008.001.08' | 'pain.008.001.02'), leadDays,
+ *                  preNoticeDays, batchBooking }, offerFollowUpDays (Wiedervorlage X Tage nach Versand)
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 
@@ -233,7 +250,7 @@ export function fnv1a(text) {
 const FIXED_FIELDS = ['kind', 'number', 'date', 'serviceFrom', 'serviceTo', 'dueDate', 'sender', 'recipient', 'lines', 'discount', 'reverseCharge', 'smallBusiness', 'refId', 'refNumber', 'title', 'intro', 'outro', 'total']
 const canonical = (v) => (Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v)
 // später dazugekommene Felder: zählen nur, wenn gesetzt (sonst änderten sich die Prüfsummen alter Belege)
-const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported']
+const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported', 'debitText']
 export const checksumOf = (d) => fnv1a(JSON.stringify(canonical({ ...Object.fromEntries(FIXED_FIELDS.map((k) => [k, d[k] ?? null])), ...Object.fromEntries(FIXED_OPTIONAL.filter((k) => d[k] != null && d[k] !== '').map((k) => [k, d[k]])) })))
 /** Festgeschriebener Beleg unverändert? (true auch für Entwürfe) */
 export const intact = (d) => !d.number || !d.checksum || d.checksum === checksumOf(d)
@@ -997,7 +1014,7 @@ export function resolveTexts(doc, { settings = {}, customer = null, terms = null
 // ---------------------------------------------------------------- Textbausteine
 
 export const TEXT_PLACES = { intro: 'Einleitung', outro: 'Schlusstext', mail: 'E-Mail-Text', reminder: 'Mahnungstext', position: 'Positionstext' }
-export const TEXT_KINDS = { ...KINDS, mahnung: 'Mahnung', alle: 'alle Belegarten' }
+export const TEXT_KINDS = { ...KINDS, mahnung: 'Mahnung', nachfassen: 'Angebot nachfassen', lastschrift: 'Lastschrift-Ankündigung', alle: 'alle Belegarten' }
 const placeOf = (b) => b.place || 'intro'
 
 /** Textbausteine für eine Belegart und Stelle: eigene Belegart vor „alle“, Standard zuerst, dann nach Name. */

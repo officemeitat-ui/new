@@ -10,6 +10,7 @@
 // Aufbewahrt werden 13 Monate (danach entfernt: die Zahlungen stehen bei den Rechnungen).
 
 import { fnv1a, isCancelled, openAmount, paymentEntries, round2, skontoAvailable } from './invoicing.js'
+import { collectionMatch } from './sepa.js'
 
 export const KEEP_MONTHS = 13
 export const LEVELS = { sicher: 'sicher', wahrscheinlich: 'wahrscheinlich', unsicher: 'unsicher' }
@@ -475,6 +476,9 @@ const fmt = (n) => `${round2(n).toLocaleString('de-AT', { minimumFractionDigits:
 export function suggest(tx, { docs, customers = [], settings = {} }) {
   if (!(tx.amount > 0)) return { level: null, allocations: [], reasons: ['Abbuchung: wird nur angezeigt.'] }
   if (tx.reversal) return { level: null, allocations: [], reasons: ['Rückbuchung (Storno der Bank): bitte prüfen.'] }
+  // Eingang aus dem eigenen SEPA-Lastschrifteinzug („im Einzug“): EndToEnd-ID, Sammelgutschrift oder Betrag und Termin
+  const debit = collectionMatch(tx, docs, settings)
+  if (debit) return debit
   // due: offen abzüglich Skonto, wenn der Eingang in der Skontofrist liegt
   const item = (d) => {
     const o = openAmount(d, docs, settings)

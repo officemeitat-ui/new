@@ -6,6 +6,7 @@
 
 import { todayISO } from '../core/dates.js'
 import { deDate, DEFAULT_GREETING, epcPayload, formatIban, KINDS, lateInterest, periodLabel, RC_TEXT, resolveTexts, round2, settingsOf, SMALL_AMOUNT, SMALL_BUSINESS_TEXT, totals } from '../core/invoicing.js'
+import { debitNoteFor } from '../core/sepa.js'
 import { inkColors, tableLayout } from './pdf-parts.js'
 
 // Tausenderpunkt wie auf österreichischen Rechnungen üblich (de-AT setzt bei Zahlen ohne Währung ein Leerzeichen)
@@ -137,7 +138,10 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
   if (doc.smallBusiness ?? s.smallBusiness) notes.push(SMALL_BUSINESS_TEXT)
   const payText = []
   let qr = null
-  if (doc.kind === 'rechnung' && t.gross > 0) {
+  // SEPA-Lastschrift: Hinweis mit Termin und Mandat statt Überweisung (Vorabankündigung, beim Festschreiben eingefroren)
+  const debitText = doc.kind === 'rechnung' ? doc.debitText || (draft ? debitNoteFor(doc, customer, s) : '') : ''
+  if (doc.kind === 'rechnung' && t.gross > 0 && debitText) payText.push(debitText)
+  else if (doc.kind === 'rechnung' && t.gross > 0) {
     // Zahlungsbedingung mit Skonto (Text beim Festschreiben eingefroren), sonst der übliche Satz
     if (doc.termsText) {
       payText.push(doc.termsText)

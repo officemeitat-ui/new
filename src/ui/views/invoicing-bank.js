@@ -179,6 +179,7 @@ const keep = (t, fileName, at) => ({
   iban: t.iban || '',
   text: String(t.text || '').slice(0, 300),
   reference: String(t.reference || '').slice(0, 140),
+  ...(t.endToEnd ? { endToEnd: String(t.endToEnd).slice(0, 35) } : {}),
   ...(t.reversal ? { reversal: true } : {}),
   ...(t.batch ? { batch: t.batch } : {}),
   status: t.status,
