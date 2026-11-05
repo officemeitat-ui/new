@@ -804,6 +804,7 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
   doc.bankIgnored ||= {}
   doc.settings ||= {}
   const report = { added: { suppliers: 0, invoices: 0, cash: 0 }, updated: { suppliers: 0 }, skipped: [], warnings: [] }
+  const renumbered = new Map() // Nummer aus dem Altsystem → neu angelegter Lieferant (Nummer war in der App schon vergeben)
   const refOf = (x) => (x.source?.id != null ? { system: x.source.system || system, id: String(x.source.id) } : null)
 
   for (const raw of suppliers) {
@@ -817,8 +818,21 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
     const hit = findSupplier(doc.suppliers, probe)
     if (hit) {
       if (raw.supplierNo && hit.supplierNo === String(raw.supplierNo) && name && nameScore(name, supplierName(hit)) < 0.6) {
-        report.warnings.push(`Lieferantennummer ${raw.supplierNo}: „${name}“ heißt in der App „${supplierName(hit)}“ – nicht zusammengelegt.`)
-        report.skipped.push({ type: 'lieferant', ref: String(raw.supplierNo), reason: 'Nummer mit anderem Namen' })
+        // gleiche Nummer, anderer Lieferant: nicht zusammenlegen, sondern mit neuer Nummer anlegen (Rechnungen hängen daran);
+        // bei einer zweiten Übernahme wird dieser über die alte Nummer (importedNo) wiedergefunden
+        const before = doc.suppliers.find((x) => x.importedNo === String(raw.supplierNo) && nameScore(name, supplierName(x)) >= 0.6)
+        if (before) {
+          renumbered.set(String(raw.supplierNo), before)
+          if (mergeEmpty(before, { ...raw, source }, ['id', 'supplierNo', 'importedNo'])) report.updated.suppliers++
+          continue
+        }
+        const fresh = { ...raw, id: newId(), supplierNo: nextSupplierNo(doc.suppliers), importedNo: String(raw.supplierNo), country: raw.country || 'AT', source: source || { system }, note: [raw.note, `Lieferantennummer in ${system}: ${raw.supplierNo}`].filter(Boolean).join(' · '), createdAt: now }
+        if (fresh.uid) fresh.uid = String(fresh.uid).replace(/\s+/g, '').toUpperCase()
+        if (fresh.iban) fresh.iban = cleanIban(fresh.iban)
+        doc.suppliers.push(fresh)
+        renumbered.set(String(raw.supplierNo), fresh)
+        report.added.suppliers++
+        report.warnings.push(`Lieferantennummer ${raw.supplierNo}: „${name}“ heißt in der App „${supplierName(hit)}“ – als eigener Lieferant Nr. ${fresh.supplierNo} angelegt.`)
         continue
       }
       if (mergeEmpty(hit, { ...raw, source }, ['id', 'supplierNo'])) report.updated.suppliers++
@@ -832,6 +846,8 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
   }
 
   const supplierFor = (x) =>
+    (x.supplierRef && doc.suppliers.find((s) => s.source && String(s.source.id) === String(x.supplierRef))) ||
+    (x.supplierNo && renumbered.get(String(x.supplierNo))) ||
     (x.supplierNo && doc.suppliers.find((s) => String(s.supplierNo) === String(x.supplierNo))) ||
     (x.supplierRef && doc.suppliers.find((s) => s.source && String(s.source.id) === String(x.supplierRef))) ||
     (x.supplierName && findSupplier(doc.suppliers, { name: x.supplierName })) ||

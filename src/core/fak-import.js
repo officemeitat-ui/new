@@ -268,6 +268,8 @@ export function dbTableKind(name) {
   if (/^MOV_PAYMENTS$/.test(n)) return 'payments'
   if (/TEXTBLOCK|TEXTBAUSTEIN|TEXTMODUL|STANDARDTEXT|^BAS_TEXTS?$/.test(n)) return 'textBlocks'
   if (/PAYMENTCOND|PAYMENTTERM|PAYCOND|ZAHLUNGSBED|TERMSOFPAYMENT/.test(n)) return 'paymentTerms'
+  if (/^MOV_PURCHINVOICES$|EINGANGSRECHNUNG/.test(n)) return 'purchaseInvoices'
+  if (/CASHBOOK|KASSENBUCH|KASSABUCH|^MOV_CASH$|^ACC_CASH/.test(n)) return 'cashbook'
   return null
 }
 
@@ -337,6 +339,60 @@ export function dumpTable(csvText, name, meta = []) {
   return { name, columns: head, rows: body.map((r) => head.map((_, i) => conv(r[i], types[i]))), db: true }
 }
 
+// Einkauf & Kasse (core/purchase.js, core/cashbook.js): Lieferanten wie Kunden, dazu Eingangsrechnungen und Kassenbuch
+{
+  const { customerNo, terms, consumer, contact, ...rest } = TARGETS.customers.fields
+  TARGETS.suppliers = {
+    label: 'Lieferanten',
+    words: W('lieferant lieferanten kreditor kreditoren supplier suppliers'),
+    fields: {
+      supplierNo: ['Lieferantennummer', ...W('lieferantennummer lieferantennr liefnr kreditorennummer kreditorennr kreditor supplierno suppliernumber'), 'nummer', 'nr'],
+      ourCustomerNo: ['Unsere Kundennummer beim Lieferanten', ...W('unserekundennummer kundennummerbeilieferant eigenekundennummer ourcustomerno')],
+      ...rest,
+      srcId: ['Interne ID', 'id'],
+    },
+  }
+}
+TARGETS.purchaseInvoices = {
+  label: 'Eingangsrechnungen',
+  words: W('eingangsrechnung eingangsrechnungen kreditorenrechnungen purchinvoices purchaseinvoices einkaufsrechnungen'),
+  fields: {
+    srcId: ['Interne ID', 'id'],
+    number: ['Rechnungsnummer des Lieferanten', ...W('rechnungsnummer rechnungsnr fremdbelegnummer externerechnungsnummer lieferantenrechnungsnr extinvno supplierinvno externalno invno belegnummer docno')],
+    date: ['Rechnungsdatum', ...W('rechnungsdatum belegdatum datum invdate docdate date')],
+    supplierNo: ['Lieferantennummer', ...W('lieferantennummer lieferantennr kreditorennummer kreditor supplierno')],
+    supplierRef: ['Lieferant (interne ID)', ...W('supplierid custid lieferantid kreditorid')],
+    supplierName: ['Lieferant', ...W('lieferant lieferantenname kreditorname firma name suppliername')],
+    net: ['Netto', ...W('netto nettobetrag totalnet net')],
+    vatAmount: ['Vorsteuer', ...W('vorsteuer ust mwst ustbetrag mwstbetrag totalvat vat')],
+    rate: ['Steuersatz', ...W('steuersatz ustsatz mwstsatz vatrate taxrate')],
+    gross: ['Brutto', ...W('brutto bruttobetrag betrag rechnungsbetrag totalgross gross')],
+    dueDate: ['Fällig am', ...W('faellig faelligam faelligkeit duedate')],
+    paidDate: ['Bezahlt am', ...W('bezahltam zahlungsdatum paiddate paymentdate')],
+    paid: ['Bezahlt (Betrag)', ...W('bezahltbetrag paidamount totalpaid')],
+    open: ['Offen (Betrag)', ...W('offen offenerbetrag restbetrag openamount')],
+    text: ['Text', ...W('text bezeichnung betreff buchungstext subject description')],
+    category: ['Kategorie', ...W('kategorie aufwandsart kostenart category')],
+    account: ['Konto', ...W('aufwandskonto sachkonto konto account')],
+  },
+}
+TARGETS.cashbook = {
+  label: 'Kassenbuch',
+  words: W('kassenbuch kassabuch kasse kassa cashbook'),
+  fields: {
+    srcId: ['Interne ID', 'id'],
+    date: ['Datum', ...W('datum buchungsdatum belegdatum date bookdate')],
+    no: ['Laufende Nummer', ...W('nummer nr lfdnr belegnr belegnummer kassennummer entryno no')],
+    text: ['Text', ...W('text buchungstext bezeichnung beschreibung description')],
+    income: ['Einnahme', ...W('einnahme einnahmen eingang income receipt')],
+    expense: ['Ausgabe', ...W('ausgabe ausgaben ausgang expense')],
+    amount: ['Betrag (mit Vorzeichen)', ...W('betrag amount value')],
+    rate: ['Steuersatz', ...W('steuersatz ust mwst ustsatz vatrate')],
+    vatAmount: ['Steuerbetrag', ...W('ustbetrag mwstbetrag vorsteuer vatamount')],
+    account: ['Gegenkonto', ...W('gegenkonto konto account')],
+  },
+}
+
 /** Pflichtfelder je Ziel (mindestens eine Spalte je Gruppe), sonst passt die Tabelle nicht. */
 const REQUIRED = {
   customers: [['name', 'lastName'], ['customerNo', 'street', 'zip', 'city', 'email', 'phone']],
@@ -348,6 +404,9 @@ const REQUIRED = {
   textBlocks: [['text'], ['name', 'kind', 'place']],
   paymentTerms: [['name'], ['days', 'skontoPercent']],
   recurring: [['interval'], ['customerNo', 'customerName', 'customerRef'], ['price', 'text', 'title']],
+  suppliers: [['name', 'lastName'], ['supplierNo', 'street', 'zip', 'city', 'iban', 'uid']],
+  purchaseInvoices: [['number'], ['date'], ['gross', 'net'], ['supplierNo', 'supplierRef', 'supplierName']],
+  cashbook: [['date'], ['income', 'expense', 'amount'], ['text', 'no']],
 }
 /** Diese Spalten sprechen gegen das Ziel (z. B. Positionen haben Menge, Zahlungen nicht). */
 const AGAINST = {
@@ -360,6 +419,9 @@ const AGAINST = {
   textBlocks: ['price', 'date', 'customerNo'],
   recurring: [],
   lines: [],
+  suppliers: ['date', 'qty', 'gross', 'price'],
+  purchaseInvoices: ['qty', 'pos', 'customerNo'],
+  cashbook: ['qty', 'customerNo', 'supplierNo'],
 }
 
 /** Wie gut passt eine Spaltenüberschrift zu einem Feld? 3 genau, 2 Anfang, 1 enthalten. */
@@ -670,6 +732,15 @@ function customerFrom(table, row, map, newId) {
   return c
 }
 
+/** Lieferant (Einkauf) aus einer Zeile: Felder wie beim Kunden, Nummer als Lieferantennummer. */
+function supplierFrom(table, row, map, newId) {
+  const c = customerFrom(table, row, { ...map, customerNo: map.customerNo ?? map.supplierNo }, newId)
+  if (!c) return null
+  const v = (f) => rowValue(row, map, f)
+  const { id, customerNo, consumer, reverseCharge, objectIds, contacts, termsName, source, mandate, ...rest } = c
+  return { ...rest, supplierNo: customerNo || str(v('supplierNo')), ...(has(v('ourCustomerNo')) ? { customerNo: str(v('ourCustomerNo')) } : {}), ...(contacts?.[0] ? { contact: contacts[0].name } : {}), source: { system: SYSTEM, id: source?.dbId || customerNo || str(v('supplierNo')) } }
+}
+
 function articleFrom(table, row, map, newId) {
   const v = (f) => rowValue(row, map, f)
   const name = str(v('name')) || str(v('longText')).split('\n')[0]
@@ -959,7 +1030,7 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
   const existing = opts.existing || {}
   const warnings = []
   const skipped = { lieferscheine: 0, ohneNummer: 0, leer: 0, lieferanten: 0 }
-  const out = { customers: [], articles: [], documents: [], textBlocks: [], paymentTerms: [], recurring: [], warnings, skipped }
+  const out = { customers: [], articles: [], documents: [], textBlocks: [], paymentTerms: [], recurring: [], purchase: { suppliers: [], invoices: [], cash: [] }, warnings, skipped }
   const of = (kind) => sources.filter((s) => s.kind === kind)
 
   // Kunden und Ansprechpartner
@@ -967,6 +1038,9 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     // orgaMAX: Kunden, Lieferanten und Interessenten in einer Tabelle (CONTACTTYPE 0 / 3 / 5)
     const type = String(rowValue(row, s.map, 'contactType') ?? '').trim()
     if (type === '3') {
+      // Lieferant: geht in den Einkauf (core/purchase.js), nicht in die Kunden
+      const sup = supplierFrom(s.table, row, s.map, newId)
+      if (sup) out.purchase.suppliers.push(sup)
       skipped.lieferanten++
       continue
     }
@@ -1372,6 +1446,56 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
         source: { system: SYSTEM },
       })
     }
+  }
+  // Einkauf: Lieferanten, Eingangsrechnungen; Kassenbuch (eingespielt über core/purchase.js mergePurchaseImport)
+  for (const s of of('suppliers')) for (const row of s.table.rows) {
+    const sup = supplierFrom(s.table, row, s.map, newId)
+    if (sup) out.purchase.suppliers.push(sup)
+  }
+  for (const s of of('purchaseInvoices')) for (const row of s.table.rows) {
+    const v = (f) => rowValue(row, s.map, f)
+    const number = str(v('number'))
+    const date = parseDateLoose(v('date'))
+    if (!number || !date) continue
+    const net = has(v('net')) ? money(v('net')) : null
+    const vat = has(v('vatAmount')) ? money(v('vatAmount')) : null
+    const gross = has(v('gross')) ? money(v('gross')) : net != null && vat != null ? round2(net + vat) : null
+    const rate = has(v('rate')) ? vatOf(v('rate')) : net && vat != null ? Math.round((vat / net) * 100) : 20
+    const paid = has(v('paid')) ? money(v('paid')) : has(v('open')) && gross != null ? round2(gross - money(v('open'))) : parseDateLoose(v('paidDate')) && gross != null ? gross : 0
+    out.purchase.invoices.push({
+      ...(has(v('supplierNo')) ? { supplierNo: str(v('supplierNo')) } : {}),
+      ...(has(v('supplierRef')) ? { supplierRef: str(v('supplierRef')) } : {}),
+      ...(has(v('supplierName')) ? { supplierName: str(v('supplierName')) } : {}),
+      number,
+      date,
+      ...(net != null ? { net, ...(vat != null ? { vat } : {}), rate } : { gross, rate }),
+      ...(parseDateLoose(v('dueDate')) ? { dueDate: parseDateLoose(v('dueDate')) } : {}),
+      text: str(v('text')),
+      category: str(v('category')),
+      account: str(v('account')),
+      payments: paid > 0.004 ? [{ date: parseDateLoose(v('paidDate')) || parseDateLoose(v('dueDate')) || date, amount: paid }] : [],
+      source: { system: SYSTEM, id: has(v('srcId')) ? str(v('srcId')) : `${str(v('supplierNo')) || str(v('supplierRef')) || str(v('supplierName'))}|${number}` },
+    })
+  }
+  for (const s of of('cashbook')) for (const row of s.table.rows) {
+    const v = (f) => rowValue(row, s.map, f)
+    const date = parseDateLoose(v('date'))
+    const income = has(v('income')) ? money(v('income')) : 0
+    const expense = has(v('expense')) ? money(v('expense')) : 0
+    const signed = has(v('amount')) ? money(v('amount')) : income - expense
+    const value = income || expense ? (income ? Math.abs(income) : -Math.abs(expense)) : signed
+    if (!date || !value) continue
+    out.purchase.cash.push({
+      date,
+      kind: value < 0 ? 'ausgabe' : 'einnahme',
+      amount: Math.abs(value),
+      text: str(v('text')) || (value < 0 ? 'Ausgabe' : 'Einnahme'),
+      ...(has(v('rate')) ? { rate: vatOf(v('rate')) } : {}),
+      ...(has(v('vatAmount')) ? { vat: Math.abs(money(v('vatAmount'))) } : {}),
+      account: str(v('account')),
+      ...(has(v('no')) ? { no: str(v('no')) } : {}),
+      source: { system: SYSTEM, id: has(v('srcId')) ? str(v('srcId')) : str(v('no')) || `${date}|${value}|${str(v('text'))}` },
+    })
   }
   return out
 }

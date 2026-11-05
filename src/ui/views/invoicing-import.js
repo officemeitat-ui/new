@@ -8,6 +8,7 @@
 
 import { buildImport, dbTableKind, detectTable, dumpTable, eInvoiceFromPdf, matchColumns, mergeImport, numberInName, numberingAfterImport, parseEInvoice, SYSTEM, tableFromCsv, tablesFromXml, TARGETS, toTable } from '../../core/fak-import.js'
 import { todayISO } from '../../core/dates.js'
+import { mergePurchaseImport } from '../../core/purchase.js'
 import { archivePath, docFileName, emptyInvoicing, formatNumber, KINDS, settingsOf } from '../../core/invoicing.js'
 import { app, canEdit, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { loadScript } from '../load-script.js'
@@ -275,6 +276,11 @@ function analyse() {
   if (app.store?.kind === 'sharepoint') for (const u of W.uploads) u.doc.original = { path: archivePath(u.doc, `Original_${docFileName(u.doc)}`), name: u.name, system: SYSTEM }
   W.result = result
   W.preview = mergeImport(d, result)
+  // Einkauf & Kasse: Probelauf auf einer Kopie (eingespielt wird erst bei „Übernehmen“)
+  const p = result.purchase || { suppliers: [], invoices: [], cash: [] }
+  W.purchaseAny = p.suppliers.length + p.invoices.length + p.cash.length > 0
+  W.purchaseAllowed = canEdit('einkauf')
+  W.purchasePreview = W.purchaseAny && W.purchaseAllowed ? mergePurchaseImport(structuredClone({ einkauf: app.data.einkauf, kasse: app.data.kasse }), p, { system: SYSTEM }) : null
   W.numbering = Object.fromEntries(Object.entries(numberingAfterImport(W.preview.data.documents, todayISO(), { series: s.series })).filter(([kind, n]) => !(n.same && !s.numberFormats?.[kind])))
   // Weiterzählen wie in orgaMAX vorschlagen, solange in der App noch keine eigenen Belege dieser Art festgeschrieben sind
   W.take = Object.fromEntries(Object.keys(W.numbering).map((kind) => [kind, !d.documents.some((x) => x.kind === kind && x.number && !x.imported)]))
@@ -316,7 +322,9 @@ async function apply() {
     d.settings.yearly = { ...(d.settings.yearly || {}), [kind]: n.yearly }
     d.settings.start = { ...(d.settings.start || {}), ...(n.yearly ? { [`${kind}|${year}`]: n.next } : { [kind]: n.next }) }
   }
-  d.imports = [...(d.imports || []), { at: new Date().toISOString(), by: app.user?.name || 'Browser', system: SYSTEM, files: W.files.map((f) => f.name).slice(0, 200), report: W.preview.report, pdfs: uploaded }]
+  // Einkauf & Kasse (eigene Dateien einkauf/…, nur mit Recht darauf)
+  if (W.purchaseAny && W.purchaseAllowed) W.purchaseReport = mergePurchaseImport(app.data, W.result.purchase, { system: SYSTEM, by: app.user?.name || 'Übernahme' })
+  d.imports = [...(d.imports || []), { at: new Date().toISOString(), by: app.user?.name || 'Browser', system: SYSTEM, files: W.files.map((f) => f.name).slice(0, 200), report: W.preview.report, purchase: W.purchaseReport ? { added: W.purchaseReport.added, updated: W.purchaseReport.updated } : null, pdfs: uploaded }]
   persist()
   W.busy = false
   W.step = 'done'
@@ -400,7 +408,8 @@ function checkStep() {
   const r = W.preview.report
   const res = W.result
   const row = (label, x, extra = '') => `<tr><td>${label}</td><td class="num">${x?.added ?? 0}</td><td class="num">${(x?.updated ?? 0) + (x?.attached ?? 0)}</td><td class="num">${(x?.same ?? 0) + (x?.skipped ?? 0)}</td><td class="muted">${extra}</td></tr>`
-  const notes = [...(r.conflicts || []), ...res.warnings]
+  const notes = [...(r.conflicts || []), ...res.warnings, ...(W.purchasePreview?.warnings || []), ...(W.purchasePreview?.skipped || []).filter((x) => !/schon/.test(x.reason)).map((x) => `${x.type === 'kasse' ? 'Kassenbuch' : x.type === 'rechnung' ? 'Eingangsrechnung' : 'Lieferant'} ${x.ref}: ${x.reason}`)]
+  if (W.purchaseAny && !W.purchaseAllowed) notes.unshift('Lieferanten, Eingangsrechnungen und Kassenbuch werden nicht übernommen: dafür fehlt das Recht auf „Einkauf & Kasse“.')
   const kindCount = (k) => res.documents.filter((d) => d.kind === k).length
   const docInfo = Object.entries(KIND_PLURAL).map(([k, [one, many]]) => (kindCount(k) ? plural(kindCount(k), one, many) : '')).filter(Boolean).join(', ')
   const s = settingsOf(F())
@@ -422,11 +431,16 @@ function checkStep() {
         ${row('Textbausteine', r.textBlocks)}
         ${row('Zahlungsbedingungen', r.paymentTerms)}
         ${row('Abo-Rechnungen', r.recurring, r.recurring?.added ? 'als Daueraufträge; Start ab der nächsten fälligen Rechnung' : '')}
+        ${W.purchasePreview ? (() => {
+          const pp = W.purchasePreview
+          const skip = (type) => pp.skipped.filter((x) => x.type === type).length
+          return `${row('Lieferanten (Einkauf)', { added: pp.added.suppliers, updated: pp.updated.suppliers, skipped: skip('lieferant') })}${row('Eingangsrechnungen', { added: pp.added.invoices, skipped: skip('rechnung') })}${row('Kassenbuch', { added: pp.added.cash, skipped: skip('kasse') }, pp.added.cash ? 'fortlaufend nach dem letzten Eintrag' : '')}`
+        })() : ''}
       </tbody></table></div>
       ${W.uploads.length ? (app.store?.kind === 'sharepoint' ? `<p>${plural(W.uploads.length, 'Original-PDF wird', 'Original-PDFs werden')} an die Belege gehängt und in SharePoint abgelegt.</p>` : `<p class="muted">${plural(W.uploads.length, 'Original-PDF passt', 'Original-PDFs passen')} zu Belegen – ablegen geht nur im Betrieb mit SharePoint.</p>`) : ''}
       ${W.unmatched?.length ? `<p class="muted">${plural(W.unmatched.length, 'PDF ohne', 'PDFs ohne')} passende Belegnummer: ${esc(W.unmatched.slice(0, 6).join(', '))}${W.unmatched.length > 6 ? ' …' : ''}</p>` : ''}
       ${res.skipped.lieferscheine ? `<p class="muted">${plural(res.skipped.lieferscheine, 'sonstiger Beleg', 'sonstige Belege')} (z. B. Mahnung, Bestellung) nicht übernommen.</p>` : ''}
-      ${res.skipped.lieferanten ? `<p class="muted">${plural(res.skipped.lieferanten, 'Lieferant', 'Lieferanten')} aus der Kundentabelle nicht als Kunde übernommen.</p>` : ''}
+      ${res.skipped.lieferanten ? `<p class="muted">${plural(res.skipped.lieferanten, 'Lieferant', 'Lieferanten')} aus der Kundentabelle ${W.purchaseAllowed ? 'kommen in den Einkauf, nicht zu den Kunden' : 'nicht als Kunde übernommen'}.</p>` : ''}
       ${numbering ? `<h3>Nummernkreise</h3><div class="fim-numbering">${numbering}</div>` : ''}
       ${notes.length ? `<details class="fim-notes" ${notes.length <= 5 ? 'open' : ''}><summary>${plural(notes.length, 'Hinweis', 'Hinweise')}</summary><ul>${notes.slice(0, 60).map((x) => `<li>${esc(x)}</li>`).join('')}${notes.length > 60 ? `<li>… und ${notes.length - 60} weitere</li>` : ''}</ul></details>` : '<p><span class="pill ok">Keine Auffälligkeiten</span></p>'}
       <p class="note">Altbelege werden so übernommen, wie sie in orgaMAX stehen (Nummer, Datum, Summen), und sind festgeschrieben. Vorhandene Daten in der App werden nur ergänzt, nie überschrieben.</p>`,
@@ -439,7 +453,7 @@ function doneStep() {
   return {
     title: 'Übernommen',
     subtitle: 'Die Daten stehen jetzt in der Fakturierung',
-    body: `<p><span class="pill ok">Fertig</span> ${plural(r.customers.added + r.customers.updated, 'Kunde', 'Kunden')}, ${plural(r.articles.added + r.articles.updated, 'Artikel', 'Artikel')}, ${plural(r.documents.added, 'Beleg', 'Belege')}, ${plural(r.textBlocks.added, 'Textbaustein', 'Textbausteine')}, ${plural(r.paymentTerms.added, 'Zahlungsbedingung', 'Zahlungsbedingungen')}, ${plural(r.recurring.added, 'Abo', 'Abos')}${W.uploaded ? `, ${plural(W.uploaded, 'Original-PDF', 'Original-PDFs')}` : ''}.</p>
+    body: `<p><span class="pill ok">Fertig</span> ${W.purchaseReport ? `${plural(W.purchaseReport.added.suppliers, 'Lieferant', 'Lieferanten')}, ${plural(W.purchaseReport.added.invoices, 'Eingangsrechnung', 'Eingangsrechnungen')}, ${plural(W.purchaseReport.added.cash, 'Kassenbuchung', 'Kassenbuchungen')}, ` : ''}${plural(r.customers.added + r.customers.updated, 'Kunde', 'Kunden')}, ${plural(r.articles.added + r.articles.updated, 'Artikel', 'Artikel')}, ${plural(r.documents.added, 'Beleg', 'Belege')}, ${plural(r.textBlocks.added, 'Textbaustein', 'Textbausteine')}, ${plural(r.paymentTerms.added, 'Zahlungsbedingung', 'Zahlungsbedingungen')}, ${plural(r.recurring.added, 'Abo', 'Abos')}${W.uploaded ? `, ${plural(W.uploaded, 'Original-PDF', 'Original-PDFs')}` : ''}.</p>
       <p>Prüfe stichprobenartig ein paar Rechnungen und die offenen Posten. Fehlt etwas, einfach weitere Dateien übernehmen – Vorhandenes wird nicht doppelt angelegt.</p>`,
     foot: `<button class="btn" data-action="fim-reset">Weitere Dateien übernehmen</button><div class="actions"><button class="btn primary" data-action="close-modal">Schließen</button></div>`,
   }

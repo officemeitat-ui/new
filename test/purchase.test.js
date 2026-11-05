@@ -261,12 +261,16 @@ test('Übernahme aus orgaMAX: Lieferanten, Rechnungen und Kasse idempotent, nich
   assert.equal(r2.updated.suppliers, 1)
   assert.equal(e.suppliers.find((s) => s.supplierNo === '70011').email, 'office@werkstatt.example')
   assert.equal(e.invoices.length, 3)
-  // gleiche Nummer mit anderem Namen: gemeldet, nicht zusammengelegt
-  const r3 = mergePurchaseImport(data, { suppliers: [{ supplierNo: '70010', name: 'Ganz Anders AG' }] }, { newId })
-  assert.match(r3.warnings[0], /nicht zusammengelegt/)
+  // gleiche Nummer mit anderem Namen: gemeldet, nicht zusammengelegt, sondern mit neuer Nummer; zweites Mal wiedergefunden
+  const r3 = mergePurchaseImport(data, { suppliers: [{ supplierNo: '70010', name: 'Ganz Anders AG' }], invoices: [{ supplierNo: '70010', number: 'GA-1', date: '2026-09-12', net: 80 }] }, { newId })
+  assert.match(r3.warnings[0], /als eigener Lieferant Nr\. \d+ angelegt/)
+  const ganz = e.suppliers.find((s) => s.name === 'Ganz Anders AG')
+  assert.equal(e.invoices.find((i) => i.number === 'GA-1').supplierId, ganz.id, 'Rechnung beim neuen Lieferanten, nicht beim alten 70010')
+  const r3b = mergePurchaseImport(data, { suppliers: [{ supplierNo: '70010', name: 'Ganz Anders AG' }] }, { newId })
+  assert.equal(r3b.added.suppliers, 0, 'zweite Übernahme legt ihn nicht noch einmal an')
   // gleiche Rechnung ohne Quelle (z. B. von Hand erfasst): erkannt
   const r4 = mergePurchaseImport(data, { invoices: [{ supplierNo: '70010', number: 'r 1001', date: '2026-09-10', net: 500 }] }, { newId })
   assert.equal(r4.skipped[0].reason, 'gleicher Lieferant und Nummer schon erfasst')
-  assert.equal(nextInvoiceNo(e.invoices, '2026'), 'ER-2026-0004')
+  assert.equal(nextInvoiceNo(e.invoices, '2026'), 'ER-2026-0005', 'GA-1 hat die 0004')
   assert.deepEqual(emptyPurchase().invoices, [])
 })

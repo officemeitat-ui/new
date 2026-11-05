@@ -409,3 +409,27 @@ test('Abschlag/Schluss, Positionsarten, Proforma und SEPA-Mandat aus orgaMAX', (
   const c = r.customers[0]
   assert.deepEqual([c.mandate.reference, c.mandate.signedAt, c.mandate.scheme, c.mandate.sequence, c.mandate.active, c.iban], ['MAND-40001', '2024-03-12', 'CORE', 'RCUR', true, 'AT611904300234573201'])
 })
+
+test('Einkauf & Kasse aus orgaMAX: Lieferanten (CONTACTTYPE 3), Eingangsrechnungen, Kassenbuch – idempotent eingespielt', async () => {
+  const { mergePurchaseImport } = await import('../src/core/purchase.js')
+  const cust = DUMP.find((t) => t.name === 'BAS_CUSTOMERS')
+  const purch = T('MOV_PURCHINVOICES', ['ID', 'SUPPLIERID', 'EXTINVNO', 'INVDATE', 'TOTALNET', 'TOTALVAT', 'TOTALGROSS', 'DUEDATE', 'PAIDDATE', 'SUBJECT'], [
+    [7001, 12, 'GH-55120', '2025-10-03', 250, 50, 300, '2025-10-17', '2025-10-15', 'Reinigungsmittel Oktober'],
+    [7002, 12, 'GH-55190', '2025-11-03', 100, 20, 120, '2025-11-17', '', 'Mikrofasertücher'],
+  ], { SUPPLIERID: 'Decimal' })
+  const kasse = csv('Kassenbuch', ['Datum;Nr;Text;Einnahme;Ausgabe;MwSt', '02.10.2025;1;Anfangsbestand;200,00;;0', '05.10.2025;2;Parkgebühr;;4,50;20', '07.10.2025;3;Barzahlung Kunde;120,00;;20'])
+  const sources = [cust, purch].map((table) => ({ table, kind: dbTableKind(table.name), map: matchColumns(dbTableKind(table.name), table.columns) }))
+  sources.push({ table: kasse, ...detectTable(kasse) })
+  assert.equal(sources[1].kind, 'purchaseInvoices')
+  assert.equal(sources[2].kind, 'cashbook')
+  const r = buildImport(sources, [], { newId, now: NOW })
+  assert.deepEqual(r.purchase.suppliers.map((s) => [s.supplierNo, s.name, s.source.id]), [['70001', 'Reinigungsmittel Großhandel', '12']])
+  assert.deepEqual(r.purchase.invoices.map((i) => [i.number, i.supplierRef, i.net, i.vat, i.rate, i.payments.length]), [['GH-55120', '12', 250, 50, 20, 1], ['GH-55190', '12', 100, 20, 20, 0]])
+  assert.deepEqual(r.purchase.cash.map((c) => [c.kind, c.amount]), [['einnahme', 200], ['ausgabe', 4.5], ['einnahme', 120]])
+  const data = {}
+  const rep = mergePurchaseImport(data, r.purchase, { system: 'orgaMAX', now: NOW })
+  assert.deepEqual([rep.added.suppliers, rep.added.invoices, rep.added.cash], [1, 2, 3])
+  assert.equal(data.einkauf.invoices[0].supplierId, data.einkauf.suppliers[0].id, 'Rechnung über die interne ID beim Lieferanten')
+  const again = mergePurchaseImport(data, buildImport(sources, [], { newId, now: NOW }).purchase, { system: 'orgaMAX', now: NOW })
+  assert.deepEqual([again.added.suppliers, again.added.invoices, again.added.cash], [0, 0, 0])
+})
