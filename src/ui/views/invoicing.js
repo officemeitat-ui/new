@@ -18,13 +18,19 @@ import { calcWage, calculate } from '../../core/calculation.js'
 import { dunningRun, mailWithDebit, withDebitNote } from '../../core/fak-laeufe.js'
 import { addDays, firstOfMonth, formatDate, todayISO } from '../../core/dates.js'
 import {
+  advanceConflicts,
+  advanceDraft,
+  advancesFor,
   archivePath,
   articleActive,
   articleLabel,
   articleMargin,
+  billedBy,
   blocking,
   blocksFor,
   cashPaidOf,
+  choiceLine,
+  collectDraft,
   composeAddress,
   convertDraft,
   correctionDraft,
@@ -54,14 +60,21 @@ import {
   EXPORT_DEFAULT_COLUMNS,
   exportCsv,
   exportRows,
+  finalDraft,
   finalize,
   formatIban,
   ibanValid,
   INTERVALS,
   intact,
+  isAdvance,
+  isFinal,
   invoiceMailText,
   isInvoice,
   KINDS,
+  kindLabel,
+  LINE_TYPES,
+  lineNet,
+  lineType,
   linesFromProof,
   monthLabel,
   nextCustomerNo,
@@ -71,6 +84,7 @@ import {
   PAY_STATUS,
   periodLabel,
   periodOf,
+  pricedLine,
   problems,
   recipientOf,
   reminderFileName,
@@ -83,6 +97,7 @@ import {
   runRecurring,
   settingsOf,
   stateOf,
+  STAGES,
   stornoDraft,
   totals,
   UNITS,
@@ -102,7 +117,7 @@ import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } f
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { checked, checkedValues, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 
 const MODULE = 'fakturierung'
 const ICON_INVOICE = '<path d="M6 2.5h12v19l-3-2-3 2-3-2-3 2z"/><path d="M9 7.5h6M9 11h6M9 14.5h3.5"/>'
@@ -124,7 +139,7 @@ const objName = (id) => app.data.objects.find((o) => o.id === id)?.name || ''
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const money = (n) => euro(round2(n))
 const num = (id) => parseNumber(val(id))
-const STATE_CLASS = { entwurf: '', offen: 'info', ueberfaellig: 'error', teilbezahlt: 'warning', bezahlt: 'ok', storniert: '', angenommen: 'ok', abgelehnt: '', abgelaufen: 'warning', erledigt: 'ok' }
+const STATE_CLASS = { entwurf: '', offen: 'info', ueberfaellig: 'error', teilbezahlt: 'warning', bezahlt: 'ok', storniert: '', angenommen: 'ok', abgelehnt: '', abgelaufen: 'warning', erledigt: 'ok', verrechnet: 'ok' }
 const pill = (state) => `<span class="pill ${STATE_CLASS[state] || ''}">${PAY_STATUS[state] || state}</span>`
 const year = () => (/^\d{4}$/.test(app.ui.fakYear || '') ? app.ui.fakYear : todayISO().slice(0, 4))
 const sees = (m) => !app.access || app.access.sees(m)
@@ -157,6 +172,7 @@ const TABS = [
   ['start', 'Übersicht'],
   ['rechnungen', 'Rechnungen'],
   ['angebote', 'Angebote & Aufträge'],
+  ['weitere', 'Lieferscheine & Proforma'],
   ['offen', 'Offene Posten'],
   ['bank', 'Bank'],
   ['dauer', 'Daueraufträge'],
@@ -167,7 +183,7 @@ const TABS = [
   ['einstellungen', 'Einstellungen'],
 ]
 // Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
-const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'einstellungen']
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'einstellungen']
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
 
 /** Neben „+ Rechnung“: weitere Belege anlegen, Übernahmen, Export. */
@@ -180,6 +196,8 @@ function headMenus(ed) {
       ed && { heading: 'Beleg' },
       ed && { label: 'Angebot', action: 'fak-new', data: { kind: 'angebot' } },
       ed && { label: 'Auftragsbestätigung', action: 'fak-new', data: { kind: 'auftrag' } },
+      ed && { label: 'Lieferschein', action: 'fak-new', data: { kind: 'lieferschein' }, hint: 'mit Unterschriftsfeld, auf Wunsch ohne Preise' },
+      ed && { label: 'Proformarechnung', action: 'fak-new', data: { kind: 'proforma' }, hint: 'keine Rechnung im Sinne des UStG' },
       ed && { label: 'Dauerauftrag', action: 'fak-rec-open', hint: 'monatlich, quartalsweise … abrechnen' },
       ed && proofOk && { label: 'Aus Leistungsnachweis', action: 'fak-proof-open', hint: 'Entwürfe je Objekt und Monat' },
       ed && { heading: 'Stammdaten' },
@@ -223,7 +241,7 @@ function invoicingView() {
   const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
@@ -292,7 +310,8 @@ function docRow(x, docs, today, s) {
   const t = x.total || totals(x, s)
   const st = stateOf(x, docs, today, s)
   const open = x.kind === 'rechnung' && x.number ? openAmount(x, docs, s) : 0
-  return `<tr class="clickable" data-action="fak-open" data-id="${esc(x.id)}"><td>${x.number ? `<strong>${esc(x.number)}</strong>` : '<span class="muted">Entwurf</span>'}${x.kind !== 'rechnung' && x.kind !== 'angebot' ? `<br><span class="muted">${esc(KINDS[x.kind])}${x.refNumber ? ` zu ${esc(x.refNumber)}` : ''}</span>` : ''}</td>
+  const sub = (x.kind !== 'rechnung' || x.stage) && x.kind !== 'angebot' ? `${kindLabel(x)}${x.refNumber ? ` zu ${x.refNumber}` : ''}` : x.deliveryNotes?.length ? `zu ${x.deliveryNotes.map((n) => n.number).join(', ')}` : ''
+  return `<tr class="clickable" data-action="fak-open" data-id="${esc(x.id)}"><td>${x.number ? `<strong>${esc(x.number)}</strong>` : '<span class="muted">Entwurf</span>'}${sub ? `<br><span class="muted">${esc(sub)}</span>` : ''}</td>
     <td>${x.date ? formatDate(x.date, { year: true }) : ''}</td><td>${esc(x.recipient?.name || '–')}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
     <td>${esc(x.title || '')}${x.serviceFrom ? `<br><span class="muted">${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open && open !== t.gross ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td>
@@ -301,7 +320,7 @@ function docRow(x, docs, today, s) {
 
 function listFilters(kinds) {
   const st = app.ui.fakState || ''
-  const states = kinds.includes('angebot') ? ['entwurf', 'offen', 'angenommen', 'abgelehnt', 'abgelaufen'] : ['entwurf', 'offen', 'ueberfaellig', 'teilbezahlt', 'bezahlt', 'storniert']
+  const states = kinds.includes('angebot') ? ['entwurf', 'offen', 'angenommen', 'abgelehnt', 'abgelaufen'] : kinds.includes('lieferschein') ? ['entwurf', 'offen', 'verrechnet'] : ['entwurf', 'offen', 'ueberfaellig', 'teilbezahlt', 'bezahlt', 'storniert']
   return `${yearSelect()}<label class="field inline"><span>Status</span><select id="fak-state" data-change="fak-state">${options(states.map((k) => [k, PAY_STATUS[k]]), st, { empty: 'alle' })}</select></label>
     <label class="field inline"><span>Suche</span><input type="search" id="fak-search" value="${esc(app.ui.fakSearch || '')}" data-input="fak-search" placeholder="Nummer, Kunde, Objekt"></label>`
 }
@@ -346,6 +365,23 @@ function offersTab() {
     ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Angebote für diese Auswahl.</p>'}
     <p class="note">Aus einem Angebot wird mit einem Klick eine Auftragsbestätigung oder Rechnung (Positionen werden übernommen). Preise je Objekt kommen auf Wunsch aus der Kalkulation.</p>`
 }
+
+/** Lieferscheine und Proformarechnungen: offen, bis eine Rechnung sie verrechnet. */
+function otherTab() {
+  const d = F()
+  const s = S()
+  const today = todayISO()
+  const list = filteredDocs(['lieferschein', 'proforma'])
+  const ed = editable()
+  const open = openNotes().length
+  return `<div class="filters">${listFilters(['lieferschein'])}<span class="spacer"></span>
+      ${ed ? `<button class="btn small" data-action="fak-collect-open" ${open ? '' : 'disabled'} title="Mehrere Lieferscheine eines Kunden in einer Rechnung">Sammelrechnung${open ? ` (${open})` : ''}</button><button class="btn small" data-action="fak-new" data-kind="lieferschein">${ICON.plus} Lieferschein</button><button class="btn small" data-action="fak-new" data-kind="proforma">${ICON.plus} Proforma</button>` : ''}</div>
+    ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Lieferscheine oder Proformarechnungen für diese Auswahl.</p>'}
+    <p class="note">Lieferscheine (Nummern LS) bestätigt der Kunde mit Unterschrift; auf Wunsch ohne Preise. Mehrere Lieferscheine eines Kunden werden mit „Sammelrechnung“ zu einer Rechnung. Eine Proformarechnung (PF) ist keine Rechnung im Sinne des UStG: kein Umsatz, kein offener Posten, keine Mahnung; nach der Leistung wird sie mit „→ Rechnung“ zur echten Rechnung.</p>`
+}
+
+/** Festgeschriebene Lieferscheine, die noch keine Rechnung (auch kein Entwurf) verrechnet. */
+const openNotes = (customerId) => F().documents.filter((x) => x.kind === 'lieferschein' && x.number && !billedBy(x, F().documents) && (customerId === undefined || (x.customerId || x.recipient?.name || '') === customerId))
 
 function openTab() {
   const s = S()
@@ -527,8 +563,9 @@ function newDraft(kind, extra = {}) {
     kind,
     status: 'entwurf',
     date: today,
-    serviceFrom: kind === 'rechnung' ? addDays(firstOfMonth(today), -1).slice(0, 8) + '01' : '',
+    serviceFrom: kind === 'rechnung' ? addDays(firstOfMonth(today), -1).slice(0, 8) + '01' : kind === 'lieferschein' ? today : '',
     serviceTo: kind === 'rechnung' ? addDays(firstOfMonth(today), -1) : '',
+    ...(kind === 'lieferschein' ? { hidePrices: true } : {}),
     dueDate: kind === 'rechnung' ? dueDateFor(today, terms.days) : '',
     ...(terms?.termsId ? { termsId: terms.termsId } : {}),
     ...(terms?.skonto ? { skonto: terms.skonto } : {}),
@@ -552,28 +589,101 @@ function newDraft(kind, extra = {}) {
 
 const numText = (v) => (v === '' || v === null || v === undefined ? '' : String(v).replace('.', ','))
 
-function linesEditor(lines, prefix, dis = '') {
-  const s = S()
-  const rows = lines
-    .map(
-      (l, i) => `<tr><td class="fak-line-text">${l.articleNo ? `<span class="muted fak-artno">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}<textarea id="${prefix}-${i}-text" rows="1" data-input="fak-recalc" aria-label="Bezeichnung" ${dis}>${esc(l.text || '')}</textarea>
-        <textarea id="${prefix}-${i}-long" rows="1" class="fak-long" placeholder="Langtext (optional)" aria-label="Langtext" ${dis}>${esc(l.longText || '')}</textarea></td>
-      <td class="num"><input type="text" inputmode="decimal" id="${prefix}-${i}-qty" value="${esc(numText(l.qty))}" data-input="fak-recalc" ${dis}></td>
-      <td><select id="${prefix}-${i}-unit" ${dis}>${options([...new Set([...UNITS, l.unit].filter(Boolean))].map((u) => [u, u]), l.unit || 'Pauschale')}</select></td>
-      <td class="num"><input type="text" inputmode="decimal" id="${prefix}-${i}-price" value="${esc(numText(l.price))}" data-input="fak-recalc" ${dis}></td>
-      <td class="num"><input type="text" inputmode="decimal" id="${prefix}-${i}-disc" value="${esc(numText(l.discount || ''))}" placeholder="0" data-input="fak-recalc" ${dis}></td>
-      <td><select id="${prefix}-${i}-vat" data-change="fak-recalc" ${dis}>${options(VAT_RATES.map((v) => [String(v), `${v} %`]), String(l.vat ?? s.vat))}</select></td>
-      <td>${dis ? '' : `<button class="btn icon ghost" data-action="fak-line-del" data-i="${i}" data-prefix="${prefix}" title="Position entfernen">${ICON.trash}</button>`}</td></tr>`,
-    )
-    .join('')
-  return `<div class="table-wrap"><table class="data fak-lines"><thead><tr><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis netto</th><th class="num">Rabatt %</th><th>USt</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+const ARROW = (d) => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+const ICON_UP = ARROW('M8 13V3M4 7l4-4 4 4')
+const ICON_DOWN = ARROW('M8 3v10M4 9l4 4 4-4')
+const LINE_HINT = { text: 'nur Text, ohne Menge und Preis', title: 'Überschrift einer Gruppe', subtotal: 'Summe der Positionen seit der letzten Zwischensumme', optional: 'Bedarfsposition: mit Preis, nicht in der Summe', alternative: 'statt einer anderen Position, nicht in der Summe' }
+
+/** Zwischensummen im Formular: Summe der Positionen seit der letzten Zwischensumme (Index → Betrag). */
+function subtotalSums(lines) {
+  const out = {}
+  let since = 0
+  lines.forEach((l, i) => {
+    const t = lineType(l)
+    if (t === 'item') since = round2(since + lineNet(l))
+    if (t === 'subtotal') {
+      out[i] = since
+      since = 0
+    }
+  })
+  return out
 }
 
+/**
+ * Zeilen eines Belegs bzw. Dauerauftrags bearbeiten: Zeilenart (Position, Text, Titel, Zwischensumme; im Angebot und
+ * in der Auftragsbestätigung auch Option und Alternative), Reihenfolge mit Pfeilen. Die Tabelle beschriftet ihre Zellen
+ * selbst (data-label), damit sie am Handy als Karte richtig lesbar ist.
+ */
+function linesEditor(lines, prefix, dis = '', { choices = false } = {}) {
+  const s = S()
+  const sums = subtotalSums(lines)
+  const types = Object.entries(LINE_TYPES).filter(([k]) => choices || !['optional', 'alternative'].includes(k))
+  let pos = 0
+  const numbers = lines.map((l) => (pricedLine(l) && String(l.text || '').trim() ? ++pos : 0))
+  const targets = lines.map((l, i) => [l, numbers[i]]).filter(([l, n]) => n && lineType(l) === 'item')
+  const rows = lines
+    .map((l, i) => {
+      const type = lineType(l)
+      const priced = pricedLine(l)
+      const own = types.some(([k]) => k === type) ? types : [...types, [type, LINE_TYPES[type]]]
+      const typeSel = `<select id="${prefix}-${i}-type" class="fak-line-type" data-change="fak-line-type" data-prefix="${prefix}" aria-label="Zeilenart" title="${esc(LINE_HINT[type] || 'Position mit Menge und Preis')}" ${dis}>${options(own, type)}</select>`
+      const tools = dis
+        ? ''
+        : `<div class="fak-line-tools"><button class="btn icon ghost" data-action="fak-line-move" data-i="${i}" data-dir="-1" data-prefix="${prefix}" title="nach oben" aria-label="Zeile ${i + 1} nach oben" ${i ? '' : 'disabled'}>${ICON_UP}</button><button class="btn icon ghost" data-action="fak-line-move" data-i="${i}" data-dir="1" data-prefix="${prefix}" title="nach unten" aria-label="Zeile ${i + 1} nach unten" ${i < lines.length - 1 ? '' : 'disabled'}>${ICON_DOWN}</button><button class="btn icon ghost" data-action="fak-line-del" data-i="${i}" data-prefix="${prefix}" title="Zeile entfernen" aria-label="Zeile ${i + 1} entfernen">${ICON.trash}</button></div>`
+      const label = { text: 'Text', title: 'Titel', subtotal: 'Bezeichnung der Zwischensumme' }[type] || 'Bezeichnung'
+      const text =
+        type === 'subtotal'
+          ? `<input type="text" id="${prefix}-${i}-text" value="${esc(l.text || '')}" placeholder="Zwischensumme" aria-label="${label}" ${dis}>`
+          : `<textarea id="${prefix}-${i}-text" rows="${type === 'text' ? 2 : 1}" data-input="fak-recalc" aria-label="${label}" placeholder="${type === 'text' ? 'Text (ohne Menge und Preis)' : type === 'title' ? 'Überschrift, z. B. Glasreinigung' : ''}" ${dis}>${esc(l.text || '')}</textarea>`
+      const more = priced
+        ? `<textarea id="${prefix}-${i}-long" rows="1" class="fak-long" placeholder="Langtext (optional)" aria-label="Langtext" ${dis}>${esc(l.longText || '')}</textarea>${
+            type === 'alternative'
+              ? `<label class="field inline fak-alt"><span>statt</span><select id="${prefix}-${i}-alt" ${dis}>${options(targets.filter(([t]) => t.id !== l.id).map(([t, n]) => [t.id, `Pos. ${n}: ${String(t.text).slice(0, 40)}`]), l.altTo || '', { empty: '– Position wählen –' })}</select></label>`
+              : ''
+          }${choiceLine(l) ? `<span class="pill warning fak-choice">${type === 'optional' ? 'Option' : 'Alternative'}: nicht in der Summe</span>` : ''}`
+        : type === 'title'
+          ? `<label class="check fak-showsum"><input type="checkbox" id="${prefix}-${i}-showsum" ${l.showSum ? 'checked' : ''} ${dis}><span>Summe der Gruppe drucken</span></label>`
+          : ''
+      const first = `<td class="fak-line-text fak-line-${type}" data-label=""><div class="fak-line-head">${numbers[i] ? `<span class="fak-pos">${numbers[i]}</span>` : ''}${typeSel}${l.articleNo ? `<span class="muted fak-artno">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}</div>${text}${more}</td>`
+      if (!priced) return `<tr class="fak-row-${type}">${first}<td class="num" colspan="5" data-label="${type === 'subtotal' ? 'Summe netto' : ''}">${type === 'subtotal' ? `<strong id="${prefix}-${i}-sum">${money(sums[i] || 0)}</strong>` : ''}</td><td data-label="">${tools}</td></tr>`
+      return `<tr class="fak-row-${type}">${first}
+      <td class="num" data-label="Menge"><input type="text" inputmode="decimal" id="${prefix}-${i}-qty" value="${esc(numText(l.qty))}" data-input="fak-recalc" aria-label="Menge" ${dis}></td>
+      <td data-label="Einheit"><select id="${prefix}-${i}-unit" aria-label="Einheit" ${dis}>${options([...new Set([...UNITS, l.unit].filter(Boolean))].map((u) => [u, u]), l.unit || 'Pauschale')}</select></td>
+      <td class="num" data-label="Einzelpreis netto"><input type="text" inputmode="decimal" id="${prefix}-${i}-price" value="${esc(numText(l.price))}" data-input="fak-recalc" aria-label="Einzelpreis netto" ${dis}></td>
+      <td class="num" data-label="Rabatt %"><input type="text" inputmode="decimal" id="${prefix}-${i}-disc" value="${esc(numText(l.discount || ''))}" placeholder="0" data-input="fak-recalc" aria-label="Rabatt in Prozent" ${dis}></td>
+      <td data-label="USt"><select id="${prefix}-${i}-vat" data-change="fak-recalc" aria-label="USt" ${dis}>${options(VAT_RATES.map((v) => [String(v), `${v} %`]), String(l.vat ?? s.vat))}</select></td>
+      <td data-label="">${tools}</td></tr>`
+    })
+    .join('')
+  return `<div class="table-wrap"><table class="data fak-lines" data-labelled><thead><tr><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis netto</th><th class="num">Rabatt %</th><th>USt</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+}
+
+/**
+ * Zeilen aus dem Formular. Positionen bekommen kein type (wie bisher); Text, Titel und Zwischensumme nur ihren Text;
+ * Option und Alternative wie eine Position mit type (Alternative mit altTo).
+ */
 function readLines(prefix, old = []) {
   const out = []
   for (let i = 0; document.getElementById(`${prefix}-${i}-text`); i++) {
+    const id = old[i]?.id || uid('l')
+    const type = document.getElementById(`${prefix}-${i}-type`) ? val(`${prefix}-${i}-type`) : lineType(old[i])
+    const text = val(`${prefix}-${i}-text`).trim()
+    if (type === 'text' || type === 'subtotal') {
+      out.push({ id, type, text })
+      continue
+    }
+    if (type === 'title') {
+      out.push({ id, type, text, ...(checked(`${prefix}-${i}-showsum`) ? { showSum: true } : {}) })
+      continue
+    }
+    if (!document.getElementById(`${prefix}-${i}-qty`)) {
+      // Zeile war eben noch Text, Titel oder Zwischensumme: als Position mit Menge 1 beginnen
+      out.push({ id, ...(type !== 'item' ? { type } : {}), text, qty: 1, unit: 'Pauschale', price: '', vat: S().vat, discount: 0 })
+      continue
+    }
     const longText = val(`${prefix}-${i}-long`).trim()
-    out.push({ id: old[i]?.id || uid('l'), text: val(`${prefix}-${i}-text`).trim(), ...(longText ? { longText } : {}), ...(old[i]?.articleNo ? { articleNo: old[i].articleNo } : {}), qty: num(`${prefix}-${i}-qty`), unit: val(`${prefix}-${i}-unit`), price: num(`${prefix}-${i}-price`), discount: num(`${prefix}-${i}-disc`), vat: Number(val(`${prefix}-${i}-vat`)) })
+    const altTo = type === 'alternative' ? val(`${prefix}-${i}-alt`) : ''
+    out.push({ id, ...(type !== 'item' ? { type } : {}), ...(altTo ? { altTo } : {}), text, ...(longText ? { longText } : {}), ...(old[i]?.articleNo ? { articleNo: old[i].articleNo } : {}), qty: num(`${prefix}-${i}-qty`), unit: val(`${prefix}-${i}-unit`), price: num(`${prefix}-${i}-price`), discount: num(`${prefix}-${i}-disc`), vat: Number(val(`${prefix}-${i}-vat`)) })
   }
   return out
 }
@@ -594,6 +704,10 @@ function readForm(m) {
   }
   if (document.getElementById('fd-due')) x.dueDate = val('fd-due')
   if (document.getElementById('fd-valid')) x.validUntil = val('fd-valid')
+  if (document.getElementById('fd-hideprices')) {
+    if (checked('fd-hideprices')) x.hidePrices = true
+    else delete x.hidePrices
+  }
   x.objectId = val('fd-object')
   x.objectName = objName(x.objectId)
   x.recipient = { ...x.recipient, name: val('fd-rname').trim(), address: val('fd-raddress').trim(), uid: val('fd-ruid').trim().toUpperCase(), email: val('fd-remail').trim(), consumer: checked('fd-rconsumer') }
@@ -614,10 +728,17 @@ function dueDaysOf(x) {
   return t && x.termsId !== setup.termsId ? Number(t.days) || 0 : setup.days
 }
 
+/** Abzug der Abschläge in der Schlussrechnung (Formular und Ansicht): je Abschlag brutto, dann der Restbetrag. */
+function advanceRowsHtml(x, t) {
+  if (!t.full) return ''
+  return `<tr><td>Gesamtbetrag der Leistung</td><td class="num">${money(t.full.gross)}</td></tr>${(x.advances || []).map((a) => `<tr class="fak-advance"><td>abzgl. ${esc(a.number)}${t.vatOn ? `<br><span class="muted">${a.groups.map((g) => `${g.rate} %: ${money(g.net)} + USt ${money(g.vat)}`).join(' · ')}</span>` : ''}</td><td class="num">−${money(a.gross)}</td></tr>`).join('')}`
+}
+
 function totalsHtml(x) {
   const t = totals(x, S())
+  const w = t.full || t
   const sk = skontoOf(x, S())
-  return `<table class="fak-sums">${t.discount ? `<tr><td>Summe Positionen</td><td class="num">${money(t.subtotal)}</td></tr><tr><td>Rabatt</td><td class="num">−${money(t.discount)}</td></tr>` : ''}<tr><td>netto</td><td class="num">${money(t.net)}</td></tr>${t.vatOn ? t.groups.map((g) => `<tr><td>USt ${g.rate} %</td><td class="num">${money(g.vat)}</td></tr>`).join('') : `<tr><td>USt</td><td class="num">${x.reverseCharge ? 'Reverse Charge' : 'Kleinunternehmer'}</td></tr>`}<tr class="sum"><td>brutto</td><td class="num">${money(t.gross)}</td></tr>${sk ? `<tr class="fak-skonto"><td>${String(sk.percent).replace('.', ',')} % Skonto bis ${formatDate(sk.until, { year: true })}</td><td class="num">−${money(sk.amount)}</td></tr><tr class="fak-skonto"><td>Zahlbetrag mit Skonto</td><td class="num">${money(sk.payable)}</td></tr>` : ''}</table>`
+  return `<table class="fak-sums">${w.discount ? `<tr><td>Summe Positionen</td><td class="num">${money(w.subtotal)}</td></tr><tr><td>Rabatt</td><td class="num">−${money(w.discount)}</td></tr>` : ''}<tr><td>netto</td><td class="num">${money(w.net)}</td></tr>${t.vatOn ? w.groups.map((g) => `<tr><td>USt ${g.rate} %</td><td class="num">${money(g.vat)}</td></tr>`).join('') : `<tr><td>USt</td><td class="num">${x.reverseCharge ? 'Reverse Charge' : 'Kleinunternehmer'}</td></tr>`}${advanceRowsHtml(x, t)}<tr class="sum"><td>${t.full ? 'Restbetrag brutto' : 'brutto'}</td><td class="num">${money(t.gross)}</td></tr>${sk ? `<tr class="fak-skonto"><td>${String(sk.percent).replace('.', ',')} % Skonto bis ${formatDate(sk.until, { year: true })}</td><td class="num">−${money(sk.amount)}</td></tr><tr class="fak-skonto"><td>Zahlbetrag mit Skonto</td><td class="num">${money(sk.payable)}</td></tr>` : ''}</table>`
 }
 
 function problemsHtml(x) {
@@ -645,14 +766,15 @@ function editorModal(c, m) {
   const confirm = app.ui.confirm === `fak-final:${x.id}`
   const tm = (target, place) => (ed ? textMenu({ target, kind: x.kind, place }) : '')
   return modalFrame({
-    title: `${KINDS[x.kind]} – Entwurf`,
-    subtitle: x.refNumber ? `Bezug: ${esc(x.refNumber)}` : x.source?.type === 'dauerauftrag' ? 'aus Dauerauftrag' : x.source?.type === 'nachweis' ? 'aus Leistungsnachweis' : '',
+    title: `${kindLabel(x)} – Entwurf`,
+    subtitle: x.refNumber ? `Bezug: ${esc(x.refNumber)}` : x.deliveryNotes?.length ? `zu ${esc(x.deliveryNotes.map((n) => n.number).join(', '))}` : x.source?.type === 'dauerauftrag' ? 'aus Dauerauftrag' : x.source?.type === 'nachweis' ? 'aus Leistungsnachweis' : '',
     wide: true,
     body: `<div class="form-grid">
         <label class="field"><span>Kunde</span><select id="fd-customer" data-change="fak-customer" ${dis}>${custOpts}</select></label>
         <label class="field"><span>Objekt</span><select id="fd-object" data-change="fak-object" ${dis}>${objOpts}</select></label>
         <label class="field"><span>Datum</span><input type="date" id="fd-date" value="${esc(x.date)}" data-change="fak-date" ${dis}></label>
-        ${isInv || x.kind === 'auftrag' ? `<label class="field"><span>Leistung von</span><input type="date" id="fd-from" value="${esc(x.serviceFrom)}" ${dis}></label><label class="field"><span>Leistung bis</span><input type="date" id="fd-to" value="${esc(x.serviceTo)}" ${dis}></label>` : ''}
+        ${isInv || ['auftrag', 'lieferschein', 'proforma'].includes(x.kind) ? `<label class="field"><span>${x.kind === 'lieferschein' ? 'Geliefert bzw. erbracht am' : isAdvance(x) ? 'Leistung (geplant) von' : 'Leistung von'}</span><input type="date" id="fd-from" value="${esc(x.serviceFrom)}" ${dis}></label><label class="field"><span>${x.kind === 'lieferschein' ? 'bis (wenn mehrere Tage)' : 'Leistung bis'}</span><input type="date" id="fd-to" value="${esc(x.serviceTo)}" ${dis}></label>` : ''}
+        ${x.kind === 'lieferschein' ? `<label class="check"><input type="checkbox" id="fd-hideprices" ${x.hidePrices ? 'checked' : ''} ${dis}><span>ohne Preise drucken</span></label>` : ''}
         ${x.kind === 'rechnung' ? `<label class="field"><span>Zahlungsbedingung</span><select id="fd-terms" data-change="fak-terms-pick" ${dis}>${termsOpts}</select></label><label class="field"><span>Fällig am</span><input type="date" id="fd-due" value="${esc(x.dueDate)}" data-change="fak-recalc" ${dis}></label>` : ''}
         ${x.kind === 'angebot' ? `<label class="field"><span>Gültig bis</span><input type="date" id="fd-valid" value="${esc(x.validUntil)}" ${dis}></label>` : ''}
         <label class="field"><span>Ihre Bestellnummer/Zeichen</span><input type="text" id="fd-ref" value="${esc(x.reference || '')}" placeholder="z. B. Bestellnummer des Kunden" ${dis}></label>
@@ -671,10 +793,12 @@ function editorModal(c, m) {
         <label class="field wide"><span>Betreff</span><input type="text" id="fd-title" value="${esc(x.title || '')}" placeholder="z. B. Unterhaltsreinigung Oktober 2026" ${dis}></label>
         <div class="field wide">${textFieldHead('Einleitung', 'fd-intro', tm('fd-intro', 'intro'))}<textarea id="fd-intro" rows="2" ${dis}>${esc(x.intro || '')}</textarea></div>
       </div>
-      ${linesEditor(x.lines, 'fl', dis)}
+      ${x.kind === 'proforma' ? '<div class="banner"><p><strong>Proforma – keine Rechnung im Sinne des UStG.</strong> Kein Umsatz, kein offener Posten, keine Mahnung; berechtigt den Kunden nicht zum Vorsteuerabzug. Nach der Leistung mit „→ Rechnung“ verrechnen.</p></div>' : ''}
+      ${isFinal(x) ? `<div class="banner"><p><strong>Schlussrechnung:</strong> alle Leistungen; abgezogen ${esc((x.advances || []).map((a) => a.number).join(', '))} je Steuersatz samt Umsatzsteuer.</p></div>` : ''}
+      ${linesEditor(x.lines, 'fl', dis, { choices: ['angebot', 'auftrag'].includes(x.kind) })}
       ${
         ed
-          ? `<div class="filters"><button class="btn small" data-action="fak-line-add">${ICON.plus} Position</button>${arts.length ? `<label class="field inline fak-art-pick"><span>Artikel</span><input type="text" id="fd-article" list="fd-article-list" placeholder="Nummer oder Name" autocomplete="off" data-change="fak-article"><datalist id="fd-article-list">${arts.map((a) => `<option value="${esc(articleLabel(a))}">${a.price ? esc(money(a.price)) : ''}</option>`).join('')}</datalist></label>` : ''}${
+          ? `<div class="filters"><button class="btn small" data-action="fak-line-add">${ICON.plus} Position</button><button class="btn small" data-action="fak-line-add" data-type="text">${ICON.plus} Text</button><button class="btn small" data-action="fak-line-add" data-type="title">${ICON.plus} Titel</button><button class="btn small" data-action="fak-line-add" data-type="subtotal">${ICON.plus} Zwischensumme</button>${arts.length ? `<label class="field inline fak-art-pick"><span>Artikel</span><input type="text" id="fd-article" list="fd-article-list" placeholder="Nummer oder Name" autocomplete="off" data-change="fak-article"><datalist id="fd-article-list">${arts.map((a) => `<option value="${esc(articleLabel(a))}">${a.price ? esc(money(a.price)) : ''}</option>`).join('')}</datalist></label>` : ''}${
               posBlocks.length ? menu({ label: 'Positionstext', btn: 'small', cls: 'fak-textmenu', single: false, items: posBlocks.map((b) => ({ label: esc(b.name), hint: esc(String(b.text).slice(0, 60)), action: 'fak-tb-line', data: { id: b.id } })) }) : ''
             }${calc ? '<button class="btn small" data-action="fak-from-calc">Preis aus Kalkulation</button>' : ''}</div>`
           : ''
@@ -698,6 +822,45 @@ registerModal('fak-edit', editorModal, { module: MODULE })
 
 // ---------------------------------------------------------------- Beleg ansehen (festgeschrieben)
 
+/** Zeilen eines festgeschriebenen Belegs zur Ansicht: nach Art (Text, Titel, Zwischensumme, Option, Alternative). */
+function rowsHtml(x, s) {
+  const t = totals(x, s)
+  const hide = x.kind === 'lieferschein' && x.hidePrices
+  const vat = (l) => (t.vatOn ? `${l.vat ?? s.vat} %` : '–')
+  return t.rows
+    .map((r) => {
+      if (r.type === 'text') return `<tr class="fak-row-text"><td data-label=""></td><td colspan="6" data-label="">${esc(r.text)}</td></tr>`
+      if (r.type === 'title') return `<tr class="fak-row-title"><td data-label=""></td><td colspan="6" data-label=""><strong>${esc(r.text)}</strong></td></tr>`
+      if (r.type === 'subtotal' || r.type === 'groupsum') return `<tr class="fak-row-subtotal"><td data-label=""></td><td colspan="5" class="num" data-label=""><strong>${esc(r.type === 'subtotal' ? String(r.text || '').trim() || 'Zwischensumme' : r.text)}</strong></td><td class="num" data-label="netto"><strong>${hide ? '' : money(r.net)}</strong></td></tr>`
+      const tag = r.type === 'optional' ? 'Option' : r.type === 'alternative' ? `Alternative${r.altPos ? ` statt Pos. ${r.altPos}` : ''}` : ''
+      return `<tr class="fak-row-${r.type}"><td data-label="">${r.pos}</td><td data-label="Bezeichnung">${tag ? `<span class="pill warning">${esc(tag)}</span> ` : ''}${esc(r.text)}${r.longText ? `<br><span class="muted">${esc(r.longText)}</span>` : ''}${r.articleNo ? `<br><span class="muted">Art.-Nr. ${esc(r.articleNo)}</span>` : ''}${tag ? '<br><span class="muted">nicht in der Summe</span>' : ''}</td><td class="num" data-label="Menge">${numText(r.qty)}</td><td data-label="Einheit">${esc(r.unit || '')}</td><td class="num" data-label="Einzelpreis">${hide ? '' : money(r.price)}</td><td class="num" data-label="USt">${hide ? '' : vat(r)}</td><td class="num" data-label="netto">${hide ? '' : tag ? `(${money(r.net)})` : money(r.net)}</td></tr>`
+    })
+    .join('')
+}
+
+/** Folgebelege: Angebot/Auftrag → Auftrag, Rechnung (Schlussrechnung), Abschlag, Lieferschein, Proforma; Proforma und Lieferschein → Rechnung. */
+function nextButtons(x, st) {
+  if (['angebot', 'auftrag'].includes(x.kind) && st !== 'abgelehnt') {
+    const more = menu({
+      label: 'Weitere Belege',
+      btn: '',
+      single: false,
+      items: [
+        { label: 'Abschlagsrechnung', action: 'fak-convert', data: { id: x.id, kind: 'abschlag' }, hint: 'Anzahlung über Prozent oder Betrag' },
+        { label: 'Lieferschein', action: 'fak-convert', data: { id: x.id, kind: 'lieferschein' }, hint: 'mit Unterschriftsfeld' },
+        { label: 'Proformarechnung', action: 'fak-convert', data: { id: x.id, kind: 'proforma' }, hint: 'keine Rechnung im Sinne des UStG' },
+      ],
+    })
+    const advances = advancesFor(x, F().documents).length
+    return `${x.kind === 'angebot' ? `<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="auftrag">→ Auftrag</button>` : ''}<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="rechnung" ${advances ? `title="${advances} Abschlagsrechnung(en) abziehen"` : ''}>${advances ? '→ Schlussrechnung' : '→ Rechnung'}</button>${more}`
+  }
+  if (x.kind === 'proforma' && st === 'offen') return `<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="rechnung">→ Rechnung</button>`
+  if (x.kind === 'lieferschein' && !billedBy(x, F().documents)) return `<button class="btn" data-action="fak-collect-one" data-id="${esc(x.id)}">→ Rechnung</button>${openNotes(x.customerId || x.recipient?.name || '').length > 1 ? `<button class="btn" data-action="fak-collect-open" data-customer="${esc(x.customerId || x.recipient?.name || '')}">Sammelrechnung</button>` : ''}`
+  const src = isAdvance(x) && docOf(x.refId)
+  if (src && advancesFor(src, F().documents).some((a) => a.id === x.id)) return `<button class="btn" data-action="fak-convert" data-id="${esc(src.id)}" data-kind="rechnung">Schlussrechnung</button>`
+  return ''
+}
+
 function viewModal(c, m) {
   const x = docOf(m.id)
   if (!x) return ''
@@ -714,9 +877,8 @@ function viewModal(c, m) {
   const st = stateOf(x, d.documents, todayISO(), s)
   const open = x.kind === 'rechnung' ? openAmount(x, d.documents, s) : 0
   const refs = d.documents.filter((y) => y.refId === x.id)
-  const lines = totals(x, s)
-    .lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.text)}${l.longText ? `<br><span class="muted">${esc(l.longText)}</span>` : ''}${l.articleNo ? `<br><span class="muted">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}</td><td class="num">${numText(l.qty)}</td><td>${esc(l.unit || '')}</td><td class="num">${money(l.price)}</td><td class="num">${t.groups.length && totals(x, s).vatOn ? `${l.vat} %` : '–'}</td><td class="num">${money(l.net)}</td></tr>`)
-    .join('')
+  const billed = ['lieferschein', 'proforma'].includes(x.kind) ? billedBy(x, d.documents) : null
+  const lines = rowsHtml(x, s)
   const mode = app.ui.fakAct || ''
   const act =
     mode === 'storno'
@@ -742,18 +904,21 @@ function viewModal(c, m) {
   const sent = (x.sent || []).map((v) => `<li>${formatDate(v.at.slice(0, 10), { year: true })} ${v.via === 'post' ? 'per Post (Sammeldruck)' : `an ${esc(v.to)}`}${v.via === 'mailto' ? ' (E-Mail-Programm)' : ''}</li>`).join('')
   const history = (x.history || []).map((h) => `<li>${formatDate(String(h.at).slice(0, 10), { year: true })} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')
   return modalFrame({
-    title: `${KINDS[x.kind]} ${x.number}`,
-    subtitle: `${x.recipient?.name || ''} · ${formatDate(x.date, { year: true })}${x.refNumber ? ` · zu ${x.refNumber}` : ''}`,
+    title: `${kindLabel(x)} ${x.number}`,
+    subtitle: `${x.recipient?.name || ''} · ${formatDate(x.date, { year: true })}${x.refNumber ? ` · zu ${x.refNumber}` : ''}${x.deliveryNotes?.length ? ` · zu ${x.deliveryNotes.map((n) => n.number).join(', ')}` : ''}`,
     wide: true,
     body: `<p>${pill(st)}${x.reverseCharge ? ' <span class="pill info">Reverse Charge</span>' : ''} ${intact(x) ? '<span class="muted">Prüfsumme in Ordnung</span>' : '<span class="pill error">Inhalt nach dem Festschreiben verändert</span>'}</p>
       ${x.title ? `<p><strong>${esc(x.title)}</strong>${x.serviceFrom ? ` · Leistung ${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}` : ''}</p>` : ''}
       ${head.length ? `<p class="fak-doc-head">${head.join(' · ')}</p>` : ''}
       ${docExtras(x)}
-      <div class="table-wrap"><table class="data"><thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis</th><th class="num">USt</th><th class="num">netto</th></tr></thead><tbody>${lines}</tbody></table></div>
+      ${x.kind === 'proforma' ? '<p><strong>Proforma – keine Rechnung im Sinne des UStG.</strong> <span class="muted">Kein Umsatz, kein offener Posten.</span></p>' : ''}
+      <div class="table-wrap"><table class="data fak-view-lines" data-labelled><thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis</th><th class="num">USt</th><th class="num">netto</th></tr></thead><tbody>${lines}</tbody></table></div>
       <div class="fak-foot-grid"><div>${x.kind === 'rechnung' ? `<p>Fällig am ${formatDate(x.dueDate, { year: true })} · bezahlt ${money(cashPaidOf(x))}${taken ? ` · Skonto ${money(taken)}` : ''} · <strong>offen ${money(open)}</strong></p>` : ''}
         ${x.termsText ? `<p class="muted">${esc(x.termsText)}</p>` : ''}
-        ${refs.length ? `<p>Dazu: ${refs.map((y) => `<button class="link-btn" data-action="fak-open" data-id="${esc(y.id)}">${esc(y.number || `${KINDS[y.kind]} (Entwurf)`)}</button>`).join(', ')}</p>` : ''}</div>
-        <table class="fak-sums"><tr><td>netto</td><td class="num">${money(t.net)}</td></tr>${(t.groups || []).filter((g) => g.vat).map((g) => `<tr><td>USt ${g.rate} %</td><td class="num">${money(g.vat)}</td></tr>`).join('')}<tr class="sum"><td>brutto</td><td class="num">${money(t.gross)}</td></tr></table></div>
+        ${refs.length ? `<p>Dazu: ${refs.map((y) => `<button class="link-btn" data-action="fak-open" data-id="${esc(y.id)}">${esc(y.number ? `${y.number}${y.stage ? ` (${STAGES[y.stage]})` : y.kind !== 'rechnung' ? ` (${KINDS[y.kind]})` : ''}` : `${kindLabel(y)} (Entwurf)`)}</button>`).join(', ')}</p>` : ''}
+        ${billed ? `<p>Verrechnet mit <button class="link-btn" data-action="fak-open" data-id="${esc(billed.id)}">${esc(billed.number || 'Rechnung (Entwurf)')}</button></p>` : ''}
+        ${x.advances?.length ? `<p>Abgezogen: ${x.advances.map((a) => `<button class="link-btn" data-action="fak-open" data-id="${esc(a.id)}">${esc(a.number)}</button>`).join(', ')}</p>` : ''}</div>
+        <table class="fak-sums"><tr><td>netto</td><td class="num">${money((t.full || t).net)}</td></tr>${((t.full || t).groups || []).filter((g) => g.vat).map((g) => `<tr><td>USt ${g.rate} %</td><td class="num">${money(g.vat)}</td></tr>`).join('')}${advanceRowsHtml(x, totals(x, s))}<tr class="sum"><td>${t.full ? 'Restbetrag brutto' : 'brutto'}</td><td class="num">${money(t.gross)}</td></tr></table></div>
       ${act}
       ${pays ? `<h3>Zahlungen</h3><ul>${pays}</ul>` : ''}${reminders ? `<h3>Mahnungen</h3><ul>${reminders}</ul>` : ''}${sent ? `<h3>Versendet</h3><ul>${sent}</ul>` : ''}
       ${history ? `<details><summary>Verlauf</summary><ul class="muted">${history}</ul></details>` : ''}`,
@@ -766,7 +931,7 @@ function viewModal(c, m) {
             : ''
         : ''
     }${docButtons(x, st)}</div>
-      <div class="actions">${ed ? `<button class="btn" data-action="fak-copy" data-id="${esc(x.id)}">Als Vorlage kopieren</button>` : ''}${ed && ['angebot', 'auftrag'].includes(x.kind) ? `${x.kind === 'angebot' ? `<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="auftrag">→ Auftrag</button>` : ''}<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="rechnung">→ Rechnung</button>` : ''}
+      <div class="actions">${ed ? `<button class="btn" data-action="fak-copy" data-id="${esc(x.id)}">Als Vorlage kopieren</button>` : ''}${ed ? nextButtons(x, st) : ''}
         ${ed && x.kind === 'rechnung' && open > 0 ? `<button class="btn" data-action="fak-pay-open" data-id="${esc(x.id)}">Zahlung</button>` : ''}
         ${isInvoice(x) ? `<button class="btn" data-action="fak-einv-open" data-id="${esc(x.id)}" title="XML nach EN 16931 (ZUGFeRD/Factur-X) oder ebInterface (Bund)">${ICON.download} E-Rechnung</button>` : ''}
         <button class="btn" data-action="fak-pdf" data-id="${esc(x.id)}">${ICON.download} PDF</button><button class="btn primary" data-action="fak-mail-open" data-id="${esc(x.id)}">${ICON.send} E-Mail</button></div>`,
@@ -793,6 +958,112 @@ function payModal(c, m) {
   })
 }
 registerModal('fak-pay', payModal, { module: MODULE })
+
+// ---------------------------------------------------------------- Folgebelege: Optionen, Abschlag, Schlussrechnung, Sammelrechnung
+
+const FOLLOW_INTRO = { abschlag: 'Vereinbarungsgemäß erlauben wir uns, folgenden Abschlag zu verrechnen:' }
+
+/**
+ * Folgebeleg als Entwurf öffnen: Bestellnummer, Ansprechpartner und Leistungsort gehen mit; Texte und Zahlungsbedingung
+ * wie bei einem neuen Beleg. Ein Angebot gilt damit als angenommen.
+ */
+function openFollowUp(src, x) {
+  const kind = x.kind
+  const texts = defaultTexts(kind, S(), F().textBlocks)
+  const own = ['rechnung', 'lieferschein', 'proforma'].includes(kind)
+  Object.assign(x, { reference: src.reference || '', contactName: src.contactName || '', deliveryAddress: src.deliveryAddress || '', intro: isAdvance(x) ? FOLLOW_INTRO.abschlag : own ? texts.intro : '', outro: own ? texts.outro : '', createdAt: nowIso(), createdBy: by() })
+  if (kind === 'rechnung') {
+    const t = termsSetup(custOf(x.customerId), F().paymentTerms, S())
+    x.dueDate = dueDateFor(x.date, t.days)
+    if (t.termsId) x.termsId = t.termsId
+    if (t.skonto && !isAdvance(x)) x.skonto = t.skonto
+  }
+  if (kind === 'lieferschein') {
+    x.hidePrices = true
+    x.serviceFrom = todayISO()
+    x.serviceTo = ''
+  }
+  if (src.kind === 'angebot' && src.status !== 'angenommen') {
+    src.status = 'angenommen'
+    src.history = [...(src.history || []), { at: nowIso(), by: by(), text: `angenommen (${kindLabel(x)} erstellt)` }]
+    persist()
+  }
+  openModal({ type: 'fak-edit', id: x.id, draft: x, isNew: true })
+}
+
+/** Rechnung aus einem oder mehreren Lieferscheinen desselben Kunden. */
+function collectInvoice(ids) {
+  const notes = F().documents.filter((y) => ids.includes(y.id))
+  try {
+    openFollowUp(notes[0], collectDraft(notes, { id: uid('f'), date: todayISO() }))
+  } catch (err) {
+    toast(err.message)
+  }
+}
+
+/** Folgebeleg mit Auswahl: angenommene Optionen und Alternativen, Abschlag (Prozent oder Betrag), abzuziehende Abschläge. */
+function convertModal(c, m) {
+  const src = docOf(m.id)
+  if (!src) return ''
+  const d = F()
+  const s = S()
+  const kind = m.kind
+  const target = kind === 'abschlag' ? 'Abschlagsrechnung' : KINDS[kind]
+  const rows = totals(src, s).rows
+  const choices = rows.filter((r) => r.type === 'optional' || r.type === 'alternative')
+  const advances = kind === 'rechnung' ? advancesFor(src, d.documents) : []
+  const base = totals(src, s).net
+  const paid = (a) => {
+    const open = openAmount(a, d.documents, s)
+    return open <= 0.004 ? '<span class="pill ok">bezahlt</span>' : `<span class="pill warning">offen ${money(open)}</span>`
+  }
+  const target2 = advances.length ? 'Schlussrechnung' : target
+  return modalFrame({
+    title: `${kindLabel(src)} ${src.number} → ${target2}`,
+    subtitle: esc(src.recipient?.name || ''),
+    wide: true,
+    body: `${
+      choices.length
+        ? `<h3>Optionen und Alternativen</h3><p class="muted">Anhaken, was der Kunde angenommen hat: das wird eine normale Position. Eine angenommene Alternative ersetzt ihre Position. Nicht Angehaktes bleibt weg.</p>
+      <div class="fak-choices">${choices.map((r) => `<label class="check"><input type="checkbox" name="fcv-accept" value="${esc(r.id)}"><span><strong>${r.type === 'optional' ? 'Option' : `Alternative${r.altPos ? ` statt Pos. ${r.altPos}` : ''}`}</strong> · Pos. ${r.pos}: ${esc(r.text)} · ${money(r.net)} netto</span></label>`).join('')}</div>`
+        : ''
+    }${
+      kind === 'abschlag'
+        ? `<h3>Abschlag</h3><p class="muted">Auftragswert ${money(base)} netto (ohne Optionen). Der Abschlag wird je Steuersatz anteilig verrechnet und in der Schlussrechnung samt Umsatzsteuer abgezogen.</p>
+      <div class="form-grid"><label class="field"><span>Abschlag in</span><select id="fcv-mode">${options([['percent', 'Prozent vom Netto'], ['amount', 'Betrag netto (€)']], 'percent')}</select></label><label class="field"><span>Wert</span><input type="text" inputmode="decimal" id="fcv-value" placeholder="z. B. 30"></label></div>`
+        : ''
+    }${
+      advances.length
+        ? `<h3>Abschlagsrechnungen abziehen</h3><p class="muted">Die Schlussrechnung enthält alle Leistungen und zieht die angehakten Abschlagsrechnungen je Steuersatz samt Umsatzsteuer ab (§ 11 Abs. 1 Z 4 UStG). Noch offene Abschläge bleiben eigene offene Posten. Einen nicht abgezogenen Abschlag bitte stornieren, sonst wird doppelt verrechnet.</p>
+      <div class="fak-choices">${advances.map((a) => `<label class="check"><input type="checkbox" name="fcv-adv" value="${esc(a.id)}" checked><span><strong>${esc(a.number)}</strong> vom ${formatDate(a.date, { year: true })} · ${money(a.total.gross)} brutto ${paid(a)}</span></label>`).join('')}</div>`
+        : ''
+    }`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-conv-create" data-id="${esc(src.id)}" data-kind="${esc(kind)}">${esc(target2)} als Entwurf</button></div>`,
+  })
+}
+registerModal('fak-conv', convertModal, { module: MODULE })
+
+/** Sammelrechnung: offene Lieferscheine eines Kunden wählen. */
+function collectModal(c, m) {
+  const all = openNotes()
+  const key = (x) => x.customerId || x.recipient?.name || ''
+  const customers = [...new Map(all.map((x) => [key(x), x.recipient?.name || customerName(custOf(x.customerId) || {}) || '–'])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'de'))
+  if (!customers.some(([k]) => k === m.customer)) m.customer = customers[0]?.[0] || ''
+  const list = all.filter((x) => key(x) === m.customer).sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  const s = S()
+  return modalFrame({
+    title: 'Sammelrechnung aus Lieferscheinen',
+    subtitle: 'offene Lieferscheine eines Kunden in einer Rechnung',
+    wide: true,
+    body: customers.length
+      ? `<div class="form-grid"><label class="field"><span>Kunde</span><select id="fcl-customer" data-change="fak-collect-customer">${options(customers, m.customer)}</select></label></div>
+      <div class="fak-choices">${list.map((x) => `<label class="check"><input type="checkbox" name="fcl-note" value="${esc(x.id)}" checked><span><strong>${esc(x.number)}</strong> vom ${formatDate(x.date, { year: true })}${x.title ? ` · ${esc(x.title)}` : ''} · ${money(totals(x, s).net)} netto</span></label>`).join('')}</div>
+      <p class="note">Die Rechnung bekommt je Lieferschein einen Titel mit Nummer und Datum, darunter seine Positionen. Leistungszeitraum: vom ersten bis zum letzten Lieferschein. Preise bitte im Entwurf prüfen.</p>`
+      : '<p class="empty">Keine offenen Lieferscheine.</p>',
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-collect-create" ${list.length ? '' : 'disabled'}>Rechnung als Entwurf</button></div>`,
+  })
+}
+registerModal('fak-collect', collectModal, { module: MODULE })
 
 /** Vorschläge für den Empfänger: E-Mail des Belegs und des Kunden, Ansprechpartner mit Funktion. */
 function mailList(id, x) {
@@ -854,10 +1125,10 @@ function mailModal(c, m) {
   m.text ??= block ? fillPlaceholders(block.text, ctx) : mailWithDebit(invoiceMailText({ doc: x, company: s.sender.name, sender: app.user?.name || '', iban: s.bank.iban, greeting: ctx.Anrede }), x)
   const einv = isInvoice(x) && x.number && !eInvoiceProblems(x, s).some((p) => p.level === 'error')
   return modalFrame({
-    title: `${KINDS[x.kind]} ${x.number || '(Entwurf)'} senden`,
+    title: `${kindLabel(x)} ${x.number || '(Entwurf)'} senden`,
     subtitle: esc(x.recipient?.name || ''),
     wide: true,
-    body: `${x.number ? '' : '<div class="banner warn-banner"><p>Ein Entwurf wird nicht versendet. Bitte zuerst festschreiben.</p></div>'}<div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fm-to" list="fm-to-list" value="${esc(to)}" placeholder="buchhaltung@kunde.at">${mailList('fm-to-list', x)}</label><label class="field wide"><span>Betreff</span><input type="text" id="fm-subject" value="${esc(m.subject ?? `${KINDS[x.kind]} ${x.number || ''}${x.title ? ` – ${x.title}` : ''}`)}"></label>
+    body: `${x.number ? '' : '<div class="banner warn-banner"><p>Ein Entwurf wird nicht versendet. Bitte zuerst festschreiben.</p></div>'}<div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fm-to" list="fm-to-list" value="${esc(to)}" placeholder="buchhaltung@kunde.at">${mailList('fm-to-list', x)}</label><label class="field wide"><span>Betreff</span><input type="text" id="fm-subject" value="${esc(m.subject ?? `${kindLabel(x)} ${x.number || ''}${x.title ? ` – ${x.title}` : ''}`)}"></label>
         <div class="field wide">${textFieldHead('Text', 'fm-text', textMenu({ target: 'fm-text', kind: x.kind, place: 'mail', fill: true }))}<textarea id="fm-text" rows="9">${esc(m.text)}</textarea></div>
         ${einv ? `<label class="check wide"><input type="checkbox" id="fm-xml" ${m.xml ? 'checked' : ''}><span>E-Rechnung anhängen: factur-x.xml (ZUGFeRD/Factur-X, EN 16931) – für Buchhaltungsprogramme, die E-Rechnungen einlesen</span></label>` : ''}</div>
       <p class="note">${canMail() ? 'Geht aus deinem Postfach, das PDF hängt an und liegt danach auch in SharePoint (fakturierung/belege/).' : 'Öffnet dein E-Mail-Programm; das PDF (und die E-Rechnung) werden heruntergeladen und müssen angehängt werden.'}</p>`,
@@ -1048,7 +1319,7 @@ function customerSheet(v, x) {
   const s = S()
   const h = customerHistory(F().documents, x.id, { today: todayISO(), settings: s })
   const rows = h.rows
-    .map(({ doc: y, state, gross, open }) => `<tr class="clickable" data-action="fak-open" data-id="${esc(y.id)}"><td>${y.number ? `<strong>${esc(y.number)}</strong>` : '<span class="muted">Entwurf</span>'}<br><span class="muted">${esc(KINDS[y.kind] || '')}</span></td><td>${y.date ? formatDate(y.date, { year: true }) : ''}</td><td>${esc(y.title || '')}</td><td class="num">${money(gross)}</td><td class="num">${open > 0.004 ? money(open) : ''}</td><td>${pill(state)}</td></tr>`)
+    .map(({ doc: y, state, gross, open }) => `<tr class="clickable" data-action="fak-open" data-id="${esc(y.id)}"><td>${y.number ? `<strong>${esc(y.number)}</strong>` : '<span class="muted">Entwurf</span>'}<br><span class="muted">${esc(kindLabel(y))}</span></td><td>${y.date ? formatDate(y.date, { year: true }) : ''}</td><td>${esc(y.title || '')}</td><td class="num">${money(gross)}</td><td class="num">${open > 0.004 ? money(open) : ''}</td><td>${pill(state)}</td></tr>`)
     .join('')
   return `<div class="impact-stats tc-stats">${tile('Belege', h.rows.length)}${tile('offen', money(h.open), h.open > 0.004 ? 'warn' : '')}${h.years.slice(0, 2).map((y) => tile(`Umsatz ${y.year} netto`, money(y.net))).join('')}</div>
     ${h.years.length ? `<h3>Umsatz je Jahr</h3><div class="table-wrap"><table class="data"><thead><tr><th>Jahr</th><th class="num">Rechnungen</th><th class="num">Umsatz netto</th></tr></thead><tbody>${h.years.map((y) => `<tr><td>${esc(y.year)}</td><td class="num">${y.count}</td><td class="num">${money(y.net)}</td></tr>`).join('')}</tbody></table></div>` : ''}
@@ -1357,6 +1628,11 @@ registerActions({
     if (t) t.innerHTML = totalsHtml(m.draft)
     const p = document.getElementById('fd-problems')
     if (p) p.innerHTML = problemsHtml(m.draft)
+    // Zwischensummen in den Zeilen mitrechnen
+    for (const [i, sum] of Object.entries(subtotalSums(m.draft.lines))) {
+      const el = document.getElementById(`fl-${i}-sum`)
+      if (el) el.textContent = money(sum)
+    }
   },
   'fak-pdf': async (el) => {
     const m = app.ui.modal
@@ -1413,7 +1689,7 @@ registerActions(
       readForm(m)
       const b = F().textBlocks.find((y) => y.id === el.dataset.id)
       if (!b) return
-      const empty = m.draft.lines.findIndex((l) => !l.text && !parseNumber(l.price))
+      const empty = m.draft.lines.findIndex((l) => lineType(l) === 'item' && !l.text && !parseNumber(l.price))
       const line = { id: uid('l'), text: b.text, qty: 1, unit: 'Pauschale', price: '', vat: S().vat, discount: 0 }
       if (empty >= 0) m.draft.lines[empty] = line
       else m.draft.lines.push(line)
@@ -1455,10 +1731,11 @@ registerActions(
       if (m.draft.kind === 'rechnung') m.draft.dueDate = dueDateFor(m.draft.date, dueDaysOf(m.draft))
       renderModal()
     },
-    'fak-line-add': () => {
+    'fak-line-add': (el) => {
       const m = app.ui.modal
       readForm(m)
-      m.draft.lines.push({ id: uid('l'), text: '', qty: 1, unit: 'Pauschale', price: '', vat: S().vat, discount: 0 })
+      const type = el?.dataset?.type
+      m.draft.lines.push(LINE_TYPES[type] && !pricedLine({ type }) ? { id: uid('l'), type, text: '' } : { id: uid('l'), text: '', qty: 1, unit: 'Pauschale', price: '', vat: S().vat, discount: 0 })
       renderModal()
       document.getElementById(`fl-${m.draft.lines.length - 1}-text`)?.focus()
     },
@@ -1479,7 +1756,7 @@ registerActions(
       if (!q.trim()) return
       const a = findArticle(F().articles, q)
       if (!a) return toast(`Kein Artikel „${q.trim()}“ (oder mehrere passen). Bitte Nummer oder ganzen Namen eingeben.`)
-      const empty = m.draft.lines.findIndex((l) => !l.text && !parseNumber(l.price))
+      const empty = m.draft.lines.findIndex((l) => lineType(l) === 'item' && !l.text && !parseNumber(l.price))
       const line = lineFromArticle(a, { id: uid('l'), vat: S().vat })
       if (empty >= 0) m.draft.lines[empty] = line
       else m.draft.lines.push(line)
@@ -1498,7 +1775,7 @@ registerActions(
       const settings = app.data.kalkulation?.settings || {}
       const calc = calculate({ areas, settings, wage: calcWage(settings, mergeRules(app.data.rules).wages) })
       if (!calc.net) return toast('Die Kalkulation dieses Objekts ergibt noch keinen Preis.')
-      m.draft.lines = m.draft.lines.filter((l) => l.text || parseNumber(l.price))
+      m.draft.lines = m.draft.lines.filter((l) => lineType(l) === 'subtotal' || l.text || parseNumber(l.price))
       m.draft.lines.push({ id: uid('l'), text: `Unterhaltsreinigung ${objName(m.draft.objectId)} lt. Kalkulation (${String(calc.hours).replace('.', ',')} Std./Monat)`, qty: 1, unit: 'Monat', price: calc.net, vat: S().vat, discount: 0 })
       renderModal()
     },
@@ -1525,6 +1802,8 @@ registerActions(
       const x = readForm(m)
       const list = blocking(problems(x, S()))
       if (list.length) return toast(list[0].text)
+      const clash = advanceConflicts(x, F().documents)
+      if (clash.length) return toast(clash[0])
       if (!confirmStep(`fak-final:${x.id}`, renderModal)) return
       el.disabled = true
       try {
@@ -1533,6 +1812,9 @@ registerActions(
         await app.service.flush().catch(() => {})
         await app.service.refresh?.().catch(() => [])
         const d = F()
+        // nach dem Abgleich noch einmal: Abschlag inzwischen storniert oder anderswo abgezogen?
+        const clash2 = advanceConflicts(x, d.documents)
+        if (clash2.length) throw new Error(clash2[0])
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
         const fixed = finalize(withDebitNote(d.documents.find((y) => y.id === x.id) || x, custOf(x.customerId), S()), d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
         upsertDoc(fixed)
@@ -1553,7 +1835,7 @@ registerActions(
             .catch(() => {})
         openModal({ type: 'fak-doc', id: x.id })
         renderNow()
-        toast(`${KINDS[done.kind]} ${done.number} festgeschrieben.`)
+        toast(`${kindLabel(done)} ${done.number} festgeschrieben.`)
       } catch (err) {
         el.disabled = false
         toast(`Nicht festgeschrieben: ${err.message}`)
@@ -1563,28 +1845,70 @@ registerActions(
       const src = docOf(el.dataset.id)
       if (!src) return
       const kind = src.kind === 'storno' || src.kind === 'korrektur' ? 'rechnung' : src.kind
-      const x = newDraft(kind, { customerId: src.customerId, objectId: src.objectId, recipient: { ...(src.recipient || {}) }, reverseCharge: !!src.reverseCharge, title: src.title, discount: src.discount || 0, contactName: src.contactName || '', deliveryAddress: src.deliveryAddress || '', lines: (src.lines || []).map((l) => ({ ...l, id: uid('l'), qty: Math.abs(parseNumber(l.qty)) })) })
+      const x = newDraft(kind, { customerId: src.customerId, objectId: src.objectId, recipient: { ...(src.recipient || {}) }, reverseCharge: !!src.reverseCharge, title: src.title, discount: src.discount || 0, contactName: src.contactName || '', deliveryAddress: src.deliveryAddress || '', lines: (src.lines || []).map((l) => (pricedLine(l) ? { ...l, id: uid('l'), qty: Math.abs(parseNumber(l.qty)) } : { ...l, id: uid('l') })) })
       openModal({ type: 'fak-edit', id: x.id, draft: x, isNew: true })
     },
     'fak-convert': (el) => {
       const src = docOf(el.dataset.id)
       if (!src) return
       const kind = el.dataset.kind
-      const texts = defaultTexts(kind, S(), F().textBlocks)
-      // Bestellnummer, Ansprechpartner und Leistungsort gehen mit; Texte und Zahlungsbedingung wie bei einem neuen Beleg
-      const x = { ...convertDraft(src, kind, { id: uid('f'), date: todayISO() }), reference: src.reference || '', contactName: src.contactName || '', deliveryAddress: src.deliveryAddress || '', intro: kind === 'rechnung' ? texts.intro : '', outro: kind === 'rechnung' ? texts.outro : '', createdAt: nowIso(), createdBy: by() }
-      if (x.kind === 'rechnung') {
-        const t = termsSetup(custOf(x.customerId), F().paymentTerms, S())
-        x.dueDate = dueDateFor(x.date, t.days)
-        if (t.termsId) x.termsId = t.termsId
-        if (t.skonto) x.skonto = t.skonto
+      // Abschlag, angenommene Optionen und abzuziehende Abschläge wählen; sonst gleich den Entwurf
+      const ask = kind === 'abschlag' || (src.lines || []).some(choiceLine) || (kind === 'rechnung' && advancesFor(src, F().documents).length)
+      if (ask) return openModal({ type: 'fak-conv', id: src.id, kind })
+      openFollowUp(src, convertDraft(src, kind, { id: uid('f'), date: todayISO() }))
+    },
+    'fak-conv-create': (el) => {
+      const src = docOf(el.dataset.id)
+      if (!src) return
+      const kind = el.dataset.kind
+      const d = F()
+      const accept = checkedValues('fcv-accept')
+      try {
+        let x
+        if (kind === 'abschlag') {
+          const v = parseNumber(val('fcv-value'))
+          const no = d.documents.filter((y) => isAdvance(y) && [src.id, src.refId].filter(Boolean).includes(y.refId) && stateOf(y, d.documents, todayISO(), S()) !== 'storniert').length + 1
+          x = advanceDraft(src, { id: uid('f'), date: todayISO(), percent: val('fcv-mode') === 'percent' ? v : 0, amount: val('fcv-mode') === 'amount' ? v : 0, no, settings: S() })
+        } else if (kind === 'rechnung') {
+          const chosen = checkedValues('fcv-adv')
+          x = finalDraft(src, { id: uid('f'), date: todayISO(), accept, advances: advancesFor(src, d.documents).filter((a) => chosen.includes(a.id)), settings: S() })
+        } else x = convertDraft(src, kind, { id: uid('f'), date: todayISO(), accept })
+        if (accept.length) x.history = [{ at: nowIso(), by: by(), text: `angenommen aus ${src.number}: ${(src.lines || []).filter((l) => accept.includes(l.id)).map((l) => l.text).join(', ')}` }]
+        openFollowUp(src, x)
+      } catch (err) {
+        toast(err.message)
       }
-      if (src.kind === 'angebot' && src.status !== 'angenommen') {
-        src.status = 'angenommen'
-        src.history = [...(src.history || []), { at: nowIso(), by: by(), text: `angenommen (${KINDS[x.kind]} erstellt)` }]
-        persist()
-      }
-      openModal({ type: 'fak-edit', id: x.id, draft: x, isNew: true })
+    },
+    'fak-collect-open': (el) => openModal({ type: 'fak-collect', customer: el.dataset.customer ?? '' }),
+    'fak-collect-customer': () => {
+      const m = app.ui.modal
+      if (m?.type !== 'fak-collect') return
+      m.customer = val('fcl-customer')
+      renderModal()
+    },
+    'fak-collect-one': (el) => collectInvoice([el.dataset.id]),
+    'fak-collect-create': () => {
+      const ids = checkedValues('fcl-note')
+      if (!ids.length) return toast('Bitte mindestens einen Lieferschein wählen.')
+      collectInvoice(ids)
+    },
+    'fak-line-type': (el) => {
+      const m = app.ui.modal
+      if (el.dataset.prefix === 'frl') readRecurring(m)
+      else readForm(m)
+      renderModal()
+    },
+    'fak-line-move': (el) => {
+      const m = app.ui.modal
+      if (el.dataset.prefix === 'frl') readRecurring(m)
+      else readForm(m)
+      const i = Number(el.dataset.i)
+      const j = i + Number(el.dataset.dir)
+      const lines = m.draft.lines
+      if (j < 0 || j >= lines.length) return
+      ;[lines[i], lines[j]] = [lines[j], lines[i]]
+      renderModal()
+      document.querySelector(`[data-action="fak-line-move"][data-prefix="${el.dataset.prefix}"][data-i="${j}"][data-dir="${el.dataset.dir}"]:not([disabled])`)?.focus()
     },
     'fak-offer-state': (el) => {
       const x = docOf(el.dataset.id)
@@ -1671,7 +1995,7 @@ registerActions(
       if (!x?.number) return toast('Bitte zuerst festschreiben.')
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return toast('Bitte eine gültige E-Mail-Adresse eintragen.')
       const ctx = ctxFor(x)
-      const subject = fillPlaceholders(val('fm-subject').trim(), ctx) || `${KINDS[x.kind]} ${x.number}`
+      const subject = fillPlaceholders(val('fm-subject').trim(), ctx) || `${kindLabel(x)} ${x.number}`
       const text = fillPlaceholders(val('fm-text'), ctx)
       const withXml = checked('fm-xml')
       el.disabled = true
@@ -1693,7 +2017,7 @@ registerActions(
         x.sent = [...(x.sent || []), { at: nowIso(), to, via: canMail() ? 'graph' : 'mailto', by: by(), ...(xml ? { eInvoice: 'factur-x' } : {}) }]
         if (!x.recipient?.email && x.customerId && !custOf(x.customerId)?.email) custOf(x.customerId).email = to
         closeModal()
-        commit(canMail() ? `${KINDS[x.kind]} ${x.number} an ${to} gesendet.` : `E-Mail an ${to} vorbereitet; das PDF liegt im Download-Ordner.`)
+        commit(canMail() ? `${kindLabel(x)} ${x.number} an ${to} gesendet.` : `E-Mail an ${to} vorbereitet; das PDF liegt im Download-Ordner.`)
       } catch (err) {
         el.disabled = false
         toast(`Nicht gesendet: ${err.message}`)
@@ -1737,7 +2061,7 @@ registerActions(
       if (v.index?.active && !(Number(v.index.baseValue) > 0)) return toast('Wertsicherung: bitte die Basis-Indexzahl eintragen.')
       const d = F()
       const i = d.recurring.findIndex((r) => r.id === v.id)
-      const clean = { ...structuredClone(v), lines: v.lines.filter((l) => l.text || parseNumber(l.price)) }
+      const clean = { ...structuredClone(v), lines: v.lines.filter((l) => lineType(l) === 'subtotal' || l.text || parseNumber(l.price)) }
       if (i >= 0) d.recurring[i] = { ...d.recurring[i], ...clean }
       else d.recurring.push(clean)
       closeModal()

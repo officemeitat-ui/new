@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 231 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 235 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (38)
+- [Finanzen](#finanzen) (42)
 - [Verwaltung](#verwaltung) (35)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1559,6 +1559,64 @@ Angebot, Auftragsbestätigung und Rechnung hängen zusammen: ein Klick macht aus
 
 > Tipp: „Als Vorlage kopieren“ übernimmt einen Beleg als neuen Entwurf.
 > Tipp: Ein Reinigungsangebot mit Leistungsverzeichnis gibt es in der Kalkulation mit „Angebot (PDF)“.
+
+### Positionsarten: Text, Titel, Zwischensumme, Option, Alternative
+
+*In der App: Fakturierung*
+
+Jede Zeile hat eine Art: Position (zählt), Text (ohne Menge und Preis), Titel (Überschrift, auf Wunsch mit Summe der Gruppe), Zwischensumme, und im Angebot Option (Bedarfsposition) oder Alternative. Option und Alternative stehen mit Preis auf dem Beleg, zählen aber nicht zur Summe.
+
+1. Beleg öffnen; neue Zeilen mit „+ Position“, „+ Text“, „+ Titel“ oder „+ Zwischensumme“.
+2. Bei jeder Zeile oben die Art wählen; bei der Alternative „statt“ die Position, die sie ersetzen würde.
+3. Mit den Pfeilen eine Zeile nach oben oder unten schieben.
+4. Beim Umwandeln des Angebots anhaken, welche Optionen und Alternativen der Kunde angenommen hat – nur die kommen als Position in Auftrag oder Rechnung.
+
+> Tipp: Die Zwischensumme zählt die Positionen seit der letzten Zwischensumme.
+> Tipp: In Rechnung, Lieferschein und Proforma gibt es keine Optionen und Alternativen; die E-Rechnung bringt Texte und Titel als Bemerkung.
+
+*Buchhaltung, Vollzugriff*
+
+### Abschlags- und Schlussrechnung
+
+*In der App: Fakturierung*
+
+Eine Abschlagsrechnung verrechnet einen Teil eines Angebots oder Auftrags (Prozent oder Betrag) mit normaler Rechnungsnummer. Die Schlussrechnung enthält alle Leistungen und zieht die Abschläge je Steuersatz samt Umsatzsteuer ab; offen bleibt nur der Rest.
+
+1. Festgeschriebenes Angebot bzw. Auftrag öffnen.
+2. „Weitere Belege“ → „Abschlagsrechnung“, Prozent oder Betrag netto eintragen, Entwurf prüfen und festschreiben.
+3. Nach der Leistung „→ Schlussrechnung“: die Abschlagsrechnungen sind angehakt.
+4. Entwurf prüfen und festschreiben.
+
+> Tipp: Die Umsatzsteuer einer Anzahlung ist mit dem Zahlungseingang fällig, auch vor der Leistung.
+> Tipp: Ein noch offener Abschlag bleibt ein eigener offener Posten. Wird einer nicht abgezogen, bitte stornieren – sonst wird doppelt verrechnet.
+> Tipp: Die E-Rechnung zeigt die Abschläge als vorausbezahlten Betrag.
+
+*Buchhaltung, Vollzugriff*
+
+### Lieferschein und Sammelrechnung
+
+*In der App: Fakturierung*
+
+Lieferscheine haben eigene Nummern (LS), auf Wunsch ohne Preise und mit Feld für die Unterschrift des Kunden. Sie sind kein Umsatz. Mehrere Lieferscheine eines Kunden werden mit „Sammelrechnung“ zu einer Rechnung; danach stehen sie auf „verrechnet“.
+
+1. Aus dem Auftrag: „Weitere Belege“ → „Lieferschein“ – oder „Anlegen ▾“ → „Lieferschein“.
+2. Lieferdatum und Positionen prüfen, „ohne Preise drucken“ nach Wunsch, festschreiben, PDF zum Unterschreiben.
+3. Fakturierung → „Belege ▾“ → „Lieferscheine & Proforma“ → „Sammelrechnung“, Kunde und Lieferscheine wählen.
+4. Den Rechnungsentwurf prüfen und festschreiben.
+
+*Buchhaltung, Vollzugriff*
+
+### Proformarechnung
+
+*In der App: Fakturierung*
+
+Eine Proformarechnung (Nummern PF) zeigt dem Kunden vorab, was verrechnet wird, ist aber keine Rechnung im Sinne des UStG: kein Umsatz, kein offener Posten, keine Mahnung, kein Vorsteuerabzug. Nach der Leistung wird sie mit „→ Rechnung“ zur echten Rechnung.
+
+1. „Anlegen ▾“ → „Proformarechnung“ (oder aus dem Angebot: „Weitere Belege“ → „Proformarechnung“).
+2. Positionen eintragen, festschreiben und senden.
+3. Nach der Leistung die Proforma öffnen und „→ Rechnung“ klicken, Leistungszeitraum prüfen, festschreiben.
+
+*Buchhaltung, Vollzugriff*
 
 ### Daueraufträge
 
