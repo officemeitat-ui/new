@@ -154,9 +154,24 @@ export function registerView(view) {
   VIEWS.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
 }
 
+/**
+ * Namen von Aktionen und Dialogen gelten app-weit. Registriert ein zweites Modul denselben Namen, gewinnt
+ * stillschweigend das zuletzt geladene (z. B. „Einstellungen“ im Kundenbereich öffnete die des Kassenbuchs).
+ * Darum hier gemerkt und gewarnt; test/lazy.test.js lädt alle Module und verlangt eine leere Liste.
+ * Platzhalter aus views/lazy.js (fn.lazy) und dieselbe Funktion noch einmal sind kein Doppel.
+ */
+export const NAME_CLASHES = []
+function clash(kind, name, before, now) {
+  if (!before || before === now || before.raw === now) return
+  if (before.lazy && (!now.lazy || now.lazy === before.lazy)) return // Modul ersetzt seinen Platzhalter
+  NAME_CLASHES.push(`${kind} ${name}`)
+  console.warn(`${kind} „${name}“ ist schon vergeben und wird überschrieben – Namen eindeutig wählen (Kürzel je Modul).`)
+}
+
 const MODAL_MODULES = {}
 /** Dialog registrieren; module: Bereich, dessen Schreibrecht die Eingaben im Dialog freigibt (sonst die aktuelle Ansicht). */
 export function registerModal(type, render, { module = null } = {}) {
+  clash('Dialog', type, MODALS[type], render)
   MODALS[type] = render
   if (module) MODAL_MODULES[type] = module
 }
@@ -170,14 +185,15 @@ export function registerModal(type, render, { module = null } = {}) {
  */
 export function registerActions(handlers, { edit = false } = {}) {
   for (const [name, fn] of Object.entries(handlers)) {
+    clash('Aktion', name, ACTIONS[name], fn)
     ACTIONS[name] = edit
-      ? (...args) => {
+      ? Object.assign((...args) => {
           if (edit === true ? app.readOnly : !mayEdit(edit)) {
             const locked = app.locked && (edit === true || [].concat(edit).includes('planung'))
             return toast(locked ? 'Diese Woche ist ohne Verbindung nicht geladen. Bitte warten, bis wieder Netz da ist.' : 'Nur Leserechte: Änderungen sind für dein Konto nicht freigegeben.')
           }
           return fn(...args)
-        }
+        }, { raw: fn })
       : fn
   }
 }
@@ -241,11 +257,13 @@ export function registerLazy(load, { views = [], modals = [], actions = [], hint
       return modalFrame({ title: 'Wird geladen …', body: LOADING })
     }
     stub.lazy = entry
+    clash('Dialog', type, MODALS[type], stub)
     MODALS[type] = stub
   }
   for (const name of names(actions)) {
     const stub = (...args) => entry.load().then(() => (ACTIONS[name] === stub ? undefined : ACTIONS[name]?.(...args)), lazyFailed)
     stub.lazy = entry
+    clash('Aktion', name, ACTIONS[name], stub)
     ACTIONS[name] = stub
   }
   if (hints) OBJECT_HINTS.push({ module: entry.module, lazy: entry, html: () => '' })

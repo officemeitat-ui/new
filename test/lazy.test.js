@@ -52,6 +52,7 @@ test('Später laden: Platzhalter passen zum Modul (views/lazy.js)', async () => 
   assert.deepEqual(after.actions.filter((n) => !start.actions.includes(n)), [], 'Aktionen fehlen in views/lazy.js (actions)')
   assert.deepEqual(after.modals.filter((n) => !start.modals.includes(n)), [], 'Dialoge fehlen in views/lazy.js (modals)')
   assert.deepEqual(after.views, start.views, 'Reihenfolge der Ansichten')
+  assert.deepEqual(ctx.NAME_CLASHES, [], 'Namen doppelt vergeben: das zuletzt geladene Modul überschreibt das andere (Kürzel je Modul wählen)')
   assert.deepEqual(after.hints, start.hints, 'Hinweise zum Objekt: hints in views/lazy.js')
   assert.ok(!ctx.OBJECT_HINTS.some((h) => h.lazy), 'hints: true, aber das Modul ruft registerObjectHint nicht auf')
   assert.deepEqual(after.todo, start.todo, '„Zu erledigen“: todo in views/lazy.js (Kennungen von registerTodo)')

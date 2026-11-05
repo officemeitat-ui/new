@@ -1830,7 +1830,7 @@ export const TOPICS = [
     answer: 'Jede Bareinnahme und Barausgabe kommt am selben Tag mit Text, Betrag, Steuersatz, Gegenkonto und Beleg ins Kassenbuch und bekommt eine fortlaufende Nummer. Der Kassenstand läuft mit und kann nie unter null fallen: Reicht das Bargeld nicht, bucht die App nicht.',
     steps: ['„Kassenbuch“ unter Finanzen öffnen.', '„+ Einnahme“ oder „+ Ausgabe“ klicken.', 'Kategorie wählen (Konto und Steuersatz kommen mit), Betrag und Text eintragen.', 'Den Beleg fotografieren und „Buchen“.'],
     tips: ['Zahlt ein Kunde eine Rechnung bar: Kategorie „Zahlung einer Ausgangsrechnung“ und die Rechnung wählen – die Zahlung steht dann auch in der Fakturierung.', 'Eine Eingangsrechnung bar bezahlt: dort „Zahlung“ → „bar aus der Kasse“.'],
-    action: { action: 'kb-new', label: 'Barausgabe buchen', data: { kind: 'ausgabe' } },
+    action: { action: 'kasse-new', label: 'Barausgabe buchen', data: { kind: 'ausgabe' } },
     related: ['kassenbuch-storno', 'kassensturz', 'registrierkasse'],
     roles: 'Buchhaltung, Vollzugriff',
   },
@@ -1854,7 +1854,7 @@ export const TOPICS = [
     answer: 'Beim Kassensturz zählst du das Bargeld (auch nach Scheinen und Münzen). Die App vergleicht mit dem Stand laut Kassenbuch und bucht eine Differenz: Überschuss als Einnahme, Fehlbetrag als Ausgabe. Mit „Tagesabschluss“ ist der Tag danach für Buchungen gesperrt.',
     steps: ['„Kassensturz“ klicken.', 'Gezählten Betrag eintragen oder „Scheine und Münzen zählen“.', '„Kassensturz buchen“.'],
     tips: ['Ohne Kassensturz seit über 7 Tagen erinnert „Zu erledigen“.'],
-    action: { action: 'kb-count-open', label: 'Kassensturz' },
+    action: { action: 'kasse-count-open', label: 'Kassensturz' },
     related: ['kassenbuch', 'kassenbuch-abschluss'],
   },
   {
@@ -1866,7 +1866,7 @@ export const TOPICS = [
     answer: 'Nach dem Monatsende schließt „Monatsabschluss“ den Monat ab: Anfangs- und Endstand, Summen und eine Prüfsumme werden festgehalten, das PDF entsteht, und mit Datum in diesem Monat ist keine Buchung mehr möglich. Der Export liefert eine CSV für die Steuerberatung wie die Fakturierung.',
     steps: ['„Mehr ▾“ → „Monatsabschluss“ wählen (der älteste offene Monat zuerst).', 'Summen prüfen und „Abschließen“.', 'Für die Steuerberatung „Mehr ▾“ → „Export Steuerberatung“.'],
     tips: ['Beim Start: „Anfangsbestand“ mit dem gezählten Bargeld bzw. dem Endbestand des alten Kassenbuchs.'],
-    action: { action: 'kb-export-open', label: 'Export öffnen' },
+    action: { action: 'kasse-export-open', label: 'Export öffnen' },
     related: ['kassenbuch', 'export-einkauf'],
   },
   {

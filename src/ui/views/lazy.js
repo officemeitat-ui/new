@@ -318,10 +318,10 @@ lazy(BUERO, {
       text: 'Bareinnahmen und -ausgaben, Kassenstand, Kassensturz',
     },
   ],
-  modals: 'kb-entry kb-storno kb-count kb-opening kb-close kb-export kb-settings',
-  actions: `kb-month kb-beleg kb-pdf kb-export-open kb-export kb-denom kb-new kb-redraw kb-vat kb-cat kb-ref kb-file kb-save kb-beleg-file
-    kb-storno-open kb-storno kb-count-open kb-count-date kb-count kb-opening-open kb-opening kb-close-open kb-close kb-settings-open
-    kb-settings-save kb-goto`,
+  modals: 'kasse-entry kasse-storno kasse-count kasse-opening kasse-close kasse-export kasse-settings',
+  actions: `kasse-month kasse-beleg kasse-pdf kasse-export-open kasse-export kasse-denom kasse-new kasse-redraw kasse-vat kasse-cat kasse-ref kasse-file kasse-save kasse-beleg-file
+    kasse-storno-open kasse-storno kasse-count-open kasse-count-date kasse-count kasse-opening-open kasse-opening kasse-close-open kasse-close kasse-settings-open
+    kasse-settings-save kasse-goto`,
   todo: ['kassenbuch'],
 })
 
