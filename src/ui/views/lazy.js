@@ -239,7 +239,7 @@ lazy(BUERO, {
       text: 'Angebote, Rechnungen, offene Posten, Mahnungen',
     },
   ],
-  modals: 'fak-bank-import fak-bank-assign fak-text fak-terms fak-edit fak-doc fak-pay fak-remind fak-mail fak-einv fak-export fak-proof fak-cust fak-art fak-rec fak-import',
+  modals: 'fak-bank-import fak-bank-assign fak-text fak-terms fak-edit fak-doc fak-pay fak-remind fak-mail fak-einv fak-export fak-proof fak-cust fak-art fak-rec fak-import fak-conv fak-collect',
   actions: `fak-bank-file fak-bank-map fak-bank-take fak-bank-apply fak-bank-all fak-bank-ignore fak-bank-reopen fak-bank-undo fak-bank-assign-open
     fak-bank-pick fak-bank-amt fak-bank-q fak-bank-assign-save fak-bank-goto fak-tab fak-year fak-state fak-search fak-cust-search fak-run-month
     fak-open fak-act fak-recalc fak-pdf fak-export-open fak-export fak-new fak-customer fak-object fak-date fak-line-add fak-line-del fak-article
@@ -250,7 +250,8 @@ lazy(BUERO, {
     fak-tb-insert fak-ph-insert fak-text-save fak-text-del fak-terms-save fak-terms-del fak-terms-starter fak-text-starter fak-cust-group fak-art-search
     fak-art-group fak-art-all fak-cust-tab fak-cust-preview fak-einv-open fak-einv-format fak-einv-check fak-einv-download fak-terms-pick fak-tb-line
     fak-pay-skonto fak-cust-contact-add fak-cust-contact-del fak-import-open fim-files fim-reset fim-step fim-to-map fim-kind fim-col fim-open
-    fim-check fim-take fim-apply fim-tool`,
+    fim-check fim-take fim-apply fim-tool
+    fak-conv-create fak-collect-open fak-collect-customer fak-collect-one fak-collect-create fak-line-type fak-line-move`,
   hints: true,
   todo: ['fakturierung'],
 })

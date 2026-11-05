@@ -1549,6 +1549,31 @@ tr.muted td { color: var(--muted); }
 .fak-cust-tabs { margin-bottom: 4px; }
 .fak-art-pick input { width: 16rem; max-width: 100%; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 12px; }
+/* Positionsarten (Text, Titel, Zwischensumme, Option, Alternative) und Folgebelege */
+.fak-line-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.fak-line-head .fak-line-type { width: auto; max-width: 11rem; font-size: 0.85rem; padding-top: 2px; padding-bottom: 2px; }
+.fak-pos { min-width: 1.6rem; font-weight: 600; color: var(--muted); }
+.fak-line-tools { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+.fak-lines .fak-line-tools .btn.icon { padding: 4px; }
+.fak-lines input[id$='-qty'], .fak-lines input[id$='-disc'] { width: 5rem; }
+.fak-lines .fak-line-title textarea { font-weight: 700; }
+.fak-lines .fak-line-subtotal input { width: 100%; text-align: left; font-weight: 600; }
+.fak-lines tr.fak-row-text td, .fak-lines tr.fak-row-title td, .fak-lines tr.fak-row-subtotal td { background: var(--surface-2); }
+.fak-lines tr.fak-row-optional td, .fak-lines tr.fak-row-alternative td { background: var(--warn-soft); }
+.fak-alt { margin-top: 4px; }
+.fak-alt select { max-width: 100%; }
+.fak-choice { display: inline-block; margin-top: 4px; }
+.fak-showsum { margin-top: 4px; }
+.fak-lines .fak-showsum input[type='checkbox'] { width: auto; }
+.fak-choices { display: grid; gap: 6px; margin: 6px 0 12px; }
+.fak-view-lines tr.fak-row-title td, .fak-view-lines tr.fak-row-subtotal td { background: var(--surface-2); }
+.fak-sums tr.fak-advance td { color: var(--muted); font-size: 0.9em; }
+@media (max-width: 700px) {
+  .fak-lines .fak-line-tools { width: 100%; flex-direction: row; justify-content: flex-end; }
+  .fak-lines input[id$='-qty'], .fak-lines input[id$='-disc'] { width: 100%; }
+  .fak-lines td[colspan] { justify-content: flex-end; }
+  .fak-line-head .fak-line-type { max-width: none; flex: 1 1 auto; }
+}
 /* Bankabgleich */
 .bank-file { cursor: pointer; }
 .bank-list { display: grid; gap: 10px; margin-bottom: 14px; }
