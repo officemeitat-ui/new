@@ -280,8 +280,13 @@ function serialLetter(s, r) {
   return { id: uid('br'), customerId: r.id, contactId: r.contact?.id || '', contactName: r.contact?.name || '', date: s.date, author: userName(), serialId: s.id, ...out }
 }
 
+/** Laufender Versand je Serienbrief (läuft weiter, wenn der Dialog zu ist; beim Öffnen wieder sichtbar). */
+const RUNS = new Map()
+
 function serialModal(c, m) {
   const saved = m.id ? serialOf(m.id) : null
+  const live = RUNS.get(m.id)
+  if (live) Object.assign(m, { draft: live.draft, run: live.run, pause: live.pause })
   m.draft ||= structuredClone(saved || newSerial())
   m.step ||= saved ? 'versand' : 'empfaenger'
   const s = m.draft
@@ -327,7 +332,10 @@ function recipientsHtml(list, n, dis) {
     ${rows ? `<div class="table-wrap fak-serial-list"><table class="data"><thead><tr><th>Empfänger</th><th>E-Mail</th><th>Hinweis</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Kein Kunde passt zur Auswahl.</p>'}`
 }
 
-function serialTextStep(m, s, list, n, dis) {
+function serialTextStep(m, s, list, n, edit) {
+  // sind schon Briefe hinausgegangen, steht der Text fest (der Verlauf je Kunde zeigt ihn)
+  const locked = (s.results || []).some((r) => !r.error)
+  const dis = locked ? 'disabled' : edit
   const tm = (target, place) => (dis ? '' : textMenu({ target, kind: 'brief', place, placeholders: LETTER_PHS }))
   return `<div class="fak-serial-kind" role="radiogroup" aria-label="Art des Serienbriefs">
       <label class="check"><input type="radio" name="fsb-kind" value="info" data-change="fak-serial-kind" ${s.advertising ? '' : 'checked'} ${dis}><span><strong>Information</strong> zum laufenden Auftrag (keine Werbung)</span></label>
@@ -335,6 +343,7 @@ function serialTextStep(m, s, list, n, dis) {
     </div>
     ${s.advertising ? `<div class="banner warn-banner"><p>Werbung geht per E-Mail nur an Kunden, die nicht widersprochen haben (Kundenblatt → Briefe). Die übrigen kommen ins Sammel-PDF.</p><label class="check"><input type="checkbox" id="fsb-optout" ${s.optOut !== false ? 'checked' : ''} ${dis}><span>Abmeldehinweis an jede E-Mail anhängen</span></label></div>` : ''}
     ${LEGAL}
+    ${locked ? '<p class="muted">Ein Teil der Briefe ist schon hinausgegangen: Betreff und Text stehen fest. Für einen geänderten Text einen neuen Serienbrief anlegen.</p>' : ''}
     <div class="form-grid">
       <label class="field"><span>Datum</span><input type="date" id="fsb-date" value="${esc(s.date || '')}" ${dis}></label>
       <label class="field wide"><span>Betreff</span><input type="text" id="fsb-subject" value="${esc(s.subject || '')}" placeholder="z. B. Unsere Reinigungszeiten zu den Feiertagen" ${dis}></label>
@@ -395,7 +404,7 @@ function serialSendStep(m, s, list, n, dis) {
 function readSerial(m) {
   const s = m.draft
   if (document.getElementById('fsb-scope')) Object.assign(s.filter, { scope: val('fsb-scope'), group: document.getElementById('fsb-group') ? val('fsb-group') : s.filter.group, objectId: document.getElementById('fsb-object') ? val('fsb-object') : s.filter.objectId, type: val('fsb-type'), role: val('fsb-role').trim(), search: val('fsb-search').trim() })
-  if (document.getElementById('fsb-subject')) {
+  if (document.getElementById('fsb-subject') && !document.getElementById('fsb-subject').disabled) {
     Object.assign(s, { date: val('fsb-date') || todayISO(), subject: val('fsb-subject'), text: val('fsb-text'), mailText: val('fsb-mail') })
     if (document.getElementById('fsb-optout')) s.optOut = checked('fsb-optout')
   }
@@ -421,9 +430,9 @@ const wait = (ms, stop = () => false) =>
     tick()
   })
 
-/** Fortschritt neu zeichnen, wenn der Dialog offen ist. */
+/** Fortschritt neu zeichnen, wenn der Dialog dieses Serienbriefs offen ist. */
 function showRun(m) {
-  if (app.ui.modal === m) {
+  if (app.ui.modal?.type === 'fak-serial' && app.ui.modal.draft === m.draft) {
     const pause = document.getElementById('fsb-pause')?.value
     renderModal()
     const el = document.getElementById('fsb-pause')
@@ -439,6 +448,7 @@ async function runSerialMail(m) {
   if (!queue.length) return toast('Alle ausgewählten Empfänger mit E-Mail haben den Brief schon.')
   const pause = (m.pause ?? DEFAULT_PAUSE) * 1000
   const run = (m.run = { running: true, stop: false, stopped: false, total: queue.length, done: 0, sent: 0, failed: 0 })
+  RUNS.set(s.id, m)
   showRun(m)
   await app.service?.flush?.().catch(() => {})
   const [logo] = await Promise.all([loadLogo().catch(() => null), loadLetterhead().catch(() => null)])
@@ -466,6 +476,7 @@ async function runSerialMail(m) {
   }
   run.running = false
   run.stopped = run.stop && run.done < run.total
+  RUNS.delete(s.id)
   persist()
   renderNow()
   showRun(m)
@@ -712,22 +723,24 @@ registerActions(
     },
     'fak-serial-send': async (el) => {
       const m = app.ui.modal
-      if (m?.type !== 'fak-serial' || m.run?.running) return
+      if (m?.type !== 'fak-serial' || m.run?.running || RUNS.has(m.draft?.id)) return
       if (!canMail()) return toast('E-Mails direkt senden geht nur mit Microsoft 365. Bitte das Sammel-PDF nehmen.')
       const s = readSerial(m)
       if (!s.subject?.trim() || !s.text?.trim()) return toast('Bitte Betreff und Text eintragen (Schritt „Text“).')
       el.disabled = true
       await runSerialMail(m).catch((err) => {
         if (m.run) m.run.running = false
+        RUNS.delete(m.draft?.id)
         toast(`Versand abgebrochen: ${err.message}`)
         showRun(m)
       })
     },
     'fak-serial-stop': () => {
       const m = app.ui.modal
-      if (m?.run?.running) {
-        m.run.stop = true
-        showRun(m)
+      const live = RUNS.get(m?.draft?.id) || m
+      if (live?.run?.running) {
+        live.run.stop = true
+        showRun(live)
       }
     },
     'fak-serial-print': async (el) => {

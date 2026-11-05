@@ -20,8 +20,9 @@ function letterContent(letter, { page, sender, brand, logo, colors }) {
   return [
     page.head(logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)),
     addressAndFacts({ recipient: { name: rec.name, address: rec.address } }, sender, facts, colors, page),
-    { text: letter.subject || '', bold: true, fontSize: 11, color: colors.ink, margin: [0, 26, 0, 12] },
-    { text: String(letter.text || '').replace(/\r\n/g, '\n').replace(/\s+$/, ''), lineHeight: 1.25 },
+    { text: letter.subject || '', bold: true, fontSize: page.lh.fontSize + 2, color: colors.ink, margin: [0, 26, 0, 12] },
+    // Brieftext etwas größer als die Belege (Grundgröße + 1 pt, Standard 10 pt)
+    { text: String(letter.text || '').replace(/\r\n/g, '\n').replace(/\s+$/, ''), fontSize: page.lh.fontSize + 1, lineHeight: 1.25 },
   ].filter(Boolean)
 }
 

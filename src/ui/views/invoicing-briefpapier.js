@@ -53,6 +53,7 @@ async function imageData(meta) {
 
 let pending = null
 let warned = ''
+let retry = { key: '', at: 0 } // nach einem Netzfehler erst nach einer Minute wieder versuchen
 /**
  * Bilder des Briefpapiers bereitlegen (export/letterhead.js → setLetterheadImages). Vor jedem PDF der Fakturierung
  * abwarten; ohne Briefpapier oder schon geladen kehrt es sofort zurück. Fehlt ein Bild, einmal ein Hinweis.
@@ -62,9 +63,19 @@ export async function loadLetterhead() {
   const key = letterheadKey(lh)
   if (letterheadImages().key === key) return letterheadImages()
   if (pending?.key === key) return pending.promise
+  if (retry.key === key && Date.now() < retry.at) return letterheadImages()
   const promise = (async () => {
-    const [first, next] = await Promise.all([imageData(lh.first).catch(() => null), lh.nextMode === 'own' ? imageData(lh.next).catch(() => null) : null])
+    let failed = false
+    const get = (meta) => imageData(meta).catch(() => ((failed = true), null))
+    const [first, next] = await Promise.all([get(lh.first), lh.nextMode === 'own' ? get(lh.next) : null])
     if (letterheadKey(letterheadOf(F().settings)) !== key) return letterheadImages() // inzwischen geändert
+    if (failed) {
+      // ohne Netz bzw. Fehler beim Laden: kein Briefpapier, später neu versuchen
+      retry = { key, at: Date.now() + 60e3 }
+      if (warned !== key) toast('Briefpapier gerade nicht erreichbar. Das PDF entsteht ohne Briefpapier.')
+      warned = key
+      return letterheadImages()
+    }
     setLetterheadImages({ key, first, next })
     if ((lh.first && !first) || (lh.nextMode === 'own' && lh.next && !next)) {
       if (warned !== key) toast(app.store?.kind === 'sharepoint' ? 'Briefpapier nicht gefunden (fakturierung/briefpapier/). Das PDF entsteht ohne Briefpapier.' : 'Das Briefpapier liegt nur im Browser, in dem es hochgeladen wurde. Das PDF entsteht ohne Briefpapier.')
