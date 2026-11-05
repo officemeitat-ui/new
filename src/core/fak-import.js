@@ -13,7 +13,7 @@
 // (Prüfsumme), Kennzeichen imported. Nichts wird neu nummeriert; die eigenen Nummernkreise laufen danach weiter.
 
 import { parseCsvRows } from './bank.js'
-import { checksumOf, composeAddress, nextCustomerNo, parseNumber, round2, totals, VAT_RATES } from './invoicing.js'
+import { checksumOf, composeAddress, nextCustomerNo, numberPattern, parseNumber, round2, totals, VAT_RATES } from './invoicing.js'
 import { descendants, find, findAll, parseXml, textAt } from './xml-lite.js'
 
 export const SYSTEM = 'orgaMAX'
@@ -1248,24 +1248,22 @@ export function mergeImport(data, result) {
  * Nummernkreise nach der Übernahme: je Belegart das erkannte Format und die nächste Nummer (für settings).
  * → { [kind]: { template, yearly, digits, next, last } }
  */
-export function numberingAfterImport(documents, today) {
+export function numberingAfterImport(documents, today, { series = {} } = {}) {
   const year = today.slice(0, 4)
   const out = {}
   for (const kind of ['rechnung', 'angebot', 'auftrag', 'storno', 'korrektur']) {
-    const list = documents.filter((d) => d.kind === kind && d.number).sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    if (!list.length) continue
-    const recent = list.slice(-50)
+    // Format aus den übernommenen Belegen; weiterzählen über alle Belege dieses Formats (auch eigene)
+    const imported = documents.filter((d) => d.kind === kind && d.number && d.imported).sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.number).localeCompare(String(b.number)))
+    if (!imported.length) continue
+    const recent = imported.slice(-50)
     const f = detectNumberFormat(recent.map((d) => d.number), recent.map((d) => String(d.date).slice(0, 4)))
     if (!f) continue
-    const seqOf = (d) => {
-      const m = /(\d+)$/.exec(String(d.number))
-      if (!m) return 0
-      // „20250153“ ohne Trenner: Jahr vorne abziehen
-      return f.template === '{JJJJ}{NR}' ? Number(m[1].slice(4)) : Number(m[1])
-    }
-    const pool = f.yearly ? list.filter((d) => String(d.date).startsWith(year)) : list
-    const last = pool.length ? pool.reduce((a, b) => (seqOf(b) > seqOf(a) ? b : a)) : null
-    out[kind] = { ...f, next: (last ? seqOf(last) : 0) + 1, last: last?.number || '' }
+    // schon das Format der App (z. B. „RE-{JJJJ}-{NR}“ bei Kürzel RE)? Dann ist nichts umzustellen
+    const own = `${series[kind] || ''}-{JJJJ}-{NR}`
+    const re = numberPattern(f.template, { year: f.yearly ? year : null })
+    const pool = documents.filter((d) => d.kind === kind && d.number && (!f.yearly || String(d.date).startsWith(year)))
+    const seqs = pool.map((d) => Number(re.exec(String(d.number))?.[1] || 0)).filter((n) => n > 0)
+    out[kind] = { ...f, next: (seqs.length ? Math.max(...seqs) : 0) + 1, last: imported.at(-1).number, same: f.template === own }
   }
   return out
 }

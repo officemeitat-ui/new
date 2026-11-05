@@ -66,6 +66,7 @@ import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
+import { importButton } from './invoicing-import.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
@@ -240,7 +241,9 @@ function startTab() {
     n.remind ? `<div class="todo-item"><span class="flag error">${n.remind}</span><div class="todo-text"><strong>Mahnung fällig</strong> (Zahlungsziel überschritten)</div><button class="btn small" data-action="fak-tab" data-v="offen">Offene Posten</button></div>` : '',
     broken.length ? `<div class="todo-item"><span class="flag error">!</span><div class="todo-text"><strong>Beleg nachträglich verändert:</strong> ${esc(broken.map((x) => x.number).join(', '))}. Die Prüfsumme passt nicht mehr; im Versionsverlauf von SharePoint nachsehen.</div></div>` : '',
   ].join('')
-  return `<div class="filters">${yearSelect()}</div>
+  const fresh = !d.documents.some((x) => x.number) && editable()
+  return `<div class="filters">${yearSelect()}${importButton()}</div>
+    ${fresh ? `<div class="banner welcome"><p><strong>Umstieg von orgaMAX?</strong> Kunden, Artikel, Rechnungen mit Positionen, offene Posten, Textbausteine, Zahlungsbedingungen und Abo-Rechnungen auf einmal übernehmen – ohne Abtippen.</p><button class="btn primary" data-action="fak-import-open">Aus orgaMAX übernehmen</button></div>` : ''}
     <div class="impact-stats tc-stats">${tile(`Umsatz ${y} netto`, money(total))}${tile('Offen', money(open), '', 'offen')}${tile('Überfällig', `${overdue.length} · ${money(overdue.reduce((a, x) => a + x.open, 0))}`, overdue.length ? 'err' : '', 'offen')}${tile('Entwürfe', drafts.length, '', 'rechnungen')}</div>
     ${todo ? `<div class="todo-list">${todo}</div>` : ''}
     <h3>Umsatz je Monat (netto)</h3><div class="fak-bars" role="img" aria-label="Umsatz je Monat">${bars}</div>

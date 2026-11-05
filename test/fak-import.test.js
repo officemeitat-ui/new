@@ -192,8 +192,12 @@ test('Einspielen: neu, ergänzen, nichts doppelt; zweite Übernahme ändert nich
 
 test('Nummernkreise nach der Übernahme: Format erkannt, eigenes Format zählt weiter', () => {
   const r = buildImport(analyse([KUNDEN, RECHNUNGEN, POSITIONEN]), [], { newId, now: NOW })
-  const plan = numberingAfterImport(r.documents, '2025-11-20')
-  assert.deepEqual(plan.rechnung, { template: 'RE-{JJJJ}-{NR}', yearly: true, digits: 4, next: 153, last: 'RE-2025-0152' })
+  const plan = numberingAfterImport(r.documents, '2025-11-20', { series: { rechnung: 'AR' } })
+  assert.deepEqual(plan.rechnung, { template: 'RE-{JJJJ}-{NR}', yearly: true, digits: 4, next: 153, last: 'RE-2025-0152', same: false })
+  assert.equal(numberingAfterImport(r.documents, '2025-11-20', { series: { rechnung: 'RE' } }).rechnung.same, true, 'gleiches Format wie die App')
+  // eigene Belege im selben Format zählen beim Weiterzählen mit
+  const mixed = [...r.documents, { kind: 'rechnung', number: 'RE-2025-0170', date: '2025-11-19' }]
+  assert.equal(numberingAfterImport(mixed, '2025-11-20').rechnung.next, 171)
   // durchlaufende Nummern wie oft in orgaMAX
   const docs = [{ kind: 'rechnung', number: '10234', date: '2025-12-30' }, { kind: 'rechnung', number: '10235', date: '2026-01-02' }]
   const s = { numberFormats: { rechnung: '{NR}' }, numberDigits: { rechnung: 5 } }

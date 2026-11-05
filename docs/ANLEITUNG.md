@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 220 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 221 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (27)
+- [Finanzen](#finanzen) (28)
 - [Verwaltung](#verwaltung) (35)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1513,6 +1513,24 @@ Eine Rechnung legst du mit Kunde, Leistungszeitraum und Positionen an (Menge, Ei
 3. Positionen mit „+ Position“ anlegen, optional „Preis aus Kalkulation“.
 4. „Vorschau (PDF)“ prüfen und „Speichern“.
 5. Wenn alles stimmt: „Festschreiben“.
+
+*Buchhaltung, Vollzugriff*
+
+### Daten aus orgaMAX übernehmen
+
+*In der App: Fakturierung*
+
+Kunden, Artikel, alle Belege mit Positionen und Zahlungen, Textbausteine, Zahlungsbedingungen und Abo-Rechnungen kommen auf einmal aus orgaMAX (Excel, CSV, XML, E-Rechnung oder ZIP). Die App erkennt die Tabellen selbst; du prüfst und übernimmst. Altbelege bleiben, wie sie in orgaMAX stehen.
+
+1. In orgaMAX: Listen & Statistiken → Tabellen-Auswertungen → Neu, Datenquelle wählen (Kunden, Artikel, Vorgänge, Vorgangspositionen, Zahlungen, Textbausteine …), alle Spalten, „Tabelle exportieren“ → Excel. Optional E-Rechnungen und die PDFs aus dem Belegarchiv.
+2. In der App: Fakturierung → „Aus orgaMAX übernehmen“, alle Dateien auf einmal wählen oder hineinziehen.
+3. „Zuordnung prüfen“: Art jeder Tabelle und die Spalten ansehen, bei Bedarf ändern.
+4. „Ergebnis prüfen“: was neu kommt, was ergänzt wird, Hinweise; Nummernkreise wie in orgaMAX weiterzählen.
+5. „Übernehmen“.
+
+> Tipp: Eine zweite Übernahme legt nichts doppelt an – fehlende Dateien einfach nachreichen.
+> Tipp: Vorhandene Kunden werden nur ergänzt, nie überschrieben; gleiche Kundennummer mit anderem Namen wird gemeldet.
+> Tipp: Original-PDFs mit der Belegnummer im Dateinamen werden an den Beleg gehängt und in SharePoint abgelegt (7 Jahre aufbewahren).
 
 *Buchhaltung, Vollzugriff*
 

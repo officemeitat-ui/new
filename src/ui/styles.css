@@ -2014,3 +2014,28 @@ tr.muted td { color: var(--muted); }
 .kb-objects { max-height: 280px; overflow: auto; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
 .kb-objects .check[hidden] { display: none; }
 .kb-photo { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; margin-top: 6px; }
+
+/* ---------- Fakturierung: Übernahme aus orgaMAX (invoicing-import.js) ---------- */
+.fim-howto { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px 14px; margin-bottom: 12px; }
+.fim-howto > summary { cursor: pointer; font-weight: 600; }
+.fim-howto ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 0.92rem; line-height: 1.4; }
+.fim-drop { display: grid; justify-items: center; gap: 4px; padding: 22px 14px; border: 2px dashed var(--line); border-radius: 12px; background: var(--surface); text-align: center; cursor: pointer; }
+.fim-drop:hover, .fim-drop:focus-within { border-color: var(--accent); }
+.fim-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.fim-drop span { display: inline-flex; align-items: center; gap: 8px; }
+.fim-drop svg { width: 18px; height: 18px; }
+.fim-files { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 4px; font-size: 0.9rem; }
+.fim-files li { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.fim-files li.err { border-color: var(--error, #b42318); }
+.fim-files li.err .muted { color: var(--error, #b42318); }
+.fim-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; background: var(--surface); }
+.fim-card.off { opacity: 0.75; }
+.fim-card > header { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; }
+.fim-card > header > div { min-width: 0; overflow-wrap: anywhere; }
+.fim-card p { margin: 6px 0 0; }
+.fim-map td, .fim-map th { vertical-align: middle; }
+.fim-map select { max-width: 100%; }
+.fim-numbering { display: grid; gap: 6px; }
+.fim-notes { margin-top: 10px; }
+.fim-notes > summary { cursor: pointer; font-weight: 600; }
+.fim-notes ul { margin: 6px 0 0; padding-left: 18px; font-size: 0.88rem; max-height: 260px; overflow: auto; }

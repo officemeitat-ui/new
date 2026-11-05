@@ -239,14 +239,15 @@ lazy(BUERO, {
       text: 'Angebote, Rechnungen, offene Posten, Mahnungen',
     },
   ],
-  modals: 'fak-bank-import fak-bank-assign fak-edit fak-doc fak-pay fak-remind fak-mail fak-export fak-proof fak-cust fak-art fak-rec',
+  modals: 'fak-bank-import fak-bank-assign fak-edit fak-doc fak-pay fak-remind fak-mail fak-export fak-proof fak-cust fak-art fak-rec fak-import',
   actions: `fak-bank-file fak-bank-map fak-bank-take fak-bank-apply fak-bank-all fak-bank-ignore fak-bank-reopen fak-bank-undo fak-bank-assign-open
     fak-bank-pick fak-bank-amt fak-bank-q fak-bank-assign-save fak-bank-goto fak-tab fak-year fak-state fak-search fak-cust-search fak-run-month
     fak-open fak-act fak-recalc fak-pdf fak-export-open fak-export fak-new fak-customer fak-object fak-date fak-line-add fak-line-del fak-article
     fak-from-calc fak-draft-save fak-draft-delete fak-finalize fak-copy fak-convert fak-offer-state fak-storno fak-correct fak-pay-open fak-pay-save
     fak-pay-del fak-remind-open fak-remind fak-mail-open fak-mail-send fak-run fak-idx-add fak-idx-del fak-rec-open fak-rec-line-add fak-rec-save
     fak-rec-del fak-cust-open fak-cust-save fak-cust-del fak-cust-from-objects fak-art-open fak-art-save fak-art-del fak-art-starter
-    fak-settings-save fak-proof-open fak-proof-month fak-proof-create`,
+    fak-settings-save fak-proof-open fak-proof-month fak-proof-create fak-import-open fim-files fim-reset fim-step fim-to-map fim-kind fim-col fim-open
+    fim-check fim-take fim-apply`,
   hints: true,
   todo: ['fakturierung'],
 })
