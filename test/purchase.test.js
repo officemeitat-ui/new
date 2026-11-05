@@ -274,3 +274,17 @@ test('Übernahme aus orgaMAX: Lieferanten, Rechnungen und Kasse idempotent, nich
   assert.equal(nextInvoiceNo(e.invoices, '2026'), 'ER-2026-0005', 'GA-1 hat die 0004')
   assert.deepEqual(emptyPurchase().invoices, [])
 })
+
+test('Übernahme: Rechnung mit interner Lieferanten-ID findet einen schon vorhandenen Lieferanten', () => {
+  const data = { einkauf: emptyPurchase() }
+  data.einkauf.suppliers.push({ id: 'm1', supplierNo: '70020', name: 'Papier Beispiel KG', country: 'AT', source: { system: 'orgaMAX' } }) // z. B. früher nur mit Namen übernommen
+  let k = 0
+  const r = mergePurchaseImport(data, {
+    suppliers: [{ supplierNo: '70020', name: 'Papier Beispiel KG', iban: 'AT611904300234573201', source: { system: 'orgaMAX', id: '4711' } }],
+    invoices: [{ supplierRef: '4711', number: 'PB-9', date: '2026-10-01', net: 50, rate: 20, source: { system: 'orgaMAX', id: 'E-1' } }],
+  }, { newId: () => `n${++k}` })
+  assert.equal(r.added.suppliers, 0, 'kein zweiter Lieferant')
+  assert.equal(data.einkauf.suppliers.length, 1)
+  assert.equal(data.einkauf.invoices[0].supplierId, 'm1')
+  assert.equal(data.einkauf.suppliers[0].iban, 'AT611904300234573201', 'leere Felder ergänzt')
+})

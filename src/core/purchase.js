@@ -805,6 +805,8 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
   doc.settings ||= {}
   const report = { added: { suppliers: 0, invoices: 0, cash: 0 }, updated: { suppliers: 0 }, skipped: [], warnings: [] }
   const renumbered = new Map() // Nummer aus dem Altsystem → neu angelegter Lieferant (Nummer war in der App schon vergeben)
+  const bySource = new Map() // Quelle (interne ID im Altsystem) → Lieferant in der App, auch wenn er schon vorher da war
+  const remember = (source, sup) => source && bySource.set(source.id, sup)
   const refOf = (x) => (x.source?.id != null ? { system: x.source.system || system, id: String(x.source.id) } : null)
 
   for (const raw of suppliers) {
@@ -823,6 +825,7 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
         const before = doc.suppliers.find((x) => x.importedNo === String(raw.supplierNo) && nameScore(name, supplierName(x)) >= 0.6)
         if (before) {
           renumbered.set(String(raw.supplierNo), before)
+          remember(source, before)
           if (mergeEmpty(before, { ...raw, source }, ['id', 'supplierNo', 'importedNo'])) report.updated.suppliers++
           continue
         }
@@ -831,10 +834,12 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
         if (fresh.iban) fresh.iban = cleanIban(fresh.iban)
         doc.suppliers.push(fresh)
         renumbered.set(String(raw.supplierNo), fresh)
+        remember(source, fresh)
         report.added.suppliers++
         report.warnings.push(`Lieferantennummer ${raw.supplierNo}: „${name}“ heißt in der App „${supplierName(hit)}“ – als eigener Lieferant Nr. ${fresh.supplierNo} angelegt.`)
         continue
       }
+      remember(source, hit)
       if (mergeEmpty(hit, { ...raw, source }, ['id', 'supplierNo'])) report.updated.suppliers++
       continue
     }
@@ -842,14 +847,15 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
     if (s.uid) s.uid = String(s.uid).replace(/\s+/g, '').toUpperCase()
     if (s.iban) s.iban = cleanIban(s.iban)
     doc.suppliers.push(s)
+    remember(source, s)
     report.added.suppliers++
   }
 
   const supplierFor = (x) =>
+    (x.supplierRef && bySource.get(String(x.supplierRef))) ||
     (x.supplierRef && doc.suppliers.find((s) => s.source && String(s.source.id) === String(x.supplierRef))) ||
     (x.supplierNo && renumbered.get(String(x.supplierNo))) ||
     (x.supplierNo && doc.suppliers.find((s) => String(s.supplierNo) === String(x.supplierNo))) ||
-    (x.supplierRef && doc.suppliers.find((s) => s.source && String(s.source.id) === String(x.supplierRef))) ||
     (x.supplierName && findSupplier(doc.suppliers, { name: x.supplierName })) ||
     null
   for (const raw of invoices) {
