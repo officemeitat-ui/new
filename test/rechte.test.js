@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', termine: 'Bearbeiten', fakturierung: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -103,6 +103,14 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   for (const p of [DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.kalkulation.path, MODULE_DOCS.material.path]) assert.ok(!fak.read(p), p)
   for (const r of [om, va, lager]) assert.ok(!r.read(MODULE_DOCS.fakturierung.path))
   assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).fakturierung, 'Bearbeiten')
+  // Einkauf & Kasse (Lieferanten mit Bankverbindung, Eingangsrechnungen, Kassenbuch): Buchhaltung bearbeitet, sonst nur Vollzugriff
+  for (const p of [MODULE_DOCS.einkauf.path, MODULE_DOCS.kasse.path]) {
+    assert.ok(fak.read(p) && fak.write(p), p)
+    for (const r of [om, va, lager, dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true })), dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true })), dataRights(resolveAccess({ roleClaims: ['lohnverrechnung'], access, strict: true }))]) assert.ok(!r.read(p) && !r.write(p), p)
+  }
+  assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).einkauf, 'Bearbeiten')
+  assert.equal(rows(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true })).einkauf, '')
+  assert.equal(rows(resolveAccess({ roleClaims: ['lager'], access, strict: true })).einkauf, '', 'Lager bestellt, sieht aber keine Rechnungen und Bankdaten')
   // Kundenbereich (Links wirken wie Passwörter): wer Reklamationen oder die Planung bearbeitet; Lager, Buchhaltung, Vorarbeiter nicht
   assert.ok(om.read(MODULE_DOCS.kundenbereich.path) && om.write(MODULE_DOCS.kundenbereich.path))
   for (const r of [va, lager, fak, dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true }))]) assert.ok(!r.read(MODULE_DOCS.kundenbereich.path))

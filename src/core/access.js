@@ -27,6 +27,7 @@ export const MODULES = {
   unterweisungen: 'Unterweisungen & Fristen',
   termine: 'Termine',
   fakturierung: 'Fakturierung',
+  einkauf: 'Einkauf & Kasse',
 }
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
@@ -47,8 +48,8 @@ export const DEFAULT_ROLES = {
   ableser: { label: 'Ableser', modules: ['zaehler'], edit: ['zaehler'] },
   pruefer: { label: 'Prüfer/in', modules: ['kontrolle', 'objektmappe'], edit: ['kontrolle'] },
   fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] },
-  // Angebote, Rechnungen, Zahlungseingänge, Mahnungen (Fakturierung)
-  buchhaltung: { label: 'Buchhaltung', modules: ['fakturierung'], edit: ['fakturierung'] },
+  // Angebote, Rechnungen, Zahlungseingänge, Mahnungen (Fakturierung); Lieferanten, Eingangsrechnungen, Kassenbuch (Einkauf & Kasse)
+  buchhaltung: { label: 'Buchhaltung', modules: ['fakturierung', 'einkauf'], edit: ['fakturierung', 'einkauf'] },
   lesen: { label: 'Nur lesen', modules: ['planung'], edit: [] },
 }
 

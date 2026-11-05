@@ -297,6 +297,43 @@ export function contribution({ revenue = new Map(), material = new Map(), instan
     .sort((a, b) => b.margin - a.margin)
 }
 
+// ---------------------------------------------------------------- Einkauf & Kasse
+// Bewusst ohne den Rechenkern des Einkaufs (core/purchase.js): die Kennzahlen kommen in jedes Paket, auch aufs Handy.
+// Gleiche Rechnung wie dort (test/kpi.test.js vergleicht mit payablesSummary).
+
+const invTotals = (inv) => {
+  const net = sum(inv.groups || [], (g) => g.net)
+  const vat = inv.reverseCharge ? 0 : sum(inv.groups || [], (g) => g.vat)
+  return { net: r2(net), gross: r2(net + vat) }
+}
+const invOpen = (inv) => (inv.cancelled ? 0 : r2(invTotals(inv).gross - sum(inv.payments || [], (p) => p.amount)))
+
+/** Ausgaben netto je Monat (Eingangsrechnungen nach Rechnungsdatum, ohne stornierte Erfassungen): [{ key, net, count }]. */
+export function spendingMonths(doc = {}, months) {
+  const list = (doc.invoices || []).filter((x) => !x.cancelled && x.date)
+  return months.map((m) => {
+    const inMonth = list.filter((x) => x.date >= m.from && x.date <= m.to)
+    return { key: m.key, net: r2(sum(inMonth, (x) => invTotals(x).net)), count: inMonth.length }
+  })
+}
+
+/** Offene Verbindlichkeiten nach Fälligkeit (Stufen wie bei den offenen Posten, AGING): [{ id, label, amount, count }]. */
+export function payablesAging(doc = {}, today) {
+  const buckets = Object.fromEntries(AGING.map(([id, label]) => [id, { id, label, amount: 0, count: 0 }]))
+  for (const inv of doc.invoices || []) {
+    const open = invOpen(inv)
+    if (!(open > 0.004)) continue
+    const days = inv.dueDate && inv.dueDate < today ? Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${inv.dueDate}T12:00:00Z`)) / 86400000) : 0
+    const id = !days ? 'nicht' : days <= 30 ? 'd30' : days <= 60 ? 'd60' : 'd60plus'
+    buckets[id].amount = r2(buckets[id].amount + open)
+    buckets[id].count++
+  }
+  return AGING.map(([id]) => buckets[id])
+}
+
+/** Kassenstand laut Kassenbuch (Einnahmen − Ausgaben). */
+export const cashBalance = (book = {}) => r2(sum(book.entries || [], (e) => (e.kind === 'ausgabe' ? -1 : 1) * (Number(e.amount) || 0)))
+
 // ---------------------------------------------------------------- Hilfen für die Ansicht
 
 /** Wochen, die im Zeitraum liegen (für das Nachladen der Wochen-Dateien). */

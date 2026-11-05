@@ -42,3 +42,10 @@ test('Rollen: Vorschau im Browser-Modus', () => {
   assert.deepEqual(a.roles, ['objektleitung'])
   assert.equal(resolveAccess({ preview: 'gibt-es-nicht' }).roles[0], 'disposition')
 })
+
+test('Rollen: Einkauf & Kasse für Buchhaltung und Vollzugriff, nicht für Lager oder Objektleitung', () => {
+  const b = resolveAccess({ roleClaims: ['Dienstplan.Buchhaltung'] })
+  assert.ok(b.sees('einkauf') && b.canEdit('einkauf') && b.canEdit('fakturierung') && !b.sees('material') && !b.sees('planung'))
+  assert.ok(resolveAccess({ email: 'x@firma.at' }).canEdit('einkauf'), 'Vollzugriff')
+  for (const role of ['lager', 'objektleitung', 'objektmanagement', 'objektservice', 'lohnverrechnung', 'lesen', 'vorarbeiter']) assert.ok(!resolveAccess({ roleClaims: [role] }).sees('einkauf'), role)
+})

@@ -6,6 +6,7 @@
 import { addDays, firstOfMonth, todayISO } from '../core/dates.js'
 import { composeAddress, finalize } from '../core/invoicing.js'
 import { monthAdd } from '../core/vehicle-dues.js'
+import { createPurchaseDemo } from './demo-einkauf.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -224,6 +225,7 @@ function demoInvoicing() {
 export function createModuleDemo(monday, employees = []) {
   return {
     fakturierung: demoInvoicing(),
+    ...createPurchaseDemo(),
     unterweisungen: employees.length > 10 ? demoTrainings(employees) : { types: [], records: [], sessions: [] },
     schluessel: demoKeys(),
     termine: demoAppointments(monday, employees),

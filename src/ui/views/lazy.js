@@ -14,7 +14,7 @@ import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
-const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'material']
+const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material']
 /** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
 
@@ -277,6 +277,52 @@ lazy(BUERO, {
     fak-letter-search fak-letter-open fak-serial-open fak-letter-pdf fak-serial-step fak-serial-filter fak-serial-list fak-serial-prev fak-serial-pdf
     fak-letter-customer fak-letter-contact fak-letter-save fak-letter-del fak-letter-copy fak-letter-print fak-letter-send fak-cust-flag fak-serial-pick
     fak-serial-all fak-serial-kind fak-serial-send fak-serial-stop fak-serial-print`,
+})
+
+// purchase.js: Einkauf (Eingangsrechnungen, Lieferanten, offene Zahlungen, Bank-Ausgänge, Überweisungsdatei)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'einkauf',
+      order: 65,
+      label: 'Einkauf',
+      group: 'auswertung',
+      section: 'finanzen',
+      module: 'einkauf',
+      icon: '<path d="M3.5 4.5h2l2.2 10.5h10.6l2-7.5H7"/><circle cx="9.5" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>',
+      noWeek: true,
+      text: 'Eingangsrechnungen, Lieferanten, offene Zahlungen',
+    },
+  ],
+  modals: 'ek-inv ek-pay ek-sup ek-sepa ek-bank-assign ek-export',
+  actions: `ek-tab ek-year ek-state ek-search ek-sup-search ek-inv-open ek-sup-open ek-export-open ek-inv-beleg ek-bank-q ek-sepa-date ek-export
+    ek-inv-new ek-inv-edit ek-inv-redraw ek-inv-due ek-inv-net ek-inv-gross ek-inv-cat ek-inv-supplier ek-inv-file ek-inv-einv ek-inv-save
+    ek-inv-approve ek-inv-unapprove ek-inv-cancel ek-pay-open ek-pay-skonto ek-pay-save ek-pay-del ek-sel ek-sel-all ek-sepa-open ek-sepa-create
+    ek-sepa-book ek-bank-apply ek-bank-assign-open ek-bank-assign-save ek-bank-ignore ek-bank-undo ek-sup-save ek-sup-delete ek-sup-from-material
+    ek-sup-link ek-cat-add ek-cat-del ek-settings-save ek-goto`,
+  todo: ['einkauf'],
+})
+
+// cashbook.js: Kassenbuch (Bareinnahmen und -ausgaben, Storno, Kassensturz, Monatsabschluss, Export)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'kassenbuch',
+      order: 66,
+      label: 'Kassenbuch',
+      group: 'auswertung',
+      section: 'finanzen',
+      module: 'einkauf',
+      icon: '<rect x="3" y="6.5" width="18" height="12" rx="2"/><circle cx="12" cy="12.5" r="2.6"/><path d="M6.5 9.5v6M17.5 9.5v6"/>',
+      noWeek: true,
+      text: 'Bareinnahmen und -ausgaben, Kassenstand, Kassensturz',
+    },
+  ],
+  modals: 'kb-entry kb-storno kb-count kb-opening kb-close kb-export kb-settings',
+  actions: `kb-month kb-beleg kb-pdf kb-export-open kb-export kb-denom kb-new kb-redraw kb-vat kb-cat kb-ref kb-file kb-save kb-beleg-file
+    kb-storno-open kb-storno kb-count-open kb-count-date kb-count kb-opening-open kb-opening kb-close-open kb-close kb-settings-open
+    kb-settings-save kb-goto`,
+  todo: ['kassenbuch'],
 })
 
 // weather.js: Wetter mit Radar, Karte und Grafiken; Zähler und Sichtbarkeit kommen aus ui/weather.js (immer geladen).

@@ -29,6 +29,8 @@ const KEYWORDS = {
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
   fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten Brief Serienbrief Briefpapier',
+  einkauf: 'Eingangsrechnung Lieferant Kreditor Verbindlichkeiten Überweisung SEPA Vorsteuer Beleg Einkauf',
+  kassenbuch: 'Kasse Kassabuch Bargeld Barzahlung Kassensturz Kassenstand Registrierkasse',
   kalkulation: 'Preis Angebot Leistungswert',
   payroll: 'Lohn Monatsabschluss',
   overtime: 'Überstunden Mehrarbeit Auszahlung',
@@ -50,6 +52,11 @@ function results(q) {
   if (sees('planung') || sees('stammdaten'))
     for (const e of app.data.employees) if (hit(e.name, e.personnelNo, e.team)) out.push({ group: 'Mitarbeitende', label: e.name, sub: [e.personnelNo, e.team].filter(Boolean).join(' · '), action: sees('planung') ? 'open-person' : 'emp-edit', data: sees('planung') ? { emp: e.id } : { id: e.id } })
   if (sees('stammdaten')) for (const o of app.data.objects) if (hit(o.name, o.short, o.address)) out.push({ group: 'Objekte', label: o.name, sub: o.address || '', action: 'search-goto-sites', data: { id: o.id } })
+  // Einkauf: Lieferanten und Eingangsrechnungen (Eingangsnummer, Rechnungsnummer)
+  if (sees('einkauf')) {
+    for (const x of app.data.einkauf?.suppliers || []) if (hit(x.name, x.supplierNo, x.city, x.uid, x.customerNo)) out.push({ group: 'Lieferanten', label: x.name || x.supplierNo, sub: [x.supplierNo, x.city].filter(Boolean).join(' · '), action: 'ek-sup-open', data: { id: x.id } })
+    for (const x of app.data.einkauf?.invoices || []) if (hit(x.no, x.number, x.number?.replace(/[\s/-]/g, ''))) out.push({ group: 'Eingangsrechnungen', label: x.no, sub: [x.supplier?.name, x.number ? `Nr. ${x.number}` : ''].filter(Boolean).join(' · '), action: 'ek-inv-open', data: { id: x.id } })
+  }
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {
       const driver = app.data.employees.find((e) => e.id === v.driverId)?.name || ''
