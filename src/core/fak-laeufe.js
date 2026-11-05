@@ -78,6 +78,9 @@ export function withDebitNote(draft, customer, settings = {}) {
 
 // ---------------------------------------------------------------- Sammelversand
 
+/** E-Mail-Text zur Rechnung mit Lastschrift: die Zeile „Betrag: …, zahlbar bis … auf IBAN“ wird zum Hinweis auf den Einzug. */
+export const mailWithDebit = (text, doc) => (doc?.debitText ? String(text).replace(/^Betrag: .*$/m, doc.debitText) : text)
+
 /**
  * Festgeschriebene Rechnungen (samt Storno und Korrektur), die noch nicht versendet sind; ids: nur diese.
  * [{ doc, customer, to }] sortiert nach Nummer.

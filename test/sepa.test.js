@@ -272,6 +272,24 @@ test('Bankabgleich: Eingang einer Lastschrift ist ein sicherer Treffer (EndToEnd
   assert.throws(() => returnDebit(docs[0], c, { date: '2026-11-24', at: 'x' }), /schon erfasst/)
   const again = collectionCandidates(docs, [c], '2026-11-25', settings)
   assert.ok(again.some((x) => x.doc.id === 'd1' && x.returned), 'nach der Rücklastschrift wieder einziehbar')
+  // die alte Ankündigung zählt nach der Rücklastschrift nicht mehr, eine neue schon
+  docs[0].debitNotice = [{ at: '2026-11-05T08:00:00Z', dueDate: '2026-11-20' }]
+  docs[0].debitText = 'Lastschrift'
+  docs[0].sent = [{ at: '2026-11-03T08:00:00Z' }]
+  assert.equal(noticeOf(docs[0]), null)
+  docs[0].debitNotice.push({ at: '2026-11-25T08:00:00Z', dueDate: '2026-12-10' })
+  assert.deepEqual(noticeOf(docs[0]), { via: 'mail', date: '2026-11-25', dueDate: '2026-12-10' })
+})
+
+test('Bankabgleich: Sammelgutschrift je Zahlungsblock (FRST und RCUR getrennt gebucht)', () => {
+  const c = customer()
+  const docs = [invoice(), invoice({ id: 'd2', number: 'RE-2026-0011' }), invoice({ id: 'd3', number: 'RE-2026-0012' })]
+  applyCollection(docs, [c], buildCollection(collectionCandidates(docs, [c], '2026-11-05', settings), { dueDate: '2026-11-20' }), { msgId: 'LS-2', dueDate: '2026-11-20', at: '2026-11-05T10:00:00Z' })
+  assert.deepEqual(docs.map((d) => d.directDebit.seq), ['FRST', 'RCUR', 'RCUR'])
+  const s = collectionMatch({ amount: 2400, date: '2026-11-20', text: 'SEPA Sammler' }, docs, settings)
+  assert.equal(s.level, 'sicher')
+  assert.deepEqual(s.allocations.map((a) => a.docId), ['d2', 'd3'])
+  assert.deepEqual(collectionMatch({ amount: 3600, date: '2026-11-21' }, docs, settings).allocations.map((a) => a.docId), ['d1', 'd2', 'd3'])
 })
 
 test('Mandat als PDF: Wortlaut je Art, Gläubiger-ID, Referenz, Frist der Vorabankündigung', () => {

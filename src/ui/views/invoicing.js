@@ -15,6 +15,7 @@
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { calcWage, calculate } from '../../core/calculation.js'
+import { dunningRun, mailWithDebit, withDebitNote } from '../../core/fak-laeufe.js'
 import { addDays, firstOfMonth, formatDate, todayISO } from '../../core/dates.js'
 import {
   archivePath,
@@ -96,6 +97,8 @@ import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openM
 import { registerTodo } from '../modals/todo.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
 import { importButton } from './invoicing-import.js'
+import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
+import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } from './invoicing-sepa.js'
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
@@ -186,7 +189,7 @@ function headMenus(ed) {
       ed && { label: 'Zahlungsbedingung', action: 'fak-terms-open', hint: 'Zahlungsziel und Skonto' },
     ],
     single: false,
-  })}${menu({
+  })}${laeufeMenu(ed)}${menu({
     label: 'Export',
     icon: ICON.download,
     items: [
@@ -200,7 +203,7 @@ function counts() {
   const d = F()
   const today = todayISO()
   const items = openItems(d.documents, today, S())
-  const remind = items.filter((x) => x.next).length
+  const remind = dunningRun(d.documents, d.customers, today, S()).due.length
   const drafts = d.documents.filter((x) => !x.number && isInvoice(x)).length
   const due = recurringDue(todayISO().slice(0, 7)).length
   return { items, remind, drafts, due, badge: remind + due }
@@ -273,6 +276,7 @@ function startTab() {
     due.length ? `<div class="todo-item"><span class="flag warning">${due.length}</span><div class="todo-text"><strong>Daueraufträge für ${esc(monthLabel(ym))}</strong> noch nicht abgerechnet</div>${editable() ? `<button class="btn small primary" data-action="fak-run" data-ym="${ym}">Monatslauf</button>` : ''}</div>` : '',
     drafts.length ? `<div class="todo-item"><span class="flag">${drafts.length}</span><div class="todo-text"><strong>Entwürfe</strong> prüfen und festschreiben</div><button class="btn small" data-action="fak-tab" data-v="rechnungen">Ansehen</button></div>` : '',
     n.remind ? `<div class="todo-item"><span class="flag error">${n.remind}</span><div class="todo-text"><strong>Mahnung fällig</strong> (Zahlungsziel überschritten)</div><button class="btn small" data-action="fak-tab" data-v="offen">Offene Posten</button></div>` : '',
+    laeufeTodo(),
     broken.length ? `<div class="todo-item"><span class="flag error">!</span><div class="todo-text"><strong>Beleg nachträglich verändert:</strong> ${esc(broken.map((x) => x.number).join(', '))}. Die Prüfsumme passt nicht mehr; im Versionsverlauf von SharePoint nachsehen.</div></div>` : '',
   ].join('')
   const fresh = !d.documents.some((x) => x.number) && editable()
@@ -292,7 +296,7 @@ function docRow(x, docs, today, s) {
     <td>${x.date ? formatDate(x.date, { year: true }) : ''}</td><td>${esc(x.recipient?.name || '–')}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
     <td>${esc(x.title || '')}${x.serviceFrom ? `<br><span class="muted">${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open && open !== t.gross ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td>
-    <td>${pill(st)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
+    <td>${pill(st)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
 }
 
 function listFilters(kinds) {
@@ -327,6 +331,7 @@ function invoicesTab() {
   return `<div class="filters">${listFilters(['rechnung'])}<span class="spacer"></span>
       ${ed && proofOk ? `<button class="btn small" data-action="fak-proof-open">Aus Leistungsnachweis</button>` : ''}
       <button class="btn small" data-action="fak-export-open">${ICON.download} Export Steuerberatung</button></div>
+    ${batchBanner()}
     ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Rechnungen für diese Auswahl.</p>'}
     <p class="note">Entwürfe lassen sich ändern und löschen. Festgeschriebene Rechnungen sind unveränderlich (fortlaufende Nummer, Prüfsumme); korrigiert wird mit Stornorechnung oder Rechnungskorrektur. Aufbewahrung 7 Jahre (§ 132 BAO): die Datei fakturierung/fakturierung.json und die PDFs unter fakturierung/belege/ in SharePoint.</p>`
 }
@@ -337,6 +342,7 @@ function offersTab() {
   const today = todayISO()
   const list = filteredDocs(['angebot', 'auftrag'])
   return `<div class="filters">${listFilters(['angebot'])}</div>
+    ${offersPanel(year())}
     ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Angebote für diese Auswahl.</p>'}
     <p class="note">Aus einem Angebot wird mit einem Klick eine Auftragsbestätigung oder Rechnung (Positionen werden übernommen). Preise je Objekt kommen auf Wunsch aus der Kalkulation.</p>`
 }
@@ -348,11 +354,11 @@ function openTab() {
   const rows = items
     .map(({ doc: x, open, overdueDays, level, next, skonto }) => `<tr><td><button class="link-btn" data-action="fak-open" data-id="${esc(x.id)}">${esc(x.number)}</button></td><td>${esc(x.recipient?.name || '')}</td><td>${formatDate(x.dueDate, { year: true })}${skonto ? `<br><span class="muted">Skonto bis ${formatDate(skonto.until, { year: true })}</span>` : ''}</td>
       <td class="num">${overdueDays ? `<span class="pill ${overdueDays > 30 ? 'error' : 'warning'}">${overdueDays} Tage</span>` : ''}</td><td class="num">${money(grossOfDoc(x))}</td><td class="num"><strong>${money(open)}</strong>${skonto ? `<br><span class="muted">mit Skonto ${money(skonto.payable)}</span>` : ''}</td>
-      <td>${level ? esc(s.reminders[Math.min(level, s.reminders.length) - 1]?.name || '') : ''}${next ? ` <span class="pill error">${esc(next.step.name)} fällig</span>` : ''}</td>
+      <td>${level ? esc(s.reminders[Math.min(level, s.reminders.length) - 1]?.name || '') : ''}${next ? ` <span class="pill error">${esc(next.step.name)} fällig</span>` : ''} ${openRowBadges(x)}</td>
       <td class="actions-cell">${ed ? `<button class="btn small" data-action="fak-pay-open" data-id="${esc(x.id)}">Zahlung</button> ${level < s.reminders.length ? `<button class="btn small ${next ? 'primary' : ''}" data-action="fak-remind-open" data-id="${esc(x.id)}">${esc(s.reminders[level].name)}</button>` : ''}` : ''}</td></tr>`)
     .join('')
   const sum = round2(items.reduce((a, x) => a + x.open, 0))
-  return `<div class="impact-stats tc-stats">${tile('Offene Rechnungen', items.length)}${tile('Summe offen', money(sum))}${tile('überfällig', items.filter((x) => x.overdueDays).length, items.some((x) => x.overdueDays) ? 'err' : '')}${tile('Mahnung fällig', items.filter((x) => x.next).length)}</div>
+  return `${openTabTools()}<div class="impact-stats tc-stats">${tile('Offene Rechnungen', items.length)}${tile('Summe offen', money(sum))}${tile('überfällig', items.filter((x) => x.overdueDays).length, items.some((x) => x.overdueDays) ? 'err' : '')}${tile('Mahnung fällig', counts().remind)}</div>
     ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Rechnung</th><th>Kunde</th><th>fällig</th><th class="num">überfällig</th><th class="num">brutto</th><th class="num">offen</th><th>Mahnstufe</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Keine offenen Rechnungen.</p>'}
     <p class="note">Mahnstufen und Fristen in den Einstellungen. Verzugszinsen unter Unternehmern: Basiszinssatz (${String(s.baseRate).replace('.', ',')} %) plus 9,2 Prozentpunkte (§ 456 UGB), dazu einmal 40 € Pauschale (§ 458 UGB); gegenüber Verbrauchern 4 %.</p>`
 }
@@ -493,6 +499,8 @@ function settingsTab() {
       ${r.map((x, i) => `<label class="field"><span>Stufe ${i + 1}: Name</span><input type="text" id="fs-r${i}-name" value="${esc(x.name)}" ${dis}></label><label class="field"><span>Tage nach ${i ? 'voriger Frist' : 'Fälligkeit'}</span><input type="number" id="fs-r${i}-days" min="0" value="${esc(x.days)}" ${dis}></label><label class="check"><input type="checkbox" id="fs-r${i}-interest" ${x.interest ? 'checked' : ''} ${dis}><span>Verzugszinsen</span></label><label class="check"><input type="checkbox" id="fs-r${i}-fee" ${x.fee ? 'checked' : ''} ${dis}><span>40 € Pauschale (Unternehmer)</span></label>
         <div class="field wide">${textFieldHead(`Stufe ${i + 1}: Text im Schreiben (leer: Standardtext)`, `fs-r${i}-text`, ed ? textMenu({ target: `fs-r${i}-text`, kind: 'mahnung', place: 'reminder' }) : '')}<textarea id="fs-r${i}-text" rows="2" placeholder="z. B. zu unserer Rechnung {Belegnummer} vom {Datum} ist noch {Offen} offen. Bitte überweisen Sie bis {Frist}." ${dis}>${esc(x.text || '')}</textarea></div>`).join('')}
     </div>
+    ${sepaSettingsHtml(s, dis)}
+    ${offerSettingsHtml(s, dis)}
     <h3>Export für die Steuerberatung</h3>
     <div class="form-grid">
       <label class="field"><span>Debitorenkonto (Sammelkonto)</span><input type="text" id="fs-acc-deb" value="${esc(s.accounts.debitor)}" placeholder="leer: Kundennummer" ${dis}></label>
@@ -731,7 +739,7 @@ function viewModal(c, m) {
   ].filter(Boolean)
   const taken = skontoTaken(x)
   const reminders = (x.reminders || []).map((r) => `<li>${formatDate(r.date, { year: true })}: ${esc(r.name)}${r.total ? ` über ${money(r.total)}` : ''}${r.sentTo ? ` an ${esc(r.sentTo)}` : ''}</li>`).join('')
-  const sent = (x.sent || []).map((v) => `<li>${formatDate(v.at.slice(0, 10), { year: true })} an ${esc(v.to)}${v.via === 'mailto' ? ' (E-Mail-Programm)' : ''}</li>`).join('')
+  const sent = (x.sent || []).map((v) => `<li>${formatDate(v.at.slice(0, 10), { year: true })} ${v.via === 'post' ? 'per Post (Sammeldruck)' : `an ${esc(v.to)}`}${v.via === 'mailto' ? ' (E-Mail-Programm)' : ''}</li>`).join('')
   const history = (x.history || []).map((h) => `<li>${formatDate(String(h.at).slice(0, 10), { year: true })} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')
   return modalFrame({
     title: `${KINDS[x.kind]} ${x.number}`,
@@ -740,6 +748,7 @@ function viewModal(c, m) {
     body: `<p>${pill(st)}${x.reverseCharge ? ' <span class="pill info">Reverse Charge</span>' : ''} ${intact(x) ? '<span class="muted">Prüfsumme in Ordnung</span>' : '<span class="pill error">Inhalt nach dem Festschreiben verändert</span>'}</p>
       ${x.title ? `<p><strong>${esc(x.title)}</strong>${x.serviceFrom ? ` · Leistung ${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}` : ''}</p>` : ''}
       ${head.length ? `<p class="fak-doc-head">${head.join(' · ')}</p>` : ''}
+      ${docExtras(x)}
       <div class="table-wrap"><table class="data"><thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis</th><th class="num">USt</th><th class="num">netto</th></tr></thead><tbody>${lines}</tbody></table></div>
       <div class="fak-foot-grid"><div>${x.kind === 'rechnung' ? `<p>Fällig am ${formatDate(x.dueDate, { year: true })} · bezahlt ${money(cashPaidOf(x))}${taken ? ` · Skonto ${money(taken)}` : ''} · <strong>offen ${money(open)}</strong></p>` : ''}
         ${x.termsText ? `<p class="muted">${esc(x.termsText)}</p>` : ''}
@@ -756,7 +765,7 @@ function viewModal(c, m) {
             ? `<button class="btn" data-action="fak-offer-state" data-id="${esc(x.id)}" data-v="abgelehnt">Abgelehnt</button><button class="btn" data-action="fak-offer-state" data-id="${esc(x.id)}" data-v="angenommen">Angenommen</button>`
             : ''
         : ''
-    }</div>
+    }${docButtons(x, st)}</div>
       <div class="actions">${ed ? `<button class="btn" data-action="fak-copy" data-id="${esc(x.id)}">Als Vorlage kopieren</button>` : ''}${ed && ['angebot', 'auftrag'].includes(x.kind) ? `${x.kind === 'angebot' ? `<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="auftrag">→ Auftrag</button>` : ''}<button class="btn" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="rechnung">→ Rechnung</button>` : ''}
         ${ed && x.kind === 'rechnung' && open > 0 ? `<button class="btn" data-action="fak-pay-open" data-id="${esc(x.id)}">Zahlung</button>` : ''}
         ${isInvoice(x) ? `<button class="btn" data-action="fak-einv-open" data-id="${esc(x.id)}" title="XML nach EN 16931 (ZUGFeRD/Factur-X) oder ebInterface (Bund)">${ICON.download} E-Rechnung</button>` : ''}
@@ -842,7 +851,7 @@ function mailModal(c, m) {
   const to = m.to ?? (x.recipient?.email || custOf(x.customerId)?.email || '')
   const ctx = ctxFor(x)
   const block = defaultBlock(F().textBlocks, x.kind, 'mail')
-  m.text ??= block ? fillPlaceholders(block.text, ctx) : invoiceMailText({ doc: x, company: s.sender.name, sender: app.user?.name || '', iban: s.bank.iban, greeting: ctx.Anrede })
+  m.text ??= block ? fillPlaceholders(block.text, ctx) : mailWithDebit(invoiceMailText({ doc: x, company: s.sender.name, sender: app.user?.name || '', iban: s.bank.iban, greeting: ctx.Anrede }), x)
   const einv = isInvoice(x) && x.number && !eInvoiceProblems(x, s).some((p) => p.level === 'error')
   return modalFrame({
     title: `${KINDS[x.kind]} ${x.number || '(Entwurf)'} senden`,
@@ -950,8 +959,8 @@ function customerModal(c, m) {
   const v = m.draft
   const ed = editable()
   const dis = ed ? '' : 'disabled'
-  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, x && { id: 'verlauf', label: 'Belege & Umsatz' }]
-  const body = { stamm: customerStamm, kontakte: customerContacts, verlauf: customerSheet }[m.tab]?.(v, x, dis) || ''
+  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, x && { id: 'verlauf', label: 'Belege & Umsatz' }]
+  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, verlauf: customerSheet }[m.tab]?.(v, x, dis) || ''
   return modalFrame({
     title: x ? customerName(x) || 'Kunde' : 'Neuer Kunde',
     subtitle: x?.customerNo ? `Kundennummer ${esc(x.customerNo)}${x.source?.system ? ` · übernommen aus ${esc(x.source.system)}` : ''}` : 'Rechnungsempfänger',
@@ -1089,6 +1098,7 @@ function readCustomer(m) {
   if (document.getElementById('fc-p0-name') || m.tab === 'kontakte') {
     v.contacts = (v.contacts || []).map((p, i) => (document.getElementById(`fc-p${i}-name`) ? { ...p, name: val(`fc-p${i}-name`).trim(), role: val(`fc-p${i}-role`).trim(), email: val(`fc-p${i}-email`).trim(), phone: val(`fc-p${i}-phone`).trim() } : p))
   }
+  readCustomerPay(v)
   return v
 }
 
@@ -1165,11 +1175,12 @@ function readRecurring(m) {
 
 // ---------------------------------------------------------------- PDF, Ablage
 
-async function docPdf(x) {
+async function docDefinition(x) {
   const s = S()
   // Entwürfe: Platzhalter mit Kunde, Zahlungsbedingung und Benutzer auflösen (festgeschriebene sind schon aufgelöst)
-  return pdfBlob(invoiceDocument({ doc: { ...x, objectName: x.objectName || objName(x.objectId) }, settings: s, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), customer: custOf(x.customerId), terms: termsById(F().paymentTerms, x.termsId), user: app.user?.name || '' }))
+  return invoiceDocument({ doc: { ...x, objectName: x.objectName || objName(x.objectId) }, settings: s, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), customer: custOf(x.customerId), terms: termsById(F().paymentTerms, x.termsId), user: app.user?.name || '' })
 }
+const docPdf = async (x) => pdfBlob(await docDefinition(x))
 
 /** PDF in SharePoint ablegen (fakturierung/belege/JAHR/…); im Browser-Modus nicht. */
 async function archive(x, blob, name = docFileName(x)) {
@@ -1183,6 +1194,9 @@ async function archive(x, blob, name = docFileName(x)) {
     return null
   }
 }
+
+// Sammelversand, Mahnlauf, Lastschrift (invoicing-laeufe.js, invoicing-sepa.js): dieselben PDFs, Ablage und Platzhalter
+Object.assign(laeufeHooks, { docPdf, docDefinition, archive, ctxFor: (x, extra) => ctxFor(x, extra), eInvoiceXml: (x, format, m) => eInvoiceXml(x, format, m), checkNumbers: () => checkNumbers(), reminderLetterText: (x, r) => reminderLetterText(x, r) })
 
 function upsertDoc(x) {
   const d = F()
@@ -1520,7 +1534,7 @@ registerActions(
         await app.service.refresh?.().catch(() => [])
         const d = F()
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
-        const fixed = finalize(d.documents.find((y) => y.id === x.id) || x, d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
+        const fixed = finalize(withDebitNote(d.documents.find((y) => y.id === x.id) || x, custOf(x.customerId), S()), d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
         upsertDoc(fixed)
         persist()
         await app.service.flush().catch(() => {})
@@ -1818,6 +1832,8 @@ registerActions(
         reminders,
         accounts: { debitor: val('fs-acc-deb').trim(), erloese: Object.fromEntries(VAT_RATES.map((v) => [v, val(`fs-acc-${v}`).trim()])), rc: val('fs-acc-rc').trim(), skonto: val('fs-acc-skonto').trim() },
         indexName: val('fs-index').trim() || 'VPI 2020',
+        ...readSepaSettings(),
+        ...readOfferSettings(),
       }
       commit('Einstellungen gespeichert.')
     },
@@ -1874,7 +1890,7 @@ registerTodo({
     const out = []
     const due = recurringDue(today.slice(0, 7))
     if (due.length) out.push({ id: `rec:${today.slice(0, 7)}:${due.length}`, kind: 'run', count: due.length, ym: today.slice(0, 7) })
-    const remind = openItems(F().documents, today, s).filter((x) => x.next)
+    const remind = dunningRun(F().documents, F().customers, today, s).due
     if (remind.length) out.push({ id: `remind:${remind.map((x) => `${x.doc.id}.${x.level}`).join(',')}`, kind: 'remind', list: remind })
     const conflicts = resolveDuplicates(F().documents, s).conflicts
     if (conflicts.length) out.push({ id: `dup:${conflicts.flat().join(',')}`, kind: 'dup', conflicts })

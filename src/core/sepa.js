@@ -241,15 +241,18 @@ export function debitNoteFor(doc, customer, settings = {}) {
 /**
  * Wann ist die Lastschrift angekündigt? { via: 'rechnung' | 'mail', date (angekündigt am), dueDate (angekündigter
  * Termin) } aus der zuletzt gesendeten Ankündigung bzw. der versendeten Rechnung mit Lastschrift-Hinweis; sonst null.
+ * Nach einer Rücklastschrift zählt nur eine neue Ankündigung (danach gesendet).
  */
 export function noticeOf(doc) {
-  const mails = (doc.debitNotice || []).filter((n) => n.dueDate && n.at)
+  const returned = doc.directDebit?.status === 'zurueck' ? String(doc.directDebit.returnedAt || doc.directDebit.at || '') : ''
+  const mails = (doc.debitNotice || []).filter((n) => n.dueDate && n.at && (!returned || String(n.at).slice(0, 10) > returned.slice(0, 10)))
   if (mails.length) {
     const n = mails[mails.length - 1]
     return { via: 'mail', date: String(n.at).slice(0, 10), dueDate: n.dueDate }
   }
-  if (doc.debitText && doc.dueDate) {
-    const sent = (doc.sent || []).map((x) => String(x.at || '').slice(0, 10)).filter(Boolean).sort()[0]
+  if (doc.debitText && doc.dueDate && !returned) {
+    // per Post: drei Tage Postlauf bis zum Zahler
+    const sent = (doc.sent || []).map((x) => (x.at ? (x.via === 'post' ? addDaysIso(String(x.at).slice(0, 10), 3) : String(x.at).slice(0, 10)) : '')).filter(Boolean).sort()[0]
     if (sent) return { via: 'rechnung', date: sent, dueDate: nextTargetDay(doc.dueDate) }
   }
   return null
@@ -475,9 +478,13 @@ export function collectionMatch(tx, docs, settings = {}) {
   const e2e = String(tx.endToEnd || '').toUpperCase()
   const byE2e = e2e ? pending.find((d) => String(d.directDebit.endToEndId || '').toUpperCase() === e2e) : null
   if (byE2e) return { level: 'sicher', allocations: [{ docId: byE2e.id, amount: round2(tx.amount) }], reasons: [`Referenz ${byE2e.number} der Lastschrift (EndToEnd-ID)`, reason(byE2e), cents(tx.amount) === cents(byE2e.directDebit.amount) ? 'Betrag stimmt' : `Betrag weicht ab (eingezogen ${eurAt(byE2e.directDebit.amount)})`] }
-  // Sammelgutschrift: ein Eingang für den ganzen Einzug
+  // Sammelgutschrift: ein Eingang je Zahlungsblock (Art und Sequenz, so bucht die Bank bei Sammelbuchung) oder für den ganzen Einzug
   const batches = new Map()
-  for (const d of pending) batches.set(d.directDebit.batchId, [...(batches.get(d.directDebit.batchId) || []), d])
+  const add = (key, d) => batches.set(key, [...(batches.get(key) || []), d])
+  for (const d of pending) {
+    add(`${d.directDebit.batchId}|${d.directDebit.scheme}|${d.directDebit.seq}`, d)
+    add(d.directDebit.batchId, d)
+  }
   for (const list of batches.values()) {
     if (list.length < 2 || !near(tx.date, list[0].directDebit.dueDate)) continue
     const total = list.reduce((s, d) => s + cents(d.directDebit.amount), 0)
