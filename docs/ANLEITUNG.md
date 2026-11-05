@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 226 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 239 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (33)
+- [Finanzen](#finanzen) (46)
 - [Verwaltung](#verwaltung) (35)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1788,6 +1788,180 @@ Zu jeder festgeschriebenen Rechnung, Storno- und Korrekturrechnung erzeugt „E-
 
 > Tipp: Beim Senden per E-Mail hängt „E-Rechnung anhängen“ die factur-x.xml an.
 > Tipp: Ein PDF mit eingebetteter XML (PDF/A-3) erzeugt die App nicht.
+
+### Eingangsrechnung erfassen (mit Beleg)
+
+*In der App: Einkauf*
+
+Unter Finanzen → „Einkauf“ erfasst du Rechnungen von Lieferanten: Foto oder PDF des Belegs, Lieferant, Rechnungsnummer, Datum, Leistung, Netto und Vorsteuer je Steuersatz, Fälligkeit und Skonto, Kategorie mit Aufwandskonto und optional das Objekt. Der Beleg kommt in SharePoint unter einkauf/belege/ (je Jahr ein Ordner).
+
+1. „Einkauf“ öffnen und „+ Eingangsrechnung“ klicken.
+2. Am Handy „Foto“ tippen und den Beleg fotografieren, am PC „PDF oder Bild“ wählen.
+3. Lieferant wählen: Kategorie, Zahlungsziel und Skonto kommen vom Lieferanten.
+4. Netto je Steuersatz eintragen (die Vorsteuer rechnet die App) oder „aus Brutto rechnen“.
+5. Die Prüfung unten ansehen und „Speichern“.
+
+> Tipp: Jede Eingangsrechnung bekommt eine laufende Eingangsnummer (z. B. ER-2026-0001) für die Ablage.
+> Tipp: Eine Fehlerfassung wird storniert, nicht gelöscht: sie bleibt sichtbar und zählt nicht mehr.
+
+*Buchhaltung, Vollzugriff*
+
+### E-Rechnung eines Lieferanten einlesen
+
+*In der App: Einkauf*
+
+Schickt ein Lieferant eine E-Rechnung (ZUGFeRD oder Factur-X als PDF mit eingebetteter XML, XRechnung als XML), füllt „E-Rechnung einlesen“ Lieferant, Nummer, Datum, Leistungszeitraum, Fälligkeit und die Beträge je Steuersatz selbst aus. Ein unbekannter Lieferant wird beim Speichern angelegt.
+
+1. „+ Eingangsrechnung“ klicken.
+2. „E-Rechnung einlesen“ und die PDF- oder XML-Datei wählen.
+3. Die vorbelegten Felder prüfen, Kategorie wählen und „Speichern“.
+
+> Tipp: Die Datei wird zugleich als Beleg abgelegt.
+> Tipp: Steckt im PDF keine XML, bleibt es als Beleg angehängt und die Felder trägst du selbst ein.
+
+### Prüfung für den Vorsteuerabzug
+
+*In der App: Einkauf*
+
+Vorsteuer abziehen darf nur, wer eine Rechnung nach § 11 UStG hat. Die App prüft: Lieferant mit Anschrift, unsere Firma und Anschrift, Leistung mit Menge, Leistungsdatum, Nummer, Steuersatz und Steuerbetrag, UID des Lieferanten; über 10.000 € brutto auch unsere UID. Bis 400 € brutto genügt eine Kleinbetragsrechnung.
+
+1. Die Prüfung steht unten im Dialog der Eingangsrechnung.
+2. Fehlt etwas, beim Lieferanten eine berichtigte Rechnung anfordern.
+3. Die Häkchen „Unser Firmenname …“ und „Unsere UID …“ setzt du nach Blick auf den Beleg.
+
+> Tipp: Reverse Charge (z. B. Subunternehmer Reinigung): keine Umsatzsteuer auf der Rechnung, Hinweis und beide UIDs; die Steuer schuldest du und ziehst sie zugleich ab.
+> Tipp: In der Liste markiert „Vorsteuer?“ Rechnungen mit Lücken.
+
+### Doppelt erfasst? Freigabe vor dem Zahlen
+
+*In der App: Einkauf*
+
+Gleicher Lieferant und gleiche Rechnungsnummer (egal wie geschrieben) speichert die App nicht zweimal; gleicher Betrag am gleichen Tag ohne Nummer ergibt eine Warnung. „Geprüft und freigegeben“ hält fest, wer geprüft hat. In den Einstellungen lässt sich die Freigabe vor dem Zahlen verlangen.
+
+1. Eingangsrechnung öffnen.
+2. Beleg und Beträge prüfen.
+3. „Geprüft und freigegeben“ klicken.
+
+> Tipp: Freigegebene oder bezahlte Rechnungen sind nicht mehr änderbar; „Freigabe zurücknehmen“ geht, solange nichts bezahlt ist.
+
+### Eingangsrechnungen bezahlen (Skonto, Überweisungsdatei)
+
+*In der App: Einkauf*
+
+Unter „Offene Zahlungen“ stehen offene Eingangsrechnungen nach Frist: zuerst das Ende der Skontofrist, dann die Fälligkeit. Ausgewählte Rechnungen ergeben eine SEPA-Überweisungsdatei (pain.001) fürs Business-Banking, mit Skonto, solange die Frist am Ausführungstag läuft. „Zahlung“ bucht eine einzelne Zahlung, auch bar.
+
+1. „Einkauf“ → „Offene Zahlungen“.
+2. Rechnungen anhaken oder „Fällige auswählen“.
+3. „Überweisungsdatei“ → Ausführungstag prüfen → „Datei erzeugen“.
+4. Die Datei im Business-Banking hochladen und freigeben.
+5. Nach der Ausführung „Als bezahlt buchen“ oder den Kontoauszug zuordnen.
+
+> Tipp: Fällige Zahlungen der nächsten 3 Tage stehen in „Zu erledigen“.
+> Tipp: Die IBAN kommt vom Lieferanten; das eigene Konto aus den Einstellungen (sonst aus der Fakturierung).
+
+### Abbuchungen im Kontoauszug zuordnen
+
+*In der App: Einkauf*
+
+Den Kontoauszug liest die Fakturierung ein (Reiter „Bank“). Unter Einkauf → „Bank-Ausgänge“ schlägt die App für jede Abbuchung die passende Eingangsrechnung vor: über die Rechnungsnummer im Verwendungszweck, IBAN oder Name des Lieferanten und den Betrag, auch abzüglich Skonto.
+
+1. Kontoauszug in der Fakturierung einlesen.
+2. „Einkauf“ → „Bank-Ausgänge“ öffnen.
+3. „Zuordnen“, „andere Rechnung“ oder „ignorieren“ (Lohn, Steuer, Gebühren).
+
+> Tipp: „Lösen“ nimmt eine Zuordnung zurück.
+> Tipp: Die Eingänge bleiben in der Fakturierung, nichts daran ändert sich.
+
+### Lieferanten (verknüpft mit Material & Lager)
+
+*In der App: Einkauf*
+
+Lieferanten haben Nummer, Firma, Ansprechpartner, Anschrift in Einzelfeldern, UID, IBAN und BIC, Zahlungsziel und Skonto, unsere Kundennummer und Vorschläge für Kategorie und Aufwandskonto. Lieferanten aus Material & Lager werden übernommen oder verknüpft: Bestellungen bleiben dort, Bankdaten und Rechnungen hier.
+
+1. „Einkauf“ → „Lieferanten“.
+2. „+ Lieferant“ oder bei „Lieferanten aus Material & Lager“ auf „übernehmen“.
+3. Bankverbindung, UID und Zahlungsziel eintragen und „Speichern“.
+
+> Tipp: Lager und Objektleitung sehen nur die Lieferanten in Material & Lager (Name, Kontakt), keine Bankdaten.
+> Tipp: „Kontaktdaten auch in Material & Lager aktualisieren“ gleicht die Kontaktdaten an.
+
+*Buchhaltung, Vollzugriff*
+
+### Eingangsrechnungen für die Steuerberatung
+
+*In der App: Einkauf*
+
+Der Export liefert eine CSV wie bei den Ausgangsrechnungen: eine Zeile je Eingangsrechnung und Steuersatz mit Eingangsnummer, Datum, Kreditor, Aufwandskonto, Lieferant, UID, Rechnungsnummer, Steuercode, Netto, Vorsteuer und Brutto; dazu Skontoabzüge als eigene Zeilen.
+
+1. „Einkauf“ → „Mehr ▾“ → „Export Steuerberatung“.
+2. Zeitraum wählen.
+3. „CSV herunterladen“ oder „Per E-Mail“.
+
+> Tipp: Kategorien und Aufwandskonten unter „Einstellungen“ mit der Steuerberatung abstimmen.
+
+### Kassenbuch führen
+
+*In der App: Kassenbuch*
+
+Jede Bareinnahme und Barausgabe kommt am selben Tag mit Text, Betrag, Steuersatz, Gegenkonto und Beleg ins Kassenbuch und bekommt eine fortlaufende Nummer. Der Kassenstand läuft mit und kann nie unter null fallen: Reicht das Bargeld nicht, bucht die App nicht.
+
+1. „Kassenbuch“ unter Finanzen öffnen.
+2. „+ Einnahme“ oder „+ Ausgabe“ klicken.
+3. Kategorie wählen (Konto und Steuersatz kommen mit), Betrag und Text eintragen.
+4. Den Beleg fotografieren und „Buchen“.
+
+> Tipp: Zahlt ein Kunde eine Rechnung bar: Kategorie „Zahlung einer Ausgangsrechnung“ und die Rechnung wählen – die Zahlung steht dann auch in der Fakturierung.
+> Tipp: Eine Eingangsrechnung bar bezahlt: dort „Zahlung“ → „bar aus der Kasse“.
+
+*Buchhaltung, Vollzugriff*
+
+### Kassenbuch: Storno statt Ändern
+
+*In der App: Kassenbuch*
+
+Einträge im Kassenbuch werden nie geändert oder gelöscht (§ 131 BAO): Der ursprüngliche Inhalt muss erkennbar bleiben. Ein Fehler wird storniert – eine Gegenbuchung mit eigener Nummer und Grund – und danach richtig neu gebucht.
+
+1. In der Zeile „Storno“ klicken.
+2. Den Grund eintragen und „Stornieren“.
+3. Den richtigen Betrag neu buchen.
+
+> Tipp: Ein Storno einer Barzahlung entfernt die Zahlung auch bei der Rechnung.
+> Tipp: Jeder Eintrag trägt eine Prüfsumme; wird die Datei von Hand verändert, meldet das Kassenbuch das.
+
+### Kassensturz und Tagesabschluss
+
+*In der App: Kassenbuch*
+
+Beim Kassensturz zählst du das Bargeld (auch nach Scheinen und Münzen). Die App vergleicht mit dem Stand laut Kassenbuch und bucht eine Differenz: Überschuss als Einnahme, Fehlbetrag als Ausgabe. Mit „Tagesabschluss“ ist der Tag danach für Buchungen gesperrt.
+
+1. „Kassensturz“ klicken.
+2. Gezählten Betrag eintragen oder „Scheine und Münzen zählen“.
+3. „Kassensturz buchen“.
+
+> Tipp: Ohne Kassensturz seit über 7 Tagen erinnert „Zu erledigen“.
+
+### Monatsabschluss, PDF und Export des Kassenbuchs
+
+*In der App: Kassenbuch*
+
+Nach dem Monatsende schließt „Monatsabschluss“ den Monat ab: Anfangs- und Endstand, Summen und eine Prüfsumme werden festgehalten, das PDF entsteht, und mit Datum in diesem Monat ist keine Buchung mehr möglich. Der Export liefert eine CSV für die Steuerberatung wie die Fakturierung.
+
+1. „Mehr ▾“ → „Monatsabschluss“ wählen (der älteste offene Monat zuerst).
+2. Summen prüfen und „Abschließen“.
+3. Für die Steuerberatung „Mehr ▾“ → „Export Steuerberatung“.
+
+> Tipp: Beim Start: „Anfangsbestand“ mit dem gezählten Bargeld bzw. dem Endbestand des alten Kassenbuchs.
+
+### Registrierkassenpflicht
+
+*In der App: Kassenbuch*
+
+Ab 15.000 € Jahresumsatz je Betrieb, wenn davon mehr als 7.500 € bar (auch mit Karte) bezahlt werden, müssen Barumsätze einzeln mit einer Registrierkasse mit Signatur erfasst werden (§ 131b BAO, RKSV). Das Kassenbuch ersetzt keine Registrierkasse; es zählt die Barumsätze und warnt.
+
+1. Im Kassenbuch „Registrierkasse: Hinweis“ aufklappen.
+2. Steigen die Barumsätze über 7.500 €, mit der Steuerberatung klären.
+
+> Tipp: Jede Barzahlung braucht einen Beleg für den Kunden (Belegerteilungspflicht).
 
 ### Kalkulation je Objekt
 
