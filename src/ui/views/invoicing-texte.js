@@ -27,9 +27,9 @@ const short = (s, n = 60) => {
 /**
  * Menü neben einem Textfeld: passende Textbausteine laden (ersetzt den Text) und Platzhalter an der
  * Schreibmarke einfügen. target: id des Textfelds; kind/place: Belegart und Stelle; fill: Platzhalter beim
- * Laden gleich auflösen (E-Mail, Mahnung: der Text geht so hinaus).
+ * Laden gleich auflösen (E-Mail, Mahnung: der Text geht so hinaus); placeholders: Auswahl (Briefe: ohne Belegfelder).
  */
-export function textMenu({ target, kind, place, fill = false, label = 'Textbaustein', withBlocks = true }) {
+export function textMenu({ target, kind, place, fill = false, label = 'Textbaustein', withBlocks = true, placeholders = PLACEHOLDERS }) {
   const list = withBlocks ? blocksFor(F().textBlocks, kind, place) : []
   return menu({
     label,
@@ -41,7 +41,7 @@ export function textMenu({ target, kind, place, fill = false, label = 'Textbaust
       ...list.map((b) => ({ label: `${esc(b.name || 'ohne Name')}${b.isDefault ? ' (Standard)' : ''}`, hint: esc(short(b.text)), action: 'fak-tb-insert', data: { target, id: b.id, fill: fill ? '1' : '' } })),
       withBlocks && !list.length && editable() && { label: 'Textbausteine verwalten', action: 'fak-tab', data: { v: 'texte' }, hint: 'Stammdaten → Textbausteine' },
       { heading: 'Platzhalter einfügen' },
-      ...PLACEHOLDERS.map(([k, hint]) => ({ label: `{${esc(k)}}`, hint: esc(hint), action: 'fak-ph-insert', data: { target, ph: k } })),
+      ...placeholders.map(([k, hint]) => ({ label: `{${esc(k)}}`, hint: esc(hint), action: 'fak-ph-insert', data: { target, ph: k } })),
     ],
   })
 }

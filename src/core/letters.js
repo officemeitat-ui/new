@@ -150,7 +150,7 @@ export function serialRecipients(customers = [], { scope = 'aktiv', group = '', 
   return (customers || [])
     .filter((c) => {
       if (scope === 'aktiv' && !customerActive(c, { documents, recurring, objects, today })) return false
-      if (scope === 'gruppe' && String(c.group || '') !== String(group || '')) return false
+      if (scope === 'gruppe' && (!group || String(c.group || '') !== String(group))) return false
       if (scope === 'objekt' && !(c.objectIds || []).includes(objectId)) return false
       if (type === 'privat' && !c.consumer) return false
       if (type === 'firma' && c.consumer) return false
@@ -161,7 +161,7 @@ export function serialRecipients(customers = [], { scope = 'aktiv', group = '', 
       const recipient = letterRecipient(c, contact)
       const blocked = advertising && c.noAds
       const viaMail = validMail(recipient.email) && !blocked
-      const note = blocked ? 'Werbung per E-Mail abgelehnt: Sammel-PDF' : !validMail(recipient.email) ? 'ohne E-Mail: Sammel-PDF' : r && !contact ? `kein Ansprechpartner „${role}“: an die Firma` : ''
+      const note = blocked ? 'Werbung per E-Mail abgelehnt' : !validMail(recipient.email) ? 'ohne E-Mail-Adresse' : r && !contact ? `kein Ansprechpartner „${role}“: an die Firma` : ''
       return { id: c.id, customer: c, contact, name: recipient.name || '–', recipient, email: viaMail ? recipient.email : '', viaMail, selected: !off.has(c.id), note }
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'de'))

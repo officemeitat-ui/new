@@ -95,6 +95,7 @@ import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
+import { customerLettersTab, lettersTab } from './invoicing-briefe.js'
 import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
 import { importButton } from './invoicing-import.js'
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
@@ -162,10 +163,11 @@ const TABS = [
   ['artikel', 'Artikel'],
   ['texte', 'Textbausteine'],
   ['bedingungen', 'Zahlungsbedingungen'],
+  ['briefe', 'Briefe'],
   ['einstellungen', 'Einstellungen'],
 ]
 // Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
-const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'einstellungen']
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
 
 /** Neben „+ Rechnung“: weitere Belege anlegen, Übernahmen, Export. */
@@ -180,6 +182,9 @@ function headMenus(ed) {
       ed && { label: 'Auftragsbestätigung', action: 'fak-new', data: { kind: 'auftrag' } },
       ed && { label: 'Dauerauftrag', action: 'fak-rec-open', hint: 'monatlich, quartalsweise … abrechnen' },
       ed && proofOk && { label: 'Aus Leistungsnachweis', action: 'fak-proof-open', hint: 'Entwürfe je Objekt und Monat' },
+      ed && { heading: 'Schreiben' },
+      ed && { label: 'Brief', action: 'fak-letter-open', hint: 'an einen Kunden, auf dem Briefpapier' },
+      ed && { label: 'Serienbrief', action: 'fak-serial-open', hint: 'an viele Kunden: E-Mail oder Sammel-PDF' },
       ed && { heading: 'Stammdaten' },
       ed && { label: 'Kunde', action: 'fak-cust-open' },
       ed && { label: 'Artikel / Leistung', action: 'fak-art-open' },
@@ -222,7 +227,7 @@ function invoicingView() {
   const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
@@ -953,8 +958,8 @@ function customerModal(c, m) {
   const v = m.draft
   const ed = editable()
   const dis = ed ? '' : 'disabled'
-  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, x && { id: 'verlauf', label: 'Belege & Umsatz' }]
-  const body = { stamm: customerStamm, kontakte: customerContacts, verlauf: customerSheet}[m.tab]?.(v, x, dis) || ''
+  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
+  const body = { stamm: customerStamm, kontakte: customerContacts, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
   return modalFrame({
     title: x ? customerName(x) || 'Kunde' : 'Neuer Kunde',
     subtitle: x?.customerNo ? `Kundennummer ${esc(x.customerNo)}${x.source?.system ? ` · übernommen aus ${esc(x.source.system)}` : ''}` : 'Rechnungsempfänger',
