@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 226 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 229 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (33)
+- [Finanzen](#finanzen) (36)
 - [Verwaltung](#verwaltung) (35)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1734,6 +1734,7 @@ Im Kunden zeigt der Reiter „Belege & Umsatz“ alle Angebote, Rechnungen und G
 
 > Tipp: In der Kundenliste öffnet der Betrag unter „offene Posten“ direkt den Verlauf.
 > Tipp: Felder, die beim Übernehmen aus orgaMAX keinen Platz gefunden haben, stehen unter „Weitere Felder“ zum Nachlesen.
+> Tipp: Der Reiter „Briefe“ zeigt alle Briefe und Serienbriefe an den Kunden; dort auch „Werbung per E-Mail abgelehnt“ und „Kunde inaktiv“.
 
 ### Artikel mit Nummer, Langtext und Rohertrag
 
@@ -1788,6 +1789,54 @@ Zu jeder festgeschriebenen Rechnung, Storno- und Korrekturrechnung erzeugt „E-
 
 > Tipp: Beim Senden per E-Mail hängt „E-Rechnung anhängen“ die factur-x.xml an.
 > Tipp: Ein PDF mit eingebetteter XML (PDF/A-3) erzeugt die App nicht.
+
+### Eigenes Briefpapier für Rechnungen und Briefe
+
+*In der App: Fakturierung*
+
+Unter Einstellungen → „Briefpapier“ kommt das eigene Briefpapier als Bild (.png oder .jpg, A4 hoch) hinter alle PDFs der Fakturierung: Rechnungen, Angebote, Mahnungen und Briefe, getrennt für erste Seite und Folgeseiten. Ränder halten den Text aus Kopf und Fuß; Logo, Absender und Fußzeile der App lassen sich ausblenden.
+
+1. Fakturierung → Reiter „Einstellungen“ → „Briefpapier einrichten“.
+2. Bei „Erste Seite“ „Bild wählen“; für die Folgeseiten „wie die erste Seite“, „eigenes Bild“ oder „ohne Briefpapier“.
+3. Ränder oben, unten, links und rechts so einstellen, dass die gestrichelte Fläche frei vom Kopf und Fuß des Bildes ist.
+4. Anhaken, was das Briefpapier schon enthält (Logo, Absender, Fußzeile); sonst eine eigene Fußzeile in bis zu 4 Spalten.
+5. „Vorschau (PDF)“ prüfen und „Speichern“.
+
+> Tipp: Ein PDF geht nicht direkt (die App kann keine PDF-Seiten einbetten): im PDF-Programm als Bild mit 150 bis 200 dpi exportieren, z. B. Acrobat „Exportieren in → Bild“, am Mac „Vorschau“ → Exportieren, unter Windows der kostenlose PDF24 Creator.
+> Tipp: Schrift: Roboto (die einzige, die pdfmake mitbringt); die Akzentfarbe dunkelt die App bei Bedarf ab, damit sie lesbar bleibt.
+> Tipp: Die Bilder liegen in SharePoint unter fakturierung/briefpapier/.
+
+### Geschäftsbrief an einen Kunden
+
+*In der App: Fakturierung*
+
+Im Reiter „Briefe“ schreibst du einen Brief an einen Kunden, wahlweise an einen Ansprechpartner (Anschrift mit „z. H.“, Anrede wie „Sehr geehrte Frau Mag. Huber“). Betreff und Text mit Textbausteinen und Platzhaltern; das PDF steht auf dem Briefpapier. Senden per E-Mail oder als PDF zum Drucken; der Verlauf steht im Kundenblatt.
+
+1. Fakturierung → Reiter „Briefe“ → „+ Brief“ (oder „Anlegen ▾“ → „Brief“).
+2. Kunde und Ansprechpartner wählen, bei Bedarf das Objekt für {Objekt}.
+3. Betreff und Text schreiben; „Textbaustein“ lädt einen Text oder fügt Platzhalter wie {Anrede} ein.
+4. „Vorschau (PDF)“ prüfen.
+5. „Senden“ per E-Mail oder „PDF zum Drucken“.
+
+> Tipp: Textbausteine für Briefe: Stammdaten → Textbausteine, Belegart „Brief“, Stelle „Brieftext“; einer als Standard steht in jedem neuen Brief.
+> Tipp: Gesendete Briefe bleiben so, wie sie hinausgingen; „Als neuen Brief kopieren“ übernimmt Text und Empfänger.
+> Tipp: Das PDF liegt in SharePoint unter fakturierung/briefe/ und dem Jahr.
+
+### Serienbrief an viele Kunden
+
+*In der App: Fakturierung*
+
+Ein Serienbrief geht an alle aktiven Kunden, eine Kundengruppe oder die Kunden eines Objekts, auf Wunsch an Ansprechpartner mit einer Funktion. Jeder bekommt eine eigene E-Mail mit seinem Brief als PDF, mit Pause, Fortschritt und Fehlerliste; Kunden ohne E-Mail kommen in ein Sammel-PDF zum Drucken.
+
+1. Fakturierung → „Briefe“ → „Serienbrief“.
+2. 1. Empfänger: Auswahl, Filter, einzelne abwählen.
+3. 2. Text: Information oder Werbung, Betreff, Text und E-Mail-Text.
+4. 3. Vorschau: jeden Brief ansehen, auf Wunsch als PDF.
+5. 4. Versand: „E-Mails senden“ und „Sammel-PDF“ für die ohne E-Mail.
+
+> Tipp: Werbung per E-Mail nur mit Einwilligung oder an eigene Kunden für ähnliche Leistungen, mit Abmeldemöglichkeit in jeder E-Mail (§ 174 Telekommunikationsgesetz 2021). Reine Information zum Auftrag ist keine Werbung. Keine Rechtsberatung.
+> Tipp: Widerspricht ein Kunde der Werbung: Kundenblatt → „Briefe“ → „Werbung per E-Mail abgelehnt“; er bekommt Werbung dann nur auf Papier.
+> Tipp: „E-Mails senden“ versucht Fehlgeschlagene noch einmal; „Anhalten“ unterbricht, „Fortsetzen“ sendet den Rest.
 
 ### Kalkulation je Objekt
 
