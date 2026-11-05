@@ -981,6 +981,12 @@ export function defaultTexts(kind, settings = {}, blocks = []) {
 }
 
 // ---------------------------------------------------------------- Zahlungsbedingungen und Skonto
+//
+// Zusätzliche, optionale Felder (ergänzen das Datenmodell oben, alte Dateien bleiben gültig):
+//  documents[].payments[] { id, date, amount, note, by, at, bank? } – ein Skontoabzug ist ein eigener Eintrag
+//                  { …, kind: 'skonto', ref: id der Zahlung }; documents[].sent[].eInvoice ('factur-x', mit XML gesendet)
+//  customers[]     supplierNo (unsere Lieferantennummer beim Kunden, z. B. für die E-Rechnung an den Bund)
+//  settings        sender.taxNo (Steuernummer), accounts.skonto (Konto Kundenskonto), reminders[].text (Text je Mahnstufe)
 
 export const termsById = (list = [], id) => (id ? (list || []).find((t) => t.id === id) || null : null)
 export const defaultTerms = (list = []) => (list || []).find((t) => t.isDefault) || null
