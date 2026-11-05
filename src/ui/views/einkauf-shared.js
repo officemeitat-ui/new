@@ -2,6 +2,7 @@
 // Kassenbuchung zu einer Zahlung. Registriert selbst keine Ansicht, keinen Dialog und keine Aktion.
 
 import { addEntry, CASH_CATEGORIES, emptyCashbook } from '../../core/cashbook.js'
+import { todayISO } from '../../core/dates.js'
 import { emptyPurchase, purchaseSettings } from '../../core/purchase.js'
 import { round2 } from '../../core/invoicing.js'
 import { app, canEdit, toast } from '../context.js'
@@ -123,7 +124,21 @@ export async function inflate(bytes) {
  */
 export function cashForPayment({ kind, date, amount, text, ref, account }) {
   const cat = kind === 'einnahme' ? CASH_CATEGORIES.einnahme.find((c) => c.id === 'rechnung') : CASH_CATEGORIES.ausgabe.find((c) => c.id === 'eingang')
-  return addEntry(K(), { date, kind, amount: round2(amount), text, rate: 0, vat: 0, account: account || cat.account, category: cat.id, receipt: ref?.number || '', ref }, { newId: () => newId('k'), now: nowIso(), by: by(), today: new Date().toISOString().slice(0, 10) })
+  return addEntry(K(), { date, kind, amount: round2(amount), text, rate: 0, vat: 0, account: account || cat.account, category: cat.id, receipt: ref?.number || '', ref }, { newId: () => newId('k'), now: nowIso(), by: by(), today: todayISO() })
+}
+
+// ---------------------------------------------------------------- Zahlungsdialog der Fakturierung (bar bezahlt)
+
+/** Häkchen im Zahlungsdialog der Fakturierung, nur mit Recht auf Einkauf & Kasse. */
+export const payCashOption = () => (canEdit(MODULE) && !app.readOnly ? '<label class="check wide"><input type="checkbox" id="fp-cash"><span>bar bezahlt: Einnahme ins Kassenbuch</span></label>' : '')
+
+/**
+ * Häkchen gesetzt: Einnahme ins Kassenbuch (mit Bezug auf die Ausgangsrechnung) und deren id zurück; ohne Häkchen null.
+ * Wirft mit Hinweis, wenn der Tag oder Monat im Kassenbuch abgeschlossen ist.
+ */
+export function cashForSalePayment(doc, { date, amount }) {
+  if (!document.getElementById('fp-cash')?.checked) return null
+  return cashForPayment({ kind: 'einnahme', date, amount, text: `Barzahlung ${doc.recipient?.name || ''} Rechnung ${doc.number}`.replace(/\s+/g, ' ').trim(), ref: { type: 'ausgang', id: doc.id, number: doc.number } }).id
 }
 
 /** Kurzer Text für einen Betrag mit Vorzeichen. */

@@ -95,6 +95,7 @@ import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
+import { cashForSalePayment, payCashOption } from './einkauf-shared.js'
 import { importButton } from './invoicing-import.js'
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
 import { canMail } from '../modals/send.js'
@@ -778,7 +779,7 @@ function payModal(c, m) {
   return modalFrame({
     title: `Zahlungseingang ${x.number}`,
     subtitle: `${esc(x.recipient?.name || '')} · offen ${money(open)}`,
-    body: `<div class="form-grid"><label class="field"><span>Datum</span><input type="date" id="fp-date" value="${today}"></label><label class="field"><span>Betrag (€)</span><input type="text" inputmode="decimal" id="fp-amount" value="${esc(numText(open))}"></label><label class="field wide"><span>Notiz</span><input type="text" id="fp-note" placeholder="z. B. Kontoauszug 11/2026"></label></div>
+    body: `<div class="form-grid"><label class="field"><span>Datum</span><input type="date" id="fp-date" value="${today}"></label><label class="field"><span>Betrag (€)</span><input type="text" inputmode="decimal" id="fp-amount" value="${esc(numText(open))}"></label><label class="field wide"><span>Notiz</span><input type="text" id="fp-note" placeholder="z. B. Kontoauszug 11/2026"></label>${payCashOption()}</div>
       ${sk ? `<div class="fak-skonto-hint"><p>Skonto bis ${formatDate(until, { year: true })}: ${money(sk)} – zahlt der Kunde in der Frist ${money(round2(open - sk))}, ist die Rechnung bezahlt (das Skonto wird vermerkt).</p><button class="btn small" data-action="fak-pay-skonto" data-amount="${round2(open - sk)}">Betrag mit Skonto</button></div>` : skontoOf(x, S()) ? `<p class="muted">Die Skontofrist endete am ${formatDate(skontoOf(x, S()).until, { year: true })}.</p>` : ''}`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-pay-save" data-id="${esc(x.id)}">Zahlung buchen</button></div>`,
   })
@@ -1605,8 +1606,15 @@ registerActions(
       const x = docOf(el.dataset.id)
       const amount = num('fp-amount')
       if (!x || !amount) return toast('Bitte einen Betrag eintragen.')
+      // bar bezahlt (Häkchen, Einkauf & Kasse): Einnahme im Kassenbuch, die Zahlung verweist darauf
+      let cash = null
+      try {
+        cash = cashForSalePayment(x, { date: val('fp-date') || todayISO(), amount: round2(amount) })
+      } catch (err) {
+        return toast(err.message)
+      }
       // in der Skontofrist brutto minus Skonto: Skonto als eigener Eintrag, Rechnung bezahlt
-      const entries = paymentEntries(x, F().documents, S(), { id: uid('p'), date: val('fp-date') || todayISO(), amount: round2(amount), note: val('fp-note').trim(), by: by(), at: nowIso() }, { newId: () => uid('p') })
+      const entries = paymentEntries(x, F().documents, S(), { id: uid('p'), date: val('fp-date') || todayISO(), amount: round2(amount), note: val('fp-note').trim() || (cash ? 'bar (Kassenbuch)' : ''), by: by(), at: nowIso(), ...(cash ? { cash } : {}) }, { newId: () => uid('p') })
       x.payments = [...(x.payments || []), ...entries]
       if (entries[1]) x.history = [...(x.history || []), { at: nowIso(), by: by(), text: `Zahlung ${money(entries[0].amount)} in der Skontofrist, Skonto ${money(entries[1].amount)} abgezogen` }]
       closeModal()
@@ -1615,6 +1623,7 @@ registerActions(
     },
     'fak-pay-del': (el) => {
       const x = docOf(el.dataset.id)
+      if ((x.payments || []).some((p) => p.id === el.dataset.pay && p.cash)) return toast('Barzahlung: bitte im Kassenbuch stornieren (dann verschwindet sie hier).')
       if (!confirmStep(`fak-pdel:${el.dataset.pay}`, renderModal)) return
       // mit der Zahlung geht auch das zugehörige Skonto
       x.payments = (x.payments || []).filter((p) => p.id !== el.dataset.pay && p.ref !== el.dataset.pay)
