@@ -352,6 +352,9 @@ test('PDF: Positionsarten, Proforma-Hinweis, Lieferschein ohne Preise mit Unters
   const pf = invoiceDocument({ doc: fin({ id: 'pf', kind: 'proforma', date: '2026-11-03', recipient, lines: [item('a', 'Reinigung', 1, 100)] }), settings })
   assert.match(text(pf), /Proforma – keine Rechnung im Sinne des UStG/)
   assert.equal(pf.watermark.text, 'Proforma')
+  // keine Steuer gesondert ausgewiesen (§ 11 Abs. 14 UStG), nur der Gesamtbetrag inkl. USt
+  assert.doesNotMatch(text(pf), /USt 20 % von|"text":"USt"/)
+  assert.match(text(pf), /Gesamtbetrag inkl\. USt.*120,00 €/)
   const ls = fin({ id: 'ls', kind: 'lieferschein', date: '2026-10-10', serviceFrom: '2026-10-10', hidePrices: true, recipient, lines: [item('a', 'Reinigung', 3, 100)] })
   const l = text(invoiceDocument({ doc: ls, settings }))
   assert.doesNotMatch(l, /100,00 €|Einzelpreis|Gesamtbetrag/)

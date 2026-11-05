@@ -107,6 +107,9 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
   const isInv = ['rechnung', 'storno', 'korrektur'].includes(doc.kind)
   const delivery = doc.kind === 'lieferschein'
   const prices = !(delivery && doc.hidePrices)
+  // Proforma: keine Steuer gesondert ausweisen (sonst Steuerschuld kraft Rechnungslegung möglich, § 11 Abs. 14 UStG)
+  const proforma = doc.kind === 'proforma'
+  const vatCol = t.vatOn && !proforma
   const service = doc.serviceFrom ? periodLabel({ from: doc.serviceFrom, to: doc.serviceTo || doc.serviceFrom }) : ''
   const facts = [
     [`${KINDS[doc.kind] || kind}-Nr.`, doc.number || 'Entwurf'],
@@ -122,7 +125,7 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
     [doc.deliveryNotes?.length ? (doc.deliveryNotes.length > 1 ? 'Lieferscheine' : 'Lieferschein') : '', (doc.deliveryNotes || []).map((n) => n.number).join(', ')],
   ]
   const showDiscount = prices && t.rows.some((l) => l.pos && Number(l.discount))
-  const cols = prices ? ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', ...(showDiscount ? ['Rabatt'] : []), ...(t.vatOn ? ['USt'] : []), 'Gesamt netto'] : ['Pos.', 'Bezeichnung', 'Menge', 'Einheit']
+  const cols = prices ? ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', ...(showDiscount ? ['Rabatt'] : []), ...(vatCol ? ['USt'] : []), 'Gesamt netto'] : ['Pos.', 'Bezeichnung', 'Menge', 'Einheit']
   const head = cols.map((text, i) => ({ text, style: 'th', alignment: i > 1 && text !== 'Einheit' ? 'right' : 'left' }))
   const span = (cell, n) => [{ ...cell, colSpan: n }, ...Array(n - 1).fill('')]
   const choice = { optional: 'Option', alternative: 'Alternative' }
@@ -148,17 +151,17 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
         ? [
             { text: eur(l.price), alignment: 'right' },
             ...(showDiscount ? [{ text: Number(l.discount) ? pct(l.discount) : '', alignment: 'right' }] : []),
-            ...(t.vatOn ? [{ text: pct(l.vat ?? s.vat), alignment: 'right' }] : []),
+            ...(vatCol ? [{ text: pct(l.vat ?? s.vat), alignment: 'right' }] : []),
             { text: tag ? `(${eur(l.net)})` : eur(l.net), alignment: 'right', italics: !!tag },
           ]
         : []),
     ]
   })
-  const widths = prices ? [22, '*', 40, 40, 58, ...(showDiscount ? [34] : []), ...(t.vatOn ? [30] : []), 64] : [22, '*', 50, 60]
+  const widths = prices ? [22, '*', 40, 40, 58, ...(showDiscount ? [34] : []), ...(vatCol ? [30] : []), 64] : [22, '*', 50, 60]
   const sumRows = [
     ...(whole.discount ? [['Summe Positionen', eur(whole.subtotal)], [`Rabatt ${pct(doc.discount)}`, `−${eur(whole.discount)}`]] : []),
     ['Summe netto', eur(whole.net)],
-    ...(t.vatOn && !delivery ? whole.groups.map((g) => [`USt ${pct(g.rate)} von ${eur(g.net)}`, eur(g.vat)]) : []),
+    ...(t.vatOn && !delivery && !proforma ? whole.groups.map((g) => [`USt ${pct(g.rate)} von ${eur(g.net)}`, eur(g.vat)]) : []),
   ]
   // Schlussrechnung: jede Abschlagsrechnung mit Entgelt und Steuer je Steuersatz absetzen (§ 11 Abs. 1 Z 4 UStG)
   const advanceRows = t.full
@@ -191,7 +194,7 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
   if (['storno', 'korrektur'].includes(doc.kind) && t.gross < 0) payText.push(`Der Betrag von ${eur(-t.gross)} wird mit offenen Forderungen verrechnet bzw. auf Ihr Konto überwiesen.`)
   if (t.full && t.gross < 0) payText.push(`Die Abschläge übersteigen die Leistung: ${eur(-t.gross)} werden gutgeschrieben bzw. auf Ihr Konto überwiesen.`)
   const title = `${kind} ${doc.number || '(Entwurf)'}`
-  const lastLabel = doc.kind === 'angebot' ? 'Angebotssumme' : t.full ? 'Restbetrag' : 'Gesamtbetrag'
+  const lastLabel = doc.kind === 'angebot' ? 'Angebotssumme' : t.full ? 'Restbetrag' : proforma && t.vatOn ? 'Gesamtbetrag inkl. USt' : 'Gesamtbetrag'
   const sumTable = {
     columns: [
       { width: '*', text: '' },
