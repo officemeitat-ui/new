@@ -17,6 +17,8 @@
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
+//   einkauf/einkauf.json              Einkauf: Lieferanten, Eingangsrechnungen, Zahlungen (Belege unter einkauf/belege/)
+//   einkauf/kassenbuch.json           Kassenbuch (Einträge, Kassenstürze, Monatsabschlüsse)
 //   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden (mit Code), Einstellungen
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
@@ -72,6 +74,11 @@ export const MODULE_DOCS = {
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
+  // Einkauf & Kasse: Lieferanten und Eingangsrechnungen; das Kassenbuch in einer eigenen Datei (kleiner, seltener gleichzeitig).
+  // Leere Inhalte wie emptyPurchase/emptyCashbook (core/purchase.js, core/cashbook.js; test/storage.test.js vergleicht),
+  // hier ausgeschrieben, damit die Rechenkerne nicht in den Start der App wandern
+  einkauf: { path: 'einkauf/einkauf.json', empty: () => ({ suppliers: [], invoices: [], bankIgnored: {}, sepaRuns: [], settings: {} }) },
+  kasse: { path: 'einkauf/kassenbuch.json', empty: () => ({ entries: [], counts: [], closings: [], settings: {} }) },
   assistenz: { path: 'assistenz/entscheidungen.json', empty: () => ({ decided: {} }) },
   // Berichte automatisch per E-Mail: Abos (Empfänger, Rhythmus, zuletzt gesendet) – nur Vollzugriff
   berichte: { path: 'berichte/abos.json', empty: () => ({ abos: [] }) },
@@ -91,7 +98,7 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf'), () => edits('stammdaten', 'planung')],
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
@@ -111,10 +118,12 @@ export function dataRights(access) {
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
-    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen'), () => edits('planung', 'fakturierung', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen')],
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen')],
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
+    // Lieferanten (mit Bankverbindung), Eingangsrechnungen, Kassenbuch: nur Einkauf & Kasse (Buchhaltung, Vollzugriff)
+    ['einkauf/', () => sees('einkauf'), () => edits('einkauf')],
     // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
     [MODULE_DOCS.kundenbereich.path, () => edits('reklamationen', 'planung'), () => edits('reklamationen', 'planung')],
   ]
@@ -138,6 +147,7 @@ export const FOLDERS = [
   ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
+  ['einkauf', 'Einkauf & Kasse: Lieferanten, Eingangsrechnungen mit Belegen, Kassenbuch', MODULE_DOCS.einkauf.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
   ['kundenbereich', 'Kundenbereich: Links für Kunden (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],

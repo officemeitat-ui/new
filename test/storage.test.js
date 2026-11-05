@@ -5,6 +5,8 @@ import { mergeDoc } from '../src/core/merge.js'
 import { ConflictError, LocalDocStore } from '../src/storage/docstore-local.js'
 import { SharePointDocStore } from '../src/storage/docstore-sharepoint.js'
 import { DataService, DOC, MODULE_DOCS, splitData, weekPath } from '../src/storage/data-service.js'
+import { emptyCashbook } from '../src/core/cashbook.js'
+import { emptyPurchase } from '../src/core/purchase.js'
 
 function memoryStorage() {
   const map = new Map()
@@ -561,4 +563,29 @@ test('Abgleich: Änderung wird gleich im Gerät gesichert (App vor dem Speichern
   await b.load(seed)
   assert.equal(b.data.employees[0].name, 'Ana geändert')
   assert.equal(b.restored, 1)
+})
+
+test('DataService: Einkauf und Kassenbuch in eigenen Dateien unter einkauf/', async () => {
+  // leere Inhalte wie in den Rechenkernen (in data-service.js ausgeschrieben, damit sie nicht in den Start wandern)
+  assert.deepEqual(MODULE_DOCS.einkauf.empty(), emptyPurchase())
+  assert.deepEqual(MODULE_DOCS.kasse.empty(), emptyCashbook())
+  assert.deepEqual([MODULE_DOCS.einkauf.path, MODULE_DOCS.kasse.path], ['einkauf/einkauf.json', 'einkauf/kassenbuch.json'])
+  const store = new LocalDocStore({ storage: memoryStorage() })
+  const svc = new DataService(store, { debounceMs: 0 })
+  const data = await svc.load(seed)
+  assert.equal(await store.read(MODULE_DOCS.kasse.path), null, 'leeres Kassenbuch legt keine Datei an')
+  data.einkauf = { ...emptyPurchase(), suppliers: [{ id: 's1', name: 'Lieferant Beispiel' }] }
+  data.kasse = { ...emptyCashbook(), entries: [{ id: 'k1', no: 1, date: '2026-10-01', kind: 'einnahme', amount: 50, text: 'Anfangsbestand' }] }
+  await svc.flush()
+  assert.equal((await store.read(MODULE_DOCS.einkauf.path)).data.suppliers[0].name, 'Lieferant Beispiel')
+  assert.equal((await store.read(MODULE_DOCS.kasse.path)).data.entries[0].amount, 50)
+  assert.equal((await store.read(DOC.master)).data.kasse, undefined, 'nicht in den Stammdaten')
+  // ein zweites Gerät bucht gleichzeitig: beide Einträge bleiben (Zusammenführen je id)
+  const other = new DataService(store, { debounceMs: 0 })
+  const d2 = await other.load(seed)
+  data.kasse.entries.push({ id: 'k2', no: 2, date: '2026-10-02', kind: 'ausgabe', amount: 5, text: 'Porto' })
+  d2.kasse.entries.push({ id: 'k3', no: 2, date: '2026-10-02', kind: 'ausgabe', amount: 7, text: 'Parken' })
+  await svc.flush()
+  await other.flush()
+  assert.deepEqual((await store.read(MODULE_DOCS.kasse.path)).data.entries.map((e) => e.id).sort(), ['k1', 'k2', 'k3'])
 })
