@@ -111,6 +111,8 @@ import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
+import { customerLettersTab, lettersTab } from './invoicing-briefe.js'
+import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
 import { importButton } from './invoicing-import.js'
 import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
 import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } from './invoicing-sepa.js'
@@ -180,10 +182,11 @@ const TABS = [
   ['artikel', 'Artikel'],
   ['texte', 'Textbausteine'],
   ['bedingungen', 'Zahlungsbedingungen'],
+  ['briefe', 'Briefe'],
   ['einstellungen', 'Einstellungen'],
 ]
 // Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
-const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'einstellungen']
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
 
 /** Neben „+ Rechnung“: weitere Belege anlegen, Übernahmen, Export. */
@@ -200,6 +203,9 @@ function headMenus(ed) {
       ed && { label: 'Proformarechnung', action: 'fak-new', data: { kind: 'proforma' }, hint: 'keine Rechnung im Sinne des UStG' },
       ed && { label: 'Dauerauftrag', action: 'fak-rec-open', hint: 'monatlich, quartalsweise … abrechnen' },
       ed && proofOk && { label: 'Aus Leistungsnachweis', action: 'fak-proof-open', hint: 'Entwürfe je Objekt und Monat' },
+      ed && { heading: 'Schreiben' },
+      ed && { label: 'Brief', action: 'fak-letter-open', hint: 'an einen Kunden, auf dem Briefpapier' },
+      ed && { label: 'Serienbrief', action: 'fak-serial-open', hint: 'an viele Kunden: E-Mail oder Sammel-PDF' },
       ed && { heading: 'Stammdaten' },
       ed && { label: 'Kunde', action: 'fak-cust-open' },
       ed && { label: 'Artikel / Leistung', action: 'fak-art-open' },
@@ -236,12 +242,13 @@ function recurringDue(ym) {
 
 function invoicingView() {
   checkNumbers()
+  loadLetterhead().catch(() => {}) // Briefpapier für die PDFs schon bereitlegen
   const tab = TABS.some(([k]) => k === app.ui.fakTab) ? app.ui.fakTab : 'start'
   const n = counts()
   const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
@@ -514,6 +521,7 @@ function settingsTab() {
       <label class="field"><span>Bank</span><input type="text" id="fs-bank" value="${esc(s.bank.name)}" ${dis}></label>
     </div>
     ${ibanWarn ? '<p class="err-text">Die IBAN ist ungültig (Prüfziffer). Ohne gültige IBAN gibt es keinen QR-Code.</p>' : ''}
+    ${letterheadSection()}
     <h3>Rechnungen</h3>
     <div class="form-grid">
       <label class="field"><span>Zahlungsziel (Tage)</span><input type="number" id="fs-days" min="0" value="${esc(s.paymentDays)}" ${dis}></label>
@@ -1230,8 +1238,8 @@ function customerModal(c, m) {
   const v = m.draft
   const ed = editable()
   const dis = ed ? '' : 'disabled'
-  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, x && { id: 'verlauf', label: 'Belege & Umsatz' }]
-  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, verlauf: customerSheet }[m.tab]?.(v, x, dis) || ''
+  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
+  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
   return modalFrame({
     title: x ? customerName(x) || 'Kunde' : 'Neuer Kunde',
     subtitle: x?.customerNo ? `Kundennummer ${esc(x.customerNo)}${x.source?.system ? ` · übernommen aus ${esc(x.source.system)}` : ''}` : 'Rechnungsempfänger',
@@ -1448,6 +1456,7 @@ function readRecurring(m) {
 
 async function docDefinition(x) {
   const s = S()
+  await loadLetterhead().catch(() => null) // Briefpapier (Einstellungen → Briefpapier)
   // Entwürfe: Platzhalter mit Kunde, Zahlungsbedingung und Benutzer auflösen (festgeschriebene sind schon aufgelöst)
   return invoiceDocument({ doc: { ...x, objectName: x.objectName || objName(x.objectId) }, settings: s, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), customer: custOf(x.customerId), terms: termsById(F().paymentTerms, x.termsId), user: app.user?.name || '' })
 }
@@ -1972,6 +1981,7 @@ registerActions(
       const ctx = ctxFor(x, { reminder: r, open: r.open })
       el.disabled = true
       try {
+        await loadLetterhead().catch(() => null)
         const blob = await pdfBlob(reminderDocument({ doc: x, reminder: r, settings: s, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), today: todayISO(), text: fillPlaceholders(val('fr-letter'), ctx), greeting: ctx.Anrede }))
         const name = reminderFileName(x, r.level)
         if (via === 'mail') {

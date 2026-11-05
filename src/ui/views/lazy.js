@@ -269,6 +269,16 @@ lazy(BUERO, {
   todo: ['fakturierung-angebote'],
 })
 
+// invoicing-briefe.js und invoicing-briefpapier.js: Briefe, Serienbriefe und Briefpapier der Fakturierung (kommen mit invoicing.js)
+lazy(BUERO, {
+  module: 'fakturierung',
+  modals: 'fak-letterhead fak-letter fak-serial',
+  actions: `fak-lh-open fak-lh-pdfhelp fak-lh-preview fak-lh-color fak-lh-pdf fak-lh-file fak-lh-remove fak-lh-mode fak-lh-suggest fak-lh-reset fak-lh-save
+    fak-letter-search fak-letter-open fak-serial-open fak-letter-pdf fak-serial-step fak-serial-filter fak-serial-list fak-serial-prev fak-serial-pdf
+    fak-letter-customer fak-letter-contact fak-letter-save fak-letter-del fak-letter-copy fak-letter-print fak-letter-send fak-cust-flag fak-serial-pick
+    fak-serial-all fak-serial-kind fak-serial-send fak-serial-stop fak-serial-print`,
+})
+
 // weather.js: Wetter mit Radar, Karte und Grafiken; Zähler und Sichtbarkeit kommen aus ui/weather.js (immer geladen).
 // winterprotokoll: Platzhalter für winterlog.js (immer geladen), damit „Zu erledigen“ die Reihenfolge behält.
 lazy(BUERO, {

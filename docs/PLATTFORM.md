@@ -108,7 +108,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `schluessel/` | Schlüsselbuch (wer hat welchen Schlüssel, Verlauf, Unterschriften) | Bearbeiten | Bearbeiten | – |
 | `nachweise/` | Leistungsnachweis: Einstellungen und Versand-Vermerke | Bearbeiten | Bearbeiten | – |
 | `unterweisungen/` | Unterweisungen & Fristen je Person (mit Unterschriften) | Bearbeiten | – | – |
-| `fakturierung/` | Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen; PDFs unter `fakturierung/belege/` | Bearbeiten | – | – |
+| `fakturierung/` | Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Briefe; PDFs unter `fakturierung/belege/` und `fakturierung/briefe/`, Briefpapier unter `fakturierung/briefpapier/` | Bearbeiten | – | – |
 | `berichte/` | Berichte automatisch per E-Mail: Abos (Empfänger, Zeitplan, zuletzt gesendet) | Bearbeiten | – | – |
 | `exporte/` | Excel- und PDF-Wochenpläne | Bearbeiten | – | – |
 
@@ -375,6 +375,30 @@ Eigenes Modul unter *Finanzen* (Rolle `buchhaltung` oder Vollzugriff), gespeiche
 - **Läufe** (Menü „Läufe ▾“, wie in orgaMAX): Festschreiben und senden, Mahnlauf, Angebote nachfassen, SEPA-Lastschrift – siehe unten.
 - **Reverse Charge** (§ 19 Abs. 1a UStG) gilt für die Reinigung von Bauwerken **nur**, wenn der Auftraggeber selbst üblicherweise Bauleistungen erbringt oder mit der Leistung beauftragt ist (typisch: Subauftrag einer anderen Reinigungs- oder Baufirma). Hausverwaltungen, Büros, Geschäfte: normale Rechnung mit 20 % USt. Rechtliches und offene Punkte: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#fakturierung).
 
+### Briefpapier
+
+Fakturierung → Einstellungen → **Briefpapier** (wie der Briefpapier-Designer in orgaMAX, nur einfacher). Gilt für **alle PDFs der Fakturierung** – Rechnungen, Angebote, Auftragsbestätigungen, Storno- und Korrekturrechnungen, Mahnungen und Briefe – über eine gemeinsame Funktion `pageSetup(settings)` in `src/export/letterhead.js`; ein neues PDF der Fakturierung nimmt daraus Ränder, Hintergrund, Kopf, Fußzeile und Schrift und wartet vorher auf `loadLetterhead()` (`src/ui/views/invoicing-briefpapier.js`).
+
+- **Bild** als Hintergrund, getrennt für die **erste Seite** und die **Folgeseiten** („wie die erste Seite“, „eigenes Bild“ oder „ohne Briefpapier“). PNG oder JPG, A4 hoch; die App verkleinert auf 200 dpi (1654 Pixel breit) und warnt bei Querformat, falschem Seitenverhältnis oder unter 120 dpi.
+- **Kein PDF als Briefpapier:** pdfmake bettet nur Bilder (PNG, JPEG, SVG) ein, keine PDF-Seiten; eine Bibliothek, die PDFs im Browser in Bilder umwandelt (pdf.js), wäre zu groß. Wählt man ein PDF, erklärt der Dialog, wie daraus ein Bild wird (Acrobat „Exportieren in → Bild → PNG“, am Mac „Vorschau“ → Exportieren, unter Windows der kostenlose PDF24 Creator, 150–200 dpi).
+- **Ränder** in mm (oben erste Seite, oben Folgeseiten, unten, links, rechts), damit der Text nicht in Kopf und Fuß des Briefpapiers läuft. Die Vorschau im Dialog zeigt den Textbereich gestrichelt auf dem Bild. pdfmake kennt nur einen Rand für alle Seiten: oben gilt der Rand der Folgeseiten, auf der ersten Seite kommt der Unterschied als Abstand dazu (ist er oben auf der ersten Seite kleiner, gilt überall der größere). Hinweise, wenn die Fußzeile nicht in den unteren Rand passt oder zu wenig Platz für den Text bleibt.
+- **Ausblenden**, was das Briefpapier schon enthält: Logo, Absender oben rechts, Absenderzeile über der Anschrift (der Platz bleibt, die Anschrift sitzt weiter im Fenster des Kuverts), Fußzeile der App (die Seitenzahl bleibt, wenn eingeschaltet).
+- **Fußzeile** in bis zu 4 Spalten (mehrzeilig), Vorschlag aus den Firmendaten (Anschrift, Kontakt, Bank, Firmenbuch/UID); Seitenzahl ein/aus.
+- **Akzentfarbe** für Titel, Tabellenkopf und Linien (zu helle Farben dunkelt die App ab: Kontrast mindestens 4,5 : 1 auf Weiß und auf dem Tabellenkopf) und **Schrift**: nur Roboto, die einzige in pdfmake eingebettete (mit č, ć, ş …); Grundgröße 8,5 bis 11 pt.
+- **Vorschau (PDF)** vor dem Speichern: Musterrechnung über mehrere Seiten mit den Einstellungen aus dem Dialog.
+- **Ablage:** SharePoint `fakturierung/briefpapier/erste-seite.png|jpg` und `folgeseiten.…`, in `fakturierung.json` → `settings.letterhead` nur Pfad, Name, Größe und Zeitpunkt. Jedes Gerät merkt sich das Bild (IndexedDB „cleanos-briefpapier“) und lädt es neu, wenn es sich ändert. Im Browser-Modus liegt das Bild nur im Browser, in dem es hochgeladen wurde. Ohne Einstellung bleiben die PDFs wie bisher.
+
+### Briefe und Serienbriefe
+
+Reiter **Briefe** (`src/ui/views/invoicing-briefe.js`, Rechenkern `src/core/letters.js`, PDF `src/export/letter-pdf.js`):
+
+- **Brief an einen Kunden**, wahlweise an einen **Ansprechpartner**: Anschrift mit „z. H. …“, Anrede aus dem Namen („Frau Mag. Eva Huber“ → „Sehr geehrte Frau Mag. Huber“), E-Mail des Ansprechpartners vor der des Kunden. Betreff und Text mit **Textbausteinen** (Belegart „Brief“, Stellen „Brieftext“ und „E-Mail-Text“, einer als Standard) und **Platzhaltern** über `fillPlaceholders` ({Anrede}, {Kunde}, {Ansprechpartner}, {Kundennummer}, {Datum}, {Betreff}, {Objekt}, {Firma}, {Benutzer}, {IBAN}, {Heute}).
+- **PDF auf dem Briefpapier** mit Anschriftfeld, Datum, Kundennummer, Objekt und „Bearbeitet von“; **Senden** aus dem Postfach (sonst E-Mail-Programm, PDF als Download) oder **PDF zum Drucken**. Danach ist der Brief festgehalten (Platzhalter aufgelöst, Empfänger als Momentaufnahme); „Als neuen Brief kopieren“ übernimmt Text und Empfänger. Ablage in SharePoint unter `fakturierung/briefe/JAHR/Brief_Datum_Empfänger_Betreff_….pdf`.
+- **Verlauf je Kunde** im Kundenblatt, Reiter „Briefe“ (Briefe und Serienbriefe mit Versand). Dort auch **„Werbung per E-Mail abgelehnt“** (Widerspruch, Feld `noAds`) und **„Kunde inaktiv“** (`active: false`).
+- **Serienbrief** in vier Schritten: **Empfänger** (alle aktiven Kunden – in den letzten 24 Monaten eine Rechnung, ein laufender Dauerauftrag oder ein aktives Objekt –, eine Kundengruppe, die Kunden eines Objekts oder alle; Firmen/Privat, an Ansprechpartner mit einer Funktion wie „Buchhaltung“, Suche, einzeln abwählen) · **Text** (Information oder Werbung, mit Hinweis zu § 174 TKG 2021) · **Vorschau** je Empfänger, auf Wunsch als PDF · **Versand**: je Empfänger eine eigene E-Mail mit seinem Brief als PDF, **Pause** zwischen den E-Mails (Vorgabe 2 Sekunden, Microsoft 365 erlaubt etwa 30 E-Mails je Minute), **Fortschritt**, **Anhalten/Fortsetzen**, **Fehlerliste** und erneut senden (nur die Fehlgeschlagenen). Kunden ohne E-Mail (und bei Werbung die mit Widerspruch) kommen in ein **Sammel-PDF** zum Drucken: jeder Brief auf neuer Seite mit dem Briefpapier der ersten Seite, die Seitenzahl zählt je Brief. Ohne Microsoft 365 (Browser-Modus) geht alles ins Sammel-PDF.
+- **Werbung:** Kunden mit Widerspruch bekommen keine Werbe-E-Mail; an jede Werbe-E-Mail hängt die App einen Abmeldehinweis. Rechtliches: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#e-mail-werbung-serienbrief-neu).
+- **Gespeichert** in `fakturierung/fakturierung.json`: `letters[]` (je Brief Empfänger, Betreff, Text, Versand, Pfad des PDFs; Briefe eines Serienbriefs ohne Text, der steht im Serienbrief) und `serials[]` (Text, Filter, abgewählte Kunden, Ergebnis je Kunde mit Fehlern).
+
 ### E-Rechnung (ZUGFeRD/Factur-X, ebInterface)
 
 Zu jeder festgeschriebenen Rechnung, Stornorechnung und Rechnungskorrektur erzeugt die App eine strukturierte XML-Datei (`src/export/e-invoice.js`, dieselben Beträge wie das PDF):
@@ -573,7 +597,7 @@ Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Ze
 
 | Ansicht | direkt | Aufklappmenüs |
 |---|---|---|
-| Fakturierung | + Rechnung | **Anlegen** (Beleg: Angebot, Auftragsbestätigung, Lieferschein, Proformarechnung, Dauerauftrag, aus Leistungsnachweis · Stammdaten: Kunde, Artikel), **Export** (Steuerberatung, Kontoauszug) |
+| Fakturierung | + Rechnung | **Anlegen** (Beleg: Angebot, Auftragsbestätigung, Lieferschein, Proformarechnung, Dauerauftrag, aus Leistungsnachweis · Schreiben: Brief, Serienbrief · Stammdaten: Kunde, Artikel), **Export** (Steuerberatung, Kontoauszug) |
 | Material & Lager | Ausgabe | **Buchen** (Wareneingang, Umbuchen, Inventur), **Anlegen** (Anforderung, Bestellung · Stammdaten: Artikel, Lieferant, Lager, Excel-Liste), **Export** (Bestand, Verbrauch) |
 | Fahrzeuge | + Fahrzeug | **Verwalten** (Werkstätten, Excel-Liste · Export CSV); je Zeile Termin/Erledigt, dahinter **⋯** (Termin ändern, Fahrer/in informieren, bearbeiten) |
 | Schlüsselbuch | Ausgeben, Rückgabe | **Mehr** (Schlüssel anlegen · Export CSV) |
@@ -584,7 +608,7 @@ Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Ze
 | Kalkulation | Angebot (PDF) | **Mehr** (Kalkulation intern, als Budget übernehmen) |
 | Leistungsnachweis | je Zeile „Ansehen“ | **⋯** je Zeile (PDF, E-Mail) |
 
-- **Reiter gruppiert:** Fakturierung hat statt neun Reitern fünf: Übersicht · **Belege ▾** (Rechnungen, Angebote & Aufträge, Lieferscheine & Proforma, Daueraufträge) · **Zahlungen ▾** (Offene Posten, Bank) · **Stammdaten ▾** (Kunden, Artikel) · Einstellungen. Material: Bestand · Bestellen · Anforderungen · **Auswertung ▾** (Verbrauch, Buchungen) · Lieferanten & Lager. Der gewählte Unterpunkt steht im Reiter („Zahlungen: Offene Posten“), Zähler werden je Gruppe zusammengezählt.
+- **Reiter gruppiert:** Fakturierung hat statt neun Reitern fünf: Übersicht · **Belege ▾** (Rechnungen, Angebote & Aufträge, Lieferscheine & Proforma, Daueraufträge) · **Zahlungen ▾** (Offene Posten, Bank) · **Stammdaten ▾** (Kunden, Artikel) · Briefe · Einstellungen. Material: Bestand · Bestellen · Anforderungen · **Auswertung ▾** (Verbrauch, Buchungen) · Lieferanten & Lager. Der gewählte Unterpunkt steht im Reiter („Zahlungen: Offene Posten“), Zähler werden je Gruppe zusammengezählt.
 - **Bereich oben in der Kopfleiste** („Finanzen ▾ / Fakturierung“): ein Klick zeigt alle Ansichten dieses Bereichs mit Zählern und wechselt direkt dorthin, ohne Seitenleiste.
 - **„⋯“ oben rechts** ist gegliedert: *Diese Woche* (Veröffentlichen, Neu planen, Versenden), *App* (Jetzt abgleichen mit letztem Stand, Daten & Sicherung, Darstellung, Tastenkürzel), *Konto* (Abmelden).
 - **Bedienung:** Es ist immer nur ein Menü offen; ein Klick daneben, ein Bildlauf oder **Esc** schließt es (Esc schließt erst das Menü, nicht gleich den Dialog dahinter). Mit der Tastatur: **Pfeil runter** öffnet und springt in die Liste, Pfeile, Pos1 und Ende wandern, Tab verlässt das Menü. Menüs passen sich dem Platz an (nach oben oder zur anderen Seite) und werden in Tabellen nicht abgeschnitten.

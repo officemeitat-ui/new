@@ -7,6 +7,7 @@
 import { todayISO } from '../core/dates.js'
 import { deDate, DEFAULT_GREETING, epcPayload, formatIban, isAdvance, KINDS, kindLabel, lateInterest, periodLabel, PROFORMA_TEXT, RC_TEXT, resolveTexts, round2, settingsOf, SMALL_AMOUNT, SMALL_BUSINESS_TEXT, totals } from '../core/invoicing.js'
 import { debitNoteFor } from '../core/sepa.js'
+import { pageSetup } from './letterhead.js'
 import { inkColors, tableLayout } from './pdf-parts.js'
 
 // Tausenderpunkt wie auf österreichischen Rechnungen üblich (de-AT setzt bei Zahlen ohne Währung ein Leerzeichen)
@@ -47,15 +48,17 @@ function footer(sender, bank, colors) {
   })
 }
 
-function shell(content, { title, sender, bank, colors, draft, mark = '' }) {
+/** Seitenrahmen; page: Briefpapier aus pageSetup(settings) (Ränder, Hintergrund, Fußzeile, Schrift); mark: Wasserzeichen (z. B. Proforma). */
+function shell(content, { title, sender, bank, colors, draft, mark = '', page = pageSetup() }) {
   return {
     pageSize: 'A4',
-    pageMargins: [40, 36, 40, 54],
+    pageMargins: page.pageMargins,
+    ...(page.background ? { background: page.background, images: page.images } : {}),
     info: { title, author: sender.name, creator: 'Cleanos App' },
     ...(draft || mark ? { watermark: { text: draft ? 'ENTWURF' : mark, color: '#999999', opacity: 0.12, bold: true } } : {}),
-    content,
-    footer: footer(sender, bank, colors),
-    defaultStyle: { fontSize: 9, lineHeight: 1.15 },
+    content: page.wrap(content),
+    footer: page.footer(footer(sender, bank, colors)),
+    defaultStyle: page.defaultStyle({ fontSize: 9, lineHeight: 1.15 }),
     styles: {
       brand: { fontSize: 15, bold: true },
       title: { fontSize: 15, bold: true, color: colors.ink, margin: [0, 18, 0, 6] },
@@ -66,14 +69,14 @@ function shell(content, { title, sender, bank, colors, draft, mark = '' }) {
 }
 
 /** Anschriftfeld mit Absenderzeile (Fensterkuvert) und Angaben rechts. */
-function addressAndFacts(doc, sender, facts, colors) {
+function addressAndFacts(doc, sender, facts, colors, page = null) {
   const rec = doc.recipient || {}
   return {
     columns: [
       {
         width: 260,
         stack: [
-          { text: [sender.name, lines(sender.address).join(', ')].filter(Boolean).join(' · '), fontSize: 6.5, color: colors.grey, margin: [0, 26, 0, 4] },
+          { text: page?.returnLine === false ? ' ' : [sender.name, lines(sender.address).join(', ')].filter(Boolean).join(' · '), fontSize: 6.5, color: colors.grey, margin: [0, 26, 0, 4] },
           { text: rec.name || '', bold: true },
           ...lines(rec.address).map((text) => ({ text })),
           rec.uid ? { text: `UID ${rec.uid}`, margin: [0, 2, 0, 0] } : '',
@@ -95,9 +98,10 @@ function addressAndFacts(doc, sender, facts, colors) {
  * Beleg als pdfmake-Dokument. settings: Einstellungen der Fakturierung, doc: Beleg. Bei Entwürfen: customer
  * (für {Anrede}), terms (Zahlungsbedingung) und user (für {Benutzer}) zum Auflösen der Platzhalter.
  */
-export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = null, customer = null, terms = null, user = '', today = todayISO() }) {
+export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = null, customer = null, terms = null, user = '', today = todayISO(), letterhead }) {
   const s = settingsOf({ settings })
-  const colors = inkColors(brand)
+  const page = pageSetup(s, { images: letterhead, colors: inkColors(brand) })
+  const colors = page.colors
   const draft = !input.number
   const doc = draft ? { ...input, ...resolveTexts(input, { settings: s, customer, terms, user, today }) } : input
   const sender = draft ? s.sender : { ...s.sender, ...(doc.sender || {}) }
@@ -229,8 +233,8 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
       }
     : ''
   const content = [
-    { columns: [logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)] },
-    addressAndFacts(doc, sender, facts, colors),
+    page.head(logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)),
+    addressAndFacts(doc, sender, facts, colors, page),
     String(doc.deliveryAddress || '').trim() ? { text: [{ text: doc.kind === 'rechnung' || doc.kind === 'auftrag' ? 'Leistungsort: ' : 'Lieferadresse: ', color: colors.grey }, lines(doc.deliveryAddress).join(', ')], fontSize: 8.5, margin: [0, 8, 0, 0] } : '',
     { text: title, style: 'title' },
     doc.kind === 'proforma' ? { text: 'Proforma – keine Rechnung im Sinne des UStG', bold: true, fontSize: 11, margin: [0, 0, 0, 6] } : '',
@@ -248,16 +252,17 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
     doc.outro ? { text: doc.outro, margin: [0, 12, 0, 0] } : '',
     signature,
   ].filter(Boolean)
-  return shell(content, { title, sender, bank: s.bank, colors, draft, mark: doc.kind === 'proforma' ? 'Proforma' : '' })
+  return shell(content, { title, sender, bank: s.bank, colors, draft, mark: doc.kind === 'proforma' ? 'Proforma' : '', page })
 }
 
 /**
  * Mahnung bzw. Zahlungserinnerung zu einer Rechnung. reminder: core/invoicing.js → reminderFor().
  * text: eigener Text des Schreibens (Platzhalter schon aufgelöst), greeting: Anrede ohne Beistrich.
  */
-export function reminderDocument({ doc, reminder, settings = {}, brand = {}, logo = null, today = todayISO(), text: ownText = '', greeting = DEFAULT_GREETING }) {
+export function reminderDocument({ doc, reminder, settings = {}, brand = {}, logo = null, today = todayISO(), text: ownText = '', greeting = DEFAULT_GREETING, letterhead }) {
   const s = settingsOf({ settings })
-  const colors = inkColors(brand)
+  const page = pageSetup(s, { images: letterhead, colors: inkColors(brand) })
+  const colors = page.colors
   const sender = { ...s.sender, ...(doc.sender || {}) }
   const facts = [
     ['Datum', deDate(today)],
@@ -281,8 +286,8 @@ export function reminderDocument({ doc, reminder, settings = {}, brand = {}, log
       ? `zu unserer Rechnung ${doc.number} vom ${deDate(doc.date)} konnten wir bis heute keinen Zahlungseingang feststellen. Sicher ist sie Ihnen nur entgangen. Wir bitten Sie, den offenen Betrag bis ${deDate(reminder.deadline)} zu überweisen.`
       : `trotz unserer Erinnerung ist unsere Rechnung ${doc.number} vom ${deDate(doc.date)} noch offen. Wir ersuchen Sie, den Gesamtbetrag von ${eur(reminder.total)} bis ${deDate(reminder.deadline)} zu überweisen.`
   const content = [
-    { columns: [logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)] },
-    addressAndFacts(doc, sender, facts, colors),
+    page.head(logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)),
+    addressAndFacts(doc, sender, facts, colors, page),
     { text: reminder.name, style: 'title' },
     { text: `${greeting || DEFAULT_GREETING},`, margin: [0, 0, 0, 6] },
     { text, margin: [0, 0, 0, 10] },
@@ -304,7 +309,9 @@ export function reminderDocument({ doc, reminder, settings = {}, brand = {}, log
     { text: 'Mit freundlichen Grüßen', margin: [0, 10, 0, 0] },
     { text: sender.name },
   ].filter(Boolean)
-  return shell(content, { title: `${reminder.name} ${doc.number}`, sender, bank: s.bank, colors, draft: false })
+  return shell(content, { title: `${reminder.name} ${doc.number}`, sender, bank: s.bank, colors, draft: false, page })
 }
 
 export { lateInterest }
+// für weitere Schreiben der Fakturierung (Briefe: export/letter-pdf.js) im selben Aussehen
+export { addressAndFacts, logoBlock, senderBlock, shell }

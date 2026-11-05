@@ -111,7 +111,10 @@ export const SETTINGS_DEFAULTS = {
  *                  contactName, deliveryAddress, imported { system, at, ref } (übernommener Altbeleg: Nummer, Datum und
  *                  Summen wie im Altsystem, nicht neu gerechnet), original { path, name } (Original-PDF im Archiv), extra
  *  recurring[]   wie bisher (Daueraufträge; orgaMAX: Abo-Rechnungen)
- *  settings      wie bisher, dazu numberFormats { Belegart: Vorlage mit {P} {JJJJ} {JJ} {MM} {NR} }, yearly { Belegart: bool }
+ *  settings      wie bisher, dazu numberFormats { Belegart: Vorlage mit {P} {JJJJ} {JJ} {MM} {NR} }, yearly { Belegart: bool },
+ *                letterhead (Briefpapier für alle PDFs: Bilder, Ränder, Fußzeile, Farbe, Schrift; export/letterhead.js)
+ *  letters[]     Geschäftsbriefe, serials[] Serienbriefe (Felder in core/letters.js); customers[] dazu noAds (Werbung per
+ *                E-Mail abgelehnt) und active (false: inaktiv, nicht bei „alle aktiven Kunden“)
  * Neue Belegfelder zählen zur Prüfsumme nur, wenn sie gesetzt sind (alte Prüfsummen bleiben gültig).
  *
  * Läufe und SEPA-Lastschrift (core/fak-laeufe.js, core/sepa.js; alle Felder optional):
@@ -1313,8 +1316,8 @@ export function resolveTexts(doc, { settings = {}, customer = null, terms = null
 
 // ---------------------------------------------------------------- Textbausteine
 
-export const TEXT_PLACES = { intro: 'Einleitung', outro: 'Schlusstext', mail: 'E-Mail-Text', reminder: 'Mahnungstext', position: 'Positionstext' }
-export const TEXT_KINDS = { ...KINDS, mahnung: 'Mahnung', nachfassen: 'Angebot nachfassen', lastschrift: 'Lastschrift-Ankündigung', alle: 'alle Belegarten' }
+export const TEXT_PLACES = { intro: 'Einleitung', outro: 'Schlusstext', mail: 'E-Mail-Text', reminder: 'Mahnungstext', position: 'Positionstext', letter: 'Brieftext' }
+export const TEXT_KINDS = { ...KINDS, mahnung: 'Mahnung', nachfassen: 'Angebot nachfassen', lastschrift: 'Lastschrift-Ankündigung', brief: 'Brief', alle: 'alle Belegarten' }
 const placeOf = (b) => b.place || 'intro'
 
 /** Textbausteine für eine Belegart und Stelle: eigene Belegart vor „alle“, Standard zuerst, dann nach Name. */

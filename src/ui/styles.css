@@ -2096,3 +2096,45 @@ tr.muted td { color: var(--muted); }
 .fim-notes { margin-top: 10px; }
 .fim-notes > summary { cursor: pointer; font-weight: 600; }
 .fim-notes ul { margin: 6px 0 0; padding-left: 18px; font-size: 0.88rem; max-height: 260px; overflow: auto; }
+
+/* ---------- Fakturierung: Briefpapier, Briefe, Serienbriefe (invoicing-briefpapier.js, invoicing-briefe.js) ---------- */
+.fak-lh-summary { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.fak-lh-summary p { margin: 0; flex: 1 1 18rem; }
+.fak-lh-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem); gap: 16px 20px; align-items: start; }
+.fak-lh-side { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; position: sticky; top: 0; }
+.fak-lh-sheet-wrap { margin: 0; min-width: 0; }
+.fak-lh-sheet-wrap figcaption { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 4px; }
+.fak-lh-sheet { position: relative; aspect-ratio: 210 / 297; width: 100%; background: #ffffff center / 100% 100% no-repeat; border: 1px solid var(--line-strong, var(--line)); border-radius: 2px; box-shadow: var(--card-shadow); overflow: hidden; }
+.fak-lh-area { position: absolute; border: 1.5px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); display: grid; place-items: center; }
+.fak-lh-area span { font-size: 0.72rem; font-weight: 600; color: var(--accent); background: rgb(255 255 255 / 0.85); padding: 0 4px; border-radius: 3px; }
+.fak-lh-foot { position: absolute; border-top: 1px dotted var(--muted); background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--muted) 18%, transparent) 0 2px, transparent 2px 5px); }
+.fak-lh-image { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: 10px; align-items: start; margin: 8px 0 12px; }
+.fak-lh-thumb { aspect-ratio: 210 / 297; border: 1px solid var(--line); background: #ffffff; display: grid; place-items: center; overflow: hidden; font-size: 0.7rem; text-align: center; }
+.fak-lh-thumb img { width: 100%; height: 100%; object-fit: fill; }
+.fak-lh-file { min-width: 0; overflow-wrap: anywhere; }
+.fak-lh-file .actions { margin-top: 6px; flex-wrap: wrap; }
+.fak-lh-file p { margin: 4px 0 0; }
+.fak-lh-margins { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
+.fak-lh-footer { grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
+.fak-lh-footer textarea { font-size: 0.85rem; }
+.fak-lh-color { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fak-lh-color input[type='color'] { width: 2.6rem; height: 2.2rem; padding: 2px; }
+.fak-lh-color input[type='text'] { width: 6.5rem; }
+.fak-lh-pdf ul { margin: 6px 0; padding-left: 18px; display: grid; gap: 4px; }
+.fak-legal { margin: 10px 0; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid var(--warn); border-radius: 8px; background: var(--surface); }
+.fak-legal summary { cursor: pointer; font-weight: 600; }
+.fak-legal p { margin: 6px 0 0; font-size: 0.9rem; }
+.fak-serial-steps { margin-bottom: 10px; }
+.fak-serial-kind { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 8px; }
+.fak-serial-list { max-height: min(50vh, 420px); overflow: auto; }
+.fak-serial-list td .check { align-items: flex-start; }
+.fak-serial-preview { display: grid; gap: 10px; }
+.fak-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fak-serial-progress { margin: 10px 0; }
+.fak-serial-progress progress { width: 100%; height: 12px; }
+.fak-serial-progress p { margin: 4px 0 0; }
+.fak-cust-flags { margin-top: 4px; }
+@media (max-width: 720px) {
+  .fak-lh-grid { grid-template-columns: minmax(0, 1fr); }
+  .fak-lh-side { position: static; max-width: 22rem; }
+}
