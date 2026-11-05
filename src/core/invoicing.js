@@ -28,10 +28,29 @@ export const KINDS = {
   rechnung: 'Rechnung',
   storno: 'Stornorechnung',
   korrektur: 'Rechnungskorrektur',
+  lieferschein: 'Lieferschein',
+  proforma: 'Proformarechnung',
 }
-/** Belege, die Umsatz sind (Ausgangsrechnungen samt Storno und Korrektur). */
+/** Belege, die Umsatz sind (Ausgangsrechnungen samt Storno und Korrektur). Lieferschein und Proforma nicht. */
 export const INVOICE_KINDS = ['rechnung', 'storno', 'korrektur']
 export const isInvoice = (d) => INVOICE_KINDS.includes(d?.kind)
+/** Teil einer Abrechnung in Teilen: Abschlagsrechnung (Anzahlung) bzw. Schlussrechnung (Endrechnung). */
+export const STAGES = { abschlag: 'Abschlagsrechnung', schluss: 'Schlussrechnung' }
+export const isAdvance = (d) => d?.kind === 'rechnung' && d.stage === 'abschlag'
+export const isFinal = (d) => d?.kind === 'rechnung' && d.stage === 'schluss'
+/** Name des Belegs, wie er auf dem PDF steht: „Abschlagsrechnung“, „Schlussrechnung“, sonst die Belegart. */
+export const kindLabel = (d) => (d?.kind === 'rechnung' && STAGES[d.stage]) || KINDS[d?.kind] || 'Beleg'
+export const PROFORMA_TEXT = 'Proforma – keine Rechnung im Sinne des UStG. Berechtigt nicht zum Vorsteuerabzug; die Rechnung folgt nach der Leistung.'
+
+// Positionsarten wie in orgaMAX: nur „Position“ zählt zur Summe. Option (Bedarfsposition) und Alternative stehen
+// mit Preis im Angebot, gehen aber nicht in die Summe; Text, Titel und Zwischensumme haben keinen eigenen Betrag.
+export const LINE_TYPES = { item: 'Position', text: 'Text', title: 'Titel', subtotal: 'Zwischensumme', optional: 'Option', alternative: 'Alternative' }
+/** Art einer Zeile; alte Zeilen ohne type sind Positionen. */
+export const lineType = (l) => (l && LINE_TYPES[l.type] ? l.type : 'item')
+/** Zeilen mit Menge und Preis (Position, Option, Alternative). */
+export const pricedLine = (l) => ['item', 'optional', 'alternative'].includes(lineType(l))
+/** Option und Alternative: nur im Angebot bzw. in der Auftragsbestätigung. */
+export const choiceLine = (l) => ['optional', 'alternative'].includes(lineType(l))
 
 export const VAT_RATES = [20, 13, 10, 0]
 export const UNITS = ['Pauschale', 'Monat', 'Std.', 'm²', 'Stk', 'Einsatz', 'km', 'Quartal']
@@ -47,7 +66,7 @@ export const B2B_FLAT_FEE = 40 // § 458 UGB
 export const RC_TEXT = 'Die Steuerschuld geht auf den Leistungsempfänger über (Reverse Charge gemäß § 19 Abs. 1a UStG, Bauleistungen).'
 export const SMALL_BUSINESS_TEXT = 'Umsatzsteuerbefreit – Kleinunternehmer gemäß § 6 Abs. 1 Z 27 UStG.'
 
-export const SERIES_DEFAULTS = { rechnung: 'RE', storno: 'ST', korrektur: 'KO', angebot: 'AN', auftrag: 'AB' }
+export const SERIES_DEFAULTS = { rechnung: 'RE', storno: 'ST', korrektur: 'KO', angebot: 'AN', auftrag: 'AB', lieferschein: 'LS', proforma: 'PF' }
 
 export const REMINDER_DEFAULTS = [
   { name: 'Zahlungserinnerung', days: 7, interest: false, fee: false, deadline: 7 },
@@ -94,6 +113,20 @@ export const SETTINGS_DEFAULTS = {
  *  recurring[]   wie bisher (Daueraufträge; orgaMAX: Abo-Rechnungen)
  *  settings      wie bisher, dazu numberFormats { Belegart: Vorlage mit {P} {JJJJ} {JJ} {MM} {NR} }, yearly { Belegart: bool }
  * Neue Belegfelder zählen zur Prüfsumme nur, wenn sie gesetzt sind (alte Prüfsummen bleiben gültig).
+ *
+ * Belegarten und Positionsarten wie in orgaMAX (alle Felder optional):
+ *  documents[].kind   dazu 'lieferschein' (Nummernfolge LS) und 'proforma' (PF): kein Umsatz, keine offenen Posten
+ *  documents[].lines[] type: 'item' (Standard, auch ohne Feld), 'text' (nur Text), 'title' (Überschrift; showSum: Summe
+ *                  der Gruppe darunter drucken), 'subtotal' (Zwischensumme seit der letzten Zwischensumme bzw. seit Beginn),
+ *                  'optional' (Option/Bedarfsposition) und 'alternative' (altTo: id der Position, die sie ersetzen würde):
+ *                  beide mit Preis, aber nicht in der Summe. Positionen ohne type bekommen kein type nachträglich.
+ *  documents[].stage  bei kind 'rechnung': 'abschlag' (Abschlagsrechnung über einen Teil des Angebots/Auftrags) oder
+ *                  'schluss' (Schlussrechnung über alles); refId/refNumber: Angebot bzw. Auftrag
+ *  documents[].advances[] bei der Schlussrechnung: abgezogene Abschlagsrechnungen { id, number, date, net, vat, gross,
+ *                  groups: [{ rate, net, vat }] } (Stand beim Erstellen); total ist dann der Restbetrag, total.full die
+ *                  ganze Leistung und total.advance der Abzug
+ *  documents[].deliveryNotes[] bei der (Sammel-)Rechnung aus Lieferscheinen: [{ id, number, date }]
+ *  documents[].hidePrices  Lieferschein ohne Preise drucken
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 
@@ -135,13 +168,81 @@ export const lineNet = (l) => round2(parseNumber(l.qty) * parseNumber(l.price) *
 /** Wird Umsatzsteuer berechnet? (nicht bei Reverse Charge und Kleinunternehmer) */
 export const chargesVat = (d, settings = {}) => !d.reverseCharge && !(d.smallBusiness ?? settings.smallBusiness)
 
+/** Zeile mit Inhalt? (ganz leere Zeilen, z. B. die letzte im Formular, zählen nicht; eine Zwischensumme immer) */
+const filled = (l) => lineType(l) === 'subtotal' || String(l.text || '').trim() || (pricedLine(l) && parseNumber(l.price))
+
 /**
- * Summen eines Belegs: { lines: [{ …, net }], subtotal, discount, net, groups: [{ rate, net, vat }], vat, gross }.
+ * Zeilen für die Anzeige (Formular, Ansicht, PDF) in der Reihenfolge des Belegs: { …Zeile, type, net, pos } mit
+ * pos = laufende Nummer für Position, Option und Alternative; altPos = Nummer der ersetzten Position; Zwischensumme
+ * mit net = Summe der Positionen seit der letzten Zwischensumme; Titel mit groupNet (Summe bis zum nächsten Titel) und
+ * danach eine Zeile type 'groupsum', wenn showSum gesetzt ist. Optionen und Alternativen zählen in keiner Summe.
+ */
+export function lineRows(lines = []) {
+  const rows = []
+  let pos = 0
+  let since = 0
+  let title = null
+  const posOf = new Map()
+  const closeGroup = () => {
+    if (title?.showSum) rows.push({ id: `${title.id || ''}-summe`, type: 'groupsum', text: `Summe ${title.text}`.trim(), net: round2(title.groupNet) })
+    title = null
+  }
+  for (const l of lines.filter(filled)) {
+    const type = lineType(l)
+    if (type === 'title') {
+      closeGroup()
+      title = { ...l, type, groupNet: 0 }
+      rows.push(title)
+      continue
+    }
+    if (type === 'subtotal') {
+      rows.push({ ...l, type, net: round2(since) })
+      since = 0
+      continue
+    }
+    if (type === 'text') {
+      rows.push({ ...l, type })
+      continue
+    }
+    const row = { ...l, type, net: lineNet(l), pos: ++pos }
+    posOf.set(l.id, pos)
+    if (type === 'item') {
+      since = round2(since + row.net)
+      if (title) title.groupNet = round2(title.groupNet + row.net)
+    }
+    rows.push(row)
+  }
+  closeGroup()
+  for (const r of rows) if (r.type === 'alternative' && r.altTo && posOf.has(r.altTo)) r.altPos = posOf.get(r.altTo)
+  return rows
+}
+
+/** Abgezogene Abschläge je Steuersatz: { net, vat, gross, groups: [{ rate, net, vat }] }. */
+function advanceSum(advances, vatOn) {
+  const byRate = new Map()
+  for (const a of advances || [])
+    for (const g of a.groups || []) {
+      const rate = vatOn ? parseNumber(g.rate) : 0
+      const cur = byRate.get(rate) || { rate, net: 0, vat: 0 }
+      cur.net = round2(cur.net + parseNumber(g.net))
+      cur.vat = round2(cur.vat + (vatOn ? parseNumber(g.vat) : 0))
+      byRate.set(rate, cur)
+    }
+  const groups = [...byRate.values()].sort((a, b) => b.rate - a.rate)
+  const net = round2(groups.reduce((s, g) => s + g.net, 0))
+  const vat = round2(groups.reduce((s, g) => s + g.vat, 0))
+  return { net, vat, gross: round2(net + vat), groups }
+}
+
+/**
+ * Summen eines Belegs: { lines: [{ …, net }], rows, subtotal, discount, net, groups: [{ rate, net, vat }], vat, gross }.
+ * lines: nur echte Positionen (die zählen); rows: alle Zeilen zur Anzeige (lineRows).
  * Belegrabatt in % wird je Steuersatz abgezogen; Steuer je Steuersatz auf die Summe gerechnet (nicht je Zeile).
+ * Schlussrechnung (advances): net, vat, gross und groups sind der Restbetrag nach Abzug der Abschläge je Steuersatz,
+ * full die ganze Leistung, advance der Abzug.
  */
 export function totals(d, settings = {}) {
-  // ganz leere Zeilen (z. B. die letzte im Formular) zählen nicht
-  const lines = (d.lines || []).filter((l) => String(l.text || '').trim() || parseNumber(l.price)).map((l) => ({ ...l, net: lineNet(l) }))
+  const lines = (d.lines || []).filter((l) => lineType(l) === 'item' && filled(l)).map((l) => ({ ...l, net: lineNet(l) }))
   const vatOn = chargesVat(d, settings)
   const pct = parseNumber(d.discount)
   const byRate = new Map()
@@ -160,7 +261,19 @@ export function totals(d, settings = {}) {
   const discount = round2(groups.reduce((s, g) => s + g.discount, 0))
   const net = round2(groups.reduce((s, g) => s + g.net, 0))
   const vat = round2(groups.reduce((s, g) => s + g.vat, 0))
-  return { lines, subtotal, discount, net, groups, vat, gross: round2(net + vat), vatOn }
+  const out = { lines, rows: lineRows(d.lines || []), subtotal, discount, net, groups, vat, gross: round2(net + vat), vatOn }
+  if (!d.advances?.length) return out
+  // Schlussrechnung: Abschläge je Steuersatz samt Steuer absetzen (§ 11 Abs. 1 Z 4 UStG)
+  const advance = advanceSum(d.advances, vatOn)
+  const rates = [...new Set([...groups.map((g) => g.rate), ...advance.groups.map((g) => g.rate)])].sort((a, b) => b - a)
+  const rest = rates.map((rate) => {
+    const g = groups.find((x) => x.rate === rate) || { subtotal: 0, discount: 0, net: 0, vat: 0 }
+    const a = advance.groups.find((x) => x.rate === rate) || { net: 0, vat: 0 }
+    return { rate, subtotal: g.subtotal, discount: g.discount, net: round2(g.net - a.net), vat: round2(g.vat - a.vat) }
+  })
+  const restNet = round2(rest.reduce((s, g) => s + g.net, 0))
+  const restVat = round2(rest.reduce((s, g) => s + g.vat, 0))
+  return { ...out, full: { subtotal, discount, net, vat, gross: out.gross, groups }, advance, net: restNet, vat: restVat, gross: round2(restNet + restVat), groups: rest }
 }
 
 // ---------------------------------------------------------------- Nummern
@@ -233,7 +346,7 @@ export function fnv1a(text) {
 const FIXED_FIELDS = ['kind', 'number', 'date', 'serviceFrom', 'serviceTo', 'dueDate', 'sender', 'recipient', 'lines', 'discount', 'reverseCharge', 'smallBusiness', 'refId', 'refNumber', 'title', 'intro', 'outro', 'total']
 const canonical = (v) => (Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v)
 // später dazugekommene Felder: zählen nur, wenn gesetzt (sonst änderten sich die Prüfsummen alter Belege)
-const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported']
+const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported', 'stage', 'advances', 'deliveryNotes', 'hidePrices']
 export const checksumOf = (d) => fnv1a(JSON.stringify(canonical({ ...Object.fromEntries(FIXED_FIELDS.map((k) => [k, d[k] ?? null])), ...Object.fromEntries(FIXED_OPTIONAL.filter((k) => d[k] != null && d[k] !== '').map((k) => [k, d[k]])) })))
 /** Festgeschriebener Beleg unverändert? (true auch für Entwürfe) */
 export const intact = (d) => !d.number || !d.checksum || d.checksum === checksumOf(d)
@@ -250,7 +363,9 @@ export function problems(d, settings = SETTINGS_DEFAULTS) {
   const err = (text) => out.push({ level: 'error', text })
   const warn = (text) => out.push({ level: 'warn', text })
   const t = totals(d, s)
-  const gross = Math.abs(t.gross)
+  // Grenzen (Kleinbetrag, UID über 10.000 €) gelten für die ganze Rechnung, bei der Schlussrechnung vor Abzug der Abschläge
+  const whole = t.full || t
+  const gross = Math.abs(whole.gross)
   const small = gross <= SMALL_AMOUNT
   const sender = d.sender || s.sender
   const rec = d.recipient || {}
@@ -268,11 +383,15 @@ export function problems(d, settings = SETTINGS_DEFAULTS) {
     if (!rec.uid) err('Reverse Charge: UID-Nummer des Empfängers fehlt (§ 11 Abs. 1a UStG).')
     if (!sender.uid) err('Reverse Charge: eigene UID-Nummer fehlt.')
   } else if (invoice && gross > UID_LIMIT && !rec.consumer && !rec.uid) err('Über 10.000 € brutto: UID-Nummer des Empfängers fehlt (§ 11 Abs. 1 Z 3 lit. i UStG).')
-  if (d.kind === 'rechnung' && t.gross < 0) err('Rechnung mit negativem Betrag: dafür eine Rechnungskorrektur oder Stornorechnung erstellen.')
+  if (d.kind === 'rechnung' && whole.gross < 0) err('Rechnung mit negativem Betrag: dafür eine Rechnungskorrektur oder Stornorechnung erstellen.')
+  if (isFinal(d) && whole.gross >= 0 && t.gross < 0) warn('Die Abschläge sind höher als die Schlussrechnung: der Rest wird gutgeschrieben.')
   if (['storno', 'korrektur'].includes(d.kind) && !d.refId) err('Bezug auf die ursprüngliche Rechnung fehlt.')
+  if (!['angebot', 'auftrag'].includes(d.kind) && (d.lines || []).some((l) => choiceLine(l) && filled(l))) err(`Optionen und Alternativen gibt es nur im Angebot und in der Auftragsbestätigung: in eine Position umwandeln oder entfernen (${KINDS[d.kind] || 'Beleg'}).`)
+  if (d.kind === 'lieferschein' && !d.serviceFrom) warn('Liefer- bzw. Leistungsdatum fehlt.')
   if (d.dueDate && d.date && d.dueDate < d.date) warn('Fällig vor dem Rechnungsdatum.')
-  if (invoice && d.date && d.serviceFrom && d.serviceFrom > d.date) warn('Leistung liegt nach dem Rechnungsdatum (Vorausrechnung?).')
-  if (invoice && small && t.gross > 0) out.push({ level: 'info', text: `Kleinbetragsrechnung (bis ${SMALL_AMOUNT} € brutto): vereinfachte Angaben genügen (§ 11 Abs. 6 UStG).` })
+  if (invoice && !isAdvance(d) && d.date && d.serviceFrom && d.serviceFrom > d.date) warn('Leistung liegt nach dem Rechnungsdatum (Vorausrechnung?).')
+  if (isAdvance(d)) out.push({ level: 'info', text: 'Abschlagsrechnung (Anzahlung): die Umsatzsteuer ist mit dem Zahlungseingang fällig (§ 19 Abs. 2 Z 1 lit. a UStG); die Schlussrechnung zieht sie wieder ab.' })
+  if (invoice && small && whole.gross > 0) out.push({ level: 'info', text: `Kleinbetragsrechnung (bis ${SMALL_AMOUNT} € brutto): vereinfachte Angaben genügen (§ 11 Abs. 6 UStG).` })
   return out
 }
 
@@ -302,6 +421,17 @@ export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date
     finalizedBy: by,
     history: [...(d.history || []), { at: now, by, text: `festgeschrieben als ${number}` }],
   }
+  // Schlussrechnung: total ist der Restbetrag (offene Posten, Umsatz, Export), dazu die ganze Leistung und der Abzug
+  if (t.full) {
+    const g = (list) => list.map(({ rate, net, vat }) => ({ rate, net, vat }))
+    out.total.full = { net: t.full.net, vat: t.full.vat, gross: t.full.gross, groups: g(t.full.groups) }
+    out.total.advance = { net: t.advance.net, vat: t.advance.vat, gross: t.advance.gross, groups: g(t.advance.groups) }
+  }
+  // neue Felder nur, wenn sie etwas sagen (sie zählen dann zur Prüfsumme)
+  if (!STAGES[out.stage] || out.kind !== 'rechnung') delete out.stage
+  if (!out.advances?.length) delete out.advances
+  if (!out.deliveryNotes?.length) delete out.deliveryNotes
+  if (out.hidePrices !== true || out.kind !== 'lieferschein') delete out.hidePrices
   if (!(parseNumber(out.skonto?.percent) > 0) || d.kind !== 'rechnung') delete out.skonto
   // nur geänderte Texte übernehmen (Belege ohne Platzhalter bleiben Feld für Feld gleich)
   for (const [k, v] of Object.entries(resolveTexts(out, { settings: s, customer, terms, user, today: now.slice(0, 10) }))) if (v !== out[k]) out[k] = v
@@ -342,7 +472,9 @@ export function resolveDuplicates(docs, settings = SETTINGS_DEFAULTS, { now = ne
 
 // ---------------------------------------------------------------- Storno, Korrektur, Umwandeln
 
-const negLine = (l) => ({ ...l, qty: -parseNumber(l.qty) })
+// nur Zeilen mit Menge drehen (Text, Titel und Zwischensumme bleiben, wie sie sind)
+const negLine = (l) => (pricedLine(l) ? { ...l, qty: -parseNumber(l.qty) } : { ...l })
+const negAdvance = (a) => ({ ...a, net: -parseNumber(a.net), vat: -parseNumber(a.vat), gross: -parseNumber(a.gross), groups: (a.groups || []).map((g) => ({ ...g, net: -parseNumber(g.net), vat: -parseNumber(g.vat) })) })
 const copyFields = (d) => ({ customerId: d.customerId, objectId: d.objectId, recipient: { ...(d.recipient || {}) }, reverseCharge: !!d.reverseCharge, smallBusiness: d.smallBusiness, discount: d.discount || 0 })
 
 /** Stornorechnung zu einer festgeschriebenen Rechnung (alle Positionen mit umgekehrtem Vorzeichen, als Entwurf). */
@@ -359,10 +491,12 @@ export function stornoDraft(original, { id, date, reason = '' }) {
     ...copyFields(original),
     refId: original.id,
     refNumber: original.number,
-    title: `Storno zu Rechnung ${original.number} vom ${deDate(original.date)}`,
+    title: `Storno zu ${kindLabel(original)} ${original.number} vom ${deDate(original.date)}`,
     intro: reason ? `Grund: ${reason}` : '',
     outro: '',
     lines: (original.lines || []).map(negLine),
+    // Schlussrechnung: auch den Abzug der Abschläge umdrehen (das Storno nimmt genau den Restbetrag zurück)
+    ...(original.advances?.length ? { advances: original.advances.map(negAdvance) } : {}),
   }
 }
 
@@ -388,8 +522,27 @@ export function correctionDraft(original, { id, date, text = 'Preisminderung', a
   }
 }
 
-/** Angebot → Auftragsbestätigung oder Rechnung; Auftrag → Rechnung (neuer Entwurf mit Bezug). */
-export function convertDraft(source, kind, { id, date }) {
+/**
+ * Zeilen für den Folgebeleg: Optionen und Alternativen nur, wenn angenommen (ids in accept), dann als normale
+ * Position; eine angenommene Alternative ersetzt die Position, zu der sie gehört (altTo). Neue ids mit Präfix.
+ */
+export function acceptedLines(lines = [], { accept = [], id = 'l' } = {}) {
+  const yes = new Set(accept)
+  const replaced = new Set(lines.filter((l) => lineType(l) === 'alternative' && yes.has(l.id) && l.altTo).map((l) => l.altTo))
+  return lines
+    .filter((l) => (choiceLine(l) ? yes.has(l.id) : !replaced.has(l.id)))
+    .map((l, i) => {
+      if (!choiceLine(l)) return { ...l, id: `${id}-${i + 1}` }
+      const { type, altTo, ...item } = l
+      return { ...item, id: `${id}-${i + 1}` }
+    })
+}
+
+/**
+ * Angebot → Auftragsbestätigung, Rechnung, Lieferschein oder Proforma; Auftrag → Rechnung bzw. Lieferschein;
+ * Proforma → Rechnung (neuer Entwurf mit Bezug). accept: ids der angenommenen Optionen und Alternativen.
+ */
+export function convertDraft(source, kind, { id, date, accept = [] }) {
   return {
     id,
     kind,
@@ -403,7 +556,131 @@ export function convertDraft(source, kind, { id, date }) {
     title: source.title || '',
     intro: '',
     outro: '',
-    lines: (source.lines || []).map((l, i) => ({ ...l, id: `${id}-${i + 1}` })),
+    lines: acceptedLines(source.lines || [], { accept, id }),
+  }
+}
+
+// ---------------------------------------------------------------- Abschlag, Schlussrechnung, Lieferschein, Proforma
+
+/** Angebote und Aufträge, die zusammengehören (Angebot → Auftrag), als Menge von ids. */
+function orderChain(source, docs) {
+  const ids = new Set([source.id])
+  const order = docs.filter((x) => ['angebot', 'auftrag'].includes(x.kind))
+  if (source.refId && order.some((x) => x.id === source.refId)) ids.add(source.refId)
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const x of order)
+      if (!ids.has(x.id) && (ids.has(x.refId) || [...ids].some((i) => order.find((y) => y.id === i)?.refId === x.id))) {
+        ids.add(x.id)
+        grew = true
+      }
+  }
+  return ids
+}
+
+/** Schlussrechnungen (Entwurf oder festgeschrieben, nicht storniert), die eine Abschlagsrechnung schon abziehen. */
+export const deductedIn = (advance, docs) => docs.filter((x) => isFinal(x) && (x.advances || []).some((a) => a.id === advance.id) && !isCancelled(x, docs))
+
+/**
+ * Abschlagsrechnungen zu einem Angebot bzw. Auftrag (auch zum Angebot, aus dem der Auftrag kam): festgeschrieben,
+ * nicht storniert und noch in keiner anderen Schlussrechnung abgezogen (exceptId: die gerade bearbeitete).
+ */
+export function advancesFor(source, docs, { exceptId = '' } = {}) {
+  const chain = orderChain(source, docs)
+  return docs
+    .filter((x) => isAdvance(x) && x.number && chain.has(x.refId) && !isCancelled(x, docs) && !deductedIn(x, docs).some((f) => f.id !== exceptId))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.number).localeCompare(String(b.number)))
+}
+
+/** Abschlagsrechnung für den Abzug in der Schlussrechnung (Stand beim Erstellen). */
+export const advanceRef = (a, settings) => {
+  const t = a.total || totals(a, settings)
+  return { id: a.id, number: a.number || '', date: a.date || '', net: t.net, vat: t.vat, gross: t.gross, groups: (t.groups || []).map(({ rate, net, vat }) => ({ rate, net, vat })) }
+}
+
+/**
+ * Abschlagsrechnung (Anzahlung) zu einem Angebot bzw. Auftrag: percent vom Netto oder amount (netto), je Steuersatz
+ * anteilig, eine Position je Steuersatz. no: die wievielte Abschlagsrechnung.
+ */
+export function advanceDraft(source, { id, date, percent = 0, amount = 0, no = 1, settings = {} }) {
+  if (!['angebot', 'auftrag'].includes(source.kind) || !source.number) throw new Error('Abschlagsrechnungen gibt es zu festgeschriebenen Angeboten und Aufträgen.')
+  // Steuersätze der Positionen (auch bei Reverse Charge, dort ohne Steuer), nach Belegrabatt
+  const base = totals({ ...source, advances: null, reverseCharge: false, smallBusiness: false }, { ...settings, smallBusiness: false }).groups.filter((g) => g.net)
+  const all = round2(base.reduce((s, g) => s + g.net, 0))
+  const p = parseNumber(percent)
+  const want = p > 0 ? round2((all * p) / 100) : round2(parseNumber(amount))
+  if (!(want > 0) || !(all > 0)) throw new Error('Bitte einen Prozentsatz oder Betrag für den Abschlag angeben.')
+  if (want > all + 0.004) throw new Error('Der Abschlag ist höher als der Auftrag.')
+  let rest = want
+  const parts = base.map((g, i) => {
+    const part = i === base.length - 1 ? rest : p > 0 ? round2((g.net * p) / 100) : round2((want * g.net) / all)
+    rest = round2(rest - part)
+    return { rate: g.rate, part }
+  })
+  const label = `${no}. Abschlag${p > 0 ? ` ${pctText(p)} %` : ''} laut ${KINDS[source.kind]} ${source.number}`
+  return {
+    id,
+    kind: 'rechnung',
+    stage: 'abschlag',
+    status: 'entwurf',
+    date,
+    serviceFrom: source.serviceFrom || '',
+    serviceTo: source.serviceTo || '',
+    ...copyFields(source),
+    discount: 0,
+    refId: source.id,
+    refNumber: source.number,
+    title: `${no}. Abschlagsrechnung zu ${KINDS[source.kind]} ${source.number}${source.title ? ` – ${source.title}` : ''}`,
+    intro: '',
+    outro: '',
+    lines: parts.filter((x) => x.part).map((x, i) => ({ id: `${id}-${i + 1}`, text: parts.length > 1 ? `${label} (Leistungen mit ${x.rate} % USt)` : label, qty: 1, unit: 'Pauschale', price: x.part, vat: x.rate, discount: 0 })),
+  }
+}
+
+/**
+ * Schlussrechnung zu einem Angebot bzw. Auftrag: alle (angenommenen) Positionen, die gewählten Abschlagsrechnungen
+ * je Steuersatz samt Steuer abgezogen (advances). Ohne Abschläge eine gewöhnliche Rechnung.
+ */
+export function finalDraft(source, { id, date, accept = [], advances = [], settings = {} }) {
+  const out = convertDraft(source, 'rechnung', { id, date, accept })
+  if (!advances.length) return out
+  return { ...out, stage: 'schluss', advances: advances.map((a) => advanceRef(a, settings)), title: `Schlussrechnung zu ${KINDS[source.kind]} ${source.number}${source.title ? ` – ${source.title}` : ''}` }
+}
+
+/** Rechnung, die einen Lieferschein bzw. eine Proforma abrechnet (nicht storniert), sonst null. */
+export const billedBy = (d, docs) => docs.find((x) => x.kind === 'rechnung' && x.id !== d.id && (x.refId === d.id || (x.deliveryNotes || []).some((n) => n.id === d.id)) && !isCancelled(x, docs)) || null
+
+/**
+ * (Sammel-)Rechnung aus Lieferscheinen desselben Kunden: je Lieferschein ein Titel mit Nummer und Datum, darunter
+ * seine Zeilen; Leistungszeitraum vom ersten bis zum letzten Lieferschein; deliveryNotes für den Bezug.
+ */
+export function collectDraft(notes, { id, date }) {
+  const list = [...notes].sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.number).localeCompare(String(b.number)))
+  if (!list.length || list.some((n) => n.kind !== 'lieferschein' || !n.number)) throw new Error('Nur festgeschriebene Lieferscheine lassen sich verrechnen.')
+  const who = (n) => n.customerId || n.recipient?.name || ''
+  if (new Set(list.map(who)).size > 1) throw new Error('Eine Sammelrechnung geht nur an einen Kunden.')
+  const first = list[0]
+  const from = list.map((n) => n.serviceFrom || n.date).filter(Boolean).sort()[0] || ''
+  const to = list.map((n) => n.serviceTo || n.serviceFrom || n.date).filter(Boolean).sort().at(-1) || ''
+  const many = list.length > 1
+  const lines = list.flatMap((n) => [
+    ...(many ? [{ type: 'title', text: `Lieferschein ${n.number} vom ${deDate(n.date)}` }] : []),
+    ...(n.lines || []).filter((l) => !choiceLine(l)).map((l) => ({ ...l })),
+  ])
+  return {
+    id,
+    kind: 'rechnung',
+    status: 'entwurf',
+    date,
+    serviceFrom: from,
+    serviceTo: to,
+    ...copyFields(first),
+    ...(many ? {} : { refId: first.id, refNumber: first.number }),
+    title: many ? `Sammelrechnung zu ${list.length} Lieferscheinen` : first.title || `Rechnung zu Lieferschein ${first.number}`,
+    intro: '',
+    outro: '',
+    deliveryNotes: list.map((n) => ({ id: n.id, number: n.number, date: n.date })),
+    lines: lines.map((l, i) => ({ ...l, id: `${id}-${i + 1}` })),
   }
 }
 
@@ -438,12 +715,14 @@ export function openAmount(d, docs, settings) {
   return round2(base - paidOf(d) - implicitSkonto(d, base, settings))
 }
 
-export const PAY_STATUS = { entwurf: 'Entwurf', offen: 'offen', ueberfaellig: 'überfällig', teilbezahlt: 'teilweise bezahlt', bezahlt: 'bezahlt', storniert: 'storniert', angenommen: 'angenommen', abgelehnt: 'abgelehnt', abgelaufen: 'abgelaufen', erledigt: 'erledigt' }
+export const PAY_STATUS = { entwurf: 'Entwurf', offen: 'offen', ueberfaellig: 'überfällig', teilbezahlt: 'teilweise bezahlt', bezahlt: 'bezahlt', storniert: 'storniert', angenommen: 'angenommen', abgelehnt: 'abgelehnt', abgelaufen: 'abgelaufen', erledigt: 'erledigt', verrechnet: 'verrechnet' }
 
 /** Zustand für die Liste. */
 export function stateOf(d, docs, today, settings) {
   if (!d.number) return 'entwurf'
   if (d.kind === 'angebot') return d.status === 'angenommen' || d.status === 'abgelehnt' ? d.status : d.validUntil && d.validUntil < today ? 'abgelaufen' : 'offen'
+  // Lieferschein und Proforma: offen, bis eine festgeschriebene Rechnung sie verrechnet
+  if (d.kind === 'lieferschein' || d.kind === 'proforma') return billedBy(d, docs)?.number ? 'verrechnet' : 'offen'
   if (d.kind !== 'rechnung') return 'erledigt'
   if (isCancelled(d, docs)) return 'storniert'
   const open = openAmount(d, docs, settings)
@@ -792,7 +1071,8 @@ export function exportRows(docs, { from, to, settings, customersById = new Map()
         serviceFrom: d.serviceFrom,
         serviceTo: d.serviceTo,
         dueDate: d.dueDate,
-        text: [KINDS[d.kind], d.refNumber ? `zu ${d.refNumber}` : '', d.recipient?.name].filter(Boolean).join(' '),
+        // Schlussrechnung: Restbetrag nach Abzug der Abschläge (die stehen mit ihren eigenen Zeilen im Export)
+        text: [kindLabel(d), d.refNumber ? `zu ${d.refNumber}` : '', d.recipient?.name, d.advances?.length ? `(abzgl. ${d.advances.map((a) => a.number).join(', ')})` : ''].filter(Boolean).join(' '),
       })
     }
   }
@@ -846,10 +1126,12 @@ export function epcPayload({ name, iban, bic = '', amount, text = '' }) {
 
 /** E-Mail-Text zum Beleg (ohne eigenen Textbaustein). greeting: Anrede ohne Beistrich, z. B. aus greetingOf(Kunde). */
 export function invoiceMailText({ doc, company = '', sender = '', gross, iban = '', greeting = DEFAULT_GREETING }) {
-  const kind = KINDS[doc.kind] || 'Beleg'
+  const kind = kindLabel(doc)
   const amount = Number(gross ?? doc.total?.gross ?? 0).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
-  const lines = [`${greeting || DEFAULT_GREETING},`, '', `anbei erhalten Sie ${doc.kind === 'angebot' ? 'unser' : 'unsere'} ${kind} ${doc.number || ''}${doc.title ? ` (${doc.title})` : ''} als PDF.`]
-  if (doc.kind === 'rechnung') lines.push(`Betrag: ${amount}${doc.dueDate ? `, zahlbar bis ${deDate(doc.dueDate)}` : ''}${iban ? ` auf ${formatIban(iban)}` : ''}.`)
+  const article = doc.kind === 'angebot' ? 'unser' : doc.kind === 'lieferschein' ? 'unseren' : 'unsere'
+  const lines = [`${greeting || DEFAULT_GREETING},`, '', `anbei erhalten Sie ${article} ${kind} ${doc.number || ''}${doc.title ? ` (${doc.title})` : ''} als PDF.`]
+  if (doc.kind === 'rechnung') lines.push(`${isFinal(doc) ? 'Restbetrag nach Abzug der Abschläge' : 'Betrag'}: ${amount}${doc.dueDate ? `, zahlbar bis ${deDate(doc.dueDate)}` : ''}${iban ? ` auf ${formatIban(iban)}` : ''}.`)
+  if (doc.kind === 'proforma') lines.push('Die Proformarechnung ist keine Rechnung im Sinne des Umsatzsteuergesetzes; die Rechnung folgt nach der Leistung.')
   if (doc.kind === 'angebot' && doc.validUntil) lines.push(`Das Angebot gilt bis ${deDate(doc.validUntil)}.`)
   lines.push('', 'Mit freundlichen Grüßen', sender, company)
   return lines.filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n').trim()
@@ -876,7 +1158,7 @@ export function reminderMailText({ doc, reminder, company = '', sender = '', gre
 }
 
 const fileSafe = (s) => String(s || '').replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g, '-').replace(/^-+|-+$/g, '')
-export const docFileName = (d) => `${KINDS[d.kind] || 'Beleg'}_${d.number || `Entwurf-${fileSafe(d.id)}`}${d.recipient?.name ? `_${fileSafe(d.recipient.name)}` : ''}.pdf`.replace(/Rechnungskorrektur|Stornorechnung|Auftragsbestätigung/, (m) => ({ Rechnungskorrektur: 'Korrektur', Stornorechnung: 'Storno', Auftragsbestätigung: 'Auftrag' })[m])
+export const docFileName = (d) => `${kindLabel(d)}_${d.number || `Entwurf-${fileSafe(d.id)}`}${d.recipient?.name ? `_${fileSafe(d.recipient.name)}` : ''}.pdf`.replace(/Rechnungskorrektur|Stornorechnung|Auftragsbestätigung/, (m) => ({ Rechnungskorrektur: 'Korrektur', Stornorechnung: 'Storno', Auftragsbestätigung: 'Auftrag' })[m])
 export const reminderFileName = (d, level) => `Mahnung${level + 1}_${d.number}${d.recipient?.name ? `_${fileSafe(d.recipient.name)}` : ''}.pdf`
 /** Ablage in SharePoint (App-Ordner): fakturierung/belege/2026/RE-2026-0001.pdf */
 export const archivePath = (d, name = docFileName(d)) => `fakturierung/belege/${yearOf(d) || 'ohne-Jahr'}/${name}`
@@ -955,7 +1237,7 @@ export function placeholderContext({ doc = {}, customer = null, settings = {}, u
     Kunde: doc.recipient?.name || customerName(customer || {}),
     Ansprechpartner: doc.contactName || '',
     Kundennummer: doc.recipient?.customerNo || customer?.customerNo || '',
-    Belegart: KINDS[doc.kind] || '',
+    Belegart: doc.kind ? kindLabel(doc) : '',
     Belegnummer: doc.number || '',
     Datum: deDate(doc.date),
     'Fällig': deDate(doc.dueDate),
@@ -1014,7 +1296,9 @@ export const defaultBlock = (blocks, kind, place) => blocksFor(blocks, kind, pla
 export function defaultTexts(kind, settings = {}, blocks = []) {
   const s = settingsOf({ settings })
   const offer = kind === 'angebot'
-  return { intro: defaultBlock(blocks, kind, 'intro')?.text ?? (offer ? s.offerIntro : s.intro), outro: defaultBlock(blocks, kind, 'outro')?.text ?? (offer ? s.offerOutro : s.outro) }
+  // Lieferschein und Proforma haben eigene Sätze (die der Rechnung passen nicht)
+  const own = { lieferschein: ['Folgende Leistungen wurden erbracht bzw. geliefert:', ''], proforma: ['Wie vereinbart erhalten Sie vorab diese Proformarechnung:', ''] }[kind]
+  return { intro: defaultBlock(blocks, kind, 'intro')?.text ?? (own ? own[0] : offer ? s.offerIntro : s.intro), outro: defaultBlock(blocks, kind, 'outro')?.text ?? (own ? own[1] : offer ? s.offerOutro : s.outro) }
 }
 
 // ---------------------------------------------------------------- Zahlungsbedingungen und Skonto
