@@ -9,7 +9,7 @@
 import { CALC_DEFAULTS, calcWage } from '../../core/calculation.js'
 import { employedOn, sollMinutes } from '../../core/contract.js'
 import { addDays, formatDate, isoWeek, mondayOf, MONTH_LONG, todayISO } from '../../core/dates.js'
-import { absenceRates, aging, complaintsByMonth, complaintsTopObjects, contribution, lastMonths, lastWeeks, materialByObject, materialMonths, PERIODS, plusHours, revenueByObject, revenueMonths, topCustomers, trend, utilization, weekStats } from '../../core/kpi.js'
+import { absenceRates, aging, cashBalance, complaintsByMonth, complaintsTopObjects, contribution, lastMonths, lastWeeks, materialByObject, materialMonths, payablesAging, PERIODS, plusHours, revenueByObject, revenueMonths, spendingMonths, topCustomers, trend, utilization, weekStats } from '../../core/kpi.js'
 import { mergeRules } from '../../core/rules.js'
 import { buildTimesheet, summarizeDays } from '../../core/timesheet.js'
 import { app, computeRange, memo, registerActions, registerView, render, seesAbsenceReasons } from '../context.js'
@@ -106,6 +106,12 @@ function build(p) {
     }
   }
   if (sees('material')) out.material = materialMonths(data.material || {}, months)
+  // Einkauf & Kasse: Ausgaben (Eingangsrechnungen), offene Verbindlichkeiten, Kassenstand
+  if (sees('einkauf')) {
+    out.spending = spendingMonths(data.einkauf || {}, months)
+    out.payables = payablesAging(data.einkauf || {}, today)
+    if (data.kasse?.entries?.length) out.cash = cashBalance(data.kasse)
+  }
   return out
 }
 
@@ -164,6 +170,14 @@ function tiles(d) {
     const cur = d.material[lastI]
     out.push(tile({ label: `Materialverbrauch ${mLabel}`, value: euro(cur.used), sub: `bestellt ${euro(cur.ordered)}`, cur: cur.used, prev: d.material[lastI - 1]?.used ?? null, deltaFmt: euro, spark: d.material.map((x) => x.used), view: 'material', vs: 'Vormonat' }))
   }
+  if (d.spending && lastI >= 0) {
+    const cur = d.spending[lastI]
+    out.push(tile({ label: `Ausgaben ${mLabel}`, value: euro(cur.net), sub: `netto, ${count(cur.count)} Eingangsrechnungen`, cur: cur.net, prev: d.spending[lastI - 1]?.net ?? null, goodUp: false, deltaFmt: euro, spark: d.spending.map((x) => x.net), view: 'einkauf', vs: 'Vormonat' }))
+    const open = d.payables.reduce((s, x) => s + x.amount, 0)
+    const overdue = d.payables.filter((x) => x.id !== 'nicht').reduce((s, x) => s + x.amount, 0)
+    out.push(tile({ label: 'Offene Verbindlichkeiten', value: euro(open), sub: overdue ? `davon ${euro(overdue)} überfällig` : 'nichts überfällig', cur: open, view: 'einkauf' }))
+  }
+  if (d.cash !== undefined) out.push(tile({ label: 'Kassenstand', value: euro(d.cash), sub: 'laut Kassenbuch', cur: d.cash, view: 'kassenbuch' }))
   // genau eine große Zahl: die erste Kachel
   if (out.length) out[0] = out[0].replace('class="kpi-tile ', 'class="kpi-tile hero ')
   return out.join('')
@@ -219,6 +233,11 @@ function charts(d) {
     out.push(card({ id: 'offene-posten', title: 'Offene Posten nach Fälligkeit', sub: 'brutto, ohne Storno', view: 'fakturierung', body: agingBars(d.aging, STATUS), table: tableView(['Fälligkeit', 'Betrag', 'Rechnungen'], d.aging.map((x) => [x.label, euro(x.amount), count(x.count)])) }))
     out.push(card({ id: 'kunden', title: 'Kunden mit dem meisten Umsatz', sub: 'netto im gewählten Zeitraum', view: 'fakturierung', body: barList({ rows: d.customers.map((x) => ({ label: x.name, value: x.net, display: euro(x.net) })) }), table: tableView(['Kunde', 'Umsatz netto'], d.customers.map((x) => [x.name, euro(x.net)])) }))
   }
+  if (d.spending) {
+    out.push(card({ id: 'ausgaben', title: 'Ausgaben je Monat', sub: 'netto laut Eingangsrechnungen (Rechnungsdatum)', view: 'einkauf', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'net', label: 'Ausgaben netto', color: '--kpi-1', values: d.spending.map((x) => x.net) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Ausgaben je Monat' }), table: tableView(['Monat', 'Ausgaben netto', 'Eingangsrechnungen'], d.spending.map((x, i) => [mt[i], euro(x.net), count(x.count)])) }))
+    const STATUS = { nicht: ['--kpi-neutral', '○'], d30: ['--kpi-warning', '△'], d60: ['--kpi-serious', '▲'], d60plus: ['--kpi-critical', '■'] }
+    out.push(card({ id: 'verbindlichkeiten', title: 'Offene Verbindlichkeiten nach Fälligkeit', sub: 'brutto, Eingangsrechnungen', view: 'einkauf', body: agingBars(d.payables, STATUS), table: tableView(['Fälligkeit', 'Betrag', 'Rechnungen'], d.payables.map((x) => [x.label, euro(x.amount), count(x.count)])) }))
+  }
   if (d.material) {
     const series = [
       { id: 'used', label: 'Verbrauch', color: '--kpi-1', values: d.material.map((x) => x.used) },
@@ -256,7 +275,7 @@ function kpiView(c) {
   const t = tiles(d)
   const ch = charts(d)
   return `<div class="kpi-root">
-    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Umsatz und Material. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
+    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Umsatz, Ausgaben, Kasse und Material. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
     <div class="filters kpi-filters" role="group" aria-label="Zeitraum">${filters}</div>
     ${t ? `<div class="kpi-tiles">${t}</div>` : ''}
     ${ch ? `<div class="kpi-grid">${ch}</div>` : '<p class="empty">Für deine Rolle gibt es hier noch keine Kennzahlen.</p>'}

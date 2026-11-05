@@ -106,3 +106,27 @@ test('Kennzahlen: Material und Deckungsbeitrag', () => {
   const rows = contribution({ revenue: new Map([['o1', 500]]), material: new Map([['o1', 20]]), instances: insts, state, from: '2026-11-01', to: '2026-11-30', costPerHour: 30 })
   assert.deepEqual(rows, [{ objectId: 'o1', revenue: 500, labor: 300, material: 20, margin: 180, rate: 0.36 }])
 })
+
+test('Kennzahlen: Einkauf & Kasse (Ausgaben je Monat, Verbindlichkeiten nach Fälligkeit, Kassenstand)', async () => {
+  const { cashBalance, payablesAging, spendingMonths } = await import('../src/core/kpi.js')
+  const { payablesSummary } = await import('../src/core/purchase.js')
+  const { createPurchaseDemo } = await import('../src/data/demo-einkauf.js')
+  const today = '2026-11-05'
+  const doc = {
+    invoices: [
+      { id: 'a', date: '2026-10-02', dueDate: '2026-10-16', groups: [{ rate: 20, net: 100, vat: 20 }], payments: [{ amount: 50 }] },
+      { id: 'b', date: '2026-10-20', dueDate: '2026-11-20', groups: [{ rate: 20, net: 1000, vat: 0 }], reverseCharge: true },
+      { id: 'c', date: '2026-08-01', dueDate: '2026-08-15', groups: [{ rate: 10, net: 10, vat: 1 }] },
+      { id: 'd', date: '2026-10-03', groups: [{ rate: 20, net: 5, vat: 1 }], cancelled: { at: 'x' } },
+    ],
+  }
+  const months = lastMonths(3, today)
+  assert.deepEqual(spendingMonths(doc, months).map((m) => [m.key, m.net, m.count]), [['2026-09', 0, 0], ['2026-10', 1100, 2], ['2026-11', 0, 0]])
+  const ag = payablesAging(doc, today)
+  assert.deepEqual(ag.map((x) => [x.id, x.amount, x.count]), [['nicht', 1000, 1], ['d30', 70, 1], ['d60', 0, 0], ['d60plus', 11, 1]])
+  // gleiche Summe wie der Rechenkern des Einkaufs (auch für die Beispieldaten)
+  assert.equal(ag.reduce((s, x) => s + x.amount, 0), payablesSummary(doc.invoices, today).open)
+  const demo = createPurchaseDemo()
+  assert.equal(Math.round(payablesAging(demo.einkauf, today).reduce((s, x) => s + x.amount, 0) * 100) / 100, payablesSummary(demo.einkauf.invoices, today).open)
+  assert.equal(cashBalance({ entries: [{ kind: 'einnahme', amount: 100 }, { kind: 'ausgabe', amount: 30.5 }] }), 69.5)
+})
