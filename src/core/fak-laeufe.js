@@ -83,13 +83,13 @@ export const mailWithDebit = (text, doc) => (doc?.debitText ? String(text).repla
 
 /**
  * Festgeschriebene Rechnungen (samt Storno und Korrektur), die noch nicht versendet sind; ids: nur diese.
- * [{ doc, customer, to }] sortiert nach Nummer.
+ * Übernommene Altbelege (imported, im Altsystem schon versendet) zählen nicht. [{ doc, customer, to }] nach Nummer.
  */
 export function sendCandidates(docs, customers = [], { ids = null } = {}) {
   const byId = new Map(customers.map((c) => [c.id, c]))
   const only = ids ? new Set(ids) : null
   return docs
-    .filter((d) => INVOICE_KINDS.includes(d.kind) && d.number && !(d.sent || []).length && (!only || only.has(d.id)))
+    .filter((d) => INVOICE_KINDS.includes(d.kind) && d.number && !d.imported && !(d.sent || []).length && (!only || only.has(d.id)))
     .sort((a, b) => String(a.number).localeCompare(String(b.number), 'de', { numeric: true }))
     .map((doc) => {
       const customer = byId.get(doc.customerId) || null

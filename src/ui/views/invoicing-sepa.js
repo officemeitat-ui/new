@@ -209,7 +209,7 @@ function sepaModal(c, m) {
       return `<tr><td><input type="checkbox" data-change="fak-sepa-pick" data-id="${esc(it.doc.id)}" ${m.sel[it.doc.id] ? 'checked' : ''} ${it.problems.length ? 'disabled' : ''} aria-label="auswählen"></td>
         <td><button class="link-btn" data-action="fak-open" data-id="${esc(it.doc.id)}">${esc(it.doc.number)}</button>${it.returned ? ' <span class="pill error">Rücklastschrift</span>' : ''}<br><span class="muted">${esc(customerName(it.customer))}</span></td>
         <td>${esc(day(it.doc.dueDate))}</td><td class="num"><strong>${money(it.open)}</strong></td>
-        <td>${esc(it.mandate.reference)}<br><span class="muted">${esc(it.mandate.scheme === 'B2B' ? 'B2B' : 'CORE')} · ${esc(it.mandate.sequence === 'RCUR' ? 'RCUR' : 'FRST')}</span></td>
+        <td>${esc(it.mandate.reference)}<br><span class="muted" title="${it.mandate.scheme === 'B2B' ? 'B2B' : 'CORE'} · ${it.mandate.sequence === 'RCUR' ? 'RCUR' : 'FRST'}">${it.mandate.scheme === 'B2B' ? 'Firmen-Lastschrift' : 'Basis-Lastschrift'} · ${it.mandate.sequence === 'RCUR' ? 'folgende' : 'erste'}</span></td>
         <td><span class="${st.ready ? 'ok-text' : st.fix === 'mandat' ? 'err-text' : 'warn-text'}">${esc(st.text)}</span>${res ? `<br><span class="${res.ok ? 'ok-text' : 'err-text'}">${esc(res.text)}</span>` : ''}</td></tr>`
     })
     .join('')

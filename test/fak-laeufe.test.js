@@ -47,6 +47,7 @@ test('Sammelversand: festgeschriebene, noch nicht versendete Belege mit E-Mail d
   const list = sendCandidates(docs, [{ id: 'cb', email: 'rechnung@b-beispiel.example' }])
   assert.deepEqual(list.map((x) => `${x.doc.number}:${x.to}`), ['RE-2026-0009:rechnung@b-beispiel.example', 'RE-2026-0010:buchhaltung@a-beispiel.example', 'RE-2026-0012:'])
   assert.deepEqual(sendCandidates(docs, [], { ids: ['a'] }).map((x) => x.doc.id), ['a'])
+  assert.deepEqual(sendCandidates([fixed('i', 'RE-2025-0400', { imported: { system: 'orgaMAX' } })], []), [], 'übernommene Altbelege sind schon versendet')
   assert.ok(emailValid('a@b.at') && !emailValid('ab.at') && !emailValid(''))
   // Rechnung mit Lastschrift: Hinweis auf den Einzug statt „zahlbar bis … auf IBAN“
   assert.equal(mailWithDebit('Hallo\nBetrag: € 10,00, zahlbar bis 01.12.2026 auf AT61.\nGruß', { debitText: 'Wird eingezogen.' }), 'Hallo\nWird eingezogen.\nGruß')
