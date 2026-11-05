@@ -54,7 +54,7 @@ export const REMINDER_DEFAULTS = [
 ]
 
 export const SETTINGS_DEFAULTS = {
-  sender: { name: '', address: '', uid: '', email: '', phone: '', web: '', register: '' },
+  sender: { name: '', address: '', uid: '', email: '', phone: '', web: '', register: '', taxNo: '' }, // taxNo: Steuernummer (Finanzamt), für die E-Rechnung ohne UID
   bank: { iban: '', bic: '', name: '' },
   paymentDays: 14,
   vat: 20,
@@ -69,7 +69,7 @@ export const SETTINGS_DEFAULTS = {
   outro: 'Vielen Dank für den Auftrag.',
   offerIntro: 'Gerne bieten wir Ihnen an:',
   offerOutro: 'Wir freuen uns auf Ihren Auftrag.',
-  accounts: { debitor: '', erloese: { 20: '4000', 13: '4013', 10: '4010', 0: '4020' }, rc: '4030' },
+  accounts: { debitor: '', erloese: { 20: '4000', 13: '4013', 10: '4010', 0: '4020' }, rc: '4030', skonto: '' }, // skonto leer: Erlöskonto des Steuersatzes
   indexName: 'VPI 2020',
 }
 
@@ -239,8 +239,12 @@ export function problems(d, settings = SETTINGS_DEFAULTS) {
 
 export const blocking = (list) => list.filter((p) => p.level === 'error')
 
-/** Festschreiben: Nummer vergeben, Absender und Summe einfrieren, Prüfsumme. Wirft bei Fehlern. */
-export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date().toISOString(), by = '' } = {}) {
+/**
+ * Festschreiben: Nummer vergeben, Absender und Summe einfrieren, Platzhalter in Betreff, Einleitung und Schlusstext
+ * auflösen, Zahlungsbedingung mit Skonto als Text einfrieren (termsText), Prüfsumme. Wirft bei Fehlern.
+ * customer: Kunde (für {Anrede}), terms: gewählte Zahlungsbedingung (für ihren Text), user: Name für {Benutzer}.
+ */
+export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date().toISOString(), by = '', customer = null, terms = null, user = by } = {}) {
   if (d.number) throw new Error('Beleg ist schon festgeschrieben.')
   const s = settingsOf({ settings })
   const list = blocking(problems(d, s))
@@ -259,6 +263,9 @@ export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date
     finalizedBy: by,
     history: [...(d.history || []), { at: now, by, text: `festgeschrieben als ${number}` }],
   }
+  if (!(parseNumber(out.skonto?.percent) > 0) || d.kind !== 'rechnung') delete out.skonto
+  // nur geänderte Texte übernehmen (Belege ohne Platzhalter bleiben Feld für Feld gleich)
+  for (const [k, v] of Object.entries(resolveTexts(out, { settings: s, customer, terms, user, today: now.slice(0, 10) }))) if (v !== out[k]) out[k] = v
   out.checksum = checksumOf(out)
   return out
 }
@@ -380,11 +387,16 @@ export const paidOf = (d) => round2((d.payments || []).reduce((s, p) => s + pars
 export const refsOf = (d, docs) => docs.filter((x) => x.refId === d.id && x.number && ['storno', 'korrektur'].includes(x.kind))
 export const isCancelled = (d, docs) => refsOf(d, docs).some((x) => x.kind === 'storno')
 
-/** Offener Betrag einer Rechnung: brutto + Korrekturen/Storno (negativ) − Zahlungen. */
+/**
+ * Offener Betrag einer Rechnung: brutto + Korrekturen/Storno (negativ) − Zahlungen (samt vermerktem Skonto).
+ * Ohne Skonto-Vermerk gilt eine Zahlung in der Skontofrist, die brutto abzüglich Skonto deckt, ebenfalls als
+ * vollständig (z. B. übernommene Zahlungen): kein Rest offen.
+ */
 export function openAmount(d, docs, settings) {
   if (d.kind !== 'rechnung' || !d.number) return 0
   const credits = refsOf(d, docs).reduce((s, x) => s + grossOf(x, settings), 0)
-  return round2(grossOf(d, settings) + credits - paidOf(d))
+  const base = round2(grossOf(d, settings) + credits)
+  return round2(base - paidOf(d) - implicitSkonto(d, base, settings))
 }
 
 export const PAY_STATUS = { entwurf: 'Entwurf', offen: 'offen', ueberfaellig: 'überfällig', teilbezahlt: 'teilweise bezahlt', bezahlt: 'bezahlt', storniert: 'storniert', angenommen: 'angenommen', abgelehnt: 'abgelehnt', abgelaufen: 'abgelaufen', erledigt: 'erledigt' }
@@ -401,7 +413,7 @@ export function stateOf(d, docs, today, settings) {
   return paidOf(d) > 0 ? 'teilbezahlt' : 'offen'
 }
 
-/** Offene Posten: [{ doc, open, overdueDays, level, next }] sortiert nach Fälligkeit. */
+/** Offene Posten: [{ doc, open, overdueDays, level, next, skonto }] sortiert nach Fälligkeit; skonto: { until, amount, payable } solange die Frist läuft. */
 export function openItems(docs, today, settings) {
   const s = settingsOf({ settings })
   return docs
@@ -409,7 +421,8 @@ export function openItems(docs, today, settings) {
     .map((d) => {
       const open = openAmount(d, docs, s)
       const overdueDays = d.dueDate ? Math.max(0, daysBetween(d.dueDate, today)) : 0
-      return { doc: d, open, overdueDays, level: (d.reminders || []).length, next: nextReminder(d, today, s) }
+      const sk = skontoAvailable(d, docs, s, today)
+      return { doc: d, open, overdueDays, level: (d.reminders || []).length, next: nextReminder(d, today, s), skonto: sk ? { until: skontoOf(d, s).until, amount: sk, payable: round2(open - sk) } : null }
     })
     .filter((x) => x.open > 0.004)
     .sort((a, b) => String(a.doc.dueDate).localeCompare(String(b.doc.dueDate)))
@@ -500,6 +513,7 @@ export function latestIndex(values = {}, ym) {
  */
 export function runRecurring(doc, ym, { today, newId, by = '', customersById = new Map() }) {
   const s = settingsOf(doc)
+  const texts = defaultTexts('rechnung', s, doc.textBlocks)
   let documents = [...(doc.documents || [])]
   const have = new Set(documents.map((d) => d.source?.key).filter(Boolean))
   const created = []
@@ -527,6 +541,7 @@ export function runRecurring(doc, ym, { today, newId, by = '', customersById = n
     }
     const customer = customersById.get(next.customerId)
     const id = newId()
+    const terms = termsSetup(customer, doc.paymentTerms, s)
     const draft = {
       id,
       kind: 'rechnung',
@@ -538,11 +553,14 @@ export function runRecurring(doc, ym, { today, newId, by = '', customersById = n
       objectId: next.objectId || '',
       recipient: customer ? recipientOf(customer) : {},
       reverseCharge: !!customer?.reverseCharge,
-      dueDate: dueDateFor(today, customer?.paymentDays ?? s.paymentDays),
+      dueDate: dueDateFor(today, terms.days),
+      ...(terms.termsId ? { termsId: terms.termsId } : {}),
+      ...(terms.skonto ? { skonto: terms.skonto } : {}),
+      ...(customer?.deliveryAddress ? { deliveryAddress: customer.deliveryAddress } : {}),
       discount: next.discount || 0,
       title: `${next.title || 'Unterhaltsreinigung'} ${periodLabel(period)}`,
-      intro: s.intro,
-      outro: [note, s.outro].filter(Boolean).join('\n'),
+      intro: texts.intro,
+      outro: [note, texts.outro].filter(Boolean).join('\n'),
       lines: (next.lines || []).map((l, i) => ({ ...l, id: `${id}-${i + 1}` })),
       source: { type: 'dauerauftrag', key, recurringId: rec.id },
       createdAt: today,
@@ -679,10 +697,40 @@ export const EXPORT_COLUMNS = {
 }
 export const EXPORT_DEFAULT_COLUMNS = ['belegnr', 'belegdatum', 'belegart', 'konto', 'gegenkonto', 'kunde', 'uid', 'steuersatz', 'steuercode', 'netto', 'steuer', 'brutto', 'leistung', 'text']
 
-/** Zeilen je Beleg und Steuersatz (BMD/RZL: eine Buchungszeile je Steuersatz). */
+/**
+ * Zeilen je Beleg und Steuersatz (BMD/RZL: eine Buchungszeile je Steuersatz). Dazu Skonto-Abzüge mit
+ * Zahlungsdatum im Zeitraum (Belegart SK, negativ, je Steuersatz anteilig: Skonto mindert nachträglich das
+ * Entgelt und damit die Umsatzsteuer, § 16 Abs. 1 UStG).
+ */
 export function exportRows(docs, { from, to, settings, customersById = new Map() }) {
   const s = settingsOf({ settings })
   const rows = []
+  for (const d of docs) {
+    if (d.kind !== 'rechnung' || !d.number) continue
+    for (const p of (d.payments || []).filter((x) => x.kind === 'skonto' && x.date >= from && x.date <= to)) {
+      const c = customersById.get(d.customerId)
+      for (const g of skontoSplit(d, parseNumber(p.amount), s)) {
+        rows.push({
+          number: d.number,
+          date: p.date,
+          kindLabel: 'SK',
+          debitor: c?.account || c?.customerNo || s.accounts.debitor || '',
+          account: s.accounts.skonto || (d.reverseCharge ? s.accounts.rc : s.accounts.erloese[g.rate] ?? ''),
+          customer: d.recipient?.name || '',
+          uid: d.recipient?.uid || '',
+          rate: g.rate,
+          code: d.reverseCharge ? 'RC19-1a' : d.smallBusiness ? 'KU' : '',
+          net: -g.net,
+          vat: -g.vat,
+          gross: -g.gross,
+          serviceFrom: d.serviceFrom,
+          serviceTo: d.serviceTo,
+          dueDate: d.dueDate,
+          text: `Skonto zu ${d.number} ${d.recipient?.name || ''}`.trim(),
+        })
+      }
+    }
+  }
   for (const d of docs) {
     if (!isInvoice(d) || !d.number || d.date < from || d.date > to) continue
     const t = d.total || totals(d, s)
@@ -757,20 +805,21 @@ export function epcPayload({ name, iban, bic = '', amount, text = '' }) {
 
 // ---------------------------------------------------------------- Texte
 
-export function invoiceMailText({ doc, company = '', sender = '', gross, iban = '' }) {
+/** E-Mail-Text zum Beleg (ohne eigenen Textbaustein). greeting: Anrede ohne Beistrich, z. B. aus greetingOf(Kunde). */
+export function invoiceMailText({ doc, company = '', sender = '', gross, iban = '', greeting = DEFAULT_GREETING }) {
   const kind = KINDS[doc.kind] || 'Beleg'
   const amount = Number(gross ?? doc.total?.gross ?? 0).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
-  const lines = ['Sehr geehrte Damen und Herren,', '', `anbei erhalten Sie ${doc.kind === 'angebot' ? 'unser' : 'unsere'} ${kind} ${doc.number || ''}${doc.title ? ` (${doc.title})` : ''} als PDF.`]
+  const lines = [`${greeting || DEFAULT_GREETING},`, '', `anbei erhalten Sie ${doc.kind === 'angebot' ? 'unser' : 'unsere'} ${kind} ${doc.number || ''}${doc.title ? ` (${doc.title})` : ''} als PDF.`]
   if (doc.kind === 'rechnung') lines.push(`Betrag: ${amount}${doc.dueDate ? `, zahlbar bis ${deDate(doc.dueDate)}` : ''}${iban ? ` auf ${formatIban(iban)}` : ''}.`)
   if (doc.kind === 'angebot' && doc.validUntil) lines.push(`Das Angebot gilt bis ${deDate(doc.validUntil)}.`)
   lines.push('', 'Mit freundlichen Grüßen', sender, company)
   return lines.filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n').trim()
 }
 
-export function reminderMailText({ doc, reminder, company = '', sender = '' }) {
+export function reminderMailText({ doc, reminder, company = '', sender = '', greeting = DEFAULT_GREETING }) {
   const amount = (n) => Number(n).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
   return [
-    'Sehr geehrte Damen und Herren,',
+    `${greeting || DEFAULT_GREETING},`,
     '',
     reminder.level === 0
       ? `zu unserer Rechnung ${doc.number} vom ${deDate(doc.date)} konnten wir noch keinen Zahlungseingang feststellen. Vielleicht ist sie Ihnen entgangen.`
@@ -792,3 +841,383 @@ export const docFileName = (d) => `${KINDS[d.kind] || 'Beleg'}_${d.number || `En
 export const reminderFileName = (d, level) => `Mahnung${level + 1}_${d.number}${d.recipient?.name ? `_${fileSafe(d.recipient.name)}` : ''}.pdf`
 /** Ablage in SharePoint (App-Ordner): fakturierung/belege/2026/RE-2026-0001.pdf */
 export const archivePath = (d, name = docFileName(d)) => `fakturierung/belege/${yearOf(d) || 'ohne-Jahr'}/${name}`
+
+// ---------------------------------------------------------------- Platzhalter (Textbausteine, Belegtexte, E-Mail, Mahnung)
+
+export const DEFAULT_GREETING = 'Sehr geehrte Damen und Herren'
+
+/** Platzhalter für Texte: [Name, Erklärung]. Geschrieben als {Name}; Groß-/Kleinschreibung egal, „ae“ statt „ä“ geht auch. */
+export const PLACEHOLDERS = [
+  ['Anrede', 'z. B. „Sehr geehrter Herr Maier“ (aus Anrede und Nachname des Kunden), sonst „Sehr geehrte Damen und Herren“'],
+  ['Kunde', 'Name des Kunden'],
+  ['Ansprechpartner', 'beim Beleg gewählter Ansprechpartner'],
+  ['Kundennummer', 'Kundennummer'],
+  ['Belegart', 'Rechnung, Angebot …'],
+  ['Belegnummer', 'z. B. RE-2026-0001 (erst beim Festschreiben)'],
+  ['Datum', 'Belegdatum'],
+  ['Fällig', 'Fälligkeit (Datum)'],
+  ['Betrag', 'Gesamtbetrag brutto'],
+  ['Offen', 'offener Betrag (Mahnung)'],
+  ['Zeitraum', 'Leistungszeitraum, z. B. „Oktober 2026“'],
+  ['Objekt', 'Objekt'],
+  ['Betreff', 'Betreff des Belegs'],
+  ['Referenz', 'Ihre Bestellnummer/Zeichen'],
+  ['Skonto', 'z. B. „2 % Skonto (€ 23,52) bei Zahlung bis 12.11.2026“'],
+  ['Zahlungsbedingung', 'ganzer Text der Zahlungsbedingung'],
+  ['Gültig', 'Angebot gültig bis'],
+  ['Mahnstufe', 'Name der Mahnstufe'],
+  ['Frist', 'neue Zahlungsfrist der Mahnung'],
+  ['Firma', 'eigener Firmenname'],
+  ['Benutzer', 'Name der angemeldeten Person'],
+  ['IBAN', 'eigene IBAN'],
+  ['Heute', 'heutiges Datum'],
+]
+
+const phKey = (s) => String(s).trim().toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[\s_-]+/g, '')
+const PH_KEYS = new Set(PLACEHOLDERS.map(([k]) => phKey(k)))
+const eurAt = (n) => Number(n || 0).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
+const pctText = (n) => String(round2(n)).replace('.', ',')
+
+/**
+ * Platzhalter wie {Kunde} oder {Fällig} durch die Werte aus ctx ersetzen ({ Kunde: '…', 'Fällig': '…' }).
+ * Unbekannte Platzhalter bleiben stehen (sie fallen beim Lesen auf); ein bekannter ohne Wert wird leer.
+ */
+export function fillPlaceholders(text, ctx = {}) {
+  const s = String(text ?? '')
+  if (!s.includes('{')) return s
+  const map = new Map(Object.entries(ctx).map(([k, v]) => [phKey(k), v]))
+  return s.replace(/\{([^{}\n]{1,40})\}/g, (m, name) => {
+    const k = phKey(name)
+    return map.has(k) && map.get(k) != null ? String(map.get(k)) : m
+  })
+}
+
+/** Platzhalter im Text, die es nicht gibt (Tippfehler): ['{Kundee}']. */
+export const unknownPlaceholders = (text) => [...String(text ?? '').matchAll(/\{([^{}\n]{1,40})\}/g)].filter((m) => !PH_KEYS.has(phKey(m[1]))).map((m) => m[0])
+
+/** Briefanrede ohne Beistrich: „Sehr geehrter Herr Dr. Maier“, „Sehr geehrte Frau Huber“, sonst „Sehr geehrte Damen und Herren“. */
+export function greetingOf(c = {}) {
+  const sal = String(c?.salutation || '').trim().toLowerCase().replace(/\.$/, '')
+  const last = String(c?.lastName || '').trim()
+  const name = [String(c?.title || '').trim(), last].filter(Boolean).join(' ')
+  if (last && ['herr', 'herrn', 'hr'].includes(sal)) return `Sehr geehrter Herr ${name}`
+  if (last && ['frau', 'fr'].includes(sal)) return `Sehr geehrte Frau ${name}`
+  if (last && sal === 'familie') return `Sehr geehrte Familie ${last}`
+  return DEFAULT_GREETING
+}
+
+/** Werte aller Platzhalter für einen Beleg (customer für {Anrede}, reminder/open für Mahnungen). */
+export function placeholderContext({ doc = {}, customer = null, settings = {}, user = '', reminder = null, open = null, today = '', terms = null } = {}) {
+  const s = settingsOf({ settings })
+  const t = doc.total || totals(doc, s)
+  const sk = skontoOf(doc, s)
+  const ctx = {
+    Anrede: greetingOf(customer || {}),
+    Kunde: doc.recipient?.name || customerName(customer || {}),
+    Ansprechpartner: doc.contactName || '',
+    Kundennummer: doc.recipient?.customerNo || customer?.customerNo || '',
+    Belegart: KINDS[doc.kind] || '',
+    Belegnummer: doc.number || '',
+    Datum: deDate(doc.date),
+    'Fällig': deDate(doc.dueDate),
+    Betrag: eurAt(t.gross),
+    Offen: open == null ? '' : eurAt(open),
+    Zeitraum: doc.serviceFrom ? periodLabel({ from: doc.serviceFrom, to: doc.serviceTo || doc.serviceFrom }) : '',
+    Objekt: doc.objectName || '',
+    Betreff: doc.title || '',
+    Referenz: doc.reference || '',
+    Skonto: sk ? `${pctText(sk.percent)} % Skonto (${eurAt(sk.amount)}) bei Zahlung bis ${deDate(sk.until)}` : '',
+    'Gültig': deDate(doc.validUntil),
+    Mahnstufe: reminder?.name || '',
+    Frist: reminder?.deadline ? deDate(reminder.deadline) : '',
+    Firma: s.sender.name,
+    Benutzer: user,
+    IBAN: formatIban(s.bank.iban),
+    Heute: deDate(today),
+  }
+  ctx.Zahlungsbedingung = doc.termsText || termsTextOf(doc, s, terms, ctx)
+  return ctx
+}
+
+/**
+ * Betreff, Einleitung und Schlusstext mit aufgelösten Platzhaltern, bei Rechnungen dazu der Text der
+ * Zahlungsbedingung (termsText, nur mit Skonto oder eigenem Text). Für das Festschreiben und die Vorschau.
+ */
+export function resolveTexts(doc, { settings = {}, customer = null, terms = null, user = '', today = '' } = {}) {
+  const s = settingsOf({ settings })
+  const ctx = placeholderContext({ doc, customer, settings: s, user, today, terms })
+  const out = {}
+  for (const k of ['title', 'intro', 'outro']) if (typeof doc[k] === 'string') out[k] = fillPlaceholders(doc[k], ctx)
+  if (doc.kind === 'rechnung' && !doc.termsText) {
+    const tt = termsTextOf(doc, s, terms, ctx)
+    if (tt) out.termsText = tt
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- Textbausteine
+
+export const TEXT_PLACES = { intro: 'Einleitung', outro: 'Schlusstext', mail: 'E-Mail-Text', reminder: 'Mahnungstext', position: 'Positionstext' }
+export const TEXT_KINDS = { ...KINDS, mahnung: 'Mahnung', alle: 'alle Belegarten' }
+const placeOf = (b) => b.place || 'intro'
+
+/** Textbausteine für eine Belegart und Stelle: eigene Belegart vor „alle“, Standard zuerst, dann nach Name. */
+export function blocksFor(blocks = [], kind, place) {
+  const general = (b) => !b.kind || b.kind === 'alle' || (place === 'mail' && b.kind === 'mail')
+  const fits = (b) => placeOf(b) === place && (b.kind === kind || (kind in KINDS && general(b)))
+  return (blocks || []).filter(fits).sort((a, b) => (b.kind === kind) - (a.kind === kind) || (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0) || String(a.name).localeCompare(String(b.name), 'de'))
+}
+
+/** Standard-Textbaustein (isDefault) für Belegart und Stelle, eigene Belegart vor „alle“; sonst null. */
+export const defaultBlock = (blocks, kind, place) => blocksFor(blocks, kind, place).find((b) => b.isDefault) || null
+
+/** Einleitung und Schlusstext für einen neuen Beleg: Standard-Textbaustein, sonst die Texte aus den Einstellungen. */
+export function defaultTexts(kind, settings = {}, blocks = []) {
+  const s = settingsOf({ settings })
+  const offer = kind === 'angebot'
+  return { intro: defaultBlock(blocks, kind, 'intro')?.text ?? (offer ? s.offerIntro : s.intro), outro: defaultBlock(blocks, kind, 'outro')?.text ?? (offer ? s.offerOutro : s.outro) }
+}
+
+// ---------------------------------------------------------------- Zahlungsbedingungen und Skonto
+
+export const termsById = (list = [], id) => (id ? (list || []).find((t) => t.id === id) || null : null)
+export const defaultTerms = (list = []) => (list || []).find((t) => t.isDefault) || null
+export const skontoOfTerms = (t) => (t && parseNumber(t.skontoPercent) > 0 ? { percent: parseNumber(t.skontoPercent), days: Math.max(0, Number(t.skontoDays) || 0) } : null)
+const hasDays = (v) => v !== '' && v !== null && v !== undefined && Number.isFinite(Number(v))
+
+/** Kurzbeschreibung einer Zahlungsbedingung: „14 Tage netto, 7 Tage 2 % Skonto“. */
+export function termsLabel(t) {
+  if (!t) return ''
+  const sk = skontoOfTerms(t)
+  const days = Number(t.days) || 0
+  return [days ? `${days} Tage netto` : 'sofort netto', sk ? `${sk.days} Tage ${pctText(sk.percent)} % Skonto` : ''].filter(Boolean).join(', ')
+}
+
+/**
+ * Zahlungsbedingung für einen neuen Beleg: die des Kunden (termsId), sonst die Standard-Bedingung.
+ * Zahlungsziel: Bedingung des Kunden, sonst Zahlungsziel beim Kunden, sonst Standard-Bedingung, sonst Einstellungen.
+ * Liefert { termsId, days, skonto: { percent, days } | null }.
+ */
+export function termsSetup(customer, list = [], settings = {}) {
+  const s = settingsOf({ settings })
+  const own = termsById(list, customer?.termsId)
+  const t = own || defaultTerms(list)
+  const days = own && hasDays(own.days) ? Number(own.days) : hasDays(customer?.paymentDays) ? Number(customer.paymentDays) : t && hasDays(t.days) ? Number(t.days) : Number(s.paymentDays) || 0
+  return { termsId: t?.id || '', days, skonto: skontoOfTerms(t) }
+}
+
+/** Skonto einer Rechnung: { percent, days, until, base (brutto), amount, payable } oder null. */
+export function skontoOf(d, settings) {
+  const p = parseNumber(d?.skonto?.percent)
+  if (!(p > 0) || d.kind !== 'rechnung' || !d.date) return null
+  const base = grossOf(d, settings)
+  if (!(base > 0)) return null
+  const days = Math.max(0, Number(d.skonto.days) || 0)
+  const amount = round2((base * p) / 100)
+  return { percent: p, days, until: addDaysIso(d.date, days), base, amount, payable: round2(base - amount) }
+}
+
+/**
+ * Text der Zahlungsbedingung auf der Rechnung, mit Betrag und Datum:
+ * „Zahlbar binnen 14 Tagen netto (bis 17.11.2026), bei Zahlung binnen 7 Tagen (bis 10.11.2026) 2 % Skonto (€ 23,52), …“.
+ * Ein eigener Text der Bedingung (terms.text) geht vor; ohne Platzhalter wird das Skonto mit Betrag angehängt.
+ * Ohne Skonto und ohne eigenen Text: leer (dann gilt der übliche Satz „ohne Abzug“).
+ */
+export function termsTextOf(d, settings, terms = null, ctx = null) {
+  if (d.termsText) return d.termsText
+  if (d.kind !== 'rechnung') return ''
+  const sk = skontoOf(d, settings)
+  const custom = String(terms?.text || '').trim()
+  if (!sk && !custom) return ''
+  const due = d.dueDate && d.date ? daysBetween(d.date, d.dueDate) : null
+  const net = due ? `binnen ${due} Tagen netto (bis ${deDate(d.dueDate)})` : due === 0 ? 'sofort netto' : 'netto'
+  if (!custom) return `Zahlbar ${net}, bei Zahlung binnen ${sk.days} Tagen (bis ${deDate(sk.until)}) ${pctText(sk.percent)} % Skonto (${eurAt(sk.amount)}), Zahlbetrag dann ${eurAt(sk.payable)}.`
+  const c = ctx || { 'Fällig': deDate(d.dueDate), Betrag: eurAt(grossOf(d, settings)), Skonto: sk ? `${pctText(sk.percent)} % Skonto (${eurAt(sk.amount)}) bei Zahlung bis ${deDate(sk.until)}` : '' }
+  const filled = fillPlaceholders(custom, { ...c, Zahlungsbedingung: '' })
+  if (!sk || /\{/.test(custom)) return filled
+  return `${filled.replace(/[.\s]+$/, '')} (${pctText(sk.percent)} % Skonto ${eurAt(sk.amount)} bei Zahlung bis ${deDate(sk.until)}, Zahlbetrag dann ${eurAt(sk.payable)}).`
+}
+
+/** Vermerkter Skontoabzug (Zahlungseinträge mit kind 'skonto'). */
+export const skontoTaken = (d) => round2((d.payments || []).filter((p) => p.kind === 'skonto').reduce((s, p) => s + parseNumber(p.amount), 0))
+/** Bezahlt ohne Skonto (Geldeingänge). */
+export const cashPaidOf = (d) => round2(paidOf(d) - skontoTaken(d))
+
+/** Ohne Vermerk: Zahlungen in der Skontofrist decken brutto abzüglich Skonto → der Rest gilt als Skonto. */
+function implicitSkonto(d, base, settings) {
+  const pays = d.payments || []
+  if (!pays.length || pays.some((p) => p.kind === 'skonto') || !(base > 0)) return 0
+  const sk = skontoOf(d, settings)
+  if (!sk) return 0
+  const amount = round2((base * sk.percent) / 100)
+  const inTime = round2(pays.filter((p) => p.date && p.date <= sk.until).reduce((s, p) => s + parseNumber(p.amount), 0))
+  const rest = round2(base - paidOf(d))
+  return inTime >= base - amount - 0.01 && rest > 0.004 && rest <= amount + 0.01 ? rest : 0
+}
+
+/**
+ * Skonto, das bei einer Zahlung am Tag date noch abgezogen werden darf (auf brutto samt Korrekturen);
+ * 0, wenn die Frist vorbei, das Skonto schon vermerkt oder die Rechnung storniert ist.
+ */
+export function skontoAvailable(d, docs, settings, date) {
+  const sk = skontoOf(d, settings)
+  if (!sk || !date || date > sk.until || !d.number || isCancelled(d, docs)) return 0
+  if ((d.payments || []).some((p) => p.kind === 'skonto')) return 0
+  const base = round2(sk.base + refsOf(d, docs).reduce((s, x) => s + grossOf(x, settings), 0))
+  return base > 0 ? round2((base * sk.percent) / 100) : 0
+}
+
+/**
+ * Zahlungseinträge für eine Zahlung: liegt sie in der Skontofrist und fehlt danach höchstens das Skonto
+ * (1 Cent Spielraum), wird der Rest als Skonto vermerkt (eigener Eintrag kind 'skonto', ref = Zahlung).
+ * Liefert [Zahlung] oder [Zahlung, Skonto].
+ */
+export function paymentEntries(d, docs, settings, payment, { newId = () => Math.random().toString(36).slice(2, 10) } = {}) {
+  const entry = { ...payment, id: payment.id || newId(), amount: round2(parseNumber(payment.amount)) }
+  const sk = skontoAvailable(d, docs, settings, entry.date)
+  if (!sk) return [entry]
+  const rest = round2(openAmount(d, docs, settings) - entry.amount)
+  if (!(rest > 0.004 && rest <= sk + 0.01)) return [entry]
+  const extra = Object.fromEntries(['bank', 'by', 'at'].filter((k) => entry[k]).map((k) => [k, entry[k]]))
+  return [entry, { id: newId(), date: entry.date, amount: rest, kind: 'skonto', ref: entry.id, note: `Skonto ${pctText(skontoOf(d, settings).percent)} % (Zahlung in der Skontofrist)`, ...extra }]
+}
+
+/**
+ * Skontobetrag (brutto) auf die Steuersätze der Rechnung aufteilen (anteilig nach brutto, Rest auf den letzten):
+ * [{ rate, gross, net, vat }]. Grundlage für die Korrektur der Umsatzsteuer.
+ */
+export function skontoSplit(d, amount, settings) {
+  const groups = (d.total || totals(d, settings)).groups || []
+  const g2 = groups.map((g) => round2(g.net + g.vat))
+  const all = round2(g2.reduce((a, b) => a + b, 0))
+  if (!groups.length || !all) return []
+  let rest = round2(amount)
+  return groups
+    .map((g, i) => {
+      const part = i === groups.length - 1 ? rest : round2((amount * g2[i]) / all)
+      rest = round2(rest - part)
+      const net = round2(part / (1 + (g.vat ? g.rate : 0) / 100))
+      return { rate: g.rate, gross: part, net, vat: round2(part - net) }
+    })
+    .filter((x) => x.gross)
+}
+
+// ---------------------------------------------------------------- Kunden: Suche, Verlauf
+
+/** Anzeigename: Firma, sonst Person. */
+export const customerName = (c = {}) => c.name || personLine(c) || ''
+
+/** Suche über alle Felder des Kunden (auch Ansprechpartner und übernommene Felder); mehrere Wörter: alle müssen vorkommen. */
+export function customerMatches(c, query) {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return true
+  const fields = [c.name, c.customerNo, c.salutation, c.title, c.firstName, c.lastName, c.street, c.zip, c.city, c.country, c.address, c.phone, c.mobile, c.fax, c.web, c.email, c.uid, c.iban, c.group, c.note, c.deliveryAddress]
+  const hay = [...fields, ...(c.contacts || []).flatMap((p) => [p.name, p.role, p.email, p.phone]), ...Object.entries(c.extra || {}).flat()].map((v) => String(v ?? '').toLowerCase()).join(' \n ')
+  return q.split(/\s+/).every((w) => hay.includes(w))
+}
+
+/** Ort für die Kundenliste: Feld „Ort“, sonst aus der Anschrift gelesen. */
+export const customerCity = (c = {}) => c.city || parseAddress(c.address).city || ''
+
+/**
+ * Verlauf eines Kunden: alle Belege (neueste zuerst) mit Zustand, Summen und offenem Betrag, Umsatz netto
+ * je Jahr (festgeschriebene Rechnungen samt Storno und Korrektur) und die Summe offen.
+ */
+export function customerHistory(docs, customerId, { today, settings } = {}) {
+  const rows = docs
+    .filter((d) => customerId && d.customerId === customerId)
+    .map((d) => {
+      const t = d.total || totals(d, settings)
+      return { doc: d, state: stateOf(d, docs, today, settings), net: t.net, gross: t.gross, open: d.kind === 'rechnung' && d.number ? openAmount(d, docs, settings) : 0 }
+    })
+    .sort((a, b) => String(b.doc.date).localeCompare(String(a.doc.date)) || String(b.doc.number || '').localeCompare(String(a.doc.number || '')))
+  const years = new Map()
+  for (const r of rows) {
+    if (!isInvoice(r.doc) || !r.doc.number) continue
+    const y = yearOf(r.doc)
+    const cur = years.get(y) || { year: y, net: 0, count: 0 }
+    cur.net = round2(cur.net + r.net)
+    if (r.doc.kind === 'rechnung') cur.count++
+    years.set(y, cur)
+  }
+  return { rows, years: [...years.values()].sort((a, b) => b.year.localeCompare(a.year)), open: round2(rows.reduce((a, r) => a + Math.max(0, r.open), 0)) }
+}
+
+// ---------------------------------------------------------------- Artikel
+
+export const articleActive = (a) => a?.active !== false
+export const articleLabel = (a) => [a.articleNo, a.name].filter(Boolean).join(' – ')
+
+/** Rohertrag: Verkauf netto − Einkauf netto, in € und % vom Verkauf; null ohne Einkaufspreis. */
+export function articleMargin(a) {
+  const price = parseNumber(a.price)
+  if (a.cost === '' || a.cost === null || a.cost === undefined || !(price > 0)) return null
+  const amount = round2(price - parseNumber(a.cost))
+  return { amount, percent: round2((amount / price) * 100) }
+}
+
+/** Artikel zur Eingabe (Artikelnummer, „Nr. – Name“ oder Name; sonst eindeutiger Teil des Namens), nur aktive. */
+export function findArticle(articles = [], query) {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return null
+  const list = articles.filter(articleActive)
+  const exact = list.find((a) => String(a.articleNo || '').toLowerCase() === q) || list.find((a) => articleLabel(a).toLowerCase() === q) || list.find((a) => String(a.name || '').toLowerCase() === q)
+  if (exact) return exact
+  const part = list.filter((a) => `${a.articleNo || ''} ${a.name || ''}`.toLowerCase().includes(q))
+  return part.length === 1 ? part[0] : null
+}
+
+/** Position aus einem Artikel: Bezeichnung (mit Zusatz), Langtext und Artikelnummer, Menge 1. */
+export const lineFromArticle = (a, { id, vat = 20 } = {}) => ({
+  id,
+  text: [a.name, a.text].filter(Boolean).join(' – '),
+  ...(a.longText ? { longText: a.longText } : {}),
+  ...(a.articleNo ? { articleNo: a.articleNo } : {}),
+  qty: 1,
+  unit: a.unit || 'Pauschale',
+  price: parseNumber(a.price),
+  vat: a.vat ?? vat,
+  discount: 0,
+})
+
+// ---------------------------------------------------------------- Anschrift zerlegen (für die E-Rechnung)
+
+export { COUNTRY_NAMES }
+const COUNTRY_BY_NAME = new Map([...Object.entries(COUNTRY_NAMES).map(([k, v]) => [v.toLowerCase(), k]), ['austria', 'AT'], ['germany', 'DE'], ['switzerland', 'CH'], ['italy', 'IT'], ['italia', 'IT'], ['slovenija', 'SI'], ['magyarország', 'HU'], ['česko', 'CZ'], ['slovensko', 'SK']])
+const PREFIX_COUNTRY = { A: 'AT', AT: 'AT', D: 'DE', DE: 'DE', CH: 'CH', I: 'IT', IT: 'IT', SLO: 'SI', SI: 'SI', H: 'HU', HU: 'HU', CZ: 'CZ', SK: 'SK', FL: 'LI', LI: 'LI' }
+
+/**
+ * Mehrzeilige Anschrift in Felder zerlegen: { street, zip, city, country (ISO), attention (z. H.), extra[] }.
+ * Erkennt „5020 Salzburg“, „A-5020 Salzburg“, „D-80331 München“, ein Land in der letzten Zeile und
+ * einzeilige Anschriften mit Beistrich („Ringstraße 3, 5020 Salzburg“). Ohne Land: AT.
+ */
+export function parseAddress(text = '') {
+  let lines = String(text || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+  if (lines.length === 1 && lines[0].includes(',')) lines = lines[0].split(',').map((s) => s.trim()).filter(Boolean)
+  const zipRe = /^(?:([A-Za-z]{1,3})\s*[-–]\s*)?(\d{4,5})\s+(.+)$/
+  const zi = lines.findIndex((l) => zipRe.test(l))
+  const out = { street: '', zip: '', city: '', country: 'AT', attention: '', extra: [] }
+  const before = zi >= 0 ? lines.slice(0, zi) : lines
+  const after = zi >= 0 ? lines.slice(zi + 1) : []
+  if (zi >= 0) {
+    const [, prefix, zip, city] = lines[zi].match(zipRe)
+    out.zip = zip
+    out.city = city
+    if (prefix && PREFIX_COUNTRY[prefix.toUpperCase()]) out.country = PREFIX_COUNTRY[prefix.toUpperCase()]
+  }
+  for (const l of after) {
+    const code = COUNTRY_BY_NAME.get(l.toLowerCase()) || (/^[A-Z]{2}$/.test(l) ? l : '')
+    if (code) out.country = code
+    else out.extra.push(l)
+  }
+  const rest = []
+  const att = /^(z\.\s*h\.?|zh\.?|attn\.?|zu handen)\s*/i
+  for (const l of before) {
+    if (att.test(l)) out.attention = l.replace(att, '').trim()
+    else rest.push(l)
+  }
+  // die Straße ist die letzte Zeile vor PLZ und Ort, davor stehen Zusätze (z. B. ein zweiter Name)
+  out.street = rest.length ? rest.at(-1) : ''
+  out.extra = [...rest.slice(0, -1), ...out.extra]
+  return out
+}

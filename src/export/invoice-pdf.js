@@ -1,10 +1,11 @@
 // Belege der Fakturierung als PDF (pdfmake): Angebot, Auftragsbestätigung, Rechnung, Stornorechnung,
 // Rechnungskorrektur und Mahnung. Mit allen Rechnungsmerkmalen nach § 11 UStG, Hinweisen für
 // Reverse Charge bzw. Kleinunternehmer und einem EPC-QR-Code zum Bezahlen mit der Banking-App.
-// Entwürfe tragen das Wasserzeichen „ENTWURF“ und keinen QR-Code.
+// Entwürfe tragen das Wasserzeichen „ENTWURF“ und keinen QR-Code. Platzhalter wie {Anrede} sind bei
+// festgeschriebenen Belegen schon aufgelöst, bei Entwürfen löst die Vorschau sie auf.
 
 import { todayISO } from '../core/dates.js'
-import { deDate, epcPayload, formatIban, KINDS, lateInterest, periodLabel, RC_TEXT, round2, settingsOf, SMALL_AMOUNT, SMALL_BUSINESS_TEXT, totals } from '../core/invoicing.js'
+import { deDate, DEFAULT_GREETING, epcPayload, formatIban, KINDS, lateInterest, periodLabel, RC_TEXT, resolveTexts, round2, settingsOf, SMALL_AMOUNT, SMALL_BUSINESS_TEXT, totals } from '../core/invoicing.js'
 import { inkColors, tableLayout } from './pdf-parts.js'
 
 // Tausenderpunkt wie auf österreichischen Rechnungen üblich (de-AT setzt bei Zahlen ohne Währung ein Leerzeichen)
@@ -87,11 +88,15 @@ function addressAndFacts(doc, sender, facts, colors) {
   }
 }
 
-/** Beleg als pdfmake-Dokument. settings: Einstellungen der Fakturierung, doc: Beleg. */
-export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null }) {
+/**
+ * Beleg als pdfmake-Dokument. settings: Einstellungen der Fakturierung, doc: Beleg. Bei Entwürfen: customer
+ * (für {Anrede}), terms (Zahlungsbedingung) und user (für {Benutzer}) zum Auflösen der Platzhalter.
+ */
+export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = null, customer = null, terms = null, user = '', today = todayISO() }) {
   const s = settingsOf({ settings })
   const colors = inkColors(brand)
-  const draft = !doc.number
+  const draft = !input.number
+  const doc = draft ? { ...input, ...resolveTexts(input, { settings: s, customer, terms, user, today }) } : input
   const sender = draft ? s.sender : { ...s.sender, ...(doc.sender || {}) }
   const t = totals(doc, s)
   const kind = KINDS[doc.kind] || 'Beleg'
@@ -102,6 +107,8 @@ export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null })
     [doc.kind === 'rechnung' ? 'Rechnungsdatum' : 'Datum', deDate(doc.date)],
     [isInv ? 'Leistung' : doc.kind === 'auftrag' ? 'Ausführung' : 'Zeitraum', service],
     ['Kundennummer', doc.recipient?.customerNo || ''],
+    ['Ihre Bestellung', doc.reference || ''],
+    ['Ansprechpartner', doc.contactName || ''],
     ['Objekt', doc.objectName || ''],
     [doc.kind === 'rechnung' ? 'Fällig am' : '', doc.kind === 'rechnung' ? deDate(doc.dueDate) : ''],
     [doc.kind === 'angebot' ? 'Gültig bis' : '', doc.kind === 'angebot' ? deDate(doc.validUntil) : ''],
@@ -111,7 +118,7 @@ export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null })
   const head = ['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', ...(showDiscount ? ['Rabatt'] : []), ...(t.vatOn ? ['USt'] : []), 'Gesamt netto'].map((text, i) => ({ text, style: 'th', alignment: i > 1 && text !== 'Einheit' ? 'right' : 'left' }))
   const body = t.lines.map((l, i) => [
     String(i + 1),
-    { text: l.text || '' },
+    l.longText || l.articleNo ? { stack: [{ text: l.text || '' }, l.longText ? { text: l.longText, style: 'small', margin: [0, 1, 0, 0] } : '', l.articleNo ? { text: `Art.-Nr. ${l.articleNo}`, style: 'small' } : ''].filter(Boolean) } : { text: l.text || '' },
     { text: qty(l.qty), alignment: 'right' },
     l.unit || '',
     { text: eur(l.price), alignment: 'right' },
@@ -131,7 +138,11 @@ export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null })
   const payText = []
   let qr = null
   if (doc.kind === 'rechnung' && t.gross > 0) {
-    if (s.bank.iban) payText.push(`Bitte überweisen Sie ${eur(t.gross)} bis ${deDate(doc.dueDate)} ohne Abzug auf ${s.bank.name ? `${s.bank.name}, ` : ''}IBAN ${formatIban(s.bank.iban)}${s.bank.bic ? `, BIC ${s.bank.bic}` : ''}. Verwendungszweck: ${doc.number || 'Rechnungsnummer'}.`)
+    // Zahlungsbedingung mit Skonto (Text beim Festschreiben eingefroren), sonst der übliche Satz
+    if (doc.termsText) {
+      payText.push(doc.termsText)
+      if (s.bank.iban) payText.push(`Bankverbindung: ${s.bank.name ? `${s.bank.name}, ` : ''}IBAN ${formatIban(s.bank.iban)}${s.bank.bic ? `, BIC ${s.bank.bic}` : ''}. Verwendungszweck: ${doc.number || 'Rechnungsnummer'}.`)
+    } else if (s.bank.iban) payText.push(`Bitte überweisen Sie ${eur(t.gross)} bis ${deDate(doc.dueDate)} ohne Abzug auf ${s.bank.name ? `${s.bank.name}, ` : ''}IBAN ${formatIban(s.bank.iban)}${s.bank.bic ? `, BIC ${s.bank.bic}` : ''}. Verwendungszweck: ${doc.number || 'Rechnungsnummer'}.`)
     else payText.push(`Zahlbar bis ${deDate(doc.dueDate)} ohne Abzug.`)
     if (!draft) qr = epcPayload({ name: sender.name, iban: s.bank.iban, bic: s.bank.bic, amount: t.gross, text: `Rechnung ${doc.number}` })
   }
@@ -140,6 +151,7 @@ export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null })
   const content = [
     { columns: [logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)] },
     addressAndFacts(doc, sender, facts, colors),
+    String(doc.deliveryAddress || '').trim() ? { text: [{ text: doc.kind === 'rechnung' || doc.kind === 'auftrag' ? 'Leistungsort: ' : 'Lieferadresse: ', color: colors.grey }, lines(doc.deliveryAddress).join(', ')], fontSize: 8.5, margin: [0, 8, 0, 0] } : '',
     { text: title, style: 'title' },
     doc.title ? { text: doc.title, bold: true, margin: [0, 0, 0, 6] } : '',
     doc.intro ? { text: doc.intro, margin: [0, 0, 0, 8] } : '',
@@ -167,8 +179,11 @@ export function invoiceDocument({ doc, settings = {}, brand = {}, logo = null })
   return shell(content, { title, sender, bank: s.bank, colors, draft })
 }
 
-/** Mahnung bzw. Zahlungserinnerung zu einer Rechnung. reminder: core/invoicing.js → reminderFor(). */
-export function reminderDocument({ doc, reminder, settings = {}, brand = {}, logo = null, today = todayISO() }) {
+/**
+ * Mahnung bzw. Zahlungserinnerung zu einer Rechnung. reminder: core/invoicing.js → reminderFor().
+ * text: eigener Text des Schreibens (Platzhalter schon aufgelöst), greeting: Anrede ohne Beistrich.
+ */
+export function reminderDocument({ doc, reminder, settings = {}, brand = {}, logo = null, today = todayISO(), text: ownText = '', greeting = DEFAULT_GREETING }) {
   const s = settingsOf({ settings })
   const colors = inkColors(brand)
   const sender = { ...s.sender, ...(doc.sender || {}) }
@@ -188,15 +203,16 @@ export function reminderDocument({ doc, reminder, settings = {}, brand = {}, log
   ]
   const legal = reminder.interest.amount ? (doc.recipient?.consumer ? 'Verzugszinsen 4 % p. a. (§ 1000 ABGB).' : `Verzugszinsen ${pct(reminder.interest.rate)} p. a.: Basiszinssatz ${pct(s.baseRate)} zuzüglich 9,2 Prozentpunkte (§ 456 UGB).`) : ''
   const qr = epcPayload({ name: sender.name, iban: s.bank.iban, bic: s.bank.bic, amount: reminder.total, text: `${reminder.name} ${doc.number}` })
-  const text =
-    reminder.level === 0
+  const text = String(ownText || '').trim()
+    ? String(ownText).trim()
+    : reminder.level === 0
       ? `zu unserer Rechnung ${doc.number} vom ${deDate(doc.date)} konnten wir bis heute keinen Zahlungseingang feststellen. Sicher ist sie Ihnen nur entgangen. Wir bitten Sie, den offenen Betrag bis ${deDate(reminder.deadline)} zu überweisen.`
       : `trotz unserer Erinnerung ist unsere Rechnung ${doc.number} vom ${deDate(doc.date)} noch offen. Wir ersuchen Sie, den Gesamtbetrag von ${eur(reminder.total)} bis ${deDate(reminder.deadline)} zu überweisen.`
   const content = [
     { columns: [logoBlock(logo, brand, sender, colors), senderBlock(sender, colors)] },
     addressAndFacts(doc, sender, facts, colors),
     { text: reminder.name, style: 'title' },
-    { text: 'Sehr geehrte Damen und Herren,', margin: [0, 0, 0, 6] },
+    { text: `${greeting || DEFAULT_GREETING},`, margin: [0, 0, 0, 6] },
     { text, margin: [0, 0, 0, 10] },
     {
       columns: [
