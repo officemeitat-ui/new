@@ -188,3 +188,19 @@ test('Kassenbuch: Übernahme aus orgaMAX idempotent und chronologisch', () => {
   const c = emptyCashbook()
   assert.match(importCash(c, [{ no: 1, date: '2026-01-02', amount: -10, text: 'ohne Anfangsbestand' }]).warnings[0], /negativ/)
 })
+
+test('Kassenbuch-PDF: Anfangsbestand, Einträge mit Stand, Storno-Verweis, Summen, Abschluss', async () => {
+  const { cashbookDocument, cashbookPdfPath } = await import('../src/export/cashbook-pdf.js')
+  const b = book()
+  const e = addEntry(b, { date: '2026-10-02', kind: 'ausgabe', amount: 30, text: 'Tippfehler' }, opts('2026-10-02'))
+  stornoEntry(b, e.id, { reason: 'falscher Betrag' }, opts('2026-10-03'))
+  closeMonth(b, '2026-10', opts('2026-11-05'))
+  const doc = cashbookDocument({ book: b, month: '2026-10', createdAt: new Date('2026-11-05T10:00:00Z') })
+  const table = doc.content.find((x) => x.table).table.body
+  const flat = JSON.stringify(doc.content)
+  assert.equal(table.length, 1 + 1 + 3 + 1, 'Kopf, Anfangsbestand, 3 Einträge, Summe')
+  assert.match(flat, /Tippfehler \(storniert mit Nr\. 3\)/)
+  assert.match(flat, /Storno Nr\. 2: Tippfehler – Grund: falscher Betrag/)
+  assert.match(flat, /Monat abgeschlossen am/)
+  assert.equal(cashbookPdfPath('2026-10'), 'einkauf/kassenbuch/2026/Kassenbuch_2026-10.pdf')
+})

@@ -197,7 +197,8 @@ function entryModal(c, m) {
         <label class="field"><span>Belegnummer</span><input type="text" id="kb-receipt" value="${esc(d.receipt)}" placeholder="z. B. Kassabon 4711"></label>
       </div>
       <div class="ek-beleg-bar"><label class="btn">${ICON.camera} Foto vom Beleg<input type="file" accept="image/*" capture="environment" data-change="kb-file" hidden></label><label class="btn">${ICON.upload} PDF oder Bild<input type="file" accept="application/pdf,image/*" data-change="kb-file" hidden></label><span class="muted small">${pending ? `Beleg bereit: ${esc(pending.name)}` : 'Beleg: jede Barzahlung braucht einen Beleg'}</span></div>
-      <p class="muted">${kind === 'ausgabe' ? `Reicht der Kassenstand nicht, wird nichts gebucht (ein Stand unter null ist nicht möglich). Zuerst z. B. die Abhebung vom Bankkonto als Einnahme buchen.` : 'Barzahlung einer Rechnung: die Zahlung wird bei der Rechnung vermerkt.'} ${esc(lockedUntil(K()) ? `Abgeschlossen bis ${monthName(lockedUntil(K()))}.` : '')}</p>`,
+      <p class="muted">${kind === 'ausgabe' ? `Reicht der Kassenstand nicht, wird nichts gebucht (ein Stand unter null ist nicht möglich). Zuerst z. B. die Abhebung vom Bankkonto als Einnahme buchen.` : 'Barzahlung einer Rechnung: die Zahlung wird bei der Rechnung vermerkt.'} ${esc(lockedUntil(K()) ? `Abgeschlossen bis ${monthName(lockedUntil(K()))}.` : '')}</p>
+      ${kind === 'einnahme' ? `<p class="muted kb-rksv-hint">Registrierkasse (§ 131b BAO): Jede Barzahlung braucht einen Beleg für den Kunden. Ab ${money(RKSV.turnover)} Jahresumsatz, davon mehr als ${money(RKSV.cash)} bar, ist eine Registrierkasse Pflicht – das Kassenbuch ersetzt sie nicht. Barumsätze ${esc(todayISO().slice(0, 4))} bisher: ${money(status().sales.net)} netto.</p>` : ''}`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="kb-save" data-kind="${kind}">Buchen</button></div>`,
   })
 }

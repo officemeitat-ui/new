@@ -14,7 +14,6 @@ import {
   draftFromEInvoice,
   dueFor,
   duePayables,
-  findDuplicates,
   invoiceEditable,
   invoiceProblems,
   invoiceTotals,
