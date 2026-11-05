@@ -28,7 +28,7 @@ const KEYWORDS = {
   matten: 'Matten Mattenwechsel Tour Lieferschein',
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
-  fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten',
+  fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten Brief Serienbrief Briefpapier',
   kalkulation: 'Preis Angebot Leistungswert',
   payroll: 'Lohn Monatsabschluss',
   overtime: 'Überstunden Mehrarbeit Auszahlung',

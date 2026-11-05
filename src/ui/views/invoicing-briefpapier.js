@@ -110,7 +110,8 @@ async function readImage(file) {
   let dataUrl = c.toDataURL('image/jpeg', 0.9)
   if (/png/i.test(file.type)) {
     const asPng = c.toDataURL('image/png')
-    if (asPng.length < 1.5e6) [type, dataUrl] = ['image/png', asPng]
+    // PNG nur, wenn klein: das Briefpapier steckt in jedem PDF und geht mit jeder E-Mail mit
+    if (asPng.length < 9e5) [type, dataUrl] = ['image/png', asPng]
   }
   return { dataUrl, type, width: c.width, height: c.height, name: file.name, size: Math.round((dataUrl.length * 3) / 4), warnings: check.warnings }
 }
