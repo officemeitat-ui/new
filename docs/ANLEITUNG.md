@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 226 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 231 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (33)
+- [Finanzen](#finanzen) (38)
 - [Verwaltung](#verwaltung) (35)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1788,6 +1788,76 @@ Zu jeder festgeschriebenen Rechnung, Storno- und Korrekturrechnung erzeugt „E-
 
 > Tipp: Beim Senden per E-Mail hängt „E-Rechnung anhängen“ die factur-x.xml an.
 > Tipp: Ein PDF mit eingebetteter XML (PDF/A-3) erzeugt die App nicht.
+
+### Alle Entwürfe festschreiben und versenden
+
+*In der App: Fakturierung*
+
+Nach dem Monatslauf schreibt „Läufe ▾“ → „Festschreiben und senden“ alle Entwürfe auf einmal fest: je Zeile die Prüfung der Pflichtangaben, dann fortlaufende Nummern. Danach gehen sie per E-Mail an die Rechnungs-E-Mail des Kunden, mit PDF und auf Wunsch factur-x.xml. Ohne E-Mail-Adresse kommen sie in ein Sammel-PDF zum Drucken.
+
+1. „Läufe ▾“ → „Festschreiben und senden“ öffnen (oder „Festschreiben und senden“ über der Rechnungsliste).
+2. „aus dem Monatslauf“ oder „alle Entwürfe“ wählen; Entwürfe mit Fehlern öffnen und ergänzen.
+3. „Festschreiben (n)“ klicken und bestätigen.
+4. Im Schritt „Versenden“ den E-Mail-Text wählen, „Per E-Mail senden (n)“ klicken.
+5. Für Belege ohne E-Mail „Sammel-PDF zum Drucken“.
+
+> Tipp: Zwischen den E-Mails wartet die App kurz: Microsoft 365 nimmt höchstens 30 je Minute an.
+> Tipp: Fehler stehen beim jeweiligen Beleg; die übrigen gehen trotzdem hinaus.
+> Tipp: Jeder versendete Beleg bekommt einen Vermerk, gedruckte „per Post“.
+
+### Mahnlauf und Mahnsperre
+
+*In der App: Fakturierung*
+
+Der Mahnlauf zeigt alle Rechnungen mit fälliger Mahnstufe, mit Verzugszinsen, Pauschale und Summe. Ausgewählte gehen als Mahnung mit PDF per E-Mail, ohne Adresse ins Sammel-PDF zum Drucken; vermerkt wird wie bei der Einzelmahnung. Eine Mahnsperre („nicht mahnen bis …“, z. B. bei Ratenvereinbarung) gilt je Rechnung oder für alle Rechnungen des Kunden.
+
+1. „Läufe ▾“ → „Mahnlauf“ (oder in den offenen Posten „Mahnlauf“).
+2. Liste prüfen; mit „Sperren“ eine Rechnung oder den Kunden ausnehmen.
+3. „Mahnungen erstellen und senden (n)“ klicken.
+
+> Tipp: Rechnungen im Lastschrifteinzug werden nicht gemahnt.
+> Tipp: Die Sperre für den Kunden steht auch im Kundenblatt unter „Lastschrift & Mahnung“.
+
+### Angebote nachfassen und Angebotsquote
+
+*In der App: Fakturierung*
+
+Jedes offene Angebot hat eine Wiedervorlage: eine eigene (Datum, Notiz) oder X Tage nach dem Versand (Einstellungen). Fällige Wiedervorlagen und Angebote, die bald ablaufen, stehen in „Zu erledigen“ und unter „Angebote & Aufträge“, dazu die Angebotsquote des Jahres: angenommen, abgelehnt, offen, mit Summe.
+
+1. Angebot öffnen und „Wiedervorlage“ setzen, oder in den Einstellungen die Tage nach dem Versand eintragen.
+2. Ist sie fällig: „Nachfassen“ öffnet eine E-Mail mit Textbaustein und dem Angebot als PDF.
+3. Senden; die nächste Wiedervorlage ist gleich eingetragen.
+
+> Tipp: Eigener Text: Textbaustein für „Angebot nachfassen“, Stelle „E-Mail-Text“.
+> Tipp: Angenommen oder abgelehnt im Angebot markieren, dann stimmt die Quote.
+
+### SEPA-Lastschrift einziehen
+
+*In der App: Fakturierung*
+
+Für Kunden mit SEPA-Mandat zieht die App offene Rechnungen ein: Einzugstag wählen (Vorlauf der Bank), Vorabankündigung prüfen oder per E-Mail senden, dann die Datei pain.008 erstellen und im Online-Banking hochladen. Die Rechnungen stehen danach „im Einzug“ und werden nicht gemahnt; der Eingang wird im Bankabgleich sicher erkannt.
+
+1. Einstellungen: Gläubiger-ID der OeNB eintragen (über die Hausbank beantragt).
+2. Beim Kunden das Mandat erfassen (Kundenblatt → „Lastschrift & Mahnung“).
+3. „Läufe ▾“ → „Lastschrifteinzug“: Einzugstag wählen, fehlende Vorabankündigungen senden.
+4. „Lastschriftdatei erstellen“ und die Datei im Online-Banking (z. B. George Business, ELBA) hochladen.
+
+> Tipp: Rechnungen an Kunden mit Mandat tragen den Hinweis auf den Einzug; versendet zählt das als Vorabankündigung.
+> Tipp: Dateiformat pain.008.001.08 (aktueller Standard); .02 nur für ältere Bank-Software.
+
+### SEPA-Mandat, Vorabankündigung und Rücklastschrift
+
+*In der App: Fakturierung*
+
+Im Kundenblatt unter „Lastschrift & Mahnung“ stehen Mandatsreferenz, Datum der Unterschrift, Art (Basis- oder Firmen-Lastschrift), erste oder folgende Lastschrift und die Frist der Vorabankündigung (Standard 14 Tage, im Mandat kürzer vereinbar). „Mandat als PDF“ druckt die Vorlage zum Unterschreiben. Kommt eine Lastschrift zurück: „Rücklastschrift“ beim Beleg.
+
+1. Kunde öffnen: in den Stammdaten IBAN eintragen.
+2. Reiter „Lastschrift & Mahnung“: „Referenz vorschlagen“, Art wählen.
+3. „Mandat als PDF zum Unterschreiben“ drucken und unterschrieben zurückholen.
+4. Datum der Unterschrift eintragen und speichern.
+
+> Tipp: Ein Mandat verfällt nach 36 Monaten ohne Lastschrift.
+> Tipp: Nach einer Rücklastschrift ist die Rechnung wieder offen; bei Widerspruch erst mit dem Kunden reden.
 
 ### Kalkulation je Objekt
 

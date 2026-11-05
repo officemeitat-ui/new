@@ -247,7 +247,7 @@ const SAFE = new Set([
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',
   'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open',
-  'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open',
+  'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-sepa-open',
 ])
 
 test('Themen: Aktionen öffnen nur, nichts wird gelöscht oder gesendet', () => {
@@ -277,7 +277,7 @@ test('Themen: jede Ansicht des Menüs hat mindestens ein Thema', () => {
 // ---------------------------------------------------------------- Schreibweise
 
 const allText = (t) => [t.title, t.answer, ...(t.steps || []), ...(t.tips || []), t.roles || '', t.action?.label || '', ...t.q]
-const ACRONYMS = new Set(['PDF', 'CSV', 'ZIP', 'IBAN', 'UID', 'AZG', 'ARG', 'KJBG', 'KFG', 'DOT', 'BMD', 'RZL', 'VPI', 'JSON', 'PHP', 'HTTPS', 'NFC', 'XML', 'GPS', 'SMS', 'ELBA', 'BAWAG', 'WKO', 'ASVG', 'DSGVO', 'API', 'EPC', 'URL', 'ODBC'])
+const ACRONYMS = new Set(['PDF', 'CSV', 'ZIP', 'IBAN', 'UID', 'AZG', 'ARG', 'KJBG', 'KFG', 'DOT', 'BMD', 'RZL', 'VPI', 'JSON', 'PHP', 'HTTPS', 'NFC', 'XML', 'GPS', 'SMS', 'ELBA', 'BAWAG', 'WKO', 'ASVG', 'DSGVO', 'API', 'EPC', 'URL', 'ODBC', 'SEPA'])
 
 test('Schreibweise: keine Wörter nur in Großbuchstaben (außer Abkürzungen), keine Emoji', () => {
   const texts = [...TOPICS.flatMap(allText), ...GLOSSARY.flatMap((g) => [g.term, g.text])]
