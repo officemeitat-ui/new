@@ -364,7 +364,7 @@ function recurringTab() {
   const rows = d.recurring
     .map((r) => {
       const t = totals({ lines: r.lines, reverseCharge: custOf(r.customerId)?.reverseCharge }, S())
-      return `<tr class="clickable" data-action="fak-rec-open" data-id="${esc(r.id)}"><td><strong>${esc(r.title || 'Dauerauftrag')}</strong>${r.objectId ? `<br><span class="muted">${esc(objName(r.objectId))}</span>` : ''}</td><td>${esc(custOf(r.customerId)?.name || '–')}</td><td>${esc(INTERVALS[r.interval] || '')}</td>
+      return `<tr class="clickable" data-action="fak-rec-open" data-id="${esc(r.id)}"><td><strong>${esc(r.title || 'Dauerauftrag')}</strong>${r.objectId ? `<br><span class="muted">${esc(objName(r.objectId))}</span>` : ''}</td><td>${esc(customerName(custOf(r.customerId) || {}) || '–')}</td><td>${esc(INTERVALS[r.interval] || '')}</td>
         <td>${r.startMonth ? esc(monthLabel(r.startMonth)) : ''}${r.endMonth ? ` – ${esc(monthLabel(r.endMonth))}` : ''}</td><td class="num">${money(t.net)}</td><td>${r.index?.active ? `${esc(S().indexName)} ${String(r.index.baseValue || '').replace('.', ',')}${r.index.threshold ? ` (ab ${String(r.index.threshold).replace('.', ',')} %)` : ''}` : '–'}</td>
         <td>${r.active === false ? '<span class="pill">beendet</span>' : due.has(r.id) ? `<span class="pill warning">für ${esc(monthLabel(ym))} offen</span>` : r.lastRun ? `<span class="pill ok">zuletzt ${esc(monthLabel(r.lastRun))}</span>` : ''}</td></tr>`
     })
@@ -782,6 +782,14 @@ function payModal(c, m) {
 }
 registerModal('fak-pay', payModal, { module: MODULE })
 
+/** Vorschläge für den Empfänger: E-Mail des Belegs und des Kunden, Ansprechpartner mit Funktion. */
+function mailList(id, x) {
+  const cu = custOf(x.customerId)
+  const list = [[x.recipient?.email, 'Rechnungsempfänger'], [cu?.email, 'Kunde'], ...(cu?.contacts || []).map((p) => [p.email, [p.name, p.role].filter(Boolean).join(', ')])].filter(([e]) => e && /@/.test(e))
+  const seen = new Set()
+  return `<datalist id="${id}">${list.filter(([e]) => !seen.has(e) && seen.add(e)).map(([e, label]) => `<option value="${esc(e)}">${esc(label)}</option>`).join('')}</datalist>`
+}
+
 /** Platzhalter-Werte für E-Mail und Mahnung zu einem Beleg. */
 function ctxFor(x, extra = {}) {
   return placeholderContext({ doc: x, customer: custOf(x.customerId), settings: S(), user: app.user?.name || '', today: todayISO(), terms: termsById(F().paymentTerms, x.termsId), ...extra })
@@ -815,7 +823,7 @@ function remindModal(c, m) {
     subtitle: `${esc(x.recipient?.name || '')} · fällig seit ${formatDate(x.dueDate, { year: true })}`,
     wide: true,
     body: `<table class="fak-sums"><tr><td>offen</td><td class="num">${money(r.open)}</td></tr>${r.interest.amount ? `<tr><td>Verzugszinsen ${String(r.interest.rate).replace('.', ',')} % für ${r.interest.days} Tage</td><td class="num">${money(r.interest.amount)}</td></tr>` : ''}${r.fee ? `<tr><td>Pauschale § 458 UGB</td><td class="num">${money(r.fee)}</td></tr>` : ''}<tr class="sum"><td>zu bezahlen bis ${deDate(r.deadline)}</td><td class="num">${money(r.total)}</td></tr></table>
-      <div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fr-to" value="${esc(x.recipient?.email || custOf(x.customerId)?.email || '')}"></label>
+      <div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fr-to" list="fr-to-list" value="${esc(x.recipient?.email || custOf(x.customerId)?.email || '')}">${mailList('fr-to-list', x)}</label>
         <div class="field wide">${textFieldHead('Text der E-Mail', 'fr-text', textMenu({ target: 'fr-text', kind: 'mahnung', place: 'mail', fill: true }))}<textarea id="fr-text" rows="8">${esc(m.text)}</textarea></div>
         <div class="field wide">${textFieldHead('Text im Schreiben (PDF; leer: Standardtext)', 'fr-letter', textMenu({ target: 'fr-letter', kind: 'mahnung', place: 'reminder', fill: true }))}<textarea id="fr-letter" rows="3" placeholder="leer: Standardtext der Mahnstufe">${esc(m.letter)}</textarea></div></div>
       <p class="note">Die Mahnung wird als Stufe ${r.level + 1} vermerkt, sobald sie gesendet oder als PDF erstellt ist. Platzhalter wie {Offen} werden beim Erstellen ersetzt.</p>`,
@@ -837,7 +845,7 @@ function mailModal(c, m) {
     title: `${KINDS[x.kind]} ${x.number || '(Entwurf)'} senden`,
     subtitle: esc(x.recipient?.name || ''),
     wide: true,
-    body: `${x.number ? '' : '<div class="banner warn-banner"><p>Ein Entwurf wird nicht versendet. Bitte zuerst festschreiben.</p></div>'}<div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fm-to" value="${esc(to)}" placeholder="buchhaltung@kunde.at"></label><label class="field wide"><span>Betreff</span><input type="text" id="fm-subject" value="${esc(m.subject ?? `${KINDS[x.kind]} ${x.number || ''}${x.title ? ` – ${x.title}` : ''}`)}"></label>
+    body: `${x.number ? '' : '<div class="banner warn-banner"><p>Ein Entwurf wird nicht versendet. Bitte zuerst festschreiben.</p></div>'}<div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fm-to" list="fm-to-list" value="${esc(to)}" placeholder="buchhaltung@kunde.at">${mailList('fm-to-list', x)}</label><label class="field wide"><span>Betreff</span><input type="text" id="fm-subject" value="${esc(m.subject ?? `${KINDS[x.kind]} ${x.number || ''}${x.title ? ` – ${x.title}` : ''}`)}"></label>
         <div class="field wide">${textFieldHead('Text', 'fm-text', textMenu({ target: 'fm-text', kind: x.kind, place: 'mail', fill: true }))}<textarea id="fm-text" rows="9">${esc(m.text)}</textarea></div>
         ${einv ? `<label class="check wide"><input type="checkbox" id="fm-xml" ${m.xml ? 'checked' : ''}><span>E-Rechnung anhängen: factur-x.xml (ZUGFeRD/Factur-X, EN 16931) – für Buchhaltungsprogramme, die E-Rechnungen einlesen</span></label>` : ''}</div>
       <p class="note">${canMail() ? 'Geht aus deinem Postfach, das PDF hängt an und liegt danach auch in SharePoint (fakturierung/belege/).' : 'Öffnet dein E-Mail-Programm; das PDF (und die E-Rechnung) werden heruntergeladen und müssen angehängt werden.'}</p>`,
@@ -910,7 +918,7 @@ function proofModal(c, m) {
       const special = done.filter((r) => r.category === 'sonder').length
       const exists = d.documents.some((x) => x.source?.key === `nachweis:${o.id}:${month}`)
       const rec = d.recurring.some((r) => r.objectId === o.id && r.active !== false)
-      return `<tr><td><label class="check"><input type="checkbox" name="fpo" value="${esc(o.id)}" ${exists || !done.length ? '' : rec ? (special ? 'checked' : '') : 'checked'}><span><strong>${esc(o.name)}</strong></span></label></td><td>${esc(cu?.name || '–')}</td><td class="num">${done.length}</td><td class="num">${special || ''}</td><td class="num">${String(round2(done.reduce((a, r) => a + r.planMinutes, 0) / 60)).replace('.', ',')}</td>
+      return `<tr><td><label class="check"><input type="checkbox" name="fpo" value="${esc(o.id)}" ${exists || !done.length ? '' : rec ? (special ? 'checked' : '') : 'checked'}><span><strong>${esc(o.name)}</strong></span></label></td><td>${esc((cu && customerName(cu)) || '–')}</td><td class="num">${done.length}</td><td class="num">${special || ''}</td><td class="num">${String(round2(done.reduce((a, r) => a + r.planMinutes, 0) / 60)).replace('.', ',')}</td>
         <td>${exists ? '<span class="pill ok">schon übernommen</span>' : rec ? '<span class="pill info">Dauerauftrag: nur Sonderleistungen</span>' : ''}</td></tr>`
     })
     .join('')
@@ -1120,7 +1128,7 @@ function recurringModal(c, m) {
     subtitle: 'Wiederkehrende Rechnung (Monatslauf erstellt Entwürfe)',
     wide: true,
     body: `<div class="form-grid">
-        <label class="field"><span>Kunde</span><select id="fr-customer" ${dis}>${options(d.customers.map((cu) => [cu.id, cu.name]), v.customerId, { empty: '– Kunde –' })}</select></label>
+        <label class="field"><span>Kunde</span><select id="fr-customer" ${dis}>${options(d.customers.map((cu) => [cu.id, customerName(cu)]), v.customerId, { empty: '– Kunde –' })}</select></label>
         <label class="field"><span>Objekt</span><select id="fr-object" ${dis}>${options(app.data.objects.map((o) => [o.id, o.name]), v.objectId, { empty: '– ohne –' })}</select></label>
         <label class="field"><span>Betreff</span><input type="text" id="fr-title" value="${esc(v.title || '')}" ${dis}></label>
         <label class="field"><span>Rhythmus</span><select id="fr-interval" ${dis}>${options(Object.entries(INTERVALS), v.interval)}</select></label>
@@ -1894,6 +1902,6 @@ registerObjectHint({
     const cu = customerForObject(F(), objectId)
     const open = openItems(F().documents, todayISO(), S()).filter((x) => x.doc.objectId === objectId)
     if (!cu && !open.length) return ''
-    return `<strong>Rechnungsempfänger</strong>: ${esc(cu?.name || '–')}${open.length ? ` · <span class="err-text">${plural(open.length, 'offene Rechnung', 'offene Rechnungen')} (${money(open.reduce((a, x) => a + x.open, 0))})</span>` : ''}`
+    return `<strong>Rechnungsempfänger</strong>: ${esc((cu && customerName(cu)) || '–')}${open.length ? ` · <span class="err-text">${plural(open.length, 'offene Rechnung', 'offene Rechnungen')} (${money(open.reduce((a, x) => a + x.open, 0))})</span>` : ''}`
   },
 })
