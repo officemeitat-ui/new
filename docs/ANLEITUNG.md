@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 220 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 225 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (27)
+- [Finanzen](#finanzen) (32)
 - [Verwaltung](#verwaltung) (35)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1595,9 +1595,11 @@ Festgeschriebene Rechnungen schickst du mit „E-Mail“ als PDF im Anhang, aus 
 
 1. Rechnung öffnen.
 2. „E-Mail“ klicken, Empfänger und Text prüfen.
-3. „Senden“ klicken.
+3. Wer die E-Rechnung mitschicken will: „E-Rechnung anhängen“ anhaken.
+4. „Senden“ klicken.
 
 > Tipp: Entwürfe sind als Entwurf gekennzeichnet und haben keinen QR-Code.
+> Tipp: Die Anrede kommt aus dem Kunden („Sehr geehrter Herr Maier“); ein Standard-Textbaustein für E-Mails ersetzt den ganzen Text.
 
 ### Zahlung buchen und offene Posten
 
@@ -1619,9 +1621,11 @@ Das Mahnwesen hat drei Stufen: Zahlungserinnerung, 1. und 2. Mahnung, Tage und T
 
 1. Fakturierung → „Zahlungen ▾“ → „Offene Posten“ öffnen.
 2. Bei der überfälligen Rechnung auf die fällige Mahnstufe klicken.
-3. „Senden“ per E-Mail oder „Nur PDF“.
+3. Text prüfen; „Textbaustein“ lädt einen anderen Text für die E-Mail oder das Schreiben.
+4. „Senden“ per E-Mail oder „Nur PDF“.
 
 > Tipp: Den Basiszinssatz je Halbjahr bei der OeNB nachsehen und unter „Einstellungen“ eintragen.
+> Tipp: Einen eigenen Text je Mahnstufe gibt es unter „Einstellungen“ → „Mahnwesen“, mit Platzhaltern wie {Offen} und {Frist}.
 
 ### Stornorechnung und Rechnungskorrektur
 
@@ -1664,25 +1668,30 @@ Der Export liefert eine CSV je Zeitraum, eine Zeile je Beleg und Steuersatz: Bel
 
 *In der App: Fakturierung*
 
-Unter „Einstellungen“ trägst du Firmenname, Anschrift, UID, IBAN (ohne gültige IBAN kein QR-Code), Zahlungsziel, Standard-USt, Texte, Mahnwesen und die Konten für den Export ein. Wer dieses Jahr schon mit anderer Software fakturiert hat, setzt die erste Rechnungsnummer.
+Unter „Einstellungen“ trägst du Firmenname, Anschrift, UID (oder Steuernummer), IBAN (ohne gültige IBAN kein QR-Code), Zahlungsziel, Standard-USt, Texte, Mahnwesen mit eigenem Text je Stufe und die Konten für den Export ein. Wer dieses Jahr schon mit anderer Software fakturiert hat, setzt die erste Rechnungsnummer.
 
 1. Fakturierung → Reiter „Einstellungen“ öffnen.
 2. Absender, Bankverbindung und Abrechnung ausfüllen.
 3. Mahnwesen und Basiszinssatz eintragen.
 4. „Speichern“ klicken.
 
+> Tipp: Die Anschrift zweizeilig eintragen (Straße, darunter Postleitzahl und Ort): so liest sie auch die E-Rechnung.
+> Tipp: Textbausteine und Zahlungsbedingungen stehen unter „Stammdaten ▾“.
+
 ### Kunden anlegen
 
 *In der App: Fakturierung*
 
-Kunden sind die Rechnungsempfänger, oft die Hausverwaltung, mit Kundennummer, Anschrift, UID, E-Mail, Zahlungsziel, Stundensatz und den Objekten, die zu ihnen gehören. „Kunden aus … Objekten anlegen“ übernimmt Name, Adresse und die E-Mail des Leistungsnachweises.
+Kunden sind die Rechnungsempfänger, oft die Hausverwaltung: Firma, Anrede, Titel, Vor- und Nachname, Straße, Postleitzahl, Ort, Land, Telefon, E-Mail, UID, Gruppe, Rabatt, Zahlungsbedingung, Lieferadresse und die Objekte. Die Anschrift auf dem Beleg baut die App aus den Feldern; ein Freitext geht vor.
 
 1. Fakturierung → „Stammdaten ▾“ → „Kunden“ öffnen.
 2. „Kunden aus … Objekten anlegen“ oder „+ Kunde“.
-3. Anschrift, UID und E-Mail ergänzen und die Objekte zuordnen.
-4. „Speichern“ klicken.
+3. Felder ausfüllen; die Vorschau zeigt die Anschrift auf dem Beleg.
+4. Unter „Ansprechpartner“ Personen mit Funktion, E-Mail und Telefon ergänzen.
+5. „Speichern“ klicken.
 
 > Tipp: Für private Auftraggeber „Verbraucher“ anhaken.
+> Tipp: Die Suche in der Kundenliste geht über alle Felder, auch über Ansprechpartner.
 
 ### Reverse Charge bei Reinigung
 
@@ -1694,6 +1703,73 @@ Reverse Charge (§ 19 Abs. 1a UStG) gilt für die Gebäudereinigung nur, wenn de
 2. Rechnungen dieses Kunden haben dann keine USt, dafür den Hinweistext und beide UIDs.
 
 > Tipp: Im Zweifel beim Kunden nachfragen und die Bestätigung ablegen. Das ist keine Rechtsberatung.
+
+### Kundenblatt: Belege, Umsatz, Ansprechpartner
+
+*In der App: Fakturierung*
+
+Im Kunden zeigt der Reiter „Belege & Umsatz“ alle Angebote, Rechnungen und Gutschriften mit Status und Summe, den offenen Betrag und den Umsatz je Jahr. Unter „Ansprechpartner“ stehen Personen mit Funktion, E-Mail und Telefon; im Beleg ist einer wählbar.
+
+1. Fakturierung → „Stammdaten ▾“ → „Kunden“ und den Kunden öffnen.
+2. Reiter „Belege & Umsatz“ wählen; ein Klick öffnet den Beleg.
+3. Mit „+ Rechnung“ unten gleich eine neue Rechnung für diesen Kunden anlegen.
+
+> Tipp: In der Kundenliste öffnet der Betrag unter „offene Posten“ direkt den Verlauf.
+> Tipp: Felder, die beim Übernehmen aus orgaMAX keinen Platz gefunden haben, stehen unter „Weitere Felder“ zum Nachlesen.
+
+### Artikel mit Nummer, Langtext und Rohertrag
+
+*In der App: Fakturierung*
+
+Artikel sind Vorlagen für Positionen: Artikelnummer, Bezeichnung, Langtext (steht auf dem Beleg unter der Bezeichnung), Gruppe, Einheit, Verkaufs- und Einkaufspreis und USt-Satz. Die Liste zeigt den Rohertrag; inaktive Artikel sind nicht mehr wählbar.
+
+1. Fakturierung → „Stammdaten ▾“ → „Artikel“ öffnen.
+2. „+ Artikel“ klicken und die Angaben eintragen.
+3. Im Beleg ins Feld „Artikel“ die Nummer oder den Namen tippen; die Position wird eingesetzt.
+
+> Tipp: Suche und Gruppenfilter stehen über der Liste.
+
+### Textbausteine und Platzhalter
+
+*In der App: Fakturierung*
+
+Textbausteine gibt es je Belegart und Stelle: Einleitung, Schlusstext, E-Mail-Text, Mahnungstext und Positionstext. Je Belegart und Stelle ist einer der Standard. Platzhalter wie {Anrede}, {Kunde}, {Fällig}, {Betrag} oder {Zeitraum} ersetzt die App beim Festschreiben bzw. Senden.
+
+1. Fakturierung → „Stammdaten ▾“ → „Textbausteine“ öffnen.
+2. „+ Textbaustein“: Name, Belegart, Stelle und Text eintragen, Platzhalter über das Menü einfügen.
+3. Wenn er immer gelten soll: „Standard“ anhaken und speichern.
+4. Im Beleg lädt „Textbaustein“ neben Einleitung und Schlusstext einen anderen.
+
+> Tipp: {Anrede} wird zu „Sehr geehrter Herr Maier“, wenn beim Kunden Anrede und Nachname stehen, sonst „Sehr geehrte Damen und Herren“.
+> Tipp: Ohne eigene Bausteine gelten die Texte aus den Einstellungen.
+
+### Zahlungsbedingungen und Skonto
+
+*In der App: Fakturierung*
+
+Eine Zahlungsbedingung hat Tage netto und auf Wunsch Skonto, z. B. 2 % binnen 8 Tagen. Auf der Rechnung steht der Text mit Skontobetrag und Datum. Zahlt der Kunde in der Frist brutto minus Skonto, gilt die Rechnung als bezahlt; das Skonto wird bei der Zahlung vermerkt.
+
+1. Fakturierung → „Stammdaten ▾“ → „Zahlungsbedingungen“ öffnen.
+2. „+ Zahlungsbedingung“: Tage, Skonto und Frist eintragen; eine als Standard anhaken.
+3. Beim Kunden die Bedingung wählen; im Beleg lässt sie sich ändern.
+4. Beim Zahlungseingang „Betrag mit Skonto“ oder den Kontoauszug einlesen.
+
+> Tipp: Der Bankabgleich erkennt Zahlungen mit Skontoabzug in der Frist als sicher.
+> Tipp: Skonto mindert nachträglich das Entgelt und damit die Umsatzsteuer: der Export für die Steuerberatung enthält es als eigene Zeile (SK).
+
+### E-Rechnung (ZUGFeRD, Factur-X, ebInterface)
+
+*In der App: Fakturierung*
+
+Zu jeder festgeschriebenen Rechnung, Storno- und Korrekturrechnung erzeugt „E-Rechnung“ eine XML-Datei nach EN 16931 (ZUGFeRD/Factur-X, factur-x.xml) oder im österreichischen ebInterface 6.1. Die XML geht als eigene Datei neben dem PDF mit.
+
+1. Rechnung öffnen und „E-Rechnung“ klicken.
+2. Format wählen: ZUGFeRD/Factur-X für Firmen, ebInterface für den Bund.
+3. Für den Bund Auftragsreferenz und Lieferantennummer eintragen.
+4. „XML herunterladen“; für den Bund die Datei im Unternehmensserviceportal hochladen.
+
+> Tipp: Beim Senden per E-Mail hängt „E-Rechnung anhängen“ die factur-x.xml an.
+> Tipp: Ein PDF mit eingebetteter XML (PDF/A-3) erzeugt die App nicht.
 
 ### Kalkulation je Objekt
 

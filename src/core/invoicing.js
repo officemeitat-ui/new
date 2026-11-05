@@ -14,6 +14,8 @@
 //  - Kleinunternehmer (§ 6 Abs 1 Z 27): nur als Einstellung, mit Hinweis statt Steuer.
 //  - Einmal ausgestellte Rechnungen werden nicht geändert oder gelöscht, sondern storniert bzw.
 //    korrigiert (eigene Belege mit eigener Nummer). Aufbewahrung 7 Jahre (§ 132 BAO).
+//  - Skonto mindert nachträglich das Entgelt (§ 16 Abs 1): die Rechnung bleibt, das Skonto steht als eigener
+//    Zahlungseintrag und im Export je Steuersatz (Berichtigung der Umsatzsteuer in der Buchhaltung).
 //  - Mahnungen unter Unternehmern: Verzugszinsen 9,2 Prozentpunkte über dem Basiszinssatz (§ 456 UGB),
 //    40 € Pauschale für Betreibungskosten (§ 458 UGB); gegenüber Verbrauchern 4 % (§ 1000 ABGB).
 //
