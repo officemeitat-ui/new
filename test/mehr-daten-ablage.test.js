@@ -186,7 +186,7 @@ test('Aufteilung: Löhne ins Zeitkonto, Löhne unbekannter Personen bleiben, Woc
   assert.deepEqual(docs[weekPath('2026-11-02')].stamps, { '2026-11-03|zabc': { empId: 'e1' } })
   assert.deepEqual(docs[weekPath('2026-11-02')].winter, { '2026-11-04|o1': { reason: 'Schnee' } })
   assert.equal(docs[weekPath('2026-11-09')], undefined, 'nicht geladene Woche wird nicht erzeugt')
-  assert.deepEqual(docs[FAK], { settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {} })
+  assert.deepEqual(docs[FAK], { settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 })
 
 test('Woche übernehmen: nur deren Einträge ersetzt, Protokoll gesetzt, andere Wochen bleiben', () => {
@@ -200,7 +200,7 @@ test('Woche übernehmen: nur deren Einträge ersetzt, Protokoll gesetzt, andere 
 test('Datei übernehmen: Fakturierung mit Vorgaben ergänzt, Zeitkonto mit „pay“ ersetzt Löhne, ohne „pay“ bleiben sie', () => {
   const data = { employees: [{ id: 'e1', name: 'Ana', hourlyWage: 14 }, { id: 'e2', name: 'Bo', hourlyWage: 12 }] }
   applyDoc(data, FAK, { documents: [{ id: 'r1' }] })
-  assert.deepEqual(Object.keys(data.fakturierung).sort(), ['articles', 'customers', 'documents', 'indexValues', 'recurring', 'settings'])
+  assert.deepEqual(Object.keys(data.fakturierung).sort(), ['articles', 'customers', 'documents', 'indexValues', 'paymentTerms', 'recurring', 'settings', 'textBlocks'])
   applyDoc(data, DOC.account, { weeks: {} })
   assert.deepEqual(data.employees.map((e) => e.hourlyWage), [14, 12], 'ältere Datei ohne pay')
   applyDoc(data, DOC.account, { weeks: { '2026-11-02': { status: 'veroeffentlicht' } }, pay: { e1: { hourlyWage: 15 }, e7: { hourlyWage: 11 } } })

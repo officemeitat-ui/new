@@ -73,7 +73,27 @@ export const SETTINGS_DEFAULTS = {
   indexName: 'VPI 2020',
 }
 
-export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {} })
+/*
+ * Datenmodell fakturierung/fakturierung.json (erweitert für die Übernahme aus orgaMAX und orgaMAX-ähnliche Funktionen;
+ * alle neuen Felder sind optional, alte Dateien bleiben gültig):
+ *  customers[]   { id, name, customerNo, address (gedruckte Anschrift, mehrzeilig), uid, email, paymentDays, hourRate,
+ *                  account, reverseCharge, consumer, note, objectIds, createdAt,
+ *                  salutation, title, firstName, lastName, street, zip, city, country (ISO, Standard AT), phone, mobile,
+ *                  fax, web, group, discount (%), termsId, iban, bic, deliveryAddress (mehrzeilig),
+ *                  contacts: [{ id, name, role, email, phone }], extra: { Feldname: Wert } (nicht zugeordnete Felder
+ *                  aus dem Import, nur zur Ansicht), source: { system, id } }
+ *  articles[]    { id, name, text, unit, price, vat, articleNo, group, longText, cost (Einkauf netto), active, extra, source }
+ *  textBlocks[]  { id, name, kind (Belegart aus KINDS, 'mahnung', 'mail' oder 'alle'), place ('intro' | 'outro' | 'mail' |
+ *                  'reminder' | 'position'), text (mit Platzhaltern wie {Kunde}), isDefault }
+ *  paymentTerms[]{ id, name, days, skontoPercent, skontoDays, text, isDefault }
+ *  documents[]   wie bisher, dazu termsId, skonto { percent, days }, reference (Bestellnummer/Zeichen des Kunden),
+ *                  contactName, deliveryAddress, imported { system, at, ref } (übernommener Altbeleg: Nummer, Datum und
+ *                  Summen wie im Altsystem, nicht neu gerechnet), original { path, name } (Original-PDF im Archiv), extra
+ *  recurring[]   wie bisher (Daueraufträge; orgaMAX: Abo-Rechnungen)
+ *  settings      wie bisher, dazu numberFormats { Belegart: Vorlage mit {P} {JJJJ} {JJ} {MM} {NR} }, yearly { Belegart: bool }
+ * Neue Belegfelder zählen zur Prüfsumme nur, wenn sie gesetzt sind (alte Prüfsummen bleiben gültig).
+ */
+export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 
 export function settingsOf(doc = {}) {
   const s = doc.settings || {}
@@ -173,7 +193,9 @@ export function fnv1a(text) {
 /** Felder, die nach dem Festschreiben unveränderlich sind (Zahlungen, Mahnungen, Versand dürfen dazukommen). */
 const FIXED_FIELDS = ['kind', 'number', 'date', 'serviceFrom', 'serviceTo', 'dueDate', 'sender', 'recipient', 'lines', 'discount', 'reverseCharge', 'smallBusiness', 'refId', 'refNumber', 'title', 'intro', 'outro', 'total']
 const canonical = (v) => (Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v)
-export const checksumOf = (d) => fnv1a(JSON.stringify(canonical(Object.fromEntries(FIXED_FIELDS.map((k) => [k, d[k] ?? null])))))
+// später dazugekommene Felder: zählen nur, wenn gesetzt (sonst änderten sich die Prüfsummen alter Belege)
+const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported']
+export const checksumOf = (d) => fnv1a(JSON.stringify(canonical({ ...Object.fromEntries(FIXED_FIELDS.map((k) => [k, d[k] ?? null])), ...Object.fromEntries(FIXED_OPTIONAL.filter((k) => d[k] != null && d[k] !== '').map((k) => [k, d[k]])) })))
 /** Festgeschriebener Beleg unverändert? (true auch für Entwürfe) */
 export const intact = (d) => !d.number || !d.checksum || d.checksum === checksumOf(d)
 
@@ -547,8 +569,30 @@ export function periodLabel({ from, to }) {
 
 // ---------------------------------------------------------------- Kunden
 
+const COUNTRY_NAMES = { AT: 'Österreich', DE: 'Deutschland', CH: 'Schweiz', IT: 'Italien', SI: 'Slowenien', HU: 'Ungarn', CZ: 'Tschechien', SK: 'Slowakei', LI: 'Liechtenstein' }
+
+/** Person bzw. Firma als Zeile: „Firma“, sonst „Titel Vorname Nachname“. */
+export const personLine = (c = {}) => [c.title, c.firstName, c.lastName].map((x) => String(x || '').trim()).filter(Boolean).join(' ')
+
+/**
+ * Gedruckte Anschrift (mehrzeilig) aus den Einzelfeldern: Firma, z. H. Person, Straße, PLZ Ort, Land (nur außerhalb
+ * Österreichs). Ist „address“ von Hand gesetzt, gilt diese.
+ */
+export function composeAddress(c = {}) {
+  if (String(c.address || '').trim()) return String(c.address).trim()
+  const person = personLine(c)
+  const country = String(c.country || 'AT').trim().toUpperCase()
+  const lines = [
+    person && c.name && person !== c.name ? `z. H. ${[c.salutation, person].filter(Boolean).join(' ')}` : '',
+    c.street,
+    [c.zip, c.city].map((x) => String(x || '').trim()).filter(Boolean).join(' '),
+    country && country !== 'AT' ? COUNTRY_NAMES[country] || country : '',
+  ]
+  return lines.map((x) => String(x || '').trim()).filter(Boolean).join('\n')
+}
+
 /** Empfänger-Angaben für den Beleg (Momentaufnahme beim Erstellen). */
-export const recipientOf = (c = {}) => ({ name: c.name || '', address: c.address || '', uid: c.uid || '', email: c.email || '', customerNo: c.customerNo || '', consumer: !!c.consumer })
+export const recipientOf = (c = {}) => ({ name: c.name || personLine(c) || '', address: composeAddress(c), uid: c.uid || '', email: c.email || '', customerNo: c.customerNo || '', consumer: !!c.consumer })
 
 export function customerForObject(doc, objectId) {
   return (doc.customers || []).find((c) => (c.objectIds || []).includes(objectId)) || null
