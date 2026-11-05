@@ -38,9 +38,10 @@
 //                          rcNote: Hinweis auf Reverse Charge steht drauf },
 //                 approval { by, at } (geprüft/freigegeben), payments [{ id, date, amount, kind ('skonto' oder leer),
 //                 method ('bank' | 'bar' | 'lastschrift' | 'sepa'), bank (Buchung im Kontoauszug), cash (Kassenbuch-Eintrag),
-//                 sepa (Lauf), ref (Zahlung zum Skonto), note, by, at }], beleg { path, name, type, size, at, by, local },
-//                 einvoice { format, name }, cancelled { at, by, reason }, imported { system, at, ref },
-//                 history [{ at, by, text }], createdAt, createdBy }
+//                 sepa (Lauf), ref (Zahlung zum Skonto), note, by, at }], beleg { path, name, type, size, at, by,
+//                 url (SharePoint), local (nur Browser-Vorschau) }, einvoice { format }, cancelled { at, by, reason },
+//                 sepa { runId, date, amount, at } (in einer Überweisungsdatei), imported { system, at, ref }, checksum (nur
+//                 übernommene), history [{ at, by, text }], createdAt, createdBy }
 //  bankIgnored  { Buchungs-ID: { by, at } }  Abbuchungen im Kontoauszug (Fakturierung → Bank), die keine
 //               Eingangsrechnung sind (Lohn, Steuer, Gebühren …)
 //  sepaRuns[]   { id, at, by, msgId, date, invoiceIds, sum, count, name }  erzeugte Überweisungsdateien (pain.001)
