@@ -4,7 +4,7 @@
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
 
 import { addDays, firstOfMonth, todayISO } from '../core/dates.js'
-import { finalize } from '../core/invoicing.js'
+import { composeAddress, finalize } from '../core/invoicing.js'
 import { monthAdd } from '../core/vehicle-dues.js'
 import { campaignFor } from '../core/vehicles.js'
 
@@ -170,12 +170,13 @@ function demoInvoicing() {
     paymentDays: 14,
     baseRate: 1.53,
   }
+  // Kunden wie aus orgaMAX übernommen: Einzelfelder, Ansprechpartner, Gruppe (Anschrift als Freitext bleibt nutzbar)
   const customers = [
-    { id: 'c-demo1', customerNo: '10001', name: 'Hausverwaltung Beispiel GmbH', address: 'Ringstraße 3\n5020 Salzburg', uid: 'ATU87654321', email: 'buchhaltung@hv-beispiel.example', paymentDays: 14, objectIds: ['o5', 'o11'], reverseCharge: false, consumer: false },
-    { id: 'c-demo2', customerNo: '10002', name: 'Autohaus Maxglan Beispiel KG', address: 'Autoweg 7\n5020 Salzburg', uid: 'ATU11223344', email: 'rechnung@autohaus-beispiel.example', paymentDays: 10, objectIds: ['o2'], reverseCharge: false, consumer: false, hourRate: 34 },
-    { id: 'c-demo3', customerNo: '10003', name: 'Reinigung Partner Beispiel GmbH', address: 'Gewerbestraße 9\n5101 Bergheim', uid: 'ATU55667788', email: 'office@partner-beispiel.example', paymentDays: 30, objectIds: ['o8'], reverseCharge: true, consumer: false, note: 'Subauftrag: Partner erbringt selbst Reinigungsleistungen (Bauleistung)' },
+    { id: 'c-demo1', customerNo: '10001', name: 'Hausverwaltung Beispiel GmbH', street: 'Ringstraße 3', zip: '5020', city: 'Salzburg', country: 'AT', phone: '+43 662 000001', group: 'Hausverwaltung', uid: 'ATU87654321', email: 'buchhaltung@hv-beispiel.example', paymentDays: 14, objectIds: ['o5', 'o11'], reverseCharge: false, consumer: false, contacts: [{ id: 'cp-demo1', name: 'Frau Mag. Eva Beispiel', role: 'Buchhaltung', email: 'buchhaltung@hv-beispiel.example', phone: '+43 662 000001' }, { id: 'cp-demo2', name: 'Herr Paul Muster', role: 'Objektbetreuung', email: 'objekte@hv-beispiel.example', phone: '' }] },
+    { id: 'c-demo2', customerNo: '10002', name: 'Autohaus Maxglan Beispiel KG', street: 'Autoweg 7', zip: '5020', city: 'Salzburg', country: 'AT', salutation: 'Herr', firstName: 'Max', lastName: 'Beispiel', phone: '+43 662 000002', group: 'Gewerbe', uid: 'ATU11223344', email: 'rechnung@autohaus-beispiel.example', paymentDays: 10, objectIds: ['o2'], reverseCharge: false, consumer: false, hourRate: 34 },
+    { id: 'c-demo3', customerNo: '10003', name: 'Reinigung Partner Beispiel GmbH', street: 'Gewerbestraße 9', zip: '5101', city: 'Bergheim', country: 'AT', group: 'Subauftrag', uid: 'ATU55667788', email: 'office@partner-beispiel.example', paymentDays: 30, objectIds: ['o8'], reverseCharge: true, consumer: false, note: 'Subauftrag: Partner erbringt selbst Reinigungsleistungen (Bauleistung)' },
   ]
-  const recipient = (c) => ({ name: c.name, address: c.address, uid: c.uid, email: c.email, customerNo: c.customerNo, consumer: false })
+  const recipient = (c) => ({ name: c.name, address: composeAddress(c), uid: c.uid, email: c.email, customerNo: c.customerNo, consumer: false })
   const docs = []
   const add = (draft, extra = {}) => {
     const fixed = finalize(draft, docs, settings, { now: `${draft.date}T09:00:00.000Z`, by: 'Beispieldaten' })
@@ -193,11 +194,22 @@ function demoInvoicing() {
     settings,
     customers,
     articles: [
-      { id: 'a-fdemo1', name: 'Unterhaltsreinigung lt. Vertrag', unit: 'Monat', price: 0, vat: 20 },
-      { id: 'a-fdemo2', name: 'Reinigung nach Aufwand', unit: 'Std.', price: 34, vat: 20 },
-      { id: 'a-fdemo3', name: 'Glas- und Fensterreinigung', unit: 'm²', price: 2.4, vat: 20 },
-      { id: 'a-fdemo4', name: 'Grundreinigung', unit: 'm²', price: 2.9, vat: 20 },
-      { id: 'a-fdemo5', name: 'Winterdienst Pauschale', unit: 'Monat', price: 120, vat: 20 },
+      { id: 'a-fdemo1', articleNo: 'UR-01', group: 'Unterhaltsreinigung', name: 'Unterhaltsreinigung lt. Vertrag', unit: 'Monat', price: 0, vat: 20 },
+      { id: 'a-fdemo2', articleNo: 'SR-01', group: 'Sonderreinigung', name: 'Reinigung nach Aufwand', unit: 'Std.', price: 34, cost: 24.5, vat: 20 },
+      { id: 'a-fdemo3', articleNo: 'GL-01', group: 'Glasreinigung', name: 'Glas- und Fensterreinigung', longText: 'Innen und außen, samt Rahmen und Falzen', unit: 'm²', price: 2.4, cost: 1.55, vat: 20 },
+      { id: 'a-fdemo4', articleNo: 'GR-01', group: 'Sonderreinigung', name: 'Grundreinigung', longText: 'Bodenbeläge maschinell, Einpflege nach Herstellerangabe', unit: 'm²', price: 2.9, cost: 1.9, vat: 20 },
+      { id: 'a-fdemo5', articleNo: 'WD-01', group: 'Winterdienst', name: 'Winterdienst Pauschale', unit: 'Monat', price: 120, vat: 20 },
+    ],
+    // Zahlungsbedingungen und Textbausteine wie in orgaMAX (Kleinstammdaten); kein Standard-E-Mail-Text
+    paymentTerms: [
+      { id: 'zb-demo1', name: '14 Tage netto', days: 14, skontoPercent: 0, skontoDays: 0, text: '', isDefault: true },
+      { id: 'zb-demo2', name: '30 Tage netto, 8 Tage 2 % Skonto', days: 30, skontoPercent: 2, skontoDays: 8, text: '' },
+    ],
+    textBlocks: [
+      { id: 'tb-demo1', name: 'Rechnung mit Anrede', kind: 'rechnung', place: 'intro', text: '{Anrede},\nfür unsere Leistungen im Zeitraum {Zeitraum} erlauben wir uns zu verrechnen:', isDefault: false },
+      { id: 'tb-demo2', name: 'Dank und Gruß', kind: 'alle', place: 'outro', text: 'Vielen Dank für Ihren Auftrag.\nMit freundlichen Grüßen\n{Firma}', isDefault: false },
+      { id: 'tb-demo3', name: 'E-Mail persönlich', kind: 'rechnung', place: 'mail', text: '{Anrede},\n\nanbei unsere Rechnung {Belegnummer} über {Betrag}, zahlbar bis {Fällig}.\n\nMit freundlichen Grüßen\n{Benutzer}\n{Firma}', isDefault: false },
+      { id: 'tb-demo4', name: 'Mahnung freundlich', kind: 'mahnung', place: 'reminder', text: 'zu unserer Rechnung {Belegnummer} vom {Datum} ist noch {Offen} offen. Bitte überweisen Sie den Betrag bis {Frist}.', isDefault: false },
     ],
     documents: docs,
     recurring: [

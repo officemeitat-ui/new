@@ -9,7 +9,7 @@
 //   hashes: { hash: Buchungsdatum }  gegen doppeltes Einlesen
 // Aufbewahrt werden 13 Monate (danach entfernt: die Zahlungen stehen bei den Rechnungen).
 
-import { fnv1a, isCancelled, openAmount, round2 } from './invoicing.js'
+import { fnv1a, isCancelled, openAmount, paymentEntries, round2, skontoAvailable } from './invoicing.js'
 
 export const KEEP_MONTHS = 13
 export const LEVELS = { sicher: 'sicher', wahrscheinlich: 'wahrscheinlich', unsicher: 'unsicher' }
@@ -463,6 +463,9 @@ function allocate(items, amount) {
   return out
 }
 
+/** Je Rechnung genau der Betrag abzüglich Skonto. */
+const allocateDue = (items) => items.map((x) => ({ docId: x.doc.id, amount: round2(x.due) }))
+
 const fmt = (n) => `${round2(n).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
 /**
@@ -472,9 +475,14 @@ const fmt = (n) => `${round2(n).toLocaleString('de-AT', { minimumFractionDigits:
 export function suggest(tx, { docs, customers = [], settings = {} }) {
   if (!(tx.amount > 0)) return { level: null, allocations: [], reasons: ['Abbuchung: wird nur angezeigt.'] }
   if (tx.reversal) return { level: null, allocations: [], reasons: ['Rückbuchung (Storno der Bank): bitte prüfen.'] }
+  // due: offen abzüglich Skonto, wenn der Eingang in der Skontofrist liegt
+  const item = (d) => {
+    const o = openAmount(d, docs, settings)
+    return { doc: d, open: o, due: round2(o - skontoAvailable(d, docs, settings, tx.date)) }
+  }
   const open = docs
     .filter((d) => d.kind === 'rechnung' && d.number && !isCancelled(d, docs))
-    .map((d) => ({ doc: d, open: openAmount(d, docs, settings) }))
+    .map(item)
     .filter((x) => x.open > 0.004)
     .sort((a, b) => String(a.doc.dueDate || a.doc.date).localeCompare(String(b.doc.dueDate || b.doc.date)))
   const all = `${tx.reference} ${tx.text}`
@@ -487,7 +495,7 @@ export function suggest(tx, { docs, customers = [], settings = {} }) {
   // 1. Rechnungsnummer im Verwendungszweck oder in der Zahlungsreferenz
   if (named.length) {
     const cancelled = named.filter((d) => isCancelled(d, docs) || d.kind !== 'rechnung')
-    const items = named.filter((d) => !cancelled.includes(d)).map((d) => ({ doc: d, open: openAmount(d, docs, settings) }))
+    const items = named.filter((d) => !cancelled.includes(d)).map(item)
     const openItems = items.filter((x) => x.open > 0.004)
     if (!openItems.length) {
       const paid = items.filter((x) => x.open <= 0.004)
@@ -508,6 +516,11 @@ export function suggest(tx, { docs, customers = [], settings = {} }) {
     if (same(tx.amount, sum)) {
       reasons.push(openItems.length > 1 ? `Betrag = Summe der ${openItems.length} offenen Beträge` : 'Betrag stimmt mit dem offenen Betrag')
       return { level: LEVELS.sicher, allocations, reasons }
+    }
+    const sumDue = round2(openItems.reduce((s, x) => s + x.due, 0))
+    if (sumDue < sum - 0.004 && same(tx.amount, sumDue)) {
+      reasons.push(`Betrag = offener Betrag abzüglich Skonto (${fmt(sum - sumDue)}), gezahlt in der Skontofrist`)
+      return { level: LEVELS.sicher, allocations: allocateDue(openItems), reasons, note: 'skonto' }
     }
     if (tx.amount < sum) {
       reasons.push(`Teilzahlung: ${fmt(tx.amount)} von ${fmt(sum)}, danach offen ${fmt(sum - tx.amount)}`)
@@ -531,6 +544,8 @@ export function suggest(tx, { docs, customers = [], settings = {} }) {
     const exact = pool.filter((x) => same(x.open, tx.amount))
     if (exact.length === 1) return { level: byIban[0] ? LEVELS.sicher : LEVELS.wahrscheinlich, allocations: allocate(exact, tx.amount), reasons: [poolHow, `Betrag stimmt mit ${exact[0].doc.number}`] }
     if (exact.length > 1) return { level: LEVELS.wahrscheinlich, allocations: allocate([exact[0]], tx.amount), reasons: [poolHow, `${exact.length} Rechnungen mit genau diesem Betrag: die älteste (${exact[0].doc.number}) vorgeschlagen`] }
+    const withSkonto = pool.filter((x) => x.due < x.open - 0.004 && same(x.due, tx.amount))
+    if (withSkonto.length === 1) return { level: byIban[0] ? LEVELS.sicher : LEVELS.wahrscheinlich, allocations: allocateDue(withSkonto), reasons: [poolHow, `Betrag stimmt mit ${withSkonto[0].doc.number} abzüglich Skonto (gezahlt in der Skontofrist)`], note: 'skonto' }
     const subset = subsetFor(pool, tx.amount)
     if (subset) return { level: LEVELS.wahrscheinlich, allocations: allocate(subset, tx.amount), reasons: [poolHow, `Betrag = Summe von ${subset.map((x) => x.doc.number).join(' + ')}`] }
     return { level: LEVELS.unsicher, allocations: allocate([pool[0]], tx.amount), reasons: [poolHow, `Betrag passt zu keiner offenen Rechnung: älteste (${pool[0].doc.number}, offen ${fmt(pool[0].open)}) vorgeschlagen`] }
@@ -539,6 +554,8 @@ export function suggest(tx, { docs, customers = [], settings = {} }) {
   // 3. nur der Betrag
   const exact = open.filter((x) => same(x.open, tx.amount))
   if (exact.length === 1) return { level: LEVELS.unsicher, allocations: allocate(exact, tx.amount), reasons: [`Nur der Betrag passt zu ${exact[0].doc.number} (${exact[0].doc.recipient?.name || ''}); Name und Verwendungszweck prüfen`] }
+  const withSkonto = exact.length ? [] : open.filter((x) => x.due < x.open - 0.004 && same(x.due, tx.amount))
+  if (withSkonto.length === 1) return { level: LEVELS.unsicher, allocations: allocateDue(withSkonto), reasons: [`Nur der Betrag passt zu ${withSkonto[0].doc.number} (${withSkonto[0].doc.recipient?.name || ''}) abzüglich Skonto; Name und Verwendungszweck prüfen`], note: 'skonto' }
   return { level: null, allocations: [], reasons: [exact.length > 1 ? `${exact.length} offene Rechnungen mit diesem Betrag: bitte von Hand zuordnen` : 'Keine passende offene Rechnung gefunden'] }
 }
 
@@ -546,7 +563,7 @@ export function suggest(tx, { docs, customers = [], settings = {} }) {
  * Zuordnung buchen: je Rechnung eine Zahlung (Datum der Bank, Vermerk, Verweis auf die Buchung) und die
  * Buchung als zugeordnet markieren. Gibt die betroffenen Belege zurück.
  */
-export function applyAllocation(tx, allocations, docs, { by = '', at = new Date().toISOString(), newId = () => Math.random().toString(36).slice(2, 10) } = {}) {
+export function applyAllocation(tx, allocations, docs, { by = '', at = new Date().toISOString(), newId = () => Math.random().toString(36).slice(2, 10), settings = {} } = {}) {
   const sum = round2(allocations.reduce((s, a) => s + Number(a.amount || 0), 0))
   if (!allocations.length) throw new Error('Keine Rechnung gewählt.')
   if (Math.abs(cents(sum) - cents(tx.amount)) > 1) throw new Error(`Die Beträge (${fmt(sum)}) ergeben nicht den Eingang (${fmt(tx.amount)}).`)
@@ -556,8 +573,10 @@ export function applyAllocation(tx, allocations, docs, { by = '', at = new Date(
   const touched = []
   for (const [i, a] of allocations.entries()) {
     const d = targets[i]
-    d.payments = [...(d.payments || []), { id: newId(), date: tx.date, amount: round2(a.amount), note: `Bank${tx.name ? `: ${tx.name}` : ''}`, bank: tx.id, by, at }]
-    d.history = [...(d.history || []), { at, by, text: `Zahlung ${fmt(a.amount)} vom ${tx.date.split('-').reverse().join('.')} (Bankabgleich)` }]
+    // in der Skontofrist mit Abzug gezahlt: Skonto als eigener Eintrag (Rechnung danach bezahlt)
+    const entries = paymentEntries(d, docs, settings, { id: newId(), date: tx.date, amount: round2(a.amount), note: `Bank${tx.name ? `: ${tx.name}` : ''}`, bank: tx.id, by, at }, { newId })
+    d.payments = [...(d.payments || []), ...entries]
+    d.history = [...(d.history || []), { at, by, text: `Zahlung ${fmt(a.amount)} vom ${tx.date.split('-').reverse().join('.')} (Bankabgleich)${entries[1] ? `, Skonto ${fmt(entries[1].amount)}` : ''}` }]
     touched.push(d)
   }
   tx.status = 'zugeordnet'

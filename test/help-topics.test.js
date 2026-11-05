@@ -245,7 +245,7 @@ const SAFE = new Set([
   'plan', 'sync-now', 'open-todo', 'open-publish', 'open-send', 'open-search', 'open-data', 'open-absence-new', 'quick-open', 'quick-keys', 'theme-open', 'ai-open', 'help-open',
   'appt-new', 'portal-open', 'tc-edit-open', 'wx-alarm-open', 'winterlog-add', 'complaint-new', 'key-move-open', 'key-edit-open',
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
-  'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'calc-settings', 'ot-send',
+  'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',
   'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open',
   'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open',
 ])

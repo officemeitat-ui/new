@@ -1525,6 +1525,29 @@ tr.muted td { color: var(--muted); }
 .fak-recipient { margin: 10px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .fak-recipient summary { cursor: pointer; }
 .fak-recipient .form-grid { margin-top: 10px; }
+/* Fakturierung wie orgaMAX: Textbausteine, Langtext, Kundenblatt, Skonto */
+.fak-field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.fak-field-head > label { color: var(--muted); font-size: 0.78rem; }
+.fak-field-head .menu-wrap > summary { padding: 2px 8px; font-size: 0.82rem; }
+.fak-textmenu > .menu { max-height: min(60vh, 420px); overflow-y: auto; min-width: 260px; }
+.fak-lines .fak-long { margin-top: 4px; font-size: 0.85em; color: var(--muted); }
+.fak-lines .fak-long:focus { color: var(--fg); }
+.fak-line-text .fak-artno { display: block; font-size: 0.75rem; margin-bottom: 2px; }
+.fak-sums tr.fak-skonto td { color: var(--muted); font-size: 0.9em; }
+.fak-skonto-hint { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--info-soft); }
+.fak-skonto-hint p { margin: 0; flex: 1 1 18rem; }
+.fak-preview { padding: 8px 12px; border: 1px dashed var(--line-strong, var(--line)); border-radius: 8px; }
+.fak-preview p { margin: 4px 0 0; }
+.fak-extra dl, .fak-ph-list dl { display: grid; grid-template-columns: minmax(8rem, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 8px 0 0; font-size: 0.88rem; }
+.fak-extra dt, .fak-ph-list dt { color: var(--muted); overflow-wrap: anywhere; }
+.fak-extra dd, .fak-ph-list dd { margin: 0; overflow-wrap: anywhere; }
+.fak-extra summary, .fak-ph-list summary { cursor: pointer; font-weight: 600; }
+.fak-contact { padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
+.fak-contact-del { align-self: end; }
+.fak-doc-head { color: var(--muted); }
+.fak-break { overflow-wrap: anywhere; }
+.fak-cust-tabs { margin-bottom: 4px; }
+.fak-art-pick input { width: 16rem; max-width: 100%; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 12px; }
 /* Bankabgleich */
 .bank-file { cursor: pointer; }
@@ -1555,6 +1578,10 @@ tr.muted td { color: var(--muted); }
 @media (max-width: 700px) {
   .fak-foot-grid { grid-template-columns: 1fr; }
   .fak-lines textarea { min-width: 0; }
+  .fak-art-pick { flex: 1 1 100%; }
+  .fak-art-pick input { width: 100%; }
+  .fak-extra dl, .fak-ph-list dl { grid-template-columns: 1fr; gap: 0 0; }
+  .fak-extra dd, .fak-ph-list dd { margin-bottom: 6px; }
   .fak-lines input { width: 100%; }
   .fak-bars { gap: 3px; padding: 8px 4px 0; }
   .fak-bar small { font-size: 0.6rem; }

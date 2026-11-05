@@ -1213,7 +1213,12 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     const gross = doc.total.gross
     const listed = paymentsByDoc.get(norm(h.number))
     if (h.kind === 'rechnung' && listed?.length) {
-      doc.payments = listed.map((p) => ({ id: newId('p'), date: p.date || h.date, amount: round2(p.amount + (p.skonto || 0)), note: [p.note, p.skonto ? `davon Skonto ${p.skonto.toFixed(2).replace('.', ',')} €` : '', `aus ${source} übernommen`].filter(Boolean).join(' · '), by: `Übernahme ${source}`, at: now }))
+      // Skonto als eigener Eintrag (kind 'skonto', Verweis auf die Zahlung) wie bei Zahlungen in der App
+      doc.payments = listed.flatMap((p) => {
+        const id = newId('p')
+        const pay = { id, date: p.date || h.date, amount: round2(p.amount), note: [p.note, `aus ${source} übernommen`].filter(Boolean).join(' · '), by: `Übernahme ${source}`, at: now }
+        return p.skonto ? [pay, { id: newId('p'), kind: 'skonto', ref: id, date: pay.date, amount: round2(p.skonto), note: `Skonto (aus ${source} übernommen)`, by: pay.by, at: now }] : [pay]
+      })
     }
     let paid = 0
     if (h.paid != null) paid = Math.abs(h.paid)

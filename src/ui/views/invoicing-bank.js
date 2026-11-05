@@ -163,7 +163,7 @@ registerModal('fak-bank-assign', assignModal, { module: MODULE })
 
 /** Zuordnung buchen und die IBAN beim Kunden merken. */
 function book(t, allocations) {
-  const touched = applyAllocation(t, allocations, F().documents, { by: by(), at: new Date().toISOString(), newId: () => `p${Math.random().toString(36).slice(2, 10)}` })
+  const touched = applyAllocation(t, allocations, F().documents, { by: by(), at: new Date().toISOString(), newId: () => `p${Math.random().toString(36).slice(2, 10)}`, settings: S() })
   const cust = F().customers.find((c) => c.id === touched[0]?.customerId)
   if (t.iban && cust) rememberIban(cust, t.iban)
   return touched

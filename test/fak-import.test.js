@@ -340,7 +340,7 @@ const DUMP = [
   ]),
   T('MOV_ORDERS', ['ID', 'ORDERNO', 'ORDERDATE', 'ORDERTYPE', 'CUSTID', 'TOTALNET', 'TOTALGROSS'], [[901, 'AN-77', '2025-09-01', 1, 13, 300, 360], [902, 'AB-12', '2025-09-10', 2, 11, 520, 624]]),
   T('MOV_ORDERS_POSITIONS', ['ID', 'ORDERID', 'POSNO', 'ARTNAME', 'QUANTITY', 'PRICE', 'VATRATE'], [[1, 901, 1, 'Grundreinigung Wohnung', 1, 300, 20], [2, 902, 1, 'Unterhaltsreinigung lt. Vertrag', 1, 520, 20]]),
-  T('MOV_PAYMENTS', ['ID', 'INVID', 'PAYDATE', 'AMOUNT'], [[1, 901, '2025-11-10', 700], [2, 901, '2025-11-20', 24.8]]),
+  T('MOV_PAYMENTS', ['ID', 'INVID', 'PAYDATE', 'AMOUNT', 'CASHDISCOUNT'], [[1, 901, '2025-11-10', 700, 0], [2, 901, '2025-11-20', 10.3, 14.5]], { CASHDISCOUNT: 'Decimal' }),
   T('MOV_INVOICES_SERIES', ['ID', 'CUSTID', 'CAPTION', 'INTERVAL', 'NEXTDATE'], [[61, 11, 'Unterhalt Mozart', 3, '2026-01-01']]),
   T('MOV_INVOICES_SERIES_POSITIONS', ['ID', 'SERIESID', 'ARTNAME', 'QUANTITY', 'PRICE', 'VATRATE'], [[1, 61, 'Unterhaltsreinigung (Quartal)', 1, 1500, 20]]),
   T('SYS_SETTINGS', ['ID', 'KEYNAME', 'KEYVALUE'], [[1, 'x', 'y']]),
@@ -368,7 +368,8 @@ test('orgaMAX-Datenbank: Verknüpfungen über interne IDs, Lieferanten weg, Inte
   const re = by('2025-0101')
   assert.deepEqual([re.kind, re.customerId, re.total.gross, re.lines.length, re.lines[0].text, re.lines[0].articleNo], ['rechnung', mozart.id, 724.8, 2, 'Unterhaltsreinigung', 'UR-01'])
   assert.equal(re.intro, 'Sehr geehrte Damen und Herren,\nfür unsere Leistungen:')
-  assert.deepEqual(re.payments.map((p) => [p.date, p.amount]), [['2025-11-10', 700], ['2025-11-20', 24.8]])
+  assert.deepEqual(re.payments.map((p) => [p.kind || 'zahlung', p.date, p.amount]), [['zahlung', '2025-11-10', 700], ['zahlung', '2025-11-20', 10.3], ['skonto', '2025-11-20', 14.5]])
+  assert.equal(stateOf(re, r.documents, '2026-01-10', {}), 'bezahlt', 'mit Skonto bezahlt')
   assert.equal(by('2025-0102').payments, undefined, 'ohne Zahlung offen')
   const gs = by('2025-0103')
   assert.deepEqual([gs.kind, gs.total.gross, gs.lines[0].qty], ['korrektur', -50.4, -1])
