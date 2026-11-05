@@ -2,7 +2,7 @@
 // markiert), Summen, Kassenstürze, Stand des Monatsabschlusses mit Prüfsumme. Für die Ablage (7 Jahre, § 132 BAO)
 // und die Steuerberatung.
 
-import { CASH_TYPES, cashSettings, monthReport } from '../core/cashbook.js'
+import { cashSettings, monthReport } from '../core/cashbook.js'
 import { formatDate, MONTH_LONG } from '../core/dates.js'
 import { docShell, header, inkColors, tableLayout, TOTAL } from './pdf-parts.js'
 
@@ -15,16 +15,15 @@ export function cashbookDocument({ book, month, brand = {}, logo = null, created
   const colors = inkColors(brand)
   const r = monthReport(book, month)
   const s = cashSettings(book)
-  const byId = new Map((book.entries || []).map((e) => [e.id, e]))
   const head = ['Nr.', 'Datum', 'Text', 'Gegenkonto', 'USt', 'Einnahme', 'Ausgabe', 'Stand'].map((text) => ({ text, style: 'th' }))
   const rows = r.rows.map(({ entry: e, balance, cancelled }) => {
-    const mark = e.type === 'storno' ? ` (Storno zu Nr. ${byId.get(e.cancels)?.no || '?'}${e.reason ? `: ${e.reason}` : ''})` : cancelled ? ' (storniert)' : ''
-    const label = CASH_TYPES[e.type] && e.type !== 'storno' ? `${CASH_TYPES[e.type]}: ` : ''
+    // Storno: Text beginnt mit „Storno Nr. …“, dazu der Grund; stornierte Einträge durchgestrichen mit Verweis
+    const mark = e.type === 'storno' ? (e.reason ? ` – Grund: ${e.reason}` : '') : cancelled ? ` (storniert mit Nr. ${(book.entries || []).find((x) => x.cancels === e.id)?.no || '?'})` : ''
     const strike = cancelled ? { decoration: 'lineThrough' } : {}
     return [
       String(e.no),
       day(e.date),
-      { text: `${label}${e.text}${mark}${e.receipt ? ` · Beleg ${e.receipt}` : ''}`, ...strike },
+      { text: `${e.text}${mark}${e.receipt ? ` · Beleg ${e.receipt}` : ''}`, ...strike },
       e.account || '',
       e.rate ? `${e.rate} %` : '',
       { text: e.kind === 'einnahme' ? euro(e.amount) : '', alignment: 'right', ...strike },

@@ -70,14 +70,31 @@ const pill = (st) => `<span class="pill ${STATE_CLASS[st] || ''}">${esc(PAY_STAT
 const catName = (id) => PS().categories.find((c) => c.id === id)?.name || ''
 const PENDING = new Map() // Entwurf → gewählte Datei (wird beim Speichern abgelegt)
 
-/** Dialog neu zeichnen, ohne dass der Fokus verloren geht (nach dem Tabulator steht er schon im nächsten Feld). */
-function redraw() {
-  setTimeout(() => {
-    const id = document.activeElement?.id
-    renderModal()
-    if (id) document.getElementById(id)?.focus({ preventScroll: true })
-  }, 0)
+/** Ganzen Dialog neu zeichnen (nach Auswahl oder Kästchen; der Fokus bleibt auf dem Feld). */
+function rerender() {
+  const id = document.activeElement?.id
+  renderModal()
+  if (id) document.getElementById(id)?.focus({ preventScroll: true })
 }
+/** Ein Feld im offenen Dialog setzen (ohne neu zu zeichnen). */
+const setField = (id, value) => {
+  const el = document.getElementById(id)
+  if (el) el.value = value ?? ''
+}
+/** Nur Summe, Skonto-Hinweis und Prüfung neu: Eingaben, Fokus und Bildlauf bleiben. */
+function live() {
+  const dr = app.ui.modal?.draft
+  if (!dr) return
+  for (const [id, html] of [['ei-sum', sumHtml(dr)], ['ei-skonto', skontoHtml(dr)], ['ei-probs', problemList(invoiceProblems(dr, { suppliers: E().suppliers, invoices: E().invoices }))]]) {
+    const el = document.getElementById(id)
+    if (el) el.innerHTML = html
+  }
+}
+const sumHtml = (dr) => {
+  const t = invoiceTotals(dr)
+  return `Summe: netto ${money(t.net)} · Vorsteuer ${money(dr.reverseCharge ? t.rcVat : t.vat)}${dr.reverseCharge ? ' (Reverse Charge: geschuldet und abziehbar)' : ''} · <strong>brutto ${money(t.gross)}</strong>`
+}
+const skontoHtml = (dr) => (skontoOfInvoice(dr) ? `Skonto ${money(skontoOfInvoice(dr).amount)} bei Zahlung bis ${day(skontoOfInvoice(dr).until)}.` : '')
 
 function commit(message) {
   persist()
@@ -375,14 +392,14 @@ function orderOptions(dr) {
 }
 
 function problemList(list) {
-  const shown = list.filter((p) => p.level !== 'info' || p.code === 'klein')
-  if (!shown.length) return '<p class="ek-ok"><span class="pill ok">Angaben vollständig</span> Vorsteuerabzug nach § 12 UStG ohne Bedenken.</p>'
-  return `<ul class="ek-problems">${shown.map((p) => `<li class="${p.level === 'error' ? 'err-text' : p.level === 'warning' ? 'warn-text' : 'muted'}">${esc(p.text)}</li>`).join('')}</ul>`
+  const issues = list.filter((p) => p.level !== 'info')
+  const infos = list.filter((p) => p.level === 'info')
+  const head = issues.length ? `<ul class="ek-problems">${issues.map((p) => `<li class="${p.level === 'error' ? 'err-text' : 'warn-text'}">${esc(p.text)}</li>`).join('')}</ul>` : '<p class="ek-ok"><span class="pill ok">Angaben vollständig</span> Vorsteuerabzug nach § 12 UStG ohne Bedenken.</p>'
+  return `${head}${infos.length ? `<p class="muted">${infos.map((p) => esc(p.text)).join(' ')}</p>` : ''}`
 }
 
 function invForm(dr, m) {
   const s = PS()
-  const t = invoiceTotals(dr)
   const probs = invoiceProblems(dr, { suppliers: E().suppliers, invoices: E().invoices })
   const pending = PENDING.get(dr.id)
   const group = (rate) => dr.groups?.find((g) => Number(g.rate) === rate) || {}
@@ -409,7 +426,7 @@ function invForm(dr, m) {
       return `<div class="ek-amount-row"><span>${rate} %</span><input type="text" inputmode="decimal" id="ei-net-${rate}" value="${esc(numText(g.net))}" data-change="ek-inv-net" data-rate="${rate}" aria-label="Netto ${rate} %"><input type="text" inputmode="decimal" id="ei-vat-${rate}" value="${esc(numText(g.vat))}" data-change="ek-inv-redraw" aria-label="Vorsteuer ${rate} %" ${dr.reverseCharge || !rate ? 'disabled' : ''}></div>`
     }).join('')}
       <div class="ek-amount-row ek-gross"><span>Brutto</span><input type="text" inputmode="decimal" id="ei-gross" placeholder="aus Brutto rechnen" data-change="ek-inv-gross" aria-label="Brutto eingeben"><select id="ei-gross-rate" aria-label="Steuersatz für Brutto">${options(RATES.map((r) => [String(r), `${r} %`]), String(PS().categories.find((c) => c.id === dr.category)?.vat ?? 20))}</select></div>
-      <p class="ek-sum">Summe: netto ${money(t.net)} · Vorsteuer ${money(dr.reverseCharge ? t.rcVat : t.vat)}${dr.reverseCharge ? ' (Reverse Charge: geschuldet und abziehbar)' : ''} · <strong>brutto ${money(t.gross)}</strong></p></div>
+      <p class="ek-sum" id="ei-sum" aria-live="polite">${sumHtml(dr)}</p></div>
     <label class="check"><input type="checkbox" id="ei-rc" ${dr.reverseCharge ? 'checked' : ''} data-change="ek-inv-redraw"><span>Reverse Charge (Steuerschuld geht auf uns über, § 19 Abs. 1a UStG – z. B. Subunternehmer Reinigung)</span></label>
     <div class="form-grid">
       <label class="field"><span>Kategorie</span><select id="ei-cat" data-change="ek-inv-cat">${options(s.categories.map((c) => [c.id, c.name]), dr.category, { empty: '–' })}</select></label>
@@ -421,12 +438,12 @@ function invForm(dr, m) {
       <label class="field"><span>Skonto %</span><input type="text" inputmode="decimal" id="ei-sk-pct" value="${esc(dr.skonto?.percent ? String(dr.skonto.percent).replace('.', ',') : '')}" placeholder="z. B. 2" data-change="ek-inv-redraw"></label>
       <label class="field"><span>Skonto bis (Tage ab Rechnungsdatum)</span><input type="number" min="0" id="ei-sk-days" value="${esc(dr.skonto?.days ?? '')}" data-change="ek-inv-redraw"></label>
     </div>
-    ${skontoOfInvoice(dr) ? `<p class="muted">Skonto ${money(skontoOfInvoice(dr).amount)} bei Zahlung bis ${day(skontoOfInvoice(dr).until)}.</p>` : ''}
+    <p class="muted" id="ei-skonto">${skontoHtml(dr)}</p>
     <h4>Prüfung (Vorsteuerabzug)</h4>
     <div class="ek-checks"><label class="check"><input type="checkbox" id="ei-chk-rec" ${dr.checks?.recipient ? 'checked' : ''} data-change="ek-inv-redraw"><span>Unser Firmenname und unsere Anschrift stehen auf der Rechnung</span></label>
       <label class="check"><input type="checkbox" id="ei-chk-uid" ${dr.checks?.ourUid ? 'checked' : ''} data-change="ek-inv-redraw"><span>Unsere UID steht auf der Rechnung (Pflicht über 10.000 € brutto und bei Reverse Charge)</span></label>
       ${dr.reverseCharge ? `<label class="check"><input type="checkbox" id="ei-chk-rc" ${dr.checks?.rcNote ? 'checked' : ''} data-change="ek-inv-redraw"><span>Hinweis auf den Übergang der Steuerschuld steht drauf</span></label>` : ''}</div>
-    ${problemList(probs)}
+    <div id="ei-probs" aria-live="polite">${problemList(probs)}</div>
     <label class="field wide"><span>Notiz</span><input type="text" id="ei-note" value="${esc(dr.note || '')}"></label>`
 }
 
@@ -707,48 +724,52 @@ registerActions(
       app.ui.modal = { ...app.ui.modal, edit: true, draft: structuredClone(invOf(el.dataset.id)) }
       renderModal()
     },
-    'ek-inv-redraw': () => {
+    // Textfelder: nur Summen, Skonto und Prüfung neu (die Felder bleiben, nichts Getipptes geht verloren);
+    // Kästchen (Reverse Charge, Prüfung): ganzer Dialog, der Fokus bleibt
+    'ek-inv-redraw': (el) => {
       const m = app.ui.modal
       if (!m?.draft) return
       const before = m.draft.date
       readForm(m.draft)
-      if (m.draft.dueAuto && m.draft.date !== before) m.draft.dueDate = dueFor(m.draft.date, supOf(m.draft.supplierId)?.paymentDays ?? 14)
-      redraw()
+      if (m.draft.dueAuto && m.draft.date !== before) setField('ei-due', (m.draft.dueDate = dueFor(m.draft.date, supOf(m.draft.supplierId)?.paymentDays ?? 14)))
+      if (el?.type === 'checkbox') rerender()
+      else live()
     },
     'ek-inv-due': () => {
       const m = app.ui.modal
       readForm(m.draft)
       m.draft.dueAuto = false
-      redraw()
+      live()
     },
     'ek-inv-net': (el) => {
       const rate = Number(el.dataset.rate)
-      const vatEl = document.getElementById(`ei-vat-${rate}`)
-      if (vatEl && !app.ui.modal.draft.reverseCharge) vatEl.value = rate ? numText(vatFor(el.value, rate)) : ''
+      if (!app.ui.modal.draft.reverseCharge) setField(`ei-vat-${rate}`, rate ? numText(vatFor(el.value, rate)) : '')
       readForm(app.ui.modal.draft)
-      redraw()
+      live()
     },
     'ek-inv-gross': () => {
       const m = app.ui.modal
-      readForm(m.draft)
       const rate = Number(val('ei-gross-rate'))
-      const g = splitGross(val('ei-gross'), m.draft.reverseCharge ? 0 : rate)
+      const rc = checked('ei-rc')
+      const g = splitGross(val('ei-gross'), rc ? 0 : rate)
       if (!(g.gross > 0)) return
-      m.draft.groups = [...m.draft.groups.filter((x) => Number(x.rate) !== rate), { rate, net: m.draft.reverseCharge ? g.gross : g.net, vat: m.draft.reverseCharge ? 0 : g.vat }]
-      redraw()
+      setField(`ei-net-${rate}`, numText(rc ? g.gross : g.net))
+      setField(`ei-vat-${rate}`, rc || !rate ? '' : numText(g.vat))
+      readForm(m.draft)
+      live()
     },
     'ek-inv-cat': () => {
       const m = app.ui.modal
       readForm(m.draft)
       const cat = PS().categories.find((x) => x.id === m.draft.category)
-      if (cat?.account) m.draft.account = cat.account
-      redraw()
+      if (cat?.account) setField('ei-account', (m.draft.account = cat.account))
+      live()
     },
     'ek-inv-supplier': () => {
       const m = app.ui.modal
       readForm(m.draft)
       applySupplier(m.draft, supOf(m.draft.supplierId), { force: true })
-      redraw()
+      rerender()
     },
     'ek-inv-file': async (el) => {
       const file = el.files?.[0]

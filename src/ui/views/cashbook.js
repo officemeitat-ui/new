@@ -48,13 +48,17 @@ const opts = () => ({ newId: () => newId('k'), now: nowIso(), by: by(), today: t
 const entryOf = (id) => K().entries.find((e) => e.id === id)
 const DENOMS = [500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01]
 
-/** Dialog neu zeichnen, ohne dass der Fokus verloren geht (nach dem Tabulator steht er schon im nächsten Feld). */
+/** Ganzen Dialog neu zeichnen (nach einer Auswahl; der Fokus bleibt auf dem Feld). */
 function redraw() {
-  setTimeout(() => {
-    const id = document.activeElement?.id
-    renderModal()
-    if (id) document.getElementById(id)?.focus({ preventScroll: true })
-  }, 0)
+  const id = document.activeElement?.id
+  renderModal()
+  if (id) document.getElementById(id)?.focus({ preventScroll: true })
+}
+/** Steuer im Betrag neu rechnen, ohne neu zu zeichnen (Getipptes bleibt). */
+function liveVat(d) {
+  const el = document.getElementById('kb-vat')
+  const a = parseNumber(d.amount)
+  if (el && !d.vatManual) el.value = numText(d.rate && a ? a - a / (1 + d.rate / 100) : 0)
 }
 
 function commit(message) {
@@ -350,10 +354,7 @@ registerActions({
 registerActions(
   {
     'kb-new': (el) => openModal({ type: 'kb-entry', kind: el.dataset.kind }),
-    'kb-redraw': () => {
-      readEntry(app.ui.modal.draft)
-      redraw()
-    },
+    'kb-redraw': () => liveVat(readEntry(app.ui.modal.draft)),
     'kb-vat': () => {
       const d = app.ui.modal.draft
       d.vatManual = true

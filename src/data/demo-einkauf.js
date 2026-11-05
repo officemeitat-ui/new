@@ -31,7 +31,8 @@ export function createPurchaseDemo() {
   ]
   // Kassenbuch: Anfangsbestand im Vormonat, Barkauf, Barzahlung eines Kunden, Tankstelle bar (mit Eingangsrechnung), ein Storno
   const kasse = emptyCashbook()
-  const at = (date) => ({ newId: (() => { let i = 0; return () => `kb-demo-${date}-${++i}` })(), now: `${date}T10:00:00.000Z`, by: 'Beispieldaten', today: date })
+  let n = 0
+  const at = (date) => ({ newId: () => `kb-demo${++n}`, now: `${date}T${String(8 + n).padStart(2, '0')}:00:00.000Z`, by: 'Beispieldaten', today: date })
   openingBalance(kasse, { date: pd(1), amount: 250, note: 'Endbestand altes Kassenbuch' }, at(pd(1)))
   addEntry(kasse, { date: pd(5), kind: 'ausgabe', amount: 23.9, text: 'Glasreiniger und Schwämme, Baumarkt Beispiel', rate: 20, category: 'ek-material', account: '5300', receipt: 'Bon 1187' }, at(pd(5)))
   const wrong = addEntry(kasse, { date: pd(6), kind: 'ausgabe', amount: 99.9, text: 'Parkgebühr (Betrag vertippt)', rate: 0, category: 'ausgabe-sonst', account: '7320' }, at(pd(6)))
