@@ -168,14 +168,51 @@ const seriesKind = (kind) => kind
 export const numberText = (prefix, year, n, digits = 4) => `${prefix}-${year}-${String(n).padStart(digits, '0')}`
 const numberSeq = (number) => Number(String(number || '').match(/(\d+)$/)?.[1] || 0)
 
+/**
+ * Nummernformat als Vorlage (Einstellungen → numberFormats je Belegart), z. B. „{P}-{JJJJ}-{NR}“ (Standard),
+ * „{NR}“ (durchlaufend wie in orgaMAX), „{JJJJ}{NR}“, „R{JJ}-{NR}“. {P} Kürzel der Belegart, {JJJJ}/{JJ} Jahr,
+ * {MM} Monat, {NR} laufende Nummer mit führenden Nullen.
+ */
+export function formatNumber(template, { prefix = '', year = '', month = '01', n = 1, digits = 4 } = {}) {
+  return String(template)
+    .replace(/\{P\}/g, prefix)
+    .replace(/\{JJJJ\}/g, String(year))
+    .replace(/\{JJ\}/g, String(year).slice(2))
+    .replace(/\{MM\}/g, String(month).padStart(2, '0'))
+    .replace(/\{NR\}/g, String(n).padStart(Number(digits) || 1, '0'))
+}
+const escRe = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** Regulärer Ausdruck zu einer Vorlage; Gruppe 1 = laufende Nummer. year null = jedes Jahr. */
+export function numberPattern(template, { prefix = '', year = null } = {}) {
+  const parts = String(template).split(/(\{P\}|\{JJJJ\}|\{JJ\}|\{MM\}|\{NR\})/)
+  const body = parts
+    .map((p) => (p === '{P}' ? escRe(prefix) : p === '{JJJJ}' ? (year ? escRe(year) : '\\d{4}') : p === '{JJ}' ? (year ? escRe(String(year).slice(2)) : '\\d{2}') : p === '{MM}' ? '\\d{2}' : p === '{NR}' ? '(\\d+)' : escRe(p)))
+    .join('')
+  return new RegExp(`^${body}$`)
+}
+/** Jährlich neu beginnen? Standard: wenn das Jahr in der Nummer steht. */
+export const yearlyFor = (s, kind) => s.yearly?.[kind] ?? /\{JJ(JJ)?\}/.test(s.numberFormats?.[kind] || '{P}-{JJJJ}-{NR}')
+
 /** Nächste freie Nummer der Belegart im Jahr (fortlaufend, ohne Lücken über die höchste vergebene hinaus). */
-export function nextNumber(docs, kind, year, settings = SETTINGS_DEFAULTS) {
+export function nextNumber(docs, kind, year, settings = SETTINGS_DEFAULTS, { month = '01' } = {}) {
   const s = { ...SETTINGS_DEFAULTS, ...settings, series: { ...SERIES_DEFAULTS, ...(settings.series || {}) } }
   const prefix = s.series[seriesKind(kind)] || SERIES_DEFAULTS[kind] || 'RE'
-  const used = docs.filter((d) => d.kind === kind && d.number && yearOf(d) === String(year)).map((d) => numberSeq(d.number))
-  const start = Number(s.start?.[`${kind}|${year}`]) || 1
+  const template = s.numberFormats?.[kind]
+  const digits = s.numberDigits?.[kind] || s.digits || 4
+  if (!template) {
+    // bisheriges Format „RE-2026-0001“, jährlich neu
+    const used = docs.filter((d) => d.kind === kind && d.number && yearOf(d) === String(year)).map((d) => numberSeq(d.number))
+    const start = Number(s.start?.[`${kind}|${year}`]) || 1
+    const n = Math.max(start, used.length ? Math.max(...used) + 1 : start)
+    return { number: numberText(prefix, year, n, digits), seq: n }
+  }
+  // eigenes Format (z. B. aus orgaMAX übernommen): nur Nummern dieses Formats zählen
+  const yearly = yearlyFor(s, kind)
+  const re = numberPattern(template, { prefix, year: yearly ? String(year) : null })
+  const used = docs.filter((d) => d.kind === kind && d.number && (!yearly || yearOf(d) === String(year))).map((d) => Number(re.exec(String(d.number))?.[1] || 0)).filter((n) => n > 0)
+  const start = Number(yearly ? s.start?.[`${kind}|${year}`] : s.start?.[kind]) || 1
   const n = Math.max(start, used.length ? Math.max(...used) + 1 : start)
-  return { number: numberText(prefix, year, n, s.digits || 4), seq: n }
+  return { number: formatNumber(template, { prefix, year, month, n, digits }), seq: n }
 }
 
 // ---------------------------------------------------------------- Prüfsumme
@@ -246,7 +283,7 @@ export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date
   const list = blocking(problems(d, s))
   if (list.length) throw new Error(list.map((p) => p.text).join(' '))
   const year = yearOf(d)
-  const { number } = nextNumber(docs.filter((x) => x.id !== d.id), d.kind, year, s)
+  const { number } = nextNumber(docs.filter((x) => x.id !== d.id), d.kind, year, s, { month: String(d.date || '').slice(5, 7) || '01' })
   const t = totals(d, s)
   const out = {
     ...d,
