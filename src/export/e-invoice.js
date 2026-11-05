@@ -18,7 +18,7 @@
 // korrigierte Rechnung (CII 384).
 // Rein (ohne Browser), getestet in test/e-invoice.test.js.
 
-import { deDate, isInvoice, KINDS, parseAddress, parseNumber, RC_TEXT, round2, settingsOf, skontoOf, SMALL_BUSINESS_TEXT, termsTextOf, totals, COUNTRY_NAMES } from '../core/invoicing.js'
+import { deDate, isAdvance, isInvoice, KINDS, parseAddress, parseNumber, RC_TEXT, round2, settingsOf, skontoOf, SMALL_BUSINESS_TEXT, STAGES, termsTextOf, totals, COUNTRY_NAMES } from '../core/invoicing.js'
 
 export const CII_PROFILE = 'urn:cen.eu:en16931:2017'
 export const EBI_NAMESPACE = 'http://www.ebinterface.at/schema/6p1/'
@@ -65,6 +65,8 @@ const rateText = (n) => String(round2(n))
 export function eInvoiceModel(doc, settings = {}, { ref = null, orderRef, supplierNo = '', terms = null } = {}) {
   const s = settingsOf({ settings })
   const t = totals(doc, s)
+  // Schlussrechnung: Positionen und Steuer der ganzen Leistung, Abschläge brutto als vorausbezahlt (BT-113)
+  const whole = t.full || t
   const credit = doc.kind === 'storno' || (doc.kind === 'korrektur' && t.gross < 0)
   const sign = credit ? -1 : 1
   const rc = !!doc.reverseCharge
@@ -104,22 +106,39 @@ export function eInvoiceModel(doc, settings = {}, { ref = null, orderRef, suppli
       vat: t.vatOn ? round2((net * rate) / 100) : 0,
     }
   })
-  const groups = t.groups.map((g) => ({ rate: g.rate, cat: cat(g.rate), subtotal: round2(g.subtotal * sign), discount: round2(g.discount * sign), net: round2(g.net * sign), vat: round2(g.vat * sign), reason }))
+  const groups = whole.groups.map((g) => ({ rate: g.rate, cat: cat(g.rate), subtotal: round2(g.subtotal * sign), discount: round2(g.discount * sign), net: round2(g.net * sign), vat: round2(g.vat * sign), reason }))
   const lineTotal = round2(lines.reduce((a, l) => a + l.net, 0))
   const allowanceTotal = round2(groups.reduce((a, g) => a + g.discount, 0))
   const taxBasis = round2(groups.reduce((a, g) => a + g.net, 0))
   const taxTotal = round2(groups.reduce((a, g) => a + g.vat, 0))
+  const prepaid = t.advance ? round2(t.advance.gross * sign) : 0
   const sk = credit ? null : skontoOf(doc, s)
   const termsText = doc.termsText || termsTextOf(doc, s, terms) || ''
-  const refNumber = ref?.number || doc.refNumber || ''
+  // Vorgängerrechnung (BG-3) nur, wenn der Bezug eine Rechnung ist (Storno, Korrektur) bzw. bei genau einem Abschlag;
+  // ein Auftrag als Bezug ist die Auftragsnummer des Verkäufers (BT-14), ein Angebot hat kein Feld
+  const advances = (doc.advances || []).map((a) => ({ number: a.number, date: a.date || '', net: round2(a.net * sign), vat: round2(a.vat * sign), gross: round2(a.gross * sign), groups: a.groups || [] }))
+  const refIsInvoice = ref ? isInvoice(ref) : ['storno', 'korrektur'].includes(doc.kind)
+  const refNumber = advances.length === 1 ? advances[0].number : advances.length ? '' : refIsInvoice ? ref?.number || doc.refNumber || '' : ''
+  const refDate = advances.length === 1 ? advances[0].date : ref?.date || ''
+  const sellerOrder = ref?.kind === 'auftrag' ? ref.number || '' : ''
   const delivery = String(doc.deliveryAddress || '').trim() ? parseAddress(doc.deliveryAddress) : null
+  // Text- und Titelzeilen: als Bemerkung (BT-22), nicht als Position mit 0 € (EN 16931 kennt keine Textzeilen)
+  const texts = t.rows.filter((r) => (r.type === 'text' || r.type === 'title') && String(r.text || '').trim()).map((r) => String(r.text).trim())
+  const extraNotes = [
+    ...(advances.length ? [`Schlussrechnung: Gesamtbetrag der Leistung ${amt(round2(taxBasis + taxTotal))} EUR (Entgelt ${amt(taxBasis)}, USt ${amt(taxTotal)}); abgezogen ${advances.map((a) => `Abschlagsrechnung ${a.number}${a.date ? ` vom ${deDate(a.date)}` : ''}: ${a.groups.map((g) => `Entgelt ${rateText(g.rate)} % ${amt(g.net * sign)}, USt ${amt(g.vat * sign)}`).join('; ')}, brutto ${amt(a.gross)}`).join(' – ')}; Restbetrag ${amt(round2(taxBasis + taxTotal - prepaid))} EUR.`] : []),
+    ...(isAdvance(doc) ? [`Abschlagsrechnung (Anzahlung)${doc.refNumber ? ` zu ${doc.refNumber}` : ''}; wird in der Schlussrechnung samt Umsatzsteuer abgezogen.`] : []),
+  ]
+  const lsNotes = doc.deliveryNotes || []
+  if (lsNotes.length > 1) extraNotes.push(`Lieferscheine: ${lsNotes.map((n) => `${n.number}${n.date ? ` vom ${deDate(n.date)}` : ''}`).join(', ')}.`)
   return {
     number: doc.number || '',
     date: doc.date,
     kind: doc.kind,
+    stage: doc.kind === 'rechnung' ? doc.stage || '' : '',
     title: doc.title || '',
     credit,
-    typeCode: credit ? '381' : doc.kind === 'korrektur' ? '384' : '380',
+    // 386 Vorauszahlungsrechnung (Abschlag), sonst 380 Handelsrechnung (auch die Schlussrechnung), 381 Gutschrift, 384 Korrektur
+    typeCode: credit ? '381' : doc.kind === 'korrektur' ? '384' : isAdvance(doc) ? '386' : '380',
     currency: 'EUR',
     rc,
     small,
@@ -129,9 +148,15 @@ export function eInvoiceModel(doc, settings = {}, { ref = null, orderRef, suppli
     delivery: delivery ? { ...delivery, name: delivery.extra[0] || doc.recipient?.name || '', extra: delivery.extra.slice(1) } : null,
     period: doc.serviceFrom ? { from: doc.serviceFrom, to: doc.serviceTo || doc.serviceFrom } : null,
     orderRef: String(orderRef ?? doc.reference ?? '').trim(),
+    sellerOrder,
     supplierNo: String(supplierNo || '').trim(),
-    ref: refNumber ? { number: refNumber, date: ref?.date || '' } : null,
+    ref: refNumber ? { number: refNumber, date: refDate } : null,
+    advances,
+    despatch: lsNotes.length === 1 ? { number: lsNotes[0].number, date: lsNotes[0].date || '' } : null,
+    notes: [...texts, ...extraNotes],
+    extraNotes,
     lines,
+    rows: t.rows,
     groups,
     discountPercent: parseNumber(doc.discount),
     lineTotal,
@@ -139,6 +164,8 @@ export function eInvoiceModel(doc, settings = {}, { ref = null, orderRef, suppli
     taxBasis,
     taxTotal,
     grandTotal: round2(taxBasis + taxTotal),
+    prepaid,
+    payable: round2(taxBasis + taxTotal - prepaid),
     dueDate: doc.dueDate || '',
     termsText: credit ? 'Der Betrag wird mit offenen Forderungen verrechnet bzw. auf Ihr Konto überwiesen.' : termsText || (doc.dueDate ? `Zahlbar bis ${deDate(doc.dueDate)} ohne Abzug.` : ''),
     skonto: sk,
@@ -169,7 +196,8 @@ export function eInvoiceProblems(doc, settings = {}, opts = {}, format = 'cii') 
   if (!m.buyer.zip || !m.buyer.city) err('Anschrift des Empfängers: PLZ und Ort nicht erkannt (Zeile „PLZ Ort“, z. B. „5020 Salzburg“).')
   if (m.rc && !m.buyer.uid) err('Reverse Charge: UID-Nummer des Empfängers fehlt.')
   if (!m.lines.length) err('Keine Position.')
-  if (m.expected !== null && Math.abs(m.expected - m.grandTotal) > 0.01) err(`Die Summe weicht vom festgeschriebenen Betrag ab (${amt(m.expected)} statt ${amt(m.grandTotal)}): übernommener Altbeleg? Die E-Rechnung bitte im früheren Programm erstellen.`)
+  if (m.expected !== null && Math.abs(m.expected - m.payable) > 0.01) err(`Die Summe weicht vom festgeschriebenen Betrag ab (${amt(m.expected)} statt ${amt(m.payable)}): übernommener Altbeleg? Die E-Rechnung bitte im früheren Programm erstellen.`)
+  if (m.advances.length > 1 && format === 'cii') out.push({ level: 'info', text: `Schlussrechnung mit ${m.advances.length} Abschlägen: ZUGFeRD/Factur-X kann nur eine Vorgängerrechnung angeben; alle Abschläge stehen mit Entgelt und Steuer in der Bemerkung.` })
   if (!m.period) warn('Leistungszeitraum fehlt.')
   if (!m.credit && m.grandTotal > 0 && !m.bank.iban) warn('Keine IBAN in den Einstellungen: die E-Rechnung enthält keine Bankverbindung.')
   if (format === 'ebinterface' && (!m.orderRef || !m.supplierNo)) out.push({ level: 'info', text: 'E-Rechnung an den Bund: die Auftragsreferenz (Bestellnummer der bestellenden Stelle) und die Lieferantennummer angeben – beides teilt die bestellende Stelle mit.' })
@@ -223,9 +251,14 @@ export function ciiXml(doc, settings = {}, opts = {}) {
       ]),
     ])
 
+  // ohne UID (Kleinunternehmer) braucht EN 16931 eine andere Kennung des Verkäufers (BR-CO-26): Firmenbuchnummer
+  // (BT-30), sonst die Steuernummer als Kennung (BT-29)
+  const fn = m.seller.uid ? '' : String(m.seller.register || '').match(/FN\s*\d+\s*[a-z]\b/i)?.[0].replace(/\s+/g, ' ') || ''
   const seller = N('ram:SellerTradeParty', [
+    !m.seller.uid && !fn ? N('ram:ID', m.seller.taxNo) : null,
     N('ram:Name', m.seller.name),
     N('ram:Description', m.seller.register),
+    fn ? N('ram:SpecifiedLegalOrganization', [N('ram:ID', fn)]) : null,
     m.seller.phone || m.seller.email ? N('ram:DefinedTradeContact', [N('ram:TelephoneUniversalCommunication', [N('ram:CompleteNumber', m.seller.phone)]), N('ram:EmailURIUniversalCommunication', [N('ram:URIID', m.seller.email)])]) : null,
     address(m.seller),
     N('ram:URIUniversalCommunication', [N('ram:URIID', m.seller.email, { schemeID: 'EM' })]),
@@ -259,14 +292,23 @@ export function ciiXml(doc, settings = {}, opts = {}) {
         N('ram:ID', m.number),
         N('ram:TypeCode', m.typeCode),
         N('ram:IssueDateTime', [D(m.date)]),
-        ...[m.title, m.intro, m.outro, m.reason].filter(Boolean).map((text) => N('ram:IncludedNote', [N('ram:Content', text)])),
+        ...[m.title, m.intro, ...m.notes, m.outro, m.reason].filter(Boolean).map((text) => N('ram:IncludedNote', [N('ram:Content', text)])),
       ]),
       N('rsm:SupplyChainTradeTransaction', [
         ...m.lines.map(lineItem),
-        N('ram:ApplicableHeaderTradeAgreement', [seller, buyer, m.orderRef ? N('ram:BuyerOrderReferencedDocument', [N('ram:IssuerAssignedID', m.orderRef)]) : null]),
+        N('ram:ApplicableHeaderTradeAgreement', [
+          seller,
+          buyer,
+          m.sellerOrder ? N('ram:SellerOrderReferencedDocument', [N('ram:IssuerAssignedID', m.sellerOrder)]) : null,
+          m.orderRef ? N('ram:BuyerOrderReferencedDocument', [N('ram:IssuerAssignedID', m.orderRef)]) : null,
+        ]),
         N(
           'ram:ApplicableHeaderTradeDelivery',
-          [m.delivery ? N('ram:ShipToTradeParty', [N('ram:Name', m.delivery.name), address(m.delivery)]) : null],
+          [
+            m.delivery ? N('ram:ShipToTradeParty', [N('ram:Name', m.delivery.name), address(m.delivery)]) : null,
+            // Lieferschein (BT-16)
+            m.despatch ? N('ram:DespatchAdviceReferencedDocument', [N('ram:IssuerAssignedID', m.despatch.number)]) : null,
+          ],
           {},
           true,
         ),
@@ -292,8 +334,9 @@ export function ciiXml(doc, settings = {}, opts = {}) {
             N('ram:TaxBasisTotalAmount', amt(m.taxBasis)),
             N('ram:TaxTotalAmount', amt(m.taxTotal), { currencyID: m.currency }),
             N('ram:GrandTotalAmount', amt(m.grandTotal)),
-            N('ram:TotalPrepaidAmount', amt(0)),
-            N('ram:DuePayableAmount', amt(m.grandTotal)),
+            // Schlussrechnung: abgezogene Abschläge brutto (BT-113); fällig ist der Rest (BT-115 = BT-112 − BT-113)
+            N('ram:TotalPrepaidAmount', amt(m.prepaid)),
+            N('ram:DuePayableAmount', amt(m.payable)),
           ]),
           m.ref ? N('ram:InvoiceReferencedDocument', [N('ram:IssuerAssignedID', m.ref.number), m.ref.date ? N('ram:FormattedIssueDateTime', [N('qdt:DateTimeString', m.ref.date.replace(/-/g, ''), { format: '102' })]) : null]) : null,
         ]),
@@ -332,13 +375,37 @@ export function ebInterfaceXml(doc, settings = {}, opts = {}) {
       N('LineItemAmount', amt(l.net)),
     ])
   const cancelled = m.kind === 'storno' && m.ref?.date
+  // Text- und Titelzeilen: jede beginnt eine eigene Positionsliste (ItemList) mit diesem Text als Überschrift
+  // (m.lines sind die Positionen in derselben Reihenfolge wie die Zeilen der Art 'item' in m.rows)
+  let lists = []
+  let cur = { head: [], items: [], foot: [] }
+  let k = 0
+  for (const r of m.rows) {
+    if (r.type === 'text' || r.type === 'title') {
+      if (cur.items.length) {
+        lists.push(cur)
+        cur = { head: [], items: [], foot: [] }
+      }
+      if (String(r.text || '').trim()) cur.head.push(String(r.text).trim())
+    } else if (r.type === 'item' && m.lines[k]) cur.items.push(m.lines[k++])
+  }
+  if (cur.items.length) lists.push(cur)
+  else if (lists.length) lists.at(-1).foot.push(...cur.head)
+  if (!lists.length || k !== m.lines.length) lists = [{ head: [], items: m.lines, foot: [] }]
+  const itemLists = lists.map((x) => N('ItemList', [N('HeaderDescription', x.head.join('\n')), ...x.items.map(lineItem), N('FooterDescription', x.foot.join('\n'))]))
+  const related = m.advances.length
+    ? m.advances.map((a) => N('RelatedDocument', [N('InvoiceNumber', a.number), a.date ? N('InvoiceDate', a.date) : null, N('DocumentType', 'InvoiceForAdvancePayment'), N('Comment', `Abschlagsrechnung, abgezogen: ${amt(a.gross)} EUR`)]))
+    : m.ref && !cancelled
+      ? [N('RelatedDocument', [N('InvoiceNumber', m.ref.number), m.ref.date ? N('InvoiceDate', m.ref.date) : null, N('DocumentType', 'Invoice'), N('Comment', `${KINDS[m.kind]} zu Rechnung ${m.ref.number}`)])]
+      : []
+  const docType = m.credit ? 'CreditMemo' : m.stage === 'abschlag' ? 'InvoiceForAdvancePayment' : m.stage === 'schluss' ? 'FinalSettlement' : 'Invoice'
   const root = N(
     'Invoice',
     [
       N('InvoiceNumber', m.number),
       N('InvoiceDate', m.date),
       cancelled ? N('CancelledOriginalDocument', [N('InvoiceNumber', m.ref.number), N('InvoiceDate', m.ref.date), N('DocumentType', 'Invoice'), N('Comment', m.intro || 'Stornorechnung')]) : null,
-      m.ref && !cancelled ? N('RelatedDocument', [N('InvoiceNumber', m.ref.number), m.ref.date ? N('InvoiceDate', m.ref.date) : null, N('DocumentType', 'Invoice'), N('Comment', `${KINDS[m.kind]} zu Rechnung ${m.ref.number}`)]) : null,
+      ...related,
       m.period ? N('Delivery', [m.period.from === m.period.to ? N('Date', m.period.from) : N('Period', [N('FromDate', m.period.from), N('ToDate', m.period.to)]), m.delivery ? address(m.delivery) : null]) : null,
       N('Biller', [
         N('VATIdentificationNumber', m.seller.uid || NO_UID),
@@ -353,7 +420,7 @@ export function ebInterfaceXml(doc, settings = {}, opts = {}) {
         m.buyer.contact ? N('Contact', [N('Name', m.buyer.contact)]) : null,
         N('BillersInvoiceRecipientID', m.buyer.customerNo),
       ]),
-      N('Details', [N('HeaderDescription', [m.title, m.intro].filter(Boolean).join('\n')), N('ItemList', m.lines.map(lineItem)), N('FooterDescription', m.outro)]),
+      N('Details', [N('HeaderDescription', [m.title, m.intro].filter(Boolean).join('\n')), ...itemLists, N('FooterDescription', [...m.extraNotes, m.outro].filter(Boolean).join('\n'))]),
       m.groups.some((g) => g.discount)
         ? N(
             'ReductionAndSurchargeDetails',
@@ -362,7 +429,9 @@ export function ebInterfaceXml(doc, settings = {}, opts = {}) {
         : null,
       N('Tax', m.groups.map((g) => N('TaxItem', [N('TaxableAmount', amt(g.net)), taxPercent(g), N('TaxAmount', amt(g.vat)), N('Comment', g.reason)])), {}, true),
       N('TotalGrossAmount', amt(m.grandTotal)),
-      N('PayableAmount', amt(m.grandTotal)),
+      // Endabrechnung: abgezogene Abschläge (brutto) als PrepaidAmount, zu zahlen der Rest
+      m.prepaid ? N('PrepaidAmount', amt(m.prepaid)) : null,
+      N('PayableAmount', amt(m.payable)),
       m.credit
         ? N('PaymentMethod', [N('Comment', m.termsText), N('NoPayment', '', {}, true)])
         : m.bank.iban
@@ -377,7 +446,7 @@ export function ebInterfaceXml(doc, settings = {}, opts = {}) {
           ]),
       N('Comment', m.reason),
     ],
-    { xmlns: EBI_NAMESPACE, GeneratingSystem: GENERATOR, DocumentType: m.credit ? 'CreditMemo' : 'Invoice', InvoiceCurrency: m.currency, DocumentTitle: `${KINDS[m.kind]} ${m.number}`, Language: 'de' },
+    { xmlns: EBI_NAMESPACE, GeneratingSystem: GENERATOR, DocumentType: docType, InvoiceCurrency: m.currency, DocumentTitle: `${STAGES[m.stage] || KINDS[m.kind]} ${m.number}`, Language: 'de' },
   )
   return xmlDoc(root)
 }

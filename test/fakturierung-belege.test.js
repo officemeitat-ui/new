@@ -31,6 +31,8 @@ import {
   totals,
 } from '../src/core/invoicing.js'
 import { aging, revenueMonths, topCustomers } from '../src/core/kpi.js'
+import { ciiXml, ebInterfaceXml, eInvoiceProblems } from '../src/export/e-invoice.js'
+import { invoiceDocument } from '../src/export/invoice-pdf.js'
 
 const settings = { sender: { name: 'Reinigung Beispiel GmbH', address: 'Musterstraße 1\n5020 Salzburg', uid: 'ATU12345678' }, bank: { iban: 'AT611904300234573201', bic: 'BKAUATWW', name: 'Bank Beispiel' }, paymentDays: 14 }
 const recipient = { name: 'Hausverwaltung Muster', address: 'Platz 2\n5020 Salzburg', uid: 'ATU87654321' }
@@ -285,6 +287,84 @@ test('Proformarechnung: Nummer PF, keine Rechnung (kein Umsatz, kein OP, kein Ex
   docs = [...docs, inv]
   assert.equal(stateOf(pf, docs, '2026-11-10', settings), 'verrechnet')
   assert.equal(revenueByMonth(docs, '2026', settings)[10].net, 300)
+})
+
+test('E-Rechnung: Abschlag 386, Schlussrechnung mit vorausbezahltem Betrag, Texte als Bemerkung, Bezüge', () => {
+  const { order, a1, a2, docs } = project()
+  const sr = fin({ ...finalDraft(order, { id: 'sr', date: '2026-11-03', advances: [a1, a2], settings }), dueDate: '2026-11-17' }, docs)
+  const adv = ciiXml(a1, settings, { ref: order })
+  assert.match(adv, /<ram:TypeCode>386<\/ram:TypeCode>/)
+  assert.match(adv, /<ram:SellerOrderReferencedDocument>\s*<ram:IssuerAssignedID>AB-2026-0001</)
+  assert.doesNotMatch(adv, /InvoiceReferencedDocument/, 'ein Auftrag ist keine Vorgängerrechnung')
+  assert.match(adv, /Abschlagsrechnung \(Anzahlung\) zu AB-2026-0001/)
+  assert.match(ebInterfaceXml(a1, settings, { ref: order }), /DocumentType="InvoiceForAdvancePayment"/)
+  // Schlussrechnung: ganze Leistung, Steuer voll, Abschläge brutto als TotalPrepaidAmount, fällig der Rest
+  const x = ciiXml(sr, settings, { ref: order })
+  assert.match(x, /<ram:TypeCode>380<\/ram:TypeCode>/)
+  assert.match(x, /<ram:TaxBasisTotalAmount>6400\.00<\/ram:TaxBasisTotalAmount>/)
+  assert.match(x, /<ram:GrandTotalAmount>7640\.00<\/ram:GrandTotalAmount>/)
+  assert.match(x, /<ram:TotalPrepaidAmount>3485\.75<\/ram:TotalPrepaidAmount>/)
+  assert.match(x, /<ram:DuePayableAmount>4154\.25<\/ram:DuePayableAmount>/)
+  assert.match(x, /abgezogen Abschlagsrechnung RE-2026-0001 vom 05\.09\.2026: Entgelt 20 % 1800\.00, USt 360\.00; Entgelt 10 % 120\.00, USt 12\.00, brutto 2292\.00/)
+  assert.doesNotMatch(x, /InvoiceReferencedDocument/, 'zwei Abschläge: CII kennt nur eine Vorgängerrechnung')
+  assert.ok(eInvoiceProblems(sr, settings, { ref: order }).some((p) => /nur eine Vorgängerrechnung/.test(p.text)))
+  assert.ok(!eInvoiceProblems(sr, settings, { ref: order }).some((p) => p.level === 'error'))
+  const one = fin({ ...finalDraft(order, { id: 'sr1', date: '2026-11-03', advances: [a1], settings }), dueDate: '2026-11-17' }, docs)
+  assert.match(ciiXml(one, settings, { ref: order }), /<ram:InvoiceReferencedDocument>\s*<ram:IssuerAssignedID>RE-2026-0001<\/ram:IssuerAssignedID>/)
+  const e = ebInterfaceXml(sr, settings, { ref: order })
+  assert.match(e, /DocumentType="FinalSettlement"/)
+  assert.match(e, /<TotalGrossAmount>7640\.00<\/TotalGrossAmount>\s*<PrepaidAmount>3485\.75<\/PrepaidAmount>\s*<PayableAmount>4154\.25<\/PayableAmount>/)
+  assert.equal((e.match(/<RelatedDocument>/g) || []).length, 2)
+  assert.match(e, /<DocumentType>InvoiceForAdvancePayment<\/DocumentType>/)
+  // Text- und Titelzeilen: keine Positionen mit 0 €, sondern Bemerkungen bzw. Überschriften der Positionslisten
+  const inv = fin({ id: 'tx', kind: 'rechnung', date: '2026-11-03', serviceFrom: '2026-10-01', serviceTo: '2026-10-31', dueDate: '2026-11-17', recipient, lines: [{ type: 'title', text: 'Stiegenhaus' }, item('a', 'Reinigung', 10, 30), { type: 'text', text: 'Jeden Montag.' }, item('b', 'Fenster', 2, 30), { type: 'subtotal' }] })
+  const c = ciiXml(inv, settings)
+  assert.equal((c.match(/<ram:IncludedSupplyChainTradeLineItem>/g) || []).length, 2)
+  assert.match(c, /<ram:Content>Stiegenhaus<\/ram:Content>/)
+  assert.match(c, /<ram:Content>Jeden Montag\.<\/ram:Content>/)
+  const eb = ebInterfaceXml(inv, settings)
+  assert.equal((eb.match(/<ItemList>/g) || []).length, 2)
+  assert.match(eb, /<ItemList>\s*<HeaderDescription>Stiegenhaus<\/HeaderDescription>/)
+  assert.match(eb, /<ItemList>\s*<HeaderDescription>Jeden Montag\.<\/HeaderDescription>/)
+  // Rechnung aus einem Angebot: das Angebot ist keine Vorgängerrechnung
+  const offer = fin({ id: 'an', kind: 'angebot', date: '2026-10-01', recipient, validUntil: '2026-11-01', lines: [item('a', 'Reinigung', 1, 100)] })
+  const fromOffer = fin({ ...convertDraft(offer, 'rechnung', { id: 'r', date: '2026-11-03' }), serviceFrom: '2026-10-15', dueDate: '2026-11-17' }, [offer])
+  assert.doesNotMatch(ciiXml(fromOffer, settings, { ref: offer }), /InvoiceReferencedDocument|SellerOrderReferencedDocument/)
+  assert.doesNotMatch(ebInterfaceXml(fromOffer, settings, { ref: offer }), /RelatedDocument/)
+  // Lieferschein (BT-16) und Proforma: Proforma und Lieferschein selbst sind keine E-Rechnung
+  const ls = fin({ id: 'ls', kind: 'lieferschein', date: '2026-10-10', serviceFrom: '2026-10-10', recipient, lines: [item('a', 'Reinigung', 1, 100)] })
+  assert.match(ciiXml(fin({ ...collectDraft([ls], { id: 'rl', date: '2026-11-03' }), dueDate: '2026-11-17' }, [ls]), settings), /<ram:DespatchAdviceReferencedDocument>\s*<ram:IssuerAssignedID>LS-2026-0001</)
+  assert.ok(eInvoiceProblems(ls, settings).some((p) => p.level === 'error'))
+})
+
+test('PDF: Positionsarten, Proforma-Hinweis, Lieferschein ohne Preise mit Unterschrift, Abzug in der Schlussrechnung', () => {
+  const text = (dd) => JSON.stringify(dd.content)
+  const offer = fin({ id: 'an', kind: 'angebot', date: '2026-11-03', recipient, validUntil: '2026-12-03', lines: [{ type: 'title', text: 'Glas', showSum: true }, item('c', 'Fenster', 100, 2.5), { type: 'text', text: 'Nur Erdgeschoß.' }, item('o', 'Rahmen', 100, 0.8, 20, { type: 'optional' }), item('alt', 'Nur außen', 100, 1.5, 20, { type: 'alternative', altTo: 'c' }), { type: 'subtotal' }] })
+  const a = text(invoiceDocument({ doc: offer, settings }))
+  assert.match(a, /"text":"Option: ","bold":true\},"Rahmen"/)
+  assert.match(a, /nur auf Wunsch – nicht in der Summe enthalten/)
+  assert.match(a, /statt Pos\. 1 – nicht in der Summe enthalten/)
+  assert.match(a, /\(80,00 €\)/)
+  assert.match(a, /Zwischensumme \(netto\)/)
+  assert.match(a, /Summe Glas \(netto\)/)
+  assert.match(a, /"text":"Glas","bold":true/)
+  assert.match(a, /"text":"Angebotssumme".*"text":"300,00 €"/)
+  const pf = invoiceDocument({ doc: fin({ id: 'pf', kind: 'proforma', date: '2026-11-03', recipient, lines: [item('a', 'Reinigung', 1, 100)] }), settings })
+  assert.match(text(pf), /Proforma – keine Rechnung im Sinne des UStG/)
+  assert.equal(pf.watermark.text, 'Proforma')
+  const ls = fin({ id: 'ls', kind: 'lieferschein', date: '2026-10-10', serviceFrom: '2026-10-10', hidePrices: true, recipient, lines: [item('a', 'Reinigung', 3, 100)] })
+  const l = text(invoiceDocument({ doc: ls, settings }))
+  assert.doesNotMatch(l, /100,00 €|Einzelpreis|Gesamtbetrag/)
+  assert.match(l, /Unterschrift und Name in Blockschrift/)
+  assert.match(text(invoiceDocument({ doc: { ...ls, hidePrices: false }, settings })), /Einzelpreis/)
+  const { order, a1, a2, docs } = project()
+  const sr = fin({ ...finalDraft(order, { id: 'sr', date: '2026-11-03', advances: [a1, a2], settings }), dueDate: '2026-11-17' }, docs)
+  const s = text(invoiceDocument({ doc: sr, settings }))
+  assert.match(s, /Gesamtbetrag der Leistung.*7\.640,00 €/)
+  assert.match(s, /abzüglich Abschlagsrechnung RE-2026-0001 vom 05\.09\.2026/)
+  assert.match(s, /"text":"USt 20 %".*"text":"−360,00 €"/)
+  assert.match(s, /"text":"Restbetrag".*"text":"4\.154,25 €"/)
+  assert.match(s, /Bitte überweisen Sie 4\.154,25 €/)
 })
 
 const round = (n) => Math.round(n * 100) / 100
