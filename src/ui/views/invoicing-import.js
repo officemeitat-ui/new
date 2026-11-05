@@ -327,7 +327,7 @@ async function apply() {
 
 // ---------------------------------------------------------------- Oberfläche
 
-const KIND_PLURAL = { rechnung: ['Rechnung', 'Rechnungen'], korrektur: ['Gutschrift/Korrektur', 'Gutschriften/Korrekturen'], storno: ['Stornorechnung', 'Stornorechnungen'], angebot: ['Angebot', 'Angebote'], auftrag: ['Auftragsbestätigung', 'Auftragsbestätigungen'] }
+const KIND_PLURAL = { rechnung: ['Rechnung', 'Rechnungen'], korrektur: ['Gutschrift/Korrektur', 'Gutschriften/Korrekturen'], storno: ['Stornorechnung', 'Stornorechnungen'], angebot: ['Angebot', 'Angebote'], auftrag: ['Auftragsbestätigung', 'Auftragsbestätigungen'], lieferschein: ['Lieferschein', 'Lieferscheine'], proforma: ['Proformarechnung', 'Proformarechnungen'] }
 const KIND_OPTIONS = [['', '– nicht übernehmen –'], ...Object.entries(TARGETS).map(([k, t]) => [k, t.label])]
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
@@ -425,7 +425,8 @@ function checkStep() {
       </tbody></table></div>
       ${W.uploads.length ? (app.store?.kind === 'sharepoint' ? `<p>${plural(W.uploads.length, 'Original-PDF wird', 'Original-PDFs werden')} an die Belege gehängt und in SharePoint abgelegt.</p>` : `<p class="muted">${plural(W.uploads.length, 'Original-PDF passt', 'Original-PDFs passen')} zu Belegen – ablegen geht nur im Betrieb mit SharePoint.</p>`) : ''}
       ${W.unmatched?.length ? `<p class="muted">${plural(W.unmatched.length, 'PDF ohne', 'PDFs ohne')} passende Belegnummer: ${esc(W.unmatched.slice(0, 6).join(', '))}${W.unmatched.length > 6 ? ' …' : ''}</p>` : ''}
-      ${res.skipped.lieferscheine ? `<p class="muted">${plural(res.skipped.lieferscheine, 'Lieferschein oder sonstiger Beleg', 'Lieferscheine oder sonstige Belege')} (Proforma, Bestellung) nicht übernommen.</p>` : ''}
+      ${res.skipped.lieferscheine ? `<p class="muted">${plural(res.skipped.lieferscheine, 'sonstiger Beleg', 'sonstige Belege')} (z. B. Mahnung, Bestellung) nicht übernommen.</p>` : ''}
+      ${res.skipped.lieferanten ? `<p class="muted">${plural(res.skipped.lieferanten, 'Lieferant', 'Lieferanten')} aus der Kundentabelle nicht als Kunde übernommen.</p>` : ''}
       ${numbering ? `<h3>Nummernkreise</h3><div class="fim-numbering">${numbering}</div>` : ''}
       ${notes.length ? `<details class="fim-notes" ${notes.length <= 5 ? 'open' : ''}><summary>${plural(notes.length, 'Hinweis', 'Hinweise')}</summary><ul>${notes.slice(0, 60).map((x) => `<li>${esc(x)}</li>`).join('')}${notes.length > 60 ? `<li>… und ${notes.length - 60} weitere</li>` : ''}</ul></details>` : '<p><span class="pill ok">Keine Auffälligkeiten</span></p>'}
       <p class="note">Altbelege werden so übernommen, wie sie in orgaMAX stehen (Nummer, Datum, Summen), und sind festgeschrieben. Vorhandene Daten in der App werden nur ergänzt, nie überschrieben.</p>`,

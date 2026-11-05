@@ -98,7 +98,12 @@ test('Werte: Datum, Betrag, Belegart, Nummernformat, Nummer im Dateinamen', () =
   assert.equal(kindOf({ text: 'Stornorechnung' }), 'storno')
   assert.equal(kindOf({ text: 'Auftragsbestätigung' }), 'auftrag')
   assert.equal(kindOf({ text: 'Abschlagsrechnung' }), 'rechnung')
-  assert.equal(kindOf({ text: 'Lieferschein' }), '')
+  assert.equal(kindOf({ text: 'Lieferschein' }), 'lieferschein')
+  assert.equal(kindOf({ text: 'Proformarechnung' }), 'proforma')
+  assert.equal(kindOf({ number: 'LS-2025-3' }), 'lieferschein')
+  assert.equal(kindOf({ text: 'Mahnung' }), '')
+  assert.deepEqual(['Abschlagsrechnung', 'Anzahlungsrechnung', '2. Teilrechnung', 'Schlussrechnung', 'Endrechnung', 'Rechnung'].map(stageOf), ['abschlag', 'abschlag', 'abschlag', 'schluss', 'schluss', ''])
+  assert.deepEqual(['Text', 'Titel', 'Zwischensumme', 'Bedarfsposition', 'Alternativposition', 'Artikel', ''].map(lineTypeOf), ['text', 'title', 'subtotal', 'optional', 'alternative', '', ''])
   assert.equal(kindOf({ number: 'AN-2025-1' }), 'angebot')
   assert.equal(kindOf({ tableName: 'Angebote 2025' }), 'angebot')
   assert.deepEqual(detectNumberFormat(['RE-2025-0151', 'RE-2025-0152'], ['2025', '2025']), { template: 'RE-{JJJJ}-{NR}', yearly: true, digits: 4 })
@@ -129,9 +134,10 @@ test('Übernahme: Kunden mit Einzelfeldern, Ansprechpartnern und Zahlungsbedingu
   assert.deepEqual(r.paymentTerms.map((t) => [t.name, t.days, t.skontoPercent, t.skontoDays]), [['14 Tage 2 % Skonto', 14, 2, 7], ['Sofort', 0, 0, 0]])
 })
 
-test('Übernahme: Belege mit Positionen, Zahlungen, Mahnstufe, Gutschrift negativ, Lieferschein übersprungen, Prüfsumme', () => {
+test('Übernahme: Belege mit Positionen, Zahlungen, Mahnstufe, Gutschrift negativ, Lieferschein, Prüfsumme', () => {
   const r = buildImport(analyse([KUNDEN, ARTIKEL, RECHNUNGEN, POSITIONEN]), [], { newId, now: NOW })
-  assert.equal(r.skipped.lieferscheine, 1)
+  assert.equal(r.skipped.lieferscheine, 0)
+  assert.equal(r.documents.find((d) => d.number === 'LS-2025-0001')?.kind, 'lieferschein')
   const by = (no) => r.documents.find((d) => d.number === no)
   const re1 = by('RE-2025-0151')
   assert.deepEqual([re1.kind, re1.date, re1.dueDate, re1.total.gross, re1.recipient.name, re1.reference], ['rechnung', '2025-10-15', '2025-10-29', 540, 'Spar Österreich GmbH', 'B-778'])
@@ -179,13 +185,13 @@ test('Einspielen: neu, ergänzen, nichts doppelt; zweite Übernahme ändert nich
   const re = data.documents.find((d) => d.number === 'RE-2025-0151')
   assert.equal(re.customerId, 'c-alt', 'Beleg zeigt auf den vorhandenen Kunden')
   assert.ok(intact(re))
-  assert.equal(report.documents.added, 4)
+  assert.equal(report.documents.added, 5)
   assert.deepEqual(report.recurring, { added: 2, skipped: 0 })
   const rec = data.recurring.find((x) => x.title === 'Glas Fuchs')
   assert.deepEqual([rec.interval, rec.startMonth, rec.lines[0].price], ['quartal', '2026-01', 300])
   const again = mergeImport(data, buildImport(analyse([KUNDEN, RECHNUNGEN, POSITIONEN, ABOS]), [], { newId, now: NOW }))
   assert.equal(again.report.documents.added, 0)
-  assert.equal(again.report.documents.skipped, 4)
+  assert.equal(again.report.documents.skipped, 5)
   assert.equal(again.report.recurring.added, 0)
   assert.equal(again.data.customers.length, data.customers.length)
 })
@@ -314,7 +320,7 @@ test('Prüfsumme alter Belege bleibt gültig (neue Felder zählen nur, wenn gese
 
 // ---------------------------------------------------------------- Komplettexport aus der orgaMAX-Datenbank (ODBC)
 
-import { dbTableKind, dumpTable, rtfToText } from '../src/core/fak-import.js'
+import { dbTableKind, dumpTable, lineTypeOf, rtfToText, stageOf } from '../src/core/fak-import.js'
 
 const T = (name, cols, rows, types = {}) => {
   const csvText = [cols, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n')
@@ -384,4 +390,22 @@ test('orgaMAX-Datenbank: Verknüpfungen über interne IDs, Lieferanten weg, Inte
   const { data } = mergeImport(emptyInvoicing(), r)
   const again = mergeImport(data, buildImport(sources, [], { newId, now: NOW, existing: data }))
   assert.deepEqual([again.report.customers.added, again.report.documents.added, again.report.recurring.added], [0, 0, 0])
+})
+
+test('Abschlag/Schluss, Positionsarten, Proforma und SEPA-Mandat aus orgaMAX', () => {
+  const kunden = csv('Kunden', ['Kundennummer;Firma;Straße;PLZ;Ort;IBAN;Mandatsreferenz;Mandatsdatum;Zahlungsart', '40001;Wohnbau Beispiel GmbH;Weg 1;5020;Salzburg;AT611904300234573201;MAND-40001;12.03.2024;SEPA-Lastschrift'])
+  const belege = csv('Vorgänge', ['Belegart;Belegnummer;Datum;Kundennummer;Netto;MwSt;Brutto', 'Abschlagsrechnung;RE-2025-0201;01.06.2025;40001;1000;200;1200', 'Schlussrechnung;RE-2025-0230;30.06.2025;40001;3000;600;3600', 'Angebot;AN-2025-0090;01.05.2025;40001;3000;600;3600', 'Proformarechnung;PF-2025-0003;20.05.2025;40001;500;100;600'])
+  const pos = csv('Positionen', ['Belegnummer;Pos;Positionsart;Bezeichnung;Menge;Einzelpreis;MwSt;Alternative zu', 'AN-2025-0090;1;Titel;Bauendreinigung Haus A;;;;', 'AN-2025-0090;2;;Grundreinigung;1;3000;20;', 'AN-2025-0090;3;Bedarfsposition;Fenster außen;1;400;20;', 'AN-2025-0090;4;Alternativposition;Grundreinigung mit Dampf;1;3300;20;2', 'AN-2025-0090;5;Text;Ausführung nach Absprache.;;;;'])
+  const r = buildImport(analyse([kunden, belege, pos]), [], { newId, now: NOW })
+  const by = (no) => r.documents.find((d) => d.number === no)
+  assert.equal(by('RE-2025-0201').stage, 'abschlag')
+  assert.equal(by('RE-2025-0230').stage, 'schluss')
+  assert.equal(by('PF-2025-0003').kind, 'proforma')
+  const an = by('AN-2025-0090')
+  assert.deepEqual(an.lines.map((l) => l.type || 'item'), ['title', 'item', 'optional', 'alternative', 'text'])
+  assert.equal(an.lines[3].altTo, an.lines[1].id, 'Alternative zeigt auf Position 2')
+  assert.equal(an.total.net, 3000, 'Option und Alternative zählen nicht')
+  assert.ok(r.documents.every(intact))
+  const c = r.customers[0]
+  assert.deepEqual([c.mandate.reference, c.mandate.signedAt, c.mandate.scheme, c.mandate.sequence, c.mandate.active, c.iban], ['MAND-40001', '2024-03-12', 'CORE', 'RCUR', true, 'AT611904300234573201'])
 })

@@ -73,6 +73,10 @@ export const TARGETS = {
       contact: ['Ansprechpartner', ...W('ansprechpartner ansprechperson kontaktperson kontakt contact')],
       consumer: ['Privatkunde', ...W('privatkunde privat kundentyp kundenart')],
       account: ['Debitorenkonto', ...W('debitorenkonto fibukonto sachkonto personenkonto')],
+      mandateRef: ['SEPA-Mandatsreferenz', ...W('mandatsreferenz mandatreferenz sepamandat mandat mandatereference mandateref mandateid sepamandateid')],
+      mandateDate: ['Mandat unterschrieben am', ...W('mandatsdatum mandatdatum mandatunterschrieben unterschriftsdatum mandatedate mandatesigned mandatesigneddate')],
+      mandateScheme: ['Lastschriftart (Basis/Firmen)', ...W('lastschriftart mandatsart mandatetype sepatype')],
+      payMethod: ['Zahlungsart', ...W('zahlungsart zahlweise paymentmethod paymenttype')],
     },
   },
   contacts: {
@@ -157,6 +161,8 @@ export const TARGETS = {
       unit: ['Einheit', ...W('einheit me mengeneinheit unit')],
       price: ['Einzelpreis netto', ...W('einzelpreis ep epnetto einzelpreisnetto preis preisnetto vk vkpreis unitprice price netprice')],
       discount: ['Rabatt %', ...W('rabatt rabattprozent positionsrabatt discount')],
+      lineType: ['Positionsart', ...W('positionsart postyp positionstyp zeilenart linetype postype positiontype')],
+      altRef: ['Alternative zu Position', ...W('alternativzu alternativezu alternativepos altpos alternativeto')],
       vat: ['USt-Satz', ...VAT_RATE],
       net: ['Gesamt netto', ...W('gesamt gesamtpreis gesamtnetto positionsbetrag nettobetrag summe betrag netto linetotal total')],
     },
@@ -530,16 +536,38 @@ export function kindOf({ text = '', number = '', tableName = '' } = {}) {
     [/gutschrift|rechnungskorrektur|korrektur|creditnote|credit/, 'korrektur'],
     [/auftragsbestaetigung|auftrag|orderconfirmation|^ab$/, 'auftrag'],
     [/angebot|kostenvoranschlag|kva|offer|quote|^an$|^ag$/, 'angebot'],
-    [/lieferschein|^ls$|proforma|mahnung|bestellung/, ''],
-    [/rechnung|abschlag|teilrechnung|schlussrechnung|invoice|^re$|^ar$|^rg$/, 'rechnung'],
+    [/lieferschein|^ls$|deliverynote/, 'lieferschein'],
+    [/proforma|^pf$/, 'proforma'],
+    [/mahnung|bestellung/, ''],
+    [/rechnung|abschlag|anzahlung|teilrechnung|schlussrechnung|endrechnung|invoice|^re$|^ar$|^rg$/, 'rechnung'],
   ]
   if (t) for (const [re, k] of tests) if (re.test(t)) return k
   const prefix = norm(String(number).match(/^[A-Za-z]+/)?.[0] || '')
-  const byPrefix = { re: 'rechnung', rg: 'rechnung', ar: 'rechnung', r: 'rechnung', an: 'angebot', ag: 'angebot', ang: 'angebot', ab: 'auftrag', gs: 'korrektur', gu: 'korrektur', st: 'storno', sto: 'storno', ls: '' }
+  const byPrefix = { re: 'rechnung', rg: 'rechnung', ar: 'rechnung', r: 'rechnung', an: 'angebot', ag: 'angebot', ang: 'angebot', ab: 'auftrag', gs: 'korrektur', gu: 'korrektur', st: 'storno', sto: 'storno', ls: 'lieferschein', pf: 'proforma' }
   if (prefix in byPrefix) return byPrefix[prefix]
   const name = norm(tableName)
   if (name) for (const [re, k] of tests) if (re.test(name)) return k
   return 'rechnung'
+}
+
+/** Teil einer Abrechnung in Teilen: 'abschlag' (Anzahlung, Teilrechnung) oder 'schluss' (Schluss-/Endrechnung) oder ''. */
+export function stageOf(text = '') {
+  const t = norm(text)
+  if (/schlussrechnung|endrechnung|schlussabrechnung|finalinvoice/.test(t)) return 'schluss'
+  if (/abschlag|anzahlung|teilrechnung|vorauszahlung|prepayment|advance/.test(t)) return 'abschlag'
+  return ''
+}
+
+/** Positionsart aus orgaMAX → lines[].type ('' = normale Position). */
+export function lineTypeOf(v) {
+  const t = norm(v)
+  if (!t) return ''
+  if (/zwischensumme|subtotal/.test(t)) return 'subtotal'
+  if (/titel|ueberschrift|gruppe|title|header|heading/.test(t)) return 'title'
+  if (/alternativ/.test(t)) return 'alternative'
+  if (/bedarf|optional|option|eventual/.test(t)) return 'optional'
+  if (/^text|textzeile|freitext|kommentar|bemerkung|comment/.test(t)) return 'text'
+  return ''
 }
 
 /**
@@ -631,6 +659,11 @@ function customerFrom(table, row, map, newId) {
     source: { system: SYSTEM, id: str(v('customerNo')), ...(has(v('srcId')) ? { dbId: str(v('srcId')) } : {}) },
   }
   if (has(v('custKind'))) c.consumer = String(v('custKind')).trim() === '1'
+  // SEPA-Mandat (Lastschrift): in der App wie unter „Lastschrift & Mahnung“; nächste Lastschrift als Folge-Lastschrift
+  if (has(v('mandateRef'))) {
+    const scheme = /b2b|firmen/i.test(str(v('mandateScheme'))) ? 'B2B' : 'CORE'
+    c.mandate = { reference: str(v('mandateRef')).slice(0, 35), signedAt: parseDateLoose(v('mandateDate')), scheme, sequence: 'RCUR', active: !has(v('payMethod')) || /lastschrift|einzug|sepa|debit/i.test(str(v('payMethod'))), note: `aus ${SYSTEM} übernommen` }
+  }
   // nicht gesetzte Felder weglassen (Datei bleibt klein)
   for (const k of Object.keys(c)) if (c[k] === '' && !['name', 'customerNo'].includes(k)) delete c[k]
   if (c.name !== name) c.name = name
@@ -1014,12 +1047,12 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     const net = has(v('net')) ? money(v('net')) : null
     const discount = has(v('discount')) ? money(v('discount')) : 0
     const price = has(v('price')) ? money(v('price')) : net != null && qty ? round2(net / qty / (1 - discount / 100 || 1)) : 0
-    const line = { pos: Number(money(v('pos'))) || 0, articleNo: str(v('articleNo')), text: str(v('text')), longText: str(v('longText')), qty, unit: unitOf(v('unit')), price, discount, vat: has(v('vat')) ? vatOf(v('vat')) : null, net, kind: str(v('docKind')) }
+    const line = { pos: Number(money(v('pos'))) || 0, articleNo: str(v('articleNo')), text: str(v('text')), longText: str(v('longText')), qty, unit: unitOf(v('unit')), price, discount, vat: has(v('vat')) ? vatOf(v('vat')) : null, net, kind: str(v('docKind')), type: lineTypeOf(v('lineType')), altRef: str(v('altRef')) }
     const art = has(v('artRef')) ? articlesByDbId.get(str(v('artRef'))) : null
     if (art && !line.articleNo && art.articleNo) line.articleNo = art.articleNo
     if (!line.text && art) line.text = art.name
     if (!line.text && line.articleNo) line.text = [...out.articles, ...(existing.articles || [])].find((a) => a.articleNo === line.articleNo)?.name || line.articleNo
-    if (!line.text && !line.price && !net) continue
+    if (!line.text && !line.price && !net && !line.type) continue
     rawLines.push({ line, no, ref, table: s.table.name || '' })
   }
   /** Kopf-Tabelle zu einer Positionstabelle: die längste, mit deren Namen sie beginnt (MOV_INVOICES_POSITIONS → MOV_INVOICES). */
@@ -1040,6 +1073,7 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     const orderType = has(v('orderType')) && /ORDER/i.test(s.table.name || '') ? String(v('orderType')).trim() : ''
     let kind = orderType ? { 1: 'angebot', 2: 'auftrag' }[orderType] || '' : kindOf({ text: str(v('kind')), number, tableName: s.table.name })
     if (kind === 'rechnung' && has(v('gross')) && money(v('gross')) < 0) kind = 'korrektur'
+    const stage = kind === 'rechnung' ? stageOf(`${str(v('kind'))} ${str(v('title'))}`) : ''
     if (!kind) {
       skipped.lieferscheine++
       continue
@@ -1083,6 +1117,7 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
       extra: extraOf(s.table, row, s.map),
       srcId: str(v('srcId')),
       srcTable: s.table.name || '',
+      stage,
     })
   }
   // Positionen den Belegen zuordnen
@@ -1157,16 +1192,25 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
   const sign = (kind, n) => (['storno', 'korrektur'].includes(kind) && n > 0 ? -n : n)
   const make = (h, lines, source) => {
     const id = newId('d')
-    const normLines = lines
-      .slice()
-      .sort((a, b) => (a.pos || 0) - (b.pos || 0))
+    const sorted = lines.slice().sort((a, b) => (a.pos || 0) - (b.pos || 0))
+    const normLines = sorted
       .map((l, i) => {
         // Storno und Gutschrift: immer negative Menge, positiver Preis (wie stornoDraft); Rechnung: wie im Altsystem
         const credit = ['storno', 'korrektur'].includes(h.kind)
         const qty = credit ? -Math.abs(l.qty || 1) : l.qty
         const price = credit ? Math.abs(l.price) : l.price
-        return { id: `${id}-${i + 1}`, text: l.text, ...(l.longText && l.longText !== l.text ? { longText: l.longText } : {}), ...(l.articleNo ? { articleNo: l.articleNo } : {}), qty, unit: l.unit || 'Stk', price, vat: l.vat ?? h.vatGuess ?? 20, discount: l.discount || 0 }
+        // Positionsart: Text/Titel/Zwischensumme ohne Menge und Preis; Option/Alternative nur in Angebot und Auftrag
+        const type = ['optional', 'alternative'].includes(l.type) && !['angebot', 'auftrag'].includes(h.kind) ? '' : l.type
+        if (['text', 'title', 'subtotal'].includes(type)) return { id: `${id}-${i + 1}`, type, text: l.text || '', ...(l.longText && l.longText !== l.text ? { longText: l.longText } : {}) }
+        return { id: `${id}-${i + 1}`, ...(type ? { type } : {}), ...(type === 'alternative' && l.altRef ? { altPos: l.altRef } : {}), text: l.text, ...(l.longText && l.longText !== l.text ? { longText: l.longText } : {}), ...(l.articleNo ? { articleNo: l.articleNo } : {}), qty, unit: l.unit || 'Stk', price, vat: l.vat ?? h.vatGuess ?? 20, discount: l.discount || 0 }
       })
+    // Alternative → Position, die sie ersetzen würde (über die Positionsnummer aus orgaMAX)
+    for (const l of normLines) {
+      if (!l.altPos) continue
+      const target = normLines[sorted.findIndex((x) => String(x.pos) === String(l.altPos))]
+      if (target) l.altTo = target.id
+      delete l.altPos
+    }
     const doc = {
       id,
       kind: h.kind,
@@ -1187,6 +1231,7 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
       discount: h.discount || 0,
       reverseCharge: !!h.reverseCharge,
       smallBusiness: false,
+      ...(h.stage ? { stage: h.stage } : {}),
       ...(h.reference ? { reference: h.reference } : {}),
       ...(h.refNumber ? { refNumber: h.refNumber } : {}),
       imported: { system: source, at: now, ref: h.number },
@@ -1277,6 +1322,8 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     const vatGuess = h.net && h.vatAmount != null ? Math.round((h.vatAmount / h.net) * 100) : undefined
     out.documents.push(make({ ...h, vatGuess }, lines, SYSTEM))
   }
+  // Schlussrechnungen: Betrag wie in orgaMAX; ob die Abschläge darin schon abgezogen sind, zeigt nur der Beleg selbst
+  for (const d of out.documents) if (d.stage === 'schluss') warnings.push(`${d.number}: Schlussrechnung mit dem Betrag aus orgaMAX übernommen – bitte prüfen, ob die Abschläge darin abgezogen sind (offener Betrag).`)
   // Storno/Gutschrift mit Bezug auf die Rechnung verbinden (Bezugsnummer)
   const allDocs = [...out.documents, ...(existing.documents || [])]
   for (const d of out.documents) {
@@ -1442,7 +1489,7 @@ export function mergeImport(data, result) {
 export function numberingAfterImport(documents, today, { series = {} } = {}) {
   const year = today.slice(0, 4)
   const out = {}
-  for (const kind of ['rechnung', 'angebot', 'auftrag', 'storno', 'korrektur']) {
+  for (const kind of ['rechnung', 'angebot', 'auftrag', 'storno', 'korrektur', 'lieferschein', 'proforma']) {
     // Format aus den übernommenen Belegen; weiterzählen über alle Belege dieses Formats (auch eigene)
     const imported = documents.filter((d) => d.kind === kind && d.number && d.imported).sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.number).localeCompare(String(b.number)))
     if (!imported.length) continue
