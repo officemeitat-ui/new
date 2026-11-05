@@ -311,3 +311,76 @@ test('Prüfsumme alter Belege bleibt gültig (neue Felder zählen nur, wenn gese
   assert.equal(checksumOf({ ...old, reference: '' }), sum)
   assert.notEqual(checksumOf({ ...old, reference: 'B-1' }), sum)
 })
+
+// ---------------------------------------------------------------- Komplettexport aus der orgaMAX-Datenbank (ODBC)
+
+import { dbTableKind, dumpTable, rtfToText } from '../src/core/fak-import.js'
+
+const T = (name, cols, rows, types = {}) => {
+  const csvText = [cols, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n')
+  return dumpTable(csvText, name, cols.map((c) => ({ name: c, type: types[c] || (/^(ID|.*ID|TOTAL.*|PRICE|QUANTITY|AMOUNT|VATRATE|CONTACTTYPE|CUSTKIND|ORDERTYPE|INTERVAL|POSNO)$/.test(c) ? 'Decimal' : 'String') })))
+}
+const DUMP = [
+  T('BAS_CUSTOMERS', ['ID', 'CUSTNO', 'CONTACTTYPE', 'CUSTKIND', 'NAME1', 'FIRSTNAME', 'LASTNAME', 'STREET', 'ZIPCODE', 'CITY', 'COUNTRY', 'PHONE1', 'EMAIL1', 'USTID', 'REMARK'], [
+    [11, '10001', 0, 0, 'Hausverwaltung Mozart GmbH', '', '', 'Getreidegasse 9', '5020', 'Salzburg', 'AT', '0662 1', 'buero@mozart.example', 'ATU33333333', String.raw`{\rtf1\ansi{\fonttbl{\f0 Arial;}}\f0 Schl\'fcssel beim Hausmeister\par Tor 2}`],
+    [12, '70001', 3, 0, 'Reinigungsmittel Großhandel', '', '', 'Industriestr. 1', '4020', 'Linz', 'AT', '', '', '', ''],
+    [13, '10002', 5, 1, '', 'Lisa', 'Brandl', 'Moosstraße 3', '5020', 'Salzburg', 'AT', '', 'lisa@example.at', '', ''],
+  ]),
+  T('BAS_ARTICLES', ['ID', 'ARTNO', 'ARTNAME', 'UNIT', 'SALESPRICE', 'VATRATE'], [[501, 'UR-01', 'Unterhaltsreinigung', 'Monat', 520, 20], [502, 'FR-01', 'Fensterreinigung', 'Std.', 42, 20]]),
+  T('MOV_INVOICES', ['ID', 'INVNO', 'INVDATE', 'CUSTID', 'TOTALNET', 'TOTALVAT', 'TOTALGROSS', 'DUEDATE', 'INTROTEXT'], [
+    [901, '2025-0101', '2025-10-31', 11, 604, 120.8, 724.8, '2025-11-14', String.raw`{\rtf1\ansi Sehr geehrte Damen und Herren,\par f\u252?r unsere Leistungen:}`],
+    [902, '2025-0102', '2025-11-30', 11, 520, 104, 624, '2025-12-14', ''],
+    [903, '2025-0103', '2025-12-01', 11, -42, -8.4, -50.4, '2025-12-01', ''],
+  ], { INVNO: 'String' }),
+  T('MOV_INVOICES_POSITIONS', ['ID', 'INVID', 'POSNO', 'ARTID', 'ARTNAME', 'QUANTITY', 'UNIT', 'PRICE', 'VATRATE', 'TOTALNET'], [
+    [1, 901, 1, 501, '', 1, 'Monat', 520, 20, 520],
+    [2, 901, 2, 502, 'Fensterreinigung Stiegenhaus', 2, 'Std.', 42, 20, 84],
+    [3, 902, 1, 501, 'Unterhaltsreinigung November', 1, 'Monat', 520, 20, 520],
+    [4, 903, 1, 502, 'Gutschrift Fensterreinigung', 1, 'Std.', 42, 20, 42],
+  ]),
+  T('MOV_ORDERS', ['ID', 'ORDERNO', 'ORDERDATE', 'ORDERTYPE', 'CUSTID', 'TOTALNET', 'TOTALGROSS'], [[901, 'AN-77', '2025-09-01', 1, 13, 300, 360], [902, 'AB-12', '2025-09-10', 2, 11, 520, 624]]),
+  T('MOV_ORDERS_POSITIONS', ['ID', 'ORDERID', 'POSNO', 'ARTNAME', 'QUANTITY', 'PRICE', 'VATRATE'], [[1, 901, 1, 'Grundreinigung Wohnung', 1, 300, 20], [2, 902, 1, 'Unterhaltsreinigung lt. Vertrag', 1, 520, 20]]),
+  T('MOV_PAYMENTS', ['ID', 'INVID', 'PAYDATE', 'AMOUNT'], [[1, 901, '2025-11-10', 700], [2, 901, '2025-11-20', 24.8]]),
+  T('MOV_INVOICES_SERIES', ['ID', 'CUSTID', 'CAPTION', 'INTERVAL', 'NEXTDATE'], [[61, 11, 'Unterhalt Mozart', 3, '2026-01-01']]),
+  T('MOV_INVOICES_SERIES_POSITIONS', ['ID', 'SERIESID', 'ARTNAME', 'QUANTITY', 'PRICE', 'VATRATE'], [[1, 61, 'Unterhaltsreinigung (Quartal)', 1, 1500, 20]]),
+  T('SYS_SETTINGS', ['ID', 'KEYNAME', 'KEYVALUE'], [[1, 'x', 'y']]),
+]
+
+test('orgaMAX-Datenbank: Tabellen nach Namen, RTF zu Text, Zahlen als Zahl', () => {
+  assert.deepEqual(DUMP.map((t) => dbTableKind(t.name)), ['customers', 'articles', 'documents', 'lines', 'documents', 'lines', 'payments', 'recurring', 'lines', null])
+  assert.equal(rtfToText(String.raw`{\rtf1\ansi{\fonttbl{\f0 Arial;}}\f0 Schl\'fcssel beim Hausmeister\par Tor 2}`), 'Schlüssel beim Hausmeister\nTor 2')
+  assert.equal(rtfToText('nur Text'), 'nur Text')
+  assert.equal(DUMP[0].rows[0][0], 11, 'Zahl bleibt Zahl')
+  assert.equal(DUMP[0].rows[0][14], 'Schlüssel beim Hausmeister\nTor 2')
+  assert.equal(DUMP[2].rows[0][1], '2025-0101', 'Belegnummer als Text')
+})
+
+test('orgaMAX-Datenbank: Verknüpfungen über interne IDs, Lieferanten weg, Interessent, Zahlungen, Angebot/Auftrag, Abo mit Positionen', () => {
+  const sources = DUMP.filter((t) => dbTableKind(t.name)).map((table) => ({ table, kind: dbTableKind(table.name), map: matchColumns(dbTableKind(table.name), table.columns) }))
+  const r = buildImport(sources, [], { newId, now: NOW })
+  assert.equal(r.skipped.lieferanten, 1)
+  assert.deepEqual(r.customers.map((c) => c.name), ['Hausverwaltung Mozart GmbH', 'Lisa Brandl'])
+  const mozart = r.customers[0]
+  assert.equal(mozart.note, 'Schlüssel beim Hausmeister\nTor 2')
+  const lisa = r.customers[1]
+  assert.deepEqual([lisa.group, lisa.consumer], ['Interessent', true])
+  const by = (no) => r.documents.find((d) => d.number === no)
+  const re = by('2025-0101')
+  assert.deepEqual([re.kind, re.customerId, re.total.gross, re.lines.length, re.lines[0].text, re.lines[0].articleNo], ['rechnung', mozart.id, 724.8, 2, 'Unterhaltsreinigung', 'UR-01'])
+  assert.equal(re.intro, 'Sehr geehrte Damen und Herren,\nfür unsere Leistungen:')
+  assert.deepEqual(re.payments.map((p) => [p.date, p.amount]), [['2025-11-10', 700], ['2025-11-20', 24.8]])
+  assert.equal(by('2025-0102').payments, undefined, 'ohne Zahlung offen')
+  const gs = by('2025-0103')
+  assert.deepEqual([gs.kind, gs.total.gross, gs.lines[0].qty], ['korrektur', -50.4, -1])
+  // gleiche interne ID (901) in MOV_INVOICES und MOV_ORDERS: Positionen gehören zur richtigen Tabelle
+  const an = by('AN-77')
+  assert.deepEqual([an.kind, an.customerId, an.lines.map((l) => l.text)], ['angebot', lisa.id, ['Grundreinigung Wohnung']])
+  assert.deepEqual([by('AB-12').kind, by('AB-12').lines[0].text], ['auftrag', 'Unterhaltsreinigung lt. Vertrag'])
+  const rec = r.recurring[0]
+  assert.deepEqual([rec.title, rec.interval, rec.startMonth, rec.customerId, rec.lines.map((l) => [l.text, l.price])], ['Unterhalt Mozart', 'quartal', '2026-01', mozart.id, [['Unterhaltsreinigung (Quartal)', 1500]]])
+  assert.ok(r.documents.every(intact))
+  // zweite Übernahme in vorhandene Daten: Kunde über die interne ID wiedergefunden, nichts doppelt
+  const { data } = mergeImport(emptyInvoicing(), r)
+  const again = mergeImport(data, buildImport(sources, [], { newId, now: NOW, existing: data }))
+  assert.deepEqual([again.report.customers.added, again.report.documents.added, again.report.recurring.added], [0, 0, 0])
+})

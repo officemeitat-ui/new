@@ -1,0 +1,219 @@
+# orgaMAX-Komplettexport für die Cleanos App
+# ------------------------------------------------------------------------------------------------
+# Liest ALLE Tabellen der orgaMAX-Datenbank über den ODBC-Zugang von orgaMAX (nur lesen, es wird
+# nichts geändert) und packt sie zusammen mit den PDF-Belegen aus dem orgaMAX-Datenordner in eine
+# ZIP-Datei auf dem Desktop. Diese ZIP in der Cleanos App unter Fakturierung → „Aus orgaMAX
+# übernehmen“ hineinziehen.
+#
+# Vorher einmal in orgaMAX: Rechtsklick auf orgaMAX → „Als Administrator ausführen“ →
+# orgaMAX → Einstellungen → „ODBC-Datenbankzugriff einrichten…“ → erweiterten Zugriff (alle
+# Tabellen) wählen. Dafür braucht es den Firebird-ODBC-Treiber (orgaMAX zeigt den Link an).
+#
+# Aufruf: Doppelklick auf orgaMAX-Export.cmd. Optional: -Dsn NAME -User NAME -Password PW
+#         -OhnePdf (ohne PDF-Belege) -Ziel ORDNER -NurStruktur (nur Tabellen- und Spaltennamen)
+# ------------------------------------------------------------------------------------------------
+param([string]$Dsn = '', [string]$User = '', [string]$Password = '', [switch]$OhnePdf, [switch]$NurStruktur, [string]$Ziel = '')
+$ErrorActionPreference = 'Stop'
+$Version = 1
+$inv = [System.Globalization.CultureInfo]::InvariantCulture
+$ansi = [System.Text.Encoding]::GetEncoding(1252)
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+Add-Type -AssemblyName System.Data
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+function Titel($t) { Write-Host ''; Write-Host $t -ForegroundColor Cyan }
+function Info($t) { Write-Host "  $t" }
+function Warnung($t) { Write-Host "  $t" -ForegroundColor Yellow }
+function Ende($code) { Write-Host ''; Read-Host 'Enter drücken zum Schließen' | Out-Null; exit $code }
+
+Titel 'orgaMAX-Komplettexport für die Cleanos App'
+Info 'Es wird nur gelesen. orgaMAX darf dabei offen bleiben.'
+
+# ---------------------------------------------------------------- 1. ODBC-Zugang finden
+$dsns = @()
+try { $dsns = @(Get-OdbcDsn -ErrorAction Stop | Where-Object { $_.DriverName -match 'Firebird|InterBase' }) } catch { $dsns = @() }
+if ($Dsn) { $dsns = @($dsns | Where-Object { $_.Name -eq $Dsn }) + @() ; if (-not $dsns.Count) { $dsns = @([pscustomobject]@{ Name = $Dsn; Platform = ''; DriverName = '' }) } }
+if (-not $dsns.Count) {
+  Warnung 'Kein ODBC-Zugang zu orgaMAX gefunden.'
+  Info 'So richtest du ihn ein (einmalig):'
+  Info '  1. Firebird-ODBC-Treiber installieren (orgaMAX zeigt beim Einrichten den passenden Link).'
+  Info '  2. Rechtsklick auf orgaMAX → „Als Administrator ausführen“.'
+  Info '  3. orgaMAX → Einstellungen → „ODBC-Datenbankzugriff einrichten…“, erweiterten Zugriff wählen.'
+  Info '  4. Danach diese Datei noch einmal starten.'
+  Ende 2
+}
+$pick = $dsns | Where-Object { $_.Name -match 'orga|omx|deltra' } | Select-Object -First 1
+if (-not $pick) { $pick = $dsns[0] }
+if ($dsns.Count -gt 1 -and -not $Dsn) {
+  Titel 'Mehrere ODBC-Zugänge gefunden:'
+  for ($i = 0; $i -lt $dsns.Count; $i++) { Info ("{0}) {1}  ({2}, {3})" -f ($i + 1), $dsns[$i].Name, $dsns[$i].Platform, $dsns[$i].DriverName) }
+  $a = Read-Host ("Welchen verwenden? Nummer, Enter = {0}" -f $pick.Name)
+  if ($a -match '^\d+$' -and [int]$a -ge 1 -and [int]$a -le $dsns.Count) { $pick = $dsns[[int]$a - 1] }
+}
+# 32-Bit-Zugang braucht die 32-Bit-PowerShell
+if ($pick.Platform -match '32' -and [Environment]::Is64BitProcess) {
+  $ps32 = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+  $args32 = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-Dsn', $pick.Name)
+  if ($User) { $args32 += @('-User', $User, '-Password', $Password) }
+  if ($OhnePdf) { $args32 += '-OhnePdf' }
+  if ($NurStruktur) { $args32 += '-NurStruktur' }
+  if ($Ziel) { $args32 += @('-Ziel', $Ziel) }
+  & $ps32 @args32
+  exit $LASTEXITCODE
+}
+Info ("ODBC-Zugang: {0}" -f $pick.Name)
+
+# ---------------------------------------------------------------- 2. Verbinden
+function Verbinden($u, $p) {
+  $cs = "DSN=$($pick.Name);"
+  if ($u) { $cs += "UID=$u;PWD=$p;" }
+  $c = New-Object System.Data.Odbc.OdbcConnection($cs)
+  $c.ConnectionTimeout = 30
+  $c.Open()
+  return $c
+}
+$conn = $null
+try { $conn = Verbinden $User $Password } catch {
+  Warnung ("Anmelden ohne Kennwort ging nicht: {0}" -f $_.Exception.Message)
+  Info 'Benutzer und Kennwort stehen im orgaMAX-Dialog „ODBC-Datenbankzugriff einrichten…“.'
+  $User = Read-Host 'Benutzer'
+  $sec = Read-Host 'Kennwort' -AsSecureString
+  $Password = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+  try { $conn = Verbinden $User $Password } catch { Warnung ("Verbindung fehlgeschlagen: {0}" -f $_.Exception.Message); Ende 3 }
+}
+
+# ---------------------------------------------------------------- 3. Tabellen lesen
+$stamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
+if (-not $Ziel) { $Ziel = [Environment]::GetFolderPath('Desktop') }
+$work = Join-Path $env:TEMP "orgaMAX-Export_$stamp"
+New-Item -ItemType Directory -Force -Path (Join-Path $work 'tabellen') | Out-Null
+$log = New-Object System.Collections.Generic.List[string]
+$tables = @()
+$schema = $conn.GetSchema('Tables')
+foreach ($row in $schema.Rows) {
+  $name = [string]$row['TABLE_NAME']
+  $type = [string]$row['TABLE_TYPE']
+  if ($type -ne 'TABLE' -or $name -match '^(RDB|MON|SEC)\$') { continue }
+  $tables += $name
+}
+$tables = $tables | Sort-Object -Unique
+Titel ("{0} Tabellen gefunden" -f $tables.Count)
+
+function Feld($s) { '"' + ([string]$s).Replace('"', '""') + '"' }
+function Endung($bytes) {
+  if ($bytes.Length -ge 4 -and $bytes[0] -eq 0x25 -and $bytes[1] -eq 0x50 -and $bytes[2] -eq 0x44 -and $bytes[3] -eq 0x46) { return '.pdf' }
+  if ($bytes.Length -ge 4 -and $bytes[0] -eq 0x89 -and $bytes[1] -eq 0x50) { return '.png' }
+  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xD8) { return '.jpg' }
+  if ($bytes.Length -ge 2 -and $bytes[0] -eq 0x50 -and $bytes[1] -eq 0x4B) { return '.zip' }
+  if ($bytes.Length -ge 5 -and $bytes[0] -eq 0x3C -and $bytes[1] -eq 0x3F) { return '.xml' }
+  return ''
+}
+function IstText($bytes) {
+  $n = [Math]::Min($bytes.Length, 4000)
+  for ($i = 0; $i -lt $n; $i++) { if ($bytes[$i] -eq 0) { return $false } }
+  return $true
+}
+
+$manifest = [ordered]@{ format = 'orgamax-db'; version = $Version; created = (Get-Date).ToString('s'); dsn = $pick.Name; tables = @(); pdfs = @() }
+$total = 0
+foreach ($t in $tables) {
+  $cmd = $conn.CreateCommand()
+  $cmd.CommandText = "SELECT * FROM `"$t`""
+  $cmd.CommandTimeout = 0
+  try { $r = $cmd.ExecuteReader() } catch { $log.Add("$t : nicht lesbar ($($_.Exception.Message))"); Warnung ("{0}: nicht lesbar (Rechte?)" -f $t); continue }
+  $cols = @()
+  for ($i = 0; $i -lt $r.FieldCount; $i++) { $cols += [ordered]@{ name = $r.GetName($i); type = $r.GetFieldType($i).Name } }
+  $idCol = -1
+  for ($i = 0; $i -lt $r.FieldCount; $i++) { if ($r.GetName($i) -eq 'ID') { $idCol = $i } }
+  $count = 0
+  if (-not $NurStruktur) {
+    $file = Join-Path $work ("tabellen\{0}.csv" -f $t)
+    $sw = New-Object System.IO.StreamWriter($file, $false, $utf8)
+    $sw.WriteLine((($cols | ForEach-Object { Feld $_.name }) -join ';'))
+    $sb = New-Object System.Text.StringBuilder
+    while ($r.Read()) {
+      $count++
+      [void]$sb.Clear()
+      for ($i = 0; $i -lt $r.FieldCount; $i++) {
+        if ($i) { [void]$sb.Append(';') }
+        if ($r.IsDBNull($i)) { continue }
+        $v = $r.GetValue($i)
+        if ($v -is [DateTime]) { if ($v.TimeOfDay.Ticks -eq 0) { $s = $v.ToString('yyyy-MM-dd', $inv) } else { $s = $v.ToString('yyyy-MM-ddTHH:mm:ss', $inv) } }
+        elseif ($v -is [decimal] -or $v -is [double] -or $v -is [single]) { try { $s = ([decimal]$v).ToString('0.##########', $inv) } catch { $s = ([double]$v).ToString('R', $inv) } }
+        elseif ($v -is [bool]) { $s = if ($v) { '1' } else { '0' } }
+        elseif ($v -is [byte[]]) {
+          $ext = Endung $v
+          if (-not $ext -and (IstText $v)) { $s = $ansi.GetString($v) }
+          else {
+            if (-not $ext) { $ext = '.bin' }
+            $key = if ($idCol -ge 0 -and -not $r.IsDBNull($idCol)) { [string]$r.GetValue($idCol) } else { [string]$count }
+            $rel = "dateien/$t/$key" + "_" + $r.GetName($i) + $ext
+            $abs = Join-Path $work ($rel -replace '/', '\')
+            New-Item -ItemType Directory -Force -Path (Split-Path $abs) | Out-Null
+            [IO.File]::WriteAllBytes($abs, $v)
+            $s = $rel
+          }
+        }
+        else { $s = [Convert]::ToString($v, $inv) }
+        [void]$sb.Append((Feld $s))
+      }
+      $sw.WriteLine($sb.ToString())
+    }
+    $sw.Close()
+  } else { while ($r.Read()) { $count++ } }
+  $r.Close()
+  $total += $count
+  $manifest.tables += [ordered]@{ name = $t; rows = $count; columns = $cols }
+  Info ("{0,-40} {1,8} Zeilen" -f $t, $count)
+}
+$conn.Close()
+
+# ---------------------------------------------------------------- 4. PDF-Belege aus dem Datenordner
+if (-not $OhnePdf -and -not $NurStruktur) {
+  Titel 'PDF-Belege und E-Rechnungen aus dem orgaMAX-Datenordner'
+  $roots = @((Join-Path $env:ProgramData 'Deltra'), 'C:\orgaMAX', (Join-Path $env:PUBLIC 'Documents\orgaMAX'), (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'orgaMAX')) | Where-Object { Test-Path $_ }
+  $seen = @{}
+  $size = 0
+  foreach ($root in $roots) {
+    Get-ChildItem -Path $root -Recurse -File -Include *.pdf, *.xml -ErrorAction SilentlyContinue | ForEach-Object {
+      if ($_.FullName -match '\\(Programm|Program|Vorlagen|Templates|Update|Temp)\\') { return }
+      if ($_.Extension -eq '.xml' -and $_.Length -gt 2MB) { return }
+      $hash = "$($_.Name)|$($_.Length)"
+      if ($seen.ContainsKey($hash)) { return }
+      $seen[$hash] = 1
+      $rel = 'archiv/' + ($_.FullName.Substring($root.Length).TrimStart('\') -replace '\\', '/')
+      $abs = Join-Path $work ($rel -replace '/', '\')
+      New-Item -ItemType Directory -Force -Path (Split-Path $abs) | Out-Null
+      Copy-Item -LiteralPath $_.FullName -Destination $abs
+      $size += $_.Length
+      $manifest.pdfs += $rel
+    }
+  }
+  Info ("{0} Dateien, {1:N0} MB" -f $manifest.pdfs.Count, ($size / 1MB))
+}
+
+# ---------------------------------------------------------------- 5. Packen
+$manifest.rows = $total
+$manifest.log = $log
+[IO.File]::WriteAllText((Join-Path $work '_orgamax.json'), ($manifest | ConvertTo-Json -Depth 6), $utf8)
+# Struktur ohne Inhalte (Tabellen- und Spaltennamen, Zeilenzahl) – darf weitergegeben werden
+$struct = [ordered]@{ format = 'orgamax-struktur'; version = $Version; created = $manifest.created; tables = $manifest.tables }
+$structFile = Join-Path $Ziel "orgaMAX-Struktur_$stamp.json"
+[IO.File]::WriteAllText($structFile, ($struct | ConvertTo-Json -Depth 6), $utf8)
+if ($NurStruktur) {
+  Remove-Item -Recurse -Force $work
+  Titel 'Fertig (nur Struktur, ohne Inhalte):'
+  Info $structFile
+  Ende 0
+}
+$zip = Join-Path $Ziel "orgaMAX-Komplettexport_$stamp.zip"
+if (Test-Path $zip) { Remove-Item $zip }
+[IO.Compression.ZipFile]::CreateFromDirectory($work, $zip, [IO.Compression.CompressionLevel]::Optimal, $false)
+Remove-Item -Recurse -Force $work
+Titel 'Fertig!'
+Info ("{0} Tabellen, {1:N0} Zeilen{2}" -f $manifest.tables.Count, $total, $(if ($manifest.pdfs.Count) { ", $($manifest.pdfs.Count) PDF/XML" } else { '' }))
+Info "Export:   $zip"
+Info "Struktur: $structFile  (ohne Kundendaten)"
+Info 'Die ZIP-Datei (z. B. per USB-Stick) auf einen PC mit der Cleanos App bringen und dort in'
+Info 'Fakturierung → „Aus orgaMAX übernehmen“ hineinziehen. Sie enthält alle Geschäftsdaten: sicher aufbewahren.'
+Ende 0

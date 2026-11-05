@@ -1522,8 +1522,8 @@ Eine Rechnung legst du mit Kunde, Leistungszeitraum und Positionen an (Menge, Ei
 
 Kunden, Artikel, alle Belege mit Positionen und Zahlungen, Textbausteine, Zahlungsbedingungen und Abo-Rechnungen kommen auf einmal aus orgaMAX (Excel, CSV, XML, E-Rechnung oder ZIP). Die App erkennt die Tabellen selbst; du prüfst und übernimmst. Altbelege bleiben, wie sie in orgaMAX stehen.
 
-1. In orgaMAX: Listen & Statistiken → Tabellen-Auswertungen → Neu, Datenquelle wählen (Kunden, Artikel, Vorgänge, Vorgangspositionen, Zahlungen, Textbausteine …), alle Spalten, „Tabelle exportieren“ → Excel. Optional E-Rechnungen und die PDFs aus dem Belegarchiv.
-2. In der App: Fakturierung → „Aus orgaMAX übernehmen“, alle Dateien auf einmal wählen oder hineinziehen.
+1. Am besten der Komplettexport: In der App „Aus orgaMAX übernehmen“ → „Export-Werkzeug herunterladen“, auf den PC mit orgaMAX kopieren, dort einmal den ODBC-Zugang einrichten (orgaMAX → Einstellungen → ODBC-Datenbankzugriff, erweiterter Zugriff) und „orgaMAX-Export.cmd“ doppelklicken. Es liest alle Tabellen nur lesend und legt eine ZIP auf den Desktop.
+2. In der App: Fakturierung → „Aus orgaMAX übernehmen“, die ZIP (oder einzelne Excel-/CSV-Exporte, E-Rechnungen, PDFs) hineinziehen.
 3. „Zuordnung prüfen“: Art jeder Tabelle und die Spalten ansehen, bei Bedarf ändern.
 4. „Ergebnis prüfen“: was neu kommt, was ergänzt wird, Hinweise; Nummernkreise wie in orgaMAX weiterzählen.
 5. „Übernehmen“.

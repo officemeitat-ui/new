@@ -1,0 +1,5 @@
+@echo off
+rem orgaMAX-Komplettexport fuer die Cleanos App (nur lesen, aendert nichts in orgaMAX)
+rem Doppelklick genuegt. Ergebnis: ZIP-Datei auf dem Desktop.
+cd /d "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0orgaMAX-Export.ps1" %*

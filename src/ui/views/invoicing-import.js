@@ -6,7 +6,7 @@
 //  4. Übernehmen: in fakturierung.json, Original-PDFs nach SharePoint (fakturierung/belege/JAHR/…).
 // Rechenkern: core/fak-import.js (getestet).
 
-import { buildImport, detectTable, eInvoiceFromPdf, matchColumns, mergeImport, numberInName, numberingAfterImport, parseEInvoice, SYSTEM, tableFromCsv, tablesFromXml, TARGETS, toTable } from '../../core/fak-import.js'
+import { buildImport, dbTableKind, detectTable, dumpTable, eInvoiceFromPdf, matchColumns, mergeImport, numberInName, numberingAfterImport, parseEInvoice, SYSTEM, tableFromCsv, tablesFromXml, TARGETS, toTable } from '../../core/fak-import.js'
 import { todayISO } from '../../core/dates.js'
 import { archivePath, docFileName, emptyInvoicing, formatNumber, KINDS, settingsOf } from '../../core/invoicing.js'
 import { app, canEdit, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
@@ -20,7 +20,7 @@ const editable = () => canEdit(MODULE) && !app.readOnly
 // Arbeitsstand des Assistenten (nicht im Dialog-Objekt: Tabellen können groß sein)
 let W = null
 const reset = () => {
-  W = { step: 'files', files: [], tables: [], eInvoices: [], pdfs: [], busy: false, result: null, preview: null, numbering: {}, take: {}, open: null }
+  W = { step: 'files', files: [], tables: [], eInvoices: [], pdfs: [], blobs: new Map(), dumpInfo: null, progress: '', busy: false, result: null, preview: null, numbering: {}, take: {}, open: null }
 }
 
 // ---------------------------------------------------------------- Dateien lesen
@@ -80,6 +80,8 @@ async function readFile(name, bytes) {
     if (e === 'zip') {
       await loadScript('vendor/jszip.min.js')
       const zip = await window.JSZip.loadAsync(bytes)
+      const manifestName = Object.keys(zip.files).find((n) => /(^|[\\/])_orgamax\.json$/.test(n))
+      if (manifestName) return readDump(zip, manifestName, entry)
       const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir && !/(^|\/)(__MACOSX|\.)/.test(n))
       entry.found = `${names.length} Dateien im ZIP`
       for (const n of names) await readFile(n.split('/').pop(), new Uint8Array(await zip.files[n].async('uint8array')))
@@ -122,7 +124,7 @@ async function readFile(name, bytes) {
         W.eInvoices.push({ invoice, fileName: name, pdf: bytes })
         entry.found = `ZUGFeRD-Rechnung ${invoice.number}`
       } else {
-        W.pdfs.push({ name, bytes })
+        W.pdfs.push({ name, bytes: bytes.length < 3e6 ? bytes : null, load: async () => bytes })
         entry.found = 'PDF (wird an den Beleg mit passender Nummer angehängt)'
       }
       return
@@ -132,6 +134,108 @@ async function readFile(name, bytes) {
     entry.error = `Nicht lesbar: ${err.message}`
   }
 }
+
+/**
+ * Komplettexport aus dem Export-Werkzeug (orgaMAX-Datenbank über ODBC): _orgamax.json mit Tabellen und Spaltentypen,
+ * tabellen/*.csv, dateien/ (PDFs und Bilder aus der Datenbank), archiv/ (PDFs und E-Rechnungen aus dem Datenordner).
+ */
+async function readDump(zip, manifestName, entry) {
+  const base = manifestName.replace(/_orgamax\.json$/, '')
+  const file = (rel) => zip.file(`${base}${rel}`) || zip.file(`${base}${rel.replace(/\//g, '\\')}`)
+  const manifest = JSON.parse(await zip.files[manifestName].async('string'))
+  W.dumpInfo = { created: manifest.created, tables: manifest.tables?.length || 0, rows: manifest.rows || 0, unreadable: (manifest.log || []).length, dsn: manifest.dsn }
+  let n = 0
+  for (const t of manifest.tables || []) {
+    if (!t.rows) continue
+    const f = file(`tabellen/${t.name}.csv`)
+    if (!f) continue
+    W.progress = `Lese ${t.name} (${++n} von ${manifest.tables.length}) …`
+    renderModal()
+    const table = dumpTable(await f.async('string'), t.name, t.columns || [])
+    const known = dbTableKind(t.name)
+    const d = known ? null : detectTable(table)
+    const kind = known || (d && d.score >= 8 ? d.kind : '')
+    W.tables.push({ id: `t${++tableId}`, table, kind, map: kind ? matchColumns(kind, table.columns) : {}, db: true, known: !!known })
+  }
+  // Dateien aus der Datenbank (z. B. Beleg-PDFs) für später merken
+  for (const name of Object.keys(zip.files)) {
+    const rel = name.slice(base.length).replace(/\\/g, '/')
+    if (/^dateien\//.test(rel)) W.blobs.set(rel, () => zip.files[name].async('uint8array'))
+  }
+  // Archiv: PDFs und E-Rechnungen aus dem orgaMAX-Datenordner
+  const archive = Object.keys(zip.files).filter((name) => /^archiv\//.test(name.slice(base.length).replace(/\\/g, '/')) && /\.(pdf|xml)$/i.test(name))
+  let i = 0
+  for (const name of archive) {
+    W.progress = `Prüfe Archiv ${++i} von ${archive.length} …`
+    if (i % 25 === 0) renderModal()
+    const short = name.split(/[\\/]/).pop()
+    const load = () => zip.files[name].async('uint8array')
+    try {
+      if (/\.xml$/i.test(name)) {
+        const invoice = parseEInvoice(decodeText(await load()))
+        W.eInvoices.push({ invoice, fileName: short })
+      } else {
+        const bytes = await load()
+        const xml = await eInvoiceFromPdf(bytes, inflate).catch(() => null)
+        if (xml) W.eInvoices.push({ invoice: parseEInvoice(xml), fileName: short, pdf: bytes })
+        else W.pdfs.push({ name: short, load })
+      }
+    } catch {
+      /* keine E-Rechnung: bleibt Archiv */
+    }
+  }
+  W.progress = ''
+  const known = W.tables.filter((t) => t.known).length
+  entry.found = `Komplettexport: ${manifest.tables?.length || 0} Tabellen, ${known} erkannt${archive.length ? `, ${archive.length} Archivdateien` : ''}${W.dumpInfo.unreadable ? ` · ${W.dumpInfo.unreadable} Tabellen nicht lesbar (erweiterten ODBC-Zugriff wählen)` : ''}`
+}
+
+/** Export-Werkzeug für den orgaMAX-PC als ZIP (CMD + PowerShell mit BOM und Windows-Zeilenenden + Anleitung). */
+async function downloadTool() {
+  await loadScript('vendor/jszip.min.js')
+  const get = async (f) => (await fetch(`assets/orgamax-export/${f}`)).text()
+  const crlf = (t) => t.replace(/\r?\n/g, '\r\n')
+  const zip = new window.JSZip()
+  zip.file('orgaMAX-Export/orgaMAX-Export.cmd', crlf(await get('orgaMAX-Export.cmd.txt')))
+  zip.file('orgaMAX-Export/orgaMAX-Export.ps1', `﻿${crlf(await get('orgaMAX-Export.ps1.txt'))}`)
+  zip.file('orgaMAX-Export/LIESMICH.txt', `﻿${crlf(TOOL_README)}`)
+  const blob = await zip.generateAsync({ type: 'blob' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'orgaMAX-Export.zip'
+  document.body.append(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+}
+
+const TOOL_README = `orgaMAX-Komplettexport für die Cleanos App
+==========================================
+
+Was es tut: liest ALLE Daten aus orgaMAX (Kunden, Ansprechpartner, Artikel, Rechnungen, Gutschriften,
+Angebote, Aufträge mit allen Positionen, Zahlungen, Mahnstufen, Abo-Rechnungen, Textbausteine,
+Zahlungsbedingungen und alle weiteren Tabellen) über den ODBC-Zugang von orgaMAX. Es wird nur gelesen,
+in orgaMAX ändert sich nichts. Dazu kommen die PDF-Belege und E-Rechnungen aus dem orgaMAX-Datenordner.
+
+Einmalig vorbereiten (auf dem PC mit orgaMAX):
+ 1. Firebird-ODBC-Treiber installieren (orgaMAX zeigt im nächsten Schritt den passenden Link, 32 oder 64 Bit).
+ 2. Rechtsklick auf orgaMAX → „Als Administrator ausführen“.
+ 3. orgaMAX → Einstellungen → „ODBC-Datenbankzugriff einrichten…“ → den ERWEITERTEN Zugriff
+    (Lesezugriff auf alle Tabellen) wählen und speichern. Benutzer und Kennwort von dort notieren.
+
+Export:
+ 4. Diesen Ordner auf den orgaMAX-PC kopieren (z. B. Desktop), Doppelklick auf „orgaMAX-Export.cmd“.
+    Fragt Windows nach („Der Computer wurde durch Windows geschützt“): „Weitere Informationen“ → „Trotzdem ausführen“.
+ 5. Fragt das Fenster nach Benutzer und Kennwort: die aus Schritt 3 eingeben.
+ 6. Nach ein paar Minuten liegt auf dem Desktop „orgaMAX-Komplettexport_DATUM.zip“
+    und „orgaMAX-Struktur_DATUM.json“ (nur Tabellen- und Spaltennamen, ohne Kundendaten).
+
+Übernehmen:
+ 7. Die ZIP (z. B. per USB-Stick) auf einen PC mit der Cleanos App bringen.
+ 8. Cleanos App → Fakturierung → „Aus orgaMAX übernehmen“ → ZIP hineinziehen → prüfen → „Übernehmen“.
+
+Die ZIP enthält alle Geschäftsdaten: sicher aufbewahren und nach der Übernahme löschen oder verschlüsselt archivieren.
+Die Struktur-Datei enthält keine Kundendaten und darf zur Abstimmung an den Entwickler der App.
+`
 
 let tableId = 0
 function addTables(tables) {
@@ -155,11 +259,16 @@ function analyse() {
     const doc = result.documents.find((x) => x.number === e.invoice.number)
     if (doc) W.uploads.push({ doc, name: e.fileName, bytes: e.pdf })
   }
+  // PDF aus der Datenbank (Komplettexport): Spalte mit „dateien/…pdf“ am Beleg
+  for (const doc of result.documents) {
+    const path = Object.values(doc.extra || {}).find((x) => /^dateien\/.+\.pdf$/i.test(String(x)))
+    if (path && W.blobs.has(path) && !W.uploads.some((u) => u.doc === doc)) W.uploads.push({ doc, name: path.split('/').pop(), load: W.blobs.get(path) })
+  }
   W.unmatched = []
   for (const p of W.pdfs) {
     const no = numberInName(p.name, numbers)
     const doc = no && result.documents.find((x) => x.number === no)
-    if (doc && !W.uploads.some((u) => u.doc === doc)) W.uploads.push({ doc, name: p.name, bytes: p.bytes })
+    if (doc && !W.uploads.some((u) => u.doc === doc)) W.uploads.push({ doc, name: p.name, bytes: p.bytes, load: p.load })
     else W.unmatched.push(p.name)
   }
   // nur mit SharePoint gibt es eine Ablage für die Original-PDFs
@@ -181,10 +290,13 @@ async function apply() {
   if (app.store?.kind === 'sharepoint') {
     for (const u of W.uploads) {
       try {
-        const up = await app.store.upload(u.doc.original.path, new Blob([u.bytes], { type: 'application/pdf' }), 'application/pdf')
+        W.progress = `Lege PDF ${++uploaded} von ${W.uploads.length} ab …`
+        renderModal()
+        const bytes = u.bytes || (await u.load())
+        const up = await app.store.upload(u.doc.original.path, new Blob([bytes], { type: 'application/pdf' }), 'application/pdf')
         u.doc.original.url = up?.webUrl || ''
-        uploaded++
       } catch (err) {
+        uploaded--
         delete u.doc.original
         toast(`PDF ${u.name} nicht abgelegt: ${err.message}`)
       }
@@ -220,6 +332,8 @@ const KIND_OPTIONS = [['', '– nicht übernehmen –'], ...Object.entries(TARGE
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
 const HOWTO = `<details class="fim-howto" open><summary>So holst du die Daten aus orgaMAX</summary>
+  <div class="fim-tool"><p><strong>Empfohlen: Komplettexport.</strong> Ein kleines Werkzeug für den PC mit orgaMAX liest <em>alle</em> Daten über den ODBC-Zugang von orgaMAX (nur lesen) und packt sie mit den PDF-Belegen in eine ZIP – die ziehst du dann hier herein. Anleitung liegt bei.</p><button class="btn small" data-action="fim-tool">${ICON.download || ''} Export-Werkzeug herunterladen</button></div>
+  <p class="muted">Oder einzeln:</p>
   <ol>
     <li><strong>Tabellen:</strong> in orgaMAX <em>Listen &amp; Statistiken → Tabellen-Auswertungen → Neu</em>, als Datenquelle nacheinander <em>Kunden</em>, <em>Ansprechpartner</em>, <em>Artikel</em>, <em>Vorgänge</em> (Rechnungen, Angebote, Gutschriften), <em>Vorgangspositionen</em>, <em>Zahlungen</em>, <em>Abo-Rechnungen</em>, <em>Textbausteine</em> und <em>Zahlungsbedingungen</em> wählen, alle Spalten anhaken, dann <em>Tabelle exportieren (F4)</em> → Excel. Alternativ in jeder Übersicht <em>Ansicht → Tabelle exportieren</em>.</li>
     <li><strong>E-Rechnungen</strong> (XRechnung/ZUGFeRD, XML oder PDF) bringen jede Rechnung samt Positionen mit.</li>
@@ -236,7 +350,7 @@ function filesStep() {
     subtitle: 'Kunden, Artikel, Belege, Zahlungen, Textbausteine und mehr',
     body: `${HOWTO}
       <label class="fim-drop" data-drop="fim"><input type="file" id="fim-file" multiple accept=".xlsx,.xlsm,.xls,.csv,.txt,.tsv,.xml,.pdf,.zip" data-change="fim-files"><span>${ICON.download || ''}<strong>Dateien wählen</strong> oder hierher ziehen</span><small class="muted">Excel, CSV, XML, PDF oder ZIP – mehrere auf einmal</small></label>
-      ${W.busy ? '<p class="muted">Lese Dateien …</p>' : list}`,
+      ${W.busy ? `<p class="muted">${esc(W.progress || 'Lese Dateien …')}</p>${list}` : list}`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions">${W.files.length ? '<button class="btn" data-action="fim-reset">Neu beginnen</button>' : ''}<button class="btn primary" data-action="fim-to-map" ${W.tables.length || W.eInvoices.length ? '' : 'disabled'}>Weiter: Zuordnung prüfen</button></div>`,
   }
 }
@@ -247,7 +361,9 @@ function sample(t, i) {
 }
 
 function mapStep() {
-  const cards = W.tables
+  const shown = W.tables.filter((t) => !t.db || t.kind)
+  const hidden = W.tables.filter((t) => t.db && !t.kind)
+  const cards = shown
     .map((t) => {
       const fields = t.kind ? Object.entries(TARGETS[t.kind].fields) : []
       const open = W.open === t.id
@@ -265,12 +381,17 @@ function mapStep() {
       </section>`
     })
     .join('')
+  const rest = hidden.length
+    ? `<details class="fim-card fim-rest"><summary>${plural(hidden.length, 'weitere Tabelle', 'weitere Tabellen')} aus der Datenbank – werden nicht übernommen</summary><div class="fim-rest-list">${hidden
+        .map((t) => `<label class="field inline"><span>${esc(t.table.name)} <small class="muted">${t.table.rows.length}</small></span><select data-change="fim-kind" data-id="${t.id}">${options(KIND_OPTIONS, t.kind)}</select></label>`)
+        .join('')}</div></details>`
+    : ''
   const einv = W.eInvoices.length ? `<section class="fim-card"><header><div><strong>E-Rechnungen</strong> <span class="muted">${W.eInvoices.length} Belege mit Positionen</span></div></header><p class="muted">${esc(W.eInvoices.slice(0, 8).map((e) => e.invoice.number).join(', '))}${W.eInvoices.length > 8 ? ' …' : ''}</p></section>` : ''
   const pdfs = W.pdfs.length ? `<section class="fim-card"><header><div><strong>PDF-Belege</strong> <span class="muted">${W.pdfs.length} Dateien</span></div></header><p class="muted">Werden beim nächsten Schritt den Belegen mit passender Nummer zugeordnet.</p></section>` : ''
   return {
     title: 'Zuordnung prüfen',
     subtitle: 'Art jeder Tabelle und welche Spalte wohin gehört',
-    body: `${cards}${einv}${pdfs}`,
+    body: `${W.dumpInfo ? `<p class="note">Komplettexport vom ${esc(String(W.dumpInfo.created || '').slice(0, 10).split('-').reverse().join('.'))}: ${W.dumpInfo.tables} Tabellen, ${W.dumpInfo.rows.toLocaleString('de-AT')} Zeilen.${W.dumpInfo.unreadable ? ` <strong>${W.dumpInfo.unreadable} Tabellen waren nicht lesbar</strong> – in orgaMAX beim ODBC-Zugang den erweiterten Zugriff wählen und neu exportieren.` : ''}</p>` : ''}${cards}${rest}${einv}${pdfs}`,
     foot: `<button class="btn" data-action="fim-step" data-step="files">Zurück</button><div class="actions"><button class="btn primary" data-action="fim-check">Weiter: Ergebnis prüfen</button></div>`,
   }
 }
@@ -349,6 +470,7 @@ registerActions({
     openModal({ type: 'fak-import' })
   },
   'fim-files': (el) => takeFiles([...(el.files || [])]),
+  'fim-tool': () => downloadTool().catch((err) => toast(`Download nicht möglich: ${err.message}`)),
   'fim-reset': () => {
     reset()
     renderModal()

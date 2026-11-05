@@ -2036,6 +2036,11 @@ tr.muted td { color: var(--muted); }
 .fim-map td, .fim-map th { vertical-align: middle; }
 .fim-map select { max-width: 100%; }
 .fim-numbering { display: grid; gap: 6px; }
+.fim-tool { display: grid; gap: 8px; justify-items: start; margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.fim-tool p { margin: 0; }
+.fim-rest > summary { cursor: pointer; font-weight: 600; }
+.fim-rest-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; margin-top: 8px; max-height: 340px; overflow: auto; }
+.fim-rest-list .field span { overflow-wrap: anywhere; }
 .fim-notes { margin-top: 10px; }
 .fim-notes > summary { cursor: pointer; font-weight: 600; }
 .fim-notes ul { margin: 6px 0 0; padding-left: 18px; font-size: 0.88rem; max-height: 260px; overflow: auto; }

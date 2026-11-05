@@ -247,7 +247,7 @@ lazy(BUERO, {
     fak-pay-del fak-remind-open fak-remind fak-mail-open fak-mail-send fak-run fak-idx-add fak-idx-del fak-rec-open fak-rec-line-add fak-rec-save
     fak-rec-del fak-cust-open fak-cust-save fak-cust-del fak-cust-from-objects fak-art-open fak-art-save fak-art-del fak-art-starter
     fak-settings-save fak-proof-open fak-proof-month fak-proof-create fak-import-open fim-files fim-reset fim-step fim-to-map fim-kind fim-col fim-open
-    fim-check fim-take fim-apply`,
+    fim-check fim-take fim-apply fim-tool`,
   hints: true,
   todo: ['fakturierung'],
 })

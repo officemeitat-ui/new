@@ -277,7 +277,7 @@ test('Themen: jede Ansicht des Menüs hat mindestens ein Thema', () => {
 // ---------------------------------------------------------------- Schreibweise
 
 const allText = (t) => [t.title, t.answer, ...(t.steps || []), ...(t.tips || []), t.roles || '', t.action?.label || '', ...t.q]
-const ACRONYMS = new Set(['PDF', 'CSV', 'ZIP', 'IBAN', 'UID', 'AZG', 'ARG', 'KJBG', 'KFG', 'DOT', 'BMD', 'RZL', 'VPI', 'JSON', 'PHP', 'HTTPS', 'NFC', 'XML', 'GPS', 'SMS', 'ELBA', 'BAWAG', 'WKO', 'ASVG', 'DSGVO', 'API', 'EPC', 'URL'])
+const ACRONYMS = new Set(['PDF', 'CSV', 'ZIP', 'IBAN', 'UID', 'AZG', 'ARG', 'KJBG', 'KFG', 'DOT', 'BMD', 'RZL', 'VPI', 'JSON', 'PHP', 'HTTPS', 'NFC', 'XML', 'GPS', 'SMS', 'ELBA', 'BAWAG', 'WKO', 'ASVG', 'DSGVO', 'API', 'EPC', 'URL', 'ODBC'])
 
 test('Schreibweise: keine Wörter nur in Großbuchstaben (außer Abkürzungen), keine Emoji', () => {
   const texts = [...TOPICS.flatMap(allText), ...GLOSSARY.flatMap((g) => [g.term, g.text])]

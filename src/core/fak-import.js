@@ -216,17 +216,132 @@ export const TARGETS = {
   },
 }
 
+// Spalten der orgaMAX-Datenbank (Komplettexport über ODBC, Tabellen BAS_* und MOV_*): Namen wie in der Datenbank,
+// dazu interne IDs, über die die Tabellen verknüpft sind (MOV_INVOICES.CUSTID → BAS_CUSTOMERS.ID, Positionen über die
+// ID des Belegs, Zahlungen über INVID). Was hier fehlt, lässt sich in der Zuordnung von Hand setzen.
+const REF_LABELS = { srcId: 'Interne ID', customerRef: 'Kunde (interne ID)', docRef: 'Beleg (interne ID)', artRef: 'Artikel (interne ID)', contactType: 'Kontaktart (Kunde/Lieferant)', custKind: 'Firma oder privat', orderType: 'Belegtyp (Nummer)' }
+const DB_ALIASES = {
+  customers: {
+    srcId: ['id'], customerNo: ['custno'], name: ['name1', 'company', 'firm'], name2: ['name2', 'name3'], street: ['street1'], zip: ['zipcode'], city: ['town'], country: ['countryid', 'countrycode', 'countryiso'],
+    phone: ['phone1', 'tel1', 'telephone', 'phonebusiness'], mobile: ['mobilephone', 'cellphone', 'phonemobile'], fax: ['fax1'], email: ['email1', 'mail1'], web: ['internet', 'homepage'],
+    uid: ['vatno', 'taxid', 'ustidno'], discount: ['rebate'], paymentDays: ['payterm', 'netdays', 'termofpayment'], note: ['remark', 'remarks', 'notes'], contactType: ['contacttype'], custKind: ['custkind'],
+    firstName: ['prename'], salutation: ['salut'], group: ['custgroup', 'customergroup', 'groupname'],
+  },
+  contacts: { customerRef: ['custid', 'customerid'], firstName: ['firstname', 'prename'], lastName: ['lastname', 'surname'], role: ['function', 'department'], email: ['email1'], phone: ['phone1', 'tel1'] },
+  articles: { srcId: ['id'], articleNo: ['artno', 'articleno', 'artnr'], name: ['artname', 'shorttext', 'caption'], longText: ['longtext', 'description2', 'memo'], unit: ['unitname'], price: ['salesprice', 'price1', 'vkprice', 'netprice'], priceGross: ['grossprice'], vat: ['vatrate', 'taxrate', 'vatpercent'], cost: ['purchprice', 'purchaseprice', 'ekprice'], group: ['artgroup', 'articlegroup', 'groupname'], blocked: ['inactive', 'locked', 'disabled'] },
+  documents: {
+    srcId: ['id'], customerRef: ['custid', 'customerid', 'addressid'], number: ['invno', 'orderno', 'docno', 'movno'], date: ['invdate', 'orderdate', 'docdate', 'movdate'], dueDate: ['duedate', 'paymentduedate'],
+    net: ['totalnet', 'netamount', 'sumnet'], vatAmount: ['totalvat', 'totaltax', 'sumvat'], gross: ['totalgross', 'grossamount', 'sumgross'], paid: ['paidamount', 'totalpaid'], open: ['openamount', 'remainder'],
+    paidDate: ['paiddate', 'paymentdate'], title: ['subject', 'caption', 'headline'], intro: ['introtext', 'headtext', 'pretext', 'textbefore'], outro: ['footertext', 'posttext', 'closingtext', 'textafter'],
+    orderType: ['ordertype', 'invtype', 'movtype', 'doctype'], serviceFrom: ['servicedate', 'performancedate', 'deliverydate', 'servicefrom'], serviceTo: ['serviceto', 'serviceuntil'], reminderLevel: ['dunlevel', 'reminderlevel', 'dunninglevel'], lastReminder: ['dundate', 'lastdunning'],
+    reference: ['custreference', 'yourreference', 'custorderno'], refNumber: ['refinvno', 'originalinvno'],
+  },
+  lines: { docRef: ['invid', 'orderid', 'seriesid', 'parentid', 'headid', 'docid', 'movid'], artRef: ['artid', 'articleid'], pos: ['posno', 'sortno', 'lineno', 'posnr'], text: ['artname', 'shorttext', 'caption'], longText: ['longtext', 'description2'], qty: ['quantity', 'amount'], unit: ['unitname'], price: ['unitprice', 'singleprice', 'netprice', 'pricenet'], discount: ['rebate'], vat: ['vatrate', 'taxrate', 'vatpercent'], net: ['totalnet', 'linenet', 'sumnet'] },
+  payments: { docRef: ['invid', 'invoiceid'], date: ['paydate', 'paymentdate', 'bookdate', 'valuedate'], amount: ['payamount', 'value', 'paid'], skonto: ['cashdiscount', 'discountamount'], note: ['remark', 'paymenttext'] },
+  textBlocks: { name: ['caption', 'shortname'], kind: ['doctype', 'movtype'], place: ['texttype'], text: ['blocktext', 'memo', 'textcontent'] },
+  paymentTerms: { name: ['caption', 'shortname'], days: ['netdays', 'payterm', 'days1'], skontoPercent: ['discount1', 'skonto1', 'cashdiscount', 'discountpercent'], skontoDays: ['discountdays', 'discountdays1', 'skontodays1', 'cashdiscountdays'], text: ['printtext', 'description'] },
+  recurring: { srcId: ['id'], customerRef: ['custid', 'customerid'], interval: ['period', 'cycle', 'frequency', 'intervalmonths'], start: ['nextdate', 'nextinvoice', 'nextinvoicedate', 'startdate', 'begindate'], end: ['enddate', 'validuntil'], title: ['caption', 'subject', 'name'], active: ['isactive', 'enabled'] },
+}
+for (const [kind, fields] of Object.entries(DB_ALIASES)) {
+  for (const [field, list] of Object.entries(fields)) {
+    const t = TARGETS[kind].fields
+    t[field] ||= [REF_LABELS[field] || field]
+    for (const a of list) if (!t[field].includes(a)) t[field].push(a)
+  }
+}
+
+/** Bekannte Tabellen der orgaMAX-Datenbank → Ziel; null = unbekannt (dann über die Spalten erkennen). */
+export function dbTableKind(name) {
+  const n = String(name || '').toUpperCase()
+  if (/^BAS_CUSTOMERS$/.test(n)) return 'customers'
+  if (/CONTACTPERS|CONTACT_PERS|ANSPRECH/.test(n)) return 'contacts'
+  if (/^BAS_ARTICLES$/.test(n)) return 'articles'
+  if (/^MOV_(INVOICES|ORDERS)$/.test(n)) return 'documents'
+  if (/^MOV_INVOICES_SERIES$/.test(n)) return 'recurring'
+  if (/^MOV_(INVOICES|ORDERS|INVOICES_SERIES)_?POS(ITIONS)?$/.test(n)) return 'lines'
+  if (/^MOV_PAYMENTS$/.test(n)) return 'payments'
+  if (/TEXTBLOCK|TEXTBAUSTEIN|TEXTMODUL|STANDARDTEXT|^BAS_TEXTS?$/.test(n)) return 'textBlocks'
+  if (/PAYMENTCOND|PAYMENTTERM|PAYCOND|ZAHLUNGSBED|TERMSOFPAYMENT/.test(n)) return 'paymentTerms'
+  return null
+}
+
+/** RTF (Texte aus Windows-Programmen) → einfacher Text mit Zeilenumbrüchen. */
+export function rtfToText(rtf) {
+  const s = String(rtf || '')
+  if (!/^\s*\{\\rtf/.test(s)) return s
+  let out = ''
+  let depth = 0
+  const skip = []
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]
+    if (ch === '{') {
+      depth++
+      // Gruppen ohne sichtbaren Text: Schriften, Farben, Stile, \* …
+      const head = s.slice(i + 1, i + 14)
+      if (/^\\(\*|fonttbl|colortbl|stylesheet|info|pict|header|footer|listtable|listoverridetable|generator|themedata|latentstyles|rsidtbl|xmlnstbl|mmathPr)/.test(head)) skip.push(depth)
+      continue
+    }
+    if (ch === '}') {
+      if (skip.at(-1) === depth) skip.pop()
+      depth--
+      continue
+    }
+    if (skip.length) {
+      if (ch === '\\') i++
+      continue
+    }
+    if (ch === '\\') {
+      const m = /^\\([a-zA-Z]+)(-?\d+)? ?|^\\'([0-9a-fA-F]{2})|^\\([\\{}~_-])/.exec(s.slice(i, i + 40))
+      if (!m) continue
+      i += m[0].length - 1
+      if (m[3]) out += new TextDecoder('windows-1252').decode(new Uint8Array([parseInt(m[3], 16)]))
+      else if (m[4]) out += m[4] === '~' ? ' ' : m[4] === '_' || m[4] === '-' ? '-' : m[4]
+      else if (m[1] === 'par' || m[1] === 'line') out += '\n'
+      else if (m[1] === 'tab') out += '\t'
+      else if (m[1] === 'u' && m[2]) {
+        out += String.fromCharCode(Number(m[2]) < 0 ? Number(m[2]) + 65536 : Number(m[2]))
+        if (s[i + 1] === '?') i++
+      }
+      continue
+    }
+    if (ch === '\r' || ch === '\n') continue
+    out += ch
+  }
+  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/**
+ * Tabelle aus dem Komplettexport (CSV mit Semikolon, Zahlen mit Punkt, Datum ISO) mit Spaltentypen aus _orgamax.json
+ * → { name, columns, rows, db: true } mit echten Zahlen und Texten ohne RTF.
+ */
+export function dumpTable(csvText, name, meta = []) {
+  const { rows } = parseCsvRows(csvText, ';')
+  const [head = [], ...body] = rows
+  const types = head.map((h) => meta.find((c) => c.name === h)?.type || 'String')
+  const conv = (v, type) => {
+    if (v === '' || v == null) return ''
+    if (/Int|Decimal|Double|Single|Byte/.test(type)) {
+      const n = Number(v)
+      return Number.isFinite(n) ? n : v
+    }
+    if (type === 'Boolean') return v === '1' || /^true$/i.test(v)
+    if (/^\s*\{\\rtf/.test(v)) return rtfToText(v)
+    return v
+  }
+  return { name, columns: head, rows: body.map((r) => head.map((_, i) => conv(r[i], types[i]))), db: true }
+}
+
 /** Pflichtfelder je Ziel (mindestens eine Spalte je Gruppe), sonst passt die Tabelle nicht. */
 const REQUIRED = {
   customers: [['name', 'lastName'], ['customerNo', 'street', 'zip', 'city', 'email', 'phone']],
-  contacts: [['customerNo', 'customerName'], ['lastName', 'name'], ['role', 'email', 'phone', 'mobile']],
+  contacts: [['customerNo', 'customerName', 'customerRef'], ['lastName', 'name'], ['role', 'email', 'phone', 'mobile']],
   articles: [['name', 'articleNo'], ['price', 'priceGross']],
   documents: [['number'], ['date'], ['gross', 'net', 'open']],
-  lines: [['docNumber'], ['text', 'articleNo'], ['qty', 'price', 'net']],
-  payments: [['docNumber'], ['amount'], ['date']],
+  lines: [['docNumber', 'docRef'], ['text', 'articleNo', 'artRef'], ['qty', 'price', 'net']],
+  payments: [['docNumber', 'docRef'], ['amount'], ['date']],
   textBlocks: [['text'], ['name', 'kind', 'place']],
   paymentTerms: [['name'], ['days', 'skontoPercent']],
-  recurring: [['interval'], ['customerNo', 'customerName'], ['price', 'text', 'title']],
+  recurring: [['interval'], ['customerNo', 'customerName', 'customerRef'], ['price', 'text', 'title']],
 }
 /** Diese Spalten sprechen gegen das Ziel (z. B. Positionen haben Menge, Zahlungen nicht). */
 const AGAINST = {
@@ -513,8 +628,9 @@ function customerFrom(table, row, map, newId) {
     contacts: has(v('contact')) ? [{ id: newId('cp'), name: str(v('contact')), role: '', email: '', phone: '' }] : [],
     extra,
     termsName: str(v('terms')),
-    source: { system: SYSTEM, id: str(v('customerNo')) },
+    source: { system: SYSTEM, id: str(v('customerNo')), ...(has(v('srcId')) ? { dbId: str(v('srcId')) } : {}) },
   }
+  if (has(v('custKind'))) c.consumer = String(v('custKind')).trim() === '1'
   // nicht gesetzte Felder weglassen (Datei bleibt klein)
   for (const k of Object.keys(c)) if (c[k] === '' && !['name', 'customerNo'].includes(k)) delete c[k]
   if (c.name !== name) c.name = name
@@ -539,7 +655,7 @@ function articleFrom(table, row, map, newId) {
     group: str(v('group')),
     active: has(v('blocked')) ? !yes(v('blocked')) : has(v('active')) ? yes(v('active')) : true,
     extra: extraOf(table, row, map),
-    source: { system: SYSTEM, id: str(v('articleNo')) },
+    source: { system: SYSTEM, id: str(v('articleNo')), ...(has(v('srcId')) ? { dbId: str(v('srcId')) } : {}) },
   }
   for (const k of ['longText', 'cost', 'group', 'articleNo']) if (a[k] === '') delete a[k]
   return a
@@ -569,7 +685,10 @@ const INTERVAL_TEXT = [
   [/jaehrlich|jahr|12monat|annual|year/, 'jahr'],
   [/monat|monthly|month/, 'monat'],
 ]
-export const intervalOf = (v) => INTERVAL_TEXT.find(([re]) => re.test(norm(v)))?.[1] || 'monat'
+export const intervalOf = (v) => {
+  if (typeof v === 'number' || /^\d+$/.test(String(v ?? '').trim())) return { 3: 'quartal', 6: 'halbjahr', 12: 'jahr' }[Number(v)] || 'monat'
+  return INTERVAL_TEXT.find(([re]) => re.test(norm(v)))?.[1] || 'monat'
+}
 
 // ---------------------------------------------------------------- E-Rechnung (CII / UBL)
 
@@ -806,19 +925,33 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
   const now = opts.now || new Date().toISOString()
   const existing = opts.existing || {}
   const warnings = []
-  const skipped = { lieferscheine: 0, ohneNummer: 0, leer: 0 }
+  const skipped = { lieferscheine: 0, ohneNummer: 0, leer: 0, lieferanten: 0 }
   const out = { customers: [], articles: [], documents: [], textBlocks: [], paymentTerms: [], recurring: [], warnings, skipped }
   const of = (kind) => sources.filter((s) => s.kind === kind)
 
   // Kunden und Ansprechpartner
   for (const s of of('customers')) for (const row of s.table.rows) {
+    // orgaMAX: Kunden, Lieferanten und Interessenten in einer Tabelle (CONTACTTYPE 0 / 3 / 5)
+    const type = String(rowValue(row, s.map, 'contactType') ?? '').trim()
+    if (type === '3') {
+      skipped.lieferanten++
+      continue
+    }
     const c = customerFrom(s.table, row, s.map, newId)
-    if (c) out.customers.push(c)
-    else skipped.leer++
+    if (!c) {
+      skipped.leer++
+      continue
+    }
+    if (type === '5' && !c.group) c.group = 'Interessent'
+    out.customers.push(c)
   }
   const allCustomers = () => [...out.customers, ...(existing.customers || [])]
-  const findCustomer = ({ no, name }) => {
+  const findCustomer = ({ no, name, ref }) => {
     const list = allCustomers()
+    if (has(ref)) {
+      const hit = list.find((c) => c.source?.dbId != null && c.source.dbId === String(ref).trim())
+      if (hit) return hit
+    }
     if (has(no)) {
       const hit = list.find((c) => String(c.customerNo) === String(no).trim())
       if (hit) return hit
@@ -828,7 +961,7 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
   }
   for (const s of of('contacts')) for (const row of s.table.rows) {
     const v = (f) => rowValue(row, s.map, f)
-    const cust = findCustomer({ no: v('customerNo'), name: v('customerName') })
+    const cust = findCustomer({ no: v('customerNo'), name: v('customerName'), ref: v('customerRef') })
     const name = [str(v('salutation')), str(v('firstName')), str(v('lastName'))].filter(Boolean).join(' ') || str(v('name'))
     if (!cust || !name) {
       skipped.leer++
@@ -868,23 +1001,30 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     delete c.termsName
   }
 
-  // Positionen je Belegnummer
+  // Positionen: mit Belegnummer oder (Datenbank) mit der internen ID des Belegs; zugeordnet nach den Köpfen
   const linesByDoc = new Map()
+  const rawLines = []
+  const articlesByDbId = new Map([...(existing.articles || []), ...out.articles].filter((a) => a.source?.dbId != null).map((a) => [a.source.dbId, a]))
   for (const s of of('lines')) for (const row of s.table.rows) {
     const v = (f) => rowValue(row, s.map, f)
     const no = str(v('docNumber'))
-    if (!no) continue
+    const ref = str(v('docRef'))
+    if (!no && !ref) continue
     const qty = has(v('qty')) ? money(v('qty')) : 1
     const net = has(v('net')) ? money(v('net')) : null
     const discount = has(v('discount')) ? money(v('discount')) : 0
     const price = has(v('price')) ? money(v('price')) : net != null && qty ? round2(net / qty / (1 - discount / 100 || 1)) : 0
     const line = { pos: Number(money(v('pos'))) || 0, articleNo: str(v('articleNo')), text: str(v('text')), longText: str(v('longText')), qty, unit: unitOf(v('unit')), price, discount, vat: has(v('vat')) ? vatOf(v('vat')) : null, net, kind: str(v('docKind')) }
+    const art = has(v('artRef')) ? articlesByDbId.get(str(v('artRef'))) : null
+    if (art && !line.articleNo && art.articleNo) line.articleNo = art.articleNo
+    if (!line.text && art) line.text = art.name
     if (!line.text && line.articleNo) line.text = [...out.articles, ...(existing.articles || [])].find((a) => a.articleNo === line.articleNo)?.name || line.articleNo
     if (!line.text && !line.price && !net) continue
-    const key = norm(no)
-    line.docNumber = no
-    linesByDoc.set(key, [...(linesByDoc.get(key) || []), line])
+    rawLines.push({ line, no, ref, table: s.table.name || '' })
   }
+  /** Kopf-Tabelle zu einer Positionstabelle: die längste, mit deren Namen sie beginnt (MOV_INVOICES_POSITIONS → MOV_INVOICES). */
+  const headTables = [...of('documents'), ...of('recurring')].map((x) => x.table.name || '')
+  const headFor = (table) => headTables.filter((h) => h && table.toUpperCase().startsWith(h.toUpperCase())).sort((a, b) => b.length - a.length)[0] || ''
 
   // Belegköpfe
   const objects = opts.objects || []
@@ -896,13 +1036,16 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
       skipped.ohneNummer++
       continue
     }
-    const kind = kindOf({ text: str(v('kind')), number, tableName: s.table.name })
+    // orgaMAX MOV_ORDERS: ORDERTYPE 1 = Angebot, 2 = Auftrag
+    const orderType = has(v('orderType')) && /ORDER/i.test(s.table.name || '') ? String(v('orderType')).trim() : ''
+    let kind = orderType ? { 1: 'angebot', 2: 'auftrag' }[orderType] || '' : kindOf({ text: str(v('kind')), number, tableName: s.table.name })
+    if (kind === 'rechnung' && has(v('gross')) && money(v('gross')) < 0) kind = 'korrektur'
     if (!kind) {
       skipped.lieferscheine++
       continue
     }
     const date = parseDateLoose(v('date'))
-    const cust = findCustomer({ no: v('customerNo'), name: v('customerName') })
+    const cust = findCustomer({ no: v('customerNo'), name: v('customerName'), ref: v('customerRef') })
     const recipientAddress = composeAddress({ street: str(v('street')), zip: str(v('zip')), city: str(v('city')), country: countryCode(v('country')) || 'AT' })
     const recipient = cust
       ? { name: cust.name, address: composeAddress(cust), uid: cust.uid || '', email: cust.email || '', customerNo: cust.customerNo || '', consumer: !!cust.consumer }
@@ -938,7 +1081,41 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
       lastReminder: parseDateLoose(v('lastReminder')),
       objectId: obj?.id || '',
       extra: extraOf(s.table, row, s.map),
+      srcId: str(v('srcId')),
+      srcTable: s.table.name || '',
     })
+  }
+  // Positionen den Belegen zuordnen
+  const byDbId = new Map(docs.filter((d) => d.srcId).map((d) => [`${d.srcTable}|${d.srcId}`, d]))
+  for (const r of rawLines) {
+    let no = r.no
+    if (!no && r.ref) {
+      const head = headFor(r.table)
+      const d = head ? byDbId.get(`${head}|${r.ref}`) : docs.find((x) => x.srcId === r.ref)
+      no = d?.number || ''
+      if (!no) {
+        if (!head || !of('recurring').some((x) => x.table.name === head)) warnings.push(`Position ohne Beleg (interne ID ${r.ref} in ${r.table || 'Positionen'}) – nicht übernommen.`)
+        continue
+      }
+    }
+    const key = norm(no)
+    r.line.docNumber = no
+    linesByDoc.set(key, [...(linesByDoc.get(key) || []), r.line])
+  }
+  // Zahlungen (orgaMAX MOV_PAYMENTS): je Beleg; gehen vor „bezahlt“ aus der Belegliste
+  const paymentsByDoc = new Map()
+  for (const s of of('payments')) for (const row of s.table.rows) {
+    const v = (f) => rowValue(row, s.map, f)
+    let no = str(v('docNumber'))
+    if (!no && has(v('docRef'))) {
+      const head = headFor(s.table.name || '') || docs.find((d) => /INVOICE/i.test(d.srcTable))?.srcTable || ''
+      no = (byDbId.get(`${head}|${str(v('docRef'))}`) || docs.find((d) => d.srcId === str(v('docRef')) && d.kind === 'rechnung'))?.number || ''
+    }
+    const amount = money(v('amount'))
+    if (!no || !amount) continue
+    const skonto = has(v('skonto')) ? money(v('skonto')) : 0
+    const key = norm(no)
+    paymentsByDoc.set(key, [...(paymentsByDoc.get(key) || []), { date: parseDateLoose(v('date')), amount, skonto, note: str(v('note')) }])
   }
   // Positionen ohne Kopf: Belege nur aus Positionen bilden (Datum unbekannt → Warnung)
   const headKeys = new Set(docs.map((d) => norm(d.number)))
@@ -1032,13 +1209,17 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
       if (t) warnings.push(`${h.number}: Summe aus den Positionen (${t.gross.toFixed(2)}) weicht von ${source} ab (${gross.toFixed(2)}) – Summe aus ${source} übernommen.`)
       if (!normLines.length) doc.linesMissing = true
     }
-    // Zahlungen: bezahlt am / bezahlter Betrag / offener Rest / Status
+    // Zahlungen: aus der Zahlungstabelle; sonst bezahlt am / bezahlter Betrag / offener Rest / Status
     const gross = doc.total.gross
+    const listed = paymentsByDoc.get(norm(h.number))
+    if (h.kind === 'rechnung' && listed?.length) {
+      doc.payments = listed.map((p) => ({ id: newId('p'), date: p.date || h.date, amount: round2(p.amount + (p.skonto || 0)), note: [p.note, p.skonto ? `davon Skonto ${p.skonto.toFixed(2).replace('.', ',')} €` : '', `aus ${source} übernommen`].filter(Boolean).join(' · '), by: `Übernahme ${source}`, at: now }))
+    }
     let paid = 0
     if (h.paid != null) paid = Math.abs(h.paid)
     else if (h.open != null) paid = round2(Math.abs(gross) - Math.abs(h.open))
     else if (h.paidFlag || /^(bezahlt|erledigt|ausgeglichen|paid|beglichen)/.test(h.status || '') || h.paidDate) paid = Math.abs(gross)
-    if (h.kind === 'rechnung' && paid > 0.004) doc.payments = [{ id: newId('p'), date: h.paidDate || h.dueDate || h.date, amount: round2(Math.min(paid, Math.abs(gross))), note: `aus ${source} übernommen`, by: `Übernahme ${source}`, at: now }]
+    if (h.kind === 'rechnung' && paid > 0.004 && !doc.payments) doc.payments = [{ id: newId('p'), date: h.paidDate || h.dueDate || h.date, amount: round2(Math.min(paid, Math.abs(gross))), note: `aus ${source} übernommen`, by: `Übernahme ${source}`, at: now }]
     if (h.kind === 'rechnung' && h.reminderLevel > 0) doc.reminders = Array.from({ length: h.reminderLevel }, (_, i) => ({ level: i, name: `${i + 1}. Mahnstufe (${source})`, date: i === h.reminderLevel - 1 ? h.lastReminder || h.date : h.lastReminder || h.date, imported: true }))
     if (h.kind === 'angebot' && /angenommen|beauftragt|auftrag|erledigt/.test(h.status || '')) doc.status = 'angenommen'
     if (h.kind === 'angebot' && /abgelehnt|verloren/.test(h.status || '')) doc.status = 'abgelehnt'
@@ -1107,14 +1288,14 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
     const groups = new Map()
     for (const row of s.table.rows) {
       const v = (f) => rowValue(row, s.map, f)
-      const key = `${str(v('customerNo')) || str(v('customerName'))}|${str(v('title'))}|${intervalOf(v('interval'))}`
+      const key = has(v('srcId')) ? `id:${str(v('srcId'))}` : `${str(v('customerNo')) || str(v('customerName'))}|${str(v('title'))}|${intervalOf(v('interval'))}`
       groups.set(key, [...(groups.get(key) || []), v])
     }
     for (const rows of groups.values()) {
       const v = rows[0]
-      const cust = findCustomer({ no: v('customerNo'), name: v('customerName') })
+      const cust = findCustomer({ no: v('customerNo'), name: v('customerName'), ref: v('customerRef') })
       if (!cust) {
-        warnings.push(`Abo „${str(v('title')) || str(v('text'))}“: Kunde „${str(v('customerName')) || str(v('customerNo'))}“ nicht gefunden – nicht übernommen.`)
+        warnings.push(`Abo „${str(v('title')) || str(v('text'))}“: Kunde „${str(v('customerName')) || str(v('customerNo')) || str(v('customerRef'))}“ nicht gefunden – nicht übernommen.`)
         continue
       }
       const start = parseDateLoose(v('start'))
@@ -1129,7 +1310,12 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
         customerId: cust.id,
         objectId: (cust.objectIds || [])[0] || '',
         active: rows.every((r) => !has(r('active')) || !/inaktiv|beendet|gekuendigt|nein|false|0/i.test(String(r('active')))),
-        lines: rows.map((r, i) => ({ id: `${id}-${i + 1}`, text: str(r('text')) || str(r('title')), qty: has(r('qty')) ? money(r('qty')) : 1, unit: unitOf(r('unit')) || 'Monat', price: money(r('price')), vat: vatOf(r('vat')) })),
+        lines: (() => {
+          // eigene Positionstabelle (z. B. MOV_INVOICES_SERIES_POSITIONS) über die interne ID
+          const own = has(v('srcId')) ? rawLines.filter((x) => x.ref === str(v('srcId')) && headFor(x.table) === s.table.name) : []
+          if (own.length) return own.sort((a, b) => (a.line.pos || 0) - (b.line.pos || 0)).map((x, i) => ({ id: `${id}-${i + 1}`, text: x.line.text, qty: x.line.qty, unit: x.line.unit || 'Monat', price: x.line.price, vat: x.line.vat ?? 20 }))
+          return rows.map((r, i) => ({ id: `${id}-${i + 1}`, text: str(r('text')) || str(r('title')), qty: has(r('qty')) ? money(r('qty')) : 1, unit: unitOf(r('unit')) || 'Monat', price: money(r('price')), vat: vatOf(r('vat')) }))
+        })(),
         index: { active: false, baseValue: '', baseMonth: '', threshold: 3, onlyUp: false },
         source: { system: SYSTEM },
       })
