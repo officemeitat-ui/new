@@ -418,6 +418,8 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
           <input type="text" id="f_ort" data-kopf="ort" list="dlOrte" placeholder="z. B. Hallein" autocomplete="off"></div>
         <div class="field"><label for="f_auftrag">Auftragsnummer</label>
           <input type="text" id="f_auftrag" data-kopf="auftragsnummer" placeholder="32680/67/1" autocomplete="off"></div>
+        <div class="field hide" id="revierFeld"><label for="f_revier">Revier</label>
+          <select id="f_revier"></select></div>
       </div>
       <div class="grid g3" style="margin-top:10px">
         <div class="field"><label for="f_datum">Ablesedatum</label><input type="date" id="f_datum" data-runde="datum"></div>
@@ -746,7 +748,7 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
 /* ============================================================
    1) Grundlagen
    ============================================================ */
-const VERSION = "1.13", VERSION_DATUM = "28.10.2026";
+const VERSION = "1.14", VERSION_DATUM = "06.11.2026";
 const DB_KEY = "cleanos.wasserablesung.v1";
 const QUARTALE = ["Q1", "Q2", "Q3", "Q4"];
 const Q_ZEIT = {Q1:"Jänner – März", Q2:"April – Juni", Q3:"Juli – September", Q4:"Oktober – Dezember"};
@@ -816,9 +818,40 @@ function pz(n){ return n === null || !isFinite(n) ? "—" : (n*100).toLocaleStri
    verschobenen Objektnummern und die doppelten Zeilen.
    ============================================================ */
 function leereRunde(){ return {datum:"", ableser:"", bemerkung:"", status:"offen", werte:{}}; }
+/* 1.14: Reviere. Jedes Revier hat in SharePoint einen eigenen Ordner
+   "Revier <Name>" direkt unter der Basis, darunter alles wie bisher
+   ([EBG/]<Ort>/…) - vor Ort sieht man so nur das eigene Revier. Die
+   Liste merkt sich ihr Revier im Feld "revier", geschrieben wie im
+   Ordnernamen. Ohne Revier (Feld fehlt) bleibt alles, wo es lag. */
+const REVIER_VOR = "Revier ";
+let revierOrdner = [];          /* Revierordner, die der letzte Abgleich lesen konnte */
+function revierName(s){ return String(s || "").replace(/[^\wäöüÄÖÜß\- ]+/g, "").trim().replace(/\s+/g, "-"); }
+function revierSetzen(l, r){ if(r) l.revier = String(r); else delete l.revier; return l; }
+/* Zur Wahl stehen die Reviere aus der Cleanos App (dort mit ihrem
+   Anzeigenamen), die Revierordner des letzten Abgleichs und die Reviere
+   vorhandener Listen - jedes einmal. */
+function revierOptionen(){
+  const m = new Map();
+  const dazu = w => { const k = revierName(w); if(k && !m.has(k)) m.set(k, {wert:String(w), name:String(w)}); };
+  revierOrdner.forEach(dazu);
+  dbLesen().listen.forEach(l => dazu(l.revier));
+  let app = null;
+  try{ app = window.CLEANOS_APP && window.CLEANOS_APP.reviere; }catch(e){}
+  if(Array.isArray(app)) app.forEach(r => {
+    const k = revierName(r);
+    if(!k) return;
+    if(m.has(k)) m.get(k).name = String(r); else m.set(k, {wert:k, name:String(r)});
+  });
+  return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+/* Gibt es Reviere, braucht eine Liste, die noch nicht in SharePoint
+   liegt, eines - bis dahin bleibt sie auf dem Gerät. Listen ohne
+   Revier, die schon dort liegen (alte Ablage), laufen weiter wie bisher. */
+const REVIER_FEHLT = "Bitte zuerst das Revier wählen – erst dann wird in SharePoint gespeichert.";
+function revierFehlt(l){ return !!l && !l.revier && !(l.graphCTag || l.graphStand) && revierOptionen().length > 0; }
 function leereListe(){
   const j = String(new Date().getFullYear());
-  return {
+  const l = {
     id: neueId(), art:"wasserablesung", schema:1, version:VERSION,
     ort:"", auftragsnummer:"", jahr:j, verteiler:"",
     stellen: [],
@@ -826,6 +859,10 @@ function leereListe(){
     aktiv: quartalVon(heute()),
     geaendert: new Date().toISOString()
   };
+  /* 1.14: Steht genau ein Revier zur Wahl, kommt die neue Liste dorthin. */
+  const rv = revierOptionen();
+  if(rv.length === 1) l.revier = rv[0].wert;
+  return l;
 }
 let doc = leereListe();
 let fokusStelle = "";
@@ -1428,6 +1465,9 @@ function jahrAnlegen(j, vorlageListe){
   const neu = leereListe();
   neu.ort = vorlage.ort; neu.auftragsnummer = vorlage.auftragsnummer; neu.verteiler = vorlage.verteiler;
   neu.jahr = String(j); neu.aktiv = "Q1";
+  /* 1.14: Das neue Jahr liegt im selben Revier. Hat die Vorlage keines
+     (alte Ablage), gilt wie für jede neue Liste die Vorwahl. */
+  if(vorlage.revier) revierSetzen(neu, vorlage.revier);
   neu.stellen = (vorlage.stellen || []).map(s => {
     const kopie = Object.assign({}, s, {verlauf:(s.verlauf || []).slice()});
     const {wert, quartal} = letzterStandImJahr(s.id, vorlage);
@@ -1494,6 +1534,7 @@ function letzterAbleser(){
 }
 function formularFuellen(){
   $$("[data-kopf]").forEach(el => el.value = doc[el.dataset.kopf] || "");
+  revierFeldZeigen();
   $$("[data-runde]").forEach(el => { el.value = R()[el.dataset.runde] || ""; if(el.tagName === "TEXTAREA") autoHoehe(el); });
   stellenZeichnen();
   kopfAktualisieren();
@@ -2262,7 +2303,38 @@ $("#btnNeu").addEventListener("click", () => {
   doc.runden[doc.aktiv].ableser = letzterAbleser();
   formularFuellen();
   $("#f_ort").focus();
-  toast("Neue Liste – Ort eintragen und Zählstellen anlegen.", 4000);
+  toast(!doc.revier && revierOptionen().length > 1 ? "Neue Liste – Revier wählen, Ort eintragen und Zählstellen anlegen."
+                                                   : "Neue Liste – Ort eintragen und Zählstellen anlegen.", 4000);
+});
+/* 1.14: Revier der Liste. Wählbar, solange die Liste noch nicht in
+   SharePoint liegt; danach nur angezeigt - in ein anderes Revier
+   verschiebt die Cleanos App, nicht dieses Werkzeug. */
+function revierFeldZeigen(){
+  const feld = $("#revierFeld"), sel = $("#f_revier");
+  if(!feld || !sel) return;
+  const opts = revierOptionen();
+  if(doc.revier && !opts.some(o => o.wert === doc.revier)) opts.push({wert:doc.revier, name:doc.revier});
+  feld.classList.toggle("hide", !opts.length);
+  if(!opts.length) return;
+  const fest = !!(doc.graphCTag || doc.graphStand);
+  const zeigen = fest ? opts.filter(o => o.wert === doc.revier) : opts;
+  const leer = fest ? (doc.revier ? "" : `<option value="">ohne Revier</option>`)
+                    : (doc.revier ? "" : `<option value="" disabled>Revier wählen …</option>`);
+  sel.innerHTML = leer + zeigen.map(o => `<option value="${esc(o.wert)}">${esc(o.name)}</option>`).join("");
+  sel.value = doc.revier || "";
+  sel.disabled = fest;
+  sel.title = fest ? "Die Liste liegt schon in SharePoint – in ein anderes Revier verschiebt nur die Cleanos App." : "";
+}
+$("#f_revier").addEventListener("change", e => {
+  if(doc.graphCTag || doc.graphStand){ revierFeldZeigen(); return; }
+  revierSetzen(doc, e.target.value);
+  revierFeldZeigen(); ablageZeigen();
+  /* Ohne Ort wird noch nichts abgelegt - sonst entstünde ein Ordner "Ohne-Ort".
+     Was bis jetzt nur auf dem Gerät gewartet hat (Fotos, PDF), geht gleich mit. */
+  if(!doc.ort) return;
+  markiereGeaendert(true);
+  const w = wartet(doc);
+  if(w.fotos || w.pdf) nachreichen(true);
 });
 $("#btnMenu").addEventListener("click", () => $("#dlgMenu").showModal());
 $("#mHilfe").addEventListener("click", () => { $("#dlgMenu").close(); $("#dlgHilfe").showModal(); });
@@ -2300,6 +2372,11 @@ async function abschlussAblegen(l, q){
   if(!(graphBereit() && graphToken)){
     $("#abschlussHinweis").innerHTML = `<div class="note rot"><b>Nicht angemeldet – nichts ist in SharePoint.</b><br>
       Stände und Fotos liegen nur auf diesem Gerät. Bitte anmelden; danach wird alles abgelegt, auch das PDF.</div>`;
+    return;
+  }
+  if(revierFehlt(l)){
+    $("#abschlussHinweis").innerHTML = `<div class="note rot"><b>Quartal ist abgeschlossen, aber noch nicht in SharePoint.</b><br>
+      ${esc(REVIER_FEHLT)} Danach wird alles abgelegt, auch das PDF.</div>`;
     return;
   }
   const schluessel = l.id + "|" + q;
@@ -2650,7 +2727,7 @@ function listenVereinen(a, b){
   return m;
 }
 /* Vergleich ohne das, was sich ohne Inhaltsänderung bewegt. */
-const FLUECHTIG = new Set(["graphCTag", "graphETag", "graphStand", "geaendert", "aktiv", "d"]);
+const FLUECHTIG = new Set(["graphCTag", "graphETag", "graphStand", "graphPfad", "geaendert", "aktiv", "d"]);
 function stabil(o){
   if(Array.isArray(o)) return "[" + o.map(stabil).join(",") + "]";
   if(o && typeof o === "object")
@@ -2683,8 +2760,14 @@ document.addEventListener("focusout", () => {
   setTimeout(() => { if(tipptGerade()) return; neuZeichnenSpaeter = false; const y = window.scrollY; formularFuellen(); window.scrollTo(0, y); }, 400);
 });
 function docAuffrischen(neu){
-  const q = doc.aktiv;
+  const q = doc.aktiv, rv = doc.revier;
   listeErsetzen(doc, listenVereinen(doc, neu));
+  /* 1.14: Wo die Liste liegt, sagt die abgelegte Fassung - und deren
+     Marke gehört dazu (sonst ginge die Marke der alten Datei mit). */
+  if(neu.graphCTag || neu.graphStand){
+    revierSetzen(doc, neu.revier);
+    doc.graphCTag = neu.graphCTag || ""; doc.graphPfad = neu.graphPfad || "";
+  } else revierSetzen(doc, rv);
   doc.aktiv = q;
   neuZeichnen();
 }
@@ -2858,6 +2941,7 @@ async function pdfsNachreichen(sofort){
     if(pdfInArbeit.has(p.id + "|" + p.q)) continue;
     const l = (doc && doc.id === p.id) ? doc : dbLesen().listen.find(x => x.id === p.id);
     if(!l || ((l.runden || {})[p.q] || {}).status !== "abgeschlossen"){ pdfOffenSetzen(p.id, p.q, false); continue; }
+    if(revierFehlt(l)) continue;
     if(!sofort && p.versucht && Date.now() - new Date(p.versucht).getTime() < 10 * 60000) continue;
     pdfInArbeit.add(p.id + "|" + p.q);
     try{
@@ -2907,6 +2991,7 @@ function ablageZeigen(){
     $("#abAnmelden").onclick = () => graphAnmelden();
     return;
   }
+  if(revierFehlt(doc)){ el.className = "ablage noprint warn"; el.innerHTML = `<span><b>Noch nicht in SharePoint:</b> ${esc(REVIER_FEHLT)}</span>`; return; }
   if(abgleichLaeuft){ el.className = "ablage noprint"; el.innerHTML = `<span>Wird mit SharePoint abgeglichen …</span>`; return; }
   if(ablageLaeuft){ el.className = "ablage noprint"; el.innerHTML = `<span>Wird in SharePoint abgelegt …</span>`; return; }
   if(w.liste || w.fotos || w.pdf || andere){
@@ -2937,7 +3022,7 @@ function listeGeaendertNachFotos(id){
 let nachreichenTimer = null, nachreichenVersprechen = null, abgleichGelaufen = false;
 function planeNachreichen(){
   clearTimeout(nachreichenTimer);
-  const offen = [doc].concat(dbLesen().listen).some(l => l && l.id && (wartet(l).liste || wartet(l).fotos || wartet(l).pdf));
+  const offen = [doc].concat(dbLesen().listen).some(l => l && l.id && !revierFehlt(l) && (wartet(l).liste || wartet(l).fotos || wartet(l).pdf));
   if(offen && graphBereit() && graphToken) nachreichenTimer = setTimeout(() => nachreichen(), 30000);
 }
 function nachreichen(sofort){
@@ -2964,11 +3049,14 @@ function nachreichen(sofort){
       /* 3. alle Listen mit Änderungen, die offene zuletzt (Fotozustand) */
       for(const id of ids.reverse()){
         const l = (doc && doc.id === id) ? doc : dbLesen().listen.find(x => x.id === id);
-        if(l && wartet(l).liste){ if(await graphSchreiben(l) && l !== doc) listeSichern(l); }
+        if(l && wartet(l).liste){
+          try{ if(await graphSchreiben(l) && l !== doc) listeSichern(l); }
+          catch(e){ if(e.status !== 403 && e.status !== 404) throw e; console.warn("SharePoint: Liste nicht abgelegt (" + e.status + "): " + ordnerOrtName(l)); }   /* 1.14: Revier ohne Rechte */
+        }
       }
       /* 4. PDFs abgeschlossener Quartale, die beim Abschließen nicht abgelegt werden konnten (1.13) */
       await pdfsNachreichen(sofort);
-      $("#saveState").textContent = "in SharePoint " + jetztZeit();
+      if(!revierFehlt(doc)) $("#saveState").textContent = "in SharePoint " + jetztZeit();
     }catch(e){
       $("#saveState").textContent = "nicht in SharePoint";
     }finally{
@@ -3595,7 +3683,11 @@ function graphBasis(){ return (graphCfg.pfad || VORGABE.pfad).replace(/^\/+|\/+$
 const HAUPTBEREICH = "EBG";
 function bereichVon(l){ return (l && l.bereich) || (/davisstra/i.test((l && l.ort) || "") ? "Davisstraße 7" : HAUPTBEREICH); }
 function ortOrdnerName(l){ return (saubererName(l.ort) || "Ohne-Ort").slice(0, 80); }
-function ordnerOrtName(l){ return bereichVon(l) === HAUPTBEREICH ? HAUPTBEREICH + "/" + ortOrdnerName(l) : ortOrdnerName(l); }
+function ordnerOrtName(l){
+  const o = bereichVon(l) === HAUPTBEREICH ? HAUPTBEREICH + "/" + ortOrdnerName(l) : ortOrdnerName(l);
+  /* 1.14: mit Revier eine Ebene darüber - <Basis>/Revier <Name>/[EBG/]<Ort> */
+  return l.revier ? REVIER_VOR + l.revier + "/" + o : o;
+}
 async function kinderVon(id){
   const m = {};
   let url = `/drives/${graphDriveId}/items/${id}/children?$top=999`;
@@ -3614,9 +3706,11 @@ async function ordnerUmziehen(){
   let wurzel;
   try{ wurzel = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(basis)}:/children?$top=500`); }
   catch(e){ if(e.status === 404){ umzugGeprueft = true; return; } throw e; }
+  /* 1.14: Umgezogen wird nur in der alten Ablage ohne Revier. Revierordner
+     und Listen mit Revier fasst das Werkzeug hier nicht an. */
   const namen = new Set(dbLesen().listen.concat((EINGEBAUT && EINGEBAUT.listen) || [])
-    .filter(l => bereichVon(l) === HAUPTBEREICH).map(ortOrdnerName));
-  const alte = (wurzel.value || []).filter(x => x.folder && namen.has(x.name));
+    .filter(l => bereichVon(l) === HAUPTBEREICH && !l.revier).map(ortOrdnerName));
+  const alte = (wurzel.value || []).filter(x => x.folder && !x.name.startsWith(REVIER_VOR) && namen.has(x.name));
   if(alte.length){
     const ebgPfad = await graphOrdnerSichern(basis.split("/").concat(HAUPTBEREICH));
     const ebg = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(ebgPfad)}`);
@@ -3633,6 +3727,7 @@ async function ordnerUmziehen(){
    hinübergezogen, ohne etwas zu überschreiben: gleichnamige Listen
    werden zusammengeführt, gleichnamige Dateien bekommen einen Zusatz. */
 async function ordnerZusammenlegen(alt, neu){
+  if(String(alt.name || "").startsWith(REVIER_VOR) || String(neu.name || "").startsWith(REVIER_VOR)) return;   /* 1.14 */
   const a = await kinderVon(alt.id), n = await kinderVon(neu.id);
   const schieben = (x, name) => graphRuf(`/drives/${graphDriveId}/items/${x.id}`,
     {method:"PATCH", body: JSON.stringify(Object.assign({parentReference: {id: neu.id}}, name ? {name} : {}))});
@@ -3645,7 +3740,7 @@ async function ordnerZusammenlegen(alt, neu){
       const lies = async it => JSON.parse(await (await fetch(it["@microsoft.graph.downloadUrl"])).text());
       const m = listenVereinen(await lies(y), await lies(x));
       m.geaendert = new Date().toISOString();
-      delete m.graphCTag; delete m.graphETag; delete m.graphStand;
+      delete m.graphCTag; delete m.graphETag; delete m.graphStand; delete m.graphPfad;
       await graphRuf(`/drives/${graphDriveId}/items/${y.id}/content`, {method:"PUT", headers:{"Content-Type":"application/json"},
         body: JSON.stringify(m, function(k, v){ return (k === "d" && typeof v === "string" && this && this.hoch) ? undefined : v; }, 2)});
     }
@@ -3672,14 +3767,18 @@ async function graphOrdnerSichern(teile){
   let pfad = "";
   for(const teil of teile){
     const naechster = pfad ? pfad + "/" + teil : teil;
+    /* 1.14: Wer nur auf sein Revier Rechte hat, darf die Ordner darüber
+       oft weder lesen noch anlegen (403) - es gibt sie aber. Dann weiter
+       nach unten; am Ziel selbst zählt ein Fehler wie bisher. */
+    const darueber = naechster !== ganz;
     if(!ordnerBekannt.has(graphDriveId + "|" + naechster)){
       let da = false;
       try{ await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(naechster)}`); da = true; }
-      catch(e){ if(e.status !== 404) throw e; }
+      catch(e){ if(e.status === 403 && darueber) da = true; else if(e.status !== 404) throw e; }
       if(!da){
         const eltern = pfad ? `/drives/${graphDriveId}/root:/${encodeURI(pfad)}:/children` : `/drives/${graphDriveId}/root/children`;
         try{ await graphRuf(eltern, {method:"POST", body:JSON.stringify({name:teil, folder:{}, "@microsoft.graph.conflictBehavior":"fail"})}); }
-        catch(e){ if(e.status !== 409) throw e; }
+        catch(e){ if(e.status !== 409 && !(e.status === 403 && darueber)) throw e; }
       }
       ordnerBekannt.add(graphDriveId + "|" + naechster);
     }
@@ -3718,6 +3817,7 @@ async function graphFassungLesen(l){
     if(!item || !item["@microsoft.graph.downloadUrl"]) return null;
     const fremd = JSON.parse(await (await fetch(item["@microsoft.graph.downloadUrl"])).text());
     fremd.graphCTag = graphMarke(item);
+    fremd.graphPfad = pfad;
     return fremd;
   }catch(e){ return null; }
 }
@@ -3732,6 +3832,7 @@ function graphMarkeSichern(l){
     const i = db.listen.findIndex(x => x.id === l.id);
     if(i < 0) return;
     db.listen[i].graphCTag = l.graphCTag;
+    db.listen[i].graphPfad = l.graphPfad;
     db.listen[i].graphStand = l.graphStand;
     delete db.listen[i].graphETag;
     dbSchreiben(db);
@@ -3739,20 +3840,26 @@ function graphMarkeSichern(l){
 }
 
 async function graphSchreiben(l, ohneMarke, versuch){
+  if(revierFehlt(l)) return false;               /* 1.14: bleibt auf dem Gerät, bis ein Revier gewählt ist */
   versuch = versuch || 1;
   await graphZiel();
   const ordnerPfad = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerOrtName(l).split("/")));
-  const ziel = `/drives/${graphDriveId}/root:/${encodeURI(ordnerPfad + "/" + graphDateiname(l))}:/content`;
+  const dateiPfad = ordnerPfad + "/" + graphDateiname(l);
+  const ziel = `/drives/${graphDriveId}/root:/${encodeURI(dateiPfad)}:/content`;
+  /* 1.14: Eine Marke gilt nur für die Datei, von der sie stammt. Liegt
+     die Liste inzwischen woanders (Revier, Ort, Jahr), geht sie nicht
+     mit - das gäbe nur einen 412. Dann wie ohne Marke weiter. */
+  if(l.graphCTag && l.graphPfad && l.graphPfad !== dateiPfad) l.graphCTag = "";
   /* Ohne Marke nie blind schreiben: Liegt dort schon eine Fassung,
      wird sie zuerst eingearbeitet. Sonst überschriebe ein Gerät, das
      die Liste nie abgeglichen hat, alles, was andere erfasst haben. */
   if(!ohneMarke && !l.graphCTag){
     const fremd = await graphFassungLesen(l);
-    if(fremd){ listeErsetzen(l, listenVereinen(l, fremd)); l.graphCTag = fremd.graphCTag; nachVereinen(l); }
+    if(fremd){ const rv = l.revier; listeErsetzen(l, listenVereinen(l, fremd)); revierSetzen(l, rv); l.graphCTag = fremd.graphCTag; l.graphPfad = fremd.graphPfad; nachVereinen(l); }
   }
   const kopf = (!ohneMarke && l.graphCTag) ? {"If-Match": l.graphCTag} : {};
   const rein = Object.assign({}, l);
-  delete rein.graphCTag; delete rein.graphETag; delete rein.graphStand;
+  delete rein.graphCTag; delete rein.graphETag; delete rein.graphStand; delete rein.graphPfad;
   const stand = l.geaendert || "";
   /* Abgelegte Fotos sind eigene Dateien in SharePoint - ihr Bild hat
      in der Listendatei nichts verloren (über 4 MB lehnt Graph ab). */
@@ -3760,12 +3867,14 @@ async function graphSchreiben(l, ohneMarke, versuch){
   try{
     const res = await graphRuf(ziel, {method:"PUT", headers:Object.assign({"Content-Type":"application/json"}, kopf), body:text});
     l.graphCTag = graphMarke(res);
+    l.graphPfad = dateiPfad;
     /* Bis zu welcher Änderung diese Liste in SharePoint liegt - daran
        sieht die Statusleiste, ob noch etwas wartet. */
     l.graphStand = stand;
     delete l.graphETag;
     graphMarkeSichern(l);
     ablageZeigen();
+    if(l === doc) revierFeldZeigen();
     return true;
   }catch(e){
     if(e.status === 412 && !ohneMarke){
@@ -3774,7 +3883,7 @@ async function graphSchreiben(l, ohneMarke, versuch){
          bei zwei verschiedenen Ständen derselben Zeile gilt der zuletzt
          eingetragene. */
       const fremd = await graphFassungLesen(l);
-      if(fremd){ listeErsetzen(l, listenVereinen(l, fremd)); l.graphCTag = fremd.graphCTag; nachVereinen(l); }
+      if(fremd){ const rv = l.revier; listeErsetzen(l, listenVereinen(l, fremd)); revierSetzen(l, rv); l.graphCTag = fremd.graphCTag; l.graphPfad = fremd.graphPfad; nachVereinen(l); }
       else l.graphCTag = "";
       return await graphSchreiben(l, versuch >= 3, versuch + 1);
     }
@@ -3801,6 +3910,7 @@ function dataUrlZuBytes(d){
 }
 async function graphFotoHochladen(l, q, stelle, foto){
   if(!graphBereit() || !graphToken) throw new Error("nicht angemeldet");
+  if(revierFehlt(l)) throw new Error(REVIER_FEHLT);
   const bild = foto.d || await bildHolen(foto.id);
   if(!bild) throw new Error("Bild liegt nicht auf diesem Gerät");
   await graphZiel();
@@ -3813,7 +3923,7 @@ async function graphFotoHochladen(l, q, stelle, foto){
 }
 /* Alles nachreichen, was offline aufgenommen wurde. */
 async function fotosNachreichen(l){
-  if(!graphBereit() || !graphToken) return [];
+  if(!graphBereit() || !graphToken || revierFehlt(l)) return [];
   const erledigt = [];
   for(const q of QUARTALE){
     const r = l.runden[q]; if(!r) continue;
@@ -3847,43 +3957,79 @@ function fotoZustandUebernehmen(lid, erledigt){
 
 async function graphLesen(){
   await graphZiel();
-  const raus = [];
-  const ordnerLesen = async (id, pfad) => {
+  const raus = [], uebersprungen = [];
+  const ordnerLesen = async (id, pfad, revier) => {
     const dateien = await graphRuf(`/drives/${graphDriveId}/items/${id}/children?$top=500`);
     for(const d of dateien.value){
       if(!d.file || !/\.json$/i.test(d.name)) continue;
       try{
         const l = JSON.parse(await (await fetch(d["@microsoft.graph.downloadUrl"])).text());
-        if(l && l.runden && l.art === "wasserablesung"){ l.graphCTag = graphMarke(d); l._pfad = pfad; raus.push(l); }
+        if(l && l.runden && l.art === "wasserablesung"){
+          l.graphCTag = graphMarke(d); l.graphPfad = graphBasis() + "/" + pfad + "/" + d.name; l._pfad = pfad;
+          revierSetzen(l, revier);              /* 1.14: das Revier sagt der Ordner, nicht die Datei */
+          raus.push(l);
+        }
       }catch(e){}
+    }
+  };
+  /* 1.14: Mit Rechten je Revier sind fremde Revierordner gesperrt (403)
+     oder nicht zu sehen (404). Ein Ordner, der sich nicht lesen lässt,
+     wird übersprungen; der Abgleich läuft für alles andere weiter. Ohne
+     Netz oder Anmeldung (kein HTTP-Status) bricht er ab wie bisher. */
+  const lesbar = async (pfad, lesen) => {
+    try{ await lesen(); return true; }
+    catch(e){ if(!e.status) throw e; uebersprungen.push(pfad); console.warn("SharePoint: Ordner übersprungen (" + e.status + "): " + pfad); return false; }
+  };
+  /* Eine Ebene wie die Basis: Standortordner, unter EBG eine Ebene tiefer. */
+  const ebeneLesen = async (eintraege, vor, revier) => {
+    for(const eintrag of eintraege){
+      if(!eintrag.folder) continue;
+      const pfad = vor + eintrag.name;
+      /* Unter EBG eine Ebene tiefer: dort liegen die Standortordner. */
+      if(eintrag.name === HAUPTBEREICH) await lesbar(pfad, async () => {
+        const unter = await graphRuf(`/drives/${graphDriveId}/items/${eintrag.id}/children?$top=500`);
+        for(const u of unter.value) if(u.folder) await lesbar(pfad + "/" + u.name, () => ordnerLesen(u.id, pfad + "/" + u.name, revier));
+      });
+      else await lesbar(pfad, () => ordnerLesen(eintrag.id, pfad, revier));
     }
   };
   let wurzel;
   try{ wurzel = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(graphBasis())}:/children?$top=500`); }
-  catch(e){ if(e.status === 404) return []; throw e; }
-  for(const eintrag of wurzel.value){
-    if(!eintrag.folder) continue;
-    /* Unter EBG eine Ebene tiefer: dort liegen die Standortordner. */
-    if(eintrag.name === HAUPTBEREICH){
-      const unter = await graphRuf(`/drives/${graphDriveId}/items/${eintrag.id}/children?$top=500`);
-      for(const u of unter.value) if(u.folder) await ordnerLesen(u.id, HAUPTBEREICH + "/" + u.name);
-    } else await ordnerLesen(eintrag.id, eintrag.name);
+  catch(e){ if(e.status === 404){ revierOrdner = []; return []; } throw e; }
+  /* Alte Ablage (ohne Revier) wie bisher, dann je Revierordner dasselbe eine Ebene tiefer. */
+  const istRevier = x => !!x.folder && x.name.startsWith(REVIER_VOR);
+  await ebeneLesen(wurzel.value.filter(x => !istRevier(x)), "", "");
+  const reviere = [];
+  for(const r of wurzel.value.filter(istRevier)){
+    const name = r.name.slice(REVIER_VOR.length);
+    await lesbar(r.name, async () => {
+      const inhalt = await graphRuf(`/drives/${graphDriveId}/items/${r.id}/children?$top=500`);
+      reviere.push(name);
+      await ebeneLesen(inhalt.value, r.name + "/", name);
+    });
   }
+  revierOrdner = reviere;
   /* Dieselbe Liste an zwei Stellen (alter und neuer Ordner, solange
      ein Gerät mit alter Fassung schreibt): zusammenführen. Die Marke
      gilt nur für die Datei am richtigen Ort; steht die Liste nicht oder
-     nicht nur dort, wird sie dorthin geschrieben (_hoch). */
+     nicht nur dort, wird sie dorthin geschrieben (_hoch). Liegt sie in
+     einem Revier und noch in der alten Ablage, gilt das Revier. */
   const je = {};
   raus.forEach(l => (je[l.id] = je[l.id] || []).push(l));
-  return Object.values(je).map(gr => {
-    const richtig = gr.find(l => l._pfad === ordnerOrtName(l));
+  const erg = Object.values(je).map(gr => {
+    const rv = (gr.find(l => l.revier) || {}).revier || "";
+    const richtig = gr.find(l => (l.revier || "") === rv && l._pfad === ordnerOrtName(l));
     let m = gr[0];
     gr.slice(1).forEach(x => { m = listenVereinen(m, x); });
+    revierSetzen(m, rv);
     m.graphCTag = richtig ? richtig.graphCTag : "";
+    m.graphPfad = richtig ? richtig.graphPfad : "";
     if(gr.length > 1 || !richtig) m._hoch = true;
     delete m._pfad;
     return m;
   });
+  erg.uebersprungen = uebersprungen;
+  return erg;
 }
 async function graphAbgleichen(meldung){
   if(!graphBereit()) return;
@@ -3908,7 +4054,7 @@ async function graphAbgleichen(meldung){
       if(i < 0){ db.listen.push(c); neu++; return; }
       const lokal = db.listen[i];
       if(listenKern(lokal) === listenKern(c)){
-        lokal.graphCTag = c.graphCTag;
+        lokal.graphCTag = c.graphCTag; lokal.graphPfad = c.graphPfad;
         if((c.geaendert || "") > (lokal.geaendert || "")) lokal.geaendert = c.geaendert;
         lokal.graphStand = lokal.geaendert;
         return;
@@ -3917,7 +4063,8 @@ async function graphAbgleichen(meldung){
          App seit gestern offen stand, und das Handy von heute. Nicht
          die jüngere Fassung ganz gewinnen lassen, sondern zusammenführen. */
       const m = listenVereinen(lokal, c);
-      m.graphCTag = c.graphCTag;
+      revierSetzen(m, c.revier);                 /* 1.14: das Revier sagt der Ordner, in dem sie liegt */
+      m.graphCTag = c.graphCTag; m.graphPfad = c.graphPfad;
       if(listenKern(m) === listenKern(c)){ m.geaendert = c.geaendert; m.graphStand = c.geaendert; }
       else { m.geaendert = jetzt; m.graphStand = c.graphStand; hochladen.add(m.id); }
       if(listenKern(m) !== listenKern(lokal)) akt++;
@@ -3930,12 +4077,18 @@ async function graphAbgleichen(meldung){
     const offen = db.listen.find(l => l.id === doc.id);
     if(offen && listenKern(offen) !== listenKern(doc)) docAuffrischen(offen);
 
+    /* 1.14: Listen in einem Ordner, der sich gerade nicht lesen ließ, nicht
+       blind schreiben; eine Liste in einem Revier ohne Rechte (403/404)
+       bricht den Abgleich nicht ab. */
+    const uebersprungen = ausCloud.uebersprungen || [];
     for(const id of db.listen.map(l => l.id)){
       const c = ausCloud.find(x => x.id === id);
       const l = (doc && doc.id === id) ? doc : dbLesen().listen.find(x => x.id === id);
       if(!l) continue;
+      if(!c && uebersprungen.some(p => (ordnerOrtName(l) + "/").startsWith(p + "/"))) continue;
       if(!c || hochladen.has(id) || (l.geaendert || "") > (c.geaendert || "")){
-        if(await graphSchreiben(l)){ hoch++; if(l !== doc) listeSichern(l); }
+        try{ if(await graphSchreiben(l)){ hoch++; if(l !== doc) listeSichern(l); } }
+        catch(e){ if(e.status !== 403 && e.status !== 404) throw e; console.warn("SharePoint: Liste nicht abgelegt (" + e.status + "): " + ordnerOrtName(l)); }
       }
     }
     /* Fotos, die ohne Netz aufgenommen wurden, jetzt nachreichen. */
@@ -3953,6 +4106,7 @@ async function graphAbgleichen(meldung){
     ablageZeigen(); planeNachreichen();
     fotosAuslagernAlle();
     datalistsFuellen();
+    revierFeldZeigen();
     graphStatusZeigen("angemeldet als " + graphUser + " · abgeglichen " + jetztZeit(), "");
     const ntText = (nt.werte || nt.stellen || nt.korrekturen || nt.listen)
       ? ` Excel-Nachtrag: ${nt.werte} Stände ergänzt` + (nt.stellen ? `, ${nt.stellen} Zählstellen neu` : "") +
@@ -4348,6 +4502,7 @@ async function graphPdfHolen(itemId){
 }
 async function graphPdfErzeugen(l, q, umfang){
   if(!graphBereit() || !graphToken) throw new Error("nicht angemeldet");
+  if(revierFehlt(l)) throw new Error(REVIER_FEHLT);
   await graphZiel();
   const ordnerPfad = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerOrtName(l).split("/")));
   const htmlPfad = ordnerPfad + "/" + pdfDateiname(l, q, umfang).replace(/\.pdf$/i, ".umwandlung.html");
