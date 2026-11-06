@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 294 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 300 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (47)
+- [Objekte & Kunden](#objekte-kunden) (53)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (68)
 - [Verwaltung](#verwaltung) (46)
@@ -1129,6 +1129,96 @@ Je Link lässt sich „Rechnungen und offene Posten zeigen“ einschalten (Stand
 > Tipp: Wird eine Rechnung per SEPA-Lastschrift eingezogen, steht dort „bitte nicht überweisen“.
 
 *Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen*
+
+### Kundenzufriedenheit: kurze Umfrage im Kundenbereich
+
+*In der App: Kundenzufriedenheit*
+
+Je Quartal erscheint im Kundenbereich jedes teilnehmenden Links eine kurze Umfrage: Zufriedenheit gesamt und je Frage (1 bis 5 Sterne), Weiterempfehlung (0 bis 10), Freitext und auf Wunsch ein Rückruf. Die App holt die Antworten ab und wertet sie je Kunde und je Objekt aus, mit Verlauf über die Quartale.
+
+1. „Kundenzufriedenheit“ unter „Objekte & Kunden“ öffnen.
+2. Oben steht die laufende Runde mit Rücklauf, darunter die Auswertung.
+3. Mit „Kunde“ und „Objekt“ die Auswertung eingrenzen oder „Je Kunde“ bzw. „Je Objekt“ wählen.
+
+> Tipp: Die Umfrage braucht den Kundenbereich: Sie erscheint nur auf den Seiten der Links.
+> Tipp: Keine Werbung, kein Tracking; Name und Funktion gibt der Kunde freiwillig an.
+
+*Bearbeiten: Vollzugriff; lesen: Objektmanagement und Objektleitung (ihre Objekte)*
+
+### Umfrage-Runde öffnen und Rhythmus
+
+*In der App: Kundenzufriedenheit*
+
+Eine Runde gilt für ein Quartal. Der Rhythmus (aus, vierteljährlich, halbjährlich) legt fest, welche Links dran sind; je Link änderbar unter „Teilnahme je Link“. Geöffnet wird nur nach Klick: Zeitraum und Links prüfen, „Öffnen und übertragen“. Solange die Runde offen ist, sieht der Kunde die Umfrage; eine Antwort je Link.
+
+1. „Kundenzufriedenheit“ öffnen, „Runde öffnen“ klicken (steht auch unter „Zu erledigen“).
+2. Quartal, „Offen ab“ und „Offen bis“ prüfen.
+3. Links prüfen: die laut Rhythmus fälligen sind angehakt.
+4. „Öffnen und übertragen“ klicken.
+5. Vorzeitig beenden: „Bearbeiten“ → „Runde schließen“.
+
+> Tipp: Halbjährlich heißt: in jeder zweiten Runde dabei.
+> Tipp: Die Fragen werden beim Öffnen festgehalten; spätere Änderungen gelten ab der nächsten Runde.
+
+*Vollzugriff*
+
+### Kunden per E-Mail zur Umfrage einladen
+
+*In der App: Kundenzufriedenheit*
+
+„Einladungen“ zeigt alle Links der Runde mit ihrer E-Mail-Adresse und eine Vorschau der E-Mail. Angehakt sind die, die weder eingeladen sind noch geantwortet haben. Mit Microsoft 365 geht je Kunde eine eigene E-Mail nach zweitem Klick; sonst je Kunde „E-Mail“ im E-Mail-Programm.
+
+1. „Kundenzufriedenheit“ → „Einladungen“.
+2. Kunden anhaken, mit „Vorschau“ den Text prüfen.
+3. „An … senden“ und zum Bestätigen noch einmal klicken.
+
+> Tipp: Die Adresse steht beim Link im Kundenbereich.
+> Tipp: Wer keine Einladungen will: unter „Teilnahme je Link“ „keine Einladungen“ anhaken; die Umfrage erscheint trotzdem auf seiner Seite.
+> Tipp: Ob die Einladung als Werbung gilt, ist rechtlich noch offen: nur an Bestandskunden und mit Hinweis zum Abbestellen.
+
+*Vollzugriff*
+
+### Auswertung: Durchschnitt, NPS, Rücklauf, Verlauf
+
+*In der App: Kundenzufriedenheit*
+
+Die Übersicht zeigt die letzte Runde mit Antworten: Zufriedenheit gesamt (1 bis 5), NPS (Anteil 9 bis 10 minus Anteil 0 bis 6, von −100 bis +100), Rücklauf und den Durchschnitt je Frage mit der Vorrunde, dazu den Verlauf je Quartal als Diagramm und die Freitexte. „Mehr“ exportiert die Antworten als CSV oder einen Bericht als PDF.
+
+1. „Kundenzufriedenheit“ öffnen.
+2. Bei „Kunde“ oder „Objekt“ eingrenzen, oder in „Je Kunde“ eine Zeile anklicken.
+3. „Mehr“ → „Bericht als PDF“ oder „Antworten (CSV)“.
+
+> Tipp: Eine Antwort zählt für das Objekt, das der Kunde gewählt hat, sonst für alle Objekte seines Links.
+> Tipp: Der Bericht nennt keine Namen und Telefonnummern.
+> Tipp: In den Kennzahlen steht eine Kachel „Kundenzufriedenheit“.
+
+### Schlechte Bewertung oder Rückruf: Kunde anrufen
+
+*In der App: Kundenzufriedenheit*
+
+Gibt ein Kunde gesamt 1 oder 2 Sterne oder wünscht einen Rückruf, steht er unter „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“ mit „Kunde anrufen“. „Öffnen“ zeigt die Antwort, „Termin“ legt den Rückruf an. Nach dem Gespräch die Notiz eintragen und „Als erledigt vermerken“. Fällt die Zufriedenheit eines Kunden, gibt es einen Hinweis.
+
+1. „Zu erledigen“ oder „Kundenzufriedenheit“ öffnen.
+2. Beim Kunden „Öffnen“, Telefonnummer und Freitext lesen.
+3. Anrufen, bei Bedarf „Reklamationen“ oder „Qualitätsmessung“ des Objekts öffnen.
+4. Notiz eintragen und „Als erledigt vermerken“.
+
+> Tipp: Die App ändert dabei nichts selbst; sie schlägt nur vor.
+> Tipp: Fällt bedeutet: mindestens 1 Punkt unter der Vorrunde oder drei Runden nacheinander schlechter.
+
+### Fragen der Umfrage ändern
+
+*In der App: Kundenzufriedenheit*
+
+Unter „Mehr“ → „Fragen und Einstellungen“ stehen die Frage zur Gesamtzufriedenheit, drei bis fünf Einzelfragen (Vorgabe: Sauberkeit, Zuverlässigkeit und Termintreue, Freundlichkeit des Personals, Erreichbarkeit des Büros), die Frage zur Weiterempfehlung, der Freitext und der Text der Einladung. „Vorgaben wiederherstellen“ setzt alles zurück.
+
+1. „Kundenzufriedenheit“ → „Mehr“ → „Fragen und Einstellungen“.
+2. Texte ändern, Einzelfragen hinzufügen oder entfernen.
+3. „Speichern“ klicken.
+
+> Tipp: Laufende Runden behalten ihre Fragen, damit die Auswertung vergleichbar bleibt.
+
+*Vollzugriff*
 
 ### Schlüsselbuch: wer hat welchen Schlüssel
 
