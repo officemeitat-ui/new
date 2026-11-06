@@ -2,16 +2,16 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 254 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 258 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (25)
+- [Objekte & Kunden](#objekte-kunden) (26)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (59)
+- [Finanzen](#finanzen) (62)
 - [Verwaltung](#verwaltung) (37)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1113,6 +1113,23 @@ In „Einstellungen“ den Kundenbereich einschalten, Push oder E-Mail fürs Bü
 
 *Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten*
 
+### Rechnungen und offene Posten im Kundenbereich
+
+*In der App: Kundenbereich*
+
+Je Link lässt sich „Rechnungen und offene Posten zeigen“ einschalten (Standard: aus). Der Kunde sieht die Rechnungen, Storno- und Korrekturbelege seiner Kunden aus der Fakturierung der letzten 13 Monate und alle offenen, je als PDF; offene mit Bankverbindung und QR-Code zum Bezahlen. Bezahlt wird nicht über die Seite.
+
+1. „Kundenbereich“ öffnen, beim Link „⋯“ → „Bearbeiten“ (oder „Link anlegen“).
+2. Unter „Rechnungen“ das Häkchen setzen: Kunden, deren Objekte der Link zeigt, sind vorgeschlagen.
+3. Kunden prüfen, bei Bedarf „Weiteren Kunden dazunehmen“ und den Zeitraum wählen.
+4. „Speichern und übertragen“ klicken.
+
+> Tipp: Nur Belege der gewählten Kunden; Entwürfe, Angebote und Lieferscheine nie.
+> Tipp: Zahlungen sieht der Kunde nach dem nächsten Übertragen, einmal am Tag geht das von selbst.
+> Tipp: Wird eine Rechnung per SEPA-Lastschrift eingezogen, steht dort „bitte nicht überweisen“.
+
+*Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen*
+
 ### Schlüsselbuch: wer hat welchen Schlüssel
 
 *In der App: Schlüsselbuch*
@@ -1903,6 +1920,49 @@ Jedes offene Angebot hat eine Wiedervorlage: eine eigene (Datum, Notiz) oder X T
 
 > Tipp: Eigener Text: Textbaustein für „Angebot nachfassen“, Stelle „E-Mail-Text“.
 > Tipp: Angenommen oder abgelehnt im Angebot markieren, dann stimmt die Quote.
+
+### Angebot online annehmen lassen
+
+*In der App: Fakturierung*
+
+Für ein festgeschriebenes, offenes Angebot erstellt „Online-Annahme“ einen eigenen Link. Der Kunde sieht Nummer, Datum, Summe, „gültig bis“ und das PDF und nimmt mit Name, Funktion und Häkchen an, Unterschrift freiwillig. Der Link gilt bis „gültig bis“. Läuft über den Kundenbereich; der muss eingeschaltet sein.
+
+1. Angebot öffnen und „Online-Annahme“ klicken.
+2. „Link erstellen und übertragen“.
+3. „Per E-Mail senden“ (fertiger Text mit dem Link) oder „Link kopieren“.
+4. Nimmt der Kunde an, kommt ein Push bzw. eine E-Mail ans Büro und das Angebot steht auf „angenommen“.
+
+> Tipp: Gespeichert werden Zeitpunkt, Name, Funktion und eine Prüfsumme des angenommenen PDF, keine IP-Adresse.
+> Tipp: „Zurückziehen“ macht den Link sofort ungültig; „Abgelehnt“ zieht ihn von selbst zurück.
+> Tipp: Das festgeschriebene Angebot bleibt unverändert, die Annahme steht nur daneben.
+
+*Vollzugriff (braucht Fakturierung und Kundenbereich)*
+
+### Online angenommenes Angebot: Auftragsbestätigung
+
+*In der App: Fakturierung*
+
+Die App holt Annahmen alle 3 Minuten ab, solange jemand mit Fakturierung sie offen hat. Das Angebot zeigt „Online angenommen am … von …“ mit Funktion, Unterschrift und ob das PDF genau das übertragene war. Unter „Zu erledigen“ steht es mit „Auftragsbestätigung erstellen“.
+
+1. „Zu erledigen“ öffnen oder das Angebot in „Angebote & Aufträge“.
+2. „Auftragsbestätigung erstellen“: Entwurf mit allen Positionen und Bezug auf das Angebot.
+3. Prüfen, festschreiben und senden.
+
+> Tipp: Ohne Auftragsbestätigung? Im Angebot „Ohne Auftragsbestätigung erledigt“.
+> Tipp: Sofort abholen: „Kundenbereich“ → „⋯“ → „Reklamationen jetzt abholen“ holt auch die Annahmen.
+
+### Online-Annahme bei Verbrauchern
+
+*In der App: Fakturierung*
+
+Nimmt ein Verbraucher ein Angebot online an, ist das ein Fernabsatzvertrag mit Rücktrittsrecht und Informationspflichten. Darum geht die Online-Annahme zuerst nur bei Unternehmern; bei Kunden mit „Verbraucher“ zeigt die App eine Warnung. Erst wenn die Angebote die Widerrufsbelehrung enthalten, in den Einstellungen das Häkchen setzen.
+
+1. Widerrufsbelehrung und Pflichtinformationen als Textbaustein in den Schlusstext der Angebote an Verbraucher.
+2. Fakturierung → Einstellungen → „Angebot online annehmen“: „Auch an Verbraucher“ anhaken und speichern.
+3. Die Seite für den Kunden weist dann auf das Rücktrittsrecht im PDF hin.
+
+> Tipp: Ob ein Kunde Verbraucher ist, steht beim Kunden (Häkchen „Verbraucher (privat)“).
+> Tipp: Den Wortlaut der Belehrung rechtlich prüfen lassen; die App prüft den Text nicht.
 
 ### SEPA-Lastschrift einziehen
 
