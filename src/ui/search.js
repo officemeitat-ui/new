@@ -25,6 +25,7 @@ const KEYWORDS = {
   nachweis: 'Leistungsnachweis Kunde Bericht',
   schluessel: 'Schlüssel Transponder Code',
   anlagen: 'Anlage Prüfung Prüffrist Feuerlöscher Rauchmelder Rauchwarnmelder Notbeleuchtung Spielplatz Lift Aufzug Blitzschutz Wartung Hausbetreuung',
+  regie: 'Regiebericht Regie Regiestunden Sonderleistung Grundreinigung Wasserschaden Zusatzarbeiten Unterschrift Auftrag',
   zaehler: 'Wasserzähler Ablesung Zählerstand',
   kontrolle: 'Prüfprotokoll Qualitätskontrolle',
   matten: 'Matten Mattenwechsel Tour Lieferschein',
@@ -66,6 +67,12 @@ function results(q) {
       const type = typeOf(app.data.anlagen, x.typeId)?.name || ''
       const obj = app.data.objects.find((o) => o.id === x.objectId)?.name || ''
       if (hit(x.label, x.serial, x.maker, x.company, `${type} ${obj}`)) out.push({ group: 'Anlagen', label: `${type}: ${x.label}`, sub: obj, action: 'anl-edit-open', data: { id: x.id } })
+    }
+  // Regieberichte: Nummer, Leistung, Auftraggeber, Objekt
+  if (sees('regie'))
+    for (const x of app.data.regie?.reports || []) {
+      const obj = app.data.objects.find((o) => o.id === x.objectId)?.name || ''
+      if (hit(x.no, x.title, x.orderedBy, x.orderRef, `${obj} ${x.title || ''}`)) out.push({ group: 'Regieberichte', label: `${x.no}: ${x.title || 'Sonderleistung'}`, sub: [obj, x.date ? x.date.split('-').reverse().join('.') : ''].filter(Boolean).join(' · '), action: 'reg-open', data: { id: x.id } })
     }
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {

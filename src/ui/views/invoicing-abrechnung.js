@@ -2,7 +2,9 @@
 // Einsatz oder als Pauschale) und „Aus Leistungsnachweis“ nach Ist-Zeiten aus der Zeiterfassung (Grundlage Plan oder
 // Ist). Dazu die Beilage zur Rechnung – Winterdienst-Nachweis bzw. Einsatzliste – zum Herunterladen und als Anhang der
 // E-Mail (Einzel- und Sammelversand). Rechenkern: core/fak-abrechnung.js; PDF: export/winter-pdf.js und
-// export/abrechnung-pdf.js. Geladen mit invoicing.js; Entwurf und Kunde kommen von dort (abrechnungHooks).
+// export/abrechnung-pdf.js. Geladen mit invoicing.js; Entwurf und Kunde kommen von dort (abrechnungHooks, auch für den
+// Rechnungsentwurf aus einem Regiebericht, views/regie.js). Beilage zum Regiebericht: export/regie-pdf.js aus den beim
+// Erstellen eingefrorenen Angaben (source.beilage), damit die Buchhaltung sie ohne Zugriff auf regie/ senden kann.
 
 import { formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import {
@@ -29,11 +31,13 @@ import {
   winterRecurring,
   winterSeason,
 } from '../../core/fak-abrechnung.js'
-import { customerForObject, customerName, monthLabel, parseNumber, round2, settingsOf } from '../../core/invoicing.js'
+import { customerForObject, customerName, deDate, monthLabel, parseNumber, round2, settingsOf } from '../../core/invoicing.js'
 import { objectsWithWork, proofFor } from '../../core/proof.js'
+import { freezeRegie, namesOf as regieNames } from '../../core/regie.js'
 import { absMinutes } from '../../core/timeclock.js'
 import { logKey, workText } from '../../core/winterlog.js'
 import { istListDocument, istListPdfName } from '../../export/abrechnung-pdf.js'
+import { regieDocument, regiePdfName } from '../../export/regie-pdf.js'
 import { winterLogDocument, winterLogPdfName } from '../../export/winter-pdf.js'
 import { app, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
@@ -302,9 +306,10 @@ function sourceOf(x) {
   return { ...s, objectId: s.objectId || objectId, month: s.month || month }
 }
 
-/** Beilage eines Belegs: Winterdienst-Nachweis bzw. Einsatzliste (nur bei Ist-Zeiten); sonst null. */
+/** Beilage eines Belegs: Winterdienst-Nachweis, Einsatzliste (nur bei Ist-Zeiten) bzw. Regiebericht; sonst null. */
 export function beilageOf(x) {
-  const s = sourceOf(x)
+  const s = x?.source?.type === 'regie' ? x.source : sourceOf(x)
+  if (s?.type === 'regie' && s.reportId) return { kind: 'regie', label: 'Regiebericht', name: regiePdfName(s.no || s.beilage?.no, s.beilage?.object?.name || objOf(s.objectId)?.name || ''), source: s }
   if (!s?.objectId || !/^\d{4}-\d{2}$/.test(s.month)) return null
   const name = s.beilage?.object?.name || objOf(s.objectId)?.name || ''
   if (s.type === 'winterdienst') return { kind: 'winter', label: 'Winterdienst-Nachweis', name: winterLogPdfName(s.month, name), source: s }
@@ -313,10 +318,17 @@ export function beilageOf(x) {
 }
 /** Eingefroren beim Erstellen (source.beilage): ohne Wochen der Planung erzeugbar, z. B. für die Buchhaltung. */
 const frozen = (b) => !!b?.source?.beilage && typeof b.source.beilage === 'object'
-/** Beilage erzeugbar? Eingefroren immer; ältere Belege brauchen die Wochen der Planung (Protokoll bzw. Zeiterfassung). */
+/** Regiebericht zu einer Beilage, wenn die Rolle die Regieberichte lesen darf (sonst null). */
+const regieReport = (b) => (sees('regie') ? (app.data.regie?.reports || []).find((r) => r.id === b.source.reportId && r.status === 'abgeschlossen') || null : null)
+/**
+ * Beilage erzeugbar? Eingefroren immer; ältere Belege brauchen die Wochen der Planung (Protokoll bzw. Zeiterfassung),
+ * ein Regiebericht ohne eingefrorene Angaben das Recht auf die Regieberichte.
+ */
 const beilageReady = (x) => {
   const b = beilageOf(x)
-  return !!b && (frozen(b) || sees('planung'))
+  if (!b) return false
+  if (frozen(b)) return true
+  return b.kind === 'regie' ? !!regieReport(b) : sees('planung')
 }
 
 /**
@@ -326,6 +338,12 @@ const beilageReady = (x) => {
 export async function beilageBlob(x) {
   const b = beilageOf(x)
   if (!b) return null
+  if (b.kind === 'regie') {
+    const r = frozen(b) ? null : regieReport(b)
+    const fz = frozen(b) ? b.source.beilage : r ? freezeRegie(r, { object: objOf(r.objectId) || {}, names: regieNames(app.data.regie) }) : null
+    if (!fz) return null
+    return pdfBlob(regieDocument({ report: fz, invoiceNumber: x.number || '', brand: app.config.brand || {}, logo: await loadLogo().catch(() => null) }))
+  }
   const { objectId, month } = b.source
   if (frozen(b)) {
     const fz = b.source.beilage
@@ -367,13 +385,18 @@ export const beilageButton = (x) => (beilageReady(x) ? `<button class="btn" data
 export function beilageOption(x) {
   const b = beilageOf(x)
   if (!b) return ''
-  if (!beilageReady(x)) return `<p class="muted wide">Beilage ${esc(b.label)}: braucht bei diesem älteren Beleg Zugriff auf die Planung, hängt hier nicht an.</p>`
+  if (!beilageReady(x)) return `<p class="muted wide">Beilage ${esc(b.label)}: braucht bei diesem älteren Beleg Zugriff auf ${b.kind === 'regie' ? 'die Regieberichte' : 'die Planung'}, hängt hier nicht an.</p>`
   return `<label class="check wide"><input type="checkbox" id="fm-beilage" checked><span>Beilage anhängen: ${esc(b.label)} (${esc(b.name)})</span></label>`
 }
 export const beilageWanted = (x) => beilageReady(x) && checked('fm-beilage')
 
 /** Herkunft im Beleg: „aus dem Winterdienst-Protokoll“, „nach Ist-Zeiten“ … */
 export function sourceNote(x) {
+  if (x?.source?.type === 'regie') {
+    const s = x.source
+    const o = objOf(s.objectId)
+    return `<p class="fak-doc-head">Aus dem Regiebericht ${esc(s.no || '')}${s.date ? ` vom ${esc(deDate(s.date))}` : ''}${o || s.beilage?.object?.name ? ` · ${esc(o?.name || s.beilage.object.name)}` : ''}${s.beilage?.signature ? ` · unterschrieben von ${esc(s.beilage.signature.name)}` : ''}</p>`
+  }
   const s = sourceOf(x)
   if (!s || !['winterdienst', 'nachweis'].includes(s.type) || !/^\d{4}-\d{2}$/.test(s.month)) return ''
   const o = objOf(s.objectId)
@@ -385,7 +408,7 @@ export function sourceNote(x) {
 /** Untertitel im Entwurf: woher er kommt. */
 export function sourceLabel(x) {
   const t = x.source?.type
-  return t === 'dauerauftrag' ? 'aus Dauerauftrag' : t === 'winterdienst' ? 'aus dem Winterdienst-Protokoll' : t === 'nachweis' ? (x.source.basis === 'ist' ? 'aus Leistungsnachweis, Ist-Zeiten' : 'aus Leistungsnachweis') : ''
+  return t === 'dauerauftrag' ? 'aus Dauerauftrag' : t === 'winterdienst' ? 'aus dem Winterdienst-Protokoll' : t === 'nachweis' ? (x.source.basis === 'ist' ? 'aus Leistungsnachweis, Ist-Zeiten' : 'aus Leistungsnachweis') : t === 'regie' ? `aus Regiebericht ${esc(x.source.no || '')}`.trim() : ''
 }
 
 // ---------------------------------------------------------------- Aktionen

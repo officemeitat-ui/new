@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -93,6 +93,15 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   }
   assert.ok(om.write(MODULE_DOCS.anlagen.path) && !va.read(MODULE_DOCS.anlagen.path) && !dataRights(resolveAccess({ roleClaims: ['lager'], access, strict: true })).read(MODULE_DOCS.anlagen.path))
   assert.ok(!dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true })).read(MODULE_DOCS.anlagen.path))
+  // Regieberichte: Objektmanagement, Objektleitung und Objektservice erfassen (Datei, Fotos und PDF im Ordner regie/);
+  // Buchhaltung, Lager, Vorarbeiter und „Nur lesen“ nicht (die Buchhaltung bekommt den Bericht eingefroren mit der Rechnung)
+  for (const role of ['objektleitung', 'objektservice']) {
+    const r = dataRights(resolveAccess({ roleClaims: [role], access, strict: true }))
+    assert.ok(r.write(MODULE_DOCS.regie.path) && r.write('regie/nachweise/2026/RB-2026-0001_Lehen_2026-11-05_Regiebericht.pdf') && r.read(DOC.objects) && !r.read(MODULE_DOCS.fakturierung.path), role)
+  }
+  assert.ok(om.write(MODULE_DOCS.regie.path) && !va.read(MODULE_DOCS.regie.path))
+  for (const role of ['lager', 'lesen', 'buchhaltung']) assert.ok(!dataRights(resolveAccess({ roleClaims: [role], access, strict: true })).read(MODULE_DOCS.regie.path), role)
+  assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).regie, '')
   // Schlüsselbuch: Objektmanagement bearbeitet, Vorarbeiter sieht es nicht
   assert.ok(om.read(MODULE_DOCS.schluessel.path) && om.write(MODULE_DOCS.schluessel.path) && !va.read(MODULE_DOCS.schluessel.path))
   // Material & Lager: Objektmanagement fordert an und gibt aus; Vorarbeiter sieht es nicht

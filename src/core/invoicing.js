@@ -155,6 +155,9 @@ export const SETTINGS_DEFAULTS = {
  *  customers[].winterPrices { [objectId]: { mode, beides, raeumen, streuen, kontrolle, pauschale } } (Winterdienst je Objekt)
  *  documents[].source  wie beim Leistungsnachweis { type, key }: 'winterdienst' (Protokoll) bzw. 'nachweis' mit basis 'ist'
  *  settings.istRound  Rundung je Stempelung (0, 5 oder 15 Minuten)
+ * Regiebericht (core/regie.js; alle Felder optional, nicht in der Prüfsumme):
+ *  documents[].source { type: 'regie', key: 'regie:<Bericht>', reportId, no, objectId, date, beilage (eingefroren) }
+ *  settings.regieRate, customers[].regieRate  Regiestundensatz netto (Einstellung bzw. eigener Satz des Kunden)
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 

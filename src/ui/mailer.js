@@ -117,8 +117,9 @@ const copyMe = (id) => (canMail() && app.user?.email ? `<label class="check"><in
 // ---------------------------------------------------------------- Senden-Fenster
 
 /**
- * Senden-Fenster öffnen. mail: { to?, cc?, subject, text, files: [{ name, blob, type }], origin?, privacy? }
- * privacy: Hinweis auf personenbezogene Daten im Anhang (Exporte, Berichte).
+ * Senden-Fenster öffnen. mail: { to?, cc?, subject, text, files: [{ name, blob, type }], origin?, privacy?, onSent? }
+ * privacy: Hinweis auf personenbezogene Daten im Anhang (Exporte, Berichte); onSent({ via, to, cc, subject, files }):
+ * nach dem Senden (bzw. dem Öffnen des E-Mail-Programms), z. B. um den Versand zu vermerken.
  */
 export function openCompose(mail) {
   openModal({ type: 'mail-compose', files: [], ...mail })
@@ -367,6 +368,8 @@ registerActions({
       remember([...r.to, ...r.cc])
       const files = m.files
       closeModal()
+      // Versand beim Absender vermerken (z. B. Regiebericht: „gesendet an …“)
+      m.onSent?.({ via, to: r.to, cc: r.cc, subject, files: files.map((f) => f.name) })
       toast(sentToast(via, r.to, via === 'mailto' ? files : []))
     } catch (err) {
       el.disabled = false

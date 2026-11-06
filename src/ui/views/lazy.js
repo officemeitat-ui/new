@@ -252,6 +252,31 @@ lazy(BUERO, {
   todo: ['anlagen'],
 })
 
+// regie.js: Regieberichte (Sonderleistungen vor Ort mit Unterschrift, PDF, Rechnungsentwurf)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'regie',
+      order: 77,
+      label: 'Regieberichte',
+      group: 'service',
+      module: 'regie',
+      icon: '<path d="M5.5 3.5h9l4 4v13h-13z"/><path d="M14.5 3.5v4h4"/><path d="M8.5 12h7M8.5 15h4"/><path d="M8 18.5c1.2-1.4 2.2-1.4 3 0s1.8 1.4 3 0"/>',
+      noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.8h6l3 3v9.4h-9z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5.6 8h4.8M5.6 10.4h2.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.3 12.8c.8-.9 1.5-.9 2 0s1.2.9 2 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+        label: 'Regie',
+      },
+      text: 'Sonderleistungen vor Ort: Stunden, Material, Fotos, Unterschrift, Rechnung',
+    },
+  ],
+  modals: 'reg-edit reg-sign reg-view reg-settings',
+  actions: `reg-filter reg-reset reg-goto reg-open reg-file reg-pdf reg-mail reg-csv reg-invoice-open reg-new reg-redraw reg-calc reg-worker-add reg-worker-del
+    reg-mat-add reg-mat-del reg-photo reg-photo-del reg-preview reg-save reg-delete reg-sign-open reg-nosig reg-close reg-stock reg-skip reg-unskip
+    reg-settings-open reg-settings-save reg-invoice reg-invoice-all`,
+  todo: ['regie'],
+})
+
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)
 lazy(BUERO, {
   views: [

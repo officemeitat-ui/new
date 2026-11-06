@@ -15,6 +15,7 @@
 //   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
 //   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
 //   anlagen/anlagen.json              Anlagen & Prüffristen je Objekt (Fotos und Prüfberichte unter anlagen/nachweise/)
+//   regie/regie.json                  Regieberichte (Sonderleistungen mit Unterschrift; Fotos und PDF unter regie/nachweise/)
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
@@ -75,6 +76,8 @@ export const MODULE_DOCS = {
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
   // Anlagen & Prüffristen: leerer Inhalt wie emptyAnlagen (core/anlagen.js; test/anlagen.test.js vergleicht)
   anlagen: { path: 'anlagen/anlagen.json', empty: () => ({ types: [], items: [], checks: [], settings: {} }) },
+  // Regieberichte: leerer Inhalt wie emptyRegie (core/regie.js; test/regie.test.js vergleicht)
+  regie: { path: 'regie/regie.json', empty: () => ({ reports: [], settings: {} }) },
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
   // Einkauf & Kasse: Lieferanten und Eingangsrechnungen; das Kassenbuch in einer eigenen Datei (kleiner, seltener gleichzeitig).
@@ -101,7 +104,7 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie'), () => edits('stammdaten', 'planung')],
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
@@ -120,10 +123,13 @@ export function dataRights(access) {
     [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
     // Anlagen & Prüffristen: Datei, Fotos und Prüfberichte (anlagen/nachweise/…) im selben Ordner
     ['anlagen/', () => sees('anlagen'), () => edits('anlagen')],
+    // Regieberichte: Datei, Fotos und PDFs (regie/nachweise/…) im selben Ordner. Die Buchhaltung braucht ihn nicht:
+    // der Rechnungsentwurf trägt den Bericht eingefroren als Beilage (source.beilage in fakturierung.json)
+    ['regie/', () => sees('regie'), () => edits('regie')],
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
-    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen')],
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie')],
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
@@ -150,6 +156,7 @@ export const FOLDERS = [
   ['nachweise', 'Leistungsnachweis: Versand-Vermerke', MODULE_DOCS.nachweise.path],
   ['unterweisungen', 'Unterweisungen & Fristen je Person', MODULE_DOCS.unterweisungen.path],
   ['anlagen', 'Anlagen & Prüffristen je Objekt (mit Fotos und Prüfberichten)', MODULE_DOCS.anlagen.path],
+  ['regie', 'Regieberichte: Sonderleistungen mit Unterschrift, Fotos und PDF', MODULE_DOCS.regie.path],
   ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],

@@ -4,7 +4,7 @@
 //
 //   Disponent    Vertretungen bei Abwesenheiten, offene Einsätze dieser und nächster Woche,
 //                Woche veröffentlichen, Prüfbericht mit Fehlern
-//   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise
+//   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise, Regieberichte verrechnen
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
 //                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“)
@@ -22,6 +22,7 @@ import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
 import { isOpenRequest, orderSuggestions } from '../../core/material.js'
+import { toBill as regieToBill } from '../../core/regie.js'
 import { dueList, typesOf } from '../../core/trainings.js'
 import { openTasks, taskLabel } from '../../core/vehicle-dues.js'
 import { ACTIONS, app, canEdit, compute, ensureRange, memo, openModal, persist, registerActions, registerView, render, renderNow, toast } from '../context.js'
@@ -32,7 +33,7 @@ import { esc, ICON } from '../shared.js'
 
 export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
-  { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
+  { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
   { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen und überfällige Reklamationen', module: '*' },
 ]
@@ -128,6 +129,22 @@ function buchhaltung(today) {
     })
   }
   const docs = d.documents || []
+  // Regieberichte: abgeschlossen (unterschrieben), noch in keiner Rechnung – nur wer auch die Regieberichte sieht
+  const reg = app.data.regie
+  if (reg && sees('regie')) {
+    const open = regieToBill(reg.reports || [], docs)
+    if (open.length)
+      out.push({
+        id: `regie:${open.map((r) => r.id).join(',')}`,
+        agent: 'buchhaltung',
+        prio: open.some((r) => r.date < addDays(today, -14)) ? 1 : 2,
+        title: `${plural(open.length, 'Regiebericht', 'Regieberichte')} verrechnen`,
+        text: 'Abgeschlossene Sonderleistungen ohne Rechnung. Ich lege je Regiebericht einen Rechnungsentwurf an (Regiestundensatz und Material wie hinterlegt, der Bericht hängt als Beilage an). Festschreiben und Versenden bleibt bei dir.',
+        lines: open.slice(0, 5).map((r) => `${r.no} ${objName(r.objectId)} (${formatDate(r.date)})`),
+        run: { label: 'Entwürfe erstellen', action: 'reg-invoice-all' },
+        open: { label: 'Regieberichte', action: 'reg-goto', data: { status: 'zuverrechnen' } },
+      })
+  }
   // freundliche erste Erinnerung per E-Mail: eigener Vorschlag mit Freigabe (Mahnlauf-Dialog „nur Zahlungserinnerungen“)
   const ready = canMail() ? paymentReminders(docs, d.customers || [], today, settings).ready : []
   if (ready.length)

@@ -105,6 +105,7 @@ import {
 } from '../../core/invoicing.js'
 import { objectsWithWork, proofFor } from '../../core/proof.js'
 import { addRechargeLines, markupDefault, openRecharges, RECHARGE_STATE, rechargeConflicts, rechargeList, rechargeSources, rechargeTexts, withoutSource } from '../../core/recharge.js'
+import { regieConflicts, syncRegieBilled } from '../../core/regie.js'
 import { mergeRules } from '../../core/rules.js'
 import { absMinutes } from '../../core/timeclock.js'
 import { ciiXml, ebInterfaceXml, eInvoiceFileName, eInvoiceProblems } from '../../export/e-invoice.js'
@@ -584,7 +585,8 @@ function settingsTab() {
       <label class="field"><span>Angebot gültig (Tage)</span><input type="number" id="fs-offer-days" min="1" value="${esc(s.offerDays)}" ${dis}></label>
       <label class="field"><span>Stellen der Nummer</span><input type="number" id="fs-digits" min="3" max="6" value="${esc(s.digits)}" ${dis}></label>
       ${Object.entries(KINDS).map(([k, label]) => `<label class="field"><span>Kürzel ${esc(label)}</span><input type="text" id="fs-series-${k}" value="${esc(s.series[k])}" maxlength="6" ${dis}></label>`).join('')}
-      <label class="field"><span>Aufschlag Weiterverrechnung (%)</span><input type="text" inputmode="decimal" id="fs-recharge" value="${esc(String(markupDefault(s)).replace('.', ','))}" title="Vorschlag für Kosten aus dem Einkauf" ${dis}></label>
+      <label class="field"><span>Aufschlag Weiterverrechnung (%)</span><input type="text" inputmode="decimal" id="fs-recharge" value="${esc(String(markupDefault(s)).replace('.', ','))}" title="Vorschlag für Kosten aus dem Einkauf (auch Material aus Regieberichten ohne Artikel)" ${dis}></label>
+      <label class="field"><span>Regiestundensatz netto (€)</span><input type="text" inputmode="decimal" id="fs-regie" value="${esc(numText(s.regieRate ?? ''))}" placeholder="z. B. 38,50" title="Für Rechnungen aus Regieberichten, wenn Kunde und Artikel „Regiestunde“ keinen Satz haben" ${dis}></label>
       <label class="field"><span>Umsatzsteuer (für die UVA)</span><select id="fs-vat-basis" ${dis}>${options([['soll', 'Sollbesteuerung (nach Rechnungsdatum)'], ['ist', 'Istbesteuerung (nach Zahlungseingang)']], s.vatBasis === 'ist' ? 'ist' : 'soll')}</select></label>
       <label class="field"><span>Erste Rechnungsnummer ${y} (Umstieg)</span><input type="number" id="fs-start" min="1" value="${esc(s.start[`rechnung|${y}`] || '')}" placeholder="1" ${dis}></label>
       <p class="muted wide">Die Texte gelten, solange es dafür keinen Standard-Textbaustein gibt (Stammdaten → Textbausteine).</p>
@@ -1357,6 +1359,7 @@ function customerStamm(v, x, dis) {
       <label class="field"><span>Zahlungsziel (Tage, ohne Bedingung)</span><input type="number" id="fc-days" min="0" value="${esc(v.paymentDays ?? '')}" placeholder="${S().paymentDays}" ${dis}></label>
       <label class="field"><span>Rabatt (%)</span><input type="text" inputmode="decimal" id="fc-discount" value="${esc(numText(v.discount ?? ''))}" placeholder="0" ${dis}></label>
       <label class="field"><span>Stundensatz netto (€)</span><input type="text" inputmode="decimal" id="fc-rate" value="${esc(numText(v.hourRate ?? ''))}" placeholder="für Abrechnung nach Aufwand" ${dis}></label>
+      <label class="field"><span>Regiestundensatz netto (€)</span><input type="text" inputmode="decimal" id="fc-regie" value="${esc(numText(v.regieRate ?? ''))}" placeholder="leer: Artikel bzw. Einstellungen" title="Für Rechnungen aus Regieberichten" ${dis}></label>
       <label class="field"><span>Debitorenkonto</span><input type="text" id="fc-account" value="${esc(v.account || '')}" placeholder="leer: Kundennummer" ${dis}></label>
       <label class="field"><span>IBAN des Kunden</span><input type="text" id="fc-iban" value="${esc(formatIban(v.iban || ''))}" ${dis}></label>
       <label class="field"><span>BIC</span><input type="text" id="fc-bic" value="${esc(v.bic || '')}" ${dis}></label>
@@ -1430,6 +1433,7 @@ function readCustomer(m) {
       paymentDays: days === '' ? '' : Number(days),
       discount: num('fc-discount') || '',
       hourRate: num('fc-rate') || '',
+      regieRate: num('fc-regie') || '',
       account: val('fc-account').trim(),
       iban: val('fc-iban').replace(/\s+/g, '').toUpperCase(),
       bic: val('fc-bic').trim().toUpperCase(),
@@ -1923,7 +1927,7 @@ registerActions(
       const x = readForm(m)
       const list = blocking(problems(x, S()))
       if (list.length) return toast(list[0].text)
-      const clash = [...advanceConflicts(x, F().documents), ...rechargeConflicts(x, F().documents, seesRecharge() ? rechargeSources(einkaufData()) : null)]
+      const clash = [...advanceConflicts(x, F().documents), ...rechargeConflicts(x, F().documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, F().documents)]
       if (clash.length) return toast(clash[0])
       if (!confirmStep(`fak-final:${x.id}`, renderModal)) return
       el.disabled = true
@@ -1934,12 +1938,13 @@ registerActions(
         await app.service.refresh?.().catch(() => [])
         const d = F()
         // nach dem Abgleich noch einmal: Abschlag inzwischen storniert oder anderswo abgezogen?
-        const clash2 = [...advanceConflicts(x, d.documents), ...rechargeConflicts(x, d.documents, seesRecharge() ? rechargeSources(einkaufData()) : null)]
+        const clash2 = [...advanceConflicts(x, d.documents), ...rechargeConflicts(x, d.documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, d.documents)]
         if (clash2.length) throw new Error(clash2[0])
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
         const fixed = finalize(withDebitNote(d.documents.find((y) => y.id === x.id) || x, custOf(x.customerId), S()), d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
         upsertDoc(fixed)
         syncRechargeBilled() // „verrechnet mit …“ bzw. nach einem Storno wieder offen, auch für Rollen ohne Fakturierung
+        if (canEdit('regie') && app.data.regie?.reports) syncRegieBilled(app.data.regie.reports, d.documents) // ebenso beim Regiebericht
         persist()
         await app.service.flush().catch(() => {})
         checkNumbers()
@@ -2289,6 +2294,7 @@ registerActions(
         offerOutro: val('fs-offer-outro'),
         smallBusiness: checked('fs-small'),
         rechargeMarkup: val('fs-recharge').trim() === '' ? markupDefault({}) : Math.max(0, num('fs-recharge')),
+        regieRate: num('fs-regie') > 0 ? num('fs-regie') : '',
         vatBasis: val('fs-vat-basis') === 'ist' ? 'ist' : 'soll',
         baseRate: num('fs-base'),
         reminders,

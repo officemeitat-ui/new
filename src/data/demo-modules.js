@@ -1,5 +1,5 @@
 // Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus);
-// Anlagen & Prüffristen in demo-anlagen.js.
+// Anlagen & Prüffristen in demo-anlagen.js, Regieberichte in demo-regie.js.
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
@@ -9,6 +9,7 @@ import { composeAddress, finalize } from '../core/invoicing.js'
 import { monthAdd } from '../core/vehicle-dues.js'
 import { createPurchaseDemo } from './demo-einkauf.js'
 import { createAnlagenDemo } from './demo-anlagen.js'
+import { createRegieDemo } from './demo-regie.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -172,6 +173,7 @@ function demoInvoicing() {
     bank: { iban: 'AT611904300234573201', bic: 'BKAUATWW', name: 'Bank Beispiel' },
     paymentDays: 14,
     baseRate: 1.53,
+    regieRate: 38,
   }
   // Kunden wie aus orgaMAX übernommen: Einzelfelder, Ansprechpartner, Gruppe (Anschrift als Freitext bleibt nutzbar)
   const customers = [
@@ -231,6 +233,7 @@ export function createModuleDemo(monday, employees = []) {
     unterweisungen: employees.length > 10 ? demoTrainings(employees) : { types: [], records: [], sessions: [] },
     schluessel: demoKeys(),
     anlagen: createAnlagenDemo(),
+    regie: createRegieDemo(),
     termine: demoAppointments(monday, employees),
     material: demoMaterial(),
     fahrzeuge: demoVehicles(monday),

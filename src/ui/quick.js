@@ -12,6 +12,7 @@ export const QUICK = [
   { id: 'zeit', label: 'Zeit nachtragen', key: 'z', module: 'planung', action: 'tc-edit-open', words: 'zeiterfassung stempeln vergessen kommen gehen' },
   { id: 'reklamation', label: 'Reklamation', key: 'r', module: 'reklamationen', action: 'complaint-new', words: 'beschwerde mangel kunde' },
   { id: 'pruefung', label: 'Prüfung erfassen (Anlage)', module: 'anlagen', action: 'anl-check-open', words: 'anlage prüffrist feuerlöscher rauchmelder spielplatz lift wartung hausbetreuung' },
+  { id: 'regie', label: 'Regiebericht (Sonderleistung)', module: 'regie', action: 'reg-new', words: 'regie regiestunden sonderleistung grundreinigung wasserschaden zusatzarbeiten unterschrift kunde auftrag' },
   { id: 'material', label: 'Material anfordern', key: 'm', module: 'material', action: 'mat-request-new', words: 'lager bestellen reinigungsmittel' },
   { id: 'rechnung', label: 'Rechnung', key: 'f', module: 'fakturierung', action: 'fak-new', data: { kind: 'rechnung' }, words: 'faktura fakturieren verrechnen' },
   { id: 'angebot', label: 'Angebot', module: 'fakturierung', action: 'fak-new', data: { kind: 'angebot' }, words: 'offert kostenvoranschlag' },
