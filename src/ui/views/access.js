@@ -9,7 +9,7 @@
 //    Werkzeuge; alte Werkzeug-Ordner einmal in ihre Reviere verschieben (Umzug, Objektliste aufteilen).
 // Aktionen und Dialoge mit dem Kürzel „acc-“.
 
-import { DEFAULT_ROLES, MODULES, resolveAccess } from '../../core/access.js'
+import { allRoles as rolesOf, MODULES, resolveAccess } from '../../core/access.js'
 import { KONTROLLE_LIST, kontrolleRevierList, moveRows, moveTarget, REVIER_TOOLS, revierName, revierSetup, splitObjectList } from '../../core/reviere.js'
 import { auditFolder, expectedRights, fixPlan, groupNames, summary } from '../../core/rights-audit.js'
 import { folderRights, TOOL_FOLDERS, toolFolderRights } from '../../storage/data-service.js'
@@ -19,7 +19,7 @@ import { copyText } from './sheet.js'
 
 const list = (v) => (v === '*' ? 'alles' : (v || []).map((m) => MODULES[m] || m).join(', ') || '–')
 const ids = (v) => [v || []].flat().join(',').split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean)
-const allRoles = () => ({ ...DEFAULT_ROLES, ...(app.config.access?.roles || {}) })
+const allRoles = () => rolesOf(app.config.access)
 const spFolder = () => app.config.sharepoint?.folder || 'Plattform'
 /** SharePoint-Ablage mit Freigaben (im Browser-Modus und ohne Netz: null). */
 const sp = () => {

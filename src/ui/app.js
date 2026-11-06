@@ -16,7 +16,7 @@ import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, na
 import { loadTopics } from '../help/lazy.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
-import { bottomNav, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
+import { bottomNav, fitLabels, isMobile, mobileTopbar, roleSwitch, watchDevice } from './mobile.js'
 import { navIcon, sidebar } from './sidebar.js'
 import { closeMenus } from './menus.js'
 import { planWeek, seedDemoHistory } from './planning.js'
@@ -45,9 +45,10 @@ function readPrefs() {
 }
 
 function writePrefs() {
-  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen } = app.ui
+  // leiste: eigene Wahl der Leiste unten am Handy je Konto ({ 'konto:<E-Mail>': [Plätze] }, mobile.js)
+  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen, leiste } = app.ui
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen }))
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen, leiste }))
   } catch {
     /* Browser erlaubt keine Speicherung */
   }
@@ -244,6 +245,7 @@ setFrame({
     document.body.classList.toggle('readonly', app.readOnly)
     document.body.classList.toggle('mobile', isMobile())
     labelTables()
+    fitLabels() // Leiste unten: voller Name, wo er passt
     writePrefs()
     refreshBell()
     syncTools()

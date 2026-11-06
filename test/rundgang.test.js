@@ -18,16 +18,15 @@ test('Wochen-Ablauf: „1 Verstoß“ und „1 Warnung“ in der Einzahl', () =>
   assert.equal(info(week({ warnings: 113 })), '113 Warnungen')
 })
 
-test('Handy-Leiste ohne Dienstplan: eigene Bereiche vor Kennzahlen und Anleitung', async () => {
-  const { ownNavViews } = await import('../src/ui/mobile.js')
-  const v = (id, module, extra = {}) => ({ id, module, ...extra })
-  const ids = (views) => ownNavViews(views).map((x) => x.id)
-  // Reihenfolge wie in der Registrierung (nach order)
-  const general = [v('home', '*', { mobile: { label: 'Start' } }), v('assistenz', '*'), v('kennzahlen', '*'), v('anleitung', '*')]
-  assert.deepEqual(ids([...general, v('fakturierung', 'fakturierung')]), ['home', 'fakturierung', 'assistenz', 'kennzahlen'], 'Buchhaltung')
-  assert.deepEqual(ids([...general, v('material', 'material')]), ['home', 'material', 'assistenz', 'kennzahlen'], 'Lager')
-  assert.deepEqual(ids([...general, v('zaehler', 'zaehler'), v('reklamationen', 'reklamationen'), v('kontrolle', 'kontrolle'), v('schluessel', 'schluessel')]), ['home', 'zaehler', 'reklamationen', 'kontrolle'], 'Objektservice')
-  assert.deepEqual(ids([...general, v('fahrzeuge', 'fahrzeuge', { mobile: { label: 'Reifen' } })]), ['home', 'fahrzeuge', 'assistenz', 'kennzahlen'], 'Fuhrpark')
+test('Handy-Leiste ohne Dienstplan: nur eigene Bereiche, Kennzahlen und Anleitung bleiben unter „Mehr“', async () => {
+  const { defaultSlots } = await import('../src/ui/leiste.js')
+  const v = (id, module, section = 'objekte', extra = {}) => ({ id, module, section, ...extra })
+  const general = [v('home', '*', 'start', { mobile: true }), v('assistenz', '*', 'start'), v('kennzahlen', '*', 'start'), v('anleitung', '*', 'start')]
+  const slots = (roles, views) => defaultSlots({ roles, views: [...general, ...views] })
+  assert.deepEqual(slots(['buchhaltung'], [v('fakturierung', 'fakturierung', 'finanzen'), v('einkauf', 'einkauf', 'finanzen'), v('kassenbuch', 'einkauf', 'finanzen'), v('umsatzsteuer', '*', 'finanzen')]), ['fakturierung', 'einkauf', 'kassenbuch', 'umsatzsteuer'], 'Buchhaltung')
+  assert.deepEqual(slots(['lager'], [v('material', 'material', 'betrieb')]), ['material'], 'Lager')
+  assert.deepEqual(slots(['objektservice'], [v('zaehler', 'zaehler'), v('reklamationen', 'reklamationen'), v('kontrolle', 'kontrolle'), v('schluessel', 'schluessel'), v('anlagen', 'anlagen', 'objekte', { mobile: true }), v('regie', 'regie', 'objekte', { mobile: true })]), ['zaehler', 'kontrolle', 'anlagen', 'regie'], 'Objektservice')
+  assert.deepEqual(slots(['fuhrpark'], [v('fahrzeuge', 'fahrzeuge', 'betrieb', { mobile: true })]), ['fahrzeuge'], 'Fuhrpark')
 })
 
 test('PDFs nach Mitternacht: Datum in Wiener Zeit, nicht in UTC (Inventur, Bestellung, Angebot)', async () => {

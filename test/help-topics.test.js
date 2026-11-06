@@ -242,7 +242,7 @@ test('Themen: jede Aktion ist registriert, mit Beschriftung und Text-Daten', () 
 // gelöscht, gesendet oder festgeschrieben. Ausnahmen: „plan“ (besetzt nur freie Einsätze, mit
 // Rückgängig) und „sync-now“ (Abgleich). Eine neue Aktion hier bewusst ergänzen.
 const SAFE = new Set([
-  'plan', 'sync-now', 'open-todo', 'open-publish', 'open-send', 'open-search', 'open-data', 'open-absence-new', 'quick-open', 'quick-keys', 'theme-open', 'ai-open', 'help-open',
+  'plan', 'sync-now', 'open-todo', 'open-publish', 'open-send', 'open-search', 'open-data', 'open-absence-new', 'quick-open', 'quick-keys', 'theme-open', 'bn-edit', 'ai-open', 'help-open',
   'appt-new', 'portal-open', 'tc-edit-open', 'wx-alarm-open', 'winterlog-add', 'complaint-new', 'key-move-open', 'key-edit-open',
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',

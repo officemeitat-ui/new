@@ -9,6 +9,7 @@ import { app, closeModal, openModal, registerActions, registerModal, renderModal
 import { esc, ICON, modalFrame } from './shared.js'
 import { activeSeason, seasonInfo, seasonPref, setSeasonPref } from './season.js'
 import { SEASONS } from '../core/season.js'
+import { isMobile } from './mobile.js'
 
 /** preview: Farben für die Vorschaukarte (header, headerLine, logo, bg, line, primary, text, ok, okSoft) */
 export const BUILTIN_THEMES = {
@@ -93,6 +94,7 @@ function appearanceModal() {
       <section><h3>Hell oder dunkel</h3>${seg('mode', MODES, t.mode)}</section>
       <section><h3>Schriftgröße</h3>${seg('scale', SCALES, t.scale)}</section>
       ${seasonSection()}
+      ${isMobile() ? `<section><h3>Leiste unten</h3><p class="muted">Was unten in der Leiste steht, z. B. Finanzen, Wasserzähler oder Objektkontrolle. Gilt auf diesem Gerät${app.user ? ' für dein Konto' : ''}.</p><button type="button" class="btn" data-action="bn-edit">${ICON.list} Leiste unten anpassen</button></section>` : ''}
       <p class="note">Die Voreinstellung für alle steht in config.json (brand.theme). Was hier gewählt ist, gilt nur auf diesem Gerät und bleibt gespeichert.</p>`,
     foot: '<button class="btn" data-action="theme-reset">Voreinstellung</button><div class="actions"><button class="btn primary" data-action="close-modal">Fertig</button></div>',
   })

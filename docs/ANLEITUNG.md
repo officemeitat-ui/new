@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 309 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 310 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -13,7 +13,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (68)
 - [Verwaltung](#verwaltung) (55)
-- [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
+- [Bedienung & Allgemeines](#bedienung-allgemeines) (39)
 - [Begriffe](#begriffe)
 
 ## Start & Übersicht
@@ -3613,6 +3613,19 @@ Mit dem Stern neben einem Eintrag (er erscheint beim Darüberfahren) heftest du 
 3. Zum Lösen noch einmal klicken.
 
 > Tipp: Bis zu 8 Bereiche lassen sich anheften; am Handy stehen sie im Menü „Mehr“ oben.
+
+### Leiste unten am Handy anpassen
+
+Unten am Handy stehen bis zu vier Plätze, rechts immer „Mehr“. Die Vorgabe kommt von deiner Rolle, z. B. Ableser nur Wasserzähler, Planung Woche, Vertretung, „+ Abwesend“ und Zettel. Jeden Platz tauschst du gegen eine Ansicht, einen Bereich wie Finanzen oder einen Sonderknopf. Das gilt auf diesem Gerät für dein Konto.
+
+1. Einen Platz in der Leiste lange drücken: „Diesen Platz ändern“ öffnet sich.
+2. Ansicht, Bereich oder Sonderknopf wählen, z. B. statt „Abwesend“ den Wasserzähler.
+3. Alle Plätze auf einmal: „Mehr“ → „Leiste unten anpassen“, je Platz wählen, mit den Pfeilen verschieben, „leer“ für weniger Plätze.
+4. „Auf Vorgabe zurücksetzen“ stellt die Leiste deiner Rolle wieder her.
+
+> Tipp: Ein Bereich als Platz öffnet beim Antippen die Liste seiner Ansichten, z. B. Finanzen mit Fakturierung, Einkauf, Kassenbuch und Umsatzsteuer.
+> Tipp: Was deine Rolle nicht sehen darf, fällt von selbst heraus.
+> Tipp: Das Büro kann je Rolle eine eigene Vorgabe festlegen (Einrichtung).
 
 ### Bereich oben in der Kopfleiste wechseln
 

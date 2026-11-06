@@ -138,13 +138,13 @@ function phoneHome(c, views, { name, todoCount, staffTotal, nextAppts }) {
   </div>`
 }
 
-/** Liste eines Bereichs (von den Kacheln der Handy-Übersicht). */
+/** Liste eines Bereichs (von den Kacheln der Handy-Übersicht und von einem Bereich in der Leiste unten). */
 registerModal('home-section', (c, m) => {
   const s = sectionsOf(visibleViews().filter((v) => v.id !== 'home')).find((x) => x.id === m.sec)
   if (!s) return ''
   return modalFrame({
     title: s.label,
-    body: `<div class="m-list" data-section="${esc(s.id)}">${s.views.map((v) => { const n = badgeOf(c, v); return `<button class="m-row" data-action="view" data-view="${esc(v.id)}"><span class="m-row-icon">${navIcon(v)}</span><span class="m-row-label">${esc(v.label)}${v.text ? `<small class="muted">${esc(v.text)}</small>` : ''}</span>${n ? `<span class="flag error">${n}</span>` : ''}${ICON.right}</button>` }).join('')}</div>`,
+    body: `<div class="m-list" data-section="${esc(s.id)}">${s.views.map((v) => { const n = badgeOf(c, v); return `<button class="m-row" data-action="view" data-view="${esc(v.id)}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}><span class="m-row-icon">${navIcon(v)}</span><span class="m-row-label">${esc(v.label)}${v.text ? `<small class="muted">${esc(v.text)}</small>` : ''}</span>${n ? `<span class="flag error">${n}</span>` : ''}${ICON.right}</button>` }).join('')}</div>`,
   })
 })
 

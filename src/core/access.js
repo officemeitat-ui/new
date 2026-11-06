@@ -75,6 +75,17 @@ export const DEFAULT_ROLES = {
   lesen: { label: 'Nur lesen', modules: ['planung'], edit: [] },
 }
 
+/**
+ * Alle Rollen: die eingebauten, ergänzt um config.json → access.roles. Je Rolle zusammengeführt: Ein
+ * Eintrag für eine eingebaute Rolle ändert nur, was er angibt (z. B. nur „leiste“, die Vorgabe der
+ * Leiste unten am Handy), Bereiche und Rechte bleiben dann wie eingebaut.
+ */
+export function allRoles(access = {}) {
+  const out = { ...DEFAULT_ROLES }
+  for (const [id, role] of Object.entries(access?.roles || {})) out[id] = { ...(DEFAULT_ROLES[id] || {}), ...(role || {}) }
+  return out
+}
+
 const lower = (s) => String(s || '').trim().toLowerCase()
 const includes = (list, m) => list === '*' || (Array.isArray(list) && list.includes(m))
 
@@ -97,7 +108,7 @@ const groupList = (v) => (Array.isArray(v) ? v : [v]).map(lower).filter(Boolean)
  *  strict:      ohne Rolle kein Zugriff (Betrieb mit SharePoint); sonst wie bisher
  */
 export function resolveAccess({ roleClaims = [], groupClaims = [], email = '', access = {}, preview = null, strict = false } = {}) {
-  const roles = { ...DEFAULT_ROLES, ...(access.roles || {}) }
+  const roles = allRoles(access)
   const found = new Set()
   if (preview && roles[preview]) found.add(preview)
   else {
@@ -126,4 +137,4 @@ export function resolveAccess({ roleClaims = [], groupClaims = [], email = '', a
   }
 }
 
-export const roleOptions = (access = {}) => Object.entries({ ...DEFAULT_ROLES, ...(access.roles || {}) }).map(([id, r]) => [id, r.label])
+export const roleOptions = (access = {}) => Object.entries(allRoles(access)).map(([id, r]) => [id, r.label])
