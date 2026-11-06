@@ -2,12 +2,31 @@
 
 | Ordner | Werkzeug | Fassung | Ansicht in der App | Rolle (Modul) |
 |---|---|---|---|---|
-| `wasserzaehler/` | Wasserzähler-Ablesung | 1.13 | `#wasserzaehler` | `zaehler` |
-| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.9 | `#objektkontrolle` | `kontrolle` |
-| `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.1 | `#objektdoku` | `objektmappe` |
+| `wasserzaehler/` | Wasserzähler-Ablesung | 1.14 | `#wasserzaehler` | `zaehler` |
+| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.10 | `#objektkontrolle` | `kontrolle` |
+| `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.2 | `#objektdoku` | `objektmappe` |
 | `mattenwechsel/` | Mattenwechsel | 2.4 | `#matten` | `matten` |
 
 Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, unverändert.
+
+## Ablage je Revier (Stand 06.11.2026)
+
+Wasserzähler 1.14, Objektkontrolle 2.10 und Objektdoku 2.2 legen ihre Daten je Revier in einem eigenen Unterordner ab, damit Leute vor Ort nur ihre Objekte sehen. Die Rechte vergibt SharePoint je Revier-Ordner (eine Gruppe je Revier).
+
+| Werkzeug | Ablage je Revier |
+|---|---|
+| Wasserzähler | `Wasserzähler - Ablesung/Revier <Name>/[EBG/]<Ort>/…` |
+| Objektkontrolle | `Objektpruefprotokolle/Objekte/Revier <Name>/<Objekt>/<Datum_Q>/…`, Objektliste des Reviers `…/Revier <Name>/Stammdaten/Objekte.json` |
+| Objektdoku | `Objektdoku/Revier <Name>/<Objekt>/…` |
+
+- **Name des Ordners:** `Revier ` und der bereinigte Name, in allen drei Werkzeugen und in der App gleich (Sonderzeichen weg, Leerzeichen zu Bindestrich: „Salzburg Stadt“ → `Revier Salzburg-Stadt`; `src/core/reviere.js`, `revierName`).
+- **Lesen:** Ein Ordner `Revier …` direkt im Grundordner ist ein Revier; seine Daten bekommen dieses Revier (der Ordner gilt). Ordner ohne Rechte (anderes Revier) werden übersprungen, der Abgleich läuft weiter. Alte Daten ohne Revier bleiben am alten Ort lesbar und werden dort gespeichert.
+- **Neu anlegen:** Gibt es Reviere zur Auswahl (von der App über die Brücke, `CLEANOS_APP.reviere`, oder aus den sichtbaren Revier-Ordnern), braucht ein neuer Eintrag ein Revier: bei nur einem ist es vorgewählt, sonst „Revier wählen …“. Bis dahin bleibt er auf dem Gerät („Bitte zuerst das Revier wählen – erst dann wird in SharePoint gespeichert.“). Nach dem ersten Ablegen ist das Revier fest; verschoben wird zentral in der App (**Verwaltung → Berechtigungen → Alte Werkzeug-Ordner in Reviere verschieben**).
+- **Objektdoku 2.2 behebt zwei Fehler:** Bei Konten, die nur einzelne Ordner freigegeben haben, findet sie die Bibliothek jetzt über die Ordner-Adresse (`/shares`) statt im Zweifel die erste Bibliothek der Website zu nehmen. Und `Objektdoku/Stammdaten/Vorlagen.json` wird nicht mehr bei jedem Abgleich als leeres Objekt eingelesen.
+- **Bleibt gemeinsam:** Kundenstamm (`Stammdaten/Kunden.json`, `Objektpruefprotokolle/Stammdaten/Kunden.json`) und die bisherige Gesamt-Objektliste der Objektkontrolle (nach dem Umzug nur noch Objekte ohne Revier). Der Mattenwechsel wird nicht getrennt.
+- **Randfall:** Ein Protokoll der Objektkontrolle, das vor der Umstellung offline abgeschlossen und nie hochgeladen wurde, geht wie bisher an den alten Ort; ohne Recht dort meldet das Werkzeug „Nicht alles ist in SharePoint gelandet“ – dann vom Büro ablegen lassen.
+
+Die geänderten Quellen liegen im Paket `Werkzeuge-Quellen_2026-11-06.zip` (Objektdoku: geänderte `bauteile/`, Wasserzähler und Objektkontrolle: die Einzeldatei). Bitte in die eigenen Werkzeug-Ordner übernehmen.
 
 ## Abschließen: alles nach SharePoint, auch ohne Netz (Stand 28.10.2026)
 
