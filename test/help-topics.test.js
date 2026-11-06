@@ -248,6 +248,7 @@ const SAFE = new Set([
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',
   'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open', 'anl-edit-open', 'anl-check-open', 'anl-types-open', 'reg-new', 'qm-groups-open', 'qm-measure-open', 'qm-settings-open', 'kz-round-open', 'kz-settings-open', 'kz-links-open',
   'asch-stoff-open', 'asch-ba-open', 'asch-eval-open',
+  'bew-edit-open', 'bew-settings-open', 'bew-start-open', 'bew-tpl-open',
   'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-erinnern-open', 'fak-sepa-open',
   'ek-inv-new', 'ek-sup-open', 'ek-export-open', 'kasse-new', 'kasse-count-open', 'kasse-export-open',
 ])
@@ -279,7 +280,7 @@ test('Themen: jede Ansicht des Menüs hat mindestens ein Thema', () => {
 // ---------------------------------------------------------------- Schreibweise
 
 const allText = (t) => [t.title, t.answer, ...(t.steps || []), ...(t.tips || []), t.roles || '', t.action?.label || '', ...t.q]
-const ACRONYMS = new Set(['PDF', 'CSV', 'ZIP', 'IBAN', 'UID', 'AZG', 'ARG', 'KJBG', 'KFG', 'DOT', 'BMD', 'RZL', 'VPI', 'JSON', 'PHP', 'HTTPS', 'NFC', 'XML', 'GPS', 'SMS', 'ELBA', 'BAWAG', 'WKO', 'ASVG', 'DSGVO', 'API', 'EPC', 'URL', 'ODBC', 'SEPA', 'BAO', 'RKSV', 'BIC', 'UVA', 'AQL', 'GHS', 'ISO', 'SDB', 'NPS'])
+const ACRONYMS = new Set(['PDF', 'CSV', 'ZIP', 'IBAN', 'UID', 'AZG', 'ARG', 'KJBG', 'KFG', 'DOT', 'BMD', 'RZL', 'VPI', 'JSON', 'PHP', 'HTTPS', 'NFC', 'XML', 'GPS', 'SMS', 'ELBA', 'BAWAG', 'WKO', 'ASVG', 'DSGVO', 'API', 'EPC', 'URL', 'ODBC', 'SEPA', 'BAO', 'RKSV', 'BIC', 'UVA', 'AQL', 'GHS', 'ISO', 'SDB', 'ÖGK', 'NPS', 'AMS'])
 
 test('Schreibweise: keine Wörter nur in Großbuchstaben (außer Abkürzungen), keine Emoji', () => {
   const texts = [...TOPICS.flatMap(allText), ...GLOSSARY.flatMap((g) => [g.term, g.text])]

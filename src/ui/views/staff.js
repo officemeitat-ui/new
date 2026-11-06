@@ -1,5 +1,6 @@
 // Mitarbeitende: Liste, Bearbeiten, Import aus Excel. Im Stammblatt auch die Sprache für „Plan am Handy“
-// (employees[].lang, leer = Deutsch; core/sprachen.js).
+// (employees[].lang, leer = Deutsch; core/sprachen.js). Aus einer Bewerbung (views/bewerber.js) öffnet sich das
+// Stammblatt vorbefüllt (prefill); nach dem Speichern meldet onEmployeeCreated die neue Person zurück.
 
 import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
@@ -7,6 +8,7 @@ import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, TASK_TEMPLATE } from '
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
+import { dataRights, DOC } from '../../storage/data-service.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, euro, ICON, menu, modalFrame, num, options, uid, val } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
@@ -41,8 +43,16 @@ function staffView(c) {
     ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Revier</th><th>Beschäftigung</th><th>Soll</th><th>Qualifikationen</th><th>Eingeschult</th><th>Verfügbar</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="empty">${app.data.employees.length ? 'Niemand in dieser Auswahl (Suche oder Revier).' : 'Noch keine Mitarbeitenden angelegt.'}</p>`}`
 }
 
-function employeeModal(c, { id }) {
-  const e = id === 'new' ? { id: 'new', name: '', type: 'Teilzeit', weeklyHours: 20, skills: [], trained: [], availability: {}, team: app.ui.team || '' } : app.data.employees.find((x) => x.id === id)
+// Lohngruppe und Stundenlohn stehen im Zeitkonto (lohn/): ohne Schreibrecht dort (z. B. Personalverwaltung) nicht im
+// Stammblatt zeigen, sonst wären sie scheinbar gespeichert und nach dem nächsten Laden weg
+const editsPay = () => !app.access || dataRights(app.access).write(DOC.account)
+
+// Nach dem Anlegen einer Person: fn(Person, Dialog) – z. B. Bewerbung verknüpfen und Eintritts-Checkliste starten
+const CREATED = []
+export const onEmployeeCreated = (fn) => CREATED.push(fn)
+
+function employeeModal(c, { id, prefill = null, from = '' }) {
+  const e = id === 'new' ? { id: 'new', name: '', type: 'Teilzeit', weeklyHours: 20, skills: [], trained: [], availability: {}, team: app.ui.team || '', ...(prefill || {}) } : app.data.employees.find((x) => x.id === id)
   if (!e) return null
   const teams = [...new Set(app.data.employees.map((x) => x.team).filter(Boolean))]
   const avail = [1, 2, 3, 4, 5, 6, 7]
@@ -56,7 +66,7 @@ function employeeModal(c, { id }) {
   const { wages, pay } = mergeRules(app.data.rules)
   return modalFrame({
     title: id === 'new' ? 'Mitarbeiter:in anlegen' : e.name,
-    body: `<div class="form-grid">
+    body: `${from ? `<p class="note">${esc(from)}</p>` : ''}<div class="form-grid">
         <label class="field"><span>Name</span><input type="text" id="emp-name" value="${esc(e.name)}" required></label>
         <label class="field"><span>Personalnummer</span><input type="text" id="emp-pnr" value="${esc(e.personnelNo || '')}"></label>
         <label class="field"><span>Revier / Team</span><input type="text" id="emp-team" list="team-list" value="${esc(e.team || '')}"><datalist id="team-list">${teams.map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
@@ -70,8 +80,8 @@ function employeeModal(c, { id }) {
         <label class="field"><span>Max. Stunden pro Monat (geringfügig)</span><input type="number" id="emp-maxmonth" step="0.5" min="0" value="${esc(e.maxMonthHours ?? '')}" placeholder="leer = kein Limit"></label>
         <label class="field"><span>Urlaubsanspruch (Arbeitstage/Jahr)</span><input type="number" id="emp-vacation" step="1" min="0" value="${esc(e.vacationDaysYear ?? 25)}"></label>
         <label class="field"><span>Zeitkonto Startsaldo (h)</span><input type="number" id="emp-start" step="0.25" value="${esc(e.startBalanceHours ?? 0)}"></label>
-        <label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${euro(w)}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
-        <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${esc(e.hourlyWage ?? '')}" placeholder="leer = KV-Lohn der Lohngruppe"></label>
+        ${editsPay() ? `<label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${euro(w)}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
+        <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${esc(e.hourlyWage ?? '')}" placeholder="leer = KV-Lohn der Lohngruppe"></label>` : '<p class="note">Lohngruppe und Stundenlohn trägt die Lohnverrechnung ein (Zeitkonto).</p>'}
         <label class="field"><span>Überstunden</span><select id="emp-uemode">${options(Object.entries(UE_MODES), e.ueMode || '', { empty: `wie unter „Regeln“ (${UE_MODES[pay.ueMode]})` })}</select></label>
         <label class="field"><span>Mehrarbeit (Teilzeit)</span><select id="emp-mehrmode">${options(Object.entries(MEHR_MODES), e.mehrMode || '', { empty: `wie unter „Regeln“` })}</select></label>
         <label class="field"><span>Durchrechnung ab (Vollzeit, KV)</span><input type="date" id="emp-dr-start" value="${esc(e.durchrechnung?.start || '')}"><small class="muted">Nur mit Betriebsvereinbarung bzw. schriftlicher Vereinbarung; Plan spätestens 2 Wochen vorher bekanntgeben.</small></label>
@@ -104,8 +114,8 @@ function readEmployeeForm(existing) {
     maxMonthHours: num('emp-maxmonth') || undefined,
     vacationDaysYear: num('emp-vacation') ?? 25,
     startBalanceHours: num('emp-start') || undefined,
-    wageGroup: Number(val('emp-wagegroup')) || undefined,
-    hourlyWage: num('emp-wage') || undefined,
+    wageGroup: document.getElementById('emp-wagegroup') ? Number(val('emp-wagegroup')) || undefined : existing.wageGroup,
+    hourlyWage: document.getElementById('emp-wage') ? num('emp-wage') || undefined : existing.hourlyWage,
     ueMode: val('emp-uemode') || undefined,
     mehrMode: val('emp-mehrmode') || undefined,
     durchrechnung: val('emp-dr-start') && num('emp-dr-weeks') > 0 ? { start: mondayOf(val('emp-dr-start')), weeks: Math.min(52, Math.round(num('emp-dr-weeks'))) } : undefined,
@@ -199,6 +209,7 @@ registerActions(
     'emp-edit': (el) => openModal({ type: 'employee', id: el.dataset.id }),
     'emp-save': (el) => {
       const id = el.dataset.id
+      const modal = app.ui.modal
       const existing = id === 'new' ? { id: uid('e') } : app.data.employees.find((e) => e.id === id)
       let emp = readEmployeeForm(existing)
       if (!emp.name) return toast('Bitte einen Namen eingeben.')
@@ -212,6 +223,7 @@ registerActions(
       closeModal()
       renderNow()
       toast(`${emp.name} gespeichert.`)
+      if (id === 'new') for (const fn of CREATED) fn(emp, modal)
     },
     'emp-delete': (el) => {
       if (app.ui.confirm !== 'emp-delete') {

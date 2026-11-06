@@ -49,6 +49,12 @@ async function directoryToken() {
 /** Ort für die Einladung: eingetragen, sonst Name und Adresse des Objekts. */
 const locationText = (a) => a.location || [objectName(a.objectId), objectOf(a.objectId)?.address].filter(Boolean).join(', ')
 
+// Andere Module erfahren, dass ein Termin gespeichert wurde, den sie mit `ref` angelegt haben (Dialog „appt“ mit
+// ref, z. B. „bew:<Bewerbung>“ für das Bewerbungsgespräch oder „bew-ein:<Checkliste>:<Aufgabe>“ für die Einschulung).
+const SAVED = []
+/** fn(Termin) nach jedem Speichern eines Termins mit ref (neu oder geändert), vor dem Eintragen in Outlook. */
+export const onAppointmentSaved = (fn) => SAVED.push(fn)
+
 /**
  * Termin speichern (neu oder geändert) und, wenn möglich, in Outlook eintragen bzw. aktualisieren.
  * Liefert den gespeicherten Termin. Auch für den KI-Assistenten und andere Module.
@@ -65,6 +71,14 @@ export async function saveAppointment(draft, { sync = true, quiet = false } = {}
     item = { ...draft, id: uid('ter'), createdAt: now, createdBy: app.user?.name || '', createdByMail: myMail() }
     items().push(item)
   }
+  if (item.ref)
+    for (const fn of SAVED) {
+      try {
+        fn(item)
+      } catch (err) {
+        console.warn('Termin gespeichert, Vermerk im Modul fehlgeschlagen:', err)
+      }
+    }
   persist()
   renderNow()
   if (sync && outlookOn() && item.sync !== false) return (await syncAppointment(item.id, { quiet })) || byId(item.id)
@@ -294,7 +308,7 @@ function draftFrom(m) {
   const date = m.date || todayISO()
   const start = m.time || '09:00'
   const startAt = `${date}T${start}`
-  return { title: m.title || '', kind: m.kind || 'kunde', start: startAt, end: addMinutes(startAt, Number(m.minutes) || 60), allDay: !!m.allDay, objectId: m.objectId || '', location: '', note: '', attendees: [], employeeIds: m.employeeIds?.length ? [...m.employeeIds] : m.employeeId ? [m.employeeId] : [], online: false, reminder: 15, responseRequested: true }
+  return { title: m.title || '', kind: m.kind || 'kunde', start: startAt, end: addMinutes(startAt, Number(m.minutes) || 60), allDay: !!m.allDay, objectId: m.objectId || '', location: '', note: m.note || '', attendees: [], employeeIds: m.employeeIds?.length ? [...m.employeeIds] : m.employeeId ? [m.employeeId] : [], online: false, reminder: 15, responseRequested: true, ...(m.ref ? { ref: m.ref } : {}) }
 }
 
 /** Felder des Dialogs in den Entwurf übernehmen. */

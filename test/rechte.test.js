@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', bewerbung: '', eintritt: '', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -220,6 +220,48 @@ test('Rechte: Arbeitsschutz – Vollzugriff bearbeitet, Objektleitung und Objekt
   const own = resolveAccess({ roleClaims: ['sicherheit'], access: { ...access, roles: { sicherheit: { label: 'Sicherheitsfachkraft', modules: ['arbeitsschutz', 'unterweisungen'], edit: ['arbeitsschutz'] } } }, strict: true })
   const or = dataRights(own)
   assert.ok(or.write(FILE) && or.write(BA) && or.write(SDB) && or.read(MODULE_DOCS.material.path) && !or.write(MODULE_DOCS.material.path) && or.write(MODULE_DOCS.assistenz.path))
+})
+
+test('Rechte: Bewerbungen eng (Personalverwaltung), Eintritt & Austritt auch für die Lohnverrechnung, Objektleitung nur über Termine', () => {
+  const role = (r) => resolveAccess({ roleClaims: [r], access, strict: true })
+  const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
+  const bew = MODULE_DOCS.bewerbung.path
+  const ein = MODULE_DOCS.eintritt.path
+  const doc = 'bewerbung/unterlagen/bw123/2026-11-06_ab12_Lebenslauf.pdf'
+  assert.equal(bew, 'bewerbung/bewerbung.json')
+  assert.equal(ein, 'eintritt/eintritt.json')
+  // Personalverwaltung: Bewerbungen mit Unterlagen, Checklisten, Mitarbeitende anlegen, Unterweisungen und Termine;
+  // Schlüsselbuch nur lesen (Ausgabe und Rückgabe sehen); kein Zeitkonto, keine Fakturierung
+  const pv = role('personalverwaltung')
+  const r = dataRights(pv)
+  assert.ok(pv.canEdit('bewerber') && pv.canEdit('eintritt') && pv.canEdit('stammdaten') && pv.canEdit('unterweisungen') && pv.canEdit('termine'))
+  assert.ok(r.read(bew) && r.write(bew) && r.write(doc) && r.read(ein) && r.write(ein))
+  assert.ok(r.read(DOC.master) && r.write(DOC.master) && r.read(DOC.objects) && r.write(MODULE_DOCS.unterweisungen.path) && r.write(MODULE_DOCS.termine.path) && r.write(MODULE_DOCS.assistenz.path))
+  assert.ok(r.read(MODULE_DOCS.schluessel.path) && !r.write(MODULE_DOCS.schluessel.path))
+  for (const p of [DOC.account, MODULE_DOCS.fakturierung.path, MODULE_DOCS.kalkulation.path, weekPath('2026-10-26')]) assert.ok(!r.read(p), p)
+  assert.deepEqual([rows(pv).bewerbung, rows(pv).eintritt, rows(pv).schluessel], ['Bearbeiten', 'Bearbeiten', 'Lesen'])
+  // Lohnverrechnung: Eintritt & Austritt (Anmeldung, Abmeldung, Zeitkonto), aber keine Bewerbungsunterlagen
+  const lohn = dataRights(role('lohnverrechnung'))
+  assert.ok(lohn.read(ein) && lohn.write(ein) && lohn.read(DOC.account) && lohn.read(DOC.master) && lohn.read(DOC.objects))
+  assert.ok(!lohn.read(bew) && !lohn.read(doc) && !lohn.write(bew))
+  assert.deepEqual([rows(role('lohnverrechnung')).bewerbung, rows(role('lohnverrechnung')).eintritt], ['', 'Bearbeiten'])
+  // alle anderen Rollen: weder Bewerbungen noch Checklisten; die Objektleitung sieht die Einschulung als Termin
+  for (const id of ['objektleitung', 'objektmanagement', 'objektservice', 'vorarbeiter', 'lager', 'buchhaltung', 'lesen', 'pruefer', 'fuhrpark', 'mattenwechsel', 'ableser']) {
+    const acc = role(id)
+    const x = dataRights(acc)
+    assert.ok(!acc.sees('bewerber') && !acc.sees('eintritt') && !x.read(bew) && !x.read(doc) && !x.read(ein), id)
+    assert.deepEqual([rows(acc).bewerbung, rows(acc).eintritt], ['', ''], id)
+  }
+  assert.ok(dataRights(role('objektleitung')).write(MODULE_DOCS.termine.path))
+  // Vollzugriff alles; ohne Rolle (Betrieb) nichts
+  const voll = dataRights(resolveAccess({ email: 'office@cleanos.at', access, strict: true }))
+  assert.ok(voll.write(bew) && voll.write(doc) && voll.write(ein))
+  const none = dataRights(resolveAccess({ email: 'neu@cleanos.at', access, strict: true }))
+  assert.ok(!none.read(bew) && !none.read(ein))
+  // eigene Rolle mit Lesen ohne Schreibrecht (z. B. Geschäftsführung schaut nur)
+  const gf = resolveAccess({ roleClaims: ['gf'], access: { ...access, roles: { gf: { label: 'Geschäftsführung', modules: ['bewerber', 'eintritt'], edit: [] } } }, strict: true })
+  assert.ok(dataRights(gf).read(bew) && !dataRights(gf).write(bew) && dataRights(gf).read(ein) && !dataRights(gf).write(ein))
+  assert.deepEqual([rows(gf).bewerbung, rows(gf).eintritt], ['Lesen', 'Lesen'])
 })
 
 test('Rechte: Mattenwechsel wird pro Gruppe zugewiesen', () => {

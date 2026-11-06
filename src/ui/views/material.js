@@ -913,7 +913,8 @@ registerActions(
     },
     'mat-book-open': (el) => {
       if (!M().articles.length) return toast('Zuerst Artikel anlegen.')
-      openModal({ type: 'mat-book', mode: el.dataset.mode || 'ausgabe', objectId: el.dataset.obj || '' })
+      // data-emp: Ausgabe an eine Person vorbelegt (z. B. Dienstkleidung aus der Eintritts-Checkliste)
+      openModal({ type: 'mat-book', mode: el.dataset.mode || 'ausgabe', objectId: el.dataset.obj || '', employeeId: el.dataset.emp || '' })
     },
     'mat-book-redraw': () => {
       readBook()

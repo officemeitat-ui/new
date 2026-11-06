@@ -44,6 +44,8 @@ const KEYWORDS = {
   payroll: 'Lohn Monatsabschluss',
   overtime: 'Überstunden Mehrarbeit Auszahlung',
   staff: 'Personal Mitarbeiter Team',
+  bewerber: 'Bewerbung Bewerber Bewerberin Personalsuche AMS Inserat Lebenslauf Vorstellungsgespräch Absage Zusage',
+  eintritt: 'Eintritt Austritt Onboarding Neueintritt Kündigung Checkliste Anmeldung Abmeldung ÖGK Dienstzettel Einschulung Dienstzeugnis',
   sites: 'Objekte Kunden Leistungen Adressen',
   berechtigungen: 'Rechte Gruppen Rollen',
 }
@@ -101,6 +103,9 @@ function results(q) {
       out.push({ group: 'Kundenzufriedenheit', label: a.linkTitle || 'Kunde', sub: 'Auswertung je Kunde', action: 'kz-goto', data: { link: a.linkId } })
     }
   }
+  // Bewerbungen: Name, Telefon, E-Mail (nur wer Bewerbungen sieht)
+  if (sees('bewerber'))
+    for (const x of app.data.bewerbung?.applicants || []) if (hit(x.name, x.phone, x.email, `Bewerbung ${x.name}`)) out.push({ group: 'Bewerbungen', label: x.name, sub: [x.region, x.hours ? `${x.hours} h` : ''].filter(Boolean).join(' · '), action: 'bew-edit-open', data: { id: x.id } })
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {
       const driver = app.data.employees.find((e) => e.id === v.driverId)?.name || ''

@@ -35,6 +35,9 @@ export const MODULES = {
   termine: 'Termine',
   fakturierung: 'Fakturierung',
   einkauf: 'Einkauf & Kasse',
+  // Bewerbungen mit Unterlagen (eng: Personalverwaltung, Vollzugriff); Eintritt & Austritt auch für die Lohnverrechnung
+  bewerber: 'Bewerbungen',
+  eintritt: 'Eintritt & Austritt',
 }
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
@@ -52,7 +55,11 @@ export const DEFAULT_ROLES = {
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   // eigene Microsoft-Gruppe für den Mattenwechsel (Fahrer:innen, Disposition der Touren)
   mattenwechsel: { label: 'Mattenwechsel', modules: ['matten'], edit: ['matten'] },
-  lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung'], edit: ['auswertung'] },
+  // Eintritt & Austritt: Checklisten (Anmeldung, Abmeldung, Zeitkonto); Bewerbungsunterlagen sieht sie nicht
+  lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung', 'eintritt'], edit: ['auswertung', 'eintritt'] },
+  // Bewerbungen bis zur Zusage, Mitarbeitende anlegen (Stammdaten), Unterweisungen und Gesprächstermine; das
+  // Schlüsselbuch nur lesen (Ausgabe und Rückgabe in der Checkliste sehen, Quittung drucken)
+  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine'] },
   objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
   // Regieberichte: erfasst Sonderleistungen vor Ort und lässt sie am Handy unterschreiben

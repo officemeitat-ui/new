@@ -26,6 +26,8 @@
 //   einkauf/einkauf.json              Einkauf: Lieferanten, Eingangsrechnungen, Zahlungen (Belege unter einkauf/belege/)
 //   einkauf/kassenbuch.json           Kassenbuch (Einträge, Kassenstürze, Monatsabschlüsse)
 //   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden und Angebote (mit Code), Einstellungen
+//   bewerbung/bewerbung.json          Bewerbungen (Unterlagen unter bewerbung/unterlagen/) – eng: Personalverwaltung
+//   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -99,6 +101,9 @@ export const MODULE_DOCS = {
   // Berichte automatisch per E-Mail: Abos (Empfänger, Rhythmus, zuletzt gesendet) – nur Vollzugriff
   berichte: { path: 'berichte/abos.json', empty: () => ({ abos: [] }) },
   kundenbereich: { path: 'kundenbereich/kundenbereich.json', empty: () => ({ links: [], settings: {} }) },
+  // Bewerbungen und Checklisten: leere Inhalte wie emptyBewerbung/emptyEintritt (core/bewerber.js; test/bewerber.test.js vergleicht)
+  bewerbung: { path: 'bewerbung/bewerbung.json', empty: () => ({ applicants: [], settings: {} }) },
+  eintritt: { path: 'eintritt/eintritt.json', empty: () => ({ lists: [], templates: {}, settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -114,9 +119,9 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt'), () => edits('stammdaten', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“)
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     // „abwesend von–bis“ ohne Grund: geschrieben, wo die Abwesenheiten gepflegt werden
@@ -150,7 +155,7 @@ export function dataRights(access) {
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
-    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit')],
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt')],
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
@@ -158,6 +163,12 @@ export function dataRights(access) {
     ['einkauf/', () => sees('einkauf'), () => edits('einkauf')],
     // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
     [MODULE_DOCS.kundenbereich.path, () => edits('reklamationen', 'planung'), () => edits('reklamationen', 'planung')],
+    // Bewerbungen mit Lebenslauf und Unterlagen (bewerbung/unterlagen/…): personenbezogen, nur wer Bewerbungen bearbeitet
+    // (Personalverwaltung, Vollzugriff); nicht die Lohnverrechnung, nicht die Objektleitung
+    ['bewerbung/', () => sees('bewerber'), () => edits('bewerber')],
+    // Eintritts- und Austritts-Checklisten: Personalverwaltung und Lohnverrechnung. Die Objektleitung sieht die
+    // Einschulung als Termin (termine/), nicht die Checkliste
+    ['eintritt/', () => sees('eintritt'), () => edits('eintritt')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -189,6 +200,8 @@ export const FOLDERS = [
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
   ['kundenbereich', 'Kundenbereich: Links für Kunden und Angebote zur Online-Annahme (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
+  ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
+  ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
 ]
 
 /**

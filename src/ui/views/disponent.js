@@ -11,6 +11,8 @@
 //                Qualitätsmessung: Nachkontrolle und Reklamationsgefahr je Objekt (nur „Öffnen“),
 //                Arbeitsschutz (überfällige Maßnahmen, Evaluierung zu überprüfen, Sicherheitsdatenblätter; nur „Öffnen“)
 //                Kundenzufriedenheit: Kunde anrufen (Gesamt ≤ 2 oder Rückruf; „Öffnen“, „Termin“), fallender Verlauf
+//                Eintritt/Austritt: Fristen der Checklisten (z. B. Anmeldung bei der ÖGK), Bewerbungen ohne
+//                Rückmeldung und mit erreichter Löschfrist (nur „Öffnen“, nichts automatisch)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -22,6 +24,7 @@
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { anlagenRows, attention as anlagenAttention, isUrgent as anlagenUrgent } from '../../core/anlagen.js'
 import { attention as aschAttention, isUrgent as aschUrgent } from '../../core/arbeitsschutz.js'
+import { checklistAttention, deleteMonthsOf, deletionsDue, silentApplicants, silentDaysOf, STATUS as BEW_STATUS } from '../../core/bewerber.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/qualitaet.js'
 import { fmtAvg, attention as kzAttention, scopeObjectIds as kzScope } from '../../core/zufriedenheit.js'
@@ -32,6 +35,7 @@ import { toBill as regieToBill } from '../../core/regie.js'
 import { dueList, typesOf } from '../../core/trainings.js'
 import { openTasks, taskLabel } from '../../core/vehicle-dues.js'
 import { ACTIONS, app, canEdit, compute, ensureRange, memo, openModal, persist, registerActions, registerView, render, renderNow, toast } from '../context.js'
+import { eintrittContext } from '../eintritt-ctx.js'
 import { canMail } from '../modals/send.js'
 import { todo } from '../modals/todo.js'
 import { planWeek } from '../planning.js'
@@ -41,7 +45,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen und überfällige Reklamationen', module: '*' },
 ]
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
@@ -410,6 +414,50 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'kz-goto', data: { link: r.linkId } },
       })
   }
+  // Eintritt & Austritt: offene Aufgaben mit Frist (überfällig oder in den nächsten 7 Tagen); nur „Öffnen“
+  const ein = app.data.eintritt
+  if (ein && edits('eintritt'))
+    for (const g of checklistAttention(ein.lists || [], eintrittContext(today))) {
+      const kind = g.list.kind === 'austritt' ? 'Austritt' : 'Eintritt'
+      out.push({
+        id: `ein:${g.list.id}:${g.tasks.map((x) => `${x.task.id}${x.state}`).join(',')}`,
+        agent: 'fristen',
+        prio: g.urgent ? 1 : 2,
+        title: `${kind} ${g.emp?.name || 'Person'}: ${plural(g.tasks.length, 'Aufgabe', 'Aufgaben')} ${g.urgent ? 'überfällig oder fällig' : 'bald fällig'}`,
+        text: `${g.list.kind === 'austritt' ? 'Letzter' : 'Erster'} Arbeitstag ${formatDate(g.list.date)}. Bitte erledigen und abhaken (Anmeldung und Abmeldung bei der ÖGK macht die Lohnverrechnung, die App meldet nichts). Ich ändere dabei nichts selbst.`,
+        lines: g.tasks.slice(0, 6).map((x) => `${x.task.title}: ${x.state === 'ueberfaellig' ? `überfällig seit ${formatDate(x.task.due)}` : `bis ${formatDate(x.task.due)}`}`),
+        open: { label: 'Öffnen', action: 'bew-goto', data: { list: g.list.id } },
+      })
+    }
+  // Bewerbungen: ohne Rückmeldung und Löschfrist erreicht; gelöscht wird nur nach Klick in der Bewerbung
+  const bw = app.data.bewerbung
+  if (bw && edits('bewerber')) {
+    const still = silentApplicants(bw.applicants || [], today, silentDaysOf(bw))
+    if (still.length)
+      out.push({
+        id: `bew-still:${still.map((x) => `${x.a.id}${x.since}`).join(',')}`,
+        agent: 'fristen',
+        // Namen von Bewerber:innen nicht an den KI-Assistenten („KI fragen“)
+        private: true,
+        prio: 2,
+        title: `${plural(still.length, 'Bewerbung', 'Bewerbungen')} ohne Rückmeldung (über ${silentDaysOf(bw)} Tage)`,
+        text: 'Kurz melden (anrufen oder E-Mail), Gespräch planen oder den Status setzen. Ich ändere dabei nichts selbst.',
+        lines: still.slice(0, 6).map((x) => `${x.a.name}: ${BEW_STATUS[x.a.status] || x.a.status}, seit ${x.days} Tagen`),
+        open: { label: 'Öffnen', action: 'bew-open', data: { id: still[0].a.id } },
+      })
+    const del = deletionsDue(bw.applicants || [], today, deleteMonthsOf(bw))
+    if (del.length)
+      out.push({
+        id: `bew-del:${del.map((x) => x.a.id).join(',')}`,
+        agent: 'fristen',
+        private: true,
+        prio: 2,
+        title: `${plural(del.length, 'abgelehnte Bewerbung', 'abgelehnte Bewerbungen')} löschen (Löschfrist erreicht)`,
+        text: `${deleteMonthsOf(bw)} Monate nach Absage oder Rückzug: Bewerbung mit Unterlagen löschen. Gelöscht wird nur nach Klick in der Bewerbung.`,
+        lines: del.slice(0, 6).map((x) => `${x.a.name}: ${BEW_STATUS[x.a.status] || ''} am ${formatDate(x.a.decidedAt)}`),
+        open: { label: 'Öffnen', action: 'bew-open', data: { id: del[0].a.id } },
+      })
+  }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -513,7 +561,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit') || edits('eintritt') || edits('bewerber'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })
@@ -592,7 +640,7 @@ registerActions({
   'dm-ai': (el) => {
     const p = byId(el.dataset.id)
     if (!p) return
-    openModal({ type: 'assistant', prefill: `Der digitale Mitarbeiter „${AGENTS.find((a) => a.id === p.agent)?.name}“ schlägt vor: ${p.title}. ${p.text}${p.lines?.length ? ` (${p.lines.join('; ')})` : ''} Was meinst du, und was soll ich tun?` })
+    openModal({ type: 'assistant', prefill: `Der digitale Mitarbeiter „${AGENTS.find((a) => a.id === p.agent)?.name}“ schlägt vor: ${p.title}. ${p.text}${p.lines?.length && !p.private ? ` (${p.lines.join('; ')})` : ''} Was meinst du, und was soll ich tun?` })
   },
 })
 

@@ -345,6 +345,48 @@ lazy(BUERO, {
   todo: ['zufriedenheit'],
 })
 
+// bewerber.js: Bewerbungen (Status bis Zusage oder Absage, Unterlagen, Gespräch, Absage-Mail, als Mitarbeiter:in anlegen)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'bewerber',
+      order: 81,
+      label: 'Bewerbungen',
+      group: 'stamm',
+      module: 'bewerber',
+      icon: '<circle cx="9.5" cy="8" r="3.5"/><path d="M3 20a6.5 6.5 0 0 1 13 0"/><path d="M18.5 8v6M15.5 11h6"/>',
+      noWeek: true,
+      mail: false,
+      text: 'Bewerber:innen, Gespräche, Zusage, Absage',
+    },
+  ],
+  modals: 'bew-edit bew-settings',
+  actions: `bew-filter bew-reset bew-tile bew-edit-open bew-open bew-doc-open bew-save bew-doc bew-doc-drop bew-doc-del bew-status bew-contact bew-reject
+    bew-delete bew-hire bew-settings-open bew-settings-reset bew-settings-save bew-interview`,
+  todo: ['bewerber'],
+})
+
+// eintritt.js: Eintritts- und Austritts-Checklisten (Fristen, Unterweisung, Schlüssel, Plan am Handy, Einsätze)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'eintritt',
+      order: 82,
+      label: 'Eintritt & Austritt',
+      group: 'stamm',
+      module: 'eintritt',
+      icon: '<path d="M4 4.5h10.5v15H4z"/><path d="M7 9h4.5M7 12.5h4.5M7 16h2.5"/><path d="m14.5 15.5 2 2 4-4.5"/>',
+      noWeek: true,
+      text: 'Checklisten: Anmeldung, Unterweisung, Schlüssel, Abmeldung',
+    },
+  ],
+  modals: 'bew-list bew-start bew-tpl',
+  actions: `bew-kind bew-closed bew-list-open bew-goto bew-start-redraw bew-copy bew-week bew-overtime bew-start-open bew-start-save bew-task-done
+    bew-task-undo bew-task-note bew-task-add bew-list-date bew-list-close bew-list-reopen bew-list-delete bew-payroll-mail bew-size bew-ein-set bew-lang
+    bew-handy-code bew-handy-off bew-tpl-open bew-tpl-add bew-tpl-del bew-tpl-reset bew-tpl-save bew-handy-send bew-ein-appt`,
+  todo: ['eintritt'],
+})
+
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)
 lazy(BUERO, {
   views: [
