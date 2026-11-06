@@ -243,8 +243,8 @@ Bisher sind die Ordner in `Cleanos_Daten` von Hand freigegeben, oft über die Gr
 
 Noch offen (vorgemerkt):
 
-- **Unterordner der Werkzeuge je Revier oder Objekt** (Wasserzähler, Objektkontrolle, Objektdoku), damit Vor-Ort-Konten nur ihre Objekte sehen: Das verlangt Änderungen in den Werkzeugen selbst, die bisher unverändert übernommen sind. Erst entscheiden, ob die Werkzeuge dafür angepasst werden sollen.
-- **Verwaltung:** Vollzugriff oder eigene Rolle? Eine eigene Rolle geht ohne Programmänderung in `config.json`, z. B. `"roles": { "verwaltung": { "label": "Verwaltung", "modules": ["planung", "stammdaten", "termine", "fakturierung"], "edit": ["termine"] } }` und `"groups": { "verwaltung": ["<Objekt-ID>"] }`. Die Prüfung berücksichtigt eigene Rollen automatisch.
+- **Werkzeuge je Revier trennen** (entschieden 06.11.2026: ja) – Wasserzähler, Objektkontrolle und Objektdoku legen je Revier einen Unterordner an, damit Vor-Ort-Konten nur ihre Objekte sehen. Das verlangt Änderungen in den Werkzeugen selbst; in Arbeit.
+- **Verwaltung (entschieden 06.11.2026): Vollzugriff wie das Büro.** Die Gruppe der Verwaltung (z. B. `Cleanos_App_Verwaltung`) kommt in `config.json` zur Rolle `disposition`: `"groups": { "disposition": ["<Objekt-ID Büro/IT>", "<Objekt-ID Verwaltung>"] }`. Sollte sie später eine eigene, engere Rolle brauchen, geht das ohne Programmänderung über `"roles"` (siehe [PLATTFORM.md](PLATTFORM.md)); die Prüfung berücksichtigt eigene Rollen automatisch.
 
 Bis alles umgestellt ist, gilt: Was eine Rolle in der App nicht sieht, bietet die App nicht an; geschützt sind die Daten aber erst durch die SharePoint-Rechte.
 
