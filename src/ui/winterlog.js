@@ -297,9 +297,15 @@ registerActions({
       const doc = winterLogDocument({ month, log: logOf(), objects: app.data.objects, objectId: object?.id || '', names, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null), photos })
       const blob = await pdfBlob(doc)
       const name = winterLogPdfName(month, object?.name || '')
-      if (app.store.kind === 'sharepoint') {
-        await app.store.upload(`exporte/Winterdienst/${month}/${name}`, blob, 'application/pdf')
-        toast(`PDF-Nachweis in SharePoint: exporte/Winterdienst/${month}/${name}`)
+      // Ablage in exporte/ nur mit Vollzugriff (so sind die Ordnerrechte, siehe folderRights); scheitert sie,
+      // gibt es das PDF trotzdem – sonst bekämen Objektleitung und Objektmanagement gar keinen Nachweis
+      if (app.store.kind === 'sharepoint' && app.access?.all) {
+        try {
+          await app.store.upload(`exporte/Winterdienst/${month}/${name}`, blob, 'application/pdf')
+          toast(`PDF-Nachweis in SharePoint: exporte/Winterdienst/${month}/${name}`)
+        } catch (err) {
+          toast(`PDF erstellt, aber nicht in SharePoint abgelegt: ${err.message || err}`)
+        }
       }
       if (app.config.features?.download !== false) download(name, blob)
     } catch (err) {
