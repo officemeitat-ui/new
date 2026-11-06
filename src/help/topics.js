@@ -2362,6 +2362,18 @@ export const TOPICS = [
     roles: 'Vollzugriff',
   },
   {
+    id: 'reviere-werkzeuge',
+    section: 'verwaltung',
+    view: 'berechtigungen',
+    title: 'Werkzeuge je Revier trennen',
+    q: ['revier', 'reviere', 'werkzeuge je revier', 'nur eigene objekte sehen', 'revier gruppe', 'ordner verschieben revier', 'revier wählen', 'anderes revier'],
+    answer: 'Wasserzähler, Objektkontrolle und Objektdoku legen ihre Daten je Revier im Ordner „Revier …“ ab; jede Revier-Gruppe sieht nur ihre Reviere. Aktiv, sobald jedes Revier eine Gruppe hat. Alte Ordner verschiebt das Büro einmal unter „Berechtigungen“. Ein neuer Eintrag braucht ein Revier, sonst bleibt er auf dem Gerät.',
+    steps: ['Je Revier eine Gruppe in Entra ID anlegen und die Leute vor Ort aufnehmen.', '„Berechtigungen“ → „Gruppen je Rolle eintragen“ → Reviere: Objekt-IDs eintragen, Ausschnitt in die config.json übernehmen.', '„Alte Werkzeug-Ordner in Reviere verschieben“: einlesen, Vorschläge prüfen, verschieben.', '„Rechte prüfen“ und „Abweichungen beheben …“.'],
+    tips: ['Während des Verschiebens niemand in den drei Werkzeugen abschließen lassen.', 'Das Revier eines abgelegten Eintrags ändert nur die App (Verschieben), nicht das Werkzeug.', 'Kundenstamm und Mattenwechsel bleiben gemeinsam.'],
+    related: ['rechte-pruefen', 'berechtigungen'],
+    roles: 'Vollzugriff',
+  },
+  {
     id: 'rollen-gruppen',
     section: 'verwaltung',
     view: 'berechtigungen',

@@ -241,10 +241,23 @@ Bisher sind die Ordner in `Cleanos_Daten` von Hand freigegeben, oft über die Gr
    - Der Hauptordner `Plattform` gehört nur dem Vollzugriff: Neue Unterordner (ein neues Modul) erben seine Rechte und sind so von Anfang an geschützt; danach einmal „Rechte prüfen“.
 5. **„Ausschnitt für config.json“** kopieren und in `config.json` am Webspace unter `"access"` übernehmen (bzw. vor dem Build in `config.production.json`). App neu laden; jede Rolle mit einem Testkonto prüfen.
 
-Noch offen (vorgemerkt):
+Entschieden:
 
-- **Werkzeuge je Revier trennen** (entschieden 06.11.2026: ja) – Wasserzähler, Objektkontrolle und Objektdoku legen je Revier einen Unterordner an, damit Vor-Ort-Konten nur ihre Objekte sehen. Das verlangt Änderungen in den Werkzeugen selbst; in Arbeit.
+
 - **Verwaltung (entschieden 06.11.2026): Vollzugriff wie das Büro.** Die Gruppe der Verwaltung (z. B. `Cleanos_App_Verwaltung`) kommt in `config.json` zur Rolle `disposition`: `"groups": { "disposition": ["<Objekt-ID Büro/IT>", "<Objekt-ID Verwaltung>"] }`. Sollte sie später eine eigene, engere Rolle brauchen, geht das ohne Programmänderung über `"roles"` (siehe [PLATTFORM.md](PLATTFORM.md)); die Prüfung berücksichtigt eigene Rollen automatisch.
+
+### Werkzeuge je Revier (Wasserzähler, Objektkontrolle, Objektdoku)
+
+Entschieden am 06.11.2026. Ab Wasserzähler 1.14, Objektkontrolle 2.10 und Objektdoku 2.2 (in der App enthalten) liegen die Daten je Revier im Ordner `Revier <Name>` unter dem Grundordner des Werkzeugs, z. B. `Objektdoku/Revier Salzburg-Stadt/…`. Jede Revier-Gruppe sieht und ändert nur ihre Reviere. Die Reviere kommen aus den Objekten der App (Feld „Revier“). Reihenfolge:
+
+1. **Je Revier eine Sicherheitsgruppe** in Entra ID, z. B. `Cleanos_App_RevierSalzburgStadt` (die App schlägt die Namen vor). Mitglieder: die Leute vor Ort in diesem Revier – zusätzlich zu ihrer Rollen-Gruppe (z. B. Vorarbeiter, Objektleitung). Wer in mehreren Revieren arbeitet, kommt in mehrere Gruppen.
+2. **Verwaltung → Berechtigungen → Gruppen je Rolle eintragen → Reviere:** je Revier die Objekt-ID eintragen. Die Trennung wird erst aktiv, wenn **jedes** Revier eine Gruppe hat (sonst könnten Leute aus einem Revier ohne Gruppe nichts Neues anlegen); vorher zeigt die App, welche noch fehlen.
+3. **„Ausschnitt für config.json“** übernehmen (enthält `"reviere": { "Salzburg Stadt": ["<Objekt-ID>"], … }`), App neu laden.
+4. **„Alte Werkzeug-Ordner in Reviere verschieben“** (gleiche Ansicht): „Ordner einlesen“ zeigt je Werkzeug die Ordner ohne Revier mit einem Vorschlag (über Name und Adresse der Objekte), bitte prüfen, dann „Verschieben …“. Fotos, PDFs und Verlauf ziehen mit, nichts wird kopiert oder gelöscht; die Einträge der Objektkontrolle wandern aus der gemeinsamen Objektliste in die ihres Reviers. **Dabei bitte niemand in den drei Werkzeugen abschließen.** Ordner ohne passendes Objekt bleiben, bis sie jemand zuordnet.
+5. **„Rechte prüfen“ → „Abweichungen beheben …“** (als Besitzer der Website): legt fehlende Revier-Ordner an, gibt der Revier-Gruppe und dem Vollzugriff „Bearbeiten“ auf ihren Revier-Ordnern und lässt den Rollen auf den Grundordnern der drei Werkzeuge nur noch „Lesen“ (damit sie ihre Revier-Ordner finden).
+6. **Testen:** je Revier mit einem Testkonto im Werkzeug „Abgleichen“ – sichtbar sind nur die eigenen Reviere; ein neuer Eintrag hat das eigene Revier vorgewählt.
+
+In den Werkzeugen: Ein neuer Eintrag braucht ein Revier (bei nur einem ist es vorgewählt, sonst „Revier wählen …“); bis dahin bleibt er auf dem Gerät. Nach dem ersten Ablegen ist das Revier fest – verschieben geht nur über Schritt 4. Der Kundenstamm und die Gesamt-Objektliste (nur noch Objekte ohne Revier) bleiben für alle Werkzeug-Nutzer lesbar; der Mattenwechsel wird nicht getrennt. Die Webspace-Fassungen der Werkzeuge kommen aus dem Quellen-Paket `Werkzeuge-Quellen_2026-11-06.zip` (Einzelheiten in `werkzeuge/LIESMICH.md`).
 
 Bis alles umgestellt ist, gilt: Was eine Rolle in der App nicht sieht, bietet die App nicht an; geschützt sind die Daten aber erst durch die SharePoint-Rechte.
 

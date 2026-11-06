@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 252 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 253 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (58)
-- [Verwaltung](#verwaltung) (36)
+- [Verwaltung](#verwaltung) (37)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
@@ -2676,6 +2676,23 @@ Unter „Berechtigungen“ liest „Rechte prüfen“ die echten Freigaben jedes
 > Tipp: Werden Website-Gruppen entfernt, verliert Zugriff, wer nur über sie hineinkam: vorher alle in die passenden Gruppen aufnehmen.
 > Tipp: Neue Unterordner erben die Rechte des Hauptordners der App; der gehört nur dem Vollzugriff.
 > Tipp: Was nicht geht (z. B. geerbte Rechte), steht im Bericht; in SharePoint dann „Zugriff verwalten“.
+
+*Vollzugriff*
+
+### Werkzeuge je Revier trennen
+
+*In der App: Berechtigungen*
+
+Wasserzähler, Objektkontrolle und Objektdoku legen ihre Daten je Revier im Ordner „Revier …“ ab; jede Revier-Gruppe sieht nur ihre Reviere. Aktiv, sobald jedes Revier eine Gruppe hat. Alte Ordner verschiebt das Büro einmal unter „Berechtigungen“. Ein neuer Eintrag braucht ein Revier, sonst bleibt er auf dem Gerät.
+
+1. Je Revier eine Gruppe in Entra ID anlegen und die Leute vor Ort aufnehmen.
+2. „Berechtigungen“ → „Gruppen je Rolle eintragen“ → Reviere: Objekt-IDs eintragen, Ausschnitt in die config.json übernehmen.
+3. „Alte Werkzeug-Ordner in Reviere verschieben“: einlesen, Vorschläge prüfen, verschieben.
+4. „Rechte prüfen“ und „Abweichungen beheben …“.
+
+> Tipp: Während des Verschiebens niemand in den drei Werkzeugen abschließen lassen.
+> Tipp: Das Revier eines abgelegten Eintrags ändert nur die App (Verschieben), nicht das Werkzeug.
+> Tipp: Kundenstamm und Mattenwechsel bleiben gemeinsam.
 
 *Vollzugriff*
 
