@@ -935,6 +935,7 @@ document.addEventListener("change", e => {
   if(t.id === "f_objekt" || t.id === "f_objektId") stammdatenErgaenzen();
   if(t.id === "f_ag"){ kundeUebernehmen(); objektlisteFuellen(); objektAuswahlFuellen(); }
   if(t.id === "f_objekt"){ objektUebernehmen(); objektMerkZeile(); }
+  if(t.id === "f_revier") revierFeldFuellen();
 });
 document.addEventListener("click", e => {
   const row = e.target.closest(".item"); if(row) fokusSetzen(row.dataset.row, false);
@@ -1235,6 +1236,11 @@ $("#btnAbschluss").addEventListener("click", () => {
     doc.status = "offen"; doc.wiedergeoeffnet = (doc.wiedergeoeffnet||[]).concat(new Date().toISOString());
     ablageOffenSetzen(doc.id, null);
     formularFuellen(); markiereGeaendert(true); toast("Kontrolle wieder geöffnet."); return;
+  }
+  if(revierFehlt(doc)){
+    revierFeldFuellen(); toast(REVIER_FEHLT, 6000);
+    const s = $("#f_revier"); s.scrollIntoView({block:"center"}); s.focus();
+    return;
   }
   const fehlt = [];
   if(!doc.meta.objekt && !doc.meta.objektId) fehlt.push("Objekt bzw. Objekt-ID");
@@ -1895,20 +1901,32 @@ function revierOptionen(){
   OBJEKTSTAMM.forEach(x => dazu(x.revier));
   return raus.sort((a,b) => a.text.localeCompare(b.text, "de"));
 }
+/* Revier-Modus (es gibt Reviere zur Auswahl): Eine Kontrolle, die noch
+   nicht in SharePoint liegt, geht erst mit Revier dorthin - bis dahin
+   bleibt sie auf dem Geraet, und Abschliessen geht nicht. Was dort schon
+   ohne Revier liegt (alter Bestand), bleibt, wie es ist. */
+const REVIER_FEHLT = "Bitte zuerst das Revier w\u00e4hlen \u2013 erst dann wird in SharePoint gespeichert.";
+function revierFehlt(p){
+  return !!p && p.status !== "abgeschlossen" && !(p.meta || {}).revier && !imSharePoint(p) && revierOptionen().length > 0;
+}
 function revierFeldFuellen(){
   const feld = $("#revierFeld"), sel = $("#f_revier");
   if(!feld || !sel) return;
-  const optionen = revierOptionen(), fest = imSharePoint(doc);
+  const optionen = revierOptionen(), fest = imSharePoint(doc), zu = fest || gesperrt();
   /* Neue Kontrolle und nur ein Revier zur Wahl: vorbelegen */
-  if(optionen.length === 1 && !doc.meta.revier && !fest && !gesperrt()) doc.meta.revier = optionen[0].wert;
+  if(optionen.length === 1 && !doc.meta.revier && !zu) doc.meta.revier = optionen[0].wert;
   const jetzt = doc.meta.revier || "";
   if(jetzt && !optionen.some(o => o.wert === jetzt)) optionen.push({wert:jetzt, text:jetzt});
   feld.classList.toggle("hide", !optionen.length);
-  sel.innerHTML = '<option value="">ohne Revier</option>'
-    + optionen.map(o => '<option value="' + esc(o.wert) + '">' + esc(o.text) + '</option>').join("");
-  sel.value = jetzt;
-  sel.disabled = fest || gesperrt();
-  $("#revierHinweis").textContent = fest && optionen.length
+  /* "ohne Revier" nur zur Ansicht (so abgelegt); neu: nur echte Reviere, sonst Platzhalter */
+  const leer = jetzt ? "" : zu ? '<option value="">ohne Revier</option>'
+             : '<option value="" disabled selected>Revier w\u00e4hlen \u2026</option>';
+  sel.innerHTML = leer + optionen.map(o => '<option value="' + esc(o.wert) + '">' + esc(o.text) + '</option>').join("");
+  if(jetzt) sel.value = jetzt; else sel.selectedIndex = 0;
+  sel.disabled = zu;
+  const h = $("#revierHinweis");
+  if(revierFehlt(doc)) h.innerHTML = '<span style="color:var(--m)">' + esc(REVIER_FEHLT) + '</span>';
+  else h.textContent = fest && optionen.length
     ? "Schon in SharePoint abgelegt \u2013 das Revier l\u00e4sst sich nur zentral in der Cleanos App \u00e4ndern." : "";
 }
 /* Marke einer Datei.
@@ -2062,6 +2080,7 @@ window.addEventListener("online", () => ablageNachholen(true));
 document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") ablageNachholen(false); });
 
 async function graphSchreiben(p){
+  if(revierFehlt(p)) throw new Error(REVIER_FEHLT);
   await graphZiel();
   const ordnerPfad = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerTeile(p)));
   const ziel = `/drives/${graphDriveId}/root:/${encodeURI(ordnerPfad + "/" + graphDateiname(p))}:/content`;
@@ -2179,6 +2198,7 @@ async function graphAbgleichen(meldung){
     for(const pr of db.protokolle){
       const e = index.find(x => x.id === pr.id);
       if(!e || (pr.geaendert || "") !== (pr.graphSyncZeit || "")){
+        if(revierFehlt(pr)) continue;                 /* 2.10: erst mit Revier nach SharePoint */
         try{ if(await graphSchreiben(pr)) hoch++; }
         catch(err){
           /* 2.10: kein Recht (mehr) auf dieses Revier - die anderen trotzdem */
@@ -2205,6 +2225,7 @@ function graphNachSpeichern(){
   if(!graphBereit() || !graphToken) return;
   clearTimeout(graphTimer);
   graphTimer = setTimeout(async () => {
+    if(revierFehlt(doc)) return;                    /* 2.10: erst mit Revier nach SharePoint */
     try{
       if(await graphSchreiben(doc)){ $("#saveState").textContent = "in SharePoint " + jetztZeit(); graphFehlerGemeldet = ""; revierFeldFuellen(); }
     }catch(e){
@@ -3125,6 +3146,7 @@ async function graphPdfHolen(itemId){
 }
 async function graphPdfErzeugen(p){
   if(!graphBereit() || !graphToken) throw new Error("nicht angemeldet");
+  if(revierFehlt(p)) throw new Error(REVIER_FEHLT);
   await graphZiel();
   const ordnerPfad = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerTeile(p)));
   const htmlPfad = ordnerPfad + "/" + pdfDateiname(p).replace(/\.pdf$/i, ".umwandlung.html");
