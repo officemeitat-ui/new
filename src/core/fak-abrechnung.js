@@ -15,6 +15,11 @@
 //                    round: 0 | 5 | 15, minutes (verrechnet), rows: [Stempelung bzw. 'plan:<Einsatz>'], plan: true (Planzeit
 //                    für Einsätze ohne vollständige Stempelung), special: true (nur Sonderleistungen, weil ein Dauerauftrag läuft) }
 //                  Die Beilage (Nachweis, Einsatzliste) zeigt nur die Einträge bzw. Zeilen aus entries bzw. rows.
+//                  beilage: beim Erstellen eingefroren, damit die Beilage ohne Zugriff auf die Planung (Wochen mit
+//                    Protokoll und Zeiterfassung) entsteht, z. B. für die Rolle Buchhaltung:
+//                    Winterdienst { object: { name, address }, names, entries: [Protokoll-Einträge] },
+//                    Ist-Zeiten { object, names, round, rows: [{ date, in, out, billed, label, category, basis, person }] };
+//                    Namen schon gekürzt wie beim Leistungsnachweis eingestellt (bei „keine“ gar nicht gespeichert).
 //  settings.istRound  zuletzt gewählte Rundung je Stempelung (Standard 15 Minuten)
 //
 // Rundung je Stempelung auf das nächste Vielfache (5 oder 15 Minuten), ab der Hälfte aufwärts: 7 Minuten → 0,
@@ -22,10 +27,10 @@
 // ganzen Minuten wie im Leistungsnachweis (Kommen 06:00:40, Gehen 08:15:10 = 135 Minuten).
 
 import { formatDate } from './dates.js'
-import { articleActive, deDate, isCancelled, monthLabel, parseNumber, round2 } from './invoicing.js'
+import { articleActive, deDate, isCancelled, monthLabel, parseNumber, round2, winterNote } from './invoicing.js'
 import { absMinutes } from './timeclock.js'
 import { viennaParts } from './weather.js'
-import { logRows } from './winterlog.js'
+import { logKey, logRows } from './winterlog.js'
 
 // ---------------------------------------------------------------- Winterdienst
 
@@ -280,5 +285,46 @@ export function linesFromIst({ ist, objectName = '', month, rate = 0, vat = 20, 
   const groups = new Map()
   for (const r of sonder) groups.set(r.instKey || r.key, [...(groups.get(r.instKey || r.key) || []), r])
   for (const list of groups.values()) if (hours(list) > 0) lines.push({ id: newId(), text: `${list[0].label || 'Sonderleistung'} am ${deDate(list[0].date)}`, qty: hours(list), unit: 'Std.', price: round2(rate), vat, discount: 0 })
+  // Winterdienst geht über „Winterdienst abrechnen“ (wie beim Plan): Hinweis im Entwurf
+  const winter = new Set(ist.skipped.map((r) => r.instKey || r.key)).size
+  if (lines.length && winter && !special) lines.push({ id: newId(), type: 'text', text: winterNote(winter) })
   return lines
+}
+
+// ---------------------------------------------------------------- Beilage eingefroren (ohne Planung erzeugbar)
+
+const objectSnap = (o = {}) => ({ name: o.name || '', address: o.address || '' })
+
+/** Winterdienst-Nachweis zum Einfrieren: Objekt, Namen-Einstellung, die verrechneten Einträge (Namen gekürzt). */
+export function freezeWinter({ object, entries = [], names = 'keine' }) {
+  return {
+    object: objectSnap(object),
+    names,
+    entries: entries.map((e) => ({
+      id: e.id,
+      date: e.date,
+      objectId: e.objectId,
+      at: e.at,
+      ...(personName(e.person, names) ? { person: personName(e.person, names) } : {}),
+      geraeumt: !!e.geraeumt,
+      gestreut: !!e.gestreut,
+      kontrolle: !!e.kontrolle,
+      mittel: e.mittel || '',
+      notiz: e.notiz || '',
+      lage: e.lage || '',
+      fotos: (e.fotos || []).map((f) => ({ datei: f.datei, ...(f.pfad ? { pfad: f.pfad } : {}) })),
+    })),
+  }
+}
+/** Eingefrorene Einträge wieder als Protokoll (für winterLogDocument). */
+export const frozenLog = (b) => Object.fromEntries((b?.entries || []).map((e) => [logKey(e), e]))
+
+/** Einsatzliste zum Einfrieren: Objekt, Namen-Einstellung, Rundung, die verrechneten Zeilen (Namen gekürzt). */
+export function freezeIst({ object, rows = [], names = 'keine', round = ROUND_DEFAULT }) {
+  return {
+    object: objectSnap(object),
+    names,
+    round: roundStep(round),
+    rows: rows.map((r) => ({ date: r.date, in: r.in, out: r.out, billed: r.billed, label: r.label || '', category: r.category || '', basis: r.basis, ...(personName(r.person, names) ? { person: personName(r.person, names) } : {}) })),
+  }
 }

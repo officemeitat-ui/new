@@ -991,12 +991,14 @@ export function nextCustomerNo(customers = []) {
 
 /**
  * Positionen aus dem Leistungsnachweis eines Objekts: regelmäßige Einsätze als Stunden (oder als
- * Monatspauschale, wenn monthly gesetzt ist), Sonderleistungen einzeln mit Datum.
+ * Monatspauschale, wenn monthly gesetzt ist), Sonderleistungen einzeln mit Datum. Winterdienst-Einsätze nicht:
+ * die gehen über „Winterdienst abrechnen“ (core/fak-abrechnung.js); dann eine Textzeile „wird gesondert verrechnet“.
  * proof: core/proof.js → proofFor(); rate: € je Stunde netto.
  */
 export function linesFromProof({ proof, objectName = '', month, rate = 0, monthly = 0, vat = 20, newId }) {
   const done = proof.rows.filter((r) => r.status === 'erbracht' || r.status === 'bestaetigt')
-  const regular = done.filter((r) => r.category !== 'sonder')
+  const winter = done.filter((r) => r.category === 'winter')
+  const regular = done.filter((r) => r.category !== 'sonder' && r.category !== 'winter')
   const special = done.filter((r) => r.category === 'sonder')
   const hours = (list) => round2(list.reduce((s, r) => s + r.planMinutes, 0) / 60)
   const lines = []
@@ -1008,8 +1010,11 @@ export function linesFromProof({ proof, objectName = '', month, rate = 0, monthl
     )
   }
   for (const r of special) lines.push({ id: newId(), text: `${r.label || 'Sonderleistung'} am ${deDate(r.date)}`, qty: round2(r.planMinutes / 60), unit: 'Std.', price: round2(rate), vat, discount: 0 })
+  if (lines.length && winter.length) lines.push({ id: newId(), type: 'text', text: winterNote(winter.length) })
   return lines
 }
+/** Hinweis im Entwurf, wenn Winterdienst-Einsätze nicht mit verrechnet sind. */
+export const winterNote = (n) => `Winterdienst (${n} ${n === 1 ? 'Einsatz' : 'Einsätze'}) wird gesondert verrechnet.`
 
 // ---------------------------------------------------------------- Auswertung
 

@@ -1269,7 +1269,8 @@ function proofModal(c, m) {
   const rows = list
     .map(({ object: o, proof }) => {
       const cu = customerForObject(d, o.id)
-      const done = proof.rows.filter((r) => ['erbracht', 'bestaetigt'].includes(r.status))
+      // Winterdienst geht über „Winterdienst abrechnen“ (linesFromProof lässt ihn weg)
+      const done = proof.rows.filter((r) => ['erbracht', 'bestaetigt'].includes(r.status) && r.category !== 'winter')
       const special = done.filter((r) => r.category === 'sonder').length
       const exists = d.documents.some((x) => x.source?.key === `nachweis:${o.id}:${month}`)
       const rec = d.recurring.some((r) => r.objectId === o.id && r.active !== false)
@@ -1284,7 +1285,7 @@ function proofModal(c, m) {
     body: `<div class="filters"><label class="field inline"><span>Monat</span><input type="month" id="fpo-month" value="${month}" data-change="fak-proof-month"></label><label class="field inline"><span>Stundensatz netto (€)</span><input type="text" inputmode="decimal" id="fpo-rate" value="${esc(numText(m.rate ?? d.settings.hourRate ?? ''))}" placeholder="z. B. 32,50" style="width:7rem"></label></div>
       ${basisSwitch(m)}
       ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Objekt</th><th>Kunde</th><th class="num">Einsätze</th><th class="num">davon Sonderleistung</th><th class="num">Stunden</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Keine Einsätze in diesem Monat.</p>'}
-      <p class="note">Je Objekt ein Rechnungsentwurf: regelmäßige Einsätze als Stunden (Stundensatz des Kunden oder der hier eingetragene), Sonderleistungen einzeln mit Datum. Objekte mit Dauerauftrag bekommen nur ihre Sonderleistungen. Ohne Kunde beim Objekt bleibt der Empfänger leer.</p>`,
+      <p class="note">Je Objekt ein Rechnungsentwurf: regelmäßige Einsätze als Stunden (Stundensatz des Kunden oder der hier eingetragene), Sonderleistungen einzeln mit Datum. Objekte mit Dauerauftrag bekommen nur ihre Sonderleistungen. Winterdienst geht über „Winterdienst abrechnen“. Ohne Kunde beim Objekt bleibt der Empfänger leer.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-proof-create" data-month="${month}">Entwürfe erstellen</button></div>`,
   })
 }

@@ -1680,6 +1680,8 @@ Für die Wertsicherung trägst du die Indexzahlen monatlich ein (Statistik Austr
 2. Monat und Stundensatz prüfen, bei „Grundlage“ Plan oder Ist-Zeiten wählen.
 3. „Entwürfe erstellen“ klicken und die Entwürfe prüfen.
 
+> Tipp: Winterdienst-Einsätze zählen hier nicht, die gehen über „Winterdienst abrechnen“. Im Entwurf steht dann „Winterdienst … wird gesondert verrechnet.“
+
 ### Nach Ist-Zeiten abrechnen
 
 *In der App: Fakturierung*
@@ -1691,7 +1693,7 @@ Im Dialog „Aus Leistungsnachweis“ wählst du die Grundlage: Plan (Standard) 
 3. Rundung prüfen und die Liste „Nicht gezählt“ ansehen.
 4. Objekte anhaken und „Entwürfe erstellen“ klicken.
 
-> Tipp: Beim Versand hängt die Einsatzliste an (Datum, von–bis, Dauer, Leistung). Namen stehen nur darin, wenn der Leistungsnachweis Namen zeigt.
+> Tipp: Beim Versand hängt die Einsatzliste an (Datum, von–bis, Dauer, Leistung), auch wenn die Buchhaltung sendet. Namen stehen nur darin, wenn der Leistungsnachweis beim Abrechnen Namen zeigt.
 > Tipp: Winterdienst zählt hier nicht, dafür gibt es „Winterdienst abrechnen“.
 
 ### Winterdienst abrechnen
@@ -1708,7 +1710,7 @@ Im Dialog „Aus Leistungsnachweis“ wählst du die Grundlage: Plan (Standard) 
 
 > Tipp: Die Preise merkt sich die App beim Kunden je Objekt. Ohne eigene Preise gelten Artikel wie „Winterdienst Räumen und Streuen“ oder „Winterdienst Pauschale“.
 > Tipp: Reine Kontrollgänge („nichts nötig“) stehen nur mit eigenem Preis auf der Rechnung.
-> Tipp: Den Nachweis gibt es auch als Knopf „Winterdienst-Nachweis“ neben dem PDF. Namen stehen nur darin, wenn der Leistungsnachweis Namen zeigt.
+> Tipp: Den Nachweis gibt es auch als Knopf „Winterdienst-Nachweis“ neben dem PDF, auch für die Buchhaltung. Namen stehen nur darin, wenn der Leistungsnachweis beim Abrechnen Namen zeigt.
 
 ### Rechnung per E-Mail senden
 

@@ -9,6 +9,9 @@ import {
   billedBySource,
   cleanWinterPrices,
   dayList,
+  freezeIst,
+  freezeWinter,
+  frozenLog,
   istFor,
   istRowsFor,
   linesFromIst,
@@ -25,8 +28,9 @@ import {
   winterSeason,
 } from '../src/core/fak-abrechnung.js'
 import { holidayCalendar } from '../src/core/holidays.js'
-import { checksumOf, finalize, totals } from '../src/core/invoicing.js'
+import { checksumOf, finalize, linesFromProof, totals } from '../src/core/invoicing.js'
 import { buildInstances, PlanState } from '../src/core/plan.js'
+import { proofFor } from '../src/core/proof.js'
 import { createContext } from '../src/core/rules.js'
 import { istListDocument, istListPdfName } from '../src/export/abrechnung-pdf.js'
 import { winterLogDocument } from '../src/export/winter-pdf.js'
@@ -218,7 +222,9 @@ test('Ist-Zeiten: Planzeit nur auf Wunsch, für vorbei und besetzte Einsätze oh
     ['Unterhaltsreinigung Kanzlei Dezember 2026 lt. Zeiterfassung (5 Einsätze, davon 3 laut Plan)', 10.25, 'Std.', 32.5],
     ['Glasreinigung am 01.12.2026', 1, 'Std.', 32.5],
     ['Glasreinigung am 15.12.2026', 1, 'Std.', 32.5],
+    ['Winterdienst (1 Einsatz) wird gesondert verrechnet.', undefined, undefined, undefined],
   ])
+  assert.equal(lines.at(-1).type, 'text', 'Hinweis auf den Winterdienst als Textzeile')
   const special = linesFromIst({ ist, objectName: 'Kanzlei', month: '2026-12', rate: 30, newId, special: true })
   assert.deepEqual(special.map((l) => l.text), ['Glasreinigung am 01.12.2026', 'Glasreinigung am 15.12.2026'], 'Dauerauftrag: nur Sonderleistungen')
   assert.equal(istRowsFor(ist, { special: true }).length, 2)
@@ -257,4 +263,48 @@ test('Winterdienst-Nachweis als Beilage: nur das Objekt, Namen wie beim Leistung
   const body = doc.content.find((x) => x.table).table.body
   assert.equal(body.length, 6, 'Kopf + 5 Einträge des Objekts, wie auf der Rechnung')
   assert.ok(!JSON.stringify(body).includes('Elif'))
+})
+
+test('Grundlage Plan: Winterdienst-Einsätze nicht als Stunden, dafür ein Hinweis im Entwurf', () => {
+  const { ctx, instances, state } = setup()
+  const proof = proofFor({ objectId: 'o1', from: '2026-12-01', to: '2026-12-31', instances, state, stamps: {}, employeesById: ctx.employeesById, today: '2026-12-15' })
+  assert.equal(proof.rows.filter((r) => r.category === 'winter' && r.status === 'erbracht').length, 1, 'der Winterdienst am 2.12. steht im Nachweis')
+  const lines = linesFromProof({ proof, objectName: 'Kanzlei', month: '2026-12', rate: 30, newId })
+  // Unterhalt 1., 8., 14., 15.12. (7.12. nicht besetzt) je 2 Stunden; Glas 1. und 15.12.; Winterdienst (30 Minuten) nicht
+  assert.deepEqual(lines.map((l) => [l.type || 'item', l.text, l.qty]), [
+    ['item', 'Unterhaltsreinigung Kanzlei Dezember 2026 lt. Leistungsnachweis (4 Einsätze)', 8],
+    ['item', 'Glasreinigung am 01.12.2026', 1],
+    ['item', 'Glasreinigung am 15.12.2026', 1],
+    ['text', 'Winterdienst (1 Einsatz) wird gesondert verrechnet.', undefined],
+  ])
+  const onlyWinter = { rows: proof.rows.filter((r) => r.category === 'winter') }
+  assert.deepEqual(linesFromProof({ proof: onlyWinter, objectName: 'Kanzlei', month: '2026-12', rate: 30, newId }), [], 'nur Winterdienst: kein Entwurf')
+  const noWinter = { rows: proof.rows.filter((r) => r.category !== 'winter') }
+  assert.ok(!linesFromProof({ proof: noWinter, objectName: 'Kanzlei', month: '2026-12', rate: 30, newId }).some((l) => l.type === 'text'), 'ohne Winterdienst kein Hinweis')
+})
+
+test('Beilage eingefroren: Winterdienst-Nachweis und Einsatzliste ohne Planung, Namen wie beim Abrechnen', () => {
+  const object = { id: 'o5', name: 'Wohnanlage Lehen', address: 'Lehen 1', winter: { team: ['x'] } }
+  const entries = winterEntries(LOG, { objectId: 'o5', month: '2026-12', objectsById }).map((e) => ({ ...e, fotos: e.id === 'a1' ? [{ datei: 'ab-1.jpg', pfad: 'exporte/x.jpg', url: 'https://sp/x', webspaceGeloescht: true }] : [] }))
+  const none = freezeWinter({ object, entries, names: 'keine' })
+  assert.deepEqual(none.object, { name: 'Wohnanlage Lehen', address: 'Lehen 1' }, 'nur Name und Adresse des Objekts')
+  assert.equal(none.entries.length, 5)
+  assert.ok(!JSON.stringify(none).includes('Elif'), 'bei „keine Namen“ gar nicht gespeichert')
+  assert.deepEqual(none.entries[0].fotos, [{ datei: 'ab-1.jpg', pfad: 'exporte/x.jpg' }])
+  assert.equal(freezeWinter({ object, entries, names: 'vorname' }).entries[0].person, 'Elif')
+  // gleiches PDF wie aus dem Protokoll (ohne Fotos), nur aus den eingefrorenen Angaben
+  const body = (doc) => doc.content.find((x) => x.table).table.body
+  const live = winterLogDocument({ month: '2026-12', log: Object.fromEntries(entries.map((e) => [`${e.date}|${e.objectId}|${e.id}`, e])), objects: [object], objectId: 'o5', names: 'keine' })
+  const fromFrozen = winterLogDocument({ month: '2026-12', log: frozenLog(none), objects: [{ id: 'o5', ...none.object }], objectId: 'o5', names: none.names })
+  assert.deepEqual(body(fromFrozen), body(live))
+  assert.match(JSON.stringify(fromFrozen.content), /Wohnanlage Lehen.*Lehen 1/)
+
+  const { ctx, instances, state } = setup()
+  const ist = istFor({ objectId: 'o1', from: '2026-12-01', to: '2026-12-31', stamps: STAMPS, instances, state, employeesById: ctx.employeesById, today: '2026-12-15', names: 'voll' })
+  const fz = freezeIst({ object: { name: 'Kanzlei', address: 'Wien', tasks: [] }, rows: ist.rows, names: 'vorname', round: 15 })
+  assert.deepEqual(fz.rows[0], { date: '2026-12-01', in: '05:58', out: '08:03', billed: 120, label: 'Unterhaltsreinigung', category: 'reinigung', basis: 'ist', person: 'Ana' })
+  assert.equal(fz.round, 15)
+  const t = istListDocument({ object: fz.object, monthLabel: 'Dezember 2026', rows: fz.rows, round: fz.round, names: fz.names }).content.find((x) => x.table).table
+  assert.deepEqual(t.body[1].map((c) => c.text ?? c), ['Di 01.12.', '05:58–08:03', '2:00', 'Unterhaltsreinigung', 'Ana'])
+  assert.ok(!JSON.stringify(freezeIst({ object: {}, rows: ist.rows, names: 'keine' })).includes('Ana'))
 })

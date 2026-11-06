@@ -9,6 +9,9 @@ import {
   activeBilling,
   billedBySource,
   cleanWinterPrices,
+  freezeIst,
+  freezeWinter,
+  frozenLog,
   istFor,
   istRowsFor,
   kindSummary,
@@ -241,6 +244,7 @@ export function createIstDrafts(el) {
   const rate = parseNumber(val('fpo-rate'))
   const d = F()
   const { round, planFallback } = istOpts(m)
+  const names = proofNames()
   const list = istList(month, { round, planFallback }).filter((x) => chosen.has(x.object.id))
   const dup = list.filter((x) => x.active.length && x.minutes > 0)
   keepPicks(m)
@@ -260,7 +264,19 @@ export function createIstDrafts(el) {
       title: `${rec ? 'Sonderleistungen' : 'Reinigung'} ${o.name} ${monthLabel(month)}`,
       lines,
       // rows: Kennungen der verrechneten Zeilen (Stempelung bzw. „plan:<Einsatz>“), damit die Einsatzliste zur Rechnung passt
-      source: { type: 'nachweis', key: `nachweis:${o.id}:${month}`, objectId: o.id, month, basis: 'ist', round, minutes, rows: istRowsFor(ist, { special: rec }).map((r) => r.key), ...(planFallback ? { plan: true } : {}), ...(rec ? { special: true } : {}) },
+      source: {
+        type: 'nachweis',
+        key: `nachweis:${o.id}:${month}`,
+        objectId: o.id,
+        month,
+        basis: 'ist',
+        round,
+        minutes,
+        rows: istRowsFor(ist, { special: rec }).map((r) => r.key),
+        ...(planFallback ? { plan: true } : {}),
+        ...(rec ? { special: true } : {}),
+        beilage: freezeIst({ object: o, rows: istRowsFor(ist, { special: rec }), names, round }),
+      },
     })
     if (cu) abrechnungHooks.applyCustomer(x, cu.id)
     x.objectId = o.id
@@ -290,19 +306,34 @@ function sourceOf(x) {
 export function beilageOf(x) {
   const s = sourceOf(x)
   if (!s?.objectId || !/^\d{4}-\d{2}$/.test(s.month)) return null
-  const name = objOf(s.objectId)?.name || ''
+  const name = s.beilage?.object?.name || objOf(s.objectId)?.name || ''
   if (s.type === 'winterdienst') return { kind: 'winter', label: 'Winterdienst-Nachweis', name: winterLogPdfName(s.month, name), source: s }
   if (s.type === 'nachweis' && s.basis === 'ist') return { kind: 'ist', label: 'Einsatzliste', name: istListPdfName(name, s.month), source: s }
   return null
 }
-/** Beilage erzeugbar? (braucht die Wochen der Planung: Protokoll bzw. Zeiterfassung) */
-const beilageReady = (x) => !!beilageOf(x) && sees('planung')
+/** Eingefroren beim Erstellen (source.beilage): ohne Wochen der Planung erzeugbar, z. B. für die Buchhaltung. */
+const frozen = (b) => !!b?.source?.beilage && typeof b.source.beilage === 'object'
+/** Beilage erzeugbar? Eingefroren immer; ältere Belege brauchen die Wochen der Planung (Protokoll bzw. Zeiterfassung). */
+const beilageReady = (x) => {
+  const b = beilageOf(x)
+  return !!b && (frozen(b) || sees('planung'))
+}
 
-/** Beilage als PDF (aktueller Stand von Protokoll bzw. Zeiterfassung, Namen wie beim Leistungsnachweis). */
+/**
+ * Beilage als PDF: aus den beim Erstellen eingefrorenen Angaben (Objekt, Namen-Einstellung, Einträge bzw. Zeilen);
+ * ältere Belege ohne diese Angaben aus dem aktuellen Protokoll bzw. der Zeiterfassung (Namen wie jetzt eingestellt).
+ */
 export async function beilageBlob(x) {
   const b = beilageOf(x)
   if (!b) return null
   const { objectId, month } = b.source
+  if (frozen(b)) {
+    const fz = b.source.beilage
+    const brand = app.config.brand || {}
+    const logo = await loadLogo().catch(() => null)
+    if (b.kind === 'winter') return pdfBlob(winterLogDocument({ month, log: frozenLog(fz), objects: [{ id: objectId, ...fz.object }], objectId, names: fz.names, brand, logo }))
+    return pdfBlob(istListDocument({ object: fz.object, monthLabel: monthLabel(month), rows: fz.rows || [], round: roundStep(fz.round ?? b.source.round), names: fz.names, invoiceNumber: x.number || '', brand, logo }))
+  }
   const from = `${month}-01`
   const to = monthEnd(month)
   await ensureRange(from, to).catch(() => {})
@@ -336,7 +367,7 @@ export const beilageButton = (x) => (beilageReady(x) ? `<button class="btn" data
 export function beilageOption(x) {
   const b = beilageOf(x)
   if (!b) return ''
-  if (!sees('planung')) return `<p class="muted wide">Beilage ${esc(b.label)}: braucht Zugriff auf die Planung, hängt hier nicht an.</p>`
+  if (!beilageReady(x)) return `<p class="muted wide">Beilage ${esc(b.label)}: braucht bei diesem älteren Beleg Zugriff auf die Planung, hängt hier nicht an.</p>`
   return `<label class="check wide"><input type="checkbox" id="fm-beilage" checked><span>Beilage anhängen: ${esc(b.label)} (${esc(b.name)})</span></label>`
 }
 export const beilageWanted = (x) => beilageReady(x) && checked('fm-beilage')
@@ -433,7 +464,16 @@ registerActions(
           serviceTo: monthEnd(month),
           title: `Winterdienst ${o.name} ${monthLabel(month)}`,
           lines: r.bill.lines,
-          source: { type: 'winterdienst', key: winterKey(o.id, month), objectId: o.id, month, mode: r.prices.mode, ...(r.prices.mode === 'saison' ? { season: winterSeason(month).key } : {}), entries: r.entries.map(logKey) },
+          source: {
+            type: 'winterdienst',
+            key: winterKey(o.id, month),
+            objectId: o.id,
+            month,
+            mode: r.prices.mode,
+            ...(r.prices.mode === 'saison' ? { season: winterSeason(month).key } : {}),
+            entries: r.entries.map(logKey),
+            beilage: freezeWinter({ object: o, entries: r.entries, names: proofNames() }),
+          },
         })
         if (r.customer) abrechnungHooks.applyCustomer(x, r.customer.id)
         x.objectId = o.id
