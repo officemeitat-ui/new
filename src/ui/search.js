@@ -35,7 +35,7 @@ const KEYWORDS = {
   zufriedenheit: 'Kundenzufriedenheit Zufriedenheit Umfrage Kundenumfrage NPS Weiterempfehlung Bewertung Sterne Feedback Rückmeldung Rückruf',
   matten: 'Matten Mattenwechsel Tour Lieferschein Werkzeug',
   'mw-liegeplaetze': 'Matten Mattenwechsel Liegeplatz Liegeplätze Schmutzfangmatte Fußmatte Intervall Gebiet Tourrunde Übernahme',
-  'mw-touren': 'Matten Mattenwechsel Tour Touren Fahrer Lieferschein',
+  'mw-touren': 'Matten Mattenwechsel Tour Touren Fahrer Lieferschein Stopp Liegeplatz Unterschrift Navigation Ladeliste',
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
   fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten Brief Serienbrief Briefpapier Weiterverrechnung',

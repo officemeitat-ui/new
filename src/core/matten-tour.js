@@ -3,7 +3,8 @@
 // Die Oberfläche (Reihenfolge ziehen, Fahrer zuweisen, Freigabe) folgt mit P9; Routing: core/routing.js.
 //
 // Eine Datei je Tour: matten/touren/<Jahr>/<TourId>.json (tourFileName)
-//   { schema: 1, id (zufällig, tourId), date, driverId, driverName, vehicleId, areaId?,
+//   { schema: 1, id (zufällig, tourId), date, driverId, driverName, driverEmail? (Kopie aus den Stammdaten: Fahrer lesen
+//     die Mitarbeitenden nicht, die App erkennt „meine Tour“ über die E-Mail des Kontos), vehicleId, areaId?,
 //     status: entwurf | freigegeben | unterwegs | abgeschlossen,
 //     order: [stopId]                     gespeicherte Reihenfolge (= Reihenfolge von stops)
 //     route: { provider, km, minutes (Fahrt), start, end (Rückkehr), work, wait, load, back { travel, km },
@@ -277,6 +278,7 @@ export async function proposeTours({ stops = [], drivers = [], depot = null, pro
         date,
         driverId: d.id || r.driverId,
         driverName: text(d.name),
+        ...(text(d.email) ? { driverEmail: text(d.email).toLowerCase() } : {}),
         vehicleId: text(d.vehicleId),
         ...(areaId ? { areaId } : {}),
         status: 'entwurf',
@@ -334,8 +336,9 @@ export function moveStop(tour, from, to, opts = {}) {
 }
 
 /**
- * Fahrer zuweisen ({ id, name, vehicleId?, start?, end?, capacity? }; null = keiner): Kopie mit driverId, driverName,
- * Fahrzeug (das des Fahrers, sonst das bisherige) und Arbeitszeit/Kapazität; Zeiten danach mit recalcTimes neu rechnen.
+ * Fahrer zuweisen ({ id, name, email?, vehicleId?, start?, end?, capacity? }; null = keiner): Kopie mit driverId,
+ * driverName, driverEmail (für „meine Touren“ am Handy), Fahrzeug (das des Fahrers, sonst das bisherige) und
+ * Arbeitszeit/Kapazität; Zeiten danach mit recalcTimes neu rechnen.
  */
 export function assignDriver(tour, driver, opts = {}) {
   const route = { ...(tour?.route || {}) }
@@ -345,7 +348,10 @@ export function assignDriver(tour, driver, opts = {}) {
     if (cap) route.capacity = cap
     else delete route.capacity
   }
-  return touch(tour, { driverId: driver?.id || '', driverName: text(driver?.name), vehicleId: text(driver?.vehicleId) || text(tour?.vehicleId), route }, opts)
+  const next = touch(tour, { driverId: driver?.id || '', driverName: text(driver?.name), vehicleId: text(driver?.vehicleId) || text(tour?.vehicleId), route }, opts)
+  if (text(driver?.email)) next.driverEmail = text(driver.email).toLowerCase()
+  else delete next.driverEmail
+  return next
 }
 
 /** Matrix über ['depot', ...Stopp-IDs] in eine nach Reihenfolge ausgerichtete umbauen ({ ids, minutes, km } oder Funktion). */

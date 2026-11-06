@@ -20,7 +20,8 @@ export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.s
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 
-// Zwei Pakete: „alle“ sieht jede Rolle (auch Vorarbeiter am Handy), „büro“ die übrigen Bereiche.
+// Zwei Pakete: „alle“ sieht jede Rolle (auch Vorarbeiter am Handy), „büro“ die übrigen Bereiche; dazu ein kleines
+// eigenes für die Matten-Touren der Fahrer (matten-fahrer.js), damit das Handy nicht das ganze Büro lädt.
 const ALLE = () => import('./lazy-alle.js')
 const BUERO = () => import('./lazy-buero.js')
 
@@ -302,7 +303,7 @@ lazy(BUERO, {
 })
 
 // matten.js, matten-uebernahme.js, matten-kalender.js: Mattenwechsel-Modul (Liegeplätze je Kunde → Objekt, Gebiete,
-// Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Matten-Touren der Fahrer); das Werkzeug bleibt unter #matten (tools.js)
+// Übernahme aus dem Werkzeug, Kalender mit Einsätzen); das Werkzeug bleibt unter #matten (tools.js)
 lazy(BUERO, {
   views: [
     {
@@ -333,6 +334,19 @@ lazy(BUERO, {
       },
       text: 'Mattenwechsel: Einsätze planen, Woche und Monat, verschieben, aussetzen, nachholen',
     },
+  ],
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures',
+  actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
+    mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
+    mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
+    mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save`,
+  todo: ['matten'],
+})
+
+// matten-fahrer.js: Matten-Touren der Fahrer (P10/P11: Tour, Stopp, Bestätigung je Liegeplatz, Unterschrift je Stopp,
+// ohne Netz). Eigenes Paket: Fahrer am Handy laden nur das, nicht die Bereiche des Büros
+lazy(() => import('./matten-fahrer.js'), {
+  views: [
     {
       id: 'mw-touren',
       order: 75.6,
@@ -348,12 +362,9 @@ lazy(BUERO, {
       text: 'Mattenwechsel: eigene Touren, Wechsel je Liegeplatz bestätigen',
     },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures',
-  actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
-    mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
-    mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
-    mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save`,
-  todo: ['matten'],
+  modals: 'mwf-not mwf-finish mwf-reopen',
+  actions: `mwf-open mwf-back mwf-stop mwf-back-tour mwf-refresh mwf-sync mwf-nav mwf-photo-open mwf-start mwf-arrive mwf-done mwf-qty mwf-reset
+    mwf-not-open mwf-not mwf-note mwf-photo mwf-photo-del mwf-finish-open mwf-outcome mwf-nosig mwf-finish mwf-reopen-open mwf-reopen`,
 })
 
 // arbeitsschutz.js: Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung mit Maßnahmen und Fristen

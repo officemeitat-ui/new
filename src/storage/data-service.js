@@ -29,7 +29,8 @@
 //   bewerbung/bewerbung.json          Bewerbungen (Unterlagen unter bewerbung/unterlagen/) – eng: Personalverwaltung
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
-//                                     (Büro; Touren der Fahrer später unter matten/touren/)
+//                                     (Büro); Touren der Fahrer je Datei unter matten/touren/<Jahr>/<TourId>.json
+//                                     (storage/matten-touren.js), Fotos unter matten/fotos/<Jahr>/<Liegeplatz>/
 //   matten/einsaetze-2026.json        Mattenwechsel: Einsätze je Liegeplatz und Solltermin, eine Datei je Jahr des
 //                                     Solltermins (YEAR_DOCS; wie die Wochenpläne: geladen werden die nötigen Jahre)
 //
@@ -213,6 +214,8 @@ export function dataRights(access) {
     // (matten/einsaetze-<Jahr>.json) nur das Büro:
     // Fahrer lesen sie nicht, die Tour trägt eine eingefrorene Kopie (Kunde, Adresse, Liegeplatz, Matte, ohne Preis)
     ['matten/touren/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
+    // Fotos der Fahrer je Liegeplatz (matten/fotos/<Jahr>/<Liegeplatz>/…): Fahrer und Büro bearbeiten
+    ['matten/fotos/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
     ['matten/', () => sees('matten'), () => edits('matten')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
@@ -248,7 +251,8 @@ export const FOLDERS = [
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
   ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr (Büro)', MODULE_DOCS.matten.path],
-  ['matten/touren', 'Mattenwechsel: Touren der Fahrer (ab der Phase Fahrer)', 'matten/touren/2026/tour.json'],
+  ['matten/touren', 'Mattenwechsel: Touren der Fahrer (Bestätigung je Liegeplatz, Unterschrift je Stopp)', 'matten/touren/2026/tour.json'],
+  ['matten/fotos', 'Mattenwechsel: Fotos der Fahrer je Liegeplatz', 'matten/fotos/2026/liegeplatz/foto.jpg'],
 ]
 
 /**

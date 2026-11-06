@@ -111,7 +111,7 @@ test('Build: später geladene Module und Hilfe-Themen sind nicht im Start', asyn
   }
   walk(Object.keys(outputs).find((f) => outputs[f].entryPoint === 'src/ui/app.js'))
   const startInputs = new Set([...startFiles].flatMap((f) => Object.keys(outputs[f].inputs)))
-  const lazy = ['kpi', 'guide', 'calculation', 'proof', 'staff', 'sites', 'trainings', 'rules', 'system', 'vehicles', 'complaints', 'material', 'keys', 'anlagen', 'regie', 'qualitaet', 'matten', 'matten-uebernahme', 'matten-kalender', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'invoicing', 'invoicing-bank', 'invoicing-abrechnung', 'invoicing-matten', 'invoicing-online', 'purchase', 'cashbook', 'einkauf-shared', 'weiterverrechnung', 'uva', 'weather'].map((m) => `src/ui/views/${m}.js`)
+  const lazy = ['kpi', 'guide', 'calculation', 'proof', 'staff', 'sites', 'trainings', 'rules', 'system', 'vehicles', 'complaints', 'material', 'keys', 'anlagen', 'regie', 'qualitaet', 'matten', 'matten-uebernahme', 'matten-kalender', 'matten-fahrer', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'invoicing', 'invoicing-bank', 'invoicing-abrechnung', 'invoicing-matten', 'invoicing-online', 'purchase', 'cashbook', 'einkauf-shared', 'weiterverrechnung', 'uva', 'weather'].map((m) => `src/ui/views/${m}.js`)
   // KI: Assistent, seine Werkzeuge und die KI beim Erfassen (Beleg, Diktat, Texte) kommen erst bei Bedarf
   const ki = ['src/ai/agent.js', 'src/ai/tools-module.js', 'src/ai/extract.js', 'src/ai/client.js', 'src/ui/kix.js', 'src/core/ki-vorschlag.js']
   for (const file of [...lazy, ...ki, 'src/help/topics.js', 'src/data/demo.js']) assert.ok(!startInputs.has(file), `${file} ist im Start (statischer Import aus einem Modul, das immer geladen wird?)`)
