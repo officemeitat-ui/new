@@ -24,6 +24,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ anlagen/                      Anlagen & Prüffristen je Objekt (Fotos, Prüfberichte)
                          ├─ regie/                        Regieberichte (Unterschrift, Fotos und PDF unter regie/nachweise/)
                          ├─ qualitaet/                    Qualitätsmessung je Objekt (Fotos der Mängel, Berichte)
+                         ├─ arbeitsschutz/                Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter unter dokumente/)
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 
@@ -246,6 +247,7 @@ Bisher sind die Ordner in `Cleanos_Daten` von Hand freigegeben, oft über die Gr
 4. **Abweichungen beheben …**: Ordner anhaken, „Jetzt ändern“. Die App vergibt fehlende Rechte (Gruppen über die Objekt-ID, Personen aus `planners` über die E-Mail, **ohne Einladungs-Mail**), legt fehlende Ordner an und entfernt überzählige Freigaben und Links. **Besitzer der Website und die eigenen Rechte fasst sie nie an.** Dabei endet die Vererbung des Ordners: SharePoint verrät nicht, ob ein Recht geerbt ist; darum vergibt die App vor dem Entfernen erst etwas (die bisherigen Rechte bleiben dabei als eigene stehen), liest neu und entfernt dann. Was nicht geht, steht im Bericht; dann in SharePoint *Zugriff verwalten*. Danach prüft die App alles neu.
    - **Vorher alle Leute in die Gruppen aufnehmen**: Wer nur über eine Website-Gruppe Zugriff hatte, verliert ihn in den geänderten Ordnern. Der Dialog warnt davor und nennt Rollen ohne Gruppe.
    - Der Hauptordner `Plattform` gehört nur dem Vollzugriff: Neue Unterordner (ein neues Modul) erben seine Rechte und sind so von Anfang an geschützt; danach einmal „Rechte prüfen“.
+   - **Arbeitsschutz:** `arbeitsschutz/` bekommt Vollzugriff „Bearbeiten“, Objektleitung, Objektmanagement und Lager „Lesen“. Der Unterordner `arbeitsschutz/dokumente/sdb` (Sicherheitsdatenblätter) hat eigene Rechte, weil das Lager dort hochlädt („Bearbeiten“); „Rechte prüfen“ führt ihn als eigene Zeile und legt ihn bei Bedarf an.
 5. **„Ausschnitt für config.json“** kopieren und in `config.json` am Webspace unter `"access"` übernehmen (bzw. vor dem Build in `config.production.json`). App neu laden; jede Rolle mit einem Testkonto prüfen.
 
 Entschieden:

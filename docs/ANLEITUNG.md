@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 287 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 294 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (47)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (68)
-- [Verwaltung](#verwaltung) (39)
+- [Verwaltung](#verwaltung) (46)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
@@ -1538,7 +1538,7 @@ Der Reiter „Bestand“ zeigt je Lager Melde- und Sollbestand, bestellte Mengen
 2. Reiter „Bestand“ wählen und oben suchen.
 3. „Export ▾“ → „Lagerbestand (CSV)“ für Excel.
 
-> Tipp: Je Artikel lässt sich ein Link zum Sicherheitsdatenblatt hinterlegen.
+> Tipp: Je Artikel lässt sich ein Link zum Sicherheitsdatenblatt hinterlegen; Gefahren und Datei beim Artikel unter „Gefahren und Sicherheitsdatenblatt“ (Arbeitsschutz).
 
 *Lager & Einkauf, Objektmanagement, Objektleitung, Objektservice, Vollzugriff*
 
@@ -3022,6 +3022,89 @@ Unter „Mehr ▾“ → „Arten verwalten“ änderst du Gültigkeit und Pflic
 Ein abgelaufener Aufenthaltstitel ist im Plan ein Fehler (nicht einteilen), eine abgelaufene Führerscheinkontrolle eine Warnung bei Einsätzen mit Qualifikation „Führerschein“. Fehlende Einträge meldet „Zu erledigen“, sperrende Dokumente schon 30 Tage vorher.
 
 > Tipp: Beim Aufenthaltstitel nur das Ablaufdatum speichern, keine Kopien.
+
+### Arbeitsschutz: Arbeitsstoffe, Betriebsanweisungen, Evaluierung
+
+*In der App: Arbeitsschutz*
+
+Unter „Verwaltung“ → „Arbeitsschutz“ gibt es drei Reiter: das Arbeitsstoffverzeichnis aus Material & Lager, die Betriebsanweisungen zum Aushängen und die Evaluierung je Arbeitsbereich mit Maßnahmen und Fristen. Alles Fachliche ist ein Vorschlag ohne Gewähr, keine Rechtsauskunft.
+
+1. „Arbeitsschutz“ unter „Verwaltung“ öffnen.
+2. Reiter „Arbeitsstoffe“, „Betriebsanweisungen“ oder „Evaluierung“ wählen.
+3. Über „Mehr ▾“ das Arbeitsstoffverzeichnis oder die Evaluierung als PDF erstellen.
+
+> Tipp: Überfällige Maßnahmen, fällige Überprüfungen und fehlende Sicherheitsdatenblätter stehen in „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“.
+
+*Bearbeiten: Vollzugriff; lesen und drucken: Objektleitung, Objektmanagement; Angaben zu Arbeitsstoffen: Lager*
+
+### Arbeitsstoffverzeichnis aus dem Lager
+
+*In der App: Arbeitsschutz*
+
+Reinigungsmittel und Desinfektion aus Material & Lager stehen von selbst im Verzeichnis, andere Artikel lassen sich aufnehmen. Je Arbeitsstoff: Hersteller, Produktname, Verwendung, GHS-Piktogramme, Signalwort, H- und P-Sätze als Kürzel, Sicherheitsdatenblatt, Menge je Lager und die Objekte aus den Ausgaben.
+
+1. Im Reiter „Arbeitsstoffe“ den Arbeitsstoff anklicken oder in Material & Lager beim Artikel „Gefahren und Sicherheitsdatenblatt“.
+2. Angaben aus Abschnitt 2 des Sicherheitsdatenblatts eintragen, Piktogramme ankreuzen.
+3. „Speichern“, dann über „Mehr ▾“ das Verzeichnis als PDF oder CSV.
+
+> Tipp: Die Angaben stehen am Artikel; alte Artikel ohne sie bleiben gültig.
+> Tipp: Das PDF liegt danach auch in SharePoint unter arbeitsschutz/dokumente/.
+
+*Bearbeiten: Vollzugriff, Lager & Einkauf*
+
+### Sicherheitsdatenblatt hochladen und aktuell halten
+
+*In der App: Arbeitsschutz*
+
+Beim Arbeitsstoff „PDF hochladen“ und das Datum der Fassung eintragen; die Datei liegt in SharePoint unter arbeitsschutz/dokumente/sdb/. Älter als 3 Jahre (Einstellung) gilt als veraltet, ohne Datei und Link fehlt es. Beides steht in „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“.
+
+> Tipp: Ein Link zum Sicherheitsdatenblatt am Artikel zählt auch, dann nur das Datum der Fassung eintragen.
+> Tipp: Die 3 Jahre sind eine eigene Vorgabe, keine gesetzliche Frist: die aktuelle Fassung gibt es beim Lieferanten.
+
+### Betriebsanweisung erstellen und aushängen
+
+*In der App: Arbeitsschutz*
+
+Je Arbeitsstoff vorbefüllt aus den Angaben am Artikel, für Tätigkeiten und Maschinen leer: Anwendungsbereich, Gefahren, Schutzmaßnahmen, Verhalten im Gefahrfall, Erste Hilfe, Entsorgung. Prüfen, freigeben und als PDF mit Logo drucken; das PDF liegt danach auch in SharePoint.
+
+1. Im Reiter „Arbeitsstoffe“ in der Zeile „anlegen“ oder im Reiter „Betriebsanweisungen“ „+ Betriebsanweisung“.
+2. Texte mit dem Sicherheitsdatenblatt abgleichen, „Freigegeben von“ und Datum eintragen.
+3. „Speichern und PDF“ und den Ausdruck aushängen.
+
+> Tipp: Ohne Freigabe steht „Entwurf“ auf dem PDF.
+> Tipp: Objektleitung und Objektmanagement können Betriebsanweisungen ansehen und drucken.
+
+### Evaluierung mit Maßnahmen und Fristen
+
+*In der App: Arbeitsschutz*
+
+Je Arbeitsbereich oder Tätigkeit die Gefahren erfassen (Vorlagen mit typischen Gefahren der Reinigung), mit Wahrscheinlichkeit mal Schwere bewerten (je 1 bis 3) und Maßnahmen mit Verantwortlichen, Frist und Status festlegen. Die Überprüfung wird nach 12 Monaten fällig oder sofort nach einem Anlass wie einem Unfall.
+
+1. Reiter „Evaluierung“, „+ Evaluierung“.
+2. Vorlage wählen, „Vorschläge übernehmen“ und anpassen.
+3. Jede Gefahr bewerten, Maßnahmen mit Verantwortlichen und Frist eintragen, „Speichern“.
+4. „Mehr ▾“ → „Evaluierung (PDF)“ erstellt das Sicherheits- und Gesundheitsschutzdokument.
+
+> Tipp: Die Vorlagen sind Vorschläge ohne Gewähr: mit Sicherheitsfachkraft und Arbeitsmedizin abstimmen.
+> Tipp: Nach einem Unfall im Dialog „Anlass zur Überprüfung“ eintragen.
+
+### Maßnahmen umsetzen und Wirksamkeit prüfen
+
+*In der App: Arbeitsschutz*
+
+Im Reiter „Evaluierung“ stehen alle Maßnahmen mit Frist und Status. „umgesetzt“ vermerkt das Datum, danach „wirksam“ oder „nicht wirksam“ prüfen; nicht wirksam braucht eine neue Maßnahme. Überfällige stehen in „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“, der nur „Öffnen“ anbietet.
+
+### Unterweisung zum Arbeitsstoff
+
+*In der App: Arbeitsschutz*
+
+Die Betriebsanweisung ist mit einer Art der Unterweisung verknüpft (Vorgabe: Unterweisung Reinigungsmittel) oder bekommt eine eigene. Je Objekt, in dem das Mittel verwendet wird, zeigt die App Stammkräfte und Eingeschulte ohne gültige Unterweisung; „Unterweisung durchführen“ übernimmt sie als Teilnehmende.
+
+1. Betriebsanweisung öffnen, „Art der Unterweisung“ wählen oder eine eigene anlegen.
+2. Unter „Unterweisung“ die offenen Personen ansehen.
+3. „Unterweisung durchführen“: Teilnehmerliste mit Unterschrift wie gewohnt.
+
+> Tipp: Auch eine Maßnahme der Evaluierung lässt sich mit einer Unterweisung verknüpfen.
 
 ### Regeln & Feiertage einstellen
 
