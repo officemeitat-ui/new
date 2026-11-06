@@ -4,18 +4,23 @@ import { isAppError, isUuid, validationError } from "@nexus/core";
 import { getDatabase, withTenant } from "@nexus/db";
 import {
   addDocument,
+  confirmProposal,
   connectAtera,
   connectBookStack,
   connectSharePointLibrary,
+  createArticle,
   createCollection,
   disconnectKnowledgeSource,
+  ensureMemoryCollection,
   findSharePointLibraries,
   findSharePointSites,
   getKnowledgeSource,
   deleteCollection,
   deleteDocument,
+  rejectProposal,
   requirePermission,
   searchKnowledge,
+  updateArticle,
   type KnowledgeHit,
 } from "@nexus/domain";
 import { revalidatePath } from "next/cache";
@@ -136,6 +141,110 @@ export async function deleteDocumentAction(
     );
     revalidatePath(`/knowledge/${collectionId}`);
     revalidatePath("/knowledge");
+  });
+}
+
+/* ----------------------------------------------------------- company memory */
+
+/** Creates the company memory collection (once) and opens it. */
+export async function openMemoryAction(
+  _prev: ActionResult | null,
+  _form: FormData,
+): Promise<ActionResult> {
+  const result = await runAction("openMemory", async () => {
+    const ctx = await managerContext();
+    const collection = await withTenant(getDatabase().db, ctx.tenant.tenantId, (tx) =>
+      ensureMemoryCollection(tx, ctx.tenant.tenantId, ctx.user.id),
+    );
+    revalidatePath("/knowledge");
+    return { data: collection.id };
+  });
+  if (result.ok && result.data) redirect(`/knowledge/${result.data}`);
+  return result.ok ? { ok: true } : result;
+}
+
+/** Writes an article and queues it for indexing; back to the collection afterwards. */
+export async function createArticleAction(
+  collectionId: string,
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const result = await runAction("createArticle", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(collectionId)) throw validationError("Ungültige Sammlung.");
+    const tenantId = ctx.tenant.tenantId;
+    const { documentId } = await withTenant(getDatabase().db, tenantId, (tx) =>
+      createArticle(tx, {
+        tenantId,
+        collectionId,
+        title: String(formData.get("title") ?? ""),
+        body: String(formData.get("body") ?? ""),
+        actorId: ctx.user.id,
+      }),
+    );
+    await enqueueKnowledgeIngest({ documentId, tenantId });
+    revalidatePath(`/knowledge/${collectionId}`);
+    revalidatePath("/knowledge");
+  });
+  if (result.ok) redirect(`/knowledge/${collectionId}`);
+  return result;
+}
+
+/**
+ * Saves an article or memory entry. For a proposal, `intent=confirm` accepts it with the
+ * changes; otherwise it stays a proposal.
+ */
+export async function updateArticleAction(
+  documentId: string,
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const result = await runAction("updateArticle", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(documentId)) throw validationError("Ungültiges Dokument.");
+    const tenantId = ctx.tenant.tenantId;
+    const saved = await withTenant(getDatabase().db, tenantId, async (tx) => {
+      const updated = await updateArticle(tx, {
+        tenantId,
+        documentId,
+        title: String(formData.get("title") ?? ""),
+        body: String(formData.get("body") ?? ""),
+        actorId: ctx.user.id,
+        confirm: formData.get("intent") === "confirm",
+      });
+      return updated;
+    });
+    if (saved.reindex) await enqueueKnowledgeIngest({ documentId: saved.documentId, tenantId });
+    revalidatePath("/knowledge", "layout");
+    return { data: saved.collectionId };
+  });
+  if (result.ok && result.data) redirect(`/knowledge/${result.data}`);
+  return result.ok ? { ok: true } : result;
+}
+
+/** Accepts a proposal as it is: it becomes searchable once indexed. */
+export async function confirmProposalAction(documentId: string): Promise<ActionResult> {
+  return runAction("confirmProposal", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(documentId)) throw validationError("Ungültiger Vorschlag.");
+    const tenantId = ctx.tenant.tenantId;
+    await withTenant(getDatabase().db, tenantId, (tx) =>
+      confirmProposal(tx, { tenantId, documentId, actorId: ctx.user.id }),
+    );
+    await enqueueKnowledgeIngest({ documentId, tenantId });
+    revalidatePath("/knowledge", "layout");
+  });
+}
+
+export async function rejectProposalAction(documentId: string): Promise<ActionResult> {
+  return runAction("rejectProposal", async () => {
+    const ctx = await managerContext();
+    if (!isUuid(documentId)) throw validationError("Ungültiger Vorschlag.");
+    const tenantId = ctx.tenant.tenantId;
+    await withTenant(getDatabase().db, tenantId, (tx) =>
+      rejectProposal(tx, { tenantId, documentId, actorId: ctx.user.id }),
+    );
+    revalidatePath("/knowledge", "layout");
   });
 }
 

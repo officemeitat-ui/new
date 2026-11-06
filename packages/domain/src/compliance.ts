@@ -225,6 +225,20 @@ export async function getProcessingRegister(tx: Tx, tenantId: string) {
       recipients: `${llm.name} (nur gefundene Textstellen)`,
       retention: keep(settings.documentRetentionDays),
     },
+    ...(collections.some((collection) => collection.kind === "memory")
+      ? [
+          {
+            title: "Unternehmensgedächtnis",
+            purpose:
+              "Lösungen, Regeln und Fakten der Firma, die Mitarbeitende schreiben oder Agenten vorschlagen und eine Person bestätigt",
+            legalBasis: "Art. 6 Abs. 1 lit. f DSGVO",
+            subjects: "Mitarbeitende (Verfasser), in den Einträgen genannte Personen",
+            data: "Titel und Text der Einträge, wer sie vorgeschlagen oder bestätigt hat, Zeitpunkt; Passwörter und Zugangsdaten werden aus Vorschlägen entfernt",
+            recipients: `Mitarbeitende mit Zugriff auf Wissen, Agenten mit dieser Sammlung, ${llm.name} (nur gefundene Textstellen)`,
+            retention: `${keep(settings.documentRetentionDays)}; unbearbeitete Vorschläge nach 60 Tagen`,
+          },
+        ]
+      : []),
     {
       title: "Mängelmeldungen per QR-Code",
       purpose: "Meldungen von Kunden, Besuchern und Personal zu Mängeln in den betreuten Objekten",

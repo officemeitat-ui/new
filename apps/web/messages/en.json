@@ -227,15 +227,22 @@
         "privacy_person_erased": "Personal data erased",
         "privacy_account_deleted": "User account deleted",
         "privacy_data_exported": "Data export created",
-        "knowledge_source_connected": "SharePoint library connected",
-        "knowledge_source_disconnected": "SharePoint library disconnected",
+        "knowledge_source_connected": "Knowledge source connected",
+        "knowledge_source_disconnected": "Knowledge source disconnected",
         "facility_created": "Object created",
         "facility_activated": "Object activated",
         "facility_deactivated": "Object deactivated",
         "agent_rolled_out": "Agent provided by the IT partner",
         "agent_updated_by_partner": "Agent updated by the IT partner",
         "tenant_partner_sources_allowed": "BookStack/Atera allowed by the IT partner",
-        "tenant_partner_sources_revoked": "BookStack/Atera blocked by the IT partner"
+        "tenant_partner_sources_revoked": "BookStack/Atera blocked by the IT partner",
+        "knowledge_article_created": "Knowledge article written",
+        "knowledge_article_updated": "Knowledge article changed",
+        "knowledge_memory_proposed": "Memory entry proposed",
+        "knowledge_memory_confirmed": "Memory entry accepted",
+        "knowledge_memory_rejected": "Memory proposal discarded",
+        "knowledge_memory_proposals_expired": "Old memory proposals removed",
+        "knowledge_collection_exported": "Knowledge collection exported"
       },
       "actors": {
         "user": "User",
@@ -580,6 +587,10 @@
     "meldungen_abfragen": {
       "label": "Query reports",
       "description": "Reads the defect reports from your objects' QR codes (without reporters' e-mail addresses)."
+    },
+    "wissen_merken": {
+      "label": "Propose for memory",
+      "description": "Proposes resolved solutions, rules and facts for the company memory. Searchable only after a person confirms them."
     }
   },
   "integrations": {
@@ -645,7 +656,7 @@
   },
   "knowledge": {
     "title": "Knowledge",
-    "subtitle": "Documents your agents answer from: price lists, terms, manuals, policies. Every answer names its source.",
+    "subtitle": "Documents and articles your agents answer from: price lists, terms, manuals, solutions. Every answer cites its source.",
     "forbiddenTitle": "No permission",
     "forbiddenDescription": "Your role has no access to the knowledge base.",
     "newCollection": "Create collection",
@@ -669,7 +680,8 @@
     "status": {
       "processing": "Processing",
       "ready": "Ready",
-      "failed": "Failed"
+      "failed": "Failed",
+      "proposed": "Proposal"
     },
     "kinds": {
       "pdf": "PDF",
@@ -695,7 +707,48 @@
     "dropHint": "Drop files here or",
     "chooseFiles": "Choose files",
     "noFiles": "No file selected",
-    "openSource": "Open original"
+    "openSource": "Open original",
+    "memoryBadge": "Memory",
+    "proposalsCount": "{count, plural, =1 {1 open proposal} other {# open proposals}}",
+    "memoryTitle": "Company memory",
+    "memoryText": "Keep your company's solutions, rules and experience – as your own articles or as proposals from your agents (\"Remember: …\"). A proposal becomes searchable only once a person confirms it. The knowledge is yours and can be exported as Markdown at any time.",
+    "memoryCreate": "Create company memory",
+    "memoryNoSource": "The company memory is not connected to a source – entries are created here in the app.",
+    "writeArticle": "Write article",
+    "export": "Export as Markdown",
+    "exportHint": "ZIP with one Markdown file per document, e.g. for Obsidian.",
+    "articleNewTitle": "New article",
+    "articleEditTitle": "Edit article",
+    "proposalEditTitle": "Review and edit proposal",
+    "articleTitle": "Title",
+    "articleTitlePlaceholder": "e.g. Securepoint: firmware updates only in the maintenance window",
+    "articleBody": "Text",
+    "articleBodyHint": "Markdown works: # heading, - list, **bold**. Headings structure the text for search.",
+    "articleSave": "Save",
+    "articleSaveConfirm": "Save and accept",
+    "articleSaveProposal": "Save only",
+    "articleCancel": "Cancel",
+    "articleSaved": "Saved. The text is being prepared for search.",
+    "articleSavedProposal": "Saved. The proposal is still waiting for confirmation.",
+    "edit": "Edit",
+    "editNamed": "Edit \"{name}\"",
+    "proposalsTitle": "Review proposals",
+    "proposalsHint": "Agents proposed these entries. They count for search and agents only once you accept them. Check that they are correct – an agent can be wrong or misled by a document. Unreviewed proposals expire after 60 days.",
+    "proposalMeta": "Proposed {date}",
+    "proposalMetaBy": "Proposed {date} on behalf of {name}",
+    "accept": "Accept",
+    "acceptNamed": "Accept \"{name}\"",
+    "reject": "Discard",
+    "rejectNamed": "Discard \"{name}\"",
+    "confirmReject": "Discard the proposal \"{name}\"?",
+    "accepted": "\"{name}\" is accepted and being prepared for search.",
+    "rejected": "\"{name}\" is discarded.",
+    "origins": {
+      "upload": "Uploaded",
+      "source": "Source",
+      "article": "Article",
+      "memory": "Memory"
+    }
   },
   "integrationsPage": {
     "title": "Integrations",

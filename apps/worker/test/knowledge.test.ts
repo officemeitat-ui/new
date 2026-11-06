@@ -7,11 +7,15 @@ import { authUser, knowledgeDocuments, partners, tenants } from "@nexus/db/schem
 import { openTestDatabase } from "@nexus/db/testing";
 import {
   addDocument,
+  confirmProposal,
+  createArticle,
   createBlankAgent,
   createCollection,
   getAgentDetail,
   getDocument,
+  listProposals,
   saveAgentVersion,
+  searchKnowledge,
   startRun,
 } from "@nexus/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -139,5 +143,99 @@ describe("knowledge ingest", () => {
       treffer: { quelle: string; seite: number }[];
     };
     expect(output.treffer[0]).toMatchObject({ quelle: "Preisliste 2026, S. 2", seite: 2 });
+  });
+});
+
+describe("company memory", () => {
+  const search = (query: string) =>
+    withTenant(db, tenantId, (tx) => searchKnowledge(tx, { tenantId, query }));
+
+  it("indexes an article written in the app", async () => {
+    const { documentId } = await withTenant(db, tenantId, (tx) =>
+      createArticle(tx, {
+        tenantId,
+        collectionId,
+        title: "Lenovo Dock: Monitore flackern",
+        body: "# Lösung\n\nFirmware des Docks über Lenovo Vantage aktualisieren.",
+        actorId: userId,
+      }),
+    );
+    expect(await processKnowledgeIngest({ documentId, tenantId }, { db, log })).toMatchObject({
+      status: "ready",
+    });
+    const [hit] = await search("Dock Monitore flackern");
+    expect(hit).toMatchObject({ documentTitle: "Lenovo Dock: Monitore flackern" });
+    expect(hit?.text).toContain("Lenovo Vantage");
+  });
+
+  it("stores what an agent proposes, but indexes it only after a person confirms it", async () => {
+    const agent = await withTenant(db, tenantId, (tx) =>
+      createBlankAgent(tx, { tenantId, actorId: userId, name: "IT-Support" }),
+    );
+    const { current } = await withTenant(db, tenantId, (tx) =>
+      getAgentDetail(tx, tenantId, agent.id),
+    );
+    await withTenant(db, tenantId, (tx) =>
+      saveAgentVersion(tx, {
+        tenantId,
+        agentId: agent.id,
+        name: "IT-Support",
+        description: null,
+        config: { ...current.config, tools: [{ name: "wissen_merken", mode: "auto" }] },
+        actorId: userId,
+      }),
+    );
+    const { runId } = await withTenant(db, tenantId, (tx) =>
+      startRun(tx, {
+        tenantId,
+        userId,
+        userName: "Karl",
+        text: "Merke dir: Securepoint-Update immer mit Backup.",
+        agentId: agent.id,
+      }),
+    );
+    const client = scriptedClient([
+      toolUseResponse([
+        {
+          id: "m1",
+          name: "wissen_merken",
+          input: {
+            titel: "Securepoint: Update nur mit Backup",
+            inhalt: "Vor jedem Firmware-Update der Securepoint die Konfiguration sichern.",
+          },
+        },
+      ]),
+      textResponse("Vorgemerkt – eine Person bestätigt den Eintrag."),
+    ]);
+    const provider: LlmProvider = {
+      name: "anthropic",
+      client,
+      capabilities: CAPABILITIES.anthropic,
+      modelId: (m) => m,
+    };
+    const result = await processAgentRun(
+      { runId, tenantId },
+      { db, provider: async () => provider, publish: async () => {}, platformName: "X", log },
+    );
+    expect(result.status).toBe("completed");
+    const toolResult = client.requests[1]!.messages.at(-1)!.content as { content: string }[];
+    expect(JSON.parse(toolResult[0]!.content)).toMatchObject({ vorgeschlagen: true });
+
+    const [proposal] = await withTenant(db, tenantId, (tx) => listProposals(tx, tenantId));
+    expect(proposal).toMatchObject({ title: "Securepoint: Update nur mit Backup" });
+    // A queued ingest job for a proposal does nothing: it stays out of the search.
+    expect(
+      await processKnowledgeIngest({ documentId: proposal!.id, tenantId }, { db, log }),
+    ).toEqual({ status: "skipped" });
+    expect(await search("Securepoint Konfiguration sichern")).toEqual([]);
+
+    await withTenant(db, tenantId, (tx) =>
+      confirmProposal(tx, { tenantId, documentId: proposal!.id, actorId: userId }),
+    );
+    expect(
+      await processKnowledgeIngest({ documentId: proposal!.id, tenantId }, { db, log }),
+    ).toMatchObject({ status: "ready" });
+    const [hit] = await search("Securepoint Konfiguration sichern");
+    expect(hit).toMatchObject({ documentTitle: "Securepoint: Update nur mit Backup" });
   });
 });

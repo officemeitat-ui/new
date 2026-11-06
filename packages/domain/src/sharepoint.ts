@@ -7,13 +7,13 @@ import {
   searchSites,
   type DriveItem,
 } from "@nexus/connectors";
-import { conflict, notFound } from "@nexus/core";
+import { conflict, notFound, validationError } from "@nexus/core";
 import { and, eq, inArray, sql, withSystem, withTenant, type Database, type Tx } from "@nexus/db";
 import { knowledgeDocuments, knowledgeFiles, knowledgeSources } from "@nexus/db/schema";
 import { detectKind, MAX_FILE_BYTES } from "@nexus/knowledge/detect";
 import { appendAudit } from "./audit";
 import { tenantGraph, type MicrosoftAppConfig } from "./integrations";
-import { getCollection } from "./knowledge";
+import { getCollection, MEMORY_HAS_NO_SOURCE } from "./knowledge";
 
 /** A sync that has been "running" this long is treated as crashed and may be restarted. */
 export const STALE_SYNC_MS = 30 * 60_000;
@@ -71,6 +71,7 @@ export async function connectSharePointLibrary(
   },
 ) {
   const collection = await getCollection(tx, input.tenantId, input.collectionId);
+  if (collection.kind === "memory") throw validationError(MEMORY_HAS_NO_SOURCE);
   if (await getKnowledgeSource(tx, input.tenantId, collection.id)) {
     throw conflict("Diese Sammlung ist bereits mit einer Quelle verbunden.");
   }
@@ -249,6 +250,7 @@ export async function upsertSourceDocument(
       collectionId: input.collectionId,
       sourceId: input.sourceId,
       sourceItemId: input.item.id,
+      origin: "source",
     })
     .returning({ id: knowledgeDocuments.id });
   await tx.insert(knowledgeFiles).values({

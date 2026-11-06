@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, FieldError } from "@nexus/ui";
-import { FileText, Loader2, Trash2 } from "lucide-react";
+import { Brain, FileText, Loader2, PenLine, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
@@ -21,6 +21,9 @@ type Document = {
   uploaded: string;
   /** Link to the original (SharePoint, BookStack), for synced documents. */
   sourceUrl: string | null;
+  origin: "upload" | "source" | "article" | "memory";
+  /** Articles and memory entries are written in the app and can be edited there. */
+  editable: boolean;
 };
 
 const STATUS_VARIANT = { processing: "warning", ready: "success", failed: "danger" } as const;
@@ -82,7 +85,13 @@ export function DocumentList({
                   data-testid="document"
                   className="flex flex-wrap items-center gap-3 px-5 py-3"
                 >
-                  <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  {document.origin === "memory" ? (
+                    <Brain className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  ) : document.origin === "article" ? (
+                    <PenLine className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  ) : (
+                    <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       {status === "ready" ? (
@@ -104,7 +113,9 @@ export function DocumentList({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {[
-                        t(`kinds.${document.kind}`),
+                        document.editable
+                          ? t(`origins.${document.origin}`)
+                          : t(`kinds.${document.kind}`),
                         size(document.sizeBytes),
                         document.pageCount ? t("pages", { count: document.pageCount }) : null,
                         status === "ready" ? t("chunks", { count: document.chunkCount }) : null,
@@ -127,6 +138,16 @@ export function DocumentList({
                       </a>
                     ) : null}
                   </div>
+                  {canManage && document.editable ? (
+                    <Button asChild variant="ghost" size="sm">
+                      <Link
+                        href={`/knowledge/documents/${document.id}/edit`}
+                        aria-label={t("editNamed", { name: document.title })}
+                      >
+                        <Pencil aria-hidden />
+                      </Link>
+                    </Button>
+                  ) : null}
                   {canManage ? (
                     <Button
                       variant="ghost"

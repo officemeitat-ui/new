@@ -22,6 +22,7 @@ import {
   createEmailTool,
   createIntuneTools,
   createKnowledgeTool,
+  createMemoryTool,
   getIntegration,
   getTenantAccess,
   microsoftAppConfig,
@@ -132,6 +133,7 @@ export async function processAgentRun(job: AgentRunJob, deps: AgentRunDeps) {
       ...BUILTIN_TOOLS,
       createEmailTool({ tenantName: ctx.tenant.name }),
       createKnowledgeTool({ db, collectionIds: ctx.config.knowledgeCollectionIds ?? [] }),
+      createMemoryTool({ db }),
       createDefectReportsTool({ db }),
       ...(connected && microsoft ? createIntuneTools({ db, config: microsoft }) : []),
     ];

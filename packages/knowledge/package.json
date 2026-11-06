@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./detect": "./src/detect.ts"
+    "./detect": "./src/detect.ts",
+    "./zip": "./src/zip.ts"
   },
   "scripts": {
     "typecheck": "tsc",

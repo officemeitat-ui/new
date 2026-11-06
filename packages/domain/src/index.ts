@@ -14,6 +14,7 @@ export * from "./invitations";
 export * from "./knowledge";
 export * from "./knowledge-connectors";
 export * from "./mail";
+export * from "./memory";
 export * from "./partner-agents";
 export * from "./members";
 export * from "./pricing";

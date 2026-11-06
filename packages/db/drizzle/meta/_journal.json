@@ -190,6 +190,13 @@
       "when": 1793818731691,
       "tag": "0026_rls_security_review_2",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793954991234,
+      "tag": "0027_company_memory",
+      "breakpoints": true
     }
   ]
 }

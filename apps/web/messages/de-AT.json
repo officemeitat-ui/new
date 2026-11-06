@@ -227,15 +227,22 @@
         "privacy_person_erased": "Personendaten gelöscht",
         "privacy_account_deleted": "Benutzerkonto gelöscht",
         "privacy_data_exported": "Datenauskunft erstellt",
-        "knowledge_source_connected": "SharePoint-Bibliothek verbunden",
-        "knowledge_source_disconnected": "SharePoint-Bibliothek getrennt",
+        "knowledge_source_connected": "Wissensquelle verbunden",
+        "knowledge_source_disconnected": "Wissensquelle getrennt",
         "facility_created": "Objekt angelegt",
         "facility_activated": "Objekt aktiviert",
         "facility_deactivated": "Objekt deaktiviert",
         "agent_rolled_out": "Agent vom IT-Partner bereitgestellt",
         "agent_updated_by_partner": "Agent vom IT-Partner aktualisiert",
         "tenant_partner_sources_allowed": "BookStack/Atera vom IT-Partner erlaubt",
-        "tenant_partner_sources_revoked": "BookStack/Atera vom IT-Partner gesperrt"
+        "tenant_partner_sources_revoked": "BookStack/Atera vom IT-Partner gesperrt",
+        "knowledge_article_created": "Wissensartikel geschrieben",
+        "knowledge_article_updated": "Wissensartikel geändert",
+        "knowledge_memory_proposed": "Gedächtnis-Eintrag vorgeschlagen",
+        "knowledge_memory_confirmed": "Gedächtnis-Eintrag übernommen",
+        "knowledge_memory_rejected": "Gedächtnis-Vorschlag verworfen",
+        "knowledge_memory_proposals_expired": "Alte Gedächtnis-Vorschläge entfernt",
+        "knowledge_collection_exported": "Wissenssammlung exportiert"
       },
       "actors": {
         "user": "Benutzer",
@@ -580,6 +587,10 @@
     "meldungen_abfragen": {
       "label": "Meldungen abfragen",
       "description": "Liest die Mängelmeldungen aus den QR-Codes Ihrer Objekte (ohne E-Mail-Adressen der Meldenden)."
+    },
+    "wissen_merken": {
+      "label": "Für das Gedächtnis vorschlagen",
+      "description": "Schlägt geklärte Lösungen, Regeln und Fakten für das Unternehmensgedächtnis vor. Durchsuchbar erst, wenn eine Person sie bestätigt."
     }
   },
   "integrations": {
@@ -645,7 +656,7 @@
   },
   "knowledge": {
     "title": "Wissen",
-    "subtitle": "Dokumente, aus denen Ihre Agenten antworten: Preislisten, AGB, Handbücher, Richtlinien. Jede Antwort nennt die Quelle.",
+    "subtitle": "Dokumente und Artikel, aus denen Ihre Agenten antworten: Preislisten, AGB, Handbücher, Lösungen. Jede Antwort nennt die Quelle.",
     "forbiddenTitle": "Keine Berechtigung",
     "forbiddenDescription": "Ihre Rolle hat keinen Zugriff auf die Wissensdatenbank.",
     "newCollection": "Sammlung anlegen",
@@ -669,7 +680,8 @@
     "status": {
       "processing": "Wird verarbeitet",
       "ready": "Bereit",
-      "failed": "Fehler"
+      "failed": "Fehler",
+      "proposed": "Vorschlag"
     },
     "kinds": {
       "pdf": "PDF",
@@ -695,7 +707,48 @@
     "dropHint": "Dateien hierher ziehen oder",
     "chooseFiles": "Dateien auswählen",
     "noFiles": "Keine Datei ausgewählt",
-    "openSource": "Original öffnen"
+    "openSource": "Original öffnen",
+    "memoryBadge": "Gedächtnis",
+    "proposalsCount": "{count, plural, =1 {1 Vorschlag offen} other {# Vorschläge offen}}",
+    "memoryTitle": "Unternehmensgedächtnis",
+    "memoryText": "Halten Sie Lösungen, Regeln und Erfahrungen Ihrer Firma fest – als eigene Artikel oder als Vorschläge Ihrer Agenten („Merke dir: …“). Ein Vorschlag wird erst durchsuchbar, wenn eine Person ihn bestätigt. Das Wissen gehört Ihnen und lässt sich jederzeit als Markdown exportieren.",
+    "memoryCreate": "Unternehmensgedächtnis anlegen",
+    "memoryNoSource": "Das Unternehmensgedächtnis wird nicht mit einer Quelle verbunden – Einträge entstehen hier in der App.",
+    "writeArticle": "Artikel schreiben",
+    "export": "Als Markdown exportieren",
+    "exportHint": "ZIP mit einer Markdown-Datei je Dokument, z. B. für Obsidian.",
+    "articleNewTitle": "Neuer Artikel",
+    "articleEditTitle": "Artikel bearbeiten",
+    "proposalEditTitle": "Vorschlag prüfen und bearbeiten",
+    "articleTitle": "Titel",
+    "articleTitlePlaceholder": "z. B. Securepoint: Firmware-Update nur im Wartungsfenster",
+    "articleBody": "Text",
+    "articleBodyHint": "Markdown möglich: # Überschrift, - Aufzählung, **fett**. Überschriften gliedern den Text für die Suche.",
+    "articleSave": "Speichern",
+    "articleSaveConfirm": "Speichern und übernehmen",
+    "articleSaveProposal": "Nur speichern",
+    "articleCancel": "Abbrechen",
+    "articleSaved": "Gespeichert. Der Text wird für die Suche aufbereitet.",
+    "articleSavedProposal": "Gespeichert. Der Vorschlag wartet weiter auf Bestätigung.",
+    "edit": "Bearbeiten",
+    "editNamed": "„{name}“ bearbeiten",
+    "proposalsTitle": "Vorschläge prüfen",
+    "proposalsHint": "Diese Einträge haben Agenten vorgeschlagen. Für Suche und Agenten zählen sie erst, wenn Sie sie übernehmen. Prüfen Sie, ob sie stimmen – ein Agent kann sich irren oder von einem Dokument in die Irre geführt worden sein. Unbearbeitete Vorschläge verfallen nach 60 Tagen.",
+    "proposalMeta": "Vorgeschlagen {date}",
+    "proposalMetaBy": "Vorgeschlagen {date} im Auftrag von {name}",
+    "accept": "Übernehmen",
+    "acceptNamed": "„{name}“ übernehmen",
+    "reject": "Verwerfen",
+    "rejectNamed": "„{name}“ verwerfen",
+    "confirmReject": "Den Vorschlag „{name}“ verwerfen?",
+    "accepted": "„{name}“ ist übernommen und wird für die Suche aufbereitet.",
+    "rejected": "„{name}“ ist verworfen.",
+    "origins": {
+      "upload": "Hochgeladen",
+      "source": "Quelle",
+      "article": "Artikel",
+      "memory": "Gedächtnis"
+    }
   },
   "integrationsPage": {
     "title": "Integrationen",

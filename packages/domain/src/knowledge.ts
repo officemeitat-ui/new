@@ -1,7 +1,18 @@
 import { createHash } from "node:crypto";
 import { defineTool } from "@nexus/agents";
 import { conflict, notFound, validationError } from "@nexus/core";
-import { and, asc, desc, eq, inArray, sql, withTenant, type Database, type Tx } from "@nexus/db";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  ne,
+  sql,
+  withTenant,
+  type Database,
+  type Tx,
+} from "@nexus/db";
 import {
   authUser,
   knowledgeChunks,
@@ -15,15 +26,22 @@ import { appendAudit } from "./audit";
 
 /* ---------------------------------------------------------------- collections */
 
+/** The company memory holds people's own knowledge; synced sources go into normal collections. */
+export const MEMORY_HAS_NO_SOURCE =
+  "Das Unternehmensgedächtnis lässt sich mit keiner Quelle verbinden. Bitte legen Sie dafür eine eigene Sammlung an.";
+
 export async function listCollections(tx: Tx, tenantId: string) {
   return tx
     .select({
       id: knowledgeCollections.id,
       name: knowledgeCollections.name,
       description: knowledgeCollections.description,
+      kind: knowledgeCollections.kind,
       createdAt: knowledgeCollections.createdAt,
-      documents: sql<number>`count(${knowledgeDocuments.id})::int`,
+      // Proposals for the company memory are not part of the collection until confirmed.
+      documents: sql<number>`(count(*) filter (where ${knowledgeDocuments.status} <> 'proposed'))::int`,
       ready: sql<number>`(count(*) filter (where ${knowledgeDocuments.status} = 'ready'))::int`,
+      proposed: sql<number>`(count(*) filter (where ${knowledgeDocuments.status} = 'proposed'))::int`,
     })
     .from(knowledgeCollections)
     .leftJoin(knowledgeDocuments, eq(knowledgeDocuments.collectionId, knowledgeCollections.id))
@@ -111,6 +129,7 @@ export async function listDocuments(tx: Tx, tenantId: string, collectionId: stri
       createdAt: knowledgeDocuments.createdAt,
       createdByName: authUser.name,
       sourceUrl: knowledgeDocuments.sourceUrl,
+      origin: knowledgeDocuments.origin,
       fromSource: sql<boolean>`${knowledgeDocuments.sourceId} is not null`,
     })
     .from(knowledgeDocuments)
@@ -119,6 +138,8 @@ export async function listDocuments(tx: Tx, tenantId: string, collectionId: stri
       and(
         eq(knowledgeDocuments.tenantId, tenantId),
         eq(knowledgeDocuments.collectionId, collectionId),
+        // Open proposals have their own review list (memory.ts).
+        ne(knowledgeDocuments.status, "proposed"),
       ),
     )
     .orderBy(desc(knowledgeDocuments.createdAt));
@@ -237,13 +258,20 @@ export async function getDocument(tx: Tx, tenantId: string, documentId: string) 
       error: knowledgeDocuments.error,
       pageCount: knowledgeDocuments.pageCount,
       chunkCount: knowledgeDocuments.chunkCount,
+      origin: knowledgeDocuments.origin,
       createdAt: knowledgeDocuments.createdAt,
       collectionId: knowledgeCollections.id,
       collectionName: knowledgeCollections.name,
     })
     .from(knowledgeDocuments)
     .innerJoin(knowledgeCollections, eq(knowledgeCollections.id, knowledgeDocuments.collectionId))
-    .where(and(eq(knowledgeDocuments.id, documentId), eq(knowledgeDocuments.tenantId, tenantId)));
+    .where(
+      and(
+        eq(knowledgeDocuments.id, documentId),
+        eq(knowledgeDocuments.tenantId, tenantId),
+        ne(knowledgeDocuments.status, "proposed"),
+      ),
+    );
   if (!document) throw notFound("Dokument nicht gefunden.");
   const chunks = await tx
     .select({

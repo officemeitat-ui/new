@@ -23,7 +23,12 @@ const tsvector = customType<{ data: string }>({
   dataType: () => "tsvector",
 });
 
-export type KnowledgeDocumentStatus = "processing" | "ready" | "failed";
+/** "proposed": suggested by an agent, invisible to search until a person confirms it. */
+export type KnowledgeDocumentStatus = "proposed" | "processing" | "ready" | "failed";
+/** Where a document comes from. */
+export type KnowledgeDocumentOrigin = "upload" | "source" | "article" | "memory";
+/** "memory": the company's memory (Unternehmensgedächtnis), one per tenant. */
+export type KnowledgeCollectionKind = "standard" | "memory";
 export type KnowledgeSourceStatus = "idle" | "syncing" | "error";
 
 /** A folder of documents (M5). Agents are given collections, not single documents. */
@@ -36,11 +41,17 @@ export const knowledgeCollections = pgTable(
       .references(() => tenants.id, { onDelete: "cascade" }),
     name: text().notNull(),
     description: text(),
+    kind: text().$type<KnowledgeCollectionKind>().notNull().default("standard"),
     createdBy: uuid().references(() => authUser.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [uniqueIndex("knowledge_collections_tenant_name_uq").on(t.tenantId, t.name)],
+  (t) => [
+    uniqueIndex("knowledge_collections_tenant_name_uq").on(t.tenantId, t.name),
+    uniqueIndex("knowledge_collections_tenant_memory_uq")
+      .on(t.tenantId)
+      .where(sql`${t.kind} = 'memory'`),
+  ],
 );
 
 export const knowledgeDocuments = pgTable(
@@ -60,6 +71,7 @@ export const knowledgeDocuments = pgTable(
     sizeBytes: integer().notNull(),
     sha256: text().notNull(),
     status: text().$type<KnowledgeDocumentStatus>().notNull().default("processing"),
+    origin: text().$type<KnowledgeDocumentOrigin>().notNull().default("upload"),
     error: text(),
     pageCount: integer(),
     chunkCount: integer().notNull().default(0),

@@ -6,6 +6,7 @@
 //   "Laut Wissen: …"       → calls "wissen_suchen" (if the agent has it), then cites the first hit
 //   "Welche Geräte …"      → calls "geraete_suchen" (only problems), then lists the devices
 //   "Sperre <Gerät>"       → searches the device, calls "geraet_sperren", then reports
+//   "Merke dir: T – Text"  → calls "wissen_merken" with title T, then passes on its hint
 //   anything else          → streams a greeting that quotes the message
 import { createServer } from "node:http";
 
@@ -160,6 +161,12 @@ createServer((req, res) => {
         : "Dazu habe ich in den Dokumenten nichts gefunden.";
       return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
     }
+    if (toolResult && calledTool === "wissen_merken") {
+      const answer = toolResult.is_error
+        ? `Das konnte ich nicht vormerken. ${toolResult.content}`
+        : `Vorgemerkt. ${JSON.parse(toolResult.content).hinweis}`;
+      return void streamMessage(res, request.model, [{ type: "text", text: answer }], "end_turn");
+    }
     if (toolResult && calledTool === "email_senden") {
       const answer = toolResult.is_error
         ? `Verstanden, ich sende die E-Mail nicht. ${toolResult.content}`
@@ -194,6 +201,15 @@ createServer((req, res) => {
     const recipient = /E-Mail an ([\w.+-]+@[\w-]+(?:\.[\w-]+)+)/i.exec(text)?.[1];
     const canMail = request.tools?.some((tool) => tool.name === "email_senden");
     const hasTool = (name) => request.tools?.some((tool) => tool.name === name);
+    const remember = /^merke dir:\s*(.+?)\s+[–-]\s+([\s\S]+)$/i.exec(text.trim());
+    if (remember && hasTool("wissen_merken")) {
+      return void streamMessage(
+        res,
+        request.model,
+        [toolUse("wissen_merken", { titel: remember[1], inhalt: remember[2] })],
+        "tool_use",
+      );
+    }
     if (/^welche geräte/i.test(text.trim()) && hasTool("geraete_suchen")) {
       return void streamMessage(
         res,

@@ -55,6 +55,8 @@ export const TOOL_CATALOG: readonly CatalogTool[] = [
     userPermission: "reports.manage",
   },
   { name: "wissen_suchen", risk: "read", available: true, defaultMode: "auto" },
+  // Only a proposal: it becomes searchable once a person confirms it (ADR 0011).
+  { name: "wissen_merken", risk: "internal_write", available: true, defaultMode: "auto" },
   {
     name: "email_senden",
     risk: "external_write",

@@ -3,6 +3,7 @@ import { getDatabase, withTenant } from "@nexus/db";
 import { can, getDocument } from "@nexus/domain";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -10,7 +11,7 @@ import {
   CardTitle,
   EmptyState,
 } from "@nexus/ui";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft, Lock, Pencil } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -49,6 +50,9 @@ export default async function DocumentPage({
     getDocument(tx, ctx.tenant.tenantId, documentId).catch(() => null),
   );
   if (!document) notFound();
+  const editable =
+    can(ctx.tenant, "knowledge.manage") &&
+    (document.origin === "article" || document.origin === "memory");
 
   const sections = document.chunks.map((chunk, index) => {
     const previous = document.chunks[index - 1];
@@ -71,9 +75,23 @@ export default async function DocumentPage({
           {t("documentBack", { name: document.collectionName })}
         </Link>
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{document.title}</h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{document.title}</h1>
+            {editable ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/knowledge/documents/${document.id}/edit`}>
+                  <Pencil aria-hidden />
+                  {t("edit")}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="secondary">{t(`kinds.${document.kind}`)}</Badge>
+            <Badge variant="secondary">
+              {document.origin === "article" || document.origin === "memory"
+                ? t(`origins.${document.origin}`)
+                : t(`kinds.${document.kind}`)}
+            </Badge>
             {document.fileName}
             {document.pageCount ? ` · ${t("pages", { count: document.pageCount })}` : ""}
             {` · ${formatDateTime(document.createdAt)}`}

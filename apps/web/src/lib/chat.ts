@@ -137,6 +137,7 @@ export const TOOL_LABELS: Record<string, string> = {
   aktuelle_zeit: "Datum und Uhrzeit",
   email_senden: "E-Mail senden",
   wissen_suchen: "Wissensdatenbank",
+  wissen_merken: "Für das Gedächtnis vorschlagen",
   geraete_suchen: "Geräte suchen",
   geraet_details: "Gerätedetails",
   geraet_synchronisieren: "Gerät synchronisieren",

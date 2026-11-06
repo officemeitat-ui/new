@@ -23,7 +23,8 @@ import { knowledgeDocuments, knowledgeSources, tenants } from "@nexus/db/schema"
 import { detectKind, MAX_FILE_BYTES } from "@nexus/knowledge/detect";
 import { z } from "zod";
 import { appendAudit } from "./audit";
-import { getCollection } from "./knowledge";
+import { redactCredentials } from "./redact";
+import { getCollection, MEMORY_HAS_NO_SOURCE } from "./knowledge";
 import type { MicrosoftAppConfig } from "./integrations";
 import {
   claimSync,
@@ -98,6 +99,7 @@ async function assertPartnerSourcesAllowed(db: Database, tenantId: string) {
 async function assertNoSource(db: Database, tenantId: string, collectionId: string) {
   return withTenant(db, tenantId, async (tx) => {
     const collection = await getCollection(tx, tenantId, collectionId);
+    if (collection.kind === "memory") throw validationError(MEMORY_HAS_NO_SOURCE);
     if (await getKnowledgeSource(tx, tenantId, collection.id)) {
       throw conflict("Diese Sammlung ist bereits mit einer Quelle verbunden.");
     }
@@ -273,12 +275,6 @@ const ateraSecret = z.object({ apiKey: z.string() });
 const ateraSettings = z.object({ monthsBack: z.number().int().min(1).max(60) });
 
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
-/**
- * Credentials typed into tickets ("Passwort: …", "PIN=…", "API-Key: …"): the value is removed,
- * the label stays (security review 2, finding 6).
- */
-const CREDENTIAL =
-  /\b(passw(?:ort|ord)|kennwort|pwd|pw|pin|puk|zugangsdaten|api[- ]?key|api[- ]?schlüssel|lizenzschlüssel|license key|token|secret|wlan[- ]?schlüssel|wpa[- ]?key)\b\s*[:=]\s*[^\s,;]+/gi;
 const IBAN = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b/g;
 const PHONE_CANDIDATE = /(?:\+|\b00)?\d[\d\s/().-]{5,}\d/g;
 const DATE_LIKE =
@@ -289,7 +285,7 @@ const DATE_LIKE =
  * HTML is reduced to text. Names in free text cannot be detected reliably (docs/adr/0010).
  */
 export function maskPersonalData(text: string): string {
-  return text
+  return redactCredentials(text)
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li|tr|h\d)>/gi, "\n")
     .replace(/<[^>]+>/g, "")
@@ -299,7 +295,6 @@ export function maskPersonalData(text: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(CREDENTIAL, (_match, label: string) => `${label}: [entfernt]`)
     .replace(EMAIL, "[E-Mail]")
     .replace(IBAN, "[IBAN]")
     .replace(PHONE_CANDIDATE, (match) => {

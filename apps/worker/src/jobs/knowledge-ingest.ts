@@ -34,6 +34,14 @@ export async function processKnowledgeIngest(job: KnowledgeIngestJob, deps: Know
     log.warn({ documentId: job.documentId }, "document is gone – skipping ingest");
     return { status: "skipped" as const };
   }
+  // A memory proposal becomes searchable only after a person confirmed it.
+  if (document.status === "proposed") {
+    log.warn(
+      { documentId: job.documentId },
+      "document is an unconfirmed proposal – skipping ingest",
+    );
+    return { status: "skipped" as const };
+  }
 
   try {
     if (!isKind(document.kind)) throw new ParseError("Dieser Dateityp wird nicht unterstützt.");

@@ -183,7 +183,43 @@ export async function applyRetention(db: Database, now = new Date()) {
     );
     results.push(result);
   }
+  await expireMemoryProposals(db, now);
   return results;
+}
+
+/** Proposals nobody reviewed within this many days are dropped (ADR 0011). */
+export const PROPOSAL_EXPIRY_DAYS = 60;
+
+/**
+ * Company memory proposals that wait too long are removed for every tenant, regardless of its
+ * retention settings: an unreviewed proposal is neither confirmed knowledge nor needed.
+ */
+export async function expireMemoryProposals(db: Database, now = new Date()) {
+  const cutoff = new Date(now.getTime() - PROPOSAL_EXPIRY_DAYS * 86_400_000);
+  return withSystem(db, "retention: expire unreviewed memory proposals", async (tx) => {
+    const expired = await tx
+      .delete(knowledgeDocuments)
+      .where(
+        and(
+          eq(knowledgeDocuments.status, "proposed"),
+          sql`${knowledgeDocuments.createdAt} < ${cutoff}`,
+        ),
+      )
+      .returning({ tenantId: knowledgeDocuments.tenantId });
+    const perTenant = new Map<string, number>();
+    for (const row of expired) perTenant.set(row.tenantId, (perTenant.get(row.tenantId) ?? 0) + 1);
+    for (const [tenantId, count] of perTenant) {
+      await appendAudit(tx, tenantId, {
+        actorType: "system",
+        actorId: null,
+        action: "knowledge.memory_proposals_expired",
+        targetType: "tenant",
+        targetId: tenantId,
+        metadata: { proposals: count, days: PROPOSAL_EXPIRY_DAYS },
+      });
+    }
+    return expired.length;
+  });
 }
 
 /* ------------------------------------------------------------ export (Art. 15) */
@@ -265,6 +301,8 @@ export async function exportPersonData(tx: Tx, input: { tenantId: string; userId
     .select({
       title: knowledgeDocuments.title,
       fileName: knowledgeDocuments.fileName,
+      origin: knowledgeDocuments.origin,
+      status: knowledgeDocuments.status,
       createdAt: knowledgeDocuments.createdAt,
     })
     .from(knowledgeDocuments)
