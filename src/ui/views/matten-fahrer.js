@@ -45,9 +45,8 @@ import {
 } from '../../core/matten-fahrt.js'
 import { loadList } from '../../core/matten-tour.js'
 import { navigationUrl } from '../../core/routing.js'
-import { TourStore } from '../../storage/matten-touren.js'
-import { createOfflineCache, memoryCache } from '../../storage/offline.js'
 import { app, canEdit, closeModal, openModal, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { onToursChanged, tourStore as sharedTourStore } from '../matten-tourablage.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 import { esc, ICON, modalFrame } from '../shared.js'
 
@@ -70,13 +69,17 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
 // ---------------------------------------------------------------- Touren laden und speichern
 
-const S = { store: null, timer: null, refreshedAt: 0, seeded: false }
+const S = { store: null, off: null, timer: null, refreshedAt: 0, seeded: false }
 
+/** Gemeinsame Touren-Ablage mit der Tourenplanung im Büro (ui/matten-tourablage.js, Gerätespeicher je Konto). */
 function tourStore() {
-  if (S.store || !app.store) return S.store
-  // je Konto ein eigener Gerätespeicher (wie die Ablage selbst): Ungespeichertes übersteht Neuladen ohne Netz
-  const name = app.user && app.store.kind === 'sharepoint' ? `dienstplan-offline:${app.user.id || app.user.email}:mattentouren` : ''
-  S.store = new TourStore({ store: app.store, cache: name ? createOfflineCache(name) : memoryCache(), onChange: changed })
+  if (!app.store) return null
+  const st = sharedTourStore()
+  if (S.store !== st) {
+    S.store = st
+    S.off?.()
+    S.off = onToursChanged(changed)
+  }
   return S.store
 }
 
@@ -102,15 +105,18 @@ function ensureLoaded({ force = false } = {}) {
   })
 }
 
-/** Browser-Modus mit Beispieldaten: eine freigegebene Tour für heute, wenn noch keine da ist. */
+/**
+ * Browser-Modus mit Beispieldaten: eine freigegebene Tour für heute, wenn die Beispiel-Tour noch nicht da ist (auch wenn
+ * die Tourenplanung schon Entwürfe im Ordner angelegt hat).
+ */
 async function seedDemo() {
   S.seeded = true
   const today = todayISO()
-  const list = (await app.store.listDocs?.(`matten/touren/${today.slice(0, 4)}`)) || []
-  if (list.length) return
   const { createMattenTourDemo } = await import('../../data/demo-matten.js')
   const tour = createMattenTourDemo(today)
-  await app.store.write(`matten/touren/${today.slice(0, 4)}/${tour.id}.json`, tour, null).catch(() => {})
+  const path = `matten/touren/${today.slice(0, 4)}/${tour.id}.json`
+  if (await app.store.read(path).catch(() => null)) return
+  await app.store.write(path, tour, null).catch(() => {})
 }
 
 /** Ungespeichertes regelmäßig nachholen (ohne Netz alle 15 Sekunden versuchen). */

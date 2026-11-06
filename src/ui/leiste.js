@@ -29,8 +29,8 @@ export const PLAN_DEFAULT = ['week', 'coverage', ABSENCE, 'sheet']
 export const ROLE_DEFAULTS = {
   ableser: ['zaehler'],
   vorarbeiter: ['zaehler'],
-  // Mattenwechsel Büro: bis zur Umstellung zuerst das Werkzeug, daneben Liegeplätze und Kalender des Moduls
-  mattenwechsel: ['matten', 'mw-liegeplaetze', 'mw-kalender'],
+  // Mattenwechsel Büro: bis zur Umstellung zuerst das Werkzeug, daneben Liegeplätze, Kalender und Tourenplanung des Moduls
+  mattenwechsel: ['matten', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung'],
   // Fahrer Mattenwechsel: seine Touren (Tour, Stopp, Bestätigung je Liegeplatz, Unterschrift; views/matten-fahrer.js)
   mattenfahrer: ['mw-touren'],
   pruefer: ['kontrolle', 'objektmappe'],

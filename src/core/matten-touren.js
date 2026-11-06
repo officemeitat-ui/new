@@ -1,11 +1,11 @@
 // Mattenwechsel: Tourenplanung im Büro (Paket P9, docs/MATTENWECHSEL-PLAN.md). Reine Funktionen ohne Oberfläche
-// (Tests: test/matten-touren.test.js); Ansicht: ui/views/matten-planung.js, Ablage: storage/matten-tourablage.js.
+// (Tests: test/matten-touren.test.js); Ansicht: ui/views/matten-planung.js. Gespeichert wird über die gemeinsame
+// Touren-Ablage von Büro und Fahrern (storage/matten-touren.js, Zusammenführen mit mergeTour aus core/matten-fahrt.js).
 // Baut auf dem Tourvorschlag core/matten-tour.js (P8) und den Einsätzen core/matten-einsaetze.js (P7) auf.
 //
 // Was hier steht:
 //  - Ablage: Ordner und Jahre der Tour-Dateien (matten/touren/<Jahr>/<TourId>.json, tourFileName aus matten-tour.js)
-//  - Zusammenführen bei gleichzeitiger Änderung (mergeOfficeTour – die eine Stelle, an der später mergeTour aus
-//    core/matten-fahrt.js eingesetzt wird) und die Sperre, sobald die Tour unterwegs ist
+//  - die Sperre für das Büro, sobald die Tour unterwegs ist (TourLockedError; die Ablage prüft sie beim Speichern)
 //  - Bearbeiten einer Tour: Stopp entfernen, hinzufügen (gleiches Objekt → derselbe Stopp), in eine andere Tour,
 //    Fahrzeug und Arbeitszeit, leere Tour
 //  - Freigabe: Prüfung (Fahrer, Stopps, Tag, kein Einsatz in zwei Touren, Einsätze noch offen), Status setzen,
@@ -93,43 +93,15 @@ export function keysInTours(tours = [], { except = [], today = '' } = {}) {
   return out
 }
 
-// ---------------------------------------------------------------- Zusammenführen (eine Stelle)
+// ---------------------------------------------------------------- Sperre für das Büro
 
 /** Die Tour ist inzwischen unterwegs bzw. abgeschlossen: das Büro schreibt nicht mehr hinein. */
 export class TourLockedError extends Error {
   constructor(tour) {
-    super(`Die Tour ist schon ${tour?.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'} – das Büro ändert sie nicht mehr (Korrektur einzelner Stopps folgt).`)
+    super(`Die Tour ist schon ${tour?.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'} – die Tourenplanung ändert sie nicht mehr; einzelne Stopps korrigiert das Büro in „Matten-Touren“.`)
     this.name = 'TourLockedError'
     this.tour = tour
   }
-}
-
-// Felder, die zusammen gelten: die Reihenfolge der Stopps mit ihren Zeiten und der Summe der Route
-const ROUTE_FIELDS = ['stops', 'order', 'route']
-const STAMP_FIELDS = ['updatedAt', 'updatedBy']
-
-/**
- * Gleichzeitige Änderung derselben Tour (Speichern mit eTag schlug fehl): base = Stand beim Lesen, mine = eigene
- * Fassung, theirs = Stand in SharePoint. Ist die Tour dort schon unterwegs oder abgeschlossen → TourLockedError.
- * Sonst je Feld: was ich geändert habe, gilt; sonst das Gespeicherte. Stopps, Reihenfolge und Route zählen als ein
- * Feld (meine Reihenfolge ganz oder ihre ganz). Ohne bekannte Basis gilt meine Fassung.
- * Hier wird später mergeTour(base, mine, theirs) aus core/matten-fahrt.js eingesetzt (je Stopp zusammenführen).
- */
-export function mergeOfficeTour(base, mine, theirs) {
-  if (lockedForOffice(theirs)) throw new TourLockedError(theirs)
-  if (!theirs) return clone(mine)
-  if (!base) return { ...clone(mine) }
-  const out = clone(theirs)
-  const keys = new Set([...Object.keys(mine || {}), ...Object.keys(base || {})])
-  for (const k of keys) {
-    if (ROUTE_FIELDS.includes(k) || STAMP_FIELDS.includes(k)) continue
-    if (same(mine[k], base[k])) continue
-    if (mine[k] === undefined) delete out[k]
-    else out[k] = clone(mine[k])
-  }
-  if (ROUTE_FIELDS.some((k) => !same(mine[k], base[k]))) for (const k of ROUTE_FIELDS) out[k] = clone(mine[k])
-  for (const k of STAMP_FIELDS) if (mine[k] !== undefined) out[k] = mine[k]
-  return out
 }
 
 // ---------------------------------------------------------------- Stopps bearbeiten
@@ -237,7 +209,7 @@ export function newTour({ date, driver = null, vehicle = null, depot = null, set
     schema: TOUR_SCHEMA,
     id: newId(),
     date,
-    driverId: text(driver?.id),
+    driverId: driverKey(driver),
     driverName: text(driver?.name),
     ...(text(driver?.email) ? { driverEmail: text(driver.email).toLowerCase() } : {}),
     vehicleId: text(vehicle?.id),
@@ -436,9 +408,18 @@ export function driversProblem(list = []) {
 }
 
 /**
+ * Kennung eines Fahrers an der Tour (driverId): die der Person in den Mitarbeitenden, wenn bekannt (wie in der
+ * Fahreransicht und im Fuhrpark), sonst die des Eintrags in den Einstellungen.
+ */
+export const driverKey = (d) => (d ? text(d.employeeId) || text(d.id) : '')
+/** Fahrer der Einstellungen zu einer driverId (Kennung der Person oder des Eintrags). */
+export const driverOf = (list = [], id = '') => (id ? (list || []).find((d) => driverKey(d) === id || d.id === id) || null : null)
+
+/**
  * Fahrer eines Tages für den Vorschlag: aus den Fahrern der Einstellungen (normalizeDrivers) und der Auswahl des
  * Tages ({ [id]: { on, start, end, vehicleId, capacity } }; ohne Eintrag: dabei mit den Vorgaben). Liefert die
- * gewählten im Format von proposeTours: [{ id, name, email, start, end, vehicleId, capacity, areaId }].
+ * gewählten im Format von proposeTours: [{ id (driverKey), name, email, start, end, vehicleId, capacity, areaId }]; die
+ * E-Mail kommt als driverEmail an die Tour (proposeTours, assignDriver), daran erkennt die Fahreransicht „meine Touren“.
  */
 export function driversForDay(drivers = [], choice = {}, settings = {}) {
   const out = []
@@ -449,7 +430,7 @@ export function driversForDay(drivers = [], choice = {}, settings = {}) {
     const start = isTime(c.start) ? c.start : d.start || settings?.workday?.from || DEFAULT_SHIFT.start
     const end = isTime(c.end) ? c.end : d.end || settings?.workday?.to || DEFAULT_SHIFT.end
     const cap = c.capacity !== undefined ? c.capacity : d.capacity
-    out.push({ id: d.id, name: d.name, ...(d.email ? { email: d.email } : {}), start, end, vehicleId: c.vehicleId !== undefined ? text(c.vehicleId) : d.vehicleId, capacity: Number(cap) > 0 ? Math.round(Number(cap)) : null, ...(d.areaId ? { areaId: d.areaId } : {}) })
+    out.push({ id: driverKey(d), name: d.name, ...(d.email ? { email: d.email } : {}), start, end, vehicleId: c.vehicleId !== undefined ? text(c.vehicleId) : d.vehicleId, capacity: Number(cap) > 0 ? Math.round(Number(cap)) : null, ...(d.areaId ? { areaId: d.areaId } : {}) })
   }
   return out
 }

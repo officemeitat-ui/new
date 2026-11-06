@@ -1857,7 +1857,7 @@ In „Matten-Tourenplanung“ wählst du den Tag und die Fahrer des Tages; „Vo
 3. Zum Ändern „Freigabe zurücknehmen“ klicken: die Tour wird wieder ein Entwurf, die Einsätze sind frei.
 
 > Tipp: „Entwurf löschen“ (zweimal klicken) gibt die Einsätze ebenfalls frei; sie stehen dann wieder unter „Nicht eingeplant“.
-> Tipp: Ist die Tour schon unterwegs, ändert das Büro sie nicht mehr.
+> Tipp: Ist die Tour schon unterwegs, ändert sie die Tourenplanung nicht mehr; einzelne Stopps korrigiert das Büro in „Matten-Touren“.
 > Tipp: „Zu erledigen“ meldet Einsätze von morgen (am Freitag bis Montag), die in keiner freigegebenen Tour stehen.
 
 *Mattenwechsel Büro, Vollzugriff*

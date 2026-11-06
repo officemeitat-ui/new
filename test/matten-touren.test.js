@@ -1,7 +1,7 @@
 // Mattenwechsel: Tourenplanung im Büro (P9) – Rechenkern core/matten-touren.js (Bearbeiten, Freigabe-Prüfung,
-// Einsätze in Tour und wieder frei, Zusammenführen, Fahrer, Betriebshof, Ladeliste, Google-Maps-Link) und die Ablage
-// storage/matten-tourablage.js (eine Datei je Tour, Ordner auflisten, nur Geändertes lesen, eTag, Konflikt). Alle Daten
-// erfunden.
+// Einsätze in Tour und wieder frei, Sperre ab „unterwegs“, Fahrer, Betriebshof, Ladeliste, Google-Maps-Link) und die
+// gemeinsame Touren-Ablage storage/matten-touren.js aus Sicht des Büros (eine Datei je Tour, Ordner auflisten, nur
+// Geändertes lesen, eTag, Zusammenführen mit mergeTour, gesperrt ab „unterwegs“, ohne Netz). Alle Daten erfunden.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -14,6 +14,8 @@ import {
   dayDriversProblem,
   depotProblem,
   driversForDay,
+  driverKey,
+  driverOf,
   driversProblem,
   editableByOffice,
   freeJobs,
@@ -21,7 +23,6 @@ import {
   keysInTours,
   lockedForOffice,
   mapsLinks,
-  mergeOfficeTour,
   newTour,
   normalizeDrivers,
   releaseProblems,
@@ -38,8 +39,11 @@ import {
   vehicleLabel,
   withdrawTour,
 } from '../src/core/matten-touren.js'
+import { createMattenDemo, createMattenJobsDemo, createMattenTourDemo } from '../src/data/demo-matten.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
-import { OfficeTourStore } from '../src/storage/matten-tourablage.js'
+import { memoryCache } from '../src/storage/offline.js'
+import { confirmPlacement, mergeTour, startTour } from '../src/core/matten-fahrt.js'
+import { TourStore } from '../src/storage/matten-touren.js'
 
 const DAY = '2026-11-09'
 const TODAY = '2026-11-06'
@@ -214,27 +218,21 @@ test('Freigabe: Prüfung (Fahrer, Stopps, Tag, doppelt, offen), Status, Einsätz
   assert.deepEqual(freeJobs(jobs, 'mtanders', opts), [])
 })
 
-test('Zusammenführen bei gleichzeitiger Änderung: je Feld, Reihenfolge als Ganzes, unterwegs gesperrt', async () => {
+test('Gleichzeitig geändert: Büro ändert Reihenfolge und Fahrzeug, Fahrer bestätigt – mergeTour behält beides; Sperre ab unterwegs', async () => {
   const { tours } = await propose()
-  const base = tours[0]
+  const base = releaseTour(tours.find((t) => t.stops.length >= 2), opts)
   const mine = { ...moveStop(base, 0, base.stops.length - 1, opts), vehicleId: 'v9' }
-  const theirs = { ...base, driverName: 'Anna B.', updatedBy: 'Kollegin' }
-  const m = mergeOfficeTour(base, mine, theirs)
-  assert.deepEqual(m.order, mine.order, 'meine Reihenfolge')
+  const stop = base.stops[0]
+  const theirs = confirmPlacement(base, stop.id, stop.items[0].placementId, { now: '2026-11-09T07:30:00.000Z', by: 'Anna Beispiel' })
+  const m = mergeTour(base, mine, theirs)
+  assert.deepEqual(m.order, mine.order, 'Reihenfolge des Büros')
   assert.equal(m.vehicleId, 'v9')
-  assert.equal(m.driverName, 'Anna B.', 'ihre Änderung bleibt')
-  assert.equal(m.updatedBy, 'Büro')
-  // beide ändern die Reihenfolge: meine gilt ganz
-  const theirs2 = moveStop(base, 1, 0, { now: NOW, by: 'Kollegin' })
-  assert.deepEqual(mergeOfficeTour(base, mine, theirs2).order, mine.order)
-  // nur sie: ihre Reihenfolge
-  assert.deepEqual(mergeOfficeTour(base, { ...base, vehicleId: 'v9' }, theirs2).order, theirs2.order)
-  // ohne Basis: meine Fassung
-  assert.deepEqual(mergeOfficeTour(null, mine, theirs).order, mine.order)
+  assert.equal(m.stops.find((s) => s.id === stop.id).items[0].status, 'gewechselt', 'Bestätigung des Fahrers bleibt')
   for (const status of ['unterwegs', 'abgeschlossen']) {
-    assert.throws(() => mergeOfficeTour(base, mine, { ...theirs, status }), TourLockedError)
     assert.ok(lockedForOffice({ status }))
+    assert.match(new TourLockedError({ status }).message, new RegExp(`schon ${status}`))
   }
+  assert.ok(!lockedForOffice(base) && !lockedForOffice(tours[0]))
 })
 
 // ---------------------------------------------------------------- Fahrer, Betriebshof
@@ -248,11 +246,18 @@ test('Fahrer: Liste säubern, prüfen, Auswahl des Tages', () => {
   assert.match(driversProblem([{ name: 'X', email: 'x@example.invalid' }, { name: 'Y', email: 'x@example.invalid' }]), /doppelt/)
   const active = list.map((d) => ({ ...d, active: true }))
   const day = driversForDay(active, { d1: { on: true, start: '06:00', vehicleId: 'v7' }, d2: { on: false } }, { workday: { from: '07:30', to: '15:00' } })
-  assert.deepEqual(day, [{ id: 'd1', name: 'Anna Beispiel', start: '06:00', end: '15:00', vehicleId: 'v7', capacity: 30 }])
+  assert.deepEqual(day, [{ id: 'e1', name: 'Anna Beispiel', start: '06:00', end: '15:00', vehicleId: 'v7', capacity: 30 }], 'driverId = Person aus den Mitarbeitenden')
   assert.equal(driversForDay(list, {}).length, 1, 'inaktive nicht')
   assert.equal(driversForDay(active, {}).length, 2, 'ohne Auswahl: alle aktiven')
   assert.match(dayDriversProblem([]), /mindestens einen Fahrer/)
   assert.match(dayDriversProblem([{ name: 'X', start: '10:00', end: '09:00' }]), /Arbeitszeit/)
+  // an der Tour steht die Kennung der Person (Mitarbeitende), sonst die des Eintrags
+  assert.deepEqual([driverKey(list[0]), driverKey(list[1])], ['e1', 'd2'])
+  assert.equal(driverOf(list, 'e1').name, 'Anna Beispiel')
+  assert.equal(driverOf(list, 'd1').name, 'Anna Beispiel')
+  assert.equal(driverOf(list, 'x'), null)
+  assert.equal(driversForDay(active, { d1: { on: false } })[0].id, 'd2')
+  assert.equal(driversForDay(active, {})[0].id, 'e1', 'Vorschlag: driverId = Person')
   assert.match(depotProblem(null), /Betriebshof eintragen/)
   assert.match(depotProblem({ address: 'Beispielweg 1' }), /Koordinaten/)
   assert.equal(depotProblem(depot), '')
@@ -318,73 +323,113 @@ function spyStore() {
 
 test('Ablage: eine Datei je Tour, Ordner auflisten, nur Neues und Geändertes lesen, löschen', async () => {
   const { store, reads } = spyStore()
-  const office = new OfficeTourStore({ store })
+  const office = new TourStore({ store })
   const { tours } = await propose()
   for (const t of tours) await office.save(t)
   assert.deepEqual((await store.list('matten/touren/')).sort(), tours.map(tourFileName).sort())
   assert.equal((await store.read(tourFileName(tours[0]))).data.id, tours[0].id)
+  assert.deepEqual(office.pendingPaths(), [])
   // zweite Sitzung: liest beim ersten Mal alles, danach nur Geändertes
-  const other = new OfficeTourStore({ store })
+  const other = new TourStore({ store })
   reads.length = 0
-  await other.load(['2026'])
+  await other.load({ years: ['2026'] })
   assert.equal(other.tours().length, tours.length)
   assert.equal(reads.length, tours.length)
+  assert.ok(other.yearLoaded('2026') && !other.yearLoaded('2025'))
   reads.length = 0
-  await other.load(['2026'])
-  assert.equal(reads.length, 0, 'schon geladen')
+  await other.load({ years: ['2026'] })
+  assert.equal(reads.length, 0, 'unverändert: nichts gelesen')
   await office.save({ ...tours[0], vehicleId: 'v5' })
-  await other.load(['2026'], { force: true })
+  await other.load({ years: ['2026'] })
   assert.deepEqual(reads, [tourFileName(tours[0])], 'nur die geänderte Datei')
   assert.equal(other.byId(tours[0].id).vehicleId, 'v5')
-  // anderes Jahr: leerer Ordner
-  await other.load(['2027'])
-  assert.ok(other.loaded('2027'))
+  // Fahreransicht: Jahre um heute (Vorjahr, dieses, nächstes)
+  await other.load({ today: DAY })
+  assert.ok(['2025', '2026', '2027'].every((y) => other.yearLoaded(y)))
   // löschen: nur, wenn die Prüfung am frischen Stand nichts meldet
   await assert.rejects(other.remove(tours[1], { check: () => 'Die Tour ist schon unterwegs.' }), /unterwegs/)
   assert.ok(await other.remove(tours[1], { check: (t) => (t.status === 'entwurf' ? '' : 'nein') }))
   assert.equal(await store.read(tourFileName(tours[1])), null)
-  await office.load(['2026'], { force: true })
+  await office.load({ years: ['2026'] })
   assert.equal(office.byId(tours[1].id), null, 'gelöscht: auch in der anderen Sitzung weg')
 })
 
-test('Ablage: gleichzeitig geändert → zusammengeführt (eine Stelle), unterwegs → gesperrt, Schreibrecht', async () => {
+test('Ablage: gleichzeitig geändert → mergeTour (eine Stelle), unterwegs → für das Büro gesperrt, Fahrer schreibt weiter, Schreibrecht', async () => {
   const { store } = spyStore()
-  const a = new OfficeTourStore({ store })
-  const b = new OfficeTourStore({ store })
+  const a = new TourStore({ store })
+  const b = new TourStore({ store })
   const { tours } = await propose()
-  const t = tours[0]
+  const t = tours.find((x) => x.stops.length >= 2)
   await a.save(t)
-  await b.load(['2026'])
+  await b.load({ years: ['2026'] })
   // a ändert die Reihenfolge, b (veraltet) das Fahrzeug
   await a.save(moveStop(a.byId(t.id), 0, 1, opts))
   const saved = await b.save({ ...b.byId(t.id), vehicleId: 'v9' })
   assert.equal(saved.vehicleId, 'v9')
   const stored = (await store.read(tourFileName(t))).data
   assert.deepEqual([stored.vehicleId, stored.order], ['v9', a.byId(t.id).order], 'beide Änderungen da')
-  // eigene Zusammenführung (z. B. später mergeTour) wird benutzt
+  // die Zusammenführung ist austauschbar und wird nur an dieser Stelle benutzt
   const calls = []
-  const c = new OfficeTourStore({ store, merge: (base, mine, theirs) => (calls.push([base?.id, mine.id, theirs.id]), { ...theirs, note: 'zusammengeführt' }) })
-  await c.load(['2026'])
+  const c = new TourStore({ store, merge: (base, mine, theirs) => (calls.push([base?.id, mine.id, theirs.id]), { ...theirs, note: 'zusammengeführt' }) })
+  await c.load({ years: ['2026'] })
   await a.save({ ...a.byId(t.id), vehicleId: 'v8' })
   await c.save({ ...c.byId(t.id), vehicleId: 'v2' })
   assert.equal(calls.length, 1)
   assert.equal((await store.read(tourFileName(t))).data.note, 'zusammengeführt')
-  // der Fahrer hat inzwischen gestartet: das Büro schreibt nicht mehr
-  await b.load(['2026'], { force: true })
-  const cur = (await store.read(tourFileName(t)))
-  await store.write(tourFileName(t), { ...cur.data, status: 'unterwegs' }, cur.etag)
+  // der Fahrer hat inzwischen gestartet: das Büro schreibt nicht mehr (Änderung verworfen), der Fahrer schon
+  await b.load({ years: ['2026'] })
+  const cur = await store.read(tourFileName(t))
+  const driver = new TourStore({ store })
+  await driver.load({ years: ['2026'] })
+  await driver.update(t.id, (x) => startTour({ ...x, status: 'freigegeben' }, { now: '2026-11-09T07:00:00.000Z', by: 'Anna Beispiel' }))
+  await driver.flush()
+  assert.equal((await store.read(tourFileName(t))).data.status, 'unterwegs')
   await assert.rejects(b.save({ ...b.byId(t.id), vehicleId: 'v3' }), TourLockedError)
   assert.equal(b.byId(t.id).status, 'unterwegs', 'danach gilt der Stand der Ablage')
+  assert.ok(!b.isPending(t.id))
   assert.equal((await store.read(tourFileName(t))).data.vehicleId, cur.data.vehicleId)
   // ohne Schreibrecht nichts
-  const ro = new OfficeTourStore({ store, canWrite: () => false })
-  await assert.rejects(ro.save(tours[1]), /Keine Schreibrechte/)
-  assert.equal(await store.read(tourFileName(tours[1])), null)
+  const ro = new TourStore({ store, canWrite: () => false })
+  await assert.rejects(ro.save(tours.find((x) => x.id !== t.id)), /Keine Schreibrechte/)
+  assert.equal(await store.read(tourFileName(tours.find((x) => x.id !== t.id))), null)
+})
+
+test('Ablage: ohne Netz bleibt eine Änderung im Gerät und wird nachgeholt; Freigabe (online) braucht Netz', async () => {
+  const { store } = spyStore()
+  const cache = memoryCache()
+  const office = new TourStore({ store, cache })
+  const { tours } = await propose()
+  const t = tours[0]
+  await office.save(t)
+  const write = store.write.bind(store)
+  const listFiles = store.listFiles.bind(store)
+  store.write = async () => {
+    throw new TypeError('Failed to fetch')
+  }
+  store.listFiles = async () => {
+    throw new TypeError('Failed to fetch')
+  }
+  const queued = await office.save({ ...t, vehicleId: 'v7' })
+  assert.equal(queued.vehicleId, 'v7')
+  assert.ok(office.isPending(t.id) && office.offline)
+  await assert.rejects(office.save(releaseTour(office.byId(t.id), opts), { online: true }), (err) => err.offline === true)
+  assert.equal(office.byId(t.id).status, 'entwurf', 'Freigabe ohne Netz verworfen')
+  assert.equal(office.byId(t.id).vehicleId, 'v7', 'die vorige Änderung bleibt im Gerät')
+  // Neustart ohne Netz: aus dem Gerät
+  const again = new TourStore({ store, cache })
+  await again.load({ years: ['2026'] })
+  assert.ok(again.isPending(t.id))
+  // Netz wieder da: nachgeholt
+  store.write = write
+  store.listFiles = listFiles
+  await again.load({ years: ['2026'] })
+  assert.equal((await store.read(tourFileName(t))).data.vehicleId, 'v7')
+  assert.deepEqual(again.pendingPaths(), [])
 })
 
 test('Ablage: mehrere Änderungen schnell hintereinander werden der Reihe nach geschrieben', async () => {
   const { store } = spyStore()
-  const office = new OfficeTourStore({ store })
+  const office = new TourStore({ store })
   const { tours } = await propose()
   const t = tours[0]
   await office.save(t)
@@ -396,5 +441,23 @@ test('Ablage: mehrere Änderungen schnell hintereinander werden der Reihe nach g
   }
   await Promise.all(p)
   assert.equal((await store.read(tourFileName(t))).data.vehicleId, 'v3')
-  assert.equal(office.local.size, 0)
+  assert.equal(office.pending.size, 0)
+})
+
+test('Beispieldaten (Browser-Modus): Betriebshof, zwei Fahrer, Koordinaten – der Vorschlag plant Stopps ein; Beispiel-Tour passt dazu', async () => {
+  const demo = createMattenDemo()
+  const jobs = createMattenJobsDemo(TODAY, demo)
+  const list = normalizeDrivers(demo.settings.drivers)
+  assert.equal(depotProblem(demo.settings.depot), '')
+  assert.deepEqual(list.map((d) => [driverKey(d), d.email]), [['e4', 'dragan.jovic@beispiel.example'], ['e2', 'markus.huber@beispiel.example']])
+  // nächster Arbeitstag mit dem überfälligen Einsatz der Werkstatt
+  const stops = stopsFromJobs({ jobs, placements: demo.placements, objects: [], date: '2026-11-09' })
+  assert.ok(stops.length >= 1 && stops.every((s) => Number.isFinite(s.lat)), 'Koordinaten an den Liegeplätzen')
+  const res = await proposeTours({ stops, drivers: driversForDay(list, {}, demo.settings), depot: demo.settings.depot, settings: demo.settings, date: '2026-11-09', now: NOW })
+  assert.deepEqual(res.unassigned, [])
+  assert.ok(res.tours.length >= 1 && res.tours.every((t) => t.driverEmail && t.stops.length))
+  // die freigegebene Beispiel-Tour der Fahreransicht: Fahrer und Betriebshof aus denselben Beispieldaten
+  const tour = createMattenTourDemo(TODAY)
+  assert.equal(driverOf(list, tour.driverId).email, tour.driverEmail)
+  assert.deepEqual(tour.route.depot, demo.settings.depot)
 })

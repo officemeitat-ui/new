@@ -1629,7 +1629,7 @@ export const TOPICS = [
     q: ['tour freigeben', 'freigabe tour', 'freigabe zurücknehmen', 'entwurf löschen tour', 'einsatz in tour', 'doppelt eingeplant', 'fahrer sieht tour nicht'],
     answer: '„Tour freigeben“ speichert die Tour mit Reihenfolge als freigegeben; erst dann sieht sie der Fahrer. Die Einsätze ihrer Stopps stehen im Kalender als „in Tour (Fahrer)“. Steht ein Einsatz schon in einer anderen Tour, lässt die App die Freigabe nicht zu und nennt die Tour.',
     steps: ['In „Matten-Tourenplanung“ die Tour prüfen: Fahrer, Fahrzeug, Stopps, Ladeliste.', '„Tour freigeben“ klicken.', 'Zum Ändern „Freigabe zurücknehmen“ klicken: die Tour wird wieder ein Entwurf, die Einsätze sind frei.'],
-    tips: ['„Entwurf löschen“ (zweimal klicken) gibt die Einsätze ebenfalls frei; sie stehen dann wieder unter „Nicht eingeplant“.', 'Ist die Tour schon unterwegs, ändert das Büro sie nicht mehr.', '„Zu erledigen“ meldet Einsätze von morgen (am Freitag bis Montag), die in keiner freigegebenen Tour stehen.'],
+    tips: ['„Entwurf löschen“ (zweimal klicken) gibt die Einsätze ebenfalls frei; sie stehen dann wieder unter „Nicht eingeplant“.', 'Ist die Tour schon unterwegs, ändert sie die Tourenplanung nicht mehr; einzelne Stopps korrigiert das Büro in „Matten-Touren“.', '„Zu erledigen“ meldet Einsätze von morgen (am Freitag bis Montag), die in keiner freigegebenen Tour stehen.'],
     related: ['mw-touren-planen', 'mw-kalender', 'mw-touren'],
     roles: 'Mattenwechsel Büro, Vollzugriff',
   },

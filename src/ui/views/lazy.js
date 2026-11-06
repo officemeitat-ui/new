@@ -343,6 +343,10 @@ lazy(BUERO, {
       module: 'matten',
       icon: '<circle cx="6" cy="5.5" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="18.5" r="2"/><path d="m8 6.6 8 4.3M16 13.1l-8 4.3"/>',
       noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="3.6" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="12.4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m5.5 4.4 5 2.8M10.5 8.8l-5 2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+        label: 'Tourplanung',
+      },
       text: 'Mattenwechsel: Touren je Tag vorschlagen, Reihenfolge, Fahrer und Fahrzeug, Ladeliste, freigeben',
     },
   ],

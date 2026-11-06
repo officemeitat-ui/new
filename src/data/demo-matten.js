@@ -34,29 +34,40 @@ const copy = (id) => {
 }
 const stamp = { createdAt: '2026-11-02T08:00:00.000Z', createdBy: 'Beispieldaten', updatedAt: '2026-11-02T08:00:00.000Z', updatedBy: 'Beispieldaten' }
 
+/** Erfundene Koordinaten der Beispiel-Objekte (Salzburg) für Liegeplätze und Touren der Vorschau. */
+const DEMO_GEO = { o2: { lat: 47.7951, lon: 13.0186 }, o11: { lat: 47.8127, lon: 13.0329 } }
+/** Betriebshof der Vorschau (erfunden, keine echte Adresse). */
+const DEMO_DEPOT = { name: 'Betriebshof (Beispiel)', address: 'Beispielweg 1, 5020 Salzburg', lat: 47.7745, lon: 13.07 }
+/** Fahrer der Vorschau (Kopie aus den Beispiel-Mitarbeitenden e2 und e4, Fahrzeuge aus dem Beispiel-Fuhrpark). */
+const DEMO_DRIVERS = [
+  { id: 'fd-demo1', employeeId: 'e2', name: 'Markus Huber', email: 'markus.huber@beispiel.example', start: '07:00', end: '15:30', vehicleId: 'v1', capacity: 30, active: true },
+  { id: 'fd-demo2', employeeId: 'e4', name: 'Dragan Jović', email: 'dragan.jovic@beispiel.example', start: '07:00', end: '12:00', vehicleId: 'v2', active: true },
+]
+
 /**
- * Liegeplätze der Vorschau: Autohaus (2) und Versicherungsbüro (1), Gebiet „Salzburg Nord“, Mattentypen der Fakturierung;
- * Betriebsurlaub zu Weihnachten (Wechsel entfällt).
+ * Liegeplätze der Vorschau: Autohaus (2) und Versicherungsbüro (1), Gebiet „Salzburg Nord“, Mattentypen der Fakturierung,
+ * Koordinaten (für die Tourenplanung); Betriebsurlaub zu Weihnachten (Wechsel entfällt), Betriebshof und zwei Fahrer.
  */
 export function createMattenDemo() {
   const hv = { id: 'c-demo1', name: 'Hausverwaltung Beispiel GmbH', no: '10001' }
   const ah = { id: 'c-demo2', name: 'Autohaus Maxglan Beispiel KG', no: '10002' }
+  const geo = (objectId) => ({ ...DEMO_GEO[objectId], geoQuality: 'hand' })
   return {
     schema: 1,
-    settings: { skip: 'entfaellt', closures: [{ from: '2026-12-24', to: '2026-12-26', reason: 'Betriebsurlaub Weihnachten' }] },
+    settings: { skip: 'entfaellt', closures: [{ from: '2026-12-24', to: '2026-12-26', reason: 'Betriebsurlaub Weihnachten' }], depot: { ...DEMO_DEPOT }, workday: { from: '07:00', to: '15:30' }, drivers: DEMO_DRIVERS.map((d) => ({ ...d })) },
     areas: [{ id: 'mg-demo1', name: 'Salzburg Nord', active: true, ...stamp }],
     placements: [
-      { id: 'mw-demo1', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Schauraum Eingang', floor: 'EG', access: 'offen ab 7 Uhr', hint: 'Alte Matten in den Bus, nicht in den Müllraum', active: true, mats: [{ ...copy('a-fdemo7'), qty: 2, owner: 'wir' }], intervalDays: 14, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 10, window: { from: '07:00', to: '09:00', note: 'vor Geschäftsöffnung' }, pauses: [], areaId: 'mg-demo1', ...stamp },
-      { id: 'mw-demo2', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Werkstatt Kundenannahme', floor: 'EG', access: '', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'wir' }], intervalDays: 28, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 5, pauses: [{ from: '2026-12-23', to: '2027-01-06', reason: 'Betriebsurlaub' }], areaId: 'mg-demo1', ...stamp },
-      { id: 'mw-demo3', objectId: 'o11', customerId: hv.id, customer: hv, name: 'Eingang', floor: 'EG', access: 'Code an der Tür (siehe Schlüsselbuch)', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'kunde' }], intervalDays: 28, startDate: '2026-11-10', rule: 'rhythmus', workMinutes: 5, pauses: [], areaId: 'mg-demo1', ...stamp },
+      { id: 'mw-demo1', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Schauraum Eingang', floor: 'EG', access: 'offen ab 7 Uhr', hint: 'Alte Matten in den Bus, nicht in den Müllraum', active: true, mats: [{ ...copy('a-fdemo7'), qty: 2, owner: 'wir' }], intervalDays: 14, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 10, window: { from: '07:00', to: '09:00', note: 'vor Geschäftsöffnung' }, pauses: [], areaId: 'mg-demo1', ...geo('o2'), ...stamp },
+      { id: 'mw-demo2', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Werkstatt Kundenannahme', floor: 'EG', access: '', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'wir' }], intervalDays: 28, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 5, pauses: [{ from: '2026-12-23', to: '2027-01-06', reason: 'Betriebsurlaub' }], areaId: 'mg-demo1', ...geo('o2'), ...stamp },
+      { id: 'mw-demo3', objectId: 'o11', customerId: hv.id, customer: hv, name: 'Eingang', floor: 'EG', access: 'Code an der Tür (siehe Schlüsselbuch)', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'kunde' }], intervalDays: 28, startDate: '2026-11-10', rule: 'rhythmus', workMinutes: 5, pauses: [], areaId: 'mg-demo1', ...geo('o11'), ...stamp },
     ],
   }
 }
 
 /** Erfundene Koordinaten der Beispiel-Objekte (Salzburg) für die Tour der Vorschau. */
 const DEMO_TOUR_OBJECTS = [
-  { id: 'o2', name: 'Autohaus Maxglan', address: '5020 Salzburg-Maxglan', lat: 47.7951, lon: 13.0186 },
-  { id: 'o11', name: 'Versicherungsbüro Lehen', address: '5020 Salzburg-Lehen', lat: 47.8127, lon: 13.0329 },
+  { id: 'o2', name: 'Autohaus Maxglan', address: '5020 Salzburg-Maxglan', ...DEMO_GEO.o2 },
+  { id: 'o11', name: 'Versicherungsbüro Lehen', address: '5020 Salzburg-Lehen', ...DEMO_GEO.o11 },
 ]
 
 /**
@@ -81,11 +92,12 @@ export function createMattenTourDemo(date, { id = 'mtdemo00000001', driverEmail 
     driverId: 'e2',
     driverName: 'Markus Huber',
     driverEmail,
-    vehicleId: '',
+    vehicleId: 'v1',
+    vehicleLabel: 'S-284 KL · VW Caddy',
     areaId: 'mg-demo1',
     status: 'freigegeben',
     order: ordered.map((s) => s.id),
-    route: { provider: 'luftlinie', km: 24.6, minutes: 47, start: '07:00', end: '08:15', work: 20, wait: 0, load: 4, shift: { from: '07:00', to: '15:30' }, depot: { name: 'Betriebshof (Beispiel)', address: 'Werkstraße 1, 5020 Salzburg', lat: 47.7745, lon: 13.07 } },
+    route: { provider: 'luftlinie', km: 24.6, minutes: 47, start: '07:00', end: '08:15', work: 20, wait: 0, load: 4, shift: { from: '07:00', to: '15:30' }, depot: { ...DEMO_DEPOT } },
     stops: ordered,
     createdAt: at,
     createdBy: 'Beispieldaten',

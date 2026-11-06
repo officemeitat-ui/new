@@ -7,7 +7,8 @@
 // eine andere Tour, entfernen, hinzufügen, Fahrer/Fahrzeug/Arbeitszeit; danach rechnet recalcTimes die Zeiten neu.
 // „Freigeben“ schreibt die Tour (Status freigegeben) und setzt die Einsätze der Stopps auf „in Tour“; zurücknehmen bzw.
 // einen Entwurf löschen gibt sie wieder frei. Dazu die Dialoge „Betriebshof und Arbeitszeit“ und „Fahrer“.
-// Rechenkerne: core/matten-tour.js (P8), core/matten-touren.js (P9); Ablage: storage/matten-tourablage.js.
+// Rechenkerne: core/matten-tour.js (P8), core/matten-touren.js (P9); Ablage: die gemeinsame Touren-Ablage mit der
+// Fahreransicht (ui/matten-tourablage.js → storage/matten-touren.js, Zusammenführen mit mergeTour).
 // Aktionen und Dialoge mit dem Kürzel „mw-tp-“.
 
 import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
@@ -20,6 +21,8 @@ import {
   assignJobs,
   dayDriversProblem,
   depotProblem,
+  driverKey,
+  driverOf,
   driversForDay,
   driversProblem,
   editableByOffice,
@@ -46,9 +49,9 @@ import {
 } from '../../core/matten-touren.js'
 import { routingFor } from '../../core/routing.js'
 import { isNetworkError } from '../../storage/offline.js'
-import { OfficeTourStore } from '../../storage/matten-tourablage.js'
 import { app, canEdit, closeModal, confirmStep, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
 import { geocode } from '../geocode.js'
+import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
 
 const MODULE = 'matten'
@@ -56,6 +59,7 @@ const KEY = 'mattenJobs'
 const svg = (d) => `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
 const ICON_UP = svg('m3 10 5-5 5 5')
 const ICON_DOWN = svg('m3 6 5 5 5-5')
+const MOBILE_PLAN = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="3.6" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="4" cy="12.4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m5.5 4.4 5 2.8M10.5 8.8l-5 2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
 const ICON_PLAN = '<circle cx="6" cy="5.5" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="18.5" r="2"/><path d="m8 6.6 8 4.3M16 13.1l-8 4.3"/>'
 
 const doc = () => upgradeMatten((app.data.matten ||= emptyMatten()))
@@ -81,12 +85,10 @@ const tpDate = () => app.ui.mwTpDate || nextWorkday(todayISO())
 
 // ---------------------------------------------------------------- Ablage der Touren (eine Datei je Tour)
 
-let shared = null
-/** Touren-Ablage der Sitzung (storage/matten-tourablage.js); schreibt nur, was die Rolle darf. */
-export function tourStore() {
-  if (!shared || shared.store !== app.store) shared = new OfficeTourStore({ store: app.store, canWrite: (path) => (app.service?.rights?.write ? app.service.rights.write(path) : true) })
-  return shared
-}
+// Geändert (auch über die Fahreransicht oder beim Abgleich): Tourenplanung bzw. Kalender neu zeichnen
+onToursChanged(() => {
+  if (['mw-planung', 'mw-kalender'].includes(app.ui.view) && !app.ui.modal) renderNow()
+})
 
 const LOAD_AGE = 60_000
 const attempts = new Map()
@@ -96,19 +98,20 @@ const attempts = new Map()
  */
 export function toursReady(years) {
   const s = tourStore()
+  if (!s) return true
   const now = Date.now()
-  const todo = years.filter((y) => !s.loaded(y, LOAD_AGE) && !s.loading.has(y) && now - (attempts.get(y) || 0) > 15_000)
+  const todo = years.filter((y) => !s.yearLoaded(y, LOAD_AGE) && !s.yearLoading(y) && now - (attempts.get(y) || 0) > 15_000)
   if (todo.length) {
     todo.forEach((y) => attempts.set(y, now))
-    s.load(todo, { force: true })
+    s.load({ years: todo })
       .catch((err) => toast(`Touren konnten nicht gelesen werden: ${err.message}`))
       .finally(() => renderNow())
   }
-  return years.every((y) => s.loaded(y))
+  return years.every((y) => s.yearLoaded(y))
 }
 
 /** Tour zu einer ID (aus den gelesenen), z. B. für „in Tour (Fahrer)“ im Kalender; sonst null. */
-export const tourOf = (id) => (id ? tourStore().byId(id) : null)
+export const tourOf = (id) => (id ? tourStore()?.byId(id) || null : null)
 /** „in Tour (Anna)“ für einen Einsatz mit Status in-tour. */
 export function inTourText(job) {
   const t = tourOf(job?.tourId)
@@ -281,9 +284,11 @@ function tourCard(t, { ed, today, others }) {
         ? '<button class="btn small" data-action="mw-tp-withdraw" data-tour="' + esc(t.id) + '">Freigabe zurücknehmen</button>'
         : ''
     : ''
+  // ohne E-Mail erkennt die Fahreransicht die Tour nicht als die des Fahrers
+  if (t.driverId && !t.driverEmail) probs.push({ code: 'email', text: `${t.driverName || 'Der Fahrer'} hat keine E-Mail: am Handy sieht er die Tour nicht als seine („Mehr“ → „Fahrer“).` })
   const warn = probs.length ? `<ul class="mw-tp-warn" aria-label="Warnungen">${probs.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul>` : ''
   const relHtml = rel.length ? `<div class="mw-tp-rel" role="alert"><strong>Freigabe nicht möglich:</strong><ul>${rel.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul></div>` : ''
-  const lockHtml = locked ? `<p class="note">Die Tour ist ${t.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'}: das Büro ändert sie nicht mehr. Eine Korrektur einzelner Stopps folgt mit dem nächsten Ausbau.</p>` : t.status === 'freigegeben' ? '<p class="note">Freigegeben: der Fahrer sieht die Tour. Zum Ändern zuerst „Freigabe zurücknehmen“.</p>' : ''
+  const lockHtml = locked ? `<p class="note">Die Tour ist ${t.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'}: die Tourenplanung ändert sie nicht mehr. Einzelne Stopps korrigiert das Büro in „Matten-Touren“.</p>` : t.status === 'freigegeben' ? '<p class="note">Freigegeben: der Fahrer sieht die Tour. Zum Ändern zuerst „Freigabe zurücknehmen“.</p>' : ''
   const stops = (t.stops || []).map((s, i) => stopRow(t, s, i, { ed, others })).join('')
   const load = loadList(t)
   return `<section class="mw-tp-tour st-${esc(t.status)}" data-tour="${esc(t.id)}" aria-label="Tour ${esc(t.driverName || 'ohne Fahrer')}">
@@ -326,6 +331,7 @@ registerView({
   module: MODULE,
   icon: ICON_PLAN,
   noWeek: true,
+  mobile: { icon: MOBILE_PLAN, label: 'Tourplanung' },
   text: 'Mattenwechsel: Touren je Tag vorschlagen, Reihenfolge, Fahrer und Fahrzeug, Ladeliste, freigeben',
   render: planungView,
 })
@@ -338,7 +344,7 @@ const run = (fn) => (chain = chain.catch(() => {}).then(fn))
 
 function failed(err) {
   if (err instanceof TourLockedError || err?.name === 'TourLockedError') toast(err.message)
-  else if (isNetworkError(err)) toast('Ohne Verbindung: Touren lassen sich nur mit Netz ändern. Bitte später noch einmal.')
+  else if (isNetworkError(err)) toast('Ohne Verbindung: Freigeben, Zurücknehmen und Löschen gehen nur mit Netz. Bitte später noch einmal.')
   else toast(`Tour nicht gespeichert: ${err?.message || err}`)
 }
 
@@ -355,7 +361,8 @@ async function retime(tour) {
 async function saveAll(list, okText = '') {
   try {
     for (const t of list) await tourStore().save(t)
-    if (okText) toast(okText)
+    const waiting = list.some((t) => tourStore().isPending(t.id))
+    if (okText || waiting) toast(`${okText}${waiting ? `${okText ? ' ' : ''}Ohne Verbindung: wird gespeichert, sobald wieder Netz da ist.` : ''}`)
     return true
   } catch (err) {
     failed(err)
@@ -470,7 +477,7 @@ async function propose(el) {
   const s = tourStore()
   if (el) el.disabled = true
   try {
-    await Promise.all([s.load(tourYears(addDays(date, -366), date), { force: true }), loadJobYears(date)])
+    await Promise.all([s.load({ years: tourYears(addDays(date, -366), date) }), loadJobYears(date)])
   } catch (err) {
     if (el) el.disabled = false
     return failed(err)
@@ -488,9 +495,9 @@ async function propose(el) {
   const tours = res.tours.map((t) => {
     const d = dayDrivers.find((x) => x.id === t.driverId)
     const v = vehicleOf(t.vehicleId)
-    let out = v ? setVehicle(t, v, { now, by }) : t
-    if (d?.email) out = { ...out, driverEmail: d.email }
-    return out
+    // driverEmail setzt proposeTours aus der E-Mail des Fahrers (Einstellungen): daran erkennt die Fahreransicht die Tour
+    const out = v ? setVehicle(t, v, { now, by }) : t
+    return d?.email && !out.driverEmail ? { ...out, driverEmail: d.email } : out
   })
   try {
     for (const old of drafts) await s.remove(old, { check: (f) => (f.status === 'entwurf' ? '' : 'Ein Entwurf dieses Tages wurde inzwischen freigegeben – bitte neu laden.') })
@@ -516,7 +523,7 @@ async function release(id) {
   const today = todayISO()
   try {
     // frischer Stand: andere Büro-Plätze und Fahrer, Einsätze
-    await Promise.all([s.load(tourYears(addDays(t0.date, -366), t0.date), { force: true }), loadJobYears(t0.date)])
+    await Promise.all([s.load({ years: tourYears(addDays(t0.date, -366), t0.date) }), loadJobYears(t0.date)])
   } catch (err) {
     return failed(err)
   }
@@ -533,7 +540,7 @@ async function release(id) {
   const { now, by } = opts()
   let saved
   try {
-    saved = await s.save(releaseTour(tour, { now, by, driver: drivers().find((d) => d.id === tour.driverId) || null }))
+    saved = await s.save(releaseTour(tour, { now, by, driver: driverOf(drivers(), tour.driverId) }), { online: true })
   } catch (err) {
     failed(err)
     return renderNow()
@@ -563,7 +570,7 @@ async function withdraw(id) {
   const { now, by } = opts()
   let saved
   try {
-    saved = await s.save(withdrawTour(fresh, { now, by }))
+    saved = await s.save(withdrawTour(fresh, { now, by }), { online: true })
   } catch (err) {
     failed(err)
     return renderNow()
@@ -598,14 +605,14 @@ async function deleteDraft(id) {
 function tourModal(c, m) {
   const t = tourStore().byId(m.tour)
   if (!t) return modalFrame({ title: 'Tour', body: '<p class="muted">Diese Tour gibt es nicht mehr.</p>', foot: '<div class="actions"></div><div class="actions"><button class="btn" data-action="close-modal">Schließen</button></div>' })
-  const list = drivers().filter((d) => d.active || d.id === t.driverId)
+  const list = drivers().filter((d) => d.active || driverKey(d) === t.driverId)
   const vs = vehicles().map((v) => [v.id, vehicleLabel(v)])
   const r = t.route || {}
   return modalFrame({
     title: `Tour ${t.driverName || 'ohne Fahrer'}`,
     subtitle: esc(dayTitle(t.date)),
     body: `<div class="form-grid">
-        <label class="field"><span>Fahrer</span><select id="mw-tp-e-driver">${options(list.map((d) => [d.id, d.name]), m.driverId ?? t.driverId, { empty: 'ohne Fahrer' })}</select></label>
+        <label class="field"><span>Fahrer</span><select id="mw-tp-e-driver">${options(list.map((d) => [driverKey(d), d.name]), m.driverId ?? t.driverId, { empty: 'ohne Fahrer' })}</select></label>
         <label class="field"><span>Fahrzeug</span><select id="mw-tp-e-vehicle">${options(vs, m.vehicleId ?? t.vehicleId ?? '', { empty: vs.length ? 'ohne Fahrzeug' : 'Fuhrpark leer' })}</select></label>
         <label class="field"><span>Arbeitszeit von</span><input type="time" id="mw-tp-e-from" value="${esc(m.from ?? r.shift?.from ?? '')}"></label>
         <label class="field"><span>bis</span><input type="time" id="mw-tp-e-to" value="${esc(m.to ?? r.shift?.to ?? '')}"></label>
@@ -624,7 +631,7 @@ function newModal(c, m) {
     title: 'Neue leere Tour',
     subtitle: esc(dayTitle(tpDate())),
     body: `<p>Eine Tour ohne Stopps, z. B. für einen weiteren Fahrer. Stopps kommen danach aus „Nicht eingeplant“ dazu.</p><div class="form-grid">
-        <label class="field"><span>Fahrer</span><select id="mw-tp-n-driver">${options(list.map((d) => [d.id, d.name]), m.driverId || list[0]?.id || '', { empty: 'ohne Fahrer' })}</select></label>
+        <label class="field"><span>Fahrer</span><select id="mw-tp-n-driver">${options(list.map((d) => [driverKey(d), d.name]), m.driverId || driverKey(list[0]), { empty: 'ohne Fahrer' })}</select></label>
         <label class="field"><span>Fahrzeug</span><select id="mw-tp-n-vehicle">${options(vs, m.vehicleId || '', { empty: vs.length ? 'wie beim Fahrer' : 'Fuhrpark leer' })}</select></label>
       </div>`,
     foot: `<div class="actions"></div><div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="mw-tp-new-save">Tour anlegen</button></div>`,
@@ -805,7 +812,7 @@ registerActions({
   },
   'mw-tp-reload': async () => {
     try {
-      await tourStore().load(tourYears(tpDate()), { force: true })
+      await tourStore().load({ years: tourYears(tpDate()) })
       toast(tourStore().offline ? 'Ohne Verbindung: der zuletzt gelesene Stand bleibt.' : 'Touren neu gelesen.')
     } catch (err) {
       toast(`Touren konnten nicht gelesen werden: ${err.message}`)
@@ -866,12 +873,10 @@ registerActions(
         const from = val('mw-tp-e-from')
         const to = val('mw-tp-e-to')
         if ((from || to) && (!from || !to || to <= from)) return toast('Arbeitszeit: von und bis eintragen, bis nach von.')
-        const d = drivers().find((x) => x.id === val('mw-tp-e-driver')) || null
+        const d = driverOf(drivers(), val('mw-tp-e-driver'))
         const v = vehicleOf(val('mw-tp-e-vehicle'))
-        let next = assignDriver(t, d ? { ...d, vehicleId: '' } : null, opts())
-        // Kopie der E-Mail für „meine Touren“ am Handy
-        if (d?.email) next.driverEmail = d.email
-        else delete next.driverEmail
+        // assignDriver setzt auch driverEmail (Kopie der E-Mail für „meine Touren“ am Handy)
+        let next = assignDriver(t, d ? { ...d, id: driverKey(d), vehicleId: '' } : null, opts())
         next = setVehicle(next, v, opts())
         next = setShift(next, { from: from || d?.start || '', to: to || d?.end || '', capacity: val('mw-tp-e-cap') }, opts())
         closeModal()
@@ -882,7 +887,7 @@ registerActions(
       run(async () => {
         const date = tpDate()
         if (date < todayISO()) return toast('Für vergangene Tage keine neuen Touren.')
-        const d = drivers().find((x) => x.id === val('mw-tp-n-driver')) || null
+        const d = driverOf(drivers(), val('mw-tp-n-driver'))
         const v = vehicleOf(val('mw-tp-n-vehicle')) || vehicleOf(d?.vehicleId)
         const t = newTour({ date, driver: d, vehicle: v, depot: settings().depot || null, settings: settings(), ...opts() })
         closeModal()

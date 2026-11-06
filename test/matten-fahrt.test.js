@@ -42,7 +42,7 @@ import { assignDriver, loadList, stopsFromJobs } from '../src/core/matten-tour.j
 import { jobsFor, lastDone, markDone } from '../src/core/matten-plan.js'
 import { navigationUrl } from '../src/core/routing.js'
 import { createMattenTourDemo } from '../src/data/demo-matten.js'
-import { isTourPath, TourStore, tourYears } from '../src/storage/matten-touren.js'
+import { isTourPath, TourStore, yearsAround } from '../src/storage/matten-touren.js'
 import { ConflictError } from '../src/storage/docstore-local.js'
 import { memoryCache, OfflineError } from '../src/storage/offline.js'
 
@@ -369,7 +369,7 @@ test('Beispiel-Tour für den Browser-Modus: freigegeben, zwei Stopps, ohne Preis
   assert.ok(!/price|preis|€/i.test(JSON.stringify(d)), 'keine Preise')
   assert.match(navigationUrl(d.stops[0]), /destination=47\.7951,13\.0186$/)
   assert.ok(isTourPath(`matten/touren/2026/${d.id}.json`) && !isTourPath('matten/touren/2026/x/y.json') && !isTourPath('matten/matten.json'))
-  assert.deepEqual(tourYears('2026-11-06'), [2025, 2026, 2027])
+  assert.deepEqual(yearsAround('2026-11-06'), [2025, 2026, 2027])
 })
 
 // ---------------------------------------------------------------- Tour-Dateien: eTag, Gerät, Zusammenführen
