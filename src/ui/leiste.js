@@ -169,6 +169,10 @@ export const SHORT_LABELS = {
   berechtigungen: 'Rechte',
   system: 'System',
   unterweisungen: 'Schulungen',
+  zufriedenheit: 'Umfrage',
+  bewerber: 'Bewerber',
+  eintritt: 'Eintritt',
+  arbeitsschutz: 'Schutz',
 }
 /** Diese behalten ihren kurzen Namen immer (so kennt man die Leiste seit jeher). */
 const ALWAYS_SHORT = new Set(['week', 'coverage', 'sheet'])
