@@ -18,11 +18,13 @@
 
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
+import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
 import { isOpenRequest, orderSuggestions } from '../../core/material.js'
 import { dueList, typesOf } from '../../core/trainings.js'
 import { openTasks, taskLabel } from '../../core/vehicle-dues.js'
 import { ACTIONS, app, canEdit, compute, ensureRange, memo, openModal, persist, registerActions, registerView, render, renderNow, toast } from '../context.js'
+import { canMail } from '../modals/send.js'
 import { todo } from '../modals/todo.js'
 import { planWeek } from '../planning.js'
 import { esc, ICON } from '../shared.js'
@@ -125,7 +127,21 @@ function buchhaltung(today) {
     })
   }
   const docs = d.documents || []
-  const remind = docs.filter((x) => isInvoice(x) && x.number && nextReminder(x, today, settings))
+  // freundliche erste Erinnerung per E-Mail: eigener Vorschlag mit Freigabe (Mahnlauf-Dialog „nur Zahlungserinnerungen“)
+  const ready = canMail() ? paymentReminders(docs, d.customers || [], today, settings).ready : []
+  if (ready.length)
+    out.push({
+      id: `erinnern:${today}:${ready.map((x) => x.doc.id).join(',')}`,
+      agent: 'buchhaltung',
+      prio: 2,
+      title: `${plural(ready.length, 'Zahlungserinnerung', 'Zahlungserinnerungen')} bereit`,
+      text: 'Freundlich per E-Mail mit PDF, ohne Zinsen und Gebühr. Ich zeige dir die Liste; gesendet wird erst, wenn du freigibst.',
+      lines: ready.slice(0, 5).map((x) => `${x.doc.number} ${x.doc.recipient?.name || ''}`.trim()),
+      run: { label: 'Prüfen und senden …', action: 'fak-erinnern-open' },
+      open: { label: 'Offene Posten', view: 'fakturierung', fakTab: 'offen' },
+    })
+  const readyIds = new Set(ready.map((x) => x.doc.id))
+  const remind = docs.filter((x) => isInvoice(x) && x.number && !readyIds.has(x.id) && nextReminder(x, today, settings))
   if (remind.length) {
     out.push({
       id: `mahn:${today.slice(0, 7)}:${remind.map((x) => `${x.id}${(x.reminders || []).length}`).join(',')}`,

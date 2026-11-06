@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { checksumOf, intact } from '../src/core/invoicing.js'
-import { activeBlocks, batchDrafts, blockOf, dunningRun, emailValid, finalizeBatch, followUpMailText, followUpOf, mailWithDebit, offerStats, offerTasks, sendCandidates } from '../src/core/fak-laeufe.js'
+import { activeBlocks, batchDrafts, blockOf, dunningRun, emailValid, finalizeBatch, followUpMailText, followUpOf, mailWithDebit, offerStats, offerTasks, paymentReminders, sendCandidates } from '../src/core/fak-laeufe.js'
 import { creditorIdFor } from '../src/core/sepa.js'
 import { combineDocuments, pdfPageCount } from '../src/export/pdf-sammel.js'
 
@@ -81,6 +81,27 @@ test('Mahnlauf: fällige Stufe mit Zinsen und Gebühr, Sperre je Beleg oder Kund
   assert.equal(blockOf(docs[5], null, '2026-11-05'), null, 'abgelaufene Sperre gilt nicht mehr')
   assert.deepEqual(blockOf({ dunningBlock: { until: '2026-11-05' } }, null, '2026-11-05'), { scope: 'beleg', until: '2026-11-05', note: '' })
   assert.deepEqual(activeBlocks(docs, customers, '2026-11-05').map((x) => x.scope), ['kunde', 'beleg'])
+})
+
+test('Zahlungserinnerung: nur die erste Stufe, versandbereit mit E-Mail, ohne Adresse und höhere Stufen bleiben im Mahnlauf', () => {
+  const old = (id, extra = {}) => fixed(id, `RE-2026-00${id.charCodeAt(0)}`, { date: '2026-09-01', dueDate: '2026-09-15', customerId: `c-${id}`, ...extra })
+  const docs = [
+    old('a', { recipient: { ...rec('A'), email: 'buchhaltung@a-beispiel.example' } }),
+    old('b', { reminders: [{ level: 0, name: 'Zahlungserinnerung', date: '2026-09-25', deadline: '2026-10-02' }], recipient: { ...rec('B'), email: 'b@b-beispiel.example' } }),
+    old('h'),
+    old('i', { dunningBlock: { until: '2026-12-31', note: 'Ratenvereinbarung' }, recipient: { ...rec('I'), email: 'i@i-beispiel.example' } }),
+    old('j', { directDebit: { status: 'eingereicht', dueDate: '2026-11-10' } }),
+    fixed('k', 'RE-2026-0101', { dueDate: '2026-11-03', customerId: 'c-k' }),
+  ]
+  const customers = [{ id: 'c-h', email: 'kein-at-zeichen' }, { id: 'c-k', email: 'k@k-beispiel.example' }]
+  const r = paymentReminders(docs, customers, '2026-11-05', { ...settings, baseRate: 1.53 })
+  assert.deepEqual(r.ready.map((x) => `${x.doc.id}:${x.to}`), ['a:buchhaltung@a-beispiel.example'])
+  assert.equal(r.ready[0].reminder.fee, 0, 'freundlich: ohne Gebühr')
+  assert.equal(r.ready[0].reminder.interest.amount, 0, 'freundlich: ohne Zinsen')
+  assert.deepEqual(r.post.map((x) => x.doc.id), ['h'], 'ohne gültige E-Mail-Adresse: per Post im Mahnlauf')
+  assert.equal(r.later, 1, 'b ist schon erinnert: 1. Mahnung gehört in den Mahnlauf')
+  // gesperrt, im Lastschrifteinzug und noch nicht lange genug überfällig: keine Erinnerung
+  assert.ok(!r.ready.some((x) => ['i', 'j', 'k'].includes(x.doc.id)))
 })
 
 test('Angebote nachfassen: Wiedervorlage eigen oder X Tage nach Versand, bald ablaufend, erledigt', () => {

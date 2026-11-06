@@ -5,7 +5,7 @@
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
-import { activeBlocks, batchDrafts, DEFAULT_FOLLOW_UP_DAYS, dunningRun, emailValid, finalizeBatch, followUpMailText, followUpOf, MAIL_PAUSE_MS, mailWithDebit, offerStats, offerTasks, sendCandidates } from '../../core/fak-laeufe.js'
+import { activeBlocks, batchDrafts, DEFAULT_FOLLOW_UP_DAYS, dunningRun, emailValid, finalizeBatch, followUpMailText, followUpOf, MAIL_PAUSE_MS, mailWithDebit, offerStats, offerTasks, paymentReminders, sendCandidates } from '../../core/fak-laeufe.js'
 import { blocksFor, customerName, defaultBlock, docFileName, fillPlaceholders, invoiceMailText, isInvoice, KINDS, monthLabel, periodLabel, reminderFileName, reminderMailText, round2, settingsOf } from '../../core/invoicing.js'
 import { collectionCandidates, inCollection } from '../../core/sepa.js'
 import { eInvoiceProblems } from '../../export/e-invoice.js'
@@ -182,15 +182,26 @@ async function printBatch(items, { title, fileName, makeDef, archiveName, onEach
 
 // ---------------------------------------------------------------- Mahnlauf
 
+/**
+ * Zu mahnende Rechnungen des Dialogs. m.only === 'erinnerung': nur die freundliche erste Stufe per E-Mail
+ * (Zahlungserinnerung, aus „Zu erledigen“ bzw. vom digitalen Mitarbeiter zur Freigabe angeboten).
+ */
+function dunningList(m, today) {
+  if (m.only === 'erinnerung') return canMail() ? paymentReminders(F().documents, customers(), today, S()).ready : []
+  return dunningRun(F().documents, customers(), today, S()).due
+}
+
 function dunningModal(c, m) {
   const today = todayISO()
   const r = dunningRun(F().documents, customers(), today, S())
-  m.sel ||= Object.fromEntries(r.due.map((x) => [x.doc.id, true]))
-  const chosen = r.due.filter((x) => m.sel[x.doc.id])
+  const only = m.only === 'erinnerung'
+  const list = dunningList(m, today)
+  m.sel ||= Object.fromEntries(list.map((x) => [x.doc.id, true]))
+  const chosen = list.filter((x) => m.sel[x.doc.id])
   const mailOk = canMail()
   const mail = mailOk ? chosen.filter((x) => emailValid(x.to)) : []
   const blocks = blocksFor(F().textBlocks, 'mahnung', 'mail')
-  const sum = round2(r.due.reduce((a, x) => a + x.open, 0))
+  const sum = round2(list.reduce((a, x) => a + x.open, 0))
   const ed = editable()
   const row = (x, extra = '') => {
     const rem = x.reminder
@@ -204,6 +215,22 @@ function dunningModal(c, m) {
   const head = '<thead><tr><th></th><th>Rechnung</th><th>fällig</th><th>Stufe</th><th class="num">offen</th><th class="num">Zinsen</th><th class="num">Gebühr</th><th class="num">gesamt</th><th>Versand</th><th></th></tr></thead>'
   const blockText = (b) => `gesperrt ${b.until ? `bis ${day(b.until)}` : 'bis auf Weiteres'}${b.scope === 'kunde' ? ' (Kunde)' : ''}${b.note ? `: ${b.note}` : ''}`
   const others = activeBlocks(F().documents, customers(), today).filter((b) => !r.blocked.some((x) => (b.scope === 'beleg' ? x.doc.id === b.id : x.customer?.id === b.id)))
+  if (only) {
+    const pr = paymentReminders(F().documents, customers(), today, S())
+    return modalFrame({
+      title: 'Zahlungserinnerungen',
+      subtitle: `Stand ${day(today)}`,
+      wide: true,
+      body: `<p>Freundliche erste Erinnerung an überfällige Rechnungen, ohne Zinsen und Gebühr, per E-Mail mit PDF. Erst nach deiner Freigabe geht etwas hinaus; vermerkt wird sie beim Beleg, die nächste Stufe kommt dann im Mahnlauf.</p>
+        <div class="filters"><label class="field inline"><span>E-Mail-Text</span><select id="fdn-block" data-change="fak-dunning-opts">${options([['', 'Standardtext je Mahnstufe'], ...blocks.map((b) => [b.id, b.name || 'Textbaustein'])], m.block || '')}</select></label><span class="spacer"></span>
+          ${list.length ? `<button class="btn small ghost" data-action="fak-dunning-all" data-v="1">alle</button><button class="btn small ghost" data-action="fak-dunning-all" data-v="">keine</button>` : ''}</div>
+        ${list.length ? `<div class="table-wrap"><table class="data">${head}<tbody>${list.map((x) => row(x)).join('')}</tbody></table></div><p class="muted">Summe offen ${money(sum)}.</p>` : `<p class="empty">${canMail() ? 'Keine Zahlungserinnerung fällig.' : 'E-Mail-Versand aus der App ist nicht eingerichtet – Erinnerungen über den Mahnlauf als PDF.'}</p>`}
+        ${progressHtml(m.progress)}
+        ${pr.post.length ? `<p class="note">Ohne E-Mail-Adresse (Erinnerung im Mahnlauf per Post): ${esc(pr.post.map((x) => x.doc.number).join(', '))}.</p>` : ''}
+        ${pr.later ? `<p class="note">${pr.later === 1 ? 'Eine Rechnung braucht' : `${pr.later} Rechnungen brauchen`} schon die nächste Mahnstufe – <button class="link-btn" data-action="fak-dunning-open">Mahnlauf öffnen</button>.</p>` : ''}`,
+      foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions"><button class="btn primary" data-action="fak-dunning-run" ${chosen.length && !m.busy ? '' : 'disabled'}>${ICON.send} Erinnerungen senden (${chosen.length})</button></div>`,
+    })
+  }
   return modalFrame({
     title: 'Mahnlauf',
     subtitle: `Stand ${day(today)}`,
@@ -289,7 +316,9 @@ export function laeufeTodo() {
   const n = t.followUps.length + t.expiring.length
   const open = ed ? unsent().length : 0
   const dd = ed ? collectionCandidates(F().documents, customers(), today, S()).length : 0
+  const pr = ed && canMail() ? paymentReminders(F().documents, customers(), today, S()).ready : []
   return [
+    pr.length ? `<div class="todo-item"><span class="flag warning">${pr.length}</span><div class="todo-text"><strong>Zahlungserinnerung bereit:</strong> ${esc(pr.slice(0, 4).map((x) => x.doc.number).join(', '))}${pr.length > 4 ? ' …' : ''} – freundlich per E-Mail, nach deiner Freigabe</div><button class="btn small" data-action="fak-erinnern-open">Prüfen und senden</button></div>` : '',
     n ? `<div class="todo-item"><span class="flag warning">${n}</span><div class="todo-text"><strong>Angebote nachfassen:</strong> ${esc([...t.followUps.map((x) => x.doc.number), ...t.expiring.map((x) => `${x.doc.number} (läuft ab)`)].slice(0, 4).join(', '))}${n > 4 ? ' …' : ''}</div><button class="btn small" data-action="fak-tab" data-v="angebote">Angebote</button></div>` : '',
     open ? `<div class="todo-item"><span class="flag">${open}</span><div class="todo-text"><strong>Noch nicht versendet:</strong> festgeschriebene Rechnungen</div><button class="btn small" data-action="fak-batch-open" data-step="senden">Versenden</button></div>` : '',
     dd ? `<div class="todo-item"><span class="flag">${dd}</span><div class="todo-text"><strong>Lastschrift:</strong> offene Rechnungen von Kunden mit SEPA-Mandat</div><button class="btn small" data-action="fak-sepa-open">Einzug</button></div>` : '',
@@ -587,6 +616,7 @@ registerActions(
     },
 
     'fak-dunning-open': () => openModal({ type: 'fak-dunning' }),
+    'fak-erinnern-open': () => openModal({ type: 'fak-dunning', only: 'erinnerung' }),
     'fak-dunning-pick': (el) => {
       app.ui.modal.sel[el.dataset.id] = el.checked
       renderModal()
@@ -605,7 +635,7 @@ registerActions(
       laeufeHooks.checkNumbers()
       const today = todayISO()
       const s = S()
-      const chosen = dunningRun(F().documents, customers(), today, s).due.filter((x) => m.sel[x.doc.id])
+      const chosen = dunningList(m, today).filter((x) => m.sel[x.doc.id])
       if (!chosen.length) return toast('Bitte Rechnungen auswählen.')
       el.disabled = true
       m.busy = true

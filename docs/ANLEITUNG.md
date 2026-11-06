@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 253 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 254 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (58)
+- [Finanzen](#finanzen) (59)
 - [Verwaltung](#verwaltung) (37)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1876,6 +1876,20 @@ Der Mahnlauf zeigt alle Rechnungen mit fälliger Mahnstufe, mit Verzugszinsen, P
 
 > Tipp: Rechnungen im Lastschrifteinzug werden nicht gemahnt.
 > Tipp: Die Sperre für den Kunden steht auch im Kundenblatt unter „Lastschrift & Mahnung“.
+
+### Zahlungserinnerung automatisch
+
+*In der App: Fakturierung*
+
+Ist eine Rechnung überfällig, bietet die App die freundliche erste Erinnerung von selbst an: in „Zu erledigen“ und beim digitalen Mitarbeiter „Buchhaltung“. Mit „Prüfen und senden“ siehst du die Liste; erst nach deiner Freigabe geht sie per E-Mail mit PDF hinaus, ohne Zinsen und Gebühr.
+
+1. In „Zu erledigen“ oder bei den digitalen Mitarbeitern „Prüfen und senden“ wählen.
+2. Liste prüfen, einzelne Rechnungen abwählen oder sperren.
+3. „Erinnerungen senden“.
+
+> Tipp: Wann erinnert wird, steht in den Einstellungen unter Mahnwesen (Tage nach Fälligkeit).
+> Tipp: Ohne E-Mail-Adresse kommt die Erinnerung über den Mahnlauf per Post.
+> Tipp: Die nächste Stufe (1. Mahnung) läuft wie bisher über den Mahnlauf.
 
 ### Angebote nachfassen und Angebotsquote
 

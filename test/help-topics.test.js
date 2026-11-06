@@ -247,7 +247,7 @@ const SAFE = new Set([
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',
   'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open',
-  'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-sepa-open',
+  'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-erinnern-open', 'fak-sepa-open',
   'ek-inv-new', 'ek-sup-open', 'ek-export-open', 'kasse-new', 'kasse-count-open', 'kasse-export-open',
 ])
 

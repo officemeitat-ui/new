@@ -262,7 +262,7 @@ lazy(BUERO, {
   module: 'fakturierung',
   modals: 'fak-batch fak-dunning fak-block fak-followup fak-followup-mail fak-sepa fak-return',
   actions: `fak-goto-offers fak-batch-open fak-batch-step fak-batch-filter fak-batch-pick fak-batch-spick fak-batch-all fak-batch-scope
-    fak-batch-opts fak-batch-cancel fak-batch-final fak-batch-send fak-batch-print fak-dunning-open fak-dunning-pick fak-dunning-all
+    fak-batch-opts fak-batch-cancel fak-batch-final fak-batch-send fak-batch-print fak-dunning-open fak-erinnern-open fak-dunning-pick fak-dunning-all
     fak-dunning-opts fak-dunning-run fak-block-open fak-block-scope fak-block-back fak-block-save fak-block-clear fak-followup-open
     fak-followup-save fak-followup-mail-open fak-followup-send fak-mandate-pdf fak-mandate-check fak-mandate-ref fak-sepa-open
     fak-sepa-date fak-sepa-pick fak-sepa-all fak-sepa-block fak-sepa-notice fak-sepa-noted fak-sepa-file fak-return-open fak-return-save`,

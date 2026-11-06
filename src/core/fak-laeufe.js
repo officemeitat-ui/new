@@ -131,6 +131,18 @@ export function dunningRun(docs, customers, today, settings = {}) {
   return { due, blocked, collecting }
 }
 
+/**
+ * Zahlungserinnerungen: die erste, freundliche Stufe (ohne Zinsen und Gebühr) aus dem Mahnlauf, getrennt nach
+ * „per E-Mail versandbereit“ und „ohne E-Mail-Adresse“ (die bleiben beim Mahnlauf, per Post). Mahnsperren und
+ * Rechnungen im Lastschrifteinzug sind wie im Mahnlauf ausgenommen. Versendet wird nur nach Freigabe.
+ * → { ready: [Zeilen wie dunningRun.due], post: [...], later: Anzahl höherer Mahnstufen }
+ */
+export function paymentReminders(docs, customers, today, settings = {}) {
+  const { due } = dunningRun(docs, customers, today, settings)
+  const first = due.filter((x) => x.reminder?.level === 0)
+  return { ready: first.filter((x) => emailValid(x.to)), post: first.filter((x) => !emailValid(x.to)), later: due.length - first.length }
+}
+
 /** Alle aktiven Mahnsperren (Beleg und Kunde), auch ohne fällige Mahnung: [{ scope, id, name, until, note }]. */
 export function activeBlocks(docs, customers, today) {
   const out = []

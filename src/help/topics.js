@@ -1661,6 +1661,18 @@ export const TOPICS = [
     related: ['mahnung', 'zahlung-buchen'],
   },
   {
+    id: 'zahlungserinnerung-automatisch',
+    section: 'finanzen',
+    view: 'fakturierung',
+    title: 'Zahlungserinnerung automatisch',
+    q: ['zahlungserinnerung', 'erinnerung senden', 'freundliche erinnerung', 'zahlung erinnern', 'automatisch erinnern', 'überfällige rechnung erinnern'],
+    answer: 'Ist eine Rechnung überfällig, bietet die App die freundliche erste Erinnerung von selbst an: in „Zu erledigen“ und beim digitalen Mitarbeiter „Buchhaltung“. Mit „Prüfen und senden“ siehst du die Liste; erst nach deiner Freigabe geht sie per E-Mail mit PDF hinaus, ohne Zinsen und Gebühr.',
+    steps: ['In „Zu erledigen“ oder bei den digitalen Mitarbeitern „Prüfen und senden“ wählen.', 'Liste prüfen, einzelne Rechnungen abwählen oder sperren.', '„Erinnerungen senden“.'],
+    tips: ['Wann erinnert wird, steht in den Einstellungen unter Mahnwesen (Tage nach Fälligkeit).', 'Ohne E-Mail-Adresse kommt die Erinnerung über den Mahnlauf per Post.', 'Die nächste Stufe (1. Mahnung) läuft wie bisher über den Mahnlauf.'],
+    action: { action: 'fak-erinnern-open', label: 'Zahlungserinnerungen prüfen' },
+    related: ['mahnlauf', 'mahnung'],
+  },
+  {
     id: 'angebote-nachfassen',
     section: 'finanzen',
     view: 'fakturierung',
