@@ -1109,6 +1109,21 @@ export class DataService {
   }
 
   /**
+   * Wartende Uploads (ohne Netz aufgenommene Fotos und Dateien) hochladen. Läuft nie doppelt; liefert die Zahl
+   * der noch wartenden. onUploaded(path, webUrl) meldet jede hochgeladene Datei (z. B. für einen Vermerk im Modul).
+   */
+  async flushQueuedUploads() {
+    if (this.uploading || !this.store.flushUploads) return 0
+    this.uploading = true
+    try {
+      if (!(await this.store.queuedUploads?.())) return 0
+      return await this.store.flushUploads((path, url) => this.onUploaded?.(path, url))
+    } finally {
+      this.uploading = false
+    }
+  }
+
+  /**
    * Prüft, ob andere Personen inzwischen gespeichert haben, und lädt deren
    * Stand nach, sofern hier nichts Ungespeichertes ansteht.
    */
@@ -1120,6 +1135,9 @@ export class DataService {
       await this.flush()
       if (this.status === 'offline') return []
     }
+    // Fotos und Dateien, die ohne Netz aufgenommen wurden (Regiebericht, Anlagen, Qualitätsmessung, Touren …),
+    // im Hintergrund nachholen – für alle Module, nicht nur für das gerade geöffnete
+    this.flushQueuedUploads().catch(() => {})
     // Wochen, die ohne Netz nicht geladen werden konnten, jetzt nachladen
     if (this.unavailable.size) {
       const retry = [...this.unavailable]
