@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 251 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 252 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (25)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (58)
-- [Verwaltung](#verwaltung) (35)
+- [Verwaltung](#verwaltung) (36)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
@@ -2656,7 +2656,26 @@ Die Ansicht „Berechtigungen“ zeigt, welche Rolle was sieht und ändern darf,
 2. Die Tabelle der Rollen lesen.
 3. Darunter die Rechte in SharePoint je Ordner.
 
-> Tipp: Eingestellt wird nicht hier, sondern von der IT in Entra ID und in der Konfiguration.
+> Tipp: Wer in welcher Gruppe ist, regelt die IT in Entra ID; welche Gruppe zu welcher Rolle gehört, steht in der Konfiguration.
+> Tipp: Ob SharePoint wirklich so freigegeben ist, zeigt „Rechte prüfen“ in derselben Ansicht.
+
+*Vollzugriff*
+
+### Rechte in SharePoint prüfen und angleichen
+
+*In der App: Berechtigungen*
+
+Unter „Berechtigungen“ liest „Rechte prüfen“ die echten Freigaben jedes Ordners und vergleicht sie mit den Rollen: fehlt, zu wenig, zu viel, Freigabelink. „Abweichungen beheben“ vergibt Fehlendes und entfernt Überzähliges in den angehakten Ordnern, ohne Mails. Besitzer der Website und deine eigenen Rechte bleiben immer.
+
+1. Als Besitzer der Website anmelden (nur Besitzer sehen alle Freigaben).
+2. „Berechtigungen“ öffnen, bei Bedarf unter „Gruppen je Rolle eintragen“ die Objekt-IDs neuer Gruppen eintragen.
+3. „Rechte prüfen“ und die Liste ansehen.
+4. „Abweichungen beheben …“: Ordner anhaken, „Jetzt ändern“.
+5. „Ausschnitt für config.json“ kopieren und am Webspace übernehmen, dann die App neu laden.
+
+> Tipp: Werden Website-Gruppen entfernt, verliert Zugriff, wer nur über sie hineinkam: vorher alle in die passenden Gruppen aufnehmen.
+> Tipp: Neue Unterordner erben die Rechte des Hauptordners der App; der gehört nur dem Vollzugriff.
+> Tipp: Was nicht geht (z. B. geerbte Rechte), steht im Bericht; in SharePoint dann „Zugriff verwalten“.
 
 *Vollzugriff*
 

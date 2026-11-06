@@ -53,7 +53,7 @@ Danach:
 3. Nur für Azure: unter *Zertifikate & Geheimnisse* einen **geheimen Clientschlüssel** anlegen (für den Seitenschutz in Azure Static Web Apps).
 4. Unter *API-Berechtigungen → Berechtigung hinzufügen → Microsoft Graph → Delegierte Berechtigungen*: **User.Read**, **Sites.ReadWrite.All** und **Mail.Send** (Versand aus dem Dienstplan und aus den Werkzeugen: Wasserzähler-Bericht, Objektblatt, Lieferschein; für ein gemeinsames Postfach zusätzlich **Mail.Send.Shared**, siehe unten). Für den Termin der Nachkontrolle im Werkzeug Objektkontrolle zusätzlich **Calendars.ReadWrite**; für die Routen im Mattenwechsel *Azure Maps → user_impersonation*. Anschließend **Administratorzustimmung erteilen**. Die Werkzeuge in der App nutzen diese Registrierung (eine Anmeldung für alles); fehlt die Zustimmung zu Mail.Send oder Kalender, laufen sie ohne Direktversand bzw. Termin weiter.
 5a. Nur wenn die Werkzeuge auch **allein** geöffnet werden sollen („Eigenes Fenster“): in den bisherigen Registrierungen der Werkzeuge je eine SPA-Umleitungs-URI ergänzen, z. B. `https://app.cleanos.at/werkzeuge/wasserzaehler/`, `…/objektkontrolle/`, `…/objektdoku/`, `…/mattenwechsel/`. In der App selbst braucht es das nicht.
-5. Unter *Tokenkonfiguration → Gruppenanspruch hinzufügen*: **Sicherheitsgruppen**, beim ID-Token „Gruppen-ID“. Damit kommen die Microsoft-Gruppen ins Token und die App weiß, wer was darf.
+5. Unter *Tokenkonfiguration → Gruppenanspruch hinzufügen*: **Sicherheitsgruppen**, beim ID-Token „Gruppen-ID“. Damit kommen die Microsoft-Gruppen ins Token und die App weiß sofort, wer was darf. Fehlt der Anspruch (oder ist jemand in sehr vielen Gruppen), fragt die App die Gruppen beim Start selbst bei Microsoft Graph nach (`/me/transitiveMemberOf`, dafür reicht **User.Read**; verschachtelte Gruppen zählen mit). Ohne Netz nimmt sie den zuletzt gelesenen Stand, höchstens 14 Tage alt.
 6. Von der *Übersicht* die **Anwendungs-ID (Client)** notieren. Die Verzeichnis-ID ist schon eingetragen (`a31131f2-4ccf-4eb2-ab3d-49c923c6bede`).
 7. Empfohlen: unter *Unternehmensanwendungen → Cleanos App → Eigenschaften* **Zuweisung erforderlich = Ja** und unter *Benutzer und Gruppen* die Gruppen zuweisen (Gruppen zuweisen braucht Entra ID P1, sonst die Personen einzeln). Dann kann sich niemand sonst aus dem Tenant überhaupt anmelden. Wer angemeldet ist, aber keiner Gruppe angehört, sieht in der App nichts und lädt keine Daten.
 8. Alternativ zu den Gruppen-IDs: App-Rollen anlegen (`disposition`, `objektmanagement`, `vorarbeiter`, …) und den Gruppen zuweisen, siehe [PLATTFORM.md](PLATTFORM.md#variante-mit-app-rollen-entra-id-p1-z-b-microsoft-365-business-premium).
@@ -229,17 +229,24 @@ Danach einmal neu anmelden. Damit Mitarbeitende im Dienstplan zu Outlook passen,
 
 Das **Kalender-Abo** für Mitarbeitende (Plan am Handy) braucht nichts weiter: Es kommt mit dem neuen `mein-plan.php`.
 
-## 11. Noch offen: Rechte ausbauen (vorgemerkt)
+## 11. Rechte ausbauen: eigene Gruppe je Rolle
 
-Stand jetzt: Die Ordner in `Cleanos_Daten` sind von Hand freigegeben, die Werkzeug-Ordner für die Leute vor Ort ebenso. Das wird noch umgebaut und ausgebaut:
+Bisher sind die Ordner in `Cleanos_Daten` von Hand freigegeben, oft über die Gruppen der Website („Mitglieder“). Ziel: je Rolle eine eigene Sicherheitsgruppe, jeder Ordner genau für die Rollen, die ihn brauchen. Die App hilft dabei unter **Verwaltung → Berechtigungen** (nur Vollzugriff):
 
-1. **Eigene Sicherheitsgruppen je Rolle** in Entra ID (z. B. `Cleanos_App_Objektleitung`, `Cleanos_App_Buchhaltung`, `Cleanos_App_Lager`, `Cleanos_App_Lohn`, `Cleanos_App_Fuhrpark`, `Cleanos_App_Vorort`) statt der Microsoft-365-Gruppen der Website. Mitglieder kommen und gehen dann an einer Stelle.
-2. **Ordnerrechte je Gruppe** genau wie unter **Stammdaten → Berechtigungen** angezeigt (Lesen oder Bearbeiten je Ordner); `personal/`, `lohn/`, `kalkulation/`, `berichte/` und `exporte/` bleiben beim Büro.
-3. **Unterordner der Plattform** (Werkzeuge, Objektdoku, Kontrollen) je Revier oder Objekt trennen, damit Vor-Ort-Konten nur ihre Objekte sehen.
-4. **`access.groups` in `config.json`** auf die neuen Gruppen-IDs umstellen, danach je Rolle mit „Ansicht als“ und einem Testkonto prüfen.
-5. Klären: Bekommt die **Verwaltung** Vollzugriff oder eine eigene Rolle?
+1. **Gruppen anlegen** in Entra ID (*Gruppen → Neue Gruppe*, Typ **Sicherheit**). Die App schlägt je Rolle einen Namen vor, z. B. `Cleanos_App_Objektleitung`, `Cleanos_App_Buchhaltung`, `Cleanos_App_Lager`, `Cleanos_App_Lohnverrechnung`, `Cleanos_App_Fuhrpark`. Mitglieder aufnehmen. Wer mehrere Aufgaben hat, kommt in mehrere Gruppen; die Rechte addieren sich.
+2. **Objekt-IDs eintragen**: unter „Gruppen je Rolle eintragen“ die Objekt-ID jeder Gruppe einfügen. Das ist zunächst nur ein Entwurf in dieser Sitzung.
+3. **Rechte prüfen** (als **Besitzer der Website** angemeldet, nur Besitzer sehen alle Freigaben): Die App liest die echten Freigaben aller Ordner (Hauptordner `Plattform`, seine Unterordner, die Werkzeug-Ordner) und vergleicht sie mit den Rollen, mit dem Entwurf. Je Ordner: *passt*, *fehlt*, *zu wenig*, *zu viel* (z. B. alle Mitglieder der Website auf `lohn/`), *Link* (Freigabelinks), *Ordner fehlt*.
+4. **Abweichungen beheben …**: Ordner anhaken, „Jetzt ändern“. Die App vergibt fehlende Rechte (Gruppen über die Objekt-ID, Personen aus `planners` über die E-Mail, **ohne Einladungs-Mail**), legt fehlende Ordner an und entfernt überzählige Freigaben und Links. **Besitzer der Website und die eigenen Rechte fasst sie nie an.** Dabei endet die Vererbung des Ordners: SharePoint verrät nicht, ob ein Recht geerbt ist; darum vergibt die App vor dem Entfernen erst etwas (die bisherigen Rechte bleiben dabei als eigene stehen), liest neu und entfernt dann. Was nicht geht, steht im Bericht; dann in SharePoint *Zugriff verwalten*. Danach prüft die App alles neu.
+   - **Vorher alle Leute in die Gruppen aufnehmen**: Wer nur über eine Website-Gruppe Zugriff hatte, verliert ihn in den geänderten Ordnern. Der Dialog warnt davor und nennt Rollen ohne Gruppe.
+   - Der Hauptordner `Plattform` gehört nur dem Vollzugriff: Neue Unterordner (ein neues Modul) erben seine Rechte und sind so von Anfang an geschützt; danach einmal „Rechte prüfen“.
+5. **„Ausschnitt für config.json“** kopieren und in `config.json` am Webspace unter `"access"` übernehmen (bzw. vor dem Build in `config.production.json`). App neu laden; jede Rolle mit einem Testkonto prüfen.
 
-Bis dahin gilt: Was eine Rolle in der App nicht sieht, bietet die App nicht an; geschützt sind die Daten aber erst durch die SharePoint-Ordnerrechte.
+Noch offen (vorgemerkt):
+
+- **Unterordner der Werkzeuge je Revier oder Objekt** (Wasserzähler, Objektkontrolle, Objektdoku), damit Vor-Ort-Konten nur ihre Objekte sehen: Das verlangt Änderungen in den Werkzeugen selbst, die bisher unverändert übernommen sind. Erst entscheiden, ob die Werkzeuge dafür angepasst werden sollen.
+- **Verwaltung:** Vollzugriff oder eigene Rolle? Eine eigene Rolle geht ohne Programmänderung in `config.json`, z. B. `"roles": { "verwaltung": { "label": "Verwaltung", "modules": ["planung", "stammdaten", "termine", "fakturierung"], "edit": ["termine"] } }` und `"groups": { "verwaltung": ["<Objekt-ID>"] }`. Die Prüfung berücksichtigt eigene Rollen automatisch.
+
+Bis alles umgestellt ist, gilt: Was eine Rolle in der App nicht sieht, bietet die App nicht an; geschützt sind die Daten aber erst durch die SharePoint-Rechte.
 
 ## Datenschutz und Betriebsrat
 

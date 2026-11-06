@@ -425,10 +425,15 @@ async function boot() {
       return
     }
     showMessage('<p>Anmeldung bei Microsoft 365 …</p>')
-    const { scopesFor, signIn } = await import('../auth/msal.js')
+    const { memberGroups, scopesFor, signIn } = await import('../auth/msal.js')
     const auth = await signIn({ ...config.sharepoint, scopes: scopesFor(config) })
     app.auth = auth
     app.user = auth.user
+    // Gruppen fehlen im Token (Token-Konfiguration ohne „groups“ oder zu viele): bei Microsoft Graph nachfragen
+    if (Object.keys(config.access?.groups || {}).length && (!app.user.groups.length || app.user.groupsOverage)) {
+      const more = await memberGroups(auth.getToken, { userId: app.user.id || app.user.email })
+      if (more) Object.assign(app.user, { groups: [...new Set([...app.user.groups, ...more.groups])], groupsFrom: more.from })
+    }
     app.signOut = auth.signOut
     // Hülle für den Offline-Betrieb: letzter Stand und ungespeicherte Änderungen bleiben im Gerät,
     // je Konto ein eigener Speicher (geteilte Tablets: niemand liest ohne Netz die Kopie eines anderen)

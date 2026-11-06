@@ -272,7 +272,11 @@ export class SharePointDocStore {
   }
 
   async #ensureFolder(dir) {
-    const parts = `${this.folder}/${dir}`.split('/').filter(Boolean)
+    return this.#ensurePath(`${this.folder}/${dir}`)
+  }
+
+  async #ensurePath(full) {
+    const parts = full.split('/').filter(Boolean)
     let current = ''
     for (const part of parts) {
       const parent = current
@@ -316,6 +320,53 @@ export class SharePointDocStore {
       ? await this.#put(path, body, 'application/json', { 'If-Match': etag })
       : await this.#put(path, body, 'application/json', {}, '?@microsoft.graph.conflictBehavior=fail')
     return item.eTag
+  }
+
+  // ------------------------------------------------ Freigaben (Rechte-Prüfung, core/rights-audit.js)
+  // Pfade ab der Bibliothek (z. B. „Plattform/lohn“ oder „Objektdoku“). Nur Besitzer der Website sehen alle Freigaben.
+
+  async #rootItem(path) {
+    const res = await this.#request('GET', `/drives/${this.driveId}/root:/${encodePath(path)}?$select=id,name,webUrl`, { okStatuses: [404] })
+    return res.status === 404 ? null : res.json()
+  }
+
+  /** Freigaben eines Ordners: { id, webUrl, perms: [Graph-Freigaben] } oder null, wenn es ihn nicht gibt. */
+  async permissions(path) {
+    const item = await this.#rootItem(path)
+    if (!item) return null
+    const perms = []
+    let url = `/drives/${this.driveId}/items/${item.id}/permissions`
+    while (url) {
+      const page = await this.#json('GET', url)
+      perms.push(...(page.value || []))
+      url = page['@odata.nextLink'] || null
+    }
+    return { id: item.id, webUrl: item.webUrl, perms }
+  }
+
+  /**
+   * Recht vergeben, ohne Einladungs-Mail: Gruppe über ihre Objekt-ID, Person über die E-Mail.
+   * Beim ersten Mal endet damit die Vererbung; die bisherigen Rechte bleiben als eigene stehen
+   * (retainInheritedPermissions bleibt bewusst beim Standard, sonst wären auch die Besitzer weg).
+   */
+  async grant(path, { kind, id }, right) {
+    const item = await this.#rootItem(path)
+    if (!item) throw new GraphError(404, `Ordner ${path} nicht gefunden`)
+    const recipient = kind === 'group' ? { objectId: id } : { email: id }
+    const body = { recipients: [recipient], roles: [right === 'Bearbeiten' ? 'write' : 'read'], requireSignIn: true, sendInvitation: false }
+    return this.#json('POST', `/drives/${this.driveId}/items/${item.id}/invite`, { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+  }
+
+  /** Freigabe entfernen (nur eigene, nicht geerbte Freigaben eines Ordners lassen sich entfernen). */
+  async unshare(path, permId) {
+    const item = await this.#rootItem(path)
+    if (!item) return
+    await this.#request('DELETE', `/drives/${this.driveId}/items/${item.id}/permissions/${encodeURIComponent(permId)}`, { okStatuses: [404] })
+  }
+
+  /** Ordner ab der Bibliothek anlegen, falls er fehlt (z. B. ein Modulordner vor dem ersten Speichern). */
+  async ensureRootFolder(path) {
+    await this.#ensurePath(path)
   }
 
   /** Datei (z. B. Excel-Wochenplan) hochladen, vorhandene Datei wird ersetzt. */

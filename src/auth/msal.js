@@ -32,6 +32,41 @@ export function groupsOf(account) {
   return { groups: Array.isArray(claims.groups) ? claims.groups : [], overage: !!claims._claim_names?.groups || !!claims.hasgroups }
 }
 
+/**
+ * Gruppen der angemeldeten Person über Microsoft Graph (/me/transitiveMemberOf, Recht User.Read):
+ * für den Fall, dass das Token keine Gruppen enthält (Token-Konfiguration ohne „groups“) oder zu viele
+ * („overage“). Auch verschachtelte Gruppen zählen. Ohne Netz der zuletzt gelesene Stand (höchstens 14 Tage).
+ * → { groups: [IDs], from: 'graph' | 'gemerkt' } oder null
+ */
+export async function memberGroups(getToken, { userId = '', fetchImpl = globalThis.fetch.bind(globalThis), storage = globalThis.localStorage, now = Date.now() } = {}) {
+  const key = `cleanos-gruppen:${userId}`
+  try {
+    const ids = []
+    let url = 'https://graph.microsoft.com/v1.0/me/transitiveMemberOf'
+    for (let page = 0; url && page < 20; page++) {
+      const res = await fetchImpl(url, { headers: { Authorization: `Bearer ${await getToken()}` } })
+      if (!res.ok) throw new Error(`Graph ${res.status}`)
+      const body = await res.json()
+      for (const o of body.value || []) if (o.id && (!o['@odata.type'] || o['@odata.type'] === '#microsoft.graph.group')) ids.push(String(o.id).toLowerCase())
+      url = body['@odata.nextLink'] || null
+    }
+    try {
+      storage?.setItem(key, JSON.stringify({ ids, at: now }))
+    } catch {
+      /* privater Modus */
+    }
+    return { groups: ids, from: 'graph' }
+  } catch {
+    try {
+      const saved = JSON.parse(storage?.getItem(key) || 'null')
+      if (saved && Array.isArray(saved.ids) && now - saved.at < 14 * 864e5) return { groups: saved.ids, from: 'gemerkt' }
+    } catch {
+      /* nichts gemerkt */
+    }
+    return null
+  }
+}
+
 /** Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand und Kalender optional). */
 export function scopesFor(config = {}) {
   const scopes = [...GRAPH_SCOPES]

@@ -351,3 +351,22 @@ test('Anmeldung: nach Zeitüberschreitung im unsichtbaren Fenster neu anmelden, 
   assert.equal(needsReauth(new Error('x')), false)
   assert.equal(needsReauth(null), false)
 })
+
+test('Gruppen über Microsoft Graph, wenn das Token keine hat: mit Folgeseiten, nur Gruppen; ohne Netz der gemerkte Stand', async () => {
+  const { memberGroups } = await import('../src/auth/msal.js')
+  const store = new Map()
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) }
+  const pages = {
+    'https://graph.microsoft.com/v1.0/me/transitiveMemberOf': { value: [{ '@odata.type': '#microsoft.graph.group', id: 'AAAA-1' }, { '@odata.type': '#microsoft.graph.directoryRole', id: 'rolle' }], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/transitiveMemberOf?$skiptoken=2' },
+    'https://graph.microsoft.com/v1.0/me/transitiveMemberOf?$skiptoken=2': { value: [{ '@odata.type': '#microsoft.graph.group', id: 'bbbb-2' }] },
+  }
+  const seen = []
+  const fetchImpl = async (url, opts) => (seen.push(opts.headers.Authorization), { ok: true, json: async () => pages[url] })
+  const got = await memberGroups(async () => 'T', { userId: 'u1', fetchImpl, storage, now: 1000 })
+  assert.deepEqual(got, { groups: ['aaaa-1', 'bbbb-2'], from: 'graph' })
+  assert.deepEqual(seen, ['Bearer T', 'Bearer T'])
+  const offline = async () => { throw new TypeError('Failed to fetch') }
+  assert.deepEqual(await memberGroups(async () => 'T', { userId: 'u1', fetchImpl: offline, storage, now: 1000 + 864e5 }), { groups: ['aaaa-1', 'bbbb-2'], from: 'gemerkt' })
+  assert.equal(await memberGroups(async () => 'T', { userId: 'u1', fetchImpl: offline, storage, now: 1000 + 15 * 864e5 }), null, 'nach 14 Tagen nicht mehr')
+  assert.equal(await memberGroups(async () => 'T', { userId: 'u2', fetchImpl: offline, storage }), null, 'je Konto getrennt')
+})
