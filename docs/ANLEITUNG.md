@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 300 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 309 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (53)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (68)
-- [Verwaltung](#verwaltung) (46)
+- [Verwaltung](#verwaltung) (55)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
@@ -2822,6 +2822,119 @@ Eintritt und Austritt (letzter Arbeitstag) stehen bei der Person; davor und dana
 4. „Speichern“ klicken.
 
 > Tipp: Vor dem Austritt im Schlüsselbuch alle Schlüssel zurücknehmen; das Schlüsselbuch warnt 14 Tage vorher.
+> Tipp: Mit „Eintritt & Austritt“ gibt es dazu eine Checkliste mit Fristen (Anmeldung, Schlüssel, Abmeldung).
+
+### Bewerbungen: von der Bewerbung bis zur Zusage
+
+*In der App: Bewerbungen*
+
+Unter „Bewerbungen“ stehen alle Bewerber:innen mit Status (neu, Kontakt, Gespräch geplant, Probearbeit, Zusage, Absage, zurückgezogen), Quelle, gewünschten Stunden und Revier, Sprachen, Führerschein und Verfügbarkeit. Kacheln zeigen offene, ohne Rückmeldung und zu löschende Bewerbungen.
+
+1. „Bewerbungen“ unter „Verwaltung“ öffnen.
+2. Oben nach Status, Quelle oder Revier filtern oder eine Kachel antippen.
+3. Eine Bewerbung mit „Öffnen“ ansehen: Status, Gespräch, Unterlagen, Verlauf.
+
+> Tipp: Ohne Rückmeldung seit mehr als 7 Tagen erscheint die Bewerbung in „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“.
+> Tipp: Die Suche (Strg+K) findet Bewerbungen nach Name, Telefon und E-Mail.
+
+*Personalverwaltung und Vollzugriff*
+
+### Bewerbung erfassen mit Lebenslauf
+
+*In der App: Bewerbungen*
+
+Name, Telefon, E-Mail, Quelle (AMS, Inserat, Empfehlung, Initiativ), gewünschte Stunden je Woche, Revier, Beginn, Sprachen, Führerschein, Verfügbarkeit je Wochentag und Notizen. Lebenslauf und Unterlagen (PDF oder Foto, bis 15 MB) kommen nach SharePoint in den Ordner der Bewerbungen.
+
+1. „+ Bewerbung erfassen“ klicken (oder „+ Neu“ → „Bewerbung erfassen“).
+2. Kontakt, Quelle, Wunsch und Verfügbarkeit eintragen.
+3. „Datei hinzufügen“ für Lebenslauf und Unterlagen.
+4. „Speichern“ klicken: die Bewerbung bleibt offen für Status und Gespräch.
+
+> Tipp: Nur Fachliches notieren: nennt die Notiz z. B. Alter oder Herkunft, weist die App darauf hin.
+
+### Status, Kontakt und Gespräch (Outlook)
+
+*In der App: Bewerbungen*
+
+In der Bewerbung setzt ein Klick den Status. „Gespräch planen“ öffnet den Termin-Dialog (Art Bewerbungsgespräch) und trägt den Termin in Outlook ein; danach steht die Bewerbung auf „Gespräch geplant“. „Kontakt vermerken“ hält einen Anruf fest und zählt als Rückmeldung.
+
+1. Bewerbung öffnen.
+2. „Gespräch planen (Outlook)“: Datum, Uhrzeit, Teilnehmende wählen, „Speichern“.
+3. Nach dem Gespräch den Status setzen, z. B. „Probearbeit“ oder „Zusage“.
+
+> Tipp: Probearbeit mit echter Arbeitsleistung ist ein Dienstverhältnis: vorher bei der ÖGK anmelden.
+> Tipp: Den Termin sieht, wer „Termine“ sieht; der Name steht im Titel.
+
+### Absage per E-Mail und Löschfrist
+
+*In der App: Bewerbungen*
+
+„Absage …“ in der Bewerbung öffnet das Senden-Fenster mit der Vorlage: neutral, ohne Gründe. Erst „Senden“ schickt sie; dann steht die Bewerbung auf „Absage“. Nach 6 Monaten meldet „Zu erledigen“ die Löschfrist; gelöscht wird mit den Unterlagen erst nach Klick auf „Löschen“.
+
+1. Bewerbung öffnen, „Absage …“ klicken.
+2. Text prüfen und „Senden“.
+3. Wenn die Löschfrist erreicht ist: Bewerbung öffnen, „Löschen“ zweimal klicken.
+
+> Tipp: Vorlage, Löschfrist und die Tage ohne Rückmeldung stehen unter „Mehr“ → „Absage-Vorlage und Fristen“.
+> Tipp: Ohne E-Mail-Adresse: telefonisch oder per Brief absagen und den Status „Absage“ setzen.
+
+### Zusage: als Mitarbeiter:in anlegen
+
+*In der App: Bewerbungen*
+
+Bei „Zusage“ legt „Als Mitarbeiter:in anlegen“ die Person mit einem Klick an: Das Stammblatt ist vorbefüllt (Name, E-Mail, Revier, Wochenstunden, Verfügbarkeit, Sprache am Handy, Führerschein, Eintritt). Nach dem Speichern startet die Eintritts-Checkliste.
+
+1. Status „Zusage“ setzen.
+2. „Als Mitarbeiter:in anlegen“ klicken.
+3. Personalnummer, Lohngruppe und Eintritt ergänzen, „Speichern“.
+4. Die Eintritts-Checkliste öffnet sich.
+
+*Anlegen: wer die Stammdaten bearbeitet (Personalverwaltung, Vollzugriff)*
+
+### Eintritts-Checkliste mit Fristen
+
+*In der App: Eintritt & Austritt*
+
+Je neuer Person eine Checkliste mit Frist: Daten für die Lohnverrechnung, Anmeldung bei der ÖGK vor dem ersten Arbeitstag (nur Aufgabe, die App meldet nichts), Dienstvertrag oder Dienstzettel, Unterweisungen, Betriebsanweisungen, Schlüssel, Dienstkleidung, Einschulung im Objekt, Link „Plan am Handy“ und Sprache.
+
+1. „Eintritt & Austritt“ öffnen, Reiter „Eintritt“.
+2. Checkliste mit „Öffnen“ ansehen oder „+ Eintritt starten“.
+3. Aufgabe erledigen und „Erledigt“ klicken (mit Datum und Name).
+
+> Tipp: Unterweisungen und Schlüssel sind verknüpft: sind sie eingetragen bzw. ausgegeben, gilt die Aufgabe von selbst als erledigt.
+> Tipp: Die Einschulung wird ein Termin mit Objekt und beiden Personen; so sieht ihn auch die Objektleitung.
+
+*Personalverwaltung, Lohnverrechnung und Vollzugriff*
+
+### Austritts-Checkliste: Schlüssel, Einsätze, Zeitkonto
+
+*In der App: Eintritt & Austritt*
+
+Zum letzten Arbeitstag: offene Schlüssel aus dem Schlüsselbuch, Dienstkleidung und Geräte zurück, Abmeldung bei der ÖGK (Frist), Zeitkonto und Resturlaub zum Prüfen (nur Anzeige, nichts wird ausbezahlt), Link „Plan am Handy“ deaktivieren, Einsätze nach dem Austritt (die Planung entscheidet) und Dienstzeugnis.
+
+1. Reiter „Austritt“, „+ Austritt anlegen“.
+2. Person und letzten Arbeitstag wählen (auf Wunsch gleich im Stammblatt).
+3. Aufgaben abarbeiten; „Rückgabe eintragen“ und „Woche öffnen“ führen in Schlüsselbuch und Plan.
+
+> Tipp: Nach dem Austritt meldet der Prüfbericht jeden Einsatz der Person als Fehler.
+
+### Vorlagen der Checklisten ändern
+
+*In der App: Eintritt & Austritt*
+
+Unter „Mehr“ → „Vorlagen der Checklisten“ stehen die Aufgaben für Eintritt und Austritt mit Frist in Tagen ab dem ersten bzw. letzten Arbeitstag (−1 = Vortag). Titel und Frist lassen sich ändern, Aufgaben abschalten, eigene ergänzen. Dort steht auch die E-Mail der Lohnverrechnung.
+
+1. „Mehr“ → „Vorlagen der Checklisten“.
+2. Titel, Frist oder „aktiv“ ändern, „+ Eigene Aufgabe“.
+3. „Speichern“: gilt für neue Checklisten.
+
+### Wer sieht Bewerbungen? Datenschutz
+
+*In der App: Bewerbungen*
+
+Bewerbungen und Unterlagen liegen im eigenen Ordner bewerbung/: nur Personalverwaltung und Vollzugriff. Die Checklisten (eintritt/) sieht zusätzlich die Lohnverrechnung. Die Objektleitung sieht nur den Termin der Einschulung. Keine Angaben zu Alter, Herkunft, Religion, Familienstand oder Gesundheit erfassen.
+
+> Tipp: Abgelehnte Bewerbungen nach 6 Monaten löschen; die App erinnert daran.
 
 ### Plan am Handy einrichten
 
@@ -3468,6 +3581,7 @@ Diese Meldung heißt: dein Konto ist keiner Gruppe der App zugeordnet. Ohne Roll
 Jede Rolle sieht nur ihre Bereiche: Vollzugriff alles; Objektmanagement und Objektleitung u. a. Einsatzplanung (lesen), Termine, Reklamationen, Schlüsselbuch, Material; Vorarbeiter/in den Wasserzähler; Lohnverrechnung Auswertung & Lohn; Buchhaltung die Fakturierung; Fuhrpark die Fahrzeuge; Lager & Einkauf das Material.
 
 > Tipp: Krankenstände (Ordner personal/) öffnet nur Vollzugriff, Lohndaten (lohn/) zusätzlich die Lohnverrechnung.
+> Tipp: Bewerbungen sieht nur die Personalverwaltung (und Vollzugriff), Eintritt & Austritt zusätzlich die Lohnverrechnung.
 > Tipp: Was du nicht darfst, fehlt auch im Menü.
 > Tipp: Die genaue Tabelle steht für Vollzugriff unter „Berechtigungen“.
 

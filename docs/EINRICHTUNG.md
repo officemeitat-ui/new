@@ -26,6 +26,8 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ qualitaet/                    Qualitätsmessung je Objekt (Fotos der Mängel, Berichte)
                          ├─ arbeitsschutz/                Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter unter dokumente/)
                          ├─ zufriedenheit/                Kundenzufriedenheit (Umfrage-Runden, Antworten)
+                         ├─ bewerbung/                    Bewerbungen mit Lebenslauf (nur Personalverwaltung, Vollzugriff)
+                         ├─ eintritt/                     Eintritts- und Austritts-Checklisten (auch Lohnverrechnung)
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 
@@ -257,6 +259,8 @@ Entschieden:
 - **Verwaltung (entschieden 06.11.2026): Vollzugriff wie das Büro.** Die Gruppe der Verwaltung (z. B. `Cleanos_App_Verwaltung`) kommt in `config.json` zur Rolle `disposition`: `"groups": { "disposition": ["<Objekt-ID Büro/IT>", "<Objekt-ID Verwaltung>"] }`. Sollte sie später eine eigene, engere Rolle brauchen, geht das ohne Programmänderung über `"roles"` (siehe [PLATTFORM.md](PLATTFORM.md)); die Prüfung berücksichtigt eigene Rollen automatisch.
 
 Neu (Kundenzufriedenheit, Ordner `zufriedenheit/`): Vollzugriff bearbeitet; Objektmanagement und Objektleitung **lesen** (sie sehen bei eingerichteten Revieren nur Antworten zu ihren Objekten); der Objektservice und die übrigen Rollen bekommen **keinen** Zugriff. „Rechte prüfen“ schlägt das so vor.
+
+Neu (Bewerbungen, Eintritt & Austritt, Ordner `bewerbung/` und `eintritt/`): Für die neue Rolle **Personalverwaltung** eine Gruppe anlegen (Vorschlag `Cleanos_App_Personalverwaltung`) und unter „Gruppen je Rolle eintragen“ zuordnen. `bewerbung/` (Bewerbungen mit Lebenslauf und Unterlagen) bekommt nur Vollzugriff und Personalverwaltung, **nicht** die Lohnverrechnung und nicht die Objektleitung; `eintritt/` (Checklisten) Vollzugriff, Personalverwaltung und Lohnverrechnung. „Rechte prüfen“ rechnet beide Ordner mit. Für `bewerbung/` in den Bibliothekseinstellungen den **Versionsverlauf begrenzen** (z. B. 50 Hauptversionen) bzw. eine Aufbewahrungsrichtlinie festlegen: Gelöschte Bewerbungen stehen sonst noch in früheren Fassungen von `bewerbung.json`; gelöschte Unterlagen liegen 93 Tage im Papierkorb der Website (offener Punkt 34 in [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md)). Die E-Mail der Lohnverrechnung für „An die Lohnverrechnung“ unter *Eintritt & Austritt → Mehr → Vorlagen der Checklisten* eintragen.
 
 Neu (Qualitätsmessung, Ordner `qualitaet/`): Objektleitung, Objektmanagement und Vollzugriff bearbeiten, der Objektservice bekommt **keinen** Zugriff (er misst sich nicht selbst). Soll das Büro die Messungen nur lesen, eine eigene Rolle mit dem Modul `qualitaet` ohne Schreibrecht anlegen (Beispiel in [PLATTFORM.md](PLATTFORM.md#eigene-rollen-und-e-mail-listen)); „Rechte prüfen“ schlägt dann „Lesen“ auf `qualitaet/` vor. Für „Aus dem Raumbuch vorschlagen“ braucht die messende Rolle Leserecht auf den Ordner `Objektdoku` (bei Objektleitung und Objektmanagement schon so).
 
