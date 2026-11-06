@@ -280,6 +280,13 @@ lazy(BUERO, {
   todo: ['fakturierung-angebote'],
 })
 
+// invoicing-abrechnung.js (mit invoicing.js geladen): Winterdienst abrechnen, Leistungsnachweis nach Ist-Zeiten, Beilagen
+lazy(BUERO, {
+  module: 'fakturierung',
+  modals: 'fab-winter',
+  actions: 'fab-beilage fab-winter-open fab-winter-month fab-winter-pick fab-winter-price fab-winter-mode fab-winter-create fab-proof-basis fab-proof-opts',
+})
+
 // invoicing-briefe.js und invoicing-briefpapier.js: Briefe, Serienbriefe und Briefpapier der Fakturierung (kommen mit invoicing.js)
 lazy(BUERO, {
   module: 'fakturierung',

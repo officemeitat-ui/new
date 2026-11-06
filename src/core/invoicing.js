@@ -151,6 +151,10 @@ export const SETTINGS_DEFAULTS = {
  *                  Barausgabe, core/recharge.js). Zeilen zählen zur Prüfsumme: nur in neuen Belegen gesetzt.
  *  settings      rechargeMarkup (Aufschlag in % als Vorschlag, Standard 10), vatBasis ('soll' | 'ist', für die
  *                Umsatzsteuer-Übersicht core/vat-return.js; Standard Soll)
+ * Abrechnung aus dem Betrieb (core/fak-abrechnung.js; alle Felder optional, nicht in der Prüfsumme):
+ *  customers[].winterPrices { [objectId]: { mode, beides, raeumen, streuen, kontrolle, pauschale } } (Winterdienst je Objekt)
+ *  documents[].source  wie beim Leistungsnachweis { type, key }: 'winterdienst' (Protokoll) bzw. 'nachweis' mit basis 'ist'
+ *  settings.istRound  Rundung je Stempelung (0, 5 oder 15 Minuten)
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 

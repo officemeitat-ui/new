@@ -111,6 +111,7 @@ import { ciiXml, ebInterfaceXml, eInvoiceFileName, eInvoiceProblems } from '../.
 import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
+import { abrechnungHooks, basisSwitch, beilageArchiveName, beilageButton, beilageFiles, beilageOption, beilageWanted, createIstDrafts, istProofModal, sourceLabel, sourceNote } from './invoicing-abrechnung.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
 import { customerLettersTab, lettersTab } from './invoicing-briefe.js'
 import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
@@ -212,7 +213,8 @@ function headMenus(ed) {
       ed && { label: 'Lieferschein', action: 'fak-new', data: { kind: 'lieferschein' }, hint: 'mit Unterschriftsfeld, auf Wunsch ohne Preise' },
       ed && { label: 'Proformarechnung', action: 'fak-new', data: { kind: 'proforma' }, hint: 'keine Rechnung im Sinne des UStG' },
       ed && { label: 'Dauerauftrag', action: 'fak-rec-open', hint: 'monatlich, quartalsweise … abrechnen' },
-      ed && proofOk && { label: 'Aus Leistungsnachweis', action: 'fak-proof-open', hint: 'Entwürfe je Objekt und Monat' },
+      ed && proofOk && { label: 'Aus Leistungsnachweis', action: 'fak-proof-open', hint: 'Entwürfe je Objekt und Monat, nach Plan oder Ist-Zeiten' },
+      ed && proofOk && { label: 'Winterdienst abrechnen', action: 'fab-winter-open', hint: 'Entwürfe aus dem Winterdienst-Protokoll' },
       ed && { heading: 'Schreiben' },
       ed && { label: 'Brief', action: 'fak-letter-open', hint: 'an einen Kunden, auf dem Briefpapier' },
       ed && { label: 'Serienbrief', action: 'fak-serial-open', hint: 'an viele Kunden: E-Mail oder Sammel-PDF' },
@@ -367,7 +369,7 @@ function invoicesTab() {
   const ed = editable()
   const proofOk = sees('planung')
   return `<div class="filters">${listFilters(['rechnung'])}<span class="spacer"></span>
-      ${ed && proofOk ? `<button class="btn small" data-action="fak-proof-open">Aus Leistungsnachweis</button>` : ''}
+      ${ed && proofOk ? `<button class="btn small" data-action="fak-proof-open">Aus Leistungsnachweis</button><button class="btn small" data-action="fab-winter-open">Winterdienst abrechnen</button>` : ''}
       <button class="btn small" data-action="fak-export-open">${ICON.download} Export Steuerberatung</button></div>
     ${batchBanner()}
     ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Rechnungen für diese Auswahl.</p>'}
@@ -831,7 +833,7 @@ function editorModal(c, m) {
   const tm = (target, place) => (ed ? textMenu({ target, kind: x.kind, place }) : '')
   return modalFrame({
     title: `${kindLabel(x)} – Entwurf`,
-    subtitle: x.refNumber ? `Bezug: ${esc(x.refNumber)}` : x.deliveryNotes?.length ? `zu ${esc(x.deliveryNotes.map((n) => n.number).join(', '))}` : x.source?.type === 'dauerauftrag' ? 'aus Dauerauftrag' : x.source?.type === 'nachweis' ? 'aus Leistungsnachweis' : '',
+    subtitle: x.refNumber ? `Bezug: ${esc(x.refNumber)}` : x.deliveryNotes?.length ? `zu ${esc(x.deliveryNotes.map((n) => n.number).join(', '))}` : sourceLabel(x),
     wide: true,
     body: `<div class="form-grid">
         <label class="field"><span>Kunde</span><select id="fd-customer" data-change="fak-customer" ${dis}>${custOpts}</select></label>
@@ -880,7 +882,7 @@ function editorModal(c, m) {
       <div id="fd-problems">${problemsHtml(x)}</div>
       ${s.smallBusiness ? '<p class="muted">Kleinunternehmer: Rechnungen ohne Umsatzsteuer, mit Hinweis.</p>' : ''}`,
     foot: `<div class="actions">${ed ? `<button class="btn danger" data-action="fak-draft-delete" data-id="${esc(x.id)}">${app.ui.confirm === `fak-del:${x.id}` ? 'Wirklich löschen?' : 'Entwurf löschen'}</button>` : ''}</div>
-      <div class="actions"><button class="btn" data-action="fak-pdf" data-id="${esc(x.id)}">${ICON.download} Vorschau (PDF)</button>${ed ? `<button class="btn" data-action="fak-draft-save">Speichern</button><button class="btn primary ${confirm ? 'confirm' : ''}" data-action="fak-finalize">${confirm ? `Wirklich festschreiben? Danach nicht mehr änderbar` : 'Festschreiben'}</button>` : ''}</div>`,
+      <div class="actions"><button class="btn" data-action="fak-pdf" data-id="${esc(x.id)}">${ICON.download} Vorschau (PDF)</button>${beilageButton(x)}${ed ? `<button class="btn" data-action="fak-draft-save">Speichern</button><button class="btn primary ${confirm ? 'confirm' : ''}" data-action="fak-finalize">${confirm ? `Wirklich festschreiben? Danach nicht mehr änderbar` : 'Festschreiben'}</button>` : ''}</div>`,
   })
 }
 registerModal('fak-edit', editorModal, { module: MODULE })
@@ -975,7 +977,7 @@ function viewModal(c, m) {
     body: `<p>${pill(st)}${x.reverseCharge ? ' <span class="pill info">Reverse Charge</span>' : ''} ${intact(x) ? '<span class="muted">Prüfsumme in Ordnung</span>' : '<span class="pill error">Inhalt nach dem Festschreiben verändert</span>'}</p>
       ${x.title ? `<p><strong>${esc(x.title)}</strong>${x.serviceFrom ? ` · Leistung ${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}` : ''}</p>` : ''}
       ${head.length ? `<p class="fak-doc-head">${head.join(' · ')}</p>` : ''}
-      ${docExtras(x)}
+      ${docExtras(x)}${sourceNote(x)}
       ${onlineExtras(x)}
       ${x.kind === 'proforma' ? '<p><strong>Proforma – keine Rechnung im Sinne des UStG.</strong> <span class="muted">Kein Umsatz, kein offener Posten.</span></p>' : ''}
       <div class="table-wrap"><table class="data fak-view-lines" data-labelled><thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis</th><th class="num">USt</th><th class="num">netto</th></tr></thead><tbody>${lines}</tbody></table></div>
@@ -1000,7 +1002,7 @@ function viewModal(c, m) {
       <div class="actions">${ed ? `<button class="btn" data-action="fak-copy" data-id="${esc(x.id)}">Als Vorlage kopieren</button>` : ''}${ed ? nextButtons(x, st) : ''}
         ${ed && x.kind === 'rechnung' && open > 0 ? `<button class="btn" data-action="fak-pay-open" data-id="${esc(x.id)}">Zahlung</button>` : ''}
         ${isInvoice(x) ? `<button class="btn" data-action="fak-einv-open" data-id="${esc(x.id)}" title="XML nach EN 16931 (ZUGFeRD/Factur-X) oder ebInterface (Bund)">${ICON.download} E-Rechnung</button>` : ''}
-        <button class="btn" data-action="fak-pdf" data-id="${esc(x.id)}">${ICON.download} PDF</button><button class="btn primary" data-action="fak-mail-open" data-id="${esc(x.id)}">${ICON.send} E-Mail</button></div>`,
+        <button class="btn" data-action="fak-pdf" data-id="${esc(x.id)}">${ICON.download} PDF</button>${beilageButton(x)}<button class="btn primary" data-action="fak-mail-open" data-id="${esc(x.id)}">${ICON.send} E-Mail</button></div>`,
   })
 }
 registerModal('fak-doc', viewModal, { module: MODULE })
@@ -1197,7 +1199,7 @@ function mailModal(c, m) {
     wide: true,
     body: `${x.number ? '' : '<div class="banner warn-banner"><p>Ein Entwurf wird nicht versendet. Bitte zuerst festschreiben.</p></div>'}<div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fm-to" list="fm-to-list" value="${esc(to)}" placeholder="buchhaltung@kunde.at">${mailList('fm-to-list', x)}</label><label class="field wide"><span>Betreff</span><input type="text" id="fm-subject" value="${esc(m.subject ?? `${kindLabel(x)} ${x.number || ''}${x.title ? ` – ${x.title}` : ''}`)}"></label>
         <div class="field wide">${textFieldHead('Text', 'fm-text', textMenu({ target: 'fm-text', kind: x.kind, place: 'mail', fill: true }))}<textarea id="fm-text" rows="9">${esc(m.text)}</textarea></div>
-        ${einv ? `<label class="check wide"><input type="checkbox" id="fm-xml" ${m.xml ? 'checked' : ''}><span>E-Rechnung anhängen: factur-x.xml (ZUGFeRD/Factur-X, EN 16931) – für Buchhaltungsprogramme, die E-Rechnungen einlesen</span></label>` : ''}</div>
+        ${einv ? `<label class="check wide"><input type="checkbox" id="fm-xml" ${m.xml ? 'checked' : ''}><span>E-Rechnung anhängen: factur-x.xml (ZUGFeRD/Factur-X, EN 16931) – für Buchhaltungsprogramme, die E-Rechnungen einlesen</span></label>` : ''}${beilageOption(x)}</div>
       <p class="note">${canMail() ? 'Geht aus deinem Postfach, das PDF hängt an und liegt danach auch in SharePoint (fakturierung/belege/).' : 'Öffnet dein E-Mail-Programm; das PDF (und die E-Rechnung) werden heruntergeladen und müssen angehängt werden.'}</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-mail-send" data-id="${esc(x.id)}" ${x.number ? '' : 'disabled'}>${ICON.send} ${canMail() ? 'Senden' : 'Im E-Mail-Programm öffnen'}</button></div>`,
   })
@@ -1258,7 +1260,10 @@ function proofsOf(month) {
 const lastDayOf = (ym) => new Date(Date.UTC(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0)).toISOString().slice(0, 10)
 
 function proofModal(c, m) {
-  const month = m.month || addDays(firstOfMonth(todayISO()), -1).slice(0, 7)
+  m.month ||= addDays(firstOfMonth(todayISO()), -1).slice(0, 7)
+  // Grundlage Ist-Zeiten (Zeiterfassung): eigener Dialog in invoicing-abrechnung.js
+  if (m.basis === 'ist') return istProofModal(c, m)
+  const month = m.month
   const list = proofsOf(month)
   const d = F()
   const rows = list
@@ -1277,6 +1282,7 @@ function proofModal(c, m) {
     subtitle: monthLabel(month),
     wide: true,
     body: `<div class="filters"><label class="field inline"><span>Monat</span><input type="month" id="fpo-month" value="${month}" data-change="fak-proof-month"></label><label class="field inline"><span>Stundensatz netto (€)</span><input type="text" inputmode="decimal" id="fpo-rate" value="${esc(numText(m.rate ?? d.settings.hourRate ?? ''))}" placeholder="z. B. 32,50" style="width:7rem"></label></div>
+      ${basisSwitch(m)}
       ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Objekt</th><th>Kunde</th><th class="num">Einsätze</th><th class="num">davon Sonderleistung</th><th class="num">Stunden</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Keine Einsätze in diesem Monat.</p>'}
       <p class="note">Je Objekt ein Rechnungsentwurf: regelmäßige Einsätze als Stunden (Stundensatz des Kunden oder der hier eingetragene), Sonderleistungen einzeln mit Datum. Objekte mit Dauerauftrag bekommen nur ihre Sonderleistungen. Ohne Kunde beim Objekt bleibt der Empfänger leer.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-proof-create" data-month="${month}">Entwürfe erstellen</button></div>`,
@@ -1535,7 +1541,9 @@ async function archive(x, blob, name = docFileName(x)) {
 }
 
 // Sammelversand, Mahnlauf, Lastschrift (invoicing-laeufe.js, invoicing-sepa.js): dieselben PDFs, Ablage und Platzhalter
-Object.assign(laeufeHooks, { docPdf, docDefinition, archive, ctxFor: (x, extra) => ctxFor(x, extra), eInvoiceXml: (x, format, m) => eInvoiceXml(x, format, m), checkNumbers: () => checkNumbers(), reminderLetterText: (x, r) => reminderLetterText(x, r) })
+Object.assign(laeufeHooks, { docPdf, docDefinition, archive, ctxFor: (x, extra) => ctxFor(x, extra), eInvoiceXml: (x, format, m) => eInvoiceXml(x, format, m), checkNumbers: () => checkNumbers(), reminderLetterText: (x, r) => reminderLetterText(x, r), beilageFiles, beilageArchiveName })
+// Winterdienst abrechnen und Ist-Zeiten (invoicing-abrechnung.js): Entwürfe wie hier
+Object.assign(abrechnungHooks, { newDraft: (kind, extra) => newDraft(kind, extra), applyCustomer: (x, id) => applyCustomer(x, id) })
 
 function upsertDoc(x) {
   const d = F()
@@ -2121,23 +2129,27 @@ registerActions(
       const subject = fillPlaceholders(val('fm-subject').trim(), ctx) || `${kindLabel(x)} ${x.number}`
       const text = fillPlaceholders(val('fm-text'), ctx)
       const withXml = checked('fm-xml')
+      const withBeilage = beilageWanted(x)
       el.disabled = true
       try {
         await app.service.flush().catch(() => {})
         const blob = await docPdf(x)
         const name = docFileName(x)
-        // E-Rechnung (factur-x.xml) als zweiter Anhang
+        // E-Rechnung (factur-x.xml) als weiterer Anhang, Beilage (Winterdienst-Nachweis, Einsatzliste) nach dem PDF
         const xml = withXml ? new Blob([eInvoiceXml(x, 'cii')], { type: 'application/xml' }) : null
+        const extra = withBeilage ? await beilageFiles(x) : []
         if (canMail()) {
-          await sendMail(app.auth.getToken, { to, subject, text, attachments: [{ name, blob, type: 'application/pdf' }, ...(xml ? [{ name: 'factur-x.xml', blob: xml, type: 'application/xml' }] : [])] }, { from: app.config.mail?.from || '' })
+          await sendMail(app.auth.getToken, { to, subject, text, attachments: [{ name, blob, type: 'application/pdf' }, ...extra, ...(xml ? [{ name: 'factur-x.xml', blob: xml, type: 'application/xml' }] : [])] }, { from: app.config.mail?.from || '' })
           const path = await archive(x, blob, name)
           if (path) x.pdfPath = path
+          for (const f of extra) await archive(x, f.blob, beilageArchiveName(x, f.name))
         } else {
           download(name, blob)
+          for (const f of extra) download(f.name, f.blob)
           if (xml) download(eInvoiceFileName(x, 'cii'), xml)
-          location.href = `mailto:${encodeURIComponent(to).replace(/%40/g, '@')}?${new URLSearchParams({ subject, body: `${text}\n\n(PDF bitte anhängen: ${name}${xml ? ` und ${eInvoiceFileName(x, 'cii')}` : ''})` }).toString().replace(/\+/g, '%20')}`
+          location.href = `mailto:${encodeURIComponent(to).replace(/%40/g, '@')}?${new URLSearchParams({ subject, body: `${text}\n\n(PDF bitte anhängen: ${[name, ...extra.map((f) => f.name)].join(', ')}${xml ? ` und ${eInvoiceFileName(x, 'cii')}` : ''})` }).toString().replace(/\+/g, '%20')}`
         }
-        x.sent = [...(x.sent || []), { at: nowIso(), to, via: canMail() ? 'graph' : 'mailto', by: by(), ...(xml ? { eInvoice: 'factur-x' } : {}) }]
+        x.sent = [...(x.sent || []), { at: nowIso(), to, via: canMail() ? 'graph' : 'mailto', by: by(), ...(xml ? { eInvoice: 'factur-x' } : {}), ...(extra.length ? { attachments: extra.map((f) => f.name) } : {}) }]
         if (!x.recipient?.email && x.customerId && !custOf(x.customerId)?.email) custOf(x.customerId).email = to
         closeModal()
         commit(canMail() ? `${kindLabel(x)} ${x.number} an ${to} gesendet.` : `E-Mail an ${to} vorbereitet; das PDF liegt im Download-Ordner.`)
@@ -2300,6 +2312,7 @@ registerActions(
       renderModal()
     },
     'fak-proof-create': (el) => {
+      if (app.ui.modal?.basis === 'ist') return createIstDrafts(el)
       const month = el.dataset.month
       const chosen = new Set([...document.querySelectorAll('input[name="fpo"]:checked')].map((x) => x.value))
       const rate = num('fpo-rate')

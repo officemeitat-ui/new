@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 261 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 263 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (26)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (65)
+- [Finanzen](#finanzen) (67)
 - [Verwaltung](#verwaltung) (37)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1674,11 +1674,41 @@ Für die Wertsicherung trägst du die Indexzahlen monatlich ein (Statistik Austr
 
 *In der App: Fakturierung*
 
-„Aus Leistungsnachweis“ erstellt je Objekt einen Entwurf für den Monat: regelmäßige Einsätze als Stunden × Stundensatz, Sonderleistungen einzeln mit Datum. Objekte mit Dauerauftrag bekommen nur ihre Sonderleistungen.
+„Aus Leistungsnachweis“ erstellt je Objekt einen Entwurf für den Monat: regelmäßige Einsätze als Stunden × Stundensatz, Sonderleistungen einzeln mit Datum. Objekte mit Dauerauftrag bekommen nur ihre Sonderleistungen. Grundlage ist der Plan; wahlweise die Ist-Zeiten aus der Zeiterfassung.
 
 1. „Anlegen ▾“ → „Aus Leistungsnachweis“ wählen.
-2. Monat und Stundensatz prüfen.
+2. Monat und Stundensatz prüfen, bei „Grundlage“ Plan oder Ist-Zeiten wählen.
 3. „Entwürfe erstellen“ klicken und die Entwürfe prüfen.
+
+### Nach Ist-Zeiten abrechnen
+
+*In der App: Fakturierung*
+
+Im Dialog „Aus Leistungsnachweis“ wählst du die Grundlage: Plan (Standard) oder Ist-Zeiten aus der Zeiterfassung. Ist zählt die gestempelten Zeiten je Objekt, je Stempelung gerundet (ohne, 5 oder 15 Minuten, ab der Hälfte aufwärts). Stempelungen ohne „Gehen“ stehen als Problem da und zählen nicht; die Planzeit dafür nur, wenn du sie ausdrücklich wählst.
+
+1. „Anlegen ▾“ → „Aus Leistungsnachweis“ wählen.
+2. Bei „Grundlage“ „Ist-Zeiten (Zeiterfassung)“ wählen.
+3. Rundung prüfen und die Liste „Nicht gezählt“ ansehen.
+4. Objekte anhaken und „Entwürfe erstellen“ klicken.
+
+> Tipp: Beim Versand hängt die Einsatzliste an (Datum, von–bis, Dauer, Leistung). Namen stehen nur darin, wenn der Leistungsnachweis Namen zeigt.
+> Tipp: Winterdienst zählt hier nicht, dafür gibt es „Winterdienst abrechnen“.
+
+### Winterdienst abrechnen
+
+*In der App: Fakturierung*
+
+„Winterdienst abrechnen“ erstellt je Objekt einen Rechnungsentwurf für den Monat aus dem Winterdienst-Protokoll. Jeder Eintrag zählt als Einsatz: Räumen, Streuen oder Räumen und Streuen, je mit eigenem Preis. Oder eine Pauschale je Monat bzw. Saison, die Einsätze stehen dann als Text dabei. Schon abgerechnete Monate meldet die App.
+
+1. „Anlegen ▾“ → „Winterdienst abrechnen“ wählen (auch im Reiter „Rechnungen“).
+2. Monat prüfen, bei „Einsätze prüfen und Preis“ die Einsätze ansehen und den Preis je Objekt eintragen.
+3. Objekte anhaken und „Entwürfe erstellen“ klicken.
+4. Entwurf prüfen, bei Bedarf ändern und festschreiben.
+5. Mit „E-Mail“ senden: der Winterdienst-Nachweis hängt an.
+
+> Tipp: Die Preise merkt sich die App beim Kunden je Objekt. Ohne eigene Preise gelten Artikel wie „Winterdienst Räumen und Streuen“ oder „Winterdienst Pauschale“.
+> Tipp: Reine Kontrollgänge („nichts nötig“) stehen nur mit eigenem Preis auf der Rechnung.
+> Tipp: Den Nachweis gibt es auch als Knopf „Winterdienst-Nachweis“ neben dem PDF. Namen stehen nur darin, wenn der Leistungsnachweis Namen zeigt.
 
 ### Rechnung per E-Mail senden
 

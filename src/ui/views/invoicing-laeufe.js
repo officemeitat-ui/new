@@ -20,7 +20,7 @@ import { textFieldHead, textMenu } from './invoicing-texte.js'
 
 const MODULE = 'fakturierung'
 /** Aus invoicing.js (dort gesetzt): PDF, Ablage in SharePoint, Platzhalter, E-Rechnung, Nummern prüfen. */
-export const laeufeHooks = { docPdf: null, docDefinition: null, archive: null, ctxFor: null, eInvoiceXml: null, checkNumbers: () => {}, reminderLetterText: () => '' }
+export const laeufeHooks = { docPdf: null, docDefinition: null, archive: null, ctxFor: null, eInvoiceXml: null, checkNumbers: () => {}, reminderLetterText: () => '', beilageFiles: async () => [], beilageArchiveName: (x, name) => name }
 
 const F = () => app.data.fakturierung
 const S = () => settingsOf(F())
@@ -558,13 +558,16 @@ registerActions(
           const name = docFileName(x)
           const xmlOk = m.xml && isInvoice(x) && !eInvoiceProblems(x, S()).some((p) => p.level === 'error')
           const xml = xmlOk ? new Blob([laeufeHooks.eInvoiceXml(x, 'cii')], { type: 'application/xml' }) : null
-          await sendMail(app.auth.getToken, { to, subject: invoiceSubject(x), text: invoiceText(x, m.block || ''), attachments: [{ name, blob, type: 'application/pdf' }, ...(xml ? [{ name: 'factur-x.xml', blob: xml, type: 'application/xml' }] : [])] }, { from: app.config.mail?.from || '' })
-          x.sent = [...(x.sent || []), { at: nowIso(), to, via: 'graph', by: by(), batch: true, ...(xml ? { eInvoice: 'factur-x' } : {}) }]
+          // Beilage (Winterdienst-Nachweis, Einsatzliste) wie beim Einzelversand
+          const extra = await laeufeHooks.beilageFiles(x)
+          await sendMail(app.auth.getToken, { to, subject: invoiceSubject(x), text: invoiceText(x, m.block || ''), attachments: [{ name, blob, type: 'application/pdf' }, ...extra, ...(xml ? [{ name: 'factur-x.xml', blob: xml, type: 'application/xml' }] : [])] }, { from: app.config.mail?.from || '' })
+          x.sent = [...(x.sent || []), { at: nowIso(), to, via: 'graph', by: by(), batch: true, ...(xml ? { eInvoice: 'factur-x' } : {}), ...(extra.length ? { attachments: extra.map((f) => f.name) } : {}) }]
           const path = await laeufeHooks.archive(x, blob, name)
           if (path) x.pdfPath = path
+          for (const f of extra) await laeufeHooks.archive(x, f.blob, laeufeHooks.beilageArchiveName(x, f.name))
           persist()
           ok++
-          m.results[x.id] = { ok: true, text: `gesendet${xml ? ' mit factur-x.xml' : ''}` }
+          m.results[x.id] = { ok: true, text: `gesendet${extra.length ? ` mit ${extra.map((f) => f.name).join(', ')}` : ''}${xml ? ' mit factur-x.xml' : ''}` }
         } catch (err) {
           m.results[x.id] = { ok: false, text: `nicht gesendet: ${err.message}` }
         }
