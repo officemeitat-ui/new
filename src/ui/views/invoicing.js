@@ -126,6 +126,8 @@ import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoic
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { checkFacts } from '../../core/ki-vorschlag.js'
+import { kixBox, kixButton, kixConsent, kixFailed, kixSet } from '../kix.js'
 
 const MODULE = 'fakturierung'
 const ICON_INVOICE = '<path d="M6 2.5h12v19l-3-2-3 2-3-2-3 2z"/><path d="M9 7.5h6M9 11h6M9 14.5h3.5"/>'
@@ -1164,6 +1166,31 @@ function reminderLetterText(x, r) {
   return own ? fillPlaceholders(own, ctxFor(x, { reminder: r, open: r.open })) : ''
 }
 
+/** Mahnung: Angaben aus den Daten, die im Text unverändert bleiben müssen (Nummer, Beträge, Daten, Frist). */
+function reminderFacts(x, r) {
+  const n = (v) => Number(v || 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return [x.number, n(r.open), n(r.total), r.interest.amount ? n(r.interest.amount) : '', r.fee ? n(r.fee) : '', deDate(r.deadline), deDate(x.date), deDate(x.dueDate)].filter(Boolean)
+}
+
+/** „Text mit KI verbessern“: Knopf, Hinweis/Fortschritt und der Vorschlag (nur übernehmbar, wenn alle Angaben stimmen). */
+function reminderKiHtml(m) {
+  const p = m.kixMahn
+  const button = kixButton('<p class="kix-diktat-bar"><button type="button" class="btn small kix-btn" data-action="kix-mahn">Text mit KI verbessern</button><span class="muted small">nur die Formulierung; Beträge, Nummern und Daten bleiben</span></p>')
+  if (!p) return `${button}${kixBox('mahn')}`
+  if (!p.check.ok)
+    return `${button}${kixBox('mahn')}<div class="kix-draft"><p class="err-text" role="alert">Vorschlag verworfen: Die KI hat Angaben verändert${p.check.missing.length ? ` (fehlt: ${esc(p.check.missing.join(', '))})` : ''}${p.check.added.length ? ` (neu: ${esc(p.check.added.join(', '))})` : ''}. Der Text bleibt wie er war.</p></div>`
+  return `${button}${kixBox('mahn')}<div class="kix-draft"><label class="field wide"><span><span class="kix-tag">KI</span> Vorschlag – geprüft: alle Beträge, Nummern und Daten unverändert</span><textarea id="kix-mahn-text" rows="8">${esc(p.text)}</textarea></label>
+    <div class="actions"><button type="button" class="btn small" data-action="kix-mahn-drop">Verwerfen</button><button type="button" class="btn small primary" data-action="kix-mahn-take">Übernehmen</button></div></div>`
+}
+
+/** Eingaben im Mahn-Dialog merken (vor dem Neuzeichnen). */
+function readRemind(m) {
+  if (!document.getElementById('fr-text')) return
+  m.to = val('fr-to')
+  m.text = val('fr-text')
+  m.letter = val('fr-letter')
+}
+
 function remindModal(c, m) {
   const x = docOf(m.id)
   if (!x) return ''
@@ -1177,8 +1204,8 @@ function remindModal(c, m) {
     subtitle: `${esc(x.recipient?.name || '')} · fällig seit ${formatDate(x.dueDate, { year: true })}`,
     wide: true,
     body: `<table class="fak-sums"><tr><td>offen</td><td class="num">${money(r.open)}</td></tr>${r.interest.amount ? `<tr><td>Verzugszinsen ${String(r.interest.rate).replace('.', ',')} % für ${r.interest.days} Tage</td><td class="num">${money(r.interest.amount)}</td></tr>` : ''}${r.fee ? `<tr><td>Pauschale § 458 UGB</td><td class="num">${money(r.fee)}</td></tr>` : ''}<tr class="sum"><td>zu bezahlen bis ${deDate(r.deadline)}</td><td class="num">${money(r.total)}</td></tr></table>
-      <div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fr-to" list="fr-to-list" value="${esc(x.recipient?.email || custOf(x.customerId)?.email || '')}">${mailList('fr-to-list', x)}</label>
-        <div class="field wide">${textFieldHead('Text der E-Mail', 'fr-text', textMenu({ target: 'fr-text', kind: 'mahnung', place: 'mail', fill: true }))}<textarea id="fr-text" rows="8">${esc(m.text)}</textarea></div>
+      <div class="form-grid"><label class="field wide"><span>An</span><input type="email" id="fr-to" list="fr-to-list" value="${esc(m.to ?? (x.recipient?.email || custOf(x.customerId)?.email || ''))}">${mailList('fr-to-list', x)}</label>
+        <div class="field wide">${textFieldHead('Text der E-Mail', 'fr-text', textMenu({ target: 'fr-text', kind: 'mahnung', place: 'mail', fill: true }))}<textarea id="fr-text" rows="8">${esc(m.text)}</textarea>${editable() ? reminderKiHtml(m) : ''}</div>
         <div class="field wide">${textFieldHead('Text im Schreiben (PDF; leer: Standardtext)', 'fr-letter', textMenu({ target: 'fr-letter', kind: 'mahnung', place: 'reminder', fill: true }))}<textarea id="fr-letter" rows="3" placeholder="leer: Standardtext der Mahnstufe">${esc(m.letter)}</textarea></div></div>
       <p class="note">Die Mahnung wird als Stufe ${r.level + 1} vermerkt, sobald sie gesendet oder als PDF erstellt ist. Platzhalter wie {Offen} werden beim Erstellen ersetzt.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="fak-remind" data-id="${esc(x.id)}" data-via="pdf">${ICON.download} Nur PDF</button>${canMail() ? `<button class="btn primary" data-action="fak-remind" data-id="${esc(x.id)}" data-via="mail">${ICON.send} Senden</button>` : ''}</div>`,
@@ -2097,6 +2124,50 @@ registerActions(
       renderModal()
     },
     'fak-remind-open': (el) => openModal({ type: 'fak-remind', id: el.dataset.id }),
+    // Text mit KI verbessern: nur die Formulierung; der Vorschlag gilt nur, wenn alle Angaben unverändert drinstehen
+    'kix-mahn': async (el) => {
+      const m = app.ui.modal
+      const x = m?.type === 'fak-remind' ? docOf(m.id) : null
+      if (!x || m.kix?.mahn?.busy) return
+      readRemind(m)
+      const original = String(m.text || '').trim()
+      if (!original) return toast('Der Text ist leer.')
+      if (!el?.dataset?.consent && !kixConsent('mahn', 'Der Text der E-Mail (mit Anrede, Rechnungsnummer und Beträgen)', { action: 'kix-mahn' })) return
+      const r = reminderFor(x, F().documents, { today: todayISO(), settings: S() })
+      kixSet('mahn', { busy: 'Die KI formuliert den Text …' })
+      try {
+        const { improveReminderText } = await import('../../ai/extract.js')
+        const res = await improveReminderText(original, { stage: r.name, facts: reminderFacts(x, r) })
+        if (app.ui.modal !== m) return
+        readRemind(m)
+        m.kixMahn = res
+        m.kixOriginal = original
+        m.kix = { ...m.kix, mahn: {} }
+        renderModal()
+      } catch (err) {
+        if (app.ui.modal === m) kixSet('mahn', { error: kixFailed(err) })
+      }
+    },
+    'kix-mahn-take': () => {
+      const m = app.ui.modal
+      const x = m?.type === 'fak-remind' ? docOf(m.id) : null
+      if (!x || !m.kixMahn) return
+      const t = val('kix-mahn-text').trim()
+      const r = reminderFor(x, F().documents, { today: todayISO(), settings: S() })
+      const check = checkFacts(m.kixOriginal, t, reminderFacts(x, r))
+      if (!check.ok) return toast(`Nicht übernommen: Im Vorschlag fehlen oder ändern sich Angaben (${[...check.missing, ...check.added].join(', ')}).`)
+      readRemind(m)
+      m.text = t
+      m.kixMahn = null
+      renderModal()
+      toast('Text übernommen. Bitte lesen, dann senden.')
+    },
+    'kix-mahn-drop': () => {
+      const m = app.ui.modal
+      readRemind(m)
+      m.kixMahn = null
+      renderModal()
+    },
     'fak-remind': async (el) => {
       const x = docOf(el.dataset.id)
       if (!x) return

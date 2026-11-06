@@ -2,11 +2,13 @@
 // Prüfung für den Vorsteuerabzug, Doppel-Erkennung, Freigabe, Zahlungen mit Skonto, offene Verbindlichkeiten nach
 // Fälligkeit, Überweisungsdatei (pain.001), Abbuchungen aus dem Kontoauszug zuordnen, Lieferanten (verknüpft mit
 // Material & Lager), Export für die Steuerberatung. Datei einkauf/einkauf.json, Belege unter einkauf/belege/JAHR/.
-// Rechenkern: core/purchase.js; Kassenbuch: cashbook.js.
+// Rechenkern: core/purchase.js; Kassenbuch: cashbook.js. „Aus Beleg lesen (KI)“: zuerst die E-Rechnung im PDF,
+// sonst ein Vorschlag der KI (ui/kix.js, ai/extract.js, Prüfung in core/ki-vorschlag.js), gespeichert von der Person.
 
 import { addDays, firstOfMonth, formatDate, todayISO } from '../../core/dates.js'
 import { eInvoiceFromPdf, parseEInvoice } from '../../core/fak-import.js'
 import { COUNTRY_NAMES, formatIban, ibanValid, parseNumber, round2, settingsOf as invoicingSettings } from '../../core/invoicing.js'
+import { matchSupplierKi } from '../../core/ki-vorschlag.js'
 import {
   applyDebit,
   belegPath,
@@ -52,9 +54,10 @@ import {
 import { balanceAt } from '../../core/cashbook.js'
 import { openRecharges } from '../../core/recharge.js'
 import { sepaFileName, sepaTransfer } from '../../core/sepa-transfer.js'
-import { app, canEdit, closeModal, confirmStep, dataStamp, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { ACTIONS, app, canEdit, closeModal, confirmStep, dataStamp, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { checked, download, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
+import { kixBox, kixButton, kixConsent, kixFailed, kixFile, kixOurs, kixSet } from '../kix.js'
 import { belegChip, by, cashForPayment, E, editable, inflate, K, money, MODULE, newId, nowIso, openBeleg, plural, PS, sees, storeBeleg } from './einkauf-shared.js'
 import { einkaufData, fakDocs, rechargeBlock, rechargeLock, rechargePill, syncRechargeBilled } from './weiterverrechnung.js'
 
@@ -417,43 +420,49 @@ function invForm(dr, m) {
   const pending = PENDING.get(dr.id)
   const group = (rate) => dr.groups?.find((g) => Number(g.rate) === rate) || {}
   const newSup = m.newSupplier && !dr.supplierId
+  // von der KI gelesene Felder: markiert, bis gespeichert ist
+  const ki = (key) => (m.kixFields?.includes(key) ? ' kix-mark' : '')
+  const kiTag = (key) => (m.kixFields?.includes(key) ? ' <span class="kix-tag">KI</span>' : '')
+  const readKi = pending ? `<button type="button" class="btn kix-btn" data-action="kix-beleg">Aus Beleg lesen (KI)</button>` : `<label class="btn kix-btn">Aus Beleg lesen (KI)<input type="file" id="kix-beleg-file" accept="application/pdf,image/*" data-change="kix-beleg-file" hidden></label>`
   return `<div class="ek-beleg-bar">
       <label class="btn">${ICON.camera} Foto<input type="file" id="ei-photo" accept="image/*" capture="environment" data-change="ek-inv-file" hidden></label>
       <label class="btn">${ICON.upload} PDF oder Bild<input type="file" id="ei-file" accept="application/pdf,image/*" data-change="ek-inv-file" hidden></label>
       <label class="btn">E-Rechnung einlesen<input type="file" id="ei-einv" accept=".xml,.pdf,application/xml,text/xml,application/pdf" data-change="ek-inv-einv" hidden></label>
+      ${kixButton(readKi)}
       <span class="muted small">${pending ? `Beleg bereit: ${esc(pending.name)} (wird beim Speichern abgelegt)` : dr.beleg ? `Beleg: ${esc(dr.beleg.name)}` : 'Beleg: Foto vom Handy, PDF, ZUGFeRD oder XRechnung'}</span></div>
+    ${kixBox('beleg')}
     ${m.notes?.length ? `<ul class="ek-problems">${m.notes.map((x) => `<li class="muted">${esc(x)}</li>`).join('')}</ul>` : ''}
     <div class="form-grid">
-      <label class="field wide"><span>Lieferant</span><select id="ei-supplier" data-change="ek-inv-supplier">${supplierOptions(dr.supplierId)}</select></label>
-      ${newSup ? `<p class="wide info-text">Neuer Lieferant aus der E-Rechnung: <strong>${esc(m.newSupplier.name)}</strong>${m.newSupplier.uid ? `, UID ${esc(m.newSupplier.uid)}` : ''} – wird beim Speichern angelegt.</p>` : ''}
-      <label class="field"><span>Rechnungsnummer des Lieferanten</span><input type="text" id="ei-number" value="${esc(dr.number)}" data-change="ek-inv-redraw"></label>
-      <label class="field"><span>Rechnungsdatum</span><input type="date" id="ei-date" value="${esc(dr.date)}" data-change="ek-inv-redraw"></label>
-      <label class="field"><span>Leistung von (Liefertag)</span><input type="date" id="ei-sfrom" value="${esc(dr.serviceFrom || '')}" data-change="ek-inv-redraw"></label>
-      <label class="field"><span>Leistung bis</span><input type="date" id="ei-sto" value="${esc(dr.serviceTo || '')}"></label>
+      <label class="field wide${ki('supplier')}"><span>Lieferant${kiTag('supplier')}</span><select id="ei-supplier" data-change="ek-inv-supplier">${supplierOptions(dr.supplierId)}</select></label>
+      ${newSup ? `<p class="wide info-text">Neuer Lieferant ${m.newSupplierFrom === 'ki' ? 'laut Beleg (von der KI gelesen)' : 'aus der E-Rechnung'}: <strong>${esc(m.newSupplier.name)}</strong>${m.newSupplier.uid ? `, UID ${esc(m.newSupplier.uid)}` : ''}${m.newSupplier.iban ? `, IBAN ${esc(formatIban(m.newSupplier.iban))}` : ''} – wird beim Speichern angelegt.</p>` : ''}
+      <label class="field${ki('number')}"><span>Rechnungsnummer des Lieferanten${kiTag('number')}</span><input type="text" id="ei-number" value="${esc(dr.number)}" data-change="ek-inv-redraw"></label>
+      <label class="field${ki('date')}"><span>Rechnungsdatum${kiTag('date')}</span><input type="date" id="ei-date" value="${esc(dr.date)}" data-change="ek-inv-redraw"></label>
+      <label class="field${ki('serviceFrom')}"><span>Leistung von (Liefertag)${kiTag('serviceFrom')}</span><input type="date" id="ei-sfrom" value="${esc(dr.serviceFrom || '')}" data-change="ek-inv-redraw"></label>
+      <label class="field${ki('serviceTo')}"><span>Leistung bis${kiTag('serviceTo')}</span><input type="date" id="ei-sto" value="${esc(dr.serviceTo || '')}"></label>
       <label class="field"><span>Eingangsdatum</span><input type="date" id="ei-received" value="${esc(dr.receivedAt || '')}"></label>
-      <label class="field wide"><span>Leistung (Menge und Bezeichnung)</span><input type="text" id="ei-text" value="${esc(dr.text || '')}" placeholder="z. B. 20 Kanister Allzweckreiniger 10 l" data-change="ek-inv-redraw"></label>
+      <label class="field wide${ki('text')}"><span>Leistung (Menge und Bezeichnung)${kiTag('text')}</span><input type="text" id="ei-text" value="${esc(dr.text || '')}" placeholder="z. B. 20 Kanister Allzweckreiniger 10 l" data-change="ek-inv-redraw"></label>
     </div>
-    <h4>Beträge</h4>
-    <div class="ek-amounts"><div class="ek-amount-head"><span>USt-Satz</span><span>Netto</span><span>Vorsteuer</span></div>${RATES.map((rate) => {
+    <h4>Beträge${kiTag('groups')}</h4>
+    <div class="ek-amounts${ki('groups')}"><div class="ek-amount-head"><span>USt-Satz</span><span>Netto</span><span>Vorsteuer</span></div>${RATES.map((rate) => {
       const g = group(rate)
       return `<div class="ek-amount-row"><span>${rate} %</span><input type="text" inputmode="decimal" id="ei-net-${rate}" value="${esc(numText(g.net))}" data-change="ek-inv-net" data-rate="${rate}" aria-label="Netto ${rate} %"><input type="text" inputmode="decimal" id="ei-vat-${rate}" value="${esc(numText(g.vat))}" data-change="ek-inv-redraw" aria-label="Vorsteuer ${rate} %" ${dr.reverseCharge || !rate ? 'disabled' : ''}></div>`
     }).join('')}
       <div class="ek-amount-row ek-gross"><span>Brutto</span><input type="text" inputmode="decimal" id="ei-gross" placeholder="aus Brutto rechnen" data-change="ek-inv-gross" aria-label="Brutto eingeben"><select id="ei-gross-rate" aria-label="Steuersatz für Brutto">${options(RATES.map((r) => [String(r), `${r} %`]), String(PS().categories.find((c) => c.id === dr.category)?.vat ?? 20))}</select></div>
       <p class="ek-sum" id="ei-sum" aria-live="polite">${sumHtml(dr)}</p></div>
-    <label class="check"><input type="checkbox" id="ei-rc" ${dr.reverseCharge ? 'checked' : ''} data-change="ek-inv-redraw"><span>Reverse Charge (Steuerschuld geht auf uns über, § 19 Abs. 1a UStG – z. B. Subunternehmer Reinigung)</span></label>
+    <label class="check${ki('reverseCharge')}"><input type="checkbox" id="ei-rc" ${dr.reverseCharge ? 'checked' : ''} data-change="ek-inv-redraw"><span>Reverse Charge (Steuerschuld geht auf uns über, § 19 Abs. 1a UStG – z. B. Subunternehmer Reinigung)</span></label>
     <div class="form-grid">
       <label class="field"><span>Kategorie</span><select id="ei-cat" data-change="ek-inv-cat">${options(s.categories.map((c) => [c.id, c.name]), dr.category, { empty: '–' })}</select></label>
       <label class="field"><span>Aufwandskonto</span><input type="text" id="ei-account" value="${esc(dr.account || '')}"></label>
       <label class="field"><span>Objekt (Kostenstelle)</span><select id="ei-object">${options((app.data.objects || []).map((o) => [o.id, o.name]), dr.objectId, { empty: '–' })}</select></label>
       <label class="field"><span>Kostenstelle (frei)</span><input type="text" id="ei-cost" value="${esc(dr.costCenter || '')}"></label>
       ${orderOptions(dr)}
-      <label class="field"><span>Fällig am</span><input type="date" id="ei-due" value="${esc(dr.dueDate || '')}" data-change="ek-inv-due"></label>
-      <label class="field"><span>Skonto %</span><input type="text" inputmode="decimal" id="ei-sk-pct" value="${esc(dr.skonto?.percent ? String(dr.skonto.percent).replace('.', ',') : '')}" placeholder="z. B. 2" data-change="ek-inv-redraw"></label>
+      <label class="field${ki('dueDate')}"><span>Fällig am${kiTag('dueDate')}</span><input type="date" id="ei-due" value="${esc(dr.dueDate || '')}" data-change="ek-inv-due"></label>
+      <label class="field${ki('skonto')}"><span>Skonto %${kiTag('skonto')}</span><input type="text" inputmode="decimal" id="ei-sk-pct" value="${esc(dr.skonto?.percent ? String(dr.skonto.percent).replace('.', ',') : '')}" placeholder="z. B. 2" data-change="ek-inv-redraw"></label>
       <label class="field"><span>Skonto bis (Tage ab Rechnungsdatum)</span><input type="number" min="0" id="ei-sk-days" value="${esc(dr.skonto?.days ?? '')}" data-change="ek-inv-redraw"></label>
     </div>
     <p class="muted" id="ei-skonto">${skontoHtml(dr)}</p>
     <h4>Prüfung (Vorsteuerabzug)</h4>
-    <div class="ek-checks"><label class="check"><input type="checkbox" id="ei-chk-rec" ${dr.checks?.recipient ? 'checked' : ''} data-change="ek-inv-redraw"><span>Unser Firmenname und unsere Anschrift stehen auf der Rechnung</span></label>
+    <div class="ek-checks${ki('checks')}"><label class="check"><input type="checkbox" id="ei-chk-rec" ${dr.checks?.recipient ? 'checked' : ''} data-change="ek-inv-redraw"><span>Unser Firmenname und unsere Anschrift stehen auf der Rechnung</span></label>
       <label class="check"><input type="checkbox" id="ei-chk-uid" ${dr.checks?.ourUid ? 'checked' : ''} data-change="ek-inv-redraw"><span>Unsere UID steht auf der Rechnung (Pflicht über 10.000 € brutto und bei Reverse Charge)</span></label>
       ${dr.reverseCharge ? `<label class="check"><input type="checkbox" id="ei-chk-rc" ${dr.checks?.rcNote ? 'checked' : ''} data-change="ek-inv-redraw"><span>Hinweis auf den Übergang der Steuerschuld steht drauf</span></label>` : ''}</div>
     <div id="ei-probs" aria-live="polite">${problemList(probs)}</div>
@@ -679,6 +688,73 @@ async function readEInvoice(file) {
   return parseEInvoice(new TextDecoder('utf-8').decode(bytes))
 }
 
+/** Gelesene E-Rechnung in den Entwurf (Kategorie, Konto, Objekt, Eingang bleiben, wenn schon gewählt). */
+function applyEInvoice(m, e, file) {
+  const r = draftFromEInvoice(e, { suppliers: E().suppliers })
+  const keep = { id: m.draft.id, category: m.draft.category, account: m.draft.account, objectId: m.draft.objectId, costCenter: m.draft.costCenter, receivedAt: m.draft.receivedAt }
+  m.draft = { ...m.draft, ...r.draft, ...Object.fromEntries(Object.entries(keep).filter(([, v]) => v)), dueAuto: !r.draft.dueDate, kiRead: false }
+  if (r.supplier) applySupplier(m.draft, r.supplier)
+  if (r.draft.dueDate) m.draft.dueDate = r.draft.dueDate
+  m.newSupplier = r.newSupplier
+  m.newSupplierFrom = 'einvoice'
+  m.kixFields = []
+  m.notes = [`E-Rechnung (${e.format === 'UBL' ? 'XRechnung/UBL' : 'ZUGFeRD/CII'}) gelesen: Felder vorbelegt, bitte prüfen.`, ...r.notes]
+  PENDING.set(m.draft.id, file)
+}
+
+/**
+ * Vorschlag der KI (core/ki-vorschlag.js → checkBeleg) in den Entwurf: nur gelesene Felder, Lieferant über UID, IBAN
+ * oder Namen zugeordnet bzw. neu vorgeschlagen; markiert „von der KI gelesen – bitte prüfen“. Gespeichert wird erst
+ * mit „Speichern“.
+ */
+function applyKiBeleg(m, res) {
+  const f = res.fields
+  const dr = m.draft
+  const filled = []
+  const set = (key, value) => {
+    if (value === '' || value === undefined || value === null) return
+    dr[key] = value
+    filled.push(key)
+  }
+  set('number', f.number)
+  set('date', f.date)
+  set('serviceFrom', f.serviceFrom)
+  set('serviceTo', f.serviceTo)
+  set('text', f.text)
+  if (f.groups.length) set('groups', f.groups)
+  if (f.reverseCharge || dr.reverseCharge) set('reverseCharge', f.reverseCharge)
+  if (f.skonto) set('skonto', f.skonto)
+  dr.checks = { ...dr.checks, recipient: dr.checks?.recipient || f.checks.recipient, ourUid: dr.checks?.ourUid || f.checks.ourUid, rcNote: dr.checks?.rcNote || f.checks.rcNote }
+  if (f.checks.recipient || f.checks.ourUid || f.checks.rcNote) filled.push('checks')
+  const match = matchSupplierKi(E().suppliers, res.supplier)
+  if (match.supplier) {
+    dr.supplierId = match.supplier.id
+    applySupplier(dr, match.supplier)
+    m.newSupplier = null
+    filled.push('supplier')
+  } else if (match.newSupplier) {
+    dr.supplierId = ''
+    dr.supplier = { name: match.newSupplier.name, address: supplierAddress(match.newSupplier), uid: match.newSupplier.uid || '' }
+    m.newSupplier = match.newSupplier
+    m.newSupplierFrom = 'ki'
+  }
+  if (f.dueDate) {
+    set('dueDate', f.dueDate)
+    dr.dueAuto = false
+  } else if (dr.dueAuto) dr.dueDate = dueFor(dr.date, (match.supplier?.paymentDays ?? 14))
+  dr.kiRead = true
+  dr.einvoice = undefined
+  m.kixFields = filled
+  m.notes = []
+  const via = { uid: 'über die UID', iban: 'über die IBAN', name: 'über den Namen' }[match.via]
+  const items = [
+    ...(match.supplier ? [{ level: 'info', text: `Lieferant „${supplierName(match.supplier)}“ ${via} zugeordnet.` }] : match.newSupplier ? [{ level: 'info', text: `Lieferant „${match.newSupplier.name}“ ist neu und wird beim Speichern angelegt.` }] : []),
+    ...match.warnings.map((text) => ({ level: 'warning', text })),
+    ...res.problems,
+  ]
+  kixSet('beleg', { notice: { title: 'Von der KI gelesen – bitte prüfen. Gespeichert wird erst mit „Speichern“.', items } })
+}
+
 registerActions({
   'ek-tab': (el) => {
     app.ui.ekTab = el.dataset.v
@@ -821,15 +897,50 @@ registerActions(
         renderModal()
         return toast('Im PDF steckt keine E-Rechnung (ZUGFeRD). Es ist als Beleg angehängt; bitte die Felder ausfüllen.')
       }
-      const r = draftFromEInvoice(e, { suppliers: E().suppliers })
-      const keep = { id: m.draft.id, category: m.draft.category, account: m.draft.account, objectId: m.draft.objectId, costCenter: m.draft.costCenter, receivedAt: m.draft.receivedAt }
-      m.draft = { ...m.draft, ...r.draft, ...Object.fromEntries(Object.entries(keep).filter(([, v]) => v)), dueAuto: !r.draft.dueDate }
-      if (r.supplier) applySupplier(m.draft, r.supplier)
-      if (r.draft.dueDate) m.draft.dueDate = r.draft.dueDate
-      m.newSupplier = r.newSupplier
-      m.notes = [`E-Rechnung (${e.format === 'UBL' ? 'XRechnung/UBL' : 'ZUGFeRD/CII'}) gelesen: Felder vorbelegt, bitte prüfen.`, ...r.notes]
+      applyEInvoice(m, e, file)
+      renderModal()
+    },
+    // Aus Beleg lesen (KI): Datei wählen (wird auch der Beleg), dann lesen
+    'kix-beleg-file': (el) => {
+      const file = el.files?.[0]
+      const m = app.ui.modal
+      if (!file || !m?.draft) return
+      readForm(m.draft)
       PENDING.set(m.draft.id, file)
       renderModal()
+      return ACTIONS['kix-beleg']?.({ dataset: {} })
+    },
+    'kix-beleg': async (el) => {
+      const m = app.ui.modal
+      if (m?.type !== 'ek-inv' || !m.draft || m.kix?.beleg?.busy) return
+      readForm(m.draft)
+      const file = PENDING.get(m.draft.id)
+      if (!file) return toast('Bitte zuerst den Beleg wählen (Foto oder PDF).')
+      // 1. E-Rechnung im PDF (ZUGFeRD/Factur-X) oder als XML: genauer als jede KI und ohne Übertragung
+      if (/pdf|xml/i.test(file.type) || /\.(pdf|xml)$/i.test(file.name || '')) {
+        const e = await readEInvoice(file).catch(() => null)
+        if (e) {
+          applyEInvoice(m, e, file)
+          kixSet('beleg', {})
+          renderModal()
+          return toast('Im PDF steckt eine E-Rechnung: Felder ohne KI ausgefüllt. Bitte prüfen.')
+        }
+      }
+      // 2. KI (nach dem Hinweis, einmal je Gerät)
+      if (!el?.dataset?.consent && !kixConsent('beleg', 'Der Beleg (Foto oder PDF)', { action: 'kix-beleg' })) return
+      const draftId = m.draft.id
+      kixSet('beleg', { busy: 'Die KI liest den Beleg …' })
+      try {
+        const prepared = await kixFile(file)
+        const { readBeleg } = await import('../../ai/extract.js')
+        const res = await readBeleg(prepared, { ours: kixOurs(), today: todayISO() })
+        if (app.ui.modal !== m || m.draft?.id !== draftId) return
+        applyKiBeleg(m, res)
+        renderModal()
+        toast(res.ok ? 'Von der KI gelesen – bitte jedes Feld mit dem Beleg vergleichen und dann speichern.' : 'Von der KI gelesen, aber mit Unstimmigkeiten – bitte die Hinweise prüfen.')
+      } catch (err) {
+        if (app.ui.modal === m) kixSet('beleg', { error: kixFailed(err) })
+      }
     },
     'ek-inv-save': async () => {
       const m = app.ui.modal
@@ -849,13 +960,13 @@ registerActions(
         return toast(err.text)
       }
       const isNew = !d.invoices.some((x) => x.id === dr.id)
-      const { dueAuto, ...inv } = dr
+      const { dueAuto, kiRead, ...inv } = dr
       if (isNew) {
         inv.no = nextInvoiceNo(d.invoices, String(inv.date || todayISO()).slice(0, 4), PS())
         inv.createdAt = nowIso()
         inv.createdBy = by()
         inv.payments = []
-        inv.history = [{ at: nowIso(), by: by(), text: `erfasst${inv.einvoice ? ` aus E-Rechnung (${inv.einvoice.format})` : ''}` }]
+        inv.history = [{ at: nowIso(), by: by(), text: `erfasst${inv.einvoice ? ` aus E-Rechnung (${inv.einvoice.format})` : kiRead ? ' mit Vorschlag der KI aus dem Beleg (geprüft und gespeichert)' : ''}` }]
       } else inv.history = [...(inv.history || []), { at: nowIso(), by: by(), text: 'geändert' }]
       if (!inv.skonto) delete inv.skonto
       const file = PENDING.get(dr.id)

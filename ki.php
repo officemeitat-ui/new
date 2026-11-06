@@ -8,6 +8,9 @@
 //    echt (Microsoft Graph /me antwortet; Ergebnis kurz zwischengespeichert, nur der Hashwert des Tokens)
 //  - Tageslimit je Person und gesamt
 //  - nur POST /v1/messages ohne Streaming; Modell, Aufwand und Obergrenze der Antwortlänge bestimmt der Webspace
+//  - Dateien (Foto oder PDF eines Belegs, Sicherheitsdatenblatt): nur als base64 in der Anfrage (keine Links, keine
+//    Files-API), nur Bilder (JPEG, PNG, GIF, WebP) und PDF, höchstens 4 je Anfrage, je höchstens 4,5 MB (base64);
+//    mit Dateien darf die Anfrage bis 6 MB groß sein, ohne bis 3 MB. post_max_size des Webspace meldet der Status.
 // Was der Assistent darf, entscheidet die App: Er arbeitet mit den Rechten der Person, Änderungen nur nach Bestätigung.
 //
 // Aktionen: ki.php?aktion=status (GET) | ki.php?aktion=einrichten (POST JSON, nur Vollzugriff laut config.json → access.planners)
@@ -18,6 +21,11 @@ declare(strict_types=1);
 const MODELLE = ['claude-opus-5-5' => 'Claude Opus 5.5', 'claude-sonnet-5-5' => 'Claude Sonnet 5.5', 'claude-haiku-5-5' => 'Claude Haiku 5.5'];
 const AUFWAND = ['low', 'medium', 'high'];
 const MAX_TOKENS = 16000;
+const MAX_ANFRAGE = 3 * 1024 * 1024;        // ohne Dateien
+const MAX_ANFRAGE_DATEI = 6 * 1024 * 1024;  // mit Foto oder PDF (base64)
+const MAX_DATEI = 4718592;                  // je Datei, base64 (4,5 MB ≈ 3,3 MB Datei)
+const MAX_DATEIEN = 4;
+const BILD_TYPEN = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 // Preise je Million Tokens in US-Dollar (Eingabe, Ausgabe, Cache lesen) für die Kostenschätzung
 const PREISE = ['claude-opus-5-5' => [4.0, 20.0, 0.2], 'claude-sonnet-5-5' => [2.0, 10.0, 0.2], 'claude-haiku-5-5' => [0.1, 0.5, 0.01]];
 const BETAS_ERLAUBT = '/^(server-side-fallback-2026-07-01)$/';
@@ -151,6 +159,76 @@ function person(array $cfg): array
     return $person;
 }
 
+/** PHP-Größenangabe („8M“, „1G“, „512K“) in Bytes; 0 = unbegrenzt bzw. unbekannt. */
+function ini_bytes(string $v): int
+{
+    $v = trim($v);
+    if ($v === '' || $v === '-1') {
+        return 0;
+    }
+    $n = (int) $v;
+    switch (strtoupper(substr($v, -1))) {
+        case 'G':
+            $n *= 1024;
+            // weiter
+        case 'M':
+            $n *= 1024;
+            // weiter
+        case 'K':
+            $n *= 1024;
+    }
+    return max(0, $n);
+}
+
+/**
+ * Dateien in der Anfrage prüfen (auch in tool_result): nur base64, nur erlaubte Typen, Anzahl und Größe begrenzt.
+ * Liefert die Zahl der Dateien; bei einem Verstoß Fehler im Format der API.
+ */
+function dateien_pruefen(array $messages): int
+{
+    $n = 0;
+    $pruefe = function (array $blocks) use (&$pruefe, &$n): void {
+        foreach ($blocks as $b) {
+            if (!is_array($b)) {
+                continue;
+            }
+            $typ = (string) ($b['type'] ?? '');
+            if ($typ === 'tool_result' && is_array($b['content'] ?? null)) {
+                $pruefe($b['content']);
+                continue;
+            }
+            if ($typ !== 'image' && $typ !== 'document') {
+                continue;
+            }
+            $src = is_array($b['source'] ?? null) ? $b['source'] : [];
+            if (($src['type'] ?? '') !== 'base64') {
+                fehler(400, 'invalid_request_error', 'Dateien nur direkt aus der App (keine Links).');
+            }
+            $media = (string) ($src['media_type'] ?? '');
+            if ($typ === 'image' ? !in_array($media, BILD_TYPEN, true) : $media !== 'application/pdf') {
+                fehler(400, 'invalid_request_error', 'Dateityp nicht erlaubt (nur Foto oder PDF).');
+            }
+            $data = $src['data'] ?? null;
+            $ohne = is_string($data) ? rtrim($data, '=') : '';
+            if ($ohne === '' || strlen($data) - strlen($ohne) > 2 || strspn($ohne, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/') !== strlen($ohne)) {
+                fehler(400, 'invalid_request_error', 'Datei beschädigt.');
+            }
+            if (strlen($data) > MAX_DATEI) {
+                fehler(413, 'request_too_large', 'Die Datei ist zu groß für die KI (höchstens etwa 3 MB). Bitte ein Foto oder nur die nötigen Seiten als PDF nehmen.');
+            }
+            if (++$n > MAX_DATEIEN) {
+                fehler(413, 'request_too_large', 'Zu viele Dateien in einer Anfrage.');
+            }
+        }
+    };
+    foreach ($messages as $m) {
+        if (is_array($m) && is_array($m['content'] ?? null)) {
+            $pruefe($m['content']);
+        }
+    }
+    return $n;
+}
+
 function ist_vollzugriff(array $cfg, string $upn): bool
 {
     $planner = array_map('strtolower', array_map('strval', (array) ($cfg['access']['planners'] ?? [])));
@@ -177,7 +255,7 @@ function status(array $cfg, array $person): array
         'schluesselEnde' => $voll && !empty($e['schluessel']) ? substr((string) $e['schluessel'], -4) : null,
         'monat' => $voll ? $m + ['monat' => $monat] : null,
         'modelle' => MODELLE,
-        'php' => ['zeitlimit' => (int) ini_get('max_execution_time')],
+        'php' => ['zeitlimit' => (int) ini_get('max_execution_time'), 'postMax' => ini_bytes((string) ini_get('post_max_size'))],
     ];
 }
 
@@ -240,29 +318,40 @@ $e = einstellungen();
 if (empty($e['schluessel']) || ($e['aktiv'] ?? true) === false) {
     fehler(503, 'api_error', 'Der KI-Assistent ist noch nicht eingerichtet (Vollzugriff: Assistent → Einstellungen).');
 }
+// über post_max_size verwirft PHP den Inhalt: lieber gleich sagen, woran es liegt
+$postMax = ini_bytes((string) ini_get('post_max_size'));
+if ($postMax > 0 && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $postMax) {
+    fehler(413, 'request_too_large', 'Die Datei ist zu groß für den Webspace (post_max_size ' . round($postMax / 1048576, 1) . ' MB). Bitte ein Foto oder nur die nötigen Seiten nehmen.');
+}
 $roh = (string) file_get_contents('php://input');
-if (strlen($roh) > 3 * 1024 * 1024) {
+if (strlen($roh) > MAX_ANFRAGE_DATEI) {
     fehler(413, 'request_too_large', 'Anfrage zu groß.');
 }
 $body = json_decode($roh, true);
 if (!is_array($body) || !is_array($body['messages'] ?? null)) {
     fehler(400, 'invalid_request_error', 'Anfrage ungültig.');
 }
+if (dateien_pruefen($body['messages']) === 0 && strlen($roh) > MAX_ANFRAGE) {
+    fehler(413, 'request_too_large', 'Anfrage zu groß.');
+}
 if (!empty($body['stream'])) {
     fehler(400, 'invalid_request_error', 'Streaming wird über ki.php nicht unterstützt.');
 }
+// Weitergereicht wird die Anfrage als Objekte gelesen: so bleiben leere {} erhalten (Werkzeug ohne Angaben,
+// Eingabe {} im Verlauf, Schema ohne Felder); als Liste gelesen würden sie zu [] und die API lehnte ab.
+$senden = json_decode($roh);
 // Webspace bestimmt Modell, Aufwand und Obergrenze
 $modell = isset(MODELLE[$e['modell'] ?? '']) ? $e['modell'] : 'claude-opus-5-5';
-$body['model'] = $modell;
-$body['max_tokens'] = max(1, min(MAX_TOKENS, (int) ($body['max_tokens'] ?? 4096)));
-$body['output_config'] = array_merge(is_array($body['output_config'] ?? null) ? $body['output_config'] : [], ['effort' => in_array($e['aufwand'] ?? '', AUFWAND, true) ? $e['aufwand'] : 'medium']);
+$senden->model = $modell;
+$senden->max_tokens = max(1, min(MAX_TOKENS, (int) ($body['max_tokens'] ?? 4096)));
+$senden->output_config = (object) array_merge(is_object($senden->output_config ?? null) ? get_object_vars($senden->output_config) : [], ['effort' => in_array($e['aufwand'] ?? '', AUFWAND, true) ? $e['aufwand'] : 'medium']);
 $betas = array_values(array_filter(array_map('trim', explode(',', (string) ($_SERVER['HTTP_ANTHROPIC_BETA'] ?? ''))), fn ($b) => preg_match(BETAS_ERLAUBT, $b)));
 // Haiku hat keine Ausweich-Modelle
 if (str_starts_with($modell, 'claude-haiku')) {
-    unset($body['fallbacks']);
+    unset($senden->fallbacks);
     $betas = array_values(array_filter($betas, fn ($b) => !str_starts_with($b, 'server-side-fallback')));
 } elseif (isset($body['fallbacks']) && !in_array('server-side-fallback-2026-07-01', $betas, true)) {
-    unset($body['fallbacks']);
+    unset($senden->fallbacks);
 }
 
 // Tageslimits
@@ -296,7 +385,7 @@ if ($betas) {
     $kopf[] = 'anthropic-beta: ' . implode(',', $betas);
 }
 $ch = curl_init($url);
-curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 170, CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_HTTPHEADER => $kopf]);
+curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($senden, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 170, CURLOPT_CONNECTTIMEOUT => 15, CURLOPT_HTTPHEADER => $kopf]);
 $raw = curl_exec($ch);
 $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $err = curl_error($ch);

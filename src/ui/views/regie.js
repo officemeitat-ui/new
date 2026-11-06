@@ -6,6 +6,9 @@
 // Recht auf die Fakturierung; der Bericht reist eingefroren als Beilage mit, siehe invoicing-abrechnung.js). Material
 // optional als Abgang im Lager (nur mit Recht auf Material & Lager, sonst Hinweis in „Zu erledigen“).
 // Datei regie/regie.json (Rechenkern: core/regie.js). Aktionen und Dialoge mit dem Kürzel „reg-“.
+// „Diktieren“ (Kürzel „kix-“, nur mit eingerichteter KI): sprechen oder tippen, die KI füllt Leistung, Beschreibung,
+// Personen mit Stunden und Material als Vorschlag (Prüfung und Zuordnung in core/ki-vorschlag.js); gespeichert wird
+// erst mit „Speichern“.
 
 import { formatDate, todayISO } from '../../core/dates.js'
 import { customerForObject, settingsOf as fakSettings } from '../../core/invoicing.js'
@@ -52,6 +55,7 @@ import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 import { checked, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
+import { kixBox, kixButton, kixConsent, kixDictate, kixFailed, kixListening, kixSet, kixSpeech } from '../kix.js'
 import { abrechnungHooks } from './invoicing-abrechnung.js'
 
 const MODULE = 'regie'
@@ -324,6 +328,8 @@ function draftOf(m) {
 function readDraft() {
   const m = app.ui.modal
   const d = draftOf(m)
+  const dictation = document.getElementById('kix-diktat-text')
+  if (dictation) m.kixText = dictation.value
   if (!document.getElementById('reg-obj')) return d
   Object.assign(d, { objectId: val('reg-obj'), date: val('reg-date'), kind: val('reg-kind') || d.kind, title: val('reg-title'), description: val('reg-desc'), orderedBy: val('reg-by'), orderedRole: val('reg-role'), orderRef: val('reg-ref') })
   d.workers = d.workers.map((w, i) => {
@@ -348,7 +354,7 @@ const sumText = (t) => (t.minutes ? `zusammen ${durationText(t.minutes)} (${hour
 
 function workerRow(w, i, count) {
   const min = workerMinutes(w)
-  return `<div class="reg-row reg-worker">
+  return `<div class="reg-row reg-worker${w.ki ? ' kix-mark' : ''}">
       <label class="field reg-name"><span>Person</span><input type="text" id="reg-w-name-${i}" list="reg-people" value="${esc(w.name)}" placeholder="Name" autocomplete="off"></label>
       <label class="field reg-time"><span>von</span><input type="time" id="reg-w-from-${i}" value="${esc(w.from || '')}" data-input="reg-calc" data-change="reg-calc"></label>
       <label class="field reg-time"><span>bis</span><input type="time" id="reg-w-to-${i}" value="${esc(w.to || '')}" data-input="reg-calc" data-change="reg-calc"></label>
@@ -361,7 +367,7 @@ function workerRow(w, i, count) {
 
 function materialRow(x, i, stock) {
   const own = x.articleId && !stock.some((a) => a.id === x.articleId) ? [[x.articleId, x.text || 'Artikel']] : []
-  return `<div class="reg-row reg-mat">
+  return `<div class="reg-row reg-mat${x.ki ? ' kix-mark' : ''}">
       ${stock.length || own.length ? `<label class="field reg-art"><span>Artikel</span><select id="reg-m-art-${i}" data-change="reg-redraw">${options([...stock.map((a) => [a.id, a.name]), ...own], x.articleId, { empty: '– frei eintragen –' })}</select></label>` : ''}
       ${x.articleId ? '' : `<label class="field reg-text"><span>Bezeichnung</span><input type="text" id="reg-m-text-${i}" value="${esc(x.text || '')}" placeholder="z. B. Bautrocknerfolie"></label>`}
       <label class="field reg-num"><span>Menge</span><input type="text" id="reg-m-qty-${i}" inputmode="decimal" value="${esc(x.qty ?? '')}"></label>
@@ -384,18 +390,27 @@ function editModal(c, m) {
   const pending = (m.files || []).map((f, i) => `<span class="pill reg-file">${ICON.camera} ${esc(f.phase)}: ${esc(f.file.name || 'Foto')} <button type="button" class="btn small ghost" data-action="reg-photo-del" data-kind="new" data-i="${i}" aria-label="Foto entfernen">${ICON.close}</button></span>`).join(' ')
   const photoCount = (d.photos || []).length + (m.files || []).length
   const existing = d.id ? reportOf(d.id) : null
+  // von der KI aus dem Diktat übernommene Felder: markiert, bis gespeichert ist
+  const ki = (key) => (m.kixFields?.includes(key) ? ' kix-mark' : '')
+  const listening = kixListening()
+  const dictate = m.kixDiktat
+    ? `<section class="reg-block kix-diktat"><h3>Diktat</h3>
+        <label class="field wide"><span>Bericht, gesprochen oder getippt</span><textarea id="kix-diktat-text" rows="4" placeholder="z. B. Keller nach Wasserschaden für die Hausverwaltung, Wasser abgesaugt und desinfiziert, Ana und ich von 8 bis halb 12, zwei Flaschen Flächendesinfektion">${esc(m.kixText || '')}</textarea></label>
+        <div class="actions">${kixSpeech() ? `<button type="button" class="btn${listening ? ' on' : ''}" id="kix-diktat-mic" data-action="kix-diktat-mic" aria-pressed="${listening}">${listening ? 'Aufhören' : 'Sprechen'}</button>` : ''}<button type="button" class="btn primary" data-action="kix-diktat-run">Felder füllen (KI)</button></div>
+        ${kixBox('diktat')}</section>`
+    : kixButton('<div class="kix-diktat-bar"><button type="button" class="btn kix-btn" data-action="kix-diktat">Diktieren</button><span class="muted small">sprechen oder tippen – die KI füllt die Felder als Vorschlag</span></div>')
   return modalFrame({
     title: existing ? `Regiebericht ${esc(existing.no)}` : 'Regiebericht erfassen',
     subtitle: existing ? `${esc(objName(existing.objectId))} · ${esc(day(existing.date))} · noch nicht unterschrieben` : 'Sonderleistung nach Auftrag',
     wide: true,
-    body: `<div class="form-grid">
+    body: `${dictate}<div class="form-grid">
         <label class="field"><span>Objekt</span><select id="reg-obj">${options((app.data.objects || []).filter((o) => !o.inactive || o.id === d.objectId).map((o) => [o.id, o.name]), d.objectId, { empty: '– wählen –' })}</select></label>
-        <label class="field"><span>Datum</span><input type="date" id="reg-date" value="${esc(d.date)}" max="${today}"></label>
-        <label class="field"><span>Art</span><select id="reg-kind">${options(Object.entries(REGIE_KINDS), d.kind)}</select></label>
-        <label class="field"><span>Leistung kurz</span><input type="text" id="reg-title" value="${esc(d.title)}" placeholder="z. B. Keller nach Wasserschaden"></label>
-        <label class="field wide"><span>Beschreibung / Auftrag</span><textarea id="reg-desc" rows="3" placeholder="Was wurde gemacht? z. B. Wasser abgesaugt, Boden gereinigt und desinfiziert">${esc(d.description)}</textarea></label>
-        <label class="field"><span>Beauftragt von</span><input type="text" id="reg-by" value="${esc(d.orderedBy)}" placeholder="Name"></label>
-        <label class="field"><span>Funktion</span><input type="text" id="reg-role" list="reg-roles" value="${esc(d.orderedRole)}" placeholder="z. B. Hausverwaltung"></label>
+        <label class="field${ki('date')}"><span>Datum</span><input type="date" id="reg-date" value="${esc(d.date)}" max="${today}"></label>
+        <label class="field${ki('kind')}"><span>Art</span><select id="reg-kind">${options(Object.entries(REGIE_KINDS), d.kind)}</select></label>
+        <label class="field${ki('title')}"><span>Leistung kurz</span><input type="text" id="reg-title" value="${esc(d.title)}" placeholder="z. B. Keller nach Wasserschaden"></label>
+        <label class="field wide${ki('description')}"><span>Beschreibung / Auftrag</span><textarea id="reg-desc" rows="3" placeholder="Was wurde gemacht? z. B. Wasser abgesaugt, Boden gereinigt und desinfiziert">${esc(d.description)}</textarea></label>
+        <label class="field${ki('orderedBy')}"><span>Beauftragt von</span><input type="text" id="reg-by" value="${esc(d.orderedBy)}" placeholder="Name"></label>
+        <label class="field${ki('orderedRole')}"><span>Funktion</span><input type="text" id="reg-role" list="reg-roles" value="${esc(d.orderedRole)}" placeholder="z. B. Hausverwaltung"></label>
         <label class="field"><span>Auftrags- oder Bestellnummer (optional)</span><input type="text" id="reg-ref" value="${esc(d.orderRef)}"></label>
       </div>
       <section class="reg-block"><h3>Stunden je Person <span class="muted" id="reg-sum">${sumText(t)}</span></h3>
@@ -464,6 +479,48 @@ async function storeReport(el, m) {
   renderNow()
   toast(`Regiebericht ${r.no} gespeichert${failed ? `; ${plural(failed, 'Foto', 'Fotos')} nicht gespeichert` : ''}${queued ? '; Fotos werden hochgeladen, sobald wieder Netz da ist' : ''}.`)
 }
+
+// ---------------------------------------------------------------- Diktat (KI)
+
+const FIELD_LABELS = { kind: 'Art', title: 'Leistung', description: 'Beschreibung', orderedBy: 'Beauftragt von', orderedRole: 'Funktion', date: 'Datum' }
+const sameText = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+
+/**
+ * Vorschlag aus dem Diktat (core/ki-vorschlag.js → checkDiktat) in den Entwurf: leere Felder füllen (Art und Datum
+ * immer), Personen ohne Zeit ersetzen, Material ergänzen; alles markiert. Gespeichert wird erst mit „Speichern“.
+ */
+function applyDiktat(m, res) {
+  const d = m.draft
+  const marked = []
+  const kept = []
+  for (const [key, value] of Object.entries(res.fields)) {
+    if (key === 'kind' || key === 'date' || !String(d[key] || '').trim()) {
+      d[key] = value
+      marked.push(key)
+    } else if (!sameText(d[key], value)) kept.push(FIELD_LABELS[key] || key)
+  }
+  if (res.workers.length) {
+    const timed = d.workers.filter((w) => w.from || w.to || w.dur || Number(w.minutes) > 0)
+    const add = res.workers.filter((w) => !timed.some((t) => t.name && sameText(t.name, w.name)))
+    d.workers = [...timed, ...add.map((w) => ({ ...newWorker(w.name, w.employeeId), from: w.from, to: w.to, pause: w.pause, dur: w.dur, minutes: parseDuration(w.dur), ki: true }))]
+    if (!d.workers.length) d.workers = [newWorker()]
+  }
+  let materials = 0
+  for (const x of res.material) {
+    if (d.material.some((y) => (x.articleId && y.articleId === x.articleId) || sameText(y.text, x.text))) continue
+    d.material.push({ ...newMaterial(), ...x, ki: true })
+    materials++
+  }
+  m.kixFields = marked
+  const items = [
+    ...(kept.length ? [{ level: 'info', text: `Schon ausgefüllt, nicht geändert: ${kept.join(', ')}.` }] : []),
+    { level: 'info', text: `${plural(res.workers.length, 'Person', 'Personen')}, ${plural(materials, 'Material', 'Materialien')} übernommen.` },
+    ...res.problems,
+  ]
+  kixSet('diktat', { notice: { title: 'Von der KI aus dem Diktat übernommen – bitte prüfen. Gespeichert wird erst mit „Speichern“.', items } })
+}
+
+const activeEmployees = () => (app.data.employees || []).filter((e) => !e.exitDate || e.exitDate >= todayISO())
 
 // ---------------------------------------------------------------- Zusammenfassung (Unterschrift, Ansicht)
 
@@ -891,6 +948,44 @@ registerActions(
       }
     },
     'reg-save': (el) => saveReport(el),
+    // Diktieren: Feld für den Bericht öffnen und gleich zuhören (wo der Browser Spracheingabe kann)
+    'kix-diktat': () => {
+      const m = app.ui.modal
+      if (m?.type !== 'reg-edit') return
+      readDraft()
+      m.kixDiktat = true
+      renderModal()
+      document.getElementById('kix-diktat-text')?.focus()
+      if (kixSpeech()) ACTIONS['kix-diktat-mic']?.()
+    },
+    'kix-diktat-mic': () =>
+      kixDictate('kix-diktat-text', (on) => {
+        const btn = document.getElementById('kix-diktat-mic')
+        if (!btn) return
+        btn.classList.toggle('on', on)
+        btn.setAttribute('aria-pressed', String(on))
+        btn.textContent = on ? 'Aufhören' : 'Sprechen'
+      }),
+    'kix-diktat-run': async (el) => {
+      const m = app.ui.modal
+      if (m?.type !== 'reg-edit' || m.kix?.diktat?.busy) return
+      readDraft()
+      const text = String(m.kixText || '').trim()
+      if (!text) return toast('Bitte zuerst sprechen oder den Bericht tippen.')
+      if (kixListening()) kixDictate('kix-diktat-text')
+      if (!el?.dataset?.consent && !kixConsent('diktat', 'Der Text des Diktats', { action: 'kix-diktat-run' })) return
+      kixSet('diktat', { busy: 'Die KI ordnet das Diktat den Feldern zu …' })
+      try {
+        const { readDiktat } = await import('../../ai/extract.js')
+        const res = await readDiktat(text, { today: todayISO(), employees: activeEmployees(), articles: stockArticles() })
+        if (app.ui.modal !== m) return
+        readDraft()
+        applyDiktat(m, res)
+        renderModal()
+      } catch (err) {
+        if (app.ui.modal === m) kixSet('diktat', { error: kixFailed(err) })
+      }
+    },
     'reg-delete': (el) => {
       const r = reportOf(el.dataset.id)
       if (!r || r.status === 'abgeschlossen') return toast('Abgeschlossene Regieberichte bleiben stehen.')
@@ -958,16 +1053,24 @@ registerActions(
 // Rechnungsentwurf: Schreibrecht auf die Fakturierung (und den Bereich Regieberichte sehen)
 registerActions(
   {
+    // data-quiet: vom KI-Assistenten (ai/tools-module.js) – gleicher Ablauf, aber ohne Dialog zu schließen oder zu
+    // springen; liefert das Ergebnis ({ x, customer, message } oder { error })
     'reg-invoice': (el) => {
+      const quiet = !!el.dataset.quiet
       const r = reportOf(el.dataset.id)
-      if (!r || !sees(MODULE)) return
+      if (!r || !sees(MODULE)) return quiet ? { error: 'Regiebericht nicht gefunden.' } : undefined
       const res = draftFor(r)
       if (res.error) {
+        if (quiet) return res
         toast(res.error)
         if (res.docId) openDraft(res.docId)
         return
       }
       persist()
+      if (quiet) {
+        renderNow()
+        return { ...res, message: invoiceToast([res]) }
+      }
       if (app.ui.modal) closeModal()
       openDraft(res.x.id)
       toast(invoiceToast([res]))

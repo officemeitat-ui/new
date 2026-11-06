@@ -1,8 +1,9 @@
 // Werkzeuge des KI-Assistenten: Module melden ihre Werkzeuge hier an, der Assistent bekommt nur die,
 // die die angemeldete Person nutzen darf (Lesen: Bereich sichtbar, Ändern: Schreibrecht im Bereich).
 //
-// registerAgentTool({ name, description, input_schema, modules: ['planung'] | '*', write: false,
-//                     summary?(input) → { title, lines[] } für die Bestätigung, run(input, ctx) → Text oder Objekt })
+// registerAgentTool({ name, description, input_schema, modules: ['planung'] | '*', write: false, when?() → false blendet aus,
+//                     label?: 'Offene Posten nachgeschlagen' (Zeile im Chat), summary?(input) → { title, lines[] } für die
+//                     Bestätigung, run(input, ctx) → Text oder Objekt })
 // Werkzeuge mit write: true laufen erst, wenn die Person im Chat „Ausführen“ tippt.
 
 import { app } from '../ui/context.js'
@@ -14,6 +15,9 @@ export function registerAgentTool(tool) {
   if (i >= 0) TOOLS.splice(i, 1, tool)
   else TOOLS.push(tool)
 }
+
+/** Bezeichnungen der Werkzeuge, die eine mitbringen: { name: label } (Zeile im Chat). */
+export const toolLabels = () => Object.fromEntries(TOOLS.filter((t) => t.label).map((t) => [t.name, t.label]))
 
 const sees = (m) => !app.access || app.access.sees(m)
 const edits = (m) => !app.access || app.access.canEdit(m)

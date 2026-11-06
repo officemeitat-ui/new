@@ -1,6 +1,8 @@
 // Reklamationen je Objekt: Liste (offen, erledigt, alle; je Objekt), erfassen mit Vorschlag, wer laut
 // Plan dort war, Maßnahme und Frist, erledigen mit Ergebnis und „Kunde informiert“, PDF für den Kunden,
 // CSV. „Zu erledigen“ meldet überfällige Reklamationen, der Einsatz-Dialog die offenen des Objekts.
+// „Antwort mit KI entwerfen“ (Kürzel „kix-“, nur mit eingerichteter KI): Entwurf zum Bearbeiten, sachlich und ohne
+// Schuldanerkenntnis (Prüfung in core/ki-vorschlag.js); gesendet wird nie automatisch.
 
 import { complaintList, complaintStats, dayOf, defaultDue, hotspots, isOpen, isOverdue, KINDS, SOURCES, STATUS, whoWorked } from '../../core/complaints.js'
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
@@ -10,6 +12,7 @@ import { app, canEdit, closeModal, computeRange, empName, ensureRange, openModal
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { kixBox, kixButton, kixConsent, kixFailed, kixSet } from '../kix.js'
 
 const MODULE = 'reklamationen'
 const doc = () => (app.data.reklamationen ||= { items: [] })
@@ -84,6 +87,8 @@ function readForm() {
   const kind = val('cp-kind')
   if (kind !== d.kind && (!d.id || !d.due || d.due === defaultDue(d.kind, dayOf(d.received)))) d.due = defaultDue(kind, dayOf(d.received))
   else d.due = val('cp-due')
+  const reply = document.getElementById('kix-rek-text')
+  if (reply && app.ui.modal.kixAntwort) app.ui.modal.kixAntwort.text = reply.value
   Object.assign(d, { objectId: val('cp-obj'), date: val('cp-date'), source: val('cp-source'), kind, text: val('cp-text').trim(), contact: val('cp-contact').trim(), measure: val('cp-measure').trim(), status: val('cp-status') || d.status, result: val('cp-result').trim(), informed: checked('cp-informed'), employees: checkedValues('cp-emp') })
   return d
 }
@@ -133,7 +138,7 @@ function complaintModal() {
         <label class="field"><span>Status</span><select id="cp-status" ${dis}>${options(Object.entries(STATUS), d.status)}</select></label>
         <label class="field wide"><span>Ergebnis / Rückmeldung an den Kunden</span><textarea id="cp-result" rows="2" ${dis}>${esc(d.result)}</textarea></label>
         <label class="check"><input type="checkbox" id="cp-informed" ${d.informed ? 'checked' : ''} ${dis}><span>Kunde informiert</span></label>
-      </div></section>
+      </div>${ed ? replyHtml() : ''}</section>
       ${d.history?.length ? `<section><h3>Verlauf</h3><ul class="tc-list">${d.history.map((h) => `<li>${esc(when(h.at))} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')}</ul></section>` : ''}`,
     foot: `${d.id ? `<span class="actions"><button class="btn" data-action="complaint-pdf" data-id="${esc(d.id)}">${ICON.download} PDF für den Kunden</button><button class="btn" data-action="mail-export" data-of="complaint-pdf" data-id="${esc(d.id)}" title="Als Anhang per E-Mail senden">${ICON.send} E-Mail</button></span>` : '<span></span>'}
       <div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? `${d.id && d.status !== 'erledigt' ? `<button class="btn" data-action="complaint-save" data-done="1">Erledigt</button>` : ''}<button class="btn primary" data-action="complaint-save">Speichern</button>` : ''}</div>`,
@@ -141,6 +146,18 @@ function complaintModal() {
 }
 
 registerModal('complaint', complaintModal, { module: MODULE })
+
+/** Antwort an den Kunden mit KI entwerfen: Knopf, Hinweis/Fortschritt, Entwurf zum Bearbeiten (nie automatisch gesendet). */
+function replyHtml() {
+  const a = app.ui.modal?.kixAntwort
+  const button = kixButton('<p class="kix-diktat-bar"><button type="button" class="btn kix-btn" data-action="kix-rek">Antwort mit KI entwerfen</button><span class="muted small">Entwurf zum Bearbeiten, sachlich und ohne Schuldanerkenntnis</span></p>')
+  if (!a) return `${button}${kixBox('rek')}`
+  return `${button}${kixBox('rek')}<div class="kix-draft">
+      <label class="field wide"><span><span class="kix-tag">KI</span> Entwurf der Antwort${a.betreff ? ` – Betreff: ${esc(a.betreff)}` : ''}</span><textarea id="kix-rek-text" rows="8">${esc(a.text)}</textarea></label>
+      ${a.warnings.length ? `<p class="warn-text">Bitte prüfen, klingt nach Zusage oder Schuldanerkenntnis: ${esc(a.warnings.join(', '))}.</p>` : ''}
+      <p class="note">Vorschlag der KI: lesen, anpassen, dann selbst senden (z. B. als E-Mail) oder in die Rückmeldung übernehmen. Nichts wird automatisch verschickt.</p>
+      <div class="actions"><button type="button" class="btn small" data-action="kix-rek-copy">Kopieren</button><button type="button" class="btn small" data-action="kix-rek-take">In „Rückmeldung an den Kunden“ übernehmen</button></div></div>`
+}
 
 function save(d, { done = false } = {}) {
   if (!d.objectId) return toast('Bitte das Objekt wählen.')
@@ -215,6 +232,46 @@ registerActions(
       openModal({ type: 'complaint', objectId: el.dataset.obj || '', date: el.dataset.date || '' })
     },
     'complaint-save': (el) => save(readForm(), { done: !!el.dataset.done }),
+    'kix-rek': async (el) => {
+      const m = app.ui.modal
+      if (m?.type !== 'complaint' || m.kix?.rek?.busy) return
+      const d = readForm()
+      if (!d.text) return toast('Bitte zuerst beschreiben, worum es geht.')
+      if (!el?.dataset?.consent && !kixConsent('rek', 'Die Beschreibung der Reklamation mit Objekt, Maßnahme und Ergebnis (ohne Namen von Mitarbeitenden)', { action: 'kix-rek' })) return
+      kixSet('rek', { busy: 'Die KI entwirft die Antwort …' })
+      try {
+        const { draftComplaintReply } = await import('../../ai/extract.js')
+        const res = await draftComplaintReply({ objectName: objName(d.objectId), kind: d.kind, date: d.date, text: d.text, measure: d.measure, due: d.due, status: STATUS[d.status] || d.status, result: d.result })
+        if (app.ui.modal !== m) return
+        readForm()
+        m.kixAntwort = res
+        m.kix = { ...m.kix, rek: {} }
+        renderModal()
+        document.getElementById('kix-rek-text')?.focus({ preventScroll: true })
+      } catch (err) {
+        if (app.ui.modal === m) kixSet('rek', { error: kixFailed(err) })
+      }
+    },
+    'kix-rek-copy': async () => {
+      const t = val('kix-rek-text')
+      try {
+        await navigator.clipboard.writeText(t)
+        toast('Entwurf kopiert.')
+      } catch {
+        document.getElementById('kix-rek-text')?.select()
+        toast('Bitte markieren und kopieren (Strg+C).')
+      }
+    },
+    'kix-rek-take': () => {
+      const m = app.ui.modal
+      const d = readForm()
+      const t = val('kix-rek-text').trim()
+      if (!t) return
+      d.result = d.result ? `${d.result}\n\n${t}` : t
+      m.kixAntwort = null
+      renderModal()
+      toast('In „Rückmeldung an den Kunden“ übernommen. Bitte prüfen und speichern.')
+    },
   },
   { edit: MODULE },
 )

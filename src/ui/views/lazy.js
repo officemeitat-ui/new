@@ -173,7 +173,8 @@ lazy(BUERO, {
 lazy(BUERO, {
   views: [{ id: 'reklamationen', order: 72, label: 'Reklamationen', group: 'service', module: 'reklamationen', noWeek: true, text: 'Beschwerden je Objekt' }],
   modals: 'complaint',
-  actions: 'complaint-filter complaint-object complaint-open complaint-redraw complaint-pdf complaint-csv complaint-new complaint-save',
+  // kix-rek…: „Antwort mit KI entwerfen“ (ui/kix.js)
+  actions: 'complaint-filter complaint-object complaint-open complaint-redraw complaint-pdf complaint-csv complaint-new complaint-save kix-rek kix-rek-copy kix-rek-take',
   hints: true,
   // kundenbereich: Platz für customer-portal.js (immer geladen), damit „Zu erledigen“ die Reihenfolge behält
   todo: ['reklamationen', 'kundenbereich'],
@@ -273,7 +274,7 @@ lazy(BUERO, {
   modals: 'reg-edit reg-sign reg-view reg-settings',
   actions: `reg-filter reg-reset reg-goto reg-open reg-file reg-pdf reg-mail reg-csv reg-invoice-open reg-new reg-redraw reg-calc reg-worker-add reg-worker-del
     reg-mat-add reg-mat-del reg-photo reg-photo-del reg-preview reg-save reg-delete reg-sign-open reg-nosig reg-close reg-stock reg-skip reg-unskip
-    reg-settings-open reg-settings-save reg-invoice reg-invoice-all`,
+    reg-settings-open reg-settings-save kix-diktat kix-diktat-mic kix-diktat-run reg-invoice reg-invoice-all`,
   todo: ['regie'],
 })
 
@@ -407,7 +408,7 @@ lazy(BUERO, {
     fak-bank-pick fak-bank-amt fak-bank-q fak-bank-assign-save fak-bank-goto fak-tab fak-year fak-state fak-search fak-cust-search fak-run-month
     fak-open fak-act fak-recalc fak-pdf fak-export-open fak-export fak-new fak-customer fak-object fak-date fak-line-add fak-line-del fak-article
     fak-from-calc fak-draft-save fak-draft-delete fak-finalize fak-copy fak-convert fak-offer-state fak-storno fak-correct fak-pay-open fak-pay-save
-    fak-pay-del fak-remind-open fak-remind fak-mail-open fak-mail-send fak-run fak-idx-add fak-idx-del fak-rec-open fak-rec-line-add fak-rec-save
+    fak-pay-del fak-remind-open kix-mahn kix-mahn-take kix-mahn-drop fak-remind fak-mail-open fak-mail-send fak-run fak-idx-add fak-idx-del fak-rec-open fak-rec-line-add fak-rec-save
     fak-rec-del fak-cust-open fak-cust-save fak-cust-del fak-cust-from-objects fak-art-open fak-art-save fak-art-del fak-art-starter
     fak-settings-save fak-proof-open fak-proof-month fak-proof-create fak-text-kind fak-text-open fak-terms-open fak-text-check fak-terms-preview
     fak-tb-insert fak-ph-insert fak-text-save fak-text-del fak-terms-save fak-terms-del fak-terms-starter fak-text-starter fak-cust-group fak-art-search
@@ -475,11 +476,18 @@ lazy(BUERO, {
   ],
   modals: 'ek-inv ek-pay ek-sup ek-sepa ek-bank-assign ek-export',
   actions: `ek-tab ek-year ek-state ek-search ek-sup-search ek-inv-open ek-sup-open ek-export-open ek-inv-beleg ek-bank-q ek-sepa-date ek-export
-    ek-inv-new ek-inv-edit ek-inv-redraw ek-inv-due ek-inv-net ek-inv-gross ek-inv-cat ek-inv-supplier ek-inv-file ek-inv-einv ek-inv-save
+    ek-inv-new ek-inv-edit ek-inv-redraw ek-inv-due ek-inv-net ek-inv-gross ek-inv-cat ek-inv-supplier ek-inv-file ek-inv-einv kix-beleg-file kix-beleg ek-inv-save
     ek-inv-approve ek-inv-unapprove ek-inv-cancel ek-pay-open ek-pay-skonto ek-pay-save ek-pay-del ek-sel ek-sel-all ek-sepa-open ek-sepa-create
     ek-sepa-book ek-bank-apply ek-bank-assign-open ek-bank-assign-save ek-bank-ignore ek-bank-undo ek-sup-save ek-sup-delete ek-sup-from-material
     ek-sup-link ek-cat-add ek-cat-del ek-settings-save ek-goto`,
   todo: ['einkauf'],
+})
+
+// ui/kix.js (mit Einkauf, Regieberichten, Reklamationen und Fakturierung geladen): KI beim Erfassen, Hinweis vor dem
+// ersten Senden
+lazy(BUERO, {
+  module: 'einkauf',
+  actions: 'kix-ok kix-cancel',
 })
 
 // cashbook.js: Kassenbuch (Bareinnahmen und -ausgaben, Storno, Kassensturz, Monatsabschluss, Export)

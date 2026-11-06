@@ -4,6 +4,7 @@
 
 import { app, closeModal, onModalRender, openModal, registerActions, registerModal, renderModal, renderModalKeepingInput, toast, VIEWS } from './context.js'
 import { esc, modalFrame, options, val } from './shared.js'
+import { speechAvailable, startSpeech } from './speech.js'
 
 // Sprechblase statt „Funkeln“: der Assistent ist ein Gesprächspartner, kein Effekt
 const SPARK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3.2 2.6V11.5H2.5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="5.3" cy="7.5" r="1" fill="currentColor"/><circle cx="8" cy="7.5" r="1" fill="currentColor"/><circle cx="10.7" cy="7.5" r="1" fill="currentColor"/></svg>'
@@ -165,7 +166,7 @@ async function send(textArg) {
       onStep: (e) => {
         if (e.type === 'text') return push({ role: 'assistant', text: e.text })
         const label = TOOL_LABEL[e.name] || e.name
-        if (e.phase === 'done' && !['termin_erstellen', 'abwesenheit_eintragen', 'vertretungen_verteilen', 'einteilen', 'reklamation_erfassen', 'material_anfordern', 'email_senden'].includes(e.name)) push({ role: 'step', phase: 'done', text: `✓ ${label}` })
+        if (e.phase === 'done' && !e.write) push({ role: 'step', phase: 'done', text: `✓ ${label}` })
         else if (e.phase === 'done') push({ role: 'step', phase: 'done', text: `✓ ${label}: erledigt` })
         else if (e.phase === 'error') push({ role: 'step', phase: 'error', text: `${label}: ${e.error}` })
       },
@@ -186,35 +187,28 @@ async function send(textArg) {
 
 // ---------------------------------------------------------------- Sprache
 
-const speech = () => typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
+// Spracheingabe gemeinsam mit „Diktieren“ beim Regiebericht (speech.js)
+const speech = speechAvailable
 
 function listen() {
   const s = ai()
-  const Rec = speech()
-  if (!Rec) return toast('Spracheingabe gibt es in diesem Browser nicht. Am Handy geht das Mikrofon der Tastatur.')
   if (s.listening) return s.recognizer?.stop()
-  const rec = new Rec()
-  rec.lang = 'de-AT'
-  rec.interimResults = true
-  rec.continuous = false
+  const rec = startSpeech({
+    onText: (finalText, interim) => {
+      const ta = document.getElementById('ai-text')
+      if (ta) ta.value = `${finalText}${interim}`.trim()
+    },
+    onEnd: (finalText) => {
+      s.listening = false
+      s.recognizer = null
+      redraw()
+      if (finalText.trim()) send(finalText)
+    },
+  })
+  if (!rec) return
   s.recognizer = rec
   s.listening = true
   redraw()
-  let finalText = ''
-  rec.onresult = (e) => {
-    let interim = ''
-    for (let i = e.resultIndex; i < e.results.length; i++) (e.results[i].isFinal ? (finalText += e.results[i][0].transcript) : (interim += e.results[i][0].transcript))
-    const ta = document.getElementById('ai-text')
-    if (ta) ta.value = `${finalText}${interim}`.trim()
-  }
-  rec.onerror = (e) => toast(e.error === 'not-allowed' ? 'Mikrofon nicht erlaubt (Browser-Einstellungen).' : `Spracheingabe: ${e.error}`)
-  rec.onend = () => {
-    s.listening = false
-    s.recognizer = null
-    redraw()
-    if (finalText.trim()) send(finalText)
-  }
-  rec.start()
 }
 
 // ---------------------------------------------------------------- Einstellungen

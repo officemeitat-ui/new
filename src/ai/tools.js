@@ -492,4 +492,4 @@ function recipient(text) {
   return { email: e.email, label: `${e.name} <${e.email}>` }
 }
 
-export { ToolError }
+export { findObject, findOne, ToolError }

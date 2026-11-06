@@ -1472,6 +1472,26 @@ tr.muted td { color: var(--muted); }
 @keyframes ai-blink { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; } }
 @media (max-width: 640px) { .ai-msg { max-width: 92%; } .ai-log { max-height: 52vh; } }
 
+/* KI beim Erfassen (ui/kix.js): Knopf nur mit eingerichteter KI, Box für Hinweis/Fortschritt/Ergebnis, markierte Felder */
+.kix-wait:not([hidden]) { display: contents; }
+.btn.kix-btn { border-color: var(--info); color: var(--info); }
+.kix-box:empty { display: none; }
+.kix-box { margin: 8px 0; }
+.kix-consent, .kix-note, .kix-draft { display: grid; gap: 6px; margin: 8px 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--info); border-radius: var(--radius); }
+.kix-consent p, .kix-note p, .kix-draft p { margin: 0; }
+.kix-note ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.kix-consent .actions, .kix-draft .actions { justify-content: flex-end; flex-wrap: wrap; }
+.kix-busy { margin: 0; color: var(--muted); }
+.kix-error { margin: 0; padding: 8px 12px; border-radius: var(--radius); background: var(--err-soft); color: var(--err); font-weight: 600; }
+.kix-mark :is(input, select, textarea):not(.ek-amounts *):not(.reg-row *), .ek-amounts.kix-mark input:not([value=""]):not(:disabled) { border-color: var(--info); box-shadow: 0 0 0 1px var(--info); }
+.check.kix-mark, .ek-checks.kix-mark { outline: 1px solid var(--info); outline-offset: 2px; border-radius: var(--radius); }
+.reg-row.kix-mark { border-left: 3px solid var(--info); padding-left: 6px; }
+.kix-tag { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; font-size: 0.75em; font-weight: 700; line-height: 1.5; vertical-align: middle; color: var(--info); background: var(--info-soft); }
+.kix-diktat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; }
+.kix-diktat textarea, .kix-draft textarea { width: 100%; font: inherit; }
+.kix-diktat .actions { flex-wrap: wrap; }
+.kix-diktat .btn.on { background: var(--err-soft); color: var(--err); border-color: var(--err); }
+
 /* Termine */
 .notice { margin: 8px 0; padding: 8px 12px; border-radius: 8px; font-size: 0.86rem; background: var(--info-soft); color: var(--fg); }
 .notice.warn { background: var(--warn-soft); border-left: 3px solid var(--warn); }
