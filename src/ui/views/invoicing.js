@@ -14,6 +14,7 @@
 // bekommt der spätere, noch nicht versendete Beleg beim nächsten Öffnen die nächste freie Nummer.
 
 import { sendMail } from '../../auth/graph-mail.js'
+import { anlageConflicts, syncAnlagenBilled } from '../../core/anlagen-rechnung.js'
 import { calcWage, calculate } from '../../core/calculation.js'
 import { dunningRun, mailWithDebit, withDebitNote } from '../../core/fak-laeufe.js'
 import { addDays, firstOfMonth, formatDate, todayISO } from '../../core/dates.js'
@@ -112,7 +113,7 @@ import { ciiXml, ebInterfaceXml, eInvoiceFileName, eInvoiceProblems } from '../.
 import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
-import { abrechnungHooks, basisSwitch, beilageArchiveName, beilageButton, beilageFiles, beilageOption, beilageWanted, createIstDrafts, istProofModal, sourceLabel, sourceNote } from './invoicing-abrechnung.js'
+import { abrechnungHooks, basisSwitch, beilageArchiveName, beilageButton, beilageFiles, beilageOption, beilageWanted, createIstDrafts, customerWinterTab, istProofModal, readCustomerWinter, readWinterSettings, sourceLabel, sourceNote, winterSettingsHtml } from './invoicing-abrechnung.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
 import { customerLettersTab, lettersTab } from './invoicing-briefe.js'
 import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
@@ -199,6 +200,8 @@ const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote'
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
 /** Weiterverrechnung: nur wer auch Einkauf & Kasse sehen darf (die Kosten stehen dort). */
 const seesRecharge = () => sees('einkauf')
+/** Prüfungen der Anlagen, wenn lesbar (sonst null: Schutz vor doppelter Verrechnung nur über die Belege). */
+const anlagenChecks = () => (sees('anlagen') && app.data.anlagen?.checks) || null
 const tabVisible = (k) => k !== 'weiter' || seesRecharge()
 /** Offene Weiterverrechnungen (Einkauf & Kasse), leer ohne Recht darauf. exceptId: dieser Entwurf zählt nicht mit. */
 const openRecharge = (customerId = '', exceptId = '') => (seesRecharge() ? openRecharges({ ...einkaufData(), docs: F().documents.filter((y) => y.id !== exceptId), customerId }) : [])
@@ -457,7 +460,7 @@ function rechargeTab() {
 /** Im Rechnungsentwurf: offene Weiterverrechnungen des Kunden zum Übernehmen. */
 function rechargePanel(x) {
   if (x.kind !== 'rechnung' || isAdvance(x) || x.number || !seesRecharge() || !x.customerId) return ''
-  const inDraft = new Set((x.lines || []).filter((l) => l.source?.id).map((l) => `${l.source.type}:${l.source.id}`))
+  const inDraft = new Set((x.lines || []).filter((l) => l.source?.id && l.source.type !== 'anlage').map((l) => `${l.source.type}:${l.source.id}`))
   const list = openRecharge(x.customerId, x.id).filter((s) => !inDraft.has(`${s.type}:${s.id}`))
   const note = inDraft.size ? `<p class="muted fwv-note">${plural(inDraft.size, 'Position', 'Positionen')} aus Weiterverrechnungen: verrechnet erst mit dem Festschreiben.</p>` : ''
   if (!list.length || !editable()) return note
@@ -604,6 +607,7 @@ function settingsTab() {
       ${r.map((x, i) => `<label class="field"><span>Stufe ${i + 1}: Name</span><input type="text" id="fs-r${i}-name" value="${esc(x.name)}" ${dis}></label><label class="field"><span>Tage nach ${i ? 'voriger Frist' : 'Fälligkeit'}</span><input type="number" id="fs-r${i}-days" min="0" value="${esc(x.days)}" ${dis}></label><label class="check"><input type="checkbox" id="fs-r${i}-interest" ${x.interest ? 'checked' : ''} ${dis}><span>Verzugszinsen</span></label><label class="check"><input type="checkbox" id="fs-r${i}-fee" ${x.fee ? 'checked' : ''} ${dis}><span>40 € Pauschale (Unternehmer)</span></label>
         <div class="field wide">${textFieldHead(`Stufe ${i + 1}: Text im Schreiben (leer: Standardtext)`, `fs-r${i}-text`, ed ? textMenu({ target: `fs-r${i}-text`, kind: 'mahnung', place: 'reminder' }) : '')}<textarea id="fs-r${i}-text" rows="2" placeholder="z. B. zu unserer Rechnung {Belegnummer} vom {Datum} ist noch {Offen} offen. Bitte überweisen Sie bis {Frist}." ${dis}>${esc(x.text || '')}</textarea></div>`).join('')}
     </div>
+    ${winterSettingsHtml(s, dis)}
     ${sepaSettingsHtml(s, dis)}
     ${offerSettingsHtml(s, dis)}
     ${onlineSettingsHtml(s, dis)}
@@ -714,7 +718,7 @@ function linesEditor(lines, prefix, dis = '', { choices = false } = {}) {
         : type === 'title'
           ? `<label class="check fak-showsum"><input type="checkbox" id="${prefix}-${i}-showsum" ${l.showSum ? 'checked' : ''} ${dis}><span>Summe der Gruppe drucken</span></label>`
           : ''
-      const first = `<td class="fak-line-text fak-line-${type}" data-label=""><div class="fak-line-head">${numbers[i] ? `<span class="fak-pos">${numbers[i]}</span>` : ''}${typeSel}${l.articleNo ? `<span class="muted fak-artno">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}${l.source ? '<span class="muted fak-artno" title="Kosten aus dem Einkauf">Weiterverrechnung</span>' : ''}</div>${text}${more}</td>`
+      const first = `<td class="fak-line-text fak-line-${type}" data-label=""><div class="fak-line-head">${numbers[i] ? `<span class="fak-pos">${numbers[i]}</span>` : ''}${typeSel}${l.articleNo ? `<span class="muted fak-artno">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}${l.source?.type === 'anlage' ? '<span class="muted fak-artno" title="Aus „Anlagen &amp; Prüffristen“">Prüfung</span>' : l.source ? '<span class="muted fak-artno" title="Kosten aus dem Einkauf">Weiterverrechnung</span>' : ''}</div>${text}${more}</td>`
       if (!priced) return `<tr class="fak-row-${type}">${first}<td class="num" colspan="5" data-label="${type === 'subtotal' ? 'Summe netto' : ''}">${type === 'subtotal' ? `<strong id="${prefix}-${i}-sum">${money(sums[i] || 0)}</strong>` : ''}</td><td data-label="">${tools}</td></tr>`
       return `<tr class="fak-row-${type}">${first}
       <td class="num" data-label="Menge"><input type="text" inputmode="decimal" id="${prefix}-${i}-qty" value="${esc(numText(l.qty))}" data-input="fak-recalc" aria-label="Menge" ${dis}></td>
@@ -1333,8 +1337,8 @@ function customerModal(c, m) {
   const v = m.draft
   const ed = editable()
   const dis = ed ? '' : 'disabled'
-  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
-  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
+  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, { id: 'winter', label: 'Winterdienst' }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
+  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, winter: customerWinterTab, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
   return modalFrame({
     title: x ? customerName(x) || 'Kunde' : 'Neuer Kunde',
     subtitle: x?.customerNo ? `Kundennummer ${esc(x.customerNo)}${x.source?.system ? ` · übernommen aus ${esc(x.source.system)}` : ''}` : 'Rechnungsempfänger',
@@ -1475,6 +1479,7 @@ function readCustomer(m) {
     v.contacts = (v.contacts || []).map((p, i) => (document.getElementById(`fc-p${i}-name`) ? { ...p, name: val(`fc-p${i}-name`).trim(), role: val(`fc-p${i}-role`).trim(), email: val(`fc-p${i}-email`).trim(), phone: val(`fc-p${i}-phone`).trim() } : p))
   }
   readCustomerPay(v)
+  readCustomerWinter(m)
   return v
 }
 
@@ -1954,7 +1959,7 @@ registerActions(
       const x = readForm(m)
       const list = blocking(problems(x, S()))
       if (list.length) return toast(list[0].text)
-      const clash = [...advanceConflicts(x, F().documents), ...rechargeConflicts(x, F().documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, F().documents)]
+      const clash = [...advanceConflicts(x, F().documents), ...rechargeConflicts(x, F().documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, F().documents), ...anlageConflicts(x, F().documents, anlagenChecks())]
       if (clash.length) return toast(clash[0])
       if (!confirmStep(`fak-final:${x.id}`, renderModal)) return
       el.disabled = true
@@ -1965,13 +1970,14 @@ registerActions(
         await app.service.refresh?.().catch(() => [])
         const d = F()
         // nach dem Abgleich noch einmal: Abschlag inzwischen storniert oder anderswo abgezogen?
-        const clash2 = [...advanceConflicts(x, d.documents), ...rechargeConflicts(x, d.documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, d.documents)]
+        const clash2 = [...advanceConflicts(x, d.documents), ...rechargeConflicts(x, d.documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, d.documents), ...anlageConflicts(x, d.documents, anlagenChecks())]
         if (clash2.length) throw new Error(clash2[0])
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
         const fixed = finalize(withDebitNote(d.documents.find((y) => y.id === x.id) || x, custOf(x.customerId), S()), d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
         upsertDoc(fixed)
         syncRechargeBilled() // „verrechnet mit …“ bzw. nach einem Storno wieder offen, auch für Rollen ohne Fakturierung
         if (canEdit('regie') && app.data.regie?.reports) syncRegieBilled(app.data.regie.reports, d.documents) // ebenso beim Regiebericht
+        if (canEdit('anlagen') && app.data.anlagen?.checks) syncAnlagenBilled(app.data.anlagen.checks, d.documents) // und bei den Prüfungen der Anlagen
         persist()
         await app.service.flush().catch(() => {})
         checkNumbers()
@@ -2288,6 +2294,14 @@ registerActions(
     'fak-cust-save': (el) => {
       const m = app.ui.modal
       const fields = structuredClone(readCustomer(m))
+      // Winterdienst-Preise: negative oder unlesbare Beträge nicht speichern
+      if (m.winterErrors?.length) {
+        if (m.tab !== 'winter') {
+          m.tab = 'winter'
+          renderModal()
+        }
+        return toast(`Bitte prüfen: ${m.winterErrors[0].text}`)
+      }
       fields.contacts = (fields.contacts || []).filter((p) => p.name || p.email || p.phone)
       if (!fields.name && !fields.lastName) return toast('Bitte Firma bzw. Name oder Nachname eintragen.')
       const d = F()
@@ -2371,6 +2385,7 @@ registerActions(
         reminders,
         accounts: { debitor: val('fs-acc-deb').trim(), erloese: Object.fromEntries(VAT_RATES.map((v) => [v, val(`fs-acc-${v}`).trim()])), rc: val('fs-acc-rc').trim(), skonto: val('fs-acc-skonto').trim() },
         indexName: val('fs-index').trim() || 'VPI 2020',
+        ...readWinterSettings(),
         ...readSepaSettings(),
         ...readOfferSettings(),
         ...readOnlineSettings(),

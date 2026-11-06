@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 
 import { FOREIGN_LANGUAGES, LANGUAGES, LINK_TEXTS, langOf, linkMessage, objectInfo, parseTranslation, sourceKey, staleLanguages, translationRequest, translationRows, updateTranslations } from '../src/core/sprachen.js'
 import { savePayload, staffWeek } from '../src/core/staffplan.js'
+import { EMPLOYEE_TEMPLATE, importEmployees, languageSummary, parseLanguage } from '../src/core/importer.js'
+import { PHP_KEYS, PLAN_TEXTS, planTexts } from '../src/export/wochenplan-texte.js'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const read = (f) => readFileSync(`${root}${f}`, 'utf8')
@@ -238,4 +240,79 @@ test('KI: Anfrage mit JSON-Schema je Sprache, Text als Inhalt, Antwort nur für 
   assert.deepEqual(parseTranslation('{"tr":" Çöpü ayır. ","bks":"","en":"x"}', ['tr', 'bks']), { tr: 'Çöpü ayır.' })
   assert.deepEqual(parseTranslation('Hier: {"tr":"a"} fertig', ['tr']), { tr: 'a' })
   assert.throws(() => parseTranslation('keine Ahnung', ['tr']), /keine Übersetzung/)
+})
+
+// ---------------------------------------------------------------- Excel-Import: Spalte „Sprache“
+
+test('Import Mitarbeitende: Spalte „Sprache“ (Bezeichnung, Kennung, BKS), unbekannt als Hinweis', () => {
+  assert.equal(EMPLOYEE_TEMPLATE.at(-1), 'Sprache')
+  const cases = { Türkisch: 'tr', tr: 'tr', TR: 'tr', 'Türkisch (Türkçe)': 'tr', Rumänisch: 'ro', Română: 'ro', 'BKS/Bosnisch/Kroatisch/Serbisch': 'bks', 'Bosnisch/Kroatisch/Serbisch': 'bks', BKS: 'bks', Kroatisch: 'bks', Serbisch: 'bks', Ungarisch: 'hu', Magyar: 'hu', Englisch: 'en', english: 'en', Deutsch: 'de', de: 'de', '': '', Arabisch: null, 'Deutsch/Türkisch': null }
+  for (const [v, want] of Object.entries(cases)) assert.equal(parseLanguage(v), want, v)
+  const text = 'Name\tWochenstunden\tSprache\nElif Kaya\t20\tTürkisch\nAna Popescu\t30\tro\nDragan Jović\t40\tBKS/Bosnisch/Kroatisch/Serbisch\nKlara Beispiel\t20\tDeutsch\nPetra Muster\t20\t\nSami Haddad\t20\tArabisch'
+  const { items, errors } = importEmployees(text)
+  assert.deepEqual(items.map((e) => [e.name, e.lang]), [['Elif Kaya', 'tr'], ['Ana Popescu', 'ro'], ['Dragan Jović', 'bks'], ['Klara Beispiel', ''], ['Petra Muster', undefined], ['Sami Haddad', undefined]])
+  assert.ok(!('lang' in items[4]), 'leere Zelle: Sprache bleibt, wie sie ist')
+  assert.deepEqual(errors, ['Zeile 7 (Sami Haddad): Sprache „Arabisch“ nicht erkannt, bleibt unverändert (möglich: Deutsch, Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch, Englisch)'])
+  assert.equal(languageSummary(items), '1 × Deutsch, 1 × Bosnisch/Kroatisch/Serbisch, 1 × Rumänisch, 1 × Türkisch')
+  // ohne Spalte: kein Hinweis, keine Sprache
+  const plain = importEmployees('Name\tWochenstunden\nElif Kaya\t20')
+  assert.deepEqual([plain.errors, 'lang' in plain.items[0]], [[], false])
+  assert.equal(importEmployees('Mitarbeiter;Muttersprache\nA B;Ungarisch').items[0].lang, 'hu', 'Überschrift auch „Muttersprache“, CSV mit Semikolon')
+})
+
+// ---------------------------------------------------------------- Wochenplan als PDF in der Sprache der Person
+
+test('Wochenplan-PDF: Wörterbuch mit denselben Schlüsseln und Platzhaltern in allen Sprachen, ohne leere Texte', () => {
+  assert.deepEqual(Object.keys(PLAN_TEXTS), LANGUAGES.map((l) => l.id))
+  const keys = Object.keys(PLAN_TEXTS.de)
+  for (const [lang, t] of Object.entries(PLAN_TEXTS)) {
+    assert.deepEqual(Object.keys(t), keys, `${lang}: Schlüssel (und Reihenfolge) wie Deutsch`)
+    for (const k of keys) {
+      if (Array.isArray(PLAN_TEXTS.de[k])) {
+        assert.ok(Array.isArray(t[k]) && t[k].length === PLAN_TEXTS.de[k].length && t[k].every((x) => String(x).trim()), `${lang}.${k}`)
+        continue
+      }
+      assert.ok(String(t[k]).trim(), `${lang}.${k} leer`)
+      assert.deepEqual(holes(t[k]), holes(PLAN_TEXTS.de[k]), `${lang}.${k}: Platzhalter`)
+    }
+  }
+})
+
+test('Wochenplan-PDF: gleiche Begriffe wie am Handy (mein-plan-texte.php)', () => {
+  let shared = 0
+  for (const [lang, t] of Object.entries(PLAN_TEXTS)) {
+    for (const [k, v] of Object.entries(t)) {
+      if (k in TEXTE[lang]) {
+        assert.deepEqual(v, TEXTE[lang][k], `${lang}.${k} lautet anders als am Handy`)
+        shared++
+      } else if (PHP_KEYS[k] && lang !== 'de') assert.deepEqual(v, TEXTE[lang][PHP_KEYS[k]], `${lang}.${k} wie ${PHP_KEYS[k]} am Handy`)
+    }
+  }
+  assert.ok(shared >= 6 * 30, `${shared} geteilte Texte`)
+  for (const k of Object.keys(DE).filter((x) => x.startsWith('notiz_') && x !== 'notiz_optional')) assert.ok(k in PLAN_TEXTS.de, `Hinweis ${k} fehlt im Wochenplan`)
+})
+
+test('Wochenplan-PDF: Hinweise zu Einsätzen, Datum, Stunden und Abwesenheit in der Sprache; Namen bleiben', () => {
+  const tr = planTexts('tr')
+  assert.equal(tr.note('Vertretung für Ana Muster'), 'Yerine çalışılan: Ana Muster')
+  assert.equal(tr.note('verschoben von Mo 02.11. (Feiertag)'), 'taşındı, eski tarih: Pzt 02.11 (resmî tatil)')
+  assert.equal(tr.note('Krankenstand angerechnet'), 'Hastalık izni sayıldı')
+  assert.equal(tr.note('Glas innen und außen'), 'Glas innen und außen', 'eigene Notiz bleibt')
+  assert.equal(tr.date('2026-10-26', { weekday: true }), 'Pazartesi 26.10')
+  const en = planTexts('en')
+  assert.equal(en.hours(90), '1.5')
+  assert.equal(en.absence('Urlaub'), 'Annual leave')
+  assert.equal(en.employment('Teilzeit'), 'Part-time')
+  assert.equal(en.date('2026-11-01', { year: true }), '01/11/2026')
+  assert.equal(planTexts('hu').date('2026-11-01', { year: true }), '2026.11.01.')
+  const de = planTexts('')
+  assert.equal(de.lang, 'de')
+  assert.equal(de.date('2026-10-26', { weekday: true }), 'Montag 26.10.')
+  assert.equal(de.note('Vertretung für Ana Muster'), 'Vertretung für Ana Muster')
+  assert.equal(planTexts('xx').lang, 'de')
+  // Objektanweisung: Übersetzung nur, solange sie zum deutschen Text passt
+  const obj = { instructions: 'Müll trennen.', instructionsI18n: { tr: { text: 'Çöpü ayır.', source: sourceKey('Müll trennen.') }, en: { text: 'Old', source: 'xxxxxxxx' } } }
+  assert.equal(tr.objectInfo(obj), 'Çöpü ayır.')
+  assert.equal(en.objectInfo(obj), 'Müll trennen.', 'veraltet: deutscher Text')
+  assert.equal(de.objectInfo(obj), 'Müll trennen.')
 })

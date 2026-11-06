@@ -50,6 +50,30 @@ test('PDF: eine Seite je Person, Feiertag durchgestrichen, Hinweise nur für Obj
   assert.equal(pdfFileName('2026-10-26', 'Dragan Jović / Test'), 'Wochenplan_KW44_2026_Dragan_Jovic_Test.pdf')
 })
 
+test('PDF in der Sprache der Person: Überschriften, Wochentage, Summen, Hinweise; Namen bleiben; Deutsch Standard', () => {
+  const tasks = [task('a', 'o1', [1, 3], '17:30', '19:30', { regulars: ['jović'] }), task('b', 'o2', [2], '08:00', '12:00', { regulars: ['jović'] })]
+  const asg = { '2026-10-28|a': [{ employeeId: 'kaya' }], '2026-10-27|b': [{ employeeId: 'jović' }] }
+  const { ctx, instances, state } = setup({ employees: [emp('jović', { name: 'Dragan Jović' }), emp('kaya', { name: 'Elif Kaya', lang: 'tr', personnelNo: '1007' })], objects, tasks, assignments: asg })
+  const ts = (id) => buildTimesheet(ctx, ctx.employees.find((e) => e.id === id), '2026-10-26', instances, state)
+  const trDoc = timesheetDocument([{ ts: ts('kaya'), account: 90 }], { objects, employees: ctx.employees, brand: { name: 'Cleanos' }, status: { kind: 'veroeffentlicht', date: '2026-10-24' } })
+  const tr = JSON.stringify(trDoc.content)
+  for (const word of ['Saat', 'İş yeri / iş', 'Pazartesi 26.10', 'Çarşamba 28.10', 'Toplam', 'Bakiye', 'Personel no. 1007', 'Yarı zamanlı', 'yayınlandı: 24.10.2026', 'Bu haftadan sonra saat hesabı: +1,5 sa', 'Yerine çalışılan: Dragan Jović', 'İş yeri bilgileri', 'üstü çizili']) assert.ok(tr.includes(word), word)
+  assert.match(tr, /Kanzlei Muster/, 'Objektname bleibt')
+  assert.match(tr, /Schlüssel beim Portier/, 'Anweisung ohne Übersetzung: deutsch')
+  assert.doesNotMatch(tr, /Montag|Gesamt|Zeitkonto|Hinweise zu den Objekten/)
+  assert.equal(trDoc.footer(1, 1).columns[1].text, 'Sayfa 1 / 1')
+  assert.equal(trDoc.info.title, 'Haftalık plan 44. hafta – Elif Kaya')
+  // mehrere Personen: jede Seite in ihrer Sprache, Fußzeile deutsch
+  const both = timesheetDocument([{ ts: ts('jović') }, { ts: ts('kaya') }], { objects, employees: ctx.employees, brand: { name: 'Cleanos' }, status: { kind: 'entwurf' } })
+  const json = JSON.stringify(both.content)
+  assert.match(json, /Montag 26\.10\./)
+  assert.match(json, /Pazartesi 26\.10/)
+  assert.match(json, /"Entwurf"|   Entwurf/)
+  assert.match(json, /Taslak/)
+  assert.equal(both.footer(1, 2).columns[1].text, 'Seite 1 von 2')
+  assert.match(json, /Gesamt/)
+})
+
 test('PDF: pdfmake erzeugt ein gültiges PDF (Schrift mit č, ć, ş)', async () => {
   const pdfMake = require('pdfmake/build/pdfmake.js')
   pdfMake.addVirtualFileSystem(require('pdfmake/build/vfs_fonts.js'))

@@ -1,6 +1,7 @@
 // PDF-Wochenpläne im Browser erzeugen. pdfmake (mit Schrift Roboto, inkl.
 // č, ć, ş, ğ …) und JSZip werden erst geladen, wenn sie gebraucht werden.
 
+import { todayISO } from '../core/dates.js'
 import { timeAccount } from '../core/reports.js'
 import { timesheetSignature } from '../core/timesheet.js'
 import { pdfFileName, timesheetDocument } from '../export/pdf.js'
@@ -22,6 +23,13 @@ export function pdfStatus(c) {
   if (!p) return 'Entwurf'
   const at = new Date(p.correctedAt || p.publishedAt).toLocaleDateString('de-AT')
   return `${p.correctedAt ? 'korrigiert' : 'veröffentlicht'} am ${at}`
+}
+
+/** Stand-Vermerk zum Übersetzen (export/pdf.js schreibt ihn in der Sprache der Person). */
+function pdfStatusInfo(c) {
+  const p = c.published
+  if (!p) return { kind: 'entwurf' }
+  return { kind: p.correctedAt ? 'korrigiert' : 'veroeffentlicht', date: todayISO(new Date(p.correctedAt || p.publishedAt)) }
 }
 
 /** Zeitkonto inkl. dieser Woche (veröffentlichte Vorwochen + aktueller Saldo). */
@@ -53,12 +61,12 @@ export function loadLogo() {
 
 /** PDF mit je einer Seite pro Person (Ergebnis wird bis zur nächsten Änderung zwischengespeichert). */
 export async function weekPdfBlob(c, employees) {
-  const key = `${c.monday}|${pdfStatus(c)}|${employees.map((e) => `${e.id}:${timesheetSignature(c.timesheet(e))}:${accountAfterWeek(c, e)}`).join(',')}`
+  const key = `${c.monday}|${pdfStatus(c)}|${employees.map((e) => `${e.id}:${e.lang || ''}:${timesheetSignature(c.timesheet(e))}:${accountAfterWeek(c, e)}`).join(',')}`
   if (cache.has(key)) return cache.get(key)
   const [pdfMake, logo] = await Promise.all([loadPdfMake(), loadLogo()])
   const doc = timesheetDocument(
     employees.map((emp) => ({ ts: c.timesheet(emp), account: accountAfterWeek(c, emp) })),
-    { objects: app.data.objects, employees: app.data.employees, brand: app.config.brand, status: pdfStatus(c), contact: app.config.brand.contact || '', logo },
+    { objects: app.data.objects, employees: app.data.employees, brand: app.config.brand, status: pdfStatusInfo(c), contact: app.config.brand.contact || '', logo },
   )
   const blob = await new Promise((resolve, reject) => {
     try {

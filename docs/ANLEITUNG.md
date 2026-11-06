@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 316 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 317 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (55)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (70)
+- [Finanzen](#finanzen) (71)
 - [Verwaltung](#verwaltung) (56)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (40)
 - [Begriffe](#begriffe)
@@ -603,6 +603,7 @@ Im Versand-Dialog schickst du jeder Person ihr PDF: per E-Mail aus deinem Micros
 
 > Tipp: Wird ein Plan nach dem Versand geändert, steht die Person wieder unter „Zu versenden“.
 > Tipp: E-Mail geht nur mit Netz und hinterlegter Adresse bei der Person.
+> Tipp: Das PDF steht in der Sprache der Person (Stammblatt → „Sprache am Handy“): Überschriften, Wochentage, Summen und feste Hinweise; Objekt- und Leistungsnamen bleiben, wie sie sind.
 
 ### Korrektur nach dem Veröffentlichen
 
@@ -1385,11 +1386,21 @@ Unter „Mehr ▾“ → „Arten und Intervalle“ stehen die Arten mit Interva
 
 > Tipp: 0 Monate heißt: Intervall je Anlage eintragen, z. B. Fettabscheider laut Hersteller.
 
-### Verrechenbare Prüfungen im Monat
+### Prüfungen der Anlagen verrechnen
 
 *In der App: Anlagen & Prüffristen*
 
-Ist bei einer Anlage „verrechenbar“ mit Preis je Prüfung eingetragen, zeigt der Reiter „Verrechnung“ je Monat alle Prüfungen je Objekt mit Summe, als CSV zum Weitergeben. In die Rechnung übernimmt sie die Fakturierung noch nicht.
+Ist bei einer Anlage „verrechenbar“ mit Preis je Prüfung eingetragen, stehen ihre Prüfungen im Reiter „Verrechnung“: oben offen je Kunde mit „Rechnungsentwurf“, darunter je Monat mit Stand. Der Entwurf hat je Prüfung eine Position mit Anlage, Objekt und Datum. Verrechnet ist sie mit dem Festschreiben; ein gelöschter Entwurf oder ein Storno gibt sie wieder frei.
+
+1. „Anlagen & Prüffristen“ → Reiter „Verrechnung“.
+2. Beim Kunden „Rechnungsentwurf“ tippen.
+3. Entwurf in der Fakturierung prüfen und festschreiben.
+
+> Tipp: Eine Prüfung wird nur einmal verrechnet: beim Festschreiben prüft die App, ob sie schon in einer anderen Rechnung steht.
+> Tipp: Fehlt der Kunde zum Objekt, zuerst in der Fakturierung beim Kunden das Objekt anhaken.
+> Tipp: Eine verrechnete Prüfung lässt sich nicht löschen; zuerst die Rechnung stornieren.
+
+*Rechnungsentwurf: nur wer die Fakturierung bearbeitet*
 
 ### Regieberichte (Sonderleistungen nach Auftrag)
 
@@ -2077,9 +2088,27 @@ Im Dialog „Aus Leistungsnachweis“ wählst du die Grundlage: Plan (Standard) 
 4. Entwurf prüfen, bei Bedarf ändern und festschreiben.
 5. Mit „E-Mail“ senden: der Winterdienst-Nachweis hängt an.
 
-> Tipp: Die Preise merkt sich die App beim Kunden je Objekt. Ohne eigene Preise gelten Artikel wie „Winterdienst Räumen und Streuen“ oder „Winterdienst Pauschale“.
+> Tipp: Die Preise merkt sich die App beim Kunden je Objekt (Kundenblatt → „Winterdienst“). Ohne eigene Preise gelten Artikel wie „Winterdienst Räumen und Streuen“ oder „Winterdienst Pauschale“.
 > Tipp: Reine Kontrollgänge („nichts nötig“) stehen nur mit eigenem Preis auf der Rechnung.
+> Tipp: Die Saisonpauschale steht einmal je Saison auf der Rechnung, mit Leistungszeitraum der ganzen Saison.
 > Tipp: Den Nachweis gibt es auch als Knopf „Winterdienst-Nachweis“ neben dem PDF, auch für die Buchhaltung. Namen stehen nur darin, wenn der Leistungsnachweis beim Abrechnen Namen zeigt.
+
+### Winterdienst-Preise je Objekt und Saison
+
+*In der App: Fakturierung*
+
+Im Kundenblatt unter „Winterdienst“ stehen je Objekt des Kunden die Abrechnungsart (je Einsatz, Pauschale je Monat oder je Saison) und die Preise netto. „Winterdienst abrechnen“ nimmt sie von dort. Die Saison stellst du unter Einstellungen ein (Vorgabe Juli bis Juni); die Saisonpauschale zeigt den Leistungszeitraum, z. B. 1.7.2026–30.6.2027.
+
+1. Fakturierung → Kunden → Kunde öffnen, Reiter „Winterdienst“.
+2. Je Objekt die Abrechnungsart wählen und die Preise mit Komma eintragen, z. B. 65,50.
+3. „Speichern“ klicken.
+4. Saison: Fakturierung → „Einstellungen“ → „Winterdienst“, von und bis wählen.
+
+> Tipp: Negative Beträge oder Text statt Zahl speichert die App nicht; das Feld ist dann markiert.
+> Tipp: Leer gelassen gelten die Artikel „Winterdienst …“.
+> Tipp: Den Leistungszeitraum verlangt § 11 UStG auf jeder Rechnung; er steht bei der Position und im Kopf der Rechnung.
+
+*Buchhaltung, Vollzugriff*
 
 ### Rechnung per E-Mail senden
 
@@ -2186,6 +2215,7 @@ Unter „Einstellungen“ trägst du Firmenname, Anschrift, UID (oder Steuernumm
 
 > Tipp: Die Anschrift zweizeilig eintragen (Straße, darunter Postleitzahl und Ort): so liest sie auch die E-Rechnung.
 > Tipp: Textbausteine und Zahlungsbedingungen stehen unter „Stammdaten ▾“.
+> Tipp: Unter „Winterdienst“ steht die Wintersaison für die Saisonpauschale (Vorgabe Juli bis Juni).
 
 ### Kunden anlegen
 
@@ -2224,6 +2254,7 @@ Im Kunden zeigt der Reiter „Belege & Umsatz“ alle Angebote, Rechnungen und G
 3. Mit „+ Rechnung“ unten gleich eine neue Rechnung für diesen Kunden anlegen.
 
 > Tipp: In der Kundenliste öffnet der Betrag unter „offene Posten“ direkt den Verlauf.
+> Tipp: Der Reiter „Winterdienst“ hat die Preise je Objekt für „Winterdienst abrechnen“.
 > Tipp: Felder, die beim Übernehmen aus orgaMAX keinen Platz gefunden haben, stehen unter „Weitere Felder“ zum Nachlesen.
 > Tipp: Der Reiter „Briefe“ zeigt alle Briefe und Serienbriefe an den Kunden; dort auch „Werbung per E-Mail abgelehnt“ und „Kunde inaktiv“.
 
@@ -2852,12 +2883,14 @@ Unter „Mitarbeitende“ pflegst du Name, Personalnummer, Revier/Team, E-Mail (
 
 *In der App: Mitarbeitende*
 
-Eine Excel-Liste mit Überschrift (Name, Beschäftigung, Wochenstunden, Team, Qualifikationen, Tage, Von, Bis) kopierst du einfach in die App. „Vorlage kopieren“ liefert die passenden Überschriften.
+Eine Excel-Liste mit Überschrift (Name, Beschäftigung, Wochenstunden, Team, Qualifikationen, Tage, Von, Bis, Sprache) kopierst du einfach in die App. „Vorlage kopieren“ liefert die passenden Überschriften. Die Spalte „Sprache“ setzt die Sprache am Handy, z. B. Türkisch, tr, Rumänisch, Bosnisch/Kroatisch/Serbisch, Ungarisch, Englisch oder Deutsch.
 
 1. „Mitarbeitende“ → „Mehr ▾“ → „Aus Excel einfügen“.
 2. In Excel die Liste mit Überschrift kopieren und einfügen.
 3. „Prüfen“ klicken und die Vorschau ansehen.
 4. „Übernehmen“ klicken.
+
+> Tipp: Eine unbekannte Sprache steht in der Vorschau als Hinweis; die Person behält dann ihre bisherige Sprache. Eine leere Zelle ändert nichts.
 
 ### Lohngruppe, Überstunden und Durchrechnung bei der Person
 
@@ -2961,7 +2994,7 @@ Je neuer Person eine Checkliste mit Frist: Daten für die Lohnverrechnung, Anmel
 2. Checkliste mit „Öffnen“ ansehen oder „+ Eintritt starten“.
 3. Aufgabe erledigen und „Erledigt“ klicken (mit Datum und Name).
 
-> Tipp: Unterweisungen und Schlüssel sind verknüpft: sind sie eingetragen bzw. ausgegeben, gilt die Aufgabe von selbst als erledigt.
+> Tipp: Unterweisungen und Schlüssel sind verknüpft: sind sie eingetragen bzw. ausgegeben, gilt die Aufgabe von selbst als erledigt. Nach „Eintragen“ einer Unterweisung geht es gleich zurück zur Checkliste.
 > Tipp: Die Einschulung wird ein Termin mit Objekt und beiden Personen; so sieht ihn auch die Objektleitung.
 
 *Personalverwaltung, Lohnverrechnung und Vollzugriff*
@@ -3027,7 +3060,7 @@ Am Handy sieht die Person diese und kommende veröffentlichte Wochen: je Tag Uhr
 
 *In der App: Mitarbeitende*
 
-Im Stammblatt der Person wählst du „Sprache am Handy“: Deutsch, Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch oder Englisch. Plan am Handy, Formulare, Hinweise, Push-Nachrichten und die Nachricht mit dem Link kommen dann in dieser Sprache. Am Handy kann die Person oben rechts umstellen; das Gerät merkt sich die Wahl.
+Im Stammblatt der Person wählst du „Sprache am Handy“: Deutsch, Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch oder Englisch. Plan am Handy, Formulare, Hinweise, Push-Nachrichten, die Nachricht mit dem Link und der Wochenplan als PDF kommen dann in dieser Sprache. Am Handy kann die Person oben rechts umstellen.
 
 1. Person unter „Mitarbeitende“ mit „Bearbeiten“ öffnen.
 2. „Sprache am Handy“ wählen und „Speichern“ klicken.

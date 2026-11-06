@@ -227,7 +227,7 @@ lazy(BUERO, {
   todo: ['schluessel'],
 })
 
-// anlagen.js: Anlagen & Prüffristen je Objekt (Feuerlöscher, Rauchwarnmelder, Spielplatz …)
+// anlagen.js: Anlagen & Prüffristen je Objekt (Feuerlöscher, Rauchwarnmelder, Spielplatz …), Rechnungsentwurf aus den Prüfungen
 lazy(BUERO, {
   views: [
     {
@@ -248,7 +248,7 @@ lazy(BUERO, {
   modals: 'anl-edit anl-check anl-defect anl-types',
   actions: `anl-tab anl-filter anl-reset anl-goto anl-def-all anl-month anl-edit-open anl-redraw anl-check-redraw anl-file anl-pdf anl-csv anl-bill-csv
     anl-save anl-delete anl-check-open anl-photo anl-report anl-file-del anl-check-save anl-check-delete anl-defect-open anl-defect-save anl-types-open
-    anl-type-add anl-types-save anl-appt`,
+    anl-type-add anl-types-save anl-appt anl-invoice-open anl-invoice`,
   hints: true,
   todo: ['anlagen'],
 })
@@ -446,7 +446,7 @@ lazy(BUERO, {
 lazy(BUERO, {
   module: 'fakturierung',
   modals: 'fab-winter',
-  actions: 'fab-beilage fab-winter-open fab-winter-month fab-winter-pick fab-winter-price fab-winter-mode fab-winter-create fab-proof-basis fab-proof-opts',
+  actions: 'fab-cust-winter fab-cust-winter-check fab-beilage fab-winter-open fab-winter-month fab-winter-pick fab-winter-price fab-winter-mode fab-winter-create fab-proof-basis fab-proof-opts',
 })
 
 // invoicing-briefe.js und invoicing-briefpapier.js: Briefe, Serienbriefe und Briefpapier der Fakturierung (kommen mit invoicing.js)

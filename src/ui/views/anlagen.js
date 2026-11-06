@@ -1,18 +1,22 @@
 // Anlagen & Prüffristen (Objektservice / Hausbetreuung): je Objekt Anlagen mit Prüffrist (Feuerlöscher,
 // Rauchwarnmelder, Notbeleuchtung, Spielplatz, Lift …), Prüfung erfassen am Handy mit Foto und Prüfbericht
 // (in SharePoint unter anlagen/nachweise/), nächste Fälligkeit ab dem Prüfdatum, offene Mängel bis „behoben“,
-// Anlagenliste als PDF für die Hausverwaltung, verrechenbare Prüfungen je Monat (nur Liste), „Zu erledigen“,
+// Anlagenliste als PDF für die Hausverwaltung, verrechenbare Prüfungen je Monat mit Stand der Verrechnung und
+// „Rechnungsentwurf“ je Kunde (wer die Fakturierung bearbeitet; core/anlagen-rechnung.js), „Zu erledigen“,
 // Hinweis im Einsatz-Dialog. Datei anlagen/anlagen.json (Rechenkern: core/anlagen.js). Der digitale
 // Mitarbeiter „Fristen“ (disponent.js) liest dieselbe Datei. Aktionen und Dialoge mit dem Kürzel „anl-“.
 
 import { addCheck, allTypes, ANLAGEN_DEFAULTS, anlagenRows, attention, BY, billableChecks, CHECK_KINDS, checkProblem, checksOf, counts, emptyAnlagen, filterRows, intervalOf, isDefectOpen, isUrgent, itemProblem, nextAfter, openDefects, operativeOf, resolveDefect, RESULTS, STATES, STATUS_FILTERS, typeOf, typesOf } from '../../core/anlagen.js'
+import { addAnlageLines, ANLAGE_STATES, anlageLock, checkBillState, checksToBill } from '../../core/anlagen-rechnung.js'
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
+import { settingsOf as fakSettings } from '../../core/invoicing.js'
 import { toCSV } from '../../core/reports.js'
 import { anlagenDocument, anlagenPdfName, stateText } from '../../export/anlagen-pdf.js'
-import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
+import { ACTIONS, app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { abrechnungHooks } from './invoicing-abrechnung.js'
 
 const MODULE = 'anlagen'
 const ICON_ANL = '<path d="M9 8.5h6v11a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 19.5z"/><path d="M12 8.5V5.5M9.5 5.5H15l2.5-2.5M12 5.5c-2.2 0-4.6.8-5.5 3.2"/><path d="M9 12.5h6"/>'
@@ -39,6 +43,14 @@ const STATE_CLS = { ueberfaellig: 'error', faellig: 'warning', ok: 'ok', inaktiv
 const RESULT_CLS = { ok: 'ok', maengel: 'warning', ausser: 'error' }
 const fileSafe = (s) => String(s || '').replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
 const parsePrice = (v) => Math.round((Number(String(v ?? '').replace(/\s/g, '').replace(',', '.')) || 0) * 100) / 100
+const sees = (m) => !app.access || app.access.sees(m)
+/** Fakturierung, wenn lesbar (sonst null: Stand der Verrechnung aus billed an der Prüfung). */
+const fak = () => (sees('fakturierung') ? app.data.fakturierung || null : null)
+const fakDocs = () => fak()?.documents || null
+/** Rechnungsentwurf erstellen: Schreibrecht auf die Fakturierung (die Fakturierung ist mit diesem Paket geladen). */
+const mayInvoice = () => canEdit('fakturierung') && !app.readOnly && !!fak() && !!abrechnungHooks.newDraft
+const BILL_CLS = { offen: 'info', entwurf: 'warning', verrechnet: 'ok' }
+const billPill = (st) => (!st ? '' : `<span class="pill ${BILL_CLS[st.state]}">${esc(st.state === 'verrechnet' && st.number ? `verrechnet: ${st.number}` : ANLAGE_STATES[st.state])}</span>`)
 
 /** Alle Anlagen mit Zustand (je Berechnung gemerkt). */
 const rowsAt = (today = todayISO()) => memo(app.cur, `anlagen:${today}`, () => anlagenRows({ doc: doc(), objects: app.data.objects, today }))
@@ -241,21 +253,46 @@ function defectsTab() {
     <p class="note">Ein Mangel bleibt offen, bis er als behoben vermerkt ist (Datum und was getan wurde). Eine Prüfung „in Ordnung“ kann offene Mängel der Anlage gleich mit schließen.</p>`
 }
 
+/** Offene verrechenbare Prüfungen je Kunde (aus allen Monaten) mit „Rechnungsentwurf“, dazu die Entwürfe. */
+function toBillSection() {
+  const f = fak()
+  if (!f) return ''
+  const open = checksToBill({ doc: doc(), objects: app.data.objects, fak: f })
+  const drafts = checksToBill({ doc: doc(), objects: app.data.objects, fak: f, states: ['entwurf'] })
+  if (!open.length && !drafts.length) return ''
+  const may = mayInvoice()
+  const span = (g) => (g.from ? `${short(g.from)}${g.to && g.to !== g.from ? ` – ${short(g.to)}` : ''}` : '')
+  const rows = open
+    .map(
+      (g) => `<tr><td><strong>${esc(g.customerId ? g.name : 'ohne Kunde')}</strong><br><span class="muted">${esc([...new Set(g.rows.map((r) => r.object?.name || 'Objekt'))].join(', '))}</span></td><td class="num">${g.rows.length}</td><td>${span(g)}</td><td class="num">${euro(g.sum)}</td>
+        <td class="actions-cell">${g.customerId ? (may ? `<button class="btn small primary" data-action="anl-invoice" data-customer="${esc(g.customerId)}">Rechnungsentwurf</button>` : '') : '<span class="muted">Kunde zum Objekt fehlt (Fakturierung → Kunden)</span>'}</td></tr>`,
+    )
+    .join('')
+  const docIds = [...new Set(drafts.flatMap((g) => g.rows.map((r) => r.state.docId)))]
+  const draftLine = docIds.length
+    ? `<p class="muted">Im Rechnungsentwurf: ${plural(drafts.reduce((s, g) => s + g.rows.length, 0), 'Prüfung', 'Prüfungen')} (${esc(drafts.map((g) => g.name || 'ohne Kunde').join(', '))}). ${docIds.map((id) => `<button class="btn small" data-action="anl-invoice-open" data-doc="${esc(id)}">Entwurf öffnen</button>`).join(' ')}</p>`
+    : ''
+  return `<section class="anl-obj anl-bill"><div class="section-head small"><h3>Offen zu verrechnen</h3></div>
+    ${rows ? `<div class="table-wrap"><table class="data anl-table"><thead><tr><th>Kunde</th><th class="num">Prüfungen</th><th>Zeitraum</th><th class="num">netto</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Alle verrechenbaren Prüfungen stehen in einer Rechnung oder einem Entwurf.</p>'}
+    ${draftLine}</section>`
+}
+
 function billingTab() {
   const month = /^\d{4}-\d\d$/.test(app.ui.anlMonth || '') ? app.ui.anlMonth : todayISO().slice(0, 7)
   const groups = billableChecks({ doc: doc(), objects: app.data.objects, month })
   const total = groups.reduce((s, g) => s + g.sum, 0)
+  const docs = fakDocs()
   const blocks = groups
     .map((g) => {
       const cust = customerOf(g.objectId)
-      const rows = g.rows.map(({ check: c, item, type }) => `<tr><td>${short(c.date)}</td><td><strong>${esc(type?.name || 'Anlage')}</strong><br>${esc(item.label || '')}</td><td><span class="pill ${RESULT_CLS[c.result]}">${esc(RESULTS[c.result])}</span></td><td>${esc(c.by || '')}</td><td class="num">${euro(c.price)}</td></tr>`).join('')
+      const rows = g.rows.map(({ check: c, item, type }) => `<tr><td>${short(c.date)}</td><td><strong>${esc(type?.name || 'Anlage')}</strong><br>${esc(item.label || '')}</td><td><span class="pill ${RESULT_CLS[c.result]}">${esc(RESULTS[c.result])}</span></td><td>${esc(c.by || '')}</td><td class="num">${euro(c.price)}</td><td>${billPill(checkBillState(c, docs))}</td></tr>`).join('')
       return `<section class="anl-obj"><div class="section-head small"><h3>${esc(g.object?.name || 'Objekt')}${cust ? ` <span class="muted anl-addr">Kunde: ${esc(cust)}</span>` : ''}</h3></div>
-        <div class="table-wrap"><table class="data anl-table"><thead><tr><th>Datum</th><th>Anlage</th><th>Ergebnis</th><th>geprüft von</th><th class="num">Preis</th></tr></thead><tbody>${rows}<tr class="anl-sum"><td colspan="4"><strong>Summe ${esc(g.object?.name || '')}</strong></td><td class="num"><strong>${euro(g.sum)}</strong></td></tr></tbody></table></div></section>`
+        <div class="table-wrap"><table class="data anl-table"><thead><tr><th>Datum</th><th>Anlage</th><th>Ergebnis</th><th>geprüft von</th><th class="num">Preis</th><th>Verrechnung</th></tr></thead><tbody>${rows}<tr class="anl-sum"><td colspan="4"><strong>Summe ${esc(g.object?.name || '')}</strong></td><td class="num"><strong>${euro(g.sum)}</strong></td><td></td></tr></tbody></table></div></section>`
     })
     .join('')
-  return `<div class="filters"><label class="field inline"><span>Monat</span><input type="month" id="anl-month" value="${esc(month)}" data-change="anl-month"></label>${groups.length ? `<button class="btn small" data-action="anl-bill-csv">${ICON.download} CSV</button>` : ''}</div>
+  return `${toBillSection()}<div class="filters"><label class="field inline"><span>Monat</span><input type="month" id="anl-month" value="${esc(month)}" data-change="anl-month"></label>${groups.length ? `<button class="btn small" data-action="anl-bill-csv">${ICON.download} CSV</button>` : ''}</div>
     ${blocks ? `${blocks}<p><strong>Gesamt: ${euro(total)}</strong> (netto, ${plural(groups.reduce((s, g) => s + g.rows.length, 0), 'Prüfung', 'Prüfungen')})</p>` : '<p class="empty">Keine verrechenbaren Prüfungen in diesem Monat.</p>'}
-    <p class="note">Nur eine Liste: verrechenbar sind Prüfungen von Anlagen mit „verrechenbar“ und Preis je Prüfung (Preis wie beim Erfassen). Die Übernahme in die Fakturierung kommt später.</p>`
+    <p class="note">Verrechenbar sind Prüfungen von Anlagen mit „verrechenbar“ und Preis je Prüfung (Preis wie beim Erfassen). „Rechnungsentwurf“ übernimmt die offenen Prüfungen eines Kunden in die Fakturierung, eine Position je Prüfung mit Objekt, Anlage und Datum. Verrechnet sind sie mit dem Festschreiben; ein gelöschter Entwurf oder ein Storno gibt sie wieder frei.</p>`
 }
 
 registerView({
@@ -655,6 +692,7 @@ registerActions({
     if (c) openFile(el.dataset.i === 'report' ? c.report : c.photos?.[Number(el.dataset.i)])
   },
   'anl-pdf': (el) => objectPdf(el.dataset.obj || app.ui.anlObj),
+  'anl-invoice-open': (el) => openDraft(el.dataset.doc),
   'anl-csv': () => {
     const rows = filterRows(rowsAt(), { objectId: app.ui.anlObj || '', region: app.ui.anlRegion || '', typeId: app.ui.anlType || '', status: app.ui.anlStatus || '' })
     download(`Anlagen_Pruefungen_${todayISO()}.csv`, new Blob([`﻿${toCSV(rows, csvColumns)}`], { type: 'text/csv;charset=utf-8' }))
@@ -671,6 +709,10 @@ registerActions({
       ['Ergebnis', (x) => RESULTS[x.check.result]],
       ['geprüft von', (x) => x.check.by || ''],
       ['Preis netto', (x) => String(x.check.price).replace('.', ',')],
+      ['Verrechnung', (x) => {
+        const st = checkBillState(x.check, fakDocs())
+        return st ? `${ANLAGE_STATES[st.state]}${st.number ? ` ${st.number}` : ''}` : ''
+      }],
     ]
     download(`Anlagen_verrechenbar_${month}.csv`, new Blob([`﻿${toCSV(lines, cols)}`], { type: 'text/csv;charset=utf-8' }))
   },
@@ -710,6 +752,8 @@ registerActions(
     },
     'anl-check-save': () => saveCheck(),
     'anl-check-delete': (el) => {
+      const lock = checkOf(el.dataset.id) ? anlageLock(checkOf(el.dataset.id), fakDocs()) : ''
+      if (lock) return toast(lock)
       if (!confirmStep(`anl-cdel:${el.dataset.id}`, renderModal)) return
       doc().checks = doc().checks.filter((c) => c.id !== el.dataset.id)
       persist()
@@ -749,6 +793,38 @@ registerActions(
     },
   },
   { edit: MODULE },
+)
+
+// ---------------------------------------------------------------- Rechnungsentwurf (Recht: Fakturierung bearbeiten)
+
+function openDraft(docId) {
+  Object.assign(app.ui, { view: 'fakturierung', fakTab: 'rechnungen', fakState: 'entwurf' })
+  if (app.ui.modal) closeModal()
+  renderNow()
+  ACTIONS['fak-open']?.({ dataset: { id: docId } })
+}
+
+registerActions(
+  {
+    // offene verrechenbare Prüfungen eines Kunden → ein Rechnungsentwurf, eine Position je Prüfung
+    'anl-invoice': (el) => {
+      const d = fak()
+      if (!d || !abrechnungHooks.newDraft) return toast('Die Fakturierung ist nicht geladen.')
+      const g = checksToBill({ doc: doc(), objects: app.data.objects, fak: d }).find((x) => x.customerId && x.customerId === el.dataset.customer)
+      if (!g) return toast('Für diesen Kunden ist keine Prüfung offen.')
+      const objects = [...new Set(g.rows.map((r) => r.item.objectId))]
+      const one = objects.length === 1 ? objects[0] : ''
+      const x = abrechnungHooks.newDraft('rechnung', { title: `Prüfung von Anlagen${one ? ` – ${objName(one)}` : ''}`, serviceFrom: g.from, serviceTo: g.to, ...(one ? { objectId: one, objectName: objName(one) } : {}) })
+      abrechnungHooks.applyCustomer(x, g.customerId)
+      if (one) x.objectId = one
+      addAnlageLines(x, g.rows, { newId: () => uid('l'), vat: fakSettings(d).vat })
+      d.documents.push(x)
+      persist()
+      openDraft(x.id)
+      toast(`Rechnungsentwurf mit ${plural(g.rows.length, 'Prüfung', 'Prüfungen')} (${euro(g.sum)} netto). Bitte prüfen und festschreiben.`)
+    },
+  },
+  { edit: 'fakturierung' },
 )
 
 // Outlook-Termin über die Termine (Dialog „appt“, Recht auf Termine)

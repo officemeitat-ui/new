@@ -21,12 +21,16 @@
 //                    Ist-Zeiten { object, names, round, rows: [{ date, in, out, billed, label, category, basis, person }] };
 //                    Namen schon gekürzt wie beim Leistungsnachweis eingestellt (bei „keine“ gar nicht gespeichert).
 //  settings.istRound  zuletzt gewählte Rundung je Stempelung (Standard 15 Minuten)
+//  settings.winterSeason { start, end }  Wintersaison als Monate 1–12 (Vorgabe Juli bis Juni wie bisher, SEASON_DEFAULT).
+//                  Die Saisonpauschale weist den Leistungszeitraum aus (§ 11 UStG): Langtext der Position
+//                  „Leistungszeitraum 1.7.2026–30.6.2027“ und Leistungszeitraum des Belegs (serviceFrom/serviceTo, wie
+//                  jeder Beleg; die Prüfsumme bleibt unverändert aufgebaut).
 //
 // Rundung je Stempelung auf das nächste Vielfache (5 oder 15 Minuten), ab der Hälfte aufwärts: 7 Minuten → 0,
 // 8 → 15, 22 → 15, 23 → 30. Fair für beide Seiten, die Rundungen gleichen sich über den Monat aus. Gerechnet wird mit
 // ganzen Minuten wie im Leistungsnachweis (Kommen 06:00:40, Gehen 08:15:10 = 135 Minuten).
 
-import { formatDate } from './dates.js'
+import { formatDate, lastOfMonth } from './dates.js'
 import { articleActive, deDate, isCancelled, monthLabel, parseNumber, round2, winterNote } from './invoicing.js'
 import { absMinutes } from './timeclock.js'
 import { viennaParts } from './weather.js'
@@ -44,13 +48,47 @@ const ARTICLE_NAMES = { beides: 'winterdienst räumen und streuen', raeumen: 'wi
 export const winterKind = (e) => (e.geraeumt && e.gestreut ? 'beides' : e.geraeumt ? 'raeumen' : e.gestreut ? 'streuen' : 'kontrolle')
 export const winterKey = (objectId, month) => `winterdienst:${objectId}:${month}`
 
-/** Wintersaison eines Monats (Juli bis Juni): { key: '2026/27', label: 'Winter 2026/27' }. */
-export function winterSeason(ym) {
-  const y = Number(String(ym).slice(0, 4))
-  const start = Number(String(ym).slice(5, 7)) >= 7 ? y : y - 1
-  const key = `${start}/${String(start + 1).slice(2)}`
-  return { key, label: `Winter ${key}` }
+/** Wintersaison laut Einstellung: Beginn und Ende als Monat (1–12). Vorgabe Juli bis Juni (so rechnet die App seit dem Start). */
+export const SEASON_DEFAULT = { start: 7, end: 6 }
+const MONTH_NAMES = ['Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+export const SEASON_MONTHS = MONTH_NAMES.map((name, i) => [String(i + 1), name])
+const monthOk = (v) => Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 12
+/** Saison aus den Einstellungen der Fakturierung (settings.winterSeason), fehlende oder ungültige Werte: Vorgabe. */
+export function seasonSettings(settings = {}) {
+  const s = settings?.winterSeason || {}
+  return { start: monthOk(s.start) && s.start !== '' ? Number(s.start) : SEASON_DEFAULT.start, end: monthOk(s.end) && s.end !== '' ? Number(s.end) : SEASON_DEFAULT.end }
 }
+/** „Juli bis Juni“ */
+export const seasonText = (season = SEASON_DEFAULT) => {
+  const { start, end } = seasonSettings({ winterSeason: season })
+  return `${MONTH_NAMES[start - 1]} bis ${MONTH_NAMES[end - 1]}`
+}
+
+/**
+ * Wintersaison eines Monats: { key: '2026/27', label: 'Winter 2026/27', from: '2026-07-01', to: '2027-06-30' }.
+ * season { start, end } (Monate): reicht sie über den Jahreswechsel (z. B. November bis März), gehört ein Monat
+ * zwischen Ende und Beginn zur näheren Saison (gleich weit: zur kommenden). Mit der Vorgabe Juli bis Juni gehört jeder
+ * Monat ab Juli zur Saison, die in diesem Jahr beginnt (wie bisher). Eine Saison innerhalb eines Kalenderjahres hat
+ * nur das Jahr als Kennung.
+ */
+export function winterSeason(ym, season = SEASON_DEFAULT) {
+  const { start, end } = seasonSettings({ winterSeason: season })
+  const y = Number(String(ym).slice(0, 4))
+  const m = Number(String(ym).slice(5, 7))
+  const wraps = start > end
+  let from
+  if (wraps) from = m >= start ? y : m <= end ? y - 1 : m - end < start - m ? y - 1 : y
+  else if (m >= start && m <= end) from = y
+  else if (m > end) from = m - end < start + 12 - m ? y : y + 1
+  else from = start - m <= m + 12 - end ? y : y - 1
+  const until = wraps ? from + 1 : from
+  const key = wraps ? `${from}/${String(until).slice(2)}` : String(from)
+  return { key, label: `Winter ${key}`, from: `${from}-${String(start).padStart(2, '0')}-01`, to: lastOfMonth(`${until}-${String(end).padStart(2, '0')}-01`) }
+}
+
+const dmy = (iso) => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}.${iso.slice(0, 4)}`
+/** „Leistungszeitraum 1.7.2026–30.6.2027“ (Pflichtangabe der Rechnung, § 11 Abs. 1 Z 3 lit d UStG). */
+export const seasonPeriodText = ({ from, to }) => `Leistungszeitraum ${dmy(from)}–${dmy(to)}`
 
 const priceOf = (v) => {
   const n = parseNumber(v)
@@ -71,6 +109,38 @@ export function winterPrices(customer, objectId, articles = []) {
 
 /** Nur die gespeicherten Felder (für customer.winterPrices). */
 export const cleanWinterPrices = (p = {}) => ({ mode: WINTER_MODES[p.mode] ? p.mode : 'einsatz', ...Object.fromEntries(PRICE_FIELDS.map((k) => [k, priceOf(p[k])])) })
+/** Leer gelassen: keine eigenen Preise (dann gelten die Artikel „Winterdienst …“). */
+export const winterPricesEmpty = (p = {}) => (!p.mode || p.mode === 'einsatz') && PRICE_FIELDS.every((k) => priceOf(p[k]) === '')
+
+export const PRICE_LABELS = { ...WINTER_KINDS, pauschale: 'Pauschale' }
+/**
+ * Eingabe eines Preises prüfen (Kundenblatt): leer, oder Betrag netto mit Dezimalkomma („65,50“, „1.234,50“, auch
+ * „65.5“ und „€ 65“). Liefert { value } (Zahl, 0 = leer) oder { error } (negativ, keine Zahl, mehr als 2 Nachkommastellen).
+ */
+export function priceInput(raw) {
+  const s = String(raw ?? '').replace(/€/g, '').replace(/\s/g, '')
+  if (!s) return { value: '' }
+  if (/^[-−–]/.test(s)) return { error: 'darf nicht negativ sein' }
+  if (!/^(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$/.test(s) && !/^\d+\.\d{1,2}$/.test(s)) return { error: 'ist keine Zahl (Beispiel: 65,50)' }
+  const n = parseNumber(s)
+  if (round2(n) !== n) return { error: 'höchstens zwei Stellen nach dem Komma' }
+  return { value: n > 0 ? round2(n) : '' }
+}
+
+/**
+ * Preise eines Objekts aus dem Kundenblatt: inputs { mode, beides, raeumen, streuen, kontrolle, pauschale } als Text.
+ * Liefert { prices (wie cleanWinterPrices), errors: [{ field, text }] }; fehlerhafte Felder bleiben leer.
+ */
+export function winterPriceInputs(inputs = {}) {
+  const errors = []
+  const values = {}
+  for (const k of PRICE_FIELDS) {
+    const r = priceInput(inputs[k])
+    if (r.error) errors.push({ field: k, text: `${PRICE_LABELS[k]}: ${r.error}` })
+    values[k] = r.error ? '' : r.value
+  }
+  return { prices: cleanWinterPrices({ ...values, mode: inputs.mode }), errors }
+}
 
 /** Protokoll-Einträge eines Objekts im Monat (ohne Testalarme), nach Tag und Uhrzeit, mit kind. */
 export function winterEntries(log = {}, { objectId, month, objectsById = new Map() }) {
@@ -104,17 +174,19 @@ export const kindSummary = (entries) =>
  *  je Einsatz: eine Position je Art (Menge = Einsätze, Einheit „Einsatz“, Tage als Langtext); reine Kontrollgänge nur
  *    mit eigenem Preis, sonst als Text („nicht verrechnet“).
  *  Pauschale je Monat: 1 × Pauschale, die Einsätze als Text.
- *  Pauschale je Saison: 1 × Pauschale beim ersten abgerechneten Monat der Saison; ist sie schon verrechnet
- *    (seasonDoc), gibt es nichts mehr abzurechnen (lines leer).
- * Liefert { lines, net, missing: [Arten ohne Preis], count, flat }.
+ *  Pauschale je Saison: 1 × Pauschale beim ersten abgerechneten Monat der Saison, mit dem Leistungszeitraum der Saison
+ *    als Langtext (season: Einstellung { start, end }); ist sie schon verrechnet (seasonDoc), gibt es nichts mehr
+ *    abzurechnen (lines leer).
+ * Liefert { lines, net, missing: [Arten ohne Preis], count, flat, period: { from, to } (nur Saisonpauschale) | null }.
  */
-export function winterBill({ entries = [], prices = {}, objectName = '', month, vat = 20, newId, seasonDoc = null }) {
+export function winterBill({ entries = [], prices = {}, objectName = '', month, vat = 20, newId, seasonDoc = null, season = SEASON_DEFAULT }) {
   const lines = []
   const missing = []
   const count = entries.length
   const info = (list) => `Einsätze lt. Winterdienst-Protokoll ${monthLabel(month)}: ${list.length} (${kindSummary(list)}) am ${dayList(list)}`
   const mode = WINTER_MODES[prices.mode] ? prices.mode : 'einsatz'
-  if (!count) return { lines, net: 0, missing, count, flat: mode !== 'einsatz' }
+  let period = null
+  if (!count) return { lines, net: 0, missing, count, flat: mode !== 'einsatz', period }
   if (mode === 'einsatz') {
     for (const k of KIND_ORDER) {
       const list = entries.filter((e) => e.kind === k)
@@ -130,16 +202,17 @@ export function winterBill({ entries = [], prices = {}, objectName = '', month, 
   } else if (mode === 'monat' || !seasonDoc) {
     const price = priceOf(prices.pauschale)
     if (!price) missing.push('pauschale')
-    const season = winterSeason(month)
+    const ss = winterSeason(month, season)
+    if (mode === 'saison') period = { from: ss.from, to: ss.to }
     lines.push(
       mode === 'monat'
         ? { id: newId(), text: `Winterdienst Pauschale ${objectName} ${monthLabel(month)}`, qty: 1, unit: 'Monat', price: price || 0, vat, discount: 0 }
-        : { id: newId(), text: `Winterdienst Saisonpauschale ${objectName} ${season.label}`, qty: 1, unit: 'Saison', price: price || 0, vat, discount: 0 },
+        : { id: newId(), text: `Winterdienst Saisonpauschale ${objectName} ${ss.label}`, longText: seasonPeriodText(ss), qty: 1, unit: 'Saison', price: price || 0, vat, discount: 0 },
     )
     lines.push({ id: newId(), type: 'text', text: info(entries) })
   }
   const net = round2(lines.filter((l) => !l.type).reduce((s, l) => s + round2(l.qty * l.price), 0))
-  return { lines, net, missing, count, flat: mode !== 'einsatz' }
+  return { lines, net, missing, count, flat: mode !== 'einsatz', period }
 }
 
 /**
@@ -151,9 +224,9 @@ export function billedBySource(docs = [], key) {
 }
 export const activeBilling = (list) => list.filter((b) => b.state !== 'storniert')
 
-/** Schon verrechnete Saisonpauschale eines Objekts (Entwurf oder Rechnung, nicht storniert). */
-export function seasonBilled(docs = [], objectId, month) {
-  const { key } = winterSeason(month)
+/** Schon verrechnete Saisonpauschale eines Objekts (Entwurf oder Rechnung, nicht storniert); season wie bei winterBill. */
+export function seasonBilled(docs = [], objectId, month, season = SEASON_DEFAULT) {
+  const { key } = winterSeason(month, season)
   return docs.find((x) => x.kind === 'rechnung' && x.source?.type === 'winterdienst' && x.source.objectId === objectId && x.source.mode === 'saison' && x.source.season === key && !(x.number && isCancelled(x, docs))) || null
 }
 

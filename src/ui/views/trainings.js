@@ -106,6 +106,11 @@ registerView({
 
 // ---------------------------------------------------------------- Eintragen (eine Person, eine Art)
 
+// Geöffnet aus einem anderen Dialog (z. B. der Checkliste „Eintritt & Austritt“: data-back-type="bew-list",
+// data-back-id): nach dem Speichern geht es dorthin zurück statt zur Ansicht.
+const backOf = (el) => (el?.dataset?.backType ? { back: { type: el.dataset.backType, id: el.dataset.backId || '' } } : {})
+const backOrClose = (back) => (back?.type ? openModal({ type: back.type, id: back.id }) : closeModal())
+
 function recordModal(c, m) {
   const ed = editable()
   const dis = ed ? '' : 'disabled'
@@ -265,7 +270,7 @@ registerActions({
     el?.focus()
     el?.setSelectionRange(el.value.length, el.value.length)
   },
-  'tr-record-open': (el) => openModal({ type: 'tr-record', empId: el.dataset.emp || '', typeId: el.dataset.type || '' }),
+  'tr-record-open': (el) => openModal({ type: 'tr-record', empId: el.dataset.emp || '', typeId: el.dataset.type || '', ...backOf(el) }),
   'tr-record-redraw': () => {
     readRecord()
     renderModal()
@@ -296,7 +301,7 @@ registerActions(
       if (m.until && m.until < m.date) return toast('„Gültig bis“ liegt vor dem Datum.')
       doc().records.push({ id: uid('u'), empId: m.empId, typeId: type.id, date: m.date, until: m.until || '', note: (m.note || '').trim(), by: by(), at: nowIso() })
       persist()
-      closeModal()
+      backOrClose(m.back)
       renderNow()
       const s = statusOf({ type, emp: empOf(m.empId), records: doc().records, today: todayISO() })
       toast(`${type.name} für ${empName(m.empId)} eingetragen${s.until ? `, gültig bis ${short(s.until)}` : ''}.`)
@@ -317,6 +322,7 @@ registerActions(
         typeId: el.dataset.type || '',
         ...(el.dataset.topic ? { topic: el.dataset.topic } : {}),
         ...(el.dataset.participants ? { participants: el.dataset.participants.split(',').filter((id) => known.has(id)) } : {}),
+        ...backOf(el),
       })
     },
     'ts-redraw': () => {
@@ -341,7 +347,7 @@ registerActions(
       persist()
       if (m.pdf) download(sessionPdfName(session, type), await sessionPdf(session, signatures))
       clearSignatures('tr-sig-')
-      closeModal()
+      backOrClose(m.back)
       renderNow()
       const missing = m.sign ? m.participants.length - Object.keys(signatures).length : 0
       toast(`${type.name} für ${plural(m.participants.length, 'Person', 'Personen')} eingetragen${m.sign ? (missing ? `; ${missing} ohne Unterschrift` : ', alle unterschrieben') : ''}.`)

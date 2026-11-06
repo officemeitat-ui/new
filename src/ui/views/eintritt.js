@@ -162,8 +162,9 @@ function taskPanel(t, l, ctx, ed) {
     const r = trainingCheck(ctx.trainings, emp, ctx.today)
     if (!r) return '<p class="muted">Unterweisungen sieht, wer „Unterweisungen &amp; Fristen“ öffnen darf.</p>'
     const may = canEdit('unterweisungen') && !app.readOnly
-    const rows = r.required.map((x) => `<li><span class="pill ${x.state === 'ok' ? 'ok' : x.state === 'bald' ? 'warning' : 'error'}">${x.state === 'fehlt' ? 'fehlt' : x.state === 'abgelaufen' ? 'abgelaufen' : `am ${esc(short(x.record.date))}`}</span> ${esc(x.type.name)}${x.type.law ? ` <span class="muted">${esc(x.type.law)}</span>` : ''} ${may && x.state !== 'ok' ? btn('tr-record-open', 'Eintragen', { emp: emp.id, type: x.type.id }) : ''}</li>`)
-    return `<ul class="bew-sub">${rows.join('')}</ul>${may ? `<div class="actions">${btn('tr-session-open', 'Unterweisung durchführen (mit Unterschrift)', { type: r.required.find((x) => x.state !== 'ok')?.type.id || '' })}</div>` : ''}`
+    const rows = r.required.map((x) => `<li><span class="pill ${x.state === 'ok' ? 'ok' : x.state === 'bald' ? 'warning' : 'error'}">${x.state === 'fehlt' ? 'fehlt' : x.state === 'abgelaufen' ? 'abgelaufen' : `am ${esc(short(x.record.date))}`}</span> ${esc(x.type.name)}${x.type.law ? ` <span class="muted">${esc(x.type.law)}</span>` : ''} ${may && x.state !== 'ok' ? btn('tr-record-open', 'Eintragen', { emp: emp.id, type: x.type.id, 'back-type': 'bew-list', 'back-id': l.id }) : ''}</li>`)
+    // nach dem Eintragen wieder diese Checkliste (back-type/back-id, trainings.js)
+    return `<ul class="bew-sub">${rows.join('')}</ul>${may ? `<div class="actions">${btn('tr-session-open', 'Unterweisung durchführen (mit Unterschrift)', { type: r.required.find((x) => x.state !== 'ok')?.type.id || '', 'back-type': 'bew-list', 'back-id': l.id })}</div>` : ''}`
   }
   if (t.type === 'arbeitsschutz') {
     const v = visibleViews().find((x) => x.id === 'arbeitsschutz')

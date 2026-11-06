@@ -4,7 +4,7 @@
 
 import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
-import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, TASK_TEMPLATE } from '../../core/importer.js'
+import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, TASK_TEMPLATE } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
@@ -148,7 +148,7 @@ function importModal(c, { kind, text = '', preview = null }) {
   const isEmp = kind === 'employees'
   const template = (isEmp ? EMPLOYEE_TEMPLATE : TASK_TEMPLATE).join('\t')
   const example = isEmp
-    ? 'Ana Muster\t1001\tVollzeit\t40\tana.muster@firma.at\tSalzburg Stadt\tHygienebereich, Glasreinigung\tMo-Fr\t05:30\t17:00'
+    ? 'Ana Muster\t1001\tVollzeit\t40\tana.muster@firma.at\tSalzburg Stadt\tHygienebereich, Glasreinigung\tMo-Fr\t05:30\t17:00\tTürkisch'
     : 'Kanzlei Muster\tMustergasse 1, 5020 Salzburg\tSalzburg Stadt\tBüroreinigung\tMo, Mi, Fr\t17:30\t19:30\t1\tAna Muster\t1\tverschieben\tReinigung'
   return modalFrame({
     title: isEmp ? 'Mitarbeitende aus Excel einfügen' : 'Objekte & Leistungen aus Excel einfügen',
@@ -168,11 +168,18 @@ function runImport(kind, text, apply) {
     if (apply) {
       for (const item of items) {
         const existing = data.employees.find((e) => e.name.toLowerCase() === item.name.toLowerCase())
-        if (existing) Object.assign(existing, { ...item, trained: existing.trained, availability: Object.keys(item.availability).length ? item.availability : existing.availability })
-        else data.employees.push({ id: uid('e'), vacationDaysYear: 25, ...item })
+        // Sprache: leer = Deutsch (kein Feld); ohne erkannte Sprache bleibt die bisherige
+        if (existing) {
+          Object.assign(existing, { ...item, trained: existing.trained, availability: Object.keys(item.availability).length ? item.availability : existing.availability })
+          if (existing.lang === '') delete existing.lang
+        } else {
+          const { lang, ...rest } = item
+          data.employees.push({ id: uid('e'), vacationDaysYear: 25, ...rest, ...(lang ? { lang } : {}) })
+        }
       }
     }
-    return { count: items.length, errors, summary: `${items.length} Mitarbeitende erkannt` }
+    const langs = languageSummary(items)
+    return { count: items.length, errors, summary: `${items.length} Mitarbeitende erkannt${langs ? `, Sprache am Handy: ${langs}` : ''}` }
   }
   const { items, errors } = importTasks(text, data.employees, { anchor: app.cur.monday })
   const objectNames = new Set(items.map((i) => i.object))

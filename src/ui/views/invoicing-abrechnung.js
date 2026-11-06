@@ -3,8 +3,10 @@
 // Ist). Dazu die Beilage zur Rechnung – Winterdienst-Nachweis bzw. Einsatzliste – zum Herunterladen und als Anhang der
 // E-Mail (Einzel- und Sammelversand). Rechenkern: core/fak-abrechnung.js; PDF: export/winter-pdf.js und
 // export/abrechnung-pdf.js. Geladen mit invoicing.js; Entwurf und Kunde kommen von dort (abrechnungHooks, auch für den
-// Rechnungsentwurf aus einem Regiebericht, views/regie.js). Beilage zum Regiebericht: export/regie-pdf.js aus den beim
-// Erstellen eingefrorenen Angaben (source.beilage), damit die Buchhaltung sie ohne Zugriff auf regie/ senden kann.
+// Rechnungsentwurf aus einem Regiebericht, views/regie.js, und aus den Prüfungen der Anlagen, views/anlagen.js).
+// Beilage zum Regiebericht: export/regie-pdf.js aus den beim Erstellen eingefrorenen Angaben (source.beilage), damit
+// die Buchhaltung sie ohne Zugriff auf regie/ senden kann. Dazu der Reiter „Winterdienst“ im Kundenblatt (Preise je
+// Objekt, customers[].winterPrices) und die Wintersaison in den Einstellungen (settings.winterSeason).
 
 import { formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import {
@@ -18,16 +20,24 @@ import {
   istRowsFor,
   kindSummary,
   linesFromIst,
+  PRICE_LABELS,
+  priceInput,
   ROUND_STEPS,
   roundStep,
+  SEASON_MONTHS,
   seasonBilled,
+  seasonPeriodText,
+  seasonSettings,
+  seasonText,
   WINTER_KINDS,
   WINTER_MODES,
   winterBill,
   winterEntries,
   winterKey,
   winterObjectIds,
+  winterPriceInputs,
   winterPrices,
+  winterPricesEmpty,
   winterRecurring,
   winterSeason,
 } from '../../core/fak-abrechnung.js'
@@ -49,6 +59,8 @@ export const abrechnungHooks = { newDraft: null, applyCustomer: null }
 
 const F = () => app.data.fakturierung
 const S = () => settingsOf(F())
+/** Wintersaison laut Einstellungen (Vorgabe Juli bis Juni). */
+const SEASON = () => seasonSettings(F()?.settings)
 const sees = (m) => !app.access || app.access.sees(m)
 const objOf = (id) => (app.data.objects || []).find((o) => o.id === id)
 const docOf = (id) => F().documents.find((d) => d.id === id)
@@ -87,8 +99,8 @@ function winterRows(month, m) {
       const customer = customerForObject(d, o.id)
       const entries = winterEntries(log, { objectId: o.id, month, objectsById })
       const prices = m.prices?.[o.id] || winterPrices(customer, o.id, d.articles)
-      const seasonDoc = prices.mode === 'saison' ? seasonBilled(d.documents, o.id, month) : null
-      const bill = winterBill({ entries, prices, objectName: o.name, month, vat, newId: () => uid('l'), seasonDoc })
+      const seasonDoc = prices.mode === 'saison' ? seasonBilled(d.documents, o.id, month, SEASON()) : null
+      const bill = winterBill({ entries, prices, objectName: o.name, month, vat, newId: () => uid('l'), seasonDoc, season: SEASON() })
       const billed = billedBySource(d.documents, winterKey(o.id, month))
       return { object: o, customer, entries, prices, seasonDoc, bill, billed, active: activeBilling(billed), rec: winterRecurring(d.recurring, o.id) }
     })
@@ -105,6 +117,12 @@ const priceLine = (p, entries = []) =>
         .join(' · ')
     : `${WINTER_MODES[p.mode]} ${p.pauschale ? money(p.pauschale) : '–'}`
 
+/** „Winter 2026/27 (Leistungszeitraum 1.7.2026–30.6.2027)“ */
+const seasonLabel = (month) => {
+  const ss = winterSeason(month, SEASON())
+  return `${ss.label} (${seasonPeriodText(ss)})`
+}
+
 function priceForm(r, i) {
   const p = r.prices
   const field = (k, label) => `<label class="field"><span>${label}</span><input type="text" inputmode="decimal" id="fw-${i}-${k}" value="${esc(numText(p[k]))}" placeholder="€ netto" data-change="fab-winter-price" data-i="${i}" data-obj="${esc(r.object.id)}"></label>`
@@ -113,7 +131,7 @@ function priceForm(r, i) {
     <div class="form-grid">${
       p.mode === 'einsatz'
         ? `${field('beides', 'Räumen und Streuen (je Einsatz)')}${field('raeumen', 'Räumen (je Einsatz)')}${field('streuen', 'Streuen (je Einsatz)')}${field('kontrolle', 'Kontrolle ohne Einsatz (leer: nicht verrechnen)')}`
-        : field('pauschale', p.mode === 'saison' ? `Pauschale ${winterSeason(app.ui.modal?.month || todayISO().slice(0, 7)).label}` : 'Pauschale je Monat')
+        : field('pauschale', p.mode === 'saison' ? `Pauschale ${seasonLabel(app.ui.modal?.month || todayISO().slice(0, 7))}` : 'Pauschale je Monat')
     }</div>
     <p class="muted">${r.customer ? `Wird beim Kunden ${esc(customerName(r.customer))} für dieses Objekt gespeichert.` : 'Ohne Kunde beim Objekt gilt der Preis nur für diesen Entwurf.'}${p.own ? '' : ' Vorbelegt aus den Artikeln „Winterdienst …“, falls vorhanden.'}</p></div>`
 }
@@ -164,10 +182,108 @@ function readPrices(m, i, objectId, mode) {
   const r = winterRows(m.month, m).find((x) => x.object.id === objectId)
   if (!r) return
   const prev = r.prices
-  const read = (k) => (document.getElementById(`fw-${i}-${k}`) ? parseNumber(val(`fw-${i}-${k}`)) || '' : prev[k])
+  const read = (k) => {
+    if (!document.getElementById(`fw-${i}-${k}`)) return prev[k]
+    const x = priceInput(val(`fw-${i}-${k}`))
+    if (x.error) toast(`${PRICE_LABELS[k]}: ${x.error}`)
+    return x.error ? prev[k] : x.value
+  }
   m.prices ||= {}
   m.prices[objectId] = { ...cleanWinterPrices({ ...prev, mode: mode || prev.mode, ...Object.fromEntries(['beides', 'raeumen', 'streuen', 'kontrolle', 'pauschale'].map((k) => [k, read(k)])) }), own: prev.own, edited: true }
   m.open = objectId
+}
+
+// ---------------------------------------------------------------- Kundenblatt: Winterdienst je Objekt
+
+const PRICE_KEYS = ['beides', 'raeumen', 'streuen', 'kontrolle', 'pauschale']
+const objName = (id) => objOf(id)?.name || 'Objekt'
+
+/** Eingaben des Reiters je Objekt (Text, wie getippt), beim ersten Zeichnen aus den gespeicherten Preisen. */
+function winterInputs(m, v) {
+  m.winterRaw ||= {}
+  for (const id of v.objectIds || []) {
+    if (m.winterRaw[id]) continue
+    const own = v.winterPrices?.[id]
+    m.winterRaw[id] = { mode: own?.mode && WINTER_MODES[own.mode] ? own.mode : 'einsatz', ...Object.fromEntries(PRICE_KEYS.map((k) => [k, numText(own?.[k] ?? '')])) }
+  }
+  return m.winterRaw
+}
+
+const winterProblems = (m) => (m.winterErrors?.length ? `<ul class="fak-problems" role="alert">${m.winterErrors.map((e) => `<li class="err-text">${esc(e.text)}</li>`).join('')}</ul>` : '')
+
+/** Reiter „Winterdienst“ im Kundenblatt: je Objekt des Kunden Abrechnungsart und Preise netto. */
+export function customerWinterTab(v, x, dis) {
+  const m = app.ui.modal
+  const raw = winterInputs(m, v)
+  const ids = v.objectIds || []
+  const bad = new Set((m.winterErrors || []).map((e) => `${e.objectId}:${e.field}`))
+  const ss = winterSeason(todayISO().slice(0, 7), SEASON())
+  const blocks = ids
+    .map((id, i) => {
+      const r = raw[id]
+      const art = winterPrices(null, id, F().articles)
+      const field = (k, label) =>
+        `<label class="field"><span>${label}</span><input type="text" inputmode="decimal" id="fcw-${i}-${k}" value="${esc(r[k] ?? '')}" placeholder="${art[k] ? `Artikel: ${esc(numText(art[k]))}` : '€ netto'}" autocomplete="off" data-change="fab-cust-winter-check" ${bad.has(`${id}:${k}`) ? 'aria-invalid="true"' : ''} ${dis}></label>`
+      return `<fieldset class="fab-cw"><legend>${esc(objName(id))}</legend><div class="form-grid">
+          <label class="field"><span>Abrechnungsart</span><select id="fcw-${i}-mode" data-change="fab-cust-winter" ${dis}>${options(Object.entries(WINTER_MODES), r.mode)}</select></label>
+          ${
+            r.mode === 'einsatz'
+              ? `${field('beides', 'Räumen und Streuen (je Einsatz)')}${field('raeumen', 'Räumen (je Einsatz)')}${field('streuen', 'Streuen (je Einsatz)')}${field('kontrolle', 'Kontrolle ohne Einsatz (leer: nicht verrechnen)')}`
+              : field('pauschale', r.mode === 'saison' ? 'Pauschale je Saison' : 'Pauschale je Monat')
+          }</div></fieldset>`
+    })
+    .join('')
+  return `<h3>Winterdienst je Objekt</h3>
+    <p class="muted">Preise netto für „Winterdienst abrechnen“ (Fakturierung → Rechnungen). Leer gelassen gelten die Artikel „Winterdienst …“, falls vorhanden. Beträge mit Komma, z. B. 65,50.</p>
+    <div id="fcw-problems" aria-live="polite">${winterProblems(m)}</div>
+    ${ids.length ? blocks : '<p class="empty">Diesem Kunden ist noch kein Objekt zugeordnet (Stammdaten → Objekte dieses Kunden).</p>'}
+    <p class="note">Je Einsatz: jeder Eintrag im Winterdienst-Protokoll zählt als ein Einsatz. Pauschale je Saison: einmal je Saison (${esc(seasonText(SEASON()))}, einstellbar unter Einstellungen); auf der Rechnung steht der Leistungszeitraum, derzeit ${esc(seasonPeriodText(ss).replace('Leistungszeitraum ', ''))}.</p>`
+}
+
+/**
+ * Felder des Reiters in den Entwurf des Kunden (customer.winterPrices je Objekt). Fehler (negativ, keine Zahl) stehen in
+ * m.winterErrors, die Eingaben bleiben wie getippt (m.winterRaw); ganz leer: keine eigenen Preise.
+ */
+export function readCustomerWinter(m) {
+  const v = m?.draft
+  if (!v || !document.getElementById('fcw-0-mode')) return v
+  const raw = winterInputs(m, v)
+  const errors = []
+  const prices = { ...(v.winterPrices || {}) }
+  ;(v.objectIds || []).forEach((id, i) => {
+    if (!document.getElementById(`fcw-${i}-mode`)) return
+    const r = raw[id]
+    r.mode = WINTER_MODES[val(`fcw-${i}-mode`)] ? val(`fcw-${i}-mode`) : 'einsatz'
+    for (const k of PRICE_KEYS) if (document.getElementById(`fcw-${i}-${k}`)) r[k] = val(`fcw-${i}-${k}`).trim()
+    const res = winterPriceInputs(r)
+    for (const e of res.errors) errors.push({ objectId: id, field: e.field, i, text: `${objName(id)}, ${e.text}` })
+    if (winterPricesEmpty(res.prices)) delete prices[id]
+    else prices[id] = res.prices
+  })
+  m.winterErrors = errors
+  if (Object.keys(prices).length) v.winterPrices = prices
+  else delete v.winterPrices
+  return v
+}
+
+// ---------------------------------------------------------------- Einstellungen: Wintersaison
+
+/** Felder „Wintersaison“ im Reiter Einstellungen der Fakturierung. */
+export function winterSettingsHtml(s, dis) {
+  const season = seasonSettings(s)
+  const ss = winterSeason(todayISO().slice(0, 7), season)
+  return `<h3>Winterdienst</h3>
+    <div class="form-grid">
+      <label class="field"><span>Wintersaison von (Monat)</span><select id="fs-winter-start" ${dis}>${options(SEASON_MONTHS, String(season.start))}</select></label>
+      <label class="field"><span>bis (Monat)</span><select id="fs-winter-end" ${dis}>${options(SEASON_MONTHS, String(season.end))}</select></label>
+    </div>
+    <p class="muted">Gilt für die Saisonpauschale im Winterdienst: einmal je Saison verrechnet, auf der Rechnung mit Leistungszeitraum (jetzt: ${esc(seasonPeriodText(ss).replace('Leistungszeitraum ', ''))}). Vorgabe Juli bis Juni.</p>`
+}
+
+/** Einstellung aus den Feldern (für fak-settings-save). */
+export function readWinterSettings() {
+  if (!document.getElementById('fs-winter-start')) return {}
+  return { winterSeason: seasonSettings({ winterSeason: { start: val('fs-winter-start'), end: val('fs-winter-end') } }) }
 }
 
 // ---------------------------------------------------------------- Ist-Zeiten (Leistungsnachweis mit Grundlage Ist)
@@ -414,6 +530,25 @@ export function sourceLabel(x) {
 // ---------------------------------------------------------------- Aktionen
 
 registerActions({
+  // Kundenblatt, Reiter „Winterdienst“: Abrechnungsart gewechselt (andere Felder) bzw. Betrag prüfen
+  'fab-cust-winter': () => {
+    const m = app.ui.modal
+    if (m?.type !== 'fak-cust') return
+    readCustomerWinter(m)
+    renderModal()
+  },
+  'fab-cust-winter-check': () => {
+    const m = app.ui.modal
+    if (m?.type !== 'fak-cust') return
+    readCustomerWinter(m)
+    const box = document.getElementById('fcw-problems')
+    if (box) box.innerHTML = winterProblems(m)
+    const bad = new Set((m.winterErrors || []).map((e) => `fcw-${e.i}-${e.field}`))
+    for (const el of document.querySelectorAll('.fab-cw input[id^="fcw-"]')) {
+      if (bad.has(el.id)) el.setAttribute('aria-invalid', 'true')
+      else el.removeAttribute('aria-invalid')
+    }
+  },
   'fab-beilage': async (el) => {
     const m = app.ui.modal
     const x = m?.draft?.id === el.dataset.id ? m.draft : docOf(el.dataset.id)
@@ -480,12 +615,14 @@ registerActions(
       const created = []
       for (const r of list) {
         const o = r.object
+        // Saisonpauschale: Leistungszeitraum der ganzen Saison (§ 11 UStG), sonst der Monat
+        const period = r.bill.period || { from: `${month}-01`, to: monthEnd(month) }
         const x = abrechnungHooks.newDraft('rechnung', {
           objectId: o.id,
           objectName: o.name,
-          serviceFrom: `${month}-01`,
-          serviceTo: monthEnd(month),
-          title: `Winterdienst ${o.name} ${monthLabel(month)}`,
+          serviceFrom: period.from,
+          serviceTo: period.to,
+          title: `Winterdienst ${o.name} ${r.bill.period ? winterSeason(month, SEASON()).label : monthLabel(month)}`,
           lines: r.bill.lines,
           source: {
             type: 'winterdienst',
@@ -493,7 +630,7 @@ registerActions(
             objectId: o.id,
             month,
             mode: r.prices.mode,
-            ...(r.prices.mode === 'saison' ? { season: winterSeason(month).key } : {}),
+            ...(r.prices.mode === 'saison' ? { season: winterSeason(month, SEASON()).key } : {}),
             entries: r.entries.map(logKey),
             beilage: freezeWinter({ object: o, entries: r.entries, names: proofNames() }),
           },

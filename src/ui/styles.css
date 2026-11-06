@@ -1599,6 +1599,9 @@ tr.muted td { color: var(--muted); }
 .fak-doc-head { color: var(--muted); }
 .fak-break { overflow-wrap: anywhere; }
 .fak-cust-tabs { margin-bottom: 4px; }
+/* Kundenblatt, Reiter „Winterdienst“: je Objekt ein Block, fehlerhafte Beträge markiert */
+.fab-cw { margin-bottom: 10px; }
+.fab-cw input[aria-invalid="true"] { border-color: var(--err); box-shadow: 0 0 0 1px var(--err); }
 .fak-art-pick input { width: 16rem; max-width: 100%; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 12px; }
 /* Positionsarten (Text, Titel, Zwischensumme, Option, Alternative) und Folgebelege */

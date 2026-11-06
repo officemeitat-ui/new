@@ -4,8 +4,9 @@
 
 import { WEEKDAY_SHORT } from './dates.js'
 import { DEFAULT_HOLIDAY_RULE } from './plan.js'
+import { langInfo, LANGUAGES } from './sprachen.js'
 
-export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis']
+export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis', 'Sprache']
 export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art', 'Fahrzeit danach', 'Fahrtnotiz']
 
 const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
@@ -31,6 +32,7 @@ const ALIASES = {
   category: ['art', 'kategorie'],
   travel: ['fahrzeit', 'fahrzeitdanach', 'fahrzeitmin', 'fahrt'],
   travelNote: ['fahrtnotiz', 'notizfahrt', 'fahrthinweis'],
+  lang: ['sprache', 'sprachehandy', 'sprachamhandy', 'muttersprache', 'language'],
 }
 
 export function parseTable(text) {
@@ -122,17 +124,52 @@ export function parseMonthInterval(text) {
   return null
 }
 
+// Sprache am Handy (employees[].lang, Kennungen aus core/sprachen.js): Bezeichnung auf Deutsch, Name in der Sprache selbst,
+// Kennung oder übliche Kürzel. „BKS/Bosnisch/Kroatisch/Serbisch“ zählt einmal (alle Teile meinen dieselbe Sprache).
+const LANG_WORDS = {
+  de: ['deutsch', 'de', 'deu', 'ger', 'german', 'osterreichisch', 'oesterreichisch'],
+  bks: ['bks', 'bosnisch', 'kroatisch', 'serbisch', 'serbokroatisch', 'bosanski', 'hrvatski', 'srpski', 'bs', 'hr', 'sr', 'hbs', 'bos', 'hrv', 'srp', 'bosnian', 'croatian', 'serbian', 'jugoslawisch'],
+  ro: ['rumanisch', 'rumaenisch', 'romana', 'romaneste', 'ro', 'ron', 'rum', 'romanian', 'moldawisch'],
+  tr: ['turkisch', 'tuerkisch', 'turkce', 'tr', 'tur', 'turkish'],
+  hu: ['ungarisch', 'magyar', 'hu', 'hun', 'ung', 'hungarian'],
+  en: ['englisch', 'english', 'en', 'eng'],
+}
+const LANG_BY_WORD = new Map(Object.entries(LANG_WORDS).flatMap(([id, words]) => words.map((w) => [w, id])))
+for (const l of LANGUAGES) for (const w of [l.label, l.own]) LANG_BY_WORD.set(norm(w), l.id)
+
+/**
+ * Sprache aus einer Zelle: Kennung aus core/sprachen.js ('de' für Deutsch), '' (leer) oder null (nicht erkannt).
+ * Mehrere Teile („BKS/Bosnisch“, „Türkisch (Türkçe)“) müssen dieselbe Sprache meinen.
+ */
+export function parseLanguage(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  const whole = LANG_BY_WORD.get(norm(text))
+  if (whole) return whole
+  const parts = text.split(/[\s/,;+()|-]+/).map(norm).filter(Boolean)
+  const ids = new Set(parts.map((p) => LANG_BY_WORD.get(p) || '?'))
+  return ids.size === 1 && !ids.has('?') ? [...ids][0] : null
+}
+const LANG_HINT = LANGUAGES.map((l) => l.label).join(', ')
+
 const TYPES = ['Vollzeit', 'Teilzeit', 'Geringfügig', 'Lehrling']
 const normalizeType = (v) => TYPES.find((t) => norm(t) === norm(v) || norm(v).startsWith(norm(t).slice(0, 5))) || 'Teilzeit'
 
 const weekdaysOf = (r) => (r.type === 'monthly' ? !!r.weekday : r.weekdays.length > 0)
 
-/** Mitarbeitende aus Tabelle. Liefert { items, errors }. */
+/**
+ * Mitarbeitende aus Tabelle. Liefert { items, errors }. Spalte „Sprache“ (optional): erkannte Sprache als lang
+ * ('' = Deutsch); leere Zelle oder unbekannter Wert: kein lang (bestehende Personen behalten ihre Sprache), ein
+ * unbekannter Wert steht als Hinweis in errors.
+ */
 export function importEmployees(text) {
   const errors = []
   const items = parseTable(text).map((row, i) => {
     const name = pick(row, 'name')
     if (!name) errors.push(`Zeile ${i + 2}: Name fehlt`)
+    const rawLang = pick(row, 'lang')
+    const lang = parseLanguage(rawLang)
+    if (lang === null) errors.push(`Zeile ${i + 2}${name ? ` (${name})` : ''}: Sprache „${String(rawLang).trim()}“ nicht erkannt, bleibt unverändert (möglich: ${LANG_HINT})`)
     const days = parseWeekdays(pick(row, 'days') || 'Mo-Fr')
     const from = toTime(pick(row, 'from')) || '06:00'
     const to = toTime(pick(row, 'to')) || '20:00'
@@ -146,9 +183,17 @@ export function importEmployees(text) {
       skills: pick(row, 'skills').split(/[,/]/).map((s) => s.trim()).filter(Boolean),
       availability: Object.fromEntries(days.map((d) => [d, { from, to }])),
       trained: [],
+      ...(lang ? { lang: lang === 'de' ? '' : lang } : {}),
     }
   })
   return { items: items.filter((e) => e.name), errors }
+}
+
+/** Sprachen der erkannten Personen für die Vorschau: „2 × Türkisch, 1 × Deutsch“ (nur Zeilen mit Sprache). */
+export function languageSummary(items = []) {
+  const n = new Map()
+  for (const e of items) if (e.lang !== undefined) n.set(e.lang || 'de', (n.get(e.lang || 'de') || 0) + 1)
+  return LANGUAGES.filter((l) => n.has(l.id)).map((l) => `${n.get(l.id)} × ${langInfo(l.id).label}`).join(', ')
 }
 
 const HOLIDAY = { entfallt: 'entfaellt', entfaellt: 'entfaellt', nein: 'entfaellt', geschlossen: 'entfaellt', findetstatt: 'findet_statt', ja: 'findet_statt', arbeiten: 'findet_statt', verschieben: 'verschieben', verschoben: 'verschieben' }

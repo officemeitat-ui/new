@@ -296,3 +296,77 @@ test('Verrechenbare Prüfungen im Monat je Objekt mit Summe', () => {
   const d = { ...doc, items: doc.items.map((i) => (i.id === 'a3' ? { ...i, price: 99 } : i)) }
   assert.equal(billableChecks({ doc: d, objects, month: '2026-11' })[0].sum, 40)
 })
+
+// ---------------------------------------------------------------- Prüfungen in die Fakturierung (core/anlagen-rechnung.js)
+
+import { addAnlageLines, anlageConflicts, anlageIndex, anlageLine, anlageLock, checkBillState, checksToBill, syncAnlagenBilled } from '../src/core/anlagen-rechnung.js'
+import { checksumOf, finalize } from '../src/core/invoicing.js'
+import { rechargeConflicts } from '../src/core/recharge.js'
+
+test('Prüfungen verrechnen: offen je Kunde, Position mit Objekt, Anlage und Datum, Zustand aus den Belegen', () => {
+  const objs = [{ id: 'o1', name: 'Wohnanlage Lehen' }, { id: 'o2', name: 'Autohaus Maxglan' }, { id: 'o3', name: 'Ohne Kunde' }]
+  const an = {
+    items: [item({ id: 'a1', count: 6 }), item({ id: 'a2', objectId: 'o2', typeId: 'notbeleuchtung', label: 'Halle' }), item({ id: 'a3', objectId: 'o3', typeId: 'spielplatz', label: 'Hof', count: 1 })],
+    checks: [
+      check({ id: 'k1', itemId: 'a1', date: '2026-10-12', billable: true, price: 35 }),
+      check({ id: 'k2', itemId: 'a2', date: '2026-11-03', billable: true, price: 40 }),
+      check({ id: 'k3', itemId: 'a2', date: '2026-09-01', billable: false, price: 0 }),
+      check({ id: 'k4', itemId: 'a3', date: '2026-11-02', kind: 'operativ', billable: true, price: 15 }),
+      check({ id: 'k5', itemId: 'a1', date: '2026-11-04', billable: true, price: 12.5 }),
+    ],
+  }
+  const fak = { customers: [{ id: 'c1', name: 'HV Lehen', objectIds: ['o1', 'o2'] }], documents: [] }
+  const groups = checksToBill({ doc: an, objects: objs, fak })
+  assert.deepEqual(groups.map((g) => [g.customerId, g.name, g.rows.map((r) => r.check.id), g.sum, g.from, g.to]), [
+    ['c1', 'HV Lehen', ['k2', 'k1', 'k5'], 87.5, '2026-10-12', '2026-11-04'],
+    ['', '', ['k4'], 15, '2026-11-02', '2026-11-02'],
+  ])
+  const line = anlageLine(groups[0].rows[1], { id: 'l1', vat: 20 })
+  assert.deepEqual(line, { id: 'l1', text: 'Prüfung Feuerlöscher: Stiege 2, EG (6 Stück)', longText: 'Wohnanlage Lehen · geprüft am 12.10.2026', qty: 1, unit: 'Pauschale', price: 35, vat: 20, discount: 0, source: { type: 'anlage', id: 'k1' } })
+  assert.match(anlageLine(groups[1].rows[0], { id: 'l2' }).text, /^Operative Inspektion Spielplatz: Hof$/)
+  assert.equal(checkBillState(an.checks[2], []), null, 'nicht verrechenbar: kein Zustand')
+
+  // Entwurf: eine Position je Prüfung (leere erste Zeile ersetzt), nicht doppelt
+  const draft = { id: 'r1', kind: 'rechnung', customerId: 'c1', lines: [{ id: 'e', text: '', qty: 1, price: '' }] }
+  assert.equal(addAnlageLines(draft, groups[0].rows, { newId, vat: 20 }), 3)
+  assert.equal(addAnlageLines(draft, groups[0].rows, { newId, vat: 20 }), 0)
+  assert.deepEqual(draft.lines.map((l) => l.source.id), ['k2', 'k1', 'k5'])
+  assert.throws(() => addAnlageLines({ kind: 'angebot', lines: [] }, groups[0].rows, { newId }), /Rechnung/)
+  fak.documents.push(draft)
+  assert.deepEqual(checksToBill({ doc: an, objects: objs, fak }).map((g) => g.customerId), [''], 'im Entwurf: nicht mehr offen')
+  assert.deepEqual(checkBillState(an.checks[0], fak.documents), { state: 'entwurf', docId: 'r1' })
+  assert.deepEqual(anlageIndex(fak.documents).get('k5').map((d) => d.id), ['r1'])
+  assert.match(anlageLock(an.checks[0], fak.documents), /Rechnungsentwurf/)
+
+  // Entwurf gelöscht: wieder offen
+  assert.equal(checkBillState(an.checks[0], []).state, 'offen')
+
+  // Festschreiben: Zeilen mit source zählen zur Prüfsumme (nur neue Belege haben sie)
+  const settings = { sender: { name: 'Firma', address: 'Weg 1', uid: 'ATU12345678' } }
+  const fixed = finalize({ ...draft, date: '2026-11-06', serviceFrom: '2026-10-12', serviceTo: '2026-11-04', recipient: { name: 'HV Lehen', address: 'Ring 3' } }, [], settings, { now: '2026-11-06T08:00:00.000Z' })
+  assert.equal(checksumOf(fixed), fixed.checksum)
+  const docs = [fixed]
+  assert.deepEqual(checkBillState(an.checks[0], docs), { state: 'verrechnet', docId: 'r1', number: fixed.number, date: '2026-11-06' })
+  assert.match(anlageLock(an.checks[0], docs), /verrechnet/)
+
+  // kein zweites Verrechnen: zweiter Entwurf mit derselben Prüfung
+  const second = { id: 'r2', kind: 'rechnung', lines: [anlageLine(groups[0].rows[1], { id: 'x' })] }
+  assert.deepEqual(anlageConflicts(second, [...docs, second], an.checks), [`Prüfung Feuerlöscher: Stiege 2, EG (6 Stück) ist schon mit ${fixed.number} verrechnet: Position entfernen.`])
+  assert.deepEqual(anlageConflicts(fixed, docs, an.checks), [], 'der Beleg selbst zählt nicht')
+  assert.match(anlageConflicts({ id: 'r3', kind: 'rechnung', lines: [{ text: 'X', source: { type: 'anlage', id: 'weg' } }] }, docs, an.checks)[0], /gibt es .* nicht mehr/)
+  assert.match(anlageConflicts({ id: 'r3', kind: 'rechnung', lines: [{ text: 'X', source: { type: 'anlage', id: 'k3' } }] }, docs, an.checks)[0], /nicht mehr als verrechenbar/)
+  assert.deepEqual(anlageConflicts({ id: 'r3', kind: 'rechnung', lines: [{ text: 'X', source: { type: 'anlage', id: 'weg' } }] }, docs, null), [], 'Anlagen nicht lesbar: nur über die Belege')
+  assert.deepEqual(rechargeConflicts(second, docs, []), [], 'Weiterverrechnung prüft nur ihre eigenen Positionen')
+
+  // Stand für Rollen ohne Fakturierung, Storno gibt frei
+  assert.equal(syncAnlagenBilled(an.checks, docs), 3)
+  assert.deepEqual(an.checks[0].billed, { docId: 'r1', number: fixed.number, date: '2026-11-06' })
+  assert.equal(checkBillState(an.checks[0], null).state, 'verrechnet')
+  assert.equal(syncAnlagenBilled(an.checks, docs), 0)
+  const storno = { id: 's1', kind: 'storno', number: 'ST-2026-0001', refId: 'r1' }
+  assert.equal(checkBillState(an.checks[0], [...docs, storno]).state, 'offen')
+  assert.deepEqual(anlageConflicts(second, [...docs, storno, second], an.checks), [], 'nach dem Storno wieder verrechenbar')
+  assert.equal(syncAnlagenBilled(an.checks, [...docs, storno]), 3)
+  assert.equal(an.checks[0].billed, undefined)
+  assert.equal(checksToBill({ doc: an, objects: objs, fak: { ...fak, documents: [...docs, storno] } })[0].rows.length, 3)
+})

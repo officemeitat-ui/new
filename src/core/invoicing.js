@@ -155,6 +155,10 @@ export const SETTINGS_DEFAULTS = {
  *  customers[].winterPrices { [objectId]: { mode, beides, raeumen, streuen, kontrolle, pauschale } } (Winterdienst je Objekt)
  *  documents[].source  wie beim Leistungsnachweis { type, key }: 'winterdienst' (Protokoll) bzw. 'nachweis' mit basis 'ist'
  *  settings.istRound  Rundung je Stempelung (0, 5 oder 15 Minuten)
+ *  settings.winterSeason { start, end }  Wintersaison (Monate, Vorgabe Juli bis Juni); die Saisonpauschale bekommt den
+ *                Leistungszeitraum der Saison als serviceFrom/serviceTo und als Langtext der Position
+ * Prüfungen der Anlagen (core/anlagen-rechnung.js; Zeilen zählen zur Prüfsumme, source nur in neuen Belegen):
+ *  documents[].lines[].source { type: 'anlage', id }  Position aus einer verrechenbaren Prüfung (anlagen.checks[])
  * Regiebericht (core/regie.js; alle Felder optional, nicht in der Prüfsumme):
  *  documents[].source { type: 'regie', key: 'regie:<Bericht>', reportId, no, objectId, date, beilage (eingefroren) }
  *  settings.regieRate, customers[].regieRate  Regiestundensatz netto (Einstellung bzw. eigener Satz des Kunden)

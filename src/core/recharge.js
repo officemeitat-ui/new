@@ -53,12 +53,15 @@ export function rechargeSources({ purchase = null, cash = null } = {}) {
   return out
 }
 
+/** Position aus einer Weiterverrechnung (nicht z. B. aus einer Prüfung der Anlagen, source.type 'anlage'). */
+const isRecharge = (l) => !!SOURCE_TYPES[l?.source?.type] && !!l.source.id
+
 /** Positionen aus Weiterverrechnungen in Rechnungen: Map „type:id“ → [Beleg]. */
 function billedIn(docs = []) {
   const map = new Map()
   for (const d of docs) {
     if (d.kind !== 'rechnung') continue
-    for (const l of d.lines || []) if (l.source?.type && l.source.id) map.set(key(l.source.type, l.source.id), [...(map.get(key(l.source.type, l.source.id)) || []), d])
+    for (const l of d.lines || []) if (isRecharge(l)) map.set(key(l.source.type, l.source.id), [...(map.get(key(l.source.type, l.source.id)) || []), d])
   }
   return map
 }
@@ -129,7 +132,7 @@ export function addRechargeLines(draft, sources, { newId, vat = 20 } = {}) {
   if (draft.number) throw new Error('Beleg ist schon festgeschrieben.')
   if (draft.kind !== 'rechnung') throw new Error('Weiterverrechnungen gehören in eine Rechnung.')
   draft.lines ||= []
-  const have = new Set(draft.lines.filter((l) => l.source?.id).map((l) => key(l.source.type, l.source.id)))
+  const have = new Set(draft.lines.filter(isRecharge).map((l) => key(l.source.type, l.source.id)))
   const fresh = sources.filter((s) => s.recharge && !have.has(key(s.type, s.id)))
   for (const s of fresh) {
     const line = rechargeLine(s, { id: newId(), vat })
@@ -158,7 +161,7 @@ export function rechargeConflicts(draft, docs = [], sources = null) {
   const index = billedIn(docs.filter((d) => d.id !== draft.id))
   const byKey = new Map((sources || []).map((s) => [key(s.type, s.id), s]))
   for (const l of draft.lines || []) {
-    if (!l.source?.id) continue
+    if (!isRecharge(l)) continue
     const k = key(l.source.type, l.source.id)
     const label = byKey.get(k)?.ref || l.text || 'Weiterverrechnung'
     const other = (index.get(k) || []).find((d) => d.number && !isCancelled(d, docs))

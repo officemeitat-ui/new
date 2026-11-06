@@ -15,15 +15,21 @@ import {
   istFor,
   istRowsFor,
   linesFromIst,
+  priceInput,
   roundMinutes,
   roundStep,
   seasonBilled,
+  seasonPeriodText,
+  seasonSettings,
+  seasonText,
   winterBill,
   winterEntries,
   winterKey,
   winterKind,
   winterObjectIds,
+  winterPriceInputs,
   winterPrices,
+  winterPricesEmpty,
   winterRecurring,
   winterSeason,
 } from '../src/core/fak-abrechnung.js'
@@ -57,8 +63,8 @@ test('Winterdienst: Art je Eintrag, Saison, Objekte und Einträge des Monats (oh
   assert.equal(winterKind({ geraeumt: true }), 'raeumen')
   assert.equal(winterKind({ gestreut: true }), 'streuen')
   assert.equal(winterKind({ kontrolle: true }), 'kontrolle')
-  assert.deepEqual(winterSeason('2026-12'), { key: '2026/27', label: 'Winter 2026/27' })
-  assert.deepEqual(winterSeason('2027-02'), { key: '2026/27', label: 'Winter 2026/27' })
+  assert.deepEqual(winterSeason('2026-12'), { key: '2026/27', label: 'Winter 2026/27', from: '2026-07-01', to: '2027-06-30' })
+  assert.deepEqual(winterSeason('2027-02'), { key: '2026/27', label: 'Winter 2026/27', from: '2026-07-01', to: '2027-06-30' })
   assert.equal(winterSeason('2027-07').key, '2027/28')
   assert.equal(winterKey('o5', '2026-12'), 'winterdienst:o5:2026-12')
   assert.deepEqual([...winterObjectIds(LOG, '2026-12')].sort(), ['o2', 'o5'])
@@ -110,6 +116,9 @@ test('Winterdienst als Pauschale: 1 × Monat bzw. Saison, die Einsätze als Text
   assert.equal(m.net, 120)
   const s = winterBill({ entries, prices: { mode: 'saison', pauschale: 900 }, objectName: 'Wohnanlage Lehen', month: '2026-12', newId })
   assert.deepEqual(s.lines.filter((l) => !l.type).map((l) => [l.text, l.unit, l.price]), [['Winterdienst Saisonpauschale Wohnanlage Lehen Winter 2026/27', 'Saison', 900]])
+  assert.equal(s.lines[0].longText, 'Leistungszeitraum 1.7.2026–30.6.2027', 'Vorgabe Juli bis Juni')
+  assert.deepEqual(s.period, { from: '2026-07-01', to: '2027-06-30' })
+  assert.equal(m.period, null, 'Pauschale je Monat: Leistungszeitraum ist der Monat')
   const later = winterBill({ entries, prices: { mode: 'saison', pauschale: 900 }, objectName: 'Wohnanlage Lehen', month: '2027-01', newId, seasonDoc: { id: 'x' } })
   assert.deepEqual(later.lines, [], 'schon verrechnet: nichts mehr')
   assert.deepEqual(winterBill({ entries, prices: { mode: 'monat' }, month: '2026-12', newId }).missing, ['pauschale'])
@@ -307,4 +316,66 @@ test('Beilage eingefroren: Winterdienst-Nachweis und Einsatzliste ohne Planung, 
   const t = istListDocument({ object: fz.object, monthLabel: 'Dezember 2026', rows: fz.rows, round: fz.round, names: fz.names }).content.find((x) => x.table).table
   assert.deepEqual(t.body[1].map((c) => c.text ?? c), ['Di 01.12.', '05:58–08:03', '2:00', 'Unterhaltsreinigung', 'Ana'])
   assert.ok(!JSON.stringify(freezeIst({ object: {}, rows: ist.rows, names: 'keine' })).includes('Ana'))
+})
+
+// ---------------------------------------------------------------- Saison einstellbar, Leistungszeitraum, Preise im Kundenblatt
+
+test('Wintersaison: Vorgabe Juli bis Juni, einstellbar (z. B. November bis März), Monate dazwischen zur näheren Saison', () => {
+  assert.deepEqual(seasonSettings({}), { start: 7, end: 6 })
+  assert.deepEqual(seasonSettings({ winterSeason: { start: '11', end: 3 } }), { start: 11, end: 3 })
+  assert.deepEqual(seasonSettings({ winterSeason: { start: 13, end: '' } }), { start: 7, end: 6 }, 'ungültig: Vorgabe')
+  assert.equal(seasonText(), 'Juli bis Juni')
+  const nm = { start: 11, end: 3 }
+  assert.equal(seasonText(nm), 'November bis März')
+  assert.deepEqual(winterSeason('2026-11', nm), { key: '2026/27', label: 'Winter 2026/27', from: '2026-11-01', to: '2027-03-31' })
+  assert.equal(winterSeason('2027-03', nm).key, '2026/27')
+  assert.equal(winterSeason('2027-04', nm).key, '2026/27', 'April: näher am Ende der vergangenen Saison')
+  assert.equal(winterSeason('2027-07', nm).key, '2027/28', 'Juli: gleich weit, zur kommenden')
+  assert.equal(winterSeason('2027-10', nm).key, '2027/28')
+  // gleiche Kennungen wie mit der Vorgabe (frühere Saisonpauschalen bleiben erkannt)
+  for (const ym of ['2026-11', '2027-01', '2027-03', '2027-05', '2027-08', '2027-10']) assert.equal(winterSeason(ym, nm).key, winterSeason(ym).key, ym)
+  assert.deepEqual(winterSeason('2026-05', { start: 1, end: 12 }), { key: '2026', label: 'Winter 2026', from: '2026-01-01', to: '2026-12-31' })
+  assert.equal(seasonPeriodText(winterSeason('2026-12', nm)), 'Leistungszeitraum 1.11.2026–31.3.2027')
+  assert.equal(seasonPeriodText(winterSeason('2028-01', { start: 11, end: 2 })), 'Leistungszeitraum 1.11.2027–29.2.2028', 'Schaltjahr')
+})
+
+test('Saisonpauschale: Leistungszeitraum laut Einstellung auf der Position und im Beleg, Prüfsumme wie bisher aufgebaut', () => {
+  const entries = winterEntries(LOG, { objectId: 'o5', month: '2026-12', objectsById })
+  const season = { start: 11, end: 3 }
+  const s = winterBill({ entries, prices: { mode: 'saison', pauschale: 900 }, objectName: 'Wohnanlage Lehen', month: '2026-12', newId, season })
+  assert.equal(s.lines[0].longText, 'Leistungszeitraum 1.11.2026–31.3.2027')
+  assert.deepEqual(s.period, { from: '2026-11-01', to: '2027-03-31' })
+  // schon verrechnet: Saison laut Einstellung
+  const docs = [{ id: 'd4', kind: 'rechnung', number: 'RE-2026-0012', source: { type: 'winterdienst', objectId: 'o5', mode: 'saison', season: '2026/27' } }]
+  assert.equal(seasonBilled(docs, 'o5', '2027-02', season)?.id, 'd4')
+  assert.equal(seasonBilled(docs, 'o5', '2027-11', season), null)
+  // Beleg mit Leistungszeitraum der Saison: festschreiben, Prüfsumme stimmt, Zeitraum gehört dazu
+  const settings = { sender: { name: 'Firma', address: 'Weg 1', uid: 'ATU12345678' } }
+  const draft = { id: 'f2', kind: 'rechnung', date: '2026-12-05', serviceFrom: s.period.from, serviceTo: s.period.to, recipient: { name: 'HV', address: 'Ring 3' }, lines: s.lines, source: { type: 'winterdienst', key: winterKey('o5', '2026-12'), objectId: 'o5', month: '2026-12', mode: 'saison', season: '2026/27' } }
+  const fixed = finalize(draft, [], settings, { now: '2026-12-05T08:00:00.000Z' })
+  assert.equal(checksumOf(fixed), fixed.checksum)
+  assert.notEqual(checksumOf({ ...fixed, serviceTo: '2027-06-30' }), fixed.checksum, 'Leistungszeitraum ist Teil der Rechnung')
+  assert.notEqual(checksumOf({ ...fixed, lines: fixed.lines.map((l, i) => (i ? l : { ...l, longText: 'anders' })) }), fixed.checksum)
+})
+
+test('Preise im Kundenblatt: Dezimalkomma, nicht negativ, keine Zahl, höchstens zwei Nachkommastellen, leer = Artikel', () => {
+  assert.deepEqual(priceInput('65,50'), { value: 65.5 })
+  assert.deepEqual(priceInput('1.234,50'), { value: 1234.5 })
+  assert.deepEqual(priceInput('65.5'), { value: 65.5 })
+  assert.deepEqual(priceInput(' € 40 '), { value: 40 })
+  assert.deepEqual(priceInput(''), { value: '' })
+  assert.deepEqual(priceInput('0'), { value: '' }, '0 = kein Preis (Kontrolle nicht verrechnen)')
+  assert.match(priceInput('-5').error, /nicht negativ/)
+  assert.match(priceInput('−5,00').error, /nicht negativ/)
+  assert.match(priceInput('zehn').error, /keine Zahl/)
+  assert.match(priceInput('12,345').error, /zwei Stellen/)
+  const r = winterPriceInputs({ mode: 'einsatz', beides: '65,50', raeumen: '-1', streuen: 'abc', kontrolle: '', pauschale: '' })
+  assert.deepEqual(r.prices, { mode: 'einsatz', beides: 65.5, raeumen: '', streuen: '', kontrolle: '', pauschale: '' })
+  assert.deepEqual(r.errors.map((e) => [e.field, e.text]), [['raeumen', 'Räumen: darf nicht negativ sein'], ['streuen', 'Streuen: ist keine Zahl (Beispiel: 65,50)']])
+  assert.deepEqual(winterPriceInputs({ mode: 'saison', pauschale: '900' }).prices.pauschale, 900)
+  assert.ok(winterPricesEmpty({ mode: 'einsatz', beides: '' }))
+  assert.ok(!winterPricesEmpty({ mode: 'saison' }), 'Abrechnungsart Pauschale ist eine eigene Angabe')
+  // gespeichert beim Kunden: gilt in „Winterdienst abrechnen“ vor den Artikeln
+  const cu = { winterPrices: { o5: r.prices } }
+  assert.equal(winterPrices(cu, 'o5', [{ name: 'Winterdienst Räumen und Streuen', price: 99 }]).beides, 65.5)
 })
