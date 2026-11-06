@@ -278,6 +278,12 @@ Jedes Paket: eigener Commit, Unit-Tests der Rechenkerne, Browser-Test in `.pruef
 
 Grobe Reihenfolge der Auslieferung: P1–P5 (Stammdaten + Übernahme) → P6–P9 (Planung) → P10–P13 (Fahrer + Lieferschein) → P14–P16. Nach jeder Phase ein Paket zum Hochladen; das alte Werkzeug bleibt bis P16 parallel nutzbar.
 
+**Stand der Umsetzung**
+
+- **P2 – fertig** (Fakturierung, `src/core/invoicing.js`, `src/ui/views/invoicing-matten.js`): Kundenblatt mit Reiter „Mattenwechsel“ (`deliveryNoteEmail`, `matten { billing, billingInterval, priceModel: 'wechsel' | 'pauschale', monthlyFlat[], autoSend }`) und „Kundenpreise“ (`customerPrices[]` mit Gültigkeit, Prüfung ohne Überschneidung, Preis ≥ 0, Dezimalkomma). Eine Preislogik: `priceFor(data, customerId, articleId, date)` (Kundenpreis vor Standard, Kundenrabatt nicht zusätzlich), `monthlyFlatFor`/`monthlyFlats` für die Pauschale. Tests `test/fak-preise.test.js`, Browser-Test `.pruefung/matten_preise_app.mjs`. Alle Felder optional, Prüfsumme der Belege unverändert.
+- **P3 – fertig**: Reiter „Matten“ (Stammdaten) mit Mattentypen als Artikel (`group: 'Matten'`, `size`, `color`, `matKind`, Preis je Wechsel), Vorlage der üblichen Größen ohne Preise, Hilfen `matTypes`, `matLabel`, `matName`, `matSize`. Beispieldaten: zwei Mattentypen und ein Kundenpreis.
+- **P6 – Rechenkern fertig** (`src/core/matten-plan.js`, ohne Oberfläche; Tests `test/matten-plan.test.js`): `jobsFor({ placements, done, jobs, closures, von, bis, skip })` mit Schlüssel `<placementId>:<Solltermin>` (erneutes Planen ohne Doppel, vorhandene bleiben mit Status), Regeln `rhythmus` und `ab-ist` (höchstens ein offener Einsatz je Liegeplatz), Pausen und Betriebsurlaub (`ausgesetzt` oder `nachzuholen` am ersten freien Tag danach), `shiftJob` (Verschieben ohne Rhythmusänderung), `markNotDone` → `nachzuholen`, `markDone`, `skipJob`, `discardJob` (neuer Status `verworfen`), `dueOn`, `overdue`, `nextDue`, `dueDates` (Vorschau), `calendarWeek`, `calendarMonth`, `groupByObject`. Kalender und Bedienung folgen in P7.
+
 ---
 
 ## 8. Sicherung, Rückweg, Tests

@@ -162,6 +162,16 @@ export const SETTINGS_DEFAULTS = {
  * Regiebericht (core/regie.js; alle Felder optional, nicht in der Prüfsumme):
  *  documents[].source { type: 'regie', key: 'regie:<Bericht>', reportId, no, objectId, date, beilage (eingefroren) }
  *  settings.regieRate, customers[].regieRate  Regiestundensatz netto (Einstellung bzw. eigener Satz des Kunden)
+ * Mattenwechsel und Kundenpreise (docs/MATTENWECHSEL-PLAN.md, P2/P3; alle Felder optional, nicht in der Prüfsumme):
+ *  customers[]   deliveryNoteEmail (E-Mail für Lieferscheine; leer: email), matten { billing: 'einzel' | 'sammel',
+ *                  billingInterval: 'monat' | 'quartal', priceModel: 'wechsel' (je gewechselter Matte) | 'pauschale' (je
+ *                  Monat), monthlyFlat: [{ objectId?, placementId?, amount, vat }] (Pauschale netto je Liegeplatz, Objekt
+ *                  oder – ohne beides – für den ganzen Kunden), autoSend (Lieferschein ohne Prüfung senden, Vorgabe false) }
+ *  articles[]    Mattentypen: group 'Matten' (MAT_GROUP), dazu size ('85 × 150 cm'), color, matKind ('Standard', 'Logo' …);
+ *                  price = Standardpreis je gewechselter Matte, vat wie jeder Artikel
+ *  customerPrices[] { id, customerId, articleId, price (netto), currency ('EUR'), vat, validFrom, validTo (je einschließlich,
+ *                  leer = offen), note, createdAt/By, updatedAt/By } – Kundenpreis vor Standardpreis (priceFor); je Kunde
+ *                  und Artikel überschneiden sich die Zeiträume nicht (customerPriceProblems). Für alle Module nutzbar.
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 
@@ -1567,6 +1577,203 @@ export const lineFromArticle = (a, { id, vat = 20 } = {}) => ({
   vat: a.vat ?? vat,
   discount: 0,
 })
+
+// ---------------------------------------------------------------- Kundenpreise (für alle Module)
+
+export const CURRENCY = 'EUR'
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Betrag aus einer Eingabe, streng: Dezimalkomma („4,90“, „1.234,50“), auch „4.9“ und „€ 5“. Liefert { value } (Zahl,
+ * '' = leer) oder { error } (negativ, keine Zahl, mehr als zwei Nachkommastellen). 0 ist ein gültiger Preis.
+ */
+export function amountInput(raw) {
+  if (typeof raw === 'number') {
+    if (!Number.isFinite(raw)) return { error: 'ist keine Zahl (Beispiel: 4,90)' }
+    if (raw < 0) return { error: 'darf nicht negativ sein' }
+    return round2(raw) === raw ? { value: raw } : { error: 'höchstens zwei Stellen nach dem Komma' }
+  }
+  const s = String(raw ?? '').replace(/€/g, '').replace(/\s/g, '')
+  if (!s) return { value: '' }
+  if (/^[-−–]/.test(s)) return { error: 'darf nicht negativ sein' }
+  if (!/^(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$/.test(s) && !/^\d+\.\d{1,2}$/.test(s)) return { error: 'ist keine Zahl (Beispiel: 4,90)' }
+  const n = parseNumber(s)
+  if (round2(n) !== n) return { error: 'höchstens zwei Stellen nach dem Komma' }
+  return { value: n }
+}
+
+/** Gilt der Kundenpreis an diesem Tag? validFrom und validTo je einschließlich, leer = offen. */
+export const priceValidOn = (p, date) => !!p && (!p.validFrom || p.validFrom <= date) && (!p.validTo || date <= p.validTo)
+
+/** Überschneiden sich zwei Gültigkeitszeiträume (leere Grenzen = offen)? */
+export const periodsOverlap = (a, b) => (!a.validFrom || !b.validTo || a.validFrom <= b.validTo) && (!b.validFrom || !a.validTo || b.validFrom <= a.validTo)
+
+/** Kundenpreis für Kunde und Artikel an einem Tag; bei Überschneidung (z. B. nach Zusammenführen) der mit dem spätesten Beginn. */
+export function customerPriceOn(customerPrices = [], customerId, articleId, date) {
+  const hits = (customerPrices || []).filter((p) => p && p.customerId === customerId && p.articleId === articleId && priceValidOn(p, date))
+  const stamp = (p) => String(p.updatedAt || p.createdAt || '')
+  return hits.sort((a, b) => String(b.validFrom || '').localeCompare(String(a.validFrom || '')) || stamp(b).localeCompare(stamp(a)))[0] || null
+}
+
+/**
+ * Preis netto eines Artikels für einen Kunden an einem Tag – die eine Preislogik der App (z. B. für den Mattenwechsel):
+ * Kundenpreis im Gültigkeitszeitraum vor dem Standardpreis des Artikels. Liefert { price, vat, currency, source: 'kunde' |
+ * 'standard', priceId, discount } oder null (weder Kundenpreis noch Artikel).
+ * Rabatt: Der Kundenrabatt (customers[].discount, %) gilt nur zum Standardpreis und steht in discount, um ihn als
+ * Positionsrabatt einzutragen. Zu einem Kundenpreis ist discount 0: der Kundenpreis ist schon der vereinbarte Preis, der
+ * Rabatt wird nicht zusätzlich abgezogen – darum bei solchen Positionen auch keinen Rabatt auf alles setzen.
+ * USt: die des Kundenpreises, sonst die des Artikels, sonst die Standard-USt der Einstellungen.
+ */
+export function priceFor({ customers = [], articles = [], customerPrices = [], settings = {} } = {}, customerId, articleId, date) {
+  const article = (articles || []).find((a) => a?.id === articleId) || null
+  const own = customerPriceOn(customerPrices, customerId, articleId, date)
+  const fallbackVat = Number(article?.vat ?? settings?.vat ?? SETTINGS_DEFAULTS.vat)
+  if (own) return { price: round2(parseNumber(own.price)), vat: own.vat === '' || own.vat == null ? fallbackVat : Number(own.vat), currency: own.currency || CURRENCY, source: 'kunde', priceId: own.id, discount: 0 }
+  if (!article) return null
+  const customer = (customers || []).find((c) => c?.id === customerId)
+  return { price: round2(parseNumber(article.price)), vat: fallbackVat, currency: CURRENCY, source: 'standard', priceId: null, discount: parseNumber(customer?.discount) || 0 }
+}
+
+/**
+ * Kundenpreise prüfen: Artikel vorhanden, Preis eine Zahl ≥ 0 (Dezimalkomma), Steuersatz gültig, Datum gültig, „bis“ nicht
+ * vor „ab“ und keine überlappenden Zeiträume je Kunde und Artikel (gemeldet beim späteren Eintrag der Liste).
+ * Liefert [{ id, field, text }] (leer = in Ordnung).
+ */
+export function customerPriceProblems(list = [], { articles = null } = {}) {
+  const out = []
+  const known = articles ? new Set(articles.map((a) => a.id)) : null
+  const name = (id) => (articles || []).find((a) => a.id === id)?.name || 'Artikel'
+  const range = (p) => `${p.validFrom ? `ab ${deDate(p.validFrom)}` : 'ohne Beginn'}${p.validTo ? ` bis ${deDate(p.validTo)}` : ' ohne Ende'}`
+  const broken = (p) => !p.articleId || (p.validFrom && p.validTo && p.validTo < p.validFrom)
+  const rows = (list || []).map((p, i) => ({ p, id: p.id || String(i) }))
+  for (const { p, id } of rows) {
+    if (!p.articleId) out.push({ id, field: 'articleId', text: 'Artikel fehlt' })
+    else if (known && !known.has(p.articleId)) out.push({ id, field: 'articleId', text: 'Artikel gibt es nicht mehr' })
+    const amount = amountInput(p.price)
+    if (amount.error) out.push({ id, field: 'price', text: `Preis ${amount.error}` })
+    else if (amount.value === '') out.push({ id, field: 'price', text: 'Preis fehlt' })
+    if (p.vat !== undefined && p.vat !== '' && p.vat !== null && !VAT_RATES.includes(Number(p.vat))) out.push({ id, field: 'vat', text: `USt ${p.vat} % gibt es nicht` })
+    for (const f of ['validFrom', 'validTo']) if (p[f] && !ISO_DATE.test(p[f])) out.push({ id, field: f, text: 'Datum ungültig' })
+    if (p.validFrom && p.validTo && p.validTo < p.validFrom) out.push({ id, field: 'validTo', text: '„bis“ liegt vor „ab“' })
+  }
+  rows.forEach(({ p, id }, i) => {
+    if (broken(p)) return
+    const other = rows.slice(0, i).find(({ p: q }) => !broken(q) && q.customerId === p.customerId && q.articleId === p.articleId && periodsOverlap(p, q))
+    if (other) out.push({ id, field: 'validFrom', text: `${name(p.articleId)}: ${range(p)} überschneidet sich mit dem Preis ${range(other.p)}` })
+  })
+  return out
+}
+
+/**
+ * Eingaben aus dem Kundenblatt (Texte, Preis mit Dezimalkomma) in Kundenpreise: rows [{ id, articleId, price, vat,
+ * validFrom, validTo, note }]. Liefert { prices (Preis als Zahl; fehlerhafte leer), errors (customerPriceProblems) };
+ * Zeilen ohne Artikel und ohne Preis fallen weg (z. B. eine neue, noch leere). Ohne USt gilt die des Artikels.
+ */
+export function customerPriceInputs(rows = [], { customerId, articles = null, settings = {} } = {}) {
+  const filled = (rows || []).filter((r) => r.articleId || String(r.price ?? '').trim())
+  const errors = customerPriceProblems(filled.map((r) => ({ ...r, customerId })), { articles })
+  const prices = filled.map((r) => {
+    const amount = amountInput(r.price)
+    const vat = r.vat === '' || r.vat == null ? Number((articles || []).find((a) => a.id === r.articleId)?.vat ?? settings.vat ?? SETTINGS_DEFAULTS.vat) : Number(r.vat)
+    return { ...r, customerId, price: amount.error ? '' : amount.value, currency: r.currency || CURRENCY, vat, validFrom: r.validFrom || '', validTo: r.validTo || '', note: String(r.note || '').trim() }
+  })
+  return { prices, errors }
+}
+
+// ---------------------------------------------------------------- Mattenwechsel: Mattentypen und Abrechnung je Kunde
+
+export const MAT_GROUP = 'Matten'
+/** Übliche Größen (Vorlage zum Anlegen, ohne Preise). */
+export const MAT_SIZES = ['85 × 150 cm', '115 × 200 cm', '150 × 250 cm', '85 × 120 cm']
+export const MAT_COLORS = ['grau', 'anthrazit', 'braun', 'blau', 'rot', 'grün']
+export const MAT_KINDS = ['Standard', 'Logo', 'Baumwolle', 'Gummi']
+export const MATTEN_BILLING = { sammel: 'Sammelrechnung', einzel: 'Einzelrechnung je Lieferschein' }
+export const MATTEN_INTERVALS = { monat: 'monatlich', quartal: 'quartalsweise' }
+export const MATTEN_PRICE_MODELS = { wechsel: 'je gewechselter Matte', pauschale: 'Pauschale je Monat' }
+export const MATTEN_DEFAULTS = { billing: 'sammel', billingInterval: 'monat', priceModel: 'wechsel', monthlyFlat: [], autoSend: false }
+
+/** Größe einheitlich schreiben: „85x150“, „85 X 150 cm“ → „85 × 150 cm“; sonst unverändert (ohne Leerzeichen am Rand). */
+export function matSize(text) {
+  const s = String(text ?? '').trim()
+  const m = /^(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?$/i.exec(s)
+  return m ? `${m[1].replace('.', ',')} × ${m[2].replace('.', ',')} cm` : s
+}
+
+/** Mattentyp = Artikel der Gruppe „Matten“ (das Modul filtert ebenso: a.group === 'Matten'). */
+export const isMatType = (a) => String(a?.group || '').trim().toLowerCase() === MAT_GROUP.toLowerCase()
+
+const sizeArea = (a) => {
+  const m = /(\d+(?:,\d+)?)\s*×\s*(\d+(?:,\d+)?)/.exec(matSize(a.size))
+  return m ? Number(m[1].replace(',', '.')) * Number(m[2].replace(',', '.')) : Infinity
+}
+
+/** Mattentypen (nur aktive, mit all: true auch inaktive), nach Größe (Fläche), Farbe und Bezeichnung. */
+export function matTypes(articles = [], { all = false } = {}) {
+  const text = (a, k) => String(a[k] || '')
+  return (articles || [])
+    .filter((a) => isMatType(a) && (all || articleActive(a)))
+    .sort((a, b) => sizeArea(a) - sizeArea(b) || text(a, 'size').localeCompare(text(b, 'size'), 'de') || text(a, 'color').localeCompare(text(b, 'color'), 'de') || text(a, 'name').localeCompare(text(b, 'name'), 'de'))
+}
+
+/** Bezeichnung eines neuen Mattentyps: „Schmutzfangmatte 85 × 150 cm grau (Logo)“. */
+export const matName = ({ size = '', color = '', matKind = '' } = {}) => ['Schmutzfangmatte', matSize(size), String(color || '').trim(), matKind && matKind !== 'Standard' ? `(${String(matKind).trim()})` : ''].filter(Boolean).join(' ')
+
+/**
+ * Kurzbezeichnung für Listen und Ladeliste: „85 × 150 cm, grau, Logo“; mit Menge „2 × 85 × 150 cm, grau“. Ohne Größe die
+ * Bezeichnung des Artikels; die Art „Standard“ steht nicht dabei.
+ */
+export function matLabel(article, qty) {
+  if (!article) return ''
+  const kind = article.matKind && article.matKind !== 'Standard' ? String(article.matKind).trim() : ''
+  const base = [article.size ? matSize(article.size) : article.name || 'Matte', String(article.color || '').trim(), kind].filter(Boolean).join(', ')
+  return qty === undefined || qty === null || qty === '' ? base : `${String(qty).replace('.', ',')} × ${base}`
+}
+
+/** Abrechnung des Mattenwechsels eines Kunden mit Vorgaben (Sammelrechnung monatlich, je gewechselter Matte, Versand nach Prüfung). */
+export function mattenOf(customer) {
+  const m = customer?.matten || {}
+  return {
+    billing: MATTEN_BILLING[m.billing] ? m.billing : MATTEN_DEFAULTS.billing,
+    billingInterval: MATTEN_INTERVALS[m.billingInterval] ? m.billingInterval : MATTEN_DEFAULTS.billingInterval,
+    priceModel: MATTEN_PRICE_MODELS[m.priceModel] ? m.priceModel : MATTEN_DEFAULTS.priceModel,
+    monthlyFlat: Array.isArray(m.monthlyFlat) ? m.monthlyFlat : [],
+    autoSend: m.autoSend === true,
+  }
+}
+
+/** Empfänger der Lieferscheine: eigene Adresse, sonst die E-Mail für Rechnungen. */
+export const deliveryNoteEmailOf = (customer) => String(customer?.deliveryNoteEmail || customer?.email || '').trim()
+
+/**
+ * Pauschalen je Monat eines Kunden mit Preismodell „pauschale“: { items: [{ objectId, placementId, amount, vat }], net };
+ * leer beim Preismodell „je gewechselter Matte“. Für die Rechnung je Eintrag eine Position (quartalsweise × 3).
+ */
+export function monthlyFlats({ customers = [], settings = {} } = {}, customerId) {
+  const m = mattenOf((customers || []).find((c) => c?.id === customerId))
+  if (m.priceModel !== 'pauschale') return { items: [], net: 0 }
+  const vat = (x) => (x.vat === '' || x.vat == null ? Number(settings?.vat ?? SETTINGS_DEFAULTS.vat) : Number(x.vat))
+  const items = m.monthlyFlat.map((x) => ({ objectId: x.objectId || '', placementId: x.placementId || '', amount: round2(parseNumber(x.amount)), vat: vat(x) })).filter((x) => x.amount > 0)
+  return { items, net: round2(items.reduce((a, x) => a + x.amount, 0)) }
+}
+
+/**
+ * Pauschale je Monat für einen Liegeplatz bzw. ein Objekt: der genaueste Eintrag – Liegeplatz vor Objekt vor ganzem
+ * Kunden. Liefert { amount, vat, currency, scope: 'liegeplatz' | 'objekt' | 'kunde' } oder null (kein passender Eintrag
+ * oder Preismodell „je gewechselter Matte“).
+ */
+export function monthlyFlatFor(data = {}, customerId, { objectId = '', placementId = '' } = {}) {
+  const { items } = monthlyFlats(data, customerId)
+  const tries = [
+    ['liegeplatz', placementId && ((x) => x.placementId === placementId)],
+    ['objekt', objectId && ((x) => !x.placementId && x.objectId === objectId)],
+    ['kunde', (x) => !x.placementId && !x.objectId],
+  ]
+  for (const [scope, match] of tries) {
+    const x = match && items.find(match)
+    if (x) return { amount: x.amount, vat: x.vat, currency: CURRENCY, scope }
+  }
+  return null
+}
 
 // ---------------------------------------------------------------- Anschrift zerlegen (für die E-Rechnung)
 

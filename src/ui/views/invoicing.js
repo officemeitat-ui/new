@@ -8,6 +8,8 @@
 // Artikel mit Nummer, Gruppe, Langtext und Einkaufspreis, Textbausteine und Zahlungsbedingungen mit Skonto
 // (invoicing-texte.js), Bestellnummer/Zeichen, Ansprechpartner und Leistungsort im Beleg, E-Rechnung als XML
 // (ZUGFeRD/Factur-X und ebInterface, export/e-invoice.js).
+// Mattenwechsel (invoicing-matten.js): Reiter „Matten“ mit den Mattentypen, im Kundenblatt „Mattenwechsel“ (Abrechnung,
+// Preismodell, Lieferschein-Mail) und „Kundenpreise“ mit Gültigkeit (Preisermittlung core/invoicing.js → priceFor).
 //
 // Festgeschriebene Belege ändert niemand mehr: Korrektur nur über Storno bzw. Rechnungskorrektur.
 // Haben zwei Personen gleichzeitig festgeschrieben (zusammengeführte Datei mit doppelter Nummer),
@@ -69,6 +71,7 @@ import {
   intact,
   isAdvance,
   isFinal,
+  isMatType,
   invoiceMailText,
   isInvoice,
   KINDS,
@@ -120,6 +123,7 @@ import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
 import { cashForSalePayment, payCashOption } from './einkauf-shared.js'
 import { einkaufData, syncRechargeBilled } from './weiterverrechnung.js'
 import { importButton } from './invoicing-import.js'
+import { articleMatFields, customerMattenTab, customerPricesTab, mattenTab, readArticleMat, readCustomerMatten, readCustomerPrices, saveCustomerPrices } from './invoicing-matten.js'
 import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
 import { offerStateChanged, onlineBadge, onlineButtons, onlineExtras, onlineSettingsHtml, readOnlineSettings } from './invoicing-online.js'
 import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } from './invoicing-sepa.js'
@@ -135,7 +139,7 @@ const ICON_INVOICE = '<path d="M6 2.5h12v19l-3-2-3 2-3-2-3 2z"/><path d="M9 7.5h
 
 const F = () => {
   const d = (app.data.fakturierung ||= emptyInvoicing())
-  for (const k of ['customers', 'articles', 'documents', 'recurring', 'textBlocks', 'paymentTerms']) d[k] ||= []
+  for (const k of ['customers', 'articles', 'documents', 'recurring', 'textBlocks', 'paymentTerms', 'customerPrices']) d[k] ||= []
   d.settings ||= {}
   d.indexValues ||= {}
   return d
@@ -190,13 +194,14 @@ const TABS = [
   ['weiter', 'Weiterverrechnung'],
   ['kunden', 'Kunden'],
   ['artikel', 'Artikel'],
+  ['matten', 'Matten'],
   ['texte', 'Textbausteine'],
   ['bedingungen', 'Zahlungsbedingungen'],
   ['briefe', 'Briefe'],
   ['einstellungen', 'Einstellungen'],
 ]
 // Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
-const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer', 'weiter'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer', 'weiter'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'matten', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
 /** Weiterverrechnung: nur wer auch Einkauf & Kasse sehen darf (die Kosten stehen dort). */
 const seesRecharge = () => sees('einkauf')
@@ -267,7 +272,7 @@ function invoicingView() {
   const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length, weiter: n.recharge.length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, weiter: rechargeTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, weiter: rechargeTab, kunden: customersTab, artikel: articlesTab, matten: mattenTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
@@ -1145,7 +1150,7 @@ registerModal('fak-collect', collectModal, { module: MODULE })
 /** Vorschläge für den Empfänger: E-Mail des Belegs und des Kunden, Ansprechpartner mit Funktion. */
 function mailList(id, x) {
   const cu = custOf(x.customerId)
-  const list = [[x.recipient?.email, 'Rechnungsempfänger'], [cu?.email, 'Kunde'], ...(cu?.contacts || []).map((p) => [p.email, [p.name, p.role].filter(Boolean).join(', ')])].filter(([e]) => e && /@/.test(e))
+  const list = [...(x.kind === 'lieferschein' ? [[cu?.deliveryNoteEmail, 'Lieferscheine']] : []), [x.recipient?.email, 'Rechnungsempfänger'], [cu?.email, 'Kunde'], ...(cu?.contacts || []).map((p) => [p.email, [p.name, p.role].filter(Boolean).join(', ')])].filter(([e]) => e && /@/.test(e))
   const seen = new Set()
   return `<datalist id="${id}">${list.filter(([e]) => !seen.has(e) && seen.add(e)).map(([e, label]) => `<option value="${esc(e)}">${esc(label)}</option>`).join('')}</datalist>`
 }
@@ -1221,7 +1226,7 @@ function mailModal(c, m) {
   const x = docOf(m.id)
   if (!x) return ''
   const s = S()
-  const to = m.to ?? (x.recipient?.email || custOf(x.customerId)?.email || '')
+  const to = m.to ?? ((x.kind === 'lieferschein' && custOf(x.customerId)?.deliveryNoteEmail) || x.recipient?.email || custOf(x.customerId)?.email || '')
   const ctx = ctxFor(x)
   const block = defaultBlock(F().textBlocks, x.kind, 'mail')
   m.text ??= block ? fillPlaceholders(block.text, ctx) : mailWithDebit(invoiceMailText({ doc: x, company: s.sender.name, sender: app.user?.name || '', iban: s.bank.iban, greeting: ctx.Anrede }), x)
@@ -1337,8 +1342,9 @@ function customerModal(c, m) {
   const v = m.draft
   const ed = editable()
   const dis = ed ? '' : 'disabled'
-  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, { id: 'winter', label: 'Winterdienst' }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
-  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, winter: customerWinterTab, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
+  const prices = m.priceRows ? m.priceRows.filter((r) => r.articleId).length : x ? F().customerPrices.filter((p) => p.customerId === x.id).length : 0
+  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, { id: 'winter', label: 'Winterdienst' }, { id: 'matten', label: 'Mattenwechsel' }, { id: 'preise', label: 'Kundenpreise', flag: prices }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
+  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, winter: customerWinterTab, matten: customerMattenTab, preise: customerPricesTab, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
   return modalFrame({
     title: x ? customerName(x) || 'Kunde' : 'Neuer Kunde',
     subtitle: x?.customerNo ? `Kundennummer ${esc(x.customerNo)}${x.source?.system ? ` · übernommen aus ${esc(x.source.system)}` : ''}` : 'Rechnungsempfänger',
@@ -1480,6 +1486,8 @@ function readCustomer(m) {
   }
   readCustomerPay(v)
   readCustomerWinter(m)
+  readCustomerMatten(m)
+  readCustomerPrices(m)
   return v
 }
 
@@ -1502,6 +1510,7 @@ function articleModal(c, m) {
       <label class="field"><span>Einkauf netto (€)</span><input type="text" inputmode="decimal" id="fa-cost" value="${esc(numText(v.cost ?? ''))}" placeholder="für den Rohertrag" ${dis}></label>
       <label class="field"><span>USt</span><select id="fa-vat" ${dis}>${options(VAT_RATES.map((r) => [String(r), `${r} %`]), String(v.vat ?? S().vat))}</select></label>
       <label class="check"><input type="checkbox" id="fa-active" ${articleActive(v) ? 'checked' : ''} ${dis}><span>aktiv (im Beleg wählbar)</span></label></div>
+      ${isMatType(v) ? articleMatFields(v, dis) : ''}
       ${margin ? `<p class="muted">Rohertrag ${money(margin.amount)} je ${esc(v.unit || 'Einheit')} (${String(margin.percent).replace('.', ',')} % vom Verkauf)</p>` : ''}
       ${Object.keys(v.extra || {}).length ? `<details class="fak-extra"><summary>Weitere Felder (übernommen, nur zur Ansicht)</summary><dl>${Object.entries(v.extra).map(([k, val2]) => `<dt>${esc(k)}</dt><dd>${esc(val2)}</dd>`).join('')}</dl></details>` : ''}`,
     foot: `<div class="actions">${ed && x ? `<button class="btn danger" data-action="fak-art-del" data-id="${esc(x.id)}">${app.ui.confirm === `fak-adel:${x.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</div><div class="actions"><button class="btn" data-action="close-modal">Schließen</button>${ed ? `<button class="btn primary" data-action="fak-art-save" data-id="${esc(x?.id || '')}">Speichern</button>` : ''}</div>`,
@@ -2302,6 +2311,15 @@ registerActions(
         }
         return toast(`Bitte prüfen: ${m.winterErrors[0].text}`)
       }
+      // Mattenwechsel und Kundenpreise: Fehler zeigen, nichts speichern
+      for (const [key, tab] of [['mattenErrors', 'matten'], ['priceErrors', 'preise']]) {
+        if (!m[key]?.length) continue
+        if (m.tab !== tab) {
+          m.tab = tab
+          renderModal()
+        }
+        return toast(`Bitte prüfen: ${m[key][0].text}`)
+      }
       fields.contacts = (fields.contacts || []).filter((p) => p.name || p.email || p.phone)
       if (!fields.name && !fields.lastName) return toast('Bitte Firma bzw. Name oder Nachname eintragen.')
       const d = F()
@@ -2311,14 +2329,17 @@ registerActions(
       // ein Objekt gehört zu genau einem Kunden
       for (const c of d.customers) if (c.id !== el.dataset.id) c.objectIds = (c.objectIds || []).filter((o) => !(fields.objectIds || []).includes(o))
       const x = custOf(el.dataset.id)
+      const id = x?.id || uid('c')
       if (x) Object.assign(x, fields)
-      else d.customers.push({ ...fields, id: uid('c'), createdAt: nowIso() })
+      else d.customers.push({ ...fields, id, createdAt: nowIso() })
+      saveCustomerPrices(m, id)
       closeModal()
       commit('Kunde gespeichert.')
     },
     'fak-cust-del': (el) => {
       if (!confirmStep(`fak-cdel:${el.dataset.id}`, renderModal)) return
       F().customers = F().customers.filter((c) => c.id !== el.dataset.id)
+      F().customerPrices = F().customerPrices.filter((p) => p.customerId !== el.dataset.id)
       closeModal()
       commit('Kunde gelöscht.')
     },
@@ -2334,7 +2355,7 @@ registerActions(
       if (!name) return toast('Bitte eine Bezeichnung eintragen.')
       const d = F()
       const cost = val('fa-cost').trim()
-      const fields = { articleNo: val('fa-no').trim(), name, text: val('fa-text').trim(), longText: val('fa-long').trim(), group: val('fa-group').trim(), unit: val('fa-unit'), price: num('fa-price'), cost: cost === '' ? '' : num('fa-cost'), vat: Number(val('fa-vat')), active: checked('fa-active') }
+      const fields = readArticleMat({ articleNo: val('fa-no').trim(), name, text: val('fa-text').trim(), longText: val('fa-long').trim(), group: val('fa-group').trim(), unit: val('fa-unit'), price: num('fa-price'), cost: cost === '' ? '' : num('fa-cost'), vat: Number(val('fa-vat')), active: checked('fa-active') })
       if (fields.articleNo && d.articles.some((a) => a.id !== el.dataset.id && String(a.articleNo || '').toLowerCase() === fields.articleNo.toLowerCase())) return toast(`Artikelnummer ${fields.articleNo} gibt es schon.`)
       const x = d.articles.find((a) => a.id === el.dataset.id)
       if (x) Object.assign(x, fields)
@@ -2343,6 +2364,8 @@ registerActions(
       commit('Artikel gespeichert.')
     },
     'fak-art-del': (el) => {
+      const own = F().customerPrices.filter((p) => p.articleId === el.dataset.id).length
+      if (own) return toast(`Für diesen Artikel gibt es ${plural(own, 'Kundenpreis', 'Kundenpreise')}. Bitte dort entfernen oder den Artikel inaktiv setzen.`)
       if (!confirmStep(`fak-adel:${el.dataset.id}`, renderModal)) return
       F().articles = F().articles.filter((a) => a.id !== el.dataset.id)
       closeModal()
