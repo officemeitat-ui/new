@@ -291,6 +291,15 @@ Grobe Reihenfolge der Auslieferung: P1–P5 (Stammdaten + Übernahme) → P6–P
 
 ## 9. Offene Entscheidungen
 
+**Entschieden am 6.11.2026 (Geschäftsführung):**
+
+- **Grundweg:** Modul in der App mit Übernahme der vorhandenen Daten und Parallelbetrieb des Werkzeugs bis zur Abnahme (Abschnitt 3.1).
+- **Fahrer (E7):** gemischt – Fahrer mit Firmenkonto arbeiten in der App (Rolle „Fahrer Mattenwechsel“), Fahrer ohne Konto über einen persönlichen Link am Webspace (Muster „Plan am Handy“). Zusätzliches Arbeitspaket **P10b** (Fahrerseite am Webspace: Tour, Bestätigung je Liegeplatz, Fotos, Unterschrift; Daten holt die App ab und legt sie in SharePoint ab).
+- **Preismodell (E4):** je Kunde wählbar – **je gewechselter Matte** (Stückzahl × Preis je Mattentyp, Kundenpreis vor Standardpreis, mit Gültigkeit) **oder Pauschale je Monat** (je Liegeplatz bzw. Objekt). Wird in P2 und P14 umgesetzt.
+- **Routing (E8):** zuerst der **eingebaute Anbieter** (OpenStreetMap-Koordinaten, Optimierung in der App); Google Maps Platform später über dieselbe Schnittstelle zuschaltbar. Navigation am Handy öffnet Google Maps.
+
+Für die übrigen Punkte gilt bis auf Weiteres der Vorschlag in der rechten Spalte; Änderungen jederzeit möglich, bevor das betroffene Paket gebaut wird.
+
 | Nr | Frage | Vorschlag |
 |---|---|---|
 | E1 | Liegen schon **echte Touren/Lieferscheine** des Werkzeugs in SharePoint? Wurde es produktiv benutzt? | prüfe ich beim ersten Paket mit Lesezugriff (Übernahme-Vorschau) |
