@@ -277,6 +277,29 @@ lazy(BUERO, {
   todo: ['regie'],
 })
 
+// qualitaet.js: Qualitätsmessung je Objekt (Stichprobe in Anlehnung an EN 13549, Kennzahl, Verlauf, Bericht)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'qualitaet',
+      order: 78,
+      label: 'Qualitätsmessung',
+      group: 'service',
+      module: 'qualitaet',
+      icon: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="m7.8 10.6 2 2 3.6-3.6"/>',
+      noWeek: true,
+      text: 'Stichprobe je Objekt nach EN 13549, Kennzahl, Verlauf, Bericht',
+    },
+  ],
+  modals: 'qm-groups qm-settings qm-plan qm-rate qm-show',
+  actions: `qm-tab qm-filter qm-reset qm-goto qm-show qm-file qm-pdf qm-csv qm-complaints qm-groups-open qm-groups-redraw qm-groups-live qm-settings-open
+    qm-group-add qm-group-del qm-raumbuch qm-raumbuch-file qm-groups-save qm-groups-delete qm-set-add qm-set-del qm-settings-reset qm-settings-save
+    qm-measure-open qm-plan-redraw qm-plan-draw qm-plan-seed qm-plan-room qm-plan-del qm-plan-add qm-plan-start qm-rate-open qm-room qm-room-prev
+    qm-room-next qm-item qm-defect qm-note qm-photo qm-photo-del qm-finish-save qm-delete qm-mail qm-appt`,
+  hints: true,
+  todo: ['qualitaet'],
+})
+
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)
 lazy(BUERO, {
   views: [

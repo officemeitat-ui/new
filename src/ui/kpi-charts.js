@@ -33,18 +33,20 @@ const labelEvery = (n, w) => Math.max(1, Math.ceil(n / Math.max(2, Math.floor(w 
 /**
  * Linien (1–3 Reihen, gleiche Einheit): series [{ id, label, color (CSS-Variable), values[] }].
  * labels: x-Beschriftungen (kurz), titles: Tooltip-Überschriften je x, fmt(v) → Text, axis(v) → Text.
+ * min: Untergrenze der y-Achse (Standard 0), z. B. 80 für Prozentwerte nahe 100 (Qualitätskennzahl).
  */
-export function lineChart({ labels, titles = labels, series, fmt = fmt0, axis = fmt, unit = 1, integer = false, width = 560, height = 200, ariaLabel = '' }) {
+export function lineChart({ labels, titles = labels, series, fmt = fmt0, axis = fmt, unit = 1, integer = false, width = 560, height = 200, ariaLabel = '', min = 0 }) {
   const pad = { l: 46, r: 14, t: 14, b: 26 }
   const w = width - pad.l - pad.r
   const h = height - pad.t - pad.b
   const n = labels.length
   const max = Math.max(0, ...series.flatMap((s) => s.values.filter((v) => v !== null && v !== undefined)))
   // Teilung in der Anzeige-Einheit (z. B. Stunden statt Minuten), damit die Achse runde Werte zeigt
-  const sc = niceScale(max / unit, 4, { integer })
+  const sc = niceScale((max - min) / unit, 4, { integer })
   const x = (i) => pad.l + (n <= 1 ? w / 2 : (i / (n - 1)) * w)
-  const y = (v) => pad.t + h - (v / unit / sc.max) * h
-  const grid = sc.ticks.map((t) => `<line class="${t === 0 ? 'kpi-axis' : 'kpi-grid'}" x1="${pad.l}" x2="${width - pad.r}" y1="${y(t * unit)}" y2="${y(t * unit)}"/><text class="kpi-tick" x="${pad.l - 6}" y="${y(t * unit) + 4}" text-anchor="end">${esc(axis(t * unit))}</text>`).join('')
+  // mit Untergrenze: Werte darunter liegen auf der Achse (ohne Untergrenze wie bisher)
+  const y = (v) => pad.t + h - ((min ? Math.max(0, v - min) : v) / unit / sc.max) * h
+  const grid = sc.ticks.map((t) => `<line class="${t === 0 ? 'kpi-axis' : 'kpi-grid'}" x1="${pad.l}" x2="${width - pad.r}" y1="${y(min + t * unit)}" y2="${y(min + t * unit)}"/><text class="kpi-tick" x="${pad.l - 6}" y="${y(min + t * unit) + 4}" text-anchor="end">${esc(axis(min + t * unit))}</text>`).join('')
   const every = labelEvery(n, w)
   const xl = labels.map((l, i) => ((i % every === 0 && n - 1 - i >= every) || i === n - 1 ? `<text class="kpi-tick" x="${x(i)}" y="${height - 8}" text-anchor="middle">${esc(l)}</text>` : '')).join('')
   const lines = series

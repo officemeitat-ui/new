@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -102,6 +102,21 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   assert.ok(om.write(MODULE_DOCS.regie.path) && !va.read(MODULE_DOCS.regie.path))
   for (const role of ['lager', 'lesen', 'buchhaltung']) assert.ok(!dataRights(resolveAccess({ roleClaims: [role], access, strict: true })).read(MODULE_DOCS.regie.path), role)
   assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).regie, '')
+  // Qualitätsmessung: Objektleitung und Objektmanagement messen (auch Fotos und Berichte im Ordner); der Objektservice
+  // misst sich nicht selbst, Lager und Vorarbeiter sehen nichts; eine eigene Büro-Rolle mit dem Modul liest nur
+  for (const role of ['objektleitung', 'objektmanagement']) {
+    const acc = resolveAccess({ roleClaims: [role], access, strict: true })
+    const r = dataRights(acc)
+    assert.ok(acc.canEdit('qualitaet') && r.write(MODULE_DOCS.qualitaet.path) && r.write('qualitaet/nachweise/2026/bericht.pdf') && r.read(DOC.objects) && r.write(MODULE_DOCS.assistenz.path), role)
+  }
+  for (const role of ['objektservice', 'lager', 'vorarbeiter', 'lesen', 'buchhaltung', 'pruefer']) {
+    const acc = resolveAccess({ roleClaims: [role], access, strict: true })
+    assert.ok(!acc.sees('qualitaet') && !dataRights(acc).read(MODULE_DOCS.qualitaet.path) && !dataRights(acc).read('qualitaet/nachweise/2026/bericht.pdf'), role)
+  }
+  const buero = resolveAccess({ roleClaims: ['buero'], access: { ...access, roles: { buero: { label: 'Büro (Qualität lesen)', modules: ['planung', 'qualitaet'], edit: [] } } }, strict: true })
+  assert.ok(buero.sees('qualitaet') && !buero.canEdit('qualitaet') && dataRights(buero).read(MODULE_DOCS.qualitaet.path) && !dataRights(buero).write(MODULE_DOCS.qualitaet.path))
+  assert.equal(Object.fromEntries(folderRights(buero).map(([f, , r]) => [f, r])).qualitaet, 'Lesen')
+  assert.ok(resolveAccess({ email: 'office@cleanos.at', access, strict: true }).canEdit('qualitaet'))
   // Schlüsselbuch: Objektmanagement bearbeitet, Vorarbeiter sieht es nicht
   assert.ok(om.read(MODULE_DOCS.schluessel.path) && om.write(MODULE_DOCS.schluessel.path) && !va.read(MODULE_DOCS.schluessel.path))
   // Material & Lager: Objektmanagement fordert an und gibt aus; Vorarbeiter sieht es nicht

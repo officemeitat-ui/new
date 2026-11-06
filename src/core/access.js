@@ -27,6 +27,7 @@ export const MODULES = {
   unterweisungen: 'Unterweisungen & Fristen',
   anlagen: 'Anlagen & Prüffristen',
   regie: 'Regieberichte',
+  qualitaet: 'Qualitätsmessung',
   termine: 'Termine',
   fakturierung: 'Fakturierung',
   einkauf: 'Einkauf & Kasse',
@@ -38,12 +39,13 @@ export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 
 // Rollen-IDs = App-Rollen in Entra ID (Wert z. B. „Dienstplan.Ableser“ oder „ableser“)
 export const DEFAULT_ROLES = {
   disposition: { label: 'Vollzugriff (Büro, IT)', modules: '*', edit: '*' },
-  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie'] },
+  // Qualitätsmessung: Objektmanagement und Objektleitung messen beim Kunden (der Objektservice misst sich nicht selbst)
+  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   // eigene Microsoft-Gruppe für den Mattenwechsel (Fahrer:innen, Disposition der Touren)
   mattenwechsel: { label: 'Mattenwechsel', modules: ['matten'], edit: ['matten'] },
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung'], edit: ['auswertung'] },
-  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie'] },
+  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
   // Regieberichte: erfasst Sonderleistungen vor Ort und lässt sie am Handy unterschreiben
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'anlagen', 'regie'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material', 'anlagen', 'regie'] },

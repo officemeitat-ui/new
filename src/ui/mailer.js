@@ -368,9 +368,13 @@ registerActions({
       remember([...r.to, ...r.cc])
       const files = m.files
       closeModal()
-      // Versand beim Absender vermerken (z. B. Regiebericht: „gesendet an …“)
-      m.onSent?.({ via, to: r.to, cc: r.cc, subject, files: files.map((f) => f.name) })
       toast(sentToast(via, r.to, via === 'mailto' ? files : []))
+      // Vermerk im Modul, das das Fenster geöffnet hat (Regiebericht, Bericht der Qualitätsmessung: „gesendet an …“)
+      try {
+        m.onSent?.({ via, to: r.to, cc: r.cc, subject, files: files.map((f) => f.name) })
+      } catch (err) {
+        console.warn('Vermerk nach dem Senden:', err)
+      }
     } catch (err) {
       el.disabled = false
       toast(`Nicht gesendet: ${err.message}`)

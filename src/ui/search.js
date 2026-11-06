@@ -28,6 +28,7 @@ const KEYWORDS = {
   regie: 'Regiebericht Regie Regiestunden Sonderleistung Grundreinigung Wasserschaden Zusatzarbeiten Unterschrift Auftrag',
   zaehler: 'Wasserzähler Ablesung Zählerstand',
   kontrolle: 'Prüfprotokoll Qualitätskontrolle',
+  qualitaet: 'Qualität Qualitätsmessung Stichprobe EN 13549 AQL Kennzahl Raumgruppe Nachkontrolle Messung Bericht',
   matten: 'Matten Mattenwechsel Tour Lieferschein',
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
@@ -73,6 +74,12 @@ function results(q) {
     for (const x of app.data.regie?.reports || []) {
       const obj = app.data.objects.find((o) => o.id === x.objectId)?.name || ''
       if (hit(x.no, x.title, x.orderedBy, x.orderRef, `${obj} ${x.title || ''}`)) out.push({ group: 'Regieberichte', label: `${x.no}: ${x.title || 'Sonderleistung'}`, sub: [obj, x.date ? x.date.split('-').reverse().join('.') : ''].filter(Boolean).join(' · '), action: 'reg-open', data: { id: x.id } })
+    }
+  // Qualitätsmessung: Objekte mit Raumgruppen („qualität lehen“ findet das Versicherungsbüro)
+  if (sees('qualitaet'))
+    for (const x of app.data.qualitaet?.objects || []) {
+      const obj = app.data.objects.find((o) => o.id === x.objectId)
+      if (obj && hit(`Qualitätsmessung ${obj.name}`, `Qualität ${obj.name}`, (x.groups || []).map((g) => g.name).join(' '))) out.push({ group: 'Qualitätsmessung', label: obj.name, sub: (x.groups || []).map((g) => `${g.name} ${g.rooms}`).join(' · '), action: 'qm-goto', data: { obj: obj.id } })
     }
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {

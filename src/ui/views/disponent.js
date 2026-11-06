@@ -7,7 +7,8 @@
 //   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise, Regieberichte verrechnen
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
-//                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“)
+//                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“),
+//                Qualitätsmessung: Nachkontrolle und Reklamationsgefahr je Objekt (nur „Öffnen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -19,6 +20,7 @@
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { anlagenRows, attention as anlagenAttention, isUrgent as anlagenUrgent } from '../../core/anlagen.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
+import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/qualitaet.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
 import { isOpenRequest, orderSuggestions } from '../../core/material.js'
@@ -35,7 +37,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung und überfällige Reklamationen', module: '*' },
 ]
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
@@ -305,6 +307,29 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'anl-goto', data: { obj: g.objectId, status: 'bedarf' } },
       })
     }
+  // Qualitätsmessung: nach einer schlechten Messung Nachkontrolle, Reklamationsgefahr; nur „Öffnen“, nichts automatisch
+  const qm = app.data.qualitaet
+  if (qm && edits('qualitaet'))
+    for (const g of qmAttention({ doc: qm, objects: app.data.objects, today })) {
+      const r = g.result
+      const open = sees('reklamationen') ? (app.data.reklamationen?.items || []).filter((c) => c.objectId === g.objectId && c.status !== 'erledigt').length : 0
+      const parts = [g.risk ? 'Reklamationsgefahr' : '', g.recheck ? (g.recheck.overdue ? `Nachkontrolle seit ${formatDate(g.recheck.due)} überfällig` : `Nachkontrolle bis ${formatDate(g.recheck.due)}`) : ''].filter(Boolean)
+      const score = (x) => (x === null || x === undefined ? '–' : `${Number(x).toFixed(1).replace('.', ',')} %`)
+      out.push({
+        id: `qm:${g.objectId}:${g.last?.id}:${g.recheck?.overdue ? 1 : 0}${g.risk ? 1 : 0}`,
+        agent: 'fristen',
+        prio: qmUrgent(g) ? 1 : 2,
+        title: `${g.object?.name || objName(g.objectId) || 'Objekt'}: ${parts.join(', ')}`,
+        text: 'Qualitätsmessung: Nachkontrolle mit neuer Stichprobe einplanen (auch als Termin in Outlook), die Mängel mit dem Team besprechen und die Reklamationen des Objekts im Blick behalten. Ich ändere dabei nichts selbst.',
+        lines: [
+          `letzte Messung ${formatDate(g.last.date)}: Kennzahl ${score(r.score)}, ${r.ok === false ? `nicht erfüllt (${r.bad} von ${r.rooms} Räumen nicht in Ordnung)` : r.ok === null ? 'ohne Annahmezahl' : r.poor ? 'erfüllt, aber unter dem Zielwert' : 'erfüllt'}`,
+          g.twoBad ? 'zwei schlechte Messungen in Folge' : '',
+          g.falling ? 'Kennzahl fällt seit drei Messungen' : '',
+          open ? plural(open, 'offene Reklamation', 'offene Reklamationen') : '',
+        ].filter(Boolean),
+        open: { label: 'Öffnen', action: 'qm-goto', data: { obj: g.objectId } },
+      })
+    }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -408,7 +433,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })

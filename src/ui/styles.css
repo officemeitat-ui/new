@@ -2285,3 +2285,69 @@ tr.muted td { color: var(--muted); }
   .reg-summary { grid-template-columns: 1fr; gap: 0; }
   .reg-summary dd { margin-bottom: 6px; }
 }
+/* Qualitätsmessung (views/qualitaet.js) */
+.qm-obj .section-head.small h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.qm-addr { font-size: 0.85rem; font-weight: 400; }
+.qm-sum { margin: 8px 0; line-height: 1.5; }
+.qm-chart { margin: 12px 0; max-width: 620px; }
+.qm-risk { background: var(--err-soft); border-color: var(--err); margin: 8px 0; }
+.qm-obj .warn-banner { margin: 8px 0; }
+.qm-table .actions-cell { white-space: nowrap; }
+.qm-table td.num, .qm-table th.num { text-align: right; }
+.qm-file { border: 0; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 600; background: var(--surface-2); color: var(--fg); display: inline-flex; align-items: center; gap: 4px; margin: 2px 0; }
+.qm-file svg { width: 12px; height: 12px; flex: none; }
+.qm-file .btn { padding: 0 2px; min-height: 0; border: 0; background: transparent; }
+.qm-file .link-btn { color: var(--fg); font-size: inherit; }
+.qm-level { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; margin: 0; min-width: 0; }
+.qm-level legend { padding: 0 4px; font-weight: 600; }
+.qm-plan-info { margin: 0; }
+.qm-groups { display: grid; gap: 4px; }
+.qm-group { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.qm-group > .field { flex: 1 1 11rem; min-width: 0; }
+.qm-group > .qm-rooms { flex: 0 1 6.5rem; }
+.qm-group > .qm-group-del { margin-bottom: 2px; }
+.qm-names { flex: 1 1 100%; font-size: 0.85rem; }
+.qm-names summary { cursor: pointer; color: var(--fg); }
+.qm-names textarea { width: 100%; margin-top: 6px; }
+.qm-raumbuch { margin: 0; }
+.qm-seed { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qm-seed input { width: 8rem; }
+.qm-sample { display: grid; gap: 10px; }
+.qm-pick-group h4 { margin: 0 0 4px; font-size: 0.95rem; }
+.qm-picks { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 10px; }
+.qm-picks li { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 100%; }
+.qm-picks select { max-width: min(16rem, 70vw); }
+.qm-strip { display: flex; flex-wrap: wrap; gap: 6px; }
+.qm-chip { min-width: 40px; min-height: 40px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.qm-chip.ok { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.qm-chip.bad { background: var(--err-soft); color: var(--err); border-color: var(--err); }
+.qm-chip[aria-current='true'] { outline: 3px solid var(--accent); outline-offset: 2px; font-weight: 800; }
+.qm-room-state { margin: 0; }
+.qm-items { display: grid; gap: 10px; }
+.qm-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.qm-item.bad { border-color: var(--err); }
+.qm-item-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.qm-states { display: flex; flex-wrap: wrap; gap: 6px; }
+.qm-state { min-height: 40px; padding: 6px 14px; color: var(--fg); cursor: pointer; }
+.qm-state.qm-ok[aria-pressed='true'] { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); font-weight: 700; }
+.qm-state.qm-mangel[aria-pressed='true'] { background: var(--err-soft); color: var(--err); border-color: var(--err); font-weight: 700; }
+.qm-state.qm-na[aria-pressed='true'] { background: var(--surface-2); color: var(--fg); border-color: var(--line-strong); font-weight: 700; }
+.qm-defs { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.qm-def { align-items: center; min-height: 32px; }
+.qm-def input { margin-top: 0; width: 18px; height: 18px; }
+.qm-more { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.qm-more input[type='text'] { flex: 1 1 14rem; min-width: 0; }
+.qm-running { margin: 0; }
+.qm-result { margin: 0; }
+.qm-bad li { margin: 4px 0; }
+.qm-set-table input[type='text'] { width: 100%; min-width: 9rem; }
+.qm-tpl { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 6px 0; }
+.qm-tpl summary { cursor: pointer; }
+.qm-tpl .form-grid { margin: 8px 0; }
+.qm-def-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.qm-def-list li { display: flex; gap: 6px; align-items: center; }
+.qm-def-list input { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 720px) {
+  .qm-table .actions-cell { white-space: normal; }
+  .qm-state { flex: 1 1 0; padding: 6px 8px; }
+}
