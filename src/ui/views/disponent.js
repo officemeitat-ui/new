@@ -7,7 +7,7 @@
 //   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
-//                überfällige Reklamationen
+//                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -17,6 +17,7 @@
 // der KI-Assistent einen Vorschlag mit der Person besprechen.
 
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
+import { anlagenRows, attention as anlagenAttention, isUrgent as anlagenUrgent } from '../../core/anlagen.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
@@ -33,7 +34,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen und überfällige Reklamationen', module: '*' },
 ]
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
@@ -269,6 +270,24 @@ function fristen(today) {
         open: { label: 'Fahrzeuge & Reifen', view: 'fahrzeuge' },
       })
     }
+  // Anlagen & Prüffristen: je Objekt fällige Prüfungen und offene Mängel; nur Vorschlag mit „Öffnen“, nichts automatisch
+  const an = app.data.anlagen
+  if (an && edits('anlagen'))
+    for (const g of anlagenAttention(anlagenRows({ doc: an, objects: app.data.objects, today }))) {
+      const overdue = g.due.filter((r) => r.state === 'ueberfaellig').length
+      const defects = g.defects.flatMap((r) => r.defects.map((c) => ({ r, c })))
+      const when = (r) => (r.state === 'ueberfaellig' ? `überfällig seit ${formatDate(r.next)}` : r.next ? `fällig am ${formatDate(r.next)}` : 'noch keine Prüfung')
+      const name = (r) => `${r.type?.name || 'Anlage'} (${r.item.label})`
+      out.push({
+        id: `anl:${g.objectId}:${g.due.map((r) => `${r.item.id}${r.state}${r.next}`).join(',')}:${defects.map((x) => x.c.id).join(',')}`,
+        agent: 'fristen',
+        prio: anlagenUrgent(g) ? 1 : 2,
+        title: `${g.object?.name || objName(g.objectId) || 'Objekt'}: ${[g.due.length ? `${plural(g.due.length, 'Prüfung', 'Prüfungen')} fällig${overdue ? ` (davon ${overdue} überfällig)` : ''}` : '', defects.length ? plural(defects.length, 'Mangel offen', 'Mängel offen') : ''].filter(Boolean).join(', ')}`,
+        text: 'Eigene Prüfungen einplanen, bei Fremdfirmen den Termin vereinbaren, offene Mängel beheben lassen. Ich ändere dabei nichts selbst.',
+        lines: [...g.due.map((r) => `${name(r)}: ${when(r)}${r.item.by === 'fremd' && r.item.company ? `, ${r.item.company}` : ''}`), ...defects.map(({ r, c }) => `${name(r)}: ${c.defects || 'Mangel'} (seit ${formatDate(c.date)})`)].slice(0, 6),
+        open: { label: 'Öffnen', action: 'anl-goto', data: { obj: g.objectId, status: 'bedarf' } },
+      })
+    }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -372,7 +391,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })

@@ -2,6 +2,7 @@
 // Objekte und Fahrzeuge in einem Feld. Zeigt nur, was die Rolle sehen darf.
 // Suchen in den Werkzeugen (Zählstellen, Kontrollen, Akten) geht dort selbst.
 
+import { typeOf } from '../core/anlagen.js'
 import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, sectionLabel, sectionOf, visibleViews } from './context.js'
 import { quickResults } from './quick.js'
 import { esc, ICON, modalFrame } from './shared.js'
@@ -23,6 +24,7 @@ const KEYWORDS = {
   reklamationen: 'Beschwerde Mangel Kunde',
   nachweis: 'Leistungsnachweis Kunde Bericht',
   schluessel: 'Schlüssel Transponder Code',
+  anlagen: 'Anlage Prüfung Prüffrist Feuerlöscher Rauchmelder Rauchwarnmelder Notbeleuchtung Spielplatz Lift Aufzug Blitzschutz Wartung Hausbetreuung',
   zaehler: 'Wasserzähler Ablesung Zählerstand',
   kontrolle: 'Prüfprotokoll Qualitätskontrolle',
   matten: 'Matten Mattenwechsel Tour Lieferschein',
@@ -58,6 +60,13 @@ function results(q) {
     for (const x of app.data.einkauf?.suppliers || []) if (hit(x.name, x.supplierNo, x.city, x.uid, x.customerNo)) out.push({ group: 'Lieferanten', label: x.name || x.supplierNo, sub: [x.supplierNo, x.city].filter(Boolean).join(' · '), action: 'ek-sup-open', data: { id: x.id } })
     for (const x of app.data.einkauf?.invoices || []) if (hit(x.no, x.number, x.number?.replace(/[\s/-]/g, ''))) out.push({ group: 'Eingangsrechnungen', label: x.no, sub: [x.supplier?.name, x.number ? `Nr. ${x.number}` : ''].filter(Boolean).join(' · '), action: 'ek-inv-open', data: { id: x.id } })
   }
+  // Anlagen & Prüffristen: Art, Standort, Hersteller, Seriennummer, Fremdfirma
+  if (sees('anlagen'))
+    for (const x of app.data.anlagen?.items || []) {
+      const type = typeOf(app.data.anlagen, x.typeId)?.name || ''
+      const obj = app.data.objects.find((o) => o.id === x.objectId)?.name || ''
+      if (hit(x.label, x.serial, x.maker, x.company, `${type} ${obj}`)) out.push({ group: 'Anlagen', label: `${type}: ${x.label}`, sub: obj, action: 'anl-edit-open', data: { id: x.id } })
+    }
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {
       const driver = app.data.employees.find((e) => e.id === v.driverId)?.name || ''

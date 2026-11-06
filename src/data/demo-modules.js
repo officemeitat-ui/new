@@ -1,4 +1,5 @@
-// Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus).
+// Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus);
+// Anlagen & Prüffristen in demo-anlagen.js.
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
@@ -7,6 +8,7 @@ import { addDays, firstOfMonth, todayISO } from '../core/dates.js'
 import { composeAddress, finalize } from '../core/invoicing.js'
 import { monthAdd } from '../core/vehicle-dues.js'
 import { createPurchaseDemo } from './demo-einkauf.js'
+import { createAnlagenDemo } from './demo-anlagen.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -228,6 +230,7 @@ export function createModuleDemo(monday, employees = []) {
     ...createPurchaseDemo(),
     unterweisungen: employees.length > 10 ? demoTrainings(employees) : { types: [], records: [], sessions: [] },
     schluessel: demoKeys(),
+    anlagen: createAnlagenDemo(),
     termine: demoAppointments(monday, employees),
     material: demoMaterial(),
     fahrzeuge: demoVehicles(monday),

@@ -226,6 +226,32 @@ lazy(BUERO, {
   todo: ['schluessel'],
 })
 
+// anlagen.js: Anlagen & Prüffristen je Objekt (Feuerlöscher, Rauchwarnmelder, Spielplatz …)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'anlagen',
+      order: 76,
+      label: 'Anlagen & Prüffristen',
+      group: 'service',
+      module: 'anlagen',
+      icon: '<path d="M9 8.5h6v11a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 19.5z"/><path d="M12 8.5V5.5M9.5 5.5H15l2.5-2.5M12 5.5c-2.2 0-4.6.8-5.5 3.2"/><path d="M9 12.5h6"/>',
+      noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 5.5h4v7.3a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 5.5V3.5M6.3 3.5H10l1.7-1.6M8 3.5c-1.5 0-3 .5-3.6 2.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        label: 'Anlagen',
+      },
+      text: 'Feuerlöscher, Rauchmelder, Spielplatz: Prüfungen und Fristen',
+    },
+  ],
+  modals: 'anl-edit anl-check anl-defect anl-types',
+  actions: `anl-tab anl-filter anl-reset anl-goto anl-def-all anl-month anl-edit-open anl-redraw anl-check-redraw anl-file anl-pdf anl-csv anl-bill-csv
+    anl-save anl-delete anl-check-open anl-photo anl-report anl-file-del anl-check-save anl-check-delete anl-defect-open anl-defect-save anl-types-open
+    anl-type-add anl-types-save anl-appt`,
+  hints: true,
+  todo: ['anlagen'],
+})
+
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)
 lazy(BUERO, {
   views: [
