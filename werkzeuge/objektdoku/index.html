@@ -504,9 +504,11 @@ body.gesperrt > *:not(#startGate){display:none !important}
       <label class="feld"><span>Telefon</span><input id="fTelefon" autocomplete="off" inputmode="tel"></label>
       <label class="feld"><span>Objektleitung Cleanos</span><input id="fObjektleitung" autocomplete="off"></label>
       <label class="feld"><span>Vertretung</span><input id="fVertretung" autocomplete="off"></label>
+      <label class="feld"><span>Revier</span><select id="fRevier"></select></label>
       <label class="feld"><span>Vertrag / Auftrag</span><input id="fVertrag" autocomplete="off"></label>
       <label class="feld"><span>Leistung ab</span><input id="fGueltigAb" type="date"></label>
     </div>
+    <p class="hinweis" id="revierHinweis"></p>
   </div>
 
   <div class="karte">
@@ -898,8 +900,8 @@ body.gesperrt > *:not(#startGate){display:none !important}
   <h2>Aus der Objektkontrolle übernehmen</h2>
   <div class="inhalt">
     <p class="hinweis" style="margin-top:0">Die Objektkontrolle führt in SharePoint
-      eine eigene Objektliste. Übernommen werden Kunde, Kundennummer, Objektnummer,
-      Objektbezeichnung und Anschrift – mehr steht dort nicht. Bereiche, Zeiten und
+      eine eigene Objektliste, gemeinsam und je Revier. Übernommen werden Kunde, Kundennummer,
+      Objektnummer, Objektbezeichnung, Anschrift und Revier – mehr steht dort nicht. Bereiche, Zeiten und
       Leistungen kennt sie nicht; die Akte ist danach <b>angelegt, nicht fertig</b>.</p>
     <p class="hinweis">Die fremde Liste wird nur gelesen, nie beschrieben.</p>
     <div id="uebernahmeStand"></div>
@@ -1010,8 +1012,8 @@ body.gesperrt > *:not(#startGate){display:none !important}
    im LIESMICH, Punkt "Richtzeiten".
    ============================================================ */
 
-const VERSION = "2.1";
-const VERSION_DATUM = "28.10.2026";
+const VERSION = "2.2";
+const VERSION_DATUM = "06.11.2026";
 
 /* ---------- Intervalle ----------
    wocheFaktor = Einsätze je Woche. Daraus wird alles andere
@@ -1223,6 +1225,14 @@ function dateiSicher(s){
     .replace(/-+/g, "-").replace(/^-|-$/g, "")
     .slice(0, 60);
 }
+/* Revier (2.2): Name des Ordners "Revier <Name>". Für alle
+   Werkzeuge und die Cleanos App gleich - darum NICHT dateiSicher,
+   das macht aus "ü" ein "ue", und die Ordner passten nicht mehr
+   zueinander. Auf einen schon bereinigten Namen angewandt, ändert
+   es nichts. */
+function revierName(s){
+  return String(s || '').replace(/[^\wäöüÄÖÜß\- ]+/g, '').trim().replace(/\s+/g, '-');
+}
 function neueId(prefix){
   return (prefix || "LV") + "-" + Date.now().toString(36).toUpperCase()
     + "-" + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
@@ -1248,6 +1258,7 @@ function objektLeer(){
     strasse: "", plz: "", ort: "",
     ansprech: "", telefon: "",
     objektleitung: "", vertretung: "",
+    revier: "",         /* 2.2: Ordner "Revier <Name>" in der Ablage, leer = keiner */
     vertrag: "", gueltigAb: "",
     schluessel: "", zugang: "", alarm: "",
     hinweise: "", zeitHinweis: "",
@@ -1363,6 +1374,7 @@ function objektHeben(o){
     else if(vorlage) neu[feld] = neu[feld].map(x => Object.assign(vorlage(), x || {}));
   }
   if(!(neu.fassung > 0)) neu.fassung = 1;
+  if(typeof neu.revier !== "string") neu.revier = "";
   /* Bilder aus der Zeit vor der Trennung sind Ablaufschritte -
      damals gab es nichts anderes. */
   for(const f of neu.fotos) if(!f.art) f.art = "ablauf";
@@ -1658,8 +1670,97 @@ const FELDER = {
   fObjektart:"objektart", fStrasse:"strasse", fPlz:"plz", fOrt:"ort",
   fAnsprech:"ansprech", fTelefon:"telefon", fObjektleitung:"objektleitung",
   fVertretung:"vertretung", fVertrag:"vertrag", fGueltigAb:"gueltigAb",
-  fHinweise:"hinweise", fZeitHinweis:"zeitHinweis"
+  fHinweise:"hinweise", fZeitHinweis:"zeitHinweis", fRevier:"revier"
 };
+
+/* ---------- Revier (2.2) ----------
+   Die Ablage ist je Revier getrennt (siehe objektTeile in 10), damit
+   Vor-Ort-Konten nur ihr Revier sehen. Zur Auswahl steht, was bekannt
+   ist: die Reviere aus der Cleanos App, die Revierordner vom letzten
+   Abgleich, die Reviere der Objekte hier und der Objektliste der
+   Objektkontrolle. Gespeichert wird der Name des Ordners (revierName),
+   angezeigt, wo es geht, der Name aus der App. Liegt ein Objekt einmal
+   in SharePoint, ist sein Revier fest: Verschoben wird zentral in der
+   App, sonst laege die Akte an zwei Stellen.
+   Sobald Reviere bekannt sind, braucht ein Objekt, das noch nicht in
+   SharePoint liegt, eines: "ohne Revier" gibt es dann nur noch fuer
+   Altbestand. Ist genau eines bekannt, ist es vorgewaehlt; sonst wird
+   nicht abgelegt, bis eines gewaehlt ist. Ohne bekannte Reviere bleibt
+   alles wie bisher. */
+const REVIER_BITTE = "Bitte zuerst das Revier wählen – erst dann wird in SharePoint gespeichert.";
+let reviereGesehen = [];          /* Revierordner vom letzten Abgleich */
+let reviereObjektliste = [];      /* Reviere aus der Objektliste der Objektkontrolle */
+
+function revierAuswahl(){
+  const karte = new Map();
+  const dazu = (name, text) => {
+    const wert = revierName(name);
+    if(wert && !karte.has(wert)) karte.set(wert, String(text || wert).trim());
+  };
+  let app = [];
+  try{
+    const a = window.CLEANOS_APP && window.CLEANOS_APP.reviere;
+    if(Array.isArray(a)) app = a;
+  }catch(e){ /* allein geoeffnet: keine App */ }
+  for(const r of app) dazu(r, r);
+  for(const r of reviereGesehen) dazu(r);
+  for(const o of alleObjekte) dazu(o.revier);
+  for(const r of reviereObjektliste) dazu(r);
+  return Array.from(karte, ([wert, text]) => ({ wert, text }))
+    .sort((a, b) => a.text.localeCompare(b.text, "de"));
+}
+function bekannteReviere(){ return revierAuswahl().map(r => r.wert); }
+function revierFest(o){ return !!(o && o.ablage && o.ablage.eTag); }
+/* Noch nicht in SharePoint, Reviere bekannt, aber keines gewaehlt */
+function revierFehlt(o){
+  return !!o && !revierFest(o) && !o.revier && revierAuswahl().length > 0;
+}
+function revierBitten(){
+  if(typeof reiterZeigen === "function") reiterZeigen("rObjekt");
+  melden(REVIER_BITTE, "warn");
+  const s = $("fRevier");
+  if(s && !s.disabled) s.focus();
+}
+
+function revierZeichnen(){
+  const s = $("fRevier");
+  if(!s || !aktObjekt) return;
+  const fest = revierFest(aktObjekt);
+  const liste = revierAuswahl();
+  const bekannt = liste.length > 0;
+  /* genau eines bekannt: vorgewaehlt */
+  if(!fest && !aktObjekt.revier && liste.length === 1){
+    aktObjekt.revier = liste[0].wert;
+    merken();
+  }
+  const wert = aktObjekt.revier || "";
+  if(wert && !liste.some(r => r.wert === wert)) liste.push({ wert, text: wert });
+  leeren(s);
+  if(!wert){
+    const leer = el("option", null, fest || !bekannt ? "ohne Revier" : "Revier wählen …");
+    leer.value = "";
+    s.appendChild(leer);
+  }
+  for(const r of liste){
+    const o = el("option", null, r.text);
+    o.value = r.wert;
+    s.appendChild(o);
+  }
+  s.value = wert;
+  s.disabled = fest;
+  const h = $("revierHinweis");
+  if(!h) return;
+  if(fest) h.textContent = (wert || bekannt)
+    ? (wert ? "Liegt in SharePoint im Ordner „" + revierOrdner(wert) + "“."
+            : "Liegt in SharePoint ohne Revier.")
+      + " In ein anderes Revier verschiebt es die Cleanos App."
+    : "";
+  else if(!bekannt) h.textContent = "";
+  else h.textContent = wert
+    ? "Das Revier bestimmt den Ordner in SharePoint. Nach dem ersten Ablegen "
+      + "ändert es nur noch die Cleanos App."
+    : REVIER_BITTE;
+}
 
 function objektInMaske(){
   if(!aktObjekt) return;
@@ -1667,6 +1768,7 @@ function objektInMaske(){
     const e = $(id);
     if(e) e.value = aktObjekt[schluessel] || "";
   }
+  revierZeichnen();
   $("objektKennung").textContent = aktObjekt.objektId
     ? "Nr. " + aktObjekt.objektId : "";
   einsatzTageZeichnen();
@@ -1705,6 +1807,7 @@ function felderVerdrahten(){
       if(id === "fObjektId")
         $("objektKennung").textContent = e.value ? "Nr. " + e.value : "";
       if(id === "fHinweise") hinweisPruefen();
+      if(id === "fRevier") revierZeichnen();
       merken();
     });
   }
@@ -4475,19 +4578,58 @@ function abmelden(){
   if(typeof gateZeigen === "function") gateZeigen("Abgemeldet.");
 }
 
-/* ---------- Ablage ---------- */
+/* ---------- Ablage ----------
+   Die Bibliothek finden (2.2). Bisher galt: steht sie nicht in der
+   Liste der Bibliotheken, dann eben die erste. Wer nur auf einzelne
+   Ordner Rechte hat (Reviere!) und nicht auf die Site, sieht die
+   Bibliothek dort aber gar nicht - und das Werkzeug schrieb still in
+   eine FREMDE Bibliothek. Jetzt wie Wasserzähler und Objektkontrolle:
+   die Bibliothek über die Adresse eines Ordners bestimmen (Graph
+   /shares), und passt nichts, eine klare Meldung statt Raten. */
 async function graphZiel(){
   if(graphDriveId) return graphDriveId;
-  const u = new URL(graphCfg.site);
-  const sitePfad = u.pathname.replace(/\/+$/, "");
-  const site = await graphRuf("/sites/" + u.hostname + ":" + (sitePfad || "/"));
-  const laufwerke = await graphRuf("/sites/" + site.id + "/drives");
-  const name = (graphCfg.bibliothek || "Dokumente").toLowerCase();
-  const treffer = (laufwerke.value || []).find(d => (d.name || "").toLowerCase() === name)
-    || (laufwerke.value || [])[0];
-  if(!treffer) throw new Error("Keine Bibliothek gefunden.");
-  graphDriveId = treffer.id;
-  return graphDriveId;
+  const gesucht = (graphCfg.bibliothek || "Dokumente").trim().toLowerCase();
+  let grund = "";
+  try{
+    const u = new URL(graphCfg.site);
+    const sitePfad = u.pathname.replace(/\/+$/, "");
+    const site = await graphRuf("/sites/" + u.hostname + ":" + (sitePfad || "/"));
+    const laufwerke = (await graphRuf("/sites/" + site.id + "/drives")).value || [];
+    /* Anzeigename und Name in der Adresse können auseinanderfallen. */
+    const letzterTeil = d => {
+      try{ return decodeURIComponent(new URL(d.webUrl).pathname.split("/").filter(Boolean).pop() || "").toLowerCase(); }
+      catch(e){ return ""; }
+    };
+    const treffer = laufwerke.find(d => (d.name || "").trim().toLowerCase() === gesucht)
+      || laufwerke.find(d => letzterTeil(d) === gesucht);
+    if(treffer){ graphDriveId = treffer.id; return graphDriveId; }
+  }catch(e){
+    if(String(e && e.message).includes("nicht angemeldet")) throw e;
+    grund = e && e.message ? " (" + e.message + ")" : "";
+  }
+  const id = await driveUeberOrdnerAdresse();
+  if(id){ graphDriveId = id; return id; }
+  throw new Error("Die Bibliothek „" + (graphCfg.bibliothek || "Dokumente")
+    + "“ ist nicht erreichbar" + grund + " – weder in der Liste der Bibliotheken noch über den Ordner „"
+    + graphBasis() + "“. Bitte Verbindungsdaten (Menü, SharePoint einrichten) und die Berechtigung prüfen.");
+}
+/* Erst die Basis, dann die bekannten Reviere: Wer nur Rechte auf
+   "Objektdoku/Revier Nord" hat, erreicht die Basis nicht. */
+async function driveUeberOrdnerAdresse(){
+  const ordner = [graphBasis()].concat(bekannteReviere().map(r => graphBasis() + "/" + revierOrdner(r)));
+  for(const pfad of ordner){
+    const url = encodeURI(graphCfg.site.replace(/\/+$/, "") + "/"
+      + (graphCfg.bibliothek || "Shared Documents") + "/" + pfad);
+    const b64 = btoa(url).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
+    try{
+      const it = await graphRuf("/shares/u!" + b64 + "/driveItem");
+      const id = it && it.parentReference && it.parentReference.driveId;
+      if(id) return id;
+    }catch(e){
+      if(String(e && e.message).includes("nicht angemeldet")) throw e;
+    }
+  }
+  return null;
 }
 function graphBasis(){
   return (graphCfg.pfad || "Objektdoku").replace(/^\/+|\/+$/g, "");
@@ -4495,6 +4637,19 @@ function graphBasis(){
 function objektOrdner(o){
   return [dateiSicher(o.objektId || "ohne-Nr"), dateiSicher(o.objekt || "ohne-Namen")]
     .filter(Boolean).join("_");
+}
+/* Revier (2.2): Die Ablage ist je Revier getrennt, damit Vor-Ort-Konten
+   nur ihr Revier sehen:
+       Objektdoku/Revier <Name>/<Nr>_<Objekt>/…
+   Ohne Revier bleibt alles, wo es war: Objektdoku/<Nr>_<Objekt>/…
+   Jeder Pfad eines Objekts entsteht hier, nirgends sonst. */
+const REVIER_VOR = "Revier ";
+function revierOrdner(r){
+  const n = revierName(r);
+  return n ? REVIER_VOR + n : "";
+}
+function objektTeile(o){
+  return [revierOrdner(o.revier), objektOrdner(o)].filter(Boolean);
 }
 
 async function ordnerSichern(teile){
@@ -4527,7 +4682,9 @@ async function dateiAblegen(teile, name, inhalt, typ){
   });
   if(!a.ok){
     const t = await a.text();
-    throw new Error("Ablage fehlgeschlagen (" + a.status + "): " + t.slice(0, 200));
+    const f = new Error("Ablage fehlgeschlagen (" + a.status + "): " + t.slice(0, 200));
+    f.status = a.status;
+    throw f;
   }
   return a.json();
 }
@@ -4558,11 +4715,11 @@ async function dateiKennung(pfad){
 }
 
 function aktePfad(o){
-  return graphBasis() + "/" + objektOrdner(o) + "/"
-    + dateiSicher(o.objektId || o.id) + ".json";
+  return graphBasis().split("/").concat(objektTeile(o),
+    [dateiSicher(o.objektId || o.id) + ".json"]).join("/");
 }
 function fotoPfad(o, f){
-  return graphBasis() + "/" + objektOrdner(o) + "/Fotos/" + f.id + ".jpg";
+  return graphBasis().split("/").concat(objektTeile(o), ["Fotos", f.id + ".jpg"]).join("/");
 }
 
 /* Liegt dort eine Fassung, die dieses Geraet nicht kennt? */
@@ -4585,14 +4742,18 @@ async function akteSchreiben(o, erzwingen){
   const tok = await graphZugriff();
   if(!tok) throw new Error("nicht angemeldet");
 
-  await ordnerSichern(graphBasis().split("/").concat([objektOrdner(o)]));
+  await ordnerSichern(graphBasis().split("/").concat(objektTeile(o)));
 
   const kopf = { Authorization:"Bearer " + tok, "Content-Type":"application/json" };
   /* if-match laesst SharePoint selbst pruefen - zwischen unserer
      Nachschau und dem Schreiben koennte sonst noch jemand
-     dazwischenkommen. */
+     dazwischenkommen. Aber nur fuer DIESELBE Datei: Hat sich der
+     Pfad geaendert (Objekt umbenannt), gehoert die gemerkte Kennung
+     zu einer anderen Datei, und SharePoint lehnte jedes Ablegen ab.
+     Wo der Pfad nicht gemerkt ist (vor 2.2 abgelegt), wie bisher. */
   const gemerkt = (o.ablage || {}).eTag || "";
-  if(gemerkt && !erzwingen) kopf["if-match"] = gemerkt;
+  const gemerktPfad = (o.ablage || {}).pfad || "";
+  if(gemerkt && !erzwingen && (!gemerktPfad || gemerktPfad === pfad)) kopf["if-match"] = gemerkt;
 
   const a = await fetch("https://graph.microsoft.com/v1.0/drives/" + drive
     + "/root:/" + encodeURI(pfad) + ":/content",
@@ -4602,11 +4763,17 @@ async function akteSchreiben(o, erzwingen){
     f.status = 412;
     throw f;
   }
-  if(!a.ok) throw new Error("Ablage fehlgeschlagen (" + a.status + "): "
-    + (await a.text()).slice(0, 200));
+  if(!a.ok){
+    const f = new Error("Ablage fehlgeschlagen (" + a.status + "): "
+      + (await a.text()).slice(0, 200));
+    f.status = a.status;
+    throw f;
+  }
   const d = await a.json();
   o.ablage = { eTag: d.eTag || d.cTag || "", zeit: new Date().toISOString(),
-               stand: o.geaendert };
+               stand: o.geaendert, pfad };
+  /* Jetzt liegt es in SharePoint - das Revier ist ab hier fest. */
+  if(o === aktObjekt) revierZeichnen();
   return d;
 }
 
@@ -4618,7 +4785,7 @@ async function fotosAblegen(o){
   const fotos = (o.fotos || []).filter(f => f && f.daten && !f.datei);
   if(!fotos.length) return { hoch:0, fehler:[] };
   await ordnerSichern(graphBasis().split("/")
-    .concat([objektOrdner(o), "Fotos"]));
+    .concat(objektTeile(o), ["Fotos"]));
   const drive = await graphZiel();
   const tok = await graphZugriff();
   let hoch = 0;
@@ -4631,20 +4798,44 @@ async function fotosAblegen(o){
         + "/root:/" + encodeURI(fotoPfad(o, f)) + ":/content",
         { method:"PUT", headers:{ Authorization:"Bearer " + tok,
           "Content-Type":"image/jpeg" }, body: bytes });
-      if(!a.ok) throw new Error("Status " + a.status);
+      if(!a.ok){ const g = new Error("Status " + a.status); g.status = a.status; throw g; }
       f.datei = f.id + ".jpg";
       hoch++;
-    }catch(e){ fehler.push((f.titel || f.id) + ": " + e.message); }
+    }catch(e){
+      /* Kein Recht auf den Ordner: Jedes weitere Bild scheiterte
+         genauso. Einmal melden reicht (objektAblegen). */
+      if(e.status === 403) throw e;
+      fehler.push((f.titel || f.id) + ": " + e.message);
+    }
   }
   return { hoch, fehler };
 }
 
 async function objektAblegen(o, pdf, erzwingen){
-  const teile = graphBasis().split("/").concat([objektOrdner(o)]);
+  const teile = graphBasis().split("/").concat(objektTeile(o));
   const ergebnis = { json:null, pdf:null, fotos:0, fehler:[], konflikt:null };
+  /* Revier (2.2): Fehlt das Recht auf den Ordner (403), scheitern
+     Akte, Fotos und Blatt alle gleich. Dann einmal melden und
+     aufhoeren - fuer DIESES Objekt. Die Ablage der anderen laeuft
+     weiter; bisher brach hier alles ab. */
+  const gesperrt = (e) => {
+    if(!e || e.status !== 403) return false;
+    ergebnis.fehler.push("Kein Zugriff auf den Ordner „" + teile.join("/")
+      + "“ – bitte die Berechtigung für dieses Revier prüfen.");
+    return true;
+  };
+  /* Neues Objekt ohne Revier, obwohl Reviere bekannt sind: nicht
+     ablegen - es landete sonst neben allen Revieren in der Basis. */
+  if(revierFehlt(o)){
+    ergebnis.fehler.push(REVIER_BITTE);
+    ergebnis.revierFehlt = true;
+    return ergebnis;
+  }
 
   if(!erzwingen){
-    const k = await ablageKonflikt(o);
+    let k;
+    try{ k = await ablageKonflikt(o); }
+    catch(e){ if(gesperrt(e)) return ergebnis; throw e; }
     if(k){ ergebnis.konflikt = k; return ergebnis; }
   }
 
@@ -4655,20 +4846,27 @@ async function objektAblegen(o, pdf, erzwingen){
     const f = await fotosAblegen(o);
     ergebnis.fotos = f.hoch;
     for(const x of f.fehler) ergebnis.fehler.push("Foto " + x);
-  }catch(e){ ergebnis.fehler.push("Fotos: " + e.message); }
+  }catch(e){
+    if(gesperrt(e)) return ergebnis;
+    ergebnis.fehler.push("Fotos: " + e.message);
+  }
 
   try{
     ergebnis.json = await akteSchreiben(o, erzwingen);
   }catch(e){
     if(e.status === 412){ ergebnis.konflikt = { art:"ueberholt",
       stand: await dateiKennung(aktePfad(o)) }; return ergebnis; }
+    if(gesperrt(e)) return ergebnis;
     ergebnis.fehler.push("Akte: " + e.message);
   }
 
   if(pdf && pdf.bytes){
     try{
       ergebnis.pdf = await dateiAblegen(teile, pdf.name, pdf.bytes, "application/pdf");
-    }catch(e){ ergebnis.fehler.push("Blatt: " + e.message); }
+    }catch(e){
+      if(gesperrt(e)) return ergebnis;
+      ergebnis.fehler.push("Blatt: " + e.message);
+    }
   }
   return ergebnis;
 }
@@ -4710,38 +4908,87 @@ async function fotosNachladen(o){
 async function graphAbgleichen(){
   const drive = await graphZiel();
   const basis = graphBasis();
+  const auflisten = (pfad) => graphRuf("/drives/" + drive + "/root:/" + encodeURI(pfad) + ":/children");
   let kinder;
   try{
-    kinder = await graphRuf("/drives/" + drive + "/root:/" + encodeURI(basis) + ":/children");
+    kinder = await auflisten(basis);
   }catch(e){
-    if(e.status === 404) return { geholt:0, konflikte:[],
-      hinweis:"Noch kein Ablageordner vorhanden." };
-    throw e;
+    /* Revier (2.2): Wer nur Rechte auf sein Revier hat, darf die
+       Basis nicht auflisten. Dann die bekannten Reviere direkt. */
+    const bekannt = (e.status === 403 || e.status === 404) ? bekannteReviere() : [];
+    if(!bekannt.length){
+      if(e.status === 404) return { geholt:0, konflikte:[],
+        hinweis:"Noch kein Ablageordner vorhanden." };
+      throw e;
+    }
+    kinder = { value: bekannt.map(r => ({ name: revierOrdner(r), folder:{} })) };
+  }
+
+  /* Die Objektordner: wie bisher direkt unter der Basis (ohne Revier)
+     und seit 2.2 eine Ebene tiefer in jedem Ordner "Revier <Name>".
+     Der Ordner bestimmt das Revier, nicht der Eintrag in der Akte -
+     so passen Pfad und Akte zusammen, auch wenn die App ein Objekt in
+     ein anderes Revier verschoben hat. "Stammdaten" ist kein Objekt:
+     Dort liegen die Vorlagen (Vorlagen.json), die bisher bei jedem
+     Abgleich als neue Akte ohne Namen dazukamen. Ein Revier ohne
+     Recht wird still uebergangen. */
+  const imRevier = [], ohneRevier = [], gesehen = [];
+  for(const k of (kinder.value || [])){
+    if(!k.folder || k.name === "Stammdaten") continue;
+    if(k.name.indexOf(REVIER_VOR) !== 0){
+      ohneRevier.push({ pfad: basis + "/" + k.name, revier:"" });
+      continue;
+    }
+    const revier = k.name.slice(REVIER_VOR.length);
+    let drin;
+    try{ drin = await auflisten(basis + "/" + k.name); }catch(e){ continue; }
+    gesehen.push(revier);
+    for(const x of (drin.value || []))
+      if(x.folder && x.name !== "Stammdaten")
+        imRevier.push({ pfad: basis + "/" + k.name + "/" + x.name, revier });
   }
 
   let geholt = 0, neu = 0;
   const konflikte = [];
-  for(const ordner of (kinder.value || [])){
-    if(!ordner.folder) continue;
+  /* Liegt eine Akte an zwei Stellen (verschoben, alte Kopie stehen
+     geblieben), gilt die im Revier - darum die zuerst, und jede
+     Kennung nur einmal. */
+  const erledigt = {};
+  for(const ordner of imRevier.concat(ohneRevier)){
     let dateien;
     try{
-      dateien = await graphRuf("/drives/" + drive + "/root:/"
-        + encodeURI(basis + "/" + ordner.name) + ":/children");
+      dateien = await auflisten(ordner.pfad);
     }catch(e){ continue; }
 
     for(const d of (dateien.value || [])){
       if(!/\.json$/i.test(d.name) || !d["@microsoft.graph.downloadUrl"]) continue;
       try{
         const a = await fetch(d["@microsoft.graph.downloadUrl"]);
-        const fremd = objektHeben(await a.json());
+        const roh = await a.json();
+        /* Ohne Kennung ist es keine Akte - sie bekaeme sonst bei
+           jedem Abgleich eine neue und stuende doppelt da. */
+        if(!roh || !roh.id || erledigt[roh.id]) continue;
+        erledigt[roh.id] = true;
+        const fremd = objektHeben(roh);
+        fremd.revier = ordner.revier;              /* der Ordner gilt */
         const hier = alleObjekte.find(x => x.id === fremd.id);
         const eTag = d.eTag || d.cTag || "";
+        const pfad = ordner.pfad + "/" + d.name;
 
         if(!hier){
-          fremd.ablage = { eTag, zeit:new Date().toISOString(), stand:fremd.geaendert };
+          fremd.ablage = { eTag, zeit:new Date().toISOString(), stand:fremd.geaendert, pfad };
           await dbSchreiben(SPEICHER_OBJEKTE, fremd);
           neu++;
           continue;
+        }
+
+        /* Hat die App den Ordner in ein anderes Revier verschoben,
+           folgt die Akte hier dem Ordner - sonst legte sie beim
+           naechsten Ablegen am alten Platz eine zweite an. */
+        if((hier.revier || "") !== ordner.revier){
+          hier.revier = ordner.revier;
+          hier.ablage = Object.assign({}, hier.ablage || {}, { pfad });
+          await dbSchreiben(SPEICHER_OBJEKTE, hier);
         }
 
         const was = abgleichEntscheidung(hier, fremd);
@@ -4762,12 +5009,14 @@ async function graphAbgleichen(){
         for(const f of (fremd.fotos || []))
           if(!f.daten && bilderHier[f.id]) f.daten = bilderHier[f.id];
 
-        fremd.ablage = { eTag, zeit:new Date().toISOString(), stand:fremd.geaendert };
+        fremd.ablage = { eTag, zeit:new Date().toISOString(), stand:fremd.geaendert, pfad };
         await dbSchreiben(SPEICHER_OBJEKTE, fremd);
         geholt++;
       }catch(e){ /* eine kaputte Datei darf den Abgleich nicht stoppen */ }
     }
   }
+  reviereGesehen = gesehen;
+  einstellungSpeichern("reviereGesehen", gesehen).catch(() => {});
   alleObjekte = await objekteLaden();
   if(aktObjekt){
     const frisch = alleObjekte.find(o => o.id === aktObjekt.id);
@@ -4777,6 +5026,7 @@ async function graphAbgleichen(){
       dokuZeichnen();
     }
   }
+  revierZeichnen();
   return { geholt, neu, konflikte };
 }
 
@@ -4848,25 +5098,67 @@ function kundeUebernehmen(name){
    legt ihn so an, und wer hier etwas anderes einstellt, meint
    die eigene Ablage, nicht die fremde. */
 const OBJEKTKONTROLLE_STAMM = "Objektpruefprotokolle/Stammdaten/Objekte.json";
+/* Revier (2.2): Daneben fuehrt die Objektkontrolle je Revier eine
+   eigene Liste: Objektpruefprotokolle/Objekte/Revier <Name>/
+   Stammdaten/Objekte.json. Gelesen werden die gemeinsame und jede
+   erreichbare je Revier; was fehlt oder gesperrt ist, wird still
+   uebergangen. Die Eintraege tragen ihr Revier mit. Der Ordner wird
+   aus der Lese-Konstante abgeleitet (bau.js prueft, dass der Pfad
+   der Objektkontrolle nur dort steht). */
+const OBJEKTKONTROLLE_OBJEKTE = OBJEKTKONTROLLE_STAMM.split("/")[0] + "/Objekte";
 
-async function objektkontrolleStammLesen(){
-  const drive = await graphZiel();
-  let d;
-  try{
-    d = await graphRuf("/drives/" + drive + "/root:/"
-      + encodeURI(OBJEKTKONTROLLE_STAMM));
-  }catch(e){
-    if(e.status === 404)
-      throw new Error("Die Objektkontrolle hat unter " + OBJEKTKONTROLLE_STAMM
-        + " noch keine Objektliste angelegt. Sie entsteht dort beim "
-        + "Abschließen der ersten Kontrolle.");
-    throw e;
-  }
+async function objektlisteHolen(drive, pfad){
+  const d = await graphRuf("/drives/" + drive + "/root:/" + encodeURI(pfad));
   const a = await fetch(d["@microsoft.graph.downloadUrl"]);
   const roh = await a.json();
   const liste = Array.isArray(roh) ? roh : (roh.objekte || roh.liste || []);
   if(!Array.isArray(liste))
     throw new Error("Die Objektliste der Objektkontrolle hat ein unerwartetes Format.");
+  return liste;
+}
+
+async function objektkontrolleStammLesen(){
+  const drive = await graphZiel();
+  let gemeinsam = null, fehler = null;
+  try{
+    gemeinsam = await objektlisteHolen(drive, OBJEKTKONTROLLE_STAMM);
+  }catch(e){
+    if(e.status !== 404 && e.status !== 403) throw e;
+    fehler = e.status === 404
+      ? new Error("Die Objektkontrolle hat unter " + OBJEKTKONTROLLE_STAMM
+        + " noch keine Objektliste angelegt. Sie entsteht dort beim "
+        + "Abschließen der ersten Kontrolle.")
+      : e;
+  }
+
+  /* Die Reviere aus dem Ordner der Objektkontrolle; darf man den
+     nicht auflisten, die hier bekannten. */
+  let reviere;
+  try{
+    const k = await graphRuf("/drives/" + drive + "/root:/"
+      + encodeURI(OBJEKTKONTROLLE_OBJEKTE) + ":/children");
+    reviere = (k.value || []).filter(x => x.folder && x.name.indexOf(REVIER_VOR) === 0)
+      .map(x => x.name.slice(REVIER_VOR.length));
+  }catch(e){ reviere = bekannteReviere(); }
+
+  const jeRevier = [];
+  let gelesen = 0;
+  for(const r of reviere){
+    try{
+      const liste = await objektlisteHolen(drive, OBJEKTKONTROLLE_OBJEKTE + "/"
+        + REVIER_VOR + r + "/Stammdaten/Objekte.json");
+      gelesen++;
+      for(const x of liste) if(x) jeRevier.push(Object.assign({}, x, { revier: r }));
+    }catch(e){ /* kein Recht oder keine Liste */ }
+  }
+  if(!gemeinsam && !gelesen) throw fehler;
+
+  /* Steht ein Objekt in beiden Listen, gilt die des Reviers. */
+  const da = {};
+  for(const x of jeRevier) da[objektSchluessel(x.kunde, x.objekt, x.objektId)] = true;
+  const liste = jeRevier.concat((gemeinsam || [])
+    .filter(x => x && !da[objektSchluessel(x.kunde, x.objekt, x.objektId)]));
+  reviereObjektliste = liste.map(x => x.revier).filter(Boolean);
   return liste;
 }
 
@@ -5745,7 +6037,8 @@ function uebernahmeVorschlagen(fremd, eigene){
       objektId: String(f.objektId || "").trim(),
       adresse, mail: String(f.email || "").trim(),
       neuerKunde: !!f.neuerKunde,
-      seit: f.seit || "", von: f.von || ""
+      seit: f.seit || "", von: f.von || "",
+      revier: revierName(f.revier)
     };
     const k = objektSchluessel(kunde, objekt, f.objektId);
     const k2 = "no:" + kunde.toLowerCase() + "|" + objekt.toLowerCase();
@@ -5770,6 +6063,7 @@ function akteAusUebernahme(e){
   o.plz = e.adresse.plz;
   o.ort = e.adresse.ort;
   if(e.mail) o.kundenMail = e.mail;
+  if(e.revier) o.revier = e.revier;
   o.herkunft = "Objektkontrolle";
   if(e.adresse.unklar)
     o.hinweise = "Die Anschrift wurde aus der Objektkontrolle übernommen und "
@@ -6701,9 +6995,12 @@ async function uebernahmeStarten(){
 
   let n = 0;
   const fehler = [];
+  const reviere = revierAuswahl();
   for(const e of gewaehlt){
     try{
       const akte = akteAusUebernahme(e);
+      /* Ohne Revier in der Liste, aber genau eines bekannt: dieses */
+      if(!akte.revier && reviere.length === 1) akte.revier = reviere[0].wert;
       /* Gleich eine erste Fassung festhalten - damit steht im
          Verlauf, woher die Akte kommt und wann sie entstand. */
       fassungHalten(akte, "aus der Objektkontrolle übernommen", graphUser);
@@ -6764,6 +7061,7 @@ async function konfliktBeideBehalten(){
     fremd.id = neueId("LV");
     fremd.objekt = (fremd.objekt || "") + " (Fassung aus der Ablage)";
     fremd.ablage = null;
+    fremd.revier = f.objekt.revier || "";     /* der Ordner gilt (2.2) */
     fremd.verlauf = fremd.verlauf || [];
     await dbSchreiben(SPEICHER_OBJEKTE, fremd);
     await fotosNachladen(fremd).catch(() => 0);
@@ -6810,8 +7108,10 @@ async function konfliktFremdeHolen(){
     const stand = f.konflikt.stand || {};
     const a = await fetch(stand.herunter);
     const fremd = objektHeben(await a.json());
+    /* Der Ordner gilt (2.2): Die Fassung lag im Ordner dieses Objekts. */
+    fremd.revier = f.objekt.revier || "";
     fremd.ablage = { eTag:stand.eTag || "", zeit:new Date().toISOString(),
-                     stand:fremd.geaendert };
+                     stand:fremd.geaendert, pfad:aktePfad(f.objekt) };
     await dbSchreiben(SPEICHER_OBJEKTE, fremd);
     alleObjekte = await objekteLaden();
     aktObjekt = alleObjekte.find(o => o.id === fremd.id) || fremd;
@@ -8370,6 +8670,9 @@ async function objektOeffnen(id){
 async function objektNeu(){
   await sichern(true);
   aktObjekt = objektLeer();
+  /* Revier (2.2): Ist genau eines bekannt, gleich dieses. */
+  const reviere = revierAuswahl();
+  if(reviere.length === 1) aktObjekt.revier = reviere[0].wert;
   zugeklappt = {};
   letztesPdf = null;
   alleObjekte.unshift(aktObjekt);
@@ -8399,6 +8702,9 @@ async function objektKopieren(quelle){
   kopie.fotos = [];
   kopie.geprueftAm = "";
   kopie.geprueftVon = "";
+  /* Die Kopie liegt noch nirgends - die Ablage-Kennung gehoert zum
+     Ursprung (und mit ihr das feste Revier). */
+  kopie.ablage = null;
   kopie.angelegt = new Date().toISOString();
   kopie.stand = heuteIso();
   aktObjekt = kopie;
@@ -8742,6 +9048,7 @@ function verdrahten(){
 
   $("kAblage").addEventListener("click", async () => {
     if(!angemeldet()){ melden("Dafür ist die Anmeldung nötig.", "warn"); return; }
+    if(revierFehlt(aktObjekt)){ revierBitten(); return; }
     melden("Lege ab …");
     try{
       await sichern(true);
@@ -8968,6 +9275,8 @@ async function ablageStandZeigen(){
 
 async function abschliessen(){
   if(!aktObjekt) return;
+  /* Revier (2.2): ohne Revier keine Fassung und keine Ablage */
+  if(revierFehlt(aktObjekt)){ revierBitten(); return; }
   const s = schalterLesen();
   if($("sCode").checked){
     const p = pdfCodePruefen($("fCode").value);
@@ -9016,6 +9325,11 @@ function ablageNachholen(sofort, nurId){
       catch(f){ r = { fehler:[String(f && f.message ? f.message : f)] }; }
       const merkeVersuch = (grund) => ablageOffenAendern(a => a.map(x => x.id === e.id
         ? Object.assign(x, { versucht:new Date().toISOString(), grund }) : x));
+      if(r.revierFehlt){
+        await merkeVersuch(REVIER_BITTE);
+        melden(name + ": " + REVIER_BITTE, "warn");
+        continue;
+      }
       if(r.konflikt){
         await merkeVersuch("an zwei Stellen geändert");
         if(o === aktObjekt) konfliktZeigen(r.konflikt, e.blatt);
@@ -9053,6 +9367,9 @@ async function starten(){
   codeBereichZeigen();
   await vorlagenStarten();
   await woerterLaden();
+  /* Revierordner vom letzten Abgleich (2.2) - auch ohne Netz zur Auswahl */
+  const gesehen = await einstellungLaden("reviereGesehen", []);
+  reviereGesehen = Array.isArray(gesehen) ? gesehen : [];
   try{
     alleObjekte = await objekteLaden();
   }catch(e){
