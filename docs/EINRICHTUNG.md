@@ -98,7 +98,7 @@ Aus `config.json` gelten dazu: `"tenantId": "a31131f2-4ccf-4eb2-ab3d-49c923c6bed
 - Statt in die Datei kann die Anwendungs-ID auch als Umgebungsvariable `ENTRA_CLIENT_ID` kommen (GitHub: *Settings → Secrets and variables → Actions → Variables*).
 - Zum Ausprobieren mit Beispieldaten ohne SharePoint: `DIENSTPLAN_DEMO=1 npm run build`.
 - `access.planners`: E-Mail-Adressen mit Vollzugriff (Rolle `disposition`), auch ohne Gruppe. Im Betrieb sieht, wer weder hier steht noch einer Gruppe angehört, nichts.
-- `access.members`, `access.roles`: Rollen per E-Mail-Liste und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier.
+- `access.members`, `access.roles`: Rollen per E-Mail-Liste und eigene Rollen, siehe [PLATTFORM.md](PLATTFORM.md). Rollen aus Entra ID (App-Rollen) wirken ohne Eintrag hier. `access.roles.<rolle>.leiste`: Vorgabe der Leiste unten am Handy für diese Rolle (Schritt 6); ein Eintrag für eine eingebaute Rolle ändert nur, was er angibt.
 - Ablage gemeinsam mit den bisherigen Werkzeugen: `"siteUrl": "https://cleanconcept1.sharepoint.com"`, `"library": "Cleanos_Daten"`, `"folder": "Plattform"`. Ein Unterordner je Berechtigung (`objekte/`, `daten/`, `plaene/`, `personal/`, `lohn/`, `fahrzeuge/`, `reklamationen/`, `kalkulation/`, `exporte/`), jeder mit eigenen SharePoint-Rechten. Die Werkzeuge speichern wie bisher in ihren eigenen Ordnern derselben Bibliothek (`Wasserzähler - Ablesung`, `Objektpruefprotokolle`, `Objektdoku`, `Mattenwechsel`).
 - `refreshSeconds`: wie oft die App prüft, ob jemand anderes gespeichert hat. Ohne Netz Erfasstes wird zusätzlich sofort gespeichert, sobald wieder Netz da ist.
 - `tools`: `false` blendet die Werkzeuge aus (z. B. für eine Vorschau ohne Firmendaten); Standard: eingeblendet.
@@ -200,6 +200,22 @@ Das Passwort fragt der Befehl jedes Mal ab (oder Umgebungsvariable `FTP_PASSWORT
 - **Windows/Mac:** in Edge oder Chrome das Installieren-Symbol in der Adressleiste
 
 Alle Geräte arbeiten mit denselben Daten in SharePoint. Ändert jemand am PC, sieht man es am Handy beim nächsten Öffnen der App sofort. Im Betrieb steht deshalb `"storage": "sharepoint"` in `config.production.json`; im Browser-Modus (`"local"`, nur zum Ausprobieren) bleiben die Daten auf dem jeweiligen Gerät.
+
+**Leiste unten am Handy: Vorgabe je Rolle (optional).** Ohne Eintrag gilt die eingebaute Vorgabe (mit Einsatzplanung Woche, Vertretung, „+ Abwesend“, Zettel; Ableser nur Wasserzähler, Buchhaltung Fakturierung, Einkauf, Kassenbuch, Umsatzsteuer usw., Tabelle in [PLATTFORM.md](PLATTFORM.md#leiste-unten-am-handy)). Soll eine Rolle unten etwas anderes haben, in `config.production.json` (oder `config.json` am Server, kein Build nötig) unter `access.roles` je Rolle `leiste` eintragen, höchstens vier Plätze:
+
+```json
+"access": {
+  "roles": {
+    "disposition": { "leiste": ["sec:finanzen", "zaehler", "kontrolle", "objektmappe"] },
+    "objektleitung": { "leiste": ["week", "zaehler", "kontrolle", "sec:objekte"] }
+  }
+}
+```
+
+- Ein Platz ist eine **Ansicht** (wie in der Adresse, z. B. `zaehler`, `kontrolle`, `objektmappe`, `matten`, `fakturierung`, `einkauf`, `kassenbuch`, `umsatzsteuer`, `material`, `week`, `coverage`, `sheet`, `termine`, `home` für die Übersicht), ein **Bereich** des Menüs (`sec:planung`, `sec:einsatz`, `sec:objekte`, `sec:betrieb`, `sec:finanzen`, `sec:verwaltung`; öffnet beim Antippen die Liste des Bereichs) oder **`+abwesend`** (runder Knopf „+ Abwesend“, nur für Rollen, die Abwesenheiten eintragen dürfen).
+- Bei eingebauten Rollen genügt `leiste`: Bereiche und Rechte (`modules`, `edit`) bleiben wie eingebaut. Eigene Rollen geben `leiste` zusätzlich zu `label`, `modules` und `edit` an.
+- Was die Rolle nicht sehen darf, fällt still weg; bleibt nichts übrig, gilt die eingebaute Vorgabe. Hat jemand mehrere Rollen, kommen die Plätze in der Reihenfolge der Rollen zusammen.
+- Jede Person kann die Leiste danach am eigenen Handy anpassen (Platz lange drücken oder „Mehr“ → „Leiste unten anpassen“); das gilt je Gerät und Konto und geht der Vorgabe vor. „Auf Vorgabe zurücksetzen“ holt die Vorgabe des Büros zurück.
 
 ## 7. Testen ohne SharePoint
 

@@ -809,6 +809,37 @@ Die Seitenleiste ist in Abschnitte gegliedert: **Planung** (Wochenübersicht, Ze
 - **Am Handy** gehen Menüs als Blatt von unten auf (große Einträge, Hintergrund abgedunkelt; Tipp daneben schließt).
 - Was eine Rolle nicht darf, fehlt auch im Menü; bleibt nur ein Eintrag übrig, erscheint er als normaler Knopf.
 
+### Leiste unten am Handy
+
+Am Handy (bis 700 px Breite) steht unten eine Leiste mit **bis zu vier Plätzen**, ganz rechts immer **„Mehr“** (alle Ansichten, Aktionen, Konto). Die Plätze sind gleich breit verteilt; der runde, erhöhte Knopf gilt nur für **„+ Abwesend“**, egal auf welchem Platz.
+
+**Vorgabe je Rolle** (`src/ui/leiste.js`, `ROLE_DEFAULTS`):
+
+| Rolle | unten |
+|---|---|
+| mit Einsatzplanung (Vollzugriff, Objektmanagement, Objektleitung, Nur lesen) | Woche, Vertretung, „+ Abwesend“ (nur mit Recht, Abwesenheiten einzutragen), Zettel – wie bisher |
+| Ableser, Vorarbeiter/in | Wasserzähler |
+| Mattenwechsel | Mattenwechsel |
+| Prüfer/in | Objektkontrolle, Objektdoku |
+| Buchhaltung | Fakturierung, Einkauf, Kassenbuch, Umsatzsteuer |
+| Lager & Einkauf | Material & Lager |
+| Fuhrpark | Fahrzeuge & Reifen |
+| Lohnverrechnung | Monatsauswertung, Überstunden & Auszahlung, Objekt-Controlling |
+| Objektservice | Wasserzähler, Objektkontrolle, Anlagen, Regie |
+| eigene Rollen (config.json) | die eigenen Ansichten der Rolle, die mit eigenem Handy-Eintrag zuerst |
+
+Ohne Einsatzplanung stehen unten **nur die eigenen Bereiche**; Übersicht, Kennzahlen, Anleitung und Digitale Mitarbeiter bleiben unter „Mehr“. Mehrere Rollen addieren sich (höchstens vier Plätze). Das Büro kann je Rolle eine eigene Vorgabe festlegen: `access.roles.<rolle>.leiste` in `config.json` ([EINRICHTUNG.md](EINRICHTUNG.md)).
+
+**Selbst gestalten:**
+
+- **Einen Platz lange drücken** (am PC: Rechtsklick) öffnet „Diesen Platz ändern“: Ansicht, Bereich oder Sonderknopf wählen, z. B. statt „Abwesend“ den Wasserzähler; „Platz leeren“ für weniger Plätze. Kurz tippen öffnet wie immer die Ansicht.
+- **„Mehr“ → „Leiste unten anpassen“** (auch unter *Darstellung*, und für Bildschirmleser der Weg ohne langes Drücken): vier Plätze von links nach rechts, je eine Auswahl (leer, Sonderknöpfe „Übersicht“ und „+ Abwesend“, Bereiche, alle Ansichten, die die Person sehen darf), Pfeile zum Verschieben, Vorschau der Leiste, **„Auf Vorgabe zurücksetzen“**. Was schon auf einem anderen Platz steht, ist gesperrt (keine Doppel).
+- **Bereich als Platz** (z. B. „Finanzen“): öffnet beim Antippen ein Blatt mit den Ansichten des Bereichs (Fakturierung, Einkauf, Kassenbuch, Umsatzsteuer …), das Symbol ist das der ersten Ansicht, der Zähler die Summe. Ist eine Ansicht des Bereichs offen, ist der Bereich ausgewählt (`aria-current`), sonst „Mehr“, wenn die offene Ansicht in keinem Platz steckt.
+- **Gespeichert** in den Einstellungen dieses Geräts (`localStorage`, `einsatzplaner.prefs.v2` → `leiste`) **je angemeldetem Konto** (`konto:<E-Mail>`), damit ein geteiltes Handy nichts vermischt; im Browser-Modus je Rolle der Vorschau. Gleich der Vorgabe wird nichts gespeichert. Was die Person nicht (mehr) sehen darf, fällt still heraus, die Vorgabe füllt auf.
+- **Beschriftung:** der volle Name, wo er auf den Platz passt (gemessen fett, damit er beim Auswählen nicht wechselt), sonst ein kurzer („Objektkontrolle“ → „Kontrolle“, „Wasserzähler“ bei fünf Knöpfen → „Zähler“); Bildschirmleser hören immer den vollen Namen. Nichts bricht um, nichts läuft über.
+
+Logik ohne DOM in `src/ui/leiste.js` (Tests: `test/leiste.test.js`), Zeichnen, Dialoge und langes Drücken in `src/ui/mobile.js`.
+
 ## Wetter & Winterdienst
 
 Eigener Punkt unter *Einsätze & Zeiten* (Rolle mit Einsatzplanung): Vorhersage und amtliche Warnungen von **GeoSphere Austria** je Revier für heute bis übermorgen, mit Temperatur, Niederschlag, Neuschnee, Böen und Warnungen (gelb, orange, rot). Die Daten lädt jedes Gerät selbst alle 30 Minuten; sie liegen nicht in SharePoint (keine Firmendaten). Ohne Netz bleibt der letzte Stand sichtbar.
