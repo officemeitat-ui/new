@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 334 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 337 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (69)
+- [Objekte & Kunden](#objekte-kunden) (72)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (74)
 - [Verwaltung](#verwaltung) (56)
@@ -1704,9 +1704,63 @@ Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werk
 
 *In der App: Matten-Touren*
 
-Unter „Matten-Touren“ sehen Fahrer ihre freigegebenen Touren: Stopps, Matten je Liegeplatz, Navigation und Bestätigung. Die Ansicht für unterwegs kommt mit dem nächsten Ausbau; bis dahin läuft der Mattenwechsel im Werkzeug. Preise und Kundenstamm sehen Fahrer nicht.
+Unter „Matten-Touren“ sehen Fahrer ihre vom Büro freigegebenen Touren: Stopps in geplanter Reihenfolge, gesamt, erledigt und offen, dazu der Mattenbedarf je Größe (Ladeliste). „Tour starten“ und „Navigation starten“ öffnen Google Maps zum nächsten offenen Stopp. Preise und Kundenstamm sehen Fahrer nicht.
+
+1. „Touren“ in der Leiste unten antippen.
+2. Die Tour von heute öffnen und die Matten laut Ladeliste laden.
+3. „Tour starten“ antippen.
+4. „Navigation starten“ führt zum nächsten offenen Stopp.
+5. Den Stopp öffnen und je Liegeplatz bestätigen.
+
+> Tipp: Die App erkennt deine Tour über die E-Mail deines Kontos; fehlt sie in den Stammdaten, sieht der Fahrer die Tour nicht.
+> Tipp: Vergangene, noch offene Touren stehen oben mit Hinweis.
+> Tipp: Das Büro sieht hier alle Touren mit Fortschritt.
 
 *Fahrer Mattenwechsel, Mattenwechsel Büro, Vollzugriff*
+
+### Stopp: Matten je Liegeplatz bestätigen
+
+*In der App: Matten-Touren*
+
+Ein Stopp zeigt Kunde, Objekt, Adresse, Zugang und Hinweis und je Liegeplatz die Soll-Matten, z. B. „Haupteingang: 2 × 85 × 150 cm“. „Gewechselt“ übernimmt das Soll; mit Plus und Minus stimmt die Menge, eine Abweichung wird markiert. „Nicht möglich“ braucht einen Grund. Bemerkung und Fotos gehören zum Liegeplatz.
+
+1. Den Stopp in der Tour öffnen.
+2. Je Liegeplatz „Gewechselt“ antippen, bei Bedarf die Menge mit Plus oder Minus anpassen.
+3. Geht es nicht: „Nicht möglich“ und den Grund wählen.
+4. Bei Bedarf Bemerkung schreiben und „Foto“ antippen.
+5. Zum Schluss „Stopp abschließen“.
+
+> Tipp: Fotos werden verkleinert und unter matten/fotos/ je Liegeplatz abgelegt.
+> Tipp: „Zurücksetzen“ nimmt eine Eingabe zurück, solange der Stopp offen ist.
+
+*Fahrer Mattenwechsel, Mattenwechsel Büro*
+
+### Stopp abschließen mit Unterschrift
+
+*In der App: Matten-Touren*
+
+„Stopp abschließen“ zeigt die Zusammenfassung. Kunde oder Hausbetreuung unterschreibt am Gerät mit Name und Funktion, oder „Ohne Unterschrift“ mit Grund. Sind Liegeplätze offen, wählst du eine Ausnahme: Kunde nicht angetroffen, Teilweise erledigt oder Nicht durchgeführt. Danach ist der Stopp fest und der nächste offene Stopp kommt.
+
+1. „Stopp abschließen“ antippen.
+2. Name und Funktion eintragen und mit dem Finger unterschreiben lassen.
+3. Ist niemand da: „Ohne Unterschrift“ und den Grund eintragen.
+4. „Unterschreiben und abschließen“ bzw. „Abschließen“ antippen.
+
+> Tipp: Gespeichert werden Zeitpunkt, Fahrer, Ist-Mengen, Abweichungen und Bemerkungen; den Lieferschein erstellt später das Büro.
+> Tipp: Korrigieren kann nur das Büro: „Korrigieren (Büro)“ öffnet den Stopp wieder, der bisherige Abschluss bleibt nachvollziehbar.
+
+*Fahrer Mattenwechsel; Korrektur: Mattenwechsel Büro*
+
+### Matten-Tour ohne Netz (Keller, Tiefgarage)
+
+*In der App: Matten-Touren*
+
+Bestätigen, Fotos und Abschluss gehen auch ohne Netz: alles bleibt im Gerät, auch nach dem Neuladen, und die Ansicht zeigt „wartet auf Netz“. Sobald wieder Netz da ist, holt die App alles nach. Hat das Büro die Tour inzwischen geändert, wird je Stopp zusammengeführt: wer einen Stopp zuletzt geändert hat, gewinnt für diesen Stopp.
+
+> Tipp: „Jetzt senden“ versucht es sofort.
+> Tipp: Die Tour vorher einmal mit Netz öffnen, dann ist sie im Gerät.
+
+*Fahrer Mattenwechsel*
 
 ### Matten-Kalender: Woche und Monat
 

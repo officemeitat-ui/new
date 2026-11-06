@@ -5,11 +5,13 @@
 //  - MATTEN_ARTIKEL_BEISPIEL: Mattentypen als Artikel der Fakturierung (group 'Matten') für Tests
 //  - werkzeugBeispiel(): Dateien des bisherigen Werkzeugs (Standorte.json, Kunden.json, Touren) im Format der
 //    Fassung 2.4 – für den Test der Übernahme (test/matten-import.test.js) und die SharePoint-Attrappe der Browser-Tests.
+//  - createMattenTourDemo(date): eine freigegebene Tour für die Fahreransicht im Browser-Modus (Matten-Touren)
 
 import { addDays } from '../core/dates.js'
 import { matLabel } from '../core/invoicing.js'
 import { applyJobAction, confirmedExchanges, planJobs } from '../core/matten-einsaetze.js'
 import { jobDate, markDone } from '../core/matten-plan.js'
+import { stopsFromJobs } from '../core/matten-tour.js'
 
 /** Mattentypen wie in der Fakturierung (Artikelgruppe „Matten“, Größe, Farbe und Art als eigene Felder) – für Tests. */
 export const MATTEN_ARTIKEL_BEISPIEL = [
@@ -48,6 +50,49 @@ export function createMattenDemo() {
       { id: 'mw-demo2', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Werkstatt Kundenannahme', floor: 'EG', access: '', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'wir' }], intervalDays: 28, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 5, pauses: [{ from: '2026-12-23', to: '2027-01-06', reason: 'Betriebsurlaub' }], areaId: 'mg-demo1', ...stamp },
       { id: 'mw-demo3', objectId: 'o11', customerId: hv.id, customer: hv, name: 'Eingang', floor: 'EG', access: 'Code an der Tür (siehe Schlüsselbuch)', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'kunde' }], intervalDays: 28, startDate: '2026-11-10', rule: 'rhythmus', workMinutes: 5, pauses: [], areaId: 'mg-demo1', ...stamp },
     ],
+  }
+}
+
+/** Erfundene Koordinaten der Beispiel-Objekte (Salzburg) für die Tour der Vorschau. */
+const DEMO_TOUR_OBJECTS = [
+  { id: 'o2', name: 'Autohaus Maxglan', address: '5020 Salzburg-Maxglan', lat: 47.7951, lon: 13.0186 },
+  { id: 'o11', name: 'Versicherungsbüro Lehen', address: '5020 Salzburg-Lehen', lat: 47.8127, lon: 13.0329 },
+]
+
+/**
+ * Tour für die Fahreransicht im Browser-Modus: am Tag date, freigegeben, Fahrer Markus Huber (Beispieldaten e2), zwei
+ * Stopps aus den Liegeplätzen der Vorschau (Autohaus mit zwei Liegeplätzen, Versicherungsbüro mit einem). Fest, ohne
+ * Routing; Zeiten erfunden. Ohne Preise (die Tour trägt nie Preise).
+ */
+export function createMattenTourDemo(date, { id = 'mtdemo00000001', driverEmail = 'markus.huber@beispiel.example' } = {}) {
+  const demo = createMattenDemo()
+  const jobs = demo.placements.map((p) => ({ key: `${p.id}:${date}`, placementId: p.id, due: date, status: 'geplant' }))
+  const stops = stopsFromJobs({ jobs, placements: demo.placements, objects: DEMO_TOUR_OBJECTS, date })
+  const times = [
+    { arrival: '07:20', start: '07:20', departure: '07:35', wait: 0, travel: 20, km: 9.4 },
+    { arrival: '07:47', start: '07:47', departure: '07:52', wait: 0, travel: 12, km: 3.1 },
+  ]
+  const ordered = [...stops].sort((a, b) => (a.objectId === 'o2' ? -1 : b.objectId === 'o2' ? 1 : 0)).map((s, i) => ({ ...s, times: times[i] || null }))
+  const at = `${date}T05:30:00.000Z`
+  return {
+    schema: 1,
+    id,
+    date,
+    driverId: 'e2',
+    driverName: 'Markus Huber',
+    driverEmail,
+    vehicleId: '',
+    areaId: 'mg-demo1',
+    status: 'freigegeben',
+    order: ordered.map((s) => s.id),
+    route: { provider: 'luftlinie', km: 24.6, minutes: 47, start: '07:00', end: '08:15', work: 20, wait: 0, load: 4, shift: { from: '07:00', to: '15:30' }, depot: { name: 'Betriebshof (Beispiel)', address: 'Werkstraße 1, 5020 Salzburg', lat: 47.7745, lon: 13.07 } },
+    stops: ordered,
+    createdAt: at,
+    createdBy: 'Beispieldaten',
+    updatedAt: at,
+    updatedBy: 'Beispieldaten',
+    releasedAt: at,
+    releasedBy: 'Beispieldaten',
   }
 }
 

@@ -31,7 +31,7 @@ export const ROLE_DEFAULTS = {
   vorarbeiter: ['zaehler'],
   // Mattenwechsel Büro: bis zur Umstellung zuerst das Werkzeug, daneben Liegeplätze und Kalender des Moduls
   mattenwechsel: ['matten', 'mw-liegeplaetze', 'mw-kalender'],
-  // Fahrer Mattenwechsel: seine Touren (die Ansicht für unterwegs kommt in der Phase Fahrer)
+  // Fahrer Mattenwechsel: seine Touren (Tour, Stopp, Bestätigung je Liegeplatz, Unterschrift; views/matten-fahrer.js)
   mattenfahrer: ['mw-touren'],
   pruefer: ['kontrolle', 'objektmappe'],
   buchhaltung: ['fakturierung', 'einkauf', 'kassenbuch', 'umsatzsteuer'],

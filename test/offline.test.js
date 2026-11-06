@@ -148,3 +148,25 @@ test('Offline: nie geöffnete Woche ist gesperrt und wird mit Netz nachgeladen',
   assert.deepEqual(data.assignments['2026-11-10|t1'], ['e1'])
   assert.deepEqual(events, ['loaded'])
 })
+
+test('Offline: der Abgleich holt wartende Fotos aller Module nach (nicht nur im offenen Modul)', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  const service = new DataService(store, { debounceMs: 0 })
+  await service.load(seed)
+  net.online = false
+  await store.upload('regie/nachweise/2026/a.jpg', new Blob(['x']), 'image/jpeg')
+  await store.upload('anlagen/nachweise/2026/b.jpg', new Blob(['y']), 'image/jpeg')
+  assert.equal(await store.queuedUploads(), 2)
+  net.online = true
+  const done = []
+  service.onUploaded = (path) => done.push(path)
+  await service.refresh()
+  // läuft im Hintergrund: auf das Ende warten
+  for (let i = 0; i < 50 && (await store.queuedUploads()); i++) await new Promise((r) => setTimeout(r, 10))
+  assert.equal(await store.queuedUploads(), 0)
+  assert.deepEqual(done.sort(), ['anlagen/nachweise/2026/b.jpg', 'regie/nachweise/2026/a.jpg'])
+  assert.deepEqual(net.uploads.sort(), ['anlagen/nachweise/2026/b.jpg', 'regie/nachweise/2026/a.jpg'])
+  assert.equal(await service.flushQueuedUploads(), 0, 'nichts mehr da')
+})

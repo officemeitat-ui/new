@@ -30,7 +30,8 @@
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
 //                                     (Büro; Betriebshof, Fahrer). Touren je Datei unter matten/touren/<Jahr>/<TourId>.json
-//                                     – nicht über den DataService, sondern storage/matten-tourablage.js
+//                                     – nicht über den DataService, sondern storage/matten-touren.js (Büro und Fahrer);
+//                                     Fotos unter matten/fotos/<Jahr>/<Liegeplatz>/
 //   matten/einsaetze-2026.json        Mattenwechsel: Einsätze je Liegeplatz und Solltermin, eine Datei je Jahr des
 //                                     Solltermins (YEAR_DOCS; wie die Wochenpläne: geladen werden die nötigen Jahre)
 //
@@ -215,6 +216,8 @@ export function dataRights(access) {
     // (matten/einsaetze-<Jahr>.json) nur das Büro:
     // Fahrer lesen sie nicht, die Tour trägt eine eingefrorene Kopie (Kunde, Adresse, Liegeplatz, Matte, ohne Preis)
     ['matten/touren/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
+    // Fotos der Fahrer je Liegeplatz (matten/fotos/<Jahr>/<Liegeplatz>/…): Fahrer und Büro bearbeiten
+    ['matten/fotos/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
     ['matten/', () => sees('matten'), () => edits('matten')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
@@ -250,7 +253,8 @@ export const FOLDERS = [
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
   ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr (Büro)', MODULE_DOCS.matten.path],
-  ['matten/touren', 'Mattenwechsel: Touren je Datei (Büro plant und gibt frei, Fahrer arbeiten sie ab)', 'matten/touren/2026/tour.json'],
+  ['matten/touren', 'Mattenwechsel: Touren je Datei (Büro plant und gibt frei; Fahrer: Bestätigung je Liegeplatz, Unterschrift je Stopp)', 'matten/touren/2026/tour.json'],
+  ['matten/fotos', 'Mattenwechsel: Fotos der Fahrer je Liegeplatz', 'matten/fotos/2026/liegeplatz/foto.jpg'],
 ]
 
 /**
@@ -1107,6 +1111,21 @@ export class DataService {
   }
 
   /**
+   * Wartende Uploads (ohne Netz aufgenommene Fotos und Dateien) hochladen. Läuft nie doppelt; liefert die Zahl
+   * der noch wartenden. onUploaded(path, webUrl) meldet jede hochgeladene Datei (z. B. für einen Vermerk im Modul).
+   */
+  async flushQueuedUploads() {
+    if (this.uploading || !this.store.flushUploads) return 0
+    this.uploading = true
+    try {
+      if (!(await this.store.queuedUploads?.())) return 0
+      return await this.store.flushUploads((path, url) => this.onUploaded?.(path, url))
+    } finally {
+      this.uploading = false
+    }
+  }
+
+  /**
    * Prüft, ob andere Personen inzwischen gespeichert haben, und lädt deren
    * Stand nach, sofern hier nichts Ungespeichertes ansteht.
    */
@@ -1118,6 +1137,9 @@ export class DataService {
       await this.flush()
       if (this.status === 'offline') return []
     }
+    // Fotos und Dateien, die ohne Netz aufgenommen wurden (Regiebericht, Anlagen, Qualitätsmessung, Touren …),
+    // im Hintergrund nachholen – für alle Module, nicht nur für das gerade geöffnete
+    this.flushQueuedUploads().catch(() => {})
     // Wochen, die ohne Netz nicht geladen werden konnten, jetzt nachladen
     if (this.unavailable.size) {
       const retry = [...this.unavailable]

@@ -2,7 +2,7 @@
 // (je Kunde → Objekt → Liegeplatz als Tabelle wie im Konzept: Liegeplatz | Matte | Stückzahl | Intervall | nächster
 // Wechsel), Dialog je Liegeplatz (Name, Stockwerk, Zugang, Hinweis, Matten, Intervall, Starttermin, Regel, Arbeitszeit,
 // Zeitfenster, Pausen, Gebiet, aktiv, Koordinaten), Gebiete, „Übernahme aus dem Werkzeug“ (nur Vollzugriff,
-// views/matten-uebernahme.js) und „Matten-Touren“ für die Fahrer (noch leer, Touren kommen in der Phase Fahrer).
+// views/matten-uebernahme.js). „Matten-Touren“ der Fahrer (P10/P11) steht in views/matten-fahrer.js.
 // Datei matten/matten.json (Rechenkern: core/matten.js). Das Werkzeug unter #matten bleibt unverändert daneben.
 // Kunden und Mattentypen kommen aus der Fakturierung (nur lesend); wer sie nicht sieht, sieht die Kopie am Liegeplatz.
 // Aktionen und Dialoge mit dem Kürzel „mw-“.
@@ -44,9 +44,7 @@ import { importTab, mayImport } from './matten-uebernahme.js'
 
 const MODULE = 'matten'
 const ICON_MW = '<path d="M12 2.8a3.4 3.4 0 0 0-3.4 3.4c0 2.5 3.4 5.3 3.4 5.3s3.4-2.8 3.4-5.3A3.4 3.4 0 0 0 12 2.8z"/><rect x="3.5" y="13.5" width="17" height="7.5" rx="2"/><path d="M7 17.2h10"/>'
-const ICON_TOUR = '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18h6.3a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h5.3"/>'
 const MOBILE_MW = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6a2.3 2.3 0 0 0-2.3 2.3C5.7 5.6 8 7.5 8 7.5s2.3-1.9 2.3-3.6A2.3 2.3 0 0 0 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="2.2" y="9.2" width="11.6" height="5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'
-const MOBILE_TOUR = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.6 12h4.2a2.3 2.3 0 0 0 0-4.6H6.2a2.3 2.3 0 0 1 0-4.6h4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
 
 const doc = () => upgradeMatten((app.data.matten ||= emptyMatten()))
 const editable = () => canEdit(MODULE) && !app.readOnly
@@ -189,28 +187,6 @@ registerView({
     return n.pruefen + n.typ
   },
   render: mattenView,
-})
-
-// ---------------------------------------------------------------- Ansicht der Fahrer (Touren folgen in der Phase Fahrer)
-
-function tourenView() {
-  const office = sees('matten')
-  return `<div class="section-head"><div><h2>Matten-Touren</h2><p>Hier stehen deine freigegebenen Touren des Mattenwechsels: Stopps der Reihe nach, Matten je Liegeplatz, Navigation und die Bestätigung je Liegeplatz – auch ohne Netz.</p></div></div>
-    <div class="banner welcome"><p><strong>Noch keine Touren.</strong> Touren plant und gibt das Büro frei; die Ansicht für unterwegs kommt mit dem nächsten Ausbau. ${office ? 'Bis dahin läuft der Mattenwechsel im Werkzeug.' : 'Bis dahin bekommst du deine Tour wie bisher vom Büro.'}</p>${office ? `<button class="btn" data-action="view" data-view="mw-liegeplaetze">Liegeplätze</button>${app.config?.tools !== false ? ' <button class="btn" data-action="view" data-view="matten">Werkzeug öffnen</button>' : ''}` : ''}</div>
-    <p class="note">Fahrer sehen hier weder Preise noch den Kundenstamm: Eine Tour trägt nur, was für den Wechsel nötig ist (Kunde, Adresse, Liegeplatz, Matten, Zugang).</p>`
-}
-
-registerView({
-  id: 'mw-touren',
-  order: 75.6,
-  label: 'Matten-Touren',
-  group: 'service',
-  module: 'mattentour',
-  icon: ICON_TOUR,
-  noWeek: true,
-  mobile: { icon: MOBILE_TOUR, label: 'Touren' },
-  text: 'Mattenwechsel: eigene Touren, Wechsel je Liegeplatz bestätigen',
-  render: tourenView,
 })
 
 // ---------------------------------------------------------------- Dialog Liegeplatz

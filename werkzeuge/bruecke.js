@@ -42,6 +42,38 @@
     /* ältere Browser: der Knopf „Anmelden“ führt dann ins Leere, die App meldet sich selbst */
   }
 
+  // „Gerät sperren“ u. ä.: localStorage.clear() / sessionStorage.clear() löschte im Rahmen den Speicher der ganzen
+  // App (gleicher Ursprung: Anmeldung, Einstellungen, die anderen Werkzeuge). Im Rahmen entfernt clear() nur die
+  // eigenen Schlüssel des Werkzeugs (cleanos.<werkzeug>.…, gemerkt beim Lesen und Schreiben in diesem Fenster).
+  var EIGEN = /^cleanos\.([a-z0-9]+)\./
+  var eigene = {}
+  var merke = function (key) {
+    var m = EIGEN.exec(String(key))
+    if (m) eigene[m[1]] = true
+  }
+  var sproto = window.Storage.prototype
+  var sGet = sproto.getItem
+  var sSet = sproto.setItem
+  var sKey = sproto.key
+  var sRemove = sproto.removeItem
+  sproto.getItem = function (key) {
+    merke(key)
+    return sGet.apply(this, arguments)
+  }
+  sproto.setItem = function (key) {
+    merke(key)
+    return sSet.apply(this, arguments)
+  }
+  sproto.clear = function () {
+    var weg = []
+    for (var i = 0; i < this.length; i++) {
+      var k = sKey.call(this, i)
+      var m = EIGEN.exec(String(k))
+      if (m && eigene[m[1]]) weg.push(k)
+    }
+    for (var j = 0; j < weg.length; j++) sRemove.call(this, weg[j])
+  }
+
   if (!app.angemeldet) return // Browser-Modus ohne Microsoft: Werkzeug arbeitet nur am Gerät
 
   var MARKE = 'cleanos-app'
