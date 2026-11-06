@@ -46,6 +46,7 @@ export default async function CollectionPage({
   }
   const canManage = can(ctx.tenant, "knowledge.manage");
   const canConnect = can(ctx.tenant, "knowledge.connect");
+  const canExport = can(ctx.tenant, "knowledge.export");
   const data = await withTenant(getDatabase().db, ctx.tenant.tenantId, async (tx) => {
     try {
       const collection = await getCollection(tx, ctx.tenant.tenantId, collectionId);
@@ -94,9 +95,11 @@ export default async function CollectionPage({
                   {t("writeArticle")}
                 </Link>
               </Button>
-              {documents.length > 0 ? (
+              {canExport && documents.length > 0 ? (
+                // No download attribute: success is an attachment anyway, and an error (e.g. too
+                // many exports) is shown instead of being saved as a file.
                 <Button asChild variant="outline" title={t("exportHint")}>
-                  <a href={`/api/knowledge/${collection.id}/export`} download>
+                  <a href={`/api/knowledge/${collection.id}/export`}>
                     <Download aria-hidden />
                     {t("export")}
                   </a>

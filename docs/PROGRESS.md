@@ -2,6 +2,22 @@
 
 Neueste Einträge oben. Jede Session beginnt hier.
 
+## Unternehmensgedächtnis – eigenes Wissen statt KI-Gedächtnis ✅
+
+**Erledigt** (Notiz „Claude Memory ausschalten → eigenes Gedächtnis“, „Generiere Memory Funktion“, „Obsidian“; ADR 0011)
+
+- **Artikel schreiben:** In jeder Sammlung „Artikel schreiben“ (Titel + Markdown). Nach dem Speichern wird der Text indiziert und ist für Suche und Agenten da; Artikel lassen sich bearbeiten (Stift-Symbol in der Liste, „Bearbeiten“ in der Dokumentansicht).
+- **Agenten merken sich Wissen – mit Bestätigung:** Neues Werkzeug „Für das Gedächtnis vorschlagen“ (`wissen_merken`). Ein Agent legt z. B. nach „Merke dir: …“ oder einem gelösten Problem einen Vorschlag in der Sammlung **Unternehmensgedächtnis** an. Unter „Vorschläge prüfen“: **Übernehmen**, **Bearbeiten** (dann „Speichern und übernehmen“) oder **Verwerfen**. Erst übernommene Einträge sind durchsuchbar – Schutz gegen untergeschobene Falschinformationen (Memory Poisoning). Passwörter und Zugangsdaten werden automatisch entfernt, höchstens 100 offene Vorschläge, Verfall nach 60 Tagen.
+- **Export als Markdown (Obsidian):** „Als Markdown exportieren“ lädt die Sammlung als ZIP: eine Datei pro Dokument mit Front Matter (Titel, Herkunft, Datum, Quelle). Nur für Inhaber und Admins (eigenes Recht `knowledge.export`, nicht in ME-IT-Support-Sitzungen), im Audit-Log.
+- **Übersicht:** Das Unternehmensgedächtnis steht in „Wissen“ an erster Stelle (mit Hinweis auf offene Vorschläge); solange es fehlt, erklärt eine Karte es und legt es an. Vorlagen „Firmenwissen-Agent“ und „IT-Support-Agent“ nutzen das Werkzeug.
+- **Datenschutz:** Eintrag „Unternehmensgedächtnis“ im Verarbeitungsverzeichnis, Datenauskunft zeigt Herkunft und Status eigener Einträge, Löschung einer Person entfernt die Verknüpfung (Inhalt bleibt Firmenwissen), neue Audit-Einträge mit deutschen Bezeichnungen.
+- **Tests:** Domain gegen echte Datenbank (Vorschlag unsichtbar bis zur Bestätigung, RLS zwischen Firmen, Entfernen von Zugangsdaten, Limit, Verfall, Export-ZIP mit Front Matter und sicheren Dateinamen, keine Quelle am Gedächtnis), Worker (Agentenlauf schlägt vor, Ingest überspringt Vorschläge, nach Bestätigung auffindbar), E2E (Artikel → Suche; Agent „Merke dir“ → Passwort entfernt → Verwerfen/Bearbeiten/Übernehmen → gefunden; ZIP-Download; Audit-Log).
+- **Nebenbei:** Audit-Bezeichnung „SharePoint-Bibliothek verbunden“ heißt jetzt „Wissensquelle verbunden“ (gilt auch für BookStack/Atera).
+
+**Noch offen**
+
+- Versionsverlauf für Artikel, `[[Wikilinks]]` zwischen Einträgen, Rückimport eines Obsidian-Vaults, semantische Suche.
+
 ## Zweites Sicherheits-Review – alle Befunde behoben ✅
 
 **Erledigt** (unabhängiges Review aller neuen Funktionen; Details und Tabelle in `docs/SECURITY.md`)

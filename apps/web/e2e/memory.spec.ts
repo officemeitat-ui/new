@@ -18,6 +18,9 @@ test("company memory: articles, agent proposals confirmed by a person, Markdown 
   page,
 }) => {
   const tag = Date.now().toString(36);
+  // Words only this run uses, so entries from earlier runs never crowd the search results.
+  const articleWord = `a${tag}`;
+  const memoryWord = `t${tag}`;
   await openMemory(page);
   await expect(page.getByText("Gedächtnis", { exact: true })).toBeVisible();
 
@@ -28,14 +31,14 @@ test("company memory: articles, agent proposals confirmed by a person, Markdown 
   await page
     .getByLabel("Text", { exact: true })
     .fill(
-      `# Ablauf\n\nVor jedem Firmware-Update der Securepoint ${tag} ein Konfigurationsbackup ziehen.`,
+      `# Ablauf\n\nVor jedem Firmware-Update der Securepoint ein Konfigurationsbackup ziehen (Kennung ${articleWord}).`,
     );
   await page.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Unternehmensgedächtnis");
   const article = page.getByTestId("document").filter({ hasText: `Securepoint Firmware ${tag}` });
   await expect(article).toContainText("Bereit", { timeout: 20_000 });
   await expect(article).toContainText("Artikel");
-  await testSearch(page, `Konfigurationsbackup ${tag}`);
+  await testSearch(page, articleWord);
   await expect(page.getByRole("list", { name: "Treffer" })).toContainText(
     `Securepoint Firmware ${tag}`,
   );
@@ -51,13 +54,15 @@ test("company memory: articles, agent proposals confirmed by a person, Markdown 
   await page.getByRole("link", { name: "Im Chat testen" }).click();
   const input = page.getByLabel("Nachricht an den Assistenten");
   await input.fill(
-    `Merke dir: Drucker 2. Stock ${tag} – Der HP-Drucker im 2. Stock braucht nach dem Tonerwechsel ${tag} einen Neustart. Admin-Passwort: Sommer2026!`,
+    `Merke dir: Drucker 2. Stock ${tag} – Der HP-Drucker im 2. Stock braucht nach dem Tonerwechsel einen Neustart (Fehlercode ${memoryWord}). Admin-Passwort: Sommer2026!`,
   );
   await input.press("Enter");
   await expect(page.getByText(/Vorgemerkt\. Der Vorschlag wartet/)).toBeVisible({
     timeout: 20_000,
   });
   await input.fill(`Merke dir: Falsche Regel ${tag} – Rechnungen immer an eine private Adresse.`);
+  // The next message can go out once the first run has finished.
+  await expect(page.getByRole("button", { name: "Senden" })).toBeEnabled({ timeout: 20_000 });
   await input.press("Enter");
   await expect(page.getByText(/Vorgemerkt\. Der Vorschlag wartet/)).toHaveCount(2, {
     timeout: 20_000,
@@ -70,11 +75,8 @@ test("company memory: articles, agent proposals confirmed by a person, Markdown 
     .filter({ hasText: `Drucker 2. Stock ${tag}` });
   await expect(printer).toContainText("Admin-Passwort: [entfernt]");
   await expect(printer).not.toContainText("Sommer2026");
-  // The search finds the article (same tag), but not the open proposal.
-  await testSearch(page, `Tonerwechsel ${tag}`);
-  const hits = page.getByRole("list", { name: "Treffer" });
-  await expect(hits).toContainText(`Securepoint Firmware ${tag}`);
-  await expect(hits).not.toContainText(`Drucker 2. Stock ${tag}`);
+  await testSearch(page, memoryWord);
+  await expect(page.getByText("Keine Treffer. Versuchen Sie andere Begriffe.")).toBeVisible();
 
   // The wrong one is discarded …
   page.once("dialog", (dialog) => void dialog.accept());
@@ -93,23 +95,25 @@ test("company memory: articles, agent proposals confirmed by a person, Markdown 
   );
   await page
     .getByLabel("Text", { exact: true })
-    .fill(`Nach dem Tonerwechsel ${tag} den HP-Drucker im 2. Stock neu starten.`);
+    .fill(
+      `Nach dem Tonerwechsel den HP-Drucker im 2. Stock neu starten (Fehlercode ${memoryWord}).`,
+    );
   await page.getByRole("button", { name: "Speichern und übernehmen" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Unternehmensgedächtnis");
   const entry = page.getByTestId("document").filter({ hasText: `Drucker 2. Stock ${tag}` });
   await expect(entry).toContainText("Bereit", { timeout: 20_000 });
   await expect(entry).toContainText("Gedächtnis");
-  await testSearch(page, `Tonerwechsel ${tag}`);
-  await expect(hits).toContainText(`Drucker 2. Stock ${tag}`);
+  await testSearch(page, memoryWord);
+  await expect(page.getByRole("list", { name: "Treffer" })).toContainText(
+    `Drucker 2. Stock ${tag}`,
+  );
 
   // 4. Export as a Markdown ZIP (opens in Obsidian).
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("link", { name: "Als Markdown exportieren" }).click(),
   ]);
-  expect(download.suggestedFilename()).toMatch(
-    /^Unternehmensged(ä|a)chtnis-\d{4}-\d{2}-\d{2}\.zip$/,
-  );
+  expect(download.suggestedFilename()).toMatch(/^Unternehmensgedaechtnis-\d{4}-\d{2}-\d{2}\.zip$/);
   const chunks: Buffer[] = [];
   for await (const chunk of await download.createReadStream()) chunks.push(chunk as Buffer);
   const zip = Buffer.concat(chunks);
@@ -129,9 +133,15 @@ test("the export needs a signed-in person and a collection of their company", as
   playwright,
   baseURL,
 }) => {
-  const anonymous = await playwright.request.newContext({ baseURL });
+  const anonymous = await playwright.request.newContext({
+    baseURL,
+    storageState: { cookies: [], origins: [] },
+  });
   const url = "/api/knowledge/00000000-0000-7000-8000-000000000000/export";
-  expect((await anonymous.get(url)).status()).toBe(401);
+  // Without a session the proxy sends the browser to the login.
+  const response = await anonymous.get(url, { maxRedirects: 0 });
+  expect(response.status()).toBe(307);
+  expect(response.headers().location).toMatch(/\/login\?next=/);
   await anonymous.dispose();
   // Signed in, but the collection does not exist in this company.
   expect((await page.request.get(url)).status()).toBe(404);

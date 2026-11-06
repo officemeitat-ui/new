@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasPermission,
   PARTNER_ROLE_PERMISSIONS,
+  SUPPORT_PERMISSIONS,
   SYSTEM_TENANT_ROLE_PERMISSIONS,
   TENANT_PERMISSIONS,
 } from "../src/permissions";
@@ -31,5 +32,13 @@ describe("system roles", () => {
     expect(
       hasPermission(PARTNER_ROLE_PERMISSIONS.partner_technician, "partner.pricing.manage"),
     ).toBe(false);
+  });
+
+  it("keeps connecting sources and exporting whole collections out of support sessions", () => {
+    expect(hasPermission(SUPPORT_PERMISSIONS, "knowledge.manage")).toBe(true);
+    expect(hasPermission(SUPPORT_PERMISSIONS, "knowledge.connect")).toBe(false);
+    expect(hasPermission(SUPPORT_PERMISSIONS, "knowledge.export")).toBe(false);
+    expect(hasPermission(SYSTEM_TENANT_ROLE_PERMISSIONS.admin, "knowledge.export")).toBe(true);
+    expect(hasPermission(SYSTEM_TENANT_ROLE_PERMISSIONS.member, "knowledge.export")).toBe(false);
   });
 });

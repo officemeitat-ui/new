@@ -18,6 +18,8 @@ export const TENANT_PERMISSIONS = [
   "knowledge.manage",
   /** Connect knowledge sources (SharePoint, BookStack, Atera) – not part of support sessions. */
   "knowledge.connect",
+  /** Download a whole collection (Markdown ZIP) – not part of support sessions. */
+  "knowledge.export",
   "integration.manage",
   "analytics.read",
   "conversation.read_all",
@@ -81,7 +83,7 @@ export function hasPermission<P extends string>(granted: Iterable<P>, needed: P)
  * (M12): configure agents, workflows, knowledge and integrations – not manage people,
  * billing, security policies or support access itself, and not connect knowledge sources
  * (that would let a technician pull e.g. any SharePoint site of the company – security
- * review 2, finding 7).
+ * review 2, finding 7) or export whole collections (a copy of the company's knowledge).
  */
 export const SUPPORT_PERMISSIONS: readonly TenantPermission[] = [
   "agent.run",

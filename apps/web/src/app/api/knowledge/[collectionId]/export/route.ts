@@ -8,9 +8,9 @@ import { allow } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 /**
- * A collection as a ZIP of Markdown files (opens as an Obsidian vault). Needs knowledge.manage:
- * a bulk copy of the company's knowledge is more than reading single documents. Each export is
- * written to the audit log.
+ * A collection as a ZIP of Markdown files (opens as an Obsidian vault). Needs knowledge.export
+ * (owners and admins, not support sessions): a bulk copy of the company's knowledge is more
+ * than reading single documents. Each export is written to the audit log.
  */
 export async function GET(
   request: NextRequest,
@@ -18,11 +18,11 @@ export async function GET(
 ) {
   const ctx = await getApiTenantContext();
   if (!ctx) return new Response(null, { status: 401 });
-  if (!can(ctx.tenant, "knowledge.manage")) return new Response(null, { status: 403 });
+  if (!can(ctx.tenant, "knowledge.export")) return new Response(null, { status: 403 });
   const { collectionId } = await params;
   if (!isUuid(collectionId)) return new Response(null, { status: 400 });
-  // Building the archive reads every document: at most 10 exports per person and 10 minutes.
-  if (!(await allow(`knowledge-export:${ctx.user.id}`, 10, 600))) {
+  // Building the archive reads every document: at most 20 exports per person and 10 minutes.
+  if (!(await allow(`knowledge-export:${ctx.user.id}`, 20, 600))) {
     return new Response("Zu viele Exporte. Bitte in ein paar Minuten erneut versuchen.", {
       status: 429,
       headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "600" },
@@ -50,19 +50,23 @@ export async function GET(
   return new Response(new Uint8Array(exported.zip), {
     headers: {
       "content-type": "application/zip",
-      // RFC 6266: ASCII fallback plus the UTF-8 name (umlauts in collection names).
-      "content-disposition": `attachment; filename="${asciiName(name)}-${date}.zip"; filename*=UTF-8''${encodeURIComponent(`${name}-${date}.zip`)}`,
+      // ASCII only: some browsers ignore the UTF-8 form (filename*) and save as "download".
+      // The files inside the archive keep their UTF-8 names.
+      "content-disposition": `attachment; filename="${asciiName(name)}-${date}.zip"`,
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
     },
   });
 }
 
+/** German transliteration first (Gedächtnis → Gedaechtnis), then plain ASCII. */
 function asciiName(name: string): string {
+  const german: Record<string, string> = { ä: "ae", ö: "oe", ü: "ue", Ä: "Ae", Ö: "Oe", Ü: "Ue" };
   return (
     name
+      .replace(/[äöüÄÖÜ]/g, (c) => german[c]!)
       .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/ß/g, "ss")
       .replace(/[^A-Za-z0-9._ -]+/g, "")
       .replace(/\s+/g, "-")

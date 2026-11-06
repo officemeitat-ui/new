@@ -51,5 +51,5 @@ test("a SharePoint library is synced into a collection in the background", async
   await expect(panel).toContainText(/0 neu oder geändert/, { timeout: 30_000 });
 
   await page.goto("/settings/audit");
-  await expect(page.getByText("SharePoint-Bibliothek verbunden").first()).toBeVisible();
+  await expect(page.getByText("Wissensquelle verbunden").first()).toBeVisible();
 });

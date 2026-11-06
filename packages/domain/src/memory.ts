@@ -48,7 +48,7 @@ function slug(title: string): string {
     title
       .toLowerCase()
       .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/ß/g, "ss")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
