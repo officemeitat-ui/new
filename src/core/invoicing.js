@@ -146,6 +146,11 @@ export const SETTINGS_DEFAULTS = {
  *                  ganze Leistung und total.advance der Abzug
  *  documents[].deliveryNotes[] bei der (Sammel-)Rechnung aus Lieferscheinen: [{ id, number, date }]
  *  documents[].hidePrices  Lieferschein ohne Preise drucken
+ * Weiterverrechnung und Umsatzsteuer (alle Felder optional):
+ *  documents[].lines[].source { type: 'einkauf' | 'kasse', id }  Position aus einer Weiterverrechnung (Eingangsrechnung bzw.
+ *                  Barausgabe, core/recharge.js). Zeilen zählen zur Prüfsumme: nur in neuen Belegen gesetzt.
+ *  settings      rechargeMarkup (Aufschlag in % als Vorschlag, Standard 10), vatBasis ('soll' | 'ist', für die
+ *                Umsatzsteuer-Übersicht core/vat-return.js; Standard Soll)
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 

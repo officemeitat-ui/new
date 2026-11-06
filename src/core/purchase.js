@@ -42,6 +42,7 @@
 //                 url (SharePoint), local (nur Browser-Vorschau) }, einvoice { format }, cancelled { at, by, reason },
 //                 sepa { runId, date, amount, at } (in einer Überweisungsdatei), imported { system, at, ref }, checksum (nur
 //                 übernommene), history [{ at, by, text }], createdAt, createdBy }
+//               recharge: Weiterverrechnung an einen Kunden der Fakturierung (Felder und Zustände: core/recharge.js)
 //  bankIgnored  { Buchungs-ID: { by, at } }  Abbuchungen im Kontoauszug (Fakturierung → Bank), die keine
 //               Eingangsrechnung sind (Lohn, Steuer, Gebühren …)
 //  sepaRuns[]   { id, at, by, msgId, date, invoiceIds, sum, count, name }  erzeugte Überweisungsdateien (pain.001)

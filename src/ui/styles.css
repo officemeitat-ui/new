@@ -2177,6 +2177,35 @@ tr.muted td { color: var(--muted); }
   .ek-dl dt { margin-top: 4px; }
 }
 
+/* Kosten weiterverrechnen (views/weiterverrechnung.js, Reiter „Weiterverrechnung“ in der Fakturierung) */
+.fwv-block { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.fwv-block h4 { margin: 0 0 6px; }
+.fwv-block p { margin: 4px 0 8px; overflow-wrap: anywhere; }
+.fwv-btn { white-space: nowrap; }
+.fwv-sum { margin: 4px 0 8px; }
+.fwv-skip { margin: 10px 0 0; }
+.fwv-skip > summary, .fwv-panel > summary { cursor: pointer; font-weight: 600; }
+.fwv-panel { margin: 10px 0; padding: 8px 12px; border-radius: 10px; background: var(--info-soft); }
+.fwv-pick { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
+.fwv-pick .check span { overflow-wrap: anywhere; }
+.fwv-note { margin: 6px 0; }
+.fwv-group { margin: 14px 0 18px; }
+.fwv-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; margin-bottom: 6px; }
+.fwv-head h3 { margin: 0; }
+.fwv-head .spacer { flex: 1; }
+
+/* Umsatzsteuer (views/uva.js) */
+.uva-table tr.uva-head th { text-align: left; background: var(--surface-2); font-size: 0.95rem; }
+.uva-table tr.uva-sub td { color: var(--muted); }
+.uva-table tr.uva-sub td:nth-child(2) { padding-left: 1.6rem; }
+.uva-table tr.uva-sum td { border-top: 2px solid var(--line); }
+.uva-table tr.uva-result td { font-weight: 700; background: var(--surface-2); }
+.uva-table td.uva-kz { white-space: nowrap; width: 5.5rem; }
+.uva-filters .field, .uva-filters select { max-width: 100%; min-width: 0; }
+.uva-notes ul, .uva-assume { margin: 4px 0; padding-left: 18px; display: grid; gap: 3px; }
+.uva-rows { margin: 12px 0; }
+.uva-rows > summary { cursor: pointer; font-weight: 600; }
+
 /* Berechtigungen: Gruppen je Rolle, Rechte prüfen und angleichen (views/access.js) */
 .acc-groups { margin: 16px 0; padding: 12px 16px; }
 .acc-groups > summary { cursor: pointer; }

@@ -50,11 +50,13 @@ import {
   splitGross,
 } from '../../core/purchase.js'
 import { balanceAt } from '../../core/cashbook.js'
+import { openRecharges } from '../../core/recharge.js'
 import { sepaFileName, sepaTransfer } from '../../core/sepa-transfer.js'
 import { app, canEdit, closeModal, confirmStep, dataStamp, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { checked, download, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
 import { belegChip, by, cashForPayment, E, editable, inflate, K, money, MODULE, newId, nowIso, openBeleg, plural, PS, sees, storeBeleg } from './einkauf-shared.js'
+import { einkaufData, fakDocs, rechargeBlock, rechargeLock, rechargePill, syncRechargeBilled } from './weiterverrechnung.js'
 
 const ICON_PURCHASE = '<path d="M3.5 4.5h2l2.2 10.5h10.6l2-7.5H7"/><circle cx="9.5" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>'
 const supOf = (id) => E().suppliers.find((s) => s.id === id)
@@ -131,7 +133,17 @@ const TABS = [
   ['einstellungen', 'Einstellungen'],
 ]
 
+/** Stand „verrechnet mit …“ aus der Fakturierung mitschreiben (für Rollen ohne Fakturierung), wie checkNumbers in der Fakturierung. */
+function syncRecharges() {
+  if (!syncRechargeBilled()) return
+  setTimeout(() => {
+    persist()
+    renderNow()
+  }, 0)
+}
+
 function purchaseView() {
+  syncRecharges()
   const tab = TABS.some(([k]) => k === app.ui.ekTab) ? app.ui.ekTab : 'start'
   const n = counts()
   const ed = editable()
@@ -186,10 +198,12 @@ function startTab() {
   const bars = sp.months.map((m, i) => `<div class="fak-bar" title="${MON[i]} ${y}: ${money(m.net)} netto, ${plural(m.count, 'Rechnung', 'Rechnungen')}"><span class="fak-bar-fill" style="height:${Math.max(2, Math.round((Math.abs(m.net) / max) * 100))}%"></span><small>${MON[i]}</small></div>`).join('')
   const cash = app.data.kasse?.entries?.length ? balanceAt(K()) : null
   const unchecked = d.invoices.filter((x) => !x.cancelled && openOf(x) > 0.004 && !vatDeductible(invoiceProblems(x, { suppliers: d.suppliers })))
+  const recharge = openRecharges({ ...einkaufData(), docs: fakDocs() })
   const todo = [
     n.due.length ? `<div class="todo-item"><span class="flag ${n.due.some((x) => x.overdueDays) ? 'error' : 'warning'}">${n.due.length}</span><div class="todo-text"><strong>Zahlungen fällig</strong> in den nächsten 3 Tagen oder überfällig (${money(n.due.reduce((a, x) => a + (x.skonto ? x.skonto.payable : x.open), 0))})</div><button class="btn small primary" data-action="ek-tab" data-v="offen">Offene Zahlungen</button></div>` : '',
     n.approve.length ? `<div class="todo-item"><span class="flag warning">${n.approve.length}</span><div class="todo-text"><strong>Zur Freigabe:</strong> ${esc(n.approve.slice(0, 4).map((x) => `${x.no} ${x.supplier?.name || ''}`).join(', '))}${n.approve.length > 4 ? ' …' : ''}</div><button class="btn small" data-action="ek-tab" data-v="rechnungen">Ansehen</button></div>` : '',
     n.sure.length ? `<div class="todo-item"><span class="flag">${n.sure.length}</span><div class="todo-text"><strong>Abbuchungen im Kontoauszug</strong> passen sicher zu Eingangsrechnungen</div><button class="btn small" data-action="ek-tab" data-v="bank">Zuordnen</button></div>` : '',
+    recharge.length ? `<div class="todo-item"><span class="flag">${recharge.length}</span><div class="todo-text"><strong>Weiterverrechnen:</strong> ${plural(recharge.length, 'Beleg', 'Belege')} für Kunden noch in keiner Rechnung (${money(recharge.reduce((a, x) => a + x.amount.net, 0))} netto)</div>${sees('fakturierung') ? '<button class="btn small" data-action="fwv-goto">Fakturierung</button>' : ''}</div>` : '',
     unchecked.length ? `<div class="todo-item"><span class="flag warning">${unchecked.length}</span><div class="todo-text"><strong>Vorsteuerabzug prüfen:</strong> Angaben nach § 11 UStG fehlen bei ${esc(unchecked.slice(0, 4).map((x) => x.no).join(', '))}${unchecked.length > 4 ? ' …' : ''}</div><button class="btn small" data-action="ek-inv-open" data-id="${esc(unchecked[0].id)}">Prüfen</button></div>` : '',
   ].join('')
   const fresh = !d.invoices.length && editable()
@@ -209,7 +223,7 @@ function invRow(x, today) {
   return `<tr class="clickable" data-action="ek-inv-open" data-id="${esc(x.id)}"><td><strong>${esc(x.no || '')}</strong>${x.imported ? '<br><span class="muted">übernommen</span>' : ''}</td><td>${day(x.date)}</td>
     <td>${esc(x.supplier?.name || supplierName(supOf(x.supplierId) || {}) || '–')}<br><span class="muted">Nr. ${esc(x.number || '–')}</span></td><td>${esc(catName(x.category))}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open > 0.004 && open !== t.gross && !x.cancelled ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td><td>${day(x.dueDate)}</td>
-    <td>${pill(st)}${x.approval ? ' <span class="pill ok" title="geprüft und freigegeben">geprüft</span>' : ''}${vst ? '' : ' <span class="pill warning" title="Angaben für den Vorsteuerabzug fehlen">Vorsteuer?</span>'}${x.reverseCharge ? ' <span class="pill info">RC</span>' : ''}${x.beleg ? ' <span class="pill" title="Beleg abgelegt">Beleg</span>' : ' <span class="pill warning" title="Beleg fehlt">ohne Beleg</span>'}</td></tr>`
+    <td>${pill(st)}${x.approval ? ' <span class="pill ok" title="geprüft und freigegeben">geprüft</span>' : ''}${vst ? '' : ' <span class="pill warning" title="Angaben für den Vorsteuerabzug fehlen">Vorsteuer?</span>'}${x.reverseCharge ? ' <span class="pill info">RC</span>' : ''}${x.beleg ? ' <span class="pill" title="Beleg abgelegt">Beleg</span>' : ' <span class="pill warning" title="Beleg fehlt">ohne Beleg</span>'}${x.recharge && !x.cancelled ? ` ${rechargePill('einkauf', x.id)}` : ''}</td></tr>`
 }
 
 function invoicesTab() {
@@ -465,6 +479,7 @@ function invDetails(x) {
         <dt>Fällig</dt><dd>${day(x.dueDate) || '–'}${skontoOfInvoice(x) ? ` · Skonto ${String(skontoOfInvoice(x).percent).replace('.', ',')} % bis ${day(skontoOfInvoice(x).until)}` : ''} · offen <strong>${money(openOf(x))}</strong></dd>${x.note ? `<dt>Notiz</dt><dd>${esc(x.note)}</dd>` : ''}</dl>
       ${problemList(probs)}
       ${pays ? `<h4>Zahlungen</h4><ul class="ek-pays">${pays}</ul>` : ''}
+      ${x.cancelled ? '' : rechargeBlock('einkauf', x.id)}
       ${ed && !x.cancelled ? `<div class="ek-beleg-bar"><label class="btn small">${ICON.camera} Foto<input type="file" accept="image/*" capture="environment" data-change="ek-inv-file" data-id="${esc(x.id)}" hidden></label><label class="btn small">${ICON.upload} ${x.beleg ? 'Beleg ersetzen' : 'Beleg ablegen'}<input type="file" accept="application/pdf,image/*,.xml" data-change="ek-inv-file" data-id="${esc(x.id)}" hidden></label></div>` : ''}
       ${ed && !x.cancelled && !(x.payments || []).length ? `<div class="ek-cancel"><label class="field"><span>Erfassung stornieren (Grund)</span><input type="text" id="ei-cancel-reason" placeholder="z. B. doppelt erfasst, falscher Lieferant"></label><button class="btn danger small" data-action="ek-inv-cancel" data-id="${esc(x.id)}">${app.ui.confirm === `ek-cancel:${x.id}` ? 'Wirklich stornieren?' : 'Stornieren'}</button></div>` : ''}
       ${(x.history || []).length ? `<details><summary>Verlauf</summary><ul class="muted">${x.history.map((h) => `<li>${day(String(h.at).slice(0, 10))} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')}</ul></details>` : ''}
@@ -878,6 +893,7 @@ registerActions(
       const reason = val('ei-cancel-reason').trim()
       if (!reason) return toast('Bitte den Grund angeben.')
       if ((x.payments || []).length) return toast('Erst die Zahlungen entfernen.')
+      if (rechargeLock('einkauf', x.id)) return toast(rechargeLock('einkauf', x.id))
       if (!confirmStep(`ek-cancel:${x.id}`, () => {
         renderModal()
         const r = document.getElementById('ei-cancel-reason')

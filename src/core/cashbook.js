@@ -23,7 +23,8 @@
 //               rate, vat (Steuer im Betrag), account (Gegenkonto), category, receipt (Belegnummer, frei),
 //               beleg { path, name, type, size, at, by, local }, ref { type ('ausgang' | 'eingang'), id, number },
 //               cancels (id des stornierten Eintrags), reason (Grund des Stornos), by, checksum,
-//               imported { system, ref, no }, renumbered [{ from, at, by }] }
+//               imported { system, ref, no }, renumbered [{ from, at, by }], recharge (Weiterverrechnung einer Ausgabe an
+//               einen Kunden, core/recharge.js; zählt wie beleg nicht zur Prüfsumme) }
 //  counts[]   Kassensturz { id, date, at, by, counted, expected, diff, entryId, closesDay, note }
 //  closings[] Monatsabschluss { id, month, at, by, opening, sumIn, sumOut, balance, entries, checksum }
 //  settings   { name, account (Kassenkonto, Vorschlag 2700), diffAccount (Kassendifferenzen), categories }

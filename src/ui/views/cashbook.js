@@ -38,6 +38,7 @@ import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, download, esc, ICON, menu, modalFrame, options, val } from '../shared.js'
 import { belegChip, by, cashCategories, E, editable, K, money, MODULE, newId, nowIso, openBeleg, plural, sees, storeBeleg } from './einkauf-shared.js'
+import { rechargeButton, rechargeLock } from './weiterverrechnung.js'
 
 const ICON_CASH = '<rect x="3" y="6.5" width="18" height="12" rx="2"/><circle cx="12" cy="12.5" r="2.6"/><path d="M6.5 9.5v6M17.5 9.5v6"/>'
 const day = (iso) => (iso ? formatDate(iso, { year: true }) : '')
@@ -114,7 +115,7 @@ function cashbookView() {
       const canStorno = ed && e.type !== 'storno' && !cancelled
       return `<tr class="${cancelled ? 'kasse-cancelled' : ''}"><td>${e.no}</td><td>${day(e.date)}</td><td>${label}${esc(e.text)}${storno}${ref}<br><span class="muted">${esc([e.account ? `Konto ${e.account}` : '', e.rate ? `${e.rate} % (${money(e.vat)})` : '', e.receipt ? `Beleg ${e.receipt}` : ''].filter(Boolean).join(' · '))}</span></td>
         <td class="num">${e.kind === 'einnahme' ? money(e.amount) : ''}</td><td class="num">${e.kind === 'ausgabe' ? money(e.amount) : ''}</td><td class="num"><strong>${money(balance)}</strong></td>
-        <td class="actions-cell">${belegChip(e.beleg, 'kasse-beleg', { id: e.id })}${ed && !e.beleg ? `<label class="btn small ghost" title="Beleg nachreichen (Foto oder PDF)">${ICON.camera}<input type="file" accept="image/*,application/pdf" data-change="kasse-beleg-file" data-id="${esc(e.id)}" hidden></label>` : ''}${canStorno ? `<button class="btn small ghost" data-action="kasse-storno-open" data-id="${esc(e.id)}">Storno</button>` : ''}</td></tr>`
+        <td class="actions-cell">${e.kind === 'ausgabe' && e.type === 'buchung' && !cancelled && !e.ref ? rechargeButton('kasse', e.id) : ''}${belegChip(e.beleg, 'kasse-beleg', { id: e.id })}${ed && !e.beleg ? `<label class="btn small ghost" title="Beleg nachreichen (Foto oder PDF)">${ICON.camera}<input type="file" accept="image/*,application/pdf" data-change="kasse-beleg-file" data-id="${esc(e.id)}" hidden></label>` : ''}${canStorno ? `<button class="btn small ghost" data-action="kasse-storno-open" data-id="${esc(e.id)}">Storno</button>` : ''}</td></tr>`
     })
     .join('')
   const tile = (label, value, cls = '', sub = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<small class="muted">${sub}</small>` : ''}</div>`
@@ -431,6 +432,7 @@ registerActions(
     'kasse-storno-open': (el) => openModal({ type: 'kasse-storno', id: el.dataset.id }),
     'kasse-storno': (el) => {
       const e = entryOf(el.dataset.id)
+      if (e && rechargeLock('kasse', e.id)) return toast(rechargeLock('kasse', e.id))
       let s
       try {
         s = stornoEntry(K(), e.id, { reason: val('ks-reason'), date: val('ks-date') }, opts())

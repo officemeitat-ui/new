@@ -17,6 +17,8 @@ import { weatherEnabled, winterOpen } from '../weather.js'
 const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material']
 /** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
+/** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
+export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 
 // Zwei Pakete: „alle“ sieht jede Rolle (auch Vorarbeiter am Handy), „büro“ die übrigen Bereiche.
 const ALLE = () => import('./lazy-alle.js')
@@ -251,7 +253,8 @@ lazy(BUERO, {
     fak-art-group fak-art-all fak-cust-tab fak-cust-preview fak-einv-open fak-einv-format fak-einv-check fak-einv-download fak-terms-pick fak-tb-line
     fak-pay-skonto fak-cust-contact-add fak-cust-contact-del fak-import-open fim-files fim-reset fim-step fim-to-map fim-kind fim-col fim-open
     fim-check fim-take fim-apply fim-tool
-    fak-conv-create fak-collect-open fak-collect-customer fak-collect-one fak-collect-create fak-line-type fak-line-move`,
+    fak-conv-create fak-collect-open fak-collect-customer fak-collect-one fak-collect-create fak-line-type fak-line-move
+    fwv-filter fwv-goto fwv-take fwv-invoice`,
   hints: true,
   // kundenbereich-angebote: Platz für customer-portal.js (immer geladen: holt die Online-Annahmen ab)
   todo: ['fakturierung', 'kundenbereich-angebote'],
@@ -331,6 +334,32 @@ lazy(BUERO, {
     kasse-storno-open kasse-storno kasse-count-open kasse-count-date kasse-count kasse-opening-open kasse-opening kasse-close-open kasse-close kasse-settings-open
     kasse-settings-save kasse-goto`,
   todo: ['kassenbuch'],
+})
+
+// weiterverrechnung.js (mit Einkauf, Kassenbuch und Fakturierung geladen): Kosten an Kunden weiterverrechnen
+lazy(BUERO, {
+  module: 'einkauf',
+  modals: 'fwv-edit',
+  actions: 'fwv-open fwv-calc fwv-save fwv-skip fwv-reopen fwv-remove',
+})
+
+// uva.js: Umsatzsteuer-Übersicht für die UVA (Fakturierung und Einkauf & Kasse)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'umsatzsteuer',
+      order: 67,
+      label: 'Umsatzsteuer',
+      group: 'auswertung',
+      section: 'finanzen',
+      module: '*',
+      available: uvaAvailable,
+      icon: '<path d="M5 3.5h14v17H5z"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h3"/><path d="m14 17.5 4-4"/><circle cx="14.3" cy="13.8" r=".6"/><circle cx="17.7" cy="17.2" r=".6"/>',
+      noWeek: true,
+      text: 'Umsatzsteuer und Vorsteuer je Monat oder Quartal für die UVA',
+    },
+  ],
+  actions: 'uva-mode uva-month uva-quarter uva-basis uva-pdf uva-csv',
 })
 
 // weather.js: Wetter mit Radar, Karte und Grafiken; Zähler und Sichtbarkeit kommen aus ui/weather.js (immer geladen).

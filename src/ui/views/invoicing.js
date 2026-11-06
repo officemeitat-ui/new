@@ -104,6 +104,7 @@ import {
   VAT_RATES,
 } from '../../core/invoicing.js'
 import { objectsWithWork, proofFor } from '../../core/proof.js'
+import { addRechargeLines, markupDefault, openRecharges, RECHARGE_STATE, rechargeConflicts, rechargeList, rechargeSources, rechargeTexts, withoutSource } from '../../core/recharge.js'
 import { mergeRules } from '../../core/rules.js'
 import { absMinutes } from '../../core/timeclock.js'
 import { ciiXml, ebInterfaceXml, eInvoiceFileName, eInvoiceProblems } from '../../export/e-invoice.js'
@@ -114,6 +115,7 @@ import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
 import { customerLettersTab, lettersTab } from './invoicing-briefe.js'
 import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
 import { cashForSalePayment, payCashOption } from './einkauf-shared.js'
+import { einkaufData, syncRechargeBilled } from './weiterverrechnung.js'
 import { importButton } from './invoicing-import.js'
 import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
 import { offerStateChanged, onlineBadge, onlineButtons, onlineExtras, onlineSettingsHtml, readOnlineSettings } from './invoicing-online.js'
@@ -180,6 +182,7 @@ const TABS = [
   ['offen', 'Offene Posten'],
   ['bank', 'Bank'],
   ['dauer', 'Daueraufträge'],
+  ['weiter', 'Weiterverrechnung'],
   ['kunden', 'Kunden'],
   ['artikel', 'Artikel'],
   ['texte', 'Textbausteine'],
@@ -188,8 +191,13 @@ const TABS = [
   ['einstellungen', 'Einstellungen'],
 ]
 // Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
-const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer', 'weiter'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
+/** Weiterverrechnung: nur wer auch Einkauf & Kasse sehen darf (die Kosten stehen dort). */
+const seesRecharge = () => sees('einkauf')
+const tabVisible = (k) => k !== 'weiter' || seesRecharge()
+/** Offene Weiterverrechnungen (Einkauf & Kasse), leer ohne Recht darauf. exceptId: dieser Entwurf zählt nicht mit. */
+const openRecharge = (customerId = '', exceptId = '') => (seesRecharge() ? openRecharges({ ...einkaufData(), docs: F().documents.filter((y) => y.id !== exceptId), customerId }) : [])
 
 /** Neben „+ Rechnung“: weitere Belege anlegen, Übernahmen, Export. */
 function headMenus(ed) {
@@ -220,6 +228,7 @@ function headMenus(ed) {
     icon: ICON.download,
     items: [
       { label: 'Export Steuerberatung', action: 'fak-export-open', hint: 'Belege und Zahlungen als CSV' },
+      { label: 'Umsatzsteuer (UVA)', action: 'view', data: { view: 'umsatzsteuer' }, hint: 'Monat oder Quartal, PDF und CSV' },
       ed && { label: 'Kontoauszug einlesen', action: 'fak-tab', data: { v: 'bank' }, hint: 'camt.053 oder CSV im Reiter Bank' },
     ],
   })}`
@@ -232,7 +241,7 @@ function counts() {
   const remind = dunningRun(d.documents, d.customers, today, S()).due.length
   const drafts = d.documents.filter((x) => !x.number && isInvoice(x)).length
   const due = recurringDue(todayISO().slice(0, 7)).length
-  return { items, remind, drafts, due, badge: remind + due }
+  return { items, remind, drafts, due, recharge: openRecharge(), badge: remind + due }
 }
 
 /** Daueraufträge mit Abrechnung im Monat, für die noch kein Entwurf besteht. */
@@ -245,17 +254,17 @@ function recurringDue(ym) {
 function invoicingView() {
   checkNumbers()
   loadLetterhead().catch(() => {}) // Briefpapier für die PDFs schon bereitlegen
-  const tab = TABS.some(([k]) => k === app.ui.fakTab) ? app.ui.fakTab : 'start'
+  const tab = TABS.some(([k]) => k === app.ui.fakTab) && tabVisible(app.ui.fakTab) ? app.ui.fakTab : 'start'
   const n = counts()
-  const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length }
+  const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length, weiter: n.recharge.length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, weiter: rechargeTab, kunden: customersTab, artikel: articlesTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
     ${setup && tab !== 'einstellungen' ? `<div class="banner warn-banner"><p><strong>Noch nicht eingerichtet:</strong> Firmenname, Anschrift, UID und Bankverbindung für die Belege fehlen.</p>${ed ? '<button class="btn primary" data-action="fak-tab" data-v="einstellungen">Einstellungen</button>' : ''}</div>` : ''}
-    ${tabBar({ action: 'fak-tab', current: tab, cls: 'fak-tabs', tabs: TAB_GROUPS.map((g) => (g.items ? { label: g.label, items: g.items.map((k) => tabOf(k, flags)) } : tabOf(g, flags))) })}
+    ${tabBar({ action: 'fak-tab', current: tab, cls: 'fak-tabs', tabs: TAB_GROUPS.map((g) => (g.items ? { label: g.label, items: g.items.filter(tabVisible).map((k) => tabOf(k, flags)) } : tabOf(g, flags))) })}
     ${body}`
 }
 
@@ -303,6 +312,7 @@ function startTab() {
     due.length ? `<div class="todo-item"><span class="flag warning">${due.length}</span><div class="todo-text"><strong>Daueraufträge für ${esc(monthLabel(ym))}</strong> noch nicht abgerechnet</div>${editable() ? `<button class="btn small primary" data-action="fak-run" data-ym="${ym}">Monatslauf</button>` : ''}</div>` : '',
     drafts.length ? `<div class="todo-item"><span class="flag">${drafts.length}</span><div class="todo-text"><strong>Entwürfe</strong> prüfen und festschreiben</div><button class="btn small" data-action="fak-tab" data-v="rechnungen">Ansehen</button></div>` : '',
     n.remind ? `<div class="todo-item"><span class="flag error">${n.remind}</span><div class="todo-text"><strong>Mahnung fällig</strong> (Zahlungsziel überschritten)</div><button class="btn small" data-action="fak-tab" data-v="offen">Offene Posten</button></div>` : '',
+    n.recharge.length ? `<div class="todo-item"><span class="flag">${n.recharge.length}</span><div class="todo-text"><strong>Offene Weiterverrechnungen</strong> aus dem Einkauf (${money(n.recharge.reduce((a, x) => a + x.amount.net, 0))} netto)</div><button class="btn small" data-action="fak-tab" data-v="weiter">Ansehen</button></div>` : '',
     laeufeTodo(),
     broken.length ? `<div class="todo-item"><span class="flag error">!</span><div class="todo-text"><strong>Beleg nachträglich verändert:</strong> ${esc(broken.map((x) => x.number).join(', '))}. Die Prüfsumme passt nicht mehr; im Versionsverlauf von SharePoint nachsehen.</div></div>` : '',
   ].join('')
@@ -409,6 +419,47 @@ function openTab() {
 }
 
 const grossOfDoc = (x) => (x.total ? x.total.gross : totals(x, S()).gross)
+
+const FWV_FILTER = [['offen', 'offen'], ['entwurf', 'im Entwurf'], ['verrechnet', 'verrechnet'], ['nicht', 'nicht verrechnen'], ['alle', 'alle']]
+const FWV_CLASS = { offen: 'info', entwurf: 'warning', verrechnet: 'ok', nicht: '' }
+
+/** Weiterverrechnungen aus dem Einkauf je Kunde: Zustand, Beträge, „Rechnung erstellen“ mit allen offenen. */
+function rechargeTab() {
+  const d = F()
+  const ed = editable()
+  const st = FWV_FILTER.some(([k]) => k === app.ui.fwvState) ? app.ui.fwvState : 'offen'
+  const list = rechargeList({ ...einkaufData(), docs: d.documents, states: st === 'alle' ? null : [st] })
+  const groups = new Map()
+  for (const x of list) groups.set(x.recharge.customerId || '', [...(groups.get(x.recharge.customerId || '') || []), x])
+  const nameOf = (cid, items) => (custOf(cid) ? customerName(custOf(cid)) : items[0].recharge.customer || 'ohne Kunde')
+  const row = (x) => `<tr class="clickable" data-action="fwv-open" data-type="${esc(x.type)}" data-id="${esc(x.id)}"><td><strong>${esc(x.ref)}</strong><br><span class="muted">${esc([x.supplier, x.number && x.type === 'einkauf' ? `Nr. ${x.number}` : x.number].filter(Boolean).join(' · ') || (x.type === 'kasse' ? 'Barausgabe' : ''))}</span></td>
+      <td>${x.date ? formatDate(x.date, { year: true }) : ''}</td><td>${esc(rechargeTexts(x).text)}${x.recharge.objectId || x.objectId ? `<br><span class="muted">${esc(objName(x.recharge.objectId || x.objectId))}</span>` : ''}</td>
+      <td class="num">${money(x.amount.cost)}</td><td class="num">${String(x.amount.markup).replace('.', ',')} %</td><td class="num"><strong>${money(x.amount.net)}</strong></td>
+      <td><span class="pill ${FWV_CLASS[x.state]}">${esc(RECHARGE_STATE[x.state])}</span>${x.doc ? ` <button class="link-btn" data-action="fak-open" data-id="${esc(x.doc.id)}">${esc(x.doc.number || 'Entwurf')}</button>` : ''}${x.state === 'nicht' && x.recharge.reason ? `<br><span class="muted">${esc(x.recharge.reason)}</span>` : ''}</td></tr>`
+  const html = [...groups]
+    .sort((a, b) => nameOf(a[0], a[1]).localeCompare(nameOf(b[0], b[1]), 'de'))
+    .map(([cid, items]) => {
+      const open = items.filter((x) => x.state === 'offen').length
+      return `<div class="fwv-group"><div class="fwv-head"><h3>${esc(nameOf(cid, items))}</h3><span class="muted">${plural(items.length, 'Beleg', 'Belege')} · ${money(items.reduce((a, x) => a + x.amount.net, 0))} netto</span><span class="spacer"></span>${ed && open && custOf(cid) ? `<button class="btn small primary" data-action="fwv-invoice" data-customer="${esc(cid)}">Rechnung erstellen (${open})</button>` : ''}</div>
+        <div class="table-wrap"><table class="data fwv-table"><thead><tr><th>Beleg</th><th>Datum</th><th>Text</th><th class="num">Kosten netto</th><th class="num">Aufschlag</th><th class="num">verrechnen netto</th><th>Status</th></tr></thead><tbody>${items.map(row).join('')}</tbody></table></div></div>`
+    })
+    .join('')
+  return `<div class="filters"><label class="field inline"><span>Status</span><select id="fwv-state" data-change="fwv-filter">${options(FWV_FILTER, st)}</select></label><span class="spacer"></span><button class="btn small" data-action="view" data-view="einkauf">Einkauf</button></div>
+    ${html || `<p class="empty">${st === 'offen' ? 'Keine offenen Weiterverrechnungen.' : 'Keine Weiterverrechnungen für diese Auswahl.'}</p>`}
+    <p class="note">Weiterverrechnungen legt der Einkauf an: Eingangsrechnung oder Barausgabe öffnen → „Weiterverrechnen“ (Kunde, Kosten netto, Aufschlag). „Rechnung erstellen“ bzw. im Rechnungsentwurf „Weiterverrechnungen übernehmen“ macht daraus Positionen mit Aufschlag; die Umsatzsteuer richtet sich nach der Rechnung (auch Reverse Charge). Verrechnet ist eine Weiterverrechnung erst mit dem Festschreiben. Ein gelöschter Entwurf oder ein Storno der Rechnung macht sie wieder offen.</p>`
+}
+
+/** Im Rechnungsentwurf: offene Weiterverrechnungen des Kunden zum Übernehmen. */
+function rechargePanel(x) {
+  if (x.kind !== 'rechnung' || isAdvance(x) || x.number || !seesRecharge() || !x.customerId) return ''
+  const inDraft = new Set((x.lines || []).filter((l) => l.source?.id).map((l) => `${l.source.type}:${l.source.id}`))
+  const list = openRecharge(x.customerId, x.id).filter((s) => !inDraft.has(`${s.type}:${s.id}`))
+  const note = inDraft.size ? `<p class="muted fwv-note">${plural(inDraft.size, 'Position', 'Positionen')} aus Weiterverrechnungen: verrechnet erst mit dem Festschreiben.</p>` : ''
+  if (!list.length || !editable()) return note
+  return `<details class="fwv-panel" open><summary>Weiterverrechnungen übernehmen: ${list.length} offen für diesen Kunden (${money(list.reduce((a, s) => a + s.amount.net, 0))} netto)</summary>
+    <ul class="fwv-pick">${list.map((s) => `<li><label class="check"><input type="checkbox" name="fwv-pick" value="${esc(s.type)}:${esc(s.id)}" checked><span>${esc(s.ref)}${s.supplier ? ` ${esc(s.supplier)}` : ''} · ${esc(rechargeTexts(s).text)} · ${money(s.amount.cost)} + ${String(s.amount.markup).replace('.', ',')} % = <strong>${money(s.amount.net)}</strong></span></label></li>`).join('')}</ul>
+    <button class="btn small" data-action="fwv-take">Übernehmen</button></details>${note}`
+}
 
 function recurringTab() {
   const d = F()
@@ -531,6 +582,8 @@ function settingsTab() {
       <label class="field"><span>Angebot gültig (Tage)</span><input type="number" id="fs-offer-days" min="1" value="${esc(s.offerDays)}" ${dis}></label>
       <label class="field"><span>Stellen der Nummer</span><input type="number" id="fs-digits" min="3" max="6" value="${esc(s.digits)}" ${dis}></label>
       ${Object.entries(KINDS).map(([k, label]) => `<label class="field"><span>Kürzel ${esc(label)}</span><input type="text" id="fs-series-${k}" value="${esc(s.series[k])}" maxlength="6" ${dis}></label>`).join('')}
+      <label class="field"><span>Aufschlag Weiterverrechnung (%)</span><input type="text" inputmode="decimal" id="fs-recharge" value="${esc(String(markupDefault(s)).replace('.', ','))}" title="Vorschlag für Kosten aus dem Einkauf" ${dis}></label>
+      <label class="field"><span>Umsatzsteuer (für die UVA)</span><select id="fs-vat-basis" ${dis}>${options([['soll', 'Sollbesteuerung (nach Rechnungsdatum)'], ['ist', 'Istbesteuerung (nach Zahlungseingang)']], s.vatBasis === 'ist' ? 'ist' : 'soll')}</select></label>
       <label class="field"><span>Erste Rechnungsnummer ${y} (Umstieg)</span><input type="number" id="fs-start" min="1" value="${esc(s.start[`rechnung|${y}`] || '')}" placeholder="1" ${dis}></label>
       <p class="muted wide">Die Texte gelten, solange es dafür keinen Standard-Textbaustein gibt (Stammdaten → Textbausteine).</p>
       <label class="field wide"><span>Einleitung Rechnung</span><input type="text" id="fs-intro" value="${esc(s.intro)}" ${dis}></label>
@@ -655,7 +708,7 @@ function linesEditor(lines, prefix, dis = '', { choices = false } = {}) {
         : type === 'title'
           ? `<label class="check fak-showsum"><input type="checkbox" id="${prefix}-${i}-showsum" ${l.showSum ? 'checked' : ''} ${dis}><span>Summe der Gruppe drucken</span></label>`
           : ''
-      const first = `<td class="fak-line-text fak-line-${type}" data-label=""><div class="fak-line-head">${numbers[i] ? `<span class="fak-pos">${numbers[i]}</span>` : ''}${typeSel}${l.articleNo ? `<span class="muted fak-artno">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}</div>${text}${more}</td>`
+      const first = `<td class="fak-line-text fak-line-${type}" data-label=""><div class="fak-line-head">${numbers[i] ? `<span class="fak-pos">${numbers[i]}</span>` : ''}${typeSel}${l.articleNo ? `<span class="muted fak-artno">Art.-Nr. ${esc(l.articleNo)}</span>` : ''}${l.source ? '<span class="muted fak-artno" title="Kosten aus dem Einkauf">Weiterverrechnung</span>' : ''}</div>${text}${more}</td>`
       if (!priced) return `<tr class="fak-row-${type}">${first}<td class="num" colspan="5" data-label="${type === 'subtotal' ? 'Summe netto' : ''}">${type === 'subtotal' ? `<strong id="${prefix}-${i}-sum">${money(sums[i] || 0)}</strong>` : ''}</td><td data-label="">${tools}</td></tr>`
       return `<tr class="fak-row-${type}">${first}
       <td class="num" data-label="Menge"><input type="text" inputmode="decimal" id="${prefix}-${i}-qty" value="${esc(numText(l.qty))}" data-input="fak-recalc" aria-label="Menge" ${dis}></td>
@@ -694,7 +747,7 @@ function readLines(prefix, old = []) {
     }
     const longText = val(`${prefix}-${i}-long`).trim()
     const altTo = type === 'alternative' ? val(`${prefix}-${i}-alt`) : ''
-    out.push({ id, ...(type !== 'item' ? { type } : {}), ...(altTo ? { altTo } : {}), text, ...(longText ? { longText } : {}), ...(old[i]?.articleNo ? { articleNo: old[i].articleNo } : {}), qty: num(`${prefix}-${i}-qty`), unit: val(`${prefix}-${i}-unit`), price: num(`${prefix}-${i}-price`), discount: num(`${prefix}-${i}-disc`), vat: Number(val(`${prefix}-${i}-vat`)) })
+    out.push({ id, ...(type !== 'item' ? { type } : {}), ...(altTo ? { altTo } : {}), text, ...(longText ? { longText } : {}), ...(old[i]?.articleNo ? { articleNo: old[i].articleNo } : {}), ...(old[i]?.source ? { source: old[i].source } : {}), qty: num(`${prefix}-${i}-qty`), unit: val(`${prefix}-${i}-unit`), price: num(`${prefix}-${i}-price`), discount: num(`${prefix}-${i}-disc`), vat: Number(val(`${prefix}-${i}-vat`)) })
   }
   return out
 }
@@ -814,6 +867,7 @@ function editorModal(c, m) {
             }${calc ? '<button class="btn small" data-action="fak-from-calc">Preis aus Kalkulation</button>' : ''}</div>`
           : ''
       }
+      ${rechargePanel(x)}
       <div class="fak-foot-grid">
         <div class="form-grid">
           <label class="field"><span>Rabatt auf alles (%)</span><input type="text" inputmode="decimal" id="fd-discount" value="${esc(numText(x.discount || ''))}" placeholder="0" data-input="fak-recalc" ${dis}></label>
@@ -1660,6 +1714,17 @@ registerActions({
       el.disabled = false
     }
   },
+  'fwv-filter': () => {
+    app.ui.fwvState = val('fwv-state')
+    renderNow()
+  },
+  'fwv-goto': () => {
+    closeModal()
+    app.ui.view = 'fakturierung'
+    app.ui.fakTab = 'weiter'
+    app.ui.fwvState = 'offen'
+    renderNow()
+  },
   'fak-export-open': () => openModal({ type: 'fak-export' }),
   'fak-export': () => {
     const from = val('fx-from')
@@ -1696,6 +1761,39 @@ registerActions(
       else delete m.draft.skonto
       m.draft.dueDate = dueDateFor(m.draft.date, dueDaysOf(m.draft))
       renderModal()
+    },
+    'fwv-take': () => {
+      const m = app.ui.modal
+      if (m?.type !== 'fak-edit') return
+      const x = readForm(m)
+      const picked = new Set(checkedValues('fwv-pick'))
+      if (!picked.size) return toast('Bitte mindestens eine Weiterverrechnung wählen.')
+      const list = openRecharge(x.customerId, x.id).filter((s) => picked.has(`${s.type}:${s.id}`))
+      let n = 0
+      try {
+        n = addRechargeLines(x, list, { newId: () => uid('l'), vat: S().vat })
+      } catch (err) {
+        return toast(err.message)
+      }
+      renderModal()
+      toast(`${plural(n, 'Position', 'Positionen')} übernommen. Verrechnet ${n === 1 ? 'ist sie' : 'sind sie'} mit dem Festschreiben.`)
+    },
+    'fwv-invoice': (el) => {
+      const cid = el.dataset.customer
+      const list = openRecharge(cid)
+      if (!custOf(cid) || !list.length) return toast('Für diesen Kunden ist nichts offen.')
+      app.ui.fakAct = ''
+      const dates = list.map((s) => s.date).filter(Boolean).sort()
+      const objects = [...new Set(list.map((s) => s.recharge.objectId || s.objectId).filter(Boolean))]
+      const x = newDraft('rechnung', { title: 'Weiterverrechnung Material und Fremdleistungen', ...(dates.length ? { serviceFrom: dates[0], serviceTo: dates.at(-1) } : {}) })
+      applyCustomer(x, cid)
+      if (objects.length === 1) {
+        x.objectId = objects[0]
+        x.objectName = objName(objects[0])
+      }
+      addRechargeLines(x, list, { newId: () => uid('l'), vat: S().vat })
+      openModal({ type: 'fak-edit', id: x.id, draft: x, isNew: true })
+      toast(`${plural(list.length, 'Weiterverrechnung', 'Weiterverrechnungen')} als Entwurf: prüfen und festschreiben.`)
     },
     'fak-tb-line': (el) => {
       const m = app.ui.modal
@@ -1815,7 +1913,7 @@ registerActions(
       const x = readForm(m)
       const list = blocking(problems(x, S()))
       if (list.length) return toast(list[0].text)
-      const clash = advanceConflicts(x, F().documents)
+      const clash = [...advanceConflicts(x, F().documents), ...rechargeConflicts(x, F().documents, seesRecharge() ? rechargeSources(einkaufData()) : null)]
       if (clash.length) return toast(clash[0])
       if (!confirmStep(`fak-final:${x.id}`, renderModal)) return
       el.disabled = true
@@ -1826,11 +1924,12 @@ registerActions(
         await app.service.refresh?.().catch(() => [])
         const d = F()
         // nach dem Abgleich noch einmal: Abschlag inzwischen storniert oder anderswo abgezogen?
-        const clash2 = advanceConflicts(x, d.documents)
+        const clash2 = [...advanceConflicts(x, d.documents), ...rechargeConflicts(x, d.documents, seesRecharge() ? rechargeSources(einkaufData()) : null)]
         if (clash2.length) throw new Error(clash2[0])
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
         const fixed = finalize(withDebitNote(d.documents.find((y) => y.id === x.id) || x, custOf(x.customerId), S()), d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })
         upsertDoc(fixed)
+        syncRechargeBilled() // „verrechnet mit …“ bzw. nach einem Storno wieder offen, auch für Rollen ohne Fakturierung
         persist()
         await app.service.flush().catch(() => {})
         checkNumbers()
@@ -1858,7 +1957,7 @@ registerActions(
       const src = docOf(el.dataset.id)
       if (!src) return
       const kind = src.kind === 'storno' || src.kind === 'korrektur' ? 'rechnung' : src.kind
-      const x = newDraft(kind, { customerId: src.customerId, objectId: src.objectId, recipient: { ...(src.recipient || {}) }, reverseCharge: !!src.reverseCharge, title: src.title, discount: src.discount || 0, contactName: src.contactName || '', deliveryAddress: src.deliveryAddress || '', lines: (src.lines || []).map((l) => (pricedLine(l) ? { ...l, id: uid('l'), qty: Math.abs(parseNumber(l.qty)) } : { ...l, id: uid('l') })) })
+      const x = newDraft(kind, { customerId: src.customerId, objectId: src.objectId, recipient: { ...(src.recipient || {}) }, reverseCharge: !!src.reverseCharge, title: src.title, discount: src.discount || 0, contactName: src.contactName || '', deliveryAddress: src.deliveryAddress || '', lines: withoutSource(src.lines || []).map((l) => (pricedLine(l) ? { ...l, id: uid('l'), qty: Math.abs(parseNumber(l.qty)) } : { ...l, id: uid('l') })) })
       openModal({ type: 'fak-edit', id: x.id, draft: x, isNew: true })
     },
     'fak-convert': (el) => {
@@ -2175,6 +2274,8 @@ registerActions(
         offerIntro: val('fs-offer-intro'),
         offerOutro: val('fs-offer-outro'),
         smallBusiness: checked('fs-small'),
+        rechargeMarkup: val('fs-recharge').trim() === '' ? markupDefault({}) : Math.max(0, num('fs-recharge')),
+        vatBasis: val('fs-vat-basis') === 'ist' ? 'ist' : 'soll',
         baseRate: num('fs-base'),
         reminders,
         accounts: { debitor: val('fs-acc-deb').trim(), erloese: Object.fromEntries(VAT_RATES.map((v) => [v, val(`fs-acc-${v}`).trim()])), rc: val('fs-acc-rc').trim(), skonto: val('fs-acc-skonto').trim() },
@@ -2245,12 +2346,17 @@ registerTodo({
     // Bankabgleich: Eingänge, die seit über 7 Tagen keiner Rechnung zugeordnet sind
     const stale = staleBankCredits(today)
     if (stale.length) out.push({ id: `bank:${stale.map((t) => t.id).join(',')}`, kind: 'bank', count: stale.length, sum: round2(stale.reduce((a, t) => a + t.amount, 0)) })
+    // Weiterverrechnungen aus dem Einkauf, die noch in keiner Rechnung stehen
+    const fwv = openRecharge()
+    if (fwv.length) out.push({ id: `fwv:${fwv.map((r) => r.id).join(',')}`, kind: 'fwv', count: fwv.length, sum: round2(fwv.reduce((a, r) => a + r.amount.net, 0)) })
     return out
   },
   render: (items) =>
     items
       .map((x) =>
-        x.kind === 'run'
+        x.kind === 'fwv'
+          ? `<div class="todo-item"><span class="flag">${x.count}</span><div class="todo-text"><strong>Offene Weiterverrechnungen</strong> aus dem Einkauf (${money(x.sum)} netto)</div><button class="btn small" data-action="fwv-goto">Ansehen</button></div>`
+          : x.kind === 'run'
           ? `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Daueraufträge ${esc(monthLabel(x.ym))}</strong> noch nicht abgerechnet</div><button class="btn small primary" data-action="fak-run" data-ym="${x.ym}">Monatslauf</button></div>`
           : x.kind === 'bank'
             ? `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Zahlungseingänge ohne Rechnung</strong> seit über 7 Tagen (${money(x.sum)})</div><button class="btn small primary" data-action="fak-bank-goto">Zuordnen</button></div>`

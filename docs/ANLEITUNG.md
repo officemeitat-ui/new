@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 258 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 261 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (26)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (62)
+- [Finanzen](#finanzen) (65)
 - [Verwaltung](#verwaltung) (37)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -2213,6 +2213,56 @@ Ab 15.000 € Jahresumsatz je Betrieb, wenn davon mehr als 7.500 € bar (auch m
 2. Steigen die Barumsätze über 7.500 €, mit der Steuerberatung klären.
 
 > Tipp: Jede Barzahlung braucht einen Beleg für den Kunden (Belegerteilungspflicht).
+
+### Kosten an Kunden weiterverrechnen
+
+*In der App: Einkauf*
+
+Material oder einen Subunternehmer für einen Kunden bezahlt? Eingangsrechnung oder Barausgabe öffnen und „Weiterverrechnen“: Kunde der Fakturierung, Objekt, Kosten netto (ganz oder ein Teil), Aufschlag in % und Text. Die Fakturierung zeigt die Kosten unter „Weiterverrechnung“, bis sie in einer festgeschriebenen Rechnung stehen.
+
+1. „Einkauf“ → Eingangsrechnung öffnen, oder im Kassenbuch bei der Ausgabe „weiterverrechnen“.
+2. „Weiterverrechnen“ klicken.
+3. Kunde wählen, Kosten netto und Aufschlag prüfen, Text eintragen.
+4. „Speichern“.
+
+> Tipp: Den Vorschlag für den Aufschlag (10 %) stellt die Fakturierung in den Einstellungen ein.
+> Tipp: Nicht verrechnen (z. B. im Pauschalpreis enthalten): im Dialog „Nicht verrechnen“ mit Grund; „Wieder offen“ nimmt das zurück.
+> Tipp: Die Umsatzsteuer richtet sich nach der Rechnung an den Kunden (auch Reverse Charge), nicht nach dem Beleg.
+
+*Buchhaltung, Vollzugriff*
+
+### Weiterverrechnungen in die Rechnung übernehmen
+
+*In der App: Fakturierung*
+
+Unter Fakturierung → „Belege“ → „Weiterverrechnung“ stehen die Kosten aus dem Einkauf je Kunde. „Rechnung erstellen“ macht daraus einen Entwurf; im Rechnungsentwurf übernimmt „Weiterverrechnungen übernehmen“ die offenen des Kunden als Positionen (Kosten plus Aufschlag). Verrechnet sind sie erst mit dem Festschreiben.
+
+1. Fakturierung → „Belege“ → „Weiterverrechnung“.
+2. Beim Kunden „Rechnung erstellen“ oder im Entwurf „Übernehmen“.
+3. Positionen prüfen und festschreiben.
+
+> Tipp: Wird der Entwurf gelöscht oder die Rechnung storniert, ist die Weiterverrechnung wieder offen.
+> Tipp: Eine Rechnungskorrektur ändert nichts: die Kosten bleiben verrechnet.
+> Tipp: Offene Weiterverrechnungen stehen auch in „Zu erledigen“.
+
+*Buchhaltung, Vollzugriff*
+
+### Umsatzsteuer für die UVA
+
+*In der App: Umsatzsteuer*
+
+Die Ansicht „Umsatzsteuer“ rechnet für einen Monat oder ein Quartal: Umsatzsteuer je Steuersatz aus Rechnungen, Storno und Korrekturen, Skonto, Reverse Charge, Vorsteuer aus Eingangsrechnungen und Kassenbuch, dazu Zahllast oder Gutschrift mit den Kennzahlen des Formulars U30 als Hinweis. Vor der Abgabe mit der Steuerberatung abstimmen.
+
+1. „Umsatzsteuer“ unter Finanzen öffnen.
+2. Monat oder Quartal wählen.
+3. Sollbesteuerung oder Istbesteuerung prüfen.
+4. „Export“ → PDF oder CSV, auf Wunsch per E-Mail an die Steuerberatung.
+
+> Tipp: Sollbesteuerung zählt nach Rechnungsdatum, Istbesteuerung nach Zahlungseingang; die Einstellung steht in der Fakturierung.
+> Tipp: Ohne Recht auf Einkauf & Kasse zeigt die Ansicht nur die Umsatzsteuer der Rechnungen (unvollständig).
+> Tipp: Die Hinweise oben nennen Entwürfe, offene Abschläge und Eingangsrechnungen mit „Vorsteuer?“.
+
+*Buchhaltung, Vollzugriff*
 
 ### Kalkulation je Objekt
 
