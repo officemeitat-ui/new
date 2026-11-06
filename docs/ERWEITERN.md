@@ -177,8 +177,8 @@ Drei Attribute am `<html>` steuern das Aussehen (gesetzt von `applyTheme` in `sr
 ## Datenmodell (Auszug)
 
 ```js
-employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours, wageGroup?, hourlyWage?, ueMode?, mehrMode? }   // email: Versand der PDF-Wochenpläne
-object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, contact, keys[{ id, label, holderId }], waste? }
+employee = { id, name, personnelNo, type, weeklyHours, maxMonthHours?, minor?, team, email?, lang?, skills[], trained[objectId], availability{1..7: {from, to}}, vacationDaysYear, startBalanceHours, wageGroup?, hourlyWage?, ueMode?, mehrMode? }   // email: Versand der PDF-Wochenpläne; lang: Sprache am Handy (bks|ro|tr|hu|en, leer = de)
+object   = { id, name, short, address, region, color, onlyTrained, budgetHoursMonth, instructions, instructionsI18n?{ <lang>: { text, source, at?, by?, ki? } }, contact, keys[{ id, label, holderId }], waste? }   // source: Kennwert des deutschen Texts (core/sprachen.js), sonst veraltet
 waste    = { streams[{ id, type: 'Restmüll'|'Biomüll'|'Altpapier'|'Leichtverpackung'|'Glas'|'Metall'|'Sperrmüll'|'Sonstiges', recurrence }],
              outWhen: 'vortag'|'abholtag', bringBack, minutes, responsible?: employeeId, note? }   // recurrence wie unten oder { type: 'dates', dates[] }
 task     = { id, objectId, label, category: 'reinigung'|'sonder', recurrence, start, end, staff, regulars[employeeId], skills[], holidayRule: 'entfaellt'|'findet_statt'|'verschieben', travelAfterMin?, travelNote? }

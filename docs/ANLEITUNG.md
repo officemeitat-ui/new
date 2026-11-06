@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 285 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 287 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (47)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (68)
-- [Verwaltung](#verwaltung) (37)
+- [Verwaltung](#verwaltung) (39)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
 
@@ -2760,6 +2760,21 @@ Am Handy sieht die Person diese und kommende veröffentlichte Wochen: je Tag Uhr
 > Tipp: „Auf diesem Gerät vergessen“ löscht den gemerkten Link wieder, z. B. auf einem geteilten Handy.
 > Tipp: Entfallene Einsätze sind durchgestrichen.
 
+### Plan am Handy in der Sprache der Person
+
+*In der App: Mitarbeitende*
+
+Im Stammblatt der Person wählst du „Sprache am Handy“: Deutsch, Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch oder Englisch. Plan am Handy, Formulare, Hinweise, Push-Nachrichten und die Nachricht mit dem Link kommen dann in dieser Sprache. Am Handy kann die Person oben rechts umstellen; das Gerät merkt sich die Wahl.
+
+1. Person unter „Mitarbeitende“ mit „Bearbeiten“ öffnen.
+2. „Sprache am Handy“ wählen und „Speichern“ klicken.
+3. Unter „Plan am Handy“ „Speichern und übertragen“ klicken oder die Woche veröffentlichen.
+
+> Tipp: Nachrichten ans Büro (Anträge, Krankmeldungen, Material) bleiben deutsch.
+> Tipp: Namen von Objekten, Leistungen und Terminen bleiben, wie sie sind; Objektanweisungen übersetzt du beim Objekt.
+
+*Vollzugriff (Stammdaten)*
+
 ### Link verloren oder weitergegeben
 
 *In der App: Mitarbeitende*
@@ -2910,6 +2925,23 @@ In der Objektinfo stehen Anweisungen für das Personal (sie erscheinen im Einsat
 3. „Speichern“ klicken.
 
 > Tipp: Keine Alarmcodes oder Passwörter eintragen: alle Disponent:innen können das lesen.
+
+### Objektanweisungen für Mitarbeitende übersetzen
+
+*In der App: Objekte & Leistungen*
+
+Beim Objekt unter „Übersetzungen für Mitarbeitende“ trägst du die Anweisung je Sprache ein, von Hand oder mit „Mit KI übersetzen“, wenn der KI-Assistent eingerichtet ist. Die KI liefert einen Vorschlag, gespeichert wird erst nach Prüfung. Ändert sich der deutsche Text, gilt eine Übersetzung als veraltet: Am Handy steht dann der deutsche Text dabei.
+
+1. Beim Objekt „Objekt bearbeiten“ klicken.
+2. „Übersetzungen für Mitarbeitende“ aufklappen.
+3. Übersetzungen eintragen oder „Mit KI übersetzen“, den Vorschlag prüfen und „Übernehmen“.
+4. „Speichern“ klicken.
+
+> Tipp: „Passt noch“, wenn die Änderung am deutschen Text die Übersetzung nicht betrifft.
+> Tipp: Die KI bekommt nur den deutschen Text, und erst nach dem Klick.
+> Tipp: Übersetzungen der KI am besten von jemandem lesen lassen, der die Sprache spricht.
+
+*Vollzugriff (Stammdaten)*
 
 ### Fahrzeiten aus den Adressen
 
