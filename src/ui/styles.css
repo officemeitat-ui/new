@@ -2295,6 +2295,33 @@ tr.muted td { color: var(--muted); }
   .anl-table .actions-cell { white-space: normal; }
 }
 
+/* Mattenwechsel-Modul (views/matten.js, views/matten-uebernahme.js) */
+.mw-cust { margin-bottom: 10px; }
+.mw-cust > .section-head.small h3, .mw-obj .section-head.small h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0; }
+.mw-obj { margin: 0 0 8px; }
+.mw-obj .section-head.small h4 { font-size: 1rem; }
+.mw-addr { font-size: 0.85rem; font-weight: 400; }
+.mw-table td { line-height: 1.5; }
+.mw-table .actions-cell { white-space: nowrap; }
+.mw-block { margin: 14px 0 6px; }
+.mw-block h4 { margin: 12px 0 4px; font-size: 0.95rem; }
+.mw-mat-row, .mw-pause-row { display: grid; grid-template-columns: minmax(10rem, 2fr) minmax(5rem, 0.7fr) minmax(8rem, 1fr) auto; gap: 6px 10px; align-items: end; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.mw-pause-row { grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(10rem, 2fr) auto; }
+.mw-mat-row .field, .mw-pause-row .field { margin: 0; min-width: 0; }
+.mw-mat-row .field input, .mw-mat-row .field select, .mw-pause-row .field input { width: 100%; min-width: 0; }
+.mw-steps { margin: 8px 0 12px; padding-left: 1.4rem; }
+.mw-steps li { margin: 2px 0; }
+.mw-imp-table select { width: 100%; min-width: 10rem; max-width: 26rem; }
+.mw-imp-detail summary { cursor: pointer; padding: 6px 0; }
+.mw-imp-run { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 16px 0; }
+.mw-areas input[type='text'] { width: 100%; min-width: 8rem; }
+@media (max-width: 720px) {
+  .mw-table .actions-cell { white-space: normal; }
+  .mw-mat-row, .mw-pause-row { grid-template-columns: 1fr 1fr; }
+  .mw-mat-row .field:first-child, .mw-pause-row .field:last-of-type { grid-column: 1 / -1; }
+  .mw-imp-table select { min-width: 0; max-width: 100%; }
+}
+
 /* Regieberichte (views/regie.js) */
 .reg-table .actions-cell { white-space: nowrap; }
 .reg-pills { display: inline-flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }

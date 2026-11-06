@@ -301,6 +301,44 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
+// matten.js, matten-uebernahme.js: Mattenwechsel-Modul (Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem
+// Werkzeug, Matten-Touren der Fahrer); das Werkzeug selbst bleibt unter #matten (tools.js)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'mw-liegeplaetze',
+      order: 75.5,
+      label: 'Matten-Liegeplätze',
+      group: 'service',
+      module: 'matten',
+      icon: '<path d="M12 2.8a3.4 3.4 0 0 0-3.4 3.4c0 2.5 3.4 5.3 3.4 5.3s3.4-2.8 3.4-5.3A3.4 3.4 0 0 0 12 2.8z"/><rect x="3.5" y="13.5" width="17" height="7.5" rx="2"/><path d="M7 17.2h10"/>',
+      noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6a2.3 2.3 0 0 0-2.3 2.3C5.7 5.6 8 7.5 8 7.5s2.3-1.9 2.3-3.6A2.3 2.3 0 0 0 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="2.2" y="9.2" width="11.6" height="5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+        label: 'Liegeplätze',
+      },
+      text: 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Intervall, Übernahme',
+    },
+    {
+      id: 'mw-touren',
+      order: 75.6,
+      label: 'Matten-Touren',
+      group: 'service',
+      module: 'mattentour',
+      icon: '<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18h6.3a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7h5.3"/>',
+      noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.6 12h4.2a2.3 2.3 0 0 0 0-4.6H6.2a2.3 2.3 0 0 1 0-4.6h4.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+        label: 'Touren',
+      },
+      text: 'Mattenwechsel: eigene Touren, Wechsel je Liegeplatz bestätigen',
+    },
+  ],
+  modals: 'mw-edit mw-areas',
+  actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
+    mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run`,
+})
+
 // arbeitsschutz.js: Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung mit Maßnahmen und Fristen
 lazy(BUERO, {
   views: [

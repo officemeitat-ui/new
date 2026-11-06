@@ -405,6 +405,18 @@ export class SharePointDocStore {
     return res.json()
   }
 
+  /**
+   * Datei ab der Bibliothek neu anlegen, ohne eine vorhandene zu ersetzen (z. B. Sicherung vor der Übernahme
+   * des Mattenwechsels nach Mattenwechsel/_Sicherung/<Datum>/). Liefert { webUrl } oder null, wenn es sie schon gibt.
+   */
+  async writeRootNew(path, body, contentType = 'application/octet-stream') {
+    await this.#ensurePath(path.split('/').slice(0, -1).join('/'))
+    const res = await this.#request('PUT', `/drives/${this.driveId}/root:/${encodePath(path)}:/content?@microsoft.graph.conflictBehavior=fail`, { body, headers: { 'Content-Type': contentType }, okStatuses: [409] })
+    if (res.status === 409) return null
+    const item = await res.json()
+    return { webUrl: item.webUrl || null }
+  }
+
   /** Ordner ab der Bibliothek anlegen, falls er fehlt (z. B. ein Modulordner vor dem ersten Speichern). */
   async ensureRootFolder(path) {
     await this.#ensurePath(path)

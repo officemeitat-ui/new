@@ -48,6 +48,7 @@ export const SYNONYMS = {
   mappe: ['objektmappe', 'objektdoku'],
   matte: ['mattenwechsel'],
   matten: ['mattenwechsel'],
+  liegeplatz: ['liegeplaetze', 'matten'],
   schluessel: ['schluesselbuch'],
   auto: ['fahrzeug', 'fahrzeuge'],
   reifen: ['reifenwechsel', 'fahrzeuge'],

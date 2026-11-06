@@ -11,6 +11,9 @@
 // zaehler, kontrolle, objektmappe und matten sind die eigenen Werkzeuge
 // (werkzeuge/, src/ui/views/tools.js): Sie speichern selbst in ihren Ordnern
 // der Bibliothek; die Rolle entscheidet, wer sie in der App sieht.
+// matten ist zugleich das Büro-Modul Mattenwechsel (Liegeplätze, Übernahme,
+// später Kalender und Touren planen; Datei matten/matten.json), mattentour der
+// Bereich der Fahrer (eigene Touren, später unter matten/touren/).
 
 export const MODULES = {
   planung: 'Einsatzplanung',
@@ -20,6 +23,8 @@ export const MODULES = {
   kontrolle: 'Objektkontrolle',
   objektmappe: 'Objektdoku',
   matten: 'Mattenwechsel',
+  // Fahrer: eigene Touren und Wechsel bestätigen – keine Preise, kein Kundenstamm, keine Liegeplätze bearbeiten
+  mattentour: 'Mattenwechsel Fahrer',
   fahrzeuge: 'Fahrzeuge & Reifen',
   reklamationen: 'Reklamationen',
   material: 'Material & Lager',
@@ -53,8 +58,11 @@ export const DEFAULT_ROLES = {
   // Einladungen nur Vollzugriff (bzw. eine eigene Rolle mit Bearbeiten, die auch den Kundenbereich bearbeitet)
   objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
-  // eigene Microsoft-Gruppe für den Mattenwechsel (Fahrer:innen, Disposition der Touren)
-  mattenwechsel: { label: 'Mattenwechsel', modules: ['matten'], edit: ['matten'] },
+  // Mattenwechsel Büro (Rollen-ID bleibt „mattenwechsel“, damit die Gruppe in config.json weiter gilt): Werkzeug,
+  // Liegeplätze, später Kalender und Touren planen und freigeben; Rechnungsentwürfe nur mit Recht auf die Fakturierung
+  mattenwechsel: { label: 'Mattenwechsel Büro', modules: ['matten', 'mattentour'], edit: ['matten', 'mattentour'] },
+  // Fahrer Mattenwechsel: nur die eigenen Touren (matten/touren/), keine Preise, kein Kundenstamm
+  mattenfahrer: { label: 'Fahrer Mattenwechsel', modules: ['mattentour'], edit: ['mattentour'] },
   // Eintritt & Austritt: Checklisten (Anmeldung, Abmeldung, Zeitkonto); Bewerbungsunterlagen sieht sie nicht
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung', 'eintritt'], edit: ['auswertung', 'eintritt'] },
   // Bewerbungen bis zur Zusage, Mitarbeitende anlegen (Stammdaten), Unterweisungen und Gesprächstermine; das

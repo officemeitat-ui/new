@@ -29,7 +29,10 @@ export const PLAN_DEFAULT = ['week', 'coverage', ABSENCE, 'sheet']
 export const ROLE_DEFAULTS = {
   ableser: ['zaehler'],
   vorarbeiter: ['zaehler'],
-  mattenwechsel: ['matten'],
+  // Mattenwechsel Büro: bis zur Umstellung zuerst das Werkzeug, daneben die Liegeplätze des Moduls
+  mattenwechsel: ['matten', 'mw-liegeplaetze'],
+  // Fahrer Mattenwechsel: seine Touren (die Ansicht für unterwegs kommt in der Phase Fahrer)
+  mattenfahrer: ['mw-touren'],
   pruefer: ['kontrolle', 'objektmappe'],
   buchhaltung: ['fakturierung', 'einkauf', 'kassenbuch', 'umsatzsteuer'],
   lager: ['material'],
@@ -163,6 +166,8 @@ export const SHORT_LABELS = {
   kundenbereich: 'Kunden',
   schluessel: 'Schlüssel',
   matten: 'Matten',
+  'mw-liegeplaetze': 'Liegeplätze',
+  'mw-touren': 'Touren',
   qualitaet: 'Qualität',
   staff: 'Personal',
   absences: 'Abwesenheit',

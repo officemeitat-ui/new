@@ -28,10 +28,14 @@
 //   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden und Angebote (mit Code), Einstellungen
 //   bewerbung/bewerbung.json          Bewerbungen (Unterlagen unter bewerbung/unterlagen/) – eng: Personalverwaltung
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
+//   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
+//                                     (Büro; Touren der Fahrer später unter matten/touren/)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
-// Bibliothek (TOOL_FOLDERS), nicht hier.
+// Bibliothek (TOOL_FOLDERS), nicht hier. Das Mattenwechsel-Modul der App
+// (matten/) liest den Werkzeug-Ordner Mattenwechsel/ nur bei der Übernahme
+// und schreibt dort nur die Sicherung (Mattenwechsel/_Sicherung/<Datum>/).
 //
 // Rechte: dataRights() sagt je Rolle, welche Dateien die App überhaupt liest
 // und schreibt; andere Dateien fragt sie gar nicht erst an. In SharePoint
@@ -104,6 +108,8 @@ export const MODULE_DOCS = {
   // Bewerbungen und Checklisten: leere Inhalte wie emptyBewerbung/emptyEintritt (core/bewerber.js; test/bewerber.test.js vergleicht)
   bewerbung: { path: 'bewerbung/bewerbung.json', empty: () => ({ applicants: [], settings: {} }) },
   eintritt: { path: 'eintritt/eintritt.json', empty: () => ({ lists: [], templates: {}, settings: {} }) },
+  // Mattenwechsel-Modul: leerer Inhalt wie emptyMatten (core/matten.js; test/matten.test.js vergleicht)
+  matten: { path: 'matten/matten.json', empty: () => ({ schema: 1, settings: {}, placements: [], areas: [] }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -119,7 +125,7 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('stammdaten', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“)
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
@@ -169,6 +175,11 @@ export function dataRights(access) {
     // Eintritts- und Austritts-Checklisten: Personalverwaltung und Lohnverrechnung. Die Objektleitung sieht die
     // Einschulung als Termin (termine/), nicht die Checkliste
     ['eintritt/', () => sees('eintritt'), () => edits('eintritt')],
+    // Mattenwechsel: Touren der Fahrer (eigener Unterordner zuerst; Fahrer sehen nur die eigenen, SharePoint trennt
+    // nach Ordner, nicht nach Datensatz). Liegeplätze, Gebiete und Einstellungen (matten/matten.json) nur das Büro:
+    // Fahrer lesen sie nicht, die Tour trägt eine eingefrorene Kopie (Kunde, Adresse, Liegeplatz, Matte, ohne Preis)
+    ['matten/touren/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
+    ['matten/', () => sees('matten'), () => edits('matten')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -202,6 +213,8 @@ export const FOLDERS = [
   ['kundenbereich', 'Kundenbereich: Links für Kunden und Angebote zur Online-Annahme (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
+  ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete (Büro)', MODULE_DOCS.matten.path],
+  ['matten/touren', 'Mattenwechsel: Touren der Fahrer (ab der Phase Fahrer)', 'matten/touren/2026/tour.json'],
 ]
 
 /**
@@ -214,7 +227,7 @@ export const TOOL_FOLDERS = [
   ['Wasserzähler - Ablesung', 'Wasserzähler-Ablesung: Listen, Fotos und Berichte je Standort', 'zaehler'],
   ['Objektpruefprotokolle', 'Objektkontrolle: Protokolle, Fotos, Unterschriften, Objektliste (auch die Objektdoku liest sie)', 'kontrolle'],
   ['Objektdoku', 'Objektdoku: Akten, Leistungsverzeichnis, Objektblätter, Vorlagen', 'objektmappe'],
-  ['Mattenwechsel', 'Mattenwechsel: Touren, Lieferscheine, Standorte', 'matten'],
+  ['Mattenwechsel', 'Mattenwechsel (Werkzeug): Touren, Lieferscheine, Liegeplätze (Standorte.json), Sicherung der Übernahme', 'matten'],
   ['Stammdaten', 'Kundenstamm (Kunden.json): von allen Werkzeugen gelesen, vom Mattenwechsel beim Abschließen gepflegt', null],
 ]
 

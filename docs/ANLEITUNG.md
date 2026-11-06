@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 317 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 323 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (55)
+- [Objekte & Kunden](#objekte-kunden) (61)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (71)
 - [Verwaltung](#verwaltung) (56)
@@ -1626,17 +1626,98 @@ Die Objektdoku führt Objektakte und Leistungsverzeichnis und erstellt das Objek
 
 *Sichtbar für Objektmanagement, Objektleitung, Objektservice, Prüfer/in und Vollzugriff*
 
-### Mattenwechsel
+### Mattenwechsel (Werkzeug)
 
-Im Werkzeug Mattenwechsel arbeitest du die Touren ab und erstellst Lieferscheine und den Nachweis des Wechsels. „Abschließen“ legt Tour, Fotos, Tourbericht und je Kunde einen Lieferschein als PDF in SharePoint ab.
+Im Werkzeug Mattenwechsel arbeitest du die Touren ab und erstellst Lieferscheine und den Nachweis des Wechsels. „Abschließen“ legt Tour, Fotos, Tourbericht und je Kunde einen Lieferschein als PDF in SharePoint ab. Es läuft unverändert, bis das Mattenwechsel-Modul der App fertig ist.
 
-1. „Mattenwechsel“ öffnen.
+1. „Mattenwechsel (Werkzeug)“ öffnen.
 2. Tour wählen und abarbeiten.
 3. „Abschließen“ klicken.
 
 > Tipp: Routen brauchen die Zustimmung zu Azure Maps; ohne sie läuft das Werkzeug ohne Routen weiter.
+> Tipp: Die Liegeplätze des neuen Moduls stehen unter „Matten-Liegeplätze“; die Übernahme aus dem Werkzeug macht der Vollzugriff.
 
-*Gruppe Mattenwechsel, Vollzugriff*
+*Mattenwechsel Büro, Vollzugriff*
+
+### Matten-Liegeplätze
+
+*In der App: Matten-Liegeplätze*
+
+Ein Liegeplatz ist die Stelle beim Kunden, an der Matten liegen, z. B. „Haupteingang“ oder „Stiege 2“. Die Liste zeigt je Kunde und Objekt: Liegeplatz, Matte, Stückzahl, Intervall und nächsten Wechsel. Das bisherige Werkzeug läuft daneben unverändert weiter.
+
+1. „Matten-Liegeplätze“ unter „Objekte & Kunden“ öffnen.
+2. Oben nach Kunde, Gebiet oder Status filtern, z. B. „zu prüfen“.
+3. Einen Liegeplatz anklicken: Matten, Intervall, Zugang und Zeitfenster.
+
+> Tipp: „Nächster Wechsel“ ist vorerst eine Vorschau aus Starttermin bzw. letztem Wechsel und Intervall; Kalender und Touren folgen.
+> Tipp: Wer die Fakturierung nicht sieht, sieht Kunde und Matte aus einer Kopie am Liegeplatz, ohne Preise.
+> Tipp: Am Handy steht „Liegeplätze“ in der Leiste unten.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Liegeplatz anlegen
+
+*In der App: Matten-Liegeplätze*
+
+Ein Liegeplatz gehört zu Kunde und Objekt: Name, Stockwerk, Zugang oder Schlüssel, Hinweis, eine oder mehrere Matten mit Stückzahl und Eigentum, Intervall (meist 14 oder 28 Tage), Starttermin, Regel, Arbeitszeit, Zeitfenster, Pausen und Gebiet.
+
+1. „+ Liegeplatz“ oben oder beim Objekt klicken.
+2. Kunde und Objekt wählen, den Liegeplatz benennen.
+3. Matten mit Mattentyp und Stückzahl eintragen.
+4. Intervall, Starttermin und Regel wählen, bei Bedarf Zeitfenster und Pausen.
+5. „Speichern“ klicken.
+
+> Tipp: Mattentypen sind Artikel der Fakturierung mit der Artikelgruppe „Matten“.
+> Tipp: Koordinaten leer lassen übernimmt die des Objekts; „Suchen“ fragt OpenStreetMap.
+> Tipp: „Fester Rhythmus“ zählt ab dem Starttermin, „ab dem letzten Wechsel“ wie bisher im Werkzeug.
+
+### Gebiete (Tourrunden) im Mattenwechsel
+
+*In der App: Matten-Liegeplätze*
+
+Ein Gebiet ist eine Tourrunde, kein Ort: zwei Gebiete können im selben Ort liegen. Jeder Liegeplatz kann einem Gebiet angehören; danach lässt sich die Liste filtern, später schlägt die App Touren je Gebiet vor.
+
+1. „Mehr ▾“ → „Gebiete (Tourrunden)“.
+2. Namen ändern oder „+ Gebiet“.
+3. „Speichern“ klicken.
+
+> Tipp: Im Dialog des Liegeplatzes legt „+ neues Gebiet …“ ein Gebiet gleich mit an.
+
+### Übernahme aus dem Werkzeug Mattenwechsel
+
+*In der App: Matten-Liegeplätze*
+
+Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werkzeugs nach Mattenwechsel/_Sicherung/<Datum>/ und zeigt dann die Vorschau: Kunden zuordnen, Objekte je Adresse, Mattentypen. „Übernehmen“ legt die Liegeplätze an, mit dem letzten Wechsel aus allen Touren.
+
+1. In „Matten-Liegeplätze“ den Reiter „Übernahme aus dem Werkzeug“ öffnen.
+2. „Sichern und Daten des Werkzeugs lesen“ klicken.
+3. Kunden, Objekte und Mattentypen prüfen; fehlende Kunden nur bei Bedarf „neu anlegen“.
+4. „Übernehmen“ klicken und noch einmal bestätigen.
+
+> Tipp: Ein zweiter Lauf ändert nichts; er trägt nur nach, was neu ist (jüngere Touren, inzwischen angelegte Mattentypen, neue Liegeplätze).
+> Tipp: Die Dateien des Werkzeugs werden nie geändert; alte Touren und Lieferscheine werden nicht verrechnet.
+> Tipp: Übernommene Liegeplätze nicht löschen, sondern auf inaktiv setzen.
+
+*nur Vollzugriff*
+
+### Matten-Touren (Fahrer)
+
+*In der App: Matten-Touren*
+
+Unter „Matten-Touren“ sehen Fahrer ihre freigegebenen Touren: Stopps, Matten je Liegeplatz, Navigation und Bestätigung. Die Ansicht für unterwegs kommt mit dem nächsten Ausbau; bis dahin läuft der Mattenwechsel im Werkzeug. Preise und Kundenstamm sehen Fahrer nicht.
+
+*Fahrer Mattenwechsel, Mattenwechsel Büro, Vollzugriff*
+
+### Rollen im Mattenwechsel: Büro und Fahrer
+
+*In der App: Matten-Liegeplätze*
+
+„Mattenwechsel Büro“ (die bisherige Gruppe Mattenwechsel) bearbeitet Werkzeug, Liegeplätze und Touren und liest die Objekte. „Fahrer Mattenwechsel“ sieht nur die eigenen Touren: keine Preise, keinen Kundenstamm, keine Liegeplätze. Die Übernahme darf nur der Vollzugriff.
+
+> Tipp: Rechnungsentwürfe aus Lieferscheinen erstellt nur, wer zusätzlich die Fakturierung bearbeitet.
+> Tipp: Gruppen je Rolle trägt die IT unter „Berechtigungen“ ein.
+
+*Einrichtung: Vollzugriff*
 
 ### Werkzeug meldet fehlende Zustimmung
 

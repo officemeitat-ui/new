@@ -19,7 +19,8 @@ export const TOOLS = [
   { id: 'zaehler', name: 'wasserzaehler', module: 'zaehler', label: 'Wasserzähler', title: 'Wasserzähler-Ablesung', order: 72, text: 'Zählerstände je Quartal mit Fotos, Bericht für die Hausverwaltung, Jahreswechsel' },
   { id: 'kontrolle', name: 'objektkontrolle', module: 'kontrolle', label: 'Objektkontrolle', title: 'Objektkontrolle (Prüfprotokoll)', order: 73, text: 'Prüfprotokoll mit Bewertung, Fotos, Unterschriften und PDF' },
   { id: 'objektmappe', name: 'objektdoku', module: 'objektmappe', label: 'Objektdoku', title: 'Objektdokumentation (Leistungsverzeichnis)', order: 74, text: 'Objektakte, Leistungsverzeichnis, Objektblatt als PDF mit Öffnungscode' },
-  { id: 'matten', name: 'mattenwechsel', module: 'matten', label: 'Mattenwechsel', title: 'Mattenwechsel', order: 75, text: 'Touren, Lieferscheine und Nachweis des Mattenwechsels' },
+  // bis zur Umstellung parallel zum Mattenwechsel-Modul (views/matten.js): darum „(Werkzeug)“ im Namen
+  { id: 'matten', name: 'mattenwechsel', module: 'matten', label: 'Mattenwechsel (Werkzeug)', title: 'Mattenwechsel (Werkzeug)', order: 75, text: 'Touren, Lieferscheine und Nachweis des Mattenwechsels' },
 ]
 
 const frames = new Map() // Werkzeug → <iframe>, bleibt bis zum Neuladen der App

@@ -14,6 +14,7 @@ export const QUICK = [
   { id: 'qualitaet', label: 'Qualitätsmessung', module: 'qualitaet', action: 'qm-measure-open', words: 'qualität messung stichprobe en 13549 aql kennzahl nachkontrolle raumgruppe' },
   { id: 'umfrage', label: 'Umfrage-Runde öffnen (Kundenzufriedenheit)', module: 'zufriedenheit', action: 'kz-round-open', words: 'umfrage kundenzufriedenheit zufriedenheit nps weiterempfehlung bewertung feedback runde' },
   { id: 'pruefung', label: 'Prüfung erfassen (Anlage)', module: 'anlagen', action: 'anl-check-open', words: 'anlage prüffrist feuerlöscher rauchmelder spielplatz lift wartung hausbetreuung' },
+  { id: 'liegeplatz', label: 'Liegeplatz (Mattenwechsel)', module: 'matten', action: 'mw-edit-open', words: 'matte matten mattenwechsel liegeplatz schmutzfangmatte fußmatte' },
   { id: 'regie', label: 'Regiebericht (Sonderleistung)', module: 'regie', action: 'reg-new', words: 'regie regiestunden sonderleistung grundreinigung wasserschaden zusatzarbeiten unterschrift kunde auftrag' },
   { id: 'evaluierung', label: 'Evaluierung (Arbeitsschutz)', module: 'arbeitsschutz', action: 'asch-eval-open', words: 'arbeitsschutz evaluierung gefahr gefährdung maßnahme frist sicherheit unfall' },
   { id: 'bewerbung', label: 'Bewerbung erfassen', module: 'bewerber', action: 'bew-edit-open', words: 'bewerber bewerberin bewerbung personalsuche ams inserat initiativ lebenslauf' },

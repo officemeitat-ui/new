@@ -1,6 +1,6 @@
 # Mattenwechsel – Bestandsaufnahme und Umsetzungsplan
 
-Stand 6. November 2026. Grundlage: „Technisches Umsetzungskonzept – Mattenwechsel-Modul“ der Geschäftsführung (inkl. Nachtrag „Bestehende Mattenwechsel-App erweitern und modernisieren“). **Dieses Dokument ist die Analyse vor der Umsetzung – es wurde noch nichts am Mattenwechsel geändert.** Gebaut wird erst, wenn die offenen Entscheidungen (Abschnitt 9) getroffen sind.
+Stand 6. November 2026. Grundlage: „Technisches Umsetzungskonzept – Mattenwechsel-Modul“ der Geschäftsführung (inkl. Nachtrag „Bestehende Mattenwechsel-App erweitern und modernisieren“). **Dieses Dokument ist die Analyse vor der Umsetzung.** Die Entscheidungen der Geschäftsführung stehen in Abschnitt 9, der Stand der Umsetzung je Arbeitspaket in Abschnitt 7.
 
 Fachbegriff: In der App heißt die konkrete Position einer Matte beim Kunden durchgehend **Liegeplatz**. Das bestehende Werkzeug nennt ihn „Standort“ (in der Tour „Halt“) – das wird beim Umbau überall auf „Liegeplatz“ umgestellt.
 
@@ -277,6 +277,18 @@ Jedes Paket: eigener Commit, Unit-Tests der Rechenkerne, Browser-Test in `.pruef
 | optional | Fahrerseite ohne Microsoft-Konto (Webspace), Mattenbestand/Wäscherei, Google-Anbieter, Lieferscheine im Kundenbereich | je nach Entscheidung |
 
 Grobe Reihenfolge der Auslieferung: P1–P5 (Stammdaten + Übernahme) → P6–P9 (Planung) → P10–P13 (Fahrer + Lieferschein) → P14–P16. Nach jeder Phase ein Paket zum Hochladen; das alte Werkzeug bleibt bis P16 parallel nutzbar.
+
+### Stand der Umsetzung
+
+| Nr | Stand | Umsetzung |
+|---|---|---|
+| **P1** | **fertig** (6.11.2026) | Rechte-Modul `matten` (Werkzeug und Büro-Modul) und neues Modul `mattentour` (Fahrer). Rolle `mattenwechsel` heißt jetzt „Mattenwechsel Büro“ (Gruppen-Zuordnung in `config.json` gilt weiter; Module `matten`, `mattentour`), neue Rolle `mattenfahrer` „Fahrer Mattenwechsel“ (nur `mattentour`). Datei `matten/matten.json` (`{ schema: 1, settings, placements[], areas[] }`, `MODULE_DOCS.matten`), Rechte `matten/` (Büro) und `matten/touren/` (Büro, Fahrer) in `dataRights`, `FOLDERS` und der Rechte-Prüfung; Büro liest zusätzlich `objekte/`, Fahrer nichts außer `matten/touren/`. Ansichten „Matten-Liegeplätze“ (`mw-liegeplaetze`) und „Matten-Touren“ (`mw-touren`, noch leer) unter *Objekte & Kunden*, später geladen (`src/ui/views/matten.js`), Werkzeug unverändert unter `#matten` als „Mattenwechsel (Werkzeug)“. Leiste: Büro Werkzeug + Liegeplätze, Fahrer Touren. Suche, „+ Neu“, Cleo-Themen. Tests: `test/rechte.test.js`, `test/lazy.test.js`, `test/leiste.test.js`. |
+| P2, P3 | in Arbeit (Fakturierung) | Mattentypen = Artikel mit `group: 'Matten'` (Felder `size`, `color` werden genutzt, sonst Größe/Farbe aus dem Namen); bis es Typen gibt, zeigt das Modul einen Hinweis mit Weg in die Fakturierung. |
+| **P4** | **fertig** (6.11.2026) | Liegeplätze je Kunde (Fakturierung, nur lesend; ohne Recht Kopie am Liegeplatz) → Objekt (`customers[].objectIds`) → Tabelle Liegeplatz \| Matte \| Stückzahl \| Intervall \| nächster Wechsel; Dialog mit Name, Stockwerk, Zugang, Hinweis, Matten `[{ articleId, qty, owner }]` (+ Kopie von Name/Größe/Farbe), Intervall 14/28 (andere erlaubt), Starttermin, Regel `rhythmus`/`ab-ist`, Arbeitszeit, Zeitfenster, Pausen, Gebiet (`areas[]`), aktiv, Koordinaten (Objekt bzw. OpenStreetMap). „Nächster Wechsel“ vorerst über die markierte Hilfsfunktion `nextChangeSimple` (wird durch `jobsFor` aus P6 ersetzt). Rechenkern `src/core/matten.js`, Tests `test/matten.test.js` (Konzept-Beispiel mit 3 Liegeplätzen, 14/28 Tage). |
+| **P5** | **fertig** (6.11.2026) | Übernahme-Assistent (nur Vollzugriff, Reiter in „Matten-Liegeplätze“): Sicherung nach `Mattenwechsel/_Sicherung/<Datum>/` (Standorte.json, Kunden.json, Liste der Tour-Dateien; nichts wird ersetzt), Vorschau mit Zuordnung von Hand (Kunden über Kundennummer, sonst Name; fehlende nur auf Klick anlegen; Objekte je Kunde und Adresse, vorhandene wiederverwendet; Größe/Farbe → Mattentyp, fehlende genannt), Übernehmen mit `legacyId`, Intervall Wochen → Tage, letzter Wechsel aus allen Tour-Dateien. Idempotent, alte Dateien nie geschrieben, alte Touren/PDFs nicht zu Belegen. Kern `src/core/matten-import.js`, Oberfläche `src/ui/views/matten-uebernahme.js`, Tests `test/matten-import.test.js` mit erfundenen Werkzeug-Beispieldaten (`src/data/demo-matten.js`); Browser-Prüfung mit SharePoint-Attrappe (Sicherung angelegt, Werkzeug-Dateien unverändert, zweiter Lauf ohne Änderung). |
+| P6–P16 | offen | wie oben |
+
+Annahmen dieser Phase (bis zur Entscheidung): übernommene Liegeplätze behalten die Regel des Werkzeugs („ab dem letzten Wechsel“) und haben keinen Starttermin; neue Liegeplätze beginnen mit „fester Rhythmus ab Start“ (E5). Werkzeug-Kunden ohne Vorschlag werden nicht übernommen, bis jemand „neu anlegen“ oder einen Kunden wählt (E3). Neue Kunden bekommen die Lieferschein-Adressen des Werkzeugs als `deliveryNoteEmail` (Feldname aus Abschnitt 3.2), keine Rechnungs-Mail. Liegeplätze desselben Kunden an derselben Adresse werden ein Objekt; zwei Kunden an einer Adresse ergeben zwei Objekte (ein Objekt gehört in der Fakturierung genau einem Kunden). Übernommene Liegeplätze lassen sich nur inaktiv setzen, nicht löschen (sonst holt sie ein späterer Lauf wieder).
 
 ---
 

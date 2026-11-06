@@ -2,7 +2,7 @@
 // Anlagen & Prüffristen in demo-anlagen.js, Regieberichte in demo-regie.js, Qualitätsmessung in demo-qualitaet.js, Arbeitsschutz in demo-arbeitsschutz.js
 // (dort auch die Angaben zu Arbeitsstoffen an den Material-Artikeln).
 // Kundenzufriedenheit in demo-zufriedenheit.js.
-// Bewerbungen in demo-bewerber.js.
+// Bewerbungen in demo-bewerber.js. Mattenwechsel-Modul (Liegeplätze) in demo-matten.js.
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
@@ -17,6 +17,7 @@ import { createQualitaetDemo } from './demo-qualitaet.js'
 import { createArbeitsschutzDemo, stoffDemo } from './demo-arbeitsschutz.js'
 import { createZufriedenheitDemo } from './demo-zufriedenheit.js'
 import { createBewerberDemo } from './demo-bewerber.js'
+import { createMattenDemo } from './demo-matten.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -245,6 +246,7 @@ export function createModuleDemo(monday, employees = []) {
     schluessel: demoKeys(),
     anlagen: createAnlagenDemo(),
     regie: createRegieDemo(),
+    matten: createMattenDemo(),
     qualitaet: createQualitaetDemo(),
     zufriedenheit: createZufriedenheitDemo(),
     ...createBewerberDemo(),

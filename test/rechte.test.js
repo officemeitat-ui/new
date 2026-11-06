@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', bewerbung: '', eintritt: '', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', bewerbung: '', eintritt: '', matten: '', 'matten/touren': '', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -269,10 +269,12 @@ test('Rechte: Mattenwechsel wird pro Gruppe zugewiesen', () => {
   const acc = { ...access, groups: { ...access.groups, mattenwechsel: [MW] } }
   const mw = resolveAccess({ groupClaims: [MW], access: acc, strict: true })
   assert.ok(mw.sees('matten') && mw.canEdit('matten'))
-  for (const m of ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'fahrzeuge', 'auswertung', 'stammdaten']) assert.ok(!mw.sees(m), m)
-  // die App selbst liest für diese Gruppe nichts aus der Plattform-Ablage
+  assert.equal(mw.label, 'Mattenwechsel Büro', 'die bisherige Gruppe ist jetzt „Mattenwechsel Büro“')
+  for (const m of ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'fahrzeuge', 'auswertung', 'stammdaten', 'fakturierung']) assert.ok(!mw.sees(m), m)
+  // aus der Plattform-Ablage: nur die Objekte (Liegeplätze je Objekt) und das Modul, keine Stammdaten, Pläne, Preise
   const r = dataRights(mw)
-  for (const p of [DOC.objects, DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26')]) assert.ok(!r.read(p), p)
+  for (const p of [DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.fakturierung.path]) assert.ok(!r.read(p), p)
+  assert.ok(r.read(DOC.objects) && !r.write(DOC.objects))
   // SharePoint: Mattenwechsel und Kundenstamm bearbeiten (Kundenliste beim Abschließen), sonst nichts
   const tools = Object.fromEntries(toolFolderRights(mw).map(([f, , x]) => [f, x]))
   assert.deepEqual(tools, { 'Wasserzähler - Ablesung': '', Objektpruefprotokolle: '', Objektdoku: '', Mattenwechsel: 'Bearbeiten', Stammdaten: 'Bearbeiten' })
@@ -281,6 +283,44 @@ test('Rechte: Mattenwechsel wird pro Gruppe zugewiesen', () => {
   assert.ok(beide.sees('matten') && beide.sees('zaehler'))
   // ohne Eintrag sieht nur Vollzugriff den Mattenwechsel
   assert.ok(!resolveAccess({ groupClaims: [OM], access: acc, strict: true }).sees('matten'))
+})
+
+test('Rechte: Mattenwechsel-Modul – Büro bearbeitet Liegeplätze, Fahrer nur Touren (keine Preise, kein Kundenstamm), andere nichts', () => {
+  const role = (id) => resolveAccess({ roleClaims: [id], access, strict: true })
+  const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , x]) => [f, x]))
+  const tools = (acc) => Object.fromEntries(toolFolderRights(acc).map(([f, , x]) => [f, x]))
+  const FILE = MODULE_DOCS.matten.path
+  const TOUR = 'matten/touren/2026/T-abc.json'
+  assert.equal(FILE, 'matten/matten.json')
+  // Büro: Modul und Werkzeug bearbeiten, Touren auch (planen, freigeben); Objekte lesen; Fakturierung nicht
+  const buero = role('mattenwechsel')
+  const br = dataRights(buero)
+  assert.ok(buero.canEdit('matten') && buero.canEdit('mattentour') && br.write(FILE) && br.write(TOUR) && br.read(DOC.objects))
+  assert.ok(!br.read(MODULE_DOCS.fakturierung.path) && !br.read(DOC.master))
+  assert.deepEqual([rows(buero).matten, rows(buero)['matten/touren'], rows(buero).objekte, rows(buero).fakturierung], ['Bearbeiten', 'Bearbeiten', 'Lesen', ''])
+  assert.deepEqual(tools(buero), { 'Wasserzähler - Ablesung': '', Objektpruefprotokolle: '', Objektdoku: '', Mattenwechsel: 'Bearbeiten', Stammdaten: 'Bearbeiten' })
+  // Fahrer: nur das Fahrer-Modul und matten/touren/; kein Schreibrecht (auch kein Lesen) auf matten/matten.json
+  const fahrer = role('mattenfahrer')
+  const fr = dataRights(fahrer)
+  assert.equal(fahrer.label, 'Fahrer Mattenwechsel')
+  assert.ok(fahrer.sees('mattentour') && fahrer.canEdit('mattentour') && !fahrer.sees('matten'))
+  assert.ok(fr.read(TOUR) && fr.write(TOUR))
+  assert.ok(!fr.read(FILE) && !fr.write(FILE), 'Liegeplätze und Gebiete nicht')
+  for (const p of [MODULE_DOCS.fakturierung.path, DOC.objects, DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.assistenz.path]) assert.ok(!fr.read(p), `Fahrer liest ${p} nicht`)
+  assert.ok(!fahrer.sees('fakturierung') && !fahrer.sees('stammdaten'))
+  assert.deepEqual([rows(fahrer).matten, rows(fahrer)['matten/touren'], rows(fahrer).fakturierung, rows(fahrer).objekte], ['', 'Bearbeiten', '', ''])
+  assert.ok(Object.values(tools(fahrer)).every((x) => x === ''), 'kein Werkzeug-Ordner, kein Kundenstamm')
+  // Vollzugriff: alles inkl. Übernahme; Lager und die übrigen Rollen sehen nichts davon
+  const voll = dataRights(resolveAccess({ email: 'office@cleanos.at', access, strict: true }))
+  assert.ok(voll.write(FILE) && voll.write(TOUR))
+  for (const id of ['lager', 'objektleitung', 'objektmanagement', 'objektservice', 'buchhaltung', 'vorarbeiter', 'lesen', 'pruefer', 'fuhrpark', 'lohnverrechnung', 'personalverwaltung', 'ableser']) {
+    const acc = role(id)
+    assert.ok(!acc.sees('matten') && !acc.sees('mattentour') && !dataRights(acc).read(FILE) && !dataRights(acc).read(TOUR), id)
+    assert.deepEqual([rows(acc).matten, rows(acc)['matten/touren']], ['', ''], id)
+  }
+  // beide Rollen zusammen: wie Büro
+  const beide = resolveAccess({ roleClaims: ['mattenfahrer', 'mattenwechsel'], access, strict: true })
+  assert.ok(dataRights(beide).write(FILE) && dataRights(beide).write(TOUR))
 })
 
 test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserzähler)', async () => {

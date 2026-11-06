@@ -33,7 +33,9 @@ const KEYWORDS = {
   kontrolle: 'Prüfprotokoll Qualitätskontrolle',
   qualitaet: 'Qualität Qualitätsmessung Stichprobe EN 13549 AQL Kennzahl Raumgruppe Nachkontrolle Messung Bericht',
   zufriedenheit: 'Kundenzufriedenheit Zufriedenheit Umfrage Kundenumfrage NPS Weiterempfehlung Bewertung Sterne Feedback Rückmeldung Rückruf',
-  matten: 'Matten Mattenwechsel Tour Lieferschein',
+  matten: 'Matten Mattenwechsel Tour Lieferschein Werkzeug',
+  'mw-liegeplaetze': 'Matten Mattenwechsel Liegeplatz Liegeplätze Schmutzfangmatte Fußmatte Intervall Gebiet Tourrunde Übernahme',
+  'mw-touren': 'Matten Mattenwechsel Tour Touren Fahrer Lieferschein',
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
   fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten Brief Serienbrief Briefpapier Weiterverrechnung',
@@ -74,6 +76,12 @@ function results(q) {
       const type = typeOf(app.data.anlagen, x.typeId)?.name || ''
       const obj = app.data.objects.find((o) => o.id === x.objectId)?.name || ''
       if (hit(x.label, x.serial, x.maker, x.company, `${type} ${obj}`)) out.push({ group: 'Anlagen', label: `${type}: ${x.label}`, sub: obj, action: 'anl-edit-open', data: { id: x.id } })
+    }
+  // Mattenwechsel: Liegeplätze (Name, Nummer aus dem Werkzeug, Kunde, Objekt)
+  if (sees('matten'))
+    for (const p of app.data.matten?.placements || []) {
+      const obj = app.data.objects.find((o) => o.id === p.objectId)?.name || ''
+      if (hit(p.name, p.legacyId, `${p.customer?.name || ''} ${obj}`, `Matte ${p.name}`, `Liegeplatz ${obj}`)) out.push({ group: 'Liegeplätze (Matten)', label: p.name, sub: [p.customer?.name, obj].filter(Boolean).join(' · '), action: 'mw-edit-open', data: { id: p.id } })
     }
   // Regieberichte: Nummer, Leistung, Auftraggeber, Objekt
   if (sees('regie'))
