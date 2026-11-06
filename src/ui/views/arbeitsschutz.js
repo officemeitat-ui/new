@@ -8,6 +8,8 @@
 // arbeitsschutz/dokumente/. Der digitale Mitarbeiter „Fristen“ (disponent.js) liest dieselben Dateien.
 // Rechte: Arbeitsschutz bearbeiten (Evaluierung, Betriebsanweisungen) = Modul „arbeitsschutz“; die Angaben am Artikel
 // = Modul „arbeitsstoffe“ (Lager, Vollzugriff). Aktionen und Dialoge mit dem Kürzel „asch-“.
+// „Aus Sicherheitsdatenblatt lesen (KI)“ (Kürzel „kix-“, nur mit eingerichteter KI, ui/kix.js): liest das gewählte bzw.
+// abgelegte PDF (ai/extract.js → extractSdb), füllt nur leere Felder als Vorschlag; gespeichert wird mit „Speichern“.
 
 import {
   attention,
@@ -51,6 +53,8 @@ import { app, canEdit, closeModal, confirmStep, mayEdit, memo, openModal, persis
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { KI_LIMITS } from '../../core/ki-vorschlag.js'
+import { kixBox, kixButton, kixConsent, kixFailed, kixFile, kixSet } from '../kix.js'
 
 const MODULE = 'arbeitsschutz'
 const STOFFE = 'arbeitsstoffe'
@@ -345,6 +349,10 @@ function stoffModal(c, m) {
   const ghsBox = GHS.map((g) => `<label class="check asch-pick"><input type="checkbox" name="asch-s-ghs" value="${g.id}" ${d.ghs.includes(g.id) ? 'checked' : ''} ${dis}>${ghsSvg(g.id, 30)}<span>${g.id}<br><span class="muted">${esc(g.name)}</span></span></label>`).join('')
   const objs = app.data.objects.filter((o) => !o.inactive || d.objectIds.includes(o.id)).sort((x, y) => x.name.localeCompare(y.name, 'de'))
   const fromMoves = a ? rowsAt(today).find((r) => r.article.id === a.id)?.objectIds.filter((id) => !d.objectIds.includes(id)) || [] : []
+  // von der KI aus dem Sicherheitsdatenblatt gelesene Felder: markiert, bis gespeichert ist
+  const ki = (key) => (m.kixFields?.includes(key) ? ' kix-mark' : '')
+  const kiTag = (key) => (m.kixFields?.includes(key) ? ' <span class="kix-tag">KI</span>' : '')
+  const kiRead = ed && (d.file || d.sdb) ? kixButton('<button type="button" class="btn kix-btn" data-action="kix-sdb">Aus Sicherheitsdatenblatt lesen (KI)</button>') : ''
   const fileChip = d.file
     ? `<span class="pill anl-file">${ICON.upload} ${esc(d.file.name)} <button type="button" class="btn small ghost" data-action="asch-sdb-del" data-kind="neu" aria-label="Datei entfernen">${ICON.close}</button></span>`
     : d.sdb
@@ -357,20 +365,21 @@ function stoffModal(c, m) {
     body: `${fresh ? `<div class="form-grid"><label class="field wide"><span>Artikel</span><select id="asch-s-article" data-change="asch-stoff-redraw" ${dis}>${options(articles.map((x) => [x.id, `${x.name}${isStoff(x) ? ' (im Verzeichnis)' : ''}`]), d.articleId, { empty: '– Artikel –' })}</select></label></div>` : ''}
       ${a ? `<label class="check"><input type="checkbox" id="asch-s-on" ${d.on ? 'checked' : ''} ${dis}><span>im Arbeitsstoffverzeichnis führen</span></label>
       <div class="form-grid">
-        <label class="field"><span>Hersteller</span><input type="text" id="asch-s-maker" value="${esc(d.maker)}" placeholder="laut Sicherheitsdatenblatt" ${dis}></label>
-        <label class="field"><span>Produktname</span><input type="text" id="asch-s-product" value="${esc(d.product)}" placeholder="${esc(a.name)}" ${dis}></label>
+        <label class="field${ki('maker')}"><span>Hersteller${kiTag('maker')}</span><input type="text" id="asch-s-maker" value="${esc(d.maker)}" placeholder="laut Sicherheitsdatenblatt" ${dis}></label>
+        <label class="field${ki('product')}"><span>Produktname${kiTag('product')}</span><input type="text" id="asch-s-product" value="${esc(d.product)}" placeholder="${esc(a.name)}" ${dis}></label>
         <label class="field wide"><span>Verwendung</span><input type="text" id="asch-s-use" value="${esc(d.use)}" placeholder="z. B. Sanitärreinigung, 1:20 verdünnt" ${dis}></label>
       </div>
-      <fieldset class="asch-picks"><legend>Gefahrenpiktogramme</legend>${ghsBox}</fieldset>
+      <fieldset class="asch-picks${ki('ghs') ? ' kix-picks' : ''}"><legend>Gefahrenpiktogramme${kiTag('ghs')}</legend>${ghsBox}</fieldset>
       <div class="form-grid">
-        <label class="field"><span>Signalwort</span><select id="asch-s-signal" ${dis}>${options(Object.entries(SIGNALS), d.signal)}</select></label>
-        <label class="field"><span>H-Sätze (Kürzel)</span><input type="text" id="asch-s-h" value="${esc(d.h)}" placeholder="z. B. H290, H314" ${dis}></label>
-        <label class="field wide"><span>P-Sätze (Kürzel)</span><input type="text" id="asch-s-p" value="${esc(d.p)}" placeholder="z. B. P280, P305+P351+P338" ${dis}></label>
+        <label class="field${ki('signal')}"><span>Signalwort${kiTag('signal')}</span><select id="asch-s-signal" ${dis}>${options(Object.entries(SIGNALS), d.signal)}</select></label>
+        <label class="field${ki('h')}"><span>H-Sätze (Kürzel)${kiTag('h')}</span><input type="text" id="asch-s-h" value="${esc(d.h)}" placeholder="z. B. H290, H314" ${dis}></label>
+        <label class="field wide${ki('p')}"><span>P-Sätze (Kürzel)${kiTag('p')}</span><input type="text" id="asch-s-p" value="${esc(d.p)}" placeholder="z. B. P280, P305+P351+P338" ${dis}></label>
       </div>
       <fieldset class="asch-picks asch-ppe"><legend>Schutzausrüstung</legend>${PPE.map((x) => `<label class="check"><input type="checkbox" name="asch-s-ppe" value="${esc(x)}" ${d.ppe.includes(x) ? 'checked' : ''} ${dis}><span>${esc(x)}</span></label>`).join('')}</fieldset>
       <section><h3>Sicherheitsdatenblatt ${sdb ? sdbPill(sdb) : ''}</h3>
-        <div class="form-grid"><label class="field"><span>Fassung vom (Überarbeitung)</span><input type="date" id="asch-s-sdbdate" value="${esc(d.sdbDate)}" max="${today}" ${dis}></label></div>
-        <div class="ek-beleg-bar">${ed ? `<label class="btn">${ICON.upload} PDF hochladen<input type="file" accept="application/pdf" data-change="asch-sdb-file" hidden></label>` : ''}${fileChip}${a.sds && /^https?:\/\//i.test(a.sds) ? ` <a href="${esc(a.sds)}" target="_blank" rel="noopener">Link am Artikel</a>` : ''}</div>
+        <div class="form-grid"><label class="field${ki('sdbDate')}"><span>Fassung vom (Überarbeitung)${kiTag('sdbDate')}</span><input type="date" id="asch-s-sdbdate" value="${esc(d.sdbDate)}" max="${today}" ${dis}></label></div>
+        <div class="ek-beleg-bar">${ed ? `<label class="btn">${ICON.upload} PDF hochladen<input type="file" accept="application/pdf" data-change="asch-sdb-file" hidden></label>` : ''}${fileChip}${kiRead}${a.sds && /^https?:\/\//i.test(a.sds) ? ` <a href="${esc(a.sds)}" target="_blank" rel="noopener">Link am Artikel</a>` : ''}</div>
+        ${kixBox('sdb')}
         ${sdb?.state === 'veraltet' ? `<p class="note">Älter als ${settings().sdbYears} Jahre: beim Lieferanten nach der aktuellen Fassung fragen.</p>` : sdb?.state === 'fehlt' ? '<p class="note">Das Sicherheitsdatenblatt gibt es beim Lieferanten oder Hersteller (meist zum Herunterladen).</p>' : ''}
       </section>
       <details class="asch-objs-wrap"><summary>Objekte zuordnen (${d.objectIds.length}, dazu aus Ausgaben: ${fromMoves.length})</summary>
@@ -432,6 +441,51 @@ async function saveStoff() {
   renderNow()
   const s = sdbState({ ...a, haz }, todayISO(), settings().sdbYears)
   toast(`${d.product || a.name} gespeichert${haz.on ? `; Sicherheitsdatenblatt: ${SDB_STATES[s.state]}` : ', nicht im Verzeichnis'}${sdb?.queued ? '; die Datei wird hochgeladen, sobald wieder Netz da ist' : ''}.`)
+}
+
+// ---------------------------------------------------------------- Sicherheitsdatenblatt mit KI lesen
+
+const SIGNAL_IDS = { Gefahr: 'gefahr', Achtung: 'achtung' }
+const SDB_LABELS = { maker: 'Hersteller', product: 'Produktname', ghs: 'Piktogramme', signal: 'Signalwort', h: 'H-Sätze', p: 'P-Sätze', sdbDate: 'Fassung' }
+
+/** Das PDF zum Lesen: gerade gewählt oder schon abgelegt (im Browser-Modus nur aus diesem Fenster). */
+async function sdbPdf(d) {
+  if (d.file) return d.file
+  if (!d.sdb) return null
+  const blob = LOCAL.get(d.sdb.path) || (d.sdb.local ? null : await app.store?.readBlob?.(d.sdb.path).catch(() => null))
+  return blob ? new File([blob], d.sdb.name || 'Sicherheitsdatenblatt.pdf', { type: 'application/pdf' }) : null
+}
+
+/**
+ * Ergebnis von extractSdb in den Entwurf: nur leere Felder füllen (Piktogramme nur, wenn keines angehakt ist),
+ * markiert; schon ausgefüllte bleiben und stehen im Hinweis. Gespeichert wird erst mit „Speichern“.
+ */
+function applySdb(m, res) {
+  const d = m.draft
+  const filled = []
+  const kept = []
+  const fill = (key, value, empty) => {
+    if (!value || (Array.isArray(value) && !value.length)) return
+    if (empty) {
+      d[key] = value
+      filled.push(key)
+    } else if (JSON.stringify(d[key]) !== JSON.stringify(value)) kept.push(SDB_LABELS[key])
+  }
+  fill('maker', res.hersteller, !d.maker)
+  fill('product', res.produkt, !d.product)
+  fill('ghs', GHS.map((g) => g.id).filter((id) => res.ghs.includes(id)), !d.ghs.length)
+  fill('signal', SIGNAL_IDS[res.signalwort] || '', !d.signal)
+  fill('h', res.hSaetze.map((x) => x.toUpperCase()).join(', '), !d.h)
+  fill('p', res.pSaetze.join(', '), !d.p)
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(res.fassung) && res.fassung <= todayISO() ? res.fassung : ''
+  fill('sdbDate', date, !d.sdbDate)
+  m.kixFields = filled
+  const items = [
+    ...(kept.length ? [{ level: 'info', text: `Schon ausgefüllt, nicht geändert: ${kept.join(', ')}.` }] : []),
+    ...(res.fassung && !date ? [{ level: 'warning', text: `Fassung laut Datenblatt: „${res.fassung}“ – bitte das Datum selbst eintragen.` }] : []),
+    ...res.hinweise,
+  ]
+  kixSet('sdb', { notice: { title: filled.length ? 'Aus dem Sicherheitsdatenblatt gelesen – bitte prüfen. Gespeichert wird erst mit „Speichern“.' : 'Aus dem Sicherheitsdatenblatt gelesen: alle Felder waren schon ausgefüllt.', items } })
 }
 
 // ---------------------------------------------------------------- Betriebsanweisung
@@ -822,6 +876,28 @@ registerActions(
       if (el.dataset.kind === 'neu') d.file = null
       else d.sdb = null
       renderModal()
+    },
+    'kix-sdb': async (el) => {
+      const m = app.ui.modal
+      if (m?.type !== 'asch-stoff' || m.kix?.sdb?.busy) return
+      const d = readStoff()
+      const file = await sdbPdf(d)
+      if (!file) return kixSet('sdb', { error: 'Kein PDF zum Lesen: bitte das Sicherheitsdatenblatt als PDF hochladen.' })
+      if (!el?.dataset?.consent && !kixConsent('sdb', 'Das Sicherheitsdatenblatt (PDF)', { action: 'kix-sdb' })) return
+      const articleId = d.articleId
+      kixSet('sdb', { busy: 'Die KI liest das Sicherheitsdatenblatt …' })
+      try {
+        const pdf = await kixFile(file, { pages: KI_LIMITS.sdbPages })
+        if (pdf.kind !== 'pdf') throw new Error('Bitte das Sicherheitsdatenblatt als PDF nehmen.')
+        const { extractSdb } = await import('../../ai/extract.js')
+        const res = await extractSdb(pdf.data)
+        if (app.ui.modal !== m || m.draft?.articleId !== articleId) return
+        readStoff()
+        applySdb(m, res)
+        renderModal()
+      } catch (err) {
+        if (app.ui.modal === m) kixSet('sdb', { error: kixFailed(err) })
+      }
     },
   },
   { edit: STOFFE },

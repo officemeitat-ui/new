@@ -1484,7 +1484,7 @@ tr.muted td { color: var(--muted); }
 .kix-busy { margin: 0; color: var(--muted); }
 .kix-error { margin: 0; padding: 8px 12px; border-radius: var(--radius); background: var(--err-soft); color: var(--err); font-weight: 600; }
 .kix-mark :is(input, select, textarea):not(.ek-amounts *):not(.reg-row *), .ek-amounts.kix-mark input:not([value=""]):not(:disabled) { border-color: var(--info); box-shadow: 0 0 0 1px var(--info); }
-.check.kix-mark, .ek-checks.kix-mark { outline: 1px solid var(--info); outline-offset: 2px; border-radius: var(--radius); }
+.check.kix-mark, .ek-checks.kix-mark, .kix-picks { outline: 1px solid var(--info); outline-offset: 2px; border-radius: var(--radius); }
 .reg-row.kix-mark { border-left: 3px solid var(--info); padding-left: 6px; }
 .kix-tag { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; font-size: 0.75em; font-weight: 700; line-height: 1.5; vertical-align: middle; color: var(--info); background: var(--info-soft); }
 .kix-diktat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; }

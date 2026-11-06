@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 315 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 316 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (55)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (70)
-- [Verwaltung](#verwaltung) (55)
+- [Verwaltung](#verwaltung) (56)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (40)
 - [Begriffe](#begriffe)
 
@@ -3323,6 +3323,22 @@ Beim Arbeitsstoff „PDF hochladen“ und das Datum der Fassung eintragen; die D
 
 > Tipp: Ein Link zum Sicherheitsdatenblatt am Artikel zählt auch, dann nur das Datum der Fassung eintragen.
 > Tipp: Die 3 Jahre sind eine eigene Vorgabe, keine gesetzliche Frist: die aktuelle Fassung gibt es beim Lieferanten.
+
+### Angaben aus dem Sicherheitsdatenblatt lesen (KI)
+
+*In der App: Arbeitsschutz*
+
+Ist der KI-Assistent eingerichtet, steht beim Arbeitsstoff neben dem Sicherheitsdatenblatt „Aus Sicherheitsdatenblatt lesen (KI)“. Die KI liest Hersteller, Produktname, Piktogramme, Signalwort, H- und P-Sätze und die Fassung aus dem PDF. Die App prüft die Kürzel und füllt nur leere Felder, markiert zum Prüfen.
+
+1. Arbeitsstoff öffnen und das Sicherheitsdatenblatt als PDF hochladen (oder das schon abgelegte nehmen).
+2. „Aus Sicherheitsdatenblatt lesen (KI)“ klicken.
+3. Markierte Felder mit Abschnitt 2 des Datenblatts vergleichen.
+4. „Speichern“.
+
+> Tipp: Schon ausgefüllte Felder ändert die KI nicht.
+> Tipp: PDF bis 3 MB und 30 Seiten; beim ersten Mal fragt die App, ob das Datenblatt an den KI-Dienst gehen darf.
+
+*Bearbeiten: Vollzugriff, Lager & Einkauf*
 
 ### Betriebsanweisung erstellen und aushängen
 

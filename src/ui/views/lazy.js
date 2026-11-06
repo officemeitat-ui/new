@@ -317,7 +317,7 @@ lazy(BUERO, {
   ],
   modals: 'asch-stoff asch-ba asch-eval asch-settings',
   actions: `asch-tab asch-search asch-only asch-all-m asch-goto asch-stoff-open asch-stoff-redraw asch-sdb-open asch-ba-open asch-ba-redraw asch-ba-pdf
-    asch-eval-open asch-eval-redraw asch-verz-pdf asch-verz-csv asch-sgd-pdf asch-stoff-save asch-sdb-file asch-sdb-del asch-ba-save asch-ba-delete
+    asch-eval-open asch-eval-redraw asch-verz-pdf asch-verz-csv asch-sgd-pdf asch-stoff-save asch-sdb-file asch-sdb-del kix-sdb asch-ba-save asch-ba-delete
     asch-ba-fill asch-ba-type asch-eval-save asch-eval-delete asch-tpl-add asch-reviewed asch-haz-add asch-haz-del asch-m-add asch-m-del asch-m-set
     asch-settings-open asch-settings-save`,
   // arbeitsstoffe: Sicherheitsdatenblätter für das Lager (eigene Quelle, Recht „Arbeitsstoffe“)
