@@ -11,6 +11,7 @@ import { employedOn, sollMinutes } from '../../core/contract.js'
 import { addDays, formatDate, isoWeek, mondayOf, MONTH_LONG, todayISO } from '../../core/dates.js'
 import { absenceRates, aging, cashBalance, complaintsByMonth, complaintsTopObjects, contribution, lastMonths, lastWeeks, materialByObject, materialMonths, payablesAging, PERIODS, plusHours, revenueByObject, revenueMonths, spendingMonths, topCustomers, trend, utilization, weekStats } from '../../core/kpi.js'
 import { mergeRules } from '../../core/rules.js'
+import { fmtAvg, fmtNps, fmtRate, history as kzHistory, periodShort, scopeObjectIds } from '../../core/zufriedenheit.js'
 import { buildTimesheet, summarizeDays } from '../../core/timesheet.js'
 import { app, computeRange, memo, registerActions, registerView, render, seesAbsenceReasons } from '../context.js'
 import { barList, columnChart, legend, lineChart, sparkline, tableView } from '../kpi-charts.js'
@@ -106,6 +107,11 @@ function build(p) {
     }
   }
   if (sees('material')) out.material = materialMonths(data.material || {}, months)
+  // Kundenzufriedenheit: Runden mit Antworten (Objektleitung: nur ihre Objekte)
+  if (sees('zufriedenheit') && data.zufriedenheit?.answers?.length) {
+    const scope = scopeObjectIds({ all: !app.access || !!app.access.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: data.objects || [] })
+    out.kz = kzHistory(data.zufriedenheit, { today, scope }).filter((x) => x.count)
+  }
   // Einkauf & Kasse: Ausgaben (Eingangsrechnungen), offene Verbindlichkeiten, Kassenstand
   if (sees('einkauf')) {
     out.spending = spendingMonths(data.einkauf || {}, months)
@@ -176,6 +182,10 @@ function tiles(d) {
     const open = d.payables.reduce((s, x) => s + x.amount, 0)
     const overdue = d.payables.filter((x) => x.id !== 'nicht').reduce((s, x) => s + x.amount, 0)
     out.push(tile({ label: 'Offene Verbindlichkeiten', value: euro(open), sub: overdue ? `davon ${euro(overdue)} überfällig` : 'nichts überfällig', cur: open, view: 'einkauf' }))
+  }
+  if (d.kz?.length) {
+    const [prev, cur] = d.kz.length > 1 ? d.kz.slice(-2) : [null, d.kz[0]]
+    out.push(tile({ label: 'Kundenzufriedenheit', value: `${fmtAvg(cur.overall)} von 5`, sub: `NPS ${fmtNps(cur.nps)} · Rücklauf ${fmtRate(cur.rate)} (${periodShort(cur.period)})`, cur: cur.overall, prev: prev?.overall ?? null, goodUp: true, deltaFmt: fmtAvg, spark: d.kz.map((x) => x.overall), view: 'zufriedenheit', vs: 'Vorrunde' }))
   }
   if (d.cash !== undefined) out.push(tile({ label: 'Kassenstand', value: euro(d.cash), sub: 'laut Kassenbuch', cur: d.cash, view: 'kassenbuch' }))
   // genau eine große Zahl: die erste Kachel
@@ -275,7 +285,7 @@ function kpiView(c) {
   const t = tiles(d)
   const ch = charts(d)
   return `<div class="kpi-root">
-    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Umsatz, Ausgaben, Kasse und Material. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
+    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Ausgaben, Kasse und Material. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
     <div class="filters kpi-filters" role="group" aria-label="Zeitraum">${filters}</div>
     ${t ? `<div class="kpi-tiles">${t}</div>` : ''}
     ${ch ? `<div class="kpi-grid">${ch}</div>` : '<p class="empty">Für deine Rolle gibt es hier noch keine Kennzahlen.</p>'}

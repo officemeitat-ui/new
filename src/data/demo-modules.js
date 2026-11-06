@@ -1,6 +1,7 @@
 // Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus);
 // Anlagen & Prüffristen in demo-anlagen.js, Regieberichte in demo-regie.js, Qualitätsmessung in demo-qualitaet.js, Arbeitsschutz in demo-arbeitsschutz.js
 // (dort auch die Angaben zu Arbeitsstoffen an den Material-Artikeln).
+// Kundenzufriedenheit in demo-zufriedenheit.js.
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
@@ -13,6 +14,7 @@ import { createAnlagenDemo } from './demo-anlagen.js'
 import { createRegieDemo } from './demo-regie.js'
 import { createQualitaetDemo } from './demo-qualitaet.js'
 import { createArbeitsschutzDemo, stoffDemo } from './demo-arbeitsschutz.js'
+import { createZufriedenheitDemo } from './demo-zufriedenheit.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -242,6 +244,7 @@ export function createModuleDemo(monday, employees = []) {
     anlagen: createAnlagenDemo(),
     regie: createRegieDemo(),
     qualitaet: createQualitaetDemo(),
+    zufriedenheit: createZufriedenheitDemo(),
     termine: demoAppointments(monday, employees),
     material,
     arbeitsschutz: createArbeitsschutzDemo(todayISO(), material.articles),

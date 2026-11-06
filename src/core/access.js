@@ -31,6 +31,7 @@ export const MODULES = {
   arbeitsschutz: 'Arbeitsschutz',
   // Angaben zu Gefahren und Sicherheitsdatenblatt am Material-Artikel (Arbeitsstoffverzeichnis), ohne Evaluierung
   arbeitsstoffe: 'Arbeitsstoffe',
+  zufriedenheit: 'Kundenzufriedenheit',
   termine: 'Termine',
   fakturierung: 'Fakturierung',
   einkauf: 'Einkauf & Kasse',
@@ -45,12 +46,14 @@ export const DEFAULT_ROLES = {
   // Qualitätsmessung: Objektmanagement und Objektleitung messen beim Kunden (der Objektservice misst sich nicht selbst)
   // Arbeitsschutz: Objektmanagement und Objektleitung lesen (Arbeitsstoffe, Betriebsanweisungen drucken, Evaluierung);
   // bearbeiten nur der Vollzugriff; die Angaben am Artikel (Gefahren, Sicherheitsdatenblatt) pflegt das Lager
-  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'] },
+  // Kundenzufriedenheit: Objektmanagement und Objektleitung lesen die Auswertung ihrer Objekte; Fragen, Rhythmus und
+  // Einladungen nur Vollzugriff (bzw. eine eigene Rolle mit Bearbeiten, die auch den Kundenbereich bearbeitet)
+  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   // eigene Microsoft-Gruppe für den Mattenwechsel (Fahrer:innen, Disposition der Touren)
   mattenwechsel: { label: 'Mattenwechsel', modules: ['matten'], edit: ['matten'] },
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung'], edit: ['auswertung'] },
-  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet'] },
+  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
   // Regieberichte: erfasst Sonderleistungen vor Ort und lässt sie am Handy unterschreiben
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'anlagen', 'regie'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material', 'anlagen', 'regie'] },

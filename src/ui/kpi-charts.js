@@ -34,13 +34,14 @@ const labelEvery = (n, w) => Math.max(1, Math.ceil(n / Math.max(2, Math.floor(w 
  * Linien (1–3 Reihen, gleiche Einheit): series [{ id, label, color (CSS-Variable), values[] }].
  * labels: x-Beschriftungen (kurz), titles: Tooltip-Überschriften je x, fmt(v) → Text, axis(v) → Text.
  * min: Untergrenze der y-Achse (Standard 0), z. B. 80 für Prozentwerte nahe 100 (Qualitätskennzahl).
+ * top: Obergrenze, die die Achse mindestens zeigt (z. B. 5 bei einer Bewertung 1–5), sonst nach den Werten.
  */
-export function lineChart({ labels, titles = labels, series, fmt = fmt0, axis = fmt, unit = 1, integer = false, width = 560, height = 200, ariaLabel = '', min = 0 }) {
+export function lineChart({ labels, titles = labels, series, fmt = fmt0, axis = fmt, unit = 1, integer = false, width = 560, height = 200, ariaLabel = '', min = 0, top = null }) {
   const pad = { l: 46, r: 14, t: 14, b: 26 }
   const w = width - pad.l - pad.r
   const h = height - pad.t - pad.b
   const n = labels.length
-  const max = Math.max(0, ...series.flatMap((s) => s.values.filter((v) => v !== null && v !== undefined)))
+  const max = Math.max(0, top ?? 0, ...series.flatMap((s) => s.values.filter((v) => v !== null && v !== undefined)))
   // Teilung in der Anzeige-Einheit (z. B. Stunden statt Minuten), damit die Achse runde Werte zeigt
   const sc = niceScale((max - min) / unit, 4, { integer })
   const x = (i) => pad.l + (n <= 1 ? w / 2 : (i / (n - 1)) * w)

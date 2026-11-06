@@ -12,6 +12,7 @@ export const QUICK = [
   { id: 'zeit', label: 'Zeit nachtragen', key: 'z', module: 'planung', action: 'tc-edit-open', words: 'zeiterfassung stempeln vergessen kommen gehen' },
   { id: 'reklamation', label: 'Reklamation', key: 'r', module: 'reklamationen', action: 'complaint-new', words: 'beschwerde mangel kunde' },
   { id: 'qualitaet', label: 'Qualitätsmessung', module: 'qualitaet', action: 'qm-measure-open', words: 'qualität messung stichprobe en 13549 aql kennzahl nachkontrolle raumgruppe' },
+  { id: 'umfrage', label: 'Umfrage-Runde öffnen (Kundenzufriedenheit)', module: 'zufriedenheit', action: 'kz-round-open', words: 'umfrage kundenzufriedenheit zufriedenheit nps weiterempfehlung bewertung feedback runde' },
   { id: 'pruefung', label: 'Prüfung erfassen (Anlage)', module: 'anlagen', action: 'anl-check-open', words: 'anlage prüffrist feuerlöscher rauchmelder spielplatz lift wartung hausbetreuung' },
   { id: 'regie', label: 'Regiebericht (Sonderleistung)', module: 'regie', action: 'reg-new', words: 'regie regiestunden sonderleistung grundreinigung wasserschaden zusatzarbeiten unterschrift kunde auftrag' },
   { id: 'evaluierung', label: 'Evaluierung (Arbeitsschutz)', module: 'arbeitsschutz', action: 'asch-eval-open', words: 'arbeitsschutz evaluierung gefahr gefährdung maßnahme frist sicherheit unfall' },

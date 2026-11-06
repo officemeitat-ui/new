@@ -2380,3 +2380,41 @@ tr.muted td { color: var(--muted); }
   .asch-m { padding-left: 8px; }
   .asch-table .actions-cell { white-space: normal; }
 }
+/* Kundenzufriedenheit (views/zufriedenheit.js): Runde, Rückrufe, Freitexte, Antwort, Fragen, Einladungen */
+.kz-round { margin: 10px 0; }
+.kz-round .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.kz-filters { margin: 10px 0; }
+.kz-charts { margin: 12px 0; }
+.kz-calls, .kz-comments { margin: 14px 0; }
+.kz-calls h3, .kz-comments h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 6px; }
+.kz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.kz-list > li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+.kz-list > li > div:first-child { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+.kz-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kz-quote { margin: 4px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.kz-table td.num, .kz-table th.num { text-align: right; }
+.kz-table .actions-cell { white-space: nowrap; }
+.kz-cut { max-width: 22rem; overflow-wrap: anywhere; }
+.kz-values { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 16px; margin: 8px 0; }
+.kz-values dt { color: var(--muted); }
+.kz-values dd { margin: 0; overflow-wrap: anywhere; }
+.kz-pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; margin: 0; }
+.kz-done { margin: 0 0 10px; }
+.kz-done .field { flex: 1 1 100%; }
+.kz-done textarea { width: 100%; }
+.kz-q-row { display: grid; gap: 4px; }
+.kz-q-line { display: flex; gap: 6px; align-items: center; }
+.kz-q-line input { flex: 1 1 auto; min-width: 0; }
+.kz-links { margin: 6px 0 10px; }
+.kz-preview { margin: 8px 0; }
+.kz-preview summary { cursor: pointer; }
+.kz-inv { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; }
+.kz-inv-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.kz-inv-row .check { flex: 1 1 18rem; min-width: 0; overflow-wrap: anywhere; }
+.kz-mail { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface-2); max-height: 22rem; overflow: auto; }
+.kz-mail p { margin: 0 0 6px; }
+@media (max-width: 720px) {
+  .kz-values { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .kz-values dd { margin-bottom: 8px; }
+  .kz-table .actions-cell { white-space: normal; }
+}

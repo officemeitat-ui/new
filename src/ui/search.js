@@ -4,6 +4,7 @@
 
 import { typeOf } from '../core/anlagen.js'
 import { isStoff } from '../core/arbeitsschutz.js'
+import { inScope, scopeObjectIds } from '../core/zufriedenheit.js'
 import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, sectionLabel, sectionOf, visibleViews } from './context.js'
 import { quickResults } from './quick.js'
 import { esc, ICON, modalFrame } from './shared.js'
@@ -31,6 +32,7 @@ const KEYWORDS = {
   zaehler: 'Wasserzähler Ablesung Zählerstand',
   kontrolle: 'Prüfprotokoll Qualitätskontrolle',
   qualitaet: 'Qualität Qualitätsmessung Stichprobe EN 13549 AQL Kennzahl Raumgruppe Nachkontrolle Messung Bericht',
+  zufriedenheit: 'Kundenzufriedenheit Zufriedenheit Umfrage Kundenumfrage NPS Weiterempfehlung Bewertung Sterne Feedback Rückmeldung Rückruf',
   matten: 'Matten Mattenwechsel Tour Lieferschein',
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
@@ -88,6 +90,16 @@ function results(q) {
     for (const a of app.data.material?.articles || []) if (isStoff(a) && hit(a.name, a.haz?.product, a.haz?.maker)) out.push({ group: 'Arbeitsstoffe', label: a.haz?.product || a.name, sub: [a.haz?.maker, a.haz?.use].filter(Boolean).join(' · '), action: 'asch-stoff-open', data: { id: a.id } })
     for (const b of app.data.arbeitsschutz?.instructions || []) if (hit(b.title, b.area)) out.push({ group: 'Betriebsanweisungen', label: b.title, sub: b.area || '', action: 'asch-ba-open', data: { id: b.id } })
     for (const ev of app.data.arbeitsschutz?.evaluations || []) if (ev.active !== false && hit(ev.title, ...(ev.hazards || []).map((h) => h.text))) out.push({ group: 'Evaluierung', label: ev.title, sub: `${(ev.hazards || []).length} Gefahren`, action: 'asch-eval-open', data: { id: ev.id } })
+  }
+  // Kundenzufriedenheit: Kunden (Links) mit Antworten, nur im eigenen Bereich („zufriedenheit lehen“)
+  if (sees('zufriedenheit')) {
+    const scope = scopeObjectIds({ all: !app.access || !!app.access.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: app.data.objects })
+    const seen = new Set()
+    for (const a of app.data.zufriedenheit?.answers || []) {
+      if (seen.has(a.linkId) || !inScope(a, scope) || !hit(`Kundenzufriedenheit ${a.linkTitle}`, `Zufriedenheit ${a.linkTitle}`, `Umfrage ${a.linkTitle}`)) continue
+      seen.add(a.linkId)
+      out.push({ group: 'Kundenzufriedenheit', label: a.linkTitle || 'Kunde', sub: 'Auswertung je Kunde', action: 'kz-goto', data: { link: a.linkId } })
+    }
   }
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {

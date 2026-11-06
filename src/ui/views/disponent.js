@@ -10,6 +10,7 @@
 //                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“),
 //                Qualitätsmessung: Nachkontrolle und Reklamationsgefahr je Objekt (nur „Öffnen“),
 //                Arbeitsschutz (überfällige Maßnahmen, Evaluierung zu überprüfen, Sicherheitsdatenblätter; nur „Öffnen“)
+//                Kundenzufriedenheit: Kunde anrufen (Gesamt ≤ 2 oder Rückruf; „Öffnen“, „Termin“), fallender Verlauf
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -23,6 +24,7 @@ import { anlagenRows, attention as anlagenAttention, isUrgent as anlagenUrgent }
 import { attention as aschAttention, isUrgent as aschUrgent } from '../../core/arbeitsschutz.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/qualitaet.js'
+import { fmtAvg, attention as kzAttention, scopeObjectIds as kzScope } from '../../core/zufriedenheit.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
 import { isOpenRequest, orderSuggestions } from '../../core/material.js'
@@ -39,7 +41,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage und überfällige Reklamationen', module: '*' },
 ]
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
@@ -371,6 +373,43 @@ function fristen(today) {
             },
       )
     }
+  // Kundenzufriedenheit: schlechte Antwort oder Rückrufwunsch → Kunde anrufen; fallender Verlauf → Hinweis. Auch für
+  // Rollen, die nur lesen (Objektleitung: ihre Objekte); nur „Öffnen“ und „Termin“, nichts automatisch
+  const kz = app.data.zufriedenheit
+  if (kz && sees('zufriedenheit')) {
+    const scope = kzScope({ all: !app.access || !!app.access.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: app.data.objects })
+    const at = kzAttention({ doc: kz, today, scope })
+    const rekOf = (ids) => (sees('reklamationen') ? (app.data.reklamationen?.items || []).filter((c) => ids.includes(c.objectId) && c.status !== 'erledigt').length : 0)
+    for (const a of at.calls) {
+      const ids = a.objectId ? [a.objectId] : a.objectIds || []
+      const rek = rekOf(ids)
+      out.push({
+        id: `kz:${a.id}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `${a.linkTitle || 'Kunde'}: Kunde anrufen`,
+        text: 'Kundenumfrage: schlechte Bewertung oder Rückruf erwünscht. Bitte anrufen, nachfragen und das Gespräch in der Antwort als erledigt vermerken; bei Bedarf Termin oder Reklamation anlegen. Ich ändere dabei nichts selbst.',
+        lines: [
+          `Gesamt ${a.overall} von 5${a.nps !== null && a.nps !== undefined ? `, Weiterempfehlung ${a.nps} von 10` : ''}${a.callback ? `, Rückruf erwünscht${a.phone ? ` (${a.phone})` : ''}` : ''}`,
+          ids.map(objName).filter(Boolean).join(', '),
+          a.comment ? `„${a.comment.slice(0, 140)}“` : '',
+          rek ? plural(rek, 'offene Reklamation', 'offene Reklamationen') : '',
+        ].filter(Boolean),
+        run: edits('termine') ? { label: 'Termin …', action: 'kz-appt', data: { id: a.id } } : null,
+        open: { label: 'Öffnen', action: 'kz-answer', data: { id: a.id } },
+      })
+    }
+    for (const r of at.falling)
+      out.push({
+        id: `kzf:${r.linkId}:${r.last?.period || ''}`,
+        agent: 'fristen',
+        prio: 2,
+        title: `${r.title}: Zufriedenheit fällt`,
+        text: 'Kundenumfrage: Die Zufriedenheit ist gesunken. Mit dem Kunden reden, Reklamationen und Qualitätsmessung des Objekts ansehen. Ich ändere dabei nichts selbst.',
+        lines: [`${r.values.filter((v) => v !== null).slice(-3).map(fmtAvg).join(' → ')} von 5 (letzte Runden)`, r.objectIds.map(objName).filter(Boolean).join(', ')].filter(Boolean),
+        open: { label: 'Öffnen', action: 'kz-goto', data: { link: r.linkId } },
+      })
+  }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -474,7 +513,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })

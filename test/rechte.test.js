@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -117,6 +117,28 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   assert.ok(buero.sees('qualitaet') && !buero.canEdit('qualitaet') && dataRights(buero).read(MODULE_DOCS.qualitaet.path) && !dataRights(buero).write(MODULE_DOCS.qualitaet.path))
   assert.equal(Object.fromEntries(folderRights(buero).map(([f, , r]) => [f, r])).qualitaet, 'Lesen')
   assert.ok(resolveAccess({ email: 'office@cleanos.at', access, strict: true }).canEdit('qualitaet'))
+  // Kundenzufriedenheit: Vollzugriff bearbeitet (Fragen, Rhythmus, Runden, Einladungen, Antworten übernehmen);
+  // Objektmanagement und Objektleitung lesen nur (auch den Ordner); Objektservice, Lager, Vorarbeiter, Buchhaltung,
+  // Prüfer und „Nur lesen“ sehen nichts. Eine eigene Rolle mit Bearbeiten schreibt den Ordner.
+  const kzOffice = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  assert.ok(kzOffice.canEdit('zufriedenheit') && dataRights(kzOffice).write(MODULE_DOCS.zufriedenheit.path))
+  assert.equal(MODULE_DOCS.zufriedenheit.path, 'zufriedenheit/zufriedenheit.json')
+  for (const role of ['objektleitung', 'objektmanagement']) {
+    const acc = resolveAccess({ roleClaims: [role], access, strict: true })
+    const r = dataRights(acc)
+    assert.ok(acc.sees('zufriedenheit') && !acc.canEdit('zufriedenheit'), role)
+    assert.ok(r.read(MODULE_DOCS.zufriedenheit.path) && !r.write(MODULE_DOCS.zufriedenheit.path) && r.read('zufriedenheit/berichte/x.pdf') && !r.write('zufriedenheit/berichte/x.pdf'), role)
+    assert.equal(Object.fromEntries(folderRights(acc).map(([f, , x]) => [f, x])).zufriedenheit, 'Lesen', role)
+    // den Kundenbereich bearbeiten sie weiter (Links, Reklamationen), die Umfrage nicht
+    assert.ok(r.write(MODULE_DOCS.kundenbereich.path), role)
+  }
+  for (const role of ['objektservice', 'lager', 'vorarbeiter', 'lesen', 'buchhaltung', 'pruefer', 'fuhrpark', 'lohnverrechnung']) {
+    const acc = resolveAccess({ roleClaims: [role], access, strict: true })
+    assert.ok(!acc.sees('zufriedenheit') && !dataRights(acc).read(MODULE_DOCS.zufriedenheit.path) && !dataRights(acc).write(MODULE_DOCS.zufriedenheit.path), role)
+    assert.equal(Object.fromEntries(folderRights(acc).map(([f, , x]) => [f, x])).zufriedenheit, '', role)
+  }
+  const kzBuero = resolveAccess({ roleClaims: ['kunden'], access: { ...access, roles: { kunden: { label: 'Kundenservice', modules: ['reklamationen', 'zufriedenheit'], edit: ['reklamationen', 'zufriedenheit'] } } }, strict: true })
+  assert.ok(kzBuero.canEdit('zufriedenheit') && dataRights(kzBuero).write(MODULE_DOCS.zufriedenheit.path) && dataRights(kzBuero).read(DOC.objects))
   // Schlüsselbuch: Objektmanagement bearbeitet, Vorarbeiter sieht es nicht
   assert.ok(om.read(MODULE_DOCS.schluessel.path) && om.write(MODULE_DOCS.schluessel.path) && !va.read(MODULE_DOCS.schluessel.path))
   // Material & Lager: Objektmanagement fordert an und gibt aus; Vorarbeiter sieht es nicht

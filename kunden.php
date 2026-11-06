@@ -23,9 +23,18 @@
 // SHA-256 des veröffentlichten PDF, keine IP-Adresse. Abgelaufene Angebote lassen sich nicht annehmen.
 // Das Büro bekommt Push (nur die Nummer) bzw. E-Mail; die App holt die Annahme ab.
 //
+// Kundenzufriedenheit (je Runde, ein Quartal): Die App schickt die Runden, die nicht vorbei sind (aktion=umfrage:
+// Quartal, von, bis, Fragen, teilnehmende Links). Solange eine Runde offen ist, zeigt die Seite des Links die Umfrage
+// (Sterne 1–5, Weiterempfehlung 0–10, Freitext, Rückruf; Name und Funktion freiwillig), eine Antwort je Runde und Link.
+// Gespeichert unter privat/kundenbereich/umfrage/ ohne IP-Adresse; die App holt die Antworten ab (umfrage-antworten)
+// und meldet die Übernahme (umfrage-status), danach bleibt am Webspace nur der Vermerk „hat geantwortet“ (ohne
+// Inhalt). Bei Gesamt 1–2 oder Rückruf bekommt das Büro einen Push (ohne Inhalt) bzw. eine E-Mail. Keine Werbung,
+// kein Tracking, keine Cookies.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel):
 //   aktion=einrichten | speichern | datei | meldungen | meldung-status | foto | status
 //   aktion=angebot | angebot-datei | angebot-entfernen | annahmen | annahme-status
+//   aktion=umfrage | umfrage-antworten | umfrage-status
 // Erste Einrichtung: privat/kundenbereich.json per FTP, oder „einrichten“ mit dem Schlüssel von
 // Plan am Handy bzw. Schnee-Alarm im Kopf X-Freigabe, solange es noch keine Einstellungen gibt.
 
@@ -56,6 +65,14 @@ const QR_MAX = 24000; // Base64 des QR-Bilds (PNG)
 const ANGEBOT_MUSTER = '/^an[a-f0-9]{10}$/';
 const UNTERSCHRIFT_MUSTER = '/^M[0-9. ML]{2,16000}$/';
 const GRENZE_ANNAHME = [10, 86400]; // Versuche je Angebot und Tag
+// Kundenzufriedenheit (Felder wie in der App: core/zufriedenheit.js)
+const RUNDE_MUSTER = '/^\d{4}-Q[1-4]$/';
+const FRAGE_MUSTER = '/^[a-z][a-z0-9]{1,23}$/';
+const ANTWORT_MUSTER = '/^[a-f0-9]{12}$/';
+const TELEFON_MUSTER = '/^[0-9 +\/()-]{5,40}$/';
+const GRENZE_UMFRAGE_LINK = [6, 86400]; // Absende-Versuche je Link und Tag
+const GRENZE_UMFRAGE_ADRESSE = [10, 86400]; // Antworten je Adresse und Tag
+const UMFRAGE_VORGABE = ['gesamt' => 'Wie zufrieden sind Sie insgesamt mit unserer Arbeit?', 'nps' => 'Wie wahrscheinlich ist es, dass Sie uns weiterempfehlen?', 'freitext' => 'Was sollen wir besser machen, was gefällt Ihnen?'];
 
 function jetzt(): int
 {
@@ -468,6 +485,82 @@ function zeit_text(int $t): string
     return (new DateTimeImmutable('@' . $t))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('d.m.Y, H:i');
 }
 
+// ---------------------------------------------------------------- Kundenzufriedenheit
+
+/** Runden der Umfrage, wie die App sie zuletzt geschickt hat. */
+function umfrage_runden(): array
+{
+    return array_values(array_filter((array) (json_lesen(speicher('umfrage') . '/runden.json')['runden'] ?? []), 'is_array'));
+}
+
+/** Offene Runde eines Links (heute zwischen von und bis), bei mehreren die neueste; sonst null. */
+function offene_runde(string $linkId): ?array
+{
+    $heute = heute();
+    $treffer = null;
+    foreach (umfrage_runden() as $r) {
+        if (in_array($linkId, (array) ($r['links'] ?? []), true) && (string) ($r['von'] ?? '') <= $heute && $heute <= (string) ($r['bis'] ?? '') && (!$treffer || strcmp((string) $r['id'], (string) $treffer['id']) > 0)) {
+            $treffer = $r;
+        }
+    }
+    return $treffer;
+}
+
+/**
+ * Antworten gesperrt ändern. Übernommene behalten nur den Vermerk „hat geantwortet“ (Kennung, Runde, Link, Zeit),
+ * bis 30 Tage nach dem Ende der Runde (steht die Runde nicht mehr in der Liste: 30 Tage nach der Übernahme);
+ * nicht übernommene höchstens 400 Tage.
+ */
+function antworten(callable $fn)
+{
+    return gesperrt(speicher('umfrage') . '/antworten.json', function (array &$liste) use ($fn) {
+        $ergebnis = $fn($liste);
+        $ende = [];
+        foreach (umfrage_runden() as $r) {
+            $ende[(string) ($r['id'] ?? '')] = (string) ($r['bis'] ?? '');
+        }
+        $bleibt = [];
+        foreach ($liste as $a) {
+            if (!is_array($a) || (int) ($a['zeit'] ?? 0) < jetzt() - 400 * 86400) {
+                continue;
+            }
+            if (!empty($a['uebernommen'])) {
+                $a = array_intersect_key($a, array_flip(['id', 'runde', 'link', 'zeit', 'uebernommen']));
+                $bis = $ende[(string) ($a['runde'] ?? '')] ?? '';
+                if ($bis !== '' ? tag_plus($bis, 30) < heute() : (int) $a['uebernommen'] < jetzt() - 30 * 86400) {
+                    continue;
+                }
+            }
+            $bleibt[] = $a;
+        }
+        $liste = $bleibt;
+        return $ergebnis;
+    });
+}
+
+/** Hat dieser Link in dieser Runde schon geantwortet? */
+function beantwortet(string $linkId, string $runde): bool
+{
+    foreach (antworten(fn (array &$l) => $l) ?? [] as $a) {
+        if (($a['link'] ?? '') === $linkId && ($a['runde'] ?? '') === $runde) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/** Ganze Zahl aus einem Formularfeld im Bereich, sonst null. */
+function wahl_wert($v, int $min, int $max): ?int
+{
+    $s = is_string($v) ? trim($v) : '';
+    return preg_match('/^\d{1,2}$/', $s) && (int) $s >= $min && (int) $s <= $max ? (int) $s : null;
+}
+
+function svg_stern(): string
+{
+    return '<svg class="stern" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"/></svg>';
+}
+
 // ---------------------------------------------------------------- Darstellung
 
 $h = fn ($t): string => htmlspecialchars((string) $t, ENT_QUOTES);
@@ -567,6 +660,16 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
         . '.feldname{display:block;margin:.85rem 0 .25rem;font-weight:600}'
         . '.unterschrift canvas{display:block;width:100%;max-width:600px;aspect-ratio:3/1;border:1px dashed #b9c7d1;border-radius:8px;background:#fff;touch-action:none;cursor:crosshair}'
         . 'button.leise{display:inline-block;width:auto;font-size:.95rem;font-weight:600;color:var(--blau);background:#fff;border:1px solid #b9c7d1;padding:.4rem .9rem;margin-top:.4rem}'
+        // Kundenzufriedenheit: Sterne und 0–10 als große Felder (Handy), Auswahl ohne Skript; Sterne bis zur Wahl gefüllt
+        . '.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}'
+        . '.umfrage{margin:0 0 1rem}.umfrage .frage{margin:1.1rem 0 0}.umfrage legend{font-weight:700;margin:0 0 .45rem}.umfrage .frei{font-weight:400;color:var(--leise)}'
+        . '.wahl{position:absolute;opacity:0;width:1px;height:1px;margin:0}'
+        . '.sterne{display:flex;flex-wrap:wrap;gap:.4rem}.nps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.4rem}@media(min-width:620px){.nps{grid-template-columns:repeat(11,minmax(0,1fr))}}'
+        . '.sterne label,.nps label,.keine-angabe label{display:inline-flex;align-items:center;justify-content:center;gap:.2rem;min-width:2.9rem;min-height:2.9rem;margin:0;padding:0 .45rem;border:1px solid #b9c7d1;border-radius:10px;background:#fff;color:var(--text);font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}'
+        . '.sterne .stern{color:#8a5300}.keine-angabe{margin:.4rem 0 0}.keine-angabe label{font-weight:400;min-height:2.4rem}'
+        . '.wahl:checked+label{border-color:var(--farbe);background:var(--weich);box-shadow:inset 0 0 0 1px var(--farbe)}.wahl:focus-visible+label{outline:3px solid var(--farbe);outline-offset:2px}'
+        . '.sterne:has(.wahl:nth-of-type(1):checked) label:nth-of-type(-n+1) .stern,.sterne:has(.wahl:nth-of-type(2):checked) label:nth-of-type(-n+2) .stern,.sterne:has(.wahl:nth-of-type(3):checked) label:nth-of-type(-n+3) .stern,.sterne:has(.wahl:nth-of-type(4):checked) label:nth-of-type(-n+4) .stern,.sterne:has(.wahl:nth-of-type(5):checked) label:nth-of-type(-n+5) .stern{fill:currentColor}'
+        . '.skala{display:flex;justify-content:space-between;gap:1rem;margin:.3rem 0 0;font-size:.88rem;color:var(--leise)}'
         . '.fuss{max-width:68rem;margin:0 auto;padding:0 1rem 2rem;color:var(--leise);font-size:.9rem}.fuss p{margin:.4rem 0}'
         . '</style>'
         . '<script src="' . $h($skript) . '" defer></script></head><body>'
@@ -587,7 +690,7 @@ $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $e = einstellungen();
 
-if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status'], true)) {
+if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status'], true)) {
     $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
     if (!$e) {
         // erste Einrichtung ohne FTP: mit dem Schlüssel von Plan am Handy oder Schnee-Alarm
@@ -608,7 +711,12 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         $offen = count(array_filter(json_lesen(speicher() . '/meldungen.json'), fn ($m) => empty($m['uebernommen'])));
         $angebote = array_map('json_lesen', glob(speicher('angebote') . '/an*.json') ?: []);
         $neueAnnahmen = count(array_filter($angebote, fn ($a) => !empty($a['annahme']) && empty($a['annahme']['uebernommen'])));
-        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+        $neueAntworten = count(array_filter(json_lesen(speicher('umfrage') . '/antworten.json'), fn ($a) => is_array($a) && empty($a['uebernommen'])));
+        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'runden' => count(umfrage_runden()), 'neueAntworten' => $neueAntworten, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+    }
+    // Antworten der Umfrage (die App übernimmt sie und meldet „übernommen“ zurück; danach nur noch der Vermerk)
+    if ($aktion === 'umfrage-antworten') {
+        json_ausgabe(200, ['antworten' => antworten(fn (array &$l) => $l) ?? [], 'runden' => array_column(umfrage_runden(), 'id'), 'jetzt' => jetzt()]);
     }
     // Angebote mit Annahme (die App übernimmt sie und meldet „übernommen“ zurück)
     if ($aktion === 'annahmen') {
@@ -832,6 +940,61 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
             }
         }
         json_ausgabe(200, ['entfernt' => $entfernt, 'behalten' => $behalten]);
+    }
+
+    // Runden der Umfrage: ersetzt die bisherige Liste (die App schickt alle, die nicht vorbei sind)
+    if ($aktion === 'umfrage') {
+        $runden = [];
+        foreach (array_slice((array) ($daten['runden'] ?? []), 0, 12) as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $rid = (string) ($r['id'] ?? '');
+            $von = datum_gueltig($r['von'] ?? '');
+            $bis = datum_gueltig($r['bis'] ?? '');
+            if (!preg_match(RUNDE_MUSTER, $rid) || $von === '' || $bis === '' || $bis < $von || isset($runden[$rid])) {
+                continue;
+            }
+            $f = is_array($r['fragen'] ?? null) ? $r['fragen'] : [];
+            $einzeln = [];
+            foreach (array_slice((array) ($f['einzeln'] ?? []), 0, 5) as $q) {
+                $qid = is_array($q) ? (string) ($q['id'] ?? '') : '';
+                $text = is_array($q) ? kurz($q['text'] ?? '', 160) : '';
+                if (preg_match(FRAGE_MUSTER, $qid) && $text !== '' && !isset($einzeln[$qid])) {
+                    $einzeln[$qid] = ['id' => $qid, 'text' => $text];
+                }
+            }
+            $links = [];
+            foreach (array_slice((array) ($r['links'] ?? []), 0, 500) as $l) {
+                if (is_string($l) && preg_match(LINK_MUSTER, $l)) {
+                    $links[$l] = $l;
+                }
+            }
+            $runden[$rid] = ['id' => $rid, 'von' => $von, 'bis' => $bis, 'fragen' => ['gesamt' => kurz($f['gesamt'] ?? '', 160) ?: UMFRAGE_VORGABE['gesamt'], 'einzeln' => array_values($einzeln), 'nps' => kurz($f['nps'] ?? '', 160) ?: UMFRAGE_VORGABE['nps'], 'freitext' => kurz($f['freitext'] ?? '', 160) ?: UMFRAGE_VORGABE['freitext']], 'links' => array_values($links)];
+        }
+        if (!json_schreiben(speicher('umfrage') . '/runden.json', ['runden' => array_values($runden), 'stand' => jetzt()])) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['runden' => count($runden)]);
+    }
+
+    if ($aktion === 'umfrage-status') {
+        $ids = array_values(array_filter(array_slice((array) ($daten['uebernommen'] ?? []), 0, 500), fn ($x) => is_string($x) && preg_match(ANTWORT_MUSTER, $x)));
+        $n = antworten(function (array &$l) use ($ids) {
+            $n = 0;
+            foreach ($l as &$a) {
+                if (in_array((string) ($a['id'] ?? ''), $ids, true) && empty($a['uebernommen'])) {
+                    $a['uebernommen'] = jetzt();
+                    $n++;
+                }
+            }
+            unset($a);
+            return $n;
+        });
+        if ($n === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['aktualisiert' => $n]);
     }
 
     if ($aktion === 'annahme-status') {
@@ -1185,6 +1348,94 @@ if ($aktion === 'melden' && $methode === 'POST') {
     }
 }
 
+// Kundenzufriedenheit: Umfrage der offenen Runde (eine Antwort je Runde und Link)
+$umfrage = offene_runde($id);
+$uFehler = '';
+$uStatus = 200;
+$uEingabe = [];
+if ($aktion === 'bewerten' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        fehlerseite('Nicht erlaubt', 'Das Formular kam von einer anderen Seite.', 403, $firma);
+    }
+    $werte = is_array($_POST['wert'] ?? null) ? $_POST['wert'] : [];
+    $uEingabe = [
+        'gesamt' => wahl_wert($_POST['gesamt'] ?? '', 1, 5),
+        'werte' => [],
+        'nps' => wahl_wert($_POST['nps'] ?? '', 0, 10),
+        'text' => kurz($_POST['text'] ?? '', 2000),
+        'name' => kurz($_POST['name'] ?? '', 80),
+        'funktion' => kurz($_POST['funktion'] ?? '', 80),
+        'rueckruf' => !empty($_POST['rueckruf']),
+        'telefon' => kurz($_POST['telefon'] ?? '', 40),
+        'objekt' => (int) ($_POST['objekt'] ?? 0),
+    ];
+    foreach ((array) ($umfrage['fragen']['einzeln'] ?? []) as $q) {
+        $v = wahl_wert($werte[$q['id']] ?? '', 1, 5);
+        if ($v !== null) {
+            $uEingabe['werte'][$q['id']] = $v;
+        }
+    }
+    $uObjekt = null;
+    foreach ($objekte as $o) {
+        if ((int) $o['nr'] === $uEingabe['objekt'] && count($objekte) > 1) {
+            $uObjekt = $o;
+        }
+    }
+    if (!$umfrage || (string) ($_POST['runde'] ?? '') !== (string) $umfrage['id']) {
+        [$uFehler, $uStatus] = ['Diese Umfrage ist abgeschlossen. Danke für Ihr Interesse!', 410];
+    } elseif (beantwortet($id, (string) $umfrage['id'])) {
+        [$uFehler, $uStatus] = ['Für diese Umfrage ist Ihre Antwort schon bei uns eingegangen. Danke!', 409];
+    } elseif (grenze('umfrage-link', $id, GRENZE_UMFRAGE_LINK, true) || grenze('umfrage-adresse', $wer, GRENZE_UMFRAGE_ADRESSE, false)) {
+        [$uFehler, $uStatus] = ['Heute gab es schon viele Versuche. Bitte versuchen Sie es morgen wieder oder rufen Sie uns an.', 429];
+    } elseif ($uEingabe['gesamt'] === null) {
+        [$uFehler, $uStatus] = ['Bitte geben Sie an, wie zufrieden Sie insgesamt sind (1 bis 5 Sterne).', 400];
+    } elseif ($uEingabe['rueckruf'] && !preg_match(TELEFON_MUSTER, $uEingabe['telefon'])) {
+        [$uFehler, $uStatus] = ['Für den Rückruf bitte eine Telefonnummer angeben.', 400];
+    } elseif ($uEingabe['telefon'] !== '' && !preg_match(TELEFON_MUSTER, $uEingabe['telefon'])) {
+        [$uFehler, $uStatus] = ['Bitte prüfen Sie die Telefonnummer.', 400];
+    }
+    if (!$uFehler) {
+        $neu = ['id' => bin2hex(random_bytes(6)), 'runde' => (string) $umfrage['id'], 'link' => $id, 'zeit' => jetzt(), 'objekt' => $uObjekt ? ['nr' => (int) $uObjekt['nr'], 'id' => (string) $uObjekt['id'], 'name' => (string) $uObjekt['name']] : null,
+            'gesamt' => $uEingabe['gesamt'], 'werte' => (object) $uEingabe['werte'], 'nps' => $uEingabe['nps'], 'text' => $uEingabe['text'], 'rueckruf' => $uEingabe['rueckruf'], 'telefon' => $uEingabe['telefon'], 'name' => $uEingabe['name'], 'funktion' => $uEingabe['funktion'], 'uebernommen' => null];
+        $ok = antworten(function (array &$l) use ($neu) {
+            foreach ($l as $a) {
+                if (($a['link'] ?? '') === $neu['link'] && ($a['runde'] ?? '') === $neu['runde']) {
+                    return 'schon';
+                }
+            }
+            $l[] = $neu;
+            return 'ok';
+        });
+        if ($ok === 'schon') {
+            [$uFehler, $uStatus] = ['Für diese Umfrage ist Ihre Antwort schon bei uns eingegangen. Danke!', 409];
+        } elseif ($ok !== 'ok') {
+            [$uFehler, $uStatus] = ['Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es später noch einmal.', 500];
+        } else {
+            grenze('umfrage-adresse', $wer, GRENZE_UMFRAGE_ADRESSE, true);
+            // Büro: nur bei schlechter Bewertung oder Rückruf; Push ohne Inhalt (fremder Dienst), E-Mail mit allem
+            if ($neu['gesamt'] <= 2 || $neu['rueckruf']) {
+                $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#zufriedenheit';
+                $titel = $neu['rueckruf'] ? 'Kundenumfrage: Rückruf erwünscht' : 'Kundenumfrage: schlechte Bewertung';
+                $text = 'Kunde: ' . ($link['titel'] ?? '') . ($uObjekt ? ' (' . $uObjekt['name'] . ')' : '') . "\nGesamt: " . $neu['gesamt'] . ' von 5 Sternen'
+                    . ($neu['nps'] !== null ? "\nWeiterempfehlung: " . $neu['nps'] . ' von 10' : '')
+                    . ($neu['rueckruf'] ? "\nRückruf erwünscht: " . $neu['telefon'] : '')
+                    . ($neu['name'] !== '' ? "\nVon: " . $neu['name'] . ($neu['funktion'] !== '' ? ' (' . $neu['funktion'] . ')' : '') : '')
+                    . ($neu['text'] !== '' ? "\n„" . $neu['text'] . '“' : '') . "\nIn der App unter „Kundenzufriedenheit“.";
+                foreach ((array) ($e['buero'] ?? []) as $b) {
+                    if (!empty($b['ntfy'])) {
+                        ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => 'In der App unter „Kundenzufriedenheit“.', 'priority' => 4, 'click' => $app]);
+                    }
+                    if (!empty($b['email'])) {
+                        mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Kundenbereich');
+                    }
+                }
+            }
+            header('Location: kunden.php?k=' . rawurlencode($code) . '&danke=' . ($neu['rueckruf'] ? '2' : '1') . '#umfrage', true, 303);
+            exit;
+        }
+    }
+}
+
 // Inhalte der Seite
 $heute = heute();
 $termine = array_values(array_filter((array) ($link['termine'] ?? []), fn ($t) => ($t['datum'] ?? '') >= $heute && !empty($zeige[($t['art'] ?? '') === 'termin' ? 'termine' : 'leistungen'])));
@@ -1331,6 +1582,62 @@ if (!empty($zeige['reklamation'])) {
     $teile['rechts'][] = '<section class="karte" id="reklamation"><h2>' . ($zeilen ? 'Neue Reklamation melden' : 'Reklamation melden') . '</h2><p class="unter">Ist etwas nicht in Ordnung? Schreiben Sie uns, wir kümmern uns darum.</p>' . $form . '</section>';
 }
 
+// Umfrage (oben, über den Spalten): Formular, solange die Runde offen ist und der Link nicht geantwortet hat
+$umfrageHtml = '';
+if ($umfrage || $uStatus === 410) {
+    $bisText = $umfrage ? datum_text((string) $umfrage['bis'], false) : '';
+    $fertig = $umfrage && !$uFehler && beantwortet($id, (string) $umfrage['id']);
+    if ($uStatus === 409 || $uStatus === 410) {
+        $umfrageHtml = '<section class="karte umfrage" id="umfrage"><h2>Umfrage</h2><p class="fehler" role="alert">' . $h($uFehler) . '</p></section>';
+    } elseif ($fertig) {
+        $danke = (string) ($_GET['danke'] ?? '');
+        $umfrageHtml = '<section class="karte umfrage" id="umfrage"><h2>Danke für Ihre Meinung!</h2>'
+            . ($danke !== '' ? '<p class="ok" role="status">Ihre Antwort ist bei uns eingegangen.' . ($danke === '2' ? ' Wir rufen Sie in den nächsten Tagen zurück.' : '') . '</p>' : '')
+            . '<p class="leer">Ihre Antwort zu dieser Umfrage haben wir. Die nächste Umfrage kommt in einigen Monaten.</p></section>';
+    } else {
+        $f = (array) ($umfrage['fragen'] ?? []);
+        $sterne = function (string $name, string $frage, string $basis, ?int $wahl, bool $pflicht) use ($h): string {
+            $chips = '';
+            for ($i = 1; $i <= 5; $i++) {
+                $chips .= '<input type="radio" class="wahl" id="' . $basis . '-' . $i . '" name="' . $h($name) . '" value="' . $i . '"' . ($wahl === $i ? ' checked' : '') . ($pflicht ? ' required' : '') . '>'
+                    . '<label for="' . $basis . '-' . $i . '">' . svg_stern() . '<span>' . $i . '</span><span class="sr"> von 5 Sternen</span></label>';
+            }
+            $keine = $pflicht ? '' : '<div class="keine-angabe"><input type="radio" class="wahl" id="' . $basis . '-x" name="' . $h($name) . '" value=""><label for="' . $basis . '-x">keine Angabe</label></div>';
+            return '<fieldset class="frage"><legend>' . $h($frage) . ($pflicht ? '' : ' <span class="frei">(optional)</span>') . '</legend><div class="sterne">' . $chips . '</div>' . $keine
+                . '<p class="skala" aria-hidden="true"><span>1 = sehr unzufrieden</span><span>5 = sehr zufrieden</span></p></fieldset>';
+        };
+        $einzeln = '';
+        foreach ((array) ($f['einzeln'] ?? []) as $i => $q) {
+            $einzeln .= $sterne('wert[' . $q['id'] . ']', (string) $q['text'], 'u-w' . $i, $uEingabe['werte'][$q['id']] ?? null, false);
+        }
+        $nps = '';
+        for ($i = 0; $i <= 10; $i++) {
+            $nps .= '<input type="radio" class="wahl" id="u-nps-' . $i . '" name="nps" value="' . $i . '"' . (($uEingabe['nps'] ?? null) === $i ? ' checked' : '') . '><label for="u-nps-' . $i . '">' . $i . '</label>';
+        }
+        $objektWahl = count($objekte) > 1
+            ? '<label for="u-objekt">Zu welchem Objekt? (optional)</label><select id="u-objekt" name="objekt"><option value="0">alle Objekte</option>' . implode('', array_map(fn ($o) => '<option value="' . (int) $o['nr'] . '"' . ((int) ($uEingabe['objekt'] ?? 0) === (int) $o['nr'] ? ' selected' : '') . '>' . $h($o['name']) . '</option>', $objekte)) . '</select>'
+            : '';
+        $datenschutz = (string) ($e['firma']['datenschutz'] ?? '');
+        $umfrageHtml = '<section class="karte umfrage" id="umfrage"><h2>Wie zufrieden sind Sie mit uns?</h2><p class="unter">Kurze Umfrage, etwa zwei Minuten. Offen bis ' . $h($bisText) . '.</p>'
+            . ($uFehler ? '<p class="fehler" role="alert">' . $h($uFehler) . '</p>' : '')
+            . '<form method="post" action="kunden.php?aktion=bewerten"><input type="hidden" name="k" value="' . $h($code) . '"><input type="hidden" name="runde" value="' . $h($umfrage['id']) . '">'
+            . $objektWahl
+            . $sterne('gesamt', (string) ($f['gesamt'] ?? UMFRAGE_VORGABE['gesamt']), 'u-gesamt', $uEingabe['gesamt'] ?? null, true)
+            . $einzeln
+            . '<fieldset class="frage"><legend>' . $h((string) ($f['nps'] ?? UMFRAGE_VORGABE['nps'])) . ' <span class="frei">(optional)</span></legend><div class="nps">' . $nps . '</div>'
+            . '<div class="keine-angabe"><input type="radio" class="wahl" id="u-nps-x" name="nps" value=""><label for="u-nps-x">keine Angabe</label></div>'
+            . '<p class="skala" aria-hidden="true"><span>0 = gar nicht</span><span>10 = sehr wahrscheinlich</span></p></fieldset>'
+            . '<label for="u-text">' . $h((string) ($f['freitext'] ?? UMFRAGE_VORGABE['freitext'])) . ' <span class="frei">(optional)</span></label><textarea id="u-text" name="text" rows="4" maxlength="2000">' . $h($uEingabe['text'] ?? '') . '</textarea>'
+            . '<fieldset><legend>Rückruf</legend><label class="haken"><input type="checkbox" name="rueckruf" value="1"' . (!empty($uEingabe['rueckruf']) ? ' checked' : '') . '> Bitte rufen Sie mich zurück.</label>'
+            . '<label for="u-tel">Telefon (für den Rückruf)</label><input type="tel" id="u-tel" name="telefon" maxlength="40" autocomplete="tel" value="' . $h($uEingabe['telefon'] ?? '') . '"></fieldset>'
+            . '<div class="zwei"><div><label for="u-name">Ihr Name (optional)</label><input type="text" id="u-name" name="name" maxlength="80" autocomplete="name" value="' . $h($uEingabe['name'] ?? '') . '"></div>'
+            . '<div><label for="u-funktion">Funktion (optional)</label><input type="text" id="u-funktion" name="funktion" maxlength="80" autocomplete="organization-title" placeholder="z. B. Hausverwaltung" value="' . $h($uEingabe['funktion'] ?? '') . '"></div></div>'
+            . '<button type="submit">Antwort senden</button>'
+            . '<p class="hinweis">Die Teilnahme ist freiwillig. Wir verwenden Ihre Antworten nur, um unsere Arbeit in Ihrem Objekt zu verbessern: keine Werbung, kein Tracking. Name, Funktion und Telefon sind freiwillig; die Telefonnummer verwenden wir nur für den Rückruf.' . ($datenschutz !== '' && preg_match('#^https://#', $datenschutz) ? ' <a href="' . $h($datenschutz) . '" target="_blank" rel="noopener">Datenschutzerklärung</a>' : '') . '</p></form></section>';
+    }
+    array_unshift($sprung, '<a href="#umfrage">Umfrage</a>');
+}
+
 $kontakt = array_filter([
     !empty($e['firma']['telefon']) ? 'Telefon <a href="tel:' . $h(preg_replace('/[^0-9+]/', '', (string) $e['firma']['telefon'])) . '">' . $h($e['firma']['telefon']) . '</a>' : '',
     !empty($e['firma']['email']) ? 'E-Mail <a href="mailto:' . $h($e['firma']['email']) . '">' . $h($e['firma']['email']) . '</a>' : '',
@@ -1341,6 +1648,6 @@ $spalten = isset($teile['links'], $teile['rechts'])
     : '<div class="spalte">' . implode('', array_merge($teile['links'] ?? [], $teile['rechts'] ?? [])) . '</div>';
 seite('<main class="seite"><div class="hallo"><h1>' . $h($link['titel'] ?: 'Ihr Kundenbereich') . '</h1><p>Willkommen in Ihrem Kundenbereich' . ($firma !== '' ? ' bei ' . $h($firma) : '') . '.</p>' . $objekteHtml . '</div>'
     . (count($sprung) > 1 ? '<nav class="sprung" aria-label="Bereiche">' . implode('', $sprung) . '</nav>' : '')
-    . $spalten . '</main>'
+    . $umfrageHtml . $spalten . '</main>'
     . '<footer class="fuss">' . ($kontakt ? '<p>Fragen? ' . implode(' · ', $kontakt) . '</p>' : '')
-    . '<p>Diese Seite ist persönlich für Sie: Bitte geben Sie den Link nur an Personen weiter, die ihn brauchen. Tipp: als Lesezeichen speichern.</p></footer>', $fehler ? 400 : 200, 'Kundenbereich', $firma);
+    . '<p>Diese Seite ist persönlich für Sie: Bitte geben Sie den Link nur an Personen weiter, die ihn brauchen. Tipp: als Lesezeichen speichern.</p></footer>', $fehler ? 400 : $uStatus, 'Kundenbereich', $firma);

@@ -98,6 +98,11 @@ export const portalCall = call
 export const portalReady = () => !!(settings().enabled && settings().key)
 export const portalOffers = () => offers()
 export const portalAddress = () => address()
+/** Für die Kundenzufriedenheit (views/zufriedenheit.js): Links, ihre Adresse, ob der Bereich an ist und wer ihn bearbeitet. */
+export const portalLinks = () => links()
+export const portalLinkUrl = (link) => urlOf(link)
+export const portalEnabled = () => !!settings().enabled
+export const portalManage = () => mayManage()
 
 const ntfyServer = () => app.data?.rules?.weather?.alarm?.ntfy || ALARM_DEFAULTS.ntfy
 

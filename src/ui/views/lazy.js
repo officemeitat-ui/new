@@ -14,7 +14,7 @@ import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
-const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material']
+const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'zufriedenheit']
 /** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
@@ -321,6 +321,28 @@ lazy(BUERO, {
     asch-settings-open asch-settings-save`,
   // arbeitsstoffe: Sicherheitsdatenblätter für das Lager (eigene Quelle, Recht „Arbeitsstoffe“)
   todo: ['arbeitsschutz', 'arbeitsstoffe'],
+})
+
+// zufriedenheit.js: Kundenzufriedenheit (Umfrage im Kundenbereich je Quartal, Auswertung, NPS, Hinweise)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'zufriedenheit',
+      order: 75,
+      label: 'Kundenzufriedenheit',
+      group: 'service',
+      module: 'zufriedenheit',
+      icon: '<circle cx="12" cy="12" r="8.5"/><path d="M8.3 14.2c.9 1.3 2.2 2 3.7 2s2.8-.7 3.7-2"/><path d="M9.2 9.6v.6M14.8 9.6v.6"/>',
+      noWeek: true,
+      text: 'Umfrage im Kundenbereich: Zufriedenheit, NPS, Verlauf je Quartal',
+    },
+  ],
+  modals: 'kz-answer kz-settings kz-links kz-round kz-invite',
+  actions: `kz-tab kz-filter kz-reset kz-goto kz-answer kz-complaints kz-csv kz-pdf kz-sync kz-appt kz-done kz-undone kz-settings-open kz-q-add
+    kz-q-del kz-settings-reset kz-settings-save kz-links-open kz-links-save kz-round-open kz-round-redraw kz-round-count kz-round-save kz-round-close
+    kz-round-reopen kz-invite-open kz-invite-pick kz-invite-one kz-invite-send`,
+  hints: true,
+  todo: ['zufriedenheit'],
 })
 
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)

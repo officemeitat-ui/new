@@ -19,6 +19,7 @@
 //   qualitaet/qualitaet.json          Qualitätsmessung je Objekt (Fotos und Berichte unter qualitaet/nachweise/)
 //   arbeitsschutz/arbeitsschutz.json  Arbeitsschutz: Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter
 //                                     unter arbeitsschutz/dokumente/; die Angaben zu Arbeitsstoffen stehen am Artikel)
+//   zufriedenheit/zufriedenheit.json  Kundenzufriedenheit: Umfrage-Runden, Antworten aus dem Kundenbereich, Einstellungen
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
@@ -85,6 +86,8 @@ export const MODULE_DOCS = {
   qualitaet: { path: 'qualitaet/qualitaet.json', empty: () => ({ settings: {}, objects: [], measurements: [] }) },
   // Arbeitsschutz: leerer Inhalt wie emptyArbeitsschutz (core/arbeitsschutz.js; test/arbeitsschutz.test.js vergleicht)
   arbeitsschutz: { path: 'arbeitsschutz/arbeitsschutz.json', empty: () => ({ instructions: [], evaluations: [], settings: {} }) },
+  // Kundenzufriedenheit: leerer Inhalt wie emptyZufriedenheit (core/zufriedenheit.js; test/zufriedenheit.test.js vergleicht)
+  zufriedenheit: { path: 'zufriedenheit/zufriedenheit.json', empty: () => ({ settings: {}, links: {}, rounds: [], answers: [] }) },
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
   // Einkauf & Kasse: Lieferanten und Eingangsrechnungen; das Kassenbuch in einer eigenen Datei (kleiner, seltener gleichzeitig).
@@ -111,7 +114,7 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'), () => edits('stammdaten', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“)
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
@@ -142,10 +145,12 @@ export function dataRights(access) {
     // Datei, Betriebsanweisungen und Evaluierung (mit PDFs unter arbeitsschutz/dokumente/) nur mit Recht auf den Arbeitsschutz
     ['arbeitsschutz/dokumente/sdb/', () => sees('arbeitsschutz', 'arbeitsstoffe'), () => edits('arbeitsschutz', 'arbeitsstoffe')],
     ['arbeitsschutz/', () => sees('arbeitsschutz'), () => edits('arbeitsschutz')],
+    // Kundenzufriedenheit: Runden und Antworten; lesen auch ohne Schreibrecht (Objektmanagement, Objektleitung)
+    ['zufriedenheit/', () => sees('zufriedenheit'), () => edits('zufriedenheit')],
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
-    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz')],
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit')],
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
@@ -176,6 +181,7 @@ export const FOLDERS = [
   ['qualitaet', 'Qualitätsmessung je Objekt (Raumgruppen, Messungen, Fotos der Mängel, Berichte als PDF)', MODULE_DOCS.qualitaet.path],
   ['arbeitsschutz', 'Arbeitsschutz: Betriebsanweisungen, Evaluierung, PDFs unter dokumente/', MODULE_DOCS.arbeitsschutz.path],
   ['arbeitsschutz/dokumente/sdb', 'Sicherheitsdatenblätter (auch das Lager lädt sie hoch)', 'arbeitsschutz/dokumente/sdb/sdb.pdf'],
+  ['zufriedenheit', 'Kundenzufriedenheit: Umfrage-Runden, Antworten aus dem Kundenbereich, Auswertung', MODULE_DOCS.zufriedenheit.path],
   ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
