@@ -18,14 +18,16 @@
 //   Matte (Größe, Farbe) → Mattentyp (Artikel der Fakturierung mit group 'Matten', Felder size/color oder im Namen);
 //     ohne passenden Typ bleibt die Matte mit Größe/Farbe (legacy) stehen und wird in der Vorschau genannt.
 //   Intervall Wochen → Tage, Regel „ab dem letzten Wechsel“ (wie im Werkzeug), Gebiet → areas[], legacyId = L-ID,
-//   „zu prüfen“ → check, letzter Wechsel = jüngster Halt mit status 'gewechselt' aus allen Touren.
+//   „zu prüfen“ → check, letzter Wechsel = jüngster Halt mit status 'gewechselt' aus allen Touren (lastExchange).
+//   Starttermin für den Fälligkeitsrechner (core/matten-plan.js): der letzte Wechsel, ohne Wechsel der Tag der Übernahme
+//   (nie gewechselt = sofort fällig, wie im Werkzeug).
 //
 // Idempotent: Liegeplätze werden über legacyId wiedererkannt; ein zweiter Lauf mit denselben Daten ändert nichts.
 // Ein späterer Lauf trägt nur nach: neue Liegeplätze des Werkzeugs, einen jüngeren letzten Wechsel und Mattentypen,
 // die inzwischen angelegt sind. Alte Touren und PDFs werden nicht zu Belegen und nicht verrechnet.
 
-import { nextCustomerNo } from './invoicing.js'
-import { areaByName, customerCopy, customerName, matFromType, matTypes } from './matten.js'
+import { matTypes, nextCustomerNo } from './invoicing.js'
+import { areaByName, customerCopy, customerName, matFromType } from './matten.js'
 
 export const TOOL_PATHS = {
   standorte: 'Mattenwechsel/Stammdaten/Standorte.json',
@@ -145,10 +147,10 @@ export function matchArticle(articles = [], mat = {}) {
   if (!size) return null
   const color = colorKey(mat.farbe)
   const same = matTypes(articles)
-    .filter((a) => a.active !== false)
     .map((a) => ({ a, ...articleKeys(a) }))
     .filter((x) => x.size === size)
-  const exact = same.filter((x) => color && x.color === color)
+  const standard = (x) => !x.a.matKind || x.a.matKind === 'Standard'
+  const exact = same.filter((x) => color && x.color === color).sort((x, y) => Number(standard(y)) - Number(standard(x)))
   if (exact.length) return { id: exact[0].a.id, how: 'Größe und Farbe' }
   const plain = same.filter((x) => !x.color)
   if (plain.length === 1) return { id: plain[0].a.id, how: 'Größe' }
@@ -320,9 +322,9 @@ export function planImport({ tool = {}, customers = [], objects = [], articles =
 /**
  * Übernahme ausführen (nach planImport mit denselben Daten). Ändert nichts an den Eingaben, sondern liefert neue Stände:
  * { doc, customers, objects, summary: { placements, updated, customers, objects, areas, links } }.
- * newId(prefix): zufällige ID; now/user: Vermerk.
+ * newId(prefix): zufällige ID; now/user: Vermerk; today: Starttermin übernommener Liegeplätze ohne letzten Wechsel.
  */
-export function applyImport(plan, { doc = {}, customers = [], objects = [], articles = [], newId, now, user = '' }) {
+export function applyImport(plan, { doc = {}, customers = [], objects = [], articles = [], newId, now, user = '', today = String(now || '').slice(0, 10) }) {
   const out = { doc: structuredClone(doc), customers: structuredClone(customers), objects: structuredClone(objects) }
   out.doc.placements ||= []
   out.doc.areas ||= []
@@ -454,7 +456,8 @@ export function applyImport(plan, { doc = {}, customers = [], objects = [], arti
       active: s.aktiv !== false,
       mats,
       intervalDays: Math.max(1, Math.round(Number(s.intervallWochen) || 4)) * 7,
-      startDate: '',
+      // ab dem letzten Wechsel (wie im Werkzeug); Starttermin = letzter Wechsel, ohne Wechsel heute (sofort fällig)
+      startDate: r.last?.date || today,
       rule: 'ab-ist',
       pauses: [],
       areaId: area?.id || '',

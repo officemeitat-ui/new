@@ -9,9 +9,9 @@
 
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
 import { coordsText, parseCoords } from '../../core/geo.js'
+import { matTypes } from '../../core/invoicing.js'
 import {
   activeAreas,
-  activeMatTypes,
   areaOf,
   areaProblem,
   coordsFromObject,
@@ -60,27 +60,30 @@ const objOf = (id) => (app.data.objects || []).find((o) => o.id === id) || null
 const placementOf = (id) => doc().placements.find((p) => p.id === id) || null
 const short = (d) => (d ? formatDate(d, { weekday: false, year: true }) : '–')
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
-const STATE_TEXT = { ueberfaellig: 'überfällig', faellig: 'bald', geplant: 'geplant', sofort: 'sofort', pausiert: 'pausiert', inaktiv: 'inaktiv' }
-const STATE_CLS = { ueberfaellig: 'error', faellig: 'warning', geplant: 'ok', sofort: 'warning', pausiert: 'na', inaktiv: 'na' }
+const STATE_TEXT = { ueberfaellig: 'überfällig', faellig: 'bald', geplant: 'geplant', pausiert: 'pausiert', inaktiv: 'inaktiv', ohne: 'kein Termin' }
+const STATE_CLS = { ueberfaellig: 'error', faellig: 'warning', geplant: 'ok', pausiert: 'na', inaktiv: 'na', ohne: 'warning' }
 
-/** Alle Zeilen (je Berechnung gemerkt). */
+/**
+ * Alle Zeilen (je Berechnung gemerkt). Nächster Wechsel über den Fälligkeitsrechner (core/matten-plan.js, nextDue);
+ * bestätigte Wechsel vorerst nur der letzte aus der Übernahme, Einsätze und Betriebsurlaub kommen mit Kalender und Touren.
+ */
 const rowsAt = (today = todayISO()) => memo(app.cur, `matten:${today}`, () => placementRows({ doc: doc(), objects: app.data.objects || [], customers: fakCustomers(), articles: fakArticles(), today }))
 
 /** Mattentypen zur Auswahl (Fakturierung bzw. Kopien) und ob es überhaupt welche gibt. */
 const typeChoices = () => knownTypes({ articles: fakArticles(), placements: doc().placements })
-const noTypes = () => (fak() ? !activeMatTypes(fakArticles()).length : !typeChoices().length)
+const noTypes = () => (fak() ? !matTypes(fakArticles()).length : !typeChoices().length)
 
 function typesBanner() {
   if (!noTypes()) return ''
   const link = sees('fakturierung') ? ` <button class="btn small" data-action="mw-types-goto">${ICON.gear} Mattentypen in der Fakturierung</button>` : ''
-  return `<div class="banner warn-banner"><p><strong>Noch keine Mattentypen.</strong> Mattentypen sind Artikel der Fakturierung mit der Artikelgruppe „Matten“ (Größe, Farbe, Preis). ${sees('fakturierung') ? 'Dort anlegen, dann stehen sie hier zur Auswahl.' : 'Sie legt an, wer die Fakturierung bearbeitet.'}</p>${link}</div>`
+  return `<div class="banner warn-banner"><p><strong>Noch keine Mattentypen.</strong> Mattentypen sind Artikel der Fakturierung mit der Artikelgruppe „Matten“ (Größe, Farbe, Preis je Wechsel). ${sees('fakturierung') ? 'In der Fakturierung unter „Stammdaten → Matten“ anlegen, dann stehen sie hier zur Auswahl.' : 'Sie legt an, wer die Fakturierung bearbeitet.'}</p>${link}</div>`
 }
 
 const nextCell = (r) => {
   const pill = `<span class="pill ${STATE_CLS[r.state]}">${esc(STATE_TEXT[r.state])}</span>`
   if (r.state === 'inaktiv') return pill
-  if (!r.next.date) return `${pill}<br><span class="muted">noch kein Wechsel</span>`
-  return `${esc(short(r.next.date))} ${pill}`
+  if (!r.next) return `${pill}<br><span class="muted">${r.paused ? 'Pause ohne Ende' : 'Starttermin fehlt'}</span>`
+  return `${esc(short(r.next.date))} ${pill}${r.next.overdue ? '<br><span class="muted">seit dem Termin offen</span>' : ''}`
 }
 const lines = (list) => list.join('<br>')
 
@@ -158,7 +161,7 @@ function listTab(all) {
     })
     .join('')
   return `${filters}${blocks || `<p class="empty">Kein Liegeplatz in dieser Auswahl.${filtered ? ' Filter zurücksetzen zeigt alle.' : ''}</p>`}
-    <p class="note">„Nächster Wechsel“ ist eine Vorschau aus Starttermin bzw. letztem Wechsel und Intervall. Kalender mit Verschieben, Aussetzen und Nachholen folgt mit der Planung.</p>`
+    <p class="note">„Nächster Wechsel“ rechnet die App aus Starttermin, Regel, Intervall, letztem Wechsel und Pausen. Kalender mit Verschieben, Aussetzen und Nachholen folgt mit der Planung.</p>`
 }
 
 registerView({
@@ -325,7 +328,7 @@ function editModal(c, m) {
         <label class="field"><span>Intervall</span><select id="mw-interval" data-change="mw-redraw" ${dis}>${options(INTERVAL_CHOICES, ivValue)}</select></label>
         ${d.intervalOther ? `<label class="field"><span>Intervall in Tagen</span><input type="number" id="mw-interval-x" min="1" max="365" inputmode="numeric" value="${esc(d.intervalDays ?? '')}" ${dis}></label>` : ''}
         <label class="field"><span>Regel</span><select id="mw-rule" ${dis}>${options(Object.entries(RULES), d.rule || 'rhythmus')}</select><small class="muted">fest: Starttermin + Intervall, auch nach einem verschobenen Wechsel</small></label>
-        <label class="field"><span>Starttermin (erster Wechsel)</span><input type="date" id="mw-start" value="${esc(d.startDate || '')}" ${dis}></label>
+        <label class="field"><span>Starttermin (erster Wechsel)</span><input type="date" id="mw-start" value="${esc(d.startDate || '')}" ${dis}><small class="muted">bei „ab letztem Wechsel“: frühestens ab diesem Tag</small></label>
         <label class="field"><span>Arbeitszeit vor Ort (Minuten)</span><input type="number" id="mw-work" min="0" max="600" inputmode="numeric" value="${esc(d.workMinutes ?? '')}" ${dis}></label>
         <label class="field"><span>Zeitfenster von</span><input type="time" id="mw-win-from" value="${esc(d.window?.from || '')}" ${dis}></label>
         <label class="field"><span>Zeitfenster bis</span><input type="time" id="mw-win-to" value="${esc(d.window?.to || '')}" ${dis}></label>
@@ -396,7 +399,7 @@ function savePlacement() {
   closeModal()
   renderNow()
   const r = rowsAt().find((x) => x.placement.id === saved.id)
-  toast(`${existing ? 'Gespeichert' : `Liegeplatz „${saved.name}“ angelegt`}${r?.next.date ? `: nächster Wechsel ${short(r.next.date)}` : ''}.`)
+  toast(`${existing ? 'Gespeichert' : `Liegeplatz „${saved.name}“ angelegt`}${r?.next?.date ? `: nächster Wechsel ${short(r.next.date)}` : ''}.`)
 }
 
 // ---------------------------------------------------------------- Gebiete
@@ -462,10 +465,9 @@ registerActions({
     readDraft()
     renderModal()
   },
-  // Mattentypen pflegt die Fakturierung (Artikel mit der Gruppe „Matten“)
+  // Mattentypen pflegt die Fakturierung (Reiter „Stammdaten → Matten“, invoicing-matten.js); hier keine zweite Pflege
   'mw-types-goto': () => {
-    const hasTypes = activeMatTypes(fakArticles() || []).length > 0
-    Object.assign(app.ui, { view: 'fakturierung', fakTab: 'artikel', fakArtGroup: hasTypes ? 'Matten' : '' })
+    Object.assign(app.ui, { view: 'fakturierung', fakTab: 'matten' })
     if (app.ui.modal) closeModal()
     renderNow()
   },

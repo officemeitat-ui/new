@@ -11,26 +11,31 @@
 //     placements: [{ id, legacyId ('L-0001', nur aus der Übernahme), objectId, customerId,
 //                    customer: { id, name, no }      schmale Kopie für Rollen ohne Fakturierung (Büro, Fahrer)
 //                    name (Liegeplatz, z. B. „Haupteingang“), floor (Stockwerk), access (Zugang/Schlüssel), hint, active,
-//                    mats: [{ articleId, qty, owner: 'wir'|'kunde', name, size?, color?, legacy?: { groesse, farbe } }]
-//                          articleId: Mattentyp = Artikel der Fakturierung mit group 'Matten'; name/size/color: Kopie
-//                          für Rollen ohne Fakturierung; legacy: Größe/Farbe aus dem Werkzeug, solange der Typ fehlt
+//                    mats: [{ articleId, qty, owner: 'wir'|'kunde', name, size?, color?, matKind?, legacy?: { groesse, farbe } }]
+//                          articleId: Mattentyp = Artikel der Fakturierung mit group 'Matten' (matTypes, matLabel in
+//                          core/invoicing.js); name/size/color/matKind: Kopie für Rollen ohne Fakturierung;
+//                          legacy: Größe/Farbe aus dem Werkzeug, solange der Typ fehlt
 //                    intervalDays (14 | 28, weitere erlaubt), startDate, rule ('rhythmus' | 'ab-ist'), workMinutes,
 //                    window: { from, to, note } (Zeitfenster/Öffnungszeiten), pauses: [{ from, to, reason }],
 //                    areaId (Gebiet = Tourrunde), lat, lon, geoQuality ('objekt' | 'adresse' | 'hand' | 'werkzeug'),
-//                    lastExchange: { date, tourId, source: 'werkzeug' } (letzter Wechsel, aus der Übernahme),
+//                    lastExchange: { date, tourId, source: 'werkzeug' } (letzter Wechsel, aus der Übernahme; zählt
+//                          für den Fälligkeitsrechner als bestätigter Wechsel, doneFromPlacements),
 //                    check: { reason } (aus dem Werkzeug „zu prüfen“), source: { system: 'mattenwechsel', quelle }
 //                    createdAt, createdBy, updatedAt, updatedBy }],
 //     areas: [{ id, name, active, legacyName?, createdAt, createdBy, updatedAt, updatedBy }] }
 //
 // IDs werden zufällig erzeugt (newId), nie hochgezählt: zwei Geräte legen nie dieselbe ID an.
+// Fälligkeit (nächster Wechsel, Pausen) rechnet nur core/matten-plan.js; hier keine eigene Fälligkeitslogik.
 
-import { addDays, dayIndex } from './dates.js'
+import { addDays } from './dates.js'
+import { matLabel, matTypes } from './invoicing.js'
+import { nextDue, pauseOn, RULES as PLAN_RULES } from './matten-plan.js'
 
 export const SCHEMA = 1
-export const MAT_GROUP = 'Matten'
 /** Vorschläge für das Intervall (Tage); andere Werte sind erlaubt. */
 export const INTERVALS = [14, 28]
-export const RULES = { rhythmus: 'fester Rhythmus ab Start', 'ab-ist': 'ab dem letzten Wechsel' }
+/** Regeln des Fälligkeitsrechners (core/matten-plan.js), hier mit kurzer Beschriftung für die Auswahl. */
+export const RULES = Object.fromEntries(Object.keys(PLAN_RULES).map((k) => [k, k === 'rhythmus' ? 'fester Rhythmus' : 'ab letztem Wechsel']))
 export const OWNERS = { wir: 'unsere Matte', kunde: 'Kundeneigentum' }
 export const GEO = { objekt: 'vom Objekt', adresse: 'aus der Adresse (OpenStreetMap)', hand: 'von Hand', werkzeug: 'aus dem Werkzeug' }
 /** Filter der Übersicht. */
@@ -55,39 +60,33 @@ const int = (v) => (v === '' || v === null || v === undefined ? NaN : Number(Str
 
 // ---------------------------------------------------------------- Mattentypen (Artikel der Fakturierung)
 
-/** Mattentypen: Artikel der Fakturierung mit der Artikelgruppe „Matten“ (inaktive bleiben für alte Liegeplätze lesbar). */
-export const matTypes = (articles = []) => (articles || []).filter((a) => a.group === MAT_GROUP)
-/** Aktive Mattentypen zur Auswahl. */
-export const activeMatTypes = (articles = []) => matTypes(articles).filter((a) => a.active !== false)
-/** Name eines Mattentyps, wie er am Liegeplatz steht. */
-export const typeLabel = (a = {}) => text(a.name) || [a.size, a.color].filter(Boolean).join(' ') || 'Matte'
-
-/** Matte am Liegeplatz mit Kopie von Name, Größe und Farbe des Typs (für Rollen ohne Fakturierung). */
+/** Matte am Liegeplatz mit Kopie von Bezeichnung, Größe, Farbe und Art des Typs (für Rollen ohne Fakturierung). */
 export function matFromType(article, { qty = 1, owner = 'wir' } = {}) {
   return {
     articleId: article.id,
     qty: Math.max(1, Math.round(Number(qty) || 1)),
     owner: owner === 'kunde' ? 'kunde' : 'wir',
-    name: typeLabel(article),
+    name: matLabel(article),
     ...(article.size ? { size: text(article.size) } : {}),
     ...(article.color ? { color: text(article.color) } : {}),
+    ...(article.matKind ? { matKind: text(article.matKind) } : {}),
   }
 }
 
-/** Anzeige einer Matte: { label, missing } – missing: Mattentyp fehlt (nur Größe/Farbe aus dem Werkzeug). */
-export function matLabel(mat = {}, articles = null) {
+/** Anzeige einer Matte am Liegeplatz: { label, missing } – missing: Mattentyp fehlt (nur Größe/Farbe aus dem Werkzeug). */
+export function matDisplay(mat = {}, articles = null) {
   const a = mat.articleId && articles ? articles.find((x) => x.id === mat.articleId) : null
-  if (a) return { label: typeLabel(a), missing: false }
+  if (a) return { label: matLabel(a), missing: false }
   if (mat.articleId) return { label: text(mat.name) || 'Matte', missing: false }
   const legacy = [mat.legacy?.groesse, mat.legacy?.farbe].filter(Boolean).join(' ')
   return { label: text(mat.name) || legacy || 'Matte', missing: true }
 }
 
-/** Mattentypen zur Auswahl: aus der Fakturierung (wenn lesbar), sonst die an Liegeplätzen schon verwendeten (Kopie). */
+/** Mattentypen zur Auswahl: aus der Fakturierung (matTypes, wenn lesbar), sonst die an Liegeplätzen schon verwendeten (Kopie). */
 export function knownTypes({ articles = null, placements = [] } = {}) {
-  if (articles) return activeMatTypes(articles).map((a) => ({ id: a.id, name: typeLabel(a), size: a.size || '', color: a.color || '' }))
+  if (articles) return matTypes(articles).map((a) => ({ id: a.id, name: matLabel(a), size: a.size || '', color: a.color || '', matKind: a.matKind || '' }))
   const seen = new Map()
-  for (const p of placements) for (const m of p.mats || []) if (m.articleId && !seen.has(m.articleId)) seen.set(m.articleId, { id: m.articleId, name: text(m.name) || 'Matte', size: m.size || '', color: m.color || '' })
+  for (const p of placements) for (const m of p.mats || []) if (m.articleId && !seen.has(m.articleId)) seen.set(m.articleId, { id: m.articleId, name: text(m.name) || 'Matte', size: m.size || '', color: m.color || '', matKind: m.matKind || '' })
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'))
 }
 
@@ -161,6 +160,7 @@ export function normalizePlacement(input = {}) {
       const mat = { articleId: text(m.articleId), qty: num(m.qty), owner: m.owner === 'kunde' ? 'kunde' : 'wir', name: text(m.name) }
       if (m.size) mat.size = text(m.size)
       if (m.color) mat.color = text(m.color)
+      if (m.matKind) mat.matKind = text(m.matKind)
       if (!mat.articleId && m.legacy) mat.legacy = { groesse: text(m.legacy.groesse), farbe: text(m.legacy.farbe) }
       return mat
     }),
@@ -196,8 +196,8 @@ export function placementProblem(p) {
     if (!Number.isInteger(m.qty) || m.qty < 1 || m.qty > 999) return 'Die Stückzahl je Matte muss zwischen 1 und 999 liegen.'
   }
   if (!Number.isInteger(p.intervalDays) || p.intervalDays < 1 || p.intervalDays > 365) return 'Bitte das Intervall in Tagen eintragen (z. B. 14 oder 28).'
-  if (p.startDate && !isDate(p.startDate)) return 'Der Starttermin ist kein gültiges Datum.'
-  if (p.rule === 'rhythmus' && !p.startDate) return 'Für den festen Rhythmus bitte den Starttermin eintragen (erster Wechsel).'
+  if (!p.startDate) return p.rule === 'ab-ist' ? 'Bitte den Starttermin eintragen (erster Wechsel; danach zählt der letzte Wechsel).' : 'Bitte den Starttermin eintragen (erster Wechsel, ab dem der Rhythmus zählt).'
+  if (!isDate(p.startDate)) return 'Der Starttermin ist kein gültiges Datum.'
   if (p.workMinutes !== undefined && (!Number.isInteger(p.workMinutes) || p.workMinutes < 0 || p.workMinutes > 600)) return 'Die Arbeitszeit bitte in Minuten eintragen (0 bis 600).'
   if (p.window) {
     if ((p.window.from && !isTime(p.window.from)) || (p.window.to && !isTime(p.window.to))) return 'Das Zeitfenster bitte als Uhrzeit eintragen, z. B. 07:00 bis 10:00.'
@@ -223,37 +223,28 @@ export function updatePlacement(existing, fields, { now, user }) {
   return out
 }
 
-// ---------------------------------------------------------------- Nächster Wechsel (vorläufig)
+// ---------------------------------------------------------------- Nächster Wechsel (Fälligkeitsrechner core/matten-plan.js)
 
 /**
- * VORLÄUFIG (Phase Stammdaten, P4): einfache Anzeige „nächster Wechsel“ für die Liste. Wird in P6 durch den
- * Fälligkeitsrechner jobsFor() aus core/matten-plan.js ersetzt (Einsätze, Verschieben, Nachholen, Pausen) –
- * hier bewusst keine zweite Fälligkeitslogik, nur:
- *   Rhythmus mit Starttermin: Starttermin, nach einem Wechsel der nächste Termin im Raster (Start + k × Intervall)
- *   ab dem letzten Wechsel:   letzter Wechsel + Intervall, ohne Wechsel der Starttermin (leer = sofort, wie im Werkzeug)
- * Liefert { date, basis: 'start'|'rhythmus'|'letzter'|'', paused (heute in einer Pause), inactive }.
+ * Bestätigte Wechsel aus den Liegeplätzen für den Fälligkeitsrechner: der letzte Wechsel aus der Übernahme
+ * (lastExchange). Die Wechsel aus den Touren des Moduls kommen mit der Phase Fahrer dazu.
  */
-export function nextChangeSimple(p, today) {
-  const n = Math.max(1, Number(p.intervalDays) || 28)
-  const last = p.lastExchange?.date || ''
-  const start = p.startDate || ''
-  const paused = (p.pauses || []).some((x) => x.from && x.from <= today && (!x.to || x.to >= today))
-  const out = (date, basis) => ({ date, basis, paused, inactive: p.active === false })
-  if (p.rule === 'rhythmus' && start) {
-    if (!last || last < start) return out(start, 'start')
-    const k = Math.floor((dayIndex(last) - dayIndex(start)) / n) + 1
-    return out(addDays(start, k * n), 'rhythmus')
-  }
-  if (last) return out(addDays(last, n), 'letzter')
-  return out(start, start ? 'start' : '')
+export const doneFromPlacements = (placements = []) => (placements || []).filter((p) => p?.lastExchange?.date).map((p) => ({ placementId: p.id, date: p.lastExchange.date }))
+
+/**
+ * Nächster Wechsel eines Liegeplatzes (nextDue aus core/matten-plan.js) und ob heute eine Pause gilt:
+ * { next: { date, due, key, job, overdue } | null, paused }. done/jobs/closures wie im Fälligkeitsrechner.
+ */
+export function nextOf(p, { today, done = [], jobs = [], closures = [] } = {}) {
+  return { next: p?.active === false ? null : nextDue(p, { done, jobs, closures, today }), paused: !!pauseOn(p, today, closures) }
 }
 
-/** Zustand für die Anzeige: 'inaktiv' | 'pausiert' | 'ueberfaellig' | 'faellig' (bis 7 Tage) | 'geplant' | 'sofort'. */
-export function nextState(next, today) {
-  if (next.inactive) return 'inaktiv'
-  if (next.paused) return 'pausiert'
-  if (!next.date) return 'sofort'
-  if (next.date < today) return 'ueberfaellig'
+/** Zustand für die Anzeige: 'inaktiv' | 'pausiert' | 'ueberfaellig' | 'faellig' (bis 7 Tage) | 'geplant' | 'ohne' (kein Termin). */
+export function nextState({ next, paused }, p, today) {
+  if (p?.active === false) return 'inaktiv'
+  if (paused) return 'pausiert'
+  if (!next) return 'ohne'
+  if (next.overdue) return 'ueberfaellig'
   if (next.date <= addDays(today, 7)) return 'faellig'
   return 'geplant'
 }
@@ -269,16 +260,18 @@ export const intervalText = (days) => {
 
 /**
  * Zeilen der Übersicht: [{ placement, object, customer: { id, name, no }, area, mats: [{ label, qty, owner, missing }],
- * qty, next, state, missingType }]. customers/articles: aus der Fakturierung, wenn lesbar (sonst null → Kopien).
+ * qty, next (nextDue), paused, state, missingType }]. customers/articles: aus der Fakturierung, wenn lesbar (sonst null →
+ * Kopien). done/jobs/closures für den Fälligkeitsrechner; ohne done gilt der letzte Wechsel aus der Übernahme.
  */
-export function placementRows({ doc, objects = [], customers = null, articles = null, today }) {
+export function placementRows({ doc, objects = [], customers = null, articles = null, today, done = null, jobs = [], closures = [] }) {
+  const confirmed = done || doneFromPlacements(doc?.placements)
   const objById = new Map(objects.map((o) => [o.id, o]))
   const custById = new Map((customers || []).map((c) => [c.id, c]))
   return (doc?.placements || []).map((p) => {
     const c = custById.get(p.customerId)
     const customer = c ? customerCopy(c) : { id: p.customerId || '', name: p.customer?.name || (p.customerId ? 'Kunde' : 'ohne Kunde'), no: p.customer?.no || '' }
-    const mats = (p.mats || []).map((m) => ({ ...matLabel(m, articles), qty: Number(m.qty) || 0, owner: m.owner === 'kunde' ? 'kunde' : 'wir' }))
-    const next = nextChangeSimple(p, today)
+    const mats = (p.mats || []).map((m) => ({ ...matDisplay(m, articles), qty: Number(m.qty) || 0, owner: m.owner === 'kunde' ? 'kunde' : 'wir' }))
+    const n = nextOf(p, { today, done: confirmed, jobs, closures })
     return {
       placement: p,
       object: objById.get(p.objectId) || null,
@@ -286,8 +279,9 @@ export function placementRows({ doc, objects = [], customers = null, articles = 
       area: areaOf(doc, p.areaId),
       mats,
       qty: mats.reduce((s, m) => s + m.qty, 0),
-      next,
-      state: nextState(next, today),
+      next: n.next,
+      paused: n.paused,
+      state: nextState(n, p, today),
       missingType: mats.some((m) => m.missing),
     }
   })
@@ -298,7 +292,7 @@ export function matchStatus(row, status = '') {
   const active = row.placement.active !== false
   if (status === 'inaktiv') return !active
   if (!active) return false
-  if (status === 'faellig') return ['sofort', 'ueberfaellig', 'faellig'].includes(row.state)
+  if (status === 'faellig') return ['ueberfaellig', 'faellig'].includes(row.state)
   if (status === 'pruefen') return !!row.placement.check
   if (status === 'typ') return row.missingType
   return true

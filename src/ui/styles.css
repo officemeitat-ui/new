@@ -1602,6 +1602,13 @@ tr.muted td { color: var(--muted); }
 /* Kundenblatt, Reiter „Winterdienst“: je Objekt ein Block, fehlerhafte Beträge markiert */
 .fab-cw { margin-bottom: 10px; }
 .fab-cw input[aria-invalid="true"] { border-color: var(--err); box-shadow: 0 0 0 1px var(--err); }
+/* Mattenwechsel: Mattentypen anlegen, Kundenpreise und Pauschalen im Kundenblatt (invoicing-matten.js) */
+.mwp-new, .mwp-cp, .mwp-art { margin-bottom: 10px; }
+.mwp-new-go { align-self: end; }
+.mwp-cp legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; }
+.mwp-flat { padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
+.mwp-lead { flex: 1 1 22rem; margin: 0; }
+.mwp-cp :is(input, select)[aria-invalid="true"], .mwp-flat input[aria-invalid="true"] { border-color: var(--err); box-shadow: 0 0 0 1px var(--err); }
 .fak-art-pick input { width: 16rem; max-width: 100%; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 4px 12px; }
 /* Positionsarten (Text, Titel, Zwischensumme, Option, Alternative) und Folgebelege */

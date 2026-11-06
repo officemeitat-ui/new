@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyImport, backupFolder, colorKey, isTourFile, lastExchanges, matchArticle, nameKey, planImport, sizeKey, toolDataFromFiles } from '../src/core/matten-import.js'
-import { emptyMatten, placementProblem, normalizePlacement } from '../src/core/matten.js'
+import { doneFromPlacements, emptyMatten, nextOf, normalizePlacement, placementProblem } from '../src/core/matten.js'
 import { MATTEN_ARTIKEL_BEISPIEL, werkzeugBeispiel, werkzeugTourPfad } from '../src/data/demo-matten.js'
 
 const CUSTOMERS = [
@@ -44,10 +44,13 @@ test('Hilfen: Namensschlüssel wie im Werkzeug, Größe und Farbe, Tour-Dateien,
   // Mattentyp: Größe und Farbe; ohne Felder aus dem Namen; nur Größe, wenn es in der Größe genau einen Typ ohne Farbe gibt
   assert.deepEqual(matchArticle(ARTICLES, { groesse: '85 x 150 cm', farbe: 'Grau' }), { id: 'a-mdemo1', how: 'Größe und Farbe' })
   assert.equal(matchArticle(ARTICLES, { groesse: '85 x 150 cm', farbe: 'Navy' }), null)
-  const byName = [{ id: 'n1', group: 'Matten', name: 'Matte 85x150 Navy' }, { id: 'n2', group: 'Matten', name: 'Matte 60 × 90' }]
+  const byName = [{ id: 'n1', group: 'Matten', name: 'Matte 85x150 Navy' }, { id: 'n2', group: 'Matten', name: 'Matte 60 × 90' }, { id: 'n0', group: 'Matten', name: 'Matte 85x150 Navy alt', active: false }]
   assert.deepEqual(matchArticle(byName, { groesse: '85 x 150 cm', farbe: 'Navy' }), { id: 'n1', how: 'Größe und Farbe' })
   assert.deepEqual(matchArticle(byName, { groesse: '60 x 90 cm', farbe: 'Rot' }), { id: 'n2', how: 'Größe' })
   assert.equal(matchArticle([{ id: 'x', group: 'Andere', name: 'Matte 60 x 90' }], { groesse: '60 x 90', farbe: '' }), null, 'nur Artikelgruppe Matten')
+  // mehrere Arten in Größe und Farbe (P3: matKind): die Art „Standard“ zuerst
+  const kinds = [{ id: 'k-logo', group: 'Matten', size: '85 × 150 cm', color: 'grau', matKind: 'Logo' }, { id: 'k-std', group: 'Matten', size: '85 × 150 cm', color: 'grau', matKind: 'Standard' }]
+  assert.equal(matchArticle(kinds, { groesse: '85 x 150 cm', farbe: 'Grau' }).id, 'k-std')
 })
 
 test('Letzter Wechsel aus allen Touren: jüngster Halt „gewechselt“ je Liegeplatz', () => {
@@ -120,9 +123,9 @@ test('Übernahme der Werkzeug-Beispieldaten: vollständig, Felder wie geplant, W
   assert.deepEqual(res.customers.find((c) => c.id === 'c-demo2').objectIds, ['o2', P('L-0006').objectId])
   // Liegeplatz: Name aus der Lage, Wochen → Tage, Regel wie im Werkzeug, letzter Wechsel, Gebiet, Kopie des Kunden
   const p1 = P('L-0001')
-  assert.deepEqual([p1.name, p1.intervalDays, p1.rule, p1.startDate, p1.hint, p1.active, p1.customerId, p1.customer], ['Haupteingang', 14, 'ab-ist', '', 'Schlüssel beim Hausbesorger', true, 'c-demo1', { id: 'c-demo1', name: 'Hausverwaltung Beispiel GmbH', no: '10001' }])
+  assert.deepEqual([p1.name, p1.intervalDays, p1.rule, p1.startDate, p1.hint, p1.active, p1.customerId, p1.customer], ['Haupteingang', 14, 'ab-ist', '2026-10-20', 'Schlüssel beim Hausbesorger', true, 'c-demo1', { id: 'c-demo1', name: 'Hausverwaltung Beispiel GmbH', no: '10001' }])
   assert.deepEqual(p1.lastExchange, { date: '2026-10-20', tourId: 'T-beispiel-b2', source: 'werkzeug' })
-  assert.deepEqual(p1.mats, [{ articleId: 'a-mdemo1', qty: 2, owner: 'wir', name: 'Schmutzfangmatte 85 × 150 cm grau', size: '85 x 150 cm', color: 'Grau' }])
+  assert.deepEqual(p1.mats, [{ articleId: 'a-mdemo1', qty: 2, owner: 'wir', name: '85 × 150 cm, grau', size: '85 × 150 cm', color: 'grau', matKind: 'Standard' }])
   assert.deepEqual(p1.source, { system: 'mattenwechsel', quelle: 'Tourenliste Nord, Zeile 1' })
   assert.deepEqual([p1.createdAt, p1.createdBy, p1.updatedAt, p1.updatedBy], [NOW, 'Petra Leitner', NOW, 'Petra Leitner'])
   assert.deepEqual(res.doc.areas.map((a) => a.name).sort(), ['Nord', 'Süd'])
@@ -135,6 +138,13 @@ test('Übernahme der Werkzeug-Beispieldaten: vollständig, Felder wie geplant, W
   assert.deepEqual(p3.mats, [{ articleId: '', qty: 1, owner: 'kunde', name: '115 x 200 cm Grau/Schwarz', legacy: { groesse: '115 x 200 cm', farbe: 'Grau/Schwarz' } }])
   assert.equal(P('L-0005').active, false)
   assert.equal(P('L-0005').lastExchange, undefined)
+  assert.equal(P('L-0005').startDate, '2026-11-06', 'ohne Wechsel: Starttermin = Tag der Übernahme (sofort fällig wie im Werkzeug)')
+  // Fälligkeit über den Fälligkeitsrechner: letzter Wechsel + Intervall (überfällig wie im Werkzeug)
+  const done = doneFromPlacements(res.doc.placements)
+  const next = (lid) => nextOf(P(lid), { today: '2026-11-06', done }).next
+  assert.deepEqual([next('L-0001').date, next('L-0001').overdue], ['2026-11-03', true])
+  assert.deepEqual([next('L-0006').date, next('L-0006').overdue], ['2026-11-17', false])
+  assert.equal(next('L-0005'), null, 'inaktiv')
   assert.deepEqual([P('L-0004').lat, P('L-0004').geoQuality], [47.6831, 'werkzeug'])
   assert.deepEqual(P('L-0006').mats.map((m) => m.articleId), ['a-mdemo3', ''])
   // jeder übernommene Liegeplatz ist gültig (lässt sich so im Dialog speichern)

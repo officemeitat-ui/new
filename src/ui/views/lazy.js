@@ -487,6 +487,12 @@ lazy(BUERO, {
   actions: 'fab-cust-winter fab-cust-winter-check fab-beilage fab-winter-open fab-winter-month fab-winter-pick fab-winter-price fab-winter-mode fab-winter-create fab-proof-basis fab-proof-opts',
 })
 
+// invoicing-matten.js (mit invoicing.js geladen): Mattentypen, Kundenblatt „Mattenwechsel“ und „Kundenpreise“
+lazy(BUERO, {
+  module: 'fakturierung',
+  actions: 'mwp-cust-redraw mwp-cust-read mwp-cust-check mwp-flat-add mwp-flat-del mwp-price-add mwp-price-del mwp-price-art mwp-price-check mwp-mat-create mwp-mat-starter',
+})
+
 // invoicing-briefe.js und invoicing-briefpapier.js: Briefe, Serienbriefe und Briefpapier der Fakturierung (kommen mit invoicing.js)
 lazy(BUERO, {
   module: 'fakturierung',

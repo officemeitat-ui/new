@@ -9,8 +9,9 @@
 // Die Dateien des Werkzeugs werden nie geschrieben. Rechenkern: core/matten-import.js.
 
 import { formatDate, todayISO } from '../../core/dates.js'
+import { matLabel, matTypes } from '../../core/invoicing.js'
 import { applyImport, backupFolder, isTourFile, planImport, TOOL_PATHS, toolDataFromFiles, toolList } from '../../core/matten-import.js'
-import { customerName, emptyMatten, intervalText, matTypes, typeLabel, upgradeMatten } from '../../core/matten.js'
+import { customerName, emptyMatten, intervalText, upgradeMatten } from '../../core/matten.js'
 import { app, confirmStep, persist, registerActions, renderNow, toast } from '../context.js'
 import { esc, ICON, options, uid } from '../shared.js'
 
@@ -99,7 +100,7 @@ export function importTab() {
   const plan = currentPlan()
   const fakCustomers = [...(fakData()?.customers || [])].sort((a, b) => customerName(a).localeCompare(customerName(b), 'de'))
   const objects = [...(app.data.objects || [])].sort((a, b) => a.name.localeCompare(b.name, 'de'))
-  const types = matTypes(fakData()?.articles || []).filter((a) => a.active !== false)
+  const types = matTypes(fakData()?.articles || [])
   const tours = st.tool.touren || []
   const dates = tours.map((t) => t.datum).filter(Boolean).sort()
   const b = st.backup
@@ -139,11 +140,11 @@ export function importTab() {
   // 3. Mattentypen
   const matRows = plan.mats
     .map((r) => `<tr><td>${esc(r.groesse || 'ohne Größe')}</td><td>${esc(r.farbe || 'ohne Farbe')}</td><td class="num">${r.qty}</td><td class="num">${r.count}</td>
-      <td><select data-change="mw-imp-choice" data-kind="mats" data-key="${esc(r.key)}" aria-label="Mattentyp für ${esc([r.groesse, r.farbe].join(' '))}">${options(types.map((a) => [a.id, typeLabel(a)]), r.choice, { empty: '– Mattentyp fehlt –' })}</select></td>
+      <td><select data-change="mw-imp-choice" data-kind="mats" data-key="${esc(r.key)}" aria-label="Mattentyp für ${esc([r.groesse, r.farbe].join(' '))}">${options(types.map((a) => [a.id, matLabel(a)]), r.choice, { empty: '– Mattentyp fehlt –' })}</select></td>
       <td>${r.choice ? `<span class="pill ok">${esc(r.suggestion && r.suggestion.id === r.choice ? r.suggestion.how : 'von Hand')}</span>` : '<span class="pill warning">fehlt</span>'}</td></tr>`)
     .join('')
   const missingTypes = plan.missingTypes.length
-    ? `<div class="banner warn-banner"><p><strong>${plural(plan.missingTypes.length, 'Mattentyp fehlt', 'Mattentypen fehlen')}:</strong> ${esc(plan.missingTypes.map((r) => [r.groesse, r.farbe].filter(Boolean).join(' ')).join(' · '))}. Diese Matten kommen mit Größe und Farbe herüber und stehen als „Mattentyp fehlt“ in der Liste. Nach dem Anlegen in der Fakturierung (Artikelgruppe „Matten“) die Übernahme noch einmal ausführen: sie trägt die Typen nach.</p>${app.access?.sees?.('fakturierung') !== false ? '<button class="btn small" data-action="mw-types-goto">Mattentypen in der Fakturierung</button>' : ''}</div>`
+    ? `<div class="banner warn-banner"><p><strong>${plural(plan.missingTypes.length, 'Mattentyp fehlt', 'Mattentypen fehlen')}:</strong> ${esc(plan.missingTypes.map((r) => [r.groesse, r.farbe].filter(Boolean).join(' ')).join(' · '))}. Diese Matten kommen mit Größe und Farbe herüber und stehen als „Mattentyp fehlt“ in der Liste. Nach dem Anlegen in der Fakturierung (Stammdaten → Matten) die Übernahme noch einmal ausführen: sie trägt die Typen nach.</p>${app.access?.sees?.('fakturierung') !== false ? '<button class="btn small" data-action="mw-types-goto">Mattentypen in der Fakturierung</button>' : ''}</div>`
     : ''
   const matSection = `<section class="mw-block"><h3>3. Mattentypen</h3>${missingTypes}
     <div class="table-wrap"><table class="data mw-imp-table"><thead><tr><th>Größe</th><th>Farbe</th><th class="num">Stück</th><th class="num">Liegeplätze</th><th>Mattentyp</th><th>Zuordnung</th></tr></thead><tbody>${matRows}</tbody></table></div></section>`
@@ -237,7 +238,7 @@ registerActions(
       if (!confirmStep('mw-imp-run')) return
       const fak = fakData()
       if (!fak) return toast('Die Fakturierung ist nicht geladen (Kunden). Bitte später noch einmal.')
-      const res = applyImport(plan, { doc: doc(), customers: fak.customers || [], objects: app.data.objects || [], articles: fak.articles || [], newId: uid, now: new Date().toISOString(), user: app.user?.name || 'Browser' })
+      const res = applyImport(plan, { doc: doc(), customers: fak.customers || [], objects: app.data.objects || [], articles: fak.articles || [], newId: uid, now: new Date().toISOString(), today: todayISO(), user: app.user?.name || 'Browser' })
       app.data.matten = res.doc
       if (res.summary.objects) app.data.objects = res.objects
       if (res.summary.customers || res.summary.links) fak.customers = res.customers

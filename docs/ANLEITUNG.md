@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 323 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 326 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (61)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (71)
+- [Finanzen](#finanzen) (74)
 - [Verwaltung](#verwaltung) (56)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (40)
 - [Begriffe](#begriffe)
@@ -1649,7 +1649,7 @@ Ein Liegeplatz ist die Stelle beim Kunden, an der Matten liegen, z. B. „Haupte
 2. Oben nach Kunde, Gebiet oder Status filtern, z. B. „zu prüfen“.
 3. Einen Liegeplatz anklicken: Matten, Intervall, Zugang und Zeitfenster.
 
-> Tipp: „Nächster Wechsel“ ist vorerst eine Vorschau aus Starttermin bzw. letztem Wechsel und Intervall; Kalender und Touren folgen.
+> Tipp: „Nächster Wechsel“ rechnet die App aus Starttermin, Regel, Intervall, letztem Wechsel und Pausen; der Kalender folgt.
 > Tipp: Wer die Fakturierung nicht sieht, sieht Kunde und Matte aus einer Kopie am Liegeplatz, ohne Preise.
 > Tipp: Am Handy steht „Liegeplätze“ in der Leiste unten.
 
@@ -1667,7 +1667,7 @@ Ein Liegeplatz gehört zu Kunde und Objekt: Name, Stockwerk, Zugang oder Schlüs
 4. Intervall, Starttermin und Regel wählen, bei Bedarf Zeitfenster und Pausen.
 5. „Speichern“ klicken.
 
-> Tipp: Mattentypen sind Artikel der Fakturierung mit der Artikelgruppe „Matten“.
+> Tipp: Mattentypen pflegt die Fakturierung unter „Stammdaten → Matten“ (Größe, Farbe, Preis je Wechsel).
 > Tipp: Koordinaten leer lassen übernimmt die des Objekts; „Suchen“ fragt OpenStreetMap.
 > Tipp: „Fester Rhythmus“ zählt ab dem Starttermin, „ab dem letzten Wechsel“ wie bisher im Werkzeug.
 
@@ -2191,6 +2191,57 @@ Im Kundenblatt unter „Winterdienst“ stehen je Objekt des Kunden die Abrechnu
 
 *Buchhaltung, Vollzugriff*
 
+### Mattentypen mit Größe, Farbe und Preis je Wechsel
+
+*In der App: Fakturierung*
+
+Mattentypen sind Artikel der Gruppe „Matten“: Größe (z. B. 85 × 150 cm), Farbe, Art (Standard, Logo …) und der Preis je gewechselter Matte netto. Unter „Stammdaten ▾“ → „Matten“ legst du sie schnell an; „Übliche Größen anlegen“ legt 85 × 150, 115 × 200, 150 × 250 und 85 × 120 cm ohne Preise an. Der Mattenwechsel nimmt sie von hier.
+
+1. Fakturierung → „Stammdaten ▾“ → „Matten“ öffnen.
+2. Größe, Farbe, Art und Preis je Wechsel eintragen, z. B. 4,90.
+3. „Mattentyp anlegen“ klicken.
+4. Eine Zeile anklicken, um den Mattentyp im Artikel-Dialog zu ändern.
+
+> Tipp: „85x150“ schreibt die App als „85 × 150 cm“. Denselben Typ (Größe, Farbe, Art) gibt es nur einmal.
+> Tipp: Ein Mattentyp mit Kundenpreisen lässt sich nicht löschen; nicht mehr verwendete inaktiv setzen.
+> Tipp: Darunter stehen die Kundenpreise für Matten, die heute gelten.
+
+*Buchhaltung, Vollzugriff*
+
+### Kundenpreise mit Gültigkeit
+
+*In der App: Fakturierung*
+
+Im Kundenblatt unter „Kundenpreise“ trägst du je Artikel einen eigenen Preis netto mit „gültig ab“ und „gültig bis“ ein (je einschließlich, bis leer = ohne Ende). Er geht dem Preis des Artikels vor; der Kundenrabatt wird dazu nicht noch abgezogen. Zeiträume desselben Artikels dürfen sich nicht überschneiden.
+
+1. Fakturierung → Kunden → Kunde öffnen, Reiter „Kundenpreise“.
+2. „+ Kundenpreis“ klicken und den Artikel wählen.
+3. Preis mit Komma eintragen, z. B. 4,40, und den Zeitraum wählen.
+4. „Speichern“ klicken.
+
+> Tipp: Preiserhöhung: beim alten Preis „gültig bis“ setzen (z. B. 30.6.) und einen neuen ab dem Tag danach anlegen.
+> Tipp: Überschneidungen, negative Preise oder Text statt Zahl meldet die App gleich und speichert nicht.
+> Tipp: Für alle Artikel nutzbar, nicht nur für Matten. Die Preise ermittelt die App an einer Stelle (Kundenpreis, sonst Artikel).
+
+*Buchhaltung, Vollzugriff*
+
+### Mattenwechsel je Kunde: Abrechnung, Pauschale, Lieferschein-Mail
+
+*In der App: Fakturierung*
+
+Im Kundenblatt unter „Mattenwechsel“ stellst du ein: E-Mail für Lieferscheine (leer: die für Rechnungen), Sammel- oder Einzelrechnung, monatlich oder quartalsweise und das Preismodell – je gewechselter Matte (Stück × Preis, Kundenpreis vor Standard) oder Pauschale je Monat je Liegeplatz, Objekt oder für den ganzen Kunden.
+
+1. Fakturierung → Kunden → Kunde öffnen, Reiter „Mattenwechsel“.
+2. Rechnung und Abrechnungszeitraum wählen.
+3. Preismodell wählen; bei „Pauschale je Monat“ mit „+ Pauschale“ Objekt und Betrag eintragen.
+4. „Speichern“ klicken.
+
+> Tipp: Die Einstellungen gelten für Lieferscheine und Rechnungen aus dem Mattenwechsel (Modul im Aufbau); Rechnungen entstehen dort immer als Entwurf.
+> Tipp: „Lieferschein automatisch senden“ ist aus, bis du es je Kunde einschaltest; sonst prüft das Büro vorher.
+> Tipp: Beim Preismodell je Wechsel zeigt der Reiter die heutigen Preise je Mattentyp für diesen Kunden.
+
+*Buchhaltung, Vollzugriff*
+
 ### Rechnung per E-Mail senden
 
 *In der App: Fakturierung*
@@ -2335,7 +2386,7 @@ Im Kunden zeigt der Reiter „Belege & Umsatz“ alle Angebote, Rechnungen und G
 3. Mit „+ Rechnung“ unten gleich eine neue Rechnung für diesen Kunden anlegen.
 
 > Tipp: In der Kundenliste öffnet der Betrag unter „offene Posten“ direkt den Verlauf.
-> Tipp: Der Reiter „Winterdienst“ hat die Preise je Objekt für „Winterdienst abrechnen“.
+> Tipp: Der Reiter „Winterdienst“ hat die Preise je Objekt für „Winterdienst abrechnen“; „Mattenwechsel“ und „Kundenpreise“ die Abrechnung der Matten und eigene Preise mit Gültigkeit.
 > Tipp: Felder, die beim Übernehmen aus orgaMAX keinen Platz gefunden haben, stehen unter „Weitere Felder“ zum Nachlesen.
 > Tipp: Der Reiter „Briefe“ zeigt alle Briefe und Serienbriefe an den Kunden; dort auch „Werbung per E-Mail abgelehnt“ und „Kunde inaktiv“.
 
@@ -2350,6 +2401,7 @@ Artikel sind Vorlagen für Positionen: Artikelnummer, Bezeichnung, Langtext (ste
 3. Im Beleg ins Feld „Artikel“ die Nummer oder den Namen tippen; die Position wird eingesetzt.
 
 > Tipp: Suche und Gruppenfilter stehen über der Liste.
+> Tipp: Mattentypen (Gruppe „Matten“) mit Größe und Farbe gibt es unter „Stammdaten ▾“ → „Matten“.
 
 ### Textbausteine und Platzhalter
 

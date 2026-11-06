@@ -171,7 +171,8 @@ function demoAppointments(monday, employees) {
 }
 
 // Fakturierung: Absender, drei Kunden (Hausverwaltung mit zwei Objekten), Daueraufträge mit Wertsicherung,
-// Rechnungen der letzten Monate (bezahlt, offen, überfällig), ein Entwurf und ein Angebot.
+// Rechnungen der letzten Monate (bezahlt, offen, überfällig), ein Entwurf und ein Angebot; dazu zwei Mattentypen
+// und ein Kundenpreis für den Mattenwechsel (erfundene Beispielpreise).
 function demoInvoicing() {
   const today = todayISO()
   const first = firstOfMonth(today)
@@ -188,7 +189,7 @@ function demoInvoicing() {
   }
   // Kunden wie aus orgaMAX übernommen: Einzelfelder, Ansprechpartner, Gruppe (Anschrift als Freitext bleibt nutzbar)
   const customers = [
-    { id: 'c-demo1', customerNo: '10001', name: 'Hausverwaltung Beispiel GmbH', street: 'Ringstraße 3', zip: '5020', city: 'Salzburg', country: 'AT', phone: '+43 662 000001', group: 'Hausverwaltung', uid: 'ATU87654321', email: 'buchhaltung@hv-beispiel.example', paymentDays: 14, objectIds: ['o5', 'o11'], reverseCharge: false, consumer: false, contacts: [{ id: 'cp-demo1', name: 'Frau Mag. Eva Beispiel', role: 'Buchhaltung', email: 'buchhaltung@hv-beispiel.example', phone: '+43 662 000001' }, { id: 'cp-demo2', name: 'Herr Paul Muster', role: 'Objektbetreuung', email: 'objekte@hv-beispiel.example', phone: '' }] },
+    { id: 'c-demo1', customerNo: '10001', name: 'Hausverwaltung Beispiel GmbH', street: 'Ringstraße 3', zip: '5020', city: 'Salzburg', country: 'AT', phone: '+43 662 000001', group: 'Hausverwaltung', uid: 'ATU87654321', email: 'buchhaltung@hv-beispiel.example', paymentDays: 14, objectIds: ['o5', 'o11'], reverseCharge: false, consumer: false, contacts: [{ id: 'cp-demo1', name: 'Frau Mag. Eva Beispiel', role: 'Buchhaltung', email: 'buchhaltung@hv-beispiel.example', phone: '+43 662 000001' }, { id: 'cp-demo2', name: 'Herr Paul Muster', role: 'Objektbetreuung', email: 'objekte@hv-beispiel.example', phone: '' }], deliveryNoteEmail: 'objekte@hv-beispiel.example', matten: { billing: 'sammel', billingInterval: 'monat', priceModel: 'wechsel', monthlyFlat: [], autoSend: false } },
     { id: 'c-demo2', customerNo: '10002', name: 'Autohaus Maxglan Beispiel KG', street: 'Autoweg 7', zip: '5020', city: 'Salzburg', country: 'AT', salutation: 'Herr', firstName: 'Max', lastName: 'Beispiel', phone: '+43 662 000002', group: 'Gewerbe', uid: 'ATU11223344', email: 'rechnung@autohaus-beispiel.example', paymentDays: 10, objectIds: ['o2'], reverseCharge: false, consumer: false, hourRate: 34 },
     { id: 'c-demo3', customerNo: '10003', name: 'Reinigung Partner Beispiel GmbH', street: 'Gewerbestraße 9', zip: '5101', city: 'Bergheim', country: 'AT', group: 'Subauftrag', uid: 'ATU55667788', email: 'office@partner-beispiel.example', paymentDays: 30, objectIds: ['o8'], reverseCharge: true, consumer: false, note: 'Subauftrag: Partner erbringt selbst Reinigungsleistungen (Bauleistung)' },
   ]
@@ -215,7 +216,11 @@ function demoInvoicing() {
       { id: 'a-fdemo3', articleNo: 'GL-01', group: 'Glasreinigung', name: 'Glas- und Fensterreinigung', longText: 'Innen und außen, samt Rahmen und Falzen', unit: 'm²', price: 2.4, cost: 1.55, vat: 20 },
       { id: 'a-fdemo4', articleNo: 'GR-01', group: 'Sonderreinigung', name: 'Grundreinigung', longText: 'Bodenbeläge maschinell, Einpflege nach Herstellerangabe', unit: 'm²', price: 2.9, cost: 1.9, vat: 20 },
       { id: 'a-fdemo5', articleNo: 'WD-01', group: 'Winterdienst', name: 'Winterdienst Pauschale', unit: 'Monat', price: 120, vat: 20 },
+      { id: 'a-fdemo6', articleNo: 'MA-01', group: 'Matten', name: 'Schmutzfangmatte 85 × 150 cm grau', size: '85 × 150 cm', color: 'grau', matKind: 'Standard', unit: 'Stk', price: 4.9, vat: 20 },
+      { id: 'a-fdemo7', articleNo: 'MA-02', group: 'Matten', name: 'Schmutzfangmatte 150 × 250 cm anthrazit', size: '150 × 250 cm', color: 'anthrazit', matKind: 'Standard', unit: 'Stk', price: 9.8, vat: 20 },
     ],
+    // Kundenpreis mit Gültigkeit (geht dem Standardpreis des Mattentyps vor)
+    customerPrices: [{ id: 'kp-demo1', customerId: 'c-demo1', articleId: 'a-fdemo6', price: 4.4, currency: 'EUR', vat: 20, validFrom: `${today.slice(0, 4)}-01-01`, validTo: '', note: 'Rahmenvertrag (Beispiel)', createdAt: `${today.slice(0, 4)}-01-02T08:00:00.000Z`, createdBy: 'Beispieldaten' }],
     // Zahlungsbedingungen und Textbausteine wie in orgaMAX (Kleinstammdaten); kein Standard-E-Mail-Text
     paymentTerms: [
       { id: 'zb-demo1', name: '14 Tage netto', days: 14, skontoPercent: 0, skontoDays: 0, text: '', isDefault: true },

@@ -4,21 +4,30 @@
 //  - werkzeugBeispiel(): Dateien des bisherigen Werkzeugs (Standorte.json, Kunden.json, Touren) im Format der
 //    Fassung 2.4 – für den Test der Übernahme (test/matten-import.test.js) und die SharePoint-Attrappe der Browser-Tests.
 
-/** Mattentypen wie in der Fakturierung (Artikelgruppe „Matten“, Größe und Farbe als eigene Felder). */
+import { matLabel } from '../core/invoicing.js'
+
+/** Mattentypen wie in der Fakturierung (Artikelgruppe „Matten“, Größe, Farbe und Art als eigene Felder) – für Tests. */
 export const MATTEN_ARTIKEL_BEISPIEL = [
-  { id: 'a-mdemo1', articleNo: 'MA-85150-G', group: 'Matten', name: 'Schmutzfangmatte 85 × 150 cm grau', size: '85 x 150 cm', color: 'Grau', unit: 'Stk', price: 4.9, vat: 20 },
-  { id: 'a-mdemo2', articleNo: 'MA-85120-N', group: 'Matten', name: 'Schmutzfangmatte 85 × 120 cm navy', size: '85 x 120 cm', color: 'Navy', unit: 'Stk', price: 4.2, vat: 20 },
-  { id: 'a-mdemo3', articleNo: 'MA-115200-G', group: 'Matten', name: 'Schmutzfangmatte 115 × 200 cm grau', size: '115 x 200 cm', color: 'Grau', unit: 'Stk', price: 7.5, vat: 20 },
-  { id: 'a-mdemo4', articleNo: 'MA-150250-G', group: 'Matten', name: 'Schmutzfangmatte 150 × 250 cm grau', size: '150 x 250 cm', color: 'Grau', unit: 'Stk', price: 11.9, vat: 20 },
+  { id: 'a-mdemo1', articleNo: 'MA-85150-G', group: 'Matten', name: 'Schmutzfangmatte 85 × 150 cm grau', size: '85 × 150 cm', color: 'grau', matKind: 'Standard', unit: 'Stk', price: 4.9, vat: 20 },
+  { id: 'a-mdemo2', articleNo: 'MA-85120-N', group: 'Matten', name: 'Schmutzfangmatte 85 × 120 cm navy', size: '85 × 120 cm', color: 'navy', matKind: 'Standard', unit: 'Stk', price: 4.2, vat: 20 },
+  { id: 'a-mdemo3', articleNo: 'MA-115200-G', group: 'Matten', name: 'Schmutzfangmatte 115 × 200 cm grau', size: '115 × 200 cm', color: 'grau', matKind: 'Standard', unit: 'Stk', price: 7.5, vat: 20 },
+  { id: 'a-mdemo4', articleNo: 'MA-150250-G', group: 'Matten', name: 'Schmutzfangmatte 150 × 250 cm grau', size: '150 × 250 cm', color: 'grau', matKind: 'Standard', unit: 'Stk', price: 11.9, vat: 20 },
 ]
 
+// Mattentypen der Beispieldaten der Fakturierung (demo-modules.js, a-fdemo6 und a-fdemo7): nur die Felder für die Kopie
+const DEMO_TYPES = [
+  { id: 'a-fdemo6', size: '85 × 150 cm', color: 'grau', matKind: 'Standard' },
+  { id: 'a-fdemo7', size: '150 × 250 cm', color: 'anthrazit', matKind: 'Standard' },
+]
+export const MATTEN_DEMO_TYPE_IDS = DEMO_TYPES.map((t) => t.id)
+
 const copy = (id) => {
-  const a = MATTEN_ARTIKEL_BEISPIEL.find((x) => x.id === id)
-  return { articleId: a.id, name: a.name, size: a.size, color: a.color }
+  const a = DEMO_TYPES.find((x) => x.id === id)
+  return { articleId: a.id, name: matLabel(a), size: a.size, color: a.color, matKind: a.matKind }
 }
 const stamp = { createdAt: '2026-11-02T08:00:00.000Z', createdBy: 'Beispieldaten', updatedAt: '2026-11-02T08:00:00.000Z', updatedBy: 'Beispieldaten' }
 
-/** Liegeplätze der Vorschau: Autohaus (2) und Versicherungsbüro (1), Gebiet „Salzburg Nord“. */
+/** Liegeplätze der Vorschau: Autohaus (2) und Versicherungsbüro (1), Gebiet „Salzburg Nord“, Mattentypen der Fakturierung. */
 export function createMattenDemo() {
   const hv = { id: 'c-demo1', name: 'Hausverwaltung Beispiel GmbH', no: '10001' }
   const ah = { id: 'c-demo2', name: 'Autohaus Maxglan Beispiel KG', no: '10002' }
@@ -27,9 +36,9 @@ export function createMattenDemo() {
     settings: {},
     areas: [{ id: 'mg-demo1', name: 'Salzburg Nord', active: true, ...stamp }],
     placements: [
-      { id: 'mw-demo1', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Schauraum Eingang', floor: 'EG', access: 'offen ab 7 Uhr', hint: 'Alte Matten in den Bus, nicht in den Müllraum', active: true, mats: [{ ...copy('a-mdemo3'), qty: 2, owner: 'wir' }], intervalDays: 14, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 10, window: { from: '07:00', to: '09:00', note: 'vor Geschäftsöffnung' }, pauses: [], areaId: 'mg-demo1', ...stamp },
-      { id: 'mw-demo2', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Werkstatt Kundenannahme', floor: 'EG', access: '', hint: '', active: true, mats: [{ ...copy('a-mdemo1'), qty: 1, owner: 'wir' }], intervalDays: 28, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 5, pauses: [{ from: '2026-12-23', to: '2027-01-06', reason: 'Betriebsurlaub' }], areaId: 'mg-demo1', ...stamp },
-      { id: 'mw-demo3', objectId: 'o11', customerId: hv.id, customer: hv, name: 'Eingang', floor: 'EG', access: 'Code 1234 an der Tür (Beispiel)', hint: '', active: true, mats: [{ ...copy('a-mdemo2'), qty: 1, owner: 'kunde' }], intervalDays: 28, startDate: '2026-11-10', rule: 'rhythmus', workMinutes: 5, pauses: [], areaId: 'mg-demo1', ...stamp },
+      { id: 'mw-demo1', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Schauraum Eingang', floor: 'EG', access: 'offen ab 7 Uhr', hint: 'Alte Matten in den Bus, nicht in den Müllraum', active: true, mats: [{ ...copy('a-fdemo7'), qty: 2, owner: 'wir' }], intervalDays: 14, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 10, window: { from: '07:00', to: '09:00', note: 'vor Geschäftsöffnung' }, pauses: [], areaId: 'mg-demo1', ...stamp },
+      { id: 'mw-demo2', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Werkstatt Kundenannahme', floor: 'EG', access: '', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'wir' }], intervalDays: 28, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 5, pauses: [{ from: '2026-12-23', to: '2027-01-06', reason: 'Betriebsurlaub' }], areaId: 'mg-demo1', ...stamp },
+      { id: 'mw-demo3', objectId: 'o11', customerId: hv.id, customer: hv, name: 'Eingang', floor: 'EG', access: 'Code an der Tür (siehe Schlüsselbuch)', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'kunde' }], intervalDays: 28, startDate: '2026-11-10', rule: 'rhythmus', workMinutes: 5, pauses: [], areaId: 'mg-demo1', ...stamp },
     ],
   }
 }
