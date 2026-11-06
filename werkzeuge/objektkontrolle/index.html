@@ -395,6 +395,9 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
     <header><h2>Objekt und Kontrolle</h2><span class="badge hide" id="lockBadge">abgeschlossen</span></header>
     <div class="body">
       <div class="grid g2">
+        <div class="field hide" id="revierFeld"><label for="f_revier">Revier</label>
+          <select id="f_revier" data-obj="revier"></select>
+          <div id="revierHinweis" class="hint noprint" style="margin-top:4px"></div></div>
         <div class="field"><label for="f_ag">Kunde / Auftraggeber</label>
           <input type="text" id="f_ag" data-obj="auftraggeber" list="dlKunden" placeholder="Name eintippen, dann auswählen" autocomplete="off">
           <div id="kundenHinweis" class="hint noprint" style="margin-top:4px"></div></div>
@@ -708,8 +711,8 @@ const KAPITEL_TITEL = {}; SEKTIONEN.forEach(s => KAPITEL_TITEL[s.nr] = s.titel);
 /* ============================================================
    2) Speicher und Datenmodell – ein Datensatz = eine Kontrolle
    ============================================================ */
-const VERSION = "2.9";
-const VERSION_DATUM = "16.10.2026";
+const VERSION = "2.10";
+const VERSION_DATUM = "06.11.2026";
 const DB_KEY = "cleanos.schnellkontrolle.v1";
 const $  = (s,r=document) => r.querySelector(s);
 const $$ = (s,r=document) => Array.from(r.querySelectorAll(s));
@@ -792,7 +795,7 @@ function deZeitstempel(iso){
 }
 function leeresProtokoll(){
   return {id:neueId(), schema:1, art:"schnell", erstellt:new Date().toISOString(), geaendert:new Date().toISOString(),
-    meta:{objektId:"", objekt:"", adresse:"", auftraggeber:"", kundenNr:""},
+    meta:{objektId:"", objekt:"", adresse:"", auftraggeber:"", kundenNr:"", revier:""},
     datum:heute(), zeit:jetztZeit(), pruefer:"", kontrollart:"Regelkontrolle",
     status:"offen", abgeschlossen:"", items:{},
     abschluss:{gesamt:"", zusammenfassung:"", nachkontrolle:"", nachtermin:"", verteiler:"", cc:"", bcc:""},
@@ -897,7 +900,7 @@ function formularFuellen(){
   $$("textarea").forEach(autoHoehe);
   sigLaden("pruefer"); sigLaden("kunde");
   maengelZeichnen(); statistikAktualisieren(); kopfAktualisieren(); sperreAnwenden(); datalistsFuellen();
-  terminStatusZeigen(); objektAuswahlFuellen(); vorbefundZeigen();
+  terminStatusZeigen(); objektAuswahlFuellen(); vorbefundZeigen(); revierFeldFuellen();
 }
 function zeileFaerben(id){
   const row = $(`[data-row="${id}"]`); if(!row) return;
@@ -1859,9 +1862,54 @@ function ordnerObjektName(p){ return (saubererName([p.meta.objektId, p.meta.obje
    Je Begehung ein Ordner - darin die .json, das PDF und die Fotos.
    So liegt eine Kontrolle vollstaendig beisammen, und zwei Begehungen
    im selben Quartal vermischen sich nicht. */
-function ordnerTeile(p){
+function ordnerTeile(p, ohneRevier){
   const datum = p.datum || heute();
-  return [ordnerObjektName(p), datum + "_" + quartalVon(datum)];
+  const r = ohneRevier ? "" : revierName((p.meta || {}).revier);
+  return (r ? ["Revier " + r] : []).concat(ordnerObjektName(p), datum + "_" + quartalVon(datum));
+}
+/* 2.10: Ablage je Revier.
+     Objekte/Revier <Name>/<ObjektID>_<Objekt>/<Datum>_<Quartal>/
+   Der Name steht bereinigt in meta.revier - Ordner und Datensatz
+   passen so zueinander. Ohne Revier (leer) bleibt alles wie bisher.
+   Zwischen Revieren verschoben wird nur zentral in der Cleanos App. */
+function revierName(s){ return String(s || "").replace(/[^\wäöüÄÖÜß\- ]+/g, "").trim().replace(/\s+/g, "-"); }
+function revierAusOrdner(ordner){ const t = String(ordner || "").split("/")[0]; return t.startsWith("Revier ") ? t.slice(7) : ""; }
+let revierOrdnerGelesen = [];
+/* Liegt die Kontrolle schon in SharePoint? Dann bleibt ihr Revier fest. */
+function imSharePoint(p){
+  return !!(p && (p.graphETag || p.graphSyncZeit || p.graphOrdner || (dbLesen().index || []).some(e => e.id === p.id)));
+}
+/* Zur Auswahl: Reviere aus der App, Revier-Ordner des letzten Abgleichs
+   und Reviere der bekannten Objekte - je Revier einmal. */
+function revierOptionen(){
+  const raus = [], gesehen = new Set();
+  const dazu = text => {
+    const wert = revierName(text);
+    if(!wert || gesehen.has(wert)) return;
+    gesehen.add(wert); raus.push({wert, text:String(text).trim()});
+  };
+  let ausApp = null;
+  try{ ausApp = window.CLEANOS_APP && window.CLEANOS_APP.reviere; }catch(e){}
+  if(Array.isArray(ausApp)) ausApp.forEach(r => { if(typeof r === "string") dazu(r); });
+  (dbLesen().reviere || []).forEach(dazu);
+  OBJEKTSTAMM.forEach(x => dazu(x.revier));
+  return raus.sort((a,b) => a.text.localeCompare(b.text, "de"));
+}
+function revierFeldFuellen(){
+  const feld = $("#revierFeld"), sel = $("#f_revier");
+  if(!feld || !sel) return;
+  const optionen = revierOptionen(), fest = imSharePoint(doc);
+  /* Neue Kontrolle und nur ein Revier zur Wahl: vorbelegen */
+  if(optionen.length === 1 && !doc.meta.revier && !fest && !gesperrt()) doc.meta.revier = optionen[0].wert;
+  const jetzt = doc.meta.revier || "";
+  if(jetzt && !optionen.some(o => o.wert === jetzt)) optionen.push({wert:jetzt, text:jetzt});
+  feld.classList.toggle("hide", !optionen.length);
+  sel.innerHTML = '<option value="">ohne Revier</option>'
+    + optionen.map(o => '<option value="' + esc(o.wert) + '">' + esc(o.text) + '</option>').join("");
+  sel.value = jetzt;
+  sel.disabled = fest || gesperrt();
+  $("#revierHinweis").textContent = fest && optionen.length
+    ? "Schon in SharePoint abgelegt \u2013 das Revier l\u00e4sst sich nur zentral in der Cleanos App \u00e4ndern." : "";
 }
 /* Marke einer Datei.
    Der eTag aendert sich in SharePoint auch dann, wenn niemand den
@@ -2017,10 +2065,16 @@ async function graphSchreiben(p){
   await graphZiel();
   const ordnerPfad = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerTeile(p)));
   const ziel = `/drives/${graphDriveId}/root:/${encodeURI(ordnerPfad + "/" + graphDateiname(p))}:/content`;
-  const kopf = p.graphETag ? {"If-Match":p.graphETag} : {};
+  /* 2.10: Die Marke gilt nur fuer den Ordner, aus dem sie stammt. Liegt
+     das Ziel woanders (Revier, Datum), ohne If-Match schreiben - sonst
+     meldet SharePoint 412 und das Werkzeug fragt bei jeder Kontrolle
+     nach, auch beim Abgleich. Ohne gemerkten Ordner: der bisherige Pfad. */
+  const bisher = p.graphOrdner || graphBasis().split("/").concat(ordnerTeile(p, true)).join("/");
+  const kopf = p.graphETag && bisher === ordnerPfad ? {"If-Match":p.graphETag} : {};
   try{
     const res = await graphRuf(ziel, {method:"PUT", headers:Object.assign({"Content-Type":"application/json"}, kopf), body:JSON.stringify(p, null, 2)});
     p.graphETag = graphMarke(res);
+    p.graphOrdner = ordnerPfad;
     p.graphSyncZeit = p.geaendert || "";      /* Stand, der in SharePoint liegt */
     return true;
   }catch(e){
@@ -2036,16 +2090,26 @@ async function graphSchreiben(p){
    Jahr sind das hunderte Megabyte, am Handy ueber Mobilfunk. */
 async function graphIndexLesen(){
   await graphZiel();
-  const raus = [];
+  const raus = [], reviere = new Set();
   /* Die Ablage ist seit 1.4 dreistufig (Kunde/Objekt/Jahr), aeltere
      Kontrollen liegen noch flach darunter. Deshalb durchsuchen statt
      nur eine Ebene zu lesen. */
   async function gehe(itemId, pfad, tiefe){
     if(tiefe > 6) return;
-    const kinder = await graphRuf(`/drives/${graphDriveId}/items/${itemId}/children?$top=500&$select=id,name,eTag,cTag,size,lastModifiedDateTime,file,folder`);
+    let kinder;
+    try{ kinder = await graphRuf(`/drives/${graphDriveId}/items/${itemId}/children?$top=500&$select=id,name,eTag,cTag,size,lastModifiedDateTime,file,folder`); }
+    catch(e){
+      /* 2.10: Kein Recht auf ein anderes Revier (403) oder Ordner gerade
+         weg (404): diesen Ordner auslassen, den Rest trotzdem abgleichen. */
+      if(!tiefe || !e.status) throw e;
+      console.warn("Objektkontrolle: Ordner \u201e" + pfad + "\u201c nicht lesbar (" + e.status + ") \u2013 ausgelassen.", e.message);
+      return;
+    }
+    if(tiefe === 1 && pfad.startsWith("Revier ")) reviere.add(pfad.slice(7));
     for(const d of kinder.value){
       if(d.folder){
-        if(d.name.toLowerCase() === "fotos") continue;        /* Bilder nicht durchsuchen */
+        const n = d.name.toLowerCase();
+        if(n === "fotos" || n === "stammdaten") continue;     /* Bilder und Objektlisten nicht durchsuchen */
         await gehe(d.id, pfad ? pfad + "/" + d.name : d.name, tiefe + 1);
         continue;
       }
@@ -2053,14 +2117,15 @@ async function graphIndexLesen(){
       const basis = d.name.replace(/\.json$/i, "");
       const datum = basis.slice(0,10), id = basis.slice(11);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !id) continue;
-      raus.push({id, datum, ordner:pfad, itemId:d.id, eTag:graphMarke(d),
+      raus.push({id, datum, ordner:pfad, revier:revierAusOrdner(pfad), itemId:d.id, eTag:graphMarke(d),
                  cloudZeit:d.lastModifiedDateTime || "", groesse:d.size || 0});
     }
   }
   let wurzel;
   try{ wurzel = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(graphBasis())}`); }
-  catch(e){ if(e.status === 404) return []; throw e; }
+  catch(e){ if(e.status === 404){ revierOrdnerGelesen = []; return []; } throw e; }
   await gehe(wurzel.id, "", 0);
+  revierOrdnerGelesen = Array.from(reviere).sort((a,b) => a.localeCompare(b, "de"));
   return raus;
 }
 /* Eine einzelne Kontrolle nachladen - beim Oeffnen oder wenn sie
@@ -2071,6 +2136,11 @@ async function graphDatenLesen(eintrag){
   if(!p || !p.items || p.art !== "schnell") throw new Error("Die Datei ist keine Objektkontrolle");
   p.graphETag = graphMarke(d);
   p.graphSyncZeit = p.geaendert || "";
+  /* 2.10: Der Ordner sagt, in welchem Revier die Kontrolle liegt -
+     dorthin wird sie auch wieder geschrieben. */
+  p.meta = p.meta || {};
+  p.meta.revier = revierAusOrdner(eintrag.ordner);
+  p.graphOrdner = [graphBasis(), eintrag.ordner].filter(Boolean).join("/");
   return p;
 }
 async function graphAbgleichen(meldung){
@@ -2079,6 +2149,15 @@ async function graphAbgleichen(meldung){
     const db = dbLesen();
     const index = await graphIndexLesen();
     db.index = index;
+    /* 2.10: Revier-Ordner merken (Auswahl im Formular, Objektlisten).
+       Liegt eine Kontrolle inzwischen in einem anderen Revier (zentral
+       verschoben), gilt der Ordner - sonst entstuende eine zweite Datei. */
+    const reviereNeu = revierOrdnerGelesen.join("|") !== (db.reviere || []).join("|");
+    db.reviere = revierOrdnerGelesen;
+    db.protokolle.concat(doc).forEach(pr => {
+      const e = index.find(x => x.id === pr.id);
+      if(e && pr.meta && (pr.meta.revier || "") !== e.revier) pr.meta.revier = e.revier;
+    });
     let geholt = 0, hoch = 0;
     /* Herunterladen nur, was hier schon liegt und in SharePoint neuer
        geworden ist. Alles Uebrige bleibt im Index und wird erst beim
@@ -2099,10 +2178,19 @@ async function graphAbgleichen(meldung){
     /* Hochladen, was hier geaendert wurde oder dort fehlt. */
     for(const pr of db.protokolle){
       const e = index.find(x => x.id === pr.id);
-      if(!e || (pr.geaendert || "") !== (pr.graphSyncZeit || "")){ if(await graphSchreiben(pr)) hoch++; }
+      if(!e || (pr.geaendert || "") !== (pr.graphSyncZeit || "")){
+        try{ if(await graphSchreiben(pr)) hoch++; }
+        catch(err){
+          /* 2.10: kein Recht (mehr) auf dieses Revier - die anderen trotzdem */
+          if(err.status !== 403 && err.status !== 404) throw err;
+          console.warn("Objektkontrolle: " + pr.id + " nicht hochgeladen (" + err.status + ").", err.message);
+        }
+      }
     }
     dbSchreiben(db);
     datalistsFuellen();
+    if(reviereNeu) await objektStammLaden();
+    revierFeldFuellen();
     graphStatusZeigen("angemeldet als " + graphUser + " · abgeglichen " + jetztZeit(), "");
     if(meldung) toast(`SharePoint: ${index.length} Kontrollen in der Ablage, ${geholt} aktualisiert, ${hoch} hochgeladen.`, 4500);
     /* 2.9: Was beim Abschliessen liegengeblieben ist, jetzt nachholen. */
@@ -2118,7 +2206,7 @@ function graphNachSpeichern(){
   clearTimeout(graphTimer);
   graphTimer = setTimeout(async () => {
     try{
-      if(await graphSchreiben(doc)){ $("#saveState").textContent = "in SharePoint " + jetztZeit(); graphFehlerGemeldet = ""; }
+      if(await graphSchreiben(doc)){ $("#saveState").textContent = "in SharePoint " + jetztZeit(); graphFehlerGemeldet = ""; revierFeldFuellen(); }
     }catch(e){
       $("#saveState").textContent = "nicht in SharePoint";
       /* Einmal je Ursache deutlich melden - sonst merkt am Handy
@@ -2271,27 +2359,36 @@ function kundeUebernehmen(){
    Selbstgeschriebenes waere dann weg.
    ------------------------------------------------------------ */
 let OBJEKTSTAMM = [];
-function objektStammPfad(){
+/* 2.10: Jedes Revier hat seine eigene Objektliste unter
+   <Basis>/Revier <Name>/Stammdaten/Objekte.json. Gelesen wird die
+   gemeinsame Liste (wenn lesbar) zusammen mit der jedes Reviers,
+   geschrieben in die Liste des Reviers der Kontrolle - ohne Revier
+   in die gemeinsame wie bisher. */
+function objektStammPfad(revier){
+  const r = revierName(revier);
+  if(r) return graphBasis() + "/Revier " + r + "/Stammdaten/Objekte.json";
   const teile = graphBasis().split("/");
   teile.pop();
   return teile.concat("Stammdaten", "Objekte.json").join("/");
 }
 const stammSchluessel = (kunde, objekt) => ((kunde||"").trim() + "|" + (objekt||"").trim()).toLowerCase();
 
-async function objektStammHolen(){
+async function objektStammHolen(revier){
+  const r = revierName(revier);
   try{
-    const d = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(objektStammPfad())}`);
+    const d = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(objektStammPfad(r))}`);
     const inhalt = JSON.parse(await (await fetch(d["@microsoft.graph.downloadUrl"])).text());
-    return {liste: Array.isArray(inhalt.objekte) ? inhalt.objekte : [], eTag: d.eTag || ""};
+    const liste = Array.isArray(inhalt.objekte) ? inhalt.objekte : [];
+    return {liste: r ? liste.map(x => Object.assign({}, x, {revier:r})) : liste, eTag: d.eTag || ""};
   }catch(e){
     if(e.status === 404) return {liste: [], eTag: ""};      /* gibt es noch nicht */
     throw e;
   }
 }
-async function objektStammSchreiben(liste, eTag){
+async function objektStammSchreiben(liste, eTag, revier){
   const kopf = {"Content-Type":"application/json"};
   if(eTag) kopf["If-Match"] = eTag;
-  await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(objektStammPfad())}:/content`,
+  await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(objektStammPfad(revier))}:/content`,
     {method:"PUT", headers:kopf, body: JSON.stringify({stand:new Date().toISOString().slice(0,10), objekte:liste}, null, 1)});
 }
 async function objektStammLaden(){
@@ -2300,11 +2397,30 @@ async function objektStammLaden(){
   if(!graphBereit() || !graphToken) return;
   try{
     await graphZiel();
-    const {liste} = await objektStammHolen();
-    OBJEKTSTAMM = liste;
-    db.objektstamm = liste; dbSchreiben(db);
-    objektlisteFuellen();
+    let neu = [];
+    for(const r of [""].concat(db.reviere || [])){
+      try{ neu = neu.concat((await objektStammHolen(r)).liste); }
+      catch(e){
+        if(String(e.message).includes("nicht angemeldet")) throw e;
+        /* 403/404: kein Recht oder keine Liste - still weglassen; sonst den letzten Stand behalten */
+        if(e.status !== 403 && e.status !== 404) neu = neu.concat(OBJEKTSTAMM.filter(x => revierName(x.revier) === r));
+      }
+    }
+    OBJEKTSTAMM = objektStammMischen(neu);
+    db.objektstamm = OBJEKTSTAMM; dbSchreiben(db);
+    objektlisteFuellen(); revierFeldFuellen();
   }catch(e){}
+}
+/* Gemischte Liste ordnen; bei gleichem Kunden und Objekt zuerst der Eintrag mit Revier. */
+function objektStammMischen(liste){
+  return liste.sort((a,b) => ((a.kunde||"") + (a.objekt||"")).localeCompare((b.kunde||"") + (b.objekt||""), "de")
+    || (a.revier ? 0 : 1) - (b.revier ? 0 : 1));
+}
+/* Eine frisch gelesene oder geschriebene Liste (gemeinsam oder eines Reviers) in die gemischte einsetzen. */
+function objektStammEinsetzen(revier, liste){
+  const r = revierName(revier);
+  OBJEKTSTAMM = objektStammMischen(OBJEKTSTAMM.filter(x => revierName(x.revier) !== r).concat(liste));
+  const db = dbLesen(); db.objektstamm = OBJEKTSTAMM; dbSchreiben(db); objektlisteFuellen();
 }
 /* Neue Kombination Kunde+Objekt ergaenzen. Schreibt jemand gleichzeitig,
    meldet Graph 412 - dann neu lesen und noch einmal versuchen, damit
@@ -2314,21 +2430,24 @@ async function objektStammErgaenzen(pr){
   const kunde = (pr.meta.auftraggeber || "").trim();
   const objekt = (pr.meta.objekt || "").trim();
   if(!kunde && !objekt) return 0;
+  const revier = revierName(pr.meta.revier);            /* 2.10: Liste des Reviers, ohne Revier die gemeinsame */
   await graphZiel();
   for(let versuch = 0; versuch < 3; versuch++){
-    const {liste, eTag} = await objektStammHolen();
+    const {liste, eTag} = await objektStammHolen(revier);
     if(liste.some(x => stammSchluessel(x.kunde, x.objekt) === stammSchluessel(kunde, objekt))){
-      OBJEKTSTAMM = liste; const db = dbLesen(); db.objektstamm = liste; dbSchreiben(db); objektlisteFuellen();
+      objektStammEinsetzen(revier, liste);
       return 0;                                            /* kennen wir schon */
     }
     const imExport = KUNDENSTAMM.some(k => (k.name||"").trim().toLowerCase() === kunde.toLowerCase());
-    liste.push({kundenNr: pr.meta.kundenNr || "", kunde, objektId: pr.meta.objektId || "", objekt,
+    const eintrag = {kundenNr: pr.meta.kundenNr || "", kunde, objektId: pr.meta.objektId || "", objekt,
                 adresse: pr.meta.adresse || "", email: (pr.abschluss || {}).verteiler || "", neuerKunde: !imExport,
-                seit: pr.datum || heute(), von: pr.pruefer || ""});
+                seit: pr.datum || heute(), von: pr.pruefer || ""};
+    if(revier) eintrag.revier = revier;
+    liste.push(eintrag);
     liste.sort((a,b) => ((a.kunde||"") + (a.objekt||"")).localeCompare((b.kunde||"") + (b.objekt||""), "de"));
     try{
-      await objektStammSchreiben(liste, eTag);
-      OBJEKTSTAMM = liste; const db = dbLesen(); db.objektstamm = liste; dbSchreiben(db); objektlisteFuellen();
+      await objektStammSchreiben(liste, eTag, revier);
+      objektStammEinsetzen(revier, liste);
       return 1;
     }catch(e){
       if(e.status !== 412) throw e;                        /* jemand war schneller - neu lesen */
@@ -2360,7 +2479,12 @@ function objektlisteFuellen(){
 function objekteDesKunden(){
   const kunde = (doc.meta.auftraggeber || "").trim().toLowerCase();
   if(!kunde) return [];
-  return OBJEKTSTAMM.filter(x => (x.kunde || "").trim().toLowerCase() === kunde);
+  const gesehen = new Set();
+  return OBJEKTSTAMM.filter(x => {
+    const o = (x.objekt || "").trim().toLowerCase();
+    if((x.kunde || "").trim().toLowerCase() !== kunde || gesehen.has(o)) return false;
+    gesehen.add(o); return true;
+  });
 }
 function objektAuswahlFuellen(){
   const sel = $("#f_objektWahl"), feld = $("#f_objekt");
@@ -2415,6 +2539,7 @@ function objektUebernehmen(){
   if(!doc.meta.objektId && x.objektId){ doc.meta.objektId = x.objektId; dazu.push("Objekt-ID"); }
   if(!doc.meta.adresse && x.adresse){ doc.meta.adresse = x.adresse; dazu.push("Adresse"); }
   if(!doc.meta.auftraggeber && x.kunde){ doc.meta.auftraggeber = x.kunde; doc.meta.kundenNr = x.kundenNr || ""; dazu.push("Kunde"); }
+  if(x.revier && x.revier !== (doc.meta.revier || "") && !imSharePoint(doc)){ doc.meta.revier = x.revier; dazu.push("Revier"); }
   if(!dazu.length) return;
   formularFuellen(); markiereGeaendert(true);
   toast(dazu.join(", ") + " aus der Objektliste \u00fcbernommen.", 3600);
@@ -2517,7 +2642,8 @@ $("#f_objektWahl").addEventListener("change", e => {
   if(!wert){ feld.classList.remove("hide"); return; }
   doc.meta.objekt = wert;
   const x = objekteDesKunden().find(o => o.objekt === wert);
-  if(x){ doc.meta.objektId = x.objektId || doc.meta.objektId; if(x.adresse) doc.meta.adresse = x.adresse; }
+  if(x){ doc.meta.objektId = x.objektId || doc.meta.objektId; if(x.adresse) doc.meta.adresse = x.adresse;
+         if(x.revier && !imSharePoint(doc)) doc.meta.revier = x.revier; }
   formularFuellen(); markiereGeaendert(true);
 });
 /* ============================================================
@@ -2650,11 +2776,14 @@ $("#mOffeneMaengel").addEventListener("click", () => { $("#dlgMenu").close(); of
 /* ============================================================
    Objektliste pflegen
    ============================================================ */
-async function objektStammErsetzen(liste){
+async function objektStammErsetzen(liste, revier){
+  /* 2.10: nur die Liste schreiben, aus der der Eintrag stammt (gemeinsam oder Revier) */
+  const r = revierName(revier);
+  const eigene = liste.filter(x => revierName(x.revier) === r);
   for(let versuch = 0; versuch < 3; versuch++){
-    const {eTag} = await objektStammHolen();
+    const {eTag} = await objektStammHolen(r);
     try{
-      await objektStammSchreiben(liste, eTag);
+      await objektStammSchreiben(eigene, eTag, r);
       OBJEKTSTAMM = liste;
       const db = dbLesen(); db.objektstamm = liste; dbSchreiben(db);
       objektlisteFuellen(); objektAuswahlFuellen();
@@ -2670,7 +2799,8 @@ function objektPflegeZeigen(){
     ? '<table class="mtab"><thead><tr><th style="width:160px">Kunde</th><th>Objekt</th>'
       + '<th style="width:110px">Objekt-ID</th><th style="width:54px"></th></tr></thead><tbody>'
       + eintraege.map((x,i) => '<tr>'
-          + '<td>' + esc(x.kunde || "") + (x.neuerKunde ? ' <span class="qchip">neu</span>' : "") + '</td>'
+          + '<td>' + esc(x.kunde || "") + (x.neuerKunde ? ' <span class="qchip">neu</span>' : "")
+          + (x.revier ? ' <span class="qchip">Revier ' + esc(x.revier) + '</span>' : "") + '</td>'
           + '<td><input type="text" data-pflege="' + i + '" data-feld="objekt" value="' + esc(x.objekt || "") + '"></td>'
           + '<td><input type="text" data-pflege="' + i + '" data-feld="objektId" value="' + esc(x.objektId || "") + '"></td>'
           + '<td><button class="mini" data-pflegeweg="' + i + '" title="Eintrag entfernen">\u00d7</button></td></tr>').join("")
@@ -2684,7 +2814,7 @@ function objektPflegeZeigen(){
     if(!wert && f.dataset.feld === "objekt"){ f.value = eintraege[i].objekt || ""; return; }
     const liste = OBJEKTSTAMM.slice();
     liste[i] = Object.assign({}, liste[i]); liste[i][f.dataset.feld] = wert;
-    try{ await objektStammErsetzen(liste); toast("Gespeichert."); }
+    try{ await objektStammErsetzen(liste, liste[i].revier); toast("Gespeichert."); }
     catch(e){ meldungZeigen("Nicht gespeichert", e.message); }
   });
   $$("#pflegeHost [data-pflegeweg]").forEach(b => b.onclick = async () => {
@@ -2692,7 +2822,7 @@ function objektPflegeZeigen(){
     if(!confirm('Eintrag "' + (x.objekt || "") + '" aus der Objektliste entfernen?\n\n'
                 + 'Die abgelegten Protokolle bleiben erhalten.')) return;
     const liste = OBJEKTSTAMM.filter((_, k) => k !== i);
-    try{ await objektStammErsetzen(liste); objektPflegeZeigen(); toast("Entfernt."); }
+    try{ await objektStammErsetzen(liste, x.revier); objektPflegeZeigen(); toast("Entfernt."); }
     catch(e){ meldungZeigen("Nicht entfernt", e.message); }
   });
   $("#dlgObjektePflege").showModal();
