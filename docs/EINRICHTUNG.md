@@ -243,7 +243,6 @@ Bisher sind die Ordner in `Cleanos_Daten` von Hand freigegeben, oft über die Gr
 
 Entschieden:
 
-
 - **Verwaltung (entschieden 06.11.2026): Vollzugriff wie das Büro.** Die Gruppe der Verwaltung (z. B. `Cleanos_App_Verwaltung`) kommt in `config.json` zur Rolle `disposition`: `"groups": { "disposition": ["<Objekt-ID Büro/IT>", "<Objekt-ID Verwaltung>"] }`. Sollte sie später eine eigene, engere Rolle brauchen, geht das ohne Programmänderung über `"roles"` (siehe [PLATTFORM.md](PLATTFORM.md)); die Prüfung berücksichtigt eigene Rollen automatisch.
 
 ### Werkzeuge je Revier (Wasserzähler, Objektkontrolle, Objektdoku)
