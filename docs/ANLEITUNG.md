@@ -2,18 +2,18 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 310 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 315 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (53)
+- [Objekte & Kunden](#objekte-kunden) (55)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (68)
+- [Finanzen](#finanzen) (70)
 - [Verwaltung](#verwaltung) (55)
-- [Bedienung & Allgemeines](#bedienung-allgemeines) (39)
+- [Bedienung & Allgemeines](#bedienung-allgemeines) (40)
 - [Begriffe](#begriffe)
 
 ## Start & Übersicht
@@ -997,6 +997,19 @@ Eine Reklamation erfasst du mit Objekt, Tag des Mangels, Eingang (Telefon, E-Mai
 
 *Vollzugriff, Objektmanagement, Objektleitung, Objektservice*
 
+### Antwort auf eine Reklamation mit KI entwerfen
+
+*In der App: Reklamationen*
+
+Mit eingerichtetem KI-Assistenten steht in der Reklamation „Antwort mit KI entwerfen“. Die KI schreibt einen sachlichen Entwurf aus Objekt, Beschreibung, Maßnahme und Frist, ohne Schuldanerkenntnis und ohne Namen von Mitarbeitenden. Der Entwurf wird nie automatisch gesendet.
+
+1. Reklamation öffnen, Beschreibung und Maßnahme eintragen.
+2. „Antwort mit KI entwerfen“ klicken.
+3. Entwurf lesen und anpassen.
+4. „Kopieren“ oder „In Rückmeldung an den Kunden übernehmen“, dann „Speichern“.
+
+> Tipp: Klingt der Entwurf nach Zusage, Haftung oder Gutschrift, zeigt die App einen Hinweis.
+
 ### Reklamation bearbeiten und erledigen
 
 *In der App: Reklamationen*
@@ -1407,6 +1420,21 @@ Objekt, Datum, Art und kurz die Leistung, wer beauftragt hat (Name, Funktion, op
 
 > Tipp: Ohne Netz warten die Fotos im Handy und werden später hochgeladen.
 > Tipp: Bis zur Unterschrift lässt sich alles ändern, „Vorschau“ zeigt das PDF.
+
+### Regiebericht diktieren (KI)
+
+*In der App: Regieberichte*
+
+Ist der KI-Assistent eingerichtet, steht beim Erfassen „Diktieren“. Du sprichst oder tippst, was gemacht wurde, wer wie lange dabei war und welches Material verbraucht wurde. Nach „Felder füllen (KI)“ stehen Leistung, Beschreibung, Personen mit Stunden und Material als Vorschlag in den Feldern, markiert zum Prüfen.
+
+1. „Regiebericht erfassen“ und „Diktieren“ tippen.
+2. Sprechen (oder tippen), z. B. „Keller nach Wasserschaden, Ana und ich von 8 bis halb 12, zwei Rollen Müllsäcke 120 Liter“.
+3. „Felder füllen (KI)“ tippen.
+4. Markierte Felder prüfen und „Speichern“.
+
+> Tipp: Personen und Lager-Artikel ordnet die App selbst zu; Namenslisten gehen nicht an die KI.
+> Tipp: Ausgefüllte Felder überschreibt die KI nicht.
+> Tipp: Beim ersten Mal fragt die App, ob der Text an den KI-Dienst gehen darf.
 
 ### Unterschrift am Handy, PDF und E-Mail
 
@@ -2093,6 +2121,21 @@ Das Mahnwesen hat drei Stufen: Zahlungserinnerung, 1. und 2. Mahnung, Tage und T
 > Tipp: Den Basiszinssatz je Halbjahr bei der OeNB nachsehen und unter „Einstellungen“ eintragen.
 > Tipp: Einen eigenen Text je Mahnstufe gibt es unter „Einstellungen“ → „Mahnwesen“, mit Platzhaltern wie {Offen} und {Frist}.
 
+### Mahntext mit KI verbessern
+
+*In der App: Fakturierung*
+
+Im Dialog der Zahlungserinnerung bzw. Mahnung formuliert „Text mit KI verbessern“ die E-Mail freundlicher und klarer. Beträge, Rechnungsnummer, Daten, Frist und Platzhalter bleiben: die App prüft, dass sie im Vorschlag unverändert stehen, sonst verwirft sie ihn.
+
+1. Bei der offenen Rechnung die Mahnstufe öffnen.
+2. „Text mit KI verbessern“ klicken.
+3. Vorschlag lesen und „Übernehmen“ oder „Verwerfen“.
+4. Erst dann „Senden“.
+
+> Tipp: Der KI-Assistent kann den Dialog auch vorbereiten („Erinnere Kanzlei Berger an RE-2026-0012“); senden tust du selbst.
+
+*Nur wer die Fakturierung bearbeitet*
+
 ### Stornorechnung und Rechnungskorrektur
 
 *In der App: Fakturierung*
@@ -2427,6 +2470,23 @@ Unter Finanzen → „Einkauf“ erfasst du Rechnungen von Lieferanten: Foto ode
 
 > Tipp: Jede Eingangsrechnung bekommt eine laufende Eingangsnummer (z. B. ER-2026-0001) für die Ablage.
 > Tipp: Eine Fehlerfassung wird storniert, nicht gelöscht: sie bleibt sichtbar und zählt nicht mehr.
+
+*Buchhaltung, Vollzugriff*
+
+### Eingangsrechnung aus dem Beleg lesen (KI)
+
+*In der App: Einkauf*
+
+Mit eingerichtetem KI-Assistenten füllt „Aus Beleg lesen (KI)“ eine Eingangsrechnung aus Foto oder PDF: Lieferant (über UID, IBAN oder Namen zugeordnet oder neu), Nummer, Datum, Fälligkeit, Beträge je Steuersatz, Reverse Charge. Steckt im PDF eine E-Rechnung, liest die App diese ohne KI.
+
+1. „Eingangsrechnung erfassen“ öffnen.
+2. „Aus Beleg lesen (KI)“ tippen und Foto oder PDF wählen.
+3. Hinweise lesen: die App prüft Summen, Datum und Steuersätze.
+4. Markierte Felder mit dem Beleg vergleichen, dann „Speichern“.
+
+> Tipp: Weicht die IBAN vom gespeicherten Lieferanten ab, warnt die App: vor dem Zahlen beim Lieferanten nachfragen.
+> Tipp: Fotos werden vor dem Senden verkleinert, PDFs bis 3 MB und 6 Seiten.
+> Tipp: Der Beleg wird wie immer erst beim Speichern in SharePoint abgelegt.
 
 *Buchhaltung, Vollzugriff*
 
@@ -3806,10 +3866,17 @@ Alles, was etwas ändert oder verschickt, zeigt der Assistent vorher als Karte m
 
 ### Was kann ich den Assistenten fragen?
 
-Er schlägt nach (Dienstplan, Personen, Objekte, Abwesenheiten, „Zu erledigen“, Lagerbestand, Schlüsselbuch, eigener Outlook-Kalender) und erledigt nach Bestätigung: Termine anlegen, Abwesenheiten eintragen, Vertretungen verteilen, einteilen, Reklamationen erfassen, Material anfordern und E-Mails senden.
+Er schlägt nach (Dienstplan, Personen, Objekte, Abwesenheiten, „Zu erledigen“, Lagerbestand, Schlüsselbuch, Outlook-Kalender, je nach Rolle auch Rechnungen, Einkauf, Anlagen, Qualität, Regie) und erledigt nach Bestätigung: Termine, Abwesenheiten, Vertretungen, Einteilung, Reklamationen, Material, E-Mails, Rechnungsentwürfe aus Regieberichten.
 
 > Tipp: Beispiele: „Termin morgen 12 Uhr in Salzburg mit Herrn Maier“, „Wer arbeitet morgen in der Kanzlei?“, „Wie viele Müllsäcke 120 l haben wir noch?“.
 > Tipp: Unklares fragt er nach, Übliches nimmt er an und sagt es, z. B. dauert ein Termin dann eine Stunde.
+
+### Assistent: Rechnungen, Einkauf, Anlagen, Qualität, Regie
+
+Je nach Rolle schlägt der Assistent auch offene Posten und Umsatz (Fakturierung), offene Eingangsrechnungen, fällige Anlagen-Prüfungen und Mängel, die Qualitätskennzahl je Objekt und offene oder unverrechnete Regieberichte nach. Nach „Ausführen“ erstellt er einen Rechnungsentwurf aus einem Regiebericht, öffnet eine Zahlungserinnerung oder legt einen Kontrolltermin an.
+
+> Tipp: Beispiele: „Welche Rechnungen von Kanzlei Berger sind offen?“, „Mach aus RB-2026-0003 einen Rechnungsentwurf“, „Termin für die Nachkontrolle in der Kanzlei“.
+> Tipp: Die Zahlungserinnerung schickt er nie selbst: er öffnet den Dialog, gesendet wird dort.
 
 ### Cleo oder KI-Assistent?
 
@@ -3834,9 +3901,10 @@ Zeiterfassung ist ein Kontrollsystem: mit Betriebsrat braucht es in der Regel ei
 
 ### KI-Assistent und Datenschutz
 
-Was der Assistent nachschlägt (Namen, Einsätze, Abwesenheiten mit Art, Objekte, E-Mail-Texte), geht zur Verarbeitung an den KI-Anbieter Anthropic als Auftragsverarbeiter, Löhne und Diagnosen nicht. Der Assistent entscheidet nicht selbst und bewertet keine Leistung.
+Was der Assistent nachschlägt (Namen, Einsätze, Abwesenheiten mit Art, Objekte, Rechnungen, E-Mail-Texte), geht zur Verarbeitung an den KI-Anbieter Anthropic als Auftragsverarbeiter, Löhne und Diagnosen nicht. Belege, Diktate und Texte gehen nur nach einem Klick hin. Die KI entscheidet nicht selbst und bewertet keine Leistung.
 
 > Tipp: Vor dem Einschalten: Datenschutzinformation ergänzen, Betriebsvereinbarung prüfen, kurz einweisen.
+> Tipp: Vor dem ersten Beleg oder Diktat fragt die App einmal je Gerät, ob die Daten an den KI-Dienst gehen dürfen.
 
 ### „Ansicht als …“ im Browser-Modus
 

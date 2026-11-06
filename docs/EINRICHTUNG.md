@@ -231,6 +231,8 @@ Der Assistent (Knopf „Assistent“ oben, Strg+J) nutzt die Claude-API von Anth
 4. **PHP-Zeitlimit:** Eine längere Aufgabe kann bis zu drei Minuten dauern. Im World4You-Kundenbereich `max_execution_time` auf 180 stellen, wenn es niedriger ist (der Systemcheck zeigt den Wert).
 5. **Prüfen:** Stammdaten → Systemcheck → Abschnitt „KI-Assistent“. Dann im Assistenten „Was steht heute an?“.
 
+6. **Belege und Diktate (KI beim Erfassen):** Für „Aus Beleg lesen (KI)“ schickt die App Fotos (verkleinert) und PDFs bis 3 MB über `ki.php`. PHP verwirft Anfragen über `post_max_size` (World4You-Kundenbereich, PHP-Einstellungen); mit 8 MB (Standard) geht alles, darunter senkt die App die Grenze für PDFs von selbst, und `ki.php` meldet eine zu große Datei verständlich. `upload_max_filesize` spielt keine Rolle (kein Formular-Upload). Vorher die Punkte in [RECHTSPRÜFUNG.md](RECHTSPRUEFUNG.md#offen-bitte-prüfen-oder-entscheiden) (Punkt 35) klären.
+
 **Objektanweisungen übersetzen:** Ist der Assistent eingerichtet, steht beim Objekt unter „Übersetzungen für Mitarbeitende“ der Knopf „Mit KI übersetzen“. Er schickt nur den deutschen Text der Anweisung, erst nach dem Klick, und zählt wie eine Anfrage an den Assistenten (Tageslimit). Das Ergebnis ist ein Vorschlag zum Prüfen.
 
 Ausschalten: in den Einstellungen „eingeschaltet“ abhaken, oder `"assistant": false` in `config.production.json` (dann fehlt auch `ki.php` im Paket). Was an Daten zu Anthropic geht und was vorher zu klären ist: [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md#ki-assistent).
