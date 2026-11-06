@@ -17,13 +17,15 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 | Arbeitsschutz (Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung nach § 4 ASchG) | fertig – mit Sicherheitsfachkraft bestätigen (RECHTSPRUEFUNG Punkt 32) |
 | Kundenzufriedenheit (Umfrage im Kundenbereich, NPS, Hinweise) | fertig – Einladung per E-Mail klären (RECHTSPRUEFUNG Punkt 33) |
 | Bewerber, Eintritt, Austritt (neue Rolle Personalverwaltung) | fertig – Fristen und Datenschutz bestätigen (RECHTSPRUEFUNG Punkt 34) |
-| KI-Ausbau (Beleg lesen, Regiebericht diktieren, Assistent kennt die neuen Module, Texte) | in Arbeit |
-| Handy: untere Leiste je Rolle und selbst anpassbar | in Arbeit |
-| Feinschliff (siehe unten) | in Arbeit |
+| KI-Ausbau (Beleg lesen, Regiebericht diktieren, Sicherheitsdatenblatt lesen, Assistent kennt die neuen Module, Texte) | fertig – Auftragsverarbeitung klären (RECHTSPRUEFUNG Punkt 35) |
+| Handy: untere Leiste je Rolle, Plätze einzeln tauschbar | fertig |
+| Feinschliff (Winterdienst-Preise im Kundenblatt, Leistungszeitraum Saisonpauschale, Anlagen verrechnen, Sprache im Import und Wochenplan-PDF) | fertig |
+| Mattenwechsel-Modul (Liegeplätze, Touren, Fahreransicht, Lieferscheine, Rechnungsentwürfe) | Bestandsaufnahme und Umsetzungsplan in Arbeit (docs/MATTENWECHSEL-PLAN.md) |
 
 ## Als Nächstes
 
-1. **Feinschliff** – Winterdienst-Preise je Objekt im Kundenblatt, Leistungszeitraum der Saisonpauschale, Prüfungen der Anlagen in die Fakturierung übernehmen (Preis steht schon je Prüfung), Spalte „Sprache“ beim Excel-Import der Mitarbeitenden, Wochenplan-PDF in der Sprache der Person; Bestätigungs-E-Mail nach der Online-Annahme (wartet auf Entscheidung).
+1. **Mattenwechsel-Modul** nach dem Konzept der Geschäftsführung – zuerst Bestandsaufnahme und Umsetzungsplan (`docs/MATTENWECHSEL-PLAN.md`), offene Entscheidungen klären, dann in Phasen umsetzen.
+2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 
