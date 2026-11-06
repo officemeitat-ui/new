@@ -116,6 +116,7 @@ import { letterheadSection, loadLetterhead } from './invoicing-briefpapier.js'
 import { cashForSalePayment, payCashOption } from './einkauf-shared.js'
 import { importButton } from './invoicing-import.js'
 import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
+import { offerStateChanged, onlineBadge, onlineButtons, onlineExtras, onlineSettingsHtml, readOnlineSettings } from './invoicing-online.js'
 import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } from './invoicing-sepa.js'
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
 import { canMail } from '../modals/send.js'
@@ -323,7 +324,7 @@ function docRow(x, docs, today, s) {
     <td>${x.date ? formatDate(x.date, { year: true }) : ''}</td><td>${esc(x.recipient?.name || '–')}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
     <td>${esc(x.title || '')}${x.serviceFrom ? `<br><span class="muted">${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open && open !== t.gross ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td>
-    <td>${pill(st)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
+    <td>${pill(st)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${onlineBadge(x)}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
 }
 
 function listFilters(kinds) {
@@ -546,6 +547,7 @@ function settingsTab() {
     </div>
     ${sepaSettingsHtml(s, dis)}
     ${offerSettingsHtml(s, dis)}
+    ${onlineSettingsHtml(s, dis)}
     <h3>Export für die Steuerberatung</h3>
     <div class="form-grid">
       <label class="field"><span>Debitorenkonto (Sammelkonto)</span><input type="text" id="fs-acc-deb" value="${esc(s.accounts.debitor)}" placeholder="leer: Kundennummer" ${dis}></label>
@@ -920,6 +922,7 @@ function viewModal(c, m) {
       ${x.title ? `<p><strong>${esc(x.title)}</strong>${x.serviceFrom ? ` · Leistung ${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}` : ''}</p>` : ''}
       ${head.length ? `<p class="fak-doc-head">${head.join(' · ')}</p>` : ''}
       ${docExtras(x)}
+      ${onlineExtras(x)}
       ${x.kind === 'proforma' ? '<p><strong>Proforma – keine Rechnung im Sinne des UStG.</strong> <span class="muted">Kein Umsatz, kein offener Posten.</span></p>' : ''}
       <div class="table-wrap"><table class="data fak-view-lines" data-labelled><thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis</th><th class="num">USt</th><th class="num">netto</th></tr></thead><tbody>${lines}</tbody></table></div>
       <div class="fak-foot-grid"><div>${x.kind === 'rechnung' ? `<p>Fällig am ${formatDate(x.dueDate, { year: true })} · bezahlt ${money(cashPaidOf(x))}${taken ? ` · Skonto ${money(taken)}` : ''} · <strong>offen ${money(open)}</strong></p>` : ''}
@@ -939,7 +942,7 @@ function viewModal(c, m) {
             ? `<button class="btn" data-action="fak-offer-state" data-id="${esc(x.id)}" data-v="abgelehnt">Abgelehnt</button><button class="btn" data-action="fak-offer-state" data-id="${esc(x.id)}" data-v="angenommen">Angenommen</button>`
             : ''
         : ''
-    }${docButtons(x, st)}</div>
+    }${docButtons(x, st)}${onlineButtons(x, st)}</div>
       <div class="actions">${ed ? `<button class="btn" data-action="fak-copy" data-id="${esc(x.id)}">Als Vorlage kopieren</button>` : ''}${ed ? nextButtons(x, st) : ''}
         ${ed && x.kind === 'rechnung' && open > 0 ? `<button class="btn" data-action="fak-pay-open" data-id="${esc(x.id)}">Zahlung</button>` : ''}
         ${isInvoice(x) ? `<button class="btn" data-action="fak-einv-open" data-id="${esc(x.id)}" title="XML nach EN 16931 (ZUGFeRD/Factur-X) oder ebInterface (Bund)">${ICON.download} E-Rechnung</button>` : ''}
@@ -1926,6 +1929,7 @@ registerActions(
       x.status = el.dataset.v
       x.history = [...(x.history || []), { at: nowIso(), by: by(), text: el.dataset.v }]
       commit(`Angebot ${x.number}: ${el.dataset.v}.`)
+      offerStateChanged(x) // abgelehnt: Link zur Online-Annahme zurückziehen
     },
     'fak-storno': async (el) => {
       const x = docOf(el.dataset.id)
@@ -2177,6 +2181,7 @@ registerActions(
         indexName: val('fs-index').trim() || 'VPI 2020',
         ...readSepaSettings(),
         ...readOfferSettings(),
+        ...readOnlineSettings(),
       }
       commit('Einstellungen gespeichert.')
     },

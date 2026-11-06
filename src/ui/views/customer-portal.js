@@ -5,13 +5,22 @@
 // Anträge der Mitarbeitenden (alle 3 Minuten, solange jemand mit Reklamationen die App offen hat),
 // werden zu Reklamationen mit Eingang „Kundenbereich“ (Foto nach SharePoint), ihr Stand geht zurück.
 //
+// Rechnungen (je Link, Standard aus): Belege der gewählten Kunden der Fakturierung mit PDF und QR-Code
+// (views/invoicing-online.js, erst bei Bedarf geladen). Angebot online annehmen: Codes der Angebote stehen
+// hier unter offers, die Annahmen holt syncAcceptances ab wie die Reklamationen (doc.acceptance in der
+// Fakturierung, außerhalb der Prüfsumme) und meldet sie unter „Zu erledigen“.
+//
 // Wer: Vollzugriff und Rollen, die Reklamationen oder die Einsatzplanung bearbeiten. Nachweise und
-// Termine brauchen den Plan (lesen); ohne das bleibt am Webspace der letzte Stand.
+// Termine brauchen den Plan (lesen), Rechnungen die Fakturierung (lesen); ohne das bleibt am Webspace
+// der letzte Stand. Annahmen übernimmt, wer die Fakturierung bearbeitet.
 // Daten: kundenbereich/kundenbereich.json { settings, links: [{ id, title, objectIds, token, show, months,
-// email, createdAt, createdBy, revokedAt, removedAt, renewedAt, publishedAt, error, cache }] }.
-// Rechenkern: core/customer-portal.js.
+// invoices: { customerIds, months }, email, createdAt, createdBy, revokedAt, removedAt, renewedAt,
+// publishedAt, error, cache }], offers: [{ id, docId, number, token, createdAt, createdBy, publishedAt,
+// validUntil, revokedAt, removedAt, acceptedAt, error }] }.
+// Rechenkern: core/customer-portal.js, core/customer-invoices.js.
 
-import { customerAppointments, customerLink, complaintFromReport, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, newReports, releasedMonths, SETTINGS_DEFAULTS, SHOW, showDefaults, stableJson, statusUpdates, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
+import { acceptanceOf, acceptedOpen, INVOICE_FILE_PATTERN, INVOICE_MONTH_CHOICES, invoiceSettings, newAcceptances, suggestCustomers } from '../../core/customer-invoices.js'
+import { customerAppointments, customerLink, complaintFromReport, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, newReports, releasedMonths, SETTINGS_DEFAULTS, SHOW, SHOW_OFF, showDefaults, stableJson, statusUpdates, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
 import { addDays, formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import { monthName } from '../../core/payout.js'
 import { objectsWithWork, proofFor } from '../../core/proof.js'
@@ -21,11 +30,11 @@ import { ALARM_DEFAULTS } from '../../core/weather.js'
 import { logRows } from '../../core/winterlog.js'
 import { proofDocument, proofPdfName } from '../../export/proof-pdf.js'
 import { winterLogDocument, winterLogPdfName } from '../../export/winter-pdf.js'
-import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, ensureView, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { openCompose } from '../mailer.js'
 import { invalidateTodo, refreshBell, registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
+import { checked, checkedValues, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
 import { alarmSettings } from './weather-alarm.js'
 
@@ -34,12 +43,15 @@ const ICON_LINK = '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.1 1.
 const mayManage = () => !app.access || app.access.all || MODULES.some((m) => app.access.canEdit(m))
 const editable = () => mayManage() && !app.readOnly
 const seesPlan = () => !app.access || app.access.sees('planung')
+const seesInvoices = () => (!app.access || app.access.sees('fakturierung')) && !!app.data.fakturierung
+const editsInvoices = () => canEdit('fakturierung') && !app.readOnly && !!app.data.fakturierung
 const doc = () => {
   const d = (app.data.kundenbereich ||= { links: [], settings: {} })
   d.links ||= []
   d.settings ||= {}
   return d
 }
+const offers = () => (doc().offers ||= [])
 const settings = () => ({ ...SETTINGS_DEFAULTS, ...doc().settings })
 const links = () => doc().links
 const linkOf = (id) => links().find((l) => l.id === id)
@@ -47,6 +59,13 @@ const objOf = (id) => app.data.objects.find((o) => o.id === id)
 const complaints = () => ((app.data.reklamationen ||= { items: [] }).items ||= [])
 const address = () => new URL('.', location.href).href
 const urlOf = (link) => customerLink(address(), link.token)
+const showOf = (link) => ({ ...showDefaults(), ...(link.show || {}) })
+const fakCustomers = () => app.data.fakturierung?.customers || []
+/** Rechnungen und Angebote: mit der Fakturierung geladen (views/lazy.js), hier erst bei Bedarf. */
+const invoicingOnline = async () => {
+  await ensureView('fakturierung')
+  return import('./invoicing-online.js')
+}
 const hex = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
 const emailOk = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s || '').trim())
 const by = () => app.user?.name || 'Browser'
@@ -73,6 +92,12 @@ async function call(aktion, { body, raw, type = 'application/pdf', query = '', f
   if (!res.ok) throw new Error(json.fehler || `Antwort ${res.status}`)
   return json
 }
+
+/** Für die Online-Annahme der Angebote (views/invoicing-online.js): gleicher Webspace, gleicher Schlüssel. */
+export const portalCall = call
+export const portalReady = () => !!(settings().enabled && settings().key)
+export const portalOffers = () => offers()
+export const portalAddress = () => address()
 
 const ntfyServer = () => app.data?.rules?.weather?.alarm?.ntfy || ALARM_DEFAULTS.ntfy
 
@@ -206,6 +231,8 @@ export async function publish({ ids = null, force = false } = {}) {
     }
     const payload = []
     const caches = new Map()
+    const invoiceFiles = new Map()
+    let online = null
     for (const link of active) {
       const termine = range ? upcomingDates({ services: upcomingServices({ instances: range.instances, tasks: app.data.tasks || [], objectIds: link.objectIds, from: today, to: until, objectsById }), appointments: customerAppointments(app.data.termine?.items || [], { objectIds: link.objectIds, from: today, to: until, objectsById }) }) : null
       let nachweise = null
@@ -214,7 +241,15 @@ export async function publish({ ids = null, force = false } = {}) {
         nachweise = p.list
         caches.set(link.id, p.cache)
       }
-      payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise }))
+      // Rechnungen: nur mit Recht auf die Fakturierung (sonst bleibt am Webspace der letzte Stand)
+      let rechnungen = null
+      if (showOf(link).rechnungen && seesInvoices()) {
+        online ||= await invoicingOnline()
+        const list = await online.portalInvoices(link)
+        invoiceFiles.set(link.id, list)
+        rechnungen = list.map(({ make, ...entry }) => entry)
+      }
+      payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise, rechnungen }))
     }
     const res = await call('speichern', { body: { links: payload, entfernen: remove } })
     result.links = res.links
@@ -227,7 +262,7 @@ export async function publish({ ids = null, force = false } = {}) {
       if (!link) continue
       for (const datei of files) {
         try {
-          const file = (await filesForMonth(link, datei.slice(0, 7), memo)).files.find((f) => f.datei === datei)
+          const file = INVOICE_FILE_PATTERN.test(datei) ? (invoiceFiles.get(id) || []).find((f) => f.datei === datei) : (await filesForMonth(link, datei.slice(0, 7), memo)).files.find((f) => f.datei === datei)
           if (!file) continue
           await call('datei', { raw: await file.make(logo), query: `&link=${encodeURIComponent(id)}&datei=${encodeURIComponent(datei)}` })
           result.pdfs++
@@ -347,6 +382,68 @@ export async function syncReports({ force = false } = {}) {
   return taken.length
 }
 
+// ---------------------------------------------------------------- Angebote: Annahmen vom Webspace
+
+const acc = { at: 0, running: false, error: '' }
+const pendingOffers = () => offers().filter((o) => !o.acceptedAt && ((!o.revokedAt && String(o.validUntil || '') >= addDays(todayISO(), -1)) || (o.revokedAt && !o.removedAt)))
+
+/**
+ * Online angenommene Angebote übernehmen (doc.acceptance, Stand „angenommen“), am Webspace als übernommen
+ * markieren, zurückgezogene Links dort nachträglich entfernen. Wie syncReports höchstens alle 3 Minuten und nur,
+ * solange ein Link auf Antwort wartet; force: sofort. Liefert die Zahl der neuen Annahmen.
+ */
+export async function syncAcceptances({ force = false } = {}) {
+  const s = settings()
+  if (!s.enabled || !s.key || acc.running || !editsInvoices() || !pendingOffers().length || (!force && Date.now() - acc.at < 180e3)) return 0
+  acc.running = true
+  acc.at = Date.now()
+  let taken = []
+  try {
+    const { annahmen = [] } = await call('annahmen')
+    const docs = app.data.fakturierung.documents || []
+    const now = new Date().toISOString()
+    for (const { doc: x, entry } of newAcceptances(annahmen, docs)) {
+      x.acceptance = acceptanceOf(entry, x, { now })
+      if (x.status !== 'angenommen') x.status = 'angenommen'
+      x.history = [...(x.history || []), { at: now, by: 'Kundenbereich', text: `online angenommen von ${x.acceptance.name}${x.acceptance.role ? ` (${x.acceptance.role})` : ''}` }]
+      taken.push(x)
+    }
+    if (taken.length) {
+      persist()
+      // erst gespeichert, dann am Webspace als übernommen markieren (sonst ginge eine Annahme verloren)
+      await app.service?.flush?.()
+    }
+    const byOnline = new Map(docs.filter((d) => d.online?.id).map((d) => [d.online.id, d]))
+    const accepted = annahmen.filter((a) => byOnline.get(a.id)?.acceptance)
+    const mark = accepted.filter((a) => !a.annahme?.uebernommen).map((a) => a.id)
+    if (mark.length) await call('annahme-status', { body: { uebernommen: mark } })
+    // erst danach gilt der Link als erledigt (sonst beim nächsten Abruf noch einmal markieren)
+    const done = offers().filter((o) => !o.acceptedAt && accepted.some((a) => a.id === o.id))
+    for (const o of done) o.acceptedAt = byOnline.get(o.id).acceptance.at
+    if (done.length) persist()
+    // zurückgezogen, aber am Webspace noch nicht entfernt (z. B. ohne Netz)
+    const remove = offers().filter((o) => o.revokedAt && !o.removedAt).map((o) => o.id)
+    if (remove.length) {
+      const r = await call('angebot-entfernen', { body: { ids: remove } })
+      for (const o of offers()) if (remove.includes(o.id) && !(r.behalten || []).includes(o.id)) o.removedAt = now
+      persist()
+    }
+    acc.error = ''
+    if (taken.length) {
+      invalidateTodo()
+      refreshBell()
+      toast(taken.length === 1 ? `Angebot ${taken[0].number} wurde online angenommen (${taken[0].acceptance.name}). Unter „Zu erledigen“: Auftragsbestätigung erstellen.` : `${taken.length} Angebote wurden online angenommen. Unter „Zu erledigen“: Auftragsbestätigungen erstellen.`)
+      if (app.ui.view === 'fakturierung') renderNow()
+      else if (['todo', 'fak-doc', 'ang-share'].includes(app.ui.modal?.type)) renderModal()
+    }
+  } catch (err) {
+    acc.error = err.message || String(err)
+    taken = []
+  }
+  acc.running = false
+  return taken.length
+}
+
 /** Einmal am Tag (geteilt über SharePoint) alle Links übertragen: neue Monate, Termine. */
 async function dailyPublish() {
   const s = settings()
@@ -364,9 +461,14 @@ function startPolling() {
   if (sync.timer || typeof window === 'undefined') return
   sync.timer = setInterval(() => {
     syncReports()
+    syncAcceptances()
     dailyPublish()
   }, 180e3)
-  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncReports())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return
+    syncReports()
+    syncAcceptances()
+  })
   setTimeout(dailyPublish, 30e3) // nach dem Start, wenn die App geladen ist
 }
 
@@ -387,11 +489,29 @@ registerTodo({
       .join(''),
 })
 
+// Online angenommene Angebote: Auftragsbestätigung erstellen (für alle, die die Fakturierung bearbeiten)
+registerTodo({
+  id: 'kundenbereich-angebote',
+  module: 'fakturierung',
+  title: 'Angebote online angenommen',
+  compute: () => {
+    if (settings().enabled && offers().length) {
+      startPolling()
+      syncAcceptances()
+    }
+    return acceptedOpen(app.data.fakturierung?.documents || [])
+  },
+  render: (list) =>
+    list
+      .map((x) => `<div class="todo-item"><span class="flag">!</span><div class="todo-text"><strong>Angebot ${esc(x.number)} online angenommen</strong>: ${esc(x.recipient?.name || '')}<br><span class="muted">${esc(when(x.acceptance.at))}, ${esc(x.acceptance.name)}${x.acceptance.role ? ` (${esc(x.acceptance.role)})` : ''}</span></div><div class="todo-acts"><button class="btn small primary" data-action="fak-convert" data-id="${esc(x.id)}" data-kind="auftrag">Auftragsbestätigung erstellen</button> <button class="btn small ghost" data-action="fak-open" data-id="${esc(x.id)}">Ansehen</button></div></div>`)
+      .join(''),
+})
+
 // ---------------------------------------------------------------- Ansicht
 
 function showText(link) {
-  const show = { ...showDefaults(), ...(link.show || {}) }
-  return [show.nachweise && 'Nachweise', show.winter && 'Winterdienst', show.leistungen && 'Leistungen', show.termine && 'Termine', show.reklamation && 'Reklamation'].filter(Boolean).join(', ') || 'nichts'
+  const show = showOf(link)
+  return [show.nachweise && 'Nachweise', show.winter && 'Winterdienst', show.leistungen && 'Leistungen', show.termine && 'Termine', show.rechnungen && 'Rechnungen', show.reklamation && 'Reklamation'].filter(Boolean).join(', ') || 'nichts'
 }
 
 function linkRow(link) {
@@ -430,7 +550,7 @@ function portalView() {
     pub.held.length ? `<div class="banner warn-banner"><p><strong>Zurückgehalten:</strong> ${pub.held.map((h) => `${esc(h.object)} ${esc(monthName(h.month))} (${plural(h.open, 'Einsatz', 'Einsätze')} ohne Besetzung)`).join(', ')}. Erst im Leistungsnachweis klären (nachtragen oder absagen), dann erscheint der Nachweis beim Kunden.</p></div>` : '',
     !seesPlan() && s.enabled ? '<p class="note">Deine Rolle sieht den Plan nicht: Nachweise und Termine überträgt jemand mit Einsatzplanung (einmal am Tag automatisch).</p>' : '',
   ].join('')
-  return `<div class="section-head"><div><h2>Kundenbereich</h2><p>Persönliche Links für Kunden, ohne Anmeldung: Leistungsnachweise und Winterdienst-Nachweis als PDF, die nächsten Termine im Objekt, Reklamation melden mit Stand. Du legst fest, was jeder Link zeigt.</p></div>
+  return `<div class="section-head"><div><h2>Kundenbereich</h2><p>Persönliche Links für Kunden, ohne Anmeldung: Leistungsnachweise und Winterdienst-Nachweis als PDF, die nächsten Termine im Objekt, Reklamation melden mit Stand, auf Wunsch Rechnungen und offene Posten. Du legst fest, was jeder Link zeigt.</p></div>
       <div class="actions">${ed && s.enabled ? `<button class="btn" data-action="kb-settings">${ICON.gear} Einstellungen</button>${s.enabled ? `<button class="btn" data-action="kb-publish" ${pub.running ? 'disabled' : ''}>${ICON.refresh} ${pub.running ? 'Überträgt …' : 'Jetzt übertragen'}</button><button class="btn primary" data-action="kb-new">${ICON.plus} Link anlegen</button>${rowMenu([{ label: 'Alle Nachweise neu erstellen', icon: ICON.refresh, action: 'kb-publish', data: { force: '1' } }, { label: 'Reklamationen jetzt abholen', icon: ICON.download, action: 'kb-sync' }], 'Weitere Aktionen')}` : ''}` : ''}</div></div>
     ${banners}
     <div class="impact-stats tc-stats">${tile('Links aktiv', active.length)}${tile('Reklamationen offen', openCount, openCount ? 'warn' : '')}${tile('Über den Kundenbereich', fromPortal.length)}${tile('Zuletzt übertragen', s.publishedAt ? esc(formatDate(s.publishedAt.slice(0, 10))) : '–')}</div>
@@ -461,6 +581,7 @@ function linkDraft() {
   if (!m.draft) {
     const existing = m.id ? linkOf(m.id) : null
     m.draft = existing ? structuredClone({ ...existing, cache: undefined }) : { id: '', title: '', objectIds: [], show: showDefaults(), months: 12, email: '' }
+    m.draft.invoices = invoiceSettings(m.draft)
   }
   return m.draft
 }
@@ -472,8 +593,32 @@ function readLink() {
   d.email = val('kb-email').trim()
   d.months = Number(val('kb-months')) || 12
   d.objectIds = [...document.querySelectorAll('input[name="kb-obj"]:checked')].map((x) => x.value)
-  d.show = Object.fromEntries(Object.keys(SHOW).map((k) => [k, checked(`kb-show-${k}`)]))
+  // nur, was im Dialog steht: Wer die Fakturierung nicht sieht, ändert die Rechnungen nicht
+  d.show = { ...showDefaults(), ...(d.show || {}), ...Object.fromEntries(Object.keys(SHOW).filter((k) => document.getElementById(`kb-show-${k}`)).map((k) => [k, checked(`kb-show-${k}`)])) }
+  if (document.getElementById('kbr-months')) d.invoices = { ...invoiceSettings(d), customerIds: checkedValues('kbr-cust'), months: Number(val('kbr-months')) || invoiceSettings(d).months }
   return d
+}
+
+/** Abschnitt „Rechnungen“ im Link-Dialog (nur, wer die Fakturierung sieht). */
+function invoiceSection(d) {
+  if (!seesInvoices()) return ''
+  const inv = invoiceSettings(d)
+  const on = d.show?.rechnungen === true
+  const head = `<h3>Rechnungen</h3><label class="check"><input type="checkbox" id="kb-show-rechnungen" data-change="kbr-toggle" ${on ? 'checked' : ''}><span><strong>${esc(SHOW.rechnungen)}</strong>: festgeschriebene Rechnungen, Storno- und Korrekturbelege als PDF, offene mit Bankverbindung und QR-Code zum Bezahlen</span></label>`
+  if (!on) return head
+  const all = fakCustomers()
+  const byId = new Map(all.map((c) => [c.id, c]))
+  const suggested = suggestCustomers(all, d.objectIds)
+  const list = [...new Set([...inv.customerIds, ...suggested.map((c) => c.id)])].map((id) => byId.get(id)).filter(Boolean)
+  const others = all.filter((c) => !list.includes(c)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'))
+  return `${head}
+    <p class="muted">Belege dieser Kunden aus der Fakturierung${suggested.length ? ' (passend zu den Objekten vorgeschlagen)' : ''}:</p>
+    ${list.length ? `<div class="check-grid kbr-customers">${list.map((c) => `<label class="check"><input type="checkbox" name="kbr-cust" value="${esc(c.id)}" ${inv.customerIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.name)}${c.customerNo ? ` <span class="muted">${esc(c.customerNo)}</span>` : ''}${suggested.includes(c) ? ' <span class="pill info">passt zu den Objekten</span>' : ''}</span></label>`).join('')}</div>` : '<p class="empty">Kein Kunde der Fakturierung hat eines der gewählten Objekte. Bitte unten einen Kunden wählen.</p>'}
+    <div class="form-grid">
+      <label class="field"><span>Weiteren Kunden dazunehmen</span><select id="kbr-add" data-change="kbr-add">${options(others.map((c) => [c.id, c.name]), '', { empty: '– Kunde wählen –' })}</select></label>
+      <label class="field"><span>Rechnungen der letzten</span><select id="kbr-months">${options(INVOICE_MONTH_CHOICES.map((n) => [String(n), `${n} Monate`]), String(inv.months))}</select></label>
+    </div>
+    <p class="note">Dazu immer alle noch offenen Rechnungen. Nur Belege der gewählten Kunden; Entwürfe, Angebote und Lieferscheine nie. Zahlungen sieht der Kunde nach dem nächsten Übertragen (einmal am Tag von selbst).</p>`
 }
 
 function linkModal() {
@@ -494,7 +639,11 @@ function linkModal() {
       <input type="search" id="kb-filter" data-input="kb-filter" placeholder="Objekt suchen" aria-label="Objekte filtern" class="kb-search">
       <div class="check-grid kb-objects">${objects.map((o) => `<label class="check kb-obj" data-name="${esc(`${o.name} ${o.address || ''}`.toLowerCase())}"><input type="checkbox" name="kb-obj" value="${esc(o.id)}" data-change="kb-count" ${d.objectIds.includes(o.id) ? 'checked' : ''}><span>${esc(o.name)}${o.address ? ` <span class="muted">${esc(o.address)}</span>` : ''}</span></label>`).join('')}</div>
       <h3>Was der Link zeigt</h3>
-      ${Object.entries(SHOW).map(([k, label]) => `<label class="check"><input type="checkbox" id="kb-show-${k}" ${d.show?.[k] !== false ? 'checked' : ''}><span>${esc(label)}${k === 'winter' && d.objectIds.length && !winterObjects ? ' <span class="muted">(keines der Objekte hat Winterdienst)</span>' : ''}</span></label>`).join('')}
+      ${Object.entries(SHOW)
+        .filter(([k]) => !SHOW_OFF.includes(k))
+        .map(([k, label]) => `<label class="check"><input type="checkbox" id="kb-show-${k}" ${d.show?.[k] !== false ? 'checked' : ''}><span>${esc(label)}${k === 'winter' && d.objectIds.length && !winterObjects ? ' <span class="muted">(keines der Objekte hat Winterdienst)</span>' : ''}</span></label>`)
+        .join('')}
+      ${invoiceSection(d)}
       <p class="note">Nur Daten der gewählten Objekte. Keine Namen von Mitarbeitenden, außer der Leistungsnachweis ist so eingestellt. Der Nachweis eines Monats erscheint ab dem ${esc(settings().releaseDay)}. des Folgemonats und nur, wenn alle Einsätze besetzt sind.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="kb-save">Speichern</button><button class="btn primary" data-action="kb-save" data-send="1">${ICON.send} Speichern und übertragen</button></div>`,
   })
@@ -616,6 +765,19 @@ registerActions(
       d.title = c.name
       d.objectIds = [...new Set([...(c.objectIds || []).filter((id) => objOf(id))])]
       d.email ||= c.email || ''
+      d.invoices = { ...invoiceSettings(d), customerIds: [c.id] }
+      renderModal()
+    },
+    'kbr-toggle': () => {
+      const d = readLink()
+      // beim Einschalten die Kunden vorschlagen, deren Objekte der Link zeigt
+      if (d.show.rechnungen && !invoiceSettings(d).customerIds.length) d.invoices = { ...invoiceSettings(d), customerIds: suggestCustomers(fakCustomers(), d.objectIds).map((c) => c.id) }
+      renderModal()
+    },
+    'kbr-add': () => {
+      const d = readLink()
+      const id = val('kbr-add')
+      if (id) d.invoices = { ...invoiceSettings(d), customerIds: [...new Set([...invoiceSettings(d).customerIds, id])] }
       renderModal()
     },
     'kb-count': () => {
@@ -623,6 +785,7 @@ registerActions(
       if (el) el.textContent = `${document.querySelectorAll('input[name="kb-obj"]:checked').length} gewählt`
     },
     'kb-sync': async () => {
+      if (editsInvoices()) syncAcceptances({ force: true })
       const n = await syncReports({ force: true })
       toast(sync.error ? `Nicht abgeholt: ${sync.error}` : n ? `${plural(n, 'neue Reklamation', 'neue Reklamationen')} übernommen.` : 'Keine neuen Reklamationen aus dem Kundenbereich.')
       renderNow()
@@ -636,10 +799,12 @@ registerActions(
       if (!d.title) return toast('Bitte eine Bezeichnung eingeben (z. B. Name des Kunden).')
       if (!d.objectIds.length) return toast('Bitte mindestens ein Objekt wählen.')
       if (d.email && !emailOk(d.email)) return toast('Bitte eine gültige E-Mail-Adresse eintragen.')
+      if (d.show.rechnungen && !invoiceSettings(d).customerIds.length) return toast('Bitte für die Rechnungen mindestens einen Kunden der Fakturierung wählen.')
+      const invoices = invoiceSettings(d)
       let link = d.id ? linkOf(d.id) : null
-      if (link) Object.assign(link, { title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, email: d.email, changedAt: new Date().toISOString(), changedBy: by() })
+      if (link) Object.assign(link, { title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, invoices, email: d.email, changedAt: new Date().toISOString(), changedBy: by() })
       else {
-        link = { id: newLinkId(), title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, email: d.email, token: newCode(), createdAt: new Date().toISOString(), createdBy: by() }
+        link = { id: newLinkId(), title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, invoices, email: d.email, token: newCode(), createdAt: new Date().toISOString(), createdBy: by() }
         links().push(link)
       }
       persist()

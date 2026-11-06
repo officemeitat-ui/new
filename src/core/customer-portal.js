@@ -16,15 +16,18 @@ import { defaultDue } from './complaints.js'
 
 export const PORTAL_SOURCE = 'Kundenbereich'
 
-/** Was ein Link zeigen kann (Standard: alles). */
+/** Was ein Link zeigen kann (Standard: alles außer den Rechnungen; die brauchen die Wahl der Kunden). */
 export const SHOW = {
   nachweise: 'Leistungsnachweise (PDF je Monat)',
   winter: 'Winterdienst-Nachweis (PDF, wo Winterdienst gemacht wurde)',
   leistungen: 'Nächste periodische Leistungen (z. B. Grundreinigung, Glasreinigung)',
   termine: 'Kundentermine und Objektbegehungen',
   reklamation: 'Reklamation melden und den Stand sehen',
+  rechnungen: 'Rechnungen und offene Posten zeigen',
 }
-export const showDefaults = () => Object.fromEntries(Object.keys(SHOW).map((k) => [k, true]))
+/** Standardmäßig aus (eigener Abschnitt im Dialog, Belege nur der gewählten Kunden der Fakturierung). */
+export const SHOW_OFF = ['rechnungen']
+export const showDefaults = () => Object.fromEntries(Object.keys(SHOW).map((k) => [k, !SHOW_OFF.includes(k)]))
 
 /** Arten, die der Kunde wählen kann (gleiche Liste in kunden.php). */
 export const CUSTOMER_KINDS = ['Reinigung mangelhaft', 'Leistung nicht erbracht', 'Schaden', 'Sonstiges']
@@ -112,9 +115,10 @@ export function stableJson(value) {
 
 /**
  * Was der Webspace für einen Link speichert (aktion=speichern). termine/nachweise null = nicht
- * geändert (die Rolle darf den Plan nicht lesen): der Webspace behält den letzten Stand.
+ * geändert (die Rolle darf den Plan nicht lesen): der Webspace behält den letzten Stand. rechnungen
+ * ebenso (null: die Rolle sieht die Fakturierung nicht); zeigt der Link keine, immer [] (dort gelöscht).
  */
-export function linkPayload({ link, hash, objectsById = new Map(), termine = null, nachweise = null }) {
+export function linkPayload({ link, hash, objectsById = new Map(), termine = null, nachweise = null, rechnungen = null }) {
   const show = { ...showDefaults(), ...(link.show || {}) }
   return {
     id: link.id,
@@ -127,6 +131,8 @@ export function linkPayload({ link, hash, objectsById = new Map(), termine = nul
     zeige: show,
     termine: termine === null ? null : termine.filter((t) => (t.art === 'leistung' ? show.leistungen : show.termine)),
     nachweise: nachweise === null ? null : nachweise.filter((n) => (n.art === 'winter' ? show.winter : show.nachweise)),
+    rechnungen: !show.rechnungen ? [] : rechnungen,
+    rechnungenMonate: Math.max(1, Math.min(36, Number(link.invoices?.months) || 13)),
   }
 }
 
@@ -184,7 +190,7 @@ export function newReports(reports = [], items = []) {
 /** E-Mail an den Kunden mit dem Link (Sie-Form). */
 export function linkMail({ link, url, company = '', sender = '', phone = '' }) {
   const show = { ...showDefaults(), ...(link.show || {}) }
-  const what = [show.nachweise && 'die monatlichen Leistungsnachweise als PDF', show.winter && 'den Winterdienst-Nachweis', (show.leistungen || show.termine) && 'die nächsten Termine in Ihrem Objekt', show.reklamation && 'die Möglichkeit, eine Reklamation direkt zu melden und den Stand zu verfolgen'].filter(Boolean)
+  const what = [show.nachweise && 'die monatlichen Leistungsnachweise als PDF', show.winter && 'den Winterdienst-Nachweis', (show.leistungen || show.termine) && 'die nächsten Termine in Ihrem Objekt', show.rechnungen && 'Ihre Rechnungen und offenen Posten als PDF', show.reklamation && 'die Möglichkeit, eine Reklamation direkt zu melden und den Stand zu verfolgen'].filter(Boolean)
   const list = what.length > 1 ? `${what.slice(0, -1).join(', ')} und ${what.at(-1)}` : what[0] || 'Informationen zu Ihrem Objekt'
   return {
     subject: `Ihr Kundenbereich${company ? ` bei ${company}` : ''}${link.title ? `: ${link.title}` : ''}`,

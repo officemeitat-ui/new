@@ -19,7 +19,7 @@
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
 //   einkauf/einkauf.json              Einkauf: Lieferanten, Eingangsrechnungen, Zahlungen (Belege unter einkauf/belege/)
 //   einkauf/kassenbuch.json           Kassenbuch (Einträge, Kassenstürze, Monatsabschlüsse)
-//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden (mit Code), Einstellungen
+//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden und Angebote (mit Code), Einstellungen
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -150,7 +150,7 @@ export const FOLDERS = [
   ['einkauf', 'Einkauf & Kasse: Lieferanten, Eingangsrechnungen mit Belegen, Kassenbuch', MODULE_DOCS.einkauf.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
-  ['kundenbereich', 'Kundenbereich: Links für Kunden (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
+  ['kundenbereich', 'Kundenbereich: Links für Kunden und Angebote zur Online-Annahme (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
 ]
 
 /**

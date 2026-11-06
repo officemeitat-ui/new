@@ -253,7 +253,15 @@ lazy(BUERO, {
     fim-check fim-take fim-apply fim-tool
     fak-conv-create fak-collect-open fak-collect-customer fak-collect-one fak-collect-create fak-line-type fak-line-move`,
   hints: true,
-  todo: ['fakturierung'],
+  // kundenbereich-angebote: Platz für customer-portal.js (immer geladen: holt die Online-Annahmen ab)
+  todo: ['fakturierung', 'kundenbereich-angebote'],
+})
+
+// invoicing-online.js (mit invoicing.js geladen): Angebot online annehmen über den Kundenbereich
+lazy(BUERO, {
+  module: 'fakturierung',
+  modals: 'ang-share',
+  actions: 'ang-open ang-publish ang-copy ang-page ang-mail ang-revoke ang-done',
 })
 
 // invoicing-laeufe.js und invoicing-sepa.js (mit invoicing.js geladen): Festschreiben und senden, Mahnlauf,

@@ -2066,6 +2066,13 @@ tr.muted td { color: var(--muted); }
 .kb-objects { max-height: 280px; overflow: auto; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
 .kb-objects .check[hidden] { display: none; }
 .kb-photo { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; margin-top: 6px; }
+/* Rechnungen im Kundenbereich, Angebot online annehmen (customer-portal.js, invoicing-online.js) */
+.kbr-customers { margin-bottom: 8px; }
+.ang-box { padding: 12px 16px; margin: 8px 0 12px; border-radius: var(--radius-card); background: var(--ok-soft); border: 1px solid var(--ok); }
+.ang-box p { margin: 4px 0; }
+.ang-hash { font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.ang-signature { display: block; width: 100%; max-width: 300px; height: auto; aspect-ratio: 3 / 1; margin: 6px 0; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.ang-signature path { fill: none; stroke: #13232f; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ---------- Fakturierung: Übernahme aus orgaMAX (invoicing-import.js) ---------- */
 .fim-howto { border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); padding: 10px 14px; margin-bottom: 12px; }

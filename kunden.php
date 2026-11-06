@@ -13,8 +13,19 @@
 // die Meldungen. Grenzen: falsche Codes je Adresse, Meldungen je Link und je Adresse, Fotos nur als
 // Bild (JPEG, PNG, WebP; mit GD neu gespeichert, ohne Metadaten), PDFs nur als PDF.
 //
+// Rechnungen (je Link einschaltbar): festgeschriebene Rechnungen, Storno- und Korrekturbelege der
+// Kunden des Links mit Stand und PDF, offene mit Bankverbindung und EPC-QR-Code. Das QR-Bild erzeugt
+// die App beim Übertragen (PNG), PHP prüft es nur. Keine Zahlung über die Seite.
+//
+// Angebot online annehmen (kunden.php?a=CODE): eigener Code je Angebot (am Server nur der Hashwert),
+// Nummer, Datum, Summe, gültig bis und das PDF; Annahme mit Name, Funktion, Häkchen und freiwilliger
+// Unterschrift (Striche als Pfad, kein Bild). Gespeichert: Zeitpunkt, Name, Funktion, Nummer und der
+// SHA-256 des veröffentlichten PDF, keine IP-Adresse. Abgelaufene Angebote lassen sich nicht annehmen.
+// Das Büro bekommt Push (nur die Nummer) bzw. E-Mail; die App holt die Annahme ab.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel):
 //   aktion=einrichten | speichern | datei | meldungen | meldung-status | foto | status
+//   aktion=angebot | angebot-datei | angebot-entfernen | annahmen | annahme-status
 // Erste Einrichtung: privat/kundenbereich.json per FTP, oder „einrichten“ mit dem Schlüssel von
 // Plan am Handy bzw. Schnee-Alarm im Kopf X-Freigabe, solange es noch keine Einstellungen gibt.
 
@@ -25,7 +36,7 @@ require __DIR__ . '/webspace-lib.php';
 
 const ARTEN = ['Reinigung mangelhaft' => 'Reinigung nicht in Ordnung', 'Leistung nicht erbracht' => 'Leistung nicht erbracht', 'Schaden' => 'Schaden', 'Sonstiges' => 'Sonstiges'];
 const STATUS = ['eingegangen' => 'eingegangen', 'arbeit' => 'in Arbeit', 'erledigt' => 'erledigt'];
-const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation'];
+const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen'];
 const BILD_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const BILD_MAX = 8 * 1024 * 1024;
 const PDF_MAX = 8 * 1024 * 1024;
@@ -37,6 +48,14 @@ const GRENZE_MELDUNG_LINK = [5, 86400];
 const GRENZE_MELDUNG_ADRESSE = [10, 86400];
 const DATEI_MUSTER = '/^\d{4}-\d{2}-(leistung|winter)-\d{1,3}\.pdf$/';
 const LINK_MUSTER = '/^kb[a-f0-9]{10}$/';
+// Rechnungen: Dateiname aus Belegart und Nummer, Stand wie in der App (core/customer-invoices.js)
+const BELEG_MUSTER = '/^(rechnung|storno|korrektur)-[A-Za-z0-9-]{1,40}\.pdf$/';
+const BELEG_STATUS = ['offen' => 'offen', 'ueberfaellig' => 'überfällig', 'teilbezahlt' => 'teilweise bezahlt', 'bezahlt' => 'bezahlt', 'storniert' => 'storniert', 'verrechnet' => 'verrechnet'];
+const QR_MAX = 24000; // Base64 des QR-Bilds (PNG)
+// Angebot online annehmen
+const ANGEBOT_MUSTER = '/^an[a-f0-9]{10}$/';
+const UNTERSCHRIFT_MUSTER = '/^M[0-9. ML]{2,16000}$/';
+const GRENZE_ANNAHME = [10, 86400]; // Versuche je Angebot und Tag
 
 function jetzt(): int
 {
@@ -275,6 +294,180 @@ function foto_speichern(?array $f, string $id): array
     return move_uploaded_file((string) $f['tmp_name'], $ziel . '.' . BILD_TYPEN[$typ]) ? [$id . '.' . BILD_TYPEN[$typ], ''] : ['', 'Das Foto konnte nicht gespeichert werden.'];
 }
 
+/** PDF der App aus dem Rumpf (nur echte PDFs bis 8 MB); sonst Fehler an die App. */
+function pdf_aus_anfrage(): string
+{
+    $laenge = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if ($laenge > PDF_MAX) {
+        json_ausgabe(413, ['fehler' => 'PDF zu groß (höchstens 8 MB)']);
+    }
+    $inhalt = (string) file_get_contents('php://input', false, null, 0, PDF_MAX + 1);
+    if (strlen($inhalt) > PDF_MAX || strlen($inhalt) < 200 || !str_starts_with($inhalt, '%PDF-') || !str_contains(substr($inhalt, -1024), '%%EOF')) {
+        json_ausgabe(400, ['fehler' => 'Kein gültiges PDF']);
+    }
+    return $inhalt;
+}
+
+/** Datei ersetzen (erst unter anderem Namen schreiben, dann umbenennen). */
+function datei_schreiben(string $ziel, string $inhalt): bool
+{
+    $tmp = $ziel . '.' . bin2hex(random_bytes(4));
+    return @file_put_contents($tmp, $inhalt, LOCK_EX) !== false && @rename($tmp, $ziel);
+}
+
+/** PDF an den Browser (zum Ansehen, mit Dateinamen). */
+function pdf_senden(string $pfad, string $name): void
+{
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '_', $name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+    header('Content-Length: ' . filesize($pfad));
+    header('Cache-Control: private, no-store');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Robots-Tag: noindex, nofollow');
+    readfile($pfad);
+    exit;
+}
+
+// ---------------------------------------------------------------- Rechnungen und Angebote
+
+function betrag($wert): float
+{
+    return is_int($wert) || is_float($wert) || (is_string($wert) && is_numeric($wert)) ? round((float) $wert, 2) : 0.0;
+}
+
+function datum_gueltig($d): string
+{
+    return is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && DateTimeImmutable::createFromFormat('!Y-m-d', $d) ? $d : '';
+}
+
+/** QR-Bild der App: nur ein echtes PNG (Base64), nicht zu groß; sonst leer. PHP erzeugt keinen QR-Code. */
+function qr_pruefen($b64): string
+{
+    if (!is_string($b64) || $b64 === '' || strlen($b64) > QR_MAX || !preg_match('/^[A-Za-z0-9+\/]+={0,2}$/', $b64)) {
+        return '';
+    }
+    $png = base64_decode($b64, true);
+    if ($png === false || !str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
+        return '';
+    }
+    $info = @getimagesizefromstring($png);
+    return $info && $info[2] === IMAGETYPE_PNG && $info[0] >= 21 && $info[0] <= 1200 && $info[1] >= 21 && $info[1] <= 1200 ? $b64 : '';
+}
+
+/** Dateiname für den Download: Umlaute erlaubt, sonst nur sichere Zeichen, endet auf .pdf. */
+function pdf_name($name, string $sonst): string
+{
+    $n = preg_replace('/[^A-Za-z0-9ÄÖÜäöüß._-]+/u', '-', kurz($name ?? $sonst, 120)) ?: $sonst;
+    return str_ends_with($n, '.pdf') ? $n : $n . '.pdf';
+}
+
+/** Rechnungen eines Links aus „speichern“: nur bekannte Felder, geprüft und gekürzt. */
+function rechnungen_lesen(array $liste): array
+{
+    $aus = [];
+    foreach (array_slice($liste, 0, 300) as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $datei = (string) ($r['datei'] ?? '');
+        if (!preg_match(BELEG_MUSTER, $datei, $art) || !preg_match('/^[a-f0-9]{16,64}$/', (string) ($r['sig'] ?? ''))) {
+            continue;
+        }
+        $z = is_array($r['zahlung'] ?? null) ? $r['zahlung'] : null;
+        $iban = $z ? strtoupper((string) preg_replace('/\s+/', '', (string) ($z['iban'] ?? ''))) : '';
+        $zahlung = $z && preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/', $iban) ? [
+            'empfaenger' => kurz($z['empfaenger'] ?? '', 70),
+            'iban' => trim(chunk_split($iban, 4, ' ')),
+            'bic' => preg_match('/^[A-Z0-9]{8,11}$/', (string) ($z['bic'] ?? '')) ? (string) $z['bic'] : '',
+            'betrag' => betrag($z['betrag'] ?? 0),
+            'zweck' => kurz($z['zweck'] ?? '', 140),
+        ] : null;
+        $aus[] = [
+            'datei' => $datei,
+            'art' => $art[1],
+            'titel' => kurz($r['titel'] ?? '', 40) ?: 'Rechnung',
+            'nummer' => kurz($r['nummer'] ?? '', 40),
+            'betreff' => kurz($r['betreff'] ?? '', 120),
+            'datum' => datum_gueltig($r['datum'] ?? ''),
+            'faellig' => datum_gueltig($r['faellig'] ?? ''),
+            'brutto' => betrag($r['brutto'] ?? 0),
+            'offen' => max(0.0, betrag($r['offen'] ?? 0)),
+            'status' => isset(BELEG_STATUS[$r['status'] ?? '']) ? (string) $r['status'] : 'offen',
+            'bezug' => kurz($r['bezug'] ?? '', 40),
+            'name' => pdf_name($r['name'] ?? null, $datei),
+            'sig' => (string) $r['sig'],
+            'zahlung' => $zahlung,
+            'lastschrift' => !empty($r['lastschrift']),
+            'qr' => $zahlung ? qr_pruefen($r['qr'] ?? '') : '',
+        ];
+    }
+    return $aus;
+}
+
+function angebot_datei(string $id): string
+{
+    return speicher('angebote') . '/' . $id . '.json';
+}
+
+function angebot_pdf(string $id): string
+{
+    return speicher('angebote') . '/' . $id . '.pdf';
+}
+
+/** Angebot zu einem Code (nur über den Hashwert auffindbar). */
+function angebot_zum_code(string $code): ?array
+{
+    if (!preg_match('/^[A-Za-z0-9]{16,40}$/', $code)) {
+        return null;
+    }
+    $hash = hash('sha256', $code);
+    $id = (string) (json_lesen(speicher('angebote') . '/index.json')[$hash] ?? '');
+    if (!preg_match(ANGEBOT_MUSTER, $id)) {
+        return null;
+    }
+    $a = json_lesen(angebot_datei($id));
+    return $a && empty($a['entfernt']) && hash_equals((string) ($a['hash'] ?? ''), $hash) ? $a : null;
+}
+
+function angebot_entfernen(string $id): void
+{
+    gesperrt(speicher('angebote') . '/index.json', function (array &$index) use ($id) {
+        $index = array_filter($index, fn ($v) => $v !== $id);
+    });
+    @unlink(angebot_pdf($id));
+    @unlink(angebot_datei($id));
+}
+
+/** Alte Angebote löschen: angenommene 180 Tage nach der Übernahme in die App, andere 180 Tage nach „gültig bis“. */
+function angebote_aufraeumen(): void
+{
+    $grenze = tag_plus(heute(), -180);
+    foreach (glob(speicher('angebote') . '/an*.json') ?: [] as $f) {
+        $a = json_lesen($f);
+        $id = (string) ($a['id'] ?? '');
+        if (!preg_match(ANGEBOT_MUSTER, $id)) {
+            @unlink($f); // leer geblieben (z. B. gleichzeitig entfernt)
+            continue;
+        }
+        $annahme = is_array($a['annahme'] ?? null) ? $a['annahme'] : null;
+        $alt = $annahme ? (int) ($annahme['uebernommen'] ?? 0) > 0 && (int) $annahme['uebernommen'] < jetzt() - 180 * 86400 : (string) ($a['gueltigBis'] ?? '') < $grenze;
+        if ($alt) {
+            angebot_entfernen($id);
+        }
+    }
+}
+
+function betrag_text(float $x): string
+{
+    return ($x < 0 ? '−' : '') . '€ ' . number_format(abs($x), 2, ',', '.');
+}
+
+/** Zeitpunkt in Wien: „06.11.2026, 14:32“. */
+function zeit_text(int $t): string
+{
+    return (new DateTimeImmutable('@' . $t))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('d.m.Y, H:i');
+}
+
 // ---------------------------------------------------------------- Darstellung
 
 $h = fn ($t): string => htmlspecialchars((string) $t, ENT_QUOTES);
@@ -295,8 +488,29 @@ function groesse_text(int $bytes): string
     return $bytes >= 1048576 ? str_replace('.', ',', (string) round($bytes / 1048576, 1)) . ' MB' : max(1, (int) round($bytes / 1024)) . ' KB';
 }
 
+function svg_pdf(): string
+{
+    return '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M9 13h6M9 17h4"/></svg>';
+}
+
+function svg_pfeil(): string
+{
+    return '<svg class="pfeil" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+}
+
+/** „Fragen? Telefon … · E-Mail …“ aus den Einstellungen (leer, wenn nichts eingetragen ist). */
+function kontakt_html(array $e): string
+{
+    $h = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES);
+    $kontakt = array_filter([
+        !empty($e['firma']['telefon']) ? 'Telefon <a href="tel:' . $h(preg_replace('/[^0-9+]/', '', (string) $e['firma']['telefon'])) . '">' . $h($e['firma']['telefon']) . '</a>' : '',
+        !empty($e['firma']['email']) ? 'E-Mail <a href="mailto:' . $h($e['firma']['email']) . '">' . $h($e['firma']['email']) . '</a>' : '',
+    ]);
+    return $kontakt ? '<p>Fragen? ' . implode(' · ', $kontakt) . '</p>' : '';
+}
+
 /** Seite für Kunden: eigenes, ruhiges Design (Sie-Form), Logo und Hausfarbe aus config.json. */
-function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich', string $firma = ''): void
+function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich', string $firma = '', string $wo = 'Kundenbereich', string $skript = 'wetter-foto.js'): void
 {
     $m = marke();
     $h = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES);
@@ -341,10 +555,22 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
         . '.ok,.fehler{border-radius:10px;padding:.7rem .9rem;margin:0 0 1rem;font-weight:600}.ok{background:var(--ok-grund);color:var(--ok)}.fehler{background:var(--fehler-grund);color:var(--fehler)}'
         . '.meldung{display:block!important}.zeile{display:flex;gap:.6rem;align-items:flex-start;justify-content:space-between}.meldung-text{margin:.35rem 0 0;white-space:pre-line}.antwort{margin:.5rem 0 0;padding:.5rem .7rem;background:var(--ok-grund);border-radius:8px;color:#26420b}.antwort b{display:block;font-size:.88rem}'
         . '.leer{color:var(--leise);margin:.2rem 0}'
+        // Rechnungen und Angebot
+        . '.st-offen{background:var(--weich);color:var(--blau)}.st-ueberfaellig{background:var(--fehler-grund);color:var(--fehler)}.st-teilbezahlt{background:var(--warn-grund);color:var(--warn)}.st-bezahlt{background:var(--ok-grund);color:var(--ok)}.st-storniert,.st-verrechnet{background:var(--grund);color:var(--leise)}'
+        . '.pdf .summe{margin-left:auto;text-align:right;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:.2rem}.pdf .summe b{font-weight:700}'
+        . '.offen-summe{margin:0 0 .6rem;font-size:1.05rem}'
+        . '.beleg{margin:.4rem 0 1rem}.beleg .pdf{margin-bottom:0}'
+        . '.zahlen{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:flex-start;background:var(--grund);border-radius:10px;padding:.8rem;margin:.3rem 0 0}'
+        . '.zahlen .qr{display:block;flex:0 0 auto;image-rendering:pixelated;background:#fff;border-radius:6px}.zahlen .was{flex:1 1 13rem}.zahlen .hinweis{margin:.2rem 0 0}'
+        . '.werte{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.15rem .8rem;margin:.2rem 0 .6rem}.werte dt{color:var(--leise)}.werte dd{margin:0;overflow-wrap:break-word}.nr{display:inline-block;max-width:100%}'
+        . '@media(max-width:480px){.zahlen .werte{grid-template-columns:minmax(0,1fr);gap:0}.zahlen .werte dd{margin:0 0 .35rem}}'
+        . '.feldname{display:block;margin:.85rem 0 .25rem;font-weight:600}'
+        . '.unterschrift canvas{display:block;width:100%;max-width:600px;aspect-ratio:3/1;border:1px dashed #b9c7d1;border-radius:8px;background:#fff;touch-action:none;cursor:crosshair}'
+        . 'button.leise{display:inline-block;width:auto;font-size:.95rem;font-weight:600;color:var(--blau);background:#fff;border:1px solid #b9c7d1;padding:.4rem .9rem;margin-top:.4rem}'
         . '.fuss{max-width:68rem;margin:0 auto;padding:0 1rem 2rem;color:var(--leise);font-size:.9rem}.fuss p{margin:.4rem 0}'
         . '</style>'
-        . '<script src="wetter-foto.js" defer></script></head><body>'
-        . '<header class="kopf"><div class="kopf-innen">' . ($m['logo'] ? '<img src="' . $h($m['logo']) . '" alt="' . $h($name) . '">' : '<span class="marke">' . $h($name) . '</span>') . '<span class="wo">Kundenbereich</span></div></header>'
+        . '<script src="' . $h($skript) . '" defer></script></head><body>'
+        . '<header class="kopf"><div class="kopf-innen">' . ($m['logo'] ? '<img src="' . $h($m['logo']) . '" alt="' . $h($name) . '">' : '<span class="marke">' . $h($name) . '</span>') . '<span class="wo">' . $h($wo) . '</span></div></header>'
         . $inhalt . '</body></html>';
 }
 
@@ -361,7 +587,7 @@ $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $e = einstellungen();
 
-if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status'], true)) {
+if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status'], true)) {
     $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
     if (!$e) {
         // erste Einrichtung ohne FTP: mit dem Schlüssel von Plan am Handy oder Schnee-Alarm
@@ -380,7 +606,21 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
 
     if ($aktion === 'status') {
         $offen = count(array_filter(json_lesen(speicher() . '/meldungen.json'), fn ($m) => empty($m['uebernommen'])));
-        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'neueMeldungen' => $offen, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+        $angebote = array_map('json_lesen', glob(speicher('angebote') . '/an*.json') ?: []);
+        $neueAnnahmen = count(array_filter($angebote, fn ($a) => !empty($a['annahme']) && empty($a['annahme']['uebernommen'])));
+        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+    }
+    // Angebote mit Annahme (die App übernimmt sie und meldet „übernommen“ zurück)
+    if ($aktion === 'annahmen') {
+        angebote_aufraeumen();
+        $liste = [];
+        foreach (glob(speicher('angebote') . '/an*.json') ?: [] as $f) {
+            $a = json_lesen($f);
+            if (!empty($a['annahme']) && preg_match(ANGEBOT_MUSTER, (string) ($a['id'] ?? ''))) {
+                $liste[] = ['id' => $a['id'], 'nummer' => (string) ($a['nummer'] ?? ''), 'annahme' => $a['annahme']];
+            }
+        }
+        json_ausgabe(200, ['annahmen' => $liste, 'jetzt' => jetzt()]);
     }
     if ($aktion === 'meldungen') {
         json_ausgabe(200, ['meldungen' => meldungen(fn (array &$l) => $l) ?? [], 'jetzt' => jetzt()]);
@@ -402,36 +642,62 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         json_ausgabe(400, ['fehler' => 'POST erwartet']);
     }
 
-    // PDF eines Links (Rohdaten im Rumpf), nur wenn er in der Liste des Links steht
+    // PDF eines Links (Rohdaten im Rumpf), nur wenn er in der Liste des Links steht (Nachweis oder Rechnung)
     if ($aktion === 'datei') {
         $id = (string) ($_GET['link'] ?? '');
         $datei = (string) ($_GET['datei'] ?? '');
         $link = preg_match(LINK_MUSTER, $id) ? json_lesen(link_datei($id)) : [];
         $eintrag = null;
-        foreach ((array) ($link['nachweise'] ?? []) as $n) {
+        foreach (array_merge((array) ($link['nachweise'] ?? []), (array) ($link['rechnungen'] ?? [])) as $n) {
             if (($n['datei'] ?? '') === $datei) {
                 $eintrag = $n;
             }
         }
-        if (!$link || !preg_match(DATEI_MUSTER, $datei) || !$eintrag) {
+        if (!$link || !(preg_match(DATEI_MUSTER, $datei) || preg_match(BELEG_MUSTER, $datei)) || !$eintrag) {
             json_ausgabe(404, ['fehler' => 'Link oder Datei unbekannt (zuerst speichern)']);
         }
-        $laenge = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
-        if ($laenge > PDF_MAX) {
-            json_ausgabe(413, ['fehler' => 'PDF zu groß (höchstens 8 MB)']);
-        }
-        $inhalt = (string) file_get_contents('php://input', false, null, 0, PDF_MAX + 1);
-        if (strlen($inhalt) > PDF_MAX || strlen($inhalt) < 200 || !str_starts_with($inhalt, '%PDF-') || !str_contains(substr($inhalt, -1024), '%%EOF')) {
-            json_ausgabe(400, ['fehler' => 'Kein gültiges PDF']);
-        }
-        $ziel = link_ordner($id) . '/' . $datei;
-        $tmp = $ziel . '.' . bin2hex(random_bytes(4));
-        if (@file_put_contents($tmp, $inhalt, LOCK_EX) === false || !@rename($tmp, $ziel)) {
+        $inhalt = pdf_aus_anfrage();
+        if (!datei_schreiben(link_ordner($id) . '/' . $datei, $inhalt)) {
             json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
         $link['dateien'][$datei] = ['sig' => (string) $eintrag['sig'], 'groesse' => strlen($inhalt), 'stand' => jetzt()];
         json_schreiben(link_datei($id), $link);
         json_ausgabe(200, ['gespeichert' => $datei, 'groesse' => strlen($inhalt)]);
+    }
+
+    // PDF eines Angebots: nur solange es nicht angenommen ist (das angenommene PDF bleibt, wie es war)
+    if ($aktion === 'angebot-datei') {
+        $id = (string) ($_GET['angebot'] ?? '');
+        if (!preg_match(ANGEBOT_MUSTER, $id) || !is_file(angebot_datei($id))) {
+            json_ausgabe(404, ['fehler' => 'Angebot unbekannt (zuerst übertragen)']);
+        }
+        $inhalt = pdf_aus_anfrage();
+        $sha = hash('sha256', $inhalt);
+        $ergebnis = gesperrt(angebot_datei($id), function (array &$a) use ($id, $inhalt, $sha) {
+            if (empty($a['id']) || !empty($a['entfernt'])) {
+                return 'unbekannt';
+            }
+            if (!empty($a['annahme'])) {
+                return 'angenommen';
+            }
+            if (!datei_schreiben(angebot_pdf($id), $inhalt)) {
+                return 'fehler';
+            }
+            $a['pdfSha256'] = $sha;
+            $a['pdfGroesse'] = strlen($inhalt);
+            $a['stand'] = jetzt();
+            return 'ok';
+        });
+        if ($ergebnis === 'angenommen') {
+            json_ausgabe(409, ['fehler' => 'Das Angebot ist schon angenommen; das PDF bleibt, wie es war.', 'angenommen' => true]);
+        }
+        if ($ergebnis === 'unbekannt') {
+            json_ausgabe(404, ['fehler' => 'Angebot unbekannt (zuerst übertragen)']);
+        }
+        if ($ergebnis !== 'ok') {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['gespeichert' => true, 'sha256' => $sha, 'groesse' => strlen($inhalt)]);
     }
 
     $daten = json_decode((string) file_get_contents('php://input'), true);
@@ -506,7 +772,86 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         json_ausgabe(200, $ergebnis);
     }
 
-    // speichern: je Link Titel, Objekte, was er zeigt, Termine und die Liste der Nachweise.
+    // Angebot veröffentlichen bzw. erneuern (neuer Code ersetzt den alten). Ein angenommenes Angebot
+    // ändert niemand mehr. Antwort pdf: true, wenn das PDF (noch) fehlt.
+    if ($aktion === 'angebot') {
+        $id = (string) ($daten['id'] ?? '');
+        $hash = (string) ($daten['hash'] ?? '');
+        $gueltig = datum_gueltig($daten['gueltigBis'] ?? '');
+        if (!preg_match(ANGEBOT_MUSTER, $id) || !preg_match('/^[a-f0-9]{64}$/', $hash) || $gueltig === '' || kurz($daten['nummer'] ?? '', 40) === '' || !preg_match('/^[a-f0-9]{16,64}$/', (string) ($daten['sig'] ?? ''))) {
+            json_ausgabe(400, ['fehler' => 'Angebot unvollständig (Kennung, Code, Nummer, gültig bis)']);
+        }
+        $ergebnis = gesperrt(angebot_datei($id), function (array &$a) use ($daten, $id, $hash, $gueltig) {
+            if (!empty($a['annahme'])) {
+                return 'angenommen';
+            }
+            $sig = (string) $daten['sig'];
+            $pdf = ($a['sig'] ?? '') === $sig && is_file(angebot_pdf($id)) ? (string) ($a['pdfSha256'] ?? '') : '';
+            $a = [
+                'id' => $id, 'hash' => $hash, 'nummer' => kurz($daten['nummer'], 40), 'datum' => datum_gueltig($daten['datum'] ?? ''), 'gueltigBis' => $gueltig,
+                'titel' => kurz($daten['titel'] ?? '', 160), 'empfaenger' => kurz($daten['empfaenger'] ?? '', 120),
+                'netto' => betrag($daten['netto'] ?? 0), 'ust' => betrag($daten['ust'] ?? 0), 'brutto' => betrag($daten['brutto'] ?? 0),
+                'verbraucher' => !empty($daten['verbraucher']), 'name' => pdf_name($daten['name'] ?? null, 'Angebot.pdf'), 'sig' => $sig,
+                'pdfSha256' => $pdf, 'pdfGroesse' => $pdf !== '' ? (int) ($a['pdfGroesse'] ?? 0) : 0, 'erstellt' => (int) ($a['erstellt'] ?? jetzt()), 'stand' => jetzt(), 'annahme' => null,
+            ];
+            return $pdf === '' ? 'pdf' : 'ok';
+        });
+        if ($ergebnis === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        if ($ergebnis === 'angenommen') {
+            json_ausgabe(409, ['fehler' => 'Das Angebot ist schon angenommen und lässt sich nicht mehr ändern.', 'angenommen' => true]);
+        }
+        gesperrt(speicher('angebote') . '/index.json', function (array &$index) use ($id, $hash) {
+            $index = array_filter($index, fn ($v) => $v !== $id); // neuer Code: der alte gilt nicht mehr
+            $index[$hash] = $id;
+        });
+        json_ausgabe(200, ['gespeichert' => true, 'pdf' => $ergebnis === 'pdf']);
+    }
+
+    // Angebote zurückziehen; eine Annahme, die die App noch nicht abgeholt hat, bleibt (sonst ginge sie verloren)
+    if ($aktion === 'angebot-entfernen') {
+        $entfernt = 0;
+        $behalten = [];
+        foreach (array_slice((array) ($daten['ids'] ?? []), 0, 200) as $id) {
+            if (!is_string($id) || !preg_match(ANGEBOT_MUSTER, $id) || !is_file(angebot_datei($id))) {
+                continue;
+            }
+            $weg = gesperrt(angebot_datei($id), function (array &$a) {
+                if (!empty($a['annahme']) && empty($a['annahme']['uebernommen'])) {
+                    return false;
+                }
+                $a['entfernt'] = jetzt(); // gleichzeitige Annahme sieht das und lehnt ab
+                return true;
+            });
+            if ($weg) {
+                angebot_entfernen($id);
+                $entfernt++;
+            } else {
+                $behalten[] = $id;
+            }
+        }
+        json_ausgabe(200, ['entfernt' => $entfernt, 'behalten' => $behalten]);
+    }
+
+    if ($aktion === 'annahme-status') {
+        $n = 0;
+        foreach (array_slice((array) ($daten['uebernommen'] ?? []), 0, 200) as $id) {
+            if (!is_string($id) || !preg_match(ANGEBOT_MUSTER, $id) || !is_file(angebot_datei($id))) {
+                continue;
+            }
+            $n += (int) gesperrt(angebot_datei($id), function (array &$a) {
+                if (empty($a['annahme']) || !empty($a['annahme']['uebernommen'])) {
+                    return 0;
+                }
+                $a['annahme']['uebernommen'] = jetzt();
+                return 1;
+            });
+        }
+        json_ausgabe(200, ['aktualisiert' => $n]);
+    }
+
+    // speichern: je Link Titel, Objekte, was er zeigt, Termine, die Liste der Nachweise und der Rechnungen.
     // Antwort: welche PDFs fehlen oder sich geändert haben (die App lädt nur diese hoch).
     $entfernt = 0;
     foreach ((array) ($daten['entfernen'] ?? []) as $id) {
@@ -553,20 +898,27 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
                 $nachweise[] = ['datei' => $datei, 'monat' => substr($datei, 0, 7), 'art' => str_contains($datei, '-winter-') ? 'winter' : 'leistung', 'titel' => kurz($n['titel'] ?? '', 160), 'objekt' => kurz($n['objekt'] ?? '', 120), 'name' => str_ends_with($name, '.pdf') ? $name : $name . '.pdf', 'sig' => (string) $n['sig']];
             }
         }
+        // Rechnungen: null = unverändert (die Rolle sieht die Fakturierung nicht), [] = keine
+        $rechnungen = $alt['rechnungen'] ?? [];
+        $monate = (int) ($alt['rechnungenMonate'] ?? 13);
+        if (is_array($l['rechnungen'] ?? null)) {
+            $rechnungen = rechnungen_lesen($l['rechnungen']);
+            $monate = max(1, min(36, (int) ($l['rechnungenMonate'] ?? 13)));
+        }
         // Dateien, die nicht mehr in der Liste stehen, löschen; fehlende oder geänderte melden
-        $liste = array_column($nachweise, null, 'datei');
+        $liste = array_column(array_merge($nachweise, $rechnungen), null, 'datei');
         $dateien = array_filter((array) ($alt['dateien'] ?? []), fn ($d, $name) => isset($liste[$name]) && is_file(link_ordner($id) . '/' . $name), ARRAY_FILTER_USE_BOTH);
         foreach (glob(link_ordner($id) . '/*.pdf') ?: [] as $f) {
             if (!isset($liste[basename($f)])) {
                 @unlink($f);
             }
         }
-        foreach ($nachweise as $n) {
+        foreach ($liste as $n) {
             if (($dateien[$n['datei']]['sig'] ?? '') !== $n['sig']) {
                 $fehlend[$id][] = $n['datei'];
             }
         }
-        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
+        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'rechnungen' => $rechnungen, 'rechnungenMonate' => $monate, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
         if (!json_schreiben(link_datei($id), $link)) {
             json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
@@ -589,6 +941,134 @@ $wer = adresse_des_aufrufs();
 if (grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, false)) {
     fehlerseite('Bitte später noch einmal', 'Von dieser Verbindung kamen zu viele ungültige Aufrufe. Bitte versuchen Sie es in einer Viertelstunde wieder.', 429, $firma);
 }
+
+// ---------------------------------------------------------------- Angebot online annehmen (kunden.php?a=CODE)
+
+$angebotCode = (string) ($_POST['a'] ?? $_GET['a'] ?? '');
+if ($angebotCode !== '' && !isset($_GET['k']) && !isset($_POST['k'])) {
+    $a = angebot_zum_code($angebotCode);
+    if (!$a) {
+        grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, true);
+        fehlerseite('Link ungültig', 'Dieser Link gilt nicht (mehr). Bitte wenden Sie sich an Ihre Ansprechperson.', 404, $firma);
+    }
+    $aid = (string) $a['id'];
+    $pdf = angebot_pdf($aid);
+    $bereit = is_file($pdf) && (string) ($a['pdfSha256'] ?? '') !== '';
+    $annahme = is_array($a['annahme'] ?? null) ? $a['annahme'] : null;
+    $abgelaufen = !$annahme && (string) ($a['gueltigBis'] ?? '') < heute();
+    if (isset($_GET['datei'])) {
+        if (!$bereit) {
+            fehlerseite('Nicht gefunden', 'Dieses Dokument ist nicht (mehr) verfügbar.', 404, $firma);
+        }
+        pdf_senden($pdf, (string) ($a['name'] ?? 'Angebot.pdf'));
+    }
+    if (!$bereit && !$annahme) {
+        fehlerseite('Noch nicht bereit', 'Dieses Angebot wird gerade bereitgestellt. Bitte versuchen Sie es in ein paar Minuten noch einmal.', 503, $firma);
+    }
+    $nr = (string) ($a['nummer'] ?? '');
+    $summe = betrag_text((float) ($a['brutto'] ?? 0));
+    $fehler = '';
+    $eingabe = [];
+    if ($aktion === 'annehmen' && $methode === 'POST') {
+        if (fremde_herkunft()) {
+            fehlerseite('Nicht erlaubt', 'Das Formular kam von einer anderen Seite.', 403, $firma);
+        }
+        if ($annahme) {
+            header('Location: kunden.php?a=' . rawurlencode($angebotCode), true, 303);
+            exit;
+        }
+        $eingabe = ['name' => kurz($_POST['name'] ?? '', 80), 'funktion' => kurz($_POST['funktion'] ?? '', 80), 'zustimmung' => !empty($_POST['zustimmung']), 'unterschrift' => trim((string) ($_POST['unterschrift'] ?? ''))];
+        if ($abgelaufen) {
+            $fehler = 'Dieses Angebot ist abgelaufen und lässt sich nicht mehr annehmen.';
+        } elseif (grenze('annahme', $aid, GRENZE_ANNAHME, true)) {
+            $fehler = 'Heute gab es zu diesem Angebot schon viele Versuche. Bitte rufen Sie uns an.';
+        } elseif (mb_strlen($eingabe['name']) < 2) {
+            $fehler = 'Bitte geben Sie Ihren Namen an.';
+        } elseif (!$eingabe['zustimmung']) {
+            $fehler = 'Bitte bestätigen Sie mit dem Häkchen, dass Sie das Angebot annehmen.';
+        } elseif ($eingabe['unterschrift'] !== '' && !preg_match(UNTERSCHRIFT_MUSTER, $eingabe['unterschrift'])) {
+            $fehler = 'Die Unterschrift ließ sich nicht lesen. Bitte noch einmal unterschreiben oder ohne Unterschrift senden.';
+        }
+        if (!$fehler) {
+            // Nachweis: Zeitpunkt, Name, Funktion, Nummer und der SHA-256 genau des PDF, das hier liegt; keine IP-Adresse
+            $neu = ['zeit' => jetzt(), 'name' => $eingabe['name'], 'funktion' => $eingabe['funktion'], 'nummer' => $nr, 'pdfSha256' => (string) hash_file('sha256', $pdf), 'unterschrift' => $eingabe['unterschrift'], 'uebernommen' => null];
+            $ok = gesperrt(angebot_datei($aid), function (array &$x) use ($neu) {
+                if (empty($x['id']) || !empty($x['entfernt'])) {
+                    return 'weg';
+                }
+                if (!empty($x['annahme'])) {
+                    return 'schon';
+                }
+                if ((string) ($x['gueltigBis'] ?? '') < heute()) {
+                    return 'abgelaufen';
+                }
+                $x['annahme'] = $neu;
+                return 'ok';
+            });
+            if ($ok === 'ok') {
+                // Büro: Push nur mit der Nummer (geht über einen fremden Dienst), E-Mail mit allem
+                $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#fakturierung';
+                $titel = 'Angebot online angenommen: ' . $nr;
+                $text = 'Das Angebot ' . $nr . (($a['titel'] ?? '') !== '' ? ' (' . $a['titel'] . ')' : '') . ' über ' . $summe . ' wurde am ' . zeit_text($neu['zeit']) . " Uhr online angenommen.\n"
+                    . 'Angenommen von: ' . $neu['name'] . ($neu['funktion'] !== '' ? ' (' . $neu['funktion'] . ')' : '') . "\n"
+                    . (($a['empfaenger'] ?? '') !== '' ? 'Empfänger laut Angebot: ' . $a['empfaenger'] . "\n" : '')
+                    . ($neu['unterschrift'] !== '' ? "Mit Unterschrift.\n" : '')
+                    . 'SHA-256 des angenommenen PDF: ' . $neu['pdfSha256'] . "\n\nIn der App unter „Fakturierung → Angebote“ die Auftragsbestätigung erstellen.";
+                foreach ((array) ($e['buero'] ?? []) as $b) {
+                    if (!empty($b['ntfy'])) {
+                        ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => 'In der App unter „Fakturierung → Angebote“.', 'priority' => 4, 'click' => $app]);
+                    }
+                    if (!empty($b['email'])) {
+                        mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Kundenbereich');
+                    }
+                }
+            }
+            if ($ok === 'ok' || $ok === 'schon') {
+                header('Location: kunden.php?a=' . rawurlencode($angebotCode) . '&angenommen=1', true, 303);
+                exit;
+            }
+            $fehler = $ok === 'abgelaufen' ? 'Dieses Angebot ist abgelaufen und lässt sich nicht mehr annehmen.' : 'Das Angebot ließ sich nicht annehmen. Bitte rufen Sie uns an.';
+        }
+    }
+
+    $k = rawurlencode($angebotCode);
+    $datum = fn (string $d) => datum_text($d, false);
+    $werte = '<dl class="werte"><dt>Nummer</dt><dd>' . $h($nr) . '</dd>' . (($a['datum'] ?? '') !== '' ? '<dt>Datum</dt><dd>' . $h($datum((string) $a['datum'])) . '</dd>' : '')
+        . '<dt>Summe</dt><dd><b>' . $h($summe) . '</b>' . ((float) ($a['ust'] ?? 0) ? ' inkl. USt<br><span class="leise">netto ' . $h(betrag_text((float) $a['netto'])) . '</span>' : '') . '</dd>'
+        . '<dt>Gültig bis</dt><dd>' . $h($datum((string) $a['gueltigBis'])) . '</dd></dl>';
+    $pdfLink = $bereit ? '<a class="pdf" href="kunden.php?a=' . $k . '&amp;datei=1" target="_blank" rel="noopener">' . svg_pdf() . '<span class="was"><b>Angebot als PDF</b><span class="leise">' . $h($a['name'] ?? '') . ' · PDF, ' . groesse_text((int) ($a['pdfGroesse'] ?? 0)) . '</span></span>' . svg_pfeil() . '</a>' : '';
+    $datenschutz = (string) ($e['firma']['datenschutz'] ?? '');
+    $status = 200;
+    if ($annahme) {
+        $teil = '<h2>Angenommen</h2>' . (($_GET['angenommen'] ?? '') === '1' ? '<p class="ok" role="status">Danke! Ihre Annahme ist bei uns eingegangen.</p>' : '')
+            . '<p>Sie haben dieses Angebot am <b>' . $h(zeit_text((int) ($annahme['zeit'] ?? 0))) . ' Uhr</b> angenommen.</p>'
+            . '<dl class="werte"><dt>Angenommen von</dt><dd>' . $h($annahme['name'] ?? '') . (($annahme['funktion'] ?? '') !== '' ? ', ' . $h($annahme['funktion']) : '') . '</dd>'
+            . '<dt>Unterschrift</dt><dd>' . (($annahme['unterschrift'] ?? '') !== '' ? 'ja' : 'ohne') . '</dd></dl>'
+            . '<p class="hinweis">Wir melden uns mit der Auftragsbestätigung. Das PDF ist genau das Angebot, das Sie angenommen haben.</p>';
+    } elseif ($abgelaufen) {
+        $status = 410;
+        $teil = '<h2>Abgelaufen</h2><p class="fehler" role="status">Dieses Angebot war bis ' . $h($datum((string) $a['gueltigBis'])) . ' gültig und ist abgelaufen.</p><p>Für ein neues Angebot melden Sie sich bitte bei uns.</p>';
+    } else {
+        $status = $fehler ? 400 : 200;
+        $teil = '<h2>Angebot annehmen</h2><p class="unter">Passt alles? Dann können Sie das Angebot hier verbindlich annehmen.</p>'
+            . ($fehler ? '<p class="fehler" role="alert">' . $h($fehler) . '</p>' : '')
+            . '<form method="post" action="kunden.php?aktion=annehmen" data-unterschrift><input type="hidden" name="a" value="' . $h($angebotCode) . '">'
+            . '<label for="a-name">Ihr Name</label><input type="text" id="a-name" name="name" maxlength="80" autocomplete="name" required value="' . $h($eingabe['name'] ?? '') . '">'
+            . '<label for="a-funktion">Funktion (optional)</label><input type="text" id="a-funktion" name="funktion" maxlength="80" autocomplete="organization-title" placeholder="z. B. Geschäftsführung, Hausverwaltung" value="' . $h($eingabe['funktion'] ?? '') . '">'
+            . '<div class="unterschrift" hidden><span class="feldname" id="a-unterschrift-titel">Unterschrift (optional)</span><canvas width="600" height="200" role="img" aria-labelledby="a-unterschrift-titel"></canvas><input type="hidden" name="unterschrift" value=""><button type="button" class="leise" data-loeschen>Unterschrift löschen</button></div>'
+            . '<label class="haken"><input type="checkbox" name="zustimmung" value="1" required> Ich nehme das Angebot ' . $h($nr) . (($a['datum'] ?? '') !== '' ? ' vom ' . $h($datum((string) $a['datum'])) : '') . ' über ' . $h($summe) . ' verbindlich an.</label>'
+            . (!empty($a['verbraucher']) ? '<p class="hinweis">Hinweis für Verbraucher: Ihr Rücktrittsrecht und die Belehrung dazu finden Sie im Angebot (PDF).</p>' : '')
+            . '<button type="submit">Angebot verbindlich annehmen</button>'
+            . '<p class="hinweis">Als Nachweis speichern wir zum Angebot Ihren Namen, die Funktion, die Unterschrift (wenn Sie unterschreiben) und den Zeitpunkt, aber nicht Ihre IP-Adresse.' . ($datenschutz !== '' && preg_match('#^https://#', $datenschutz) ? ' <a href="' . $h($datenschutz) . '" target="_blank" rel="noopener">Datenschutzerklärung</a>' : '') . '</p></form>';
+    }
+    $unter = array_filter([(string) ($a['titel'] ?? ''), ($a['empfaenger'] ?? '') !== '' ? 'für ' . $a['empfaenger'] : '']);
+    seite('<main class="seite"><div class="hallo"><h1>Angebot ' . $h($nr) . '</h1><p>' . $h(implode(' · ', $unter) ?: 'Ihr Angebot' . ($firma !== '' ? ' von ' . $firma : '')) . '</p></div>'
+        . '<div class="spalten"><div class="spalte"><section class="karte" id="angebot"><h2>Ihr Angebot</h2><p class="unter">Alle Einzelheiten stehen im PDF.</p>' . $werte . $pdfLink . '</section></div>'
+        . '<div class="spalte"><section class="karte" id="annahme">' . $teil . '</section></div></div></main>'
+        . '<footer class="fuss">' . kontakt_html($e) . '<p>Dieser Link gehört zu diesem Angebot: Bitte geben Sie ihn nur an Personen weiter, die darüber entscheiden.</p></footer>', $status, 'Angebot', $firma, 'Angebot', 'kunden-unterschrift.js');
+    exit;
+}
+
 $code = (string) ($_POST['k'] ?? $_GET['k'] ?? '');
 $link = link_zum_code($code);
 if (!$link) {
@@ -599,28 +1079,25 @@ $zeige = array_merge(array_fill_keys(ZEIGE, false), (array) ($link['zeige'] ?? [
 $objekte = (array) ($link['objekte'] ?? []);
 $id = (string) $link['id'];
 
-// PDF herunterladen (nur Dateien aus der Liste dieses Links)
+// PDF herunterladen (nur Dateien aus der Liste dieses Links: Nachweise bzw. Rechnungen, wenn der Link sie zeigt)
 if (isset($_GET['datei'])) {
     $datei = (string) $_GET['datei'];
     $eintrag = null;
     foreach ((array) ($link['nachweise'] ?? []) as $n) {
-        if (($n['datei'] ?? '') === $datei && !empty($zeige[$n['art'] === 'winter' ? 'winter' : 'nachweise'])) {
+        if (($n['datei'] ?? '') === $datei && !empty($zeige[$n['art'] === 'winter' ? 'winter' : 'nachweise']) && preg_match(DATEI_MUSTER, $datei)) {
             $eintrag = $n;
         }
     }
+    foreach (!empty($zeige['rechnungen']) ? (array) ($link['rechnungen'] ?? []) : [] as $r) {
+        if (($r['datei'] ?? '') === $datei && preg_match(BELEG_MUSTER, $datei)) {
+            $eintrag = $r;
+        }
+    }
     $pfad = link_ordner($id) . '/' . $datei;
-    if (!$eintrag || !preg_match(DATEI_MUSTER, $datei) || !is_file($pfad)) {
+    if (!$eintrag || !is_file($pfad)) {
         fehlerseite('Nicht gefunden', 'Dieses Dokument ist nicht (mehr) verfügbar.', 404, $firma);
     }
-    $name = (string) $eintrag['name'];
-    header('Content-Type: application/pdf');
-    header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '_', $name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
-    header('Content-Length: ' . filesize($pfad));
-    header('Cache-Control: private, no-store');
-    header('X-Content-Type-Options: nosniff');
-    header('X-Robots-Tag: noindex, nofollow');
-    readfile($pfad);
-    exit;
+    pdf_senden($pfad, (string) $eintrag['name']);
 }
 
 // Reklamation melden
@@ -734,8 +1211,8 @@ if (!empty($zeige['leistungen']) || !empty($zeige['termine'])) {
 }
 // Nachweise je Monat
 if (!empty($zeige['nachweise']) || !empty($zeige['winter'])) {
-    $symbol = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M9 13h6M9 17h4"/></svg>';
-    $pfeil = '<svg class="pfeil" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+    $symbol = svg_pdf();
+    $pfeil = svg_pfeil();
     $monate = [];
     foreach ($nachweise as $n) {
         $monate[$n['monat']][] = $n;
@@ -760,6 +1237,60 @@ if (!empty($zeige['nachweise']) || !empty($zeige['winter'])) {
     $sprung[] = '<a href="#nachweise">Nachweise</a>';
     $teile['links'][] = '<section class="karte" id="nachweise"><h2>Leistungsnachweise</h2><p class="unter">Was wir in Ihrem Objekt geleistet haben, je Monat als PDF. Der Nachweis eines Monats erscheint ab dem ' . $tag . '. des Folgemonats.</p>'
         . ($html ?: '<p class="leer">Noch keine Nachweise vorhanden.</p>') . '</section>';
+}
+// Rechnungen und offene Posten (nur mit PDF am Server); offene mit Bankverbindung und QR-Code der App
+if (!empty($zeige['rechnungen'])) {
+    $belege = array_values(array_filter((array) ($link['rechnungen'] ?? []), fn ($r) => isset($link['dateien'][$r['datei'] ?? ''])));
+    foreach ($belege as &$r) {
+        // Stand am Tag des Aufrufs: nach der Fälligkeit überfällig
+        if (in_array($r['status'], ['offen', 'teilbezahlt'], true) && $r['faellig'] !== '' && $r['faellig'] < $heute) {
+            $r['status'] = 'ueberfaellig';
+        }
+    }
+    unset($r);
+    $istOffen = fn (array $r) => (float) $r['offen'] > 0.004 && in_array($r['status'], ['offen', 'ueberfaellig', 'teilbezahlt'], true);
+    $offene = array_values(array_filter($belege, $istOffen));
+    $uebrige = array_values(array_filter($belege, fn ($r) => !$istOffen($r)));
+    usort($offene, fn ($x, $y) => strcmp($x['faellig'] ?: $x['datum'], $y['faellig'] ?: $y['datum']));
+    $beleg = function (array $r) use ($h, $k, $link): string {
+        $teil = [$r['datum'] !== '' ? 'vom ' . datum_text($r['datum'], false) : '', $r['art'] === 'rechnung' && $r['faellig'] !== '' ? 'fällig ' . datum_text($r['faellig'], false) : '', $r['bezug'] !== '' ? 'zu ' . $r['bezug'] : '', $r['betreff']];
+        $offen = $r['art'] === 'rechnung' && (float) $r['offen'] > 0.004 && abs((float) $r['offen'] - (float) $r['brutto']) > 0.004 ? '<span class="leise">offen ' . $h(betrag_text((float) $r['offen'])) . '</span>' : '';
+        return '<a class="pdf" href="kunden.php?k=' . $k . '&amp;datei=' . $h($r['datei']) . '" target="_blank" rel="noopener">' . svg_pdf() . '<span class="was"><b>' . $h($r['titel']) . ' <span class="nr">' . $h($r['nummer']) . '</span></b>'
+            . '<span class="leise">' . $h(implode(' · ', array_filter($teil))) . ' · PDF, ' . groesse_text((int) ($link['dateien'][$r['datei']]['groesse'] ?? 0)) . '</span></span>'
+            . '<span class="summe"><b>' . $h(betrag_text((float) $r['brutto'])) . '</b>' . $offen . '<span class="pill st-' . $h($r['status']) . '">' . $h(BELEG_STATUS[$r['status']] ?? $r['status']) . '</span></span></a>';
+    };
+    $html = '';
+    foreach ($offene as $r) {
+        $z = $r['zahlung'];
+        $zahlen = '';
+        if ($r['lastschrift']) {
+            $zahlen = '<div class="zahlen"><p class="hinweis">Wird per SEPA-Lastschrift von Ihrem Konto eingezogen. Bitte nicht überweisen.</p></div>';
+        } elseif ($z) {
+            $zahlen = '<div class="zahlen">' . ($r['qr'] !== '' ? '<img class="qr" src="data:image/png;base64,' . $r['qr'] . '" width="148" height="148" alt="QR-Code zum Bezahlen von ' . $h($r['nummer']) . '">' : '')
+                . '<div class="was"><dl class="werte"><dt>Empfänger</dt><dd>' . $h($z['empfaenger']) . '</dd><dt>IBAN</dt><dd>' . $h($z['iban']) . '</dd>' . ($z['bic'] !== '' ? '<dt>BIC</dt><dd>' . $h($z['bic']) . '</dd>' : '')
+                . '<dt>Betrag</dt><dd><b>' . $h(betrag_text((float) $z['betrag'])) . '</b></dd><dt>Verwendungszweck</dt><dd>' . $h($z['zweck']) . '</dd></dl>'
+                . ($r['qr'] !== '' ? '<p class="hinweis">Mit der Banking-App scannen: Empfänger, Betrag und Verwendungszweck sind dann schon ausgefüllt.</p>' : '') . '</div></div>';
+        } elseif ($r['faellig'] !== '') {
+            $zahlen = '<div class="zahlen"><p class="hinweis">Zahlbar bis ' . $h(datum_text($r['faellig'], false)) . ', Bankverbindung siehe Rechnung.</p></div>';
+        }
+        $html .= '<div class="beleg">' . $beleg($r) . $zahlen . '</div>';
+    }
+    if ($uebrige) {
+        $html .= ($offene ? '<h3 class="monat">Bezahlt und erledigt</h3>' : '');
+        foreach ($uebrige as $i => $r) {
+            $html .= ($i === 8 ? '<details class="aelter"><summary>Ältere Rechnungen</summary>' : '') . $beleg($r);
+        }
+        $html .= count($uebrige) > 8 ? '</details>' : '';
+    }
+    $summe = array_sum(array_map(fn ($r) => (float) $r['offen'], $offene));
+    $ueber = array_sum(array_map(fn ($r) => (float) $r['offen'], array_filter($offene, fn ($r) => $r['status'] === 'ueberfaellig')));
+    $stand = $offene
+        ? '<p class="offen-summe">Offen: <b>' . $h(betrag_text($summe)) . '</b> (' . count($offene) . (count($offene) === 1 ? ' Rechnung' : ' Rechnungen') . ')' . ($ueber > 0.004 ? ', davon überfällig <b>' . $h(betrag_text($ueber)) . '</b>' : '') . '</p>'
+        : ($belege ? '<p class="offen-summe">Keine offenen Rechnungen.</p>' : '');
+    $monate = max(1, (int) ($link['rechnungenMonate'] ?? 13));
+    $sprung[] = '<a href="#rechnungen">Rechnungen</a>';
+    $teile['rechts'][] = '<section class="karte" id="rechnungen"><h2>Rechnungen</h2><p class="unter">Ihre Rechnungen der letzten ' . $monate . ' Monate und alle noch offenen, je als PDF. Stand: ' . $h(zeit_text((int) ($link['stand'] ?? jetzt()))) . ' Uhr.</p>'
+        . $stand . ($html ?: '<p class="leer">Keine Rechnungen in diesem Zeitraum.</p>') . '</section>';
 }
 // Reklamation melden und Stand
 if (!empty($zeige['reklamation'])) {
