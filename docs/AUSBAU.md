@@ -12,15 +12,14 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 | Kosten weiterverrechnen, Umsatzsteuer-Übersicht (UVA) | fertig – Kennzahlen mit der Steuerberatung abstimmen (RECHTSPRUEFUNG Punkt 27) |
 | Anlagen & Prüffristen je Objekt (Facility Service) | fertig – Intervalle bestätigen lassen (RECHTSPRUEFUNG Punkt 28) |
 | Regiebericht am Handy mit Kundenunterschrift, PDF, Rechnungsentwurf mit einem Klick | fertig – Rechtsfragen in RECHTSPRUEFUNG Punkt 29 |
-| Qualitätsmessung nach ÖNORM EN 13549 | in Arbeit |
+| Qualitätsmessung in Anlehnung an ÖNORM EN 13549 (Stichprobe, Kennzahl, Verlauf, Bericht) | fertig – Tabellen gegen den Normtext prüfen (RECHTSPRUEFUNG Punkt 30) |
+| Mehrsprachigkeit für Mitarbeitende (Plan am Handy in sechs Sprachen, Objektanweisungen übersetzt) | fertig – Übersetzungen gegenlesen lassen (RECHTSPRUEFUNG Punkt 31) |
+| Arbeitsschutz (Arbeitsstoffe, Betriebsanweisungen, Evaluierung) | in Arbeit |
+| Kundenzufriedenheit, Bewerber/Eintritt/Austritt | in Arbeit |
 
 ## Als Nächstes
 
-1. **Mehrsprachigkeit für Mitarbeitende** – „Plan am Handy“ (mein-plan.php) und Objektanweisungen auf Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch, Englisch; Sprache je Person.
-2. **Arbeitsschutz** – Arbeitsstoffverzeichnis aus den Material-Artikeln (Sicherheitsdatenblatt, Gefahren), Betriebsanweisungen als PDF, Evaluierung nach § 4 ASchG mit Maßnahmen und Fristen; Verbindung zu den Unterweisungen.
-3. **Kundenzufriedenheit** – kurze Umfrage im Kundenbereich (vierteljährlich), Auswertung je Objekt und Kunde, Hinweis bei schlechten Werten.
-4. **Bewerber, Eintritt, Austritt** – Bewerberliste mit Status, Eintritts-Checkliste (Anmeldung, Unterweisung, Schlüssel, Dienstkleidung, Einschulung im Objekt), Austritts-Checkliste (Schlüssel zurück, Abmeldung, Zeitkonto).
-5. **Feinschliff** – Winterdienst-Preise je Objekt im Kundenblatt, Leistungszeitraum der Saisonpauschale, Bestätigungs-E-Mail an den Kunden nach der Online-Annahme; Prüfungen der Anlagen in die Fakturierung übernehmen (Preis steht schon je Prüfung).
+1. **Feinschliff** – Winterdienst-Preise je Objekt im Kundenblatt, Leistungszeitraum der Saisonpauschale, Prüfungen der Anlagen in die Fakturierung übernehmen (Preis steht schon je Prüfung), Spalte „Sprache“ beim Excel-Import der Mitarbeitenden, Wochenplan-PDF in der Sprache der Person; Bestätigungs-E-Mail nach der Online-Annahme (wartet auf Entscheidung).
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 
