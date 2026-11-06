@@ -13,6 +13,7 @@
 
 import { app, registerActions, registerView, renderNow, toast, visibleViews } from '../context.js'
 import { esc, ICON } from '../shared.js'
+import { reviereFor } from '../../core/reviere.js'
 
 export const TOOLS = [
   { id: 'zaehler', name: 'wasserzaehler', module: 'zaehler', label: 'Wasserzähler', title: 'Wasserzähler-Ablesung', order: 72, text: 'Zählerstände je Quartal mit Fotos, Bericht für die Hausverwaltung, Jahreswechsel' },
@@ -171,6 +172,10 @@ window.werkzeugBruecke = {
   bruecke: 1,
   get angemeldet() {
     return !!app.auth?.tokenFor
+  },
+  /** Reviere zur Auswahl bei neuen Einträgen (core/reviere.js): Vollzugriff alle, sonst die eigener Revier-Gruppen. */
+  get reviere() {
+    return reviereFor({ all: !!app.access?.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: app.data?.objects || [] })
   },
   token: toolToken,
   anmelden() {

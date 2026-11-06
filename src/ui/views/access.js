@@ -5,9 +5,12 @@
 //  - „Rechte prüfen“: echte Freigaben jedes Ordners gegen die Tabelle (core/rights-audit.js)
 //  - „Abweichungen beheben“: fehlende Rechte vergeben, überzählige Freigaben entfernen – nach
 //    Bestätigung je Ordner; Besitzer der Website und die eigenen Rechte bleiben immer.
+//  - Reviere (core/reviere.js): je Revier eine Gruppe (access.reviere); Prüfung der Revier-Ordner der
+//    Werkzeuge; alte Werkzeug-Ordner einmal in ihre Reviere verschieben (Umzug, Objektliste aufteilen).
 // Aktionen und Dialoge mit dem Kürzel „acc-“.
 
 import { DEFAULT_ROLES, MODULES, resolveAccess } from '../../core/access.js'
+import { KONTROLLE_LIST, kontrolleRevierList, moveRows, moveTarget, REVIER_TOOLS, revierName, revierSetup, splitObjectList } from '../../core/reviere.js'
 import { auditFolder, expectedRights, fixPlan, groupNames, summary } from '../../core/rights-audit.js'
 import { folderRights, TOOL_FOLDERS, toolFolderRights } from '../../storage/data-service.js'
 import { app, closeModal, openModal, registerActions, registerModal, registerView, renderNow, toast } from '../context.js'
@@ -43,7 +46,20 @@ function groupsOf(id) {
   return draft !== undefined ? ids(draft) : ids(app.config.access?.groups?.[id])
 }
 const isDraft = (id) => app.ui.accDraft?.[id] !== undefined && ids(app.ui.accDraft[id]).join() !== ids(app.config.access?.groups?.[id]).join()
-const draftChanged = () => Object.keys(app.ui.accDraft || {}).some((id) => ids(app.ui.accDraft[id]).join() !== ids(app.config.access?.groups?.[id]).join())
+/** Gruppen je Revier: Entwurf vor config.json (access.reviere). → { Revier: [IDs] } */
+function revierGroups() {
+  const out = {}
+  for (const [name, g] of Object.entries(app.config.access?.reviere || {})) out[name] = ids(g)
+  for (const [name, g] of Object.entries(app.ui.accRevDraft || {})) out[name] = ids(g)
+  return out
+}
+const revDraftChanged = () => Object.keys(app.ui.accRevDraft || {}).some((n) => ids(app.ui.accRevDraft[n]).join() !== ids(app.config.access?.reviere?.[n]).join())
+const draftChanged = () => revDraftChanged() || Object.keys(app.ui.accDraft || {}).some((id) => ids(app.ui.accDraft[id]).join() !== ids(app.config.access?.groups?.[id]).join())
+/** Reviere bekannt aus config und Objekten: { list: [{ name, folder, groups }], missing, active } */
+const revierState = () => revierSetup({ reviere: revierGroups(), objects: app.data?.objects || [] })
+const reviereList = () => revierState().list
+/** Trennung je Revier eingerichtet: jedes Revier hat eine Gruppe (core/reviere.js revierSetup). */
+const revierMode = () => app.config.tools !== false && revierState().active
 
 /** Ordner, die geprüft werden: Hauptordner der App, ihre Unterordner, die Werkzeug-Ordner. */
 function folderRows() {
@@ -51,6 +67,7 @@ function folderRows() {
   const rows = [{ path: base, label: 'Hauptordner der App – neue Unterordner erben seine Rechte' }]
   for (const [folder, label] of folderRights(null)) rows.push({ path: `${base}/${folder}`, label })
   if (app.config.tools !== false) for (const [folder, label] of TOOL_FOLDERS) rows.push({ path: folder, label, tool: true })
+  if (revierMode()) for (const t of REVIER_TOOLS) for (const r of reviereList()) rows.push({ path: `${t.base}/${r.folder}`, label: `${t.label}: Revier ${r.name}`, tool: true, revier: r.name })
   return rows
 }
 
@@ -59,13 +76,19 @@ function roleSpecs() {
   const access = app.config.access || {}
   const roles = allRoles()
   const base = spFolder()
-  return Object.keys(roles).map((id) => {
+  const reviere = revierMode() ? reviereList() : []
+  const revierPaths = (r) => REVIER_TOOLS.map((t) => `${t.base}/${r.folder}`)
+  const specs = Object.keys(roles).map((id) => {
     const ra = resolveAccess({ preview: id, access })
     const rights = { [base]: ra.all ? 'Bearbeiten' : '' }
     for (const [folder, , right] of folderRights(ra)) rights[`${base}/${folder}`] = right
-    for (const [folder, , right] of toolFolderRights(ra)) rights[folder] = right
+    for (const [folder, , right] of toolFolderRights(ra, { reviere: !!reviere.length })) rights[folder] = right
+    // Revier-Ordner: nur der Vollzugriff über die Rolle, alle anderen über die Gruppe ihres Reviers
+    for (const r of reviere) for (const path of revierPaths(r)) rights[path] = ra.all ? 'Bearbeiten' : ''
     return { id, label: roles[id].label, groups: groupsOf(id), people: [...(id === 'disposition' ? access.planners || [] : []), ...(access.members?.[id] || [])], rights }
   })
+  for (const r of reviere) specs.push({ id: `revier:${r.name}`, label: `Revier ${r.name}`, groups: r.groups, people: [], rights: Object.fromEntries(revierPaths(r).map((p) => [p, 'Bearbeiten'])) })
+  return specs
 }
 
 // ------------------------------------------------ Ansicht
@@ -93,6 +116,7 @@ function accessView() {
       .join('')}</tbody></table></section>
   ${groupsCard(roles)}
   ${auditCard()}
+  ${migrationCard()}
   <section class="table-wrap"><div class="table-head"><h3>Rechte in SharePoint je Ordner</h3><p class="muted">Bibliothek ${esc(app.config.sharepoint?.library || '')}, Ordner ${esc(spFolder())}. Jeden Ordner nur für diese Gruppen freigeben (Vererbung beenden). Den Hauptordner ${esc(spFolder())} nur für den Vollzugriff – neue Unterordner erben seine Rechte.</p></div><table class="data">
     <thead><tr><th>Ordner</th><th>Inhalt</th>${used.map((id) => `<th>${esc(roles[id].label)}</th>`).join('')}</tr></thead>
     <tbody>${folders
@@ -117,9 +141,25 @@ function groupsCard(roles) {
       .map(([id, r]) => `<tr><td><strong>${esc(r.label)}</strong><br><span class="muted">${esc(id)}</span></td><td><code>${esc(groupName(r.label))}</code></td>
         <td><input type="text" class="acc-gid" data-role="${esc(id)}" data-change="acc-draft" list="acc-known" value="${esc(groupsOf(id).join(', '))}" placeholder="z. B. 1a2b3c4d-…" aria-label="Objekt-ID der Gruppe für ${esc(r.label)}" spellcheck="false"></td></tr>`)
       .join('')}</tbody></table></div>
+    ${revierTable()}
     <datalist id="acc-known">${known.map((g) => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('')}</datalist>
     <div class="actions"><button class="btn" data-action="acc-snippet">${ICON.copy || ''} Ausschnitt für config.json</button>${draftChanged() ? '<button class="btn ghost" data-action="acc-draft-reset">Entwurf verwerfen</button>' : ''}</div>
   </details>`
+}
+
+/** Reviere: je Revier eine Gruppe (Leute vor Ort in diesem Revier); trennt die Daten in den Werkzeugen. */
+function revierTable() {
+  const list = reviereList()
+  if (app.config.tools === false) return ''
+  if (!list.length) return '<p class="muted">Reviere: noch keine. Sie kommen aus den Objekten (Feld „Revier“) oder aus <code>access.reviere</code>.</p>'
+  const { missing } = revierState()
+  const some = list.some((r) => r.groups.length)
+  return `<h4>Reviere</h4><p class="muted">Je Revier eine Gruppe mit den Leuten vor Ort. Sobald jedes Revier eine Gruppe hat, legen Wasserzähler, Objektkontrolle und Objektdoku neue Daten im Ordner „Revier …“ ab, und jede Gruppe sieht nur ihre Reviere.</p>
+    ${some && missing.length ? `<p class="acc-warn">Die Trennung je Revier wird erst aktiv, wenn jedes Revier eine Gruppe hat. Es fehlt noch: ${esc(missing.join(', '))}.</p>` : ''}
+    <div class="table-wrap"><table class="data"><thead><tr><th>Revier</th><th>Vorschlag in Entra ID</th><th>Objekt-ID der Gruppe</th></tr></thead><tbody>${list
+      .map((r) => `<tr><td><strong>${esc(r.name)}</strong><br><span class="muted">Ordner „${esc(r.folder)}“</span></td><td><code>${esc(groupName(`Revier ${r.name}`))}</code></td>
+        <td><input type="text" class="acc-gid" data-revier="${esc(r.name)}" data-change="acc-rev-draft" list="acc-known" value="${esc(r.groups.join(', '))}" placeholder="z. B. 1a2b3c4d-…" aria-label="Objekt-ID der Gruppe für Revier ${esc(r.name)}" spellcheck="false"></td></tr>`)
+      .join('')}</tbody></table></div>`
 }
 
 /** Gruppen, die die App schon kennt: aus der letzten Prüfung (mit Namen) und aus der eigenen Anmeldung. */
@@ -262,6 +302,117 @@ async function runFix(paths) {
   toast(failed ? `Rechte geändert, ${failed} Schritt${failed === 1 ? '' : 'e'} nicht gegangen – siehe Liste.` : 'Rechte angeglichen und neu geprüft.')
 }
 
+// ------------------------------------------------ Umzug alter Werkzeug-Ordner in Reviere
+
+function migrationCard() {
+  if (!revierMode() || !mayAudit()) return ''
+  const m = app.ui.accMig
+  const names = reviereList().map((r) => r.name)
+  const busy = app.ui.accMigBusy
+  const chosen = (m?.rows || []).filter((r) => r.choice).length
+  const opt = (r) => `<option value="">bleibt (ohne Revier)</option>${names.map((n) => `<option value="${esc(n)}" ${r.choice === n ? 'selected' : ''}>Revier ${esc(n)}</option>`).join('')}`
+  return `<section class="table-wrap acc-mig"><div class="table-head"><h3>Alte Werkzeug-Ordner in Reviere verschieben</h3>
+    <p class="muted">Einmal nach dem Einrichten der Reviere: Ordner von Wasserzähler, Objektkontrolle und Objektdoku, die noch ohne Revier liegen, kommen in ihren Ordner „Revier …“. Fotos, PDFs und Verlauf ziehen mit; kopiert oder gelöscht wird nichts. Den Vorschlag macht die App über Name und Adresse der Objekte – bitte prüfen.</p>
+    <div class="actions"><button class="btn${m ? '' : ' primary'}" data-action="acc-mig-scan" ${busy ? 'disabled' : ''}>${m ? 'Neu einlesen' : 'Ordner einlesen'}</button>${chosen && !busy ? `<button class="btn primary" data-action="acc-mig-open">${chosen === 1 ? '1 Ordner' : `${chosen} Ordner`} verschieben …</button>` : ''}</div></div>
+    ${busy ? `<p class="acc-busy" role="status">${esc(busy)}</p>` : ''}
+    ${
+      m
+        ? m.rows.length
+          ? `<table class="data"><thead><tr><th>Werkzeug</th><th>Ordner</th><th>Revier</th><th>Vorschlag</th></tr></thead><tbody>${m.rows
+              .map((r, i) => `<tr><td>${esc(r.label)}</td><td><code>${esc(r.path)}/</code></td><td><select data-change="acc-mig-choice" data-i="${i}" aria-label="Revier für ${esc(r.name)}">${opt(r)}</select></td><td>${r.suggestion ? `${esc(r.suggestion.object)}${r.suggestion.score < 3 ? ' <span class="muted">(ähnlich)</span>' : ''}` : '<span class="muted">kein passendes Objekt</span>'}</td></tr>`)
+              .join('')}</tbody></table>`
+          : '<p class="muted">Alle Ordner liegen schon in Revieren.</p>'
+        : ''
+    }
+    ${app.ui.accMigReport ? reportHtml(app.ui.accMigReport) : ''}
+  </section>`
+}
+
+async function scanMigration() {
+  const store = sp()
+  const listing = {}
+  for (const t of REVIER_TOOLS) {
+    app.ui.accMigBusy = `Lese ${t.label} …`
+    renderNow()
+    try {
+      listing[t.base] = (await store.children(t.base)) || []
+      for (const n of t.nested) listing[`${t.base}/${n}`] = (await store.children(`${t.base}/${n}`)) || []
+    } catch (err) {
+      listing[t.base] = []
+      toast(`${t.label}: ${err.message || err}`)
+    }
+  }
+  const names = new Set(reviereList().map((r) => r.name))
+  const rows = moveRows(listing, app.data?.objects || []).map((r) => ({ ...r, choice: r.suggestion && names.has(r.suggestion.revier) ? r.suggestion.revier : '' }))
+  app.ui.accMig = { at: new Date().toISOString(), rows }
+  app.ui.accMigBusy = ''
+  renderNow()
+}
+
+async function runMigration() {
+  const store = sp()
+  const rows = (app.ui.accMig?.rows || []).filter((r) => r.choice)
+  const lines = []
+  const done = []
+  for (const [n, r] of rows.entries()) {
+    app.ui.accMigBusy = `Verschiebe ${n + 1} von ${rows.length}: ${r.path} …`
+    renderNow()
+    const target = moveTarget(r, r.choice)
+    try {
+      await store.moveRoot(r.path, target)
+      done.push(r)
+      lines.push({ path: r.path, ok: true, text: `→ ${target}/` })
+    } catch (err) {
+      lines.push({ path: r.path, ok: false, text: `→ ${target}/: ${err.status === 409 ? 'dort gibt es schon einen Ordner mit diesem Namen – von Hand zusammenführen' : err.message || err}` })
+    }
+  }
+  // Objektliste der Objektkontrolle: Einträge der umgezogenen Objekte in die Liste ihres Reviers
+  const moved = done.filter((r) => r.tool === 'kontrolle').map((r) => ({ folder: r.name, revier: r.choice }))
+  if (moved.length) {
+    app.ui.accMigBusy = 'Teile die Objektliste der Objektkontrolle auf …'
+    renderNow()
+    try {
+      const global = await store.readRoot(KONTROLLE_LIST)
+      if (Array.isArray(global?.objekte) && global.objekte.length) {
+        const { rest, byRevier } = splitObjectList(global.objekte, moved)
+        const stand = new Date().toISOString().slice(0, 10)
+        const key = (e) => `${String(e.kunde || '').trim()}|${String(e.objekt || '').trim()}`.toLowerCase()
+        // erst die Listen der Reviere, dann die Gesamtliste: bricht es dazwischen ab, fehlt nichts
+        for (const [revier, entries] of Object.entries(byRevier)) {
+          const path = kontrolleRevierList(revier)
+          const cur = (await store.readRoot(path))?.objekte || []
+          await store.writeRootJson(path, { stand, objekte: [...cur, ...entries.filter((e) => !cur.some((c) => key(c) === key(e)))] })
+          lines.push({ path, ok: true, text: `${entries.length === 1 ? '1 Objekt' : `${entries.length} Objekte`} in die Liste des Reviers` })
+        }
+        if (Object.keys(byRevier).length) await store.writeRootJson(KONTROLLE_LIST, { ...global, stand, objekte: rest })
+      }
+    } catch (err) {
+      lines.push({ path: KONTROLLE_LIST, ok: false, text: `Objektliste nicht aufgeteilt: ${err.message || err}` })
+    }
+  }
+  app.ui.accMigReport = { at: new Date().toISOString(), lines }
+  await scanMigration()
+  const failed = lines.filter((l) => !l.ok).length
+  toast(failed ? `Verschoben, ${failed} Schritt${failed === 1 ? '' : 'e'} nicht gegangen – siehe Liste.` : 'Ordner verschoben. Danach die Rechte prüfen.')
+}
+
+function migModal() {
+  const rows = (app.ui.accMig?.rows || []).filter((r) => r.choice)
+  const by = new Map()
+  for (const r of rows) by.set(r.choice, [...(by.get(r.choice) || []), r])
+  return modalFrame({
+    title: 'Werkzeug-Ordner in Reviere verschieben',
+    wide: true,
+    body: `<p>Die App verschiebt diese Ordner samt Inhalt in den Ordner ihres Reviers. <strong>Während des Umzugs bitte in Wasserzähler, Objektkontrolle und Objektdoku nichts abschließen.</strong> Danach im Werkzeug einmal „Abgleichen“ und hier „Rechte prüfen“.</p>
+      ${[...by]
+        .map(([revier, list]) => `<fieldset class="acc-fix"><legend><strong>Revier ${esc(revier)}</strong></legend><ul class="acc-items">${list.map((r) => `<li>${esc(r.label)}: <code>${esc(r.name)}</code> → <code>${esc(moveTarget(r, revier))}/</code></li>`).join('')}</ul></fieldset>`)
+        .join('')}
+      ${rows.some((r) => r.tool === 'kontrolle') ? '<p class="note">Die Einträge dieser Objekte wandern aus der gemeinsamen Objektliste der Objektkontrolle in die Liste ihres Reviers.</p>' : ''}`,
+    foot: `<div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="acc-mig-run">Jetzt verschieben</button></div>`,
+  })
+}
+registerModal('acc-mig', migModal, { module: 'stammdaten' })
+
 // ------------------------------------------------ Dialoge
 
 function fixModal() {
@@ -292,7 +443,8 @@ function snippet() {
     const g = groupsOf(id)
     if (g.length) groups[id] = g
   }
-  return JSON.stringify({ access: { ...(app.config.access?.planners ? { planners: app.config.access.planners } : {}), groups } }, null, 2)
+  const reviere = Object.fromEntries(Object.entries(revierGroups()).filter(([, g]) => g.length))
+  return JSON.stringify({ access: { ...(app.config.access?.planners ? { planners: app.config.access.planners } : {}), groups, ...(Object.keys(reviere).length ? { reviere } : {}) } }, null, 2)
 }
 
 function snippetModal() {
@@ -319,9 +471,42 @@ registerActions({
   },
   'acc-draft-reset': () => {
     app.ui.accDraft = {}
+    app.ui.accRevDraft = {}
+    renderNow()
+  },
+  'acc-rev-draft': (el) => {
+    app.ui.accRevDraft = { ...(app.ui.accRevDraft || {}), [el.dataset.revier]: el.value }
+    app.ui.accGroupsOpen = true
     renderNow()
   },
   'acc-snippet': () => openModal({ type: 'acc-snippet' }),
+  'acc-mig-scan': async () => {
+    if (!mayAudit()) return toast('Geht nur mit Vollzugriff im Betrieb mit SharePoint.')
+    app.ui.accMigReport = null
+    try {
+      await scanMigration()
+    } catch (err) {
+      app.ui.accMigBusy = ''
+      renderNow()
+      toast(`Einlesen ging nicht: ${err.message || err}`)
+    }
+  },
+  'acc-mig-choice': (el) => {
+    const row = app.ui.accMig?.rows?.[Number(el.dataset.i)]
+    if (row) row.choice = el.value
+    renderNow()
+  },
+  'acc-mig-open': () => (mayAudit() ? openModal({ type: 'acc-mig' }) : toast('Geht nur mit Vollzugriff im Betrieb mit SharePoint.')),
+  'acc-mig-run': async () => {
+    closeModal()
+    try {
+      await runMigration()
+    } catch (err) {
+      app.ui.accMigBusy = ''
+      renderNow()
+      toast(`Verschieben ging nicht: ${err.message || err}`)
+    }
+  },
   'acc-copy': () => copyText(snippet(), document.getElementById('acc-snippet-text')),
   'acc-audit': async () => {
     if (!mayAudit()) return toast('Prüfen geht nur mit Vollzugriff im Betrieb mit SharePoint.')

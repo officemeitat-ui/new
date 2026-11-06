@@ -364,6 +364,47 @@ export class SharePointDocStore {
     await this.#request('DELETE', `/drives/${this.driveId}/items/${item.id}/permissions/${encodeURIComponent(permId)}`, { okStatuses: [404] })
   }
 
+  /** Unterordner und Dateien eines Ordners ab der Bibliothek: [{ name, folder, id }] oder null, wenn es ihn nicht gibt. */
+  async children(path) {
+    const out = []
+    let url = `/drives/${this.driveId}/root:/${encodePath(path)}:/children?$select=id,name,folder,file&$top=999`
+    while (url) {
+      const res = await this.#request('GET', url, { okStatuses: [404] })
+      if (res.status === 404) return null
+      const page = await res.json()
+      for (const it of page.value || []) out.push({ name: it.name, folder: !!it.folder, id: it.id })
+      url = page['@odata.nextLink'] || null
+    }
+    return out
+  }
+
+  /**
+   * Ordner oder Datei (Pfad ab der Bibliothek) in einen anderen Ordner verschieben; der Zielordner wird
+   * angelegt. Kennungen, Fotos und Verlauf bleiben (Graph: parentReference ändern). Gibt es dort schon
+   * etwas mit diesem Namen, kommt ein Fehler mit status 409 – nichts wird überschrieben.
+   */
+  async moveRoot(path, toParent) {
+    const item = await this.#rootItem(path)
+    if (!item) throw new GraphError(404, `${path} nicht gefunden`)
+    await this.#ensurePath(toParent)
+    const parent = await this.#rootItem(toParent)
+    if (await this.#rootItem(`${toParent}/${item.name}`)) throw new GraphError(409, `${toParent}/${item.name} gibt es schon`)
+    const res = await this.#request('PATCH', `/drives/${this.driveId}/items/${item.id}`, {
+      body: JSON.stringify({ parentReference: { id: parent.id } }),
+      headers: { 'Content-Type': 'application/json' },
+      okStatuses: [409],
+    })
+    if (res.status === 409) throw new GraphError(409, `${toParent}/${item.name} gibt es schon`)
+    return res.json()
+  }
+
+  /** JSON-Datei ab der Bibliothek schreiben (z. B. Objektliste eines Reviers der Objektkontrolle). */
+  async writeRootJson(path, data) {
+    await this.#ensurePath(path.split('/').slice(0, -1).join('/'))
+    const res = await this.#request('PUT', `/drives/${this.driveId}/root:/${encodePath(path)}:/content`, { body: JSON.stringify(data, null, 1), headers: { 'Content-Type': 'application/json' } })
+    return res.json()
+  }
+
   /** Ordner ab der Bibliothek anlegen, falls er fehlt (z. B. ein Modulordner vor dem ersten Speichern). */
   async ensureRootFolder(path) {
     await this.#ensurePath(path)

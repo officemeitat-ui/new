@@ -167,14 +167,23 @@ export const TOOL_FOLDERS = [
   ['Stammdaten', 'Kundenstamm (Kunden.json): von allen Werkzeugen gelesen, vom Mattenwechsel beim Abschließen gepflegt', null],
 ]
 
-/** Vorschlag je Rolle für die Werkzeug-Ordner: 'Bearbeiten', 'Lesen' oder ''. */
-export function toolFolderRights(access) {
+// Werkzeuge mit Ordnern je Revier (core/reviere.js): geschrieben wird dort im Revier-Ordner
+const REVIER_SPLIT = ['zaehler', 'kontrolle', 'objektmappe']
+
+/**
+ * Vorschlag je Rolle für die Werkzeug-Ordner: 'Bearbeiten', 'Lesen' oder ''.
+ * reviere: Ordner je Revier eingerichtet (config.json → access.reviere) – dann haben die Rollen auf den
+ * Grundordnern von Wasserzähler, Objektkontrolle und Objektdoku nur „Lesen“ (zum Finden der Revier-Ordner);
+ * „Bearbeiten“ kommt über die Gruppe des Reviers auf dessen Ordner.
+ */
+export function toolFolderRights(access, { reviere = false } = {}) {
   const sees = (m) => !access || access.all || access.sees(m)
   const edits = (m) => !access || access.all || access.canEdit(m)
   const anyTool = TOOL_FOLDERS.some(([, , m]) => m && sees(m))
   return TOOL_FOLDERS.map(([folder, label, m]) => {
     // die Objektdoku liest die Objektliste der Objektkontrolle; der Mattenwechsel schreibt den gemeinsamen Kundenstamm
-    const right = m ? (edits(m) ? 'Bearbeiten' : sees(m) || (m === 'kontrolle' && sees('objektmappe')) ? 'Lesen' : '') : access?.all || !access || edits('matten') ? 'Bearbeiten' : anyTool ? 'Lesen' : ''
+    let right = m ? (edits(m) ? 'Bearbeiten' : sees(m) || (m === 'kontrolle' && sees('objektmappe')) ? 'Lesen' : '') : access?.all || !access || edits('matten') ? 'Bearbeiten' : anyTool ? 'Lesen' : ''
+    if (reviere && access && !access.all && REVIER_SPLIT.includes(m) && right === 'Bearbeiten') right = 'Lesen'
     return [folder, label, right]
   })
 }
