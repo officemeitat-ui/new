@@ -22,12 +22,12 @@ Die **Wasserzähler-Ablesung, die Objektkontrolle, die Objektdoku und der Matten
 | Rolle (Wert in Entra ID) | sieht | darf ändern |
 |---|---|---|
 | `disposition` – Vollzugriff (Büro, IT) | alles | alles |
-| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Leistungsnachweis, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager | Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager |
+| `objektmanagement` – Objektmanagement | Einsatzplanung (lesen), Leistungsnachweis, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Anlagen & Prüffristen | Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Anlagen & Prüffristen |
 | `vorarbeiter` – Vorarbeiter/in | Wasserzähler | Wasserzähler |
 | `mattenwechsel` – Mattenwechsel | Mattenwechsel | Mattenwechsel |
 | `lohnverrechnung` | Auswertung & Lohn | Auswertung & Lohn |
-| `objektleitung` | Dienstplan (lesen), Leistungsnachweis, Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Unterweisungen & Fristen | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Unterweisungen & Fristen |
-| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager | Wasserzähler, Objektkontrolle, Reklamationen, Material & Lager |
+| `objektleitung` | Dienstplan (lesen), Leistungsnachweis, Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Unterweisungen & Fristen, Anlagen & Prüffristen | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Unterweisungen & Fristen, Anlagen & Prüffristen |
+| `objektservice` | Wasserzähler, Objektkontrolle, Objektdoku, Reklamationen, Schlüsselbuch, Material & Lager, Anlagen & Prüffristen | Wasserzähler, Objektkontrolle, Reklamationen, Material & Lager, Anlagen & Prüffristen |
 | `lager` – Lager & Einkauf | Material & Lager | Material & Lager |
 | `ableser` | Wasserzähler | Wasserzähler |
 | `pruefer` – Prüfer/in | Objektkontrolle, Objektdoku | Objektkontrolle |
@@ -92,7 +92,7 @@ Ab dann wird nur noch in Entra ID gearbeitet: Person in die Gruppe aufnehmen ode
 }
 ```
 
-Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager), `schluessel` (Schlüsselbuch), `unterweisungen` (Unterweisungen & Fristen), `termine`, `fakturierung`, `einkauf` (Einkauf & Kasse). Der Leistungsnachweis gehört zur Einsatzplanung (`planung`).
+Gruppen, App-Rollen und `members` addieren sich. Modulnamen: `planung`, `auswertung`, `stammdaten`, `zaehler` (Wasserzähler), `kontrolle` (Objektkontrolle), `objektmappe` (Objektdoku), `matten` (Mattenwechsel), `fahrzeuge`, `reklamationen`, `material` (Material & Lager), `schluessel` (Schlüsselbuch), `unterweisungen` (Unterweisungen & Fristen), `anlagen` (Anlagen & Prüffristen), `termine`, `fakturierung`, `einkauf` (Einkauf & Kasse). Der Leistungsnachweis gehört zur Einsatzplanung (`planung`).
 
 ## Daten wirklich trennen: SharePoint-Rechte je Ordner
 
@@ -114,6 +114,7 @@ Bibliothek `Cleanos_Daten`, Ordner `Plattform`:
 | `schluessel/` | Schlüsselbuch (wer hat welchen Schlüssel, Verlauf, Unterschriften) | Bearbeiten | Bearbeiten | – |
 | `nachweise/` | Leistungsnachweis: Einstellungen und Versand-Vermerke | Bearbeiten | Bearbeiten | – |
 | `unterweisungen/` | Unterweisungen & Fristen je Person (mit Unterschriften) | Bearbeiten | – | – |
+| `anlagen/` | Anlagen & Prüffristen je Objekt; Fotos und Prüfberichte unter `anlagen/nachweise/<Jahr>/` (Objektleitung und Objektservice: Bearbeiten) | Bearbeiten | Bearbeiten | – |
 | `fakturierung/` | Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Briefe; PDFs unter `fakturierung/belege/` und `fakturierung/briefe/`, Briefpapier unter `fakturierung/briefpapier/` | Bearbeiten | – | – |
 | `einkauf/` | Einkauf & Kasse: Lieferanten (mit Bankverbindung), Eingangsrechnungen, Kassenbuch; Belege unter `einkauf/belege/` und `einkauf/kassenbuch/` (Rolle Buchhaltung: Bearbeiten) | Bearbeiten | – | – |
 | `berichte/` | Berichte automatisch per E-Mail: Abos (Empfänger, Zeitplan, zuletzt gesendet) | Bearbeiten | – | – |
@@ -300,6 +301,22 @@ Eigener Punkt unter *Objekte & Kunden* (Modul „Schlüsselbuch“; Rollen Objek
 - **Hinweise:** Person ausgetreten und hat noch Schlüssel (Fehler), Austritt in 14 Tagen, vereinbarte Rückgabe überschritten, Person länger abwesend.
 - **Übergaben laut Plan:** Wer in den nächsten 7 Tagen in einem Objekt eingeteilt ist und keinen Schlüssel hat, mit „Übergeben“ direkt daneben. Die Prüfregel „Schlüsselübergabe nötig“ im Plan liest das Schlüsselbuch (Objekte ohne Eintrag im Buch: weiter die Schlüssel am Objekt).
 - Jeder Schritt steht im **Verlauf** des Schlüssels (wann, wer, von wem an wen, unterschrieben ja/nein). Der Einsatz-Dialog zeigt, wer im Objekt welchen Schlüssel hat.
+
+## Anlagen & Prüffristen
+
+Eigener Punkt unter *Objekte & Kunden* (Modul `anlagen`, „Anlagen & Prüffristen“), für die Hausbetreuung: je Objekt die Anlagen mit Prüffrist, Prüfungen vor Ort am Handy, keine Frist übersehen. Gespeichert in `anlagen/anlagen.json`, Fotos und Prüfberichte in SharePoint unter `anlagen/nachweise/<Jahr>/` (Dateiname mit Objekt, Art, Datum und Kennung der Prüfung). Rechenkern `src/core/anlagen.js` (Tests: `test/anlagen.test.js`), Ansicht `src/ui/views/anlagen.js` (später geladen), PDF `src/export/anlagen-pdf.js`.
+
+**Rechte (Vorgabe):** Vollzugriff alles; **Objektleitung** und **Objektmanagement** sehen und bearbeiten (Anlagen anlegen, Prüfungen, Mängel, Arten); **Objektservice** sieht und bearbeitet, weil die Hausbetreuung vor Ort prüft und einträgt; alle anderen Rollen sehen den Bereich nicht und laden die Datei nicht. Der Ordner `anlagen/` bekommt dieselben Rechte (die Tabelle oben und *Berechtigungen → Rechte prüfen* rechnen ihn mit). Für die Entscheidungen beim digitalen Mitarbeiter („Später“, „Ablehnen“) dürfen dieselben Rollen `assistenz/` bearbeiten.
+
+- **Arten** mit Intervall in Monaten, Grundlage und wer meist prüft, **als Vorschlag** (bitte bestätigen, keine Rechtsauskunft; offener Punkt 28 in [RECHTSPRUEFUNG.md](RECHTSPRUEFUNG.md)): Feuerlöscher 24 (ÖNORM F 1053), Rauchwarnmelder 12 (Herstellerangabe), Sicherheits-/Notbeleuchtung 12 (TRVB / ÖVE E 8002, prüfen), Brandschutztüren/Feststellanlagen 12, Spielplatz 12 und operative Inspektion monatlich (ÖNORM EN 1176 / ÖNORM B 2607), Aufzug 12 (Aufzugsgesetz des Landes, Prüfstelle), Blitzschutz 36, Dachrinnen/Dach 12 (Sichtkontrolle), Rückstauklappe 6, Fettabscheider (Intervall je Anlage laut Hersteller), Sonstige. Unter „Mehr“ → **Arten und Intervalle** änderbar (beim ersten Speichern werden die Vorgaben in die Datei übernommen), eigene Arten dazu, nicht mehr nötige auf „aktiv“ aus.
+- **Anlage:** Objekt, Art, Bezeichnung/Standort (z. B. „Stiege 2, EG“), Anzahl, optional Hersteller und Seriennummer, Intervall (leer = Vorschlag der Art), optional operative Inspektion mit eigenem Intervall, „Nächste Prüfung fällig am“ (z. B. laut Plakette, gilt bis zur ersten eingetragenen Prüfung), zuständig (eigene Leute oder Fremdfirma mit Name und Kontakt), verrechenbar mit Preis je Prüfung, Notiz, aktiv. Löschen nur ohne Prüfung, sonst „aktiv“ aus (Verlauf bleibt).
+- **Prüfung erfassen** (auch am Handy, „Anlagen“ in der Leiste unten): Objekt und Anlage (bei einer einzigen Anlage gleich gewählt), bei operativer Inspektion die Art der Prüfung, Datum (nicht in der Zukunft), Ergebnis **in Ordnung / Mängel / außer Betrieb**, Mängel als Text, wer geprüft hat (eigene Leute: angemeldete Person, Fremdfirma: ihr Name), **Fotos** (Kamera, bis 6, verkleinert auf 2000 Pixel) und **Prüfbericht** einer Fremdfirma (PDF oder Bild) nach SharePoint. Ohne Netz warten die Dateien im Gerät und werden hochgeladen, sobald wieder Netz da ist. Die nächste Frist rechnet die App **ab dem Prüfdatum** (Datum + Intervall in Monaten, Monatsende beachtet: 31.1. + 1 Monat = 28./29.2.), nicht ab der alten Frist. Alle Prüfungen bleiben im Verlauf der Anlage (falsch eingetragene lassen sich löschen; die Dateien bleiben in SharePoint).
+- **Fristen:** überfällig (rot), fällig ab 30 Tagen vorher (gelb; bei kurzen Intervallen ein Viertel des Intervalls, monatlich 7 Tage), ohne eingetragene Prüfung und ohne Datum gleich fällig („noch keine Prüfung“). Fällige, überfällige und offene Mängel stehen je Objekt unter **„Zu erledigen“** und beim digitalen Mitarbeiter **„Fristen“** (nur „Öffnen“: die Ansicht gefiltert auf das Objekt, nichts automatisch). Der Einsatz-Dialog zeigt sie beim Objekt. Über „⋯“ → **Termin in Outlook** öffnet sich der Dialog von *Termine* mit Titel, Objekt und Tag der Fälligkeit (mit Recht auf Termine).
+- **Mängel:** Ergebnis „Mängel“ oder „außer Betrieb“ bleibt offen, bis **„Behoben“** mit Datum und Notiz vermerkt ist (Reiter *Mängel*, auch behobene der letzten 90 Tage). Eine neue Prüfung „in Ordnung“ schließt offene Mängel der Anlage mit (Häkchen, Standard an). „Außer Betrieb“ ist dringend.
+- **Übersicht:** Kacheln (überfällig, bald fällig, Mängel offen, Anlagen), Filter Objekt, Revier (`region` am Objekt), Art, Status (mit Handlungsbedarf, überfällig, fällig, Mängel offen, in Ordnung, inaktiv); je Objekt eine Tabelle (am Handy Karten). Export als CSV.
+- **Anlagenliste / Prüfnachweis (PDF)** je Objekt für die Hausverwaltung, mit Logo wie Leistungsnachweis und Reklamation: Anlagen mit Standort, Anzahl, Intervall, letzter Prüfung, Ergebnis, nächster Prüfung; offene Mängel; Prüfungen der letzten 12 Monate mit Hinweis auf den Prüfbericht. Eigene Mitarbeitende stehen ohne Namen drin (Firmenname), Fremdfirmen mit Namen. Auch per E-Mail („Mehr“ → „Per E-Mail senden“, Objekt im Filter gewählt).
+- **Verrechnung:** Reiter mit den verrechenbaren Prüfungen eines Monats je Objekt (mit Kunde aus der Fakturierung, wer sie sieht), Summe, CSV. Der Preis wird beim Erfassen an der Prüfung vermerkt. Nur eine Liste: die Übernahme in Rechnungen kommt später.
+- **Suche** findet Anlagen nach Art, Standort, Hersteller, Seriennummer und Fremdfirma; „+ Neu“ hat „Prüfung erfassen (Anlage)“.
 
 ## Leistungsnachweis
 
@@ -554,7 +571,7 @@ Vier Routinen gehen laufend die Daten der App durch, wie eine erfahrene Bürokra
 | **Disponent** | Vertretungen bei Urlaub und Krankenstand; offene Einsätze dieser und nächster Woche; Woche veröffentlichen (ab 3 Tage vorher); Korrektur buchen, wenn sich eine veröffentlichte Woche geändert hat | Vertretungen regelkonform verteilen, Woche planen, Veröffentlichen öffnen |
 | **Buchhaltung** | Daueraufträge des Monats; überfällige Rechnungen (Mahnstufe fällig); Leistungsnachweise des Vormonats ohne Versand | Rechnungsentwürfe erstellen (Festschreiben bleibt bei dir), offene Posten öffnen |
 | **Lager** | Bestellung je Lieferant, wenn Artikel unter dem Mindestbestand sind (offene Bestellungen eingerechnet, auf Packungen gerundet); Anforderungen aus den Objekten | Bestellung vorbereiten (Dialog zum Prüfen und Senden) |
-| **Fristen** | ablaufende oder fehlende Unterweisungen und Kurse (je Art gesammelt); Kontrollen und Dokumente (Führerschein, Aufenthaltstitel); Fahrzeuge (Pickerl, Service); überfällige Reklamationen | gemeinsamen Schulungstermin mit allen Betroffenen anlegen |
+| **Fristen** | ablaufende oder fehlende Unterweisungen und Kurse (je Art gesammelt); Kontrollen und Dokumente (Führerschein, Aufenthaltstitel); Fahrzeuge (Pickerl, Service); Anlagen je Objekt (Prüfung fällig oder überfällig, offene Mängel); überfällige Reklamationen | gemeinsamen Schulungstermin mit allen Betroffenen anlegen; bei Anlagen nur „Öffnen“ |
 
 - Je Vorschlag: **Ausführen** (in der Planung mit Rückgängig), **Öffnen** (selbst erledigen), **Später** (bis morgen), **Ablehnen** (bis sich die Lage ändert, z. B. mehr offene Einsätze), **KI fragen** (den Vorschlag mit dem KI-Assistenten besprechen).
 - Ein Vorschlag verschwindet von selbst, wenn die Sache erledigt ist. „Später“ und „Ablehnen“ gelten für alle im Büro (Ordner `assistenz/`).

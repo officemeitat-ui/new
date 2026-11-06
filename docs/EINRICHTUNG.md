@@ -21,6 +21,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ schluessel/                   Schlüsselbuch
                          ├─ nachweise/                    Leistungsnachweis (Versand-Vermerke)
                          ├─ unterweisungen/               Unterweisungen & Fristen je Person
+                         ├─ anlagen/                      Anlagen & Prüffristen je Objekt (Fotos, Prüfberichte)
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 

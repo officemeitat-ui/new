@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 263 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 271 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (26)
+- [Objekte & Kunden](#objekte-kunden) (34)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (67)
 - [Verwaltung](#verwaltung) (37)
@@ -100,7 +100,7 @@ Unter „Anleitung“ ganz oben im Menü stehen alle Funktionen nach Bereichen w
 
 *In der App: Digitale Mitarbeiter*
 
-Vier digitale Mitarbeiter gehen laufend die Daten durch und bereiten fertige Schritte vor: Disponent (Vertretungen, offene Einsätze, Veröffentlichen, Korrekturen), Buchhaltung (Daueraufträge, Mahnungen, Leistungsnachweise), Lager (Bestellungen, Anforderungen) und Fristen (Unterweisungen, Fahrzeuge, überfällige Reklamationen).
+Vier digitale Mitarbeiter gehen laufend die Daten durch und bereiten fertige Schritte vor: Disponent (Vertretungen, offene Einsätze, Veröffentlichen, Korrekturen), Buchhaltung (Daueraufträge, Mahnungen, Leistungsnachweise), Lager (Bestellungen, Anforderungen) und Fristen (Unterweisungen, Fahrzeuge, Anlagen, überfällige Reklamationen).
 
 1. In der Seitenleiste unter der Übersicht „Digitale Mitarbeiter“ öffnen.
 2. Vorschlag lesen: Titel und Begründung.
@@ -1199,6 +1199,94 @@ Das Schlüsselbuch zeigt unter „Übergaben laut Plan (nächste 7 Tage)“, wer
 1. „Schlüsselbuch“ öffnen.
 2. Bei „Übergaben laut Plan“ auf „Übergeben“ klicken.
 3. Übergabe mit Unterschrift buchen.
+
+### Anlagen & Prüffristen
+
+*In der App: Anlagen & Prüffristen*
+
+Je Objekt stehen die Anlagen mit Prüffrist, z. B. Feuerlöscher, Rauchwarnmelder, Notbeleuchtung, Spielplatz oder Lift: wer prüft, wann zuletzt, wann die nächste Prüfung fällig ist und ob Mängel offen sind. Filter nach Objekt, Revier, Art und Status.
+
+1. „Anlagen & Prüffristen“ unter „Objekte & Kunden“ öffnen.
+2. Oben nach Objekt, Revier, Art oder Status filtern, z. B. „mit Handlungsbedarf“.
+3. Eine Anlage anklicken: Daten und Verlauf aller Prüfungen.
+
+> Tipp: Rot heißt überfällig, gelb bald fällig. Am Handy steht „Anlagen“ in der Leiste unten.
+> Tipp: Der Einsatz-Dialog zeigt fällige Prüfungen des Objekts.
+
+*Bearbeiten: Vollzugriff, Objektleitung, Objektmanagement, Objektservice*
+
+### Anlage anlegen
+
+*In der App: Anlagen & Prüffristen*
+
+Eine Anlage gehört zu einem Objekt: Art, Bezeichnung oder Standort (z. B. Stiege 2, EG), Anzahl, optional Hersteller und Seriennummer. Das Intervall kommt als Vorschlag von der Art und lässt sich ändern. Dazu: wer prüft (eigene Leute oder Fremdfirma mit Kontakt) und ob die Prüfung verrechnet wird.
+
+1. „Mehr ▾“ → „Anlage anlegen“ oder beim Objekt „+ Anlage“.
+2. Objekt, Art, Standort und Anzahl eintragen.
+3. Ist die nächste Prüfung bekannt (Plakette), das Datum eintragen.
+4. „Speichern“ klicken.
+
+### Prüfung erfassen (auch am Handy)
+
+*In der App: Anlagen & Prüffristen*
+
+Bei der Anlage „Prüfung“ tippen: Datum, Ergebnis (in Ordnung, Mängel, außer Betrieb), wer geprüft hat, Fotos und der Prüfbericht einer Fremdfirma als PDF. Die Dateien kommen nach SharePoint. Die nächste Prüfung rechnet die App ab dem Prüfdatum.
+
+1. Bei der Anlage „Prüfung“ tippen oder oben „Prüfung erfassen“ und Objekt und Anlage wählen.
+2. Ergebnis wählen, bei Mängeln kurz beschreiben.
+3. „Foto aufnehmen“ und bei Bedarf „Prüfbericht (PDF)“.
+4. „Prüfung eintragen“ tippen.
+
+> Tipp: Ohne Netz (Keller) warten die Fotos im Handy und werden später hochgeladen.
+> Tipp: Beim Spielplatz gibt es Hauptprüfung und operative Inspektion mit eigener Frist.
+
+### Mängel an Anlagen
+
+*In der App: Anlagen & Prüffristen*
+
+Ein Mangel aus einer Prüfung bleibt offen und sichtbar, bis er als behoben vermerkt ist: mit Datum und was getan wurde. Alle offenen stehen im Reiter „Mängel“, in „Zu erledigen“ und in der Anlagenliste für den Kunden.
+
+1. Reiter „Mängel“ öffnen.
+2. Beim Mangel „Behoben“ tippen.
+3. Datum und was getan wurde eintragen, „Als behoben vermerken“.
+
+> Tipp: Eine neue Prüfung „in Ordnung“ kann offene Mängel der Anlage gleich mit schließen (Häkchen im Dialog).
+
+### Prüffristen: fällig und überfällig
+
+*In der App: Anlagen & Prüffristen*
+
+Nächste Prüfung = Datum der letzten Prüfung plus Intervall in Monaten (Monatsende beachtet). Ab 30 Tagen vorher gilt sie als fällig, bei monatlichen Inspektionen 7 Tage vorher. Fällige und überfällige stehen je Objekt in „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“.
+
+> Tipp: Über „⋯“ → „Termin in Outlook“ legt die App einen Termin unter „Termine“ an (mit Recht auf Termine).
+> Tipp: Ohne eingetragene Prüfung ist eine Anlage gleich fällig, außer „Nächste Prüfung fällig am“ ist gesetzt.
+
+### Anlagenliste für die Hausverwaltung
+
+*In der App: Anlagen & Prüffristen*
+
+Beim Objekt „Anlagenliste“ erstellt ein PDF mit Logo: alle Anlagen mit Standort, Intervall, letzter Prüfung und nächster Fälligkeit, offene Mängel und die Prüfungen der letzten 12 Monate. Eigene Mitarbeitende stehen ohne Namen drin, Fremdfirmen mit Namen.
+
+1. In „Anlagen & Prüffristen“ beim Objekt „Anlagenliste“ klicken.
+2. Das PDF an die Hausverwaltung senden, z. B. über „Mehr ▾“ → „Per E-Mail senden“ (Objekt vorher im Filter wählen).
+
+### Arten und Intervalle der Anlagen
+
+*In der App: Anlagen & Prüffristen*
+
+Unter „Mehr ▾“ → „Arten und Intervalle“ stehen die Arten mit Intervall in Monaten, Grundlage und wer meist prüft. Das sind Vorschläge ohne Gewähr: bitte mit Hersteller, Prüfstelle oder Sicherheitsfachkraft bestätigen. Eigene Arten lassen sich ergänzen.
+
+1. „Mehr ▾“ → „Arten und Intervalle“ öffnen.
+2. Intervall oder Grundlage ändern oder „+ Art“.
+3. „Speichern“ klicken.
+
+> Tipp: 0 Monate heißt: Intervall je Anlage eintragen, z. B. Fettabscheider laut Hersteller.
+
+### Verrechenbare Prüfungen im Monat
+
+*In der App: Anlagen & Prüffristen*
+
+Ist bei einer Anlage „verrechenbar“ mit Preis je Prüfung eingetragen, zeigt der Reiter „Verrechnung“ je Monat alle Prüfungen je Objekt mit Summe, als CSV zum Weitergeben. In die Rechnung übernimmt sie die Fakturierung noch nicht.
 
 ### Die Werkzeuge in der App
 
