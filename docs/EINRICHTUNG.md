@@ -23,6 +23,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ unterweisungen/               Unterweisungen & Fristen je Person
                          ├─ anlagen/                      Anlagen & Prüffristen je Objekt (Fotos, Prüfberichte)
                          ├─ regie/                        Regieberichte (Unterschrift, Fotos und PDF unter regie/nachweise/)
+                         ├─ qualitaet/                    Qualitätsmessung je Objekt (Fotos der Mängel, Berichte)
                          └─ exporte/2026/KW44_2026/       Excel- und PDF-Wochenpläne
 ```
 
@@ -247,6 +248,9 @@ Bisher sind die Ordner in `Cleanos_Daten` von Hand freigegeben, oft über die Gr
 Entschieden:
 
 - **Verwaltung (entschieden 06.11.2026): Vollzugriff wie das Büro.** Die Gruppe der Verwaltung (z. B. `Cleanos_App_Verwaltung`) kommt in `config.json` zur Rolle `disposition`: `"groups": { "disposition": ["<Objekt-ID Büro/IT>", "<Objekt-ID Verwaltung>"] }`. Sollte sie später eine eigene, engere Rolle brauchen, geht das ohne Programmänderung über `"roles"` (siehe [PLATTFORM.md](PLATTFORM.md)); die Prüfung berücksichtigt eigene Rollen automatisch.
+
+Neu (Qualitätsmessung, Ordner `qualitaet/`): Objektleitung, Objektmanagement und Vollzugriff bearbeiten, der Objektservice bekommt **keinen** Zugriff (er misst sich nicht selbst). Soll das Büro die Messungen nur lesen, eine eigene Rolle mit dem Modul `qualitaet` ohne Schreibrecht anlegen (Beispiel in [PLATTFORM.md](PLATTFORM.md#eigene-rollen-und-e-mail-listen)); „Rechte prüfen“ schlägt dann „Lesen“ auf `qualitaet/` vor. Für „Aus dem Raumbuch vorschlagen“ braucht die messende Rolle Leserecht auf den Ordner `Objektdoku` (bei Objektleitung und Objektmanagement schon so).
+
 
 ### Werkzeuge je Revier (Wasserzähler, Objektkontrolle, Objektdoku)
 

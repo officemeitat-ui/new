@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 276 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 285 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (38)
+- [Objekte & Kunden](#objekte-kunden) (47)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (68)
 - [Verwaltung](#verwaltung) (37)
@@ -100,7 +100,7 @@ Unter „Anleitung“ ganz oben im Menü stehen alle Funktionen nach Bereichen w
 
 *In der App: Digitale Mitarbeiter*
 
-Vier digitale Mitarbeiter gehen laufend die Daten durch und bereiten fertige Schritte vor: Disponent (Vertretungen, offene Einsätze, Veröffentlichen, Korrekturen), Buchhaltung (Daueraufträge, Mahnungen, Leistungsnachweise), Lager (Bestellungen, Anforderungen) und Fristen (Unterweisungen, Fahrzeuge, Anlagen, überfällige Reklamationen).
+Vier digitale Mitarbeiter gehen laufend die Daten durch und bereiten fertige Schritte vor: Disponent (Vertretungen, offene Einsätze, Veröffentlichen, Korrekturen), Buchhaltung (Daueraufträge, Mahnungen, Leistungsnachweise), Lager (Bestellungen, Anforderungen) und Fristen (Unterweisungen, Fahrzeuge, Anlagen, Nachkontrollen, überfällige Reklamationen).
 
 1. In der Seitenleiste unter der Übersicht „Digitale Mitarbeiter“ öffnen.
 2. Vorschlag lesen: Titel und Begründung.
@@ -1375,6 +1375,105 @@ Im Werkzeug Wasserzähler erfasst du die Zählerstände je Quartal mit Fotos und
 3. „Abschließen“ klicken.
 
 *Vorarbeiter/in, Ableser, Objektleitung, Objektservice, Vollzugriff*
+
+### Qualitätsmessung nach EN 13549
+
+*In der App: Qualitätsmessung*
+
+Genormte Stichprobenmessung in Anlehnung an EN 13549: je Objekt Raumgruppen mit Anzahl Räume, die App zieht die Räume der Stichprobe, bewertet wird vor Ort am Handy. Ergebnis erfüllt oder nicht erfüllt, eine Qualitätskennzahl mit Verlauf je Objekt und ein Bericht als PDF für den Kunden.
+
+1. „Qualitätsmessung“ unter „Objekte & Kunden“ öffnen.
+2. Ein Objekt anklicken: Raumgruppen, Verlauf und alle Messungen.
+3. „Messung starten“ für eine neue Stichprobe.
+
+> Tipp: Tabellen, Gewichte und Fehlerarten sind ein Vorschlag in Anlehnung an EN 13549, ohne Gewähr. Bitte mit dem Kunden vereinbaren.
+
+*Bearbeiten: Vollzugriff, Objektleitung, Objektmanagement; lesen: eigene Büro-Rolle mit dem Modul; der Objektservice sieht sie nicht*
+
+### Raumgruppen eines Objekts (auch aus dem Raumbuch)
+
+*In der App: Qualitätsmessung*
+
+Je Objekt die Raumgruppen mit der Anzahl Räume eintragen, z. B. Büro 18, Sanitär 6, Verkehrsflächen 4, Küche 2. Zusammen sind sie das Los für die Stichprobe. Hat das Objekt in der Objektdoku ein Raumbuch, schlägt die App die Raumgruppen daraus vor, mit den Namen der Räume.
+
+1. „Mehr ▾“ → „Raumgruppen eines Objekts“ oder beim Objekt „Raumgruppen“.
+2. Objekt wählen, „Aus dem Raumbuch vorschlagen“ oder „+ Raumgruppe“.
+3. Anzahl Räume prüfen, Qualitätsniveau eintragen und „Speichern“.
+
+> Tipp: „Prüfobjekte wie“ legt fest, was in einem Raum bewertet wird, z. B. Boden, Sanitärobjekte, Abfallbehälter.
+> Tipp: Ohne SharePoint geht „Akte laden“ mit der Sicherung einer Akte aus der Objektdoku.
+
+### Stichprobe und Qualitätsniveau (AQL)
+
+*In der App: Qualitätsmessung*
+
+Die Größe der Stichprobe richtet sich nach der Anzahl der Räume, in Anlehnung an ISO 2859-1 (Prüfniveau II). Aus der AQL des Objekts folgt, wie viele Räume höchstens nicht in Ordnung sein dürfen, z. B. 30 Räume: 13 prüfen, höchstens 1. Statt der AQL geht auch eine fest vereinbarte Zahl.
+
+1. „Messung starten“ und das Objekt wählen.
+2. Die App zieht die Räume mit einem Startwert; gleicher Startwert, gleiche Räume.
+3. Räume bei Bedarf tauschen, z. B. wenn einer versperrt ist, dann „Messung beginnen“.
+
+> Tipp: Die Räume verteilen sich anteilig auf die Raumgruppen, mindestens einer je Gruppe.
+> Tipp: Die Tabelle ist ein Vorschlag ohne Gewähr und unter „Vorgaben“ änderbar.
+
+### Messung vor Ort am Handy
+
+*In der App: Qualitätsmessung*
+
+Je Raum stehen die Prüfobjekte auf „in Ordnung“; nur Mängel antippen, Fehlerart wählen, bei Bedarf Notiz und Foto. „Raum fertig, weiter“ geht zum nächsten Raum. Zum Schluss Bemerkung und auf Wunsch die Unterschrift des Kunden, dann „Messung abschließen“. Eine Messung lässt sich unterbrechen und fortsetzen.
+
+1. „Messung starten“, Objekt wählen, „Messung beginnen“.
+2. Je Raum Mängel antippen und Fehlerart wählen, „Foto“ für ein Bild.
+3. „Raum fertig, weiter“ bis zum letzten Raum.
+4. Unterschreiben lassen (optional) und „Messung abschließen“.
+
+> Tipp: Ohne Netz warten die Fotos im Handy und werden später hochgeladen.
+> Tipp: „entfällt“ für Prüfobjekte, die es im Raum nicht gibt.
+
+### Ergebnis, Qualitätskennzahl und Verlauf
+
+*In der App: Qualitätsmessung*
+
+Ein Raum ist nicht in Ordnung, sobald ein Prüfobjekt einen Mangel hat (Grenze änderbar). Erfüllt ist die Messung, wenn höchstens so viele Räume nicht in Ordnung sind wie zulässig. Die Kennzahl ist der Anteil der Prüfobjekte ohne Mangel, gewichtet, z. B. Sanitärobjekte dreifach. Das Diagramm zeigt sie je Monat mit dem Zielwert.
+
+> Tipp: Schlecht ist eine Messung, die nicht erfüllt ist oder unter dem Zielwert liegt (Vorgabe 90 %).
+
+### Bericht der Messung für den Kunden
+
+*In der App: Qualitätsmessung*
+
+Beim Abschließen erstellt die App den Bericht als PDF mit Logo und legt ihn in SharePoint ab: Ergebnis, Kennzahl, Räume mit Mängeln, Verlauf, Fotos und Unterschriften. „An den Kunden senden“ öffnet das Senden-Fenster mit dem Bericht im Anhang; der Versand wird an der Messung vermerkt.
+
+1. Messung anklicken.
+2. „An den Kunden senden“ oder „Bericht (PDF)“.
+
+> Tipp: Die Adresse kommt von den Raumgruppen des Objekts, sonst die E-Mail für den Leistungsnachweis.
+
+### Nachkontrolle und Reklamationsgefahr
+
+*In der App: Qualitätsmessung*
+
+Nach einer schlechten Messung schlägt die App eine Nachkontrolle binnen 7 Tagen vor; die nächste Messung erledigt sie. „Reklamationsgefahr“ heißt: zwei schlechte Messungen in Folge oder die Kennzahl fällt seit drei Messungen. Beides steht in „Zu erledigen“ und beim digitalen Mitarbeiter „Fristen“, nur mit „Öffnen“.
+
+1. In „Zu erledigen“ beim Objekt „Öffnen“.
+2. „Nachkontrolle als Termin“ legt einen Termin in Outlook an.
+3. „Reklamationen“ zeigt die Reklamationen des Objekts.
+
+### Objektkontrolle oder Qualitätsmessung?
+
+*In der App: Qualitätsmessung*
+
+Die Objektkontrolle ist eine freie Kontrolle: Rundgang mit Bewertung, Fotos und Protokoll, so wie es gerade passt. Die Qualitätsmessung ist genormt: zufällige Stichprobe von Räumen, feste Prüfobjekte und Fehlerarten, Ergebnis erfüllt oder nicht erfüllt und eine vergleichbare Kennzahl über die Monate, etwa für die Vereinbarung mit dem Kunden.
+
+### Vorgaben der Qualitätsmessung
+
+*In der App: Qualitätsmessung*
+
+Unter „Mehr ▾“ → „Vorgaben“ stehen die Stichprobe je Losgröße, die Prüfobjekte mit Gewicht, welche Prüfobjekte je Raumgruppe bewertet werden, die Fehlerarten, der Zielwert und die Frist der Nachkontrolle. Alles ist ein Vorschlag in Anlehnung an EN 13549, ohne Gewähr; laufende und alte Messungen behalten ihre Werte.
+
+1. „Mehr ▾“ → „Vorgaben“ öffnen.
+2. Werte ändern oder „+ Prüfobjekt“, „+ Fehlerart“.
+3. „Speichern“ klicken.
 
 ### Objektkontrolle (Prüfprotokoll)
 
