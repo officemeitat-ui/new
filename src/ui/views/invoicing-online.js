@@ -13,7 +13,7 @@
 // Mit invoicing.js geladen (views/lazy.js). Rechenkern: core/customer-invoices.js.
 
 import { todayISO } from '../../core/dates.js'
-import { invoiceEntry, invoiceQrPayload, invoiceSettings, invoiceSigText, newOfferId, offerLink, offerMail, offerPayload, onlineActive, onlineCheck, portalDocuments, qrMatrixFromCanvas } from '../../core/customer-invoices.js'
+import { invoiceEntry, invoiceQrPayload, invoiceSettings, invoiceSigText, newOfferId, offerLink, offerMail, offerPayload, onlineActive, onlineCheck, portalDocuments, qrMatrixFromCanvas, withdrawNeeded } from '../../core/customer-invoices.js'
 import { deDate, greetingOf, round2, settingsOf } from '../../core/invoicing.js'
 import { newCode, sha256Hex } from '../../core/staffplan.js'
 import { app, canEdit, confirmStep, ensureView, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
@@ -145,12 +145,31 @@ export async function revokeOnline(x) {
   return { revoked: true }
 }
 
-/** „Abgelehnt“ vermerkt: aktiven Link gleich zurückziehen (sonst könnte der Kunde noch annehmen). */
-export function offerStateChanged(x) {
-  if (x?.status !== 'abgelehnt' || !onlineActive(x) || !portalReady()) return
-  revokeOnline(x)
-    .then((r) => r.revoked && toast(`Angebot ${x.number}: Link zur Online-Annahme zurückgezogen.`))
-    .catch((err) => toast(`Link zur Online-Annahme noch aktiv: ${err.message}`))
+/**
+ * Im Büro entschieden („Angenommen“, „Abgelehnt“ oder Folgebeleg aus dem Angebot erstellt): aktiven Link gleich
+ * zurückziehen, sonst könnte der Kunde noch annehmen. Vorher abholen: Eine schon gegebene Annahme geht vor und
+ * bleibt (dann wird nichts zurückgezogen); kommt sie erst gleichzeitig, behält sie der Webspace bis zur Übernahme.
+ */
+export async function offerStateChanged(x) {
+  if (!withdrawNeeded(x)) return null
+  if (!portalReady()) {
+    toast(`Angebot ${x.number}: Der Link zur Online-Annahme ist noch aktiv. Zurückziehen geht nur mit Zugang zum Kundenbereich.`)
+    return null
+  }
+  try {
+    await syncAcceptances({ force: true }).catch(() => 0)
+    if (x.acceptance) {
+      toast(`Angebot ${x.number} wurde schon online angenommen (${x.acceptance.name}): die Annahme ist übernommen, der Link bleibt.`)
+      return { revoked: false, accepted: true }
+    }
+    const r = await revokeOnline(x)
+    toast(r.accepted ? `Angebot ${x.number} wurde inzwischen online angenommen: die Annahme ist übernommen.` : `Angebot ${x.number} ist ${x.status}: Link zur Online-Annahme zurückgezogen.`)
+    if (['fak-doc', 'ang-share'].includes(app.ui.modal?.type)) renderModal()
+    return r
+  } catch (err) {
+    toast(`Link zur Online-Annahme noch aktiv: ${err.message}`)
+    return null
+  }
 }
 
 function acceptanceHtml(x) {

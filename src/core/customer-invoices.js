@@ -158,6 +158,12 @@ export const isConsumer = (doc, customer) => !!(customer?.consumer || doc?.recip
 export const onlineActive = (doc) => !!doc?.online?.id && !doc.online.revokedAt
 
 /**
+ * Im Büro entschieden (angenommen, abgelehnt oder Folgebeleg wie Auftragsbestätigung bzw. Rechnung erstellt), aber
+ * der Link zur Online-Annahme ist noch aktiv und niemand hat online angenommen: Link zurückziehen.
+ */
+export const withdrawNeeded = (doc) => doc?.kind === 'angebot' && ['angenommen', 'abgelehnt'].includes(doc.status) && onlineActive(doc) && !doc.acceptance
+
+/**
  * Darf das Angebot online angenommen werden? { ok, consumer, reason }. Verbraucher nur mit Einstellung
  * „onlineConsumers“ (Widerrufsbelehrung und Informationen nach FAGG stehen im Angebot).
  */

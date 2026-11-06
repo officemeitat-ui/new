@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 
-import { acceptanceOf, acceptedOpen, collectedByDebit, INVOICE_FILE_PATTERN, invoiceDefaults, invoiceEntry, invoiceFile, invoiceQrPayload, invoiceSettings, invoiceSigText, isConsumer, newAcceptances, newOfferId, OFFER_ID_PATTERN, offerLink, offerMail, offerPayload, onlineActive, onlineCheck, portalDocuments, portalState, PORTAL_STATES, qrMatrixFromCanvas, SIGNATURE_PATTERN, signatureOk, sinceDate, suggestCustomers } from '../src/core/customer-invoices.js'
+import { acceptanceOf, acceptedOpen, collectedByDebit, INVOICE_FILE_PATTERN, invoiceDefaults, invoiceEntry, invoiceFile, invoiceQrPayload, invoiceSettings, invoiceSigText, isConsumer, newAcceptances, newOfferId, OFFER_ID_PATTERN, offerLink, offerMail, offerPayload, onlineActive, onlineCheck, portalDocuments, portalState, PORTAL_STATES, qrMatrixFromCanvas, SIGNATURE_PATTERN, signatureOk, sinceDate, suggestCustomers, withdrawNeeded } from '../src/core/customer-invoices.js'
 import { linkMail, linkPayload, SHOW, showDefaults } from '../src/core/customer-portal.js'
 import { checksumOf, epcPayload, finalize, intact, stornoDraft } from '../src/core/invoicing.js'
 
@@ -195,4 +195,15 @@ test('Online-Annahme: Annahme übernehmen außerhalb der Prüfsumme, PDF-Abgleic
   assert.deepEqual(acceptedOpen(list).map((d) => d.id), ['a-offer'])
   assert.deepEqual(acceptedOpen([...list, { id: 'ab1', kind: 'auftrag', refId: 'a-offer' }]), [])
   assert.deepEqual(acceptedOpen(list.map((d) => (d.id === 'a-offer' ? { ...d, acceptance: { ...d.acceptance, doneAt: 'x' } } : d))), [])
+})
+
+test('Online-Annahme: im Büro entschieden (angenommen, abgelehnt, Folgebeleg) → aktiven Link zurückziehen, außer online angenommen', () => {
+  const offer = { ...docs().find((d) => d.id === 'a-offer'), online: { id: 'an0123456789', publishedAt: '2026-11-01T10:00:00.000Z', validUntil: '2026-11-30' } }
+  assert.equal(withdrawNeeded(offer), false, 'noch offen: Link bleibt')
+  assert.equal(withdrawNeeded({ ...offer, status: 'angenommen' }), true, '„Angenommen“ von Hand bzw. Auftragsbestätigung erstellt')
+  assert.equal(withdrawNeeded({ ...offer, status: 'abgelehnt' }), true)
+  assert.equal(withdrawNeeded({ ...offer, status: 'angenommen', acceptance: { via: 'online' } }), false, 'online angenommen: Link zeigt weiter „angenommen“')
+  assert.equal(withdrawNeeded({ ...offer, status: 'angenommen', online: { ...offer.online, revokedAt: 'x' } }), false, 'schon zurückgezogen')
+  assert.equal(withdrawNeeded({ ...offer, status: 'angenommen', online: undefined }), false, 'nie online')
+  assert.equal(withdrawNeeded({ ...offer, kind: 'auftrag', status: 'angenommen' }), false)
 })

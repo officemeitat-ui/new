@@ -1055,6 +1055,7 @@ function openFollowUp(src, x) {
     persist()
   }
   openModal({ type: 'fak-edit', id: x.id, draft: x, isNew: true })
+  if (src.kind === 'angebot') offerStateChanged(src) // Link zur Online-Annahme zurückziehen (außer online angenommen)
 }
 
 /** Rechnung aus einem oder mehreren Lieferscheinen desselben Kunden. */
@@ -2028,7 +2029,7 @@ registerActions(
       x.status = el.dataset.v
       x.history = [...(x.history || []), { at: nowIso(), by: by(), text: el.dataset.v }]
       commit(`Angebot ${x.number}: ${el.dataset.v}.`)
-      offerStateChanged(x) // abgelehnt: Link zur Online-Annahme zurückziehen
+      offerStateChanged(x) // angenommen oder abgelehnt: Link zur Online-Annahme zurückziehen
     },
     'fak-storno': async (el) => {
       const x = docOf(el.dataset.id)

@@ -1703,7 +1703,7 @@ export const TOPICS = [
     q: ['angebot online annehmen', 'online-annahme', 'angebot per link', 'kunde soll angebot annehmen', 'angebot digital unterschreiben', 'angebot online bestätigen', 'annahme link angebot', 'angebot annehmen lassen'],
     answer: 'Für ein festgeschriebenes, offenes Angebot erstellt „Online-Annahme“ einen eigenen Link. Der Kunde sieht Nummer, Datum, Summe, „gültig bis“ und das PDF und nimmt mit Name, Funktion und Häkchen an, Unterschrift freiwillig. Der Link gilt bis „gültig bis“. Läuft über den Kundenbereich; der muss eingeschaltet sein.',
     steps: ['Angebot öffnen und „Online-Annahme“ klicken.', '„Link erstellen und übertragen“.', '„Per E-Mail senden“ (fertiger Text mit dem Link) oder „Link kopieren“.', 'Nimmt der Kunde an, kommt ein Push bzw. eine E-Mail ans Büro und das Angebot steht auf „angenommen“.'],
-    tips: ['Gespeichert werden Zeitpunkt, Name, Funktion und eine Prüfsumme des angenommenen PDF, keine IP-Adresse.', '„Zurückziehen“ macht den Link sofort ungültig; „Abgelehnt“ zieht ihn von selbst zurück.', 'Das festgeschriebene Angebot bleibt unverändert, die Annahme steht nur daneben.'],
+    tips: ['Gespeichert werden Zeitpunkt, Name, Funktion und eine Prüfsumme des angenommenen PDF, keine IP-Adresse.', '„Zurückziehen“ macht den Link sofort ungültig. „Angenommen“, „Abgelehnt“ oder eine Auftragsbestätigung bzw. Rechnung aus dem Angebot ziehen ihn von selbst zurück, außer der Kunde hat schon online angenommen.', 'Das festgeschriebene Angebot bleibt unverändert, die Annahme steht nur daneben.'],
     related: ['angebot', 'angebot-online-verbraucher', 'angebot-online-auftrag', 'kundenbereich-einrichten'],
     roles: 'Vollzugriff (braucht Fakturierung und Kundenbereich)',
   },

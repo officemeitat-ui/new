@@ -1933,7 +1933,7 @@ Für ein festgeschriebenes, offenes Angebot erstellt „Online-Annahme“ einen 
 4. Nimmt der Kunde an, kommt ein Push bzw. eine E-Mail ans Büro und das Angebot steht auf „angenommen“.
 
 > Tipp: Gespeichert werden Zeitpunkt, Name, Funktion und eine Prüfsumme des angenommenen PDF, keine IP-Adresse.
-> Tipp: „Zurückziehen“ macht den Link sofort ungültig; „Abgelehnt“ zieht ihn von selbst zurück.
+> Tipp: „Zurückziehen“ macht den Link sofort ungültig. „Angenommen“, „Abgelehnt“ oder eine Auftragsbestätigung bzw. Rechnung aus dem Angebot ziehen ihn von selbst zurück, außer der Kunde hat schon online angenommen.
 > Tipp: Das festgeschriebene Angebot bleibt unverändert, die Annahme steht nur daneben.
 
 *Vollzugriff (braucht Fakturierung und Kundenbereich)*
