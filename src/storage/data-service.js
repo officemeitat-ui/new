@@ -30,6 +30,8 @@
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
 //                                     (Büro; Touren der Fahrer später unter matten/touren/)
+//   matten/einsaetze-2026.json        Mattenwechsel: Einsätze je Liegeplatz und Solltermin, eine Datei je Jahr des
+//                                     Solltermins (YEAR_DOCS; wie die Wochenpläne: geladen werden die nötigen Jahre)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -49,7 +51,7 @@
 // (`local`, siehe offline.js) und werden beim nächsten Start bzw. sobald
 // wieder Netz da ist gespeichert.
 
-import { mondayOf } from '../core/dates.js'
+import { mondayOf, todayISO } from '../core/dates.js'
 import { MODULES } from '../core/access.js'
 import { emptyAppointments } from '../core/appointments.js'
 import { emptyInvoicing } from '../core/invoicing.js'
@@ -113,6 +115,37 @@ export const MODULE_DOCS = {
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
+/**
+ * Dateien je Jahr (wie die Wochenpläne je Woche, nur nach Jahr): app.data[key] ist die Liste aller geladenen Einträge,
+ * yearOf sagt je Eintrag das Jahr und damit die Datei <prefix><Jahr>.json. Beim Start lädt die App das Vorjahr, das
+ * laufende und das nächste Jahr (yearsAround), weitere Jahre ensureYears (z. B. beim Blättern im Kalender). Gespeichert,
+ * zusammengeführt und offline vorgehalten wird wie jede andere Datei; Einträge tragen eine id (Zusammenführen je Eintrag,
+ * merge.js). order: Reihenfolge in der Datei (gleichbleibend, damit unveränderte Jahre nicht neu gespeichert werden).
+ */
+export const YEAR_DOCS = {
+  // Mattenwechsel: Einsätze je Liegeplatz und Solltermin (core/matten-einsaetze.js); ein verschobener Einsatz bleibt in
+  // der Datei des Jahres seines Solltermins
+  mattenJobs: {
+    prefix: 'matten/einsaetze-',
+    list: 'jobs',
+    yearOf: (x) => String(x?.due || '').slice(0, 4),
+    order: (a, b) => String(a.due).localeCompare(String(b.due)) || String(a.key).localeCompare(String(b.key)),
+    empty: () => ({ schema: 1, jobs: [] }),
+  },
+}
+export const yearPath = (key, year) => `${YEAR_DOCS[key].prefix}${year}.json`
+/** Datei je Jahr: { key, year, …YEAR_DOCS[key] } oder null. */
+export function yearDocOf(path) {
+  for (const [key, m] of Object.entries(YEAR_DOCS)) {
+    const year = path.startsWith(m.prefix) && /^(\d{4})\.json$/.exec(path.slice(m.prefix.length))?.[1]
+    if (year) return { key, year, ...m }
+  }
+  return null
+}
+/** Jahre, die beim Start geladen werden: Vorjahr (Überfälliges vom Dezember), laufendes und nächstes Jahr. */
+export const yearsAround = (today = todayISO()) => [-1, 0, 1].map((d) => String(Number(today.slice(0, 4)) + d))
+const startYearPaths = (today) => Object.keys(YEAR_DOCS).flatMap((key) => yearsAround(today).map((y) => yearPath(key, y)))
+
 // ---------------------------------------------------------------- Rechte je Rolle
 
 const any = (list, fn) => list.some(fn)
@@ -161,7 +194,7 @@ export function dataRights(access) {
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
-    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt')],
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten')],
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
@@ -176,7 +209,8 @@ export function dataRights(access) {
     // Einschulung als Termin (termine/), nicht die Checkliste
     ['eintritt/', () => sees('eintritt'), () => edits('eintritt')],
     // Mattenwechsel: Touren der Fahrer (eigener Unterordner zuerst; Fahrer sehen nur die eigenen, SharePoint trennt
-    // nach Ordner, nicht nach Datensatz). Liegeplätze, Gebiete und Einstellungen (matten/matten.json) nur das Büro:
+    // nach Ordner, nicht nach Datensatz). Liegeplätze, Gebiete, Einstellungen (matten/matten.json) und Einsätze
+    // (matten/einsaetze-<Jahr>.json) nur das Büro:
     // Fahrer lesen sie nicht, die Tour trägt eine eingefrorene Kopie (Kunde, Adresse, Liegeplatz, Matte, ohne Preis)
     ['matten/touren/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
     ['matten/', () => sees('matten'), () => edits('matten')],
@@ -213,7 +247,7 @@ export const FOLDERS = [
   ['kundenbereich', 'Kundenbereich: Links für Kunden und Angebote zur Online-Annahme (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
-  ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete (Büro)', MODULE_DOCS.matten.path],
+  ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr (Büro)', MODULE_DOCS.matten.path],
   ['matten/touren', 'Mattenwechsel: Touren der Fahrer (ab der Phase Fahrer)', 'matten/touren/2026/tour.json'],
 ]
 
@@ -287,8 +321,11 @@ export function absentList(data) {
   return (data.absences || []).filter((a) => !a.limited && a.employeeId && a.from).map((a) => ({ id: a.id, employeeId: a.employeeId, from: a.from, to: a.to || a.from }))
 }
 
-/** App-Daten → Dateien. Nur Wochen in `weeks` werden erzeugt. */
-export function splitData(data, weeks) {
+/**
+ * App-Daten → Dateien. Nur Wochen in `weeks` werden erzeugt. Dateien je Jahr (YEAR_DOCS): die Jahre in `years`
+ * (geladene Pfade, auch leer) und jedes Jahr, zu dem es Einträge gibt.
+ */
+export function splitData(data, weeks, years = []) {
   const master = Object.fromEntries(MASTER_KEYS.map((k) => [k, data[k]]).filter(([, v]) => v !== undefined))
   if (master.employees) master.employees = master.employees.map(withoutPay)
   const known = new Set((data.employees || []).map((e) => e.id))
@@ -306,6 +343,20 @@ export function splitData(data, weeks) {
     [DOC.account]: { weeks: data.published || {}, ...(data.payroll ? { payroll: data.payroll } : {}), ...(data.payrollExport ? { export: data.payrollExport } : {}), pay },
   }
   for (const [key, m] of Object.entries(MODULE_DOCS)) docs[m.path] = data[key] ?? m.empty()
+  for (const [key, m] of Object.entries(YEAR_DOCS)) {
+    const byYear = new Map()
+    for (const path of years) {
+      const y = yearDocOf(path)
+      if (y?.key === key) byYear.set(y.year, [])
+    }
+    for (const x of data[key] || []) {
+      const y = m.yearOf(x)
+      if (!/^\d{4}$/.test(y)) continue
+      if (!byYear.has(y)) byYear.set(y, [])
+      byYear.get(y).push(x)
+    }
+    for (const [y, list] of byYear) docs[yearPath(key, y)] = { ...m.empty(), [m.list]: [...list].sort(m.order) }
+  }
   for (const monday of weeks) docs[weekPath(monday)] = { monday, assignments: {}, overrides: {}, log: data.logs?.[monday] || [] }
   for (const field of WEEK_FIELDS) {
     for (const [key, value] of Object.entries(data[field] || {})) {
@@ -357,6 +408,10 @@ export function applyDoc(data, path, doc) {
   } else if (MODULE_BY_PATH[path]) {
     const m = MODULE_BY_PATH[path]
     data[m.key] = { ...m.empty(), ...doc }
+  } else if (yearDocOf(path)) {
+    // Datei je Jahr: die Einträge dieses Jahres ersetzen, die der anderen Jahre bleiben
+    const y = yearDocOf(path)
+    data[y.key] = [...(data[y.key] || []).filter((x) => y.yearOf(x) !== y.year), ...(doc?.[y.list] || [])]
   } else {
     const monday = doc.monday
     for (const field of WEEK_FIELDS) {
@@ -391,6 +446,7 @@ export class DataService {
     this.base = new Map() // Pfad → zuletzt gespeicherter/geladener Stand
     this.etags = new Map()
     this.weeks = new Set()
+    this.years = new Set() // geladene Dateien je Jahr (YEAR_DOCS), auch die noch nicht angelegten
     this.loadingWeeks = new Map() // Woche → laufender Ladevorgang
     this.unavailable = new Set() // Wochen ohne Netz und ohne Kopie im Gerät: nicht bearbeiten
     this.denied = new Set() // Dateien ohne Leserecht: werden nie gespeichert
@@ -470,7 +526,12 @@ export class DataService {
 
   /** Aktueller Inhalt einer Datei aus den App-Daten. */
   #live(path) {
-    return splitData(this.data, new Set([...this.weeks, ...this.#touchedWeeks()]))[path]
+    return splitData(this.data, new Set([...this.weeks, ...this.#touchedWeeks()]), this.years)[path]
+  }
+
+  /** Datei je Jahr gelesen (auch: gibt es noch nicht): gilt als geladen, wird ab jetzt mit gespeichert. */
+  #yearLoaded(path) {
+    if (yearDocOf(path) && !this.denied.has(path)) this.years.add(path)
   }
 
   /** Ungespeicherte Änderungen im Gerät festhalten (übersteht Neustart ohne Netz). */
@@ -518,7 +579,7 @@ export class DataService {
 
   /** Splitten ohne gesperrte Dateien. */
   #docs() {
-    return Object.entries(splitData(this.data, new Set([...this.weeks, ...this.#touchedWeeks()]))).filter(([path]) => !this.denied.has(path))
+    return Object.entries(splitData(this.data, new Set([...this.weeks, ...this.#touchedWeeks()]), this.years)).filter(([path]) => !this.denied.has(path))
   }
 
   /** Geänderte Dateien, die diese Person speichern darf. */
@@ -531,7 +592,7 @@ export class DataService {
     this.#setStatus('loading')
     this.oldWeeksGone = (await this.local?.get('meta', 'wochen-alt')) === 'leer'
     // DOC.absent nach DOC.absences: wer die vollständigen Abwesenheiten liest, behält sie
-    const paths = [DOC.master, DOC.objects, DOC.absences, DOC.absent, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path)]
+    const paths = [DOC.master, DOC.objects, DOC.absences, DOC.absent, DOC.account, ...Object.values(MODULE_DOCS).map((m) => m.path), ...startYearPaths(todayISO())]
     // Schnellstart: mit dem letzten Stand im Gerät sofort loslegen, SharePoint im Hintergrund abgleichen
     if (this.quickStart && this.store.cached) {
       const data = await this.#loadCached(paths)
@@ -569,11 +630,13 @@ export class DataService {
     if (fresh) {
       Object.assign(data, await seed())
       this.firstRun = true
+      for (const [i, path] of paths.entries()) if (docs[i] !== undefined) this.#yearLoaded(path)
     } else {
       // Grunddaten zuerst: Dateien, die es (noch) nicht gibt bzw. die die Rolle nicht liest, lassen leere Listen
       Object.assign(data, await this.blank())
       for (const [i, path] of paths.entries()) {
         const doc = docs[i]
+        if (doc !== undefined) this.#yearLoaded(path)
         if (!doc) continue
         applyDoc(data, path, doc.data)
         this.version++
@@ -622,6 +685,8 @@ export class DataService {
         this.denied.add(path)
         continue
       }
+      // Jahr ohne Kopie im Gerät: gilt als geladen (leer); der Abgleich im Hintergrund holt es
+      this.#yearLoaded(path)
       const doc = cached[i]
       if (!doc) continue
       applyDoc(data, path, doc.data)
@@ -679,6 +744,7 @@ export class DataService {
       const live = this.#live(path)
       const local = live !== undefined && !same(live, base ?? emptyDoc(path))
       applyDoc(this.data, path, clone(local ? mergeDoc(base, live, doc.data) : doc.data))
+      this.#yearLoaded(path)
       this.version++
       this.base.set(path, clone(doc.data))
       if (doc.etag) this.etags.set(path, doc.etag)
@@ -705,6 +771,7 @@ export class DataService {
     for (const [path, p] of pending) {
       if (this.denied.has(path) || !this.rights.write(path)) continue
       if (isWeekPath(path)) this.weeks.add(p.doc.monday)
+      this.#yearLoaded(path)
       applyDoc(data, path, clone(p.doc))
       this.version++
       restored++
@@ -739,6 +806,38 @@ export class DataService {
     }
     await this.#loadWeeks(fetch)
     return true
+  }
+
+  /**
+   * Dateien je Jahr nachladen (YEAR_DOCS, z. B. Einsätze eines anderen Jahres im Kalender). Schon hier Geändertes desselben
+   * Jahres wird zusammengeführt. Ohne Netz und ohne Kopie bleibt ein Jahr ungeladen (nächster Versuch beim nächsten Aufruf).
+   * true, wenn etwas neu geladen wurde.
+   */
+  async ensureYears(key, years) {
+    const paths = [...new Set(years.map(String))].map((y) => yearPath(key, y)).filter((p) => !this.years.has(p))
+    const readable = paths.filter((p) => this.rights.read(p) && !this.denied.has(p))
+    if (!readable.length) return false
+    const docs = await this.#readAll(readable)
+    let loaded = false
+    for (const [i, path] of readable.entries()) {
+      const doc = docs[i]
+      if (doc === undefined || this.years.has(path)) continue
+      const live = doc ? this.#live(path) : undefined
+      this.#yearLoaded(path)
+      loaded = true
+      if (!doc) continue
+      applyDoc(this.data, path, clone(live ? mergeDoc(this.base.get(path), live, doc.data) : doc.data))
+      this.version++
+      this.base.set(path, clone(doc.data))
+      if (doc.etag) this.etags.set(path, doc.etag)
+      if (live && this.writable(path)) this.schedule()
+    }
+    return loaded
+  }
+
+  /** Datei je Jahr geladen (oder gibt es noch nicht)? */
+  yearLoaded(key, year) {
+    return this.years.has(yearPath(key, String(year)))
   }
 
   /** Wochen im Hintergrund vorladen (z. B. die nächste und vorige), ohne Fehler zu melden. */
@@ -894,7 +993,7 @@ export class DataService {
     if (!this.data) return []
     if (!this.store.cached) return this.refresh() // Browser-Ablage: gemeinsamer Speicher, normal abgleichen
     // Wochen nur, wenn sie hier geladen sind; sonst jede Datei, die diese Rolle liest (auch neu angelegte)
-    const known = paths.filter((p) => (isWeekPath(p) ? this.weeks.has(p.split('/').pop().replace('.json', '')) : this.rights.read(p) && !this.denied.has(p)))
+    const known = paths.filter((p) => (isWeekPath(p) ? this.weeks.has(p.split('/').pop().replace('.json', '')) : yearDocOf(p) ? this.years.has(p) : this.rights.read(p) && !this.denied.has(p)))
     if (!known.length) return []
     return this.#revalidate(known, { fromDevice: true })
   }
@@ -1049,6 +1148,7 @@ export class DataService {
 
 function emptyDoc(path) {
   if (MODULE_BY_PATH[path]) return MODULE_BY_PATH[path].empty()
+  if (yearDocOf(path)) return yearDocOf(path).empty()
   if (path === DOC.objects) return { objects: [] }
   if (path === DOC.absences) return { absences: [] }
   if (path === DOC.absent) return { absent: [] }

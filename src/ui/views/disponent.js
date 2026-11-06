@@ -13,6 +13,8 @@
 //                Kundenzufriedenheit: Kunde anrufen (Gesamt ≤ 2 oder Rückruf; „Öffnen“, „Termin“), fallender Verlauf
 //                Eintritt/Austritt: Fristen der Checklisten (z. B. Anmeldung bei der ÖGK), Bewerbungen ohne
 //                Rückmeldung und mit erreichter Löschfrist (nur „Öffnen“, nichts automatisch)
+//                Mattenwechsel (nur Büro): überfällige Liegeplätze, Einsätze der nächsten Wochen noch nicht geplant
+//                (nur „Öffnen“ in den Matten-Kalender)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -27,6 +29,7 @@ import { attention as aschAttention, isUrgent as aschUrgent } from '../../core/a
 import { checklistAttention, deleteMonthsOf, deletionsDue, silentApplicants, silentDaysOf, STATUS as BEW_STATUS } from '../../core/bewerber.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/qualitaet.js'
+import { attention as mwAttention, confirmedExchanges } from '../../core/matten-einsaetze.js'
 import { fmtAvg, attention as kzAttention, scopeObjectIds as kzScope } from '../../core/zufriedenheit.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
@@ -45,7 +48,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen, den Mattenwechsel und überfällige Reklamationen', module: '*' },
 ]
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
@@ -458,6 +461,31 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'bew-open', data: { id: del[0].a.id } },
       })
   }
+  // Mattenwechsel (nur Büro): überfällige Liegeplätze und noch nicht geplante Einsätze; nur „Öffnen“, nichts automatisch
+  const mw = app.data.matten
+  if (mw && edits('matten')) {
+    const d = { settings: {}, ...mw, placements: mw.placements || [] }
+    const a = mwAttention({ doc: d, jobs: app.data.mattenJobs || [], done: confirmedExchanges({ placements: d.placements }), today })
+    if (a.overdue.length)
+      out.push({
+        id: `mw-ueber:${a.overdue.map((x) => `${x.placement.id}@${x.next.date}`).join(',')}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `Mattenwechsel überfällig (${plural(a.overdue.length, 'Liegeplatz', 'Liegeplätze')})`,
+        text: 'Der Wechsel ist seit dem Termin offen. Im Matten-Kalender nachholen, verschieben oder verwerfen. Ich ändere dabei nichts selbst.',
+        lines: a.overdue.slice(0, 6).map((x) => `${x.placement.name} (${objName(x.placement.objectId) || 'Objekt'}): seit ${formatDate(x.next.date)}`),
+        open: { label: 'Öffnen', action: 'mw-cal-goto', data: { date: a.overdue[0].next.date } },
+      })
+    if (a.missing.length)
+      out.push({
+        id: `mw-plan:${a.until}:${a.missing.length}`,
+        agent: 'fristen',
+        prio: 2,
+        title: 'Einsätze für die nächsten Wochen noch nicht geplant',
+        text: `${plural(a.missing.length, 'Wechsel', 'Wechsel')} bis ${formatDate(a.until)} stehen noch nicht im Matten-Kalender. „Einsätze planen“ legt sie an; erneutes Planen erzeugt keine Doppel. Ich ändere dabei nichts selbst.`,
+        open: { label: 'Öffnen', action: 'mw-cal-goto', data: { plan: '1' } },
+      })
+  }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -561,7 +589,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit') || edits('eintritt') || edits('bewerber'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit') || edits('eintritt') || edits('bewerber') || edits('matten'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })

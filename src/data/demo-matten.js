@@ -1,10 +1,15 @@
 // Beispieldaten für das Mattenwechsel-Modul (alles erfunden, keine echten Kunden oder Adressen):
-//  - createMattenDemo(): einige Liegeplätze für die Vorschau im Browser-Modus (Kunden und Objekte der Beispieldaten)
+//  - createMattenDemo(): einige Liegeplätze für die Vorschau im Browser-Modus (Kunden und Objekte der Beispieldaten),
+//    mit einem erfundenen Betriebsurlaub zu Weihnachten
+//  - createMattenJobsDemo(today, matten): gespeicherte Einsätze dazu (erledigt, überfällig, verschoben, ausgesetzt)
 //  - MATTEN_ARTIKEL_BEISPIEL: Mattentypen als Artikel der Fakturierung (group 'Matten') für Tests
 //  - werkzeugBeispiel(): Dateien des bisherigen Werkzeugs (Standorte.json, Kunden.json, Touren) im Format der
 //    Fassung 2.4 – für den Test der Übernahme (test/matten-import.test.js) und die SharePoint-Attrappe der Browser-Tests.
 
+import { addDays } from '../core/dates.js'
 import { matLabel } from '../core/invoicing.js'
+import { applyJobAction, confirmedExchanges, planJobs } from '../core/matten-einsaetze.js'
+import { jobDate, markDone } from '../core/matten-plan.js'
 
 /** Mattentypen wie in der Fakturierung (Artikelgruppe „Matten“, Größe, Farbe und Art als eigene Felder) – für Tests. */
 export const MATTEN_ARTIKEL_BEISPIEL = [
@@ -27,13 +32,16 @@ const copy = (id) => {
 }
 const stamp = { createdAt: '2026-11-02T08:00:00.000Z', createdBy: 'Beispieldaten', updatedAt: '2026-11-02T08:00:00.000Z', updatedBy: 'Beispieldaten' }
 
-/** Liegeplätze der Vorschau: Autohaus (2) und Versicherungsbüro (1), Gebiet „Salzburg Nord“, Mattentypen der Fakturierung. */
+/**
+ * Liegeplätze der Vorschau: Autohaus (2) und Versicherungsbüro (1), Gebiet „Salzburg Nord“, Mattentypen der Fakturierung;
+ * Betriebsurlaub zu Weihnachten (Wechsel entfällt).
+ */
 export function createMattenDemo() {
   const hv = { id: 'c-demo1', name: 'Hausverwaltung Beispiel GmbH', no: '10001' }
   const ah = { id: 'c-demo2', name: 'Autohaus Maxglan Beispiel KG', no: '10002' }
   return {
     schema: 1,
-    settings: {},
+    settings: { skip: 'entfaellt', closures: [{ from: '2026-12-24', to: '2026-12-26', reason: 'Betriebsurlaub Weihnachten' }] },
     areas: [{ id: 'mg-demo1', name: 'Salzburg Nord', active: true, ...stamp }],
     placements: [
       { id: 'mw-demo1', objectId: 'o2', customerId: ah.id, customer: ah, name: 'Schauraum Eingang', floor: 'EG', access: 'offen ab 7 Uhr', hint: 'Alte Matten in den Bus, nicht in den Müllraum', active: true, mats: [{ ...copy('a-fdemo7'), qty: 2, owner: 'wir' }], intervalDays: 14, startDate: '2026-11-04', rule: 'rhythmus', workMinutes: 10, window: { from: '07:00', to: '09:00', note: 'vor Geschäftsöffnung' }, pauses: [], areaId: 'mg-demo1', ...stamp },
@@ -41,6 +49,29 @@ export function createMattenDemo() {
       { id: 'mw-demo3', objectId: 'o11', customerId: hv.id, customer: hv, name: 'Eingang', floor: 'EG', access: 'Code an der Tür (siehe Schlüsselbuch)', hint: '', active: true, mats: [{ ...copy('a-fdemo6'), qty: 1, owner: 'kunde' }], intervalDays: 28, startDate: '2026-11-10', rule: 'rhythmus', workMinutes: 5, pauses: [], areaId: 'mg-demo1', ...stamp },
     ],
   }
+}
+
+/**
+ * Gespeicherte Einsätze der Vorschau (matten/einsaetze-<Jahr>.json), relativ zu heute: geplant drei Wochen zurück und
+ * fünf Wochen voraus; Vergangenes erledigt bis auf einen überfälligen Wechsel (Werkstatt), der nächste Wechsel im
+ * Schauraum um einen Tag verschoben, der übernächste ausgesetzt (Inventur).
+ */
+export function createMattenJobsDemo(today, matten = createMattenDemo()) {
+  const by = 'Beispieldaten'
+  const now = `${today}T07:00:00.000Z`
+  const done = confirmedExchanges({ placements: matten.placements })
+  let { jobs } = planJobs({ doc: matten, done, von: addDays(today, -21), bis: addDays(today, 34), now, by })
+  const past = jobs.filter((j) => j.status === 'geplant' && jobDate(j) < today)
+  const late = past.filter((j) => j.placementId === 'mw-demo2').at(-1)
+  jobs = jobs.map((j) => (past.includes(j) && j !== late ? { ...markDone(j, j.due, { now, by }), id: j.key } : j))
+  const next = jobs.filter((j) => j.placementId === 'mw-demo1' && j.status === 'geplant' && j.due >= today)
+  const change = (key, action, opts) => {
+    const r = applyJobAction(jobs, [key], action, { today, now, by, ...opts })
+    jobs = jobs.map((j) => r.changed.find((c) => c.key === j.key) || j)
+  }
+  if (next[0]) change(next[0].key, 'verschieben', { date: addDays(next[0].due, 1), reason: 'Kunde bittet um einen Tag später' })
+  if (next[1]) change(next[1].key, 'aussetzen', { reason: 'Inventur im Autohaus' })
+  return jobs
 }
 
 /**

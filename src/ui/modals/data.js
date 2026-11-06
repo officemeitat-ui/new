@@ -1,13 +1,13 @@
 // Daten-Dialog: Ablageort, Datensicherung (JSON), Einspielen, Beispieldaten.
 
 import { todayISO } from '../../core/dates.js'
-import { MODULE_DOCS } from '../../storage/data-service.js'
+import { MODULE_DOCS, YEAR_DOCS } from '../../storage/data-service.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { seedDemoHistory } from '../planning.js'
 import { download, esc, ICON, modalFrame, val } from '../shared.js'
 import { copyText } from '../views/sheet.js'
 
-const BACKUP_KEYS = ['version', 'employees', 'objects', 'tasks', 'skills', 'rules', 'extraFreeDays', 'travel', 'settings', 'absences', 'assignments', 'overrides', 'trips', 'published', 'payroll', 'logs', ...Object.keys(MODULE_DOCS)]
+const BACKUP_KEYS = ['version', 'employees', 'objects', 'tasks', 'skills', 'rules', 'extraFreeDays', 'travel', 'settings', 'absences', 'assignments', 'overrides', 'trips', 'published', 'payroll', 'logs', ...Object.keys(MODULE_DOCS), ...Object.keys(YEAR_DOCS)]
 
 function backup() {
   return JSON.stringify(Object.fromEntries(BACKUP_KEYS.map((k) => [k, app.data[k]])), null, 1)
@@ -20,7 +20,7 @@ function dataModal() {
     title: 'Daten & Ablage',
     body: `<section><h3>Ablage</h3>
         <p>${s.kind === 'sharepoint' ? `Gespeichert in <strong>${esc(s.label)}</strong>. SharePoint führt für jede Datei einen Versionsverlauf.${s.webUrl ? ` <a href="${esc(s.webUrl)}" target="_blank" rel="noopener">Ordner öffnen</a>` : ''}` : `Gespeichert in <strong>diesem Browser</strong>${s.persistent ? '' : ' (nur bis zum Schließen, der Browser blockiert die Speicherung)'}. Für den Echtbetrieb in <code>config.json</code> auf SharePoint umstellen.`}</p>
-        <p class="note">Dateien: objekte/objekte.json, daten/stammdaten.json, plaene/JJJJ/Woche.json, personal/abwesenheiten.json, lohn/zeitkonto.json, ${Object.values(MODULE_DOCS).map((m) => m.path).join(', ')}, exporte/… Die Werkzeuge (Wasserzähler, Objektkontrolle, Objektdoku, Mattenwechsel) speichern in ihren eigenen Ordnern.</p>
+        <p class="note">Dateien: objekte/objekte.json, daten/stammdaten.json, plaene/JJJJ/Woche.json, personal/abwesenheiten.json, lohn/zeitkonto.json, ${Object.values(MODULE_DOCS).map((m) => m.path).join(', ')}, ${Object.values(YEAR_DOCS).map((m) => `${m.prefix}JJJJ.json`).join(', ')}, exporte/… Die Werkzeuge (Wasserzähler, Objektkontrolle, Objektdoku, Mattenwechsel) speichern in ihren eigenen Ordnern.</p>
         ${app.service.denied?.size ? `<p class="note">Ohne Leserecht (bleibt leer, wird nicht gespeichert): ${esc([...app.service.denied].join(', '))}</p>` : ''}</section>
       <section><h3>Datensicherung</h3><p class="note">Alle geladenen Daten der App als JSON (Stammdaten, Abwesenheiten, Zeitkonto, Fahrzeuge und die gerade geladenen Wochen). Die Werkzeuge sichern ihre Daten selbst in SharePoint.</p>
         <div class="actions">${app.config.features.download ? `<button class="btn" data-action="backup-download">${ICON.sheet} Herunterladen</button>` : ''}<button class="btn" data-action="backup-copy">${ICON.copy} Kopieren</button></div></section>

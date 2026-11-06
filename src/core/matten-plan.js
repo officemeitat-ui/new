@@ -23,7 +23,8 @@
 //  - 'ab-ist' (ab letztem Wechsel): nächster Solltermin = letzter bestätigter Wechsel + Intervall, ohne Wechsel der
 //    Starttermin. Weiter voraus ist nichts festgelegt, darum gibt es je Liegeplatz höchstens einen offenen Einsatz;
 //    der nächste entsteht, wenn der vorige erledigt, ausgesetzt oder verworfen ist (Vorschau: dueDates).
-//  - Verschieben setzt nur planned (shiftJob): Solltermin, Schlüssel und Rhythmus bleiben.
+//  - Verschieben setzt nur planned (shiftJob): Solltermin, Schlüssel und Rhythmus bleiben. Nachholen einplanen
+//    (catchUpJob) ebenso, mit Status 'nachzuholen' (auch für ausgesetzte und verworfene Einsätze).
 //  - Pause des Liegeplatzes oder Betriebsurlaub am Solltermin: Einsatz mit Status 'ausgesetzt' (Wechsel entfällt) oder –
 //    eingestellt mit skip 'nachholen' bzw. mode 'nachholen' an der Pause – 'nachzuholen', geplant am ersten Tag nach der
 //    Pause (liegt der in einer weiteren Pause, am ersten freien Tag danach). Pause ohne Ende: immer 'ausgesetzt'.
@@ -94,18 +95,26 @@ export function dayAfterPause(placement, date, closures = []) {
 const pauseText = (p) => p.reason || (p.kind === 'betriebsurlaub' ? 'Betriebsurlaub' : 'Pause')
 
 /**
- * Einsatz für einen Solltermin, mit Pause: ausgesetzt bzw. nachzuholen. Beim festen Rhythmus wird nur nachgeholt, wenn
- * der Tag nach der Pause vor dem nächsten Solltermin liegt (sonst ersetzt der nächste reguläre Wechsel das Nachholen).
+ * Was eine Pause bzw. ein Betriebsurlaub am Tag date mit dem Einsatz zum Solltermin due macht: null (keine Pause), sonst
+ * { status: 'nachzuholen', planned, reason } oder { status: 'ausgesetzt', reason }. Nachgeholt wird mit skip 'nachholen'
+ * bzw. mode 'nachholen' an der Pause; beim festen Rhythmus nur, wenn der Tag nach der Pause vor dem nächsten Solltermin
+ * liegt (sonst ersetzt der nächste reguläre Wechsel das Nachholen). Gilt beim Planen und für schon geplante Einsätze.
  */
+export function pauseEffect(placement, date, due, { closures = [], skip = 'entfaellt' } = {}) {
+  const p = pauseOn(placement, date, closures)
+  if (!p) return null
+  const mode = SKIP_MODES[p.mode] ? p.mode : SKIP_MODES[skip] ? skip : 'entfaellt'
+  const after = mode === 'nachholen' ? dayAfterPause(placement, date, closures) : null
+  const next = ruleOf(placement) === 'rhythmus' ? addDays(due, intervalOf(placement)) : ''
+  if (after && (!next || after < next)) return { status: 'nachzuholen', planned: after, reason: `${pauseText(p)}: nachholen` }
+  return { status: 'ausgesetzt', reason: pauseText(p) }
+}
+
+/** Einsatz für einen Solltermin, mit Pause: ausgesetzt bzw. nachzuholen (pauseEffect). */
 function newJob(placement, due, { closures, skip, now, by }) {
   const job = { key: jobKey(placement.id, due), placementId: placement.id, due, status: 'geplant', createdAt: now, createdBy: by }
-  const p = pauseOn(placement, due, closures)
-  if (!p) return job
-  const mode = SKIP_MODES[p.mode] ? p.mode : skip
-  const after = mode === 'nachholen' ? dayAfterPause(placement, due, closures) : null
-  const next = ruleOf(placement) === 'rhythmus' ? addDays(due, intervalOf(placement)) : ''
-  if (after && (!next || after < next)) return { ...job, status: 'nachzuholen', planned: after, reason: `${pauseText(p)}: nachholen` }
-  return { ...job, status: 'ausgesetzt', reason: pauseText(p) }
+  const effect = pauseEffect(placement, due, due, { closures, skip })
+  return effect ? { ...job, ...effect } : job
 }
 
 // ---------------------------------------------------------------- Solltermine
@@ -222,6 +231,15 @@ export const markNotDone = (job, { reason = '', ...opts } = {}) => touch(job, { 
 
 /** Wechsel bestätigt (oder nur teilweise): Status und Tag des Wechsels. */
 export const markDone = (job, date, { partial = false, ...opts } = {}) => touch(job, { status: partial ? 'teilweise' : 'erledigt', doneOn: isIso(date) ? date : jobDate(job) }, opts)
+
+/**
+ * Nachholen einplanen: ein ausgesetzter, verworfener oder offener Einsatz wird 'nachzuholen' am Tag date (Solltermin,
+ * Schlüssel und Rhythmus bleiben; date gleich dem Solltermin entfernt planned).
+ */
+export function catchUpJob(job, date, { reason = '', ...opts } = {}) {
+  if (!isIso(date)) return job
+  return { ...shiftJob(job, date, opts), status: 'nachzuholen', reason: reason || 'nachholen' }
+}
 
 /** Von Hand aussetzen (Wechsel entfällt) bzw. einen nachzuholenden Einsatz verwerfen. */
 export const skipJob = (job, { reason = '', ...opts } = {}) => touch(job, { status: 'ausgesetzt', reason: reason || job.reason || 'ausgesetzt' }, opts)

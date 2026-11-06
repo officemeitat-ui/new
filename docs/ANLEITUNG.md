@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 326 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 330 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (61)
+- [Objekte & Kunden](#objekte-kunden) (65)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (74)
 - [Verwaltung](#verwaltung) (56)
@@ -1649,7 +1649,7 @@ Ein Liegeplatz ist die Stelle beim Kunden, an der Matten liegen, z. B. „Haupte
 2. Oben nach Kunde, Gebiet oder Status filtern, z. B. „zu prüfen“.
 3. Einen Liegeplatz anklicken: Matten, Intervall, Zugang und Zeitfenster.
 
-> Tipp: „Nächster Wechsel“ rechnet die App aus Starttermin, Regel, Intervall, letztem Wechsel und Pausen; der Kalender folgt.
+> Tipp: „Nächster Wechsel“ rechnet die App aus Starttermin, Regel, Intervall, letztem Wechsel, Pausen und Betriebsurlaub; im Kalender verschobene oder ausgesetzte Einsätze gehen vor.
 > Tipp: Wer die Fakturierung nicht sieht, sieht Kunde und Matte aus einer Kopie am Liegeplatz, ohne Preise.
 > Tipp: Am Handy steht „Liegeplätze“ in der Leiste unten.
 
@@ -1707,6 +1707,71 @@ Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werk
 Unter „Matten-Touren“ sehen Fahrer ihre freigegebenen Touren: Stopps, Matten je Liegeplatz, Navigation und Bestätigung. Die Ansicht für unterwegs kommt mit dem nächsten Ausbau; bis dahin läuft der Mattenwechsel im Werkzeug. Preise und Kundenstamm sehen Fahrer nicht.
 
 *Fahrer Mattenwechsel, Mattenwechsel Büro, Vollzugriff*
+
+### Matten-Kalender: Woche und Monat
+
+*In der App: Matten-Kalender*
+
+Der Matten-Kalender zeigt die gespeicherten Einsätze je Tag, nach Gebiet und Objekt: Liegeplätze, Matten je Größe, Status in Farbe und unten je Tag die Ladeliste. Oben stehen überfällige und nachzuholende Einsätze. Umschalten zwischen Woche und Monat; am Handy ist es eine Tagesliste.
+
+1. „Matten-Kalender“ unter „Objekte & Kunden“ öffnen.
+2. Oben „Woche“ oder „Monat“ wählen, mit den Pfeilen blättern.
+3. Einen Einsatz antippen: Details, Verschieben, Aussetzen, Nachholen.
+4. Im Monat einen Tag antippen zeigt seine Woche mit Ladeliste.
+
+> Tipp: Jeder Status hat eine eigene Farbe und steht immer auch als Text dabei: geplant, verschoben, überfällig, nachzuholen, ausgesetzt, erledigt.
+> Tipp: Fahrer sehen den Kalender nicht; sie bekommen ihre Tour.
+> Tipp: Nach Gebiet filtern zeigt nur die Liegeplätze einer Tourrunde.
+
+*Mattenwechsel Büro, Vollzugriff*
+
+### Einsätze planen (Mattenwechsel)
+
+*In der App: Matten-Kalender*
+
+„Einsätze planen“ legt die Wechsel aller aktiven Liegeplätze für einen Zeitraum an, vorgegeben die nächsten 8 Wochen: aus Starttermin, Intervall und Regel, mit Pausen und Betriebsurlaub. Erneutes Planen erzeugt keine Doppel; die App meldet „x neu, y unverändert, z zur Prüfung“.
+
+1. Im „Matten-Kalender“ auf „Einsätze planen“ klicken.
+2. Zeitraum prüfen oder eine Dauer wählen (4, 8, 12 oder 26 Wochen).
+3. „Einsätze planen“ klicken.
+4. Steht etwas „zur Prüfung“ (Liegeplatz inaktiv, Pause am Termin): „Anpassen“ klicken.
+
+> Tipp: Gespeichert wird je Jahr eine Datei matten/einsaetze-<Jahr>.json; ein in den Jänner verschobener Einsatz bleibt im Jahr seines Solltermins.
+> Tipp: „Zu erledigen“ erinnert, wenn Einsätze für die nächsten zwei Wochen fehlen.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Einsatz verschieben, aussetzen, nachholen oder verwerfen
+
+*In der App: Matten-Kalender*
+
+Verschieben legt einen Einsatz auf einen anderen Tag; der Rhythmus und die folgenden Wechsel bleiben. Aussetzen (mit Grund) lässt den Wechsel entfallen, Nachholen plant einen ausgesetzten oder überfälligen an einem Tag ein, Verwerfen (mit Grund) streicht ihn.
+
+1. Im „Matten-Kalender“ den Einsatz antippen oder mehrere mit dem Kästchen markieren.
+2. Oben „Verschieben“, „Aussetzen“, „Nachholen“ oder „Verwerfen“ wählen.
+3. Tag bzw. Grund eintragen und bestätigen.
+
+> Tipp: „alle“ im Kopf eines Tages markiert alle Einsätze des Tages.
+> Tipp: Verschoben lässt sich mit „Zurück auf den Solltermin“ wieder rückgängig machen.
+> Tipp: Erledigte Einsätze und Einsätze in einer Tour ändert der Kalender nicht.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Betriebsurlaub und Schließtage im Mattenwechsel
+
+*In der App: Matten-Kalender*
+
+Betriebsurlaub und Schließtage gelten für alle Liegeplätze. Fällt ein Wechsel hinein, entfällt er (ausgesetzt) oder wird am ersten freien Tag danach nachgeholt – je nach Einstellung, beim festen Rhythmus nur vor dem nächsten regulären Wechsel. Pausen eines einzelnen Liegeplatzes stehen am Liegeplatz.
+
+1. Im „Matten-Kalender“ „Mehr“ → „Betriebsurlaub und Schließtage“ öffnen.
+2. „+ Betriebsurlaub“: von, bis und Grund eintragen.
+3. Wählen, ob ein Wechsel entfällt oder nachgeholt wird.
+4. „Speichern“ klicken.
+
+> Tipp: Schon geplante Einsätze ab heute passt die App beim Speichern an.
+> Tipp: Je Eintrag lässt sich abweichend „entfällt“ oder „nachholen“ wählen.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 
 ### Rollen im Mattenwechsel: Büro und Fahrer
 

@@ -301,8 +301,8 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
-// matten.js, matten-uebernahme.js: Mattenwechsel-Modul (Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem
-// Werkzeug, Matten-Touren der Fahrer); das Werkzeug selbst bleibt unter #matten (tools.js)
+// matten.js, matten-uebernahme.js, matten-kalender.js: Mattenwechsel-Modul (Liegeplätze je Kunde → Objekt, Gebiete,
+// Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Matten-Touren der Fahrer); das Werkzeug bleibt unter #matten (tools.js)
 lazy(BUERO, {
   views: [
     {
@@ -320,6 +320,20 @@ lazy(BUERO, {
       text: 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Intervall, Übernahme',
     },
     {
+      id: 'mw-kalender',
+      order: 75.55,
+      label: 'Matten-Kalender',
+      group: 'service',
+      module: 'matten',
+      icon: '<rect x="3.5" y="4.5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17M8 2.5v4M16 2.5v4"/><rect x="7" y="13" width="10" height="4" rx="1"/>',
+      noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.5" y="9" width="7" height="2.6" rx="0.8" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
+        label: 'Kalender',
+      },
+      text: 'Mattenwechsel: Einsätze planen, Woche und Monat, verschieben, aussetzen, nachholen',
+    },
+    {
       id: 'mw-touren',
       order: 75.6,
       label: 'Matten-Touren',
@@ -334,9 +348,12 @@ lazy(BUERO, {
       text: 'Mattenwechsel: eigene Touren, Wechsel je Liegeplatz bestätigen',
     },
   ],
-  modals: 'mw-edit mw-areas',
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
-    mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run`,
+    mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
+    mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
+    mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save`,
+  todo: ['matten'],
 })
 
 // arbeitsschutz.js: Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung mit Maßnahmen und Fristen

@@ -10,6 +10,7 @@
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
 import { coordsText, parseCoords } from '../../core/geo.js'
 import { matTypes } from '../../core/invoicing.js'
+import { confirmedExchanges, planSettings } from '../../core/matten-einsaetze.js'
 import {
   activeAreas,
   areaOf,
@@ -64,10 +65,15 @@ const STATE_TEXT = { ueberfaellig: 'überfällig', faellig: 'bald', geplant: 'ge
 const STATE_CLS = { ueberfaellig: 'error', faellig: 'warning', geplant: 'ok', pausiert: 'na', inaktiv: 'na', ohne: 'warning' }
 
 /**
- * Alle Zeilen (je Berechnung gemerkt). Nächster Wechsel über den Fälligkeitsrechner (core/matten-plan.js, nextDue);
- * bestätigte Wechsel vorerst nur der letzte aus der Übernahme, Einsätze und Betriebsurlaub kommen mit Kalender und Touren.
+ * Alle Zeilen (je Berechnung gemerkt). Nächster Wechsel über den Fälligkeitsrechner (core/matten-plan.js, nextDue) mit
+ * den gespeicherten Einsätzen (verschoben, ausgesetzt, nachzuholen; app.data.mattenJobs, Kalender: views/matten-kalender.js)
+ * und dem Betriebsurlaub der Einstellungen; bestätigte Wechsel vorerst der letzte aus der Übernahme (Touren folgen).
  */
-const rowsAt = (today = todayISO()) => memo(app.cur, `matten:${today}`, () => placementRows({ doc: doc(), objects: app.data.objects || [], customers: fakCustomers(), articles: fakArticles(), today }))
+const rowsAt = (today = todayISO()) =>
+  memo(app.cur, `matten:${today}`, () => {
+    const s = planSettings(doc())
+    return placementRows({ doc: doc(), objects: app.data.objects || [], customers: fakCustomers(), articles: fakArticles(), today, done: confirmedExchanges({ placements: doc().placements }), jobs: app.data.mattenJobs || [], closures: s.closures, skip: s.skip })
+  })
 
 /** Mattentypen zur Auswahl (Fakturierung bzw. Kopien) und ob es überhaupt welche gibt. */
 const typeChoices = () => knownTypes({ articles: fakArticles(), placements: doc().placements })
@@ -83,7 +89,10 @@ const nextCell = (r) => {
   const pill = `<span class="pill ${STATE_CLS[r.state]}">${esc(STATE_TEXT[r.state])}</span>`
   if (r.state === 'inaktiv') return pill
   if (!r.next) return `${pill}<br><span class="muted">${r.paused ? 'Pause ohne Ende' : 'Starttermin fehlt'}</span>`
-  return `${esc(short(r.next.date))} ${pill}${r.next.overdue ? '<br><span class="muted">seit dem Termin offen</span>' : ''}`
+  // gespeicherter Einsatz (Kalender): verschoben oder nachzuholen mit dem Solltermin dazu
+  const job = r.next.job
+  const why = job?.status === 'nachzuholen' ? `nachzuholen (Solltermin ${short(job.due)})` : job?.planned && job.planned !== job.due ? `verschoben (Solltermin ${short(job.due)})` : ''
+  return `${esc(short(r.next.date))} ${pill}${r.next.overdue ? '<br><span class="muted">seit dem Termin offen</span>' : ''}${why ? `<br><span class="muted">${esc(why)}</span>` : ''}`
 }
 const lines = (list) => list.join('<br>')
 
@@ -98,6 +107,7 @@ function mattenView() {
       label: 'Mehr',
       single: false,
       items: [
+        { label: 'Kalender', icon: ICON.calendar, action: 'view', data: { view: 'mw-kalender' }, hint: 'Einsätze planen, verschieben' },
         ed && { label: 'Gebiete (Tourrunden)', icon: ICON.gear, action: 'mw-areas-open', hint: 'anlegen, umbenennen' },
         sees('fakturierung') && { label: 'Mattentypen und Preise', icon: ICON.gear, action: 'mw-types-goto', hint: 'in der Fakturierung' },
         mayImport() && { label: 'Übernahme aus dem Werkzeug', icon: ICON.download, action: 'mw-tab', data: { v: 'uebernahme' }, hint: 'einmalig, mit Sicherung' },
@@ -161,7 +171,7 @@ function listTab(all) {
     })
     .join('')
   return `${filters}${blocks || `<p class="empty">Kein Liegeplatz in dieser Auswahl.${filtered ? ' Filter zurücksetzen zeigt alle.' : ''}</p>`}
-    <p class="note">„Nächster Wechsel“ rechnet die App aus Starttermin, Regel, Intervall, letztem Wechsel und Pausen. Kalender mit Verschieben, Aussetzen und Nachholen folgt mit der Planung.</p>`
+    <p class="note">„Nächster Wechsel“ rechnet die App aus Starttermin, Regel, Intervall, letztem Wechsel, Pausen und Betriebsurlaub; geplante Einsätze im „Matten-Kalender“ gehen vor (verschoben, ausgesetzt, nachzuholen).</p>`
 }
 
 registerView({

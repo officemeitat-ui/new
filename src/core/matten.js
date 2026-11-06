@@ -7,7 +7,9 @@
 //
 // Datei matten/matten.json (Ordner matten/ für das Büro; Touren der Fahrer später unter matten/touren/):
 //   { schema: 1,
-//     settings: {},                                   Einstellungen (Betriebshof, Arbeitstag, Routing … ab Phase Planung)
+//     settings: { closures: [{ from, to, reason, mode? }] (Betriebsurlaub für alle Liegeplätze), skip ('entfaellt' |
+//                 'nachholen': Wechsel in einer Pause), planning: { von, bis, at, by } (letztes „Einsätze planen“) }
+//                 – Planung und Kalender: core/matten-einsaetze.js; Betriebshof, Routing … ab der Tourenplanung
 //     placements: [{ id, legacyId ('L-0001', nur aus der Übernahme), objectId, customerId,
 //                    customer: { id, name, no }      schmale Kopie für Rollen ohne Fakturierung (Büro, Fahrer)
 //                    name (Liegeplatz, z. B. „Haupteingang“), floor (Stockwerk), access (Zugang/Schlüssel), hint, active,
@@ -227,16 +229,17 @@ export function updatePlacement(existing, fields, { now, user }) {
 
 /**
  * Bestätigte Wechsel aus den Liegeplätzen für den Fälligkeitsrechner: der letzte Wechsel aus der Übernahme
- * (lastExchange). Die Wechsel aus den Touren des Moduls kommen mit der Phase Fahrer dazu.
+ * (lastExchange). Mit den Touren zusammen: confirmedExchanges in core/matten-einsaetze.js.
  */
 export const doneFromPlacements = (placements = []) => (placements || []).filter((p) => p?.lastExchange?.date).map((p) => ({ placementId: p.id, date: p.lastExchange.date }))
 
 /**
  * Nächster Wechsel eines Liegeplatzes (nextDue aus core/matten-plan.js) und ob heute eine Pause gilt:
- * { next: { date, due, key, job, overdue } | null, paused }. done/jobs/closures wie im Fälligkeitsrechner.
+ * { next: { date, due, key, job, overdue } | null, paused }. done/jobs/closures/skip wie im Fälligkeitsrechner: ein
+ * gespeicherter offener Einsatz geht vor (verschoben: am neuen Tag), ausgesetzte und verworfene zählen nicht.
  */
-export function nextOf(p, { today, done = [], jobs = [], closures = [] } = {}) {
-  return { next: p?.active === false ? null : nextDue(p, { done, jobs, closures, today }), paused: !!pauseOn(p, today, closures) }
+export function nextOf(p, { today, done = [], jobs = [], closures = [], skip = 'entfaellt' } = {}) {
+  return { next: p?.active === false ? null : nextDue(p, { done, jobs, closures, today, skip }), paused: !!pauseOn(p, today, closures) }
 }
 
 /** Zustand für die Anzeige: 'inaktiv' | 'pausiert' | 'ueberfaellig' | 'faellig' (bis 7 Tage) | 'geplant' | 'ohne' (kein Termin). */
@@ -261,9 +264,10 @@ export const intervalText = (days) => {
 /**
  * Zeilen der Übersicht: [{ placement, object, customer: { id, name, no }, area, mats: [{ label, qty, owner, missing }],
  * qty, next (nextDue), paused, state, missingType }]. customers/articles: aus der Fakturierung, wenn lesbar (sonst null →
- * Kopien). done/jobs/closures für den Fälligkeitsrechner; ohne done gilt der letzte Wechsel aus der Übernahme.
+ * Kopien). done/jobs/closures/skip für den Fälligkeitsrechner (gespeicherte Einsätze, Betriebsurlaub); ohne done gilt
+ * der letzte Wechsel aus der Übernahme.
  */
-export function placementRows({ doc, objects = [], customers = null, articles = null, today, done = null, jobs = [], closures = [] }) {
+export function placementRows({ doc, objects = [], customers = null, articles = null, today, done = null, jobs = [], closures = [], skip = 'entfaellt' }) {
   const confirmed = done || doneFromPlacements(doc?.placements)
   const objById = new Map(objects.map((o) => [o.id, o]))
   const custById = new Map((customers || []).map((c) => [c.id, c]))
@@ -271,7 +275,7 @@ export function placementRows({ doc, objects = [], customers = null, articles = 
     const c = custById.get(p.customerId)
     const customer = c ? customerCopy(c) : { id: p.customerId || '', name: p.customer?.name || (p.customerId ? 'Kunde' : 'ohne Kunde'), no: p.customer?.no || '' }
     const mats = (p.mats || []).map((m) => ({ ...matDisplay(m, articles), qty: Number(m.qty) || 0, owner: m.owner === 'kunde' ? 'kunde' : 'wir' }))
-    const n = nextOf(p, { today, done: confirmed, jobs, closures })
+    const n = nextOf(p, { today, done: confirmed, jobs, closures, skip })
     return {
       placement: p,
       object: objById.get(p.objectId) || null,
