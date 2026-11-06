@@ -4,6 +4,7 @@
 // „Mein Dienstplan“), Verbrauch je Objekt mit Vergleich zur Kalkulation, Buchungsjournal.
 // Datei material/material.json (Rechenkern: core/material.js).
 
+import { ghsOf, isStoff, SDB_STATES, sdbState, settingsOf as aschSettings, SIGNALS } from '../../core/arbeitsschutz.js'
 import { calcWage, calculate, CALC_DEFAULTS } from '../../core/calculation.js'
 import { addDays, formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import {
@@ -407,6 +408,7 @@ function articleModal(c, m) {
         ${a ? `<label class="check"><input type="checkbox" id="ma-active" ${x.active !== false ? 'checked' : ''} ${dis}><span>wird geführt (sonst ausgeblendet, Buchungen bleiben)</span></label>` : `<label class="field"><span>Anfangsbestand im ${esc(d.locations[0].name)}</span><input type="text" inputmode="decimal" id="ma-start" placeholder="0" ${dis}></label>`}
       </div>
       ${/^https?:\/\//i.test(x.sds || '') ? `<p><a href="${esc(x.sds)}" target="_blank" rel="noopener">Sicherheitsdatenblatt öffnen</a></p>` : ''}
+      ${a && seesSafety() ? safetySection(a) : ''}
       ${a ? `<section><h3>Bestand</h3><p>${d.locations.map((l) => `${esc(l.name)}: <strong>${qtyText(map.get(`${a.id}|${l.id}`) || 0)}</strong>`).join(' · ')} · gesamt <strong>${qtyText(stockOf(d.moves, a.id, null, map))} ${esc(a.unit || '')}</strong></p></section>` : ''}
       ${recent.length ? `<section><h3>Letzte Buchungen</h3><ul class="tc-list">${recent.map((mv) => `<li>${formatDate(mv.date)} ${esc(MOVE_KINDS[mv.kind] || mv.kind)} ${mv.qty > 0 ? '+' : ''}${qtyText(mv.qty)} · ${esc(locName(mv.loc))}${mv.objectId ? ` → ${esc(objName(mv.objectId))}` : ''}${mv.employeeId ? ` → ${esc(empName(mv.employeeId))}` : ''}${mv.note ? ` <span class="muted">${esc(mv.note)}</span>` : ''}</li>`).join('')}</ul></section>` : ''}`,
     foot: `${ed && deletable ? `<button class="btn danger" data-action="mat-article-delete" data-id="${esc(a.id)}">${app.ui.confirm === `mat-art-del:${a.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : '<span></span>'}
@@ -414,6 +416,16 @@ function articleModal(c, m) {
   })
 }
 registerModal('mat-article', articleModal, { module: MODULE })
+
+// Arbeitsschutz: Angaben zum Arbeitsstoff stehen optional am Artikel (Dialog „asch-stoff“ im Arbeitsschutz)
+const seesSafety = () => !app.access || app.access.sees('arbeitsschutz') || app.access.sees('arbeitsstoffe')
+function safetySection(a) {
+  const on = isStoff(a)
+  const h = a.haz || {}
+  const s = sdbState(a, todayISO(), aschSettings(app.data.arbeitsschutz).sdbYears)
+  const facts = on ? [(h.ghs || []).map((id) => `${id} ${ghsOf(id)?.short || ''}`.trim()).join(', '), h.signal ? SIGNALS[h.signal] : '', `Sicherheitsdatenblatt: ${SDB_STATES[s.state]}${s.date ? ` (${formatDate(s.date)})` : ''}`].filter(Boolean) : ['nicht im Arbeitsstoffverzeichnis']
+  return `<section><h3>Arbeitsschutz</h3><p>${esc(facts.join(' · '))} <button class="btn small" data-action="asch-stoff-open" data-id="${esc(a.id)}">Gefahren und Sicherheitsdatenblatt</button></p></section>`
+}
 
 function saveArticle(id) {
   const name = val('ma-name').trim()

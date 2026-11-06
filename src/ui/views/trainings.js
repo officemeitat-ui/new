@@ -151,7 +151,8 @@ function sessionDraft() {
     m.trainer ??= app.user?.name || ''
     m.place ??= ''
     m.topic ??= typeOf(m.typeId)?.note || ''
-    m.participants = due(m.typeId)
+    // Teilnehmende vorgegeben (z. B. aus dem Arbeitsschutz: noch nicht unterwiesen), sonst wer die Art braucht
+    m.participants ??= due(m.typeId)
     m.sign = false
     m.pdf = true
   }
@@ -307,9 +308,16 @@ registerActions(
       renderModal()
       renderNow()
     },
+    // data-topic und data-participants (Kennungen mit Komma): z. B. aus Betriebsanweisung oder Maßnahme im Arbeitsschutz
     'tr-session-open': (el) => {
       clearSignatures('tr-sig-')
-      openModal({ type: 'tr-session', typeId: el.dataset.type || '' })
+      const known = new Set(active().map((e) => e.id))
+      openModal({
+        type: 'tr-session',
+        typeId: el.dataset.type || '',
+        ...(el.dataset.topic ? { topic: el.dataset.topic } : {}),
+        ...(el.dataset.participants ? { participants: el.dataset.participants.split(',').filter((id) => known.has(id)) } : {}),
+      })
     },
     'ts-redraw': () => {
       readSession()

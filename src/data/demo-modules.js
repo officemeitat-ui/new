@@ -1,5 +1,6 @@
 // Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus);
-// Anlagen & Prüffristen in demo-anlagen.js, Regieberichte in demo-regie.js, Qualitätsmessung in demo-qualitaet.js.
+// Anlagen & Prüffristen in demo-anlagen.js, Regieberichte in demo-regie.js, Qualitätsmessung in demo-qualitaet.js, Arbeitsschutz in demo-arbeitsschutz.js
+// (dort auch die Angaben zu Arbeitsstoffen an den Material-Artikeln).
 // Alles erfunden; Termine relativ zur angezeigten Woche, damit die Vorschau
 // immer etwas Fälliges zeigt. Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel
 // sind die eigenen Werkzeuge (werkzeuge/) mit ihren echten Daten in SharePoint.
@@ -11,6 +12,7 @@ import { createPurchaseDemo } from './demo-einkauf.js'
 import { createAnlagenDemo } from './demo-anlagen.js'
 import { createRegieDemo } from './demo-regie.js'
 import { createQualitaetDemo } from './demo-qualitaet.js'
+import { createArbeitsschutzDemo, stoffDemo } from './demo-arbeitsschutz.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -94,6 +96,9 @@ function demoMaterial() {
     art('a-demo10', 'Einweghandschuhe Nitril M', 'Arbeitskleidung & Schutz', 'Box', 's-demo1', 7.5, 4, 10),
     art('a-demo11', 'Arbeitsjacke', 'Arbeitskleidung & Schutz', 'Stk', '', 39, 0, 0),
   ]
+  // Arbeitsschutz: Gefahren und Sicherheitsdatenblatt an den Reinigungsmitteln (optional am Artikel)
+  const stoffe = stoffDemo(todayISO())
+  for (const a of articles) Object.assign(a, stoffe[a.id] || {})
   const price = Object.fromEntries(articles.map((a) => [a.id, a.price]))
   const start = { 'a-demo1': 18, 'a-demo2': 8, 'a-demo3': 10, 'a-demo4': 3, 'a-demo5': 6, 'a-demo6': 14, 'a-demo7': 28, 'a-demo8': 22, 'a-demo9': 7, 'a-demo10': 9, 'a-demo11': 5 }
   const moves = Object.entries(start).map(([articleId, qty]) => ({ id: id(), at: at(-28), date: day(-28), kind: 'korrektur', articleId, loc: 'lager', qty, price: price[articleId], by: 'Beispieldaten', note: 'Anfangsbestand' }))
@@ -228,6 +233,7 @@ function demoInvoicing() {
 }
 
 export function createModuleDemo(monday, employees = []) {
+  const material = demoMaterial()
   return {
     fakturierung: demoInvoicing(),
     ...createPurchaseDemo(),
@@ -237,7 +243,8 @@ export function createModuleDemo(monday, employees = []) {
     regie: createRegieDemo(),
     qualitaet: createQualitaetDemo(),
     termine: demoAppointments(monday, employees),
-    material: demoMaterial(),
+    material,
+    arbeitsschutz: createArbeitsschutzDemo(todayISO(), material.articles),
     fahrzeuge: demoVehicles(monday),
     reklamationen: demoComplaints(monday),
     // Kalkulation für die Wohnanlage (o5): Stiegenhaus, Eingang, Kellergang

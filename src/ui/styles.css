@@ -2351,3 +2351,32 @@ tr.muted td { color: var(--muted); }
   .qm-table .actions-cell { white-space: normal; }
   .qm-state { flex: 1 1 0; padding: 6px 8px; }
 }
+
+/* Arbeitsschutz (views/arbeitsschutz.js) */
+.asch-ghs { display: inline-flex; flex-wrap: wrap; gap: 2px; vertical-align: middle; }
+.asch-ghs svg { flex: none; }
+.asch-codes { font-size: 0.8rem; color: var(--muted); }
+.asch-table .actions-cell { white-space: nowrap; }
+.asch-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 6px 12px; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.asch-picks legend { padding: 0 4px; font-weight: 600; }
+.asch-pick { align-items: center; gap: 6px; }
+.asch-pick svg { flex: none; }
+.asch-pick span { line-height: 1.2; }
+.asch-ppe { grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); }
+.asch-objs-wrap { margin: 8px 0; }
+.asch-objs-wrap summary { cursor: pointer; font-weight: 600; }
+.asch-objs { max-height: 14rem; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 2px 12px; padding: 4px 0; }
+.asch-gaps li { margin: 4px 0; line-height: 1.6; }
+.asch-ba-pics { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 6px 0 10px; }
+.asch-hz { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 10px 0; }
+.asch-hz-head { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(8rem, auto) minmax(8rem, auto) auto auto; gap: 6px 10px; align-items: end; }
+.asch-m { display: grid; grid-template-columns: minmax(12rem, 2fr) minmax(8rem, 1fr) minmax(8.5rem, auto) minmax(8.5rem, auto) minmax(8rem, 1fr) auto; gap: 6px 10px; align-items: end; padding: 6px 0 6px 12px; border-left: 3px solid var(--line); margin-top: 8px; }
+.asch-hz .field, .asch-m .field { margin: 0; min-width: 0; }
+.asch-hz input, .asch-hz select { width: 100%; min-width: 0; }
+.asch-risk { padding-bottom: 8px; }
+@media (max-width: 720px) {
+  .asch-hz-head, .asch-m { grid-template-columns: 1fr 1fr; }
+  .asch-hz-head > .field:first-child, .asch-m > .field:first-child { grid-column: 1 / -1; }
+  .asch-m { padding-left: 8px; }
+  .asch-table .actions-cell { white-space: normal; }
+}

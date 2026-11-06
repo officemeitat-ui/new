@@ -111,7 +111,7 @@ test('Build: später geladene Module und Hilfe-Themen sind nicht im Start', asyn
   }
   walk(Object.keys(outputs).find((f) => outputs[f].entryPoint === 'src/ui/app.js'))
   const startInputs = new Set([...startFiles].flatMap((f) => Object.keys(outputs[f].inputs)))
-  const lazy = ['kpi', 'guide', 'calculation', 'proof', 'staff', 'sites', 'trainings', 'rules', 'system', 'vehicles', 'complaints', 'material', 'keys', 'anlagen', 'regie', 'qualitaet', 'invoicing', 'invoicing-bank', 'invoicing-abrechnung', 'invoicing-online', 'purchase', 'cashbook', 'einkauf-shared', 'weiterverrechnung', 'uva', 'weather'].map((m) => `src/ui/views/${m}.js`)
+  const lazy = ['kpi', 'guide', 'calculation', 'proof', 'staff', 'sites', 'trainings', 'rules', 'system', 'vehicles', 'complaints', 'material', 'keys', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'invoicing', 'invoicing-bank', 'invoicing-abrechnung', 'invoicing-online', 'purchase', 'cashbook', 'einkauf-shared', 'weiterverrechnung', 'uva', 'weather'].map((m) => `src/ui/views/${m}.js`)
   for (const file of [...lazy, 'src/help/topics.js', 'src/ai/agent.js', 'src/data/demo.js']) assert.ok(!startInputs.has(file), `${file} ist im Start (statischer Import aus einem Modul, das immer geladen wird?)`)
   for (const file of ['src/ui/views/lazy.js', 'src/ui/views/home.js', 'src/ui/views/week.js', 'src/ui/help.js']) assert.ok(startInputs.has(file), `${file} fehlt im Start`)
 })

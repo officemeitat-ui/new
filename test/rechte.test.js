@@ -81,7 +81,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -159,6 +159,45 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   // Prüfer: Objektdoku nur lesen, Objektliste der Kontrolle bearbeiten
   assert.deepEqual(tools(resolveAccess({ roleClaims: ['pruefer'], access, strict: true })).Objektdoku, 'Lesen')
   assert.ok(toolFolderRights(resolveAccess({ email: 'it@cleanos.at', access, strict: true })).every(([, , r]) => r === 'Bearbeiten'))
+})
+
+test('Rechte: Arbeitsschutz – Vollzugriff bearbeitet, Objektleitung und Objektmanagement lesen, Lager pflegt die Arbeitsstoffe', () => {
+  const role = (id) => resolveAccess({ roleClaims: [id], access, strict: true })
+  const rights = (id) => dataRights(role(id))
+  const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , x]) => [f, x]))
+  const FILE = MODULE_DOCS.arbeitsschutz.path
+  const SDB = 'arbeitsschutz/dokumente/sdb/Sanitaerreiniger_2025-10-01_s1.pdf'
+  const BA = 'arbeitsschutz/dokumente/betriebsanweisungen/Betriebsanweisung_Sanitaerreiniger_2026-11-06.pdf'
+  assert.equal(FILE, 'arbeitsschutz/arbeitsschutz.json')
+  // Vollzugriff: alles, auch die Angaben am Artikel
+  const voll = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  assert.ok(voll.canEdit('arbeitsschutz') && voll.canEdit('arbeitsstoffe'))
+  for (const p of [FILE, SDB, BA, MODULE_DOCS.material.path]) assert.ok(dataRights(voll).write(p), p)
+  // Objektleitung und Objektmanagement: sehen den Arbeitsschutz (lesen, Betriebsanweisungen drucken), ändern nichts daran
+  for (const id of ['objektleitung', 'objektmanagement']) {
+    const a = role(id)
+    const r = rights(id)
+    assert.ok(a.sees('arbeitsschutz') && !a.canEdit('arbeitsschutz') && !a.canEdit('arbeitsstoffe'), id)
+    assert.ok(r.read(FILE) && !r.write(FILE) && r.read(BA) && !r.write(BA) && r.read(SDB) && !r.write(SDB), id)
+    assert.ok(r.read(MODULE_DOCS.material.path) && r.read(DOC.master) && r.read(DOC.objects), id)
+    assert.deepEqual([rows(a).arbeitsschutz, rows(a)['arbeitsschutz/dokumente/sdb']], ['Lesen', 'Lesen'], id)
+  }
+  // Lager: Angaben am Artikel (material.json) und Sicherheitsdatenblätter hochladen; Evaluierung und Betriebsanweisungen nur lesen
+  const lager = role('lager')
+  const lr = rights('lager')
+  assert.ok(lager.sees('arbeitsschutz') && !lager.canEdit('arbeitsschutz') && lager.canEdit('arbeitsstoffe') && lager.canEdit('material'))
+  assert.ok(lr.write(MODULE_DOCS.material.path) && lr.write(SDB) && lr.read(FILE) && !lr.write(FILE) && !lr.write(BA))
+  assert.deepEqual([rows(lager).arbeitsschutz, rows(lager)['arbeitsschutz/dokumente/sdb'], rows(lager).material], ['Lesen', 'Bearbeiten', 'Bearbeiten'])
+  // ohne Recht: weder Datei noch Dokumente, auch nicht über den Unterordner
+  for (const id of ['objektservice', 'buchhaltung', 'vorarbeiter', 'lesen', 'lohnverrechnung', 'pruefer', 'fuhrpark', 'mattenwechsel']) {
+    const r = rights(id)
+    assert.ok(!role(id).sees('arbeitsschutz') && !r.read(FILE) && !r.read(SDB) && !r.write(SDB) && !r.read(BA), id)
+    assert.equal(rows(role(id)).arbeitsschutz, '', id)
+  }
+  // eigene Rolle „Sicherheitsfachkraft“ über config.json: Arbeitsschutz bearbeiten, Artikel nur lesen
+  const own = resolveAccess({ roleClaims: ['sicherheit'], access: { ...access, roles: { sicherheit: { label: 'Sicherheitsfachkraft', modules: ['arbeitsschutz', 'unterweisungen'], edit: ['arbeitsschutz'] } } }, strict: true })
+  const or = dataRights(own)
+  assert.ok(or.write(FILE) && or.write(BA) && or.write(SDB) && or.read(MODULE_DOCS.material.path) && !or.write(MODULE_DOCS.material.path) && or.write(MODULE_DOCS.assistenz.path))
 })
 
 test('Rechte: Mattenwechsel wird pro Gruppe zugewiesen', () => {

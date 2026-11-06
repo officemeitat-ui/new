@@ -300,6 +300,29 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
+// arbeitsschutz.js: Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung mit Maßnahmen und Fristen
+lazy(BUERO, {
+  views: [
+    {
+      id: 'arbeitsschutz',
+      order: 206,
+      label: 'Arbeitsschutz',
+      group: 'stamm',
+      module: 'arbeitsschutz',
+      icon: '<path d="M12 2.8 4.5 5.8v5.6c0 4.6 3.1 8.5 7.5 9.8 4.4-1.3 7.5-5.2 7.5-9.8V5.8z"/><path d="m8.7 12.1 2.3 2.3 4.4-4.6"/>',
+      noWeek: true,
+      text: 'Arbeitsstoffe, Betriebsanweisungen, Evaluierung mit Maßnahmen',
+    },
+  ],
+  modals: 'asch-stoff asch-ba asch-eval asch-settings',
+  actions: `asch-tab asch-search asch-only asch-all-m asch-goto asch-stoff-open asch-stoff-redraw asch-sdb-open asch-ba-open asch-ba-redraw asch-ba-pdf
+    asch-eval-open asch-eval-redraw asch-verz-pdf asch-verz-csv asch-sgd-pdf asch-stoff-save asch-sdb-file asch-sdb-del asch-ba-save asch-ba-delete
+    asch-ba-fill asch-ba-type asch-eval-save asch-eval-delete asch-tpl-add asch-reviewed asch-haz-add asch-haz-del asch-m-add asch-m-del asch-m-set
+    asch-settings-open asch-settings-save`,
+  // arbeitsstoffe: Sicherheitsdatenblätter für das Lager (eigene Quelle, Recht „Arbeitsstoffe“)
+  todo: ['arbeitsschutz', 'arbeitsstoffe'],
+})
+
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)
 lazy(BUERO, {
   views: [

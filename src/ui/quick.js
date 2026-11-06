@@ -14,6 +14,7 @@ export const QUICK = [
   { id: 'qualitaet', label: 'Qualitätsmessung', module: 'qualitaet', action: 'qm-measure-open', words: 'qualität messung stichprobe en 13549 aql kennzahl nachkontrolle raumgruppe' },
   { id: 'pruefung', label: 'Prüfung erfassen (Anlage)', module: 'anlagen', action: 'anl-check-open', words: 'anlage prüffrist feuerlöscher rauchmelder spielplatz lift wartung hausbetreuung' },
   { id: 'regie', label: 'Regiebericht (Sonderleistung)', module: 'regie', action: 'reg-new', words: 'regie regiestunden sonderleistung grundreinigung wasserschaden zusatzarbeiten unterschrift kunde auftrag' },
+  { id: 'evaluierung', label: 'Evaluierung (Arbeitsschutz)', module: 'arbeitsschutz', action: 'asch-eval-open', words: 'arbeitsschutz evaluierung gefahr gefährdung maßnahme frist sicherheit unfall' },
   { id: 'material', label: 'Material anfordern', key: 'm', module: 'material', action: 'mat-request-new', words: 'lager bestellen reinigungsmittel' },
   { id: 'rechnung', label: 'Rechnung', key: 'f', module: 'fakturierung', action: 'fak-new', data: { kind: 'rechnung' }, words: 'faktura fakturieren verrechnen' },
   { id: 'angebot', label: 'Angebot', module: 'fakturierung', action: 'fak-new', data: { kind: 'angebot' }, words: 'offert kostenvoranschlag' },

@@ -8,7 +8,8 @@
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
 //                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“),
-//                Qualitätsmessung: Nachkontrolle und Reklamationsgefahr je Objekt (nur „Öffnen“)
+//                Qualitätsmessung: Nachkontrolle und Reklamationsgefahr je Objekt (nur „Öffnen“),
+//                Arbeitsschutz (überfällige Maßnahmen, Evaluierung zu überprüfen, Sicherheitsdatenblätter; nur „Öffnen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -19,6 +20,7 @@
 
 import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { anlagenRows, attention as anlagenAttention, isUrgent as anlagenUrgent } from '../../core/anlagen.js'
+import { attention as aschAttention, isUrgent as aschUrgent } from '../../core/arbeitsschutz.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/qualitaet.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
@@ -37,7 +39,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz und überfällige Reklamationen', module: '*' },
 ]
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
@@ -330,6 +332,45 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'qm-goto', data: { obj: g.objectId } },
       })
     }
+  // Arbeitsschutz (wer ihn bearbeitet): überfällige oder unwirksame Maßnahmen, fällige Überprüfung je Evaluierung,
+  // Sicherheitsdatenblätter fehlend oder veraltet; nur „Öffnen“. Das Lager sieht die Datenblätter in „Zu erledigen“.
+  const asch = app.data.arbeitsschutz
+  if (asch && edits('arbeitsschutz'))
+    for (const x of aschAttention({ doc: asch, material: app.data.material || null, today })) {
+      if (x.kind === 'sdb') {
+        out.push({
+          id: `asch:sdb:${x.rows.map((r) => `${r.article.id}${r.sdb.state}`).join(',')}`,
+          agent: 'fristen',
+          prio: aschUrgent(x) ? 1 : 2,
+          title: `${plural(x.rows.length, 'Sicherheitsdatenblatt fehlt oder ist', 'Sicherheitsdatenblätter fehlen oder sind')} veraltet`,
+          text: 'Aktuelle Fassung beim Lieferanten oder Hersteller anfordern und beim Arbeitsstoff hochladen. Ich ändere dabei nichts selbst.',
+          lines: x.rows.slice(0, 6).map((r) => `${r.product}: ${r.sdb.state === 'fehlt' ? 'fehlt' : `Fassung ${formatDate(r.sdb.date)}`}`),
+          open: { label: 'Öffnen', action: 'asch-goto', data: { tab: 'stoffe', only: '1' } },
+        })
+        continue
+      }
+      const ev = x.ev
+      out.push(
+        x.kind === 'massnahmen'
+          ? {
+              id: `asch:m:${ev.id}:${x.list.map((y) => `${y.m.id}${y.state}`).join(',')}`,
+              agent: 'fristen',
+              prio: 1,
+              title: `Evaluierung ${ev.title}: ${plural(x.list.length, 'Maßnahme', 'Maßnahmen')} überfällig oder nicht wirksam`,
+              text: 'Maßnahme umsetzen oder eine neue festlegen, Verantwortliche erinnern. Ich ändere dabei nichts selbst.',
+              lines: x.list.slice(0, 6).map(({ m, state }) => `${m.text}: ${state === 'unwirksam' ? 'nicht wirksam' : `Frist ${formatDate(m.due)}`}${m.who ? ` (${m.who})` : ''}`),
+              open: { label: 'Öffnen', action: 'asch-goto', data: { tab: 'evaluierung', id: ev.id } },
+            }
+          : {
+              id: `asch:r:${ev.id}:${x.review.state}:${x.review.next}`,
+              agent: 'fristen',
+              prio: aschUrgent(x) ? 1 : 2,
+              title: `Evaluierung ${ev.title}: Überprüfung ${x.review.state === 'anlass' ? 'wegen eines Anlasses' : x.review.state === 'ueberfaellig' ? 'überfällig' : 'bald fällig'}`,
+              text: x.review.state === 'anlass' ? `Anlass am ${formatDate(x.review.trigger.date)}: ${x.review.trigger.text || ''}. Gefahren und Maßnahmen überprüfen.` : `Zuletzt überprüft am ${formatDate(ev.reviewedAt)}, nächste Überprüfung ${formatDate(x.review.next)}.`,
+              open: { label: 'Öffnen', action: 'asch-goto', data: { tab: 'evaluierung', id: ev.id } },
+            },
+      )
+    }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -433,7 +474,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })

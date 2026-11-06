@@ -24,7 +24,7 @@ import { activeSeason, seasonDeco, seasonInfo, seasonOutfit } from './season.js'
 import { esc, ICON } from './shared.js'
 
 // Pose zum Thema: Cleo zeigt das passende Werkzeug (sonst zeigt er auf die Stelle)
-const TOPIC_MOODS = { wetter: 'schnee', due: 'liste', kontrolle: 'liste', report: 'liste', coverage: 'liste', matten: 'teppich', objektmappe: 'wischt', objects: 'wischt', sites: 'wischt', zaehler: 'handy', zeiten: 'handy', termine: 'handy', waste: 'muell', fahrzeuge: 'haus', schluessel: 'haus', anlagen: 'liste', regie: 'handy', qualitaet: 'liste', unterweisungen: 'idee', kalkulation: 'idee', kennzahlen: 'daumen', reklamationen: 'desinfektion' }
+const TOPIC_MOODS = { wetter: 'schnee', due: 'liste', kontrolle: 'liste', report: 'liste', coverage: 'liste', matten: 'teppich', objektmappe: 'wischt', objects: 'wischt', sites: 'wischt', zaehler: 'handy', zeiten: 'handy', termine: 'handy', waste: 'muell', fahrzeuge: 'haus', schluessel: 'haus', anlagen: 'liste', regie: 'handy', qualitaet: 'liste', arbeitsschutz: 'liste', unterweisungen: 'idee', kalkulation: 'idee', kennzahlen: 'daumen', reklamationen: 'desinfektion' }
 export const topicMood = (t) => TOPIC_MOODS[t?.view] || 'zeigt'
 
 let seenBefore = false

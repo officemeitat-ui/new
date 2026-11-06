@@ -3,6 +3,7 @@
 // Suchen in den Werkzeugen (Zählstellen, Kontrollen, Akten) geht dort selbst.
 
 import { typeOf } from '../core/anlagen.js'
+import { isStoff } from '../core/arbeitsschutz.js'
 import { ACTIONS, app, closeModal, openModal, registerActions, registerModal, renderModal, renderNow, sectionLabel, sectionOf, visibleViews } from './context.js'
 import { quickResults } from './quick.js'
 import { esc, ICON, modalFrame } from './shared.js'
@@ -26,6 +27,7 @@ const KEYWORDS = {
   schluessel: 'Schlüssel Transponder Code',
   anlagen: 'Anlage Prüfung Prüffrist Feuerlöscher Rauchmelder Rauchwarnmelder Notbeleuchtung Spielplatz Lift Aufzug Blitzschutz Wartung Hausbetreuung',
   regie: 'Regiebericht Regie Regiestunden Sonderleistung Grundreinigung Wasserschaden Zusatzarbeiten Unterschrift Auftrag',
+  arbeitsschutz: 'Arbeitsschutz Arbeitsstoff Arbeitsstoffverzeichnis Gefahrstoff Chemikalie Sicherheitsdatenblatt SDB Betriebsanweisung Evaluierung Gefährdungsbeurteilung Maßnahme GHS Piktogramm ASchG Sicherheitsfachkraft',
   zaehler: 'Wasserzähler Ablesung Zählerstand',
   kontrolle: 'Prüfprotokoll Qualitätskontrolle',
   qualitaet: 'Qualität Qualitätsmessung Stichprobe EN 13549 AQL Kennzahl Raumgruppe Nachkontrolle Messung Bericht',
@@ -81,6 +83,12 @@ function results(q) {
       const obj = app.data.objects.find((o) => o.id === x.objectId)
       if (obj && hit(`Qualitätsmessung ${obj.name}`, `Qualität ${obj.name}`, (x.groups || []).map((g) => g.name).join(' '))) out.push({ group: 'Qualitätsmessung', label: obj.name, sub: (x.groups || []).map((g) => `${g.name} ${g.rooms}`).join(' · '), action: 'qm-goto', data: { obj: obj.id } })
     }
+  // Arbeitsschutz: Arbeitsstoffe (Produkt, Hersteller), Betriebsanweisungen, Evaluierungen (auch nach Gefahren)
+  if (sees('arbeitsschutz')) {
+    for (const a of app.data.material?.articles || []) if (isStoff(a) && hit(a.name, a.haz?.product, a.haz?.maker)) out.push({ group: 'Arbeitsstoffe', label: a.haz?.product || a.name, sub: [a.haz?.maker, a.haz?.use].filter(Boolean).join(' · '), action: 'asch-stoff-open', data: { id: a.id } })
+    for (const b of app.data.arbeitsschutz?.instructions || []) if (hit(b.title, b.area)) out.push({ group: 'Betriebsanweisungen', label: b.title, sub: b.area || '', action: 'asch-ba-open', data: { id: b.id } })
+    for (const ev of app.data.arbeitsschutz?.evaluations || []) if (ev.active !== false && hit(ev.title, ...(ev.hazards || []).map((h) => h.text))) out.push({ group: 'Evaluierung', label: ev.title, sub: `${(ev.hazards || []).length} Gefahren`, action: 'asch-eval-open', data: { id: ev.id } })
+  }
   if (sees('fahrzeuge'))
     for (const v of app.data.fahrzeuge?.vehicles || []) {
       const driver = app.data.employees.find((e) => e.id === v.driverId)?.name || ''
