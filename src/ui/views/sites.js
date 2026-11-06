@@ -1,13 +1,17 @@
 // Objekte & Leistungen (Stammplan), Objektinfo, Schlüssel, Budget.
+// Objektanweisungen mit Übersetzungen für den „Plan am Handy“ (instructionsI18n, core/sprachen.js): von Hand
+// oder „Mit KI übersetzen“ (nur, wenn der KI-Assistent eingerichtet ist; Vorschlag, gespeichert erst mit
+// dem Objekt). Ändert sich der deutsche Text, gelten die Übersetzungen als veraltet.
 
-import { addDays, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
+import { addDays, formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { holidayCalendar } from '../../core/holidays.js'
 import { DEFAULT_HOLIDAY_RULE, HOLIDAY_RULES, NTH_LABEL } from '../../core/plan.js'
 import { coordsText, parseCoords } from '../../core/geo.js'
 import { wasteSummary } from '../../core/waste.js'
 import { objectKeys } from '../../core/keys.js'
+import { FOREIGN_LANGUAGES, langInfo, staleLanguages, translationRows, updateTranslations } from '../../core/sprachen.js'
 import { locationFor } from '../../core/weather.js'
-import { app, closeModal, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
+import { app, closeModal, empName, onModalRender, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
 import { geocode } from '../geocode.js'
 import { readWaste, wasteSection } from '../waste-form.js'
@@ -40,7 +44,7 @@ function sitesView() {
           <button class="btn small" data-action="obj-edit" data-id="${esc(obj.id)}">Objekt bearbeiten</button></span></header>
         ${obj.waste?.streams?.length ? `<div class="folder-line waste-line">${ICON.trash}<span>${esc(wasteSummary(obj, today, holidays))}</span></div>` : ''}
         ${obj.winter?.active && weatherEnabled() ? `<div class="folder-line">${ICON.snow}<span>${esc(winterSummary(obj))}</span></div>` : ''}
-        ${obj.instructions || keys.length ? `<div class="folder-line">${obj.instructions ? `<span>${esc(obj.instructions)}</span>` : ''}${keys.length ? `<span class="keys">${ICON.key} ${keys.map((k) => `${esc(k.label)}: ${k.holderId ? esc(empName(k.holderId)) : 'Büro'}`).join(' · ')}</span>` : ''}</div>` : ''}
+        ${obj.instructions || keys.length ? `<div class="folder-line">${obj.instructions ? `<span>${esc(obj.instructions)}</span>${translationTag(obj)}` : ''}${keys.length ? `<span class="keys">${ICON.key} ${keys.map((k) => `${esc(k.label)}: ${k.holderId ? esc(empName(k.holderId)) : 'Büro'}`).join(' · ')}</span>` : ''}</div>` : ''}
         ${tasks.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Leistung</th><th>Rhythmus</th><th>Zeit</th><th>Pers.</th><th>Stammkraft</th><th>An Feiertagen</th><th>Qualifikation</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note" style="padding:10px 14px;margin:0">Noch keine Leistungen.</p>'}
       </article>`
     })
@@ -49,6 +53,65 @@ function sitesView() {
     <div class="actions edit-only"><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="obj-edit" data-id="new">${ICON.plus} Objekt anlegen</button></div></div>
     ${regionFilter()}
     <div class="objects">${cards}</div>`
+}
+
+/** Stand der Übersetzungen auf der Objektkarte: veraltet (Warnung) oder wie viele Sprachen. */
+function translationTag(obj) {
+  const stale = staleLanguages(obj)
+  if (stale.length) return ` <span class="tag warn-tag" title="Deutscher Text geändert: am Handy steht zusätzlich der deutsche Text">Übersetzung veraltet: ${esc(stale.map((id) => langInfo(id).own).join(', '))}</span>`
+  const n = translationRows(obj).filter((r) => r.text).length
+  return n ? ` <span class="tag">übersetzt: ${n} ${n === 1 ? 'Sprache' : 'Sprachen'}</span>` : ''
+}
+
+const sprStatus = (r) => (r.stale ? '<span class="pill warning">veraltet</span>' : r.text ? `<span class="pill ok">${r.ki ? 'mit KI, freigegeben' : 'aktuell'}</span>` : '<span class="pill na">fehlt</span>')
+
+/** Übersetzungen der Anweisung für den Plan am Handy: je Sprache ein Feld mit Stand, „Passt noch“, KI-Vorschlag. */
+function translationSection(o) {
+  const rows = translationRows(o)
+  const fresh = rows.filter((r) => r.text && !r.stale).length
+  const stale = rows.filter((r) => r.stale).length
+  return `<details class="spr-box"${stale ? ' open' : ''}><summary>Übersetzungen für Mitarbeitende <span class="muted">(${fresh} von ${rows.length} aktuell${stale ? `, ${stale} veraltet` : ''})</span></summary>
+    <p class="note">Im „Plan am Handy“ sieht jede Person die Anweisung in ihrer Sprache (Mitarbeitende → Bearbeiten → Sprache am Handy). Ändert sich der deutsche Text, gilt eine Übersetzung als veraltet: Am Handy steht dann zusätzlich der deutsche Text. „Passt noch“, wenn die Änderung die Übersetzung nicht betrifft.</p>
+    <div class="form-grid">${rows
+      .map(
+        (r) => `<div class="field wide"><label for="spr-${r.id}">${esc(r.label)} (<span lang="${esc(r.html)}">${esc(r.own)}</span>) <span id="spr-st-${r.id}">${sprStatus(r)}</span></label>
+      <textarea id="spr-${r.id}" rows="2" lang="${esc(r.html)}" style="font-family:inherit;font-size:inherit">${esc(r.text)}</textarea>
+      ${r.stale ? `<span><button class="btn small" data-action="spr-passt" data-lang="${r.id}" title="Die Änderung am deutschen Text betrifft diese Übersetzung nicht">Passt noch</button></span>` : ''}${r.at ? `<small class="muted">${r.ki ? 'mit KI übersetzt, ' : ''}gespeichert am ${esc(formatDate(r.at.slice(0, 10)))}${r.by ? ` von ${esc(r.by)}` : ''}</small>` : ''}</div>`,
+      )
+      .join('')}</div>
+    <p class="spr-ki-line" hidden><button class="btn small" id="spr-ki" data-action="spr-ki">Mit KI übersetzen</button> <span class="muted">schickt nur den deutschen Text an den KI-Dienst; das Ergebnis ist ein Vorschlag zum Prüfen</span></p>
+    <div id="spr-vorschau"></div>
+  </details>`
+}
+
+// „Mit KI übersetzen“ nur, wenn der KI-Assistent eingerichtet ist (ki.php meldet „aktiv“); einmal je Sitzung gefragt
+const kiCheck = { ok: null, at: 0 }
+onModalRender(($modal) => {
+  const line = $modal.querySelector('.spr-ki-line')
+  if (!line || app.config?.assistant === false) return
+  const show = () => kiCheck.ok && line.removeAttribute('hidden')
+  if (kiCheck.ok !== null || Date.now() - kiCheck.at < 300e3) return show()
+  kiCheck.at = Date.now()
+  import('../../ai/translate.js')
+    .then((m) => m.kiReady())
+    .then((ok) => {
+      kiCheck.ok = ok || null
+      if (ok && document.body.contains(line)) show()
+    })
+})
+
+/** Vorschlag der KI zur Prüfung: je Sprache Text und Haken (übernehmen); nichts ist gespeichert. */
+function proposalHtml(texts) {
+  const items = FOREIGN_LANGUAGES.filter((l) => texts[l.id])
+    .map((l) => {
+      const field = document.getElementById(`spr-${l.id}`)
+      const keep = field?.value.trim() && !document.getElementById(`spr-st-${l.id}`)?.textContent.includes('veraltet')
+      return `<li><label class="check"><input type="checkbox" id="spr-v-${l.id}" ${keep ? '' : 'checked'}><span><strong>${esc(l.label)}</strong>: <span lang="${esc(l.html)}" id="spr-vt-${l.id}">${esc(texts[l.id])}</span></span></label></li>`
+    })
+    .join('')
+  return `<div class="banner warn-banner spr-vorschlag"><p><strong>Vorschlag der KI – bitte lesen.</strong> Übernommen wird nur, was angehakt ist; gespeichert erst mit „Speichern“. Vorhandene aktuelle Übersetzungen sind nicht angehakt.</p>
+    <ul style="margin:0;padding-left:0;list-style:none;flex:1 1 100%">${items}</ul>
+    <div class="actions"><button class="btn small" data-action="spr-ki-weg">Verwerfen</button><button class="btn small primary" data-action="spr-ki-ok">Übernehmen</button></div></div>`
 }
 
 /** Schlüssel des Objekts aus dem Schlüsselbuch (null, wenn das Objekt dort nicht geführt wird oder das Modul fehlt). */
@@ -80,10 +143,11 @@ function objectModal(c, { id }) {
         <label class="field wide"><span>Sonntagsarbeit erlaubt aufgrund (Ausnahme von der Wochenendruhe)</span><input type="text" id="obj-sundaybasis" value="${esc(o.sundayBasis || '')}" placeholder="z. B. ARG-VO, Krankenanstalt · Betriebsvereinbarung vom … · leer = wie unter „Regeln“"></label>
       </div>
       <section><h3>Objektinfo</h3><div class="form-grid">
-        <label class="field wide"><span>Anweisungen für das Personal (erscheint im Einsatz und für Vertretungen)</span><textarea id="obj-instructions" rows="3" style="font-family:inherit;font-size:inherit">${esc(o.instructions || '')}</textarea></label>
+        <label class="field wide"><span>Anweisungen für das Personal (erscheint im Einsatz, für Vertretungen und im Plan am Handy)</span><textarea id="obj-instructions" rows="3" style="font-family:inherit;font-size:inherit">${esc(o.instructions || '')}</textarea></label>
+        <div class="wide">${translationSection(o)}</div>
         <label class="field wide"><span>Ansprechperson beim Kunden</span><input type="text" id="obj-contact" value="${esc(o.contact || '')}"></label>
         <label class="field wide"><span>E-Mail für den Leistungsnachweis</span><input type="email" id="obj-proofemail" value="${esc(o.proofEmail || '')}" placeholder="z. B. hausverwaltung@beispiel.at"></label>
-      </div><p class="note">Keine Alarmcodes oder Passwörter eintragen: diese Daten liegen für alle Disponent:innen lesbar in SharePoint.</p></section>
+      </div><p class="note">Keine Alarmcodes oder Passwörter eintragen: diese Daten liegen für alle Disponent:innen lesbar in SharePoint und die Anweisungen am Handy der Mitarbeitenden.</p></section>
       ${bookKeys(o.id)
         ? `<section><h3>Schlüssel</h3><p>${bookKeys(o.id).map((k) => `${esc(k.label)}${k.no ? ` (${esc(k.no)})` : ''}: <strong>${k.holderId ? esc(empName(k.holderId)) : 'im Büro'}</strong>`).join(' · ') || 'keine aktiven Schlüssel'}</p>
         <p class="note">Die Schlüssel dieses Objekts stehen im Schlüsselbuch (Ausgabe, Rückgabe, Quittung). <button class="btn small" data-action="keys-open-object" data-obj="${esc(o.id)}">Im Schlüsselbuch öffnen</button></p></section>`
@@ -327,6 +391,13 @@ registerActions(
       }
       const waste = readWaste()
       obj.waste = waste.streams?.length ? waste : undefined
+      if (document.getElementById(`spr-${FOREIGN_LANGUAGES[0].id}`)) {
+        const field = (id) => document.getElementById(`spr-${id}`)
+        const inputs = Object.fromEntries(FOREIGN_LANGUAGES.map((l) => [l.id, field(l.id).value]))
+        const confirmed = FOREIGN_LANGUAGES.filter((l) => field(l.id).dataset.ok).map((l) => l.id)
+        const ki = FOREIGN_LANGUAGES.filter((l) => field(l.id).dataset.ki && field(l.id).value.trim() === field(l.id).dataset.ki.trim()).map((l) => l.id)
+        obj.instructionsI18n = updateTranslations(existing, obj.instructions, inputs, { confirmed, ki, by: app.user?.name || '', at: todayISO() })
+      }
       if (!obj.name) return toast('Bitte einen Namen eingeben.')
       if (obj.proofEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(obj.proofEmail)) return toast('Die E-Mail-Adresse für den Leistungsnachweis sieht nicht richtig aus.')
       if (val('obj-coords').trim() && !parseCoords(val('obj-coords'))) return toast('Koordinaten bitte als „Breite, Länge“ eintragen, z. B. 47.80950, 13.05500.')
@@ -337,6 +408,59 @@ registerActions(
       persist()
       closeModal()
       renderNow()
+      const stale = staleLanguages(obj)
+      if (stale.length) toast(`Gespeichert. Übersetzung veraltet (${stale.map((x) => langInfo(x).label).join(', ')}): am Handy steht dazu der deutsche Text. Bitte unter „Übersetzungen für Mitarbeitende“ anpassen.`)
+    },
+    'spr-passt': (el) => {
+      const field = document.getElementById(`spr-${el.dataset.lang}`)
+      if (!field) return
+      field.dataset.ok = '1'
+      document.getElementById(`spr-st-${el.dataset.lang}`).innerHTML = '<span class="pill ok">passt, wird beim Speichern bestätigt</span>'
+      el.remove()
+    },
+    'spr-ki': async (el) => {
+      const german = val('obj-instructions').trim()
+      if (!german) return toast('Bitte zuerst die Anweisung auf Deutsch eintragen.')
+      const box = document.getElementById('spr-vorschau')
+      el.disabled = true
+      el.textContent = 'Wird übersetzt …'
+      try {
+        const { translateText } = await import('../../ai/translate.js')
+        const texts = await translateText(german, FOREIGN_LANGUAGES.map((l) => l.id))
+        if (!Object.keys(texts).length) return toast('Die KI hat keine Übersetzung geliefert. Bitte von Hand übersetzen.')
+        if (box) {
+          box.dataset.german = german
+          box.innerHTML = proposalHtml(texts)
+        }
+      } catch (err) {
+        toast(`Übersetzen nicht möglich: ${err.message}`)
+      } finally {
+        el.disabled = false
+        el.textContent = 'Mit KI übersetzen'
+      }
+    },
+    'spr-ki-ok': () => {
+      const box = document.getElementById('spr-vorschau')
+      if (box?.dataset.german && box.dataset.german !== val('obj-instructions').trim()) {
+        box.innerHTML = ''
+        return toast('Der deutsche Text wurde inzwischen geändert. Bitte noch einmal übersetzen.')
+      }
+      let n = 0
+      for (const l of FOREIGN_LANGUAGES) {
+        const text = document.getElementById(`spr-vt-${l.id}`)?.textContent
+        if (!text || !document.getElementById(`spr-v-${l.id}`)?.checked) continue
+        const field = document.getElementById(`spr-${l.id}`)
+        field.value = text
+        field.dataset.ki = text
+        document.getElementById(`spr-st-${l.id}`).innerHTML = '<span class="pill info">Vorschlag der KI, noch nicht gespeichert</span>'
+        n++
+      }
+      if (box) box.innerHTML = ''
+      toast(n ? `${n} ${n === 1 ? 'Übersetzung' : 'Übersetzungen'} übernommen. Bitte prüfen und mit „Speichern“ sichern.` : 'Nichts angehakt, nichts übernommen.')
+    },
+    'spr-ki-weg': () => {
+      const box = document.getElementById('spr-vorschau')
+      if (box) box.innerHTML = ''
     },
     'obj-delete': (el) => {
       if (app.ui.confirm !== 'obj-delete') {

@@ -1,10 +1,12 @@
-// Mitarbeitende: Liste, Bearbeiten, Import aus Excel.
+// Mitarbeitende: Liste, Bearbeiten, Import aus Excel. Im Stammblatt auch die Sprache für „Plan am Handy“
+// (employees[].lang, leer = Deutsch; core/sprachen.js).
 
 import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
 import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, TASK_TEMPLATE } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
+import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, euro, ICON, menu, modalFrame, num, options, uid, val } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
@@ -16,7 +18,7 @@ function staffView(c) {
   const rows = filteredEmployees(c)
     .map(
       (e) => `<tr>
-      <td><button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}"><strong>${esc(e.name)}</strong></button>${e.personnelNo ? ` <span class="muted">#${esc(e.personnelNo)}</span>` : ''}${e.note ? `<br><span class="muted">${esc(e.note)}</span>` : ''}${e.email ? `<br><span class="muted">${esc(e.email)}</span>` : ''}</td>
+      <td><button class="link-btn" data-action="open-person" data-emp="${esc(e.id)}"><strong>${esc(e.name)}</strong></button>${e.personnelNo ? ` <span class="muted">#${esc(e.personnelNo)}</span>` : ''}${langOf(e) !== 'de' ? ` <span class="tag" lang="${esc(langInfo(e.lang).html)}" title="Sprache am Handy: ${esc(langInfo(e.lang).label)}">${esc(langInfo(e.lang).own)}</span>` : ''}${e.note ? `<br><span class="muted">${esc(e.note)}</span>` : ''}${e.email ? `<br><span class="muted">${esc(e.email)}</span>` : ''}</td>
       <td>${esc(e.team || '–')}</td>
       <td>${esc(e.type)}${e.minor ? '<br><span class="tag">unter 18 (KJBG)</span>' : ''}${e.durchrechnung && e.type === 'Vollzeit' ? `<br><span class="tag">Durchrechnung ${esc(e.durchrechnung.weeks)} Wochen</span>` : ''}</td>
       <td class="num">${formatHours(e.weeklyHours * 60)} h${e.maxMonthHours ? `<br><span class="muted">max. ${formatHours(e.maxMonthHours * 60)} h/Monat</span>` : ''}</td>
@@ -59,6 +61,7 @@ function employeeModal(c, { id }) {
         <label class="field"><span>Personalnummer</span><input type="text" id="emp-pnr" value="${esc(e.personnelNo || '')}"></label>
         <label class="field"><span>Revier / Team</span><input type="text" id="emp-team" list="team-list" value="${esc(e.team || '')}"><datalist id="team-list">${teams.map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
         <label class="field"><span>E-Mail (Microsoft 365)</span><input type="email" id="emp-email" value="${esc(e.email || '')}"></label>
+        <label class="field"><span>Sprache am Handy (Plan am Handy, Hinweise)</span><select id="emp-lang">${options(LANGUAGES.map((l) => [l.id, langLabel(l.id)]), langOf(e))}</select><small class="muted">Die Person kann sie am Handy umstellen.</small></label>
         <label class="field"><span>Beschäftigung</span><select id="emp-type">${EMPLOYMENT_TYPES.map((t) => `<option ${t === e.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>Wochenstunden (Soll)</span><input type="number" id="emp-hours" step="0.5" min="0" max="${MAX_WEEKLY_HOURS}" value="${esc(e.weeklyHours ?? '')}"></label>
         ${id === 'new' ? '' : `<label class="field"><span>Neue Wochenstunden gelten ab</span><input type="date" id="emp-hours-from" value="${mondayOf(todayISO())}"><small class="muted">${(e.hoursHistory || []).filter((h) => h.from > '0000-01-01').map((h) => `ab ${formatDate(h.from, { year: true })}: ${formatHours(h.weeklyHours * 60)} h`).join(' · ') || 'Frühere Wochen rechnen mit den bisherigen Stunden.'}</small></label>`}
@@ -93,6 +96,7 @@ function readEmployeeForm(existing) {
     personnelNo: val('emp-pnr').trim() || undefined,
     team: val('emp-team').trim() || undefined,
     email: val('emp-email').trim().toLowerCase() || undefined,
+    lang: document.getElementById('emp-lang') && val('emp-lang') !== 'de' ? val('emp-lang') : undefined,
     type: val('emp-type'),
     weeklyHours: num('emp-hours') ?? 0,
     entryDate: val('emp-entry') || undefined,

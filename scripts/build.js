@@ -76,6 +76,7 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 // Schnee-Alarm (Cronjob). Einstellungen und Stand des Alarms liegen in privat/ (gesperrt).
 // „Mein Dienstplan“ (mein-plan.php): persönlicher Link für Mitarbeitende, braucht dieselben Bausteine.
 // KI-Assistent (ki.php): Durchreicher zur Claude-API, Schlüssel in privat/ki.json.
+// Texte der Seiten für Mitarbeitende in sechs Sprachen (mein-plan-texte.php, für mein-plan.php und wetter-alarm.php).
 const webspace = [
   ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
   ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
@@ -84,7 +85,7 @@ const webspace = [
   ...(appConfig.customerPortal !== false ? ['kunden.php', 'kunden-unterschrift.js', ...(appConfig.weather === false ? ['wetter-foto.js'] : [])] : []),
 ]
 if (webspace.length) {
-  for (const file of ['wetter-lib.php', 'webspace-lib.php', 'system.php', ...(appConfig.assistant !== false ? ['ki.php'] : []), ...webspace]) await copy(file)
+  for (const file of ['wetter-lib.php', 'webspace-lib.php', 'mein-plan-texte.php', 'system.php', ...(appConfig.assistant !== false ? ['ki.php'] : []), ...webspace]) await copy(file)
   await mkdir(join(dist, 'privat'), { recursive: true })
 }
 

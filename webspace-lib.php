@@ -1,6 +1,7 @@
 <?php
 // Gemeinsame Bausteine der PHP-Seiten am Webspace (wetter-alarm.php, mein-plan.php):
-// Marke aus config.json, Seiten im Design der App, Push über ntfy, E-Mail.
+// Marke aus config.json, Seiten im Design der App, Push über ntfy, E-Mail, Sprachen der Seiten für
+// Mitarbeitende (Texte in mein-plan-texte.php).
 // Nur Funktionen, gibt nichts aus. Braucht holen() aus wetter-lib.php.
 
 declare(strict_types=1);
@@ -33,7 +34,7 @@ function html_seite(string $inhalt, int $status = 200, string $skript = '', stri
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
-    echo '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="' . $m['farbe'] . '"><title>' . $h($m['app']) . ' – ' . $h($titel) . '</title>'
+    echo '<!doctype html><html lang="' . $h(html_sprache()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="' . $m['farbe'] . '"><title>' . $h($m['app']) . ' – ' . $h($titel) . '</title>'
         . ($m['symbol'] ? '<link rel="icon" href="' . $h($m['symbol']) . '"><link rel="apple-touch-icon" href="' . $h($m['symbol']) . '">' : '')
         . '<meta name="apple-mobile-web-app-title" content="' . $h($titel === 'Winterdienst' ? $m['app'] : $titel) . '">'
         . '<style>body{margin:0;padding:1rem;background:#f3f6f8;color:#13232f;font:1.1rem/1.5 "Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif}'
@@ -43,7 +44,10 @@ function html_seite(string $inhalt, int $status = 200, string $skript = '', stri
         . 'select,input[type=time],textarea,input[type=file]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;background:#fff;color:inherit}'
         . 'button,a.knopf{display:block;box-sizing:border-box;text-align:center;text-decoration:none;font:inherit;font-weight:700;font-size:1.2rem;color:#fff;background:' . $m['farbe'] . ';border:0;border-radius:8px;padding:.85rem 1.4rem;width:100%;cursor:pointer;margin-top:1.2rem}'
         . '.ok{background:#eef6e2;color:#4e7a1e;border-radius:8px;padding:.6rem .8rem;font-weight:600}.fehler{background:#fce8e6;color:#b3261e;border-radius:8px;padding:.6rem .8rem}'
-        . 'ul{padding-left:1.2rem}li{margin:.2rem 0}</style>' . ($skript ? '<script src="' . $h($skript) . '" defer></script>' : '') . '</head>'
+        . 'ul{padding-left:1.2rem}li{margin:.2rem 0}main{overflow-wrap:break-word}'
+        . '.sprachwahl{float:right;margin:-.6rem -.4rem .4rem .6rem;font-size:.95rem;position:relative}.sprachwahl summary{list-style:none;cursor:pointer;display:flex;gap:.35rem;align-items:center;padding:.35rem .5rem;border:1px solid #c9d6df;border-radius:8px;color:#13232f;font-weight:600}.sprachwahl summary::-webkit-details-marker{display:none}.sprachwahl svg{width:1.1rem;height:1.1rem}'
+        . '.sprachwahl ul{position:absolute;right:0;z-index:2;list-style:none;margin:.3rem 0 0;padding:.3rem;background:#fff;border:1px solid #c9d6df;border-radius:8px;box-shadow:0 6px 20px rgb(19 35 47/.15);min-width:12rem;max-width:calc(100vw - 3rem)}.sprachwahl li{margin:0}.sprachwahl a,.sprachwahl b{display:block;padding:.45rem .6rem;border-radius:6px;color:#0a5a96;text-decoration:none}.sprachwahl b{color:#13232f;background:#e8f1fa}'
+        . '.veraltet{background:#fdf0d5;color:#6b4100;border-radius:8px;padding:.4rem .6rem;font-weight:600}</style>' . ($skript ? '<script src="' . $h($skript) . '" defer></script>' : '') . '</head>'
         . '<body><main>' . ($m['logo'] ? '<img class="logo" src="' . $h($m['logo']) . '" alt="' . $h($m['app']) . '">' : '') . $inhalt . '</main></body></html>';
 }
 
@@ -66,4 +70,144 @@ function mail_senden(string $an, string $betreff, string $text, string $absender
         $kopf[] = 'From: =?UTF-8?B?' . base64_encode(marke()['app'] . ($zusatz ? " – $zusatz" : '')) . '?= <' . $von . '>';
     }
     return @mail($an, '=?UTF-8?B?' . base64_encode($betreff) . '?=', $text, implode("\r\n", $kopf), $von ? '-f' . $von : '');
+}
+
+// ---------------------------------------------------------------- Sprachen (Seiten für Mitarbeitende)
+
+const SPRACH_COOKIE = 'mein_plan_sprache';
+const GLOBUS = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
+
+/** Alle Texte (mein-plan-texte.php): Sprache → Schlüssel → Text; Deutsch ist die Vorlage. */
+function texte(): array
+{
+    static $t = null;
+    if ($t === null) {
+        $d = is_file(__DIR__ . '/mein-plan-texte.php') ? require __DIR__ . '/mein-plan-texte.php' : null;
+        $t = is_array($d) && is_array($d['de'] ?? null) ? $d : ['de' => []];
+    }
+    return $t;
+}
+
+/** Die Kennung, wenn es diese Sprache gibt (de, bks, ro, tr, hu, en), sonst null. */
+function sprache_gueltig($s): ?string
+{
+    return is_string($s) && $s !== '' && isset(texte()[$s]) ? $s : null;
+}
+
+/** Sprache der Seite; mit $neu umstellen. */
+function sprache(?string $neu = null): string
+{
+    static $s = 'de';
+    if ($neu !== null && sprache_gueltig($neu)) {
+        $s = $neu;
+    }
+    return $s;
+}
+
+/** Sprachangabe für <html lang> (Bosnisch/Kroatisch/Serbisch: hbs). */
+function html_sprache(?string $s = null): string
+{
+    $l = texte()[$s ?? sprache()]['html_lang'] ?? 'de';
+    return is_string($l) && preg_match('/^[a-z]{2,3}$/', $l) ? $l : 'de';
+}
+
+/** Text in der Sprache der Seite (oder $sprache), Platzhalter {name} ersetzt. Fehlt die Übersetzung: Deutsch. */
+function t(string $key, array $werte = [], ?string $sprache = null): string
+{
+    $alle = texte();
+    $text = $alle[$sprache ?? sprache()][$key] ?? null;
+    if (!is_string($text) || trim($text) === '') {
+        $text = $alle['de'][$key] ?? $key;
+    }
+    if (!is_string($text)) {
+        return $key;
+    }
+    $ersetzen = [];
+    foreach ($werte as $k => $v) {
+        $ersetzen['{' . $k . '}'] = (string) $v;
+    }
+    return $ersetzen ? strtr($text, $ersetzen) : $text;
+}
+
+/** Wie t(), aber für HTML: der Text escapt, die Platzhalter bekommen fertiges (schon escaptes) HTML. */
+function th(string $key, array $html = [], ?string $sprache = null): string
+{
+    $ersetzen = [];
+    foreach ($html as $k => $v) {
+        $ersetzen['{' . $k . '}'] = (string) $v;
+    }
+    $text = htmlspecialchars(t($key, [], $sprache), ENT_QUOTES);
+    return $ersetzen ? strtr($text, $ersetzen) : $text;
+}
+
+/** Liste (z. B. Wochentage) in der Sprache; fehlt sie oder ist sie unvollständig: Deutsch. */
+function t_liste(string $key, ?string $sprache = null): array
+{
+    $alle = texte();
+    $de = (array) ($alle['de'][$key] ?? []);
+    $l = $alle[$sprache ?? sprache()][$key] ?? null;
+    return is_array($l) && count($l) === count($de) ? array_values($l) : array_values($de);
+}
+
+/** Datum JJJJ-MM-TT als Text, z. B. „Mo 02.11.“ bzw. „Pazartesi 02.11“ ($lang: voller Wochentag). */
+function datum_sprache(string $d, bool $lang = false, ?string $sprache = null): string
+{
+    $t = DateTimeImmutable::createFromFormat('!Y-m-d', $d);
+    if (!$t) {
+        return $d;
+    }
+    $tage = t_liste($lang ? 'tage_lang' : 'tage', $sprache);
+    return t('datum', ['tag' => $tage[(int) $t->format('N') - 1] ?? '', 'd' => $t->format('d'), 'm' => $t->format('m')], $sprache);
+}
+
+/**
+ * Sprache der Seite wählen und setzen: ?sprache= (das Gerät merkt sie sich per Cookie), sonst Cookie,
+ * sonst die zuletzt auf der Seite gewählte der Person, sonst die aus dem Stammblatt. Ohne bekannte Person
+ * ($browser) die Sprache des Browsers, sonst Deutsch.
+ */
+function sprache_waehlen(array $person = [], bool $browser = false): string
+{
+    $wahl = sprache_gueltig($_GET['sprache'] ?? null);
+    if ($wahl) {
+        if (!headers_sent()) {
+            setcookie(SPRACH_COOKIE, $wahl, ['expires' => time() + 400 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+        }
+        return sprache($wahl);
+    }
+    foreach ([$_COOKIE[SPRACH_COOKIE] ?? null, $person['spracheWahl'] ?? null, $person['sprache'] ?? null] as $s) {
+        if (sprache_gueltig($s)) {
+            return sprache($s);
+        }
+    }
+    if ($browser && !$person) {
+        foreach (explode(',', (string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')) as $teil) {
+            $code = strtolower(substr(trim($teil), 0, 2));
+            $code = in_array($code, ['bs', 'hr', 'sr', 'sh'], true) ? 'bks' : $code;
+            if (sprache_gueltig($code)) {
+                return sprache($code);
+            }
+        }
+    }
+    return sprache('de');
+}
+
+/** Sprache für Nachrichten an die Person (Push): zuletzt am Handy gewählt, sonst Stammblatt, sonst Deutsch. */
+function sprache_von(array $person): string
+{
+    return sprache_gueltig($person['spracheWahl'] ?? null) ?? sprache_gueltig($person['sprache'] ?? null) ?? 'de';
+}
+
+/** Auswahl der Sprache oben auf der Seite (Links, ohne Skript). $basis: Adresse der Seite ohne „sprache“. */
+function sprachwahl_html(string $basis): string
+{
+    $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
+    $punkte = '';
+    foreach (texte() as $id => $tx) {
+        $name = (string) ($tx['sprache_name'] ?? $id);
+        $lang = html_sprache($id);
+        $punkte .= $id === sprache()
+            ? '<li><b lang="' . $h($lang) . '" aria-current="true">' . $h($name) . '</b></li>'
+            : '<li><a href="' . $h($basis . (str_contains($basis, '?') ? '&' : '?') . 'sprache=' . rawurlencode((string) $id)) . '" lang="' . $h($lang) . '" hreflang="' . $h($lang) . '">' . $h($name) . '</a></li>';
+    }
+    return '<details class="sprachwahl"><summary title="' . $h(t('sprache_waehlen')) . '">' . GLOBUS . '<span>' . $h((string) (texte()[sprache()]['sprache_name'] ?? 'Deutsch')) . '</span></summary><ul aria-label="' . $h(t('sprache_waehlen')) . '">' . $punkte . '</ul></details>';
 }

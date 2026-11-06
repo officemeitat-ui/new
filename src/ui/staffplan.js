@@ -9,12 +9,16 @@
 // Einsatzbörse: beim Übertragen gehen dazu je Person die offenen Einsätze mit, die sie laut Regeln
 // übernehmen darf. „Ich übernehme“ steht dann unter „Zu erledigen“; „Einteilen“ prüft noch einmal,
 // teilt ein, sagt weiteren Meldungen ab und veröffentlicht die Woche neu.
+//
+// Sprache: Die Seite am Handy und die Push-Nachrichten kommen in der Sprache aus dem Stammblatt
+// (employees[].lang, beim Übertragen als personen[].sprache), ebenso die Nachricht mit dem Link.
 
 import { appointmentsBetween, employeesOf } from '../core/appointments.js'
 import { employedOn } from '../core/contract.js'
 import { addDays, dayIndex, formatDate, mondayOf, todayISO } from '../core/dates.js'
 import { PlanState } from '../core/plan.js'
 import { evaluateCandidate } from '../core/scheduler.js'
+import { langInfo, langOf, linkMessage } from '../core/sprachen.js'
 import { hashIndex, newCode, offeredBy, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
 import { ALARM_DEFAULTS, viennaParts } from '../core/weather.js'
 import { addLog, app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
@@ -123,7 +127,7 @@ export async function sendWeeks(mondays) {
     if (!app.data.published?.[monday]) continue
     const c = compute(monday)
     for (const emp of portalEmployees(c.ctx.employees, p.codes, monday)) {
-      entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp), appointments: appointmentsFor(emp.id, monday) }) })
+      entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', sprache: langOf(emp), monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp), appointments: appointmentsFor(emp.id, monday) }) })
     }
   }
   const offers = p.exchange === false ? { angebote: {}, byEmp: new Map() } : await offersByHash(p)
@@ -132,7 +136,7 @@ export async function sendWeeks(mondays) {
   const known = new Set(payload.personen.map((x) => x.hash))
   for (const id of offers.byEmp.keys()) {
     const hash = await sha256Hex(p.codes[id])
-    if (!known.has(hash)) payload.personen.push({ hash, name: empById(id)?.name || '', ntfy: p.topics[id] || '' })
+    if (!known.has(hash)) payload.personen.push({ hash, name: empById(id)?.name || '', ntfy: p.topics[id] || '', sprache: langOf(empById(id)) })
   }
   const remove = p.remove || []
   const res = await call('speichern', { ...payload, angebote: offers.angebote, entfernen: remove })
@@ -363,11 +367,8 @@ function readForm() {
   return d
 }
 
-function messageFor(emp, d) {
-  const link = personalLink(address(), d.codes[emp.id])
-  const topic = d.topics[emp.id]
-  return `Hallo ${firstName(emp.name)},\n\nhier ist dein persönlicher Dienstplan (${product()}):\n${link}\n\nEinmal öffnen, dann im Browser-Menü „Zum Startbildschirm“ wählen. Dort siehst du deine Einsätze und kannst Urlaub beantragen oder dich krank melden.${topic ? `\n\nFür eine Nachricht bei jedem neuen Plan: App „ntfy“ installieren, auf + tippen und dieses Thema abonnieren: ${topic}` : ''}\n\nDer Link ist nur für dich, bitte nicht weitergeben.`
-}
+/** Nachricht mit dem Link in der Sprache der Person (Stammblatt): { subject, text }. */
+const messageFor = (emp, d) => linkMessage(langOf(emp), { name: firstName(emp.name), product: product(), link: personalLink(address(), d.codes[emp.id]), topic: d.topics[emp.id] || '' })
 
 function portalModal() {
   const d = draft()
@@ -375,10 +376,11 @@ function portalModal() {
   const people = app.data.employees.filter((e) => d.codes[e.id] && (employedOn(e, today) || (e.entryDate && e.entryDate > today))).sort((a, b) => a.name.localeCompare(b.name, 'de'))
   const rows = people
     .map((e) => {
-      const msg = messageFor(e, d)
+      const { subject, text: msg } = messageFor(e, d)
       const topic = d.topics[e.id]
-      const mail = e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent('Dein Dienstplan am Handy')}&body=${encodeURIComponent(msg)}` : ''
-      return `<tr><td>${esc(e.name)}</td>
+      const mail = e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}` : ''
+      const lang = langOf(e)
+      return `<tr><td>${esc(e.name)}${lang !== 'de' ? ` <span class="tag" lang="${esc(langInfo(lang).html)}" title="Sprache am Handy und in der Nachricht">${esc(langInfo(lang).own)}</span>` : ''}</td>
         <td class="actions"><button class="btn small" data-action="portal-copy" data-text="${esc(personalLink(address(), d.codes[e.id]))}">${ICON.copy} Link</button><a class="btn small" href="https://wa.me/?text=${esc(encodeURIComponent(msg))}" target="_blank" rel="noopener">WhatsApp</a>${mail ? `<a class="btn small" href="${esc(mail)}">E-Mail</a>` : ''}</td>
         <td>${topic ? `<code>${esc(topic)}</code> <button class="btn small" data-action="portal-push" data-emp="${esc(e.id)}" title="Keine Push-Nachrichten mehr">aus</button>` : `<button class="btn small" data-action="portal-push" data-emp="${esc(e.id)}">Push einrichten</button>`}</td>
         <td><button class="btn small" data-action="portal-newlink" data-emp="${esc(e.id)}" title="Wenn der Link in falsche Hände geraten ist (z. B. Handy verloren): der alte gilt dann nicht mehr">Neuer Link</button></td></tr>`
@@ -392,7 +394,7 @@ function portalModal() {
       <label class="check"><input type="checkbox" id="pt-exchange" ${d.exchange !== false ? 'checked' : ''}><span><strong>Einsatzbörse</strong>: offene Einsätze der veröffentlichten Wochen erscheinen am Handy bei allen, die sie laut Regeln übernehmen dürfen (eingeschult, verfügbar, Ruhezeit, Höchstarbeitszeit, nicht abwesend). „Ich übernehme“ landet unter „Zu erledigen“; eingeteilt wird erst mit „Einteilen“ im Büro.</span></label>
       ${status}
       <h3>Persönliche Links</h3>
-      <p class="note">Link per WhatsApp oder E-Mail schicken. Beim ersten Öffnen merkt sich das Handy den Link (Tipp: „Zum Startbildschirm“). Beim Veröffentlichen einer Woche gehen die Pläne automatisch mit; wer Push eingerichtet hat, bekommt eine Nachricht bei neuen und geänderten Wochen (App „ntfy“, wie beim Schnee-Alarm). Der Link wirkt wie ein Passwort: bei Verlust „Neuer Link“.</p>
+      <p class="note">Link per WhatsApp oder E-Mail schicken, in der Sprache der Person (Stammblatt, „Sprache am Handy“); am Handy lässt sie sich umstellen. Beim ersten Öffnen merkt sich das Handy den Link (Tipp: „Zum Startbildschirm“). Beim Veröffentlichen einer Woche gehen die Pläne automatisch mit; wer Push eingerichtet hat, bekommt eine Nachricht bei neuen und geänderten Wochen (App „ntfy“, wie beim Schnee-Alarm). Der Link wirkt wie ein Passwort: bei Verlust „Neuer Link“.</p>
       ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Link schicken</th><th>Push (ntfy)</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">Noch keine Mitarbeitenden.</p>'}
       <h3>Zeiterfassung im Objekt (QR-Code)</h3>
       <label class="check"><input type="checkbox" id="pt-timeclock" data-change="portal-redraw" ${d.timeclock ? 'checked' : ''}><span><strong>Zeiterfassung ein</strong>: Je Objekt hängt ein QR-Code. Mit der Handy-Kamera scannen, „Kommen“ bzw. „Gehen“ tippen; die Uhrzeit nimmt der Server, nicht das Handy. Die App zeigt die Ist-Zeiten neben dem Plan (Ansicht „Zeiterfassung“, im Einsatz-Dialog); die Stunden im Wochenzettel bleiben die geplanten.</span></label>

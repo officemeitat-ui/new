@@ -9,10 +9,14 @@
 // Einsatzbörse: offene Einsätze gehen an alle, die sie laut Regeln übernehmen dürfen (dieselbe
 // Prüfung wie bei „Vorschlagen“: eingeschult, verfügbar, Ruhezeit, Höchstarbeitszeit, keine
 // Abwesenheit). „Ich übernehme“ kommt als Meldung (art „Einsatz“) zurück; eingeteilt wird im Büro.
+//
+// Sprache: je Person die aus dem Stammblatt (personen[].sprache), dazu je Woche die Objektanweisungen mit
+// ihren Übersetzungen (woche.objektinfo, core/sprachen.js). Das Handy zeigt alles in der Sprache der Person.
 
 import { employedInWeek } from './contract.js'
 import { addDays, isoWeek } from './dates.js'
 import { evaluateCandidate } from './scheduler.js'
+import { objectInfo } from './sprachen.js'
 
 export const REQUEST_TYPES = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand']
 export const PORTAL_DEFAULTS = { enabled: false, exchange: true, timeclock: false, alarmMin: 20, key: '', cronKey: '', codes: {}, topics: {}, oldHashes: {}, objectTokens: {}, officeTopic: '', officeEmails: '', sender: '' }
@@ -73,6 +77,14 @@ export function staffWeek(ts, { objectsById = new Map(), account = null, appoint
       ...(l.kind === 'missed' ? { entfaellt: true } : {}),
     }
   }
+  // Objektanweisungen (mit Übersetzungen) einmal je Objekt der Woche, nicht je Einsatz
+  const objektinfo = {}
+  for (const d of ts.days)
+    for (const l of d.lines) {
+      const id = l.inst?.objectId
+      const info = id && !(id in objektinfo) ? objectInfo(objectsById.get(id)) : null
+      if (info) objektinfo[id] = info
+    }
   return {
     kw: isoWeek(ts.monday).week,
     von: ts.monday,
@@ -86,15 +98,16 @@ export function staffWeek(ts, { objectsById = new Map(), account = null, appoint
     })),
     summe: { ist: ts.totals.ist, soll: ts.totals.soll },
     konto: account,
+    ...(Object.keys(objektinfo).length ? { objektinfo } : {}),
   }
 }
 
-/** Übertragung für den Webspace (aktion=speichern): Personen mit Hash, Wochen je Hash. */
+/** Übertragung für den Webspace (aktion=speichern): Personen mit Hash (und Sprache), Wochen je Hash. */
 export function savePayload(entries) {
   const personen = new Map()
   const wochen = {}
-  for (const { hash, name, ntfy, monday, week } of entries) {
-    personen.set(hash, { hash, name, ntfy: ntfy || '' })
+  for (const { hash, name, ntfy, sprache, monday, week } of entries) {
+    personen.set(hash, { hash, name, ntfy: ntfy || '', ...(sprache ? { sprache } : {}) })
     ;(wochen[hash] ||= {})[monday] = week
   }
   return { personen: [...personen.values()], wochen }

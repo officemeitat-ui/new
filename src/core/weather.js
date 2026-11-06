@@ -464,6 +464,8 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     const out = { name: e.name }
     if (a.topics?.[id]) out.ntfy = a.topics[id]
     if (withEmail && e.email) out.email = e.email
+    // Sprache aus dem Stammblatt: Knöpfe der Push-Nachricht, Seiten „Bin wach“ und Protokoll (wetter-alarm.php)
+    if (e.lang && e.lang !== 'de') out.sprache = e.lang
     const off = away(id)
     if (off.length) out.abwesend = off
     return out.ntfy || out.email ? out : null

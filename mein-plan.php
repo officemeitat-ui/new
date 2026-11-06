@@ -23,6 +23,13 @@
 // Material fehlt? (aktion=material): Die Person wählt eines ihrer Objekte laut Plan und schreibt,
 // was fehlt. Das Büro bekommt einen Push; die App übernimmt die Meldung als Anforderung ins Lager.
 //
+// Sprachen: Seite, Formulare, Hinweise und die Push-Nachrichten an die Person erscheinen in ihrer Sprache
+// (Deutsch, Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch, Englisch; Texte in
+// mein-plan-texte.php). Standard ist die Sprache aus dem Stammblatt (die App schickt sie beim Übertragen
+// mit, personen[].sprache); oben auf der Seite lässt sie sich umstellen (?sprache=, das Gerät merkt sie
+// sich, Push folgt der Wahl). Objektanweisungen kommen übersetzt aus der App (woche.objektinfo); ist eine
+// Übersetzung veraltet, steht der deutsche Text dabei. Nachrichten ans Büro bleiben deutsch.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten | zeiten
 // Cronjob: mein-plan.php?aktion=pruefen&schluessel=PRÜFSCHLÜSSEL oder php mein-plan.php pruefen
 
@@ -34,17 +41,137 @@ require __DIR__ . '/webspace-lib.php';
 const COOKIE = 'mein_plan';
 const ARTEN = ['Urlaub', 'Zeitausgleich', 'Pflegefreistellung', 'Krankenstand'];
 const STATUS_TEXT = ['offen' => 'offen', 'genehmigt' => 'genehmigt', 'abgelehnt' => 'abgelehnt', 'erledigt' => 'eingetragen'];
-const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-const EINSATZ_TEXT = ['offen' => 'gemeldet', 'genehmigt' => 'eingeteilt', 'abgelehnt' => 'nicht eingeteilt', 'erledigt' => 'erledigt'];
-const ABGABE_TEXT = ['offen' => 'angefragt', 'genehmigt' => 'in der Börse', 'abgelehnt' => 'nicht freigegeben', 'erledigt' => 'abgegeben'];
-const MATERIAL_TEXT = ['offen' => 'gemeldet', 'genehmigt' => 'notiert', 'abgelehnt' => 'nicht nötig', 'erledigt' => 'erledigt'];
+const ABWESENHEITEN = 'Urlaub|Krankenstand|Zeitausgleich|Pflegefreistellung|Sonstiges';
+// Hinweise der App zu einem Einsatz (Wochenzettel, deutsch) → Text in der Sprache der Person. Was hier
+// nicht steht (eigene Notizen, Müll), bleibt deutsch; Datumsangaben wie „Mo 02.11.“ werden umgeschrieben.
+const NOTIZ_MUSTER = [
+    '/^danach (?<n>\d+) min Fahrt zu (?<ziel>.+)$/u' => 'notiz_fahrt_zu',
+    '/^danach (?<n>\d+) min Fahrt$/u' => 'notiz_fahrt',
+    '/^Fahrt: (?<text>.+)$/u' => 'notiz_fahrt_text',
+    '/^Vertretung für (?<namen>.+)$/u' => 'notiz_vertretung_fuer',
+    '/^Vertretung: (?<namen>.+)$/u' => 'notiz_vertretung',
+    '/^verschoben von (?<datum>.+) \(Feiertag\)$/u' => 'notiz_verschoben_von_feiertag',
+    '/^verschoben von (?<datum>.+)$/u' => 'notiz_verschoben_von',
+    '/^verschoben auf (?<datum>.+)$/u' => 'notiz_verschoben_auf',
+    '/^Zeit diese Woche geändert$/u' => 'notiz_zeit_geaendert',
+    '/^entfällt diese Woche$/u' => 'notiz_entfaellt_woche',
+    '/^entfällt: (?<name>.+)$/u' => 'notiz_entfaellt_feiertag',
+    '/^Feiertag angerechnet$/u' => 'notiz_feiertag_angerechnet',
+    '/^nicht besetzt$/u' => 'notiz_nicht_besetzt',
+    '/^(?<n>\d+) min Pause abgezogen$/u' => 'notiz_pause',
+    '/^inkl\. (?<n>\d+) % Feiertagszuschlag$/u' => 'notiz_zuschlag_feiertag',
+    '/^inkl\. (?<n>\d+) % Sonntagszuschlag$/u' => 'notiz_zuschlag_sonntag',
+    '/^(?<n>\d+) % Feiertagszuschlag wird ausbezahlt$/u' => 'notiz_zuschlag_feiertag_bezahlt',
+    '/^(?<n>\d+) % Sonntagszuschlag wird ausbezahlt$/u' => 'notiz_zuschlag_sonntag_bezahlt',
+    '/^Zeitausgleich \(aus dem Zeitkonto\)$/u' => 'notiz_za_konto',
+    '/^Feiertag \((?<art>' . ABWESENHEITEN . ')\) angerechnet$/u' => 'notiz_feiertag_art_angerechnet',
+    '/^Feiertag \((?<art>' . ABWESENHEITEN . ')\)$/u' => 'notiz_feiertag_art',
+    '/^(?<art>' . ABWESENHEITEN . ') angerechnet$/u' => 'notiz_angerechnet',
+];
 
-function status_text(array $a): string
+/** Stand eines Antrags in der Sprache der Seite (oder $s), je nach Art (Einsatz, Abgabe, Material, sonst Antrag). */
+function status_text(array $a, ?string $s = null): string
 {
-    $s = (string) ($a['status'] ?? '');
-    $art = $a['art'] ?? '';
-    $texte = ['Einsatz' => EINSATZ_TEXT, 'Abgabe' => ABGABE_TEXT, 'Material' => MATERIAL_TEXT][$art] ?? [];
-    return $texte[$s] ?? STATUS_TEXT[$s] ?? $s;
+    $status = (string) ($a['status'] ?? '');
+    $gruppe = ['Einsatz' => 'einsatz', 'Abgabe' => 'abgabe', 'Material' => 'material'][$a['art'] ?? ''] ?? 'status';
+    return isset(STATUS_TEXT[$status]) ? t($gruppe . '_' . $status, [], $s) : $status;
+}
+
+/** Art eines Antrags oder einer Abwesenheit (Urlaub, Krankenstand …) in der Sprache; Unbekanntes bleibt. */
+function art_text(string $art, ?string $s = null): string
+{
+    $key = 'art_' . strtolower($art);
+    return isset(texte()['de'][$key]) ? t($key, [], $s) : $art;
+}
+
+/** Deutsche Datumsangaben der App („Mo 02.11.“) in der Sprache schreiben. */
+function datum_umschreiben(string $text, ?string $s = null): string
+{
+    $s ??= sprache();
+    if ($s === 'de') {
+        return $text;
+    }
+    $tage = t_liste('tage', $s);
+    $de = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    return preg_replace_callback('/\b(Mo|Di|Mi|Do|Fr|Sa|So) (\d\d)\.(\d\d)\./u', fn ($m) => t('datum', ['tag' => $tage[(int) array_search($m[1], $de, true)], 'd' => $m[2], 'm' => $m[3]], $s), $text) ?? $text;
+}
+
+/** Hinweis zu einem Einsatz (aus dem Wochenzettel der App) in der Sprache; Deutsch bleibt unverändert. */
+function notiz_text(string $n, ?string $s = null): string
+{
+    $s ??= sprache();
+    if ($s === 'de') {
+        return $n;
+    }
+    foreach (NOTIZ_MUSTER as $muster => $key) {
+        if (preg_match($muster, $n, $m)) {
+            $werte = array_filter($m, 'is_string', ARRAY_FILTER_USE_KEY);
+            if (isset($werte['datum'])) {
+                $werte['datum'] = datum_umschreiben($werte['datum'], $s);
+            }
+            if (isset($werte['art'])) {
+                $werte['art'] = art_text($werte['art'], $s);
+            }
+            if (($werte['ziel'] ?? '') === 'nächstem Einsatz') {
+                $werte['ziel'] = t('naechster_einsatz', [], $s);
+            }
+            return t($key, $werte, $s);
+        }
+    }
+    if (preg_match('/^(' . ABWESENHEITEN . ')$/u', $n)) {
+        return art_text($n, $s);
+    }
+    return datum_umschreiben($n, $s);
+}
+
+/** Antwort des Büros: die festen Sätze der App übersetzt, eigene Begründungen bleiben, wie sie sind. */
+function antwort_text(string $antwort, ?string $s = null): string
+{
+    $s ??= sprache();
+    if ($antwort === '' || $s === 'de') {
+        return $antwort;
+    }
+    foreach (texte()['de'] as $key => $de) {
+        if (!is_string($de) || !str_starts_with((string) $key, 'antwort_')) {
+            continue;
+        }
+        if ($de === $antwort) {
+            return t((string) $key, [], $s);
+        }
+        if (str_contains($de, '{name}') && preg_match('/^' . str_replace('\{name\}', '(?<name>.+)', preg_quote($de, '/')) . '$/u', $antwort, $m)) {
+            return t((string) $key, ['name' => $m['name']], $s);
+        }
+    }
+    return $antwort;
+}
+
+/**
+ * Objektanweisung zu einem Einsatz als HTML für „Objektinfo“: auf Deutsch der Text der App; in einer anderen
+ * Sprache die Übersetzung, ist sie veraltet (deutscher Text geändert) oder fehlt sie, der deutsche Text mit
+ * Hinweis. $info: woche.objektinfo[objektId] = { hinweis, uebersetzt: { tr: { text, veraltet } } }.
+ */
+function objektinfo_html(array $x, ?array $info): string
+{
+    $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
+    $de = trim((string) ($info['hinweis'] ?? $x['hinweis'] ?? ''));
+    if ($de === '') {
+        return '';
+    }
+    $s = sprache();
+    $deutsch = '<p' . ($s === 'de' ? '' : ' lang="de"') . '>' . nl2br($h($de)) . '</p>';
+    if ($s === 'de') {
+        return $deutsch;
+    }
+    $u = is_array($info['uebersetzt'][$s] ?? null) ? $info['uebersetzt'][$s] : [];
+    $text = trim((string) ($u['text'] ?? ''));
+    $lang = html_sprache($s);
+    if ($text !== '' && empty($u['veraltet'])) {
+        return '<p lang="' . $h($lang) . '">' . nl2br($h($text)) . '</p>';
+    }
+    if ($text !== '') {
+        return '<p class="veraltet">' . th('hinweis_veraltet') . '</p>' . $deutsch . '<p class="leise">' . th('hinweis_alt') . '<br><span lang="' . $h($lang) . '">' . nl2br($h($text)) . '</span></p>';
+    }
+    return '<p class="leise">' . th('hinweis_nur_deutsch') . '</p>' . $deutsch;
 }
 
 /** Objekte der Person laut Plan (vorige Woche bis zuletzt veröffentlicht): id → Name, für „Material fehlt?“. */
@@ -300,7 +427,8 @@ function nicht_erschienen(array $e, array $z): array
                 }
             }
             if (!empty($p['ntfy'])) {
-                ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => 'Noch nicht eingestempelt: ' . $was, 'message' => 'Bitte beim Objekt den QR-Code scannen. Kommst du später, bitte im Büro melden.', 'priority' => 4, 'tags' => ['alarm_clock'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
+                $sp = sprache_von($p);
+                ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => t('push_nicht_gestempelt', ['was' => $was], $sp), 'message' => t('push_nicht_gestempelt_text', [], $sp), 'priority' => 4, 'tags' => ['alarm_clock'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
             }
         }
     }
@@ -309,13 +437,11 @@ function nicht_erschienen(array $e, array $z): array
 }
 
 $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
-$tag = function (string $d): string {
-    $t = DateTimeImmutable::createFromFormat('!Y-m-d', $d);
-    return $t ? TAGE[(int) $t->format('N') - 1] . ' ' . $t->format('d.m.') : $d;
-};
-$zeitraum = fn (string $von, string $bis): string => $von === $bis ? $tag($von) : $tag($von) . ' – ' . $tag($bis);
-$stunden = fn ($min): string => str_replace('.', ',', (string) round(((int) $min) / 60, 2));
-$konto = fn ($min): string => ($min > 0 ? '+' : ($min < 0 ? '−' : '±')) . str_replace('.', ',', (string) round(abs((int) $min) / 60, 2));
+// Datum und Zeitraum in der Sprache der Seite; $s = 'de' für Nachrichten ans Büro, die Sprache der Person für ihren Push
+$tag = fn (string $d, ?string $s = null): string => datum_sprache($d, false, $s);
+$zeitraum = fn (string $von, string $bis, ?string $s = null): string => $von === $bis ? $tag($von, $s) : $tag($von, $s) . ' – ' . $tag($bis, $s);
+$stunden = fn ($min): string => str_replace('.', t('dezimal'), (string) round(((int) $min) / 60, 2));
+$konto = fn ($min): string => ($min > 0 ? '+' : ($min < 0 ? '−' : '±')) . str_replace('.', t('dezimal'), (string) round(abs((int) $min) / 60, 2));
 
 $e = einstellungen();
 // ---------------------------------------------------------------- Termin-Erinnerung per Push
@@ -356,7 +482,8 @@ function termin_erinnerungen(array $e, int $vorlauf = 60): array
                     if ($ts < $jetzt || $ts - $jetzt > $vorlauf * 60 || isset($erinnert[$key])) {
                         continue;
                     }
-                    if (ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => 'Termin um ' . $x['beginn'] . ': ' . ($x['titel'] ?? ''), 'message' => (string) ($x['ort'] ?? 'Details in deinem Dienstplan.'), 'priority' => 4, 'tags' => ['calendar'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php'])) {
+                    $sp = sprache_von($p);
+                    if (ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => t('push_termin', ['zeit' => $x['beginn'], 'titel' => $x['titel'] ?? ''], $sp), 'message' => (string) ($x['ort'] ?? t('push_details', [], $sp)), 'priority' => 4, 'tags' => ['calendar'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php'])) {
                         $erinnert[$key] = $jetzt;
                         $n++;
                     }
@@ -414,9 +541,10 @@ function ics_spanne(string $datum, string $zeit, string $beginn = ''): ?array
 /** Dienstplan einer Person als Kalender: Einsätze, Termine und Abwesenheiten der veröffentlichten Wochen. */
 function kalender_ics(array $person, string $hash): string
 {
+    $sp = sprache_von($person);
     $jetzt = gmdate('Ymd\THis\Z', jetzt());
     $z = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cleanos App//Mein Dienstplan//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-        'X-WR-CALNAME:' . ics_text('Dienstplan' . (!empty($person['name']) ? ' ' . $person['name'] : '')), 'X-WR-TIMEZONE:Europe/Vienna', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'];
+        'X-WR-CALNAME:' . ics_text(t('ics_kalender', [], $sp) . (!empty($person['name']) ? ' ' . $person['name'] : '')), 'X-WR-TIMEZONE:Europe/Vienna', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'];
     $ereignis = function (string $uid, array $felder) use (&$z, $jetzt) {
         $z[] = 'BEGIN:VEVENT';
         $z[] = 'UID:' . $uid . '@mein-plan';
@@ -436,27 +564,27 @@ function kalender_ics(array $person, string $hash): string
                 if (!empty($x['entfaellt']) || empty($x['zeit'])) {
                     continue;
                 }
-                $sp = ics_spanne($datum, (string) $x['zeit'], (string) ($x['beginn'] ?? ''));
-                if (!$sp) {
+                $spanne = ics_spanne($datum, (string) $x['zeit'], (string) ($x['beginn'] ?? ''));
+                if (!$spanne) {
                     continue;
                 }
-                $titel = (string) ($x['objekt'] ?? 'Einsatz') . (!empty($x['leistung']) ? ' – ' . $x['leistung'] : '');
-                $ereignis(sha1($hash . '|' . ($x['id'] ?? $datum . $x['zeit'])), array_filter(['DTSTART:' . $sp[0], 'DTEND:' . $sp[1], 'SUMMARY:' . ics_text($titel), !empty($x['adresse']) ? 'LOCATION:' . ics_text((string) $x['adresse']) : '', !empty($x['notizen']) ? 'DESCRIPTION:' . ics_text(implode("\n", (array) $x['notizen'])) : '']));
+                $titel = (string) ($x['objekt'] ?? t('ics_einsatz', [], $sp)) . (!empty($x['leistung']) ? ' – ' . $x['leistung'] : '');
+                $ereignis(sha1($hash . '|' . ($x['id'] ?? $datum . $x['zeit'])), array_filter(['DTSTART:' . $spanne[0], 'DTEND:' . $spanne[1], 'SUMMARY:' . ics_text($titel), !empty($x['adresse']) ? 'LOCATION:' . ics_text((string) $x['adresse']) : '', !empty($x['notizen']) ? 'DESCRIPTION:' . ics_text(implode("\n", array_map(fn ($n) => notiz_text((string) $n, $sp), (array) $x['notizen']))) : '']));
             }
             foreach ((array) ($t['termine'] ?? []) as $x) {
-                $titel = 'Termin: ' . (string) ($x['titel'] ?? '');
+                $titel = t('ics_termin', ['titel' => (string) ($x['titel'] ?? '')], $sp);
                 $ort = !empty($x['ort']) ? 'LOCATION:' . ics_text((string) $x['ort']) : '';
                 if (!empty($x['ganztags'])) {
                     $ereignis(sha1($hash . '|t|' . ($x['id'] ?? '') . '|' . $datum), array_filter(['DTSTART;VALUE=DATE:' . str_replace('-', '', $datum), 'DTEND;VALUE=DATE:' . str_replace('-', '', tag_plus($datum, 1)), 'SUMMARY:' . ics_text($titel), $ort, 'TRANSP:TRANSPARENT']));
                     continue;
                 }
-                $sp = ics_spanne($datum, (string) ($x['zeit'] ?? ''), (string) ($x['beginn'] ?? ''));
-                if ($sp) {
-                    $ereignis(sha1($hash . '|t|' . ($x['id'] ?? $datum)), array_filter(['DTSTART:' . $sp[0], 'DTEND:' . $sp[1], 'SUMMARY:' . ics_text($titel), $ort]));
+                $spanne = ics_spanne($datum, (string) ($x['zeit'] ?? ''), (string) ($x['beginn'] ?? ''));
+                if ($spanne) {
+                    $ereignis(sha1($hash . '|t|' . ($x['id'] ?? $datum)), array_filter(['DTSTART:' . $spanne[0], 'DTEND:' . $spanne[1], 'SUMMARY:' . ics_text($titel), $ort]));
                 }
             }
             if (!empty($t['abwesend'])) {
-                $ereignis(sha1($hash . '|a|' . $datum), ['DTSTART;VALUE=DATE:' . str_replace('-', '', $datum), 'DTEND;VALUE=DATE:' . str_replace('-', '', tag_plus($datum, 1)), 'SUMMARY:' . ics_text((string) $t['abwesend']), 'TRANSP:TRANSPARENT']);
+                $ereignis(sha1($hash . '|a|' . $datum), ['DTSTART;VALUE=DATE:' . str_replace('-', '', $datum), 'DTEND;VALUE=DATE:' . str_replace('-', '', tag_plus($datum, 1)), 'SUMMARY:' . ics_text(art_text((string) $t['abwesend'], $sp)), 'TRANSP:TRANSPARENT']);
             }
         }
     }
@@ -544,14 +672,15 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         // der Person Bescheid geben (Krankmeldung „eingetragen“: kein Push nötig)
         $p = json_lesen(person_datei((string) $a['hash']));
         if (!empty($p['ntfy']) && ($status !== 'erledigt' || in_array($a['art'], ['Abgabe', 'Material'], true))) {
-            $was = $tag($a['von']) . ' ' . ($a['text'] ?? '');
+            $sp = sprache_von($p);
+            $was = $tag($a['von'], $sp) . ' ' . ($a['text'] ?? '');
             $titel = match ($a['art']) {
-                'Material' => ['genehmigt' => 'Material notiert: ', 'abgelehnt' => 'Material: ', 'erledigt' => 'Material erledigt: '][$status] . ($a['text'] ?? ''),
-                'Einsatz' => ($status === 'genehmigt' ? 'Du bist eingeteilt: ' : 'Nicht eingeteilt: ') . $was,
-                'Abgabe' => ['genehmigt' => 'In der Einsatzbörse: ', 'abgelehnt' => 'Abgabe nicht möglich: ', 'erledigt' => 'Abgegeben: '][$status] . $was,
-                default => $a['art'] . ' ' . $zeitraum($a['von'], $a['bis']) . ': ' . STATUS_TEXT[$status],
+                'Material' => t('push_material_' . $status, ['text' => $a['text'] ?? ''], $sp),
+                'Einsatz' => t($status === 'genehmigt' ? 'push_eingeteilt' : 'push_nicht_eingeteilt', ['was' => $was], $sp),
+                'Abgabe' => t('push_abgabe_' . $status, ['was' => $was], $sp),
+                default => t('push_antrag', ['art' => art_text((string) $a['art'], $sp), 'zeitraum' => $zeitraum($a['von'], $a['bis'], $sp), 'status' => t('status_' . $status, [], $sp)], $sp),
             };
-            ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => $a['antwort'] ?: 'Details in deinem Dienstplan.', 'priority' => 3, 'tags' => [$status === 'abgelehnt' ? 'x' : 'white_check_mark'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
+            ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => antwort_text((string) $a['antwort'], $sp) ?: t('push_details', [], $sp), 'priority' => 3, 'tags' => [$status === 'abgelehnt' ? 'x' : 'white_check_mark'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php']);
         }
         json_ausgabe(200, ['antrag' => $a]);
     }
@@ -599,6 +728,14 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         $p = json_lesen(person_datei($hash));
         $p['name'] = mb_substr((string) ($person['name'] ?? ''), 0, 80);
         $p['ntfy'] = is_string($person['ntfy'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $person['ntfy']) ? $person['ntfy'] : '';
+        if (array_key_exists('sprache', $person)) {
+            $neu = sprache_gueltig($person['sprache']) ?? 'de'; // aus dem Stammblatt
+            if ($neu !== ($p['sprache'] ?? null)) {
+                unset($p['spracheWahl']); // im Büro geändert: gilt wieder (am Handy weiter umstellbar)
+            }
+            $p['sprache'] = $neu;
+        }
+        $sp = sprache_von($p);
         $p['wochen'] = (array) ($p['wochen'] ?? []);
         $meldungen = [];
         foreach ((array) ($daten['wochen'][$hash] ?? []) as $mo => $woche) {
@@ -608,9 +745,9 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
             $sig = sha1(json_encode([$woche['tage'] ?? [], $woche['summe'] ?? [], $woche['konto'] ?? null]));
             $alt = $p['wochen'][$mo] ?? null;
             if (!$alt && $mo >= $montag) {
-                $meldungen[] = 'Dein Dienstplan für KW ' . ($woche['kw'] ?? '') . ' ist da';
+                $meldungen[] = t('push_plan_neu', ['kw' => $woche['kw'] ?? ''], $sp);
             } elseif ($alt && ($alt['sig'] ?? '') !== $sig && $mo >= $montag) {
-                $meldungen[] = 'Dein Dienstplan KW ' . ($woche['kw'] ?? '') . ' wurde geändert';
+                $meldungen[] = t('push_plan_geaendert', ['kw' => $woche['kw'] ?? ''], $sp);
             }
             $woche['sig'] = $sig;
             $woche['veroeffentlicht'] = $alt['veroeffentlicht'] ?? jetzt();
@@ -618,7 +755,7 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
             $p['wochen'][$mo] = $woche;
         }
         if (!empty($neueAngebote[$hash])) {
-            $meldungen[] = $neueAngebote[$hash] === 1 ? '1 offener Einsatz für dich' : $neueAngebote[$hash] . ' offene Einsätze für dich';
+            $meldungen[] = $neueAngebote[$hash] === 1 ? t('push_angebot_1', [], $sp) : t('push_angebote', ['n' => $neueAngebote[$hash]], $sp);
         }
         // nur die letzten 8 Wochen und die kommenden behalten
         $grenze = tag_plus($montag, -56);
@@ -629,7 +766,7 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         }
         $personen++;
         if ($meldungen && $p['ntfy']) {
-            if (ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => $p['ntfy'], 'title' => implode(' · ', $meldungen), 'message' => 'Antippen öffnet deinen Plan.', 'priority' => 3, 'tags' => ['calendar'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php'])) {
+            if (ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => $p['ntfy'], 'title' => implode(' · ', $meldungen), 'message' => t('push_antippen', [], $sp), 'priority' => 3, 'tags' => ['calendar'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php'])) {
                 $benachrichtigt++;
             }
         }
@@ -640,25 +777,35 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
 // ---------------------------------------------------------------- Seite für Mitarbeitende
 
 if (!$e) {
-    html_seite('<h1>Mein Dienstplan</h1><p>Noch nicht eingerichtet. Bitte im Büro melden.</p>', 503, '', 'Mein Dienstplan');
+    sprache_waehlen([], true);
+    html_seite('<h1>' . th('titel') . '</h1><p>' . th('nicht_eingerichtet') . '</p>', 503, '', t('titel'));
     exit;
 }
 $code = (string) ($_GET['p'] ?? $_POST['p'] ?? $_COOKIE[COOKIE] ?? '');
 if ($aktion === 'vergessen') {
+    sprache_waehlen([], true);
     setcookie(COOKIE, '', ['expires' => 1, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
-    html_seite('<h1>Mein Dienstplan</h1><p>Dieses Gerät hat den persönlichen Link vergessen. Zum Öffnen wieder den Link aus der Nachricht verwenden.</p>', 200, '', 'Mein Dienstplan');
+    html_seite('<h1>' . th('titel') . '</h1><p>' . th('vergessen_text') . '</p>', 200, '', t('titel'));
     exit;
 }
 $hash = preg_match('/^[A-Za-z0-9]{16,40}$/', $code) ? hash('sha256', $code) : '';
 $person = $hash ? json_lesen(person_datei($hash)) : [];
 $token = (string) ($_GET['o'] ?? '');
+// Sprache der Seite: Wahl auf der Seite, Gerät, Person (Stammblatt); ohne Person der Browser
+sprache_waehlen($person, true);
 if (!$person && $token !== '') {
-    html_seite('<h1>Zeiterfassung</h1><p>Dieses Handy kennt dich noch nicht. Bitte zuerst deinen persönlichen Link aus der Nachricht vom Büro öffnen, dann den Code noch einmal scannen.</p>', 403, '', 'Zeiterfassung');
+    html_seite('<h1>' . th('titel_zeit') . '</h1><p>' . th('handy_unbekannt') . '</p>', 403, '', t('titel_zeit'));
     exit;
 }
 if (!$person) {
-    html_seite('<h1>Mein Dienstplan</h1><p>Dieser Link gilt nicht (mehr). Bitte im Büro um einen neuen Link bitten.</p>', 404, '', 'Mein Dienstplan');
+    html_seite('<h1>' . th('titel') . '</h1><p>' . th('link_ungueltig') . '</p>', 404, '', t('titel'));
     exit;
+}
+// auf der Seite gewählte Sprache merken: gilt auch auf anderen Geräten und für Push-Nachrichten
+$gewaehlt = sprache_gueltig($_GET['sprache'] ?? null);
+if ($gewaehlt && $gewaehlt !== ($person['spracheWahl'] ?? null)) {
+    $person['spracheWahl'] = $gewaehlt;
+    json_schreiben(person_datei($hash), $person);
 }
 // Kalender-Abo (Outlook, Google, iPhone): persönlicher Link mit aktion=kalender, ohne Cookie
 if ($aktion === 'kalender') {
@@ -679,13 +826,13 @@ if ($token !== '') {
     $z = zeiterfassung($e);
     $obj = $z['objekte'][$token] ?? null;
     if (!is_array($obj)) {
-        html_seite('<h1>Zeiterfassung</h1><p>Dieser Code gilt nicht (mehr). Bitte im Büro melden.</p>', 404, '', 'Zeiterfassung');
+        html_seite('<h1>' . th('titel_zeit') . '</h1><p>' . th('code_ungueltig') . '</p>', 404, '', t('titel_zeit'));
         exit;
     }
     $zurueck = 'mein-plan.php?o=' . rawurlencode($token);
     if ($aktion === 'stempeln' && $methode === 'POST') {
         if (fremde_herkunft()) {
-            html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Zeiterfassung');
+            html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel_zeit'));
             exit;
         }
         $ergebnis = zeiten(function (array &$l) use ($hash, $person, $obj) {
@@ -711,7 +858,7 @@ if ($token !== '') {
             return 'kommen';
         });
         if ($ergebnis === null) {
-            html_seite('<h1>Zeiterfassung</h1><p class="fehler">Konnte nicht speichern. Bitte im Büro anrufen.</p>', 500, '', 'Zeiterfassung');
+            html_seite('<h1>' . th('titel_zeit') . '</h1><p class="fehler">' . th('nicht_gespeichert') . '</p>', 500, '', t('titel_zeit'));
             exit;
         }
         if (empty($person['stempelt'])) {
@@ -729,30 +876,31 @@ if ($token !== '') {
         }
     }
     $erfasst = (string) ($_GET['erfasst'] ?? '');
+    $um = fn (int $ts): string => $h(t('uhrzeit', ['zeit' => uhr($ts)]));
     $info = '';
     if ($erfasst === 'kommen' && $letzte) {
-        $info = '<p class="ok">Kommen um ' . uhr((int) $letzte['kommen']) . ' Uhr erfasst.</p>';
+        $info = '<p class="ok">' . th('kommen_erfasst', ['uhr' => $um((int) $letzte['kommen'])]) . '</p>';
     } elseif ($erfasst === 'gehen' && $letzte && !empty($letzte['gehen'])) {
-        $info = '<p class="ok">Gehen um ' . uhr((int) $letzte['gehen']) . ' Uhr erfasst (' . dauer((int) $letzte['gehen'] - (int) $letzte['kommen']) . '). Danke!</p>';
+        $info = '<p class="ok">' . th('gehen_erfasst', ['uhr' => $um((int) $letzte['gehen']), 'dauer' => $h(dauer((int) $letzte['gehen'] - (int) $letzte['kommen']))]) . '</p>';
     } elseif ($erfasst === 'doppelt') {
-        $info = '<p class="ok">Schon erfasst.</p>';
+        $info = '<p class="ok">' . th('schon_erfasst') . '</p>';
     }
     $offen = $letzte && empty($letzte['gehen']);
     $x = $offen ? null : passender_einsatz($person, $obj['id']);
     $stand = $offen
-        ? '<p>Eingestempelt seit <b>' . uhr((int) $letzte['kommen']) . ' Uhr</b>' . ($letzte['plan'] ? ' (laut Plan ' . $h((string) $letzte['plan']) . ')' : '') . '.</p>'
-        : ($x ? '<p>Laut Plan: <b>' . $h((string) $x['zeit']) . '</b>' . (!empty($x['leistung']) ? ' · ' . $h((string) $x['leistung']) : '') . '</p>' : '<p class="leise">Laut Plan hast du hier jetzt keinen Einsatz. Kommen trotzdem erfassen (z. B. eingesprungen)?</p>');
-    $knopf = '<form method="post" action="' . $h($zurueck) . '&amp;aktion=stempeln"><button type="submit">' . ($offen ? 'Gehen erfassen' : 'Kommen erfassen') . '</button></form>';
-    html_seite('<h1>Zeiterfassung</h1><p><b>' . $h((string) $obj['name']) . '</b><br>' . $h((string) ($person['name'] ?? '')) . '</p>' . $info . $stand
-        . '<p class="leise">Jetzt: ' . uhr(jetzt()) . ' Uhr</p>' . $knopf
-        . '<p class="leise" style="margin-top:1.5rem;font-size:.9rem">Die Uhrzeit nimmt der Server, nicht das Handy. <a href="mein-plan.php">Mein Dienstplan</a></p>', 200, '', 'Zeiterfassung');
+        ? '<p>' . ($letzte['plan'] ? th('eingestempelt_seit_plan', ['uhr' => '<b>' . $um((int) $letzte['kommen']) . '</b>', 'plan' => $h((string) $letzte['plan'])]) : th('eingestempelt_seit', ['uhr' => '<b>' . $um((int) $letzte['kommen']) . '</b>'])) . '</p>'
+        : ($x ? '<p>' . th('laut_plan', ['zeit' => '<b>' . $h((string) $x['zeit']) . '</b>']) . (!empty($x['leistung']) ? ' · ' . $h((string) $x['leistung']) : '') . '</p>' : '<p class="leise">' . th('kein_einsatz_hier') . '</p>');
+    $knopf = '<form method="post" action="' . $h($zurueck) . '&amp;aktion=stempeln"><button type="submit">' . th($offen ? 'gehen_knopf' : 'kommen_knopf') . '</button></form>';
+    html_seite(sprachwahl_html($zurueck) . '<h1>' . th('titel_zeit') . '</h1><p><b>' . $h((string) $obj['name']) . '</b><br>' . $h((string) ($person['name'] ?? '')) . '</p>' . $info . $stand
+        . '<p class="leise">' . th('jetzt', ['uhr' => $um(jetzt())]) . '</p>' . $knopf
+        . '<p class="leise" style="margin-top:1.5rem;font-size:.9rem">' . th('serverzeit') . ' <a href="mein-plan.php">' . th('titel') . '</a></p>', 200, '', t('titel_zeit'));
     exit;
 }
 
 // Antrag oder Krankmeldung
 if ($aktion === 'antrag' && $methode === 'POST') {
     if (fremde_herkunft()) {
-        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
         exit;
     }
     $art = (string) ($_POST['art'] ?? '');
@@ -762,13 +910,13 @@ if ($aktion === 'antrag' && $methode === 'POST') {
     $fehler = '';
     $gueltig = fn ($d) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && DateTimeImmutable::createFromFormat('!Y-m-d', $d);
     if (!in_array($art, ARTEN, true)) {
-        $fehler = 'Bitte die Art wählen.';
+        $fehler = t('fehler_art');
     } elseif (!$gueltig($von) || !$gueltig($bis) || $bis < $von) {
-        $fehler = 'Bitte einen gültigen Zeitraum angeben.';
+        $fehler = t('fehler_zeitraum');
     } elseif ($bis > tag_plus($von, 60)) {
-        $fehler = 'Höchstens 60 Tage je Antrag.';
+        $fehler = t('fehler_60_tage');
     } elseif ($von < tag_plus(heute(), -7)) {
-        $fehler = 'Der Beginn liegt zu weit zurück. Bitte im Büro melden.';
+        $fehler = t('fehler_zurueck');
     }
     $neu = null;
     if (!$fehler) {
@@ -782,9 +930,9 @@ if ($aktion === 'antrag' && $methode === 'POST') {
             return $a;
         });
         if ($neu === false) {
-            $fehler = 'Zu viele Anträge heute. Bitte im Büro melden.';
+            $fehler = t('zu_viele_antraege');
         } elseif ($neu === null) {
-            $fehler = 'Konnte nicht speichern. Bitte im Büro anrufen.';
+            $fehler = t('nicht_gespeichert');
         }
     }
     if ($fehler) {
@@ -793,7 +941,7 @@ if ($aktion === 'antrag' && $methode === 'POST') {
         // Büro benachrichtigen (Krankmeldung dringender)
         $krank = $art === 'Krankenstand';
         $titel = ($krank ? 'Krankmeldung: ' : $art . ': ') . ($person['name'] ?? '');
-        $text = ($krank ? 'Krank ab ' . $tag($von) . ($bis !== $von ? ', voraussichtlich bis ' . $tag($bis) : '') : $zeitraum($von, $bis)) . ($notiz ? "\n„{$notiz}“" : '') . "\nIn der App unter „Zu erledigen“.";
+        $text = ($krank ? 'Krank ab ' . $tag($von, 'de') . ($bis !== $von ? ', voraussichtlich bis ' . $tag($bis, 'de') : '') : $zeitraum($von, $bis, 'de')) . ($notiz ? "\n„{$notiz}“" : '') . "\nIn der App unter „Zu erledigen“.";
         $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
         foreach ((array) ($e['buero'] ?? []) as $b) {
             if (!empty($b['ntfy'])) {
@@ -811,7 +959,7 @@ if ($aktion === 'antrag' && $methode === 'POST') {
 // Material fehlt im Objekt: geht ans Lager (App → Material & Lager → Anforderungen)
 if ($aktion === 'material' && $methode === 'POST') {
     if (fremde_herkunft()) {
-        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
         exit;
     }
     $objekte = meine_objekte($person);
@@ -819,9 +967,9 @@ if ($aktion === 'material' && $methode === 'POST') {
     $was = mb_substr(trim((string) ($_POST['was'] ?? '')), 0, 300);
     $fehler = '';
     if (!isset($objekte[$objekt])) {
-        $fehler = 'Bitte das Objekt wählen.';
+        $fehler = t('fehler_objekt');
     } elseif ($was === '') {
-        $fehler = 'Bitte kurz schreiben, was fehlt.';
+        $fehler = t('fehler_was_fehlt');
     }
     if (!$fehler) {
         $neu = antraege(function (array &$l) use ($hash, $person, $objekt, $objekte, $was) {
@@ -834,9 +982,9 @@ if ($aktion === 'material' && $methode === 'POST') {
             return $a;
         });
         if ($neu === false) {
-            $fehler = 'Zu viele Meldungen heute. Bitte im Büro melden.';
+            $fehler = t('zu_viele_meldungen');
         } elseif ($neu === null) {
-            $fehler = 'Konnte nicht speichern. Bitte im Büro anrufen.';
+            $fehler = t('nicht_gespeichert');
         }
     }
     if ($fehler) {
@@ -861,7 +1009,7 @@ if ($aktion === 'material' && $methode === 'POST') {
 // Einsatzbörse: „Ich übernehme“
 if ($aktion === 'melden' && $methode === 'POST') {
     if (fremde_herkunft()) {
-        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
         exit;
     }
     $id = (string) ($_POST['einsatz'] ?? '');
@@ -885,15 +1033,15 @@ if ($aktion === 'melden' && $methode === 'POST') {
         return $a;
     });
     if (!$angebot) {
-        $meldung = '<p class="fehler">Dieser Einsatz ist nicht mehr offen. Danke trotzdem!</p>';
+        $meldung = '<p class="fehler">' . th('einsatz_nicht_offen') . '</p>';
     } elseif ($neu === false) {
-        $meldung = '<p class="fehler">Zu viele Meldungen heute. Bitte im Büro melden.</p>';
+        $meldung = '<p class="fehler">' . th('zu_viele_meldungen') . '</p>';
     } elseif ($neu === null) {
-        $meldung = '<p class="fehler">Konnte nicht speichern. Bitte im Büro anrufen.</p>';
+        $meldung = '<p class="fehler">' . th('nicht_gespeichert') . '</p>';
     } else {
         if (is_array($neu)) {
             $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
-            $text = $tag($angebot['datum']) . ' ' . $neu['text'] . ($angebot['leistung'] ? ' (' . $angebot['leistung'] . ')' : '') . "\nIn der App unter „Zu erledigen“ einteilen.";
+            $text = $tag($angebot['datum'], 'de') . ' ' . $neu['text'] . ($angebot['leistung'] ? ' (' . $angebot['leistung'] . ')' : '') . "\nIn der App unter „Zu erledigen“ einteilen.";
             foreach ((array) ($e['buero'] ?? []) as $b) {
                 if (!empty($b['ntfy'])) {
                     ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => 'Übernimmt Einsatz: ' . ($person['name'] ?? ''), 'message' => $text, 'priority' => 3, 'tags' => ['raising_hand'], 'click' => $app]);
@@ -911,7 +1059,7 @@ if ($aktion === 'melden' && $methode === 'POST') {
 // Dienst abgeben: Anfrage ans Büro (das stellt den Einsatz in die Börse oder lehnt ab)
 if ($aktion === 'abgeben' && $methode === 'POST') {
     if (fremde_herkunft()) {
-        html_seite('<p>Nicht erlaubt.</p>', 403, '', 'Mein Dienstplan');
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
         exit;
     }
     $id = (string) ($_POST['einsatz'] ?? '');
@@ -940,15 +1088,15 @@ if ($aktion === 'abgeben' && $methode === 'POST') {
         return $a;
     });
     if (!$eintrag) {
-        $meldung = '<p class="fehler">Diesen Einsatz kannst du hier nicht mehr abgeben (beginnt bald oder steht nicht mehr im Plan). Bitte im Büro anrufen.</p>';
+        $meldung = '<p class="fehler">' . th('abgabe_nicht_moeglich') . '</p>';
     } elseif ($neu === false) {
-        $meldung = '<p class="fehler">Zu viele Anfragen heute. Bitte im Büro melden.</p>';
+        $meldung = '<p class="fehler">' . th('zu_viele_anfragen') . '</p>';
     } elseif ($neu === null) {
-        $meldung = '<p class="fehler">Konnte nicht speichern. Bitte im Büro anrufen.</p>';
+        $meldung = '<p class="fehler">' . th('nicht_gespeichert') . '</p>';
     } else {
         if (is_array($neu)) {
             $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
-            $text = $tag($eintrag['datum']) . ' ' . $neu['text'] . ($notiz ? "\n„{$notiz}“" : '') . "\nIn der App unter „Zu erledigen“: in die Einsatzbörse stellen oder ablehnen.";
+            $text = $tag($eintrag['datum'], 'de') . ' ' . $neu['text'] . ($notiz ? "\n„{$notiz}“" : '') . "\nIn der App unter „Zu erledigen“: in die Einsatzbörse stellen oder ablehnen.";
             foreach ((array) ($e['buero'] ?? []) as $b) {
                 if (!empty($b['ntfy'])) {
                     ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => 'Möchte abgeben: ' . ($person['name'] ?? ''), 'message' => $text, 'priority' => 3, 'tags' => ['arrows_counterclockwise'], 'click' => $app]);
@@ -970,16 +1118,9 @@ if (!$wochen && !empty($person['wochen'])) {
     $wochen = array_slice((array) $person['wochen'], -1, 1, true);
 }
 $meldung = $meldung ?? '';
-if (($_GET['gesendet'] ?? '') === 'krank') {
-    $meldung = '<p class="ok">Krankmeldung ist im Büro. Gute Besserung!</p>';
-} elseif (($_GET['gesendet'] ?? '') === 'antrag') {
-    $meldung = '<p class="ok">Antrag gesendet. Die Antwort steht dann hier.</p>';
-} elseif (($_GET['gesendet'] ?? '') === 'einsatz') {
-    $meldung = '<p class="ok">Danke! Das Büro bestätigt, ob du eingeteilt bist.</p>';
-} elseif (($_GET['gesendet'] ?? '') === 'abgabe') {
-    $meldung = '<p class="ok">Anfrage ist im Büro. Bis jemand übernimmt, bleibt der Einsatz deiner.</p>';
-} elseif (($_GET['gesendet'] ?? '') === 'material') {
-    $meldung = '<p class="ok">Danke! Das Lager kümmert sich um das Material.</p>';
+$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material'][(string) ($_GET['gesendet'] ?? '')] ?? null;
+if ($gesendet) {
+    $meldung = '<p class="ok">' . th($gesendet) . '</p>';
 }
 // eigene Anträge (vor dem Plan: Abgaben stehen beim Einsatz)
 $meine = array_values(array_filter(antraege(fn (array &$l) => $l) ?? [], fn ($a) => $a['hash'] === $hash && (($a['bis'] ?? '') >= tag_plus(heute(), -60) || $a['status'] === 'offen')));
@@ -1009,32 +1150,34 @@ foreach ($wochen as $mo => $w) {
         }
         $zeilen = '';
         foreach ($termine as $x) {
-            $zeilen .= '<div class="einsatz termin"><b>' . $h(!empty($x['ganztags']) ? 'ganztägig' : (string) ($x['zeit'] ?? '')) . '</b> <span class="pill">Termin</span> ' . $h((string) ($x['titel'] ?? ''))
+            $zeilen .= '<div class="einsatz termin"><b>' . (!empty($x['ganztags']) ? th('ganztaegig') : $h((string) ($x['zeit'] ?? ''))) . '</b> <span class="pill">' . th('termin') . '</span> ' . $h((string) ($x['titel'] ?? ''))
                 . (!empty($x['ort']) ? '<br><span class="leise">' . $h((string) $x['ort']) . '</span>' : '') . '</div>';
         }
         foreach ($eintraege as $x) {
             $adresse = (string) ($x['adresse'] ?? '');
-            $karte = $adresse !== '' ? ' · <a href="https://www.google.com/maps/search/?api=1&amp;query=' . rawurlencode($adresse) . '" target="_blank" rel="noopener">Karte</a>' : '';
+            $karte = $adresse !== '' ? ' · <a href="https://www.google.com/maps/search/?api=1&amp;query=' . rawurlencode($adresse) . '" target="_blank" rel="noopener">' . th('karte') . '</a>' : '';
+            $info = objektinfo_html($x, is_array($w['objektinfo'][$x['objektId'] ?? ''] ?? null) ? $w['objektinfo'][$x['objektId']] : null);
             $zeilen .= '<div class="einsatz' . (!empty($x['entfaellt']) ? ' weg' : '') . '"><b>' . $h((string) ($x['zeit'] ?? '')) . '</b> ' . $h((string) ($x['objekt'] ?? ''))
                 . (!empty($x['leistung']) ? ' <span class="leise">· ' . $h((string) $x['leistung']) . '</span>' : '')
                 . ($adresse !== '' ? '<br><span class="leise">' . $h($adresse) . $karte . '</span>' : '')
-                . (!empty($x['notizen']) ? '<br><span class="hinweis">' . $h(implode(' · ', (array) $x['notizen'])) . '</span>' : '')
-                . (isset($abgaben[$x['id'] ?? '']) ? ' <span class="pill st-offen">Abgabe ' . $h(status_text($abgaben[$x['id']])) . '</span>'
+                . (!empty($x['notizen']) ? '<br><span class="hinweis">' . $h(implode(' · ', array_map(fn ($n) => notiz_text((string) $n), (array) $x['notizen']))) . '</span>' : '')
+                . (isset($abgaben[$x['id'] ?? '']) ? ' <span class="pill st-offen">' . th('abgabe_status', ['status' => $h(status_text($abgaben[$x['id']]))]) . '</span>'
                     : (empty($x['entfaellt']) && !empty($x['id']) && !empty($x['beginn']) && wien_ts((string) $t['datum'], (string) $x['beginn']) > jetzt() + 2 * 3600
-                        ? '<details class="abgabe"><summary>Abgeben</summary><form method="post" action="mein-plan.php?aktion=abgeben">' . $p . '<input type="hidden" name="einsatz" value="' . $h((string) $x['id']) . '"><label>Grund (optional)<textarea name="notiz" rows="2" maxlength="300"></textarea></label><button type="submit" class="klein">Abgabe anfragen</button></form></details>' : ''))
-                . (isset($gestempelt[$x['id'] ?? '']) ? '<br><span class="zeit-ok">✓ ' . uhr((int) $gestempelt[$x['id']]['kommen']) . (!empty($gestempelt[$x['id']]['gehen']) ? '–' . uhr((int) $gestempelt[$x['id']]['gehen']) : ' eingestempelt') . '</span>' : '')
-                . (!empty($x['hinweis']) || !empty($x['schluessel']) ? '<details><summary>Objektinfo</summary>' . (!empty($x['hinweis']) ? '<p>' . nl2br($h((string) $x['hinweis'])) . '</p>' : '') . (!empty($x['schluessel']) ? '<p class="leise">Schlüssel: ' . $h((string) $x['schluessel']) . '</p>' : '') . '</details>' : '')
+                        ? '<details class="abgabe"><summary>' . th('abgeben') . '</summary><form method="post" action="mein-plan.php?aktion=abgeben">' . $p . '<input type="hidden" name="einsatz" value="' . $h((string) $x['id']) . '"><label>' . th('grund_optional') . '<textarea name="notiz" rows="2" maxlength="300"></textarea></label><button type="submit" class="klein">' . th('abgabe_anfragen') . '</button></form></details>' : ''))
+                . (isset($gestempelt[$x['id'] ?? '']) ? '<br><span class="zeit-ok">✓ ' . uhr((int) $gestempelt[$x['id']]['kommen']) . (!empty($gestempelt[$x['id']]['gehen']) ? '–' . uhr((int) $gestempelt[$x['id']]['gehen']) : ' ' . th('eingestempelt')) . '</span>' : '')
+                . ($info !== '' || !empty($x['schluessel']) ? '<details><summary>' . th('objektinfo') . '</summary>' . $info . (!empty($x['schluessel']) ? '<p class="leise">' . th('schluessel', ['text' => $h((string) $x['schluessel'])]) . '</p>' : '') . '</details>' : '')
                 . '</div>';
         }
-        $tageHtml .= '<section class="tag"><h3>' . $h($tag((string) $t['datum'])) . (!empty($t['feiertag']) ? ' <span class="pill">' . $h((string) $t['feiertag']) . '</span>' : '') . (!empty($t['abwesend']) ? ' <span class="pill abw">' . $h((string) $t['abwesend']) . '</span>' : '') . '</h3>' . ($zeilen ?: '<p class="leise">frei</p>') . '</section>';
+        $tageHtml .= '<section class="tag"><h3>' . $h(datum_sprache((string) $t['datum'], true)) . (!empty($t['feiertag']) ? ' <span class="pill">' . th('feiertag', ['name' => $h((string) $t['feiertag'])]) . '</span>' : '') . (!empty($t['abwesend']) ? ' <span class="pill abw">' . $h(art_text((string) $t['abwesend'])) . '</span>' : '') . '</h3>' . ($zeilen ?: '<p class="leise">' . th('frei') . '</p>') . '</section>';
     }
     $summe = (array) ($w['summe'] ?? []);
-    $planHtml .= '<h2>KW ' . $h((string) ($w['kw'] ?? '')) . ' <span class="leise">' . $h($zeitraum((string) ($w['von'] ?? $mo), (string) ($w['bis'] ?? $mo))) . '</span></h2>'
-        . (!empty($w['geaendert']) ? '<p class="pill neu">geändert am ' . (new DateTimeImmutable('@' . (int) $w['geaendert']))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('d.m. H:i') . '</p>' : '')
-        . ($tageHtml ?: '<p class="leise">Keine Einsätze in dieser Woche.</p>')
-        . '<p class="summe">Stunden: <b>' . $stunden($summe['ist'] ?? 0) . ' h</b>' . (isset($summe['soll']) ? ' · Soll ' . $stunden($summe['soll']) . ' h' : '') . (isset($w['konto']) && $w['konto'] !== null ? ' · Zeitkonto danach ' . $konto($w['konto']) . ' h' : '') . '</p>';
+    $geaendert = !empty($w['geaendert']) ? (new DateTimeImmutable('@' . (int) $w['geaendert']))->setTimezone(new DateTimeZone('Europe/Vienna')) : null;
+    $planHtml .= '<h2>' . th('kw', ['kw' => $h((string) ($w['kw'] ?? ''))]) . ' <span class="leise">' . $h($zeitraum((string) ($w['von'] ?? $mo), (string) ($w['bis'] ?? $mo))) . '</span></h2>'
+        . ($geaendert ? '<p class="pill neu">' . th('geaendert_am', ['datum' => $h(t('datum_kurz', ['d' => $geaendert->format('d'), 'm' => $geaendert->format('m')])), 'zeit' => $geaendert->format('H:i')]) . '</p>' : '')
+        . ($tageHtml ?: '<p class="leise">' . th('keine_einsaetze') . '</p>')
+        . '<p class="summe">' . th('stunden', ['h' => '<b>' . $stunden($summe['ist'] ?? 0) . ' h</b>']) . (isset($summe['soll']) ? ' · ' . th('soll', ['h' => $stunden($summe['soll']) . ' h']) : '') . (isset($w['konto']) && $w['konto'] !== null ? ' · ' . th('konto_danach', ['h' => $konto($w['konto']) . ' h']) : '') . '</p>';
 }
-$antraegeHtml = $meine ? '<h2>Meine Anträge</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h($a['art']) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe', 'Material'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . (($a['art'] ?? '') === 'Material' && !empty($a['notiz']) ? ': „' . $h((string) $a['notiz']) . '“' : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h($a['antwort']) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
+$antraegeHtml = $meine ? '<h2>' . th('meine_antraege') . '</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h(art_text((string) $a['art'])) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe', 'Material'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . (($a['art'] ?? '') === 'Material' && !empty($a['notiz']) ? ': „' . $h((string) $a['notiz']) . '“' : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h(antwort_text((string) $a['antwort'])) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
 $gemeldet = array_column(array_filter($meine, fn ($a) => ($a['art'] ?? '') === 'Einsatz' && $a['status'] === 'offen'), 'einsatz');
 $boerse = '';
 foreach (angebote_von($hash) as $o) {
@@ -1042,41 +1185,44 @@ foreach (angebote_von($hash) as $o) {
     $boerse .= '<div class="einsatz angebot"><b>' . $h($tag($o['datum'])) . ' ' . $h($o['zeit']) . '</b> ' . $h($o['objekt'])
         . ($o['leistung'] ? ' <span class="leise">· ' . $h($o['leistung']) . '</span>' : '')
         . ($adresse !== '' ? '<br><span class="leise">' . $h($adresse) . ' · <a href="https://www.google.com/maps/search/?api=1&amp;query=' . rawurlencode($adresse) . '" target="_blank" rel="noopener">Karte</a></span>' : '')
-        . '<br><span class="leise">' . $stunden($o['minuten']) . ' h' . (!empty($o['tausch']) ? ' · wird von einer Kollegin oder einem Kollegen abgegeben' : '') . '</span>'
-        . (in_array($o['id'], $gemeldet, true) ? ' <span class="pill st-offen">gemeldet</span>' : '<form method="post" action="mein-plan.php?aktion=melden">' . $p . '<input type="hidden" name="einsatz" value="' . $h($o['id']) . '"><button type="submit" class="klein">Ich übernehme</button></form>')
+        . '<br><span class="leise">' . $stunden($o['minuten']) . ' h' . (!empty($o['tausch']) ? ' · ' . th('tausch') : '') . '</span>'
+        . (in_array($o['id'], $gemeldet, true) ? ' <span class="pill st-offen">' . th('einsatz_offen') . '</span>' : '<form method="post" action="mein-plan.php?aktion=melden">' . $p . '<input type="hidden" name="einsatz" value="' . $h($o['id']) . '"><button type="submit" class="klein">' . th('ich_uebernehme') . '</button></form>')
         . '</div>';
 }
-$boerseHtml = $boerse ? '<h2>Offene Einsätze für dich</h2><p class="leise">Passt laut Plan zu deinen Zeiten. Das Büro bestätigt, wer eingeteilt wird.</p>' . $boerse : '';
+$boerseHtml = $boerse ? '<h2>' . th('boerse_titel') . '</h2><p class="leise">' . th('boerse_text') . '</p>' . $boerse : '';
 $heute = heute();
 $objekte = meine_objekte($person);
-$materialForm = $objekte ? '<h2>Material fehlt?</h2><details><summary>Im Objekt fehlt etwas (z. B. Müllsäcke, Seife, Papier)</summary><form method="post" action="mein-plan.php?aktion=material">' . $p
-    . '<label for="m-obj">Objekt</label><select id="m-obj" name="objekt">' . implode('', array_map(fn ($id, $name) => '<option value="' . $h((string) $id) . '">' . $h($name) . '</option>', array_keys($objekte), $objekte)) . '</select>'
-    . '<label for="m-was">Was fehlt?</label><textarea id="m-was" name="was" rows="2" maxlength="300" required placeholder="z. B. Müllsäcke 120 l, Handseife"></textarea>'
-    . '<button type="submit">Melden</button><p class="leise">Geht ans Lager. Du bekommst Bescheid, wenn es notiert ist.</p></form></details>' : '';
-$formulare = $materialForm . '<h2>Abwesenheit</h2>'
-    . '<details><summary>Krank melden</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . '<input type="hidden" name="art" value="Krankenstand">'
-    . '<label for="k-von">Krank ab</label><input type="date" id="k-von" name="von" value="' . $heute . '" required>'
-    . '<label for="k-bis">Voraussichtlich bis (wenn bekannt)</label><input type="date" id="k-bis" name="bis">'
-    . '<label for="k-notiz">Notiz (optional, keine Diagnose)</label><textarea id="k-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
-    . '<button type="submit">Krankmeldung senden</button><p class="leise">Bitte zusätzlich wie gewohnt anrufen, wenn der Dienst schon bald beginnt. Die Krankenstandsbestätigung bleibt nötig.</p></form></details>'
-    . '<details><summary>Urlaub, Zeitausgleich oder Pflegefreistellung beantragen</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p
-    . '<label for="a-art">Art</label><select id="a-art" name="art"><option>Urlaub</option><option>Zeitausgleich</option><option>Pflegefreistellung</option></select>'
-    . '<label for="a-von">Von</label><input type="date" id="a-von" name="von" required><label for="a-bis">Bis</label><input type="date" id="a-bis" name="bis" required>'
-    . '<label for="a-notiz">Notiz (optional)</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
-    . '<button type="submit">Antrag senden</button></form></details>';
+$materialForm = $objekte ? '<h2>' . th('material_titel') . '</h2><details><summary>' . th('material_summary') . '</summary><form method="post" action="mein-plan.php?aktion=material">' . $p
+    . '<label for="m-obj">' . th('objekt') . '</label><select id="m-obj" name="objekt">' . implode('', array_map(fn ($id, $name) => '<option value="' . $h((string) $id) . '">' . $h($name) . '</option>', array_keys($objekte), $objekte)) . '</select>'
+    . '<label for="m-was">' . th('was_fehlt') . '</label><textarea id="m-was" name="was" rows="2" maxlength="300" required placeholder="' . th('was_fehlt_bsp') . '"></textarea>'
+    . '<button type="submit">' . th('melden') . '</button><p class="leise">' . th('material_info') . '</p></form></details>' : '';
+// Art: Wert bleibt deutsch (das Büro liest ihn), angezeigt wird die Übersetzung
+$option = fn (string $wert): string => ($text = art_text($wert)) === $wert ? '<option>' . $h($wert) . '</option>' : '<option value="' . $h($wert) . '">' . $h($text) . '</option>';
+$formulare = $materialForm . '<h2>' . th('abwesenheit') . '</h2>'
+    . '<details><summary>' . th('krank_melden') . '</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . '<input type="hidden" name="art" value="Krankenstand">'
+    . '<label for="k-von">' . th('krank_ab') . '</label><input type="date" id="k-von" name="von" value="' . $heute . '" required>'
+    . '<label for="k-bis">' . th('krank_bis') . '</label><input type="date" id="k-bis" name="bis">'
+    . '<label for="k-notiz">' . th('krank_notiz') . '</label><textarea id="k-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
+    . '<button type="submit">' . th('krank_senden') . '</button><p class="leise">' . th('krank_info') . '</p></form></details>'
+    . '<details><summary>' . th('antrag_summary') . '</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p
+    . '<label for="a-art">' . th('art') . '</label><select id="a-art" name="art">' . $option('Urlaub') . $option('Zeitausgleich') . $option('Pflegefreistellung') . '</select>'
+    . '<label for="a-von">' . th('von') . '</label><input type="date" id="a-von" name="von" required><label for="a-bis">' . th('bis') . '</label><input type="date" id="a-bis" name="bis" required>'
+    . '<label for="a-notiz">' . th('notiz_optional') . '</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
+    . '<button type="submit">' . th('antrag_senden') . '</button></form></details>';
 // Kalender-Abo: Plan und Termine erscheinen im eigenen Kalender (Outlook, Google, iPhone) und bleiben aktuell
 $aboAdresse = rtrim((string) ($e['adresse'] ?? ''), '/');
 if ($aboAdresse === '') {
     $aboAdresse = (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? '') . rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
 }
 $aboLink = $aboAdresse . '/mein-plan.php?aktion=kalender&p=' . rawurlencode($code);
-$aboHtml = $code !== '' ? '<h2>Im Kalender</h2><details><summary>Dienstplan im eigenen Kalender anzeigen (Outlook, Google, iPhone)</summary>'
-    . '<p><a class="knopf" href="' . $h(preg_replace('#^https?://#', 'webcal://', $aboLink)) . '">Kalender abonnieren</a></p>'
-    . '<p class="leise">Oder in Outlook: Kalender → „Kalender hinzufügen“ → „Aus dem Internet abonnieren“ und diese Adresse einfügen. In Google Kalender: „Andere Kalender“ → „Per URL“.</p>'
+$aboHtml = $code !== '' ? '<h2>' . th('kalender_titel') . '</h2><details><summary>' . th('kalender_summary') . '</summary>'
+    . '<p><a class="knopf" href="' . $h(preg_replace('#^https?://#', 'webcal://', $aboLink)) . '">' . th('kalender_abo') . '</a></p>'
+    . '<p class="leise">' . th('kalender_hilfe') . '</p>'
     . '<input readonly value="' . $h($aboLink) . '" onclick="this.select()" style="width:100%">'
-    . '<p class="leise">Die Adresse ist persönlich wie dieser Link. Der Kalender aktualisiert sich von selbst (je nach Kalender alle paar Stunden).</p></details>' : '';
-html_seite('<h1>Mein Dienstplan</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
+    . '<p class="leise">' . th('kalender_info') . '</p></details>' : '';
+$hier = 'mein-plan.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '');
+html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
     . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
-    . ($planHtml ?: '<p class="leise">Noch kein veröffentlichter Plan.</p>')
+    . ($planHtml ?: '<p class="leise">' . th('kein_plan') . '</p>')
     . $boerseHtml . $antraegeHtml . $formulare . $aboHtml
-    . '<p class="leise" style="margin-top:2rem;font-size:.9rem">Diese Seite ist persönlich: den Link nicht weitergeben. Tipp: im Browser-Menü „Zum Startbildschirm“ wählen. <a href="mein-plan.php?aktion=vergessen">Auf diesem Gerät vergessen</a></p>', 200, '', 'Mein Dienstplan');
+    . '<p class="leise" style="margin-top:2rem;font-size:.9rem">' . th('fuss') . ' <a href="mein-plan.php?aktion=vergessen">' . th('vergessen') . '</a></p>', 200, '', t('titel'));

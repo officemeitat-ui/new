@@ -12,7 +12,7 @@ import { app } from '../ui/context.js'
 import { availableTools, validateInput } from './registry.js'
 import './tools.js'
 
-const MODEL = 'claude-opus-5-5' // ki.php setzt das eingestellte Modell
+export const MODEL = 'claude-opus-5-5' // ki.php setzt das eingestellte Modell
 
 export const TOOL_LABEL = {
   plan_abfragen: 'Dienstplan nachgeschlagen',

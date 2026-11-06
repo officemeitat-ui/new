@@ -16,6 +16,9 @@
 //   wetter-alarm.php?aktion=pruefen&schluessel=… prüfen (externer Cron-Dienst, Prüfschlüssel)
 //   wetter-alarm.php?aktion=wach&t=…             „Bin wach“ (ntfy-Knopf, Link in der E-Mail)
 //   wetter-alarm.php?aktion=protokoll&t=…        Winterdienst-Protokoll am Handy (ohne Anmeldung, mit Fotos)
+//   Die Seiten „Bin wach“ und „Protokoll“ und die Knöpfe der Push-Nachricht kommen in der Sprache der Person
+//   (aus dem Stammblatt, orte[].stufe1[].sprache; am Handy gemerkt wie bei „Mein Dienstplan“, ?sprache=);
+//   Texte in mein-plan-texte.php. Der Text des Alarms selbst bleibt deutsch.
 //   wetter-alarm.php?aktion=status|test|speichern|protokolle|foto  aus der App, Schlüssel im Kopf X-Schluessel
 //
 // Einstellungen: privat/wetter-alarm.json (erstellt die App unter Wetter & Winterdienst →
@@ -293,6 +296,7 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
     $app = adresse($e) . '#wetter';
     $wach = $token ? adresse($e) . 'wetter-alarm.php?aktion=wach&t=' . $token : null;
     $prot = $token ? adresse($e) . 'wetter-alarm.php?aktion=protokoll&t=' . $token : null;
+    $sp = sprache_von($person);
     if (!empty($person['ntfy'])) {
         $nachricht = [
             'topic' => (string) $person['ntfy'],
@@ -303,9 +307,9 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
             'icon' => marke()['symbol'] ? adresse($e) . marke()['symbol'] : null,
             'click' => $app,
             'actions' => array_values(array_filter([
-                $wach ? ['action' => 'http', 'label' => 'Bin wach', 'url' => $wach, 'method' => 'POST'] : null,
-                $prot ? ['action' => 'view', 'label' => 'Protokoll', 'url' => $prot] : null,
-                ['action' => 'view', 'label' => 'App öffnen', 'url' => $app],
+                $wach ? ['action' => 'http', 'label' => t('w_bin_wach', [], $sp), 'url' => $wach, 'method' => 'POST'] : null,
+                $prot ? ['action' => 'view', 'label' => t('w_protokoll_kurz', [], $sp), 'url' => $prot] : null,
+                ['action' => 'view', 'label' => t('w_app_oeffnen', [], $sp), 'url' => $app],
             ])),
         ];
         [$status] = holen(rtrim((string) ($e['ntfy'] ?? 'https://ntfy.sh'), '/'), json_encode(array_filter($nachricht, fn ($v) => $v !== null), JSON_UNESCAPED_UNICODE));
@@ -334,7 +338,7 @@ function alarm_senden(array $e, array &$alarm, array $personen, string $titel, s
     $fehler = [];
     foreach ($personen as $p) {
         $token = bin2hex(random_bytes(12));
-        $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1];
+        $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []);
         $fehler = array_merge($fehler, benachrichtigen($e, $p, $titel, $text, $token));
     }
     return $fehler;
@@ -433,11 +437,14 @@ $methode = $cli ? 'CLI' : ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 if ($aktion === 'wach') {
     $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
     if (strlen($token) !== 24) {
-        html_seite('<p>Ungültiger Link.</p>', 400);
+        sprache_waehlen([], true);
+        html_seite('<p>' . th('w_ungueltig') . '</p>', 400, '', t('w_titel'));
         exit;
     }
+    $zu = $e ? alarm_zum_code($token) : null;
+    sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : [], true);
     if ($methode !== 'POST') {
-        html_seite('<h1>Winterdienst</h1><p>Bitte bestätigen, dass du wach bist und den Winterdienst übernimmst.</p><form method="post"><button type="submit">Ich bin wach und übernehme</button></form>');
+        html_seite(sprachwahl_html('wetter-alarm.php?aktion=wach&t=' . $token) . '<h1>' . th('w_titel') . '</h1><p>' . th('w_bitte_bestaetigen') . '</p><form method="post"><button type="submit">' . th('w_wach_knopf') . '</button></form>', 200, '', t('w_titel'));
         exit;
     }
     $wer = mit_stand(function (array &$stand) use ($token) {
@@ -452,11 +459,11 @@ if ($aktion === 'wach') {
         return null;
     });
     if (!$wer) {
-        html_seite('<p>Dieser Alarm ist nicht mehr offen.</p>', 404);
+        html_seite('<p>' . th('w_nicht_offen') . '</p>', 404, '', t('w_titel'));
         exit;
     }
-    html_seite('<h1>Danke, ' . htmlspecialchars($wer[0]) . '</h1><p>Winterdienst ' . htmlspecialchars($wer[1]) . ' ist bestätigt. Nach dem Räumen und Streuen bitte das Protokoll eintragen.</p>'
-        . '<a class="knopf" href="wetter-alarm.php?aktion=protokoll&amp;t=' . $token . '">Protokoll eintragen</a>');
+    html_seite('<h1>' . th('w_danke', ['name' => htmlspecialchars($wer[0])]) . '</h1><p>' . th('w_bestaetigt', ['ort' => htmlspecialchars($wer[1])]) . '</p>'
+        . '<a class="knopf" href="wetter-alarm.php?aktion=protokoll&amp;t=' . $token . '">' . th('w_protokoll_eintragen') . '</a>', 200, '', t('w_titel'));
     exit;
 }
 
@@ -464,8 +471,9 @@ if ($aktion === 'wach') {
 if ($aktion === 'protokoll') {
     $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
     $zu = $e ? alarm_zum_code($token) : null;
+    sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : [], true);
     if (!$zu) {
-        html_seite('<h1>Winterdienst-Protokoll</h1><p>Dieser Link gilt nicht mehr (36 Stunden nach dem Alarm). Bitte im Büro melden.</p>', 404);
+        html_seite('<h1>' . th('w_protokoll') . '</h1><p>' . th('w_link_abgelaufen') . '</p>', 404, '', t('w_titel'));
         exit;
     }
     [$ortName, $person, $alarm, $lage] = $zu;
@@ -487,13 +495,13 @@ if ($aktion === 'protokoll') {
             }
         }
         if (!$obj) {
-            $fehler[] = 'Bitte das Objekt wählen.';
+            $fehler[] = t('fehler_objekt');
         }
         $geraeumt = !empty($_POST['geraeumt']);
         $gestreut = !empty($_POST['gestreut']);
         $kontrolle = !empty($_POST['kontrolle']);
         if (!$geraeumt && !$gestreut && !$kontrolle) {
-            $fehler[] = 'Bitte ankreuzen: geräumt, gestreut oder nur kontrolliert.';
+            $fehler[] = t('w_fehler_ankreuzen');
         }
         $mittel = (string) ($_POST['mittel'] ?? '');
         if (!in_array($mittel, STREUMITTEL, true)) {
@@ -517,16 +525,16 @@ if ($aktion === 'protokoll') {
                     continue;
                 }
                 if ($dateien['error'][$i] !== UPLOAD_ERR_OK) {
-                    $fehler[] = 'Foto zu groß oder nicht angekommen.';
+                    $fehler[] = t('w_foto_gross');
                     continue;
                 }
                 if (count($fotos) >= 4) {
-                    $fehler[] = 'Höchstens 4 Fotos je Eintrag.';
+                    $fehler[] = t('w_foto_max');
                     break;
                 }
                 $typ = $finfo ? (string) $finfo->file($dateien['tmp_name'][$i]) : (string) ($dateien['type'][$i] ?? '');
                 if (!isset(FOTO_TYPEN[$typ]) || $dateien['size'][$i] > 10 * 1024 * 1024) {
-                    $fehler[] = 'Foto bitte als JPEG oder PNG, höchstens 10 MB.';
+                    $fehler[] = t('w_foto_typ');
                     continue;
                 }
                 $fotos[] = ['tmp' => $dateien['tmp_name'][$i], 'name' => sprintf('%s-%d.%s', $id, count($fotos) + 1, FOTO_TYPEN[$typ])];
@@ -546,9 +554,12 @@ if ($aktion === 'protokoll') {
                 mit_stand(function (array &$stand) use ($ortName, $person, $obj) {
                     protokoll($stand, $ortName, "Protokoll von $person: " . $obj['name']);
                 });
-                $meldung = '<p class="ok">Gespeichert: ' . $h($obj['name']) . ' um ' . uhrzeit($erledigt) . ' Uhr' . ($gespeichert ? ', ' . count($gespeichert) . (count($gespeichert) === 1 ? ' Foto' : ' Fotos') : '') . '. Danke!</p>';
+                $uhr = $h(t('uhrzeit', ['zeit' => uhrzeit($erledigt)]));
+                $meldung = '<p class="ok">' . ($gespeichert
+                    ? th('w_gespeichert_fotos', ['objekt' => $h($obj['name']), 'uhr' => $uhr, 'fotos' => count($gespeichert) === 1 ? th('w_foto_1') : th('w_fotos', ['n' => (string) count($gespeichert)])])
+                    : th('w_gespeichert', ['objekt' => $h($obj['name']), 'uhr' => $uhr])) . '</p>';
             } else {
-                $meldung = '<p class="fehler">Konnte nicht speichern (Ordner privat/ am Webspace nicht beschreibbar). Bitte im Büro melden.</p>';
+                $meldung = '<p class="fehler">' . th('w_speicher_fehler') . '</p>';
             }
         } else {
             $meldung = '<p class="fehler">' . $h(implode(' ', array_unique($fehler))) . '</p>';
@@ -562,21 +573,23 @@ if ($aktion === 'protokoll') {
     foreach ($liste as $o) {
         $optionen .= '<option value="' . $h($o['id']) . '">' . $h($o['name'] . ($o['adresse'] ? ', ' . $o['adresse'] : '')) . (in_array($o['id'], $fertig, true) ? ' ✓' : '') . '</option>';
     }
-    $schon = $erledigtHeute ? '<h2>Heute eingetragen</h2><ul>' . implode('', array_map(fn ($p) => '<li>' . $h($p['objekt']) . ', ' . uhrzeit((int) $p['erledigt']) . ' Uhr, ' . $h($p['person']) . '</li>', $erledigtHeute)) . '</ul>' : '';
-    $mittelOpt = implode('', array_map(fn ($x) => '<option value="' . $h($x) . '">' . ($x === '' ? '–' : $h($x)) . '</option>', STREUMITTEL));
-    html_seite('<h1>Winterdienst-Protokoll</h1><p>' . $h($ortName) . ' · ' . $h($person) . '</p>' . $meldung
+    $schon = $erledigtHeute ? '<h2>' . th('w_heute') . '</h2><ul>' . implode('', array_map(fn ($p) => '<li>' . $h($p['objekt']) . ', ' . $h(t('uhrzeit', ['zeit' => uhrzeit((int) $p['erledigt'])])) . ', ' . $h($p['person']) . '</li>', $erledigtHeute)) . '</ul>' : '';
+    // Streumittel: Wert bleibt deutsch (Protokoll, Büro), angezeigt in der Sprache
+    $mittelText = ['Splitt' => 'w_splitt', 'Salz' => 'w_salz', 'Sand' => 'w_sand', 'Splitt und Salz' => 'w_splitt_salz'];
+    $mittelOpt = implode('', array_map(fn ($x) => '<option value="' . $h($x) . '">' . ($x === '' ? '–' : (isset($mittelText[$x]) ? th($mittelText[$x]) : $h($x))) . '</option>', STREUMITTEL));
+    html_seite(sprachwahl_html('wetter-alarm.php?aktion=protokoll&t=' . $token) . '<h1>' . th('w_protokoll') . '</h1><p>' . $h($ortName) . ' · ' . $h($person) . '</p>' . $meldung
         . ($liste ? '<form method="post" enctype="multipart/form-data" data-fotos-verkleinern>'
-            . '<label for="objekt">Objekt</label><select id="objekt" name="objekt" required><option value="">– wählen –</option>' . $optionen . '</select>'
-            . '<label for="erledigt">Erledigt um</label><input type="time" id="erledigt" name="erledigt" value="' . uhrzeit(jetzt()) . '" required>'
-            . '<label class="haken"><input type="checkbox" name="geraeumt" value="1"> Geräumt</label>'
-            . '<label class="haken"><input type="checkbox" name="gestreut" value="1"> Gestreut</label>'
-            . '<label class="haken"><input type="checkbox" name="kontrolle" value="1"> Nur kontrolliert, nichts nötig</label>'
-            . '<label for="mittel">Streumittel</label><select id="mittel" name="mittel">' . $mittelOpt . '</select>'
-            . '<label for="notiz">Notiz (optional)</label><textarea id="notiz" name="notiz" rows="2" maxlength="500" placeholder="z. B. Eisplatte beim Eingang, nachstreuen"></textarea>'
-            . '<label for="fotos">Fotos (optional, bis zu 4)</label><input type="file" id="fotos" name="fotos[]" accept="image/*" capture="environment" multiple>'
-            . '<button type="submit">Protokoll speichern</button></form>'
-          : '<p>Für diesen Ort ist kein Objekt mit Winterdienst eingetragen.</p>')
-        . $schon, 200, 'wetter-foto.js');
+            . '<label for="objekt">' . th('objekt') . '</label><select id="objekt" name="objekt" required><option value="">' . th('w_waehlen') . '</option>' . $optionen . '</select>'
+            . '<label for="erledigt">' . th('w_erledigt_um') . '</label><input type="time" id="erledigt" name="erledigt" value="' . uhrzeit(jetzt()) . '" required>'
+            . '<label class="haken"><input type="checkbox" name="geraeumt" value="1"> ' . th('w_geraeumt') . '</label>'
+            . '<label class="haken"><input type="checkbox" name="gestreut" value="1"> ' . th('w_gestreut') . '</label>'
+            . '<label class="haken"><input type="checkbox" name="kontrolle" value="1"> ' . th('w_kontrolliert') . '</label>'
+            . '<label for="mittel">' . th('w_streumittel') . '</label><select id="mittel" name="mittel">' . $mittelOpt . '</select>'
+            . '<label for="notiz">' . th('notiz_optional') . '</label><textarea id="notiz" name="notiz" rows="2" maxlength="500" placeholder="' . th('w_notiz_bsp') . '"></textarea>'
+            . '<label for="fotos">' . th('w_fotos_label') . '</label><input type="file" id="fotos" name="fotos[]" accept="image/*" capture="environment" multiple>'
+            . '<button type="submit">' . th('w_speichern') . '</button></form>'
+          : '<p>' . th('w_kein_objekt') . '</p>')
+        . $schon, 200, 'wetter-foto.js', t('w_titel'));
     exit;
 }
 
