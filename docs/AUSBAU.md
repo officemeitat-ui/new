@@ -14,8 +14,12 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 | Regiebericht am Handy mit Kundenunterschrift, PDF, Rechnungsentwurf mit einem Klick | fertig – Rechtsfragen in RECHTSPRUEFUNG Punkt 29 |
 | Qualitätsmessung in Anlehnung an ÖNORM EN 13549 (Stichprobe, Kennzahl, Verlauf, Bericht) | fertig – Tabellen gegen den Normtext prüfen (RECHTSPRUEFUNG Punkt 30) |
 | Mehrsprachigkeit für Mitarbeitende (Plan am Handy in sechs Sprachen, Objektanweisungen übersetzt) | fertig – Übersetzungen gegenlesen lassen (RECHTSPRUEFUNG Punkt 31) |
-| Arbeitsschutz (Arbeitsstoffe, Betriebsanweisungen, Evaluierung) | in Arbeit |
-| Kundenzufriedenheit, Bewerber/Eintritt/Austritt | in Arbeit |
+| Arbeitsschutz (Arbeitsstoffverzeichnis, Betriebsanweisungen, Evaluierung nach § 4 ASchG) | fertig – mit Sicherheitsfachkraft bestätigen (RECHTSPRUEFUNG Punkt 32) |
+| Kundenzufriedenheit (Umfrage im Kundenbereich, NPS, Hinweise) | fertig – Einladung per E-Mail klären (RECHTSPRUEFUNG Punkt 33) |
+| Bewerber, Eintritt, Austritt (neue Rolle Personalverwaltung) | fertig – Fristen und Datenschutz bestätigen (RECHTSPRUEFUNG Punkt 34) |
+| KI-Ausbau (Beleg lesen, Regiebericht diktieren, Assistent kennt die neuen Module, Texte) | in Arbeit |
+| Handy: untere Leiste je Rolle und selbst anpassbar | in Arbeit |
+| Feinschliff (siehe unten) | in Arbeit |
 
 ## Als Nächstes
 
