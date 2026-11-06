@@ -331,6 +331,19 @@ export class CachedDocStore {
     return this.remote.readRoot(path)
   }
 
+  /** Dateien eines Ordners mit eTag (SharePoint); ohne Netz OfflineError (der Aufrufer bleibt beim bekannten Stand). */
+  async listFiles(prefix) {
+    try {
+      const res = await this.remote.listFiles(prefix)
+      this.#mark(false)
+      return res
+    } catch (err) {
+      if (!isNetworkError(err)) throw err
+      this.#mark(true)
+      throw new OfflineError(`Ohne Verbindung nicht verfügbar: ${prefix}`)
+    }
+  }
+
   rootUrl(path) {
     return this.remote.rootUrl?.(path) ?? null
   }

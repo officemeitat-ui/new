@@ -29,7 +29,7 @@ import { attention as aschAttention, isUrgent as aschUrgent } from '../../core/a
 import { checklistAttention, deleteMonthsOf, deletionsDue, silentApplicants, silentDaysOf, STATUS as BEW_STATUS } from '../../core/bewerber.js'
 import { isOverdue as complaintOverdue } from '../../core/complaints.js'
 import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/qualitaet.js'
-import { attention as mwAttention, confirmedExchanges } from '../../core/matten-einsaetze.js'
+import { attention as mwAttention, confirmedExchanges, untouredSoon } from '../../core/matten-einsaetze.js'
 import { fmtAvg, attention as kzAttention, scopeObjectIds as kzScope } from '../../core/zufriedenheit.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
 import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
@@ -484,6 +484,18 @@ function fristen(today) {
         title: 'Einsätze für die nächsten Wochen noch nicht geplant',
         text: `${plural(a.missing.length, 'Wechsel', 'Wechsel')} bis ${formatDate(a.until)} stehen noch nicht im Matten-Kalender. „Einsätze planen“ legt sie an; erneutes Planen erzeugt keine Doppel. Ich ändere dabei nichts selbst.`,
         open: { label: 'Öffnen', action: 'mw-cal-goto', data: { plan: '1' } },
+      })
+    // Tourenplanung: offene Einsätze bis zum nächsten Arbeitstag ohne freigegebene Tour (nur „Öffnen“)
+    const soon = untouredSoon(app.data.mattenJobs || [], today)
+    if (soon.jobs.length)
+      out.push({
+        id: `mw-tour:${soon.date}:${soon.jobs.length}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `${soon.title} (${soon.jobs.length})`,
+        text: `${plural(soon.jobs.length, 'Einsatz steht', 'Einsätze stehen')} am ${soon.days.map((d) => formatDate(d)).join(', ')} in keiner freigegebenen Tour. In „Touren planen“ einen Vorschlag erzeugen, prüfen und freigeben. Ich ändere dabei nichts selbst.`,
+        lines: soon.jobs.slice(0, 6).map((j) => { const p = d.placements.find((x) => x.id === j.placementId); return `${p?.name || 'Liegeplatz'} (${objName(p?.objectId) || 'Objekt'}): ${formatDate(j.planned || j.due)}` }),
+        open: { label: 'Öffnen', action: 'mw-tp-goto', data: { date: soon.date } },
       })
   }
   const rek = app.data.reklamationen

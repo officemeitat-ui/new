@@ -187,7 +187,7 @@ function fakeGraph(opts = {}) {
       const dir = kids[1]
       if (!folders.has(dir)) return json(404, { error: { message: 'not found' } })
       const direct = (k) => k.startsWith(`${dir}/`) && !k.slice(dir.length + 1).includes('/')
-      return json(200, { value: [...[...folders].filter(direct).map((k) => ({ name: k.split('/').pop(), folder: {} })), ...[...files.keys()].filter(direct).map((k) => ({ name: k.split('/').pop(), file: {}, size: files.get(k).body.length }))] })
+      return json(200, { value: [...[...folders].filter(direct).map((k) => ({ name: k.split('/').pop(), folder: {} })), ...[...files.keys()].filter(direct).map((k) => ({ name: k.split('/').pop(), file: {}, size: files.get(k).body.length, eTag: files.get(k).etag }))] })
     }
     m = p.match(/^\/drives\/drive1\/root:\/(.+?)(:\/content)?$/)
     if (!m) return json(400, { error: { message: `unbekannt ${p}` } })
@@ -588,4 +588,27 @@ test('DataService: Einkauf und Kassenbuch in eigenen Dateien unter einkauf/', as
   await svc.flush()
   await other.flush()
   assert.deepEqual((await store.read(MODULE_DOCS.kasse.path)).data.entries.map((e) => e.id).sort(), ['k1', 'k2', 'k3'])
+})
+
+test('SharePoint: Dateien eines Ordners mit eTag in einer Anfrage (Touren je Jahr), ohne Netz klare Meldung', async () => {
+  const g = fakeGraph()
+  const store = new SharePointDocStore({ getToken: async () => 'TOKEN', siteUrl: 'https://firma.sharepoint.com/sites/Dienstplan', fetchImpl: g.fetchImpl })
+  await store.init()
+  assert.deepEqual(await store.listFiles('matten/touren/2026'), [], 'Ordner fehlt noch')
+  const e1 = await store.write('matten/touren/2026/mt000000000001.json', { id: 'mt000000000001' })
+  const e2 = await store.write('matten/touren/2026/mt000000000002.json', { id: 'mt000000000002' })
+  await store.write('matten/touren/2026/unter/x.json', { id: 'x' })
+  g.calls.length = 0
+  const list = await store.listFiles('matten/touren/2026')
+  assert.deepEqual(list.map((x) => [x.path, x.etag]).sort(), [['matten/touren/2026/mt000000000001.json', e1], ['matten/touren/2026/mt000000000002.json', e2]], 'nur Dateien direkt im Ordner')
+  assert.equal(g.calls.length, 1, 'eine Anfrage')
+  assert.match(g.calls[0], /select=name,file,eTag/)
+  const { CachedDocStore, memoryCache } = await import('../src/storage/offline.js')
+  const cached = new CachedDocStore(store, memoryCache())
+  assert.equal((await cached.listFiles('matten/touren/2026')).length, 2)
+  store.listFiles = async () => {
+    throw new TypeError('Failed to fetch')
+  }
+  await assert.rejects(cached.listFiles('matten/touren/2026'), (err) => err.offline === true)
+  assert.equal(cached.offline, true)
 })

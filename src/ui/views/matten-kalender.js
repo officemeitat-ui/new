@@ -2,7 +2,8 @@
 // speichern (je Jahr eine Datei matten/einsaetze-<Jahr>.json, YEAR_DOCS in storage/data-service.js), Woche und Monat,
 // je Tag die Einsätze nach Gebiet → Objekt mit Status, Matten je Größe und Ladeliste; Verschieben, Aussetzen,
 // Nachholen und Verwerfen je Einsatz und für mehrere markierte; Betriebsurlaub für alle Liegeplätze. Überfällige und
-// nachzuholende stehen oben als Hinweisliste. Am Handy ist der Kalender eine Tagesliste.
+// nachzuholende stehen oben als Hinweisliste. Am Handy ist der Kalender eine Tagesliste. Je Tag „Touren planen“
+// (views/matten-planung.js); Einsätze einer freigegebenen Tour stehen als „in Tour (Fahrer)“ da.
 // Rechenkern: core/matten-einsaetze.js (mit dem Fälligkeitsrechner core/matten-plan.js). Fahrer sehen das nicht.
 // Aktionen und Dialoge mit dem Kürzel „mw-“.
 
@@ -28,13 +29,16 @@ import {
   planSettings,
   rangeProblem,
   resolveReview,
+  untouredSoon,
   yearsFor,
 } from '../../core/matten-einsaetze.js'
 import { jobDate, SKIP_MODES } from '../../core/matten-plan.js'
 import { emptyMatten, intervalText, upgradeMatten } from '../../core/matten.js'
+import { tourYears } from '../../core/matten-touren.js'
 import { app, canEdit, closeModal, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
+import { inTourText, toursReady } from './matten-planung.js'
 
 const MODULE = 'matten'
 const KEY = 'mattenJobs'
@@ -54,7 +58,8 @@ const shortYear = (d) => (d ? formatDate(d, { year: true }) : '–')
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 /** Bestätigte Wechsel: vorerst der letzte aus der Übernahme; die Touren des Moduls kommen mit der Phase Fahrer dazu. */
 const done = () => confirmedExchanges({ placements: doc().placements, tours: [] })
-const pill = (status) => `<span class="mw-st st-${esc(status)}">${esc(DISPLAY[status] || status)}</span>`
+/** Status als Farbe und Text; ein Einsatz einer freigegebenen Tour zeigt den Fahrer: „in Tour (Anna)“. */
+const pill = (status, job = null) => `<span class="mw-st st-${esc(status)}">${esc(status === 'in-tour' && job ? inTourText(job) : DISPLAY[status] || status)}</span>`
 /** Lässt sich der Einsatz im Kalender ändern (sonst kein Kästchen zum Markieren)? */
 const changeable = (job, today = todayISO()) => Object.keys(JOB_ACTIONS).some((a) => canApply(a, job, today))
 const placementLabel = (p) => (p ? `${p.name}${p.floor ? ` (${p.floor})` : ''}` : 'Liegeplatz gelöscht')
@@ -119,6 +124,8 @@ function kalenderView() {
     return `${head}<div class="banner welcome"><p><strong>Noch keine Liegeplätze.</strong> Der Kalender zeigt die Einsätze der Liegeplätze. Zuerst unter „Matten-Liegeplätze“ die Liegeplätze mit Intervall und Starttermin anlegen, dann hier „Einsätze planen“.</p><button class="btn" data-action="view" data-view="mw-liegeplaetze">Liegeplätze</button></div>`
   const cal = calAt(m, date, areaFilter(), today)
   const ready = yearsReady(cal.from, cal.to)
+  // Einsätze in einer Tour: Fahrer aus den Touren (im Hintergrund gelesen)
+  if (cal.days.some((d) => d.counts['in-tour'])) toursReady(tourYears(cal.from, cal.to))
   return `${head}${hintsBlock(today)}${planBanner(cal, settings, ed)}${toolbar(cal, m)}
     ${ready ? '' : '<p class="note">Einsätze eines weiteren Jahres werden geladen …</p>'}
     ${m === 'monat' ? monthBlock(cal, today) : weekBlock(cal, today, ed)}
@@ -180,7 +187,7 @@ function jobItem(it, ed, date) {
   const label = `${placementLabel(p)} am ${dayTitle(date)}`
   const extra = [job.planned && job.planned !== job.due ? `Solltermin ${short(job.due)}` : '', job.reason || ''].filter(Boolean).join(' · ')
   return `<li class="mw-job st-${esc(status)}">${ed && changeable(job) ? `<label class="mw-check"><input type="checkbox" data-change="mw-sel" data-key="${esc(job.key)}" ${sel ? 'checked' : ''} aria-label="${esc(label)} markieren"></label>` : ''}
-    <button class="mw-job-btn" data-action="mw-job-open" data-key="${esc(job.key)}"><span class="mw-job-name">${esc(placementLabel(p))}</span> ${pill(status)}${mats ? `<small>${esc(mats)}</small>` : ''}${extra ? `<small class="muted">${esc(extra)}</small>` : ''}</button></li>`
+    <button class="mw-job-btn" data-action="mw-job-open" data-key="${esc(job.key)}"><span class="mw-job-name">${esc(placementLabel(p))}</span> ${pill(status, job)}${mats ? `<small>${esc(mats)}</small>` : ''}${extra ? `<small class="muted">${esc(extra)}</small>` : ''}</button></li>`
 }
 
 function groupsHtml(day, ed) {
@@ -206,7 +213,7 @@ function weekBlock(cal, today, ed) {
       const info = day.jobs ? `${plural(day.jobs, 'Einsatz', 'Einsätze')} · ${plural(day.objects, 'Objekt', 'Objekte')}${day.mats ? ` · ${plural(day.mats, 'Matte', 'Matten')}` : ''}` : 'keine Einsätze'
       const moved = day.moved.length ? `<p class="mw-moved muted">Verschoben: ${day.moved.map(({ job, placement }) => `${esc(placementLabel(placement))} → ${esc(short(jobDate(job)))}`).join(', ')}</p>` : ''
       return `<section class="mw-day ${day.weekend ? 'weekend' : ''} ${isToday ? 'today' : ''} ${day.jobs ? '' : 'empty'}" data-date="${day.date}" aria-label="${esc(dayTitle(day.date))}">
-        <header><h3>${esc(dayTitle(day.date))}${isToday ? ' <span class="pill info">heute</span>' : ''}${closureTag(day.date)}</h3><span class="muted">${info}</span>${ed && keys.length ? `<label class="mw-check-day"><input type="checkbox" data-change="mw-sel-day" data-date="${day.date}" ${all ? 'checked' : ''}><span>alle</span></label>` : ''}</header>
+        <header><h3>${esc(dayTitle(day.date))}${isToday ? ' <span class="pill info">heute</span>' : ''}${closureTag(day.date)}</h3><span class="muted">${info}</span>${ed && keys.length ? `<label class="mw-check-day"><input type="checkbox" data-change="mw-sel-day" data-date="${day.date}" ${all ? 'checked' : ''}><span>alle</span></label>` : ''}${ed && (day.open || day.counts['in-tour']) && day.date >= today ? `<button class="btn small mw-tp-link" data-action="mw-tp-goto" data-date="${day.date}" aria-label="Touren planen am ${esc(dayTitle(day.date))}">Touren planen</button>` : ''}</header>
         ${day.jobs || moved ? `<div class="mw-day-body">${groupsHtml(day, ed)}${moved}</div>` : ''}${loadBox(day)}</section>`
     })
     .join('')
@@ -229,7 +236,7 @@ function monthBlock(cal, today) {
 }
 
 function legend() {
-  return `<p class="mw-legend" aria-label="Farben">${['geplant', 'verschoben', 'ueberfaellig', 'nachzuholen', 'ausgesetzt', 'erledigt'].map(pill).join(' ')}</p>`
+  return `<p class="mw-legend" aria-label="Farben">${['geplant', 'verschoben', 'in-tour', 'ueberfaellig', 'nachzuholen', 'ausgesetzt', 'erledigt'].map((x) => pill(x)).join(' ')}</p>`
 }
 
 function selectionBar(ed) {
@@ -274,7 +281,7 @@ function jobModal(c, m) {
   const p = one ? placementOf(one.placementId) : null
   const details = one
     ? `<dl class="mw-dl">
-        <dt>Status</dt><dd>${pill(displayStatus(one, today))}${one.reason ? ` <span class="muted">${esc(one.reason)}</span>` : ''}</dd>
+        <dt>Status</dt><dd>${pill(displayStatus(one, today), one)}${one.reason ? ` <span class="muted">${esc(one.reason)}</span>` : ''}${one.status === 'in-tour' ? ` <button class="btn small" data-action="mw-tp-goto" data-date="${esc(jobDate(one))}">Tour ansehen</button>` : ''}</dd>
         <dt>Objekt</dt><dd>${esc(p ? objName(p.objectId) : '–')}${p?.customer?.name ? ` <span class="muted">(${esc(p.customer.name)})</span>` : ''}</dd>
         <dt>Matten</dt><dd>${esc((p?.mats || []).map((x) => `${x.qty} × ${x.name || 'Matte'}${x.owner === 'kunde' ? ' (Kunde)' : ''}`).join(', ') || '–')}</dd>
         <dt>Solltermin</dt><dd>${esc(shortYear(one.due))}${p ? ` <span class="muted">${esc(intervalText(p.intervalDays))}</span>` : ''}</dd>
@@ -288,14 +295,14 @@ function jobModal(c, m) {
         .slice(0, 30)
         .map((j) => {
           const pl = placementOf(j.placementId)
-          return `<li>${pill(displayStatus(j, today))} ${esc(placementLabel(pl))} <span class="muted">${esc(pl ? objName(pl.objectId) : '')} · ${esc(short(jobDate(j)))}</span></li>`
+          return `<li>${pill(displayStatus(j, today), j)} ${esc(placementLabel(pl))} <span class="muted">${esc(pl ? objName(pl.objectId) : '')} · ${esc(short(jobDate(j)))}</span></li>`
         })
         .join('')}${list.length > 30 ? `<li class="muted">… und ${list.length - 30} weitere</li>` : ''}</ul>`
   if (!ed || !act)
     return modalFrame({
       title: one ? `Einsatz: ${placementLabel(p)}` : plural(list.length, 'Einsatz', 'Einsätze'),
       subtitle: one ? esc(`${short(jobDate(one))}${p ? ` · ${objName(p.objectId)}` : ''}`) : '',
-      body: `${details}${ed ? '<p class="note">Erledigte Einsätze und Einsätze in einer Tour ändert der Kalender nicht.</p>' : ''}`,
+      body: `${details}${ed ? '<p class="note">Erledigte Einsätze und Einsätze in einer Tour ändert der Kalender nicht. Einsätze in einer Tour ändert „Touren planen“ (dort zuerst die Freigabe zurücknehmen).</p>' : ''}`,
       foot: '<div class="actions"></div><div class="actions"><button class="btn" data-action="close-modal">Schließen</button></div>',
     })
   const a = JOB_ACTIONS[act]
@@ -620,6 +627,9 @@ registerTodo({
     const out = []
     if (a.overdue.length) out.push({ id: `ueber:${a.overdue.map((x) => `${x.placement.id}@${x.next.date}`).join(',')}`, kind: 'ueber', list: a.overdue })
     if (a.missing.length) out.push({ id: `plan:${a.until}:${a.missing.length}`, kind: 'plan', count: a.missing.length, until: a.until })
+    // Tourenplanung: offene Einsätze bis zum nächsten Arbeitstag ohne freigegebene Tour
+    const soon = untouredSoon(jobsAll(), today)
+    if (soon.jobs.length) out.push({ id: `tour:${soon.date}:${soon.jobs.length}`, kind: 'tour', count: soon.jobs.length, date: soon.date, title: soon.title, days: soon.days })
     return out
   },
   render: (items) =>
@@ -632,7 +642,9 @@ registerTodo({
                 .map((y) => `${y.placement.name} (${objName(y.placement.objectId)}) seit ${short(y.next.date)}`)
                 .join(' · '),
             )}${x.list.length > 4 ? ' …' : ''}</span></div><button class="btn small primary" data-action="mw-cal-goto" data-date="${esc(x.list[0].next.date)}">Öffnen</button></div>`
-          : `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Einsätze für die nächsten Wochen noch nicht geplant</strong><br><span class="muted">${esc(plural(x.count, 'Wechsel', 'Wechsel'))} bis ${esc(short(x.until))} fehlen im Kalender.</span></div><button class="btn small primary" data-action="mw-cal-goto" data-plan="1">Öffnen</button></div>`,
+          : x.kind === 'tour'
+            ? `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>${esc(x.title)}</strong><br><span class="muted">${esc(plural(x.count, 'Einsatz', 'Einsätze'))} am ${esc(x.days.map((d) => short(d)).join(', '))} in keiner freigegebenen Tour. In „Touren planen“ vorschlagen und freigeben.</span></div><button class="btn small primary" data-action="mw-tp-goto" data-date="${esc(x.date)}">Öffnen</button></div>`
+            : `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Einsätze für die nächsten Wochen noch nicht geplant</strong><br><span class="muted">${esc(plural(x.count, 'Wechsel', 'Wechsel'))} bis ${esc(short(x.until))} fehlen im Kalender.</span></div><button class="btn small primary" data-action="mw-cal-goto" data-plan="1">Öffnen</button></div>`,
       )
       .join(''),
 })

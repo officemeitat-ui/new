@@ -262,6 +262,25 @@ export class SharePointDocStore {
     return files.map((f) => f.path.slice(base.length + 1))
   }
 
+  /**
+   * Dateien direkt in einem Ordner des App-Ordners mit eTag, in einer Anfrage je 999 Dateien (z. B. die Touren eines
+   * Jahres, matten/touren/2026): [{ path, etag, modified }]; Ordner fehlt → []. So liest die App nur Dateien, deren
+   * eTag sich geändert hat.
+   */
+  async listFiles(prefix) {
+    const dir = String(prefix).replace(/^\/|\/$/g, '')
+    const out = []
+    let url = `${this.#itemUrl(dir)}:/children?$select=name,file,eTag,lastModifiedDateTime&$top=999`
+    while (url) {
+      const res = await this.#request('GET', url, { okStatuses: [404] })
+      if (res.status === 404) return []
+      const page = await res.json()
+      for (const item of page.value || []) if (item.file || (!item.folder && item.eTag)) out.push({ path: `${dir}/${item.name}`, etag: item.eTag ?? null, modified: item.lastModifiedDateTime || null })
+      url = page['@odata.nextLink'] || null
+    }
+    return out
+  }
+
   /** Adresse einer Datei ab der Bibliothek zum Öffnen im Browser. */
   rootUrl(path) {
     return this.driveWebUrl ? `${this.driveWebUrl}/${encodePath(path)}` : null

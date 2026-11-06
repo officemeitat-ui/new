@@ -29,7 +29,8 @@
 //   bewerbung/bewerbung.json          Bewerbungen (Unterlagen unter bewerbung/unterlagen/) – eng: Personalverwaltung
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
-//                                     (Büro; Touren der Fahrer später unter matten/touren/)
+//                                     (Büro; Betriebshof, Fahrer). Touren je Datei unter matten/touren/<Jahr>/<TourId>.json
+//                                     – nicht über den DataService, sondern storage/matten-tourablage.js
 //   matten/einsaetze-2026.json        Mattenwechsel: Einsätze je Liegeplatz und Solltermin, eine Datei je Jahr des
 //                                     Solltermins (YEAR_DOCS; wie die Wochenpläne: geladen werden die nötigen Jahre)
 //
@@ -166,7 +167,8 @@ export function dataRights(access) {
     // „abwesend von–bis“ ohne Grund: geschrieben, wo die Abwesenheiten gepflegt werden
     [DOC.absent, () => sees('planung', 'auswertung', 'stammdaten'), () => edits('planung', 'stammdaten')],
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
-    [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge'), () => edits('fahrzeuge')],
+    // Fuhrpark: auch der Mattenwechsel liest ihn (Fahrzeug je Tour in der Tourenplanung), schreiben nur der Fuhrpark
+    [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge', 'matten'), () => edits('fahrzeuge')],
     [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
     // Material: auch der Arbeitsschutz liest die Artikel (Arbeitsstoffverzeichnis); die Angaben zu Arbeitsstoffen am
     // Artikel speichert, wer Arbeitsstoffe bearbeitet (Lager, Vollzugriff)
@@ -248,7 +250,7 @@ export const FOLDERS = [
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
   ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr (Büro)', MODULE_DOCS.matten.path],
-  ['matten/touren', 'Mattenwechsel: Touren der Fahrer (ab der Phase Fahrer)', 'matten/touren/2026/tour.json'],
+  ['matten/touren', 'Mattenwechsel: Touren je Datei (Büro plant und gibt frei, Fahrer arbeiten sie ab)', 'matten/touren/2026/tour.json'],
 ]
 
 /**

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 330 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 334 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (65)
+- [Objekte & Kunden](#objekte-kunden) (69)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (74)
 - [Verwaltung](#verwaltung) (56)
@@ -1770,6 +1770,71 @@ Betriebsurlaub und Schließtage gelten für alle Liegeplätze. Fällt ein Wechse
 
 > Tipp: Schon geplante Einsätze ab heute passt die App beim Speichern an.
 > Tipp: Je Eintrag lässt sich abweichend „entfällt“ oder „nachholen“ wählen.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Touren planen (Mattenwechsel)
+
+*In der App: Matten-Tourenplanung*
+
+In „Matten-Tourenplanung“ wählst du den Tag und die Fahrer des Tages; „Vorschlag erzeugen“ verteilt die fälligen und überfälligen Einsätze als Stopps (ein Objekt = ein Stopp) auf die Fahrer, mit Reihenfolge und Ankunftszeiten. Je Tour: Stopps, Zeitfenster, Liegeplätze und Matten, km und Minuten, Ladeliste, Warnungen.
+
+1. Im „Matten-Kalender“ beim Tag „Touren planen“ klicken (oder die Ansicht öffnen und den Tag wählen).
+2. Fahrer des Tages prüfen: Arbeitszeit, Fahrzeug, Platz für Matten.
+3. „Vorschlag erzeugen“ klicken.
+4. Reihenfolge mit den Pfeilen ändern (am PC auch ziehen), Stopps in eine andere Tour verschieben oder entfernen.
+5. Ladeliste und Warnungen prüfen, dann „Tour freigeben“.
+
+> Tipp: Nach jeder Änderung rechnet die App die Ankunftszeiten neu.
+> Tipp: „Nicht eingeplant“ nennt den Grund, z. B. keine Koordinaten oder Zeitfenster nicht einzuhalten; von dort lässt sich ein Stopp zu einer Tour hinzufügen.
+> Tipp: „Route in Google Maps ansehen“ zeigt Betriebshof, alle Stopps und zurück; bei vielen Stopps in Teilen.
+> Tipp: Ein neuer Vorschlag ersetzt die Entwürfe des Tages, freigegebene Touren bleiben.
+
+*Mattenwechsel Büro, Vollzugriff (Fahrer sehen die Planung nicht)*
+
+### Tour freigeben und Freigabe zurücknehmen
+
+*In der App: Matten-Tourenplanung*
+
+„Tour freigeben“ speichert die Tour mit Reihenfolge als freigegeben; erst dann sieht sie der Fahrer. Die Einsätze ihrer Stopps stehen im Kalender als „in Tour (Fahrer)“. Steht ein Einsatz schon in einer anderen Tour, lässt die App die Freigabe nicht zu und nennt die Tour.
+
+1. In „Matten-Tourenplanung“ die Tour prüfen: Fahrer, Fahrzeug, Stopps, Ladeliste.
+2. „Tour freigeben“ klicken.
+3. Zum Ändern „Freigabe zurücknehmen“ klicken: die Tour wird wieder ein Entwurf, die Einsätze sind frei.
+
+> Tipp: „Entwurf löschen“ (zweimal klicken) gibt die Einsätze ebenfalls frei; sie stehen dann wieder unter „Nicht eingeplant“.
+> Tipp: Ist die Tour schon unterwegs, ändert das Büro sie nicht mehr.
+> Tipp: „Zu erledigen“ meldet Einsätze von morgen (am Freitag bis Montag), die in keiner freigegebenen Tour stehen.
+
+*Mattenwechsel Büro, Vollzugriff*
+
+### Betriebshof und Arbeitszeit der Touren
+
+*In der App: Matten-Tourenplanung*
+
+Der Betriebshof ist Start und Ziel jeder Tour. Er braucht Koordinaten, damit die App Reihenfolge und Fahrzeiten rechnen kann. Dazu kommt die Arbeitszeit für Fahrer ohne eigene Angabe und auf Wunsch „Touren nach Gebiet trennen“.
+
+1. In „Matten-Tourenplanung“ „Mehr“ → „Betriebshof und Arbeitszeit“ öffnen.
+2. Name und Adresse eintragen, „Suchen“ holt die Koordinaten von OpenStreetMap.
+3. Arbeitszeit von–bis eintragen und speichern.
+
+> Tipp: Koordinaten lassen sich auch von Hand eintragen, z. B. aus Google Maps (Rechtsklick auf den Ort).
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Fahrer für den Mattenwechsel festlegen
+
+*In der App: Matten-Tourenplanung*
+
+Unter „Fahrer“ steht, wer Matten fährt: Name, E-Mail des Microsoft-Kontos, Arbeitszeit, Fahrzeug aus dem Fuhrpark und Platz für Matten (optional). Wer die Mitarbeitenden sieht, wählt die Person aus der Liste; sonst trägt man Name und E-Mail von Hand ein.
+
+1. In „Matten-Tourenplanung“ „Mehr“ → „Fahrer (Mattenwechsel)“ öffnen.
+2. Person aus den Mitarbeitenden wählen und „hinzufügen“ (oder „Fahrer von Hand“).
+3. Arbeitszeit, Fahrzeug und Platz eintragen, „Speichern“.
+
+> Tipp: Die E-Mail verbindet die Tour mit dem Konto des Fahrers („meine Touren“ am Handy).
+> Tipp: Je Tag lassen sich Fahrer abwählen und Zeiten oder Fahrzeug ändern, ohne die Vorgaben zu ändern.
+> Tipp: Personen mit der Rolle „Fahrer Mattenwechsel“ stehen in der Auswahl oben.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 

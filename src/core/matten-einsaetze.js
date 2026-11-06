@@ -16,7 +16,7 @@
 //   skip: 'entfaellt' | 'nachholen'           was mit einem Wechsel in einer Pause bzw. im Betriebsurlaub geschieht
 //   planning: { von, bis, at, by }            letzter Lauf von „Einsätze planen“
 
-import { addDays, isoWeekday } from './dates.js'
+import { addDays, isoWeekday, WEEKDAY_LONG } from './dates.js'
 import { matLabel, matSize } from './invoicing.js'
 import {
   calendarMonth,
@@ -434,6 +434,36 @@ export function hintList(jobs = [], { placements = [], today = '' } = {}) {
 }
 
 // ---------------------------------------------------------------- Zu erledigen, digitaler Mitarbeiter
+
+/**
+ * Offene Einsätze eines Tages ohne freigegebene Tour (geplant, nachzuholen, nicht durchgeführt; Einsätze einer
+ * freigegebenen Tour haben den Status 'in-tour'). Für „Morgen fällige Einsätze ohne freigegebene Tour“ (Tourenplanung,
+ * ui/views/matten-planung.js). Ein Entwurf hält keinen Einsatz fest – er zählt hier mit.
+ */
+export function withoutTour(jobs = [], date = '') {
+  return (jobs || []).filter((j) => ['geplant', 'nachzuholen', 'nicht-durchgefuehrt'].includes(j?.status) && jobDate(j) === date).sort((a, b) => String(a.key).localeCompare(String(b.key)))
+}
+
+/** Nächster Arbeitstag (Montag bis Freitag) nach dem Tag d. */
+export function nextWorkday(d) {
+  let x = addDays(d, 1)
+  while (isoWeekday(x) > 5) x = addDays(x, 1)
+  return x
+}
+
+/**
+ * „Morgen fällige Einsätze ohne freigegebene Tour“ (Zu erledigen, digitaler Mitarbeiter): offene Einsätze von morgen bis
+ * zum nächsten Arbeitstag (am Freitag also bis Montag, mit dem Wochenende), die in keiner freigegebenen Tour stehen.
+ * Liefert { date (nächster Arbeitstag), days, jobs, title }.
+ */
+export function untouredSoon(jobs = [], today) {
+  const date = nextWorkday(today)
+  const days = []
+  for (let d = addDays(today, 1); d <= date; d = addDays(d, 1)) days.push(d)
+  const list = days.flatMap((d) => withoutTour(jobs, d))
+  const title = date === addDays(today, 1) ? 'Morgen fällige Einsätze ohne freigegebene Tour' : `Bis ${WEEKDAY_LONG[isoWeekday(date) - 1]} fällige Einsätze ohne freigegebene Tour`
+  return { date, days, jobs: list, title }
+}
 
 /**
  * Was das Büro tun sollte: { overdue: [{ placement, next }] (Liegeplätze, deren nächster Wechsel überfällig ist – offener

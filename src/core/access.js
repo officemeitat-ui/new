@@ -12,8 +12,8 @@
 // (werkzeuge/, src/ui/views/tools.js): Sie speichern selbst in ihren Ordnern
 // der Bibliothek; die Rolle entscheidet, wer sie in der App sieht.
 // matten ist zugleich das Büro-Modul Mattenwechsel (Liegeplätze, Übernahme,
-// später Kalender und Touren planen; Datei matten/matten.json), mattentour der
-// Bereich der Fahrer (eigene Touren, später unter matten/touren/).
+// Kalender, Touren planen und freigeben; Datei matten/matten.json), mattentour der
+// Bereich der Fahrer (eigene Touren unter matten/touren/).
 
 export const MODULES = {
   planung: 'Einsatzplanung',
@@ -59,7 +59,7 @@ export const DEFAULT_ROLES = {
   objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   // Mattenwechsel Büro (Rollen-ID bleibt „mattenwechsel“, damit die Gruppe in config.json weiter gilt): Werkzeug,
-  // Liegeplätze, später Kalender und Touren planen und freigeben; Rechnungsentwürfe nur mit Recht auf die Fakturierung
+  // Liegeplätze, Kalender, Touren planen und freigeben; Rechnungsentwürfe nur mit Recht auf die Fakturierung
   mattenwechsel: { label: 'Mattenwechsel Büro', modules: ['matten', 'mattentour'], edit: ['matten', 'mattentour'] },
   // Fahrer Mattenwechsel: nur die eigenen Touren (matten/touren/), keine Preise, kein Kundenstamm
   mattenfahrer: { label: 'Fahrer Mattenwechsel', modules: ['mattentour'], edit: ['mattentour'] },

@@ -298,6 +298,9 @@ test('Rechte: Mattenwechsel-Modul – Büro bearbeitet Liegeplätze, Fahrer nur 
   assert.ok(buero.canEdit('matten') && buero.canEdit('mattentour') && br.write(FILE) && br.write(TOUR) && br.read(DOC.objects))
   assert.ok(!br.read(MODULE_DOCS.fakturierung.path) && !br.read(DOC.master))
   assert.deepEqual([rows(buero).matten, rows(buero)['matten/touren'], rows(buero).objekte, rows(buero).fakturierung], ['Bearbeiten', 'Bearbeiten', 'Lesen', ''])
+  // Tourenplanung: Fahrzeug aus dem Fuhrpark (nur lesen); die Fahrer stehen als Kopie in matten.json, keine Stammdaten
+  assert.ok(br.read(MODULE_DOCS.fahrzeuge.path) && !br.write(MODULE_DOCS.fahrzeuge.path) && !buero.sees('fahrzeuge'))
+  assert.deepEqual([rows(buero).fahrzeuge, rows(buero).daten], ['Lesen', ''])
   assert.deepEqual(tools(buero), { 'Wasserzähler - Ablesung': '', Objektpruefprotokolle: '', Objektdoku: '', Mattenwechsel: 'Bearbeiten', Stammdaten: 'Bearbeiten' })
   // Fahrer: nur das Fahrer-Modul und matten/touren/; kein Schreibrecht (auch kein Lesen) auf matten/matten.json
   const fahrer = role('mattenfahrer')
@@ -306,7 +309,7 @@ test('Rechte: Mattenwechsel-Modul – Büro bearbeitet Liegeplätze, Fahrer nur 
   assert.ok(fahrer.sees('mattentour') && fahrer.canEdit('mattentour') && !fahrer.sees('matten'))
   assert.ok(fr.read(TOUR) && fr.write(TOUR))
   assert.ok(!fr.read(FILE) && !fr.write(FILE), 'Liegeplätze und Gebiete nicht')
-  for (const p of [MODULE_DOCS.fakturierung.path, DOC.objects, DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.assistenz.path]) assert.ok(!fr.read(p), `Fahrer liest ${p} nicht`)
+  for (const p of [MODULE_DOCS.fakturierung.path, DOC.objects, DOC.master, DOC.absences, DOC.account, weekPath('2026-10-26'), MODULE_DOCS.assistenz.path, MODULE_DOCS.fahrzeuge.path, 'matten/einsaetze-2026.json']) assert.ok(!fr.read(p), `Fahrer liest ${p} nicht`)
   assert.ok(!fahrer.sees('fakturierung') && !fahrer.sees('stammdaten'))
   assert.deepEqual([rows(fahrer).matten, rows(fahrer)['matten/touren'], rows(fahrer).fakturierung, rows(fahrer).objekte], ['', 'Bearbeiten', '', ''])
   assert.ok(Object.values(tools(fahrer)).every((x) => x === ''), 'kein Werkzeug-Ordner, kein Kundenstamm')

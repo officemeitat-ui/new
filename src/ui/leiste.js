@@ -168,6 +168,7 @@ export const SHORT_LABELS = {
   matten: 'Matten',
   'mw-liegeplaetze': 'Liegeplätze',
   'mw-kalender': 'Kalender',
+  'mw-planung': 'Tourplanung',
   'mw-touren': 'Touren',
   qualitaet: 'Qualität',
   staff: 'Personal',

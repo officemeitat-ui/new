@@ -82,6 +82,18 @@ export class LocalDocStore {
     return this.list(prefix)
   }
 
+  /** Dateien direkt in einem Ordner mit eTag (wie SharePoint): [{ path, etag, modified }]. */
+  async listFiles(prefix) {
+    const dir = `${String(prefix).replace(/^\/|\/$/g, '')}/`
+    const out = []
+    for (const path of await this.list(dir)) {
+      if (path.slice(dir.length).includes('/')) continue
+      const doc = this.#get(path)
+      if (doc) out.push({ path, etag: doc.etag, modified: doc.modifiedAt || null })
+    }
+    return out
+  }
+
   async list(prefix) {
     const out = []
     for (let i = 0; i < (this.storage.length || 0); i++) {

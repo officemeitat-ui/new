@@ -246,7 +246,7 @@ const SAFE = new Set([
   'appt-new', 'portal-open', 'tc-edit-open', 'wx-alarm-open', 'winterlog-add', 'complaint-new', 'key-move-open', 'key-edit-open',
   'mat-book-open', 'mat-inventory-open', 'mat-request-new', 'veh-edit-open', 'veh-propose-open', 'veh-ws-open',
   'fak-new', 'fak-rec-open', 'fak-proof-open', 'fak-export-open', 'fak-cust-open', 'fak-text-open', 'fak-terms-open', 'calc-settings', 'ot-send',
-  'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open', 'anl-edit-open', 'anl-check-open', 'anl-types-open', 'mw-edit-open', 'mw-plan-open', 'mw-closures-open', 'reg-new', 'qm-groups-open', 'qm-measure-open', 'qm-settings-open', 'kz-round-open', 'kz-settings-open', 'kz-links-open',
+  'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open', 'anl-edit-open', 'anl-check-open', 'anl-types-open', 'mw-edit-open', 'mw-plan-open', 'mw-closures-open', 'mw-tp-depot-open', 'mw-tp-drivers-open', 'reg-new', 'qm-groups-open', 'qm-measure-open', 'qm-settings-open', 'kz-round-open', 'kz-settings-open', 'kz-links-open',
   'asch-stoff-open', 'asch-ba-open', 'asch-eval-open',
   'bew-edit-open', 'bew-settings-open', 'bew-start-open', 'bew-tpl-open',
   'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-erinnern-open', 'fak-sepa-open',

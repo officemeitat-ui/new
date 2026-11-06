@@ -301,8 +301,9 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
-// matten.js, matten-uebernahme.js, matten-kalender.js: Mattenwechsel-Modul (Liegeplätze je Kunde → Objekt, Gebiete,
-// Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Matten-Touren der Fahrer); das Werkzeug bleibt unter #matten (tools.js)
+// matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js: Mattenwechsel-Modul (Liegeplätze je Kunde →
+// Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Tourenplanung im Büro, Matten-Touren der Fahrer);
+// das Werkzeug bleibt unter #matten (tools.js)
 lazy(BUERO, {
   views: [
     {
@@ -334,6 +335,16 @@ lazy(BUERO, {
       text: 'Mattenwechsel: Einsätze planen, Woche und Monat, verschieben, aussetzen, nachholen',
     },
     {
+      id: 'mw-planung',
+      order: 75.57,
+      label: 'Matten-Tourenplanung',
+      group: 'service',
+      module: 'matten',
+      icon: '<circle cx="6" cy="5.5" r="2"/><circle cx="18" cy="12" r="2"/><circle cx="6" cy="18.5" r="2"/><path d="m8 6.6 8 4.3M16 13.1l-8 4.3"/>',
+      noWeek: true,
+      text: 'Mattenwechsel: Touren je Tag vorschlagen, Reihenfolge, Fahrer und Fahrzeug, Ladeliste, freigeben',
+    },
+    {
       id: 'mw-touren',
       order: 75.6,
       label: 'Matten-Touren',
@@ -348,11 +359,14 @@ lazy(BUERO, {
       text: 'Mattenwechsel: eigene Touren, Wechsel je Liegeplatz bestätigen',
     },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures',
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
-    mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save`,
+    mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save
+    mw-tp-goto mw-tp-day mw-tp-date mw-tp-reload mw-tp-depot-open mw-tp-drivers-open mw-tp-drv mw-tp-propose mw-tp-move mw-tp-transfer
+    mw-tp-remove mw-tp-add mw-tp-release mw-tp-withdraw mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save
+    mw-tp-depot-geo mw-tp-depot-save mw-tp-drv-add mw-tp-drv-del mw-tp-drivers-save`,
   todo: ['matten'],
 })
 
