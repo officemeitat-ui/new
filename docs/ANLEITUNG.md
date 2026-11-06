@@ -2,16 +2,16 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 271 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 276 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (34)
+- [Objekte & Kunden](#objekte-kunden) (38)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (67)
+- [Finanzen](#finanzen) (68)
 - [Verwaltung](#verwaltung) (37)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (38)
 - [Begriffe](#begriffe)
@@ -1288,6 +1288,55 @@ Unter „Mehr ▾“ → „Arten und Intervalle“ stehen die Arten mit Interva
 
 Ist bei einer Anlage „verrechenbar“ mit Preis je Prüfung eingetragen, zeigt der Reiter „Verrechnung“ je Monat alle Prüfungen je Objekt mit Summe, als CSV zum Weitergeben. In die Rechnung übernimmt sie die Fakturierung noch nicht.
 
+### Regieberichte (Sonderleistungen nach Auftrag)
+
+*In der App: Regieberichte*
+
+Für Sonderleistungen nach Auftrag (Grundreinigung, Wasserschaden, Zusatzarbeiten) entsteht vor Ort ein Regiebericht: Stunden je Person, Material, Fotos vorher und nachher. Kunde oder Hausbetreuung unterschreibt am Handy, das PDF geht per E-Mail hinaus und liegt in SharePoint. Daraus wird mit einem Klick ein Rechnungsentwurf.
+
+1. „Regieberichte“ unter „Objekte & Kunden“ öffnen (am Handy „Regie“ in der Leiste unten).
+2. „Regiebericht erfassen“ tippen und ausfüllen.
+3. „Weiter zur Unterschrift“ und unterschreiben lassen.
+4. Das PDF per E-Mail an den Kunden senden.
+
+> Tipp: Filter „noch nicht verrechnet“ zeigt, was noch in eine Rechnung gehört.
+> Tipp: Ein abgeschlossener Bericht ist fest: der Kunde hat ihn so bestätigt.
+
+*Erfassen: Vollzugriff, Objektleitung, Objektmanagement, Objektservice; Rechnungsentwurf: wer die Fakturierung bearbeitet*
+
+### Regiebericht am Handy erfassen
+
+*In der App: Regieberichte*
+
+Objekt, Datum, Art und kurz die Leistung, wer beauftragt hat (Name, Funktion, optional Auftragsnummer). Je Person von–bis mit Pause oder nur die Dauer, z. B. 2,5. Material aus Material & Lager wählen oder frei eintragen, mit Menge und Einheit. Dazu Fotos vorher und nachher, höchstens 8.
+
+1. „Regiebericht erfassen“ tippen.
+2. Objekt, Leistung und Auftraggeber eintragen.
+3. Personen mit Zeiten, „+ Person“ für das Team.
+4. Material und Fotos dazu, dann „Speichern“ oder „Weiter zur Unterschrift“.
+
+> Tipp: Ohne Netz warten die Fotos im Handy und werden später hochgeladen.
+> Tipp: Bis zur Unterschrift lässt sich alles ändern, „Vorschau“ zeigt das PDF.
+
+### Unterschrift am Handy, PDF und E-Mail
+
+*In der App: Regieberichte*
+
+Bei „Unterschrift“ sieht die Person die Zusammenfassung, trägt Name und Funktion ein und unterschreibt mit dem Finger; der Zeitpunkt wird vermerkt. Danach ist der Bericht fest, das PDF liegt in SharePoint unter regie/ und das Senden-Fenster öffnet sich mit dem PDF im Anhang. Ist niemand da: „Ohne Unterschrift“ mit Grund.
+
+1. Beim Bericht „Unterschrift“ tippen.
+2. Handy übergeben: Name, Funktion, unterschreiben.
+3. „Unterschreiben und abschließen“, dann im Senden-Fenster senden.
+
+> Tipp: Die E-Mail-Adresse kommt vom Objekt (Leistungsnachweis) und lässt sich ändern.
+> Tipp: Namen der eigenen Leute im PDF: „Mehr“ → „Namen im Bericht“.
+
+### Material aus dem Regiebericht im Lager
+
+*In der App: Regieberichte*
+
+Beim Abschließen bucht die App das Material mit Lagerartikel als Abgang beim Objekt, wenn du das Recht auf Material & Lager hast (Häkchen). Sonst bleibt ein Hinweis in „Zu erledigen“ für das Lager. Frei eingetragenes Material wird nur verrechnet, nicht gebucht.
+
 ### Die Werkzeuge in der App
 
 Wasserzähler, Objektkontrolle, Objektdoku und Mattenwechsel laufen unverändert in der App, mit derselben Anmeldung. Sie speichern wie bisher selbst in ihren SharePoint-Ordnern. Welche du siehst, hängt von deiner Rolle ab.
@@ -1606,6 +1655,21 @@ Unter „Verwalten ▾“ → „Werkstätten“ trägst du Adresse, E-Mail und 
 3. „Speichern“ klicken.
 
 ## Finanzen
+
+### Rechnungsentwurf aus dem Regiebericht
+
+*In der App: Regieberichte*
+
+Beim abgeschlossenen Bericht „Rechnungsentwurf“: Regiestunden mit dem Satz des Kunden, sonst Artikel „Regiestunde“, sonst Einstellung „Regiestundensatz“; Material mit Verkaufspreis des Artikels. Der Bericht hängt beim Senden als Beilage an. Er wird nur einmal verrechnet: gelöschter Entwurf oder Storno gibt ihn wieder frei.
+
+1. Bericht öffnen oder in der Liste „Rechnungsentwurf“ tippen.
+2. Entwurf in der Fakturierung prüfen, fehlende Preise ergänzen.
+3. Festschreiben und mit Beilage senden.
+
+> Tipp: Die Buchhaltung sendet die Beilage auch ohne Zugriff auf die Regieberichte.
+> Tipp: Der digitale Mitarbeiter „Buchhaltung“ erinnert an Berichte ohne Rechnung.
+
+*Nur wer die Fakturierung bearbeitet*
 
 ### Rechnung schreiben
 
