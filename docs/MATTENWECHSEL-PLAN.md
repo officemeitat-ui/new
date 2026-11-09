@@ -435,6 +435,7 @@ Annahmen der Prüfrunde (bis zur Entscheidung): Die Pauschale eines Monats, in d
 
 - **Lieferscheine im Kundenbereich (Rechtsprüfung Punkt 37):** so belassen – dasselbe PDF wie beim Versand, mit Name und Unterschrift der Person beim Kunden und dem Namen des Fahrers.
 - **Routing (E8):** Google Maps Platform wird zugeschaltet (Kosten siehe Abschnitt 6); der eingebaute Anbieter bleibt der Rückfall. **Zusatz: OpenRouteService als kostenlose Wahl, 9.11.2026** – Routing möglichst ohne Kosten und ohne Kreditkarte; die gewerbliche Nutzung des Gratis-Plans prüft die Geschäftsführung (Rechtsprüfung Punkt 40).
+- **Pauschale im Monat eines Modellwechsels (je Matte → Pauschale):** der **ganze Monat** gilt als Pauschale; noch nicht verrechnete Lieferscheine des Monats hängen als Nachweis an, schon je Matte verrechnete nicht – für deren Rechnung zeigt der Lauf „gutschreiben (Entwurf löschen), sonst doppelt verrechnet“.
 - **Aufbewahrung (E15):** ohne Frist und ohne Limit – die App löscht keine Lieferscheine, Tourberichte, Fotos oder Unterschriften von selbst (der Zeitraum im Kundenbereich regelt nur, was dort angezeigt wird).
 
 Für die übrigen Punkte gilt bis auf Weiteres der Vorschlag in der rechten Spalte; Änderungen jederzeit möglich, bevor das betroffene Paket gebaut wird.

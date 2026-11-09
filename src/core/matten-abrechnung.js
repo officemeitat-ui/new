@@ -312,8 +312,11 @@ function planFlat(fak, plan, { inPeriod, before, notes, index, includeOlder }) {
     if (st.state === 'offen') months.push(ym)
     else plan.billed.push({ text: `Pauschale ${monthLabel(ym)}`, docId: st.docId, number: st.number || '', state: st.state })
   }
-  // Lieferscheine als Nachweis: aus den Monaten dieses Entwurfs und aus schon pauschal verrechneten Monaten
-  const covered = (n) => months.includes(noteMonthOf(n)) || flatBillState(plan.customerId, noteMonthOf(n), [], index).state !== 'offen'
+  // Lieferscheine als Nachweis: aus den Monaten dieses Entwurfs und aus schon pauschal verrechneten Monaten. Schon je Matte
+  // verrechnete (Preismodell im Monat gewechselt) nicht: sie stehen schon auf einer Rechnung (Entscheidung 9.11.2026: der
+  // Wechselmonat gilt ganz als Pauschale, die Rechnung je Matte gutschreiben – Hinweis unten)
+  const pieceDocs = (n) => uniq(noteLineKeys(n).flatMap((k) => index.lines.get(k) || []))
+  const covered = (n) => (months.includes(noteMonthOf(n)) || flatBillState(plan.customerId, noteMonthOf(n), [], index).state !== 'offen') && !pieceDocs(n).length
   const attach = [...(includeOlder ? before.filter(covered) : []), ...inPeriod.filter(covered)].sort(byDate)
   plan.older = before.filter((n) => !attach.includes(n))
   plan.months = months
@@ -331,7 +334,7 @@ function planFlat(fak, plan, { inPeriod, before, notes, index, includeOlder }) {
   const byPiece = (ym) => uniq(notes.filter((n) => noteMonthOf(n) === ym).flatMap((n) => noteLineKeys(n).flatMap((k) => index.lines.get(k) || [])))
   for (const ym of months) {
     const docs = byPiece(ym)
-    if (docs.length) plan.hints.push({ level: 'warn', text: `${monthLabel(ym)}: Lieferscheine schon je Matte verrechnet (${docs.map((d) => d.number || 'Entwurf').join(', ')}) – Pauschale für diesen Monat prüfen (Preismodell gewechselt?).` })
+    if (docs.length) plan.hints.push({ level: 'warn', text: `${monthLabel(ym)}: Preismodell im Monat gewechselt – der ganze Monat gilt als Pauschale. Lieferscheine dieses Monats stehen schon je Matte auf ${docs.map((d) => d.number || 'Entwurf').join(', ')}: diese Rechnung gutschreiben (Entwurf löschen), sonst ist der Monat doppelt verrechnet.` })
   }
   // unverrechnete Monate davor (seit dem ersten Lieferschein, höchstens ein Jahr zurück), ohne die schon je Matte verrechneten
   const gap = monthsBetween(first > addMonths(plan.period.months[0], -12) ? first : addMonths(plan.period.months[0], -12), addMonths(plan.period.months[0], -1)).filter((ym) => flatBillState(plan.customerId, ym, [], index).state === 'offen' && !byPiece(ym).length)
