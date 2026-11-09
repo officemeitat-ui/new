@@ -26,7 +26,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 1. **Mattenwechsel-Modul**: Abnahme durch die Geschäftsführung, danach Umstellung (`#matten` öffnet das Modul, das Werkzeug ist nur noch lesend; jederzeit zurücknehmbar).
 2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
-3. **Mattenwechsel optional:** Google als Routing-Anbieter (Konto und Kosten freigeben), Aufbewahrung der Fotos und Unterschriften (E15).
+3. **Google-Routing einschalten** (gebaut, entschieden 9.11.): Google-Konto einrichten (EINRICHTUNG Schritt 12), vorher Rechtsprüfung Punkt 39 (Speicherdauer der Google-Ergebnisse, Auftragsverarbeitung, Drittland).
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 
@@ -34,5 +34,5 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Steuerberatung: Buchung Abschlag/Schluss, Kundenskonto- und Kassenkonten, Kennzahlen der Umsatzsteuer-Übersicht, Soll/Ist, durchlaufende Posten (RECHTSPRUEFUNG Punkt 27).
 - Geschäftsführung: Winterdienst-Saison Juli–Juni oder anders? Fotos in die Winterdienst-Beilage? Bestätigungs-E-Mail nach Online-Annahme? Intervalle der Anlagen mit der Sicherheitsfachkraft bestätigen (Punkt 28).
 - Hausbank: Test von pain.008 (Lastschrift) und pain.001 (Überweisung); USP: ebInterface-Test.
-- Rechtliches: § 174 TKG (Werbe-E-Mail), BAO § 131/131b (Kassenbuch), FAGG bei Online-Annahme durch Verbraucher, Prüfintervalle der Anlagen, Lieferschein-PDF mit Unterschrift im Kundenbereich (Punkt 37) – siehe docs/RECHTSPRUEFUNG.md.
+- Rechtliches: § 174 TKG (Werbe-E-Mail), BAO § 131/131b (Kassenbuch), FAGG bei Online-Annahme durch Verbraucher, Prüfintervalle der Anlagen, Aufbewahrung ohne Frist begründen (Punkt 38), Google-Routing (Punkt 39) – siehe docs/RECHTSPRUEFUNG.md.
 - Echter Betrieb: Gruppen je Rolle und je Revier einrichten, Rechte prüfen, Pilot mit einem Revier.
