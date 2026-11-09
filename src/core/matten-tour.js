@@ -491,12 +491,25 @@ export const googleRetime = routeRetime
 const stopLabel = (s) => [s.customer?.name, s.objectName].filter(Boolean).join(', ') || s.id
 
 /**
+ * Stopp-IDs, die in einer Tour mehrfach vorkommen: [{ id, count }]. Seit der Prüfrunde vom 9.11.2026 vergibt addStop
+ * eindeutige IDs; ältere Touren können noch zwei Stopps mit derselben ID haben (zweiter Kunde am selben Objekt). Die App
+ * erkennt sie beim Laden und zeigt einen Hinweis; geändert oder zusammengeführt wird nichts.
+ */
+export function duplicateStopIds(tour) {
+  const n = new Map()
+  for (const s of tour?.stops || []) n.set(s?.id, (n.get(s?.id) || 0) + 1)
+  return [...n].filter(([, count]) => count > 1).map(([id, count]) => ({ id, count }))
+}
+
+/**
  * Probleme einer Tour (aus den gespeicherten Zeiten, ohne neu zu rechnen): [{ code, stopId?, text }] mit code
  * fahrer (keiner zugewiesen), koordinaten (Stopp ohne Koordinaten), zeitfenster (Arbeit nicht im Zeitfenster bzw.
- * Zeitfenster der Liegeplätze ohne Schnittmenge), arbeitszeit (Rückkehr nach dem Arbeitsende), kapazitaet (zu viele Matten).
+ * Zeitfenster der Liegeplätze ohne Schnittmenge), arbeitszeit (Rückkehr nach dem Arbeitsende), kapazitaet (zu viele Matten),
+ * stopp-id (alte Tour mit doppelter Stopp-ID, siehe duplicateStopIds).
  */
 export function tourProblems(tour) {
   const out = []
+  for (const d of duplicateStopIds(tour)) out.push({ code: 'stopp-id', stopId: d.id, text: `Stopp-ID ${d.id} steht ${d.count}-mal in dieser Tour (gespeichert vor der Korrektur vom 9.11.2026). Die App führt die Stopps nicht zusammen: bitte Stopps, Lieferscheine und Abrechnung dieser Tour prüfen.` })
   const r = tour?.route || {}
   // gespeicherte Zeiten sind Uhrzeiten (HH:MM): was vor dem Beginn der Tour liegt, ist nach Mitternacht (+24 Stunden)
   const begin = isTime(r.start) ? toMinutes(r.start) : isTime(r.shift?.from) ? toMinutes(r.shift.from) : 0

@@ -551,7 +551,7 @@ function hochgeladene_fotos(array $liegeplaetze): array
 
 /**
  * Foto prüfen und neu speichern: Typ laut Inhalt, Maße, mit GD als JPEG (längste Seite 1600 px, ohne Metadaten wie GPS);
- * ohne GD nur JPEG nach strenger Prüfung. Liefert den Fehler-Schlüssel ('' = gespeichert).
+ * ohne GD nur JPEG nach strenger Prüfung, ohne EXIF/GPS (bild_ohne_metadaten). Liefert den Fehler-Schlüssel ('' = gespeichert).
  */
 function foto_speichern(string $tmp, int $groesse, int $fehler, string $ziel): string
 {
@@ -584,7 +584,15 @@ function foto_speichern(string $tmp, int $groesse, int $fehler, string $ziel): s
     if ($typ !== 'image/jpeg') {
         return 'mt_fehler_foto_typ';
     }
-    return move_uploaded_file($tmp, $ziel) ? '' : 'mt_fehler_speichern';
+    // ohne GD bzw. über 40 Megapixel: unverändert, aber ohne Metadaten wie den Ort der Aufnahme (ohne Neukodieren)
+    if (!move_uploaded_file($tmp, $ziel)) {
+        return 'mt_fehler_speichern';
+    }
+    if (!bild_ohne_metadaten($ziel)) {
+        @unlink($ziel);
+        return 'mt_fehler_foto_typ';
+    }
+    return '';
 }
 
 // ---------------------------------------------------------------- Abschluss eines Stopps prüfen

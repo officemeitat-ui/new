@@ -211,3 +211,120 @@ function sprachwahl_html(string $basis): string
     }
     return '<details class="sprachwahl"><summary title="' . $h(t('sprache_waehlen')) . '">' . GLOBUS . '<span>' . $h((string) (texte()[sprache()]['sprache_name'] ?? 'Deutsch')) . '</span></summary><ul aria-label="' . $h(t('sprache_waehlen')) . '">' . $punkte . '</ul></details>';
 }
+
+/**
+ * Ortsdaten und andere Metadaten aus einem gespeicherten Foto entfernen, ohne es neu zu kodieren (für Fotos, die ohne
+ * GD durchgehen: Winterdienst-Protokoll ohne JavaScript, Kundenbereich über 40 Megapixel oder ohne GD, Fahrerseite
+ * ohne GD). JPEG: APP1 (EXIF mit GPS, XMP) und APP13 (IPTC) weg; PNG: eXIf- und Text-Blöcke weg; WebP: EXIF- und
+ * XMP-Blöcke weg (Merker im VP8X-Kopf gelöscht). Liefert false, wenn die Datei nicht lesbar ist oder kein solches Bild
+ * (dann gehört sie nicht gespeichert).
+ */
+function bild_ohne_metadaten(string $datei): bool
+{
+    $d = @file_get_contents($datei);
+    if (!is_string($d) || strlen($d) < 12) {
+        return false;
+    }
+    $neu = null;
+    if (substr($d, 0, 2) === "\xFF\xD8") {
+        $neu = jpeg_ohne_metadaten($d);
+    } elseif (substr($d, 0, 8) === "\x89PNG\r\n\x1A\n") {
+        $neu = png_ohne_metadaten($d);
+    } elseif (substr($d, 0, 4) === 'RIFF' && substr($d, 8, 4) === 'WEBP') {
+        $neu = webp_ohne_metadaten($d);
+    }
+    if ($neu === null) {
+        return false;
+    }
+    return $neu === $d || file_put_contents($datei, $neu, LOCK_EX) === strlen($neu);
+}
+
+/** JPEG ohne APP1- und APP13-Segmente (bis zum Bildbeginn SOS; der Rest bleibt Byte für Byte); null = kaputt. */
+function jpeg_ohne_metadaten(string $d): ?string
+{
+    $aus = "\xFF\xD8";
+    $n = strlen($d);
+    $i = 2;
+    while ($i < $n) {
+        if ($d[$i] !== "\xFF") {
+            return null;
+        }
+        $m = $i;
+        while ($m < $n && $d[$m] === "\xFF") {
+            $m++; // Füllbytes
+        }
+        if ($m >= $n) {
+            return null;
+        }
+        $marke = ord($d[$m]);
+        if ($marke === 0xD9 || $marke === 0xDA) {
+            return $aus . substr($d, $i); // Ende bzw. Bilddaten: unverändert
+        }
+        if (($marke >= 0xD0 && $marke <= 0xD7) || $marke === 0x01) {
+            $aus .= substr($d, $i, $m - $i + 1);
+            $i = $m + 1;
+            continue;
+        }
+        if ($m + 2 >= $n) {
+            return null;
+        }
+        $laenge = (ord($d[$m + 1]) << 8) | ord($d[$m + 2]);
+        if ($laenge < 2 || $m + 1 + $laenge > $n) {
+            return null;
+        }
+        $ende = $m + 1 + $laenge;
+        if ($marke !== 0xE1 && $marke !== 0xED) {
+            $aus .= substr($d, $i, $ende - $i);
+        }
+        $i = $ende;
+    }
+    return null;
+}
+
+/** PNG ohne eXIf-, tEXt-, zTXt- und iTXt-Blöcke; null = kaputt. */
+function png_ohne_metadaten(string $d): ?string
+{
+    $aus = substr($d, 0, 8);
+    $n = strlen($d);
+    $i = 8;
+    while ($i + 12 <= $n) {
+        $laenge = unpack('N', substr($d, $i, 4))[1];
+        $typ = substr($d, $i + 4, 4);
+        if ($laenge > $n - $i - 12) {
+            return null;
+        }
+        if (!in_array($typ, ['eXIf', 'tEXt', 'zTXt', 'iTXt'], true)) {
+            $aus .= substr($d, $i, 12 + $laenge);
+        }
+        $i += 12 + $laenge;
+        if ($typ === 'IEND') {
+            return $aus;
+        }
+    }
+    return null;
+}
+
+/** WebP ohne EXIF- und XMP-Blöcke, Merker im VP8X-Kopf gelöscht, RIFF-Länge neu; null = kaputt. */
+function webp_ohne_metadaten(string $d): ?string
+{
+    $n = strlen($d);
+    $i = 12;
+    $teile = '';
+    while ($i + 8 <= $n) {
+        $typ = substr($d, $i, 4);
+        $laenge = unpack('V', substr($d, $i + 4, 4))[1];
+        if ($laenge > $n - $i - 8) {
+            return null;
+        }
+        $platz = min($laenge + ($laenge & 1), $n - $i - 8);
+        $block = substr($d, $i, 8 + $platz);
+        if ($typ === 'VP8X' && $laenge >= 1) {
+            $block[8] = chr(ord($block[8]) & ~0x0C); // Merker EXIF (0x08) und XMP (0x04)
+        }
+        if ($typ !== 'EXIF' && $typ !== 'XMP ') {
+            $teile .= $block;
+        }
+        $i += 8 + $platz;
+    }
+    return 'RIFF' . pack('V', 4 + strlen($teile)) . 'WEBP' . $teile;
+}

@@ -23,7 +23,7 @@ import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../c
 import { coordsText, hasCoords, parseCoords } from '../../core/geo.js'
 import { mergeJobs, nextWorkday, yearsFor } from '../../core/matten-einsaetze.js'
 import { activeAreas, emptyMatten, upgradeMatten } from '../../core/matten.js'
-import { assignDriver, loadList, moveStop, proposeTours, retimeTour, routeRetime, stopsFromJobs, timedBy, TOUR_REASONS, TOUR_STATUS, tourProblems } from '../../core/matten-tour.js'
+import { assignDriver, duplicateStopIds, loadList, moveStop, proposeTours, retimeTour, routeRetime, stopsFromJobs, timedBy, TOUR_REASONS, TOUR_STATUS, tourProblems } from '../../core/matten-tour.js'
 import {
   addStop,
   assignJobs,
@@ -203,6 +203,7 @@ function planungView() {
     })}</div></div>`
   const banners = [
     depotProblem(depot) ? `<div class="banner warn-banner"><p><strong>Betriebshof fehlt.</strong> ${esc(depotProblem(depot))} Er ist Start und Ziel jeder Tour.</p>${ed ? '<button class="btn" data-action="mw-tp-depot-open">Betriebshof eintragen</button>' : ''}</div>` : '',
+    dupStopBanner(s.tours(), date),
     !list.length ? `<div class="banner welcome"><p><strong>Noch keine Fahrer für den Mattenwechsel.</strong> Unter „Fahrer“ festlegen, wer Matten fährt (aus den Mitarbeitenden oder mit Name und E-Mail), mit Arbeitszeit und Fahrzeug.</p>${ed ? '<button class="btn" data-action="mw-tp-drivers-open">Fahrer festlegen</button>' : ''}</div>` : '',
   ].join('')
   const status = !ready || !jready ? '<p class="note">Touren und Einsätze werden gelesen …</p>' : s.offline ? '<p class="note">Ohne Verbindung: angezeigt wird der zuletzt gelesene Stand. Planen und Freigeben gehen erst wieder mit Netz.</p>' : s.error ? `<p class="note">${esc(s.error)}</p>` : ''
@@ -231,6 +232,13 @@ function planungView() {
     <div class="mw-tp-tours">${tourBlocks}${empty}</div>
     ${openBlock(date, open, drafts, ed)}
     ${dayLoad.length && dayTours.length > 1 ? `<aside class="mw-load mw-tp-dayload" aria-label="Ladeliste des Tages"><h4>Ladeliste des Tages (alle Touren)</h4><ul>${dayLoad.map((r) => `<li><b>${r.qty}</b> × ${esc(loadLabel(r))}</li>`).join('')}</ul></aside>` : ''}`
+}
+
+/** Alte Touren mit doppelter Stopp-ID (vor dem 9.11.2026 gespeichert) an anderen Tagen: Hinweis, nichts wird geändert. */
+function dupStopBanner(tours, date) {
+  const list = tours.filter((t) => t.date !== date && duplicateStopIds(t).length).sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  if (!list.length) return ''
+  return `<div class="banner warn-banner mw-tp-dup" role="status"><p><strong>${plural(list.length, 'Tour hat', 'Touren haben')} eine doppelte Stopp-ID</strong> (gespeichert vor der Korrektur vom 9.11.2026). Die App führt die Stopps nicht zusammen; bitte Stopps, Lieferscheine und Abrechnung prüfen.</p><div class="actions">${list.slice(0, 6).map((t) => `<button class="btn small" data-action="mw-tp-goto" data-date="${esc(t.date)}">${esc(short(t.date))}, ${esc(t.driverName || 'ohne Fahrer')}</button>`).join('')}</div></div>`
 }
 
 function driversBlock(date, list, ed) {

@@ -1,5 +1,6 @@
 // Systemcheck für die Inbetriebnahme (nur Vollzugriff): prüft vom Browser aus, ob der Webspace und
-// die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ordner privat/ gesperrt, PHP-Version
+// die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ordner privat/ gesperrt (Einrichtungsdateien wie
+// ki.json, routing.json und mattentour.json liefern von außen 403 oder 404), PHP-Version
 // und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm, Plan am Handy und
 // Kundenbereich (Datei, Schlüssel, Cronjob), Routing (optional: OpenRouteService und Google je eingerichtet, privat/ beschreibbar),
 // Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
@@ -35,16 +36,6 @@ export async function runChecks() {
   } catch (err) {
     add(W, 'Sicherheitsregeln (.htaccess)', 'warn', err.message)
   }
-  let open = []
-  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/routing.json', 'privat/.htaccess']) {
-    try {
-      if ((await fetch(f, { cache: 'no-store' })).status === 200) open.push(f)
-    } catch {
-      /* nicht erreichbar = gut */
-    }
-  }
-  add(W, 'Ordner privat/ gesperrt', open.length ? 'error' : 'ok', open.length ? `von außen lesbar: ${open.join(', ')}` : 'von außen nicht lesbar', 'Die Datei privat/.htaccess hochladen (liegt im Paket). Bis dahin keine Einrichtungsdateien in privat/ legen.')
-
   const key = alarmSettings().key || portalSettings().key
   let sys = null
   let ext = {}
@@ -53,6 +44,20 @@ export async function runChecks() {
   } catch {
     sys = null
   }
+  // Einrichtungsdateien mit Schlüsseln (KI, Routing, Fahrerseite …): ein Abruf von außen muss 403 oder 404 liefern
+  const open = []
+  const unclear = []
+  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/ki.json', 'privat/routing.json', 'privat/mattentour.json', 'privat/.htaccess']) {
+    try {
+      const st = (await fetch(f, { cache: 'no-store' })).status
+      if (st === 200) open.push(f)
+      else if (st !== 403 && st !== 404) unclear.push(`${f} (Antwort ${st})`)
+    } catch {
+      /* nicht erreichbar = gut */
+    }
+  }
+  const there = Object.entries(sys?.schutz || {}).filter(([, v]) => v).map(([k]) => `${k}.json`)
+  add(W, 'Ordner privat/ gesperrt', open.length ? 'error' : unclear.length ? 'warn' : 'ok', open.length ? `von außen lesbar: ${open.join(', ')}` : unclear.length ? `nicht eindeutig (erwartet 403 oder 404): ${unclear.join(', ')}` : `von außen nicht lesbar${there.length ? ` (vorhanden und geprüft: ${there.join(', ')})` : ''}`, 'Die Datei privat/.htaccess hochladen (liegt im Paket). Bis dahin keine Einrichtungsdateien in privat/ legen.')
   if (!sys) {
     add(W, 'PHP', 'error', 'system.php antwortet nicht', 'Im World4You-Kundenbereich PHP für die Subdomain einschalten (Version 8.x) und system.php mit hochladen. Ohne PHP fehlen Schnee-Alarm, Plan am Handy, Zeiterfassung und der Wetter-Umweg; Dienstplan und Werkzeuge laufen.')
   } else {

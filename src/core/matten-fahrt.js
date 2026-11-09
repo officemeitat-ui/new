@@ -682,10 +682,19 @@ export function mergeTour(base, mine, theirs) {
     const v = same(m, b[k]) ? t : same(t, b[k]) ? m : mineNewer ? m : t
     if (v !== undefined) out[k] = clone(v)
   }
-  // Stopps
-  const bs = new Map((b.stops || []).map((s) => [s.id, s]))
-  const ms = new Map((mine.stops || []).map((s) => [s.id, s]))
-  const ts = new Map((theirs.stops || []).map((s) => [s.id, s]))
+  // Stopps je ID; alte Touren mit doppelter Stopp-ID (duplicateStopIds): der zweite „st-o1“ zählt als eigener Stopp,
+  // so geht beim Zusammenführen keiner verloren (zusammengelegt wird nichts)
+  const nth = (ids) => {
+    const n = new Map()
+    return ids.map((id) => (n.set(id, (n.get(id) || 0) + 1), n.get(id) > 1 ? `${id}\u0000${n.get(id)}` : id))
+  }
+  const keyed = (stops) => {
+    const keys = nth((stops || []).map((s) => s.id))
+    return (stops || []).map((s, i) => [keys[i], s])
+  }
+  const bs = new Map(keyed(b.stops))
+  const ms = new Map(keyed(mine.stops))
+  const ts = new Map(keyed(theirs.stops))
   const pick = (id) => {
     const bb = bs.get(id)
     const m = ms.get(id)
@@ -696,7 +705,7 @@ export function mergeTour(base, mine, theirs) {
     return null
   }
   const order = same(mine.order, b.order) ? theirs.order : mine.order
-  const ids = [...new Set([...(order || []), ...(mine.stops || []).map((s) => s.id), ...(theirs.stops || []).map((s) => s.id)])]
+  const ids = [...new Set([...nth(order || []), ...ms.keys(), ...ts.keys()])]
   const stops = ids.map(pick).filter(Boolean).map(clone)
   const has = new Set(stops.map((s) => s.id))
   out.stops = stops

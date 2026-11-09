@@ -548,8 +548,14 @@ if ($aktion === 'protokoll') {
         if (!$fehler) {
             $gespeichert = [];
             foreach ($fotos as $f) {
-                if (move_uploaded_file($f['tmp'], protokoll_ordner() . '/fotos/' . $f['name'])) {
-                    $gespeichert[] = $f['name'];
+                $ziel = protokoll_ordner() . '/fotos/' . $f['name'];
+                // ohne JavaScript kommt das Foto unverkleinert (mit Ort der Aufnahme): Metadaten ohne Neukodieren entfernen
+                if (move_uploaded_file($f['tmp'], $ziel)) {
+                    if (bild_ohne_metadaten($ziel)) {
+                        $gespeichert[] = $f['name'];
+                    } else {
+                        @unlink($ziel);
+                    }
                 }
             }
             $eintrag = ['id' => $id, 'datum' => uhrzeit($erledigt, 'Y-m-d'), 'erledigt' => $erledigt, 'ort' => $ortName, 'objektId' => $obj['id'], 'objekt' => $obj['name'], 'adresse' => $obj['adresse'], 'person' => $person,

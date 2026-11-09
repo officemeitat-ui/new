@@ -277,8 +277,8 @@ function foto_loeschen(array $m): void
 
 /**
  * Hochgeladenes Foto prüfen und speichern: Fehler, Größe, Typ laut Inhalt (fileinfo), Maße. Mit GD
- * wird es neu als JPEG gespeichert (längste Seite 1600 px, ohne Metadaten wie GPS); ohne GD nur
- * nach strenger Prüfung übernommen. Liefert [Dateiname, Fehlertext].
+ * wird es neu als JPEG gespeichert (längste Seite 1600 px, ohne Metadaten wie GPS); ohne GD (und über 40 Megapixel) nur
+ * nach strenger Prüfung übernommen, ohne EXIF/GPS (bild_ohne_metadaten). Liefert [Dateiname, Fehlertext].
  */
 function foto_speichern(?array $f, string $id): array
 {
@@ -320,7 +320,16 @@ function foto_speichern(?array $f, string $id): array
     if ($typ === 'image/webp') {
         return ['', 'Bitte das Foto als JPEG oder PNG anhängen.'];
     }
-    return move_uploaded_file((string) $f['tmp_name'], $ziel . '.' . BILD_TYPEN[$typ]) ? [$id . '.' . BILD_TYPEN[$typ], ''] : ['', 'Das Foto konnte nicht gespeichert werden.'];
+    // ohne GD bzw. über 40 Megapixel: unverändert übernommen, aber ohne Metadaten wie den Ort der Aufnahme (ohne Neukodieren)
+    $datei = $ziel . '.' . BILD_TYPEN[$typ];
+    if (!move_uploaded_file((string) $f['tmp_name'], $datei)) {
+        return ['', 'Das Foto konnte nicht gespeichert werden.'];
+    }
+    if (!bild_ohne_metadaten($datei)) {
+        @unlink($datei);
+        return ['', 'Das Foto lässt sich nicht öffnen. Bitte ein anderes wählen.'];
+    }
+    return [$id . '.' . BILD_TYPEN[$typ], ''];
 }
 
 /** PDF der App aus dem Rumpf (nur echte PDFs bis 8 MB); sonst Fehler an die App. */

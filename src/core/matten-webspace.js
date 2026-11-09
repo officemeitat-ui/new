@@ -254,9 +254,12 @@ function applyFinish(tour, ev, { by, photos }) {
  *           „übernommen“ melden); skipped: bleibt am Webspace (Tour ist Entwurf, Stopp fehlt, Fehler).
  *  uploads  Fotos, die vor dem Speichern nach SharePoint gehören (fester Pfad, siehe webPhotoTargets).
  * Ein schon abgeschlossener Stopp (z. B. im Büro nach einem Anruf) bleibt, wie er ist; seine Fotos kommen dazu (notes).
- * opts: { now (ISO, für updatedAt der Tour), by (Name für updatedBy, Vorgabe „Webspace“) }.
+ * opts: { now (ISO, für updatedAt der Tour), by (Name für updatedBy, Vorgabe „Webspace“), missing (Dateinamen der Fotos,
+ * die es am Webspace nicht mehr gibt: 404) }. Fehlt ein Foto, wird die Meldung trotzdem übernommen; am Stopp steht
+ * web.fotosFehlen (Anzahl), in notes „Foto fehlt“.
  */
-export function applyWebEvents(tour, events = [], { now = new Date().toISOString(), by = '' } = {}) {
+export function applyWebEvents(tour, events = [], { now = new Date().toISOString(), by = '', missing = [] } = {}) {
+  const gone = new Set(missing || [])
   let t = tour
   const applied = []
   const done = []
@@ -292,7 +295,9 @@ export function applyWebEvents(tour, events = [], { now = new Date().toISOString
         if (ev.art === 'unterwegs') {
           if (!isFinal(stop) && (stop.status || 'geplant') === 'geplant') t = setStopStatus(t, ev.stopp, 'unterwegs', { now: at, by: who })
         } else {
-          const photos = webPhotoTargets(t, ev).filter((p) => hasPlacement(stop, p.placementId))
+          const targets = webPhotoTargets(t, ev).filter((p) => hasPlacement(stop, p.placementId))
+          const photos = targets.filter((p) => !gone.has(p.datei))
+          const lost = targets.length - photos.length
           if (isFinal(stop)) {
             // schon abgeschlossen (Büro oder früherer Abgleich): nur die Fotos dazu, nichts überschreiben
             for (const p of photos) t = addPlacementPhoto(t, ev.stopp, p.placementId, { name: p.name, path: p.path, at, by: who, size: p.size, via: 'webspace' }, { now: at, by: who, force: true })
@@ -300,6 +305,11 @@ export function applyWebEvents(tour, events = [], { now = new Date().toISOString
           } else {
             t = applyFinish(t, ev, { by: who, photos })
             t = patchStop(t, ev.stopp, (s) => ({ ...s, web: { event: ev.id, at: new Date((ev.eingang || ev.zeit) * 1000).toISOString() }, updatedAt: now }))
+          }
+          if (lost) {
+            // Foto am Webspace nicht mehr da (404): vermerken statt die ganze Abholung anzuhalten
+            t = patchStop(t, ev.stopp, (s) => ({ ...s, web: { ...(s.web || {}), fotosFehlen: (s.web?.fotosFehlen || 0) + lost }, updatedAt: now }))
+            notes.push({ id: ev.id, stopId: ev.stopp, missing: lost, reason: lost === 1 ? 'Foto fehlt (am Webspace nicht mehr vorhanden)' : `${lost} Fotos fehlen (am Webspace nicht mehr vorhanden)` })
           }
           for (const p of photos) uploads.push({ id: ev.id, datei: p.datei, placementId: p.placementId, path: p.path })
         }

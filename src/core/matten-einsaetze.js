@@ -17,6 +17,7 @@
 //   planning: { von, bis, at, by }            letzter Lauf von „Einsätze planen“
 
 import { addDays, isoWeekday, WEEKDAY_LONG } from './dates.js'
+import { holidayCalendar } from './holidays.js'
 import { matLabel, matSize } from './invoicing.js'
 import {
   calendarMonth,
@@ -444,10 +445,13 @@ export function withoutTour(jobs = [], date = '') {
   return (jobs || []).filter((j) => ['geplant', 'nachzuholen', 'nicht-durchgefuehrt'].includes(j?.status) && jobDate(j) === date).sort((a, b) => String(a.key).localeCompare(String(b.key)))
 }
 
-/** Nächster Arbeitstag (Montag bis Freitag) nach dem Tag d. */
-export function nextWorkday(d) {
+/**
+ * Nächster Arbeitstag nach dem Tag d: Montag bis Freitag ohne österreichische Feiertage (core/holidays.js). free: freie
+ * Tage (Map/Set Datum → …, z. B. holidayCalendar mit Betriebsurlaub), Vorgabe die gesetzlichen Feiertage.
+ */
+export function nextWorkday(d, free = holidayCalendar(addDays(d, 1), addDays(d, 21))) {
   let x = addDays(d, 1)
-  while (isoWeekday(x) > 5) x = addDays(x, 1)
+  while (isoWeekday(x) > 5 || free.has(x)) x = addDays(x, 1)
   return x
 }
 

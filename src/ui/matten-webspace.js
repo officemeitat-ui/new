@@ -199,30 +199,44 @@ export async function syncWebspace({ force = false } = {}) {
     const { meldungen = [] } = await webCall('meldungen')
     webState.open = meldungen.length
     for (const [id, evs] of eventsByTour(meldungen)) {
-      const date = String(evs.find((m) => m.datum)?.datum || '')
-      if (!st.byId(id) && /^\d{4}-/.test(date)) await st.load({ years: [date.slice(0, 4)] })
-      if (!st.byId(id)) {
-        skipped.push({ tour: id, reason: 'Tour nicht in SharePoint gefunden' })
-        continue
-      }
-      const fresh = (await st.refresh(id)) || st.byId(id)
-      const plan = applyWebEvents(fresh, evs, { now: nowIso() })
-      // Fotos zuerst nach SharePoint; geht eines nicht, bleibt die ganze Tour für den nächsten Abgleich am Webspace
-      if (app.store?.kind === 'sharepoint') {
-        for (const u of plan.uploads) {
-          const blob = await webCall('foto', { query: `&datei=${encodeURIComponent(u.datei)}` })
-          const up = await app.store.upload(u.path, blob, 'image/jpeg')
-          if (up?.queued) throw new Error('Ohne Verbindung zu SharePoint: die Rückmeldungen bleiben am Webspace und werden später übernommen.')
+      // je Tour für sich: ein Fehler hält die übrigen Touren nicht auf (die Meldungen dieser Tour bleiben am Webspace)
+      try {
+        const date = String(evs.find((m) => m.datum)?.datum || '')
+        if (!st.byId(id) && /^\d{4}-/.test(date)) await st.load({ years: [date.slice(0, 4)] })
+        if (!st.byId(id)) {
+          skipped.push({ tour: id, reason: 'Tour nicht in SharePoint gefunden' })
+          continue
         }
+        const fresh = (await st.refresh(id)) || st.byId(id)
+        const plan = applyWebEvents(fresh, evs, { now: nowIso() })
+        // Fotos zuerst nach SharePoint; geht eines nicht, bleibt die Tour für den nächsten Abgleich am Webspace. Fehlt ein
+        // Foto am Webspace (404), wird das am Stopp als „Foto fehlt“ vermerkt und der Rest übernommen.
+        const missing = []
+        if (app.store?.kind === 'sharepoint') {
+          for (const u of plan.uploads) {
+            const blob = await webCall('foto', { query: `&datei=${encodeURIComponent(u.datei)}` }).catch((err) => {
+              if (err?.status === 404) return null
+              throw err
+            })
+            if (!blob) {
+              missing.push(u.datei)
+              continue
+            }
+            const up = await app.store.upload(u.path, blob, 'image/jpeg')
+            if (up?.queued) throw new Error('Ohne Verbindung zu SharePoint: die Rückmeldungen bleiben am Webspace und werden später übernommen.')
+          }
+        }
+        let result = plan
+        await st.update(id, (cur) => (result = applyWebEvents(cur, evs, { now: nowIso(), missing })).tour)
+        await st.flush()
+        if (st.isPending(id)) continue // noch nicht in SharePoint: nächster Abgleich
+        if (result.done.length) await webCall('uebernommen', { body: { ids: result.done } })
+        taken += result.applied.length
+        skipped.push(...result.skipped.map((x) => ({ ...x, tour: id })))
+        notes.push(...result.notes.map((x) => ({ ...x, tour: id })))
+      } catch (err) {
+        skipped.push({ tour: id, reason: String(err?.message || err) })
       }
-      let result = plan
-      await st.update(id, (cur) => (result = applyWebEvents(cur, evs, { now: nowIso() })).tour)
-      await st.flush()
-      if (st.isPending(id)) continue // noch nicht in SharePoint: nächster Abgleich
-      if (result.done.length) await webCall('uebernommen', { body: { ids: result.done } })
-      taken += result.applied.length
-      skipped.push(...result.skipped.map((x) => ({ ...x, tour: id })))
-      notes.push(...result.notes.map((x) => ({ ...x, tour: id })))
     }
     // nicht übertragene Touren (Fehler beim Freigeben, ohne Netz) nachholen
     const today = todayISO()
@@ -236,8 +250,9 @@ export async function syncWebspace({ force = false } = {}) {
     webState.error = String(err?.message || err)
   }
   webState.running = false
+  const lost = notes.reduce((n, x) => n + (x.missing || 0), 0)
   if (taken) {
-    toast(taken === 1 ? 'Eine Rückmeldung von der Fahrerseite am Webspace übernommen.' : `${taken} Rückmeldungen von der Fahrerseite am Webspace übernommen.`)
+    toast(`${taken === 1 ? 'Eine Rückmeldung' : `${taken} Rückmeldungen`} von der Fahrerseite am Webspace übernommen${lost ? ` – ${lost === 1 ? 'ein Foto fehlt' : `${lost} Fotos fehlen`} (am Webspace nicht mehr vorhanden, steht an der Tour)` : ''}.`)
     if (['mw-planung', 'mw-touren', 'mw-kalender'].includes(app.ui.view) && !app.ui.modal) renderNow()
   }
   if (app.ui.modal?.type === 'mww-web') renderModal()
@@ -263,7 +278,10 @@ export function webTourNote(t, { ed = false } = {}) {
   const done = (t.stops || []).filter((s) => s.web?.event).length
   const retry = ed ? `<button class="btn small" data-action="mww-web-publish" data-tour="${esc(t.id)}">Erneut übertragen</button>` : ''
   if (w.error) return `<div class="banner warn-banner mww-note" role="status"><p><strong>Fahrerseite am Webspace:</strong> noch nicht übertragen – ${esc(w.error)}</p>${retry}</div>`
-  return `<p class="note mww-note">Fahrer ohne Konto: Tour auf der Fahrerseite am Webspace${w.publishedAt ? ` (übertragen ${esc(when(w.publishedAt))})` : ' (wird übertragen)'}${done ? `, ${plural(done, 'Stopp', 'Stopps')} von dort übernommen` : ''}.</p>`
+  // Fotos, die beim Abholen am Webspace fehlten (web.fotosFehlen, siehe applyWebEvents)
+  const lost = (t.stops || []).map((s, i) => [i + 1, s.web?.fotosFehlen || 0]).filter(([, n]) => n)
+  const lostHtml = lost.length ? `<div class="banner warn-banner mww-note mww-foto-fehlt" role="status"><p><strong>Foto fehlt:</strong> ${esc(lost.map(([no, n]) => `Stopp ${no}: ${n === 1 ? 'ein Foto' : `${n} Fotos`}`).join(', '))} vom Fahrer war am Webspace nicht mehr vorhanden. Die übrige Rückmeldung ist übernommen.</p></div>` : ''
+  return `${lostHtml}<p class="note mww-note">Fahrer ohne Konto: Tour auf der Fahrerseite am Webspace${w.publishedAt ? ` (übertragen ${esc(when(w.publishedAt))})` : ' (wird übertragen)'}${done ? `, ${plural(done, 'Stopp', 'Stopps')} von dort übernommen` : ''}.</p>`
 }
 
 // ---------------------------------------------------------------- Dialog „Fahrerseite am Webspace“
@@ -291,6 +309,9 @@ registerModal(
       : webState.at
         ? `<p class="note">Zuletzt abgeholt ${esc(when(new Date(webState.at).toISOString()))}${webState.skipped.length ? `; ${plural(webState.skipped.length, 'Meldung bleibt', 'Meldungen bleiben')} am Webspace (${esc(webState.skipped.map((x) => x.reason).join('; '))})` : ''}${webState.notes.length ? `; ${esc(webState.notes.map((x) => x.reason).join('; '))}` : ''}.</p>`
         : ''
+    // Fotos, die beim Abholen am Webspace fehlten (bleibt an der Tour, auch nach dem nächsten Abholen)
+    const lost = (tourStore()?.tours() || []).filter((t) => (t.stops || []).some((s) => s.web?.fotosFehlen)).sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    const lostHtml = lost.length ? `<p class="note mww-foto-fehlt">Foto fehlt (am Webspace nicht mehr vorhanden) bei ${plural(lost.length, 'Tour', 'Touren')}: ${esc(lost.slice(0, 5).map((t) => `${t.date.split('-').reverse().join('.')} ${t.driverName || ''}`.trim()).join(', '))}${lost.length > 5 ? ' …' : ''}. Hinweis an der Tour in der Tourenplanung.</p>` : ''
     return modalFrame({
       title: 'Fahrerseite am Webspace',
       wide: true,
@@ -305,7 +326,7 @@ registerModal(
         <p class="note">Push und E-Mail ans Büro gibt es bei einer Ausnahme (z. B. „Kunde nicht angetroffen“) und wenn eine Tour fertig ist – ohne Kundennamen.</p>
         <h4>Fahrer ohne Konto</h4>
         ${list.length ? `<ul class="mww-list">${list.map((x) => `<li><strong>${esc(x.name)}</strong> – ${x.web?.from === 'mein-plan' ? 'Link von „Plan am Handy“' : x.web?.code ? 'eigener Link' : 'noch kein Link (im Dialog „Fahrer“ speichern)'}</li>`).join('')}</ul>` : '<p class="muted">Noch niemand. Im Dialog „Fahrer (Mattenwechsel)“ bei einem Fahrer „ohne Microsoft-Konto“ ankreuzen.</p>'}
-        ${status}
+        ${status}${lostHtml}
         <p class="note">Einmalig am Webspace: „Speichern und übertragen“ richtet ihn direkt ein, wenn dort schon Plan am Handy, der Schnee-Alarm oder der Kundenbereich läuft. Sonst „Einrichtungs-Datei herunterladen“ und mattentour.json in den Ordner privat/ hochladen.</p>`,
       foot: `<div class="actions">${ed && webSettings().key ? '<button class="btn" data-action="mww-web-file">Einrichtungs-Datei herunterladen</button>' : ''}${webReady() ? '<button class="btn" data-action="mww-web-sync">Jetzt abholen</button>' : ''}</div><div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<button class="btn primary" data-action="mww-web-save">Speichern und übertragen</button>' : ''}</div>`,
     })

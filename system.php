@@ -70,6 +70,8 @@ echo json_encode([
     'upload' => ['bytes' => $upload, 'ok' => $upload >= 8 * 1024 * 1024],
     'dateien' => ['wetterAlarm' => $alarm !== null, 'mitarbeiter' => $plan !== null, 'kundenbereich' => $kunden !== null, 'mattentour' => $matten !== null],
     'routing' => ['eingerichtet' => $routingGoogle || $routingOrs, 'google' => $routingGoogle, 'ors' => $routingOrs, 'beschreibbar' => is_dir($routingOrdner) && is_writable($routingOrdner)],
+    // nur ob es die Dateien mit Schlüsseln gibt (die App prüft, dass ein Abruf von außen 403 oder 404 liefert)
+    'schutz' => ['ki' => is_file((getenv('KI_ORDNER') ?: __DIR__ . '/privat') . '/ki.json'), 'routing' => is_file("$routingOrdner/routing.json"), 'mattentour' => is_file("$mattenOrdner/mattentour.json")],
     'cron' => [
         'wetterAlarm' => isset($stand['letztePruefung']) ? (int) $stand['letztePruefung'] : null,
         'meinPlan' => isset($planPruefung['zuletzt']) ? (int) $planPruefung['zuletzt'] : null,
