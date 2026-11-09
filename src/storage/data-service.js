@@ -38,6 +38,12 @@
 //                                     Solltermins (YEAR_DOCS; wie die Wochenpläne: geladen werden die nötigen Jahre)
 //   matten/bestand.json               Mattenwechsel: Mattenbestand und Wäscherei (Inventur, Buchungen, Mindestbestand;
 //                                     nur das Büro, Fahrer lesen ihn nicht)
+//   mitteilungen/mitteilungen.json    Mitteilungen an Mitarbeitende mit Lesebestätigung (Büro: Text, Übersetzungen,
+//                                     Empfänger, Rückmeldungen; core/mitteilungen.js)
+//   mitteilungen/konten/postfach.json Mitteilungen an Personen mit Konto (alle Rollen mit App-Ordner lesen, das Büro
+//                                     schreibt; Anhänge unter mitteilungen/konten/anhaenge/)
+//   mitteilungen/bestaetigungen/bestaetigungen.json  „Gelesen“/„Verstanden“ aus der App (jede Rolle mit App-Ordner
+//                                     schreibt die eigene Bestätigung; SharePoint trennt nach Ordner, nicht nach Eintrag)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -58,7 +64,7 @@
 // wieder Netz da ist gespeichert.
 
 import { mondayOf, todayISO } from '../core/dates.js'
-import { MODULES } from '../core/access.js'
+import { MODULES, TOOL_MODULES } from '../core/access.js'
 import { emptyAppointments } from '../core/appointments.js'
 import { emptyInvoicing } from '../core/invoicing.js'
 import { emptyKeys } from '../core/keys.js'
@@ -123,6 +129,11 @@ export const MODULE_DOCS = {
   // Mattenbestand und Wäscherei (P17): leerer Inhalt wie emptyBestand (core/matten-bestand.js; test/matten-bestand.test.js
   // vergleicht). Ordner matten/: Büro bearbeitet, Fahrer lesen nichts (Regel 'matten/' in dataRights)
   mattenBestand: { path: 'matten/bestand.json', empty: () => ({ schema: 1, settings: {}, bookings: [] }) },
+  // Mitteilungen an Mitarbeitende: leere Inhalte wie emptyMitteilungen, emptyPostfach, emptyBestaetigt
+  // (core/mitteilungen.js; test/mitteilungen.test.js vergleicht), hier ausgeschrieben wegen des Starts der App
+  mitteilungen: { path: 'mitteilungen/mitteilungen.json', empty: () => ({ items: [], receipts: {}, settings: {} }) },
+  mitPostfach: { path: 'mitteilungen/konten/postfach.json', empty: () => ({ items: [] }) },
+  mitBestaetigt: { path: 'mitteilungen/bestaetigungen/bestaetigungen.json', empty: () => ({ receipts: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -168,6 +179,9 @@ export function dataRights(access) {
   if (!access || access.all) return { read: () => true, write: () => true }
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
+  // Mitteilungen in der App: wer einen Bereich der App mit eigener Ablage sieht (Rollen nur mit Werkzeugen haben keinen
+  // Ordner der App und bekommen Mitteilungen über „Mein Plan“)
+  const appRole = () => Object.keys(MODULES).some((m) => !TOOL_MODULES.includes(m) && access.sees(m))
   const rules = [
     [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('stammdaten', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“) und die Geräte
@@ -231,6 +245,11 @@ export function dataRights(access) {
     // Fotos der Fahrer je Liegeplatz (matten/fotos/<Jahr>/<Liegeplatz>/…): Fahrer und Büro bearbeiten
     ['matten/fotos/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
     ['matten/', () => sees('matten'), () => edits('matten')],
+    // Mitteilungen an Mitarbeitende: Postfach der Konten (mit Anhängen) lesen alle Rollen mit App-Ordner, das Büro
+    // schreibt; die eigene Bestätigung schreibt jede dieser Rollen; Texte, Empfänger und Rückmeldungen nur das Büro
+    ['mitteilungen/konten/', () => appRole(), () => edits('mitteilungen')],
+    ['mitteilungen/bestaetigungen/', () => appRole(), () => appRole()],
+    ['mitteilungen/', () => sees('mitteilungen'), () => edits('mitteilungen')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -268,6 +287,9 @@ export const FOLDERS = [
   ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr, Mattenbestand und Wäscherei (Büro)', MODULE_DOCS.matten.path],
   ['matten/touren', 'Mattenwechsel: Touren je Datei (Büro plant und gibt frei; Fahrer: Bestätigung je Liegeplatz, Unterschrift je Stopp)', 'matten/touren/2026/tour.json'],
   ['matten/fotos', 'Mattenwechsel: Fotos der Fahrer je Liegeplatz', 'matten/fotos/2026/liegeplatz/foto.jpg'],
+  ['mitteilungen', 'Mitteilungen an Mitarbeitende: Texte, Übersetzungen, Empfänger, Lesebestätigungen (Büro)', MODULE_DOCS.mitteilungen.path],
+  ['mitteilungen/konten', 'Mitteilungen an Personen mit Konto und Anhänge (alle Rollen mit App-Ordner lesen)', MODULE_DOCS.mitPostfach.path],
+  ['mitteilungen/bestaetigungen', '„Gelesen“ und „Verstanden“ aus der App (jede Person schreibt die eigene)', MODULE_DOCS.mitBestaetigt.path],
 ]
 
 /**

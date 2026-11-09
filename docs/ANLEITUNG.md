@@ -2,17 +2,17 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 370 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 375 Themen, 45 Begriffe.*
 
 ## Inhalt
 
-- [Start & Übersicht](#start-uebersicht) (11)
+- [Start & Übersicht](#start-uebersicht) (12)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (90)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
 - [Finanzen](#finanzen) (79)
-- [Verwaltung](#verwaltung) (57)
+- [Verwaltung](#verwaltung) (61)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -161,6 +161,18 @@ Ist die Ablage noch leer, zeigt die App „Willkommen“. Am schnellsten geht es
 > Tipp: „Beispieldaten laden“ ist nur zum Ausprobieren gedacht.
 
 *Vollzugriff*
+
+### Meine Mitteilungen lesen und bestätigen
+
+*In der App: Meine Mitteilungen*
+
+Hast du ein Konto und eine E-Mail im Stammblatt, kommen Mitteilungen des Büros unter „Meine Mitteilungen“ und auf der Startseite. Lies sie und tippe „Gelesen“ bzw. „Verstanden“. Ist sie übersetzt, siehst du sie in deiner Sprache, mit „Deutsch zeigen“.
+
+1. Auf der Startseite die Karte „Mitteilung an dich“ oder im Menü „Meine Mitteilungen“ öffnen.
+2. Text lesen, bei Bedarf den Anhang öffnen.
+3. „Gelesen“ bzw. „Verstanden“ tippen.
+
+> Tipp: Ohne Konto kommen Mitteilungen über den persönlichen Link „Mein Plan“.
 
 ## Planung
 
@@ -4105,6 +4117,60 @@ Unter „Mehr ▾“ → „Arten verwalten“ änderst du Gültigkeit und Pflic
 Ein abgelaufener Aufenthaltstitel ist im Plan ein Fehler (nicht einteilen), eine abgelaufene Führerscheinkontrolle eine Warnung bei Einsätzen mit Qualifikation „Führerschein“. Fehlende Einträge meldet „Zu erledigen“, sperrende Dokumente schon 30 Tage vorher.
 
 > Tipp: Beim Aufenthaltstitel nur das Ablaufdatum speichern, keine Kopien.
+
+### Mitteilungen an Mitarbeitende
+
+*In der App: Mitteilungen*
+
+Unter „Mitteilungen“ schreibst du eine Nachricht auf Deutsch, optional mit PDF oder Bild, an alle, ein Revier/Team, ein Objekt oder einzelne Personen. Ohne Konto lesen sie sie am Handy in „Mein Plan“, mit Konto in der App. Je Mitteilung siehst du, wer gelesen oder bestätigt hat.
+
+1. „Mitteilungen“ unter „Verwaltung“ öffnen.
+2. „Neue Mitteilung“: Titel, Text und bei Bedarf einen Anhang eintragen.
+3. Empfänger wählen: alle, Revier/Team, Objekt oder einzelne Personen.
+4. Wichtigkeit wählen: normal („Gelesen“) oder „Bestätigung nötig“ („Verstanden“).
+5. Sichtbar ab und bis setzen, bei Bedarf übersetzen, „Veröffentlichen“.
+
+> Tipp: Die Vorschau zeigt Sprachen und Zustellweg; wer weder Link noch Konto hat, bekommt die Mitteilung ausgedruckt.
+> Tipp: Nichts Vertrauliches an Einzelne: Mitteilungen an Konten sind für alle Konten lesbar.
+
+*Vollzugriff, Personalverwaltung*
+
+### Mitteilung übersetzen
+
+*In der App: Mitteilungen*
+
+Im Dialog stehen unten Felder für jede Sprache der Empfänger. „Mit KI übersetzen“ schickt nur Titel und Text an den KI-Assistenten und füllt die Felder als Vorschlag; du prüfst und änderst sie vor dem Veröffentlichen. Ohne eingerichtete KI bleibt die Mitteilung deutsch, am Handy mit Hinweis.
+
+1. Titel und Text auf Deutsch eintragen, Empfänger wählen.
+2. Unter „Übersetzungen“ auf „Mit KI übersetzen“ tippen.
+3. Jede Sprache lesen und bei Bedarf ändern.
+4. „Veröffentlichen“.
+
+> Tipp: Ändert sich danach der deutsche Text, gilt die Übersetzung als veraltet; die App fragt beim Veröffentlichen nach.
+> Tipp: Am Handy gibt es immer „Deutsch zeigen“.
+
+### Wer hat gelesen? Erinnern und Nachweis
+
+*In der App: Mitteilungen*
+
+Die Übersicht zeigt je Mitteilung „gelesen“ bzw. „bestätigt x von y“. „Öffnen“ listet jede Person mit Stand, Zeitpunkt und Weg (Mein Plan oder App). „Erinnern“ hebt die Mitteilung bei den Offenen wieder oben hervor, mit Push. „Nachweis (PDF)“ gibt die Liste zum Ablegen.
+
+1. In „Mitteilungen“ die Mitteilung öffnen.
+2. Mit „nur offene“ die fehlenden Personen sehen.
+3. „Erinnern“ tippen.
+4. „Nachweis (PDF)“ herunterladen.
+
+> Tipp: Die App holt die Rückmeldungen alle 3 Minuten ab, „Mehr ▾“ → „Rückmeldungen jetzt abholen“ sofort.
+> Tipp: „Zurückziehen“ nimmt sie vom Handy und aus der App; der Nachweis bleibt.
+
+### Mitteilung als Unterweisungsnachweis
+
+*In der App: Mitteilungen*
+
+Bei „Bestätigung nötig“ kannst du eine Art der Unterweisung wählen, z. B. Unterweisung Reinigungsmittel. Wer „Verstanden“ tippt, bekommt dort einen Eintrag mit dem Datum der Bestätigung und dem Vermerk „Lesebestätigung“. Kurse, Kontrollen und Dokumente zählen so nicht.
+
+> Tipp: Gut für schriftliche Ergänzungen wie eine neue Betriebsanweisung; die mündliche Unterweisung mit Rückfragen (§ 14 ASchG) ersetzt sie nicht immer.
+> Tipp: Eintragen kann nur, wer „Unterweisungen & Fristen“ bearbeiten darf.
 
 ### Arbeitsschutz: Arbeitsstoffe, Betriebsanweisungen, Evaluierung
 

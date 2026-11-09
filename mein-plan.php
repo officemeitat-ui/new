@@ -32,7 +32,14 @@
 // sich, Push folgt der Wahl). Objektanweisungen kommen übersetzt aus der App (woche.objektinfo); ist eine
 // Übersetzung veraltet, steht der deutsche Text dabei. Nachrichten ans Büro bleiben deutsch.
 //
+// Mitteilungen (Lesebestätigung): Die App schickt die laufenden und geplanten Mitteilungen mit den Hashwerten der Links
+// ihrer Empfänger (aktion=mitteilungen), Anhänge einzeln (aktion=mitteilung-anhang). Oben auf der Seite stehen nur die
+// Mitteilungen der Person, in ihrer Sprache (Umschalter „Deutsch zeigen“); „Gelesen“ bzw. „Verstanden“ speichert den
+// Zeitpunkt des Servers (höchstens MIT_GRENZE_TAG je Person und Tag), die App holt ihn ab (aktion=mitteilungen-status).
+// Anhänge liegen unter privat/mitarbeiter/mitteilungen/ und kommen nur über diese Seite (aktion=anhang, Empfänger).
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten | zeiten
+// | mitteilungen | mitteilung-anhang | mitteilungen-status
 // Cronjob: mein-plan.php?aktion=pruefen&schluessel=PRÜFSCHLÜSSEL oder php mein-plan.php pruefen
 
 declare(strict_types=1);
@@ -599,6 +606,192 @@ function kalender_ics(array $person, string $hash): string
     return implode("\r\n", array_map('ics_falten', $z)) . "\r\n";
 }
 
+// ---------------------------------------------------------------- Mitteilungen an Mitarbeitende (Lesebestätigung)
+
+const MIT_ID = '/^[a-z0-9]{6,32}$/';
+const MIT_TYPEN = ['application/pdf' => 'pdf', 'image/jpeg' => 'jpg', 'image/png' => 'png'];
+const MIT_GRENZE_TAG = 60; // „Gelesen“/„Verstanden“ je Person und Tag
+const MIT_ANHANG_MAX = 6 * 1024 * 1024;
+
+function mit_ordner(): string
+{
+    $d = speicher() . '/mitteilungen';
+    if (!is_dir($d)) {
+        @mkdir($d, 0775, true);
+    }
+    return $d;
+}
+
+/** Alle Mitteilungen, wie die App sie zuletzt übertragen hat. */
+function mit_liste(): array
+{
+    return array_values(array_filter((array) (json_lesen(speicher() . '/mitteilungen.json')['mitteilungen'] ?? []), 'is_array'));
+}
+
+/** Heute sichtbare Mitteilungen einer Person: nur die, in deren Empfängerliste ihr Hashwert steht. */
+function mit_meine(string $hash): array
+{
+    $heute = heute();
+    return array_values(array_filter(mit_liste(), fn ($m) => $hash !== '' && in_array($hash, (array) ($m['an'] ?? []), true) && (string) ($m['ab'] ?? '') <= $heute && (string) ($m['bis'] ?? '') >= $heute));
+}
+
+/** Datei des Anhangs (fester Name aus Kennung und Typ); '' ohne Anhang. */
+function mit_anhang_pfad(array $m): string
+{
+    $endung = MIT_TYPEN[(string) ($m['anhang']['typ'] ?? '')] ?? '';
+    return $endung !== '' && preg_match(MIT_ID, (string) ($m['id'] ?? '')) ? mit_ordner() . '/' . $m['id'] . '.' . $endung : '';
+}
+
+/** Passt der Inhalt zum Typ? (PDF, JPEG, PNG am Anfang der Datei erkannt; nichts anderes wird ausgeliefert) */
+function mit_inhalt_passt(string $typ, string $daten): bool
+{
+    return match ($typ) {
+        'application/pdf' => str_starts_with($daten, '%PDF-'),
+        'image/jpeg' => str_starts_with($daten, "\xFF\xD8\xFF"),
+        'image/png' => str_starts_with($daten, "\x89PNG\r\n\x1A\n"),
+        default => false,
+    };
+}
+
+/** Rückmeldungen gesperrt ändern: { gelesen: { 'id|hash': { gelesen, bestaetigt, geaendert } }, push, zaehler }. */
+function mit_status(callable $fn)
+{
+    $h = @fopen(speicher() . '/mitteilungen-status.json', 'c+');
+    if (!$h) {
+        return null;
+    }
+    flock($h, LOCK_EX);
+    $s = json_decode((string) stream_get_contents($h), true);
+    $s = is_array($s) ? $s : [];
+    foreach (['gelesen', 'push', 'zaehler'] as $k) {
+        $s[$k] = is_array($s[$k] ?? null) ? $s[$k] : [];
+    }
+    $ergebnis = $fn($s);
+    // Zähler der Grenze nur für heute und gestern
+    $gestern = tag_plus(heute(), -1);
+    $s['zaehler'] = array_filter($s['zaehler'], fn ($k) => substr((string) $k, -10) >= $gestern, ARRAY_FILTER_USE_KEY);
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, json_encode($s, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ergebnis;
+}
+
+/** Erledigt? Bei „Bestätigung nötig“ zählt nur „Verstanden“. */
+function mit_erledigt(array $m, array $st): bool
+{
+    return !empty($m['bestaetigen']) ? !empty($st['bestaetigt']) : !empty($st['gelesen']);
+}
+
+/**
+ * Push für heute sichtbare Mitteilungen: je Person und Mitteilung einmal, nach einer Erinnerung noch einmal; nur an
+ * Personen mit Push-Thema, die noch nicht gelesen bzw. bestätigt haben. Ohne Inhalt („Neue Mitteilung vom Büro“),
+ * gelesen wird auf der Seite. Läuft beim Übertragen, beim Abholen durch die App und mit dem Cronjob.
+ */
+function mit_push(array $e): int
+{
+    $heute = heute();
+    $liste = array_filter(mit_liste(), fn ($m) => !empty($m['push']) && (string) ($m['ab'] ?? '') <= $heute && (string) ($m['bis'] ?? '') >= $heute);
+    if (!$liste) {
+        return 0;
+    }
+    $faellig = mit_status(function (array &$s) use ($liste) {
+        $out = [];
+        foreach ($liste as $m) {
+            foreach ((array) ($m['an'] ?? []) as $hash) {
+                $k = $m['id'] . '|' . $hash;
+                if (mit_erledigt($m, (array) ($s['gelesen'][$k] ?? []))) {
+                    continue;
+                }
+                $erinnert = (int) ($m['erinnert'][$hash] ?? 0);
+                $art = !isset($s['push'][$k]) ? 'neu' : ($erinnert > (int) $s['push'][$k] ? 'erinnert' : null);
+                if (!$art) {
+                    continue;
+                }
+                $s['push'][$k] = max(jetzt(), $erinnert);
+                $out[$hash][$art] = ($out[$hash][$art] ?? 0) + 1;
+            }
+        }
+        return $out;
+    }) ?? [];
+    $n = 0;
+    foreach ($faellig as $hash => $was) {
+        $p = json_lesen(person_datei((string) $hash));
+        if (empty($p['ntfy'])) {
+            continue;
+        }
+        $sp = sprache_von($p);
+        $neu = (int) ($was['neu'] ?? 0);
+        $titel = $neu > 1 ? t('push_mitteilungen', ['n' => $neu], $sp) : ($neu === 1 ? t('push_mitteilung', [], $sp) : t('push_mitteilung_erinnerung', [], $sp));
+        if (ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $p['ntfy'], 'title' => $titel, 'message' => t('push_mitteilung_text', [], $sp), 'priority' => 3, 'tags' => ['envelope'], 'click' => rtrim((string) ($e['adresse'] ?? ''), '/') . '/mein-plan.php'])) {
+            $n++;
+        }
+    }
+    return $n;
+}
+
+/** Bereich „Mitteilungen“ oben auf der Seite: offene zuerst (erinnerte hervorgehoben), gelesene eingeklappt. */
+function mit_html(string $hash, string $code): string
+{
+    $meine = mit_meine($hash);
+    if (!$meine) {
+        return '';
+    }
+    $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
+    $status = (array) (json_lesen(speicher() . '/mitteilungen-status.json')['gelesen'] ?? []);
+    $s = sprache();
+    $lang = html_sprache($s);
+    $wann = function (int $ts) use ($h): array {
+        $d = (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone('Europe/Vienna'));
+        return ['datum' => $h(t('datum_kurz', ['d' => $d->format('d'), 'm' => $d->format('m')])), 'zeit' => $h($d->format('H:i'))];
+    };
+    $offen = [];
+    $fertig = [];
+    foreach ($meine as $m) {
+        $m['_st'] = (array) ($status[$m['id'] . '|' . $hash] ?? []);
+        $m['_erinnert'] = (int) ($m['erinnert'][$hash] ?? 0) > 0;
+        if (mit_erledigt($m, $m['_st'])) {
+            $fertig[] = $m;
+        } else {
+            $offen[] = $m;
+        }
+    }
+    usort($offen, fn ($a, $b) => ($b['_erinnert'] <=> $a['_erinnert']) ?: strcmp((string) $b['ab'], (string) $a['ab']));
+    usort($fertig, fn ($a, $b) => strcmp((string) $b['ab'], (string) $a['ab']));
+    $karte = function (array $m) use ($h, $s, $lang, $code, $wann): string {
+        $u = $s !== 'de' && is_array($m['uebersetzt'][$s] ?? null) && trim((string) ($m['uebersetzt'][$s]['text'] ?? '')) !== '' ? $m['uebersetzt'][$s] : null;
+        $titel = $u && trim((string) ($u['titel'] ?? '')) !== '' ? (string) $u['titel'] : (string) ($m['titel'] ?? '');
+        $text = $u ? (string) $u['text'] : (string) ($m['text'] ?? '');
+        $attr = $u ? ' lang="' . $h($lang) . '"' : ($s !== 'de' ? ' lang="de"' : '');
+        $bestaetigen = !empty($m['bestaetigen']);
+        $erledigt = mit_erledigt($m, $m['_st']);
+        $erinnert = $m['_erinnert'] && !$erledigt;
+        $html = '<article class="mit' . ($erledigt ? '' : ' mit-offen') . ($erinnert ? ' mit-erinnert' : '') . '" id="mit-' . $h((string) $m['id']) . '">'
+            . '<h3' . $attr . '>' . $h($titel) . '</h3>'
+            . '<p class="mit-kopf">' . ($bestaetigen ? '<span class="pill mit-wichtig">' . th('mit_wichtig') . '</span> ' : '') . ($erinnert ? '<span class="pill mit-erinnerung">' . th('mit_erinnerung') . '</span> ' : '') . '<span class="leise">' . th('mit_vom', ['datum' => $h(datum_sprache((string) $m['ab']))]) . '</span></p>'
+            . ($s !== 'de' && !$u ? '<p class="leise">' . th('mit_nur_deutsch') . '</p>' : '')
+            . '<div class="mit-text"' . $attr . '>' . nl2br($h($text)) . '</div>'
+            . ($u ? '<details class="mit-de"><summary>' . th('mit_deutsch_zeigen') . '</summary><div lang="de"><p><b>' . $h((string) ($m['titel'] ?? '')) . '</b></p><p>' . nl2br($h((string) ($m['text'] ?? ''))) . '</p></div></details>' : '');
+        $pfad = mit_anhang_pfad($m);
+        if ($pfad !== '' && is_file($pfad)) {
+            $html .= '<p><a class="mit-anhang" href="mein-plan.php?aktion=anhang&amp;m=' . rawurlencode((string) $m['id']) . '" target="_blank" rel="noopener">' . th('mit_anhang', ['name' => $h((string) ($m['anhang']['name'] ?? ''))]) . '</a></p>';
+        }
+        if ($erledigt) {
+            $html .= '<p class="ok">✓ ' . th($bestaetigen ? 'mit_verstanden_am' : 'mit_gelesen_am', $wann((int) ($bestaetigen ? $m['_st']['bestaetigt'] : $m['_st']['gelesen']))) . '</p>';
+        } else {
+            $html .= '<form method="post" action="mein-plan.php?aktion=gelesen"><input type="hidden" name="p" value="' . $h($code) . '"><input type="hidden" name="m" value="' . $h((string) $m['id']) . '"><button type="submit" class="klein">' . th($bestaetigen ? 'mit_verstanden_knopf' : 'mit_gelesen_knopf') . '</button></form>'
+                . ($bestaetigen ? '<p class="leise">' . th('mit_verstanden_info') . '</p>' : '');
+        }
+        return $html . '</article>';
+    };
+    return '<section class="mitteilungen" aria-labelledby="mit-titel"><h2 id="mit-titel">' . th('mit_titel') . ($offen ? ' <span class="pill neu">' . th('mit_neu', ['n' => (string) count($offen)]) . '</span>' : '') . '</h2>'
+        . implode('', array_map($karte, $offen))
+        . ($fertig ? '<details class="mit-alt"><summary>' . th('mit_gelesene', ['n' => (string) count($fertig)]) . '</summary>' . implode('', array_map($karte, $fertig)) . '</details>' : '')
+        . '</section>';
+}
+
 $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -614,7 +807,7 @@ if ($aktion === 'pruefen' || $cli) {
     if (!$cli && !hash_equals($schluessel, (string) ($_GET['schluessel'] ?? ''))) {
         json_ausgabe(403, ['fehler' => 'Prüfschlüssel fehlt oder falsch']);
     }
-    $ergebnis = nicht_erschienen($e, $z) + ['terminErinnerung' => termin_erinnerungen($e)];
+    $ergebnis = nicht_erschienen($e, $z) + ['terminErinnerung' => termin_erinnerungen($e), 'mitteilungen' => mit_push($e)];
     json_schreiben(speicher() . '/pruefung.json', ['zuletzt' => jetzt()] + $ergebnis); // für den Systemcheck
     if ($cli) {
         echo json_encode($ergebnis) . "\n";
@@ -625,7 +818,7 @@ if ($aktion === 'pruefen' || $cli) {
 
 // ---------------------------------------------------------------- Aufrufe der App (mit Schlüssel)
 
-if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten'], true)) {
+if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status'], true)) {
     if (!$e) {
         json_ausgabe(503, ['fehler' => 'Mein Dienstplan noch nicht eingerichtet: privat/mitarbeiter.json fehlt (App → Mitarbeitende → Plan am Handy).']);
     }
@@ -633,7 +826,53 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
     if ($gegeben === '' || !hash_equals((string) $e['schluessel'], $gegeben)) {
         json_ausgabe(403, ['fehler' => 'Schlüssel fehlt oder falsch']);
     }
-    $daten = $methode === 'POST' ? json_decode((string) file_get_contents('php://input'), true) : null;
+    $daten = $methode === 'POST' && $aktion !== 'mitteilung-anhang' ? json_decode((string) file_get_contents('php://input'), true) : null;
+
+    // Mitteilungen: Anhang einer Mitteilung (Rohdaten: PDF, JPEG oder PNG, am Inhalt geprüft)
+    if ($aktion === 'mitteilung-anhang') {
+        $id = (string) ($_GET['id'] ?? '');
+        $typ = strtolower(trim(explode(';', (string) ($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
+        if ($methode !== 'POST' || !preg_match(MIT_ID, $id) || !isset(MIT_TYPEN[$typ])) {
+            json_ausgabe(400, ['fehler' => 'POST mit PDF, JPEG oder PNG und Kennung der Mitteilung erwartet']);
+        }
+        if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > MIT_ANHANG_MAX) {
+            json_ausgabe(413, ['fehler' => 'Anhang zu groß (höchstens 6 MB)']);
+        }
+        $inhalt = (string) file_get_contents('php://input', false, null, 0, MIT_ANHANG_MAX + 1);
+        if ($inhalt === '' || strlen($inhalt) > MIT_ANHANG_MAX) {
+            json_ausgabe(413, ['fehler' => 'Anhang leer oder zu groß für den Webspace (post_max_size ' . ini_get('post_max_size') . ', höchstens 6 MB)']);
+        }
+        if (!mit_inhalt_passt($typ, $inhalt)) {
+            json_ausgabe(415, ['fehler' => 'Der Inhalt passt nicht zum Typ (nur PDF, JPEG, PNG)']);
+        }
+        $ziel = mit_ordner() . '/' . $id . '.' . MIT_TYPEN[$typ];
+        $tmp = $ziel . '.' . bin2hex(random_bytes(4)) . '.tmp';
+        if (@file_put_contents($tmp, $inhalt) === false || !@rename($tmp, $ziel)) {
+            @unlink($tmp);
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        foreach (MIT_TYPEN as $endung) {
+            if ($endung !== MIT_TYPEN[$typ]) {
+                @unlink(mit_ordner() . '/' . $id . '.' . $endung);
+            }
+        }
+        json_ausgabe(200, ['gespeichert' => true, 'groesse' => strlen($inhalt)]);
+    }
+
+    // Mitteilungen: „Gelesen“/„Verstanden“ seit einem Zeitpunkt (Unix-Sekunden); dabei fällige Push-Nachrichten senden
+    if ($aktion === 'mitteilungen-status') {
+        $seit = (int) ($_GET['seit'] ?? 0);
+        $push = mit_push($e);
+        $out = [];
+        foreach ((array) (json_lesen(speicher() . '/mitteilungen-status.json')['gelesen'] ?? []) as $k => $st) {
+            if (!is_array($st) || (int) ($st['geaendert'] ?? 0) < $seit) {
+                continue;
+            }
+            [$id, $hash] = array_pad(explode('|', (string) $k, 2), 2, '');
+            $out[] = ['id' => $id, 'hash' => $hash, 'gelesen' => (int) ($st['gelesen'] ?? 0), 'bestaetigt' => (int) ($st['bestaetigt'] ?? 0)];
+        }
+        json_ausgabe(200, ['status' => $out, 'push' => $push, 'jetzt' => jetzt()]);
+    }
 
     if ($aktion === 'zeiten') {
         $seit = (int) ($_GET['seit'] ?? 0);
@@ -647,6 +886,68 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
     }
     if ($methode !== 'POST' || !is_array($daten)) {
         json_ausgabe(400, ['fehler' => 'POST mit JSON erwartet']);
+    }
+    // Mitteilungen: Liste ersetzen (laufende und geplante), Personen ohne Datei anlegen, aufräumen, Push
+    if ($aktion === 'mitteilungen') {
+        $kurz = fn ($v, int $n): string => mb_substr(trim((string) $v), 0, $n);
+        $istDatum = fn ($d): bool => is_string($d) && (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d);
+        $liste = [];
+        foreach (array_slice((array) ($daten['mitteilungen'] ?? []), 0, 100) as $m) {
+            if (!is_array($m)) {
+                continue;
+            }
+            $id = (string) ($m['id'] ?? '');
+            $ab = (string) ($m['ab'] ?? '');
+            $bis = (string) ($m['bis'] ?? '');
+            $an = array_slice(array_values(array_unique(array_filter((array) ($m['an'] ?? []), fn ($x) => is_string($x) && preg_match('/^[a-f0-9]{64}$/', $x)))), 0, 2000);
+            if (!preg_match(MIT_ID, $id) || !$istDatum($ab) || !$istDatum($bis) || $bis < $ab || !$an) {
+                continue;
+            }
+            $uebersetzt = [];
+            foreach ((array) ($m['uebersetzt'] ?? []) as $sp => $u) {
+                if ($sp !== 'de' && sprache_gueltig((string) $sp) && is_array($u) && trim((string) ($u['text'] ?? '')) !== '') {
+                    $uebersetzt[$sp] = ['titel' => $kurz($u['titel'] ?? '', 160), 'text' => $kurz($u['text'], 6000)];
+                }
+            }
+            $erinnert = [];
+            foreach ((array) ($m['erinnert'] ?? []) as $hash => $ts) {
+                if (in_array((string) $hash, $an, true) && (int) $ts > 0) {
+                    $erinnert[(string) $hash] = (int) $ts;
+                }
+            }
+            $anhang = is_array($m['anhang'] ?? null) && isset(MIT_TYPEN[(string) ($m['anhang']['typ'] ?? '')]) ? ['name' => $kurz($m['anhang']['name'] ?? '', 120), 'typ' => (string) $m['anhang']['typ'], 'groesse' => (int) ($m['anhang']['groesse'] ?? 0)] : null;
+            $liste[] = ['id' => $id, 'titel' => $kurz($m['titel'] ?? '', 160), 'text' => $kurz($m['text'] ?? '', 6000), 'uebersetzt' => $uebersetzt, 'bestaetigen' => !empty($m['bestaetigen']), 'ab' => $ab, 'bis' => $bis, 'an' => $an, 'erinnert' => $erinnert, 'push' => !empty($m['push']), 'erstellt' => (int) ($m['erstellt'] ?? 0), 'anhang' => $anhang];
+        }
+        if (!json_schreiben(speicher() . '/mitteilungen.json', ['mitteilungen' => $liste, 'stand' => jetzt()])) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        // Empfänger ohne Plan am Handy (noch keine Woche veröffentlicht) bekommen eine Datei, damit ihr Link gilt
+        $neu = 0;
+        foreach (array_slice((array) ($daten['personen'] ?? []), 0, 3000) as $person) {
+            $hash = (string) ($person['hash'] ?? '');
+            if (!preg_match('/^[a-f0-9]{64}$/', $hash) || is_file(person_datei($hash))) {
+                continue;
+            }
+            $ntfy = is_string($person['ntfy'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $person['ntfy']) ? $person['ntfy'] : '';
+            if (json_schreiben(person_datei($hash), ['name' => mb_substr((string) ($person['name'] ?? ''), 0, 80), 'ntfy' => $ntfy, 'sprache' => sprache_gueltig($person['sprache'] ?? null) ?? 'de', 'wochen' => []])) {
+                $neu++;
+            }
+        }
+        // aufräumen: Rückmeldungen, Push-Vermerke und Anhänge von Mitteilungen, die es nicht mehr gibt
+        $ids = array_column($liste, 'id');
+        mit_status(function (array &$s) use ($ids) {
+            foreach (['gelesen', 'push'] as $k) {
+                $s[$k] = array_filter($s[$k], fn ($x) => in_array(explode('|', (string) $x)[0], $ids, true), ARRAY_FILTER_USE_KEY);
+            }
+        });
+        $behalten = array_filter(array_map(fn ($m) => $m['anhang'] ? basename(mit_anhang_pfad($m)) : '', $liste));
+        foreach (glob(mit_ordner() . '/*') ?: [] as $f) {
+            if (!in_array(basename($f), $behalten, true) && @filemtime($f) < time() - 3600) {
+                @unlink($f);
+            }
+        }
+        $fehlen = array_values(array_map(fn ($m) => $m['id'], array_filter($liste, fn ($m) => $m['anhang'] && !is_file(mit_anhang_pfad($m)))));
+        json_ausgabe(200, ['mitteilungen' => count($liste), 'personenNeu' => $neu, 'anhaengeFehlen' => $fehlen, 'push' => mit_push($e)]);
     }
     if ($aktion === 'einrichten') {
         if (!is_string($daten['schluessel'] ?? null) || strlen($daten['schluessel']) < 32) {
@@ -827,6 +1128,70 @@ if ($aktion === 'kalender') {
 if (isset($_GET['p'])) {
     // merken: danach genügt mein-plan.php (z. B. am Startbildschirm)
     setcookie(COOKIE, $code, ['expires' => jetzt() + 400 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
+}
+
+// Mitteilung: Anhang öffnen (nur Empfänger, nur solange die Mitteilung sichtbar ist)
+if ($aktion === 'anhang') {
+    $id = (string) ($_GET['m'] ?? '');
+    $m = null;
+    foreach (mit_meine($hash) as $x) {
+        if (($x['id'] ?? '') === $id) {
+            $m = $x;
+        }
+    }
+    $pfad = $m ? mit_anhang_pfad($m) : '';
+    if ($pfad === '' || !is_file($pfad)) {
+        html_seite('<h1>' . th('titel') . '</h1><p>' . th('mit_nicht_gefunden') . '</p><p><a href="mein-plan.php">' . th('titel') . '</a></p>', 404, '', t('titel'));
+        exit;
+    }
+    $name = (string) ($m['anhang']['name'] ?? '') ?: 'Anhang.' . MIT_TYPEN[$m['anhang']['typ']];
+    header('Content-Type: ' . $m['anhang']['typ']);
+    header('Content-Disposition: inline; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '_', $name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+    header('Content-Length: ' . filesize($pfad));
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, no-store');
+    header('X-Robots-Tag: noindex, nofollow');
+    readfile($pfad);
+    exit;
+}
+
+// Mitteilung gelesen bzw. verstanden: Zeitpunkt des Servers; die Grenze je Person und Tag zählt in einem Schritt mit
+if ($aktion === 'gelesen' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
+        exit;
+    }
+    $id = (string) ($_POST['m'] ?? '');
+    $m = null;
+    foreach (mit_meine($hash) as $x) {
+        if (($x['id'] ?? '') === $id) {
+            $m = $x;
+        }
+    }
+    $ergebnis = !$m ? 'weg' : mit_status(function (array &$s) use ($m, $hash) {
+        $z = $hash . '|' . heute();
+        if ((int) ($s['zaehler'][$z] ?? 0) >= MIT_GRENZE_TAG) {
+            return 'grenze';
+        }
+        $s['zaehler'][$z] = (int) ($s['zaehler'][$z] ?? 0) + 1;
+        $k = $m['id'] . '|' . $hash;
+        $st = (array) ($s['gelesen'][$k] ?? []);
+        if (mit_erledigt($m, $st)) {
+            return 'ok';
+        }
+        $st['gelesen'] = (int) ($st['gelesen'] ?? 0) ?: jetzt();
+        if (!empty($m['bestaetigen'])) {
+            $st['bestaetigt'] = jetzt();
+        }
+        $st['geaendert'] = jetzt();
+        $s['gelesen'][$k] = $st;
+        return 'ok';
+    });
+    if ($ergebnis === 'ok') {
+        header('Location: mein-plan.php?gesendet=mitteilung#mit-' . rawurlencode($id), true, 303);
+        exit;
+    }
+    $meldung = '<p class="fehler">' . th($ergebnis === 'grenze' ? 'mit_zu_viele' : ($ergebnis === 'weg' ? 'mit_nicht_gefunden' : 'nicht_gespeichert')) . '</p>';
 }
 
 // Zeiterfassung am Objekt (QR-Code)
@@ -1177,7 +1542,7 @@ if (!$wochen && !empty($person['wochen'])) {
     $wochen = array_slice((array) $person['wochen'], -1, 1, true);
 }
 $meldung = $meldung ?? '';
-$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material', 'geraet' => 'ok_geraet'][(string) ($_GET['gesendet'] ?? '')] ?? null;
+$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material', 'geraet' => 'ok_geraet', 'mitteilung' => 'mit_ok'][(string) ($_GET['gesendet'] ?? '')] ?? null;
 if ($gesendet) {
     $meldung = '<p class="ok">' . th($gesendet) . '</p>';
 }
@@ -1291,8 +1656,9 @@ $mattenFahrer = json_lesen((getenv('MATTEN_ORDNER') ?: ordner()) . '/matten/fahr
 $mattenTouren = empty($mattenFahrer['entfernt']) ? array_filter((array) ($mattenFahrer['touren'] ?? []), fn ($d) => is_string($d) && $d >= tag_plus(heute(), -1) && $d <= tag_plus(heute(), 7)) : [];
 $mattenHtml = $mattenTouren && is_file(__DIR__ . '/mattentour.php') ? '<p class="summe">' . th('mt_plan_text') . '</p><p><a class="knopf" href="mattentour.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '') . '">' . th('mt_plan_oeffnen') . '</a></p>' : '';
 $hier = 'mein-plan.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '');
-html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . $mattenHtml
-    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
+html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . mit_html($hash, $code) . $mattenHtml
+    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}'
+    . '.mitteilungen h2{margin-top:1rem}.mit{border:1px solid #c9d6df;border-radius:8px;padding:.6rem .8rem;margin:.6rem 0}.mit h3{font-size:1.05rem;margin:0 0 .2rem}.mit-offen{border:2px solid #0a5a96}.mit-erinnert{background:#fff8e6}.mit-kopf{margin:.1rem 0 .4rem;color:#13232f}.mit-text{margin:.3rem 0}.mit-wichtig{background:#fce8e6!important;color:#b3261e!important}.mit-erinnerung{background:#fdf0d5!important;color:#6b4100!important}.mit-de summary{font-weight:400;color:#0a5a96;font-size:.95rem}.mit-de div{background:#f3f6f8;border-radius:8px;padding:.3rem .6rem}.mit-anhang{color:#0a5a96;font-weight:600}.mit .ok{margin:.4rem 0 0}</style>'
     . ($planHtml ?: '<p class="leise">' . th('kein_plan') . '</p>')
     . $boerseHtml . $antraegeHtml . $formulare . $aboHtml
     . '<p class="leise" style="margin-top:2rem;font-size:.9rem">' . th('fuss') . ' <a href="mein-plan.php?aktion=vergessen">' . th('vergessen') . '</a></p>', 200, '', t('titel'));

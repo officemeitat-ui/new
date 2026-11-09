@@ -3024,3 +3024,25 @@ input.mwb-qty { width: 6rem; max-width: 100%; text-align: right; }
   .fvt-kv-table td:last-child { display: block; text-align: left; }
   .fvt-runs .btn { min-height: 44px; }
 }
+/* ---------- Mitteilungen an Mitarbeitende (views/mitteilungen.js, views/mitteilungen-postfach.js) ---------- */
+.mit-title { color: var(--fg); font-size: inherit; text-decoration: none; text-align: left; }
+.mit-prog { display: grid; gap: 4px; min-width: 9rem; }
+.mit-picks { max-height: 14rem; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 2px 12px; padding: 6px 8px; margin: 6px 0; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.mit-picks label { min-width: 0; overflow-wrap: anywhere; }
+.mit-filter { width: 100%; max-width: 22rem; margin-top: 6px; }
+.mit-preview { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: var(--surface-2); }
+.mit-preview p { margin: 0; }
+.mit-radio { display: grid; gap: 4px; margin: 6px 0; }
+.mit-lang { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 10px; margin: 8px 0; min-width: 0; }
+.mit-lang legend { padding: 0 4px; font-weight: 600; }
+.mit-detail-text { white-space: normal; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 6px; overflow-wrap: anywhere; }
+.mit-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0; background: var(--surface); min-width: 0; overflow-wrap: anywhere; }
+.mit-card h3 { margin: 0 0 4px; font-size: 1rem; }
+.mit-card-open { border-left: 4px solid var(--accent); }
+.mit-card-reminded { border-left-color: var(--warn); background: var(--warn-soft); }
+.mit-meta { margin: 0 0 6px; }
+.mit-body { margin: 6px 0; }
+.mit-de summary { cursor: pointer; color: var(--accent); }
+.mit-de > div { padding: 4px 10px; border-radius: 6px; background: var(--surface-2); }
+.mit-acts .btn, .mit-home .btn.primary { min-height: 44px; }
+.mit-home .mit-card { margin: 0; }

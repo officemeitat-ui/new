@@ -10,6 +10,7 @@
 // test/lazy.test.js vergleicht alles mit dem echten Modul: Neue Aktion, neuer Dialog oder geänderte
 // Beschriftung im Modul → hier nachtragen. Anleitung: docs/ERWEITERN.md, „Später laden“.
 
+import { todayISO } from '../../core/dates.js'
 import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
@@ -26,6 +27,17 @@ export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.s
 export const kpiHooks = { matten: null, mattenBestand: null, vertraege: null, version: () => '' }
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
+/** Mitteilungen an Mitarbeitende (Umschlag): Büro (views/mitteilungen.js) und „Meine Mitteilungen“ (views/mitteilungen-postfach.js). */
+export const mitIcon = '<path d="M3.5 6.5h17v11h-17z"/><path d="m3.5 7 8.5 6.5L20.5 7"/>'
+/**
+ * „Meine Mitteilungen“ nur, wenn das Postfach der Konten (mitteilungen/konten/postfach.json) heute eine Mitteilung an die
+ * E-Mail des eigenen Kontos hat. Hier und nicht im Modul, damit das Menü es schon vor dem Laden weiß.
+ */
+export const mitInboxAvailable = () => {
+  const me = String(app.user?.email || '').trim().toLowerCase()
+  const today = todayISO()
+  return !!me && (app.data?.mitPostfach?.items || []).some((m) => (m.an || []).includes(me) && m.ab <= today && (!m.bis || m.bis >= today))
+}
 
 // Zwei Pakete: „alle“ sieht jede Rolle (auch Vorarbeiter am Handy), „büro“ die übrigen Bereiche; dazu ein kleines
 // eigenes für die Matten-Touren der Fahrer (matten-fahrer.js), damit das Handy nicht das ganze Büro lädt.
@@ -79,6 +91,25 @@ lazy(ALLE, {
     },
   ],
   actions: 'guide-search guide-chapter guide-jump guide-print',
+})
+
+// mitteilungen-postfach.js (Paket für alle): „Meine Mitteilungen“ für Personen mit Konto, Karte auf der Startseite
+lazy(ALLE, {
+  views: [
+    {
+      id: 'mit-postfach',
+      order: 4,
+      label: 'Meine Mitteilungen',
+      group: 'start',
+      section: 'start',
+      module: '*',
+      noWeek: true,
+      icon: mitIcon,
+      available: mitInboxAvailable,
+      text: 'Mitteilungen des Büros an dich: lesen und bestätigen',
+    },
+  ],
+  actions: 'mit-p-ok mit-p-file',
 })
 
 // calculation.js
@@ -555,6 +586,15 @@ lazy(BUERO, {
     bew-task-undo bew-task-note bew-task-add bew-list-date bew-list-close bew-list-reopen bew-list-delete bew-payroll-mail bew-size bew-ein-set bew-lang
     bew-handy-code bew-handy-off bew-tpl-open bew-tpl-add bew-tpl-del bew-tpl-reset bew-tpl-save bew-handy-send bew-ein-appt`,
   todo: ['eintritt'],
+})
+
+// mitteilungen.js: Mitteilungen an Mitarbeitende mit Lesebestätigung (verfassen, mit KI übersetzen, über „Mein Plan“ und
+// in der App zustellen, gelesen/bestätigt x von y, erinnern, Nachweis als PDF, Unterweisungsnachweis): Kürzel mit-
+lazy(BUERO, {
+  views: [{ id: 'mitteilungen', order: 84, label: 'Mitteilungen', group: 'stamm', module: 'mitteilungen', icon: mitIcon, noWeek: true, text: 'An Mitarbeitende, mehrsprachig, mit Lesebestätigung' }],
+  modals: 'mit-edit mit-detail',
+  actions: `mit-open mit-only-open mit-file-open mit-pdf mit-new mit-edit-open mit-art mit-redraw mit-filter mit-file mit-file-remove mit-ki mit-save
+    mit-publish mit-remind mit-withdraw mit-delete mit-bis mit-sync`,
 })
 
 // invoicing.js: Fakturierung mit Bankabgleich (invoicing-bank.js), Textbausteinen und Zahlungsbedingungen (invoicing-texte.js)

@@ -27,6 +27,7 @@ import './matten-umstellung.js'
 import './arbeitsschutz.js'
 import './zufriedenheit.js'
 import './eintritt.js'
+import './mitteilungen.js'
 import './bewerber.js'
 import './invoicing.js'
 // Kundenbereich: Lieferscheine und nächster Mattenwechsel (über portalHooks in customer-portal.js)

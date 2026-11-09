@@ -45,7 +45,13 @@ export const MODULES = {
   // Bewerbungen mit Unterlagen (eng: Personalverwaltung, Vollzugriff); Eintritt & Austritt auch für die Lohnverrechnung
   bewerber: 'Bewerbungen',
   eintritt: 'Eintritt & Austritt',
+  // Mitteilungen an Mitarbeitende mit Lesebestätigung (verfassen, übersetzen, Übersicht); lesen und bestätigen kann
+  // jede Person die eigenen, ohne dieses Modul (Postfach der Konten bzw. „Mein Plan“)
+  mitteilungen: 'Mitteilungen',
 }
+
+/** Die eigenen Werkzeuge (werkzeuge/): speichern selbst in ihren Ordnern, die Rolle braucht dafür keinen Ordner der App. */
+export const TOOL_MODULES = ['zaehler', 'kontrolle', 'objektmappe']
 
 /** Modul einer Ansicht, wenn sie keines angibt: nach ihrer Gruppe im Register. */
 export const GROUP_MODULE = { plan: 'planung', auswertung: 'auswertung', stamm: 'stammdaten', service: 'kontrolle', fuhrpark: 'fahrzeuge', lager: 'material' }
@@ -69,7 +75,8 @@ export const DEFAULT_ROLES = {
   lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung', 'eintritt'], edit: ['auswertung', 'eintritt'] },
   // Bewerbungen bis zur Zusage, Mitarbeitende anlegen (Stammdaten), Unterweisungen und Gesprächstermine; das
   // Schlüsselbuch nur lesen (Ausgabe und Rückgabe in der Checkliste sehen, Quittung drucken)
-  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine'] },
+  // Mitteilungen an Mitarbeitende: verfassen, übersetzen, Lesebestätigungen und Nachweis
+  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel', 'mitteilungen'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'mitteilungen'] },
   // Geräte & Maschinen: Objektleitung und Lager & Einkauf pflegen die Geräte (Prüfungen, Reparaturen, Ausgabe)
   objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
