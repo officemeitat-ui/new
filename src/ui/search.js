@@ -42,6 +42,7 @@ const KEYWORDS = {
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
   fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten Brief Serienbrief Briefpapier Weiterverrechnung',
   vertrieb: 'Vertrieb Anfrage Interessent Neukunde Besichtigung Pipeline Akquise Abschluss Auftrag Leistungsverzeichnis',
+  posteingang: 'Posteingang E-Mail Mail Postfach Outlook eml Beleg einsortieren Krankmeldung Kündigung Terminwunsch',
   einkauf: 'Eingangsrechnung Lieferant Kreditor Verbindlichkeiten Überweisung SEPA Vorsteuer Beleg Einkauf',
   kassenbuch: 'Kasse Kassabuch Bargeld Barzahlung Kassensturz Kassenstand Registrierkasse',
   umsatzsteuer: 'UVA Umsatzsteuervoranmeldung Vorsteuer Zahllast Gutschrift Finanzamt U30 Kennzahl Steuer',

@@ -635,7 +635,8 @@ export function kiErrorInfo({ status = 0, message = '', aborted = false } = {}) 
 // ---------------------------------------------------------------- Dateien für die KI
 
 /** Grenzen: Bilder werden vorher verkleinert; PDFs bis zu dieser Größe (Bytes) und Seitenzahl. */
-export const KI_LIMITS = { pdfBytes: 3 * 1024 * 1024, pdfPages: 6, sdbPages: 30, imageSide: 1568, requestBytes: 6 * 1024 * 1024 }
+// mailChars: Text einer E-Mail für „Mit KI erkennen“ (Posteingang, core/posteingang.js), danach gekürzt
+export const KI_LIMITS = { pdfBytes: 3 * 1024 * 1024, pdfPages: 6, sdbPages: 30, imageSide: 1568, requestBytes: 6 * 1024 * 1024, mailChars: 4000 }
 
 /** Seiten eines PDF grob zählen (Objekte „/Type /Page“); 0, wenn nicht erkennbar (komprimierte Objektlisten). */
 export function pdfPageCount(bytes) {

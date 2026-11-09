@@ -28,6 +28,8 @@ import './arbeitsschutz.js'
 import './zufriedenheit.js'
 import './eintritt.js'
 import './mitteilungen.js'
+// Posteingang: übergibt an Reklamationen, Fakturierung, Regie, Vertrieb, Termine, Einkauf und Bewerbungen
+import './posteingang.js'
 import './bewerber.js'
 import './invoicing.js'
 // Vertrieb: Anfrage bis Objekt (nutzt Fakturierung, Kalkulation und Termine)
