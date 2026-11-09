@@ -36,6 +36,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Geräte & Maschinen (Inventar mit QR-Etikett, Prüfungen, Reparaturen, Ausgabe; Rechtsprüfung Punkt 42).
 - Mitteilungen an Mitarbeitende mit Lesebestätigung, KI-Übersetzung (Rechtsprüfung Punkt 43).
 - Vertrieb von der Anfrage bis zum Auftrag mit KI-Besichtigung (Rechtsprüfung Punkt 44).
+- Posteingang: E-Mails (.eml), PDFs, Fotos und Text ablegen oder das Microsoft-365-Postfach nur lesend einbinden; Regeln und KI (nur Betreff und gekürzter Text ohne Adressen, Telefon, IBAN; Krankmeldungen und Nachrichten aus dem Team nie) erkennen die Art und öffnen den passenden Dialog vorbefüllt; in SharePoint kein Mailtext (Idee 1, Rechtsprüfung Punkt 46).
 - Aushang (QR) im Objekt: Hausbewohner, Hausverwaltung und Mitarbeitende des Kunden melden ohne Anmeldung ein Problem (Foto, Ort, Kontakt freiwillig, Deutsch und Englisch); wird zur Reklamation mit Eingang „Aushang (QR)“, Stand über einen eigenen Statuslink (Idee 2, Rechtsprüfung Punkt 45).
 - Tempo: Kennzahlen beim ersten Öffnen 7 / 23 s → 2,1 / 9,5 s (PC / Handy), „Zu erledigen“ rechnet im Hintergrund statt nach jeder Änderung die Bedienung aufzuhalten (Idee 9).
 - Rentabilität je Objekt: Deckungsbeitrag mit Ampel, Ist-Stunden aus der Zeiterfassung, Vorperiode, Umsatz für das Ziel und Weg zum Vertrag (Idee 6).
@@ -45,7 +46,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Ideen für die nächsten Runden (Reihenfolge = Vorschlag)
 
-1. **(in Arbeit)** KI-Posteingang: Kunden-E-Mails (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung) und Eingangsrechnungen aus einem Postfach erkennen und als Entwurf anlegen – immer mit Freigabe.
+1. **(fertig)** KI-Posteingang: Kunden-E-Mails (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung) und Eingangsrechnungen aus einem Postfach erkennen und als Entwurf anlegen – immer mit Freigabe.
 2. **(fertig)** Objekt-QR zum Aushängen: Kunden und Hausbewohner melden ohne Anmeldung (Foto, Text) – wird zur Reklamation des Objekts, Status über den Link.
 3. **(in Arbeit)** Leistungs-Checkliste am Handy: je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
 4. **(fertig: Paket für die Steuerberatung)** Buchhaltungs-Export für die Steuerberatung: Ausgangs- und Eingangsrechnungen, Zahlungen und Kassenbuch als Buchungsstapel (BMD, RZL oder DATEV-Format).
@@ -70,6 +71,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - orgaMAX-Strukturdatei (`orgaMAX-Struktur_….json`) für die genaue Spaltenzuordnung der Übernahme.
 - Steuerberatung: Buchung Abschlag/Schluss, Kundenskonto- und Kassenkonten, Kennzahlen der Umsatzsteuer-Übersicht, Soll/Ist, durchlaufende Posten (RECHTSPRUEFUNG Punkt 27).
 - Geschäftsführung: Winterdienst-Saison Juli–Juni oder anders? Fotos in die Winterdienst-Beilage? Bestätigungs-E-Mail nach Online-Annahme? Intervalle der Anlagen mit der Sicherheitsfachkraft bestätigen (Punkt 28).
+- Posteingang (Punkt 46): eingebaute Rolle „Sekretariat“ statt nur Vollzugriff? Bewerbungen von der KI ausnehmen? Aufräumfrist 180 Tage? Sammelpostfach mit Mail.Read.Shared empfohlen (Administratorzustimmung).
 - Neu (9.11.): Aushang – Weiterleitung an die Hausverwaltung, Datenschutzerklärung im Kundenbereich eintragen, Frist für Kontaktdaten Dritter (Vorschlag 1 Jahr nach „erledigt“), Grenzen 10 je Aushang / 5 je Adresse am Tag (Punkt 45). Paket für die Steuerberatung – Übertragungsweg und CSV-Format mit der Steuerberatung klären (Punkt 47). Wochenbriefing – dürfen Kunden- und Objektnamen an Anthropic (Punkt 48)? Rentabilität – Ziel-Deckungsbeitrag festlegen (Vorgabe 25 %).
 - Hausbank: Test von pain.008 (Lastschrift) und pain.001 (Überweisung); USP: ebInterface-Test.
 - Rechtliches: § 174 TKG (Werbe-E-Mail), BAO § 131/131b (Kassenbuch), FAGG bei Online-Annahme durch Verbraucher, Prüfintervalle der Anlagen, Aufbewahrung ohne Frist begründen (Punkt 38), Google-Routing (Punkt 39), OpenRouteService (Punkt 40) – siehe docs/RECHTSPRUEFUNG.md.
