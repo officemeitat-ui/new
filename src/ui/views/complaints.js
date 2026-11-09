@@ -90,6 +90,7 @@ function readForm() {
   const reply = document.getElementById('kix-rek-text')
   if (reply && app.ui.modal.kixAntwort) app.ui.modal.kixAntwort.text = reply.value
   Object.assign(d, { objectId: val('cp-obj'), date: val('cp-date'), source: val('cp-source'), kind, text: val('cp-text').trim(), contact: val('cp-contact').trim(), measure: val('cp-measure').trim(), status: val('cp-status') || d.status, result: val('cp-result').trim(), informed: checked('cp-informed'), employees: checkedValues('cp-emp') })
+  if (document.getElementById('cp-public')) d.publicReply = val('cp-public').trim()
   return d
 }
 
@@ -97,7 +98,9 @@ function readForm() {
 function portalNote(d) {
   if (!d.portal && !d.photos?.length) return ''
   const photos = (d.photos || []).map((p) => (p.url ? `<a class="btn small" href="${esc(p.url)}" target="_blank" rel="noopener">${ICON.camera || ''} Foto in SharePoint öffnen</a>` : p.datei ? `<div data-kb-photo><button class="btn small" data-action="kb-photo" data-file="${esc(p.datei)}">${ICON.camera || ''} Foto vom Kunden laden</button></div>` : '')).join(' ')
-  return `<div class="note">${d.portal ? 'Gemeldet über den <strong>Kundenbereich</strong>: Der Kunde sieht dort den Status und, wenn erledigt, das Ergebnis.' : ''}${photos ? `<p>${photos}</p>` : ''}</div>`
+  // Aushang (QR): öffentlich, daher nie das Ergebnis, nur die eigene öffentliche Antwort (Feld unter dem Ergebnis)
+  const who = d.portal?.aushang ? 'Gemeldet über den <strong>Aushang (QR)</strong> im Objekt: Die meldende Person sieht über ihren Statuslink nur den Status und die öffentliche Antwort, nicht Maßnahme oder Ergebnis.' : 'Gemeldet über den <strong>Kundenbereich</strong>: Der Kunde sieht dort den Status und, wenn erledigt, das Ergebnis.'
+  return `<div class="note">${d.portal ? who : ''}${photos ? `<p>${photos}</p>` : ''}</div>`
 }
 
 function complaintModal() {
@@ -137,6 +140,7 @@ function complaintModal() {
         <label class="field"><span>Frist</span><input type="date" id="cp-due" value="${esc(d.due || '')}" ${dis}></label>
         <label class="field"><span>Status</span><select id="cp-status" ${dis}>${options(Object.entries(STATUS), d.status)}</select></label>
         <label class="field wide"><span>Ergebnis / Rückmeldung an den Kunden</span><textarea id="cp-result" rows="2" ${dis}>${esc(d.result)}</textarea></label>
+        ${d.portal?.aushang ? `<label class="field wide"><span>Öffentliche Antwort für den Statuslink (optional, sieht jede Person mit dem Link; keine Namen)</span><textarea id="cp-public" rows="2" maxlength="1000" ${dis}>${esc(d.publicReply || '')}</textarea></label>` : ''}
         <label class="check"><input type="checkbox" id="cp-informed" ${d.informed ? 'checked' : ''} ${dis}><span>Kunde informiert</span></label>
       </div>${ed ? replyHtml() : ''}</section>
       ${d.history?.length ? `<section><h3>Verlauf</h3><ul class="tc-list">${d.history.map((h) => `<li>${esc(when(h.at))} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')}</ul></section>` : ''}`,
@@ -176,6 +180,7 @@ function save(d, { done = false } = {}) {
     if (old.status !== entry.status) history.push({ at: nowIso(), by: by(), text: `Status: ${STATUS[entry.status]}` })
     if (old.measure !== entry.measure && entry.measure) history.push({ at: nowIso(), by: by(), text: `Maßnahme: ${entry.measure}` })
     if (!old.informed && entry.informed) history.push({ at: nowIso(), by: by(), text: 'Kunde informiert' })
+    if (entry.publicReply && entry.publicReply !== (old.publicReply || '')) history.push({ at: nowIso(), by: by(), text: 'Öffentliche Antwort für den Statuslink' })
   }
   entry.doneAt = entry.status === 'erledigt' ? old?.doneAt || nowIso() : null
   entry.history = history

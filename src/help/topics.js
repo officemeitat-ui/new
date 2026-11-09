@@ -1017,7 +1017,7 @@ export const TOPICS = [
     answer: 'Im Kundenbereich bekommt jeder Kunde oder jedes Objekt einen persönlichen Link, ohne Anmeldung. Dort sieht der Kunde die Leistungsnachweise und den Winterdienst-Nachweis als PDF, die nächsten Termine im Objekt und kann eine Reklamation melden und ihren Stand verfolgen. Je Link legst du fest, was er zeigt.',
     steps: ['„Kundenbereich“ unter „Objekte & Kunden“ öffnen.', 'Beim ersten Mal „Einstellungen“ → „Kundenbereich ein“ → „Speichern und übertragen“.', '„Link anlegen“: Bezeichnung, Objekte und was der Link zeigt wählen.', '„Speichern und übertragen“ klicken.', 'Beim Link „E-Mail“ (fertiger Text) oder „Link“ zum Kopieren.'],
     tips: ['Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn der Leistungsnachweis so eingestellt ist.', 'Der Nachweis eines Monats erscheint ab dem 5. des Folgemonats und nur, wenn alle Einsätze besetzt sind; sonst steht oben „Zurückgehalten“.', 'Einmal am Tag überträgt die App neue Monate und Termine von selbst.'],
-    related: ['kundenbereich-link', 'kundenbereich-reklamation', 'kundenbereich-einrichten', 'leistungsnachweis'],
+    related: ['kundenbereich-link', 'kundenbereich-reklamation', 'kundenbereich-einrichten', 'kundenbereich-aushang', 'leistungsnachweis'],
     roles: 'Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten',
   },
   {
@@ -1076,6 +1076,30 @@ export const TOPICS = [
     tips: ['Nur festgeschriebene, nicht stornierte Lieferscheine der gewählten Kunden an den Objekten des Links; ein Storno verschwindet beim nächsten Übertragen.', 'Lieferscheine überträgt, wer die Fakturierung sieht, den nächsten Wechsel, wer den Mattenwechsel sieht; sonst bleibt am Webspace der letzte Stand.'],
     related: ['kundenbereich', 'kundenbereich-rechnungen', 'mw-lieferscheine', 'kundenbereich-link'],
     roles: 'Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen',
+  },
+  // ---------------------------------------------------------------- Aushang (QR) im Objekt (views/customer-portal-aushang.js, kunden.php?q=)
+  {
+    id: 'kundenbereich-aushang',
+    section: 'objekte',
+    view: 'kundenbereich',
+    title: 'Aushang (QR) im Objekt: Probleme ohne Anmeldung melden',
+    q: ['aushang qr', 'qr code stiegenhaus', 'qr code im objekt', 'hausbewohner melden problem', 'problem melden ohne anmeldung', 'aushang drucken', 'qr aushang reklamation', 'mieter melden schaden'],
+    answer: 'Je Objekt gibt es einen eigenen QR-Code zum Aushängen im Stiegenhaus oder im Büro des Kunden. Wer ihn scannt, meldet ohne Anmeldung ein Problem: Kategorie, Ort, Text, freiwillig Foto und Kontakt. Die Meldung kommt als Reklamation mit Eingang „Aushang (QR)“; die Person sieht den Stand über ihren Statuslink.',
+    steps: ['„Kundenbereich“ öffnen (der Kundenbereich muss eingeschaltet sein).', 'Unten bei „Aushang (QR)“ auf „Aushang einrichten“ klicken.', 'Objekt wählen, Bezeichnung prüfen (z. B. Wohnanlage Musterstraße 5), „Speichern und übertragen“.', 'Beim Aushang „PDF“ klicken, ausdrucken und aufhängen (in einer Hülle oder laminiert).'],
+    tips: ['Der Code ist ein eigener je Objekt, nicht der Link des Kundenbereichs; die Seite zeigt keine Nachweise, Rechnungen oder Termine.', '„⋯“ → „Code neu erzeugen“ macht den alten Aushang sofort ungültig, „Ausschalten“ schaltet die Seite ab.', 'Die Seite gibt es auf Deutsch und Englisch, das PDF zeigt beides.'],
+    related: ['kundenbereich', 'aushang-meldung', 'kundenbereich-einrichten'],
+    roles: 'Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten',
+  },
+  {
+    id: 'aushang-meldung',
+    section: 'objekte',
+    view: 'reklamationen',
+    title: 'Meldungen vom Aushang bearbeiten und beantworten',
+    q: ['meldung vom aushang', 'öffentliche antwort', 'statuslink', 'antwort an hausbewohner', 'rückmeldung gewünscht', 'meldung qr code bearbeiten'],
+    answer: 'Meldungen vom Aushang holt die App mit denen des Kundenbereichs ab. Daraus wird eine Reklamation des Objekts mit Eingang „Aushang (QR)“: Kategorie als Art, Ort und Text in der Beschreibung, Kontakt nur, wenn angegeben, Foto nach SharePoint. Die meldende Person sieht nur den Stand und die öffentliche Antwort.',
+    steps: ['Neue Meldungen stehen unter „Zu erledigen“ und in „Reklamationen“.', '„Öffnen“, Maßnahme eintragen und den Status „in Arbeit“ wählen.', 'Wenn passend „Öffentliche Antwort für den Statuslink“ schreiben (ohne Namen).', 'Ergebnis eintragen und „Erledigt“ klicken.'],
+    tips: ['Maßnahme und Ergebnis bleiben intern; öffentlich ist nur das Feld „Öffentliche Antwort“.', 'Hat die Person „Rückmeldung gewünscht“ angehakt, steht das beim Kontakt: bitte anrufen oder schreiben.'],
+    related: ['reklamation-erledigen', 'kundenbereich-aushang', 'kundenbereich-reklamation'],
   },
   // ---------------------------------------------------------------- Kundenzufriedenheit (views/zufriedenheit.js, kunden.php)
   {

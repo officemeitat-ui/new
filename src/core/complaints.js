@@ -2,8 +2,9 @@
 // Ergebnis (Rückmeldung an den Kunden). Datei reklamationen/reklamationen.json:
 //   { items: [{ id, objectId, date, received, source, kind, text, contact, employees: [empId],
 //               measure, due, status, doneAt, result, informed, by, history: [{ at, by, text }],
-//               photos?: [{ path, url } | { datei }], portal?: { id, link, sent } }] }
-// portal: gemeldet über den Kundenbereich (kunden.php); der Kunde sieht Status und Ergebnis.
+//               photos?: [{ path, url } | { datei }], portal?: { id, link, sent, aushang? }, publicReply? }] }
+// portal: gemeldet über den Kundenbereich (kunden.php); der Kunde sieht Status und Ergebnis. Mit portal.aushang: über den
+// Aushang (QR) im Objekt (core/aushang.js); die meldende Person sieht nur den Status und publicReply (öffentliche Antwort).
 
 import { addDays } from './dates.js'
 
@@ -16,7 +17,7 @@ export function dayOf(iso) {
   return Number.isFinite(t) ? VIENNA_DAY.format(t) : v.slice(0, 10)
 }
 
-export const SOURCES = ['Kunde (Telefon)', 'Kunde (E-Mail)', 'Kunde (vor Ort)', 'Kundenbereich', 'Objektkontrolle', 'Intern']
+export const SOURCES = ['Kunde (Telefon)', 'Kunde (E-Mail)', 'Kunde (vor Ort)', 'Kundenbereich', 'Aushang (QR)', 'Objektkontrolle', 'Intern']
 export const KINDS = ['Reinigung mangelhaft', 'Leistung nicht erbracht', 'Nicht erschienen / zu spät', 'Schaden', 'Schlüssel / Sicherheit', 'Verhalten', 'Sonstiges']
 export const STATUS = { offen: 'offen', arbeit: 'in Arbeit', erledigt: 'erledigt' }
 

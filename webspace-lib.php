@@ -77,13 +77,21 @@ function mail_senden(string $an, string $betreff, string $text, string $absender
 const SPRACH_COOKIE = 'mein_plan_sprache';
 const GLOBUS = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
 
-/** Alle Texte (mein-plan-texte.php): Sprache → Schlüssel → Text; Deutsch ist die Vorlage. */
-function texte(): array
+/**
+ * Alle Texte (mein-plan-texte.php): Sprache → Schlüssel → Text; Deutsch ist die Vorlage. $dazu: Texte einer weiteren
+ * Seite (z. B. aushang-texte.php für den Aushang im Kundenbereich) für die Sprachen, die es schon gibt, dazunehmen.
+ */
+function texte(?array $dazu = null): array
 {
     static $t = null;
     if ($t === null) {
         $d = is_file(__DIR__ . '/mein-plan-texte.php') ? require __DIR__ . '/mein-plan-texte.php' : null;
         $t = is_array($d) && is_array($d['de'] ?? null) ? $d : ['de' => []];
+    }
+    foreach ($dazu ?? [] as $s => $liste) {
+        if (isset($t[$s]) && is_array($liste)) {
+            $t[$s] = array_merge($t[$s], $liste);
+        }
     }
     return $t;
 }
@@ -163,11 +171,12 @@ function datum_sprache(string $d, bool $lang = false, ?string $sprache = null): 
 /**
  * Sprache der Seite wählen und setzen: ?sprache= (das Gerät merkt sie sich per Cookie), sonst Cookie,
  * sonst die zuletzt auf der Seite gewählte der Person, sonst die aus dem Stammblatt. Ohne bekannte Person
- * ($browser) die Sprache des Browsers, sonst Deutsch.
+ * ($browser) die Sprache des Browsers, sonst Deutsch. $nur: nur diese Sprachen (Seite nicht in allen übersetzt).
  */
-function sprache_waehlen(array $person = [], bool $browser = false): string
+function sprache_waehlen(array $person = [], bool $browser = false, array $nur = []): string
 {
-    $wahl = sprache_gueltig($_GET['sprache'] ?? null);
+    $sprache_gueltig = fn ($s) => ($g = sprache_gueltig($s)) && (!$nur || in_array($g, $nur, true)) ? $g : null;
+    $wahl = $sprache_gueltig($_GET['sprache'] ?? null);
     if ($wahl) {
         if (!headers_sent()) {
             setcookie(SPRACH_COOKIE, $wahl, ['expires' => time() + 400 * 86400, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
@@ -175,7 +184,7 @@ function sprache_waehlen(array $person = [], bool $browser = false): string
         return sprache($wahl);
     }
     foreach ([$_COOKIE[SPRACH_COOKIE] ?? null, $person['spracheWahl'] ?? null, $person['sprache'] ?? null] as $s) {
-        if (sprache_gueltig($s)) {
+        if ($sprache_gueltig($s)) {
             return sprache($s);
         }
     }
@@ -183,7 +192,7 @@ function sprache_waehlen(array $person = [], bool $browser = false): string
         foreach (explode(',', (string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')) as $teil) {
             $code = strtolower(substr(trim($teil), 0, 2));
             $code = in_array($code, ['bs', 'hr', 'sr', 'sh'], true) ? 'bks' : $code;
-            if (sprache_gueltig($code)) {
+            if ($sprache_gueltig($code)) {
                 return sprache($code);
             }
         }
@@ -197,12 +206,15 @@ function sprache_von(array $person): string
     return sprache_gueltig($person['spracheWahl'] ?? null) ?? sprache_gueltig($person['sprache'] ?? null) ?? 'de';
 }
 
-/** Auswahl der Sprache oben auf der Seite (Links, ohne Skript). $basis: Adresse der Seite ohne „sprache“. */
-function sprachwahl_html(string $basis): string
+/** Auswahl der Sprache oben auf der Seite (Links, ohne Skript). $basis: Adresse der Seite ohne „sprache“; $nur: nur diese Sprachen. */
+function sprachwahl_html(string $basis, array $nur = []): string
 {
     $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
     $punkte = '';
     foreach (texte() as $id => $tx) {
+        if ($nur && !in_array($id, $nur, true)) {
+            continue;
+        }
         $name = (string) ($tx['sprache_name'] ?? $id);
         $lang = html_sprache($id);
         $punkte .= $id === sprache()
