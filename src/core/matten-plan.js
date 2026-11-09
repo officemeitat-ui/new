@@ -182,7 +182,9 @@ export function jobsFor({ placements = [], done = [], jobs = [], closures = [], 
         for (const due of dueDates(p, { von, bis })) add(newJob(p, due, opts))
         continue
       }
-      // ab-ist: höchstens ein offener Einsatz; ausgesetzte bzw. verworfene Termine zählen als durchlaufen
+      // ab-ist: höchstens ein offener Einsatz; ausgesetzte bzw. verworfene Termine zählen als durchlaufen. Ein schon
+      // erledigter Einsatz an diesem Termin wurde früher gewechselt (sein Tag steckt schon in lastDone, sonst läge der
+      // Termin danach): ebenfalls durchlaufen, wie in nextDue – sonst entstünde nie mehr ein Einsatz
       const step = intervalOf(p)
       const mine = [...have.values()].filter((j) => j.placementId === p.id)
       if (mine.some(isOpen)) continue
@@ -192,7 +194,6 @@ export function jobsFor({ placements = [], done = [], jobs = [], closures = [], 
         const job = old || newJob(p, due, opts)
         if (!old) add(job)
         if (isOpen(job)) break
-        if (DONE_STATUS.includes(job.status)) break // Wechsel an diesem Termin: lastDone zählt ihn beim nächsten Lauf
         due = addDays(due, step)
       }
     }

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { billedBy, stateOf } from '../src/core/invoicing.js'
 import { confirmPlacement, doneFromTours, finishStop, jobUpdatesFromTour, reopenStop, setQuantity } from '../src/core/matten-fahrt.js'
 import { noteDraft } from '../src/core/matten-lieferschein.js'
+import { jobsFor, markDone, nextDue } from '../src/core/matten-plan.js'
 import { recalcTimes, stopsFromJobs, tourProblems } from '../src/core/matten-tour.js'
 import { addStop, assignJobs, keysInTours, releaseProblems } from '../src/core/matten-touren.js'
 import { notDoneList, tourResults } from '../src/core/matten-uebersicht.js'
@@ -173,4 +174,19 @@ test('Korrektur im Büro: der Wechsel bleibt am Tag des ersten Abschlusses (Lief
   const { doc } = noteDraft({ tour: t, stop, data, id: 'ls-x', now: wien('2026-11-03', '10:05'), by: 'Büro' })
   assert.equal(doc.date, '2026-10-30')
   assert.deepEqual(doc.lines.filter((l) => l.type === 'item').map((l) => [l.qty, l.price, l.source.price]), [[1, 4.1, 'kunde']])
+})
+
+// ---------------------------------------------------------------- „ab dem letzten Wechsel“ nach einem frühen Wechsel
+
+test('„ab dem letzten Wechsel“: zwei Wochen früher erledigt – Planen legt den nächsten Einsatz an wie nextDue', () => {
+  const p = { id: 'L1', active: true, intervalDays: 14, startDate: '2026-10-01', rule: 'ab-ist', pauses: [] }
+  const prev = { key: 'L1:2026-10-05', placementId: 'L1', due: '2026-10-05', status: 'erledigt', doneOn: '2026-10-05' }
+  // Einsatz zum 2.11. vom Büro auf den 19.10. vorgezogen und an dem Tag erledigt
+  const early = markDone({ key: 'L1:2026-11-02', placementId: 'L1', due: '2026-11-02', planned: '2026-10-19', status: 'geplant' }, '2026-10-19')
+  const jobs = [prev, early]
+  assert.equal(nextDue(p, { jobs, today: '2026-10-20' }).due, '2026-11-16')
+  const r = jobsFor({ placements: [p], jobs, von: '2026-10-20', bis: '2026-12-31', now: 'x' })
+  assert.deepEqual(r.added.map((j) => [j.key, j.status]), [['L1:2026-11-16', 'geplant']])
+  // erneutes Planen ohne Doppel
+  assert.deepEqual(jobsFor({ placements: [p], jobs: r.jobs, von: '2026-10-20', bis: '2026-12-31', now: 'x' }).added, [])
 })
