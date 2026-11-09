@@ -4,6 +4,10 @@
 // freier Speicher nur mit Schlüssel (X-Schluessel: Schlüssel von Schnee-Alarm, Plan am Handy, Kundenbereich oder Fahrerseite)
 // oder solange noch keiner eingerichtet ist (erste Inbetriebnahme).
 
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 

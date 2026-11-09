@@ -35,6 +35,11 @@
 
 declare(strict_types=1);
 
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
+
 require __DIR__ . '/wetter-lib.php';
 require __DIR__ . '/webspace-lib.php';
 

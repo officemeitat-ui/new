@@ -16,9 +16,16 @@
 // Nur Orte in Österreich, nur bekannte Parameter, keine anderen Ziele und keine
 // Firmendaten. Antworten bleiben 10 Minuten im Zwischenspeicher des Servers;
 // ist GeoSphere nicht erreichbar, kommt der letzte Stand (bis 6 Stunden alt).
+// Neue Abrufe sind begrenzt (je Aufrufer 60 in 10 Minuten, insgesamt 150 je Stunde);
+// darüber kommt der letzte Stand bzw. 429, damit dem Schnee-Alarm das Kontingent bleibt.
 // Daten: GeoSphere Austria, CC BY 4.0.
 
 declare(strict_types=1);
+
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
 
 require __DIR__ . '/wetter-lib.php';
 
@@ -31,6 +38,46 @@ function antwort(int $status, array $daten): void
     http_response_code($status);
     echo json_encode($daten, JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+// Grenze für neue Abrufe: Jeder neue Ort ist eine Anfrage des Webspace bei GeoSphere, und GeoSphere begrenzt die
+// Anfragen je IP-Adresse. Ohne Grenze könnte jemand von außen das Kontingent des Webspace aufbrauchen (dann fehlen dem
+// Schnee-Alarm die Wetterdaten) und den Zwischenspeicher mit beliebig vielen Orten füllen. Antworten aus dem
+// Zwischenspeicher zählen nicht; der Schnee-Alarm (wetter-alarm.php) fragt selbst und zählt hier nicht mit.
+const UMWEG_JE_AUFRUFER = [60, 600];  // neue Abrufe je IP-Adresse in 10 Minuten
+const UMWEG_GESAMT = [150, 3600];     // neue Abrufe über wetter.php insgesamt je Stunde
+
+/** Darf wetter.php jetzt neu bei GeoSphere abrufen? Prüft und zählt in einem Schritt (gesperrt). */
+function umweg_frei(): bool
+{
+    $h = @fopen(rtrim(sys_get_temp_dir(), '/\\') . '/app-wetter-umweg.json', 'c+');
+    if (!$h) {
+        return true; // ohne beschreibbaren Temp-Ordner gibt es auch keinen Zwischenspeicher: wie bisher
+    }
+    flock($h, LOCK_EX);
+    $d = json_decode((string) stream_get_contents($h), true);
+    $jetzt = time();
+    $alle = array_values(array_filter((array) ($d['alle'] ?? []), fn ($t) => (int) $t > $jetzt - UMWEG_GESAMT[1]));
+    $je = [];
+    foreach ((array) ($d['je'] ?? []) as $k => $liste) {
+        $liste = array_values(array_filter((array) $liste, fn ($t) => (int) $t > $jetzt - UMWEG_JE_AUFRUFER[1]));
+        if ($liste) {
+            $je[$k] = $liste;
+        }
+    }
+    $wer = substr(hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '')), 0, 16); // Hashwert, keine IP-Adresse
+    $frei = count($alle) < UMWEG_GESAMT[0] && count($je[$wer] ?? []) < UMWEG_JE_AUFRUFER[0];
+    if ($frei) {
+        $alle[] = $jetzt;
+        $je[$wer][] = $jetzt;
+    }
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, (string) json_encode(['alle' => $alle, 'je' => $je]));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $frei;
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
@@ -100,7 +147,10 @@ if (isset($url)) {
 
 // Radarbilder sind größer: mehr Zeit lassen
 @set_time_limit(60);
-[$status, $inhalt, $woher] = wetter_abruf($url, $art === 'raster' ? 30 : 12);
+[$status, $inhalt, $woher] = wetter_abruf($url, $art === 'raster' ? 30 : 12, 'umweg_frei');
+if ($status === 429) {
+    antwort(429, ['fehler' => 'Zu viele neue Wetter-Abfragen über den Webspace. Bitte in ein paar Minuten noch einmal.']);
+}
 if ($status === 200) {
     if ($woher !== '') {
         header('X-Wetter: ' . $woher);

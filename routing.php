@@ -9,8 +9,9 @@
 //
 // Die App schickt das Microsoft-Token der angemeldeten Person im Kopf X-Microsoft-Token mit. routing.php prüft:
 //  - das Token stammt aus dem eigenen Tenant und gehört zur eigenen App (tid, appid aus config.json) und ist echt
-//    (Microsoft Graph /me antwortet; Ergebnis kurz zwischengespeichert, nur der Hashwert des Tokens). Wer den
-//    Mattenwechsel planen darf, prüft die App über die Gruppen; hier genügt die Anmeldung im eigenen Tenant.
+//    (Microsoft Graph /me antwortet; Ergebnis kurz zwischengespeichert, nur der Hashwert des Tokens); keine Gastkonten
+//    (B2B), außer config.json → sharepoint.allowGuests. Wer den Mattenwechsel planen darf, prüft die App über die
+//    Gruppen; hier genügt die Anmeldung im eigenen Tenant.
 //  - Monats- und Tageslimit je Anbieter für alle seine Anfragen zusammen (Google: Vorgabe 1000 im Monat, damit es im
 //    Gratis-Kontingent bleibt, und 100 am Tag; OpenRouteService: 3000 im Monat, 200 am Tag); gezählt wird nur, was der
 //    Anbieter beantwortet hat. Eine Anfrage ist eine Aktion der App (bei OpenRouteService eine Optimierung und die
@@ -44,6 +45,11 @@
 // (ersetzt https://api.openrouteservice.org).
 
 declare(strict_types=1);
+
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
 
 const LIMIT_MONAT = 1000;
 const LIMIT_TAG = 100;
@@ -235,7 +241,7 @@ function person(array $cfg): array
     if (($c['bis'] ?? 0) > time() && !empty($c['upn'])) {
         return $c;
     }
-    $ch = curl_init(getenv('ROUTING_GRAPH_URL') ?: 'https://graph.microsoft.com/v1.0/me?$select=userPrincipalName,mail,displayName');
+    $ch = curl_init(getenv('ROUTING_GRAPH_URL') ?: 'https://graph.microsoft.com/v1.0/me?$select=userPrincipalName,mail,displayName,userType');
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $t]]);
     $raw = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -245,6 +251,11 @@ function person(array $cfg): array
         fehler(401, 'authentication_error', 'Microsoft hat die Anmeldung nicht bestätigt: Bitte neu anmelden.');
     }
     $person = ['upn' => strtolower((string) ($me['userPrincipalName'] ?? $me['mail'] ?? '')), 'name' => (string) ($me['displayName'] ?? ''), 'bis' => min((int) $p['exp'], time() + 600)];
+    // Gastkonten (B2B) bekommen im eigenen Tenant ein echtes Token dieser App; die App weist sie ab (config.json →
+    // sharepoint.allowGuests), der Durchreicher ebenso (laut Graph, nicht laut ungeprüftem Token)
+    if (empty($cfg['sharepoint']['allowGuests']) && (($me['userType'] ?? '') === 'Guest' || str_contains($person['upn'], '#ext#'))) {
+        fehler(403, 'permission_error', 'Gastkonten sind gesperrt: Bitte mit dem eigenen Firmenkonto anmelden.');
+    }
     foreach (glob(ordner() . '/routing-cache/*.json') ?: [] as $f) {
         if (filemtime($f) < time() - 3600) {
             @unlink($f);

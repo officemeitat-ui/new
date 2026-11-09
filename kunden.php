@@ -45,6 +45,11 @@
 
 declare(strict_types=1);
 
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
+
 require __DIR__ . '/wetter-lib.php';
 require __DIR__ . '/webspace-lib.php';
 
@@ -1406,6 +1411,12 @@ if ($aktion === 'melden' && $methode === 'POST') {
     if (!$fehler) {
         [$foto, $fehler] = foto_speichern($_FILES['foto'] ?? null, $mid);
     }
+    // Grenzen prüfen und zählen in einem Schritt (gesperrt): gleichzeitig gesendete Meldungen kämen sonst alle an der
+    // Prüfung oben vorbei, bevor die erste gezählt ist
+    if (!$fehler && (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true))) {
+        foto_loeschen(['foto' => $foto]);
+        $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
+    }
     if (!$fehler) {
         $neu = ['id' => $mid, 'link' => $id, 'titel' => (string) ($link['titel'] ?? ''), 'objektNr' => (int) $objekt['nr'], 'objektId' => (string) $objekt['id'], 'objekt' => (string) $objekt['name'], 'art' => $eingabe['art'], 'datum' => $eingabe['datum'] ?: heute(), 'text' => $eingabe['text'],
             'kontakt' => ['name' => $eingabe['name'], 'telefon' => $eingabe['telefon'], 'email' => $eingabe['email']], 'info' => $eingabe['info'], 'foto' => $foto, 'erstellt' => jetzt(), 'status' => 'eingegangen', 'antwort' => '', 'geaendert' => jetzt(), 'uebernommen' => null];
@@ -1417,8 +1428,6 @@ if ($aktion === 'melden' && $methode === 'POST') {
             foto_loeschen($neu);
             $fehler = 'Ihre Meldung konnte nicht gespeichert werden. Bitte rufen Sie uns an.';
         } else {
-            grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true);
-            grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true);
             // Büro: Push nur mit Objekt und Art (geht über einen fremden Dienst), E-Mail mit allem
             $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#reklamationen';
             $titel = 'Reklamation im Kundenbereich: ' . $objekt['name'];

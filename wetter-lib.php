@@ -133,13 +133,17 @@ function holen(string $url, ?string $json = null, int $zeit = 12): array
  * GeoSphere-Abruf mit Zwischenspeicher im Temp-Ordner: [Status, Inhalt, Herkunft].
  * Herkunft: '' (frisch geholt), 'Zwischenspeicher' (jünger als 10 min) oder
  * 'letzter Stand' (GeoSphere fällt aus, Stand bis 6 h alt). 400/404 kommen unverändert zurück.
+ * $darf (wetter.php): wird vor einem neuen Abruf gefragt; false = Grenze erreicht, dann der letzte Stand oder 429.
  */
-function wetter_abruf(string $url, int $zeit = 12): array
+function wetter_abruf(string $url, int $zeit = 12, ?callable $darf = null): array
 {
     $datei = rtrim(sys_get_temp_dir(), '/\\') . '/app-wetter-' . sha1($url) . '.json';
     $alter = is_file($datei) ? time() - (int) filemtime($datei) : PHP_INT_MAX;
     if ($alter < WETTER_FRISCH) {
         return [200, (string) file_get_contents($datei), 'Zwischenspeicher'];
+    }
+    if ($darf && !$darf()) {
+        return $alter < WETTER_NOTFALL ? [200, (string) file_get_contents($datei), 'letzter Stand'] : [429, '', ''];
     }
     [$status, $inhalt] = holen($url, null, $zeit);
     if ($status === 200 && json_decode($inhalt) !== null) {

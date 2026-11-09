@@ -33,6 +33,11 @@
 
 declare(strict_types=1);
 
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
+
 require __DIR__ . '/wetter-lib.php';
 require __DIR__ . '/webspace-lib.php';
 
@@ -310,6 +315,25 @@ function fotos_loeschen(array $m): void
     }
 }
 
+/**
+ * Vorläufig gespeicherte Fotos einer neuen Meldung an ihre festen Namen ([fester Name => vorläufiger Name]); klappt
+ * eines nicht, kommen die schon umbenannten wieder weg (false).
+ */
+function fotos_uebernehmen(array $vorlaeufig): bool
+{
+    $fertig = [];
+    foreach ($vorlaeufig as $datei => $tmp) {
+        if (!@rename(foto_pfad($tmp), foto_pfad((string) $datei))) {
+            foreach ($fertig as $x) {
+                @unlink(foto_pfad($x));
+            }
+            return false;
+        }
+        $fertig[] = (string) $datei;
+    }
+    return true;
+}
+
 /** Nach der Übernahme bleibt nur der Stand: keine Fotos, keine Unterschrift, keine Namen, keine Bemerkungen. */
 function meldung_kuerzen(array $m): array
 {
@@ -464,11 +488,12 @@ function meldezeit($handy): int
 
 /**
  * Meldung an eine Tour anhängen (gesperrt): dieselbe Kennung zweimal = einmal ('doppelt'); ein zweiter Abschluss
- * desselben Stopps ('schon'); Tour weg ('weg'). Sonst 'ok'.
+ * desselben Stopps ('schon'); Tour weg ('weg'). Sonst 'ok'. $vorher läuft nur für eine neue Meldung, noch unter der
+ * Sperre (Fotos an ihren festen Namen); liefert es false, wird die Meldung nicht angehängt ('fehler').
  */
-function meldung_anhaengen(string $tourId, array $m): string
+function meldung_anhaengen(string $tourId, array $m, ?callable $vorher = null): string
 {
-    return (string) gesperrt(tour_datei($tourId), function (array &$d) use ($m) {
+    return (string) gesperrt(tour_datei($tourId), function (array &$d) use ($m, $vorher) {
         if (empty($d['tour'])) {
             return 'weg';
         }
@@ -487,6 +512,9 @@ function meldung_anhaengen(string $tourId, array $m): string
         }
         if ($m['art'] === 'unterwegs' && (!empty($st['stopps'][$m['stopp']]['fertig']) || ($st['stopps'][$m['stopp']]['status'] ?? '') === 'unterwegs')) {
             return 'doppelt';
+        }
+        if ($vorher && !$vorher()) {
+            return 'fehler';
         }
         $d['meldungen'][] = $m;
         return 'ok';
@@ -1000,6 +1028,15 @@ if ($aktion === 'meldung' && $methode === 'POST') {
     }
     $m = ['id' => $mid, 'art' => $art, 'stopp' => $art === 'start' ? '' : $sid, 'zeit' => meldezeit($_POST['zeit'] ?? null), 'eingang' => jetzt(), 'uebernommen' => null];
     $fotos = [];
+    // Fotos zuerst unter vorläufigen Namen; an ihre festen Namen (Kennung der Meldung) kommen sie nur mit einer neuen
+    // Meldung. Dieselbe Meldung noch einmal gesendet (Ausgang nach einem Funkloch, Formular neu gesendet) darf die Fotos
+    // des schon angenommenen Abschlusses weder ersetzen noch löschen: der Stopp ist fest, die App holt sie noch ab.
+    $vorlaeufig = [];
+    $verwerfen = function () use (&$vorlaeufig): void {
+        foreach ($vorlaeufig as $tmp) {
+            @unlink(foto_pfad($tmp));
+        }
+    };
     if ($art === 'abschluss') {
         [$daten, $fehler, $werte] = abschluss_lesen($stopp);
         if ($fehler) {
@@ -1016,18 +1053,19 @@ if ($aktion === 'meldung' && $methode === 'POST') {
         }
         foreach ($roh as $k => [$lid, $tmp, $groesse, $fehlerCode]) {
             $datei = $mid . '-' . ($k + 1) . '.jpg';
-            $f = foto_speichern($tmp, $groesse, $fehlerCode, foto_pfad($datei));
+            $vorlaeufig[$datei] = $mid . '-' . ($k + 1) . '.' . bin2hex(random_bytes(6)) . '.jpg';
+            $f = foto_speichern($tmp, $groesse, $fehlerCode, foto_pfad($vorlaeufig[$datei]));
             if ($f) {
-                fotos_loeschen(['fotos' => $fotos]);
+                $verwerfen();
                 $antwort(400, $f);
             }
-            $fotos[] = ['datei' => $datei, 'liegeplatz' => $lid, 'groesse' => (int) filesize(foto_pfad($datei))];
+            $fotos[] = ['datei' => $datei, 'liegeplatz' => $lid, 'groesse' => (int) filesize(foto_pfad($vorlaeufig[$datei]))];
         }
         $m['fotos'] = $fotos;
     }
-    $ergebnis = meldung_anhaengen($tid, $m);
+    $ergebnis = meldung_anhaengen($tid, $m, $vorlaeufig ? fn () => fotos_uebernehmen($vorlaeufig) : null);
     if ($ergebnis !== 'ok') {
-        fotos_loeschen(['fotos' => $fotos]); // schon da bzw. nicht gespeichert: Fotos dieses Versuchs weg
+        $verwerfen(); // schon da bzw. nicht gespeichert: nur die vorläufigen Fotos dieses Versuchs weg
     }
     if ($ergebnis === 'weg') {
         $antwort(404, 'mt_tour_weg');

@@ -5,7 +5,8 @@
 // Die App ruft ki.php/v1/messages wie die Claude-API selbst auf (offizielles SDK mit baseURL ki.php) und
 // schickt das Microsoft-Token der angemeldeten Person im Kopf X-Microsoft-Token mit. ki.php prüft:
 //  - das Token stammt aus dem eigenen Tenant und gehört zur eigenen App (tid, appid aus config.json) und ist
-//    echt (Microsoft Graph /me antwortet; Ergebnis kurz zwischengespeichert, nur der Hashwert des Tokens)
+//    echt (Microsoft Graph /me antwortet; Ergebnis kurz zwischengespeichert, nur der Hashwert des Tokens); keine
+//    Gastkonten (B2B), außer config.json → sharepoint.allowGuests (wie die App)
 //  - Tageslimit je Person und gesamt
 //  - nur POST /v1/messages ohne Streaming; Modell, Aufwand und Obergrenze der Antwortlänge bestimmt der Webspace
 //  - Dateien (Foto oder PDF eines Belegs, Sicherheitsdatenblatt): nur als base64 in der Anfrage (keine Links, keine
@@ -17,6 +18,11 @@
 // Gespeichert: privat/ki.json (Einstellungen mit Schlüssel), privat/ki-nutzung.json (Zähler, Tokens je Monat), privat/ki-cache/
 
 declare(strict_types=1);
+
+// Fehler nie in die Antwort (Serverpfade, Stacktraces), nur ins Fehlerprotokoll des Webspace
+if (PHP_SAPI !== 'cli') {
+    ini_set('display_errors', '0');
+}
 
 const MODELLE = ['claude-opus-5-5' => 'Claude Opus 5.5', 'claude-sonnet-5-5' => 'Claude Sonnet 5.5', 'claude-haiku-5-5' => 'Claude Haiku 5.5'];
 const AUFWAND = ['low', 'medium', 'high'];
@@ -139,7 +145,7 @@ function person(array $cfg): array
     if (($c['bis'] ?? 0) > time() && !empty($c['upn'])) {
         return $c;
     }
-    $ch = curl_init(getenv('KI_GRAPH_URL') ?: 'https://graph.microsoft.com/v1.0/me?$select=userPrincipalName,mail,displayName');
+    $ch = curl_init(getenv('KI_GRAPH_URL') ?: 'https://graph.microsoft.com/v1.0/me?$select=userPrincipalName,mail,displayName,userType');
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $t]]);
     $raw = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -149,6 +155,11 @@ function person(array $cfg): array
         fehler(401, 'authentication_error', 'Microsoft hat die Anmeldung nicht bestätigt: Bitte neu anmelden.');
     }
     $person = ['upn' => strtolower((string) ($me['userPrincipalName'] ?? $me['mail'] ?? '')), 'name' => (string) ($me['displayName'] ?? ''), 'bis' => min((int) $p['exp'], time() + 600)];
+    // Gastkonten (B2B) bekommen im eigenen Tenant ein echtes Token dieser App; die App weist sie ab (config.json →
+    // sharepoint.allowGuests), der Durchreicher ebenso (laut Graph, nicht laut ungeprüftem Token)
+    if (empty($cfg['sharepoint']['allowGuests']) && (($me['userType'] ?? '') === 'Guest' || str_contains($person['upn'], '#ext#'))) {
+        fehler(403, 'permission_error', 'Gastkonten sind gesperrt: Bitte mit dem eigenen Firmenkonto anmelden.');
+    }
     // alte Einträge wegräumen, neuen merken
     foreach (glob(ordner() . '/ki-cache/*.json') ?: [] as $f) {
         if (filemtime($f) < time() - 3600) {
