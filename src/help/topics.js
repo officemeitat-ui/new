@@ -4422,7 +4422,7 @@ export const TOPICS = [
     q: ['ki assistent', 'assistent', 'ki', 'chat', 'künstliche intelligenz', 'frag die app', 'strg j', 'mikrofon sprechen'],
     answer: 'Den Assistenten öffnest du mit „Assistent“ (Knopf mit Sprechblase) in der Kopfleiste, am Handy mit der Sprechblase, oder mit Strg+J. Du schreibst oder sprichst, was zu tun ist; er schlägt im Plan, bei Personen, Objekten, Lager und Kalender nach und erledigt Aufgaben mit deinen Rechten.',
     steps: ['„Assistent“ klicken.', 'Frage oder Auftrag tippen oder das Mikrofon nutzen.', '„Senden“ klicken.', 'Will er etwas ändern, zeigt er eine Karte: lesen, dann „Ausführen“ oder „Abbrechen“.'],
-    tips: ['Das Gespräch bleibt bis zum Neuladen oder „Neues Gespräch“; nichts davon wird in SharePoint gespeichert.', 'Er kann sich irren: die Karte vor „Ausführen“ immer lesen.'],
+    tips: ['Das Gespräch bleibt bis zum Neuladen oder „Neues Gespräch“; nichts davon wird in SharePoint gespeichert.', 'Er kann sich irren: die Karte vor „Ausführen“ immer lesen.', 'Auch zu Auswertungen fragen: „Welche Objekte sind unrentabel?“, „Was war in den Checklisten nicht möglich?“, „Welche Fahrten fehlen im Fahrtenbuch?“'],
     action: { action: 'ai-open', label: 'Assistent öffnen' },
     related: ['ki-freigabe', 'ki-beispiele', 'cleo-oder-assistent', 'ki-einrichten'],
   },

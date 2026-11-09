@@ -13,6 +13,7 @@ import { availableTools, toolLabels, validateInput } from './registry.js'
 import './tools.js'
 import './tools-module.js'
 import './tools-matten.js'
+import './tools-auswertung.js'
 
 export const MODEL = 'claude-opus-5-5' // ki.php setzt das eingestellte Modell
 

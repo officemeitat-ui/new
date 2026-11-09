@@ -5127,6 +5127,7 @@ Den Assistenten öffnest du mit „Assistent“ (Knopf mit Sprechblase) in der K
 
 > Tipp: Das Gespräch bleibt bis zum Neuladen oder „Neues Gespräch“; nichts davon wird in SharePoint gespeichert.
 > Tipp: Er kann sich irren: die Karte vor „Ausführen“ immer lesen.
+> Tipp: Auch zu Auswertungen fragen: „Welche Objekte sind unrentabel?“, „Was war in den Checklisten nicht möglich?“, „Welche Fahrten fehlen im Fahrtenbuch?“
 
 ### Was der Assistent ändern darf (Freigabe)
 
