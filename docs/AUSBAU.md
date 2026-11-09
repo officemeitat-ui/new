@@ -28,13 +28,14 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
 3. **Routing mit echten Fahrzeiten einschalten** (gebaut): OpenRouteService kostenlos ohne Kreditkarte (EINRICHTUNG Schritt 12 A; vorher prüfen, ob die Gratisnutzung für Firmen erlaubt ist – Rechtsprüfung Punkt 40) oder Google mit Tageslimit (Schritt 12 B, Punkt 39). Bis dahin rechnet der eingebaute Anbieter (kostenlos).
 
-## In Arbeit (beauftragt 9.11.2026)
+## Zuletzt fertig (9.11.2026)
 
-- Datensicherung (ZIP mit Prüfsummen, Prüfen, gezieltes Zurückspielen) und Robustheit (Fahrerseite, Feiertage, Fotos ohne Ortsdaten).
-- Leistung mit großen Datenmengen.
-- Kundenverträge mit Fristen und Preisanpassung nach KV-Lohnerhöhung.
-- Geräte & Maschinen (Inventar, Prüfungen elektrischer Geräte, Reparaturen, Ausgabe).
-- Danach: Vertrieb von der Anfrage bis zum Objekt (mit KI-Besichtigung) und Mitteilungen an Mitarbeitende mit Lesebestätigung (mehrsprachig).
+- Prüfrunde: Sicherheit am Webspace (5 Befunde behoben), 9 Rechenfehler im Mattenwechsel behoben, Leistung mit großen Datenmengen (Ansichtswechsel unter 0,3 s statt Minuten).
+- Datensicherung (ZIP mit Prüfsummen, Prüfen, gezieltes Zurückspielen) und Robustheit.
+- Kundenverträge mit Fristen und Preisanpassung nach KV-Lohnerhöhung (Rechtsprüfung Punkt 41).
+- Geräte & Maschinen (Inventar mit QR-Etikett, Prüfungen, Reparaturen, Ausgabe; Rechtsprüfung Punkt 42).
+- Mitteilungen an Mitarbeitende mit Lesebestätigung, KI-Übersetzung (Rechtsprüfung Punkt 43).
+- Vertrieb von der Anfrage bis zum Auftrag mit KI-Besichtigung (Rechtsprüfung Punkt 44).
 
 ## Ideen für die nächsten Runden (Reihenfolge = Vorschlag)
 
@@ -46,6 +47,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 6. **Rentabilität je Objekt:** Ist-Stunden und Kosten gegen Umsatz mit Ampel und Vorschlag zur Preisanpassung (an die Kundenverträge angebunden).
 7. **Kunden-Self-Service:** im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
 8. **KI-Fotoprüfung bei der Objektkontrolle:** Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
+9. **Tempo Kennzahlen und „Zu erledigen“:** Kennzahlen rechnen beim ersten Öffnen den Plan von 12 Monaten neu (bei großen Datenmengen 7 s am PC, 23 s am Handy); „Zu erledigen“ rechnet nach jeder Änderung alle Quellen neu (am Handy rund 2 s) – Zwischenspeicher je Quelle.
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 
