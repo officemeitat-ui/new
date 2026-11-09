@@ -48,3 +48,20 @@ test('Quelltext: alle Module der Oberfläche sind gültiges JavaScript', async (
   assert.ok(files.length > 50)
   for (const f of files) execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' })
 })
+
+test('App-Installation: Webspace-Seiten (.php) fängt der Service Worker nicht ab, die Startseite der App bleibt im Speicher richtig', () => {
+  const src = serviceWorkerSource({ version: 'abc123', precache: ['./index.html'] })
+  const handlers = {}
+  const self = { addEventListener: (type, fn) => (handlers[type] = fn), location: { origin: 'https://app.example' }, registration: { scope: 'https://app.example/' }, clients: { claim: () => {} }, skipWaiting: () => {} }
+  const cache = { put: async () => {}, match: async () => null, addAll: async () => {} }
+  const caches = { open: async () => cache, match: async () => null, keys: async () => [], delete: async () => true }
+  vm.runInNewContext(src, { self, caches, fetch: async () => ({ ok: true, type: 'basic', clone() { return this } }), URL, Request: class {}, Promise, console })
+  const answered = (path, mode = 'navigate') => {
+    let called = false
+    handlers.fetch({ request: { method: 'GET', url: `https://app.example${path}`, mode }, respondWith: (p) => { called = true; Promise.resolve(p).catch(() => {}) } })
+    return called
+  }
+  for (const page of ['/mein-plan.php', '/kunden.php?l=abc', '/mattentour.php', '/wetter-alarm.php']) assert.equal(answered(page), false, page)
+  assert.equal(answered('/'), true, 'die App selbst weiter über den Service Worker')
+  assert.equal(answered('/index.html'), true)
+})

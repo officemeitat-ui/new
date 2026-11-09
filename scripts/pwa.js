@@ -111,6 +111,9 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/.auth/')) return
   // Werkzeuge (eigene Seiten im Rahmen der App): zuerst aus dem Netz, ohne Netz die zuletzt geladene Fassung
   if (url.pathname.includes('/werkzeuge/')) return event.respondWith(werkzeugHolen(request))
+  // Seiten am Webspace (Plan am Handy, Kundenbereich, Fahrerseite, Schnee-Alarm …) gehören nicht zur App: nicht
+  // abfangen, sonst landen sie im Speicher als Startseite der App (ohne Netz öffnete die App dann diese Seite)
+  if (/\\.php$/i.test(url.pathname)) return
   // Seite und Konfiguration: immer zuerst aus dem Netz (Anmeldung, aktuelle Einstellungen)
   if (request.mode === 'navigate') return event.respondWith(networkFirst(request, './index.html'))
   if (url.pathname.endsWith('/config.json')) return event.respondWith(networkFirst(request))
