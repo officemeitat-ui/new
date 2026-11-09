@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 390 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 391 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (98)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
-- [Finanzen](#finanzen) (81)
+- [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (61)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
@@ -3763,6 +3763,23 @@ Aus Flächen (Art, m², Häufigkeit, Leistungswert) rechnet die Kalkulation die 
 4. „Speichern“ klicken; „So rechnet die Kalkulation“ zeigt jeden Schritt in Euro.
 
 *Vollzugriff (Büro) – Löhne und Margen sieht sonst niemand*
+
+### Nachkalkulation: kalkuliert gegen tatsächlich
+
+*In der App: Kalkulation*
+
+Der Reiter „Nachkalkulation“ in der Kalkulation zeigt je Objekt die kalkulierten Stunden im Monat neben den geplanten und den gerechneten (gestempelt, sonst laut Plan). Aus Objekten, in denen mindestens die Hälfte der Einsätze gestempelt ist, schlägt die App neue Leistungswerte je Raumart vor; übernommen wird nur, was du anhakst.
+
+1. „Kalkulation“ öffnen, Reiter „Nachkalkulation“.
+2. Zeitraum wählen (3, 6 oder 12 Monate).
+3. Abweichungen je Objekt ansehen; „Kalkulation“ öffnet das Objekt.
+4. Beim Vorschlag die Raumarten anhaken und „Ausgewählte übernehmen“.
+
+> Tipp: Je Schritt ändert sich ein Leistungswert höchstens um 40 %.
+> Tipp: Flächen mit eigenem Leistungswert zählen nicht zum Vorschlag.
+> Tipp: Die Preise bestehender Verträge ändern sich dadurch nicht.
+
+*Vollzugriff (Büro)*
 
 ### Grundlagen der Kalkulation
 

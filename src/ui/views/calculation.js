@@ -2,18 +2,22 @@
 // Stunden im Monat, Verrechnungssatz über Zuschläge, Monatspreis; Vergleich mit Budget und
 // Reinigungsplan; „Als Budget übernehmen“; PDF-Angebot für den Kunden und internes Kalkulationsblatt.
 // Datei kalkulation/kalkulation.json (nur Auswertung & Lohn), weil sie Löhne und Margen enthält.
+// Reiter „Nachkalkulation“: kalkulierte gegen geplante und gestempelte Stunden je Objekt, Vorschlag für die
+// Leistungswerte je Raumart aus den Ist-Zeiten (core/nachkalkulation.js), übernommen nur nach Bestätigung.
 // Vertrieb: Fälle ohne Objekt stehen unter cases[Fall] (Auswahl „vt:<Fall>“); Speichern schreibt Preis und Stunden
 // zurück in den Fall (core/vertrieb.js → applyCalc). Wird aus dem Fall ein Objekt, kommen die Flächen dorthin.
 
 import { AREA_TYPES, CALC_DEFAULTS, calcWage, calculate, FREQUENCIES } from '../../core/calculation.js'
 import { applyCalc, calcSummary } from '../../core/vertrieb.js'
+import { nachkalkulation, NK_MIN_STAMPED, suggestPerformance } from '../../core/nachkalkulation.js'
+import { hoursByObject, rentSpan } from '../../core/rentabilitaet.js'
 import { lastOfMonth, todayISO } from '../../core/dates.js'
 import { objectControlling } from '../../core/reports.js'
 import { mergeRules } from '../../core/rules.js'
 import { calcDocument, calcPdfName, offerDocument } from '../../export/calc-pdf.js'
-import { app, canEdit, closeModal, computeRange, openModal, persist, registerActions, registerModal, registerView, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, memo, openModal, persist, registerActions, registerModal, registerView, render, renderNow, toast } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
+import { checkedValues, download, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 
 const MODULE = 'auswertung'
 const doc = () => (app.data.kalkulation ||= { settings: {}, objects: {} })
@@ -49,7 +53,49 @@ function current() {
 
 // ---------------------------------------------------------------- Ansicht
 
-function calcView() {
+const calcTab = () => (app.ui.calcTab === 'nach' ? 'nach' : 'objekt')
+const tabs = () => `<div class="calc-tabs" role="tablist">${tabBar({ action: 'calc-tab', current: calcTab(), tabs: [{ id: 'objekt', label: 'Objekt kalkulieren' }, { id: 'nach', label: 'Nachkalkulation' }] })}</div>`
+const NK_SPANS = [['3', '3 Monate'], ['6', '6 Monate'], ['12', '12 Monate']]
+const nkSpan = () => rentSpan(app.ui.nkSpan || '3', todayISO())
+
+function calcView(c) {
+  return calcTab() === 'nach' ? nachView(c) : objectView()
+}
+
+/** Nachkalkulation: Stunden je Monat kalkuliert, geplant, gerechnet; Vorschlag für die Leistungswerte. */
+function nachView(c) {
+  const sp = nkSpan()
+  const months = Number(sp.kind) || 3
+  const s = settings()
+  const { rows, sug } = memo(c, `nk:${sp.from}:${sp.to}:${JSON.stringify(s.performance)}`, () => {
+    const r = computeRange(sp.from, sp.to)
+    const hours = hoursByObject({ instances: r.instances, state: r.state, stamps: app.data.stamps, from: sp.from, to: sp.to })
+    const rows = nachkalkulation({ objects: app.data.objects, calcObjects: doc().objects || {}, settings: s, hours, months, wage: wageNow() })
+    return { rows, sug: suggestPerformance(rows, s.performance) }
+  })
+  const pct = (v) => (v === null || v === undefined ? '–' : `${de(v * 100, 0)} %`)
+  const dev = (r) => (r.deviation === null ? '<span class="muted">keine Stunden</span>' : Math.abs(r.deviation) < 0.05 ? '<span class="ok-text">passt</span>' : `<span class="${r.deviation > 0 ? 'warn-text' : 'info-text'}">${r.deviation > 0 ? '+' : '−'}${de(Math.abs(r.deviation) * 100, 0)} % ${r.deviation > 0 ? 'länger' : 'kürzer'}</span>`)
+  const body = rows
+    .map((r) => `<tr><td><strong>${esc(r.name)}</strong></td><td class="num">${de(r.calcHours)} h</td><td class="num">${de(r.plannedHours)} h</td><td class="num">${de(r.usedHours)} h</td><td class="num">${pct(r.stampedShare)}</td><td>${dev(r)}${r.reliable || r.deviation === null ? '' : '<br><span class="muted small">zu wenig gestempelt</span>'}</td>
+      <td><button class="btn small" data-action="calc-nk-open" data-id="${esc(r.objectId)}">Kalkulation</button></td></tr>`)
+    .join('')
+  const ed = editable()
+  const sugRows = sug
+    .map((x) => `<tr><td>${ed ? `<label class="check"><input type="checkbox" name="nk-type" value="${esc(x.type)}" ${Math.abs(x.suggested - x.current) >= 5 ? 'checked' : ''}> ${esc(x.label)}</label>` : esc(x.label)}</td><td class="num">${de(x.current, 0)}</td><td class="num"><strong>${de(x.suggested, 0)}</strong></td><td class="num">${x.factor >= 1 ? '+' : '−'}${de(Math.abs(x.factor - 1) * 100, 0)} %</td><td class="num">${x.objects}</td></tr>`)
+    .join('')
+  return `<div class="section-head"><div><h2>Kalkulation</h2><p>Nachkalkulation: Wie viele Stunden kalkuliert sind und wie viele die Objekte wirklich brauchen (gestempelt, sonst laut Plan). Daraus ein Vorschlag für die Leistungswerte je Raumart – die Kalkulation lernt aus der Praxis.</p></div></div>
+    ${tabs()}
+    <div class="filters" role="group" aria-label="Zeitraum">${NK_SPANS.map(([id, label]) => `<button class="filter" data-action="calc-nk-span" data-v="${id}" aria-pressed="${sp.kind === id}">${label}</button>`).join('')}</div>
+    <p class="muted">${esc(sp.label)}: Stunden je Monat (Durchschnitt). „Gerechnet“ = gestempelte Zeit je eingeteilter Person und Einsatz, sonst die geplante.</p>
+    ${rows.length ? `<div class="table-wrap"><table class="data nk-table"><thead><tr><th>Objekt</th><th class="num">kalkuliert</th><th class="num">geplant</th><th class="num">gerechnet</th><th class="num">gestempelt</th><th>Abweichung</th><th></th></tr></thead><tbody>${body}</tbody></table></div>` : '<p class="empty">Noch keine Objekte mit Kalkulation. Im Reiter „Objekt kalkulieren“ Flächen erfassen und speichern.</p>'}
+    <h3>Vorschlag für die Leistungswerte (m² je Stunde)</h3>
+    ${sug.length ? `<p class="note">Aus ${rows.filter((r) => r.reliable).length} Objekten, in denen mindestens ${de(NK_MIN_STAMPED * 100, 0)} % der Einsätze gestempelt sind; je Schritt höchstens ± 40 %. Gilt für alle neuen und bestehenden Kalkulationen ohne eigenen Leistungswert der Fläche – die Preise der bestehenden Verträge ändern sich dadurch nicht.</p>
+      <div class="table-wrap"><table class="data"><thead><tr><th>Raumart</th><th class="num">bisher</th><th class="num">Vorschlag</th><th class="num">Änderung</th><th class="num">Objekte</th></tr></thead><tbody>${sugRows}</tbody></table></div>
+      ${ed ? '<div class="actions"><button class="btn primary" data-action="calc-nk-apply">Ausgewählte übernehmen</button></div>' : ''}`
+      : `<p class="empty">Noch kein Vorschlag: Dafür braucht es Objekte mit Kalkulation, in denen mindestens ${de(NK_MIN_STAMPED * 100, 0)} % der Einsätze gestempelt sind (Zeiterfassung im Objekt).</p>`}`
+}
+
+function objectView() {
   const id = current()
   if (!id) return '<p class="empty">Noch keine Objekte.</p>'
   const obj = objOf(id)
@@ -81,6 +127,7 @@ function calcView() {
   const diff = (h) => (h === null || !calc.hours ? '' : Math.abs(h - calc.hours) < 0.05 ? 'passt zur Kalkulation' : `${h > calc.hours ? '+' : '−'}${de(Math.abs(h - calc.hours))} h zur Kalkulation`)
   return `<div class="section-head"><div><h2>Kalkulation</h2><p>Aus Flächen, Häufigkeit und Leistungswerten (m² je Stunde) die Stunden im Monat, dann über Zuschläge der Verrechnungssatz und der Monatspreis. Vergleich mit Budget und Reinigungsplan, Angebot als PDF.</p></div>
       <div class="actions"><button class="btn" data-action="calc-settings">Grundlagen</button></div></div>
+    ${tabs()}
     <div class="filters"><label class="field inline"><span>Objekt</span>${objSelect}</label><span class="muted">${esc(obj.address || '')}</span>${obj.fromCase ? `<button class="btn small" data-action="vt-goto" data-id="${esc(obj.fromCase)}">Zum Fall im Vertrieb</button>` : ''}</div>
     <div class="table-wrap"><table class="data calc-table"><thead><tr><th>Bereich</th><th>Art</th><th class="num">Fläche m²</th><th>Häufigkeit</th><th class="num">m²/h</th><th class="num">h/Monat</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="muted">Noch keine Flächen. „Fläche hinzufügen“, z. B. Büros, Sanitär, Stiegenhaus.</td></tr>'}</tbody></table></div>
     ${ed ? `<div class="actions" style="margin:8px 0 16px"><button class="btn" data-action="calc-add">${ICON.plus} Fläche hinzufügen</button><button class="btn primary" data-action="calc-save">Speichern</button></div>` : ''}
@@ -105,7 +152,23 @@ function calcView() {
       <p class="note">Je Fläche: m² ÷ Leistungswert × Reinigungen je Woche × 4,33 Wochen; dazu Rüst- und Nebenzeiten. Die Zuschläge laufen nacheinander (jeder auf die Summe davor). Leistungswerte und Zuschläge unter „Grundlagen“; Richtwerte, mit der eigenen Erfahrung abgleichen.</p></details>`
 }
 
-registerView({ id: 'kalkulation', order: 62, label: 'Kalkulation', group: 'auswertung', module: MODULE, noWeek: true, available: () => !app.access || !!app.access.all, text: 'Stunden und Preis je Objekt', render: calcView })
+registerView({
+  id: 'kalkulation',
+  order: 62,
+  label: 'Kalkulation',
+  group: 'auswertung',
+  module: MODULE,
+  noWeek: true,
+  available: () => !app.access || !!app.access.all,
+  text: 'Stunden und Preis je Objekt',
+  // Nachkalkulation: Wochen des Zeitraums laden (Einteilungen und Stempelungen)
+  range: () => {
+    if (calcTab() !== 'nach') return null
+    const sp = nkSpan()
+    return { from: sp.from, to: sp.to }
+  },
+  render: calcView,
+})
 
 // ---------------------------------------------------------------- Formular lesen
 
@@ -159,6 +222,35 @@ registerModal('calc-settings', settingsModal, { module: MODULE })
 // ---------------------------------------------------------------- Aktionen
 
 registerActions({
+  'calc-tab': (el) => {
+    app.ui.calcTab = el.dataset.v === 'nach' ? 'nach' : 'objekt'
+    render()
+  },
+  'calc-nk-span': (el) => {
+    app.ui.nkSpan = el.dataset.v
+    render()
+  },
+  'calc-nk-open': (el) => {
+    app.ui.calcTab = 'objekt'
+    app.ui.calcObject = el.dataset.id
+    app.ui.calcDraft = null
+    render()
+  },
+  'calc-nk-apply': () => {
+    if (!editable()) return toast('Ändern nur mit Recht auf die Auswertung.')
+    const picked = new Set(checkedValues('nk-type'))
+    if (!picked.size) return toast('Bitte mindestens eine Raumart anhaken.')
+    const s = settings()
+    const r = computeRange(nkSpan().from, nkSpan().to)
+    const hours = hoursByObject({ instances: r.instances, state: r.state, stamps: app.data.stamps, from: nkSpan().from, to: nkSpan().to })
+    const sug = suggestPerformance(nachkalkulation({ objects: app.data.objects, calcObjects: doc().objects || {}, settings: s, hours, months: Number(nkSpan().kind) || 3, wage: wageNow() }), s.performance).filter((x) => picked.has(x.type))
+    const d = doc()
+    d.settings = { ...(d.settings || {}), performance: { ...(d.settings?.performance || {}) } }
+    for (const x of sug) d.settings.performance[x.type] = x.suggested
+    persist()
+    toast(`Leistungswerte übernommen: ${sug.map((x) => `${x.label} ${x.current} → ${x.suggested} m²/h`).join(', ')}.`)
+    renderNow()
+  },
   'calc-object': () => {
     app.ui.calcObject = val('calc-obj')
     app.ui.calcDraft = null

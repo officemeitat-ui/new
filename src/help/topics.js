@@ -3186,6 +3186,18 @@ export const TOPICS = [
     related: ['kalkulation-grundlagen', 'kalkulation-angebot', 'controlling'],
   },
   {
+    id: 'nachkalkulation',
+    section: 'finanzen',
+    view: 'kalkulation',
+    title: 'Nachkalkulation: kalkuliert gegen tatsächlich',
+    q: ['nachkalkulation', 'leistungswert anpassen', 'stimmt die kalkulation', 'ist-stunden gegen kalkulation', 'kalkulation lernen', 'leistungswerte aus der praxis'],
+    answer: 'Der Reiter „Nachkalkulation“ in der Kalkulation zeigt je Objekt die kalkulierten Stunden im Monat neben den geplanten und den gerechneten (gestempelt, sonst laut Plan). Aus Objekten, in denen mindestens die Hälfte der Einsätze gestempelt ist, schlägt die App neue Leistungswerte je Raumart vor; übernommen wird nur, was du anhakst.',
+    steps: ['„Kalkulation“ öffnen, Reiter „Nachkalkulation“.', 'Zeitraum wählen (3, 6 oder 12 Monate).', 'Abweichungen je Objekt ansehen; „Kalkulation“ öffnet das Objekt.', 'Beim Vorschlag die Raumarten anhaken und „Ausgewählte übernehmen“.'],
+    tips: ['Je Schritt ändert sich ein Leistungswert höchstens um 40 %.', 'Flächen mit eigenem Leistungswert zählen nicht zum Vorschlag.', 'Die Preise bestehender Verträge ändern sich dadurch nicht.'],
+    roles: 'Vollzugriff (Büro)',
+    related: ['kalkulation', 'kalkulation-grundlagen', 'rentabilitaet'],
+  },
+  {
     id: 'kalkulation-grundlagen',
     section: 'finanzen',
     view: 'kalkulation',

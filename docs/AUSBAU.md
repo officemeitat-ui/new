@@ -36,6 +36,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Geräte & Maschinen (Inventar mit QR-Etikett, Prüfungen, Reparaturen, Ausgabe; Rechtsprüfung Punkt 42).
 - Mitteilungen an Mitarbeitende mit Lesebestätigung, KI-Übersetzung (Rechtsprüfung Punkt 43).
 - Vertrieb von der Anfrage bis zum Auftrag mit KI-Besichtigung (Rechtsprüfung Punkt 44).
+- Nachkalkulation: kalkulierte gegen geplante und gestempelte Stunden je Objekt, Vorschlag für die Leistungswerte je Raumart (Idee 10).
 - Posteingang: E-Mails (.eml), PDFs, Fotos und Text ablegen oder das Microsoft-365-Postfach nur lesend einbinden; Regeln und KI (nur Betreff und gekürzter Text ohne Adressen, Telefon, IBAN; Krankmeldungen und Nachrichten aus dem Team nie) erkennen die Art und öffnen den passenden Dialog vorbefüllt; in SharePoint kein Mailtext (Idee 1, Rechtsprüfung Punkt 46).
 - Aushang (QR) im Objekt: Hausbewohner, Hausverwaltung und Mitarbeitende des Kunden melden ohne Anmeldung ein Problem (Foto, Ort, Kontakt freiwillig, Deutsch und Englisch); wird zur Reklamation mit Eingang „Aushang (QR)“, Stand über einen eigenen Statuslink (Idee 2, Rechtsprüfung Punkt 45).
 - Tempo: Kennzahlen beim ersten Öffnen 7 / 23 s → 2,1 / 9,5 s (PC / Handy), „Zu erledigen“ rechnet im Hintergrund statt nach jeder Änderung die Bedienung aufzuhalten (Idee 9).
@@ -58,7 +59,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ### Nächste Runde (Vorschläge vom 9.11.2026)
 
-10. **Nachkalkulation:** Kalkulierte Stunden je Objekt gegen geplante und gestempelte Stunden; Vorschlag, die Leistungswerte (m² je Stunde) je Raumart aus den Ist-Zeiten anzupassen – die Kalkulation lernt aus der Praxis.
+10. **(fertig)** Nachkalkulation: Kalkulierte Stunden je Objekt gegen geplante und gestempelte Stunden; Vorschlag, die Leistungswerte (m² je Stunde) je Raumart aus den Ist-Zeiten anzupassen – die Kalkulation lernt aus der Praxis.
 11. **Eingangsrechnung gegen Bestellung prüfen:** Menge und Preis der Eingangsrechnung mit der Bestellung aus Material & Lager vergleichen, Abweichungen vor der Freigabe zeigen.
 12. **Einsatzplanung mit Wunschzeiten:** Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
 13. **KI-Angebotstext aus einer Ausschreibung:** Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
