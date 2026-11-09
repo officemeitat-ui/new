@@ -540,6 +540,15 @@ lazy(BUERO, {
   todo: ['fakturierung-angebote'],
 })
 
+// invoicing-mattenabrechnung.js (mit invoicing.js geladen): Mattenwechsel abrechnen („Läufe“), Prüfen und Freigeben am
+// Entwurf, Vorschlag am Monatsersten in „Zu erledigen“
+lazy(BUERO, {
+  module: 'fakturierung',
+  modals: 'mwr-run',
+  actions: 'mwr-open mwr-month mwr-opts mwr-pick mwr-suggest mwr-create mwr-check mwr-release mwr-undo',
+  todo: ['fakturierung-matten'],
+})
+
 // invoicing-abrechnung.js (mit invoicing.js geladen): Winterdienst abrechnen, Leistungsnachweis nach Ist-Zeiten, Beilagen
 lazy(BUERO, {
   module: 'fakturierung',

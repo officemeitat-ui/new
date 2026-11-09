@@ -4,7 +4,8 @@
 //
 //   Disponent    Vertretungen bei Abwesenheiten, offene Einsätze dieser und nächster Woche,
 //                Woche veröffentlichen, Prüfbericht mit Fehlern
-//   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise, Regieberichte verrechnen
+//   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise, Regieberichte verrechnen,
+//                Mattenwechsel abrechnen (am Monatsersten, wenn eingestellt; nur „Öffnen“, nichts automatisch)
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
 //                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“),
@@ -33,7 +34,8 @@ import { attention as qmAttention, isUrgent as qmUrgent } from '../../core/quali
 import { attention as mwAttention, confirmedExchanges, untouredSoon } from '../../core/matten-einsaetze.js'
 import { fmtAvg, attention as kzAttention, scopeObjectIds as kzScope } from '../../core/zufriedenheit.js'
 import { paymentReminders } from '../../core/fak-laeufe.js'
-import { isInvoice, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
+import { isInvoice, monthLabel, nextReminder, openItems, periodOf, settingsOf } from '../../core/invoicing.js'
+import { runTask as mattenRunTask } from '../../core/matten-abrechnung.js'
 import { isOpenRequest, orderSuggestions } from '../../core/material.js'
 import { toBill as regieToBill } from '../../core/regie.js'
 import { dueList, typesOf } from '../../core/trainings.js'
@@ -47,7 +49,7 @@ import { esc, ICON } from '../shared.js'
 
 export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
-  { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge und Regieberichte ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
+  { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge, Regieberichte und den Mattenwechsel ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
   { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen, den Mattenwechsel und überfällige Reklamationen', module: '*' },
 ]
@@ -143,6 +145,19 @@ function buchhaltung(today) {
     })
   }
   const docs = d.documents || []
+  // Mattenwechsel abrechnen: ab dem Monatsersten die Lieferscheine des Vormonats (Einstellung „am Monatsersten vorschlagen“);
+  // nur „Öffnen“ – Entwürfe entstehen erst nach der Vorschau, festgeschrieben und gesendet wird nie automatisch
+  const mw = mattenRunTask(d, { today })
+  if (mw)
+    out.push({
+      id: `mwr:${mw.ym}:${mw.keys.join(',')}`,
+      agent: 'buchhaltung',
+      prio: 2,
+      title: `Mattenwechsel abrechnen: ${plural(mw.count, 'Kunde', 'Kunden')}`,
+      text: `Lieferscheine ${monthLabel(mw.ym)}: ${plural(mw.drafts, 'Rechnungsentwurf ist', 'Rechnungsentwürfe sind')} bereit (${mw.net.toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })} netto). Öffnen zeigt die Vorschau je Kunde; erstellt wird erst nach deinem Klick, festgeschrieben und gesendet nie automatisch.`,
+      lines: mw.names.slice(0, 5),
+      open: { label: 'Öffnen', action: 'mwr-open', data: { ym: mw.ym } },
+    })
   // Regieberichte: abgeschlossen (unterschrieben), noch in keiner Rechnung – nur wer auch die Regieberichte sieht
   const reg = app.data.regie
   if (reg && sees('regie')) {

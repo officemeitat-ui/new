@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 
 import { accountProblem, groupsOf } from '../src/auth/msal.js'
 import { resolveAccess } from '../src/core/access.js'
+import { runRights } from '../src/core/matten-abrechnung.js'
 import { noteRights } from '../src/core/matten-lieferschein.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
 import { DataService, dataRights, DOC, folderRights, MODULE_DOCS, OLD_PATHS, toolFolderRights, weekPath } from '../src/storage/data-service.js'
@@ -351,6 +352,9 @@ test('Rechte: Matten-Lieferscheine (P12/P13) – erstellen und senden nur mit Ma
   // Buchhaltung: Lieferscheine in der Fakturierung (lesen und bearbeiten), aber nicht aus den Touren erstellen
   const bh = role('buchhaltung')
   assert.ok(dataRights(bh).read(FAK) && dataRights(bh).write(FAK) && !noteRights(bh).view && !noteRights(bh).create)
+  // Mattenwechsel abrechnen (P14): wer die Fakturierung bearbeitet – die Buchhaltung ohne Recht auf den Mattenwechsel
+  assert.ok(runRights(bh).run && !bh.sees('matten') && !dataRights(bh).read(MODULE_DOCS.matten.path))
+  assert.deepEqual([runRights(voll).run, runRights(role('mattenwechsel')).run, runRights(fahrer).run], [true, false, false])
   // eigene Rolle mit beiden Bereichen: darf alles, schreibt Touren (Vermerk am Stopp) und die Ablage
   const both = resolveAccess({ roleClaims: ['mwfak'], strict: true, access: { ...access, roles: { mwfak: { label: 'Büro mit Faktura', modules: ['matten', 'mattentour', 'fakturierung'], edit: ['matten', 'mattentour', 'fakturierung'] } } } })
   assert.ok(noteRights(both).create && dataRights(both).write('matten/touren/2026/mt0123456789ab.json') && tools(both).Mattenwechsel === 'Bearbeiten')

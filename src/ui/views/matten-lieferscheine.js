@@ -74,6 +74,8 @@ const rights = () => noteRights(app.access)
 /** Lieferscheine erstellen und senden: Mattenwechsel und Fakturierung bearbeiten, Fakturierung geladen. */
 const mayAct = () => rights().create && !app.readOnly && !!F()
 const editable = () => canEdit(MODULE) && !app.readOnly
+/** Abrechnen (Fakturierung → „Läufe“ → „Mattenwechsel abrechnen“): wer die Fakturierung bearbeitet. */
+const mayBill = () => !!F() && canEdit('fakturierung') && !app.readOnly
 const sharepoint = () => app.store?.kind === 'sharepoint' && typeof app.store.uploadRoot === 'function'
 
 // ---------------------------------------------------------------- Touren lesen (gemeinsame Ablage mit Planung und Fahrern)
@@ -404,7 +406,7 @@ function lieferscheineView() {
   const unsent = all.filter((r) => r.state === 'erstellt' && r.doc?.number)
   const failedArch = all.filter((r) => r.archive === 'fehler')
   const head = `<div class="section-head"><div><h2>Matten-Lieferscheine</h2><p>Je abgeschlossenem Stopp ein Lieferschein mit fortlaufender Nummer, den tatsächlich gewechselten Matten und der Unterschrift. Er ist ein Beleg der Fakturierung, das PDF liegt in SharePoint beim Kunden. Gesendet wird nach Prüfung im Büro, bei Kunden mit „automatisch senden“ gleich nach dem Erstellen.</p></div>
-    <div class="actions">${act && createKeys.length ? `<button class="btn primary" data-action="mw-ls-create-all" ${busy ? 'disabled' : ''}>Lieferscheine erstellen (${createKeys.length})</button>` : ''}${act && (selDocs.length || unsent.length) ? `<button class="btn" data-action="mw-ls-run-open">${ICON.send} ${selDocs.length ? `Senden (${selDocs.length})` : `Alle nicht versendeten senden (${unsent.length})`}</button>` : ''}${menu({
+    <div class="actions">${act && createKeys.length ? `<button class="btn primary" data-action="mw-ls-create-all" ${busy ? 'disabled' : ''}>Lieferscheine erstellen (${createKeys.length})</button>` : ''}${act && (selDocs.length || unsent.length) ? `<button class="btn" data-action="mw-ls-run-open">${ICON.send} ${selDocs.length ? `Senden (${selDocs.length})` : `Alle nicht versendeten senden (${unsent.length})`}</button>` : ''}${mayBill() ? '<button class="btn" data-action="mwr-open" title="Fakturierung → Läufe → Mattenwechsel abrechnen">Abrechnen</button>' : ''}${menu({
       label: 'Mehr',
       single: false,
       items: [
@@ -563,6 +565,7 @@ function settingsModal() {
     body: `<div class="form-grid">
         <label class="field wide"><span>E-Mail des Büros (für „An Büro“ und „An beide“)</span><input type="email" id="mw-ls-office" value="${esc(officeEmailOf(s))}" placeholder="buero@firma.at" autocomplete="email" inputmode="email"></label>
         <label class="check wide"><input type="checkbox" id="mw-ls-auto" ${s.autoDeliveryNotes ? 'checked' : ''}><span>Lieferscheine automatisch erstellen, sobald das Büro die App öffnet (alle abgeschlossenen Stopps)</span></label>
+        ${mayBill() ? `<label class="check wide"><input type="checkbox" id="mw-ls-suggest" ${F().settings?.mattenRun?.suggest === true ? 'checked' : ''}><span>Rechnungsentwürfe am Monatsersten vorschlagen („Zu erledigen“ und digitaler Mitarbeiter Buchhaltung; erstellt wird erst nach Prüfung, nie gesendet)</span></label>` : ''}
       </div>
       <p class="note">Ob ein Lieferschein ohne Prüfung gleich an den Kunden geht, steht je Kunde in der Fakturierung (Kundenblatt → Mattenwechsel → „Lieferschein automatisch senden“). Gesendet wird immer aus dem Postfach der angemeldeten Person, nie ohne geöffnete App.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="mw-ls-settings-save">Speichern</button></div>`,
@@ -706,6 +709,11 @@ registerActions(
       else delete s.officeEmail
       if (checked('mw-ls-auto')) s.autoDeliveryNotes = true
       else delete s.autoDeliveryNotes
+      // Vorschlag am Monatsersten: Einstellung der Fakturierung (die Buchhaltung liest den Mattenwechsel nicht)
+      if (document.getElementById('mw-ls-suggest') && mayBill()) {
+        const fs = (F().settings ||= {})
+        fs.mattenRun = { ...(fs.mattenRun || {}), suggest: checked('mw-ls-suggest') }
+      }
       persist()
       closeModal()
       toast('Einstellungen gespeichert.')

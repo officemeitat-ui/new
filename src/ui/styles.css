@@ -2845,3 +2845,32 @@ a.btn { text-decoration: none; }
   .mwl-table td.mwl-box { width: auto; }
   .mwl-table .actions-cell .btn { min-height: 44px; }
 }
+
+/* Mattenwechsel abrechnen (views/invoicing-mattenabrechnung.js, Kürzel mwr-): Lauf mit Vorschau, Prüfen → Freigeben am Entwurf */
+.mwr-review { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 0 0 12px; background: var(--surface); }
+.mwr-review > p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.mwr-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.mwr-step { display: flex; align-items: flex-start; gap: 8px; color: var(--muted); line-height: 1.3; }
+.mwr-step.done, .mwr-step.cur { color: var(--fg); }
+.mwr-step small { color: var(--muted); }
+.mwr-dot { flex: none; width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; font-size: 0.85rem; border: 2px solid var(--line-strong); background: var(--surface-2); color: var(--fg); }
+.mwr-step.done .mwr-dot { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.mwr-step.cur .mwr-dot { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.mwr-review-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.mwr-review-acts > .muted { flex: 1 1 260px; }
+.mwr-review details { margin-top: 8px; }
+.mwr-history { margin: 6px 0 0; padding-left: 1.2rem; overflow-wrap: anywhere; }
+.mwr-filters { align-items: center; }
+.mwr-stats { margin: 0 0 12px; }
+.mwr-hints { margin: 0; padding-left: 1.1rem; text-align: left; overflow-wrap: anywhere; }
+.mwr-table td.mwr-box { width: 2.2rem; }
+.mwr-table td.mwr-box input, .mwr-filters .check input { width: 20px; height: 20px; }
+.mwr-row.mwr-off td { background: var(--surface-2); }
+.mwr-done { margin: 12px 0; }
+.mwr-done ul { margin: 6px 0 0; padding-left: 1.2rem; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .mwr-stats .stat { min-width: 0; flex-basis: calc(50% - 4px); }
+  .mwr-table td.mwr-box { width: auto; }
+  .mwr-table td.mwr-hint-cell { display: block; text-align: left; }
+  .mwr-review-acts .btn, .mwr-open .actions-cell .btn { min-height: 44px; }
+}

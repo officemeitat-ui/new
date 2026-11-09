@@ -10,6 +10,8 @@
 // (ZUGFeRD/Factur-X und ebInterface, export/e-invoice.js).
 // Mattenwechsel (invoicing-matten.js): Reiter „Matten“ mit den Mattentypen, im Kundenblatt „Mattenwechsel“ (Abrechnung,
 // Preismodell, Lieferschein-Mail) und „Kundenpreise“ mit Gültigkeit (Preisermittlung core/invoicing.js → priceFor).
+// Mattenwechsel abrechnen (invoicing-mattenabrechnung.js, „Läufe ▾“): Entwürfe aus den Lieferscheinen mit den Schritten
+// Geprüft → Freigegeben am Entwurf, Korrekturen im Verlauf, Prüfung gegen Doppelabrechnung beim Festschreiben.
 //
 // Festgeschriebene Belege ändert niemand mehr: Korrektur nur über Storno bzw. Rechnungskorrektur.
 // Haben zwei Personen gleichzeitig festgeschrieben (zusammengeführte Datei mit doppelter Nummer),
@@ -124,6 +126,8 @@ import { cashForSalePayment, payCashOption } from './einkauf-shared.js'
 import { einkaufData, syncRechargeBilled } from './weiterverrechnung.js'
 import { importButton } from './invoicing-import.js'
 import { articleMatFields, customerMattenTab, customerPricesTab, mattenTab, readArticleMat, readCustomerMatten, readCustomerPrices, saveCustomerPrices } from './invoicing-matten.js'
+import { mattenConflicts } from '../../core/matten-abrechnung.js'
+import { mattenBadge, mattenRunHooks, reviewPanel, trackMatten } from './invoicing-mattenabrechnung.js'
 import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
 import { offerStateChanged, onlineBadge, onlineButtons, onlineExtras, onlineSettingsHtml, readOnlineSettings } from './invoicing-online.js'
 import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } from './invoicing-sepa.js'
@@ -347,7 +351,7 @@ function docRow(x, docs, today, s) {
     <td>${x.date ? formatDate(x.date, { year: true }) : ''}</td><td>${esc(x.recipient?.name || '–')}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
     <td>${esc(x.title || '')}${x.serviceFrom ? `<br><span class="muted">${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open && open !== t.gross ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td>
-    <td>${pill(st)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${onlineBadge(x)}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
+    <td>${pill(st)}${mattenBadge(x)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${onlineBadge(x)}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
 }
 
 function listFilters(kinds) {
@@ -787,8 +791,9 @@ function readForm(m) {
     if (checked('fd-hideprices')) x.hidePrices = true
     else delete x.hidePrices
   }
-  x.objectId = val('fd-object')
-  x.objectName = objName(x.objectId)
+  const objectId = val('fd-object')
+  x.objectName = objName(objectId) || (objectId && objectId === x.objectId ? x.objectName || '' : '')
+  x.objectId = objectId
   x.recipient = { ...x.recipient, name: val('fd-rname').trim(), address: val('fd-raddress').trim(), uid: val('fd-ruid').trim().toUpperCase(), email: val('fd-remail').trim(), consumer: checked('fd-rconsumer') }
   x.reference = val('fd-ref').trim()
   x.contactName = val('fd-contact').trim()
@@ -837,7 +842,9 @@ function editorModal(c, m) {
   const isInv = isInvoice(x)
   const cu = custOf(x.customerId)
   const custOpts = options(d.customers.slice().sort((a, b) => customerName(a).localeCompare(customerName(b), 'de')).map((c2) => [c2.id, `${customerName(c2)}${c2.customerNo ? ` (${c2.customerNo})` : ''}`]), x.customerId, { empty: '– Kunde wählen –' })
-  const objOpts = options(app.data.objects.map((o) => [o.id, o.name]), x.objectId, { empty: '– ohne Objekt –' })
+  // ein Objekt, das die App nicht (mehr) kennt (z. B. ohne Leserecht auf die Objekte), bleibt wählbar und geht beim Speichern nicht verloren
+  const unknownObj = x.objectId && !app.data.objects.some((o) => o.id === x.objectId) ? [[x.objectId, x.objectName || 'Objekt (nicht in der Objektliste)']] : []
+  const objOpts = options([...app.data.objects.map((o) => [o.id, o.name]), ...unknownObj], x.objectId, { empty: '– ohne Objekt –' })
   const arts = d.articles.filter(articleActive)
   const termsOpts = options(d.paymentTerms.map((t) => [t.id, `${t.name || termsLabel(t)}${t.isDefault ? ' (Standard)' : ''}`]), x.termsId || '', { empty: '– ohne (nur Zahlungsziel) –' })
   const posBlocks = blocksFor(d.textBlocks, x.kind, 'position')
@@ -848,7 +855,7 @@ function editorModal(c, m) {
     title: `${kindLabel(x)} – Entwurf`,
     subtitle: x.refNumber ? `Bezug: ${esc(x.refNumber)}` : x.deliveryNotes?.length ? `zu ${esc(x.deliveryNotes.map((n) => n.number).join(', '))}` : sourceLabel(x),
     wide: true,
-    body: `<div class="form-grid">
+    body: `${reviewPanel(x)}<div class="form-grid">
         <label class="field"><span>Kunde</span><select id="fd-customer" data-change="fak-customer" ${dis}>${custOpts}</select></label>
         <label class="field"><span>Objekt</span><select id="fd-object" data-change="fak-object" ${dis}>${objOpts}</select></label>
         <label class="field"><span>Datum</span><input type="date" id="fd-date" value="${esc(x.date)}" data-change="fak-date" ${dis}></label>
@@ -990,7 +997,7 @@ function viewModal(c, m) {
     body: `<p>${pill(st)}${x.reverseCharge ? ' <span class="pill info">Reverse Charge</span>' : ''} ${intact(x) ? '<span class="muted">Prüfsumme in Ordnung</span>' : '<span class="pill error">Inhalt nach dem Festschreiben verändert</span>'}</p>
       ${x.title ? `<p><strong>${esc(x.title)}</strong>${x.serviceFrom ? ` · Leistung ${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}` : ''}</p>` : ''}
       ${head.length ? `<p class="fak-doc-head">${head.join(' · ')}</p>` : ''}
-      ${docExtras(x)}${sourceNote(x)}
+      ${docExtras(x)}${sourceNote(x)}${reviewPanel(x)}
       ${onlineExtras(x)}
       ${x.kind === 'proforma' ? '<p><strong>Proforma – keine Rechnung im Sinne des UStG.</strong> <span class="muted">Kein Umsatz, kein offener Posten.</span></p>' : ''}
       <div class="table-wrap"><table class="data fak-view-lines" data-labelled><thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis</th><th class="num">USt</th><th class="num">netto</th></tr></thead><tbody>${lines}</tbody></table></div>
@@ -1587,15 +1594,33 @@ async function archive(x, blob, name = docFileName(x)) {
 }
 
 // Sammelversand, Mahnlauf, Lastschrift (invoicing-laeufe.js, invoicing-sepa.js): dieselben PDFs, Ablage und Platzhalter
-Object.assign(laeufeHooks, { docPdf, docDefinition, archive, ctxFor: (x, extra) => ctxFor(x, extra), eInvoiceXml: (x, format, m) => eInvoiceXml(x, format, m), checkNumbers: () => checkNumbers(), reminderLetterText: (x, r) => reminderLetterText(x, r), beilageFiles, beilageArchiveName })
+Object.assign(laeufeHooks, { docPdf, docDefinition, archive, ctxFor: (x, extra) => ctxFor(x, extra), eInvoiceXml: (x, format, m) => eInvoiceXml(x, format, m), checkNumbers: () => checkNumbers(), reminderLetterText: (x, r) => reminderLetterText(x, r), beilageFiles, beilageArchiveName, conflicts: (x, docs) => conflictsOf(x, docs) })
 // Winterdienst abrechnen und Ist-Zeiten (invoicing-abrechnung.js): Entwürfe wie hier
 Object.assign(abrechnungHooks, { newDraft: (kind, extra) => newDraft(kind, extra), applyCustomer: (x, id) => applyCustomer(x, id) })
+// Mattenwechsel abrechnen (invoicing-mattenabrechnung.js): Formular lesen, Entwurf mit Verlauf speichern
+Object.assign(mattenRunHooks, { readForm: (m) => readForm(m), storeDraft: (x, opts) => storeDraft(x, opts) })
 
 function upsertDoc(x) {
   const d = F()
   const i = d.documents.findIndex((y) => y.id === x.id)
   if (i >= 0) d.documents[i] = x
   else d.documents.push(x)
+}
+
+/**
+ * Entwurf speichern (Kopie). Entwürfe aus dem Mattenwechsel: Korrekturen gegenüber dem gespeicherten Stand in den Verlauf,
+ * eine Prüfung bzw. Freigabe wird danach zurückgesetzt (raw: ohne diesen Schritt). Liefert den gespeicherten Stand.
+ */
+function storeDraft(x, { raw = false } = {}) {
+  const next = structuredClone({ ...x, updatedAt: nowIso() })
+  const out = raw ? next : trackMatten(docOf(x.id), next)
+  upsertDoc(out)
+  return out
+}
+
+/** Gründe gegen das Festschreiben aus allen Quellen (Abschläge, Weiterverrechnung, Regiebericht, Anlagen, Mattenwechsel). */
+function conflictsOf(x, docs) {
+  return [...advanceConflicts(x, docs), ...rechargeConflicts(x, docs, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, docs), ...anlageConflicts(x, docs, anlagenChecks()), ...mattenConflicts(x, docs)]
 }
 
 /**
@@ -1948,9 +1973,10 @@ registerActions(
     'fak-draft-save': () => {
       const m = app.ui.modal
       const x = readForm(m)
-      upsertDoc(structuredClone({ ...x, updatedAt: nowIso() }))
+      const saved = storeDraft(x)
+      m.draft = structuredClone(saved) // Mattenwechsel: mit dem Eintrag im Verlauf
       m.isNew = false
-      commit('Entwurf gespeichert.')
+      commit(x.review && !saved.review ? 'Entwurf gespeichert. Nach der Korrektur bitte neu prüfen und freigeben.' : 'Entwurf gespeichert.')
     },
     'fak-draft-delete': (el) => {
       const m = app.ui.modal
@@ -1965,21 +1991,29 @@ registerActions(
     },
     'fak-finalize': async (el) => {
       const m = app.ui.modal
-      const x = readForm(m)
+      const form = readForm(m)
+      // Mattenwechsel: Korrekturen seit dem Speichern in den Verlauf (setzt eine Freigabe zurück)
+      const x = trackMatten(docOf(form.id), structuredClone(form))
+      if (form.review && !x.review) {
+        m.draft = structuredClone(x)
+        storeDraft(x, { raw: true })
+        persist()
+        renderModal()
+      }
       const list = blocking(problems(x, S()))
       if (list.length) return toast(list[0].text)
-      const clash = [...advanceConflicts(x, F().documents), ...rechargeConflicts(x, F().documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, F().documents), ...anlageConflicts(x, F().documents, anlagenChecks())]
+      const clash = conflictsOf(x, F().documents)
       if (clash.length) return toast(clash[0])
       if (!confirmStep(`fak-final:${x.id}`, renderModal)) return
       el.disabled = true
       try {
-        upsertDoc(structuredClone(x))
+        storeDraft(x, { raw: true })
         // erst den Stand der anderen holen (deren Nummern), dann die Nummer vergeben und gleich speichern
         await app.service.flush().catch(() => {})
         await app.service.refresh?.().catch(() => [])
         const d = F()
         // nach dem Abgleich noch einmal: Abschlag inzwischen storniert oder anderswo abgezogen?
-        const clash2 = [...advanceConflicts(x, d.documents), ...rechargeConflicts(x, d.documents, seesRecharge() ? rechargeSources(einkaufData()) : null), ...regieConflicts(x, d.documents), ...anlageConflicts(x, d.documents, anlagenChecks())]
+        const clash2 = conflictsOf(d.documents.find((y) => y.id === x.id) || x, d.documents)
         if (clash2.length) throw new Error(clash2[0])
         // Platzhalter mit Kunde und Zahlungsbedingung auflösen, Skonto-Text einfrieren
         const fixed = finalize(withDebitNote(d.documents.find((y) => y.id === x.id) || x, custOf(x.customerId), S()), d.documents, S(), { now: nowIso(), by: by(), customer: custOf(x.customerId), terms: termsById(d.paymentTerms, x.termsId), user: app.user?.name || by() })

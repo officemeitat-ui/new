@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 343 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 345 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (78)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (74)
+- [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (40)
 - [Begriffe](#begriffe)
@@ -1904,7 +1904,7 @@ Je abgeschlossenem Stopp entsteht im Büro ein Lieferschein: ein Beleg der Faktu
 4. Danach senden: „An Kunden“, „An Büro“ oder „An beide“.
 
 > Tipp: „Kunde nicht angetroffen“ und „nicht durchgeführt“ bekommen keinen Lieferschein, nur einen Vermerk am Stopp. Bei „teilweise“ stehen nur die gewechselten Matten drauf.
-> Tipp: Die Lieferscheine stehen auch in der Fakturierung unter „Belege“ → „Lieferscheine & Proforma“ und laufen dort in die Sammelrechnung.
+> Tipp: Die Lieferscheine stehen auch in der Fakturierung unter „Belege“ → „Lieferscheine & Proforma“; abgerechnet werden sie mit „Abrechnen“ (Fakturierung → „Läufe ▾“ → „Mattenwechsel abrechnen“).
 > Tipp: Einstellung „automatisch erstellen“: dann entstehen sie, sobald das Büro die App öffnet.
 > Tipp: Erstellen darf, wer den Mattenwechsel und die Fakturierung bearbeitet. Fahrer sehen keine Belege und keine Preise.
 
@@ -2516,9 +2516,46 @@ Im Kundenblatt unter „Mattenwechsel“ stellst du ein: E-Mail für Lieferschei
 3. Preismodell wählen; bei „Pauschale je Monat“ mit „+ Pauschale“ Objekt und Betrag eintragen.
 4. „Speichern“ klicken.
 
-> Tipp: Die Einstellungen gelten für Lieferscheine und Rechnungen aus dem Mattenwechsel (Modul im Aufbau); Rechnungen entstehen dort immer als Entwurf.
+> Tipp: Die Einstellungen gelten für Lieferscheine und Rechnungen aus dem Mattenwechsel; Rechnungen entstehen mit „Läufe ▾“ → „Mattenwechsel abrechnen“ immer als Entwurf.
 > Tipp: „Lieferschein automatisch senden“ ist aus, bis du es je Kunde einschaltest; sonst prüft das Büro vorher.
 > Tipp: Beim Preismodell je Wechsel zeigt der Reiter die heutigen Preise je Mattentyp für diesen Kunden.
+
+*Buchhaltung, Vollzugriff*
+
+### Mattenwechsel abrechnen (Rechnungsentwürfe aus Lieferscheinen)
+
+*In der App: Fakturierung*
+
+Der Lauf macht aus den Lieferscheinen des Mattenwechsels Rechnungsentwürfe: je Kunde nach seiner Einstellung – je gewechselter Matte (einzeln oder gesammelt, Preise aus den Lieferscheinen) oder Pauschale je Monat. Vorher zeigt er je Kunde Lieferscheine, Summe und Hinweise. Erstellt werden nur Entwürfe, nie festgeschrieben oder gesendet.
+
+1. Fakturierung → „Läufe ▾“ → „Mattenwechsel abrechnen“ (oder „Abrechnen“ in „Matten-Lieferscheine“).
+2. Monat wählen (Vorgabe: Vormonat); quartalsweise Kunden kommen mit dem letzten Monat des Quartals.
+3. Je Kunde Lieferscheine, Summe und Hinweise prüfen, Kunden an- oder abwählen.
+4. „Entwürfe erstellen“ klicken.
+5. Jeden Entwurf prüfen und freigeben, dann festschreiben und senden wie gewohnt.
+
+> Tipp: Ein Lieferschein und ein Pauschal-Monat kommen nie in zwei Rechnungen – auch nicht einmal je Stück und einmal pauschal. Ein zweiter Lauf erzeugt nichts; Entwurf löschen oder Storno gibt sie frei.
+> Tipp: Gesperrt mit Hinweis: Preis fehlt im Lieferschein, Kunde nicht in der Fakturierung, Pauschale ohne Betrag.
+> Tipp: Mit „am Monatsersten vorschlagen“ meldet sich der Lauf in „Zu erledigen“ und beim digitalen Mitarbeiter Buchhaltung (nur „Öffnen“).
+> Tipp: Die Buchhaltung braucht dafür keinen Zugriff auf den Mattenwechsel: alles steht in den Lieferscheinen.
+
+*Buchhaltung, Vollzugriff (wer die Fakturierung bearbeitet)*
+
+### Mattenwechsel-Rechnung prüfen und freigeben
+
+*In der App: Fakturierung*
+
+Entwürfe aus dem Mattenwechsel haben vier Schritte: Entwurf → Geprüft → Freigegeben → Ausgestellt. Festschreiben geht erst nach der Freigabe. Jede Korrektur am Entwurf steht im Verlauf mit wer, wann und was; danach ist neu zu prüfen.
+
+1. Den Entwurf öffnen (Rechnungen → Entwurf oder im Lauf unter „Entwürfe aus dem Mattenwechsel“).
+2. Positionen, Mengen, Preise und Empfänger prüfen, bei Bedarf korrigieren und speichern.
+3. „Als geprüft markieren“ klicken.
+4. „Freigeben“ klicken.
+5. „Festschreiben“ (einzeln oder unter „Läufe ▾“ → „Festschreiben und senden“).
+
+> Tipp: In der Rechnungsliste zeigt ein Schild „zu prüfen“, „geprüft“ oder „freigegeben“.
+> Tipp: Nicht freigegebene Entwürfe bleiben beim Sammel-Festschreiben stehen.
+> Tipp: „Freigabe zurücknehmen“ macht wieder einen Entwurf daraus.
 
 *Buchhaltung, Vollzugriff*
 

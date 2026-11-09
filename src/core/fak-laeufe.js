@@ -30,15 +30,17 @@ export const finalizeOrder = (a, b) => String(a.date).localeCompare(String(b.dat
 /**
  * Entwürfe für das Sammel-Festschreiben: filter 'lauf' = aus dem Monatslauf (Dauerauftrag, auf Wunsch nur Monat ym),
  * 'alle' = alle Rechnungs-, Storno- und Korrekturentwürfe. [{ doc, problems, errors, gross }] in Festschreib-Reihenfolge.
+ * check(doc, docs) → [Meldung]: weitere Gründe gegen das Festschreiben (z. B. schon anderswo verrechnet, Mattenwechsel
+ * noch nicht freigegeben), als Fehler gezählt.
  */
-export function batchDrafts(docs, { filter = 'lauf', ym = '', settings = {} } = {}) {
+export function batchDrafts(docs, { filter = 'lauf', ym = '', settings = {}, check = null } = {}) {
   const s = settingsOf({ settings })
   return docs
     .filter((d) => isInvoice(d) && !d.number)
     .filter((d) => filter !== 'lauf' || (d.source?.type === 'dauerauftrag' && (!ym || String(d.source.key || '').endsWith(`:${ym}`))))
     .sort(finalizeOrder)
     .map((doc) => {
-      const list = problems(doc, s)
+      const list = [...problems(doc, s), ...(check ? check(doc, docs) : []).map((text) => ({ level: 'error', text }))]
       return { doc, problems: list, errors: blocking(list), gross: totals(doc, s).gross }
     })
 }
@@ -46,15 +48,18 @@ export function batchDrafts(docs, { filter = 'lauf', ym = '', settings = {} } = 
 /**
  * Mehrere Entwürfe nacheinander festschreiben (lückenlose Nummernfolge in finalizeOrder). Hat der Kunde ein
  * SEPA-Mandat, steht die Vorabankündigung als debitText auf der Rechnung. Ein Fehler hält die übrigen nicht auf.
- * Liefert { docs, done: [festgeschriebene Belege], failed: [{ id, error }] }.
+ * check(draft, docs) → [Meldung] prüft je Entwurf mit dem Stand davor (wie beim Einzel-Festschreiben); eine Meldung
+ * hält diesen Entwurf auf. Liefert { docs, done: [festgeschriebene Belege], failed: [{ id, error }] }.
  */
-export function finalizeBatch(ids, docs, settings = {}, { now = new Date().toISOString(), by = '', customersById = new Map(), terms = [], user = by } = {}) {
+export function finalizeBatch(ids, docs, settings = {}, { now = new Date().toISOString(), by = '', customersById = new Map(), terms = [], user = by, check = null } = {}) {
   const want = new Set(ids)
   let all = docs
   const done = []
   const failed = []
   for (const d of docs.filter((x) => want.has(x.id) && !x.number).sort(finalizeOrder)) {
     try {
+      const clash = check ? check(d, all) : []
+      if (clash.length) throw new Error(clash[0])
       const customer = customersById.get(d.customerId) || null
       const draft = withDebitNote(d, customer, settings)
       const fixed = finalize(draft, all, settings, { now, by, customer, terms: termsById(terms, d.termsId), user })

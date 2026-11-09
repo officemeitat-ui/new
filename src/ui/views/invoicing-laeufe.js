@@ -17,10 +17,15 @@ import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, download, esc, euro, ICON, menu, modalFrame, options, val } from '../shared.js'
 import { textFieldHead, textMenu } from './invoicing-texte.js'
+import { mattenRunMenuItem } from './invoicing-mattenabrechnung.js'
 
 const MODULE = 'fakturierung'
-/** Aus invoicing.js (dort gesetzt): PDF, Ablage in SharePoint, Platzhalter, E-Rechnung, Nummern prüfen. */
-export const laeufeHooks = { docPdf: null, docDefinition: null, archive: null, ctxFor: null, eInvoiceXml: null, checkNumbers: () => {}, reminderLetterText: () => '', beilageFiles: async () => [], beilageArchiveName: (x, name) => name }
+/**
+ * Aus invoicing.js (dort gesetzt): PDF, Ablage in SharePoint, Platzhalter, E-Rechnung, Nummern prüfen und conflicts(x, docs):
+ * Gründe gegen das Festschreiben wie beim Einzel-Festschreiben (schon anderswo verrechnet, Mattenwechsel nicht freigegeben).
+ */
+export const laeufeHooks = { docPdf: null, docDefinition: null, archive: null, ctxFor: null, eInvoiceXml: null, checkNumbers: () => {}, reminderLetterText: () => '', beilageFiles: async () => [], beilageArchiveName: (x, name) => name, conflicts: () => [] }
+const check = (x, docs) => laeufeHooks.conflicts(x, docs)
 
 const F = () => app.data.fakturierung
 const S = () => settingsOf(F())
@@ -54,6 +59,7 @@ export function laeufeMenu(ed) {
       { label: 'Festschreiben und senden', action: 'fak-batch-open', hint: 'alle Entwürfe auf einmal, z. B. nach dem Monatslauf' },
       { label: 'Mahnlauf', action: 'fak-dunning-open', hint: 'alle fälligen Mahnungen' },
       { label: 'Lastschrifteinzug', action: 'fak-sepa-open', hint: 'SEPA-Lastschrift (pain.008)' },
+      mattenRunMenuItem(),
     ],
   })
 }
@@ -81,7 +87,7 @@ function batchModal(c, m) {
 registerModal('fak-batch', batchModal, { module: MODULE })
 
 function finalStep(m, steps) {
-  const list = batchDrafts(F().documents, { filter: m.filter, ym: m.filter === 'lauf' ? m.ym || '' : '', settings: S() })
+  const list = batchDrafts(F().documents, { filter: m.filter, ym: m.filter === 'lauf' ? m.ym || '' : '', settings: S(), check })
   m.sel ||= Object.fromEntries(list.filter((x) => !x.errors.length).map((x) => [x.doc.id, true]))
   const chosen = list.filter((x) => m.sel[x.doc.id] && !x.errors.length)
   const months = [...new Set(F().documents.filter((d) => isInvoice(d) && !d.number && d.source?.type === 'dauerauftrag').map((d) => String(d.source.key || '').slice(-7)).filter((k) => /^\d{4}-\d{2}$/.test(k)))].sort().reverse()
@@ -465,7 +471,7 @@ registerActions(
       const m = app.ui.modal
       const on = !!el.dataset.v
       if (el.dataset.step === 'senden') for (const k of Object.keys(m.sendSel || {})) m.sendSel[k] = on
-      else for (const { doc, errors } of batchDrafts(F().documents, { filter: m.filter, ym: m.filter === 'lauf' ? m.ym || '' : '', settings: S() })) m.sel[doc.id] = on && !errors.length
+      else for (const { doc, errors } of batchDrafts(F().documents, { filter: m.filter, ym: m.filter === 'lauf' ? m.ym || '' : '', settings: S(), check })) m.sel[doc.id] = on && !errors.length
       renderModal()
     },
     'fak-batch-scope': () => {
@@ -487,7 +493,7 @@ registerActions(
     },
     'fak-batch-final': async (el) => {
       const m = app.ui.modal
-      const list = batchDrafts(F().documents, { filter: m.filter, ym: m.filter === 'lauf' ? m.ym || '' : '', settings: S() }).filter((x) => m.sel[x.doc.id] && !x.errors.length)
+      const list = batchDrafts(F().documents, { filter: m.filter, ym: m.filter === 'lauf' ? m.ym || '' : '', settings: S(), check }).filter((x) => m.sel[x.doc.id] && !x.errors.length)
       if (!list.length) return toast('Bitte Entwürfe ohne Fehler auswählen.')
       if (!confirmStep('fak-batch-final', renderModal)) return
       el.disabled = true
@@ -503,7 +509,7 @@ registerActions(
           list.map((x) => x.doc.id),
           d.documents,
           S(),
-          { now: nowIso(), by: by(), customersById: customersById(), terms: d.paymentTerms || [], user: app.user?.name || by() },
+          { now: nowIso(), by: by(), customersById: customersById(), terms: d.paymentTerms || [], user: app.user?.name || by(), check },
         )
         d.documents = r.docs
         persist()

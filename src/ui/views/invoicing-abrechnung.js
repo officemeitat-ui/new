@@ -530,6 +530,7 @@ export function sourceNote(x) {
 /** Untertitel im Entwurf: woher er kommt. */
 export function sourceLabel(x) {
   const t = x.source?.type
+  if (t === 'matten-abrechnung') return `aus dem Mattenwechsel ${esc(x.source.period?.label || '')}`.trim()
   return t === 'dauerauftrag' ? 'aus Dauerauftrag' : t === 'winterdienst' ? 'aus dem Winterdienst-Protokoll' : t === 'nachweis' ? (x.source.basis === 'ist' ? 'aus Leistungsnachweis, Ist-Zeiten' : 'aus Leistungsnachweis') : t === 'regie' ? `aus Regiebericht ${esc(x.source.no || '')}`.trim() : ''
 }
 
