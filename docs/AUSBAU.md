@@ -45,15 +45,25 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Ideen für die nächsten Runden (Reihenfolge = Vorschlag)
 
-1. **KI-Posteingang:** Kunden-E-Mails (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung) und Eingangsrechnungen aus einem Postfach erkennen und als Entwurf anlegen – immer mit Freigabe.
+1. **(in Arbeit)** KI-Posteingang: Kunden-E-Mails (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung) und Eingangsrechnungen aus einem Postfach erkennen und als Entwurf anlegen – immer mit Freigabe.
 2. **(fertig)** Objekt-QR zum Aushängen: Kunden und Hausbewohner melden ohne Anmeldung (Foto, Text) – wird zur Reklamation des Objekts, Status über den Link.
-3. **Leistungs-Checkliste am Handy:** je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
+3. **(in Arbeit)** Leistungs-Checkliste am Handy: je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
 4. **(fertig: Paket für die Steuerberatung)** Buchhaltungs-Export für die Steuerberatung: Ausgangs- und Eingangsrechnungen, Zahlungen und Kassenbuch als Buchungsstapel (BMD, RZL oder DATEV-Format).
 5. **(fertig)** KI-Wochenbriefing: Montag früh je Rolle eine kurze Zusammenfassung (Umsatz, offene Posten, Reklamationen, Krankenstände, Fristen, Lücken im Plan) per E-Mail oder Push.
 6. **(fertig)** Rentabilität je Objekt: Ist-Stunden und Kosten gegen Umsatz mit Ampel und Vorschlag zur Preisanpassung (an die Kundenverträge angebunden).
-7. **Kunden-Self-Service:** im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
+7. **(in Arbeit)** Kunden-Self-Service: im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
 8. **(fertig, bei der Qualitätsmessung)** KI-Fotoprüfung bei der Objektkontrolle: Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
 9. **(fertig)** Tempo Kennzahlen und „Zu erledigen“: Kennzahlen rechnen beim ersten Öffnen den Plan von 12 Monaten neu (bei großen Datenmengen 7 s am PC, 23 s am Handy); „Zu erledigen“ rechnet nach jeder Änderung alle Quellen neu (am Handy rund 2 s) – Zwischenspeicher je Quelle.
+
+### Nächste Runde (Vorschläge vom 9.11.2026)
+
+10. **Nachkalkulation:** Kalkulierte Stunden je Objekt gegen geplante und gestempelte Stunden; Vorschlag, die Leistungswerte (m² je Stunde) je Raumart aus den Ist-Zeiten anzupassen – die Kalkulation lernt aus der Praxis.
+11. **Eingangsrechnung gegen Bestellung prüfen:** Menge und Preis der Eingangsrechnung mit der Bestellung aus Material & Lager vergleichen, Abweichungen vor der Freigabe zeigen.
+12. **Einsatzplanung mit Wunschzeiten:** Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
+13. **KI-Angebotstext aus einer Ausschreibung:** Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
+14. **Fahrtenbuch aus den Touren:** Für Fahrzeuge im Mattenwechsel und Winterdienst Fahrten aus den Touren vorschlagen (Datum, Strecke, Kilometer, Zweck) – zum Bestätigen statt Abschreiben.
+15. **Kunden-Statusseite je Objekt:** ein Link für die Hausverwaltung mit allen offenen Meldungen, Terminen und dem letzten Leistungsnachweis eines Objekts (Kundenbereich je Objekt statt je Kunde).
+16. **Prüfrunde 2:** Sicherheit der neuen Webspace-Seiten (Aushang, Zusatzleistungen, Checkliste), Leistung mit großen Datenmengen für Rentabilität und Steuerberatungs-Paket, Barrierefreiheit (Tastatur, Bildschirmleser) der neuen Dialoge.
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 
