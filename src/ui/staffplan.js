@@ -12,8 +12,12 @@
 //
 // Sprache: Die Seite am Handy und die Push-Nachrichten kommen in der Sprache aus dem Stammblatt
 // (employees[].lang, beim Übertragen als personen[].sprache), ebenso die Nachricht mit dem Link.
+//
+// Checkliste: Hat die Leistung Punkte (Objekte & Leistungen → Leistung bearbeiten), gehen sie je Einsatz mit; der
+// Stand vom Handy kommt mit den Stempelungen zurück (views/checkliste.js).
 
 import { appointmentsBetween, employeesOf } from '../core/appointments.js'
+import { publishItems } from '../core/checkliste.js'
 import { employedOn } from '../core/contract.js'
 import { addDays, dayIndex, formatDate, mondayOf, todayISO } from '../core/dates.js'
 import { PlanState } from '../core/plan.js'
@@ -122,12 +126,15 @@ export async function sendWeeks(mondays) {
   const p = portalSettings()
   if (!p.enabled || !p.key) return null
   const objectsById = new Map(app.data.objects.map((o) => [o.id, o]))
+  const tasksById = new Map(app.data.tasks.map((t) => [t.id, t]))
   const entries = []
   for (const monday of mondays) {
     if (!app.data.published?.[monday]) continue
     const c = compute(monday)
+    // Checkliste je Einsatz (Leistung → Punkte, Wochentag-Regel, 1× pro Woche)
+    const checklistOf = (inst) => publishItems(tasksById.get(inst.taskId), inst, c.instances)
     for (const emp of portalEmployees(c.ctx.employees, p.codes, monday)) {
-      entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', sprache: langOf(emp), monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp), appointments: appointmentsFor(emp.id, monday) }) })
+      entries.push({ hash: await sha256Hex(p.codes[emp.id]), name: emp.name, ntfy: p.topics[emp.id] || '', sprache: langOf(emp), monday, week: staffWeek(c.timesheet(emp), { objectsById, account: accountAfterWeek(c, emp), appointments: appointmentsFor(emp.id, monday), checklistOf }) })
     }
   }
   const offers = p.exchange === false ? { angebote: {}, byEmp: new Map() } : await offersByHash(p)

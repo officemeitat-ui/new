@@ -1,6 +1,8 @@
 // Zeiterfassung im Objekt (QR-Code) in der App: Stempelungen vom Webspace holen (alle 2 Minuten,
 // solange jemand mit Einsatzplanung die App offen hat), Ansicht „Zeiterfassung“ (Plan gegen Ist, CSV),
 // Block im Einsatz-Dialog, „Zu erledigen: nicht eingestempelt“ und die QR-Aushänge als PDF.
+// Die Checklisten vom Handy kommen zum selben Zeitpunkt und mit demselben Knopf „Jetzt abrufen“
+// (views/checkliste.js, später geladen, über checkHooks).
 
 import { addDays, firstOfMonth, formatDate, formatHours, isoWeek, lastOfMonth, mondayOf, todayISO } from '../core/dates.js'
 import { toCSV } from '../core/reports.js'
@@ -9,7 +11,7 @@ import { absMinutes, mergeStamps, missingCheckins, STATUS_TEXT, stampKey, stampR
 import { approveAll, breakWarnings, correctStamp, manualStamp, monthSummary, netMinutes, REASONS, reasonLabel } from '../core/worktime.js'
 import { worktimeDocument } from '../export/worktime-pdf.js'
 import { qrPosterDocument } from '../export/qr-pdf.js'
-import { addLog, app, canEdit, closeModal, compute, computeRange, confirmStep, empName, ensureRange, mayEdit, openModal, persist, recordUndo, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from './context.js'
+import { addLog, app, canEdit, closeModal, compute, computeRange, confirmStep, empName, ensureAction, ensureRange, mayEdit, openModal, persist, recordUndo, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from './context.js'
 import { loadScript } from './load-script.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { loadLogo, pdfBlob } from './pdf.js'
@@ -29,13 +31,26 @@ const STATUS_CLASS = { ok: 'ok', spaet: 'warning', frueh: 'warning', laenger: 'w
 
 // ---------------------------------------------------------------- Abruf vom Webspace
 
-const sync = { at: 0, running: false, since: 0, error: '', timer: null }
+const sync = { at: 0, running: false, since: 0, error: '', timer: null, checks: 0 }
 
 /**
- * Neue und geänderte Stempelungen holen und je Woche speichern. Höchstens alle 2 Minuten; nach dem
- * ersten Abruf nur, was sich seither geändert hat. force („Jetzt abrufen“): sofort, die letzten 14 Tage.
+ * Checkliste am Handy (views/checkliste.js, später geladen): sync({ force }) → Anzahl übernommener Stände,
+ * block(inst, c) → HTML für den Einsatz-Dialog, used() → gibt es Checklisten (Leistungen oder Stände)?
+ */
+export const checkHooks = { sync: null, block: null, used: () => app.data?.tasks?.some((t) => t.checklist?.length) || Object.keys(app.data?.checks || {}).length > 0 }
+
+/**
+ * Neue und geänderte Stempelungen holen und je Woche speichern, dazu die Checklisten vom Handy. Höchstens alle
+ * 2 Minuten; nach dem ersten Abruf nur, was sich seither geändert hat. force („Jetzt abrufen“): sofort, die
+ * letzten 14 Tage. Liefert die Zahl der Stempelungen (die der Checklisten merkt sich sync.checks).
  */
 export async function syncStamps({ force = false } = {}) {
+  const [n, k] = await Promise.all([pullStamps({ force }), checkHooks.sync ? checkHooks.sync({ force }).catch(() => 0) : 0])
+  sync.checks = k
+  return n
+}
+
+async function pullStamps({ force }) {
   const p = portalSettings()
   if (!on() || !p.key || !canEdit('planung') || app.readOnly || (!force && (sync.running || Date.now() - sync.at < 120e3))) return 0
   while (sync.running) await new Promise((r) => setTimeout(r, 100))
@@ -64,7 +79,7 @@ export async function syncStamps({ force = false } = {}) {
   return n
 }
 
-function startPolling() {
+export function startPolling() {
   if (sync.timer || typeof window === 'undefined') return
   sync.timer = setInterval(() => syncStamps(), 120e3)
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncStamps())
@@ -79,6 +94,13 @@ export function stampBlock(inst, c) {
   if (!rows.length) return ''
   const ed = mayEdit('planung')
   return `<section><h3>Zeiterfassung</h3><ul class="tc-list">${rows.map((r) => `<li><strong>${esc(empName(r.empId))}</strong>: ${r.stamp ? `${esc(time(r.stamp.in))}${r.stamp.out ? `–${esc(time(r.stamp.out))} (${hm(r.minutes)} h)` : ' eingestempelt'}` : ''} <span class="pill ${STATUS_CLASS[r.status]}">${esc(statusText(r))}</span>${ed && adoptable(r, c) ? ` <button class="btn small" data-action="tc-adopt" data-key="${esc(r.inst.key)}" data-emp="${esc(r.empId)}">Ist übernehmen</button>` : ''}</li>`).join('')}</ul></section>`
+}
+
+/** Checkliste im Einsatz-Dialog (views/checkliste.js); bis das Modul geladen ist, wird es nachgeladen. */
+export function checkBlock(inst, c) {
+  if (checkHooks.block) return checkHooks.block(inst, c)
+  if (checkHooks.used()) ensureAction('ck-foto').then(() => app.ui.modal?.type === 'shift' && checkHooks.block && renderModal(), () => {})
+  return ''
 }
 
 // ---------------------------------------------------------------- Ist-Zeit übernehmen
@@ -208,7 +230,7 @@ function timesView(c) {
     single: false,
     items: [
       ed && tab === 'woche' && toAdopt.length > 1 && { label: `Alle ${toAdopt.length} Abweichungen übernehmen`, action: 'tc-adopt-all', hint: 'Ist-Zeiten über der Toleranz in den Plan' },
-      on() && { label: 'Jetzt abrufen', icon: ICON.refresh, action: 'tc-sync', hint: 'neue Stempelungen vom Webspace' },
+      (on() || checkHooks.used()) && { label: 'Jetzt abrufen', icon: ICON.refresh, action: 'tc-sync', hint: on() ? 'neue Stempelungen und Checklisten vom Webspace' : 'neue Checklisten vom Webspace' },
       tab === 'woche' && { heading: 'Export' },
       tab === 'woche' && { label: 'Woche als CSV', icon: ICON.download, action: 'tc-csv', mail: true },
     ],
@@ -299,7 +321,8 @@ registerActions(
 registerActions({
   'tc-sync': async () => {
     const n = await syncStamps({ force: true })
-    toast(sync.error ? `Nicht abgerufen: ${sync.error}` : n ? `${n} ${n === 1 ? 'Stempelung' : 'Stempelungen'} übernommen.` : 'Keine neuen Stempelungen.')
+    const k = sync.checks ? ` ${sync.checks} ${sync.checks === 1 ? 'Checkliste' : 'Checklisten'} vom Handy.` : ''
+    toast(sync.error ? `Nicht abgerufen: ${sync.error}` : n ? `${n} ${n === 1 ? 'Stempelung' : 'Stempelungen'} übernommen.${k}` : k ? k.trim() : on() ? 'Keine neuen Stempelungen.' : 'Keine neuen Checklisten.')
     renderNow()
   },
   'tc-csv': () => {

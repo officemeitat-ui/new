@@ -12,6 +12,9 @@
 //
 // Sprache: je Person die aus dem Stammblatt (personen[].sprache), dazu je Woche die Objektanweisungen mit
 // ihren Übersetzungen (woche.objektinfo, core/sprachen.js). Das Handy zeigt alles in der Sprache der Person.
+//
+// Checkliste: je Einsatz die Punkte der Leistung (eintraege[].checkliste, core/checkliste.js publishItems), nur bei den
+// Einsätzen der Person; abgehakt wird am Handy, die App holt den Stand mit den Stempelungen ab.
 
 import { employedInWeek } from './contract.js'
 import { addDays, isoWeek } from './dates.js'
@@ -52,9 +55,9 @@ const dash = (time) => String(time || '').replace(' - ', '–')
 
 /**
  * Woche einer Person für das Handy aus dem Wochenzettel (buildTimesheet).
- * Minuten wie im Wochenzettel (ist, soll, Zeitkonto).
+ * Minuten wie im Wochenzettel (ist, soll, Zeitkonto). checklistOf(inst) → Punkte der Checkliste (oder leer).
  */
-export function staffWeek(ts, { objectsById = new Map(), account = null, appointments = [] } = {}) {
+export function staffWeek(ts, { objectsById = new Map(), account = null, appointments = [], checklistOf = null } = {}) {
   // Termine der Person (Schulung, Begehung …): je Tag, für den Plan am Handy und das Kalender-Abo
   const termine = (date) =>
     appointments
@@ -63,6 +66,7 @@ export function staffWeek(ts, { objectsById = new Map(), account = null, appoint
       .map((a) => ({ id: a.id, titel: a.title, ...(a.allDay ? { ganztags: true } : { beginn: a.start.slice(11, 16), zeit: `${a.start.slice(11, 16)}–${a.end.slice(11, 16)}` }), ...(a.where ? { ort: a.where } : {}) }))
   const line = (l) => {
     const obj = objectsById.get(l.inst?.objectId)
+    const checkliste = l.kind === 'work' && l.inst && checklistOf ? checklistOf(l.inst) : null
     const notizen = [...(l.notes || [])]
     if (l.kind === 'work' && l.travel > 0) notizen.push(`danach ${l.travel} min Fahrt${l.trip?.to ? ` zu ${objectsById.get(l.trip.to.objectId)?.name || 'nächstem Einsatz'}` : ''}`)
     return {
@@ -74,6 +78,7 @@ export function staffWeek(ts, { objectsById = new Map(), account = null, appoint
       leistung: l.inst?.label || '',
       adresse: obj?.address || '',
       notizen,
+      ...(checkliste?.length ? { checkliste } : {}),
       ...(l.kind === 'missed' ? { entfaellt: true } : {}),
     }
   }

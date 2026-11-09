@@ -4,7 +4,10 @@
 // Je Einsatz: erbracht | bestaetigt (mit Zeiterfassung) | entfallen (Feiertag, abgesagt) | geplant (liegt
 // noch in der Zukunft) | offen (vorbei, aber niemand eingeteilt: vor dem Versand prüfen).
 // Namen der Mitarbeitenden nur, wenn gewünscht (keine, Vornamen, ganze Namen).
+// Checkliste vom Handy (core/checkliste.js): je Einsatz erledigt x von y, „nicht möglich“ mit Grund (alle Personen
+// des Einsatzes zusammen); ob sie im Nachweis steht, entscheidet das Büro je Objekt (export/proof-pdf.js).
 
+import { checksByInst, instSummary } from './checkliste.js'
 import { absMinutes } from './timeclock.js'
 import { viennaParts } from './weather.js'
 
@@ -19,11 +22,14 @@ const personName = (emp, mode) => (!emp || mode === 'keine' ? '' : mode === 'vor
 
 /**
  * Nachweis eines Objekts für from–to (now: Minuten wie inst.end, z. B. absMinutes(jetzt), sonst zählt heute ganz):
- *   { rows: [{ date, start, time, label, category, status, reason, staff, persons, ist: [{ in, out, minutes }], planMinutes, istMinutes }],
- *     totals: { count, done, confirmed, cancelled, planned, open, planMinutes, istMinutes, special } }
- * planMinutes zählen nur erbrachte Einsätze (Nettozeit × Personen laut Plan).
+ *   { rows: [{ date, start, time, label, category, status, reason, staff, persons, ist: [{ in, out, minutes }], planMinutes, istMinutes, check }],
+ *     totals: { count, done, confirmed, cancelled, planned, open, planMinutes, istMinutes, special, checks } }
+ * planMinutes zählen nur erbrachte Einsätze (Nettozeit × Personen laut Plan). Nur mit checks (Stände der Checklisten,
+ * app.data.checks): row.check = { total, done, notPossible: [{ text, reason }], open, finished } oder null,
+ * totals.checks = { rows, items, done, notPossible } (ohne checks fehlen beide Felder: Nachweis unverändert).
  */
-export function proofFor({ objectId, from, to, instances = [], state, stamps = {}, employeesById = new Map(), today, now = null, names = 'keine' }) {
+export function proofFor({ objectId, from, to, instances = [], state, stamps = {}, checks = null, employeesById = new Map(), today, now = null, names = 'keine' }) {
+  const checkMap = checks ? checksByInst(checks, { from, to }) : null
   const stampList = Object.values(stamps || {}).filter((s) => s.objectId === objectId && s.date >= from && s.date <= to)
   const used = new Set()
   const rows = []
@@ -76,6 +82,7 @@ export function proofFor({ objectId, from, to, instances = [], state, stamps = {
       ist,
       planMinutes: done ? inst.net * Math.max(1, assigned.length) : 0,
       istMinutes: ist.reduce((sum, x) => sum + (x.minutes || 0), 0),
+      ...(checkMap ? { check: instSummary(checkMap.get(inst.key)) } : {}),
     })
   }
   rows.sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start)
@@ -92,6 +99,16 @@ export function proofFor({ objectId, from, to, instances = [], state, stamps = {
       planMinutes: rows.reduce((s, r) => s + r.planMinutes, 0),
       istMinutes: rows.reduce((s, r) => s + r.istMinutes, 0),
       special: rows.filter((r) => r.category === 'sonder' && r.status !== 'entfallen').length,
+      ...(checkMap
+        ? {
+            checks: {
+              rows: rows.filter((r) => r.check).length,
+              items: rows.reduce((n, r) => n + (r.check?.total || 0), 0),
+              done: rows.reduce((n, r) => n + (r.check?.done || 0), 0),
+              notPossible: rows.reduce((n, r) => n + (r.check?.notPossible.length || 0), 0),
+            },
+          }
+        : {}),
     },
   }
 }

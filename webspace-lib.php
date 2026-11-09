@@ -1,7 +1,7 @@
 <?php
 // Gemeinsame Bausteine der PHP-Seiten am Webspace (wetter-alarm.php, mein-plan.php):
 // Marke aus config.json, Seiten im Design der App, Push über ntfy, E-Mail, Sprachen der Seiten für
-// Mitarbeitende (Texte in mein-plan-texte.php).
+// Mitarbeitende (Texte in mein-plan-texte.php), Fotos ohne Metadaten speichern.
 // Nur Funktionen, gibt nichts aus. Braucht holen() aus wetter-lib.php.
 
 declare(strict_types=1);
@@ -222,6 +222,54 @@ function sprachwahl_html(string $basis, array $nur = []): string
             : '<li><a href="' . $h($basis . (str_contains($basis, '?') ? '&' : '?') . 'sprache=' . rawurlencode((string) $id)) . '" lang="' . $h($lang) . '" hreflang="' . $h($lang) . '">' . $h($name) . '</a></li>';
     }
     return '<details class="sprachwahl"><summary title="' . $h(t('sprache_waehlen')) . '">' . GLOBUS . '<span>' . $h((string) (texte()[sprache()]['sprache_name'] ?? 'Deutsch')) . '</span></summary><ul aria-label="' . $h(t('sprache_waehlen')) . '">' . $punkte . '</ul></details>';
+}
+
+/**
+ * Hochgeladenes Foto prüfen und neu speichern (Fahrerseite mattentour.php, Checkliste in mein-plan.php): Typ laut
+ * Inhalt, Maße, mit GD als JPEG (längste Seite 1600 px, ohne Metadaten wie den Ort der Aufnahme); ohne GD bzw. über
+ * 40 Megapixel nur JPEG, unverändert, aber ohne EXIF/GPS (bild_ohne_metadaten). Liefert '' (gespeichert) oder den
+ * Fehler: 'gross' (Upload-Fehler, zu groß oder leer), 'typ' (kein Foto) bzw. 'speichern'.
+ */
+function bild_speichern(string $tmp, int $groesse, int $fehler, string $ziel, int $max): string
+{
+    if ($fehler !== UPLOAD_ERR_OK || !is_uploaded_file($tmp) || $groesse > $max || $groesse < 100) {
+        return 'gross';
+    }
+    $typ = class_exists('finfo') ? (string) (new finfo(FILEINFO_MIME_TYPE))->file($tmp) : '';
+    $mass = @getimagesize($tmp);
+    $typen = ['image/jpeg' => 'imagecreatefromjpeg', 'image/png' => 'imagecreatefrompng', 'image/webp' => 'imagecreatefromwebp'];
+    if (!isset($typen[$typ]) || !$mass || ($mass['mime'] ?? '') !== $typ || $mass[0] < 1 || $mass[1] < 1 || $mass[0] > 12000 || $mass[1] > 12000) {
+        return 'typ';
+    }
+    $lesen = $typen[$typ];
+    if (function_exists($lesen) && function_exists('imagejpeg') && $mass[0] * $mass[1] <= 40e6) {
+        $bild = @$lesen($tmp);
+        if (!$bild) {
+            return 'typ';
+        }
+        $faktor = min(1, 1600 / max($mass[0], $mass[1]));
+        $b = max(1, (int) round($mass[0] * $faktor));
+        $h = max(1, (int) round($mass[1] * $faktor));
+        $neu = imagecreatetruecolor($b, $h);
+        imagefill($neu, 0, 0, imagecolorallocate($neu, 255, 255, 255));
+        imagecopyresampled($neu, $bild, 0, 0, 0, 0, $b, $h, $mass[0], $mass[1]);
+        $ok = imagejpeg($neu, $ziel, 82);
+        imagedestroy($bild);
+        imagedestroy($neu);
+        return $ok ? '' : 'speichern';
+    }
+    if ($typ !== 'image/jpeg') {
+        return 'typ';
+    }
+    // ohne GD bzw. über 40 Megapixel: unverändert, aber ohne Metadaten wie den Ort der Aufnahme (ohne Neukodieren)
+    if (!move_uploaded_file($tmp, $ziel)) {
+        return 'speichern';
+    }
+    if (!bild_ohne_metadaten($ziel)) {
+        @unlink($ziel);
+        return 'typ';
+    }
+    return '';
 }
 
 /**

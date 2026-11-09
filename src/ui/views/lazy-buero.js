@@ -5,6 +5,8 @@ import './calculation.js'
 import './proof.js'
 import './staff.js'
 import './sites.js'
+// Checkliste am Handy (Einsatz-Dialog, Zu erledigen, Punkte der Leistung)
+import './checkliste.js'
 import './trainings.js'
 import './rules.js'
 import './system.js'

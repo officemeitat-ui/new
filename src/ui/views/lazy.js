@@ -138,7 +138,7 @@ lazy(BUERO, {
     },
   ],
   modals: 'proof proof-mail',
-  actions: 'proof-month proof-settings proof-search proof-open proof-pdf proof-zip proof-mail-open proof-mail-send proof-mail-all',
+  actions: 'proof-month proof-settings proof-ck-obj proof-search proof-open proof-pdf proof-zip proof-mail-open proof-mail-send proof-mail-all',
 })
 
 // staff.js
@@ -153,6 +153,14 @@ lazy(BUERO, {
   views: [{ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm' }],
   modals: 'object task',
   actions: 'waste-add waste-remove waste-redraw waste-import waste-file obj-edit key-add key-remove obj-geocode obj-save spr-passt spr-ki spr-ki-ok spr-ki-weg obj-delete task-edit task-save task-delete',
+})
+
+// checkliste.js: Checkliste am Handy – Abruf mit den Stempelungen, Stand im Einsatz-Dialog, „Zu erledigen“, Punkte im
+// Dialog der Leistung (Kürzel ck-). Ohne Ansicht: geladen für alle, die die Einsatzplanung sehen.
+lazy(BUERO, {
+  module: 'planung',
+  actions: 'ck-seen ck-foto ck-add ck-del ck-when ck-tpl ck-ki',
+  todo: ['checkliste'],
 })
 
 // trainings.js
