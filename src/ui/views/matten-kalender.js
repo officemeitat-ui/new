@@ -38,6 +38,7 @@ import { tourYears } from '../../core/matten-touren.js'
 import { app, canEdit, closeModal, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
+import { startWebPolling } from '../matten-webspace.js'
 import { inTourText, toursReady } from './matten-planung.js'
 
 const MODULE = 'matten'
@@ -623,6 +624,8 @@ registerTodo({
   module: MODULE,
   title: 'Mattenwechsel',
   compute: (today) => {
+    // Rückmeldungen der Fahrer ohne Konto (Fahrerseite am Webspace) im Hintergrund abholen, solange die App offen ist
+    startWebPolling()
     const a = mattenAttention(today)
     const out = []
     if (a.overdue.length) out.push({ id: `ueber:${a.overdue.map((x) => `${x.placement.id}@${x.next.date}`).join(',')}`, kind: 'ueber', list: a.overdue })

@@ -2482,6 +2482,14 @@ tr.muted td { color: var(--muted); }
 .mw-dr-row .field input, .mw-dr-row .field select { width: 100%; min-width: 0; }
 .mw-dr-row .check { min-height: 36px; }
 .mw-dr-add { display: flex; flex-wrap: wrap; align-items: end; gap: 6px 10px; margin: 10px 0 0; }
+/* Fahrer ohne Microsoft-Konto (Fahrerseite am Webspace, ui/matten-webspace.js) */
+.mww-dr-web { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; gap: 6px 10px; min-width: 0; }
+.mww-dr-web .field { margin: 0; min-width: 0; }
+.mww-dr-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; flex: 1 1 18rem; margin: 0; }
+.mww-dr-link input { flex: 1 1 14rem; min-width: 0; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+.mww-list { margin: 4px 0 8px; padding-left: 1.2rem; }
+.mww-note { margin: 8px 0 0; }
+.mww-note.banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .mw-dr-add .field select { min-width: 0; max-width: 100%; }
 @media (max-width: 900px) {
   .mw-tp-stop { grid-template-columns: 2rem minmax(0, 1fr) auto; }

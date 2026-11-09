@@ -127,6 +127,8 @@ function addDaysIso(date, n) {
 /** Hinweis, wenn der Fahrer die Tour nicht sehen kann (kein Fahrer, keine E-Mail): '' wenn alles passt. */
 export function driverProblem(tour) {
   if (!tour?.driverId) return 'Kein Fahrer zugewiesen.'
+  // Fahrer ohne Konto: die Tour steht auf der Fahrerseite am Webspace (P10b, core/matten-webspace.js)
+  if (/^[a-f0-9]{64}$/.test(String(tour.webspace?.hash || ''))) return ''
   if (!tour.driverEmail) return `${tour.driverName || 'Der Fahrer'} hat keine E-Mail in den Stammdaten: Die App erkennt die Tour am Handy nicht als seine.`
   return ''
 }

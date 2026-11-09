@@ -48,10 +48,13 @@ import {
   withdrawTour,
 } from '../../core/matten-touren.js'
 import { routingFor } from '../../core/routing.js'
+import { isWebDriver, tourOnWebspace, webDriverProblem, withWebspace } from '../../core/matten-webspace.js'
+import { LANGUAGES, langLabel } from '../../core/sprachen.js'
 import { isNetworkError } from '../../storage/offline.js'
 import { app, canEdit, closeModal, confirmStep, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
 import { geocode } from '../geocode.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
+import { completeWebDrivers, publishWebTour, pushWebDrivers, startWebPolling, syncWebspace, webIdentityFor, webLinkOf, webReady, webTourNote, withdrawWebTour } from '../matten-webspace.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
 
 const MODULE = 'matten'
@@ -164,6 +167,7 @@ const dayChoice = (date) => ((app.ui.mwTpDay ||= {})[date] ||= {})
 
 function planungView() {
   const ed = editable()
+  startWebPolling()
   const today = todayISO()
   const date = tpDate()
   const s = tourStore()
@@ -182,6 +186,7 @@ function planungView() {
         ed && { label: 'Neue leere Tour', icon: ICON.plus, action: 'mw-tp-new-open', hint: 'Stopps von Hand einplanen' },
         { label: 'Betriebshof und Arbeitszeit', icon: ICON.gear, action: 'mw-tp-depot-open', hint: depot?.name || depot?.address || 'noch nicht eingetragen' },
         { label: 'Fahrer (Mattenwechsel)', icon: ICON.users, action: 'mw-tp-drivers-open', hint: list.length ? plural(list.length, 'Fahrer', 'Fahrer') : 'noch keine' },
+        { label: 'Fahrerseite am Webspace', icon: ICON.send, action: 'mww-web-open', hint: webReady() ? 'eingerichtet' : 'für Fahrer ohne Microsoft-Konto' },
         { label: 'Neu laden', icon: ICON.refresh, action: 'mw-tp-reload', hint: 'Touren aus der Ablage' },
         { label: 'Matten-Kalender', icon: ICON.calendar, action: 'mw-cal-goto', data: { date }, hint: 'Einsätze dieses Tages' },
       ],
@@ -285,7 +290,9 @@ function tourCard(t, { ed, today, others }) {
         : ''
     : ''
   // ohne E-Mail erkennt die Fahreransicht die Tour nicht als die des Fahrers
-  if (t.driverId && !t.driverEmail) probs.push({ code: 'email', text: `${t.driverName || 'Der Fahrer'} hat keine E-Mail: am Handy sieht er die Tour nicht als seine („Mehr“ → „Fahrer“).` })
+  // (Fahrer ohne Konto: die Tour steht auf der Fahrerseite am Webspace)
+  const webDriver = isWebDriver(driverOf(drivers(), t.driverId))
+  if (t.driverId && !t.driverEmail && !webDriver && !tourOnWebspace(t)) probs.push({ code: 'email', text: `${t.driverName || 'Der Fahrer'} hat keine E-Mail: am Handy sieht er die Tour nicht als seine („Mehr“ → „Fahrer“).` })
   const warn = probs.length ? `<ul class="mw-tp-warn" aria-label="Warnungen">${probs.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul>` : ''
   const relHtml = rel.length ? `<div class="mw-tp-rel" role="alert"><strong>Freigabe nicht möglich:</strong><ul>${rel.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul></div>` : ''
   const lockHtml = locked ? `<p class="note">Die Tour ist ${t.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'}: die Tourenplanung ändert sie nicht mehr. Einzelne Stopps korrigiert das Büro in „Matten-Touren“.</p>` : t.status === 'freigegeben' ? '<p class="note">Freigegeben: der Fahrer sieht die Tour. Zum Ändern zuerst „Freigabe zurücknehmen“.</p>' : ''
@@ -295,7 +302,7 @@ function tourCard(t, { ed, today, others }) {
     <header class="mw-tp-head"><div class="mw-tp-title"><h3>${esc(t.driverName || 'ohne Fahrer')} <span class="mw-st st-${esc(t.status)}">${esc(STATUS_TEXT[t.status] || t.status)}</span></h3>
       <p class="muted">${esc(facts.join(' · '))}</p>${t.notice ? `<p class="muted">${esc(t.notice)}</p>` : ''}</div>
       <div class="actions">${mapsHtml}${actions}</div></header>
-    ${relHtml}${warn}${lockHtml}
+    ${relHtml}${warn}${lockHtml}${webTourNote(t, { ed })}
     ${stops ? `<ol class="mw-tp-stops" data-tour="${esc(t.id)}" ${ed && draft ? 'data-drop="1"' : ''}>${stops}</ol>` : `<p class="muted mw-tp-nostop">Noch kein Stopp. Unten unter „Nicht eingeplant“ Stopps zu dieser Tour hinzufügen.</p>`}
     ${load.length ? `<aside class="mw-load" aria-label="Ladeliste ${esc(t.driverName || '')}"><h4>Ladeliste</h4><ul>${load.map((x) => `<li><b>${x.qty}</b> × ${esc(loadLabel(x))} <span class="muted">(${plural(x.stops, 'Stopp', 'Stopps')})</span></li>`).join('')}</ul><p class="muted">zusammen ${plural(load.reduce((a, x) => a + x.qty, 0), 'Matte', 'Matten')}</p></aside>` : ''}
   </section>`
@@ -537,18 +544,27 @@ async function release(id) {
     return toast(problems[0].text)
   }
   delete app.ui.mwTpRel[id]
+  // Fahrer ohne Microsoft-Konto: Tour auf die Fahrerseite am Webspace (P10b)
+  const driver = driverOf(drivers(), tour.driverId)
+  let identity = null
+  if (isWebDriver(driver)) {
+    if (!webReady()) return toast(`${driver.name} hat kein Microsoft-Konto: zuerst „Mehr“ → „Fahrerseite am Webspace“ einrichten.`)
+    identity = await webIdentityFor(driver)
+    if (!identity) return toast(webDriverProblem(driver) || `${driver.name}: noch kein Link zur Fahrerseite.`)
+  }
   const { now, by } = opts()
   let saved
   try {
-    saved = await s.save(releaseTour(tour, { now, by, driver: driverOf(drivers(), tour.driverId) }), { online: true })
+    saved = await s.save(withWebspace(releaseTour(tour, { now, by, driver }), identity), { online: true })
   } catch (err) {
     failed(err)
     return renderNow()
   }
   const changed = assignJobs(jobsAll(), saved, { now, by })
   storeJobs(changed)
+  const web = identity ? await publishWebTour(saved) : null
   renderNow()
-  toast(`Tour freigegeben: ${tourSummary(saved)}. ${plural(changed.length, 'Einsatz ist', 'Einsätze sind')} jetzt „in Tour“.`)
+  toast(`Tour freigegeben: ${tourSummary(saved)}. ${plural(changed.length, 'Einsatz ist', 'Einsätze sind')} jetzt „in Tour“.${web === true ? ' Der Fahrer sieht sie auf der Fahrerseite am Webspace.' : web === false ? ' Achtung: an die Fahrerseite am Webspace noch nicht übertragen (siehe Tour).' : ''}`)
 }
 
 async function withdraw(id) {
@@ -567,10 +583,22 @@ async function withdraw(id) {
     renderNow()
     return toast(lockedForOffice(fresh) ? new TourLockedError(fresh).message : 'Die Tour ist schon wieder ein Entwurf.')
   }
+  // Fahrerseite am Webspace: zuerst dort entfernen; hat der Fahrer schon gemeldet, Rückmeldungen abholen statt zurücknehmen
+  if (tourOnWebspace(fresh)) {
+    try {
+      await withdrawWebTour(fresh)
+    } catch (err) {
+      if (err.status === 409) {
+        syncWebspace({ force: true })
+        return toast('Der Fahrer hat auf der Fahrerseite am Webspace schon begonnen: die Rückmeldungen werden abgeholt, zurücknehmen geht nicht mehr.')
+      }
+      return toast(`Freigabe nicht zurückgenommen – Fahrerseite am Webspace nicht erreichbar: ${err.message}`)
+    }
+  }
   const { now, by } = opts()
   let saved
   try {
-    saved = await s.save(withdrawTour(fresh, { now, by }), { online: true })
+    saved = await s.save(withWebspace(withdrawTour(fresh, { now, by }), null), { online: true })
   } catch (err) {
     failed(err)
     return renderNow()
@@ -720,10 +748,23 @@ function readDrivers() {
   const m = driversDraft(app.ui.modal)
   m.rows = m.rows.map((r, i) =>
     document.getElementById(`mw-dr-name-${i}`)
-      ? { ...r, name: val(`mw-dr-name-${i}`), email: val(`mw-dr-mail-${i}`).trim().toLowerCase(), start: val(`mw-dr-from-${i}`), end: val(`mw-dr-to-${i}`), vehicleId: val(`mw-dr-veh-${i}`), capacity: val(`mw-dr-cap-${i}`), areaId: val(`mw-dr-area-${i}`), active: checked(`mw-dr-on-${i}`) }
+      ? { ...r, name: val(`mw-dr-name-${i}`), email: val(`mw-dr-mail-${i}`).trim().toLowerCase(), start: val(`mw-dr-from-${i}`), end: val(`mw-dr-to-${i}`), vehicleId: val(`mw-dr-veh-${i}`), capacity: val(`mw-dr-cap-${i}`), areaId: val(`mw-dr-area-${i}`), active: checked(`mw-dr-on-${i}`), webspace: checked(`mww-dr-web-${i}`), lang: val(`mww-dr-lang-${i}`) || r.lang || '' }
       : r,
   )
   return m
+}
+
+/** Fahrer ohne Konto im Dialog: Sprache am Handy und persönlicher Link (Kopieren, WhatsApp, E-Mail, neuer Link). */
+function webDriverBlock(r, i, dis) {
+  const fromPlan = r.web?.from === 'mein-plan'
+  const lang = `<label class="field"><span>Sprache am Handy</span><select id="mww-dr-lang-${i}" ${dis || (fromPlan ? 'disabled' : '')}>${options(LANGUAGES.map((l) => [l.id, langLabel(l.id)]), r.lang || 'de')}</select></label>`
+  const l = webLinkOf(r)
+  const link = fromPlan
+    ? '<p class="note mww-dr-link">Link von „Plan am Handy“: die Tour erscheint dort mit dem Knopf „Matten-Tour öffnen“; Sprache wie im Stammblatt.</p>'
+    : l
+      ? `<div class="mww-dr-link"><input type="text" readonly value="${esc(l.link)}" aria-label="Link zur Fahrerseite für ${esc(r.name)}"><button type="button" class="btn small" data-action="mww-copy" data-text="${esc(l.link)}">${ICON.copy} Link kopieren</button><a class="btn small" href="https://wa.me/?text=${esc(encodeURIComponent(l.text))}" target="_blank" rel="noopener">WhatsApp</a><a class="btn small" href="mailto:${esc(encodeURIComponent(r.email || ''))}?subject=${esc(encodeURIComponent(l.subject))}&amp;body=${esc(encodeURIComponent(l.text))}">E-Mail</a>${dis ? '' : `<button type="button" class="btn small ghost" data-action="mww-dr-newlink" data-i="${i}" title="Wenn der Link in falsche Hände geraten ist: nach dem Speichern gilt der alte nicht mehr">Neuer Link</button>`}</div>`
+      : '<p class="note mww-dr-link">Der persönliche Link entsteht beim Speichern (bei Personen mit „Plan am Handy“ gilt deren Link).</p>'
+  return `${lang}${link}`
 }
 
 registerModal(
@@ -747,6 +788,7 @@ registerModal(
           ${areas.length ? `<label class="field"><span>Stammgebiet</span><select id="mw-dr-area-${i}" ${dis}>${options(areas, r.areaId || '', { empty: 'keines' })}</select></label>` : ''}
           <label class="check"><input type="checkbox" id="mw-dr-on-${i}" ${r.active !== false ? 'checked' : ''} ${dis}><span>fährt Matten</span></label>
           ${ed ? `<button class="btn small ghost" data-action="mw-tp-drv-del" data-i="${i}" title="Aus der Liste nehmen" aria-label="${esc(r.name || 'Fahrer')} aus der Liste nehmen">${ICON.trash}</button>` : ''}
+          <div class="mww-dr-web"><label class="check"><input type="checkbox" id="mww-dr-web-${i}" data-change="mww-dr-web" ${r.webspace ? 'checked' : ''} ${dis}><span>ohne Microsoft-Konto (Fahrerseite am Webspace)</span></label>${r.webspace ? webDriverBlock(r, i, dis) : ''}</div>
         </div>`,
       )
       .join('')
@@ -770,15 +812,24 @@ registerModal(
   { module: MODULE },
 )
 
-function saveDrivers() {
+async function saveDrivers() {
   const m = readDrivers()
   const rows = m.rows.map((r) => ({ ...r, name: String(r.name || '').trim() }))
   if (rows.some((r) => !r.name)) return toast('Bitte bei jedem Fahrer den Namen eintragen.')
-  const list = normalizeDrivers(rows)
+  // Fahrer ohne Konto: Link (Plan am Handy bzw. eigener Code) und Sprache
+  const list = normalizeDrivers(await completeWebDrivers(rows))
   const problem = driversProblem(list)
   if (problem) return toast(problem)
   settings().drivers = list.map((d) => Object.fromEntries(Object.entries(d).filter(([, v]) => v !== '' && v !== null && v !== undefined)))
   persist()
+  const web = list.filter(isWebDriver)
+  if (web.length && webReady()) pushWebDrivers().catch((err) => toast(`Fahrerseite am Webspace: Fahrer nicht übertragen (${err.message}).`))
+  if (web.length && !m.rows.every((r) => !r.webspace || r.web?.hash)) {
+    // neue Links sofort zeigen (Kopieren, WhatsApp, E-Mail)
+    m.rows = drivers().map((d) => ({ ...d, capacity: d.capacity ?? '' }))
+    renderModal()
+    return toast(`Gespeichert. Den Link zur Fahrerseite jetzt an ${web.length === 1 ? web[0].name : 'die Fahrer ohne Konto'} schicken.${webReady() ? '' : ' Fahrerseite am Webspace noch einrichten („Mehr“).'}`)
+  }
   closeModal()
   renderNow()
   toast(`Fahrer gespeichert: ${plural(list.filter((d) => d.active).length, 'Fahrer', 'Fahrer')} für den Mattenwechsel.`)
@@ -925,6 +976,18 @@ registerActions(
       renderModal()
     },
     'mw-tp-drivers-save': () => saveDrivers(),
+    'mww-dr-web': () => {
+      readDrivers()
+      renderModal()
+    },
+    'mww-dr-newlink': (el) => {
+      const m = readDrivers()
+      const r = m.rows[Number(el.dataset.i)]
+      if (!r) return
+      delete r.web
+      renderModal()
+      toast('Neuer Link entsteht beim Speichern; der alte gilt danach nicht mehr.')
+    },
   },
   { edit: MODULE },
 )

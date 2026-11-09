@@ -378,14 +378,23 @@ export function mapsLinks(tour, { max = MAPS_WAYPOINTS } = {}) {
 
 /**
  * Fahrer des Mattenwechsels aus matten.json → settings.drivers, gesäubert: [{ id, employeeId?, name, email, start,
- * end, vehicleId, capacity, areaId, active }] nach Namen. Die Liste ist die Markierung „Mattenfahrer“: eine schmale
- * Kopie aus den Mitarbeitenden (das Büro liest die Stammdaten nicht), gepflegt im Dialog „Fahrer“.
+ * end, vehicleId, capacity, areaId, active, webspace?, lang?, web? { from: 'eigen' | 'mein-plan', hash, code? } }] nach
+ * Namen (webspace: ohne Microsoft-Konto, Fahrerseite am Webspace, core/matten-webspace.js). Die Liste ist die Markierung
+ * „Mattenfahrer“: eine schmale Kopie aus den Mitarbeitenden (das Büro liest die Stammdaten nicht), gepflegt im Dialog
+ * „Fahrer“.
  */
 export function normalizeDrivers(list = []) {
   return (Array.isArray(list) ? list : [])
     .map((d) => {
       const out = { id: text(d?.id), name: text(d?.name), email: text(d?.email).toLowerCase(), start: isTime(d?.start) ? d.start : '', end: isTime(d?.end) ? d.end : '', vehicleId: text(d?.vehicleId), capacity: Number(d?.capacity) > 0 ? Math.round(Number(d.capacity)) : null, areaId: text(d?.areaId), active: d?.active !== false }
       if (text(d?.employeeId)) out.employeeId = text(d.employeeId)
+      // Fahrer ohne Microsoft-Konto (Fahrerseite am Webspace, P10b): Sprache und Link (Hash; Code nur bei eigenem Link)
+      if (d?.webspace === true) {
+        out.webspace = true
+        out.lang = /^(de|bks|ro|tr|hu|en)$/.test(text(d.lang)) ? text(d.lang) : 'de'
+        const h = text(d.web?.hash)
+        if (/^[a-f0-9]{64}$/.test(h)) out.web = { from: d.web.from === 'mein-plan' ? 'mein-plan' : 'eigen', hash: h, ...(d.web.from !== 'mein-plan' && /^[A-Za-z0-9]{16,40}$/.test(text(d.web.code)) ? { code: text(d.web.code) } : {}) }
+      }
       return out
     })
     .filter((d) => d.id && d.name)

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 340 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 343 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (75)
+- [Objekte & Kunden](#objekte-kunden) (78)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (74)
 - [Verwaltung](#verwaltung) (56)
@@ -1886,7 +1886,7 @@ Unter „Fahrer“ steht, wer Matten fährt: Name, E-Mail des Microsoft-Kontos, 
 2. Person aus den Mitarbeitenden wählen und „hinzufügen“ (oder „Fahrer von Hand“).
 3. Arbeitszeit, Fahrzeug und Platz eintragen, „Speichern“.
 
-> Tipp: Die E-Mail verbindet die Tour mit dem Konto des Fahrers („meine Touren“ am Handy).
+> Tipp: Die E-Mail verbindet die Tour mit dem Konto des Fahrers („meine Touren“ am Handy); ohne Konto „ohne Microsoft-Konto“ ankreuzen (Fahrerseite am Webspace).
 > Tipp: Je Tag lassen sich Fahrer abwählen und Zeiten oder Fahrzeug ändern, ohne die Vorgaben zu ändern.
 > Tipp: Personen mit der Rolle „Fahrer Mattenwechsel“ stehen in der Auswahl oben.
 
@@ -1941,6 +1941,52 @@ Beim Erstellen legt die App das PDF in SharePoint ab: Mattenwechsel/Kunden/<Kund
 > Tipp: Für die Ablage braucht das Konto „Bearbeiten“ auf den Ordner Mattenwechsel in der Bibliothek (siehe Berechtigungen).
 
 *Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten*
+
+### Fahrer ohne Microsoft-Konto: Fahrerseite am Webspace
+
+*In der App: Matten-Tourenplanung*
+
+Fahrer ohne Firmenkonto öffnen ihre Tour mit einem persönlichen Link am Handy (mattentour.php, ohne Anmeldung). Beim Freigeben überträgt die App nur, was der Fahrer braucht: Kunde, Objekt, Adresse, Zugang, Liegeplätze, Matten, Reihenfolge, Zeitfenster – keine Preise, keinen Kundenstamm.
+
+1. „Mehr“ → „Fahrerseite am Webspace“: einschalten, Büro-Handy oder E-Mail eintragen, „Speichern und übertragen“.
+2. Unter „Fahrer (Mattenwechsel)“ beim Fahrer „ohne Microsoft-Konto“ ankreuzen, Sprache wählen, „Speichern“.
+3. Den Link mit „Link kopieren“, WhatsApp oder E-Mail schicken.
+4. Tour wie gewohnt freigeben: der Fahrer sieht sie sofort am Handy.
+
+> Tipp: Hat die Person schon „Plan am Handy“, gilt deren Link: dort erscheint „Matten-Tour öffnen“.
+> Tipp: Freigabe zurücknehmen entfernt die Tour am Webspace; hat der Fahrer schon gemeldet, holt die App zuerst die Rückmeldungen.
+> Tipp: Klappt die Einrichtung nicht direkt: „Einrichtungs-Datei herunterladen“ und mattentour.json nach privat/ laden.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Fahrerseite am Handy: Tour, Liegeplätze, Unterschrift
+
+*In der App: Matten-Tourenplanung*
+
+Die Fahrerseite fühlt sich an wie die Fahreransicht der App: Tour mit Fortschritt und Ladeliste, „Tour starten“, „Navigation starten“, je Liegeplatz „Gewechselt“ (Menge mit Plus und Minus) oder „Nicht möglich“ mit Grund, Bemerkung, Foto, Unterschrift oder ohne Unterschrift mit Grund, danach der nächste Stopp.
+
+1. Link öffnen (einmal, dann merkt sich das Handy ihn).
+2. „Tour starten“ und „Navigation starten“.
+3. Je Liegeplatz „Gewechselt“ oder „Nicht möglich“ wählen, bei Bedarf Menge, Bemerkung und Foto.
+4. Unterschreiben lassen oder „Ohne Unterschrift abschließen“ mit Grund, dann „Stopp abschließen und senden“.
+
+> Tipp: Ohne Netz bleibt alles im Handy und wird nachgeschickt; zweimal gesendet zählt einmal.
+> Tipp: Die Seite gibt es in sechs Sprachen (Weltkugel oben rechts).
+> Tipp: Abgeschlossene Stopps ändert nur das Büro.
+
+*Fahrer ohne Microsoft-Konto (am Webspace); Einrichten: Mattenwechsel Büro*
+
+### Rückmeldungen der Fahrerseite übernehmen
+
+*In der App: Matten-Tourenplanung*
+
+Solange jemand aus dem Büro die App offen hat, holt sie alle 2 Minuten ab, was die Fahrer gemeldet haben, und trägt es mit denselben Regeln wie in der App in die Tour in SharePoint ein: Mengen, Abweichungen, Fotos, Unterschrift. Der Stopp hat danach einen offenen Lieferschein-Merker wie in der App.
+
+> Tipp: „Mehr“ → „Fahrerseite am Webspace“ → „Jetzt abholen“ holt sofort.
+> Tipp: Erst wenn die Tour in SharePoint steht, löscht der Webspace Fotos, Unterschrift und Bemerkungen; nach der Frist (Vorgabe 14 Tage) alles.
+> Tipp: Hat das Büro einen Stopp schon abgeschlossen, bleibt er so; nur die Fotos kommen dazu.
+
+*Mattenwechsel Büro, Vollzugriff*
 
 ### Rollen im Mattenwechsel: Büro und Fahrer
 

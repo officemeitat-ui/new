@@ -128,6 +128,20 @@ export async function runChecks() {
     if (sys) add(KB, 'Fotos neu speichern (GD)', ext.gd ? 'ok' : 'warn', ext.gd ? 'Fotos werden verkleinert und ohne Metadaten gespeichert' : 'GD fehlt', 'PHP-Erweiterung GD beim Hoster einschalten lassen. Ohne GD nimmt kunden.php nur JPEG und PNG nach strenger Prüfung, mit Metadaten (z. B. Ort der Aufnahme).')
   }
 
+  // ---- Fahrerseite am Webspace (mattentour.php, Mattenwechsel P10b)
+  const MT = 'Fahrerseite Mattenwechsel'
+  const mt = { ...(app.data?.matten?.settings?.webspace || {}) }
+  if (app.data?.matten && (!mt.enabled || !mt.key)) add(MT, 'Fahrerseite am Webspace', 'info', 'ausgeschaltet (nur für Fahrer ohne Microsoft-Konto)')
+  else if (mt.enabled && mt.key) {
+    add(MT, 'Einrichtungs-Datei in privat/', sys?.dateien.mattentour ? 'ok' : 'error', sys?.dateien.mattentour ? 'vorhanden' : 'fehlt', 'Matten-Tourenplanung → Mehr → „Fahrerseite am Webspace“ → „Speichern und übertragen“ oder mattentour.json per FTP nach privat/ laden.')
+    try {
+      const r = await json('mattentour.php?aktion=status', { headers: { 'X-Schluessel': mt.key } })
+      add(MT, 'Schlüssel stimmt', r.status === 200 ? 'ok' : 'error', r.status === 200 ? `${r.data?.touren ?? 0} Touren am Webspace${r.data?.offen ? `, ${r.data.offen} Rückmeldungen noch nicht übernommen` : ''}` : `Antwort ${r.status}`, r.status === 403 ? 'mattentour.json neu herunterladen und nach privat/ laden.' : 'mattentour.php und mattentour.js mit hochladen.')
+    } catch (err) {
+      add(MT, 'Schlüssel stimmt', 'error', err.message)
+    }
+  }
+
   // ---- KI-Assistent (ki.php, Claude-API)
   const K = 'KI-Assistent'
   if (app.config.assistant === false) add(K, 'KI-Assistent', 'info', 'ausgeschaltet (config.json)')

@@ -1220,8 +1220,13 @@ $aboHtml = $code !== '' ? '<h2>' . th('kalender_titel') . '</h2><details><summar
     . '<p class="leise">' . th('kalender_hilfe') . '</p>'
     . '<input readonly value="' . $h($aboLink) . '" onclick="this.select()" style="width:100%">'
     . '<p class="leise">' . th('kalender_info') . '</p></details>' : '';
+// Matten-Tour (Fahrer ohne Microsoft-Konto, mattentour.php): Hinweis, wenn für diese Person eine Tour freigegeben ist;
+// mattentour.php erkennt die Person am selben Link (Cookie mein_plan)
+$mattenFahrer = json_lesen((getenv('MATTEN_ORDNER') ?: ordner()) . '/matten/fahrer/' . $hash . '.json');
+$mattenTouren = empty($mattenFahrer['entfernt']) ? array_filter((array) ($mattenFahrer['touren'] ?? []), fn ($d) => is_string($d) && $d >= tag_plus(heute(), -1) && $d <= tag_plus(heute(), 7)) : [];
+$mattenHtml = $mattenTouren && is_file(__DIR__ . '/mattentour.php') ? '<p class="summe">' . th('mt_plan_text') . '</p><p><a class="knopf" href="mattentour.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '') . '">' . th('mt_plan_oeffnen') . '</a></p>' : '';
 $hier = 'mein-plan.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '');
-html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung
+html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . $mattenHtml
     . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}</style>'
     . ($planHtml ?: '<p class="leise">' . th('kein_plan') . '</p>')
     . $boerseHtml . $antraegeHtml . $formulare . $aboHtml

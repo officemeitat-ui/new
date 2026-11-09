@@ -76,7 +76,8 @@ export function htaccessFor(swa) {
   // Schnee-Alarm und Mein Dienstplan: Einstellungen (Namen, E-Mail, Schlüssel), Pläne, Anträge nie ausliefern
   const privat = [
     KOPF,
-    '# Schnee-Alarm (wetter-alarm.php) und Mein Dienstplan (mein-plan.php): Einstellungen, Pläne, Anträge, nur für PHP lesbar.',
+    '# Schnee-Alarm (wetter-alarm.php), Mein Dienstplan (mein-plan.php), Kundenbereich (kunden.php) und Fahrerseite',
+    '# (mattentour.php): Einstellungen, Pläne, Anträge, Touren, Fotos bis zur Übernahme, nur für PHP lesbar.',
     '<IfModule mod_authz_core.c>',
     '  Require all denied',
     '</IfModule>',
