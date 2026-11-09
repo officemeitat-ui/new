@@ -136,12 +136,18 @@ export const dutyText = (d) => `Müll ${WASTE_WINDOWS[d.window].verb}: ${d.types
  * niemand, bleibt die Liste leer und die Automatik sucht die beste Person
  * (bevorzugt, wer an dem Tag ohnehin im Objekt ist).
  */
-function wasteRegulars(object, tasks, employees, inst) {
+function wasteRegulars(object, tasks, employees, inst, cache = null) {
   if (object.waste?.responsible) return [object.waste.responsible]
-  const count = new Map()
-  for (const t of tasks) if (t.objectId === object.id) for (const id of t.regulars || []) count.set(id, (count.get(id) || 0) + 1)
-  const byId = new Map(employees.map((e) => [e.id, e]))
-  const best = [...count].sort((a, b) => b[1] - a[1]).find(([id]) => byId.has(id) && fitsAvailability(byId.get(id), inst))
+  // je Lauf einmal: Mitarbeitende nach ID, Stammkräfte je Objekt nach Häufigkeit (sonst je Gang über alle Leistungen)
+  const byId = cache ? (cache.byId ||= new Map(employees.map((e) => [e.id, e]))) : new Map(employees.map((e) => [e.id, e]))
+  let ranked = cache?.ranked?.get(object.id)
+  if (!ranked) {
+    const count = new Map()
+    for (const t of tasks) if (t.objectId === object.id) for (const id of t.regulars || []) count.set(id, (count.get(id) || 0) + 1)
+    ranked = [...count].sort((a, b) => b[1] - a[1])
+    if (cache) (cache.ranked ||= new Map()).set(object.id, ranked)
+  }
+  const best = ranked.find(([id]) => byId.has(id) && fitsAvailability(byId.get(id), inst))
   return best ? [best[0]] : []
 }
 
@@ -153,10 +159,23 @@ function wasteRegulars(object, tasks, employees, inst) {
  */
 export function applyWaste(instances, { objects, tasks, employees = [], from, to, holidays, make, rules }) {
   const objectsById = new Map(objects.map((o) => [o.id, o]))
-  for (const duty of wasteDuties(objects, from, to, holidays)) {
+  const duties = wasteDuties(objects, from, to, holidays)
+  if (!duties.length) return instances
+  // Einsätze je Objekt und Tag einmal nachschlagen statt je Gang alle Einsätze durchsuchen (12 Monate: zehntausende).
+  // Neu angelegte Müll-Gänge kommen nicht hinein: sie sind nie Gastgeber (Kategorie „muell“).
+  const withWaste = new Set(duties.map((d) => d.objectId))
+  const byDay = new Map()
+  for (const i of instances) {
+    if (!withWaste.has(i.objectId)) continue
+    const k = `${i.objectId}|${i.date}`
+    if (!byDay.has(k)) byDay.set(k, [])
+    byDay.get(k).push(i)
+  }
+  const cache = {}
+  for (const duty of duties) {
     const w = WASTE_WINDOWS[duty.window]
     const base = dayIndex(duty.date) * 1440
-    const fits = instances.filter((i) => i.objectId === duty.objectId && i.date === duty.date && i.status !== 'cancelled' && i.staff === 1 && i.category !== 'muell' && i.end - base > w.from && i.start - base < w.to)
+    const fits = (byDay.get(`${duty.objectId}|${duty.date}`) || []).filter((i) => i.status !== 'cancelled' && i.staff === 1 && i.category !== 'muell' && i.end - base > w.from && i.start - base < w.to)
     const host = duty.window === 'out-vortag' ? fits.sort((a, b) => b.end - a.end)[0] : fits.sort((a, b) => a.start - b.start)[0]
     if (host) {
       host.addOns = [...(host.addOns || []), duty]
@@ -187,7 +206,7 @@ export function applyWaste(instances, { objects, tasks, employees = [], from, to
       holidayRule: 'findet_statt',
     }
     const inst = make(task, duty.date)
-    inst.regulars = wasteRegulars(object, tasks, employees, inst)
+    inst.regulars = wasteRegulars(object, tasks, employees, inst, cache)
     inst.waste = duty
     instances.push(inst)
   }
