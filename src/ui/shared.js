@@ -131,20 +131,24 @@ export const rowMenu = (items, title = 'Weitere Aktionen') => menu({ icon: ICON.
  */
 export function tabBar({ action, current, tabs, cls = '' }) {
   const flagHtml = (n, on) => (n ? ` <span class="flag ${on ? '' : 'warning'}">${n}</span>` : '')
+  // Mit Gruppen (Aufklappmenü) keine Reiter-Rollen: ein <details> darf nicht in einer tablist stehen. Dann eine
+  // Gruppe von Knöpfen, der aktive mit aria-current.
+  const grouped = tabs.some((t) => t?.items)
+  const state = (on) => (grouped ? (on ? 'aria-current="true"' : '') : `role="tab" aria-selected="${on}"`)
   const html = tabs.filter(Boolean).map((t) => {
     if (!t.items) {
       const on = t.id === current
-      return `<button class="btn ${on ? 'primary' : ''}" data-action="${action}" data-v="${esc(t.id)}" role="tab" aria-selected="${on}">${t.label}${flagHtml(t.flag, on)}</button>`
+      return `<button class="btn ${on ? 'primary' : ''}" data-action="${action}" data-v="${esc(t.id)}" ${state(on)}>${t.label}${flagHtml(t.flag, on)}</button>`
     }
     const items = t.items.filter(Boolean)
     if (!items.length) return ''
     const active = items.find((i) => i.id === current)
     const sum = items.reduce((s, i) => s + (Number(i.flag) || 0), 0)
-    return `<details class="menu-wrap dd tab-group start ${active ? 'active' : ''}"><summary class="btn ${active ? 'primary' : ''}" role="tab" aria-selected="${!!active}" aria-haspopup="menu"><span class="dd-label">${t.label}${active ? `<span class="tab-sub">: ${active.label}</span>` : ''}</span>${flagHtml(sum, !!active)}<span class="caret">${ICON.caret}</span></summary><div class="menu" role="menu">${items
+    return `<details class="menu-wrap dd tab-group start ${active ? 'active' : ''}"><summary class="btn ${active ? 'primary' : ''}" ${active ? 'aria-current="true" ' : ''}aria-haspopup="menu"><span class="dd-label">${t.label}${active ? `<span class="tab-sub">: ${active.label}</span>` : ''}</span>${flagHtml(sum, !!active)}<span class="caret">${ICON.caret}</span></summary><div class="menu" role="menu">${items
       .map((i) => menuItem({ label: i.label, hint: i.hint, action, data: { v: i.id }, flag: i.flag, current: i.id === current }))
       .join('')}</div></details>`
   })
-  return `<div class="seg tabbar ${cls}" role="tablist">${html.join('')}</div>`
+  return `<div class="seg tabbar ${cls}" role="${grouped ? 'group' : 'tablist'}">${html.join('')}</div>`
 }
 
 export function objectOf(c, inst) {

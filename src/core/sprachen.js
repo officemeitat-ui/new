@@ -17,7 +17,7 @@
 /** Sprachen in der Reihenfolge der Auswahl: Kennung, Bezeichnung in der App, Name in der Sprache selbst, HTML-Sprache. */
 export const LANGUAGES = [
   { id: 'de', label: 'Deutsch', own: 'Deutsch', html: 'de' },
-  { id: 'bks', label: 'Bosnisch/Kroatisch/Serbisch', own: 'Bosanski/Hrvatski/Srpski', html: 'hbs' },
+  { id: 'bks', label: 'Bosnisch/Kroatisch/Serbisch', own: 'Bosanski/Hrvatski/Srpski', html: 'hr' },
   { id: 'ro', label: 'Rumänisch', own: 'Română', html: 'ro' },
   { id: 'tr', label: 'Türkisch', own: 'Türkçe', html: 'tr' },
   { id: 'hu', label: 'Ungarisch', own: 'Magyar', html: 'hu' },

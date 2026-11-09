@@ -138,6 +138,8 @@ function refreshControls() {
   const list = frames()
   const status = root.querySelector('.wx-radar-status')
   root.classList.toggle('empty', !list.length)
+  // ohne Bilder: Knöpfe gesperrt (nicht nur blass), damit Tastatur und Bildschirmleser es wissen
+  for (const b of root.querySelectorAll('.wx-play, .wx-now-btn, .wx-slider')) b.disabled = !list.length
   if (radar.loading && !list.length) status.textContent = 'Radar wird geladen …'
   else if (radar.error && !list.length) status.innerHTML = `<span class="err-text">${esc(radar.error)}</span> Die Vorhersage oben gilt weiter.`
   else

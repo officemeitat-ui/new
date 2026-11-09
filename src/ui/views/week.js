@@ -121,7 +121,7 @@ function mobileWeek(c) {
       <div class="m-chips">${day.lines.map((l) => (l.kind === 'work' ? workChip(c, emp, l) : struckChip(c, l))).join('')}</div>
     </article>`)
   }
-  return `<div class="day-tabs" role="tablist" aria-label="Tag">${days}</div>
+  return `<div class="day-tabs" role="group" aria-label="Tag">${days}</div>
     <div class="m-swipe">
       <h2 class="m-date">${WEEKDAY_LONG[isoWeekday(date) - 1]}, ${formatDate(date, { weekday: false })}${holiday ? ` <span class="pill info">${esc(holiday.name)}</span>` : ''}</h2>
       <details class="m-filter" ${app.ui.team || app.ui.search ? 'open' : ''}><summary>${ICON.search} Filter${app.ui.team || app.ui.search ? ` <span class="pill info">${esc([app.ui.team, app.ui.search].filter(Boolean).join(' · '))}</span>` : ''}</summary>${filterBar(c, { problems: false })}</details>

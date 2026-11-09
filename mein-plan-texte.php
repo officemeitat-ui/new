@@ -394,7 +394,7 @@ return [
 
     'bks' => [
         'sprache_name' => 'Bosanski/Hrvatski/Srpski',
-        'html_lang' => 'hbs',
+        'html_lang' => 'hr',
         'dezimal' => ',',
         'tage' => ['Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub', 'Ned'],
         'tage_lang' => ['Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota', 'Nedjelja'],

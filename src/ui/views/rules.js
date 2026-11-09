@@ -183,7 +183,7 @@ function rulesView(c) {
       </fieldset>
       <fieldset><legend>Qualifikationen</legend>
         <p class="note">Werden bei Leistungen als Voraussetzung und bei Mitarbeitenden als Fähigkeit hinterlegt. Mit Komma trennen.</p>
-        <input type="text" id="skills-list" value="${esc((app.data.skills || []).join(', '))}">
+        <input type="text" id="skills-list" aria-label="Qualifikationen, mit Komma getrennt" value="${esc((app.data.skills || []).join(', '))}">
         <div class="edit-only"><button class="btn" data-action="skills-save">Qualifikationen speichern</button></div>
       </fieldset>
     </div>`

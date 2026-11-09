@@ -62,10 +62,10 @@ export function lineChart({ labels, titles = labels, series, fmt = fmt0, axis = 
   const hits = labels
     .map((_, i) => {
       const rows = series.map((s) => [s.label, s.values[i] === null || s.values[i] === undefined ? '–' : fmt(s.values[i]), s.color])
-      return `<rect class="kpi-hit" tabindex="0" x="${Math.max(pad.l - band / 2, x(i) - band / 2)}" y="${pad.t}" width="${band}" height="${h}" data-x="${x(i)}" ${tipAttr(titles[i], rows)} aria-label="${esc(`${titles[i]}: ${rows.map((r) => `${r[0]} ${r[1]}`).join(', ')}`)}"/>`
+      return `<rect class="kpi-hit" tabindex="0" role="img" x="${Math.max(pad.l - band / 2, x(i) - band / 2)}" y="${pad.t}" width="${band}" height="${h}" data-x="${x(i)}" ${tipAttr(titles[i], rows)} aria-label="${esc(`${titles[i]}: ${rows.map((r) => `${r[0]} ${r[1]}`).join(', ')}`)}"/>`
     })
     .join('')
-  return `<svg class="kpi-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${grid}${xl}${lines}<line class="kpi-cross" x1="0" x2="0" y1="${pad.t}" y2="${pad.t + h}" visibility="hidden"/>${hits}</svg>`
+  return `<svg class="kpi-svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="${esc(ariaLabel)}">${grid}${xl}${lines}<line class="kpi-cross" x1="0" x2="0" y1="${pad.t}" y2="${pad.t + h}" visibility="hidden"/>${hits}</svg>`
 }
 
 /**
@@ -110,10 +110,10 @@ export function columnChart({ labels, titles = labels, series, fmt = fmt0, axis 
       const rows = series.map((s) => [s.label, fmt(s.values[i] || 0), s.color])
       const label = (i % every === 0 && n - 1 - i >= every) || i === n - 1 ? `<text class="kpi-tick" x="${cx}" y="${height - 8}" text-anchor="middle">${esc(l)}</text>` : ''
       const cap = labelLast && series.length === 1 && i === n - 1 && totals[i] > 0 ? `<text class="kpi-cap" x="${cx}" y="${y(totals[i]) - 5}" text-anchor="middle">${esc(fmt(totals[i]))}</text>` : ''
-      return `${segs.join('')}${cap}${label}<rect class="kpi-hit" tabindex="0" x="${pad.l + band * i}" y="${pad.t}" width="${band}" height="${h}" ${tipAttr(titles[i], series.length > 1 ? [...rows, ['Summe', fmt(totals[i]), '']] : rows)} aria-label="${esc(`${titles[i]}: ${rows.map((r) => `${r[0]} ${r[1]}`).join(', ')}`)}"/>`
+      return `${segs.join('')}${cap}${label}<rect class="kpi-hit" tabindex="0" role="img" x="${pad.l + band * i}" y="${pad.t}" width="${band}" height="${h}" ${tipAttr(titles[i], series.length > 1 ? [...rows, ['Summe', fmt(totals[i]), '']] : rows)} aria-label="${esc(`${titles[i]}: ${rows.map((r) => `${r[0]} ${r[1]}`).join(', ')}`)}"/>`
     })
     .join('')
-  return `<svg class="kpi-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(ariaLabel)}">${grid}${cols}</svg>`
+  return `<svg class="kpi-svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="${esc(ariaLabel)}">${grid}${cols}</svg>`
 }
 
 /**

@@ -692,8 +692,27 @@ export function confirmStep(key, rerender = renderNow) {
 /**
  * Tabellen fürs Handy: jede Zelle bekommt die Spaltenüberschrift als
  * data-label, damit sie auf schmalen Bildschirmen als Karte lesbar ist.
+ * Dazu: Kennzahlen-Leisten (.summary), die am Handy waagrecht scrollen, sind
+ * mit der Tastatur erreichbar (tabindex) und für Bildschirmleser benannt.
  */
 export function labelTables(root = document) {
+  // Tabellen und Raster, die waagrecht scrollen und nichts Fokussierbares enthalten: per Tastatur scrollbar
+  for (const el of root.querySelectorAll('.table-wrap, .grid-wrap, .sheet-wrap, .tl-wrap')) {
+    if (el.hasAttribute('tabindex') || el.scrollWidth <= el.clientWidth + 1 || el.querySelector('a[href], button, input, select, textarea, summary, [tabindex]')) continue
+    el.setAttribute('tabindex', '0')
+    el.setAttribute('role', 'region')
+    if (!el.hasAttribute('aria-label')) el.setAttribute('aria-label', 'Tabelle (waagrecht scrollbar)')
+  }
+  for (const el of root.querySelectorAll('.summary')) {
+    const scrolls = el.scrollWidth > el.clientWidth + 1
+    if (scrolls && !el.hasAttribute('tabindex')) {
+      el.setAttribute('tabindex', '0')
+      el.setAttribute('role', 'group')
+      if (!el.hasAttribute('aria-label')) el.setAttribute('aria-label', 'Kennzahlen (waagrecht scrollbar)')
+    } else if (!scrolls && el.getAttribute('tabindex') === '0' && el.getAttribute('role') === 'group') {
+      el.removeAttribute('tabindex')
+    }
+  }
   for (const table of root.querySelectorAll('table.data:not([data-labelled])')) {
     // Zeilenumbrüche (<br>) in der Überschrift als Leerzeichen, sonst „Unterweisung§ 14 ASchG“
     const heads = [...table.querySelectorAll('thead th')].map((th) => [...th.childNodes].map((n) => (n.nodeName === 'BR' ? ' ' : n.textContent)).join('').replace(/\s+/g, ' ').trim())

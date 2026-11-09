@@ -112,7 +112,7 @@ function sprache(?string $neu = null): string
     return $s;
 }
 
-/** Sprachangabe für <html lang> (Bosnisch/Kroatisch/Serbisch: hbs). */
+/** Sprachangabe für <html lang> (Bosnisch/Kroatisch/Serbisch: hr, „hbs“ ist kein gültiger Code für lang). */
 function html_sprache(?string $s = null): string
 {
     $l = texte()[$s ?? sprache()]['html_lang'] ?? 'de';

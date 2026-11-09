@@ -51,7 +51,11 @@ test('tabBar: Gruppe zeigt gewählten Unterpunkt und Summe der Zähler', () => {
   assert.match(html, /<span class="tab-sub">: Bank<\/span>/)
   assert.match(html, /<span class="flag ">5<\/span>/)
   assert.match(html, /role="menuitemradio" aria-checked="true" data-action="fak-tab" data-v="bank"/)
-  assert.match(html, /data-action="fak-tab" data-v="start" role="tab" aria-selected="false"/)
+  // mit Gruppen keine Reiter-Rollen (ein <details> darf nicht in einer tablist stehen), aktiver Knopf mit aria-current
+  assert.match(html, /class="seg tabbar " role="group"/)
+  assert.ok(!html.includes('role="tab"'))
+  assert.match(tabBar({ action: 'fak-tab', current: 'start', tabs }), /data-action="fak-tab" data-v="start" aria-current="true"/)
+  assert.match(tabBar({ action: 'x', current: 'a', tabs: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] }), /role="tablist">.*data-v="a" role="tab" aria-selected="true"/)
   const other = tabBar({ action: 'fak-tab', current: 'start', tabs })
   assert.ok(!other.includes('tab-sub'))
   assert.match(other, /flag warning">5</)

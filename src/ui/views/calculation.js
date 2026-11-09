@@ -57,7 +57,7 @@ function current() {
 // ---------------------------------------------------------------- Ansicht
 
 const calcTab = () => (app.ui.calcTab === 'nach' ? 'nach' : 'objekt')
-const tabs = () => `<div class="calc-tabs" role="tablist">${tabBar({ action: 'calc-tab', current: calcTab(), tabs: [{ id: 'objekt', label: 'Objekt kalkulieren' }, { id: 'nach', label: 'Nachkalkulation' }] })}</div>`
+const tabs = () => `<div class="calc-tabs">${tabBar({ action: 'calc-tab', current: calcTab(), tabs: [{ id: 'objekt', label: 'Objekt kalkulieren' }, { id: 'nach', label: 'Nachkalkulation' }] })}</div>`
 const NK_SPANS = [['3', '3 Monate'], ['6', '6 Monate'], ['12', '12 Monate']]
 const nkSpan = () => rentSpan(app.ui.nkSpan || '3', todayISO())
 
