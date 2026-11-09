@@ -530,10 +530,13 @@ export function finishStop(tour, stopId, { signature = null, reason = '', outcom
     const x = { ...s, items }
     const status = derivedStopStatus(x)
     const n = note === undefined ? text(s.note) : text(note)
+    // nach einer Korrektur im Büro (reopenStop) bleibt der Wechsel am ersten Abschluss: Tag und Preis des Lieferscheins,
+    // Fälligkeit und Bestand hängen daran; wann korrigiert wurde, steht in corrections bzw. signature/unsigned.at
+    const first = (s.corrections || []).map((c) => c?.before?.finishedAt).find(Boolean)
     const out = {
       ...x,
       status,
-      finishedAt: now,
+      finishedAt: first || now,
       finishedBy: by,
       ...(driverId || tour.driverId ? { driverId: driverId || tour.driverId } : {}),
       signature: signature ? { name: text(signature.name), role: text(signature.role), svg: signature.svg, at: now } : null,

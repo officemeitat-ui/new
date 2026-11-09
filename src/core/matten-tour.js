@@ -23,6 +23,7 @@
 // Eingefroren wird, was der Fahrer braucht und auf dem Nachweis steht (Kunde, Adresse, Liegeplatz, Zugang, Hinweis, Matte):
 // Fahrer lesen nur matten/touren/, nicht die Liegeplätze und nicht die Fakturierung.
 
+import { toMinutes } from './dates.js'
 import { deliveryNoteEmailOf } from './invoicing.js'
 import { hasCoords } from './geo.js'
 import { customerCopy } from './matten.js'
@@ -496,15 +497,19 @@ const stopLabel = (s) => [s.customer?.name, s.objectName].filter(Boolean).join('
  */
 export function tourProblems(tour) {
   const out = []
+  const r = tour?.route || {}
+  // gespeicherte Zeiten sind Uhrzeiten (HH:MM): was vor dem Beginn der Tour liegt, ist nach Mitternacht (+24 Stunden)
+  const begin = isTime(r.start) ? toMinutes(r.start) : isTime(r.shift?.from) ? toMinutes(r.shift.from) : 0
+  const clock = (hm) => (toMinutes(hm) < begin ? toMinutes(hm) + 1440 : toMinutes(hm))
+  const shown = (hm) => (toMinutes(hm) < begin ? `${hm} (nach Mitternacht)` : hm)
   if (!tour?.driverId) out.push({ code: 'fahrer', text: 'Kein Fahrer zugewiesen' })
   for (const s of tour?.stops || []) {
     if (!hasCoords(s)) out.push({ code: 'koordinaten', stopId: s.id, text: `${stopLabel(s)}: keine Koordinaten` })
     if (s.windowConflict) out.push({ code: 'zeitfenster', stopId: s.id, text: `${stopLabel(s)}: Zeitfenster der Liegeplätze überschneiden sich nicht` })
-    else if (s.window?.to && s.times?.departure && s.times.departure > s.window.to) out.push({ code: 'zeitfenster', stopId: s.id, text: `${stopLabel(s)}: fertig ${s.times.departure}, Zeitfenster bis ${s.window.to}` })
-    else if (s.window?.from && s.times?.start && s.times.start < s.window.from) out.push({ code: 'zeitfenster', stopId: s.id, text: `${stopLabel(s)}: Beginn ${s.times.start}, Zeitfenster ab ${s.window.from}` })
+    else if (isTime(s.window?.to) && isTime(s.times?.departure) && clock(s.times.departure) > toMinutes(s.window.to)) out.push({ code: 'zeitfenster', stopId: s.id, text: `${stopLabel(s)}: fertig ${shown(s.times.departure)}, Zeitfenster bis ${s.window.to}` })
+    else if (isTime(s.window?.from) && isTime(s.times?.start) && clock(s.times.start) < toMinutes(s.window.from)) out.push({ code: 'zeitfenster', stopId: s.id, text: `${stopLabel(s)}: Beginn ${s.times.start}, Zeitfenster ab ${s.window.from}` })
   }
-  const r = tour?.route || {}
-  if (r.end && r.shift?.to && r.end > r.shift.to) out.push({ code: 'arbeitszeit', text: `Rückkehr ${r.end}, Arbeitszeit bis ${r.shift.to}` })
+  if (isTime(r.end) && isTime(r.shift?.to) && clock(r.end) > toMinutes(r.shift.to)) out.push({ code: 'arbeitszeit', text: `Rückkehr ${shown(r.end)}, Arbeitszeit bis ${r.shift.to}` })
   const load = (tour?.stops || []).reduce((x, s) => x + (Number(s.demand) || 0), 0)
   if (Number(r.capacity) > 0 && load > Number(r.capacity)) out.push({ code: 'kapazitaet', text: `${load} Matten, Platz für ${r.capacity}` })
   return out

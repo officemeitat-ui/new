@@ -36,7 +36,7 @@ import { doneFromTours, isFinal, jobUpdatesFromTour, localDate, orderedStops, pl
 import { DONE_STATUS, dueOn, isOpen, jobDate, markDone, markNotDone } from './matten-plan.js'
 import { archiveState } from './matten-lieferschein.js'
 import { loadList } from './matten-tour.js'
-import { keysInTours, sumLoadLists, toursOn } from './matten-touren.js'
+import { sumLoadLists, tourJobKeys, toursOn } from './matten-touren.js'
 
 /** Touren, die noch laufen (Einsätze darin gelten nicht als überfällig). */
 export const OPEN_TOURS = ['freigegeben', 'unterwegs']
@@ -130,13 +130,16 @@ export function notDoneList({ tours = [], jobs = [], done = [], today = '' } = {
       for (const p of placementsOf(stop)) add({ key: p.items[0]?.jobKey || '', placementId: p.placementId, placementName: p.placementName, floor: p.floor, date: tour.date, reason: 'nicht bestätigt', tour, stop })
     }
   }
+  const tourDay = new Map((tours || []).filter((t) => t?.id && isDate(t.date)).map((t) => [t.id, t.date]))
   const out = []
   for (const e of found.values()) {
     const job = byKey.get(e.key) || null
     if (job && ENDED.includes(job.status)) continue
     if ((last.get(e.placementId) || '') >= e.date) continue
-    // nachholen eingeplant: der Einsatz hat einen neuen Tag ab heute (Kalender „Nachholen“ oder eine neue Tour)
-    const again = job && isOpen(job) && jobDate(job) >= today && jobDate(job) !== e.date ? jobDate(job) : ''
+    // nachholen eingeplant: der Einsatz hat einen neuen Tag ab heute (Kalender „Nachholen“ oder eine neue Tour – dort
+    // bleibt der Solltermin, es zählt der Tag der Tour)
+    const other = job?.status === 'in-tour' && job.tourId && job.tourId !== e.tour.id ? tourDay.get(job.tourId) || '' : ''
+    const again = other ? (other >= today ? other : '') : job && isOpen(job) && jobDate(job) >= today && jobDate(job) !== e.date ? jobDate(job) : ''
     out.push({
       key: e.key,
       placementId: e.placementId,
@@ -310,7 +313,7 @@ export function weekOf(state, tours = [], today) {
   for (const t of tours || []) {
     if (!t?.status || t.status === 'entwurf' || !isDate(t.date)) continue
     const set = byDay.get(t.date) || new Set()
-    for (const k of keysInTours([t])) set.add(k)
+    for (const k of tourJobKeys(t)) set.add(k) // alle Einsätze der Tour, auch die fertiger Stopps
     byDay.set(t.date, set)
   }
   const days = []

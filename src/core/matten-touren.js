@@ -19,6 +19,7 @@
 // Einsatz in einer Tour: status 'in-tour', tourId, beforeTour (Status davor: geplant, nachzuholen, nicht-durchgefuehrt).
 
 import { hasCoords } from './geo.js'
+import { isFinal } from './matten-fahrt.js'
 import { TOUR_JOB_STATUS, TOUR_SCHEMA, tourFileName, tourId as newTourId } from './matten-tour.js'
 import { DEFAULT_SHIFT } from './routing.js'
 
@@ -78,17 +79,27 @@ export function tourJobKeys(tour) {
 }
 
 /**
- * Einsätze, die schon in einer Tour stehen und darum nicht in einen neuen Vorschlag kommen: Schlüssel aller Touren
- * außer except (IDs, z. B. die Entwürfe, die ein neuer Vorschlag ersetzt). Entwürfe vergangener Tage (vor today)
- * halten nichts fest – ein liegen gebliebener Entwurf versteckt keinen überfälligen Einsatz.
+ * Einsatz-Schlüssel, die die Tour noch festhält: die der Stopps, die noch nicht fertig sind. Ein fertiger Stopp hat
+ * sein Ergebnis – ein dort nicht durchgeführter Wechsel lässt sich in einer neuen Tour nachholen (solange das Ergebnis
+ * nicht übernommen ist, steht der Einsatz ohnehin „in Tour“ und kommt in keinen Vorschlag).
+ */
+export const heldJobKeys = (tour) => tourJobKeys({ stops: (tour?.stops || []).filter((s) => !isFinal(s)) })
+
+/** Entwurf eines vergangenen Tages: hält nichts fest (ein liegen gebliebener Entwurf versteckt keinen überfälligen Einsatz). */
+const staleDraft = (t, today) => t?.status === 'entwurf' && !!today && t.date < today
+
+/**
+ * Einsätze, die schon in einer Tour stehen und darum nicht in einen neuen Vorschlag kommen: Schlüssel der offenen
+ * Stopps aller Touren (heldJobKeys) außer except (IDs, z. B. die Entwürfe, die ein neuer Vorschlag ersetzt). Entwürfe
+ * vergangener Tage (vor today) halten nichts fest.
  */
 export function keysInTours(tours = [], { except = [], today = '' } = {}) {
   const skip = new Set(except)
   const out = new Set()
   for (const t of tours || []) {
     if (!t || skip.has(t.id)) continue
-    if (t.status === 'entwurf' && today && t.date < today) continue
-    for (const k of tourJobKeys(t)) out.add(k)
+    if (staleDraft(t, today)) continue
+    for (const k of heldJobKeys(t)) out.add(k)
   }
   return out
 }
@@ -142,7 +153,20 @@ export function mergeStops(a, b) {
   return out
 }
 
-const sameObject = (a, b) => a.id === b.id || (!!a.objectId && a.objectId === b.objectId && (a.customer?.id || '') === (b.customer?.id || ''))
+// gleicher Kunde ist Pflicht: je Kunde ein Stopp und ein Lieferschein, auch wenn die Stopp-ID gleich ist (stopsFromJobs
+// gibt einem Objekt mit nur einem Kunden des Tages die ID st-<Objekt> – ein später hinzugefügter Stopp eines zweiten
+// Kunden am selben Objekt hat dann dieselbe)
+const sameObject = (a, b) => (a.customer?.id || '') === (b.customer?.id || '') && (a.id === b.id || (!!a.objectId && a.objectId === b.objectId))
+
+/** Stopp-ID, die in der Tour noch frei ist: sonst wie bei stopsFromJobs mit dem Kunden (und notfalls einer Zahl). */
+function freeStopId(stops, stop) {
+  const ids = new Set(stops.map((s) => s.id))
+  if (!ids.has(stop.id)) return stop.id
+  const base = `${stop.id}-${stop.customer?.id || 'ohne'}`
+  let id = base
+  for (let n = 2; ids.has(id); n++) id = `${base}-${n}`
+  return id
+}
 
 /** Stopp aus der Tour nehmen (Kopie; Zeiten danach mit recalcTimes neu rechnen). */
 export function removeStop(tour, stopId, opts = {}) {
@@ -163,7 +187,8 @@ export function addStop(tour, stop, { index, ...opts } = {}) {
   if (at >= 0) stops[at] = mergeStops(stops[at], fresh)
   else {
     const i = Number.isInteger(index) ? Math.max(0, Math.min(stops.length, index)) : stops.length
-    stops.splice(i, 0, { ...fresh, status: fresh.status || 'geplant' })
+    // Stopp-IDs sind je Tour eindeutig (Lieferschein matten:<Tour>:<Stopp>, Bestand, Zusammenführen hängen daran)
+    stops.splice(i, 0, { ...fresh, id: freeStopId(stops, fresh), status: fresh.status || 'geplant' })
   }
   return touch(tour, { stops, order: stops.map((s) => s.id), route: { ...(tour.route || {}), manual: true } }, opts)
 }
@@ -249,8 +274,9 @@ export function releaseProblems({ tour, tours = [], jobs = [], today = '' } = {}
   const mine = tourJobKeys(tour)
   const reported = new Set()
   for (const other of tours || []) {
-    if (!other || other.id === tour.id) continue
-    const theirs = new Set(tourJobKeys(other))
+    // wie keysInTours: fertige Stopps und Entwürfe vergangener Tage halten keinen Einsatz fest
+    if (!other || other.id === tour.id || staleDraft(other, today)) continue
+    const theirs = new Set(heldJobKeys(other))
     for (const k of mine) {
       if (!theirs.has(k) || reported.has(k)) continue
       reported.add(k)

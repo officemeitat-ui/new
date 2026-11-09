@@ -721,8 +721,14 @@ export function finalDraft(source, { id, date, accept = [], advances = [], setti
   return { ...out, stage: 'schluss', advances: advances.map((a) => advanceRef(a, settings)), title: `Schlussrechnung zu ${KINDS[source.kind]} ${source.number}${source.title ? ` – ${source.title}` : ''}` }
 }
 
-/** Rechnung, die einen Lieferschein bzw. eine Proforma abrechnet (nicht storniert), sonst null. */
-export const billedBy = (d, docs) => docs.find((x) => x.kind === 'rechnung' && x.id !== d.id && (x.refId === d.id || (x.deliveryNotes || []).some((n) => n.id === d.id)) && !isCancelled(x, docs)) || null
+/**
+ * Rechnung, die einen Lieferschein bzw. eine Proforma abrechnet (nicht storniert), sonst null. Eine festgeschriebene geht
+ * einem Entwurf vor (stehen beide in den Belegen, zählt sonst die Reihenfolge – stateOf hielte ihn für offen).
+ */
+export function billedBy(d, docs) {
+  const hits = docs.filter((x) => x.kind === 'rechnung' && x.id !== d.id && (x.refId === d.id || (x.deliveryNotes || []).some((n) => n.id === d.id)) && !isCancelled(x, docs))
+  return hits.find((x) => x.number) || hits[0] || null
+}
 
 /**
  * (Sammel-)Rechnung aus Lieferscheinen desselben Kunden: je Lieferschein ein Titel mit Nummer und Datum, darunter
