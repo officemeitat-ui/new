@@ -11,7 +11,7 @@
 //   Dienstplan wechselt: Sein Rahmen liegt außerhalb der Seite, die die App
 //   bei jeder Änderung neu zeichnet, und wird nur über den Platzhalter gelegt.
 
-import { app, registerActions, registerView, renderNow, toast, visibleViews } from '../context.js'
+import { app, registerActions, registerView, renderNow, toast, VIEW_HASH, VIEW_REDIRECTS, visibleViews } from '../context.js'
 import { esc, ICON } from '../shared.js'
 import { reviereFor } from '../../core/reviere.js'
 
@@ -19,9 +19,43 @@ export const TOOLS = [
   { id: 'zaehler', name: 'wasserzaehler', module: 'zaehler', label: 'Wasserzähler', title: 'Wasserzähler-Ablesung', order: 72, text: 'Zählerstände je Quartal mit Fotos, Bericht für die Hausverwaltung, Jahreswechsel' },
   { id: 'kontrolle', name: 'objektkontrolle', module: 'kontrolle', label: 'Objektkontrolle', title: 'Objektkontrolle (Prüfprotokoll)', order: 73, text: 'Prüfprotokoll mit Bewertung, Fotos, Unterschriften und PDF' },
   { id: 'objektmappe', name: 'objektdoku', module: 'objektmappe', label: 'Objektdoku', title: 'Objektdokumentation (Leistungsverzeichnis)', order: 74, text: 'Objektakte, Leistungsverzeichnis, Objektblatt als PDF mit Öffnungscode' },
-  // bis zur Umstellung parallel zum Mattenwechsel-Modul (views/matten.js): darum „(Werkzeug)“ im Namen
-  { id: 'matten', name: 'mattenwechsel', module: 'matten', label: 'Mattenwechsel (Werkzeug)', title: 'Mattenwechsel (Werkzeug)', order: 75, text: 'Touren, Lieferscheine und Nachweis des Mattenwechsels' },
+  // bis zur Umstellung parallel zum Mattenwechsel-Modul (views/matten.js): darum „(Werkzeug)“ im Namen; nach der
+  // Umstellung (matten.json → settings.cutover) „Mattenwechsel (alt)“, nur lesend, #matten öffnet das Modul
+  {
+    id: 'matten',
+    name: 'mattenwechsel',
+    module: 'matten',
+    get label() {
+      return mattenAlt() ? 'Mattenwechsel (alt)' : 'Mattenwechsel (Werkzeug)'
+    },
+    get title() {
+      return this.label
+    },
+    order: 75,
+    get text() {
+      return mattenAlt() ? 'Frühere Touren und Lieferscheine des Werkzeugs zum Nachschlagen (nur lesend)' : 'Touren, Lieferscheine und Nachweis des Mattenwechsels'
+    },
+  },
 ]
+
+/** Mattenwechsel auf das Modul umgestellt (Einstellung im Modul, für alle gleich): das Werkzeug ist dann nur lesend. */
+export const mattenAlt = () => !!app.data?.matten?.settings?.cutover?.at
+/** Teil der Adresse des Werkzeugs (…/werkzeuge/mattenwechsel/) für die Brücke. */
+const ALT_PATH = /\/werkzeuge\/mattenwechsel\//
+// Merke für das Werkzeug im eigenen Fenster (gleicher Ursprung, eigene Anmeldung): auch dort nur lesend
+const ALT_KEY = 'cleanos-app.matten-alt'
+function rememberAlt() {
+  try {
+    if (mattenAlt()) localStorage.setItem(ALT_KEY, app.data.matten.settings.cutover.at)
+    else if (app.data?.matten) localStorage.removeItem(ALT_KEY)
+  } catch {
+    /* Speicher gesperrt */
+  }
+}
+/** Ziel von #matten nach der Umstellung: Übersicht des Moduls, sonst die Liegeplätze. */
+const mattenModuleView = () => ['mw-uebersicht', 'mw-liegeplaetze', 'mw-touren'].find((id) => visibleViews().some((v) => v.id === id)) || null
+VIEW_REDIRECTS.push((view, key) => (view === 'matten' && key !== 'matten-alt' && mattenAlt() ? mattenModuleView() : null))
+VIEW_HASH.matten = () => (mattenAlt() ? 'matten-alt' : null)
 
 const frames = new Map() // Werkzeug → <iframe>, bleibt bis zum Neuladen der App
 let host = null
@@ -179,6 +213,10 @@ window.werkzeugBruecke = {
     return reviereFor({ all: !!app.access?.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: app.data?.objects || [] })
   },
   token: toolToken,
+  /** Werkzeug unter dieser Adresse nur lesend (Mattenwechsel nach der Umstellung): Schreiben nach SharePoint gesperrt. */
+  nurLesen(pfad) {
+    return ALT_PATH.test(String(pfad || '')) && mattenAlt()
+  },
   anmelden() {
     if (app.auth?.reauth) app.auth.reauth()
     else {
@@ -199,16 +237,28 @@ function toolView(tool) {
     const rightsBanner = rights.length
       ? `<div class="banner warn-banner tool-rights"><p><strong>Damit alles geht wie im eigenen Fenster, fehlt noch die Zustimmung:</strong> ${rights.map(([, r]) => esc(r.text)).join(' · ')}. Bis dahin läuft das Werkzeug ohne diese Funktion. Zeigt Microsoft „Genehmigung durch Administrator erforderlich“: in Entra die Berechtigung hinzufügen und die Administratorzustimmung erteilen (Einrichtung, Schritt 2).</p>${app.auth?.reauth ? rights.map(([id, r]) => `<button class="btn primary small" data-action="tool-consent" data-right="${id}">Zustimmen: ${esc(r.text.split(' (')[0])}</button>`).join(' ') : ''}</div>`
       : ''
-    return `${banner}${rightsBanner}<div class="tool-slot" data-tool="${tool.name}" aria-hidden="true"></div>`
+    rememberAlt()
+    const target = tool.id === 'matten' && mattenAlt() ? mattenModuleView() : null
+    const altBanner =
+      tool.id === 'matten' && mattenAlt()
+        ? `<div class="banner tool-alt"><p><strong>Mattenwechsel (alt): nur zum Nachschlagen.</strong> Seit ${esc(new Date(app.data.matten.settings.cutover.at).toLocaleDateString('de-AT'))} läuft der Mattenwechsel im Modul der App. Frühere Touren und Lieferscheine sind hier weiter zu sehen; Änderungen speichert das Werkzeug nicht mehr in SharePoint.</p>${target ? `<button class="btn primary small" data-action="view" data-view="${target}">Zum Mattenwechsel-Modul</button>` : ''}</div>`
+        : ''
+    return `${altBanner}${banner}${rightsBanner}<div class="tool-slot" data-tool="${tool.name}" aria-hidden="true"></div>`
   }
 }
 
 for (const tool of TOOLS)
   registerView({
     id: tool.id,
-    label: tool.label,
-    title: tool.title,
-    text: tool.text,
+    get label() {
+      return tool.label
+    },
+    get title() {
+      return tool.title
+    },
+    get text() {
+      return tool.text
+    },
     group: 'service',
     module: tool.module,
     order: tool.order,
@@ -216,7 +266,7 @@ for (const tool of TOOLS)
     // ohne Werkzeuge (z. B. neutrale Vorschau): config.json → "tools": false
     available: () => app.config?.tools !== false,
     actions: () =>
-      `<button class="btn small ghost" data-action="tool-reload" data-tool="${tool.name}" title="${esc(tool.title)} neu laden">${ICON.refresh} Neu laden</button><button class="btn small ghost" data-action="tool-fullscreen" title="Werkzeug im Vollbild (Esc beendet)">Vollbild</button><a class="btn small ghost" href="${url(tool)}" target="_blank" rel="noopener" title="Im eigenen Fenster öffnen (eigene Anmeldung des Werkzeugs, braucht die Umleitungsadresse in Entra)">Eigenes Fenster</a>`,
+      `<button class="btn small ghost" data-action="tool-reload" data-tool="${tool.name}" title="${esc(tool.title)} neu laden">${ICON.refresh} Neu laden</button><button class="btn small ghost" data-action="tool-fullscreen" title="Werkzeug im Vollbild (Esc beendet)">Vollbild</button>${tool.id === 'matten' && mattenAlt() ? '' : `<a class="btn small ghost" href="${url(tool)}" target="_blank" rel="noopener" title="Im eigenen Fenster öffnen (eigene Anmeldung des Werkzeugs, braucht die Umleitungsadresse in Entra)">Eigenes Fenster</a>`}`,
     render: toolView(tool),
   })
 

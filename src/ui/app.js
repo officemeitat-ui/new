@@ -12,7 +12,7 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, hashKey, hashOfView, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
 import { loadTopics } from '../help/lazy.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
@@ -287,11 +287,12 @@ Object.assign(ACTIONS, {
   },
   view: (el) => {
     app.ui.view = el.dataset.view
+    app.ui.linked = null
     app.ui.confirm = null
     app.ui.modal = null
     // Adresse zum Speichern als Lesezeichen, z. B. app.firma.at/#zaehler
     try {
-      history.replaceState(null, '', `#${app.ui.view}`)
+      history.replaceState(null, '', `#${hashOfView(app.ui.view)}`)
     } catch {
       /* eingebettete Vorschau */
     }
@@ -462,7 +463,10 @@ async function boot() {
 
   Object.assign(app.ui, readPrefs())
   const linked = viewFromHash(location.hash)
-  if (linked) app.ui.view = linked
+  if (linked) {
+    app.ui.view = linked
+    app.ui.linked = hashKey(location.hash)
+  }
   if (config.storage !== 'sharepoint') app.access = resolveAccess({ preview: app.ui.previewRole, access: config.access })
   app.service = new DataService(store, {
     local,
@@ -527,6 +531,7 @@ async function boot() {
     const view = viewFromHash(location.hash)
     if (view && view !== app.ui.view) {
       app.ui.view = view
+      app.ui.linked = hashKey(location.hash)
       app.ui.modal = null
       render()
     }

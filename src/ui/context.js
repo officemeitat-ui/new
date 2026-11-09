@@ -43,7 +43,47 @@ export const app = {
 export const VIEWS = []
 
 /** Kurznamen für Adressen wie app.firma.at/#zaehler (auch die Namen der früheren Werkzeuge). */
-export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', hilfe: 'anleitung', handbuch: 'anleitung', cleo: 'anleitung', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe', leistungsverzeichnis: 'objektmappe', mattenwechsel: 'matten' }
+export const VIEW_ALIASES = { start: 'home', uebersicht: 'home', hilfe: 'anleitung', handbuch: 'anleitung', cleo: 'anleitung', dienstplan: 'week', einsatzplanung: 'week', wasserzaehler: 'zaehler', zaehlerstaende: 'zaehler', pruefprotokoll: 'kontrolle', objektkontrolle: 'kontrolle', objektdoku: 'objektmappe', leistungsverzeichnis: 'objektmappe', mattenwechsel: 'matten', 'matten-alt': 'matten' }
+
+/**
+ * Umleitungen für Aufrufe über die Adresse (Lesezeichen, Link, Startbildschirm), z. B. #matten nach der Umstellung
+ * auf das Mattenwechsel-Modul: fn(view, key) → andere Ansicht oder nichts. key ist der Teil hinter # (klein).
+ * Geprüft beim Zeichnen, solange die Ansicht aus der Adresse kommt (app.ui.linked), also auch nach dem Laden der Daten.
+ */
+export const VIEW_REDIRECTS = []
+/** Ansicht → Teil hinter # beim Wechseln (sonst die Kennung der Ansicht), z. B. das alte Werkzeug als #matten-alt. */
+export const VIEW_HASH = {}
+/** Teil hinter # für die Ansicht id. */
+export const hashOfView = (id) => VIEW_HASH[id]?.() || id
+
+/** Umleitung der Ansicht aus der Adresse anwenden (true: umgeleitet). */
+export function applyRedirect() {
+  const key = app.ui.linked
+  if (!key) return false
+  for (const fn of VIEW_REDIRECTS) {
+    const to = fn(app.ui.view, key)
+    if (to && to !== app.ui.view) {
+      app.ui.view = to
+      app.ui.linked = null
+      try {
+        history.replaceState(null, '', `#${hashOfView(to)}`)
+      } catch {
+        /* eingebettete Vorschau */
+      }
+      return true
+    }
+  }
+  return false
+}
+
+/** Teil hinter # in Kleinbuchstaben (kaputter Link: ''). */
+export function hashKey(hash) {
+  try {
+    return decodeURIComponent(String(hash || '').replace(/^#\/?/, '')).trim().toLowerCase()
+  } catch {
+    return ''
+  }
+}
 
 /** Ansicht aus dem Teil hinter # (z. B. „#zaehler“); unbekannt oder Anmelde-Antwort: null. */
 export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
@@ -413,6 +453,7 @@ export function setFrame(hooks) {
 }
 
 export async function render() {
+  applyRedirect()
   const { from, to } = windowFor(app.ui.monday, currentMonth())
   // Ansicht noch nicht geladen (registerLazy): gleichzeitig mit den Wochen holen
   const lazy = visibleViews().find((v) => v.id === app.ui.view)?.lazy?.load().catch(lazyFailed)
@@ -457,6 +498,8 @@ export function memo(c, key, fn) {
 
 let lastView = null
 export function renderNow() {
+  // Umleitung aus der Adresse (z. B. erst nach dem Laden der Daten bekannt): mit Laden der Ansicht zeichnen
+  if (applyRedirect()) return void render()
   const $app = document.getElementById('app')
   const scroller = document.querySelector('.grid-wrap, .sheet-wrap')
   const scrollLeft = scroller?.scrollLeft || 0

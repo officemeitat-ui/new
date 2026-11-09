@@ -14,7 +14,10 @@
  *   - POST …/oauth2/v2.0/token mit dieser Marke → Token von der App (MSAL)
  * Alles andere (SharePoint, Fotos, PDF, offline) macht das Werkzeug wie immer.
  *
- * Allein geöffnet (kein Rahmen der App) tut diese Datei nichts.
+ * Allein geöffnet (kein Rahmen der App) tut diese Datei nichts – außer beim Mattenwechsel nach der Umstellung auf
+ * das Modul der App: Dann ist das Werkzeug „Mattenwechsel (alt)“ nur lesend (im Rahmen und im eigenen Fenster):
+ * Lesen aus SharePoint geht, Schreiben (PUT, POST, PATCH, DELETE an Microsoft Graph) beantwortet die Brücke mit
+ * „nur lesend“; im eigenen Fenster steht oben ein Hinweis (im Rahmen zeigt ihn die App).
  */
 ;(function () {
   'use strict'
@@ -25,7 +28,53 @@
     app = null // anderer Ursprung: kein Zugriff, Werkzeug läuft für sich
   }
   window.CLEANOS_APP = app
-  if (!app) return
+
+  // Mattenwechsel (alt): nach der Umstellung auf das Modul nur lesend. Im Rahmen fragt die Brücke die App; im eigenen
+  // Fenster (gleiche Adresse, eigene Anmeldung) gilt, was die App auf diesem Gerät zuletzt gesehen hat.
+  var pfad = String((window.location && window.location.pathname) || '')
+  var alterMattenwechsel = /\/werkzeuge\/mattenwechsel\//.test(pfad)
+  var nurLesen = function () {
+    if (!alterMattenwechsel) return false
+    try {
+      if (app) return !!(app.nurLesen && app.nurLesen(pfad))
+      return !!window.localStorage.getItem('cleanos-app.matten-alt')
+    } catch (e) {
+      return false
+    }
+  }
+  var GRAPH = /^https:\/\/graph\.microsoft\.com\//
+  var schreibt = function (input, init) {
+    var method = String((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase()
+    var url = typeof input === 'string' ? input : (input && input.url) || ''
+    return GRAPH.test(url) && method !== 'GET' && method !== 'HEAD'
+  }
+  var gesperrt = function () {
+    return new Response(JSON.stringify({ error: { code: 'nurLesen', message: 'Mattenwechsel (alt) ist nur lesend: Der Mattenwechsel läuft jetzt im Modul der Cleanos App.' } }), { status: 403, headers: { 'Content-Type': 'application/json' } })
+  }
+  if (alterMattenwechsel) {
+    var hinweis = function () {
+      // im Rahmen zeigt die App den Hinweis über dem Werkzeug
+      if (app || !nurLesen() || document.getElementById('cleanos-nur-lesen')) return
+      var el = document.createElement('div')
+      el.id = 'cleanos-nur-lesen'
+      el.setAttribute('role', 'status')
+      el.textContent = 'Mattenwechsel (alt): nur zum Nachschlagen. Neue Wechsel, Touren und Lieferscheine im Mattenwechsel-Modul der Cleanos App – Änderungen hier werden nicht gespeichert.'
+      el.style.cssText = 'position:sticky;top:0;z-index:99999;background:#fff4d6;color:#4a3500;border-bottom:1px solid #c79a00;padding:8px 12px;font:14px/1.4 system-ui,sans-serif'
+      document.body.insertBefore(el, document.body.firstChild)
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hinweis)
+    else hinweis()
+  }
+  if (!app) {
+    if (alterMattenwechsel) {
+      var eigenesFetch = window.fetch
+      window.fetch = function (input, init) {
+        if (schreibt(input, init) && nurLesen()) return Promise.resolve(gesperrt())
+        return eigenesFetch.apply(this, arguments)
+      }
+    }
+    return
+  }
   document.documentElement.classList.add('in-cleanos-app')
 
   // Anmeldung zur Microsoft-Seite geht im Rahmen nicht (Microsoft verbietet das Einbetten): die App übernimmt
@@ -106,6 +155,7 @@
   }
   window.fetch = function (input, init) {
     var url = typeof input === 'string' ? input : (input && input.url) || ''
+    if (schreibt(input, init) && nurLesen()) return Promise.resolve(gesperrt())
     if (TOKEN_URL.test(url) && init && init.body) {
       var body = new URLSearchParams(String(init.body))
       if (body.get('refresh_token') === MARKE) {

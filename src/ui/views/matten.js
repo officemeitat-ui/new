@@ -47,6 +47,8 @@ const ICON_MW = '<path d="M12 2.8a3.4 3.4 0 0 0-3.4 3.4c0 2.5 3.4 5.3 3.4 5.3s3.
 const MOBILE_MW = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6a2.3 2.3 0 0 0-2.3 2.3C5.7 5.6 8 7.5 8 7.5s2.3-1.9 2.3-3.6A2.3 2.3 0 0 0 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="2.2" y="9.2" width="11.6" height="5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>'
 
 const doc = () => upgradeMatten((app.data.matten ||= emptyMatten()))
+/** Auf das Modul umgestellt (views/matten-umstellung.js): das Werkzeug ist nur lesend. */
+const cutover = () => !!doc().settings?.cutover?.at
 const editable = () => canEdit(MODULE) && !app.readOnly
 const nowIso = () => new Date().toISOString()
 const user = () => app.user?.name || 'Browser'
@@ -100,7 +102,7 @@ function mattenView() {
   const ed = editable()
   const all = rowsAt()
   const tab = app.ui.mwTab === 'uebernahme' && mayImport() ? 'uebernahme' : 'liste'
-  const head = `<div class="section-head"><div><h2>Matten-Liegeplätze</h2><p>Je Kunde und Objekt die Liegeplätze der Schmutzfangmatten: welche Matte, wie viele, wie oft gewechselt wird, Zugang und Zeitfenster. Das bisherige Werkzeug läuft unter „Mattenwechsel (Werkzeug)“ unverändert weiter.</p></div>
+  const head = `<div class="section-head"><div><h2>Matten-Liegeplätze</h2><p>Je Kunde und Objekt die Liegeplätze der Schmutzfangmatten: welche Matte, wie viele, wie oft gewechselt wird, Zugang und Zeitfenster. ${cutover() ? 'Das frühere Werkzeug ist als „Mattenwechsel (alt)“ nur noch zum Nachschlagen da.' : 'Das bisherige Werkzeug läuft unter „Mattenwechsel (Werkzeug)“ unverändert weiter.'}</p></div>
     <div class="actions">${ed ? `<button class="btn primary" data-action="mw-edit-open">${ICON.plus} Liegeplatz</button>` : ''}${menu({
       label: 'Mehr',
       single: false,
@@ -109,7 +111,8 @@ function mattenView() {
         ed && { label: 'Gebiete (Tourrunden)', icon: ICON.gear, action: 'mw-areas-open', hint: 'anlegen, umbenennen' },
         sees('fakturierung') && { label: 'Mattentypen und Preise', icon: ICON.gear, action: 'mw-types-goto', hint: 'in der Fakturierung' },
         mayImport() && { label: 'Übernahme aus dem Werkzeug', icon: ICON.download, action: 'mw-tab', data: { v: 'uebernahme' }, hint: 'einmalig, mit Sicherung' },
-        sees('matten') && app.config?.tools !== false && { label: 'Werkzeug öffnen', action: 'view', data: { view: 'matten' }, hint: 'Mattenwechsel (Werkzeug)' },
+        sees('matten') && app.config?.tools !== false && { label: cutover() ? 'Mattenwechsel (alt) ansehen' : 'Werkzeug öffnen', action: 'view', data: { view: 'matten' }, hint: cutover() ? 'nur lesend' : 'Mattenwechsel (Werkzeug)' },
+        (!app.access || app.access.all) && { label: 'Umstellung auf das Modul', icon: ICON.gear, action: 'mwc-open', hint: cutover() ? 'umgestellt – zurücknehmen' : 'Werkzeug nur noch lesend' },
       ],
     })}</div></div>`
   const tabs = mayImport()

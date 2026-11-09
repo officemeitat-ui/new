@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 345 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 346 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (78)
+- [Objekte & Kunden](#objekte-kunden) (79)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
@@ -1628,7 +1628,7 @@ Die Objektdoku führt Objektakte und Leistungsverzeichnis und erstellt das Objek
 
 ### Mattenwechsel (Werkzeug)
 
-Im Werkzeug Mattenwechsel arbeitest du die Touren ab und erstellst Lieferscheine und den Nachweis des Wechsels. „Abschließen“ legt Tour, Fotos, Tourbericht und je Kunde einen Lieferschein als PDF in SharePoint ab. Es läuft unverändert, bis das Mattenwechsel-Modul der App fertig ist.
+Im Werkzeug Mattenwechsel arbeitest du die Touren ab und erstellst Lieferscheine und den Nachweis des Wechsels. „Abschließen“ legt Tour, Fotos, Tourbericht und je Kunde einen Lieferschein als PDF in SharePoint ab. Nach der Umstellung auf das Modul heißt es „Mattenwechsel (alt)“ und ist nur zum Nachschlagen da.
 
 1. „Mattenwechsel (Werkzeug)“ öffnen.
 2. Tour wählen und abarbeiten.
@@ -1638,6 +1638,21 @@ Im Werkzeug Mattenwechsel arbeitest du die Touren ab und erstellst Lieferscheine
 > Tipp: Die Liegeplätze des neuen Moduls stehen unter „Matten-Liegeplätze“; die Übernahme aus dem Werkzeug macht der Vollzugriff.
 
 *Mattenwechsel Büro, Vollzugriff*
+
+### Umstellung auf das Mattenwechsel-Modul
+
+*In der App: Matten-Liegeplätze*
+
+Mit der Umstellung wird das Modul der eine Weg für den Mattenwechsel: „Mattenwechsel“ und Lesezeichen mit #matten öffnen das Modul. Das Werkzeug heißt dann „Mattenwechsel (alt)“ und speichert nichts mehr in SharePoint. Frühere Touren und Lieferscheine bleiben dort sichtbar. Zurücknehmen geht jederzeit.
+
+1. „Matten-Liegeplätze“ öffnen.
+2. „Mehr“ → „Umstellung auf das Modul“ wählen.
+3. Den Stand im Modul prüfen und „Jetzt umstellen“ klicken.
+
+> Tipp: Vorher Fahrer und Büro informieren: Touren laufen dann nur noch über „Matten-Touren“.
+> Tipp: Wer das Werkzeug im eigenen Fenster geöffnet hatte, sieht dort nach der Umstellung oben einen Hinweis, sobald die App auf dem Gerät einmal offen war.
+
+*Umstellen: Vollzugriff*
 
 ### Matten-Liegeplätze
 

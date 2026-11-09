@@ -170,7 +170,7 @@ Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für de
 | Wasserzähler-Ablesung | 1.13 | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
 | Objektkontrolle (Prüfprotokoll) | 2.9 | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
 | Objektdoku (Leistungsverzeichnis) | 2.1 | `werkzeuge/objektdoku/` | `Objektdoku` |
-| Mattenwechsel (im Menü „Mattenwechsel (Werkzeug)“, parallel zum Mattenwechsel-Modul) | 2.4 | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
+| Mattenwechsel (im Menü „Mattenwechsel (Werkzeug)“, parallel zum Mattenwechsel-Modul; nach der Umstellung „Mattenwechsel (alt)“, nur lesend) | 2.4 | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
 
 - **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.
 - **Alles wie gewohnt.** Ablesen, Fotos, Berichte, Kontrollen mit Unterschrift, Objektblatt mit Öffnungscode, Touren und Lieferscheine: Es ist dieselbe Datei, mit denselben Daten in denselben SharePoint-Ordnern. Ohne Netz arbeiten die Werkzeuge weiter wie bisher.
@@ -443,6 +443,25 @@ Pakete P12 (Lieferschein als Beleg) und P13 (Versand und SharePoint-Ablage), Ent
 - **Abrechnen** (wer die Fakturierung bearbeitet): Knopf „Abrechnen“ oben öffnet in der Fakturierung den Lauf „Mattenwechsel abrechnen“ für den Vormonat; unter „Mehr“ → „Einstellungen“ zusätzlich „Rechnungsentwürfe am Monatsersten vorschlagen“ (gespeichert in der Fakturierung, `settings.mattenRun.suggest`, damit auch die Buchhaltung den Vorschlag bekommt).
 - **Zu erledigen** (nur wer erstellen darf, nur „Öffnen“): „Abgeschlossene Stopps ohne Lieferschein (n)“, „Ablage fehlgeschlagen – erneut versuchen (n)“, „Lieferscheine noch nicht versendet (n)“; **digitaler Mitarbeiter „Fristen“**: „Lieferscheine erstellen (n)“ und „Ablage fehlgeschlagen – erneut versuchen (n)“ (Zähler `app.mwLs` aus der Ansicht, sobald die Touren gelesen sind).
 - **Browser-Test** `.pruefung/matten_lieferschein_app.mjs` (SharePoint-Attrappe): Fahrer schließt zwei Stopps ab (teilweise, nicht angetroffen), Büro erstellt `LS-<Jahr>-000001`, PDF am Pfad, zweites Erstellen und Ablegen ohne Doppel, Versand an Kunde, Büro, beide, Kunde mit „automatisch senden“, Ablage-Ausfall → Fehler → erneut → abgelegt, Sammelversand, Handy, Büro ohne Fakturierung, Buchhaltung in der Fakturierung, Browser-Modus.
+
+### Umstellung vom Werkzeug auf das Modul
+
+Paket P16 des Mattenwechsels. Bis zur Umstellung laufen Werkzeug und Modul parallel (Entscheidung E14). Umstellen darf nur der **Vollzugriff**: *Matten-Liegeplätze → Mehr → Umstellung auf das Modul*. Der Dialog zeigt den Stand im Modul (Liegeplätze, Übernahme aus dem Werkzeug, Fahrer, Betriebshof, Büro-E-Mail; Hinweise, kein Hindernis) und stellt mit **Jetzt umstellen** um. Ohne Liegeplätze im Modul fragt er erst nach. **Umstellung zurücknehmen** geht jederzeit; dabei gehen keine Daten verloren, weil Modul und Werkzeug eigene Dateien haben.
+
+- **Speicher:** `matten/matten.json` → `settings.cutover { at, by }`, für alle gleich.
+- **#matten:** Lesezeichen, Startbildschirm und Links mit `#matten` (auch `#mattenwechsel`) öffnen nach der Umstellung das Modul.
+  - Umgeleitet wird nur ein Aufruf über die Adresse (`VIEW_REDIRECTS` in `src/ui/context.js`, Regel in `src/ui/views/tools.js`), auch wenn `matten.json` erst nach dem Start geladen ist.
+  - Ziel ist die Übersicht des Moduls, sonst die Liegeplätze.
+- **Mattenwechsel (alt):** Das Werkzeug bleibt im Menü als „Mattenwechsel (alt)“ mit dem Hinweis „nur zum Nachschlagen“ und einem Knopf ins Modul.
+  - Adresse: `#matten-alt`; sie bleibt beim Neuladen im Werkzeug.
+  - Ohne „Eigenes Fenster“.
+- **Nur lesend:** `werkzeuge/bruecke.js` beantwortet im Rahmen der App jedes `PUT`, `POST`, `PATCH` und `DELETE` an Microsoft Graph aus dem Mattenwechsel mit 403 („nur lesend“). Lesen geht weiter.
+  - Im **eigenen Fenster** (gleiche Adresse, eigene Anmeldung) gilt dasselbe, sobald die App auf dem Gerät die Umstellung gesehen hat. Merker im Browser-Speicher: `cleanos-app.matten-alt`. Oben steht dann ein Hinweis.
+  - Andere Werkzeuge sind nicht betroffen.
+- **Frühere Daten:** Touren und Lieferscheine des Werkzeugs bleiben unverändert unter `Mattenwechsel/` in SharePoint. Sie werden nicht zu Belegen der Fakturierung und nicht abgerechnet.
+- **Tests:**
+  - `test/matten-umstellung.test.js`: Umleitung, Name, Sperre in der Brücke im Rahmen und im eigenen Fenster, Stand im Modul.
+  - Browser-Tests `.pruefung/matten_umstellung_app.mjs` und `.pruefung/matten_abnahme_app.mjs`. Der zweite ist die Gesamtprüfung nach den sechs Abnahmekriterien des Konzepts in einem Ablauf: Kunde mit drei Liegeplätzen → Einsätze → optimierte Tour → Fahrer am Handy → Lieferschein automatisch mit PDF in SharePoint und Versand → Rechnungsentwurf am Monatsersten → Prüfen, Freigeben, Festschreiben → keine Doppelabrechnung → Rechte.
 
 ## Regieberichte
 
