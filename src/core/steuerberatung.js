@@ -20,6 +20,8 @@ export const STB_PARTS = {
   zahlungen: { label: 'Zahlungen im Zeitraum', module: '*' },
   op: { label: 'Offene Posten zum Ende des Zeitraums', module: '*' },
   uva: { label: 'Umsatzsteuer-Übersicht (PDF)', module: '*' },
+  // Fahrtenbuch je Fahrzeug (core/fahrtenbuch.js): Privatfahrten und Sachbezug, Nachweis der betrieblichen Nutzung
+  fb: { label: 'Fahrtenbuch (CSV)', module: 'fahrzeuge' },
 }
 export const STB_REMIND_DAY = 10
 const MAX_HANDOVERS = 60

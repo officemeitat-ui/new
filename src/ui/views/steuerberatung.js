@@ -10,6 +10,7 @@
 // Paket schon nutzt). Rechenkern: core/steuerberatung.js.
 
 import { CASH_EXPORT_COLUMNS, CASH_EXPORT_DEFAULT } from '../../core/cashbook.js'
+import { fahrtenbuchCsv, tripsIn } from '../../core/fahrtenbuch.js'
 import { exportCsv } from '../../core/invoicing.js'
 import { purchaseCsv, toCsv } from '../../core/purchase.js'
 import { sichPruefsumme } from '../../core/sicherung.js'
@@ -224,6 +225,16 @@ async function build(m) {
     if (parts.has('op')) {
       const open = stbOpenItems(sub, s.p)
       if (open.length) await addFile(files, `Offene-Posten_${s.p.to}.csv`, csvBlob(stbCsv(open, OPEN_COLS)))
+    }
+    // Fahrtenbuch: Jahresdateien bei Bedarf nachladen (werden beim Start nicht gelesen)
+    if (parts.has('fb')) {
+      progress('Fahrtenbuch')
+      const years = [...new Set([s.p.from.slice(0, 4), s.p.to.slice(0, 4)])]
+      await app.service?.ensureYears?.('fahrtenbuch', years).catch(() => false)
+      const loaded = years.every((y) => !app.service?.yearLoaded || app.service.yearLoaded('fahrtenbuch', y))
+      const trips = tripsIn(app.data.fahrtenbuch || [], s.p)
+      if (trips.length) await addFile(files, 'Fahrtenbuch.csv', csvBlob(fahrtenbuchCsv(trips, app.data.fahrzeuge?.vehicles || []).replace(/^\ufeff/, '')))
+      else if (!loaded) notes.push('Fahrtenbuch ließ sich nicht lesen')
     }
     if (parts.has('uva') && s.p.kind !== 'jahr') {
       progress('Umsatzsteuer-Übersicht')
