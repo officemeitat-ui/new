@@ -90,8 +90,7 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
   }
 
   // Stammeinsätze, die diese Person diese Woche nicht selbst arbeitet
-  for (const inst of instances) {
-    if (!inst.regulars.includes(emp.id) || inst.origDate < monday || inst.origDate > sunday) continue
+  for (const inst of regularsInWeek(instances, emp.id, days)) {
     // vor dem Eintritt / nach dem Austritt nichts versäumt; Winterdienst-Team = Bereitschaft, nicht Stammkraft
     if (!employedOn(emp, inst.origDate) || inst.category === 'winter') continue
     const base = {
@@ -152,6 +151,31 @@ export function buildTimesheet(ctx, emp, monday, instances, state) {
   totals.soll = sollMinutes(emp, monday, addDays(monday, 6))
   totals.saldo = totals.ist - totals.soll
   return { employee: emp, monday, sunday, days, totals }
+}
+
+// Stammeinsätze je Person und ursprünglichem Tag, einmal je Einsatzliste: sonst durchsucht jeder Wochenzettel alle
+// Einsätze des Zeitraums (Kennzahlen über 12 Monate: 150 Personen × 56 Wochen × 60 000 Einsätze). Reihenfolge je Tag wie
+// in der Liste; wächst die Liste nachträglich (Müll, Winterdienst), wird neu aufgebaut.
+const REGULARS = new WeakMap()
+
+function regularsInWeek(instances, empId, days) {
+  let idx = REGULARS.get(instances)
+  if (!idx || idx.size !== instances.length) {
+    idx = { size: instances.length, byEmp: new Map() }
+    for (const inst of instances) {
+      if (!inst.regulars?.length) continue
+      for (const id of new Set(inst.regulars)) {
+        let byDay = idx.byEmp.get(id)
+        if (!byDay) idx.byEmp.set(id, (byDay = new Map()))
+        const list = byDay.get(inst.origDate)
+        if (list) list.push(inst)
+        else byDay.set(inst.origDate, [inst])
+      }
+    }
+    REGULARS.set(instances, idx)
+  }
+  const byDay = idx.byEmp.get(empId)
+  return byDay ? days.flatMap((d) => byDay.get(d.date) || []) : []
 }
 
 /** Summen über Tage (für Woche oder Monatsausschnitt). */

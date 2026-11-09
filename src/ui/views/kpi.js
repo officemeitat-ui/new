@@ -79,7 +79,28 @@ function build(p) {
         daysOf.set(emp.id, days)
       }
     }
-    const travelByWeek = new Map(weeks.map((w) => [w.key, [...daysOf.values()].reduce((s, days) => s + summarizeDays(days.filter((d) => d.date >= w.from && d.date <= w.to)).travel, 0)]))
+    // Tage je Person einmal nach Woche und Monat ordnen (statt je Woche und Monat alle Tage zu filtern)
+    const spanKey = (spans) => {
+      const at = new Map()
+      for (const x of spans) for (let d = x.from; d <= x.to; d = addDays(d, 1)) at.set(d, x.key)
+      return (date) => at.get(date)
+    }
+    const weekKey = spanKey(weeks)
+    const monthKey = spanKey(months)
+    const bucket = (days, keyOf) => {
+      const out = new Map()
+      for (const d of days) {
+        const k = keyOf(d.date)
+        if (k === undefined) continue
+        const list = out.get(k)
+        if (list) list.push(d)
+        else out.set(k, [d])
+      }
+      return out
+    }
+    const byWeek = [...daysOf.values()].map((days) => bucket(days, weekKey))
+    const byMonth = new Map([...daysOf].map(([id, days]) => [id, bucket(days, monthKey)]))
+    const travelByWeek = new Map(weeks.map((w) => [w.key, byWeek.reduce((s, m) => s + (m.has(w.key) ? summarizeDays(m.get(w.key)).travel : 0), 0)]))
     const scheduledWeeks = new Set(Object.keys(data.assignments || {}).map((k) => mondayOf(k.slice(0, 10))))
     out.week = weekStats({ weeks, instances: r.instances, state: r.state, stamps: data.stamps, travelByWeek, scheduled: (m) => scheduledWeeks.has(m) })
     out.hasStamps = out.week.some((w) => w.ist > 0)
@@ -89,7 +110,7 @@ function build(p) {
     if (seesAbsenceReasons()) out.absence = absenceRates({ months, employees, absences: data.absences || [], holidays: legal })
     out.plus = months.map((m) => {
       const rows = employees.map((emp) => {
-        const days = (daysOf.get(emp.id) || []).filter((d) => d.date >= m.from && d.date <= m.to)
+        const days = byMonth.get(emp.id)?.get(m.key) || []
         return { employee: emp, saldo: summarizeDays(days).ist - sollMinutes(emp, m.from, m.to) }
       })
       return { key: m.key, ...plusHours(rows) }

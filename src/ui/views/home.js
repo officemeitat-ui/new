@@ -6,7 +6,7 @@
 import { addDays, formatDate, isoWeek, todayISO } from '../../core/dates.js'
 import { app, navSections, openModal, registerActions, registerModal, registerView, visibleViews } from '../context.js'
 import { weekSteps } from '../flow.js'
-import { todo } from '../modals/todo.js'
+import { todoOrLast } from '../modals/todo.js'
 import { esc, ICON, modalFrame } from '../shared.js'
 import { isMobile } from '../mobile.js'
 import { navIcon } from '../sidebar.js'
@@ -175,7 +175,7 @@ registerActions({ 'home-section': (el) => openModal({ type: 'home-section', sec:
 
 function homeView(c) {
   const views = visibleViews().filter((v) => v.id !== 'home')
-  const t = todo()
+  const t = todoOrLast()
   const name = firstName(app.user?.name)
   const cards = navSections(views).filter((s) => s.id !== 'start').map((s) => card(c, s)).join('')
   // Termine heute und morgen (wer Termine sieht)

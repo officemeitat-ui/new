@@ -50,7 +50,7 @@ import { openTasks, taskLabel } from '../../core/vehicle-dues.js'
 import { ACTIONS, app, canEdit, compute, ensureRange, memo, openModal, persist, registerActions, registerView, render, renderNow, toast } from '../context.js'
 import { eintrittContext } from '../eintritt-ctx.js'
 import { canMail } from '../modals/send.js'
-import { todo } from '../modals/todo.js'
+import { todo, todoOrLast, todoReady } from '../modals/todo.js'
 import { planWeek } from '../planning.js'
 import { esc, ICON } from '../shared.js'
 
@@ -631,6 +631,12 @@ function fristen(today) {
   return out
 }
 
+// Zähler im Menü und auf der Startseite warten nicht auf „Zu erledigen“: nach einer Änderung kurz der letzte Stand,
+// todoOrLast() rechnet im Hintergrund und zeichnet danach neu (modals/todo.js)
+let lastBadge = 0
+let lastSummary = null
+const planWaits = () => edits('planung') && !todoReady()
+
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
   // app.mwLs, app.mwUe, app.mwBe: Zähler der Matten-Lieferscheine, der Übersicht und des Bestands (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
@@ -719,7 +725,13 @@ registerView({
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
   available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit') || edits('eintritt') || edits('bewerber') || edits('matten') || edits('geraete'),
-  badge: () => proposals().filter((p) => p.prio === 1).length,
+  badge: () => {
+    if (planWaits()) {
+      todoOrLast()
+      return lastBadge
+    }
+    return (lastBadge = proposals().filter((p) => p.prio === 1).length)
+  },
   render: assistenzView,
 })
 
@@ -803,8 +815,12 @@ registerActions({
 
 /** Für die Übersicht: Anzahl je digitalem Mitarbeiter. */
 export function proposalSummary() {
+  if (planWaits() && lastSummary) {
+    todoOrLast()
+    return lastSummary
+  }
   const list = proposals()
-  return visibleAgents().map((a) => ({ ...a, count: list.filter((p) => p.agent === a.id).length, urgent: list.filter((p) => p.agent === a.id && p.prio === 1).length }))
+  return (lastSummary = visibleAgents().map((a) => ({ ...a, count: list.filter((p) => p.agent === a.id).length, urgent: list.filter((p) => p.agent === a.id && p.prio === 1).length })))
 }
 
 // Wochen der nächsten 14 Tage für die Routinen laden (still, im Hintergrund)

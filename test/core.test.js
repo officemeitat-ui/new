@@ -363,3 +363,17 @@ test('Sonntagsarbeit: Warnung ohne hinterlegte Ausnahme (§ 3 ARG), mit Grundlag
   const objekt = run({}, [{ id: 'o1', name: 'Spital', sundayBasis: 'ARG-VO, Krankenanstalt' }])
   assert.match(objekt.find((i) => i.code === 'SUNDAY').message, /Krankenanstalt/)
 })
+
+test('Wochenzettel: Stammeinsätze über das Verzeichnis je Person und Tag (doppelte Stammkraft, nachträglich angehängter Einsatz)', () => {
+  const tasks = [task('a', 'o1', [2, 4], '08:00', '10:00', { regulars: ['p', 'p'] }), task('b', 'o2', [3], '12:00', '13:00', { regulars: ['q'] })]
+  const s = setup({ employees: [emp('p'), emp('q')], tasks, from: '2026-11-02', to: '2026-11-15' })
+  const missed = (ts) => ts.days.flatMap((d) => d.lines.filter((l) => l.kind === 'missed').map((l) => `${d.date}|${l.inst.key}`))
+  const p = s.ctx.employees[0]
+  // je Woche nur die eigenen Stammeinsätze, jeder einmal (auch wenn die Person doppelt eingetragen ist)
+  assert.deepEqual(missed(buildTimesheet(s.ctx, p, '2026-11-02', s.instances, s.state)), ['2026-11-03|2026-11-03|a', '2026-11-05|2026-11-05|a'])
+  assert.deepEqual(missed(buildTimesheet(s.ctx, p, '2026-11-09', s.instances, s.state)), ['2026-11-10|2026-11-10|a', '2026-11-12|2026-11-12|a'])
+  // Liste wächst nach dem ersten Wochenzettel (wie Müll oder Winterdienst): der neue Einsatz zählt mit
+  const extra = { ...s.instances.find((i) => i.key === '2026-11-04|b'), key: '2026-11-06|x', date: '2026-11-06', origDate: '2026-11-06', regulars: ['p'] }
+  s.instances.push(extra)
+  assert.deepEqual(missed(buildTimesheet(s.ctx, p, '2026-11-02', s.instances, new PlanState(s.instances, {}))), ['2026-11-03|2026-11-03|a', '2026-11-05|2026-11-05|a', '2026-11-06|2026-11-06|x'])
+})

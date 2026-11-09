@@ -45,7 +45,11 @@ function sourceItems(today) {
 }
 
 export function computeTodo(today = todayISO()) {
-  const { extra, extraIds } = sourceItems(today)
+  return planItems(today, sourceItems(today))
+}
+
+/** Punkte der Einsatzplanung (Abwesenheiten, periodische Leistungen, geänderte Wochen) dazu, Ergebnis wie computeTodo. */
+function planItems(today, { extra, extraIds }) {
   if (!mayDo('planung')) return { today, lead: 0, absences: [], periodic: [], weeks: [], extra, count: extraIds.length, ids: extraIds }
   const { from, to } = todoWindow(today)
   const r = computeRange(from, to)
@@ -89,13 +93,77 @@ export function computeTodo(today = todayISO()) {
 
 // Berechnung nur nach Änderungen
 let cache = { key: null, todo: null }
+const keyNow = () => `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
 /** Neu berechnen beim nächsten Mal (z. B. wenn eine Quelle Daten vom Webspace bekommen hat). */
 export const invalidateTodo = () => (cache.key = null)
 export function todo() {
-  const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
+  const key = keyNow()
   // wie beim Zeichnen: Bezüge der Belege über einen Index (context.js drawing), die Daten ändern sich dabei nicht
-  if (cache.key !== key) cache = { key, todo: drawing(() => computeTodo()) }
+  if (cache.key !== key) {
+    job = null
+    cache = { key, todo: drawing(() => computeTodo()) }
+  }
   return cache.todo
+}
+
+// Im Hintergrund: Zähler (Glocke, digitaler Mitarbeiter im Menü, Startseite) warten nicht auf die Berechnung. Nach einer
+// Änderung zeigen sie kurz den letzten Stand; „Zu erledigen“ rechnet danach Quelle für Quelle mit Pausen dazwischen (die
+// Bedienung bleibt flüssig) und zeichnet neu, wenn etwas mit dem alten Stand gezeichnet wurde.
+const EMPTY = { today: '', lead: 0, absences: [], periodic: [], weeks: [], extra: [], count: 0, ids: [] }
+let job = null
+let staleDrawn = false
+/** Ergebnis zum aktuellen Datenstand oder null (rechnet nicht). */
+export const todoReady = () => (app.data && cache.key === keyNow() ? cache.todo : null)
+/** Ergebnis zum aktuellen Datenstand, sonst der letzte Stand (und im Hintergrund neu rechnen). Für Zähler und Übersichten. */
+export function todoOrLast() {
+  const ready = todoReady()
+  if (ready) return ready
+  staleDrawn = true
+  todoSoon()
+  return cache.todo || EMPTY
+}
+const idle = () => new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(), { timeout: 300 }) : setTimeout(resolve, 0)))
+/** „Zu erledigen“ im Hintergrund neu rechnen (Quelle für Quelle); fertig: Glocke anpassen, bei Bedarf neu zeichnen. */
+export function todoSoon() {
+  if (!app.data) return
+  const key = keyNow()
+  if (cache.key === key || job?.key === key) return
+  const my = (job = { key })
+  const alive = () => job === my && keyNow() === key
+  ;(async () => {
+    const today = todayISO()
+    const extra = []
+    for (const source of SOURCES.filter((src) => mayDo(src.module))) {
+      await idle()
+      if (!alive()) return
+      const items = drawing(() => source.compute(today))
+      if (items.length) extra.push({ source, items })
+    }
+    await idle()
+    if (!alive()) return
+    const extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
+    const t = drawing(() => planItems(today, { extra, extraIds }))
+    job = null
+    if (cache.key === key) return
+    cache = { key, todo: t }
+    setBell(t.count)
+    // neu zeichnen, was mit dem alten Stand gezeichnet wurde – nicht bei offenem Dialog oder während einer Eingabe
+    // (das nächste Zeichnen nimmt ohnehin den neuen Stand)
+    if (staleDrawn && !app.ui.modal && !document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]')) {
+      staleDrawn = false
+      render()
+    }
+  })().catch((err) => {
+    if (job === my) job = null
+    console.warn('Zu erledigen:', err)
+  })
+}
+
+function setBell(count) {
+  const el = typeof document !== 'undefined' && document.getElementById('todo-count')
+  if (!el) return
+  el.textContent = count || ''
+  el.hidden = !count
 }
 
 /** Modul nachgeladen: im gemerkten Ergebnis die Punkte der Module neu, die (teure) Planung bleibt. */
@@ -136,11 +204,10 @@ let timer = null
 export function refreshBell() {
   clearTimeout(timer)
   timer = setTimeout(() => {
-    const el = document.getElementById('todo-count')
-    if (!el || !app.data) return
-    const { count } = todo()
-    el.textContent = count || ''
-    el.hidden = !count
+    if (!document.getElementById('todo-count') || !app.data) return
+    const ready = todoReady()
+    if (ready) setBell(ready.count)
+    else todoSoon()
   }, 40)
 }
 
