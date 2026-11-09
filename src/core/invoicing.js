@@ -110,7 +110,9 @@ export const SETTINGS_DEFAULTS = {
  *  documents[]   wie bisher, dazu termsId, skonto { percent, days }, reference (Bestellnummer/Zeichen des Kunden),
  *                  contactName, deliveryAddress, imported { system, at, ref } (übernommener Altbeleg: Nummer, Datum und
  *                  Summen wie im Altsystem, nicht neu gerechnet), original { path, name } (Original-PDF im Archiv), extra
- *  recurring[]   wie bisher (Daueraufträge; orgaMAX: Abo-Rechnungen)
+ *  recurring[]   wie bisher (Daueraufträge; orgaMAX: Abo-Rechnungen); dazu contractId (Vertrag, core/vertraege.js) und
+ *                steps[] (geplante Preisstufen „gültig ab“, z. B. KV-Lohn; der Monatslauf übernimmt sie), history[].kind
+ *  contracts[], priceRuns[]  Kundenverträge mit Fristen und Läufe „Preisanpassung“ (Felder in core/vertraege.js)
  *  settings      wie bisher, dazu numberFormats { Belegart: Vorlage mit {P} {JJJJ} {JJ} {MM} {NR} }, yearly { Belegart: bool },
  *                letterhead (Briefpapier für alle PDFs: Bilder, Ränder, Fußzeile, Farbe, Schrift; export/letterhead.js)
  *  letters[]     Geschäftsbriefe, serials[] Serienbriefe (Felder in core/letters.js); customers[] dazu noAds (Werbung per
@@ -965,10 +967,32 @@ export function latestIndex(values = {}, ym) {
   return keys.length ? { ym: keys.at(-1), value: Number(values[keys.at(-1)]) } : null
 }
 
+/** Sperrfrist zwischen zwei Preisanpassungen eines Dauerauftrags (KV-Lohn und VPI): keine Doppelanpassung im selben Zeitraum. */
+export const ADJUST_LOCK_MONTHS = 12
+
+/**
+ * Positionen mit einer Preisstufe des Dauerauftrags (recurring[].steps, z. B. Preisanpassung nach KV-Lohnerhöhung aus
+ * core/vertraege.js): je Position der geplante neue Preis, solange der alte noch gilt, sonst alter Preis × Faktor (auf Cent).
+ * Text-, Titel- und Zwischensummenzeilen bleiben.
+ */
+export function stepLines(lines = [], step) {
+  const planned = new Map((step.lines || []).map((l) => [l.id, l]))
+  return lines.map((l) => {
+    if (lineType(l) !== 'item') return l
+    const price = parseNumber(l.price)
+    if (!price) return l
+    const p = planned.get(l.id)
+    return { ...l, price: p && round2(p.old) === round2(price) ? p.new : round2(price * step.factor) }
+  })
+}
+
 /**
  * Monatslauf: für jeden aktiven Dauerauftrag mit Abrechnung im Monat ym einen Rechnungsentwurf
- * (nicht doppelt: Quelle „rec:<id>:<ym>“). Wertsicherung wird vorher geprüft und in den Auftrag
- * übernommen. Liefert { documents, recurring, created, adjusted }.
+ * (nicht doppelt: Quelle „rec:<id>:<ym>“). Vorher werden geplante Preisstufen mit „gültig ab“ bis ym übernommen
+ * (recurring[].steps, z. B. KV-Lohn; danach ist die Indexzahl vor dem Monat die neue Basis der Wertsicherung) und die
+ * Wertsicherung geprüft – nicht innerhalb von 12 Monaten vor oder nach einer Anpassung nach KV-Lohn (keine Doppelanpassung).
+ * Beides kommt in den Verlauf des Auftrags (kind 'kv' bzw. 'vpi', ym) und als Hinweis auf die Rechnung.
+ * Liefert { documents, recurring, created, adjusted }.
  */
 export function runRecurring(doc, ym, { today, newId, by = '', customersById = new Map() }) {
   const s = settingsOf(doc)
@@ -983,21 +1007,43 @@ export function runRecurring(doc, ym, { today, newId, by = '', customersById = n
     const key = `rec:${rec.id}:${ym}`
     if (!period || have.has(key)) return rec
     let next = rec
-    const idx = rec.index
-    let note = ''
-    if (idx?.active && Number(idx.baseValue) > 0) {
+    const notes = []
+    // geplante Preisstufen (z. B. nach KV-Lohnerhöhung) ab ihrem Monat übernehmen; festgeschriebene Rechnungen bleiben
+    const due = (rec.steps || []).filter((st) => !st.applied && st.fromMonth && st.fromMonth <= ym)
+    if (due.length) {
+      let lines = rec.lines || []
+      let index = rec.index
+      const hist = []
+      for (const st of due) {
+        lines = stepLines(lines, st)
+        notes.push(st.note || `Preisanpassung +${String(st.change).replace('.', ',')} %`)
+        hist.push({ at: today, by, text: st.note || 'Preisanpassung', kind: st.kind || 'kv', ym, change: st.change })
+        adjusted.push({ id: rec.id, kind: st.kind || 'kv', change: st.change })
+        // neue Basis der Wertsicherung: Indexzahl vor dem Monat der Anpassung
+        const cur = index?.active ? latestIndex(doc.indexValues, ymAdd(st.fromMonth, -1)) : null
+        if (cur) index = { ...index, baseValue: cur.value, baseMonth: cur.ym }
+      }
+      const done = new Set(due.map((st) => st.id))
+      next = { ...rec, lines, ...(index ? { index } : {}), steps: rec.steps.map((st) => (done.has(st.id) ? { ...st, applied: ym } : st)), history: [...(rec.history || []), ...hist] }
+    }
+    const idx = next.index
+    // Anpassung nach KV-Lohn (auch eine schon geplante) in den 12 Monaten davor oder danach: keine Wertsicherung dazu
+    const locked = (next.steps || []).some((st) => st.kind === 'kv' && (st.applied || st.fromMonth) > ymAdd(ym, -ADJUST_LOCK_MONTHS) && (st.applied || st.fromMonth) < ymAdd(ym, ADJUST_LOCK_MONTHS))
+    if (idx?.active && Number(idx.baseValue) > 0 && !locked) {
       const cur = latestIndex(doc.indexValues, ymAdd(ym, -1))
       if (cur && cur.ym !== idx.baseMonth) {
-        const lines = (rec.lines || []).map((l) => ({ ...l }))
+        const lines = (next.lines || []).map((l) => ({ ...l }))
         const first = indexAdjustment({ price: 1, baseValue: idx.baseValue, currentValue: cur.value, threshold: idx.threshold ?? 3, onlyUp: !!idx.onlyUp })
         if (first.applies) {
           for (const l of lines) l.price = indexAdjustment({ price: parseNumber(l.price), baseValue: idx.baseValue, currentValue: cur.value, threshold: idx.threshold ?? 3, onlyUp: !!idx.onlyUp }).price
-          note = `Wertsicherung ${s.indexName}: ${String(idx.baseValue).replace('.', ',')} → ${String(cur.value).replace('.', ',')} (${first.change > 0 ? '+' : ''}${String(first.change).replace('.', ',')} %)`
-          next = { ...rec, lines, index: { ...idx, baseValue: cur.value, baseMonth: cur.ym }, history: [...(rec.history || []), { at: today, by, text: note }] }
-          adjusted.push({ id: rec.id, change: first.change, from: idx.baseValue, to: cur.value })
+          const note = `Wertsicherung ${s.indexName}: ${String(idx.baseValue).replace('.', ',')} → ${String(cur.value).replace('.', ',')} (${first.change > 0 ? '+' : ''}${String(first.change).replace('.', ',')} %)`
+          notes.push(note)
+          next = { ...next, lines, index: { ...idx, baseValue: cur.value, baseMonth: cur.ym }, history: [...(next.history || []), { at: today, by, text: note, kind: 'vpi', ym, change: first.change }] }
+          adjusted.push({ id: rec.id, kind: 'vpi', change: first.change, from: idx.baseValue, to: cur.value })
         }
       }
     }
+    const note = notes.join('\n')
     const customer = customersById.get(next.customerId)
     const id = newId()
     const terms = termsSetup(customer, doc.paymentTerms, s)
