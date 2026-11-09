@@ -30,6 +30,9 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Zuletzt fertig (9.11.2026)
 
+- Leistungs-Checkliste am Handy: je Leistung eine Checkliste (Foto nötig, 1× pro Woche, bestimmte Tage; Vorlagen, übersetzt, „Mit KI übersetzen“), abhaken im Plan am Handy mit Foto ohne Ortsdaten oder „nicht möglich“ mit Grund; Abholen mit den Stempelungen, Fotos in SharePoint, „Zu erledigen“, Spalte im Leistungsnachweis (Idee 3, Rechtsprüfung Punkt 50).
+- Zusatzleistungen im Kundenbereich anfragen: Wunschtermin, Fläche, Fotos; daraus Angebot, Vertriebsfall, Termin oder Regiebericht, Stand zurück an den Kunden (Idee 7, Rechtsprüfung Punkt 49).
+- Barrierefreiheit: Prüfung aller Ansichten mit axe-core (WCAG 2.1 AA) am PC und Handy, alle ernsten Befunde behoben (Teil der Prüfrunde 2).
 - Fahrtenbuch je Fahrzeug: Fahrten aus Touren, Winterdienst und Dienstplan bestätigen, km-Stand, Änderungen und Stornos nachvollziehbar, Privat-km im Jahresschnitt, CSV.
 - Kalkulation: „Aus Ausschreibung lesen (KI)“ – Leistungsverzeichnis (PDF) → Vorschlag für Bereiche mit Art, m² und Häufigkeit, nur Angehaktes in die Flächen.
 - Prüfrunde: Sicherheit am Webspace (5 Befunde behoben), 9 Rechenfehler im Mattenwechsel behoben, Leistung mit großen Datenmengen (Ansichtswechsel unter 0,3 s statt Minuten).
@@ -52,11 +55,11 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 1. **(fertig)** KI-Posteingang: Kunden-E-Mails (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung) und Eingangsrechnungen aus einem Postfach erkennen und als Entwurf anlegen – immer mit Freigabe.
 2. **(fertig)** Objekt-QR zum Aushängen: Kunden und Hausbewohner melden ohne Anmeldung (Foto, Text) – wird zur Reklamation des Objekts, Status über den Link.
-3. **(in Arbeit)** Leistungs-Checkliste am Handy: je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
+3. **(fertig)** Leistungs-Checkliste am Handy: je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
 4. **(fertig: Paket für die Steuerberatung)** Buchhaltungs-Export für die Steuerberatung: Ausgangs- und Eingangsrechnungen, Zahlungen und Kassenbuch als Buchungsstapel (BMD, RZL oder DATEV-Format).
 5. **(fertig)** KI-Wochenbriefing: Montag früh je Rolle eine kurze Zusammenfassung (Umsatz, offene Posten, Reklamationen, Krankenstände, Fristen, Lücken im Plan) per E-Mail oder Push.
 6. **(fertig)** Rentabilität je Objekt: Ist-Stunden und Kosten gegen Umsatz mit Ampel und Vorschlag zur Preisanpassung (an die Kundenverträge angebunden).
-7. **(in Arbeit)** Kunden-Self-Service: im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
+7. **(fertig)** Kunden-Self-Service: im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
 8. **(fertig, bei der Qualitätsmessung)** KI-Fotoprüfung bei der Objektkontrolle: Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
 9. **(fertig)** Tempo Kennzahlen und „Zu erledigen“: Kennzahlen rechnen beim ersten Öffnen den Plan von 12 Monaten neu (bei großen Datenmengen 7 s am PC, 23 s am Handy); „Zu erledigen“ rechnet nach jeder Änderung alle Quellen neu (am Handy rund 2 s) – Zwischenspeicher je Quelle.
 
@@ -77,6 +80,9 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Geschäftsführung: Winterdienst-Saison Juli–Juni oder anders? Fotos in die Winterdienst-Beilage? Bestätigungs-E-Mail nach Online-Annahme? Intervalle der Anlagen mit der Sicherheitsfachkraft bestätigen (Punkt 28).
 - Posteingang (Punkt 46): eingebaute Rolle „Sekretariat“ statt nur Vollzugriff? Bewerbungen von der KI ausnehmen? Aufräumfrist 180 Tage? Sammelpostfach mit Mail.Read.Shared empfohlen (Administratorzustimmung).
 - Neu (9.11.): Aushang – Weiterleitung an die Hausverwaltung, Datenschutzerklärung im Kundenbereich eintragen, Frist für Kontaktdaten Dritter (Vorschlag 1 Jahr nach „erledigt“), Grenzen 10 je Aushang / 5 je Adresse am Tag (Punkt 45). Paket für die Steuerberatung – Übertragungsweg und CSV-Format mit der Steuerberatung klären (Punkt 47). Wochenbriefing – dürfen Kunden- und Objektnamen an Anthropic (Punkt 48)? Rentabilität – Ziel-Deckungsbeitrag festlegen (Vorgabe 25 %).
+- Neu (9.11.): Checkliste am Handy (Punkt 50) – Zeitfenster am Handy (1 h vor Beginn bis 24 h nach Ende) und Grenzen (150 Speichervorgänge, 40 Fotos je Person und Tag) passend? „1× pro Woche“ = beim ersten Einsatz der Woche; Betriebsvereinbarung bzw. Zustimmung (§ 96/96a ArbVG); Aufbewahrungsfrist der Fotos in SharePoint; soll die Checkliste auch im Nachweis im Kundenbereich stehen?
+- Neu (9.11.): Zusatzleistungen (Punkt 49) – Sprachwahl Deutsch/Englisch für den Kundenbereich? Vorbelegte Ansprechperson für alle mit dem Link sichtbar in Ordnung? Löschfrist für Anfragen ohne Auftrag (Vorschlag 3 Jahre)? Reichen 5 Anfragen je Link und Tag?
+- Neu (9.11.): Fahrtenbuch (Punkt 52) – mit der Steuerberatung abstimmen, ob das Fahrtenbuch aus der App reicht und welche Fahrzeuge eines brauchen (Sachbezug); Abstellort je Fahrzeug eintragen.
 - Hausbank: Test von pain.008 (Lastschrift) und pain.001 (Überweisung); USP: ebInterface-Test.
 - Rechtliches: § 174 TKG (Werbe-E-Mail), BAO § 131/131b (Kassenbuch), FAGG bei Online-Annahme durch Verbraucher, Prüfintervalle der Anlagen, Aufbewahrung ohne Frist begründen (Punkt 38), Google-Routing (Punkt 39), OpenRouteService (Punkt 40) – siehe docs/RECHTSPRUEFUNG.md.
 - Echter Betrieb: Gruppen je Rolle und je Revier einrichten, Rechte prüfen, Pilot mit einem Revier.
