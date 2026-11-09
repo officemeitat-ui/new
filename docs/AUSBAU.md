@@ -20,12 +20,13 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 | KI-Ausbau (Beleg lesen, Regiebericht diktieren, Sicherheitsdatenblatt lesen, Assistent kennt die neuen Module, Texte) | fertig – Auftragsverarbeitung klären (RECHTSPRUEFUNG Punkt 35) |
 | Handy: untere Leiste je Rolle, Plätze einzeln tauschbar | fertig |
 | Feinschliff (Winterdienst-Preise im Kundenblatt, Leistungszeitraum Saisonpauschale, Anlagen verrechnen, Sprache im Import und Wochenplan-PDF) | fertig |
-| Mattenwechsel-Modul (Liegeplätze, Kalender, Tourenplanung, Fahreransicht, Fahrerseite am Webspace, Lieferscheine, Rechnungsentwürfe) | P1–P16 fertig (zuletzt Büro-Übersicht mit den neun Zahlen und Umstellung); Gesamtprüfung nach den sechs Abnahmekriterien grün – **Abnahme durch die Geschäftsführung**, danach „Umstellung auf das Modul“ (docs/MATTENWECHSEL-PLAN.md) |
+| Mattenwechsel-Modul (Liegeplätze, Kalender, Tourenplanung, Fahreransicht, Fahrerseite am Webspace, Lieferscheine, Rechnungsentwürfe) | P1–P17 fertig (zuletzt Mattenbestand und Wäscherei, Lieferscheine im Kundenbereich, KI-Werkzeuge, Ergebnisse automatisch übernehmen); Gesamtprüfung nach den sechs Abnahmekriterien grün – **Abnahme durch die Geschäftsführung**, danach „Umstellung auf das Modul“ (docs/MATTENWECHSEL-PLAN.md) |
 
 ## Als Nächstes
 
 1. **Mattenwechsel-Modul**: Abnahme durch die Geschäftsführung, danach Umstellung (`#matten` öffnet das Modul, das Werkzeug ist nur noch lesend; jederzeit zurücknehmbar).
 2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
+3. **Mattenwechsel optional:** Google als Routing-Anbieter (Konto und Kosten freigeben), Aufbewahrung der Fotos und Unterschriften (E15).
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 
@@ -33,5 +34,5 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Steuerberatung: Buchung Abschlag/Schluss, Kundenskonto- und Kassenkonten, Kennzahlen der Umsatzsteuer-Übersicht, Soll/Ist, durchlaufende Posten (RECHTSPRUEFUNG Punkt 27).
 - Geschäftsführung: Winterdienst-Saison Juli–Juni oder anders? Fotos in die Winterdienst-Beilage? Bestätigungs-E-Mail nach Online-Annahme? Intervalle der Anlagen mit der Sicherheitsfachkraft bestätigen (Punkt 28).
 - Hausbank: Test von pain.008 (Lastschrift) und pain.001 (Überweisung); USP: ebInterface-Test.
-- Rechtliches: § 174 TKG (Werbe-E-Mail), BAO § 131/131b (Kassenbuch), FAGG bei Online-Annahme durch Verbraucher, Prüfintervalle der Anlagen – siehe docs/RECHTSPRUEFUNG.md.
+- Rechtliches: § 174 TKG (Werbe-E-Mail), BAO § 131/131b (Kassenbuch), FAGG bei Online-Annahme durch Verbraucher, Prüfintervalle der Anlagen, Lieferschein-PDF mit Unterschrift im Kundenbereich (Punkt 37) – siehe docs/RECHTSPRUEFUNG.md.
 - Echter Betrieb: Gruppen je Rolle und je Revier einrichten, Rechte prüfen, Pilot mit einem Revier.
