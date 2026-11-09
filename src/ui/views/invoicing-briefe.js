@@ -10,6 +10,7 @@
 import { sendMail } from '../../auth/graph-mail.js'
 import { todayISO } from '../../core/dates.js'
 import { customerName, deDate, defaultBlock, PLACEHOLDERS, settingsOf } from '../../core/invoicing.js'
+import { KV_PLACEHOLDERS } from '../../core/vertraege.js'
 import { customerLetters, LETTER_MAIL_TEXT, LETTER_PLACEHOLDERS, LETTER_TEXT, letterArchivePath, letterFileName, letterRecipient, letterState, pageStarts, resolveLetter, SERIAL_SCOPES, SERIAL_TYPES, serialCounts, serialFileName, serialRecipients } from '../../core/letters.js'
 import { mailtoUrl } from '../../core/mail.js'
 import { letterDocument, lettersDocument } from '../../export/letter-pdf.js'
@@ -56,7 +57,7 @@ function materialize(v) {
   const cu = custOf(v.customerId)
   const serial = v.serialId ? serialOf(v.serialId) : null
   if (serial) {
-    const out = resolveLetter({ ...v, subject: serial.subject, text: serial.text, mailText: mailTextOf(serial), recipient: undefined }, { customer: cu, settings: S(), user: serial.createdBy || userName(), today: v.date })
+    const out = resolveLetter({ ...v, subject: serial.subject, text: serial.text, mailText: mailTextOf(serial), recipient: undefined }, { customer: cu, settings: S(), user: serial.createdBy || userName(), today: v.date, extra: serial.values?.[v.customerId] })
     return { ...v, ...out, recipient: v.recipient?.name ? v.recipient : out.recipient }
   }
   if (v.status && v.status !== 'entwurf') return { ...v }
@@ -264,6 +265,12 @@ function recipientsOf(s) {
   return serialRecipients(d.customers, { ...s.filter, advertising: !!s.advertising, excluded: s.excluded, documents: d.documents, recurring: d.recurring, objects: app.data.objects || [], today: todayISO() })
 }
 
+/** Serienbrief mit fertigem Entwurf öffnen (z. B. Musterschreiben zur Preisanpassung aus invoicing-vertraege.js). */
+export function openSerialDraft(draft, step = 'text') {
+  if (serialOf(draft.id)) return openModal({ type: 'fak-serial', id: draft.id })
+  openModal({ type: 'fak-serial', draft: { ...newSerial(), ...draft }, step })
+}
+
 /** Schon erledigt (gesendet oder im Sammel-PDF) je Kunde; Fehlversuche zählen nicht. */
 const doneIds = (s) => new Set((s.results || []).filter((r) => !r.error).map((r) => r.customerId))
 /** Letzter Stand je Kunde mit Fehler (ohne späteren Erfolg). */
@@ -276,7 +283,7 @@ function failedOf(s) {
 
 /** Brief für einen Empfänger des Serienbriefs (aufgelöst). */
 function serialLetter(s, r) {
-  const out = resolveLetter({ subject: s.subject, text: s.text, mailText: mailTextOf(s), date: s.date, contactId: r.contact?.id || '', recipient: r.recipient }, { customer: r.customer, settings: S(), user: userName(), today: todayISO() })
+  const out = resolveLetter({ subject: s.subject, text: s.text, mailText: mailTextOf(s), date: s.date, contactId: r.contact?.id || '', recipient: r.recipient }, { customer: r.customer, settings: S(), user: userName(), today: todayISO(), extra: s.values?.[r.id] })
   return { id: uid('br'), customerId: r.id, contactId: r.contact?.id || '', contactName: r.contact?.name || '', date: s.date, author: userName(), serialId: s.id, ...out }
 }
 
@@ -320,6 +327,7 @@ function serialRecipientsStep(m, s, list, n, dis) {
       <label class="field"><span>An Ansprechpartner mit Funktion</span><input type="text" id="fsb-role" list="fsb-role-list" value="${esc(f.role || '')}" placeholder="leer: an die Firma" data-input="fak-serial-list" ${dis}><datalist id="fsb-role-list">${roles.map((r) => `<option value="${esc(r)}"></option>`).join('')}</datalist></label>
       <label class="field"><span>Suche</span><input type="search" id="fsb-search" value="${esc(f.search || '')}" placeholder="Name, Ort, Gruppe …" data-input="fak-serial-list" ${dis}></label>
     </div>
+    ${Array.isArray(f.ids) ? `<p class="muted">Empfänger aus der Preisanpassung: ${plural(f.ids.length, 'Kunde', 'Kunden')} (die Auswahl oben grenzt nur weiter ein).</p>` : ''}
     <div id="fsb-list">${recipientsHtml(list, n, dis)}</div>
     <p class="note">„Aktiv“ heißt: in den letzten 24 Monaten eine Rechnung, ein laufender Dauerauftrag oder ein aktives Objekt, und nicht als inaktiv markiert (Kundenblatt → Briefe). Kunden ohne E-Mail-Adresse kommen ins Sammel-PDF zum Drucken.</p>`
 }
@@ -336,7 +344,7 @@ function serialTextStep(m, s, list, n, edit) {
   // sind schon Briefe hinausgegangen, steht der Text fest (der Verlauf je Kunde zeigt ihn)
   const locked = (s.results || []).some((r) => !r.error)
   const dis = locked ? 'disabled' : edit
-  const tm = (target, place) => (dis ? '' : textMenu({ target, kind: 'brief', place, placeholders: LETTER_PHS }))
+  const tm = (target, place) => (dis ? '' : textMenu({ target, kind: 'brief', place, placeholders: s.values ? [...LETTER_PHS, ...KV_PLACEHOLDERS] : LETTER_PHS }))
   return `<div class="fak-serial-kind" role="radiogroup" aria-label="Art des Serienbriefs">
       <label class="check"><input type="radio" name="fsb-kind" value="info" data-change="fak-serial-kind" ${s.advertising ? '' : 'checked'} ${dis}><span><strong>Information</strong> zum laufenden Auftrag (keine Werbung)</span></label>
       <label class="check"><input type="radio" name="fsb-kind" value="werbung" data-change="fak-serial-kind" ${s.advertising ? 'checked' : ''} ${dis}><span><strong>Werbung</strong>, z. B. neue Leistung oder Aktion</span></label>

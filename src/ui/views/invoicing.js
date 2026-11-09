@@ -129,6 +129,8 @@ import { articleMatFields, customerMattenTab, customerPricesTab, mattenTab, read
 import { mattenConflicts } from '../../core/matten-abrechnung.js'
 import { mattenBadge, mattenRunHooks, reviewPanel, trackMatten } from './invoicing-mattenabrechnung.js'
 import { batchBanner, docButtons, docExtras, laeufeHooks, laeufeMenu, laeufeTodo, offerSettingsHtml, offersPanel, openRowBadges, openTabTools, readOfferSettings } from './invoicing-laeufe.js'
+import { prepareRecurring } from '../../core/vertraege.js'
+import { contractsFlag, contractsTab, customerContractCount, customerContractsTab, recContractField, recStepPill } from './invoicing-vertraege.js'
 import { offerStateChanged, onlineBadge, onlineButtons, onlineExtras, onlineSettingsHtml, readOnlineSettings } from './invoicing-online.js'
 import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } from './invoicing-sepa.js'
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
@@ -201,6 +203,7 @@ const TABS = [
   ['offen', 'Offene Posten'],
   ['bank', 'Bank'],
   ['dauer', 'Daueraufträge'],
+  ['vertraege', 'Verträge'],
   ['weiter', 'Weiterverrechnung'],
   ['kunden', 'Kunden'],
   ['artikel', 'Artikel'],
@@ -211,7 +214,7 @@ const TABS = [
   ['einstellungen', 'Einstellungen'],
 ]
 // Reiter gegliedert: Belege, Zahlungen und Stammdaten als Aufklappmenü
-const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer', 'weiter'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'matten', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
+const TAB_GROUPS = ['start', { label: 'Belege', items: ['rechnungen', 'angebote', 'weitere', 'dauer', 'vertraege', 'weiter'] }, { label: 'Zahlungen', items: ['offen', 'bank'] }, { label: 'Stammdaten', items: ['kunden', 'artikel', 'matten', 'texte', 'bedingungen'] }, 'briefe', 'einstellungen']
 const tabOf = (k, flags) => ({ id: k, label: TABS.find(([id]) => id === k)[1], flag: flags[k] })
 /** Weiterverrechnung: nur wer auch Einkauf & Kasse sehen darf (die Kosten stehen dort). */
 const seesRecharge = () => sees('einkauf')
@@ -288,10 +291,10 @@ function invoicingView() {
   loadLetterhead().catch(() => {}) // Briefpapier für die PDFs schon bereitlegen
   const tab = TABS.some(([k]) => k === app.ui.fakTab) && tabVisible(app.ui.fakTab) ? app.ui.fakTab : 'start'
   const n = counts()
-  const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, bank: openCredits().length, weiter: n.recharge.length }
+  const flags = { offen: n.remind, rechnungen: n.drafts, dauer: n.due, vertraege: contractsFlag(), bank: openCredits().length, weiter: n.recharge.length }
   const ed = editable()
   const setup = !S().sender.name || !S().bank.iban
-  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, weiter: rechargeTab, kunden: customersTab, artikel: articlesTab, matten: mattenTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
+  const body = { start: startTab, rechnungen: invoicesTab, angebote: offersTab, weitere: otherTab, offen: openTab, bank: bankTab, dauer: recurringTab, vertraege: contractsTab, weiter: rechargeTab, kunden: customersTab, artikel: articlesTab, matten: mattenTab, texte: textsTab, bedingungen: termsTab, briefe: lettersTab, einstellungen: settingsTab }[tab]()
   return `<div class="section-head"><div><h2>Fakturierung</h2>
       <p>Angebote, Rechnungen und Daueraufträge mit allen Angaben nach § 11 UStG, Zahlungseingang und Mahnungen, PDF mit QR-Code zum Bezahlen, Versand per E-Mail, Export für die Steuerberatung.</p></div>
       <div class="actions">${ed ? `<button class="btn primary" data-action="fak-new" data-kind="rechnung">${ICON.plus} Rechnung</button>` : ''}${headMenus(ed)}</div></div>
@@ -518,7 +521,7 @@ function recurringTab() {
       const t = totals({ lines: r.lines, reverseCharge: custOf(r.customerId)?.reverseCharge }, S())
       return `<tr class="clickable" data-action="fak-rec-open" data-id="${esc(r.id)}"><td><strong>${esc(r.title || 'Dauerauftrag')}</strong>${r.objectId ? `<br><span class="muted">${esc(objName(r.objectId))}</span>` : ''}</td><td>${esc(customerName(custOf(r.customerId) || {}) || '–')}</td><td>${esc(INTERVALS[r.interval] || '')}</td>
         <td>${r.startMonth ? esc(monthLabel(r.startMonth)) : ''}${r.endMonth ? ` – ${esc(monthLabel(r.endMonth))}` : ''}</td><td class="num">${money(t.net)}</td><td>${r.index?.active ? `${esc(S().indexName)} ${String(r.index.baseValue || '').replace('.', ',')}${r.index.threshold ? ` (ab ${String(r.index.threshold).replace('.', ',')} %)` : ''}` : '–'}</td>
-        <td>${r.active === false ? '<span class="pill">beendet</span>' : due.has(r.id) ? `<span class="pill warning">für ${esc(monthLabel(ym))} offen</span>` : r.lastRun ? `<span class="pill ok">zuletzt ${esc(monthLabel(r.lastRun))}</span>` : ''}</td></tr>`
+        <td>${r.active === false ? '<span class="pill">beendet</span>' : due.has(r.id) ? `<span class="pill warning">für ${esc(monthLabel(ym))} offen</span>` : r.lastRun ? `<span class="pill ok">zuletzt ${esc(monthLabel(r.lastRun))}</span>` : ''}${recStepPill(r)}</td></tr>`
     })
     .join('')
   const idx = Object.entries(d.indexValues).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12)
@@ -1380,8 +1383,8 @@ function customerModal(c, m) {
   const ed = editable()
   const dis = ed ? '' : 'disabled'
   const prices = m.priceRows ? m.priceRows.filter((r) => r.articleId).length : x ? F().customerPrices.filter((p) => p.customerId === x.id).length : 0
-  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, { id: 'winter', label: 'Winterdienst' }, { id: 'matten', label: 'Mattenwechsel' }, { id: 'preise', label: 'Kundenpreise', flag: prices }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }]
-  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, winter: customerWinterTab, matten: customerMattenTab, preise: customerPricesTab, verlauf: customerSheet, briefe: customerLettersTab }[m.tab]?.(v, x, dis) || ''
+  const tabs = [{ id: 'stamm', label: 'Stammdaten' }, { id: 'kontakte', label: 'Ansprechpartner', flag: (v.contacts || []).length }, { id: 'zahlung', label: 'Lastschrift & Mahnung' }, { id: 'winter', label: 'Winterdienst' }, { id: 'matten', label: 'Mattenwechsel' }, { id: 'preise', label: 'Kundenpreise', flag: prices }, x && { id: 'verlauf', label: 'Belege & Umsatz' }, x && { id: 'briefe', label: 'Briefe' }, x && { id: 'vertraege', label: 'Verträge', flag: customerContractCount(x.id) }]
+  const body = { stamm: customerStamm, kontakte: customerContacts, zahlung: customerPayTab, winter: customerWinterTab, matten: customerMattenTab, preise: customerPricesTab, verlauf: customerSheet, briefe: customerLettersTab, vertraege: customerContractsTab }[m.tab]?.(v, x, dis) || ''
   return modalFrame({
     title: x ? customerName(x) || 'Kunde' : 'Neuer Kunde',
     subtitle: x?.customerNo ? `Kundennummer ${esc(x.customerNo)}${x.source?.system ? ` · übernommen aus ${esc(x.source.system)}` : ''}` : 'Rechnungsempfänger',
@@ -1575,6 +1578,7 @@ function recurringModal(c, m) {
         <label class="field"><span>Erster Abrechnungsmonat</span><input type="month" id="fr-start" value="${esc(v.startMonth || '')}" ${dis}></label>
         <label class="field"><span>Letzter Monat (optional)</span><input type="month" id="fr-end" value="${esc(v.endMonth || '')}" ${dis}></label>
         <label class="check"><input type="checkbox" id="fr-active" ${v.active !== false ? 'checked' : ''} ${dis}><span>aktiv</span></label>
+        ${recContractField(v, dis)}
       </div>
       ${linesEditor(v.lines || [], 'frl', dis)}
       ${ed ? `<div class="filters"><button class="btn small" data-action="fak-rec-line-add">${ICON.plus} Position</button></div>` : ''}
@@ -1595,7 +1599,7 @@ registerModal('fak-rec', recurringModal, { module: MODULE })
 function readRecurring(m) {
   const v = m.draft
   if (!document.getElementById('fr-title')) return v
-  Object.assign(v, { customerId: val('fr-customer'), objectId: val('fr-object'), title: val('fr-title').trim(), interval: val('fr-interval'), startMonth: val('fr-start'), endMonth: val('fr-end'), active: checked('fr-active'), lines: readLines('frl', v.lines) })
+  Object.assign(v, { customerId: val('fr-customer'), objectId: val('fr-object'), title: val('fr-title').trim(), interval: val('fr-interval'), startMonth: val('fr-start'), endMonth: val('fr-end'), active: checked('fr-active'), contractId: val('fr-contract'), lines: readLines('frl', v.lines) })
   v.index = { ...(v.index || {}), active: checked('fr-idx'), baseValue: num('fr-idx-base') || '', baseMonth: val('fr-idx-month'), threshold: num('fr-idx-threshold'), onlyUp: checked('fr-idx-up') }
   return v
 }
@@ -2321,13 +2325,15 @@ registerActions(
     'fak-run': (el) => {
       const ym = el.dataset.ym || todayISO().slice(0, 7)
       const d = F()
-      const r = runRecurring(d, ym, { today: todayISO(), newId: () => uid('f'), by: by(), customersById: new Map(d.customers.map((c) => [c.id, c])) })
+      const r = runRecurring(d, ym, { today: todayISO(), newId: () => uid('f'), by: by(), customersById: new Map(d.customers.map((c) => [c.id, c])), prepare: prepareRecurring })
       if (!r.created.length) return toast('Für diesen Monat ist nichts mehr abzurechnen.')
       d.documents = r.documents.map((x) => (r.created.some((c) => c.id === x.id) ? { ...x, objectName: objName(x.objectId) } : x))
       d.recurring = r.recurring
       app.ui.fakTab = 'rechnungen'
       app.ui.fakState = 'entwurf'
-      commit(`${plural(r.created.length, 'Rechnungsentwurf', 'Rechnungsentwürfe')} für ${monthLabel(ym)} erstellt${r.adjusted.length ? `, ${plural(r.adjusted.length, 'Preis', 'Preise')} wertgesichert angepasst` : ''}. Bitte prüfen und festschreiben.`)
+      const vpi = r.adjusted.filter((a) => a.kind !== 'kv').length
+      const kv = r.adjusted.filter((a) => a.kind === 'kv').length
+      commit(`${plural(r.created.length, 'Rechnungsentwurf', 'Rechnungsentwürfe')} für ${monthLabel(ym)} erstellt${vpi ? `, ${plural(vpi, 'Preis', 'Preise')} wertgesichert angepasst` : ''}${kv ? `, ${plural(kv, 'Preis', 'Preise')} nach KV-Lohn angepasst` : ''}. Bitte prüfen und festschreiben.`)
     },
     'fak-idx-add': () => {
       const ym = val('fak-idx-month')

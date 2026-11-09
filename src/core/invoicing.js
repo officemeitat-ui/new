@@ -967,34 +967,14 @@ export function latestIndex(values = {}, ym) {
   return keys.length ? { ym: keys.at(-1), value: Number(values[keys.at(-1)]) } : null
 }
 
-/** Sperrfrist zwischen zwei Preisanpassungen eines Dauerauftrags (KV-Lohn und VPI): keine Doppelanpassung im selben Zeitraum. */
-export const ADJUST_LOCK_MONTHS = 12
-
-/**
- * Positionen mit einer Preisstufe des Dauerauftrags (recurring[].steps, z. B. Preisanpassung nach KV-Lohnerhöhung aus
- * core/vertraege.js): je Position der geplante neue Preis, solange der alte noch gilt, sonst alter Preis × Faktor (auf Cent).
- * Text-, Titel- und Zwischensummenzeilen bleiben.
- */
-export function stepLines(lines = [], step) {
-  const planned = new Map((step.lines || []).map((l) => [l.id, l]))
-  return lines.map((l) => {
-    if (lineType(l) !== 'item') return l
-    const price = parseNumber(l.price)
-    if (!price) return l
-    const p = planned.get(l.id)
-    return { ...l, price: p && round2(p.old) === round2(price) ? p.new : round2(price * step.factor) }
-  })
-}
-
 /**
  * Monatslauf: für jeden aktiven Dauerauftrag mit Abrechnung im Monat ym einen Rechnungsentwurf
- * (nicht doppelt: Quelle „rec:<id>:<ym>“). Vorher werden geplante Preisstufen mit „gültig ab“ bis ym übernommen
- * (recurring[].steps, z. B. KV-Lohn; danach ist die Indexzahl vor dem Monat die neue Basis der Wertsicherung) und die
- * Wertsicherung geprüft – nicht innerhalb von 12 Monaten vor oder nach einer Anpassung nach KV-Lohn (keine Doppelanpassung).
- * Beides kommt in den Verlauf des Auftrags (kind 'kv' bzw. 'vpi', ym) und als Hinweis auf die Rechnung.
- * Liefert { documents, recurring, created, adjusted }.
+ * (nicht doppelt: Quelle „rec:<id>:<ym>“). Wertsicherung wird vorher geprüft und in den Auftrag
+ * übernommen. prepare(rec, ym, { doc, today, by }) → { rec, notes, adjusted, lockVpi } oder null: vorher geplante
+ * Preisstufen übernehmen (core/vertraege.js → prepareRecurring, KV-Lohn; lockVpi: keine Wertsicherung dazu). Die App
+ * ruft den Lauf immer mit prepare auf. Liefert { documents, recurring, created, adjusted }.
  */
-export function runRecurring(doc, ym, { today, newId, by = '', customersById = new Map() }) {
+export function runRecurring(doc, ym, { today, newId, by = '', customersById = new Map(), prepare = null }) {
   const s = settingsOf(doc)
   const texts = defaultTexts('rechnung', s, doc.textBlocks)
   let documents = [...(doc.documents || [])]
@@ -1006,30 +986,12 @@ export function runRecurring(doc, ym, { today, newId, by = '', customersById = n
     const period = periodOf(rec, ym)
     const key = `rec:${rec.id}:${ym}`
     if (!period || have.has(key)) return rec
-    let next = rec
-    const notes = []
-    // geplante Preisstufen (z. B. nach KV-Lohnerhöhung) ab ihrem Monat übernehmen; festgeschriebene Rechnungen bleiben
-    const due = (rec.steps || []).filter((st) => !st.applied && st.fromMonth && st.fromMonth <= ym)
-    if (due.length) {
-      let lines = rec.lines || []
-      let index = rec.index
-      const hist = []
-      for (const st of due) {
-        lines = stepLines(lines, st)
-        notes.push(st.note || `Preisanpassung +${String(st.change).replace('.', ',')} %`)
-        hist.push({ at: today, by, text: st.note || 'Preisanpassung', kind: st.kind || 'kv', ym, change: st.change })
-        adjusted.push({ id: rec.id, kind: st.kind || 'kv', change: st.change })
-        // neue Basis der Wertsicherung: Indexzahl vor dem Monat der Anpassung
-        const cur = index?.active ? latestIndex(doc.indexValues, ymAdd(st.fromMonth, -1)) : null
-        if (cur) index = { ...index, baseValue: cur.value, baseMonth: cur.ym }
-      }
-      const done = new Set(due.map((st) => st.id))
-      next = { ...rec, lines, ...(index ? { index } : {}), steps: rec.steps.map((st) => (done.has(st.id) ? { ...st, applied: ym } : st)), history: [...(rec.history || []), ...hist] }
-    }
+    const pre = prepare?.(rec, ym, { doc, today, by })
+    let next = pre?.rec || rec
+    const notes = pre?.notes || []
+    if (pre) adjusted.push(...pre.adjusted)
     const idx = next.index
-    // Anpassung nach KV-Lohn (auch eine schon geplante) in den 12 Monaten davor oder danach: keine Wertsicherung dazu
-    const locked = (next.steps || []).some((st) => st.kind === 'kv' && (st.applied || st.fromMonth) > ymAdd(ym, -ADJUST_LOCK_MONTHS) && (st.applied || st.fromMonth) < ymAdd(ym, ADJUST_LOCK_MONTHS))
-    if (idx?.active && Number(idx.baseValue) > 0 && !locked) {
+    if (idx?.active && Number(idx.baseValue) > 0 && !pre?.lockVpi) {
       const cur = latestIndex(doc.indexValues, ymAdd(ym, -1))
       if (cur && cur.ym !== idx.baseMonth) {
         const lines = (next.lines || []).map((l) => ({ ...l }))
@@ -1038,8 +1000,8 @@ export function runRecurring(doc, ym, { today, newId, by = '', customersById = n
           for (const l of lines) l.price = indexAdjustment({ price: parseNumber(l.price), baseValue: idx.baseValue, currentValue: cur.value, threshold: idx.threshold ?? 3, onlyUp: !!idx.onlyUp }).price
           const note = `Wertsicherung ${s.indexName}: ${String(idx.baseValue).replace('.', ',')} → ${String(cur.value).replace('.', ',')} (${first.change > 0 ? '+' : ''}${String(first.change).replace('.', ',')} %)`
           notes.push(note)
-          next = { ...next, lines, index: { ...idx, baseValue: cur.value, baseMonth: cur.ym }, history: [...(next.history || []), { at: today, by, text: note, kind: 'vpi', ym, change: first.change }] }
-          adjusted.push({ id: rec.id, kind: 'vpi', change: first.change, from: idx.baseValue, to: cur.value })
+          next = { ...next, lines, index: { ...idx, baseValue: cur.value, baseMonth: cur.ym }, history: [...(next.history || []), { at: today, by, text: note, kind: 'vpi', ym }] }
+          adjusted.push({ id: rec.id, change: first.change, from: idx.baseValue, to: cur.value })
         }
       }
     }

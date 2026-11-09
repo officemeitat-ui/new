@@ -5,6 +5,8 @@
 // Mattenwechsel: gerechnet im Modul (kpiHooks.matten aus views/matten-uebersicht.js, core/matten-uebersicht.js), sobald
 // es geladen ist; hier nur gezeichnet. Umsatz daraus nur mit Recht auf die Fakturierung. Wäscherei je Monat und
 // Schwundquote aus dem Matten-Bestand (kpiHooks.mattenBestand, views/matten-bestand.js), wenn es Buchungen gibt.
+// Kundenverträge (kpiHooks.vertraege, views/invoicing-vertraege.js, core/vertraege.js): Vertragsvolumen je Monat,
+// Kündigungen und Vertragsenden je Monat, Verträge, die in den nächsten 90 Tagen enden – nur mit Fakturierung.
 //
 // Zeitraum: 4/8/13 Wochen für die Wochen-Kennzahlen, 3/6/12 Monate für die Monats-Kennzahlen.
 // Monats-Kacheln zeigen den letzten abgeschlossenen Monat (der laufende ist noch unvollständig).
@@ -128,6 +130,11 @@ function build(p) {
     const b = kpiHooks.mattenBestand({ months, today })
     if (b) out.mattenBestand = b
   }
+  // Kundenverträge: Volumen, Kündigungen, auslaufende Verträge (gerechnet im Modul der Fakturierung)
+  if (sees('fakturierung') && kpiHooks.vertraege) {
+    const v = kpiHooks.vertraege({ months, today })
+    if (v) out.vertraege = v
+  }
   // Einkauf & Kasse: Ausgaben (Eingangsrechnungen), offene Verbindlichkeiten, Kassenstand
   if (sees('einkauf')) {
     out.spending = spendingMonths(data.einkauf || {}, months)
@@ -170,6 +177,12 @@ function tiles(d) {
     const open = d.aging.reduce((s, x) => s + x.amount, 0)
     const overdue = d.aging.filter((x) => x.id !== 'nicht').reduce((s, x) => s + x.amount, 0)
     out.push(tile({ label: 'Offene Posten', value: euro(open), sub: overdue ? `davon ${euro(overdue)} überfällig` : 'nichts überfällig', cur: open, view: 'fakturierung' }))
+  }
+  if (d.vertraege && lastI >= 0) {
+    const vm = d.vertraege.months
+    out.push(tile({ label: `Vertragsvolumen ${mLabel}`, value: euro(vm[lastI].volume), sub: `netto je Monat, ${count(vm[lastI].active)} Verträge`, cur: vm[lastI].volume, prev: vm[lastI - 1]?.volume ?? null, goodUp: true, deltaFmt: euro, spark: vm.map((x) => x.volume), view: 'fakturierung', vs: 'Vormonat' }))
+    const end = d.vertraege.ending
+    out.push(tile({ label: 'Auslaufende Verträge', value: count(end.length), sub: end.length ? `in 90 Tagen, ${euro(end.reduce((s, x) => s + x.volume, 0))} je Monat` : 'keiner in den nächsten 90 Tagen', cur: end.length, view: 'fakturierung' }))
   }
   if (d.week) {
     const [prev, cur] = d.week.slice(-2)
@@ -271,6 +284,16 @@ function charts(d) {
     out.push(card({ id: 'offene-posten', title: 'Offene Posten nach Fälligkeit', sub: 'brutto, ohne Storno', view: 'fakturierung', body: agingBars(d.aging, STATUS), table: tableView(['Fälligkeit', 'Betrag', 'Rechnungen'], d.aging.map((x) => [x.label, euro(x.amount), count(x.count)])) }))
     out.push(card({ id: 'kunden', title: 'Kunden mit dem meisten Umsatz', sub: 'netto im gewählten Zeitraum', view: 'fakturierung', body: barList({ rows: d.customers.map((x) => ({ label: x.name, value: x.net, display: euro(x.net) })) }), table: tableView(['Kunde', 'Umsatz netto'], d.customers.map((x) => [x.name, euro(x.net)])) }))
   }
+  if (d.vertraege) {
+    const vm = d.vertraege.months
+    out.push(card({ id: 'vertragsvolumen', title: 'Vertragsvolumen je Monat', sub: 'netto, Daueraufträge der Verträge je Monat umgerechnet', view: 'fakturierung', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'vol', label: 'Vertragsvolumen', color: '--kpi-1', values: vm.map((x) => x.volume) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Vertragsvolumen je Monat' }), table: tableView(['Monat', 'Volumen netto', 'Verträge'], vm.map((x, i) => [mt[i], euro(x.volume), count(x.active)])) }))
+    const series = [
+      { id: 'kuend', label: 'Kündigungen eingegangen', color: '--kpi-1', values: vm.map((x) => x.cancelled) },
+      { id: 'ende', label: 'Verträge beendet', color: '--kpi-2', values: vm.map((x) => x.ended) },
+    ]
+    const end = d.vertraege.ending
+    out.push(card({ id: 'kuendigungen', title: 'Kündigungen und Vertragsenden', sub: end.length ? `${count(end.length)} Verträge enden in den nächsten 90 Tagen` : 'keiner endet in den nächsten 90 Tagen', view: 'fakturierung', legendHtml: legend(series, 'rect'), body: columnChart({ labels: ml, titles: mt, series, fmt: count, integer: true, width: W, ariaLabel: 'Kündigungen und Vertragsenden je Monat' }), table: tableView(['Monat', 'Kündigungen', 'vom Kunden', 'von uns', 'beendet'], vm.map((x, i) => [mt[i], count(x.cancelled), count(x.byCustomer), count(x.byUs), count(x.ended)])) }))
+  }
   if (d.spending) {
     out.push(card({ id: 'ausgaben', title: 'Ausgaben je Monat', sub: 'netto laut Eingangsrechnungen (Rechnungsdatum)', view: 'einkauf', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'net', label: 'Ausgaben netto', color: '--kpi-1', values: d.spending.map((x) => x.net) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Ausgaben je Monat' }), table: tableView(['Monat', 'Ausgaben netto', 'Eingangsrechnungen'], d.spending.map((x, i) => [mt[i], euro(x.net), count(x.count)])) }))
     const STATUS = { nicht: ['--kpi-neutral', '○'], d30: ['--kpi-warning', '△'], d60: ['--kpi-serious', '▲'], d60plus: ['--kpi-critical', '■'] }
@@ -328,14 +351,14 @@ function agingBars(list, status) {
 
 function kpiView(c) {
   const p = period()
-  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}`, () => build(p))
+  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}${kpiHooks.vertraege ? 'v' : ''}`, () => build(p))
   const filters = Object.entries(PERIODS)
     .map(([id, x]) => `<button class="filter" data-action="kpi-period" data-period="${id}" aria-pressed="${id === p}">${esc(x.label)}</button>`)
     .join('')
   const t = tiles(d)
   const ch = charts(d)
   return `<div class="kpi-root">
-    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Ausgaben, Kasse, Material und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
+    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Verträge, Ausgaben, Kasse, Material und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
     <div class="filters kpi-filters" role="group" aria-label="Zeitraum">${filters}</div>
     ${t ? `<div class="kpi-tiles">${t}</div>` : ''}
     ${ch ? `<div class="kpi-grid">${ch}</div>` : '<p class="empty">Für deine Rolle gibt es hier noch keine Kennzahlen.</p>'}

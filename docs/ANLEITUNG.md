@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 359 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 362 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (90)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
-- [Finanzen](#finanzen) (76)
+- [Finanzen](#finanzen) (79)
 - [Verwaltung](#verwaltung) (57)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
@@ -2595,6 +2595,56 @@ Für die Wertsicherung trägst du die Indexzahlen monatlich ein (Statistik Austr
 3. Beim Monatslauf passt die App die Preise an.
 
 > Tipp: Wahlweise nur Erhöhungen.
+
+### Kundenverträge mit Fristen
+
+*In der App: Fakturierung*
+
+Unter „Belege ▾“ → „Verträge“ hältst du je Kunde Beginn, Mindestlaufzeit, Ende oder unbefristet, Kündigungsfrist zum Termin, Verlängerung, Ansprechperson und das PDF fest. Die App rechnet den nächsten Kündigungstermin und den spätesten Tag dafür. Abgerechnet wird weiter über die Daueraufträge des Vertrags.
+
+1. Fakturierung → „Belege ▾“ → „Verträge“ → „Vertrag“ (oder im Kundenblatt, Reiter „Verträge“).
+2. Kunde, Beginn, Mindestlaufzeit, Ende (leer = unbefristet), Verlängerung und Kündigungsfrist eintragen.
+3. Unter „Abrechnung“ die Daueraufträge des Vertrags anhaken.
+4. Vertrag als PDF ablegen und „Speichern“.
+
+> Tipp: „kündbar in den nächsten 90 Tagen“ filtert die Liste.
+> Tipp: 30 Tage vor dem letzten Kündigungstag erinnern „Zu erledigen“ und der digitale Mitarbeiter Buchhaltung (Vorlauf änderbar).
+> Tipp: Die Kündigung muss am angezeigten Tag beim Vertragspartner sein: 3 Monate zum 31.12. heißt bis 30.9.
+
+*Buchhaltung, Vollzugriff*
+
+### Kündigung eines Vertrags erfassen
+
+*In der App: Fakturierung*
+
+Im Vertrag „Kündigung erfassen“: Eingang, von wem, zum (Vorschlag: frühester Termin nach der Frist) und Grund. Auf Wunsch enden die Daueraufträge mit dem Monat des Vertragsendes. „Zu erledigen“ fragt dann „Dauerauftrag endet, Objekt freigeben?“, bis du „Erledigt“ wählst.
+
+1. Den Vertrag in „Verträge“ öffnen.
+2. „Kündigung erfassen“ klicken, Eingang, von und Grund eintragen; „zum“ prüfen.
+3. „Speichern“: die Daueraufträge enden mit dem letzten Monat.
+4. Nach der Übergabe „Erledigt: Dauerauftrag beendet, Objekt freigegeben“.
+
+> Tipp: Ein früheres Ende als vorgeschlagen ist nicht fristgerecht; die App warnt, speichert aber (einvernehmliche Auflösung).
+> Tipp: Das Objekt gibt frei, wer die Objekte und Leistungen pflegt.
+
+*Buchhaltung, Vollzugriff*
+
+### Preisanpassung nach KV-Lohnerhöhung
+
+*In der App: Fakturierung*
+
+Mit Lohnkostenklausel im Vertrag (KV-Lohn oder nach Wahl) steigt der Preis um KV-Erhöhung × Lohnanteil, z. B. 4,5 % × 80 % = 3,6 %. „Läufe ▾“ → „Preisanpassung“ zeigt je Vertrag alten und neuen Preis; danach rechnet der Monatslauf ab „gültig ab“ neu. Festgeschriebene Rechnungen bleiben unverändert.
+
+1. „Läufe ▾“ → „Preisanpassung“ öffnen.
+2. KV-Erhöhung in % und „gültig ab“ eintragen.
+3. Vorschau prüfen, Verträge abwählen, die nicht angepasst werden.
+4. „Preise anpassen“ klicken.
+5. „Musterschreiben an die Kunden“ öffnet den Serienbrief mit den Preisen je Kunde.
+
+> Tipp: VPI und KV-Lohn werden innerhalb von 12 Monaten nie beide angewandt; nach der KV-Anpassung ist die Indexzahl davor die neue Basis.
+> Tipp: Ist ein Monat ab „gültig ab“ schon abgerechnet, gilt der neue Preis ab dem nächsten.
+
+*Buchhaltung, Vollzugriff*
 
 ### Rechnungen aus dem Leistungsnachweis
 

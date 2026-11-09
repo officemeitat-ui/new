@@ -2980,3 +2980,29 @@ input.mwb-qty { width: 6rem; max-width: 100%; text-align: right; }
   .mwb-panel .actions-cell .btn, .mwb-line .btn, .mw-tp-stock .btn { min-height: 44px; }
   .mwb-sum td:first-child { font-weight: 700; }
 }
+
+/* Fakturierung: Kundenverträge mit Fristen (views/invoicing-vertraege.js, Kürzel fvt-) */
+.fvt-stats { margin: 0 0 12px; }
+.fvt-calc { margin: 10px 0; }
+.fvt-calc-list { display: grid; grid-template-columns: minmax(9rem, max-content) 1fr; gap: 4px 14px; margin: 0; }
+.fvt-calc-list dt { color: var(--muted); }
+.fvt-calc-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.fvt-notice { display: flex; gap: 6px; }
+.fvt-notice input { width: 4.5rem; flex: none; }
+.fvt-notice select { flex: 1 1 auto; min-width: 0; }
+.fvt-picks { list-style: none; margin: 4px 0 10px; padding: 0; display: grid; gap: 4px; }
+.fvt-picks .check span, .fvt-recs li { overflow-wrap: anywhere; }
+.fvt-recs { margin: 0; padding-left: 1.1rem; text-align: left; }
+.fvt-recs li + li { margin-top: 4px; }
+.fvt-off td, li.fvt-off { background: var(--surface-2); }
+.fvt-runs { margin: 6px 0 0; padding-left: 1.2rem; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.fvt-kv-table td.mwr-box { width: 2.2rem; }
+.fvt-kv-table td.mwr-box input { width: 20px; height: 20px; }
+@media (max-width: 700px) {
+  .fvt-stats .stat { min-width: 0; flex-basis: calc(50% - 4px); }
+  .fvt-calc-list { grid-template-columns: 1fr; }
+  .fvt-calc-list dd { margin-bottom: 4px; }
+  .fvt-kv-table td.mwr-box { width: auto; }
+  .fvt-kv-table td:last-child { display: block; text-align: left; }
+  .fvt-runs .btn { min-height: 44px; }
+}

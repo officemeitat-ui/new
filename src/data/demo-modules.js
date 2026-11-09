@@ -234,12 +234,30 @@ function demoInvoicing() {
     ],
     documents: docs,
     recurring: [
-      { id: 'rec-demo1', customerId: 'c-demo1', objectId: 'o5', title: 'Unterhaltsreinigung Wohnanlage Lehen', interval: 'monat', startMonth: prev2First.slice(0, 7), endMonth: '', active: true, lastRun: prevFirst.slice(0, 7), lines: [line('Unterhaltsreinigung Stiegenhaus lt. Vertrag', 1, 'Monat', 980)], index: { active: true, baseValue: 127.9, baseMonth: '2025-12', threshold: 3, onlyUp: false } },
-      { id: 'rec-demo2', customerId: 'c-demo1', objectId: 'o5', title: 'Winterdienst Wohnanlage Lehen', interval: 'monat', startMonth: first.slice(0, 7), endMonth: '', active: true, lines: [line('Winterdienst Gehsteig und Hauszugang (Pauschale)', 1, 'Monat', 120)] },
+      { id: 'rec-demo1', customerId: 'c-demo1', objectId: 'o5', contractId: 'vt-demo1', title: 'Unterhaltsreinigung Wohnanlage Lehen', interval: 'monat', startMonth: prev2First.slice(0, 7), endMonth: '', active: true, lastRun: prevFirst.slice(0, 7), lines: [line('Unterhaltsreinigung Stiegenhaus lt. Vertrag', 1, 'Monat', 980)], index: { active: true, baseValue: 127.9, baseMonth: '2025-12', threshold: 3, onlyUp: false } },
+      { id: 'rec-demo2', customerId: 'c-demo1', objectId: 'o5', contractId: 'vt-demo1', title: 'Winterdienst Wohnanlage Lehen', interval: 'monat', startMonth: first.slice(0, 7), endMonth: '', active: true, lines: [line('Winterdienst Gehsteig und Hauszugang (Pauschale)', 1, 'Monat', 120)] },
     ],
+    contracts: demoContracts(today, prev2First),
     // Beispielwerte, keine amtlichen Zahlen
     indexValues: { '2025-12': 127.9 },
   }
+}
+
+// Kundenverträge (erfunden, core/vertraege.js): Hausverwaltung unbefristet mit Mindestlaufzeit (VPI oder KV-Lohn nach Wahl),
+// Autohaus mit automatischer Verlängerung, in 60 bis 90 Tagen kündbar (Lohnkostenklausel, ohne Dauerauftrag), Subauftrag
+// befristet bis Ende des nächsten Jahres. Keine Erinnerung am Tag der Beispieldaten (alle Fristen über 30 Tage entfernt).
+function demoContracts(today, prev2First) {
+  // letzter Kündigungstag = Monatsende 60 bis 90 Tage nach heute, Ende der Laufzeit 3 Monate danach
+  const ym = monthAdd(addDays(today, 60).slice(0, 7), 3)
+  const end2 = addDays(`${monthAdd(ym, 1)}-01`, -1)
+  const start2 = `${monthAdd(ym, -11)}-01`
+  const year = Number(today.slice(0, 4))
+  const at = `${prev2First}T08:00:00.000Z`
+  return [
+    { id: 'vt-demo1', no: `V-${year}-001`, customerId: 'c-demo1', title: 'Unterhaltsreinigung Wohnanlage Lehen', start: prev2First, minMonths: 12, end: '', renewMonths: '', notice: { n: 3, unit: 'monat' }, term: 'quartal', remindDays: '', clause: 'beides', kvShare: 80, contact: { id: 'cp-demo2', name: 'Herr Paul Muster', email: 'objekte@hv-beispiel.example', phone: '' }, objectIds: ['o5'], taskIds: ['t8'], scope: 'Stiegenhaus 2× wöchentlich, Winterdienst Gehsteig und Hauszugang', history: [{ at, by: 'Beispieldaten', text: 'angelegt' }], createdAt: at, createdBy: 'Beispieldaten' },
+    { id: 'vt-demo2', no: `V-${year}-002`, customerId: 'c-demo2', title: 'Reinigung Autohaus Maxglan', start: start2, minMonths: '', end: end2, renewMonths: 12, notice: { n: 3, unit: 'monat' }, term: 'monat', remindDays: '', clause: 'kv', kvShare: 80, contact: { name: 'Herr Max Beispiel', email: 'rechnung@autohaus-beispiel.example', phone: '+43 662 000002' }, objectIds: ['o2'], taskIds: [], scope: 'Schauraum und Büros nach Aufwand, Glasreinigung Schaufenster', volume: 1800, history: [{ at, by: 'Beispieldaten', text: 'angelegt' }], createdAt: at, createdBy: 'Beispieldaten' },
+    { id: 'vt-demo3', no: `V-${year}-003`, customerId: 'c-demo3', title: 'Subauftrag Gewerbepark Bergheim', start: `${year}-01-01`, minMonths: '', end: `${year + 1}-12-31`, renewMonths: '', notice: { n: 0, unit: 'monat' }, term: 'monat', remindDays: '', clause: 'keine', objectIds: ['o8'], taskIds: [], scope: 'Bauendreinigung nach Abruf', volume: 1984, history: [{ at, by: 'Beispieldaten', text: 'angelegt' }], createdAt: at, createdBy: 'Beispieldaten' },
+  ]
 }
 
 export function createModuleDemo(monday, employees = []) {

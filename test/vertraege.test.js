@@ -24,6 +24,7 @@ import {
   nextTermination,
   noticeLabel,
   planKvRun,
+  prepareRecurring,
   recLinesAt,
   shiftMonths,
   termLabel,
@@ -186,7 +187,7 @@ let n = 0
 const newId = () => `x${++n}`
 
 function billed(doc, ym, { draft = false } = {}) {
-  const r = runRecurring(doc, ym, { today: `${ym}-02`, newId, by: 'Büro', customersById: new Map([['k1', customer]]) })
+  const r = runRecurring(doc, ym, { today: `${ym}-02`, newId, by: 'Büro', customersById: new Map([['k1', customer]]), prepare: prepareRecurring })
   const documents = draft ? r.documents : r.documents.map((d) => (r.created.some((x) => x.id === d.id) ? finalize(d, r.documents, settings, { now: `${ym}-02T09:00:00Z`, by: 'Büro' }) : d))
   return { ...doc, documents, recurring: r.recurring, last: r }
 }

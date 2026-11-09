@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { accountProblem, groupsOf } from '../src/auth/msal.js'
 import { DEFAULT_ROLES, resolveAccess } from '../src/core/access.js'
 import { runRights } from '../src/core/matten-abrechnung.js'
+import { contractRights } from '../src/core/vertraege.js'
 import { bestandRights } from '../src/core/matten-bestand.js'
 import { noteRights } from '../src/core/matten-lieferschein.js'
 import { overviewRights } from '../src/core/matten-uebersicht.js'
@@ -644,4 +645,26 @@ test('Gruppen über Microsoft Graph, wenn das Token keine hat: mit Folgeseiten, 
   assert.deepEqual(await memberGroups(async () => 'T', { userId: 'u1', fetchImpl: offline, storage, now: 1000 + 864e5 }), { groups: ['aaaa-1', 'bbbb-2'], from: 'gemerkt' })
   assert.equal(await memberGroups(async () => 'T', { userId: 'u1', fetchImpl: offline, storage, now: 1000 + 15 * 864e5 }), null, 'nach 14 Tagen nicht mehr')
   assert.equal(await memberGroups(async () => 'T', { userId: 'u2', fetchImpl: offline, storage }), null, 'je Konto getrennt')
+})
+
+test('Rechte: Kundenverträge wie die Daueraufträge – Buchhaltung bearbeitet, Mattenwechsel Büro sieht sie nicht', () => {
+  const role = (id) => resolveAccess({ roleClaims: [id], access, strict: true })
+  const voll = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  const FAK = MODULE_DOCS.fakturierung.path
+  const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , x]) => [f, x]))
+  assert.deepEqual(contractRights(voll), { view: true, edit: true })
+  // Buchhaltung: Verträge in fakturierung.json, PDFs unter fakturierung/vertraege/ (Ordner fakturierung)
+  const bh = role('buchhaltung')
+  assert.deepEqual(contractRights(bh), { view: true, edit: true })
+  assert.ok(dataRights(bh).write(FAK) && rows(bh).fakturierung === 'Bearbeiten')
+  // Mattenwechsel Büro, Objektleitung, Lager: weder Verträge noch Fristen
+  for (const id of ['mattenwechsel', 'objektleitung', 'lager', 'mattenfahrer']) {
+    assert.deepEqual(contractRights(role(id)), { view: false, edit: false }, id)
+    assert.ok(!dataRights(role(id)).read(FAK) && rows(role(id)).fakturierung === '', id)
+  }
+  // eigene Rolle nur lesend: sieht Verträge, ändert nichts
+  const lesen = resolveAccess({ roleClaims: ['faklesen'], strict: true, access: { ...access, roles: { faklesen: { label: 'Fakturierung lesen', modules: ['fakturierung'], edit: [] } } } })
+  assert.deepEqual(contractRights(lesen), { view: true, edit: false })
+  assert.ok(dataRights(lesen).read(FAK) && !dataRights(lesen).write(FAK))
+  assert.deepEqual(contractRights(null), { view: true, edit: true })
 })

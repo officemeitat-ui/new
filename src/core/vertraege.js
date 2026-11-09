@@ -30,7 +30,7 @@
 //                 stepId, title, oldNet, newNet, change, effective }], serialId }
 //  settings.contracts { remindDays }
 
-import { ADJUST_LOCK_MONTHS, INTERVALS, latestIndex, lineType, monthLabel, parseNumber, periodOf, round2, stepLines, totals } from './invoicing.js'
+import { INTERVALS, latestIndex, lineType, monthLabel, parseNumber, periodOf, round2, totals } from './invoicing.js'
 
 export const TERMS = { monat: 'Monatsende', quartal: 'Quartalsende', jahr: 'Jahresende', vertragsjahr: 'Ende des Vertragsjahres' }
 export const NOTICE_UNITS = { monat: ['Monat', 'Monate'], woche: ['Woche', 'Wochen'], tag: ['Tag', 'Tage'] }
@@ -43,7 +43,8 @@ export const KUENDBAR_DAYS = 90
 export const REMIND_DAYS = 30
 /** Vorgabe für den Lohnanteil am Preis bei der Lohnkostenklausel. */
 export const KV_SHARE = 80
-export const LOCK_MONTHS = ADJUST_LOCK_MONTHS
+/** Sperrfrist: keine Doppelanpassung (KV-Lohn und VPI bzw. zweimal KV) innerhalb von 12 Monaten. */
+export const LOCK_MONTHS = 12
 const INTERVAL_MONTHS = { monat: 1, quartal: 3, halbjahr: 6, jahr: 12 }
 
 // ---------------------------------------------------------------- Datum (ISO-Text, UTC, ohne Zeitzone)
@@ -257,6 +258,15 @@ export function contractProblems(c = {}) {
   return out
 }
 
+/**
+ * Rechte wie bei den Daueraufträgen: sehen mit Leserecht auf die Fakturierung, anlegen, kündigen und Preise anpassen mit
+ * Recht zum Bearbeiten. Ohne access (Browser-Modus): alles. { view, edit }
+ */
+export function contractRights(access) {
+  if (!access) return { view: true, edit: true }
+  return { view: access.sees('fakturierung'), edit: access.canEdit('fakturierung') }
+}
+
 /** Nächste freie Vertragsnummer „V-2026-001“. */
 export function nextContractNo(contracts = [], year) {
   const re = new RegExp(`^V-${year}-(\\d+)$`)
@@ -398,7 +408,50 @@ export const kvChange = (percent, share = KV_SHARE) => round2((parseNumber(perce
 /** Erster Abrechnungsmonat ab „gültig ab“: der Monat, wenn es der Erste ist, sonst der nächste (nie rückwirkend). */
 export const fromMonthOf = (date) => (date.slice(8, 10) === '01' ? date.slice(0, 7) : ymAdd(date.slice(0, 7), 1))
 
-export { stepLines }
+/**
+ * Positionen mit einer Preisstufe des Dauerauftrags (recurring[].steps): je Position der geplante neue Preis, solange der
+ * alte noch gilt, sonst alter Preis × Faktor (auf Cent). Text-, Titel- und Zwischensummenzeilen bleiben.
+ */
+export function stepLines(lines = [], step) {
+  const planned = new Map((step.lines || []).map((l) => [l.id, l]))
+  return lines.map((l) => {
+    if (lineType(l) !== 'item') return l
+    const price = parseNumber(l.price)
+    if (!price) return l
+    const p = planned.get(l.id)
+    return { ...l, price: p && round2(p.old) === round2(price) ? p.new : round2(price * step.factor) }
+  })
+}
+
+/**
+ * Für den Monatslauf (runRecurring in core/invoicing.js, Option prepare): geplante Preisstufen mit „gültig ab“ bis ym
+ * übernehmen (Positionen, Verlauf mit kind 'kv', Hinweis auf der Rechnung; danach ist die Indexzahl vor dem Monat die neue
+ * Basis der Wertsicherung) und die Wertsicherung nach VPI sperren, wenn eine Anpassung nach KV-Lohn (auch eine geplante)
+ * weniger als 12 Monate vor oder nach ym liegt. Liefert { rec, notes, adjusted, lockVpi }.
+ */
+export function prepareRecurring(rec, ym, { doc = {}, today = '', by = '' } = {}) {
+  const due = (rec.steps || []).filter((st) => !st.applied && st.fromMonth && st.fromMonth <= ym)
+  let next = rec
+  const notes = []
+  const adjusted = []
+  if (due.length) {
+    let lines = rec.lines || []
+    let index = rec.index
+    const hist = []
+    for (const st of due) {
+      lines = stepLines(lines, st)
+      notes.push(st.note || `Preisanpassung +${pct(st.change)}`)
+      hist.push({ at: today, by, text: st.note || 'Preisanpassung', kind: st.kind || 'kv', ym, change: st.change })
+      adjusted.push({ id: rec.id, kind: st.kind || 'kv', change: st.change })
+      const cur = index?.active ? latestIndex(doc.indexValues, ymAdd(st.fromMonth, -1)) : null
+      if (cur) index = { ...index, baseValue: cur.value, baseMonth: cur.ym }
+    }
+    const done = new Set(due.map((st) => st.id))
+    next = { ...rec, lines, ...(index ? { index } : {}), steps: rec.steps.map((st) => (done.has(st.id) ? { ...st, applied: ym } : st)), history: [...(rec.history || []), ...hist] }
+  }
+  const lockVpi = (next.steps || []).some((st) => st.kind === 'kv' && kvMonth(st) > ymAdd(ym, -LOCK_MONTHS) && kvMonth(st) < ymAdd(ym, LOCK_MONTHS))
+  return { rec: next, notes, adjusted, lockVpi }
+}
 
 /** Letzte Wertsicherung nach VPI im Verlauf des Dauerauftrags: { ym, text } oder null (alte Einträge am Text erkannt). */
 export function lastVpi(rec = {}) {

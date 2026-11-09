@@ -5,7 +5,8 @@
 //   Disponent    Vertretungen bei Abwesenheiten, offene Einsätze dieser und nächster Woche,
 //                Woche veröffentlichen, Prüfbericht mit Fehlern
 //   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise, Regieberichte verrechnen,
-//                Mattenwechsel abrechnen (am Monatsersten, wenn eingestellt; nur „Öffnen“, nichts automatisch)
+//                Mattenwechsel abrechnen (am Monatsersten, wenn eingestellt; nur „Öffnen“, nichts automatisch),
+//                Fristen der Kundenverträge (buchhaltungHooks aus views/invoicing-vertraege.js; nur „Öffnen“)
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
 //                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“),
@@ -57,6 +58,9 @@ export const AGENTS = [
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
   { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen, den Mattenwechsel und überfällige Reklamationen', module: '*' },
 ]
+
+/** Weitere Vorschläge der Buchhaltung aus später geladenen Modulen (Verträge der Fakturierung): fn(today) → [Vorschlag]. */
+export const buchhaltungHooks = []
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
 const decided = () => (doc().decided ||= {})
@@ -239,6 +243,7 @@ function buchhaltung(today) {
         open: { label: 'Leistungsnachweis', view: 'nachweis' },
       })
   }
+  for (const fn of buchhaltungHooks) out.push(...fn(today))
   return out
 }
 
@@ -620,7 +625,7 @@ function fristen(today) {
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
   // app.mwLs, app.mwUe, app.mwBe: Zähler der Matten-Lieferscheine, der Übersicht und des Bestands (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
-  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}`, () => {
+  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}:${buchhaltungHooks.length}`, () => {
     const all = []
     const safe = (fn) => {
       try {

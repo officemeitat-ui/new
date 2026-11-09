@@ -11,7 +11,9 @@
 //             Gesendete bzw. gedruckte Briefe haben Betreff und Text mit aufgelösten Platzhaltern (wie versendet).
 //  serials[]  { id, date, subject, text, mailText, advertising (Werbung: Hinweis § 174 TKG 2021), filter: { scope,
 //               group, objectId, type, role, search }, excluded: [Kunden-id], createdAt, createdBy,
-//               results: [{ customerId, letterId, via ('graph' | 'mailto' | 'druck'), to, at, error }] }
+//               results: [{ customerId, letterId, via ('graph' | 'mailto' | 'druck'), to, at, error }],
+//               values { [Kunden-id]: { Platzhalter: Wert } } (Werte je Empfänger, z. B. Preise der Preisanpassung aus
+//               core/vertraege.js), source { type, runId } (woher der Serienbrief kommt); filter.ids: nur diese Kunden }
 //  customers[] dazu noAds (Werbung per E-Mail abgelehnt) und active (false: Kunde inaktiv)
 
 import { fileSafe } from './filename.js'
@@ -72,19 +74,19 @@ export function letterRecipient(customer = {}, contact = null) {
  * Werte der Platzhalter für einen Brief: wie bei Belegen ({Kunde}, {Firma}, {Benutzer} …), dazu {Betreff} und
  * {Datum} des Briefs und {Anrede} für den gewählten Ansprechpartner.
  */
-export function letterContext({ letter = {}, customer = null, settings = {}, user = '', today = '' } = {}) {
+export function letterContext({ letter = {}, customer = null, settings = {}, user = '', today = '', extra = null } = {}) {
   const contact = contactOf(customer, letter.contactId) || (letter.contactName ? { name: letter.contactName } : null)
   const rec = letter.recipient?.name ? letter.recipient : letterRecipient(customer || {}, contact)
   const ctx = placeholderContext({ doc: { recipient: rec, contactName: contact?.name || '', date: letter.date || today, title: '', objectName: letter.objectName || '' }, customer, settings, user, today })
-  return { ...ctx, Belegart: 'Brief', Betreff: letter.subject || '', Anrede: contact ? contactGreeting(contact, customer) : greetingOf(customer || {}) || DEFAULT_GREETING }
+  return { ...ctx, Belegart: 'Brief', Betreff: letter.subject || '', Anrede: contact ? contactGreeting(contact, customer) : greetingOf(customer || {}) || DEFAULT_GREETING, ...(extra || {}) }
 }
 
 /**
  * Brief mit aufgelösten Platzhaltern (Betreff zuerst, damit {Betreff} im Text den fertigen Betreff zeigt):
- * { subject, text, mailText, recipient }.
+ * { subject, text, mailText, recipient }. extra: weitere Werte je Empfänger (Serienbrief, values).
  */
-export function resolveLetter(letter = {}, { customer = null, settings = {}, user = '', today = '' } = {}) {
-  const ctx0 = letterContext({ letter, customer, settings, user, today })
+export function resolveLetter(letter = {}, { customer = null, settings = {}, user = '', today = '', extra = null } = {}) {
+  const ctx0 = letterContext({ letter, customer, settings, user, today, extra })
   const subject = fillPlaceholders(letter.subject, ctx0).trim()
   const ctx = { ...ctx0, Betreff: subject }
   const contact = contactOf(customer, letter.contactId) || (letter.contactName ? { name: letter.contactName } : null)
@@ -140,15 +142,17 @@ export function customerActive(c, { documents = [], recurring = [], objects = []
 const validMail = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e || '').trim())
 
 /**
- * Empfänger eines Serienbriefs. filter: { scope, group, objectId, type, role, search }; advertising: Werbung
+ * Empfänger eines Serienbriefs. filter: { scope, group, objectId, type, role, search, ids (nur diese Kunden) }; advertising: Werbung
  * (Kunden mit noAds bekommen keine E-Mail, sondern stehen im Sammel-PDF); excluded: abgewählte Kunden-ids.
  * Liefert [{ id, customer, contact, name, recipient, email, viaMail, selected, note }] nach Name sortiert.
  */
-export function serialRecipients(customers = [], { scope = 'aktiv', group = '', objectId = '', type = '', role = '', search = '', advertising = false, excluded = [], documents = [], recurring = [], objects = [], today = '' } = {}) {
+export function serialRecipients(customers = [], { scope = 'aktiv', group = '', objectId = '', type = '', role = '', search = '', advertising = false, excluded = [], documents = [], recurring = [], objects = [], today = '', ids = null } = {}) {
   const off = new Set(excluded || [])
+  const only = Array.isArray(ids) ? new Set(ids) : null
   const r = String(role || '').trim().toLowerCase()
   return (customers || [])
     .filter((c) => {
+      if (only && !only.has(c.id)) return false
       if (scope === 'aktiv' && !customerActive(c, { documents, recurring, objects, today })) return false
       if (scope === 'gruppe' && (!group || String(c.group || '') !== String(group))) return false
       if (scope === 'objekt' && !(c.objectIds || []).includes(objectId)) return false

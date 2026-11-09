@@ -19,10 +19,11 @@ const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', '
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
 /**
  * Kennzahlen aus später geladenen Modulen: matten({ months, today }) → Zahlen des Mattenwechsels oder null
- * (views/matten-uebersicht.js), mattenBestand({ months }) → Wäscherei je Monat mit Schwundquote oder null
+ * (views/matten-uebersicht.js), mattenBestand({ months }) → Wäscherei je Monat mit Schwundquote oder null, vertraege({ months,
+ * today }) → Vertragsvolumen, Kündigungen und auslaufende Verträge (views/invoicing-vertraege.js)
  * (views/matten-bestand.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
  */
-export const kpiHooks = { matten: null, mattenBestand: null, version: () => '' }
+export const kpiHooks = { matten: null, mattenBestand: null, vertraege: null, version: () => '' }
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 
@@ -594,6 +595,16 @@ lazy(BUERO, {
   modals: 'mwr-run',
   actions: 'mwr-open mwr-month mwr-opts mwr-pick mwr-suggest mwr-create mwr-check mwr-release mwr-undo',
   todo: ['fakturierung-matten'],
+})
+
+// invoicing-vertraege.js (mit invoicing.js geladen): Kundenverträge mit Fristen (Reiter „Verträge“, Kundenblatt), Erinnerungen
+// in „Zu erledigen“, Lauf „Preisanpassung“ nach KV-Lohnerhöhung
+lazy(BUERO, {
+  module: 'fakturierung',
+  modals: 'fvt-edit fvt-kv',
+  actions: `fvt-filter fvt-search fvt-open fvt-goto fvt-calc fvt-redraw fvt-doc-open fvt-kv-open fvt-kv-calc fvt-kv-pick fvt-save fvt-del fvt-doc
+    fvt-cancel-open fvt-c-at fvt-cancel-undo fvt-done fvt-kv-apply fvt-kv-letter fvt-kv-undo`,
+  todo: ['fakturierung-vertraege'],
 })
 
 // invoicing-abrechnung.js (mit invoicing.js geladen): Winterdienst abrechnen, Leistungsnachweis nach Ist-Zeiten, Beilagen

@@ -18,6 +18,7 @@ import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, download, esc, euro, ICON, menu, modalFrame, options, val } from '../shared.js'
 import { textFieldHead, textMenu } from './invoicing-texte.js'
 import { mattenRunMenuItem } from './invoicing-mattenabrechnung.js'
+import { contractRunMenuItem } from './invoicing-vertraege.js'
 
 const MODULE = 'fakturierung'
 /**
@@ -60,6 +61,7 @@ export function laeufeMenu(ed) {
       { label: 'Mahnlauf', action: 'fak-dunning-open', hint: 'alle fälligen Mahnungen' },
       { label: 'Lastschrifteinzug', action: 'fak-sepa-open', hint: 'SEPA-Lastschrift (pain.008)' },
       mattenRunMenuItem(),
+      contractRunMenuItem(),
     ],
   })
 }
