@@ -8,6 +8,7 @@
 //   personal/abwesenheiten.json       Urlaub, Krankenstand, … (Gesundheitsdaten)
 //   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
+//   fahrzeuge/fahrtenbuch/2026.json   Fahrtenbuch je Fahrzeug, eine Datei je Jahr (YEAR_DOCS, erst bei Bedarf geladen)
 //   reklamationen/reklamationen.json  Reklamationen je Objekt
 //   kalkulation/kalkulation.json      Objektkalkulation (Flächen, Leistungswerte, Zuschläge)
 //   material/material.json            Material & Lager (Artikel, Buchungen, Bestellungen, Anforderungen)
@@ -162,6 +163,16 @@ export const YEAR_DOCS = {
     order: (a, b) => String(a.due).localeCompare(String(b.due)) || String(a.key).localeCompare(String(b.key)),
     empty: () => ({ schema: 1, jobs: [] }),
   },
+  // Fahrtenbuch je Firmenfahrzeug (core/fahrtenbuch.js): eine Datei je Jahr der Fahrt. lazy: nicht beim Start, erst wenn
+  // der Reiter „Fahrtenbuch“ das Jahr braucht (ensureYears)
+  fahrtenbuch: {
+    prefix: 'fahrzeuge/fahrtenbuch/',
+    list: 'trips',
+    yearOf: (x) => String(x?.date || '').slice(0, 4),
+    order: (a, b) => String(a.date).localeCompare(String(b.date)) || String(a.vehicleId).localeCompare(String(b.vehicleId)) || String(a.id).localeCompare(String(b.id)),
+    empty: () => ({ schema: 1, trips: [] }),
+    lazy: true,
+  },
 }
 export const yearPath = (key, year) => `${YEAR_DOCS[key].prefix}${year}.json`
 /** Datei je Jahr: { key, year, …YEAR_DOCS[key] } oder null. */
@@ -174,7 +185,7 @@ export function yearDocOf(path) {
 }
 /** Jahre, die beim Start geladen werden: Vorjahr (Überfälliges vom Dezember), laufendes und nächstes Jahr. */
 export const yearsAround = (today = todayISO()) => [-1, 0, 1].map((d) => String(Number(today.slice(0, 4)) + d))
-const startYearPaths = (today) => Object.keys(YEAR_DOCS).flatMap((key) => yearsAround(today).map((y) => yearPath(key, y)))
+const startYearPaths = (today) => Object.keys(YEAR_DOCS).filter((key) => !YEAR_DOCS[key].lazy).flatMap((key) => yearsAround(today).map((y) => yearPath(key, y)))
 
 // ---------------------------------------------------------------- Rechte je Rolle
 
@@ -202,6 +213,8 @@ export function dataRights(access) {
     [DOC.account, () => edits('planung') || sees('auswertung'), () => edits('planung', 'auswertung')],
     // Fuhrpark: auch der Mattenwechsel liest ihn (Fahrzeug je Tour in der Tourenplanung), schreiben nur der Fuhrpark
     [MODULE_DOCS.fahrzeuge.path, () => sees('fahrzeuge', 'matten'), () => edits('fahrzeuge')],
+    // Fahrtenbuch (fahrzeuge/fahrtenbuch/<Jahr>.json): wer fährt wann wohin – nur wer den Fuhrpark verwaltet
+    ['fahrzeuge/fahrtenbuch/', () => sees('fahrzeuge'), () => edits('fahrzeuge')],
     [MODULE_DOCS.reklamationen.path, () => sees('reklamationen'), () => edits('reklamationen')],
     // Material: auch der Arbeitsschutz liest die Artikel (Arbeitsstoffverzeichnis); die Angaben zu Arbeitsstoffen am
     // Artikel speichert, wer Arbeitsstoffe bearbeitet (Lager, Vollzugriff)

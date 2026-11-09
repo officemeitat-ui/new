@@ -5,6 +5,8 @@
 // Reiter „Service & Pickerl“: §57a-Begutachtung, Service nach Datum/km und
 // weitere Fälligkeiten; Werkstatttermine erledigen sie, auch zusammen mit dem
 // Reifenwechsel.
+// Reiter „Fahrtenbuch“: views/fahrtenbuch.js (Fahrten aus Touren, Winterdienst
+// und Dienstplan bestätigen).
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { addDays, dayIndex, formatDate, todayISO } from '../../core/dates.js'
@@ -17,6 +19,7 @@ import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRan
 import { canMail } from '../modals/send.js'
 import { registerTodo } from '../modals/todo.js'
 import { download, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
+import { fahrtenbuchView, fbOpenCount, fbRange } from './fahrtenbuch.js'
 
 const MODULE = 'fahrzeuge'
 const FZ = () => {
@@ -108,13 +111,14 @@ function sectionHead(total) {
           total && canDownload() && { label: 'Fahrzeugliste (CSV)', icon: ICON.download, action: 'veh-csv', mail: true },
         ],
       })}</div></div>
-    ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`
+    ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen], ['fahrtenbuch', 'Fahrtenbuch', tab === 'fahrtenbuch' ? fbOpenCount() : 0]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`
 }
 
 function vehiclesView() {
   const today = todayISO()
   const fz = FZ()
   if ((app.ui.vehTab || 'reifen') === 'service' && activeVehicles(fz).length) return `${sectionHead(activeVehicles(fz).length)}${serviceView()}`
+  if (app.ui.vehTab === 'fahrtenbuch' && activeVehicles(fz).length) return `${sectionHead(activeVehicles(fz).length)}${fahrtenbuchView()}`
   const list = rows(today)
   const { campaign, counts, total } = campaignSummary(fz, today)
   const filter = app.ui.vehFilter || 'alle'
@@ -252,7 +256,7 @@ function serviceView() {
     <div class="table-wrap"><table class="data veh-table"><thead><tr><th>Fahrzeug</th><th>Fahrer/in</th><th>km-Stand</th><th>Pickerl</th><th>Service</th><th>Weitere</th><th>Termin</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`
 }
 
-registerView({ id: 'fahrzeuge', order: 95, label: 'Fahrzeuge & Reifen', group: 'fuhrpark', module: MODULE, noWeek: true, mobile: { icon: ICON.car, label: 'Reifen' }, badge: () => rows().filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length + serviceRows().filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length, render: vehiclesView })
+registerView({ id: 'fahrzeuge', order: 95, label: 'Fahrzeuge & Reifen', group: 'fuhrpark', module: MODULE, noWeek: true, mobile: { icon: ICON.car, label: 'Reifen' }, range: () => (app.ui.vehTab === 'fahrtenbuch' ? fbRange() : null), badge: () => rows().filter((r) => ['offen', 'ueberfaellig', 'vorbei'].includes(r.st.status)).length + serviceRows().filter((r) => r.dues.some((d) => urgentDue(d) && !d.change)).length, render: vehiclesView })
 
 registerActions({
   'veh-filter': (el) => {
@@ -310,6 +314,7 @@ function editModal(c, m) {
         <label class="field"><span>Fahrer/in</span><select data-change="veh-set" data-path="driverId">${options(employees.map((e) => [e.id, e.name]), d.driverId, { empty: 'ohne feste/n Fahrer/in' })}</select></label>
         <label class="field"><span>Werkstatt</span><select data-change="veh-set" data-path="workshopId">${options(FZ().workshops.map((w) => [w.id, w.name]), d.workshopId, { empty: '–' })}</select></label>
         <label class="field"><span>Montiert</span><select data-change="veh-set" data-path="mounted" data-rerender="1">${options(Object.entries(SEASONS), d.mounted)}</select></label>
+        ${field('home', 'Abstellort (Start und Ende im Fahrtenbuch)', d.home, { placeholder: 'z. B. Betriebshof Gnigl' })}
         ${field('note', 'Hinweis (steht in der E-Mail an die Werkstatt nicht)', d.note, { cls: 'wide' })}
       </div>
       ${d.mounted === 'ganzjahr' ? tireFieldset(d, 'ganzjahr') : `${tireFieldset(d, 'sommer')}${tireFieldset(d, 'winter')}`}

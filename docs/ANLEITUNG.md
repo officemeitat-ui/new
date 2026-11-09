@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 391 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 392 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -10,7 +10,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (98)
-- [Material & Fuhrpark](#material-fuhrpark) (26)
+- [Material & Fuhrpark](#material-fuhrpark) (27)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (61)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
@@ -2631,7 +2631,7 @@ Der Reiter „Kosten“ zeigt je Gerät die Reparaturen und Kosten der letzten 1
 
 *In der App: Fahrzeuge & Reifen*
 
-Hier führst du die Firmenfahrzeuge mit Fahrer/in, Werkstatt, Reifensätzen (Größe, Lagerort, DOT, Profiltiefe) und was montiert ist. Es gibt zwei Reiter: „Reifenwechsel“ und „Service & Pickerl“.
+Hier führst du die Firmenfahrzeuge mit Fahrer/in, Werkstatt, Reifensätzen (Größe, Lagerort, DOT, Profiltiefe) und was montiert ist. Es gibt drei Reiter: „Reifenwechsel“, „Service & Pickerl“ und „Fahrtenbuch“.
 
 1. „Fahrzeuge & Reifen“ unter „Material & Fuhrpark“ öffnen.
 2. „+ Fahrzeug“ klicken.
@@ -2640,6 +2640,23 @@ Hier führst du die Firmenfahrzeuge mit Fahrer/in, Werkstatt, Reifensätzen (Gr�
 
 > Tipp: Viele auf einmal: „Verwalten ▾“ → „Liste aus Excel einfügen“.
 > Tipp: Die Suche findet Kennzeichen auch ohne Bindestrich.
+
+*Fuhrpark, Vollzugriff*
+
+### Fahrtenbuch
+
+*In der App: Fahrzeuge & Reifen*
+
+Die App schlägt je Fahrzeug und Tag die Fahrten aus Mattenwechsel-Touren, Winterdienst-Protokoll und Dienstplan der festen Fahrer/innen vor. Du bestätigst mit dem km-Stand; Änderungen und Stornos bleiben mit Zeit und Person sichtbar. Privat-km zeigt die App im Jahresschnitt (500-km-Grenze für den halben Sachbezug).
+
+1. „Fahrzeuge & Reifen“ öffnen, Reiter „Fahrtenbuch“.
+2. Bei einem Vorschlag „Bestätigen“: Strecke und Zweck prüfen, km-Stand am Ende eintragen.
+3. Nicht gefahren? „Nicht gefahren“ zweimal klicken.
+4. Privatfahrten über „Fahrt eintragen“, Art „Privatfahrt“.
+
+> Tipp: Im Fahrzeug den Abstellort eintragen: er wird Start und Ende der Strecke.
+> Tipp: Fahrten älter als 7 Tage erscheinen unter „Zu erledigen“.
+> Tipp: Export → CSV für die Steuerberatung (Monat oder Jahr).
 
 *Fuhrpark, Vollzugriff*
 

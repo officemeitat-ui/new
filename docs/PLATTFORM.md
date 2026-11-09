@@ -256,6 +256,21 @@ Stand: bald (30 Tage vor dem Fenster), fällig, in der Nachfrist, abgelaufen. Ma
 
 **Zu erledigen:** Fahrzeuge mit fälligem oder bald fälligem Pickerl, Service oder weiterer Fälligkeit ohne Termin, und Werkstatttermine zum Bestätigen. Die CSV im Reiter „Service & Pickerl“ ist eine Fahrzeugliste mit allen Fälligkeiten.
 
+### Fahrtenbuch
+
+Dritter Reiter **Fahrtenbuch** (Rechenkern `src/core/fahrtenbuch.js`, Ansicht `src/ui/views/fahrtenbuch.js`): Fahrten werden aus dem vorgeschlagen, was die App schon weiß, und nur noch bestätigt – statt abzuschreiben.
+
+- **Vorschläge je Fahrzeug und Tag** (bis heute): Touren im Mattenwechsel (ohne Entwürfe; Strecke über die Stopps, km laut Tour samt Rückweg, Start und Ende am Betriebshof der Tour), Winterdienst-Protokoll und Einsätze im Dienstplan der festen Fahrerin bzw. des festen Fahrers (Fahrzeug → Fahrer/in). Reihenfolge nach Uhrzeit, Zweck z. B. „Winterdienst (2 Objekte); Reinigung (1 Objekt)“. Start und Ende sonst der **Abstellort** des Fahrzeugs (neues Feld im Fahrzeug, z. B. „Betriebshof Gnigl“); ohne Abstellort beginnt die Strecke beim ersten Objekt. km laut Plan: Luftlinie × 1,35 zwischen Objekten mit Koordinaten, sonst „ohne alle Adressen“.
+- **Bestätigen:** Strecke, Zweck, Fahrer/in, Art (Dienstfahrt, Privatfahrt, Wohnung–Arbeitsstätte) und km-Stand am Beginn (vorgeschlagen: Ende der letzten Fahrt) und Ende; die km rechnet die App. Ohne km-Stand gelten die km laut Plan, markiert „km geschätzt“. Passt der km-Stand nicht zu den km-Ständen des Fahrzeugs (Werkstatt, Service), warnt die App; erst der zweite Klick übernimmt. Der km-Stand am Ende geht auch an das Fahrzeug (Service nach km).
+- **Nicht gefahren:** Vorschlag mit zweitem Klick verwerfen (bleibt als Vermerk, kommt nicht wieder).
+- **Fahrt eintragen:** von Hand, z. B. Privatfahrten oder Fahrten ohne Vorschlag.
+- **Nachvollziehbar:** Bestätigte Fahrten werden nicht gelöscht. Ändern hält jede Änderung mit Zeit, Person und vorher → nachher fest („geändert (n)“); Stornieren nur mit Grund (bleibt sichtbar, zählt nicht mehr, der Vorschlag des Tages kommt zurück).
+- **Prüfung:** Lücke im km-Stand zwischen zwei Fahrten („… km zwischen den Fahrten nicht erfasst“), km-Stand kleiner als am Ende der Fahrt davor, geschätzte km.
+- **Privatfahrten im Jahresschnitt** je Fahrzeug: Privatfahrten und Fahrten Wohnung–Arbeitsstätte je Monat; bis 500 km im Monat (Jahresschnitt) gilt der halbe Sachbezug (Sachbezugswerteverordnung § 4 Abs. 2) – mit der Steuerberatung abstimmen.
+- **Export:** CSV des Monats oder des ganzen Jahres (je Fahrzeug oder alle) mit km-Stand, km, Bestätigung, Storno und Änderungen.
+- **Zu erledigen:** „Fahrtenbuch: … Fahrten älter als 7 Tage nicht bestätigt“ (Fenster 3 Wochen zurück) mit Knopf in den Monat der ältesten Fahrt – ein Fahrtenbuch zählt nur, wenn es zeitnah geführt wird.
+- **Ablage:** `fahrzeuge/fahrtenbuch/<Jahr>.json` (eine Datei je Jahr, zusammengeführt je Fahrt), erst geladen, wenn der Reiter oder „Zu erledigen“ das Jahr braucht. Lesen und Schreiben nur mit dem Recht für den Fuhrpark (`fahrzeuge`).
+
 ## Kalkulation je Objekt
 
 Unter *Auswertung → Kalkulation* (nur Vollzugriff), gespeichert in `kalkulation/kalkulation.json` – nur für das Büro, weil Löhne, Zuschläge und Margen darin stehen (die Lohnverrechnung sieht Stunden, Überstunden und den Export, nicht die Kalkulation).
