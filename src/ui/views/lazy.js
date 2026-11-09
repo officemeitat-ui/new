@@ -26,6 +26,8 @@ export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.s
  * (views/vertrieb.js, core/vertrieb.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
  */
 export const kpiHooks = { matten: null, mattenBestand: null, vertraege: null, vertrieb: null, version: () => '' }
+/** Rentabilität je Objekt: Umsatz und Lohnkosten, also nur wer Fakturierung und Auswertung sieht. */
+export const rentAvailable = () => !app.access || app.access.all || (app.access.sees('fakturierung') && app.access.sees('auswertung'))
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 /** Mitteilungen an Mitarbeitende (Umschlag): Büro (views/mitteilungen.js) und „Meine Mitteilungen“ (views/mitteilungen-postfach.js). */
@@ -794,6 +796,25 @@ lazy(BUERO, {
     },
   ],
   actions: 'uva-mode uva-month uva-quarter uva-basis uva-pdf uva-csv',
+})
+
+// rentabilitaet.js: Rentabilität je Objekt (Deckungsbeitrag mit Ampel, Vorperiode, Umsatz für das Ziel). Kürzel rnt-
+lazy(BUERO, {
+  views: [
+    {
+      id: 'rentabilitaet',
+      order: 61,
+      label: 'Rentabilität',
+      group: 'auswertung',
+      section: 'finanzen',
+      module: '*',
+      noWeek: true,
+      available: rentAvailable,
+      icon: '<path d="M4 19.5h16"/><path d="M6.5 16V11M11 16V7.5M15.5 16v-5.5M20 16V5"/>',
+      text: 'Deckungsbeitrag je Objekt mit Ampel und Preis für das Ziel',
+    },
+  ],
+  actions: 'rnt-span rnt-filter rnt-settings rnt-csv',
 })
 
 // steuerberatung.js: Paket für die Steuerberatung (Zeitraum als ZIP mit Belegen, Prüfliste, Übergabe-Vermerk und

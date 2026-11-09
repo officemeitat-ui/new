@@ -40,4 +40,6 @@ import './weiterverrechnung.js'
 import './uva.js'
 // Paket für die Steuerberatung (Fakturierung, Einkauf, Kassenbuch, Umsatzsteuer)
 import './steuerberatung.js'
+// Rentabilität je Objekt (Fakturierung und Auswertung)
+import './rentabilitaet.js'
 import './weather.js'

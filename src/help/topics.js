@@ -3068,6 +3068,18 @@ export const TOPICS = [
     roles: 'Buchhaltung, Vollzugriff',
   },
   {
+    id: 'rentabilitaet',
+    section: 'finanzen',
+    view: 'rentabilitaet',
+    title: 'Rentabilität je Objekt',
+    q: ['rentabilität', 'deckungsbeitrag', 'welches objekt verdient', 'objekt rentabel', 'objekt verlust', 'preis erhöhen', 'marge je objekt', 'lohnt sich das objekt', 'preisanpassung objekt'],
+    answer: 'Die Ansicht „Rentabilität“ stellt je Objekt den Umsatz den Kosten gegenüber: Personal (gestempelte Zeit, sonst Plan, mal Lohnkosten laut Kalkulation), Material und Fremdleistungen. Eine Ampel zeigt, ob der Deckungsbeitrag das Ziel erreicht; daneben stehen der Vergleich mit dem Zeitraum davor und der Umsatz, der für das Ziel nötig wäre.',
+    steps: ['„Rentabilität“ unter Finanzen öffnen.', 'Zeitraum wählen (3, 6, 12 Monate oder Vorjahr).', '„Handlungsbedarf“ zeigt nur Objekte unter dem Ziel.', 'Beim Objekt „Vertrag“ öffnet den Vertrag für eine Preisanpassung.', 'Ziel und kritische Grenze unter „So wird gerechnet“ einstellen.'],
+    tips: ['Rechnungen ohne Objekt (Sammelrechnung je Kunde) verteilt die App nach Stunden auf die Objekte des Kunden; genauer wird es mit dem Objekt auf der Rechnung.', 'Eingangsrechnungen mit dem Objekt als Kostenstelle zählen als Fremdleistung.', 'Nur für Rollen mit Fakturierung und Auswertung (Lohnkosten).'],
+    related: ['kalkulation', 'kundenvertrag', 'kennzahlen'],
+    roles: 'Vollzugriff (Fakturierung und Auswertung)',
+  },
+  {
     id: 'paket-steuerberatung',
     section: 'finanzen',
     view: 'fakturierung',

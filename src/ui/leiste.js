@@ -158,6 +158,7 @@ export const SHORT_LABELS = {
   zeiten: 'Zeiten',
   nachweis: 'Nachweis',
   controlling: 'Controlling',
+  rentabilitaet: 'Rendite',
   fakturierung: 'Rechnungen',
   kassenbuch: 'Kasse',
   umsatzsteuer: 'Steuer',

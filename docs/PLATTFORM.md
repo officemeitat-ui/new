@@ -977,6 +977,15 @@ Eigenes Modul unter *Finanzen* (Modul `einkauf`, Rolle `buchhaltung` oder Vollzu
 - **Export für die Steuerberatung** (Belegart KA, Kassenkonto, Gegenkonto, Steuercode UST/VST, Einnahme positiv, Ausgabe negativ, Storno mit Bezug) und **Hinweis zur Registrierkassenpflicht** (§ 131b BAO, RKSV): Ab 15.000 € Jahresumsatz und mehr als 7.500 € Barumsätzen braucht es eine Registrierkasse; das Kassenbuch zählt die Barumsätze, warnt und ersetzt keine Registrierkasse.
 - **Zwei Geräte gleichzeitig:** Einträge haben eine Kennung und werden zusammengeführt; bekommen dabei zwei dieselbe Nummer, rückt der spätere ans Ende (vermerkt).
 
+### Rentabilität je Objekt
+
+Ansicht **„Rentabilität“** (Finanzen, nach dem Objekt-Controlling; nur Rollen mit Fakturierung und Auswertung, weil Lohnkosten drinstehen). Kürzel `rnt-`, Rechenkern `src/core/rentabilitaet.js` (Tests `test/rentabilitaet.test.js`), Ansicht `src/ui/views/rentabilitaet.js`.
+
+- **Je Objekt im Zeitraum** (3, 6, 12 Monate oder Vorjahr): Umsatz netto (festgeschriebene Rechnungen, Storno, Korrekturen mit Objekt), **Personal** = Stunden × Lohnkosten je Stunde laut Kalkulation (KV-Lohn plus Lohnnebenkosten); Stunden je eingeteilter Person und Einsatz **gestempelt, sonst laut Plan**, Stempelungen im Objekt ohne Einsatz kommen dazu (Anteil „gestempelt“ steht dabei). **Material** (Ausgaben aus dem Lager an das Objekt) und **Fremdleistungen** (Eingangsrechnungen mit dem Objekt als Kostenstelle). Fahrzeiten zählen nicht.
+- **Rechnungen ohne Objekt** (z. B. eine Sammelrechnung je Kunde) werden auf die Objekte des Kunden verteilt, nach den gerechneten Stunden im Zeitraum (ohne Stunden zu gleichen Teilen; „davon verteilt“ steht beim Objekt). Was keinem Kunden mit Objekten gehört, steht als „Umsatz ohne Objekt“ daneben.
+- **Ampel** gegen das Ziel (Vorgabe 25 %, kritisch unter 10 %, einstellbar unter „So wird gerechnet“, gespeichert in `fakturierung settings.rent`): Ziel erreicht, unter Ziel, kritisch, Kosten ohne Umsatz. Sortiert nach Handlungsbedarf; Filter „Handlungsbedarf“. **Vorperiode**: Deckungsbeitrag in % im gleich langen Zeitraum davor (▲/▼ in Prozentpunkten).
+- **Für das Ziel:** Umsatz, bei dem die Kosten das Ziel übrig lassen (Kosten ÷ (1 − Ziel)), als „+x % Umsatz“; hat das Objekt einen Vertrag, führt „Vertrag“ zur Preisanpassung (Fakturierung → Verträge). Export als CSV, auch per E-Mail.
+
 ### Paket für die Steuerberatung
 
 Ein Zeitraum (Monat, Quartal, Jahr) als **eine ZIP-Datei** für die Steuerberatung, aus der Fakturierung (⋯-Menü), dem Einkauf, dem Kassenbuch („Mehr“) und der Umsatzsteuer („Export“). Kürzel `stb-`, Rechenkern `src/core/steuerberatung.js` (Tests `test/steuerberatung.test.js`), Ansicht `src/ui/views/steuerberatung.js` (im Paket des Büros).

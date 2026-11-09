@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 382 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 383 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (96)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
-- [Finanzen](#finanzen) (80)
+- [Finanzen](#finanzen) (81)
 - [Verwaltung](#verwaltung) (61)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
@@ -3610,6 +3610,24 @@ Die Ansicht „Umsatzsteuer“ rechnet für einen Monat oder ein Quartal: Umsatz
 > Tipp: Die Hinweise oben nennen Entwürfe, offene Abschläge und Eingangsrechnungen mit „Vorsteuer?“.
 
 *Buchhaltung, Vollzugriff*
+
+### Rentabilität je Objekt
+
+*In der App: Rentabilität*
+
+Die Ansicht „Rentabilität“ stellt je Objekt den Umsatz den Kosten gegenüber: Personal (gestempelte Zeit, sonst Plan, mal Lohnkosten laut Kalkulation), Material und Fremdleistungen. Eine Ampel zeigt, ob der Deckungsbeitrag das Ziel erreicht; daneben stehen der Vergleich mit dem Zeitraum davor und der Umsatz, der für das Ziel nötig wäre.
+
+1. „Rentabilität“ unter Finanzen öffnen.
+2. Zeitraum wählen (3, 6, 12 Monate oder Vorjahr).
+3. „Handlungsbedarf“ zeigt nur Objekte unter dem Ziel.
+4. Beim Objekt „Vertrag“ öffnet den Vertrag für eine Preisanpassung.
+5. Ziel und kritische Grenze unter „So wird gerechnet“ einstellen.
+
+> Tipp: Rechnungen ohne Objekt (Sammelrechnung je Kunde) verteilt die App nach Stunden auf die Objekte des Kunden; genauer wird es mit dem Objekt auf der Rechnung.
+> Tipp: Eingangsrechnungen mit dem Objekt als Kostenstelle zählen als Fremdleistung.
+> Tipp: Nur für Rollen mit Fakturierung und Auswertung (Lohnkosten).
+
+*Vollzugriff (Fakturierung und Auswertung)*
 
 ### Paket für die Steuerberatung
 
