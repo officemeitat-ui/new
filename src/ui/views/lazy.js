@@ -376,7 +376,7 @@ lazy(BUERO, {
   actions: `qm-tab qm-filter qm-reset qm-goto qm-show qm-file qm-pdf qm-csv qm-complaints qm-groups-open qm-groups-redraw qm-groups-live qm-settings-open
     qm-group-add qm-group-del qm-raumbuch qm-raumbuch-file qm-groups-save qm-groups-delete qm-set-add qm-set-del qm-settings-reset qm-settings-save
     qm-measure-open qm-plan-redraw qm-plan-draw qm-plan-seed qm-plan-room qm-plan-del qm-plan-add qm-plan-start qm-rate-open qm-room qm-room-prev
-    qm-room-next qm-item qm-defect qm-note qm-photo qm-photo-del qm-finish-save qm-delete qm-mail qm-appt`,
+    qm-room-next qm-item qm-defect qm-note qm-photo qm-photo-del qm-ki-photo qm-ki-run qm-ki-take qm-finish-save qm-delete qm-mail qm-appt`,
   hints: true,
   todo: ['qualitaet'],
 })

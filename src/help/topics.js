@@ -1446,7 +1446,7 @@ export const TOPICS = [
     q: ['qualitätsmessung', 'qualität messen', 'en 13549', 'stichprobe reinigung', 'qualitätskennzahl', 'aql reinigung', 'qualitätsmesssystem', 'wie gut ist die reinigung'],
     answer: 'Genormte Stichprobenmessung in Anlehnung an EN 13549: je Objekt Raumgruppen mit Anzahl Räume, die App zieht die Räume der Stichprobe, bewertet wird vor Ort am Handy. Ergebnis erfüllt oder nicht erfüllt, eine Qualitätskennzahl mit Verlauf je Objekt und ein Bericht als PDF für den Kunden.',
     steps: ['„Qualitätsmessung“ unter „Objekte & Kunden“ öffnen.', 'Ein Objekt anklicken: Raumgruppen, Verlauf und alle Messungen.', '„Messung starten“ für eine neue Stichprobe.'],
-    tips: ['Tabellen, Gewichte und Fehlerarten sind ein Vorschlag in Anlehnung an EN 13549, ohne Gewähr. Bitte mit dem Kunden vereinbaren.'],
+    tips: ['Tabellen, Gewichte und Fehlerarten sind ein Vorschlag in Anlehnung an EN 13549, ohne Gewähr. Bitte mit dem Kunden vereinbaren.', 'Mit eingerichteter KI: beim Bewerten „Foto mit KI prüfen“ – die KI schlägt je Prüfobjekt in Ordnung, Mangel oder unklar vor; übernommen wird nur, was du antippst. Den Raum ohne Personen fotografieren.'],
     related: ['qm-raumgruppen', 'qm-stichprobe', 'qm-messung', 'qm-ergebnis', 'qm-nachkontrolle', 'qm-objektkontrolle'],
     roles: 'Bearbeiten: Vollzugriff, Objektleitung, Objektmanagement; lesen: eigene Büro-Rolle mit dem Modul; der Objektservice sieht sie nicht',
   },

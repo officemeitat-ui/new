@@ -1659,6 +1659,7 @@ Genormte Stichprobenmessung in Anlehnung an EN 13549: je Objekt Raumgruppen mit 
 3. „Messung starten“ für eine neue Stichprobe.
 
 > Tipp: Tabellen, Gewichte und Fehlerarten sind ein Vorschlag in Anlehnung an EN 13549, ohne Gewähr. Bitte mit dem Kunden vereinbaren.
+> Tipp: Mit eingerichteter KI: beim Bewerten „Foto mit KI prüfen“ – die KI schlägt je Prüfobjekt in Ordnung, Mangel oder unklar vor; übernommen wird nur, was du antippst. Den Raum ohne Personen fotografieren.
 
 *Bearbeiten: Vollzugriff, Objektleitung, Objektmanagement; lesen: eigene Büro-Rolle mit dem Modul; der Objektservice sieht sie nicht*
 

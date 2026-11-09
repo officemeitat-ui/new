@@ -2701,6 +2701,11 @@ tr.muted td { color: var(--muted); }
 .qm-chip[aria-current='true'] { outline: 3px solid var(--accent); outline-offset: 2px; font-weight: 800; }
 .qm-room-state { margin: 0; }
 .qm-items { display: grid; gap: 10px; }
+.qm-ki { display: grid; gap: 6px; margin: 4px 0 10px; }
+.qm-ki .btn { justify-self: start; }
+.qm-ki-result { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--surface-2, transparent); }
+.qm-ki-result ul { margin: 6px 0; padding-left: 1.1rem; display: grid; gap: 4px; }
+.qm-ki-result p { margin: 0; }
 .qm-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
 .qm-item.bad { border-color: var(--err); }
 .qm-item-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }

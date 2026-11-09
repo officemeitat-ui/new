@@ -40,6 +40,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Tempo: Kennzahlen beim ersten Öffnen 7 / 23 s → 2,1 / 9,5 s (PC / Handy), „Zu erledigen“ rechnet im Hintergrund statt nach jeder Änderung die Bedienung aufzuhalten (Idee 9).
 - Rentabilität je Objekt: Deckungsbeitrag mit Ampel, Ist-Stunden aus der Zeiterfassung, Vorperiode, Umsatz für das Ziel und Weg zum Vertrag (Idee 6).
 - Wochenbriefing als Bericht in „Berichte automatisch“, auf Wunsch mit KI-Zusammenfassung ohne Namen (Idee 5, Rechtsprüfung Punkt 48).
+- KI-Fotoprüfung bei der Qualitätsmessung: Vorschlag je Prüfobjekt aus einem Foto, Übernahme nur per Klick, im Bericht gekennzeichnet (Idee 8, Rechtsprüfung Punkt 51).
 - Paket für die Steuerberatung: Zeitraum als ZIP mit CSV-Dateien, Rechnungs-PDFs, Belegen, Kassenbuch, Zahlungen, offenen Posten und Umsatzsteuer-Übersicht, Prüfliste, Übergabe-Vermerk und Nachreichung (Idee 4, Rechtsprüfung Punkt 47).
 
 ## Ideen für die nächsten Runden (Reihenfolge = Vorschlag)
@@ -51,7 +52,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 5. **(fertig)** KI-Wochenbriefing: Montag früh je Rolle eine kurze Zusammenfassung (Umsatz, offene Posten, Reklamationen, Krankenstände, Fristen, Lücken im Plan) per E-Mail oder Push.
 6. **(fertig)** Rentabilität je Objekt: Ist-Stunden und Kosten gegen Umsatz mit Ampel und Vorschlag zur Preisanpassung (an die Kundenverträge angebunden).
 7. **Kunden-Self-Service:** im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
-8. **KI-Fotoprüfung bei der Objektkontrolle:** Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
+8. **(fertig, bei der Qualitätsmessung)** KI-Fotoprüfung bei der Objektkontrolle: Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
 9. **(fertig)** Tempo Kennzahlen und „Zu erledigen“: Kennzahlen rechnen beim ersten Öffnen den Plan von 12 Monaten neu (bei großen Datenmengen 7 s am PC, 23 s am Handy); „Zu erledigen“ rechnet nach jeder Änderung alle Quellen neu (am Handy rund 2 s) – Zwischenspeicher je Quelle.
 
 ## Offen – braucht Entscheidung oder Zuarbeit

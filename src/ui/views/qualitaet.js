@@ -8,6 +8,7 @@
 
 import { addDays, formatDate, MONTH_LONG, todayISO } from '../../core/dates.js'
 import { AQL_VALUES, attention, DEFECT_DEFAULTS, drawSample, emptyQualitaet, evaluate, findAkte, GROUP_DEFAULTS, groupsFromRaumbuch, groupsProblem, isUrgent, ITEM_DEFAULTS, levelOf, lotSize, measurementsOf, monthly, newMeasurement, objectConf, objectStatus, planFor, planProblem, QM_HINT, resultOf, roomLabel, roomResult, SAMPLE_DEFAULTS, SETTINGS_DEFAULTS, settingsOf } from '../../core/qualitaet.js'
+import { applySuggestion, checkFotoPruefung, fotoPruefungRequest } from '../../core/qualitaet-ki.js'
 import { toCSV } from '../../core/reports.js'
 import { aqlText, levelText, qualitaetDocument, qualitaetPdfName } from '../../export/qualitaet-pdf.js'
 import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
@@ -17,6 +18,7 @@ import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 import { checked, download, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { kixBox, kixButton, kixConsent, kixFailed, kixFile, kixSet } from '../kix.js'
 
 const MODULE = 'qualitaet'
 const ICON_QM = '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><path d="m7.8 10.6 2 2 3.6-3.6"/>'
@@ -679,12 +681,86 @@ function rateModal(c, mo) {
     subtitle: `Raum ${i + 1} von ${m.rooms.length} · ${esc(room.group)} · ${esc(objName(m.objectId))} · ${short(m.date)}`,
     body: `<nav class="qm-strip" aria-label="Räume der Stichprobe">${strip}</nav>
       <p class="qm-room-state">${rr.rated ? (rr.ok ? '<span class="pill ok">in Ordnung</span>' : `<span class="pill error">nicht in Ordnung</span> <span class="muted">${plural(rr.points, 'Fehlerpunkt', 'Fehlerpunkte')}</span>`) : '<span class="pill na">nicht bewertet</span>'}</p>
+      ${ed ? kiBlock(mo, m, i, room) : ''}
       <div class="qm-items">${items}</div>
       <p class="qm-running muted small">Bisher: ${plural(res.bad, 'Raum', 'Räume')} nicht in Ordnung (zulässig ${res.ac ?? '–'}), Kennzahl ${pct(res.score)} · ${m.rooms.filter((x) => x.checked).length} von ${m.rooms.length} Räumen angesehen</p>`,
     foot: `<button class="btn" data-action="qm-room-prev" ${i === 0 ? 'disabled' : ''}>${ICON.left} Zurück</button><div class="actions">${ed ? `<button class="btn primary" data-action="qm-room-next">${last ? 'Raum fertig, abschließen' : 'Raum fertig, weiter'} ${ICON.right}</button>` : ''}</div>`,
   })
 }
 registerModal('qm-rate', rateModal, { module: MODULE })
+
+// ---------------------------------------------------------------- KI-Fotoprüfung (nur Vorschlag, core/qualitaet-ki.js)
+
+const KI_PHOTO = new Map() // Messung|Raum → Foto dieser Sitzung (für „übernehmen“ als Foto zum Mangel)
+const kiKey = (m, i) => `${m.id}|${i}`
+const KI_STATE = { ok: 'in Ordnung', mangel: 'Mangel', unklar: 'unklar' }
+
+function kiBlock(mo, m, i, room) {
+  const btn = kixButton(`<label class="btn small">${ICON.camera} Foto mit KI prüfen<input type="file" accept="image/*" capture="environment" data-change="qm-ki-photo" hidden></label>`)
+  const res = mo.kiRes?.room === i ? mo.kiRes : null
+  const names = Object.fromEntries(settingsOf(doc()).defectTypes.map((x) => [x.id, x.name]))
+  const list = res
+    ? `<div class="qm-ki-result"><p><span class="pill info">KI</span> <strong>Vorschlag aus dem Foto – bitte selbst prüfen</strong>${res.general ? ` <span class="muted">${esc(res.general)}</span>` : ''}</p>
+      <ul>${res.suggestions
+        .map((x) => {
+          const it = room.items[x.k]
+          const same = it && it.state === x.state && (x.state !== 'mangel' || x.defects.every((d) => it.defects.includes(d)))
+          return `<li><strong>${esc(it?.name || '')}</strong>: ${esc(KI_STATE[x.state])}${x.defects.length ? ` (${esc(x.defects.map((d) => names[d] || d).join(', '))})` : ''}${x.hint ? ` <span class="muted">– ${esc(x.hint)}</span>` : ''}
+            ${x.state === 'unklar' ? '' : same ? ' <span class="pill ok">übernommen</span>' : ` <button type="button" class="btn small" data-action="qm-ki-take" data-k="${x.k}">Übernehmen</button>`}</li>`
+        })
+        .join('')}</ul>
+      ${res.suggestions.some((x) => x.state !== 'unklar') ? '<div class="actions"><button type="button" class="btn small" data-action="qm-ki-take" data-k="all">Alle übernehmen</button></div>' : ''}</div>`
+    : ''
+  return btn || list ? `<div class="qm-ki">${btn}${kixBox('qm-ki')}${list}</div>` : ''
+}
+
+async function runKiCheck(el) {
+  const { mo, m, room } = rateRoom()
+  if (!room || mo.kix?.['qm-ki']?.busy) return
+  const i = Math.min(Number(mo.i) || 0, m.rooms.length - 1)
+  const file = KI_PHOTO.get(kiKey(m, i))
+  if (!file) return
+  if (!el?.dataset?.consent && !kixConsent('qm-ki', 'Das Foto des Raums', { action: 'qm-ki-run' })) return
+  kixSet('qm-ki', { busy: 'Die KI sieht sich das Foto an …' })
+  try {
+    const photo = await kixFile(file)
+    const settings = settingsOf(doc())
+    const { kiSend } = await import('../../ai/client.js')
+    const { parseKiJson } = await import('../../core/ki-vorschlag.js')
+    const raw = await kiSend(fotoPruefungRequest({ photo, group: room.group, items: room.items, defects: settings.defectTypes }), { maxTokens: 4000 })
+    const res = checkFotoPruefung(parseKiJson(raw, 'Die Antwort der KI zum Foto'), { items: room.items, defects: settings.defectTypes })
+    if (app.ui.modal !== mo) return
+    mo.kiRes = { room: i, ...res }
+    kixSet('qm-ki', res.problems.length && !res.suggestions.length ? { error: 'Die KI konnte auf dem Foto kein Prüfobjekt beurteilen. Bitte näher oder heller fotografieren.' } : {})
+    renderModal()
+  } catch (err) {
+    if (app.ui.modal === mo) kixSet('qm-ki', { error: kixFailed(err) })
+  }
+}
+
+/** Vorschlag übernehmen; bei einem Mangel ohne eigenes Foto das geprüfte Foto ablegen. */
+async function takeSuggestions(which) {
+  readNotes()
+  const { mo, m, room } = rateRoom()
+  const i = Math.min(Number(mo?.i) || 0, (m?.rooms.length || 1) - 1)
+  if (!room || mo.kiRes?.room !== i) return
+  const list = mo.kiRes.suggestions.filter((x) => which === 'all' || x.k === Number(which))
+  let changed = 0
+  const file = KI_PHOTO.get(kiKey(m, i))
+  for (const x of list) {
+    const it = room.items[x.k]
+    if (!applySuggestion(it, x)) continue
+    changed++
+    if (x.state === 'mangel' && !it.photo && file) {
+      const pic = await shrink(file)
+      const meta = await storeFile(pic, `${basePath(m)}_raum-${room.no}-${fileSafe(room.group)}_${it.id}.${pic.type === 'image/png' ? 'png' : 'jpg'}`)
+      if (meta) it.photo = meta
+    }
+  }
+  persist()
+  if (app.ui.modal === mo) renderModal()
+  toast(changed ? `${plural(changed, 'Vorschlag', 'Vorschläge')} übernommen – bitte noch einmal ansehen.` : 'Nichts zu übernehmen.')
+}
 
 function finishModal(m) {
   const r = evaluate(m)
@@ -1131,6 +1207,16 @@ registerActions(
       if (app.ui.modal === mo) renderModal()
       toast(meta.queued ? 'Foto gespeichert; es wird hochgeladen, sobald wieder Netz da ist.' : 'Foto gespeichert.')
     },
+    'qm-ki-photo': (el) => {
+      const file = el.files?.[0]
+      const { m, mo } = rateRoom()
+      if (!file || !m) return
+      KI_PHOTO.set(kiKey(m, Math.min(Number(mo.i) || 0, m.rooms.length - 1)), file)
+      el.value = ''
+      runKiCheck()
+    },
+    'qm-ki-run': (el) => runKiCheck(el),
+    'qm-ki-take': (el) => takeSuggestions(el.dataset.k),
     'qm-photo-del': (el) => {
       const { room } = rateRoom()
       const it = room?.items[Number(el.dataset.k)]

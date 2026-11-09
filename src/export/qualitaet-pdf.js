@@ -72,6 +72,9 @@ export function qualitaetDocument({ m, object = {}, history = [], defectNames = 
     { table: { headerRows: 1, dontBreakRows: true, widths: [80, 64, 58, 38, '*'], body: [th(['Raum', 'Raumgruppe', 'Ergebnis', 'Punkte', 'Mängel']), ...rows] }, layout: tableLayout(colors), fontSize: 8 },
   ]
   if (m.note) content.push({ text: 'Bemerkung', style: 'section', margin: [0, 12, 0, 4] }, { text: m.note })
+  // KI-Fotoprüfung: Vorschläge, die die Person übernommen hat (Transparenz)
+  const byKi = m.rooms.reduce((n, room) => n + (room.items || []).filter((it) => it.ki).length, 0)
+  if (byKi) content.push({ text: `${byKi} ${byKi === 1 ? 'Bewertung' : 'Bewertungen'} nach einem Vorschlag der KI-Fotoprüfung übernommen und von ${m.by || 'der prüfenden Person'} bestätigt.`, fontSize: 8, color: colors.grey, margin: [0, 6, 0, 0] })
   if (past.length > 1) content.push({ text: 'Verlauf der letzten Messungen', style: 'section', margin: [0, 14, 0, 4] }, { table: { headerRows: 1, widths: [60, 60, 70, '*'], body: [th(['Datum', 'Kennzahl', 'Ergebnis', '']), ...trend] }, layout: tableLayout(colors), fontSize: 8 })
   content.push({ columns: [sigCell('', `Für ${brand.name || 'den Auftragnehmer'}: ${m.by || ''}`, colors), sigCell(m.signature?.svg || '', `Kunde: ${m.signature?.name || m.customer || ''}`, colors)], columnGap: 40, margin: [0, 26, 0, 0], unbreakable: true })
   content.push({
