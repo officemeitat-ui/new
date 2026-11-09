@@ -2,6 +2,7 @@
 // Objektanweisungen mit Übersetzungen für den „Plan am Handy“ (instructionsI18n, core/sprachen.js): von Hand
 // oder „Mit KI übersetzen“ (nur, wenn der KI-Assistent eingerichtet ist; Vorschlag, gespeichert erst mit
 // dem Objekt). Ändert sich der deutsche Text, gelten die Übersetzungen als veraltet.
+// Checkliste am Handy je Leistung (task.checklist): Abschnitt im Dialog der Leistung aus views/checkliste.js.
 
 import { addDays, formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { holidayCalendar } from '../../core/holidays.js'
@@ -16,6 +17,7 @@ import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, I
 import { geocode } from '../geocode.js'
 import { readWaste, wasteSection } from '../waste-form.js'
 import { weatherEnabled, weatherLocations, weatherRules } from '../weather.js'
+import { checklistSection, readChecklist } from './checkliste.js'
 import { regionFilter } from './objects.js'
 
 function sitesView() {
@@ -29,7 +31,7 @@ function sitesView() {
       const rows = tasks
         .map(
           (t) => `<tr>
-          <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}${t.outdoor ? ' <span class="tag">im Freien</span>' : ''}</td>
+          <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}${t.outdoor ? ' <span class="tag">im Freien</span>' : ''}${t.checklist?.length ? ` <span class="tag" title="Checkliste am Handy">Checkliste: ${t.checklist.length}</span>` : ''}</td>
           <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}${Number.isFinite(t.travelAfterMin) || t.travelNote ? `<br><span class="muted">Fahrt danach ${Number.isFinite(t.travelAfterMin) ? `${t.travelAfterMin} min` : 'automatisch'}${t.travelNote ? `: ${esc(t.travelNote)}` : ''}</span>` : ''}</td><td class="num">${t.staff}</td>
           <td>${t.regulars.map((id) => esc(empName(id))).join(', ') || '<span class="muted">–</span>'}</td>
           <td>${esc(HOLIDAY_RULES[t.holidayRule || DEFAULT_HOLIDAY_RULE])}</td>
@@ -267,7 +269,8 @@ function taskModal(c, { id, objectId }) {
         <label class="check wide"><input type="checkbox" id="task-outdoor" ${t.outdoor ? 'checked' : ''}><span>Arbeit im Freien (Außenanlage, Fassade, Glas außen): Hinweise bei Hitze und Sturm</span></label>
       </div>
       <section><h3>Stammkraft</h3><div class="form-grid">${checkboxes('task-reg', app.data.employees.filter((e) => !obj?.region || !e.team || e.team === obj.region || t.regulars.includes(e.id)).map((e) => [e.id, e.name]), t.regulars || [])}</div><p class="note">Angezeigt werden Personen aus dem Revier des Objekts.</p></section>
-      <section><h3>Benötigte Qualifikation</h3><div class="form-grid">${checkboxes('task-skill', (app.data.skills || []).map((s) => [s, s]), t.skills || [])}</div></section>`,
+      <section><h3>Benötigte Qualifikation</h3><div class="form-grid">${checkboxes('task-skill', (app.data.skills || []).map((s) => [s, s]), t.skills || [])}</div></section>
+      ${checklistSection(t)}`,
     foot: `${id === 'new' ? '<span></span>' : `<button class="btn ${confirmDel ? 'danger confirm' : 'danger'}" data-action="task-delete" data-id="${esc(t.id)}">${confirmDel ? 'Wirklich löschen?' : 'Löschen'}</button>`}
       <div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="task-save" data-id="${esc(t.id)}">Speichern</button></div>`,
   })
@@ -320,6 +323,7 @@ function readTaskForm(existing) {
     regulars: checkedValues('task-reg'),
     skills: checkedValues('task-skill'),
     outdoor: checked('task-outdoor') || undefined,
+    checklist: readChecklist(existing),
   }
 }
 

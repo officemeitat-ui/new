@@ -3,8 +3,10 @@
 // Prüfung, gespeichert wird erst mit „Übernehmen“ und „Speichern“.
 // - Objektanweisungen (translateText): Anfrage und Auswertung in core/sprachen.js
 // - Mitteilungen an Mitarbeitende (translateMessage, Titel und Text): core/mitteilungen.js
-// (beide dort getestet).
+// - Punkte der Checkliste einer Leistung (translateChecklist): core/checkliste-buero.js
+// (alle dort getestet).
 
+import { checklistTranslationRequest, parseChecklistTranslation } from '../core/checkliste-buero.js'
 import { messageTranslationRequest, parseMessageTranslation } from '../core/mitteilungen.js'
 import { parseTranslation, translationRequest } from '../core/sprachen.js'
 import { app } from '../ui/context.js'
@@ -43,4 +45,9 @@ export async function translateText(text, langs) {
 /** Mitteilung (Titel und Text) in die Sprachen übersetzen: { tr: { titel, text }, … }. Wirft mit lesbarer Meldung. */
 export async function translateMessage(m, langs) {
   return parseMessageTranslation(await ask(messageTranslationRequest(m, langs)), langs)
+}
+
+/** Punkte einer Checkliste in die Sprachen übersetzen: { tr: ['Punkt 1', …], … }. Wirft mit lesbarer Meldung. */
+export async function translateChecklist(texts, langs) {
+  return parseChecklistTranslation(await ask(checklistTranslationRequest(texts, langs)), langs, texts.length)
 }

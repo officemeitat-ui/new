@@ -987,6 +987,24 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .tc-table tr.clickable { cursor: pointer; }
 .tc-list { margin: 0; padding-left: 1.1rem; }
 .tc-list li { margin: 3px 0; }
+/* Checkliste am Handy: Stand im Einsatz-Dialog, Punkte im Dialog „Leistung bearbeiten“ */
+.ck-people { margin: 0; padding-left: 1.1rem; }
+.ck-people > li { margin: 4px 0 8px; }
+.ck-items { list-style: none; margin: 4px 0 0; padding: 0; }
+.ck-items li { margin: 2px 0; overflow-wrap: anywhere; }
+.ck-mark { display: inline-block; width: 1.2em; font-weight: 700; }
+.ck-ok .ck-mark { color: var(--ok); }
+.ck-nicht .ck-mark { color: var(--err); }
+.ck-offen .ck-mark { color: var(--muted); }
+.ck-bild { display: block; max-width: min(100%, 360px); margin: 6px 0; border-radius: var(--radius); border: 1px solid var(--line); }
+.ck-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.ck-row .ck-text { flex: 1 1 16rem; min-width: 0; }
+.ck-row .ck-days { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.ck-row .ck-days[hidden] { display: none; }
+.ck-row details { flex: 1 1 100%; }
+.ck-row details .form-grid { margin-top: 6px; }
+.ck-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.ck-tools select { width: auto; max-width: 100%; }
 .handover { display: grid; gap: 8px; }
 .handover .inline-form { background: var(--surface-2); }
 .field.grow { flex: 1 1 22rem; }

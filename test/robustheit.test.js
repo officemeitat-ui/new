@@ -260,11 +260,14 @@ test('Webspace: PNG ohne eXIf- und Text-Blöcke, WebP ohne EXIF/XMP (Merker im K
   }
 })
 
-test('Webspace: Fotos ohne Neuspeicherung gehen durch bild_ohne_metadaten (Winterdienst, Kundenbereich, Fahrerseite)', () => {
+test('Webspace: Fotos ohne Neuspeicherung gehen durch bild_ohne_metadaten (Winterdienst, Kundenbereich, Fahrerseite, Checkliste)', () => {
   const read = (f) => readFileSync(join(ROOT, f), 'utf8')
   assert.match(read('wetter-alarm.php'), /if \(move_uploaded_file\(\$f\['tmp'\], \$ziel\)\) \{\n\s+if \(bild_ohne_metadaten\(\$ziel\)\) \{/)
   assert.match(read('kunden.php'), /if \(!bild_ohne_metadaten\(\$datei\)\) \{\n\s+@unlink\(\$datei\);/)
-  assert.match(read('mattentour.php'), /if \(!bild_ohne_metadaten\(\$ziel\)\) \{\n\s+@unlink\(\$ziel\);/)
+  // Fahrerseite und Checkliste am Handy: gemeinsam über bild_speichern (webspace-lib.php)
+  assert.match(read('webspace-lib.php'), /function bild_speichern[^]*if \(!bild_ohne_metadaten\(\$ziel\)\) \{\n\s+@unlink\(\$ziel\);/)
+  assert.match(read('mattentour.php'), /bild_speichern\(\$tmp, \$groesse, \$fehler, \$ziel, FOTO_BYTES\)/)
+  assert.match(read('mein-plan.php'), /bild_speichern\([^;]+CK_FOTO_BYTES\)/)
 })
 
 // ---------------------------------------------------------------- 5. Alte Touren mit doppelter Stopp-ID

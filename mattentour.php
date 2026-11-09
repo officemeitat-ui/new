@@ -550,49 +550,13 @@ function hochgeladene_fotos(array $liegeplaetze): array
 }
 
 /**
- * Foto prüfen und neu speichern: Typ laut Inhalt, Maße, mit GD als JPEG (längste Seite 1600 px, ohne Metadaten wie GPS);
- * ohne GD nur JPEG nach strenger Prüfung, ohne EXIF/GPS (bild_ohne_metadaten). Liefert den Fehler-Schlüssel ('' = gespeichert).
+ * Foto prüfen und neu speichern (bild_speichern in webspace-lib.php: mit GD als JPEG, längste Seite 1600 px, ohne
+ * Metadaten wie GPS; ohne GD nur JPEG ohne EXIF/GPS). Liefert den Fehler-Schlüssel ('' = gespeichert).
  */
 function foto_speichern(string $tmp, int $groesse, int $fehler, string $ziel): string
 {
-    if ($fehler !== UPLOAD_ERR_OK || !is_uploaded_file($tmp) || $groesse > FOTO_BYTES || $groesse < 100) {
-        return 'mt_fehler_foto_gross';
-    }
-    $typ = class_exists('finfo') ? (string) (new finfo(FILEINFO_MIME_TYPE))->file($tmp) : '';
-    $mass = @getimagesize($tmp);
-    $typen = ['image/jpeg' => 'imagecreatefromjpeg', 'image/png' => 'imagecreatefrompng', 'image/webp' => 'imagecreatefromwebp'];
-    if (!isset($typen[$typ]) || !$mass || ($mass['mime'] ?? '') !== $typ || $mass[0] < 1 || $mass[1] < 1 || $mass[0] > 12000 || $mass[1] > 12000) {
-        return 'mt_fehler_foto_typ';
-    }
-    $lesen = $typen[$typ];
-    if (function_exists($lesen) && function_exists('imagejpeg') && $mass[0] * $mass[1] <= 40e6) {
-        $bild = @$lesen($tmp);
-        if (!$bild) {
-            return 'mt_fehler_foto_typ';
-        }
-        $faktor = min(1, 1600 / max($mass[0], $mass[1]));
-        $b = max(1, (int) round($mass[0] * $faktor));
-        $h = max(1, (int) round($mass[1] * $faktor));
-        $neu = imagecreatetruecolor($b, $h);
-        imagefill($neu, 0, 0, imagecolorallocate($neu, 255, 255, 255));
-        imagecopyresampled($neu, $bild, 0, 0, 0, 0, $b, $h, $mass[0], $mass[1]);
-        $ok = imagejpeg($neu, $ziel, 82);
-        imagedestroy($bild);
-        imagedestroy($neu);
-        return $ok ? '' : 'mt_fehler_speichern';
-    }
-    if ($typ !== 'image/jpeg') {
-        return 'mt_fehler_foto_typ';
-    }
-    // ohne GD bzw. über 40 Megapixel: unverändert, aber ohne Metadaten wie den Ort der Aufnahme (ohne Neukodieren)
-    if (!move_uploaded_file($tmp, $ziel)) {
-        return 'mt_fehler_speichern';
-    }
-    if (!bild_ohne_metadaten($ziel)) {
-        @unlink($ziel);
-        return 'mt_fehler_foto_typ';
-    }
-    return '';
+    $f = bild_speichern($tmp, $groesse, $fehler, $ziel, FOTO_BYTES);
+    return $f === '' ? '' : (['gross' => 'mt_fehler_foto_gross', 'typ' => 'mt_fehler_foto_typ'][$f] ?? 'mt_fehler_speichern');
 }
 
 // ---------------------------------------------------------------- Abschluss eines Stopps prüfen

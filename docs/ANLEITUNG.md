@@ -2,17 +2,17 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 392 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 396 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (17)
 - [Planung](#planung) (39)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (98)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (29)
+- [Objekte & Kunden](#objekte-kunden) (99)
 - [Material & Fuhrpark](#material-fuhrpark) (27)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (61)
+- [Verwaltung](#verwaltung) (62)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -755,6 +755,36 @@ Im Objekt hängt ein QR-Code. Die Reinigungskraft scannt ihn mit der Handy-Kamer
 > Tipp: Ohne Einsatz laut Plan (eingesprungen) geht es trotzdem.
 > Tipp: Kein GPS: der Code zeigt nur, dass das Handy dort war.
 
+### Checkliste am Handy abhaken (Reinigungskraft)
+
+*In der App: Zeiterfassung*
+
+Hat die Leistung eine Checkliste, steht sie im „Plan am Handy“ beim Einsatz, am Tag des Einsatzes aufgeklappt. Die Reinigungskraft hakt jeden Punkt ab, macht bei „Foto nötig“ ein Foto oder wählt „Nicht möglich?“ mit Grund (z. B. Raum versperrt) und tippt „Fertig“. Abhaken geht ab einer Stunde vor Beginn bis 24 Stunden nach Ende.
+
+1. Den persönlichen Link „Mein Dienstplan“ am Handy öffnen.
+2. Beim Einsatz „Checkliste“ aufklappen.
+3. Punkte abhaken, Foto aufnehmen, wo „Foto nötig“ steht, oder „Nicht möglich?“ mit Grund wählen.
+4. „Fertig“ tippen (zwischendurch „Zwischenspeichern“).
+
+> Tipp: Fotos nur vom Raum, ohne Personen; Ortsdaten werden entfernt.
+> Tipp: „Fertig“ geht erst, wenn jeder Punkt erledigt oder „nicht möglich“ ist; der Rest bleibt trotzdem gespeichert.
+> Tipp: Die Seite ist in der Sprache der Person, der Grund bleibt fürs Büro deutsch.
+
+### Checklisten vom Handy im Büro
+
+*In der App: Zeiterfassung*
+
+Die App holt die Checklisten mit den Stempelungen ab, alle 2 Minuten oder mit „Jetzt abrufen“ in der Zeiterfassung. Im Einsatz-Dialog steht je Person der Stand mit „nicht möglich“ und Grund und den Fotos. Unter „Zu erledigen → Checkliste am Handy“ stehen gemeldete „nicht möglich“-Punkte (bis „Gesehen“) und Einsätze, deren Checkliste nach Ende nicht fertig ist.
+
+1. „Zeiterfassung“ öffnen, „Mehr ▾“ → „Jetzt abrufen“.
+2. Einsatz im Plan öffnen: Abschnitt „Checkliste“, „Foto“ zeigt das Foto.
+3. Glocke „Zu erledigen“: bei „nicht möglich“ kümmern (z. B. Kunde informieren) und „Gesehen“ klicken.
+
+> Tipp: „Nicht fertig“ gibt es nur bei Personen, die die Checkliste schon benutzen.
+> Tipp: Mit SharePoint liegen die Fotos unter plaene/checklisten/ und werden am Webspace gelöscht.
+
+*Einsatzplanung (abrufen und „Gesehen“ mit Bearbeiten)*
+
 ### Zeiterfassung einschalten und QR-Aushänge drucken
 
 *In der App: Mitarbeitende*
@@ -1152,6 +1182,21 @@ Oben stellst du bei „Namen“ „keine Namen“ (Standard), „Vornamen“ ode
 
 1. „Leistungsnachweis“ öffnen.
 2. Bei „Namen“ wählen und die Häkchen setzen.
+
+### Checkliste vom Handy im Leistungsnachweis
+
+*In der App: Leistungsnachweis*
+
+Auf Wunsch steht im Leistungsnachweis je Einsatz die Checkliste vom Handy: „5 von 6 erledigt“ und jeder Punkt, der „nicht möglich“ war, mit Grund. Weil nicht jeder Kunde das will, ist es einstellbar: das Häkchen „Checkliste“ oben ist der Standard für alle Objekte, unter „Ansehen“ schaltest du es je Objekt ein oder aus.
+
+1. „Leistungsnachweis“ öffnen und den Monat wählen.
+2. Für alle Objekte: oben „Checkliste“ anhaken.
+3. Nur für ein Objekt: beim Objekt „Ansehen“ und „Checkliste vom Handy in diesem Nachweis“ anhaken.
+4. „PDF“ oder „E-Mail“ wie gewohnt.
+
+> Tipp: Fotos gehen nicht an den Kunden.
+> Tipp: Arbeiten mehrere Personen im Einsatz, gilt ein Punkt als erledigt, wenn ihn jemand erledigt hat.
+> Tipp: „–“ heißt: keine Checkliste ausgefüllt.
 
 ### Vertrieb: von der Anfrage bis zum Auftrag
 
@@ -4279,6 +4324,24 @@ In der Objektinfo stehen Anweisungen für das Personal (sie erscheinen im Einsat
 3. „Speichern“ klicken.
 
 > Tipp: Keine Alarmcodes oder Passwörter eintragen: alle Disponent:innen können das lesen.
+
+### Checkliste für eine Leistung anlegen
+
+*In der App: Objekte & Leistungen*
+
+Im Dialog der Leistung legst du unter „Checkliste am Handy“ die Punkte an, die die Reinigungskraft beim Einsatz abhakt. Je Punkt: Text, „Foto nötig“ und wann er gilt (bei jedem Einsatz, 1× pro Woche oder nur an bestimmten Tagen). Vorlagen für Büro, Sanitär, Stiegenhaus, Küche und Glas bringen die Übersetzungen gleich mit.
+
+1. „Objekte & Leistungen“ öffnen und bei der Leistung „Bearbeiten“ klicken.
+2. Unter „Checkliste am Handy“ eine Vorlage wählen und „Vorlage übernehmen“ oder „+ Punkt“ klicken.
+3. Je Punkt „Foto nötig“ und „wann“ einstellen.
+4. Übersetzungen prüfen oder „Mit KI übersetzen“ (Vorschlag in den Feldern).
+5. „Speichern“ und die Woche (neu) veröffentlichen.
+
+> Tipp: „1× pro Woche“ gilt beim ersten Einsatz der Leistung in der Woche.
+> Tipp: Ändert sich der deutsche Text, gilt die Übersetzung als veraltet und am Handy steht der deutsche Text.
+> Tipp: Höchstens 30 Punkte je Leistung.
+
+*Vollzugriff (Stammdaten)*
 
 ### Objektanweisungen für Mitarbeitende übersetzen
 

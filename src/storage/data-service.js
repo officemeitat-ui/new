@@ -4,7 +4,8 @@
 // und jede Datei klein und lesbar bleibt. Ein Ordner je Berechtigung:
 //   objekte/objekte.json              Objekte (Name, Adresse, Revier) – alle Gruppen lesen
 //   daten/stammdaten.json             Mitarbeitende, Leistungen, Regeln (ohne Lohn)
-//   plaene/2026/2026-10-26.json       Einteilungen einer Woche + Änderungsprotokoll
+//   plaene/2026/2026-10-26.json       Einteilungen einer Woche + Änderungsprotokoll (mit Stempelungen und
+//                                     Checklisten vom Handy; Fotos der Checklisten unter plaene/checklisten/<Jahr>/)
 //   personal/abwesenheiten.json       Urlaub, Krankenstand, … (Gesundheitsdaten)
 //   lohn/zeitkonto.json               veröffentlichte Wochen mit Salden, Löhne, Monatsabschlüsse
 //   fahrzeuge/fahrzeuge.json          Fahrzeuge, Reifen, Service, Pickerl
@@ -286,7 +287,7 @@ export function dataRights(access) {
 export const FOLDERS = [
   ['objekte', 'Objekte (Name, Adresse, Revier)', DOC.objects],
   ['daten', 'Mitarbeitende, Leistungen, Regeln', DOC.master],
-  ['plaene', 'Wochenpläne (Einteilungen)', weekPath('2026-01-05')],
+  ['plaene', 'Wochenpläne (Einteilungen, Zeiterfassung, Checklisten mit Fotos)', weekPath('2026-01-05')],
   ['personal', 'Urlaub und Krankenstände', DOC.absences],
   ['lohn', 'Zeitkonto, Löhne, Monatsabschlüsse', DOC.account],
   ['fahrzeuge', 'Fahrzeuge, Reifen, Service', MODULE_DOCS.fahrzeuge.path],
@@ -374,7 +375,8 @@ const withoutPay = (e) => Object.fromEntries(Object.entries(e).filter(([k]) => !
 // winter: angelegte Winterdienst-Einsätze „Datum|Objekt“ → { reason, by, at }
 // winterlog: Winterdienst-Protokoll „Datum|Objekt|Eintrag“ → { person, at, geraeumt, gestreut, … }
 // stamps: Zeiterfassung im Objekt „Datum|zID“ → { empId, objectId, instKey, in, out, … }
-const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog', 'stamps']
+// checks: Leistungs-Checkliste vom Handy „Datum|kID“ → { empId, instKey, items, finished, … } (core/checkliste.js)
+const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog', 'stamps', 'checks']
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))

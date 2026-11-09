@@ -274,7 +274,7 @@ const hasPhp = (() => {
 
 test('mein-plan.php: Mitteilungen nur über den eigenen Link, Ausgabe escaped, Grenze, Anhang am Inhalt geprüft', () => {
   // App-Aufrufe nur mit Schlüssel
-  assert.match(PHP, /in_array\(\$aktion, \['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status'\], true\)/)
+  assert.match(PHP, /in_array\(\$aktion, \['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status', 'checklisten', 'checkliste-foto', 'checkliste-fotos-uebernommen'\], true\)/)
   // nur Mitteilungen, in deren Empfängerliste der Hashwert der Person steht, und nur heute sichtbare
   assert.match(PHP, /function mit_meine\(string \$hash\): array/)
   assert.match(PHP, /in_array\(\$hash, \(array\) \(\$m\['an'\] \?\? \[\]\), true\)/)

@@ -1,7 +1,8 @@
 // Leistungsnachweis (Auswertung): je Objekt und Monat, was laut Plan geleistet wurde, mit den Zeiten
 // aus der Zeiterfassung und dem Winterdienst-Protokoll. PDF je Objekt, alle als ZIP, Versand per E-Mail
 // an den Kunden (Adresse am Objekt) mit Vermerk, wann an wen. Rechenkern: core/proof.js.
-// Versand-Vermerke und Einstellungen in nachweise/versand.json.
+// Versand-Vermerke und Einstellungen in nachweise/versand.json. Checkliste vom Handy (erledigt x von y, „nicht möglich“
+// mit Grund) auf Wunsch: Standard für alle (settings.checks) und je Objekt abweichend (settings.checksObj).
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { addDays, firstOfMonth, formatDate, formatHours, lastOfMonth, todayISO } from '../../core/dates.js'
@@ -9,7 +10,7 @@ import { monthName } from '../../core/payout.js'
 import { NAME_MODES, objectsWithWork, PROOF_STATUS, proofFor, proofMailText, sentKey } from '../../core/proof.js'
 import { absMinutes } from '../../core/timeclock.js'
 import { logRows } from '../../core/winterlog.js'
-import { proofDocument, proofPdfName } from '../../export/proof-pdf.js'
+import { checkCellText, proofDocument, proofPdfName } from '../../export/proof-pdf.js'
 import { app, canEdit, closeModal, computeRange, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { MODULES } from '../../core/access.js'
 import { loadScript } from '../load-script.js'
@@ -25,7 +26,11 @@ const doc = () => {
   d.settings ||= {}
   return d
 }
-const settings = () => ({ names: 'keine', times: true, signature: true, ...doc().settings })
+const settings = () => ({ names: 'keine', times: true, signature: true, checks: false, ...doc().settings })
+/** Checkliste im Nachweis dieses Objekts: Einstellung am Objekt, sonst der Standard. */
+const checksOn = (objectId) => (typeof doc().settings.checksObj?.[objectId] === 'boolean' ? doc().settings.checksObj[objectId] : !!settings().checks)
+/** Gibt es Checklisten (Leistungen mit Punkten oder Stände vom Handy)? Sonst keine Einstellung dafür. */
+const checksUsed = () => app.data.tasks.some((t) => t.checklist?.length) || Object.keys(app.data.checks || {}).length > 0
 const objOf = (id) => app.data.objects.find((o) => o.id === id)
 /** Nachweise an Kunden senden: mit irgendeinem Schreibrecht (Büro, Objektleitung …), nicht „Nur lesen“. */
 const maySend = () => !app.access || app.access.all || Object.keys(MODULES).some((m) => canEdit(m))
@@ -48,7 +53,7 @@ function proofs() {
   for (const w of logRows(app.data.winterlog || {}, { from, to, objectsById: r.ctx.objectsById })) winterByObject.set(w.objectId, [...(winterByObject.get(w.objectId) || []), w])
   return app.data.objects
     .filter((o) => ids.has(o.id) || winterByObject.has(o.id))
-    .map((object) => ({ object, proof: proofFor({ objectId: object.id, from, to, instances: r.instances, state: r.state, stamps: app.data.stamps || {}, employeesById: r.ctx.employeesById, today: todayISO(), now: absMinutes(new Date().toISOString()), names: s.names }), winter: winterByObject.get(object.id) || [] }))
+    .map((object) => ({ object, proof: proofFor({ objectId: object.id, from, to, instances: r.instances, state: r.state, stamps: app.data.stamps || {}, checks: app.data.checks || {}, employeesById: r.ctx.employeesById, today: todayISO(), now: absMinutes(new Date().toISOString()), names: s.names }), winter: winterByObject.get(object.id) || [] }))
 }
 
 const lastSent = (objectId) => (doc().sent[sentKey(month(), objectId)] || []).at(-1) || null
@@ -56,7 +61,7 @@ const lastSent = (objectId) => (doc().sent[sentKey(month(), objectId)] || []).at
 async function pdfFor(p, logo) {
   const s = settings()
   const { from, to } = range()
-  return pdfBlob(proofDocument({ object: p.object, monthLabel: monthName(month()), from, to, proof: p.proof, winter: p.winter, withTimes: s.times, withNames: s.names !== 'keine', withSignature: s.signature, brand: app.config.brand || {}, logo }))
+  return pdfBlob(proofDocument({ object: p.object, monthLabel: monthName(month()), from, to, proof: p.proof, winter: p.winter, withTimes: s.times, withNames: s.names !== 'keine', withChecks: checksOn(p.object.id), withSignature: s.signature, brand: app.config.brand || {}, logo }))
 }
 
 // ---------------------------------------------------------------- Ansicht
@@ -91,12 +96,13 @@ function proofView() {
       <label class="field inline"><span>Namen</span><select id="proof-names" data-change="proof-settings" ${dis}>${options(Object.entries(NAME_MODES), s.names)}</select></label>
       <label class="check"><input type="checkbox" id="proof-times" ${s.times ? 'checked' : ''} data-change="proof-settings" ${dis}><span>erfasste Zeiten</span></label>
       <label class="check"><input type="checkbox" id="proof-sign" ${s.signature ? 'checked' : ''} data-change="proof-settings" ${dis}><span>Feld für Unterschrift</span></label>
+      ${checksUsed() ? `<label class="check" title="Standard für alle Objekte; je Objekt unter „Ansehen“ abweichend"><input type="checkbox" id="proof-checks" ${s.checks ? 'checked' : ''} data-change="proof-settings" ${dis}><span>Checkliste</span></label>` : ''}
       <label class="field inline"><span>Suche</span><input type="search" id="proof-search" value="${esc(app.ui.proofSearch || '')}" data-input="proof-search" placeholder="Objekt"></label>
     </div>
     <div class="impact-stats tc-stats">${tile('Objekte', list.length)}${tile('mit E-Mail-Adresse', withMail.length)}${tile('versendet', `${sentCount} von ${list.length}`)}${tile('nicht besetzt', open, open ? 'err' : '')}</div>
     ${open ? `<div class="banner warn-banner"><p><strong>${plural(open, 'Einsatz', 'Einsätze')} ohne Besetzung</strong> in diesem Monat: Im Nachweis steht dann „nicht besetzt“. Vor dem Versand im Plan prüfen (nachtragen oder absagen).</p></div>` : ''}
     ${rows ? `<div class="table-wrap"><table class="data proof-table"><thead><tr><th>Objekt</th><th class="num">erbracht</th><th class="num">entfallen</th><th class="num">nicht besetzt</th><th class="num">Stunden</th><th class="num">mit Zeiterfassung</th><th class="num">Winterdienst</th><th>E-Mail</th><th>versendet</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Keine Einsätze in diesem Monat.</p>'}
-    <p class="note">Die E-Mail-Adresse für den Nachweis steht beim Objekt (Objekte &amp; Leistungen → Objekt bearbeiten) oder wird beim ersten Versand gemerkt. Namen der Mitarbeitenden nur, wenn mit dem Kunden so vereinbart.</p>`
+    <p class="note">Die E-Mail-Adresse für den Nachweis steht beim Objekt (Objekte &amp; Leistungen → Objekt bearbeiten) oder wird beim ersten Versand gemerkt. Namen der Mitarbeitenden nur, wenn mit dem Kunden so vereinbart.${checksUsed() ? ' Die Checkliste vom Handy (erledigt, „nicht möglich“ mit Grund) nur, wo der Kunde sie will: Standard hier, je Objekt unter „Ansehen“.' : ''}</p>`
 }
 
 registerView({
@@ -120,16 +126,19 @@ function previewModal(c, m) {
   const s = settings()
   const { rows, totals: t } = p.proof
   const showTimes = s.times && rows.some((r) => r.ist.length)
+  const ckOn = checksOn(p.object.id)
+  const showChecks = ckOn && rows.some((r) => r.check)
   const body = rows
     .map((r) => `<tr class="${r.status === 'entfallen' ? 'muted' : ''}"><td>${formatDate(r.date)}</td><td>${esc(r.time)}</td><td>${esc(r.label)}${r.category === 'sonder' ? ' <span class="pill info">Sonderleistung</span>' : ''}</td>
       <td><span class="pill ${r.status === 'offen' ? 'error' : r.status === 'entfallen' ? '' : r.status === 'geplant' ? 'info' : 'ok'}">${PROOF_STATUS[r.status]}</span>${r.reason ? ` <span class="muted">${esc(r.reason)}</span>` : ''}</td>
-      ${showTimes ? `<td>${r.ist.map((x) => `${x.in}–${x.out || '…'}`).join('<br>')}</td>` : ''}${s.names !== 'keine' ? `<td>${esc(r.persons.join(', '))}</td>` : ''}</tr>`)
+      ${showTimes ? `<td>${r.ist.map((x) => `${x.in}–${x.out || '…'}`).join('<br>')}</td>` : ''}${showChecks ? `<td>${r.status === 'entfallen' ? '' : esc(checkCellText(r.check)).replace(/\n/g, '<br>')}</td>` : ''}${s.names !== 'keine' ? `<td>${esc(r.persons.join(', '))}</td>` : ''}</tr>`)
     .join('')
   return modalFrame({
     title: `Leistungsnachweis ${p.object.name}`,
     subtitle: `${monthName(month())} · ${t.done} erbracht${t.cancelled ? ` · ${t.cancelled} entfallen` : ''}${t.confirmed ? ` · ${t.confirmed} mit Zeiterfassung` : ''} · ${formatHours(t.planMinutes)} h`,
     wide: true,
-    body: `${rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Datum</th><th>Zeit laut Plan</th><th>Leistung</th><th>Status</th>${showTimes ? '<th>erfasst im Objekt</th>' : ''}${s.names !== 'keine' ? '<th>Personal</th>' : ''}</tr></thead><tbody>${body}</tbody></table></div>` : '<p class="empty">Keine Einsätze.</p>'}
+    body: `${checksUsed() ? `<p><label class="check"><input type="checkbox" id="proof-ck-obj" data-change="proof-ck-obj" data-obj="${esc(p.object.id)}" ${ckOn ? 'checked' : ''} ${app.readOnly ? 'disabled' : ''}><span>Checkliste vom Handy in diesem Nachweis <span class="muted">(Standard: ${s.checks ? 'ein' : 'aus'})</span></span></label></p>` : ''}
+      ${rows.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Datum</th><th>Zeit laut Plan</th><th>Leistung</th><th>Status</th>${showTimes ? '<th>erfasst im Objekt</th>' : ''}${showChecks ? '<th>Checkliste</th>' : ''}${s.names !== 'keine' ? '<th>Personal</th>' : ''}</tr></thead><tbody>${body}</tbody></table></div>` : '<p class="empty">Keine Einsätze.</p>'}
       ${p.winter.length ? `<h3>Winterdienst laut Protokoll</h3><p>${p.winter.map((w) => `${formatDate(w.date)} ${esc(w.time)}`).join(' · ')}</p>` : ''}`,
     foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions"><button class="btn" data-action="proof-pdf" data-obj="${esc(p.object.id)}">${ICON.download} PDF</button>${maySend() ? `<button class="btn primary" data-action="proof-mail-open" data-obj="${esc(p.object.id)}">${ICON.send} E-Mail</button>` : ''}</div>`,
   })
@@ -180,9 +189,20 @@ registerActions({
   },
   'proof-settings': () => {
     if (app.readOnly) return // Nur lesen: gemeinsame Einstellungen nicht ändern
-    Object.assign(doc().settings, { names: val('proof-names'), times: checked('proof-times'), signature: checked('proof-sign') })
+    Object.assign(doc().settings, { names: val('proof-names'), times: checked('proof-times'), signature: checked('proof-sign'), ...(document.getElementById('proof-checks') ? { checks: checked('proof-checks') } : {}) })
     persist()
     renderNow()
+  },
+  'proof-ck-obj': (el) => {
+    if (app.readOnly) return
+    const d = doc().settings
+    const on = !!el.checked
+    d.checksObj = { ...(d.checksObj || {}) }
+    // gleich wie der Standard: keine Ausnahme merken
+    if (on === !!settings().checks) delete d.checksObj[el.dataset.obj]
+    else d.checksObj[el.dataset.obj] = on
+    persist()
+    renderModal()
   },
   'proof-search': () => {
     app.ui.proofSearch = val('proof-search')

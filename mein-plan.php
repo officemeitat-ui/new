@@ -38,8 +38,16 @@
 // Zeitpunkt des Servers (höchstens MIT_GRENZE_TAG je Person und Tag), die App holt ihn ab (aktion=mitteilungen-status).
 // Anhänge liegen unter privat/mitarbeiter/mitteilungen/ und kommen nur über diese Seite (aktion=anhang, Empfänger).
 //
+// Checkliste je Einsatz (aktion=checkliste): Hat die Leistung in der App eine Checkliste, steht sie beim Einsatz
+// (eintraege[].checkliste, übersetzt wie die Objektanweisungen). Die Person hakt die Punkte ab, macht ein Foto, wo die
+// Leistung es verlangt (neu kodiert, ohne Metadaten wie den Ort), oder wählt „nicht möglich“ mit Grund, dann „Fertig“.
+// Nur eigene Einsätze, von 1 Stunde vor Beginn bis 24 Stunden nach Ende; Grenzen je Person und Tag. Gespeichert je
+// Einsatz und Person unter privat/mitarbeiter/checklisten.json (Fotos in checklisten/), 62 Tage. Die App holt die Stände
+// mit den Stempelungen ab (aktion=checklisten, Fotos über aktion=checkliste-foto) und meldet in SharePoint abgelegte
+// Fotos zurück (aktion=checkliste-fotos-uebernommen: am Webspace gelöscht). „Nicht möglich“ beim Abschluss: Push ans Büro.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel): aktion=speichern | antraege | antrag-status | einrichten | zeiten
-// | mitteilungen | mitteilung-anhang | mitteilungen-status
+// | mitteilungen | mitteilung-anhang | mitteilungen-status | checklisten | checkliste-foto | checkliste-fotos-uebernommen
 // Cronjob: mein-plan.php?aktion=pruefen&schluessel=PRÜFSCHLÜSSEL oder php mein-plan.php pruefen
 
 declare(strict_types=1);
@@ -792,6 +800,259 @@ function mit_html(string $hash, string $code): string
         . '</section>';
 }
 
+// ---------------------------------------------------------------- Checkliste je Einsatz (Leistungsnachweis)
+
+const CK_PUNKT = '/^[a-z0-9]{1,16}$/';
+const CK_DATEI = '/^[a-f0-9]{12}-[a-z0-9]{1,16}-[a-f0-9]{6}\.jpg$/';
+const CK_MAX_PUNKTE = 30;
+const CK_FOTO_BYTES = 10 * 1024 * 1024;
+const CK_GRENZE_TAG = 150;  // Speichern je Person und Tag
+const CK_FOTOS_TAG = 40;    // Fotos je Person und Tag
+const CK_VORLAUF = 3600;    // abhaken ab 1 Stunde vor Beginn …
+const CK_FRIST = 86400;     // … bis 24 Stunden nach Ende des Einsatzes
+const CK_TAGE = 62;         // so lange bleiben Checklisten und Fotos am Webspace (wie die Stempelungen)
+// „nicht möglich“: Wert bleibt deutsch (Büro, Leistungsnachweis), angezeigt in der Sprache der Person
+const CK_GRUENDE = ['Raum versperrt' => 'ck_grund_versperrt', 'Kein Zugang (Schlüssel, Code)' => 'ck_grund_zugang', 'Material fehlt' => 'ck_grund_material', 'Gerät kaputt' => 'ck_grund_geraet', 'Vom Kunden nicht gewünscht' => 'ck_grund_kunde', 'Zu wenig Zeit' => 'ck_grund_zeit'];
+
+function ck_ordner(): string
+{
+    $d = speicher() . '/checklisten';
+    if (!is_dir($d)) {
+        @mkdir($d, 0775, true);
+    }
+    return $d;
+}
+
+/** Punkte eines Einsatzes, wie die App sie veröffentlicht hat (bereinigt): [{ id, text, foto, uebersetzt }]. */
+function ck_punkte(array $x): array
+{
+    $out = [];
+    foreach (array_slice((array) ($x['checkliste'] ?? []), 0, CK_MAX_PUNKTE) as $p) {
+        $id = is_array($p) ? (string) ($p['id'] ?? '') : '';
+        $text = is_array($p) ? mb_substr(trim((string) ($p['text'] ?? '')), 0, 160) : '';
+        if (!preg_match(CK_PUNKT, $id) || $text === '' || isset($out[$id])) {
+            continue;
+        }
+        $out[$id] = ['id' => $id, 'text' => $text, 'foto' => !empty($p['foto']), 'uebersetzt' => is_array($p['uebersetzt'] ?? null) ? $p['uebersetzt'] : []];
+    }
+    return array_values($out);
+}
+
+/** Text eines Punkts in der Sprache der Seite: [Text, Sprache]; ohne (aktuelle) Übersetzung Deutsch. */
+function ck_text(array $p): array
+{
+    $s = sprache();
+    $u = $p['uebersetzt'][$s] ?? null;
+    if ($s !== 'de' && is_array($u) && trim((string) ($u['text'] ?? '')) !== '' && empty($u['veraltet'])) {
+        return [trim((string) $u['text']), html_sprache($s)];
+    }
+    return [(string) $p['text'], 'de'];
+}
+
+/** Grund „nicht möglich“ in der Sprache der Seite (eigene Gründe bleiben, wie getippt). */
+function ck_grund_text(string $grund): string
+{
+    return isset(CK_GRUENDE[$grund]) ? t(CK_GRUENDE[$grund]) : $grund;
+}
+
+/** Eigener Einsatz mit Checkliste (nicht entfallen): Eintrag mit Datum, sonst null. */
+function ck_einsatz(array $person, string $id): ?array
+{
+    if ($id === '') {
+        return null;
+    }
+    foreach ((array) ($person['wochen'] ?? []) as $w) {
+        foreach ((array) ($w['tage'] ?? []) as $t) {
+            foreach ((array) ($t['eintraege'] ?? []) as $x) {
+                if (is_array($x) && ($x['id'] ?? '') === $id && empty($x['entfaellt']) && ck_punkte($x) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($t['datum'] ?? ''))) {
+                    return $x + ['datum' => (string) $t['datum']];
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/** Zeitfenster zum Abhaken: [ab, bis] = 1 Stunde vor Beginn bis 24 Stunden nach Ende; null ohne Zeit. */
+function ck_fenster(string $datum, array $x): ?array
+{
+    $teile = preg_split('/\s*[–-]\s*/u', (string) ($x['zeit'] ?? ''));
+    $von = preg_match('/^\d{2}:\d{2}$/', (string) ($x['beginn'] ?? '')) ? (string) $x['beginn'] : (string) ($teile[0] ?? '');
+    $bis = (string) ($teile[1] ?? '');
+    if (!preg_match('/^\d{2}:\d{2}$/', $von) || !preg_match('/^\d{2}:\d{2}$/', $bis)) {
+        return null;
+    }
+    $ende = wien_ts($bis <= $von ? tag_plus($datum, 1) : $datum, $bis);
+    return [wien_ts($datum, $von) - CK_VORLAUF, $ende + CK_FRIST];
+}
+
+/** Fotos eines Stands löschen. */
+function ck_fotos_loeschen(array $r): void
+{
+    foreach ((array) ($r['punkte'] ?? []) as $p) {
+        if (preg_match(CK_DATEI, (string) ($p['bild'] ?? ''))) {
+            @unlink(ck_ordner() . '/' . $p['bild']);
+        }
+    }
+}
+
+/**
+ * Checklisten gesperrt ändern (wie die Stempelungen): { eintraege: [Stand je Einsatz und Person], zaehler: { 'hash|Tag':
+ * { n, fotos } } }. Stände älter als 62 Tage fallen samt Fotos weg, Zähler gelten für heute und gestern.
+ */
+function checklisten(callable $fn)
+{
+    $h = @fopen(speicher() . '/checklisten.json', 'c+');
+    if (!$h) {
+        return null;
+    }
+    flock($h, LOCK_EX);
+    $d = json_decode((string) stream_get_contents($h), true);
+    $d = is_array($d) ? $d : [];
+    $d['eintraege'] = array_values(array_filter((array) ($d['eintraege'] ?? []), 'is_array'));
+    $d['zaehler'] = (array) ($d['zaehler'] ?? []);
+    $grenze = tag_plus(heute(), -CK_TAGE);
+    $behalten = [];
+    foreach ($d['eintraege'] as $r) {
+        if ((string) ($r['datum'] ?? '') < $grenze) {
+            ck_fotos_loeschen($r);
+            continue;
+        }
+        $behalten[] = $r;
+    }
+    $d['eintraege'] = $behalten;
+    $ergebnis = $fn($d);
+    $gestern = tag_plus(heute(), -1);
+    $d['zaehler'] = array_filter($d['zaehler'], fn ($k) => substr((string) $k, -10) >= $gestern, ARRAY_FILTER_USE_KEY);
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ergebnis;
+}
+
+/** Verwaiste Fotos (zu keinem Stand, älter als 2 Tage) und liegengebliebene vorläufige Dateien löschen. */
+function ck_aufraeumen(array $eintraege): void
+{
+    $bekannt = [];
+    foreach ($eintraege as $r) {
+        foreach ((array) ($r['punkte'] ?? []) as $p) {
+            $bekannt[(string) ($p['bild'] ?? '')] = true;
+        }
+    }
+    foreach (glob(ck_ordner() . '/*') ?: [] as $f) {
+        if (!isset($bekannt[basename($f)]) && (int) @filemtime($f) < time() - 2 * 86400) {
+            @unlink($f);
+        }
+    }
+}
+
+/**
+ * Für „Zu erledigen“ in der App: Einsätze mit Checkliste, seit 30 Minuten vorbei und noch nicht fertig (bis zum Ende der
+ * Frist am Handy), nur bei Personen, die die Checkliste schon benutzen (mindestens ein Stand). Nur hier ist bekannt,
+ * welche Einsätze die Checkliste wirklich bekommen haben (veröffentlicht nach dem Anlegen der Punkte).
+ */
+function ck_offen(array $eintraege): array
+{
+    $stand = [];
+    foreach ($eintraege as $r) {
+        $stand[($r['hash'] ?? '') . '|' . ($r['einsatz'] ?? '')] = $r;
+    }
+    $nutzer = array_flip(array_map('strval', array_column($eintraege, 'hash')));
+    $out = [];
+    foreach (glob(speicher() . '/*.json') ?: [] as $f) {
+        $hash = basename($f, '.json');
+        if (!preg_match('/^[a-f0-9]{64}$/', $hash) || !isset($nutzer[$hash])) {
+            continue;
+        }
+        foreach ((array) (json_lesen($f)['wochen'] ?? []) as $w) {
+            foreach ((array) ($w['tage'] ?? []) as $t) {
+                $datum = (string) ($t['datum'] ?? '');
+                foreach ((array) ($t['eintraege'] ?? []) as $x) {
+                    if (!is_array($x) || empty($x['id']) || !empty($x['entfaellt']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) || !ck_punkte($x)) {
+                        continue;
+                    }
+                    $fenster = ck_fenster($datum, $x);
+                    if (!$fenster || jetzt() > $fenster[1] || jetzt() < $fenster[1] - CK_FRIST + 1800 || !empty($stand[$hash . '|' . $x['id']]['fertig'])) {
+                        continue;
+                    }
+                    $out[] = ['hash' => $hash, 'einsatz' => (string) $x['id'], 'datum' => $datum, 'zeit' => (string) ($x['zeit'] ?? ''), 'objekt' => (string) ($x['objekt'] ?? '')];
+                }
+            }
+        }
+    }
+    return $out;
+}
+
+/**
+ * Checkliste beim Einsatz: im Zeitfenster das Formular (abhaken, Foto, „nicht möglich“ mit Grund, „Fertig“), davor die
+ * Punkte zum Lesen, danach der Stand. $fokus: gerade gespeichert (offen, mit $meldung).
+ */
+function ck_html(array $x, string $datum, ?array $rec, string $pFeld, bool $fokus, string $meldung = ''): string
+{
+    $punkte = ck_punkte($x);
+    if (!$punkte || !empty($x['entfaellt'])) {
+        return '';
+    }
+    $h = fn (string $t): string => htmlspecialchars($t, ENT_QUOTES);
+    $fenster = ck_fenster($datum, $x);
+    $offen = $fenster && jetzt() >= $fenster[0] && jetzt() <= $fenster[1];
+    if (!$rec && !$offen && (!$fenster || jetzt() > $fenster[1])) {
+        return '';
+    }
+    $stand = [];
+    foreach ((array) ($rec['punkte'] ?? []) as $p) {
+        $stand[(string) ($p['id'] ?? '')] = $p;
+    }
+    $status = fn (array $p): string => (string) ($stand[$p['id']]['status'] ?? '');
+    $erledigt = count(array_filter($punkte, fn ($p) => $status($p) === 'ok'));
+    $nicht = count(array_filter($punkte, fn ($p) => $status($p) === 'nicht'));
+    $fertig = !empty($rec['fertig']);
+    $anker = 'ck-' . substr(sha1((string) $x['id']), 0, 10);
+    $wann = fn (int $ts): array => ['datum' => $h(datum_sprache((new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d'))), 'uhr' => $h(t('uhrzeit', ['zeit' => uhr($ts)]))];
+    $kopf = th('ck_titel') . ' <span class="pill' . ($fertig ? ' st-erledigt' : '') . '">' . ($fertig ? '✓ ' . th('ck_fertig_kurz') : th('ck_stand', ['n' => (string) $erledigt, 'm' => (string) count($punkte)])) . '</span>'
+        . ($nicht ? ' <span class="pill st-abgelehnt">' . th('ck_nicht_n', ['n' => (string) $nicht]) . '</span>' : '');
+    $auf = $fokus || ($offen && !$fertig && $datum === heute());
+    $html = '<details class="ck" id="' . $anker . '"' . ($auf ? ' open' : '') . '><summary>' . $kopf . '</summary>' . $meldung;
+    if (!$offen) {
+        $liste = '';
+        foreach ($punkte as $p) {
+            [$text, $lang] = ck_text($p);
+            $st = $status($p);
+            $liste .= '<li class="ck-' . ($st === 'ok' ? 'ok' : ($st === 'nicht' ? 'nein' : 'offen')) . '"><span aria-hidden="true">' . ($st === 'ok' ? '✓' : ($st === 'nicht' ? '✗' : '○')) . '</span> <span lang="' . $h($lang) . '">' . $h($text) . '</span>'
+                . ($st === 'nicht' ? ' <span class="leise">(' . $h(ck_grund_text((string) ($stand[$p['id']]['grund'] ?? ''))) . ')</span>' : '')
+                . ($p['foto'] ? ' <span class="leise">· ' . th('ck_foto_noetig') . '</span>' : '') . '</li>';
+        }
+        return $html . '<ul class="ck-liste">' . $liste . '</ul>' . ($fenster && jetzt() < $fenster[0] ? '<p class="leise">' . th('ck_ab', $wann($fenster[0])) . '</p>' : '') . '</details>';
+    }
+    $zeilen = '';
+    foreach ($punkte as $p) {
+        [$text, $lang] = ck_text($p);
+        $st = $stand[$p['id']] ?? [];
+        $s = $status($p);
+        $grund = (string) ($st['grund'] ?? '');
+        $vorgabe = isset(CK_GRUENDE[$grund]);
+        $f = $anker . '-' . $p['id'];
+        $optionen = '<option value="">–</option>';
+        foreach (CK_GRUENDE as $wert => $key) {
+            $optionen .= '<option value="' . $h($wert) . '"' . ($s === 'nicht' && $grund === $wert ? ' selected' : '') . '>' . th($key) . '</option>';
+        }
+        $optionen .= '<option value="anders"' . ($s === 'nicht' && !$vorgabe ? ' selected' : '') . '>' . th('ck_grund_anders') . '</option>';
+        $zeilen .= '<div class="ck-p' . ($s === 'nicht' ? ' ck-nein' : '') . '">'
+            . '<label class="haken"><input type="checkbox" name="ok[' . $h($p['id']) . ']" value="1"' . ($s === 'ok' ? ' checked' : '') . '><span lang="' . $h($lang) . '">' . $h($text) . '</span></label>'
+            . ($p['foto'] ? '<div class="ck-foto"><label for="' . $f . '-foto">' . th('ck_foto_noetig') . (!empty($st['bild']) ? ' <span class="zeit-ok">✓ ' . th('ck_foto_ok') . '</span>' : '') . '</label><input type="file" id="' . $f . '-foto" name="foto[' . $h($p['id']) . ']" accept="image/jpeg,image/png,image/webp"></div>' : '')
+            . '<details class="ck-nm"' . ($s === 'nicht' ? ' open' : '') . '><summary>' . th('ck_nicht_moeglich') . '</summary>'
+            . '<label for="' . $f . '-grund">' . th('ck_grund') . '</label><select id="' . $f . '-grund" name="grund[' . $h($p['id']) . ']">' . $optionen . '</select>'
+            . '<input type="text" name="anders[' . $h($p['id']) . ']" maxlength="120" value="' . ($s === 'nicht' && !$vorgabe ? $h($grund) : '') . '" placeholder="' . th('ck_grund_anders_bsp') . '" aria-label="' . th('ck_grund_anders') . '"></details></div>';
+    }
+    return $html . '<form method="post" action="mein-plan.php?aktion=checkliste#' . $anker . '" enctype="multipart/form-data">' . $pFeld . '<input type="hidden" name="einsatz" value="' . $h((string) $x['id']) . '">'
+        . $zeilen
+        . '<div class="ck-knoepfe"><button type="submit" name="fertig" value="0" class="klein zweit">' . th('ck_speichern') . '</button><button type="submit" name="fertig" value="1" class="klein">' . th('ck_fertig') . '</button></div>'
+        . '<p class="leise">' . th('ck_info', $wann($fenster[1])) . '</p></form></details>';
+}
+
 $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
@@ -818,7 +1079,7 @@ if ($aktion === 'pruefen' || $cli) {
 
 // ---------------------------------------------------------------- Aufrufe der App (mit Schlüssel)
 
-if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status'], true)) {
+if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status', 'checklisten', 'checkliste-foto', 'checkliste-fotos-uebernommen'], true)) {
     if (!$e) {
         json_ausgabe(503, ['fehler' => 'Mein Dienstplan noch nicht eingerichtet: privat/mitarbeiter.json fehlt (App → Mitarbeitende → Plan am Handy).']);
     }
@@ -879,6 +1140,33 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         json_ausgabe(200, ['zeiten' => array_values(array_filter(json_lesen(speicher() . '/zeiten.json'), fn ($r) => (int) ($r['geaendert'] ?? 0) >= $seit)), 'jetzt' => jetzt()]);
     }
 
+    // Checklisten: geänderte Stände seit einem Zeitpunkt (dabei verwaiste Fotos aufräumen) und die nach Ende noch nicht
+    // fertigen Einsätze (ck_offen), ein Foto; übernommene Fotos löschen weiter unten
+    if ($aktion === 'checklisten') {
+        $seit = (int) ($_GET['seit'] ?? 0);
+        $liste = checklisten(function (array &$d) {
+            ck_aufraeumen($d['eintraege']);
+            return $d['eintraege'];
+        });
+        if ($liste === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['checklisten' => array_values(array_filter($liste, fn ($r) => (int) ($r['geaendert'] ?? 0) >= $seit)), 'offen' => ck_offen($liste), 'jetzt' => jetzt()]);
+    }
+    if ($aktion === 'checkliste-foto') {
+        $datei = (string) ($_GET['datei'] ?? '');
+        $pfad = ck_ordner() . '/' . $datei;
+        if (!preg_match(CK_DATEI, $datei) || !is_file($pfad)) {
+            json_ausgabe(404, ['fehler' => 'Foto nicht gefunden']);
+        }
+        header('Content-Type: image/jpeg');
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Length: ' . filesize($pfad));
+        readfile($pfad);
+        exit;
+    }
+
     if ($aktion === 'antraege') {
         $grenze = tag_plus(heute(), -120);
         $liste = antraege(fn (array &$l) => $l) ?? [];
@@ -886,6 +1174,16 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
     }
     if ($methode !== 'POST' || !is_array($daten)) {
         json_ausgabe(400, ['fehler' => 'POST mit JSON erwartet']);
+    }
+    // Checklisten: Fotos, die die App in SharePoint abgelegt hat, am Webspace löschen (der Stand bleibt)
+    if ($aktion === 'checkliste-fotos-uebernommen') {
+        $n = 0;
+        foreach (array_slice((array) ($daten['dateien'] ?? []), 0, 2000) as $datei) {
+            if (is_string($datei) && preg_match(CK_DATEI, $datei) && @unlink(ck_ordner() . '/' . $datei)) {
+                $n++;
+            }
+        }
+        json_ausgabe(200, ['geloescht' => $n]);
     }
     // Mitteilungen: Liste ersetzen (laufende und geplante), Personen ohne Datei anlegen, aufräumen, Push
     if ($aktion === 'mitteilungen') {
@@ -1051,7 +1349,18 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $mo) || !is_array($woche)) {
                 continue;
             }
-            $sig = sha1(json_encode([$woche['tage'] ?? [], $woche['summe'] ?? [], $woche['konto'] ?? null]));
+            // Signatur ohne die Checklisten: eine geänderte Checkliste ist kein geänderter Plan (kein Push)
+            $tage = $woche['tage'] ?? [];
+            foreach (is_array($tage) ? $tage : [] as $i => $t) {
+                if (is_array($t) && is_array($t['eintraege'] ?? null)) {
+                    foreach ($t['eintraege'] as $j => $x) {
+                        if (is_array($x)) {
+                            unset($tage[$i]['eintraege'][$j]['checkliste']);
+                        }
+                    }
+                }
+            }
+            $sig = sha1(json_encode([$tage, $woche['summe'] ?? [], $woche['konto'] ?? null]));
             $alt = $p['wochen'][$mo] ?? null;
             if (!$alt && $mo >= $montag) {
                 $meldungen[] = t('push_plan_neu', ['kw' => $woche['kw'] ?? ''], $sp);
@@ -1535,6 +1844,158 @@ if ($aktion === 'abgeben' && $methode === 'POST') {
     }
 }
 
+// Checkliste beim Einsatz: abhaken, Foto (ohne Metadaten), „nicht möglich“ mit Grund, „Fertig“. Nur eigene Einsätze mit
+// Checkliste, von 1 Stunde vor Beginn bis 24 Stunden nach Ende; Grenzen je Person und Tag. Was gültig ist, wird auch
+// gespeichert, wenn etwas fehlt (Grund, Foto); „Fertig“ gilt erst, wenn jeder Punkt erledigt oder „nicht möglich“ ist.
+$ckFokus = '';
+$ckMeldung = '';
+if ($aktion === 'checkliste' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
+        exit;
+    }
+    $id = is_string($_POST['einsatz'] ?? null) ? $_POST['einsatz'] : '';
+    $ckFokus = $id;
+    $x = ck_einsatz($person, $id);
+    $fenster = $x ? ck_fenster($x['datum'], $x) : null;
+    $fehler = [];
+    if (!$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        $fehler[] = t('ck_fehler_foto'); // größer als post_max_size: PHP verwirft alles
+    } elseif (!$x || !$fenster) {
+        $fehler[] = t('ck_fehler_einsatz');
+    } elseif (jetzt() < $fenster[0]) {
+        $fehler[] = t('ck_fehler_noch_nicht', ['datum' => datum_sprache((new DateTimeImmutable('@' . $fenster[0]))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d')), 'uhr' => t('uhrzeit', ['zeit' => uhr($fenster[0])])]);
+    } elseif (jetzt() > $fenster[1]) {
+        $fehler[] = t('ck_fehler_frist');
+    }
+    $ergebnis = null;
+    $fertigWunsch = ($_POST['fertig'] ?? '') === '1';
+    if (!$fehler) {
+        $punkte = ck_punkte($x);
+        $feld = fn (string $name, string $pid): string => is_array($_POST[$name] ?? null) && is_string($_POST[$name][$pid] ?? null) ? $_POST[$name][$pid] : '';
+        $stati = [];
+        foreach ($punkte as $p) {
+            $g = $feld('grund', $p['id']);
+            if ($g === 'anders') {
+                $text = mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $feld('anders', $p['id']))), 0, 120);
+                if ($text === '') {
+                    $fehler[] = t('ck_fehler_grund', ['punkt' => ck_text($p)[0]]);
+                }
+                $stati[$p['id']] = $text === '' ? ['', ''] : ['nicht', $text];
+            } elseif (isset(CK_GRUENDE[$g])) {
+                $stati[$p['id']] = ['nicht', $g];
+            } else {
+                $stati[$p['id']] = [$feld('ok', $p['id']) !== '' ? 'ok' : '', ''];
+            }
+        }
+        // Fotos: zuerst vorläufig speichern (neu kodiert, ohne Metadaten), übernommen wird in der Sperre
+        $neueFotos = [];
+        $f = $_FILES['foto'] ?? null;
+        foreach ($punkte as $p) {
+            $fe = is_array($f) && is_array($f['error'] ?? null) ? ($f['error'][$p['id']] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+            if (!$p['foto'] || !is_int($fe) || $fe === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $tmp = 'tmp-' . bin2hex(random_bytes(6)) . '.jpg';
+            $tmpName = $f['tmp_name'][$p['id']] ?? '';
+            if (bild_speichern(is_string($tmpName) ? $tmpName : '', (int) ($f['size'][$p['id']] ?? 0), $fe, ck_ordner() . '/' . $tmp, CK_FOTO_BYTES) === '') {
+                $neueFotos[$p['id']] = $tmp;
+            } else {
+                @unlink(ck_ordner() . '/' . $tmp);
+                $fehler[] = t('ck_fehler_foto');
+            }
+        }
+        $ergebnis = checklisten(function (array &$d) use ($hash, $person, $x, $punkte, $stati, $neueFotos, $fertigWunsch) {
+            $z = $hash . '|' . heute();
+            $zahl = (array) ($d['zaehler'][$z] ?? []);
+            if ((int) ($zahl['n'] ?? 0) >= CK_GRENZE_TAG || (int) ($zahl['fotos'] ?? 0) + count($neueFotos) > CK_FOTOS_TAG) {
+                return ['grenze'];
+            }
+            $i = null;
+            foreach ($d['eintraege'] as $k => $r) {
+                if (($r['hash'] ?? '') === $hash && ($r['einsatz'] ?? '') === $x['id']) {
+                    $i = $k;
+                }
+            }
+            $alt = $i !== null ? $d['eintraege'][$i] : ['id' => bin2hex(random_bytes(6)), 'erstellt' => jetzt()];
+            $altPunkte = [];
+            foreach ((array) ($alt['punkte'] ?? []) as $p) {
+                $altPunkte[(string) ($p['id'] ?? '')] = $p;
+            }
+            $neu = [];
+            foreach ($punkte as $p) {
+                $a = $altPunkte[$p['id']] ?? [];
+                unset($altPunkte[$p['id']]);
+                [$st, $grund] = $stati[$p['id']];
+                $bild = preg_match(CK_DATEI, (string) ($a['bild'] ?? '')) ? (string) $a['bild'] : '';
+                if (isset($neueFotos[$p['id']])) {
+                    $datei = $alt['id'] . '-' . $p['id'] . '-' . bin2hex(random_bytes(3)) . '.jpg';
+                    if (@rename(ck_ordner() . '/' . $neueFotos[$p['id']], ck_ordner() . '/' . $datei)) {
+                        if ($bild !== '') {
+                            @unlink(ck_ordner() . '/' . $bild);
+                        }
+                        $bild = $datei;
+                    }
+                }
+                $anders = $st !== (string) ($a['status'] ?? '') || $grund !== (string) ($a['grund'] ?? '') || $bild !== (string) ($a['bild'] ?? '');
+                $neu[] = ['id' => $p['id'], 'text' => $p['text'], 'foto' => $p['foto'], 'status' => $st, 'grund' => $grund, 'bild' => $bild, 'zeit' => $anders ? jetzt() : (int) ($a['zeit'] ?? 0)];
+            }
+            foreach ($altPunkte as $a) {
+                ck_fotos_loeschen(['punkte' => [$a]]); // Punkt gibt es nicht mehr
+            }
+            $offen = array_values(array_filter($neu, fn ($p) => $p['status'] === ''));
+            $ohneFoto = array_values(array_filter($neu, fn ($p) => $p['status'] === 'ok' && $p['foto'] && $p['bild'] === ''));
+            $warFertig = (int) ($alt['fertig'] ?? 0);
+            $fertig = $offen || $ohneFoto ? 0 : ($fertigWunsch ? jetzt() : $warFertig);
+            $rec = ['id' => $alt['id'], 'hash' => $hash, 'name' => mb_substr((string) ($person['name'] ?? ''), 0, 80), 'einsatz' => $x['id'], 'datum' => $x['datum'], 'objektId' => (string) ($x['objektId'] ?? ''), 'objekt' => (string) ($x['objekt'] ?? ''), 'leistung' => (string) ($x['leistung'] ?? ''), 'zeitPlan' => (string) ($x['zeit'] ?? ''), 'punkte' => $neu, 'fertig' => $fertig, 'erstellt' => (int) ($alt['erstellt'] ?? jetzt()), 'geaendert' => jetzt()];
+            if ($i === null) {
+                $d['eintraege'][] = $rec;
+            } else {
+                $d['eintraege'][$i] = $rec;
+            }
+            $d['zaehler'][$z] = ['n' => (int) ($zahl['n'] ?? 0) + 1, 'fotos' => (int) ($zahl['fotos'] ?? 0) + count($neueFotos)];
+            return ['ok', $rec, $offen, $ohneFoto, $fertig > 0 && !$warFertig];
+        });
+        foreach ($neueFotos as $tmp) {
+            @unlink(ck_ordner() . '/' . $tmp); // nicht übernommen (Grenze, Fehler)
+        }
+        if ($ergebnis === null) {
+            $fehler[] = t('nicht_gespeichert');
+        } elseif ($ergebnis[0] === 'grenze') {
+            $fehler[] = t('ck_zu_viele');
+        } else {
+            [, $rec, $offen, $ohneFoto, $neuFertig] = $ergebnis;
+            $liste = fn (array $l): string => implode(', ', array_map(fn ($p) => '„' . ck_text($p)[0] . '“', array_filter($punkte, fn ($q) => in_array($q['id'], array_column($l, 'id'), true))));
+            if ($fertigWunsch && $offen) {
+                $fehler[] = t('ck_fehler_offen', ['punkte' => $liste($offen)]);
+            } elseif ($fertigWunsch && $ohneFoto) {
+                $fehler[] = t('ck_fehler_foto_fehlt', ['punkte' => $liste($ohneFoto)]);
+            }
+            // Büro: „nicht möglich“ beim Abschluss per Push bzw. E-Mail (Text deutsch)
+            $nichtMoeglich = array_values(array_filter($rec['punkte'], fn ($p) => $p['status'] === 'nicht'));
+            if ($neuFertig && $nichtMoeglich) {
+                $titel = 'Checkliste: nicht möglich – ' . $rec['objekt'];
+                $text = $rec['name'] . ', ' . $tag($rec['datum'], 'de') . ' ' . $rec['zeitPlan'] . ":\n" . implode("\n", array_map(fn ($p) => '– ' . $p['text'] . ' (' . $p['grund'] . ')', $nichtMoeglich)) . "\nIn der App unter „Zu erledigen“.";
+                $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#home';
+                foreach ((array) ($e['buero'] ?? []) as $b) {
+                    if (!empty($b['ntfy'])) {
+                        ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => $text, 'priority' => 3, 'tags' => ['clipboard'], 'click' => $app]);
+                    }
+                    if (!empty($b['email'])) {
+                        mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Mein Dienstplan');
+                    }
+                }
+            }
+            if (!$fehler) {
+                $anker = 'ck-' . substr(sha1($id), 0, 10);
+                header('Location: mein-plan.php?gesendet=' . ($fertigWunsch ? 'checkliste-fertig' : 'checkliste') . '&ck=' . $anker . '#' . $anker, true, 303);
+                exit;
+            }
+        }
+    }
+    $ckMeldung = '<p class="fehler">' . implode('<br>', array_map(fn ($m) => htmlspecialchars($m, ENT_QUOTES), array_unique($fehler))) . '</p>';
+}
+
 // Plan: diese Woche und die kommenden (sonst die letzte veröffentlichte)
 $montag = (new DateTimeImmutable(heute() . ' monday this week'))->format('Y-m-d');
 $wochen = array_filter((array) ($person['wochen'] ?? []), fn ($k) => $k >= $montag, ARRAY_FILTER_USE_KEY);
@@ -1563,6 +2024,15 @@ foreach (zeiterfassung($e) ? json_lesen(speicher() . '/zeiten.json') : [] as $r)
         $gestempelt[$r['einsatz']] = $r;
     }
 }
+// Checklisten der Person je Einsatz; Bestätigung nach dem Speichern steht bei der Checkliste
+$meineCk = [];
+foreach ((array) (json_lesen(speicher() . '/checklisten.json')['eintraege'] ?? []) as $r) {
+    if (is_array($r) && ($r['hash'] ?? '') === $hash) {
+        $meineCk[(string) ($r['einsatz'] ?? '')] = $r;
+    }
+}
+$ckAnker = preg_match('/^ck-[a-f0-9]{10}$/', (string) ($_GET['ck'] ?? '')) ? (string) $_GET['ck'] : '';
+$ckOk = $ckAnker && in_array($_GET['gesendet'] ?? '', ['checkliste', 'checkliste-fertig'], true) ? '<p class="ok">' . th($_GET['gesendet'] === 'checkliste-fertig' ? 'ck_ok_fertig' : 'ck_ok') . '</p>' : '';
 $planHtml = '';
 foreach ($wochen as $mo => $w) {
     $tageHtml = '';
@@ -1589,6 +2059,15 @@ foreach ($wochen as $mo => $w) {
                     : (empty($x['entfaellt']) && !empty($x['id']) && !empty($x['beginn']) && wien_ts((string) $t['datum'], (string) $x['beginn']) > jetzt() + 2 * 3600
                         ? '<details class="abgabe"><summary>' . th('abgeben') . '</summary><form method="post" action="mein-plan.php?aktion=abgeben">' . $p . '<input type="hidden" name="einsatz" value="' . $h((string) $x['id']) . '"><label>' . th('grund_optional') . '<textarea name="notiz" rows="2" maxlength="300"></textarea></label><button type="submit" class="klein">' . th('abgabe_anfragen') . '</button></form></details>' : ''))
                 . (isset($gestempelt[$x['id'] ?? '']) ? '<br><span class="zeit-ok">✓ ' . uhr((int) $gestempelt[$x['id']]['kommen']) . (!empty($gestempelt[$x['id']]['gehen']) ? '–' . uhr((int) $gestempelt[$x['id']]['gehen']) : ' ' . th('eingestempelt')) . '</span>' : '')
+                . (!empty($x['checkliste']) && !empty($x['id']) ? (function () use ($x, $t, $meineCk, $p, $ckFokus, &$ckMeldung, $ckAnker, $ckOk): string {
+                    $a = 'ck-' . substr(sha1((string) $x['id']), 0, 10);
+                    $hier = $ckFokus !== '' && $ckFokus === $x['id'];
+                    $html = ck_html($x, (string) $t['datum'], $meineCk[$x['id']] ?? null, $p, $hier || $a === $ckAnker, $hier ? $ckMeldung : ($a === $ckAnker ? $ckOk : ''));
+                    if ($hier && $html !== '') {
+                        $ckMeldung = ''; // steht bei der Checkliste
+                    }
+                    return $html;
+                })() : '')
                 . ($info !== '' || !empty($x['schluessel']) ? '<details><summary>' . th('objektinfo') . '</summary>' . $info . (!empty($x['schluessel']) ? '<p class="leise">' . th('schluessel', ['text' => $h((string) $x['schluessel'])]) . '</p>' : '') . '</details>' : '')
                 . '</div>';
         }
@@ -1600,6 +2079,10 @@ foreach ($wochen as $mo => $w) {
         . ($geaendert ? '<p class="pill neu">' . th('geaendert_am', ['datum' => $h(t('datum_kurz', ['d' => $geaendert->format('d'), 'm' => $geaendert->format('m')])), 'zeit' => $geaendert->format('H:i')]) . '</p>' : '')
         . ($tageHtml ?: '<p class="leise">' . th('keine_einsaetze') . '</p>')
         . '<p class="summe">' . th('stunden', ['h' => '<b>' . $stunden($summe['ist'] ?? 0) . ' h</b>']) . (isset($summe['soll']) ? ' · ' . th('soll', ['h' => $stunden($summe['soll']) . ' h']) : '') . (isset($w['konto']) && $w['konto'] !== null ? ' · ' . th('konto_danach', ['h' => $konto($w['konto']) . ' h']) : '') . '</p>';
+}
+// Checkliste nicht angezeigt (z. B. Einsatz der Vorwoche): Hinweis oben
+if ($ckMeldung !== '' && $meldung === '') {
+    $meldung = $ckMeldung;
 }
 $antraegeHtml = $meine ? '<h2>' . th('meine_antraege') . '</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h(art_text((string) $a['art'])) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe', 'Material', 'Geraet'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . (($a['art'] ?? '') === 'Geraet' && !empty($a['geraet']) ? ' · ' . $h((string) $a['geraet']) : '') . (in_array($a['art'] ?? '', ['Material', 'Geraet'], true) && !empty($a['notiz']) ? ': „' . $h((string) $a['notiz']) . '“' : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h(antwort_text((string) $a['antwort'])) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
 $gemeldet = array_column(array_filter($meine, fn ($a) => ($a['art'] ?? '') === 'Einsatz' && $a['status'] === 'offen'), 'einsatz');
@@ -1658,6 +2141,7 @@ $mattenHtml = $mattenTouren && is_file(__DIR__ . '/mattentour.php') ? '<p class=
 $hier = 'mein-plan.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '');
 html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . mit_html($hash, $code) . $mattenHtml
     . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}'
+    . 'details.ck{border:1px solid #c9d6df;border-radius:8px;padding:.2rem .7rem;margin:.4rem 0}details.ck>summary{font-weight:600}.ck-p{border-top:1px solid #e3eaef;padding:.35rem 0}.ck-p label.haken{align-items:flex-start;margin:.2rem 0}.ck-p label.haken input{flex:0 0 auto;margin-top:.15rem}.ck-nein{background:#fff8e6;border-radius:6px;padding-left:.3rem}.ck-foto label{font-weight:400;margin:.3rem 0 .2rem;font-size:.95rem}details.ck-nm{margin:.1rem 0}details.ck-nm summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.ck-nm label{font-weight:400;margin:.2rem 0}details.ck-nm input[type=text]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;margin-top:.4rem}.ck-knoepfe{display:flex;gap:.5rem;flex-wrap:wrap}.ck-knoepfe button{flex:1 1 9rem}button.zweit{background:#fff;color:#0a5a96;border:2px solid #0a5a96}.ck-liste{list-style:none;padding-left:0}.ck-liste li{margin:.25rem 0}.ck-liste .ck-ok>span:first-child{color:#4e7a1e}.ck-liste .ck-nein>span:first-child{color:#b3261e}'
     . '.mitteilungen h2{margin-top:1rem}.mit{border:1px solid #c9d6df;border-radius:8px;padding:.6rem .8rem;margin:.6rem 0}.mit h3{font-size:1.05rem;margin:0 0 .2rem}.mit-offen{border:2px solid #0a5a96}.mit-erinnert{background:#fff8e6}.mit-kopf{margin:.1rem 0 .4rem;color:#13232f}.mit-text{margin:.3rem 0}.mit-wichtig{background:#fce8e6!important;color:#b3261e!important}.mit-erinnerung{background:#fdf0d5!important;color:#6b4100!important}.mit-de summary{font-weight:400;color:#0a5a96;font-size:.95rem}.mit-de div{background:#f3f6f8;border-radius:8px;padding:.3rem .6rem}.mit-anhang{color:#0a5a96;font-weight:600}.mit .ok{margin:.4rem 0 0}</style>'
     . ($planHtml ?: '<p class="leise">' . th('kein_plan') . '</p>')
     . $boerseHtml . $antraegeHtml . $formulare . $aboHtml

@@ -80,6 +80,13 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   const om = dataRights(resolveAccess({ groupClaims: [OM], access, strict: true }))
   for (const p of [DOC.objects, DOC.master, weekPath('2026-10-26')]) assert.ok(om.read(p) && !om.write(p), p)
+  // Checkliste vom Handy: Stand im Wochenplan, Fotos unter plaene/checklisten/ – Rechte wie die Wochenpläne (Zeiterfassung)
+  const foto = 'plaene/checklisten/2026/2026-11-09_Kanzlei_aaaaaaaaaaaa-p1-abcdef.jpg'
+  assert.ok(om.read(foto) && !om.write(foto) && !va.read(foto), 'Fotos der Checkliste: lesen wer den Plan sieht, schreiben nur die Einsatzplanung')
+  const planer = dataRights(resolveAccess({ email: 'office@cleanos.at', access, strict: true }))
+  assert.ok(planer.write(foto) && planer.write(weekPath('2026-11-09')))
+  const lesen = dataRights(resolveAccess({ roleClaims: ['Dienstplan.Lesen'], access, strict: true }))
+  assert.ok(lesen.read(foto) === lesen.read(weekPath('2026-11-09')) && !lesen.write(foto))
   for (const p of [DOC.absences, DOC.account, MODULE_DOCS.fahrzeuge.path]) assert.ok(!om.read(p), p)
 
   const none = dataRights(resolveAccess({ access, strict: true }))
