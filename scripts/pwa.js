@@ -97,6 +97,16 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'werkzeuge-vorhalten' && Array.isArray(event.data.urls)) event.waitUntil(werkzeugeVorhalten(event.data.urls))
 })
 
+// Die App-Seite selbst: der Ordner des Service Workers (start_url './') oder index.html darin.
+// Nur diese Navigationen landen als index.html im Speicher. Andere Seiten am selben
+// Webspace (mein-plan.php, kunden.php, wetter-alarm.php, wetter.php …) gehen am
+// Service Worker vorbei: Sonst läge ihr HTML als index.html im Speicher und erschiene
+// ohne Netz statt der App.
+function istAppSeite(url) {
+  const ordner = new URL(self.registration.scope).pathname
+  return url.pathname === ordner || url.pathname === ordner + 'index.html'
+}
+
 async function cacheFirst(request) {
   const cached = await caches.match(request)
   if (cached) return cached
@@ -111,8 +121,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/.auth/')) return
   // Werkzeuge (eigene Seiten im Rahmen der App): zuerst aus dem Netz, ohne Netz die zuletzt geladene Fassung
   if (url.pathname.includes('/werkzeuge/')) return event.respondWith(werkzeugHolen(request))
-  // Seite und Konfiguration: immer zuerst aus dem Netz (Anmeldung, aktuelle Einstellungen)
-  if (request.mode === 'navigate') return event.respondWith(networkFirst(request, './index.html'))
+  // Seite und Konfiguration: immer zuerst aus dem Netz (Anmeldung, aktuelle Einstellungen).
+  // Andere Seiten (*.php am Webspace, Abmelden …) nicht abfangen: Der Browser lädt sie selbst.
+  if (request.mode === 'navigate') {
+    if (istAppSeite(url)) event.respondWith(networkFirst(request, './index.html'))
+    return
+  }
   if (url.pathname.endsWith('/config.json')) return event.respondWith(networkFirst(request))
   // Gebündelte Dateien, Bibliotheken, Logo, Schriften: aus dem Speicher
   if (/\\/(app|vendor|assets|themes)\\//.test(url.pathname)) return event.respondWith(cacheFirst(request))

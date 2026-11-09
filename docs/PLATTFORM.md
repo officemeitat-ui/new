@@ -1131,6 +1131,7 @@ Unter *Verwaltung → Systemcheck* (nur Vollzugriff): prüft vom Browser aus Web
 Mit SharePoint arbeitet die App auch ohne Netz weiter:
 
 - Der letzte Stand jeder Datei liegt im Gerät (Browser-Speicher). Die App startet auch ohne Netz, wenn das Gerät schon einmal verbunden war.
+- **Nur die App-Seite selbst** (der App-Ordner bzw. `index.html` darin) hält der Service Worker für den Start ohne Netz vor. Andere Seiten am selben Webspace – `mein-plan.php`, `kunden.php`, `wetter-alarm.php`, `wetter.php` und jede andere `*.php` – fängt er nicht ab: Sie kommen immer direkt vom Server (ohne Netz also nicht) und können nie als App-Seite im Speicher landen. Früher konnte eine solche Seite, auf demselben Gerät geöffnet, beim nächsten Start ohne Netz statt der App erscheinen; wo das passiert ist, genügt ein Start der App mit Netz (die App-Seite wird dabei neu vorgehalten).
 - Erfasstes im Dienstplan und bei den Fahrzeugen wird im Gerät festgehalten (die Werkzeuge haben ihren eigenen Offline-Speicher wie bisher), ebenso die Matten-Touren der Fahrer (Anzeige „wartet auf Netz“ in der Ansicht, siehe *Fahreransicht (Matten-Touren)*). Oben steht dann **„Offline · 2 Änderungen warten“**. Das bleibt auch erhalten, wenn die App geschlossen oder das Handy neu gestartet wird.
 - Mit Netz (zurück in der App oder Netz wieder da) wird **sofort gespeichert und mit den Änderungen anderer zusammengeführt**. Haben zwei Personen gleichzeitig geändert, bleiben beide Änderungen erhalten, nichts wird still überschrieben.
 - Ohne Netz geht nicht: E-Mail-Versand.
