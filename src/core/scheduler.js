@@ -10,6 +10,7 @@ import { PlanState } from './plan.js'
 import { payrollBookings } from './reports.js'
 import { employedOn, weeklyHoursAt } from './contract.js'
 import { evaluateEmployee, findAbsence, fitsAvailability } from './rules.js'
+import { wishFactors } from './wuensche.js'
 
 // Warnungen, die die Automatik wie Verstöße behandelt (manuell bleibt alles möglich).
 const SOFT_BLOCKING = new Set(['AVAILABILITY', 'TRAVEL', 'DAILY_LONG', 'WEEKLY_48'])
@@ -86,6 +87,8 @@ export function candidateFactors(ctx, state, emp, inst, ev) {
     if (weekMin + inst.net > pay.fullTimeWeeklyH * 60) add('overtime', 25, `über ${pay.fullTimeWeeklyH} h/Woche: Überstunden (+${pay.ueTag} %)`)
     else if (dayMin > pay.dailyNormalH * 60) add('overtime', 15, `über ${hrs(pay.dailyNormalH * 60)} h am Tag: Überstunden (+${pay.ueTag} %)`)
   }
+  // Wunschzeiten (core/wuensche.js): Wunschfrei, früh/spät, mehr/weniger Stunden – weich, kein Verbot
+  for (const f of wishFactors(ctx.wishIndex, emp.id, inst)) factors.push(f)
   return factors
 }
 

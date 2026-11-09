@@ -79,6 +79,14 @@ function brandBlock() {
 }
 
 /** Weniger gebrauchte Aktionen im Menü „⋯“, nach Zweck gegliedert. */
+/** Wünsche der Mitarbeitenden in der angezeigten Woche (core/wuensche.js; Dialog in views/wuensche.js). */
+const wishCount = () => {
+  const mon = app.ui.monday
+  if (!mon || !app.data?.wishes) return 0
+  const sun = addDays(mon, 6)
+  return Object.values(app.data.wishes).filter((w) => w?.date >= mon && w.date <= sun).length
+}
+
 function moreMenu(plan) {
   const canSync = app.store?.kind === 'sharepoint' || app.config?.storage === 'local'
   return menu({
@@ -93,6 +101,7 @@ function moreMenu(plan) {
       plan && { label: 'Veröffentlichen', icon: ICON.send, action: 'open-publish' },
       plan && { label: 'Neu planen', icon: ICON.bolt, action: 'replan', title: 'Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen' },
       plan && { label: 'An Mitarbeitende versenden', icon: ICON.send, action: 'open-send' },
+      plan && { label: `Wünsche der Mitarbeitenden${wishCount() ? ` (${wishCount()})` : ''}`, icon: ICON.user, action: 'wish-open', hint: 'Wunschfrei, früh/spät, mehr/weniger Stunden' },
       { heading: 'E-Mail' },
       canMailView() && { label: 'Diese Ansicht per E-Mail', icon: ICON.send, action: 'mail-view', hint: 'als PDF-Bericht mit Tabellen' },
       { label: 'Aufgabe per E-Mail', icon: ICON.check, action: 'mail-task-new', hint: 'mit Kalender-Erinnerung' },

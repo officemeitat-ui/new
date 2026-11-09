@@ -2,12 +2,12 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 399 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 400 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (17)
-- [Planung](#planung) (39)
+- [Planung](#planung) (40)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
 - [Objekte & Kunden](#objekte-kunden) (101)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
@@ -725,6 +725,21 @@ Jede Woche hat ein Änderungsprotokoll mit Zeitpunkt, Person und Änderung. Du f
 
 > Tipp: Änderungen über den KI-Assistenten stehen dort mit Vermerk.
 > Tipp: Gründe von Abwesenheiten stehen nicht im Protokoll.
+
+### Wunschzeiten der Mitarbeitenden
+
+*In der App: Wochenübersicht*
+
+Mitarbeitende wünschen sich freie Tage, frühe oder späte Dienste oder mehr bzw. weniger Stunden. Die Automatik berücksichtigt das beim Planen als weiche Vorgabe; danach steht je Wunsch, ob er erfüllt ist.
+
+1. In der Woche das Menü „⋯“ öffnen, „Wünsche der Mitarbeitenden“.
+2. Person, Datum und Wunsch wählen, „Wunsch eintragen“.
+3. „Woche planen“ – danach steht je Wunsch „erfüllt“ oder „nicht erfüllt“.
+
+> Tipp: Wünsche sind keine Abwesenheit: Stammkräfte bleiben eingeteilt.
+> Tipp: Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus.
+
+*Planung (eintragen), alle mit Plan (ansehen)*
 
 ## Einsätze & Zeiten
 

@@ -30,6 +30,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Zuletzt fertig (9.11.2026)
 
+- Wunschzeiten: Wunschfrei, früh/spät, mehr/weniger Stunden; die Automatik berücksichtigt sie weich, danach „erfüllt“ je Wunsch (Büro; Eingabe am Handy folgt).
 - Fuhrparkkosten je Fahrzeug: Werkstatt und Eingangsrechnungen mit Fahrzeug (Vorschlag aus dem Kennzeichen auf dem Beleg), km aus dem Fahrtenbuch, Kosten je km, CSV.
 - KI-Assistent: Werkzeuge für Rentabilität, Nachkalkulation, Fahrtenbuch, Zusatzleistungen und Checklisten (nur lesen).
 - Leistungs-Checkliste am Handy: je Leistung eine Checkliste (Foto nötig, 1× pro Woche, bestimmte Tage; Vorlagen, übersetzt, „Mit KI übersetzen“), abhaken im Plan am Handy mit Foto ohne Ortsdaten oder „nicht möglich“ mit Grund; Abholen mit den Stempelungen, Fotos in SharePoint, „Zu erledigen“, Spalte im Leistungsnachweis (Idee 3, Rechtsprüfung Punkt 50).
@@ -69,7 +70,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 10. **(fertig)** Nachkalkulation: Kalkulierte Stunden je Objekt gegen geplante und gestempelte Stunden; Vorschlag, die Leistungswerte (m² je Stunde) je Raumart aus den Ist-Zeiten anzupassen – die Kalkulation lernt aus der Praxis.
 11. **(fertig)** Eingangsrechnung gegen Bestellung prüfen: Menge und Preis der Eingangsrechnung mit der Bestellung aus Material & Lager vergleichen, Abweichungen vor der Freigabe zeigen.
-12. **Einsatzplanung mit Wunschzeiten:** Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
+12. **(im Büro fertig, Handy folgt)** Einsatzplanung mit Wunschzeiten: Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
 13. **(fertig)** KI-Angebotstext aus einer Ausschreibung: Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
 14. **(fertig)** Fahrtenbuch aus den Touren: Für Fahrzeuge im Mattenwechsel und Winterdienst Fahrten aus den Touren vorschlagen (Datum, Strecke, Kilometer, Zweck) – zum Bestätigen statt Abschreiben.
 15. **Kunden-Statusseite je Objekt:** ein Link für die Hausverwaltung mit allen offenen Meldungen, Terminen und dem letzten Leistungsnachweis eines Objekts (Kundenbereich je Objekt statt je Kunde).

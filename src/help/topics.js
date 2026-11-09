@@ -2345,6 +2345,18 @@ export const TOPICS = [
     roles: 'Fuhrpark, Vollzugriff',
   },
   {
+    id: 'wunschzeiten',
+    section: 'planung',
+    view: 'week',
+    title: 'Wunschzeiten der Mitarbeitenden',
+    q: ['wunschfrei', 'wunschzeiten', 'wünsche mitarbeitende', 'lieber früh', 'lieber spät', 'mehr stunden', 'weniger stunden', 'wunsch eintragen'],
+    answer: 'Mitarbeitende wünschen sich freie Tage, frühe oder späte Dienste oder mehr bzw. weniger Stunden. Die Automatik berücksichtigt das beim Planen als weiche Vorgabe; danach steht je Wunsch, ob er erfüllt ist.',
+    steps: ['In der Woche das Menü „⋯“ öffnen, „Wünsche der Mitarbeitenden“.', 'Person, Datum und Wunsch wählen, „Wunsch eintragen“.', '„Woche planen“ – danach steht je Wunsch „erfüllt“ oder „nicht erfüllt“.'],
+    tips: ['Wünsche sind keine Abwesenheit: Stammkräfte bleiben eingeteilt.', 'Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus.'],
+    related: ['plan-am-handy'],
+    roles: 'Planung (eintragen), alle mit Plan (ansehen)',
+  },
+  {
     id: 'fahrtenbuch',
     section: 'betrieb',
     view: 'fahrzeuge',

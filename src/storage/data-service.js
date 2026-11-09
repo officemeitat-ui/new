@@ -384,8 +384,9 @@ const withoutPay = (e) => Object.fromEntries(Object.entries(e).filter(([k]) => !
 // winter: angelegte Winterdienst-Einsätze „Datum|Objekt“ → { reason, by, at }
 // winterlog: Winterdienst-Protokoll „Datum|Objekt|Eintrag“ → { person, at, geraeumt, gestreut, … }
 // stamps: Zeiterfassung im Objekt „Datum|zID“ → { empId, objectId, instKey, in, out, … }
+// wishes: Wunschzeiten „Datum|wID“ → { empId, date, kind, note, source, at, by } (core/wuensche.js)
 // checks: Leistungs-Checkliste vom Handy „Datum|kID“ → { empId, instKey, items, finished, … } (core/checkliste.js)
-const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog', 'stamps', 'checks']
+const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog', 'stamps', 'checks', 'wishes']
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const weekOfKey = (key) => mondayOf(key.slice(0, 10))

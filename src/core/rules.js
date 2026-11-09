@@ -5,6 +5,7 @@
 // docs/ERWEITERN.md. Regeln lassen sich in den Einstellungen abschalten.
 
 import { estimateTravel } from './geo.js'
+import { wishIndex } from './wuensche.js'
 import { effectiveKeys } from './keys.js'
 import { shiftProblems } from './trainings.js'
 import { DR_LIMITS, drMaxWeeks, drPeriod, employedOn, weeklyHoursAt } from './contract.js'
@@ -90,7 +91,7 @@ export function mergeRules(rules = {}) {
 
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
-export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {}, payroll = {}, schluessel = null, unterweisungen = null }, holidays) {
+export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {}, payroll = {}, schluessel = null, unterweisungen = null, wishes = {} }, holidays) {
   const absencesByEmployee = new Map()
   for (const a of absences) {
     if (!absencesByEmployee.has(a.employeeId)) absencesByEmployee.set(a.employeeId, [])
@@ -126,6 +127,8 @@ export function createContext({ employees, objects, absences = [], rules, travel
     keysByObject,
     /** Unterweisungen & Fristen (Modul), falls geladen: { types, records } */
     trainings: unterweisungen,
+    /** Wunschzeiten der Mitarbeitenden (core/wuensche.js): „empId|Datum“ → [Wunsch] für die Automatik */
+    wishIndex: wishIndex(wishes),
     /** Fahrzeit in Minuten zwischen zwei Objekten (Strecke, Schätzung aus Koordinaten, sonst Pauschale). */
     travel: between,
     travelInfo,

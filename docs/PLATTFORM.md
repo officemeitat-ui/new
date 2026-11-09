@@ -1404,6 +1404,15 @@ Wer wann wo geräumt und gestreut hat. Kommt es zu einem Sturz, ist ein lückenl
 
 **Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert; neue Abrufe je Aufrufer höchstens 60 in 10 Minuten und insgesamt 150 je Stunde, darüber der letzte Stand bzw. 429, damit niemand von außen das GeoSphere-Kontingent des Webspace aufbraucht, das der Schnee-Alarm braucht). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.
 
+## Wunschzeiten der Mitarbeitenden
+
+Menü „⋯“ → Diese Woche → **Wünsche der Mitarbeitenden** (Zahl der Wünsche der Woche im Menü; Rechenkern `src/core/wuensche.js`, Dialog `src/ui/views/wuensche.js`). Arten: **Wunschfrei** an einem Tag, **lieber früh** (bis 12 Uhr) oder **lieber spät** (ab 14 Uhr) an einem Tag, **mehr** oder **weniger Stunden** in einer Woche. Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus, nur für die Zukunft; Notiz ohne Gesundheitsangaben.
+
+- **Automatik:** Wünsche sind keine Abwesenheit und kein Anspruch, sondern eine weiche Vorgabe in der Bewertung je Person (`candidateFactors` in `core/scheduler.js`): Wunschfrei +35 Punkte (offene Einsätze gehen lieber an andere), früh/spät passend −8 bzw. unpassend +12, mehr Stunden −10, weniger +15. Stammkräfte bleiben eingeteilt; die Begründung der Vorschläge nennt den Wunsch.
+- **Stand nach dem Planen:** je Wunsch „erfüllt“ oder „nicht erfüllt“ mit Grund (z. B. „2 Einsätze an dem Tag“, „06:00 Uhr“, „32 h geplant, Vertrag 40 h“), oben „x von y erfüllt“.
+- **Ablage:** je Woche im Feld `wishes` der Wochendatei (`plaene/`), wie die Stempelungen. Eintragen und Löschen mit Recht auf die Planung.
+- **Vom Handy:** im „Plan am Handy“ (folgt mit dem nächsten Paket des Webspace).
+
 ## Plan am Handy (Mein Dienstplan)
 
 Für Mitarbeitende ohne Firmenkonto: Jede Person bekommt einen **persönlichen Link** und sieht damit am Handy ihre veröffentlichten Wochen, ohne Anmeldung. Einrichten unter *Mitarbeitende → Plan am Handy* (Rolle mit Einsatzplanung, bearbeiten).

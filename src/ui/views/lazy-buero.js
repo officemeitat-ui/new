@@ -12,6 +12,8 @@ import './rules.js'
 import './system.js'
 import './sicherung.js'
 import './vehicles.js'
+// Wunschzeiten der Mitarbeitenden (Dialog in der Woche)
+import './wuensche.js'
 import './complaints.js'
 import './material.js'
 import './keys.js'

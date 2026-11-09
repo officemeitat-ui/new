@@ -227,6 +227,9 @@ lazy(BUERO, {
   todo: ['sicherung'],
 })
 
+// wuensche.js: Dialog „Wünsche der Mitarbeitenden“ (Menü „⋯“ → Diese Woche)
+lazy(BUERO, { module: 'planung', modals: 'wishes', actions: 'wish-open wish-week wish-add wish-del' })
+
 // vehicles.js
 lazy(BUERO, {
   views: [
