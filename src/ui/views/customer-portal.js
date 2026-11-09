@@ -217,12 +217,14 @@ async function filesForMonth(link, month, memo) {
     const rows = winter.filter((w) => w.objectId === objectId)
     const winterShown = rows.map((w) => ({ date: w.date, time: w.time, geraeumt: !!w.geraeumt, gestreut: !!w.gestreut, kontrolle: !!w.kontrolle, mittel: w.mittel || '', notiz: w.notiz || '', lage: w.lage || '', person: s.names === 'keine' ? '' : w.person || '' }))
     if (ids.has(objectId)) {
-      const proof = proofFor({ objectId, from, to, instances: r.instances, state: r.state, stamps: app.data.stamps || {}, employeesById: r.ctx.employeesById, today: todayISO(), now: absMinutes(new Date().toISOString()), names: s.names })
+      // Checkliste vom Handy wie im Leistungsnachweis des Büros: Standard je Firma, abweichend je Objekt (proof.js)
+      const withChecks = typeof s.checksObj?.[objectId] === 'boolean' ? s.checksObj[objectId] : !!s.checks
+      const proof = proofFor({ objectId, from, to, instances: r.instances, state: r.state, stamps: app.data.stamps || {}, checks: withChecks ? app.data.checks || {} : null, employeesById: r.ctx.employeesById, today: todayISO(), now: absMinutes(new Date().toISOString()), names: s.names })
       // nicht besetzte Einsätze: erst im Leistungsnachweis klären; ganz ohne Besetzung (App noch nicht genutzt): kein Nachweis
       if (proof.totals.open && proof.totals.done) held.push({ month, object: object.name, open: proof.totals.open })
       else if (!proof.totals.open && proof.rows.length) {
         const sig = (await sha256Hex(stableJson({ v: 1, art: 'leistung', object: [object.name, object.address || ''], proof, winter: winterShown, s, firma: brand().name || '' }))).slice(0, 32)
-        files.push({ datei: fileName(month, 'leistung', nr), art: 'leistung', objectId, objekt: object.name, name: proofPdfName(object.name, month), titel: `Leistungsnachweis ${monthName(month)}`, sig, make: (logo) => pdfBlob(proofDocument({ object, monthLabel: monthName(month), from, to, proof, winter: rows, withTimes: s.times, withNames: s.names !== 'keine', withSignature: s.signature, brand: brand(), logo })) })
+        files.push({ datei: fileName(month, 'leistung', nr), art: 'leistung', objectId, objekt: object.name, name: proofPdfName(object.name, month), titel: `Leistungsnachweis ${monthName(month)}`, sig, make: (logo) => pdfBlob(proofDocument({ object, monthLabel: monthName(month), from, to, proof, winter: rows, withTimes: s.times, withNames: s.names !== 'keine', withChecks, withSignature: s.signature, brand: brand(), logo })) })
       }
     }
     if (rows.length) {
