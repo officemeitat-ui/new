@@ -10,6 +10,7 @@
 // (kalkulation/kalkulation.json → cases[Fall] bzw. objects[Objekt]). Hier stehen nur die Fälle (vertrieb/vertrieb.json)
 // und die Funktionen, die aus einem Fall die Eingaben für diese Module machen.
 
+import { viennaDate } from './dates.js'
 import { AREA_TYPES, areaMinutes, calculate, CALC_DEFAULTS, FREQUENCIES, frequencyLabel } from './calculation.js'
 import { lineType, parseNumber, round2 } from './invoicing.js'
 
@@ -201,7 +202,8 @@ export function moveCheck(c, to, { reason = '' } = {}) {
 export function applyMove(c, to, { at = new Date().toISOString(), by = '', reason = '', note = '' } = {}) {
   const from = stageOf(c)
   if (from === to) return c
-  const day = at.slice(0, 10)
+  // Abschlussdatum als Kalendertag in Wien (0:30 Uhr ist schon der neue Tag)
+  const day = viennaDate(at) || at.slice(0, 10)
   const out = { ...c, stage: to, updatedAt: at, updatedBy: by }
   delete out.probability
   if (to === 'angenommen') {
@@ -361,7 +363,7 @@ export function offerSnapshot(doc, { state, net, followUp = null } = {}) {
     validUntil: doc.validUntil || '',
     sent: !!(doc.sent || []).length,
     online: !!doc.online,
-    ...(doc.acceptance?.at ? { acceptedAt: String(doc.acceptance.at).slice(0, 10), acceptedBy: doc.acceptance.name || '' } : {}),
+    ...(doc.acceptance?.at ? { acceptedAt: viennaDate(doc.acceptance.at) || String(doc.acceptance.at).slice(0, 10), acceptedBy: doc.acceptance.name || '' } : {}),
     ...(followUp?.date && !followUp.done ? { followUp: followUp.date } : {}),
   }
 }

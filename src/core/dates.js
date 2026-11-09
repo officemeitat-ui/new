@@ -81,6 +81,13 @@ const hoursFormat = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 2 })
 export const formatHours = (min) => hoursFormat.format(Math.round((min / 60) * 100) / 100)
 
 /** Heutiges Datum (oder das Datum eines Zeitpunkts) in der Zeit des Geräts – nicht in UTC wie toISOString(). */
+const VIENNA_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Vienna', year: 'numeric', month: '2-digit', day: '2-digit' })
+/** Kalendertag in Wien (JJJJ-MM-TT) für einen Zeitpunkt (ISO-Text oder ms), nicht der UTC-Tag: „angenommen am“ um 0:30 Uhr ist schon der neue Tag. */
+export function viennaDate(when) {
+  const d = new Date(when)
+  return Number.isNaN(d.getTime()) ? '' : VIENNA_DATE.format(d)
+}
+
 export function todayISO(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }

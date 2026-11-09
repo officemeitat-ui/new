@@ -377,3 +377,11 @@ test('Wochenzettel: Stammeinsätze über das Verzeichnis je Person und Tag (dopp
   s.instances.push(extra)
   assert.deepEqual(missed(buildTimesheet(s.ctx, p, '2026-11-02', s.instances, new PlanState(s.instances, {}))), ['2026-11-03|2026-11-03|a', '2026-11-05|2026-11-05|a', '2026-11-06|2026-11-06|x'])
 })
+
+test('viennaDate: Kalendertag in Wien statt UTC (Winter- und Sommerzeit)', async () => {
+  const { viennaDate } = await import('../src/core/dates.js')
+  assert.equal(viennaDate('2026-11-09T23:30:00.000Z'), '2026-11-10') // 0:30 Uhr in Wien (MEZ)
+  assert.equal(viennaDate('2026-11-09T22:59:00.000Z'), '2026-11-09')
+  assert.equal(viennaDate('2026-07-01T22:30:00.000Z'), '2026-07-02') // 0:30 Uhr in Wien (MESZ)
+  assert.equal(viennaDate('kein Datum'), '')
+})

@@ -9,6 +9,7 @@
 //    Werkzeuge; alte Werkzeug-Ordner einmal in ihre Reviere verschieben (Umzug, Objektliste aufteilen).
 // Aktionen und Dialoge mit dem Kürzel „acc-“.
 
+import { todayISO } from '../../core/dates.js'
 import { allRoles as rolesOf, MODULES, resolveAccess } from '../../core/access.js'
 import { KONTROLLE_LIST, kontrolleRevierList, moveRows, moveTarget, REVIER_TOOLS, revierName, revierSetup, splitObjectList } from '../../core/reviere.js'
 import { auditFolder, expectedRights, fixPlan, groupNames, summary } from '../../core/rights-audit.js'
@@ -375,7 +376,7 @@ async function runMigration() {
       const global = await store.readRoot(KONTROLLE_LIST)
       if (Array.isArray(global?.objekte) && global.objekte.length) {
         const { rest, byRevier } = splitObjectList(global.objekte, moved)
-        const stand = new Date().toISOString().slice(0, 10)
+        const stand = todayISO()
         const key = (e) => `${String(e.kunde || '').trim()}|${String(e.objekt || '').trim()}`.toLowerCase()
         // erst die Listen der Reviere, dann die Gesamtliste: bricht es dazwischen ab, fehlt nichts
         for (const [revier, entries] of Object.entries(byRevier)) {

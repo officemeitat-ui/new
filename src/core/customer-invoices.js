@@ -18,6 +18,7 @@
 //
 // Rein rechnend, ohne Netz testbar. Oberfläche: ui/views/invoicing-online.js, ui/views/customer-portal.js.
 
+import { viennaDate } from './dates.js'
 import { deDate, docFileName, epcPayload, formatIban, grossOf, ibanValid, intact, isCancelled, isInvoice, kindLabel, openAmount, round2, settingsOf, stateOf } from './invoicing.js'
 
 // ---------------------------------------------------------------- Rechnungen im Kundenbereich
@@ -171,7 +172,7 @@ export function onlineCheck(doc, { customer = null, today, settings = {} } = {})
   const consumer = isConsumer(doc, customer)
   const no = (reason) => ({ ok: false, consumer, reason })
   if (doc?.kind !== 'angebot' || !doc.number) return no('Nur ein festgeschriebenes Angebot lässt sich online annehmen.')
-  if (doc.acceptance) return no(`Das Angebot ist schon angenommen (${deDate(String(doc.acceptance.at || '').slice(0, 10))}).`)
+  if (doc.acceptance) return no(`Das Angebot ist schon angenommen (${deDate(viennaDate(doc.acceptance.at) || String(doc.acceptance.at || '').slice(0, 10))}).`)
   if (doc.status === 'angenommen') return no('Das Angebot ist schon angenommen.')
   if (doc.status === 'abgelehnt') return no('Das Angebot ist als abgelehnt vermerkt.')
   if (!doc.validUntil) return no('Das Angebot hat kein „gültig bis“. Ohne Frist geht keine Online-Annahme.')

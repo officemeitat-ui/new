@@ -10,6 +10,7 @@
 // Bibliothek, die PDFs im Browser in Bilder umwandelt (pdf.js), wäre für diesen Zweck zu groß. Der Dialog erklärt,
 // wie aus der PDF-Vorlage ein Bild wird.
 
+import { todayISO } from '../../core/dates.js'
 import { settingsOf } from '../../core/invoicing.js'
 import { invoiceDocument } from '../../export/invoice-pdf.js'
 import { A4, checkLetterheadImage, DEFAULT_MARGINS_MM, FONT_SIZES, FOOTER_COLUMNS, footerNeedMm, LETTERHEAD_FONTS, letterheadActive, letterheadImages, letterheadKey, letterheadOf, letterheadPath, marginProblems, NEXT_MODES, setLetterheadImages, suggestFooter } from '../../export/letterhead.js'
@@ -287,7 +288,7 @@ function refreshPreview(m) {
 
 /** Musterrechnung über zwei Seiten mit dem Briefpapier aus dem Dialog (noch nicht gespeichert). */
 function sampleInvoice() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   const lines = Array.from({ length: 34 }, (_, i) => ({ id: `m${i}`, text: i % 3 ? `Unterhaltsreinigung Stiege ${i + 1} lt. Leistungsverzeichnis` : `Glasreinigung Stiegenhaus ${i + 1}`, qty: i % 3 ? 1 : 24, unit: i % 3 ? 'Monat' : 'm²', price: i % 3 ? 180 : 2.4, vat: 20 }))
   return { id: 'muster', kind: 'rechnung', number: 'Muster', date: today, serviceFrom: today.slice(0, 8) + '01', serviceTo: today, dueDate: today, recipient: { name: 'Hausverwaltung Muster GmbH', address: 'z. H. Frau Mag. Eva Muster\nMusterplatz 1\n5020 Salzburg', customerNo: '10001' }, title: 'Musterrechnung für das Briefpapier', intro: 'Sehr geehrte Damen und Herren,\nso sehen Rechnungen mit diesem Briefpapier aus. Der Text bleibt innerhalb der eingestellten Ränder.', outro: 'Vielen Dank für den Auftrag.', lines }
 }
