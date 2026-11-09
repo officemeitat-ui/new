@@ -1,7 +1,8 @@
 // KI beim Erfassen: Beleg lesen (Eingangsrechnung), Diktat in Felder (Regiebericht), Antwort auf eine
-// Reklamation entwerfen, Mahntext verbessern, Sicherheitsdatenblatt lesen, Besichtigung (Vertrieb). Je eine Anfrage
-// über ki.php (src/ai/client.js), Anfrage und Prüfung der Antwort in core/ki-vorschlag.js bzw. für die Besichtigung in
-// core/vertrieb.js (dort getestet).
+// Reklamation entwerfen, Mahntext verbessern, Sicherheitsdatenblatt lesen, Besichtigung (Vertrieb), E-Mail einordnen
+// (Posteingang). Je eine Anfrage über ki.php (src/ai/client.js), Anfrage und Prüfung der Antwort in
+// core/ki-vorschlag.js bzw. für die Besichtigung in core/vertrieb.js und für den Posteingang in core/posteingang.js
+// (dort getestet).
 //
 // send(params, { maxTokens }) → Text der Antwort: im Browser die Anfrage über ki.php, in Tests eine Attrappe.
 // Ergebnisse sind Vorschläge: geprüft, aber erst die Person übernimmt und speichert sie.
@@ -22,6 +23,7 @@ import {
   sdbRequest,
   textFacts,
 } from '../core/ki-vorschlag.js'
+import { checkPosteingang, kiCandidates, posteingangRequest } from '../core/posteingang.js'
 import { besichtigungRequest, checkBesichtigung } from '../core/vertrieb.js'
 
 const defaultSend = async (params, opts) => (await import('./client.js')).kiSend(params, opts)
@@ -90,4 +92,17 @@ export async function readBesichtigung({ text = '', photos = [], site = '' } = {
   if (!String(text || '').trim() && !photos.length) throw new Error('Bitte zuerst die Sprachnotiz aufnehmen bzw. tippen oder Fotos aufnehmen.')
   const raw = await send(besichtigungRequest({ text, photos, site }), { maxTokens: 12000 })
   return checkBesichtigung(parseKiJson(raw, 'Die Antwort der KI zur Besichtigung'))
+}
+
+/**
+ * E-Mail einordnen (Posteingang, „Mit KI erkennen“): msg { from, subject, text, date, attachments }, ctx aus
+ * ruleContext (Kunden, Objekte), rule aus ruleGuess. Gesendet werden nur Betreff und Text (gekürzt, ohne Adressen und
+ * Telefonnummern) und als Auswahl Kennung und Name passender Kunden und Objekte (kiCandidates). Krankmeldungen und
+ * Nachrichten aus dem Team gehen nicht hinaus (posteingangRequest wirft vorher). → checkPosteingang().
+ */
+export async function classifyMail(msg, { ctx = {}, rule = null, today = '', send = defaultSend } = {}) {
+  const cand = kiCandidates(msg, ctx, rule)
+  const req = posteingangRequest(msg, { ...cand, rule, today })
+  const raw = await send(req, { maxTokens: 6000 })
+  return checkPosteingang(parseKiJson(raw, 'Die Antwort der KI zur Nachricht'), { ...cand, today })
 }

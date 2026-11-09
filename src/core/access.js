@@ -50,6 +50,9 @@ export const MODULES = {
   // Mitteilungen an Mitarbeitende mit Lesebestätigung (verfassen, übersetzen, Übersicht); lesen und bestätigen kann
   // jede Person die eigenen, ohne dieses Modul (Postfach der Konten bzw. „Mein Plan“)
   mitteilungen: 'Mitteilungen',
+  // Posteingang: E-Mails und Belege erkennen und als Entwurf übergeben. Nur Vollzugriff (Büro): Im Postfach landet
+  // alles (Krankmeldungen, Bewerbungen, Rechnungen, Kündigungen); eigene Rollen über config.json → access.roles
+  posteingang: 'Posteingang',
 }
 
 /** Die eigenen Werkzeuge (werkzeuge/): speichern selbst in ihren Ordnern, die Rolle braucht dafür keinen Ordner der App. */

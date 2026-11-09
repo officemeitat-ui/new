@@ -218,6 +218,21 @@ export async function runChecks() {
   add(M, 'Anwendungs-ID (Entra ID)', sp.clientId ? 'ok' : app.config.storage === 'sharepoint' ? 'error' : 'info', sp.clientId ? 'eingetragen' : 'fehlt', 'App in Entra ID registrieren (Single-Page-Anwendung, Umleitung https://app.cleanos.at/) und die Anwendungs-ID eintragen (Schritt 2).')
   add(M, 'Angemeldet', app.user ? 'ok' : 'info', app.user ? `${app.user.name || ''}${app.access?.roles?.length ? ` · ${app.access.roles.join(', ')}` : ''}` : 'ohne Anmeldung (Browser-Modus)')
   add(M, 'Daten geladen', app.data?.employees?.length && app.data?.objects?.length ? 'ok' : 'warn', `${app.data?.employees?.length || 0} Mitarbeitende, ${app.data?.objects?.length || 0} Objekte`, 'Noch leer: unter Mitarbeitende bzw. Objekte & Leistungen aus Excel einfügen.')
+  // Posteingang (config.json → features.posteingang): Recht zum Lesen des Postfachs, nur lesend
+  if (app.config.features?.posteingang) {
+    const box = String(app.config.posteingang?.mailbox || '').trim()
+    const scope = box ? 'Mail.Read.Shared' : 'Mail.Read'
+    const fix = `In Entra (App-Registrierung → API-Berechtigungen → Microsoft Graph → Delegiert) „${scope}“ hinzufügen und die Administratorzustimmung erteilen, dann neu anmelden.${box ? ` Die Personen mit Posteingang brauchen außerdem Leserechte auf das Postfach ${box} (Exchange: Vollzugriff oder Ordnerberechtigung „Prüfer“).` : ''}`
+    if (!app.auth?.tokenFor) add(M, `Posteingang (${scope})`, 'info', 'nur mit Microsoft-Anmeldung prüfbar', fix)
+    else {
+      try {
+        await app.auth.tokenFor([scope])
+        add(M, `Posteingang (${scope})`, 'ok', `${box ? `Sammelpostfach ${box}` : 'eigenes Postfach'}, nur lesend`)
+      } catch (err) {
+        add(M, `Posteingang (${scope})`, 'error', `Berechtigung fehlt: ${String(err?.message || err).split('\n')[0].slice(0, 120)}`, fix)
+      }
+    }
+  }
   return out
 }
 

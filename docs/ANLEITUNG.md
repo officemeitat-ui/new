@@ -2,11 +2,11 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 381 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 386 Themen, 45 Begriffe.*
 
 ## Inhalt
 
-- [Start & Übersicht](#start-uebersicht) (12)
+- [Start & Übersicht](#start-uebersicht) (17)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (96)
@@ -161,6 +161,78 @@ Ist die Ablage noch leer, zeigt die App „Willkommen“. Am schnellsten geht es
 > Tipp: „Beispieldaten laden“ ist nur zum Ausprobieren gedacht.
 
 *Vollzugriff*
+
+### Posteingang: E-Mails und Belege erkennen
+
+*In der App: Posteingang*
+
+Im Posteingang landen E-Mails und Belege. Die App erkennt, worum es geht (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung, Eingangsrechnung, Anfrage, Bewerbung, Krankmeldung), und bereitet einen Entwurf im richtigen Bereich vor. Angelegt wird erst, wenn du dort prüfst und speicherst; danach steht die Nachricht als erledigt mit Verweis.
+
+1. „Posteingang“ ganz oben im Menü öffnen.
+2. Links eine Nachricht wählen; rechts (am Handy darunter) stehen Text, Anhänge und der Vorschlag.
+3. Art, Kunde und Objekt prüfen und bei Bedarf ändern.
+4. Den Knopf der Übergabe tippen, z. B. „Reklamation anlegen“, im Dialog prüfen und speichern.
+5. Nichts zu tun: „Erledigt“ oder „Ignorieren“.
+
+> Tipp: Übergaben gibt es nur in Bereichen, die deine Rolle bearbeiten darf.
+> Tipp: Gespeichert werden Absender, Betreff, Datum, Art und Status, nie der Mailtext oder die Anhänge.
+
+*Vollzugriff (Büro); weitere Rollen über die Einrichtung*
+
+### E-Mail, Beleg oder Text in den Posteingang
+
+*In der App: Posteingang*
+
+Ohne Postfach geht es mit Dateien: eine E-Mail als .eml (mit Anhängen), ein PDF oder ein Foto auf die Fläche ziehen bzw. auswählen, oder den Text mit „Text einfügen“ übernehmen. Outlook-Nachrichten (.msg) liest die App nicht: in Outlook als .eml speichern (neues Outlook und Outlook im Web: „⋯“ → „Herunterladen“) oder den Text einfügen.
+
+1. Posteingang öffnen.
+2. Datei auf „Dateien hier ablegen“ ziehen oder darauf tippen und wählen.
+3. Oder „Text einfügen“: Absender, Betreff und Text einfügen, dann „Erkennen“.
+
+> Tipp: Ein PDF direkt gilt meist als Eingangsrechnung: „Eingangsrechnung erfassen“ hängt es im Einkauf als Beleg an.
+> Tipp: Dieselbe Datei zweimal ablegen ergibt keinen doppelten Eintrag.
+> Tipp: Mailtext und Anhänge bleiben nur auf diesem Gerät, bis du die App schließt.
+
+### Postfach aus Microsoft 365 lesen
+
+*In der App: Posteingang*
+
+Mit „features.posteingang“ in config.json liest die App ein Postfach: das eigene (Berechtigung Mail.Read) oder ein Sammelpostfach wie office@… (posteingang.mailbox, Mail.Read.Shared). Die Berechtigung braucht die Zustimmung eines Administrators. Gelesen wird ein Ordner, die letzten Tage, auf Wunsch nur ungelesene; nichts wird verschoben oder gelöscht.
+
+1. In Entra bei der App-Registrierung „Mail.Read“ bzw. „Mail.Read.Shared“ (delegiert) hinzufügen und die Administratorzustimmung erteilen.
+2. In config.json „features.posteingang“ einschalten, für ein Sammelpostfach „posteingang.mailbox“ eintragen.
+3. Im Posteingang unter „Einstellungen“ Ordner, Zeitraum und „nur ungelesene“ wählen.
+4. Der Systemcheck zeigt, ob die Berechtigung da ist.
+
+> Tipp: Mit Postfach steht „n neue Nachrichten im Posteingang“ in „Zu erledigen“.
+> Tipp: Als gelesen markiert die App nichts: Was ungelesen war, bleibt es in Outlook.
+> Tipp: Erledigte Einträge werden nach 180 Tagen entfernt (einstellbar).
+
+### Nachrichten mit KI erkennen
+
+*In der App: Posteingang*
+
+Die Regeln (Stichwörter, Absender, Objekte im Text, PDF mit „Rechnung“) laufen immer. „Mit KI erkennen“ bzw. „Alle neuen erkennen“ fragt dazu den KI-Dienst: zurück kommen Art, Kurzfassung, Kunde und Objekt (nur aus euren Daten), Felder wie Datum und eine Begründung. Gesendet werden nur Betreff und gekürzter Text ohne Adressen und Telefonnummern.
+
+1. Nachricht wählen, „Mit KI erkennen“ tippen (beim ersten Mal den Hinweis bestätigen).
+2. Vorschlag prüfen, bei Bedarf Art, Kunde oder Objekt ändern.
+3. Den Knopf der Übergabe tippen.
+
+> Tipp: Krankmeldungen und Nachrichten aus dem Team gehen nie an die KI.
+> Tipp: Jede Nachricht zählt zum Tageslimit; den Knopf gibt es nur mit eingerichtetem KI-Assistenten.
+> Tipp: Eingangsrechnungen liest im Einkauf „Aus Beleg lesen (KI)“.
+
+### Krankmeldung im Posteingang
+
+*In der App: Posteingang*
+
+Erkennt die Regel eine Krankmeldung, geht die Nachricht nicht an die KI, und der Posteingang speichert weder Absender noch Betreff. „Abwesenheit eintragen“ öffnet die Abwesenheit mit Person und Tag, „Personalverwaltung informieren“ eine E-Mail ohne Inhalt der Krankmeldung.
+
+1. Krankmeldung wählen.
+2. „Abwesenheit eintragen“: Person und Zeitraum prüfen, eintragen und Vertretung planen.
+3. Oder „Personalverwaltung informieren“ und danach „Erledigt“.
+
+> Tipp: Die Person erkennt die App an der E-Mail-Adresse bzw. am Namen aus den Mitarbeitenden.
 
 ### Meine Mitteilungen lesen und bestätigen
 

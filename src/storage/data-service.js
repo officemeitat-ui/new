@@ -46,6 +46,8 @@
 //                                     schreibt; Anhänge unter mitteilungen/konten/anhaenge/)
 //   mitteilungen/bestaetigungen/bestaetigungen.json  „Gelesen“/„Verstanden“ aus der App (jede Rolle mit App-Ordner
 //                                     schreibt die eigene Bestätigung; SharePoint trennt nach Ordner, nicht nach Eintrag)
+//   posteingang/posteingang.json      Posteingang: erkannte Nachrichten (ID bzw. Hash, Absender, Betreff, Datum, Art,
+//                                     Status, wer, wann, Verweis) – kein Mailtext, keine Anhänge (core/posteingang.js)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -138,6 +140,8 @@ export const MODULE_DOCS = {
   mitteilungen: { path: 'mitteilungen/mitteilungen.json', empty: () => ({ items: [], receipts: {}, settings: {} }) },
   mitPostfach: { path: 'mitteilungen/konten/postfach.json', empty: () => ({ items: [] }) },
   mitBestaetigt: { path: 'mitteilungen/bestaetigungen/bestaetigungen.json', empty: () => ({ receipts: {} }) },
+  // Posteingang: leerer Inhalt wie emptyPosteingang (core/posteingang.js; test/posteingang.test.js vergleicht)
+  posteingang: { path: 'posteingang/posteingang.json', empty: () => ({ items: [], settings: {} }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -257,6 +261,9 @@ export function dataRights(access) {
     ['mitteilungen/konten/', () => appRole(), () => edits('mitteilungen')],
     ['mitteilungen/bestaetigungen/', () => appRole(), () => appRole()],
     ['mitteilungen/', () => sees('mitteilungen'), () => edits('mitteilungen')],
+    // Posteingang: nur Kennung, Absender, Betreff, Datum, Art, Status und Verweis (kein Mailtext); nur wer den
+    // Posteingang hat (Vollzugriff, eigene Rollen)
+    ['posteingang/', () => sees('posteingang'), () => edits('posteingang')],
   ]
   const rule = (path) => rules.find(([p]) => (p.endsWith('/') ? path.startsWith(p) : path === p))
   return { read: (path) => !!rule(path)?.[1](), write: (path) => !!rule(path)?.[2]() }
@@ -298,6 +305,7 @@ export const FOLDERS = [
   ['mitteilungen', 'Mitteilungen an Mitarbeitende: Texte, Übersetzungen, Empfänger, Lesebestätigungen (Büro)', MODULE_DOCS.mitteilungen.path],
   ['mitteilungen/konten', 'Mitteilungen an Personen mit Konto und Anhänge (alle Rollen mit App-Ordner lesen)', MODULE_DOCS.mitPostfach.path],
   ['mitteilungen/bestaetigungen', '„Gelesen“ und „Verstanden“ aus der App (jede Person schreibt die eigene)', MODULE_DOCS.mitBestaetigt.path],
+  ['posteingang', 'Posteingang: erkannte E-Mails und Belege (Kennung, Absender, Betreff, Datum, Art, Status, Verweis; kein Mailtext, keine Anhänge)', MODULE_DOCS.posteingang.path],
 ]
 
 /**

@@ -113,6 +113,29 @@ lazy(ALLE, {
   actions: 'mit-p-ok mit-p-file',
 })
 
+// posteingang.js: Posteingang (E-Mails und Belege ablegen bzw. aus dem Postfach lesen, mit Regeln und KI erkennen,
+// als Entwurf an Reklamation, Fakturierung, Regie, Vertrieb, Termine, Verträge, Einkauf, Bewerbungen, Abwesenheit
+// übergeben), „Zu erledigen“ mit eingerichtetem Postfach. Kürzel pst-
+lazy(BUERO, {
+  views: [
+    {
+      id: 'posteingang',
+      order: 5,
+      label: 'Posteingang',
+      group: 'start',
+      section: 'start',
+      module: 'posteingang',
+      noWeek: true,
+      icon: '<path d="M3.5 13.5h4.5l1.5 2.5h5l1.5-2.5h4.5"/><path d="M6 5h12l2.5 8.5v5h-17v-5z"/>',
+      text: 'E-Mails und Belege erkennen, Entwurf im richtigen Bereich',
+    },
+  ],
+  modals: 'pst-text pst-settings pst-ki',
+  actions: `pst-filter pst-open pst-goto pst-refresh pst-hint-close pst-consent pst-settings-open pst-att pst-link pst-file pst-text-open
+    pst-text-save pst-settings-save pst-art pst-pick pst-done pst-ignore pst-reopen pst-go pst-hr pst-ki pst-ki-all pst-ki-run`,
+  todo: ['posteingang'],
+})
+
 // calculation.js
 lazy(BUERO, {
   // Löhne, Zuschläge und Marge: nur Vollzugriff (nicht die Lohnverrechnung)

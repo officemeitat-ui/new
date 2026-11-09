@@ -67,11 +67,15 @@ export async function memberGroups(getToken, { userId = '', fetchImpl = globalTh
   }
 }
 
-/** Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand und Kalender optional). */
+/**
+ * Graph-Berechtigungen je nach Konfiguration (E-Mail-Versand, Kalender und Posteingang optional). Posteingang: nur
+ * lesen, eigenes Postfach Mail.Read, Sammelpostfach (config.posteingang.mailbox) Mail.Read.Shared.
+ */
 export function scopesFor(config = {}) {
   const scopes = [...GRAPH_SCOPES]
   if (config.features?.mail) scopes.push(config.mail?.from ? 'Mail.Send.Shared' : 'Mail.Send')
   if (config.features?.calendar) scopes.push('Calendars.ReadWrite')
+  if (config.features?.posteingang) scopes.push(String(config.posteingang?.mailbox || '').trim() ? 'Mail.Read.Shared' : 'Mail.Read')
   return scopes
 }
 
