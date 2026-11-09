@@ -72,6 +72,23 @@ function mail_senden(string $an, string $betreff, string $text, string $absender
     return @mail($an, '=?UTF-8?B?' . base64_encode($betreff) . '?=', $text, implode("\r\n", $kopf), $von ? '-f' . $von : '');
 }
 
+/**
+ * Adresse des Aufrufs für Grenzen je Adresse (kunden.php, mattentour.php): IPv4 wie sie ist, IPv6 nur das /64-Netz. Ein
+ * Anschluss bekommt mit IPv6 meist ein ganzes /64 und könnte sonst mit jeder Anfrage eine neue Adresse nehmen (Grenze
+ * umgangen, die Zähler wüchsen ohne Ende). IPv4 in IPv6 (::ffff:1.2.3.4) zählt als IPv4.
+ */
+function adresse_fuer_grenzen(string $ip): string
+{
+    $bin = @inet_pton($ip);
+    if (!is_string($bin) || strlen($bin) !== 16) {
+        return $ip;
+    }
+    if (str_starts_with($bin, str_repeat("\0", 10) . "\xFF\xFF")) {
+        return (string) inet_ntop(substr($bin, 12));
+    }
+    return inet_ntop(substr($bin, 0, 8) . str_repeat("\0", 8)) . '/64';
+}
+
 // ---------------------------------------------------------------- Sprachen (Seiten für Mitarbeitende)
 
 const SPRACH_COOKIE = 'mein_plan_sprache';
@@ -274,10 +291,10 @@ function bild_speichern(string $tmp, int $groesse, int $fehler, string $ziel, in
 
 /**
  * Ortsdaten und andere Metadaten aus einem gespeicherten Foto entfernen, ohne es neu zu kodieren (für Fotos, die ohne
- * GD durchgehen: Winterdienst-Protokoll ohne JavaScript, Kundenbereich über 40 Megapixel oder ohne GD, Fahrerseite
- * ohne GD). JPEG: APP1 (EXIF mit GPS, XMP) und APP13 (IPTC) weg; PNG: eXIf- und Text-Blöcke weg; WebP: EXIF- und
- * XMP-Blöcke weg (Merker im VP8X-Kopf gelöscht). Liefert false, wenn die Datei nicht lesbar ist oder kein solches Bild
- * (dann gehört sie nicht gespeichert).
+ * GD durchgehen: Winterdienst-Protokoll ohne JavaScript, Kundenbereich, Fahrerseite und Checkliste über 40 Megapixel
+ * oder ohne GD). JPEG: APP1 (EXIF mit GPS, XMP), APP13 (IPTC) und alles nach dem Bildende weg; PNG: eXIf- und
+ * Text-Blöcke weg; WebP: EXIF- und XMP-Blöcke weg (Merker im VP8X-Kopf gelöscht). Liefert false, wenn die Datei nicht
+ * lesbar ist oder kein solches Bild (dann gehört sie nicht gespeichert).
  */
 function bild_ohne_metadaten(string $datei): bool
 {
@@ -299,7 +316,11 @@ function bild_ohne_metadaten(string $datei): bool
     return $neu === $d || file_put_contents($datei, $neu, LOCK_EX) === strlen($neu);
 }
 
-/** JPEG ohne APP1- und APP13-Segmente (bis zum Bildbeginn SOS; der Rest bleibt Byte für Byte); null = kaputt. */
+/**
+ * JPEG ohne APP1- und APP13-Segmente und ohne alles nach dem Bildende (EOI): dort hängen z. B. ein Zweitbild mit eigenem
+ * EXIF/GPS (MPF, Vorschau oder Gain-Map) oder das Video eines Bewegtfotos. Bilddaten bleiben Byte für Byte; ein JPEG ohne
+ * Bildende (abgeschnitten) bleibt ab den Bilddaten unverändert. null = kaputt.
+ */
 function jpeg_ohne_metadaten(string $d): ?string
 {
     $aus = "\xFF\xD8";
@@ -317,8 +338,8 @@ function jpeg_ohne_metadaten(string $d): ?string
             return null;
         }
         $marke = ord($d[$m]);
-        if ($marke === 0xD9 || $marke === 0xDA) {
-            return $aus . substr($d, $i); // Ende bzw. Bilddaten: unverändert
+        if ($marke === 0xD9) {
+            return $aus . substr($d, $i, $m - $i + 1); // Bildende: was danach kommt, gehört nicht zum Bild
         }
         if (($marke >= 0xD0 && $marke <= 0xD7) || $marke === 0x01) {
             $aus .= substr($d, $i, $m - $i + 1);
@@ -337,6 +358,22 @@ function jpeg_ohne_metadaten(string $d): ?string
             $aus .= substr($d, $i, $ende - $i);
         }
         $i = $ende;
+        if ($marke === 0xDA) {
+            // Bilddaten (SOS) bis zur nächsten Marke: 0xFF gefolgt von 0x00 (Stopfbyte), RST0–7 oder 0xFF gehört dazu
+            $j = $i;
+            while (($j = strpos($d, "\xFF", $j)) !== false && $j + 1 < $n) {
+                $b = ord($d[$j + 1]);
+                if ($b !== 0x00 && $b !== 0xFF && ($b < 0xD0 || $b > 0xD7)) {
+                    break;
+                }
+                $j += $b === 0xFF ? 1 : 2;
+            }
+            if ($j === false || $j + 1 >= $n) {
+                return $aus . substr($d, $i); // ohne Bildende: unverändert
+            }
+            $aus .= substr($d, $i, $j - $i);
+            $i = $j;
+        }
     }
     return null;
 }

@@ -205,6 +205,10 @@ test('Webspace: JPEG ohne APP1 (EXIF mit GPS, XMP), sonst Byte für Byte gleich,
     const out = readFileSync(f)
     assert.ok(!out.includes(Buffer.from('Exif\0\0')) && !out.includes(Buffer.from('GPSLatitude')), 'EXIF und XMP weg')
     assert.deepEqual(out, jpg, 'genau das Bild ohne die beiden Segmente (nicht neu kodiert)')
+    // nach dem Bildende (Zweitbild mit eigenem EXIF/GPS, Video eines Bewegtfotos): weg
+    writeFileSync(f, Buffer.concat([withMeta, withMeta, Buffer.from('ftypmp42 Video')]))
+    assert.equal(strip(f).ok, true)
+    assert.deepEqual(readFileSync(f), jpg, 'nichts nach dem Bildende')
     // ohne Metadaten: unverändert (auch ein JPEG ohne Ende-Marke wie aus dem Formular am Handy)
     const short = Buffer.concat([jpg.subarray(0, jpg.length - 2)])
     writeFileSync(f, short)

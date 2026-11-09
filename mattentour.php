@@ -900,7 +900,7 @@ if ($aktion === 'vergessen') {
 }
 
 // Wer ist das? Code aus dem Link (bzw. Formular), sonst das Gerät (eigener Cookie, dann der von Plan am Handy)
-$wer = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+$wer = adresse_fuer_grenzen((string) ($_SERVER['REMOTE_ADDR'] ?? '')); // IPv6: das /64-Netz
 if (grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, false)) {
     // zu viele falsche Codes von dieser Verbindung: eine Viertelstunde warten (wie im Kundenbereich)
     sprache_waehlen([], true);

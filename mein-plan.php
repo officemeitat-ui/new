@@ -1888,29 +1888,40 @@ if ($aktion === 'checkliste' && $methode === 'POST') {
                 $stati[$p['id']] = [$feld('ok', $p['id']) !== '' ? 'ok' : '', ''];
             }
         }
-        // Fotos: zuerst vorläufig speichern (neu kodiert, ohne Metadaten), übernommen wird in der Sperre
-        $neueFotos = [];
+        // Fotos dieses Speicherns (nur bei Punkten, die eines verlangen)
         $f = $_FILES['foto'] ?? null;
+        $uploads = [];
         foreach ($punkte as $p) {
             $fe = is_array($f) && is_array($f['error'] ?? null) ? ($f['error'][$p['id']] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
-            if (!$p['foto'] || !is_int($fe) || $fe === UPLOAD_ERR_NO_FILE) {
-                continue;
+            if ($p['foto'] && is_int($fe) && $fe !== UPLOAD_ERR_NO_FILE) {
+                $uploads[$p['id']] = $fe;
             }
+        }
+        // Grenzen je Person und Tag prüfen und zählen, bevor ein Foto gelesen wird (wie auf der Fahrerseite): GD liest jedes
+        // ganz in den Speicher (bis 40 Megapixel, rund 160 bis 300 MB aus wenigen KB); gezählt werden Versuche, nicht nur
+        // gespeicherte Fotos, sonst ließe sich ein Foto, das erst beim Lesen scheitert, ohne Grenze wiederholen
+        $frei = checklisten(function (array &$d) use ($hash, $uploads) {
+            $z = $hash . '|' . heute();
+            $zahl = (array) ($d['zaehler'][$z] ?? []);
+            if ((int) ($zahl['n'] ?? 0) >= CK_GRENZE_TAG || (int) ($zahl['fotos'] ?? 0) + count($uploads) > CK_FOTOS_TAG) {
+                return 'grenze';
+            }
+            $d['zaehler'][$z] = ['n' => (int) ($zahl['n'] ?? 0) + 1, 'fotos' => (int) ($zahl['fotos'] ?? 0) + count($uploads)];
+            return 'ok';
+        });
+        // Fotos: zuerst vorläufig speichern (neu kodiert, ohne Metadaten), übernommen wird in der Sperre
+        $neueFotos = [];
+        foreach ($frei === 'ok' ? $uploads : [] as $pid => $fe) {
             $tmp = 'tmp-' . bin2hex(random_bytes(6)) . '.jpg';
-            $tmpName = $f['tmp_name'][$p['id']] ?? '';
-            if (bild_speichern(is_string($tmpName) ? $tmpName : '', (int) ($f['size'][$p['id']] ?? 0), $fe, ck_ordner() . '/' . $tmp, CK_FOTO_BYTES) === '') {
-                $neueFotos[$p['id']] = $tmp;
+            $tmpName = $f['tmp_name'][$pid] ?? '';
+            if (bild_speichern(is_string($tmpName) ? $tmpName : '', (int) ($f['size'][$pid] ?? 0), $fe, ck_ordner() . '/' . $tmp, CK_FOTO_BYTES) === '') {
+                $neueFotos[$pid] = $tmp;
             } else {
                 @unlink(ck_ordner() . '/' . $tmp);
                 $fehler[] = t('ck_fehler_foto');
             }
         }
-        $ergebnis = checklisten(function (array &$d) use ($hash, $person, $x, $punkte, $stati, $neueFotos, $fertigWunsch) {
-            $z = $hash . '|' . heute();
-            $zahl = (array) ($d['zaehler'][$z] ?? []);
-            if ((int) ($zahl['n'] ?? 0) >= CK_GRENZE_TAG || (int) ($zahl['fotos'] ?? 0) + count($neueFotos) > CK_FOTOS_TAG) {
-                return ['grenze'];
-            }
+        $ergebnis = $frei !== 'ok' ? ($frei === null ? null : ['grenze']) : checklisten(function (array &$d) use ($hash, $person, $x, $punkte, $stati, $neueFotos, $fertigWunsch) {
             $i = null;
             foreach ($d['eintraege'] as $k => $r) {
                 if (($r['hash'] ?? '') === $hash && ($r['einsatz'] ?? '') === $x['id']) {
@@ -1953,7 +1964,6 @@ if ($aktion === 'checkliste' && $methode === 'POST') {
             } else {
                 $d['eintraege'][$i] = $rec;
             }
-            $d['zaehler'][$z] = ['n' => (int) ($zahl['n'] ?? 0) + 1, 'fotos' => (int) ($zahl['fotos'] ?? 0) + count($neueFotos)];
             return ['ok', $rec, $offen, $ohneFoto, $fertig > 0 && !$warFertig];
         });
         foreach ($neueFotos as $tmp) {

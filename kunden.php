@@ -270,7 +270,7 @@ function grenze(string $art, string $wer, array $grenze, bool $zaehlen): bool
 
 function adresse_des_aufrufs(): string
 {
-    return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    return adresse_fuer_grenzen((string) ($_SERVER['REMOTE_ADDR'] ?? '')); // IPv6: das /64-Netz
 }
 
 /** Formular von einer fremden Seite? (Browser schicken Sec-Fetch-Site mit) */
@@ -1594,6 +1594,10 @@ if ($aushangCode !== '' || isset($_GET['s'])) {
         } elseif (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, false) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, false)) {
             [$fehler, $status] = [t('ah_f_grenze'), 429];
         }
+        // prüfen und zählen in einem Schritt (gesperrt), wie beim Kundenbereich, und zwar vor dem Foto (siehe dort)
+        if (!$fehler && (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, true) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, true))) {
+            [$fehler, $status] = [t('ah_f_grenze'), 429];
+        }
         $mid = bin2hex(random_bytes(6));
         $foto = '';
         if (!$fehler) {
@@ -1601,11 +1605,6 @@ if ($aushangCode !== '' || isset($_GET['s'])) {
             if ($fotoFehler !== '') {
                 [$fehler, $status] = [t('ah_f_foto'), 400];
             }
-        }
-        // prüfen und zählen in einem Schritt (gesperrt), wie beim Kundenbereich
-        if (!$fehler && (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, true) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, true))) {
-            foto_loeschen(['foto' => $foto]);
-            [$fehler, $status] = [t('ah_f_grenze'), 429];
         }
         if (!$fehler) {
             $sc = statuscode_neu();
@@ -1878,16 +1877,17 @@ if ($aktion === 'melden' && $methode === 'POST') {
     } elseif (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, false) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, false)) {
         $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
     }
+    // Grenzen prüfen und zählen in einem Schritt (gesperrt): gleichzeitig gesendete Meldungen kämen sonst alle an der
+    // Prüfung oben vorbei, bevor die erste gezählt ist. Gezählt wird vor dem Foto: GD liest es ganz in den Speicher (bis
+    // 40 Megapixel, rund 160 bis 300 MB aus einem Upload von wenigen KB); ein Foto, das erst dabei scheitert, zählte sonst
+    // nie, und das ließe sich ohne Grenze wiederholen.
+    if (!$fehler && (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true))) {
+        $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
+    }
     $mid = bin2hex(random_bytes(6));
     $foto = '';
     if (!$fehler) {
         [$foto, $fehler] = foto_speichern($_FILES['foto'] ?? null, $mid);
-    }
-    // Grenzen prüfen und zählen in einem Schritt (gesperrt): gleichzeitig gesendete Meldungen kämen sonst alle an der
-    // Prüfung oben vorbei, bevor die erste gezählt ist
-    if (!$fehler && (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true))) {
-        foto_loeschen(['foto' => $foto]);
-        $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
     }
     if (!$fehler) {
         $neu = ['id' => $mid, 'link' => $id, 'titel' => (string) ($link['titel'] ?? ''), 'objektNr' => (int) $objekt['nr'], 'objektId' => (string) $objekt['id'], 'objekt' => (string) $objekt['name'], 'art' => $eingabe['art'], 'datum' => $eingabe['datum'] ?: heute(), 'text' => $eingabe['text'],
@@ -1995,6 +1995,10 @@ if ($aktion === 'zusatz-anfragen' && $methode === 'POST') {
     } elseif (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, false) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, false)) {
         [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
     }
+    // prüfen und zählen in einem Schritt (gesperrt), wie beim Aushang, und zwar vor den Fotos (siehe Reklamation)
+    if (!$zFehler && (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, true) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, true))) {
+        [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
+    }
     $fotos = [];
     if (!$zFehler) {
         foreach ($fotoListe as $f) {
@@ -2005,10 +2009,6 @@ if ($aktion === 'zusatz-anfragen' && $methode === 'POST') {
             }
             $fotos[] = $datei;
         }
-    }
-    // prüfen und zählen in einem Schritt (gesperrt), wie beim Aushang
-    if (!$zFehler && (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, true) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, true))) {
-        [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
     }
     if ($zFehler) {
         anfrage_fotos_loeschen(['fotos' => $fotos]);

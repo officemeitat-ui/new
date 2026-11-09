@@ -54,6 +54,38 @@ test('kunden.php: Grenzen für Reklamationen in einem Schritt geprüft und gezä
   assert.equal(teil.match(/GRENZE_MELDUNG_LINK, true/g).length, 1)
 })
 
+// Zweite Prüfrunde: GD liest ein Foto ganz in den Speicher (bis 40 Megapixel, rund 160 bis 300 MB aus wenigen KB). Ein
+// Foto, das erst dabei scheitert, zählte nie zur Grenze; deshalb erst zählen, dann lesen (wie auf der Fahrerseite).
+test('Kundenbereich und Checkliste: Grenzen gezählt, bevor ein Foto gelesen wird', () => {
+  const php = read('kunden.php')
+  for (const [start, ende, zaehlen] of [
+    ["if ($aktion === 'aushang-melden'", '// Meldeformular: nur Bezeichnung', 'GRENZE_AUSHANG_CODE, true)'],
+    ["if ($aktion === 'melden'", '// Zusatzleistung anfragen: Texte', 'GRENZE_MELDUNG_LINK, true)'],
+    ["if ($aktion === 'zusatz-anfragen'", '// Kundenzufriedenheit: Umfrage', 'GRENZE_ZUSATZ_LINK, true)'],
+  ]) {
+    const teil = php.slice(php.indexOf(start), php.indexOf(ende))
+    assert.ok(teil.indexOf(zaehlen) > 0 && teil.indexOf(zaehlen) < teil.indexOf('foto_speichern('), `${start}: erst zählen, dann das Foto`)
+    assert.equal(teil.split(zaehlen).length - 1, 1, `${start}: einmal gezählt`)
+  }
+  const mp = read('mein-plan.php')
+  const ck = mp.slice(mp.indexOf("if ($aktion === 'checkliste' && $methode === 'POST')"))
+  const reserviert = ck.indexOf("'fotos' => (int) ($zahl['fotos'] ?? 0) + count($uploads)")
+  assert.ok(reserviert > 0 && reserviert < ck.indexOf('bild_speichern('), 'Checkliste: Versuche gezählt, bevor ein Foto gelesen wird')
+})
+
+test('Grenzen je Adresse: IPv6 zählt je /64-Netz (Kundenbereich, Fahrerseite)', { skip: !hasPhp && 'PHP nicht installiert' }, () => {
+  const lib = new URL('../webspace-lib.php', import.meta.url).pathname
+  const netz = (ip) => execFileSync('php', ['-r', 'require $argv[1]; echo adresse_fuer_grenzen($argv[2]);', lib, ip]).toString()
+  assert.equal(netz('2001:db8:1:2:aa:bb:cc:dd'), '2001:db8:1:2::/64')
+  assert.equal(netz('2001:db8:1:2::1'), netz('2001:db8:1:2:ffff:ffff:ffff:ffff'))
+  assert.notEqual(netz('2001:db8:1:2::1'), netz('2001:db8:1:3::1'))
+  assert.equal(netz('192.0.2.7'), '192.0.2.7')
+  assert.equal(netz('::ffff:192.0.2.7'), '192.0.2.7')
+  assert.equal(netz(''), '')
+  assert.match(read('kunden.php'), /function adresse_des_aufrufs\(\): string\n\{\n\s+return adresse_fuer_grenzen\(\(string\) \(\$_SERVER\['REMOTE_ADDR'\] \?\? ''\)\);/)
+  assert.match(read('mattentour.php'), /\$wer = adresse_fuer_grenzen\(\(string\) \(\$_SERVER\['REMOTE_ADDR'\] \?\? ''\)\);/)
+})
+
 test('wetter.php: neue Abrufe bei GeoSphere begrenzt (je Aufrufer und gesamt), Zwischenspeicher zählt nicht', () => {
   const php = read('wetter.php')
   assert.match(php, /const UMWEG_JE_AUFRUFER = \[60, 600\];/)
