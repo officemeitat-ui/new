@@ -3545,6 +3545,7 @@ Gleicher Lieferant und gleiche Rechnungsnummer (egal wie geschrieben) speichert 
 3. „Geprüft und freigegeben“ klicken.
 
 > Tipp: Freigegebene oder bezahlte Rechnungen sind nicht mehr änderbar; „Freigabe zurücknehmen“ geht, solange nichts bezahlt ist.
+> Tipp: Mit einer Bestellung aus Material & Lager verknüpft, vergleicht die App den Nettobetrag mit dem Wert der gelieferten Ware (Toleranz 2 %, mindestens 5 €); bei Abweichung fragt „Geprüft und freigegeben“ einmal nach. Ohne Verknüpfung schlägt sie eine passende Bestellung vor.
 
 ### Eingangsrechnungen bezahlen (Skonto, Überweisungsdatei)
 

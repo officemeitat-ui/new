@@ -769,7 +769,7 @@ lazy(BUERO, {
     ek-inv-new ek-inv-edit ek-inv-redraw ek-inv-due ek-inv-net ek-inv-gross ek-inv-cat ek-inv-supplier ek-inv-file ek-inv-einv kix-beleg-file kix-beleg ek-inv-save
     ek-inv-approve ek-inv-unapprove ek-inv-cancel ek-pay-open ek-pay-skonto ek-pay-save ek-pay-del ek-sel ek-sel-all ek-sepa-open ek-sepa-create
     ek-sepa-book ek-bank-apply ek-bank-assign-open ek-bank-assign-save ek-bank-ignore ek-bank-undo ek-sup-save ek-sup-delete ek-sup-from-material
-    ek-sup-link ek-cat-add ek-cat-del ek-settings-save ek-goto`,
+    ek-sup-link ek-cat-add ek-cat-del ek-settings-save ek-goto ek-inv-order-link`,
   todo: ['einkauf'],
 })
 

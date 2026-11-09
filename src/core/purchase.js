@@ -923,3 +923,64 @@ export function mergePurchaseImport(data, { suppliers = [], invoices = [], cash 
   }
   return report
 }
+
+// ---------------------------------------------------------------- Abgleich mit der Bestellung (Material & Lager)
+
+/** Toleranz beim Abgleich: 2 % des Werts, mindestens 5 € (Rundung, Fracht, Kleinmengen). */
+export const ORDER_TOLERANCE = { pct: 2, abs: 5 }
+const orderValue = (order, field) => round2((order?.lines || []).reduce((s, l) => s + parseNumber(field(l)) * parseNumber(l.price), 0))
+const tolerance = (base) => Math.max(ORDER_TOLERANCE.abs, (Math.abs(base) * ORDER_TOLERANCE.pct) / 100)
+const eur = (n) => `${round2(n).toFixed(2).replace('.', ',')} €`
+
+/**
+ * Eingangsrechnung gegen ihre Bestellung (inv.orderId → material.orders): { order, ordered, received, invoiced, others,
+ * othersNet, basis, diff, level ('ok' | 'info' | 'warn'), notes [{ level, text }] } oder null ohne Verknüpfung.
+ * Verglichen wird die Summe aller Rechnungen zur Bestellung (netto) mit dem Wert der gelieferten Ware (Wareneingang ×
+ * Preis der Bestellung), solange nichts geliefert ist mit dem Bestellwert. Rechnungen haben keine Positionen: der
+ * Vergleich geht über den Nettobetrag.
+ */
+export function orderMatch(inv, { orders = [], invoices = [] } = {}) {
+  if (!inv?.orderId) return null
+  const order = orders.find((o) => o.id === inv.orderId)
+  if (!order) return { order: null, level: 'warn', notes: [{ level: 'warn', text: 'Die verknüpfte Bestellung gibt es nicht mehr (oder Material & Lager ist für diese Rolle nicht lesbar).' }] }
+  const ordered = orderValue(order, (l) => l.qty)
+  const received = orderValue(order, (l) => l.received || 0)
+  const invoiced = invoiceTotals(inv).net
+  const others = invoices.filter((x) => x.id !== inv.id && !x.cancelled && x.orderId === inv.orderId)
+  const othersNet = round2(others.reduce((s, x) => s + invoiceTotals(x).net, 0))
+  const basis = received > 0.004 ? received : ordered
+  const total = round2(invoiced + othersNet)
+  const diff = round2(total - basis)
+  const tol = tolerance(basis)
+  const notes = []
+  if (order.status === 'storniert') notes.push({ level: 'warn', text: `Die Bestellung ${order.no || ''} ist storniert.`.replace('  ', ' ') })
+  if (received <= 0.004) notes.push({ level: 'info', text: `Wareneingang noch nicht gebucht – verglichen mit dem Bestellwert ${eur(ordered)}.` })
+  else if (received < ordered - 0.004) notes.push({ level: 'info', text: `Erst teilweise geliefert: ${eur(received)} von ${eur(ordered)}.` })
+  if (others.length) notes.push({ level: 'info', text: `Zur selben Bestellung ${others.length === 1 ? 'gibt es schon die Rechnung' : `gibt es schon ${others.length} Rechnungen`} ${others.map((x) => x.no || x.number).join(', ')} über ${eur(othersNet)}.` })
+  if (diff > tol) notes.push({ level: 'warn', text: `${others.length ? 'Die Rechnungen liegen zusammen' : 'Die Rechnung liegt'} ${eur(diff)} über dem Wert ${received > 0.004 ? 'der gelieferten Ware' : 'der Bestellung'} (${eur(basis)}). Preise, Mengen und eine mögliche Doppelverrechnung prüfen.` })
+  else if (diff < -tol) notes.push({ level: 'info', text: `${eur(-diff)} unter dem Wert ${received > 0.004 ? 'der gelieferten Ware' : 'der Bestellung'} – Teilrechnung oder Gutschrift?` })
+  const level = notes.some((n) => n.level === 'warn') ? 'warn' : diff < -tol || received <= 0.004 ? 'info' : 'ok'
+  return { order, ordered, received, invoiced, others, othersNet, basis, diff, level, notes }
+}
+
+/**
+ * Passende Bestellung für eine noch nicht verknüpfte Eingangsrechnung: offene bzw. gelieferte Bestellungen beim
+ * verknüpften Lieferanten (suppliers[].materialId), noch ohne Rechnung, deren Lieferwert (sonst Bestellwert) innerhalb der
+ * Toleranz zum Nettobetrag liegt; die nächstliegende. null, wenn keine passt.
+ */
+export function suggestOrder(inv, { orders = [], suppliers = [], invoices = [] } = {}) {
+  if (!inv || inv.orderId || inv.cancelled) return null
+  const sup = suppliers.find((s) => s.id === inv.supplierId)
+  if (!sup?.materialId) return null
+  const used = new Set(invoices.filter((x) => !x.cancelled && x.orderId).map((x) => x.orderId))
+  const net = invoiceTotals(inv).net
+  let best = null
+  for (const o of orders) {
+    if (o.supplierId !== sup.materialId || used.has(o.id) || !['bestellt', 'teilweise', 'geliefert'].includes(o.status)) continue
+    const received = orderValue(o, (l) => l.received || 0)
+    const base = received > 0.004 ? received : orderValue(o, (l) => l.qty)
+    const d = Math.abs(base - net)
+    if (d <= tolerance(base) && (!best || d < best.d)) best = { order: o, value: base, d }
+  }
+  return best ? { order: best.order, value: best.value } : null
+}

@@ -23,6 +23,7 @@ import {
   materialFields,
   materialLinks,
   needsApproval,
+  orderMatch,
   nextInvoiceNo,
   nextSupplierNo,
   openDebits,
@@ -39,6 +40,7 @@ import {
   skontoOfInvoice,
   spendingByMonth,
   suggestDebit,
+  suggestOrder,
   supplierAddress,
   supplierFromMaterial,
   supplierMatches,
@@ -488,6 +490,7 @@ function invDetails(x) {
         <dt>Kategorie</dt><dd>${esc(catName(x.category) || '–')}${x.account ? ` · Konto ${esc(x.account)}` : ''}${x.objectId ? ` · ${esc(objName(x.objectId))}` : ''}${x.costCenter ? ` · ${esc(x.costCenter)}` : ''}</dd>
         <dt>Fällig</dt><dd>${day(x.dueDate) || '–'}${skontoOfInvoice(x) ? ` · Skonto ${String(skontoOfInvoice(x).percent).replace('.', ',')} % bis ${day(skontoOfInvoice(x).until)}` : ''} · offen <strong>${money(openOf(x))}</strong></dd>${x.note ? `<dt>Notiz</dt><dd>${esc(x.note)}</dd>` : ''}</dl>
       ${problemList(probs)}
+      ${orderBlock(x)}
       ${pays ? `<h4>Zahlungen</h4><ul class="ek-pays">${pays}</ul>` : ''}
       ${x.cancelled ? '' : rechargeBlock('einkauf', x.id)}
       ${ed && !x.cancelled ? `<div class="ek-beleg-bar"><label class="btn small">${ICON.camera} Foto<input type="file" accept="image/*" capture="environment" data-change="ek-inv-file" data-id="${esc(x.id)}" hidden></label><label class="btn small">${ICON.upload} ${x.beleg ? 'Beleg ersetzen' : 'Beleg ablegen'}<input type="file" accept="application/pdf,image/*,.xml" data-change="ek-inv-file" data-id="${esc(x.id)}" hidden></label></div>` : ''}
@@ -495,6 +498,23 @@ function invDetails(x) {
       ${(x.history || []).length ? `<details><summary>Verlauf</summary><ul class="muted">${x.history.map((h) => `<li>${day(String(h.at).slice(0, 10))} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')}</ul></details>` : ''}
       ${s.approval && !x.approval && !x.cancelled ? '<p class="warn-text">Freigabe vor dem Zahlen ist eingeschaltet: erst nach „Geprüft und freigegeben“ in die Überweisungsdatei.</p>' : ''}
     </div>`
+}
+
+// Abgleich mit der Bestellung (Material & Lager): Bestellwert, Wareneingang, Rechnungen zur Bestellung, Abweichung;
+// ohne Verknüpfung ein Vorschlag mit „Verknüpfen“ (core/purchase.js orderMatch, suggestOrder)
+const materialOrders = () => app.data.material?.orders || []
+function orderBlock(x) {
+  const m = orderMatch(x, { orders: materialOrders(), invoices: E().invoices })
+  const LV = { warn: 'warn-text', info: 'muted', ok: 'ok-text' }
+  if (m) {
+    const o = m.order
+    const head = o ? `<p><strong>Bestellung ${esc(o.no || '')}</strong> ${m.level === 'ok' ? '<span class="pill ok">passt</span>' : m.level === 'warn' ? '<span class="pill warning">prüfen</span>' : '<span class="pill info">Hinweis</span>'}</p>
+      <dl class="ek-dl"><dt>Bestellt</dt><dd>${money(m.ordered)}</dd><dt>Geliefert</dt><dd>${money(m.received)}</dd><dt>Rechnung${m.others.length ? 'en' : ''}</dt><dd>${money(m.invoiced + m.othersNet)}${m.others.length ? ` (diese ${money(m.invoiced)})` : ''}</dd><dt>Abweichung</dt><dd>${m.diff >= 0 ? '+' : '−'}${money(Math.abs(m.diff))}</dd></dl>` : ''
+    return `<div class="ek-order-check"><h4>Abgleich mit der Bestellung</h4>${head}${m.notes.length ? `<ul>${m.notes.map((n) => `<li class="${LV[n.level] || ''}">${esc(n.text)}</li>`).join('')}</ul>` : ''}</div>`
+  }
+  if (!editable() || x.cancelled) return ''
+  const sug = suggestOrder(x, { orders: materialOrders(), suppliers: E().suppliers, invoices: E().invoices })
+  return sug ? `<p class="note ek-order-check">Passt zur Bestellung <strong>${esc(sug.order.no || '')}</strong> (${sug.order.status === 'bestellt' ? 'bestellt' : 'geliefert'} ${money(sug.value)}). <button class="btn small" data-action="ek-inv-order-link" data-id="${esc(x.id)}" data-order="${esc(sug.order.id)}">Verknüpfen</button></p>` : ''
 }
 
 function invModal(c, m) {
@@ -521,7 +541,7 @@ function invModal(c, m) {
     body: invDetails(x),
     foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${
       ed && !x.cancelled
-        ? `${invoiceEditable(x) ? `<button class="btn" data-action="ek-inv-edit" data-id="${esc(x.id)}">Bearbeiten</button>` : ''}${x.approval && !(x.payments || []).length ? `<button class="btn" data-action="ek-inv-unapprove" data-id="${esc(x.id)}">Freigabe zurücknehmen</button>` : ''}${!x.approval ? `<button class="btn" data-action="ek-inv-approve" data-id="${esc(x.id)}">Geprüft und freigegeben</button>` : ''}${openOf(x) > 0.004 ? `<button class="btn primary" data-action="ek-pay-open" data-id="${esc(x.id)}">Zahlung</button>` : ''}`
+        ? `${invoiceEditable(x) ? `<button class="btn" data-action="ek-inv-edit" data-id="${esc(x.id)}">Bearbeiten</button>` : ''}${x.approval && !(x.payments || []).length ? `<button class="btn" data-action="ek-inv-unapprove" data-id="${esc(x.id)}">Freigabe zurücknehmen</button>` : ''}${!x.approval ? `<button class="btn ${app.ui.confirm === `ek-appr:${x.id}` ? 'danger confirm' : ''}" data-action="ek-inv-approve" data-id="${esc(x.id)}">${app.ui.confirm === `ek-appr:${x.id}` ? 'Trotz Abweichung freigeben?' : 'Geprüft und freigegeben'}</button>` : ''}${openOf(x) > 0.004 ? `<button class="btn primary" data-action="ek-pay-open" data-id="${esc(x.id)}">Zahlung</button>` : ''}`
         : ''
     }</div>`,
   })
@@ -986,12 +1006,26 @@ registerActions(
       const x = invOf(el.dataset.id)
       const err = invoiceProblems(x, { suppliers: E().suppliers, invoices: E().invoices }).find((p) => p.level === 'error')
       if (err) return toast(err.text)
+      // Abweichung zur Bestellung: erst beim zweiten Klick freigeben
+      const om = orderMatch(x, { orders: materialOrders(), invoices: E().invoices })
+      if (om?.level === 'warn' && !confirmStep(`ek-appr:${x.id}`, renderModal)) return toast(`Abweichung zur Bestellung: ${om.notes.find((n) => n.level === 'warn')?.text || ''} Nochmals „Geprüft und freigegeben“, um trotzdem freizugeben.`)
       x.approval = { by: by(), at: nowIso() }
       x.history = [...(x.history || []), { at: nowIso(), by: by(), text: 'geprüft und freigegeben' }]
       persist()
       renderModal()
       renderNow()
       toast(`${x.no} freigegeben.`)
+    },
+    'ek-inv-order-link': (el) => {
+      const x = invOf(el.dataset.id)
+      const o = materialOrders().find((y) => y.id === el.dataset.order)
+      if (!x || !o) return
+      x.orderId = o.id
+      x.history = [...(x.history || []), { at: nowIso(), by: by(), text: `mit Bestellung ${o.no || o.id} verknüpft` }]
+      persist()
+      renderModal()
+      renderNow()
+      toast(`Mit Bestellung ${o.no || ''} verknüpft.`)
     },
     'ek-inv-unapprove': (el) => {
       const x = invOf(el.dataset.id)

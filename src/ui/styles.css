@@ -3166,3 +3166,7 @@ input.mwb-qty { width: 6rem; max-width: 100%; text-align: right; }
   .pst-layout { grid-template-columns: minmax(0, 1fr); }
   .pst-list { max-height: none; overflow: visible; }
 }
+
+/* Einkauf: Abgleich der Eingangsrechnung mit der Bestellung */
+.ek-order-check { margin: 8px 0; }
+.ek-order-check ul { margin: 4px 0; padding-left: 1.1rem; }

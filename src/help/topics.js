@@ -3002,10 +3002,10 @@ export const TOPICS = [
     section: 'finanzen',
     view: 'einkauf',
     title: 'Doppelt erfasst? Freigabe vor dem Zahlen',
-    q: ['doppelt erfasst', 'doppelte rechnung', 'freigabe eingangsrechnung', 'geprüft von', 'rechnung freigeben', 'zahlungsfreigabe'],
+    q: ['doppelt erfasst', 'doppelte rechnung', 'freigabe eingangsrechnung', 'geprüft von', 'rechnung freigeben', 'zahlungsfreigabe', 'rechnung gegen bestellung', 'bestellung abgleichen'],
     answer: 'Gleicher Lieferant und gleiche Rechnungsnummer (egal wie geschrieben) speichert die App nicht zweimal; gleicher Betrag am gleichen Tag ohne Nummer ergibt eine Warnung. „Geprüft und freigegeben“ hält fest, wer geprüft hat. In den Einstellungen lässt sich die Freigabe vor dem Zahlen verlangen.',
     steps: ['Eingangsrechnung öffnen.', 'Beleg und Beträge prüfen.', '„Geprüft und freigegeben“ klicken.'],
-    tips: ['Freigegebene oder bezahlte Rechnungen sind nicht mehr änderbar; „Freigabe zurücknehmen“ geht, solange nichts bezahlt ist.'],
+    tips: ['Freigegebene oder bezahlte Rechnungen sind nicht mehr änderbar; „Freigabe zurücknehmen“ geht, solange nichts bezahlt ist.', 'Mit einer Bestellung aus Material & Lager verknüpft, vergleicht die App den Nettobetrag mit dem Wert der gelieferten Ware (Toleranz 2 %, mindestens 5 €); bei Abweichung fragt „Geprüft und freigegeben“ einmal nach. Ohne Verknüpfung schlägt sie eine passende Bestellung vor.'],
     related: ['eingangsrechnung-erfassen', 'eingangsrechnung-zahlen'],
   },
   {
