@@ -22,7 +22,7 @@ import './absences.js'
 import './access.js'
 import './tools.js'
 import './customer-portal.js' // immer geladen (fragt den Kundenbereich ab); Platz in „Zu erledigen“ hält lazy.js
-import './lazy.js' // Kennzahlen, Anleitung, Kalkulation, Leistungsnachweis, Mitarbeitende, Objekte & Leistungen, Unterweisungen, Regeln, Systemcheck, Fahrzeuge, Reklamationen, Material, Schlüsselbuch, Anlagen & Prüffristen, Geräte & Maschinen, Regieberichte, Qualitätsmessung, Kundenzufriedenheit, Fakturierung, Wetter
+import './lazy.js' // Kennzahlen, Anleitung, Kalkulation, Leistungsnachweis, Mitarbeitende, Objekte & Leistungen, Unterweisungen, Regeln, Systemcheck, Fahrzeuge, Reklamationen, Material, Schlüsselbuch, Anlagen & Prüffristen, Geräte & Maschinen, Regieberichte, Qualitätsmessung, Kundenzufriedenheit, Fakturierung, Vertrieb, Wetter
 import '../timeclock.js'
 import '../quick.js'
 import '../mailer.js'

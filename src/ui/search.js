@@ -41,6 +41,7 @@ const KEYWORDS = {
   material: 'Lager Bestand Bestellung Reinigungsmittel',
   fahrzeuge: 'Auto Reifen Pickerl Service Werkstatt',
   fakturierung: 'Rechnung Angebot Mahnung Faktura Zahlung offene Posten Brief Serienbrief Briefpapier Weiterverrechnung',
+  vertrieb: 'Vertrieb Anfrage Interessent Neukunde Besichtigung Pipeline Akquise Abschluss Auftrag Leistungsverzeichnis',
   einkauf: 'Eingangsrechnung Lieferant Kreditor Verbindlichkeiten Überweisung SEPA Vorsteuer Beleg Einkauf',
   kassenbuch: 'Kasse Kassabuch Bargeld Barzahlung Kassensturz Kassenstand Registrierkasse',
   umsatzsteuer: 'UVA Umsatzsteuervoranmeldung Vorsteuer Zahllast Gutschrift Finanzamt U30 Kennzahl Steuer',
@@ -82,6 +83,9 @@ function results(q) {
   // Geräte & Maschinen: Inventarnummer, Bezeichnung, Hersteller, Seriennummer
   if (sees('geraete'))
     for (const x of app.data.geraete?.items || []) if (hit(x.no, x.no?.replace(/[\s-]/g, ''), x.name, x.maker, x.model, x.serial)) out.push({ group: 'Geräte', label: `${x.no} ${x.name}`, sub: [x.maker, x.model, x.issued?.label || x.home?.label].filter(Boolean).join(' · '), action: 'gr-card-open', data: { id: x.id } })
+  // Vertrieb: Fälle (Nummer, Interessent, Leistungsort)
+  if (sees('vertrieb'))
+    for (const x of app.data.vertrieb?.cases || []) if (hit(x.no, x.lead?.name, x.site?.name, x.site?.address, x.title)) out.push({ group: 'Vertrieb', label: `${x.no} ${x.lead?.name || x.site?.name || ''}`.trim(), sub: [x.site?.name, x.owner].filter(Boolean).join(' · '), action: 'vt-goto', data: { id: x.id } })
   // Mattenwechsel: Liegeplätze (Name, Nummer aus dem Werkzeug, Kunde, Objekt)
   if (sees('matten'))
     for (const p of app.data.matten?.placements || []) {

@@ -1,6 +1,7 @@
 // KI beim Erfassen: Beleg lesen (Eingangsrechnung), Diktat in Felder (Regiebericht), Antwort auf eine
-// Reklamation entwerfen, Mahntext verbessern, Sicherheitsdatenblatt lesen. Je eine Anfrage über ki.php
-// (src/ai/client.js), Anfrage und Prüfung der Antwort in core/ki-vorschlag.js (dort getestet).
+// Reklamation entwerfen, Mahntext verbessern, Sicherheitsdatenblatt lesen, Besichtigung (Vertrieb). Je eine Anfrage
+// über ki.php (src/ai/client.js), Anfrage und Prüfung der Antwort in core/ki-vorschlag.js bzw. für die Besichtigung in
+// core/vertrieb.js (dort getestet).
 //
 // send(params, { maxTokens }) → Text der Antwort: im Browser die Anfrage über ki.php, in Tests eine Attrappe.
 // Ergebnisse sind Vorschläge: geprüft, aber erst die Person übernimmt und speichert sie.
@@ -21,6 +22,7 @@ import {
   sdbRequest,
   textFacts,
 } from '../core/ki-vorschlag.js'
+import { besichtigungRequest, checkBesichtigung } from '../core/vertrieb.js'
 
 const defaultSend = async (params, opts) => (await import('./client.js')).kiSend(params, opts)
 
@@ -77,4 +79,15 @@ export async function extractSdb(pdfBase64, { send = defaultSend } = {}) {
   if (pages > KI_LIMITS.sdbPages) throw new Error(`Das PDF hat ${pages} Seiten; für die KI höchstens ${KI_LIMITS.sdbPages}.`)
   const raw = await send(sdbRequest(data), { maxTokens: 16000 })
   return checkSdb(parseKiJson(raw, 'Die Antwort der KI zum Sicherheitsdatenblatt'))
+}
+
+/**
+ * Besichtigung (Vertrieb): aus Sprachnotiz bzw. Text und bis zu 4 Fotos ({ mediaType, data, label }, schon verkleinert)
+ * ein Vorschlag für Räume, Leistungsverzeichnis und Hinweise aus den Fotos → checkBesichtigung(): { rooms, photos,
+ * problems }. Nur ein Vorschlag: übernommen wird, was die Person in der Freigabe-Karte anhakt.
+ */
+export async function readBesichtigung({ text = '', photos = [], site = '' } = {}, { send = defaultSend } = {}) {
+  if (!String(text || '').trim() && !photos.length) throw new Error('Bitte zuerst die Sprachnotiz aufnehmen bzw. tippen oder Fotos aufnehmen.')
+  const raw = await send(besichtigungRequest({ text, photos, site }), { maxTokens: 12000 })
+  return checkBesichtigung(parseKiJson(raw, 'Die Antwort der KI zur Besichtigung'))
 }

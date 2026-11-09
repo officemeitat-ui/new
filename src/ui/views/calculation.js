@@ -2,8 +2,11 @@
 // Stunden im Monat, Verrechnungssatz über Zuschläge, Monatspreis; Vergleich mit Budget und
 // Reinigungsplan; „Als Budget übernehmen“; PDF-Angebot für den Kunden und internes Kalkulationsblatt.
 // Datei kalkulation/kalkulation.json (nur Auswertung & Lohn), weil sie Löhne und Margen enthält.
+// Vertrieb: Fälle ohne Objekt stehen unter cases[Fall] (Auswahl „vt:<Fall>“); Speichern schreibt Preis und Stunden
+// zurück in den Fall (core/vertrieb.js → applyCalc). Wird aus dem Fall ein Objekt, kommen die Flächen dorthin.
 
 import { AREA_TYPES, CALC_DEFAULTS, calcWage, calculate, FREQUENCIES } from '../../core/calculation.js'
+import { applyCalc, calcSummary } from '../../core/vertrieb.js'
 import { lastOfMonth, todayISO } from '../../core/dates.js'
 import { objectControlling } from '../../core/reports.js'
 import { mergeRules } from '../../core/rules.js'
@@ -15,8 +18,16 @@ import { download, esc, ICON, menu, modalFrame, options, uid, val } from '../sha
 const MODULE = 'auswertung'
 const doc = () => (app.data.kalkulation ||= { settings: {}, objects: {} })
 const settings = () => ({ ...CALC_DEFAULTS, ...(doc().settings || {}), performance: { ...CALC_DEFAULTS.performance, ...(doc().settings?.performance || {}) } })
-const objOf = (id) => app.data.objects.find((o) => o.id === id)
-const areasOf = (id) => doc().objects?.[id]?.areas || []
+/** Fall aus dem Vertrieb (noch ohne Objekt): Auswahl „vt:<Fall>“, Flächen unter cases[Fall]. */
+const caseKey = (id) => (String(id || '').startsWith('vt:') ? String(id).slice(3) : '')
+const caseCalc = (id) => doc().cases?.[caseKey(id)] || null
+const objOf = (id) => {
+  const k = caseKey(id)
+  if (!k) return app.data.objects.find((o) => o.id === id)
+  const c = caseCalc(id)
+  return c ? { id, name: `${c.name || 'Vertrieb'}${c.no ? ` (${c.no})` : ''}`, address: c.address || '', fromCase: k } : null
+}
+const areasOf = (id) => (caseKey(id) ? caseCalc(id)?.areas || [] : doc().objects?.[id]?.areas || [])
 const editable = () => canEdit(MODULE) && !app.readOnly
 const eur = (n) => `${(n ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 const de = (n, d = 1) => (n ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 0, maximumFractionDigits: d })
@@ -24,6 +35,7 @@ const wageNow = () => calcWage(settings(), mergeRules(app.data.rules).wages)
 
 /** Stunden laut Reinigungsplan im laufenden Monat (Leistungen × Personen). */
 function plannedHours(objectId) {
+  if (caseKey(objectId)) return null
   const from = `${todayISO().slice(0, 7)}-01`
   const r = computeRange(from, lastOfMonth(from))
   const obj = objOf(objectId)
@@ -31,7 +43,7 @@ function plannedHours(objectId) {
 }
 
 function current() {
-  const id = app.ui.calcObject && objOf(app.ui.calcObject) ? app.ui.calcObject : app.data.objects[0]?.id
+  const id = app.ui.calcObject && objOf(app.ui.calcObject) ? app.ui.calcObject : app.data.objects[0]?.id || Object.keys(doc().cases || {}).map((k) => `vt:${k}`)[0]
   return id
 }
 
@@ -48,6 +60,8 @@ function calcView() {
   const calc = calculate({ areas, settings: s, wage })
   const planned = plannedHours(id)
   const budget = obj.budgetHoursMonth || null
+  const cases = Object.entries(doc().cases || {}).filter(([, x]) => x?.areas?.length && !x.objectId)
+  const objSelect = `<select id="calc-obj" data-change="calc-object">${options(app.data.objects.map((o) => [o.id, `${o.name}${areasOf(o.id).length ? ' ✓' : ''}`]), id)}${cases.length ? `<optgroup label="Vertrieb (noch ohne Objekt)">${options(cases.map(([k, x]) => [`vt:${k}`, `${x.name || 'Fall'}${x.no ? ` (${x.no})` : ''}`]), id)}</optgroup>` : ''}</select>`
   const typeOpts = Object.entries(AREA_TYPES).map(([k, [l]]) => [k, l])
   const freqOpts = FREQUENCIES.map(([f, l]) => [String(f), l])
   const rows = areas
@@ -67,7 +81,7 @@ function calcView() {
   const diff = (h) => (h === null || !calc.hours ? '' : Math.abs(h - calc.hours) < 0.05 ? 'passt zur Kalkulation' : `${h > calc.hours ? '+' : '−'}${de(Math.abs(h - calc.hours))} h zur Kalkulation`)
   return `<div class="section-head"><div><h2>Kalkulation</h2><p>Aus Flächen, Häufigkeit und Leistungswerten (m² je Stunde) die Stunden im Monat, dann über Zuschläge der Verrechnungssatz und der Monatspreis. Vergleich mit Budget und Reinigungsplan, Angebot als PDF.</p></div>
       <div class="actions"><button class="btn" data-action="calc-settings">Grundlagen</button></div></div>
-    <div class="filters"><label class="field inline"><span>Objekt</span><select id="calc-obj" data-change="calc-object">${options(app.data.objects.map((o) => [o.id, `${o.name}${areasOf(o.id).length ? ' ✓' : ''}`]), id)}</select></label><span class="muted">${esc(obj.address || '')}</span></div>
+    <div class="filters"><label class="field inline"><span>Objekt</span>${objSelect}</label><span class="muted">${esc(obj.address || '')}</span>${obj.fromCase ? `<button class="btn small" data-action="vt-goto" data-id="${esc(obj.fromCase)}">Zum Fall im Vertrieb</button>` : ''}</div>
     <div class="table-wrap"><table class="data calc-table"><thead><tr><th>Bereich</th><th>Art</th><th class="num">Fläche m²</th><th>Häufigkeit</th><th class="num">m²/h</th><th class="num">h/Monat</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="muted">Noch keine Flächen. „Fläche hinzufügen“, z. B. Büros, Sanitär, Stiegenhaus.</td></tr>'}</tbody></table></div>
     ${ed ? `<div class="actions" style="margin:8px 0 16px"><button class="btn" data-action="calc-add">${ICON.plus} Fläche hinzufügen</button><button class="btn primary" data-action="calc-save">Speichern</button></div>` : ''}
     <div class="impact-stats tc-stats">
@@ -84,7 +98,7 @@ function calcView() {
       items: [
         { label: 'Kalkulation (intern, PDF)', icon: ICON.download, action: 'calc-pdf', data: { kind: 'Kalkulation' }, disabled: !calc.hours, hint: 'mit Lohn, Zuschlägen und Marge', mail: { hint: 'intern, nicht an Kunden' } },
         { label: 'Angebot (PDF)', icon: ICON.download, action: 'calc-pdf', data: { kind: 'Angebot' }, disabled: !calc.hours, mail: { hint: 'an die Kundschaft' } },
-        (canEdit('stammdaten') || canEdit('planung')) && { label: 'Als Budget übernehmen', action: 'calc-budget', disabled: !calc.hours, hint: 'Sollstunden je Monat ins Objekt' },
+        (canEdit('stammdaten') || canEdit('planung')) && !obj.fromCase && { label: 'Als Budget übernehmen', action: 'calc-budget', disabled: !calc.hours, hint: 'Sollstunden je Monat ins Objekt' },
       ],
     })}<button class="btn primary" data-action="calc-pdf" data-kind="Angebot" ${calc.hours ? '' : 'disabled'}>${ICON.download} Angebot (PDF)</button></div>
     <details class="calc-steps"><summary>So rechnet die Kalkulation</summary><table class="data"><tbody>${calc.steps.map((st) => `<tr><td>${esc(st.label)}</td><td class="num">${st.pct === null ? '' : `${de(st.pct)} %`}</td><td class="num">${eur(st.amount)}</td></tr>`).join('')}<tr><td><strong>Verrechnungssatz netto</strong></td><td></td><td class="num"><strong>${eur(calc.rate)}</strong></td></tr></tbody></table>
@@ -180,11 +194,21 @@ registerActions(
     'calc-save': () => {
       const id = current()
       const areas = readAreas().filter((a) => a.m2 > 0 || a.name)
-      doc().objects = { ...(doc().objects || {}), [id]: { ...(doc().objects?.[id] || {}), areas, updatedAt: new Date().toISOString() } }
+      const k = caseKey(id)
+      if (k) {
+        doc().cases = { ...(doc().cases || {}), [k]: { ...(doc().cases?.[k] || {}), areas, updatedAt: new Date().toISOString() } }
+        // Ergebnis zurück in den Fall des Vertriebs (Preis je Monat, Stunden), wer dort bearbeiten darf
+        const list = app.data.vertrieb?.cases || []
+        const i = list.findIndex((x) => x.id === k)
+        if (i >= 0 && canEdit('vertrieb')) {
+          const at = new Date().toISOString()
+          list[i] = { ...applyCalc(list[i], calcSummary(calculate({ areas, settings: settings(), wage: wageNow() }), { at, by: app.user?.name || '' })), updatedAt: at, updatedBy: app.user?.name || '' }
+        }
+      } else doc().objects = { ...(doc().objects || {}), [id]: { ...(doc().objects?.[id] || {}), areas, updatedAt: new Date().toISOString() } }
       app.ui.calcDraft = null
       persist()
       renderNow()
-      toast('Kalkulation gespeichert.')
+      toast(k ? 'Kalkulation gespeichert; Preis und Stunden stehen im Fall des Vertriebs.' : 'Kalkulation gespeichert.')
     },
     'calc-settings-save': () => {
       const s = settings()

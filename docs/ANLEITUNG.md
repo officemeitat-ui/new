@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 375 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 381 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (12)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (90)
+- [Objekte & Kunden](#objekte-kunden) (96)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
 - [Finanzen](#finanzen) (79)
 - [Verwaltung](#verwaltung) (61)
@@ -1080,6 +1080,90 @@ Oben stellst du bei „Namen“ „keine Namen“ (Standard), „Vornamen“ ode
 
 1. „Leistungsnachweis“ öffnen.
 2. Bei „Namen“ wählen und die Häkchen setzen.
+
+### Vertrieb: von der Anfrage bis zum Auftrag
+
+*In der App: Vertrieb*
+
+Der Vertrieb zeigt jede Anfrage als Karte in ihrer Stufe: Anfrage, Besichtigung geplant, Besichtigt, Kalkuliert, Angebot gesendet, Angenommen oder Abgelehnt. Je Fall stehen Interessent, Leistungsort, erwarteter Umsatz je Monat, Wahrscheinlichkeit, nächster Schritt und wer verantwortlich ist. Am PC ziehst du Karten in die nächste Spalte, am Handy ist es eine Liste.
+
+1. „Vertrieb“ unter „Objekte & Kunden“ öffnen.
+2. Eine Karte anklicken öffnet den Fall mit Besichtigung, Kalkulation, Angebot und Verlauf.
+3. Karte in eine andere Spalte ziehen oder über „⋯“ die Stufe ändern.
+
+> Tipp: Oben stehen Pipeline-Wert (gewichtet mit der Wahrscheinlichkeit), Abschlussquote und Dauer von der Anfrage bis zum Auftrag; dieselben Zahlen in den Kennzahlen.
+> Tipp: Ist der nächste Schritt fällig, steht der Fall in „Zu erledigen“.
+
+*Vollzugriff und Objektleitung; Angebote und Kunden nur mit Recht auf die Fakturierung*
+
+### Anfrage erfassen und Interessent anlegen
+
+*In der App: Vertrieb*
+
+Mit „Anfrage“ legst du einen Fall an: Interessent, Leistungsort, Quelle, erwarteter Umsatz, nächster Schritt mit Datum und wer verantwortlich ist. Wer die Fakturierung bearbeitet, legt den Interessenten gleich als Kunden mit der Gruppe „Interessent“ an oder wählt einen Bestandskunden.
+
+1. Im Vertrieb „Anfrage“ tippen (oder „+ Neu“ → „Anfrage“).
+2. Firma bzw. Name, Ansprechperson, Telefon, E-Mail und Adresse eintragen oder einen Kunden wählen.
+3. Quelle, nächsten Schritt mit Datum und Verantwortliche eintragen.
+4. „Speichern“.
+
+> Tipp: Ohne Recht auf die Fakturierung bleiben die Angaben im Fall; „Übergeben“ setzt jemanden mit Recht als verantwortlich.
+> Tipp: Die Wahrscheinlichkeit kommt aus der Stufe, eine eigene gilt bis zum nächsten Stufenwechsel.
+
+### Besichtigung am Handy: Räume, Fotos, Sprachnotiz
+
+*In der App: Vertrieb*
+
+Im Fall unter „Besichtigung“: Termin (über „Termin in Outlook“ mit Einladung), je Raum Name, Art, Fläche, Bodenbelag, wie oft und Besonderheiten, dazu Fotos und eine Sprachnotiz. Das geht auch ohne Netz; Fotos werden später hochgeladen. „Besichtigung abgeschlossen“ setzt die Stufe „Besichtigt“.
+
+1. Fall öffnen, Reiter „Besichtigung“.
+2. „Raum hinzufügen“ und Name, Art, Fläche, Belag und Häufigkeit eintragen.
+3. „Foto aufnehmen“ und den Raum zum Foto wählen.
+4. „Sprechen“ für die Sprachnotiz.
+5. „Besichtigung abgeschlossen“.
+
+> Tipp: „Leistungsverzeichnis (PDF)“ zeigt die Räume mit Leistungen als Liste.
+> Tipp: Ohne Fläche oder Häufigkeit kommt ein Raum nicht in die Kalkulation.
+
+### Besichtigung mit KI-Vorschlag
+
+*In der App: Vertrieb*
+
+„Vorschlag mit KI“ schickt Sprachnotiz und bis zu 4 Fotos als eine Anfrage an den KI-Dienst. Zurück kommt eine Raumliste mit Art, Fläche (nur wenn genannt), Häufigkeit, Besonderheiten und Leistungen, aus den Fotos Belag und Verschmutzung als Schätzung. Übernommen wird nur, was du anhakst; gespeichert erst mit „Speichern“.
+
+1. Sprachnotiz sprechen oder tippen, Fotos aufnehmen.
+2. „Vorschlag mit KI“ tippen (beim ersten Mal den Hinweis bestätigen).
+3. In der Karte prüfen und abhaken, „Ausgewählte übernehmen“.
+4. Räume kontrollieren und „Speichern“.
+
+> Tipp: Den Knopf gibt es nur, wenn der KI-Assistent eingerichtet ist; die Anfrage zählt zum Tageslimit.
+> Tipp: Gleichnamige Räume werden nur in leeren Feldern ergänzt.
+
+### Kalkulation und Angebot aus dem Fall
+
+*In der App: Vertrieb*
+
+„Kalkulation anlegen“ übernimmt Räume, Arten und Häufigkeiten in die Kalkulation; Preis je Monat und Stunden stehen dann im Fall. „Angebot erstellen“ legt in der Fakturierung einen Entwurf mit der Position aus der Kalkulation an, das Leistungsverzeichnis hängt als Beilage an. Senden und online annehmen lassen wie jedes Angebot; der Stand kommt zurück in den Fall.
+
+1. Fall öffnen, Reiter „Kalkulation & Angebot“.
+2. „Kalkulation anlegen“, bei Bedarf „In der Kalkulation öffnen“ und Leistungswerte anpassen.
+3. „Angebot erstellen“, prüfen, festschreiben und senden.
+
+> Tipp: Die Kalkulation sieht nur der Vollzugriff, Angebote erstellt, wer die Fakturierung bearbeitet. Sonst „Übergeben“.
+> Tipp: Solange das Angebot offen ist, erinnert „Angebote nachfassen“ der Fakturierung, nicht der Vertrieb.
+
+### Auftrag anlegen nach der Annahme
+
+*In der App: Vertrieb*
+
+Ist das Angebot angenommen, führt „Auftrag anlegen“ Schritt für Schritt: Interessent wird Kunde, Objekt anlegen oder verknüpfen (mit Leistungsverzeichnis), Dauerauftrag aus dem Angebot, Vertrag mit Fristen und auf Wunsch ein Hinweis zu den Reinigungsplan-Stunden. Jeder Schritt läuft erst nach deinem Klick; eingeteilt wird nichts.
+
+1. Fall öffnen, „Auftrag anlegen“.
+2. Schritt für Schritt prüfen und den Knopf des Schritts tippen.
+3. Angelegtes über „öffnen“ im jeweiligen Bereich anpassen.
+
+> Tipp: Fehlt ein Recht (z. B. Objekte), steht beim Schritt ein Hinweis mit „Übergeben“.
+> Tipp: Der Hinweis für die Disposition steht im Einsatz-Dialog des Objekts.
 
 ### Kundenbereich: eine Seite für Kunden ohne Anmeldung
 

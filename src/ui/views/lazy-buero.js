@@ -30,6 +30,8 @@ import './eintritt.js'
 import './mitteilungen.js'
 import './bewerber.js'
 import './invoicing.js'
+// Vertrieb: Anfrage bis Objekt (nutzt Fakturierung, Kalkulation und Termine)
+import './vertrieb.js'
 // Kundenbereich: Lieferscheine und nächster Mattenwechsel (über portalHooks in customer-portal.js)
 import './customer-portal-matten.js'
 import './purchase.js'

@@ -15,16 +15,17 @@ import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
-const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'geraete', 'zufriedenheit', 'matten']
+const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'geraete', 'zufriedenheit', 'matten', 'vertrieb']
 /** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
 /**
  * Kennzahlen aus später geladenen Modulen: matten({ months, today }) → Zahlen des Mattenwechsels oder null
  * (views/matten-uebersicht.js), mattenBestand({ months }) → Wäscherei je Monat mit Schwundquote oder null, vertraege({ months,
  * today }) → Vertragsvolumen, Kündigungen und auslaufende Verträge (views/invoicing-vertraege.js)
- * (views/matten-bestand.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
+ * (views/matten-bestand.js), vertrieb({ months, today }) → Pipeline-Wert, Abschlussquote, Dauer Anfrage → Auftrag
+ * (views/vertrieb.js, core/vertrieb.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
  */
-export const kpiHooks = { matten: null, mattenBestand: null, vertraege: null, version: () => '' }
+export const kpiHooks = { matten: null, mattenBestand: null, vertraege: null, vertrieb: null, version: () => '' }
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 /** Mitteilungen an Mitarbeitende (Umschlag): Büro (views/mitteilungen.js) und „Meine Mitteilungen“ (views/mitteilungen-postfach.js). */
@@ -668,6 +669,29 @@ lazy(BUERO, {
   actions: `fvt-filter fvt-search fvt-open fvt-goto fvt-calc fvt-redraw fvt-doc-open fvt-kv-open fvt-kv-calc fvt-kv-pick fvt-save fvt-del fvt-doc
     fvt-cancel-open fvt-c-at fvt-cancel-undo fvt-done fvt-kv-apply fvt-kv-letter fvt-kv-undo`,
   todo: ['fakturierung-vertraege'],
+})
+
+// vertrieb.js: Vertrieb von der Anfrage bis zum Objekt (Pipeline, Besichtigung am Handy mit KI-Vorschlag, Übergabe an
+// Kalkulation und Angebot, Assistent „Auftrag anlegen“), Erinnerungen in „Zu erledigen“, Hinweis im Objekt. Kürzel vt-
+lazy(BUERO, {
+  views: [
+    {
+      id: 'vertrieb',
+      order: 71,
+      label: 'Vertrieb',
+      group: 'service',
+      module: 'vertrieb',
+      icon: '<path d="M3.5 4.5h17l-6.5 8v6l-4 1.5v-7.5z"/><path d="M8.5 8.5h7"/>',
+      noWeek: true,
+      text: 'Anfragen, Besichtigung, Angebot bis zum Auftrag',
+    },
+  ],
+  modals: 'vt-case vt-lost vt-handover vt-wizard',
+  actions: `vt-search vt-mine vt-old vt-stage-filter vt-open vt-goto vt-tab vt-redraw vt-photo-open vt-lv-pdf vt-csv vt-new vt-move vt-lost-save
+    vt-save vt-delete vt-room-add vt-room-del vt-photo vt-photo-del vt-voice-mic vt-ki vt-ki-take vt-ki-drop vt-visit-done vt-appt vt-handover
+    vt-handover-save vt-calc vt-calc-open vt-prospect vt-offer vt-wizard-open vt-w-redraw vt-w-kunde vt-w-objekt vt-w-rec vt-w-contract vt-w-dispo`,
+  hints: true,
+  todo: ['vertrieb'],
 })
 
 // invoicing-abrechnung.js (mit invoicing.js geladen): Winterdienst abrechnen, Leistungsnachweis nach Ist-Zeiten, Beilagen

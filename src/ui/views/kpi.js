@@ -8,6 +8,8 @@
 // Kundenverträge (kpiHooks.vertraege, views/invoicing-vertraege.js, core/vertraege.js): Vertragsvolumen je Monat,
 // Kündigungen und Vertragsenden je Monat, Verträge, die in den nächsten 90 Tagen enden – nur mit Fakturierung.
 // Geräte & Maschinen: Zustand, überfällige Prüfungen, Reparaturkosten je Monat (core/geraete.js → geraeteKpi).
+// Vertrieb (kpiHooks.vertrieb, views/vertrieb.js, core/vertrieb.js → salesKpi): Pipeline-Wert, Abschlussquote, Dauer
+// von der Anfrage bis zum Auftrag, Pipeline je Stufe, Abschlüsse je Monat – wer den Vertrieb sieht.
 //
 // Zeitraum: 4/8/13 Wochen für die Wochen-Kennzahlen, 3/6/12 Monate für die Monats-Kennzahlen.
 // Monats-Kacheln zeigen den letzten abgeschlossenen Monat (der laufende ist noch unvollständig).
@@ -139,6 +141,11 @@ function build(p) {
     const v = kpiHooks.vertraege({ months, today })
     if (v) out.vertraege = v
   }
+  // Vertrieb: Pipeline, Abschlussquote, Dauer Anfrage → Auftrag (gerechnet im Modul, sobald es Fälle gibt)
+  if (sees('vertrieb') && kpiHooks.vertrieb) {
+    const v = kpiHooks.vertrieb({ months, today })
+    if (v) out.vertrieb = v
+  }
   // Einkauf & Kasse: Ausgaben (Eingangsrechnungen), offene Verbindlichkeiten, Kassenstand
   if (sees('einkauf')) {
     out.spending = spendingMonths(data.einkauf || {}, months)
@@ -187,6 +194,12 @@ function tiles(d) {
     out.push(tile({ label: `Vertragsvolumen ${mLabel}`, value: euro(vm[lastI].volume), sub: `netto je Monat, ${count(vm[lastI].active)} Verträge`, cur: vm[lastI].volume, prev: vm[lastI - 1]?.volume ?? null, goodUp: true, deltaFmt: euro, spark: vm.map((x) => x.volume), view: 'fakturierung', vs: 'Vormonat' }))
     const end = d.vertraege.ending
     out.push(tile({ label: 'Auslaufende Verträge', value: count(end.length), sub: end.length ? `in 90 Tagen, ${euro(end.reduce((s, x) => s + x.volume, 0))} je Monat` : 'keiner in den nächsten 90 Tagen', cur: end.length, view: 'fakturierung' }))
+  }
+  if (d.vertrieb) {
+    const v = d.vertrieb
+    out.push(tile({ label: 'Pipeline-Wert', value: euro(v.pipeline.weighted), sub: `je Monat gewichtet, ${count(v.pipeline.count)} offene Fälle, ungewichtet ${euro(v.pipeline.value)}`, cur: v.pipeline.weighted, view: 'vertrieb' }))
+    out.push(tile({ label: 'Abschlussquote Vertrieb', value: pct(v.rate, 0), sub: `${count(v.won)} gewonnen, ${count(v.lost)} verloren im Zeitraum`, cur: v.rate ?? 0, view: 'vertrieb' }))
+    out.push(tile({ label: 'Anfrage bis Auftrag', value: v.days.avg === null ? '–' : `${nf(0).format(v.days.avg)} Tage`, sub: v.days.median === null ? 'noch kein Auftrag im Zeitraum' : `Durchschnitt; Median ${nf(0).format(v.days.median)} Tage`, cur: v.days.avg ?? 0, view: 'vertrieb' }))
   }
   if (d.week) {
     const [prev, cur] = d.week.slice(-2)
@@ -303,6 +316,15 @@ function charts(d) {
     const end = d.vertraege.ending
     out.push(card({ id: 'kuendigungen', title: 'Kündigungen und Vertragsenden', sub: end.length ? `${count(end.length)} Verträge enden in den nächsten 90 Tagen` : 'keiner endet in den nächsten 90 Tagen', view: 'fakturierung', legendHtml: legend(series, 'rect'), body: columnChart({ labels: ml, titles: mt, series, fmt: count, integer: true, width: W, ariaLabel: 'Kündigungen und Vertragsenden je Monat' }), table: tableView(['Monat', 'Kündigungen', 'vom Kunden', 'von uns', 'beendet'], vm.map((x, i) => [mt[i], count(x.cancelled), count(x.byCustomer), count(x.byUs), count(x.ended)])) }))
   }
+  if (d.vertrieb) {
+    const v = d.vertrieb
+    out.push(card({ id: 'vertrieb-pipeline', title: 'Pipeline je Stufe', sub: 'erwarteter Umsatz je Monat, gewichtet mit der Wahrscheinlichkeit', view: 'vertrieb', body: barList({ rows: v.byStage.map((x) => ({ label: x.label, value: x.weighted, display: euro(x.weighted), sub: `${count(x.count)} Fälle`, extra: [['ungewichtet', euro(x.value), '']] })) }), table: tableView(['Stufe', 'Fälle', 'Umsatz je Monat', 'gewichtet'], v.byStage.map((x) => [x.label, count(x.count), euro(x.value), euro(x.weighted)])) }))
+    const series = [
+      { id: 'won', label: 'gewonnen', color: '--kpi-1', values: v.months.map((x) => x.won) },
+      { id: 'lost', label: 'verloren', color: '--kpi-2', values: v.months.map((x) => x.lost) },
+    ]
+    out.push(card({ id: 'vertrieb-abschluesse', title: 'Abschlüsse im Vertrieb je Monat', sub: v.rate === null ? 'noch keine Entscheidung im Zeitraum' : `Abschlussquote ${pct(v.rate, 0)}`, view: 'vertrieb', legendHtml: legend(series, 'rect'), body: columnChart({ labels: ml, titles: mt, series, fmt: count, integer: true, width: W, ariaLabel: 'Gewonnene und verlorene Fälle je Monat' }), table: tableView(['Monat', 'neue Anfragen', 'gewonnen', 'verloren', 'Umsatz je Monat gewonnen'], v.months.map((x, i) => [mt[i], count(x.created), count(x.won), count(x.lost), euro(x.wonValue)])) }))
+  }
   if (d.spending) {
     out.push(card({ id: 'ausgaben', title: 'Ausgaben je Monat', sub: 'netto laut Eingangsrechnungen (Rechnungsdatum)', view: 'einkauf', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'net', label: 'Ausgaben netto', color: '--kpi-1', values: d.spending.map((x) => x.net) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Ausgaben je Monat' }), table: tableView(['Monat', 'Ausgaben netto', 'Eingangsrechnungen'], d.spending.map((x, i) => [mt[i], euro(x.net), count(x.count)])) }))
     const STATUS = { nicht: ['--kpi-neutral', '○'], d30: ['--kpi-warning', '△'], d60: ['--kpi-serious', '▲'], d60plus: ['--kpi-critical', '■'] }
@@ -366,14 +388,14 @@ function agingBars(list, status) {
 
 function kpiView(c) {
   const p = period()
-  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}${kpiHooks.vertraege ? 'v' : ''}`, () => build(p))
+  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}${kpiHooks.vertraege ? 'v' : ''}${kpiHooks.vertrieb ? 't' : ''}`, () => build(p))
   const filters = Object.entries(PERIODS)
     .map(([id, x]) => `<button class="filter" data-action="kpi-period" data-period="${id}" aria-pressed="${id === p}">${esc(x.label)}</button>`)
     .join('')
   const t = tiles(d)
   const ch = charts(d)
   return `<div class="kpi-root">
-    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Verträge, Ausgaben, Kasse, Material, Geräte und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
+    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Verträge, Vertrieb, Ausgaben, Kasse, Material, Geräte und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
     <div class="filters kpi-filters" role="group" aria-label="Zeitraum">${filters}</div>
     ${t ? `<div class="kpi-tiles">${t}</div>` : ''}
     ${ch ? `<div class="kpi-grid">${ch}</div>` : '<p class="empty">Für deine Rolle gibt es hier noch keine Kennzahlen.</p>'}

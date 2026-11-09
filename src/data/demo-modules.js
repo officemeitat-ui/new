@@ -1,5 +1,5 @@
 // Beispieldaten für Fahrzeuge & Reifen, Reklamationen, Kalkulation und Material & Lager (Vorschau im Browser-Modus);
-// Anlagen & Prüffristen in demo-anlagen.js, Geräte & Maschinen in demo-geraete.js, Regieberichte in demo-regie.js, Qualitätsmessung in demo-qualitaet.js, Arbeitsschutz in demo-arbeitsschutz.js
+// Anlagen & Prüffristen in demo-anlagen.js, Geräte & Maschinen in demo-geraete.js, Vertrieb in demo-vertrieb.js, Regieberichte in demo-regie.js, Qualitätsmessung in demo-qualitaet.js, Arbeitsschutz in demo-arbeitsschutz.js
 // (dort auch die Angaben zu Arbeitsstoffen an den Material-Artikeln).
 // Kundenzufriedenheit in demo-zufriedenheit.js.
 // Bewerbungen in demo-bewerber.js. Mattenwechsel-Modul (Liegeplätze, Einsätze) in demo-matten.js.
@@ -13,6 +13,7 @@ import { monthAdd } from '../core/vehicle-dues.js'
 import { createPurchaseDemo } from './demo-einkauf.js'
 import { createAnlagenDemo } from './demo-anlagen.js'
 import { createGeraeteDemo } from './demo-geraete.js'
+import { createVertriebDemo } from './demo-vertrieb.js'
 import { createRegieDemo } from './demo-regie.js'
 import { createQualitaetDemo } from './demo-qualitaet.js'
 import { createArbeitsschutzDemo, stoffDemo } from './demo-arbeitsschutz.js'
@@ -271,6 +272,7 @@ export function createModuleDemo(monday, employees = []) {
     schluessel: demoKeys(),
     anlagen: createAnlagenDemo(),
     geraete: createGeraeteDemo(),
+    vertrieb: createVertriebDemo(),
     regie: createRegieDemo(),
     matten,
     mattenJobs: createMattenJobsDemo(todayISO(), matten),

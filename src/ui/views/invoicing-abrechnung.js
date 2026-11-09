@@ -7,6 +7,8 @@
 // Beilage zum Regiebericht: export/regie-pdf.js aus den beim Erstellen eingefrorenen Angaben (source.beilage), damit
 // die Buchhaltung sie ohne Zugriff auf regie/ senden kann. Dazu der Reiter „Winterdienst“ im Kundenblatt (Preise je
 // Objekt, customers[].winterPrices) und die Wintersaison in den Einstellungen (settings.winterSeason).
+// Beilage zum Angebot aus dem Vertrieb: Leistungsverzeichnis der Besichtigung (export/vertrieb-pdf.js), eingefroren beim
+// Erstellen des Angebots (source { type: 'vertrieb', caseId, no, beilage }, core/vertrieb.js → lvSnapshot).
 
 import { formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import {
@@ -48,6 +50,7 @@ import { absMinutes } from '../../core/timeclock.js'
 import { logKey, workText } from '../../core/winterlog.js'
 import { istListDocument, istListPdfName } from '../../export/abrechnung-pdf.js'
 import { regieDocument, regiePdfName } from '../../export/regie-pdf.js'
+import { lvDocument, lvPdfName } from '../../export/vertrieb-pdf.js'
 import { winterLogDocument, winterLogPdfName } from '../../export/winter-pdf.js'
 import { app, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
@@ -424,6 +427,8 @@ function sourceOf(x) {
 
 /** Beilage eines Belegs: Winterdienst-Nachweis, Einsatzliste (nur bei Ist-Zeiten) bzw. Regiebericht; sonst null. */
 export function beilageOf(x) {
+  // Angebot aus dem Vertrieb: Leistungsverzeichnis der Besichtigung (immer eingefroren)
+  if (x?.source?.type === 'vertrieb' && x.source.beilage && typeof x.source.beilage === 'object') return { kind: 'lv', label: 'Leistungsverzeichnis', name: lvPdfName(x.source.beilage), source: x.source }
   const s = x?.source?.type === 'regie' ? x.source : sourceOf(x)
   if (s?.type === 'regie' && s.reportId) return { kind: 'regie', label: 'Regiebericht', name: regiePdfName(s.no || s.beilage?.no, s.beilage?.object?.name || objOf(s.objectId)?.name || ''), source: s }
   if (!s?.objectId || !/^\d{4}-\d{2}$/.test(s.month)) return null
@@ -454,6 +459,7 @@ const beilageReady = (x) => {
 export async function beilageBlob(x) {
   const b = beilageOf(x)
   if (!b) return null
+  if (b.kind === 'lv') return pdfBlob(lvDocument({ lv: b.source.beilage, offerNumber: x.number || '', brand: app.config.brand || {}, logo: await loadLogo().catch(() => null) }))
   if (b.kind === 'regie') {
     const r = frozen(b) ? null : regieReport(b)
     const fz = frozen(b) ? b.source.beilage : r ? freezeRegie(r, { object: objOf(r.objectId) || {}, names: regieNames(app.data.regie) }) : null
@@ -508,6 +514,11 @@ export const beilageWanted = (x) => beilageReady(x) && checked('fm-beilage')
 
 /** Herkunft im Beleg: „aus dem Winterdienst-Protokoll“, „nach Ist-Zeiten“ … */
 export function sourceNote(x) {
+  if (x?.source?.type === 'vertrieb') {
+    const s = x.source
+    const lv = s.beilage || {}
+    return `<p class="fak-doc-head">Aus dem Vertrieb ${esc(s.no || '')}${lv.site?.name ? ` · ${esc(lv.site.name)}` : ''}${lv.rooms?.length ? ` · Leistungsverzeichnis mit ${plural(lv.rooms.length, 'Bereich', 'Bereichen')} als Beilage` : ''}</p>`
+  }
   // Lieferschein aus dem Mattenwechsel (core/matten-lieferschein.js): Herkunft und Ablage in SharePoint, nur zur Ansicht
   if (x?.source?.type === 'matten') {
     const s = x.source
@@ -531,6 +542,7 @@ export function sourceNote(x) {
 export function sourceLabel(x) {
   const t = x.source?.type
   if (t === 'matten-abrechnung') return `aus dem Mattenwechsel ${esc(x.source.period?.label || '')}`.trim()
+  if (t === 'vertrieb') return `aus dem Vertrieb ${esc(x.source.no || '')}`.trim()
   return t === 'dauerauftrag' ? 'aus Dauerauftrag' : t === 'winterdienst' ? 'aus dem Winterdienst-Protokoll' : t === 'nachweis' ? (x.source.basis === 'ist' ? 'aus Leistungsnachweis, Ist-Zeiten' : 'aus Leistungsnachweis') : t === 'regie' ? `aus Regiebericht ${esc(x.source.no || '')}`.trim() : ''
 }
 
