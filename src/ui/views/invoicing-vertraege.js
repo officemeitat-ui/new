@@ -108,7 +108,7 @@ export function contractsTab() {
     .sort((a, b) => (a.st.latest || a.st.end || '9999').localeCompare(b.st.latest || b.st.end || '9999') || custName(a.c.customerId).localeCompare(custName(b.c.customerId), 'de'))
   const rows = list
     .map(({ c, st, vol }) => {
-      const next = st.status === 'gekuendigt' ? `endet am ${de(c.cancel.to)}${c.cancel.doneAt ? ' · erledigt' : ''}` : st.termin ? `zum ${de(st.termin)}, spätestens ${de(st.latest)}${st.renewal ? `<br><span class="muted">sonst verlängert am ${de(st.renewal)}</span>` : ''}` : st.end ? `endet am ${de(st.end)}` : '–'
+      const next = st.status === 'gekuendigt' ? `endet am ${de(c.cancel.to)}${c.cancel.doneAt ? ' · erledigt' : ''}` : st.model.kind === 'befristet' ? `endet am ${de(c.end)}` : st.termin ? `zum ${de(st.termin)}, spätestens ${de(st.latest)}${st.renewal ? `<br><span class="muted">sonst verlängert am ${de(st.renewal)}</span>` : ''}` : st.end ? `endet am ${de(st.end)}` : '–'
       return `<tr class="clickable" data-action="fvt-open" data-id="${esc(c.id)}"><td><strong>${esc(nameOf(c))}</strong>${c.no && c.title ? ` <span class="muted">${esc(c.no)}</span>` : ''}<br><span class="muted">${esc(custName(c.customerId))}</span></td>
         <td>${esc(termLabel(c))}</td><td>${esc(noticeLabel(c))}</td><td>${pill(st)}</td><td>${next}</td><td class="num">${vol ? money(vol) : '–'}</td><td>${esc(CLAUSES[c.clause] || CLAUSES.keine)}</td></tr>`
     })
@@ -133,7 +133,7 @@ export function customerContractsTab(v, x) {
   const rows = list
     .map((c) => {
       const st = statusAt(c, today)
-      return `<tr class="clickable" data-action="fvt-open" data-id="${esc(c.id)}"><td><strong>${esc(nameOf(c))}</strong></td><td>${esc(termLabel(c))}</td><td>${esc(noticeLabel(c))}</td><td>${pill(st)}${st.termin && st.status !== 'gekuendigt' ? `<br><span class="muted">zum ${de(st.termin)}</span>` : ''}</td><td class="num">${money(volumeNow(c))}</td></tr>`
+      return `<tr class="clickable" data-action="fvt-open" data-id="${esc(c.id)}"><td><strong>${esc(nameOf(c))}</strong></td><td>${esc(termLabel(c))}</td><td>${esc(noticeLabel(c))}</td><td>${pill(st)}${st.termin && st.status !== 'gekuendigt' && st.model.kind !== 'befristet' ? `<br><span class="muted">zum ${de(st.termin)}, spätestens ${de(st.latest)}</span>` : ''}</td><td class="num">${money(volumeNow(c))}</td></tr>`
     })
     .join('')
   return `<div class="filters"><span class="muted">${plural(list.length, 'Vertrag', 'Verträge')}</span><span class="spacer"></span>${editable() ? `<button class="btn small" data-action="fvt-open" data-customer="${esc(x.id)}">${ICON.plus} Vertrag für diesen Kunden</button>` : ''}</div>
@@ -209,6 +209,9 @@ function newContract(customerId = '') {
   return { id: uid('vt'), no: nextContractNo(F().contracts, today.slice(0, 4)), customerId, title: '', start: `${today.slice(0, 7)}-01`, minMonths: 12, end: '', renewMonths: '', notice: { n: 3, unit: 'monat' }, term: 'quartal', remindDays: '', clause: 'keine', kvShare: KV_SHARE, objectIds: [...(custOf(customerId)?.objectIds || [])], taskIds: [], scope: '', note: '', contact: null, history: [] }
 }
 
+/** „Frühestens zum … (Eingang …).“ für die Kündigung im Formular. */
+const earliestHint = (v) => `Frühestens zum ${esc(de(earliestEnd({ ...v, cancel: null }, v.cancel?.at || todayISO())) || '–')} (Eingang ${esc(de(v.cancel?.at || todayISO()))}).`
+
 const problemList = (list) => (list.length ? `<ul class="fak-problems" role="alert">${list.map((p) => `<li class="${p.level === 'error' ? 'err-text' : 'warn-text'}">${esc(p.text)}</li>`).join('')}</ul>` : '')
 
 /** Fristen zum Stand des Formulars (live). */
@@ -244,20 +247,19 @@ function contractModal(c, m) {
   const objList = [...objects.filter((o) => ownObj.has(o.id) || (v.objectIds || []).includes(o.id)), ...(v.objectIds || []).filter((id) => !objects.some((o) => o.id === id)).map((id) => ({ id, name: id }))]
   const tasks = (app.data.tasks || []).filter((t) => (v.objectIds || []).includes(t.objectId))
   const recs = d.recurring.filter((r) => r.customerId === v.customerId || r.contractId === v.id)
-  const renew = Number(String(v.renewMonths || '').replace(',', '.')) > 0
   const cancel = v.cancel
   const show = (k) => (k === 'kv' || k === 'beides')
   const doc = v.document
   const cancelHtml = cancel
     ? `<h3>Kündigung</h3>
       <div class="form-grid">
-        <label class="field"><span>Gekündigt am (Eingang)</span><input type="date" id="fvt-c-at" value="${esc(cancel.at || '')}" data-change="fvt-c-at" ${dis}></label>
+        <label class="field"><span>Gekündigt am (Eingang)</span><input type="date" id="fvt-c-at" value="${esc(cancel.at || '')}" data-change="fvt-c-at" data-input="fvt-c-at" ${dis}></label>
         <label class="field"><span>Von</span><select id="fvt-c-by" ${dis}>${options(Object.entries(CANCEL_BY), cancel.by || 'kunde')}</select></label>
         <label class="field"><span>Zum</span><input type="date" id="fvt-c-to" value="${esc(cancel.to || '')}" data-input="fvt-calc" data-change="fvt-calc" ${dis}></label>
         <label class="field wide"><span>Grund</span><input type="text" id="fvt-c-reason" value="${esc(cancel.reason || '')}" placeholder="z. B. Hausverwaltung gewechselt, Preis, Qualität" ${dis}></label>
         ${!cancel.recordedAt ? `<label class="check wide"><input type="checkbox" id="fvt-c-recs" ${m.endRecs !== false ? 'checked' : ''} ${dis}><span>Daueraufträge des Vertrags enden mit dem Monat des Vertragsendes</span></label>` : ''}
       </div>
-      <p class="muted">Frühestens zum ${esc(de(earliestEnd({ ...v, cancel: null }, cancel.at || todayISO())) || '–')} (Eingang ${esc(de(cancel.at || todayISO()))}).${cancel.doneAt ? ` Erledigt am ${esc(de(cancel.doneAt.slice(0, 10)))} von ${esc(cancel.doneBy || '')}.` : ''}</p>
+      <p class="muted"><span id="fvt-c-hint">${earliestHint(v)}</span>${cancel.doneAt ? ` Erledigt am ${esc(de(cancel.doneAt.slice(0, 10)))} von ${esc(cancel.doneBy || '')}.` : ''}</p>
       ${ed ? `<div class="filters">${cancel.recordedAt && !cancel.doneAt ? '<button class="btn small primary" data-action="fvt-done">Erledigt: Dauerauftrag beendet, Objekt freigegeben</button>' : ''}<button class="btn small ghost" data-action="fvt-cancel-undo">${app.ui.confirm === `fvt-cu:${v.id}` ? 'Kündigung wirklich zurücknehmen?' : 'Kündigung zurücknehmen'}</button></div>` : ''}`
     : ed && x
       ? '<div class="filters"><button class="btn small" data-action="fvt-cancel-open">Kündigung erfassen</button></div>'
@@ -279,9 +281,9 @@ function contractModal(c, m) {
         <label class="field"><span>Beginn</span><input type="date" id="fvt-start" value="${esc(v.start || '')}" data-input="fvt-calc" data-change="fvt-calc" ${dis}></label>
         <label class="field"><span>Mindestlaufzeit (Monate)</span><input type="text" inputmode="numeric" id="fvt-min" value="${esc(numText(v.minMonths))}" placeholder="0 = keine" data-input="fvt-calc" ${dis}></label>
         <label class="field"><span>Ende (leer = unbefristet)</span><input type="date" id="fvt-end" value="${esc(v.end || '')}" data-input="fvt-calc" data-change="fvt-calc" ${dis}></label>
-        <label class="field"><span>Verlängert sich um (Monate)</span><input type="text" inputmode="numeric" id="fvt-renew" value="${esc(numText(v.renewMonths))}" placeholder="0 = nein" data-input="fvt-calc" data-change="fvt-redraw" ${dis}></label>
+        <label class="field"><span>Verlängert sich um (Monate)</span><input type="text" inputmode="numeric" id="fvt-renew" value="${esc(numText(v.renewMonths))}" placeholder="0 = nein" data-input="fvt-calc" ${dis}></label>
         <label class="field"><span>Kündigungsfrist</span><span class="fvt-notice"><input type="text" inputmode="numeric" id="fvt-notice-n" value="${esc(numText(v.notice?.n ?? ''))}" aria-label="Kündigungsfrist" data-input="fvt-calc" ${dis}><select id="fvt-notice-unit" data-change="fvt-calc" aria-label="Einheit" ${dis}>${options(Object.entries(NOTICE_UNITS).map(([k, [, many]]) => [k, many]), v.notice?.unit || 'monat')}</select></span></label>
-        <label class="field"><span>Zum</span><select id="fvt-term" data-change="fvt-calc" ${renew ? 'disabled' : dis}>${renew ? '<option>Ende der Laufzeit</option>' : options(Object.entries(TERMS), v.term || 'monat')}</select></label>
+        <label class="field"><span>Zum (ohne Verlängerung)</span><select id="fvt-term" data-change="fvt-calc" ${dis}>${options(Object.entries(TERMS), v.term || 'monat')}</select></label>
         <label class="field"><span>Erinnerung (Tage vorher)</span><input type="text" inputmode="numeric" id="fvt-remind" value="${esc(numText(v.remindDays))}" placeholder="${esc(remindOf() === '' ? REMIND_DAYS : remindOf())}" data-input="fvt-calc" ${dis}></label>
       </div>
       <div id="fvt-calc" class="fak-preview fvt-calc" aria-live="polite">${calcBox(v)}</div>
@@ -322,7 +324,7 @@ function readContract(m) {
     end: val('fvt-end'),
     renewMonths: val('fvt-renew').trim(),
     notice: { n: val('fvt-notice-n').trim(), unit: val('fvt-notice-unit') || 'monat' },
-    term: document.getElementById('fvt-term')?.disabled ? v.term || 'monat' : val('fvt-term') || 'monat',
+    term: val('fvt-term') || v.term || 'monat',
     remindDays: val('fvt-remind').trim(),
     clause: val('fvt-clause') || 'keine',
     kvShare: opt('fvt-share', v.kvShare ?? KV_SHARE),
@@ -532,8 +534,11 @@ registerActions({
     const m = app.ui.modal
     if (m?.type !== 'fvt-kv') return
     const focus = document.activeElement?.id
-    m.percent = val('fvt-kv-pct').trim()
-    m.from = val('fvt-kv-from') || m.from
+    const percent = val('fvt-kv-pct').trim()
+    const from = val('fvt-kv-from') || m.from
+    if (percent === m.percent && from === m.from) return
+    m.percent = percent
+    m.from = from
     m.sel = null
     renderModal()
     const el = focus && document.getElementById(focus)
@@ -608,9 +613,17 @@ registerActions(
       if (m?.type !== 'fvt-edit' || !m.draft.cancel) return
       const prev = m.draft.cancel.at
       readContract(m)
-      // „zum“ mitziehen, solange es der Vorschlag war
-      if (m.draft.cancel.to === earliestEnd({ ...m.draft, cancel: null }, prev) || !m.draft.cancel.to) m.draft.cancel.to = earliestEnd({ ...m.draft, cancel: null }, m.draft.cancel.at || todayISO())
-      renderModal()
+      if (m.draft.cancel.at === prev) return
+      // „zum“ mitziehen, solange es der Vorschlag war (ohne neu zu zeichnen: das Datumsfeld behält den Fokus)
+      if (m.draft.cancel.to === earliestEnd({ ...m.draft, cancel: null }, prev) || !m.draft.cancel.to) {
+        m.draft.cancel.to = earliestEnd({ ...m.draft, cancel: null }, m.draft.cancel.at || todayISO())
+        const to = document.getElementById('fvt-c-to')
+        if (to) to.value = m.draft.cancel.to
+      }
+      const hint = document.getElementById('fvt-c-hint')
+      if (hint) hint.innerHTML = earliestHint(m.draft)
+      const box = document.getElementById('fvt-calc')
+      if (box) box.innerHTML = calcBox(m.draft)
     },
     'fvt-cancel-undo': () => {
       const m = app.ui.modal
