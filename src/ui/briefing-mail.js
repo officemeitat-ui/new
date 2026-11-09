@@ -1,8 +1,6 @@
 // Wochenbriefing als E-Mail (Bericht „briefing“ in „Berichte automatisch“, ui/report-subscriptions.js): erst bei Bedarf
 // geladen. Rechenkern und Prüfung der KI-Antwort: core/briefing.js.
 import { briefingFacts, briefingForAi, briefingRequest, briefingText, checkBriefing } from '../core/briefing.js'
-import { formatDate } from '../core/dates.js'
-import { viennaNow } from '../core/report-schedule.js'
 import { app, VIEWS } from './context.js'
 import { readView, todoSections } from './mailer.js'
 import { AGENTS, proposals } from './views/disponent.js'
@@ -11,7 +9,8 @@ import { AGENTS, proposals } from './views/disponent.js'
  * Wochenbriefing (core/briefing.js): dringende Vorschläge der digitalen Mitarbeiter, Abschnitte von „Zu erledigen“,
  * Kacheln der Kennzahlen; mit ki: true formuliert ki.php oben eine kurze Zusammenfassung (geprüft, sonst ohne).
  */
-export async function buildBriefing({ ki = false, footer = '', renderOffscreen }) {
+// formatDate und viennaNow kommen vom Aufrufer (sonst teilt esbuild sie in eigene kleine Start-Dateien ab)
+export async function buildBriefing({ ki = false, footer = '', renderOffscreen, formatDate, viennaNow }) {
   const day = viennaNow().day
   let tiles = []
   if (VIEWS.some((v) => v.id === 'kennzahlen' && (!v.available || v.available()))) {

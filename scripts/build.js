@@ -121,6 +121,8 @@ if (esbuild) {
     logLevel: 'warning',
   })
   const outputs = Object.entries(result.metafile.outputs)
+  // Zum Untersuchen der Teile (welche Datei landet im Start): METAFILE=pfad npm run build
+  if (process.env.METAFILE) await writeFile(process.env.METAFILE, JSON.stringify(result.metafile))
   const entry = (name) => relative(dist, join(root, outputs.find(([file, o]) => o.entryPoint && file.includes(`/app/${name}-`))[0])).replaceAll('\\', '/')
   html = html.replace('src/ui/app.js', entry('app')).replace('src/ui/styles.css', entry('styles'))
   const size = outputs.reduce((s, [, o]) => s + o.bytes, 0)

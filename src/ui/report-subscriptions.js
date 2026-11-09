@@ -68,7 +68,7 @@ export async function buildReport(id, { abo = null, ki = abo?.ki || false } = {}
   const footer = abo ? `\n\nAutomatisch gesendet (${rhythmText(abo)}). Ändern oder abbestellen: in der App unter ⋯ → „Berichte automatisch“.` : ''
   if (def.briefing) {
     await preloadLazy()
-    return (await import('./briefing-mail.js')).buildBriefing({ ki, footer, renderOffscreen })
+    return (await import('./briefing-mail.js')).buildBriefing({ ki, footer, renderOffscreen, formatDate, viennaNow })
   }
   const { box, monday } = await renderOffscreen(def)
   try {
