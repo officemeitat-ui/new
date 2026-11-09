@@ -29,6 +29,7 @@ import { setupActions, setupHtml } from './setup.js'
 import { applyTheme, themeButton } from './theme.js'
 import { startWeather } from './weather.js'
 import { agoText, startSync, syncState } from './sync.js'
+import { startUploads } from './uploads.js'
 import { download, esc, ICON, menu } from './shared.js'
 import { canMailView } from './mailer.js'
 import { bindDragEvents, bindFilterEvents } from './views/week.js'
@@ -522,6 +523,8 @@ async function boot() {
   // Abgleich: schnell, solange jemand arbeitet; sofort beim Zurückkommen und zwischen Fenstern (sync.js)
   const sp = config.storage === 'sharepoint' ? config.sharepoint || {} : {}
   app.sync = startSync({ service: app.service, fastSeconds: sp.fastSeconds || (config.storage === 'sharepoint' ? 20 : 15), idleSeconds: sp.refreshSeconds || (config.storage === 'sharepoint' ? 60 : 30), onChange: () => updateSyncTitle() })
+  // Fotos und Dateien aus der Zeit ohne Netz nachholen und in den Modulen vermerken (uploads.js; nur SharePoint)
+  startUploads({ service: app.service })
   // Lesezeichen/Link mit #ansicht im laufenden Fenster
   window.addEventListener('hashchange', () => {
     const view = viewFromHash(location.hash)

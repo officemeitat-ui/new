@@ -150,6 +150,21 @@ export async function runChecks() {
   add(M, 'Anwendungs-ID (Entra ID)', sp.clientId ? 'ok' : app.config.storage === 'sharepoint' ? 'error' : 'info', sp.clientId ? 'eingetragen' : 'fehlt', 'App in Entra ID registrieren (Single-Page-Anwendung, Umleitung https://app.cleanos.at/) und die Anwendungs-ID eintragen (Schritt 2).')
   add(M, 'Angemeldet', app.user ? 'ok' : 'info', app.user ? `${app.user.name || ''}${app.access?.roles?.length ? ` · ${app.access.roles.join(', ')}` : ''}` : 'ohne Anmeldung (Browser-Modus)')
   add(M, 'Daten geladen', app.data?.employees?.length && app.data?.objects?.length ? 'ok' : 'warn', `${app.data?.employees?.length || 0} Mitarbeitende, ${app.data?.objects?.length || 0} Objekte`, 'Noch leer: unter Mitarbeitende bzw. Objekte & Leistungen aus Excel einfügen.')
+
+  // ---- Dieses Gerät: Fotos und Dateien, die ohne Netz aufgenommen wurden (Warteschlange der Ablage, offline.js)
+  const G = 'Dieses Gerät'
+  if (app.store?.flushUploads) {
+    const queued = (await app.store.queuedUploads?.()) || 0
+    const failed = (await app.store.failedUploads?.()) || []
+    const name = (p) => p.split('/').pop()
+    add(
+      G,
+      'Fotos und Dateien hochgeladen',
+      failed.length ? 'error' : queued ? 'warn' : 'ok',
+      failed.length ? `${failed.length} von ${queued} nicht hochgeladen: ${failed.map((f) => `${name(f.path)} (${f.error})`).join(', ')}` : queued ? `${queued} ${queued === 1 ? 'Datei wartet' : 'Dateien warten'} im Gerät auf Netz` : 'nichts wartet im Gerät',
+      failed.length ? 'Die Dateien liegen im Gerät und werden alle 10 Minuten erneut versucht (auch in „Zu erledigen“, „Erneut versuchen“). Bei „Zugriff verweigert“ fehlt das Schreibrecht auf den Ordner in SharePoint (Berechtigungen prüfen).' : 'Wird hochgeladen, sobald wieder Netz da ist (beim Abgleich).',
+    )
+  } else add(G, 'Fotos und Dateien hochgeladen', 'info', 'Browser-Modus: keine Warteschlange, nichts wird hochgeladen')
   return out
 }
 

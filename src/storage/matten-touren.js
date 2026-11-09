@@ -440,20 +440,40 @@ export class TourStore {
     return true
   }
 
+  /** Hat eine geladene Tour dieses Foto (Pfad)? */
+  hasPhoto(path) {
+    return this.tours().some((t) => (t.stops || []).some((s) => (s.items || []).some((it) => (it.photos || []).some((p) => p.path === path))))
+  }
+
+  /**
+   * Hochgeladene Fotos in den geladenen Touren vermerken und speichern: mark(tour, [[Pfad, url]]) → Tour
+   * (core/matten-fahrt.js: markPhotosUploaded). true, wenn eine Tour geändert wurde.
+   */
+  async markPhotos(done, mark) {
+    let changed = false
+    for (const t of this.tours()) {
+      const next = mark(t, done)
+      if (next === t) continue
+      changed = true
+      await this.update(t.id, () => next)
+    }
+    return changed
+  }
+
   /**
    * Wartende Fotos hochladen (Warteschlange der Ablage, nach dem Funkloch) und in den Touren vermerken:
-   * mark(tour, [[Pfad, url]]) → Tour. Liefert die Zahl noch wartender Fotos.
+   * mark(tour, [[Pfad, url]]) → Tour. Liefert die Zahl noch wartender Fotos. Auch der Abgleich der App holt
+   * die Warteschlange nach (DataService); Fotos einer Tour, die hier noch nicht geladen ist, meldet die Ablage
+   * beim nächsten Mal noch einmal (onDone false).
    */
   async flushPhotos(mark) {
     if (!this.store.flushUploads) return 0
     const done = []
-    const left = await this.store.flushUploads((path, url) => done.push([path, url]))
-    if (done.length && mark) {
-      for (const t of this.tours()) {
-        const next = mark(t, done)
-        if (next !== t) await this.update(t.id, () => next)
-      }
-    }
+    const left = await this.store.flushUploads((path, url) => {
+      done.push([path, url])
+      return this.hasPhoto(path)
+    })
+    if (done.length && mark) await this.markPhotos(done, mark)
     return left
   }
 }

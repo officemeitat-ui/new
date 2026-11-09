@@ -34,7 +34,8 @@ export function registerTodo(source) {
   else SOURCES.push(source)
 }
 
-const mayDo = (module) => canEdit(module)
+/** Punkte eines Moduls nur für Rollen, die dort ändern dürfen; ohne Modul (betrifft nur dieses Gerät, z. B. nicht hochgeladene Dateien) für alle. */
+const mayDo = (module) => !module || canEdit(module)
 
 /** Punkte der weiteren Module (registerTodo). */
 function sourceItems(today) {

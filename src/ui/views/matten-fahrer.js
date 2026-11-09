@@ -45,7 +45,7 @@ import {
 } from '../../core/matten-fahrt.js'
 import { loadList } from '../../core/matten-tour.js'
 import { navigationUrl } from '../../core/routing.js'
-import { app, canEdit, closeModal, openModal, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, openModal, registerActions, registerModal, registerUploadHook, registerView, renderModal, renderNow, toast } from '../context.js'
 import { onToursChanged, tourStore as sharedTourStore } from '../matten-tourablage.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 import { esc, ICON, modalFrame } from '../shared.js'
@@ -134,6 +134,14 @@ async function sync() {
   await st.flush().catch(() => {})
   if (visible() && !app.ui.modal) renderNow()
 }
+
+// Fotos, die der Abgleich der App nachgeholt hat (DataService, auch wenn diese Ansicht nicht offen ist): in den
+// geladenen Touren vermerken. Noch nicht geladen → false: die Ablage meldet das Foto beim nächsten flushPhotos noch einmal.
+registerUploadHook((path, url) => {
+  const st = S.store
+  if (!path.startsWith('matten/fotos/') || !st?.loaded || !st.hasPhoto(path)) return false
+  return st.markPhotos([[path, url]], markPhotosUploaded).then(() => true)
+})
 
 if (typeof window !== 'undefined') {
   window.addEventListener?.('online', () => {

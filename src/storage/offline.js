@@ -6,8 +6,9 @@
 // Speicher im Gerät:
 //   docs     Pfad → { data, etag, modifiedAt }   letzter Stand aus SharePoint
 //   pending  Pfad → { doc, base, etag }          noch nicht gespeicherte Änderungen
-//   blobs    Pfad → { blob, type, at }           Fotos/Unterschriften zum Hochladen
+//   blobs    Pfad → { blob, type, at, tries?, triedAt?, error? }   Fotos/Unterschriften zum Hochladen
 //   meta     'init' → Laufwerk und Ordner (Start ohne Netz)
+//            'hochgeladen' → [{ path, url, at, tries }]  nachgeholte Dateien, die noch kein Modul vermerkt hat
 
 export class OfflineError extends Error {
   constructor(message = 'Keine Verbindung') {
@@ -21,6 +22,11 @@ export class OfflineError extends Error {
 export const isNetworkError = (err) => !!err && (err.offline || err instanceof TypeError || /network|failed to fetch|load failed|no_network|timed_out|offline|ERR_INTERNET/i.test(`${err.message || ''} ${err.errorCode || ''}`))
 
 const STORES = ['docs', 'pending', 'blobs', 'meta']
+/** Datei mit echtem Fehler (z. B. kein Schreibrecht): frühestens nach 10 Minuten wieder versuchen, nicht bei jedem Abgleich. */
+const RETRY_FAILED_MS = 10 * 60e3
+/** Hochgeladene, noch unvermerkte Dateien: höchstens so viele merken und so oft noch einmal melden (z. B. PDFs, die kein Modul vermerkt). */
+const UNCLAIMED_MAX = 100
+const UNCLAIMED_TRIES = 20
 
 /** Gerätespeicher: IndexedDB im Browser, sonst (Tests) im Arbeitsspeicher. */
 export function createOfflineCache(name = 'dienstplan-offline') {
@@ -110,6 +116,8 @@ export function memoryCache() {
  * stellt Fotos zum späteren Hochladen zurück.
  */
 export class CachedDocStore {
+  #flushing = null // laufendes flushUploads (nie zwei gleichzeitig)
+
   constructor(remote, cache = memoryCache()) {
     this.remote = remote
     this.cache = cache
@@ -275,29 +283,90 @@ export class CachedDocStore {
   }
 
   /**
-   * Wartende Fotos hochladen; onDone(path, webUrl) je Datei. Liefert die Anzahl
-   * noch wartender. Ein Foto mit echtem Fehler (z. B. keine Schreibrechte)
-   * bleibt im Gerät (mit Fehlertext) und hält die anderen nicht auf.
+   * Wartende Fotos hochladen; onDone(path, webUrl) je Datei. Liefert die Anzahl noch wartender.
+   * Läuft nie doppelt gleichzeitig: ein zweiter Aufruf wartet auf den laufenden und geht dann selbst
+   * durch (für ihn bleibt meist nichts). Ohne Netz wartet nach dem ersten Netzfehler der Rest ohne
+   * weitere Versuche. Ein Foto mit echtem Fehler (z. B. keine Schreibrechte) bleibt im Gerät (mit
+   * Fehlertext, failedUploads), hält die anderen nicht auf und kommt frühestens nach 10 Minuten wieder
+   * dran (retryFailed: sofort). Gibt onDone false zurück (kein Modul kennt die Datei, z. B. die Touren
+   * der Fahreransicht sind noch nicht geladen), merkt sich die Ablage die Datei und meldet sie dem
+   * nächsten Aufrufer noch einmal.
    */
-  async flushUploads(onDone = () => {}) {
+  async flushUploads(onDone = () => {}, opts = {}) {
+    while (this.#flushing) await this.#flushing.catch(() => {})
+    this.#flushing = this.#flushUploads(onDone, opts)
+    try {
+      return await this.#flushing
+    } finally {
+      this.#flushing = null
+    }
+  }
+
+  async #flushUploads(onDone, { retryFailed = false, now = Date.now() } = {}) {
+    await this.#replayUnclaimed(onDone)
     const list = await this.cache.all('blobs')
     let left = 0
-    for (const [path, entry] of list) {
+    for (let i = 0; i < list.length; i++) {
+      const [path, entry] = list[i]
+      if (entry.error && !retryFailed && now - (entry.triedAt || 0) < RETRY_FAILED_MS) {
+        left++
+        continue
+      }
       try {
         const { webUrl } = await this.remote.upload(path, entry.blob, entry.type)
         await this.cache.del('blobs', path)
-        onDone(path, webUrl)
+        await this.#notify(onDone, path, webUrl || null)
       } catch (err) {
-        left++
         if (isNetworkError(err)) {
+          // kein Netz: die übrigen warten ebenso, nicht jede einzeln versuchen
           this.#mark(true)
-          continue
+          left += list.length - i
+          break
         }
-        await this.cache.put('blobs', path, { ...entry, tries: (entry.tries || 0) + 1, error: String(err.message || err) })
+        left++
+        await this.cache.put('blobs', path, { ...entry, tries: (entry.tries || 0) + 1, triedAt: now, error: String(err.message || err) })
       }
     }
     if (!left && list.length) this.#mark(false)
     return left
+  }
+
+  /** onDone aufrufen; false (kein Modul kennt die Datei) → für den nächsten Aufrufer merken. */
+  async #notify(onDone, path, url) {
+    let claimed
+    try {
+      claimed = await onDone(path, url)
+    } catch {
+      claimed = true // Fehler im Vermerk: nicht bei jedem Abgleich wiederholen
+    }
+    if (claimed !== false) return
+    const list = ((await this.cache.get('meta', 'hochgeladen')) || []).filter((x) => x.path !== path)
+    list.push({ path, url, at: new Date().toISOString(), tries: 0 })
+    await this.cache.put('meta', 'hochgeladen', list.slice(-UNCLAIMED_MAX))
+  }
+
+  /** Hochgeladene Dateien, die noch kein Modul vermerkt hat, dem Aufrufer noch einmal melden. */
+  async #replayUnclaimed(onDone) {
+    const list = (await this.cache.get('meta', 'hochgeladen')) || []
+    if (!list.length) return
+    const rest = []
+    for (const x of list) {
+      let claimed
+      try {
+        claimed = await onDone(x.path, x.url)
+      } catch {
+        claimed = true
+      }
+      // kennt sie nach vielen Abgleichen immer noch niemand (z. B. ein PDF ohne Vermerk im Modul): nicht ewig weitermelden
+      if (claimed === false && (x.tries || 0) + 1 < UNCLAIMED_TRIES) rest.push({ ...x, tries: (x.tries || 0) + 1 })
+    }
+    if (rest.length) await this.cache.put('meta', 'hochgeladen', rest)
+    else await this.cache.del('meta', 'hochgeladen')
+  }
+
+  /** Hochgeladene Dateien, die noch kein Modul vermerkt hat: [{ path, url, at, tries }]. */
+  async unclaimedUploads() {
+    return (await this.cache.get('meta', 'hochgeladen')) || []
   }
 
   async queuedUploads() {

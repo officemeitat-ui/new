@@ -13,9 +13,12 @@ function memoryStorage() {
 /** „SharePoint“ zum Ab- und Einschalten des Netzes. */
 function flakyRemote() {
   const inner = new LocalDocStore({ storage: memoryStorage() })
-  const net = { online: true, uploads: [] }
+  const net = { online: true, uploads: [], attempts: 0 }
   const guard = (fn) => async (...args) => {
-    if (!net.online) throw new TypeError('Failed to fetch')
+    if (!net.online) {
+      net.attempts++
+      throw new TypeError('Failed to fetch')
+    }
     return fn(...args)
   }
   const remote = {
@@ -161,12 +164,132 @@ test('Offline: der Abgleich holt wartende Fotos aller Module nach (nicht nur im 
   assert.equal(await store.queuedUploads(), 2)
   net.online = true
   const done = []
+  const states = []
   service.onUploaded = (path) => done.push(path)
+  service.onUploads = (state) => states.push(state)
   await service.refresh()
   // läuft im Hintergrund: auf das Ende warten
   for (let i = 0; i < 50 && (await store.queuedUploads()); i++) await new Promise((r) => setTimeout(r, 10))
   assert.equal(await store.queuedUploads(), 0)
   assert.deepEqual(done.sort(), ['anlagen/nachweise/2026/b.jpg', 'regie/nachweise/2026/a.jpg'])
   assert.deepEqual(net.uploads.sort(), ['anlagen/nachweise/2026/b.jpg', 'regie/nachweise/2026/a.jpg'])
+  assert.deepEqual(states, [{ done: 2, left: 0, failed: [] }], 'Stand der Warteschlange für „Zu erledigen“ und Systemcheck')
   assert.equal(await service.flushQueuedUploads(), 0, 'nichts mehr da')
+})
+
+test('Offline: Nachholen läuft nie doppelt gleichzeitig (Abgleich und Fahreransicht rufen es beide auf)', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  net.online = false
+  await store.upload('matten/fotos/2026/p1/a.jpg', new Blob(['a']), 'image/jpeg')
+  await store.upload('matten/fotos/2026/p1/b.jpg', new Blob(['b']), 'image/jpeg')
+  net.online = true
+  // langsames Hochladen, damit sich beide Aufrufe überschneiden
+  const upload = remote.upload
+  remote.upload = async (...args) => {
+    await new Promise((r) => setTimeout(r, 5))
+    return upload(...args)
+  }
+  const done = []
+  const [a, b] = await Promise.all([store.flushUploads((p) => done.push(`1:${p}`)), store.flushUploads((p) => done.push(`2:${p}`))])
+  assert.deepEqual([a, b], [0, 0])
+  assert.deepEqual(net.uploads.sort(), ['matten/fotos/2026/p1/a.jpg', 'matten/fotos/2026/p1/b.jpg'], 'jede Datei genau einmal hochgeladen')
+  assert.deepEqual(done.map((x) => x.slice(0, 2)), ['1:', '1:'], 'der zweite Aufruf hat gewartet; für ihn blieb nichts')
+})
+
+test('Offline: kennt kein Modul die Datei, bekommt sie der nächste Aufrufer noch einmal (Touren erst später geladen)', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  net.online = false
+  await store.upload('matten/fotos/2026/p1/a.jpg', new Blob(['a']), 'image/jpeg')
+  net.online = true
+  const first = []
+  assert.equal(
+    await store.flushUploads((path, url) => {
+      first.push([path, url])
+      return false // z. B. uploadDone: die Fahreransicht hat ihre Touren noch nicht geladen
+    }),
+    0,
+  )
+  assert.deepEqual(first, [['matten/fotos/2026/p1/a.jpg', 'https://sp/matten/fotos/2026/p1/a.jpg']])
+  assert.deepEqual((await store.unclaimedUploads()).map((x) => x.path), ['matten/fotos/2026/p1/a.jpg'])
+  assert.equal(await store.queuedUploads(), 0, 'hochgeladen ist sie')
+  const second = []
+  assert.equal(await store.flushUploads((path, url) => second.push([path, url])), 0)
+  assert.deepEqual(second, first, 'noch einmal gemeldet, ohne neu hochzuladen')
+  assert.deepEqual(net.uploads, ['matten/fotos/2026/p1/a.jpg'])
+  assert.deepEqual(await store.unclaimedUploads(), [])
+  const third = []
+  await store.flushUploads((path) => third.push(path))
+  assert.deepEqual(third, [], 'vermerkt: kein drittes Mal')
+})
+
+test('Offline: Datei mit echtem Fehler frühestens nach 10 Minuten wieder, „Erneut versuchen“ sofort', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  net.online = false
+  await store.upload('kontrolle/fotos/a.jpg', new Blob(['a']), 'image/jpeg')
+  net.online = true
+  const upload = remote.upload
+  let denied = true
+  remote.upload = async (...args) => {
+    if (denied) throw Object.assign(new Error('Zugriff verweigert'), { status: 403 })
+    return upload(...args)
+  }
+  const now = Date.parse('2026-11-09T10:00:00Z')
+  assert.equal(await store.flushUploads(() => {}, { now }), 1)
+  denied = false // das Büro hat das Recht freigegeben
+  assert.equal(await store.flushUploads(() => {}, { now: now + 60e3 }), 1, 'eine Minute später: noch nicht wieder versucht (nicht bei jedem Abgleich)')
+  assert.deepEqual(net.uploads, [])
+  const done = []
+  assert.equal(await store.flushUploads((p) => done.push(p), { now: now + 60e3, retryFailed: true }), 0)
+  assert.deepEqual(done, ['kontrolle/fotos/a.jpg'])
+  // und von selbst nach 10 Minuten
+  net.online = false
+  await store.upload('kontrolle/fotos/b.jpg', new Blob(['b']), 'image/jpeg')
+  net.online = true
+  denied = true
+  assert.equal(await store.flushUploads(() => {}, { now }), 1)
+  denied = false
+  assert.equal(await store.flushUploads(() => {}, { now: now + 11 * 60e3 }), 0)
+  assert.deepEqual(await store.failedUploads(), [])
+})
+
+test('Offline: ohne Netz wartet nach dem ersten Netzfehler der Rest ohne weitere Versuche', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  net.online = false
+  for (const n of ['a', 'b', 'c']) await store.upload(`regie/nachweise/2026/${n}.jpg`, new Blob([n]), 'image/jpeg')
+  net.attempts = 0
+  assert.equal(await store.flushUploads(), 3)
+  assert.equal(net.attempts, 1)
+  assert.equal(store.offline, true)
+  net.online = true
+  assert.equal(await store.flushUploads(), 0)
+  assert.equal(store.offline, false)
+})
+
+test('Offline: DataService mit Vermerk im Modul (onUploaded) und Stand (onUploads) aus den Optionen', async () => {
+  const { remote, net } = flakyRemote()
+  const store = new CachedDocStore(remote, memoryCache())
+  await store.init()
+  const marked = []
+  const states = []
+  const service = new DataService(store, { debounceMs: 0, onUploaded: (path, url) => (marked.push([path, url]), path.startsWith('regie/')), onUploads: (s) => states.push(s) })
+  await service.load(seed)
+  net.online = false
+  await store.upload('regie/nachweise/2026/a.jpg', new Blob(['a']), 'image/jpeg')
+  await store.upload('matten/fotos/2026/p1/b.jpg', new Blob(['b']), 'image/jpeg')
+  net.online = true
+  assert.equal(await service.flushQueuedUploads(), 0)
+  assert.deepEqual(marked.map(([p]) => p).sort(), ['matten/fotos/2026/p1/b.jpg', 'regie/nachweise/2026/a.jpg'])
+  assert.deepEqual(states, [{ done: 2, left: 0, failed: [] }])
+  // das Matten-Foto kennt noch niemand: beim nächsten Nachholen noch einmal gemeldet
+  assert.equal(await service.flushQueuedUploads(), 0)
+  assert.deepEqual(marked.slice(2), [['matten/fotos/2026/p1/b.jpg', 'https://sp/matten/fotos/2026/p1/b.jpg']])
+  assert.deepEqual(states.at(-1), { done: 1, left: 0, failed: [] })
 })
