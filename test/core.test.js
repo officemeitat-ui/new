@@ -385,3 +385,10 @@ test('viennaDate: Kalendertag in Wien statt UTC (Winter- und Sommerzeit)', async
   assert.equal(viennaDate('2026-07-01T22:30:00.000Z'), '2026-07-02') // 0:30 Uhr in Wien (MESZ)
   assert.equal(viennaDate('kein Datum'), '')
 })
+
+test('Kassenbuch: Vorgabe „heute“ ist der Wiener Kalendertag (Buchung um 0:30 Uhr für den neuen Tag)', async () => {
+  const { addEntry } = await import('../src/core/cashbook.js')
+  const book = { entries: [], counts: [], closings: [], settings: {} }
+  addEntry(book, { date: '2026-11-10', kind: 'einnahme', type: 'anfang', amount: 100, text: 'Anfangsbestand', category: 'anfang' }, { now: '2026-11-09T23:30:00.000Z' })
+  assert.equal(book.entries.length, 1)
+})

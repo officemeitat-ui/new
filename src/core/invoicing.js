@@ -22,6 +22,8 @@
 // „Gutschrift“ heißt im UStG die Abrechnung durch den Empfänger (§ 11 Abs 7). Belege des Ausstellers,
 // die eine Rechnung ganz oder teilweise zurücknehmen, heißen hier Stornorechnung bzw. Rechnungskorrektur.
 
+import { viennaDate } from './dates.js'
+
 export const KINDS = {
   angebot: 'Angebot',
   auftrag: 'Auftragsbestätigung',
@@ -491,7 +493,7 @@ export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date
   if (!out.receipt || typeof out.receipt !== 'object' || out.kind !== 'lieferschein') delete out.receipt
   if (!(parseNumber(out.skonto?.percent) > 0) || d.kind !== 'rechnung') delete out.skonto
   // nur geänderte Texte übernehmen (Belege ohne Platzhalter bleiben Feld für Feld gleich)
-  for (const [k, v] of Object.entries(resolveTexts(out, { settings: s, customer, terms, user, today: now.slice(0, 10) }))) if (v !== out[k]) out[k] = v
+  for (const [k, v] of Object.entries(resolveTexts(out, { settings: s, customer, terms, user, today: viennaDate(now) || now.slice(0, 10) }))) if (v !== out[k]) out[k] = v
   out.checksum = checksumOf(out)
   return out
 }

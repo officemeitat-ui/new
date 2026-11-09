@@ -30,6 +30,7 @@
 //  settings   { name, account (Kassenkonto, Vorschlag 2700), diffAccount (Kassendifferenzen), categories }
 
 import { fnv1a, parseNumber, round2 } from './invoicing.js'
+import { viennaDate } from './dates.js'
 
 export const RKSV = { turnover: 15000, cash: 7500 } // § 131b Abs 1 Z 2 und 3 BAO (Jahresumsatz netto je Betrieb, Barumsätze)
 export const RKSV_HINT = 'Registrierkassenpflicht (§ 131b BAO, RKSV): Ab 15.000 € Jahresumsatz je Betrieb, wenn davon mehr als 7.500 € bar (auch Karte, Bankomat) bezahlt werden, müssen Barumsätze einzeln mit einer Registrierkasse mit Signatur erfasst werden, und jede Barzahlung braucht einen Beleg. Das Kassenbuch ersetzt keine Registrierkasse.'
@@ -138,7 +139,7 @@ export function dateProblem(book, date, today) {
  * Prüft eine neue Buchung und gibt sie zurück (wirft CashError mit Hinweis). draft: { date, kind, amount, text,
  * rate, vat, account, category, receipt, beleg, ref, type }. Die Buchung wird nur angehängt, nichts bestehendes geändert.
  */
-export function addEntry(book, draft, { newId = () => Math.random().toString(36).slice(2, 10), now = new Date().toISOString(), by = '', today = now.slice(0, 10) } = {}) {
+export function addEntry(book, draft, { newId = () => Math.random().toString(36).slice(2, 10), now = new Date().toISOString(), by = '', today = viennaDate(now) || now.slice(0, 10) } = {}) {
   book.entries ||= []
   const amount = round2(parseNumber(draft.amount))
   if (!(amount > 0)) throw new CashError('Bitte einen Betrag über 0 eingeben.')
@@ -199,7 +200,7 @@ export function stornoEntry(book, id, { reason = '', date = null } = {}, opts = 
   if (e.type === 'storno') throw new CashError('Ein Storno kann nicht storniert werden. Bitte den Betrag neu buchen.')
   if (isCancelled(book, id)) throw new CashError(`Nr. ${e.no} ist schon storniert.`)
   if (!String(reason).trim()) throw new CashError('Bitte den Grund des Stornos angeben.')
-  const today = opts.today || (opts.now || new Date().toISOString()).slice(0, 10)
+  const today = opts.today || viennaDate(opts.now || new Date().toISOString())
   const day = date || today
   if (day < e.date) throw new CashError('Das Storno kann nicht vor dem ursprünglichen Eintrag liegen.')
   return addEntry(
@@ -216,7 +217,7 @@ export function stornoEntry(book, id, { reason = '', date = null } = {}, opts = 
  */
 export function countCash(book, { date, counted, note = '', closesDay = true }, opts = {}) {
   book.counts ||= []
-  const today = opts.today || (opts.now || new Date().toISOString()).slice(0, 10)
+  const today = opts.today || viennaDate(opts.now || new Date().toISOString())
   const problem = dateProblem(book, date, today)
   if (problem) throw new CashError(problem)
   const c = round2(parseNumber(counted))
@@ -260,7 +261,7 @@ export function firstOpenMonth(book) {
  * Monatsabschluss: nur für vergangene Monate, der Reihe nach. Hält Anfangs- und Endstand, Summen und eine
  * Prüfsumme über alle Einträge fest; danach sind Buchungen mit Datum in diesem Monat (und davor) gesperrt.
  */
-export function closeMonth(book, month, { now = new Date().toISOString(), by = '', today = now.slice(0, 10), newId = () => Math.random().toString(36).slice(2, 10) } = {}) {
+export function closeMonth(book, month, { now = new Date().toISOString(), by = '', today = viennaDate(now) || now.slice(0, 10), newId = () => Math.random().toString(36).slice(2, 10) } = {}) {
   book.closings ||= []
   if (!/^\d{4}-\d{2}$/.test(String(month))) throw new CashError('Bitte einen Monat wählen.')
   if (month >= today.slice(0, 7)) throw new CashError('Abschließen geht erst nach dem Monatsende.')
