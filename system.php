@@ -19,6 +19,9 @@ $kundenOrdner = getenv('KUNDEN_ORDNER') ?: __DIR__ . '/privat';
 $kunden = $lesen("$kundenOrdner/kundenbereich.json");
 $mattenOrdner = getenv('MATTEN_ORDNER') ?: __DIR__ . '/privat';
 $matten = $lesen("$mattenOrdner/mattentour.json");
+// Google-Routing (routing.php): nur ob ein Schlüssel eingerichtet ist und ob PHP in den Ordner schreiben darf, nie der Schlüssel
+$routingOrdner = getenv('ROUTING_ORDNER') ?: __DIR__ . '/privat';
+$routing = $lesen("$routingOrdner/routing.json");
 $schluessel = array_values(array_filter([isset($alarm['schluessel']) ? $alarm['schluessel'] : '', isset($plan['schluessel']) ? $plan['schluessel'] : '', isset($kunden['schluessel']) ? $kunden['schluessel'] : '', isset($matten['schluessel']) ? $matten['schluessel'] : ''], function ($k) {
     return is_string($k) && strlen($k) >= 32;
 }));
@@ -59,6 +62,7 @@ echo json_encode([
     'privat' => ['vorhanden' => is_dir($alarmOrdner), 'beschreibbar' => is_dir($alarmOrdner) && is_writable($alarmOrdner)],
     'upload' => ['bytes' => $upload, 'ok' => $upload >= 8 * 1024 * 1024],
     'dateien' => ['wetterAlarm' => $alarm !== null, 'mitarbeiter' => $plan !== null, 'kundenbereich' => $kunden !== null, 'mattentour' => $matten !== null],
+    'routing' => ['eingerichtet' => isset($routing['schluessel']) && is_string($routing['schluessel']) && $routing['schluessel'] !== '', 'beschreibbar' => is_dir($routingOrdner) && is_writable($routingOrdner)],
     'cron' => [
         'wetterAlarm' => isset($stand['letztePruefung']) ? (int) $stand['letztePruefung'] : null,
         'meinPlan' => isset($planPruefung['zuletzt']) ? (int) $planPruefung['zuletzt'] : null,

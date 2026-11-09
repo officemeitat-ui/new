@@ -1748,7 +1748,7 @@ export const TOPICS = [
     answer: 'In „Matten-Tourenplanung“ wählst du den Tag und die Fahrer des Tages; „Vorschlag erzeugen“ verteilt die fälligen und überfälligen Einsätze als Stopps (ein Objekt = ein Stopp) auf die Fahrer, mit Reihenfolge und Ankunftszeiten. Je Tour: Stopps, Zeitfenster, Liegeplätze und Matten, km und Minuten, Ladeliste, Warnungen.',
     steps: ['Im „Matten-Kalender“ beim Tag „Touren planen“ klicken (oder die Ansicht öffnen und den Tag wählen).', 'Fahrer des Tages prüfen: Arbeitszeit, Fahrzeug, Platz für Matten.', '„Vorschlag erzeugen“ klicken.', 'Reihenfolge mit den Pfeilen ändern (am PC auch ziehen), Stopps in eine andere Tour verschieben oder entfernen.', 'Ladeliste und Warnungen prüfen, dann „Tour freigeben“.'],
     tips: ['Nach jeder Änderung rechnet die App die Ankunftszeiten neu.', '„Nicht eingeplant“ nennt den Grund, z. B. keine Koordinaten oder Zeitfenster nicht einzuhalten; von dort lässt sich ein Stopp zu einer Tour hinzufügen.', '„Route in Google Maps ansehen“ zeigt Betriebshof, alle Stopps und zurück; bei vielen Stopps in Teilen.', 'Ein neuer Vorschlag ersetzt die Entwürfe des Tages, freigegebene Touren bleiben.'],
-    related: ['mw-tour-freigeben', 'mw-betriebshof', 'mw-fahrer', 'mw-kalender'],
+    related: ['mw-tour-freigeben', 'mw-betriebshof', 'mw-fahrer', 'mw-kalender', 'mw-google-routing'],
     roles: 'Mattenwechsel Büro, Vollzugriff (Fahrer sehen die Planung nicht)',
   },
   {
@@ -1788,6 +1788,19 @@ export const TOPICS = [
     action: { action: 'mw-tp-drivers-open', label: 'Fahrer festlegen' },
     related: ['mw-touren-planen', 'mw-betriebshof', 'mw-rollen'],
     roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
+  },
+  {
+    id: 'mw-google-routing',
+    section: 'objekte',
+    view: 'mw-planung',
+    title: 'Google-Routing einrichten',
+    q: ['google routing einrichten', 'google maps schlüssel', 'echte fahrzeiten', 'fahrzeiten mit google neu rechnen', 'routes api', 'google kosten touren', 'monatslimit google', 'koordinaten suchen google'],
+    answer: 'Mit Google kommen echte Fahrzeiten: beim Vorschlag teilt die App die Stopps den Fahrern zu, Google legt je Tour die Reihenfolge fest. Der API-Schlüssel liegt nur am Webspace. Fällt Google aus (kein Schlüssel, Limit, keine Verbindung), rechnet der eingebaute Anbieter mit Hinweis.',
+    steps: ['Im Google-Cloud-Konto ein Projekt mit Abrechnung anlegen und „Routes API“ und „Geocoding API“ aktivieren.', 'Einen API-Schlüssel erstellen, auf diese zwei APIs und die IP-Adresse des Webspace beschränken, eine Budget-Warnung (z. B. 5 €) setzen.', 'In „Matten-Tourenplanung“ „Mehr“ → „Routing“ öffnen, „Google“ wählen und den Schlüssel eintragen.', 'Monats- und Tageslimit prüfen (Vorgabe 1000 bzw. 100 Anfragen) und „Speichern“.'],
+    tips: ['Reihenfolge von Hand bleibt von Hand: danach sind die Zeiten geschätzt, bis du „Fahrzeiten mit Google neu rechnen“ klickst (eine Anfrage).', 'Der Dialog zeigt die Nutzung des Monats und grob die Kosten; die Preise bitte im Google-Konto prüfen.', 'An Google gehen nur Koordinaten, bei „Koordinaten suchen“ die Adresse, keine Namen.'],
+    action: { action: 'mwg-open', label: 'Routing öffnen' },
+    related: ['mw-touren-planen', 'mw-betriebshof', 'mw-tour-freigeben'],
+    roles: 'Einrichten: Vollzugriff; nutzen: Mattenwechsel Büro',
   },
   {
     id: 'mw-lieferscheine',

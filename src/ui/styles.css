@@ -2491,6 +2491,17 @@ tr.muted td { color: var(--muted); }
 .mww-note { margin: 8px 0 0; }
 .mww-note.banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .mw-dr-add .field select { min-width: 0; max-width: 100%; }
+/* Google-Routing (ui/matten-routing.js): Zeile über den Touren, Dialog „Routing“ */
+.mwg-line { margin: 0 0 10px; }
+.mwg-line.banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.mwg-h { margin: 16px 0 6px; font-size: 1rem; }
+.mwg-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.mwg-usage { margin: 12px 0 0; }
+.mwg-usage h4 { margin: 0 0 4px; }
+.mwg-usage p { margin: 2px 0; }
+.mwg-steps { margin: 4px 0 8px; padding-left: 1.4rem; display: grid; gap: 4px; }
+.mwg-steps li { overflow-wrap: anywhere; }
+.mw-tp-provider { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 @media (max-width: 900px) {
   .mw-tp-stop { grid-template-columns: 2rem minmax(0, 1fr) auto; }
   .mw-tp-time { grid-column: 2; grid-row: 1; }

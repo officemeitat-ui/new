@@ -312,7 +312,8 @@ lazy(BUERO, {
 // matten-bestand.js: Mattenwechsel-Modul im Büro (Übersicht mit den neun Zahlen, Karte auf der Startseite und
 // Kennzahlen: Kürzel mwu-; Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen,
 // Tourenplanung, Lieferscheine je Stopp mit Versand und Ablage, Fahrerseite am Webspace für Fahrer ohne Konto über
-// ui/matten-webspace.js: Kürzel mww-; Mattenbestand und Wäscherei: Kürzel mwb-), Umstellung vom Werkzeug auf das Modul
+// ui/matten-webspace.js: Kürzel mww-; Google-Routing mit Dialog „Routing“ über ui/matten-routing.js: Kürzel mwg-;
+// Mattenbestand und Wäscherei: Kürzel mwb-), Umstellung vom Werkzeug auf das Modul
 // (matten-umstellung.js, Kürzel mwc-); das Werkzeug bleibt bis zur Umstellung unter #matten (tools.js), danach als
 // „Mattenwechsel (alt)“ nur lesend
 lazy(BUERO, {
@@ -394,7 +395,7 @@ lazy(BUERO, {
       text: 'Mattenwechsel: Mattenbestand je Typ (Lager sauber, beim Kunden, Fahrzeug, Wäscherei), Inventur, Wäscherei',
     },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwg-routing mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
@@ -403,6 +404,7 @@ lazy(BUERO, {
     mw-tp-remove mw-tp-add mw-tp-release mw-tp-withdraw mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save
     mw-tp-depot-geo mw-tp-depot-save mw-tp-drv-add mw-tp-drv-del mw-tp-drivers-save mww-dr-web mww-dr-newlink
     mww-web-open mww-copy mww-web-save mww-web-file mww-web-sync mww-web-publish
+    mwg-open mwg-save mwg-remove mwg-retime mwg-geo
     mw-ls-goto mw-ls-filter mw-ls-range mw-ls-sel mw-ls-sel-all mw-ls-open mw-ls-reload mw-ls-fak mw-ls-create mw-ls-create-all mw-ls-pdf mw-ls-send
     mw-ls-archive mw-ls-archive-all mw-ls-run-open mw-ls-run-mode mw-ls-run mw-ls-run-stop mw-ls-settings-open mw-ls-settings-save
     mwu-goto mwu-list mwu-tour mwu-reload mwu-apply mwu-catchup mwu-settings-open mwu-settings-save

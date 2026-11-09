@@ -249,7 +249,7 @@ const SAFE = new Set([
   'emp-edit', 'import-open', 'obj-edit', 'task-edit', 'tr-session-open', 'tr-types-open', 'anl-edit-open', 'anl-check-open', 'anl-types-open', 'mw-edit-open', 'mw-plan-open', 'mw-closures-open', 'mw-tp-depot-open', 'mw-tp-drivers-open', 'mw-ls-settings-open', 'mww-web-open', 'reg-new', 'qm-groups-open', 'qm-measure-open', 'qm-settings-open', 'kz-round-open', 'kz-settings-open', 'kz-links-open',
   'asch-stoff-open', 'asch-ba-open', 'asch-eval-open',
   'bew-edit-open', 'bew-settings-open', 'bew-start-open', 'bew-tpl-open',
-  'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-erinnern-open', 'fak-sepa-open', 'mwr-open',
+  'mail-compose-open', 'mail-task-new', 'mail-reports-open', 'fak-import-open', 'fak-batch-open', 'fak-dunning-open', 'fak-erinnern-open', 'fak-sepa-open', 'mwr-open', 'mwg-open',
   'ek-inv-new', 'ek-sup-open', 'ek-export-open', 'kasse-new', 'kasse-count-open', 'kasse-export-open',
 ])
 

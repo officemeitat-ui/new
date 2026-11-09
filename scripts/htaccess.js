@@ -77,7 +77,8 @@ export function htaccessFor(swa) {
   const privat = [
     KOPF,
     '# Schnee-Alarm (wetter-alarm.php), Mein Dienstplan (mein-plan.php), Kundenbereich (kunden.php) und Fahrerseite',
-    '# (mattentour.php): Einstellungen, Pläne, Anträge, Touren, Fotos bis zur Übernahme, nur für PHP lesbar.',
+    '# (mattentour.php): Einstellungen, Pläne, Anträge, Touren, Fotos bis zur Übernahme; API-Schlüssel und Zähler von',
+    '# KI-Assistent (ki.php) und Google-Routing (routing.php). Nur für PHP lesbar.',
     '<IfModule mod_authz_core.c>',
     '  Require all denied',
     '</IfModule>',

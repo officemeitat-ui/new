@@ -16,10 +16,14 @@
 //  - 'luftlinie' (eingebaut, kostenlos, immer verfügbar): Fahrzeit = Zuschlag + Luftlinie × Umwegfaktor ÷ Geschwindigkeit
 //    (gleiche Annahmen wie estimateTravel in core/geo.js, einstellbar), Geokodierung über OpenStreetMap (Nominatim,
 //    höchstens 1 Anfrage je Sekunde). Optimierung siehe planRoutes.
-//  - 'google' (Google Maps Platform): nur die Schnittstelle. Anfragen gehen später über einen Durchreicher am Webspace
-//    (routing.php nach dem Muster von ki.php: Microsoft-Anmeldung im Kopf X-Microsoft-Token, Schlüssel nur dort in
-//    privat/, Tageslimit) – googleRequest beschreibt die Anfrage. Kein Schlüssel im Code. Bis dahin werfen alle Methoden
-//    „noch nicht eingerichtet“, und routingFor fällt auf 'luftlinie' zurück.
+//  - 'google' (Google Maps Platform, Entscheidung E8 vom 9.11.2026): Anfragen gehen über den Durchreicher routing.php
+//    am Webspace (Muster ki.php: Microsoft-Anmeldung im Kopf X-Microsoft-Token, Schlüssel nur dort in privat/, Monats-
+//    und Tageslimit). Die Zuteilung auf die Fahrer macht weiter planRoutes (Einfügen mit Bedauern); danach fragt der
+//    Anbieter je Tour Google (Routes API computeRoutes mit optimierter Reihenfolge, Start und Ziel Betriebshof, höchstens
+//    25 Stopps) und rechnet die Ankunftszeiten mit den echten Fahrzeiten neu (scheduleRoute); verletzt die Reihenfolge
+//    von Google ein Zeitfenster, gilt die der App mit den Fahrzeiten von Google. An Google gehen nur Koordinaten (bei der
+//    Adresssuche die Adresse), keine Namen. Fällt Google aus (kein Schlüssel, Limit, Netz, Fehler), rechnet je Tour der
+//    eingebaute Anbieter mit Hinweis (notice) – ein Vorschlag scheitert nie an Google. Kein Schlüssel im Code.
 //  - weitere (z. B. 'azure') lassen sich mit registerRoutingProvider anmelden, ohne Umbau.
 //
 // Navigation am Handy braucht keinen Schlüssel: navigationUrl → Google-Maps-Link.
@@ -662,26 +666,257 @@ export function createLuftlinieProvider({ fetch: fetchFn = (...a) => globalThis.
   }
 }
 
-/** Durchreicher am Webspace für Google (noch nicht gebaut; Muster ki.php). */
-export const GOOGLE_ENDPOINT = 'routing.php'
-export const GOOGLE_ACTIONS = ['geocode', 'matrix', 'optimize']
+// ---------------------------------------------------------------- Google (über routing.php am Webspace)
 
+/** Durchreicher am Webspace (routing.php, Muster ki.php): Schlüssel nur dort, Anmeldung mit dem Microsoft-Token. */
+export const GOOGLE_ENDPOINT = 'routing.php'
+export const GOOGLE_ACTIONS = ['status', 'einrichten', 'geocode', 'optimize']
+/** Höchstens so viele Stopps je Tour gehen an Google (Routes API: 25 Zwischenziele mit optimierter Reihenfolge). */
+export const GOOGLE_MAX_STOPS = 25
+/** Vorgaben der Limits am Webspace (Anfragen an Google zusammen): im Monat so, dass es im Gratis-Kontingent bleibt. */
+export const GOOGLE_LIMITS = Object.freeze({ month: 1000, day: 100 })
 /**
- * Anfrage an den künftigen Durchreicher (nur beschrieben, nicht gesendet): POST <endpoint>?aktion=<geocode|matrix|optimize>,
- * Kopf X-Microsoft-Token (Anmeldung wie ki.php), Inhalt JSON wie die Schnittstelle oben ({ address } | { points } |
- * problem). Der Schlüssel liegt nur am Webspace (privat/), nie in der App.
+ * Preise der Google Maps Platform für die grobe Kostenschätzung in US-Dollar, Stand 9.11.2026 – bitte im Google-Konto
+ * prüfen: Compute Routes (mit optimierter Reihenfolge) 10 US-Dollar je 1000 Anfragen über 5000 Gratis-Anfragen im Monat,
+ * Geocoding 5 US-Dollar je 1000 über 10000 Gratis-Anfragen im Monat.
  */
-export function googleRequest(action, body = {}, { endpoint = GOOGLE_ENDPOINT, token = '' } = {}) {
-  if (!GOOGLE_ACTIONS.includes(action)) throw new RoutingError('aktion', `Unbekannte Aktion „${action}“`)
-  return { url: `${endpoint}?aktion=${action}`, method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microsoft-Token': token }, body: JSON.stringify(body) }
+export const GOOGLE_PRICES = Object.freeze({ asOf: '2026-11-09', routes: Object.freeze({ free: 5000, per1000: 10 }), geocode: Object.freeze({ free: 10000, per1000: 5 }) })
+/** Format eines API-Schlüssels der Google Maps Platform (nur zur Prüfung vor dem Senden; der Schlüssel bleibt am Webspace). */
+export const GOOGLE_KEY_PATTERN = /^AIza[0-9A-Za-z_-]{35}$/
+
+const round2 = (x) => Math.round(x * 100) / 100
+
+/** Grobe Kosten eines Monats aus den Zählern { routen, geocode } (US-Dollar, nach Abzug der Gratis-Anfragen). */
+export function googleCost({ routen = 0, geocode = 0 } = {}, prices = GOOGLE_PRICES) {
+  const part = (n, p) => (Math.max(0, (Number(n) || 0) - p.free) / 1000) * p.per1000
+  const routes = part(routen, prices.routes)
+  const geo = part(geocode, prices.geocode)
+  return { routes: round2(routes), geocode: round2(geo), total: round2(routes + geo) }
 }
 
-/** Google Maps Platform – Stub mit der Schnittstelle; alle Methoden werfen „noch nicht eingerichtet“. */
-export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT } = {}) {
-  const notReady = async () => {
-    throw new RoutingError('nicht-eingerichtet', 'Google-Routing ist noch nicht eingerichtet (Durchreicher am Webspace fehlt) – der eingebaute Anbieter rechnet.')
+/**
+ * Anfrage an den Durchreicher: status per GET, sonst POST <endpoint>?aktion=<…> mit JSON. Kopf X-Microsoft-Token
+ * (Anmeldung wie ki.php); der Schlüssel liegt nur am Webspace (privat/), nie in der App.
+ */
+export function googleRequest(action, body, { endpoint = GOOGLE_ENDPOINT, token = '' } = {}) {
+  if (!GOOGLE_ACTIONS.includes(action)) throw new RoutingError('aktion', `Unbekannte Aktion „${action}“`)
+  if (action === 'status') return { url: `${endpoint}?aktion=status`, method: 'GET', headers: { 'X-Microsoft-Token': token } }
+  return { url: `${endpoint}?aktion=${action}`, method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microsoft-Token': token }, body: JSON.stringify(body ?? {}) }
+}
+
+/**
+ * Matrix aus den Abschnitten einer Reihenfolge (Google): Punkte [Betriebshof, Stopp 1, …, Stopp n], Abschnitt k fährt
+ * von Punkt k zum nächsten, der letzte zurück zum Betriebshof. Minuten = Fahrzeit von Google (aufgerundet) plus
+ * Zuschlag je Fahrt (baseMin: Parken, Gehen, Laden – wie beim eingebauten Anbieter); unter 100 m und 1 Minute 0.
+ * Nur diese Paare sind bekannt (sonst null): gilt nur für genau diese Reihenfolge.
+ */
+export function legsMatrix(legs = [], settings = {}) {
+  const cfg = travelSettings(settings)
+  const n = legs.length
+  const grid = () => Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 0 : null)))
+  const minutes = grid()
+  const km = grid()
+  if (n < 2) return { minutes, km }
+  legs.forEach((leg, k) => {
+    const to = (k + 1) % n
+    const meters = Math.max(0, Number(leg?.meters) || 0)
+    const seconds = Math.max(0, Number(leg?.seconds) || 0)
+    minutes[k][to] = meters < 100 && seconds < 60 ? 0 : Math.ceil(seconds / 60 - 1e-9) + cfg.baseMin
+    km[k][to] = round1(meters / 1000)
+  })
+  return { minutes, km }
+}
+
+/** Fehler von routing.php → Kennung (anmeldung, rechte, nicht-eingerichtet, limit, keine-route, google, anfrage, webspace). */
+function errorCode(status, type) {
+  if (status === 401) return 'anmeldung'
+  if (status === 403) return 'rechte'
+  if (status === 503 || type === 'not_configured') return 'nicht-eingerichtet'
+  if (status === 429) return 'limit'
+  if (status === 422) return 'keine-route'
+  if (type === 'google_error') return 'google'
+  if (status === 400 || status === 413) return 'anfrage'
+  return 'webspace'
+}
+
+const LATE = ['zeitfenster', 'arbeitszeit']
+
+/**
+ * Google Maps Platform über routing.php (Entscheidung E8). fetch und getToken (Microsoft-Token der Person) lassen sich
+ * ersetzen (Tests, App). Den Stand des Webspace (status: eingerichtet, Limits, Nutzung) liest refresh(); ready() ist
+ * erst wahr, wenn ein Schlüssel eingerichtet und kein Limit erreicht ist (sonst wählt routingFor den eingebauten
+ * Anbieter mit why() als Hinweis).
+ *  - optimize(problem): Zuteilung und erste Reihenfolge mit planRoutes, dann je Tour eine Anfrage (optimierte
+ *    Reihenfolge); verletzt sie Zeitfenster oder Arbeitszeit, eine zweite mit der Reihenfolge der App. Ergebnis wie
+ *    planRoutes, je Tour provider ('google' | 'luftlinie'), notice ('' oder Grund) und google { order, legs }
+ *    (Abschnitte für spätere Änderungen ohne neue Anfrage). Nach einem Fehler fragt er für weitere Touren nicht mehr.
+ *  - legs({ depot, stops, optimize }): eine Anfrage → { order, legs [{ seconds, meters }] } (optimize false: feste Reihenfolge).
+ *  - geocode(adresse) → { lat, lon, quality: 'google', label, precision } | null (eine Anfrage).
+ *  - matrix(punkte): bewusst ohne Google (Anfragen sparen) – Luftlinie wie der eingebaute Anbieter.
+ *  - setup({ schluessel?, limitMonat?, limitTag?, entfernen? }): nur Vollzugriff (prüft routing.php).
+ */
+export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchFn = (...a) => globalThis.fetch(...a), getToken = async () => '', label = 'Google-Routing' } = {}) {
+  let status = null
+  let lastError = null
+
+  async function call(action, body) {
+    let token = ''
+    try {
+      token = (await getToken()) || ''
+    } catch {
+      token = ''
+    }
+    const req = googleRequest(action, body, { endpoint, token })
+    let res
+    try {
+      res = await fetchFn(req.url, { method: req.method, headers: req.headers, ...(req.body !== undefined ? { body: req.body } : {}), cache: 'no-store' })
+    } catch {
+      throw Object.assign(new RoutingError('netz', 'Webspace nicht erreichbar (keine Verbindung)'), { status: 0 })
+    }
+    const type = String(res.headers?.get?.('content-type') || '')
+    const json = type.includes('json') ? await res.json().catch(() => null) : null
+    if (!json) throw Object.assign(new RoutingError('webspace', 'routing.php fehlt am Webspace (oder PHP ist aus)'), { status: res.status })
+    if (!res.ok) {
+      const e = json.error || {}
+      throw Object.assign(new RoutingError(errorCode(res.status, e.type), String(e.message || `Fehler ${res.status}`)), { status: res.status, limit: e.limit || '' })
+    }
+    if (json.nutzung && status) status = { ...status, nutzung: json.nutzung }
+    return json
   }
-  return { name: 'google', label: 'Google Maps Platform', endpoint, ready: () => false, geocode: notReady, matrix: notReady, optimize: notReady, request: (action, body, token = '') => googleRequest(action, body, { endpoint, token }) }
+
+  const limitText = (st) => {
+    const n = st?.nutzung || {}
+    const month = Number(st?.limitMonat || n.limitMonat) || Infinity
+    const day = Number(st?.limitTag || n.limitTag) || Infinity
+    if (Number(n.anfragen) >= month) return `Monatslimit erreicht (${month} Anfragen)`
+    if (Number(n.heute) >= day) return `Tageslimit erreicht (${day} Anfragen)`
+    return ''
+  }
+  const ready = () => !!status?.eingerichtet && !limitText(status)
+  const why = () =>
+    lastError && !status
+      ? `nicht erreichbar (${lastError.message})`
+      : !status
+        ? 'noch nicht eingerichtet (Stand vom Webspace nicht gelesen)'
+        : !status.eingerichtet
+          ? 'noch nicht eingerichtet (kein API-Schlüssel am Webspace)'
+          : limitText(status)
+
+  async function refresh() {
+    try {
+      status = await call('status')
+      lastError = null
+    } catch (err) {
+      status = null
+      lastError = { message: err.message, status: err.status ?? 0, code: err.code }
+    }
+    return status
+  }
+
+  async function ensureReady() {
+    if (!status) await refresh()
+    if (!ready()) throw new RoutingError(status?.eingerichtet ? 'limit' : 'nicht-eingerichtet', why())
+  }
+
+  /** Eine Anfrage an Google über routing.php: Reihenfolge (optimiert oder fest) und Abschnitte. */
+  async function legs({ depot, stops = [], optimize = true } = {}) {
+    await ensureReady()
+    if (!hasCoords(depot)) throw new RoutingError('koordinaten', REASONS.betriebshof)
+    if (!stops.length) throw new RoutingError('anfrage', 'Tour ohne Stopp')
+    if (stops.length > GOOGLE_MAX_STOPS) throw new RoutingError('anfrage', `mehr als ${GOOGLE_MAX_STOPS} Stopps in einer Tour`)
+    const missing = stops.find((s) => !hasCoords(s))
+    if (missing) throw new RoutingError('koordinaten', `Stopp ohne Koordinaten (${missing.id})`)
+    const ids = stops.map((s) => String(s.id))
+    // nur Kennung und Koordinaten: keine Namen, keine Adressen
+    const res = await call('optimize', { depot: { lat: Number(depot.lat), lon: Number(depot.lon) }, stops: stops.map((s) => ({ id: String(s.id), lat: Number(s.lat), lon: Number(s.lon) })), ...(optimize ? {} : { keepOrder: true }) })
+    const order = Array.isArray(res.order) ? res.order.map(String) : []
+    const ok = order.length === ids.length && new Set(order).size === ids.length && order.every((id) => ids.includes(id)) && Array.isArray(res.legs) && res.legs.length === ids.length + 1
+    if (!ok) throw new RoutingError('google', 'Antwort von routing.php unvollständig')
+    if (!optimize && order.some((id, i) => id !== ids[i])) throw new RoutingError('google', 'Reihenfolge geändert, obwohl sie fest bleiben sollte')
+    return { order, legs: res.legs.map((l) => ({ seconds: Math.max(0, Math.round(Number(l?.seconds) || 0)), meters: Math.max(0, Math.round(Number(l?.meters) || 0)) })) }
+  }
+
+  /** Eine Tour mit Google: optimierte Reihenfolge, sonst (Zeitfenster) die der App, je mit den Fahrzeiten von Google. */
+  async function googleRoute({ depot, stops, driver, settings, driverId }) {
+    const plan = (list, l) => scheduleRoute({ depot, stops: list, driver, settings, matrix: legsMatrix(l, settings) })
+    const late = (x) => x.problems.filter((p) => LATE.includes(p.code)).length
+    const byId = new Map(stops.map((s) => [String(s.id), s]))
+    const first = await legs({ depot, stops, optimize: true })
+    let pick = { res: plan(first.order.map((id) => byId.get(id)), first.legs), google: first, notice: '' }
+    const same = first.order.every((id, i) => id === String(stops[i].id))
+    if (late(pick.res) && !same) {
+      const second = await legs({ depot, stops, optimize: false })
+      const res = plan(stops, second.legs)
+      if (late(res) <= late(pick.res)) pick = { res, google: second, notice: `${label}: die Reihenfolge von Google hätte Zeitfenster oder Arbeitszeit verletzt – Reihenfolge der App mit den Fahrzeiten von Google.` }
+    }
+    const { problems, ...rest } = pick.res
+    return { driverId, ...rest, provider: 'google', google: pick.google, notice: pick.notice }
+  }
+
+  return {
+    name: 'google',
+    label,
+    endpoint,
+    ready,
+    why,
+    status: () => status,
+    lastError: () => lastError,
+    refresh,
+    async setup(body = {}) {
+      status = await call('einrichten', body)
+      lastError = null
+      return status
+    },
+    async geocode(address) {
+      const text = String(address ?? '').trim()
+      if (!text) return null
+      const c = parseCoords(text)
+      if (c) return { ...c, quality: 'hand' }
+      await ensureReady()
+      const res = await call('geocode', { address: text.slice(0, 200) })
+      const h = res.hit
+      return h && hasCoords(h) ? { lat: Number(h.lat), lon: Number(h.lon), quality: 'google', label: String(h.label || ''), precision: String(h.precision || '') } : null
+    },
+    async matrix(points, settings = {}) {
+      return airMatrix(points, settings)
+    },
+    legs,
+    async optimize(problem = {}) {
+      await ensureReady()
+      const plan = planRoutes(problem)
+      const settings = problem.settings || {}
+      const byId = new Map((problem.stops || []).map((s) => [s.id, s]))
+      const drivers = new Map((problem.drivers || []).map((d) => [d.id, d]))
+      const routes = []
+      let halt = ''
+      for (const r of plan.routes) {
+        const fallback = (notice) => routes.push({ ...r, provider: 'luftlinie', notice })
+        if (!r.stops.length) fallback('')
+        else if (halt) fallback(halt)
+        else if (r.stops.length > GOOGLE_MAX_STOPS) fallback(`${label}: mehr als ${GOOGLE_MAX_STOPS} Stopps in der Tour – eingebauter Anbieter (Luftlinie).`)
+        else {
+          try {
+            routes.push(await googleRoute({ depot: problem.depot, stops: r.stops.map((x) => byId.get(x.id)), driver: drivers.get(r.driverId) || {}, settings, driverId: r.driverId }))
+          } catch (err) {
+            const notice = `${label}: ${err?.message || 'Fehler'} – eingebauter Anbieter (Luftlinie).`
+            // ohne Route zwischen diesen Punkten nur diese Tour; sonst (Schlüssel, Limit, Netz) keine weitere Anfrage
+            if (err?.code !== 'keine-route') halt = notice
+            fallback(notice)
+          }
+        }
+      }
+      const notices = [...new Set(routes.map((r) => r.notice).filter(Boolean))]
+      return {
+        provider: routes.some((r) => r.provider === 'google') ? 'google' : 'luftlinie',
+        routes,
+        unassigned: plan.unassigned,
+        minutes: routes.reduce((x, r) => x + r.minutes, 0),
+        km: round1(routes.reduce((x, r) => x + r.km, 0)),
+        ...(notices.length ? { notice: notices.join(' ') } : {}),
+      }
+    },
+    request: (action, body, token = '') => googleRequest(action, body, { endpoint, token }),
+  }
 }
 
 const registry = new Map()
@@ -704,8 +939,8 @@ const isReady = (p, settings) => (typeof p.ready === 'function' ? !!p.ready(sett
 
 /**
  * Anbieter laut Einstellung (settings.provider, Vorgabe 'luftlinie') mit Rückfall: ist er unbekannt oder nicht
- * eingerichtet, kommt 'luftlinie' mit { requested, notice }. Ein eingerichteter fremder Anbieter fällt bei einem Fehler
- * je Aufruf auf 'luftlinie' zurück (Ergebnis von optimize mit notice).
+ * eingerichtet (ready() falsch, Grund aus why()), kommt 'luftlinie' mit { requested, notice }. Ein eingerichteter fremder
+ * Anbieter fällt bei einem Fehler je Aufruf auf 'luftlinie' zurück (Ergebnis von optimize mit notice).
  */
 export function routingFor(settings = {}) {
   const want = String(settings?.provider || 'luftlinie')
@@ -713,7 +948,8 @@ export function routingFor(settings = {}) {
   const p = registry.get(want)
   if (p && want === 'luftlinie') return p
   if (!p || !isReady(p, settings)) {
-    const notice = p ? `${p.label || want}: noch nicht eingerichtet – eingebauter Anbieter (Luftlinie).` : `Anbieter „${want}“ unbekannt – eingebauter Anbieter (Luftlinie).`
+    const why = p && typeof p.why === 'function' ? p.why(settings) : ''
+    const notice = p ? `${p.label || want}: ${why || 'noch nicht eingerichtet'} – eingebauter Anbieter (Luftlinie).` : `Anbieter „${want}“ unbekannt – eingebauter Anbieter (Luftlinie).`
     return { ...base, requested: want, notice }
   }
   const safe = (fn) =>

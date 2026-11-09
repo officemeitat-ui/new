@@ -221,25 +221,33 @@ test('Anbieter-Register: luftlinie und google angemeldet, eigene Anbieter mögli
   assert.match(routingFor({ provider: 'gibtsnicht' }).notice, /unbekannt/)
 })
 
-test('Google: nur Schnittstelle, wirft „noch nicht eingerichtet“, die Fabrik fällt auf luftlinie zurück; kein Schlüssel im Code', async () => {
+test('Google ohne gelesenen Stand bzw. ohne Webspace: nicht bereit, die Fabrik fällt auf luftlinie zurück; kein Schlüssel im Code', async () => {
+  // angemeldeter Anbieter, Stand vom Webspace noch nicht gelesen
   const google = routingProvider('google')
   assert.equal(google.ready(), false)
-  await assert.rejects(() => google.optimize({ depot, stops: [], drivers: [] }), (err) => err instanceof RoutingError && err.code === 'nicht-eingerichtet' && /noch nicht eingerichtet/.test(err.message))
-  await assert.rejects(() => google.geocode('Beispielweg 1'), /noch nicht eingerichtet/)
-  await assert.rejects(() => google.matrix([depot]), /noch nicht eingerichtet/)
+  assert.match(google.why(), /noch nicht eingerichtet/)
   const p = routingFor({ provider: 'google' })
   assert.equal(p.name, 'luftlinie')
   assert.equal(p.requested, 'google')
-  assert.match(p.notice, /noch nicht eingerichtet/)
+  assert.match(p.notice, /^Google-Routing: noch nicht eingerichtet .* – eingebauter Anbieter \(Luftlinie\)\.$/)
   const res = await p.optimize({ depot, stops: [{ id: 'a', ...stadt, minutes: 5 }], drivers: [{ id: 'f' }] })
   assert.equal(res.provider, 'luftlinie')
   assert.deepEqual(ids(res), ['a'])
-  // künftige Anfrage an den Durchreicher am Webspace: Anmeldung im Kopf, kein Schlüssel
-  assert.deepEqual(googleRequest('matrix', { points: [depot] }, { token: 'abc' }), { url: 'routing.php?aktion=matrix', method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microsoft-Token': 'abc' }, body: JSON.stringify({ points: [depot] }) })
+  // ohne Verbindung zum Webspace: optimize und geocode werfen (Rückfall macht routingFor bzw. proposeTours)
+  const offline = createGoogleProvider({ fetch: async () => Promise.reject(new TypeError('Failed to fetch')) })
+  await assert.rejects(() => offline.optimize({ depot, stops: [], drivers: [] }), (err) => err instanceof RoutingError && err.code === 'nicht-eingerichtet' && /nicht erreichbar/.test(err.message))
+  await assert.rejects(() => offline.geocode('Beispielweg 1'), /nicht erreichbar/)
+  assert.deepEqual(await offline.matrix([depot, stadt]), airMatrix([depot, stadt]), 'Matrix bewusst ohne Google (Anfragen sparen)')
+  // Anfrage an den Durchreicher am Webspace: Anmeldung im Kopf, kein Schlüssel
+  assert.deepEqual(googleRequest('optimize', { depot, stops: [] }, { token: 'abc' }), { url: 'routing.php?aktion=optimize', method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microsoft-Token': 'abc' }, body: JSON.stringify({ depot, stops: [] }) })
+  assert.deepEqual(googleRequest('status', undefined, { token: 'abc' }), { url: 'routing.php?aktion=status', method: 'GET', headers: { 'X-Microsoft-Token': 'abc' } })
   assert.equal(createGoogleProvider({ endpoint: 'x.php' }).request('geocode', { address: 'A' }).url, 'x.php?aktion=geocode')
   assert.throws(() => googleRequest('loeschen'), RoutingError)
-  const source = readFileSync(new URL('../src/core/routing.js', import.meta.url), 'utf8')
-  assert.doesNotMatch(source, /AIza[0-9A-Za-z_-]{20,}|[?&]key=/, 'kein API-Schlüssel im Code')
+  assert.throws(() => googleRequest('matrix'), RoutingError, 'Matrix gibt es am Webspace nicht')
+  for (const file of ['../src/core/routing.js', '../src/core/matten-tour.js', '../src/ui/matten-routing.js']) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /AIza[0-9A-Za-z_-]{20,}|[?&]key=/, `kein API-Schlüssel im Code (${file})`)
+  }
 })
 
 test('Geokodierung (eingebaut): Koordinaten-Text direkt, sonst OpenStreetMap mit Pause zwischen Anfragen', async () => {

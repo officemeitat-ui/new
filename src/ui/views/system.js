@@ -1,7 +1,8 @@
 // Systemcheck für die Inbetriebnahme (nur Vollzugriff): prüft vom Browser aus, ob der Webspace und
 // die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ordner privat/ gesperrt, PHP-Version
 // und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm, Plan am Handy und
-// Kundenbereich (Datei, Schlüssel, Cronjob), Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
+// Kundenbereich (Datei, Schlüssel, Cronjob), Google-Routing (optional: eingerichtet, privat/ beschreibbar),
+// Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
 
 import { app, registerActions, registerView, renderNow, toast } from '../context.js'
 import { esc, ICON } from '../shared.js'
@@ -35,7 +36,7 @@ export async function runChecks() {
     add(W, 'Sicherheitsregeln (.htaccess)', 'warn', err.message)
   }
   let open = []
-  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/.htaccess']) {
+  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/routing.json', 'privat/.htaccess']) {
     try {
       if ((await fetch(f, { cache: 'no-store' })).status === 200) open.push(f)
     } catch {
@@ -154,6 +155,29 @@ export async function runChecks() {
     } catch (err) {
       add(K, 'ki.php', err.status === 401 ? 'info' : 'warn', err.status === 401 ? 'nur mit Microsoft-Anmeldung prüfbar' : err.message, 'ki.php mit hochladen (liegt im Paket).')
     }
+  }
+
+  // ---- Google-Routing (routing.php, Mattenwechsel; optional, Entscheidung E8)
+  const GR = 'Google-Routing (optional)'
+  if (app.data?.matten || sys?.routing?.eingerichtet) {
+    const chosen = app.data?.matten?.settings?.routing?.provider === 'google'
+    let st = null
+    let err = null
+    try {
+      const { google } = await import('../matten-routing.js')
+      st = await google.refresh()
+      err = st ? null : google.lastError()
+    } catch (e) {
+      err = { message: e.message, status: 0 }
+    }
+    const done = st ? !!st.eingerichtet : !!sys?.routing?.eingerichtet
+    const usage = st?.nutzung ? `, ${st.nutzung.anfragen} von ${st.limitMonat} Anfragen im Monat` : ''
+    const how = 'Matten-Tourenplanung → Mehr → „Routing“: Google wählen und den API-Schlüssel eintragen (Anleitung im Dialog). Ohne Google rechnet der eingebaute Anbieter (Luftlinie).'
+    if (done) add(GR, 'Eingerichtet', 'ok', `ja${st?.schluesselEnde ? `, Schlüssel …${st.schluesselEnde}` : ''}${usage}${chosen ? ', Google gewählt' : ', gewählt ist der eingebaute Anbieter'}`)
+    else add(GR, 'Eingerichtet', chosen ? 'warn' : 'info', chosen ? 'nein – Google gewählt, aber kein Schlüssel am Webspace' : 'nein (optional)', how)
+    if (!st && err) add(GR, 'routing.php', err.status === 401 ? 'info' : chosen || done ? 'warn' : 'info', err.status === 401 ? 'nur mit Microsoft-Anmeldung prüfbar' : err.message, 'routing.php mit dem Paket hochladen (Hauptordner, neben ki.php).')
+    const writable = st?.privat ? st.privat.beschreibbar : sys?.routing ? sys.routing.beschreibbar : null
+    if (writable !== null) add(GR, 'Ordner privat/ beschreibbar (Schlüssel, Zähler)', writable ? 'ok' : done || chosen ? 'error' : 'info', writable ? 'ja' : 'nein', 'Den Ordner privat/ per FTP beschreibbar machen (Rechte 755 bzw. 775): routing.php speichert dort Schlüssel und Nutzungszähler; ohne Zähler fragt es Google nicht.')
   }
 
   // ---- Microsoft und SharePoint

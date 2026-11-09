@@ -76,6 +76,7 @@ for (const [target, source] of Object.entries(VENDOR)) await cp(join(root, sourc
 // Schnee-Alarm (Cronjob). Einstellungen und Stand des Alarms liegen in privat/ (gesperrt).
 // „Mein Dienstplan“ (mein-plan.php): persönlicher Link für Mitarbeitende, braucht dieselben Bausteine.
 // KI-Assistent (ki.php): Durchreicher zur Claude-API, Schlüssel in privat/ki.json.
+// Google-Routing (routing.php): Durchreicher zur Google Maps Platform, Schlüssel in privat/routing.json.
 // Texte der Seiten für Mitarbeitende in sechs Sprachen (mein-plan-texte.php, für mein-plan.php und wetter-alarm.php).
 const webspace = [
   ...(appConfig.weather !== false ? ['wetter.php', 'wetter-alarm.php', 'wetter-foto.js'] : []),
@@ -86,6 +87,9 @@ const webspace = [
   // Fahrerseite am Webspace (mattentour.php) für Fahrer des Mattenwechsels ohne Microsoft-Konto; mattentour.js merkt sich
   // die Eingaben im Handy, nimmt die Unterschrift auf und sendet nach einem Funkloch nach. "driverPortal": false lässt sie weg.
   ...(appConfig.driverPortal !== false ? ['mattentour.php', 'mattentour.js'] : []),
+  // Google-Routing des Mattenwechsels (routing.php): Durchreicher zur Google Maps Platform, Schlüssel in
+  // privat/routing.json (nur am Webspace). "googleRouting": false lässt ihn weg (dann rechnet nur der eingebaute Anbieter).
+  ...(appConfig.googleRouting !== false ? ['routing.php'] : []),
 ]
 if (webspace.length) {
   for (const file of ['wetter-lib.php', 'webspace-lib.php', 'mein-plan-texte.php', 'system.php', ...(appConfig.assistant !== false ? ['ki.php'] : []), ...webspace]) await copy(file)

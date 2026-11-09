@@ -4,20 +4,25 @@
 // und den überfälligen, proposeTours mit dem Betriebshof der Einstellungen), je Tour Fahrer, Fahrzeug, Stopps in
 // Reihenfolge mit Ankunftszeit, Zeitfenster, Liegeplätze und Matten, Summe km/Minuten, Ladeliste, Warnungen und ein
 // Google-Maps-Link; nicht eingeplante Stopps mit Grund. Bearbeiten: Reihenfolge (Pfeile, am PC auch ziehen), Stopp in
-// eine andere Tour, entfernen, hinzufügen, Fahrer/Fahrzeug/Arbeitszeit; danach rechnet recalcTimes die Zeiten neu.
+// eine andere Tour, entfernen, hinzufügen, Fahrer/Fahrzeug/Arbeitszeit; danach rechnet retimeTour die Zeiten neu.
 // „Freigeben“ schreibt die Tour (Status freigegeben) und setzt die Einsätze der Stopps auf „in Tour“; zurücknehmen bzw.
 // einen Entwurf löschen gibt sie wieder frei. Dazu die Dialoge „Betriebshof und Arbeitszeit“ und „Fahrer“.
 // Rechenkerne: core/matten-tour.js (P8), core/matten-touren.js (P9); Ablage: die gemeinsame Touren-Ablage mit der
 // Fahreransicht (ui/matten-tourablage.js → storage/matten-touren.js, Zusammenführen mit mergeTour).
 // Mattenbestand (P17, views/matten-bestand.js): übersteigt die Ladeliste bis zum Tag der Tour den sauberen Bestand,
 // steht ein Hinweis an der Tour und in der Meldung zur Freigabe – nur ein Hinweis, die Freigabe bleibt möglich.
-// Aktionen und Dialoge mit dem Kürzel „mw-tp-“.
+// Google-Routing (Entscheidung E8, ui/matten-routing.js, Dialog „Routing“ unter „Mehr“): ist Google gewählt und
+// eingerichtet, legt Google beim Vorschlag je Tour Reihenfolge und Fahrzeiten fest (Zuteilung weiter die App); fällt
+// Google aus, rechnet der eingebaute Anbieter mit Hinweis. Änderungen von Hand bleiben von Hand und fragen Google nicht
+// (retimeTour: gleiche Reihenfolge → gespeicherte Fahrzeiten von Google, sonst Luftlinie); „Fahrzeiten mit Google neu
+// rechnen“ nur auf Klick (mwg-retime, eine Anfrage). „Koordinaten suchen“ bei Stopps ohne Koordinaten (mwg-geo).
+// Aktionen und Dialoge mit dem Kürzel „mw-tp-“ (Google-Routing „mwg-“).
 
 import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
 import { coordsText, hasCoords, parseCoords } from '../../core/geo.js'
 import { mergeJobs, nextWorkday, yearsFor } from '../../core/matten-einsaetze.js'
 import { activeAreas, emptyMatten, upgradeMatten } from '../../core/matten.js'
-import { assignDriver, loadList, moveStop, proposeTours, recalcTimes, stopsFromJobs, TOUR_REASONS, TOUR_STATUS, tourMatrix, tourProblems } from '../../core/matten-tour.js'
+import { assignDriver, googleRetime, loadList, moveStop, proposeTours, retimeTour, stopsFromJobs, timedByGoogle, TOUR_REASONS, TOUR_STATUS, tourProblems } from '../../core/matten-tour.js'
 import {
   addStop,
   assignJobs,
@@ -49,12 +54,11 @@ import {
   vehicleLabel,
   withdrawTour,
 } from '../../core/matten-touren.js'
-import { routingFor } from '../../core/routing.js'
 import { isWebDriver, tourOnWebspace, webDriverProblem, withWebspace } from '../../core/matten-webspace.js'
 import { LANGUAGES, langLabel } from '../../core/sprachen.js'
 import { isNetworkError } from '../../storage/offline.js'
 import { app, canEdit, closeModal, confirmStep, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
-import { geocode } from '../geocode.js'
+import { findCoords, google, googleChosen, googleLine, googleStatus, watchGoogleStatus } from '../matten-routing.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { completeWebDrivers, publishWebTour, pushWebDrivers, startWebPolling, syncWebspace, webIdentityFor, webLinkOf, webReady, webTourNote, withdrawWebTour } from '../matten-webspace.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
@@ -190,6 +194,7 @@ function planungView() {
         { label: 'Betriebshof und Arbeitszeit', icon: ICON.gear, action: 'mw-tp-depot-open', hint: depot?.name || depot?.address || 'noch nicht eingetragen' },
         { label: 'Fahrer (Mattenwechsel)', icon: ICON.users, action: 'mw-tp-drivers-open', hint: list.length ? plural(list.length, 'Fahrer', 'Fahrer') : 'noch keine' },
         { label: 'Fahrerseite am Webspace', icon: ICON.send, action: 'mww-web-open', hint: webReady() ? 'eingerichtet' : 'für Fahrer ohne Microsoft-Konto' },
+        { label: 'Routing', icon: ICON.gear, action: 'mwg-open', hint: googleChosen() ? 'Google' : 'eingebaut (Luftlinie)' },
         { label: 'Neu laden', icon: ICON.refresh, action: 'mw-tp-reload', hint: 'Touren aus der Ablage' },
         { label: 'Matten-Kalender', icon: ICON.calendar, action: 'mw-cal-goto', data: { date }, hint: 'Einsätze dieses Tages' },
       ],
@@ -212,7 +217,14 @@ function planungView() {
   const tourBlocks = dayTours.map((t) => tourCard(t, { ed, today, others: drafts.filter((x) => x.id !== t.id) })).join('')
   const empty = !dayTours.length ? `<p class="empty">Noch keine Tour für diesen Tag.${ed && list.length ? ' „Vorschlag erzeugen“ verteilt die offenen Stopps auf die gewählten Fahrer.' : ''}</p>` : ''
   const dayLoad = sumLoadLists(dayTours.map(loadList))
-  return `${head}${banners}${bar}${status}${driversBlock(date, list, ed)}${app.ui.mwTpNotice?.date === date ? `<p class="note">${esc(app.ui.mwTpNotice.text)}</p>` : ''}
+  // Google-Routing: Stand vom Webspace im Hintergrund (höchstens jede Minute), Rückfall als deutlicher Hinweis
+  watchGoogleStatus(() => {
+    if (app.ui.view === 'mw-planung' && !app.ui.modal) renderNow()
+  })
+  const notice = app.ui.mwTpNotice?.date === date ? app.ui.mwTpNotice.text : ''
+  // ist Google gewählt, aber nicht bereit, sagt das schon die Zeile darüber (googleLine)
+  const noticeHtml = !notice || (googleChosen() && !google.ready()) ? '' : googleChosen() ? `<div class="banner warn-banner mwg-line" role="status"><p>${esc(notice)}</p></div>` : `<p class="note">${esc(notice)}</p>`
+  return `${head}${banners}${bar}${status}${googleLine({ ed })}${driversBlock(date, list, ed)}${noticeHtml}
     <div class="mw-tp-tours">${tourBlocks}${empty}</div>
     ${openBlock(date, open, drafts, ed)}
     ${dayLoad.length && dayTours.length > 1 ? `<aside class="mw-load mw-tp-dayload" aria-label="Ladeliste des Tages"><h4>Ladeliste des Tages (alle Touren)</h4><ul>${dayLoad.map((r) => `<li><b>${r.qty}</b> × ${esc(loadLabel(r))}</li>`).join('')}</ul></aside>` : ''}`
@@ -281,6 +293,10 @@ function tourCard(t, { ed, today, others }) {
   const rel = app.ui.mwTpRel?.[t.id] || []
   const links = mapsLinks(t)
   const facts = [t.vehicleLabel || (t.vehicleId ? vehicleLabel(vehicleOf(t.vehicleId)) || 'Fahrzeug' : 'ohne Fahrzeug'), r.start ? `ab ${r.start}` : '', r.end ? `zurück ${r.end}` : '', `${km(r.km)} km`, `${r.minutes || 0} Min. Fahrt`, `${r.work || 0} Min. Arbeit`, r.wait ? `${r.wait} Min. warten` : '', `${r.load || 0} Matten${r.capacity ? ` (Platz ${r.capacity})` : ''}`, r.shift ? `Arbeitszeit ${r.shift.from}–${r.shift.to}` : ''].filter(Boolean)
+  // womit die Zeiten gerechnet sind (route.provider); nach einer Änderung von Hand nur auf Klick neu mit Google
+  const byGoogle = r.provider === 'google'
+  const retimeBtn = ed && draft && googleChosen() && !timedByGoogle(t) && (t.stops || []).length ? `<button class="btn small" data-action="mwg-retime" data-tour="${esc(t.id)}">Fahrzeiten mit Google neu rechnen</button>` : ''
+  const providerHtml = byGoogle || googleChosen() ? `<p class="muted mw-tp-provider">${byGoogle ? 'Reihenfolge und Fahrzeiten: Google' : 'Fahrzeiten geschätzt (Luftlinie)'}${r.manual ? ', Reihenfolge von Hand' : ''}${retimeBtn}</p>` : ''
   const mapsHtml = links.length
     ? links.map((l) => `<a class="btn small" href="${esc(l.url)}" target="_blank" rel="noopener" data-maps="${esc(t.id)}">${links.length > 1 ? `Google Maps, Teil ${l.part} (Stopp ${l.from}–${l.to})` : 'Route in Google Maps ansehen'}</a>`).join('')
     : ''
@@ -306,7 +322,7 @@ function tourCard(t, { ed, today, others }) {
   const load = loadList(t)
   return `<section class="mw-tp-tour st-${esc(t.status)}" data-tour="${esc(t.id)}" aria-label="Tour ${esc(t.driverName || 'ohne Fahrer')}">
     <header class="mw-tp-head"><div class="mw-tp-title"><h3>${esc(t.driverName || 'ohne Fahrer')} <span class="mw-st st-${esc(t.status)}">${esc(STATUS_TEXT[t.status] || t.status)}</span></h3>
-      <p class="muted">${esc(facts.join(' · '))}</p>${t.notice ? `<p class="muted">${esc(t.notice)}</p>` : ''}</div>
+      <p class="muted">${esc(facts.join(' · '))}</p>${providerHtml}${t.notice ? `<p class="muted">${esc(t.notice)}</p>` : ''}</div>
       <div class="actions">${mapsHtml}${actions}</div></header>
     ${relHtml}${warn}${stockHtml}${lockHtml}${webTourNote(t, { ed })}
     ${stops ? `<ol class="mw-tp-stops" data-tour="${esc(t.id)}" ${ed && draft ? 'data-drop="1"' : ''}>${stops}</ol>` : `<p class="muted mw-tp-nostop">Noch kein Stopp. Unten unter „Nicht eingeplant“ Stopps zu dieser Tour hinzufügen.</p>`}
@@ -328,8 +344,10 @@ function openBlock(date, open, drafts, ed) {
             })
           : ''
       const places = new Set((s.items || []).map((it) => it.placementId)).size
+      // ohne Koordinaten: aus der Adresse suchen (Google, wenn eingerichtet, sonst OpenStreetMap) und am Liegeplatz speichern
+      const geo = ed && !hasCoords(s) && s.address ? `<button class="btn small" data-action="mwg-geo" data-stop="${esc(s.id)}">Koordinaten suchen</button>` : ''
       return `<li class="mw-tp-openrow"><div><strong>${esc(s.customer?.name || 'Kunde')}</strong>${s.objectName ? ` · ${esc(s.objectName)}` : ''}${s.address ? ` <span class="muted">${esc(s.address)}</span>` : ''}
-        <br><span class="muted">${esc(plural(places, 'Liegeplatz', 'Liegeplätze'))}, ${esc(plural(s.demand || 0, 'Matte', 'Matten'))}${s.items?.some((it) => it.overdue) ? ', überfällig' : ''}</span> <span class="mw-st st-nachzuholen">${esc(reasonOf(date, s))}</span></div>${add}</li>`
+        <br><span class="muted">${esc(plural(places, 'Liegeplatz', 'Liegeplätze'))}, ${esc(plural(s.demand || 0, 'Matte', 'Matten'))}${s.items?.some((it) => it.overdue) ? ', überfällig' : ''}</span> <span class="mw-st st-nachzuholen">${esc(reasonOf(date, s))}</span></div>${geo}${add}</li>`
     })
     .join('')
   return `<section class="mw-tp-open" aria-label="Nicht eingeplant"><h3>Nicht eingeplant (${open.length})</h3><ul>${rows}</ul>
@@ -361,14 +379,12 @@ function failed(err) {
   else toast(`Tour nicht gespeichert: ${err?.message || err}`)
 }
 
-/** Zeiten nach einer Änderung neu (Fahrzeiten über den eingestellten Anbieter, sonst Luftlinie). */
+/**
+ * Zeiten nach einer Änderung neu, ohne Anfrage an Google: gleiche Reihenfolge wie die gespeicherten Abschnitte von
+ * Google → deren Fahrzeiten, sonst Luftlinie. Mit Google neu rechnen nur auf Klick („Fahrzeiten mit Google neu rechnen“).
+ */
 async function retime(tour) {
-  const cfg = routing()
-  try {
-    return recalcTimes(tour, await tourMatrix(tour, routingFor(cfg), cfg), cfg)
-  } catch {
-    return recalcTimes(tour, null, cfg)
-  }
+  return retimeTour(tour, routing())
 }
 
 async function saveAll(list, okText = '') {
@@ -504,7 +520,11 @@ async function propose(el) {
   const stops = stopsFromJobs({ jobs: jobsAll(), placements: doc().placements, objects: app.data.objects || [], customers: fakCustomers(), date, exclude: [...exclude] })
   if (!stops.length) return toast('Keine offenen Einsätze an diesem Tag (auch keine überfälligen ohne Tour).')
   const { now, by } = opts()
+  // Google gewählt: Stand vom Webspace frisch (eingerichtet, Limits); nicht bereit → eingebauter Anbieter mit Hinweis
+  if (googleChosen()) await googleStatus()
   const res = await proposeTours({ stops, drivers: dayDrivers, depot, settings: settings(), date, now, by })
+  // Nutzung und Limits danach neu (für die Zeile über den Touren)
+  if (googleChosen()) await googleStatus()
   const tours = res.tours.map((t) => {
     const d = dayDrivers.find((x) => x.id === t.driverId)
     const v = vehicleOf(t.vehicleId)
@@ -524,7 +544,9 @@ async function propose(el) {
   if (app.ui.mwTpRel) for (const t of drafts) delete app.ui.mwTpRel[t.id]
   renderNow()
   const planned = tours.reduce((n, t) => n + t.stops.length, 0)
-  toast(`Vorschlag: ${plural(tours.length, 'Tour', 'Touren')} mit ${plural(planned, 'Stopp', 'Stopps')}${res.unassigned.length ? `, ${res.unassigned.length} nicht eingeplant` : ''}. Noch Entwurf – prüfen und freigeben.`)
+  const byGoogle = tours.filter((t) => t.route?.provider === 'google').length
+  const how = !googleChosen() ? '' : byGoogle === tours.length && tours.length ? ' Reihenfolge und Fahrzeiten von Google.' : ` Google-Routing nicht verfügbar${byGoogle ? ` für ${plural(tours.length - byGoogle, 'Tour', 'Touren')}` : ''}: der eingebaute Anbieter hat gerechnet (Hinweis oben).`
+  toast(`Vorschlag: ${plural(tours.length, 'Tour', 'Touren')} mit ${plural(planned, 'Stopp', 'Stopps')}${res.unassigned.length ? `, ${res.unassigned.length} nicht eingeplant` : ''}. Noch Entwurf – prüfen und freigeben.${how}`)
 }
 
 // ---------------------------------------------------------------- Freigabe
@@ -701,12 +723,12 @@ registerModal(
         <div class="form-grid">
           <label class="field"><span>Name</span><input type="text" id="mw-tp-d-name" value="${esc(d.name)}" placeholder="z. B. Betriebshof" ${dis}></label>
           <label class="field wide"><span>Adresse</span><input type="text" id="mw-tp-d-address" value="${esc(d.address)}" placeholder="Straße Nummer, PLZ Ort" ${dis}></label>
-          <label class="field wide"><span>Koordinaten (Breite, Länge)</span><span class="input-btn"><input type="text" id="mw-tp-d-coords" value="${esc(d.coords)}" placeholder="z. B. 47.80950, 13.05500" ${dis}>${ed ? '<button class="btn small" data-action="mw-tp-depot-geo" title="Über OpenStreetMap aus der Adresse suchen">Suchen</button>' : ''}</span><small class="muted">für die Reihenfolge und die Fahrzeiten; „Suchen“ fragt OpenStreetMap nach der Adresse</small></label>
+          <label class="field wide"><span>Koordinaten (Breite, Länge)</span><span class="input-btn"><input type="text" id="mw-tp-d-coords" value="${esc(d.coords)}" placeholder="z. B. 47.80950, 13.05500" ${dis}>${ed ? '<button class="btn small" data-action="mw-tp-depot-geo" title="Aus der Adresse suchen (Google, wenn eingerichtet, sonst OpenStreetMap)">Suchen</button>' : ''}</span><small class="muted">für die Reihenfolge und die Fahrzeiten; „Suchen“ fragt ${googleChosen() ? 'Google (sonst OpenStreetMap)' : 'OpenStreetMap'} nach der Adresse</small></label>
           <label class="field"><span>Arbeitszeit von</span><input type="time" id="mw-tp-d-from" value="${esc(d.from)}" placeholder="07:00" ${dis}></label>
           <label class="field"><span>bis</span><input type="time" id="mw-tp-d-to" value="${esc(d.to)}" placeholder="15:30" ${dis}></label>
           <label class="check wide"><input type="checkbox" id="mw-tp-d-split" ${d.split ? 'checked' : ''} ${dis}><span>Touren nach Gebiet trennen (ein Fahrer fährt ein Gebiet; Fahrer mit Stammgebiet fahren ihres)</span></label>
         </div>
-        <p class="muted">Fahrzeiten rechnet der eingebaute Anbieter aus der Luftlinie (Umweg und Zuschlag eingerechnet); Google lässt sich später zuschalten.</p>`,
+        <p class="muted">Fahrzeiten rechnet der eingebaute Anbieter aus der Luftlinie (Umweg und Zuschlag eingerechnet); echte Fahrzeiten mit Google unter „Mehr“ → „Routing“.</p>`,
       foot: `<div class="actions"></div><div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<button class="btn primary" data-action="mw-tp-depot-save">Speichern</button>' : ''}</div>`,
     })
   },
@@ -956,11 +978,11 @@ registerActions(
       if (!d.address.trim()) return toast('Bitte zuerst die Adresse eintragen.')
       el.disabled = true
       try {
-        const hit = await geocode(d.address)
-        if (!hit) return toast('Adresse bei OpenStreetMap nicht gefunden. Koordinaten von Hand eintragen (z. B. aus Google Maps: Rechtsklick auf den Ort).')
+        const hit = await findCoords(d.address)
+        if (!hit) return toast(`Adresse nicht gefunden${googleChosen() ? '' : ' (OpenStreetMap)'}. Koordinaten von Hand eintragen (z. B. aus Google Maps: Rechtsklick auf den Ort).`)
         d.coords = `${hit.lat.toFixed(5)}, ${hit.lon.toFixed(5)}`
         renderModal()
-        toast(`Gefunden: ${hit.label}`)
+        toast(`Gefunden (${hit.source}): ${hit.label}${hit.notice ? ` ${hit.notice}` : ''}`)
       } catch (err) {
         toast(`Suche nicht möglich: ${err.message}`)
       } finally {
@@ -968,6 +990,54 @@ registerActions(
       }
     },
     'mw-tp-depot-save': () => saveDepot(),
+    // Google-Routing: Fahrzeiten der festen Reihenfolge neu (eine Anfrage, nur auf Klick); Fehler → Zeiten bleiben
+    'mwg-retime': (el) =>
+      run(async () => {
+        const t = draftOf(el.dataset.tour)
+        if (!t) return
+        await googleStatus({ maxAge: 30_000 })
+        let next
+        try {
+          next = await googleRetime(t, google, routing())
+        } catch (err) {
+          googleStatus()
+          renderNow()
+          return toast(`Google: ${err.message} – die Zeiten bleiben geschätzt (Luftlinie).`)
+        }
+        const { now, by } = opts()
+        // ein Hinweis zum Rückfall beim Vorschlag gilt nicht mehr
+        const { notice, ...rest } = next
+        await saveAll([{ ...rest, updatedAt: now, updatedBy: by }], 'Fahrzeiten von Google übernommen, die Reihenfolge bleibt.')
+        googleStatus()
+      }),
+    // Stopp ohne Koordinaten: Adresse suchen (Google bzw. OpenStreetMap), an seinen Liegeplätzen ohne Koordinaten speichern
+    'mwg-geo': (el) =>
+      run(async () => {
+        const date = tpDate()
+        const stop = openStops(date).find((s) => s.id === el.dataset.stop)
+        if (!stop) return toast('Dieser Stopp ist inzwischen in einer Tour.')
+        if (hasCoords(stop)) return toast('Der Stopp hat schon Koordinaten.')
+        if (!stop.address) return toast('Am Objekt steht keine Adresse: Koordinaten beim Liegeplatz von Hand eintragen.')
+        let hit
+        try {
+          hit = await findCoords(stop.address)
+        } catch (err) {
+          return toast(`Suche nicht möglich: ${err.message}`)
+        }
+        if (!hit) return toast('Adresse nicht gefunden. Koordinaten beim Liegeplatz von Hand eintragen (z. B. aus Google Maps: Rechtsklick auf den Ort).')
+        const ids = new Set((stop.items || []).map((it) => it.placementId))
+        const { now, by } = opts()
+        let n = 0
+        for (const p of doc().placements) {
+          if (!ids.has(p.id) || hasCoords(p)) continue
+          Object.assign(p, { lat: Math.round(hit.lat * 1e5) / 1e5, lon: Math.round(hit.lon * 1e5) / 1e5, geoQuality: hit.quality, updatedAt: now, updatedBy: by })
+          n++
+        }
+        persist()
+        if (app.ui.mwTpReasons?.[date]) delete app.ui.mwTpReasons[date][stop.id]
+        renderNow()
+        toast(`Koordinaten gefunden (${hit.source}): ${hit.label || coordsText(hit)}. Gespeichert für ${plural(n, 'Liegeplatz', 'Liegeplätze')}; jetzt „Zu Tour …“ oder „Vorschlag erzeugen“.${hit.notice ? ` ${hit.notice}` : ''}`)
+      }),
     'mw-tp-drv-add': (el) => {
       const m = readDrivers()
       if (el.dataset.from === 'emp') {

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 357 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 358 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (89)
+- [Objekte & Kunden](#objekte-kunden) (90)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
@@ -2059,6 +2059,23 @@ Unter „Fahrer“ steht, wer Matten fährt: Name, E-Mail des Microsoft-Kontos, 
 > Tipp: Personen mit der Rolle „Fahrer Mattenwechsel“ stehen in der Auswahl oben.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Google-Routing einrichten
+
+*In der App: Matten-Tourenplanung*
+
+Mit Google kommen echte Fahrzeiten: beim Vorschlag teilt die App die Stopps den Fahrern zu, Google legt je Tour die Reihenfolge fest. Der API-Schlüssel liegt nur am Webspace. Fällt Google aus (kein Schlüssel, Limit, keine Verbindung), rechnet der eingebaute Anbieter mit Hinweis.
+
+1. Im Google-Cloud-Konto ein Projekt mit Abrechnung anlegen und „Routes API“ und „Geocoding API“ aktivieren.
+2. Einen API-Schlüssel erstellen, auf diese zwei APIs und die IP-Adresse des Webspace beschränken, eine Budget-Warnung (z. B. 5 €) setzen.
+3. In „Matten-Tourenplanung“ „Mehr“ → „Routing“ öffnen, „Google“ wählen und den Schlüssel eintragen.
+4. Monats- und Tageslimit prüfen (Vorgabe 1000 bzw. 100 Anfragen) und „Speichern“.
+
+> Tipp: Reihenfolge von Hand bleibt von Hand: danach sind die Zeiten geschätzt, bis du „Fahrzeiten mit Google neu rechnen“ klickst (eine Anfrage).
+> Tipp: Der Dialog zeigt die Nutzung des Monats und grob die Kosten; die Preise bitte im Google-Konto prüfen.
+> Tipp: An Google gehen nur Koordinaten, bei „Koordinaten suchen“ die Adresse, keine Namen.
+
+*Einrichten: Vollzugriff; nutzen: Mattenwechsel Büro*
 
 ### Lieferscheine zu den Matten-Touren erstellen
 

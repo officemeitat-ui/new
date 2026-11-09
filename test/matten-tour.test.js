@@ -231,10 +231,11 @@ test('Google eingestellt: Rückfall auf den eingebauten Anbieter mit Hinweis (au
   assert.match(res.notice, /noch nicht eingerichtet/)
   assert.equal(res.tours[0].route.provider, 'luftlinie')
   assert.match(res.tours[0].notice, /noch nicht eingerichtet/)
-  // Anbieter-Objekt direkt übergeben (Google-Stub): wirft → luftlinie
+  // Anbieter-Objekt direkt übergeben (Google ohne Webspace, wie in Node): wirft → luftlinie
   const direct = await proposeTours({ stops, drivers: drivers.slice(0, 1), depot, provider: routingProvider('google'), date: DAY, newId: seqId })
   assert.equal(direct.provider, 'luftlinie')
-  assert.match(direct.notice, /noch nicht eingerichtet/)
+  assert.match(direct.notice, /^Google-Routing: .+ – eingebauter Anbieter \(Luftlinie\)\.$/)
+  assert.equal(direct.tours[0].route.provider, 'luftlinie')
   assert.equal(direct.tours[0].stops.length, stops.length)
   // ein angemeldeter Anbieter mit eigenem Ergebnis wird übernommen
   registerRoutingProvider('test-fix', {
