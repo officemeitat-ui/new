@@ -4628,12 +4628,13 @@ In den Export-Menüs steht unter „Per E-Mail senden“ jeder Export noch einma
 Unter „⋯ → Berichte automatisch“ legst du Abos an, z. B. jeden Montag ab 7 Uhr die Kennzahlen an die Geschäftsführung. Gesendet wird aus deinem Postfach, sobald du die App an dem Tag ab der Uhrzeit offen hast – am PC oder am Handy. Ein verpasster Termin wird einmal nachgeholt.
 
 1. Rechts oben „⋯“ → „Berichte automatisch“.
-2. Bericht wählen (Kennzahlen, Prüfbericht, Vertretungen, Periodische Leistungen, Reklamationen, Material, Zu erledigen).
+2. Bericht wählen (Kennzahlen, Prüfbericht, Vertretungen, Periodische Leistungen, Reklamationen, Material, Zu erledigen, Wochenbriefing).
 3. Rhythmus (wöchentlich, jeden Werktag, monatlich am 1.), Uhrzeit und Empfänger eintragen, „Abo anlegen“.
 4. „Jetzt“ erstellt den Bericht sofort zum Ansehen und Senden.
 
 > Tipp: Nur mit Vollzugriff und Microsoft 365 (features.mail, Mail.Send).
 > Tipp: Abos lassen sich pausieren; „zuletzt“ zeigt, wann gesendet wurde oder warum nicht.
+> Tipp: Das Wochenbriefing fasst Montag früh zusammen, was diese Woche zählt: dringende Vorschläge der digitalen Mitarbeiter, „Zu erledigen“ und die Kennzahlen. Mit Häkchen schreibt die KI oben eine kurze Zusammenfassung (ohne Namen; jede Zahl wird geprüft).
 
 *Vollzugriff*
 

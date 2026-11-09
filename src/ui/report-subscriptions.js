@@ -25,9 +25,10 @@ export const REPORTS = [
   { id: 'reklamationen', label: 'Reklamationen', view: 'reklamationen' },
   { id: 'material', label: 'Material & Lager', view: 'material' },
   { id: 'todo', label: 'Zu erledigen', modal: 'todo' },
+  { id: 'briefing', label: 'Wochenbriefing (das Wichtigste der Woche)', briefing: true },
 ]
 const reportOf = (id) => REPORTS.find((r) => r.id === id)
-const available = () => REPORTS.filter((r) => (r.view ? VIEWS.some((v) => v.id === r.view) : !!MODALS[r.modal]))
+const available = () => REPORTS.filter((r) => (r.briefing ? !!MODALS.todo : r.view ? VIEWS.some((v) => v.id === r.view) : !!MODALS[r.modal]))
 const isAdmin = () => !app.access || app.access.all
 const doc = () => {
   const d = (app.data.berichte ||= { abos: [] })
@@ -60,12 +61,16 @@ async function renderOffscreen(def) {
   return { box, monday }
 }
 
-/** Bericht als E-Mail: { subject, text, files }. */
-export async function buildReport(id, { abo = null } = {}) {
+/** Bericht als E-Mail: { subject, text, files }. ki: Wochenbriefing mit Zusammenfassung der KI. */
+export async function buildReport(id, { abo = null, ki = abo?.ki || false } = {}) {
   const def = reportOf(id)
   if (!def) throw new Error('Diesen Bericht gibt es nicht mehr.')
-  const { box, monday } = await renderOffscreen(def)
   const footer = abo ? `\n\nAutomatisch gesendet (${rhythmText(abo)}). Ändern oder abbestellen: in der App unter ⋯ → „Berichte automatisch“.` : ''
+  if (def.briefing) {
+    await preloadLazy()
+    return (await import('./briefing-mail.js')).buildBriefing({ ki, footer, renderOffscreen })
+  }
+  const { box, monday } = await renderOffscreen(def)
   try {
     if (def.modal) {
       const sections = todoSections(null, box)
@@ -165,6 +170,7 @@ function form(m) {
       <label class="field" data-ra="woche" ${d.rhythm === 'woche' ? '' : 'hidden'}><span>Wochentag</span><select id="ra-weekday">${options(WEEKDAYS.map((w, i) => [String(i + 1), w]), String(d.weekday || 1))}</select></label>
       <label class="field"><span>ab</span><select id="ra-hour">${options(HOURS.map((h) => [String(h), `${h} Uhr`]), String(d.hour ?? 7))}</select></label>
       <label class="field wide"><span>An</span><span class="mc-row"><input type="text" id="ra-to" value="${esc(d.to || '')}" placeholder="name@firma.at; mehrere mit Strichpunkt" autocomplete="email" inputmode="email">${pickSelect('ra-pick', 'ra-to')}</span></label>
+      <label class="check wide"><input type="checkbox" id="ra-ki" ${d.ki ? 'checked' : ''}> Wochenbriefing: oben eine kurze Zusammenfassung mit KI (Titel und Zahlen gehen an Anthropic, Namen und Abwesenheitsarten werden vorher ersetzt; jede Zahl wird geprüft)</label>
     </div>
     <div class="actions ra-actions">${m.edit ? '<button class="btn" data-action="ra-cancel">Abbrechen</button>' : ''}<button class="btn primary" data-action="ra-save">${ICON.check} ${m.edit ? 'Änderung speichern' : 'Abo anlegen'}</button></div>`
 }
@@ -218,7 +224,7 @@ registerActions({
     el.disabled = true
     toast('Bericht wird erstellt …')
     try {
-      const r = await buildReport(abo.report)
+      const r = await buildReport(abo.report, { ki: abo.ki })
       openCompose({ to: parseAddresses(abo.to).valid.join('; '), subject: r.subject, text: r.text, files: r.files, origin: `Bericht „${reportOf(abo.report)?.label}“`, privacy: true })
     } catch (err) {
       el.disabled = false
@@ -234,7 +240,8 @@ registerActions(
       const to = parseAddresses(val('ra-to'))
       if (to.invalid.length) return toast(`Bitte prüfen: „${to.invalid[0]}“ ist keine gültige E-Mail-Adresse.`)
       if (!to.valid.length) return toast('Bitte mindestens eine Adresse unter „An“ eintragen.')
-      const fields = { report: val('ra-report'), rhythm: val('ra-rhythm'), weekday: Number(val('ra-weekday')) || 1, hour: Number(val('ra-hour')), to: to.valid.join('; ') }
+      const report = val('ra-report')
+      const fields = { report, rhythm: val('ra-rhythm'), weekday: Number(val('ra-weekday')) || 1, hour: Number(val('ra-hour')), to: to.valid.join('; '), ki: report === 'briefing' && !!document.getElementById('ra-ki')?.checked }
       const existing = m.edit ? aboOf(m.edit) : null
       if (existing) Object.assign(existing, fields)
       else doc().abos.push({ id: uid('ra'), ...fields, active: true, since: viennaNow().day, by: me(), byName: app.user?.name || '' })

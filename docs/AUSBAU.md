@@ -38,6 +38,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Vertrieb von der Anfrage bis zum Auftrag mit KI-Besichtigung (Rechtsprüfung Punkt 44).
 - Tempo: Kennzahlen beim ersten Öffnen 7 / 23 s → 2,1 / 9,5 s (PC / Handy), „Zu erledigen“ rechnet im Hintergrund statt nach jeder Änderung die Bedienung aufzuhalten (Idee 9).
 - Rentabilität je Objekt: Deckungsbeitrag mit Ampel, Ist-Stunden aus der Zeiterfassung, Vorperiode, Umsatz für das Ziel und Weg zum Vertrag (Idee 6).
+- Wochenbriefing als Bericht in „Berichte automatisch“, auf Wunsch mit KI-Zusammenfassung ohne Namen (Idee 5, Rechtsprüfung Punkt 48).
 - Paket für die Steuerberatung: Zeitraum als ZIP mit CSV-Dateien, Rechnungs-PDFs, Belegen, Kassenbuch, Zahlungen, offenen Posten und Umsatzsteuer-Übersicht, Prüfliste, Übergabe-Vermerk und Nachreichung (Idee 4, Rechtsprüfung Punkt 47).
 
 ## Ideen für die nächsten Runden (Reihenfolge = Vorschlag)
@@ -46,7 +47,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 2. **Objekt-QR zum Aushängen:** Kunden und Hausbewohner melden ohne Anmeldung (Foto, Text) – wird zur Reklamation des Objekts, Status über den Link.
 3. **Leistungs-Checkliste am Handy:** je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
 4. **(fertig: Paket für die Steuerberatung)** Buchhaltungs-Export für die Steuerberatung: Ausgangs- und Eingangsrechnungen, Zahlungen und Kassenbuch als Buchungsstapel (BMD, RZL oder DATEV-Format).
-5. **KI-Wochenbriefing:** Montag früh je Rolle eine kurze Zusammenfassung (Umsatz, offene Posten, Reklamationen, Krankenstände, Fristen, Lücken im Plan) per E-Mail oder Push.
+5. **(fertig)** KI-Wochenbriefing: Montag früh je Rolle eine kurze Zusammenfassung (Umsatz, offene Posten, Reklamationen, Krankenstände, Fristen, Lücken im Plan) per E-Mail oder Push.
 6. **(fertig)** Rentabilität je Objekt: Ist-Stunden und Kosten gegen Umsatz mit Ampel und Vorschlag zur Preisanpassung (an die Kundenverträge angebunden).
 7. **Kunden-Self-Service:** im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
 8. **KI-Fotoprüfung bei der Objektkontrolle:** Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
