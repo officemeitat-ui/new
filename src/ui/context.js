@@ -96,7 +96,10 @@ export function viewFromHash(hash, ids = VIEWS.map((v) => v.id)) {
   }
   key = key.trim().toLowerCase()
   const id = Object.hasOwn(VIEW_ALIASES, key) ? VIEW_ALIASES[key] : key
-  return ids.includes(id) ? id : null
+  if (ids.includes(id)) return id
+  // Ansicht mit Eintrag, z. B. #geraete/G-0001 vom QR-Etikett (die Ansicht liest den Rest aus app.ui.linked)
+  const base = key.includes('/') ? key.slice(0, key.indexOf('/')) : ''
+  return base && ids.includes(base) ? base : null
 }
 
 export const VIEW_GROUPS = [
@@ -128,7 +131,7 @@ const NAV_ORDER = {
   planung: ['week', 'timeline', 'termine', 'coverage', 'absences', 'objects', 'report'],
   einsatz: ['zeiten', 'sheet', 'due', 'waste', 'wetter'],
   objekte: ['reklamationen', 'nachweis', 'kundenbereich', 'zufriedenheit', 'schluessel', 'anlagen', 'regie', 'zaehler', 'kontrolle', 'qualitaet', 'objektmappe', 'matten', 'mw-uebersicht', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung', 'mw-touren', 'mw-lieferscheine'],
-  betrieb: ['material', 'fahrzeuge'],
+  betrieb: ['material', 'geraete', 'fahrzeuge'],
   finanzen: ['fakturierung', 'kalkulation', 'controlling', 'payroll', 'overtime'],
   verwaltung: ['staff', 'bewerber', 'eintritt', 'sites', 'assign', 'unterweisungen', 'arbeitsschutz', 'rules', 'berechtigungen', 'system'],
 }

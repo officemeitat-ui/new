@@ -15,6 +15,8 @@
 //   nachweise/versand.json            Leistungsnachweis: Einstellungen und Versand-Vermerke
 //   unterweisungen/unterweisungen.json  Unterweisungen & Fristen je Person
 //   anlagen/anlagen.json              Anlagen & Prüffristen je Objekt (Fotos und Prüfberichte unter anlagen/nachweise/)
+//   geraete/geraete.json              Geräte & Maschinen der Firma: Inventar, Prüfungen, Reparaturen, Ausgabe (Fotos,
+//                                     Bedienungsanleitungen, Rechnungen und Prüfprotokolle unter geraete/dateien/)
 //   regie/regie.json                  Regieberichte (Sonderleistungen mit Unterschrift; Fotos und PDF unter regie/nachweise/)
 //   qualitaet/qualitaet.json          Qualitätsmessung je Objekt (Fotos und Berichte unter qualitaet/nachweise/)
 //   arbeitsschutz/arbeitsschutz.json  Arbeitsschutz: Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter
@@ -92,6 +94,8 @@ export const MODULE_DOCS = {
   unterweisungen: { path: 'unterweisungen/unterweisungen.json', empty: emptyTrainings },
   // Anlagen & Prüffristen: leerer Inhalt wie emptyAnlagen (core/anlagen.js; test/anlagen.test.js vergleicht)
   anlagen: { path: 'anlagen/anlagen.json', empty: () => ({ types: [], items: [], checks: [], settings: {} }) },
+  // Geräte & Maschinen: leerer Inhalt wie emptyGeraete (core/geraete.js; test/geraete.test.js vergleicht)
+  geraete: { path: 'geraete/geraete.json', empty: () => ({ types: [], items: [], checks: [], repairs: [], settings: {} }) },
   // Regieberichte: leerer Inhalt wie emptyRegie (core/regie.js; test/regie.test.js vergleicht)
   regie: { path: 'regie/regie.json', empty: () => ({ reports: [], settings: {} }) },
   // Qualitätsmessung: leerer Inhalt wie emptyQualitaet (core/qualitaet.js; test/qualitaet.test.js vergleicht)
@@ -165,9 +169,10 @@ export function dataRights(access) {
   const sees = (...m) => any(m, (x) => access.sees(x))
   const edits = (...m) => any(m, (x) => access.canEdit(x))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('stammdaten', 'planung')],
-    // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“)
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('stammdaten', 'planung')],
+    // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“) und die Geräte
+    // (Ausgabe an eine Person, verantwortliche Person)
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt', 'geraete'), () => edits('stammdaten', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     // „abwesend von–bis“ ohne Grund: geschrieben, wo die Abwesenheiten gepflegt werden
@@ -188,6 +193,8 @@ export function dataRights(access) {
     [MODULE_DOCS.unterweisungen.path, () => sees('unterweisungen') || edits('planung'), () => edits('unterweisungen')],
     // Anlagen & Prüffristen: Datei, Fotos und Prüfberichte (anlagen/nachweise/…) im selben Ordner
     ['anlagen/', () => sees('anlagen'), () => edits('anlagen')],
+    // Geräte & Maschinen: Datei, Fotos, Bedienungsanleitungen, Rechnungen und Prüfprotokolle (geraete/dateien/…)
+    ['geraete/', () => sees('geraete'), () => edits('geraete')],
     // Regieberichte: Datei, Fotos und PDFs (regie/nachweise/…) im selben Ordner. Die Buchhaltung braucht ihn nicht:
     // der Rechnungsentwurf trägt den Bericht eingefroren als Beilage (source.beilage in fakturierung.json)
     ['regie/', () => sees('regie'), () => edits('regie')],
@@ -202,7 +209,7 @@ export function dataRights(access) {
     // Termine: wer plant, sieht sie (Zeitlinie, Konflikte mit Einsätzen); eintragen nur mit Recht auf Termine
     [MODULE_DOCS.termine.path, () => sees('termine', 'planung'), () => edits('termine')],
     // Digitale Mitarbeiter: Entscheidungen (später/abgelehnt) für alle, die in einem der Bereiche arbeiten
-    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten')],
+    [MODULE_DOCS.assistenz.path, () => sees('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('planung', 'fakturierung', 'einkauf', 'material', 'unterweisungen', 'fahrzeuge', 'reklamationen', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten')],
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
@@ -243,6 +250,7 @@ export const FOLDERS = [
   ['nachweise', 'Leistungsnachweis: Versand-Vermerke', MODULE_DOCS.nachweise.path],
   ['unterweisungen', 'Unterweisungen & Fristen je Person', MODULE_DOCS.unterweisungen.path],
   ['anlagen', 'Anlagen & Prüffristen je Objekt (mit Fotos und Prüfberichten)', MODULE_DOCS.anlagen.path],
+  ['geraete', 'Geräte & Maschinen: Inventar, Prüfungen, Reparaturen, Ausgabe (mit Fotos, Anleitungen, Protokollen)', MODULE_DOCS.geraete.path],
   ['regie', 'Regieberichte: Sonderleistungen mit Unterschrift, Fotos und PDF', MODULE_DOCS.regie.path],
   ['qualitaet', 'Qualitätsmessung je Objekt (Raumgruppen, Messungen, Fotos der Mängel, Berichte als PDF)', MODULE_DOCS.qualitaet.path],
   ['arbeitsschutz', 'Arbeitsschutz: Betriebsanweisungen, Evaluierung, PDFs unter dokumente/', MODULE_DOCS.arbeitsschutz.path],

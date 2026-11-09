@@ -106,8 +106,11 @@ async function shrink(file) {
   }
 }
 
-/** Datei ablegen; liefert { path, name, type, size, at, by, url?, queued?, local? } oder null (mit Meldung). */
-async function storeFile(file, base) {
+/**
+ * Datei ablegen; liefert { path, name, type, size, at, by, url?, queued?, local? } oder null (mit Meldung).
+ * Auch für Geräte & Maschinen (views/geraete.js: Fotos, Anleitungen, Rechnungen, Prüfprotokolle).
+ */
+export async function storeFile(file, base) {
   if (file.size > 15e6) {
     toast(`${file.name}: zu groß (höchstens 15 MB).`)
     return null
@@ -129,11 +132,11 @@ async function storeFile(file, base) {
   }
 }
 
-async function openFile(meta) {
+export async function openFile(meta) {
   if (!meta) return
   const local = LOCAL.get(meta.path)
   if (local) return void window.open(URL.createObjectURL(local), '_blank', 'noopener')
-  if (meta.local) return toast('Im Browser-Modus werden Fotos und Prüfberichte nicht gespeichert (nur im Betrieb mit SharePoint).')
+  if (meta.local) return toast('Im Browser-Modus werden Fotos und Dateien nicht gespeichert (nur im Betrieb mit SharePoint).')
   if (meta.url) return void window.open(meta.url, '_blank', 'noopener')
   try {
     const blob = await app.store.readBlob?.(meta.path)

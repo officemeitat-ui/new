@@ -27,6 +27,7 @@ const KEYWORDS = {
   nachweis: 'Leistungsnachweis Kunde Bericht',
   schluessel: 'Schlüssel Transponder Code',
   anlagen: 'Anlage Prüfung Prüffrist Feuerlöscher Rauchmelder Rauchwarnmelder Notbeleuchtung Spielplatz Lift Aufzug Blitzschutz Wartung Hausbetreuung',
+  geraete: 'Gerät Geräte Maschine Inventar Inventarnummer Scheuersaugmaschine Staubsauger Sauger Hochdruckreiniger Einscheibenmaschine Leiter Akku E-Prüfung Reparatur defekt kaputt',
   regie: 'Regiebericht Regie Regiestunden Sonderleistung Grundreinigung Wasserschaden Zusatzarbeiten Unterschrift Auftrag',
   arbeitsschutz: 'Arbeitsschutz Arbeitsstoff Arbeitsstoffverzeichnis Gefahrstoff Chemikalie Sicherheitsdatenblatt SDB Betriebsanweisung Evaluierung Gefährdungsbeurteilung Maßnahme GHS Piktogramm ASchG Sicherheitsfachkraft',
   zaehler: 'Wasserzähler Ablesung Zählerstand',
@@ -78,6 +79,9 @@ function results(q) {
       const obj = app.data.objects.find((o) => o.id === x.objectId)?.name || ''
       if (hit(x.label, x.serial, x.maker, x.company, `${type} ${obj}`)) out.push({ group: 'Anlagen', label: `${type}: ${x.label}`, sub: obj, action: 'anl-edit-open', data: { id: x.id } })
     }
+  // Geräte & Maschinen: Inventarnummer, Bezeichnung, Hersteller, Seriennummer
+  if (sees('geraete'))
+    for (const x of app.data.geraete?.items || []) if (hit(x.no, x.no?.replace(/[\s-]/g, ''), x.name, x.maker, x.model, x.serial)) out.push({ group: 'Geräte', label: `${x.no} ${x.name}`, sub: [x.maker, x.model, x.issued?.label || x.home?.label].filter(Boolean).join(' · '), action: 'gr-card-open', data: { id: x.id } })
   // Mattenwechsel: Liegeplätze (Name, Nummer aus dem Werkzeug, Kunde, Objekt)
   if (sees('matten'))
     for (const p of app.data.matten?.placements || []) {

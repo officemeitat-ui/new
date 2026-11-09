@@ -14,7 +14,7 @@ import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
-const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'zufriedenheit', 'matten']
+const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'geraete', 'zufriedenheit', 'matten']
 /** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
 /**
@@ -220,6 +220,29 @@ lazy(BUERO, {
     mat-location-delete mat-settings-save mat-goto`,
   hints: true,
   todo: ['material'],
+})
+
+// geraete.js: Geräte & Maschinen der Firma (Inventar, Prüfungen und Wartung, Reparaturen, Ausgabe, QR-Etikett)
+lazy(BUERO, {
+  views: [
+    {
+      id: 'geraete',
+      order: 85,
+      label: 'Geräte & Maschinen',
+      group: 'lager',
+      module: 'geraete',
+      icon: '<path d="M4 15.5h10.5l2-6H7.5z"/><path d="M14.5 15.5V19M7 15.5V19M5 19h11"/><path d="M16.5 9.5 19.5 4"/><circle cx="19.5" cy="4" r="1"/>',
+      noWeek: true,
+      text: 'Reinigungsgeräte: Inventar, Prüfungen, Reparaturen, Ausgabe',
+    },
+  ],
+  modals: 'gr-card gr-edit gr-check gr-repair gr-issue gr-types',
+  actions: `gr-tab gr-filter gr-reset gr-goto gr-card-open gr-rep-all gr-cost-span gr-file gr-label gr-labels gr-csv gr-cost-csv gr-edit-open gr-redraw
+    gr-plan-add gr-plan-del gr-photo gr-doc gr-file-del gr-save gr-delete gr-check-open gr-check-redraw gr-report gr-report-del gr-check-save
+    gr-check-delete gr-repair-open gr-repair-redraw gr-repair-photo gr-repair-photo-del gr-repair-cost gr-repair-save gr-issue-open gr-issue-redraw
+    gr-issue-save gr-return-save gr-types-open gr-type-add gr-types-save`,
+  hints: true,
+  todo: ['geraete'],
 })
 
 // keys.js

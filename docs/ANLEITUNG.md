@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 362 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 370 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -10,7 +10,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (90)
-- [Material & Fuhrpark](#material-fuhrpark) (18)
+- [Material & Fuhrpark](#material-fuhrpark) (26)
 - [Finanzen](#finanzen) (79)
 - [Verwaltung](#verwaltung) (57)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
@@ -2324,6 +2324,108 @@ Unter „Auswertung ▾“ → „Verbrauch“ siehst du den Verbrauch je Objekt
 3. „Export ▾“ → „Verbrauch (CSV)“ für Excel.
 
 > Tipp: Unter „Auswertung ▾“ → „Buchungen“ steht das Journal aller Buchungen.
+
+### Geräte & Maschinen
+
+*In der App: Geräte & Maschinen*
+
+Hier stehen die eigenen Reinigungsgeräte der Firma mit Inventarnummer, Art, Standort, Zustand und Prüfungen: Scheuersaugmaschinen, Sauger, Hochdruckreiniger, Einscheibenmaschinen, Leitern, Akkus. Filter nach Art, Standort, Zustand und Prüfung; ein Klick öffnet die Gerätekarte mit Verlauf.
+
+1. „Geräte & Maschinen“ unter „Material & Fuhrpark“ öffnen.
+2. Oben filtern, z. B. Prüfung „fällig oder überfällig“ oder Zustand „außer Betrieb“.
+3. Ein Gerät anklicken: Gerätekarte mit Prüfarten, Reparaturen und Verlauf.
+
+> Tipp: Die Anlagen beim Kunden (Feuerlöscher, Lift) stehen unter „Anlagen & Prüffristen“.
+> Tipp: Am Handy lässt sich das Gerät unten in die Leiste legen („Geräte“).
+
+*Bearbeiten: Vollzugriff, Objektleitung, Lager & Einkauf*
+
+### Gerät anlegen
+
+*In der App: Geräte & Maschinen*
+
+Die Inventarnummer kommt fortlaufend (G-0001, G-0002 …) und lässt sich ändern. Dazu Bezeichnung, Art, Hersteller und Typ, Seriennummer, Kauf mit Preis und Lieferant, Standort (Lager, Objekt oder Fahrzeug) und wer verantwortlich ist. Fotos, Bedienungsanleitung und Rechnung kommen nach SharePoint.
+
+1. „Mehr ▾“ → „Gerät anlegen“.
+2. Bezeichnung und Art wählen: die Prüfarten kommen als Vorschlag.
+3. Standort und verantwortliche Person eintragen.
+4. Bei Bedarf Foto, Bedienungsanleitung oder Rechnung anhängen, „Speichern“.
+
+> Tipp: Ein Lieferant aus Einkauf & Kasse wird vorgeschlagen, wer den Einkauf sieht.
+> Tipp: Ausgeschiedene Geräte bleiben mit ihrem Verlauf erhalten (Zustand „ausgeschieden“).
+
+### Prüfung eines Geräts erfassen
+
+*In der App: Geräte & Maschinen*
+
+Je Gerät gibt es Prüfarten mit Intervall: Prüfung elektrischer Betriebsmittel, Wartung laut Hersteller, Sichtprüfung Leiter. Beim Erfassen: Prüfart, Datum, wer geprüft hat, Ergebnis (in Ordnung, Mängel, gesperrt), Messwerte frei und das Protokoll als PDF. „Gesperrt“ setzt das Gerät außer Betrieb.
+
+1. Beim Gerät „Prüfung“ tippen oder „Mehr ▾“ → „Prüfung erfassen“.
+2. Prüfart und Ergebnis wählen, bei Mängeln kurz beschreiben.
+3. Messwerte eintragen und „Protokoll (PDF)“ anhängen.
+4. „Prüfung eintragen“ tippen.
+
+> Tipp: Eine spätere Prüfung „in Ordnung“ nimmt ein gesperrtes Gerät wieder in Betrieb (Häkchen im Dialog).
+> Tipp: Gesperrte Geräte lassen sich nicht ausgeben.
+
+### Prüfintervalle und Erinnerungen für Geräte
+
+*In der App: Geräte & Maschinen*
+
+Nächste Prüfung = letzte Prüfung plus Intervall in Monaten, genau wie bei den Anlagen; ab 30 Tagen vorher gilt sie als fällig. Die Arten bringen Vorlagen mit, als Vorschlag ohne Gewähr: Das Intervall der Prüfung elektrischer Betriebsmittel legt der Betrieb nach der Evaluierung fest. Fällige und gesperrte Geräte stehen in „Zu erledigen“.
+
+1. „Mehr ▾“ → „Arten und Prüfintervalle“ öffnen.
+2. Intervalle je Art anpassen und „Speichern“.
+3. Am einzelnen Gerät unter „Bearbeiten“ die Prüfarten ändern.
+
+> Tipp: Der digitale Mitarbeiter „Fristen“ zeigt dieselben Punkte, nur mit „Öffnen“.
+> Tipp: Intervalle mit der Sicherheitsfachkraft bestätigen.
+
+### Schaden melden und Reparatur
+
+*In der App: Geräte & Maschinen*
+
+„Schaden melden“ geht auch am Handy: Gerät, Objekt, was kaputt ist und Fotos. Auf Wunsch gleich außer Betrieb setzen. Unter „Reparaturen“ Stand (gemeldet, in Reparatur, erledigt), Werkstatt und Kosten. Mit „Plan am Handy“ melden Reinigungskräfte über „Gerät kaputt?“, mit der Nummer vom Etikett.
+
+1. „Schaden melden“ tippen.
+2. Gerät, Objekt und Beschreibung eintragen, „Foto aufnehmen“.
+3. Später im Reiter „Reparaturen“ Stand, Werkstatt und Kosten eintragen.
+
+> Tipp: Eine Eingangsrechnung aus Einkauf & Kasse wird nur verknüpft, nichts wird gebucht.
+> Tipp: Meldungen vom Handy ohne erkannte Nummer stehen als „Gerät zuordnen“ in „Zu erledigen“.
+
+### Gerät ausgeben und zurücknehmen
+
+*In der App: Geräte & Maschinen*
+
+Ein Gerät geht an ein Objekt oder an eine Person, mit Datum, optional „zurück bis“ und Notiz. „Zurücknehmen“ bringt es an seinen Standort zurück. Jeder Schritt steht im Verlauf; der Reiter „Ausgabe“ zeigt, was gerade draußen ist.
+
+1. Beim Gerät „⋯“ → „Ausgeben“ oder im Reiter „Ausgabe“ auf „Ausgeben“.
+2. Objekt oder Person wählen, Datum eintragen, „Ausgeben“.
+3. Zurück: „Zurücknehmen“ beim Gerät.
+
+> Tipp: Geräte außer Betrieb oder in Reparatur werden nicht ausgegeben.
+> Tipp: Der Einsatz-Dialog zeigt, welche Geräte im Objekt sind.
+
+### QR-Etikett für Geräte
+
+*In der App: Geräte & Maschinen*
+
+Das Etikett zeigt einen QR-Code, die Inventarnummer groß, Bezeichnung und Firma. Der Code öffnet in der App gleich die Gerätekarte. Ein Etikett je Gerät über „⋯“ → „Etikett (PDF)“, alle der aktuellen Auswahl über „Mehr ▾“ → „Etiketten der Auswahl (PDF)“.
+
+1. Liste filtern (z. B. Art „Leiter oder Tritt“).
+2. „Mehr ▾“ → „Etiketten der Auswahl (PDF)“.
+3. Ausdrucken, ausschneiden und in einer Hülle oder laminiert aufkleben.
+
+### Reparaturkosten je Gerät
+
+*In der App: Geräte & Maschinen*
+
+Der Reiter „Kosten“ zeigt je Gerät die Reparaturen und Kosten der letzten 12 Monate, dieses Jahres oder seit Beginn, dazu den Kaufpreis und den Anteil. Das ist nur eine Auswertung: gebucht wird im Einkauf. In den Kennzahlen stehen die Reparaturkosten je Monat und die Geräte nach Zustand.
+
+1. Reiter „Kosten“ öffnen.
+2. Zeitraum wählen.
+3. „CSV“ für Excel.
 
 ### Fahrzeuge & Reifen
 

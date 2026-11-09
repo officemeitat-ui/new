@@ -163,7 +163,8 @@ const req = { at: 0, running: false, list: [], error: '', retry: [], timer: null
 
 const REQUEST_HANDLERS = []
 /**
- * Andere Module übernehmen ihre Meldungen selbst (z. B. „Material fehlt“ → Material & Lager):
+ * Andere Module übernehmen ihre Meldungen selbst (z. B. „Material fehlt“ → Material & Lager, „Gerät kaputt?“ →
+ * Geräte & Maschinen):
  * fn(offene Anträge, { decide }) → Liste der erledigten Anträge (verschwinden aus „Zu erledigen“).
  */
 export const onPortalRequests = (fn) => REQUEST_HANDLERS.push(fn)
@@ -333,7 +334,7 @@ registerTodo({
         const btn = (what, label, cls = '') => `<button class="btn small ${cls}" data-action="portal-request" data-id="${esc(a.id)}" data-do="${what}">${label}</button>`
         const reject = `<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
         if (a.art === 'Abgabe') return `<div class="todo-item"><span class="flag warning">⇄</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}. „In die Börse“: Kolleg:innen sehen den Einsatz am Handy; bis jemand übernimmt, bleibt ${esc(who)} eingeteilt.</span></div><div class="todo-acts">${a.employeeId ? btn('boerse', 'In die Börse', 'primary') : ''}${reject}</div></div>`
-        if (a.art === 'Material') return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}. Bitte ans Lager weitergeben (wer „Material &amp; Lager“ bearbeiten darf, bekommt es automatisch).</span></div><div class="todo-acts">${btn('material', 'Weitergegeben', 'primary')}${reject}</div></div>`
+        if (a.art === 'Material' || a.art === 'Geraet') return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}. ${a.art === 'Geraet' ? 'Bitte an die Gerätebetreuung weitergeben (wer „Geräte &amp; Maschinen“ bearbeiten darf, bekommt es automatisch).' : 'Bitte ans Lager weitergeben (wer „Material &amp; Lager“ bearbeiten darf, bekommt es automatisch).'}</span></div><div class="todo-acts">${btn('material', 'Weitergegeben', 'primary')}${reject}</div></div>`
         if (shift) return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">Einsatzbörse am Handy, ${esc(sentAt(a.erstellt))}</span></div><div class="todo-acts">${a.employeeId ? btn('einteilen', 'Einteilen', 'primary') : ''}${reject}</div></div>`
         const acts = krank ? `${a.employeeId ? btn('eintragen', 'Eintragen', 'primary') : ''}${btn('erledigt', 'Schon erledigt')}` : `${a.employeeId ? btn('genehmigen', a.art === 'Pflegefreistellung' ? 'Eintragen' : 'Genehmigen', 'primary') : ''}<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
         return `<div class="todo-item"><span class="flag ${krank ? 'error' : 'warning'}">${krank ? '!' : '?'}</span><div class="todo-text"><strong>${esc(who)}</strong>: ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}${a.employeeId ? '' : ' · keiner Person zuordenbar (Link inzwischen ersetzt?)'}</span></div><div class="todo-acts">${acts}</div></div>`
@@ -517,7 +518,7 @@ registerActions(
         return toast(`In der Einsatzbörse: passt für ${r?.angebotePersonen ?? 0} Kolleg:innen. ${a.name} bekommt Bescheid.`)
       }
       if (what === 'material') {
-        if (await decide(a, 'genehmigt', 'Ist notiert. Das Lager kümmert sich darum.')) toast(`${a.name} bekommt Bescheid, dass es notiert ist.`)
+        if (await decide(a, 'genehmigt', a.art === 'Geraet' ? 'Ist notiert. Wir kümmern uns um das Gerät.' : 'Ist notiert. Das Lager kümmert sich darum.')) toast(`${a.name} bekommt Bescheid, dass es notiert ist.`)
         return
       }
       if (what === 'erledigt') {

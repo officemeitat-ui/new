@@ -2315,6 +2315,24 @@ tr.muted td { color: var(--muted); }
   .anl-table .actions-cell { white-space: normal; }
 }
 
+/* Geräte & Maschinen (views/geraete.js); Dateien, Ergebnis und Verlauf wie bei den Anlagen (anl-…) */
+.gr-stats .stat { min-width: 7rem; }
+.gr-table .actions-cell { white-space: nowrap; }
+.gr-filters input[type='search'] { min-width: 12rem; }
+.gr-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.gr-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 8px 16px; margin: 0 0 10px; }
+.gr-facts dt { font-size: 0.78rem; color: var(--muted); }
+.gr-facts dd { margin: 0; overflow-wrap: anywhere; }
+.gr-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.gr-plans select, .gr-plans input[type='text'] { width: 100%; min-width: 9rem; }
+.gr-plans input[type='text'] { margin-top: 4px; }
+.gr-types input[type='text'] { width: 100%; min-width: 9rem; }
+@media (max-width: 720px) {
+  .gr-table .actions-cell { white-space: normal; }
+  .gr-filters input[type='search'] { min-width: 0; width: 100%; }
+  .gr-stats .stat { min-width: 0; flex: 1 1 6.5rem; }
+}
+
 /* Mattenwechsel-Modul (views/matten.js, views/matten-uebernahme.js) */
 .mw-cust { margin-bottom: 10px; }
 .mw-cust > .section-head.small h3, .mw-obj .section-head.small h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0; }

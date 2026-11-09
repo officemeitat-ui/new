@@ -7,11 +7,13 @@
 // Schwundquote aus dem Matten-Bestand (kpiHooks.mattenBestand, views/matten-bestand.js), wenn es Buchungen gibt.
 // Kundenverträge (kpiHooks.vertraege, views/invoicing-vertraege.js, core/vertraege.js): Vertragsvolumen je Monat,
 // Kündigungen und Vertragsenden je Monat, Verträge, die in den nächsten 90 Tagen enden – nur mit Fakturierung.
+// Geräte & Maschinen: Zustand, überfällige Prüfungen, Reparaturkosten je Monat (core/geraete.js → geraeteKpi).
 //
 // Zeitraum: 4/8/13 Wochen für die Wochen-Kennzahlen, 3/6/12 Monate für die Monats-Kennzahlen.
 // Monats-Kacheln zeigen den letzten abgeschlossenen Monat (der laufende ist noch unvollständig).
 
 import { CALC_DEFAULTS, calcWage } from '../../core/calculation.js'
+import { geraeteKpi, STATUS as GERAET_STATUS } from '../../core/geraete.js'
 import { employedOn, sollMinutes } from '../../core/contract.js'
 import { addDays, formatDate, isoWeek, mondayOf, MONTH_LONG, todayISO } from '../../core/dates.js'
 import { absenceRates, aging, cashBalance, complaintsByMonth, complaintsTopObjects, contribution, lastMonths, lastWeeks, materialByObject, materialMonths, payablesAging, PERIODS, plusHours, revenueByObject, revenueMonths, spendingMonths, topCustomers, trend, utilization, weekStats } from '../../core/kpi.js'
@@ -112,6 +114,8 @@ function build(p) {
     }
   }
   if (sees('material')) out.material = materialMonths(data.material || {}, months)
+  // Geräte & Maschinen: Zustand, überfällige Prüfungen, Reparaturkosten je Monat (nur wenn Geräte da sind)
+  if (sees('geraete') && data.geraete?.items?.length) out.geraete = geraeteKpi({ doc: data.geraete, months, today })
   // Kundenzufriedenheit: Runden mit Antworten (Objektleitung: nur ihre Objekte)
   if (sees('zufriedenheit') && data.zufriedenheit?.answers?.length) {
     const scope = scopeObjectIds({ all: !app.access || !!app.access.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: data.objects || [] })
@@ -204,6 +208,11 @@ function tiles(d) {
   if (d.material && lastI >= 0) {
     const cur = d.material[lastI]
     out.push(tile({ label: `Materialverbrauch ${mLabel}`, value: euro(cur.used), sub: `bestellt ${euro(cur.ordered)}`, cur: cur.used, prev: d.material[lastI - 1]?.used ?? null, deltaFmt: euro, spark: d.material.map((x) => x.used), view: 'material', vs: 'Vormonat' }))
+  }
+  if (d.geraete) {
+    const g = d.geraete
+    out.push(tile({ label: 'Geräte: Prüfung überfällig', value: count(g.overdue), sub: `${count(g.byStatus.gesperrt)} außer Betrieb · ${count(g.byStatus.reparatur)} in Reparatur`, cur: g.overdue, view: 'geraete' }))
+    if (lastI >= 0) out.push(tile({ label: `Reparaturkosten Geräte ${mLabel}`, value: euro(g.repairs[lastI].cost), sub: `${count(g.repairs[lastI].count)} Reparaturen, netto`, cur: g.repairs[lastI].cost, prev: g.repairs[lastI - 1]?.cost ?? null, goodUp: false, deltaFmt: euro, spark: g.repairs.map((x) => x.cost), view: 'geraete', vs: 'Vormonat' }))
   }
   if (d.spending && lastI >= 0) {
     const cur = d.spending[lastI]
@@ -319,6 +328,12 @@ function charts(d) {
     out.push(card({ id: 'matten-groessen', title: 'Matten je Größe', sub: 'an den aktiven Liegeplätzen; dazu im Zeitraum gewechselt', view: 'mw-liegeplaetze', body: barList({ rows: m.sizes.map((x) => ({ label: x.size, value: x.qty, display: `${count(x.qty)} Stk`, sub: `${x.placements} Liegepl.`, extra: [['im Zeitraum gewechselt', `${count(swapped.get(x.size) || 0)} Stk`, '']] })) }), table: tableView(['Größe', 'Matten', 'Liegeplätze', 'gewechselt'], m.sizes.map((x) => [x.size, count(x.qty), count(x.placements), count(swapped.get(x.size) || 0)])) }))
     if (d.mattenRevenue) out.push(card({ id: 'matten-umsatz', title: 'Umsatz aus dem Mattenwechsel', sub: 'netto, festgeschriebene Rechnungen aus dem Mattenwechsel; Storno mindert', view: 'fakturierung', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'net', label: 'Umsatz netto', color: '--kpi-1', values: d.mattenRevenue.map((x) => x.net) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Umsatz aus dem Mattenwechsel je Monat' }), table: tableView(['Monat', 'Umsatz netto', 'Rechnungen'], d.mattenRevenue.map((x, i) => [mt[i], euro(x.net), count(x.count)])) }))
   }
+  if (d.geraete) {
+    const g = d.geraete
+    const order = ['betrieb', 'reparatur', 'gesperrt', 'ausgeschieden']
+    out.push(card({ id: 'geraete-zustand', title: 'Geräte nach Zustand', sub: `${count(g.overdue)} mit überfälliger Prüfung, ${count(g.due)} bald fällig`, view: 'geraete', body: barList({ rows: order.map((s) => ({ label: GERAET_STATUS[s], value: g.byStatus[s], display: `${count(g.byStatus[s])} Geräte` })) }), table: tableView(['Zustand', 'Geräte'], order.map((s) => [GERAET_STATUS[s], count(g.byStatus[s])])) }))
+    out.push(card({ id: 'geraete-kosten', title: 'Reparaturkosten der Geräte je Monat', sub: 'netto, Monat laut „erledigt am“; nur Auswertung, gebucht wird im Einkauf', view: 'geraete', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'cost', label: 'Reparaturkosten', color: '--kpi-1', values: g.repairs.map((x) => x.cost) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Reparaturkosten der Geräte je Monat' }), table: tableView(['Monat', 'Kosten netto', 'Reparaturen'], g.repairs.map((x, i) => [mt[i], euro(x.cost), count(x.count)])) }))
+  }
   if (d.mattenBestand) {
     const w = d.mattenBestand.months
     const ws = [
@@ -358,7 +373,7 @@ function kpiView(c) {
   const t = tiles(d)
   const ch = charts(d)
   return `<div class="kpi-root">
-    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Verträge, Ausgaben, Kasse, Material und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
+    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Verträge, Ausgaben, Kasse, Material, Geräte und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
     <div class="filters kpi-filters" role="group" aria-label="Zeitraum">${filters}</div>
     ${t ? `<div class="kpi-tiles">${t}</div>` : ''}
     ${ch ? `<div class="kpi-grid">${ch}</div>` : '<p class="empty">Für deine Rolle gibt es hier noch keine Kennzahlen.</p>'}

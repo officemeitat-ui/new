@@ -31,6 +31,8 @@ export const MODULES = {
   schluessel: 'Schlüsselbuch',
   unterweisungen: 'Unterweisungen & Fristen',
   anlagen: 'Anlagen & Prüffristen',
+  // eigene Reinigungsgeräte der Firma (Inventar, Prüfungen, Reparaturen, Ausgabe); nicht die Anlagen beim Kunden
+  geraete: 'Geräte & Maschinen',
   regie: 'Regieberichte',
   qualitaet: 'Qualitätsmessung',
   arbeitsschutz: 'Arbeitsschutz',
@@ -68,13 +70,14 @@ export const DEFAULT_ROLES = {
   // Bewerbungen bis zur Zusage, Mitarbeitende anlegen (Stammdaten), Unterweisungen und Gesprächstermine; das
   // Schlüsselbuch nur lesen (Ausgabe und Rückgabe in der Checkliste sehen, Quittung drucken)
   personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine'] },
-  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'regie', 'qualitaet'] },
+  // Geräte & Maschinen: Objektleitung und Lager & Einkauf pflegen die Geräte (Prüfungen, Reparaturen, Ausgabe)
+  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
   // Regieberichte: erfasst Sonderleistungen vor Ort und lässt sie am Handy unterschreiben
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'anlagen', 'regie'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material', 'anlagen', 'regie'] },
   // Lager und Einkauf: Bestand, Bestellungen, Ausgabe an die Objekte; im Arbeitsschutz die Angaben am Artikel
-  // (Arbeitsstoffe: Gefahren, Sicherheitsdatenblatt), Evaluierung und Betriebsanweisungen nur lesen
-  lager: { label: 'Lager & Einkauf', modules: ['material', 'arbeitsschutz', 'arbeitsstoffe'], edit: ['material', 'arbeitsstoffe'] },
+  // (Arbeitsstoffe: Gefahren, Sicherheitsdatenblatt), Evaluierung und Betriebsanweisungen nur lesen; Geräte & Maschinen
+  lager: { label: 'Lager & Einkauf', modules: ['material', 'arbeitsschutz', 'arbeitsstoffe', 'geraete'], edit: ['material', 'arbeitsstoffe', 'geraete'] },
   ableser: { label: 'Ableser', modules: ['zaehler'], edit: ['zaehler'] },
   pruefer: { label: 'Prüfer/in', modules: ['kontrolle', 'objektmappe'], edit: ['kontrolle'] },
   fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] },

@@ -85,6 +85,17 @@ function dueState(next, today, lead) {
 }
 
 /**
+ * Eine Frist, allgemein (Anlagen, Geräte & Maschinen in core/geraete.js): nächste = letzte Prüfung (Datum) + Intervall
+ * in Monaten; ohne Prüfung firstDue, sonst unbekannt (= fällig). → { next, state: ueberfaellig | faellig | ok, unknown?,
+ * noInterval? }; noInterval: kein Intervall (nach einer Prüfung ist die nächste dann unbekannt).
+ */
+export function frist({ last = '', months = 0, firstDue = '', today, warnDays = WARN_DAYS }) {
+  const m = positive(months)
+  const next = last ? (m ? addMonths(last, m) : '') : firstDue || ''
+  return { ...dueState(next, today, leadDays(m, warnDays)), ...(m ? {} : { noInterval: true }) }
+}
+
+/**
  * Fristen einer Anlage: [{ kind: 'haupt'|'operativ', months, last, next, state, unknown?, noInterval? }].
  * haupt: ab der letzten Prüfung (operative zählen nicht); operativ: ab der letzten Prüfung jeder Art.
  * Ohne Prüfung: firstDue, sonst unbekannt (= fällig). Ohne Intervall nach einer Prüfung: unbekannt (noInterval).
@@ -93,12 +104,11 @@ export function duesOf({ item, type, checks = [], today, warnDays = WARN_DAYS })
   const list = checksOf(checks, item.id)
   const months = intervalOf(item, type)
   const main = list.find((c) => c.kind !== 'operativ') || null
-  const nextMain = main ? (months ? addMonths(main.date, months) : '') : item.firstDue || ''
-  const out = [{ kind: 'haupt', months, last: main, ...dueState(nextMain, today, leadDays(months, warnDays)), ...(months ? {} : { noInterval: true }) }]
+  const out = [{ kind: 'haupt', months, last: main, ...frist({ last: main?.date, months, firstDue: item.firstDue, today, warnDays }) }]
   const op = operativeOf(item, type)
   if (op) {
     const any = list[0] || null
-    out.push({ kind: 'operativ', months: op, last: any, ...dueState(any ? addMonths(any.date, op) : item.firstDue || '', today, leadDays(op, warnDays)) })
+    out.push({ kind: 'operativ', months: op, last: any, ...frist({ last: any?.date, months: op, firstDue: item.firstDue, today, warnDays }) })
   }
   return out
 }

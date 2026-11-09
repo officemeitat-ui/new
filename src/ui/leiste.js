@@ -186,6 +186,7 @@ export const SHORT_LABELS = {
   bewerber: 'Bewerber',
   eintritt: 'Eintritt',
   arbeitsschutz: 'Schutz',
+  geraete: 'Geräte',
 }
 /** Diese behalten ihren kurzen Namen immer (so kennt man die Leiste seit jeher). */
 const ALWAYS_SHORT = new Set(['week', 'coverage', 'sheet'])

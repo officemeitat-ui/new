@@ -87,7 +87,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', bewerbung: '', eintritt: '', matten: '', 'matten/touren': '', 'matten/fotos': '', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', geraete: '', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', bewerbung: '', eintritt: '', matten: '', 'matten/touren': '', 'matten/fotos': '', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -99,6 +99,23 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   }
   assert.ok(om.write(MODULE_DOCS.anlagen.path) && !va.read(MODULE_DOCS.anlagen.path) && !dataRights(resolveAccess({ roleClaims: ['lager'], access, strict: true })).read(MODULE_DOCS.anlagen.path))
   assert.ok(!dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true })).read(MODULE_DOCS.anlagen.path))
+  // Geräte & Maschinen: Objektleitung und Lager & Einkauf bearbeiten (Datei, Fotos, Anleitungen, Protokolle unter
+  // geraete/dateien/), dazu Objekte und Mitarbeitende lesen (Standort, Ausgabe an eine Person); alle anderen nicht
+  for (const role of ['objektleitung', 'lager']) {
+    const a = resolveAccess({ roleClaims: [role], access, strict: true })
+    const r = dataRights(a)
+    assert.ok(a.canEdit('geraete') && r.write(MODULE_DOCS.geraete.path) && r.write('geraete/dateien/2026/G-0001_protokoll_2026-11-09_x.pdf') && r.read(DOC.objects) && r.read(DOC.master) && r.write(MODULE_DOCS.assistenz.path), role)
+    assert.equal(rows(a).geraete, 'Bearbeiten', role)
+  }
+  assert.equal(MODULE_DOCS.geraete.path, 'geraete/geraete.json')
+  for (const role of ['objektmanagement', 'objektservice', 'vorarbeiter', 'lesen', 'buchhaltung', 'fuhrpark', 'pruefer', 'ableser', 'mattenfahrer', 'personalverwaltung', 'lohnverrechnung']) {
+    const a = resolveAccess({ roleClaims: [role], access, strict: true })
+    assert.ok(!a.sees('geraete') && !dataRights(a).read(MODULE_DOCS.geraete.path) && !dataRights(a).read('geraete/dateien/2026/foto.jpg') && rows(a).geraete === '', role)
+  }
+  // eigene Rolle „Gerätewart“ nur mit dem Modul: liest Objekte und Mitarbeitende, sonst nichts
+  const wart = resolveAccess({ roleClaims: ['geraetewart'], access: { ...access, roles: { geraetewart: { label: 'Gerätewart', modules: ['geraete'], edit: ['geraete'] } } }, strict: true })
+  const wr = dataRights(wart)
+  assert.ok(wr.write(MODULE_DOCS.geraete.path) && wr.read(DOC.objects) && wr.read(DOC.master) && !wr.read(MODULE_DOCS.material.path) && !wr.read(MODULE_DOCS.fahrzeuge.path) && !wr.read(MODULE_DOCS.einkauf.path))
   // Regieberichte: Objektmanagement, Objektleitung und Objektservice erfassen (Datei, Fotos und PDF im Ordner regie/);
   // Buchhaltung, Lager, Vorarbeiter und „Nur lesen“ nicht (die Buchhaltung bekommt den Bericht eingefroren mit der Rechnung)
   for (const role of ['objektleitung', 'objektservice']) {

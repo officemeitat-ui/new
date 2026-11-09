@@ -22,6 +22,8 @@
 //
 // Material fehlt? (aktion=material): Die Person wählt eines ihrer Objekte laut Plan und schreibt,
 // was fehlt. Das Büro bekommt einen Push; die App übernimmt die Meldung als Anforderung ins Lager.
+// Gerät kaputt? (aktion=geraet): ebenso mit Objekt, Gerät (Nummer vom QR-Etikett oder Bezeichnung) und was kaputt
+// ist, ohne Foto; die App übernimmt die Meldung als Schaden unter „Geräte & Maschinen“ (Reparaturen).
 //
 // Sprachen: Seite, Formulare, Hinweise und die Push-Nachrichten an die Person erscheinen in ihrer Sprache
 // (Deutsch, Bosnisch/Kroatisch/Serbisch, Rumänisch, Türkisch, Ungarisch, Englisch; Texte in
@@ -78,7 +80,7 @@ const NOTIZ_MUSTER = [
 function status_text(array $a, ?string $s = null): string
 {
     $status = (string) ($a['status'] ?? '');
-    $gruppe = ['Einsatz' => 'einsatz', 'Abgabe' => 'abgabe', 'Material' => 'material'][$a['art'] ?? ''] ?? 'status';
+    $gruppe = ['Einsatz' => 'einsatz', 'Abgabe' => 'abgabe', 'Material' => 'material', 'Geraet' => 'geraet'][$a['art'] ?? ''] ?? 'status';
     return isset(STATUS_TEXT[$status]) ? t($gruppe . '_' . $status, [], $s) : $status;
 }
 
@@ -676,11 +678,12 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         }
         // der Person Bescheid geben (Krankmeldung „eingetragen“: kein Push nötig)
         $p = json_lesen(person_datei((string) $a['hash']));
-        if (!empty($p['ntfy']) && ($status !== 'erledigt' || in_array($a['art'], ['Abgabe', 'Material'], true))) {
+        if (!empty($p['ntfy']) && ($status !== 'erledigt' || in_array($a['art'], ['Abgabe', 'Material', 'Geraet'], true))) {
             $sp = sprache_von($p);
             $was = $tag($a['von'], $sp) . ' ' . ($a['text'] ?? '');
             $titel = match ($a['art']) {
                 'Material' => t('push_material_' . $status, ['text' => $a['text'] ?? ''], $sp),
+                'Geraet' => t('push_geraet_' . $status, ['text' => (string) ($a['geraet'] ?? $a['text'] ?? '')], $sp),
                 'Einsatz' => t($status === 'genehmigt' ? 'push_eingeteilt' : 'push_nicht_eingeteilt', ['was' => $was], $sp),
                 'Abgabe' => t('push_abgabe_' . $status, ['was' => $was], $sp),
                 default => t('push_antrag', ['art' => art_text((string) $a['art'], $sp), 'zeitraum' => $zeitraum($a['von'], $a['bis'], $sp), 'status' => t('status_' . $status, [], $sp)], $sp),
@@ -1011,6 +1014,57 @@ if ($aktion === 'material' && $methode === 'POST') {
     }
 }
 
+// Gerät kaputt: geht ans Büro (App → Geräte & Maschinen → Reparaturen), ohne Foto
+if ($aktion === 'geraet' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
+        exit;
+    }
+    $objekte = meine_objekte($person);
+    $objekt = (string) ($_POST['objekt'] ?? '');
+    $geraet = mb_substr(trim((string) ($_POST['geraet'] ?? '')), 0, 80);
+    $was = mb_substr(trim((string) ($_POST['was'] ?? '')), 0, 300);
+    $fehler = '';
+    if (!isset($objekte[$objekt])) {
+        $fehler = t('fehler_objekt');
+    } elseif ($geraet === '' || $was === '') {
+        $fehler = t('fehler_geraet');
+    }
+    if (!$fehler) {
+        $neu = antraege(function (array &$l) use ($hash, $person, $objekt, $objekte, $geraet, $was) {
+            $heute = array_filter($l, fn ($a) => $a['hash'] === $hash && (int) $a['erstellt'] > jetzt() - 86400);
+            if (count($heute) >= 10) {
+                return false;
+            }
+            $a = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? '', 'art' => 'Geraet', 'objekt' => $objekt, 'text' => $objekte[$objekt], 'geraet' => $geraet, 'von' => heute(), 'bis' => heute(), 'notiz' => $was, 'erstellt' => jetzt(), 'status' => 'offen', 'antwort' => ''];
+            $l[] = $a;
+            return $a;
+        });
+        if ($neu === false) {
+            $fehler = t('zu_viele_meldungen');
+        } elseif ($neu === null) {
+            $fehler = t('nicht_gespeichert');
+        }
+    }
+    if ($fehler) {
+        $meldung = '<p class="fehler">' . $h($fehler) . '</p>';
+    } else {
+        $titel = 'Gerät kaputt: ' . $geraet;
+        $text = ($person['name'] ?? '') . " ({$objekte[$objekt]}): „{$was}“\nIn der App unter „Geräte & Maschinen“.";
+        $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#geraete';
+        foreach ((array) ($e['buero'] ?? []) as $b) {
+            if (!empty($b['ntfy'])) {
+                ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => $text, 'priority' => 3, 'tags' => ['wrench'], 'click' => $app]);
+            }
+            if (!empty($b['email'])) {
+                mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Mein Dienstplan');
+            }
+        }
+        header('Location: mein-plan.php?gesendet=geraet', true, 303);
+        exit;
+    }
+}
+
 // Einsatzbörse: „Ich übernehme“
 if ($aktion === 'melden' && $methode === 'POST') {
     if (fremde_herkunft()) {
@@ -1123,7 +1177,7 @@ if (!$wochen && !empty($person['wochen'])) {
     $wochen = array_slice((array) $person['wochen'], -1, 1, true);
 }
 $meldung = $meldung ?? '';
-$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material'][(string) ($_GET['gesendet'] ?? '')] ?? null;
+$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material', 'geraet' => 'ok_geraet'][(string) ($_GET['gesendet'] ?? '')] ?? null;
 if ($gesendet) {
     $meldung = '<p class="ok">' . th($gesendet) . '</p>';
 }
@@ -1182,7 +1236,7 @@ foreach ($wochen as $mo => $w) {
         . ($tageHtml ?: '<p class="leise">' . th('keine_einsaetze') . '</p>')
         . '<p class="summe">' . th('stunden', ['h' => '<b>' . $stunden($summe['ist'] ?? 0) . ' h</b>']) . (isset($summe['soll']) ? ' · ' . th('soll', ['h' => $stunden($summe['soll']) . ' h']) : '') . (isset($w['konto']) && $w['konto'] !== null ? ' · ' . th('konto_danach', ['h' => $konto($w['konto']) . ' h']) : '') . '</p>';
 }
-$antraegeHtml = $meine ? '<h2>' . th('meine_antraege') . '</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h(art_text((string) $a['art'])) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe', 'Material'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . (($a['art'] ?? '') === 'Material' && !empty($a['notiz']) ? ': „' . $h((string) $a['notiz']) . '“' : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h(antwort_text((string) $a['antwort'])) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
+$antraegeHtml = $meine ? '<h2>' . th('meine_antraege') . '</h2><ul class="antraege">' . implode('', array_map(fn ($a) => '<li><b>' . $h(art_text((string) $a['art'])) . '</b> ' . $h($zeitraum($a['von'], $a['bis'])) . (in_array($a['art'] ?? '', ['Einsatz', 'Abgabe', 'Material', 'Geraet'], true) ? ' · ' . $h((string) ($a['text'] ?? '')) : '') . (($a['art'] ?? '') === 'Geraet' && !empty($a['geraet']) ? ' · ' . $h((string) $a['geraet']) : '') . (in_array($a['art'] ?? '', ['Material', 'Geraet'], true) && !empty($a['notiz']) ? ': „' . $h((string) $a['notiz']) . '“' : '') . ' <span class="pill st-' . $h($a['status']) . '">' . $h(status_text($a)) . '</span>' . ($a['antwort'] ? '<br><span class="leise">' . $h(antwort_text((string) $a['antwort'])) . '</span>' : '') . '</li>', $meine)) . '</ul>' : '';
 $gemeldet = array_column(array_filter($meine, fn ($a) => ($a['art'] ?? '') === 'Einsatz' && $a['status'] === 'offen'), 'einsatz');
 $boerse = '';
 foreach (angebote_von($hash) as $o) {
@@ -1203,7 +1257,13 @@ $materialForm = $objekte ? '<h2>' . th('material_titel') . '</h2><details><summa
     . '<button type="submit">' . th('melden') . '</button><p class="leise">' . th('material_info') . '</p></form></details>' : '';
 // Art: Wert bleibt deutsch (das Büro liest ihn), angezeigt wird die Übersetzung
 $option = fn (string $wert): string => ($text = art_text($wert)) === $wert ? '<option>' . $h($wert) . '</option>' : '<option value="' . $h($wert) . '">' . $h($text) . '</option>';
-$formulare = $materialForm . '<h2>' . th('abwesenheit') . '</h2>'
+// Gerät kaputt? (ohne Foto): Objekt aus dem eigenen Plan, Gerät mit der Nummer vom Etikett, was kaputt ist
+$geraetForm = $objekte ? '<h2>' . th('geraet_titel') . '</h2><details><summary>' . th('geraet_summary') . '</summary><form method="post" action="mein-plan.php?aktion=geraet">' . $p
+    . '<label for="g-obj">' . th('objekt') . '</label><select id="g-obj" name="objekt">' . implode('', array_map(fn ($id, $name) => '<option value="' . $h((string) $id) . '">' . $h($name) . '</option>', array_keys($objekte), $objekte)) . '</select>'
+    . '<label for="g-geraet">' . th('geraet_welches') . '</label><input type="text" id="g-geraet" name="geraet" maxlength="80" required placeholder="' . th('geraet_welches_bsp') . '">'
+    . '<label for="g-was">' . th('geraet_schaden') . '</label><textarea id="g-was" name="was" rows="2" maxlength="300" required placeholder="' . th('geraet_schaden_bsp') . '"></textarea>'
+    . '<button type="submit">' . th('melden') . '</button><p class="leise">' . th('geraet_info') . '</p></form></details>' : '';
+$formulare = $materialForm . $geraetForm . '<h2>' . th('abwesenheit') . '</h2>'
     . '<details><summary>' . th('krank_melden') . '</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . '<input type="hidden" name="art" value="Krankenstand">'
     . '<label for="k-von">' . th('krank_ab') . '</label><input type="date" id="k-von" name="von" value="' . $heute . '" required>'
     . '<label for="k-bis">' . th('krank_bis') . '</label><input type="date" id="k-bis" name="bis">'

@@ -22,6 +22,8 @@
 //                Tage nicht abgeschlossen (nur „Öffnen“), Ergebnisse der Touren in die Einsätze übernehmen („Ausführen“);
 //                Mattenbestand (app.mwBe aus views/matten-bestand.js): zu wenig saubere Matten für die Touren am …,
 //                Mindestbestand unterschritten (nur „Öffnen“)
+//                Geräte & Maschinen (FRISTEN_HOOKS aus views/geraete.js, sobald geladen): Prüfung fällig oder
+//                überfällig, Gerät außer Betrieb, Schaden gemeldet (nur „Öffnen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -56,7 +58,7 @@ export const AGENTS = [
   { id: 'disponent', name: 'Disponent', role: 'plant Vertretungen und offene Einsätze, erinnert ans Veröffentlichen', module: 'planung' },
   { id: 'buchhaltung', name: 'Buchhaltung', role: 'rechnet Daueraufträge, Regieberichte und den Mattenwechsel ab, bereitet Mahnungen und Leistungsnachweise vor', module: 'fakturierung' },
   { id: 'lager', name: 'Lager', role: 'bestellt nach, was unter dem Mindestbestand ist, und hat Anforderungen im Blick', module: 'material' },
-  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen, den Mattenwechsel und überfällige Reklamationen', module: '*' },
+  { id: 'fristen', name: 'Fristen', role: 'achtet auf Unterweisungen, Fahrzeuge, Prüffristen der Anlagen und Geräte, Nachkontrollen der Qualitätsmessung, Arbeitsschutz, Rückrufe aus der Kundenumfrage, Eintritt und Austritt, Bewerbungen, den Mattenwechsel und überfällige Reklamationen', module: '*' },
 ]
 
 /** Weitere Vorschläge der Buchhaltung aus später geladenen Modulen (Verträge der Fakturierung): fn(today) → [Vorschlag]. */
@@ -70,6 +72,12 @@ const edits = (m) => canEdit(m)
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const objName = (id) => app.data.objects.find((o) => o.id === id)?.name || ''
 const empName = (id) => app.data.employees.find((e) => e.id === id)?.name || '?'
+
+/**
+ * Fristen aus später geladenen Modulen (z. B. Geräte & Maschinen, views/geraete.js): fn(today) → Vorschläge des
+ * digitalen Mitarbeiters „Fristen“ ({ id, agent, prio, title, text, lines, open }); das Modul prüft die Rechte selbst.
+ */
+export const FRISTEN_HOOKS = []
 
 // ---------------------------------------------------------------- Routinen
 
@@ -605,6 +613,7 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'mwb-goto' },
       })
   }
+  for (const fn of FRISTEN_HOOKS) out.push(...fn(today))
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -625,7 +634,7 @@ function fristen(today) {
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
   // app.mwLs, app.mwUe, app.mwBe: Zähler der Matten-Lieferscheine, der Übersicht und des Bestands (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
-  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}:${buchhaltungHooks.length}`, () => {
+  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}:${buchhaltungHooks.length}:${FRISTEN_HOOKS.length}`, () => {
     const all = []
     const safe = (fn) => {
       try {
@@ -709,7 +718,7 @@ registerView({
   noWeek: true,
   icon: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/><path d="M18.5 3.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>',
   text: 'Vorbereitete Arbeit zur Freigabe',
-  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit') || edits('eintritt') || edits('bewerber') || edits('matten'),
+  available: () => visibleAgents().some((a) => a.module !== '*') || edits('unterweisungen') || edits('fahrzeuge') || edits('reklamationen') || edits('anlagen') || edits('qualitaet', 'arbeitsschutz') || edits('zufriedenheit') || edits('eintritt') || edits('bewerber') || edits('matten') || edits('geraete'),
   badge: () => proposals().filter((p) => p.prio === 1).length,
   render: assistenzView,
 })
