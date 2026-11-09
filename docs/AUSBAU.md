@@ -28,6 +28,25 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
 3. **Routing mit echten Fahrzeiten einschalten** (gebaut): OpenRouteService kostenlos ohne Kreditkarte (EINRICHTUNG Schritt 12 A; vorher prüfen, ob die Gratisnutzung für Firmen erlaubt ist – Rechtsprüfung Punkt 40) oder Google mit Tageslimit (Schritt 12 B, Punkt 39). Bis dahin rechnet der eingebaute Anbieter (kostenlos).
 
+## In Arbeit (beauftragt 9.11.2026)
+
+- Datensicherung (ZIP mit Prüfsummen, Prüfen, gezieltes Zurückspielen) und Robustheit (Fahrerseite, Feiertage, Fotos ohne Ortsdaten).
+- Leistung mit großen Datenmengen.
+- Kundenverträge mit Fristen und Preisanpassung nach KV-Lohnerhöhung.
+- Geräte & Maschinen (Inventar, Prüfungen elektrischer Geräte, Reparaturen, Ausgabe).
+- Danach: Vertrieb von der Anfrage bis zum Objekt (mit KI-Besichtigung) und Mitteilungen an Mitarbeitende mit Lesebestätigung (mehrsprachig).
+
+## Ideen für die nächsten Runden (Reihenfolge = Vorschlag)
+
+1. **KI-Posteingang:** Kunden-E-Mails (Reklamation, Zusatzauftrag, Terminwunsch, Kündigung) und Eingangsrechnungen aus einem Postfach erkennen und als Entwurf anlegen – immer mit Freigabe.
+2. **Objekt-QR zum Aushängen:** Kunden und Hausbewohner melden ohne Anmeldung (Foto, Text) – wird zur Reklamation des Objekts, Status über den Link.
+3. **Leistungs-Checkliste am Handy:** je Einsatz die Leistungen aus dem Leistungsverzeichnis abhaken (Foto bei Bedarf) – ergibt den Leistungsnachweis für den Kunden.
+4. **Buchhaltungs-Export für die Steuerberatung:** Ausgangs- und Eingangsrechnungen, Zahlungen und Kassenbuch als Buchungsstapel (BMD, RZL oder DATEV-Format).
+5. **KI-Wochenbriefing:** Montag früh je Rolle eine kurze Zusammenfassung (Umsatz, offene Posten, Reklamationen, Krankenstände, Fristen, Lücken im Plan) per E-Mail oder Push.
+6. **Rentabilität je Objekt:** Ist-Stunden und Kosten gegen Umsatz mit Ampel und Vorschlag zur Preisanpassung (an die Kundenverträge angebunden).
+7. **Kunden-Self-Service:** im Kundenbereich Zusatzleistungen anfragen (Grundreinigung, Glas) → Angebot oder Regieauftrag.
+8. **KI-Fotoprüfung bei der Objektkontrolle:** Vorschlag zur Bewertung je Foto (nur Hinweis, die Person entscheidet).
+
 ## Offen – braucht Entscheidung oder Zuarbeit
 
 - orgaMAX-Strukturdatei (`orgaMAX-Struktur_….json`) für die genaue Spaltenzuordnung der Übernahme.
