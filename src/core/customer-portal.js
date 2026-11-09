@@ -24,10 +24,38 @@ export const SHOW = {
   termine: 'Kundentermine und Objektbegehungen',
   reklamation: 'Reklamation melden und den Stand sehen',
   rechnungen: 'Rechnungen und offene Posten zeigen',
+  lieferscheine: 'Mattenwechsel-Lieferscheine zeigen',
+  mattenwechsel: 'Nächsten Mattenwechsel je Liegeplatz zeigen',
 }
-/** Standardmäßig aus (eigener Abschnitt im Dialog, Belege nur der gewählten Kunden der Fakturierung). */
-export const SHOW_OFF = ['rechnungen']
+/**
+ * Standardmäßig aus (eigene Abschnitte im Dialog, Belege nur der gewählten Kunden der Fakturierung): Rechnungen,
+ * Lieferscheine des Mattenwechsels und der nächste Mattenwechsel je Liegeplatz (core/customer-matten.js).
+ */
+export const SHOW_OFF = ['rechnungen', 'lieferscheine', 'mattenwechsel']
 export const showDefaults = () => Object.fromEntries(Object.keys(SHOW).map((k) => [k, !SHOW_OFF.includes(k)]))
+
+// ---------------------------------------------------------------- Mattenwechsel (Einstellung je Link)
+
+export const NOTE_MONTHS = 13
+export const NOTE_MONTH_CHOICES = [3, 6, 13, 24]
+/** Lieferscheine und nächster Wechsel: Kunden der Fakturierung und Zeitraum (Standard: keine Kunden, 13 Monate). */
+export const deliveryNoteSettings = (link = {}) => ({ customerIds: [], months: NOTE_MONTHS, ...(link.deliveryNotes || {}) })
+
+/**
+ * Kunden für den Mattenwechsel eines Links vorschlagen: Kunden der Fakturierung, denen Objekte des Links zugeordnet
+ * sind, und Kunden mit Lieferscheinen aus dem Mattenwechsel bzw. Liegeplätzen an diesen Objekten. Liefert Kennungen
+ * (meiste Treffer zuerst); nur Kunden, die es in der Fakturierung gibt.
+ */
+export function suggestNoteCustomers({ customers = [], docs = [], placements = [], objectIds = [] } = {}) {
+  const objs = new Set(objectIds)
+  const hits = new Map()
+  const add = (id) => id && hits.set(id, (hits.get(id) || 0) + 1)
+  for (const c of customers || []) if (c?.active !== false && (c.objectIds || []).some((id) => objs.has(id))) add(c.id)
+  for (const d of docs || []) if (d?.kind === 'lieferschein' && d.source?.type === 'matten' && objs.has(d.objectId)) add(d.customerId)
+  for (const p of placements || []) if (p?.active !== false && objs.has(p.objectId)) add(p.customerId)
+  const known = new Set((customers || []).map((c) => c?.id))
+  return [...hits.entries()].filter(([id]) => known.has(id)).sort((a, b) => b[1] - a[1]).map(([id]) => id)
+}
 
 /** Arten, die der Kunde wählen kann (gleiche Liste in kunden.php). */
 export const CUSTOMER_KINDS = ['Reinigung mangelhaft', 'Leistung nicht erbracht', 'Schaden', 'Sonstiges']
@@ -117,8 +145,10 @@ export function stableJson(value) {
  * Was der Webspace für einen Link speichert (aktion=speichern). termine/nachweise null = nicht
  * geändert (die Rolle darf den Plan nicht lesen): der Webspace behält den letzten Stand. rechnungen
  * ebenso (null: die Rolle sieht die Fakturierung nicht); zeigt der Link keine, immer [] (dort gelöscht).
+ * lieferscheine (null: ohne Recht auf die Fakturierung) und mattenwechsel (null: ohne Recht auf den
+ * Mattenwechsel) genauso.
  */
-export function linkPayload({ link, hash, objectsById = new Map(), termine = null, nachweise = null, rechnungen = null }) {
+export function linkPayload({ link, hash, objectsById = new Map(), termine = null, nachweise = null, rechnungen = null, lieferscheine = null, mattenwechsel = null }) {
   const show = { ...showDefaults(), ...(link.show || {}) }
   return {
     id: link.id,
@@ -133,6 +163,9 @@ export function linkPayload({ link, hash, objectsById = new Map(), termine = nul
     nachweise: nachweise === null ? null : nachweise.filter((n) => (n.art === 'winter' ? show.winter : show.nachweise)),
     rechnungen: !show.rechnungen ? [] : rechnungen,
     rechnungenMonate: Math.max(1, Math.min(36, Number(link.invoices?.months) || 13)),
+    lieferscheine: !show.lieferscheine ? [] : lieferscheine,
+    lieferscheineMonate: Math.max(1, Math.min(36, Number(link.deliveryNotes?.months) || NOTE_MONTHS)),
+    mattenwechsel: !show.mattenwechsel ? [] : mattenwechsel,
   }
 }
 
@@ -190,7 +223,7 @@ export function newReports(reports = [], items = []) {
 /** E-Mail an den Kunden mit dem Link (Sie-Form). */
 export function linkMail({ link, url, company = '', sender = '', phone = '' }) {
   const show = { ...showDefaults(), ...(link.show || {}) }
-  const what = [show.nachweise && 'die monatlichen Leistungsnachweise als PDF', show.winter && 'den Winterdienst-Nachweis', (show.leistungen || show.termine) && 'die nächsten Termine in Ihrem Objekt', show.rechnungen && 'Ihre Rechnungen und offenen Posten als PDF', show.reklamation && 'die Möglichkeit, eine Reklamation direkt zu melden und den Stand zu verfolgen'].filter(Boolean)
+  const what = [show.nachweise && 'die monatlichen Leistungsnachweise als PDF', show.winter && 'den Winterdienst-Nachweis', (show.leistungen || show.termine) && 'die nächsten Termine in Ihrem Objekt', show.mattenwechsel && 'den nächsten Mattenwechsel', show.lieferscheine && 'die Lieferscheine zum Mattenwechsel als PDF', show.rechnungen && 'Ihre Rechnungen und offenen Posten als PDF', show.reklamation && 'die Möglichkeit, eine Reklamation direkt zu melden und den Stand zu verfolgen'].filter(Boolean)
   const list = what.length > 1 ? `${what.slice(0, -1).join(', ')} und ${what.at(-1)}` : what[0] || 'Informationen zu Ihrem Objekt'
   return {
     subject: `Ihr Kundenbereich${company ? ` bei ${company}` : ''}${link.title ? `: ${link.title}` : ''}`,

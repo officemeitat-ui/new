@@ -26,6 +26,8 @@ import './zufriedenheit.js'
 import './eintritt.js'
 import './bewerber.js'
 import './invoicing.js'
+// Kundenbereich: Lieferscheine und nächster Mattenwechsel (über portalHooks in customer-portal.js)
+import './customer-portal-matten.js'
 import './purchase.js'
 import './cashbook.js'
 import './weiterverrechnung.js'

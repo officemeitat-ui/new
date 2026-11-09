@@ -17,6 +17,11 @@
 // Kunden des Links mit Stand und PDF, offene mit Bankverbindung und EPC-QR-Code. Das QR-Bild erzeugt
 // die App beim Übertragen (PNG), PHP prüft es nur. Keine Zahlung über die Seite.
 //
+// Mattenwechsel (je Link einschaltbar): Lieferscheine der Kunden des Links an seinen Objekten mit Nummer, Datum,
+// Objekt, Liegeplätzen mit Mengen, wer unterschrieben hat (Name und Funktion, kein Bild) und dem PDF ohne Preise;
+// dazu der nächste Mattenwechsel je Liegeplatz (nur das Datum). Die App schickt nur, was sie zeigen darf; PHP liest nur
+// bekannte Felder (Preise und Beträge gibt es in der Liste nicht).
+//
 // Angebot online annehmen (kunden.php?a=CODE): eigener Code je Angebot (am Server nur der Hashwert),
 // Nummer, Datum, Summe, gültig bis und das PDF; Annahme mit Name, Funktion, Häkchen und freiwilliger
 // Unterschrift (Striche als Pfad, kein Bild). Gespeichert: Zeitpunkt, Name, Funktion, Nummer und der
@@ -45,7 +50,7 @@ require __DIR__ . '/webspace-lib.php';
 
 const ARTEN = ['Reinigung mangelhaft' => 'Reinigung nicht in Ordnung', 'Leistung nicht erbracht' => 'Leistung nicht erbracht', 'Schaden' => 'Schaden', 'Sonstiges' => 'Sonstiges'];
 const STATUS = ['eingegangen' => 'eingegangen', 'arbeit' => 'in Arbeit', 'erledigt' => 'erledigt'];
-const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen'];
+const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'mattenwechsel'];
 const BILD_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const BILD_MAX = 8 * 1024 * 1024;
 const PDF_MAX = 8 * 1024 * 1024;
@@ -61,6 +66,8 @@ const LINK_MUSTER = '/^kb[a-f0-9]{10}$/';
 const BELEG_MUSTER = '/^(rechnung|storno|korrektur)-[A-Za-z0-9-]{1,40}\.pdf$/';
 const BELEG_STATUS = ['offen' => 'offen', 'ueberfaellig' => 'überfällig', 'teilbezahlt' => 'teilweise bezahlt', 'bezahlt' => 'bezahlt', 'storniert' => 'storniert', 'verrechnet' => 'verrechnet'];
 const QR_MAX = 24000; // Base64 des QR-Bilds (PNG)
+// Mattenwechsel: Lieferscheine (Dateiname aus der Nummer wie in der App, core/customer-matten.js)
+const LS_MUSTER = '/^lieferschein-[A-Za-z0-9-]{1,40}\.pdf$/';
 // Angebot online annehmen
 const ANGEBOT_MUSTER = '/^an[a-f0-9]{10}$/';
 const UNTERSCHRIFT_MUSTER = '/^M[0-9. ML]{2,16000}$/';
@@ -421,6 +428,70 @@ function rechnungen_lesen(array $liste): array
     return $aus;
 }
 
+/** Lieferscheine des Mattenwechsels aus „speichern“: nur bekannte Felder, geprüft und gekürzt, keine Preise. */
+function lieferscheine_lesen(array $liste): array
+{
+    $aus = [];
+    foreach (array_slice($liste, 0, 300) as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $datei = (string) ($r['datei'] ?? '');
+        if (!preg_match(LS_MUSTER, $datei) || !preg_match('/^[a-f0-9]{16,64}$/', (string) ($r['sig'] ?? ''))) {
+            continue;
+        }
+        $plaetze = [];
+        foreach (array_slice(is_array($r['liegeplaetze'] ?? null) ? $r['liegeplaetze'] : [], 0, 30) as $p) {
+            if (!is_array($p)) {
+                continue;
+            }
+            $matten = [];
+            foreach (array_slice(is_array($p['matten'] ?? null) ? $p['matten'] : [], 0, 12) as $m) {
+                if (is_array($m)) {
+                    $matten[] = ['text' => kurz($m['text'] ?? '', 120) ?: 'Matte', 'menge' => max(0, min(9999, (int) ($m['menge'] ?? 0)))];
+                }
+            }
+            $hinweise = [];
+            foreach (array_slice(is_array($p['hinweise'] ?? null) ? $p['hinweise'] : [], 0, 6) as $t) {
+                if (is_string($t) && trim($t) !== '') {
+                    $hinweise[] = kurz($t, 160);
+                }
+            }
+            $plaetze[] = ['name' => kurz($p['name'] ?? '', 120) ?: 'Liegeplatz', 'matten' => $matten, 'hinweise' => $hinweise];
+        }
+        $u = is_array($r['unterschrift'] ?? null) ? $r['unterschrift'] : null;
+        $unterschrift = !$u ? null : (!empty($u['ohne'])
+            ? ['ohne' => true, 'grund' => kurz($u['grund'] ?? '', 120)]
+            : ['name' => kurz($u['name'] ?? '', 80), 'funktion' => kurz($u['funktion'] ?? '', 60)]);
+        $zeit = (string) ($r['zeit'] ?? '');
+        $aus[] = [
+            'datei' => $datei,
+            'nummer' => kurz($r['nummer'] ?? '', 40),
+            'datum' => datum_gueltig($r['datum'] ?? ''),
+            'zeit' => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $zeit) ? $zeit : '',
+            'objekt' => kurz($r['objekt'] ?? '', 120),
+            'liegeplaetze' => $plaetze,
+            'unterschrift' => $unterschrift,
+            'name' => pdf_name($r['name'] ?? null, $datei),
+            'sig' => (string) $r['sig'],
+        ];
+    }
+    return $aus;
+}
+
+/** Nächster Mattenwechsel je Liegeplatz aus „speichern“: nur Datum, Liegeplatz und Objekt. */
+function mattenwechsel_lesen(array $liste): array
+{
+    $aus = [];
+    foreach (array_slice($liste, 0, 200) as $n) {
+        if (!is_array($n) || datum_gueltig($n['datum'] ?? '') === '') {
+            continue;
+        }
+        $aus[] = ['datum' => $n['datum'], 'liegeplatz' => kurz($n['liegeplatz'] ?? '', 120) ?: 'Liegeplatz', 'objekt' => kurz($n['objekt'] ?? '', 120)];
+    }
+    return $aus;
+}
+
 function angebot_datei(string $id): string
 {
     return speicher('angebote') . '/' . $id . '.json';
@@ -657,6 +728,9 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
         . '.zahlen .qr{display:block;flex:0 0 auto;image-rendering:pixelated;background:#fff;border-radius:6px}.zahlen .was{flex:1 1 13rem}.zahlen .hinweis{margin:.2rem 0 0}'
         . '.werte{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.15rem .8rem;margin:.2rem 0 .6rem}.werte dt{color:var(--leise)}.werte dd{margin:0;overflow-wrap:break-word}.nr{display:inline-block;max-width:100%}'
         . '@media(max-width:480px){.zahlen .werte{grid-template-columns:minmax(0,1fr);gap:0}.zahlen .werte dd{margin:0 0 .35rem}}'
+        // Mattenwechsel: Liegeplätze unter dem Lieferschein, „bald“ statt eines vergangenen Tages
+        . '.ls .plaetze{list-style:none;margin:.35rem 0 0;padding:0 .2rem;font-size:.95rem}.ls .plaetze li{padding:.15rem 0}.ls .plaetze .leise{display:block;color:var(--leise);font-size:.9rem}'
+        . '.ls .wer{margin:.25rem 0 0;padding:0 .2rem;color:var(--leise);font-size:.92rem}.ls-hinweis{margin:0 0 .3rem}.datum.bald{display:flex;align-items:center;justify-content:center;min-height:3.2rem}.datum.bald b{font-size:1rem}'
         . '.feldname{display:block;margin:.85rem 0 .25rem;font-weight:600}'
         . '.unterschrift canvas{display:block;width:100%;max-width:600px;aspect-ratio:3/1;border:1px dashed #b9c7d1;border-radius:8px;background:#fff;touch-action:none;cursor:crosshair}'
         . 'button.leise{display:inline-block;width:auto;font-size:.95rem;font-weight:600;color:var(--blau);background:#fff;border:1px solid #b9c7d1;padding:.4rem .9rem;margin-top:.4rem}'
@@ -750,18 +824,18 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         json_ausgabe(400, ['fehler' => 'POST erwartet']);
     }
 
-    // PDF eines Links (Rohdaten im Rumpf), nur wenn er in der Liste des Links steht (Nachweis oder Rechnung)
+    // PDF eines Links (Rohdaten im Rumpf), nur wenn er in der Liste des Links steht (Nachweis, Rechnung, Lieferschein)
     if ($aktion === 'datei') {
         $id = (string) ($_GET['link'] ?? '');
         $datei = (string) ($_GET['datei'] ?? '');
         $link = preg_match(LINK_MUSTER, $id) ? json_lesen(link_datei($id)) : [];
         $eintrag = null;
-        foreach (array_merge((array) ($link['nachweise'] ?? []), (array) ($link['rechnungen'] ?? [])) as $n) {
+        foreach (array_merge((array) ($link['nachweise'] ?? []), (array) ($link['rechnungen'] ?? []), (array) ($link['lieferscheine'] ?? [])) as $n) {
             if (($n['datei'] ?? '') === $datei) {
                 $eintrag = $n;
             }
         }
-        if (!$link || !(preg_match(DATEI_MUSTER, $datei) || preg_match(BELEG_MUSTER, $datei)) || !$eintrag) {
+        if (!$link || !(preg_match(DATEI_MUSTER, $datei) || preg_match(BELEG_MUSTER, $datei) || preg_match(LS_MUSTER, $datei)) || !$eintrag) {
             json_ausgabe(404, ['fehler' => 'Link oder Datei unbekannt (zuerst speichern)']);
         }
         $inhalt = pdf_aus_anfrage();
@@ -1068,8 +1142,19 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
             $rechnungen = rechnungen_lesen($l['rechnungen']);
             $monate = max(1, min(36, (int) ($l['rechnungenMonate'] ?? 13)));
         }
+        // Mattenwechsel: Lieferscheine und nächster Wechsel, null = unverändert (Rolle ohne Recht), [] = keine
+        $lieferscheine = $alt['lieferscheine'] ?? [];
+        $lsMonate = (int) ($alt['lieferscheineMonate'] ?? 13);
+        if (is_array($l['lieferscheine'] ?? null)) {
+            $lieferscheine = lieferscheine_lesen($l['lieferscheine']);
+            $lsMonate = max(1, min(36, (int) ($l['lieferscheineMonate'] ?? 13)));
+        }
+        $naechste = $alt['mattenwechsel'] ?? [];
+        if (is_array($l['mattenwechsel'] ?? null)) {
+            $naechste = mattenwechsel_lesen($l['mattenwechsel']);
+        }
         // Dateien, die nicht mehr in der Liste stehen, löschen; fehlende oder geänderte melden
-        $liste = array_column(array_merge($nachweise, $rechnungen), null, 'datei');
+        $liste = array_column(array_merge($nachweise, $rechnungen, $lieferscheine), null, 'datei');
         $dateien = array_filter((array) ($alt['dateien'] ?? []), fn ($d, $name) => isset($liste[$name]) && is_file(link_ordner($id) . '/' . $name), ARRAY_FILTER_USE_BOTH);
         foreach (glob(link_ordner($id) . '/*.pdf') ?: [] as $f) {
             if (!isset($liste[basename($f)])) {
@@ -1081,7 +1166,7 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
                 $fehlend[$id][] = $n['datei'];
             }
         }
-        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'rechnungen' => $rechnungen, 'rechnungenMonate' => $monate, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
+        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'rechnungen' => $rechnungen, 'rechnungenMonate' => $monate, 'lieferscheine' => $lieferscheine, 'lieferscheineMonate' => $lsMonate, 'mattenwechsel' => $naechste, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
         if (!json_schreiben(link_datei($id), $link)) {
             json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
@@ -1242,7 +1327,7 @@ $zeige = array_merge(array_fill_keys(ZEIGE, false), (array) ($link['zeige'] ?? [
 $objekte = (array) ($link['objekte'] ?? []);
 $id = (string) $link['id'];
 
-// PDF herunterladen (nur Dateien aus der Liste dieses Links: Nachweise bzw. Rechnungen, wenn der Link sie zeigt)
+// PDF herunterladen (nur Dateien aus der Liste dieses Links: Nachweise, Rechnungen bzw. Lieferscheine, wenn der Link sie zeigt)
 if (isset($_GET['datei'])) {
     $datei = (string) $_GET['datei'];
     $eintrag = null;
@@ -1253,6 +1338,11 @@ if (isset($_GET['datei'])) {
     }
     foreach (!empty($zeige['rechnungen']) ? (array) ($link['rechnungen'] ?? []) : [] as $r) {
         if (($r['datei'] ?? '') === $datei && preg_match(BELEG_MUSTER, $datei)) {
+            $eintrag = $r;
+        }
+    }
+    foreach (!empty($zeige['lieferscheine']) ? (array) ($link['lieferscheine'] ?? []) : [] as $r) {
+        if (($r['datei'] ?? '') === $datei && preg_match(LS_MUSTER, $datei)) {
             $eintrag = $r;
         }
     }
@@ -1488,6 +1578,50 @@ if (!empty($zeige['nachweise']) || !empty($zeige['winter'])) {
     $sprung[] = '<a href="#nachweise">Nachweise</a>';
     $teile['links'][] = '<section class="karte" id="nachweise"><h2>Leistungsnachweise</h2><p class="unter">Was wir in Ihrem Objekt geleistet haben, je Monat als PDF. Der Nachweis eines Monats erscheint ab dem ' . $tag . '. des Folgemonats.</p>'
         . ($html ?: '<p class="leer">Noch keine Nachweise vorhanden.</p>') . '</section>';
+}
+// Mattenwechsel: nächster Wechsel je Liegeplatz (nur Datum) und Lieferscheine (nur mit PDF am Server), ohne Preise
+if (!empty($zeige['mattenwechsel']) || !empty($zeige['lieferscheine'])) {
+    $html = '';
+    if (!empty($zeige['mattenwechsel'])) {
+        $zeilen = '';
+        foreach ((array) ($link['mattenwechsel'] ?? []) as $n) {
+            $d = DateTimeImmutable::createFromFormat('!Y-m-d', (string) ($n['datum'] ?? ''));
+            if (!$d) {
+                continue;
+            }
+            // seit dem letzten Übertragen vorbei: der Wechsel steht kurz bevor
+            $bald = $n['datum'] < $heute;
+            $zeilen .= '<li>' . ($bald ? '<div class="datum bald"><b>bald</b></div>' : '<div class="datum"><span>' . $h(TAGE[(int) $d->format('N') - 1]) . '</span><b>' . $d->format('d') . '</b><span>' . $h(mb_substr(MONATE[(int) $d->format('n') - 1], 0, 3)) . '</span></div>')
+                . '<div class="was"><b>' . $h($n['liegeplatz']) . '</b><span class="leise">' . ($bald ? 'in Kürze' : $h(datum_text($n['datum']))) . ($mehrere && $n['objekt'] !== '' ? ' · ' . $h($n['objekt']) : '') . '</span></div></li>';
+        }
+        $html .= '<h3 class="monat">Nächster Wechsel</h3>' . ($zeilen ? '<ul class="liste">' . $zeilen . '</ul>' : '<p class="leer">Zurzeit ist kein Wechsel geplant.</p>');
+    }
+    if (!empty($zeige['lieferscheine'])) {
+        $belege = array_values(array_filter((array) ($link['lieferscheine'] ?? []), fn ($r) => isset($link['dateien'][$r['datei'] ?? ''])));
+        $block = '';
+        foreach ($belege as $i => $r) {
+            $teil = [$r['datum'] !== '' ? datum_text($r['datum'], false) . ($r['zeit'] !== '' ? ', ' . $r['zeit'] . ' Uhr' : '') : '', $r['objekt']];
+            $plaetze = '';
+            foreach ((array) $r['liegeplaetze'] as $p) {
+                $matten = implode(', ', array_map(fn ($m) => (int) $m['menge'] . ' × ' . $m['text'], (array) $p['matten']));
+                $plaetze .= '<li><b>' . $h($p['name']) . '</b>' . ($matten !== '' ? ': ' . $h($matten) : '')
+                    . implode('', array_map(fn ($t) => '<span class="leise">' . $h($t) . '</span>', (array) $p['hinweise'])) . '</li>';
+            }
+            $u = $r['unterschrift'];
+            $wer = !$u ? '' : (!empty($u['ohne']) ? 'Ohne Unterschrift: ' . $u['grund'] : ($u['name'] !== '' ? 'Unterschrieben von ' . $u['name'] . ($u['funktion'] !== '' ? ' (' . $u['funktion'] . ')' : '') : ''));
+            $block .= ($i === 8 ? '<details class="aelter"><summary>Ältere Lieferscheine</summary>' : '')
+                . '<div class="beleg ls"><a class="pdf" href="kunden.php?k=' . $k . '&amp;datei=' . $h($r['datei']) . '" target="_blank" rel="noopener">' . svg_pdf() . '<span class="was"><b>Lieferschein <span class="nr">' . $h($r['nummer']) . '</span></b>'
+                . '<span class="leise">' . $h(implode(' · ', array_filter($teil))) . ' · PDF, ' . groesse_text((int) ($link['dateien'][$r['datei']]['groesse'] ?? 0)) . '</span></span>' . svg_pfeil() . '</a>'
+                . ($plaetze !== '' ? '<ul class="plaetze">' . $plaetze . '</ul>' : '') . ($wer !== '' ? '<p class="wer">' . $h($wer) . '</p>' : '') . '</div>';
+        }
+        $block .= count($belege) > 8 ? '</details>' : '';
+        $monateLs = max(1, (int) ($link['lieferscheineMonate'] ?? 13));
+        $html .= '<h3 class="monat">Lieferscheine</h3><p class="hinweis ls-hinweis">Je Wechsel ein Lieferschein der letzten ' . $monateLs . ' Monate mit den gewechselten Matten, als PDF.</p>'
+            . ($block ?: '<p class="leer">Noch keine Lieferscheine in diesem Zeitraum.</p>');
+    }
+    $sprung[] = '<a href="#mattenwechsel">Mattenwechsel</a>';
+    $teile['links'][] = '<section class="karte" id="mattenwechsel"><h2>Mattenwechsel</h2><p class="unter">Ihre Schmutzfangmatten: wann wir wieder wechseln und was wir gewechselt haben. Stand: ' . $h(zeit_text((int) ($link['stand'] ?? jetzt()))) . ' Uhr.</p>'
+        . $html . '</section>';
 }
 // Rechnungen und offene Posten (nur mit PDF am Server); offene mit Bankverbindung und QR-Code der App
 if (!empty($zeige['rechnungen'])) {

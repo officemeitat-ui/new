@@ -47,7 +47,8 @@ function docs() {
 test('Rechnungen im Kundenbereich: Standard aus, eigener Abschnitt, Monate, Dateiname ohne Namen wie in kunden.php', () => {
   assert.deepEqual(invoiceDefaults(), { on: false, customerIds: [], months: 13 })
   assert.equal(showDefaults().rechnungen, false, 'Rechnungen standardmäßig aus')
-  assert.ok(Object.entries(showDefaults()).every(([k, v]) => v === (k !== 'rechnungen')), 'alles andere wie bisher an')
+  // aus: Rechnungen und der Mattenwechsel (Lieferscheine, nächster Wechsel; test/customer-matten.test.js)
+  assert.ok(Object.entries(showDefaults()).every(([k, v]) => v === !['rechnungen', 'lieferscheine', 'mattenwechsel'].includes(k)), 'alles andere wie bisher an')
   assert.deepEqual(invoiceSettings({ invoices: { customerIds: ['c1'] } }), { on: false, customerIds: ['c1'], months: 13 })
   assert.equal(invoiceFile({ kind: 'rechnung', number: 'RE-2026-0005' }), 'rechnung-RE-2026-0005.pdf')
   assert.equal(invoiceFile({ kind: 'storno', number: 'ST/2026/1 ' }), 'storno-ST-2026-1.pdf')

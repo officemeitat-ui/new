@@ -10,17 +10,23 @@
 // hier unter offers, die Annahmen holt syncAcceptances ab wie die Reklamationen (doc.acceptance in der
 // Fakturierung, außerhalb der Prüfsumme) und meldet sie unter „Zu erledigen“.
 //
+// Mattenwechsel (je Link, Standard aus): Lieferscheine der gewählten Kunden an den Objekten des Links mit PDF ohne
+// Preise (views/invoicing-online.js, Recht Fakturierung lesen) und der nächste Wechsel je Liegeplatz (nur der Tag,
+// Recht Mattenwechsel lesen); gerechnet in views/customer-portal-matten.js (Paket des Büros, über portalHooks) mit dem
+// Rechenkern core/customer-matten.js.
+//
 // Wer: Vollzugriff und Rollen, die Reklamationen oder die Einsatzplanung bearbeiten. Nachweise und
 // Termine brauchen den Plan (lesen), Rechnungen die Fakturierung (lesen); ohne das bleibt am Webspace
-// der letzte Stand. Annahmen übernimmt, wer die Fakturierung bearbeitet.
+// der letzte Stand. Annahmen übernimmt, wer die Fakturierung bearbeitet. Lieferscheine brauchen die Fakturierung
+// (lesen), der nächste Mattenwechsel den Mattenwechsel (lesen); sonst bleibt am Webspace der letzte Stand.
 // Daten: kundenbereich/kundenbereich.json { settings, links: [{ id, title, objectIds, token, show, months,
-// invoices: { customerIds, months }, email, createdAt, createdBy, revokedAt, removedAt, renewedAt,
-// publishedAt, error, cache }], offers: [{ id, docId, number, token, createdAt, createdBy, publishedAt,
+// invoices: { customerIds, months }, deliveryNotes: { customerIds, months }, email, createdAt, createdBy, revokedAt,
+// removedAt, renewedAt, publishedAt, error, cache }], offers: [{ id, docId, number, token, createdAt, createdBy, publishedAt,
 // validUntil, revokedAt, removedAt, acceptedAt, error }] }.
-// Rechenkern: core/customer-portal.js, core/customer-invoices.js.
+// Rechenkern: core/customer-portal.js, core/customer-invoices.js, core/customer-matten.js.
 
-import { acceptanceOf, acceptedOpen, INVOICE_FILE_PATTERN, INVOICE_MONTH_CHOICES, invoiceSettings, newAcceptances, suggestCustomers } from '../../core/customer-invoices.js'
-import { customerAppointments, customerLink, complaintFromReport, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, newReports, releasedMonths, SETTINGS_DEFAULTS, SHOW, SHOW_OFF, showDefaults, stableJson, statusUpdates, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
+import { acceptanceOf, acceptedOpen, INVOICE_MONTH_CHOICES, invoiceSettings, newAcceptances, suggestCustomers } from '../../core/customer-invoices.js'
+import { customerAppointments, customerLink, complaintFromReport, deliveryNoteSettings, FILE_PATTERN, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, newReports, NOTE_MONTH_CHOICES, releasedMonths, SETTINGS_DEFAULTS, SHOW, SHOW_OFF, showDefaults, stableJson, statusUpdates, suggestNoteCustomers, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
 import { addDays, formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import { monthName } from '../../core/payout.js'
 import { objectsWithWork, proofFor } from '../../core/proof.js'
@@ -45,6 +51,8 @@ const editable = () => mayManage() && !app.readOnly
 const seesPlan = () => !app.access || app.access.sees('planung')
 const seesInvoices = () => (!app.access || app.access.sees('fakturierung')) && !!app.data.fakturierung
 const editsInvoices = () => canEdit('fakturierung') && !app.readOnly && !!app.data.fakturierung
+/** Nächster Mattenwechsel: nur, wer den Mattenwechsel sieht (Liegeplätze und Einsätze). */
+const seesMatten = () => (!app.access || app.access.sees('matten')) && !!app.data.matten
 const doc = () => {
   const d = (app.data.kundenbereich ||= { links: [], settings: {} })
   d.links ||= []
@@ -65,6 +73,15 @@ const fakCustomers = () => app.data.fakturierung?.customers || []
 const invoicingOnline = async () => {
   await ensureView('fakturierung')
   return import('./invoicing-online.js')
+}
+/**
+ * Mattenwechsel (views/customer-portal-matten.js, mit dem Paket des Büros geladen): mattenNotes(link) → Lieferscheine
+ * mit PDF, mattenNext(links, { today }) → Map Link → nächster Wechsel je Liegeplatz.
+ */
+export const portalHooks = { mattenNotes: null, mattenNext: null }
+const mattenPortal = async () => {
+  if (!portalHooks.mattenNotes) await ensureView('mw-lieferscheine')
+  return portalHooks
 }
 const hex = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
 const emailOk = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(s || '').trim())
@@ -238,6 +255,9 @@ export async function publish({ ids = null, force = false } = {}) {
     const caches = new Map()
     const invoiceFiles = new Map()
     let online = null
+    // nächster Mattenwechsel: nur mit Recht auf den Mattenwechsel (sonst bleibt am Webspace der letzte Stand)
+    const wantNext = active.filter((l) => showOf(l).mattenwechsel)
+    const nextMatten = wantNext.length && seesMatten() ? await (await mattenPortal()).mattenNext(wantNext, { today }) : new Map()
     for (const link of active) {
       const termine = range ? upcomingDates({ services: upcomingServices({ instances: range.instances, tasks: app.data.tasks || [], objectIds: link.objectIds, from: today, to: until, objectsById }), appointments: customerAppointments(app.data.termine?.items || [], { objectIds: link.objectIds, from: today, to: until, objectsById }) }) : null
       let nachweise = null
@@ -254,7 +274,15 @@ export async function publish({ ids = null, force = false } = {}) {
         invoiceFiles.set(link.id, list)
         rechnungen = list.map(({ make, ...entry }) => entry)
       }
-      payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise, rechnungen }))
+      // Lieferscheine des Mattenwechsels: wie die Rechnungen nur mit Recht auf die Fakturierung (ohne Preise)
+      let lieferscheine = null
+      if (showOf(link).lieferscheine && seesInvoices()) {
+        const list = await (await mattenPortal()).mattenNotes(link)
+        invoiceFiles.set(link.id, [...(invoiceFiles.get(link.id) || []), ...list])
+        lieferscheine = list.map(({ make, ...entry }) => entry)
+      }
+      const mattenwechsel = nextMatten.get(link.id) ?? null
+      payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise, rechnungen, lieferscheine, mattenwechsel }))
     }
     const res = await call('speichern', { body: { links: payload, entfernen: remove } })
     result.links = res.links
@@ -267,7 +295,8 @@ export async function publish({ ids = null, force = false } = {}) {
       if (!link) continue
       for (const datei of files) {
         try {
-          const file = INVOICE_FILE_PATTERN.test(datei) ? (invoiceFiles.get(id) || []).find((f) => f.datei === datei) : (await filesForMonth(link, datei.slice(0, 7), memo)).files.find((f) => f.datei === datei)
+          // Rechnungen und Lieferscheine aus diesem Lauf, sonst Nachweise des Monats
+          const file = (invoiceFiles.get(id) || []).find((f) => f.datei === datei) || (FILE_PATTERN.test(datei) ? (await filesForMonth(link, datei.slice(0, 7), memo)).files.find((f) => f.datei === datei) : null)
           if (!file) continue
           await call('datei', { raw: await file.make(logo), query: `&link=${encodeURIComponent(id)}&datei=${encodeURIComponent(datei)}` })
           result.pdfs++
@@ -516,7 +545,7 @@ registerTodo({
 
 function showText(link) {
   const show = showOf(link)
-  return [show.nachweise && 'Nachweise', show.winter && 'Winterdienst', show.leistungen && 'Leistungen', show.termine && 'Termine', show.rechnungen && 'Rechnungen', show.reklamation && 'Reklamation'].filter(Boolean).join(', ') || 'nichts'
+  return [show.nachweise && 'Nachweise', show.winter && 'Winterdienst', show.leistungen && 'Leistungen', show.termine && 'Termine', show.rechnungen && 'Rechnungen', show.lieferscheine && 'Lieferscheine', show.mattenwechsel && 'nächster Mattenwechsel', show.reklamation && 'Reklamation'].filter(Boolean).join(', ') || 'nichts'
 }
 
 function linkRow(link) {
@@ -587,6 +616,7 @@ function linkDraft() {
     const existing = m.id ? linkOf(m.id) : null
     m.draft = existing ? structuredClone({ ...existing, cache: undefined }) : { id: '', title: '', objectIds: [], show: showDefaults(), months: 12, email: '' }
     m.draft.invoices = invoiceSettings(m.draft)
+    m.draft.deliveryNotes = deliveryNoteSettings(m.draft)
   }
   return m.draft
 }
@@ -601,6 +631,7 @@ function readLink() {
   // nur, was im Dialog steht: Wer die Fakturierung nicht sieht, ändert die Rechnungen nicht
   d.show = { ...showDefaults(), ...(d.show || {}), ...Object.fromEntries(Object.keys(SHOW).filter((k) => document.getElementById(`kb-show-${k}`)).map((k) => [k, checked(`kb-show-${k}`)])) }
   if (document.getElementById('kbr-months')) d.invoices = { ...invoiceSettings(d), customerIds: checkedValues('kbr-cust'), months: Number(val('kbr-months')) || invoiceSettings(d).months }
+  if (document.getElementById('kbm-months')) d.deliveryNotes = { ...deliveryNoteSettings(d), customerIds: checkedValues('kbm-cust'), months: Number(val('kbm-months')) || deliveryNoteSettings(d).months }
   return d
 }
 
@@ -623,7 +654,35 @@ function invoiceSection(d) {
       <label class="field"><span>Weiteren Kunden dazunehmen</span><select id="kbr-add" data-change="kbr-add">${options(others.map((c) => [c.id, c.name]), '', { empty: '– Kunde wählen –' })}</select></label>
       <label class="field"><span>Rechnungen der letzten</span><select id="kbr-months">${options(INVOICE_MONTH_CHOICES.map((n) => [String(n), `${n} Monate`]), String(inv.months))}</select></label>
     </div>
-    <p class="note">Dazu immer alle noch offenen Rechnungen. Nur Belege der gewählten Kunden; Entwürfe, Angebote und Lieferscheine nie. Zahlungen sieht der Kunde nach dem nächsten Übertragen (einmal am Tag von selbst).</p>`
+    <p class="note">Dazu immer alle noch offenen Rechnungen. Nur Belege der gewählten Kunden; Entwürfe, Angebote und Lieferscheine nie (Lieferscheine des Mattenwechsels: eigener Abschnitt). Zahlungen sieht der Kunde nach dem nächsten Übertragen (einmal am Tag von selbst).</p>`
+}
+
+/** Vorgeschlagene Kunden für den Mattenwechsel des Links (Objekte, Lieferscheine, Liegeplätze). */
+const noteSuggestions = (d) => suggestNoteCustomers({ customers: fakCustomers(), docs: app.data.fakturierung?.documents || [], placements: app.data.matten?.placements || [], objectIds: d.objectIds })
+
+/** Abschnitt „Mattenwechsel“ im Link-Dialog (nur, wer die Fakturierung sieht): Lieferscheine und nächster Wechsel. */
+function mattenSection(d) {
+  if (!seesInvoices()) return ''
+  const s = deliveryNoteSettings(d)
+  const ls = d.show?.lieferscheine === true
+  const next = d.show?.mattenwechsel === true
+  const head = `<h3>Mattenwechsel</h3>
+    <label class="check"><input type="checkbox" id="kb-show-lieferscheine" data-change="kbm-toggle" ${ls ? 'checked' : ''}><span><strong>${esc(SHOW.lieferscheine)}</strong>: Nummer, Datum, Objekt, Liegeplätze mit Mengen, wer unterschrieben hat, PDF ohne Preise</span></label>
+    <label class="check"><input type="checkbox" id="kb-show-mattenwechsel" data-change="kbm-toggle" ${next ? 'checked' : ''}><span><strong>${esc(SHOW.mattenwechsel)}</strong>: nur das Datum aus der Fälligkeit</span></label>`
+  if (!ls && !next) return head
+  const all = fakCustomers()
+  const byId = new Map(all.map((c) => [c.id, c]))
+  const suggested = noteSuggestions(d)
+  const list = [...new Set([...s.customerIds, ...suggested])].map((id) => byId.get(id)).filter(Boolean)
+  const others = all.filter((c) => !list.includes(c)).sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'))
+  return `${head}
+    <p class="muted">Für diese Kunden an den Objekten des Links${suggested.length ? ' (passend zu den Objekten vorgeschlagen)' : ''}:</p>
+    ${list.length ? `<div class="check-grid kbm-customers">${list.map((c) => `<label class="check"><input type="checkbox" name="kbm-cust" value="${esc(c.id)}" ${s.customerIds.includes(c.id) ? 'checked' : ''}><span>${esc(c.name)}${c.customerNo ? ` <span class="muted">${esc(c.customerNo)}</span>` : ''}${suggested.includes(c.id) ? ' <span class="pill info">passt zu den Objekten</span>' : ''}</span></label>`).join('')}</div>` : '<p class="empty">Kein Kunde der Fakturierung hat an den gewählten Objekten Liegeplätze oder Lieferscheine. Bitte unten einen Kunden wählen.</p>'}
+    <div class="form-grid">
+      <label class="field"><span>Weiteren Kunden dazunehmen</span><select id="kbm-add" data-change="kbm-add">${options(others.map((c) => [c.id, c.name]), '', { empty: '– Kunde wählen –' })}</select></label>
+      ${ls ? `<label class="field"><span>Lieferscheine der letzten</span><select id="kbm-months">${options(NOTE_MONTH_CHOICES.map((n) => [String(n), `${n} Monate`]), String(s.months))}</select></label>` : `<input type="hidden" id="kbm-months" value="${esc(s.months)}">`}
+    </div>
+    <p class="note">Nur festgeschriebene, nicht stornierte Lieferscheine dieser Kunden an den Objekten des Links, nie Preise. Den nächsten Wechsel überträgt, wer den Mattenwechsel sieht; sonst bleibt am Webspace der letzte Stand.</p>`
 }
 
 function linkModal() {
@@ -649,6 +708,7 @@ function linkModal() {
         .map(([k, label]) => `<label class="check"><input type="checkbox" id="kb-show-${k}" ${d.show?.[k] !== false ? 'checked' : ''}><span>${esc(label)}${k === 'winter' && d.objectIds.length && !winterObjects ? ' <span class="muted">(keines der Objekte hat Winterdienst)</span>' : ''}</span></label>`)
         .join('')}
       ${invoiceSection(d)}
+      ${mattenSection(d)}
       <p class="note">Nur Daten der gewählten Objekte. Keine Namen von Mitarbeitenden, außer der Leistungsnachweis ist so eingestellt. Der Nachweis eines Monats erscheint ab dem ${esc(settings().releaseDay)}. des Folgemonats und nur, wenn alle Einsätze besetzt sind.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="kb-save">Speichern</button><button class="btn primary" data-action="kb-save" data-send="1">${ICON.send} Speichern und übertragen</button></div>`,
   })
@@ -779,6 +839,18 @@ registerActions(
       if (d.show.rechnungen && !invoiceSettings(d).customerIds.length) d.invoices = { ...invoiceSettings(d), customerIds: suggestCustomers(fakCustomers(), d.objectIds).map((c) => c.id) }
       renderModal()
     },
+    'kbm-toggle': () => {
+      const d = readLink()
+      // beim Einschalten die Kunden vorschlagen (Objekte, Lieferscheine und Liegeplätze an den Objekten des Links)
+      if ((d.show.lieferscheine || d.show.mattenwechsel) && !deliveryNoteSettings(d).customerIds.length) d.deliveryNotes = { ...deliveryNoteSettings(d), customerIds: noteSuggestions(d) }
+      renderModal()
+    },
+    'kbm-add': () => {
+      const d = readLink()
+      const id = val('kbm-add')
+      if (id) d.deliveryNotes = { ...deliveryNoteSettings(d), customerIds: [...new Set([...deliveryNoteSettings(d).customerIds, id])] }
+      renderModal()
+    },
     'kbr-add': () => {
       const d = readLink()
       const id = val('kbr-add')
@@ -805,11 +877,13 @@ registerActions(
       if (!d.objectIds.length) return toast('Bitte mindestens ein Objekt wählen.')
       if (d.email && !emailOk(d.email)) return toast('Bitte eine gültige E-Mail-Adresse eintragen.')
       if (d.show.rechnungen && !invoiceSettings(d).customerIds.length) return toast('Bitte für die Rechnungen mindestens einen Kunden der Fakturierung wählen.')
+      if ((d.show.lieferscheine || d.show.mattenwechsel) && !deliveryNoteSettings(d).customerIds.length) return toast('Bitte für den Mattenwechsel mindestens einen Kunden der Fakturierung wählen.')
       const invoices = invoiceSettings(d)
+      const deliveryNotes = deliveryNoteSettings(d)
       let link = d.id ? linkOf(d.id) : null
-      if (link) Object.assign(link, { title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, invoices, email: d.email, changedAt: new Date().toISOString(), changedBy: by() })
+      if (link) Object.assign(link, { title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, invoices, deliveryNotes, email: d.email, changedAt: new Date().toISOString(), changedBy: by() })
       else {
-        link = { id: newLinkId(), title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, invoices, email: d.email, token: newCode(), createdAt: new Date().toISOString(), createdBy: by() }
+        link = { id: newLinkId(), title: d.title, objectIds: d.objectIds, show: d.show, months: d.months, invoices, deliveryNotes, email: d.email, token: newCode(), createdAt: new Date().toISOString(), createdBy: by() }
         links().push(link)
       }
       persist()

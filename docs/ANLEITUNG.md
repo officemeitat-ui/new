@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 350 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 351 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (83)
+- [Objekte & Kunden](#objekte-kunden) (84)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
@@ -1138,9 +1138,25 @@ Je Link lässt sich „Rechnungen und offene Posten zeigen“ einschalten (Stand
 3. Kunden prüfen, bei Bedarf „Weiteren Kunden dazunehmen“ und den Zeitraum wählen.
 4. „Speichern und übertragen“ klicken.
 
-> Tipp: Nur Belege der gewählten Kunden; Entwürfe, Angebote und Lieferscheine nie.
+> Tipp: Nur Belege der gewählten Kunden; Entwürfe und Angebote nie. Lieferscheine aus dem Mattenwechsel haben einen eigenen Abschnitt.
 > Tipp: Zahlungen sieht der Kunde nach dem nächsten Übertragen, einmal am Tag geht das von selbst.
 > Tipp: Wird eine Rechnung per SEPA-Lastschrift eingezogen, steht dort „bitte nicht überweisen“.
+
+*Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen*
+
+### Mattenwechsel-Lieferscheine im Kundenbereich
+
+*In der App: Kundenbereich*
+
+Je Link lassen sich „Mattenwechsel-Lieferscheine zeigen“ und „Nächsten Mattenwechsel je Liegeplatz zeigen“ einschalten (Standard: aus). Der Kunde sieht seine Lieferscheine mit Nummer, Datum, Objekt, Liegeplätzen mit Mengen, wer unterschrieben hat, und das PDF ohne Preise; dazu je Liegeplatz nur das Datum des nächsten Wechsels.
+
+1. „Kundenbereich“ öffnen, beim Link „⋯“ → „Bearbeiten“ (oder „Link anlegen“).
+2. Unter „Mattenwechsel“ die Häkchen setzen: Kunden mit Objekten, Lieferscheinen oder Liegeplätzen des Links sind vorgeschlagen.
+3. Kunden prüfen und den Zeitraum der Lieferscheine wählen.
+4. „Speichern und übertragen“ klicken.
+
+> Tipp: Nur festgeschriebene, nicht stornierte Lieferscheine der gewählten Kunden an den Objekten des Links; ein Storno verschwindet beim nächsten Übertragen.
+> Tipp: Lieferscheine überträgt, wer die Fakturierung sieht, den nächsten Wechsel, wer den Mattenwechsel sieht; sonst bleibt am Webspace der letzte Stand.
 
 *Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen*
 
