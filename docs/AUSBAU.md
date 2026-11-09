@@ -2,7 +2,7 @@
 
 Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachgeführt (Stand und Status), damit auch nach einer Pause oder in einer neuen Sitzung klar ist, wo es weitergeht. Entscheidungen der Geschäftsführung stehen dabei.
 
-## In Arbeit / zuletzt fertig (Stand 6. November 2026)
+## In Arbeit / zuletzt fertig (Stand 9. November 2026)
 
 | Thema | Status |
 |---|---|
@@ -20,11 +20,11 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 | KI-Ausbau (Beleg lesen, Regiebericht diktieren, Sicherheitsdatenblatt lesen, Assistent kennt die neuen Module, Texte) | fertig – Auftragsverarbeitung klären (RECHTSPRUEFUNG Punkt 35) |
 | Handy: untere Leiste je Rolle, Plätze einzeln tauschbar | fertig |
 | Feinschliff (Winterdienst-Preise im Kundenblatt, Leistungszeitraum Saisonpauschale, Anlagen verrechnen, Sprache im Import und Wochenplan-PDF) | fertig |
-| Mattenwechsel-Modul (Liegeplätze, Touren, Fahreransicht, Lieferscheine, Rechnungsentwürfe) | Bestandsaufnahme und Umsetzungsplan in Arbeit (docs/MATTENWECHSEL-PLAN.md) |
+| Mattenwechsel-Modul (Liegeplätze, Kalender, Tourenplanung, Fahreransicht, Fahrerseite am Webspace, Lieferscheine, Rechnungsentwürfe) | P1–P14 und P16 fertig, P15 (Büro-Übersicht) in Arbeit; Gesamtprüfung nach den sechs Abnahmekriterien grün – **Abnahme durch die Geschäftsführung**, danach „Umstellung auf das Modul“ (docs/MATTENWECHSEL-PLAN.md) |
 
 ## Als Nächstes
 
-1. **Mattenwechsel-Modul** nach dem Konzept der Geschäftsführung – zuerst Bestandsaufnahme und Umsetzungsplan (`docs/MATTENWECHSEL-PLAN.md`), offene Entscheidungen klären, dann in Phasen umsetzen.
+1. **Mattenwechsel-Modul**: Büro-Übersicht mit den neun Kennzahlen des Konzepts (P15) fertigstellen, dann Abnahme durch die Geschäftsführung und Umstellung (`#matten` öffnet das Modul, das Werkzeug ist nur noch lesend; jederzeit zurücknehmbar).
 2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
 
 ## Offen – braucht Entscheidung oder Zuarbeit
