@@ -3,11 +3,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 import { accountProblem, groupsOf } from '../src/auth/msal.js'
-import { resolveAccess } from '../src/core/access.js'
+import { DEFAULT_ROLES, resolveAccess } from '../src/core/access.js'
 import { runRights } from '../src/core/matten-abrechnung.js'
 import { bestandRights } from '../src/core/matten-bestand.js'
 import { noteRights } from '../src/core/matten-lieferschein.js'
 import { overviewRights } from '../src/core/matten-uebersicht.js'
+import { sichAuswahl, sichRechte } from '../src/core/sicherung.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
 import { DataService, dataRights, DOC, folderRights, MODULE_DOCS, OLD_PATHS, toolFolderRights, weekPath } from '../src/storage/data-service.js'
 import { deepMerge } from '../src/ui/config.js'
@@ -596,6 +597,25 @@ test('Rechte: Kalkulation nur Vollzugriff; Nachweise senden mit Schreibrecht, ni
   assert.ok(lesen.read(MODULE_DOCS.nachweise.path) && !lesen.write(MODULE_DOCS.nachweise.path))
   const ol = dataRights(resolveAccess({ roleClaims: ['objektleitung'], access, strict: true }))
   assert.ok(ol.read(MODULE_DOCS.nachweise.path) && ol.write(MODULE_DOCS.nachweise.path))
+})
+
+test('Rechte: Datensicherung nur Vollzugriff (sichern, prüfen, zurückspielen; Rückweg-Ordner _Sicherung/)', () => {
+  const voll = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  assert.deepEqual(sichRechte(voll), { view: true, backup: true, restore: true })
+  assert.deepEqual(sichRechte(null), { view: true, backup: true, restore: true }, 'Browser-Modus ohne Rollen')
+  // jede andere Rolle: nichts – auch die Personalverwaltung nicht, obwohl sie die Stammdaten bearbeitet
+  for (const id of Object.keys(DEFAULT_ROLES).filter((r) => r !== 'disposition')) {
+    const acc = resolveAccess({ roleClaims: [id], access, strict: true })
+    assert.deepEqual(sichRechte(acc), { view: false, backup: false, restore: false }, id)
+    // der Rückweg-Ordner gehört keiner Rolle (nur Vollzugriff liest und schreibt dort)
+    assert.ok(!dataRights(acc).read('_Sicherung/2026-11-09/daten/stammdaten.json') && !dataRights(acc).write('_Sicherung/2026-11-09/daten/stammdaten.json'), id)
+  }
+  assert.ok(dataRights(voll).write('_Sicherung/2026-11-09/daten/stammdaten.json'))
+  // Auswahl mit den Leserechten einer Rolle: Lohn und Krankenstände nur mit Vollzugriff
+  const files = ['daten/stammdaten.json', 'lohn/zeitkonto.json', 'personal/abwesenheiten.json', 'matten/touren/2026/mt1.json'].map((path) => ({ path, size: 1 }))
+  assert.equal(sichAuswahl({ files, read: dataRights(voll).read }).dateien.length, 4)
+  const mw = resolveAccess({ roleClaims: ['mattenwechsel'], access, strict: true })
+  assert.deepEqual(sichAuswahl({ files, read: dataRights(mw).read }).dateien.map((f) => f.path), ['matten/touren/2026/mt1.json'])
 })
 
 test('Anmeldung: nach Zeitüberschreitung im unsichtbaren Fenster neu anmelden, bei Netzfehlern nicht', async () => {

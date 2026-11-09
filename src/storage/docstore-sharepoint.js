@@ -232,12 +232,12 @@ export class SharePointDocStore {
 
   /**
    * Dateien eines Ordners (ab der Bibliothek) samt Unterordnern.
-   * skip: Ordnernamen, die übersprungen werden (z. B. Fotos). Liefert [{ path, name, size, modified }].
+   * skip: Ordnernamen, die übersprungen werden (z. B. Fotos). Liefert [{ path, name, size, modified, etag }].
    */
   async listTree(dir, { depth = 4, skip = ['Fotos'] } = {}) {
     const out = []
     const walk = async (path, level) => {
-      let url = `/drives/${this.driveId}/root:/${encodePath(path)}:/children?$select=name,folder,file,size,lastModifiedDateTime&$top=999`
+      let url = `/drives/${this.driveId}/root:/${encodePath(path)}:/children?$select=name,folder,file,size,lastModifiedDateTime,eTag&$top=999`
       while (url) {
         const res = await this.#request('GET', url, { okStatuses: [403, 404] })
         if (!res.ok) return
@@ -246,7 +246,7 @@ export class SharePointDocStore {
           const child = `${path}/${item.name}`
           if (item.folder) {
             if (level < depth && !skip.includes(item.name)) await walk(child, level + 1)
-          } else out.push({ path: child, name: item.name, size: item.size, modified: item.lastModifiedDateTime })
+          } else out.push({ path: child, name: item.name, size: item.size, modified: item.lastModifiedDateTime, etag: item.eTag ?? null })
         }
         url = page['@odata.nextLink'] || null
       }

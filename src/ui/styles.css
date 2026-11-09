@@ -968,6 +968,19 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .sys-list li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sys-list li:last-child { border-bottom: 0; }
 .sys-list .flag { margin-top: 3px; }
+/* Datensicherung (views/sicherung.js) */
+.sich-list { list-style: none; padding: 0; margin: 8px 0; }
+.sich-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sich-list li:last-child { border-bottom: 0; }
+.sich-list .flag, .sich-list input[type="checkbox"] { margin-top: 3px; }
+.sich-list code { overflow-wrap: anywhere; }
+.sich-teil { margin-top: 20px; }
+.sich-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 10px; margin: 12px 0; }
+.sich-tiles .stat { min-width: 0; }
+.sich-tiles .stat .value { font-size: 1.3rem; white-space: normal; overflow-wrap: anywhere; }
+.sich-every { max-width: 14rem; margin-top: 10px; }
+.sich-progress progress { width: 100%; height: 12px; }
+.sich-bericht, .sich-confirm { margin-top: 10px; }
 .calc-steps summary { cursor: pointer; font-weight: 600; }
 .pe-preview { background: var(--surface-2, #f3f6f8); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; overflow-x: auto; white-space: pre; }
 .input-btn input { flex: 1 1 auto; min-width: 0; width: 6rem; } /* kleine Grundbreite: sonst ragt „Suchen“ aus dem Dialog */

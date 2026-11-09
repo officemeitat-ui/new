@@ -180,6 +180,7 @@ export const SHORT_LABELS = {
   absences: 'Abwesenheit',
   berechtigungen: 'Rechte',
   system: 'System',
+  sicherung: 'Sicherung',
   unterweisungen: 'Schulungen',
   zufriedenheit: 'Umfrage',
   bewerber: 'Bewerber',

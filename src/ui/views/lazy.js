@@ -153,6 +153,14 @@ lazy(BUERO, {
   actions: 'system-run system-copy',
 })
 
+// sicherung.js: Datensicherung (nur Vollzugriff; ZIP mit manifest.json, prüfen, einzeln zurückspielen, Erinnerung in
+// „Zu erledigen“). Im Paket des Büros (ein eigenes Paket würde den Start in mehr Teile zerlegen). Kürzel sich-
+lazy(BUERO, {
+  views: [{ id: 'sicherung', order: 131, label: 'Datensicherung', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Alle Daten als ZIP sichern und prüfen' }],
+  actions: 'sich-liste sich-anhaenge sich-start sich-stop sich-every sich-pruefen sich-wahl sich-restore sich-restore-no',
+  todo: ['sicherung'],
+})
+
 // vehicles.js
 lazy(BUERO, {
   views: [

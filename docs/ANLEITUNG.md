@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 358 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 359 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (90)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
-- [Verwaltung](#verwaltung) (56)
+- [Verwaltung](#verwaltung) (57)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4190,9 +4190,27 @@ Der Systemcheck prüft vom Browser aus Webspace (HTTPS, Sicherheitsregeln, gespe
 
 *Nur Vollzugriff*
 
+### Datensicherung (ZIP mit Prüfsummen)
+
+*In der App: Datensicherung*
+
+Unter „Datensicherung“ (Verwaltung, nur Vollzugriff) lädst du alle Daten der App aus SharePoint als ZIP-Datei herunter, auf Wunsch mit PDFs und Fotos. Jede Datei hat eine Prüfsumme. „Sicherung prüfen“ kontrolliert eine ZIP-Datei und zeigt, was seither neuer, älter oder weg ist. Zurückgespielt wird nur, was du auswählst und bestätigst.
+
+1. „Datensicherung“ unter „Verwaltung“ öffnen.
+2. „Umfang ermitteln“ klicken; PDFs und Fotos bei Bedarf anhaken (die Größe steht dabei).
+3. „Sicherung herunterladen“ klicken und die ZIP-Datei an einem sicheren Ort ablegen.
+4. Zum Prüfen bei „Sicherung prüfen“ die ZIP-Datei wählen.
+5. Einzelne Dateien anhaken, „Ausgewählte zurückspielen“ klicken und bestätigen.
+
+> Tipp: Vor dem Zurückspielen legt die App den aktuellen Stand der Datei unter Plattform/_Sicherung/ mit dem Datum ab.
+> Tipp: In „Zu erledigen“ erinnert die App, wenn die letzte Sicherung 30 Tage her ist; den Abstand stellst du in der Ansicht ein.
+> Tipp: Die Werkzeuge (Wasserzähler, Objektkontrolle, Objektdoku, Mattenwechsel) sind nicht dabei, sie bleiben im Versionsverlauf von SharePoint.
+
+*Nur Vollzugriff*
+
 ### Daten & Sicherung
 
-Alle Daten liegen in SharePoint mit Versionsverlauf und werden mit der Firmensicherung mitgesichert. Unter „⋯“ → „Daten & Sicherung“ lädst du zusätzlich alle geladenen Daten als JSON herunter oder spielst eine Sicherung ein.
+Alle Daten liegen in SharePoint mit Versionsverlauf. Die vollständige Sicherung als ZIP-Datei machst du unter „Datensicherung“ (Verwaltung). Unter „⋯“ → „Daten & Sicherung“ lädst du nur die gerade geladenen Daten als JSON herunter oder spielst sie ein.
 
 1. Oben „⋯“ → „Daten & Sicherung“ öffnen.
 2. Bei „Datensicherung“ „Herunterladen“ oder „Kopieren“.
