@@ -15,6 +15,28 @@ import { activeSeason, seasonDeco, seasonInfo } from '../season.js'
 import { appointmentsOfDay } from './appointments.js'
 import { proposalSummary } from './disponent.js'
 
+/**
+ * Karten anderer Module auf der Übersicht (z. B. Mattenwechsel für das Büro, „Meine Tour heute“ für Fahrer):
+ * { id, available() → bool, render(c) → HTML }. Später geladene Module melden sie beim Laden an; nach dem Laden im
+ * Hintergrund zeichnet die App neu (app.js). Die Rechnung bleibt im Modul, hier steht nur der Platz.
+ */
+const HOME_CARDS = []
+export function registerHomeCard(card) {
+  const i = HOME_CARDS.findIndex((x) => x.id === card.id)
+  if (i >= 0) HOME_CARDS.splice(i, 1, card)
+  else HOME_CARDS.push(card)
+}
+function moduleCards(c) {
+  return HOME_CARDS.map((x) => {
+    try {
+      return x.available() ? x.render(c) : ''
+    } catch (err) {
+      console.warn('Übersicht:', err)
+      return ''
+    }
+  }).join('')
+}
+
 const greeting = (hour = new Date().getHours()) => (hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend')
 const firstName = (name = '') => name.split(/[\s,]+/).find(Boolean) || ''
 
@@ -133,6 +155,7 @@ function phoneHome(c, views, { name, todoCount, staffTotal, nextAppts }) {
   return `<div class="m-home">
     ${cleoSays(c, views, { todoCount, nextAppts, season, hello: `${greeting()}${name ? `, ${esc(name)}` : ''}!` })}
     ${stats.length ? `<div class="m-stats">${stats.join('')}</div>` : ''}
+    ${moduleCards(c)}
     ${rows.length ? `<section class="m-sec"><h3>Als Nächstes</h3><div class="m-list">${rows.join('')}</div></section>` : '<p class="m-done"><span class="pill ok">Alles erledigt</span> Schönen Tag!</p>'}
     <section class="m-sec"><h3>Bereiche</h3><div class="m-tiles">${tiles}</div></section>
   </div>`
@@ -171,7 +194,7 @@ function homeView(c) {
     : ''
   if (isMobile()) return phoneHome(c, views, { name, todoCount: t.count, staffTotal, nextAppts })
   return `${hero(c, views, { name, todoCount: t.count, staffTotal })}
-  ${staffCard}${apptCard}
+  ${staffCard}${apptCard}${moduleCards(c)}
   <section class="home-grid" aria-label="Bereiche">${cards}</section>`
 }
 

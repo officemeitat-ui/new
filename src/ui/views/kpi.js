@@ -2,6 +2,8 @@
 // den Vormonat, kleiner Verlauf) und Diagramme je Bereich. Jede Kachel und jedes Diagramm erscheint
 // nur, wenn die Rolle den Bereich sieht. Gerechnet wird in src/core/kpi.js, gezeichnet in kpi-charts.js;
 // die Ergebnisse werden je Datenstand gemerkt (memo), Blättern und Hover kosten nichts.
+// Mattenwechsel: gerechnet im Modul (kpiHooks.matten aus views/matten-uebersicht.js, core/matten-uebersicht.js), sobald
+// es geladen ist; hier nur gezeichnet. Umsatz daraus nur mit Recht auf die Fakturierung.
 //
 // Zeitraum: 4/8/13 Wochen für die Wochen-Kennzahlen, 3/6/12 Monate für die Monats-Kennzahlen.
 // Monats-Kacheln zeigen den letzten abgeschlossenen Monat (der laufende ist noch unvollständig).
@@ -16,7 +18,7 @@ import { buildTimesheet, summarizeDays } from '../../core/timesheet.js'
 import { app, computeRange, memo, registerActions, registerView, render, seesAbsenceReasons } from '../context.js'
 import { barList, columnChart, legend, lineChart, sparkline, tableView } from '../kpi-charts.js'
 import { esc } from '../shared.js'
-import { kpiAvailable } from './lazy.js'
+import { kpiAvailable, kpiHooks } from './lazy.js'
 
 const ICON = '<path d="M3.5 20.5h17"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="6" width="3" height="12" rx="1"/><rect x="16" y="9" width="3" height="9" rx="1"/>'
 
@@ -112,6 +114,14 @@ function build(p) {
     const scope = scopeObjectIds({ all: !app.access || !!app.access.all, groups: app.user?.groups || [], reviere: app.config?.access?.reviere || {}, objects: data.objects || [] })
     out.kz = kzHistory(data.zufriedenheit, { today, scope }).filter((x) => x.count)
   }
+  // Mattenwechsel (Büro): Wechsel Soll/Ist, Pünktlichkeit, nicht durchgeführt, Matten je Größe; Umsatz nur mit Fakturierung
+  if (sees('matten') && kpiHooks.matten) {
+    const m = kpiHooks.matten({ months, today })
+    if (m && (m.months.some((x) => x.soll || x.ist || x.nicht) || m.sizes.length)) {
+      out.matten = m
+      if (m.invoices && sees('fakturierung')) out.mattenRevenue = revenueMonths({ ...(data.fakturierung || {}), documents: m.invoices }, months)
+    }
+  }
   // Einkauf & Kasse: Ausgaben (Eingangsrechnungen), offene Verbindlichkeiten, Kassenstand
   if (sees('einkauf')) {
     out.spending = spendingMonths(data.einkauf || {}, months)
@@ -188,6 +198,18 @@ function tiles(d) {
     out.push(tile({ label: 'Kundenzufriedenheit', value: `${fmtAvg(cur.overall)} von 5`, sub: `NPS ${fmtNps(cur.nps)} · Rücklauf ${fmtRate(cur.rate)} (${periodShort(cur.period)})`, cur: cur.overall, prev: prev?.overall ?? null, goodUp: true, deltaFmt: fmtAvg, spark: d.kz.map((x) => x.overall), view: 'zufriedenheit', vs: 'Vorrunde' }))
   }
   if (d.cash !== undefined) out.push(tile({ label: 'Kassenstand', value: euro(d.cash), sub: 'laut Kassenbuch', cur: d.cash, view: 'kassenbuch' }))
+  if (d.matten && lastI >= 0) {
+    const ms = d.matten.months
+    const cur = ms[lastI]
+    const prev = ms[lastI - 1] ?? null
+    out.push(tile({ label: `Mattenwechsel ${mLabel}`, value: count(cur.ist), sub: `bestätigte Wechsel, geplant waren ${count(cur.soll)}`, cur: cur.ist, prev: prev?.ist ?? null, deltaFmt: count, spark: ms.map((x) => x.ist), view: 'mw-uebersicht', vs: 'Vormonat' }))
+    out.push(tile({ label: `Pünktlichkeit Mattenwechsel ${mLabel}`, value: pct(cur.rate, 0), sub: cur.erledigt ? `${count(cur.puenktlich)} von ${count(cur.erledigt)} bis zum Solltermin${d.matten.tolerance ? ` + ${d.matten.tolerance} Tage` : ''}` : 'kein erledigter Wechsel im Monat', cur: cur.rate ?? 0, prev: cur.rate === null ? null : (prev?.rate ?? null), goodUp: true, deltaFmt: (v) => `${nf(0).format(v * 100)} Pp.`, spark: ms.map((x) => x.rate), view: 'mw-kalender', vs: 'Vormonat' }))
+    out.push(tile({ label: `Nicht durchgeführt ${mLabel}`, value: count(cur.nicht), sub: 'Mattenwechsel mit Ausnahme in der Tour', cur: cur.nicht, prev: prev?.nicht ?? null, goodUp: false, deltaFmt: count, spark: ms.map((x) => x.nicht), view: 'mw-uebersicht', vs: 'Vormonat' }))
+    if (d.mattenRevenue) {
+      const r = d.mattenRevenue
+      out.push(tile({ label: `Umsatz Mattenwechsel ${mLabel}`, value: euro(r[lastI].net), sub: 'netto, festgeschriebene Rechnungen', cur: r[lastI].net, prev: r[lastI - 1]?.net ?? null, goodUp: true, deltaFmt: euro, spark: r.map((x) => x.net), view: 'fakturierung', vs: 'Vormonat' }))
+    }
+  }
   // genau eine große Zahl: die erste Kachel
   if (out.length) out[0] = out[0].replace('class="kpi-tile ', 'class="kpi-tile hero ')
   return out.join('')
@@ -255,6 +277,19 @@ function charts(d) {
     ]
     out.push(card({ id: 'material', title: 'Material je Monat', sub: 'Ausgaben an Objekte und Personen, bestellte Ware', view: 'material', legendHtml: legend(series), body: lineChart({ labels: ml, titles: mt, series, fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Material je Monat' }), table: tableView(['Monat', 'Verbrauch', 'Bestellwert'], d.material.map((x, i) => [mt[i], euro(x.used), euro(x.ordered)])) }))
   }
+  if (d.matten) {
+    const m = d.matten
+    const series = [
+      { id: 'soll', label: 'Soll (geplant)', color: '--kpi-1', values: m.months.map((x) => x.soll) },
+      { id: 'ist', label: 'Ist (gewechselt)', color: '--kpi-2', values: m.months.map((x) => x.ist) },
+    ]
+    out.push(card({ id: 'matten-wechsel', title: 'Mattenwechsel je Monat', sub: m.loading ? 'Soll laut Einsätzen; Ist aus den Touren wird noch gelesen' : 'Soll: Einsätze mit Solltermin im Monat; Ist: bestätigte Wechsel', view: 'mw-uebersicht', legendHtml: legend(series), body: lineChart({ labels: ml, titles: mt, series, fmt: count, integer: true, width: W, ariaLabel: 'Mattenwechsel je Monat, Soll und Ist' }), table: tableView(['Monat', 'Soll', 'Ist', 'nicht durchgeführt'], m.months.map((x, i) => [mt[i], count(x.soll), count(x.ist), count(x.nicht)])) }))
+    out.push(card({ id: 'matten-puenktlich', title: 'Pünktlichkeit der Mattenwechsel', sub: `erledigt bis zum Solltermin${m.tolerance ? ` plus ${m.tolerance} Tage` : ''}`, view: 'mw-kalender', body: lineChart({ labels: ml, titles: mt, series: [{ id: 'rate', label: 'pünktlich', color: '--kpi-1', values: m.months.map((x) => x.rate) }], fmt: (v) => pct(v, 0), axis: (v) => pct(v, 0), unit: 0.01, top: 1, width: W, ariaLabel: 'Pünktlichkeit der Mattenwechsel je Monat' }), table: tableView(['Monat', 'erledigt', 'pünktlich', 'Quote'], m.months.map((x, i) => [mt[i], count(x.erledigt), count(x.puenktlich), pct(x.rate, 0)])) }))
+    out.push(card({ id: 'matten-nicht', title: 'Nicht durchgeführte Mattenwechsel', sub: 'Liegeplätze mit Ausnahme in der Tour (auch später nachgeholte)', view: 'mw-uebersicht', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'nicht', label: 'nicht durchgeführt', color: '--kpi-1', values: m.months.map((x) => x.nicht) }], fmt: count, integer: true, width: W, ariaLabel: 'Nicht durchgeführte Mattenwechsel je Monat' }), table: tableView(['Monat', 'nicht durchgeführt'], m.months.map((x, i) => [mt[i], count(x.nicht)])) }))
+    const swapped = new Map(m.exchanged.map((x) => [x.size, x.qty]))
+    out.push(card({ id: 'matten-groessen', title: 'Matten je Größe', sub: 'an den aktiven Liegeplätzen; dazu im Zeitraum gewechselt', view: 'mw-liegeplaetze', body: barList({ rows: m.sizes.map((x) => ({ label: x.size, value: x.qty, display: `${count(x.qty)} Stk`, sub: `${x.placements} Liegepl.`, extra: [['im Zeitraum gewechselt', `${count(swapped.get(x.size) || 0)} Stk`, '']] })) }), table: tableView(['Größe', 'Matten', 'Liegeplätze', 'gewechselt'], m.sizes.map((x) => [x.size, count(x.qty), count(x.placements), count(swapped.get(x.size) || 0)])) }))
+    if (d.mattenRevenue) out.push(card({ id: 'matten-umsatz', title: 'Umsatz aus dem Mattenwechsel', sub: 'netto, festgeschriebene Rechnungen aus dem Mattenwechsel; Storno mindert', view: 'fakturierung', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'net', label: 'Umsatz netto', color: '--kpi-1', values: d.mattenRevenue.map((x) => x.net) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Umsatz aus dem Mattenwechsel je Monat' }), table: tableView(['Monat', 'Umsatz netto', 'Rechnungen'], d.mattenRevenue.map((x, i) => [mt[i], euro(x.net), count(x.count)])) }))
+  }
   if (d.margin?.length) {
     const name = (id) => app.data.objects.find((o) => o.id === id)?.name || 'Objekt'
     const rows = d.margin.slice(0, 10)
@@ -278,14 +313,14 @@ function agingBars(list, status) {
 
 function kpiView(c) {
   const p = period()
-  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}`, () => build(p))
+  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}`, () => build(p))
   const filters = Object.entries(PERIODS)
     .map(([id, x]) => `<button class="filter" data-action="kpi-period" data-period="${id}" aria-pressed="${id === p}">${esc(x.label)}</button>`)
     .join('')
   const t = tiles(d)
   const ch = charts(d)
   return `<div class="kpi-root">
-    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Ausgaben, Kasse und Material. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
+    <div class="section-head"><div><h2>Kennzahlen</h2><p>Die wichtigsten Zahlen auf einen Blick: Stunden, Besetzung, Abwesenheit, Plus-Stunden, Reklamationen, Kundenzufriedenheit, Umsatz, Ausgaben, Kasse, Material und Mattenwechsel. Monats-Kacheln zeigen den letzten abgeschlossenen Monat. Eine Kachel antippen öffnet den Bereich.</p></div></div>
     <div class="filters kpi-filters" role="group" aria-label="Zeitraum">${filters}</div>
     ${t ? `<div class="kpi-tiles">${t}</div>` : ''}
     ${ch ? `<div class="kpi-grid">${ch}</div>` : '<p class="empty">Für deine Rolle gibt es hier noch keine Kennzahlen.</p>'}

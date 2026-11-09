@@ -29,8 +29,10 @@ export const PLAN_DEFAULT = ['week', 'coverage', ABSENCE, 'sheet']
 export const ROLE_DEFAULTS = {
   ableser: ['zaehler'],
   vorarbeiter: ['zaehler'],
-  // Mattenwechsel Büro: bis zur Umstellung zuerst das Werkzeug, daneben Liegeplätze, Kalender und Tourenplanung des Moduls
-  mattenwechsel: ['matten', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung'],
+  // Mattenwechsel Büro: Übersicht, Liegeplätze, Kalender und Tourenplanung des Moduls (Lieferscheine über die Übersicht
+  // bzw. „Mehr“). Das Werkzeug nur als Rückfall (ohne die Ansichten des Moduls): nach der Umstellung ist es nur lesend;
+  // wer es unten will, tauscht einen Platz.
+  mattenwechsel: ['mw-uebersicht', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung', 'matten'],
   // Fahrer Mattenwechsel: seine Touren (Tour, Stopp, Bestätigung je Liegeplatz, Unterschrift; views/matten-fahrer.js)
   mattenfahrer: ['mw-touren'],
   pruefer: ['kontrolle', 'objektmappe'],
@@ -166,6 +168,7 @@ export const SHORT_LABELS = {
   kundenbereich: 'Kunden',
   schluessel: 'Schlüssel',
   matten: 'Matten',
+  'mw-uebersicht': 'Überblick',
   'mw-liegeplaetze': 'Liegeplätze',
   'mw-kalender': 'Kalender',
   'mw-planung': 'Tourplanung',

@@ -7,6 +7,7 @@
 // Gerät und wird nachgeholt (storage/matten-touren.js). Rechenkern: core/matten-fahrt.js (auch für die spätere
 // Fahrerseite am Webspace, P10b). Touren unter matten/touren/<Jahr>/<TourId>.json, Fotos unter matten/fotos/.
 // Kürzel der Aktionen und Dialoge: „mwf-“. Fahrer sehen keine Preise und keinen Kundenstamm (die Tour trägt Kopien).
+// Auf der Startseite der Fahrer: „Meine Tour heute“ (Stopps erledigt und offen, views/home.js → registerHomeCard).
 
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
 import {
@@ -49,6 +50,7 @@ import { app, canEdit, closeModal, openModal, registerActions, registerModal, re
 import { onToursChanged, tourStore as sharedTourStore } from '../matten-tourablage.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 import { esc, ICON, modalFrame } from '../shared.js'
+import { registerHomeCard } from './home.js'
 
 const MODULE = 'mattentour'
 const VIEW = 'mw-touren'
@@ -85,7 +87,8 @@ function tourStore() {
 
 function changed() {
   schedule()
-  if (visible() && !app.ui.modal) renderNow()
+  // Startseite der Fahrer: „Meine Tour heute“ mit dem neuen Stand
+  if ((visible() || (app.ui.view === 'home' && !isOffice())) && !app.ui.modal) renderNow()
 }
 
 /** Laden (erstes Öffnen, Abgleich höchstens alle 30 Sekunden); im Browser-Modus mit Beispiel-Tour. */
@@ -263,6 +266,35 @@ function tourCard(tour, { past, finished, office }) {
     ${warn ? `<p class="mwf-warn">${esc(warn)}</p>` : ''}
   </article>`
 }
+
+// ---------------------------------------------------------------- Startseite der Fahrer: „Meine Tour heute“
+
+registerHomeCard({
+  id: 'matten-fahrer',
+  // nur Fahrer (das Büro hat die Matten-Übersicht)
+  available: () => sees('mattentour') && !isOffice(),
+  render: () => {
+    const st = tourStore()
+    if (!st) return ''
+    ensureLoaded()
+    const today = todayISO()
+    const head = `<header><h3>Meine Tour heute</h3><button class="btn small primary" data-action="view" data-view="${VIEW}">Touren</button></header>`
+    if (!st.loaded) return `<section class="home-mod" aria-label="Meine Tour heute">${head}<p class="muted">Touren werden geladen …</p></section>`
+    const rows = toursFor(st.tours(), { ...me(), office: false, all: browserMode(), today }).filter((x) => x.tour.date === today || x.past)
+    const body = rows.length
+      ? rows
+          .map(({ tour, past }) => {
+            const p = tourProgress(tour)
+            const pct = p.stops ? Math.round((p.done / p.stops) * 100) : 0
+            return `<button class="mwf-card-main" data-action="mwf-goto" data-tour="${esc(tour.id)}"><span class="mwf-card-top"><strong>${esc(past ? `Tour vom ${formatDate(tour.date)}` : 'Tour heute')}</strong> ${tourPill(tour)}</span>
+              <span class="mwf-card-line"><b>${p.open} offen</b> · ${p.done} erledigt · ${plural(p.stops, 'Stopp', 'Stopps')}</span>
+              <span class="mwf-bar" role="img" aria-label="${p.done} von ${p.stops} Stopps erledigt"><span style="width:${pct}%"></span></span>${p.next ? `<span class="mwf-card-line muted">Nächster Stopp: ${esc(stopTitle(p.next))}</span>` : ''}</button>`
+          })
+          .join('')
+      : '<p class="muted">Heute ist keine Tour für dich freigegeben.</p>'
+    return `<section class="home-mod" aria-label="Meine Tour heute">${head}${body}</section>`
+  },
+})
 
 function tourView(tour) {
   const p = tourProgress(tour)
@@ -569,6 +601,12 @@ const top = () => globalThis.scrollTo?.({ top: 0 })
 registerActions({
   'mwf-open': (el) => {
     Object.assign(app.ui, { mwfTour: el.dataset.tour, mwfStop: '' })
+    renderNow()
+    top()
+  },
+  // von der Startseite: Tour in „Matten-Touren“ öffnen
+  'mwf-goto': (el) => {
+    Object.assign(app.ui, { view: VIEW, mwfTour: el.dataset.tour || '', mwfStop: '' })
     renderNow()
     top()
   },

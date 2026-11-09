@@ -14,9 +14,14 @@ import { app, registerLazy } from '../context.js'
 import { registerTodo, SOURCES } from '../modals/todo.js'
 import { weatherEnabled, winterOpen } from '../weather.js'
 
-const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'zufriedenheit']
+const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', 'einkauf', 'material', 'zufriedenheit', 'matten']
 /** Kennzahlen nur für Rollen, die mindestens einen dieser Bereiche sehen. */
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
+/**
+ * Kennzahlen aus später geladenen Modulen: matten({ months, today }) → Zahlen des Mattenwechsels oder null
+ * (views/matten-uebersicht.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
+ */
+export const kpiHooks = { matten: null, version: () => '' }
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 
@@ -302,13 +307,28 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
-// matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js, matten-lieferscheine.js: Mattenwechsel-Modul im
-// Büro (Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Tourenplanung,
+// matten-uebersicht.js, matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js, matten-lieferscheine.js:
+// Mattenwechsel-Modul im Büro (Übersicht mit den neun Zahlen, Karte auf der Startseite und Kennzahlen: Kürzel mwu-;
+// Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Tourenplanung,
 // Lieferscheine je Stopp mit Versand und Ablage, Fahrerseite am Webspace für Fahrer ohne Konto über ui/matten-webspace.js:
 // Kürzel mww-), Umstellung vom Werkzeug auf das Modul (matten-umstellung.js, Kürzel mwc-); das Werkzeug bleibt bis zur
 // Umstellung unter #matten (tools.js), danach als „Mattenwechsel (alt)“ nur lesend
 lazy(BUERO, {
   views: [
+    {
+      id: 'mw-uebersicht',
+      order: 75.45,
+      label: 'Matten-Übersicht',
+      group: 'service',
+      module: 'matten',
+      icon: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M13.5 17h7M17 13.5v7"/>',
+      noWeek: true,
+      mobile: {
+        icon: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 11.5h5M11.5 9v5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+        label: 'Überblick',
+      },
+      text: 'Mattenwechsel: heute fällig, Touren, überfällig, nicht durchgeführt, Lieferscheine, Rechnungsentwürfe',
+    },
     {
       id: 'mw-liegeplaetze',
       order: 75.5,
@@ -373,6 +393,7 @@ lazy(BUERO, {
     mww-web-open mww-copy mww-web-save mww-web-file mww-web-sync mww-web-publish
     mw-ls-goto mw-ls-filter mw-ls-range mw-ls-sel mw-ls-sel-all mw-ls-open mw-ls-reload mw-ls-fak mw-ls-create mw-ls-create-all mw-ls-pdf mw-ls-send
     mw-ls-archive mw-ls-archive-all mw-ls-run-open mw-ls-run-mode mw-ls-run mw-ls-run-stop mw-ls-settings-open mw-ls-settings-save
+    mwu-goto mwu-list mwu-tour mwu-reload mwu-apply mwu-catchup
     mwc-open mwc-set mwc-undo`,
   todo: ['matten', 'matten-ls'],
 })
@@ -397,7 +418,7 @@ lazy(() => import('./matten-fahrer.js'), {
     },
   ],
   modals: 'mwf-not mwf-finish mwf-reopen',
-  actions: `mwf-open mwf-back mwf-stop mwf-back-tour mwf-refresh mwf-sync mwf-nav mwf-photo-open mwf-start mwf-arrive mwf-done mwf-qty mwf-reset
+  actions: `mwf-open mwf-goto mwf-back mwf-stop mwf-back-tour mwf-refresh mwf-sync mwf-nav mwf-photo-open mwf-start mwf-arrive mwf-done mwf-qty mwf-reset
     mwf-not-open mwf-not mwf-note mwf-photo mwf-photo-del mwf-finish-open mwf-outcome mwf-nosig mwf-finish mwf-reopen-open mwf-reopen`,
 })
 

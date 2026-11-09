@@ -6,6 +6,7 @@ import { accountProblem, groupsOf } from '../src/auth/msal.js'
 import { resolveAccess } from '../src/core/access.js'
 import { runRights } from '../src/core/matten-abrechnung.js'
 import { noteRights } from '../src/core/matten-lieferschein.js'
+import { overviewRights } from '../src/core/matten-uebersicht.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
 import { DataService, dataRights, DOC, folderRights, MODULE_DOCS, OLD_PATHS, toolFolderRights, weekPath } from '../src/storage/data-service.js'
 import { deepMerge } from '../src/ui/config.js'
@@ -358,6 +359,21 @@ test('Rechte: Matten-Lieferscheine (P12/P13) – erstellen und senden nur mit Ma
   // eigene Rolle mit beiden Bereichen: darf alles, schreibt Touren (Vermerk am Stopp) und die Ablage
   const both = resolveAccess({ roleClaims: ['mwfak'], strict: true, access: { ...access, roles: { mwfak: { label: 'Büro mit Faktura', modules: ['matten', 'mattentour', 'fakturierung'], edit: ['matten', 'mattentour', 'fakturierung'] } } } })
   assert.ok(noteRights(both).create && dataRights(both).write('matten/touren/2026/mt0123456789ab.json') && tools(both).Mattenwechsel === 'Bearbeiten')
+})
+
+test('Rechte: Matten-Übersicht (P15) – Büro ohne Zahlen der Fakturierung, Fahrer und Buchhaltung ohne Übersicht', () => {
+  const role = (id) => resolveAccess({ roleClaims: [id], access, strict: true })
+  const voll = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  assert.deepEqual(overviewRights(voll), { view: true, fak: true, edit: true })
+  // Mattenwechsel Büro: Übersicht und „In die Einsätze übernehmen“, Lieferscheine und Entwürfe nicht (liest fakturierung/ nicht)
+  const buero = role('mattenwechsel')
+  assert.deepEqual(overviewRights(buero), { view: true, fak: false, edit: true })
+  assert.ok(!dataRights(buero).read(MODULE_DOCS.fakturierung.path) && dataRights(buero).write('matten/einsaetze-2026.json'))
+  // Fahrer und Buchhaltung: keine Übersicht (sehen das Modul matten nicht)
+  for (const id of ['mattenfahrer', 'buchhaltung', 'lager', 'objektleitung']) assert.equal(overviewRights(role(id)).view, false, id)
+  // eigene Rolle mit Mattenwechsel und Fakturierung lesen: alle neun Zahlen
+  const both = resolveAccess({ roleClaims: ['mwfak'], strict: true, access: { ...access, roles: { mwfak: { label: 'Büro mit Faktura', modules: ['matten', 'mattentour', 'fakturierung'], edit: ['matten', 'mattentour'] } } } })
+  assert.deepEqual(overviewRights(both), { view: true, fak: true, edit: true })
 })
 
 test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserzähler)', async () => {

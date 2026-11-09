@@ -40,6 +40,7 @@ import { registerTodo } from '../modals/todo.js'
 import { esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
 import { startWebPolling } from '../matten-webspace.js'
 import { inTourText, toursReady } from './matten-planung.js'
+import { ensureOverviewTours, mattenState, publish as publishOverview } from './matten-uebersicht.js'
 
 const MODULE = 'matten'
 const KEY = 'mattenJobs'
@@ -101,8 +102,15 @@ function jobsShown() {
 
 const calAt = (m, d, area, today) => memo(app.cur, `mwcal:${m}:${d}:${area}:${today}`, () => calendarView({ jobs: jobsShown(), placements: doc().placements, objects: objects(), areas: doc().areas, today, mode: m, date: d }))
 const hintsAt = (today) => memo(app.cur, `mwhints:${today}`, () => hintList(jobsAll(), { placements: doc().placements, today }))
-/** Zu erledigen und digitaler Mitarbeiter: überfällige Liegeplätze, nicht geplante Einsätze der nächsten 14 Tage. */
-export const mattenAttention = (today = todayISO()) => memo(app.cur, `mwatt:${today}`, () => attention({ doc: doc(), jobs: jobsAll(), done: done(), today }))
+/**
+ * Zu erledigen und digitaler Mitarbeiter: überfällige Liegeplätze, nicht geplante Einsätze der nächsten 14 Tage. Sind die
+ * Touren gelesen, mit deren Ergebnissen (views/matten-uebersicht.js, mattenState): Einsätze in einer offenen Tour und
+ * nicht durchgeführte Wechsel zählen dann nicht als überfällig (die nicht durchgeführten stehen als eigener Punkt da).
+ */
+export const mattenAttention = (today = todayISO()) => {
+  const s = mattenState(today)
+  return s.toursLoaded ? { ...s.attention, overdue: s.overdue } : memo(app.cur, `mwatt:${today}`, () => attention({ doc: doc(), jobs: jobsAll(), done: done(), today }))
+}
 
 // ---------------------------------------------------------------- Ansicht
 
@@ -626,9 +634,18 @@ registerTodo({
   compute: (today) => {
     // Rückmeldungen der Fahrer ohne Konto (Fahrerseite am Webspace) im Hintergrund abholen, solange die App offen ist
     startWebPolling()
+    // Touren im Hintergrund lesen: nicht durchgeführte Wechsel, liegen gebliebene Touren (views/matten-uebersicht.js)
+    ensureOverviewTours()
     const a = mattenAttention(today)
+    const st = mattenState(today)
+    // Zähler für den digitalen Mitarbeiter auf demselben Stand (z. B. nach „Nachholen“ im Kalender)
+    publishOverview(today)
     const out = []
     if (a.overdue.length) out.push({ id: `ueber:${a.overdue.map((x) => `${x.placement.id}@${x.next.date}`).join(',')}`, kind: 'ueber', list: a.overdue })
+    // nicht durchgeführt (Ausnahme in der Tour), noch ohne Tag zum Nachholen; Touren vergangener Tage nicht abgeschlossen
+    const notDone = st.notDone.filter((x) => !x.planned)
+    if (notDone.length) out.push({ id: `nicht:${notDone.map((x) => x.key).join(',')}`, kind: 'nicht', list: notDone })
+    if (st.stale.length) out.push({ id: `alt:${st.stale.map((t) => `${t.id}@${t.status}`).join(',')}`, kind: 'alt', list: st.stale })
     if (a.missing.length) out.push({ id: `plan:${a.until}:${a.missing.length}`, kind: 'plan', count: a.missing.length, until: a.until })
     // Tourenplanung: offene Einsätze bis zum nächsten Arbeitstag ohne freigegebene Tour
     const soon = untouredSoon(jobsAll(), today)
@@ -645,6 +662,20 @@ registerTodo({
                 .map((y) => `${y.placement.name} (${objName(y.placement.objectId)}) seit ${short(y.next.date)}`)
                 .join(' · '),
             )}${x.list.length > 4 ? ' …' : ''}</span></div><button class="btn small primary" data-action="mw-cal-goto" data-date="${esc(x.list[0].next.date)}">Öffnen</button></div>`
+          : x.kind === 'nicht'
+            ? `<div class="todo-item"><span class="flag error">${x.list.length}</span><div class="todo-text"><strong>Nicht durchgeführte Wechsel nachholen (${x.list.length})</strong><br><span class="muted">${esc(
+                x.list
+                  .slice(0, 4)
+                  .map((y) => `${y.placementName || 'Liegeplatz'} (${y.objectName || 'Objekt'}) am ${short(y.date)}: ${y.reason || 'nicht durchgeführt'}`)
+                  .join(' · '),
+              )}${x.list.length > 4 ? ' …' : ''}</span></div><button class="btn small primary" data-action="mwu-goto" data-card="nicht">Öffnen</button></div>`
+          : x.kind === 'alt'
+            ? `<div class="todo-item"><span class="flag warning">${x.list.length}</span><div class="todo-text"><strong>Touren vergangener Tage nicht abgeschlossen (${x.list.length})</strong><br><span class="muted">${esc(
+                x.list
+                  .slice(0, 4)
+                  .map((t) => `${t.driverName || 'ohne Fahrer'}, ${short(t.date)}: ${t.status === 'unterwegs' ? 'unterwegs' : 'nicht gestartet'}`)
+                  .join(' · '),
+              )}${x.list.length > 4 ? ' …' : ''}</span></div><button class="btn small primary" data-action="mwu-tour" data-tour="${esc(x.list.length === 1 ? x.list[0].id : '')}">Öffnen</button></div>`
           : x.kind === 'tour'
             ? `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>${esc(x.title)}</strong><br><span class="muted">${esc(plural(x.count, 'Einsatz', 'Einsätze'))} am ${esc(x.days.map((d) => short(d)).join(', '))} in keiner freigegebenen Tour. In „Touren planen“ vorschlagen und freigeben.</span></div><button class="btn small primary" data-action="mw-tp-goto" data-date="${esc(x.date)}">Öffnen</button></div>`
             : `<div class="todo-item"><span class="flag warning">${x.count}</span><div class="todo-text"><strong>Einsätze für die nächsten Wochen noch nicht geplant</strong><br><span class="muted">${esc(plural(x.count, 'Wechsel', 'Wechsel'))} bis ${esc(short(x.until))} fehlen im Kalender.</span></div><button class="btn small primary" data-action="mw-cal-goto" data-plan="1">Öffnen</button></div>`,

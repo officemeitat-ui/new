@@ -16,7 +16,9 @@
 //                Rückmeldung und mit erreichter Löschfrist (nur „Öffnen“, nichts automatisch)
 //                Mattenwechsel (nur Büro): überfällige Liegeplätze, Einsätze der nächsten Wochen noch nicht geplant
 //                (nur „Öffnen“ in den Matten-Kalender); abgeschlossene Stopps ohne Lieferschein und fehlgeschlagene
-//                Ablage der Lieferscheine (mit Recht auf die Fakturierung; nur „Öffnen“)
+//                Ablage der Lieferscheine (mit Recht auf die Fakturierung; nur „Öffnen“); mit dem Stand der Touren
+//                (app.mwUe aus views/matten-uebersicht.js): nicht durchgeführte Wechsel nachholen, Touren vergangener
+//                Tage nicht abgeschlossen (nur „Öffnen“), Ergebnisse der Touren in die Einsätze übernehmen („Ausführen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -482,15 +484,19 @@ function fristen(today) {
   if (mw && edits('matten')) {
     const d = { settings: {}, ...mw, placements: mw.placements || [] }
     const a = mwAttention({ doc: d, jobs: app.data.mattenJobs || [], done: confirmedExchanges({ placements: d.placements }), today })
-    if (a.overdue.length)
+    // mit dem Stand der Touren (views/matten-uebersicht.js, sobald sie gelesen sind): Einsätze in einer offenen Tour und
+    // nicht durchgeführte Wechsel sind nicht „überfällig“ – die nicht durchgeführten haben einen eigenen Vorschlag
+    const ue = app.mwUe?.today === today ? app.mwUe : null
+    const overdue = ue ? ue.overdue : a.overdue
+    if (overdue.length)
       out.push({
-        id: `mw-ueber:${a.overdue.map((x) => `${x.placement.id}@${x.next.date}`).join(',')}`,
+        id: `mw-ueber:${overdue.map((x) => `${x.placement.id}@${x.next.date}`).join(',')}`,
         agent: 'fristen',
         prio: 1,
-        title: `Mattenwechsel überfällig (${plural(a.overdue.length, 'Liegeplatz', 'Liegeplätze')})`,
+        title: `Mattenwechsel überfällig (${plural(overdue.length, 'Liegeplatz', 'Liegeplätze')})`,
         text: 'Der Wechsel ist seit dem Termin offen. Im Matten-Kalender nachholen, verschieben oder verwerfen. Ich ändere dabei nichts selbst.',
-        lines: a.overdue.slice(0, 6).map((x) => `${x.placement.name} (${objName(x.placement.objectId) || 'Objekt'}): seit ${formatDate(x.next.date)}`),
-        open: { label: 'Öffnen', action: 'mw-cal-goto', data: { date: a.overdue[0].next.date } },
+        lines: overdue.slice(0, 6).map((x) => `${x.placement.name} (${objName(x.placement.objectId) || 'Objekt'}): seit ${formatDate(x.next.date)}`),
+        open: { label: 'Öffnen', action: 'mw-cal-goto', data: { date: overdue[0].next.date } },
       })
     if (a.missing.length)
       out.push({
@@ -512,6 +518,36 @@ function fristen(today) {
         text: `${plural(soon.jobs.length, 'Einsatz steht', 'Einsätze stehen')} am ${soon.days.map((d) => formatDate(d)).join(', ')} in keiner freigegebenen Tour. In „Touren planen“ einen Vorschlag erzeugen, prüfen und freigeben. Ich ändere dabei nichts selbst.`,
         lines: soon.jobs.slice(0, 6).map((j) => { const p = d.placements.find((x) => x.id === j.placementId); return `${p?.name || 'Liegeplatz'} (${objName(p?.objectId) || 'Objekt'}): ${formatDate(j.planned || j.due)}` }),
         open: { label: 'Öffnen', action: 'mw-tp-goto', data: { date: soon.date } },
+      })
+    if (ue?.notDone.length)
+      out.push({
+        id: `mw-nicht:${ue.notDone.map((x) => x.key).join(',')}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `Nicht durchgeführte Wechsel nachholen (${ue.notDone.length})`,
+        text: 'In der Tour wurde hier nichts gewechselt (z. B. kein Zugang, Kunde nicht angetroffen), und es ist noch kein Tag zum Nachholen gewählt. In der Matten-Übersicht „Nachholen …“ wählen. Ich ändere dabei nichts selbst.',
+        lines: ue.notDone.slice(0, 6).map((x) => `${x.placementName || 'Liegeplatz'} (${x.objectName || 'Objekt'}) am ${formatDate(x.date)}: ${x.reason || 'nicht durchgeführt'}`),
+        open: { label: 'Öffnen', action: 'mwu-goto', data: { card: 'nicht' } },
+      })
+    if (ue?.stale.length)
+      out.push({
+        id: `mw-alt:${ue.stale.map((t) => `${t.id}@${t.status}`).join(',')}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `Touren vergangener Tage nicht abgeschlossen (${ue.stale.length})`,
+        text: 'Die Tour ist noch freigegeben oder unterwegs, obwohl ihr Tag vorbei ist. Mit dem Fahrer klären: fertig abschließen (auch ohne Netz gespeicherte Stopps nachsenden) oder im Büro die Stopps korrigieren. Ich ändere dabei nichts selbst.',
+        lines: ue.stale.slice(0, 6).map((t) => `${t.driverName || 'ohne Fahrer'}, ${formatDate(t.date)}: ${t.status === 'unterwegs' ? 'unterwegs' : 'nicht gestartet'}, ${plural(t.stops, 'Stopp', 'Stopps')}`),
+        open: { label: 'Öffnen', action: 'mwu-tour', data: { tour: ue.stale.length === 1 ? ue.stale[0].id : '' } },
+      })
+    if (ue?.applied)
+      out.push({
+        id: `mw-apply:${ue.applied}:${ue.sig}`,
+        agent: 'fristen',
+        prio: 2,
+        title: `Ergebnisse der Touren in die Einsätze übernehmen (${ue.applied})`,
+        text: `${plural(ue.applied, 'Einsatz steht', 'Einsätze stehen')} im Matten-Kalender noch „in Tour“, obwohl der Stopp abgeschlossen ist. „Ausführen“ trägt erledigt bzw. nachzuholen ein, wie es die Fahrer gemeldet haben; danach lassen sich nicht durchgeführte im Kalender nachholen.`,
+        run: { label: 'In die Einsätze übernehmen', action: 'mwu-apply' },
+        open: { label: 'Öffnen', action: 'mwu-goto', data: { card: 'nicht' } },
       })
   }
   // Mattenwechsel-Lieferscheine (nur wer Mattenwechsel und Fakturierung bearbeitet): Zähler aus der Ansicht
@@ -556,8 +592,8 @@ function fristen(today) {
 
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
-  // app.mwLs: Zähler der Matten-Lieferscheine (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
-  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}`, () => {
+  // app.mwLs, app.mwUe: Zähler der Matten-Lieferscheine und der Übersicht (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
+  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}`, () => {
     const all = []
     const safe = (fn) => {
       try {

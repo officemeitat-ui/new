@@ -126,7 +126,7 @@ const SECTION_OF_GROUP = { start: 'start', plan: 'planung', service: 'objekte', 
 const NAV_ORDER = {
   planung: ['week', 'timeline', 'termine', 'coverage', 'absences', 'objects', 'report'],
   einsatz: ['zeiten', 'sheet', 'due', 'waste', 'wetter'],
-  objekte: ['reklamationen', 'nachweis', 'kundenbereich', 'zufriedenheit', 'schluessel', 'anlagen', 'regie', 'zaehler', 'kontrolle', 'qualitaet', 'objektmappe', 'matten', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung', 'mw-touren', 'mw-lieferscheine'],
+  objekte: ['reklamationen', 'nachweis', 'kundenbereich', 'zufriedenheit', 'schluessel', 'anlagen', 'regie', 'zaehler', 'kontrolle', 'qualitaet', 'objektmappe', 'matten', 'mw-uebersicht', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung', 'mw-touren', 'mw-lieferscheine'],
   betrieb: ['material', 'fahrzeuge'],
   finanzen: ['fakturierung', 'kalkulation', 'controlling', 'payroll', 'overtime'],
   verwaltung: ['staff', 'bewerber', 'eintritt', 'sites', 'assign', 'unterweisungen', 'arbeitsschutz', 'rules', 'berechtigungen', 'system'],

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 346 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 350 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (79)
+- [Objekte & Kunden](#objekte-kunden) (83)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
@@ -1641,11 +1641,11 @@ Im Werkzeug Mattenwechsel arbeitest du die Touren ab und erstellst Lieferscheine
 
 ### Umstellung auf das Mattenwechsel-Modul
 
-*In der App: Matten-Liegeplätze*
+*In der App: Matten-Übersicht*
 
 Mit der Umstellung wird das Modul der eine Weg für den Mattenwechsel: „Mattenwechsel“ und Lesezeichen mit #matten öffnen das Modul. Das Werkzeug heißt dann „Mattenwechsel (alt)“ und speichert nichts mehr in SharePoint. Frühere Touren und Lieferscheine bleiben dort sichtbar. Zurücknehmen geht jederzeit.
 
-1. „Matten-Liegeplätze“ öffnen.
+1. „Matten-Übersicht“ oder „Matten-Liegeplätze“ öffnen.
 2. „Mehr“ → „Umstellung auf das Modul“ wählen.
 3. Den Stand im Modul prüfen und „Jetzt umstellen“ klicken.
 
@@ -1653,6 +1653,62 @@ Mit der Umstellung wird das Modul der eine Weg für den Mattenwechsel: „Matten
 > Tipp: Wer das Werkzeug im eigenen Fenster geöffnet hatte, sieht dort nach der Umstellung oben einen Hinweis, sobald die App auf dem Gerät einmal offen war.
 
 *Umstellen: Vollzugriff*
+
+### Matten-Übersicht: der Mattenwechsel auf einen Blick
+
+*In der App: Matten-Übersicht*
+
+Die Matten-Übersicht zeigt neun Zahlen: heute fällig, geplante Touren, Touren in Durchführung, abgeschlossene Touren, überfällige und nicht durchgeführte Wechsel, nicht versendete Lieferscheine, fehlerhafte SharePoint-Übertragungen und offene Rechnungsentwürfe. Daneben die Touren von heute mit Fortschritt, die Ladeliste und die Woche.
+
+1. „Matten-Übersicht“ unter „Objekte & Kunden“ öffnen (am Handy „Überblick“ in der Leiste unten).
+2. Eine Kachel anklicken: sie öffnet Kalender, Tourenplanung, Touren, Lieferscheine oder Fakturierung mit dem passenden Filter.
+3. Unter „Heute“ eine Tour anklicken: Stopps und Fortschritt des Fahrers.
+4. In „Diese Woche“ einen Tag anklicken: der Kalender dieser Woche.
+
+> Tipp: Lieferscheine und Rechnungsentwürfe stehen nur da, wenn du die Fakturierung siehst. Fahrer sehen die Übersicht nicht.
+> Tipp: Auf der Startseite zeigt die Karte „Mattenwechsel“ die vier wichtigsten Zahlen.
+> Tipp: „Aktualisieren“ liest die Touren neu.
+
+*Mattenwechsel Büro, Vollzugriff; Lieferscheine und Rechnungsentwürfe nur mit Recht auf die Fakturierung*
+
+### Was die Zahlen der Matten-Übersicht bedeuten
+
+*In der App: Matten-Übersicht*
+
+Überfällig: Liegeplätze, deren Wechsel vor heute dran war und in keiner offenen Tour steht. Nicht durchgeführt: in einer Tour ohne Wechsel abgeschlossen (z. B. kein Zugang) und noch nicht nachgeholt. Geplant: freigegebene Touren und Entwürfe ab heute. Abgeschlossen: Touren der letzten 7 Tage.
+
+> Tipp: Heute fällig zählt auch Wechsel, die laut Rhythmus heute dran sind, aber noch nicht im Kalender stehen.
+> Tipp: Fehlerhafte Übertragung: Lieferschein-PDF nicht in SharePoint, eine Tour, die dieses Gerät nicht speichern konnte, oder ein Foto, das seit über einem Tag im Gerät wartet.
+> Tipp: Offene Rechnungsentwürfe: Rechnungen aus dem Mattenwechsel, die noch nicht ausgestellt sind.
+
+### Nicht durchgeführte Mattenwechsel nachholen
+
+*In der App: Matten-Übersicht*
+
+Schließt ein Fahrer einen Stopp mit Ausnahme ab (kein Zugang, Kunde nicht angetroffen), bleibt der Wechsel offen. In der Matten-Übersicht unter „Nicht durchgeführte Wechsel“ wählt „Nachholen …“ den neuen Tag im Kalender. Bis dahin meldet „Zu erledigen“ den Punkt.
+
+1. In „Zu erledigen“ bei „Nicht durchgeführte Wechsel nachholen“ auf „Öffnen“ (oder die Kachel in der Matten-Übersicht).
+2. Beim Liegeplatz „Nachholen …“ klicken.
+3. Den Tag wählen und „Nachholen“ klicken; danach kommt der Einsatz in die Tourenplanung.
+
+> Tipp: Die Ergebnisse der Touren trägt die App nicht von selbst in den Kalender ein: „In die Einsätze übernehmen“ (Übersicht oder digitaler Mitarbeiter) setzt erledigt bzw. nachzuholen.
+> Tipp: Touren vergangener Tage, die noch offen sind, meldet „Zu erledigen“ eigens: mit dem Fahrer klären oder im Büro korrigieren.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Kennzahlen des Mattenwechsels
+
+*In der App: Kennzahlen*
+
+In den Kennzahlen steht für den Mattenwechsel: Wechsel je Monat (Soll laut Einsätzen, Ist laut Touren), die Pünktlichkeit (gewechselt bis zum Solltermin), nicht durchgeführte Wechsel, Matten je Größe an den Liegeplätzen und mit Recht auf die Fakturierung der Umsatz aus Mattenwechsel-Rechnungen.
+
+1. „Kennzahlen“ öffnen.
+2. Zum Abschnitt Mattenwechsel blättern; eine Kachel öffnet die Übersicht, den Kalender oder die Fakturierung.
+
+> Tipp: Pünktlich heißt: spätestens am Solltermin gewechselt; ein verschobener Termin zählt ab dem ursprünglichen Solltermin.
+> Tipp: Monatswerte zeigen den letzten abgeschlossenen Monat.
+
+*Mattenwechsel Büro, Vollzugriff; Umsatz nur mit Recht auf die Fakturierung*
 
 ### Matten-Liegeplätze
 

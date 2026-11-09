@@ -20,11 +20,11 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 | KI-Ausbau (Beleg lesen, Regiebericht diktieren, Sicherheitsdatenblatt lesen, Assistent kennt die neuen Module, Texte) | fertig – Auftragsverarbeitung klären (RECHTSPRUEFUNG Punkt 35) |
 | Handy: untere Leiste je Rolle, Plätze einzeln tauschbar | fertig |
 | Feinschliff (Winterdienst-Preise im Kundenblatt, Leistungszeitraum Saisonpauschale, Anlagen verrechnen, Sprache im Import und Wochenplan-PDF) | fertig |
-| Mattenwechsel-Modul (Liegeplätze, Kalender, Tourenplanung, Fahreransicht, Fahrerseite am Webspace, Lieferscheine, Rechnungsentwürfe) | P1–P14 und P16 fertig, P15 (Büro-Übersicht) in Arbeit; Gesamtprüfung nach den sechs Abnahmekriterien grün – **Abnahme durch die Geschäftsführung**, danach „Umstellung auf das Modul“ (docs/MATTENWECHSEL-PLAN.md) |
+| Mattenwechsel-Modul (Liegeplätze, Kalender, Tourenplanung, Fahreransicht, Fahrerseite am Webspace, Lieferscheine, Rechnungsentwürfe) | P1–P16 fertig (zuletzt Büro-Übersicht mit den neun Zahlen und Umstellung); Gesamtprüfung nach den sechs Abnahmekriterien grün – **Abnahme durch die Geschäftsführung**, danach „Umstellung auf das Modul“ (docs/MATTENWECHSEL-PLAN.md) |
 
 ## Als Nächstes
 
-1. **Mattenwechsel-Modul**: Büro-Übersicht mit den neun Kennzahlen des Konzepts (P15) fertigstellen, dann Abnahme durch die Geschäftsführung und Umstellung (`#matten` öffnet das Modul, das Werkzeug ist nur noch lesend; jederzeit zurücknehmbar).
+1. **Mattenwechsel-Modul**: Abnahme durch die Geschäftsführung, danach Umstellung (`#matten` öffnet das Modul, das Werkzeug ist nur noch lesend; jederzeit zurücknehmbar).
 2. **Bestätigungs-E-Mail nach Online-Annahme** – wartet auf Entscheidung.
 
 ## Offen – braucht Entscheidung oder Zuarbeit
