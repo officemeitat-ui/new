@@ -274,19 +274,50 @@ export class CachedDocStore {
     }
   }
 
+  /** Datei ab der Bibliothek ({ itemId, webUrl } | null); ohne Netz undefined (unbekannt). */
+  async rootFile(path) {
+    try {
+      const res = await this.remote.rootFile(path)
+      this.#mark(false)
+      return res
+    } catch (err) {
+      if (!isNetworkError(err)) throw err
+      this.#mark(true)
+      return undefined
+    }
+  }
+
   /**
-   * Wartende Fotos hochladen; onDone(path, webUrl) je Datei. Liefert die Anzahl
+   * Datei ab der Bibliothek ablegen, ohne eine vorhandene zu ersetzen (uploadRoot der Ablage, z. B. Lieferschein-PDF);
+   * ohne Netz in dieselbe Warteschlange wie die Fotos ({ queued: true }), flushUploads holt es nach.
+   */
+  async uploadRoot(path, blob, contentType) {
+    try {
+      const res = await this.remote.uploadRoot(path, blob, contentType)
+      this.#mark(false)
+      return res
+    } catch (err) {
+      if (!isNetworkError(err)) throw err
+      this.#mark(true)
+      await this.cache.put('blobs', path, { blob, type: contentType, at: new Date().toISOString(), root: true })
+      return { itemId: '', webUrl: null, queued: true }
+    }
+  }
+
+  /**
+   * Wartende Fotos und Dateien hochladen; onDone(path, webUrl, { root, itemId }) je Datei. Liefert die Anzahl
    * noch wartender. Ein Foto mit echtem Fehler (z. B. keine Schreibrechte)
-   * bleibt im Gerät (mit Fehlertext) und hält die anderen nicht auf.
+   * bleibt im Gerät (mit Fehlertext) und hält die anderen nicht auf. Dateien ab der Bibliothek (root) gehen über
+   * uploadRoot (eine schon vorhandene bleibt).
    */
   async flushUploads(onDone = () => {}) {
     const list = await this.cache.all('blobs')
     let left = 0
     for (const [path, entry] of list) {
       try {
-        const { webUrl } = await this.remote.upload(path, entry.blob, entry.type)
+        const res = entry.root ? await this.remote.uploadRoot(path, entry.blob, entry.type) : await this.remote.upload(path, entry.blob, entry.type)
         await this.cache.del('blobs', path)
-        onDone(path, webUrl)
+        onDone(path, res?.webUrl, entry.root ? { root: true, itemId: res?.itemId || '' } : {})
       } catch (err) {
         left++
         if (isNetworkError(err)) {

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 337 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 340 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (72)
+- [Objekte & Kunden](#objekte-kunden) (75)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (74)
 - [Verwaltung](#verwaltung) (56)
@@ -1746,7 +1746,7 @@ Ein Stopp zeigt Kunde, Objekt, Adresse, Zugang und Hinweis und je Liegeplatz die
 3. Ist niemand da: „Ohne Unterschrift“ und den Grund eintragen.
 4. „Unterschreiben und abschließen“ bzw. „Abschließen“ antippen.
 
-> Tipp: Gespeichert werden Zeitpunkt, Fahrer, Ist-Mengen, Abweichungen und Bemerkungen; den Lieferschein erstellt später das Büro.
+> Tipp: Gespeichert werden Zeitpunkt, Fahrer, Ist-Mengen, Abweichungen und Bemerkungen; den Lieferschein erstellt danach das Büro in „Matten-Lieferscheine“.
 > Tipp: Korrigieren kann nur das Büro: „Korrigieren (Büro)“ öffnet den Stopp wieder, der bisherige Abschluss bleibt nachvollziehbar.
 
 *Fahrer Mattenwechsel; Korrektur: Mattenwechsel Büro*
@@ -1892,13 +1892,63 @@ Unter „Fahrer“ steht, wer Matten fährt: Name, E-Mail des Microsoft-Kontos, 
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 
+### Lieferscheine zu den Matten-Touren erstellen
+
+*In der App: Matten-Lieferscheine*
+
+Je abgeschlossenem Stopp entsteht im Büro ein Lieferschein: ein Beleg der Fakturierung mit fortlaufender Nummer (z. B. LS-2026-000123), den tatsächlich gewechselten Matten je Liegeplatz, Bemerkungen und Unterschrift. Der Preis wird dabei eingefroren, im PDF steht er nicht. Zweimal erstellen ergibt keinen zweiten Lieferschein.
+
+1. „Matten-Lieferscheine“ unter „Objekte & Kunden“ öffnen (oder in „Zu erledigen“ auf „Öffnen“).
+2. Unter „ohne Lieferschein“ die abgeschlossenen Stopps prüfen; mit „Ansehen“ Mengen, Abweichungen und Unterschrift.
+3. „Lieferscheine erstellen“ klicken (alle) oder einzelne markieren bzw. je Zeile erstellen.
+4. Danach senden: „An Kunden“, „An Büro“ oder „An beide“.
+
+> Tipp: „Kunde nicht angetroffen“ und „nicht durchgeführt“ bekommen keinen Lieferschein, nur einen Vermerk am Stopp. Bei „teilweise“ stehen nur die gewechselten Matten drauf.
+> Tipp: Die Lieferscheine stehen auch in der Fakturierung unter „Belege“ → „Lieferscheine & Proforma“ und laufen dort in die Sammelrechnung.
+> Tipp: Einstellung „automatisch erstellen“: dann entstehen sie, sobald das Büro die App öffnet.
+> Tipp: Erstellen darf, wer den Mattenwechsel und die Fakturierung bearbeitet. Fahrer sehen keine Belege und keine Preise.
+
+*Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten; Mattenwechsel Büro sieht den Stand*
+
+### Matten-Lieferschein senden (Kunde, Büro, beide)
+
+*In der App: Matten-Lieferscheine*
+
+Gesendet wird nach Prüfung im Büro über das Senden-Fenster: „An Kunden“ geht an die Lieferschein-E-Mail des Kunden (sonst seine E-Mail), „An Büro“ an die Büro-Adresse der Einstellungen, „An beide“ mit Kopie ans Büro. Mehrere auf einmal sendet „Senden“ mit kurzer Pause zwischen den E-Mails.
+
+1. In „Matten-Lieferscheine“ die Zeile öffnen oder „⋯“ wählen.
+2. „An Kunden“, „An Büro“ oder „An beide“ wählen.
+3. Im Senden-Fenster Empfänger und Text prüfen, dann „Senden“.
+4. Für mehrere: markieren und oben „Senden“, Empfänger wählen, „Senden“.
+
+> Tipp: Jeder Versand steht am Lieferschein mit Zeit, Empfänger und Person; „Erneut senden“ geht jederzeit.
+> Tipp: Steht beim Kunden in der Fakturierung „Lieferschein automatisch senden“, geht er gleich nach dem Erstellen an den Kunden – immer aus dem Postfach der angemeldeten Person, nie ohne geöffnete App.
+> Tipp: Sammelversand geht nur mit Microsoft 365; sonst öffnet „Senden“ das E-Mail-Programm.
+
+*Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten*
+
+### Lieferschein-PDF in SharePoint (Ablage fehlgeschlagen)
+
+*In der App: Matten-Lieferscheine*
+
+Beim Erstellen legt die App das PDF in SharePoint ab: Mattenwechsel/Kunden/<Kundennummer>/<Jahr>/<Monat>/Lieferscheine/, Dateiname mit Nummer, Kunde und Datum. Liegt die Datei schon dort, wird nichts doppelt abgelegt. Ohne Netz wartet das PDF im Gerät; scheitert die Ablage, bleibt der Lieferschein gültig und „Zu erledigen“ meldet es.
+
+1. In „Zu erledigen“ bei „Ablage fehlgeschlagen – erneut versuchen“ auf „Öffnen“.
+2. Den Grund am Lieferschein lesen (z. B. fehlendes Recht auf den Ordner Mattenwechsel).
+3. „Ablage erneut versuchen“ klicken (einzeln oder unter „Mehr“ für alle).
+
+> Tipp: Am Lieferschein stehen danach Link, Pfad und Zeitpunkt der Ablage.
+> Tipp: Für die Ablage braucht das Konto „Bearbeiten“ auf den Ordner Mattenwechsel in der Bibliothek (siehe Berechtigungen).
+
+*Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten*
+
 ### Rollen im Mattenwechsel: Büro und Fahrer
 
 *In der App: Matten-Liegeplätze*
 
 „Mattenwechsel Büro“ (die bisherige Gruppe Mattenwechsel) bearbeitet Werkzeug, Liegeplätze und Touren und liest die Objekte. „Fahrer Mattenwechsel“ sieht nur die eigenen Touren: keine Preise, keinen Kundenstamm, keine Liegeplätze. Die Übernahme darf nur der Vollzugriff.
 
-> Tipp: Rechnungsentwürfe aus Lieferscheinen erstellt nur, wer zusätzlich die Fakturierung bearbeitet.
+> Tipp: Lieferscheine erstellen und senden sowie Rechnungsentwürfe daraus nur, wer zusätzlich die Fakturierung bearbeitet; „Mattenwechsel Büro“ allein sieht den Stand.
 > Tipp: Gruppen je Rolle trägt die IT unter „Berechtigungen“ ein.
 
 *Einrichtung: Vollzugriff*

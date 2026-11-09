@@ -436,6 +436,30 @@ export class SharePointDocStore {
     return { webUrl: item.webUrl || null }
   }
 
+  /** Datei ab der Bibliothek: { itemId, webUrl, size } oder null, wenn es sie nicht gibt (z. B. vor einer Ablage prüfen). */
+  async rootFile(path) {
+    const res = await this.#request('GET', `/drives/${this.driveId}/root:/${encodePath(path)}?$select=id,webUrl,size,file`, { okStatuses: [404] })
+    if (res.status === 404) return null
+    const item = await res.json()
+    return { itemId: item.id || '', webUrl: item.webUrl || '', size: item.size || 0 }
+  }
+
+  /**
+   * Datei ab der Bibliothek ablegen, ohne eine vorhandene zu ersetzen (z. B. Lieferschein-PDF nach
+   * Mattenwechsel/Kunden/…): gibt es sie schon, bleibt sie, wie sie ist (kein Doppel, kein Überschreiben).
+   * Liefert { itemId, webUrl, existed }.
+   */
+  async uploadRoot(path, blob, contentType = 'application/octet-stream') {
+    await this.#ensurePath(path.split('/').slice(0, -1).join('/'))
+    const res = await this.#request('PUT', `/drives/${this.driveId}/root:/${encodePath(path)}:/content?@microsoft.graph.conflictBehavior=fail`, { body: blob, headers: { 'Content-Type': contentType }, okStatuses: [409] })
+    if (res.status === 409) {
+      const had = await this.rootFile(path)
+      return { itemId: had?.itemId || '', webUrl: had?.webUrl || '', existed: true }
+    }
+    const item = await res.json()
+    return { itemId: item.id || '', webUrl: item.webUrl || '', existed: false }
+  }
+
   /** Ordner ab der Bibliothek anlegen, falls er fehlt (z. B. ein Modulordner vor dem ersten Speichern). */
   async ensureRootFolder(path) {
     await this.#ensurePath(path)

@@ -302,9 +302,9 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
-// matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js: Mattenwechsel-Modul im Büro (Liegeplätze je
-// Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Tourenplanung); das Werkzeug bleibt unter
-// #matten (tools.js)
+// matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js, matten-lieferscheine.js: Mattenwechsel-Modul im
+// Büro (Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Tourenplanung,
+// Lieferscheine je Stopp mit Versand und Ablage); das Werkzeug bleibt unter #matten (tools.js)
 lazy(BUERO, {
   views: [
     {
@@ -349,16 +349,28 @@ lazy(BUERO, {
       },
       text: 'Mattenwechsel: Touren je Tag vorschlagen, Reihenfolge, Fahrer und Fahrzeug, Ladeliste, freigeben',
     },
+    {
+      id: 'mw-lieferscheine',
+      order: 75.65,
+      label: 'Matten-Lieferscheine',
+      group: 'service',
+      module: 'matten',
+      icon: '<path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15h6M9 18h3"/>',
+      noWeek: true,
+      text: 'Mattenwechsel: Lieferscheine je Stopp erstellen, senden und in SharePoint ablegen',
+    },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers',
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
     mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save
     mw-tp-goto mw-tp-day mw-tp-date mw-tp-reload mw-tp-depot-open mw-tp-drivers-open mw-tp-drv mw-tp-propose mw-tp-move mw-tp-transfer
     mw-tp-remove mw-tp-add mw-tp-release mw-tp-withdraw mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save
-    mw-tp-depot-geo mw-tp-depot-save mw-tp-drv-add mw-tp-drv-del mw-tp-drivers-save`,
-  todo: ['matten'],
+    mw-tp-depot-geo mw-tp-depot-save mw-tp-drv-add mw-tp-drv-del mw-tp-drivers-save
+    mw-ls-goto mw-ls-filter mw-ls-range mw-ls-sel mw-ls-sel-all mw-ls-open mw-ls-reload mw-ls-fak mw-ls-create mw-ls-create-all mw-ls-pdf mw-ls-send
+    mw-ls-archive mw-ls-archive-all mw-ls-run-open mw-ls-run-mode mw-ls-run mw-ls-run-stop mw-ls-settings-open mw-ls-settings-save`,
+  todo: ['matten', 'matten-ls'],
 })
 
 // matten-fahrer.js: Matten-Touren der Fahrer (P10/P11: Tour, Stopp, Bestätigung je Liegeplatz, Unterschrift je Stopp,

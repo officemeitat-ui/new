@@ -540,7 +540,8 @@ export function finishStop(tour, stopId, { signature = null, reason = '', outcom
       ...(oc ? { outcome: oc } : {}),
       totals: { planned: items.reduce((a, it) => a + int(it.planned), 0), actual: items.reduce((a, it) => a + (it.status === 'gewechselt' ? actualOf(it) : 0), 0) },
       deviations: stopDeviations({ items }),
-      deliveryNote: s.deliveryNote && s.deliveryNote.state !== 'offen' ? s.deliveryNote : { state: 'offen' },
+      // ein schon erstellter Lieferschein (P12) bleibt; „kein Lieferschein“ gilt nach einer Korrektur nicht mehr
+      deliveryNote: ['erstellt', 'versendet'].includes(s.deliveryNote?.state) ? s.deliveryNote : { state: 'offen' },
     }
     if (n) out.note = n
     else delete out.note
@@ -553,7 +554,7 @@ export function finishStop(tour, stopId, { signature = null, reason = '', outcom
 export function reopenProblem(stop) {
   if (!stop) return 'Stopp nicht gefunden.'
   if (!isFinal(stop)) return 'Der Stopp ist noch offen.'
-  if (stop.deliveryNote && stop.deliveryNote.state && stop.deliveryNote.state !== 'offen') return 'Zu diesem Stopp gibt es schon einen Lieferschein. Bitte dort korrigieren.'
+  if (['erstellt', 'versendet'].includes(stop.deliveryNote?.state)) return 'Zu diesem Stopp gibt es schon einen Lieferschein. Bitte dort korrigieren.'
   return ''
 }
 

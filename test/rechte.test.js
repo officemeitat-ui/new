@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 
 import { accountProblem, groupsOf } from '../src/auth/msal.js'
 import { resolveAccess } from '../src/core/access.js'
+import { noteRights } from '../src/core/matten-lieferschein.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
 import { DataService, dataRights, DOC, folderRights, MODULE_DOCS, OLD_PATHS, toolFolderRights, weekPath } from '../src/storage/data-service.js'
 import { deepMerge } from '../src/ui/config.js'
@@ -329,6 +330,30 @@ test('Rechte: Mattenwechsel-Modul – Büro bearbeitet Liegeplätze, Fahrer nur 
   // beide Rollen zusammen: wie Büro
   const beide = resolveAccess({ roleClaims: ['mattenfahrer', 'mattenwechsel'], access, strict: true })
   assert.ok(dataRights(beide).write(FILE) && dataRights(beide).write(TOUR))
+})
+
+test('Rechte: Matten-Lieferscheine (P12/P13) – erstellen und senden nur mit Mattenwechsel und Fakturierung, Fahrer sieht keine Belege', () => {
+  const role = (id) => resolveAccess({ roleClaims: [id], access, strict: true })
+  const tools = (acc) => Object.fromEntries(toolFolderRights(acc).map(([f, , x]) => [f, x]))
+  const FAK = MODULE_DOCS.fakturierung.path
+  // Vollzugriff: erstellen, senden, ablegen (Mattenwechsel/Kunden/… in der Bibliothek)
+  const voll = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  assert.deepEqual([noteRights(voll).create, noteRights(voll).send, tools(voll).Mattenwechsel, dataRights(voll).write(FAK)], [true, true, 'Bearbeiten', true])
+  // Mattenwechsel Büro ohne Fakturierung: sieht den Stand (Kopie am Stopp), erstellt nicht – mit klarem Hinweis
+  const buero = noteRights(role('mattenwechsel'))
+  assert.deepEqual([buero.view, buero.create, buero.send], [true, false, false])
+  assert.match(buero.hint, /zusätzlich die Fakturierung bearbeitet/)
+  assert.ok(!dataRights(role('mattenwechsel')).read(FAK))
+  // Fahrer: keine Belege, keine Preise, keine Ablage der Lieferscheine
+  const fahrer = role('mattenfahrer')
+  assert.deepEqual([noteRights(fahrer).view, noteRights(fahrer).create], [false, false])
+  assert.ok(!dataRights(fahrer).read(FAK) && !fahrer.sees('fakturierung') && tools(fahrer).Mattenwechsel === '')
+  // Buchhaltung: Lieferscheine in der Fakturierung (lesen und bearbeiten), aber nicht aus den Touren erstellen
+  const bh = role('buchhaltung')
+  assert.ok(dataRights(bh).read(FAK) && dataRights(bh).write(FAK) && !noteRights(bh).view && !noteRights(bh).create)
+  // eigene Rolle mit beiden Bereichen: darf alles, schreibt Touren (Vermerk am Stopp) und die Ablage
+  const both = resolveAccess({ roleClaims: ['mwfak'], strict: true, access: { ...access, roles: { mwfak: { label: 'Büro mit Faktura', modules: ['matten', 'mattentour', 'fakturierung'], edit: ['matten', 'mattentour', 'fakturierung'] } } } })
+  assert.ok(noteRights(both).create && dataRights(both).write('matten/touren/2026/mt0123456789ab.json') && tools(both).Mattenwechsel === 'Bearbeiten')
 })
 
 test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserzähler)', async () => {

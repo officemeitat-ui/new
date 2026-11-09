@@ -2815,3 +2815,25 @@ a.btn { text-decoration: none; }
   .mwf-go > * { flex-basis: 100%; }
   .mwf-stop-head h2 { font-size: 1.25rem; }
 }
+
+/* Mattenwechsel: Lieferscheine im Büro (views/matten-lieferscheine.js, Kürzel mwl-) */
+.mwl-stats { margin: 0 0 12px; }
+.mwl-stat .label, .mwl-stat .value { display: block; }
+.mwl-stat.on { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent), var(--card-shadow); }
+.mwl-filters { align-items: center; }
+.mwl-table td.mwl-box { width: 2.2rem; }
+.mwl-table td.mwl-box input, .mwl-filters .check input { width: 20px; height: 20px; }
+.mwl-cell { display: inline-block; line-height: 1.35; }
+.mwl-row .pill { margin: 2px 2px 2px 0; }
+.mwl-lines .mwl-title td { background: var(--surface-2); }
+.mwl-remarks { background: var(--surface-2); border-radius: var(--radius); padding: 8px 12px; overflow-wrap: anywhere; }
+.mwl-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 0; }
+.mwl-sig { width: 200px; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); }
+.mwl-err { color: var(--err); background: var(--err-soft); border-radius: var(--radius); padding: 8px 12px; }
+.mwl-progress progress { width: 100%; height: 12px; }
+.mwl-errs { color: var(--err); padding-left: 1.2rem; }
+@media (max-width: 700px) {
+  .mwl-stats .stat { min-width: 0; flex-basis: calc(50% - 4px); }
+  .mwl-table td.mwl-box { width: auto; }
+  .mwl-table .actions-cell .btn { min-height: 44px; }
+}

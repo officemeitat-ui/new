@@ -169,6 +169,7 @@ export const SHORT_LABELS = {
   'mw-liegeplaetze': 'Liegeplätze',
   'mw-kalender': 'Kalender',
   'mw-planung': 'Tourplanung',
+  'mw-lieferscheine': 'Lieferung',
   'mw-touren': 'Touren',
   qualitaet: 'Qualität',
   staff: 'Personal',

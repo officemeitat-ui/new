@@ -508,6 +508,12 @@ export const beilageWanted = (x) => beilageReady(x) && checked('fm-beilage')
 
 /** Herkunft im Beleg: „aus dem Winterdienst-Protokoll“, „nach Ist-Zeiten“ … */
 export function sourceNote(x) {
+  // Lieferschein aus dem Mattenwechsel (core/matten-lieferschein.js): Herkunft und Ablage in SharePoint, nur zur Ansicht
+  if (x?.source?.type === 'matten') {
+    const s = x.source
+    const r = x.receipt
+    return `<p class="fak-doc-head">Aus dem Mattenwechsel: Stopp vom ${esc(deDate(String(x.date || '')))}${s.time ? ` um ${esc(s.time)} Uhr` : ''}${s.driverName ? `, Fahrer ${esc(s.driverName)}` : ''}${r?.name ? ` · unterschrieben von ${esc(r.name)}` : r?.unsigned ? ` · ohne Unterschrift (${esc(r.reason || '')})` : ''}${x.archive?.webUrl ? ` · <a href="${esc(x.archive.webUrl)}" target="_blank" rel="noopener">PDF in SharePoint</a>` : ''}</p>`
+  }
   if (x?.source?.type === 'regie') {
     const s = x.source
     const o = objOf(s.objectId)

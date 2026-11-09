@@ -375,7 +375,10 @@ function finishedBox(tour, stop) {
   const conf = stop.signature
     ? `<div class="mwf-signed">${sigImg(stop.signature.svg)}<p><strong>${esc(stop.signature.name)}</strong>${stop.signature.role ? `, ${esc(stop.signature.role)}` : ''}<br><span class="muted">unterschrieben am Gerät um ${esc(localTime(stop.signature.at))}</span></p></div>`
     : `<p><strong>Ohne Unterschrift:</strong> ${esc(stop.unsigned?.reason || '')}</p>`
-  const reopen = isOffice() && editable() ? `<button class="btn mwf-tap" data-action="mwf-reopen-open" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}">Korrigieren (Büro)</button>` : ''
+  const ls = stop.deliveryNote || {}
+  const reopen = isOffice() && editable() && !['erstellt', 'versendet'].includes(ls.state) ? `<button class="btn mwf-tap" data-action="mwf-reopen-open" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}">Korrigieren (Büro)</button>` : ''
+  // Büro: Lieferschein aus dem Stopp öffnen (Ansicht „Matten-Lieferscheine“, Paket des Büros); Fahrer sehen keine Belege
+  const note = isOffice() ? `<button class="btn mwf-tap" data-action="mw-ls-open" data-tour="${esc(tour.id)}" data-stop="${esc(stop.id)}">${ls.number ? `Lieferschein ${esc(ls.number)}` : ls.state === 'keiner' ? 'Kein Lieferschein' : 'Lieferschein'}</button>` : ''
   const next = nextOpenStop(tour, stop.id)
   return `<section class="mwf-block mwf-finished">
     <h3>${stopPill(stop)} um ${esc(localTime(stop.finishedAt))}${stop.finishedBy ? ` von ${esc(stop.finishedBy)}` : ''}</h3>
@@ -384,7 +387,7 @@ function finishedBox(tour, stop) {
     ${dev.length ? `<ul class="mwf-devs">${dev.map((d) => `<li>${esc(d.placementName)}: ${esc(matText(d.mat, d.planned))} → ${d.actual}${d.reason ? ` (${esc(d.reason)})` : ''} <span class="pill warning">${diffText(d.diff)}</span></li>`).join('')}</ul>` : ''}
     ${stop.note ? `<p>Bemerkung: ${esc(stop.note)}</p>` : ''}
     <p class="note">Abgeschlossen: für den Fahrer fest. Korrigieren kann nur das Büro. Der Lieferschein entsteht im Büro.</p>
-    <div class="mwf-go">${reopen}${next && canWork(tour) ? `<button class="btn primary mwf-big" data-action="mwf-stop" data-tour="${esc(tour.id)}" data-stop="${esc(next.id)}">Nächster Stopp: ${esc(stopTitle(next))}</button>` : ''}</div>
+    <div class="mwf-go">${note}${reopen}${next && canWork(tour) ? `<button class="btn primary mwf-big" data-action="mwf-stop" data-tour="${esc(tour.id)}" data-stop="${esc(next.id)}">Nächster Stopp: ${esc(stopTitle(next))}</button>` : ''}</div>
   </section>`
 }
 

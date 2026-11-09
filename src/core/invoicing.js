@@ -172,6 +172,15 @@ export const SETTINGS_DEFAULTS = {
  *  customerPrices[] { id, customerId, articleId, price (netto), currency ('EUR'), vat, validFrom, validTo (je einschließlich,
  *                  leer = offen), note, createdAt/By, updatedAt/By } – Kundenpreis vor Standardpreis (priceFor); je Kunde
  *                  und Artikel überschneiden sich die Zeiträume nicht (customerPriceProblems). Für alle Module nutzbar.
+ * Lieferschein aus dem Mattenwechsel (core/matten-lieferschein.js, P12/P13; alle Felder optional):
+ *  documents[].receipt { name, role, at, svg } bzw. { unsigned: true, reason, at }  Bestätigung beim Kunden (Unterschrift am
+ *                  Gerät oder ohne Unterschrift mit Grund); nur beim Lieferschein, zählt gesetzt zur Prüfsumme (FIXED_OPTIONAL)
+ *  documents[].source { type: 'matten', key: 'matten:<tourId>:<stopId>', tourId, stopId, … }  ein Lieferschein je Stopp
+ *  documents[].lines[].source { type: 'matten', key: '<tourId>:<stopId>:<placementId>:<Mattentyp>', jobKey, placementId,
+ *                  articleId, price: 'kunde' | 'standard' | 'fehlt' }  Position je Liegeplatz und Mattentyp (eingefrorener Preis)
+ *  documents[].archive { itemId, webUrl, path, uploadedAt }, integration { ablage { status, tries, lastError, at },
+ *                  mail { status, to, at, by, tries, lastError } }  Ablage und Versand (nicht in der Prüfsumme)
+ *  settings.numberDigits.lieferschein  Stellen der Lieferscheinnummer (der Mattenwechsel trägt 6 ein, wenn nichts eingestellt ist)
  */
 export const emptyInvoicing = () => ({ settings: {}, customers: [], articles: [], documents: [], recurring: [], indexValues: {}, textBlocks: [], paymentTerms: [] })
 
@@ -391,7 +400,7 @@ export function fnv1a(text) {
 const FIXED_FIELDS = ['kind', 'number', 'date', 'serviceFrom', 'serviceTo', 'dueDate', 'sender', 'recipient', 'lines', 'discount', 'reverseCharge', 'smallBusiness', 'refId', 'refNumber', 'title', 'intro', 'outro', 'total']
 const canonical = (v) => (Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v)
 // später dazugekommene Felder: zählen nur, wenn gesetzt (sonst änderten sich die Prüfsummen alter Belege)
-const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported', 'debitText', 'stage', 'advances', 'deliveryNotes', 'hidePrices']
+const FIXED_OPTIONAL = ['skonto', 'termsText', 'reference', 'deliveryAddress', 'imported', 'debitText', 'stage', 'advances', 'deliveryNotes', 'hidePrices', 'receipt']
 export const checksumOf = (d) => fnv1a(JSON.stringify(canonical({ ...Object.fromEntries(FIXED_FIELDS.map((k) => [k, d[k] ?? null])), ...Object.fromEntries(FIXED_OPTIONAL.filter((k) => d[k] != null && d[k] !== '').map((k) => [k, d[k]])) })))
 /** Festgeschriebener Beleg unverändert? (true auch für Entwürfe) */
 export const intact = (d) => !d.number || !d.checksum || d.checksum === checksumOf(d)
@@ -477,6 +486,7 @@ export function finalize(d, docs, settings = SETTINGS_DEFAULTS, { now = new Date
   if (!out.advances?.length) delete out.advances
   if (!out.deliveryNotes?.length) delete out.deliveryNotes
   if (out.hidePrices !== true || out.kind !== 'lieferschein') delete out.hidePrices
+  if (!out.receipt || typeof out.receipt !== 'object' || out.kind !== 'lieferschein') delete out.receipt
   if (!(parseNumber(out.skonto?.percent) > 0) || d.kind !== 'rechnung') delete out.skonto
   // nur geänderte Texte übernehmen (Belege ohne Platzhalter bleiben Feld für Feld gleich)
   for (const [k, v] of Object.entries(resolveTexts(out, { settings: s, customer, terms, user, today: now.slice(0, 10) }))) if (v !== out[k]) out[k] = v

@@ -94,6 +94,34 @@ function addressAndFacts(doc, sender, facts, colors, page = null) {
   }
 }
 
+/** Zeitpunkt in Wien: „05.11.2026, 10:42 Uhr“. */
+function viennaTime(iso) {
+  const t = Date.parse(iso || '')
+  if (!Number.isFinite(t)) return ''
+  const d = new Date(t)
+  const day = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)
+  const time = new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d)
+  return `${day}, ${time} Uhr`
+}
+
+/** Bestätigung eines Lieferscheins aus dem Mattenwechsel: Unterschrift am Gerät (SVG) mit Name und Zeit oder ohne Unterschrift mit Grund. */
+function receiptBlock(r, colors) {
+  const when = viennaTime(r.at)
+  if (r.unsigned || !r.svg)
+    return { margin: [0, 24, 0, 0], unbreakable: true, stack: [{ text: [{ text: 'Ohne Unterschrift abgeschlossen', bold: true }, r.reason ? `: ${r.reason}` : ''] }, when ? { text: `beim Kunden erfasst am ${when}`, style: 'small', margin: [0, 2, 0, 0] } : ''].filter(Boolean) }
+  return {
+    margin: [0, 24, 0, 0],
+    unbreakable: true,
+    stack: [
+      { text: 'Leistung bzw. Ware vollständig und in Ordnung erhalten:', margin: [0, 0, 0, 6] },
+      { svg: r.svg, width: 180 },
+      { canvas: [{ type: 'line', x1: 0, y1: 2, x2: 240, y2: 2, lineWidth: 0.6, lineColor: colors.ink }] },
+      { text: [r.name || '', r.role ? `, ${r.role}` : ''].join(''), margin: [0, 3, 0, 0] },
+      when ? { text: `unterschrieben am Gerät am ${when}`, style: 'small' } : '',
+    ].filter(Boolean),
+  }
+}
+
 /**
  * Beleg als pdfmake-Dokument. settings: Einstellungen der Fakturierung, doc: Beleg. Bei Entwürfen: customer
  * (für {Anrede}), terms (Zahlungsbedingung) und user (für {Benutzer}) zum Auflösen der Platzhalter.
@@ -221,8 +249,9 @@ export function invoiceDocument({ doc: input, settings = {}, brand = {}, logo = 
       },
     ],
   }
-  // Lieferschein: Unterschrift des Kunden (Leistung bzw. Ware erhalten)
-  const signature = delivery
+  // Lieferschein: Unterschrift des Kunden (Leistung bzw. Ware erhalten); aus dem Mattenwechsel schon am Gerät bestätigt
+  // (receipt: Unterschrift als Bild aus der SVG-Linie bzw. „ohne Unterschrift“ mit Grund)
+  const signature = delivery && doc.receipt ? receiptBlock(doc.receipt, colors) : delivery
     ? {
         margin: [0, 28, 0, 0],
         unbreakable: true,

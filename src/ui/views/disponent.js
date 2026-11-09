@@ -14,7 +14,8 @@
 //                Eintritt/Austritt: Fristen der Checklisten (z. B. Anmeldung bei der ÖGK), Bewerbungen ohne
 //                Rückmeldung und mit erreichter Löschfrist (nur „Öffnen“, nichts automatisch)
 //                Mattenwechsel (nur Büro): überfällige Liegeplätze, Einsätze der nächsten Wochen noch nicht geplant
-//                (nur „Öffnen“ in den Matten-Kalender)
+//                (nur „Öffnen“ in den Matten-Kalender); abgeschlossene Stopps ohne Lieferschein und fehlgeschlagene
+//                Ablage der Lieferscheine (mit Recht auf die Fakturierung; nur „Öffnen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -498,6 +499,29 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'mw-tp-goto', data: { date: soon.date } },
       })
   }
+  // Mattenwechsel-Lieferscheine (nur wer Mattenwechsel und Fakturierung bearbeitet): Zähler aus der Ansicht
+  // „Matten-Lieferscheine“ (app.mwLs, views/matten-lieferscheine.js, sobald die Touren gelesen sind); nur „Öffnen“
+  const ls = app.mwLs
+  if (ls && edits('matten') && edits('fakturierung')) {
+    if (ls.offen)
+      out.push({
+        id: `mw-ls:${ls.offen}:${ls.oldest || ''}`,
+        agent: 'fristen',
+        prio: 2,
+        title: `Lieferscheine erstellen (${ls.offen})`,
+        text: `${plural(ls.offen, 'abgeschlossener Stopp hat', 'abgeschlossene Stopps haben')} noch keinen Lieferschein${ls.oldest ? ` (ältester vom ${formatDate(ls.oldest)})` : ''}. In „Matten-Lieferscheine“ prüfen und erstellen. Ich ändere dabei nichts selbst.`,
+        open: { label: 'Öffnen', action: 'mw-ls-goto', data: { filter: 'offen' } },
+      })
+    if (ls.ablage)
+      out.push({
+        id: `mw-ls-ablage:${ls.ablage}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `Ablage fehlgeschlagen – erneut versuchen (${ls.ablage})`,
+        text: 'Die Lieferscheine gelten, das PDF liegt aber noch nicht in SharePoint. In „Matten-Lieferscheine“ erneut ablegen. Ich ändere dabei nichts selbst.',
+        open: { label: 'Öffnen', action: 'mw-ls-goto', data: { filter: 'ablage' } },
+      })
+  }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -517,7 +541,8 @@ function fristen(today) {
 
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
-  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}`, () => {
+  // app.mwLs: Zähler der Matten-Lieferscheine (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
+  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}`, () => {
     const all = []
     const safe = (fn) => {
       try {
