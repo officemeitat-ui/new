@@ -19,7 +19,7 @@
 //                          legacy: Größe/Farbe aus dem Werkzeug, solange der Typ fehlt
 //                    intervalDays (14 | 28, weitere erlaubt), startDate, rule ('rhythmus' | 'ab-ist'), workMinutes,
 //                    window: { from, to, note } (Zeitfenster/Öffnungszeiten), pauses: [{ from, to, reason }],
-//                    areaId (Gebiet = Tourrunde), lat, lon, geoQuality ('objekt' | 'adresse' | 'google' | 'hand' | 'werkzeug'),
+//                    areaId (Gebiet = Tourrunde), lat, lon, geoQuality ('objekt' | 'adresse' | 'google' | 'ors' | 'hand' | 'werkzeug'),
 //                    lastExchange: { date, tourId, source: 'werkzeug' } (letzter Wechsel, aus der Übernahme; zählt
 //                          für den Fälligkeitsrechner als bestätigter Wechsel, doneFromPlacements),
 //                    check: { reason } (aus dem Werkzeug „zu prüfen“), source: { system: 'mattenwechsel', quelle }
@@ -39,7 +39,7 @@ export const INTERVALS = [14, 28]
 /** Regeln des Fälligkeitsrechners (core/matten-plan.js), hier mit kurzer Beschriftung für die Auswahl. */
 export const RULES = Object.fromEntries(Object.keys(PLAN_RULES).map((k) => [k, k === 'rhythmus' ? 'fester Rhythmus' : 'ab letztem Wechsel']))
 export const OWNERS = { wir: 'unsere Matte', kunde: 'Kundeneigentum' }
-export const GEO = { objekt: 'vom Objekt', adresse: 'aus der Adresse (OpenStreetMap)', google: 'aus der Adresse (Google)', hand: 'von Hand', werkzeug: 'aus dem Werkzeug' }
+export const GEO = { objekt: 'vom Objekt', adresse: 'aus der Adresse (OpenStreetMap)', google: 'aus der Adresse (Google)', ors: 'aus der Adresse (OpenRouteService)', hand: 'von Hand', werkzeug: 'aus dem Werkzeug' }
 /** Filter der Übersicht. */
 export const STATUS_FILTERS = { '': 'alle aktiven', faellig: 'fällig in 7 Tagen', pruefen: 'zu prüfen', typ: 'Mattentyp fehlt', inaktiv: 'inaktiv' }
 

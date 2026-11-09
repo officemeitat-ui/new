@@ -312,7 +312,7 @@ lazy(BUERO, {
 // matten-bestand.js: Mattenwechsel-Modul im Büro (Übersicht mit den neun Zahlen, Karte auf der Startseite und
 // Kennzahlen: Kürzel mwu-; Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen,
 // Tourenplanung, Lieferscheine je Stopp mit Versand und Ablage, Fahrerseite am Webspace für Fahrer ohne Konto über
-// ui/matten-webspace.js: Kürzel mww-; Google-Routing mit Dialog „Routing“ über ui/matten-routing.js: Kürzel mwg-;
+// ui/matten-webspace.js: Kürzel mww-; Routing (OpenRouteService, Google) mit Dialog „Routing“ über ui/matten-routing.js: Kürzel mwg-;
 // Mattenbestand und Wäscherei: Kürzel mwb-), Umstellung vom Werkzeug auf das Modul
 // (matten-umstellung.js, Kürzel mwc-); das Werkzeug bleibt bis zur Umstellung unter #matten (tools.js), danach als
 // „Mattenwechsel (alt)“ nur lesend

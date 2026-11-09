@@ -1,5 +1,5 @@
 // Routing-Schnittstelle des Mattenwechsel-Moduls (P8, rein rechnend, ohne Oberfläche; Tests: test/routing.test.js).
-// Plan: docs/MATTENWECHSEL-PLAN.md, Abschnitte 4.4, 6 und 9 (E8: eingebauter Anbieter zuerst, Google später zuschaltbar).
+// Plan: docs/MATTENWECHSEL-PLAN.md, Abschnitte 4.4, 6 und 9 (E8: eingebauter Anbieter zuerst, Google bzw. OpenRouteService zuschaltbar).
 //
 // Ein Anbieter (provider) erfüllt diese Schnittstelle (alle drei Methoden async):
 //   geocode(adresse)  → { lat, lon, quality, label? } | null       quality wie am Liegeplatz: 'adresse' | 'hand'
@@ -24,6 +24,13 @@
 //    von Google ein Zeitfenster, gilt die der App mit den Fahrzeiten von Google. An Google gehen nur Koordinaten (bei der
 //    Adresssuche die Adresse), keine Namen. Fällt Google aus (kein Schlüssel, Limit, Netz, Fehler), rechnet je Tour der
 //    eingebaute Anbieter mit Hinweis (notice) – ein Vorschlag scheitert nie an Google. Kein Schlüssel im Code.
+//  - 'ors' (OpenRouteService, HeiGIT Heidelberg, auf OpenStreetMap; kostenloser Schlüssel, Zusatz zu E8 vom 9.11.2026):
+//    gleicher Weg über routing.php (&anbieter=ors, eigener Schlüssel und eigene Limits). Zuteilung wie bei Google mit
+//    planRoutes; je Tour plant OpenRouteService die Reihenfolge (Optimierung mit VROOM: ein Fahrzeug mit der Arbeitszeit,
+//    je Stopp Arbeit und Zeitfenster, höchstens 50 Stopps) und liefert die Fahrzeiten je Abschnitt. Hält die Optimierung
+//    nicht alle Zeitfenster ein, bleibt die Reihenfolge der App mit den Fahrzeiten von OpenRouteService (Hinweis). An
+//    OpenRouteService gehen Koordinaten, Arbeitszeiten und Zeitfenster (bei der Adresssuche die Adresse), keine Namen.
+//    Rückfall wie bei Google.
 //  - weitere (z. B. 'azure') lassen sich mit registerRoutingProvider anmelden, ohne Umbau.
 //
 // Navigation am Handy braucht keinen Schlüssel: navigationUrl → Google-Maps-Link.
@@ -666,7 +673,7 @@ export function createLuftlinieProvider({ fetch: fetchFn = (...a) => globalThis.
   }
 }
 
-// ---------------------------------------------------------------- Google (über routing.php am Webspace)
+// ---------------------------------------------------------------- Google und OpenRouteService (über routing.php am Webspace)
 
 /** Durchreicher am Webspace (routing.php, Muster ki.php): Schlüssel nur dort, Anmeldung mit dem Microsoft-Token. */
 export const GOOGLE_ENDPOINT = 'routing.php'
@@ -684,6 +691,26 @@ export const GOOGLE_PRICES = Object.freeze({ asOf: '2026-11-09', routes: Object.
 /** Format eines API-Schlüssels der Google Maps Platform (nur zur Prüfung vor dem Senden; der Schlüssel bleibt am Webspace). */
 export const GOOGLE_KEY_PATTERN = /^AIza[0-9A-Za-z_-]{35}$/
 
+/** OpenRouteService (HeiGIT, auf OpenStreetMap): höchstens so viele Stopps je Tour (darüber rechnet der eingebaute Anbieter). */
+export const ORS_MAX_STOPS = 50
+/** Vorgaben der Limits am Webspace (Anfragen an OpenRouteService zusammen), deutlich unter dem Gratis-Kontingent. */
+export const ORS_LIMITS = Object.freeze({ month: 3000, day: 200 })
+/**
+ * Gratis-Kontingent laut Anbieter, Stand 9.11.2026 – bitte auf openrouteservice.org prüfen (auch, ob die Nutzung für
+ * Firmen erlaubt ist): rund 2000 Routen (Fahrzeiten), 500 Optimierungen und 1000 Adresssuchen am Tag, 0 €.
+ */
+export const ORS_FREE = Object.freeze({ asOf: '2026-11-09', directions: 2000, optimization: 500, geocode: 1000 })
+/** Format eines Schlüssels von OpenRouteService (alt: 56 Hex-Zeichen, neu: Base64-Text); nur zur Prüfung vor dem Senden. */
+export const ORS_KEY_PATTERN = /^[A-Za-z0-9+/=_-]{40,200}$/
+/** Quellenangabe für mit OpenRouteService gerechnete Touren (Bedingungen von OpenRouteService und OpenStreetMap). */
+export const ORS_ATTRIBUTION = '© openrouteservice.org by HeiGIT · Kartendaten © OpenStreetMap-Mitwirkende'
+
+/** Anbieter am Webspace: Name → Beschriftung (Hinweise), Kurzname (Text), höchstens Stopps je Tour. */
+export const WEBSPACE_PROVIDERS = Object.freeze({
+  google: Object.freeze({ name: 'google', label: 'Google-Routing', short: 'Google', maxStops: GOOGLE_MAX_STOPS }),
+  ors: Object.freeze({ name: 'ors', label: 'OpenRouteService', short: 'OpenRouteService', maxStops: ORS_MAX_STOPS }),
+})
+
 const round2 = (x) => Math.round(x * 100) / 100
 
 /** Grobe Kosten eines Monats aus den Zählern { routen, geocode } (US-Dollar, nach Abzug der Gratis-Anfragen). */
@@ -696,19 +723,27 @@ export function googleCost({ routen = 0, geocode = 0 } = {}, prices = GOOGLE_PRI
 
 /**
  * Anfrage an den Durchreicher: status per GET, sonst POST <endpoint>?aktion=<…> mit JSON. Kopf X-Microsoft-Token
- * (Anmeldung wie ki.php); der Schlüssel liegt nur am Webspace (privat/), nie in der App.
+ * (Anmeldung wie ki.php); der Schlüssel liegt nur am Webspace (privat/), nie in der App. provider: 'google' (ohne
+ * Parameter, wie bisher) oder 'ors' (&anbieter=ors).
  */
-export function googleRequest(action, body, { endpoint = GOOGLE_ENDPOINT, token = '' } = {}) {
+export function routingRequest(action, body, { endpoint = GOOGLE_ENDPOINT, token = '', provider = 'google' } = {}) {
   if (!GOOGLE_ACTIONS.includes(action)) throw new RoutingError('aktion', `Unbekannte Aktion „${action}“`)
-  if (action === 'status') return { url: `${endpoint}?aktion=status`, method: 'GET', headers: { 'X-Microsoft-Token': token } }
-  return { url: `${endpoint}?aktion=${action}`, method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microsoft-Token': token }, body: JSON.stringify(body ?? {}) }
+  if (!WEBSPACE_PROVIDERS[provider]) throw new RoutingError('anbieter', `Unbekannter Anbieter „${provider}“`)
+  const url = `${endpoint}?aktion=${action}${provider === 'google' ? '' : `&anbieter=${provider}`}`
+  if (action === 'status') return { url, method: 'GET', headers: { 'X-Microsoft-Token': token } }
+  return { url, method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microsoft-Token': token }, body: JSON.stringify(body ?? {}) }
+}
+
+/** Anfrage an den Durchreicher für Google (wie routingRequest ohne Anbieter). */
+export function googleRequest(action, body, { endpoint = GOOGLE_ENDPOINT, token = '' } = {}) {
+  return routingRequest(action, body, { endpoint, token, provider: 'google' })
 }
 
 /**
- * Matrix aus den Abschnitten einer Reihenfolge (Google): Punkte [Betriebshof, Stopp 1, …, Stopp n], Abschnitt k fährt
- * von Punkt k zum nächsten, der letzte zurück zum Betriebshof. Minuten = Fahrzeit von Google (aufgerundet) plus
- * Zuschlag je Fahrt (baseMin: Parken, Gehen, Laden – wie beim eingebauten Anbieter); unter 100 m und 1 Minute 0.
- * Nur diese Paare sind bekannt (sonst null): gilt nur für genau diese Reihenfolge.
+ * Matrix aus den Abschnitten einer Reihenfolge (Google bzw. OpenRouteService): Punkte [Betriebshof, Stopp 1, …, Stopp n],
+ * Abschnitt k fährt von Punkt k zum nächsten, der letzte zurück zum Betriebshof. Minuten = Fahrzeit des Anbieters
+ * (aufgerundet) plus Zuschlag je Fahrt (baseMin: Parken, Gehen, Laden – wie beim eingebauten Anbieter); unter 100 m und
+ * 1 Minute 0. Nur diese Paare sind bekannt (sonst null): gilt nur für genau diese Reihenfolge.
  */
 export function legsMatrix(legs = [], settings = {}) {
   const cfg = travelSettings(settings)
@@ -727,7 +762,7 @@ export function legsMatrix(legs = [], settings = {}) {
   return { minutes, km }
 }
 
-/** Fehler von routing.php → Kennung (anmeldung, rechte, nicht-eingerichtet, limit, keine-route, google, anfrage, webspace). */
+/** Fehler von routing.php → Kennung (anmeldung, rechte, nicht-eingerichtet, limit, keine-route, google, ors, anfrage, webspace). */
 function errorCode(status, type) {
   if (status === 401) return 'anmeldung'
   if (status === 403) return 'rechte'
@@ -735,27 +770,36 @@ function errorCode(status, type) {
   if (status === 429) return 'limit'
   if (status === 422) return 'keine-route'
   if (type === 'google_error') return 'google'
+  if (type === 'ors_error') return 'ors'
   if (status === 400 || status === 413) return 'anfrage'
   return 'webspace'
 }
 
 const LATE = ['zeitfenster', 'arbeitszeit']
 
+/** Stopp für die Optimierung bei OpenRouteService: Kennung, Koordinaten, Arbeit (Minuten), Zeitfenster (nur Uhrzeiten). */
+function detailedStop(s) {
+  const w = s.window && (isTime(s.window.from) || isTime(s.window.to)) ? { from: isTime(s.window.from) ? s.window.from : '', to: isTime(s.window.to) ? s.window.to : '' } : null
+  return { id: String(s.id), lat: Number(s.lat), lon: Number(s.lon), minutes: Math.max(0, Math.min(600, num(s.minutes, 0))), ...(w ? { window: w } : {}) }
+}
+
 /**
- * Google Maps Platform über routing.php (Entscheidung E8). fetch und getToken (Microsoft-Token der Person) lassen sich
- * ersetzen (Tests, App). Den Stand des Webspace (status: eingerichtet, Limits, Nutzung) liest refresh(); ready() ist
- * erst wahr, wenn ein Schlüssel eingerichtet und kein Limit erreicht ist (sonst wählt routingFor den eingebauten
- * Anbieter mit why() als Hinweis).
+ * Anbieter über den Durchreicher routing.php am Webspace (Google bzw. OpenRouteService). fetch und getToken
+ * (Microsoft-Token der Person) lassen sich ersetzen (Tests, App). Den Stand des Webspace (status: eingerichtet, Limits,
+ * Nutzung) liest refresh(); ready() ist erst wahr, wenn ein Schlüssel eingerichtet und kein Limit erreicht ist (sonst
+ * wählt routingFor den eingebauten Anbieter mit why() als Hinweis).
  *  - optimize(problem): Zuteilung und erste Reihenfolge mit planRoutes, dann je Tour eine Anfrage (optimierte
  *    Reihenfolge); verletzt sie Zeitfenster oder Arbeitszeit, eine zweite mit der Reihenfolge der App. Ergebnis wie
- *    planRoutes, je Tour provider ('google' | 'luftlinie'), notice ('' oder Grund) und google { order, legs }
- *    (Abschnitte für spätere Änderungen ohne neue Anfrage). Nach einem Fehler fragt er für weitere Touren nicht mehr.
- *  - legs({ depot, stops, optimize }): eine Anfrage → { order, legs [{ seconds, meters }] } (optimize false: feste Reihenfolge).
- *  - geocode(adresse) → { lat, lon, quality: 'google', label, precision } | null (eine Anfrage).
- *  - matrix(punkte): bewusst ohne Google (Anfragen sparen) – Luftlinie wie der eingebaute Anbieter.
+ *    planRoutes, je Tour provider (name | 'luftlinie'), notice ('' oder Grund) und <name> { order, legs } (Abschnitte
+ *    für spätere Änderungen ohne neue Anfrage). Nach einem Fehler fragt er für weitere Touren nicht mehr.
+ *  - legs({ depot, stops, optimize, driver?, settings? }): eine Anfrage → { order, legs [{ seconds, meters }], optimized }
+ *    (optimize false: feste Reihenfolge). details (OpenRouteService): beim Optimieren gehen Arbeit, Zeitfenster der
+ *    Stopps, Arbeitszeit des Fahrers und Zuschlag je Fahrt mit (VROOM plant damit); Google bekommt nur Koordinaten.
+ *  - geocode(adresse) → { lat, lon, quality: name, label, precision, partial? } | null (eine Anfrage).
+ *  - matrix(punkte): bewusst ohne Anfrage (Anfragen sparen) – Luftlinie wie der eingebaute Anbieter.
  *  - setup({ schluessel?, limitMonat?, limitTag?, entfernen? }): nur Vollzugriff (prüft routing.php).
  */
-export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchFn = (...a) => globalThis.fetch(...a), getToken = async () => '', label = 'Google-Routing' } = {}) {
+function createWebspaceProvider({ name, label, short, maxStops, details = false, endpoint = GOOGLE_ENDPOINT, fetch: fetchFn = (...a) => globalThis.fetch(...a), getToken = async () => '' }) {
   let status = null
   let lastError = null
 
@@ -766,7 +810,7 @@ export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchF
     } catch {
       token = ''
     }
-    const req = googleRequest(action, body, { endpoint, token })
+    const req = routingRequest(action, body, { endpoint, token, provider: name })
     let res
     try {
       res = await fetchFn(req.url, { method: req.method, headers: req.headers, ...(req.body !== undefined ? { body: req.body } : {}), cache: 'no-store' })
@@ -818,44 +862,56 @@ export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchF
     if (!ready()) throw new RoutingError(status?.eingerichtet ? 'limit' : 'nicht-eingerichtet', why())
   }
 
-  /** Eine Anfrage an Google über routing.php: Reihenfolge (optimiert oder fest) und Abschnitte. */
-  async function legs({ depot, stops = [], optimize = true } = {}) {
+  /** Eine Anfrage über routing.php: Reihenfolge (optimiert oder fest) und Abschnitte. */
+  async function legs({ depot, stops = [], optimize = true, driver = null, settings = {} } = {}) {
     await ensureReady()
     if (!hasCoords(depot)) throw new RoutingError('koordinaten', REASONS.betriebshof)
     if (!stops.length) throw new RoutingError('anfrage', 'Tour ohne Stopp')
-    if (stops.length > GOOGLE_MAX_STOPS) throw new RoutingError('anfrage', `mehr als ${GOOGLE_MAX_STOPS} Stopps in einer Tour`)
+    if (stops.length > maxStops) throw new RoutingError('anfrage', `mehr als ${maxStops} Stopps in einer Tour`)
     const missing = stops.find((s) => !hasCoords(s))
     if (missing) throw new RoutingError('koordinaten', `Stopp ohne Koordinaten (${missing.id})`)
     const ids = stops.map((s) => String(s.id))
-    // nur Kennung und Koordinaten: keine Namen, keine Adressen
-    const res = await call('optimize', { depot: { lat: Number(depot.lat), lon: Number(depot.lon) }, stops: stops.map((s) => ({ id: String(s.id), lat: Number(s.lat), lon: Number(s.lon) })), ...(optimize ? {} : { keepOrder: true }) })
+    const base = { depot: { lat: Number(depot.lat), lon: Number(depot.lon) } }
+    // Google: nur Kennung und Koordinaten; OpenRouteService beim Optimieren dazu Arbeit, Zeitfenster und Arbeitszeit
+    // (nur Zahlen und Uhrzeiten) – keine Namen, keine Adressen
+    const shift = driver && (isTime(driver.start) || isTime(driver.end)) ? { shift: { from: isTime(driver.start) ? driver.start : '', to: isTime(driver.end) ? driver.end : '' } } : {}
+    const body =
+      details && optimize
+        ? { ...base, stops: stops.map(detailedStop), ...shift, baseMin: Math.min(60, travelSettings(settings).baseMin) }
+        : { ...base, stops: stops.map((s) => ({ id: String(s.id), lat: Number(s.lat), lon: Number(s.lon) })), ...(optimize ? {} : { keepOrder: true }) }
+    const res = await call('optimize', body)
     const order = Array.isArray(res.order) ? res.order.map(String) : []
     const ok = order.length === ids.length && new Set(order).size === ids.length && order.every((id) => ids.includes(id)) && Array.isArray(res.legs) && res.legs.length === ids.length + 1
-    if (!ok) throw new RoutingError('google', 'Antwort von routing.php unvollständig')
-    if (!optimize && order.some((id, i) => id !== ids[i])) throw new RoutingError('google', 'Reihenfolge geändert, obwohl sie fest bleiben sollte')
-    return { order, legs: res.legs.map((l) => ({ seconds: Math.max(0, Math.round(Number(l?.seconds) || 0)), meters: Math.max(0, Math.round(Number(l?.meters) || 0)) })) }
+    if (!ok) throw new RoutingError(name, 'Antwort von routing.php unvollständig')
+    if (!optimize && order.some((id, i) => id !== ids[i])) throw new RoutingError(name, 'Reihenfolge geändert, obwohl sie fest bleiben sollte')
+    return { order, legs: res.legs.map((l) => ({ seconds: Math.max(0, Math.round(Number(l?.seconds) || 0)), meters: Math.max(0, Math.round(Number(l?.meters) || 0)) })), optimized: optimize && res.optimized !== false }
   }
 
-  /** Eine Tour mit Google: optimierte Reihenfolge, sonst (Zeitfenster) die der App, je mit den Fahrzeiten von Google. */
-  async function googleRoute({ depot, stops, driver, settings, driverId }) {
+  /** Eine Tour: optimierte Reihenfolge, sonst (Zeitfenster) die der App, je mit den Fahrzeiten des Anbieters. */
+  async function routeOf({ depot, stops, driver, settings, driverId }) {
     const plan = (list, l) => scheduleRoute({ depot, stops: list, driver, settings, matrix: legsMatrix(l, settings) })
     const late = (x) => x.problems.filter((p) => LATE.includes(p.code)).length
     const byId = new Map(stops.map((s) => [String(s.id), s]))
-    const first = await legs({ depot, stops, optimize: true })
-    let pick = { res: plan(first.order.map((id) => byId.get(id)), first.legs), google: first, notice: '' }
+    const keep = (x) => ({ order: x.order, legs: x.legs })
+    const first = await legs({ depot, stops, optimize: true, driver, settings })
+    // OpenRouteService hält nicht alle Zeitfenster ein: es bleibt die Reihenfolge der App (mit seinen Fahrzeiten)
+    const notice = first.optimized ? '' : `${label}: keine Reihenfolge gefunden, die alle Zeitfenster einhält – Reihenfolge der App mit den Fahrzeiten von ${short}.`
+    let pick = { res: plan(first.order.map((id) => byId.get(id)), first.legs), legs: keep(first), notice }
     const same = first.order.every((id, i) => id === String(stops[i].id))
     if (late(pick.res) && !same) {
       const second = await legs({ depot, stops, optimize: false })
       const res = plan(stops, second.legs)
-      if (late(res) <= late(pick.res)) pick = { res, google: second, notice: `${label}: die Reihenfolge von Google hätte Zeitfenster oder Arbeitszeit verletzt – Reihenfolge der App mit den Fahrzeiten von Google.` }
+      if (late(res) <= late(pick.res)) pick = { res, legs: keep(second), notice: `${label}: die Reihenfolge von ${short} hätte Zeitfenster oder Arbeitszeit verletzt – Reihenfolge der App mit den Fahrzeiten von ${short}.` }
     }
     const { problems, ...rest } = pick.res
-    return { driverId, ...rest, provider: 'google', google: pick.google, notice: pick.notice }
+    return { driverId, ...rest, provider: name, [name]: pick.legs, notice: pick.notice }
   }
 
   return {
-    name: 'google',
+    name,
     label,
+    short,
+    maxStops,
     endpoint,
     ready,
     why,
@@ -875,7 +931,9 @@ export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchF
       await ensureReady()
       const res = await call('geocode', { address: text.slice(0, 200) })
       const h = res.hit
-      return h && hasCoords(h) ? { lat: Number(h.lat), lon: Number(h.lon), quality: 'google', label: String(h.label || ''), precision: String(h.precision || '') } : null
+      if (!h || !hasCoords(h)) return null
+      // Google mit der Adresse des Treffers; OpenRouteService liefert nur Koordinaten und Genauigkeit
+      return { lat: Number(h.lat), lon: Number(h.lon), quality: name, label: String(h.label || ''), precision: String(h.precision || ''), ...(details ? { partial: !!h.partial } : {}) }
     },
     async matrix(points, settings = {}) {
       return airMatrix(points, settings)
@@ -893,10 +951,10 @@ export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchF
         const fallback = (notice) => routes.push({ ...r, provider: 'luftlinie', notice })
         if (!r.stops.length) fallback('')
         else if (halt) fallback(halt)
-        else if (r.stops.length > GOOGLE_MAX_STOPS) fallback(`${label}: mehr als ${GOOGLE_MAX_STOPS} Stopps in der Tour – eingebauter Anbieter (Luftlinie).`)
+        else if (r.stops.length > maxStops) fallback(`${label}: mehr als ${maxStops} Stopps in der Tour – eingebauter Anbieter (Luftlinie).`)
         else {
           try {
-            routes.push(await googleRoute({ depot: problem.depot, stops: r.stops.map((x) => byId.get(x.id)), driver: drivers.get(r.driverId) || {}, settings, driverId: r.driverId }))
+            routes.push(await routeOf({ depot: problem.depot, stops: r.stops.map((x) => byId.get(x.id)), driver: drivers.get(r.driverId) || {}, settings, driverId: r.driverId }))
           } catch (err) {
             const notice = `${label}: ${err?.message || 'Fehler'} – eingebauter Anbieter (Luftlinie).`
             // ohne Route zwischen diesen Punkten nur diese Tour; sonst (Schlüssel, Limit, Netz) keine weitere Anfrage
@@ -907,7 +965,7 @@ export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchF
       }
       const notices = [...new Set(routes.map((r) => r.notice).filter(Boolean))]
       return {
-        provider: routes.some((r) => r.provider === 'google') ? 'google' : 'luftlinie',
+        provider: routes.some((r) => r.provider === name) ? name : 'luftlinie',
         routes,
         unassigned: plan.unassigned,
         minutes: routes.reduce((x, r) => x + r.minutes, 0),
@@ -915,8 +973,26 @@ export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch: fetchF
         ...(notices.length ? { notice: notices.join(' ') } : {}),
       }
     },
-    request: (action, body, token = '') => googleRequest(action, body, { endpoint, token }),
+    request: (action, body, token = '') => routingRequest(action, body, { endpoint, token, provider: name }),
   }
+}
+
+/**
+ * Google Maps Platform über routing.php (Entscheidung E8): Routes API computeRoutes mit optimierter Reihenfolge (höchstens
+ * 25 Stopps), Geocoding API. An Google gehen nur Koordinaten (bei der Adresssuche die Adresse).
+ */
+export function createGoogleProvider({ endpoint = GOOGLE_ENDPOINT, fetch, getToken, label = WEBSPACE_PROVIDERS.google.label } = {}) {
+  return createWebspaceProvider({ ...WEBSPACE_PROVIDERS.google, label, endpoint, fetch, getToken })
+}
+
+/**
+ * OpenRouteService über routing.php (kostenlose Wahl, Zusatz zu E8 vom 9.11.2026): je Tour Optimierung (VROOM, ein
+ * Fahrzeug mit Arbeitszeit, Stopps mit Arbeit und Zeitfenster, höchstens 50 Stopps) und Fahrzeiten (Directions),
+ * Adresssuche (Geocode, zuerst Österreich). An OpenRouteService gehen Koordinaten, Arbeitszeiten und Zeitfenster bzw. die
+ * Adresse, keine Namen.
+ */
+export function createOrsProvider({ endpoint = GOOGLE_ENDPOINT, fetch, getToken, label = WEBSPACE_PROVIDERS.ors.label } = {}) {
+  return createWebspaceProvider({ ...WEBSPACE_PROVIDERS.ors, label, details: true, endpoint, fetch, getToken })
 }
 
 const registry = new Map()
@@ -967,3 +1043,4 @@ export function routingFor(settings = {}) {
 
 registerRoutingProvider('luftlinie', createLuftlinieProvider())
 registerRoutingProvider('google', createGoogleProvider())
+registerRoutingProvider('ors', createOrsProvider())

@@ -2060,20 +2060,20 @@ Unter „Fahrer“ steht, wer Matten fährt: Name, E-Mail des Microsoft-Kontos, 
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 
-### Google-Routing einrichten
+### Routing: eingebaut, OpenRouteService oder Google
 
 *In der App: Matten-Tourenplanung*
 
-Mit Google kommen echte Fahrzeiten: beim Vorschlag teilt die App die Stopps den Fahrern zu, Google legt je Tour die Reihenfolge fest. Der API-Schlüssel liegt nur am Webspace. Fällt Google aus (kein Schlüssel, Limit, keine Verbindung), rechnet der eingebaute Anbieter mit Hinweis.
+Der eingebaute Anbieter schätzt die Fahrzeiten aus der Luftlinie. Echte Fahrzeiten kommen von OpenRouteService (kostenloser Schlüssel, auf OpenStreetMap) oder Google: die App teilt die Stopps den Fahrern zu, der Anbieter legt je Tour die Reihenfolge fest. Schlüssel liegen nur am Webspace. Fällt er aus (kein Schlüssel, Limit, Kontingent), rechnet der eingebaute mit Hinweis.
 
-1. Im Google-Cloud-Konto ein Projekt mit Abrechnung anlegen und „Routes API“ und „Geocoding API“ aktivieren.
-2. Einen API-Schlüssel erstellen, auf diese zwei APIs und die IP-Adresse des Webspace beschränken, eine Budget-Warnung (z. B. 5 €) setzen.
-3. In „Matten-Tourenplanung“ „Mehr“ → „Routing“ öffnen, „Google“ wählen und den Schlüssel eintragen.
-4. Monats- und Tageslimit prüfen (Vorgabe 1000 bzw. 100 Anfragen) und „Speichern“.
+1. OpenRouteService: auf openrouteservice.org kostenlos registrieren und einen Schlüssel erzeugen – vorher prüfen, ob die Gratis-Nutzung für Firmen erlaubt ist.
+2. Oder Google: Projekt mit Abrechnung, „Routes API“ und „Geocoding API“ aktivieren, Schlüssel auf diese zwei APIs und die IP-Adresse des Webspace beschränken, unter „Quotas“ ein Tageslimit (z. B. 150) setzen.
+3. In „Matten-Tourenplanung“ „Mehr“ → „Routing“ öffnen, den Anbieter wählen und seinen Schlüssel eintragen.
+4. Monats- und Tageslimit prüfen (OpenRouteService 3000 bzw. 200, Google 1000 bzw. 100 Anfragen) und „Speichern“.
 
-> Tipp: Reihenfolge von Hand bleibt von Hand: danach sind die Zeiten geschätzt, bis du „Fahrzeiten mit Google neu rechnen“ klickst (eine Anfrage).
-> Tipp: Der Dialog zeigt die Nutzung des Monats und grob die Kosten; die Preise bitte im Google-Konto prüfen.
-> Tipp: An Google gehen nur Koordinaten, bei „Koordinaten suchen“ die Adresse, keine Namen.
+> Tipp: Reihenfolge von Hand bleibt von Hand: danach sind die Zeiten geschätzt, bis du „Fahrzeiten mit … neu rechnen“ klickst (eine Anfrage).
+> Tipp: OpenRouteService kostet im Gratis-Kontingent 0 €; bei Google zeigt der Dialog die Nutzung des Monats und grob die Kosten.
+> Tipp: An den Anbieter gehen Koordinaten (bei OpenRouteService dazu Arbeitszeit und Zeitfenster), bei „Koordinaten suchen“ die Adresse, keine Namen.
 
 *Einrichten: Vollzugriff; nutzen: Mattenwechsel Büro*
 

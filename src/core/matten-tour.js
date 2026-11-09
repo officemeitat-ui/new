@@ -7,10 +7,11 @@
 //     die Mitarbeitenden nicht, die App erkennt „meine Tour“ über die E-Mail des Kontos), vehicleId, areaId?,
 //     status: entwurf | freigegeben | unterwegs | abgeschlossen,
 //     order: [stopId]                     gespeicherte Reihenfolge (= Reihenfolge von stops)
-//     route: { provider ('luftlinie' | 'google': womit die Zeiten gerechnet sind), km, minutes (Fahrt), start, end (Rückkehr),
+//     route: { provider ('luftlinie' | 'google' | 'ors': womit die Zeiten gerechnet sind), km, minutes (Fahrt), start, end (Rückkehr),
 //              work, wait, load, back { travel, km }, shift { from, to } (Arbeitszeit), capacity?, depot { name, address,
 //              lat, lon }, manual? (von Hand geändert), google? { order [stopId], legs [{ seconds, meters }] } (Abschnitte
-//              von Google für genau diese Reihenfolge: gelten wieder, solange die Reihenfolge gleich ist) },
+//              von Google für genau diese Reihenfolge: gelten wieder, solange die Reihenfolge gleich ist), ors? (ebenso
+//              von OpenRouteService; es gibt nur die zuletzt gerechneten) },
 //     notice?, stops: [Stopp], createdAt/By, updatedAt/By }
 //   Stopp { id, objectId, objectName, customer { id, name, no, deliveryNoteEmail? }, address, lat, lon, geoQuality,
 //           window { from, to } | null (Schnittmenge der Liegeplätze), windowNote?, windowConflict?,
@@ -274,7 +275,7 @@ export async function proposeTours({ stops = [], drivers = [], depot = null, pro
       const areas = [...new Set(tourStops.map((s) => s.areaId || ''))]
       const areaId = g.areaId || (areas.length === 1 ? areas[0] : '')
       const cap = capacityOf(d)
-      // Anbieter je Tour (Google kann für einzelne Touren auf den eingebauten zurückfallen): Hinweis der Tour, sonst der allgemeine
+      // Anbieter je Tour (Google bzw. OpenRouteService kann für einzelne Touren auf den eingebauten zurückfallen): Hinweis der Tour, sonst der allgemeine
       const own = r.notice !== undefined ? r.notice : notice
       tours.push({
         schema: TOUR_SCHEMA,
@@ -301,6 +302,7 @@ export async function proposeTours({ stops = [], drivers = [], depot = null, pro
           ...(cap ? { capacity: cap } : {}),
           depot: depotCopy(home),
           ...(r.google ? { google: clone(r.google) } : {}),
+          ...(r.ors ? { ors: clone(r.ors) } : {}),
         },
         ...(own ? { notice: own } : {}),
         stops: tourStops,
@@ -419,30 +421,44 @@ export function recalcTimes(tour, matrix = null, settings = {}) {
   return { ...tour, stops: next, order: next.map((s) => s.id), route: { ...route, km: res.km, minutes: res.minutes, start: res.start, end: res.end, work: res.work, wait: res.wait, load: res.load, back: res.back } }
 }
 
-// ---------------------------------------------------------------- Fahrzeiten von Google (Entscheidung E8)
+// ---------------------------------------------------------------- Fahrzeiten von Google bzw. OpenRouteService (E8)
+
+/** Anbieter, deren Abschnitte an der Tour gespeichert werden (route.google bzw. route.ors). */
+export const LEG_PROVIDERS = ['google', 'ors']
+const legKey = (name) => (LEG_PROVIDERS.includes(name) ? name : 'google')
 
 const sameOrder = (google, tour) => {
   const ids = (tour?.stops || []).map((s) => s.id)
   return !!google && Array.isArray(google.order) && Array.isArray(google.legs) && google.legs.length === ids.length + 1 && google.order.length === ids.length && google.order.every((id, i) => id === ids[i])
 }
 
-/** Zeiten aus Abschnitten von Google ({ order, legs } für genau diese Reihenfolge): Kopie mit route.provider 'google'. */
-export function timesFromLegs(tour, google, settings = {}) {
+/**
+ * Zeiten aus Abschnitten eines Anbieters ({ order, legs } für genau diese Reihenfolge): Kopie mit route.provider
+ * ('google' bzw. 'ors') und den Abschnitten unter route.google bzw. route.ors; die eines anderen Anbieters fallen weg
+ * (es gelten die zuletzt gerechneten).
+ */
+export function timesFromLegs(tour, google, settings = {}, provider = 'google') {
+  const key = legKey(provider)
   const ids = ['depot', ...(tour?.stops || []).map((s) => s.id)]
   const m = legsMatrix(google.legs, settings)
   const next = recalcTimes(tour, { ids, minutes: m.minutes, km: m.km }, settings)
-  return { ...next, route: { ...next.route, provider: 'google', google: { order: [...google.order], legs: google.legs.map((l) => ({ seconds: l.seconds, meters: l.meters })) } } }
+  const route = { ...next.route, provider: key, [key]: { order: [...google.order], legs: google.legs.map((l) => ({ seconds: l.seconds, meters: l.meters })) } }
+  for (const k of LEG_PROVIDERS) if (k !== key) delete route[k]
+  return { ...next, route }
 }
 
 /**
- * Zeiten nach einer Änderung von Hand – ohne Anfrage an Google (die Reihenfolge bleibt, wie das Büro sie gesetzt hat):
- * passt die Reihenfolge noch zu den gespeicherten Abschnitten von Google (route.google), gelten deren Fahrzeiten
- * (z. B. nach neuer Arbeitszeit oder wieder zurückgeschobenem Stopp); sonst Luftlinie (route.provider 'luftlinie',
- * die Abschnitte bleiben für später). Mit Google neu rechnen nur auf Klick: googleRetime.
+ * Zeiten nach einer Änderung von Hand – ohne Anfrage an Google bzw. OpenRouteService (die Reihenfolge bleibt, wie das
+ * Büro sie gesetzt hat): passt die Reihenfolge noch zu den gespeicherten Abschnitten (route.google bzw. route.ors),
+ * gelten deren Fahrzeiten (z. B. nach neuer Arbeitszeit oder wieder zurückgeschobenem Stopp); sonst Luftlinie
+ * (route.provider 'luftlinie', die Abschnitte bleiben für später). Neu rechnen nur auf Klick: routeRetime.
  */
 export function retimeTour(tour, settings = {}) {
-  const g = tour?.route?.google
-  if ((tour?.stops || []).length && sameOrder(g, tour)) return timesFromLegs(tour, g, settings)
+  const r = tour?.route || {}
+  if ((tour?.stops || []).length) {
+    const keys = [...new Set([r.provider, ...LEG_PROVIDERS])].filter((k) => LEG_PROVIDERS.includes(k))
+    for (const k of keys) if (sameOrder(r[k], tour)) return timesFromLegs(tour, r[k], settings, k)
+  }
   const next = recalcTimes(tour, null, settings)
   return { ...next, route: { ...next.route, provider: 'luftlinie' } }
 }
@@ -450,16 +466,26 @@ export function retimeTour(tour, settings = {}) {
 /** Sind die Zeiten der Tour von Google (gleiche Reihenfolge wie die gespeicherten Abschnitte)? */
 export const timedByGoogle = (tour) => tour?.route?.provider === 'google' && sameOrder(tour.route.google, tour)
 
+/** Womit die Zeiten der Tour gerechnet sind, wenn mit echten Fahrzeiten: 'google' | 'ors'; sonst ''. */
+export const timedBy = (tour) => {
+  const p = tour?.route?.provider
+  return LEG_PROVIDERS.includes(p) && sameOrder(tour.route[p], tour) ? p : ''
+}
+
 /**
- * „Fahrzeiten mit Google neu rechnen“ (auf Klick): eine Anfrage für die feste Reihenfolge der Tour (ohne Optimierung),
- * danach Ankunftszeiten wie recalcTimes. provider: der Google-Anbieter (legs). Wirft bei Fehler (die Tour bleibt dann).
+ * „Fahrzeiten neu rechnen“ (auf Klick): eine Anfrage für die feste Reihenfolge der Tour (ohne Optimierung) beim
+ * Anbieter provider (Google bzw. OpenRouteService, legs), danach Ankunftszeiten wie recalcTimes. Wirft bei Fehler
+ * (die Tour bleibt dann).
  */
-export async function googleRetime(tour, provider, settings = {}) {
+export async function routeRetime(tour, provider, settings = {}) {
   const stops = tour?.stops || []
   if (!stops.length) return tour
   const res = await provider.legs({ depot: tour.route?.depot, stops: stops.map(routingStop), optimize: false })
-  return timesFromLegs(tour, { order: stops.map((s) => s.id), legs: res.legs }, settings)
+  return timesFromLegs(tour, { order: stops.map((s) => s.id), legs: res.legs }, settings, provider?.name)
 }
+
+/** „Fahrzeiten mit Google neu rechnen“ (wie routeRetime). */
+export const googleRetime = routeRetime
 
 const stopLabel = (s) => [s.customer?.name, s.objectName].filter(Boolean).join(', ') || s.id
 

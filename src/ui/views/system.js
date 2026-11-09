@@ -1,7 +1,7 @@
 // Systemcheck für die Inbetriebnahme (nur Vollzugriff): prüft vom Browser aus, ob der Webspace und
 // die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ordner privat/ gesperrt, PHP-Version
 // und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm, Plan am Handy und
-// Kundenbereich (Datei, Schlüssel, Cronjob), Google-Routing (optional: eingerichtet, privat/ beschreibbar),
+// Kundenbereich (Datei, Schlüssel, Cronjob), Routing (optional: OpenRouteService und Google je eingerichtet, privat/ beschreibbar),
 // Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
 
 import { app, registerActions, registerView, renderNow, toast } from '../context.js'
@@ -157,27 +157,52 @@ export async function runChecks() {
     }
   }
 
-  // ---- Google-Routing (routing.php, Mattenwechsel; optional, Entscheidung E8)
-  const GR = 'Google-Routing (optional)'
+  // ---- Routing (routing.php, Mattenwechsel; optional: OpenRouteService und Google, Entscheidung E8)
+  const GR = 'Routing (optional)'
   if (app.data?.matten || sys?.routing?.eingerichtet) {
-    const chosen = app.data?.matten?.settings?.routing?.provider === 'google'
-    let st = null
-    let err = null
+    const chosen = app.data?.matten?.settings?.routing?.provider
+    const NAMES = { ors: 'OpenRouteService', google: 'Google' }
+    add(GR, 'Gewählter Anbieter', 'info', NAMES[chosen] || 'eingebaut (Luftlinie, kostenlos)')
+    let mod = null
+    let loadErr = null
     try {
-      const { google } = await import('../matten-routing.js')
-      st = await google.refresh()
-      err = st ? null : google.lastError()
+      mod = await import('../matten-routing.js')
     } catch (e) {
-      err = { message: e.message, status: 0 }
+      loadErr = { message: e.message, status: 0 }
     }
-    const done = st ? !!st.eingerichtet : !!sys?.routing?.eingerichtet
-    const usage = st?.nutzung ? `, ${st.nutzung.anfragen} von ${st.limitMonat} Anfragen im Monat` : ''
-    const how = 'Matten-Tourenplanung → Mehr → „Routing“: Google wählen und den API-Schlüssel eintragen (Anleitung im Dialog). Ohne Google rechnet der eingebaute Anbieter (Luftlinie).'
-    if (done) add(GR, 'Eingerichtet', 'ok', `ja${st?.schluesselEnde ? `, Schlüssel …${st.schluesselEnde}` : ''}${usage}${chosen ? ', Google gewählt' : ', gewählt ist der eingebaute Anbieter'}`)
-    else add(GR, 'Eingerichtet', chosen ? 'warn' : 'info', chosen ? 'nein – Google gewählt, aber kein Schlüssel am Webspace' : 'nein (optional)', how)
-    if (!st && err) add(GR, 'routing.php', err.status === 401 ? 'info' : chosen || done ? 'warn' : 'info', err.status === 401 ? 'nur mit Microsoft-Anmeldung prüfbar' : err.message, 'routing.php mit dem Paket hochladen (Hauptordner, neben ki.php).')
-    const writable = st?.privat ? st.privat.beschreibbar : sys?.routing ? sys.routing.beschreibbar : null
-    if (writable !== null) add(GR, 'Ordner privat/ beschreibbar (Schlüssel, Zähler)', writable ? 'ok' : done || chosen ? 'error' : 'info', writable ? 'ja' : 'nein', 'Den Ordner privat/ per FTP beschreibbar machen (Rechte 755 bzw. 775): routing.php speichert dort Schlüssel und Nutzungszähler; ohne Zähler fragt es Google nicht.')
+    let writable = null
+    let anyDone = false
+    let phpErr = loadErr
+    for (const name of ['ors', 'google']) {
+      let st = null
+      let err = loadErr
+      if (mod) {
+        try {
+          st = await mod[name].refresh()
+          err = st ? null : mod[name].lastError()
+        } catch (e) {
+          err = { message: e.message, status: 0 }
+        }
+      }
+      phpErr = st ? null : phpErr || err
+      // system.php älterer Fassung meldet nur Google („eingerichtet“)
+      const fromSys = sys?.routing ? (name === 'google' ? (sys.routing.google ?? sys.routing.eingerichtet) : sys.routing.ors) : false
+      const done = st ? !!st.eingerichtet : !!fromSys
+      const isChosen = chosen === name
+      const usage = st?.nutzung ? `, ${st.nutzung.anfragen} von ${st.limitMonat} Anfragen im Monat` : ''
+      const how =
+        name === 'ors'
+          ? 'Matten-Tourenplanung → Mehr → „Routing“: OpenRouteService wählen und den kostenlosen Schlüssel von openrouteservice.org eintragen (Anleitung im Dialog). Ohne ihn rechnet der eingebaute Anbieter (Luftlinie).'
+          : 'Matten-Tourenplanung → Mehr → „Routing“: Google wählen und den API-Schlüssel eintragen (Anleitung im Dialog). Ohne Google rechnet der eingebaute Anbieter (Luftlinie).'
+      if (done) add(GR, NAMES[name], 'ok', `eingerichtet${st?.schluesselEnde ? `, Schlüssel …${st.schluesselEnde}` : ''}${usage}${isChosen ? ', gewählt' : ''}`)
+      else add(GR, NAMES[name], isChosen ? 'warn' : 'info', isChosen ? `nicht eingerichtet – ${NAMES[name]} gewählt, aber kein Schlüssel am Webspace` : 'nicht eingerichtet (optional)', how)
+      anyDone ||= done
+      if (writable === null && st?.privat) writable = st.privat.beschreibbar
+    }
+    if (phpErr) add(GR, 'routing.php', phpErr.status === 401 ? 'info' : chosen === 'google' || chosen === 'ors' || anyDone ? 'warn' : 'info', phpErr.status === 401 ? 'nur mit Microsoft-Anmeldung prüfbar' : phpErr.message, 'routing.php mit dem Paket hochladen (Hauptordner, neben ki.php).')
+    if (writable === null && sys?.routing) writable = sys.routing.beschreibbar
+    const needed = anyDone || chosen === 'google' || chosen === 'ors'
+    if (writable !== null) add(GR, 'Ordner privat/ beschreibbar (Schlüssel, Zähler)', writable ? 'ok' : needed ? 'error' : 'info', writable ? 'ja' : 'nein', 'Den Ordner privat/ per FTP beschreibbar machen (Rechte 755 bzw. 775): routing.php speichert dort Schlüssel und Nutzungszähler je Anbieter; ohne Zähler fragt es weder OpenRouteService noch Google.')
   }
 
   // ---- Microsoft und SharePoint

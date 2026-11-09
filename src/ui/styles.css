@@ -2501,6 +2501,9 @@ tr.muted td { color: var(--muted); }
 .mwg-usage p { margin: 2px 0; }
 .mwg-steps { margin: 4px 0 8px; padding-left: 1.4rem; display: grid; gap: 4px; }
 .mwg-steps li { overflow-wrap: anywhere; }
+.mwg-provider { margin-top: 14px; border-top: 1px solid var(--line); }
+.mwg-keyrow { margin: 0 0 8px; }
+.mwg-attr { margin: 6px 0 0; font-size: 0.8rem; overflow-wrap: anywhere; }
 .mw-tp-provider { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 @media (max-width: 900px) {
   .mw-tp-stop { grid-template-columns: 2rem minmax(0, 1fr) auto; }
