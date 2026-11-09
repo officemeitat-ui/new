@@ -391,6 +391,12 @@ Annahmen P9 (bis zur Entscheidung): Das Büro des Mattenwechsels liest die Stamm
 - **Preismodell (E4):** je Kunde wählbar – **je gewechselter Matte** (Stückzahl × Preis je Mattentyp, Kundenpreis vor Standardpreis, mit Gültigkeit) **oder Pauschale je Monat** (je Liegeplatz bzw. Objekt). Wird in P2 und P14 umgesetzt.
 - **Routing (E8):** zuerst der **eingebaute Anbieter** (OpenStreetMap-Koordinaten, Optimierung in der App); Google Maps Platform später über dieselbe Schnittstelle zuschaltbar. Navigation am Handy öffnet Google Maps.
 
+**Entschieden am 9.11.2026 (Geschäftsführung):**
+
+- **Lieferscheine im Kundenbereich (Rechtsprüfung Punkt 37):** so belassen – dasselbe PDF wie beim Versand, mit Name und Unterschrift der Person beim Kunden und dem Namen des Fahrers.
+- **Routing (E8):** Google Maps Platform wird zugeschaltet (Kosten siehe Abschnitt 6); der eingebaute Anbieter bleibt der Rückfall.
+- **Aufbewahrung (E15):** ohne Frist und ohne Limit – die App löscht keine Lieferscheine, Tourberichte, Fotos oder Unterschriften von selbst (der Zeitraum im Kundenbereich regelt nur, was dort angezeigt wird).
+
 Für die übrigen Punkte gilt bis auf Weiteres der Vorschlag in der rechten Spalte; Änderungen jederzeit möglich, bevor das betroffene Paket gebaut wird.
 
 | Nr | Frage | Vorschlag |
@@ -402,14 +408,14 @@ Für die übrigen Punkte gilt bis auf Weiteres der Vorschlag in der rechten Spal
 | E5 | **Rhythmus**: fest ab Starttermin (z. B. jeden 2. Dienstag) oder ab letztem tatsächlichem Wechsel? Fester Liefertag je Gebiet? | fest ab Starttermin, Verschieben ändert den Rhythmus nicht (Konzept) |
 | E6 | Wie viele **Fahrer/Fahrzeuge/Touren** je Woche, wie viele Liegeplätze mittelfristig? | bestimmt, ob Reihenfolge genügt oder Mehrfahrzeug-Planung nötig |
 | E7 | Haben die **Fahrer ein Microsoft-Konto** (Lizenz)? Sonst Fahrerseite am Webspace (Link wie „Plan am Handy“)? | mit Konto (sicherer, einfacher); Webspace-Seite als Option |
-| E8 | **Routing-Anbieter**: eingebaut (kostenlos) zuerst, Google später? Google-Konto und Kosten freigegeben? | eingebaut zuerst, Google als Option |
+| E8 | **Routing-Anbieter**: eingebaut (kostenlos) zuerst, Google später? Google-Konto und Kosten freigegeben? | eingebaut zuerst, Google als Option – **entschieden 9.11.: Google zuschalten** |
 | E9 | Müssen Fahrer **technisch** auf ihre eigenen Touren beschränkt sein (Ordner je Fahrer)? | nein, Anzeige reicht; sonst Ordner je Fahrer |
 | E10 | **Lieferscheinversand**: automatisch nach Abschluss oder nach Prüfung im Büro? Aus welchem Postfach (Fahrer, Büro-Sammelpostfach)? Mit Kopie ans Büro? | nach Prüfung im Büro, Option „automatisch“ je Kunde |
 | E11 | **Abrechnung**: Standard Sammelrechnung monatlich je Kunde? Je Objekt getrennt? Ein Rechnungsempfänger für mehrere Objekte? | monatlich je Kunde, Einzel je Kunde einstellbar |
 | E12 | **Unterschrift**: wer unterschreibt (Hausbetreuung, Portier)? Reicht Foto, wenn niemand da ist? | optional, sonst „ohne Unterschrift, Grund“ + Foto |
 | E13 | **Lieferscheinnummer**: `LS-2026-000123` (6 Stellen, je Jahr neu)? Gemeinsamer Nummernkreis mit anderen Lieferscheinen der Fakturierung? | ja, gemeinsamer Kreis, 6 Stellen |
 | E14 | **Parallelbetrieb**: Werkzeug bis zur Abnahme weiter nutzen? Wer pflegt bis dahin seine Quellen (2.4)? | ja; keine Weiterentwicklung im Werkzeug mehr |
-| E15 | **Aufbewahrung**: Lieferscheine/Tourberichte 7 Jahre? Fotos/Unterschriften wie lange? | 7 Jahre Belege, Fotos 2 Jahre (zu bestätigen) |
+| E15 | **Aufbewahrung**: Lieferscheine/Tourberichte 7 Jahre? Fotos/Unterschriften wie lange? | **entschieden 9.11.: ohne Frist, nichts wird automatisch gelöscht** |
 | E16 | **Mattenbestand/Wäscherei** (sauber/beim Kunden/Schwund) gleich mit bauen? | später, eigenes Paket – **umgesetzt als P17** (Abschnitt 7) |
 | E17 | Modul **je Revier** trennen? | nein (wie heute) |
 
