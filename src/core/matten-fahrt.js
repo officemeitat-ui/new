@@ -530,9 +530,10 @@ export function finishStop(tour, stopId, { signature = null, reason = '', outcom
     const x = { ...s, items }
     const status = derivedStopStatus(x)
     const n = note === undefined ? text(s.note) : text(note)
-    // nach einer Korrektur im Büro (reopenStop) bleibt der Wechsel am ersten Abschluss: Tag und Preis des Lieferscheins,
-    // Fälligkeit und Bestand hängen daran; wann korrigiert wurde, steht in corrections bzw. signature/unsigned.at
-    const first = (s.corrections || []).map((c) => c?.before?.finishedAt).find(Boolean)
+    // nach einer Korrektur im Büro (reopenStop) bleibt der Wechsel am ersten Abschluss mit gewechselten Matten: Tag und
+    // Preis des Lieferscheins, Fälligkeit und Bestand hängen daran; wann korrigiert wurde, steht in corrections bzw.
+    // signature/unsigned.at. War damals nichts gewechselt (z. B. nicht angetroffen), gilt der neue Abschluss.
+    const first = (s.corrections || []).find((c) => ['abgeschlossen', 'teilweise'].includes(c?.before?.status) && c.before.finishedAt)?.before.finishedAt
     const out = {
       ...x,
       status,

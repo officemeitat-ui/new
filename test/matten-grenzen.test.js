@@ -5,6 +5,8 @@ import assert from 'node:assert/strict'
 
 import { billedBy, stateOf } from '../src/core/invoicing.js'
 import { confirmPlacement, doneFromTours, finishStop, jobUpdatesFromTour, reopenStop, setQuantity } from '../src/core/matten-fahrt.js'
+import { planRun } from '../src/core/matten-abrechnung.js'
+import { syncCount, tourSync } from '../src/core/matten-bestand.js'
 import { noteDraft } from '../src/core/matten-lieferschein.js'
 import { jobsFor, markDone, nextDue } from '../src/core/matten-plan.js'
 import { recalcTimes, stopsFromJobs, tourProblems } from '../src/core/matten-tour.js'
@@ -163,6 +165,9 @@ test('Korrektur im Büro: der Wechsel bleibt am Tag des ersten Abschlusses (Lief
   assert.equal(stop.unsigned.at, wien('2026-11-03', '10:02'), 'Zeitpunkt der Korrektur bleibt nachvollziehbar')
   assert.deepEqual(doneFromTours([t]), [{ placementId: 'Haupteingang', date: '2026-10-30' }])
   assert.deepEqual(jobUpdatesFromTour(t).map((u) => [u.key, u.status, u.date, u.actual]), [['Haupteingang:2026-10-30', 'teilweise', '2026-10-30', 1]])
+  // Bestand: eine Inventur am 31.10. hat den Wechsel schon gezählt – die Korrektur bucht ihn nicht noch einmal
+  const inventur = { id: 'inv1', kind: 'inventur', date: '2026-10-31', at: wien('2026-10-31', '17:00'), by: 'Büro', lines: [{ articleId: 'a-m1', name: '85 × 150 cm, grau', sauber: 20, fahrzeug: 1, waesche: 0 }] }
+  assert.equal(syncCount(tourSync({ bookings: [inventur], tours: [t], placements })), 0)
   // Lieferschein: Datum und Kundenpreis des Wechseltags (der Kundenpreis galt bis 31.10.)
   const data = {
     settings: { vat: 20 },
@@ -174,6 +179,14 @@ test('Korrektur im Büro: der Wechsel bleibt am Tag des ersten Abschlusses (Lief
   const { doc } = noteDraft({ tour: t, stop, data, id: 'ls-x', now: wien('2026-11-03', '10:05'), by: 'Büro' })
   assert.equal(doc.date, '2026-10-30')
   assert.deepEqual(doc.lines.filter((l) => l.type === 'item').map((l) => [l.qty, l.price, l.source.price]), [[1, 4.1, 'kunde']])
+  // damals nicht angetroffen, nach dem Öffnen im Büro zwei Tage später gewechselt: der neue Abschluss zählt
+  let n = tourOf('mt000000000002', '2026-10-30', jobs)
+  n = finishStop(n, 'st-o1', { outcome: 'nicht-angetroffen', now: wien('2026-10-30', '09:05'), by: 'Anna Beispiel' })
+  n = reopenStop(n, 'st-o1', { reason: 'Kunde bittet um Wechsel am Montag', now: wien('2026-11-01', '15:00'), by: 'Büro' })
+  n = confirmPlacement(n, 'st-o1', 'Haupteingang', { now: wien('2026-11-02', '08:00'), by: 'Anna Beispiel' })
+  n = finishStop(n, 'st-o1', { signature: { name: 'Eva Beispiel', svg: SIG }, now: wien('2026-11-02', '08:05'), by: 'Anna Beispiel' })
+  assert.equal(n.stops[0].finishedAt, wien('2026-11-02', '08:05'))
+  assert.deepEqual(doneFromTours([n]), [{ placementId: 'Haupteingang', date: '2026-11-02' }])
 })
 
 // ---------------------------------------------------------------- „ab dem letzten Wechsel“ nach einem frühen Wechsel
@@ -189,4 +202,25 @@ test('„ab dem letzten Wechsel“: zwei Wochen früher erledigt – Planen legt
   assert.deepEqual(r.added.map((j) => [j.key, j.status]), [['L1:2026-11-16', 'geplant']])
   // erneutes Planen ohne Doppel
   assert.deepEqual(jobsFor({ placements: [p], jobs: r.jobs, von: '2026-10-20', bis: '2026-12-31', now: 'x' }).added, [])
+})
+
+// ---------------------------------------------------------------- Preismodell gewechselt: je Matte → Pauschale
+
+test('Wechsel von „je Matte“ zur Pauschale: schon je Matte verrechnete Monate gelten nicht als offene Pauschale, Hinweis im Monat des Wechsels', () => {
+  const note = (id, date) => ({ id, kind: 'lieferschein', number: `LS-2026-0000${id.slice(1)}`, date, customerId: 'c1', recipient: { name: hv.name }, objectId: 'o1', objectName: 'Wohnanlage Beispielweg', source: { type: 'matten', key: `matten:mt000000000001:${id}` }, lines: [{ id: `${id}-1`, type: 'item', text: 'Schmutzfangmatte 85 × 150 cm grau', qty: 2, unit: 'Stk', price: 4.4, vat: 20, source: { type: 'matten', key: `mt000000000001:${id}:p1:a-m1`, price: 'kunde' } }] })
+  const okt = note('n1', '2026-10-08')
+  const nov1 = note('n2', '2026-11-05')
+  const nov2 = note('n3', '2026-11-20')
+  // Oktober und der 5.11. sind je Matte verrechnet (Einzelrechnungen); ab Mitte November gilt die Pauschale
+  const bill = (id, number, n) => ({ id, kind: 'rechnung', number, date: n.date, customerId: 'c1', refId: n.id, deliveryNotes: [{ id: n.id, number: n.number, date: n.date }], lines: n.lines.map((l) => ({ ...l, id: `${id}-1` })) })
+  const fak = {
+    settings: { vat: 20, sender: { name: 'Reinigung Beispiel GmbH', address: 'Beispielgasse 1\n5020 Salzburg' } },
+    customers: [{ id: 'c1', customerNo: '10001', name: hv.name, street: 'Ringstraße 3', zip: '5020', city: 'Salzburg', email: 'rechnung@hv.example', matten: { priceModel: 'pauschale', monthlyFlat: [{ amount: 50, vat: 20 }] } }],
+    documents: [okt, nov1, nov2, bill('r1', 'RE-2026-0001', okt), bill('r2', 'RE-2026-0002', nov1)],
+  }
+  const plan = planRun(fak, { ym: '2026-11', today: '2026-12-01' }).todo[0]
+  assert.deepEqual(plan.drafts.map((d) => [d.kind, d.months, d.net]), [['pauschale', ['2026-11'], 50]])
+  const warn = plan.hints.filter((h) => h.level === 'warn').map((h) => h.text)
+  assert.ok(!warn.some((t) => /Pauschale noch nicht verrechnet: Oktober 2026/.test(t)), 'Oktober ist je Matte verrechnet – kein Aufruf, ihn pauschal zu verrechnen')
+  assert.ok(warn.some((t) => /November 2026.*schon je Matte verrechnet.*RE-2026-0002/.test(t)), warn.join(' | '))
 })

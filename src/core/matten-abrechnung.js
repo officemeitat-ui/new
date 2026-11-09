@@ -327,8 +327,14 @@ function planFlat(fak, plan, { inPeriod, before, notes, index, includeOlder }) {
   const errors = items.length ? [] : ['Preismodell Pauschale, aber keine Pauschale eingetragen (Kundenblatt → Mattenwechsel).']
   plan.drafts = [{ kind: 'pauschale', notes: attach, months, errors, warnings: [] }]
   if (!inPeriod.length) plan.hints.push({ level: 'info', text: `Keine Lieferscheine im ${plan.period.label}: die Pauschale gilt trotzdem.` })
-  // unverrechnete Monate davor (seit dem ersten Lieferschein, höchstens ein Jahr zurück)
-  const gap = monthsBetween(first > addMonths(plan.period.months[0], -12) ? first : addMonths(plan.period.months[0], -12), addMonths(plan.period.months[0], -1)).filter((ym) => flatBillState(plan.customerId, ym, [], index).state === 'offen')
+  // Preismodell gewechselt: Lieferscheine eines Monats schon je Matte verrechnet (Rechnung oder Entwurf mit ihren Positionen)
+  const byPiece = (ym) => uniq(notes.filter((n) => noteMonthOf(n) === ym).flatMap((n) => noteLineKeys(n).flatMap((k) => index.lines.get(k) || [])))
+  for (const ym of months) {
+    const docs = byPiece(ym)
+    if (docs.length) plan.hints.push({ level: 'warn', text: `${monthLabel(ym)}: Lieferscheine schon je Matte verrechnet (${docs.map((d) => d.number || 'Entwurf').join(', ')}) – Pauschale für diesen Monat prüfen (Preismodell gewechselt?).` })
+  }
+  // unverrechnete Monate davor (seit dem ersten Lieferschein, höchstens ein Jahr zurück), ohne die schon je Matte verrechneten
+  const gap = monthsBetween(first > addMonths(plan.period.months[0], -12) ? first : addMonths(plan.period.months[0], -12), addMonths(plan.period.months[0], -1)).filter((ym) => flatBillState(plan.customerId, ym, [], index).state === 'offen' && !byPiece(ym).length)
   if (gap.length) plan.hints.push({ level: 'warn', text: `Pauschale noch nicht verrechnet: ${gap.map(monthLabel).join(', ')} (Lauf für diesen Monat wählen).` })
 }
 
