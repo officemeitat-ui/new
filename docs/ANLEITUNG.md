@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 385 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 387 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (12)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (98)
+- [Objekte & Kunden](#objekte-kunden) (100)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
 - [Finanzen](#finanzen) (81)
 - [Verwaltung](#verwaltung) (61)
@@ -1286,6 +1286,37 @@ Meldungen vom Aushang holt die App mit denen des Kundenbereichs ab. Daraus wird 
 
 > Tipp: Maßnahme und Ergebnis bleiben intern; öffentlich ist nur das Feld „Öffentliche Antwort“.
 > Tipp: Hat die Person „Rückmeldung gewünscht“ angehakt, steht das beim Kontakt: bitte anrufen oder schreiben.
+
+### Zusatzleistungen: Kunden fragen im Kundenbereich an
+
+*In der App: Kundenbereich*
+
+Über seinen Link fragt der Kunde Zusatzleistungen an (z. B. Grundreinigung, Glasreinigung, Sonderreinigung nach Umbau) mit Objekt, Wunschtermin, Beschreibung, Fläche und bis zu 3 Fotos. Sie steht im Kundenbereich unter „Anfragen“ und in „Zu erledigen“; daraus wird mit einem Klick ein Angebot, ein Vertriebsfall, ein Termin oder ein Regiebericht. Den Stand sieht der Kunde unter „Meine Anfragen“.
+
+1. Beim Link „⋯“ → „Bearbeiten“ und „Zusatzleistung anfragen“ anhaken (Standard: aus), „Speichern und übertragen“.
+2. Unter „Anfragen (Zusatzleistungen)“ „Arten und Hinweis“: Arten prüfen, je Art optional einen Artikel der Fakturierung wählen, „Speichern“.
+3. Neue Anfragen kommen mit den Reklamationen (alle 3 Minuten); das Büro bekommt Push bzw. E-Mail.
+4. Anfrage „Öffnen“ und „Angebot erstellen“, „Als Vertriebsfall“, „Termin anlegen“, „Regiebericht vorbereiten“, „Ablehnen“ oder „Erledigt“ wählen.
+
+> Tipp: Mit Artikel kommt das Angebot mit Preis aus der Preisliste (Kundenpreis vor Standardpreis, bei m² die Fläche als Menge), ohne Artikel als Textposition.
+> Tipp: Beim Ablehnen sieht der Kunde die Begründung, sonst bleiben Notizen und Preise intern.
+> Tipp: Die Buchhaltung findet neue Anfragen als Vorschlag des digitalen Mitarbeiters „Buchhaltung“.
+
+*Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten; das Angebot macht, wer die Fakturierung bearbeitet*
+
+### Aus der Anfrage ein Angebot mit Online-Annahme
+
+*In der App: Kundenbereich*
+
+„Angebot erstellen“ legt einen Angebotsentwurf mit Kunde, Objekt, Beschreibung und Position an. Nach dem Festschreiben „Online-Annahme“ → „Link erstellen und übertragen“: Beim nächsten Abgleich zeigt die Anfrage im Kundenbereich „Angebot gesendet“ und den Link zum Angebot, das der Kunde dort online annimmt. Danach steht sie auf „beauftragt“.
+
+1. Anfrage öffnen, Kunden prüfen (dem Objekt zugeordnet) und „Angebot erstellen“ klicken.
+2. Im Entwurf Preis und Texte prüfen und „Festschreiben“.
+3. „Online-Annahme“ → „Link erstellen und übertragen“.
+4. Spätestens nach 3 Minuten (sofort: Kundenbereich „⋯“ → „Reklamationen jetzt abholen“) sieht der Kunde den Link unter „Meine Anfragen“.
+
+> Tipp: Der Code des Angebots liegt am Webspace nur verschlüsselt mit dem Code des Links: Den Link zum Angebot zeigt nur die Seite dieses Kunden.
+> Tipp: Termin oder Regiebericht aus der Anfrage setzen sie auf „beauftragt“; „Erledigt“ schließt sie ab.
 
 ### Kundenzufriedenheit: kurze Umfrage im Kundenbereich
 

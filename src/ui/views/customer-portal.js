@@ -28,6 +28,10 @@
 // Aushang (QR) im Objekt (Abschnitt in dieser Ansicht, views/customer-portal-aushang.js mit dem Paket des Büros, über
 // portalHooks): eigener Code je Objekt, Seite kunden.php?q=CODE; die Meldungen kommen hier mit denen des Kundenbereichs
 // zurück und werden Reklamationen mit Eingang „Aushang (QR)“ (core/aushang.js). Daten: kundenbereich.json → aushang.
+//
+// Zusatzleistung anfragen (je Link, Standard aus; views/customer-portal-zusatz.js mit dem Paket des Büros, über
+// portalHooks): Anfragen kommen mit den Meldungen zurück (zusatzSync), Abschnitt „Anfragen“ in dieser Ansicht, Arten und
+// Hinweis gehen mit den Einstellungen an den Webspace (zusatzSettings). Daten: zusatzleistungen/zusatzleistungen.json.
 
 import { AUSHANG_SOURCE } from '../../core/aushang.js'
 import { acceptanceOf, acceptedOpen, INVOICE_MONTH_CHOICES, invoiceSettings, newAcceptances, suggestCustomers } from '../../core/customer-invoices.js'
@@ -85,7 +89,7 @@ const invoicingOnline = async () => {
  * (views/customer-portal-aushang.js, ebenso): aushangSection() → Abschnitt der Ansicht, aushangPublish() → noch nicht
  * übertragene Aushänge an den Webspace.
  */
-export const portalHooks = { mattenNotes: null, mattenNext: null, aushangSection: null, aushangPublish: null }
+export const portalHooks = { mattenNotes: null, mattenNext: null, aushangSection: null, aushangPublish: null, zusatzSection: null, zusatzSync: null, zusatzSettings: null }
 /** Abschnitt „Aushang (QR)“: kommt mit dem Paket des Büros, bis dahin ein Platzhalter (lädt es und zeichnet neu). */
 function aushangSection() {
   if (portalHooks.aushangSection) return portalHooks.aushangSection()
@@ -94,6 +98,16 @@ function aushangSection() {
     .catch(() => {})
   return '<section class="kb-aushang" id="kb-aushang"><h3>Aushang (QR)</h3><p class="muted">Wird geladen …</p></section>'
 }
+/** Abschnitt „Anfragen (Zusatzleistungen)“: kommt mit dem Paket des Büros (views/customer-portal-zusatz.js), bis dahin ein Platzhalter. */
+function zusatzSection() {
+  if (portalHooks.zusatzSection) return portalHooks.zusatzSection()
+  ensureModal('zl-request')
+    .then(() => app.ui.view === 'kundenbereich' && portalHooks.zusatzSection && renderNow())
+    .catch(() => {})
+  return '<section class="kb-zusatz" id="kb-zusatz"><h3>Anfragen (Zusatzleistungen)</h3><p class="muted">Wird geladen …</p></section>'
+}
+/** Arten und Hinweis der Zusatzleistungen für privat/kundenbereich.json (Modul vorher laden, sonst fehlen sie am Webspace). */
+const zusatzReady = () => (portalHooks.zusatzSettings ? Promise.resolve() : ensureModal('zl-request').catch(() => {}))
 const mattenPortal = async () => {
   if (!portalHooks.mattenNotes) await ensureView('mw-lieferscheine')
   return portalHooks
@@ -130,6 +144,8 @@ export const portalCall = call
 export const portalReady = () => !!(settings().enabled && settings().key)
 export const portalOffers = () => offers()
 export const portalAddress = () => address()
+/** Für die Zusatzleistungen (views/customer-portal-zusatz.js): Einstellungen samt Arten neu an den Webspace. */
+export const portalSetup = () => setup()
 /** Für die Kundenzufriedenheit (views/zufriedenheit.js): Links, ihre Adresse, ob der Bereich an ist und wer ihn bearbeitet. */
 export const portalLinks = () => links()
 export const portalLinkUrl = (link) => urlOf(link)
@@ -143,11 +159,12 @@ export function settingsFile(s = settings()) {
   const buero = []
   if (s.officeTopic) buero.push({ name: 'Büro-Handy', ntfy: s.officeTopic })
   for (const email of String(s.officeEmails || '').split(/[,;\s]+/).filter(emailOk)) buero.push({ name: 'Büro', email })
-  return { version: 1, schluessel: s.key, adresse: address(), ntfy: ntfyServer(), absender: s.sender || '', buero, firma: { name: brand().name || brand().app || '', telefon: s.phone || '', email: s.email || '', datenschutz: /^https:\/\//.test(s.privacyUrl || '') ? s.privacyUrl : '', freigabeTag: Math.max(1, Math.min(28, Number(s.releaseDay) || 5)) } }
+  return { version: 1, schluessel: s.key, adresse: address(), ntfy: ntfyServer(), absender: s.sender || '', buero, ...(portalHooks.zusatzSettings ? { zusatz: portalHooks.zusatzSettings() } : {}), firma: { name: brand().name || brand().app || '', telefon: s.phone || '', email: s.email || '', datenschutz: /^https:\/\//.test(s.privacyUrl || '') ? s.privacyUrl : '', freigabeTag: Math.max(1, Math.min(28, Number(s.releaseDay) || 5)) } }
 }
 
 /** Einstellungen an den Webspace; beim ersten Mal (noch keine Datei dort) mit dem Schlüssel von Plan am Handy oder Schnee-Alarm. */
 async function setup() {
+  await zusatzReady()
   const file = settingsFile()
   try {
     return await call('einrichten', { body: file })
@@ -514,15 +531,19 @@ function startPolling() {
   sync.timer = setInterval(() => {
     syncReports()
     syncAcceptances()
+    portalHooks.zusatzSync?.()
     dailyPublish()
   }, 180e3)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return
     syncReports()
     syncAcceptances()
+    portalHooks.zusatzSync?.()
   })
   setTimeout(dailyPublish, 30e3) // nach dem Start, wenn die App geladen ist
 }
+/** Für die Zusatzleistungen: Abholen alle 3 Minuten mitlaufen lassen (einmal je Sitzung). */
+export const portalStartPolling = () => startPolling()
 
 registerTodo({
   id: 'kundenbereich',
@@ -563,7 +584,7 @@ registerTodo({
 
 function showText(link) {
   const show = showOf(link)
-  return [show.nachweise && 'Nachweise', show.winter && 'Winterdienst', show.leistungen && 'Leistungen', show.termine && 'Termine', show.rechnungen && 'Rechnungen', show.lieferscheine && 'Lieferscheine', show.mattenwechsel && 'nächster Mattenwechsel', show.reklamation && 'Reklamation'].filter(Boolean).join(', ') || 'nichts'
+  return [show.nachweise && 'Nachweise', show.winter && 'Winterdienst', show.leistungen && 'Leistungen', show.termine && 'Termine', show.rechnungen && 'Rechnungen', show.lieferscheine && 'Lieferscheine', show.mattenwechsel && 'nächster Mattenwechsel', show.reklamation && 'Reklamation', show.zusatz && 'Zusatzleistungen'].filter(Boolean).join(', ') || 'nichts'
 }
 
 function linkRow(link) {
@@ -609,6 +630,7 @@ function portalView() {
     ${active.length ? head(active.map(linkRow).join('')) : `<p class="empty">Noch keine Links.${ed && s.enabled ? ' Mit „Link anlegen“ für einen Kunden oder ein Objekt beginnen.' : ''}</p>`}
     ${revoked.length ? `<h3>Gesperrte Links</h3>${head(revoked.map(linkRow).join(''))}` : ''}
     <p class="note">Der Link wirkt wie ein Passwort: Wer ihn hat, sieht die Seite. Im Link steht nur ein Code, nichts über den Kunden. Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn das im Leistungsnachweis so eingestellt ist (jetzt: ${esc({ keine: 'keine Namen', vorname: 'Vornamen', voll: 'ganze Namen' }[proofSettings().names] || 'keine Namen')}). Reklamationen kommen unter „Reklamationen“ mit Eingang „Kundenbereich“ an; Status und Ergebnis sieht der Kunde.</p>
+    ${zusatzSection()}
     ${aushangSection()}`
 }
 
@@ -724,7 +746,7 @@ function linkModal() {
       <h3>Was der Link zeigt</h3>
       ${Object.entries(SHOW)
         .filter(([k]) => !SHOW_OFF.includes(k))
-        .map(([k, label]) => `<label class="check"><input type="checkbox" id="kb-show-${k}" ${d.show?.[k] !== false ? 'checked' : ''}><span>${esc(label)}${k === 'winter' && d.objectIds.length && !winterObjects ? ' <span class="muted">(keines der Objekte hat Winterdienst)</span>' : ''}</span></label>`)
+        .map(([k, label]) => `<label class="check"><input type="checkbox" id="kb-show-${k}" ${showOf(d)[k] ? 'checked' : ''}><span>${esc(label)}${k === 'winter' && d.objectIds.length && !winterObjects ? ' <span class="muted">(keines der Objekte hat Winterdienst)</span>' : ''}${k === 'zusatz' ? ' <span class="muted">(Arten und Hinweis: Kundenbereich → Anfragen → „Arten und Hinweis“)</span>' : ''}</span></label>`)
         .join('')}
       ${invoiceSection(d)}
       ${mattenSection(d)}
@@ -817,9 +839,10 @@ async function sendNow(ids, done) {
 registerActions(
   {
     'kb-settings': () => openModal({ type: 'kb-settings' }),
-    'kb-download': () => {
+    'kb-download': async () => {
       const d = readSettings()
       saveSettings(d)
+      await zusatzReady()
       download('kundenbereich.json', new Blob([`${JSON.stringify(settingsFile(settings()), null, 2)}\n`], { type: 'application/json' }))
       toast('Gespeichert und heruntergeladen: kundenbereich.json per FTP in den Ordner privat/ der App laden.')
     },
@@ -882,8 +905,10 @@ registerActions(
     },
     'kb-sync': async () => {
       if (editsInvoices()) syncAcceptances({ force: true })
-      const n = await syncReports({ force: true })
-      toast(sync.error ? `Nicht abgeholt: ${sync.error}` : n ? `${plural(n, 'neue Reklamation', 'neue Reklamationen')} übernommen.` : 'Keine neuen Reklamationen aus dem Kundenbereich.')
+      if (!portalHooks.zusatzSync) await ensureModal('zl-request').catch(() => {})
+      const [n, z] = await Promise.all([syncReports({ force: true }), portalHooks.zusatzSync ? portalHooks.zusatzSync({ force: true }) : 0])
+      const extra = z ? ` ${plural(z, 'neue Anfrage', 'neue Anfragen')} (Zusatzleistungen).` : ''
+      toast(sync.error ? `Nicht abgeholt: ${sync.error}` : n ? `${plural(n, 'neue Reklamation', 'neue Reklamationen')} übernommen.${extra}` : `Keine neuen Reklamationen aus dem Kundenbereich.${extra}`)
       renderNow()
     },
     'kb-filter': () => {

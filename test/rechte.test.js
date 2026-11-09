@@ -87,7 +87,7 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
 
   // Ordnertabelle für SharePoint (Ordner der App)
   const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , r]) => [f, r]))
-  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', geraete: '', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', bewerbung: '', eintritt: '', matten: '', 'matten/touren': '', 'matten/fotos': '', mitteilungen: '', 'mitteilungen/konten': 'Lesen', 'mitteilungen/bestaetigungen': 'Bearbeiten', vertrieb: '', exporte: '' })
+  assert.deepEqual(rows(resolveAccess({ groupClaims: [OM], access, strict: true })), { objekte: 'Lesen', daten: 'Lesen', plaene: 'Lesen', personal: '', lohn: '', fahrzeuge: '', reklamationen: 'Bearbeiten', kalkulation: '', material: 'Bearbeiten', schluessel: 'Bearbeiten', nachweise: 'Bearbeiten', unterweisungen: '', anlagen: 'Bearbeiten', geraete: '', regie: 'Bearbeiten', qualitaet: 'Bearbeiten', arbeitsschutz: 'Lesen', 'arbeitsschutz/dokumente/sdb': 'Lesen', zufriedenheit: 'Lesen', termine: 'Bearbeiten', fakturierung: '', einkauf: '', assistenz: 'Bearbeiten', berichte: '', kundenbereich: 'Bearbeiten', zusatzleistungen: 'Bearbeiten', bewerbung: '', eintritt: '', matten: '', 'matten/touren': '', 'matten/fotos': '', mitteilungen: '', 'mitteilungen/konten': 'Lesen', 'mitteilungen/bestaetigungen': 'Bearbeiten', vertrieb: '', exporte: '' })
   // Termine: Objektmanagement trägt ein; Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.termine.path) && om.write(MODULE_DOCS.termine.path) && !va.read(MODULE_DOCS.termine.path))
   // Unterweisungen & Fristen: Objektleitung bearbeitet, Objektmanagement nicht
@@ -190,6 +190,14 @@ test('Rechte: die App liest und schreibt nur die Ordner der eigenen Rolle', () =
   // Kundenbereich (Links wirken wie Passwörter): wer Reklamationen oder die Planung bearbeitet; Lager, Buchhaltung, Vorarbeiter nicht
   assert.ok(om.read(MODULE_DOCS.kundenbereich.path) && om.write(MODULE_DOCS.kundenbereich.path))
   for (const r of [va, lager, fak, dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true }))]) assert.ok(!r.read(MODULE_DOCS.kundenbereich.path))
+  // Zusatzleistungen aus dem Kundenbereich (eigener Ordner ohne Codes): Rollen des Kundenbereichs und die Buchhaltung
+  // (Angebot) bearbeiten, eine Rolle, die die Fakturierung nur liest, liest; Lager, Vorarbeiter, Nur lesen nicht
+  for (const r of [om, fak]) assert.ok(r.read(MODULE_DOCS.zusatz.path) && r.write(MODULE_DOCS.zusatz.path) && r.write('zusatzleistungen/fotos/2026-11/zla1b2c3d4e5f6-1.jpg'))
+  for (const r of [va, lager, dataRights(resolveAccess({ roleClaims: ['lesen'], access, strict: true })), dataRights(resolveAccess({ roleClaims: ['personalverwaltung'], access, strict: true }))]) assert.ok(!r.read(MODULE_DOCS.zusatz.path))
+  const faklesen = dataRights(resolveAccess({ roleClaims: ['faklesen'], strict: true, access: { ...access, roles: { faklesen: { label: 'Fakturierung lesen', modules: ['fakturierung'], edit: [] } } } }))
+  assert.ok(faklesen.read(MODULE_DOCS.zusatz.path) && !faklesen.write(MODULE_DOCS.zusatz.path))
+  assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).zusatzleistungen, 'Bearbeiten')
+  assert.equal(rows(resolveAccess({ roleClaims: ['buchhaltung'], access, strict: true })).kundenbereich, '', 'Buchhaltung sieht die Codes nicht')
   // Reklamationen: Objektmanagement bearbeitet, Vorarbeiter sieht sie nicht
   assert.ok(om.read(MODULE_DOCS.reklamationen.path) && om.write(MODULE_DOCS.reklamationen.path))
   assert.ok(!va.read(MODULE_DOCS.reklamationen.path))

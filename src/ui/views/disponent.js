@@ -3,10 +3,12 @@
 // der Planung mit Rückgängig), „Öffnen“ (selbst erledigen), „Später“ (bis morgen) oder „Ablehnen“.
 //
 //   Disponent    Vertretungen bei Abwesenheiten, offene Einsätze dieser und nächster Woche,
-//                Woche veröffentlichen, Prüfbericht mit Fehlern
+//                Woche veröffentlichen, Prüfbericht mit Fehlern; beauftragte Zusatzleistungen aus dem Kundenbereich
+//                einplanen (disponentHooks aus views/customer-portal-zusatz.js: Termin vorbereiten)
 //   Buchhaltung  Daueraufträge abrechnen, überfällige Rechnungen mahnen, Leistungsnachweise, Regieberichte verrechnen,
 //                Mattenwechsel abrechnen (am Monatsersten, wenn eingestellt; nur „Öffnen“, nichts automatisch),
-//                Fristen der Kundenverträge (buchhaltungHooks aus views/invoicing-vertraege.js; nur „Öffnen“)
+//                Fristen der Kundenverträge (buchhaltungHooks aus views/invoicing-vertraege.js; nur „Öffnen“),
+//                Angebot aus einer Anfrage im Kundenbereich (buchhaltungHooks aus views/customer-portal-zusatz.js: Entwurf)
 //   Lager        Bestellvorschläge je Lieferant, offene Anforderungen aus den Objekten
 //   Fristen      ablaufende Unterweisungen (Schulungstermin vorschlagen), Fahrzeuge (Werkstatt),
 //                überfällige Reklamationen, Anlagen-Prüfungen und offene Mängel je Objekt (nur „Öffnen“),
@@ -63,6 +65,8 @@ export const AGENTS = [
 
 /** Weitere Vorschläge der Buchhaltung aus später geladenen Modulen (Verträge der Fakturierung): fn(today) → [Vorschlag]. */
 export const buchhaltungHooks = []
+/** Weitere Vorschläge des Disponenten aus später geladenen Modulen (Zusatzleistungen): fn(today) → [Vorschlag]. */
+export const disponentHooks = []
 
 const doc = () => (app.data.assistenz ||= { decided: {} })
 const decided = () => (doc().decided ||= {})
@@ -136,6 +140,7 @@ function disponent(today) {
       run: { label: 'Korrektur buchen …', fn: 'publish', data: { monday: w.monday } },
     })
   }
+  for (const fn of disponentHooks) out.push(...fn(today))
   return out
 }
 
@@ -640,7 +645,7 @@ const planWaits = () => edits('planung') && !todoReady()
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
   // app.mwLs, app.mwUe, app.mwBe: Zähler der Matten-Lieferscheine, der Übersicht und des Bestands (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
-  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}:${buchhaltungHooks.length}:${FRISTEN_HOOKS.length}`, () => {
+  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}:${buchhaltungHooks.length}:${disponentHooks.length}:${FRISTEN_HOOKS.length}`, () => {
     const all = []
     const safe = (fn) => {
       try {

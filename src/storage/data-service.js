@@ -30,6 +30,8 @@
 //   einkauf/einkauf.json              Einkauf: Lieferanten, Eingangsrechnungen, Zahlungen (Belege unter einkauf/belege/)
 //   einkauf/kassenbuch.json           Kassenbuch (Einträge, Kassenstürze, Monatsabschlüsse)
 //   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden, Angebote und Aushänge (QR) je Objekt (mit Code), Einstellungen
+//   zusatzleistungen/zusatzleistungen.json  Zusatzleistungen, die Kunden im Kundenbereich anfragen (Kontakt, Fotos unter
+//                                     zusatzleistungen/fotos/<Monat>/), Arten und Hinweistext; ohne Codes (core/zusatzleistungen.js)
 //   bewerbung/bewerbung.json          Bewerbungen (Unterlagen unter bewerbung/unterlagen/) – eng: Personalverwaltung
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
@@ -125,6 +127,9 @@ export const MODULE_DOCS = {
   // Berichte automatisch per E-Mail: Abos (Empfänger, Rhythmus, zuletzt gesendet) – nur Vollzugriff
   berichte: { path: 'berichte/abos.json', empty: () => ({ abos: [] }) },
   kundenbereich: { path: 'kundenbereich/kundenbereich.json', empty: () => ({ links: [], settings: {} }) },
+  // Zusatzleistungen aus dem Kundenbereich (core/zusatzleistungen.js): eigener Ordner, weil die Buchhaltung sie für das
+  // Angebot liest, den Ordner kundenbereich/ mit den Codes aber nicht sehen darf
+  zusatz: { path: 'zusatzleistungen/zusatzleistungen.json', empty: () => ({ requests: [], settings: {} }) },
   // Bewerbungen und Checklisten: leere Inhalte wie emptyBewerbung/emptyEintritt (core/bewerber.js; test/bewerber.test.js vergleicht)
   bewerbung: { path: 'bewerbung/bewerbung.json', empty: () => ({ applicants: [], settings: {} }) },
   eintritt: { path: 'eintritt/eintritt.json', empty: () => ({ lists: [], templates: {}, settings: {} }) },
@@ -238,6 +243,9 @@ export function dataRights(access) {
     ['einkauf/', () => sees('einkauf'), () => edits('einkauf')],
     // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
     [MODULE_DOCS.kundenbereich.path, () => edits('reklamationen', 'planung'), () => edits('reklamationen', 'planung')],
+    // Zusatzleistungen aus dem Kundenbereich (Anfragen mit Kontakt und Fotos unter zusatzleistungen/fotos/…): wer den
+    // Kundenbereich verwaltet (abholen, Stand zurückmelden), dazu die Fakturierung (Angebot aus der Anfrage)
+    ['zusatzleistungen/', () => edits('reklamationen', 'planung') || sees('fakturierung'), () => edits('reklamationen', 'planung', 'fakturierung')],
     // Bewerbungen mit Lebenslauf und Unterlagen (bewerbung/unterlagen/…): personenbezogen, nur wer Bewerbungen bearbeitet
     // (Personalverwaltung, Vollzugriff); nicht die Lohnverrechnung, nicht die Objektleitung
     ['bewerbung/', () => sees('bewerber'), () => edits('bewerber')],
@@ -290,6 +298,7 @@ export const FOLDERS = [
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
   ['kundenbereich', 'Kundenbereich: Links für Kunden, Angebote zur Online-Annahme und Aushänge (QR) je Objekt (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
+  ['zusatzleistungen', 'Zusatzleistungen aus dem Kundenbereich: Anfragen mit Kontakt und Fotos, Arten (ohne Codes)', MODULE_DOCS.zusatz.path],
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
   ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr, Mattenbestand und Wäscherei (Büro)', MODULE_DOCS.matten.path],

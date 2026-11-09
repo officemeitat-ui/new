@@ -36,6 +36,8 @@ import './vertrieb.js'
 import './customer-portal-matten.js'
 // Kundenbereich: Aushang (QR) im Objekt (über portalHooks in customer-portal.js)
 import './customer-portal-aushang.js'
+// Kundenbereich: Zusatzleistungen anfragen (über portalHooks in customer-portal.js)
+import './customer-portal-zusatz.js'
 import './purchase.js'
 import './cashbook.js'
 import './weiterverrechnung.js'

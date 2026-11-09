@@ -237,6 +237,16 @@ lazy(BUERO, {
   actions: 'ah-new ah-edit ah-object ah-save ah-toggle ah-renew ah-publish ah-pdf ah-open ah-copy',
 })
 
+// customer-portal-zusatz.js: Zusatzleistungen, die Kunden im Kundenbereich anfragen (Abschnitt „Anfragen“ über portalHooks
+// in customer-portal.js, Angebot, Vertriebsfall, Termin bzw. Regiebericht, Ablehnen), Punkt in „Zu erledigen“. Kürzel zl-
+lazy(BUERO, {
+  module: 'reklamationen',
+  modals: 'zl-request zl-settings',
+  actions: `zl-open zl-settings zl-photo zl-customer zl-offer zl-case zl-termin zl-regie zl-decline zl-decline-cancel zl-decline-save zl-done zl-reopen
+    zl-kind-add zl-kind-del zl-settings-save`,
+  todo: ['zusatzleistungen'],
+})
+
 // material.js
 lazy(BUERO, {
   views: [

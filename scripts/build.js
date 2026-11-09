@@ -83,8 +83,8 @@ const webspace = [
   ...(appConfig.staffPortal !== false ? ['mein-plan.php'] : []),
   // Kundenbereich (kunden.php): Link für Kunden; wetter-foto.js verkleinert die Fotos der Reklamation,
   // kunden-unterschrift.js nimmt die Unterschrift bei „Angebot online annehmen“ auf, aushang-texte.php: Texte des
-  // Aushangs (QR) im Objekt auf Deutsch und Englisch
-  ...(appConfig.customerPortal !== false ? ['kunden.php', 'kunden-unterschrift.js', 'aushang-texte.php', ...(appConfig.weather === false ? ['wetter-foto.js'] : [])] : []),
+  // Aushangs (QR) im Objekt auf Deutsch und Englisch, zusatz-texte.php: Texte von „Zusatzleistung anfragen“
+  ...(appConfig.customerPortal !== false ? ['kunden.php', 'kunden-unterschrift.js', 'aushang-texte.php', 'zusatz-texte.php', ...(appConfig.weather === false ? ['wetter-foto.js'] : [])] : []),
   // Fahrerseite am Webspace (mattentour.php) für Fahrer des Mattenwechsels ohne Microsoft-Konto; mattentour.js merkt sich
   // die Eingaben im Handy, nimmt die Unterschrift auf und sendet nach einem Funkloch nach. "driverPortal": false lässt sie weg.
   ...(appConfig.driverPortal !== false ? ['mattentour.php', 'mattentour.js'] : []),

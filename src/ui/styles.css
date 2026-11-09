@@ -2141,6 +2141,22 @@ tr.muted td { color: var(--muted); }
 .kb-objects { max-height: 280px; overflow: auto; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
 .kb-objects .check[hidden] { display: none; }
 .kb-photo { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; margin-top: 6px; }
+/* Zusatzleistungen anfragen (customer-portal-zusatz.js) */
+.kb-zusatz { margin-top: 24px; }
+.zl-closed { margin-top: 10px; }
+.zl-closed > summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 4px 0; }
+.zl-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 0 0 12px; }
+.zl-facts dt { color: var(--muted); }
+.zl-facts dd { margin: 0; overflow-wrap: anywhere; }
+.zl-text { white-space: pre-line; overflow-wrap: anywhere; margin: 4px 0 10px; }
+.zl-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.zl-actions { flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.zl-decline { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.zl-history ul { margin: 6px 0 0; padding-left: 18px; }
+@media (max-width: 480px) {
+  .zl-facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .zl-facts dd { margin: 0 0 6px; }
+}
 /* Rechnungen im Kundenbereich, Angebot online annehmen (customer-portal.js, invoicing-online.js) */
 .kbr-customers { margin-bottom: 8px; }
 .ang-box { padding: 12px 16px; margin: 8px 0 12px; border-radius: var(--radius-card); background: var(--ok-soft); border: 1px solid var(--ok); }

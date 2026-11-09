@@ -52,6 +52,10 @@ export const MODULES = {
   mitteilungen: 'Mitteilungen',
 }
 
+// Zusatzleistungen, die Kunden im Kundenbereich anfragen (core/zusatzleistungen.js), sind kein eigenes Modul: abholen,
+// ablehnen und den Stand zurückmelden darf, wer den Kundenbereich verwaltet (Reklamationen oder Einsatzplanung bearbeiten),
+// das Angebot daraus, wer die Fakturierung bearbeitet (requestRights); Ordner zusatzleistungen/ in storage/data-service.js.
+
 /** Die eigenen Werkzeuge (werkzeuge/): speichern selbst in ihren Ordnern, die Rolle braucht dafür keinen Ordner der App. */
 export const TOOL_MODULES = ['zaehler', 'kontrolle', 'objektmappe']
 
