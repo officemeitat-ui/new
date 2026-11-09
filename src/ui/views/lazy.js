@@ -19,9 +19,10 @@ const KPI_MODULES = ['planung', 'auswertung', 'reklamationen', 'fakturierung', '
 export const kpiAvailable = () => !app.access || app.access.all || KPI_MODULES.some((m) => app.access.sees(m))
 /**
  * Kennzahlen aus später geladenen Modulen: matten({ months, today }) → Zahlen des Mattenwechsels oder null
- * (views/matten-uebersicht.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
+ * (views/matten-uebersicht.js), mattenBestand({ months }) → Wäscherei je Monat mit Schwundquote oder null
+ * (views/matten-bestand.js), version() → ändert sich mit den gelesenen Touren (neu rechnen). Gerechnet wird im Modul.
  */
-export const kpiHooks = { matten: null, version: () => '' }
+export const kpiHooks = { matten: null, mattenBestand: null, version: () => '' }
 /** Umsatzsteuer (UVA): wer die Fakturierung oder Einkauf & Kasse sieht (jede Rolle sieht dort nur ihre Zahlen). */
 export const uvaAvailable = () => !app.access || app.access.all || ['fakturierung', 'einkauf'].some((m) => app.access.sees(m))
 
@@ -307,12 +308,13 @@ lazy(BUERO, {
   todo: ['qualitaet'],
 })
 
-// matten-uebersicht.js, matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js, matten-lieferscheine.js:
-// Mattenwechsel-Modul im Büro (Übersicht mit den neun Zahlen, Karte auf der Startseite und Kennzahlen: Kürzel mwu-;
-// Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen, Tourenplanung,
-// Lieferscheine je Stopp mit Versand und Ablage, Fahrerseite am Webspace für Fahrer ohne Konto über ui/matten-webspace.js:
-// Kürzel mww-), Umstellung vom Werkzeug auf das Modul (matten-umstellung.js, Kürzel mwc-); das Werkzeug bleibt bis zur
-// Umstellung unter #matten (tools.js), danach als „Mattenwechsel (alt)“ nur lesend
+// matten-uebersicht.js, matten.js, matten-uebernahme.js, matten-kalender.js, matten-planung.js, matten-lieferscheine.js,
+// matten-bestand.js: Mattenwechsel-Modul im Büro (Übersicht mit den neun Zahlen, Karte auf der Startseite und
+// Kennzahlen: Kürzel mwu-; Liegeplätze je Kunde → Objekt, Gebiete, Übernahme aus dem Werkzeug, Kalender mit Einsätzen,
+// Tourenplanung, Lieferscheine je Stopp mit Versand und Ablage, Fahrerseite am Webspace für Fahrer ohne Konto über
+// ui/matten-webspace.js: Kürzel mww-; Mattenbestand und Wäscherei: Kürzel mwb-), Umstellung vom Werkzeug auf das Modul
+// (matten-umstellung.js, Kürzel mwc-); das Werkzeug bleibt bis zur Umstellung unter #matten (tools.js), danach als
+// „Mattenwechsel (alt)“ nur lesend
 lazy(BUERO, {
   views: [
     {
@@ -381,8 +383,18 @@ lazy(BUERO, {
       noWeek: true,
       text: 'Mattenwechsel: Lieferscheine je Stopp erstellen, senden und in SharePoint ablegen',
     },
+    {
+      id: 'mw-bestand',
+      order: 75.67,
+      label: 'Matten-Bestand',
+      group: 'service',
+      module: 'matten',
+      icon: '<path d="M3.5 8.5 12 4l8.5 4.5v11h-17z"/><path d="M7.5 19.5v-6h9v6M7.5 16.5h9"/>',
+      noWeek: true,
+      text: 'Mattenwechsel: Mattenbestand je Typ (Lager sauber, beim Kunden, Fahrzeug, Wäscherei), Inventur, Wäscherei',
+    },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwc-cutover mwu-settings',
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
@@ -394,8 +406,10 @@ lazy(BUERO, {
     mw-ls-goto mw-ls-filter mw-ls-range mw-ls-sel mw-ls-sel-all mw-ls-open mw-ls-reload mw-ls-fak mw-ls-create mw-ls-create-all mw-ls-pdf mw-ls-send
     mw-ls-archive mw-ls-archive-all mw-ls-run-open mw-ls-run-mode mw-ls-run mw-ls-run-stop mw-ls-settings-open mw-ls-settings-save
     mwu-goto mwu-list mwu-tour mwu-reload mwu-apply mwu-catchup mwu-settings-open mwu-settings-save
-    mwc-open mwc-set mwc-undo`,
-  todo: ['matten', 'matten-ls'],
+    mwc-open mwc-set mwc-undo
+    mwb-goto mwb-reload mwb-hist mwb-all mwb-booking-open mwb-pdf mwb-inventory-open mwb-inventory-save mwb-book-open mwb-book-kind
+    mwb-book-save mwb-send mwb-cancel-ask mwb-cancel mwb-settings-open mwb-settings-save`,
+  todo: ['matten', 'matten-ls', 'matten-bestand'],
 })
 
 // matten-fahrer.js: Matten-Touren der Fahrer (P10/P11: Tour, Stopp, Bestätigung je Liegeplatz, Unterschrift je Stopp,

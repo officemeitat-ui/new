@@ -2920,3 +2920,36 @@ a.btn { text-decoration: none; }
   .mwu-row .actions .btn { min-height: 44px; }
   .mwu-day { min-height: 44px; }
 }
+
+/* Mattenwechsel: Mattenbestand und Wäscherei (views/matten-bestand.js, Kürzel mwb-); Zeile in der Matten-Übersicht und
+   Hinweis in der Tourenplanung */
+.mwu-main { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.mwb-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0; overflow-wrap: anywhere; }
+.mwb-line > span { flex: 1 1 18rem; min-width: 0; }
+.mwb-warn { margin: 0 0 8px; padding: 8px 12px; border-radius: var(--radius); background: var(--warn-soft); border-left: 4px solid var(--warn); color: var(--fg); overflow-wrap: anywhere; }
+.mwb-line.mwb-warn { margin: 0; }
+.mw-tp-stock { margin: 8px 0 0; padding: 6px 10px; border-radius: var(--radius); background: var(--warn-soft); border-left: 4px solid var(--warn); color: var(--fg); font-size: 0.9rem; overflow-wrap: anywhere; }
+.mw-tp-stock .btn { margin-left: 6px; }
+.mwb-table td.num, .mwb-table th.num, .mwb-cover td.num, .mwb-cover th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mwb-type { display: grid; gap: 2px; line-height: 1.3; }
+.mwb-type small { font-size: 0.78rem; font-weight: 400; }
+.mwb-min { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mwb-sum td { font-weight: 700; background: var(--surface-2); }
+.mwb-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+.mwb-when { white-space: nowrap; }
+.mwb-min .pill { white-space: nowrap; }
+.mwb-panel { background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); padding: 12px 14px; min-width: 0; }
+.mwb-panel h3 { margin: 0 0 8px; font-size: 1rem; }
+.mwb-panel > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 8px; }
+.mwb-panel > header h3 { margin: 0; }
+.mwb-panel .table-wrap { box-shadow: none; }
+.mwb-panel table.data { min-width: 0; }
+.mwb-cell { display: inline-block; line-height: 1.35; overflow-wrap: anywhere; }
+.mwb-hist.mwb-off td { color: var(--muted); }
+input.mwb-qty { width: 6rem; max-width: 100%; text-align: right; }
+@media (max-width: 700px) {
+  input.mwb-qty { width: 7rem; min-height: 44px; }
+  .mwb-panel { padding: 10px 10px; }
+  .mwb-panel .actions-cell .btn, .mwb-line .btn, .mw-tp-stock .btn { min-height: 44px; }
+  .mwb-sum td:first-child { font-weight: 700; }
+}

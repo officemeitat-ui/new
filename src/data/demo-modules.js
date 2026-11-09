@@ -17,7 +17,7 @@ import { createQualitaetDemo } from './demo-qualitaet.js'
 import { createArbeitsschutzDemo, stoffDemo } from './demo-arbeitsschutz.js'
 import { createZufriedenheitDemo } from './demo-zufriedenheit.js'
 import { createBewerberDemo } from './demo-bewerber.js'
-import { createMattenDemo, createMattenJobsDemo } from './demo-matten.js'
+import { createMattenBestandDemo, createMattenDemo, createMattenJobsDemo } from './demo-matten.js'
 import { campaignFor } from '../core/vehicles.js'
 
 function demoVehicles(monday) {
@@ -254,6 +254,7 @@ export function createModuleDemo(monday, employees = []) {
     regie: createRegieDemo(),
     matten,
     mattenJobs: createMattenJobsDemo(todayISO(), matten),
+    mattenBestand: createMattenBestandDemo(todayISO()),
     qualitaet: createQualitaetDemo(),
     zufriedenheit: createZufriedenheitDemo(),
     ...createBewerberDemo(),

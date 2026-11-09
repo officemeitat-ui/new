@@ -173,6 +173,7 @@ export const SHORT_LABELS = {
   'mw-kalender': 'Kalender',
   'mw-planung': 'Tourplanung',
   'mw-lieferscheine': 'Lieferung',
+  'mw-bestand': 'Bestand',
   'mw-touren': 'Touren',
   qualitaet: 'Qualität',
   staff: 'Personal',

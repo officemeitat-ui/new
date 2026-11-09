@@ -9,6 +9,8 @@
 // einen Entwurf löschen gibt sie wieder frei. Dazu die Dialoge „Betriebshof und Arbeitszeit“ und „Fahrer“.
 // Rechenkerne: core/matten-tour.js (P8), core/matten-touren.js (P9); Ablage: die gemeinsame Touren-Ablage mit der
 // Fahreransicht (ui/matten-tourablage.js → storage/matten-touren.js, Zusammenführen mit mergeTour).
+// Mattenbestand (P17, views/matten-bestand.js): übersteigt die Ladeliste bis zum Tag der Tour den sauberen Bestand,
+// steht ein Hinweis an der Tour und in der Meldung zur Freigabe – nur ein Hinweis, die Freigabe bleibt möglich.
 // Aktionen und Dialoge mit dem Kürzel „mw-tp-“.
 
 import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
@@ -56,6 +58,7 @@ import { geocode } from '../geocode.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { completeWebDrivers, publishWebTour, pushWebDrivers, startWebPolling, syncWebspace, webIdentityFor, webLinkOf, webReady, webTourNote, withdrawWebTour } from '../matten-webspace.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
+import { tourStockHint } from './matten-bestand.js'
 
 const MODULE = 'matten'
 const KEY = 'mattenJobs'
@@ -296,13 +299,16 @@ function tourCard(t, { ed, today, others }) {
   const warn = probs.length ? `<ul class="mw-tp-warn" aria-label="Warnungen">${probs.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul>` : ''
   const relHtml = rel.length ? `<div class="mw-tp-rel" role="alert"><strong>Freigabe nicht möglich:</strong><ul>${rel.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul></div>` : ''
   const lockHtml = locked ? `<p class="note">Die Tour ist ${t.status === 'abgeschlossen' ? 'abgeschlossen' : 'unterwegs'}: die Tourenplanung ändert sie nicht mehr. Einzelne Stopps korrigiert das Büro in „Matten-Touren“.</p>` : t.status === 'freigegeben' ? '<p class="note">Freigegeben: der Fahrer sieht die Tour. Zum Ändern zuerst „Freigabe zurücknehmen“.</p>' : ''
+  // Mattenbestand: reicht der saubere Bestand bis zum Tag der Tour? (nur Hinweis, sperrt die Freigabe nicht)
+  const stock = (draft || t.status === 'freigegeben') && t.date >= today ? tourStockHint(t, today) : ''
+  const stockHtml = stock ? `<p class="mw-tp-stock" role="status"><strong>Hinweis Mattenbestand:</strong> ${esc(stock)} <button class="btn small" data-action="mwb-goto">Matten-Bestand</button></p>` : ''
   const stops = (t.stops || []).map((s, i) => stopRow(t, s, i, { ed, others })).join('')
   const load = loadList(t)
   return `<section class="mw-tp-tour st-${esc(t.status)}" data-tour="${esc(t.id)}" aria-label="Tour ${esc(t.driverName || 'ohne Fahrer')}">
     <header class="mw-tp-head"><div class="mw-tp-title"><h3>${esc(t.driverName || 'ohne Fahrer')} <span class="mw-st st-${esc(t.status)}">${esc(STATUS_TEXT[t.status] || t.status)}</span></h3>
       <p class="muted">${esc(facts.join(' · '))}</p>${t.notice ? `<p class="muted">${esc(t.notice)}</p>` : ''}</div>
       <div class="actions">${mapsHtml}${actions}</div></header>
-    ${relHtml}${warn}${lockHtml}${webTourNote(t, { ed })}
+    ${relHtml}${warn}${stockHtml}${lockHtml}${webTourNote(t, { ed })}
     ${stops ? `<ol class="mw-tp-stops" data-tour="${esc(t.id)}" ${ed && draft ? 'data-drop="1"' : ''}>${stops}</ol>` : `<p class="muted mw-tp-nostop">Noch kein Stopp. Unten unter „Nicht eingeplant“ Stopps zu dieser Tour hinzufügen.</p>`}
     ${load.length ? `<aside class="mw-load" aria-label="Ladeliste ${esc(t.driverName || '')}"><h4>Ladeliste</h4><ul>${load.map((x) => `<li><b>${x.qty}</b> × ${esc(loadLabel(x))} <span class="muted">(${plural(x.stops, 'Stopp', 'Stopps')})</span></li>`).join('')}</ul><p class="muted">zusammen ${plural(load.reduce((a, x) => a + x.qty, 0), 'Matte', 'Matten')}</p></aside>` : ''}
   </section>`
@@ -564,7 +570,8 @@ async function release(id) {
   storeJobs(changed)
   const web = identity ? await publishWebTour(saved) : null
   renderNow()
-  toast(`Tour freigegeben: ${tourSummary(saved)}. ${plural(changed.length, 'Einsatz ist', 'Einsätze sind')} jetzt „in Tour“.${web === true ? ' Der Fahrer sieht sie auf der Fahrerseite am Webspace.' : web === false ? ' Achtung: an die Fahrerseite am Webspace noch nicht übertragen (siehe Tour).' : ''}`)
+  const stock = tourStockHint(saved, today)
+  toast(`Tour freigegeben: ${tourSummary(saved)}. ${plural(changed.length, 'Einsatz ist', 'Einsätze sind')} jetzt „in Tour“.${web === true ? ' Der Fahrer sieht sie auf der Fahrerseite am Webspace.' : web === false ? ' Achtung: an die Fahrerseite am Webspace noch nicht übertragen (siehe Tour).' : ''}${stock ? ` Hinweis: ${stock}` : ''}`)
 }
 
 async function withdraw(id) {

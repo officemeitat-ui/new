@@ -18,7 +18,9 @@
 //                (nur „Öffnen“ in den Matten-Kalender); abgeschlossene Stopps ohne Lieferschein und fehlgeschlagene
 //                Ablage der Lieferscheine (mit Recht auf die Fakturierung; nur „Öffnen“); mit dem Stand der Touren
 //                (app.mwUe aus views/matten-uebersicht.js): nicht durchgeführte Wechsel nachholen, Touren vergangener
-//                Tage nicht abgeschlossen (nur „Öffnen“), Ergebnisse der Touren in die Einsätze übernehmen („Ausführen“)
+//                Tage nicht abgeschlossen (nur „Öffnen“), Ergebnisse der Touren in die Einsätze übernehmen („Ausführen“);
+//                Mattenbestand (app.mwBe aus views/matten-bestand.js): zu wenig saubere Matten für die Touren am …,
+//                Mindestbestand unterschritten (nur „Öffnen“)
 //
 // Ein Vorschlag verschwindet von selbst, wenn die Lage erledigt ist (die Daten ändern sich), und
 // kommt mit neuer Kennung wieder, wenn sich etwas Wesentliches ändert (z. B. mehr offene Einsätze).
@@ -573,6 +575,31 @@ function fristen(today) {
         open: { label: 'Öffnen', action: 'mw-ls-goto', data: { filter: 'ablage' } },
       })
   }
+  // Mattenbestand und Wäscherei (nur Büro): Zähler aus „Matten-Bestand“ (app.mwBe, views/matten-bestand.js, sobald die
+  // Touren gelesen sind); nur „Öffnen“, nichts automatisch
+  const be = app.mwBe?.today === today ? app.mwBe : null
+  if (be && edits('matten')) {
+    if (be.short)
+      out.push({
+        id: `mwb-knapp:${be.short.date}:${be.short.items.map((x) => `${x.articleId}=${x.missing}`).join(',')}`,
+        agent: 'fristen',
+        prio: 1,
+        title: `Zu wenig saubere Matten für die Touren am ${formatDate(be.short.date)}`,
+        text: 'Die Ladelisten der geplanten Touren und die fälligen Einsätze brauchen mehr saubere Matten, als im Lager sind. Wäscherei-Rücklieferung oder Zukauf einplanen. Ich ändere dabei nichts selbst.',
+        lines: be.short.items.slice(0, 6).map((x) => `${x.name}: ${x.need} gebraucht, ${x.stock} sauber im Lager – ${x.missing} fehlen`),
+        open: { label: 'Öffnen', action: 'mwb-goto' },
+      })
+    if (be.below.length)
+      out.push({
+        id: `mwb-min:${be.below.map((x) => `${x.articleId}=${x.sauber}`).join(',')}`,
+        agent: 'fristen',
+        prio: 2,
+        title: `Mindestbestand unterschritten (${plural(be.below.length, 'Mattentyp', 'Mattentypen')})`,
+        text: 'Im Lager sind weniger saubere Matten als der Mindestbestand. Wäscherei-Rücklieferung prüfen oder Matten zukaufen. Ich ändere dabei nichts selbst.',
+        lines: be.below.slice(0, 6).map((x) => `${x.name}: ${x.sauber} sauber, Mindestbestand ${x.min}`),
+        open: { label: 'Öffnen', action: 'mwb-goto' },
+      })
+  }
   const rek = app.data.reklamationen
   if (rek && edits('reklamationen')) {
     const late = (rek.items || []).filter((c) => complaintOverdue(c, today))
@@ -592,8 +619,8 @@ function fristen(today) {
 
 /** Alle offenen Vorschläge (ohne abgelehnte und zurückgestellte), wichtigste zuerst. */
 export function proposals(today = todayISO()) {
-  // app.mwLs, app.mwUe: Zähler der Matten-Lieferscheine und der Übersicht (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
-  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}`, () => {
+  // app.mwLs, app.mwUe, app.mwBe: Zähler der Matten-Lieferscheine, der Übersicht und des Bestands (Touren gehen nicht über den DataService, app.cur kennt sie nicht)
+  return memo(app.cur, `assistenz:${today}:${app.access?.label || ''}:${JSON.stringify(decided())}:${app.mwLs ? `${app.mwLs.offen}/${app.mwLs.ablage}` : ''}:${app.mwUe?.sig || ''}:${app.mwBe?.sig || ''}`, () => {
     const all = []
     const safe = (fn) => {
       try {

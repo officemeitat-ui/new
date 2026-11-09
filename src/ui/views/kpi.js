@@ -3,7 +3,8 @@
 // nur, wenn die Rolle den Bereich sieht. Gerechnet wird in src/core/kpi.js, gezeichnet in kpi-charts.js;
 // die Ergebnisse werden je Datenstand gemerkt (memo), Blättern und Hover kosten nichts.
 // Mattenwechsel: gerechnet im Modul (kpiHooks.matten aus views/matten-uebersicht.js, core/matten-uebersicht.js), sobald
-// es geladen ist; hier nur gezeichnet. Umsatz daraus nur mit Recht auf die Fakturierung.
+// es geladen ist; hier nur gezeichnet. Umsatz daraus nur mit Recht auf die Fakturierung. Wäscherei je Monat und
+// Schwundquote aus dem Matten-Bestand (kpiHooks.mattenBestand, views/matten-bestand.js), wenn es Buchungen gibt.
 //
 // Zeitraum: 4/8/13 Wochen für die Wochen-Kennzahlen, 3/6/12 Monate für die Monats-Kennzahlen.
 // Monats-Kacheln zeigen den letzten abgeschlossenen Monat (der laufende ist noch unvollständig).
@@ -121,6 +122,11 @@ function build(p) {
       out.matten = m
       if (m.invoices && sees('fakturierung')) out.mattenRevenue = revenueMonths({ ...(data.fakturierung || {}), documents: m.invoices }, months)
     }
+  }
+  // Mattenbestand: Wäschereimengen und Schwundquote je Monat (nur wenn gebucht wurde)
+  if (sees('matten') && kpiHooks.mattenBestand) {
+    const b = kpiHooks.mattenBestand({ months, today })
+    if (b) out.mattenBestand = b
   }
   // Einkauf & Kasse: Ausgaben (Eingangsrechnungen), offene Verbindlichkeiten, Kassenstand
   if (sees('einkauf')) {
@@ -290,6 +296,15 @@ function charts(d) {
     out.push(card({ id: 'matten-groessen', title: 'Matten je Größe', sub: 'an den aktiven Liegeplätzen; dazu im Zeitraum gewechselt', view: 'mw-liegeplaetze', body: barList({ rows: m.sizes.map((x) => ({ label: x.size, value: x.qty, display: `${count(x.qty)} Stk`, sub: `${x.placements} Liegepl.`, extra: [['im Zeitraum gewechselt', `${count(swapped.get(x.size) || 0)} Stk`, '']] })) }), table: tableView(['Größe', 'Matten', 'Liegeplätze', 'gewechselt'], m.sizes.map((x) => [x.size, count(x.qty), count(x.placements), count(swapped.get(x.size) || 0)])) }))
     if (d.mattenRevenue) out.push(card({ id: 'matten-umsatz', title: 'Umsatz aus dem Mattenwechsel', sub: 'netto, festgeschriebene Rechnungen aus dem Mattenwechsel; Storno mindert', view: 'fakturierung', body: columnChart({ labels: ml, titles: mt, series: [{ id: 'net', label: 'Umsatz netto', color: '--kpi-1', values: d.mattenRevenue.map((x) => x.net) }], fmt: euro, axis: euroAxis, width: W, ariaLabel: 'Umsatz aus dem Mattenwechsel je Monat' }), table: tableView(['Monat', 'Umsatz netto', 'Rechnungen'], d.mattenRevenue.map((x, i) => [mt[i], euro(x.net), count(x.count)])) }))
   }
+  if (d.mattenBestand) {
+    const w = d.mattenBestand.months
+    const ws = [
+      { id: 'abgeholt', label: 'zur Wäscherei', color: '--kpi-1', values: w.map((x) => x.abgeholt) },
+      { id: 'zurueck', label: 'sauber zurück', color: '--kpi-2', values: w.map((x) => x.zurueck) },
+    ]
+    out.push(card({ id: 'mwb-waesche', title: 'Wäscherei je Monat', sub: 'Matten zur Wäscherei und sauber zurück; Schwund und ausgeschieden in der Tabelle', view: 'mw-bestand', legendHtml: legend(ws), body: columnChart({ labels: ml, titles: mt, series: ws, fmt: count, integer: true, width: W, ariaLabel: 'Matten zur Wäscherei und zurück je Monat' }), table: tableView(['Monat', 'zur Wäscherei', 'zurück', 'Schwund', 'ausgeschieden', 'Schwundquote'], w.map((x, i) => [mt[i], count(x.abgeholt), count(x.zurueck), count(x.schwund), count(x.aus), pct(x.rate, 1)])) }))
+    out.push(card({ id: 'mwb-schwund', title: 'Schwundquote der Matten', sub: 'Schwund ÷ (sauber zurück + Schwund + ausgeschieden) im Monat', view: 'mw-bestand', body: lineChart({ labels: ml, titles: mt, series: [{ id: 'rate', label: 'Schwundquote', color: '--kpi-1', values: w.map((x) => x.rate) }], fmt: (v) => pct(v, 1), axis: (v) => pct(v, 0), unit: 0.01, width: W, ariaLabel: 'Schwundquote der Matten je Monat' }), table: tableView(['Monat', 'Schwund', 'zurückgemeldet', 'Quote'], w.map((x, i) => [mt[i], count(x.schwund), count(x.zurueck + x.schwund + x.aus), pct(x.rate, 1)])) }))
+  }
   if (d.margin?.length) {
     const name = (id) => app.data.objects.find((o) => o.id === id)?.name || 'Objekt'
     const rows = d.margin.slice(0, 10)
@@ -313,7 +328,7 @@ function agingBars(list, status) {
 
 function kpiView(c) {
   const p = period()
-  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}`, () => build(p))
+  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}`, () => build(p))
   const filters = Object.entries(PERIODS)
     .map(([id, x]) => `<button class="filter" data-action="kpi-period" data-period="${id}" aria-pressed="${id === p}">${esc(x.label)}</button>`)
     .join('')

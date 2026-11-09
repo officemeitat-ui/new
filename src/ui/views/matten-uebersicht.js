@@ -5,7 +5,9 @@
 // Ansicht bzw. den passenden Filter; daneben „Heute“ (Touren des Tages mit Fahrer und Fortschritt, Ladeliste) und die
 // Woche (fällig, geplant, erledigt je Tag). Zahlen der Fakturierung nur mit deren Leserecht.
 // Dazu: der Stand für Kalender und „Zu erledigen“ (mattenState: Einsätze mit den Ergebnissen der Touren), die Karte auf
-// der Startseite, die Kennzahlen (kpiHooks.matten) und die Zähler für den digitalen Mitarbeiter (app.mwUe).
+// der Startseite, die Kennzahlen (kpiHooks.matten) und die Zähler für den digitalen Mitarbeiter (app.mwUe). Unter den
+// Kacheln (keine zehnte Kachel) die Zeile „Saubere Matten reichen bis …“ bzw. die Warnung aus dem Matten-Bestand (P17,
+// views/matten-bestand.js).
 // Rechenkern: core/matten-uebersicht.js (ruft nur die vorhandenen Rechenkerne auf). Aktionen und Klassen „mwu-“.
 
 import { addDays, formatDate, isoWeekday, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
@@ -19,6 +21,7 @@ import { invalidateTodo } from '../modals/todo.js'
 import { checked, esc, ICON, menu, modalFrame, val } from '../shared.js'
 import { registerHomeCard } from './home.js'
 import { kpiHooks } from './lazy.js'
+import { stockLine } from './matten-bestand.js'
 
 const MODULE = 'matten'
 const VIEW = 'mw-uebersicht'
@@ -230,6 +233,7 @@ function uebersichtView() {
         ed && { label: 'Matten-Tourenplanung', icon: ICON.list, action: 'mw-tp-goto', data: { date: today }, hint: 'Touren je Tag' },
         { label: 'Matten-Touren', icon: ICON.list, action: 'view', data: { view: 'mw-touren' }, hint: 'Fortschritt der Fahrer' },
         { label: 'Matten-Lieferscheine', icon: ICON.list, action: 'view', data: { view: 'mw-lieferscheine' }, hint: 'erstellen, senden, ablegen' },
+        { label: 'Matten-Bestand', icon: ICON.list, action: 'view', data: { view: 'mw-bestand' }, hint: 'Lager, Wäscherei, Inventur' },
         { label: 'Matten-Liegeplätze', icon: ICON.list, action: 'view', data: { view: 'mw-liegeplaetze' }, hint: 'Kunde, Objekt, Intervall' },
         ed && o.applied.length && { label: 'Tour-Ergebnisse übernehmen', icon: ICON.check, action: 'mwu-apply', hint: plural(o.applied.length, 'Einsatz', 'Einsätze') },
         ed && { label: 'Einstellungen', icon: ICON.gear, action: 'mwu-settings-open', hint: 'Übernehmen, Pünktlichkeit' },
@@ -246,7 +250,7 @@ function uebersichtView() {
   if (!doc().placements.some((p) => p.active !== false))
     return `${head}<div class="banner welcome"><p><strong>Noch keine Liegeplätze.</strong> Die Übersicht zählt Einsätze, Touren und Lieferscheine des Mattenwechsels. Zuerst unter „Matten-Liegeplätze“ die Liegeplätze anlegen, dann im Kalender planen.</p><button class="btn" data-action="view" data-view="mw-liegeplaetze">Liegeplätze</button></div>`
   return `${head}${banners}
-    <div class="mwu-grid">${tiles(o)}<div class="mwu-side">${todayBlock(o)}${weekBlock(o)}</div></div>
+    <div class="mwu-grid"><div class="mwu-main">${tiles(o)}${stockLine(today)}</div><div class="mwu-side">${todayBlock(o)}${weekBlock(o)}</div></div>
     ${listBlock(o)}`
 }
 

@@ -6,6 +6,7 @@
 //  - werkzeugBeispiel(): Dateien des bisherigen Werkzeugs (Standorte.json, Kunden.json, Touren) im Format der
 //    Fassung 2.4 – für den Test der Übernahme (test/matten-import.test.js) und die SharePoint-Attrappe der Browser-Tests.
 //  - createMattenTourDemo(date): eine freigegebene Tour für die Fahreransicht im Browser-Modus (Matten-Touren)
+//  - createMattenBestandDemo(today): kleiner Mattenbestand (Inventur, Wäscherei abgeholt und zurück) für „Matten-Bestand“
 
 import { addDays } from '../core/dates.js'
 import { matLabel } from '../core/invoicing.js'
@@ -129,6 +130,28 @@ export function createMattenJobsDemo(today, matten = createMattenDemo()) {
   if (next[0]) change(next[0].key, 'verschieben', { date: addDays(next[0].due, 1), reason: 'Kunde bittet um einen Tag später' })
   if (next[1]) change(next[1].key, 'aussetzen', { reason: 'Inventur im Autohaus' })
   return jobs
+}
+
+/**
+ * Mattenbestand der Vorschau (matten/bestand.json, P17), relativ zu heute: Inventur vor 14 Tagen, Wäscherei vor 10 Tagen
+ * abgeholt und vor 6 Tagen zurück (eine Matte Schwund), Mindestbestand je Typ, Wäscherei mit erfundener Adresse.
+ */
+export function createMattenBestandDemo(today) {
+  const by = 'Beispieldaten'
+  const at = (d, hm) => `${d}T${hm}:00.000Z`
+  const line = (id, extra) => ({ articleId: id, name: copy(id).name, ...extra })
+  const d14 = addDays(today, -14)
+  const d10 = addDays(today, -10)
+  const d6 = addDays(today, -6)
+  return {
+    schema: 1,
+    settings: { min: { 'a-fdemo6': 10, 'a-fdemo7': 4 }, laundry: { name: 'Wäscherei Beispiel', email: 'annahme@waescherei-beispiel.example', contact: 'Frau Muster' }, days: 7 },
+    bookings: [
+      { id: 'mwb-demo1', kind: 'inventur', date: d14, at: at(d14, '15:00'), by, note: 'Startbestand', lines: [line('a-fdemo6', { sauber: 12, fahrzeug: 3, waesche: 8 }), line('a-fdemo7', { sauber: 6, fahrzeug: 1, waesche: 4 })] },
+      { id: 'mwb-demo2', kind: 'abholung', date: d10, at: at(d10, '07:30'), by, note: '', no: `WL-${d10.slice(0, 4)}-001`, lines: [line('a-fdemo6', { qty: 3 }), line('a-fdemo7', { qty: 1 })] },
+      { id: 'mwb-demo3', kind: 'rueckgabe', date: d6, at: at(d6, '08:00'), by, note: 'Lieferschein der Wäscherei 4711', lines: [line('a-fdemo6', { qty: 9, lost: 1, retired: 0 }), line('a-fdemo7', { qty: 4, lost: 0, retired: 0 })] },
+    ],
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { accountProblem, groupsOf } from '../src/auth/msal.js'
 import { resolveAccess } from '../src/core/access.js'
 import { runRights } from '../src/core/matten-abrechnung.js'
+import { bestandRights } from '../src/core/matten-bestand.js'
 import { noteRights } from '../src/core/matten-lieferschein.js'
 import { overviewRights } from '../src/core/matten-uebersicht.js'
 import { LocalDocStore } from '../src/storage/docstore-local.js'
@@ -374,6 +375,33 @@ test('Rechte: Matten-Übersicht (P15) – Büro ohne Zahlen der Fakturierung, Fa
   // eigene Rolle mit Mattenwechsel und Fakturierung lesen: alle neun Zahlen
   const both = resolveAccess({ roleClaims: ['mwfak'], strict: true, access: { ...access, roles: { mwfak: { label: 'Büro mit Faktura', modules: ['matten', 'mattentour', 'fakturierung'], edit: ['matten', 'mattentour'] } } } })
   assert.deepEqual(overviewRights(both), { view: true, fak: true, edit: true })
+})
+
+test('Rechte: Matten-Bestand (P17) – Büro bucht (Ordner matten/), Fahrer und andere Rollen lesen den Bestand nicht', () => {
+  const role = (id) => resolveAccess({ roleClaims: [id], access, strict: true })
+  const rows = (acc) => Object.fromEntries(folderRights(acc).map(([f, , x]) => [f, x]))
+  const FILE = MODULE_DOCS.mattenBestand.path
+  assert.equal(FILE, 'matten/bestand.json')
+  // Vollzugriff und Mattenwechsel Büro: lesen und schreiben (Inventur, Wäscherei, Wechsel aus den Touren)
+  const voll = resolveAccess({ email: 'office@cleanos.at', access, strict: true })
+  assert.deepEqual(bestandRights(voll), { view: true, edit: true })
+  assert.ok(dataRights(voll).write(FILE))
+  const buero = role('mattenwechsel')
+  assert.deepEqual(bestandRights(buero), { view: true, edit: true })
+  assert.ok(dataRights(buero).read(FILE) && dataRights(buero).write(FILE) && rows(buero).matten === 'Bearbeiten')
+  // Fahrer: weder Ansicht noch Datei (der Ordner matten/ bleibt für ihn ohne Recht)
+  const fahrer = role('mattenfahrer')
+  assert.deepEqual(bestandRights(fahrer), { view: false, edit: false })
+  assert.ok(!dataRights(fahrer).read(FILE) && !dataRights(fahrer).write(FILE) && rows(fahrer).matten === '')
+  // übrige Rollen: nichts (auch die Buchhaltung und das Lager nicht – Matten stehen nicht im Materiallager)
+  for (const id of ['buchhaltung', 'lager', 'objektleitung', 'objektservice', 'lesen', 'fuhrpark']) {
+    assert.deepEqual(bestandRights(role(id)), { view: false, edit: false }, id)
+    assert.ok(!dataRights(role(id)).read(FILE), id)
+  }
+  // eigene Rolle, die den Mattenwechsel nur liest: sehen ja, buchen nein
+  const lesen = resolveAccess({ roleClaims: ['mwlesen'], strict: true, access: { ...access, roles: { mwlesen: { label: 'Matten lesen', modules: ['matten'], edit: [] } } } })
+  assert.deepEqual(bestandRights(lesen), { view: true, edit: false })
+  assert.ok(dataRights(lesen).read(FILE) && !dataRights(lesen).write(FILE))
 })
 
 test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserzähler)', async () => {

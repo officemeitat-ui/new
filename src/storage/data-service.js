@@ -34,6 +34,8 @@
 //                                     Fotos unter matten/fotos/<Jahr>/<Liegeplatz>/
 //   matten/einsaetze-2026.json        Mattenwechsel: Einsätze je Liegeplatz und Solltermin, eine Datei je Jahr des
 //                                     Solltermins (YEAR_DOCS; wie die Wochenpläne: geladen werden die nötigen Jahre)
+//   matten/bestand.json               Mattenwechsel: Mattenbestand und Wäscherei (Inventur, Buchungen, Mindestbestand;
+//                                     nur das Büro, Fahrer lesen ihn nicht)
 //
 // Wasserzähler-Ablesung, Objektkontrolle, Objektdoku und Mattenwechsel sind
 // eigene Werkzeuge (werkzeuge/): Sie speichern selbst in ihren Ordnern der
@@ -114,6 +116,9 @@ export const MODULE_DOCS = {
   eintritt: { path: 'eintritt/eintritt.json', empty: () => ({ lists: [], templates: {}, settings: {} }) },
   // Mattenwechsel-Modul: leerer Inhalt wie emptyMatten (core/matten.js; test/matten.test.js vergleicht)
   matten: { path: 'matten/matten.json', empty: () => ({ schema: 1, settings: {}, placements: [], areas: [] }) },
+  // Mattenbestand und Wäscherei (P17): leerer Inhalt wie emptyBestand (core/matten-bestand.js; test/matten-bestand.test.js
+  // vergleicht). Ordner matten/: Büro bearbeitet, Fahrer lesen nichts (Regel 'matten/' in dataRights)
+  mattenBestand: { path: 'matten/bestand.json', empty: () => ({ schema: 1, settings: {}, bookings: [] }) },
 }
 const MODULE_BY_PATH = Object.fromEntries(Object.entries(MODULE_DOCS).map(([key, m]) => [m.path, { key, ...m }]))
 
@@ -213,7 +218,7 @@ export function dataRights(access) {
     ['eintritt/', () => sees('eintritt'), () => edits('eintritt')],
     // Mattenwechsel: Touren der Fahrer (eigener Unterordner zuerst; Fahrer sehen nur die eigenen, SharePoint trennt
     // nach Ordner, nicht nach Datensatz). Liegeplätze, Gebiete, Einstellungen (matten/matten.json) und Einsätze
-    // (matten/einsaetze-<Jahr>.json) nur das Büro:
+    // (matten/einsaetze-<Jahr>.json), Mattenbestand und Wäscherei (matten/bestand.json) nur das Büro:
     // Fahrer lesen sie nicht, die Tour trägt eine eingefrorene Kopie (Kunde, Adresse, Liegeplatz, Matte, ohne Preis)
     ['matten/touren/', () => sees('matten', 'mattentour'), () => edits('matten', 'mattentour')],
     // Fotos der Fahrer je Liegeplatz (matten/fotos/<Jahr>/<Liegeplatz>/…): Fahrer und Büro bearbeiten
@@ -252,7 +257,7 @@ export const FOLDERS = [
   ['kundenbereich', 'Kundenbereich: Links für Kunden und Angebote zur Online-Annahme (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
-  ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr (Büro)', MODULE_DOCS.matten.path],
+  ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr, Mattenbestand und Wäscherei (Büro)', MODULE_DOCS.matten.path],
   ['matten/touren', 'Mattenwechsel: Touren je Datei (Büro plant und gibt frei; Fahrer: Bestätigung je Liegeplatz, Unterschrift je Stopp)', 'matten/touren/2026/tour.json'],
   ['matten/fotos', 'Mattenwechsel: Fotos der Fahrer je Liegeplatz', 'matten/fotos/2026/liegeplatz/foto.jpg'],
 ]

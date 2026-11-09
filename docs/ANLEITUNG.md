@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 352 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 357 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (11)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (84)
+- [Objekte & Kunden](#objekte-kunden) (89)
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
@@ -1716,7 +1716,7 @@ Schließt ein Fahrer einen Stopp mit Ausnahme ab (kein Zugang, Kunde nicht anget
 
 *In der App: Kennzahlen*
 
-In den Kennzahlen steht für den Mattenwechsel: Wechsel je Monat (Soll laut Einsätzen, Ist laut Touren), die Pünktlichkeit (gewechselt bis zum Solltermin), nicht durchgeführte Wechsel, Matten je Größe an den Liegeplätzen und mit Recht auf die Fakturierung der Umsatz aus Mattenwechsel-Rechnungen.
+In den Kennzahlen steht für den Mattenwechsel: Wechsel je Monat (Soll laut Einsätzen, Ist laut Touren), die Pünktlichkeit, nicht durchgeführte Wechsel, Matten je Größe, Wäscherei je Monat mit Schwundquote (sobald gebucht wird) und mit Recht auf die Fakturierung der Umsatz aus Mattenwechsel-Rechnungen.
 
 1. „Kennzahlen“ öffnen.
 2. Zum Abschnitt Mattenwechsel blättern; eine Kachel öffnet die Übersicht, den Kalender oder die Fakturierung.
@@ -1725,6 +1725,87 @@ In den Kennzahlen steht für den Mattenwechsel: Wechsel je Monat (Soll laut Eins
 > Tipp: Monatswerte zeigen den letzten abgeschlossenen Monat.
 
 *Mattenwechsel Büro, Vollzugriff; Umsatz nur mit Recht auf die Fakturierung*
+
+### Matten-Bestand: Lager, Kunde, Wäscherei, Mindestbestand
+
+*In der App: Matten-Bestand*
+
+Der Matten-Bestand zeigt je Mattentyp: Lager sauber, beim Kunden (eigene Matten an aktiven Liegeplätzen), im Fahrzeug (schmutzig, wartet auf die Wäscherei), Wäscherei, gesamt, Schwund und ausgeschieden seit der Inventur, dazu den Mindestbestand mit Ampel. Gerechnet wird aus der Inventur, den Touren und den Buchungen.
+
+1. „Matten-Bestand“ unter „Objekte & Kunden“ öffnen.
+2. In der Tabelle den Mattentyp suchen; die Ampel zeigt „reicht nicht“, „unter Mindestbestand“ oder „ausreichend“.
+3. Unten „Reicht der saubere Bestand?“ und den Verlauf der Buchungen ansehen.
+
+> Tipp: Kundeneigentum wird mit gewaschen, aber nicht gezählt.
+> Tipp: Je gewechselter Matte bucht die App selbst eine saubere zum Kunden und eine schmutzige ins Fahrzeug, sobald der Stopp abgeschlossen ist – nie doppelt.
+> Tipp: Fahrer sehen den Bestand nicht.
+
+*Mattenwechsel Büro, Vollzugriff; buchen nur mit Recht, den Mattenwechsel zu bearbeiten*
+
+### Inventur der Matten (Startbestand)
+
+*In der App: Matten-Bestand*
+
+Mit der Inventur trägst du je Mattentyp ein, wie viele Matten sauber im Lager, im Fahrzeug und in der Wäscherei sind. Ab dem Stichtag rechnet die App mit Touren und Buchungen weiter. Beim Kunden zählt sie selbst aus den Liegeplätzen.
+
+1. Im Matten-Bestand „Inventur“ klicken.
+2. Stichtag wählen (Vorgabe heute).
+3. Je Mattentyp Lager sauber, im Fahrzeug und Wäscherei eintragen; vorbelegt ist der Stand laut App.
+4. „Inventur speichern“.
+
+> Tipp: Ein Mattentyp ohne Eingabe bleibt, wie er ist; leere Felder eines gezählten Typs gelten als 0.
+> Tipp: Eine nachträglich erfasste Inventur gilt für das Ende ihres Stichtags.
+> Tipp: Weicht die Zählung ab, steht der Stand laut App in der Buchung.
+
+*Mattenwechsel Büro, Vollzugriff*
+
+### Wäscherei: abholen, Lieferschein senden, zurück mit Schwund
+
+*In der App: Matten-Bestand*
+
+Holt die Wäscherei schmutzige Matten ab, bucht „Wäscherei abholen“ sie vom Fahrzeug in die Wäscherei; danach gibt es den Lieferschein als PDF ohne Preise und „An die Wäscherei senden“. „Wäscherei zurück“ bucht die sauberen ins Lager, fehlende als Schwund oder ausgeschieden.
+
+1. Im Matten-Bestand „Wäscherei abholen“ klicken; vorbelegt ist, was im Fahrzeug wartet.
+2. Mengen prüfen und „Abholung buchen“.
+3. „Lieferschein (PDF)“ oder „An die Wäscherei senden“ – gesendet wird erst nach dem Klick im Senden-Fenster.
+4. Bei der Rücklieferung „Wäscherei zurück“: zurück sauber, Schwund und ausgeschieden je Typ.
+
+> Tipp: Name und E-Mail der Wäscherei stehen unter „Mehr“ → „Einstellungen“.
+> Tipp: Die Nummer des Lieferscheins zählt je Jahr hoch (WL-2026-001).
+
+*Mattenwechsel Büro, Vollzugriff*
+
+### Zukauf, Ausscheiden, Schwund und Korrektur bei Matten
+
+*In der App: Matten-Bestand*
+
+„Zukauf/Ausscheiden“ bucht neue Matten ins Lager, kaputte als ausgeschieden, verlorene als Schwund oder korrigiert einen Ort um ± Stück. Jede Buchung steht mit wer, wann und Grund im Verlauf; „Stornieren“ nimmt sie zurück, sie bleibt sichtbar.
+
+1. Im Matten-Bestand „Zukauf/Ausscheiden“ klicken.
+2. Art wählen (Zukauf, Ausscheiden, Schwund, Korrektur) und bei Bedarf den Ort.
+3. Mengen je Mattentyp und den Grund eintragen, dann „Buchen“.
+4. Zum Stornieren im Verlauf „Ansehen“ → „Stornieren“ mit Grund.
+
+> Tipp: Bei Ausscheiden, Schwund und Korrektur ist der Grund Pflicht.
+> Tipp: Wechsel aus den Touren lassen sich nicht stornieren: sie ändern sich, wenn das Büro den Stopp korrigiert.
+
+*Mattenwechsel Büro, Vollzugriff*
+
+### Reichen die sauberen Matten für die Touren?
+
+*In der App: Matten-Bestand*
+
+Die App zählt die Ladelisten der Entwürfe und freigegebenen Touren der nächsten 7 Tage und die fälligen Einsätze ohne Tour gegen die sauberen Matten im Lager. Reicht es nicht, meldet sie „Zu wenig saubere Matten für die Touren am …“ in „Zu erledigen“, beim digitalen Mitarbeiter und in der Matten-Übersicht.
+
+1. In der Matten-Übersicht die Zeile „Saubere Matten reichen bis …“ lesen.
+2. Im Matten-Bestand unter „Reicht der saubere Bestand?“ sehen, welcher Typ ab wann fehlt.
+3. Wäscherei-Rücklieferung oder Zukauf einplanen.
+
+> Tipp: Beim Freigeben einer Tour steht ein Hinweis, wenn ihre Ladeliste den sauberen Bestand übersteigt – freigeben geht trotzdem.
+> Tipp: Rücklieferungen der Wäscherei zählen erst, wenn sie gebucht sind.
+> Tipp: Den Mindestbestand je Typ und die Zahl der Tage stellst du unter „Mehr“ → „Einstellungen“ ein.
+
+*Mattenwechsel Büro, Vollzugriff*
 
 ### Matten-Liegeplätze
 
