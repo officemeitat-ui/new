@@ -229,7 +229,8 @@ export function readView(root = document.querySelector('main'), { viewId = app.u
     .filter(shown)
     .map((el) => ({ label: cleanText(el.querySelector('.label, .kpi-tile-label') || el), value: cleanText(el.querySelector('.value, .kpi-tile-value') || el) }))
     .filter((t) => t.label && t.value && t.label !== t.value)
-    .slice(0, 16)
+    // Kennzahlen haben inzwischen rund 20 Kacheln (Verträge, Geräte, Mattenwechsel …); das PDF bricht in Zeilen um
+    .slice(0, 40)
   const tables = [...root.querySelectorAll('table')].filter(shown).map(tableData).filter((t) => t.head.length && t.rows.length)
   const lists = []
   const report = [...root.querySelectorAll('.report-row, .todo-item')].filter(shown).map(cleanText).filter(Boolean)
