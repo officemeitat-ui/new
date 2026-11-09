@@ -1691,7 +1691,7 @@ Schließt ein Fahrer einen Stopp mit Ausnahme ab (kein Zugang, Kunde nicht anget
 2. Beim Liegeplatz „Nachholen …“ klicken.
 3. Den Tag wählen und „Nachholen“ klicken; danach kommt der Einsatz in die Tourenplanung.
 
-> Tipp: Die Ergebnisse der Touren trägt die App nicht von selbst in den Kalender ein: „In die Einsätze übernehmen“ (Übersicht oder digitaler Mitarbeiter) setzt erledigt bzw. nachzuholen.
+> Tipp: „In die Einsätze übernehmen“ (Übersicht oder digitaler Mitarbeiter) setzt erledigt bzw. nachzuholen. Automatisch geht es mit „Mehr“ → „Einstellungen“ in der Matten-Übersicht.
 > Tipp: Touren vergangener Tage, die noch offen sind, meldet „Zu erledigen“ eigens: mit dem Fahrer klären oder im Büro korrigieren.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*

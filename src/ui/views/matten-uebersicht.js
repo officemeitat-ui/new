@@ -13,10 +13,10 @@ import { mergeJobs } from '../../core/matten-einsaetze.js'
 import { emptyMatten, upgradeMatten } from '../../core/matten.js'
 import { loadLabel, tourYears } from '../../core/matten-touren.js'
 import { mattenInvoices, mattenKpi, mattenStateOf, overviewOf, overviewRights, stopText, tourResults } from '../../core/matten-uebersicht.js'
-import { ACTIONS, app, canEdit, closeModal, memo, openModal, persist, registerActions, registerView, render, renderNow, toast } from '../context.js'
+import { ACTIONS, app, canEdit, closeModal, memo, openModal, persist, registerActions, registerModal, registerView, render, renderNow, toast } from '../context.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { invalidateTodo } from '../modals/todo.js'
-import { esc, ICON, menu } from '../shared.js'
+import { checked, esc, ICON, menu, modalFrame, val } from '../shared.js'
 import { registerHomeCard } from './home.js'
 import { kpiHooks } from './lazy.js'
 
@@ -109,6 +109,7 @@ export function publish(today = todayISO()) {
   const notDone = s.notDone.filter((x) => !x.planned)
   const sig = [s.overdue.map((x) => x.placement.id).join(','), notDone.map((x) => x.key).join(','), s.stale.map((t) => t.id).join(','), s.applied.length].join('|')
   if (app.mwUe?.sig === sig && app.mwUe.today === today) return app.mwUe
+  autoApply(s.applied.length, sig)
   app.mwUe = { today, sig, overdue: s.overdue, notDone, stale: s.stale.map((t) => ({ id: t.id, date: t.date, driverName: t.driverName || '', status: t.status, stops: (t.stops || []).length })), applied: s.applied.length, at: Date.now() }
   return app.mwUe
 }
@@ -231,6 +232,7 @@ function uebersichtView() {
         { label: 'Matten-Lieferscheine', icon: ICON.list, action: 'view', data: { view: 'mw-lieferscheine' }, hint: 'erstellen, senden, ablegen' },
         { label: 'Matten-Liegeplätze', icon: ICON.list, action: 'view', data: { view: 'mw-liegeplaetze' }, hint: 'Kunde, Objekt, Intervall' },
         ed && o.applied.length && { label: 'Tour-Ergebnisse übernehmen', icon: ICON.check, action: 'mwu-apply', hint: plural(o.applied.length, 'Einsatz', 'Einsätze') },
+        ed && { label: 'Einstellungen', icon: ICON.gear, action: 'mwu-settings-open', hint: 'Übernehmen, Pünktlichkeit' },
         (!app.access || app.access.all) && { label: 'Umstellung auf das Modul', icon: ICON.gear, action: 'mwc-open', hint: app.data?.matten?.settings?.cutover?.at ? 'umgestellt – zurücknehmen' : 'Werkzeug nur noch lesend' },
       ],
     })}</div></div>`
@@ -306,6 +308,24 @@ const go = async (patch) => {
 }
 const call = (name, data = {}) => ACTIONS[name]?.({ dataset: data })
 
+/**
+ * Einstellung „Tour-Ergebnisse automatisch übernehmen“ (settings.autoApplyResults): wer den Mattenwechsel bearbeitet und
+ * die App offen hat, schreibt die Ergebnisse fertiger Stopps gleich in die Einsätze – einmal je Stand (sig) und Sitzung,
+ * außerhalb des Zeichnens. Ohne Einstellung nur auf Klick („In die Einsätze übernehmen“).
+ */
+let autoSig = ''
+function autoApply(count, sig) {
+  if (!count || autoSig === sig || !doc().settings?.autoApplyResults || !rights().edit) return
+  autoSig = sig
+  setTimeout(async () => {
+    const n = await applyResults().catch(() => 0)
+    if (!n) return
+    toast(`${plural(n, 'Einsatz', 'Einsätze')} automatisch aus den Touren übernommen.`)
+    invalidateTodo()
+    renderNow()
+  }, 0)
+}
+
 /** Ergebnisse der Touren in die gespeicherten Einsätze schreiben (frisch gelesen); keys: nur diese. Liefert die Anzahl. */
 async function applyResults(keys = null) {
   const s = tourStore()
@@ -352,9 +372,42 @@ registerActions({
   },
 })
 
+// ---------------------------------------------------------------- Dialog: Einstellungen der Übersicht
+
+function settingsModal() {
+  const st = doc().settings || {}
+  return modalFrame({
+    title: 'Matten-Übersicht: Einstellungen',
+    body: `<div class="form-grid">
+        <label class="check wide"><input type="checkbox" id="mwu-auto" ${st.autoApplyResults ? 'checked' : ''}><span>Ergebnisse fertiger Stopps automatisch in die Einsätze übernehmen (erledigt bzw. nachzuholen), sobald jemand aus dem Büro die App öffnet</span></label>
+        <label class="field"><span>Pünktlich bis (Tage nach dem Solltermin)</span><input type="number" id="mwu-tol" min="0" max="14" step="1" inputmode="numeric" value="${esc(String(Number(st.toleranceDays) || 0))}"></label>
+      </div>
+      <p class="note">Ohne „automatisch“ bleiben die Ergebnisse sichtbar, bis jemand „In die Einsätze übernehmen“ klickt. Die Pünktlichkeit zählt in den Kennzahlen: gewechselt bis zum Solltermin plus diese Tage.</p>`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="mwu-settings-save">Speichern</button></div>`,
+  })
+}
+registerModal('mwu-settings', settingsModal, { module: MODULE })
+
 registerActions(
   {
-    // Ergebnisse fertiger Stopps in die Einsätze (Kalender): erledigt bzw. nachzuholen – nur nach Klick (Freigabe)
+    'mwu-settings-open': () => openModal({ type: 'mwu-settings' }),
+    'mwu-settings-save': () => {
+      const tol = Number(val('mwu-tol'))
+      if (!Number.isInteger(tol) || tol < 0 || tol > 14) return toast('Pünktlich bis: bitte 0 bis 14 Tage.')
+      const st = (doc().settings ||= {})
+      if (checked('mwu-auto')) st.autoApplyResults = true
+      else delete st.autoApplyResults
+      if (tol) st.toleranceDays = tol
+      else delete st.toleranceDays
+      autoSig = ''
+      persist()
+      closeModal()
+      toast('Einstellungen gespeichert.')
+      app.mwUe = null
+      publish()
+      renderNow()
+    },
+    // Ergebnisse fertiger Stopps in die Einsätze (Kalender): erledigt bzw. nachzuholen – nach Klick oder automatisch
     'mwu-apply': async () => {
       const n = await applyResults()
       renderNow()

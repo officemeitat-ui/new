@@ -352,7 +352,11 @@ async function sendMany(ids, mode, { auto = false, run = null } = {}) {
 
 // ---------------------------------------------------------------- Ansicht
 
-const filterOf = () => (NOTE_FILTERS[app.ui.mwLsFilter] ? app.ui.mwLsFilter : 'offen')
+// ohne eigene Wahl: „ohne Lieferschein“, wenn es welche gibt, sonst der erste Filter mit Einträgen (z. B. für das Büro ohne
+// Fakturierung, das nichts erstellt: gleich die nicht versendeten bzw. alle)
+const filterOf = () => (NOTE_FILTERS[app.ui.mwLsFilter] ? app.ui.mwLsFilter : NOTE_FILTERS[autoFilter] ? autoFilter : 'offen')
+let autoFilter = ''
+const pickFilter = (sum) => (sum.offen ? 'offen' : sum.erstellt ? 'erstellt' : sum.ablage ? 'ablage' : 'alle')
 const RANGES = { 30: 'letzte 30 Tage', 90: 'letzte 90 Tage', alle: 'alle gelesenen' }
 const rangeOf = () => (RANGES[app.ui.mwLsRange] ? app.ui.mwLsRange : '30')
 const selected = () => (app.ui.mwLsSel ||= [])
@@ -395,6 +399,7 @@ function lieferscheineView() {
   const act = mayAct()
   const all = allRows()
   const sum = publish(all)
+  if (ready) autoFilter = pickFilter(sum)
   const filter = filterOf()
   const range = rangeOf()
   const from = ['versendet', 'alle'].includes(filter) && range !== 'alle' ? addDays(today, -Number(range)) : ''

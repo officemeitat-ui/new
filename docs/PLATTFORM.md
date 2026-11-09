@@ -470,6 +470,15 @@ Pakete P12 (Lieferschein als Beleg) und P13 (Versand und SharePoint-Ablage), Ent
 - **Zu erledigen** (nur wer erstellen darf, nur „Öffnen“): „Abgeschlossene Stopps ohne Lieferschein (n)“, „Ablage fehlgeschlagen – erneut versuchen (n)“, „Lieferscheine noch nicht versendet (n)“; **digitaler Mitarbeiter „Fristen“**: „Lieferscheine erstellen (n)“ und „Ablage fehlgeschlagen – erneut versuchen (n)“ (Zähler `app.mwLs` aus der Ansicht, sobald die Touren gelesen sind).
 - **Browser-Test** `.pruefung/matten_lieferschein_app.mjs` (SharePoint-Attrappe): Fahrer schließt zwei Stopps ab (teilweise, nicht angetroffen), Büro erstellt `LS-<Jahr>-000001`, PDF am Pfad, zweites Erstellen und Ablegen ohne Doppel, Versand an Kunde, Büro, beide, Kunde mit „automatisch senden“, Ablage-Ausfall → Fehler → erneut → abgelegt, Sammelversand, Handy, Büro ohne Fakturierung, Buchhaltung in der Fakturierung, Browser-Modus.
 
+### Einstellungen der Übersicht
+
+*Matten-Übersicht → Mehr → Einstellungen* (wer den Mattenwechsel bearbeitet), gespeichert in `matten/matten.json` → `settings`:
+
+- **Ergebnisse automatisch übernehmen** (`autoApplyResults`): Fertige Stopps tragen erledigt bzw. nachzuholen in die Einsätze ein, sobald jemand aus dem Büro mit Bearbeitungsrecht die App offen hat (einmal je Stand, außerhalb des Zeichnens). Ohne die Einstellung geschieht das wie bisher nur auf Klick („In die Einsätze übernehmen“, digitaler Mitarbeiter, „Nachholen …“).
+- **Pünktlich bis** (`toleranceDays`, 0–14 Tage, Vorgabe 0): Toleranz für die Pünktlichkeit in den Kennzahlen.
+
+In *Matten-Lieferscheine* gilt ohne eigene Wahl der Filter „ohne Lieferschein“, wenn es solche Stopps gibt, sonst der erste mit Einträgen („nicht versendet“, „Ablage fehlgeschlagen“, „alle“). Das Büro ohne Fakturierung sieht so gleich den Stand.
+
 ### Umstellung vom Werkzeug auf das Modul
 
 Paket P16 des Mattenwechsels. Bis zur Umstellung laufen Werkzeug und Modul parallel (Entscheidung E14). Umstellen darf nur der **Vollzugriff**: *Matten-Übersicht* oder *Matten-Liegeplätze → Mehr → Umstellung auf das Modul*. Der Dialog zeigt den Stand im Modul (Liegeplätze, Übernahme aus dem Werkzeug, Fahrer, Betriebshof, Büro-E-Mail; Hinweise, kein Hindernis) und stellt mit **Jetzt umstellen** um. Ohne Liegeplätze im Modul fragt er erst nach. **Umstellung zurücknehmen** geht jederzeit; dabei gehen keine Daten verloren, weil Modul und Werkzeug eigene Dateien haben.
