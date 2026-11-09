@@ -133,7 +133,7 @@ const NAV_ORDER = {
   objekte: ['reklamationen', 'vertrieb', 'nachweis', 'kundenbereich', 'zufriedenheit', 'schluessel', 'anlagen', 'regie', 'zaehler', 'kontrolle', 'qualitaet', 'objektmappe', 'matten', 'mw-uebersicht', 'mw-liegeplaetze', 'mw-kalender', 'mw-planung', 'mw-touren', 'mw-lieferscheine'],
   betrieb: ['material', 'geraete', 'fahrzeuge'],
   finanzen: ['fakturierung', 'kalkulation', 'controlling', 'payroll', 'overtime'],
-  verwaltung: ['staff', 'bewerber', 'eintritt', 'sites', 'assign', 'unterweisungen', 'arbeitsschutz', 'rules', 'berechtigungen', 'system'],
+  verwaltung: ['staff', 'bewerber', 'eintritt', 'sites', 'assign', 'unterweisungen', 'mitteilungen', 'arbeitsschutz', 'rules', 'berechtigungen', 'system', 'sicherung'],
 }
 const SECTION_OF_VIEW = Object.fromEntries(Object.entries(NAV_ORDER).flatMap(([s, ids]) => ids.map((id) => [id, s])))
 /** Menü-Abschnitt einer Ansicht. */
