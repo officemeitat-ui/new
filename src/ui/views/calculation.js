@@ -10,12 +10,15 @@
 import { AREA_TYPES, CALC_DEFAULTS, calcWage, calculate, FREQUENCIES } from '../../core/calculation.js'
 import { applyCalc, calcSummary } from '../../core/vertrieb.js'
 import { nachkalkulation, NK_MIN_STAMPED, suggestPerformance } from '../../core/nachkalkulation.js'
+import { areasFromAusschreibung, ausschreibungRequest, checkAusschreibung } from '../../core/ausschreibung.js'
+import { KI_LIMITS } from '../../core/ki-vorschlag.js'
+import { kixBox, kixButton, kixCheck, kixConsent, kixFailed, kixFile, kixSet } from '../kix.js'
 import { hoursByObject, rentSpan } from '../../core/rentabilitaet.js'
 import { lastOfMonth, todayISO } from '../../core/dates.js'
 import { objectControlling } from '../../core/reports.js'
 import { mergeRules } from '../../core/rules.js'
 import { calcDocument, calcPdfName, offerDocument } from '../../export/calc-pdf.js'
-import { app, canEdit, closeModal, computeRange, memo, openModal, persist, registerActions, registerModal, registerView, render, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checkedValues, download, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 
@@ -95,7 +98,17 @@ function nachView(c) {
       : `<p class="empty">Noch kein Vorschlag: Dafür braucht es Objekte mit Kalkulation, in denen mindestens ${de(NK_MIN_STAMPED * 100, 0)} % der Einsätze gestempelt sind (Zeiterfassung im Objekt).</p>`}`
 }
 
+// KI-Knopf in der Ansicht: kixButton zeigt ihn erst, wenn der Status bekannt ist (aufgedeckt wird nur in Dialogen) –
+// hier einmal fragen und neu zeichnen
+let kiAsked = false
+function askKi() {
+  if (kiAsked) return
+  kiAsked = true
+  kixCheck().then((ok) => ok && app.ui.view === 'kalkulation' && renderNow())
+}
+
 function objectView() {
+  askKi()
   const id = current()
   if (!id) return '<p class="empty">Noch keine Objekte.</p>'
   const obj = objOf(id)
@@ -130,7 +143,7 @@ function objectView() {
     ${tabs()}
     <div class="filters"><label class="field inline"><span>Objekt</span>${objSelect}</label><span class="muted">${esc(obj.address || '')}</span>${obj.fromCase ? `<button class="btn small" data-action="vt-goto" data-id="${esc(obj.fromCase)}">Zum Fall im Vertrieb</button>` : ''}</div>
     <div class="table-wrap"><table class="data calc-table"><thead><tr><th>Bereich</th><th>Art</th><th class="num">Fläche m²</th><th>Häufigkeit</th><th class="num">m²/h</th><th class="num">h/Monat</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="muted">Noch keine Flächen. „Fläche hinzufügen“, z. B. Büros, Sanitär, Stiegenhaus.</td></tr>'}</tbody></table></div>
-    ${ed ? `<div class="actions" style="margin:8px 0 16px"><button class="btn" data-action="calc-add">${ICON.plus} Fläche hinzufügen</button><button class="btn primary" data-action="calc-save">Speichern</button></div>` : ''}
+    ${ed ? `<div class="actions" style="margin:8px 0 16px"><button class="btn" data-action="calc-add">${ICON.plus} Fläche hinzufügen</button>${kixButton('<button class="btn" data-action="calc-lv-open">Aus Ausschreibung lesen (KI)</button>')}<button class="btn primary" data-action="calc-save">Speichern</button></div>` : ''}
     <div class="impact-stats tc-stats">
       ${tile('Stunden je Monat', de(calc.hours), `inkl. ${de(s.setupPct, 0)} % Rüstzeit`)}
       ${tile('Verrechnungssatz', eur(calc.rate), `Lohn ${eur(wage)}`)}
@@ -219,6 +232,52 @@ function settingsModal() {
 
 registerModal('calc-settings', settingsModal, { module: MODULE })
 
+// ---------------------------------------------------------------- Ausschreibung lesen (KI, core/ausschreibung.js)
+
+const LV_FILE = { file: null }
+function lvModal(c, m) {
+  const res = m.res
+  const typeLabel = (t) => AREA_TYPES[t]?.[0] || t
+  const freq = (f) => FREQUENCIES.find(([x]) => Math.abs(x - f) < 1e-6)?.[1] || '–'
+  const list = res
+    ? `${res.site ? `<p><strong>${esc(res.site)}</strong></p>` : ''}
+      <div class="table-wrap"><table class="data"><thead><tr><th></th><th>Bereich</th><th>Art</th><th class="num">m²</th><th>Häufigkeit</th><th>Hinweis</th></tr></thead><tbody>${res.areas
+        .map((a, i) => `<tr><td><input type="checkbox" name="lv-area" value="${i}" ${a.m2 ? 'checked' : ''} aria-label="${esc(a.name)} übernehmen"></td><td>${esc(a.name)}</td><td>${esc(typeLabel(a.type))}${a.guessed ? ' <span class="muted small">(geschätzt)</span>' : ''}</td><td class="num">${a.m2 || '–'}</td><td>${esc(freq(a.perWeek))}</td><td>${esc(a.hint)}${a.problems.length ? `<br><span class="warn-text small">${esc(a.problems.join(', '))}</span>` : ''}</td></tr>`)
+        .join('')}</tbody></table></div>
+      ${res.unclear ? `<p class="note"><strong>Unklar:</strong> ${esc(res.unclear)}</p>` : ''}`
+    : ''
+  return modalFrame({
+    title: 'Aus Ausschreibung lesen',
+    subtitle: 'Vorschlag der KI – bitte jede Zeile prüfen',
+    wide: true,
+    body: `<p>Leistungsverzeichnis der Ausschreibung als PDF wählen (höchstens ${KI_LIMITS.sdbPages} Seiten). Die KI schlägt Bereiche mit Art, Fläche und Häufigkeit vor; Leistungswerte, Preise und Zuschläge kommen weiter aus der Kalkulation.</p>
+      <label class="btn">${ICON.upload} PDF wählen<input type="file" accept="application/pdf" data-change="calc-lv-file" hidden></label>
+      ${kixBox('calc-lv')}${list}`,
+    foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${res?.areas.length ? '<button class="btn primary" data-action="calc-lv-take">Angehakte übernehmen</button>' : ''}</div>`,
+  })
+}
+registerModal('calc-lv', lvModal, { module: MODULE })
+
+async function lvRun(el) {
+  const m = app.ui.modal
+  if (m?.type !== 'calc-lv' || !LV_FILE.file || m.kix?.['calc-lv']?.busy) return
+  if (!el?.dataset?.consent && !kixConsent('calc-lv', 'Das Leistungsverzeichnis (PDF)', { action: 'calc-lv-run' })) return
+  kixSet('calc-lv', { busy: 'Die KI liest das Leistungsverzeichnis …' })
+  try {
+    const pdf = await kixFile(LV_FILE.file, { pages: KI_LIMITS.sdbPages })
+    if (pdf.kind !== 'pdf') throw new Error('Bitte das Leistungsverzeichnis als PDF wählen.')
+    const { kiSend } = await import('../../ai/client.js')
+    const { parseKiJson } = await import('../../core/ki-vorschlag.js')
+    const res = checkAusschreibung(parseKiJson(await kiSend(ausschreibungRequest({ pdf }), { maxTokens: 12000 }), 'Die Antwort der KI zur Ausschreibung'))
+    if (app.ui.modal !== m) return
+    m.res = res
+    kixSet('calc-lv', res.areas.length ? {} : { error: res.problems[0] })
+    renderModal()
+  } catch (err) {
+    if (app.ui.modal === m) kixSet('calc-lv', { error: kixFailed(err) })
+  }
+}
+
 // ---------------------------------------------------------------- Aktionen
 
 registerActions({
@@ -257,6 +316,30 @@ registerActions({
     renderNow()
   },
   'calc-settings': () => openModal({ type: 'calc-settings' }),
+  'calc-lv-open': () => {
+    if (editable()) readAreas()
+    LV_FILE.file = null
+    openModal({ type: 'calc-lv' })
+  },
+  'calc-lv-file': (el) => {
+    LV_FILE.file = el.files?.[0] || null
+    el.value = ''
+    lvRun()
+  },
+  'calc-lv-run': (el) => lvRun(el),
+  'calc-lv-take': () => {
+    const m = app.ui.modal
+    if (m?.type !== 'calc-lv' || !m.res) return
+    const picked = checkedValues('lv-area').map(Number)
+    if (!picked.length) return toast('Bitte mindestens einen Bereich anhaken.')
+    const id = current()
+    const base = app.ui.calcDraft?.id === id ? app.ui.calcDraft.areas : areasOf(id).map((a) => ({ ...a }))
+    const add = areasFromAusschreibung(picked.map((i) => m.res.areas[i]).filter(Boolean), () => uid('f'))
+    app.ui.calcDraft = { id, areas: [...base, ...add] }
+    closeModal()
+    toast(`${add.length} ${add.length === 1 ? 'Bereich' : 'Bereiche'} übernommen – Flächen prüfen und „Speichern“.`)
+    renderNow()
+  },
   'calc-pdf': async (el) => {
     const id = current()
     const obj = objOf(id)

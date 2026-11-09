@@ -30,6 +30,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Zuletzt fertig (9.11.2026)
 
+- Kalkulation: „Aus Ausschreibung lesen (KI)“ – Leistungsverzeichnis (PDF) → Vorschlag für Bereiche mit Art, m² und Häufigkeit, nur Angehaktes in die Flächen.
 - Prüfrunde: Sicherheit am Webspace (5 Befunde behoben), 9 Rechenfehler im Mattenwechsel behoben, Leistung mit großen Datenmengen (Ansichtswechsel unter 0,3 s statt Minuten).
 - Datensicherung (ZIP mit Prüfsummen, Prüfen, gezieltes Zurückspielen) und Robustheit.
 - Kundenverträge mit Fristen und Preisanpassung nach KV-Lohnerhöhung (Rechtsprüfung Punkt 41).
@@ -63,7 +64,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 10. **(fertig)** Nachkalkulation: Kalkulierte Stunden je Objekt gegen geplante und gestempelte Stunden; Vorschlag, die Leistungswerte (m² je Stunde) je Raumart aus den Ist-Zeiten anzupassen – die Kalkulation lernt aus der Praxis.
 11. **(fertig)** Eingangsrechnung gegen Bestellung prüfen: Menge und Preis der Eingangsrechnung mit der Bestellung aus Material & Lager vergleichen, Abweichungen vor der Freigabe zeigen.
 12. **Einsatzplanung mit Wunschzeiten:** Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
-13. **KI-Angebotstext aus einer Ausschreibung:** Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
+13. **(fertig)** KI-Angebotstext aus einer Ausschreibung: Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
 14. **Fahrtenbuch aus den Touren:** Für Fahrzeuge im Mattenwechsel und Winterdienst Fahrten aus den Touren vorschlagen (Datum, Strecke, Kilometer, Zweck) – zum Bestätigen statt Abschreiben.
 15. **Kunden-Statusseite je Objekt:** ein Link für die Hausverwaltung mit allen offenen Meldungen, Terminen und dem letzten Leistungsnachweis eines Objekts (Kundenbereich je Objekt statt je Kunde).
 16. **Prüfrunde 2:** Sicherheit der neuen Webspace-Seiten (Aushang, Zusatzleistungen, Checkliste), Leistung mit großen Datenmengen für Rentabilität und Steuerberatungs-Paket, Barrierefreiheit (Tastatur, Bildschirmleser) der neuen Dialoge.

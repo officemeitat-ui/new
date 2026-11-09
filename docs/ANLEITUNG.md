@@ -3760,7 +3760,7 @@ Aus Flächen (Art, m², Häufigkeit, Leistungswert) rechnet die Kalkulation die 
 
 1. „Kalkulation“ unter „Finanzen“ öffnen.
 2. Objekt wählen.
-3. „Fläche hinzufügen“: Bereich, Art, m² und Häufigkeit.
+3. „Fläche hinzufügen“: Bereich, Art, m² und Häufigkeit – oder „Aus Ausschreibung lesen (KI)“: Leistungsverzeichnis als PDF wählen, Vorschlag prüfen, Angehaktes übernehmen.
 4. „Speichern“ klicken; „So rechnet die Kalkulation“ zeigt jeden Schritt in Euro.
 
 *Vollzugriff (Büro) – Löhne und Margen sieht sonst niemand*
