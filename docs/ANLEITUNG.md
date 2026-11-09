@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 351 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 352 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -13,7 +13,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Material & Fuhrpark](#material-fuhrpark) (18)
 - [Finanzen](#finanzen) (76)
 - [Verwaltung](#verwaltung) (56)
-- [Bedienung & Allgemeines](#bedienung-allgemeines) (40)
+- [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
 ## Start & Übersicht
@@ -4452,7 +4452,7 @@ Alles, was etwas ändert oder verschickt, zeigt der Assistent vorher als Karte m
 
 ### Was kann ich den Assistenten fragen?
 
-Er schlägt nach (Dienstplan, Personen, Objekte, Abwesenheiten, „Zu erledigen“, Lagerbestand, Schlüsselbuch, Outlook-Kalender, je nach Rolle auch Rechnungen, Einkauf, Anlagen, Qualität, Regie) und erledigt nach Bestätigung: Termine, Abwesenheiten, Vertretungen, Einteilung, Reklamationen, Material, E-Mails, Rechnungsentwürfe aus Regieberichten.
+Er schlägt nach (Dienstplan, Personen, Objekte, Abwesenheiten, „Zu erledigen“, Lagerbestand, Schlüsselbuch, Outlook-Kalender, je nach Rolle auch Rechnungen, Einkauf, Anlagen, Qualität, Regie, Mattenwechsel) und erledigt nach Bestätigung: Termine, Abwesenheiten, Vertretungen, Einteilung, Reklamationen, Material, E-Mails, Rechnungsentwürfe aus Regieberichten, Mattenwechsel verschieben.
 
 > Tipp: Beispiele: „Termin morgen 12 Uhr in Salzburg mit Herrn Maier“, „Wer arbeitet morgen in der Kanzlei?“, „Wie viele Müllsäcke 120 l haben wir noch?“.
 > Tipp: Unklares fragt er nach, Übliches nimmt er an und sagt es, z. B. dauert ein Termin dann eine Stunde.
@@ -4463,6 +4463,15 @@ Je nach Rolle schlägt der Assistent auch offene Posten und Umsatz (Fakturierung
 
 > Tipp: Beispiele: „Welche Rechnungen von Kanzlei Berger sind offen?“, „Mach aus RB-2026-0003 einen Rechnungsentwurf“, „Termin für die Nachkontrolle in der Kanzlei“.
 > Tipp: Die Zahlungserinnerung schickt er nie selbst: er öffnet den Dialog, gesendet wird dort.
+
+### Assistent: Mattenwechsel
+
+Je nach Rolle schlägt der Assistent fällige und überfällige Liegeplätze eines Zeitraums, die Touren eines Tages, die neun Zahlen der Matten-Übersicht, Lieferscheine und die Vorschau des Abrechnungslaufs nach. Nach „Ausführen“ verschiebt er einen Wechsel, setzt ihn aus oder trägt eine Pause am Liegeplatz ein.
+
+> Tipp: Beispiele: „Welche Liegeplätze sind diese Woche fällig?“, „Verschieb den Wechsel am Haupteingang Lehen auf Donnerstag“, „Pause für Stiege 2 bis Monatsende, Umbau“.
+> Tipp: Touren freigeben, Lieferscheine senden und Rechnungen festschreiben macht er nie; Fahrer bekommen nur ihre eigenen Touren, Preise nur, wer die Fakturierung sieht.
+
+*Mattenwechsel Büro und Vollzugriff; Fahrer nur ihre Touren; Buchhaltung Lieferscheine und Abrechnung*
 
 ### Cleo oder KI-Assistent?
 
