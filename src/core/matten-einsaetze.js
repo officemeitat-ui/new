@@ -473,9 +473,12 @@ export function untouredSoon(jobs = [], today) {
 export function attention({ doc, jobs = [], done = [], today, ahead = AHEAD_DAYS } = {}) {
   const { closures, skip } = planSettings(doc)
   const placements = (doc?.placements || []).filter(plannable)
+  // Einsätze je Liegeplatz einmal sammeln (nextDue sucht sich sonst je Liegeplatz dieselben aus allen heraus)
+  const byPlacement = new Map()
+  for (const j of jobs || []) if (j) byPlacement.has(j.placementId) ? byPlacement.get(j.placementId).push(j) : byPlacement.set(j.placementId, [j])
   const overdue = []
   for (const p of placements) {
-    const next = nextDue(p, { done, jobs, closures, today, skip })
+    const next = nextDue(p, { done, jobs: byPlacement.get(p.id) || [], closures, today, skip })
     if (next?.overdue) overdue.push({ placement: p, next })
   }
   const until = addDays(today, Math.max(1, ahead) - 1)

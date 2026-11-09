@@ -542,7 +542,7 @@ lazy(BUERO, {
   ],
   modals: 'fak-bank-import fak-bank-assign fak-text fak-terms fak-edit fak-doc fak-pay fak-remind fak-mail fak-einv fak-export fak-proof fak-cust fak-art fak-rec fak-import fak-conv fak-collect',
   actions: `fak-bank-file fak-bank-map fak-bank-take fak-bank-apply fak-bank-all fak-bank-ignore fak-bank-reopen fak-bank-undo fak-bank-assign-open
-    fak-bank-pick fak-bank-amt fak-bank-q fak-bank-assign-save fak-bank-goto fak-tab fak-year fak-state fak-search fak-cust-search fak-run-month
+    fak-bank-pick fak-bank-amt fak-bank-q fak-bank-assign-save fak-bank-goto fak-tab fak-year fak-state fak-search fak-more fak-cust-search fak-run-month
     fak-open fak-act fak-recalc fak-pdf fak-export-open fak-export fak-new fak-customer fak-object fak-date fak-line-add fak-line-del fak-article
     fak-from-calc fak-draft-save fak-draft-delete fak-finalize fak-copy fak-convert fak-offer-state fak-storno fak-correct fak-pay-open fak-pay-save
     fak-pay-del fak-remind-open kix-mahn kix-mahn-take kix-mahn-drop fak-remind fak-mail-open fak-mail-send fak-run fak-idx-add fak-idx-del fak-rec-open fak-rec-line-add fak-rec-save

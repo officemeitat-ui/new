@@ -12,7 +12,7 @@
 import { absenceImpact, periodicDue } from '../../core/attention.js'
 import { addDays, formatDate, formatHours, isoWeek, mondayOf, todayISO } from '../../core/dates.js'
 import { buildTimesheet, timesheetSignature } from '../../core/timesheet.js'
-import { app, canEdit, computeRange, dataStamp, empName, ensureRange, openModal, plannedWeeks, registerActions, registerModal, render } from '../context.js'
+import { app, canEdit, computeRange, dataStamp, drawing, empName, ensureRange, openModal, plannedWeeks, registerActions, registerModal, render } from '../context.js'
 import { ABSENCE_CLASS, esc, ICON, modalFrame } from '../shared.js'
 
 const SEEN_KEY = 'einsatzplaner.todoSeen.v1'
@@ -93,7 +93,8 @@ let cache = { key: null, todo: null }
 export const invalidateTodo = () => (cache.key = null)
 export function todo() {
   const key = `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
-  if (cache.key !== key) cache = { key, todo: computeTodo() }
+  // wie beim Zeichnen: Bezüge der Belege über einen Index (context.js drawing), die Daten ändern sich dabei nicht
+  if (cache.key !== key) cache = { key, todo: drawing(() => computeTodo()) }
   return cache.todo
 }
 
@@ -102,7 +103,7 @@ function refreshSources() {
   const t = cache.todo
   if (!t) return
   const planIds = t.ids.slice(0, t.ids.length - t.extra.reduce((n, x) => n + x.items.length, 0))
-  const { extra, extraIds } = sourceItems(t.today)
+  const { extra, extraIds } = drawing(() => sourceItems(t.today))
   const ids = [...planIds, ...extraIds]
   cache.todo = { ...t, extra, count: ids.length, ids }
 }

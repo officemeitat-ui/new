@@ -724,10 +724,71 @@ export function finalDraft(source, { id, date, accept = [], advances = [], setti
 /**
  * Rechnung, die einen Lieferschein bzw. eine Proforma abrechnet (nicht storniert), sonst null. Eine festgeschriebene geht
  * einem Entwurf vor (stehen beide in den Belegen, zählt sonst die Reihenfolge – stateOf hielte ihn für offen).
+ * Kandidaten aus dem Index (withDocIndex), sonst alle Belege – dasselbe Ergebnis.
  */
 export function billedBy(d, docs) {
-  const hits = docs.filter((x) => x.kind === 'rechnung' && x.id !== d.id && (x.refId === d.id || (x.deliveryNotes || []).some((n) => n.id === d.id)) && !isCancelled(x, docs))
+  const hits = candidates(billIndex(docs), d.id, docs).filter((x) => x.kind === 'rechnung' && x.id !== d.id && (x.refId === d.id || (x.deliveryNotes || []).some((n) => n.id === d.id)) && !isCancelled(x, docs))
   return hits.find((x) => x.number) || hits[0] || null
+}
+
+// ---------------------------------------------------------------- Bezüge schnell nachschlagen
+
+// refsOf und billedBy suchen je Beleg in allen Belegen; über eine Liste aller Belege gerechnet (offene Posten, Status je
+// Zeile, offene Lieferscheine) wächst das quadratisch. withDocIndex(docs, fn): während fn (synchron, ohne die Belege zu
+// ändern) schlagen beide über einen einmal gebauten Index derselben Liste nach – Kandidaten in der Reihenfolge der Liste,
+// geprüft mit derselben Bedingung, also dasselbe Ergebnis. Außerhalb von fn (oder für eine andere Liste) wie bisher.
+let docScope = null
+export function withDocIndex(docs, fn) {
+  const prev = docScope
+  docScope = Array.isArray(docs) ? { docs, refs: null, bills: null } : null
+  try {
+    return fn()
+  } finally {
+    docScope = prev
+  }
+}
+const scopeOf = (docs) => (docScope && docScope.docs === docs ? docScope : null)
+const NONE = Object.freeze([])
+/** Zu prüfende Belege: aus dem Index (nur die mit diesem Bezug) bzw. ohne Index alle. */
+const candidates = (index, key, docs) => (index ? index.get(key) || NONE : docs)
+const pushTo = (map, key, x) => {
+  const list = map.get(key)
+  if (!list) map.set(key, [x])
+  else if (list.at(-1) !== x) list.push(x)
+}
+/** Rechnungen je Bezug (refId, deliveryNotes[].id) – nur im Bereich von withDocIndex, sonst null. */
+function billIndex(docs) {
+  const sc = scopeOf(docs)
+  if (!sc) return null
+  if (sc.bills === null) {
+    try {
+      const map = new Map()
+      for (const x of docs) {
+        if (x.kind !== 'rechnung') continue
+        pushTo(map, x.refId, x)
+        for (const n of x.deliveryNotes || []) pushTo(map, n.id, x)
+      }
+      sc.bills = map
+    } catch {
+      sc.bills = false // ungewöhnliche Daten: wie bisher suchen
+    }
+  }
+  return sc.bills || null
+}
+/** Storno- und Korrekturbelege je refId – nur im Bereich von withDocIndex, sonst null. */
+function refIndex(docs) {
+  const sc = scopeOf(docs)
+  if (!sc) return null
+  if (sc.refs === null) {
+    try {
+      const map = new Map()
+      for (const x of docs) if (x.number && ['storno', 'korrektur'].includes(x.kind)) pushTo(map, x.refId, x)
+      sc.refs = map
+    } catch {
+      sc.refs = false
+    }
+  }
+  return sc.refs || null
 }
 
 /**
@@ -780,7 +841,7 @@ export const grossOf = (d, settings) => (d.total ? d.total.gross : totals(d, set
 export const paidOf = (d) => round2((d.payments || []).reduce((s, p) => s + parseNumber(p.amount), 0))
 
 /** Storno- und Korrekturbelege, die sich auf eine Rechnung beziehen (nur festgeschriebene). */
-export const refsOf = (d, docs) => docs.filter((x) => x.refId === d.id && x.number && ['storno', 'korrektur'].includes(x.kind))
+export const refsOf = (d, docs) => candidates(refIndex(docs), d.id, docs).filter((x) => x.refId === d.id && x.number && ['storno', 'korrektur'].includes(x.kind))
 export const isCancelled = (d, docs) => refsOf(d, docs).some((x) => x.kind === 'storno')
 
 /**

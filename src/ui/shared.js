@@ -9,7 +9,9 @@ export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&
 export const uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 export const signed = (min) => (min > 0 ? '+' : min < 0 ? '−' : '±') + formatHours(Math.abs(min))
 export const saldoClass = (min) => (min > 0 ? 'pos' : min < 0 ? 'neg' : 'zero')
-export const euro = (v) => (v || 0).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
+// Zahlen mit einem gemerkten Format (toLocaleString mit Optionen legt es jedes Mal neu an; Listen mit Hunderten Beträgen)
+const EURO = new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR' })
+export const euro = (v) => (typeof (v || 0) === 'number' ? EURO.format(v || 0) : (v || 0).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' }))
 export const byStart = (a, b) => a.start - b.start
 
 export const EMPLOYMENT_TYPES = ['Vollzeit', 'Teilzeit', 'Geringfügig', 'Lehrling']

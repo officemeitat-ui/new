@@ -116,7 +116,7 @@ import { mergeRules } from '../../core/rules.js'
 import { absMinutes } from '../../core/timeclock.js'
 import { ciiXml, ebInterfaceXml, eInvoiceFileName, eInvoiceProblems } from '../../export/e-invoice.js'
 import { invoiceDocument, reminderDocument } from '../../export/invoice-pdf.js'
-import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, memo, openModal, perDraw, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { abrechnungHooks, basisSwitch, beilageArchiveName, beilageButton, beilageFiles, beilageOption, beilageWanted, createIstDrafts, customerWinterTab, istProofModal, readCustomerWinter, readWinterSettings, sourceLabel, sourceNote, winterSettingsHtml } from './invoicing-abrechnung.js'
 import { bankTab, openCredits, staleBankCredits } from './invoicing-bank.js'
@@ -154,7 +154,13 @@ const by = () => app.user?.name || 'Browser'
 const nowIso = () => new Date().toISOString()
 const custOf = (id) => F().customers.find((c) => c.id === id)
 const docOf = (id) => F().documents.find((d) => d.id === id)
-const objName = (id) => app.data.objects.find((o) => o.id === id)?.name || ''
+/** Name des Objekts (je Zeichnen ein Verzeichnis statt je Zeile durch alle Objekte). */
+const objName = (id) =>
+  perDraw('fak:objekte', () => {
+    const names = new Map()
+    for (const o of app.data.objects) if (!names.has(o.id)) names.set(o.id, o.name)
+    return names
+  }).get(id) || ''
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const money = (n) => euro(round2(n))
 const num = (id) => parseNumber(val(id))
@@ -251,7 +257,16 @@ function headMenus(ed) {
   })}`
 }
 
-function counts() {
+/** Prüfsumme stimmt (intact) – je Datenstand und Beleg einmal geprüft (Liste und Übersicht zeichnen bei jeder Eingabe neu). */
+function intactNow(x) {
+  const seen = memo(app.cur, 'fak:intact', () => new WeakMap())
+  if (!seen.has(x)) seen.set(x, intact(x))
+  return seen.get(x)
+}
+
+/** Zähler der Fakturierung (Seitenleiste und Ansicht fragen bei jedem Zeichnen, z. B. bei jeder Eingabe in die Suche): je Datenstand einmal. */
+const counts = () => memo(app.cur, `fak:counts:${todayISO()}`, countsNow)
+function countsNow() {
   const d = F()
   const today = todayISO()
   const items = openItems(d.documents, today, S())
@@ -324,7 +339,7 @@ function startTab() {
   const ym = today.slice(0, 7)
   const due = recurringDue(ym)
   const drafts = d.documents.filter((x) => !x.number && isInvoice(x))
-  const broken = d.documents.filter((x) => !intact(x))
+  const broken = d.documents.filter((x) => !intactNow(x))
   const todo = [
     due.length ? `<div class="todo-item"><span class="flag warning">${due.length}</span><div class="todo-text"><strong>Daueraufträge für ${esc(monthLabel(ym))}</strong> noch nicht abgerechnet</div>${editable() ? `<button class="btn small primary" data-action="fak-run" data-ym="${ym}">Monatslauf</button>` : ''}</div>` : '',
     drafts.length ? `<div class="todo-item"><span class="flag">${drafts.length}</span><div class="todo-text"><strong>Entwürfe</strong> prüfen und festschreiben</div><button class="btn small" data-action="fak-tab" data-v="rechnungen">Ansehen</button></div>` : '',
@@ -351,7 +366,7 @@ function docRow(x, docs, today, s) {
     <td>${x.date ? formatDate(x.date, { year: true }) : ''}</td><td>${esc(x.recipient?.name || '–')}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
     <td>${esc(x.title || '')}${x.serviceFrom ? `<br><span class="muted">${esc(periodLabel({ from: x.serviceFrom, to: x.serviceTo || x.serviceFrom }))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open && open !== t.gross ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td>
-    <td>${pill(st)}${mattenBadge(x)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${onlineBadge(x)}${intact(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
+    <td>${pill(st)}${mattenBadge(x)}${x.reverseCharge ? ' <span class="pill info" title="Reverse Charge § 19 Abs. 1a UStG">RC</span>' : ''}${x.sent?.length ? ` <span class="pill" title="versendet">${ICON.send}</span>` : ''}${x.kind === 'rechnung' && x.number ? ` ${openRowBadges(x)}` : ''}${onlineBadge(x)}${intactNow(x) ? '' : ' <span class="pill error" title="Prüfsumme passt nicht">verändert</span>'}</td></tr>`
 }
 
 function listFilters(kinds) {
@@ -376,6 +391,21 @@ function filteredDocs(kinds) {
     .sort((a, b) => (a.number ? 1 : 0) - (b.number ? 1 : 0) || String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number)))
 }
 
+// Lange Listen (z. B. Tausende Lieferscheine aus dem Mattenwechsel im Jahr): gezeichnet werden die ersten LIST_STEP Zeilen
+// (Entwürfe, dann die neuesten), „Weitere anzeigen“ bzw. „Alle anzeigen“ holt den Rest; Suche und Status grenzen ein.
+// Gilt je Reiter, Jahr, Status und Suche (eine neue Auswahl beginnt wieder mit LIST_STEP).
+const LIST_STEP = 300
+const listKey = () => [app.ui.fakTab, year(), app.ui.fakState || '', app.ui.fakSearch || ''].join('|')
+const listLimit = () => (app.ui.fakMore?.key === listKey() ? app.ui.fakMore.n : LIST_STEP)
+
+function docTable(list, d, today, s) {
+  const shown = list.length > listLimit() ? list.slice(0, listLimit()) : list
+  const more = list.length - shown.length
+  return `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${shown.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>${
+    more ? `<p class="muted fak-more">${shown.length} von ${list.length} angezeigt (Entwürfe, dann die neuesten); Suche und Status grenzen ein. <button class="btn small" data-action="fak-more">Weitere ${Math.min(more, LIST_STEP)} anzeigen</button> <button class="btn small ghost" data-action="fak-more" data-all="1">Alle anzeigen</button></p>` : ''
+  }`
+}
+
 function invoicesTab() {
   const d = F()
   const s = S()
@@ -387,7 +417,7 @@ function invoicesTab() {
       ${ed && proofOk ? `<button class="btn small" data-action="fak-proof-open">Aus Leistungsnachweis</button><button class="btn small" data-action="fab-winter-open">Winterdienst abrechnen</button>` : ''}
       <button class="btn small" data-action="fak-export-open">${ICON.download} Export Steuerberatung</button></div>
     ${batchBanner()}
-    ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Rechnungen für diese Auswahl.</p>'}
+    ${list.length ? docTable(list, d, today, s) : '<p class="empty">Keine Rechnungen für diese Auswahl.</p>'}
     <p class="note">Entwürfe lassen sich ändern und löschen. Festgeschriebene Rechnungen sind unveränderlich (fortlaufende Nummer, Prüfsumme); korrigiert wird mit Stornorechnung oder Rechnungskorrektur. Aufbewahrung 7 Jahre (§ 132 BAO): die Datei fakturierung/fakturierung.json und die PDFs unter fakturierung/belege/ in SharePoint.</p>`
 }
 
@@ -398,7 +428,7 @@ function offersTab() {
   const list = filteredDocs(['angebot', 'auftrag'])
   return `<div class="filters">${listFilters(['angebot'])}</div>
     ${offersPanel(year())}
-    ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Angebote für diese Auswahl.</p>'}
+    ${list.length ? docTable(list, d, today, s) : '<p class="empty">Keine Angebote für diese Auswahl.</p>'}
     <p class="note">Aus einem Angebot wird mit einem Klick eine Auftragsbestätigung oder Rechnung (Positionen werden übernommen). Preise je Objekt kommen auf Wunsch aus der Kalkulation.</p>`
 }
 
@@ -412,7 +442,7 @@ function otherTab() {
   const open = openNotes().length
   return `<div class="filters">${listFilters(['lieferschein'])}<span class="spacer"></span>
       ${ed ? `<button class="btn small" data-action="fak-collect-open" ${open ? '' : 'disabled'} title="Mehrere Lieferscheine eines Kunden in einer Rechnung">Sammelrechnung${open ? ` (${open})` : ''}</button><button class="btn small" data-action="fak-new" data-kind="lieferschein">${ICON.plus} Lieferschein</button><button class="btn small" data-action="fak-new" data-kind="proforma">${ICON.plus} Proforma</button>` : ''}</div>
-    ${list.length ? `<div class="table-wrap"><table class="data fak-table"><thead><tr><th>Nummer</th><th>Datum</th><th>Empfänger</th><th>Betreff</th><th class="num">netto</th><th class="num">brutto</th><th>Status</th></tr></thead><tbody>${list.map((x) => docRow(x, d.documents, today, s)).join('')}</tbody></table></div>` : '<p class="empty">Keine Lieferscheine oder Proformarechnungen für diese Auswahl.</p>'}
+    ${list.length ? docTable(list, d, today, s) : '<p class="empty">Keine Lieferscheine oder Proformarechnungen für diese Auswahl.</p>'}
     <p class="note">Lieferscheine (Nummern LS) bestätigt der Kunde mit Unterschrift; auf Wunsch ohne Preise. Mehrere Lieferscheine eines Kunden werden mit „Sammelrechnung“ zu einer Rechnung. Eine Proformarechnung (PF) ist keine Rechnung im Sinne des UStG: kein Umsatz, kein offener Posten, keine Mahnung; nach der Leistung wird sie mit „→ Rechnung“ zur echten Rechnung.</p>`
 }
 
@@ -1666,6 +1696,10 @@ registerActions({
   },
   'fak-state': () => {
     app.ui.fakState = val('fak-state')
+    renderNow()
+  },
+  'fak-more': (el) => {
+    app.ui.fakMore = { key: listKey(), n: el?.dataset?.all ? Number.MAX_SAFE_INTEGER : listLimit() + LIST_STEP }
     renderNow()
   },
   'fak-search': () => {

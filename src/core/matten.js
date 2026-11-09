@@ -271,11 +271,14 @@ export function placementRows({ doc, objects = [], customers = null, articles = 
   const confirmed = done || doneFromPlacements(doc?.placements)
   const objById = new Map(objects.map((o) => [o.id, o]))
   const custById = new Map((customers || []).map((c) => [c.id, c]))
+  // Einsätze je Liegeplatz einmal sammeln (nextDue sucht sich sonst je Liegeplatz dieselben aus allen heraus)
+  const jobsOf = new Map()
+  for (const j of jobs || []) if (j) jobsOf.has(j.placementId) ? jobsOf.get(j.placementId).push(j) : jobsOf.set(j.placementId, [j])
   return (doc?.placements || []).map((p) => {
     const c = custById.get(p.customerId)
     const customer = c ? customerCopy(c) : { id: p.customerId || '', name: p.customer?.name || (p.customerId ? 'Kunde' : 'ohne Kunde'), no: p.customer?.no || '' }
     const mats = (p.mats || []).map((m) => ({ ...matDisplay(m, articles), qty: Number(m.qty) || 0, owner: m.owner === 'kunde' ? 'kunde' : 'wir' }))
-    const n = nextOf(p, { today, done: confirmed, jobs, closures, skip })
+    const n = nextOf(p, { today, done: confirmed, jobs: jobsOf.get(p?.id) || [], closures, skip })
     return {
       placement: p,
       object: objById.get(p.objectId) || null,

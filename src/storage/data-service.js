@@ -595,7 +595,17 @@ export class DataService {
 
   /** Geänderte Dateien, die diese Person speichern darf. */
   #dirty() {
-    return this.#docs().filter(([path, doc]) => this.rights.write(path) && (this.mustWrite.has(path) || !same(doc, this.base.get(path) ?? emptyDoc(path))))
+    return this.#docs().filter(([path, doc]) => this.rights.write(path) && (this.mustWrite.has(path) || !this.#sameAsBase(path, doc)))
+  }
+
+  // JSON des gespeicherten Stands je Datei, einmal je Stand (jede Basis ist eine eigene Kopie): der Vergleich bei jedem
+  // Speichern übersetzte sonst auch die unveränderte Basis jedes Mal neu (bei großen Dateien wie der Fakturierung teuer)
+  #baseText = new Map()
+  #sameAsBase(path, doc) {
+    const base = this.base.get(path) ?? emptyDoc(path)
+    let hit = this.#baseText.get(path)
+    if (!hit || hit.base !== base) this.#baseText.set(path, (hit = { base, text: JSON.stringify(base) }))
+    return JSON.stringify(doc) === hit.text
   }
 
   /** Lädt Stammdaten, Abwesenheiten, Zeitkonto und die Modul-Dateien. `seed()` liefert Startdaten, falls noch nichts existiert. */

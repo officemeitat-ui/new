@@ -57,17 +57,33 @@ const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 const int = (v) => Math.max(0, Math.round(Number(v) || 0))
 const later = (a, b) => String(a || '') > String(b || '')
 
+// Formatierer je Zeitzone einmal anlegen (neu angelegt kostet er ein Vielfaches des Formatierens; Listen über alle Stopps)
+const FORMATS = new Map()
+const formatter = (kind, timeZone) => {
+  const key = `${kind}|${timeZone}`
+  if (!FORMATS.has(key)) FORMATS.set(key, kind === 'tag' ? new Intl.DateTimeFormat('sv-SE', { timeZone }) : new Intl.DateTimeFormat('de-AT', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }))
+  return FORMATS.get(key)
+}
+// Ergebnis je Zeitpunkt gemerkt (dieselben Abschlusszeiten kommen in jeder Auswertung der Touren wieder)
+const SEEN = new Map()
+function formatted(kind, iso, timeZone) {
+  const key = `${kind}|${timeZone}|${iso}`
+  let out = SEEN.get(key)
+  if (out === undefined) {
+    const t = Date.parse(iso || '')
+    out = Number.isFinite(t) ? formatter(kind, timeZone).format(new Date(t)) : ''
+    if (SEEN.size >= 200_000) SEEN.clear()
+    SEEN.set(key, out)
+  }
+  return out
+}
 /** Tag eines Zeitpunkts in Wien (YYYY-MM-DD); ohne gültigen Zeitpunkt ''. */
 export function localDate(iso, timeZone = 'Europe/Vienna') {
-  const t = Date.parse(iso || '')
-  if (!Number.isFinite(t)) return ''
-  return new Intl.DateTimeFormat('sv-SE', { timeZone }).format(new Date(t))
+  return formatted('tag', iso, timeZone)
 }
 /** Uhrzeit eines Zeitpunkts in Wien (HH:MM). */
 export function localTime(iso, timeZone = 'Europe/Vienna') {
-  const t = Date.parse(iso || '')
-  if (!Number.isFinite(t)) return ''
-  return new Intl.DateTimeFormat('de-AT', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t))
+  return formatted('zeit', iso, timeZone)
 }
 
 export const isFinal = (stop) => FINAL_STOP.includes(stop?.status)

@@ -61,6 +61,32 @@ export function findNote(docs = [], tourId, stopId) {
   return hits.sort((a, b) => (b.number ? 1 : 0) - (a.number ? 1 : 0) || String(a.number || '').localeCompare(String(b.number || '')))[0] || null
 }
 
+/**
+ * Lieferscheine je Anfang eines Positionsschlüssels bis zu einem Doppelpunkt ('<tourId>:', '<tourId>:<stopId>:', …), in der
+ * Reihenfolge der Belege: findNote über diese Liste ergibt dasselbe wie über alle Belege, sofern kein Beleg den Stopp über
+ * source.key trifft (notesByKey). Ungewöhnliche Daten: null (dann über alle Belege).
+ */
+function notesByLinePrefix(docs = []) {
+  try {
+    const out = new Map()
+    for (const d of docs || []) {
+      if (d?.kind !== 'lieferschein') continue
+      for (const l of d.lines || []) {
+        if (l.source?.type !== SOURCE_TYPE) continue
+        const k = String(l.source.key || '')
+        for (let i = k.indexOf(':'); i >= 0; i = k.indexOf(':', i + 1)) {
+          const list = out.get(k.slice(0, i + 1))
+          if (!list) out.set(k.slice(0, i + 1), [d])
+          else if (list.at(-1) !== d) list.push(d)
+        }
+      }
+    }
+    return out
+  } catch {
+    return null
+  }
+}
+
 /** Alle Lieferscheine aus dem Mattenwechsel (Map Schlüssel → Beleg). */
 export function notesByKey(docs = []) {
   const out = new Map()
@@ -406,6 +432,12 @@ export function stopNeedsSync(stop, doc) {
  */
 export function noteRows({ tours = [], docs = null, from = '', to = '' } = {}) {
   const byKey = docs ? notesByKey(docs) : null
+  // ohne Beleg mit source.key bleibt die Suche über die Positionen: nur in den Lieferscheinen mit diesem Anfang (Index)
+  let byLine
+  const fromLines = (tourId, stopId) => {
+    if (byLine === undefined) byLine = notesByLinePrefix(docs)
+    return findNote(byLine ? byLine.get(`${tourId}:${stopId}:`) || [] : docs, tourId, stopId)
+  }
   const out = []
   for (const tour of tours || []) {
     if (!tour || tour.status === 'entwurf') continue
@@ -413,7 +445,7 @@ export function noteRows({ tours = [], docs = null, from = '', to = '' } = {}) {
       if (!isFinal(stop)) continue
       const date = localDate(stop.finishedAt) || tour.date
       if ((from && date < from) || (to && date > to)) continue
-      const doc = byKey ? byKey.get(noteKey(tour.id, stop.id)) || findNote(docs, tour.id, stop.id) : null
+      const doc = byKey ? byKey.get(noteKey(tour.id, stop.id)) || fromLines(tour.id, stop.id) : null
       const need = noteNeeded(stop)
       const state = noteStateOf(tour, stop, docs ? (doc ? [doc] : []) : null)
       out.push({

@@ -5,6 +5,7 @@
 import { GROUP_MODULE, MODULES } from '../core/access.js'
 import { addDays, eachDay, firstOfMonth, lastOfMonth, mondayOf, todayISO } from '../core/dates.js'
 import { holidayCalendar } from '../core/holidays.js'
+import { withDocIndex } from '../core/invoicing.js'
 import { buildInstances, PlanState } from '../core/plan.js'
 import { mondaysBetween } from '../core/reports.js'
 import { createContext, validatePlan } from '../core/rules.js'
@@ -182,12 +183,24 @@ export function mayEdit(modules) {
   return list.some((m) => canEdit(m))
 }
 
+// Ergebnisse während eines Zeichnens (renderNow): dieselbe Frage gibt dieselbe Antwort, die Daten ändern sich dabei nicht
+let pass = null
+/** Wert je Zeichnen merken, z. B. ein Verzeichnis für viele Zeilen (außerhalb eines Zeichnens jedes Mal neu). */
+export const perDraw = (key, fn) => (pass ? (pass.has(key) ? pass.get(key) : pass.set(key, fn()).get(key)) : fn())
+/** fn je Zeichnen höchstens einmal (außerhalb von renderNow jedes Mal); als Text wie fn (test/lazy.test.js vergleicht). */
+function oncePerPass(key, fn) {
+  const wrapped = (...args) => perDraw(key, () => fn(...args))
+  return Object.assign(wrapped, { raw: fn, toString: () => String(fn) })
+}
+
 /**
  * Ansicht registrieren: { id, label, group: 'plan'|'service'|'lager'|'fuhrpark'|'auswertung'|'stamm', module?, icon?, order, render(c),
  * summary?, badge?(c), range?() → { from, to } für zusätzlich zu ladende Wochen, available?() → false blendet aus }
  * module: Rollen-Modul (core/access.js), sonst nach Gruppe.
  */
 export function registerView(view) {
+  // Zähler (badge) fragen Seitenleiste, Bereichsmenü und Handy-Leiste je Zeichnen mehrfach ab: je Zeichnen einmal rechnen
+  if (view.badge && !view.badge.raw) view.badge = oncePerPass(`badge:${view.id}`, view.badge)
   const idx = VIEWS.findIndex((v) => v.id === view.id)
   if (idx >= 0) VIEWS.splice(idx, 1, view)
   else VIEWS.push(view)
@@ -441,7 +454,13 @@ export async function ensureRange(from, to) {
  */
 export function plannedWeeks() {
   const weeks = new Set()
-  for (const [key, list] of Object.entries(app.data.assignments)) if (list.some((a) => !a.locked)) weeks.add(mondayOf(key.slice(0, 10)))
+  const mondays = new Map() // Tag → Montag (viele Einteilungen je Tag; mondayOf rechnet mit Datumsobjekten)
+  for (const [key, list] of Object.entries(app.data.assignments)) {
+    if (!list.some((a) => !a.locked)) continue
+    const day = key.slice(0, 10)
+    if (!mondays.has(day)) mondays.set(day, mondayOf(day))
+    weeks.add(mondays.get(day))
+  }
   return weeks
 }
 
@@ -496,6 +515,20 @@ export function memo(c, key, fn) {
   return m.get(key)
 }
 
+/**
+ * fn als ein Zeichnen: Zähler der Ansichten je einmal (oncePerPass), Bezüge der Belege (Storno, verrechnete Lieferscheine)
+ * über einen Index statt je Beleg durch alle Belege (core/invoicing.js, withDocIndex). Beim Zeichnen ändern sich die Daten nicht.
+ */
+export function drawing(fn) {
+  const outer = pass
+  pass = new Map()
+  try {
+    return withDocIndex(app.data?.fakturierung?.documents, fn)
+  } finally {
+    pass = outer
+  }
+}
+
 let lastView = null
 export function renderNow() {
   // Umleitung aus der Adresse (z. B. erst nach dem Laden der Daten bekannt): mit Laden der Ansicht zeichnen
@@ -506,7 +539,7 @@ export function renderNow() {
   app.cur = compute()
   // gleiche Ansicht: nur Geändertes anpassen (schneller, Scrollen und Eingaben bleiben); andere Ansicht: ersetzen
   const view = `${app.ui.view}|${isMobileLayout()}`
-  patch($app, renderHooks.frame(app.cur), { replace: view !== lastView })
+  drawing(() => patch($app, renderHooks.frame(app.cur), { replace: view !== lastView }))
   lastView = view
   const next = document.querySelector('.grid-wrap, .sheet-wrap')
   if (next && next.scrollLeft !== scrollLeft) next.scrollLeft = scrollLeft
@@ -529,7 +562,7 @@ export function renderModal() {
   const scroll = $modal.querySelector('.modal-backdrop')?.scrollTop || 0
   const bodyScroll = $modal.querySelector('.modal-body')?.scrollTop || 0
   const candScroll = $modal.querySelector('.candidates')?.scrollTop || 0
-  const html = MODALS[ui.modal.type]?.(app.cur, ui.modal)
+  const html = drawing(() => MODALS[ui.modal.type]?.(app.cur, ui.modal))
   if (!html) {
     ui.modal = null
     $modal.innerHTML = ''

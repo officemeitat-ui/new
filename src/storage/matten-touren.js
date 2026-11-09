@@ -34,7 +34,25 @@ export const yearsAround = (today) => {
   return [y - 1, y, y + 1]
 }
 
+/** Map, die jede Änderung zählt: daran erkennt pathOf, ob ihr Verzeichnis Tour → Pfad noch stimmt. */
+class CountingMap extends Map {
+  changes = 0
+  set(key, value) {
+    this.changes++
+    return super.set(key, value)
+  }
+  delete(key) {
+    this.changes++
+    return super.delete(key)
+  }
+  clear() {
+    this.changes++
+    return super.clear()
+  }
+}
+
 export class TourStore {
+  #ids = null // Tour-ID → Pfad, gültig für den Stand { docs, pending } (pathOf)
   /**
    * store: Ablage (read, write mit eTag, remove, listFiles bzw. listDocs, optional readMany, etagsOf, cached, upload,
    * flushUploads). cache: Gerätespeicher für Ungespeichertes. onChange(): nach jeder Änderung (neu zeichnen).
@@ -47,8 +65,8 @@ export class TourStore {
     this.merge = merge
     this.canWrite = canWrite
     this.now = now
-    this.docs = new Map() // Pfad → { data, etag } (Stand der Ablage)
-    this.pending = new Map() // Pfad → { doc, base, etag, at, office?, error? }
+    this.docs = new CountingMap() // Pfad → { data, etag } (Stand der Ablage)
+    this.pending = new CountingMap() // Pfad → { doc, base, etag, at, office?, error? }
     this.years = new Map() // Jahr → { at } (Ordner gelesen)
     this.yearLoads = new Map() // Jahr → laufendes Laden
     this.restored = false
@@ -76,8 +94,18 @@ export class TourStore {
   }
 
   pathOf(id) {
-    for (const path of new Set([...this.docs.keys(), ...this.pending.keys()])) if (this.current(path)?.id === id) return path
-    return ''
+    // erster Pfad (Stand der Ablage, dann nur Ungespeichertes) mit dieser ID; das Verzeichnis gilt, bis sich eine der beiden
+    // Listen ändert (Kalender und Planung fragen je Einsatz „in Tour“: sonst jedes Mal durch alle Touren)
+    const at = `${this.docs.changes}|${this.pending.changes}`
+    if (this.#ids?.at !== at) {
+      const map = new Map()
+      for (const path of new Set([...this.docs.keys(), ...this.pending.keys()])) {
+        const tid = this.current(path)?.id
+        if (tid === tid && !map.has(tid)) map.set(tid, path) // tid !== tid: NaN, gleicht keiner ID
+      }
+      this.#ids = { at, map }
+    }
+    return this.#ids.map.has(id) ? this.#ids.map.get(id) : ''
   }
 
   byId(id) {

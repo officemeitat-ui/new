@@ -32,7 +32,7 @@ import { addDays, mondayOf } from './dates.js'
 import { matSize } from './invoicing.js'
 import { FLAT_TYPE, isMattenNote, NOTE_TYPE, reviewStep, RUN_TYPE } from './matten-abrechnung.js'
 import { attention, confirmedExchanges, loadList as placementLoad, mergeJobs, withId } from './matten-einsaetze.js'
-import { doneFromTours, isFinal, jobUpdatesFromTour, localDate, orderedStops, placementsOf, STOP_STATUS, tourProgress } from './matten-fahrt.js'
+import { doneFromTours, isFinal, jobUpdatesFromTour, localDate, orderedStops, placementsOf, shownQuantity, STOP_STATUS, tourProgress } from './matten-fahrt.js'
 import { DONE_STATUS, dueOn, isOpen, jobDate, markDone, markNotDone } from './matten-plan.js'
 import { archiveState } from './matten-lieferschein.js'
 import { loadList } from './matten-tour.js'
@@ -75,9 +75,11 @@ export function overviewRights(access) {
  */
 export function tourResults(jobs = [], tours = [], { now = '', by = '' } = {}) {
   const byKey = new Map((jobs || []).map((j) => [j?.key, j]))
+  // nur Touren, die einen Einsatz „in Tour“ berühren (jobUpdatesFromTour liefert nur Schlüssel ihrer Positionen)
+  const inTour = new Set([...byKey].filter(([, j]) => j?.status === 'in-tour').map(([k]) => k))
   const out = new Map()
   for (const tour of tours || []) {
-    if (!tour?.id || tour.status === 'entwurf') continue
+    if (!tour?.id || tour.status === 'entwurf' || !touchesKeys(tour, inTour)) continue
     for (const u of jobUpdatesFromTour(tour)) {
       const job = byKey.get(u.key)
       if (!job || job.status !== 'in-tour' || out.has(u.key)) continue
@@ -88,6 +90,16 @@ export function tourResults(jobs = [], tours = [], { now = '', by = '' } = {}) {
   }
   return [...out.values()]
 }
+
+/** Nennt eine Position der Tour (mit Einsatz) einen dieser Schlüssel (jobKey bzw. alsoJobKeys)? */
+const touchesKeys = (tour, keys) => keys.size > 0 && (tour.stops || []).some((s) => (s.items || []).some((it) => it.jobKey && (keys.has(it.jobKey) || (it.alsoJobKeys || []).some((k) => keys.has(k)))))
+
+/**
+ * Kann die Tour einen nicht durchgeführten Wechsel liefern (notDoneList)? Nur mit einem fertigen Stopp, in dem eine Position
+ * mit Einsatz nicht gewechselt ist (sonst gibt jobUpdatesFromTour kein „nachzuholen“), bzw. abgeschlossen mit offenem Stopp.
+ */
+const mayHaveNotDone = (tour) =>
+  (tour.stops || []).some((s) => (isFinal(s) ? (s.items || []).some((it) => it.jobKey && !(it.status === 'gewechselt' && shownQuantity(it) > 0)) : tour.status === 'abgeschlossen'))
 
 /** Einsätze mit den Ergebnissen der Touren (tourResults), wie sie nach dem Übernehmen gespeichert wären. */
 export const jobsWithTours = (jobs = [], tours = []) => mergeJobs(jobs || [], tourResults(jobs, tours))
@@ -115,7 +127,7 @@ export function notDoneList({ tours = [], jobs = [], done = [], today = '' } = {
     if (!old || e.date >= old.date) found.set(e.key, e)
   }
   for (const tour of tours || []) {
-    if (!tour?.id || tour.status === 'entwurf') continue
+    if (!tour?.id || tour.status === 'entwurf' || !mayHaveNotDone(tour)) continue
     const stops = new Map((tour.stops || []).map((s) => [s.id, s]))
     for (const u of jobUpdatesFromTour(tour)) {
       if (u.status !== 'nachzuholen' || u.also) continue

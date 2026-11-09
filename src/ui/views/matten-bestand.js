@@ -116,10 +116,11 @@ export function bestandState(today = todayISO()) {
     const d = doc()
     const tours = loaded ? tourStore().tours() : null
     const ps = placements()
-    const rows = stockRows({ doc: d, placements: ps, tours, articles: articles() })
+    // Abgleich mit den Touren einmal: der Bestand rechnet mit denselben Buchungen (wie stockRows mit tours)
+    const sync = loaded ? tourSync({ bookings: d.bookings, tours, placements: ps }) : null
+    const rows = stockRows({ doc: sync ? { ...d, bookings: applySync(d.bookings, sync) } : d, placements: ps, tours: null, articles: articles() })
     const days = daysOf(d)
     const cov = loaded ? coverage({ rows, tours, jobs: app.data.mattenJobs || [], placements: ps, today, days }) : null
-    const sync = loaded ? tourSync({ bookings: d.bookings, tours, placements: ps }) : null
     return { today, rows, totals: stockTotals(rows), cov, sync, loaded, days, below: belowMin(rows), base: rows.some((r) => r.base), noTypes: !rows.length }
   })
 }
