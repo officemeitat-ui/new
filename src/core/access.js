@@ -41,6 +41,8 @@ export const MODULES = {
   zufriedenheit: 'Kundenzufriedenheit',
   termine: 'Termine',
   fakturierung: 'Fakturierung',
+  // Vertrieb: Anfrage → Besichtigung → Kalkulation → Angebot → Auftrag (Kunden und Angebote in der Fakturierung)
+  vertrieb: 'Vertrieb',
   einkauf: 'Einkauf & Kasse',
   // Bewerbungen mit Unterlagen (eng: Personalverwaltung, Vollzugriff); Eintritt & Austritt auch für die Lohnverrechnung
   bewerber: 'Bewerbungen',
@@ -78,7 +80,9 @@ export const DEFAULT_ROLES = {
   // Mitteilungen an Mitarbeitende: verfassen, übersetzen, Lesebestätigungen und Nachweis
   personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel', 'mitteilungen'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'mitteilungen'] },
   // Geräte & Maschinen: Objektleitung und Lager & Einkauf pflegen die Geräte (Prüfungen, Reparaturen, Ausgabe)
-  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet'] },
+  // Vertrieb: Objektleitung nimmt Anfragen auf und besichtigt; Kalkulation, Angebote und Kunden bleiben beim Büro bzw.
+  // bei der Fakturierung (Übergabe im Fall)
+  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit', 'vertrieb'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'vertrieb'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
   // Regieberichte: erfasst Sonderleistungen vor Ort und lässt sie am Handy unterschreiben
   objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'anlagen', 'regie'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material', 'anlagen', 'regie'] },

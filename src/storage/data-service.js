@@ -25,6 +25,8 @@
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
+//   vertrieb/vertrieb.json            Vertrieb: Fälle von der Anfrage bis zum Objekt (Besichtigung mit Räumen; Fotos unter
+//                                     vertrieb/fotos/<Jahr>/); Kunden, Angebote und Verträge bleiben in der Fakturierung
 //   einkauf/einkauf.json              Einkauf: Lieferanten, Eingangsrechnungen, Zahlungen (Belege unter einkauf/belege/)
 //   einkauf/kassenbuch.json           Kassenbuch (Einträge, Kassenstürze, Monatsabschlüsse)
 //   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden und Angebote (mit Code), Einstellungen
@@ -112,6 +114,8 @@ export const MODULE_DOCS = {
   zufriedenheit: { path: 'zufriedenheit/zufriedenheit.json', empty: () => ({ settings: {}, links: {}, rounds: [], answers: [] }) },
   termine: { path: 'termine/termine.json', empty: emptyAppointments },
   fakturierung: { path: 'fakturierung/fakturierung.json', empty: emptyInvoicing },
+  // Vertrieb: leerer Inhalt wie emptyVertrieb (core/vertrieb.js; test/vertrieb.test.js vergleicht)
+  vertrieb: { path: 'vertrieb/vertrieb.json', empty: () => ({ cases: [], settings: {} }) },
   // Einkauf & Kasse: Lieferanten und Eingangsrechnungen; das Kassenbuch in einer eigenen Datei (kleiner, seltener gleichzeitig).
   // Leere Inhalte wie emptyPurchase/emptyCashbook (core/purchase.js, core/cashbook.js; test/storage.test.js vergleicht),
   // hier ausgeschrieben, damit die Rechenkerne nicht in den Start der App wandern
@@ -183,7 +187,7 @@ export function dataRights(access) {
   // Ordner der App und bekommen Mitteilungen über „Mein Plan“)
   const appRole = () => Object.keys(MODULES).some((m) => !TOOL_MODULES.includes(m) && access.sees(m))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten', 'vertrieb'), () => edits('stammdaten', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“) und die Geräte
     // (Ausgabe an eine Person, verantwortliche Person)
     [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt', 'geraete'), () => edits('stammdaten', 'planung')],
@@ -227,6 +231,9 @@ export function dataRights(access) {
     // Kalkulation (Löhne, Margen): nur Vollzugriff – keine Regel, also nur mit access.all
     // Rechnungen, Kunden, Zahlungen: nur Fakturierung (Buchhaltung, Vollzugriff)
     [MODULE_DOCS.fakturierung.path, () => sees('fakturierung'), () => edits('fakturierung')],
+    // Vertrieb: Fälle und Fotos der Besichtigung (vertrieb/fotos/…). Interessenten-Daten: nur wer den Vertrieb hat
+    // (Vollzugriff, Objektleitung); Kunden, Angebote und Verträge liegen weiter in der Fakturierung (eigenes Recht)
+    ['vertrieb/', () => sees('vertrieb'), () => edits('vertrieb')],
     // Lieferanten (mit Bankverbindung), Eingangsrechnungen, Kassenbuch: nur Einkauf & Kasse (Buchhaltung, Vollzugriff)
     ['einkauf/', () => sees('einkauf'), () => edits('einkauf')],
     // Kundenbereich: Links mit Code wirken wie Passwörter, nur wer Reklamationen oder die Planung bearbeitet
@@ -278,6 +285,7 @@ export const FOLDERS = [
   ['termine', 'Termine (Kunden, Begehungen, Schulungen)', MODULE_DOCS.termine.path],
   ['kalkulation', 'Objektkalkulation (Leistungswerte, Zuschläge, Preise)', MODULE_DOCS.kalkulation.path],
   ['fakturierung', 'Fakturierung: Kunden, Angebote, Rechnungen, Zahlungen, Belege als PDF', MODULE_DOCS.fakturierung.path],
+  ['vertrieb', 'Vertrieb: Anfragen, Besichtigungen mit Räumen und Fotos, Stand bis zum Auftrag (Interessenten-Daten)', MODULE_DOCS.vertrieb.path],
   ['einkauf', 'Einkauf & Kasse: Lieferanten, Eingangsrechnungen mit Belegen, Kassenbuch', MODULE_DOCS.einkauf.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
