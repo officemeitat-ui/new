@@ -88,6 +88,15 @@ function runBridge(parent) {
     removeItem(k) {
       this.map.delete(k)
     }
+    key(i) {
+      return [...this.map.keys()][i] ?? null
+    }
+    get length() {
+      return this.map.size
+    }
+    clear() {
+      this.map.clear()
+    }
   }
   const calls = []
   const classes = []
@@ -173,4 +182,76 @@ test('Brücke im Browser-Modus der App (ohne Microsoft): kennt die App, lässt d
   assert.equal(w.CLEANOS_APP.bruecke, 1)
   assert.deepEqual(classes, ['in-cleanos-app'])
   assert.equal(w.localStorage.getItem('cleanos.mattenwechsel.graph.tok'), null, 'Speicher nicht umgebogen')
+})
+
+// ---------------------------------------------------------------- clear() im Rahmen: nur die Schlüssel des Werkzeugs
+
+/** Speicher, wie er auf app.cleanos.at liegt: App (MSAL, Einstellungen), ein anderes Werkzeug, dazu das Werkzeug selbst. */
+const APP_KEYS = {
+  'msal.account.keys': '["abc.tenant-login.windows.net-tenant"]',
+  'abc.tenant-login.windows.net-tenant': '{"homeAccountId":"abc.tenant"}',
+  'abc.tenant-login.windows.net-accesstoken-client-tenant-sites.readwrite.all--': '{"secret":"AT"}',
+  'einsatzplaner.prefs.v2': '{"view":"matten"}',
+  'einsatzplaner:doc:Stammdaten/Kunden.json': '{"etag":"1","data":[]}',
+  'cleanos-cleo-gesehen': '1',
+  'cleanos.wasser.graph.cfg': '{"tenant":"t"}', // anderes Werkzeug, in diesem Fenster nie angefasst
+  'cleanos.wasserablesung.v1': '{"listen":[]}',
+}
+const fuellen = (store, keys) => Object.entries(keys).forEach(([k, v]) => store.map.set(k, v))
+const sperren = (w) => {
+  // wie „Gerät sperren (Konto vergessen)“ im Mattenwechsel 2.4: Konto-Marke und Token weg, dann alles
+  w.localStorage.removeItem('cleanos.matten.konto')
+  w.localStorage.removeItem('cleanos.matten.graph.tok')
+  w.localStorage.clear()
+  w.sessionStorage.clear()
+}
+
+test('Brücke in der App: „Gerät sperren“ (clear) löscht nur die Schlüssel des Werkzeugs, Anmeldung und Einstellungen der App bleiben', () => {
+  const { w } = runBridge(appWindow())
+  fuellen(w.localStorage, APP_KEYS)
+  w.localStorage.map.set('cleanos.matten.graph.tok', '{"refresh":"aus-eigenem-fenster"}') // Anmeldung aus „Eigenes Fenster“
+  w.sessionStorage.map.set('cleanos-reauth', '1700000000000') // App: Neuanmeldung läuft
+  // das Werkzeug arbeitet wie beim Start: Modus lesen, Einstellungen lesen, Marke schreiben, Touren-Fallback ohne IndexedDB
+  w.localStorage.getItem('cleanos.matten.modus')
+  w.localStorage.getItem('cleanos.matten.graph.cfg')
+  w.localStorage.setItem('cleanos.matten.konto', '{"name":"n"}')
+  w.localStorage.setItem('cleanos.matten', '{"touren":[1]}')
+  w.sessionStorage.setItem('cleanos.matten.pkce', '{"verifier":"v"}')
+  sperren(w)
+  assert.deepEqual([...w.localStorage.map.keys()], [...Object.keys(APP_KEYS), 'cleanos.matten.graph.tok'], 'App, anderes Werkzeug und Anmeldung bleiben')
+  assert.deepEqual([...w.sessionStorage.map.keys()], ['cleanos-reauth'])
+  // danach gilt das Werkzeug weiter als angemeldet (über die App), wie vor dem Sperren
+  assert.equal(w.localStorage.getItem('cleanos.matten.graph.tok'), '{"refresh":"cleanos-app"}')
+})
+
+test('Brücke in der App: clear() löscht nur, was das Werkzeug in diesem Fenster angefasst hat; nur Namen aus Kleinbuchstaben und Ziffern', () => {
+  const { w } = runBridge(appWindow())
+  fuellen(w.localStorage, APP_KEYS)
+  w.localStorage.map.set('cleanos.matten.modus', 'buero')
+  w.localStorage.map.set('cleanos.Matten.x', '1')
+  w.localStorage.map.set('cleanos.mattenwechsel', '1')
+  w.localStorage.clear()
+  assert.equal(w.localStorage.map.size, Object.keys(APP_KEYS).length + 3, 'nichts gemerkt: nichts gelöscht')
+  w.localStorage.removeItem('cleanos.matten.gibt-es-nicht') // schon das Löschen eines Schlüssels merkt den Namen
+  w.localStorage.clear()
+  assert.deepEqual([...w.localStorage.map.keys()].filter((k) => /^cleanos\./.test(k)), ['cleanos.wasser.graph.cfg', 'cleanos.wasserablesung.v1', 'cleanos.Matten.x', 'cleanos.mattenwechsel'])
+})
+
+test('Brücke im Browser-Modus der App: clear() bleibt beim Werkzeug, die eigene Anmeldung gehört dann dem Werkzeug und geht mit', () => {
+  const { w } = runBridge(appWindow({ angemeldet: false }))
+  fuellen(w.localStorage, APP_KEYS)
+  w.localStorage.setItem('cleanos.matten.graph.tok', '{"refresh":"eigen"}')
+  w.localStorage.setItem('cleanos.matten.konto', '{"name":"n"}')
+  sperren(w)
+  assert.deepEqual([...w.localStorage.map.keys()], Object.keys(APP_KEYS))
+})
+
+test('Brücke: allein geöffnet löscht clear() wie bisher alles', () => {
+  const { w } = runBridge()
+  fuellen(w.localStorage, APP_KEYS)
+  w.localStorage.setItem('cleanos.matten.konto', '{"name":"n"}')
+  w.sessionStorage.setItem('cleanos.matten.pkce', '{"verifier":"v"}')
+  sperren(w)
+  assert.equal(w.localStorage.map.size, 0)
+  assert.equal(w.sessionStorage.map.size, 0)
 })
