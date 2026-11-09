@@ -221,3 +221,25 @@ test('Rechte: ohne Plan-Recht kein Plan; Zeitraum höchstens 31 Tage; Beispiele 
   assert.ok(dataExamples({ plan: true }).includes('Wer arbeitet heute?'))
   assert.ok(!dataExamples({}).includes('Wer arbeitet heute?'))
 })
+
+test('Wunschzeiten: „Wer hat diese Woche Wunschfrei?“, Wünsche einer Person, ohne Planung kein Einblick', () => {
+  const d = {
+    ...data(),
+    wishes: [
+      { id: 'w1', empId: 'e2', date: '2026-11-06', kind: 'frei', note: 'Familienfeier' },
+      { id: 'w2', empId: 'e1', date: '2026-11-05', kind: 'frueh' },
+      { id: 'w3', empId: 'e1', date: '2026-11-02', kind: 'mehr' },
+      { id: 'w4', empId: 'e2', date: '2026-12-01', kind: 'frei' },
+    ],
+  }
+  let { u, a } = ask('Wer hat diese Woche Wunschfrei?', d)
+  assert.equal(u.kind, 'wishes')
+  assert.match(text(a.html), /1 Wunsch diese Woche Ben Berger .*Fr 06\.11\. · Wunschfrei · Familienfeier/)
+  assert.match(a.html, /data-run="wish-open"/)
+  ;({ u, a } = ask('Welche Wünsche hat Anna Huber?', d))
+  assert.equal(u.kind, 'wishes')
+  assert.match(text(a.html), /2 Wünsche von Anna Huber in den nächsten 14 Tagen/)
+  assert.match(text(a.html), /Woche ab .*mehr Stunden/)
+  assert.equal(answer(understand('Wer hat diese Woche Wunschfrei?', env()), { ...d, can: { plan: false } }).mood, 'hoppla')
+  assert.ok(dataExamples({ plan: true }).includes('Wer hat diese Woche Wunschfrei?'))
+})

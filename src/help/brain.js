@@ -182,6 +182,8 @@ export function understand(text, { today, employees = [], objects = [], last = n
   if ((person || people.length > 1) && type && (!ask || /\b(trag|trage|eintragen|melde|meld)\b/.test(n)) && !/^ (wer|wann|ist|hat|wie|welche)\b/.test(n)) return { ...base, kind: 'absence-cmd' }
 
   if (is(/feiertag/) && (when || is(/\b(naechste|naechster|wann|welche|kommende)\b/))) return { ...base, kind: 'holiday' }
+  // Wunschzeiten (core/wuensche.js): „Wer hat diese Woche Wunschfrei?“, „Welche Wünsche hat Anna?“
+  if (is(/\b(wunschfrei|wunsch|wuensche|wunschzeiten|wunschzeit)\b/) && (ask || when || person)) return { ...base, kind: 'wishes' }
   if (is(/\b(telefon|telefonnummer|nummer|handynummer|tel|mail|email|e mail|mailadresse|erreiche|erreichen|anrufen)\b/) && (person || people.length > 1)) return { ...base, kind: 'contact' }
   if (is(/schluessel|transponder|chip|zutrittskarte/) && (ask || person || object)) return { ...base, kind: 'keys' }
   if (is(/\b(reklamation|reklamationen|beschwerde|beschwerden|maengel)\b/) && (ask || is(/\boffen/))) return { ...base, kind: 'complaints' }
@@ -260,6 +262,7 @@ export function rangeFor(u, today) {
   if (u.kind === 'person') return clampRange(u.when || { from: today, to: addDays(today, 13), label: 'heute', soonest: true })
   if (['object', 'open'].includes(u.kind)) return clampRange(u.when || week)
   if (u.kind === 'hours') return clampRange(u.when || { from: mondayOf(today), to: addDays(mondayOf(today), 6), label: 'diese Woche' })
+  if (u.kind === 'wishes') return clampRange(u.when || { from: today, to: addDays(today, 13), label: 'in den nächsten 14 Tagen' })
   return u.when ? clampRange(u.when) : null
 }
 
@@ -445,6 +448,19 @@ export function answer(u, d) {
       const minutes = list.reduce((m, i) => m + (i.end - i.start), 0)
       return { mood: 'zeigt', html: `<p><b>${esc(u.person.name)}</b> hat ${esc(w.label)} laut Plan <b>${formatHours(minutes)} Stunden</b> in ${plural(list.length, 'Einsatz', 'Einsätzen')}${u.person.weeklyHours ? ` (vereinbart ${esc(String(u.person.weeklyHours))} h je Woche)` : ''}.</p><p class="muted">Ist-Zeiten, Überstunden und Zuschläge stehen im Wochenzettel.</p>` }
     }
+    case 'wishes': {
+      if (!can.plan) return DENIED
+      const kinds = { frei: 'Wunschfrei', frueh: 'lieber früh', spaet: 'lieber spät', mehr: 'mehr Stunden', weniger: 'weniger Stunden' }
+      const weekly = (k) => k === 'mehr' || k === 'weniger'
+      const list = (d.wishes || [])
+        .filter((x) => x && kinds[x.kind] && (!u.person || x.empId === u.person.id) && (weekly(x.kind) ? x.date <= w.to && addDays(x.date, 6) >= w.from : x.date >= w.from && x.date <= w.to))
+        .filter((x) => !/\bwunschfrei\b/.test(normalize(u.text)) || x.kind === 'frei')
+        .sort((a, b) => a.date.localeCompare(b.date))
+      const who = u.person ? ` von ${esc(u.person.name)}` : ''
+      if (!list.length) return { mood: 'schlaeft', html: `<p>Keine Wünsche${who} ${esc(w.label)}.</p>`, }
+      const acts = can.planEdit ? [btn('Wünsche öffnen', 'wish-open', {}, true)] : []
+      return { mood: 'liste', html: box(`${plural(list.length, 'Wunsch', 'Wünsche')}${who} ${esc(w.label)}`, list.slice(0, LIMIT).map((x) => row(`<b>${esc(name(d, x.empId))}</b> <span class="muted">${esc(weekly(x.kind) ? `Woche ab ${formatDate(x.date)}` : formatDate(x.date))} · ${esc(kinds[x.kind])}${x.note ? ` · ${esc(x.note)}` : ''}</span>`)), { more: Math.max(0, list.length - LIMIT), acts, note: 'Wünsche sind keine Abwesenheit – die Automatik berücksichtigt sie beim Planen.' }) }
+    }
     case 'absence-cmd': {
       const emp = u.person
       if (!can.planEdit) return { mood: 'hoppla', html: `<p>Abwesenheiten trägt das Büro ein. Sag bitte dort Bescheid, dass <b>${esc(emp.name)}</b> ${esc(u.when?.label || 'heute')} ${u.type === 'Urlaub' ? 'auf Urlaub' : 'abwesend'} ist.</p>` }
@@ -475,5 +491,6 @@ export function dataExamples(can = {}, { person = '', object = '' } = {}) {
     'Wann ist der nächste Feiertag?',
     can.complaints && 'Offene Reklamationen?',
     can.material && 'Was muss nachbestellt werden?',
+    can.plan && 'Wer hat diese Woche Wunschfrei?',
   ].filter(Boolean)
 }

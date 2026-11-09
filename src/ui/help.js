@@ -147,6 +147,7 @@ export async function dataAnswer(text) {
     keys: app.data.schluessel?.keys || [],
     complaints: app.data.reklamationen?.items || [],
     material: app.data.material || null,
+    wishes: u.kind === 'wishes' ? Object.values(app.data.wishes || {}) : [],
     todoCount: u.kind === 'summary' ? todo().count : 0,
     appointments: u.kind === 'summary' && visibleIds().has('termine') ? appointmentsOfDay(w.from).map(({ a, allDay }) => ({ time: allDay ? '' : a.start.slice(11, 16), title: a.title })) : [],
   })
