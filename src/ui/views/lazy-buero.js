@@ -38,4 +38,6 @@ import './purchase.js'
 import './cashbook.js'
 import './weiterverrechnung.js'
 import './uva.js'
+// Paket für die Steuerberatung (Fakturierung, Einkauf, Kassenbuch, Umsatzsteuer)
+import './steuerberatung.js'
 import './weather.js'

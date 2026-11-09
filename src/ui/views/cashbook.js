@@ -130,6 +130,7 @@ function cashbookView() {
           ed && { label: 'Monatsabschluss', action: 'kasse-close-open', hint: firstOpenMonth(b) ? `offen: ${monthName(firstOpenMonth(b))}` : '' },
           { label: `PDF ${monthName(m)}`, action: 'kasse-pdf', data: { month: m } },
           { label: 'Export Steuerberatung', action: 'kasse-export-open', hint: 'CSV wie die Fakturierung' },
+          { label: 'Paket für die Steuerberatung', action: 'stb-open', hint: 'Zeitraum als ZIP mit Belegen' },
           ed && { label: 'Einstellungen', action: 'kasse-settings-open', hint: 'Kassenkonto, Kassendifferenzen' },
           { label: 'Einkauf', action: 'view', data: { view: 'einkauf' } },
         ],

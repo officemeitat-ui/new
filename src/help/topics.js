@@ -3068,6 +3068,18 @@ export const TOPICS = [
     roles: 'Buchhaltung, Vollzugriff',
   },
   {
+    id: 'paket-steuerberatung',
+    section: 'finanzen',
+    view: 'fakturierung',
+    title: 'Paket für die Steuerberatung',
+    q: ['paket steuerberatung', 'steuerberater unterlagen', 'monatsabschluss steuerberater', 'belege an steuerberater', 'buchhaltung übergeben', 'zip für den steuerberater', 'nachreichung', 'unterlagen senden', 'belegpaket'],
+    answer: 'Das Paket fasst einen Monat, ein Quartal oder ein Jahr als ZIP-Datei zusammen: Ausgangsrechnungen mit PDF, Eingangsrechnungen mit Belegen, Kassenbuch, Zahlungen, offene Posten und Umsatzsteuer-Übersicht, dazu „Inhalt.txt“ mit Summen und Prüfsummen. Vorher zeigt die App, was noch offen ist. Die Übergabe wird vermerkt; spätere Änderungen meldet „Zu erledigen“ als Nachreichung.',
+    steps: ['In Fakturierung, Einkauf, Kassenbuch oder Umsatzsteuer „Paket für die Steuerberatung“ wählen (Fakturierung: ⋯-Menü).', 'Zeitraum wählen und die Prüfung ansehen; Offenes am besten vorher erledigen.', 'Teile an- oder abwählen.', '„Herunterladen“ oder „Per E-Mail an die Steuerberatung“ (Adresse unter „Einstellungen“ im Dialog).', 'Meldet „Zu erledigen“ später eine Nachreichung: „Nachreichen“ klicken, das Paket enthält dann nur die neuen und geänderten Belege.'],
+    tips: ['Die CSV-Dateien sind dieselben wie bei „Export Steuerberatung“; Kontonummern stellst du in den Einstellungen der Fakturierung, des Einkaufs und des Kassenbuchs ein.', 'Ab dem 10. des Folgemonats erinnert „Zu erledigen“, wenn der Vormonat noch nicht übergeben ist (nur, wenn du das Paket schon einmal genutzt hast; den Tag stellst du im Dialog ein, 0 schaltet ab).', 'Microsoft 365 nimmt aus der App höchstens rund 3 MB Anhang: größere Pakete herunterladen und in Outlook anhängen oder über das Portal der Steuerberatung hochladen.'],
+    related: ['umsatzsteuer-uva', 'export-steuerberatung', 'export-einkauf'],
+    roles: 'Buchhaltung, Vollzugriff',
+  },
+  {
     id: 'kalkulation',
     section: 'finanzen',
     view: 'kalkulation',

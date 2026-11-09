@@ -90,6 +90,15 @@ export async function storeBeleg(file, pathFor) {
   }
 }
 
+/** Beleg als Datei (Ablage dieses Browsers oder SharePoint); null, wenn nicht da. */
+export async function belegBlob(beleg) {
+  if (!beleg?.path) return null
+  const local = LOCAL.get(beleg.path)
+  if (local) return local
+  if (beleg.local) return null
+  return (await app.store?.readBlob?.(beleg.path)) || null
+}
+
 /** Beleg öffnen (neuer Tab). */
 export async function openBeleg(beleg) {
   if (!beleg) return

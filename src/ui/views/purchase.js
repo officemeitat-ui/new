@@ -161,6 +161,7 @@ function purchaseView() {
         items: [
           ed && { label: 'Lieferant anlegen', action: 'ek-sup-open' },
           { label: 'Export Steuerberatung', action: 'ek-export-open', hint: 'Eingangsrechnungen als CSV' },
+          { label: 'Paket für die Steuerberatung', action: 'stb-open', hint: 'Zeitraum als ZIP mit Belegen' },
           { label: 'Kassenbuch', action: 'view', data: { view: 'kassenbuch' } },
         ],
       })}</div></div>

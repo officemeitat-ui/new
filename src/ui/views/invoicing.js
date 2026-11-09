@@ -254,6 +254,7 @@ function headMenus(ed) {
     icon: ICON.download,
     items: [
       { label: 'Export Steuerberatung', action: 'fak-export-open', hint: 'Belege und Zahlungen als CSV' },
+      { label: 'Paket für die Steuerberatung', action: 'stb-open', hint: 'Zeitraum als ZIP mit Belegen' },
       { label: 'Umsatzsteuer (UVA)', action: 'view', data: { view: 'umsatzsteuer' }, hint: 'Monat oder Quartal, PDF und CSV' },
       ed && { label: 'Kontoauszug einlesen', action: 'fak-tab', data: { v: 'bank' }, hint: 'camt.053 oder CSV im Reiter Bank' },
     ],

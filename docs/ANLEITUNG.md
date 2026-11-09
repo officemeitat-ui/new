@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 381 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 382 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -11,7 +11,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
 - [Objekte & Kunden](#objekte-kunden) (96)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
-- [Finanzen](#finanzen) (79)
+- [Finanzen](#finanzen) (80)
 - [Verwaltung](#verwaltung) (61)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
@@ -3608,6 +3608,24 @@ Die Ansicht „Umsatzsteuer“ rechnet für einen Monat oder ein Quartal: Umsatz
 > Tipp: Sollbesteuerung zählt nach Rechnungsdatum, Istbesteuerung nach Zahlungseingang; die Einstellung steht in der Fakturierung.
 > Tipp: Ohne Recht auf Einkauf & Kasse zeigt die Ansicht nur die Umsatzsteuer der Rechnungen (unvollständig).
 > Tipp: Die Hinweise oben nennen Entwürfe, offene Abschläge und Eingangsrechnungen mit „Vorsteuer?“.
+
+*Buchhaltung, Vollzugriff*
+
+### Paket für die Steuerberatung
+
+*In der App: Fakturierung*
+
+Das Paket fasst einen Monat, ein Quartal oder ein Jahr als ZIP-Datei zusammen: Ausgangsrechnungen mit PDF, Eingangsrechnungen mit Belegen, Kassenbuch, Zahlungen, offene Posten und Umsatzsteuer-Übersicht, dazu „Inhalt.txt“ mit Summen und Prüfsummen. Vorher zeigt die App, was noch offen ist. Die Übergabe wird vermerkt; spätere Änderungen meldet „Zu erledigen“ als Nachreichung.
+
+1. In Fakturierung, Einkauf, Kassenbuch oder Umsatzsteuer „Paket für die Steuerberatung“ wählen (Fakturierung: ⋯-Menü).
+2. Zeitraum wählen und die Prüfung ansehen; Offenes am besten vorher erledigen.
+3. Teile an- oder abwählen.
+4. „Herunterladen“ oder „Per E-Mail an die Steuerberatung“ (Adresse unter „Einstellungen“ im Dialog).
+5. Meldet „Zu erledigen“ später eine Nachreichung: „Nachreichen“ klicken, das Paket enthält dann nur die neuen und geänderten Belege.
+
+> Tipp: Die CSV-Dateien sind dieselben wie bei „Export Steuerberatung“; Kontonummern stellst du in den Einstellungen der Fakturierung, des Einkaufs und des Kassenbuchs ein.
+> Tipp: Ab dem 10. des Folgemonats erinnert „Zu erledigen“, wenn der Vormonat noch nicht übergeben ist (nur, wenn du das Paket schon einmal genutzt hast; den Tag stellst du im Dialog ein, 0 schaltet ab).
+> Tipp: Microsoft 365 nimmt aus der App höchstens rund 3 MB Anhang: größere Pakete herunterladen und in Outlook anhängen oder über das Portal der Steuerberatung hochladen.
 
 *Buchhaltung, Vollzugriff*
 

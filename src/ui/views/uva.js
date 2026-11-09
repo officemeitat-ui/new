@@ -94,6 +94,7 @@ function uvaView() {
     items: [
       { label: 'PDF', action: 'uva-pdf', hint: 'Übersicht und Belege', mail: { subject: `Umsatzsteuer ${p.label}` } },
       { label: 'CSV', action: 'uva-csv', hint: 'Strichpunkt, Dezimalkomma', mail: { subject: `Umsatzsteuer ${p.label}` } },
+      { label: 'Paket für die Steuerberatung', action: 'stb-open', data: { period: p.value }, hint: 'mit Belegen, Kassenbuch, Zahlungen' },
     ],
   })
   return `<div class="section-head"><div><h2>Umsatzsteuer</h2>

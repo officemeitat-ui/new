@@ -796,6 +796,15 @@ lazy(BUERO, {
   actions: 'uva-mode uva-month uva-quarter uva-basis uva-pdf uva-csv',
 })
 
+// steuerberatung.js: Paket für die Steuerberatung (Zeitraum als ZIP mit Belegen, Prüfliste, Übergabe-Vermerk und
+// Nachreichung in „Zu erledigen“); geöffnet aus Fakturierung, Einkauf, Kassenbuch und Umsatzsteuer. Kürzel stb-
+lazy(BUERO, {
+  module: 'fakturierung',
+  modals: 'stb-paket',
+  actions: 'stb-open stb-period stb-redraw stb-settings-save stb-build',
+  todo: ['steuerberatung'],
+})
+
 // weather.js: Wetter mit Radar, Karte und Grafiken; Zähler und Sichtbarkeit kommen aus ui/weather.js (immer geladen).
 // winterprotokoll: Platzhalter für winterlog.js (immer geladen), damit „Zu erledigen“ die Reihenfolge behält.
 lazy(BUERO, {
