@@ -1,10 +1,11 @@
 // Winterdienst-Protokoll am Handy (wetter-alarm.php?aktion=protokoll): Fotos vor dem
 // Hochladen verkleinern (längste Seite 1600 px, JPEG), damit sie auch über langsames
 // Netz und unter den Upload-Grenzen des Webspace ankommen. Ohne JavaScript oder bei
-// einem Fehler wird das Formular ganz normal abgeschickt.
+// einem Fehler wird das Formular ganz normal abgeschickt. Gilt für jedes Formular mit data-fotos-verkleinern (im
+// Kundenbereich: Reklamation und Zusatzleistung anfragen, dort bis zu 3 Fotos in einem Feld).
 ;(() => {
-  const form = document.querySelector('form[data-fotos-verkleinern]')
-  if (!form || !window.fetch || !window.FormData || !document.createElement('canvas').getContext) return
+  const forms = document.querySelectorAll('form[data-fotos-verkleinern]')
+  if (!forms.length || !window.fetch || !window.FormData || !document.createElement('canvas').getContext) return
   const MAX = 1600
 
   const verkleinern = (datei) =>
@@ -28,7 +29,7 @@
       bild.src = url
     })
 
-  form.addEventListener('submit', async (ev) => {
+  for (const form of forms) form.addEventListener('submit', async (ev) => {
     const feld = form.querySelector('input[type=file]')
     if (!feld || !feld.files.length || form.dataset.laeuft) return
     ev.preventDefault()

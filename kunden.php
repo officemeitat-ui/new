@@ -46,10 +46,21 @@
 // Reklamation mit Eingang „Aushang (QR)“. Nach dem Senden bekommt die meldende Person einen eigenen Folge-Code
 // (kunden.php?s=CODE, am Server nur der Hashwert): Stand und die öffentliche Antwort aus der App, sonst nichts.
 //
+// Zusatzleistung anfragen (je Link einschaltbar, zeige.zusatz): Art (Liste aus den Einstellungen der App, sonst die
+// Vorgabe), Objekt (nur Objekte des Links), Wunschtermin bzw. Zeitraum, Beschreibung, Fläche, bis zu 3 Fotos (wie bei der
+// Reklamation ohne Metadaten neu gespeichert) und Ansprechperson (vorbelegt aus der letzten Anfrage bzw. Meldung des
+// Links). Schutz wie beim Aushang: Grenzen je Link und je Adresse (nur als Hashwert), verstecktes Feld, Mindestzeit.
+// Gespeichert in privat/kundenbereich/anfragen.json (nicht bei den Meldungen: daraus würden sonst Reklamationen); die App
+// holt sie mit den Meldungen ab (aktion=anfragen) und meldet den Stand zurück (anfrage-status): eingegangen, Angebot
+// gesendet, beauftragt, erledigt, abgelehnt mit Begründung. Ist das Angebot online, bekommt die Anfrage Kennung, Nummer
+// und den Code des Angebots verschlüsselt mit dem Code des Links (anfrage_code_oeffnen): Nur die Seite dieses Links zeigt
+// den Link zum Angebot (kunden.php?a=CODE), der Webspace allein kann den Code nicht lesen. Texte: zusatz-texte.php.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel):
 //   aktion=einrichten | speichern | datei | meldungen | meldung-status | foto | status | aushang
 //   aktion=angebot | angebot-datei | angebot-entfernen | annahmen | annahme-status
 //   aktion=umfrage | umfrage-antworten | umfrage-status
+//   aktion=anfragen | anfrage-status
 // Erste Einrichtung: privat/kundenbereich.json per FTP, oder „einrichten“ mit dem Schlüssel von
 // Plan am Handy bzw. Schnee-Alarm im Kopf X-Freigabe, solange es noch keine Einstellungen gibt.
 
@@ -65,7 +76,7 @@ require __DIR__ . '/webspace-lib.php';
 
 const ARTEN = ['Reinigung mangelhaft' => 'Reinigung nicht in Ordnung', 'Leistung nicht erbracht' => 'Leistung nicht erbracht', 'Schaden' => 'Schaden', 'Sonstiges' => 'Sonstiges'];
 const STATUS = ['eingegangen' => 'eingegangen', 'arbeit' => 'in Arbeit', 'erledigt' => 'erledigt'];
-const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'mattenwechsel'];
+const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'mattenwechsel', 'zusatz'];
 const BILD_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const BILD_MAX = 8 * 1024 * 1024;
 const PDF_MAX = 8 * 1024 * 1024;
@@ -101,6 +112,14 @@ const GRENZE_AUSHANG_CODE = [10, 86400]; // Meldungen je Aushang und Tag
 const GRENZE_AUSHANG_ADRESSE = [5, 86400]; // Meldungen je Adresse und Tag
 const AUSHANG_MINDESTZEIT = 3; // Sekunden vom Öffnen bis zum Senden (schneller: Programm, kein Mensch)
 const STATUSCODE_ZEICHEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // ohne 0/O, 1/I
+// Zusatzleistung anfragen: Vorgabe der Arten wie in der App (core/zusatzleistungen.js), Stand wie in der App, Grenzen
+const ZUSATZ_ARTEN = ['grundreinigung' => 'Grundreinigung', 'glas' => 'Fensterreinigung / Glasreinigung', 'teppich' => 'Teppichreinigung', 'sonder' => 'Sonderreinigung nach Umbau oder Veranstaltung', 'winter' => 'Winterdienst-Sondereinsatz', 'sonstiges' => 'Sonstiges'];
+const ZUSATZ_STATUS = ['eingegangen' => 'eingegangen', 'angebot' => 'Angebot gesendet', 'beauftragt' => 'beauftragt', 'erledigt' => 'erledigt', 'abgelehnt' => 'abgelehnt'];
+const ZUSATZ_HINWEIS = 'Wir melden uns mit einem Angebot oder einem Terminvorschlag. Die Anfrage ist unverbindlich.';
+const ZUSATZ_FOTOS = 3;
+const GRENZE_ZUSATZ_LINK = [5, 86400]; // Anfragen je Link und Tag
+const GRENZE_ZUSATZ_ADRESSE = [5, 86400]; // Anfragen je Adresse und Tag
+const ZUSATZ_MINDESTZEIT = 3; // Sekunden vom Öffnen bis zum Senden
 const UMFRAGE_VORGABE = ['gesamt' => 'Wie zufrieden sind Sie insgesamt mit unserer Arbeit?', 'nps' => 'Wie wahrscheinlich ist es, dass Sie uns weiterempfehlen?', 'freitext' => 'Was sollen wir besser machen, was gefällt Ihnen?'];
 
 function jetzt(): int
@@ -735,6 +754,100 @@ function aushang_marke_alter($marke, string $id, string $schluessel): ?int
     return $alter >= 0 && $alter <= 86400 ? $alter : null;
 }
 
+// ---------------------------------------------------------------- Zusatzleistung anfragen
+
+/** Arten aus den Einstellungen der App (Kennung → Name), sonst die Vorgabe. */
+function zusatz_arten(array $e): array
+{
+    $arten = [];
+    foreach (array_slice((array) ($e['zusatz']['arten'] ?? []), 0, 20) as $a) {
+        $aid = is_array($a) ? (string) ($a['id'] ?? '') : '';
+        $name = is_array($a) ? kurz($a['name'] ?? '', 80) : '';
+        if (preg_match('/^[a-z0-9]{2,24}$/', $aid) && $name !== '' && !isset($arten[$aid])) {
+            $arten[$aid] = $name;
+        }
+    }
+    return $arten ?: ZUSATZ_ARTEN;
+}
+
+function anfrage_fotos_loeschen(array $a): void
+{
+    foreach ((array) ($a['fotos'] ?? []) as $f) {
+        foto_loeschen(['foto' => (string) $f]);
+    }
+}
+
+/** Anfragen gesperrt ändern; erledigte und abgelehnte nach 180 Tagen, alle nach 400 Tagen weg (mit Fotos), Fotos am Webspace höchstens 60 Tage. */
+function anfragen(callable $fn)
+{
+    return gesperrt(speicher() . '/anfragen.json', function (array &$liste) use ($fn) {
+        $ergebnis = $fn($liste);
+        $bleibt = [];
+        foreach ($liste as $a) {
+            if (!is_array($a)) {
+                continue;
+            }
+            $fertig = in_array($a['status'] ?? '', ['erledigt', 'abgelehnt'], true);
+            if ($fertig ? (int) ($a['geaendert'] ?? 0) < jetzt() - 180 * 86400 : (int) ($a['erstellt'] ?? 0) < jetzt() - 400 * 86400) {
+                anfrage_fotos_loeschen($a);
+                continue;
+            }
+            if (!empty($a['fotos']) && (int) ($a['erstellt'] ?? 0) < jetzt() - 60 * 86400) {
+                anfrage_fotos_loeschen($a);
+                $a['fotos'] = [];
+            }
+            $bleibt[] = $a;
+        }
+        $liste = $bleibt;
+        return $ergebnis;
+    });
+}
+
+/**
+ * Code des Angebots aus der Anfrage: hex(Code XOR HMAC-SHA-256(Code des Links, „zl-angebot|nonce“)), wie sealCode in
+ * core/zusatzleistungen.js. Ohne den Code des Links (nur mit dem Hashwert am Webspace) nicht lesbar. '' wenn ungültig.
+ */
+function anfrage_code_oeffnen(string $c, string $n, string $linkCode): string
+{
+    if (!preg_match('/^(?:[a-f0-9]{2}){8,32}$/', $c) || !preg_match('/^[a-f0-9]{16}$/', $n)) {
+        return '';
+    }
+    $daten = (string) hex2bin($c);
+    $strom = hash_hmac('sha256', 'zl-angebot|' . $n, $linkCode, true);
+    $code = $daten ^ substr($strom, 0, strlen($daten));
+    return preg_match('/^[A-Za-z0-9]{16,32}$/', $code) ? $code : '';
+}
+
+/** Mehrere Fotos aus einem Feld (name="fotos[]"): je Datei die Angaben wie bei einem Feld, leere weg. */
+function fotos_aus($f): array
+{
+    if (!is_array($f)) {
+        return [];
+    }
+    if (!is_array($f['name'] ?? null)) {
+        return ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE ? [] : [$f];
+    }
+    $aus = [];
+    foreach (array_keys($f['name']) as $i) {
+        $x = ['name' => $f['name'][$i], 'type' => $f['type'][$i] ?? '', 'tmp_name' => $f['tmp_name'][$i] ?? '', 'error' => $f['error'][$i] ?? UPLOAD_ERR_NO_FILE, 'size' => $f['size'][$i] ?? 0];
+        if ($x['error'] !== UPLOAD_ERR_NO_FILE) {
+            $aus[] = $x; // verschachtelt (error ist eine Liste): foto_speichern lehnt ab
+        }
+    }
+    return $aus;
+}
+
+/** Fläche aus dem Formular („120“, „85,5“): Zahl 1 bis 1 000 000, '' = keine Angabe, null = ungültig. */
+function flaeche_wert(string $s)
+{
+    $s = trim(str_replace([' ', 'm²', 'm2'], '', $s));
+    if ($s === '') {
+        return '';
+    }
+    $s = str_replace(',', '.', $s);
+    return preg_match('/^\d{1,7}(\.\d{1,2})?$/', $s) && (float) $s >= 1 && (float) $s <= 1000000 ? round((float) $s, 2) : null;
+}
+
 // ---------------------------------------------------------------- Darstellung
 
 $h = fn ($t): string => htmlspecialchars((string) $t, ENT_QUOTES);
@@ -822,6 +935,9 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
         . '.ok,.fehler{border-radius:10px;padding:.7rem .9rem;margin:0 0 1rem;font-weight:600}.ok{background:var(--ok-grund);color:var(--ok)}.fehler{background:var(--fehler-grund);color:var(--fehler)}'
         . '.meldung{display:block!important}.zeile{display:flex;gap:.6rem;align-items:flex-start;justify-content:space-between}.meldung-text{margin:.35rem 0 0;white-space:pre-line}.antwort{margin:.5rem 0 0;padding:.5rem .7rem;background:var(--ok-grund);border-radius:8px;color:#26420b}.antwort b{display:block;font-size:.88rem}'
         . '.leer{color:var(--leise);margin:.2rem 0}'
+        // Zusatzleistung anfragen: Stand, Link zum Angebot
+        . '.st-angebot{background:#efe9fa;color:#5b3fa6}.st-beauftragt{background:var(--ok-grund);color:var(--ok)}.st-abgelehnt{background:var(--grund);color:var(--leise)}'
+        . '.anfrage-angebot{display:flex;align-items:center;gap:.6rem;margin:.5rem 0 0;padding:.55rem .7rem;border:1px solid var(--linie);border-radius:10px;text-decoration:none;color:var(--text);font-weight:600}.anfrage-angebot:hover{border-color:var(--farbe);background:#fafcfd}.anfrage-angebot svg{flex:0 0 auto;color:var(--farbe)}.anfrage-angebot .pfeil{margin-left:auto;color:var(--leise)}'
         // Rechnungen und Angebot
         . '.st-offen{background:var(--weich);color:var(--blau)}.st-ueberfaellig{background:var(--fehler-grund);color:var(--fehler)}.st-teilbezahlt{background:var(--warn-grund);color:var(--warn)}.st-bezahlt{background:var(--ok-grund);color:var(--ok)}.st-storniert,.st-verrechnet{background:var(--grund);color:var(--leise)}'
         . '.pdf .summe{margin-left:auto;text-align:right;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:.2rem}.pdf .summe b{font-weight:700}'
@@ -877,7 +993,7 @@ $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $e = einstellungen();
 
-if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'aushang', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status'], true)) {
+if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'aushang', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status', 'anfragen', 'anfrage-status'], true)) {
     $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
     if (!$e) {
         // erste Einrichtung ohne FTP: mit dem Schlüssel von Plan am Handy oder Schnee-Alarm
@@ -899,7 +1015,8 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         $angebote = array_map('json_lesen', glob(speicher('angebote') . '/an*.json') ?: []);
         $neueAnnahmen = count(array_filter($angebote, fn ($a) => !empty($a['annahme']) && empty($a['annahme']['uebernommen'])));
         $neueAntworten = count(array_filter(json_lesen(speicher('umfrage') . '/antworten.json'), fn ($a) => is_array($a) && empty($a['uebernommen'])));
-        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'aushaenge' => count(aushaenge()), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'runden' => count(umfrage_runden()), 'neueAntworten' => $neueAntworten, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+        $neueAnfragen = count(array_filter(json_lesen(speicher() . '/anfragen.json'), fn ($a) => is_array($a) && empty($a['uebernommen'])));
+        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'aushaenge' => count(aushaenge()), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'runden' => count(umfrage_runden()), 'neueAntworten' => $neueAntworten, 'neueAnfragen' => $neueAnfragen, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
     }
     // Antworten der Umfrage (die App übernimmt sie und meldet „übernommen“ zurück; danach nur noch der Vermerk)
     if ($aktion === 'umfrage-antworten') {
@@ -919,6 +1036,10 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
     }
     if ($aktion === 'meldungen') {
         json_ausgabe(200, ['meldungen' => meldungen(fn (array &$l) => $l) ?? [], 'jetzt' => jetzt()]);
+    }
+    // Anfragen von Zusatzleistungen (die App übernimmt sie mit den Meldungen und meldet den Stand zurück)
+    if ($aktion === 'anfragen') {
+        json_ausgabe(200, ['anfragen' => anfragen(fn (array &$l) => $l) ?? [], 'jetzt' => jetzt()]);
     }
     if ($aktion === 'foto') {
         $datei = (string) ($_GET['datei'] ?? '');
@@ -1077,6 +1198,71 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
                 }
             }
             unset($m);
+            return ['aktualisiert' => $n, 'benachrichtigt' => $mails];
+        });
+        if ($ergebnis === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, $ergebnis);
+    }
+
+    // Stand der Anfragen: übernommen, Fotos nach SharePoint (am Webspace löschen), Stand mit Rückmeldung und Angebot. Auf
+    // Wunsch bekommt der Kunde bei neuem Stand eine E-Mail (ohne Link: den Stand sieht er in seinem Kundenbereich).
+    if ($aktion === 'anfrage-status') {
+        if (is_file(__DIR__ . '/zusatz-texte.php')) {
+            texte(require __DIR__ . '/zusatz-texte.php');
+        }
+        $ergebnis = anfragen(function (array &$l) use ($daten, $e) {
+            $n = 0;
+            $mails = 0;
+            $updates = [];
+            foreach (array_slice((array) ($daten['updates'] ?? []), 0, 500) as $u) {
+                if (!is_array($u) || !isset(ZUSATZ_STATUS[$u['status'] ?? ''])) {
+                    continue;
+                }
+                $ang = is_array($u['angebot'] ?? null) ? $u['angebot'] : null;
+                $u['angebot'] = $ang && preg_match(ANGEBOT_MUSTER, (string) ($ang['id'] ?? '')) && preg_match('/^[a-f0-9]{16}$/', (string) ($ang['n'] ?? '')) && preg_match('/^(?:[a-f0-9]{2}){8,32}$/', (string) ($ang['c'] ?? ''))
+                    ? ['id' => (string) $ang['id'], 'nummer' => kurz($ang['nummer'] ?? '', 40), 'n' => (string) $ang['n'], 'c' => (string) $ang['c']] : null;
+                $updates[(string) ($u['id'] ?? '')] = $u;
+            }
+            $uebernommen = array_map('strval', (array) ($daten['uebernommen'] ?? []));
+            $fotos = array_map('strval', (array) ($daten['fotosLoeschen'] ?? []));
+            foreach ($l as &$a) {
+                $aid = (string) ($a['id'] ?? '');
+                if (in_array($aid, $uebernommen, true) && empty($a['uebernommen'])) {
+                    $a['uebernommen'] = jetzt();
+                }
+                if (in_array($aid, $fotos, true) && !empty($a['fotos'])) {
+                    anfrage_fotos_loeschen($a);
+                    $a['fotos'] = [];
+                }
+                $u = $updates[$aid] ?? null;
+                if (!$u) {
+                    continue;
+                }
+                $antwort = kurz($u['antwort'] ?? '', 1000);
+                if (($a['status'] ?? '') === $u['status'] && ($a['antwort'] ?? '') === $antwort && ($a['angebot'] ?? null) == $u['angebot']) {
+                    continue;
+                }
+                $vorher = $a['status'] ?? '';
+                $a['status'] = $u['status'];
+                $a['antwort'] = $antwort;
+                $a['angebot'] = $u['angebot'];
+                $a['geaendert'] = jetzt();
+                $n++;
+                $an = (string) ($a['kontakt']['email'] ?? '');
+                if (!empty($a['info']) && $vorher !== $u['status'] && filter_var($an, FILTER_VALIDATE_EMAIL)) {
+                    $sp = sprache_gueltig($a['sprache'] ?? null) ?? 'de';
+                    $stand = t('zl_st_' . $u['status'], [], $sp);
+                    $text = t('zl_mail_text', ['art' => (string) ($a['artName'] ?? ''), 'datum' => datum_text(date('Y-m-d', (int) ($a['erstellt'] ?? jetzt())), false), 'objekt' => (string) ($a['objekt'] ?? ''), 'stand' => $stand,
+                        'antwort' => ($antwort !== '' ? t('zl_mail_antwort', ['text' => $antwort], $sp) : '') . ($a['angebot'] ? t('zl_mail_angebot', ['nummer' => $a['angebot']['nummer']], $sp) : ''),
+                        'firma' => (string) ($e['firma']['name'] ?? marke()['app'])], $sp);
+                    if (mail_senden($an, t('zl_mail_betreff', ['stand' => $stand], $sp), $text, (string) ($e['absender'] ?? ''), 'Kundenbereich')) {
+                        $mails++;
+                    }
+                }
+            }
+            unset($a);
             return ['aktualisiert' => $n, 'benachrichtigt' => $mails];
         });
         if ($ergebnis === null) {
@@ -1733,6 +1919,132 @@ if ($aktion === 'melden' && $methode === 'POST') {
     }
 }
 
+// Zusatzleistung anfragen: Texte (zusatz-texte.php, Sprache des Kundenbereichs), Arten aus den Einstellungen. Fehlt die
+// Datei am Webspace (nur kunden.php hochgeladen), bleibt der Abschnitt aus, statt die Seite zu stören.
+if (is_file(__DIR__ . '/zusatz-texte.php')) {
+    texte(require __DIR__ . '/zusatz-texte.php');
+} else {
+    $zeige['zusatz'] = false;
+}
+$zArten = zusatz_arten($e);
+$zFehler = '';
+$zStatus = 200;
+$zEingabe = [];
+$schluessel = (string) $e['schluessel'];
+if ($aktion === 'zusatz-anfragen' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        fehlerseite('Nicht erlaubt', 'Das Formular kam von einer anderen Seite.', 403, $firma);
+    }
+    if (empty($zeige['zusatz'])) {
+        fehlerseite('Nicht möglich', t('zl_f_aus'), 403, $firma);
+    }
+    $zEingabe = [
+        'objekt' => (int) ($_POST['objekt'] ?? (count($objekte) === 1 ? 1 : 0)),
+        'art' => $nurText($_POST['art'] ?? ''),
+        'von' => $nurText($_POST['von'] ?? ''),
+        'bis' => $nurText($_POST['bis'] ?? ''),
+        'text' => kurz($nurText($_POST['text'] ?? ''), 2000),
+        'flaeche' => kurz($nurText($_POST['flaeche'] ?? ''), 20),
+        'name' => kurz($nurText($_POST['name'] ?? ''), 80),
+        'telefon' => kurz($nurText($_POST['telefon'] ?? ''), 40),
+        'email' => kurz($nurText($_POST['email'] ?? ''), 120),
+        'info' => !empty($_POST['info']),
+    ];
+    $zObjekt = null;
+    foreach ($objekte as $o) {
+        if ((int) $o['nr'] === $zEingabe['objekt']) {
+            $zObjekt = $o;
+        }
+    }
+    // Adresse nur als Hashwert mit dem Schlüssel des Webspace (wie beim Aushang)
+    $werHash = hash_hmac('sha256', $wer, $schluessel);
+    $alter = aushang_marke_alter($_POST['t'] ?? null, 'zl|' . $id, $schluessel);
+    $flaeche = flaeche_wert($zEingabe['flaeche']);
+    $datumOk = fn ($d) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && DateTimeImmutable::createFromFormat('!Y-m-d', $d);
+    $fotoListe = fotos_aus($_FILES['fotos'] ?? null);
+    if ($nurText($_POST['webseite'] ?? '') !== '') {
+        // verstecktes Feld ausgefüllt: ein Programm, kein Mensch – nichts behalten, als Fehlversuch zählen
+        grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, true);
+        [$zFehler, $zStatus, $zEingabe] = [t('zl_f_abgelehnt'), 400, []];
+    } elseif ($alter === null || $alter < ZUSATZ_MINDESTZEIT) {
+        [$zFehler, $zStatus] = [t('zl_f_schnell'), 400];
+    } elseif (!$zObjekt) {
+        [$zFehler, $zStatus] = [t('zl_f_objekt'), 400];
+    } elseif (!isset($zArten[$zEingabe['art']])) {
+        [$zFehler, $zStatus] = [t('zl_f_art'), 400];
+    } elseif (mb_strlen($zEingabe['text']) < 5) {
+        [$zFehler, $zStatus] = [t('zl_f_text'), 400];
+    } elseif ($zEingabe['von'] !== '' && (!$datumOk($zEingabe['von']) || $zEingabe['von'] < heute() || $zEingabe['von'] > tag_plus(heute(), 365))) {
+        [$zFehler, $zStatus] = [t('zl_f_von'), 400];
+    } elseif ($zEingabe['bis'] !== '' && ($zEingabe['von'] === '' || !$datumOk($zEingabe['bis']) || $zEingabe['bis'] < $zEingabe['von'] || $zEingabe['bis'] > tag_plus($zEingabe['von'], 365))) {
+        [$zFehler, $zStatus] = [t('zl_f_bis'), 400];
+    } elseif ($flaeche === null) {
+        [$zFehler, $zStatus] = [t('zl_f_flaeche'), 400];
+    } elseif ($zEingabe['name'] === '') {
+        [$zFehler, $zStatus] = [t('zl_f_name'), 400];
+    } elseif ($zEingabe['telefon'] === '' && $zEingabe['email'] === '') {
+        [$zFehler, $zStatus] = [t('zl_f_kontakt'), 400];
+    } elseif ($zEingabe['telefon'] !== '' && !preg_match(TELEFON_MUSTER, $zEingabe['telefon'])) {
+        [$zFehler, $zStatus] = [t('zl_f_telefon'), 400];
+    } elseif ($zEingabe['email'] !== '' && !filter_var($zEingabe['email'], FILTER_VALIDATE_EMAIL)) {
+        [$zFehler, $zStatus] = [t('zl_f_email'), 400];
+    } elseif ($zEingabe['info'] && $zEingabe['email'] === '') {
+        [$zFehler, $zStatus] = [t('zl_f_info'), 400];
+    } elseif (count($fotoListe) > ZUSATZ_FOTOS) {
+        [$zFehler, $zStatus] = [t('zl_f_fotos'), 400];
+    } elseif (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, false) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, false)) {
+        [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
+    }
+    $fotos = [];
+    if (!$zFehler) {
+        foreach ($fotoListe as $f) {
+            [$datei, $fotoFehler] = foto_speichern($f, bin2hex(random_bytes(6)));
+            if ($fotoFehler !== '') {
+                [$zFehler, $zStatus] = [t('zl_f_foto'), 400];
+                break;
+            }
+            $fotos[] = $datei;
+        }
+    }
+    // prüfen und zählen in einem Schritt (gesperrt), wie beim Aushang
+    if (!$zFehler && (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, true) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, true))) {
+        [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
+    }
+    if ($zFehler) {
+        anfrage_fotos_loeschen(['fotos' => $fotos]);
+    } else {
+        $neu = ['id' => bin2hex(random_bytes(6)), 'link' => $id, 'titel' => (string) ($link['titel'] ?? ''), 'objektNr' => (int) $zObjekt['nr'], 'objektId' => (string) $zObjekt['id'], 'objekt' => (string) $zObjekt['name'],
+            'art' => $zEingabe['art'], 'artName' => $zArten[$zEingabe['art']], 'von' => $zEingabe['von'], 'bis' => $zEingabe['bis'], 'flaeche' => $flaeche === '' ? null : $flaeche, 'text' => $zEingabe['text'],
+            'kontakt' => ['name' => $zEingabe['name'], 'telefon' => $zEingabe['telefon'], 'email' => $zEingabe['email']], 'info' => $zEingabe['info'], 'fotos' => $fotos, 'sprache' => sprache(),
+            'erstellt' => jetzt(), 'status' => 'eingegangen', 'antwort' => '', 'angebot' => null, 'geaendert' => jetzt(), 'uebernommen' => null];
+        $ok = anfragen(function (array &$l) use ($neu) {
+            $l[] = $neu;
+            return true;
+        });
+        if (!$ok) {
+            anfrage_fotos_loeschen($neu);
+            [$zFehler, $zStatus] = [t('zl_f_speichern'), 500];
+        } else {
+            // Büro: Push nur mit Objekt und Art (fremder Dienst, ohne Text und Kontakt), E-Mail mit allem
+            $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#kundenbereich';
+            $titel = 'Anfrage im Kundenbereich: ' . $zObjekt['name'];
+            $wunsch = $neu['von'] !== '' ? 'Wunschtermin ' . datum_text($neu['von'], false) . ($neu['bis'] !== '' && $neu['bis'] !== $neu['von'] ? ' bis ' . datum_text($neu['bis'], false) : '') : 'ohne Wunschtermin';
+            $text = $neu['artName'] . ', ' . $wunsch . ($neu['flaeche'] ? ', ' . str_replace('.', ',', (string) $neu['flaeche']) . ' m²' : '') . "\n„" . $neu['text'] . "“\n"
+                . 'Kontakt: ' . implode(', ', array_filter([$neu['kontakt']['name'], $neu['kontakt']['telefon'], $neu['kontakt']['email']])) . ($fotos ? "\nMit " . count($fotos) . (count($fotos) === 1 ? ' Foto.' : ' Fotos.') : '') . "\nIn der App unter „Kundenbereich → Anfragen“.";
+            foreach ((array) ($e['buero'] ?? []) as $b) {
+                if (!empty($b['ntfy'])) {
+                    ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => $neu['artName'] . '. In der App unter „Kundenbereich → Anfragen“.', 'priority' => 3, 'tags' => ['sparkles'], 'click' => $app]);
+                }
+                if (!empty($b['email'])) {
+                    mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Kundenbereich');
+                }
+            }
+            header('Location: kunden.php?k=' . rawurlencode($code) . '&angefragt=1#anfragen', true, 303);
+            exit;
+        }
+    }
+}
+
 // Kundenzufriedenheit: Umfrage der offenen Runde (eine Antwort je Runde und Link)
 $umfrage = offene_runde($id);
 $uFehler = '';
@@ -2011,6 +2323,72 @@ if (!empty($zeige['reklamation'])) {
     $teile['rechts'][] = '<section class="karte" id="reklamation"><h2>' . ($zeilen ? 'Neue Reklamation melden' : 'Reklamation melden') . '</h2><p class="unter">Ist etwas nicht in Ordnung? Schreiben Sie uns, wir kümmern uns darum.</p>' . $form . '</section>';
 }
 
+// Zusatzleistung anfragen: eigene Anfragen mit Stand (und Link zum Angebot), darunter das Formular
+if (!empty($zeige['zusatz'])) {
+    $alleAnfragen = anfragen(fn (array &$l) => $l) ?? [];
+    $meineAnfragen = array_values(array_filter($alleAnfragen, fn ($a) => ($a['link'] ?? '') === $id));
+    usort($meineAnfragen, fn ($a, $b) => (int) $b['erstellt'] <=> (int) $a['erstellt']);
+    $zeilen = '';
+    foreach ($meineAnfragen as $a) {
+        $st = isset(ZUSATZ_STATUS[$a['status'] ?? '']) ? (string) $a['status'] : 'eingegangen';
+        $wunsch = ($a['von'] ?? '') !== '' ? (($a['bis'] ?? '') !== '' && $a['bis'] !== $a['von'] ? t('zl_zeitraum', ['von' => datum_text($a['von'], false), 'bis' => datum_text($a['bis'], false)]) : datum_text($a['von'], false)) : '';
+        $teil = array_filter([th('zl_angefragt', ['datum' => $h(datum_text(date('Y-m-d', (int) $a['erstellt']), false))]), $mehrere ? $h($a['objekt'] ?? '') : '', ($a['kontakt']['name'] ?? '') !== '' ? th('zl_von_name', ['name' => $h($a['kontakt']['name'])]) : '']);
+        $mehr = array_filter([$wunsch !== '' ? th('zl_wunsch', ['termin' => $h($wunsch)]) : '', !empty($a['flaeche']) ? th('zl_flaeche_wert', ['m2' => $h(str_replace('.', ',', (string) $a['flaeche']))]) : '', !empty($a['fotos']) ? th('zl_mit_fotos') : '']);
+        // Link zum Angebot: Code nur mit dem Code dieses Links lesbar, und nur, solange das Angebot online ist
+        $angebotLink = '';
+        $ang = is_array($a['angebot'] ?? null) ? $a['angebot'] : null;
+        if ($ang && in_array($st, ['angebot', 'beauftragt'], true)) {
+            $ac = anfrage_code_oeffnen((string) ($ang['c'] ?? ''), (string) ($ang['n'] ?? ''), $code);
+            $online = $ac !== '' ? angebot_zum_code($ac) : null;
+            if ($online && ($online['id'] ?? '') === ($ang['id'] ?? '')) {
+                $angebotLink = '<a class="anfrage-angebot" href="kunden.php?a=' . $h(rawurlencode($ac)) . '" target="_blank" rel="noopener">' . svg_pdf() . '<span>' . th('zl_angebot', ['nummer' => $h($ang['nummer'] ?? '')]) . '</span>' . svg_pfeil() . '</a>';
+            }
+        }
+        $zeilen .= '<li class="meldung"><div class="zeile"><b>' . $h($a['artName'] ?? ($zArten[$a['art'] ?? ''] ?? '')) . '</b><span class="pill st-' . $h($st) . '">' . th('zl_st_' . $st) . '</span></div>'
+            . '<span class="leise">' . implode(' · ', $teil) . '</span>'
+            . ($mehr ? '<br><span class="leise">' . implode(' · ', $mehr) . '</span>' : '')
+            . '<p class="meldung-text">' . $h($a['text'] ?? '') . '</p>'
+            . $angebotLink
+            . (($a['antwort'] ?? '') !== '' ? '<div class="antwort"><b>' . th('zl_antwort') . '</b>' . nl2br($h($a['antwort'])) . '</div>' : '') . '</li>';
+    }
+    // Ansprechperson vorbelegen: aus der letzten Anfrage bzw. Meldung dieses Links
+    if (!$zEingabe) {
+        $letzte = $meineAnfragen[0]['kontakt'] ?? ($meine[0]['kontakt'] ?? []);
+        $zEingabe = ['name' => (string) ($letzte['name'] ?? ''), 'telefon' => (string) ($letzte['telefon'] ?? ''), 'email' => (string) ($letzte['email'] ?? '')];
+    }
+    $zWert = fn ($k) => $h($zEingabe[$k] ?? '');
+    $zAuswahl = $mehrere
+        ? '<label for="z-objekt">' . th('zl_objekt') . '</label><select id="z-objekt" name="objekt" required><option value="">' . th('zl_objekt_waehlen') . '</option>' . implode('', array_map(fn ($o) => '<option value="' . (int) $o['nr'] . '"' . ((int) ($zEingabe['objekt'] ?? 0) === (int) $o['nr'] ? ' selected' : '') . '>' . $h($o['name'] . ($o['adresse'] ? ', ' . $o['adresse'] : '')) . '</option>', $objekte)) . '</select>'
+        : '<input type="hidden" name="objekt" value="1">';
+    $zArtOpt = '<option value="">' . th('zl_art_waehlen') . '</option>' . implode('', array_map(fn ($k, $name) => '<option value="' . $h($k) . '"' . (($zEingabe['art'] ?? '') === $k ? ' selected' : '') . '>' . $h($name) . '</option>', array_keys($zArten), $zArten));
+    $datenschutz = (string) ($e['firma']['datenschutz'] ?? '');
+    $hinweis = is_string($e['zusatz']['hinweis'] ?? null) ? kurz($e['zusatz']['hinweis'], 400) : ZUSATZ_HINWEIS;
+    $zForm = ($zFehler ? '<p class="fehler" role="alert">' . $h($zFehler) . '</p>' : '')
+        . '<form method="post" action="kunden.php?aktion=zusatz-anfragen" enctype="multipart/form-data" data-fotos-verkleinern data-sendetext="' . $h(t('zl_sendet')) . '">'
+        . '<input type="hidden" name="k" value="' . $h($code) . '"><input type="hidden" name="t" value="' . $h(aushang_marke('zl|' . $id, $schluessel)) . '">'
+        . $zAuswahl
+        . '<label for="z-art">' . th('zl_art') . '</label><select id="z-art" name="art" required>' . $zArtOpt . '</select>'
+        . '<div class="zwei"><div><label for="z-von">' . th('zl_von') . '</label><input type="date" id="z-von" name="von" value="' . $zWert('von') . '" min="' . $heute . '" max="' . tag_plus($heute, 365) . '"></div>'
+        . '<div><label for="z-bis">' . th('zl_bis') . '</label><input type="date" id="z-bis" name="bis" value="' . $zWert('bis') . '" min="' . $heute . '" max="' . tag_plus($heute, 730) . '"></div></div>'
+        . '<label for="z-text">' . th('zl_text') . '</label><textarea id="z-text" name="text" rows="4" maxlength="2000" required placeholder="' . $h(t('zl_text_beispiel')) . '">' . $zWert('text') . '</textarea>'
+        . '<label for="z-flaeche">' . th('zl_flaeche') . '</label><input type="text" id="z-flaeche" name="flaeche" inputmode="decimal" maxlength="12" value="' . $zWert('flaeche') . '">'
+        . '<label for="z-fotos">' . th('zl_fotos') . '</label><input type="file" id="z-fotos" name="fotos[]" accept="image/jpeg,image/png,image/webp" multiple>'
+        . '<fieldset><legend>' . th('zl_kontakt_titel') . '</legend><label for="z-name">' . th('zl_name') . '</label><input type="text" id="z-name" name="name" maxlength="80" autocomplete="name" required value="' . $zWert('name') . '">'
+        . '<div class="zwei"><div><label for="z-tel">' . th('zl_telefon') . '</label><input type="tel" id="z-tel" name="telefon" maxlength="40" autocomplete="tel" value="' . $zWert('telefon') . '"></div>'
+        . '<div><label for="z-mail">' . th('zl_email') . '</label><input type="email" id="z-mail" name="email" maxlength="120" autocomplete="email" value="' . $zWert('email') . '"></div></div>'
+        . '<label class="haken"><input type="checkbox" name="info" value="1"' . (!empty($zEingabe['info']) ? ' checked' : '') . '> <span>' . th('zl_info') . '</span></label></fieldset>'
+        // gegen Programme: Menschen sehen das Feld nicht und lassen es leer
+        . '<div class="hp" aria-hidden="true"><label for="z-webseite">Webseite</label><input type="text" id="z-webseite" name="webseite" tabindex="-1" autocomplete="off" value=""></div>'
+        . '<button type="submit">' . th('zl_senden') . '</button>'
+        . '<p class="hinweis">' . $h($hinweis) . ' ' . th('zl_datenschutz') . ($datenschutz !== '' && preg_match('#^https://#', $datenschutz) ? ' <a href="' . $h($datenschutz) . '" target="_blank" rel="noopener">' . th('zl_datenschutz_link') . '</a>' : '') . '</p></form>';
+    $sprung[] = '<a href="#zusatz">' . th('zl_sprung') . '</a>';
+    if ($zeilen) {
+        $teile['rechts'][] = '<section class="karte" id="anfragen"><h2>' . th('zl_meine') . '</h2><p class="unter">' . th('zl_meine_unter') . '</p>'
+            . (($_GET['angefragt'] ?? '') === '1' ? '<p class="ok" role="status">' . th('zl_danke') . '</p>' : '') . '<ul class="liste">' . $zeilen . '</ul></section>';
+    }
+    $teile['rechts'][] = '<section class="karte" id="zusatz"><h2>' . th('zl_titel') . '</h2><p class="unter">' . th('zl_unter') . '</p>' . $zForm . '</section>';
+}
+
 // Umfrage (oben, über den Spalten): Formular, solange die Runde offen ist und der Link nicht geantwortet hat
 $umfrageHtml = '';
 if ($umfrage || $uStatus === 410) {
@@ -2079,4 +2457,4 @@ seite('<main class="seite"><div class="hallo"><h1>' . $h($link['titel'] ?: 'Ihr 
     . (count($sprung) > 1 ? '<nav class="sprung" aria-label="Bereiche">' . implode('', $sprung) . '</nav>' : '')
     . $umfrageHtml . $spalten . '</main>'
     . '<footer class="fuss">' . ($kontakt ? '<p>Fragen? ' . implode(' · ', $kontakt) . '</p>' : '')
-    . '<p>Diese Seite ist persönlich für Sie: Bitte geben Sie den Link nur an Personen weiter, die ihn brauchen. Tipp: als Lesezeichen speichern.</p></footer>', $fehler ? 400 : $uStatus, 'Kundenbereich', $firma);
+    . '<p>Diese Seite ist persönlich für Sie: Bitte geben Sie den Link nur an Personen weiter, die ihn brauchen. Tipp: als Lesezeichen speichern.</p></footer>', $fehler ? 400 : ($zFehler ? $zStatus : $uStatus), 'Kundenbereich', $firma);

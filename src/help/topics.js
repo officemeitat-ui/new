@@ -1194,6 +1194,31 @@ export const TOPICS = [
     tips: ['Maßnahme und Ergebnis bleiben intern; öffentlich ist nur das Feld „Öffentliche Antwort“.', 'Hat die Person „Rückmeldung gewünscht“ angehakt, steht das beim Kontakt: bitte anrufen oder schreiben.'],
     related: ['reklamation-erledigen', 'kundenbereich-aushang', 'kundenbereich-reklamation'],
   },
+  // ---------------------------------------------------------------- Zusatzleistungen anfragen (views/customer-portal-zusatz.js, kunden.php)
+  {
+    id: 'kundenbereich-zusatz',
+    section: 'objekte',
+    view: 'kundenbereich',
+    title: 'Zusatzleistungen: Kunden fragen im Kundenbereich an',
+    q: ['zusatzleistung anfragen', 'kunde will grundreinigung', 'anfrage im kundenbereich', 'kunde bestellt fensterreinigung', 'sonderreinigung anfragen', 'self service kunde', 'anfragen kundenbereich', 'teppichreinigung anfrage', 'winterdienst sondereinsatz'],
+    answer: 'Über seinen Link fragt der Kunde Zusatzleistungen an (z. B. Grundreinigung, Glasreinigung, Sonderreinigung nach Umbau) mit Objekt, Wunschtermin, Beschreibung, Fläche und bis zu 3 Fotos. Sie steht im Kundenbereich unter „Anfragen“ und in „Zu erledigen“; daraus wird mit einem Klick ein Angebot, ein Vertriebsfall, ein Termin oder ein Regiebericht. Den Stand sieht der Kunde unter „Meine Anfragen“.',
+    steps: ['Beim Link „⋯“ → „Bearbeiten“ und „Zusatzleistung anfragen“ anhaken (Standard: aus), „Speichern und übertragen“.', 'Unter „Anfragen (Zusatzleistungen)“ „Arten und Hinweis“: Arten prüfen, je Art optional einen Artikel der Fakturierung wählen, „Speichern“.', 'Neue Anfragen kommen mit den Reklamationen (alle 3 Minuten); das Büro bekommt Push bzw. E-Mail.', 'Anfrage „Öffnen“ und „Angebot erstellen“, „Als Vertriebsfall“, „Termin anlegen“, „Regiebericht vorbereiten“, „Ablehnen“ oder „Erledigt“ wählen.'],
+    tips: ['Mit Artikel kommt das Angebot mit Preis aus der Preisliste (Kundenpreis vor Standardpreis, bei m² die Fläche als Menge), ohne Artikel als Textposition.', 'Beim Ablehnen sieht der Kunde die Begründung, sonst bleiben Notizen und Preise intern.', 'Die Buchhaltung findet neue Anfragen als Vorschlag des digitalen Mitarbeiters „Buchhaltung“.'],
+    action: { action: 'zl-settings', label: 'Arten und Hinweis' },
+    related: ['kundenbereich-zusatz-angebot', 'kundenbereich', 'kundenbereich-link', 'vertrieb', 'regie'],
+    roles: 'Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten; das Angebot macht, wer die Fakturierung bearbeitet',
+  },
+  {
+    id: 'kundenbereich-zusatz-angebot',
+    section: 'objekte',
+    view: 'kundenbereich',
+    title: 'Aus der Anfrage ein Angebot mit Online-Annahme',
+    q: ['angebot aus anfrage', 'anfrage angebot erstellen', 'kunde sieht angebot im kundenbereich', 'link zum angebot kundenbereich', 'stand der anfrage', 'anfrage ablehnen', 'meine anfragen kunde'],
+    answer: '„Angebot erstellen“ legt einen Angebotsentwurf mit Kunde, Objekt, Beschreibung und Position an. Nach dem Festschreiben „Online-Annahme“ → „Link erstellen und übertragen“: Beim nächsten Abgleich zeigt die Anfrage im Kundenbereich „Angebot gesendet“ und den Link zum Angebot, das der Kunde dort online annimmt. Danach steht sie auf „beauftragt“.',
+    steps: ['Anfrage öffnen, Kunden prüfen (dem Objekt zugeordnet) und „Angebot erstellen“ klicken.', 'Im Entwurf Preis und Texte prüfen und „Festschreiben“.', '„Online-Annahme“ → „Link erstellen und übertragen“.', 'Spätestens nach 3 Minuten (sofort: Kundenbereich „⋯“ → „Reklamationen jetzt abholen“) sieht der Kunde den Link unter „Meine Anfragen“.'],
+    tips: ['Der Code des Angebots liegt am Webspace nur verschlüsselt mit dem Code des Links: Den Link zum Angebot zeigt nur die Seite dieses Kunden.', 'Termin oder Regiebericht aus der Anfrage setzen sie auf „beauftragt“; „Erledigt“ schließt sie ab.'],
+    related: ['kundenbereich-zusatz', 'angebot-online-annehmen', 'angebot'],
+  },
   // ---------------------------------------------------------------- Kundenzufriedenheit (views/zufriedenheit.js, kunden.php)
   {
     id: 'zufriedenheit',

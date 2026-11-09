@@ -27,13 +27,19 @@ export const SHOW = {
   rechnungen: 'Rechnungen und offene Posten zeigen',
   lieferscheine: 'Mattenwechsel-Lieferscheine zeigen',
   mattenwechsel: 'Nächsten Mattenwechsel je Liegeplatz zeigen',
+  zusatz: 'Zusatzleistung anfragen (z. B. Grundreinigung, Glasreinigung) und den Stand sehen',
 }
 /**
  * Standardmäßig aus (eigene Abschnitte im Dialog, Belege nur der gewählten Kunden der Fakturierung): Rechnungen,
  * Lieferscheine des Mattenwechsels und der nächste Mattenwechsel je Liegeplatz (core/customer-matten.js).
  */
 export const SHOW_OFF = ['rechnungen', 'lieferscheine', 'mattenwechsel']
-export const showDefaults = () => Object.fromEntries(Object.keys(SHOW).map((k) => [k, !SHOW_OFF.includes(k)]))
+/**
+ * Standardmäßig aus, aber in der Liste „Was der Link zeigt“: Zusatzleistung anfragen (core/zusatzleistungen.js). Neu
+ * dazugekommen, darum bei bestehenden Links erst, wenn das Büro es je Link einschaltet.
+ */
+export const SHOW_DEFAULT_OFF = [...SHOW_OFF, 'zusatz']
+export const showDefaults = () => Object.fromEntries(Object.keys(SHOW).map((k) => [k, !SHOW_DEFAULT_OFF.includes(k)]))
 
 // ---------------------------------------------------------------- Mattenwechsel (Einstellung je Link)
 
@@ -230,7 +236,7 @@ export function newReports(reports = [], items = []) {
 /** E-Mail an den Kunden mit dem Link (Sie-Form). */
 export function linkMail({ link, url, company = '', sender = '', phone = '' }) {
   const show = { ...showDefaults(), ...(link.show || {}) }
-  const what = [show.nachweise && 'die monatlichen Leistungsnachweise als PDF', show.winter && 'den Winterdienst-Nachweis', (show.leistungen || show.termine) && 'die nächsten Termine in Ihrem Objekt', show.mattenwechsel && 'den nächsten Mattenwechsel', show.lieferscheine && 'die Lieferscheine zum Mattenwechsel als PDF', show.rechnungen && 'Ihre Rechnungen und offenen Posten als PDF', show.reklamation && 'die Möglichkeit, eine Reklamation direkt zu melden und den Stand zu verfolgen'].filter(Boolean)
+  const what = [show.nachweise && 'die monatlichen Leistungsnachweise als PDF', show.winter && 'den Winterdienst-Nachweis', (show.leistungen || show.termine) && 'die nächsten Termine in Ihrem Objekt', show.mattenwechsel && 'den nächsten Mattenwechsel', show.lieferscheine && 'die Lieferscheine zum Mattenwechsel als PDF', show.rechnungen && 'Ihre Rechnungen und offenen Posten als PDF', show.reklamation && 'die Möglichkeit, eine Reklamation direkt zu melden und den Stand zu verfolgen', show.zusatz && 'die Möglichkeit, Zusatzleistungen wie eine Grundreinigung oder Glasreinigung anzufragen'].filter(Boolean)
   const list = what.length > 1 ? `${what.slice(0, -1).join(', ')} und ${what.at(-1)}` : what[0] || 'Informationen zu Ihrem Objekt'
   return {
     subject: `Ihr Kundenbereich${company ? ` bei ${company}` : ''}${link.title ? `: ${link.title}` : ''}`,
