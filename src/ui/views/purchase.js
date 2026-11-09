@@ -61,12 +61,16 @@ import { registerTodo } from '../modals/todo.js'
 import { checked, download, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
 import { kixBox, kixButton, kixConsent, kixFailed, kixFile, kixOurs, kixSet } from '../kix.js'
 import { belegChip, by, cashForPayment, E, editable, inflate, K, money, MODULE, newId, nowIso, openBeleg, plural, PS, sees, storeBeleg } from './einkauf-shared.js'
+import { vehicleFromText } from '../../core/fuhrparkkosten.js'
 import { einkaufData, fakDocs, rechargeBlock, rechargeLock, rechargePill, syncRechargeBilled } from './weiterverrechnung.js'
 
 const ICON_PURCHASE = '<path d="M3.5 4.5h2l2.2 10.5h10.6l2-7.5H7"/><circle cx="9.5" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>'
 const supOf = (id) => E().suppliers.find((s) => s.id === id)
 const invOf = (id) => E().invoices.find((x) => x.id === id)
 const objName = (id) => app.data.objects?.find((o) => o.id === id)?.name || ''
+// Fahrzeuge (Fuhrparkkosten, core/fuhrparkkosten.js): nur wer den Fuhrpark lesen darf; die Rechnung trägt eine Kopie des Kennzeichens
+const vehicleList = () => (app.data.fahrzeuge?.vehicles || []).filter((v) => !v.inactive)
+const vehLabel = (x) => (x?.vehicleId ? app.data.fahrzeuge?.vehicles?.find((v) => v.id === x.vehicleId)?.plate || x.vehicleLabel || '' : '')
 const day = (iso) => (iso ? formatDate(iso, { year: true }) : '')
 const num = (id) => parseNumber(val(id))
 const numText = (n) => (n || n === 0 ? round2(n).toFixed(2).replace('.', ',') : '')
@@ -227,7 +231,7 @@ function invRow(x, today) {
   const open = openOf(x)
   const vst = x.cancelled ? true : vatDeductible(invoiceProblems(x, { suppliers: E().suppliers }))
   return `<tr class="clickable" data-action="ek-inv-open" data-id="${esc(x.id)}"><td><strong>${esc(x.no || '')}</strong>${x.imported ? '<br><span class="muted">übernommen</span>' : ''}</td><td>${day(x.date)}</td>
-    <td>${esc(x.supplier?.name || supplierName(supOf(x.supplierId) || {}) || '–')}<br><span class="muted">Nr. ${esc(x.number || '–')}</span></td><td>${esc(catName(x.category))}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}</td>
+    <td>${esc(x.supplier?.name || supplierName(supOf(x.supplierId) || {}) || '–')}<br><span class="muted">Nr. ${esc(x.number || '–')}</span></td><td>${esc(catName(x.category))}${x.objectId ? `<br><span class="muted">${esc(objName(x.objectId))}</span>` : ''}${vehLabel(x) ? `<br><span class="muted">${esc(vehLabel(x))}</span>` : ''}</td>
     <td class="num">${money(t.net)}</td><td class="num"><strong>${money(t.gross)}</strong>${open > 0.004 && open !== t.gross && !x.cancelled ? `<br><span class="muted">offen ${money(open)}</span>` : ''}</td><td>${day(x.dueDate)}</td>
     <td>${pill(st)}${x.approval ? ' <span class="pill ok" title="geprüft und freigegeben">geprüft</span>' : ''}${vst ? '' : ' <span class="pill warning" title="Angaben für den Vorsteuerabzug fehlen">Vorsteuer?</span>'}${x.reverseCharge ? ' <span class="pill info">RC</span>' : ''}${x.beleg ? ' <span class="pill" title="Beleg abgelegt">Beleg</span>' : ' <span class="pill warning" title="Beleg fehlt">ohne Beleg</span>'}${x.recharge && !x.cancelled ? ` ${rechargePill('einkauf', x.id)}` : ''}</td></tr>`
 }
@@ -372,6 +376,7 @@ function readForm(dr) {
     category: val('ei-cat'),
     account: val('ei-account').trim(),
     objectId: val('ei-object'),
+    ...(document.getElementById('ei-vehicle') ? { vehicleId: val('ei-vehicle'), vehicleLabel: vehicleList().find((v) => v.id === val('ei-vehicle'))?.plate || '' } : {}),
     costCenter: val('ei-cost').trim(),
     orderId: val('ei-order'),
     dueDate: val('ei-due'),
@@ -457,6 +462,7 @@ function invForm(dr, m) {
       <label class="field"><span>Kategorie</span><select id="ei-cat" data-change="ek-inv-cat">${options(s.categories.map((c) => [c.id, c.name]), dr.category, { empty: '–' })}</select></label>
       <label class="field"><span>Aufwandskonto</span><input type="text" id="ei-account" value="${esc(dr.account || '')}"></label>
       <label class="field"><span>Objekt (Kostenstelle)</span><select id="ei-object">${options((app.data.objects || []).map((o) => [o.id, o.name]), dr.objectId, { empty: '–' })}</select></label>
+      ${vehicleList().length ? `<label class="field"><span>Fahrzeug (Fuhrparkkosten)</span><select id="ei-vehicle">${options(vehicleList().map((v) => [v.id, [v.plate, v.label].filter(Boolean).join(' · ')]), dr.vehicleId || (dr.category === 'kfz' ? vehicleFromText(`${dr.text || ''} ${dr.note || ''}`, vehicleList())?.id || '' : ''), { empty: '–' })}</select></label>` : dr.vehicleLabel ? `<p class="field muted">Fahrzeug: ${esc(dr.vehicleLabel)}</p>` : ''}
       <label class="field"><span>Kostenstelle (frei)</span><input type="text" id="ei-cost" value="${esc(dr.costCenter || '')}"></label>
       ${orderOptions(dr)}
       <label class="field${ki('dueDate')}"><span>Fällig am${kiTag('dueDate')}</span><input type="date" id="ei-due" value="${esc(dr.dueDate || '')}" data-change="ek-inv-due"></label>
@@ -487,7 +493,7 @@ function invDetails(x) {
       ${x.cancelled ? `<p class="err-text">Erfassung storniert am ${day(String(x.cancelled.at).slice(0, 10))} von ${esc(x.cancelled.by)}: ${esc(x.cancelled.reason || '')}</p>` : ''}
       <dl class="ek-dl"><dt>Lieferant</dt><dd>${esc(x.supplier?.name || '')}${x.supplier?.uid ? ` · UID ${esc(x.supplier.uid)}` : ''}</dd><dt>Rechnung</dt><dd>Nr. ${esc(x.number || '–')} vom ${day(x.date)}</dd><dt>Leistung</dt><dd>${esc(x.text || '–')}${x.serviceFrom ? ` (${day(x.serviceFrom)}${x.serviceTo && x.serviceTo !== x.serviceFrom ? ` – ${day(x.serviceTo)}` : ''})` : ''}</dd>
         <dt>Beträge</dt><dd>${t.groups.map((g) => `${g.rate} %: netto ${money(g.net)}, Vorsteuer ${money(x.reverseCharge ? round2((g.net * (g.rate || 20)) / 100) : g.vat)}`).join('<br>')}<br><strong>brutto ${money(t.gross)}</strong></dd>
-        <dt>Kategorie</dt><dd>${esc(catName(x.category) || '–')}${x.account ? ` · Konto ${esc(x.account)}` : ''}${x.objectId ? ` · ${esc(objName(x.objectId))}` : ''}${x.costCenter ? ` · ${esc(x.costCenter)}` : ''}</dd>
+        <dt>Kategorie</dt><dd>${esc(catName(x.category) || '–')}${x.account ? ` · Konto ${esc(x.account)}` : ''}${x.objectId ? ` · ${esc(objName(x.objectId))}` : ''}${vehLabel(x) ? ` · Fahrzeug ${esc(vehLabel(x))}` : ''}${x.costCenter ? ` · ${esc(x.costCenter)}` : ''}</dd>
         <dt>Fällig</dt><dd>${day(x.dueDate) || '–'}${skontoOfInvoice(x) ? ` · Skonto ${String(skontoOfInvoice(x).percent).replace('.', ',')} % bis ${day(skontoOfInvoice(x).until)}` : ''} · offen <strong>${money(openOf(x))}</strong></dd>${x.note ? `<dt>Notiz</dt><dd>${esc(x.note)}</dd>` : ''}</dl>
       ${problemList(probs)}
       ${orderBlock(x)}
@@ -874,6 +880,10 @@ registerActions(
       readForm(m.draft)
       const cat = PS().categories.find((x) => x.id === m.draft.category)
       if (cat?.account) setField('ei-account', (m.draft.account = cat.account))
+      // Fahrzeuge: Kennzeichen im Text (z. B. Tankbeleg) → Fahrzeug vorschlagen, wenn noch keines gewählt ist
+      const sel = document.getElementById('ei-vehicle')
+      const hit = sel && !sel.value && m.draft.category === 'kfz' ? vehicleFromText(`${m.draft.text || ''} ${m.draft.note || ''}`, vehicleList()) : null
+      if (hit) sel.value = m.draft.vehicleId = hit.id
       live()
     },
     'ek-inv-supplier': () => {

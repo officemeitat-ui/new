@@ -30,6 +30,8 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Zuletzt fertig (9.11.2026)
 
+- Fuhrparkkosten je Fahrzeug: Werkstatt und Eingangsrechnungen mit Fahrzeug (Vorschlag aus dem Kennzeichen auf dem Beleg), km aus dem Fahrtenbuch, Kosten je km, CSV.
+- KI-Assistent: Werkzeuge für Rentabilität, Nachkalkulation, Fahrtenbuch, Zusatzleistungen und Checklisten (nur lesen).
 - Leistungs-Checkliste am Handy: je Leistung eine Checkliste (Foto nötig, 1× pro Woche, bestimmte Tage; Vorlagen, übersetzt, „Mit KI übersetzen“), abhaken im Plan am Handy mit Foto ohne Ortsdaten oder „nicht möglich“ mit Grund; Abholen mit den Stempelungen, Fotos in SharePoint, „Zu erledigen“, Spalte im Leistungsnachweis (Idee 3, Rechtsprüfung Punkt 50).
 - Zusatzleistungen im Kundenbereich anfragen: Wunschtermin, Fläche, Fotos; daraus Angebot, Vertriebsfall, Termin oder Regiebericht, Stand zurück an den Kunden (Idee 7, Rechtsprüfung Punkt 49).
 - Barrierefreiheit: Prüfung aller Ansichten mit axe-core (WCAG 2.1 AA) am PC und Handy, alle ernsten Befunde behoben (Teil der Prüfrunde 2).

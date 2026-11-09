@@ -33,7 +33,7 @@
 //                 date (Rechnungsdatum), serviceFrom, serviceTo (Leistungsdatum bzw. -zeitraum), receivedAt,
 //                 text (Menge und Bezeichnung der Leistung), groups [{ rate, net, vat }] (Netto und Vorsteuer je
 //                 Steuersatz), reverseCharge, dueDate, skonto { percent, days }, category, account (Aufwandskonto),
-//                 objectId (Objekt/Kostenstelle), costCenter, orderId (Bestellung in Material & Lager), note,
+//                 objectId (Objekt/Kostenstelle), vehicleId/vehicleLabel (Fahrzeug, Fuhrparkkosten), costCenter, orderId (Bestellung in Material & Lager), note,
 //                 checks { recipient: unsere Firma und Anschrift stehen drauf, ourUid: unsere UID steht drauf,
 //                          rcNote: Hinweis auf Reverse Charge steht drauf },
 //                 approval { by, at } (geprüft/freigegeben), payments [{ id, date, amount, kind ('skonto' oder leer),
@@ -733,7 +733,7 @@ export function purchaseExportRows(doc = {}, { from, to, objectsById = new Map()
       serviceFrom: inv.serviceFrom,
       serviceTo: inv.serviceTo,
       dueDate: inv.dueDate,
-      costCenter: inv.costCenter || objectsById.get(inv.objectId)?.name || '',
+      costCenter: inv.costCenter || objectsById.get(inv.objectId)?.name || inv.vehicleLabel || '',
     }
     const t = invoiceTotals(inv)
     if (inv.date >= from && inv.date <= to)

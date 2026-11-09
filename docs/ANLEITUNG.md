@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 398 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 399 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -10,7 +10,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
 - [Objekte & Kunden](#objekte-kunden) (101)
-- [Material & Fuhrpark](#material-fuhrpark) (27)
+- [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (62)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
@@ -2707,7 +2707,7 @@ Der Reiter „Kosten“ zeigt je Gerät die Reparaturen und Kosten der letzten 1
 
 *In der App: Fahrzeuge & Reifen*
 
-Hier führst du die Firmenfahrzeuge mit Fahrer/in, Werkstatt, Reifensätzen (Größe, Lagerort, DOT, Profiltiefe) und was montiert ist. Es gibt drei Reiter: „Reifenwechsel“, „Service & Pickerl“ und „Fahrtenbuch“.
+Hier führst du die Firmenfahrzeuge mit Fahrer/in, Werkstatt, Reifensätzen (Größe, Lagerort, DOT, Profiltiefe) und was montiert ist. Reiter: „Reifenwechsel“, „Service & Pickerl“, „Fahrtenbuch“ und „Kosten“.
 
 1. „Fahrzeuge & Reifen“ unter „Material & Fuhrpark“ öffnen.
 2. „+ Fahrzeug“ klicken.
@@ -2735,6 +2735,21 @@ Die App schlägt je Fahrzeug und Tag die Fahrten aus Mattenwechsel-Touren, Winte
 > Tipp: Export → CSV für die Steuerberatung (Monat oder Jahr).
 
 *Fuhrpark, Vollzugriff*
+
+### Fuhrparkkosten je Fahrzeug
+
+*In der App: Fahrzeuge & Reifen*
+
+Im Reiter „Kosten“ stehen je Fahrzeug und Jahr die Kosten aus Werkstattterminen und Eingangsrechnungen mit Fahrzeug (Treibstoff, Versicherung, Leasing), die gefahrenen km aus dem Fahrtenbuch und die Kosten je km.
+
+1. Bei der Eingangsrechnung unter „Fahrzeug (Fuhrparkkosten)“ das Fahrzeug wählen (bei Tankbelegen mit Kennzeichen schlägt die App es vor).
+2. „Fahrzeuge & Reifen“ öffnen, Reiter „Kosten“.
+3. Jahr wählen; „… Posten“ zeigt die einzelnen Kosten.
+
+> Tipp: Rechnungen der Kategorie „Fahrzeuge“ ohne Fahrzeug zeigt die App als Hinweis.
+> Tipp: Export → CSV für die Steuerberatung.
+
+*Fuhrpark, Vollzugriff (Rechnungen nur mit Einkauf & Kasse)*
 
 ### Reifenwechsel planen
 

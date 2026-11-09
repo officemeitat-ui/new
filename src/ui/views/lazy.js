@@ -247,7 +247,7 @@ lazy(BUERO, {
   actions: `veh-filter veh-tab veh-csv veh-edit-open veh-set veh-save veh-del veh-due-add veh-due-del veh-km-open vk-save veh-ws-open veh-ws-set
     veh-ws-add veh-ws-del veh-ws-save veh-import-open veh-import-run veh-plan-open vp-update vp-next vp-save vp-cancel veh-propose-open vq-run
     vq-apply veh-done-open vd-save veh-mail-open vm-ws vm-send vm-mailto vm-ics vm-send-ws veh-import-text fb-month fb-vehicle fb-new-open
-    fb-confirm-open fb-edit-open fb-cancel-open fb-dismiss fb-save fb-cancel-save fb-csv fb-goto`,
+    fb-confirm-open fb-edit-open fb-cancel-open fb-dismiss fb-save fb-cancel-save fb-csv fb-goto fpk-year fpk-open fpk-csv`,
   todo: ['reifen', 'fahrtenbuch'],
 })
 

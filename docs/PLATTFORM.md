@@ -272,6 +272,10 @@ Dritter Reiter **Fahrtenbuch** (Rechenkern `src/core/fahrtenbuch.js`, Ansicht `s
 - **Zu erledigen:** „Fahrtenbuch: … Fahrten älter als 7 Tage nicht bestätigt“ (Fenster 3 Wochen zurück) mit Knopf in den Monat der ältesten Fahrt – ein Fahrtenbuch zählt nur, wenn es zeitnah geführt wird.
 - **Ablage:** `fahrzeuge/fahrtenbuch/<Jahr>.json` (eine Datei je Jahr, zusammengeführt je Fahrt), erst geladen, wenn der Reiter oder „Zu erledigen“ das Jahr braucht. Lesen und Schreiben nur mit dem Recht für den Fuhrpark (`fahrzeuge`).
 
+### Fuhrparkkosten
+
+Vierter Reiter **Kosten** (Rechenkern `src/core/fuhrparkkosten.js`, Ansicht `src/ui/views/fuhrparkkosten.js`): je Fahrzeug und Jahr die Kosten netto aus erledigten Werkstattterminen (Reifenwechsel, Service, Pickerl mit Kosten) und aus **Eingangsrechnungen mit Fahrzeug** (neues Feld „Fahrzeug (Fuhrparkkosten)“ bei der Eingangsrechnung, nur sichtbar mit Recht auf den Fuhrpark; die Rechnung trägt eine Kopie des Kennzeichens, der Export für die Steuerberatung nimmt sie als Kostenstelle, wenn keine andere eingetragen ist). Bei Kategorie „Fahrzeuge“ schlägt die App das Fahrzeug vor, wenn das Kennzeichen im Text steht (z. B. Tankbeleg). Gefahrene km aus dem Fahrtenbuch, sonst aus den km-Ständen des Fahrzeugs; daraus **Kosten je km**. Posten je Fahrzeug aufklappbar, Hinweis auf Rechnungen der Kategorie „Fahrzeuge“ ohne Fahrzeug, CSV. Rechnungen sieht nur, wer Einkauf & Kasse sieht; sonst nur die Werkstatt.
+
 ## Kalkulation je Objekt
 
 Unter *Auswertung → Kalkulation* (nur Vollzugriff), gespeichert in `kalkulation/kalkulation.json` – nur für das Büro, weil Löhne, Zuschläge und Margen darin stehen (die Lohnverrechnung sieht Stunden, Überstunden und den Export, nicht die Kalkulation).

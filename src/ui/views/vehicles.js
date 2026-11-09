@@ -6,7 +6,7 @@
 // weitere Fälligkeiten; Werkstatttermine erledigen sie, auch zusammen mit dem
 // Reifenwechsel.
 // Reiter „Fahrtenbuch“: views/fahrtenbuch.js (Fahrten aus Touren, Winterdienst
-// und Dienstplan bestätigen).
+// und Dienstplan bestätigen). Reiter „Kosten“: views/fuhrparkkosten.js.
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { addDays, dayIndex, formatDate, todayISO } from '../../core/dates.js'
@@ -20,6 +20,7 @@ import { canMail } from '../modals/send.js'
 import { registerTodo } from '../modals/todo.js'
 import { download, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
 import { fahrtenbuchView, fbOpenCount, fbRange } from './fahrtenbuch.js'
+import { costsView } from './fuhrparkkosten.js'
 
 const MODULE = 'fahrzeuge'
 const FZ = () => {
@@ -111,7 +112,7 @@ function sectionHead(total) {
           total && canDownload() && { label: 'Fahrzeugliste (CSV)', icon: ICON.download, action: 'veh-csv', mail: true },
         ],
       })}</div></div>
-    ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen], ['fahrtenbuch', 'Fahrtenbuch', tab === 'fahrtenbuch' ? fbOpenCount() : 0]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`
+    ${total ? `<div class="seg veh-tabs" role="tablist">${[['reifen', 'Reifenwechsel', tireOpen], ['service', 'Service & Pickerl', serviceOpen], ['fahrtenbuch', 'Fahrtenbuch', tab === 'fahrtenbuch' ? fbOpenCount() : 0], ['kosten', 'Kosten', 0]].map(([k, label, n]) => `<button class="btn ${tab === k ? 'primary' : ''}" data-action="veh-tab" data-v="${k}" role="tab" aria-selected="${tab === k}">${label}${n ? ` <span class="flag ${tab === k ? '' : 'warning'}">${n}</span>` : ''}</button>`).join('')}</div>` : ''}`
 }
 
 function vehiclesView() {
@@ -119,6 +120,7 @@ function vehiclesView() {
   const fz = FZ()
   if ((app.ui.vehTab || 'reifen') === 'service' && activeVehicles(fz).length) return `${sectionHead(activeVehicles(fz).length)}${serviceView()}`
   if (app.ui.vehTab === 'fahrtenbuch' && activeVehicles(fz).length) return `${sectionHead(activeVehicles(fz).length)}${fahrtenbuchView()}`
+  if (app.ui.vehTab === 'kosten' && activeVehicles(fz).length) return `${sectionHead(activeVehicles(fz).length)}${costsView()}`
   const list = rows(today)
   const { campaign, counts, total } = campaignSummary(fz, today)
   const filter = app.ui.vehFilter || 'alle'
