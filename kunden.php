@@ -36,8 +36,18 @@
 // Inhalt). Bei Gesamt 1–2 oder Rückruf bekommt das Büro einen Push (ohne Inhalt) bzw. eine E-Mail. Keine Werbung,
 // kein Tracking, keine Cookies.
 //
+// Aushang (QR) im Objekt (kunden.php?q=CODE): eigener Code je Objekt (nicht der eines Links; am Server nur der
+// Hashwert), die App schickt nur Kennung, Hashwert, Bezeichnung und Objekt (aktion=aushang, ersetzt die Liste). Die
+// Seite zeigt NUR die Bezeichnung, Logo bzw. Firmenname und das Meldeformular (Kategorie, Ort, Text, freiwillig Foto
+// und Kontakt, „Rückmeldung gewünscht“), auf Deutsch oder Englisch (aushang-texte.php, Sprach-Cookie nur bei Wahl);
+// nie Daten eines Kundenbereichs. Schutz: Grenzen je Code und je Adresse (Adresse nur als Hashwert mit dem Schlüssel),
+// verstecktes Feld gegen Bots, Mindestzeit zum Ausfüllen (Zeitmarke mit Prüfsumme, kein Cookie), Fotos wie oben.
+// Die Meldung liegt bei denen des Kundenbereichs (quelle: aushang), die App holt sie gleich ab und macht daraus eine
+// Reklamation mit Eingang „Aushang (QR)“. Nach dem Senden bekommt die meldende Person einen eigenen Folge-Code
+// (kunden.php?s=CODE, am Server nur der Hashwert): Stand und die öffentliche Antwort aus der App, sonst nichts.
+//
 // Aufrufe der App (Schlüssel im Kopf X-Schluessel):
-//   aktion=einrichten | speichern | datei | meldungen | meldung-status | foto | status
+//   aktion=einrichten | speichern | datei | meldungen | meldung-status | foto | status | aushang
 //   aktion=angebot | angebot-datei | angebot-entfernen | annahmen | annahme-status
 //   aktion=umfrage | umfrage-antworten | umfrage-status
 // Erste Einrichtung: privat/kundenbereich.json per FTP, oder „einrichten“ mit dem Schlüssel von
@@ -84,6 +94,13 @@ const ANTWORT_MUSTER = '/^[a-f0-9]{12}$/';
 const TELEFON_MUSTER = '/^[0-9 +\/()-]{5,40}$/';
 const GRENZE_UMFRAGE_LINK = [6, 86400]; // Absende-Versuche je Link und Tag
 const GRENZE_UMFRAGE_ADRESSE = [10, 86400]; // Antworten je Adresse und Tag
+// Aushang (QR) im Objekt: Kategorien wie in der App (core/aushang.js), Grenzen [Anzahl, Sekunden]
+const AUSHANG_MUSTER = '/^ah[a-f0-9]{10}$/';
+const AUSHANG_KATEGORIEN = ['reinigung' => 'Reinigung nicht erledigt', 'verschmutzung' => 'Verschmutzung', 'schaden' => 'Schaden/Defekt', 'muell' => 'Müll', 'winterdienst' => 'Winterdienst', 'sonstiges' => 'Sonstiges'];
+const GRENZE_AUSHANG_CODE = [10, 86400]; // Meldungen je Aushang und Tag
+const GRENZE_AUSHANG_ADRESSE = [5, 86400]; // Meldungen je Adresse und Tag
+const AUSHANG_MINDESTZEIT = 3; // Sekunden vom Öffnen bis zum Senden (schneller: Programm, kein Mensch)
+const STATUSCODE_ZEICHEN = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // ohne 0/O, 1/I
 const UMFRAGE_VORGABE = ['gesamt' => 'Wie zufrieden sind Sie insgesamt mit unserer Arbeit?', 'nps' => 'Wie wahrscheinlich ist es, dass Sie uns weiterempfehlen?', 'freitext' => 'Was sollen wir besser machen, was gefällt Ihnen?'];
 
 function jetzt(): int
@@ -646,6 +663,78 @@ function svg_stern(): string
     return '<svg class="stern" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z"/></svg>';
 }
 
+// ---------------------------------------------------------------- Aushang (QR) im Objekt
+
+/** Aushänge, die die App geschickt hat (Kennung → Kennung, Hashwert des Codes, Bezeichnung, Objekt). */
+function aushaenge(): array
+{
+    return json_lesen(speicher() . '/aushang.json');
+}
+
+/** Aushang zu einem Code (nur über den Hashwert; ausgeschaltete und alte Codes stehen nicht mehr in der Liste). */
+function aushang_zum_code(string $code): ?array
+{
+    if (!preg_match('/^[A-Za-z0-9]{16,40}$/', $code)) {
+        return null;
+    }
+    $hash = hash('sha256', $code);
+    foreach (aushaenge() as $a) {
+        if (is_array($a) && preg_match(AUSHANG_MUSTER, (string) ($a['id'] ?? '')) && hash_equals((string) ($a['hash'] ?? ''), $hash)) {
+            return $a;
+        }
+    }
+    return null;
+}
+
+/** Folge-Code für den Stand einer Meldung: 12 Zeichen ohne verwechselbare (rund 60 Bit), z. B. „K7QM-2XRT-9PLD“. */
+function statuscode_neu(): string
+{
+    $c = '';
+    while (strlen($c) < 12) {
+        $c .= STATUSCODE_ZEICHEN[random_int(0, strlen(STATUSCODE_ZEICHEN) - 1)];
+    }
+    return $c;
+}
+
+/** Folge-Code aus Link oder Eingabe: groß, ohne Leerzeichen und Bindestriche; '' wenn ungültig. */
+function statuscode_norm($s): string
+{
+    $c = is_string($s) ? strtoupper((string) preg_replace('/[\s-]+/', '', $s)) : '';
+    return preg_match('/^[' . STATUSCODE_ZEICHEN . ']{12}$/', $c) ? $c : '';
+}
+
+/** Meldung vom Aushang zu einem Folge-Code (nur über den Hashwert). */
+function meldung_zum_statuscode(string $code): ?array
+{
+    if ($code === '') {
+        return null;
+    }
+    $hash = hash('sha256', $code);
+    foreach (meldungen(fn (array &$l) => $l) ?? [] as $m) {
+        if (($m['quelle'] ?? '') === 'aushang' && hash_equals((string) ($m['statusHash'] ?? ''), $hash)) {
+            return $m;
+        }
+    }
+    return null;
+}
+
+/** Zeitmarke im Formular für die Mindestzeit: Zeitpunkt und Prüfsumme mit dem Schlüssel des Webspace (kein Cookie). */
+function aushang_marke(string $id, string $schluessel, ?int $zeit = null): string
+{
+    $zeit ??= jetzt();
+    return $zeit . '.' . substr(hash_hmac('sha256', 'aushang|' . $id . '|' . $zeit, $schluessel), 0, 24);
+}
+
+/** Sekunden seit dem Öffnen des Formulars; null, wenn die Marke nicht passt oder älter als ein Tag ist. */
+function aushang_marke_alter($marke, string $id, string $schluessel): ?int
+{
+    if (!is_string($marke) || !preg_match('/^(\d{9,11})\.[a-f0-9]{24}$/', $marke, $x) || !hash_equals(aushang_marke($id, $schluessel, (int) $x[1]), $marke)) {
+        return null;
+    }
+    $alter = jetzt() - (int) $x[1];
+    return $alter >= 0 && $alter <= 86400 ? $alter : null;
+}
+
 // ---------------------------------------------------------------- Darstellung
 
 $h = fn ($t): string => htmlspecialchars((string) $t, ENT_QUOTES);
@@ -687,8 +776,8 @@ function kontakt_html(array $e): string
     return $kontakt ? '<p>Fragen? ' . implode(' · ', $kontakt) . '</p>' : '';
 }
 
-/** Seite für Kunden: eigenes, ruhiges Design (Sie-Form), Logo und Hausfarbe aus config.json. */
-function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich', string $firma = '', string $wo = 'Kundenbereich', string $skript = 'wetter-foto.js'): void
+/** Seite für Kunden: eigenes, ruhiges Design (Sie-Form), Logo und Hausfarbe aus config.json. $lang: Sprache (Aushang). */
+function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich', string $firma = '', string $wo = 'Kundenbereich', string $skript = 'wetter-foto.js', string $lang = 'de'): void
 {
     $m = marke();
     $h = fn ($t) => htmlspecialchars((string) $t, ENT_QUOTES);
@@ -699,7 +788,7 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
     header('X-Robots-Tag: noindex, nofollow');
     header('Referrer-Policy: no-referrer');
     $f = $m['farbe'];
-    echo '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="' . $h($f) . '">'
+    echo '<!doctype html><html lang="' . $h($lang) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="' . $h($f) . '">'
         . '<title>' . $h($titel) . ' – ' . $h($name) . '</title>'
         . ($m['symbol'] ? '<link rel="icon" href="' . $h($m['symbol']) . '"><link rel="apple-touch-icon" href="' . $h($m['symbol']) . '">' : '')
         . '<style>'
@@ -759,6 +848,16 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
         . '.sterne:has(.wahl:nth-of-type(1):checked) label:nth-of-type(-n+1) .stern,.sterne:has(.wahl:nth-of-type(2):checked) label:nth-of-type(-n+2) .stern,.sterne:has(.wahl:nth-of-type(3):checked) label:nth-of-type(-n+3) .stern,.sterne:has(.wahl:nth-of-type(4):checked) label:nth-of-type(-n+4) .stern,.sterne:has(.wahl:nth-of-type(5):checked) label:nth-of-type(-n+5) .stern{fill:currentColor}'
         . '.skala{display:flex;justify-content:space-between;gap:1rem;margin:.3rem 0 0;font-size:.88rem;color:var(--leise)}'
         . '.fuss{max-width:68rem;margin:0 auto;padding:0 1rem 2rem;color:var(--leise);font-size:.9rem}.fuss p{margin:.4rem 0}'
+        // Aushang (QR): eine Spalte, Kategorien als große Felder, Sprachwahl, verstecktes Feld gegen Bots, Code zum Notieren
+        . '.schmal{max-width:40rem;margin:0 auto}.schmal .fuss{padding:0;margin:1rem 0 0}'
+        . '.kategorien{position:relative;display:grid;gap:.45rem;margin:.2rem 0 0}@media(min-width:560px){.kategorien{grid-template-columns:1fr 1fr}}'
+        . '.kategorien label{display:flex;align-items:center;margin:0;padding:.6rem .8rem;min-height:2.9rem;border:1px solid #b9c7d1;border-radius:10px;background:#fff;font-weight:600;cursor:pointer}'
+        . '.hp{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}'
+        . '.codebox{background:var(--weich);border-radius:10px;padding:.8rem 1rem;margin:.8rem 0}.codebox p{margin:.2rem 0;color:var(--text)}.codebox a{word-break:break-all}.codebox .code{font:700 1.35rem/1.3 ui-monospace,Consolas,"Courier New",monospace;color:var(--text)}'
+        . '.stand{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.3rem .8rem;margin:.6rem 0}.stand dt{color:var(--leise)}.stand dd{margin:0}'
+        . '.stand-form{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap}.stand-form>div{flex:1 1 12rem}.stand-form button{width:auto;margin-top:0}'
+        . '.sprachwahl{float:right;margin:0 0 .4rem .6rem;font-size:.95rem;position:relative}.sprachwahl summary{list-style:none;cursor:pointer;display:flex;gap:.35rem;align-items:center;padding:.35rem .5rem;border:1px solid #b9c7d1;border-radius:8px;background:#fff;color:var(--text);font-weight:600}.sprachwahl summary::-webkit-details-marker{display:none}.sprachwahl svg{width:1.1rem;height:1.1rem}'
+        . '.sprachwahl ul{position:absolute;right:0;z-index:2;list-style:none;margin:.3rem 0 0;padding:.3rem;background:#fff;border:1px solid #b9c7d1;border-radius:8px;box-shadow:0 6px 20px rgb(19 35 47/.15);min-width:10rem;max-width:calc(100vw - 3rem)}.sprachwahl li{margin:0}.sprachwahl a,.sprachwahl b{display:block;padding:.45rem .6rem;border-radius:6px;color:var(--blau);text-decoration:none}.sprachwahl b{color:var(--text);background:var(--weich)}'
         . '</style>'
         . '<script src="' . $h($skript) . '" defer></script></head><body>'
         . '<header class="kopf"><div class="kopf-innen">' . ($m['logo'] ? '<img src="' . $h($m['logo']) . '" alt="' . $h($name) . '">' : '<span class="marke">' . $h($name) . '</span>') . '<span class="wo">' . $h($wo) . '</span></div></header>'
@@ -778,7 +877,7 @@ $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $e = einstellungen();
 
-if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status'], true)) {
+if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'aushang', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status'], true)) {
     $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
     if (!$e) {
         // erste Einrichtung ohne FTP: mit dem Schlüssel von Plan am Handy oder Schnee-Alarm
@@ -800,7 +899,7 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         $angebote = array_map('json_lesen', glob(speicher('angebote') . '/an*.json') ?: []);
         $neueAnnahmen = count(array_filter($angebote, fn ($a) => !empty($a['annahme']) && empty($a['annahme']['uebernommen'])));
         $neueAntworten = count(array_filter(json_lesen(speicher('umfrage') . '/antworten.json'), fn ($a) => is_array($a) && empty($a['uebernommen'])));
-        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'runden' => count(umfrage_runden()), 'neueAntworten' => $neueAntworten, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
+        json_ausgabe(200, ['links' => count(json_lesen(speicher() . '/index.json')), 'aushaenge' => count(aushaenge()), 'neueMeldungen' => $offen, 'angebote' => count($angebote), 'neueAnnahmen' => $neueAnnahmen, 'runden' => count(umfrage_runden()), 'neueAntworten' => $neueAntworten, 'gd' => function_exists('imagejpeg'), 'jetzt' => jetzt()]);
     }
     // Antworten der Umfrage (die App übernimmt sie und meldet „übernommen“ zurück; danach nur noch der Vermerk)
     if ($aktion === 'umfrage-antworten') {
@@ -912,6 +1011,24 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
             json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
         json_ausgabe(200, ['gespeichert' => true]);
+    }
+
+    // Aushänge (QR) im Objekt: die App schickt alle eingeschalteten und ersetzt damit die Liste (ausgeschaltete Aushänge
+    // und alte Codes gelten danach nicht mehr). Nur Kennung, Hashwert des Codes, Bezeichnung und Objekt.
+    if ($aktion === 'aushang') {
+        $liste = [];
+        foreach (array_slice((array) ($daten['aushaenge'] ?? []), 0, 500) as $a) {
+            $aid = is_array($a) ? (string) ($a['id'] ?? '') : '';
+            $hash = is_array($a) ? (string) ($a['hash'] ?? '') : '';
+            if (!preg_match(AUSHANG_MUSTER, $aid) || !preg_match('/^[a-f0-9]{64}$/', $hash)) {
+                continue;
+            }
+            $liste[$aid] = ['id' => $aid, 'hash' => $hash, 'titel' => kurz($a['titel'] ?? '', 120) ?: 'Objekt', 'objektId' => kurz($a['objektId'] ?? '', 60), 'stand' => jetzt()];
+        }
+        if (!json_schreiben(speicher() . '/aushang.json', $liste)) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['aushaenge' => count($liste)]);
     }
 
     if ($aktion === 'meldung-status') {
@@ -1202,6 +1319,166 @@ if (!$e) {
 $wer = adresse_des_aufrufs();
 if (grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, false)) {
     fehlerseite('Bitte später noch einmal', 'Von dieser Verbindung kamen zu viele ungültige Aufrufe. Bitte versuchen Sie es in einer Viertelstunde wieder.', 429, $firma);
+}
+
+// ---------------------------------------------------------------- Aushang (QR) im Objekt (kunden.php?q=CODE, Stand: ?s=CODE)
+// Eigene Codes, nicht die der Links: Hier gibt es nur das Meldeformular bzw. den Stand einer Meldung. Die Seite endet in
+// diesem Abschnitt; Nachweise, Rechnungen, Termine usw. eines Kundenbereichs sind von hier aus nicht erreichbar.
+
+$nurText = fn ($v): string => is_string($v) ? $v : '';
+$aushangCode = $nurText($_POST['q'] ?? $_GET['q'] ?? '');
+if ($aushangCode !== '' || isset($_GET['s'])) {
+    $ahTexte = require __DIR__ . '/aushang-texte.php';
+    texte($ahTexte);
+    $sprachen = array_keys($ahTexte);
+    $lang = html_sprache(sprache_waehlen([], true, $sprachen));
+    $ahSeite = function (string $inhalt, int $status, string $titel, string $basis = '') use ($firma, $sprachen, $lang): void {
+        seite('<main class="seite"><div class="schmal">' . ($basis !== '' ? sprachwahl_html($basis, $sprachen) : '') . $inhalt . '</div></main>', $status, $titel, $firma, t('ah_wo'), 'wetter-foto.js', $lang);
+        exit;
+    };
+    // falscher, ausgeschalteter oder alter Code: dieselbe Seite ohne Hinweis, gezählt wie beim Kundenbereich
+    $nichtGefunden = function () use ($wer, $ahSeite): void {
+        grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, true);
+        $ahSeite('<div class="karte"><h1 style="font-size:1.4rem;margin:0 0 .4rem">' . th('ah_404_titel') . '</h1><p>' . th('ah_404_text') . '</p></div>', 404, t('ah_404_titel'));
+    };
+    $telefon = (string) ($e['firma']['telefon'] ?? '');
+    $fuss = '<footer class="fuss">' . ($telefon !== '' ? '<p>' . th('ah_dringend', ['telefon' => '<a href="tel:' . $h(preg_replace('/[^0-9+]/', '', $telefon)) . '">' . $h($telefon) . '</a>']) . '</p>' : '') . '<p>' . th('ah_notfall') . '</p></footer>';
+
+    // Stand einer Meldung: nur Bezeichnung des Aushangs, Tag, Stand und die öffentliche Antwort (nie Text, Ort, Kontakt, Foto)
+    if ($aushangCode === '') {
+        $sc = statuscode_norm($_GET['s'] ?? '');
+        $m = meldung_zum_statuscode($sc);
+        if (!$m) {
+            $nichtGefunden();
+        }
+        $st = isset(STATUS[$m['status'] ?? '']) ? (string) $m['status'] : 'eingegangen';
+        $tag = (new DateTimeImmutable('@' . (int) ($m['erstellt'] ?? jetzt())))->setTimezone(new DateTimeZone('Europe/Vienna'));
+        $adresse = rtrim((string) ($e['adresse'] ?? ''), '/');
+        $url = ($adresse !== '' && preg_match('#^https?://#', $adresse) ? $adresse . '/' : '') . 'kunden.php?s=' . $sc;
+        $antwort = trim((string) ($m['antwort'] ?? ''));
+        $neu = ($_GET['neu'] ?? '') === '1';
+        $ahSeite('<div class="hallo"><h1>' . th('ah_s_titel') . '</h1><p>' . $h($m['titel'] ?? '') . '</p></div><section class="karte" id="stand">'
+            . ($neu ? '<p class="ok" role="status">' . th('ah_s_danke') . '</p><div class="codebox"><p>' . th('ah_s_link') . '</p><p><a href="' . $h($url) . '">' . $h($url) . '</a></p><p>' . th('ah_s_code') . '</p><p class="code">' . $h(implode('-', str_split($sc, 4))) . '</p><p class="hinweis">' . th('ah_s_merken') . '</p></div>' : '')
+            . '<dl class="stand"><dt>' . th('ah_s_stand') . '</dt><dd><span class="pill st-' . $h($st) . '">' . th('ah_st_' . $st) . '</span></dd></dl>'
+            . '<p class="unter">' . th('ah_s_gemeldet', ['datum' => $h(t('ah_datum', ['d' => $tag->format('d'), 'm' => $tag->format('m'), 'y' => $tag->format('Y')]))]) . '</p>'
+            . ($antwort !== '' ? '<div class="antwort"><b>' . th('ah_s_antwort') . '</b>' . nl2br($h($antwort)) . '</div>' : '')
+            . '<p class="hinweis">' . th('ah_s_hinweis') . '</p></section>' . $fuss, 200, t('ah_s_titel'), 'kunden.php?s=' . $sc);
+    }
+
+    $a = aushang_zum_code($aushangCode);
+    if (!$a) {
+        $nichtGefunden();
+    }
+    $aid = (string) $a['id'];
+    $schluessel = (string) $e['schluessel'];
+    // Adresse nur als Hashwert mit dem Schlüssel des Webspace (in den Zählern der Grenzen, nach einem Tag weg)
+    $werHash = hash_hmac('sha256', $wer, $schluessel);
+    $fehler = '';
+    $status = 200;
+    $eingabe = [];
+    if ($aktion === 'aushang-melden' && $methode === 'POST') {
+        if (fremde_herkunft()) {
+            $ahSeite('<div class="karte"><p class="fehler" role="alert">' . th('ah_f_herkunft') . '</p></div>', 403, t('ah_titel'));
+        }
+        $eingabe = [
+            'kategorie' => $nurText($_POST['kategorie'] ?? ''),
+            'ort' => kurz($nurText($_POST['ort'] ?? ''), 120),
+            'text' => kurz($nurText($_POST['text'] ?? ''), 1500),
+            'name' => kurz($nurText($_POST['name'] ?? ''), 80),
+            'kontakt' => kurz($nurText($_POST['kontakt'] ?? ''), 120),
+            'rueckmeldung' => !empty($_POST['rueckmeldung']),
+        ];
+        $email = str_contains($eingabe['kontakt'], '@') && filter_var($eingabe['kontakt'], FILTER_VALIDATE_EMAIL) ? $eingabe['kontakt'] : '';
+        $tel = !str_contains($eingabe['kontakt'], '@') && preg_match(TELEFON_MUSTER, $eingabe['kontakt']) ? $eingabe['kontakt'] : '';
+        $alter = aushang_marke_alter($_POST['t'] ?? null, $aid, $schluessel);
+        if ($nurText($_POST['webseite'] ?? '') !== '') {
+            // verstecktes Feld ausgefüllt: ein Programm, kein Mensch – nichts behalten, als Fehlversuch zählen
+            grenze('fehlversuch', $wer, GRENZE_FEHLVERSUCHE, true);
+            [$fehler, $status, $eingabe] = [t('ah_f_abgelehnt'), 400, []];
+        } elseif ($alter === null || $alter < AUSHANG_MINDESTZEIT) {
+            [$fehler, $status] = [t('ah_f_schnell'), 400];
+        } elseif (!isset(AUSHANG_KATEGORIEN[$eingabe['kategorie']])) {
+            [$fehler, $status] = [t('ah_f_kategorie'), 400];
+        } elseif (mb_strlen($eingabe['text']) < 3) {
+            [$fehler, $status] = [t('ah_f_text'), 400];
+        } elseif ($eingabe['kontakt'] !== '' && $email === '' && $tel === '') {
+            [$fehler, $status] = [t('ah_f_kontakt'), 400];
+        } elseif ($eingabe['rueckmeldung'] && $eingabe['kontakt'] === '') {
+            [$fehler, $status] = [t('ah_f_rueckmeldung'), 400];
+        } elseif (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, false) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, false)) {
+            [$fehler, $status] = [t('ah_f_grenze'), 429];
+        }
+        $mid = bin2hex(random_bytes(6));
+        $foto = '';
+        if (!$fehler) {
+            [$foto, $fotoFehler] = foto_speichern($_FILES['foto'] ?? null, $mid);
+            if ($fotoFehler !== '') {
+                [$fehler, $status] = [t('ah_f_foto'), 400];
+            }
+        }
+        // prüfen und zählen in einem Schritt (gesperrt), wie beim Kundenbereich
+        if (!$fehler && (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, true) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, true))) {
+            foto_loeschen(['foto' => $foto]);
+            [$fehler, $status] = [t('ah_f_grenze'), 429];
+        }
+        if (!$fehler) {
+            $sc = statuscode_neu();
+            $neu = ['id' => $mid, 'quelle' => 'aushang', 'aushang' => $aid, 'link' => '', 'titel' => (string) $a['titel'], 'objektId' => (string) $a['objektId'], 'objekt' => (string) $a['titel'],
+                'kategorie' => $eingabe['kategorie'], 'ort' => $eingabe['ort'], 'datum' => heute(), 'text' => $eingabe['text'], 'kontakt' => ['name' => $eingabe['name'], 'telefon' => $tel, 'email' => $email],
+                'rueckmeldung' => $eingabe['rueckmeldung'], 'info' => false, 'foto' => $foto, 'sprache' => sprache(), 'statusHash' => hash('sha256', $sc), 'erstellt' => jetzt(), 'status' => 'eingegangen', 'antwort' => '', 'geaendert' => jetzt(), 'uebernommen' => null];
+            $ok = meldungen(function (array &$l) use ($neu) {
+                $l[] = $neu;
+                return true;
+            });
+            if (!$ok) {
+                foto_loeschen($neu);
+                [$fehler, $status] = [t('ah_f_speichern'), 500];
+            } else {
+                // Büro wie beim Kundenbereich: Push nur mit Aushang und Kategorie (fremder Dienst), E-Mail mit allem
+                $app = rtrim((string) ($e['adresse'] ?? ''), '/') . '/#reklamationen';
+                $kat = AUSHANG_KATEGORIEN[$eingabe['kategorie']];
+                $titel = 'Meldung über den Aushang: ' . $a['titel'];
+                $kontaktText = implode(', ', array_filter([$eingabe['name'], $tel, $email]));
+                $text = $kat . ($eingabe['ort'] !== '' ? ', Ort: ' . $eingabe['ort'] : '') . "\n„" . $eingabe['text'] . "“\n"
+                    . ($kontaktText !== '' ? 'Kontakt: ' . $kontaktText . ($eingabe['rueckmeldung'] ? ' (Rückmeldung gewünscht)' : '') : 'Ohne Kontakt.') . ($foto ? "\nMit Foto." : '') . "\nIn der App unter „Reklamationen“.";
+                foreach ((array) ($e['buero'] ?? []) as $b) {
+                    if (!empty($b['ntfy'])) {
+                        ntfy_senden((string) ($e['ntfy'] ?? ''), ['topic' => (string) $b['ntfy'], 'title' => $titel, 'message' => $kat . '. In der App unter „Reklamationen“.', 'priority' => 4, 'tags' => ['speech_balloon'], 'click' => $app]);
+                    }
+                    if (!empty($b['email'])) {
+                        mail_senden((string) $b['email'], $titel, $text . "\n\nApp: $app\n", (string) ($e['absender'] ?? ''), 'Aushang');
+                    }
+                }
+                header('Location: kunden.php?s=' . $sc . '&neu=1', true, 303);
+                exit;
+            }
+        }
+    }
+
+    // Meldeformular: nur Bezeichnung des Aushangs, Logo bzw. Firmenname (Kopf) und das Formular
+    $wert = fn ($k) => $h($eingabe[$k] ?? '');
+    $kategorien = '';
+    foreach (array_keys(AUSHANG_KATEGORIEN) as $k) {
+        $kategorien .= '<input type="radio" class="wahl" id="ah-kat-' . $k . '" name="kategorie" value="' . $k . '"' . (($eingabe['kategorie'] ?? '') === $k ? ' checked' : '') . ' required><label for="ah-kat-' . $k . '">' . th('ah_kat_' . $k) . '</label>';
+    }
+    $datenschutz = (string) ($e['firma']['datenschutz'] ?? '');
+    $form = ($fehler ? '<p class="fehler" role="alert">' . $h($fehler) . '</p>' : '')
+        . '<form method="post" action="kunden.php?aktion=aushang-melden" enctype="multipart/form-data" data-fotos-verkleinern data-sendetext="' . $h(t('ah_sendet')) . '">'
+        . '<input type="hidden" name="q" value="' . $h($aushangCode) . '"><input type="hidden" name="t" value="' . $h(aushang_marke($aid, $schluessel)) . '">'
+        . '<fieldset><legend>' . th('ah_kategorie') . '</legend><div class="kategorien">' . $kategorien . '</div></fieldset>'
+        . '<label for="ah-ort">' . th('ah_ort') . '</label><input type="text" id="ah-ort" name="ort" maxlength="120" value="' . $wert('ort') . '" placeholder="' . $h(t('ah_ort_beispiel')) . '">'
+        . '<label for="ah-text">' . th('ah_text') . '</label><textarea id="ah-text" name="text" rows="4" maxlength="1500" required placeholder="' . $h(t('ah_text_beispiel')) . '">' . $wert('text') . '</textarea>'
+        . '<label for="ah-foto">' . th('ah_foto') . '</label><input type="file" id="ah-foto" name="foto" accept="image/jpeg,image/png,image/webp">'
+        . '<fieldset><legend>' . th('ah_kontakt_titel') . '</legend><div class="zwei"><div><label for="ah-name">' . th('ah_name') . '</label><input type="text" id="ah-name" name="name" maxlength="80" autocomplete="name" value="' . $wert('name') . '"></div>'
+        . '<div><label for="ah-kontakt">' . th('ah_kontakt') . '</label><input type="text" id="ah-kontakt" name="kontakt" maxlength="120" autocomplete="email" value="' . $wert('kontakt') . '"></div></div>'
+        . '<label class="haken"><input type="checkbox" name="rueckmeldung" value="1"' . (!empty($eingabe['rueckmeldung']) ? ' checked' : '') . '> <span>' . th('ah_rueckmeldung') . '</span></label></fieldset>'
+        // gegen Programme: Menschen sehen das Feld nicht und lassen es leer
+        . '<div class="hp" aria-hidden="true"><label for="ah-webseite">Webseite</label><input type="text" id="ah-webseite" name="webseite" tabindex="-1" autocomplete="off" value=""></div>'
+        . '<button type="submit">' . th('ah_senden') . '</button>'
+        . '<p class="hinweis">' . th('ah_datenschutz') . ($datenschutz !== '' && preg_match('#^https://#', $datenschutz) ? ' <a href="' . $h($datenschutz) . '" target="_blank" rel="noopener">' . th('ah_datenschutz_link') . '</a>' : '') . '</p></form>';
+    $stand = '<section class="karte" id="stand-abfragen"><h2>' . th('ah_stand_titel') . '</h2><form method="get" action="kunden.php" class="stand-form"><div><label for="ah-s">' . th('ah_stand_text') . '</label><input type="text" id="ah-s" name="s" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX"></div><button type="submit" class="leise">' . th('ah_stand_ansehen') . '</button></form></section>';
+    $ahSeite('<div class="hallo"><h1>' . th('ah_titel') . '</h1><p><b>' . $h($a['titel']) . '</b></p><p>' . th('ah_einleitung') . '</p></div>'
+        . '<section class="karte" id="melden">' . $form . '</section><div style="height:1rem"></div>' . $stand . $fuss, $status, t('ah_titel'), 'kunden.php?q=' . rawurlencode($aushangCode));
 }
 
 // ---------------------------------------------------------------- Angebot online annehmen (kunden.php?a=CODE)

@@ -29,7 +29,7 @@
 //                                     vertrieb/fotos/<Jahr>/); Kunden, Angebote und Verträge bleiben in der Fakturierung
 //   einkauf/einkauf.json              Einkauf: Lieferanten, Eingangsrechnungen, Zahlungen (Belege unter einkauf/belege/)
 //   einkauf/kassenbuch.json           Kassenbuch (Einträge, Kassenstürze, Monatsabschlüsse)
-//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden und Angebote (mit Code), Einstellungen
+//   kundenbereich/kundenbereich.json  Kundenbereich: Links für Kunden, Angebote und Aushänge (QR) je Objekt (mit Code), Einstellungen
 //   bewerbung/bewerbung.json          Bewerbungen (Unterlagen unter bewerbung/unterlagen/) – eng: Personalverwaltung
 //   eintritt/eintritt.json            Eintritts- und Austritts-Checklisten, Vorlagen
 //   matten/matten.json                Mattenwechsel-Modul: Liegeplätze je Kunde → Objekt, Gebiete, Einstellungen
@@ -289,7 +289,7 @@ export const FOLDERS = [
   ['einkauf', 'Einkauf & Kasse: Lieferanten, Eingangsrechnungen mit Belegen, Kassenbuch', MODULE_DOCS.einkauf.path],
   ['assistenz', 'Digitale Mitarbeiter: Entscheidungen zu Vorschlägen', MODULE_DOCS.assistenz.path],
   ['berichte', 'Berichte automatisch per E-Mail (Empfänger, Zeitplan)', MODULE_DOCS.berichte.path],
-  ['kundenbereich', 'Kundenbereich: Links für Kunden und Angebote zur Online-Annahme (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
+  ['kundenbereich', 'Kundenbereich: Links für Kunden, Angebote zur Online-Annahme und Aushänge (QR) je Objekt (wirken wie Passwörter)', MODULE_DOCS.kundenbereich.path],
   ['bewerbung', 'Bewerbungen mit Lebenslauf und Unterlagen (personenbezogen, eng berechtigen)', MODULE_DOCS.bewerbung.path],
   ['eintritt', 'Eintritts- und Austritts-Checklisten (Anmeldung, Unterweisung, Schlüssel, Abmeldung)', MODULE_DOCS.eintritt.path],
   ['matten', 'Mattenwechsel: Liegeplätze je Kunde und Objekt, Gebiete, Einsätze je Jahr, Mattenbestand und Wäscherei (Büro)', MODULE_DOCS.matten.path],

@@ -127,7 +127,7 @@ export async function runChecks() {
     add(KB, 'Einrichtungs-Datei in privat/', sys?.dateien.kundenbereich ? 'ok' : 'error', sys?.dateien.kundenbereich ? 'vorhanden' : 'fehlt', 'Kundenbereich → Einstellungen → „Speichern und übertragen“ oder „Einrichtungs-Datei herunterladen“ und kundenbereich.json per FTP nach privat/ laden.')
     try {
       const r = await json('kunden.php?aktion=status', { headers: { 'X-Schluessel': kb.key } })
-      add(KB, 'Schlüssel stimmt', r.status === 200 ? 'ok' : 'error', r.status === 200 ? `${r.data?.links ?? 0} Links am Webspace${r.data?.neueMeldungen ? `, ${r.data.neueMeldungen} Meldungen noch nicht übernommen` : ''}` : `Antwort ${r.status}`, r.status === 403 ? 'kundenbereich.json neu herunterladen und nach privat/ laden.' : 'kunden.php mit hochladen.')
+      add(KB, 'Schlüssel stimmt', r.status === 200 ? 'ok' : 'error', r.status === 200 ? `${r.data?.links ?? 0} Links am Webspace${r.data?.aushaenge ? `, ${r.data.aushaenge} Aushänge (QR)` : ''}${r.data?.neueMeldungen ? `, ${r.data.neueMeldungen} Meldungen noch nicht übernommen` : ''}` : `Antwort ${r.status}`, r.status === 403 ? 'kundenbereich.json neu herunterladen und nach privat/ laden.' : 'kunden.php mit hochladen.')
     } catch (err) {
       add(KB, 'Schlüssel stimmt', 'error', err.message)
     }

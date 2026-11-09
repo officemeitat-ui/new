@@ -24,7 +24,12 @@
 // removedAt, renewedAt, publishedAt, error, cache }], offers: [{ id, docId, number, token, createdAt, createdBy, publishedAt,
 // validUntil, revokedAt, removedAt, acceptedAt, error }] }.
 // Rechenkern: core/customer-portal.js, core/customer-invoices.js, core/customer-matten.js.
+//
+// Aushang (QR) im Objekt (Abschnitt in dieser Ansicht, views/customer-portal-aushang.js mit dem Paket des Büros, über
+// portalHooks): eigener Code je Objekt, Seite kunden.php?q=CODE; die Meldungen kommen hier mit denen des Kundenbereichs
+// zurück und werden Reklamationen mit Eingang „Aushang (QR)“ (core/aushang.js). Daten: kundenbereich.json → aushang.
 
+import { AUSHANG_SOURCE } from '../../core/aushang.js'
 import { acceptanceOf, acceptedOpen, INVOICE_MONTH_CHOICES, invoiceSettings, newAcceptances, suggestCustomers } from '../../core/customer-invoices.js'
 import { customerAppointments, customerLink, complaintFromReport, deliveryNoteSettings, FILE_PATTERN, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, newReports, NOTE_MONTH_CHOICES, releasedMonths, SETTINGS_DEFAULTS, SHOW, SHOW_OFF, showDefaults, stableJson, statusUpdates, suggestNoteCustomers, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
 import { addDays, formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
@@ -36,7 +41,7 @@ import { ALARM_DEFAULTS } from '../../core/weather.js'
 import { logRows } from '../../core/winterlog.js'
 import { proofDocument, proofPdfName } from '../../export/proof-pdf.js'
 import { winterLogDocument, winterLogPdfName } from '../../export/winter-pdf.js'
-import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, ensureView, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, confirmStep, ensureModal, ensureRange, ensureView, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { openCompose } from '../mailer.js'
 import { invalidateTodo, refreshBell, registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
@@ -76,9 +81,19 @@ const invoicingOnline = async () => {
 }
 /**
  * Mattenwechsel (views/customer-portal-matten.js, mit dem Paket des Büros geladen): mattenNotes(link) → Lieferscheine
- * mit PDF, mattenNext(links, { today }) → Map Link → nächster Wechsel je Liegeplatz.
+ * mit PDF, mattenNext(links, { today }) → Map Link → nächster Wechsel je Liegeplatz. Aushang (QR) im Objekt
+ * (views/customer-portal-aushang.js, ebenso): aushangSection() → Abschnitt der Ansicht, aushangPublish() → noch nicht
+ * übertragene Aushänge an den Webspace.
  */
-export const portalHooks = { mattenNotes: null, mattenNext: null }
+export const portalHooks = { mattenNotes: null, mattenNext: null, aushangSection: null, aushangPublish: null }
+/** Abschnitt „Aushang (QR)“: kommt mit dem Paket des Büros, bis dahin ein Platzhalter (lädt es und zeichnet neu). */
+function aushangSection() {
+  if (portalHooks.aushangSection) return portalHooks.aushangSection()
+  ensureModal('ah-edit')
+    .then(() => app.ui.view === 'kundenbereich' && portalHooks.aushangSection && renderNow())
+    .catch(() => {})
+  return '<section class="kb-aushang" id="kb-aushang"><h3>Aushang (QR)</h3><p class="muted">Wird geladen …</p></section>'
+}
 const mattenPortal = async () => {
   if (!portalHooks.mattenNotes) await ensureView('mw-lieferscheine')
   return portalHooks
@@ -317,6 +332,8 @@ export async function publish({ ids = null, force = false } = {}) {
     pub.error = failed.size ? [...failed.values()][0] : ''
     pub.held = result.held
     persist()
+    // Aushänge (QR), die noch nicht am Webspace sind (z. B. nach einem Fehler beim Speichern)
+    if (!ids && portalHooks.aushangPublish) await portalHooks.aushangPublish().catch(() => {})
     return result
   } catch (err) {
     pub.error = err.message || String(err)
@@ -404,7 +421,8 @@ export async function syncReports({ force = false } = {}) {
     if (taken.length) {
       invalidateTodo()
       refreshBell()
-      toast(taken.length === 1 ? `Neue Reklamation aus dem Kundenbereich: ${objOf(taken[0].objectId)?.name || 'Objekt'} (${taken[0].kind}).` : `${taken.length} neue Reklamationen aus dem Kundenbereich unter „Reklamationen“.`)
+      const from = taken.every((c) => c.source === AUSHANG_SOURCE) ? 'über den Aushang (QR)' : 'aus dem Kundenbereich'
+      toast(taken.length === 1 ? `Neue Reklamation ${from}: ${objOf(taken[0].objectId)?.name || 'Objekt'} (${taken[0].kind}).` : `${taken.length} neue Reklamationen ${from} unter „Reklamationen“.`)
       if (['reklamationen', 'kundenbereich'].includes(app.ui.view)) renderNow()
       else if (app.ui.modal?.type === 'todo') renderModal()
     }
@@ -519,7 +537,7 @@ registerTodo({
   },
   render: (list) =>
     list
-      .map((c) => `<div class="todo-item"><span class="flag warning">!</span><div class="todo-text"><strong>${esc(objOf(c.objectId)?.name || 'Objekt')}</strong>: ${esc(c.kind)}<br><span class="muted">${esc(c.text.slice(0, 120))}${c.contact ? ` · ${esc(c.contact)}` : ''}</span></div><button class="btn small primary" data-action="complaint-open" data-id="${esc(c.id)}">Öffnen</button></div>`)
+      .map((c) => `<div class="todo-item"><span class="flag warning">!</span><div class="todo-text"><strong>${esc(objOf(c.objectId)?.name || 'Objekt')}</strong>: ${esc(c.kind)}${c.source === AUSHANG_SOURCE ? ` <span class="muted">(${esc(AUSHANG_SOURCE)})</span>` : ''}<br><span class="muted">${esc(c.text.slice(0, 120))}${c.contact ? ` · ${esc(c.contact)}` : ''}</span></div><button class="btn small primary" data-action="complaint-open" data-id="${esc(c.id)}">Öffnen</button></div>`)
       .join(''),
 })
 
@@ -590,7 +608,8 @@ function portalView() {
     <div class="impact-stats tc-stats">${tile('Links aktiv', active.length)}${tile('Reklamationen offen', openCount, openCount ? 'warn' : '')}${tile('Über den Kundenbereich', fromPortal.length)}${tile('Zuletzt übertragen', s.publishedAt ? esc(formatDate(s.publishedAt.slice(0, 10))) : '–')}</div>
     ${active.length ? head(active.map(linkRow).join('')) : `<p class="empty">Noch keine Links.${ed && s.enabled ? ' Mit „Link anlegen“ für einen Kunden oder ein Objekt beginnen.' : ''}</p>`}
     ${revoked.length ? `<h3>Gesperrte Links</h3>${head(revoked.map(linkRow).join(''))}` : ''}
-    <p class="note">Der Link wirkt wie ein Passwort: Wer ihn hat, sieht die Seite. Im Link steht nur ein Code, nichts über den Kunden. Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn das im Leistungsnachweis so eingestellt ist (jetzt: ${esc({ keine: 'keine Namen', vorname: 'Vornamen', voll: 'ganze Namen' }[proofSettings().names] || 'keine Namen')}). Reklamationen kommen unter „Reklamationen“ mit Eingang „Kundenbereich“ an; Status und Ergebnis sieht der Kunde.</p>`
+    <p class="note">Der Link wirkt wie ein Passwort: Wer ihn hat, sieht die Seite. Im Link steht nur ein Code, nichts über den Kunden. Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn das im Leistungsnachweis so eingestellt ist (jetzt: ${esc({ keine: 'keine Namen', vorname: 'Vornamen', voll: 'ganze Namen' }[proofSettings().names] || 'keine Namen')}). Reklamationen kommen unter „Reklamationen“ mit Eingang „Kundenbereich“ an; Status und Ergebnis sieht der Kunde.</p>
+    ${aushangSection()}`
 }
 
 registerView({

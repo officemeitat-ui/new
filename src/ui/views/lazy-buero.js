@@ -34,6 +34,8 @@ import './invoicing.js'
 import './vertrieb.js'
 // Kundenbereich: Lieferscheine und nächster Mattenwechsel (über portalHooks in customer-portal.js)
 import './customer-portal-matten.js'
+// Kundenbereich: Aushang (QR) im Objekt (über portalHooks in customer-portal.js)
+import './customer-portal-aushang.js'
 import './purchase.js'
 import './cashbook.js'
 import './weiterverrechnung.js'

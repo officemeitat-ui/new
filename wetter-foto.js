@@ -34,7 +34,7 @@
     ev.preventDefault()
     form.dataset.laeuft = '1'
     const knopf = form.querySelector('button[type=submit]')
-    if (knopf) knopf.textContent = 'Wird gespeichert …'
+    if (knopf) knopf.textContent = form.dataset.sendetext || 'Wird gespeichert …' // Aushang: in der Sprache der Seite
     try {
       const daten = new FormData(form)
       daten.delete(feld.name)

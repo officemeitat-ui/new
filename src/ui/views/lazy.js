@@ -230,6 +230,13 @@ lazy(BUERO, {
   todo: ['reklamationen', 'kundenbereich'],
 })
 
+// customer-portal-aushang.js: Aushang (QR) im Objekt, Abschnitt im Kundenbereich (über portalHooks in customer-portal.js)
+lazy(BUERO, {
+  module: 'reklamationen',
+  modals: 'ah-edit',
+  actions: 'ah-new ah-edit ah-object ah-save ah-toggle ah-renew ah-publish ah-pdf ah-open ah-copy',
+})
+
 // material.js
 lazy(BUERO, {
   views: [

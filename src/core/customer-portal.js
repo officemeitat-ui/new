@@ -12,6 +12,7 @@
 
 import { isPeriodic, rhythmCategory } from './attention.js'
 import { appointmentsBetween, dateOf, kindLabel, timeOf } from './appointments.js'
+import { complaintFromPosterReport, isPosterComplaint, isPosterReport, publicReplyOf } from './aushang.js'
 import { defaultDue } from './complaints.js'
 
 export const PORTAL_SOURCE = 'Kundenbereich'
@@ -173,10 +174,12 @@ export function linkPayload({ link, hash, objectsById = new Map(), termine = nul
 export const contactText = (k = {}) => [k.name, k.telefon, k.email].map((x) => String(x || '').trim()).filter(Boolean).join(', ')
 
 /**
- * Meldung vom Webspace → Reklamation der App (Eingang „Kundenbereich“). Die Kennung folgt aus der
- * Meldung, damit zwei Geräte, die gleichzeitig übernehmen, dieselbe Reklamation anlegen.
+ * Meldung vom Webspace → Reklamation der App (Eingang „Kundenbereich“; vom Aushang im Objekt: „Aushang (QR)“,
+ * core/aushang.js). Die Kennung folgt aus der Meldung, damit zwei Geräte, die gleichzeitig übernehmen, dieselbe
+ * Reklamation anlegen.
  */
 export function complaintFromReport(m, { link = null, now = new Date().toISOString() } = {}) {
+  if (isPosterReport(m)) return complaintFromPosterReport(m, { now })
   const kind = CUSTOMER_KINDS.includes(m.art) ? m.art : 'Sonstiges'
   const received = Number(m.erstellt) ? new Date(Number(m.erstellt) * 1000).toISOString() : now
   const day = /^\d{4}-\d{2}-\d{2}$/.test(m.datum || '') ? m.datum : received.slice(0, 10)
@@ -201,9 +204,13 @@ export function complaintFromReport(m, { link = null, now = new Date().toISOStri
   }
 }
 
-/** Was der Kunde sieht: Status und, wenn erledigt, das Ergebnis (Rückmeldung an den Kunden). Die Maßnahme bleibt intern. */
+/**
+ * Was der Kunde sieht: Status und, wenn erledigt, das Ergebnis (Rückmeldung an den Kunden). Die Maßnahme bleibt intern.
+ * Vom Aushang (öffentlich): nie das Ergebnis, nur die eigens eingetragene öffentliche Antwort.
+ */
 export function reportStatus(c) {
   const status = SERVER_STATUS[c.status] || 'eingegangen'
+  if (isPosterComplaint(c)) return { id: c.portal?.id, status, antwort: publicReplyOf(c) }
   return { id: c.portal?.id, status, antwort: status === 'erledigt' ? String(c.result || '').slice(0, 1000) : '' }
 }
 const statusSig = (s) => `${s.status}|${s.antwort}`

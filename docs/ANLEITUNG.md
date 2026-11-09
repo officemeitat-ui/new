@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 383 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 385 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (12)
 - [Planung](#planung) (39)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (27)
-- [Objekte & Kunden](#objekte-kunden) (96)
+- [Objekte & Kunden](#objekte-kunden) (98)
 - [Material & Fuhrpark](#material-fuhrpark) (26)
 - [Finanzen](#finanzen) (81)
 - [Verwaltung](#verwaltung) (61)
@@ -1255,6 +1255,37 @@ Je Link lassen sich „Mattenwechsel-Lieferscheine zeigen“ und „Nächsten Ma
 > Tipp: Lieferscheine überträgt, wer die Fakturierung sieht, den nächsten Wechsel, wer den Mattenwechsel sieht; sonst bleibt am Webspace der letzte Stand.
 
 *Vollzugriff und alle, die den Kundenbereich bearbeiten und die Fakturierung sehen*
+
+### Aushang (QR) im Objekt: Probleme ohne Anmeldung melden
+
+*In der App: Kundenbereich*
+
+Je Objekt gibt es einen eigenen QR-Code zum Aushängen im Stiegenhaus oder im Büro des Kunden. Wer ihn scannt, meldet ohne Anmeldung ein Problem: Kategorie, Ort, Text, freiwillig Foto und Kontakt. Die Meldung kommt als Reklamation mit Eingang „Aushang (QR)“; die Person sieht den Stand über ihren Statuslink.
+
+1. „Kundenbereich“ öffnen (der Kundenbereich muss eingeschaltet sein).
+2. Unten bei „Aushang (QR)“ auf „Aushang einrichten“ klicken.
+3. Objekt wählen, Bezeichnung prüfen (z. B. Wohnanlage Musterstraße 5), „Speichern und übertragen“.
+4. Beim Aushang „PDF“ klicken, ausdrucken und aufhängen (in einer Hülle oder laminiert).
+
+> Tipp: Der Code ist ein eigener je Objekt, nicht der Link des Kundenbereichs; die Seite zeigt keine Nachweise, Rechnungen oder Termine.
+> Tipp: „⋯“ → „Code neu erzeugen“ macht den alten Aushang sofort ungültig, „Ausschalten“ schaltet die Seite ab.
+> Tipp: Die Seite gibt es auf Deutsch und Englisch, das PDF zeigt beides.
+
+*Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten*
+
+### Meldungen vom Aushang bearbeiten und beantworten
+
+*In der App: Reklamationen*
+
+Meldungen vom Aushang holt die App mit denen des Kundenbereichs ab. Daraus wird eine Reklamation des Objekts mit Eingang „Aushang (QR)“: Kategorie als Art, Ort und Text in der Beschreibung, Kontakt nur, wenn angegeben, Foto nach SharePoint. Die meldende Person sieht nur den Stand und die öffentliche Antwort.
+
+1. Neue Meldungen stehen unter „Zu erledigen“ und in „Reklamationen“.
+2. „Öffnen“, Maßnahme eintragen und den Status „in Arbeit“ wählen.
+3. Wenn passend „Öffentliche Antwort für den Statuslink“ schreiben (ohne Namen).
+4. Ergebnis eintragen und „Erledigt“ klicken.
+
+> Tipp: Maßnahme und Ergebnis bleiben intern; öffentlich ist nur das Feld „Öffentliche Antwort“.
+> Tipp: Hat die Person „Rückmeldung gewünscht“ angehakt, steht das beim Kontakt: bitte anrufen oder schreiben.
 
 ### Kundenzufriedenheit: kurze Umfrage im Kundenbereich
 
