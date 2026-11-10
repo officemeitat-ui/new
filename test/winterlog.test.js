@@ -1,5 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 import { viennaTime } from '../src/core/weather.js'
 import { entriesFor, fromServer, logKey, logRows, missingLogs, newFromServer, photoPath, workText } from '../src/core/winterlog.js'
@@ -85,4 +87,22 @@ test('PDF-Nachweis: Kopf mit Monat, Tabelle, Fotos im Anhang, ein Objekt allein'
   assert.match(JSON.stringify(empty.content), /Keine Einträge in diesem Monat/)
   assert.equal(winterLogPdfName('2026-12'), 'Winterdienst-Protokoll_2026-12.pdf')
   assert.equal(winterLogPdfName('2026-12', 'Wohnanlage Rif'), 'Winterdienst-Protokoll_2026-12_Wohnanlage-Rif.pdf')
+})
+
+test('wetter-alarm.php: Protokolle „voriger und dieser Monat“ in Wiener Zeit, auch am 1. nach Mitternacht', () => {
+  const php = readFileSync(new URL('../wetter-alarm.php', import.meta.url), 'utf8')
+  const block = php.slice(php.indexOf("if ($aktion === 'protokolle')"), php.indexOf("if ($aktion === 'foto')"))
+  assert.doesNotMatch(block, /strtotime\(/, 'strtotime() rechnet in der Zeitzone des Servers')
+  const fn = php.match(/function protokoll_monate\([^]*?\n}\n/)?.[0]
+  assert.ok(fn && block.includes('protokoll_monate(jetzt())'))
+  try {
+    execFileSync('php', ['-v'], { stdio: 'ignore' })
+  } catch {
+    return // ohne PHP nur die Prüfung oben
+  }
+  const months = (iso, tz = 'UTC') => JSON.parse(execFileSync('php', ['-d', `date.timezone=${tz}`, '-r', `${fn} echo json_encode(protokoll_monate((int) $argv[1]));`, String(sec(iso))], { encoding: 'utf8' }))
+  // Di 1.12.2026 0:30 Uhr in Wien = 30.11. 23:30 UTC: November muss dabei sein (vorher: Oktober und Dezember)
+  assert.deepEqual(months('2026-11-30T23:30:00Z'), ['2026-11', '2026-12'])
+  assert.deepEqual(months('2026-03-31T22:30:00Z'), ['2026-03', '2026-04'], 'Sommerzeit, 1.4. 0:30 Uhr')
+  assert.deepEqual(months('2027-01-01T08:00:00Z', 'America/New_York'), ['2026-12', '2027-01'], 'Jahreswechsel')
 })

@@ -2,6 +2,7 @@
 // Namen, was je Link an den Webspace geht, Meldungen → Reklamationen, Stand zurück, E-Mail-Text.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 import { complaintFromReport, contactText, CUSTOMER_KINDS, customerAppointments, customerLink, FILE_PATTERN, fileName, isActive, linkMail, linkPayload, linkState, markSent, newLinkId, newReports, PORTAL_SOURCE, releasedMonths, reportStatus, SHOW, showDefaults, stableJson, statusUpdates, upcomingDates, upcomingServices } from '../src/core/customer-portal.js'
@@ -212,4 +213,20 @@ test('Stand im Objekt: zuletzt/kommend aus dem Plan, erledigt mit Stempelung ode
   assert.deepEqual(linkPayload({ link: { id: 'kb1', objectIds: [] }, hash: 'h', status: [s] }).status, [])
   assert.deepEqual(linkPayload({ link: { id: 'kb1', objectIds: [], show: { status: true } }, hash: 'h', status: [s] }).status, [s])
   assert.equal(linkPayload({ link: { id: 'kb1', objectIds: [], show: { status: true } }, hash: 'h' }).status, null)
+})
+
+test('kunden.php: „Ihre Meldung vom“ und „gemeldet am“ mit dem Tag in Wien, nicht in der Zeitzone des Servers', () => {
+  // date() rechnet in der Zeitzone des Webspace (oft UTC): eine Meldung um 0:30 Uhr stand mit dem Vortag in E-Mail und Seite
+  assert.doesNotMatch(PHP, /[^_a-z]date\('Y-m-d'/, 'kein date() für den Tag einer Meldung oder Anfrage')
+  const fn = PHP.match(/function tag_von\([^]*?\n}\n/)?.[0]
+  assert.ok(fn, 'tag_von() in kunden.php')
+  try {
+    execFileSync('php', ['-v'], { stdio: 'ignore' })
+  } catch {
+    return // ohne PHP nur die Prüfung oben
+  }
+  const day = (tz, iso) => execFileSync('php', ['-d', `date.timezone=${tz}`, '-r', `${fn} echo tag_von((int) $argv[1]);`, String(Date.parse(iso) / 1000)], { encoding: 'utf8' })
+  assert.equal(day('UTC', '2026-11-09T23:30:00Z'), '2026-11-10') // Di 10.11. 0:30 Uhr in Wien
+  assert.equal(day('America/New_York', '2026-07-01T22:30:00Z'), '2026-07-02') // Sommerzeit
+  assert.equal(day('UTC', '2026-11-09T22:59:00Z'), '2026-11-09')
 })

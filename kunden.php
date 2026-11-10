@@ -138,6 +138,12 @@ function heute(): string
     return (new DateTimeImmutable('@' . jetzt()))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d');
 }
 
+/** Kalendertag in Wien zu einem Zeitstempel (date() rechnet in der Zeitzone des Servers, oft UTC: 0:30 Uhr wäre der Vortag). */
+function tag_von(int $ts): string
+{
+    return (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d');
+}
+
 function tag_plus(string $datum, int $tage): string
 {
     return (new DateTimeImmutable($datum, new DateTimeZone('UTC')))->modify(($tage >= 0 ? '+' : '') . $tage . ' days')->format('Y-m-d');
@@ -1257,7 +1263,7 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
                 $an = (string) ($m['kontakt']['email'] ?? '');
                 if (!empty($m['info']) && $vorher !== $u['status'] && filter_var($an, FILTER_VALIDATE_EMAIL)) {
                     $firma = (string) ($e['firma']['name'] ?? marke()['app']);
-                    $text = "Guten Tag,\n\nIhre Meldung vom " . datum_text(date('Y-m-d', (int) $m['erstellt']), false) . ' (' . ($m['objekt'] ?? '') . ') ist jetzt: ' . STATUS[$u['status']] . '.'
+                    $text = "Guten Tag,\n\nIhre Meldung vom " . datum_text(tag_von((int) $m['erstellt']), false) . ' (' . ($m['objekt'] ?? '') . ') ist jetzt: ' . STATUS[$u['status']] . '.'
                         . ($antwort !== '' ? "\n\nUnsere Rückmeldung:\n" . $antwort : '') . "\n\nDen Stand sehen Sie jederzeit in Ihrem Kundenbereich.\n\nMit freundlichen Grüßen\n" . $firma . "\n";
                     if (mail_senden($an, 'Ihre Meldung: ' . STATUS[$u['status']], $text, (string) ($e['absender'] ?? ''), 'Kundenbereich')) {
                         $mails++;
@@ -1321,7 +1327,7 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
                 if (!empty($a['info']) && $vorher !== $u['status'] && filter_var($an, FILTER_VALIDATE_EMAIL)) {
                     $sp = sprache_gueltig($a['sprache'] ?? null) ?? 'de';
                     $stand = t('zl_st_' . $u['status'], [], $sp);
-                    $text = t('zl_mail_text', ['art' => (string) ($a['artName'] ?? ''), 'datum' => datum_text(date('Y-m-d', (int) ($a['erstellt'] ?? jetzt())), false), 'objekt' => (string) ($a['objekt'] ?? ''), 'stand' => $stand,
+                    $text = t('zl_mail_text', ['art' => (string) ($a['artName'] ?? ''), 'datum' => datum_text(tag_von((int) ($a['erstellt'] ?? jetzt())), false), 'objekt' => (string) ($a['objekt'] ?? ''), 'stand' => $stand,
                         'antwort' => ($antwort !== '' ? t('zl_mail_antwort', ['text' => $antwort], $sp) : '') . ($a['angebot'] ? t('zl_mail_angebot', ['nummer' => $a['angebot']['nummer']], $sp) : ''),
                         'firma' => (string) ($e['firma']['name'] ?? marke()['app'])], $sp);
                     if (mail_senden($an, t('zl_mail_betreff', ['stand' => $stand], $sp), $text, (string) ($e['absender'] ?? ''), 'Kundenbereich')) {
@@ -2458,7 +2464,7 @@ if (!empty($zeige['reklamation'])) {
     foreach ($meine as $m) {
         $st = (string) ($m['status'] ?? 'eingegangen');
         $zeilen .= '<li class="meldung"><div class="zeile"><b>' . $h(ARTEN[$m['art']] ?? $m['art']) . '</b><span class="pill st-' . $h($st) . '">' . $h(STATUS[$st] ?? $st) . '</span></div>'
-            . '<span class="leise">gemeldet am ' . $h(datum_text(date('Y-m-d', (int) $m['erstellt']), false)) . ($mehrere ? ' · ' . $h($m['objekt'] ?? '') : '') . (($m['kontakt']['name'] ?? '') !== '' ? ' von ' . $h($m['kontakt']['name']) : '') . '</span>'
+            . '<span class="leise">gemeldet am ' . $h(datum_text(tag_von((int) $m['erstellt']), false)) . ($mehrere ? ' · ' . $h($m['objekt'] ?? '') : '') . (($m['kontakt']['name'] ?? '') !== '' ? ' von ' . $h($m['kontakt']['name']) : '') . '</span>'
             . '<p class="meldung-text">' . $h($m['text']) . '</p>'
             . ($st === 'erledigt' && ($m['antwort'] ?? '') !== '' ? '<div class="antwort"><b>Unsere Rückmeldung</b>' . nl2br($h($m['antwort'])) . '</div>' : '') . '</li>';
     }
@@ -2478,7 +2484,7 @@ if (!empty($zeige['zusatz'])) {
     foreach ($meineAnfragen as $a) {
         $st = isset(ZUSATZ_STATUS[$a['status'] ?? '']) ? (string) $a['status'] : 'eingegangen';
         $wunsch = ($a['von'] ?? '') !== '' ? (($a['bis'] ?? '') !== '' && $a['bis'] !== $a['von'] ? t('zl_zeitraum', ['von' => datum_text($a['von'], false), 'bis' => datum_text($a['bis'], false)]) : datum_text($a['von'], false)) : '';
-        $teil = array_filter([th('zl_angefragt', ['datum' => $h(datum_text(date('Y-m-d', (int) $a['erstellt']), false))]), $mehrere ? $h($a['objekt'] ?? '') : '', ($a['kontakt']['name'] ?? '') !== '' ? th('zl_von_name', ['name' => $h($a['kontakt']['name'])]) : '']);
+        $teil = array_filter([th('zl_angefragt', ['datum' => $h(datum_text(tag_von((int) $a['erstellt']), false))]), $mehrere ? $h($a['objekt'] ?? '') : '', ($a['kontakt']['name'] ?? '') !== '' ? th('zl_von_name', ['name' => $h($a['kontakt']['name'])]) : '']);
         $mehr = array_filter([$wunsch !== '' ? th('zl_wunsch', ['termin' => $h($wunsch)]) : '', !empty($a['flaeche']) ? th('zl_flaeche_wert', ['m2' => $h(str_replace('.', ',', (string) $a['flaeche']))]) : '', !empty($a['fotos']) ? th('zl_mit_fotos') : '']);
         // Link zum Angebot: Code nur mit dem Code dieses Links lesbar, und nur, solange das Angebot online ist
         $angebotLink = '';
