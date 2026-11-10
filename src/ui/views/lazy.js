@@ -229,6 +229,8 @@ lazy(BUERO, {
 
 // wuensche.js: Dialog „Wünsche der Mitarbeitenden“ (Menü „⋯“ → Diese Woche)
 lazy(BUERO, { module: 'planung', modals: 'wishes', actions: 'wish-open wish-week wish-add wish-del' })
+// engpass.js: Dialog „Engpass-Vorschau“ (Menü „⋯“ → Diese Woche) und Hinweis in „Zu erledigen“
+lazy(BUERO, { module: 'planung', modals: 'engpass', actions: 'engpass-open engpass-week', todo: ['engpass'] })
 
 // vehicles.js
 lazy(BUERO, {

@@ -2,12 +2,12 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 402 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 403 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (17)
-- [Planung](#planung) (41)
+- [Planung](#planung) (42)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
 - [Objekte & Kunden](#objekte-kunden) (102)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
@@ -742,6 +742,21 @@ Jede Woche hat ein Änderungsprotokoll mit Zeitpunkt, Person und Änderung. Du f
 
 > Tipp: Änderungen über den KI-Assistenten stehen dort mit Vermerk.
 > Tipp: Gründe von Abwesenheiten stehen nicht im Protokoll.
+
+### Engpass-Vorschau: reicht das Personal in den nächsten Wochen?
+
+*In der App: Wochenübersicht*
+
+Die Engpass-Vorschau zeigt je Woche der nächsten 8 Wochen den Bedarf an Stunden aus den Einsätzen und die verfügbaren Vertragsstunden ohne Abwesenheiten, dazu, wie viel schon eingeteilt ist. „Zu knapp“ heißt: Der Bedarf ist größer als die Vertragsstunden. Solche Wochen in den nächsten 4 Wochen stehen auch unter „Zu erledigen“.
+
+1. In der Woche das Menü „⋯“ öffnen, „Engpass-Vorschau“.
+2. Wochen mit „knapp“ oder „zu knapp“ ansehen.
+3. „Woche öffnen“ springt in die Wochenübersicht, dort Vertretungen oder Mehrstunden einplanen.
+
+> Tipp: Mehrstunden von Teilzeitkräften sind nicht eingerechnet – sie sind die erste Reserve.
+> Tipp: Urlaubsanträge in knappen Wochen zeigen in „Zu erledigen“, wer schon abwesend ist (Urlaubssperren in den Regeln).
+
+*Einsatzplanung*
 
 ### Wunschzeiten der Mitarbeitenden
 

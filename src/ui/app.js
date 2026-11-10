@@ -102,6 +102,7 @@ function moreMenu(plan) {
       plan && { label: 'Neu planen', icon: ICON.bolt, action: 'replan', title: 'Nicht fixierte Einteilungen dieser Woche verwerfen und neu planen' },
       plan && { label: 'An Mitarbeitende versenden', icon: ICON.send, action: 'open-send' },
       plan && { label: `Wünsche der Mitarbeitenden${wishCount() ? ` (${wishCount()})` : ''}`, icon: ICON.user, action: 'wish-open', hint: 'Wunschfrei, früh/spät, mehr/weniger Stunden' },
+      plan && { label: 'Engpass-Vorschau', icon: ICON.calendar, action: 'engpass-open', hint: 'Bedarf gegen verfügbare Stunden, 8 Wochen' },
       { heading: 'E-Mail' },
       canMailView() && { label: 'Diese Ansicht per E-Mail', icon: ICON.send, action: 'mail-view', hint: 'als PDF-Bericht mit Tabellen' },
       { label: 'Aufgabe per E-Mail', icon: ICON.check, action: 'mail-task-new', hint: 'mit Kalender-Erinnerung' },

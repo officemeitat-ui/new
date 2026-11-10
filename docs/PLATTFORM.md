@@ -1405,6 +1405,17 @@ Wer wann wo geräumt und gestreut hat. Kommt es zu einem Sturz, ist ein lückenl
 
 **Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert; neue Abrufe je Aufrufer höchstens 60 in 10 Minuten und insgesamt 150 je Stunde, darüber der letzte Stand bzw. 429, damit niemand von außen das GeoSphere-Kontingent des Webspace aufbraucht, das der Schnee-Alarm braucht). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.
 
+## Engpass-Vorschau
+
+Menü „⋯“ → Diese Woche → **Engpass-Vorschau** (Recht auf die Planung; Rechenkern `src/core/engpass.js`, Dialog `src/ui/views/engpass.js`). Je Woche der nächsten 8 Wochen:
+
+- **Bedarf:** alle Einsätze der Woche (Stammplan mit verschobenen, ohne entfallene), je Einsatz Netto-Minuten mal Zahl der Personen.
+- **Verfügbar:** Vertragsstunden der aktiven Mitarbeitenden (ein Fünftel der Wochenstunden je Werktag Mo–Fr), ohne Tage mit Abwesenheit (alle Arten) und ohne Tage außerhalb der Beschäftigung (Eintritt/Austritt). Mehrstunden von Teilzeitkräften sind nicht eingerechnet.
+- **Reserve** (Stunden und Prozent), **eingeteilt** und **offen** (nur für geladene Wochen mit Einteilungen, sonst „noch nicht eingeteilt“), Zahl der Abwesenden.
+- **Stand:** „zu knapp“ (Bedarf größer als verfügbar), „knapp“ (unter 10 % Reserve), „passt“. „Woche öffnen“ springt in die Wochenübersicht.
+- **„Zu erledigen“:** Wochen mit „zu knapp“ in den nächsten 4 Wochen, mit Bedarf, verfügbar und Fehlmenge.
+- Gerechnet wird beim Öffnen, gemerkt am Datenstand. Tests: `test/engpass.test.js`, `.pruefung/engpass_app.mjs`.
+
 ## Urlaubssperren und Höchstzahl
 
 *Regeln & Feiertage → Urlaub: Sperrzeiten und Höchstzahl* (Recht auf die Stammdaten; Rechenkern `src/core/urlaub.js`, gespeichert in `rules.vacation { maxParallel, blackouts: [{ id, from, to, label }] }`).

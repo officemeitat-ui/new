@@ -33,6 +33,8 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Prüfrunde 2, Webspace: Grenzen zählen vor dem Lesen eines Fotos (kein Speicher-Angriff über kaputte Bilder am Aushang), eine falsche Datei verbraucht aber keine Meldung (Vorprüfung des Dateikopfs); Fotos ohne Daten nach dem Bildende; Grenzen je Adresse bei IPv6 je /64-Netz.
 - Tempo: Müllplanung im Index (Rentabilität und Kennzahlen mit 12 Monaten schneller).
 - Datum in Wien statt UTC bei Angebotsannahme, Abschlüssen im Vertrieb und im Kassenbuch.
+- Engpass-Vorschau: Bedarf aus den Einsätzen gegen verfügbare Vertragsstunden für 8 Wochen, Hinweis in „Zu erledigen“ bei „zu knapp“.
+- Fehlersuche (10.11.): 43 Fehler behoben (Datum/Zeitzone, Rundung, Webspace, Oberfläche), Objektdoku 2.3 mit 10 Korrekturen, dauerhafte Prüfung gegen tote Knöpfe, Test für die Erstinstallation.
 - Urlaubssperren und Höchstzahl gleichzeitig Abwesender: Hinweise beim Urlaubsantrag (Sperrzeit, wer schon weg ist, Resturlaub), Kalender mit Zahl je Tag, Hinweis am Handy.
 - Regeln „Standardwerte“ löschen nicht mehr Plan am Handy, Schnee-Alarm und Orte (Fehler behoben).
 - Kundenbereich „Stand im Objekt“: zuletzt und als Nächstes gereinigt (mit „erledigt“ aus Zeiterfassung oder Checkliste), Winterdienst, offene Meldungen ohne Text; stündlich aktuell (Idee 15, Rechtsprüfung Punkt 54).

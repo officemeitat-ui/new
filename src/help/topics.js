@@ -2369,6 +2369,18 @@ export const TOPICS = [
     roles: 'Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten',
   },
   {
+    id: 'engpass-vorschau',
+    section: 'planung',
+    view: 'week',
+    title: 'Engpass-Vorschau: reicht das Personal in den nächsten Wochen?',
+    q: ['engpass', 'personalbedarf', 'reicht das personal', 'zu wenig leute', 'kapazität', 'vorschau stunden', 'neueinstellung planen', 'engpass vorschau'],
+    answer: 'Die Engpass-Vorschau zeigt je Woche der nächsten 8 Wochen den Bedarf an Stunden aus den Einsätzen und die verfügbaren Vertragsstunden ohne Abwesenheiten, dazu, wie viel schon eingeteilt ist. „Zu knapp“ heißt: Der Bedarf ist größer als die Vertragsstunden. Solche Wochen in den nächsten 4 Wochen stehen auch unter „Zu erledigen“.',
+    steps: ['In der Woche das Menü „⋯“ öffnen, „Engpass-Vorschau“.', 'Wochen mit „knapp“ oder „zu knapp“ ansehen.', '„Woche öffnen“ springt in die Wochenübersicht, dort Vertretungen oder Mehrstunden einplanen.'],
+    tips: ['Mehrstunden von Teilzeitkräften sind nicht eingerechnet – sie sind die erste Reserve.', 'Urlaubsanträge in knappen Wochen zeigen in „Zu erledigen“, wer schon abwesend ist (Urlaubssperren in den Regeln).'],
+    related: ['urlaubssperren', 'urlaubskalender', 'wunschzeiten'],
+    roles: 'Einsatzplanung',
+  },
+  {
     id: 'wunschzeiten',
     section: 'planung',
     view: 'week',
