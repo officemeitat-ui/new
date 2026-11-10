@@ -30,6 +30,13 @@ test('Wünsche: prüfen (Art, Datum, Zukunft, doppelt, Widerspruch, Grenze je Wo
   assert.ok(makeWish({ empId: 'e4', kind: 'weniger', date: '2026-11-18' }, { today, existing: [mo], newId }).wish)
 })
 
+test('Wünsche: nur Tage, die es gibt (wie wunsch_pruefen in mein-plan.php), auch nicht auf einen Montag umgerechnet', () => {
+  for (const date of ['2026-11-31', '2026-13-01', '2026-11-00']) {
+    for (const kind of ['frei', 'mehr']) assert.match(makeWish({ empId: 'e1', kind, date }, { today }).error, /Datum/, `${kind} ${date}`)
+  }
+  assert.ok(makeWish({ empId: 'e1', kind: 'mehr', date: '2026-11-30' }, { today, newId }).wish)
+})
+
 test('Wünsche vom Handy: neue übernehmen (Wochenwunsch auf den Montag), am Handy gelöschte weg, vorbei bleibt', () => {
   const index = new Map([['h1', 'e1'], ['h2', 'e2']])
   const server = [

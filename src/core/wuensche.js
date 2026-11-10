@@ -36,7 +36,8 @@ export function makeWish(input = {}, { existing = [], today, newId = () => `w${D
   const kind = WISH_KINDS[input.kind] ? input.kind : ''
   if (!kind) return { error: 'Bitte die Art des Wunsches wählen.' }
   if (!input.empId) return { error: 'Bitte die Person wählen.' }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date || ''))) return { error: 'Bitte das Datum angeben.' }
+  // nur Tage, die es gibt (wie mein-plan.php): 2026-11-31 würde sonst still zum 1. Dezember bzw. dessen Montag
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date || '')) || addDays(input.date, 0) !== input.date) return { error: 'Bitte das Datum angeben.' }
   const date = WISH_KINDS[kind].week ? mondayOf(input.date) : input.date
   if (today && (input.date <= today && !WISH_KINDS[kind].week)) return { error: 'Wünsche gehen nur für die Zukunft.' }
   if (today && WISH_KINDS[kind].week && addDays(date, 6) <= today) return { error: 'Diese Woche ist schon vorbei.' }
