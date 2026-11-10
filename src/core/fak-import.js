@@ -539,7 +539,9 @@ export function tablesFromXml(text, name = '') {
 /** Datum aus Excel-Zahl, Date, „31.12.2025“, „31.12.25“, „2025-12-31“, „20251231“ → „2025-12-31“ oder ''. */
 export function parseDateLoose(v) {
   if (v == null || v === '') return ''
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? '' : `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
+  // ExcelJS legt die Wanduhrzeit der Zelle als UTC ab (wie die Datumszahl unten): UTC lesen, nicht die Uhr des Geräts,
+  // sonst wird „31.12.2025 23:30“ in Wien zum 1.1.2026
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10)
   if (typeof v === 'number') {
     if (v > 20000 && v < 80000) {
       const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000)
