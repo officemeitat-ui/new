@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -104,6 +104,42 @@ test('Systemcheck: system.php meldet nur, ob die Dateien mit Schlüsseln da sind
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('Systemcheck: system.php erkennt die Ablage (eigener Ordner, .htaccess der App, nichts im Ordner der Homepage)', { skip: !hasPhp && 'ohne PHP' }, async () => {
+  const { MARKE, htaccessFor } = await import('../scripts/htaccess.js')
+  const files = htaccessFor(JSON.parse(readFileSync(join(ROOT, 'staticwebapp.config.json'), 'utf8')))
+  assert.ok(readFileSync(join(ROOT, 'system.php'), 'utf8').includes(`'${MARKE}'`), 'system.php sucht dasselbe Erkennungszeichen')
+  const dir = mkdtempSync(join(tmpdir(), 'ablage-'))
+  try {
+    const home = join(dir, 'www')
+    const appDir = join(home, 'app')
+    mkdirSync(appDir, { recursive: true })
+    const env = { ...process.env, APP_ORDNER: appDir, KI_ORDNER: dir, ROUTING_ORDNER: dir, MATTEN_ORDNER: dir, WETTER_ALARM_ORDNER: dir, MEIN_PLAN_ORDNER: dir, KUNDEN_ORDNER: dir }
+    const run = () => JSON.parse(execFileSync('php', [join(ROOT, 'system.php')], { env }).toString()).ablage
+    // richtig: WordPress im Hauptordner, die App in ihrem Ordner mit ihrer .htaccess
+    writeFileSync(join(home, '.htaccess'), '# BEGIN WordPress\nRewriteEngine On\n# END WordPress\n')
+    writeFileSync(join(home, 'wp-config.php'), '<?php')
+    writeFileSync(join(appDir, '.htaccess'), files['.htaccess'])
+    assert.deepEqual(run(), { htaccess: true, homepageHier: false, appImElternordner: false })
+    // falsch hochgeladen: .htaccess der App im Hauptordner, die aus app/ im Ordner der App
+    writeFileSync(join(home, '.htaccess'), files['.htaccess'])
+    writeFileSync(join(appDir, '.htaccess'), files['app/.htaccess'])
+    assert.deepEqual(run(), { htaccess: false, homepageHier: false, appImElternordner: true })
+    // App und Homepage im selben Ordner; ohne .htaccess: null (den Fall meldet die Prüfung der Sicherheits-Header)
+    rmSync(join(appDir, '.htaccess'))
+    writeFileSync(join(appDir, 'wp-load.php'), '<?php')
+    assert.deepEqual(run(), { htaccess: null, homepageHier: true, appImElternordner: true })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('Systemcheck: Ablage am Webspace mit Hinweisen, auch wenn PHP-Seiten ein Jahr im Browser blieben', () => {
+  const src = readFileSync(join(ROOT, 'src/ui/views/system.js'), 'utf8')
+  assert.match(src, /sysCache = r\.headers\.get\('cache-control'\)/)
+  assert.match(src, /const jahr = \/immutable\|max-age=31536000\/\.test\(sysCache\)/)
+  for (const label of ['Eigener Ordner der App', '.htaccess im Ordner der App', 'Ordner darüber (Homepage)', 'Ablage am Webspace']) assert.ok(src.includes(`'${label}'`), label)
 })
 
 // ---------------------------------------------------------------- 3. Nächster Arbeitstag ohne Feiertage

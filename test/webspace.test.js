@@ -18,7 +18,12 @@ test('Webspace: .htaccess übernimmt die Sicherheitsregeln aus staticwebapp.conf
   assert.match(root, /<Files "staticwebapp.config.json">[\s\S]*Require all denied/)
   // Ladezeit: komprimiert, nur wenn die Module da sind (sonst kein Fehler 500)
   assert.match(root, /<IfModule mod_deflate\.c>\s+<IfModule mod_filter\.c>\s+AddOutputFilterByType DEFLATE text\/html text\/css text\/javascript /)
-  assert.match(files['app/.htaccess'], /Header set Cache-Control "public, max-age=31536000, immutable"/)
+  // dauerhaft cachen nur Dateien mit Hash im Namen: Landet der Ordner app/ versehentlich im Hauptordner (oder ist der
+  // Hauptordner selbst ein Ordner namens app), träfe die Regel sonst Startseite und PHP-Seiten
+  assert.match(files['app/.htaccess'], /<FilesMatch "-\[A-Z0-9\]\{8\}\\\.\(js\|css\)\$">\s+Header set Cache-Control "public, max-age=31536000, immutable"\s+<\/FilesMatch>/)
+  const hashed = /-[A-Z0-9]{8}\.(js|css)$/
+  for (const f of ['app-CW2QXPTR.js', 'chunk-25RR2R6M.js', 'start-3F952284.js', 'styles-LTQ6UDT2.css']) assert.ok(hashed.test(f), f)
+  for (const f of ['index.html', 'sw.js', 'config.json', 'mein-plan.php', 'kunden.php', 'msal-browser.min.js', 'manifest.webmanifest']) assert.ok(!hashed.test(f), f)
 
   // Werkzeuge: eigene CSP (dürfen im Rahmen der App laufen), Kamera für Fotos
   const tools = files['werkzeuge/.htaccess']

@@ -36,8 +36,16 @@ const PRECACHE = ${JSON.stringify(precache)}
 // ein Werkzeug auch dann ohne Netz startet (Keller), wenn die App neu ist.
 const WERKZEUGE = 'werkzeuge-1'
 
+// Ordner der App (Geltungsbereich): Regeln gelten nur darunter, nie für andere Seiten derselben Adresse
+const BASIS = new URL(self.registration.scope).pathname
+const unter = (url, ordner) => url.pathname.startsWith(BASIS) && ordner.test(url.pathname.slice(BASIS.length))
+// Dateien ohne Hash im Namen (Startseite, Konfiguration, Bibliotheken, Logo) beim Server nachfragen, statt sie
+// aus dem Zwischenspeicher des Browsers zu nehmen: Schickte der Webspace einmal falsche Cache-Zeiten (z. B. nach
+// einem Hochladen in den falschen Ordner), bliebe sonst eine alte Startseite für lange Zeit hängen
+const frisch = (url) => (url.startsWith('./app/') ? url : new Request(url, { cache: 'no-cache' }))
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()))
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE.map(frisch))).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
@@ -52,7 +60,14 @@ self.addEventListener('activate', (event) => {
 async function networkFirst(request, fallbackUrl) {
   const cache = await caches.open(CACHE)
   try {
-    const response = await fetch(request)
+    // beim Server nachfragen (siehe frisch); ältere Browser erlauben das bei Seitenaufrufen nicht: dann wie bisher
+    let frage = request
+    try {
+      frage = new Request(request, { cache: 'no-cache' })
+    } catch (err) {
+      // unverändert anfragen
+    }
+    const response = await fetch(frage)
     if (response.ok && response.type === 'basic') cache.put(fallbackUrl || request, response.clone())
     return response
   } catch (err) {
@@ -110,7 +125,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url)
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/.auth/')) return
   // Werkzeuge (eigene Seiten im Rahmen der App): zuerst aus dem Netz, ohne Netz die zuletzt geladene Fassung
-  if (url.pathname.includes('/werkzeuge/')) return event.respondWith(werkzeugHolen(request))
+  if (unter(url, /^werkzeuge\\//)) return event.respondWith(werkzeugHolen(request))
   // Seiten am Webspace (Plan am Handy, Kundenbereich, Fahrerseite, Schnee-Alarm …) gehören nicht zur App: nicht
   // abfangen, sonst landen sie im Speicher als Startseite der App (ohne Netz öffnete die App dann diese Seite)
   if (/\\.php$/i.test(url.pathname)) return
@@ -118,7 +133,7 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') return event.respondWith(networkFirst(request, './index.html'))
   if (url.pathname.endsWith('/config.json')) return event.respondWith(networkFirst(request))
   // Gebündelte Dateien, Bibliotheken, Logo, Schriften: aus dem Speicher
-  if (/\\/(app|vendor|assets|themes)\\//.test(url.pathname)) return event.respondWith(cacheFirst(request))
+  if (unter(url, /^(app|vendor|assets|themes)\\//)) return event.respondWith(cacheFirst(request))
 })
 `
 }

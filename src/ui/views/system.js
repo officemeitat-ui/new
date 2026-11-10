@@ -1,5 +1,5 @@
 // Systemcheck für die Inbetriebnahme (nur Vollzugriff): prüft vom Browser aus, ob der Webspace und
-// die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ordner privat/ gesperrt (Einrichtungsdateien wie
+// die Einrichtung passen: HTTPS, Sicherheitsregeln (.htaccess), Ablage (eigener Ordner, nichts im Ordner der Homepage), Ordner privat/ gesperrt (Einrichtungsdateien wie
 // ki.json, routing.json und mattentour.json liefern von außen 403 oder 404), PHP-Version
 // und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm, Plan am Handy und
 // Kundenbereich (Datei, Schlüssel, Cronjob), Routing (optional: OpenRouteService und Google je eingerichtet, privat/ beschreibbar),
@@ -38,9 +38,12 @@ export async function runChecks() {
   }
   const key = alarmSettings().key || portalSettings().key
   let sys = null
+  let sysCache = ''
   let ext = {}
   try {
-    sys = (await json('system.php', { headers: key ? { 'X-Schluessel': key } : {} })).data
+    const r = await json('system.php', { headers: key ? { 'X-Schluessel': key } : {} })
+    sys = r.data
+    sysCache = r.headers.get('cache-control') || ''
   } catch {
     sys = null
   }
@@ -69,6 +72,17 @@ export async function runChecks() {
     add(W, 'Ordner privat/ beschreibbar', sys.privat.beschreibbar ? 'ok' : 'error', sys.privat.vorhanden ? (sys.privat.beschreibbar ? 'ja' : 'nicht beschreibbar') : 'fehlt', 'Den Ordner privat/ (aus dem Paket) hochladen und per FTP Schreibrechte geben (Rechte 755 bzw. 775).')
     add(W, 'Upload-Grenze für Fotos', sys.upload.ok ? 'ok' : 'warn', `${Math.round(sys.upload.bytes / 1024 / 1024)} MB`, 'Für Winterdienst-Fotos upload_max_filesize und post_max_size auf mindestens 8 MB stellen (World4You: PHP-Einstellungen).')
     if (sys.speicherFrei) add(W, 'Freier Speicher', sys.speicherFrei > 500 * 1024 ** 2 ? 'ok' : 'warn', `${(sys.speicherFrei / 1024 ** 3).toFixed(1).replace('.', ',')} GB`, 'Speicher am Webspace aufräumen oder Paket vergrößern.')
+  }
+  // Ablage: eigener Ordner der Subdomain mit der .htaccess der App, nichts im Ordner darüber (Homepage). Nach einem
+  // Hochladen in den falschen Ordner zeigt die Homepage die App, und Seiten am Webspace blieben ein Jahr im Browser.
+  if (sys?.ablage) {
+    const ab = sys.ablage
+    const jahr = /immutable|max-age=31536000/.test(sysCache)
+    const hilfe = 'Schritt für Schritt: Cleo fragen „App im Ordner der Homepage“.'
+    if (ab.homepageHier) add(W, 'Eigener Ordner der App', 'error', 'im selben Ordner liegt eine Homepage (WordPress)', `Die Subdomain braucht einen eigenen Ordner (World4You-Kundenbereich, z. B. /app). Die App dorthin laden und ihre Dateien aus dem Ordner der Homepage entfernen. ${hilfe}`)
+    if (ab.htaccess === false || jahr) add(W, '.htaccess im Ordner der App', 'error', jahr ? 'Seiten am Webspace bleiben ein Jahr im Browser' : 'nicht die der App', 'Die .htaccess aus der obersten Ebene des Pakets (nicht die aus dem Unterordner app) in den Ordner der App laden und überschreiben. Danach Plan am Handy und Kundenbereich am Handy einmal neu laden.')
+    if (ab.appImElternordner) add(W, 'Ordner darüber (Homepage)', 'error', 'dort liegt die .htaccess der App', `Das Paket wurde auch in den Ordner darüber geladen, meist die Homepage. Dort index.html und .htaccess der App sowie die Ordner assets, themes, vendor, werkzeuge und privat entfernen und die .htaccess der Homepage zurückholen. ${hilfe}`)
+    if (!ab.homepageHier && ab.htaccess !== false && !jahr && !ab.appImElternordner) add(W, 'Ablage am Webspace', 'ok', ab.htaccess ? 'eigener Ordner, .htaccess der App' : 'eigener Ordner')
   }
   try {
     const r = await json('wetter.php?art=warnungen&lat=47.8095&lon=13.055')

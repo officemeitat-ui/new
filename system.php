@@ -53,6 +53,22 @@ $bytes = function ($wert) {
     }
 };
 $upload = min($bytes((string) ini_get('upload_max_filesize')), $bytes((string) ini_get('post_max_size')) ?: PHP_INT_MAX);
+// Ablage: Liegt die App in einem eigenen Ordner, mit ihrer .htaccess? Nach einem Hochladen in den falschen Ordner (z. B.
+// in den Hauptordner der Homepage) liegt dort die .htaccess der App, und im Ordner der App die aus app/. Nur ja/nein.
+$appOrdner = getenv('APP_ORDNER') ?: __DIR__;
+$appHtaccess = function ($ordner) {
+    $datei = $ordner . '/.htaccess';
+    if (!@is_file($datei)) {
+        return null;
+    }
+    return strpos((string) @file_get_contents($datei, false, null, 0, 1000), 'Cleanos App auf einem Apache-Webspace') !== false;
+};
+$elternOrdner = dirname($appOrdner);
+$ablage = [
+    'htaccess' => $appHtaccess($appOrdner),
+    'homepageHier' => @is_file("$appOrdner/wp-config.php") || @is_file("$appOrdner/wp-load.php"),
+    'appImElternordner' => $elternOrdner !== $appOrdner && $appHtaccess($elternOrdner) === true,
+];
 $stand = $lesen("$alarmOrdner/wetter-alarm-stand.json");
 $planPruefung = $lesen("$planOrdner/mitarbeiter/pruefung.json");
 
@@ -76,6 +92,7 @@ echo json_encode([
         'wetterAlarm' => isset($stand['letztePruefung']) ? (int) $stand['letztePruefung'] : null,
         'meinPlan' => isset($planPruefung['zuletzt']) ? (int) $planPruefung['zuletzt'] : null,
     ],
+    'ablage' => $ablage,
     'speicherFrei' => $berechtigt ? (@disk_free_space(__DIR__) ?: null) : null,
     'berechtigt' => (bool) $berechtigt,
     'jetzt' => time(),

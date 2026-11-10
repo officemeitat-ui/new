@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 403 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 404 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (102)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (62)
+- [Verwaltung](#verwaltung) (63)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4838,6 +4838,23 @@ Der Systemcheck prüft vom Browser aus Webspace (HTTPS, Sicherheitsregeln, gespe
 2. Rote und gelbe Punkte lesen und abarbeiten.
 3. „Erneut prüfen“ klicken.
 4. „Bericht kopieren“ für IT oder Support.
+
+*Nur Vollzugriff*
+
+### App im Ordner der Homepage (falsch hochgeladen)
+
+*In der App: Systemcheck*
+
+Landet das Paket im Hauptordner der Homepage statt im Ordner von app.cleanos.at, ersetzt seine .htaccess die der Homepage und die Homepage zeigt die App. Lädt man dabei den Ordner app in den Ordner der Subdomain, ist auch dort die .htaccess falsch. Nichts ist verloren: nur die Dateien der App im Hauptordner entfernen und die .htaccess der Homepage zurückholen.
+
+1. Ordner der Subdomain im World4You-Kundenbereich nachsehen (z. B. /app) – diesen Ordner nicht löschen.
+2. Die .htaccess aus der obersten Ebene des Pakets in den Ordner der App laden (überschreiben).
+3. Im Hauptordner der Homepage index.html und .htaccess der App löschen bzw. die .htaccess der Homepage zurückholen (WordPress: Einstellungen → Permalinks → Speichern).
+4. Dort die Ordner assets, themes, vendor, werkzeuge und privat der App löschen (in privat liegt nur eine .htaccess).
+5. Das Paket in den Ordner der App laden und den Systemcheck laufen lassen.
+
+> Tipp: Der Systemcheck meldet beides: eine falsche .htaccess im Ordner der App und die .htaccess der App im Ordner darüber.
+> Tipp: Wer in der Zwischenzeit Plan am Handy oder den Kundenbereich geöffnet hat, lädt die Seite einmal neu (am Handy nach unten ziehen).
 
 *Nur Vollzugriff*
 

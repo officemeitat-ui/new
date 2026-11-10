@@ -4,7 +4,7 @@
 //
 // Mehrere Dateien, weil Apache Regeln je Ordner liest:
 //   .htaccess            ganze App (CSP, Header, Cache von index.html usw.)
-//   app/.htaccess        gebündelter Code mit Hash im Namen: dauerhaft cachen
+//   app/.htaccess        gebündelter Code mit Hash im Namen: dauerhaft cachen (nur diese Dateien)
 //   werkzeuge/.htaccess  Regeln der Werkzeuge (dürfen im Rahmen der App laufen)
 //   privat/.htaccess     Schnee-Alarm und Mein Dienstplan: Einstellungen, Pläne, Anträge, gesperrt
 // Alles in <IfModule>: Fehlt ein Modul, liefert der Webspace trotzdem aus
@@ -13,6 +13,8 @@
 // Microsoft-Anmeldung (docs/EINRICHTUNG.md, Variante B).
 
 const KOPF = '# Erzeugt von npm run build aus staticwebapp.config.json (scripts/htaccess.js). Nicht von Hand ändern.'
+/** Erkennungszeichen der .htaccess der App (system.php sucht danach: richtige Datei im Ordner der App, keine im Ordner darüber). */
+export const MARKE = 'Cleanos App auf einem Apache-Webspace'
 
 const wert = (v) => {
   if (/["\n]/.test(v)) throw new Error(`.htaccess: Wert mit Anführungszeichen oder Zeilenumbruch: ${v}`)
@@ -31,7 +33,7 @@ export function htaccessFor(swa) {
   const noCache = ['/index.html', '/sw.js', '/manifest.webmanifest'].filter((r) => cacheOf(swa, r) === 'no-cache').map((r) => r.slice(1).replaceAll('.', '\\.'))
   const root = [
     KOPF,
-    '# Cleanos App auf einem Apache-Webspace (z. B. World4You).',
+    `# ${MARKE} (z. B. World4You).`,
     'Options -Indexes',
     'DirectoryIndex index.html',
     'AddType application/manifest+json .webmanifest',
@@ -62,7 +64,17 @@ export function htaccessFor(swa) {
     '</Files>',
     '',
   ].join('\n')
-  const app = [KOPF, '<IfModule mod_headers.c>', `  Header set Cache-Control ${wert(cacheOf(swa, '/app/*'))}`, '</IfModule>', ''].join('\n')
+  // Nur Dateien mit Hash im Namen (app-…, chunk-…, start-…, styles-…): Landet der Ordner beim Hochladen versehentlich
+  // im Hauptordner des Webspace, trifft die Regel dort sonst Startseite und PHP-Seiten (ein Jahr im Browser)
+  const app = [
+    KOPF,
+    '<IfModule mod_headers.c>',
+    '  <FilesMatch "-[A-Z0-9]{8}\\.(js|css)$">',
+    `    Header set Cache-Control ${wert(cacheOf(swa, '/app/*'))}`,
+    '  </FilesMatch>',
+    '</IfModule>',
+    '',
+  ].join('\n')
   const werkzeuge = routeOf(swa, '/werkzeuge/*')
   const tools = [
     KOPF,
