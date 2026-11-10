@@ -179,7 +179,7 @@ Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für de
 |---|---|---|---|
 | Wasserzähler-Ablesung | 1.15 | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
 | Objektkontrolle (Prüfprotokoll) | 2.11 | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
-| Objektdoku (Leistungsverzeichnis) | 2.2 | `werkzeuge/objektdoku/` | `Objektdoku` |
+| Objektdoku (Leistungsverzeichnis) | 2.3 | `werkzeuge/objektdoku/` | `Objektdoku` |
 | Mattenwechsel (im Menü „Mattenwechsel (Werkzeug)“, parallel zum Mattenwechsel-Modul; nach der Umstellung „Mattenwechsel (alt)“, nur lesend) | 2.5 | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
 
 - **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.

@@ -58,7 +58,9 @@ test('Werkzeuge: „Abschließen“ legt alles in SharePoint ab und holt Offenes
     wasserzaehler: { version: '1.15', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /function pdfsNachreichen\(/, /pdfOffenSetzen\(doc\.id, doc\.aktiv, true\)/, /function revierName\(/] },
     // 2.8 rief graphFotosAblegen auf, ohne sie zu enthalten
     objektkontrolle: { version: '2.11', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /async function graphFotosAblegen\(/, /function ablageNachholen\(/, /addEventListener\("online"/, /function revierName\(/] },
-    objektdoku: { version: '2.2', muss: [/id="kAbschluss"/, /async function abschliessen\(/, /function ablageNachholen\(/, /function revierName\(/] },
+    // 2.3: Hilfe schließt per Knopf, „geändert“ nur bei echter Änderung (Abgleich ohne falsche Konflikte),
+    // Bilder vom anderen Gerät werden nachgeladen
+    objektdoku: { version: '2.3', muss: [/id="kAbschluss"/, /async function abschliessen\(/, /function ablageNachholen\(/, /function revierName\(/, /\$\("kHilfeZu"\)\.addEventListener\("click"/, /function objektFingerabdruck\(/, /function bilderNachholen\(/] },
     mattenwechsel: { version: '2.5', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /function ablageAnstossen\(/, /addEventListener\("online", ablageAnstossen\)/] },
   }
   for (const [name, { version, muss }] of Object.entries(erwartet)) {

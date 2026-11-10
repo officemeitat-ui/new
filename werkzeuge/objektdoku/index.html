@@ -249,6 +249,9 @@ dialog > .fuss{
   }
   .lv td.weg{text-align:right; width:auto}
   .lv td.weg::before{content:""}
+  /* 2.3: Breite Listen (Bestand, Turnus, Versand) scrollen am Handy
+     in sich - bisher schob jede die ganze Seite zur Seite. */
+  table.liste{display:block; overflow-x:auto}
   /* Ablaufschritte am Handy untereinander */
   .schritt{grid-template-columns:42px 1fr}
   .schritt > img{grid-column:2; height:150px}
@@ -1012,8 +1015,8 @@ body.gesperrt > *:not(#startGate){display:none !important}
    im LIESMICH, Punkt "Richtzeiten".
    ============================================================ */
 
-const VERSION = "2.2";
-const VERSION_DATUM = "06.11.2026";
+const VERSION = "2.3";
+const VERSION_DATUM = "10.11.2026";
 
 /* ---------- Intervalle ----------
    wocheFaktor = Einsätze je Woche. Daraus wird alles andere
@@ -1384,13 +1387,20 @@ function objektHeben(o){
      Das Einzelfeld bleibt stehen - es wird dadurch zur Kurzangabe,
      und nichts verschwindet unter der Hand. */
   if(!neu.uebernommen){
-    if(neu.ansprech && !neu.personen.length)
+    /* 2.3: Die Ansprechpartner nur aus echtem Altbestand - aus der
+       ersten Fassung, die noch keine Liste kannte. "Objektleitung"
+       und "Vertretung" stehen heute im Reiter "Objekt" UND in der
+       Liste; bei einem neuen Objekt kamen sie beim ersten Neuladen
+       (oder Abgleich auf einem anderen Geraet) ein zweites Mal in
+       die Liste, auch wenn dort dieselbe Person schon stand. */
+    const ohneListe = !(o && Array.isArray(o.personen));
+    if(ohneListe && neu.ansprech && !neu.personen.length)
       neu.personen.push(Object.assign(personLeer(), {
         name: neu.ansprech, rolle: "Ansprechpartner", telefon: neu.telefon || "" }));
-    if(neu.objektleitung)
+    if(ohneListe && neu.objektleitung)
       neu.personen.push(Object.assign(personLeer(), {
         name: neu.objektleitung, rolle: "Objektleitung", intern: true }));
-    if(neu.vertretung)
+    if(ohneListe && neu.vertretung)
       neu.personen.push(Object.assign(personLeer(), {
         name: neu.vertretung, rolle: "Vertretung", intern: true }));
     if(neu.schluessel && !neu.schluesselListe.length)
@@ -1493,14 +1503,41 @@ function dbLoeschen(speicher, schluessel){
   }));
 }
 
-/* ---------- Objekte ---------- */
+/* ---------- Objekte ----------
+   2.3: "geaendert" steht nur bei einer ECHTEN Aenderung neu. Bisher
+   setzte jedes Speichern die Zeit - auch das nach dem Ablegen (Kennung
+   mitschreiben), beim Oeffnen eines anderen Objekts und vor jedem
+   Abgleich. Damit galt jede Akte nach dem Ablegen als "hier
+   geaendert" (hierGeaendert in 12), und eine Aenderung von einem
+   anderen Geraet kam nie an: der Abgleich meldete "an zwei Stellen
+   geaendert". Verglichen wird ein Fingerabdruck ohne Zeitstempel,
+   Ablage-Kennung und Bilddaten (die kommen beim Nachladen dazu und
+   sind keine Aenderung). */
+const fingerabdruecke = new WeakMap();
+function objektFingerabdruck(o){
+  const text = JSON.stringify(o, (k, v) =>
+    (k === "geaendert" || k === "stand" || k === "ablage" || k === "datei"
+     || (k === "daten" && typeof v === "string")) ? undefined : v);
+  let h = 2166136261;                       /* FNV-1a, 32 Bit */
+  for(let i = 0; i < text.length; i++){
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return text.length + ":" + (h >>> 0);
+}
 function objektSpeichern(o){
-  o.geaendert = new Date().toISOString();
+  const f = objektFingerabdruck(o);
+  if(!o.geaendert || fingerabdruecke.get(o) !== f) o.geaendert = new Date().toISOString();
+  fingerabdruecke.set(o, f);
   return dbSchreiben(SPEICHER_OBJEKTE, o);
 }
 function objekteLaden(){
   return dbAlle(SPEICHER_OBJEKTE).then(liste =>
-    liste.map(objektHeben).sort((a, b) =>
+    liste.map(roh => {
+      const o = objektHeben(roh);
+      fingerabdruecke.set(o, objektFingerabdruck(o));
+      return o;
+    }).sort((a, b) =>
       String(b.geaendert || "").localeCompare(String(a.geaendert || ""))));
 }
 function objektLoeschen(id){ return dbLoeschen(SPEICHER_OBJEKTE, id); }
@@ -3852,7 +3889,11 @@ function blattBauen(o, schalter){
 
   const objektZeile = [o.objektId, o.objekt].filter(Boolean).join(" · ")
     || "Objekt ohne Bezeichnung";
-  const titel = s.titel || t(wahl.titel || "Objektblatt");
+  /* 2.3: Der Titel geht durch das Woerterbuch. Das Feld "Titel auf
+     dem Blatt" traegt den deutschen Vorgabetitel - bisher stand er
+     so auch auf dem englischen und rumaenischen Blatt. Ein selbst
+     getippter Titel steht in keinem Woerterbuch und bleibt, wie er ist. */
+  const titel = t(s.titel || wahl.titel || "Objektblatt");
 
   const kopfRechts = [];
   if(o.objektId) kopfRechts.push(t("Objekt-Nr.") + " " + o.objektId);
@@ -4309,7 +4350,7 @@ async function blattPdf(o, schalter){
   const sprache = s.sprache || "de";
   const d = blattBauen(o, s);
   const objektZeile = [o.objektId, o.objekt].filter(Boolean).join(" ") || "Objekt";
-  const titel = s.titel || uebersetze(wahl.titel || "Objektblatt", sprache);
+  const titel = uebersetze(s.titel || wahl.titel || "Objektblatt", sprache);   /* 2.3: wie in blattBauen */
   return {
     verstoesse: d.verstoesse,
     protokoll: d.protokoll,
@@ -4871,6 +4912,21 @@ async function objektAblegen(o, pdf, erzwingen){
   return ergebnis;
 }
 
+/* 2.3: Bilder, die nur als Verweis da sind (Akte von einem anderen
+   Geraet, per Abgleich geholt), still nachladen und zeigen - beim
+   Oeffnen, nach dem Abgleich und vor dem Setzen eines Blattes.
+   Bisher geschah das nur bei einem Konflikt: Auf dem zweiten Geraet
+   fehlten die Bilder in der Maske, und dem Blatt fehlten die Bilder
+   zum Zugang und der ganze Ablauf am Objekt. */
+function bilderNachholen(o){
+  if(!o || !angemeldet() || !(o.fotos || []).some(f => f && f.datei && !f.daten))
+    return Promise.resolve(0);
+  return fotosNachladen(o).then(n => {
+    if(n && o === aktObjekt){ fotosZeichnen(); zugangsfotosZeichnen(); dokuZahlenFrisch(); }
+    return n;
+  }).catch(() => 0);
+}
+
 /* Die Bilder einer Akte nachholen, die nur als Verweis da sind. */
 async function fotosNachladen(o){
   const fehlend = (o.fotos || []).filter(f => f && f.datei && !f.daten);
@@ -5025,6 +5081,7 @@ async function graphAbgleichen(){
       objektInMaske();
       dokuZeichnen();
     }
+    bilderNachholen(aktObjekt);       /* 2.3 */
   }
   revierZeichnen();
   return { geholt, neu, konflikte };
@@ -5262,8 +5319,15 @@ function adressVorschlaegeZeichnen(){
   }
 }
 
+function kundenfassung(s){
+  return !!(s && (s.kundenfassung || (s.wahl && s.wahl.kundenfassung)));
+}
+
 function betreffVorschlag(o, s){
-  return (s && s.kundenfassung ? "Leistungsverzeichnis " : "Objektblatt ")
+  /* 2.3: Die Kundenfassung steht in der Abschnittswahl (s.wahl) -
+     s.kundenfassung gab es nie, Betreff und Text sagten darum immer
+     "Objektblatt". */
+  return (kundenfassung(s) ? "Leistungsverzeichnis " : "Objektblatt ")
     + [o.objektId, o.objekt].filter(Boolean).join(" ");
 }
 
@@ -5271,7 +5335,7 @@ function textVorschlag(o, s){
   const zeilen = [];
   zeilen.push("Guten Tag,");
   zeilen.push("");
-  zeilen.push("im Anhang " + (s && s.kundenfassung
+  zeilen.push("im Anhang " + (kundenfassung(s)
     ? "das Leistungsverzeichnis" : "das Objektblatt") + " für "
     + [o.objekt, o.strasse, [o.plz, o.ort].filter(Boolean).join(" ")]
       .filter(Boolean).join(", ") + ".");
@@ -5491,7 +5555,10 @@ function fassungHalten(o, anlass, wer){
 /* Zeitstempel und Pflegefelder zählen beim Vergleich nicht mit -
    sonst entstünde bei jedem Öffnen eine neue Fassung. */
 const VERGLEICH_AUS = ["geaendert", "stand", "fassung", "geaendertVon",
-                       "angelegt", "fotoZahl", "versandt", "uebernommen"];
+                       "angelegt", "fotoZahl", "versandt", "uebernommen",
+                       /* 2.3: Die Ablage-Kennung aendert sich bei jedem
+                          Ablegen - das ist keine neue Fassung. */
+                       "ablage"];
 function gleichOhneZeit(a, b){
   const saeubern = (x) => {
     const y = Object.assign({}, x);
@@ -7967,6 +8034,75 @@ function woerterSichern(){
   return einstellungSpeichern("woerter", eigeneWoerter).catch(() => {});
 }
 
+/* ---------- Die eigenen Woerter in SharePoint (2.3) ----------
+   Bisher lagen sie nur am Geraet: Was im Buero nachgetragen wurde,
+   fehlte am Handy der Objektleitung. Jetzt wie die Vorlagen eine
+   Datei fuer alle neben der Ablage (Stammdaten/Woerter.json), beim
+   Start und nach jedem Nachtragen abgeglichen. Je Begriff gewinnt
+   der juengere Eintrag; eine Sprache, die dort fehlt, kommt vom
+   aelteren dazu - zwei Leute, die verschiedene Sprachen nachtragen,
+   verlieren nichts. */
+function woerterPfad(){
+  return vorlagenPfad().replace(/Vorlagen\.json$/, "Woerter.json");
+}
+function woerterVereinen(a, b){
+  const z = {};
+  for(const quelle of [a || {}, b || {}])
+    for(const k of Object.keys(quelle)){
+      const neu = quelle[k];
+      if(!neu || typeof neu !== "object") continue;
+      const da = z[k];
+      if(!da){ z[k] = Object.assign({}, neu); continue; }
+      const juenger = String(neu.geaendert || "") > String(da.geaendert || "");
+      const vorn = juenger ? neu : da, hinten = juenger ? da : neu;
+      const e = Object.assign({}, hinten, vorn);
+      for(const sp of Object.keys(hinten)) if(!e[sp] && hinten[sp]) e[sp] = hinten[sp];
+      z[k] = e;
+    }
+  return z;
+}
+function woerterKanon(w){
+  return JSON.stringify(Object.keys(w).sort().map(k =>
+    [k, Object.keys(w[k]).sort().map(s => [s, w[k][s]])]));
+}
+async function woerterAbgleichen(){
+  if(!angemeldet()) return { ok:false, grund:"nicht angemeldet" };
+  for(let versuch = 0; versuch < 3; versuch++){
+    const drive = await graphZiel();
+    let dort = {}, eTag = "";
+    try{
+      const d = await graphRuf("/drives/" + drive + "/root:/" + encodeURI(woerterPfad()));
+      const a = await fetch(d["@microsoft.graph.downloadUrl"]);
+      const roh = await a.json();
+      dort = (roh && roh.woerter && typeof roh.woerter === "object") ? roh.woerter : {};
+      eTag = d.eTag || d.cTag || "";
+    }catch(e){
+      if(e.status !== 404) throw e;
+    }
+    const vereint = woerterVereinen(dort, eigeneWoerter);
+    eigeneWoerter = vereint;
+    await woerterSichern();
+    if(woerterKanon(vereint) === woerterKanon(woerterVereinen(dort, {})))
+      return { ok:true, geschrieben:false };
+    const tok = await graphZugriff();
+    if(!tok) throw new Error("nicht angemeldet");
+    const teile = woerterPfad().split("/");
+    teile.pop();
+    await ordnerSichern(teile);
+    const kopf = { Authorization:"Bearer " + tok, "Content-Type":"application/json" };
+    if(eTag) kopf["if-match"] = eTag;
+    const a = await fetch("https://graph.microsoft.com/v1.0/drives/" + drive
+      + "/root:/" + encodeURI(woerterPfad()) + ":/content",
+      { method:"PUT", headers:kopf,
+        body: JSON.stringify({ werkzeug:"Cleanos Objektdokumentation",
+                               geschrieben:new Date().toISOString(),
+                               woerter: vereint }, null, 2) });
+    if(a.ok) return { ok:true, geschrieben:true };
+    if(a.status !== 412) throw new Error("Status " + a.status);
+  }
+  return { ok:false, grund:"Das Wörterbuch wurde mehrfach gleichzeitig geändert." };
+}
+
 /* Alle Begriffe eines Objekts, die in dieser Sprache noch
    fehlen - das ist die Arbeitsliste fürs Nachtragen. */
 function fehlendeBegriffe(o, sprache){
@@ -8175,6 +8311,7 @@ async function woerterUebernehmen(){
     n++;
   }
   await woerterSichern();
+  woerterAbgleichen().catch(() => {});      /* 2.3: für alle, still */
   $("dWoerter").close();
   sprachWahlZeichnen();
   melden(n
@@ -8581,6 +8718,7 @@ async function pdfErzeugen(ansehen){
     /* Ein erzeugtes Blatt ist ein Anlass, den Stand festzuhalten:
        Später muss nachlesbar sein, was in dem Blatt stand, das
        hinausgegangen ist. */
+    await bilderNachholen(aktObjekt);   /* 2.3: sonst fehlen sie im Blatt */
     const neueFassung = fassungHalten(aktObjekt, "Blatt erzeugt", graphUser);
     await sichern(true);
 
@@ -8665,6 +8803,7 @@ async function objektOeffnen(id){
   dokuZeichnen();
   reiterZeigen("rObjekt");
   melden("Objekt geöffnet: " + (o.objekt || "ohne Bezeichnung"), "gut");
+  bilderNachholen(o);                 /* 2.3: Bilder vom anderen Gerät */
 }
 
 async function objektNeu(){
@@ -8724,8 +8863,14 @@ async function objektWeg(){
   if(!confirm("Objekt „" + (aktObjekt.objekt || "ohne Bezeichnung")
     + "“ samt allen Bereichen am Gerät löschen?\n\n"
     + "Was in SharePoint liegt, bleibt dort.")) return;
-  await objektLoeschen(aktObjekt.id);
-  alleObjekte = alleObjekte.filter(o => o.id !== aktObjekt.id);
+  /* 2.3: Erst loslassen, dann loeschen. Das naechste Objekt zu oeffnen
+     speichert zuerst das offene - bisher also genau das geloeschte,
+     das damit sofort wieder da war. */
+  const weg = aktObjekt;
+  if(speicherLauf){ clearTimeout(speicherLauf); speicherLauf = null; }
+  aktObjekt = null;
+  await objektLoeschen(weg.id);
+  alleObjekte = alleObjekte.filter(o => o.id !== weg.id);
   $("dMenue").close();
   if(alleObjekte.length) await objektOeffnen(alleObjekte[0].id);
   else await objektNeu();
@@ -9178,6 +9323,8 @@ function verdrahten(){
     }catch(f){ melden("Abgleich fehlgeschlagen: " + (f.message || f), "warn"); }
   });
   $("kHilfe").addEventListener("click", () => { $("dMenue").close(); hilfeOeffnen(); });
+  /* 2.3: Der Knopf hatte keine Wirkung - am Handy ohne Esc blieb die Hilfe offen. */
+  $("kHilfeZu").addEventListener("click", () => $("dHilfe").close());
   $("kObjektWeg").addEventListener("click", objektWeg);
 
   document.addEventListener("keydown", (e) => {
@@ -9285,6 +9432,7 @@ async function abschliessen(){
   const o = aktObjekt;
   melden("Schließe ab …");
   try{
+    await bilderNachholen(o);           /* 2.3: sonst fehlen sie im Blatt */
     fassungHalten(o, "abgeschlossen", graphUser);
     await sichern(true);
     /* Abgelegt wird das Blatt in der ersten gewählten Sprache - wie
@@ -9402,6 +9550,8 @@ async function starten(){
      wer das Werkzeug oeffnet, will ein Objekt bearbeiten, keinen
      Bericht ueber Vorlagen. */
   if(angemeldet()) vorlagenAbgleichen().catch(() => {});
+  /* 2.3: ebenso die nachgetragenen Woerter (16) */
+  if(angemeldet()) woerterAbgleichen().catch(() => {});
   /* Abgeschlossenes, das noch auf SharePoint wartet (2.1) */
   ablageStandZeigen();
   if(angemeldet()) ablageNachholen(false);

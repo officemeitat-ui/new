@@ -4,10 +4,25 @@
 |---|---|---|---|---|
 | `wasserzaehler/` | Wasserzähler-Ablesung | 1.15 | `#wasserzaehler` | `zaehler` |
 | `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.11 | `#objektkontrolle` | `kontrolle` |
-| `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.2 | `#objektdoku` | `objektmappe` |
+| `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.3 | `#objektdoku` | `objektmappe` |
 | `mattenwechsel/` | Mattenwechsel | 2.5 | `#matten` | `matten` |
 
 Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, unverändert.
+
+## Objektdoku 2.3 (Stand 10.11.2026)
+
+Behebt zehn Fehler, die die Prüfung aller Funktionen in der App (`.pruefung/objektdoku_funktionen_app.mjs`) gefunden hat:
+
+- **Ansprechpartner:** Objektleitung und Vertretung aus dem Reiter „Objekt“ kommen nicht mehr beim ersten Neuladen (oder Abgleich auf einem anderen Gerät) ein zweites Mal in die Liste; nachgezogen wird nur noch echter Altbestand ohne Liste.
+- **Abgleich:** „geändert“ steht nur noch bei einer echten Änderung neu. Bisher galt jede Akte nach dem Ablegen als „hier geändert“, und die Änderung eines Kollegen kam nie an („an zwei Stellen geändert“). Das Ablegen allein hält auch keine leere Fassung mehr fest.
+- **Zweites Gerät:** Bilder, die nur als Verweis da sind, lädt das Werkzeug beim Öffnen, nach dem Abgleich und vor dem Blatt aus SharePoint nach. Bisher fehlten dort die Bilder zum Zugang und im Blatt der ganze Ablauf am Objekt.
+- **Löschen:** „Dieses Objekt löschen“ löscht wirklich; bisher war das Objekt sofort wieder da.
+- **Sprachen:** Nachgetragene Übersetzungen liegen jetzt für alle in SharePoint (`Objektdoku/Stammdaten/Woerter.json`), nicht nur am Gerät. Das Blatt in Englisch oder Rumänisch trägt auch den übersetzten Titel (z. B. „Site Sheet“, Dateiname `Site-Sheet_…_en.pdf`).
+- **Versand:** Bei der Kundenfassung sagen Betreff und Mailtext „Leistungsverzeichnis“.
+- **Hilfe:** Der Knopf „Schließen“ schließt die Hilfe (am Handy ohne Esc blieb sie offen).
+- **Handy:** Breite Listen (Bestand, Turnus, Versand) scrollen in sich statt die ganze Seite.
+
+Die geänderten Bauteile (`01-stil.css`, `03-katalog.js`, `04-speicher.js`, `09-blatt.js`, `10-graph.js`, `11-versand.js`, `12-verlauf.js`, `16-sprachen.js`, `99-start.js`) liegen im Paket `Werkzeuge-Quellen_2026-11-10b.zip`; bitte in den eigenen Werkzeug-Ordner übernehmen, dann baut `node bau.js` die Fassung 2.3.
 
 ## Datum des Tages (Stand 10.11.2026)
 
