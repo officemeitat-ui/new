@@ -147,6 +147,8 @@ registerActions({
     renderNow()
   },
   'wx-create': async (el) => {
+    // Knopf nur bei Schreibrecht sichtbar – hier trotzdem prüfen (z. B. Aufruf über Befehle oder alte Seite)
+    if (!canEdit('planung') || app.readOnly) return toast('Winterdienst anlegen geht nur mit Recht auf die Einsatzplanung.')
     const date = el.dataset.date
     await app.service.ensureWeeks([mondayOf(date)]).catch(() => {})
     const row = weatherOverview().find((r) => r.loc.name === el.dataset.loc)
@@ -162,6 +164,7 @@ registerActions({
     toast(`Winterdienst für ${n} ${n === 1 ? 'Objekt' : 'Objekte'} am ${formatDate(date)} angelegt${missing.some((o) => (o.winter?.team || []).length) ? ', Team eingeteilt' : ''}. In der Wochenübersicht prüfen.`)
   },
   'wx-cancel': (el) => {
+    if (!canEdit('planung') || app.readOnly) return toast('Winterdienst absagen geht nur mit Recht auf die Einsatzplanung.')
     recordUndo('Winterdienst absagen')
     cancelWinterCall(el.dataset.date, el.dataset.obj)
     persist()
