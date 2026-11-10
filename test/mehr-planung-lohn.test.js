@@ -278,6 +278,17 @@ test('Lohn-Export: Datumsformat Monat/Jahr, Anführungszeichen im Text, ohne Sat
   assert.equal(noRate[0].satz, 0)
 })
 
+test('Lohn-Export: Betrag kaufmännisch auf Cent gerundet, ohne Gleitkomma-Fehler bei halben Cent', () => {
+  // 0,06 h × 16,75 € = 1,005 € → 1,01 € (Gleitkomma: 1,00499… → 1,00); 2,5 h × 14,47 € = 36,175 € → 36,18 €
+  const lines = [
+    { pnr: '1001', lohnart: '100', menge: 0.06, einheit: 'h', satz: 16.75, von: '2026-11-01', bis: '2026-11-30', text: '' },
+    { pnr: '1001', lohnart: '100', menge: 2.5, einheit: 'h', satz: 14.47, von: '2026-11-01', bis: '2026-11-30', text: '' },
+    { pnr: '1001', lohnart: '100', menge: 0.01, einheit: 'h', satz: 14.5, von: '2026-11-01', bis: '2026-11-30', text: '' },
+  ]
+  const text = exportText(lines, { columns: ['menge', 'satz', 'betrag'], header: false })
+  assert.deepEqual(text.replace(/^﻿/, '').trim().split('\r\n'), ['0,06;16,75;1,01', '2,50;14,47;36,18', '0,01;14,50;0,15'])
+})
+
 test('Lohn-Export: keine Hinweise, wenn alles zugeordnet ist; Dateiname je Monat', () => {
   const settings = { wageTypes: { normal: '100' } }
   const otRows = [ot({ total: { normal: 600 } })]
