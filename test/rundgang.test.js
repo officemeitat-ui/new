@@ -41,6 +41,9 @@ test('PDFs nach Mitternacht: Datum in Wiener Zeit, nicht in UTC (Inventur, Beste
     assert.match(count, /Hauptlager · Do 05\.11\.2026/)
     const order = JSON.stringify(orderDocument({ order: { no: '2026-001', lines: [] }, createdAt: night }).content)
     assert.match(order, /05\.11\.2026/)
+    // Entwurf um 0:30 Uhr angelegt, beim Senden noch ohne Bestelldatum: Tag in Wien, nicht der UTC-Vortag
+    const draft = JSON.stringify(orderDocument({ order: { no: '2026-002', lines: [], createdAt: '2026-11-04T23:30:00.000Z', orderedAt: null }, createdAt: new Date('2026-11-05T09:00:00Z') }).content)
+    assert.match(draft, /05\.11\.2026/)
     const calc = calculate({ areas: [{ name: 'Büro', type: 'buero', m2: 100, perWeek: 5 }], settings: {}, wage: 13.54 })
     const offer = JSON.stringify(offerDocument({ object: { name: 'Kanzlei' }, calc, createdAt: night, validDays: 30 }).content)
     assert.match(offer, /Gültig bis Sa 05\.12\.2026/)

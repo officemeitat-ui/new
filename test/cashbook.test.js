@@ -204,3 +204,12 @@ test('Kassenbuch-PDF: Anfangsbestand, Einträge mit Stand, Storno-Verweis, Summe
   assert.match(flat, /Monat abgeschlossen am/)
   assert.equal(cashbookPdfPath('2026-10'), 'einkauf/kassenbuch/2026/Kassenbuch_2026-10.pdf')
 })
+
+test('Kassenbuch-PDF: Abschluss am 1. um 0:30 Uhr steht mit dem Tag in Wien da, nicht mit dem letzten Tag des Monats', async () => {
+  const { cashbookDocument } = await import('../src/export/cashbook-pdf.js')
+  const b = book()
+  // So 1.11.2026 0:30 Uhr in Wien = 31.10. 23:30 UTC
+  closeMonth(b, '2026-10', { ...opts('2026-11-01'), now: '2026-10-31T23:30:00.000Z' })
+  const flat = JSON.stringify(cashbookDocument({ book: b, month: '2026-10', createdAt: new Date('2026-11-05T10:00:00Z') }).content)
+  assert.match(flat, /Monat abgeschlossen am 01\.11\.2026/)
+})

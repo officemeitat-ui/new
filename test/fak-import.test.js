@@ -83,13 +83,27 @@ test('Spalten und Tabellen erkennen (deutsch wie in orgaMAX, auch Datenbank-Name
   assert.equal(detectTable(pay).kind, 'payments')
 })
 
+test('Werte: Datum mit Uhrzeit aus Excel am Gerät in Wien bleibt am selben Tag (auch am 31.12.)', () => {
+  // ExcelJS legt „31.12.2025 23:30“ als 2025-12-31T23:30Z ab; die Uhr des Geräts in Wien zeigt da schon den 1.1.2026
+  const tz = process.env.TZ
+  process.env.TZ = 'Europe/Vienna'
+  try {
+    assert.equal(parseDateLoose(new Date('2025-12-31T23:30:00Z')), '2025-12-31')
+    assert.equal(parseDateLoose(new Date('2026-06-30T22:15:00Z')), '2026-06-30', 'Sommerzeit: ab 22 Uhr')
+    assert.equal(parseDateLoose(new Date('2026-03-15T00:00:00Z')), '2026-03-15')
+  } finally {
+    if (tz === undefined) delete process.env.TZ
+    else process.env.TZ = tz
+  }
+})
+
 test('Werte: Datum, Betrag, Belegart, Nummernformat, Nummer im Dateinamen', () => {
   assert.equal(parseDateLoose('15.10.2025'), '2025-10-15')
   assert.equal(parseDateLoose('1.2.25'), '2025-02-01')
   assert.equal(parseDateLoose('2025-10-15T00:00:00'), '2025-10-15')
   assert.equal(parseDateLoose('20251015'), '2025-10-15')
   assert.equal(parseDateLoose(45945), '2025-10-15', 'Excel-Datumszahl')
-  assert.equal(parseDateLoose(new Date(2025, 9, 15)), '2025-10-15')
+  assert.equal(parseDateLoose(new Date(Date.UTC(2025, 9, 15))), '2025-10-15', 'Datumszelle aus ExcelJS (Wanduhrzeit als UTC)')
   assert.equal(money('€ 1.234,56'), 1234.56)
   assert.equal(money('-12,50 €'), -12.5)
   assert.equal(money('20 %'), 20)
@@ -157,6 +171,13 @@ test('Übernahme: Belege mit Positionen, Zahlungen, Mahnstufe, Gutschrift negati
   assert.deepEqual([gs.kind, gs.total.gross, gs.lines[0].qty], ['korrektur', -60, -1])
   const an = by('AN-2025-0040')
   assert.deepEqual([an.kind, an.lines.length, an.total.net, an.status], ['angebot', 2, 800, 'offen'])
+})
+
+test('Abo ohne Startdatum: erster Monat ist der Monat der Übernahme in Wien (am 1. um 0:30 Uhr nicht der Vormonat)', () => {
+  const abo = csv('Abo-Rechnungen', ['Bezeichnung;Kundennummer;Intervall;Nächste Rechnung;Positionstext;Menge;Einheit;Preis;MwSt;Status', 'Unterhalt Spar;10001;monatlich;;Unterhaltsreinigung;1;Monat;450,00;20;aktiv'])
+  // So 1.11.2026 0:30 Uhr in Wien = 31.10. 23:30 UTC
+  const r = buildImport(analyse([KUNDEN, abo]), [], { newId, now: '2026-10-31T23:30:00.000Z' })
+  assert.equal(r.recurring[0].startMonth, '2026-11')
 })
 
 test('Belegkopf ohne Positionen: Summen aus orgaMAX; Abweichung zwischen Positionen und Kopf wird gemeldet', () => {

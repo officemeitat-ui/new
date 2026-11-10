@@ -245,6 +245,16 @@ function protokoll_ordner(): string
     return $d;
 }
 
+/**
+ * Voriger und dieser Monat (JJJJ-MM) in Wien. Nicht mit strtotime(): das rechnet in der Zeitzone des Servers (oft UTC),
+ * am 1. um 0:30 Uhr wäre in UTC noch der Vortag und der Vormonat fehlte.
+ */
+function protokoll_monate(int $ts): array
+{
+    $wien = (new DateTimeImmutable('@' . $ts))->setTimezone(new DateTimeZone('Europe/Vienna'));
+    return [$wien->modify('first day of last month')->format('Y-m'), $wien->format('Y-m')];
+}
+
 function protokolle_lesen(string $monat): array
 {
     $datei = protokoll_ordner() . "/$monat.json";
@@ -657,7 +667,7 @@ if ($aktion === 'test' && ($cli || $methode === 'POST')) {
 if ($aktion === 'protokolle') {
     // Protokolle eines Monats (Standard: dieser und der vorige), für die Übernahme nach SharePoint
     $monat = (string) ($_GET['monat'] ?? '');
-    $monate = preg_match('/^\d{4}-\d{2}$/', $monat) ? [$monat] : [uhrzeit(strtotime('first day of last month', jetzt()), 'Y-m'), uhrzeit(jetzt(), 'Y-m')];
+    $monate = preg_match('/^\d{4}-\d{2}$/', $monat) ? [$monat] : protokoll_monate(jetzt());
     $alle = [];
     foreach (array_unique($monate) as $m) {
         $alle = array_merge($alle, protokolle_lesen($m));

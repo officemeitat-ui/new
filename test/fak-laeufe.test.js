@@ -111,6 +111,9 @@ test('Angebote nachfassen: Wiedervorlage eigen oder X Tage nach Versand, bald ab
   assert.equal(followUpOf(offer('1'), s), null, 'ohne Versand keine automatische Wiedervorlage')
   assert.equal(followUpOf(offer('1', { sent: [{ at: '2026-10-21T08:00:00Z' }] }), { ...s, offerFollowUpDays: 0 }), null)
   assert.deepEqual(followUpOf(offer('1', { followUp: { date: '2026-11-10', note: 'Herrn Beispiel anrufen' } }), s), { date: '2026-11-10', note: 'Herrn Beispiel anrufen', done: false, auto: false })
+  // nach Mitternacht versendet (Do 22.10. 0:30 Uhr in Wien = 21.10. 22:30 UTC): 7 Tage ab dem 22.10.
+  assert.equal(followUpOf(offer('1', { sent: [{ at: '2026-10-21T22:30:00.000Z' }] }), s).date, '2026-10-29')
+  assert.equal(followUpOf(offer('1', { followUp: { doneAt: '2026-11-01T23:10:00.000Z' } }), s).date, '2026-11-02')
   const docs = [
     offer('1', { sent: [{ at: '2026-10-21T08:00:00Z' }] }),
     offer('2', { followUp: { date: '2026-11-10', note: 'später' } }),

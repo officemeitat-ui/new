@@ -87,6 +87,16 @@ test('Übernahme vom Webspace: Kennung aus der Meldung, Nummer, Art, Fläche, Fo
   assert.deepEqual(newWebRequests(list, [r]).map((a) => a.id), ['000000000001'])
 })
 
+test('Anfrage nach Mitternacht: Nummer, Angebotstext und Vertriebsfall mit dem Tag in Wien', () => {
+  // Neujahr 0:15 Uhr in Wien = 31.12.2026 23:15 UTC: die Anfrage gehört ins Jahr 2027
+  const ny = requestFromWeb(web({ erstellt: Date.parse('2026-12-31T23:15:00Z') / 1000 }), { requests: [{ no: 'ZL-2026-041' }] })
+  assert.equal(ny.no, 'ZL-2027-001')
+  // Di 10.11.2026 0:30 Uhr in Wien = 9.11. 23:30 UTC: „Ihre Anfrage … vom 10.11.2026“, Anfrage im Vertrieb am 10.11.
+  const r = requestFromWeb(web({ erstellt: Date.parse('2026-11-09T23:30:00Z') / 1000 }))
+  assert.match(offerFields(r, { fak: { articles: [] }, settings: zusatzSettings({}), date: '2026-11-10' }).lines[2].text, /Ihre Anfrage ZL-2026-001 vom 10\.11\.2026$/)
+  assert.equal(caseFromRequest(r, { id: 'vf1', today: '2026-11-10' }).requestDate, '2026-11-10')
+})
+
 test('Stand: eingegangen → Angebot gesendet → beauftragt; erledigt und abgelehnt mit Begründung', () => {
   const r = requestFromWeb(web())
   assert.equal(requestStatus(r), 'eingegangen')

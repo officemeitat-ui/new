@@ -4,6 +4,7 @@
 //
 // Minuten bleiben Minuten, Beträge sind Euro (auf Cent gerundet).
 
+import { dayOf } from './complaints.js'
 import { addDays, eachDay, isoWeekday, lastOfMonth, mondayOf } from './dates.js'
 import { employedOn, weeklyHoursAt } from './contract.js'
 import { isInvoice, openItems, settingsOf, totals } from './invoicing.js'
@@ -162,7 +163,8 @@ export function plusHours(rows) {
 
 // ---------------------------------------------------------------- Reklamationen
 
-const complaintDate = (c) => String(c.received || c.createdAt || c.date || '').slice(0, 10)
+/** Tag des Eingangs in Wien (ein Zeitpunkt um 0:30 Uhr am 1. gehört zum neuen Monat, nicht zum UTC-Vortag). */
+const complaintDate = (c) => dayOf(c.received || c.createdAt || c.date || '')
 
 /** Reklamationen je Monat: [{ key, count, open }] (open: davon noch nicht erledigt). */
 export function complaintsByMonth(items = [], months) {

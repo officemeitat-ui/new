@@ -362,6 +362,9 @@ test('Kennzahlen: Pipeline-Wert gewichtet, Abschlussquote, Dauer Anfrage → Auf
   assert.deepEqual(k.days, { avg: 30, median: 30, count: 2 })
   assert.deepEqual(k.months.map((m) => [m.key, m.created, m.won, m.lost, m.wonValue]), [['2026-09', 2, 0, 0, 0], ['2026-10', 2, 2, 0, 2000], ['2026-11', 1, 0, 1, 0]])
   assert.equal(salesKpi([], months, '2026-11-09').rate, null)
+  // ohne Anfragedatum zählt der Tag der Anlage in Wien: 1.11. um 0:30 Uhr (31.10. 23:30 UTC) ist November
+  const night = salesKpi([base({ id: '7', stage: 'anfrage', monthly: 100, requestDate: '', createdAt: '2026-10-31T23:30:00.000Z' })], months, '2026-11-09')
+  assert.deepEqual(night.months.map((m) => [m.key, m.created]), [['2026-09', 0], ['2026-10', 0], ['2026-11', 1]])
 })
 
 test('KI-Besichtigung: Anfrage nur mit Text und Fotos, nach Schema', () => {

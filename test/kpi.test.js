@@ -67,6 +67,9 @@ test('Kennzahlen: Reklamationen je Monat und Objekt', () => {
   const months = lastMonths(2, '2026-11-10')
   assert.deepEqual(complaintsByMonth(items, months).map((x) => [x.key, x.count, x.open]), [['2026-10', 1, 0], ['2026-11', 3, 2]])
   assert.deepEqual(complaintsTopObjects(items, { from: '2026-11-01', to: '2026-11-30' }), [{ objectId: 'o1', count: 2, open: 1 }, { objectId: 'o2', count: 1, open: 1 }])
+  // Eingang am 1.11. um 0:30 Uhr in Wien (31.10. 23:30 UTC) zählt im November, wie in der Auswertung der Reklamationen
+  const night = [{ received: '2026-10-31T23:30:00.000Z', objectId: 'o1', status: 'offen' }]
+  assert.deepEqual(complaintsByMonth(night, months).map((x) => [x.key, x.count]), [['2026-10', 0], ['2026-11', 1]])
 })
 
 const invoice = (id, number, date, net, extra = {}) => ({ id, kind: 'rechnung', number, date, dueDate: extra.dueDate || date, customerId: extra.customerId || 'c1', objectId: extra.objectId || 'o1', recipient: { name: extra.name || 'Kunde Eins' }, lines: [{ text: 'Reinigung', qty: 1, unit: 'Monat', price: net, vat: 20 }], ...extra })

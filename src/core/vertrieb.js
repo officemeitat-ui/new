@@ -640,7 +640,8 @@ export function salesKpi(cases = [], months = [], today = '') {
     const list = open.filter((c) => stageOf(c) === s)
     return { stage: s, label: stageLabel(s), count: list.length, value: round2(list.reduce((a, c) => a + expectedMonthly(c), 0)), weighted: round2(list.reduce((a, c) => a + weightedMonthly(c), 0)) }
   })
-  const startOf = (c) => c.requestDate || String(c.createdAt || '').slice(0, 10)
+  // ohne Anfragedatum der Tag der Anlage in Wien (wie wonAt/lostAt), nicht der UTC-Tag
+  const startOf = (c) => c.requestDate || viennaDate(c.createdAt || '') || String(c.createdAt || '').slice(0, 10)
   const inMonth = (d, m) => !!d && d >= m.from && d <= m.to
   const perMonth = months.map((m) => {
     const won = cases.filter((c) => stageOf(c) === 'angenommen' && inMonth(c.wonAt, m))

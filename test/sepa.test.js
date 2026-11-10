@@ -302,3 +302,20 @@ test('Mandat als PDF: Wortlaut je Art, Gläubiger-ID, Referenz, Frist der Voraba
   assert.ok(text.includes('spätestens 5 Tage vor dem Einzug') && text.includes('kürzere Frist ist hiermit vereinbart'))
   assert.ok(JSON.stringify(mandateDocument({ customer: c, mandate: { scheme: 'B2B' }, settings }).content).includes('SEPA-Firmenlastschrift-Mandat'))
 })
+
+test('Vorabankündigung nach Mitternacht: für die Frist zählt der Tag in Wien, nicht der UTC-Tag', () => {
+  // E-Mail am Mi 11.11.2026 um 0:30 Uhr in Wien (10.11. 23:30 UTC): bis zum 24.11. sind es nur 13 Tage
+  const mailed = invoice({ debitNotice: [{ at: '2026-11-10T23:30:00.000Z', dueDate: '2026-11-24' }] })
+  assert.deepEqual(noticeOf(mailed), { via: 'mail', date: '2026-11-11', dueDate: '2026-11-24' })
+  assert.ok(!noticeFits(noticeOf(mailed), '2026-11-24', 14), '13 Tage reichen nicht für 14 Tage Frist')
+  assert.ok(noticeFits(noticeOf(mailed), '2026-11-25', 14))
+  // Sommerzeit: 0:30 Uhr am 2.7. ist 1.7. 22:30 UTC
+  assert.equal(noticeOf(invoice({ debitNotice: [{ at: '2026-07-01T22:30:00.000Z', dueDate: '2026-07-20' }] })).date, '2026-07-02')
+  // versendete Rechnung mit Hinweis: per E-Mail der Tag in Wien, per Post drei Tage später
+  const sent = (via) => noticeOf(invoice({ debitText: 'Lastschrift', sent: [{ at: '2026-11-01T23:15:00.000Z', via }] })).date
+  assert.equal(sent('graph'), '2026-11-02')
+  assert.equal(sent('post'), '2026-11-05')
+  // nach der Rücklastschrift zählt eine Ankündigung in der Nacht danach (in Wien schon der nächste Tag)
+  const back = invoice({ directDebit: { status: 'zurueck', returnedAt: '2026-11-24' }, debitNotice: [{ at: '2026-11-24T23:30:00.000Z', dueDate: '2026-12-10' }] })
+  assert.deepEqual(noticeOf(back), { via: 'mail', date: '2026-11-25', dueDate: '2026-12-10' })
+})

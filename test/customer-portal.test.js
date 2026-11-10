@@ -2,6 +2,7 @@
 // Namen, was je Link an den Webspace geht, Meldungen → Reklamationen, Stand zurück, E-Mail-Text.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 import { complaintFromReport, contactText, CUSTOMER_KINDS, customerAppointments, customerLink, FILE_PATTERN, fileName, isActive, linkMail, linkPayload, linkState, markSent, newLinkId, newReports, PORTAL_SOURCE, releasedMonths, reportStatus, SHOW, showDefaults, stableJson, statusUpdates, upcomingDates, upcomingServices } from '../src/core/customer-portal.js'
@@ -122,6 +123,18 @@ test('Kundenbereich: Meldung → Reklamation mit Eingang „Kundenbereich“, St
   assert.deepEqual(newReports(list, [c]).map((x) => x.id), ['cccccccccccc'])
 })
 
+test('Meldung nach Mitternacht: Tag und Frist der Reklamation nach dem Tag in Wien (Kundenbereich und Aushang)', () => {
+  // eingegangen am Mo 2.11.2026 um 0:20 Uhr in Wien = 1.11. 23:20 UTC
+  const erstellt = Date.parse('2026-11-01T23:20:00Z') / 1000
+  const kb = complaintFromReport({ id: 'a1b2c3d4e5f6', link: 'kb0123456789', objektId: 'o1', art: 'Schaden', text: 'Glastür zerkratzt', erstellt })
+  assert.equal(kb.received, '2026-11-01T23:20:00.000Z', 'der Zeitpunkt bleibt in UTC')
+  assert.deepEqual([kb.date, kb.due], ['2026-11-02', '2026-11-05'], 'ohne Datum der Tag des Eingangs; Schaden: 3 Tage ab dem Eingang')
+  const ah = complaintFromReport({ id: 'b1b2c3d4e5f6', quelle: 'aushang', aushang: 'ah0123456789', objektId: 'o5', kategorie: 'winterdienst', datum: '2026-11-02', text: 'Nicht gestreut', erstellt })
+  assert.deepEqual([ah.date, ah.due], ['2026-11-02', '2026-11-03'], 'Winterdienst: 1 Tag ab dem Eingang, nicht ab dem UTC-Tag')
+  // Sommerzeit: 1:30 Uhr am 1.7. ist 30.6. 23:30 UTC
+  assert.equal(complaintFromReport({ id: 'c1b2c3d4e5f6', link: 'kb0123456789', art: 'Sonstiges', text: 'x', erstellt: Date.parse('2026-06-30T23:30:00Z') / 1000 }).date, '2026-07-01')
+})
+
 test('Kundenbereich: E-Mail mit dem Link in der Sie-Form', () => {
   const mail = linkMail({ link: { title: 'Wohnanlage Lehen', show: { ...showDefaults(), winter: false } }, url: 'https://app.cleanos.at/kunden.php?k=Abc', company: 'Cleanos', sender: 'Eva Büro', phone: '0662 1234' })
   assert.equal(mail.subject, 'Ihr Kundenbereich bei Cleanos: Wohnanlage Lehen')
@@ -200,4 +213,20 @@ test('Stand im Objekt: zuletzt/kommend aus dem Plan, erledigt mit Stempelung ode
   assert.deepEqual(linkPayload({ link: { id: 'kb1', objectIds: [] }, hash: 'h', status: [s] }).status, [])
   assert.deepEqual(linkPayload({ link: { id: 'kb1', objectIds: [], show: { status: true } }, hash: 'h', status: [s] }).status, [s])
   assert.equal(linkPayload({ link: { id: 'kb1', objectIds: [], show: { status: true } }, hash: 'h' }).status, null)
+})
+
+test('kunden.php: „Ihre Meldung vom“ und „gemeldet am“ mit dem Tag in Wien, nicht in der Zeitzone des Servers', () => {
+  // date() rechnet in der Zeitzone des Webspace (oft UTC): eine Meldung um 0:30 Uhr stand mit dem Vortag in E-Mail und Seite
+  assert.doesNotMatch(PHP, /[^_a-z]date\('Y-m-d'/, 'kein date() für den Tag einer Meldung oder Anfrage')
+  const fn = PHP.match(/function tag_von\([^]*?\n}\n/)?.[0]
+  assert.ok(fn, 'tag_von() in kunden.php')
+  try {
+    execFileSync('php', ['-v'], { stdio: 'ignore' })
+  } catch {
+    return // ohne PHP nur die Prüfung oben
+  }
+  const day = (tz, iso) => execFileSync('php', ['-d', `date.timezone=${tz}`, '-r', `${fn} echo tag_von((int) $argv[1]);`, String(Date.parse(iso) / 1000)], { encoding: 'utf8' })
+  assert.equal(day('UTC', '2026-11-09T23:30:00Z'), '2026-11-10') // Di 10.11. 0:30 Uhr in Wien
+  assert.equal(day('America/New_York', '2026-07-01T22:30:00Z'), '2026-07-02') // Sommerzeit
+  assert.equal(day('UTC', '2026-11-09T22:59:00Z'), '2026-11-09')
 })

@@ -2,6 +2,7 @@
 // Mahnlauf mit Mahnsperre, Angebote nachfassen (Wiedervorlage, bald ablaufend, Angebotsquote).
 // Rein rechnend, ohne Browser (Oberfläche: ui/views/invoicing-laeufe.js; Lastschrift: core/sepa.js).
 
+import { viennaDate } from './dates.js'
 import { blocking, customerName, deDate, finalize, INVOICE_KINDS, isInvoice, openItems, problems, reminderFor, round2, settingsOf, stateOf, termsById, totals } from './invoicing.js'
 import { debitNoteFor, inCollection } from './sepa.js'
 
@@ -166,9 +167,11 @@ export function followUpOf(doc, settings = {}) {
   if (doc?.kind !== 'angebot' || !doc.number) return null
   const f = doc.followUp || {}
   if (f.date) return { date: f.date, note: f.note || '', done: !!f.doneAt, auto: false }
-  if (f.doneAt) return { date: String(f.doneAt).slice(0, 10), note: f.note || '', done: true, auto: false }
+  // Tag in Wien (nicht UTC): nach Mitternacht versendet bzw. erledigt ist schon der neue Tag
+  const day = (at) => (at ? viennaDate(at) || String(at).slice(0, 10) : '')
+  if (f.doneAt) return { date: day(f.doneAt), note: f.note || '', done: true, auto: false }
   const days = Number(settings.offerFollowUpDays ?? DEFAULT_FOLLOW_UP_DAYS)
-  const sent = (doc.sent || []).map((x) => String(x.at || '').slice(0, 10)).filter(Boolean).sort()[0]
+  const sent = (doc.sent || []).map((x) => day(x.at)).filter(Boolean).sort()[0]
   if (!(days > 0) || !sent) return null
   return { date: addDays(sent, days), note: '', done: false, auto: true }
 }

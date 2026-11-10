@@ -16,7 +16,7 @@
 //   skip: 'entfaellt' | 'nachholen'           was mit einem Wechsel in einer Pause bzw. im Betriebsurlaub geschieht
 //   planning: { von, bis, at, by }            letzter Lauf von „Einsätze planen“
 
-import { addDays, isoWeekday, WEEKDAY_LONG } from './dates.js'
+import { addDays, isoWeekday, viennaDate, WEEKDAY_LONG } from './dates.js'
 import { holidayCalendar } from './holidays.js'
 import { matLabel, matSize } from './invoicing.js'
 import {
@@ -93,7 +93,9 @@ export function confirmedExchanges({ placements = [], tours = [] } = {}) {
     for (const s of t?.stops || []) {
       for (const it of s?.items || []) {
         if (!it?.placementId || !DONE_STATUS.includes(it.status)) continue
-        const date = isIso(String(it.time || '').slice(0, 10)) ? String(it.time).slice(0, 10) : t.date
+        // Tag der Bestätigung in Wien (0:40 Uhr ist schon der neue Tag), sonst Tag der Tour
+        const day = it.time ? viennaDate(it.time) : ''
+        const date = isIso(day) ? day : t.date
         if (isIso(date)) out.push({ placementId: it.placementId, date })
       }
     }

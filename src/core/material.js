@@ -45,7 +45,8 @@ export const STARTER_ARTICLES = [
 export const emptyMaterial = () => ({ articles: [], locations: [{ ...MAIN_LOCATION }], suppliers: [], moves: [], orders: [], requests: [], settings: {} })
 
 const r3 = (n) => Math.round(n * 1000) / 1000
-const r2 = (n) => Math.round(n * 100) / 100
+// kaufmännisch auf Cent, ohne Gleitkomma-Fehler (1,005 → 1,01 wie in der Anzeige, nicht 1,00)
+const r2 = (n) => (Math.sign(n) * Math.round(Math.abs(n) * 100 + 1e-7)) / 100
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0)
 const lower = (s) => String(s || '').trim().toLowerCase()
 
@@ -154,7 +155,10 @@ export function nextOrderNo(orders = [], year) {
   return `${year}-${String(max + 1).padStart(3, '0')}`
 }
 
-export const orderSum = (order) => r2((order.lines || []).reduce((s, l) => s + num(l.qty) * num(l.price), 0))
+/** Betrag einer Position (auf Cent). */
+export const orderLineSum = (l) => r2(num(l.qty) * num(l.price))
+/** Summe der Bestellung: Summe der gerundeten Positionen, damit sie zum Bestellschein passt. */
+export const orderSum = (order) => r2((order.lines || []).reduce((s, l) => s + orderLineSum(l), 0))
 export const isOverdue = (order, today) => OPEN_ORDER.includes(order.status) && !!order.expected && order.expected < today
 export const openOrders = (orders = []) => orders.filter((o) => OPEN_ORDER.includes(o.status))
 

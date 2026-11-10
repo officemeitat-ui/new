@@ -21,6 +21,7 @@
 // sobald das Angebot online ist – Kennung, Nummer und der Code des Angebots, verschlüsselt mit dem Code des Links
 // (sealCode): Der Webspace allein kann ihn nicht lesen, nur die Seite des Links, die mit ihrem Code aufgerufen wird.
 
+import { viennaDate } from './dates.js'
 import { lineFromArticle, parseNumber, priceFor, round2, stateOf } from './invoicing.js'
 import { nextCaseNo, offerSnapshot } from './vertrieb.js'
 
@@ -104,6 +105,8 @@ export function newWebRequests(list = [], requests = []) {
 }
 
 const dateOk = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? d : '')
+/** Tag des Eingangs in Wien (0:30 Uhr ist schon der neue Tag, Neujahr schon das neue Jahr), nicht der UTC-Tag. */
+const receivedDay = (received) => viennaDate(received) || String(received || '').slice(0, 10)
 
 /**
  * Anfrage vom Webspace → Eintrag der App. Die Kennung folgt aus der Kennung am Webspace (zwei Geräte, die gleichzeitig
@@ -116,7 +119,7 @@ export function requestFromWeb(a, { requests = [], settings = zusatzSettings(), 
   const k = a.kontakt || {}
   return {
     id: `zl${String(a.id).replace(/[^a-f0-9]/g, '')}`,
-    no: nextRequestNo(requests, received.slice(0, 4)),
+    no: nextRequestNo(requests, receivedDay(received).slice(0, 4)),
     webId: String(a.id),
     linkId: String(a.link || ''),
     linkTitle: text(link?.title || a.titel, 120),
@@ -260,7 +263,7 @@ export function offerFields(r, { fak = {}, settings = zusatzSettings(), customer
   const kind = kindOf(settings, r.kindId)
   const article = kind?.articleId ? (fak.articles || []).find((a) => a.id === kind.articleId && a.active !== false) : null
   const title = `${r.kindName}${r.objectName ? ` – ${r.objectName}` : ''}`
-  const details = [r.from ? `Wunschtermin: ${wishText(r)}` : '', r.area ? `Fläche laut Anfrage: ${String(r.area).replace('.', ',')} m²` : '', `Ihre Anfrage ${r.no} vom ${r.received.slice(0, 10).split('-').reverse().join('.')}`].filter(Boolean).join(' · ')
+  const details = [r.from ? `Wunschtermin: ${wishText(r)}` : '', r.area ? `Fläche laut Anfrage: ${String(r.area).replace('.', ',')} m²` : '', `Ihre Anfrage ${r.no} vom ${receivedDay(r.received).split('-').reverse().join('.')}`].filter(Boolean).join(' · ')
   const lines = [{ id: newId(1), type: 'title', text: title }]
   let priced = false
   if (article) {
@@ -290,7 +293,7 @@ export function caseFromRequest(r, { id, cases = [], today, customer = null, obj
     id,
     no: nextCaseNo(cases, today.slice(0, 4)),
     stage: 'anfrage',
-    requestDate: r.received.slice(0, 10),
+    requestDate: receivedDay(r.received),
     source: 'bestandskunde',
     customerId: customer?.id || '',
     objectId: r.objectId,

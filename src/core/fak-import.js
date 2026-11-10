@@ -13,6 +13,7 @@
 // (Prüfsumme), Kennzeichen imported. Nichts wird neu nummeriert; die eigenen Nummernkreise laufen danach weiter.
 
 import { parseCsvRows } from './bank.js'
+import { viennaDate } from './dates.js'
 import { checksumOf, composeAddress, nextCustomerNo, numberPattern, parseNumber, round2, totals, VAT_RATES } from './invoicing.js'
 import { descendants, find, findAll, parseXml, textAt } from './xml-lite.js'
 
@@ -539,7 +540,9 @@ export function tablesFromXml(text, name = '') {
 /** Datum aus Excel-Zahl, Date, „31.12.2025“, „31.12.25“, „2025-12-31“, „20251231“ → „2025-12-31“ oder ''. */
 export function parseDateLoose(v) {
   if (v == null || v === '') return ''
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? '' : `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
+  // ExcelJS legt die Wanduhrzeit der Zelle als UTC ab (wie die Datumszahl unten): UTC lesen, nicht die Uhr des Geräts,
+  // sonst wird „31.12.2025 23:30“ in Wien zum 1.1.2026
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? '' : v.toISOString().slice(0, 10)
   if (typeof v === 'number') {
     if (v > 20000 && v < 80000) {
       const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000)
@@ -1431,7 +1434,8 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
         id,
         title: str(v('title')) || str(v('text')) || 'Abo-Rechnung',
         interval: intervalOf(v('interval')),
-        startMonth: (start || (opts.now || now).slice(0, 10)).slice(0, 7),
+        // ohne Start der Monat der Übernahme in Wien (am 1. um 0:30 Uhr ist in UTC noch der Vormonat)
+        startMonth: (start || viennaDate(now) || now.slice(0, 10)).slice(0, 7),
         endMonth: end ? end.slice(0, 7) : '',
         customerId: cust.id,
         objectId: (cust.objectIds || [])[0] || '',

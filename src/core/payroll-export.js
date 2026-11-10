@@ -10,6 +10,14 @@
 import { lastOfMonth } from './dates.js'
 
 const h = (min) => Math.round(((min || 0) / 60) * 100) / 100
+/**
+ * Menge × Satz auf Cent, kaufmännisch gerundet: in Hundertsteln gerechnet (beide haben höchstens 2 Nachkommastellen),
+ * sonst wird aus 0,06 h × 16,75 € = 1,005 € im Gleitkomma 1,00499… und damit 1,00 € statt 1,01 €.
+ */
+const amountOf = (menge, satz) => {
+  const cents = (Math.round(menge * 100) * Math.round(satz * 100)) / 100
+  return (Math.sign(cents) * Math.round(Math.abs(cents))) / 100
+}
 const sumOf = (r, type, classes) => classes.reduce((s, c) => s + (r.hours?.[type]?.[c] || 0), 0)
 const ALL = ['tag', 'nacht', 'sonntag', 'sonntagnacht', 'feiertag']
 const paid = (r) => (r.ueMode || 'auszahlen') === 'auszahlen'
@@ -45,7 +53,7 @@ export const COLUMNS = {
   menge: ['Menge', (l, f) => f.num(l.menge)],
   einheit: ['Einheit', (l) => l.einheit],
   satz: ['Satz', (l, f) => (l.satz ? f.num(l.satz) : '')],
-  betrag: ['Betrag', (l, f) => (l.satz ? f.num(Math.round(l.menge * l.satz * 100) / 100) : '')],
+  betrag: ['Betrag', (l, f) => (l.satz ? f.num(amountOf(l.menge, l.satz)) : '')],
   von: ['Von', (l, f) => f.date(l.von)],
   bis: ['Bis', (l, f) => f.date(l.bis)],
   monat: ['Monat', (l, f) => f.month(l.von)],

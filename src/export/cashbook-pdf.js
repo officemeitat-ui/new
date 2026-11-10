@@ -3,7 +3,7 @@
 // und die Steuerberatung.
 
 import { cashSettings, monthReport } from '../core/cashbook.js'
-import { formatDate, MONTH_LONG } from '../core/dates.js'
+import { formatDate, MONTH_LONG, viennaDate } from '../core/dates.js'
 import { docShell, header, inkColors, tableLayout, TOTAL } from './pdf-parts.js'
 
 const euro = (n) => (Number(n) || 0).toLocaleString('de-AT', { style: 'currency', currency: 'EUR' })
@@ -45,7 +45,7 @@ export function cashbookDocument({ book, month, brand = {}, logo = null, created
     counts.length ? { text: 'Kassenstürze', style: 'section' } : '',
     counts.length ? { ul: counts, fontSize: 8.5 } : '',
     r.closed
-      ? { text: `Monat abgeschlossen am ${day(String(r.closed.at).slice(0, 10))} von ${r.closed.by || '–'} (${r.closed.entries} Einträge, Prüfsumme ${r.closed.checksum}).`, margin: [0, 10, 0, 0], color: colors.grey }
+      ? { text: `Monat abgeschlossen am ${day(viennaDate(r.closed.at) || String(r.closed.at).slice(0, 10))} von ${r.closed.by || '–'} (${r.closed.entries} Einträge, Prüfsumme ${r.closed.checksum}).`, margin: [0, 10, 0, 0], color: colors.grey }
       : { text: 'Monat noch nicht abgeschlossen (vorläufig).', margin: [0, 10, 0, 0], color: colors.grey },
     { text: 'Einträge werden nicht geändert oder gelöscht; Korrekturen stehen als Storno mit eigener Nummer (§ 131 BAO). Das Kassenbuch ersetzt keine Registrierkasse (§ 131b BAO).', margin: [0, 6, 0, 0], color: colors.grey, fontSize: 7.5 },
   ]

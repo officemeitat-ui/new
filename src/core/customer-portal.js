@@ -253,7 +253,8 @@ export function complaintFromReport(m, { link = null, now = new Date().toISOStri
   if (isPosterReport(m)) return complaintFromPosterReport(m, { now })
   const kind = CUSTOMER_KINDS.includes(m.art) ? m.art : 'Sonstiges'
   const received = Number(m.erstellt) ? new Date(Number(m.erstellt) * 1000).toISOString() : now
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(m.datum || '') ? m.datum : received.slice(0, 10)
+  // Tag des Eingangs in Wien (0:20 Uhr ist schon der neue Tag, nicht der UTC-Vortag)
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(m.datum || '') ? m.datum : dayOf(received)
   return {
     id: `rk${String(m.id).replace(/[^a-f0-9]/g, '')}`,
     objectId: String(m.objektId || ''),
@@ -265,7 +266,7 @@ export function complaintFromReport(m, { link = null, now = new Date().toISOStri
     contact: contactText(m.kontakt),
     employees: [],
     measure: '',
-    due: defaultDue(kind, received.slice(0, 10)),
+    due: defaultDue(kind, dayOf(received)),
     status: 'offen',
     result: '',
     informed: false,

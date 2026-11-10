@@ -292,6 +292,9 @@ test('Zu erledigen: überfällige Liegeplätze und noch nicht geplante Einsätze
   // bestätigte Wechsel aus Touren (Phase Fahrer): erledigt und teilweise zählen
   const tours = [{ date: '2026-11-03', stops: [{ items: [{ placementId: 'A', status: 'erledigt', time: '2026-11-03T08:12:00Z' }, { placementId: 'B', status: 'nicht-durchgefuehrt' }] }, { items: [{ placementId: 'C', status: 'teilweise' }] }] }]
   assert.deepEqual(confirmedExchanges({ placements: [], tours }), [{ placementId: 'A', date: '2026-11-03' }, { placementId: 'C', date: '2026-11-03' }])
+  // bestätigt um 0:40 Uhr in Wien (23:40 UTC am Vortag): Tag in Wien wie in der Übersicht, nicht der UTC-Vortag
+  const night = [{ date: '2026-11-03', stops: [{ items: [{ placementId: 'A', status: 'erledigt', time: '2026-11-03T23:40:00.000Z' }] }] }]
+  assert.deepEqual(confirmedExchanges({ tours: night }), [{ placementId: 'A', date: '2026-11-04' }])
 })
 
 test('Liegeplatz-Ansicht: nächster Wechsel aus gespeicherten Einsätzen (verschoben, ausgesetzt) und Schließtagen', () => {

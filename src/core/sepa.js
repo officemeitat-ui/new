@@ -24,6 +24,7 @@
 // laufen aus (Deutschland: 2025/2026). Deshalb ist .08 der Standard, .02 bleibt für ältere Bank-Software
 // wählbar (Einstellungen). Beide Varianten sind gegen die XSD von ISO 20022 geprüft (test/sepa.test.js).
 
+import { viennaDate } from './dates.js'
 import { deDate, formatIban, ibanValid, openAmount, parseNumber, round2, settingsOf, totals } from './invoicing.js'
 
 export const SEPA_VERSIONS = {
@@ -244,15 +245,17 @@ export function debitNoteFor(doc, customer, settings = {}) {
  * Nach einer Rücklastschrift zählt nur eine neue Ankündigung (danach gesendet).
  */
 export function noticeOf(doc) {
-  const returned = doc.directDebit?.status === 'zurueck' ? String(doc.directDebit.returnedAt || doc.directDebit.at || '') : ''
-  const mails = (doc.debitNotice || []).filter((n) => n.dueDate && n.at && (!returned || String(n.at).slice(0, 10) > returned.slice(0, 10)))
+  // Tag in Wien: eine Ankündigung um 0:30 Uhr ist schon am neuen Tag (der UTC-Tag wäre der Vortag, die Frist um einen Tag zu lang)
+  const day = (at) => (at ? viennaDate(at) || String(at).slice(0, 10) : '')
+  const returned = doc.directDebit?.status === 'zurueck' ? day(doc.directDebit.returnedAt || doc.directDebit.at || '') : ''
+  const mails = (doc.debitNotice || []).filter((n) => n.dueDate && n.at && (!returned || day(n.at) > returned))
   if (mails.length) {
     const n = mails[mails.length - 1]
-    return { via: 'mail', date: String(n.at).slice(0, 10), dueDate: n.dueDate }
+    return { via: 'mail', date: day(n.at), dueDate: n.dueDate }
   }
   if (doc.debitText && doc.dueDate && !returned) {
     // per Post: drei Tage Postlauf bis zum Zahler
-    const sent = (doc.sent || []).map((x) => (x.at ? (x.via === 'post' ? addDaysIso(String(x.at).slice(0, 10), 3) : String(x.at).slice(0, 10)) : '')).filter(Boolean).sort()[0]
+    const sent = (doc.sent || []).map((x) => (x.at ? (x.via === 'post' ? addDaysIso(day(x.at), 3) : day(x.at)) : '')).filter(Boolean).sort()[0]
     if (sent) return { via: 'rechnung', date: sent, dueDate: nextTargetDay(doc.dueDate) }
   }
   return null

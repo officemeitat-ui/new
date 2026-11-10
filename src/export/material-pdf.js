@@ -1,7 +1,7 @@
 // Material & Lager als PDF: Bestellschein für den Lieferanten und Zählliste für die Inventur.
 
-import { formatDate, todayISO } from '../core/dates.js'
-import { euro, orderSum } from '../core/material.js'
+import { formatDate, todayISO, viennaDate } from '../core/dates.js'
+import { euro, orderLineSum, orderSum } from '../core/material.js'
 import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 
 const qty = (n) => String(Math.round((Number(n) || 0) * 1000) / 1000).replace('.', ',')
@@ -15,12 +15,12 @@ export function orderDocument({ order, supplier = {}, articles = [], settings = 
   const head = ['Pos.', 'Menge', 'Einheit', 'Artikel', 'Art.-Nr.', ...(withPrices ? ['Preis', 'Betrag'] : [])].map((text) => ({ text, style: 'th' }))
   const rows = (order.lines || []).map((l, i) => {
     const a = byId.get(l.articleId) || {}
-    return [String(i + 1), { text: qty(l.qty), alignment: 'right' }, a.unit || 'Stk', a.name || '', a.articleNo || '', ...(withPrices ? [{ text: l.price ? euro(l.price) : '', alignment: 'right' }, { text: l.price ? euro(l.qty * l.price) : '', alignment: 'right' }] : [])]
+    return [String(i + 1), { text: qty(l.qty), alignment: 'right' }, a.unit || 'Stk', a.name || '', a.articleNo || '', ...(withPrices ? [{ text: l.price ? euro(l.price) : '', alignment: 'right' }, { text: l.price ? euro(orderLineSum(l)) : '', alignment: 'right' }] : [])]
   })
   if (withPrices) rows.push([{ text: 'Summe netto', colSpan: 6, bold: true, alignment: 'right' }, '', '', '', '', '', { text: euro(orderSum(order)), bold: true, alignment: 'right' }])
   const address = (lines) => lines.filter(Boolean).join('\n')
   const content = [
-    ...header({ title: `Bestellung ${order.no || ''}`, subtitle: formatDate(order.orderedAt || order.createdAt?.slice(0, 10) || todayISO(createdAt), { year: true }), brand, logo, colors }),
+    ...header({ title: `Bestellung ${order.no || ''}`, subtitle: formatDate(order.orderedAt || viennaDate(order.createdAt || '') || todayISO(createdAt), { year: true }), brand, logo, colors }),
     {
       columns: [
         { stack: [{ text: 'An', bold: true, color: colors.ink }, { text: address([supplier.name, supplier.contact, supplier.email, supplier.phone]) || '–' }, supplier.customerNo ? { text: `Unsere Kundennummer: ${supplier.customerNo}`, margin: [0, 4, 0, 0] } : ''] },

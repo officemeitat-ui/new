@@ -13,7 +13,7 @@
 // Daten: zusatzleistungen/zusatzleistungen.json { requests, settings }; Fotos in SharePoint unter
 // zusatzleistungen/fotos/<Monat>/. Aktionen und Dialoge mit dem Kürzel „zl-“.
 
-import { addDays, formatDate, todayISO } from '../../core/dates.js'
+import { addDays, formatDate, todayISO, viennaDate } from '../../core/dates.js'
 import { settingsOf as fakSettings } from '../../core/invoicing.js'
 import { isActive } from '../../core/customer-portal.js'
 import {
@@ -65,7 +65,8 @@ const objOf = (id) => app.data.objects.find((o) => o.id === id)
 const linkOf = (id) => portalLinks().find((l) => l.id === id)
 const by = () => app.user?.name || 'Browser'
 const nowIso = () => new Date().toISOString()
-const day = (iso) => (iso ? formatDate(String(iso).slice(0, 10)) : '')
+// Tag in Wien (eine Anfrage um 0:30 Uhr ist schon am neuen Tag eingegangen, nicht am UTC-Vortag)
+const day = (iso) => (iso ? formatDate(viennaDate(iso) || String(iso).slice(0, 10)) : '')
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const wish = (r) => wishText(r, (d) => formatDate(d))
 const custOf = (id) => (F()?.customers || []).find((c) => c.id === id)
@@ -132,7 +133,7 @@ async function storePhotos(r) {
       continue
     }
     const blob = await portalCall('foto', { query: `&datei=${encodeURIComponent(p.datei)}` })
-    const path = `zusatzleistungen/fotos/${r.received.slice(0, 7)}/${r.id}-${i + 1}.${p.datei.split('.').pop()}`
+    const path = `zusatzleistungen/fotos/${(viennaDate(r.received) || r.received).slice(0, 7)}/${r.id}-${i + 1}.${p.datei.split('.').pop()}`
     const up = await app.store.upload(path, blob, blob.type || 'image/jpeg')
     out.push({ path, url: up?.webUrl || '' })
   }
