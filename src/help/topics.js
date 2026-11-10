@@ -1110,7 +1110,7 @@ export const TOPICS = [
     answer: 'Im Kundenbereich bekommt jeder Kunde oder jedes Objekt einen persönlichen Link, ohne Anmeldung. Dort sieht der Kunde die Leistungsnachweise und den Winterdienst-Nachweis als PDF, die nächsten Termine im Objekt und kann eine Reklamation melden und ihren Stand verfolgen. Je Link legst du fest, was er zeigt.',
     steps: ['„Kundenbereich“ unter „Objekte & Kunden“ öffnen.', 'Beim ersten Mal „Einstellungen“ → „Kundenbereich ein“ → „Speichern und übertragen“.', '„Link anlegen“: Bezeichnung, Objekte und was der Link zeigt wählen.', '„Speichern und übertragen“ klicken.', 'Beim Link „E-Mail“ (fertiger Text) oder „Link“ zum Kopieren.'],
     tips: ['Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn der Leistungsnachweis so eingestellt ist.', 'Der Nachweis eines Monats erscheint ab dem 5. des Folgemonats und nur, wenn alle Einsätze besetzt sind; sonst steht oben „Zurückgehalten“.', 'Einmal am Tag überträgt die App neue Monate und Termine von selbst.'],
-    related: ['kundenbereich-link', 'kundenbereich-reklamation', 'kundenbereich-einrichten', 'kundenbereich-aushang', 'leistungsnachweis'],
+    related: ['kundenbereich-link', 'kundenbereich-reklamation', 'kundenbereich-einrichten', 'kundenbereich-aushang', 'leistungsnachweis', 'kundenbereich-stand'],
     roles: 'Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten',
   },
   {
@@ -2343,6 +2343,18 @@ export const TOPICS = [
     action: { action: 'veh-edit-open', label: 'Fahrzeug anlegen' },
     related: ['reifenwechsel', 'pickerl', 'service-faelligkeiten', 'werkstaetten', 'fahrtenbuch'],
     roles: 'Fuhrpark, Vollzugriff',
+  },
+  {
+    id: 'kundenbereich-stand',
+    section: 'objekte',
+    view: 'kundenbereich',
+    title: 'Kundenbereich: Stand im Objekt für die Hausverwaltung',
+    q: ['stand im objekt', 'statusseite', 'zuletzt gereinigt', 'wann wurde gereinigt', 'hausverwaltung status', 'nächste reinigung kunde', 'winterdienst geräumt kunde', 'offene meldungen kunde'],
+    answer: 'Je Link einschaltbar: Der Kunde sieht je Objekt, wann zuletzt gereinigt wurde (mit „erledigt“, wenn im Objekt gestempelt oder die Checkliste fertig ist), ob gerade jemand im Einsatz ist, wann als Nächstes, den letzten Winterdienst und die offenen Meldungen am Objekt – ohne Text der Meldungen und ohne Namen von Mitarbeitenden.',
+    steps: ['„Kundenbereich“ öffnen, beim Link „Bearbeiten“.', 'Unter „Was der Link zeigt“ „Stand im Objekt“ anhaken.', '„Speichern und übertragen“.'],
+    tips: ['Der Stand wird etwa stündlich aktualisiert, solange jemand mit Plan und Kundenbereich die App offen hat; sonst einmal am Tag.', 'Gezeigt werden Meldungen von Kunden und vom Aushang (QR), nie interne oder aus der Objektkontrolle.', '„Erledigt“ erscheint nur mit Zeiterfassung oder Checkliste; sonst steht der Plan.'],
+    related: ['kundenbereich', 'kundenbereich-aushang', 'zeiterfassung'],
+    roles: 'Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten',
   },
   {
     id: 'wunschzeiten',

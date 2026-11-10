@@ -76,7 +76,7 @@ require __DIR__ . '/webspace-lib.php';
 
 const ARTEN = ['Reinigung mangelhaft' => 'Reinigung nicht in Ordnung', 'Leistung nicht erbracht' => 'Leistung nicht erbracht', 'Schaden' => 'Schaden', 'Sonstiges' => 'Sonstiges'];
 const STATUS = ['eingegangen' => 'eingegangen', 'arbeit' => 'in Arbeit', 'erledigt' => 'erledigt'];
-const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'mattenwechsel', 'zusatz'];
+const ZEIGE = ['nachweise', 'winter', 'leistungen', 'termine', 'reklamation', 'rechnungen', 'lieferscheine', 'mattenwechsel', 'zusatz', 'status'];
 const BILD_TYPEN = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
 const BILD_MAX = 8 * 1024 * 1024;
 const PDF_MAX = 8 * 1024 * 1024;
@@ -560,6 +560,51 @@ function mattenwechsel_lesen(array $liste): array
     return $aus;
 }
 
+/**
+ * Stand im Objekt (App: core/customer-portal.js objectStatus): je Objekt Einsätze (vorbei und kommend), letzter
+ * Winterdienst, offene Meldungen. meldungen kein Array (die Rolle sieht die Reklamationen nicht): bisherige behalten.
+ */
+function status_lesen(array $liste, array $alt): array
+{
+    $altJe = [];
+    foreach ($alt as $a) {
+        if (is_array($a) && isset($a['id'])) {
+            $altJe[(string) $a['id']] = $a;
+        }
+    }
+    $uhr = fn ($v): string => is_string($v) && preg_match('/^([01]\d|2[0-4]):[0-5]\d$/', $v) ? $v : '';
+    $aus = [];
+    foreach (array_slice($liste, 0, 50) as $o) {
+        if (!is_array($o)) {
+            continue;
+        }
+        $id = kurz($o['id'] ?? '', 60);
+        $einsaetze = [];
+        foreach (array_slice((array) ($o['einsaetze'] ?? []), 0, 20) as $x) {
+            if (!is_array($x) || datum_gueltig($x['datum'] ?? '') === '' || $uhr($x['von'] ?? '') === '' || $uhr($x['bis'] ?? '') === '') {
+                continue;
+            }
+            $einsaetze[] = ['datum' => $x['datum'], 'von' => $x['von'], 'bis' => $x['bis'], 'titel' => kurz($x['titel'] ?? '', 80) ?: 'Reinigung', 'bestaetigt' => !empty($x['bestaetigt'])];
+        }
+        $w = $o['winter'] ?? null;
+        $winter = is_array($w) && datum_gueltig($w['datum'] ?? '') !== '' ? ['datum' => $w['datum'], 'uhr' => $uhr($w['uhr'] ?? ''), 'was' => kurz($w['was'] ?? '', 80) ?: 'Winterdienst'] : null;
+        if (is_array($o['meldungen'] ?? null)) {
+            $meldungen = [];
+            foreach (array_slice($o['meldungen'], 0, 10) as $m) {
+                if (is_array($m) && datum_gueltig($m['datum'] ?? '') !== '') {
+                    $meldungen[] = ['datum' => $m['datum'], 'art' => kurz($m['art'] ?? '', 60) ?: 'Meldung', 'stand' => ($m['stand'] ?? '') === 'arbeit' ? 'arbeit' : 'eingegangen'];
+                }
+            }
+            $erledigt = max(0, min(999, (int) ($o['erledigt30'] ?? 0)));
+        } else {
+            $meldungen = (array) ($altJe[$id]['meldungen'] ?? []);
+            $erledigt = (int) ($altJe[$id]['erledigt30'] ?? 0);
+        }
+        $aus[] = ['id' => $id, 'objekt' => kurz($o['objekt'] ?? '', 120) ?: 'Objekt', 'einsaetze' => $einsaetze, 'winter' => $winter, 'meldungen' => $meldungen, 'erledigt30' => $erledigt];
+    }
+    return $aus;
+}
+
 function angebot_datei(string $id): string
 {
     return speicher('angebote') . '/' . $id . '.json';
@@ -953,6 +998,10 @@ function seite(string $inhalt, int $status = 200, string $titel = 'Kundenbereich
         . '.ok,.fehler{border-radius:10px;padding:.7rem .9rem;margin:0 0 1rem;font-weight:600}.ok{background:var(--ok-grund);color:var(--ok)}.fehler{background:var(--fehler-grund);color:var(--fehler)}'
         . '.meldung{display:block!important}.zeile{display:flex;gap:.6rem;align-items:flex-start;justify-content:space-between}.meldung-text{margin:.35rem 0 0;white-space:pre-line}.antwort{margin:.5rem 0 0;padding:.5rem .7rem;background:var(--ok-grund);border-radius:8px;color:#26420b}.antwort b{display:block;font-size:.88rem}'
         . '.leer{color:var(--leise);margin:.2rem 0}'
+        // Stand im Objekt
+        . '.stand-obj{border-top:1px solid var(--linie);padding:.7rem 0 .2rem}.stand-obj:first-of-type{border-top:0;padding-top:0}.stand-obj h3{font-size:1rem;margin:0 0 .4rem}'
+        . '.objektstand dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem .9rem;margin:0}.objektstand dt{color:var(--leise);font-size:.92rem;padding-top:.08rem}.objektstand dd{margin:0;min-width:0}.objektstand dd b{font-weight:600}'
+        . '.stand-meldungen{list-style:none;margin:0;padding:0}.stand-meldungen li{margin:0 0 .25rem}.stand-erledigt{display:block;font-size:.92rem}'
         // Zusatzleistung anfragen: Stand, Link zum Angebot
         . '.st-angebot{background:#efe9fa;color:#5b3fa6}.st-beauftragt{background:var(--ok-grund);color:var(--ok)}.st-abgelehnt{background:var(--grund);color:var(--leise)}'
         . '.anfrage-angebot{display:flex;align-items:center;gap:.6rem;margin:.5rem 0 0;padding:.55rem .7rem;border:1px solid var(--linie);border-radius:10px;text-decoration:none;color:var(--text);font-weight:600}.anfrage-angebot:hover{border-color:var(--farbe);background:#fafcfd}.anfrage-angebot svg{flex:0 0 auto;color:var(--farbe)}.anfrage-angebot .pfeil{margin-left:auto;color:var(--leise)}'
@@ -1011,7 +1060,7 @@ $aktion = (string) ($_GET['aktion'] ?? '');
 $methode = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $e = einstellungen();
 
-if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'aushang', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status', 'anfragen', 'anfrage-status'], true)) {
+if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung-status', 'foto', 'status', 'aushang', 'angebot', 'angebot-datei', 'angebot-entfernen', 'annahmen', 'annahme-status', 'umfrage', 'umfrage-antworten', 'umfrage-status', 'anfragen', 'anfrage-status', 'objektstand'], true)) {
     $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
     if (!$e) {
         // erste Einrichtung ohne FTP: mit dem Schlüssel von Plan am Handy oder Schnee-Alarm
@@ -1423,6 +1472,26 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         json_ausgabe(200, ['aktualisiert' => $n]);
     }
 
+    // Stand im Objekt zwischendurch (die App schickt ihn etwa stündlich, ohne den Rest des Links): { stand: { id: [...] } }
+    if ($aktion === 'objektstand') {
+        $n = 0;
+        foreach (array_slice((array) ($daten['stand'] ?? []), 0, 500, true) as $id => $liste) {
+            if (!is_string($id) || !preg_match(LINK_MUSTER, $id) || !is_array($liste) || !is_file(link_datei($id))) {
+                continue;
+            }
+            $ok = gesperrt(link_datei($id), function (array &$link) use ($liste) {
+                if (empty($link['zeige']['status'])) {
+                    return 0;
+                }
+                $link['status'] = status_lesen($liste, (array) ($link['status'] ?? []));
+                $link['statusStand'] = jetzt();
+                return 1;
+            });
+            $n += (int) $ok;
+        }
+        json_ausgabe(200, ['aktualisiert' => $n]);
+    }
+
     // speichern: je Link Titel, Objekte, was er zeigt, Termine, die Liste der Nachweise und der Rechnungen.
     // Antwort: welche PDFs fehlen oder sich geändert haben (die App lädt nur diese hoch).
     $entfernt = 0;
@@ -1488,6 +1557,13 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
         if (is_array($l['mattenwechsel'] ?? null)) {
             $naechste = mattenwechsel_lesen($l['mattenwechsel']);
         }
+        // Stand im Objekt: null = unverändert (die Rolle sieht den Plan nicht), [] = aus
+        $stand = $alt['status'] ?? [];
+        $standZeit = (int) ($alt['statusStand'] ?? 0);
+        if (is_array($l['status'] ?? null)) {
+            $stand = status_lesen($l['status'], (array) ($alt['status'] ?? []));
+            $standZeit = jetzt();
+        }
         // Dateien, die nicht mehr in der Liste stehen, löschen; fehlende oder geänderte melden
         $liste = array_column(array_merge($nachweise, $rechnungen, $lieferscheine), null, 'datei');
         $dateien = array_filter((array) ($alt['dateien'] ?? []), fn ($d, $name) => isset($liste[$name]) && is_file(link_ordner($id) . '/' . $name), ARRAY_FILTER_USE_BOTH);
@@ -1501,7 +1577,7 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
                 $fehlend[$id][] = $n['datei'];
             }
         }
-        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'rechnungen' => $rechnungen, 'rechnungenMonate' => $monate, 'lieferscheine' => $lieferscheine, 'lieferscheineMonate' => $lsMonate, 'mattenwechsel' => $naechste, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
+        $link = ['id' => $id, 'hash' => $hash, 'titel' => kurz($l['titel'] ?? '', 120), 'objekte' => $objekte, 'zeige' => $zeige, 'termine' => $termine, 'nachweise' => $nachweise, 'rechnungen' => $rechnungen, 'rechnungenMonate' => $monate, 'lieferscheine' => $lieferscheine, 'lieferscheineMonate' => $lsMonate, 'mattenwechsel' => $naechste, 'status' => $stand, 'statusStand' => $standZeit, 'dateien' => $dateien, 'erstellt' => $alt['erstellt'] ?? jetzt(), 'stand' => jetzt()];
         if (!json_schreiben(link_datei($id), $link)) {
             json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
@@ -2171,6 +2247,49 @@ $mehrere = count($objekte) > 1;
 
 $teile = [];
 $sprung = [];
+// Stand im Objekt: zuletzt, gerade und als Nächstes laut Plan (die Seite rechnet mit der eigenen Uhr), Winterdienst,
+// offene Meldungen am Objekt (ohne Text) – kommt aus der App (core/customer-portal.js objectStatus)
+if (!empty($zeige['status']) && is_array($link['status'] ?? null) && $link['status']) {
+    $nun = (new DateTimeImmutable('@' . jetzt()))->setTimezone(new DateTimeZone('Europe/Vienna'))->format('Y-m-d H:i');
+    $relTag = fn (string $d): string => $d === $heute ? 'heute' : ($d === tag_plus($heute, -1) ? 'gestern' : ($d === tag_plus($heute, 1) ? 'morgen' : datum_text($d, true, false)));
+    $einsatzText = fn (array $x): string => '<b>' . $h($relTag($x['datum'])) . ', ' . $h($x['von'] . '–' . $x['bis']) . ' Uhr</b> <span class="leise">' . $h($x['titel']) . '</span>';
+    $karten = '';
+    foreach ($link['status'] as $o) {
+        if (!is_array($o)) {
+            continue;
+        }
+        $vorbei = $laeuft = $naechste = null;
+        foreach ((array) ($o['einsaetze'] ?? []) as $x) {
+            $beginn = $x['datum'] . ' ' . $x['von'];
+            $ende = ($x['bis'] <= $x['von'] ? tag_plus($x['datum'], 1) : $x['datum']) . ' ' . $x['bis'];
+            if ($ende <= $nun) {
+                $vorbei = $x;
+            } elseif ($beginn <= $nun) {
+                $laeuft ??= $x;
+            } elseif ($naechste === null) {
+                $naechste = $x;
+            }
+        }
+        $zeilen = '<dt>Zuletzt</dt><dd>' . ($vorbei ? $einsatzText($vorbei) . (!empty($vorbei['bestaetigt']) ? ' <span class="pill st-erledigt" title="Im Objekt erfasst (Zeiterfassung oder Checkliste)">✓ erledigt</span>' : '') : '<span class="leise">in den letzten zwei Wochen kein Einsatz</span>') . '</dd>';
+        if ($laeuft) {
+            $zeilen .= '<dt>Gerade</dt><dd>' . $einsatzText($laeuft) . ' <span class="pill">im Einsatz</span></dd>';
+        }
+        $zeilen .= '<dt>Als Nächstes</dt><dd>' . ($naechste ? $einsatzText($naechste) : '<span class="leise">in den nächsten drei Wochen kein Einsatz geplant</span>') . '</dd>';
+        $w = $o['winter'] ?? null;
+        if (is_array($w)) {
+            $zeilen .= '<dt>Winterdienst</dt><dd><b>' . $h($relTag((string) $w['datum'])) . ($w['uhr'] !== '' ? ', ' . $h($w['uhr']) . ' Uhr' : '') . '</b> <span class="leise">' . $h((string) $w['was']) . '</span></dd>';
+        }
+        $offen = array_values(array_filter((array) ($o['meldungen'] ?? []), 'is_array'));
+        $erledigt = (int) ($o['erledigt30'] ?? 0);
+        $zeilen .= '<dt>Meldungen</dt><dd>' . ($offen ? '<ul class="stand-meldungen">' . implode('', array_map(fn ($m) => '<li>' . $h((string) $m['art']) . ' <span class="leise">· gemeldet ' . $h($relTag((string) $m['datum'])) . '</span> <span class="pill st-' . ($m['stand'] === 'arbeit' ? 'arbeit">in Arbeit' : 'eingegangen">eingegangen') . '</span></li>', $offen)) . '</ul>' : '<span>keine offenen</span>')
+            . ($erledigt ? '<span class="leise stand-erledigt">' . $erledigt . ' in den letzten 30 Tagen erledigt</span>' : '') . '</dd>';
+        $karten .= '<div class="stand-obj">' . ($mehrere ? '<h3>' . $h((string) ($o['objekt'] ?? 'Objekt')) . '</h3>' : '') . '<dl>' . $zeilen . '</dl></div>';
+    }
+    $standZeit = (int) ($link['statusStand'] ?? 0);
+    $sprung[] = '<a href="#stand">Stand</a>';
+    $teile['links'][] = '<section class="karte objektstand" id="stand"><h2>' . ($mehrere ? 'Stand in Ihren Objekten' : 'Stand im Objekt') . '</h2><p class="unter">Laut unserem Plan; „erledigt“, wenn die Reinigung im Objekt erfasst wurde.' . ($standZeit ? ' Stand: ' . $h(zeit_text($standZeit)) . ' Uhr.' : '') . '</p>'
+        . $karten . '</section>';
+}
 // Nächste Termine
 if (!empty($zeige['leistungen']) || !empty($zeige['termine'])) {
     $zeilen = '';

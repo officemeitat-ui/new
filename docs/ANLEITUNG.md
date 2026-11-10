@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 400 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 401 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (17)
 - [Planung](#planung) (40)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
-- [Objekte & Kunden](#objekte-kunden) (101)
+- [Objekte & Kunden](#objekte-kunden) (102)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (62)
@@ -2493,6 +2493,22 @@ Oben über dem Werkzeug: „Neu laden“ startet es frisch, „Vollbild“ zeigt
 
 1. Werkzeug öffnen.
 2. Oben rechts den passenden Knopf klicken.
+
+### Kundenbereich: Stand im Objekt für die Hausverwaltung
+
+*In der App: Kundenbereich*
+
+Je Link einschaltbar: Der Kunde sieht je Objekt, wann zuletzt gereinigt wurde (mit „erledigt“, wenn im Objekt gestempelt oder die Checkliste fertig ist), ob gerade jemand im Einsatz ist, wann als Nächstes, den letzten Winterdienst und die offenen Meldungen am Objekt – ohne Text der Meldungen und ohne Namen von Mitarbeitenden.
+
+1. „Kundenbereich“ öffnen, beim Link „Bearbeiten“.
+2. Unter „Was der Link zeigt“ „Stand im Objekt“ anhaken.
+3. „Speichern und übertragen“.
+
+> Tipp: Der Stand wird etwa stündlich aktualisiert, solange jemand mit Plan und Kundenbereich die App offen hat; sonst einmal am Tag.
+> Tipp: Gezeigt werden Meldungen von Kunden und vom Aushang (QR), nie interne oder aus der Objektkontrolle.
+> Tipp: „Erledigt“ erscheint nur mit Zeiterfassung oder Checkliste; sonst steht der Plan.
+
+*Vollzugriff und alle, die Reklamationen oder die Einsatzplanung bearbeiten*
 
 ## Material & Fuhrpark
 

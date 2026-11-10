@@ -150,3 +150,54 @@ test('Kundenbereich: Signatur unabhängig von der Reihenfolge, Ablage nur für R
   for (const role of ['objektmanagement', 'objektleitung', 'objektservice']) assert.ok(rights(role).read(path) && rights(role).write(path), role)
   for (const role of ['lesen', 'lager', 'buchhaltung', 'lohnverrechnung', 'vorarbeiter']) assert.ok(!rights(role).read(path), role)
 })
+
+test('Stand im Objekt: zuletzt/kommend aus dem Plan, erledigt mit Stempelung oder Checkliste, Winterdienst, Meldungen ohne Text', async () => {
+  const { objectStatus, confirmedKeys, linkPayload, showDefaults } = await import('../src/core/customer-portal.js')
+  const today = '2026-11-10'
+  const inst = (date, startTime, endTime, extra = {}) => ({ key: `${date}|t1`, objectId: 'o1', date, startTime, endTime, start: Date.parse(`${date}T${startTime}:00Z`) / 60000, label: 'Unterhaltsreinigung', status: 'planned', ...extra })
+  const instances = [
+    inst('2026-10-20', '06:00', '08:30'), // älter als 14 Tage
+    inst('2026-11-06', '06:00', '08:30'),
+    inst('2026-11-09', '06:00', '08:30'),
+    inst('2026-11-10', '06:00', '08:30'),
+    inst('2026-11-11', '06:00', '08:30', { status: 'cancelled' }),
+    inst('2026-11-12', '06:00', '08:30'),
+    { ...inst('2026-11-12', '09:00', '10:00'), objectId: 'o2' },
+  ]
+  const confirmed = confirmedKeys({ stamps: { a: { instKey: '2026-11-09|t1', in: '2026-11-09T05:02:00Z' }, b: { instKey: '2026-11-06|t1', in: null } }, checks: { c: { instKey: '2026-11-06|t1', finished: null }, d: { instKey: '2026-11-10|t1', finished: '2026-11-10T07:30:00Z' } } })
+  assert.deepEqual([...confirmed].sort(), ['2026-11-09|t1', '2026-11-10|t1'])
+  const winterlog = {
+    x: { objectId: 'o1', date: '2026-11-08', at: '2026-11-08T04:40:00Z', geraeumt: true, gestreut: true, mittel: 'Splitt', person: 'Max' },
+    y: { objectId: 'o1', date: '2026-11-01', at: '2026-11-01T04:40:00Z', geraeumt: true },
+    z: { objectId: 'o1', date: '2026-11-09', at: '2026-11-09T05:00:00Z', geraeumt: true, test: true },
+  }
+  const complaints = [
+    { objectId: 'o1', source: 'Kundenbereich', kind: 'Reinigung mangelhaft', status: 'offen', received: '2026-11-08T22:30:00Z', text: 'Stiege 2 schmutzig, Frau Maier' },
+    { objectId: 'o1', source: 'Aushang (QR)', kind: 'Sonstiges', status: 'arbeit', received: '2026-11-07T10:00:00Z', text: 'x' },
+    { objectId: 'o1', source: 'Intern', kind: 'Verhalten', status: 'offen', received: '2026-11-07T10:00:00Z' },
+    { objectId: 'o1', source: 'Objektkontrolle', kind: 'Reinigung mangelhaft', status: 'offen', received: '2026-11-07T10:00:00Z' },
+    { objectId: 'o1', source: 'Kunde (Telefon)', kind: 'Schaden', status: 'erledigt', received: '2026-10-20T10:00:00Z', doneAt: '2026-10-25T10:00:00Z' },
+    { objectId: 'o1', source: 'Kunde (Telefon)', kind: 'Schaden', status: 'erledigt', received: '2026-09-01T10:00:00Z', doneAt: '2026-09-02T10:00:00Z' },
+  ]
+  const objectsById = new Map([['o1', { name: 'Wohnanlage Rif' }]])
+  const [s] = objectStatus({ objectIds: ['o1'], instances, today, confirmed, winterlog, complaints, objectsById })
+  assert.equal(s.objekt, 'Wohnanlage Rif')
+  assert.deepEqual(s.einsaetze.map((e) => [e.datum, e.bestaetigt || false]), [['2026-11-06', false], ['2026-11-09', true], ['2026-11-10', true], ['2026-11-12', false]], 'ohne alte, entfallene und andere Objekte')
+  assert.deepEqual(s.einsaetze[0], { datum: '2026-11-06', von: '06:00', bis: '08:30', titel: 'Unterhaltsreinigung' })
+  assert.deepEqual(s.winter, { datum: '2026-11-08', uhr: '05:40', was: 'geräumt, gestreut (Splitt)' }, 'ohne Testeintrag und ohne Namen')
+  assert.deepEqual(s.meldungen, [
+    { datum: '2026-11-07', art: 'Sonstiges', stand: 'arbeit' },
+    { datum: '2026-11-08', art: 'Reinigung mangelhaft', stand: 'eingegangen' },
+  ], 'nur Kunde und Aushang, Tag in Wien (23:30), ohne Text')
+  assert.equal(s.erledigt30, 1)
+  assert.ok(!JSON.stringify(s).includes('Maier') && !JSON.stringify(s).includes('Max'))
+  // ohne Recht auf die Reklamationen: null (der Webspace behält die alten)
+  const [n] = objectStatus({ objectIds: ['o1'], instances, today, complaints: null })
+  assert.equal(n.meldungen, null)
+  assert.equal(n.erledigt30, null)
+  // Link: Standard aus; eingeschaltet geht der Stand mit, ohne Plan-Recht null
+  assert.equal(showDefaults().status, false)
+  assert.deepEqual(linkPayload({ link: { id: 'kb1', objectIds: [] }, hash: 'h', status: [s] }).status, [])
+  assert.deepEqual(linkPayload({ link: { id: 'kb1', objectIds: [], show: { status: true } }, hash: 'h', status: [s] }).status, [s])
+  assert.equal(linkPayload({ link: { id: 'kb1', objectIds: [], show: { status: true } }, hash: 'h' }).status, null)
+})

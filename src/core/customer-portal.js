@@ -12,8 +12,10 @@
 
 import { isPeriodic, rhythmCategory } from './attention.js'
 import { appointmentsBetween, dateOf, kindLabel, timeOf } from './appointments.js'
-import { complaintFromPosterReport, isPosterComplaint, isPosterReport, publicReplyOf } from './aushang.js'
-import { defaultDue } from './complaints.js'
+import { AUSHANG_SOURCE, complaintFromPosterReport, isPosterComplaint, isPosterReport, publicReplyOf } from './aushang.js'
+import { dayOf, defaultDue } from './complaints.js'
+import { addDays } from './dates.js'
+import { workText } from './winterlog.js'
 
 export const PORTAL_SOURCE = 'Kundenbereich'
 
@@ -28,6 +30,7 @@ export const SHOW = {
   lieferscheine: 'Mattenwechsel-Lieferscheine zeigen',
   mattenwechsel: 'Nächsten Mattenwechsel je Liegeplatz zeigen',
   zusatz: 'Zusatzleistung anfragen (z. B. Grundreinigung, Glasreinigung) und den Stand sehen',
+  status: 'Stand im Objekt: zuletzt und als Nächstes gereinigt, Winterdienst, offene Meldungen',
 }
 /**
  * Standardmäßig aus (eigene Abschnitte im Dialog, Belege nur der gewählten Kunden der Fakturierung): Rechnungen,
@@ -35,10 +38,11 @@ export const SHOW = {
  */
 export const SHOW_OFF = ['rechnungen', 'lieferscheine', 'mattenwechsel']
 /**
- * Standardmäßig aus, aber in der Liste „Was der Link zeigt“: Zusatzleistung anfragen (core/zusatzleistungen.js). Neu
- * dazugekommen, darum bei bestehenden Links erst, wenn das Büro es je Link einschaltet.
+ * Standardmäßig aus, aber in der Liste „Was der Link zeigt“: Zusatzleistung anfragen (core/zusatzleistungen.js) und
+ * der Stand im Objekt (objectStatus). Neu dazugekommen, darum bei bestehenden Links erst, wenn das Büro es je Link
+ * einschaltet.
  */
-export const SHOW_DEFAULT_OFF = [...SHOW_OFF, 'zusatz']
+export const SHOW_DEFAULT_OFF = [...SHOW_OFF, 'zusatz', 'status']
 export const showDefaults = () => Object.fromEntries(Object.keys(SHOW).map((k) => [k, !SHOW_DEFAULT_OFF.includes(k)]))
 
 // ---------------------------------------------------------------- Mattenwechsel (Einstellung je Link)
@@ -155,7 +159,7 @@ export function stableJson(value) {
  * lieferscheine (null: ohne Recht auf die Fakturierung) und mattenwechsel (null: ohne Recht auf den
  * Mattenwechsel) genauso.
  */
-export function linkPayload({ link, hash, objectsById = new Map(), termine = null, nachweise = null, rechnungen = null, lieferscheine = null, mattenwechsel = null }) {
+export function linkPayload({ link, hash, objectsById = new Map(), termine = null, nachweise = null, rechnungen = null, lieferscheine = null, mattenwechsel = null, status = null }) {
   const show = { ...showDefaults(), ...(link.show || {}) }
   return {
     id: link.id,
@@ -173,7 +177,68 @@ export function linkPayload({ link, hash, objectsById = new Map(), termine = nul
     lieferscheine: !show.lieferscheine ? [] : lieferscheine,
     lieferscheineMonate: Math.max(1, Math.min(36, Number(link.deliveryNotes?.months) || NOTE_MONTHS)),
     mattenwechsel: !show.mattenwechsel ? [] : mattenwechsel,
+    status: !show.status ? [] : status,
   }
+}
+
+// ---------------------------------------------------------------- Stand im Objekt (Schalter „status“)
+
+/** Tage zurück und voraus, die der Stand an Einsätzen mitnimmt (die Seite rechnet „zuletzt“, „jetzt“, „als Nächstes“ selbst). */
+export const STATUS_BACK = 14
+export const STATUS_AHEAD = 21
+/** Meldungen dieser Wege zeigt der Stand (Aushang: Meldungen der Leute im Haus); interne und aus Kontrollen nie. */
+const STATUS_SOURCES = [PORTAL_SOURCE, AUSHANG_SOURCE, 'Kunde (Telefon)', 'Kunde (E-Mail)', 'Kunde (vor Ort)']
+
+/**
+ * Stand je Objekt für den Kundenbereich, ohne Namen von Mitarbeitenden und ohne Text der Meldungen:
+ * - einsaetze: nicht entfallene Einsätze der letzten STATUS_BACK und nächsten STATUS_AHEAD Tage (Tag, von, bis,
+ *   Leistung; bestaetigt, wenn im Objekt gestempelt oder die Checkliste fertig ist) – höchstens 5 vorbei, 8 kommend;
+ * - winter: letzter Eintrag im Winterdienst-Protokoll der letzten 7 Tage (Tag, Uhrzeit, was gemacht wurde);
+ * - meldungen: offene Reklamationen am Objekt von Kunden und vom Aushang (Tag, Art, Stand), erledigt30: in den letzten
+ *   30 Tagen erledigte. complaints null (Rolle sieht die Reklamationen nicht): meldungen und erledigt30 null.
+ * today: Tag in Wien; confirmed: Set der Einsatz-Schlüssel mit Stempelung oder fertiger Checkliste.
+ */
+export function objectStatus({ objectIds = [], instances = [], today, confirmed = new Set(), winterlog = {}, complaints = null, objectsById = new Map() }) {
+  const from = addDays(today, -STATUS_BACK)
+  const to = addDays(today, STATUS_AHEAD)
+  const winterFrom = addDays(today, -7)
+  const since = addDays(today, -30)
+  return objectIds.map((id) => {
+    const own = instances.filter((i) => i.objectId === id && i.status !== 'cancelled' && i.date >= from && i.date <= to).sort((a, b) => a.start - b.start)
+    const row = (i) => ({ datum: i.date, von: i.startTime, bis: i.endTime, titel: String(i.label || 'Reinigung').slice(0, 80), ...(confirmed.has(i.key) ? { bestaetigt: true } : {}) })
+    const past = own.filter((i) => i.date < today).slice(-5)
+    const coming = own.filter((i) => i.date >= today).slice(0, 8)
+    const w = Object.values(winterlog || {})
+      .filter((e) => e?.objectId === id && !e.test && e.date >= winterFrom && e.date <= today && e.at)
+      .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+      .at(-1)
+    const at = w ? new Date(w.at) : null
+    const uhr = at && Number.isFinite(at.getTime()) ? new Intl.DateTimeFormat('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' }).format(at) : ''
+    const mine = complaints === null ? null : complaints.filter((c) => c.objectId === id && STATUS_SOURCES.includes(c.source))
+    return {
+      id,
+      objekt: String(objectsById.get(id)?.name || 'Objekt').slice(0, 120),
+      einsaetze: [...past, ...coming].map(row),
+      winter: w ? { datum: w.date, uhr, was: workText(w) || 'Winterdienst' } : null,
+      meldungen:
+        mine === null
+          ? null
+          : mine
+              .filter((c) => c.status !== 'erledigt')
+              .sort((a, b) => String(a.received || a.date).localeCompare(String(b.received || b.date)))
+              .slice(0, 10)
+              .map((c) => ({ datum: dayOf(c.received || c.date), art: String(c.kind || 'Meldung').slice(0, 60), stand: c.status === 'arbeit' ? 'arbeit' : 'eingegangen' })),
+      erledigt30: mine === null ? null : mine.filter((c) => c.status === 'erledigt' && dayOf(c.doneAt || c.received || c.date) >= since).length,
+    }
+  })
+}
+
+/** Einsätze mit Stempelung (Kommen) oder fertiger Checkliste: Set der Einsatz-Schlüssel. */
+export function confirmedKeys({ stamps = {}, checks = {} } = {}) {
+  const out = new Set()
+  for (const s of Object.values(stamps || {})) if (s?.instKey && s.in) out.add(s.instKey)
+  for (const c of Object.values(checks || {})) if (c?.instKey && c.finished) out.add(c.instKey)
+  return out
 }
 
 /** Kontakt aus der Meldung in einer Zeile: „Maria Huber, 0662 123456, maria@example.com“. */

@@ -35,7 +35,7 @@
 
 import { AUSHANG_SOURCE } from '../../core/aushang.js'
 import { acceptanceOf, acceptedOpen, INVOICE_MONTH_CHOICES, invoiceSettings, newAcceptances, suggestCustomers } from '../../core/customer-invoices.js'
-import { customerAppointments, customerLink, complaintFromReport, deliveryNoteSettings, FILE_PATTERN, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, newReports, NOTE_MONTH_CHOICES, releasedMonths, SETTINGS_DEFAULTS, SHOW, SHOW_OFF, showDefaults, stableJson, statusUpdates, suggestNoteCustomers, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
+import { confirmedKeys, customerAppointments, customerLink, complaintFromReport, deliveryNoteSettings, FILE_PATTERN, fileName, isActive, linkMail, linkPayload, linkState, markSent, MONTH_CHOICES, newLinkId, objectStatus, STATUS_BACK, newReports, NOTE_MONTH_CHOICES, releasedMonths, SETTINGS_DEFAULTS, SHOW, SHOW_OFF, showDefaults, stableJson, statusUpdates, suggestNoteCustomers, upcomingDates, upcomingServices } from '../../core/customer-portal.js'
 import { addDays, formatDate, lastOfMonth, todayISO } from '../../core/dates.js'
 import { monthName } from '../../core/payout.js'
 import { objectsWithWork, proofFor } from '../../core/proof.js'
@@ -77,6 +77,24 @@ const complaints = () => ((app.data.reklamationen ||= { items: [] }).items ||= [
 const address = () => new URL('.', location.href).href
 const urlOf = (link) => customerLink(address(), link.token)
 const showOf = (link) => ({ ...showDefaults(), ...(link.show || {}) })
+const seesComplaints = () => !app.access || app.access.sees('reklamationen')
+
+/**
+ * Stand im Objekt je Link mit Schalter „status“ (core/customer-portal.js objectStatus): Map Link-Id → Liste je Objekt.
+ * range: computeRange ab today − STATUS_BACK; Meldungen nur mit Recht auf die Reklamationen (sonst bleiben die alten).
+ */
+function statusFor(list, range, today) {
+  const out = new Map()
+  if (!range) return out
+  const objectsById = new Map(app.data.objects.map((o) => [o.id, o]))
+  const confirmed = confirmedKeys({ stamps: app.data.stamps, checks: app.data.checks })
+  const items = seesComplaints() ? complaints() : null
+  for (const link of list) {
+    if (!showOf(link).status) continue
+    out.set(link.id, objectStatus({ objectIds: link.objectIds || [], instances: range.instances, today, confirmed, winterlog: app.data.winterlog || {}, complaints: items, objectsById }))
+  }
+  return out
+}
 const fakCustomers = () => app.data.fakturierung?.customers || []
 /** Rechnungen und Angebote: mit der Fakturierung geladen (views/lazy.js), hier erst bei Bedarf. */
 const invoicingOnline = async () => {
@@ -281,10 +299,13 @@ export async function publish({ ids = null, force = false } = {}) {
     const plan = seesPlan()
     const memo = new Map()
     let range = null
+    // Stand im Objekt braucht auch die letzten zwei Wochen
+    const from = active.some((l) => showOf(l).status) ? addDays(today, -STATUS_BACK) : today
     if (plan && active.length) {
-      await ensureRange(today, until)
-      range = computeRange(today, until)
+      await ensureRange(from, until)
+      range = computeRange(from, until)
     }
+    const stand = statusFor(active, range, today)
     const payload = []
     const caches = new Map()
     const invoiceFiles = new Map()
@@ -316,7 +337,7 @@ export async function publish({ ids = null, force = false } = {}) {
         lieferscheine = list.map(({ make, ...entry }) => entry)
       }
       const mattenwechsel = nextMatten.get(link.id) ?? null
-      payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise, rechnungen, lieferscheine, mattenwechsel }))
+      payload.push(linkPayload({ link, hash: await sha256Hex(link.token), objectsById, termine, nachweise, rechnungen, lieferscheine, mattenwechsel, status: stand.get(link.id) ?? null }))
     }
     const res = await call('speichern', { body: { links: payload, entfernen: remove } })
     result.links = res.links
@@ -361,6 +382,7 @@ export async function publish({ ids = null, force = false } = {}) {
   } finally {
     pub.running = false
     pub.at = Date.now()
+    standSync.at = Date.now() // der Stand ging mit
     if (app.ui.view === 'kundenbereich') renderNow()
   }
 }
@@ -528,6 +550,32 @@ async function dailyPublish() {
   }
 }
 
+/**
+ * Stand im Objekt zwischendurch (etwa stündlich, solange jemand mit Plan und Kundenbereich die App offen hat): nur der
+ * Stand der Links mit Schalter „status“ (aktion=objektstand), nicht der ganze Link mit Nachweisen.
+ */
+const standSync = { at: 0, running: false }
+export async function statusPublish({ force = false } = {}) {
+  const s = settings()
+  const list = links().filter((l) => isActive(l) && showOf(l).status)
+  if (!s.enabled || !s.key || !editable() || !seesPlan() || pub.running || standSync.running || !list.length) return null
+  if (!force && Date.now() - standSync.at < 3600e3) return null
+  standSync.running = true
+  standSync.at = Date.now()
+  try {
+    const today = todayISO()
+    const from = addDays(today, -STATUS_BACK)
+    const to = addDays(today, 21)
+    await ensureRange(from, to)
+    const stand = statusFor(list, computeRange(from, to), today)
+    return await call('objektstand', { body: { stand: Object.fromEntries(stand) } })
+  } catch {
+    return null // nächster Versuch in einer Stunde; der tägliche Lauf schickt den Stand ohnehin mit
+  } finally {
+    standSync.running = false
+  }
+}
+
 function startPolling() {
   if (sync.timer || typeof window === 'undefined') return
   sync.timer = setInterval(() => {
@@ -535,6 +583,7 @@ function startPolling() {
     syncAcceptances()
     portalHooks.zusatzSync?.()
     dailyPublish()
+    statusPublish()
   }, 180e3)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return
