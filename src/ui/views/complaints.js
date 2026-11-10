@@ -23,7 +23,8 @@ const editable = () => canEdit(MODULE) && !app.readOnly
 const STATUS_CLASS = { offen: 'warning', arbeit: 'info', erledigt: 'ok' }
 const nowIso = () => new Date().toISOString()
 const by = () => app.user?.name || 'Browser'
-const when = (iso) => (iso ? `${formatDate(iso.slice(0, 10))}${iso.length > 10 ? ` ${new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' })}` : ''}` : '')
+// Tag und Uhrzeit beide in Wien (sonst stand um 0:20 Uhr der UTC-Vortag mit der Wiener Uhrzeit da)
+const when = (iso) => (iso ? `${formatDate(dayOf(iso))}${iso.length > 10 ? ` ${new Date(iso).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' })}` : ''}` : '')
 
 function statusPill(c, today) {
   if (isOverdue(c, today)) return `<span class="pill error">überfällig seit ${esc(formatDate(c.due))}</span>`

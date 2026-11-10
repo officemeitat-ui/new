@@ -3,7 +3,7 @@
 // Ansichten (Rentabilität: Fakturierung und Auswertung; Kalkulation: Vollzugriff). Geladen mit dem Assistenten.
 // Rückgaben knapp, ohne Namen von Mitarbeitenden, ohne Löhne je Person und ohne Kontaktdaten von Kunden.
 
-import { addDays, formatDate, todayISO } from '../core/dates.js'
+import { addDays, formatDate, todayISO, viennaDate } from '../core/dates.js'
 import { CALC_DEFAULTS, calcWage } from '../core/calculation.js'
 import * as fb from '../core/fahrtenbuch.js'
 import { nachkalkulation, suggestPerformance } from '../core/nachkalkulation.js'
@@ -168,14 +168,14 @@ registerAgentTool({
   run({ nur_offen = true, seit }) {
     const docs = app.data.fakturierung?.documents || []
     const list = (app.data.zusatz?.requests || [])
-      .filter((r) => (!nur_offen || isOpenRequest(r)) && (!seit || String(r.received).slice(0, 10) >= seit))
+      .filter((r) => (!nur_offen || isOpenRequest(r)) && (!seit || (viennaDate(r.received) || String(r.received).slice(0, 10)) >= seit))
       .sort((a, b) => String(a.received).localeCompare(String(b.received)))
     return {
       anzahl: list.length,
       anfragen: list.slice(0, 40).map((r) => {
         const offer = offerOfRequest(r, docs)
         const st = requestStatus(r, { offer })
-        return { nummer: r.no, eingegangen: day(String(r.received).slice(0, 10)), objekt: r.objectName, art: r.kindName, wunsch: wishText(r), flaeche_m2: r.area, stand: ZL_STATUS[st] || st, angebot: offer?.number || r.offer?.number || null, beschreibung: String(r.text || '').slice(0, 200) }
+        return { nummer: r.no, eingegangen: day(viennaDate(r.received) || String(r.received).slice(0, 10)), objekt: r.objectName, art: r.kindName, wunsch: wishText(r), flaeche_m2: r.area, stand: ZL_STATUS[st] || st, angebot: offer?.number || r.offer?.number || null, beschreibung: String(r.text || '').slice(0, 200) }
       }),
     }
   },

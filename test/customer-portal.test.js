@@ -122,6 +122,18 @@ test('Kundenbereich: Meldung → Reklamation mit Eingang „Kundenbereich“, St
   assert.deepEqual(newReports(list, [c]).map((x) => x.id), ['cccccccccccc'])
 })
 
+test('Meldung nach Mitternacht: Tag und Frist der Reklamation nach dem Tag in Wien (Kundenbereich und Aushang)', () => {
+  // eingegangen am Mo 2.11.2026 um 0:20 Uhr in Wien = 1.11. 23:20 UTC
+  const erstellt = Date.parse('2026-11-01T23:20:00Z') / 1000
+  const kb = complaintFromReport({ id: 'a1b2c3d4e5f6', link: 'kb0123456789', objektId: 'o1', art: 'Schaden', text: 'Glastür zerkratzt', erstellt })
+  assert.equal(kb.received, '2026-11-01T23:20:00.000Z', 'der Zeitpunkt bleibt in UTC')
+  assert.deepEqual([kb.date, kb.due], ['2026-11-02', '2026-11-05'], 'ohne Datum der Tag des Eingangs; Schaden: 3 Tage ab dem Eingang')
+  const ah = complaintFromReport({ id: 'b1b2c3d4e5f6', quelle: 'aushang', aushang: 'ah0123456789', objektId: 'o5', kategorie: 'winterdienst', datum: '2026-11-02', text: 'Nicht gestreut', erstellt })
+  assert.deepEqual([ah.date, ah.due], ['2026-11-02', '2026-11-03'], 'Winterdienst: 1 Tag ab dem Eingang, nicht ab dem UTC-Tag')
+  // Sommerzeit: 1:30 Uhr am 1.7. ist 30.6. 23:30 UTC
+  assert.equal(complaintFromReport({ id: 'c1b2c3d4e5f6', link: 'kb0123456789', art: 'Sonstiges', text: 'x', erstellt: Date.parse('2026-06-30T23:30:00Z') / 1000 }).date, '2026-07-01')
+})
+
 test('Kundenbereich: E-Mail mit dem Link in der Sie-Form', () => {
   const mail = linkMail({ link: { title: 'Wohnanlage Lehen', show: { ...showDefaults(), winter: false } }, url: 'https://app.cleanos.at/kunden.php?k=Abc', company: 'Cleanos', sender: 'Eva Büro', phone: '0662 1234' })
   assert.equal(mail.subject, 'Ihr Kundenbereich bei Cleanos: Wohnanlage Lehen')

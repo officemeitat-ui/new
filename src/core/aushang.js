@@ -10,7 +10,7 @@
 // Gespeichert in kundenbereich/kundenbereich.json → aushang: [{ id, objectId, title, token, active, createdAt,
 // createdBy, changedAt, changedBy, renewedAt, publishedAt, error }]. Rein rechnend, ohne Netz testbar.
 
-import { defaultDue } from './complaints.js'
+import { dayOf, defaultDue } from './complaints.js'
 
 export const AUSHANG_SOURCE = 'Aushang (QR)'
 export const POSTER_ID_PATTERN = /^ah[a-f0-9]{10}$/
@@ -78,7 +78,8 @@ export const isPosterComplaint = (c) => !!c?.portal?.aushang
 export function complaintFromPosterReport(m, { now = new Date().toISOString() } = {}) {
   const kind = kindOfCategory(m.kategorie)
   const received = Number(m.erstellt) ? new Date(Number(m.erstellt) * 1000).toISOString() : now
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(m.datum || '') ? m.datum : received.slice(0, 10)
+  // Tag des Eingangs in Wien (0:20 Uhr ist schon der neue Tag, nicht der UTC-Vortag)
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(m.datum || '') ? m.datum : dayOf(received)
   const ort = String(m.ort || '').trim()
   const head = [categoryLabel(m.kategorie), ort && `Ort: ${ort}`].filter(Boolean).join(' · ')
   const k = m.kontakt || {}
@@ -95,7 +96,7 @@ export function complaintFromPosterReport(m, { now = new Date().toISOString() } 
     contact: callback && contact ? `${contact} (Rückmeldung gewünscht)` : contact,
     employees: [],
     measure: '',
-    due: defaultDue(kind, received.slice(0, 10)),
+    due: defaultDue(kind, dayOf(received)),
     status: 'offen',
     result: '',
     publicReply: '',
