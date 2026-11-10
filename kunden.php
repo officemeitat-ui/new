@@ -433,9 +433,11 @@ function betrag($wert): float
     return is_int($wert) || is_float($wert) || (is_string($wert) && is_numeric($wert)) ? round((float) $wert, 2) : 0.0;
 }
 
+/** Den Tag gibt es wirklich (nicht 2026-02-30 oder Monat 13, die PHP sonst still umrechnet bzw. später nicht lesen kann). */
 function datum_gueltig($d): string
 {
-    return is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && DateTimeImmutable::createFromFormat('!Y-m-d', $d) ? $d : '';
+    $t = is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? DateTimeImmutable::createFromFormat('!Y-m-d', $d) : false;
+    return $t && $t->format('Y-m-d') === $d ? $d : '';
 }
 
 /** QR-Bild der App: nur ein echtes PNG (Base64), nicht zu groß; sonst leer. PHP erzeugt keinen QR-Code. */
@@ -568,7 +570,8 @@ function mattenwechsel_lesen(array $liste): array
 
 /**
  * Stand im Objekt (App: core/customer-portal.js objectStatus): je Objekt Einsätze (vorbei und kommend), letzter
- * Winterdienst, offene Meldungen. meldungen kein Array (die Rolle sieht die Reklamationen nicht): bisherige behalten.
+ * Winterdienst, offene Meldungen. meldungen kein Array (die Rolle sieht die Reklamationen nicht): bisherige behalten;
+ * gibt es keine, bleibt meldungen null (die Seite zeigt dann keine Zeile statt „keine offenen“).
  */
 function status_lesen(array $liste, array $alt): array
 {
@@ -578,7 +581,7 @@ function status_lesen(array $liste, array $alt): array
             $altJe[(string) $a['id']] = $a;
         }
     }
-    $uhr = fn ($v): string => is_string($v) && preg_match('/^([01]\d|2[0-4]):[0-5]\d$/', $v) ? $v : '';
+    $uhr = fn ($v): string => is_string($v) && preg_match('/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/', $v) ? $v : '';
     $aus = [];
     foreach (array_slice($liste, 0, 50) as $o) {
         if (!is_array($o)) {
@@ -603,7 +606,7 @@ function status_lesen(array $liste, array $alt): array
             }
             $erledigt = max(0, min(999, (int) ($o['erledigt30'] ?? 0)));
         } else {
-            $meldungen = (array) ($altJe[$id]['meldungen'] ?? []);
+            $meldungen = is_array($altJe[$id]['meldungen'] ?? null) ? $altJe[$id]['meldungen'] : null;
             $erledigt = (int) ($altJe[$id]['erledigt30'] ?? 0);
         }
         $aus[] = ['id' => $id, 'objekt' => kurz($o['objekt'] ?? '', 120) ?: 'Objekt', 'einsaetze' => $einsaetze, 'winter' => $winter, 'meldungen' => $meldungen, 'erledigt30' => $erledigt];
@@ -1479,21 +1482,24 @@ if (in_array($aktion, ['einrichten', 'speichern', 'datei', 'meldungen', 'meldung
     }
 
     // Stand im Objekt zwischendurch (die App schickt ihn etwa stündlich, ohne den Rest des Links): { stand: { id: [...] } }
+    // Die Link-Datei wird wie beim Speichern als Ganzes ersetzt (neue Datei, dann umbenennen), nicht geleert und neu
+    // geschrieben: Die Kundenseite liest sie ohne Sperre und sähe sonst kurz eine leere Datei („Link ungültig“, Fehlversuch).
     if ($aktion === 'objektstand') {
         $n = 0;
         foreach (array_slice((array) ($daten['stand'] ?? []), 0, 500, true) as $id => $liste) {
-            if (!is_string($id) || !preg_match(LINK_MUSTER, $id) || !is_array($liste) || !is_file(link_datei($id))) {
+            if (!is_string($id) || !preg_match(LINK_MUSTER, $id) || !is_array($liste)) {
                 continue;
             }
-            $ok = gesperrt(link_datei($id), function (array &$link) use ($liste) {
-                if (empty($link['zeige']['status'])) {
-                    return 0;
-                }
-                $link['status'] = status_lesen($liste, (array) ($link['status'] ?? []));
-                $link['statusStand'] = jetzt();
-                return 1;
-            });
-            $n += (int) $ok;
+            $link = json_lesen(link_datei($id));
+            if (empty($link['zeige']['status'])) {
+                continue; // unbekannter Link oder Schalter aus
+            }
+            $link['status'] = status_lesen($liste, (array) ($link['status'] ?? []));
+            $link['statusStand'] = jetzt();
+            if (!json_schreiben(link_datei($id), $link)) {
+                json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+            }
+            $n++;
         }
         json_ausgabe(200, ['aktualisiert' => $n]);
     }
@@ -2285,9 +2291,10 @@ if (!empty($zeige['status']) && is_array($link['status'] ?? null) && $link['stat
         if (is_array($w)) {
             $zeilen .= '<dt>Winterdienst</dt><dd><b>' . $h($relTag((string) $w['datum'])) . ($w['uhr'] !== '' ? ', ' . $h($w['uhr']) . ' Uhr' : '') . '</b> <span class="leise">' . $h((string) $w['was']) . '</span></dd>';
         }
+        // Meldungen null: unbekannt (die App durfte die Reklamationen nie schicken), dann keine Zeile
         $offen = array_values(array_filter((array) ($o['meldungen'] ?? []), 'is_array'));
         $erledigt = (int) ($o['erledigt30'] ?? 0);
-        $zeilen .= '<dt>Meldungen</dt><dd>' . ($offen ? '<ul class="stand-meldungen">' . implode('', array_map(fn ($m) => '<li>' . $h((string) $m['art']) . ' <span class="leise">· gemeldet ' . $h($relTag((string) $m['datum'])) . '</span> <span class="pill st-' . ($m['stand'] === 'arbeit' ? 'arbeit">in Arbeit' : 'eingegangen">eingegangen') . '</span></li>', $offen)) . '</ul>' : '<span>keine offenen</span>')
+        $zeilen .= !is_array($o['meldungen'] ?? null) ? '' : '<dt>Meldungen</dt><dd>' . ($offen ? '<ul class="stand-meldungen">' . implode('', array_map(fn ($m) => '<li>' . $h((string) $m['art']) . ' <span class="leise">· gemeldet ' . $h($relTag((string) $m['datum'])) . '</span> <span class="pill st-' . ($m['stand'] === 'arbeit' ? 'arbeit">in Arbeit' : 'eingegangen">eingegangen') . '</span></li>', $offen)) . '</ul>' : '<span>keine offenen</span>')
             . ($erledigt ? '<span class="leise stand-erledigt">' . $erledigt . ' in den letzten 30 Tagen erledigt</span>' : '') . '</dd>';
         $karten .= '<div class="stand-obj">' . ($mehrere ? '<h3>' . $h((string) ($o['objekt'] ?? 'Objekt')) . '</h3>' : '') . '<dl>' . $zeilen . '</dl></div>';
     }

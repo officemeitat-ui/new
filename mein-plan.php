@@ -331,6 +331,13 @@ const WUNSCH_JE_WOCHE = 4;
 const WUNSCH_VORAUS = 56;
 const WUNSCH_ID = '/^[a-f0-9]{12}$/';
 
+/** Gibt es den Tag (JJJJ-MM-TT) wirklich? Nicht 2026-02-30 oder Monat 13 (PHP rechnet die sonst still um). */
+function tag_gueltig($d): bool
+{
+    $t = is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? DateTimeImmutable::createFromFormat('!Y-m-d', $d) : false;
+    return $t && $t->format('Y-m-d') === $d;
+}
+
 /** Montag der Woche eines Datums (JJJJ-MM-TT). */
 function montag_von(string $datum): string
 {
@@ -352,14 +359,20 @@ function wuensche(callable $fn)
         return null;
     }
     flock($h, LOCK_EX);
-    $liste = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $liste = json_decode($roh, true);
     $grenze = tag_plus(heute(), -7);
     $liste = array_values(array_filter(is_array($liste) ? $liste : [], fn ($w) => is_array($w) && wunsch_ende($w) >= $grenze));
     $ergebnis = $fn($liste);
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    // Nur neu schreiben, wenn sich etwas geändert hat: Seite und App lesen oft, und ein Schreiben bei vollem Webspace
+    // (leeren gelingt, füllen nicht) verlöre sonst schon beim Ansehen alle Wünsche
+    $neu = json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) {
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;
@@ -371,11 +384,10 @@ function wuensche(callable $fn)
  */
 function wunsch_pruefen(string $art, string $datum, string $notiz, array $meine): array
 {
-    $gueltig = (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) && DateTimeImmutable::createFromFormat('!Y-m-d', $datum) && DateTimeImmutable::createFromFormat('!Y-m-d', $datum)->format('Y-m-d') === $datum;
     if (!in_array($art, WUNSCH_ARTEN, true)) {
         return ['fehler_art', null];
     }
-    if (!$gueltig) {
+    if (!tag_gueltig($datum)) {
         return ['fehler_wunsch_datum', null];
     }
     $woche = in_array($art, WUNSCH_WOCHE, true);
@@ -1403,13 +1415,15 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
     if (isset($daten['sperren']) && is_array($daten['sperren'])) {
         $sperren = [];
         foreach (array_slice($daten['sperren'], 0, 12) as $sp) {
-            $von = (string) ($sp['von'] ?? '');
-            $bis = (string) ($sp['bis'] ?? '');
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $von) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis) && $bis >= $von) {
-                $sperren[] = ['von' => $von, 'bis' => $bis, 'text' => mb_substr(trim((string) ($sp['text'] ?? '')), 0, 80)];
+            $von = $sp['von'] ?? '';
+            $bis = $sp['bis'] ?? '';
+            if (tag_gueltig($von) && tag_gueltig($bis) && $bis >= $von) {
+                $sperren[] = ['von' => $von, 'bis' => $bis, 'text' => is_string($sp['text'] ?? null) ? mb_substr(trim($sp['text']), 0, 80) : ''];
             }
         }
-        json_schreiben(speicher() . '/sperren.json', $sperren);
+        if (!json_schreiben(speicher() . '/sperren.json', $sperren)) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
     }
     // Einsatzbörse: Liste ersetzen; neue Angebote je Person zählen (für den Push)
     $neueAngebote = [];
