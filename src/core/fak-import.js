@@ -13,6 +13,7 @@
 // (Prüfsumme), Kennzeichen imported. Nichts wird neu nummeriert; die eigenen Nummernkreise laufen danach weiter.
 
 import { parseCsvRows } from './bank.js'
+import { viennaDate } from './dates.js'
 import { checksumOf, composeAddress, nextCustomerNo, numberPattern, parseNumber, round2, totals, VAT_RATES } from './invoicing.js'
 import { descendants, find, findAll, parseXml, textAt } from './xml-lite.js'
 
@@ -1433,7 +1434,8 @@ export function buildImport(sources = [], eInvoices = [], opts = {}) {
         id,
         title: str(v('title')) || str(v('text')) || 'Abo-Rechnung',
         interval: intervalOf(v('interval')),
-        startMonth: (start || (opts.now || now).slice(0, 10)).slice(0, 7),
+        // ohne Start der Monat der Übernahme in Wien (am 1. um 0:30 Uhr ist in UTC noch der Vormonat)
+        startMonth: (start || viennaDate(now) || now.slice(0, 10)).slice(0, 7),
         endMonth: end ? end.slice(0, 7) : '',
         customerId: cust.id,
         objectId: (cust.objectIds || [])[0] || '',

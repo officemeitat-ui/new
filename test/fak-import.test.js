@@ -173,6 +173,13 @@ test('Übernahme: Belege mit Positionen, Zahlungen, Mahnstufe, Gutschrift negati
   assert.deepEqual([an.kind, an.lines.length, an.total.net, an.status], ['angebot', 2, 800, 'offen'])
 })
 
+test('Abo ohne Startdatum: erster Monat ist der Monat der Übernahme in Wien (am 1. um 0:30 Uhr nicht der Vormonat)', () => {
+  const abo = csv('Abo-Rechnungen', ['Bezeichnung;Kundennummer;Intervall;Nächste Rechnung;Positionstext;Menge;Einheit;Preis;MwSt;Status', 'Unterhalt Spar;10001;monatlich;;Unterhaltsreinigung;1;Monat;450,00;20;aktiv'])
+  // So 1.11.2026 0:30 Uhr in Wien = 31.10. 23:30 UTC
+  const r = buildImport(analyse([KUNDEN, abo]), [], { newId, now: '2026-10-31T23:30:00.000Z' })
+  assert.equal(r.recurring[0].startMonth, '2026-11')
+})
+
 test('Belegkopf ohne Positionen: Summen aus orgaMAX; Abweichung zwischen Positionen und Kopf wird gemeldet', () => {
   const heads = csv('Rechnungen', ['Rechnungsnummer;Datum;Kunde;Netto;MwSt;Brutto', 'R-1;01.03.2025;Fremdkunde GmbH;100,00;20,00;120,00', 'R-2;02.03.2025;Fremdkunde GmbH;100,00;20,00;120,00'])
   const lines = csv('Positionen', ['Belegnummer;Pos;Bezeichnung;Menge;Einzelpreis;MwSt', 'R-2;1;Reinigung;1;99,00;20'])
