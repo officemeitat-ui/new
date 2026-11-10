@@ -30,6 +30,9 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 ## Zuletzt fertig (9.11.2026)
 
+- Prüfrunde 2, Webspace: Grenzen zählen vor dem Lesen eines Fotos (kein Speicher-Angriff über kaputte Bilder am Aushang), eine falsche Datei verbraucht aber keine Meldung (Vorprüfung des Dateikopfs); Fotos ohne Daten nach dem Bildende; Grenzen je Adresse bei IPv6 je /64-Netz.
+- Tempo: Müllplanung im Index (Rentabilität und Kennzahlen mit 12 Monaten schneller).
+- Datum in Wien statt UTC bei Angebotsannahme, Abschlüssen im Vertrieb und im Kassenbuch.
 - Wunschzeiten: Wunschfrei, früh/spät, mehr/weniger Stunden; die Automatik berücksichtigt sie weich, danach „erfüllt“ je Wunsch (Büro; Eingabe am Handy folgt).
 - Fuhrparkkosten je Fahrzeug: Werkstatt und Eingangsrechnungen mit Fahrzeug (Vorschlag aus dem Kennzeichen auf dem Beleg), km aus dem Fahrtenbuch, Kosten je km, CSV.
 - KI-Assistent: Werkzeuge für Rentabilität, Nachkalkulation, Fahrtenbuch, Zusatzleistungen und Checklisten (nur lesen).

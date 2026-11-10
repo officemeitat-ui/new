@@ -270,7 +270,7 @@ function grenze(string $art, string $wer, array $grenze, bool $zaehlen): bool
 
 function adresse_des_aufrufs(): string
 {
-    return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    return adresse_fuer_grenzen((string) ($_SERVER['REMOTE_ADDR'] ?? '')); // IPv6: das /64-Netz
 }
 
 /** Formular von einer fremden Seite? (Browser schicken Sec-Fetch-Site mit) */
@@ -316,24 +316,42 @@ function foto_loeschen(array $m): void
  * wird es neu als JPEG gespeichert (längste Seite 1600 px, ohne Metadaten wie GPS); ohne GD (und über 40 Megapixel) nur
  * nach strenger Prüfung übernommen, ohne EXIF/GPS (bild_ohne_metadaten). Liefert [Dateiname, Fehlertext].
  */
+/**
+ * Vorprüfung ohne das Bild zu lesen (Upload, Größe, Typ laut Inhalt, Maße aus dem Dateikopf): Fehlertext oder ''. Läuft
+ * vor dem Zählen der Grenzen – eine falsche Datei verbraucht so keine Meldung des Tages. Das teure Lesen mit GD
+ * (foto_speichern) kommt erst nach dem Zählen: ein Bild, dessen Kopf passt, das aber erst beim Lesen scheitert, zählt.
+ * Liefert [Fehlertext, Typ, Maße].
+ */
+function foto_vorpruefung(?array $f): array
+{
+    if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return ['', '', null];
+    }
+    if (is_array($f['error'])) {
+        return ['Bitte nur ein Foto anhängen.', '', null];
+    }
+    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $f['tmp_name'])) {
+        return ['Das Foto ist zu groß oder nicht angekommen. Bitte ein kleineres Foto wählen.', '', null];
+    }
+    if ((int) $f['size'] > BILD_MAX || (int) $f['size'] < 100) {
+        return ['Das Foto darf höchstens 8 MB groß sein.', '', null];
+    }
+    $typ = class_exists('finfo') ? (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $f['tmp_name']) : '';
+    $mass = @getimagesize((string) $f['tmp_name']);
+    if (!isset(BILD_TYPEN[$typ]) || !$mass || ($mass['mime'] ?? '') !== $typ || $mass[0] < 1 || $mass[1] < 1 || $mass[0] > 12000 || $mass[1] > 12000) {
+        return ['Bitte ein Foto als JPEG, PNG oder WebP anhängen.', '', null];
+    }
+    return ['', $typ, $mass];
+}
+
 function foto_speichern(?array $f, string $id): array
 {
     if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         return ['', ''];
     }
-    if (is_array($f['error'])) {
-        return ['', 'Bitte nur ein Foto anhängen.'];
-    }
-    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $f['tmp_name'])) {
-        return ['', 'Das Foto ist zu groß oder nicht angekommen. Bitte ein kleineres Foto wählen.'];
-    }
-    if ((int) $f['size'] > BILD_MAX || (int) $f['size'] < 100) {
-        return ['', 'Das Foto darf höchstens 8 MB groß sein.'];
-    }
-    $typ = class_exists('finfo') ? (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $f['tmp_name']) : '';
-    $mass = @getimagesize((string) $f['tmp_name']);
-    if (!isset(BILD_TYPEN[$typ]) || !$mass || ($mass['mime'] ?? '') !== $typ || $mass[0] < 1 || $mass[1] < 1 || $mass[0] > 12000 || $mass[1] > 12000) {
-        return ['', 'Bitte ein Foto als JPEG, PNG oder WebP anhängen.'];
+    [$vorFehler, $typ, $mass] = foto_vorpruefung($f);
+    if ($vorFehler !== '') {
+        return ['', $vorFehler];
     }
     $ziel = speicher('fotos') . '/' . $id;
     $lesen = ['image/jpeg' => 'imagecreatefromjpeg', 'image/png' => 'imagecreatefrompng', 'image/webp' => 'imagecreatefromwebp'][$typ];
@@ -1593,6 +1611,13 @@ if ($aushangCode !== '' || isset($_GET['s'])) {
             [$fehler, $status] = [t('ah_f_rueckmeldung'), 400];
         } elseif (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, false) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, false)) {
             [$fehler, $status] = [t('ah_f_grenze'), 429];
+        } elseif (foto_vorpruefung($_FILES['foto'] ?? null)[0] !== '') {
+            // keine Bilddatei: abgelehnt, bevor gezählt wird (verbraucht keine Meldung)
+            [$fehler, $status] = [t('ah_f_foto'), 400];
+        }
+        // prüfen und zählen in einem Schritt (gesperrt), wie beim Kundenbereich, und zwar vor dem Foto (siehe dort)
+        if (!$fehler && (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, true) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, true))) {
+            [$fehler, $status] = [t('ah_f_grenze'), 429];
         }
         $mid = bin2hex(random_bytes(6));
         $foto = '';
@@ -1601,11 +1626,6 @@ if ($aushangCode !== '' || isset($_GET['s'])) {
             if ($fotoFehler !== '') {
                 [$fehler, $status] = [t('ah_f_foto'), 400];
             }
-        }
-        // prüfen und zählen in einem Schritt (gesperrt), wie beim Kundenbereich
-        if (!$fehler && (grenze('aushang-code', $aid, GRENZE_AUSHANG_CODE, true) || grenze('aushang-adresse', $werHash, GRENZE_AUSHANG_ADRESSE, true))) {
-            foto_loeschen(['foto' => $foto]);
-            [$fehler, $status] = [t('ah_f_grenze'), 429];
         }
         if (!$fehler) {
             $sc = statuscode_neu();
@@ -1877,17 +1897,21 @@ if ($aktion === 'melden' && $methode === 'POST') {
         $fehler = 'Für die Nachricht bei Änderungen bitte die E-Mail-Adresse angeben.';
     } elseif (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, false) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, false)) {
         $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
+    } elseif (($vor = foto_vorpruefung($_FILES['foto'] ?? null)[0]) !== '') {
+        // keine Bilddatei: abgelehnt, bevor gezählt wird (verbraucht keine Meldung des Tages)
+        $fehler = $vor;
+    }
+    // Grenzen prüfen und zählen in einem Schritt (gesperrt): gleichzeitig gesendete Meldungen kämen sonst alle an der
+    // Prüfung oben vorbei, bevor die erste gezählt ist. Gezählt wird vor dem Foto: GD liest es ganz in den Speicher (bis
+    // 40 Megapixel, rund 160 bis 300 MB aus einem Upload von wenigen KB); ein Foto, das erst dabei scheitert, zählte sonst
+    // nie, und das ließe sich ohne Grenze wiederholen.
+    if (!$fehler && (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true))) {
+        $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
     }
     $mid = bin2hex(random_bytes(6));
     $foto = '';
     if (!$fehler) {
         [$foto, $fehler] = foto_speichern($_FILES['foto'] ?? null, $mid);
-    }
-    // Grenzen prüfen und zählen in einem Schritt (gesperrt): gleichzeitig gesendete Meldungen kämen sonst alle an der
-    // Prüfung oben vorbei, bevor die erste gezählt ist
-    if (!$fehler && (grenze('meldung-link', $id, GRENZE_MELDUNG_LINK, true) || grenze('meldung-adresse', $wer, GRENZE_MELDUNG_ADRESSE, true))) {
-        foto_loeschen(['foto' => $foto]);
-        $fehler = 'Heute sind schon viele Meldungen eingegangen. Bitte rufen Sie uns an.';
     }
     if (!$fehler) {
         $neu = ['id' => $mid, 'link' => $id, 'titel' => (string) ($link['titel'] ?? ''), 'objektNr' => (int) $objekt['nr'], 'objektId' => (string) $objekt['id'], 'objekt' => (string) $objekt['name'], 'art' => $eingabe['art'], 'datum' => $eingabe['datum'] ?: heute(), 'text' => $eingabe['text'],
@@ -1994,6 +2018,13 @@ if ($aktion === 'zusatz-anfragen' && $methode === 'POST') {
         [$zFehler, $zStatus] = [t('zl_f_fotos'), 400];
     } elseif (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, false) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, false)) {
         [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
+    } elseif (array_filter($fotoListe, fn ($f) => foto_vorpruefung($f)[0] !== '')) {
+        // keine Bilddatei: abgelehnt, bevor gezählt wird (verbraucht keine Anfrage des Tages)
+        [$zFehler, $zStatus] = [t('zl_f_foto'), 400];
+    }
+    // prüfen und zählen in einem Schritt (gesperrt), wie beim Aushang, und zwar vor den Fotos (siehe Reklamation)
+    if (!$zFehler && (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, true) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, true))) {
+        [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
     }
     $fotos = [];
     if (!$zFehler) {
@@ -2005,10 +2036,6 @@ if ($aktion === 'zusatz-anfragen' && $methode === 'POST') {
             }
             $fotos[] = $datei;
         }
-    }
-    // prüfen und zählen in einem Schritt (gesperrt), wie beim Aushang
-    if (!$zFehler && (grenze('zusatz-link', $id, GRENZE_ZUSATZ_LINK, true) || grenze('zusatz-adresse', $werHash, GRENZE_ZUSATZ_ADRESSE, true))) {
-        [$zFehler, $zStatus] = [t('zl_f_grenze'), 429];
     }
     if ($zFehler) {
         anfrage_fotos_loeschen(['fotos' => $fotos]);
