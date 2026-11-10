@@ -5,7 +5,7 @@ import { formatDate } from '../../core/dates.js'
 import { austrianHolidays } from '../../core/holidays.js'
 import { estimateTravel, hasCoords } from '../../core/geo.js'
 import { DEFAULT_HOLIDAY_RULE } from '../../core/plan.js'
-import { DEFAULT_RULES, mergeRules, RULES, travelKey } from '../../core/rules.js'
+import { mergeRules, resetRules, RULES, travelKey } from '../../core/rules.js'
 import { findPlace } from '../../core/weather.js'
 import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
 import { geocode } from '../geocode.js'
@@ -237,9 +237,10 @@ registerActions(
     },
     'rules-reset': () => {
       if (!confirmStep('rules-reset')) return
-      app.data.rules = structuredClone(DEFAULT_RULES)
+      app.data.rules = resetRules(app.data.rules)
       persist()
       renderNow()
+      toast('Regelwerte zurückgesetzt. Plan am Handy, Schnee-Alarm, Orte und Urlaubsregeln bleiben.')
     },
     'travel-estimate': () => {
       const o = (id) => app.data.objects.find((x) => x.id === id)

@@ -392,3 +392,27 @@ test('Kassenbuch: Vorgabe „heute“ ist der Wiener Kalendertag (Buchung um 0:3
   addEntry(book, { date: '2026-11-10', kind: 'einnahme', type: 'anfang', amount: 100, text: 'Anfangsbestand', category: 'anfang' }, { now: '2026-11-09T23:30:00.000Z' })
   assert.equal(book.entries.length, 1)
 })
+
+test('Regeln „Standardwerte“: Regelwerte zurück, Plan am Handy, Schnee-Alarm, Orte und Urlaub bleiben', async () => {
+  const { DEFAULT_RULES, resetRules } = await import('../src/core/rules.js')
+  const rules = {
+    ...structuredClone(DEFAULT_RULES),
+    maxDailyH: 9,
+    disabledRules: ['x'],
+    wages: { ...DEFAULT_RULES.wages, 1: 99 },
+    weather: { ...DEFAULT_RULES.weather, snowCm: 9, alarm: { enabled: true, topics: { e1: 't1' } }, locations: [{ name: 'Hallein', lat: 47.68, lon: 13.1 }] },
+    portal: { enabled: true, key: 'k'.repeat(64), codes: { e1: 'abc' } },
+    vacation: { maxParallel: 2, blackouts: [{ id: 'b1', from: '2026-07-01', to: '2026-07-31', label: 'Schulen' }] },
+  }
+  const r = resetRules(rules)
+  assert.equal(r.maxDailyH, DEFAULT_RULES.maxDailyH)
+  assert.deepEqual(r.disabledRules, DEFAULT_RULES.disabledRules)
+  assert.deepEqual(r.wages, DEFAULT_RULES.wages)
+  assert.equal(r.weather.snowCm, DEFAULT_RULES.weather.snowCm)
+  assert.deepEqual(r.weather.alarm, rules.weather.alarm)
+  assert.deepEqual(r.weather.locations, rules.weather.locations)
+  assert.deepEqual(r.portal, rules.portal, 'Schlüssel und persönliche Links bleiben')
+  assert.deepEqual(r.vacation, rules.vacation)
+  assert.notEqual(r.weather.alarm, rules.weather.alarm, 'Kopie, nicht dieselbe Referenz')
+  assert.deepEqual(resetRules(undefined), structuredClone(DEFAULT_RULES))
+})

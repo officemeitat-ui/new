@@ -89,6 +89,20 @@ export function mergeRules(rules = {}) {
   }
 }
 
+/**
+ * „Standardwerte“ in Regeln & Feiertage: nur die Regelwerte zurück. Einstellungen, die ebenfalls in rules liegen,
+ * bleiben: Plan am Handy (portal: Schlüssel und alle persönlichen Links), Urlaub (vacation), Schnee-Alarm
+ * (weather.alarm) und die Orte (weather.locations), dazu alles, was keine Regel ist.
+ */
+export function resetRules(rules = {}) {
+  const keep = Object.fromEntries(Object.entries(rules || {}).filter(([k]) => !(k in DEFAULT_RULES)))
+  const fresh = structuredClone(DEFAULT_RULES)
+  const w = rules?.weather || {}
+  if (w.alarm) fresh.weather.alarm = structuredClone(w.alarm)
+  if (Array.isArray(w.locations) && w.locations.length) fresh.weather.locations = structuredClone(w.locations)
+  return { ...fresh, ...keep }
+}
+
 const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
 export function createContext({ employees, objects, absences = [], rules, travel = {}, trips = {}, published = {}, payroll = {}, schluessel = null, unterweisungen = null, wishes = {} }, holidays) {
