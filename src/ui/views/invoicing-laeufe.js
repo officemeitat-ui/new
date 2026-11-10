@@ -4,7 +4,7 @@
 // Rechenkern: core/fak-laeufe.js; PDF, Ablage und Platzhalter kommen aus invoicing.js (laeufeHooks).
 
 import { sendMail } from '../../auth/graph-mail.js'
-import { addDays, formatDate, todayISO } from '../../core/dates.js'
+import { addDays, formatDate, todayISO, viennaDate } from '../../core/dates.js'
 import { activeBlocks, batchDrafts, DEFAULT_FOLLOW_UP_DAYS, dunningRun, emailValid, finalizeBatch, followUpMailText, followUpOf, MAIL_PAUSE_MS, mailWithDebit, offerStats, offerTasks, paymentReminders, sendCandidates } from '../../core/fak-laeufe.js'
 import { blocksFor, customerName, defaultBlock, docFileName, fillPlaceholders, invoiceMailText, isInvoice, KINDS, monthLabel, periodLabel, reminderFileName, reminderMailText, round2, settingsOf } from '../../core/invoicing.js'
 import { collectionCandidates, inCollection } from '../../core/sepa.js'
@@ -385,7 +385,7 @@ export function docExtras(x) {
     const badges = openRowBadges(x)
     if (badges) out.push(`<p class="fak-doc-head">${badges}${x.dunningBlock?.note ? ` ${esc(x.dunningBlock.note)}` : ''}${x.directDebit ? ` · Lastschrift ${esc(x.directDebit.seq || '')} fällig ${esc(day(x.directDebit.dueDate))}, ${money(x.directDebit.amount)}, Mandat ${esc(x.directDebit.mandateRef || '')}` : ''}</p>`)
     if (x.debitText) out.push(`<p class="muted">${esc(x.debitText)}</p>`)
-    const notices = (x.debitNotice || []).map((n) => `<li>${esc(day(String(n.at).slice(0, 10)))}: Vorabankündigung ${n.to ? `an ${esc(n.to)}` : 'vermerkt'} für ${esc(day(n.dueDate))}</li>`).join('')
+    const notices = (x.debitNotice || []).map((n) => `<li>${esc(day(viennaDate(n.at) || String(n.at).slice(0, 10)))}: Vorabankündigung ${n.to ? `an ${esc(n.to)}` : 'vermerkt'} für ${esc(day(n.dueDate))}</li>`).join('')
     if (notices) out.push(`<h3>Lastschrift angekündigt</h3><ul>${notices}</ul>`)
   }
   return out.join('')
