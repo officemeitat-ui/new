@@ -39,7 +39,7 @@ import { vatBasisOf, vatReturn, vatReturnFileName } from '../../core/vat-return.
 import { cashbookDocument } from '../../export/cashbook-pdf.js'
 import { vatReturnDocument } from '../../export/uva-pdf.js'
 import { todayISO } from '../../core/dates.js'
-import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderModalKeepingInput, toast } from '../context.js'
+import { app, canEdit, closeModal, dataStamp, openModal, persist, registerActions, registerModal, renderModal, renderModalKeepingInput, toast } from '../context.js'
 import { loadScript } from '../load-script.js'
 import { openCompose } from '../mailer.js'
 import { registerTodo } from '../modals/todo.js'
@@ -70,7 +70,20 @@ function sources() {
 /** Teile, die diese Person übergeben kann. */
 const partsAvailable = () => Object.entries(STB_PARTS).filter(([id, p]) => (p.module === '*' ? mayUse() : sees(p.module)) && (id !== 'ka' || sees('einkauf'))).map(([id]) => id)
 
+/**
+ * Zustand des Dialogs; gemerkt, solange sich Daten (dataStamp), Zeitraum und Rolle nicht ändern – jedes Neuzeichnen
+ * (Häkchen, Fortschritt beim Packen) rechnete sonst alle Belege des Zeitraums neu (Handy mit großen Daten: ~2 s).
+ */
+const STATE = { key: '', value: null }
 function state(m) {
+  const key = `${m.period || ''}|${dataStamp()}|${partsAvailable().join(',')}|${todayISO()}`
+  if (STATE.key === key && STATE.value) return STATE.value
+  STATE.value = freshState(m)
+  STATE.key = key
+  return STATE.value
+}
+
+function freshState(m) {
   const p = stbPeriod(m.period) || stbPeriod(stbChoices(todayISO()).standard)
   const src = sources()
   const parts = partsAvailable()
