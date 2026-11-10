@@ -738,6 +738,8 @@ Mitarbeitende wünschen sich freie Tage, frühe oder späte Dienste oder mehr bz
 
 > Tipp: Wünsche sind keine Abwesenheit: Stammkräfte bleiben eingeteilt.
 > Tipp: Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus.
+> Tipp: Mitarbeitende tragen Wünsche selbst im „Plan am Handy“ unter „Wunschzeiten“ ein; sie kommen mit den Anträgen in die App (Quelle „Handy“).
+> Tipp: Ein Wunsch vom Handy, den du hier löschst, wird auch am Handy gelöscht.
 
 *Planung (eintragen), alle mit Plan (ansehen)*
 

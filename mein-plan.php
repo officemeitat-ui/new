@@ -322,6 +322,84 @@ function antraege(callable $fn)
     return $ergebnis;
 }
 
+// ---------------------------------------------------------------- Wunschzeiten
+// Wunschfrei an einem Tag, lieber früh/spät an einem Tag, mehr/weniger Stunden in einer Woche (wie core/wuensche.js).
+// Keine Abwesenheit: die App holt sie ab (aktion=wuensche) und die Automatik berücksichtigt sie beim Planen.
+const WUNSCH_ARTEN = ['frei', 'frueh', 'spaet', 'mehr', 'weniger'];
+const WUNSCH_WOCHE = ['mehr', 'weniger'];
+const WUNSCH_JE_WOCHE = 4;
+const WUNSCH_VORAUS = 56;
+const WUNSCH_ID = '/^[a-f0-9]{12}$/';
+
+/** Montag der Woche eines Datums (JJJJ-MM-TT). */
+function montag_von(string $datum): string
+{
+    $t = new DateTimeImmutable($datum, new DateTimeZone('UTC'));
+    return $t->modify('-' . ((int) $t->format('N') - 1) . ' days')->format('Y-m-d');
+}
+
+/** Letzter Tag, für den ein Wunsch gilt (Wochenwunsch: Sonntag). */
+function wunsch_ende(array $w): string
+{
+    return in_array($w['art'] ?? '', WUNSCH_WOCHE, true) ? tag_plus((string) $w['datum'], 6) : (string) ($w['datum'] ?? '');
+}
+
+/** Wünsche gesperrt ändern (wie die Anträge); eine Woche nach dem Tag fallen sie vorher weg (die App hat sie dann). */
+function wuensche(callable $fn)
+{
+    $h = @fopen(speicher() . '/wuensche.json', 'c+');
+    if (!$h) {
+        return null;
+    }
+    flock($h, LOCK_EX);
+    $liste = json_decode((string) stream_get_contents($h), true);
+    $grenze = tag_plus(heute(), -7);
+    $liste = array_values(array_filter(is_array($liste) ? $liste : [], fn ($w) => is_array($w) && wunsch_ende($w) >= $grenze));
+    $ergebnis = $fn($liste);
+    ftruncate($h, 0);
+    rewind($h);
+    fwrite($h, json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    fflush($h);
+    flock($h, LOCK_UN);
+    fclose($h);
+    return $ergebnis;
+}
+
+/**
+ * Neuen Wunsch prüfen (wie makeWish in core/wuensche.js). Liefert [Fehler-Schlüssel, Wunsch]; $meine: Wünsche der
+ * Person.
+ */
+function wunsch_pruefen(string $art, string $datum, string $notiz, array $meine): array
+{
+    $gueltig = (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $datum) && DateTimeImmutable::createFromFormat('!Y-m-d', $datum) && DateTimeImmutable::createFromFormat('!Y-m-d', $datum)->format('Y-m-d') === $datum;
+    if (!in_array($art, WUNSCH_ARTEN, true)) {
+        return ['fehler_art', null];
+    }
+    if (!$gueltig) {
+        return ['fehler_wunsch_datum', null];
+    }
+    $woche = in_array($art, WUNSCH_WOCHE, true);
+    $tag = $woche ? montag_von($datum) : $datum;
+    if (($woche ? tag_plus($tag, 6) : $tag) <= heute() || $tag > tag_plus(heute(), WUNSCH_VORAUS)) {
+        return ['fehler_wunsch_datum', null];
+    }
+    foreach ($meine as $w) {
+        if (($w['datum'] ?? '') !== $tag) {
+            continue;
+        }
+        $andere = (string) ($w['art'] ?? '');
+        $andereWoche = in_array($andere, WUNSCH_WOCHE, true);
+        if ($andere === $art || ($woche && $andereWoche) || (!$woche && !$andereWoche && ($art === 'frei' || $andere === 'frei' || $andere !== $art))) {
+            return ['fehler_wunsch_doppelt', null];
+        }
+    }
+    $mo = montag_von($tag);
+    if (count(array_filter($meine, fn ($w) => montag_von((string) ($w['datum'] ?? $tag)) === $mo)) >= WUNSCH_JE_WOCHE) {
+        return ['fehler_wunsch_woche', null];
+    }
+    return ['', ['art' => $art, 'datum' => $tag, 'notiz' => mb_substr(trim((string) preg_replace('/\s+/u', ' ', $notiz)), 0, 160)]];
+}
+
 /** Zeiterfassung eingeschaltet? Dann { alarmMinuten, pruefschluessel, objekte: { code: { id, name } } }. */
 function zeiterfassung(?array $e): ?array
 {
@@ -1079,7 +1157,7 @@ if ($aktion === 'pruefen' || $cli) {
 
 // ---------------------------------------------------------------- Aufrufe der App (mit Schlüssel)
 
-if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status', 'checklisten', 'checkliste-foto', 'checkliste-fotos-uebernommen'], true)) {
+if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', 'zeiten', 'mitteilungen', 'mitteilung-anhang', 'mitteilungen-status', 'checklisten', 'checkliste-foto', 'checkliste-fotos-uebernommen', 'wuensche', 'wuensche-weg'], true)) {
     if (!$e) {
         json_ausgabe(503, ['fehler' => 'Mein Dienstplan noch nicht eingerichtet: privat/mitarbeiter.json fehlt (App → Mitarbeitende → Plan am Handy).']);
     }
@@ -1167,6 +1245,14 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
         exit;
     }
 
+    // Wunschzeiten: alle noch gültigen Wünsche (die App ordnet sie über den Hash der Person zu)
+    if ($aktion === 'wuensche') {
+        $liste = wuensche(fn (array &$l) => $l);
+        if ($liste === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        json_ausgabe(200, ['wuensche' => $liste, 'jetzt' => jetzt()]);
+    }
     if ($aktion === 'antraege') {
         $grenze = tag_plus(heute(), -120);
         $liste = antraege(fn (array &$l) => $l) ?? [];
@@ -1182,6 +1268,19 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
             if (is_string($datei) && preg_match(CK_DATEI, $datei) && @unlink(ck_ordner() . '/' . $datei)) {
                 $n++;
             }
+        }
+        json_ausgabe(200, ['geloescht' => $n]);
+    }
+    // Wunschzeiten: im Büro gelöschte Wünsche auch am Webspace löschen
+    if ($aktion === 'wuensche-weg') {
+        $ids = array_slice(array_values(array_filter((array) ($daten['ids'] ?? []), fn ($x) => is_string($x) && preg_match(WUNSCH_ID, $x))), 0, 500);
+        $n = wuensche(function (array &$l) use ($ids) {
+            $vorher = count($l);
+            $l = array_values(array_filter($l, fn ($w) => !in_array($w['id'] ?? '', $ids, true)));
+            return $vorher - count($l);
+        });
+        if ($n === null) {
+            json_ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
         json_ausgabe(200, ['geloescht' => $n]);
     }
@@ -1688,6 +1787,56 @@ if ($aktion === 'material' && $methode === 'POST') {
     }
 }
 
+// Wunschzeiten: Wunsch eintragen (die App holt ihn beim nächsten Abruf; ohne Push ans Büro, Wünsche sind nicht eilig)
+if ($aktion === 'wunsch' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
+        exit;
+    }
+    $art = (string) ($_POST['art'] ?? '');
+    $datum = (string) ($_POST['datum'] ?? '');
+    $notiz = (string) ($_POST['notiz'] ?? '');
+    $ergebnis = wuensche(function (array &$l) use ($hash, $person, $art, $datum, $notiz) {
+        if (count(array_filter($l, fn ($w) => ($w['hash'] ?? '') === $hash && (int) ($w['erstellt'] ?? 0) > jetzt() - 86400)) >= 20) {
+            return 'zu_viele_antraege';
+        }
+        [$fehler, $neu] = wunsch_pruefen($art, $datum, $notiz, array_values(array_filter($l, fn ($w) => ($w['hash'] ?? '') === $hash)));
+        if ($fehler) {
+            return $fehler;
+        }
+        $l[] = ['id' => bin2hex(random_bytes(6)), 'hash' => $hash, 'name' => $person['name'] ?? ''] + $neu + ['erstellt' => jetzt()];
+        return '';
+    });
+    if ($ergebnis === null) {
+        $meldung = '<p class="fehler">' . th('nicht_gespeichert') . '</p>';
+    } elseif ($ergebnis !== '') {
+        $meldung = '<p class="fehler">' . th($ergebnis) . '</p>';
+        $wunschOffen = true;
+    } else {
+        header('Location: mein-plan.php?gesendet=wunsch#wuensche', true, 303);
+        exit;
+    }
+}
+// Wunschzeiten: eigenen Wunsch löschen (nur, solange er noch nicht vorbei ist)
+if ($aktion === 'wunsch-weg' && $methode === 'POST') {
+    if (fremde_herkunft()) {
+        html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('titel'));
+        exit;
+    }
+    $id = (string) ($_POST['id'] ?? '');
+    $weg = preg_match(WUNSCH_ID, $id) ? wuensche(function (array &$l) use ($hash, $id) {
+        $vorher = count($l);
+        $l = array_values(array_filter($l, fn ($w) => !(($w['id'] ?? '') === $id && ($w['hash'] ?? '') === $hash && wunsch_ende($w) >= heute())));
+        return $vorher !== count($l);
+    }) : false;
+    if ($weg === null) {
+        $meldung = '<p class="fehler">' . th('nicht_gespeichert') . '</p>';
+    } else {
+        header('Location: mein-plan.php' . ($weg ? '?gesendet=wunsch-weg' : '') . '#wuensche', true, 303);
+        exit;
+    }
+}
+
 // Gerät kaputt: geht ans Büro (App → Geräte & Maschinen → Reparaturen), ohne Foto
 if ($aktion === 'geraet' && $methode === 'POST') {
     if (fremde_herkunft()) {
@@ -2013,7 +2162,7 @@ if (!$wochen && !empty($person['wochen'])) {
     $wochen = array_slice((array) $person['wochen'], -1, 1, true);
 }
 $meldung = $meldung ?? '';
-$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material', 'geraet' => 'ok_geraet', 'mitteilung' => 'mit_ok'][(string) ($_GET['gesendet'] ?? '')] ?? null;
+$gesendet = ['krank' => 'ok_krank', 'antrag' => 'ok_antrag', 'einsatz' => 'ok_einsatz', 'abgabe' => 'ok_abgabe', 'material' => 'ok_material', 'geraet' => 'ok_geraet', 'mitteilung' => 'mit_ok', 'wunsch' => 'ok_wunsch', 'wunsch-weg' => 'ok_wunsch_weg'][(string) ($_GET['gesendet'] ?? '')] ?? null;
 if ($gesendet) {
     $meldung = '<p class="ok">' . th($gesendet) . '</p>';
 }
@@ -2132,6 +2281,20 @@ $formulare = $materialForm . $geraetForm . '<h2>' . th('abwesenheit') . '</h2>'
     . '<label for="a-von">' . th('von') . '</label><input type="date" id="a-von" name="von" required><label for="a-bis">' . th('bis') . '</label><input type="date" id="a-bis" name="bis" required>'
     . '<label for="a-notiz">' . th('notiz_optional') . '</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
     . '<button type="submit">' . th('antrag_senden') . '</button></form></details>';
+// Wunschzeiten: eigene Wünsche (noch nicht vorbei) mit Löschen, darunter das Formular
+$meineWuensche = array_values(array_filter(wuensche(fn (array &$l) => $l) ?? [], fn ($w) => ($w['hash'] ?? '') === $hash && wunsch_ende($w) >= $heute));
+usort($meineWuensche, fn ($a, $b) => strcmp((string) $a['datum'], (string) $b['datum']));
+$wunschWann = fn (array $w): string => in_array($w['art'], WUNSCH_WOCHE, true) ? th('wunsch_woche', ['tag' => $h($tag((string) $w['datum']))]) : $h($tag((string) $w['datum']));
+$wv = $aktion === 'wunsch' ? $_POST : []; // nach einem Fehler steht die Eingabe wieder im Formular
+$wunschHtml = '<h2 id="wuensche">' . th('wunsch_titel') . '</h2>'
+    . ($meineWuensche ? '<h3 class="wuensche-kopf">' . th('meine_wuensche') . '</h3><ul class="antraege wuensche">' . implode('', array_map(fn ($w) => '<li><span><b>' . th('wunsch_' . $w['art']) . '</b> · ' . $wunschWann($w)
+        . (!empty($w['notiz']) ? ': „' . $h((string) $w['notiz']) . '“' : '') . '</span>'
+        . '<form method="post" action="mein-plan.php?aktion=wunsch-weg">' . $p . '<input type="hidden" name="id" value="' . $h((string) $w['id']) . '"><button type="submit" class="klein zweit" aria-label="' . th('wunsch_loeschen') . ': ' . strip_tags(th('wunsch_' . $w['art'])) . ', ' . strip_tags($wunschWann($w)) . '">' . th('wunsch_loeschen') . '</button></form></li>', $meineWuensche)) . '</ul>' : '')
+    . '<details' . (!empty($wunschOffen) ? ' open' : '') . '><summary>' . th('wunsch_summary') . '</summary><form method="post" action="mein-plan.php?aktion=wunsch">' . $p
+    . '<label for="w-art">' . th('wunsch_art') . '</label><select id="w-art" name="art">' . implode('', array_map(fn ($a) => '<option value="' . $a . '"' . (($wv['art'] ?? '') === $a ? ' selected' : '') . '>' . th('wunsch_' . $a) . '</option>', WUNSCH_ARTEN)) . '</select>'
+    . '<label for="w-tag">' . th('wunsch_tag') . '</label><input type="date" id="w-tag" name="datum" required min="' . tag_plus($heute, 1) . '" max="' . tag_plus($heute, WUNSCH_VORAUS) . '" value="' . $h(preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($wv['datum'] ?? '')) ? (string) $wv['datum'] : '') . '">'
+    . '<label for="w-notiz">' . th('notiz_optional') . '</label><input type="text" id="w-notiz" name="notiz" maxlength="160" value="' . $h(mb_substr((string) ($wv['notiz'] ?? ''), 0, 160)) . '">'
+    . '<button type="submit">' . th('wunsch_senden') . '</button><p class="leise">' . th('wunsch_info') . '</p></form></details>';
 // Kalender-Abo: Plan und Termine erscheinen im eigenen Kalender (Outlook, Google, iPhone) und bleiben aktuell
 $aboAdresse = rtrim((string) ($e['adresse'] ?? ''), '/');
 if ($aboAdresse === '') {
@@ -2150,9 +2313,9 @@ $mattenTouren = empty($mattenFahrer['entfernt']) ? array_filter((array) ($matten
 $mattenHtml = $mattenTouren && is_file(__DIR__ . '/mattentour.php') ? '<p class="summe">' . th('mt_plan_text') . '</p><p><a class="knopf" href="mattentour.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '') . '">' . th('mt_plan_oeffnen') . '</a></p>' : '';
 $hier = 'mein-plan.php' . (isset($_GET['p']) ? '?p=' . rawurlencode($code) : '');
 html_seite(sprachwahl_html($hier) . '<h1>' . th('titel') . '</h1><p>' . $h((string) ($person['name'] ?? '')) . '</p>' . $meldung . mit_html($hash, $code) . $mattenHtml
-    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}'
+    . '<style>.tag{border-top:1px solid #dde5ea;padding:.5rem 0}.tag h3{font-size:1rem;margin:.2rem 0}.einsatz{margin:.35rem 0}.einsatz.weg{text-decoration:line-through;color:#6f8596}.einsatz.termin{border-left:3px solid #7b5cc4;padding-left:.5rem}.knopf{display:inline-block;padding:.5rem 1rem;border-radius:8px;background:#0c6cb4;color:#fff;text-decoration:none}.hinweis{color:#8a5300;font-size:.95rem}.pill{display:inline-block;border-radius:999px;padding:0 .6rem;font-size:.85rem;background:#e8f1fa;color:#0a5a96;font-weight:600}.pill.abw{background:#fdf0d5;color:#8a5300}.pill.neu{background:#fce8e6;color:#b3261e}.st-genehmigt,.st-erledigt{background:#eef6e2!important;color:#4e7a1e!important}.st-abgelehnt{background:#fce8e6!important;color:#b3261e!important}.summe{background:#f3f6f8;border-radius:8px;padding:.5rem .7rem}details{margin:.6rem 0}summary{font-weight:600;cursor:pointer;padding:.3rem 0}input[type=date]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px}.angebot{border:1px solid #dde5ea;border-radius:8px;padding:.6rem .7rem}.zeit-ok{color:#4e7a1e;font-weight:600;font-size:.95rem}details.abgabe{margin:.2rem 0 .4rem}details.abgabe summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.abgabe label{font-weight:400}button.klein{font-size:1rem;padding:.55rem 1rem;margin-top:.5rem}h3.wuensche-kopf{font-size:1rem;margin:.6rem 0 .2rem}ul.wuensche{list-style:none;padding-left:0;margin-top:0}.wuensche li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.3rem .6rem;margin:.3rem 0;padding:.3rem 0;border-bottom:1px solid #e3eaef}.wuensche form{margin:0}.wuensche button{width:auto;margin:0;padding:.35rem .9rem;font-size:1rem}input[type=text]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;background:#fff;color:inherit}'
     . 'details.ck{border:1px solid #c9d6df;border-radius:8px;padding:.2rem .7rem;margin:.4rem 0}details.ck>summary{font-weight:600}.ck-p{border-top:1px solid #e3eaef;padding:.35rem 0}.ck-p label.haken{align-items:flex-start;margin:.2rem 0}.ck-p label.haken input{flex:0 0 auto;margin-top:.15rem}.ck-nein{background:#fff8e6;border-radius:6px;padding-left:.3rem}.ck-foto label{font-weight:400;margin:.3rem 0 .2rem;font-size:.95rem}details.ck-nm{margin:.1rem 0}details.ck-nm summary{font-weight:400;font-size:.95rem;color:#0a5a96}details.ck-nm label{font-weight:400;margin:.2rem 0}details.ck-nm input[type=text]{font:inherit;width:100%;box-sizing:border-box;padding:.55rem;border:1px solid #c9d6df;border-radius:8px;margin-top:.4rem}.ck-knoepfe{display:flex;gap:.5rem;flex-wrap:wrap}.ck-knoepfe button{flex:1 1 9rem}button.zweit{background:#fff;color:#0a5a96;border:2px solid #0a5a96}.ck-liste{list-style:none;padding-left:0}.ck-liste li{margin:.25rem 0}.ck-liste .ck-ok>span:first-child{color:#4e7a1e}.ck-liste .ck-nein>span:first-child{color:#b3261e}'
     . '.mitteilungen h2{margin-top:1rem}.mit{border:1px solid #c9d6df;border-radius:8px;padding:.6rem .8rem;margin:.6rem 0}.mit h3{font-size:1.05rem;margin:0 0 .2rem}.mit-offen{border:2px solid #0a5a96}.mit-erinnert{background:#fff8e6}.mit-kopf{margin:.1rem 0 .4rem;color:#13232f}.mit-text{margin:.3rem 0}.mit-wichtig{background:#fce8e6!important;color:#b3261e!important}.mit-erinnerung{background:#fdf0d5!important;color:#6b4100!important}.mit-de summary{font-weight:400;color:#0a5a96;font-size:.95rem}.mit-de div{background:#f3f6f8;border-radius:8px;padding:.3rem .6rem}.mit-anhang{color:#0a5a96;font-weight:600}.mit .ok{margin:.4rem 0 0}</style>'
     . ($planHtml ?: '<p class="leise">' . th('kein_plan') . '</p>')
-    . $boerseHtml . $antraegeHtml . $formulare . $aboHtml
+    . $boerseHtml . $antraegeHtml . $formulare . $wunschHtml . $aboHtml
     . '<p class="leise" style="margin-top:2rem;font-size:.9rem">' . th('fuss') . ' <a href="mein-plan.php?aktion=vergessen">' . th('vergessen') . '</a></p>', 200, '', t('titel'));

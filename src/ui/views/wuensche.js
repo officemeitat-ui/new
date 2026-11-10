@@ -1,6 +1,6 @@
 // Dialog „Wünsche der Mitarbeitenden“ (Menü „⋯“ → Diese Woche): Wunschzeiten je Woche ansehen, im Büro eintragen
 // (z. B. nach einem Anruf) und löschen; nach dem Planen steht je Wunsch, ob er erfüllt ist. Wünsche vom Handy kommen
-// über „Plan am Handy“ (mein-plan.php) mit den Anträgen. Rechenkern core/wuensche.js; die Automatik
+// über „Plan am Handy“ (mein-plan.php) mit den Anträgen (staffplan.js loadWishes). Rechenkern core/wuensche.js; die Automatik
 // (core/scheduler.js) berücksichtigt sie als weiche Vorgabe.
 
 import { weeklyHoursAt } from '../../core/contract.js'
@@ -8,6 +8,7 @@ import { addDays, formatDate, isoWeek, mondayOf, todayISO } from '../../core/dat
 import { makeWish, WISH_KINDS, wishKey, wishReport } from '../../core/wuensche.js'
 import { app, canEdit, computeRange, confirmStep, openModal, persist, registerActions, registerModal, renderModal, toast } from '../context.js'
 import { esc, modalFrame, options, uid, val } from '../shared.js'
+import { forgetHandyWish } from '../staffplan.js'
 
 const editable = () => canEdit('planung')
 const wishes = () => (app.data.wishes ||= {})
@@ -92,8 +93,11 @@ registerActions({
     if (!editable()) return
     const k = Object.keys(wishes()).find((key) => wishes()[key]?.id === el.dataset.id)
     if (!k || !confirmStep(`wish-del:${el.dataset.id}`, renderModal)) return
+    const w = wishes()[k]
     delete wishes()[k]
     persist()
+    // vom Handy: auch am Webspace löschen, sonst käme er beim nächsten Abruf wieder
+    if (w?.source === 'handy' && w.webId) forgetHandyWish(w.webId)
     toast('Wunsch gelöscht.')
     renderModal()
   },

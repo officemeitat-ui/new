@@ -33,7 +33,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Prüfrunde 2, Webspace: Grenzen zählen vor dem Lesen eines Fotos (kein Speicher-Angriff über kaputte Bilder am Aushang), eine falsche Datei verbraucht aber keine Meldung (Vorprüfung des Dateikopfs); Fotos ohne Daten nach dem Bildende; Grenzen je Adresse bei IPv6 je /64-Netz.
 - Tempo: Müllplanung im Index (Rentabilität und Kennzahlen mit 12 Monaten schneller).
 - Datum in Wien statt UTC bei Angebotsannahme, Abschlüssen im Vertrieb und im Kassenbuch.
-- Wunschzeiten: Wunschfrei, früh/spät, mehr/weniger Stunden; die Automatik berücksichtigt sie weich, danach „erfüllt“ je Wunsch (Büro; Eingabe am Handy folgt).
+- Wunschzeiten: Wunschfrei, früh/spät, mehr/weniger Stunden; die Automatik berücksichtigt sie weich, danach „erfüllt“ je Wunsch; Eingabe im Büro und am Handy (Plan am Handy, sechs Sprachen).
 - Fuhrparkkosten je Fahrzeug: Werkstatt und Eingangsrechnungen mit Fahrzeug (Vorschlag aus dem Kennzeichen auf dem Beleg), km aus dem Fahrtenbuch, Kosten je km, CSV.
 - KI-Assistent: Werkzeuge für Rentabilität, Nachkalkulation, Fahrtenbuch, Zusatzleistungen und Checklisten (nur lesen).
 - Leistungs-Checkliste am Handy: je Leistung eine Checkliste (Foto nötig, 1× pro Woche, bestimmte Tage; Vorlagen, übersetzt, „Mit KI übersetzen“), abhaken im Plan am Handy mit Foto ohne Ortsdaten oder „nicht möglich“ mit Grund; Abholen mit den Stempelungen, Fotos in SharePoint, „Zu erledigen“, Spalte im Leistungsnachweis (Idee 3, Rechtsprüfung Punkt 50).
@@ -73,7 +73,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 
 10. **(fertig)** Nachkalkulation: Kalkulierte Stunden je Objekt gegen geplante und gestempelte Stunden; Vorschlag, die Leistungswerte (m² je Stunde) je Raumart aus den Ist-Zeiten anzupassen – die Kalkulation lernt aus der Praxis.
 11. **(fertig)** Eingangsrechnung gegen Bestellung prüfen: Menge und Preis der Eingangsrechnung mit der Bestellung aus Material & Lager vergleichen, Abweichungen vor der Freigabe zeigen.
-12. **(im Büro fertig, Handy folgt)** Einsatzplanung mit Wunschzeiten: Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
+12. **(fertig)** Einsatzplanung mit Wunschzeiten: Mitarbeitende geben am Handy Verfügbarkeit und Wünsche für die nächsten Wochen an; die Automatik berücksichtigt sie und zeigt, wessen Wünsche erfüllt sind.
 13. **(fertig)** KI-Angebotstext aus einer Ausschreibung: Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
 14. **(fertig)** Fahrtenbuch aus den Touren: Für Fahrzeuge im Mattenwechsel und Winterdienst Fahrten aus den Touren vorschlagen (Datum, Strecke, Kilometer, Zweck) – zum Bestätigen statt Abschreiben.
 15. **Kunden-Statusseite je Objekt:** ein Link für die Hausverwaltung mit allen offenen Meldungen, Terminen und dem letzten Leistungsnachweis eines Objekts (Kundenbereich je Objekt statt je Kunde).

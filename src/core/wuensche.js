@@ -46,7 +46,7 @@ export function makeWish(input = {}, { existing = [], today, newId = () => `w${D
   if (kind === 'frueh' || kind === 'spaet') {
     if (mine.some((w) => w.date === date && (w.kind === 'frei' || (w.kind !== kind && (w.kind === 'frueh' || w.kind === 'spaet'))))) return { error: 'Für diesen Tag gibt es schon einen anderen Wunsch.' }
   }
-  if (kind === 'frei' && mine.some((w) => w.date === date)) return { error: 'Für diesen Tag gibt es schon einen anderen Wunsch.' }
+  if (kind === 'frei' && mine.some((w) => w.date === date && !WISH_KINDS[w.kind]?.week)) return { error: 'Für diesen Tag gibt es schon einen anderen Wunsch.' }
   if (WISH_KINDS[kind].week && mine.some((w) => w.date === date && WISH_KINDS[w.kind]?.week)) return { error: 'Für diese Woche gibt es schon einen Stunden-Wunsch.' }
   const week = mondayOf(date)
   if (mine.filter((w) => mondayOf(w.date) === week).length >= MAX_PER_WEEK) return { error: `Höchstens ${MAX_PER_WEEK} Wünsche je Woche.` }
@@ -125,4 +125,31 @@ export function wishStats(report = []) {
     map.set(r.wish.empId, x)
   }
   return map
+}
+
+/**
+ * Wünsche vom Handy (mein-plan.php aktion=wuensche) mit den Wünschen in der App abgleichen. server: [{ id, hash, art,
+ * datum, notiz, erstellt }], current: Wünsche der geladenen Wochen (Schlüssel → Wunsch), index: Hash → empId,
+ * gone: am Webspace zu löschende Kennungen (im Büro gelöscht, noch nicht übertragen). Liefert { add: [Wunsch],
+ * remove: [Schlüssel] }: neue Handy-Wünsche dazu; Handy-Wünsche, die am Webspace fehlen (am Handy gelöscht) und noch
+ * nicht vorbei sind, weg. Vorbei sind sie am Webspace nach einer Woche ohnehin gelöscht – in der App bleiben sie.
+ */
+export function syncHandyWishes(server = [], current = {}, { index = new Map(), today = '', gone = [] } = {}) {
+  const goneSet = new Set(gone)
+  const ids = new Set()
+  const known = new Set(Object.values(current || {}).map((w) => w?.webId).filter(Boolean))
+  const add = []
+  for (const s of server || []) {
+    if (!s || typeof s.id !== 'string' || !/^[a-f0-9]{12}$/.test(s.id) || !WISH_KINDS[s.art] || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.datum || ''))) continue
+    ids.add(s.id)
+    const empId = index.get(s.hash)
+    if (!empId || goneSet.has(s.id) || known.has(s.id)) continue
+    const date = WISH_KINDS[s.art].week ? mondayOf(s.datum) : s.datum
+    add.push({ id: `h${s.id}`, webId: s.id, empId, date, kind: s.art, note: String(s.notiz || '').replace(/\s+/g, ' ').trim().slice(0, NOTE), source: 'handy', at: s.erstellt ? new Date(s.erstellt * 1000).toISOString() : '', by: '' })
+    known.add(s.id)
+  }
+  const remove = Object.entries(current || {})
+    .filter(([, w]) => w?.source === 'handy' && w.webId && (goneSet.has(w.webId) || !ids.has(w.webId)) && (WISH_KINDS[w.kind]?.week ? addDays(w.date, 6) : w.date) >= today)
+    .map(([k]) => k)
+  return { add, remove }
 }

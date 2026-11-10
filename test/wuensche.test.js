@@ -2,7 +2,7 @@
 // selbst (core/scheduler.js) gibt einen offenen Einsatz lieber jemandem ohne Wunschfrei.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { makeWish, wishFactors, wishIndex, wishReport, wishStats } from '../src/core/wuensche.js'
+import { makeWish, syncHandyWishes, wishFactors, wishIndex, wishReport, wishStats } from '../src/core/wuensche.js'
 
 let n = 0
 const newId = () => `w${++n}`
@@ -24,6 +24,38 @@ test('Wünsche: prüfen (Art, Datum, Zukunft, doppelt, Widerspruch, Grenze je Wo
   const four = ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20'].map((d) => makeWish({ empId: 'e2', kind: 'frei', date: d }, { today, newId }).wish)
   assert.match(makeWish({ empId: 'e2', kind: 'frei', date: '2026-11-21' }, { today, existing: four }).error, /Höchstens 4/)
   assert.ok(makeWish({ empId: 'e3', kind: 'frei', date: '2026-11-21' }, { today, existing: four }).wish, 'andere Person zählt nicht')
+  // Wunschfrei am Montag verträgt sich mit „mehr Stunden“ in derselben Woche (in beide Richtungen)
+  assert.ok(makeWish({ empId: 'e1', kind: 'frei', date: '2026-11-16' }, { today, existing: [w], newId }).wish)
+  const mo = makeWish({ empId: 'e4', kind: 'frei', date: '2026-11-16' }, { today, newId }).wish
+  assert.ok(makeWish({ empId: 'e4', kind: 'weniger', date: '2026-11-18' }, { today, existing: [mo], newId }).wish)
+})
+
+test('Wünsche vom Handy: neue übernehmen (Wochenwunsch auf den Montag), am Handy gelöschte weg, vorbei bleibt', () => {
+  const index = new Map([['h1', 'e1'], ['h2', 'e2']])
+  const server = [
+    { id: 'aaaaaaaaaaa1', hash: 'h1', art: 'frei', datum: '2026-11-12', notiz: '  Familie  ', erstellt: 1794000000 },
+    { id: 'aaaaaaaaaaa2', hash: 'h2', art: 'mehr', datum: '2026-11-18', notiz: '', erstellt: 1794000000 },
+    { id: 'aaaaaaaaaaa3', hash: 'unbekannt', art: 'frei', datum: '2026-11-13' },
+    { id: 'kaputt', hash: 'h1', art: 'frei', datum: '2026-11-13' },
+    { id: 'aaaaaaaaaaa4', hash: 'h1', art: 'urlaub', datum: '2026-11-13' },
+    { id: 'aaaaaaaaaaa5', hash: 'h1', art: 'spaet', datum: '2026-11-14' },
+  ]
+  const current = {
+    '2026-11-14|haaaaaaaaaaa5': { id: 'haaaaaaaaaaa5', webId: 'aaaaaaaaaaa5', empId: 'e1', date: '2026-11-14', kind: 'spaet', source: 'handy' },
+    '2026-11-11|hbbbbbbbbbbb1': { id: 'hbbbbbbbbbbb1', webId: 'bbbbbbbbbbb1', empId: 'e1', date: '2026-11-11', kind: 'frueh', source: 'handy' },
+    '2026-11-05|hbbbbbbbbbbb2': { id: 'hbbbbbbbbbbb2', webId: 'bbbbbbbbbbb2', empId: 'e1', date: '2026-11-05', kind: 'frei', source: 'handy' },
+    '2026-11-11|w1': { id: 'w1', empId: 'e2', date: '2026-11-11', kind: 'frei', source: 'buero' },
+  }
+  const { add, remove } = syncHandyWishes(server, current, { index, today: '2026-11-10' })
+  assert.deepEqual(add.map((w) => [w.id, w.webId, w.empId, w.date, w.kind, w.note, w.source]), [
+    ['haaaaaaaaaaa1', 'aaaaaaaaaaa1', 'e1', '2026-11-12', 'frei', 'Familie', 'handy'],
+    ['haaaaaaaaaaa2', 'aaaaaaaaaaa2', 'e2', '2026-11-16', 'mehr', '', 'handy'],
+  ])
+  assert.match(add[0].at, /^2026-11-/)
+  assert.deepEqual(remove, ['2026-11-11|hbbbbbbbbbbb1'], 'am Handy gelöscht; vorbei (05.11.) und Büro-Wünsche bleiben')
+  // im Büro gelöscht, am Webspace noch nicht: nicht wieder übernehmen
+  assert.deepEqual(syncHandyWishes(server, {}, { index, today: '2026-11-10', gone: ['aaaaaaaaaaa1'] }).add.map((w) => w.webId), ['aaaaaaaaaaa2', 'aaaaaaaaaaa5'])
+  assert.deepEqual(syncHandyWishes([], {}, { index, today: '2026-11-10' }), { add: [], remove: [] })
 })
 
 test('Wünsche: Gründe für die Automatik (Wunschfrei schwer, früh/spät, mehr/weniger je Woche)', () => {

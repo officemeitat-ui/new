@@ -25,6 +25,7 @@ import { evaluateCandidate } from '../core/scheduler.js'
 import { langInfo, langOf, linkMessage } from '../core/sprachen.js'
 import { hashIndex, newCode, offeredBy, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
 import { ALARM_DEFAULTS, viennaParts } from '../core/weather.js'
+import { syncHandyWishes, wishKey } from '../core/wuensche.js'
 import { addLog, app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
 import { addAbsence } from './modals/absence.js'
 import { portalNote } from './modals/publish.js'
@@ -189,6 +190,9 @@ export async function loadRequests({ force = false } = {}) {
       req.retry = req.retry.filter((x) => x !== d)
     }
     const [json, index] = await Promise.all([call('antraege'), hashIndex(p)])
+    // Wunschzeiten vom Handy (ein Fehler dort hält die Anträge nicht auf)
+    const wishes = await loadWishes(index).catch((err) => console.warn('Wünsche vom Handy:', err) || 0)
+    if (wishes && req.loaded) toast(wishes === 1 ? 'Neuer Wunsch vom Handy (⋯ → Wünsche der Mitarbeitenden).' : `${wishes} neue Wünsche vom Handy (⋯ → Wünsche der Mitarbeitenden).`)
     const before = new Set(req.list.map((a) => a.id))
     req.list = openRequests(json.antraege, index)
     for (const handle of REQUEST_HANDLERS) {
@@ -208,6 +212,47 @@ export async function loadRequests({ force = false } = {}) {
     req.error = err.message || String(err)
   }
   req.running = false
+}
+
+// ---------------------------------------------------------------- Wunschzeiten vom Handy
+
+/**
+ * Wünsche vom Webspace in die Wochen übernehmen (core/wuensche.js syncHandyWishes); am Handy gelöschte fallen weg.
+ * Im Büro gelöschte Handy-Wünsche (rules.portal.wishGone) zuerst am Webspace löschen. Liefert die Zahl neuer Wünsche.
+ */
+async function loadWishes(index) {
+  const gone = portalSettings().wishGone || []
+  if (gone.length) {
+    await call('wuensche-weg', { ids: gone })
+    const now = portalSettings()
+    saveSettings({ ...now, wishGone: (now.wishGone || []).filter((id) => !gone.includes(id)) })
+  }
+  const list = (await call('wuensche')).wuensche || []
+  const dates = list.map((w) => String(w?.datum || '')).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort()
+  if (!dates.length && !Object.values(app.data.wishes || {}).some((w) => w?.source === 'handy')) return 0
+  if (dates.length) await ensureRange(mondayOf(dates[0]), addDays(mondayOf(dates.at(-1)), 6))
+  const { add, remove } = syncHandyWishes(list, app.data.wishes || {}, { index, today: todayISO(), gone: portalSettings().wishGone || [] })
+  if (!add.length && !remove.length) return 0
+  const all = (app.data.wishes ||= {})
+  for (const k of remove) delete all[k]
+  for (const w of add) all[wishKey(w)] = w
+  persist()
+  if (app.ui.modal?.type === 'wishes') renderModal()
+  return add.length
+}
+
+/** Im Büro gelöschten Handy-Wunsch auch am Webspace löschen (sonst käme er beim nächsten Abruf wieder). */
+export async function forgetHandyWish(webId) {
+  const now = portalSettings()
+  if (!webId || !now.key) return
+  saveSettings({ ...now, wishGone: [...new Set([...(now.wishGone || []), webId])] })
+  try {
+    await call('wuensche-weg', { ids: [webId] })
+    const after = portalSettings()
+    saveSettings({ ...after, wishGone: (after.wishGone || []).filter((id) => id !== webId) })
+  } catch {
+    // wird beim nächsten Abruf nachgeholt
+  }
 }
 
 function changed() {

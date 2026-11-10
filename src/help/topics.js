@@ -2352,7 +2352,7 @@ export const TOPICS = [
     q: ['wunschfrei', 'wunschzeiten', 'wünsche mitarbeitende', 'lieber früh', 'lieber spät', 'mehr stunden', 'weniger stunden', 'wunsch eintragen'],
     answer: 'Mitarbeitende wünschen sich freie Tage, frühe oder späte Dienste oder mehr bzw. weniger Stunden. Die Automatik berücksichtigt das beim Planen als weiche Vorgabe; danach steht je Wunsch, ob er erfüllt ist.',
     steps: ['In der Woche das Menü „⋯“ öffnen, „Wünsche der Mitarbeitenden“.', 'Person, Datum und Wunsch wählen, „Wunsch eintragen“.', '„Woche planen“ – danach steht je Wunsch „erfüllt“ oder „nicht erfüllt“.'],
-    tips: ['Wünsche sind keine Abwesenheit: Stammkräfte bleiben eingeteilt.', 'Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus.'],
+    tips: ['Wünsche sind keine Abwesenheit: Stammkräfte bleiben eingeteilt.', 'Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus.', 'Mitarbeitende tragen Wünsche selbst im „Plan am Handy“ unter „Wunschzeiten“ ein; sie kommen mit den Anträgen in die App (Quelle „Handy“).', 'Ein Wunsch vom Handy, den du hier löschst, wird auch am Handy gelöscht.'],
     related: ['plan-am-handy'],
     roles: 'Planung (eintragen), alle mit Plan (ansehen)',
   },
