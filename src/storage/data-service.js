@@ -389,7 +389,25 @@ const withoutPay = (e) => Object.fromEntries(Object.entries(e).filter(([k]) => !
 const WEEK_FIELDS = ['assignments', 'overrides', 'trips', 'winter', 'winterlog', 'stamps', 'checks', 'wishes']
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-const weekOfKey = (key) => mondayOf(key.slice(0, 10))
+// Montag je Tag einmal rechnen: die Wochenfelder haben zehntausende Schlüssel, aber nur einige hundert Tage
+const MONDAY_OF_DAY = new Map()
+const weekOfKey = (key) => {
+  const day = key.slice(0, 10)
+  let monday = MONDAY_OF_DAY.get(day)
+  if (monday === undefined) {
+    if (MONDAY_OF_DAY.size > 20000) MONDAY_OF_DAY.clear()
+    MONDAY_OF_DAY.set(day, (monday = mondayOf(day)))
+  }
+  return monday
+}
+
+/** Wochen mit Einträgen im Speicher (Schlüssel der Wochenfelder, Protokoll), auch die geladenen. */
+export function weeksWithEntries(data) {
+  const out = new Set()
+  for (const field of WEEK_FIELDS) for (const key of Object.keys(data[field] || {})) out.add(weekOfKey(key))
+  for (const [monday, log] of Object.entries(data.logs || {})) if (log?.length) out.add(monday)
+  return out
+}
 
 /** Art einer Abwesenheit, wenn nur „abwesend“ bekannt ist (ohne Recht auf personal/). */
 export const ABSENT = 'Abwesend'
@@ -452,7 +470,7 @@ export function splitData(data, weeks, years = []) {
 }
 
 /** Eine Datei in die App-Daten übernehmen. */
-export function applyDoc(data, path, doc) {
+export function applyDoc(data, path, doc, weekEmpty = false) {
   if (path === DOC.master) {
     // Lohndaten bleiben erhalten (stehen im Zeitkonto, auch für Personen, die erst jetzt dazukommen);
     // ältere Stammdaten mit Lohn darin gelten weiter
@@ -496,14 +514,27 @@ export function applyDoc(data, path, doc) {
     data[y.key] = [...(data[y.key] || []).filter((x) => y.yearOf(x) !== y.year), ...(doc?.[y.list] || [])]
   } else {
     const monday = doc.monday
+    // weekEmpty: keine Einträge dieser Woche im Speicher (sicher bekannt), Suche danach entfällt
     for (const field of WEEK_FIELDS) {
       data[field] = data[field] || {}
-      for (const key of Object.keys(data[field])) if (weekOfKey(key) === monday) delete data[field][key]
+      if (!weekEmpty) for (const key of Object.keys(data[field])) if (weekOfKey(key) === monday) delete data[field][key]
       Object.assign(data[field], doc[field] || {})
     }
     data.logs = data.logs || {}
     data.logs[monday] = doc.log || []
   }
+}
+
+/**
+ * weeksWithEntries nach applyDoc einer Woche nachführen, ohne alle Schlüssel neu zu durchsuchen: die Einträge der Woche
+ * doc.monday sind jetzt genau die aus doc (dazu ihr Protokoll), Schlüssel aus doc kommen dazu. false: nicht nachführbar.
+ */
+export function weeksAfterApply(set, doc) {
+  if (typeof doc?.monday !== 'string') return false
+  set.delete(doc.monday)
+  for (const field of WEEK_FIELDS) for (const key of Object.keys(doc[field] || {})) set.add(weekOfKey(key))
+  if ((doc.log || []).length) set.add(doc.monday)
+  return true
 }
 
 export class DataService {
@@ -652,11 +683,37 @@ export class DataService {
    * führt das Speichern zusammen statt zu überschreiben.
    */
   #touchedWeeks() {
-    const out = new Set()
-    for (const field of WEEK_FIELDS) for (const key of Object.keys(this.data[field] || {})) out.add(weekOfKey(key))
-    for (const [monday, log] of Object.entries(this.data.logs || {})) if (log?.length) out.add(monday)
+    const out = weeksWithEntries(this.data)
     for (const m of this.weeks) out.delete(m)
     return out
+  }
+
+  /** Wie #touchedWeeks().has(monday), ohne alle Wochen zu sammeln (hört beim ersten Eintrag der Woche auf). */
+  #weekTouched(monday) {
+    if (this.weeks.has(monday)) return false
+    const logs = this.data.logs || {}
+    if (Object.prototype.propertyIsEnumerable.call(logs, monday) && logs[monday]?.length) return true
+    for (const field of WEEK_FIELDS) for (const key of Object.keys(this.data[field] || {})) if (weekOfKey(key) === monday) return true
+    return false
+  }
+
+  /**
+   * Viele Wochen in einem Zug übernehmen (ohne await dazwischen): seen = { set } hält die Wochen mit Einträgen im Speicher,
+   * einmal gesammelt (weeksWithEntries) und nach jeder Woche nachgeführt – sonst durchsucht jede Woche alle Schlüssel.
+   * Ohne seen wie bisher je Woche.
+   */
+  #touched(monday, seen) {
+    if (!seen) return this.#weekTouched(monday)
+    return !this.weeks.has(monday) && (seen.set ||= weeksWithEntries(this.data)).has(monday)
+  }
+
+  #applyWeek(path, doc, seen) {
+    const entries = seen?.set
+    if (!entries) return applyDoc(this.data, path, doc)
+    seen.set = null // bricht applyDoc ab: die nächste Woche sammelt neu
+    // keine Einträge dieser Woche im Speicher: nichts zu ersetzen
+    applyDoc(this.data, path, doc, typeof doc?.monday === 'string' && !entries.has(doc.monday))
+    if (weeksAfterApply(entries, doc)) seen.set = entries
   }
 
   /** Splitten ohne gesperrte Dateien. */
@@ -886,9 +943,15 @@ export class DataService {
     if (this.quickStart && this.store.cached) {
       const fromDevice = []
       fetch = []
-      for (const m of missing) {
+      // Kopien im Gerät für alle Wochen zugleich lesen (nacheinander wartete jede Woche auf die vorige), dann in einem Zug
+      // übernehmen; nie geladene Wochen ohne Nachsehen im Gerät (cachedKnown)
+      const usable = (m) => !this.loadingWeeks.has(m) && this.rights.read(weekPath(m)) && !this.weeks.has(m)
+      const copy = (path) => (this.store.cachedKnown ? this.store.cachedKnown(path) : this.store.cached(path))
+      const copies = await Promise.all(missing.map((m) => (usable(m) ? copy(weekPath(m)) : null)))
+      const seen = { set: null }
+      for (const [i, m] of missing.entries()) {
         if (this.loadingWeeks.has(m)) fetch.push(m)
-        else if (await this.#useCachedWeek(m)) fromDevice.push(m)
+        else if (this.#useCachedWeek(m, copies[i], seen)) fromDevice.push(m)
         else fetch.push(m)
       }
       if (fromDevice.length) {
@@ -937,16 +1000,14 @@ export class DataService {
     return this.ensureWeeks(mondays).catch(() => false)
   }
 
-  /** Woche aus dem Gerät übernehmen (Schnellstart); false, wenn dort keine liegt. */
-  async #useCachedWeek(monday) {
+  /** Woche aus dem Gerät übernehmen (Schnellstart; doc: die Kopie im Gerät); false, wenn dort keine liegt. */
+  #useCachedWeek(monday, doc, seen = null) {
     const path = weekPath(monday)
-    if (!this.rights.read(path) || this.weeks.has(monday)) return false
-    const doc = await this.store.cached(path)
-    if (!doc || this.weeks.has(monday)) return false
-    const local = this.#touchedWeeks().has(monday) ? this.#live(path) : null
+    if (!this.rights.read(path) || !doc || this.weeks.has(monday)) return false
+    const local = this.#touched(monday, seen) ? this.#live(path) : null
     this.weeks.add(monday)
     this.unavailable.delete(monday)
-    applyDoc(this.data, path, clone(local ? mergeDoc(this.base.get(path), local, doc.data) : doc.data))
+    this.#applyWeek(path, clone(local ? mergeDoc(this.base.get(path), local, doc.data) : doc.data), seen)
     this.version++
     this.base.set(path, clone(doc.data))
     if (doc.etag) this.etags.set(path, doc.etag)
@@ -958,11 +1019,15 @@ export class DataService {
   async #loadWeeks(mondays) {
     const todo = mondays.filter((m) => !this.loadingWeeks.has(m) && !this.weeks.has(m))
     if (todo.length) {
-      const batch = this.#readAll(todo.map(weekPath))
+      // alle Wochen eines Abrufs in einem Zug übernehmen: die Wochen mit Einträgen im Speicher nur einmal sammeln
+      const all = this.#readAll(todo.map(weekPath)).then((docs) => {
+        const seen = { set: null }
+        return todo.map((m, i) => this.#fetchWeek(m, docs[i], seen))
+      })
       todo.forEach((m, i) =>
         this.loadingWeeks.set(
           m,
-          batch.then((docs) => this.#fetchWeek(m, docs[i])).finally(() => this.loadingWeeks.delete(m)),
+          all.then((list) => list[i]).finally(() => this.loadingWeeks.delete(m)),
         ),
       )
     }
@@ -975,12 +1040,16 @@ export class DataService {
     return this.loadingWeeks.get(monday)
   }
 
-  /** preread: schon gebündelt gelesen (sonst einzeln lesen). */
-  async #fetchWeek(monday, preread) {
+  /**
+   * preread: schon gebündelt gelesen (sonst einzeln lesen). seen: Wochen mit Einträgen im Speicher ({ set }, für alle
+   * Wochen eines Abrufs einmal gesammelt und nach jeder übernommenen Woche nachgeführt); gilt nur bis zum ersten await.
+   */
+  async #fetchWeek(monday, preread, seen = null) {
     const path = weekPath(monday)
     let doc = preread === undefined && arguments.length < 2 ? await this.#read(path) : preread
     let moved = false
     if (doc === null && !this.denied.has(path) && !this.oldWeeksGone) {
+      seen = null // nach dem Warten kann sich der Speicher geändert haben: selbst nachsehen
       // frühere Ablage daten/plaene/… (nur solange dort noch Wochen liegen könnten)
       const old = await this.#readOld(oldPathOf(path))
       if (old) {
@@ -995,13 +1064,13 @@ export class DataService {
     if (this.weeks.has(monday)) return
     this.unavailable.delete(monday)
     // schon bearbeitet, bevor die Woche geladen war: nicht überschreiben, sondern zusammenführen
-    const local = this.#touchedWeeks().has(monday) ? this.#live(path) : null
+    const local = this.#touched(monday, seen) ? this.#live(path) : null
     this.weeks.add(monday)
     if (!doc) {
       if (local) this.schedule()
       return
     }
-    applyDoc(this.data, path, clone(local ? mergeDoc(this.base.get(path), local, doc.data) : doc.data))
+    this.#applyWeek(path, clone(local ? mergeDoc(this.base.get(path), local, doc.data) : doc.data), seen)
     this.version++
     this.base.set(path, clone(doc.data))
     if (doc.etag) this.etags.set(path, doc.etag)

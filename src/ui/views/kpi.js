@@ -31,7 +31,9 @@ const ICON = '<path d="M3.5 20.5h17"/><rect x="5" y="11" width="3" height="7" rx
 
 // ---------------------------------------------------------------- Formate
 
-const nf = (d = 0) => new Intl.NumberFormat('de-AT', { maximumFractionDigits: d, minimumFractionDigits: 0 })
+// je Stellenzahl ein Format (neu anlegen kostet je Zahl spürbar; die Seite formatiert Hunderte)
+const NF = new Map()
+const nf = (d = 0) => NF.get(d) || NF.set(d, new Intl.NumberFormat('de-AT', { maximumFractionDigits: d, minimumFractionDigits: 0 })).get(d)
 const hours = (min) => `${nf(0).format(Math.round(min / 60))} h`
 const hoursAxis = (min) => nf(0).format(Math.round(min / 60))
 // wie überall in der App: „€ 2.849“ (Währungsformat Österreich, ohne Cent)
