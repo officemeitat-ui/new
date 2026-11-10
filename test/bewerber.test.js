@@ -81,6 +81,9 @@ test('Status: Verlauf, Entscheidung (Zusage, Absage, Rückzug) mit Datum, Kontak
   const b = addLog(applicant(), { kind: 'kontakt', date: '2026-11-04', text: 'angerufen' })
   assert.equal(lastActivity(b), '2026-11-04')
   assert.equal(b.log[0].kind, 'kontakt')
+  // angelegt bzw. vermerkt um 0:30 Uhr in Wien (23:30 UTC am Vortag): der Tag in Wien zählt
+  assert.equal(lastActivity(applicant({ createdAt: '2026-11-01T23:30:00.000Z', log: [] })), '2026-11-02')
+  assert.equal(lastActivity(applicant({ createdAt: '2026-11-01T08:00:00Z', log: [{ at: '2026-11-03T23:30:00.000Z', kind: 'mail' }] })), '2026-11-04')
 })
 
 test('Ohne Rückmeldung: offene Bewerbungen nach mehr als 7 Tagen, am längsten zuerst; entschiedene nicht', () => {

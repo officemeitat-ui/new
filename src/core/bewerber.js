@@ -29,7 +29,7 @@
 //
 // Fristen und Inhalte sind Vorschläge, keine Rechtsauskunft (docs/RECHTSPRUEFUNG.md, Punkt 34).
 
-import { addDays } from './dates.js'
+import { addDays, viennaDate } from './dates.js'
 import { keysOf } from './keys.js'
 import { addMonths, isRequired, statusOf as trainingStatus, typesOf as trainingTypes } from './trainings.js'
 
@@ -63,7 +63,9 @@ export const daysBetween = (a, b) => Math.round((Date.parse(`${b}T12:00:00Z`) - 
 
 /** Letzte Rückmeldung bzw. Aktivität: Anlage, Statuswechsel, vermerkter Kontakt (Datum JJJJ-MM-TT). */
 export function lastActivity(a) {
-  const dates = [String(a?.createdAt || '').slice(0, 10), ...(a?.log || []).map((l) => l.date || String(l.at || '').slice(0, 10))].filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
+  // Zeitpunkte als Tag in Wien (0:30 Uhr ist schon der neue Tag, nicht der UTC-Vortag)
+  const day = (at) => (at ? viennaDate(at) || String(at).slice(0, 10) : '')
+  const dates = [day(a?.createdAt), ...(a?.log || []).map((l) => l.date || day(l.at))].filter((d) => /^\d{4}-\d\d-\d\d$/.test(d))
   return dates.sort().at(-1) || ''
 }
 
