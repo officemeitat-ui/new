@@ -40,7 +40,7 @@ test('Fahrtenbuch: Besuche aus Touren (ohne Entwürfe), Winterdienst (Person üb
   assert.equal(t[0].tourKm, 44.5)
   assert.equal(t[0].depot.name, 'Betriebshof')
   const w = visitsFromWinter([{ id: 'w1', date: '2026-11-04', objectId: 'o1', person: 'anna berger', at: '2026-11-04T05:10:00Z' }, { id: 'w2', date: '2026-11-04', objectId: 'o2', person: 'Unbekannt' }], { employees, objects })
-  assert.deepEqual(w.map((x) => [x.empId, x.name, x.time]), [['e1', 'Bürohaus Nord', '05:10']])
+  assert.deepEqual(w.map((x) => [x.empId, x.name, x.time]), [['e1', 'Bürohaus Nord', '06:10']], 'Uhrzeit in Wien (5:10 UTC ist 6:10 Uhr MEZ)')
   const p = visitsFromPlan([{ key: 'k1', date: '2026-11-05', start: '17:00', objectId: 'o2', empIds: ['e1', 'e9'] }, { key: 'k2', date: '2026-11-05', objectId: 'o1', empIds: ['e1'], status: 'cancelled' }], { objects, employees, drivers: new Set(['e1']) })
   assert.deepEqual(p.map((x) => [x.empId, x.place]), [['e1', 'o2']])
 })
@@ -137,5 +137,21 @@ test('Fahrtenbuch: Privat-km im Jahresschnitt (500 km), CSV mit Storno und Ände
   assert.match(lines[1], /^2026-01-10;S-123AB;;Privatfahrt;/)
   assert.match(lines[1], /2026-01-11 Büro: =falsch/)
   assert.match(lines[2], /Dienstfahrt;X – Y;Mattenwechsel;;;900;/)
-  assert.match(lines[2], /2026-02-12 10:00 Büro: Zweck Fahrt → Mattenwechsel/)
+  assert.match(lines[2], /2026-02-12 11:00 Büro: Zweck Fahrt → Mattenwechsel/, 'Zeit der Änderung in Wien (10:00 UTC ist 11:00 Uhr MEZ)')
+  // bestätigt und storniert nach Mitternacht: Tag und Uhrzeit in Wien, nicht der UTC-Vortag
+  const night = { ...cancelTrip(trips[3], 'doppelt', { by: 'Büro', now: '2026-03-01T23:30:00Z' }).trip, confirmedAt: '2026-03-01T23:15:00Z', confirmedBy: 'Anna' }
+  const row = fahrtenbuchCsv([night], vehicles).trimEnd().split('\r\n')[1]
+  assert.match(row, /;2026-03-02 00:15;Anna;2026-03-02 Büro: doppelt;/)
+})
+
+test('Fahrtenbuch: Winterdienst und Dienstplan am selben Tag nach der Uhrzeit in Wien gereiht', () => {
+  // Streuen um 6:40 Uhr in Wien (5:40 UTC), Reinigung laut Plan um 6:00 Uhr: zuerst die Reinigung
+  const visits = [
+    ...visitsFromWinter([{ id: 'w1', date: '2026-11-04', objectId: 'o2', person: 'Anna Berger', at: '2026-11-04T05:40:00Z' }], { employees, objects }),
+    ...visitsFromPlan([{ key: 'k1', date: '2026-11-04', start: '06:00', objectId: 'o1', empIds: ['e1'] }], { objects, employees }),
+  ]
+  const [s] = suggestTrips({ visits, vehicles, from: '2026-11-01', to: '2026-11-30', today: '2026-11-09', base: { name: 'Büro', lat: 47.8, lon: 13.0 } })
+  assert.equal(s.route, 'Büro – Bürohaus Nord – Praxis Süd – Büro')
+  // Sommerzeit: 4:30 UTC ist 6:30 Uhr
+  assert.equal(visitsFromWinter([{ id: 'w2', date: '2026-07-01', objectId: 'o1', person: 'Anna Berger', at: '2026-07-01T04:30:00Z' }], { employees, objects })[0].time, '06:30')
 })

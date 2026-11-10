@@ -21,6 +21,7 @@
 // Steuerberatung abstimmen.
 
 import { DETOUR, haversineKm, hasCoords } from './geo.js'
+import { viennaParts } from './weather.js'
 
 export const FB_KINDS = { dienst: 'Dienstfahrt', privat: 'Privatfahrt', weg: 'Wohnung–Arbeitsstätte' }
 export const FB_SOURCES = { tour: 'Mattenwechsel', winter: 'Winterdienst', plan: 'Dienstplan', hand: 'von Hand' }
@@ -28,6 +29,15 @@ export const FB_SOURCES = { tour: 'Mattenwechsel', winter: 'Winterdienst', plan:
 export const PRIVATE_LIMIT = 500
 /** Nach so vielen Tagen gilt ein unbestätigter Vorschlag als nicht mehr zeitnah. */
 export const LATE_DAYS = 7
+
+const pad2 = (n) => String(n).padStart(2, '0')
+/** Zeitpunkt (ISO, UTC) → „JJJJ-MM-TT HH:MM“ in Wien; sonst wie gespeichert gekürzt (leer ohne Zeitpunkt). */
+export function viennaClock(iso) {
+  if (!iso) return ''
+  if (!Number.isFinite(Date.parse(iso))) return String(iso).slice(0, 16).replace('T', ' ')
+  const p = viennaParts(iso)
+  return `${p.date} ${pad2(p.hour)}:${pad2(p.minute)}`
+}
 const FIELDS = ['date', 'driver', 'route', 'purpose', 'kind', 'kmStart', 'kmEnd', 'km']
 const FIELD_LABEL = { date: 'Datum', driver: 'Fahrer/in', route: 'Strecke', purpose: 'Zweck', kind: 'Art', kmStart: 'km-Stand Beginn', kmEnd: 'km-Stand Ende', km: 'km' }
 
@@ -94,7 +104,8 @@ export function visitsFromWinter(entries = [], { employees = [], objects = [] } 
       empId: emp.id,
       driver: text(emp.name),
       date: e.date,
-      time: e.at ? new Date(e.at).toISOString().slice(11, 16) : '',
+      // Uhrzeit in Wien wie die Zeiten aus Dienstplan und Touren (danach wird gereiht), nicht in UTC
+      time: e.at ? viennaClock(e.at).slice(11) : '',
       name: text(o?.name || e.object),
       place: e.objectId || text(e.object),
       ...(hasCoords(o) ? { lat: o.lat, lon: o.lon } : {}),
@@ -356,10 +367,10 @@ export function fahrtenbuchCsv(trips = [], vehicles = []) {
     kmCell(t.kmEnd),
     kmCell(t.km),
     t.kmEstimated ? 'ja' : '',
-    String(t.confirmedAt || '').slice(0, 16).replace('T', ' '),
+    viennaClock(t.confirmedAt),
     t.confirmedBy,
-    t.cancelled ? `${[String(t.cancelled.at).slice(0, 10), t.cancelled.by].filter(Boolean).join(' ')}: ${t.cancelled.reason}` : '',
-    (t.history || []).map((h) => `${[String(h.at).slice(0, 16).replace('T', ' '), h.by].filter(Boolean).join(' ')}: ${changeText(h.changes)}`).join(' | '),
+    t.cancelled ? `${[viennaClock(t.cancelled.at).slice(0, 10), t.cancelled.by].filter(Boolean).join(' ')}: ${t.cancelled.reason}` : '',
+    (t.history || []).map((h) => `${[viennaClock(h.at), h.by].filter(Boolean).join(' ')}: ${changeText(h.changes)}`).join(' | '),
   ])
   return `﻿${[head, ...rows].map((r) => r.map(csvCell).join(';')).join('\r\n')}\r\n`
 }

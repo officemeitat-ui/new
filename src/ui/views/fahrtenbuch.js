@@ -4,7 +4,7 @@
 // CSV. Rechenkern core/fahrtenbuch.js; Ablage fahrzeuge/fahrtenbuch/<Jahr>.json (YEAR_DOCS, erst hier geladen).
 
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
-import { cancelTrip, changeText, dismissTrip, editTrip, FB_KINDS, FB_SOURCES, fahrtenbuchCsv, fmtKm, kmSums, LATE_DAYS, lastKm, makeTrip, PRIVATE_LIMIT, privateAverage, suggestTrips, tripChecks, tripsIn, visitsFromPlan, visitsFromTours, visitsFromWinter } from '../../core/fahrtenbuch.js'
+import { cancelTrip, changeText, dismissTrip, editTrip, FB_KINDS, FB_SOURCES, fahrtenbuchCsv, fmtKm, kmSums, LATE_DAYS, lastKm, makeTrip, PRIVATE_LIMIT, privateAverage, suggestTrips, tripChecks, tripsIn, viennaClock, visitsFromPlan, visitsFromTours, visitsFromWinter } from '../../core/fahrtenbuch.js'
 import { addKm, currentKm, kmFits } from '../../core/vehicle-dues.js'
 import { ACTIONS, app, canEdit, closeModal, computeRange, confirmStep, memo, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
@@ -194,10 +194,10 @@ function tripModal(c, m) {
   const kmStart = d.kmStart ?? (t ? kmIn(t.kmStart) : prev !== null ? kmIn(prev) : '')
   const ro = !!t?.cancelled || !editable()
   const field = (id, label, value, attrs = '') => `<label class="field"><span>${label}</span><input id="${id}" value="${esc(value ?? '')}" ${attrs} ${ro ? 'disabled' : ''}></label>`
-  const hist = (t?.history || []).map((h) => `<li>${esc(String(h.at).slice(0, 16).replace('T', ' '))} ${esc(h.by || '')}: ${esc(changeText(h.changes))}</li>`).join('')
+  const hist = (t?.history || []).map((h) => `<li>${esc(viennaClock(h.at))} ${esc(h.by || '')}: ${esc(changeText(h.changes))}</li>`).join('')
   return modalFrame({
     title: t ? `Fahrt ${formatDate(t.date)} ${plate(t.vehicleId)}` : s ? 'Fahrt bestätigen' : 'Fahrt eintragen',
-    subtitle: s ? `Vorschlag aus ${[...new Set(s.sources.map((x) => FB_SOURCES[x.kind]))].join(', ')}${s.kmPlan ? ` · laut Plan ca. ${fmtKm(s.kmPlan)}` : ''}` : t ? `bestätigt ${String(t.confirmedAt || '').slice(0, 10)} ${t.confirmedBy || ''}` : 'z. B. Privatfahrt oder Fahrt ohne Vorschlag',
+    subtitle: s ? `Vorschlag aus ${[...new Set(s.sources.map((x) => FB_SOURCES[x.kind]))].join(', ')}${s.kmPlan ? ` · laut Plan ca. ${fmtKm(s.kmPlan)}` : ''}` : t ? `bestätigt ${viennaClock(t.confirmedAt).slice(0, 10)} ${t.confirmedBy || ''}` : 'z. B. Privatfahrt oder Fahrt ohne Vorschlag',
     body: `<div class="form-grid">
         <label class="field"><span>Fahrzeug</span><select id="fb-veh" ${t || s || ro ? 'disabled' : ''}>${options(vehicles().map((v) => [v.id, [v.plate, v.label].filter(Boolean).join(' · ')]), vehicleId)}</select></label>
         ${field('fb-date', 'Datum', date, `type="date" ${s ? 'disabled' : ''}`)}
@@ -213,7 +213,7 @@ function tripModal(c, m) {
       </div>
       <p class="note">${prev !== null && !t ? `Letzter km-Stand von ${esc(plate(vehicleId))}: ${esc(kmIn(prev))}. ` : ''}Mit km-Stand am Beginn und Ende rechnet die App die km selbst${s?.kmPlan ? `; ohne km-Stand gilt die Schätzung laut Plan (wird als „geschätzt“ markiert)` : ''}.${t ? ' Änderungen werden mit Zeit und Person festgehalten.' : ''}</p>
       ${hist ? `<h4>Änderungen</h4><ul class="fb-history">${hist}</ul>` : ''}
-      ${t?.cancelled ? `<p class="check error">Storniert ${esc(String(t.cancelled.at).slice(0, 10))} von ${esc(t.cancelled.by || '')}: ${esc(t.cancelled.reason)}</p>` : ''}`,
+      ${t?.cancelled ? `<p class="check error">Storniert ${esc(viennaClock(t.cancelled.at).slice(0, 10))} von ${esc(t.cancelled.by || '')}: ${esc(t.cancelled.reason)}</p>` : ''}`,
     foot: `<button class="btn" data-action="close-modal">${ro ? 'Schließen' : 'Abbrechen'}</button><div class="actions">${ro ? '' : `<button class="btn primary" data-action="fb-save">${t ? 'Änderung speichern' : s ? 'Bestätigen' : 'Speichern'}</button>`}</div>`,
   })
 }
