@@ -769,6 +769,11 @@ const RUN = {
   planen: async ({ monday }) => {
     app.ui.monday = monday
     await render()
+    // wie „Woche planen“ im Plan: eine Woche, die ohne Netz nicht geladen ist, nicht einteilen (false: nicht erledigt)
+    if (app.service?.weekUnavailable?.(monday)) {
+      toast('Diese Woche ist ohne Verbindung nicht geladen. Bitte warten, bis wieder Netz da ist.')
+      return false
+    }
     planWeek(false)
   },
   publish: async ({ monday }) => {
@@ -789,8 +794,9 @@ registerActions({
   'dm-run': async (el) => {
     const p = byId(el.dataset.id)
     if (!p?.run) return
-    if (p.run.fn) await RUN[p.run.fn](p.run.data || {})
-    else await dispatch(p.run.action, p.run.data)
+    if (p.run.fn) {
+      if ((await RUN[p.run.fn](p.run.data || {})) === false) return renderNow()
+    } else await dispatch(p.run.action, p.run.data)
     // Dialoge (Veröffentlichen, Termin, Bestellung) entscheiden selbst; sonst gilt es als erledigt
     if (!app.ui.modal) remember(p.id, 'erledigt')
     renderNow()

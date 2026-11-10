@@ -254,6 +254,25 @@ export function registerActions(handlers, { edit = false } = {}) {
   }
 }
 
+/**
+ * Aktion ausführen (Klick, Änderung, Tippen; app.js). Ein Fehler geht nicht still unter: Ohne Hinweis bliebe z. B.
+ * „PDF“ ohne Wirkung, wenn pdfmake ohne Netz nicht geladen werden kann. Abbrechen (Teilen, Datei wählen) ist keiner.
+ */
+export function runAction(handler, ...args) {
+  try {
+    const result = handler(...args)
+    return typeof result?.then === 'function' ? result.then(undefined, actionFailed) : result
+  } catch (err) {
+    actionFailed(err)
+  }
+}
+
+function actionFailed(err) {
+  if (err?.name === 'AbortError') return
+  console.error(err)
+  toast(`Das hat nicht geklappt: ${err?.message || err}`)
+}
+
 // ---------------------------------------------------------------- Später laden
 // Große, selten gebrauchte Module (Fakturierung, Material, Anleitung …) sind im Build eigene
 // Dateien und kommen erst, wenn ihre Ansicht, ein Dialog oder eine Aktion zum ersten Mal gebraucht
