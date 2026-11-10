@@ -748,7 +748,7 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
 /* ============================================================
    1) Grundlagen
    ============================================================ */
-const VERSION = "1.14", VERSION_DATUM = "06.11.2026";
+const VERSION = "1.15", VERSION_DATUM = "10.11.2026";
 const DB_KEY = "cleanos.wasserablesung.v1";
 const QUARTALE = ["Q1", "Q2", "Q3", "Q4"];
 const Q_ZEIT = {Q1:"Jänner – März", Q2:"April – Juni", Q3:"Juli – September", Q4:"Oktober – Dezember"};
@@ -778,13 +778,13 @@ function dbSchreiben(db){
   try{ localStorage.setItem(DB_KEY, JSON.stringify(db)); }catch(e){ speicherOk = false; toast("Speicher voll oder gesperrt – bitte als .json sichern.", 7000); }
 }
 function neueId(p){ return (p || "L") + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6); }
-function heute(){ return new Date().toISOString().slice(0, 10); }
+function heute(){ /* 1.15: Kalendertag am Gerät (bisher UTC: zwischen 0 und 1 Uhr, im Sommer 2 Uhr, war es noch gestern) */ const d = new Date(), z = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()); }
 function jetztZeit(){ const d = new Date(); return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
 function deDat(iso){ if(!iso) return ""; const p = String(iso).split("-"); return p.length === 3 ? p[2]+"."+p[1]+"."+p[0] : iso; }
 function deZeitstempel(iso){
   if(!iso) return "";
   const d = new Date(iso);
-  return isNaN(d) ? "" : deDat(d.toISOString().slice(0,10)) + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  return isNaN(d) ? "" : deDat(d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0")) + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
 }
 function quartalVon(iso){ const m = +String(iso || "").slice(5,7) || (new Date().getMonth()+1); return "Q" + (Math.floor((m-1)/3) + 1); }
 

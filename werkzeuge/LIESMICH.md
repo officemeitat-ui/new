@@ -2,12 +2,16 @@
 
 | Ordner | Werkzeug | Fassung | Ansicht in der App | Rolle (Modul) |
 |---|---|---|---|---|
-| `wasserzaehler/` | Wasserzähler-Ablesung | 1.14 | `#wasserzaehler` | `zaehler` |
-| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.10 | `#objektkontrolle` | `kontrolle` |
+| `wasserzaehler/` | Wasserzähler-Ablesung | 1.15 | `#wasserzaehler` | `zaehler` |
+| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.11 | `#objektkontrolle` | `kontrolle` |
 | `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.2 | `#objektdoku` | `objektmappe` |
-| `mattenwechsel/` | Mattenwechsel | 2.4 | `#matten` | `matten` |
+| `mattenwechsel/` | Mattenwechsel | 2.5 | `#matten` | `matten` |
 
 Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, unverändert.
+
+## Datum des Tages (Stand 10.11.2026)
+
+Wasserzähler 1.15, Objektkontrolle 2.11 und Mattenwechsel 2.5 nehmen für „heute“ den Kalendertag am Gerät. Bisher war es der Tag in UTC: zwischen Mitternacht und 1 Uhr (im Sommer 2 Uhr) war es damit noch gestern – eine Kontrolle oder Ablesung landete im Ordner des Vortags, in der Silvesternacht im alten Quartal. Der Wasserzähler zeigt Zeitstempel kurz nach Mitternacht jetzt auch mit dem richtigen Tag. Sonst ändert sich nichts. Die geänderten Einzeldateien liegen im Paket `Werkzeuge-Quellen_2026-11-10.zip`; bitte in die eigenen Werkzeug-Ordner übernehmen (in `bauteile/` ist es je die Funktion `heute()`).
 
 ## Ablage je Revier (Stand 06.11.2026)
 

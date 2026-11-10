@@ -55,11 +55,11 @@ test('Werkzeuge: „Abschließen“ legt alles in SharePoint ab und holt Offenes
   const mind = (v, soll) => v.split('.').map(Number).reduce((r, x, i) => r || x - (soll.split('.').map(Number)[i] || 0), 0) >= 0
   const erwartet = {
     // 1.14 / 2.10 / 2.2: Ablage je Revier (Ordner „Revier <Name>“, core/reviere.js)
-    wasserzaehler: { version: '1.14', muss: [/function pdfsNachreichen\(/, /pdfOffenSetzen\(doc\.id, doc\.aktiv, true\)/, /function revierName\(/] },
+    wasserzaehler: { version: '1.15', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /function pdfsNachreichen\(/, /pdfOffenSetzen\(doc\.id, doc\.aktiv, true\)/, /function revierName\(/] },
     // 2.8 rief graphFotosAblegen auf, ohne sie zu enthalten
-    objektkontrolle: { version: '2.10', muss: [/async function graphFotosAblegen\(/, /function ablageNachholen\(/, /addEventListener\("online"/, /function revierName\(/] },
+    objektkontrolle: { version: '2.11', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /async function graphFotosAblegen\(/, /function ablageNachholen\(/, /addEventListener\("online"/, /function revierName\(/] },
     objektdoku: { version: '2.2', muss: [/id="kAbschluss"/, /async function abschliessen\(/, /function ablageNachholen\(/, /function revierName\(/] },
-    mattenwechsel: { version: '2.4', muss: [/function ablageAnstossen\(/, /addEventListener\("online", ablageAnstossen\)/] },
+    mattenwechsel: { version: '2.5', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /function ablageAnstossen\(/, /addEventListener\("online", ablageAnstossen\)/] },
   }
   for (const [name, { version, muss }] of Object.entries(erwartet)) {
     const html = datei(name)

@@ -711,8 +711,8 @@ const KAPITEL_TITEL = {}; SEKTIONEN.forEach(s => KAPITEL_TITEL[s.nr] = s.titel);
 /* ============================================================
    2) Speicher und Datenmodell – ein Datensatz = eine Kontrolle
    ============================================================ */
-const VERSION = "2.10";
-const VERSION_DATUM = "06.11.2026";
+const VERSION = "2.11";
+const VERSION_DATUM = "10.11.2026";
 const DB_KEY = "cleanos.schnellkontrolle.v1";
 const $  = (s,r=document) => r.querySelector(s);
 const $$ = (s,r=document) => Array.from(r.querySelectorAll(s));
@@ -786,7 +786,7 @@ function dbSichern(){
   }, 250);
 }
 function neueId(){ return "S-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,6); }
-function heute(){ return new Date().toISOString().slice(0,10); }
+function heute(){ /* 2.11: Kalendertag am Gerät (bisher UTC: zwischen 0 und 1 Uhr, im Sommer 2 Uhr, war es noch gestern) */ const d = new Date(), z = (n) => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()); }
 function jetztZeit(){ const d = new Date(); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
 function deDat(iso){ if(!iso) return ""; const p = String(iso).split("-"); return p.length===3 ? p[2]+"."+p[1]+"."+p[0] : iso; }
 function deZeitstempel(iso){
@@ -2410,7 +2410,7 @@ async function objektStammSchreiben(liste, eTag, revier){
   const kopf = {"Content-Type":"application/json"};
   if(eTag) kopf["If-Match"] = eTag;
   await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(objektStammPfad(revier))}:/content`,
-    {method:"PUT", headers:kopf, body: JSON.stringify({stand:new Date().toISOString().slice(0,10), objekte:liste}, null, 1)});
+    {method:"PUT", headers:kopf, body: JSON.stringify({stand:heute(), objekte:liste}, null, 1)});
 }
 async function objektStammLaden(){
   const db = dbLesen();
