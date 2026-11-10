@@ -17,8 +17,11 @@ const sees = (m) => !app.access || app.access.sees(m)
 const SPANS = [['3', '3 Monate'], ['6', '6 Monate'], ['12', '12 Monate'], ['vorjahr', 'Vorjahr']]
 const LEVEL_PILL = { gut: 'ok', knapp: 'warning', kritisch: 'error', ohne: 'error' }
 const LEVEL_MARK = { gut: '●', knapp: '▲', kritisch: '■', ohne: '■' }
-const pct = (v) => (v === null || v === undefined ? '–' : `${(v * 100).toLocaleString('de-AT', { maximumFractionDigits: 0 })} %`)
-const hours = (h) => `${h.toLocaleString('de-AT', { maximumFractionDigits: 1 })} h`
+// Formate einmal anlegen (toLocaleString mit Optionen legt je Zahl ein neues an; gleiche Ausgabe)
+const PCT = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 0 })
+const HOURS = new Intl.NumberFormat('de-AT', { maximumFractionDigits: 1 })
+const pct = (v) => (v === null || v === undefined ? '–' : `${PCT.format(v * 100)} %`)
+const hours = (h) => `${HOURS.format(h)} h`
 
 const span = () => rentSpan(app.ui.rntSpan || '6', todayISO())
 const settings = () => rentSettings(app.data.fakturierung?.settings?.rent || {})

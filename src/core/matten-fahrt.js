@@ -636,6 +636,25 @@ export function jobUpdatesFromTour(tour) {
   return out
 }
 
+/**
+ * Tage der nicht durchgeführten Wechsel einer Tour: je fertigem Stopp und Einsatz (jobKey), bei dem nichts gewechselt ist,
+ * der Tag des Stopps – dieselben Fälle wie „nachzuholen“ ohne also aus jobUpdatesFromTour, ohne die Einträge zu bauen
+ * (Kennzahlen über alle Touren). Reihenfolge wie stops, nicht wie order.
+ */
+export function notDoneDays(tour) {
+  const out = []
+  for (const stop of tour?.stops || []) {
+    if (!isFinal(stop)) continue
+    const exchanged = new Map() // jobKey → etwas gewechselt
+    for (const it of stop.items || []) {
+      if (!it.jobKey) continue
+      exchanged.set(it.jobKey, exchanged.get(it.jobKey) || (it.status === 'gewechselt' && actualOf(it) > 0))
+    }
+    for (const done of exchanged.values()) if (!done) out.push(stopDay(tour, stop))
+  }
+  return out
+}
+
 /** Bestätigte Wechsel aus den Touren für den Fälligkeitsrechner (matten-plan.js, done): [{ placementId, date }]. */
 export function doneFromTours(tours = []) {
   const seen = new Set()

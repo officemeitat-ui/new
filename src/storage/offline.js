@@ -53,6 +53,7 @@ export function createOfflineCache(name = 'dienstplan-offline') {
     put: safe((store, key, value) => run(store, 'readwrite', (s) => s.put(value, key)), undefined),
     del: safe((store, key) => run(store, 'readwrite', (s) => s.delete(key)), undefined),
     clear: safe((store) => run(store, 'readwrite', (s) => s.clear()), undefined),
+    keys: safe((store) => run(store, 'readonly', (s) => s.getAllKeys()), null),
     all: safe(async (store) => {
       const d = await db()
       return new Promise((resolve, reject) => {
@@ -100,6 +101,7 @@ export function memoryCache() {
     put: async (store, key, value) => void maps[store].set(key, value),
     del: async (store, key) => void maps[store].delete(key),
     clear: async (store) => void maps[store].clear(),
+    keys: async (store) => [...maps[store].keys()],
     all: async (store) => [...maps[store].entries()],
   }
 }
@@ -129,11 +131,43 @@ export class CachedDocStore {
     this.offline = offline
   }
 
+  // Pfade mit Kopie im Gerät: einmal gelesen (beim Start, bevor große Dateien geschrieben werden), danach je Schreiben
+  // dieses Fensters nachgeführt (vor dem Ablegen dazu, nach dem Löschen weg). Promise einer Menge; null: unbekannt (dann
+  // wie bisher im Gerät nachsehen bzw. löschen).
+  #known = null
+  #loadKnown() {
+    if (!this.#known) {
+      let keys = null
+      try {
+        keys = this.cache.keys?.('docs') ?? null
+      } catch {
+        keys = null
+      }
+      this.#known = Promise.resolve(keys).then((list) => (Array.isArray(list) ? new Set(list) : null), () => null)
+    }
+    return this.#known
+  }
+  #track(path, has) {
+    this.#known?.then((set) => set && (has ? set.add(path) : set.delete(path)))
+  }
+
+  /**
+   * Wie cached, aber ohne auf das Gerät zu warten, wenn dort sicher keine Kopie liegt (Wochen, die nie geladen wurden:
+   * nach dem Start schreibt das Gerät oft noch große Dateien, jedes Nachsehen wartete darauf). Kopien, die ein anderes
+   * Fenster seit dem Start abgelegt hat, fehlen in der Liste: dann wird aus SharePoint gelesen (ohne Netz liest
+   * readMany weiter im Gerät).
+   */
+  async cachedKnown(path) {
+    const known = await this.#loadKnown()
+    return known && !known.has(path) ? null : this.cached(path)
+  }
+
   /**
    * Laufwerk finden. quick: war das Gerät schon verbunden, gleich mit dem gemerkten Laufwerk
    * weiterarbeiten und im Hintergrund nachprüfen (this.verified), statt auf zwei Anfragen zu warten.
    */
   async init({ quick = false } = {}) {
+    this.#loadKnown()
     const known = quick ? await this.cache.get('meta', 'init') : null
     if (known?.driveId) {
       Object.assign(this.remote, known)
@@ -173,8 +207,17 @@ export class CachedDocStore {
   }
 
   async #remember(path, doc) {
-    if (doc) await this.cache.put('docs', path, { data: doc.data, etag: doc.etag, modifiedAt: doc.modifiedAt || null })
-    else await this.cache.del('docs', path) // in SharePoint gelöscht: keine alte Kopie wieder auftauchen lassen
+    if (doc) {
+      this.#track(path, true)
+      await this.cache.put('docs', path, { data: doc.data, etag: doc.etag, modifiedAt: doc.modifiedAt || null })
+      return
+    }
+    // gibt es nicht (z. B. Wochen vor dem ersten Plan): ohne Kopie im Gerät nichts zu löschen – sonst wartete jede dieser
+    // Dateien auf das Gerät, das nach dem Start oft noch große Dateien schreibt
+    const known = this.#known && (await this.#known)
+    if (known && !known.has(path)) return
+    await this.cache.del('docs', path) // in SharePoint gelöscht: keine alte Kopie wieder auftauchen lassen
+    this.#track(path, false)
   }
 
   async read(path) {
@@ -233,6 +276,7 @@ export class CachedDocStore {
   async remove(path) {
     await this.remote.remove?.(path)
     await this.cache.del('docs', path)
+    this.#track(path, false)
   }
 
   async etagOf(path) {
@@ -250,6 +294,7 @@ export class CachedDocStore {
   async write(path, data, etag) {
     try {
       const next = await this.remote.write(path, data, etag)
+      this.#track(path, true)
       await this.cache.put('docs', path, { data, etag: next, modifiedAt: new Date().toISOString() })
       this.#mark(false)
       return next

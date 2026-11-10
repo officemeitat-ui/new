@@ -66,6 +66,7 @@ export function hoursByObject({ instances = [], state, stamps = {}, from, to }) 
     if (!out.has(id)) out.set(id, { planned: 0, used: 0, stamped: 0, pairs: 0, stampedPairs: 0 })
     return out.get(id)
   }
+  const anyStamp = list.length > 0 // ohne Stempelungen im Zeitraum keine Schlüssel bauen
   for (const inst of instances) {
     if (inst.status === 'cancelled' || inst.date < from || inst.date > to || !inst.objectId) continue
     const people = state.assigned(inst.key).slice(0, Math.max(1, inst.staff || 1))
@@ -73,7 +74,7 @@ export function hoursByObject({ instances = [], state, stamps = {}, from, to }) 
     for (const { employeeId } of people) {
       x.planned += inst.net
       x.pairs++
-      const s = byInst.get(`${inst.key}|${employeeId}`) || loose.get(`${inst.date}|${inst.objectId}|${employeeId}`)
+      const s = anyStamp ? byInst.get(`${inst.key}|${employeeId}`) || loose.get(`${inst.date}|${inst.objectId}|${employeeId}`) : undefined
       const m = s && !used.has(s) ? stampMinutes(s) : null
       if (m !== null) {
         used.add(s)

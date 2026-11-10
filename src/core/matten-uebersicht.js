@@ -32,7 +32,7 @@ import { addDays, mondayOf } from './dates.js'
 import { matSize } from './invoicing.js'
 import { FLAT_TYPE, isMattenNote, NOTE_TYPE, reviewStep, RUN_TYPE } from './matten-abrechnung.js'
 import { attention, confirmedExchanges, loadList as placementLoad, mergeJobs, withId } from './matten-einsaetze.js'
-import { doneFromTours, isFinal, jobUpdatesFromTour, localDate, orderedStops, placementsOf, shownQuantity, STOP_STATUS, tourProgress } from './matten-fahrt.js'
+import { doneFromTours, isFinal, jobUpdatesFromTour, localDate, notDoneDays, orderedStops, placementsOf, shownQuantity, STOP_STATUS, tourProgress } from './matten-fahrt.js'
 import { DONE_STATUS, dueOn, isOpen, jobDate, markDone, markNotDone } from './matten-plan.js'
 import { archiveState } from './matten-lieferschein.js'
 import { loadList } from './matten-tour.js'
@@ -178,16 +178,19 @@ export const staleTours = (tours = [], today = '') =>
 
 /**
  * Stand für Übersicht, „Zu erledigen“ und Kalender: { jobs (mit dem Stand der Touren), applied (Einsätze, die das
- * Übernehmen ändern würde), done, attention (wie matten-einsaetze.js), overdue (ohne offene Touren und nicht
- * durchgeführte), notDone, stale }. toursLoaded: false, solange die Touren nicht gelesen sind – dann wie bisher nur mit
- * den gespeicherten Einsätzen (keine Touren, nichts „nicht durchgeführt“, Einsätze „in Tour“ zählen weiter als überfällig).
+ * Übernehmen ändern würde), done (doneTours: der Teil aus den Touren), attention (wie matten-einsaetze.js), overdue
+ * (ohne offene Touren und nicht durchgeführte), notDone, stale }. toursLoaded: false, solange die Touren nicht gelesen
+ * sind – dann wie bisher nur mit den gespeicherten Einsätzen (keine Touren, nichts „nicht durchgeführt“, Einsätze „in
+ * Tour“ zählen weiter als überfällig).
  */
 export function mattenStateOf({ doc, jobs = [], tours = [], today, toursLoaded = true } = {}) {
   const list = toursLoaded ? tours || [] : []
   const applied = tourResults(jobs, list)
   const eff = applied.length ? mergeJobs(jobs || [], applied) : jobs || []
   const placements = doc?.placements || []
-  const done = doneOf(placements, list)
+  // wie doneOf; die bestätigten Wechsel aus den Touren stehen zusätzlich als doneTours im Ergebnis (mattenKpi rechnet sie sonst neu)
+  const doneTours = doneFromTours(list)
+  const done = [...confirmedExchanges({ placements }), ...doneTours]
   const att = attention({ doc: { settings: {}, ...(doc || {}), placements }, jobs: eff, done, today })
   const notDone = toursLoaded ? notDoneList({ tours: list, jobs: eff, done, today }) : []
   const notKeys = new Set(notDone.map((x) => x.key))
@@ -197,7 +200,7 @@ export function mattenStateOf({ doc, jobs = [], tours = [], today, toursLoaded =
     const job = x.next.job
     return !(toursLoaded && job?.status === 'in-tour' && open.has(job.tourId))
   })
-  return { today, toursLoaded, jobs: eff, applied, done, attention: att, overdue, notDone, stale: toursLoaded ? staleTours(list, today) : [] }
+  return { today, toursLoaded, jobs: eff, applied, done, doneTours, attention: att, overdue, notDone, stale: toursLoaded ? staleTours(list, today) : [] }
 }
 
 // ---------------------------------------------------------------- Belege der Fakturierung
@@ -348,8 +351,6 @@ export function weekOf(state, tours = [], today) {
 
 // ---------------------------------------------------------------- Kennzahlen
 
-const inMonth = (d, m) => isDate(d) && d >= m.from && d <= m.to
-
 /**
  * Kennzahlen des Mattenwechsels je Monat (months wie lastMonths in core/kpi.js: [{ key, from, to }]):
  *  [{ key, soll (Einsätze mit Solltermin im Monat, ohne ausgesetzte und verworfene), ist (bestätigte Wechsel: Liegeplatz
@@ -359,26 +360,32 @@ const inMonth = (d, m) => isDate(d) && d >= m.from && d <= m.to
  *  und exchanged: im Zeitraum gewechselte Matten je Größe ({ size, qty }).
  *  state: mattenStateOf (Einsätze mit dem Stand der Touren); tolerance: Tage (settings.toleranceDays, Vorgabe 0).
  */
-export function mattenKpi({ doc, state, tours = [], months = [], tolerance = 0 } = {}) {
+export function mattenKpi({ doc, state, tours = [], months = [], tolerance = 0, doneTours = null } = {}) {
   const tol = Math.max(0, Math.round(Number(tolerance) || 0))
   const ist = new Set()
-  for (const d of doneFromTours(tours)) ist.add(`${d.placementId}|${d.date}`)
+  // doneTours: doneFromTours(tours), schon gerechnet (mattenStateOf mit denselben Touren)
+  for (const d of doneTours || doneFromTours(tours)) ist.add(`${d.placementId}|${d.date}`)
   const done = state.jobs.filter((j) => DONE_STATUS.includes(j.status) && isDate(j.doneOn))
   for (const j of done) ist.add(`${j.placementId}|${j.doneOn}`)
   const istDates = [...ist].map((k) => k.split('|')[1])
   const failed = []
-  for (const tour of tours || []) if (tour?.status !== 'entwurf') for (const u of jobUpdatesFromTour(tour)) if (u.status === 'nachzuholen' && !u.also) failed.push(u.date)
+  for (const tour of tours || []) if (tour?.status !== 'entwurf') failed.push(...notDoneDays(tour)) // „nachzuholen“ (jobUpdatesFromTour)
+  // Datum je Eintrag einmal prüfen (nicht je Monat), danach zählt je Monat nur der Bereich
+  const inRange = (d, m) => d >= m.from && d <= m.to
+  const sollDue = state.jobs.filter((j) => isDate(j.due) && j.status !== 'ausgesetzt' && j.status !== 'verworfen').map((j) => j.due)
+  const istValid = istDates.filter((d) => isDate(d))
+  const failedValid = failed.filter((d) => isDate(d))
   const rows = months.map((m) => {
-    const fin = done.filter((j) => inMonth(j.doneOn, m))
+    const fin = done.filter((j) => inRange(j.doneOn, m)) // done: doneOn ist schon ein Datum
     const punctual = fin.filter((j) => isDate(j.due) && j.doneOn <= addDays(j.due, tol)).length
     return {
       key: m.key,
-      soll: state.jobs.filter((j) => inMonth(j.due, m) && j.status !== 'ausgesetzt' && j.status !== 'verworfen').length,
-      ist: istDates.filter((d) => inMonth(d, m)).length,
+      soll: sollDue.filter((d) => inRange(d, m)).length,
+      ist: istValid.filter((d) => inRange(d, m)).length,
       erledigt: fin.length,
       puenktlich: punctual,
       rate: fin.length ? punctual / fin.length : null,
-      nicht: failed.filter((d) => inMonth(d, m)).length,
+      nicht: failedValid.filter((d) => inRange(d, m)).length,
     }
   })
   // Matten je Größe: Bestand an den aktiven Liegeplätzen (Ladeliste aller Liegeplätze, nach Größe zusammengefasst)

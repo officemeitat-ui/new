@@ -134,10 +134,13 @@ export function instanceFor(task, obj, date, { overrides = {}, holidays, rules }
 /** Veränderbarer Planungszustand: wer ist welchem Einsatz zugeteilt. */
 export class PlanState {
   constructor(instances, assignments = {}) {
-    this.instByKey = new Map(instances.map((i) => [i.key, i]))
+    // ohne Zwischenlisten (Object.entries, Paare): Einteilungen über ein Jahr sind zehntausende Schlüssel
+    this.instByKey = new Map()
+    for (const i of instances) this.instByKey.set(i.key, i)
     this.asg = new Map()
     this.byEmp = new Map()
-    for (const [key, list] of Object.entries(assignments)) {
+    for (const key of Object.keys(assignments)) {
+      const list = assignments[key]
       this.asg.set(key, list.map((a) => ({ ...a })))
       if (this.isActive(key)) for (const a of list) this.#link(a.employeeId, key)
     }
@@ -148,9 +151,14 @@ export class PlanState {
     return !!inst && inst.status !== 'cancelled'
   }
 
+  // Einsätze je Person, gemerkt bis zur nächsten Änderung ihrer Einteilungen (Wochenzettel fragen je Woche danach)
+  #ofEmp = new Map()
+
   #link(empId, key) {
-    if (!this.byEmp.has(empId)) this.byEmp.set(empId, new Set())
-    this.byEmp.get(empId).add(key)
+    let keys = this.byEmp.get(empId)
+    if (!keys) this.byEmp.set(empId, (keys = new Set()))
+    keys.add(key)
+    this.#ofEmp.delete(empId)
   }
 
   assigned(key) {
@@ -170,7 +178,9 @@ export class PlanState {
   }
 
   instancesOf(empId) {
-    return [...(this.byEmp.get(empId) || [])].map((k) => this.instByKey.get(k))
+    let list = this.#ofEmp.get(empId)
+    if (!list) this.#ofEmp.set(empId, (list = [...(this.byEmp.get(empId) || [])].map((k) => this.instByKey.get(k))))
+    return list.slice()
   }
 
   assign(empId, key, locked = false) {
@@ -185,6 +195,7 @@ export class PlanState {
     if (list.length) this.asg.set(key, list)
     else this.asg.delete(key)
     this.byEmp.get(empId)?.delete(key)
+    this.#ofEmp.delete(empId)
   }
 
   setLocked(empId, key, locked) {

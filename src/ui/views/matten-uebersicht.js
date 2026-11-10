@@ -296,8 +296,9 @@ kpiHooks.matten = ({ months, today }) => {
   const years = tourYears(months[0].from, today)
   const loaded = ensureOverviewTours(years)
   const tours = loaded ? tourStore().tours() : []
-  const state = mattenStateOf({ doc: doc(), jobs: jobsAll(), tours, today, toursLoaded: loaded })
-  const k = mattenKpi({ doc: doc(), state, tours, months, tolerance: doc().settings?.toleranceDays })
+  // dieselben Touren gelesen wie für die Übersicht: deren Stand nehmen (gemerkt je Berechnung, auch für „Zu erledigen“)
+  const state = loaded === loadedYears(overviewYears(today)) ? mattenState(today) : mattenStateOf({ doc: doc(), jobs: jobsAll(), tours, today, toursLoaded: loaded })
+  const k = mattenKpi({ doc: doc(), state, tours, months, tolerance: doc().settings?.toleranceDays, doneTours: state.doneTours })
   const docs = fakDocs()
   return { ...k, loading: !loaded, invoices: docs ? mattenInvoices(docs) : null }
 }

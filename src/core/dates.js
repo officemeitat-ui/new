@@ -9,21 +9,39 @@ export const WEEKDAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 export const WEEKDAY_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
 export const MONTH_LONG = ['Jänner', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 
+// Tag ↔ Tagesnummer und Uhrzeit → Minuten je Wert nur einmal rechnen: Einsätze, Wochenzettel und Kennzahlen fragen
+// dieselben Tage zehntausendfach. Reine Funktionen, das Ergebnis bleibt gleich; je Merker höchstens 20 000 Einträge.
+const DAY_INDEX = new Map()
+const DAY_OF_INDEX = new Map()
+const MINUTES = new Map()
+const remember = (map, key, value) => {
+  if (map.size >= 20000) map.clear()
+  map.set(key, value)
+  return value
+}
+
 export function dayIndex(date) {
+  const hit = DAY_INDEX.get(date)
+  if (hit !== undefined) return hit
   const [y, m, d] = date.split('-').map(Number)
-  return Math.round(Date.UTC(y, m - 1, d) / DAY_MS)
+  const idx = Math.round(Date.UTC(y, m - 1, d) / DAY_MS)
+  return typeof date === 'string' ? remember(DAY_INDEX, date, idx) : idx
 }
 
 export function fromDayIndex(idx) {
+  const hit = DAY_OF_INDEX.get(idx)
+  if (hit !== undefined) return hit
   const dt = new Date(idx * DAY_MS)
-  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`
+  const date = `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`
+  return typeof idx === 'number' ? remember(DAY_OF_INDEX, idx, date) : date
 }
 
 export const addDays = (date, n) => fromDayIndex(dayIndex(date) + n)
 
 /** 1 = Montag … 7 = Sonntag */
 export function isoWeekday(date) {
-  const w = new Date(dayIndex(date) * DAY_MS).getUTCDay()
+  // Tag 0 (1970-01-01) war ein Donnerstag; wie new Date(…).getUTCDay(), ohne Datumsobjekt
+  const w = (((dayIndex(date) + 4) % 7) + 7) % 7
   return w === 0 ? 7 : w
 }
 
@@ -60,8 +78,11 @@ export function monthsBetween(a, b) {
 }
 
 export function toMinutes(time) {
+  const hit = MINUTES.get(time)
+  if (hit !== undefined) return hit
   const [h, m] = String(time).split(':').map(Number)
-  return h * 60 + (m || 0)
+  const min = h * 60 + (m || 0)
+  return typeof time === 'string' ? remember(MINUTES, time, min) : min
 }
 
 export function formatTime(min) {
