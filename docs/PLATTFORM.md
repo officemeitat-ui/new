@@ -177,10 +177,10 @@ Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für de
 
 | Werkzeug | Fassung | Ordner in der App | SharePoint |
 |---|---|---|---|
-| Wasserzähler-Ablesung | 1.13 | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
-| Objektkontrolle (Prüfprotokoll) | 2.9 | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
-| Objektdoku (Leistungsverzeichnis) | 2.1 | `werkzeuge/objektdoku/` | `Objektdoku` |
-| Mattenwechsel (im Menü „Mattenwechsel (Werkzeug)“, parallel zum Mattenwechsel-Modul; nach der Umstellung „Mattenwechsel (alt)“, nur lesend) | 2.4 | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
+| Wasserzähler-Ablesung | 1.15 | `werkzeuge/wasserzaehler/` | `Wasserzähler - Ablesung` |
+| Objektkontrolle (Prüfprotokoll) | 2.11 | `werkzeuge/objektkontrolle/` | `Objektpruefprotokolle/Objekte` |
+| Objektdoku (Leistungsverzeichnis) | 2.2 | `werkzeuge/objektdoku/` | `Objektdoku` |
+| Mattenwechsel (im Menü „Mattenwechsel (Werkzeug)“, parallel zum Mattenwechsel-Modul; nach der Umstellung „Mattenwechsel (alt)“, nur lesend) | 2.5 | `werkzeuge/mattenwechsel/` | `Mattenwechsel/Touren` |
 
 - **Eine Anmeldung.** In der App melden sich die Werkzeuge nicht selbst bei Microsoft an, sie bekommen die Anmeldung der App (Anmeldebrücke `werkzeuge/bruecke.js`). Keine Anmeldemaske im Werkzeug, kein zweites Konto antippen.
 - **Alles wie gewohnt.** Ablesen, Fotos, Berichte, Kontrollen mit Unterschrift, Objektblatt mit Öffnungscode, Touren und Lieferscheine: Es ist dieselbe Datei, mit denselben Daten in denselben SharePoint-Ordnern. Ohne Netz arbeiten die Werkzeuge weiter wie bisher.
