@@ -29,7 +29,7 @@ import {
   RKSV_HINT,
   stornoEntry,
 } from '../../core/cashbook.js'
-import { addDays, firstOfMonth, formatDate, todayISO } from '../../core/dates.js'
+import { addDays, firstOfMonth, formatDate, todayISO, viennaDate } from '../../core/dates.js'
 import { openAmount, openItems, parseNumber, paymentEntries, round2, settingsOf as invoicingSettings } from '../../core/invoicing.js'
 import { openOf, payables, purchasePaymentEntries, removePayment, toCsv } from '../../core/purchase.js'
 import { cashbookDocument, cashbookPdfName, cashbookPdfPath, monthName } from '../../export/cashbook-pdf.js'
@@ -139,7 +139,7 @@ function cashbookView() {
     ${st.sales.over ? `<div class="banner warn-banner"><p><strong>Registrierkassenpflicht prüfen:</strong> Barumsätze ${esc(todayISO().slice(0, 4))} bisher ${money(st.sales.net)} netto (Grenze ${money(RKSV.cash)} bei mehr als ${money(RKSV.turnover)} Jahresumsatz). ${esc(RKSV_HINT)}</p></div>` : `<details class="kasse-rksv"><summary>Registrierkasse: Hinweis (§ 131b BAO)</summary><p>${esc(RKSV_HINT)} Barumsätze ${esc(todayISO().slice(0, 4))} laut Kassenbuch: ${money(st.sales.net)} netto.</p></details>`}
     ${!b.entries.length && ed ? `<div class="banner welcome"><p><strong>Kassenbuch beginnen:</strong> zuerst das Bargeld in der Kasse zählen und als Anfangsbestand eintragen (z. B. Endbestand aus orgaMAX), dann jede Einnahme und Ausgabe am selben Tag mit Beleg.</p><button class="btn primary" data-action="kasse-opening-open">Anfangsbestand eintragen</button></div>` : ''}
     <div class="impact-stats tc-stats">${tile('Kassenstand', money(st.balance), st.balance < 0 ? 'err' : '', s.name)}${tile(`Einnahmen ${esc(monthName(m))}`, money(r.sumIn))}${tile(`Ausgaben ${esc(monthName(m))}`, money(r.sumOut))}${tile('Letzter Kassensturz', lastCount ? day(lastCount.date) : '–', st.sinceCount > 7 ? 'warn' : '', lastCount ? `Differenz ${money(lastCount.diff)}` : 'noch keiner')}${tile('Abgeschlossen bis', lock ? monthName(lock) : '–', st.closing ? 'warn' : '', st.closing ? `${monthName(st.closing)} abschließen` : closedDay(b) ? `Tag ${day(closedDay(b))}` : '')}</div>
-    <div class="filters"><label class="field inline"><span>Monat</span><select id="kasse-month" data-change="kasse-month">${options(months.map((x) => [x, monthName(x)]), m)}</select></label><span class="spacer"></span>${r.closed ? `<span class="pill ok">abgeschlossen ${day(String(r.closed.at).slice(0, 10))}</span>` : ''}<button class="btn small" data-action="kasse-pdf" data-month="${m}">${ICON.download} PDF</button></div>
+    <div class="filters"><label class="field inline"><span>Monat</span><select id="kasse-month" data-change="kasse-month">${options(months.map((x) => [x, monthName(x)]), m)}</select></label><span class="spacer"></span>${r.closed ? `<span class="pill ok">abgeschlossen ${day(viennaDate(r.closed.at) || String(r.closed.at).slice(0, 10))}</span>` : ''}<button class="btn small" data-action="kasse-pdf" data-month="${m}">${ICON.download} PDF</button></div>
     <div class="table-wrap"><table class="data kasse-table"><thead><tr><th>Nr.</th><th>Datum</th><th>Text</th><th class="num">Einnahme</th><th class="num">Ausgabe</th><th class="num">Stand</th><th></th></tr></thead><tbody>
       <tr class="kasse-opening"><td></td><td>${day(`${m}-01`)}</td><td><em>Anfangsbestand des Monats</em></td><td></td><td></td><td class="num">${money(r.opening)}</td><td></td></tr>
       ${rows || '<tr><td colspan="7" class="muted">Keine Einträge in diesem Monat.</td></tr>'}

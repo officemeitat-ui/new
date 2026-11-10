@@ -1,6 +1,6 @@
 // Material & Lager als PDF: Bestellschein für den Lieferanten und Zählliste für die Inventur.
 
-import { formatDate, todayISO } from '../core/dates.js'
+import { formatDate, todayISO, viennaDate } from '../core/dates.js'
 import { euro, orderSum } from '../core/material.js'
 import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 
@@ -20,7 +20,7 @@ export function orderDocument({ order, supplier = {}, articles = [], settings = 
   if (withPrices) rows.push([{ text: 'Summe netto', colSpan: 6, bold: true, alignment: 'right' }, '', '', '', '', '', { text: euro(orderSum(order)), bold: true, alignment: 'right' }])
   const address = (lines) => lines.filter(Boolean).join('\n')
   const content = [
-    ...header({ title: `Bestellung ${order.no || ''}`, subtitle: formatDate(order.orderedAt || order.createdAt?.slice(0, 10) || todayISO(createdAt), { year: true }), brand, logo, colors }),
+    ...header({ title: `Bestellung ${order.no || ''}`, subtitle: formatDate(order.orderedAt || viennaDate(order.createdAt || '') || todayISO(createdAt), { year: true }), brand, logo, colors }),
     {
       columns: [
         { stack: [{ text: 'An', bold: true, color: colors.ink }, { text: address([supplier.name, supplier.contact, supplier.email, supplier.phone]) || '–' }, supplier.customerNo ? { text: `Unsere Kundennummer: ${supplier.customerNo}`, margin: [0, 4, 0, 0] } : ''] },
