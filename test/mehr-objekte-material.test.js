@@ -95,6 +95,9 @@ test('Bestellnummer: nur das Jahr zählt, kaputte Nummern werden ignoriert', () 
 
 test('Bestellung: Summe aus Texten, überfällig nur offene mit Liefertermin', () => {
   assert.equal(orderSum({ lines: [{ qty: '3', price: '1.5' }, { qty: 2, price: 0.333 }, { qty: 'x', price: 5 }] }), 5.17)
+  // 0,5 × 2,01 € = 1,005 €: jede Position 1,01 € (wie im Bestellschein), die Summe ist die Summe der Positionen
+  assert.equal(orderSum({ lines: [{ qty: 0.5, price: 2.01 }, { qty: 0.5, price: 2.01 }] }), 2.02)
+  assert.equal(orderSum({ lines: [{ qty: 0.5, price: 2.01 }] }), 1.01)
   assert.equal(isOverdue({ status: 'bestellt', expected: '2026-11-01' }, '2026-11-02'), true)
   assert.equal(isOverdue({ status: 'teilweise', expected: '2026-11-02' }, '2026-11-02'), false, 'heute fällig: noch nicht überfällig')
   assert.equal(isOverdue({ status: 'geliefert', expected: '2026-10-01' }, '2026-11-02'), false)

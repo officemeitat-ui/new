@@ -1,7 +1,7 @@
 // Material & Lager als PDF: Bestellschein für den Lieferanten und Zählliste für die Inventur.
 
 import { formatDate, todayISO, viennaDate } from '../core/dates.js'
-import { euro, orderSum } from '../core/material.js'
+import { euro, orderLineSum, orderSum } from '../core/material.js'
 import { docShell, header, inkColors, tableLayout } from './pdf-parts.js'
 
 const qty = (n) => String(Math.round((Number(n) || 0) * 1000) / 1000).replace('.', ',')
@@ -15,7 +15,7 @@ export function orderDocument({ order, supplier = {}, articles = [], settings = 
   const head = ['Pos.', 'Menge', 'Einheit', 'Artikel', 'Art.-Nr.', ...(withPrices ? ['Preis', 'Betrag'] : [])].map((text) => ({ text, style: 'th' }))
   const rows = (order.lines || []).map((l, i) => {
     const a = byId.get(l.articleId) || {}
-    return [String(i + 1), { text: qty(l.qty), alignment: 'right' }, a.unit || 'Stk', a.name || '', a.articleNo || '', ...(withPrices ? [{ text: l.price ? euro(l.price) : '', alignment: 'right' }, { text: l.price ? euro(l.qty * l.price) : '', alignment: 'right' }] : [])]
+    return [String(i + 1), { text: qty(l.qty), alignment: 'right' }, a.unit || 'Stk', a.name || '', a.articleNo || '', ...(withPrices ? [{ text: l.price ? euro(l.price) : '', alignment: 'right' }, { text: l.price ? euro(orderLineSum(l)) : '', alignment: 'right' }] : [])]
   })
   if (withPrices) rows.push([{ text: 'Summe netto', colSpan: 6, bold: true, alignment: 'right' }, '', '', '', '', '', { text: euro(orderSum(order)), bold: true, alignment: 'right' }])
   const address = (lines) => lines.filter(Boolean).join('\n')
