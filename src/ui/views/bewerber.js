@@ -13,7 +13,7 @@ import { LANGUAGES, langInfo } from '../../core/sprachen.js'
 import { app, canEdit, closeModal, confirmStep, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { openCompose } from '../mailer.js'
 import { registerTodo } from '../modals/todo.js'
-import { availabilitySummary, checked, checkedValues, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
+import { availabilitySummary, checked, checkedValues, dayAt, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
 import { onAppointmentSaved } from './appointments.js'
 import { openListOf, startChecklist } from './eintritt.js'
 import { onEmployeeCreated } from './staff.js'
@@ -257,12 +257,12 @@ function editModal(c, m) {
     decision = `<p><span class="pill ok">übernommen</span> als ${esc(emp?.name || 'Mitarbeiter:in')}${list && (!app.access || app.access.sees('eintritt')) ? ` <button class="btn small" data-action="bew-goto" data-list="${esc(list.id)}">Eintritts-Checkliste</button>` : ''}</p>`
   } else if (a && ['absage', 'zurueck'].includes(a.status)) {
     const del = deleteDue(a, deleteMonthsOf(doc()))
-    decision = `<p>${statusPill(a)} am ${esc(short(a.decidedAt))}${a.rejectMail ? ` · Absage-Mail ${esc(short(a.rejectMail.at.slice(0, 10)))}` : ''} · <strong>löschen ab ${esc(short(del))}</strong>${del && del <= today ? ' <span class="pill error">Löschfrist erreicht</span>' : ''}</p>`
+    decision = `<p>${statusPill(a)} am ${esc(short(a.decidedAt))}${a.rejectMail ? ` · Absage-Mail ${esc(short(dayAt(a.rejectMail.at)))}` : ''} · <strong>löschen ab ${esc(short(del))}</strong>${del && del <= today ? ' <span class="pill error">Löschfrist erreicht</span>' : ''}</p>`
   }
   const history = a?.log?.length
     ? `<details class="bew-log"><summary>Verlauf (${a.log.length})</summary><ul class="bew-sub">${[...a.log]
         .reverse()
-        .map((l) => `<li><strong>${esc(short(l.date || l.at.slice(0, 10)))}</strong> ${l.kind === 'status' ? `Status ${esc(STATUS[l.status] || l.status)}` : l.kind === 'termin' ? 'Gespräch' : l.kind === 'mail' ? 'E-Mail' : l.kind === 'datei' ? 'Unterlage' : 'Kontakt'}${l.text ? `: ${esc(l.text)}` : ''} <span class="muted">· ${esc(l.by || '')}</span></li>`)
+        .map((l) => `<li><strong>${esc(short(l.date || dayAt(l.at)))}</strong> ${l.kind === 'status' ? `Status ${esc(STATUS[l.status] || l.status)}` : l.kind === 'termin' ? 'Gespräch' : l.kind === 'mail' ? 'E-Mail' : l.kind === 'datei' ? 'Unterlage' : 'Kontakt'}${l.text ? `: ${esc(l.text)}` : ''} <span class="muted">· ${esc(l.by || '')}</span></li>`)
         .join('')}</ul></details>`
     : ''
   const confirmDel = a && app.ui.confirm === `bew-del:${a.id}`

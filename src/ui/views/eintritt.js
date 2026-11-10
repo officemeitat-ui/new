@@ -19,7 +19,7 @@ import { eintrittContext } from '../eintritt-ctx.js'
 import { openCompose } from '../mailer.js'
 import { registerTodo } from '../modals/todo.js'
 import { portalSettings, sendWeeks } from '../staffplan.js'
-import { checked, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { checked, dayAt, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 import { onAppointmentSaved } from './appointments.js'
 
 const MODULE = 'eintritt'
@@ -107,7 +107,7 @@ function eintrittView() {
       return `<article class="bew-card ${l.closedAt ? 'closed' : ''}">
         <header><h3><button class="link-btn" data-action="bew-list-open" data-id="${esc(l.id)}">${esc(emp?.name || 'Person')}</button></h3><span class="muted">${esc(DATE_TEXT[l.kind])}: ${esc(day(l.date))}${emp?.team ? ` · ${esc(emp.team)}` : ''}</span></header>
         <div class="bew-prog">${progressBar(p)}</div>
-        <p class="bew-next">${l.closedAt ? `<span class="pill ok">abgeschlossen ${esc(short(l.closedAt.slice(0, 10)))}</span>` : next ? `<span class="pill ${STATE_CLS[st]}">${esc(STATE_TEXT[st])}</span> ${esc(next.title)} <span class="muted">${esc(dueText(next, st))}</span>` : '<span class="pill ok">alles erledigt</span>'}</p>
+        <p class="bew-next">${l.closedAt ? `<span class="pill ok">abgeschlossen ${esc(short(dayAt(l.closedAt)))}</span>` : next ? `<span class="pill ${STATE_CLS[st]}">${esc(STATE_TEXT[st])}</span> ${esc(next.title)} <span class="muted">${esc(dueText(next, st))}</span>` : '<span class="pill ok">alles erledigt</span>'}</p>
         <div class="actions"><button class="btn small primary" data-action="bew-list-open" data-id="${esc(l.id)}">Öffnen</button></div>
       </article>`
     })
@@ -144,7 +144,7 @@ function taskPanel(t, l, ctx, ed) {
   if (t.type === 'lohn') {
     const wage = seesAccount()
     const gaps = payrollGaps(emp, { wage })
-    return `<p>${gaps.length ? `Im Stammblatt fehlt: <strong>${esc(gaps.join(', '))}</strong>.` : `Stammblatt vollständig (Personalnummer, Eintritt, Wochenstunden${wage ? ', Lohngruppe' : ''}).`}${wage ? '' : ' Lohngruppe und Stundenlohn trägt die Lohnverrechnung ein.'}${t.data?.sent ? ` <span class="pill ok">an die Lohnverrechnung ${esc(short(t.data.sent.at.slice(0, 10)))}</span>` : ''}</p>
+    return `<p>${gaps.length ? `Im Stammblatt fehlt: <strong>${esc(gaps.join(', '))}</strong>.` : `Stammblatt vollständig (Personalnummer, Eintritt, Wochenstunden${wage ? ', Lohngruppe' : ''}).`}${wage ? '' : ' Lohngruppe und Stundenlohn trägt die Lohnverrechnung ein.'}${t.data?.sent ? ` <span class="pill ok">an die Lohnverrechnung ${esc(short(dayAt(t.data.sent.at)))}</span>` : ''}</p>
       <div class="actions">${canEdit('stammdaten') && !app.readOnly ? btn('emp-edit', 'Stammblatt öffnen', { id: emp.id }) : ''}${ed ? btn('bew-payroll-mail', `${ICON.send} An die Lohnverrechnung`, { list: l.id, task: t.id }) : ''}</div>`
   }
   if (t.type === 'zeitkonto') {

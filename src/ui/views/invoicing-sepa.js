@@ -38,7 +38,7 @@ import { mandateDocument, mandateFileName } from '../../export/sepa-pdf.js'
 import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, euro, ICON, modalFrame, options, val } from '../shared.js'
+import { checked, dayAt, download, esc, euro, ICON, modalFrame, options, val } from '../shared.js'
 import { laeufeHooks } from './invoicing-laeufe.js'
 
 const MODULE = 'fakturierung'
@@ -229,7 +229,7 @@ function sepaModal(c, m) {
       ${m.progress ? `<div role="status" aria-live="polite"><progress max="${m.progress.total}" value="${m.progress.done}" style="width:100%"></progress><p class="muted">${esc(m.progress.label)} ${m.progress.done} von ${m.progress.total}</p></div>` : ''}
       ${needNotice.length ? `<div class="filters"><label class="field inline"><span>Text der Ankündigung</span><select id="fsd-block" data-change="fak-sepa-block">${options([['', 'Standardtext'], ...blocks.map((b) => [b.id, b.name || 'Textbaustein'])], m.block || '')}</select></label></div>` : ''}
       ${pending.length ? `<h3>Im Einzug (${pending.length})</h3><ul>${pending.map((d) => `<li><button class="link-btn" data-action="fak-open" data-id="${esc(d.id)}">${esc(d.number)}</button> ${esc(d.recipient?.name || '')} · ${money(d.directDebit.amount)} fällig ${esc(day(d.directDebit.dueDate))} (${esc(d.directDebit.seq)})${editable() ? ` <button class="link-btn" data-action="fak-return-open" data-id="${esc(d.id)}">Rücklastschrift</button>` : ''}</li>`).join('')}</ul>` : ''}
-      ${recent.length ? `<details><summary>Letzte Einzüge</summary><ul>${recent.map((b) => `<li>${esc(day(String(b.createdAt).slice(0, 10)))}: ${plural(b.count, 'Lastschrift', 'Lastschriften')}, ${money(b.sum)}, fällig ${esc(day(b.dueDate))} · ${esc(b.file || b.msgId)}${b.by ? ` · ${esc(b.by)}` : ''}</li>`).join('')}</ul></details>` : ''}
+      ${recent.length ? `<details><summary>Letzte Einzüge</summary><ul>${recent.map((b) => `<li>${esc(day(dayAt(b.createdAt)))}: ${plural(b.count, 'Lastschrift', 'Lastschriften')}, ${money(b.sum)}, fällig ${esc(day(b.dueDate))} · ${esc(b.file || b.msgId)}${b.by ? ` · ${esc(b.by)}` : ''}</li>`).join('')}</ul></details>` : ''}
       <p class="note">Ablauf: Einzugstag wählen; Rechnungen mit Lastschrift-Hinweis sind schon angekündigt, die übrigen bekommen die Vorabankündigung per E-Mail (Frist laut Mandat, sonst ${esc(ss.preNoticeDays)} Tage). Dann „Lastschriftdatei erstellen“, die Datei im Online-Banking (z. B. George Business, ELBA, BusinessNet) hochladen und freigeben. Die Rechnungen stehen danach „im Einzug“ und werden nicht gemahnt; der Eingang wird im Bankabgleich sicher erkannt. Kommt eine Lastschrift zurück: „Rücklastschrift“ beim Beleg.</p>`,
     foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">
       ${needNotice.length ? (mailOk ? `<button class="btn" data-action="fak-sepa-notice" ${m.busy ? 'disabled' : ''}>${ICON.send} Vorabankündigung per E-Mail (${needNotice.length})</button>` : '') + `<button class="btn ghost" data-action="fak-sepa-noted" title="z. B. per Brief oder telefonisch angekündigt" ${m.busy ? 'disabled' : ''}>Als angekündigt vermerken (${needNotice.length})</button>` : ''}

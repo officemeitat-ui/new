@@ -72,7 +72,7 @@ import { openCompose } from '../mailer.js'
 import { canMail } from '../modals/send.js'
 import { invalidateTodo, refreshBell, registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
+import { checked, checkedValues, dayAt, download, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
 import { portalCall, portalEnabled, portalLinks, portalLinkUrl, portalManage, portalReady } from './customer-portal.js'
 
 const MODULE = 'zufriedenheit'
@@ -675,7 +675,7 @@ function csvColumns(list) {
   for (const r of [...doc().rounds].sort((a, b) => a.id.localeCompare(b.id))) for (const x of normalizeQuestions(r.questions).items) qs.set(x.id, x.text)
   for (const a of list) for (const id of Object.keys(a.scores || {})) if (!qs.has(id)) qs.set(id, id)
   return [
-    ['Eingang', (a) => String(a.at).slice(0, 10)],
+    ['Eingang', (a) => dayAt(a.at)],
     ['Quartal', (a) => a.roundId],
     ['Kunde', (a) => a.linkTitle || ''],
     ['Objekt', (a) => objText(a)],
@@ -688,7 +688,7 @@ function csvColumns(list) {
     ['Name', (a) => a.name || ''],
     ['Funktion', (a) => a.role || ''],
     ['Freitext', (a) => a.comment || ''],
-    ['erledigt', (a) => (a.done ? `${String(a.done.at).slice(0, 10)} ${a.done.by}${a.done.note ? `: ${a.done.note}` : ''}` : '')],
+    ['erledigt', (a) => (a.done ? `${dayAt(a.done.at)} ${a.done.by}${a.done.note ? `: ${a.done.note}` : ''}` : '')],
   ]
 }
 

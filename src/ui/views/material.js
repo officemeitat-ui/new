@@ -50,7 +50,7 @@ import { registerTodo } from '../modals/todo.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { call, onPortalRequests, portalSettings } from '../staffplan.js'
-import { checked, download, esc, euro, ICON, menu, modalFrame, options, rowMenu, tabBar, uid, val } from '../shared.js'
+import { checked, dayAt, download, esc, euro, ICON, menu, modalFrame, options, rowMenu, tabBar, uid, val } from '../shared.js'
 
 const MODULE = 'material'
 const ICON_BOX = '<path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9M7.8 5.2l8.5 4.6"/>'
@@ -254,7 +254,7 @@ function requestTab() {
   const list = d.requests.filter((r) => (filter === 'offen' ? isPendingRequest(r) : true)).sort((a, b) => (isOpenRequest(a) === isOpenRequest(b) ? (filter === 'offen' ? a.at.localeCompare(b.at) : b.at.localeCompare(a.at)) : isOpenRequest(a) ? -1 : 1))
   const rows = list
     .map(
-      (r) => `<tr class="clickable" data-action="mat-request-open" data-id="${esc(r.id)}"><td>${formatDate(r.at.slice(0, 10))}</td><td>${esc(objName(r.objectId) || r.objectName || '–')}</td><td>${esc(r.employeeId ? empName(r.employeeId) : r.name || r.by || '')}${r.source === 'handy' ? ' <span class="pill info">Handy</span>' : ''}</td>
+      (r) => `<tr class="clickable" data-action="mat-request-open" data-id="${esc(r.id)}"><td>${formatDate(dayAt(r.at))}</td><td>${esc(objName(r.objectId) || r.objectName || '–')}</td><td>${esc(r.employeeId ? empName(r.employeeId) : r.name || r.by || '')}${r.source === 'handy' ? ' <span class="pill info">Handy</span>' : ''}</td>
       <td>${esc(requestWhat(r).slice(0, 120))}</td><td><span class="pill ${REQ_CLASS[r.status]}">${REQUEST_STATUS[r.status]}</span></td></tr>`,
     )
     .join('')
@@ -569,7 +569,7 @@ function orderModal() {
     .join('')
   const head = draft ? '<th>Artikel</th><th>Menge</th><th>Einheit</th><th>Preis (€)</th><th></th>' : `<th>Artikel</th><th class="num">bestellt</th><th class="num">Preis</th><th class="num">erhalten</th>${receiving ? '<th>jetzt erhalten</th>' : ''}`
   const mail = s?.email
-  const sent = o.sent ? `<p class="muted">${o.sent.via === 'graph' ? 'Per E-Mail gesendet' : o.sent.via === 'mailto' ? 'Im E-Mail-Programm geöffnet' : 'Als bestellt markiert'} am ${formatDate(o.sent.at.slice(0, 10))}${o.sent.to ? ` an ${esc(o.sent.to)}` : ''}${o.sent.by ? ` (${esc(o.sent.by)})` : ''}.</p>` : ''
+  const sent = o.sent ? `<p class="muted">${o.sent.via === 'graph' ? 'Per E-Mail gesendet' : o.sent.via === 'mailto' ? 'Im E-Mail-Programm geöffnet' : 'Als bestellt markiert'} am ${formatDate(dayAt(o.sent.at))}${o.sent.to ? ` an ${esc(o.sent.to)}` : ''}${o.sent.by ? ` (${esc(o.sent.by)})` : ''}.</p>` : ''
   const confirmKey = (k) => app.ui.confirm === `${k}:${o.id}`
   return modalFrame({
     title: `Bestellung ${o.no || ''}`,
@@ -673,7 +673,7 @@ function requestModal() {
     .join('')
   return modalFrame({
     title: `Anforderung ${objName(r.objectId) || r.objectName || ''}`,
-    subtitle: `${formatDate(r.at.slice(0, 10))} · ${esc(r.employeeId ? empName(r.employeeId) : r.name || r.by || '')}${r.source === 'handy' ? ' · am Handy' : ''} · ${REQUEST_STATUS[r.status]}`,
+    subtitle: `${formatDate(dayAt(r.at))} · ${esc(r.employeeId ? empName(r.employeeId) : r.name || r.by || '')}${r.source === 'handy' ? ' · am Handy' : ''} · ${REQUEST_STATUS[r.status]}`,
     body: `<ul>${lines}</ul>${r.note ? `<p>${esc(r.note)}</p>` : ''}${r.answer ? `<p class="muted">${esc(r.answer)}</p>` : ''}
       ${r.orderId ? `<p>Bestellt mit <button class="link-btn" data-action="mat-order-open" data-id="${esc(r.orderId)}">Bestellung ${esc(d.orders.find((o) => o.id === r.orderId)?.no || '')}</button></p>` : ''}
       ${r.status === 'bestellt' ? '<p class="note">Wartet auf die Lieferung. Ist das Material da: „Ausgeben“ bucht es an das Objekt.</p>' : ''}
@@ -1066,7 +1066,7 @@ registerActions(
     'mat-request-issue': (el) => {
       const r = M().requests.find((x) => x.id === el.dataset.id)
       const lines = requestLines(r)
-      openModal({ type: 'mat-book', mode: 'ausgabe', objectId: r.objectId || '', employeeId: r.objectId ? '' : r.employeeId || '', lines: lines.length ? lines.map((l) => ({ articleId: l.articleId, qty: qtyText(l.qty) })) : [{ articleId: '', qty: '' }], requestId: r.id, note: `Anforderung vom ${formatDate(r.at.slice(0, 10))}` })
+      openModal({ type: 'mat-book', mode: 'ausgabe', objectId: r.objectId || '', employeeId: r.objectId ? '' : r.employeeId || '', lines: lines.length ? lines.map((l) => ({ articleId: l.articleId, qty: qtyText(l.qty) })) : [{ articleId: '', qty: '' }], requestId: r.id, note: `Anforderung vom ${formatDate(dayAt(r.at))}` })
     },
     'mat-request-order': async (el) => {
       const d = M()
@@ -1168,7 +1168,7 @@ registerTodo({
         if (x.kind === 'bestellen') return `<div class="todo-item"><span class="flag warning">${x.lines.length}</span><div class="todo-text"><strong>Nachbestellen:</strong> ${esc(x.lines.slice(0, 4).map((l) => artName(l.articleId)).join(', '))}${x.lines.length > 4 ? ' …' : ''}<br><span class="muted">am oder unter dem Meldebestand und nicht bestellt</span></div><button class="btn small primary" data-action="mat-goto" data-v="bestellen">Bestellvorschlag</button></div>`
         if (x.kind === 'liefer') return `<div class="todo-item"><span class="flag error">!</span><div class="todo-text"><strong>Lieferung überfällig:</strong> Bestellung ${esc(x.order.no)} bei ${esc(supOf(x.order.supplierId)?.name || '')}, erwartet ${formatDate(x.order.expected)}</div><button class="btn small primary" data-action="mat-order-open" data-id="${esc(x.order.id)}">Öffnen</button></div>`
         const r = x.request
-        return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>Material für ${esc(objName(r.objectId) || r.objectName || 'ein Objekt')}</strong>: ${esc(requestWhat(r).slice(0, 100))}<br><span class="muted">${esc(r.employeeId ? empName(r.employeeId) : r.name || r.by || '')}${r.source === 'handy' ? ' am Handy' : ''}, ${formatDate(r.at.slice(0, 10))}</span></div><button class="btn small primary" data-action="mat-request-open" data-id="${esc(r.id)}">Öffnen</button></div>`
+        return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>Material für ${esc(objName(r.objectId) || r.objectName || 'ein Objekt')}</strong>: ${esc(requestWhat(r).slice(0, 100))}<br><span class="muted">${esc(r.employeeId ? empName(r.employeeId) : r.name || r.by || '')}${r.source === 'handy' ? ' am Handy' : ''}, ${formatDate(dayAt(r.at))}</span></div><button class="btn small primary" data-action="mat-request-open" data-id="${esc(r.id)}">Öffnen</button></div>`
       })
       .join(''),
 })

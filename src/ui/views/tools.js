@@ -13,6 +13,7 @@
 
 import { app, registerActions, registerView, renderNow, toast, VIEW_HASH, VIEW_REDIRECTS, visibleViews } from '../context.js'
 import { esc, ICON } from '../shared.js'
+import { cleoIcon } from '../mascot.js'
 import { reviereFor } from '../../core/reviere.js'
 
 export const TOOLS = [
@@ -266,7 +267,7 @@ for (const tool of TOOLS)
     // ohne Werkzeuge (z. B. neutrale Vorschau): config.json → "tools": false
     available: () => app.config?.tools !== false,
     actions: () =>
-      `<button class="btn small ghost" data-action="tool-reload" data-tool="${tool.name}" title="${esc(tool.title)} neu laden">${ICON.refresh} Neu laden</button><button class="btn small ghost" data-action="tool-fullscreen" title="Werkzeug im Vollbild (Esc beendet)">Vollbild</button>${tool.id === 'matten' && mattenAlt() ? '' : `<a class="btn small ghost" href="${url(tool)}" target="_blank" rel="noopener" title="Im eigenen Fenster öffnen (eigene Anmeldung des Werkzeugs, braucht die Umleitungsadresse in Entra)">Eigenes Fenster</a>`}`,
+      `<button class="btn small ghost" data-action="tool-reload" data-tool="${tool.name}" title="${esc(tool.title)} neu laden">${ICON.refresh} Neu laden</button><button class="btn small ghost" data-action="tool-fullscreen" title="Werkzeug im Vollbild (Esc beendet)">Vollbild</button>${tool.id === 'matten' && mattenAlt() ? '' : `<a class="btn small ghost" href="${url(tool)}" target="_blank" rel="noopener" title="Im eigenen Fenster öffnen (eigene Anmeldung des Werkzeugs, braucht die Umleitungsadresse in Entra)">Eigenes Fenster</a>`}<button class="btn small ghost" data-action="help-toggle" title="Cleo fragen: Hilfe zur App (schwebt im Werkzeug nicht über der Leiste unten)">${cleoIcon()} Cleo</button>`,
     render: toolView(tool),
   })
 

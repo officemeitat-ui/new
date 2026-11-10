@@ -58,7 +58,7 @@ import { labelDocument, labelPdfName } from '../../export/geraete-pdf.js'
 import { app, canEdit, closeModal, confirmStep, hashKey, memo, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { checked, dayAt, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 import { onPortalRequests } from '../staffplan.js'
 import { openFile, storeFile } from './anlagen.js'
 import { FRISTEN_HOOKS } from './disponent.js'
@@ -711,7 +711,7 @@ function repairModal(c, m) {
     ? `<label class="field wide"><span>Eingangsrechnung (Einkauf &amp; Kasse, nur verknüpfen)</span><select id="grr-invoice" data-change="gr-repair-redraw">${options(invoiceOptions(d), d.invoice?.id || '', { empty: '– keine –' })}</select></label>${d.invoice && Number(d.invoice.net) > 0 && parseNum(d.cost) !== Number(d.invoice.net) ? `<p><button class="btn small" data-action="gr-repair-cost">Kosten aus der Rechnung übernehmen (${euro(d.invoice.net)})</button></p>` : ''}`
     : d.invoice ? `<p class="muted wide">Verknüpft mit der Eingangsrechnung ${esc(d.invoice.no)}${d.invoice.number ? ` (${esc(d.invoice.number)})` : ''}.</p>` : ''
   const pending = [...(d.photos || []).map((f, i) => fileChip(f, i, `data-repair="${esc(d.id)}"`)), ...(m.newPhotos || []).map((f, i) => `<span class="pill anl-file">${ICON.camera} ${esc(f.name)} <button type="button" class="btn small ghost" data-action="gr-repair-photo-del" data-i="${i}" aria-label="Foto entfernen">${ICON.close}</button></span>`)].join(' ')
-  const log = old?.log?.length ? `<p class="muted small">${old.log.map((l) => `${esc(REPAIR_STATUS[l.status] || l.status)} ${l.at ? short(l.at.slice(0, 10)) : ''}${l.by ? ` (${esc(l.by)})` : ''}`).join(' · ')}</p>` : ''
+  const log = old?.log?.length ? `<p class="muted small">${old.log.map((l) => `${esc(REPAIR_STATUS[l.status] || l.status)} ${l.at ? short(dayAt(l.at)) : ''}${l.by ? ` (${esc(l.by)})` : ''}`).join(' · ')}</p>` : ''
   return modalFrame({
     title: old ? (item ? `Reparatur ${item.no}` : 'Schaden vom Handy zuordnen') : 'Schaden melden',
     subtitle: item ? esc(item.name) : old?.source === 'handy' ? `gemeldet von ${esc(old.reportedBy || '')} über „Mein Dienstplan“` : 'Gerät, Objekt und was kaputt ist',

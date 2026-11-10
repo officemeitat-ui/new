@@ -136,7 +136,7 @@ import { customerPayTab, readCustomerPay, readSepaSettings, sepaSettingsHtml } f
 import { fillHooks, termsTab, textFieldHead, textMenu, textsTab } from './invoicing-texte.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, checkedValues, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { checked, checkedValues, dayAt, download, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 import { checkFacts } from '../../core/ki-vorschlag.js'
 import { kixBox, kixButton, kixConsent, kixFailed, kixSet } from '../kix.js'
 
@@ -1022,8 +1022,8 @@ function viewModal(c, m) {
   ].filter(Boolean)
   const taken = skontoTaken(x)
   const reminders = (x.reminders || []).map((r) => `<li>${formatDate(r.date, { year: true })}: ${esc(r.name)}${r.total ? ` über ${money(r.total)}` : ''}${r.sentTo ? ` an ${esc(r.sentTo)}` : ''}</li>`).join('')
-  const sent = (x.sent || []).map((v) => `<li>${formatDate(v.at.slice(0, 10), { year: true })} ${v.via === 'post' ? 'per Post (Sammeldruck)' : `an ${esc(v.to)}`}${v.via === 'mailto' ? ' (E-Mail-Programm)' : ''}</li>`).join('')
-  const history = (x.history || []).map((h) => `<li>${formatDate(String(h.at).slice(0, 10), { year: true })} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')
+  const sent = (x.sent || []).map((v) => `<li>${formatDate(dayAt(v.at), { year: true })} ${v.via === 'post' ? 'per Post (Sammeldruck)' : `an ${esc(v.to)}`}${v.via === 'mailto' ? ' (E-Mail-Programm)' : ''}</li>`).join('')
+  const history = (x.history || []).map((h) => `<li>${formatDate(dayAt(h.at), { year: true })} ${esc(h.by || '')}: ${esc(h.text)}</li>`).join('')
   return modalFrame({
     title: `${kindLabel(x)} ${x.number}`,
     subtitle: `${x.recipient?.name || ''} · ${formatDate(x.date, { year: true })}${x.refNumber ? ` · zu ${x.refNumber}` : ''}${x.deliveryNotes?.length ? ` · zu ${x.deliveryNotes.map((n) => n.number).join(', ')}` : ''}`,
@@ -1591,7 +1591,7 @@ function recurringModal(c, m) {
         <label class="field"><span>Schwelle (%)</span><input type="text" inputmode="decimal" id="fr-idx-threshold" value="${esc(numText(idx.threshold ?? 3))}" ${dis}></label>
         <label class="check"><input type="checkbox" id="fr-idx-up" ${idx.onlyUp ? 'checked' : ''} ${dis}><span>nur Erhöhungen</span></label>
       </div>
-      ${(x?.history || []).length ? `<details><summary>Verlauf</summary><ul class="muted">${x.history.map((h) => `<li>${esc(String(h.at).slice(0, 10))}: ${esc(h.text)}</li>`).join('')}</ul></details>` : ''}`,
+      ${(x?.history || []).length ? `<details><summary>Verlauf</summary><ul class="muted">${x.history.map((h) => `<li>${esc(dayAt(h.at))}: ${esc(h.text)}</li>`).join('')}</ul></details>` : ''}`,
     foot: `<div class="actions">${ed && x ? `<button class="btn danger" data-action="fak-rec-del" data-id="${esc(x.id)}">${app.ui.confirm === `fak-rdel:${x.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</div><div class="actions"><button class="btn" data-action="close-modal">Schließen</button>${ed ? '<button class="btn primary" data-action="fak-rec-save">Speichern</button>' : ''}</div>`,
   })
 }

@@ -13,7 +13,7 @@ import { objectKeys } from '../../core/keys.js'
 import { FOREIGN_LANGUAGES, langInfo, staleLanguages, translationRows, updateTranslations } from '../../core/sprachen.js'
 import { locationFor } from '../../core/weather.js'
 import { app, closeModal, empName, onModalRender, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
-import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
+import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, dayAt, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
 import { geocode } from '../geocode.js'
 import { readWaste, wasteSection } from '../waste-form.js'
 import { weatherEnabled, weatherLocations, weatherRules } from '../weather.js'
@@ -78,7 +78,7 @@ function translationSection(o) {
       .map(
         (r) => `<div class="field wide"><label for="spr-${r.id}">${esc(r.label)} (<span lang="${esc(r.html)}">${esc(r.own)}</span>) <span id="spr-st-${r.id}">${sprStatus(r)}</span></label>
       <textarea id="spr-${r.id}" rows="2" lang="${esc(r.html)}" style="font-family:inherit;font-size:inherit">${esc(r.text)}</textarea>
-      ${r.stale ? `<span><button class="btn small" data-action="spr-passt" data-lang="${r.id}" title="Die Änderung am deutschen Text betrifft diese Übersetzung nicht">Passt noch</button></span>` : ''}${r.at ? `<small class="muted">${r.ki ? 'mit KI übersetzt, ' : ''}gespeichert am ${esc(formatDate(r.at.slice(0, 10)))}${r.by ? ` von ${esc(r.by)}` : ''}</small>` : ''}</div>`,
+      ${r.stale ? `<span><button class="btn small" data-action="spr-passt" data-lang="${r.id}" title="Die Änderung am deutschen Text betrifft diese Übersetzung nicht">Passt noch</button></span>` : ''}${r.at ? `<small class="muted">${r.ki ? 'mit KI übersetzt, ' : ''}gespeichert am ${esc(formatDate(dayAt(r.at)))}${r.by ? ` von ${esc(r.by)}` : ''}</small>` : ''}</div>`,
       )
       .join('')}</div>
     <p class="spr-ki-line" hidden><button class="btn small" id="spr-ki" data-action="spr-ki">Mit KI übersetzen</button> <span class="muted">schickt nur den deutschen Text an den KI-Dienst; das Ergebnis ist ein Vorschlag zum Prüfen</span></p>

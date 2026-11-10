@@ -14,7 +14,7 @@ import { app, compute, confirmStep, ensureModal, ensureRange, ensureView, MODALS
 import { openCompose, pickSelect, readView, tablesCsv, todoSections } from './mailer.js'
 import { canMail } from './modals/send.js'
 import { loadLogo, pdfBlob } from './pdf.js'
-import { esc, ICON, modalFrame, options, uid, val } from './shared.js'
+import { dayAt, esc, ICON, modalFrame, options, uid, val } from './shared.js'
 
 /** Berichte, die sich abonnieren lassen: Ansicht (als PDF + CSV) oder „Zu erledigen“ (als Text). */
 export const REPORTS = [
@@ -178,7 +178,7 @@ function form(m) {
 function aboRow(a, now) {
   const r = reportOf(a.report)
   const when = a.active === false ? '<span class="pill">pausiert</span>' : `${esc(rhythmText(a))}<br><span class="muted">nächster Versand ${formatDate(nextSlot(a, now) || now.day, { year: false })}</span>`
-  const last = a.lastError ? `<span class="pill error" title="${esc(a.lastError)}">nicht gesendet</span><br><span class="muted">${esc(a.lastError.slice(0, 80))}</span>` : a.lastAt ? `${formatDate(a.lastAt.slice(0, 10), { year: true })}` : '<span class="muted">noch nie</span>'
+  const last = a.lastError ? `<span class="pill error" title="${esc(a.lastError)}">nicht gesendet</span><br><span class="muted">${esc(a.lastError.slice(0, 80))}</span>` : a.lastAt ? `${formatDate(dayAt(a.lastAt), { year: true })}` : '<span class="muted">noch nie</span>'
   const mine = !a.by || a.by.toLowerCase() === me()
   const confirming = app.ui.confirm === `ra-del-${a.id}`
   return `<tr><td><strong>${esc(r?.label || a.report)}</strong>${mine ? '' : `<br><span class="muted">sendet ${esc(a.byName || a.by)}</span>`}</td><td>${esc(parseAddresses(a.to).valid.join(', '))}</td><td>${when}</td><td>${last}</td>

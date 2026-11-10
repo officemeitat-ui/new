@@ -1433,6 +1433,9 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
 .tool-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
 .tool-frame[hidden] { display: none; }
 body.tool-view .layout main { padding-top: 12px; padding-bottom: 12px; }
+/* Cleo schwebt nicht über dem Werkzeug: Er verdeckte das rechte Ende der festen Leiste unten (Objektdoku: „Abschließen“).
+   Im Werkzeug steht Cleo oben in der Knopfzeile (tools.js), am Handy wie überall in der Kopfzeile. */
+body.tool-view .cleo-fab, body.tool-view .cleo-bubble { display: none; }
 @media (max-width: 700px) {
   body.tool-view main.wrap { padding: 0; }
   body.tool-view .tool-slot, body.tool-view #tool-host { border-radius: 0; border: 0; box-shadow: none; }

@@ -1,11 +1,13 @@
 // Gemeinsame Bausteine für Ansichten und Dialoge.
 
-import { formatDate, formatHours, isoWeekday, MONTH_LONG, WEEKDAY_LONG, WEEKDAY_SHORT } from '../core/dates.js'
+import { formatDate, formatHours, isoWeekday, MONTH_LONG, viennaDate, WEEKDAY_LONG, WEEKDAY_SHORT } from '../core/dates.js'
 import { rhythmCategory } from '../core/attention.js'
 import { NTH_LABEL } from '../core/plan.js'
 import { explain } from '../core/scheduler.js'
 
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
+/** Tag (JJJJ-MM-TT) eines Zeitpunkts in Wien – für „am …“ in Anzeigen und Listen (der UTC-Tag wäre zwischen 0 und 1 bzw. 2 Uhr noch gestern). */
+export const dayAt = (iso) => (iso ? viennaDate(iso) || String(iso).slice(0, 10) : '')
 export const uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 export const signed = (min) => (min > 0 ? '+' : min < 0 ? '−' : '±') + formatHours(Math.abs(min))
 export const saldoClass = (min) => (min > 0 ? 'pos' : min < 0 ? 'neg' : 'zero')

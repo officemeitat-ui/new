@@ -49,7 +49,7 @@ import { app, canEdit, closeModal, computeRange, confirmStep, ensureModal, ensur
 import { openCompose } from '../mailer.js'
 import { invalidateTodo, refreshBell, registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, checkedValues, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
+import { checked, checkedValues, dayAt, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
 import { alarmSettings } from './weather-alarm.js'
 
@@ -654,7 +654,7 @@ function linkRow(link) {
       ]
   return `<tr><td><strong>${esc(link.title || 'ohne Bezeichnung')}</strong><br><span class="muted">${esc(objects.join(', ') || 'keine Objekte')}</span></td>
     <td>${esc(showText(link))}${link.show?.reklamation !== false && open ? `<br><span class="pill warning">${plural(open, 'Reklamation', 'Reklamationen')} offen</span>` : ''}</td>
-    <td><span class="pill ${cls}">${esc(st.label)}</span>${link.publishedAt && !link.revokedAt ? `<br><span class="muted">${esc(when(link.publishedAt))}</span>` : ''}${link.error && !link.revokedAt ? `<br><span class="err-text">${esc(link.error)}</span>` : ''}${link.revokedAt ? `<br><span class="muted">seit ${esc(formatDate(link.revokedAt.slice(0, 10)))}</span>` : ''}</td>
+    <td><span class="pill ${cls}">${esc(st.label)}</span>${link.publishedAt && !link.revokedAt ? `<br><span class="muted">${esc(when(link.publishedAt))}</span>` : ''}${link.error && !link.revokedAt ? `<br><span class="err-text">${esc(link.error)}</span>` : ''}${link.revokedAt ? `<br><span class="muted">seit ${esc(formatDate(dayAt(link.revokedAt)))}</span>` : ''}</td>
     <td class="actions-cell">${link.revokedAt ? '' : `<button class="btn small" data-action="kb-copy" data-id="${esc(link.id)}">${ICON.copy} Link</button> <button class="btn small" data-action="kb-mail" data-id="${esc(link.id)}">${ICON.send} E-Mail</button> `}${rowMenu(items, `Link ${link.title || ''}`)}</td></tr>`
 }
 
@@ -677,7 +677,7 @@ function portalView() {
   return `<div class="section-head"><div><h2>Kundenbereich</h2><p>Persönliche Links für Kunden, ohne Anmeldung: Leistungsnachweise und Winterdienst-Nachweis als PDF, die nächsten Termine im Objekt, Reklamation melden mit Stand, auf Wunsch Rechnungen und offene Posten. Du legst fest, was jeder Link zeigt.</p></div>
       <div class="actions">${ed && s.enabled ? `<button class="btn" data-action="kb-settings">${ICON.gear} Einstellungen</button>${s.enabled ? `<button class="btn" data-action="kb-publish" ${pub.running ? 'disabled' : ''}>${ICON.refresh} ${pub.running ? 'Überträgt …' : 'Jetzt übertragen'}</button><button class="btn primary" data-action="kb-new">${ICON.plus} Link anlegen</button>${rowMenu([{ label: 'Alle Nachweise neu erstellen', icon: ICON.refresh, action: 'kb-publish', data: { force: '1' } }, { label: 'Reklamationen jetzt abholen', icon: ICON.download, action: 'kb-sync' }], 'Weitere Aktionen')}` : ''}` : ''}</div></div>
     ${banners}
-    <div class="impact-stats tc-stats">${tile('Links aktiv', active.length)}${tile('Reklamationen offen', openCount, openCount ? 'warn' : '')}${tile('Über den Kundenbereich', fromPortal.length)}${tile('Zuletzt übertragen', s.publishedAt ? esc(formatDate(s.publishedAt.slice(0, 10))) : '–')}</div>
+    <div class="impact-stats tc-stats">${tile('Links aktiv', active.length)}${tile('Reklamationen offen', openCount, openCount ? 'warn' : '')}${tile('Über den Kundenbereich', fromPortal.length)}${tile('Zuletzt übertragen', s.publishedAt ? esc(formatDate(dayAt(s.publishedAt))) : '–')}</div>
     ${active.length ? head(active.map(linkRow).join('')) : `<p class="empty">Noch keine Links.${ed && s.enabled ? ' Mit „Link anlegen“ für einen Kunden oder ein Objekt beginnen.' : ''}</p>`}
     ${revoked.length ? `<h3>Gesperrte Links</h3>${head(revoked.map(linkRow).join(''))}` : ''}
     <p class="note">Der Link wirkt wie ein Passwort: Wer ihn hat, sieht die Seite. Im Link steht nur ein Code, nichts über den Kunden. Namen von Mitarbeitenden stehen in den Nachweisen nur, wenn das im Leistungsnachweis so eingestellt ist (jetzt: ${esc({ keine: 'keine Namen', vorname: 'Vornamen', voll: 'ganze Namen' }[proofSettings().names] || 'keine Namen')}). Reklamationen kommen unter „Reklamationen“ mit Eingang „Kundenbereich“ an; Status und Ergebnis sieht der Kunde.</p>

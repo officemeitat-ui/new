@@ -37,7 +37,7 @@ import { emptyMatten, intervalText, upgradeMatten } from '../../core/matten.js'
 import { tourYears } from '../../core/matten-touren.js'
 import { app, canEdit, closeModal, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
-import { esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
+import { dayAt, esc, ICON, menu, modalFrame, options, tabBar, val } from '../shared.js'
 import { startWebPolling } from '../matten-webspace.js'
 import { inTourText, toursReady } from './matten-planung.js'
 import { ensureOverviewTours, mattenState, publish as publishOverview } from './matten-uebersicht.js'
@@ -298,7 +298,7 @@ function jobModal(c, m) {
         ${one.doneOn ? `<dt>gewechselt am</dt><dd>${esc(shortYear(one.doneOn))}</dd>` : ''}
         ${p?.access ? `<dt>Zugang</dt><dd>${esc(p.access)}</dd>` : ''}
         ${p?.window?.from || p?.window?.note ? `<dt>Zeitfenster</dt><dd>${esc([p.window.from && p.window.to ? `${p.window.from} bis ${p.window.to}` : '', p.window.note].filter(Boolean).join(', '))}</dd>` : ''}
-        <dt>angelegt</dt><dd class="muted">${esc([one.createdBy, one.createdAt ? shortYear(one.createdAt.slice(0, 10)) : ''].filter(Boolean).join(', ') || '–')}${one.updatedBy ? ` · geändert ${esc(one.updatedBy)}, ${esc(shortYear(String(one.updatedAt || '').slice(0, 10)))}` : ''}</dd>
+        <dt>angelegt</dt><dd class="muted">${esc([one.createdBy, one.createdAt ? shortYear(dayAt(one.createdAt)) : ''].filter(Boolean).join(', ') || '–')}${one.updatedBy ? ` · geändert ${esc(one.updatedBy)}, ${esc(shortYear(String(one.updatedAt || '').slice(0, 10)))}` : ''}</dd>
       </dl>`
     : `<ul class="mw-job-list">${list
         .slice(0, 30)

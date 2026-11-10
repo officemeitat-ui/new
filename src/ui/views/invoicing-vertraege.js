@@ -41,7 +41,7 @@ import {
 } from '../../core/vertraege.js'
 import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
-import { checked, checkedValues, esc, euro, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { checked, checkedValues, dayAt, esc, euro, ICON, modalFrame, options, uid, val } from '../shared.js'
 import { buchhaltungHooks } from './disponent.js'
 import { openSerialDraft } from './invoicing-briefe.js'
 import { kpiHooks } from './lazy.js'
@@ -259,7 +259,7 @@ function contractModal(c, m) {
         <label class="field wide"><span>Grund</span><input type="text" id="fvt-c-reason" value="${esc(cancel.reason || '')}" placeholder="z. B. Hausverwaltung gewechselt, Preis, Qualität" ${dis}></label>
         ${!cancel.recordedAt ? `<label class="check wide"><input type="checkbox" id="fvt-c-recs" ${m.endRecs !== false ? 'checked' : ''} ${dis}><span>Daueraufträge des Vertrags enden mit dem Monat des Vertragsendes</span></label>` : ''}
       </div>
-      <p class="muted"><span id="fvt-c-hint">${earliestHint(v)}</span>${cancel.doneAt ? ` Erledigt am ${esc(de(cancel.doneAt.slice(0, 10)))} von ${esc(cancel.doneBy || '')}.` : ''}</p>
+      <p class="muted"><span id="fvt-c-hint">${earliestHint(v)}</span>${cancel.doneAt ? ` Erledigt am ${esc(de(dayAt(cancel.doneAt)))} von ${esc(cancel.doneBy || '')}.` : ''}</p>
       ${ed ? `<div class="filters">${cancel.recordedAt && !cancel.doneAt ? '<button class="btn small primary" data-action="fvt-done">Erledigt: Dauerauftrag beendet, Objekt freigegeben</button>' : ''}<button class="btn small ghost" data-action="fvt-cancel-undo">${app.ui.confirm === `fvt-cu:${v.id}` ? 'Kündigung wirklich zurücknehmen?' : 'Kündigung zurücknehmen'}</button></div>` : ''}`
     : ed && x
       ? '<div class="filters"><button class="btn small" data-action="fvt-cancel-open">Kündigung erfassen</button></div>'
@@ -304,7 +304,7 @@ function contractModal(c, m) {
       <h3>Vertragsdokument</h3>
       <div class="filters">${doc ? `<button class="btn small" data-action="fvt-doc-open">${ICON.download} ${esc(doc.name || 'Vertrag.pdf')}</button><span class="muted">${esc(de(String(doc.at || '').slice(0, 10)))}${doc.local ? ' · nur Vorschau (Browser-Modus)' : ''}</span>` : '<span class="muted">Noch kein PDF.</span>'}${ed ? `<label class="btn small">${ICON.upload} ${doc ? 'PDF ersetzen' : 'PDF ablegen'}<input type="file" id="fvt-doc-file" accept="application/pdf,.pdf" data-change="fvt-doc" hidden></label>` : ''}</div>
       <div class="form-grid"><label class="field wide"><span>Notiz</span><textarea id="fvt-note" rows="2" ${dis}>${esc(v.note || '')}</textarea></label></div>
-      ${(x?.history || []).length ? `<details><summary>Verlauf</summary><ul class="muted">${x.history.slice(-12).reverse().map((h) => `<li>${esc(de(String(h.at).slice(0, 10)))}${h.by ? ` ${esc(h.by)}` : ''}: ${esc(h.text)}</li>`).join('')}</ul></details>` : ''}`,
+      ${(x?.history || []).length ? `<details><summary>Verlauf</summary><ul class="muted">${x.history.slice(-12).reverse().map((h) => `<li>${esc(de(dayAt(h.at)))}${h.by ? ` ${esc(h.by)}` : ''}: ${esc(h.text)}</li>`).join('')}</ul></details>` : ''}`,
     foot: `<div class="actions">${ed && x ? `<button class="btn danger" data-action="fvt-del" data-id="${esc(x.id)}">${app.ui.confirm === `fvt-del:${x.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</div><div class="actions"><button class="btn" data-action="close-modal">Schließen</button>${ed ? '<button class="btn primary" data-action="fvt-save">Speichern</button>' : ''}</div>`,
   })
 }
@@ -383,7 +383,7 @@ function kvModal(c, m) {
     ? `<h3>Bisherige Läufe</h3><ul class="fvt-runs">${runs
         .map((run) => {
           const open = F().recurring.some((r) => (r.steps || []).some((st) => st.runId === run.id && !st.applied))
-          return `<li><strong>${esc(run.label)}</strong> <span class="muted">(${esc(de(String(run.at).slice(0, 10)))}, ${esc(run.by || '')}, ${plural(run.items.length, 'Dauerauftrag', 'Daueraufträge')})</span> <button class="btn small" data-action="fvt-kv-letter" data-id="${esc(run.id)}">Musterschreiben</button>${ed && open ? `<button class="btn small ghost" data-action="fvt-kv-undo" data-id="${esc(run.id)}">${app.ui.confirm === `fvt-ku:${run.id}` ? 'Wirklich zurücknehmen?' : 'Zurücknehmen'}</button>` : ''}</li>`
+          return `<li><strong>${esc(run.label)}</strong> <span class="muted">(${esc(de(dayAt(run.at)))}, ${esc(run.by || '')}, ${plural(run.items.length, 'Dauerauftrag', 'Daueraufträge')})</span> <button class="btn small" data-action="fvt-kv-letter" data-id="${esc(run.id)}">Musterschreiben</button>${ed && open ? `<button class="btn small ghost" data-action="fvt-kv-undo" data-id="${esc(run.id)}">${app.ui.confirm === `fvt-ku:${run.id}` ? 'Wirklich zurücknehmen?' : 'Zurücknehmen'}</button>` : ''}</li>`
         })
         .join('')}</ul>`
     : ''

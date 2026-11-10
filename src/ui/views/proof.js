@@ -16,7 +16,7 @@ import { MODULES } from '../../core/access.js'
 import { loadScript } from '../load-script.js'
 import { canMail } from '../modals/send.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
-import { checked, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
+import { checked, dayAt, download, esc, ICON, modalFrame, options, rowMenu, val } from '../shared.js'
 import { syncStamps } from '../timeclock.js'
 
 const ICON_PROOF = '<path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8z"/><path d="M14 2.5V8h5.5M8.5 14.5l2.3 2.3 4.7-4.8"/>'
@@ -83,7 +83,7 @@ function proofView() {
         <td class="num">${t.open ? `<span class="pill error">${t.open}</span>` : ''}</td><td class="num">${formatHours(t.planMinutes)}</td>
         <td class="num">${t.confirmed ? `${t.confirmed} (${share} %)` : '–'}</td><td class="num">${winter.length || ''}</td>
         <td>${o.proofEmail ? esc(o.proofEmail) : '<span class="muted">–</span>'}</td>
-        <td>${sent ? `<span class="pill ok">${formatDate(sent.at.slice(0, 10))}</span>` : ''}</td>
+        <td>${sent ? `<span class="pill ok">${formatDate(dayAt(sent.at))}</span>` : ''}</td>
         <td class="actions-cell"><button class="btn small" data-action="proof-open" data-obj="${esc(o.id)}">Ansehen</button> ${rowMenu([{ label: 'PDF herunterladen', icon: ICON.download, action: 'proof-pdf', data: { obj: o.id } }, maySend() && { label: 'Per E-Mail senden', icon: ICON.send, action: 'proof-mail-open', data: { obj: o.id } }], `Nachweis für ${o.name || 'Objekt'}`)}</td></tr>`
     })
     .join('')
@@ -162,7 +162,7 @@ function mailModal(c, m) {
         <label class="field wide"><span>Text</span><textarea id="pm-text" rows="9">${esc(m.text)}</textarea></label>
         ${mayRemember ? `<label class="check"><input type="checkbox" id="pm-remember" ${p.object.proofEmail ? '' : 'checked'}><span>Adresse beim Objekt speichern</span></label>` : ''}
       </div>
-      ${sent.length ? `<p class="muted">Schon gesendet: ${sent.map((x) => `${formatDate(x.at.slice(0, 10))} an ${esc(x.to)}${x.via === 'mailto' ? ' (E-Mail-Programm)' : ''}`).join(' · ')}</p>` : ''}
+      ${sent.length ? `<p class="muted">Schon gesendet: ${sent.map((x) => `${formatDate(dayAt(x.at))} an ${esc(x.to)}${x.via === 'mailto' ? ' (E-Mail-Programm)' : ''}`).join(' · ')}</p>` : ''}
       <p class="note">${canMail() ? 'Geht aus deinem Postfach, das PDF hängt an.' : 'Öffnet dein E-Mail-Programm; das PDF wird heruntergeladen und muss angehängt werden.'}</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="proof-mail-send" data-obj="${esc(p.object.id)}">${ICON.send} ${canMail() ? 'Senden' : 'Im E-Mail-Programm öffnen'}</button></div>`,
   })
