@@ -8,7 +8,7 @@ import { formatDate, todayISO } from '../../core/dates.js'
 import { toCSV } from '../../core/reports.js'
 import { hoursByObject, RENT_LEVELS, rentability, ratesOf, rentSettings, rentSpan } from '../../core/rentabilitaet.js'
 import { mergeRules } from '../../core/rules.js'
-import { app, canEdit, computeRange, memo, persist, registerActions, registerView, renderNow, toast } from '../context.js'
+import { app, canEdit, computeRange, persist, registerActions, registerView, renderNow, stampMemo, toast } from '../context.js'
 import { download, esc, euro, ICON, menu, val } from '../shared.js'
 import { rentAvailable } from './lazy.js'
 
@@ -32,7 +32,7 @@ function costPerHour() {
 function result(c, sp) {
   const set = settings()
   const key = `rnt:${sp.from}:${sp.to}:${set.target}:${set.warn}`
-  return memo(c, key, () => {
+  return stampMemo(key, () => {
     const r = computeRange(sp.prev.from, sp.to)
     const base = { objects: app.data.objects || [], fak: app.data.fakturierung || null, material: sees('material') ? app.data.material || null : null, einkauf: sees('einkauf') ? app.data.einkauf || null : null, costPerHour: costPerHour(), settings: set, contracts: app.data.fakturierung?.contracts || [] }
     const prev = rentability({ ...base, hours: hoursByObject({ instances: r.instances, state: r.state, stamps: app.data.stamps, from: sp.prev.from, to: sp.prev.to }), from: sp.prev.from, to: sp.prev.to })

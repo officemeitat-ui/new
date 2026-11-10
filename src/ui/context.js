@@ -510,6 +510,21 @@ function prefetchNeighbours() {
 // Ergebnisse, die nur von den Daten abhängen (z. B. Vorschläge je Einsatz), je Berechnung merken:
 // compute() liefert dasselbe Objekt, bis sich Daten ändern; danach wird neu gerechnet.
 const memos = new WeakMap()
+/**
+ * Wie memo, aber unabhängig von der angezeigten Woche: gemerkt, solange sich Daten (dataStamp) und Rolle nicht
+ * ändern. Für teure Auswertungen über Monate (Kennzahlen, Rentabilität) – sonst rechneten sie neu, sobald andere
+ * Ansichten weitere Wochen rechnen und die Woche aus dem Rechen-Cache fällt. Höchstens 12 Einträge.
+ */
+const stampMemos = new Map()
+export function stampMemo(key, fn) {
+  const k = `${dataStamp()}|${app.access?.roles?.join() || ''}|${key}`
+  if (stampMemos.has(k)) return stampMemos.get(k)
+  const value = fn()
+  if (stampMemos.size >= 12) stampMemos.delete(stampMemos.keys().next().value)
+  stampMemos.set(k, value)
+  return value
+}
+
 export function memo(c, key, fn) {
   if (!c || typeof c !== 'object') return fn()
   let m = memos.get(c)

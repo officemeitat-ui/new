@@ -22,7 +22,7 @@ import { absenceRates, aging, cashBalance, complaintsByMonth, complaintsTopObjec
 import { mergeRules } from '../../core/rules.js'
 import { fmtAvg, fmtNps, fmtRate, history as kzHistory, periodShort, scopeObjectIds } from '../../core/zufriedenheit.js'
 import { buildTimesheet, summarizeDays } from '../../core/timesheet.js'
-import { app, computeRange, memo, registerActions, registerView, render, seesAbsenceReasons } from '../context.js'
+import { app, computeRange, registerActions, registerView, render, seesAbsenceReasons, stampMemo } from '../context.js'
 import { barList, columnChart, legend, lineChart, sparkline, tableView } from '../kpi-charts.js'
 import { esc } from '../shared.js'
 import { kpiAvailable, kpiHooks } from './lazy.js'
@@ -409,7 +409,7 @@ function agingBars(list, status) {
 
 function kpiView(c) {
   const p = period()
-  const d = memo(c, `kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}${kpiHooks.vertraege ? 'v' : ''}${kpiHooks.vertrieb ? 't' : ''}`, () => build(p))
+  const d = stampMemo(`kennzahlen:${p}:${todayISO()}:${narrow() ? 's' : 'l'}:${kpiHooks.version()}:${kpiHooks.matten ? 'm' : ''}${kpiHooks.mattenBestand ? 'b' : ''}${kpiHooks.vertraege ? 'v' : ''}${kpiHooks.vertrieb ? 't' : ''}`, () => build(p))
   const filters = Object.entries(PERIODS)
     .map(([id, x]) => `<button class="filter" data-action="kpi-period" data-period="${id}" aria-pressed="${id === p}">${esc(x.label)}</button>`)
     .join('')
