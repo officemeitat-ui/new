@@ -2,12 +2,12 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 401 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 402 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (17)
-- [Planung](#planung) (40)
+- [Planung](#planung) (41)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
 - [Objekte & Kunden](#objekte-kunden) (102)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
@@ -614,6 +614,23 @@ Unter „Abwesenheiten“ siehst du einen Monatskalender aller Personen mit ihre
 3. Bei Bedarf nach Revier oder Name filtern.
 
 > Tipp: Den Urlaubsanspruch trägst du bei der Person unter „Mitarbeitende“ ein.
+> Tipp: Unten steht je Tag, wie viele abwesend sind (rot über der Höchstzahl); Sperrzeiten sind im Kopf markiert.
+
+### Urlaubssperren und Höchstzahl gleichzeitig Abwesender
+
+*In der App: Regeln & Feiertage*
+
+Unter „Regeln & Feiertage“ → „Urlaub“ legst du Sperrzeiten (z. B. Grundreinigung der Schulen) und eine Höchstzahl gleichzeitig Abwesender fest. Beim Urlaubsantrag vom Handy zeigt „Zu erledigen“ dann Sperrzeit, wer schon abwesend ist (ohne Grund), ob es zu viele wären, und den Resturlaub. Am Handy stehen die Sperrzeiten beim Antrag.
+
+1. „Regeln & Feiertage“ öffnen, Abschnitt „Urlaub: Sperrzeiten und Höchstzahl“.
+2. Von, Bis und Grund eintragen, „Sperrzeit hinzufügen“.
+3. Höchstzahl eintragen, „Höchstzahl speichern“ (0 = keine Grenze).
+
+> Tipp: Nur Hinweise: Urlaub wird weiter vereinbart, die App lehnt nichts ab.
+> Tipp: Am Handy erscheinen die Sperrzeiten nach dem nächsten Veröffentlichen einer Woche.
+> Tipp: „Standardwerte“ lässt Sperrzeiten und Höchstzahl stehen.
+
+*Stammdaten (eintragen), Einsatzplanung (Anträge)*
 
 ### Abwesenheit löschen
 

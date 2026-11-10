@@ -1405,6 +1405,17 @@ Wer wann wo geräumt und gestreut hat. Kommt es zu einem Sturz, ist ein lückenl
 
 **Technik:** Die App fragt GeoSphere direkt (Vorhersage C-LAEF 1 km, Warnungen je Gemeinde). Lässt der Browser das nicht zu oder ist GeoSphere aus dem Firmennetz gesperrt, nimmt sie den Umweg über `wetter.php` am eigenen Webspace (nur diese Adressen von GeoSphere, nur Orte in Österreich, 10 Minuten zwischengespeichert; neue Abrufe je Aufrufer höchstens 60 in 10 Minuten und insgesamt 150 je Stunde, darüber der letzte Stand bzw. 429, damit niemand von außen das GeoSphere-Kontingent des Webspace aufbraucht, das der Schnee-Alarm braucht). Benennt GeoSphere Parameter um, liest die App die Metadaten des Datensatzes und nimmt die passenden Namen. `config.json` → `"weather": false` blendet das Modul aus. Daten: GeoSphere Austria, CC BY 4.0.
 
+## Urlaubssperren und Höchstzahl
+
+*Regeln & Feiertage → Urlaub: Sperrzeiten und Höchstzahl* (Recht auf die Stammdaten; Rechenkern `src/core/urlaub.js`, gespeichert in `rules.vacation { maxParallel, blackouts: [{ id, from, to, label }] }`).
+
+- **Sperrzeiten:** Von, Bis, Grund (z. B. „Grundreinigung Schulen“, „Winterdienst-Spitze“), höchstens gut ein Jahr lang. Im Kalender der *Abwesenheiten* sind die Tage im Kopf markiert (Grund im Hinweis).
+- **Höchstzahl** gleichzeitig Abwesender (0 = keine Grenze): zählt alle Arten (Urlaub, Krankenstand, Zeitausgleich …) aller aktiven Mitarbeitenden. Der Kalender zeigt unten je Tag „Abwesend“, rot über der Höchstzahl.
+- **Beim Antrag** (Urlaub oder Zeitausgleich über Plan am Handy, in „Zu erledigen“): Sperrzeit, wer im Zeitraum schon abwesend ist (Namen und Zeitraum, **ohne Grund**), „zu viele“ mit der Höchstzahl, bei Urlaub der **Resturlaub** des Jahres vorher und nachher (Mo–Fr ohne Feiertage, wie im Kalender; nur mit Recht auf die Gründe). Nur Hinweise – Urlaub wird vereinbart (§ 4 UrlG), die App lehnt nichts ab.
+- **Am Handy:** beim Veröffentlichen gehen die kommenden Sperrzeiten (Zeitraum und Grund, ohne Kennung) an den Webspace (`sperren` in `aktion=speichern`, `privat/mitarbeiter/sperren.json`); der Urlaubsantrag zeigt „Urlaubssperre: … Urlaub in dieser Zeit bitte nur nach Rücksprache mit dem Büro“ in sechs Sprachen.
+- „Standardwerte“ in den Regeln lässt die Urlaubsregeln (wie Plan am Handy, Schnee-Alarm und Orte) stehen.
+- **Tests:** `test/urlaub.test.js`, `.pruefung/urlaub_app.mjs`, Hinweis am Handy in `.pruefung/wuensche_php.mjs`.
+
 ## Wunschzeiten der Mitarbeitenden
 
 Menü „⋯“ → Diese Woche → **Wünsche der Mitarbeitenden** (Zahl der Wünsche der Woche im Menü; Rechenkern `src/core/wuensche.js`, Dialog `src/ui/views/wuensche.js`). Arten: **Wunschfrei** an einem Tag, **lieber früh** (bis 12 Uhr) oder **lieber spät** (ab 14 Uhr) an einem Tag, **mehr** oder **weniger Stunden** in einer Woche. Höchstens 4 Wünsche je Person und Woche, bis 8 Wochen voraus, nur für die Zukunft; Notiz ohne Gesundheitsangaben.

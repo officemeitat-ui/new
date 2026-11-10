@@ -33,6 +33,8 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 - Prüfrunde 2, Webspace: Grenzen zählen vor dem Lesen eines Fotos (kein Speicher-Angriff über kaputte Bilder am Aushang), eine falsche Datei verbraucht aber keine Meldung (Vorprüfung des Dateikopfs); Fotos ohne Daten nach dem Bildende; Grenzen je Adresse bei IPv6 je /64-Netz.
 - Tempo: Müllplanung im Index (Rentabilität und Kennzahlen mit 12 Monaten schneller).
 - Datum in Wien statt UTC bei Angebotsannahme, Abschlüssen im Vertrieb und im Kassenbuch.
+- Urlaubssperren und Höchstzahl gleichzeitig Abwesender: Hinweise beim Urlaubsantrag (Sperrzeit, wer schon weg ist, Resturlaub), Kalender mit Zahl je Tag, Hinweis am Handy.
+- Regeln „Standardwerte“ löschen nicht mehr Plan am Handy, Schnee-Alarm und Orte (Fehler behoben).
 - Kundenbereich „Stand im Objekt“: zuletzt und als Nächstes gereinigt (mit „erledigt“ aus Zeiterfassung oder Checkliste), Winterdienst, offene Meldungen ohne Text; stündlich aktuell (Idee 15, Rechtsprüfung Punkt 54).
 - Wunschzeiten: Wunschfrei, früh/spät, mehr/weniger Stunden; die Automatik berücksichtigt sie weich, danach „erfüllt“ je Wunsch; Eingabe im Büro und am Handy (Plan am Handy, sechs Sprachen).
 - Fuhrparkkosten je Fahrzeug: Werkstatt und Eingangsrechnungen mit Fahrzeug (Vorschlag aus dem Kennzeichen auf dem Beleg), km aus dem Fahrtenbuch, Kosten je km, CSV.
@@ -78,7 +80,7 @@ Was als Nächstes gebaut wird, in dieser Reihenfolge. Wird bei jeder Runde nachg
 13. **(fertig)** KI-Angebotstext aus einer Ausschreibung: Leistungsverzeichnis einer Ausschreibung (PDF) lesen, Räume und Häufigkeiten in die Kalkulation übernehmen (wie die Besichtigung im Vertrieb).
 14. **(fertig)** Fahrtenbuch aus den Touren: Für Fahrzeuge im Mattenwechsel und Winterdienst Fahrten aus den Touren vorschlagen (Datum, Strecke, Kilometer, Zweck) – zum Bestätigen statt Abschreiben.
 15. **(fertig)** **Kunden-Statusseite je Objekt:** ein Link für die Hausverwaltung mit allen offenen Meldungen, Terminen und dem letzten Leistungsnachweis eines Objekts (Kundenbereich je Objekt statt je Kunde).
-16. **Prüfrunde 2:** Sicherheit der neuen Webspace-Seiten (Aushang, Zusatzleistungen, Checkliste), Leistung mit großen Datenmengen für Rentabilität und Steuerberatungs-Paket, Barrierefreiheit (Tastatur, Bildschirmleser) der neuen Dialoge.
+16. **(fertig)** **Prüfrunde 2:** Sicherheit der neuen Webspace-Seiten (Aushang, Zusatzleistungen, Checkliste), Leistung mit großen Datenmengen für Rentabilität und Steuerberatungs-Paket, Barrierefreiheit (Tastatur, Bildschirmleser) der neuen Dialoge.
 
 ## Offen – braucht Entscheidung oder Zuarbeit
 

@@ -1399,6 +1399,18 @@ if (in_array($aktion, ['speichern', 'antraege', 'antrag-status', 'einrichten', '
             @unlink(person_datei($hash));
         }
     }
+    // Urlaubssperren (nur Zeitraum und Grund, für den Hinweis beim Urlaubsantrag)
+    if (isset($daten['sperren']) && is_array($daten['sperren'])) {
+        $sperren = [];
+        foreach (array_slice($daten['sperren'], 0, 12) as $sp) {
+            $von = (string) ($sp['von'] ?? '');
+            $bis = (string) ($sp['bis'] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $von) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $bis) && $bis >= $von) {
+                $sperren[] = ['von' => $von, 'bis' => $bis, 'text' => mb_substr(trim((string) ($sp['text'] ?? '')), 0, 80)];
+            }
+        }
+        json_schreiben(speicher() . '/sperren.json', $sperren);
+    }
     // Einsatzbörse: Liste ersetzen; neue Angebote je Person zählen (für den Push)
     $neueAngebote = [];
     if (isset($daten['angebote']) && is_array($daten['angebote'])) {
@@ -2270,13 +2282,16 @@ $geraetForm = $objekte ? '<h2>' . th('geraet_titel') . '</h2><details><summary>'
     . '<label for="g-geraet">' . th('geraet_welches') . '</label><input type="text" id="g-geraet" name="geraet" maxlength="80" required placeholder="' . th('geraet_welches_bsp') . '">'
     . '<label for="g-was">' . th('geraet_schaden') . '</label><textarea id="g-was" name="was" rows="2" maxlength="300" required placeholder="' . th('geraet_schaden_bsp') . '"></textarea>'
     . '<button type="submit">' . th('melden') . '</button><p class="leise">' . th('geraet_info') . '</p></form></details>' : '';
+// Urlaubssperren aus der App (nur kommende): Hinweis im Urlaubsantrag
+$sperren = array_values(array_filter(json_lesen(speicher() . '/sperren.json'), fn ($x) => is_array($x) && ($x['bis'] ?? '') >= $heute));
+$sperrHinweis = $sperren ? '<p class="hinweis">' . th('urlaubssperre', ['zeiten' => implode('; ', array_map(fn ($x) => $h($zeitraum((string) $x['von'], (string) $x['bis'])) . ($x['text'] !== '' ? ' (' . $h((string) $x['text']) . ')' : ''), $sperren))]) . '</p>' : '';
 $formulare = $materialForm . $geraetForm . '<h2>' . th('abwesenheit') . '</h2>'
     . '<details><summary>' . th('krank_melden') . '</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . '<input type="hidden" name="art" value="Krankenstand">'
     . '<label for="k-von">' . th('krank_ab') . '</label><input type="date" id="k-von" name="von" value="' . $heute . '" required>'
     . '<label for="k-bis">' . th('krank_bis') . '</label><input type="date" id="k-bis" name="bis">'
     . '<label for="k-notiz">' . th('krank_notiz') . '</label><textarea id="k-notiz" name="notiz" rows="2" maxlength="300"></textarea>'
     . '<button type="submit">' . th('krank_senden') . '</button><p class="leise">' . th('krank_info') . '</p></form></details>'
-    . '<details><summary>' . th('antrag_summary') . '</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p
+    . '<details><summary>' . th('antrag_summary') . '</summary><form method="post" action="mein-plan.php?aktion=antrag">' . $p . $sperrHinweis
     . '<label for="a-art">' . th('art') . '</label><select id="a-art" name="art">' . $option('Urlaub') . $option('Zeitausgleich') . $option('Pflegefreistellung') . '</select>'
     . '<label for="a-von">' . th('von') . '</label><input type="date" id="a-von" name="von" required><label for="a-bis">' . th('bis') . '</label><input type="date" id="a-bis" name="bis" required>'
     . '<label for="a-notiz">' . th('notiz_optional') . '</label><textarea id="a-notiz" name="notiz" rows="2" maxlength="300"></textarea>'

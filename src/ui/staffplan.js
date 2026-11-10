@@ -24,6 +24,7 @@ import { PlanState } from '../core/plan.js'
 import { evaluateCandidate } from '../core/scheduler.js'
 import { langInfo, langOf, linkMessage } from '../core/sprachen.js'
 import { hashIndex, newCode, offeredBy, openRequests, personalLink, portalEmployees, portalFile, PORTAL_DEFAULTS, requestText, savePayload, sha256Hex, shiftOffers, staffWeek } from '../core/staffplan.js'
+import { blackoutsForPortal, requestCheck, vacationSettings } from '../core/urlaub.js'
 import { ALARM_DEFAULTS, viennaParts } from '../core/weather.js'
 import { syncHandyWishes, wishKey } from '../core/wuensche.js'
 import { addLog, app, canEdit, closeModal, compute, empName, ensureRange, openModal, persist, recordUndo, registerActions, registerModal, renderModal, renderNow, toast } from './context.js'
@@ -147,7 +148,9 @@ export async function sendWeeks(mondays) {
     if (!known.has(hash)) payload.personen.push({ hash, name: empById(id)?.name || '', ntfy: p.topics[id] || '', sprache: langOf(empById(id)) })
   }
   const remove = p.remove || []
-  const res = await call('speichern', { ...payload, angebote: offers.angebote, entfernen: remove })
+  // Urlaubssperren (Regeln & Feiertage → Urlaub): am Handy als Hinweis beim Urlaubsantrag
+  const sperren = blackoutsForPortal(vacationSettings(app.data.rules).blackouts, todayISO())
+  const res = await call('speichern', { ...payload, angebote: offers.angebote, entfernen: remove, sperren })
   res.angebote = new Set([...offers.byEmp.values()].flat().map((o) => o.id)).size
   res.angebotePersonen = [...offers.byEmp.values()].filter((l) => l.some((o) => o.tausch)).length
   if (remove.length) {
@@ -366,6 +369,25 @@ export function offerButton(inst, a) {
     : `<button class="btn small" data-action="portal-offer" data-key="${esc(inst.key)}" data-emp="${esc(a.employeeId)}" title="Kolleg:innen am Handy anbieten; die Person bleibt eingeteilt, bis jemand übernimmt">In die Börse</button>`
 }
 
+/**
+ * Urlaub/Zeitausgleich: Sperrzeit, wer im Zeitraum schon abwesend ist (ohne Grund), Grenze und Resturlaub
+ * (core/urlaub.js) – als Zeile unter dem Antrag in „Zu erledigen“.
+ */
+function requestHints(a) {
+  if (!['Urlaub', 'Zeitausgleich'].includes(a.art) || !a.employeeId) return ''
+  const c = requestCheck({ request: a, absences: app.data.absences || [], employees: app.data.employees, rules: app.data.rules, extraFreeDays: app.data.extraFreeDays || [] })
+  if (!c) return ''
+  const range = (x) => (x.from === x.to ? formatDate(x.from) : `${formatDate(x.from)} – ${formatDate(x.to)}`)
+  const out = []
+  for (const b of c.blackouts) out.push(`<span class="pill warning">Sperrzeit</span> ${esc(b.label)} (${esc(range(b))})`)
+  if (c.others.people.length) {
+    const names = c.others.people.slice(0, 6).map((p) => `${esc(empName(p.empId))} (${esc(range(p))})`).join(', ')
+    out.push(`${c.over ? '<span class="pill warning">zu viele</span> ' : ''}Gleichzeitig abwesend: ${names}${c.others.people.length > 6 ? ` und ${c.others.people.length - 6} weitere` : ''}${c.limit ? ` · höchstens ${c.limit} gleichzeitig, an einem Tag ${c.others.max + 1} mit dem Antrag` : ''}`)
+  } else out.push('Sonst niemand abwesend.')
+  if (c.rest && app.data.absencesFull !== false) out.push(`Resturlaub ${c.rest.year}: ${c.rest.before} → ${c.rest.after} Tage (${c.rest.days} ${c.rest.days === 1 ? 'Urlaubstag' : 'Urlaubstage'})${c.rest.after < 0 ? ' <span class="pill warning">mehr als der Anspruch</span>' : ''}`)
+  return `<br><span class="muted small req-check">${out.join('<br>')}</span>`
+}
+
 const sentAt = (s) => new Date(s * 1000).toLocaleString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 registerTodo({
@@ -389,7 +411,7 @@ registerTodo({
         if (a.art === 'Material' || a.art === 'Geraet') return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}. ${a.art === 'Geraet' ? 'Bitte an die Gerätebetreuung weitergeben (wer „Geräte &amp; Maschinen“ bearbeiten darf, bekommt es automatisch).' : 'Bitte ans Lager weitergeben (wer „Material &amp; Lager“ bearbeiten darf, bekommt es automatisch).'}</span></div><div class="todo-acts">${btn('material', 'Weitergegeben', 'primary')}${reject}</div></div>`
         if (shift) return `<div class="todo-item"><span class="flag info">+</span><div class="todo-text"><strong>${esc(who)}</strong> ${esc(requestText(a, formatDate))}<br><span class="muted">Einsatzbörse am Handy, ${esc(sentAt(a.erstellt))}</span></div><div class="todo-acts">${a.employeeId ? btn('einteilen', 'Einteilen', 'primary') : ''}${reject}</div></div>`
         const acts = krank ? `${a.employeeId ? btn('eintragen', 'Eintragen', 'primary') : ''}${btn('erledigt', 'Schon erledigt')}` : `${a.employeeId ? btn('genehmigen', a.art === 'Pflegefreistellung' ? 'Eintragen' : 'Genehmigen', 'primary') : ''}<button class="btn small" data-action="portal-reject" data-id="${esc(a.id)}">Ablehnen</button>`
-        return `<div class="todo-item"><span class="flag ${krank ? 'error' : 'warning'}">${krank ? '!' : '?'}</span><div class="todo-text"><strong>${esc(who)}</strong>: ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}${a.employeeId ? '' : ' · keiner Person zuordenbar (Link inzwischen ersetzt?)'}</span></div><div class="todo-acts">${acts}</div></div>`
+        return `<div class="todo-item"><span class="flag ${krank ? 'error' : 'warning'}">${krank ? '!' : '?'}</span><div class="todo-text"><strong>${esc(who)}</strong>: ${esc(requestText(a, formatDate))}${a.notiz ? `<br>„${esc(a.notiz)}“` : ''}${requestHints(a)}<br><span class="muted">über „Mein Dienstplan“, ${esc(sentAt(a.erstellt))}${a.employeeId ? '' : ' · keiner Person zuordenbar (Link inzwischen ersetzt?)'}</span></div><div class="todo-acts">${acts}</div></div>`
       })
       .join(''),
 })

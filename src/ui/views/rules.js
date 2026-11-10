@@ -6,10 +6,11 @@ import { austrianHolidays } from '../../core/holidays.js'
 import { estimateTravel, hasCoords } from '../../core/geo.js'
 import { DEFAULT_HOLIDAY_RULE } from '../../core/plan.js'
 import { mergeRules, resetRules, RULES, travelKey } from '../../core/rules.js'
+import { makeBlackout, vacationSettings } from '../../core/urlaub.js'
 import { findPlace } from '../../core/weather.js'
 import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
 import { geocode } from '../geocode.js'
-import { checked, esc, ICON, num, options, val } from '../shared.js'
+import { checked, esc, ICON, num, options, uid, val } from '../shared.js'
 
 export const RULE_FIELDS = [
   ['Arbeitszeit (AZG)', [
@@ -137,6 +138,19 @@ function weatherFieldset() {
     <p class="note">Vorhersage und amtliche Warnungen: GeoSphere Austria (Data Hub, CC BY 4.0).</p></fieldset>`
 }
 
+/** Urlaub: Sperrzeiten und wie viele höchstens gleichzeitig abwesend sein sollen (core/urlaub.js). */
+function vacationFieldset() {
+  const v = vacationSettings(app.data.rules)
+  const list = [...(v.blackouts || [])].sort((a, b) => a.from.localeCompare(b.from))
+  return `<fieldset><legend>Urlaub: Sperrzeiten und Höchstzahl</legend>
+    <p class="note">Nur Hinweise beim Urlaubsantrag (Plan am Handy → „Zu erledigen“) und im Kalender der Abwesenheiten: Sperrzeit, wer schon weg ist, Resturlaub. Urlaub wird weiter vereinbart; die Sperrzeiten sehen die Mitarbeitenden am Handy beim Antrag.</p>
+    <div class="rule"><label for="vac-max">Höchstens gleichzeitig abwesend (0 = keine Grenze)</label><input id="vac-max" type="number" min="0" step="1" value="${esc(String(v.maxParallel || 0))}"><small>Alle Arten (Urlaub, Krankenstand, Zeitausgleich …), alle aktiven Mitarbeitenden.</small></div>
+    <div class="edit-only"><button class="btn small" data-action="vac-max-save">Höchstzahl speichern</button></div>
+    <div class="hol-list">${list.map((b) => `<span class="tabular">${formatDate(b.from, { year: true })} – ${formatDate(b.to, { year: true })}</span><span>${esc(b.label)}</span><button class="btn small danger edit-only" data-action="vac-delete" data-id="${esc(b.id)}" aria-label="Sperrzeit ${esc(b.label)} entfernen">Entfernen</button>`).join('') || '<span class="muted">Keine Sperrzeiten.</span>'}</div>
+    <div class="inline-form edit-only" style="border:0;padding:0"><label class="field"><span>Von</span><input type="date" id="vac-from"></label><label class="field"><span>Bis</span><input type="date" id="vac-to"></label><label class="field"><span>Grund</span><input type="text" id="vac-label" maxlength="80" placeholder="z. B. Grundreinigung Schulen"></label><button class="btn" data-action="vac-add">Sperrzeit hinzufügen</button></div>
+  </fieldset>`
+}
+
 function rulesView(c) {
   const year = Number(c.monday.slice(0, 4))
   const disabled = new Set(app.data.rules?.disabledRules || [])
@@ -181,6 +195,7 @@ function rulesView(c) {
         <div class="hol-list">${free.map((d) => `<span class="tabular">${formatDate(d.date, { year: true })}</span><span>${esc(d.name)}</span><button class="btn small danger edit-only" data-action="freeday-delete" data-date="${esc(d.date)}">Entfernen</button>`).join('') || '<span class="muted">keine</span>'}</div>
         <div class="inline-form edit-only" style="border:0;padding:0"><label class="field"><span>Datum</span><input type="date" id="free-date"></label><label class="field"><span>Bezeichnung</span><input type="text" id="free-name" placeholder="z. B. Betriebsausflug"></label><button class="btn" data-action="freeday-add">${ICON.plus} Hinzufügen</button></div>
       </fieldset>
+      ${vacationFieldset()}
       <fieldset><legend>Qualifikationen</legend>
         <p class="note">Werden bei Leistungen als Voraussetzung und bei Mitarbeitenden als Fähigkeit hinterlegt. Mit Komma trennen.</p>
         <input type="text" id="skills-list" aria-label="Qualifikationen, mit Komma getrennt" value="${esc((app.data.skills || []).join(', '))}">
@@ -297,6 +312,28 @@ registerActions(
       app.data.extraFreeDays = [...(app.data.extraFreeDays || []).filter((d) => d.date !== date), { date, name: val('free-name').trim() || 'betriebsfrei' }]
       persist()
       renderNow()
+    },
+    'vac-add': () => {
+      const res = makeBlackout({ from: val('vac-from'), to: val('vac-to'), label: val('vac-label') }, { newId: () => uid('us') })
+      if (res.error) return toast(res.error)
+      const v = vacationSettings(app.data.rules)
+      app.data.rules = { ...(app.data.rules || {}), vacation: { ...v, blackouts: [...(v.blackouts || []), res.blackout] } }
+      persist()
+      renderNow()
+      toast(`Sperrzeit „${res.blackout.label}“ gespeichert. Am Handy sichtbar nach dem nächsten Veröffentlichen.`)
+    },
+    'vac-delete': (el) => {
+      const v = vacationSettings(app.data.rules)
+      app.data.rules = { ...(app.data.rules || {}), vacation: { ...v, blackouts: (v.blackouts || []).filter((b) => b.id !== el.dataset.id) } }
+      persist()
+      renderNow()
+    },
+    'vac-max-save': () => {
+      const n = Math.max(0, Math.round(Number(val('vac-max')) || 0))
+      app.data.rules = { ...(app.data.rules || {}), vacation: { ...vacationSettings(app.data.rules), maxParallel: n } }
+      persist()
+      renderNow()
+      toast(n ? `Höchstens ${n} gleichzeitig abwesend.` : 'Keine Grenze für gleichzeitig Abwesende.')
     },
     'freeday-delete': (el) => {
       app.data.extraFreeDays = app.data.extraFreeDays.filter((d) => d.date !== el.dataset.date)

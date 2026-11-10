@@ -2,6 +2,7 @@
 
 import { eachDay, formatDate, isoWeekday, lastOfMonth, MONTH_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
 import { vacationSummary } from '../../core/reports.js'
+import { absentPerDay, vacationSettings } from '../../core/urlaub.js'
 import { dataRights, DOC } from '../../storage/data-service.js'
 import { app, confirmStep, empName, persist, registerActions, registerView, renderNow } from '../context.js'
 import { addAbsence } from '../modals/absence.js'
@@ -18,7 +19,13 @@ export const seesReasons = () => app.data.absencesFull !== false && dataRights(a
 function calendar(c, employees, full = true) {
   const from = `${c.month}-01`
   const days = eachDay(from, lastOfMonth(from))
-  const head = days.map((d) => `<th class="${isoWeekday(d) > 5 ? 'weekend' : ''} ${c.holidays.has(d) ? 'holiday' : ''}" title="${esc(c.holidays.get(d)?.name || '')}"><span class="dname">${WEEKDAY_SHORT[isoWeekday(d) - 1].slice(0, 2)}</span><span class="ddate">${d.slice(8)}</span></th>`).join('')
+  // Urlaub: Sperrzeiten im Kopf, Abwesende je Tag unten (rot über der Höchstzahl; core/urlaub.js)
+  const vac = vacationSettings(app.data.rules)
+  const blocked = (d) => (vac.blackouts || []).find((b) => b.from <= d && b.to >= d)
+  const active = new Set(app.data.employees.filter((e) => !e.inactive).map((e) => e.id))
+  const perDay = absentPerDay(app.data.absences || [], days, active)
+  const foot = `<tr class="cal-count"><th class="name-col">Abwesend</th>${days.map((d) => `<td class="num ${vac.maxParallel && perDay.get(d) > vac.maxParallel ? 'err-text' : ''}" title="${esc(`${perDay.get(d)} abwesend${vac.maxParallel ? `, höchstens ${vac.maxParallel}` : ''}`)}">${perDay.get(d) || ''}</td>`).join('')}${full ? '<td></td>' : ''}</tr>`
+  const head = days.map((d) => `<th class="${isoWeekday(d) > 5 ? 'weekend' : ''} ${c.holidays.has(d) ? 'holiday' : ''} ${blocked(d) ? 'blackout' : ''}" title="${esc([c.holidays.get(d)?.name, blocked(d) ? `Urlaubssperre: ${blocked(d).label}` : ''].filter(Boolean).join(' · '))}"><span class="dname">${WEEKDAY_SHORT[isoWeekday(d) - 1].slice(0, 2)}</span><span class="ddate">${d.slice(8)}</span></th>`).join('')
   const year = Number(c.month.slice(0, 4))
   const rows = employees
     .map((e) => {
@@ -37,10 +44,10 @@ function calendar(c, employees, full = true) {
     })
     .join('')
   if (!full)
-    return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+    return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}</tr></thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div>
     <div class="legend"><span><span class="cal-key abs-sonst">–</span> abwesend</span><span>Den Grund (Urlaub, Krankenstand …) sieht nur das Büro.</span></div>`
-  return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}<th class="sum-col">Resturlaub ${year}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="legend">${ABSENCE_TYPES.map((t) => `<span><span class="cal-key ${ABSENCE_CLASS[t]}">${t[0]}</span> ${t}</span>`).join('')}<span>Resturlaub = Anspruch − verplante Urlaubstage (Mo–Fr ohne Feiertage)</span></div>`
+  return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}<th class="sum-col">Resturlaub ${year}</th></tr></thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div>
+    <div class="legend">${ABSENCE_TYPES.map((t) => `<span><span class="cal-key ${ABSENCE_CLASS[t]}">${t[0]}</span> ${t}</span>`).join('')}<span>Resturlaub = Anspruch − verplante Urlaubstage (Mo–Fr ohne Feiertage)</span>${(vac.blackouts || []).length ? '<span><span class="cal-key blackout-key"></span> Urlaubssperre (Regeln &amp; Feiertage)</span>' : ''}</div>`
 }
 
 function absencesView(c) {
