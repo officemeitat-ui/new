@@ -345,12 +345,18 @@ registerActions(
       doc().sessions.push(session)
       doc().records.push(...sessionRecords(session, type, { newId: () => uid('u'), at: nowIso(), by: by(), signatures }))
       persist()
-      if (m.pdf) download(sessionPdfName(session, type), await sessionPdf(session, signatures))
+      // erst schließen, dann das PDF: scheitert es (ohne Netz), bliebe der Dialog offen und ein zweiter Klick trüge doppelt ein
       clearSignatures('tr-sig-')
       backOrClose(m.back)
       renderNow()
       const missing = m.sign ? m.participants.length - Object.keys(signatures).length : 0
-      toast(`${type.name} für ${plural(m.participants.length, 'Person', 'Personen')} eingetragen${m.sign ? (missing ? `; ${missing} ohne Unterschrift` : ', alle unterschrieben') : ''}.`)
+      const done = `${type.name} für ${plural(m.participants.length, 'Person', 'Personen')} eingetragen${m.sign ? (missing ? `; ${missing} ohne Unterschrift` : ', alle unterschrieben') : ''}.`
+      try {
+        if (m.pdf) download(sessionPdfName(session, type), await sessionPdf(session, signatures))
+        toast(done)
+      } catch (err) {
+        toast(`${done} Das PDF ging nicht (${err.message}): später unter „Letzte Unterweisungen“ → „Nachweis“.`)
+      }
     },
     'tr-types-open': () => openModal({ type: 'tr-types' }),
     'tt-add': () => {

@@ -12,7 +12,7 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, hashKey, hashOfView, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, hashKey, hashOfView, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, runAction, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
 import { loadTopics } from '../help/lazy.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
@@ -362,7 +362,7 @@ function bindEvents() {
     const el = e.target.closest('[data-action]')
     if (!el || el.disabled) return
     const handler = ACTIONS[el.dataset.action]
-    if (handler) handler(el, e)
+    if (handler) runAction(handler, el, e)
   })
   document.addEventListener('change', (e) => {
     if (e.target.id === 'ts-employee') {
@@ -374,7 +374,7 @@ function bindEvents() {
     if (toggle) for (const el of document.querySelectorAll(`[data-${toggle}]`)) el.hidden = el.dataset[toggle] !== e.target.value
     // <input data-change="aktion">: Aktion bei Änderung (z. B. Datei gewählt)
     const handler = ACTIONS[e.target.dataset.change]
-    if (handler) handler(e.target, e)
+    if (handler) runAction(handler, e.target, e)
   })
   // <input data-input="aktion">: Aktion beim Tippen (kurz verzögert)
   let inputTimer = null
@@ -382,7 +382,7 @@ function bindEvents() {
     const handler = ACTIONS[e.target.dataset.input]
     if (!handler) return
     clearTimeout(inputTimer)
-    inputTimer = setTimeout(() => handler(e.target, e), 200)
+    inputTimer = setTimeout(() => runAction(handler, e.target, e), 200)
   })
   bindFilterEvents(document)
   bindDragEvents(document)

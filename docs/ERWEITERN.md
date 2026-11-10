@@ -88,6 +88,8 @@ In `src/ui/views/index.js` importieren, fertig. `c` ist die berechnete Woche (Ei
 
 **Namen von Aktionen und Dialogen gelten app-weit.** Jedes Modul nimmt ein eigenes Kürzel (`ek-` Einkauf, `kasse-` Kassenbuch, `kb-` Kundenbereich, `fak-` Fakturierung …). Ein zweites Modul mit demselben Namen würde das erste stillschweigend überschreiben; `registerActions`/`registerModal` warnen dann in der Konsole (`NAME_CLASHES` in `context.js`), und `test/lazy.test.js` schlägt fehl.
 
+**Kein Knopf ohne Aktion.** `test/aktionen.test.js` liest die Quellen und verlangt zu jedem `data-action`, `data-change`, `data-input`, `data-of`, `action: '…'` (Menü, Reiter, Hilfe-Thema) und `ACTIONS['…']` eine registrierte Aktion. Wird ein Name erst beim Zeichnen zusammengesetzt (`data-action="${x}"`, `ACTIONS[x]`), gehört die Stelle mit der Herkunft der Namen in `DYNAMISCH` in diesem Test (z. B. ein Helfer, dessen feste Argumente der Test dann prüft). Fehler einer Aktion zeigt die App als Hinweis (`runAction` in `context.js`); was nach einem Fehler nicht doppelt geschehen darf (Speichern, dann PDF), ordnet die Aktion selbst: erst speichern und schließen, dann das PDF.
+
 **Knöpfe gliedern** (src/ui/shared.js, Verhalten in src/ui/menus.js): Neben dem einen Hauptknopf kommen weitere Aktionen in ein Aufklappmenü, seltene Zeilen-Aktionen in „⋯“, viele Reiter in Gruppen.
 
 ```js
