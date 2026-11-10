@@ -94,15 +94,19 @@ function mit_stand(callable $fn)
         throw new RuntimeException('Stand nicht speicherbar');
     }
     flock($h, LOCK_EX);
-    $stand = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $stand = json_decode($roh, true);
     if (!is_array($stand)) {
         $stand = ['orte' => [], 'protokoll' => []];
     }
     $ergebnis = $fn($stand);
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode($stand, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    $neu = json_encode($stand, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) { // nur bei Änderung schreiben (wie antraege())
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;

@@ -178,13 +178,19 @@ function gesperrt(string $datei, callable $fn)
         return null;
     }
     flock($h, LOCK_EX);
-    $daten = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $daten = json_decode($roh, true);
     $daten = is_array($daten) ? $daten : [];
     $ergebnis = $fn($daten);
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode($daten, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    // nur bei Änderung schreiben: Lesen kommt oft vor, und ein Schreiben bei vollem Webspace (leeren gelingt,
+    // füllen nicht) verlöre sonst schon beim Ansehen alle Einträge
+    $neu = json_encode($daten, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) {
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;

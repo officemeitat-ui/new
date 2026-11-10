@@ -301,7 +301,8 @@ function antraege(callable $fn)
         return null;
     }
     flock($h, LOCK_EX);
-    $liste = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $liste = json_decode($roh, true);
     $liste = is_array($liste) ? $liste : [];
     $ergebnis = $fn($liste);
     // Datensparsam: Entschiedenes nach 120 Tagen weg, Notiz einer Krankmeldung nach dem Eintragen leeren
@@ -313,10 +314,15 @@ function antraege(callable $fn)
         }
     }
     unset($a);
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode(array_values($liste), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    // nur bei Änderung schreiben: Lesen kommt oft vor, und ein Schreiben bei vollem Webspace (leeren gelingt,
+    // füllen nicht) verlöre sonst schon beim Ansehen alle Einträge
+    $neu = json_encode(array_values($liste), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) {
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;
@@ -427,14 +433,20 @@ function zeiten(callable $fn)
         return null;
     }
     flock($h, LOCK_EX);
-    $liste = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $liste = json_decode($roh, true);
     $liste = is_array($liste) ? $liste : [];
     $ergebnis = $fn($liste);
     $liste = array_values(array_filter($liste, fn ($r) => (int) ($r['kommen'] ?? 0) > jetzt() - 62 * 86400));
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    // nur bei Änderung schreiben: Lesen kommt oft vor, und ein Schreiben bei vollem Webspace (leeren gelingt,
+    // füllen nicht) verlöre sonst schon beim Ansehen alle Einträge
+    $neu = json_encode($liste, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) {
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;
@@ -759,7 +771,8 @@ function mit_status(callable $fn)
         return null;
     }
     flock($h, LOCK_EX);
-    $s = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $s = json_decode($roh, true);
     $s = is_array($s) ? $s : [];
     foreach (['gelesen', 'push', 'zaehler'] as $k) {
         $s[$k] = is_array($s[$k] ?? null) ? $s[$k] : [];
@@ -768,10 +781,13 @@ function mit_status(callable $fn)
     // Zähler der Grenze nur für heute und gestern
     $gestern = tag_plus(heute(), -1);
     $s['zaehler'] = array_filter($s['zaehler'], fn ($k) => substr((string) $k, -10) >= $gestern, ARRAY_FILTER_USE_KEY);
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode($s, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    $neu = json_encode($s, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) { // nur bei Änderung schreiben (wie antraege())
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;
@@ -997,7 +1013,8 @@ function checklisten(callable $fn)
         return null;
     }
     flock($h, LOCK_EX);
-    $d = json_decode((string) stream_get_contents($h), true);
+    $roh = (string) stream_get_contents($h);
+    $d = json_decode($roh, true);
     $d = is_array($d) ? $d : [];
     $d['eintraege'] = array_values(array_filter((array) ($d['eintraege'] ?? []), 'is_array'));
     $d['zaehler'] = (array) ($d['zaehler'] ?? []);
@@ -1014,10 +1031,13 @@ function checklisten(callable $fn)
     $ergebnis = $fn($d);
     $gestern = tag_plus(heute(), -1);
     $d['zaehler'] = array_filter($d['zaehler'], fn ($k) => substr((string) $k, -10) >= $gestern, ARRAY_FILTER_USE_KEY);
-    ftruncate($h, 0);
-    rewind($h);
-    fwrite($h, json_encode($d, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    fflush($h);
+    $neu = json_encode($d, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($neu !== $roh) { // nur bei Änderung schreiben (wie antraege())
+        ftruncate($h, 0);
+        rewind($h);
+        fwrite($h, $neu);
+        fflush($h);
+    }
     flock($h, LOCK_UN);
     fclose($h);
     return $ergebnis;
@@ -1715,7 +1735,7 @@ if ($aktion === 'antrag' && $methode === 'POST') {
     $bis = (string) ($_POST['bis'] ?? '') ?: $von;
     $notiz = mb_substr(trim((string) ($_POST['notiz'] ?? '')), 0, 300);
     $fehler = '';
-    $gueltig = fn ($d) => (bool) preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && DateTimeImmutable::createFromFormat('!Y-m-d', $d);
+    $gueltig = fn ($d) => tag_gueltig($d); // nur echte Tage (2026-02-30 nicht)
     if (!in_array($art, ARTEN, true)) {
         $fehler = t('fehler_art');
     } elseif (!$gueltig($von) || !$gueltig($bis) || $bis < $von) {
