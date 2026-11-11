@@ -312,6 +312,73 @@ export function mobileTopbar(c, { brand, week, year, range, status, title = null
   </div></header>`
 }
 
+// ---------------------------------------------------------------- Menü „Mehr“: Bereiche zum Aufklappen
+
+/** Ab so vielen Einträgen klappen die Bereiche zu (Vollzugriff sieht über 60); wenige bleiben offen. */
+const COLLAPSE_FROM = 16
+const collapsible = (count) => count >= COLLAPSE_FROM
+/** Untergruppen in einem Bereich: viele zusammengehörige Einträge unter einem eigenen Kopf. */
+const SUBGROUPS = [{ id: 'matten', label: 'Mattenwechsel', match: (v) => v.id === 'matten' || String(v.id).startsWith('mw-') }]
+const subgroupOf = (v) => SUBGROUPS.find((g) => g.match(v)) || null
+/** Offen: der Bereich (bzw. die Untergruppe) der offenen Ansicht, und was die Person aufgeklappt hat. */
+function menuOpen(key, items) {
+  if (items.some((v) => v.id === app.ui.view)) return true
+  return (app.ui.menuOpen || []).includes(key)
+}
+const allOpen = (sections) => sections.filter((s) => s.label && s.id !== 'pinned').every((s) => menuOpen(s.id, s.views))
+const badgeSum = (c, items) => items.reduce((n, v) => n + (Number(v.badge?.(c)) || 0), 0)
+
+function menuRow(c, v) {
+  const badge = v.badge?.(c)
+  return `<button class="m-row more-item" data-action="view" data-view="${v.id}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}><span class="m-row-icon">${navIcon(v)}</span><span class="m-row-label">${esc(v.label)}</span>${badge ? `<span class="flag error">${badge}</span>` : ''}${ICON.right}</button>`
+}
+
+/** Kopf eines Bereichs bzw. einer Untergruppe: Symbol, Name, Anzahl, Zähler (zugeklappt), Pfeil. */
+function menuHead(c, { key, label, items, open, sub = false }) {
+  const n = badgeSum(c, items)
+  return `<button class="m-row m-sec-head${sub ? ' m-sub-head' : ''}" data-action="m-sec-toggle" data-sec="${esc(key)}" aria-expanded="${open}"><span class="m-row-icon">${navIcon(items[0] || {})}</span><span class="m-row-label"><strong>${esc(label)}</strong><small class="muted">${items.length} ${items.length === 1 ? 'Eintrag' : 'Einträge'}</small></span>${!open && n ? `<span class="flag error">${n}</span>` : ''}<span class="m-sec-caret">${ICON.caret}</span></button>`
+}
+
+/** Einträge eines Bereichs, Untergruppen (z. B. Mattenwechsel) als eigener Kopf zum Aufklappen. */
+function menuItems(c, items, fold) {
+  const out = []
+  const done = new Set()
+  for (const v of items) {
+    const g = fold ? subgroupOf(v) : null
+    if (!g) {
+      out.push(menuRow(c, v))
+      continue
+    }
+    if (done.has(g.id)) continue
+    done.add(g.id)
+    const list = items.filter((x) => subgroupOf(x) === g)
+    if (list.length < 3) {
+      out.push(...list.map((x) => menuRow(c, x)))
+      continue
+    }
+    const key = `sub:${g.id}`
+    const open = menuOpen(key, list)
+    out.push(menuHead(c, { key, label: g.label, items: list, open, sub: true }))
+    if (open) out.push(`<div class="m-sub">${list.map((x) => menuRow(c, x)).join('')}</div>`)
+  }
+  return out.join('')
+}
+
+/**
+ * Bereiche des Menüs. Bei vielen Einträgen (Vollzugriff) ist jeder Bereich zugeklappt, außer dem der
+ * offenen Ansicht; „Start“ und „Angeheftet“ bleiben immer offen. Bei wenigen Einträgen alles offen.
+ */
+function menuSections(c, sections, count) {
+  const fold = collapsible(count)
+  return sections
+    .map(({ id, label, views: items }) => {
+      if (!fold || !label || id === 'pinned') return `<section class="m-sec"><h3>${esc(label || 'Start')}</h3><div class="m-list">${menuItems(c, items, fold)}</div></section>`
+      const open = menuOpen(id, items)
+      return `<section class="m-sec m-fold${open ? ' open' : ''}"><div class="m-list">${menuHead(c, { key: id, label, items, open })}${open ? `<div class="m-sec-body">${menuItems(c, items, fold)}</div>` : ''}</div></section>`
+    })
+    .join('')
+}
+
 function moreModal(c) {
   const count = todo().count
   const plan = canEdit('planung')
@@ -331,15 +398,7 @@ function moreModal(c) {
   const visible = visibleViews()
   const pinned = pinnedViews(visible)
   const sections = [...(pinned.length ? [{ id: 'pinned', label: 'Angeheftet', views: pinned }] : []), ...navSections(visible)]
-  const views = sections.map(({ label, views: items }) => {
-    // Liste wie in der Handy-Übersicht: Symbol, Name, Zähler (statt großer Kästen)
-    return `<section class="m-sec"><h3>${label || 'Start'}</h3><div class="m-list">${items
-      .map((v) => {
-        const badge = v.badge?.(c)
-        return `<button class="m-row more-item" data-action="view" data-view="${v.id}" ${app.ui.view === v.id ? 'aria-current="page"' : ''}><span class="m-row-icon">${navIcon(v)}</span><span class="m-row-label">${esc(v.label)}</span>${badge ? `<span class="flag error">${badge}</span>` : ''}${ICON.right}</button>`
-      })
-      .join('')}</div></section>`
-  }).join('')
+  const views = menuSections(c, sections, visible.length)
   const install = isStandalone()
     ? '<p class="note">Als App installiert.</p>'
     : installPrompt
@@ -351,6 +410,7 @@ function moreModal(c) {
     title: 'Menü',
     subtitle: esc(appName(app.config.brand)), // wie in der Seitenleiste („Cleanos App“)
     body: `<button class="more-search" data-action="open-search">${ICON.search}<span>Bereich, Person, Objekt suchen …</span></button>
+      <div class="more-tools"><button class="btn small" data-action="bn-edit">${ICON.list} Leiste unten anpassen</button>${collapsible(visible.length) ? `<button class="btn small ghost" data-action="m-sec-all" data-open="${allOpen(sections) ? '0' : '1'}">${allOpen(sections) ? 'Alle zuklappen' : 'Alle aufklappen'}</button>` : ''}</div>
       ${views}
       <section><h3>Aktionen</h3><div class="more-actions two compact">${actions.map(([action, label, cls]) => `<button class="btn ${cls}" data-action="${action}">${label}</button>`).join('')}</div></section>
       <section><h3>Konto & Daten</h3>
@@ -380,6 +440,23 @@ onModalRender(($modal) => {
 
 registerActions({
   'open-more': () => openModal({ type: 'more' }),
+  // Bereich bzw. Untergruppe im Menü auf- oder zuklappen (gemerkt auf diesem Gerät)
+  'm-sec-toggle': (el) => {
+    const key = el.dataset.sec
+    const list = new Set(app.ui.menuOpen || [])
+    if (list.has(key)) list.delete(key)
+    else list.add(key)
+    app.ui.menuOpen = [...list]
+    app.savePrefs?.()
+    renderModal()
+  },
+  'm-sec-all': (el) => {
+    const visible = visibleViews()
+    const keys = navSections(visible).filter((s) => s.label).map((s) => s.id)
+    app.ui.menuOpen = el.dataset.open === '1' ? [...keys, ...SUBGROUPS.map((g) => `sub:${g.id}`)] : []
+    app.savePrefs?.()
+    renderModal()
+  },
   // Leiste unten anpassen (eigene Wahl je Gerät und Konto)
   'bn-edit': () => openModal({ type: 'bn-edit' }),
   // Platz setzen: Auswahl im Dialog (value) oder Knopf in „Diesen Platz ändern“ (data-slot)

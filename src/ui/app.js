@@ -47,9 +47,9 @@ function readPrefs() {
 
 function writePrefs() {
   // leiste: eigene Wahl der Leiste unten am Handy je Konto ({ 'konto:<E-Mail>': [Plätze] }, mobile.js)
-  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen, leiste } = app.ui
+  const { view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen, menuOpen, leiste } = app.ui
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen, leiste }))
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ view, monday, employeeId, team, region, previewRole, skin, mode, scale, look, lastTool, pinned, navOpen, menuOpen, leiste }))
   } catch {
     /* Browser erlaubt keine Speicherung */
   }
