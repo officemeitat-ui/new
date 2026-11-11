@@ -10,6 +10,7 @@ import { buildInstances, PlanState } from '../core/plan.js'
 import { mondaysBetween } from '../core/reports.js'
 import { createContext, validatePlan } from '../core/rules.js'
 import { buildTimesheet, timesheetSignature } from '../core/timesheet.js'
+import { markUploaded } from '../core/uploads.js'
 import { ABSENT, absentList, dataRights, DOC } from '../storage/data-service.js'
 import { patch } from './morph.js'
 import { esc, modalFrame } from './shared.js'
@@ -164,6 +165,47 @@ export const registerObjectHint = (hint) => {
 }
 /** Hinweise zu einem Objekt, die die Rolle sehen darf. */
 export const objectHints = (objectId) => OBJECT_HINTS.filter((h) => !app.access || app.access.sees(h.module)).map((h) => h.html(objectId)).filter(Boolean)
+
+// ---------------------------------------------------------------- Nachgeholte Uploads
+
+/**
+ * Fotos und Dateien, die ohne Netz aufgenommen wurden, warten in der Ablage im Gerät (storage/offline.js) und
+ * tragen im Modul { path, queued: true }. Holt der Abgleich sie nach, vermerkt uploadDone sie im Modul.
+ * Module mit Dateien außerhalb von app.data (z. B. die Matten-Touren) melden sich hier an:
+ * fn(path, url) → true (auch als Promise), wenn das Modul die Datei kennt und vermerkt hat, sonst false.
+ * Für Dateien in app.data ist nichts anzumelden: uploadDone findet sie in allen Modul-Daten (core/uploads.js).
+ * Liefert eine Funktion zum Abmelden.
+ */
+export const UPLOAD_HOOKS = []
+export function registerUploadHook(fn) {
+  if (!UPLOAD_HOOKS.includes(fn)) UPLOAD_HOOKS.push(fn)
+  return () => {
+    const i = UPLOAD_HOOKS.indexOf(fn)
+    if (i >= 0) UPLOAD_HOOKS.splice(i, 1)
+  }
+}
+
+/**
+ * Eine wartende Datei ist hochgeladen (DataService.flushQueuedUploads → CachedDocStore.flushUploads): den Vermerk
+ * { path, queued: true } in den Moduldaten auf { path, url } setzen und speichern; dazu die angemeldeten Module
+ * fragen. false, wenn kein Modul die Datei kennt – die Ablage merkt sie sich dann und meldet sie dem nächsten
+ * Aufrufer noch einmal (z. B. der Fahreransicht, sobald ihre Touren geladen sind).
+ */
+export function uploadDone(path, url) {
+  let claimed = false
+  for (const fn of UPLOAD_HOOKS) {
+    try {
+      if (fn(path, url)) claimed = true
+    } catch (err) {
+      console.warn(`Hochgeladene Datei nicht vermerkt (${path}):`, err)
+    }
+  }
+  if (app.data && markUploaded(app.data, path, url)) {
+    claimed = true
+    persist()
+  }
+  return claimed
+}
 
 /** Modul einer Ansicht (für Rollen): angegeben oder nach Gruppe. */
 export const moduleOf = (view) => view.module || GROUP_MODULE[view.group] || 'planung'

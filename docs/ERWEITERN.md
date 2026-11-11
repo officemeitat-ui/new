@@ -18,10 +18,12 @@ src/
                      Übergabe an eine Person, Saldo-Korrekturen
     importer.js      Excel-Import (Tabulator/CSV)
     merge.js         Zusammenführen bei gleichzeitigem Bearbeiten
+    uploads.js       Ohne Netz aufgenommene Dateien nach dem Hochladen im Modul vermerken (queued → url)
   storage/     Ablage
     docstore-local.js        Browser (Demo/Test)
     docstore-sharepoint.js   SharePoint über Microsoft Graph
-    data-service.js          Aufteilung in Dateien, Autosave, Konflikte
+    data-service.js          Aufteilung in Dateien, Autosave, Konflikte, Nachholen wartender Uploads
+    offline.js               Gerätespeicher: letzter Stand, Ungespeichertes, Warteschlange für Fotos
   auth/msal.js        Microsoft-Anmeldung (übernimmt die Anmeldung des Hostings)
   auth/graph-mail.js  E-Mail mit Anhang über Microsoft Graph
   export/excel.js  Excel-Wochenpläne (ExcelJS)
@@ -29,7 +31,8 @@ src/
   data/demo.js  Beispieldaten
   ui/
     app.js        Start, Rahmen, Navigation
-    context.js    App-Zustand, Registry (registerView, registerModal, registerActions)
+    context.js    App-Zustand, Registry (registerView, registerModal, registerActions, registerUploadHook)
+    uploads.js    Nachgeholte Fotos: Start-Aufruf, Vermerk im Modul, Fehlgeschlagenes in „Zu erledigen“
     planning.js   Planen, Veröffentlichen, Dateiexport
     flow.js       Ablauf-Leiste der Woche
     mobile.js     Handy: Kopfzeile, Leiste unten, Menü, Wischen, App installieren
@@ -214,7 +217,8 @@ Ein **eigenes Werkzeug** (fertige HTML-Datei wie Wasserzähler oder Mattenwechse
 5. **Zu erledigen:** `registerTodo({ id, module, title, compute(today) → [{ id, … }], render(items) })`. Die `id` eines Punkts ändert sich, wenn er neu gemeldet werden soll.
 6. **Hinweis im Einsatz:** `registerObjectHint({ module, html(objectId) })` zeigt im Einsatz-Dialog etwas zum Objekt.
 7. **Suche:** in `src/ui/search.js` eine Gruppe ergänzen.
-8. **Ladezeit:** Ist das Modul groß und nur für wenige Rollen, erst bei Bedarf laden (siehe „Später laden“ unter „Eine Ansicht ergänzen“).
+8. **Fotos und Dateien:** `await app.store.upload(pfad, blob, typ)` liefert `{ webUrl }`; ohne Netz stellt die Ablage die Datei in die Warteschlange im Gerät und liefert `{ queued: true }`. Am Eintrag im Modul `{ path, name, type, size, at, by, url?, queued? }` speichern (so machen es Regiebericht, Anlagen, Qualitätsmessung, Arbeitsschutz, Bewerbungen). Mehr ist nicht zu tun: Der Abgleich holt die Datei nach (`DataService.flushQueuedUploads`, auch beim Start und wenn das Netz wiederkommt), `uploadDone` in `context.js` sucht den Pfad in allen Moduldaten (`markUploaded` in `src/core/uploads.js`), nimmt `queued` weg, setzt `url` und speichert. Liegen die Daten **nicht** in `app.data` (eigene Ablage wie die Matten-Touren), meldet sich das Modul mit `registerUploadHook((path, url) => …)` an und gibt `true` zurück, wenn es die Datei kennt und vermerkt hat; bei `false` merkt sich die Ablage die Datei und meldet sie dem nächsten Aufrufer von `flushUploads` noch einmal. Was SharePoint ablehnt (z. B. kein Schreibrecht), steht in „Zu erledigen“ und im Systemcheck (`src/ui/uploads.js`).
+9. **Ladezeit:** Ist das Modul groß und nur für wenige Rollen, erst bei Bedarf laden (siehe „Später laden“ unter „Eine Ansicht ergänzen“).
 
 ## Ideen für nächste Module
 

@@ -543,8 +543,10 @@ export class DataService {
    * blank:   Grunddaten (leere Listen, Regeln) für Personen ohne Zugriff auf die Stammdaten.
    * session: Kennung dieses Fensters (ungespeicherte Änderungen anderer Fenster bleiben unberührt).
    */
-  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null, rights = null, blank = () => ({}), session = Math.random().toString(36).slice(2), quickStart = false, onSaved = () => {} } = {}) {
+  constructor(store, { onStatus = () => {}, onRemoteChange = () => {}, debounceMs = 800, local = null, rights = null, blank = () => ({}), session = Math.random().toString(36).slice(2), quickStart = false, onSaved = () => {}, onUploaded = null, onUploads = null } = {}) {
     this.onSaved = onSaved // nach erfolgreichem Speichern: Pfade (z. B. andere Fenster benachrichtigen)
+    this.onUploaded = onUploaded // (path, webUrl) → true/false: nachgeholte Datei im Modul vermerkt (ui/context.js: uploadDone)
+    this.onUploads = onUploads // ({ done, left, failed }) nach jedem Nachholen: Stand der Warteschlange
     this.quickStart = quickStart // Start mit dem Stand im Gerät, Abgleich im Hintergrund (SharePoint)
     this.store = store
     this.local = local // Gerätespeicher für ungespeicherte Änderungen (offline.js)
@@ -1266,15 +1268,23 @@ export class DataService {
   }
 
   /**
-   * Wartende Uploads (ohne Netz aufgenommene Fotos und Dateien) hochladen. Läuft nie doppelt; liefert die Zahl
-   * der noch wartenden. onUploaded(path, webUrl) meldet jede hochgeladene Datei (z. B. für einen Vermerk im Modul).
+   * Wartende Uploads (ohne Netz aufgenommene Fotos und Dateien) hochladen – nur mit der SharePoint-Ablage
+   * (offline.js), die Browser-Ablage hat keine Warteschlange. Läuft nie doppelt; liefert die Zahl der noch
+   * wartenden. onUploaded(path, webUrl) vermerkt jede hochgeladene Datei im Modul (false: kein Modul kennt
+   * sie, die Ablage meldet sie später noch einmal), onUploads({ done, left, failed }) danach den Stand.
+   * retryFailed: Dateien mit echtem Fehler gleich noch einmal (sonst frühestens nach 10 Minuten).
    */
-  async flushQueuedUploads() {
+  async flushQueuedUploads({ retryFailed = false } = {}) {
     if (this.uploading || !this.store.flushUploads) return 0
     this.uploading = true
+    let done = 0
     try {
-      if (!(await this.store.queuedUploads?.())) return 0
-      return await this.store.flushUploads((path, url) => this.onUploaded?.(path, url))
+      const left = await this.store.flushUploads((path, url, info) => {
+        done++
+        return this.onUploaded ? this.onUploaded(path, url, info) : undefined
+      }, { retryFailed })
+      if (this.onUploads) this.onUploads({ done, left, failed: left ? (await this.store.failedUploads?.()) || [] : [] })
+      return left
     } finally {
       this.uploading = false
     }

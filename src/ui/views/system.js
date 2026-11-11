@@ -247,6 +247,21 @@ export async function runChecks() {
       }
     }
   }
+
+  // ---- Dieses Gerät: Fotos und Dateien, die ohne Netz aufgenommen wurden (Warteschlange der Ablage, offline.js)
+  const G = 'Dieses Gerät'
+  if (app.store?.flushUploads) {
+    const queued = (await app.store.queuedUploads?.()) || 0
+    const failed = (await app.store.failedUploads?.()) || []
+    const name = (p) => p.split('/').pop()
+    add(
+      G,
+      'Fotos und Dateien hochgeladen',
+      failed.length ? 'error' : queued ? 'warn' : 'ok',
+      failed.length ? `${failed.length} von ${queued} nicht hochgeladen: ${failed.map((f) => `${name(f.path)} (${f.error})`).join(', ')}` : queued ? `${queued} ${queued === 1 ? 'Datei wartet' : 'Dateien warten'} im Gerät auf Netz` : 'nichts wartet im Gerät',
+      failed.length ? 'Die Dateien liegen im Gerät und werden alle 10 Minuten erneut versucht (auch in „Zu erledigen“, „Erneut versuchen“). Bei „Zugriff verweigert“ fehlt das Schreibrecht auf den Ordner in SharePoint (Berechtigungen prüfen).' : 'Wird hochgeladen, sobald wieder Netz da ist (beim Abgleich).',
+    )
+  } else add(G, 'Fotos und Dateien hochgeladen', 'info', 'Browser-Modus: keine Warteschlange, nichts wird hochgeladen')
   return out
 }
 
