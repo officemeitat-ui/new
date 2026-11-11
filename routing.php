@@ -40,7 +40,7 @@
 // Gespeichert: privat/routing.json (Google: Schlüssel, Limits oben; OpenRouteService unter „ors“),
 // privat/routing-nutzung.json (Zähler je Monat und Tag; OpenRouteService unter „ors“), privat/routing-cache/
 // (geprüfte Anmeldungen, nur Hashwerte, eine Stunde).
-// Für Tests: ROUTING_ORDNER, ROUTING_CONFIG, ROUTING_GRAPH_URL, ROUTING_GOOGLE_URL (ersetzt die Adressen
+// Für Tests: ROUTING_ORDNER, ROUTING_CONFIG, ROUTING_GRAPH_URL, ROUTING_GRAPH_GRUPPEN_URL, ROUTING_GOOGLE_URL (ersetzt die Adressen
 // https://routes.googleapis.com und https://maps.googleapis.com, z. B. durch eine Attrappe) und ROUTING_ORS_URL
 // (ersetzt https://api.openrouteservice.org).
 
@@ -238,7 +238,7 @@ function person(array $cfg): array
     // Echtheit: Graph nimmt das Token an (gefälschte Tokens fallen hier durch)
     $cache = ordner() . '/routing-cache/' . hash('sha256', $t) . '.json';
     $c = json_lesen($cache);
-    if (($c['bis'] ?? 0) > time() && !empty($c['upn'])) {
+    if (($c['bis'] ?? 0) > time() && !empty($c['upn']) && is_bool($c['rolle'] ?? null)) {
         return $c;
     }
     $ch = curl_init(getenv('ROUTING_GRAPH_URL') ?: 'https://graph.microsoft.com/v1.0/me?$select=userPrincipalName,mail,displayName,userType');
@@ -256,13 +256,82 @@ function person(array $cfg): array
     if (empty($cfg['sharepoint']['allowGuests']) && (($me['userType'] ?? '') === 'Guest' || str_contains($person['upn'], '#ext#'))) {
         fehler(403, 'permission_error', 'Gastkonten sind gesperrt: Bitte mit dem eigenen Firmenkonto anmelden.');
     }
+    $person['rolle'] = hat_rolle($cfg, $person['upn'], $t, getenv('ROUTING_GRAPH_GRUPPEN_URL') ?: 'https://graph.microsoft.com/v1.0/me/transitiveMemberOf?$select=id&$top=999');
     foreach (glob(ordner() . '/routing-cache/*.json') ?: [] as $f) {
         if (filemtime($f) < time() - 3600) {
             @unlink($f);
         }
     }
-    json_schreiben($cache, $person);
+    if ($person['rolle'] !== null) {
+        json_schreiben($cache, $person);
+    }
     return $person;
+}
+
+/**
+ * Hat die Person eine Rolle in der App? Wie die App im Betrieb (core/access.js): E-Mail in access.planners bzw.
+ * access.members oder Mitglied (auch verschachtelt) einer Gruppe aus access.groups – laut Microsoft Graph
+ * (/me/transitiveMemberOf, dafür reicht User.Read). Wichtig, wenn in Entra „Zuweisung erforderlich“ aus ist: Dann
+ * kommt jedes Firmenkonto bis hierher. Ist access ohne Personen und Gruppen, gilt wie bisher jedes Firmenkonto.
+ * → true | false | null (Graph gerade nicht erreichbar)
+ */
+function hat_rolle(array $cfg, string $upn, string $token, string $gruppenUrl): ?bool
+{
+    $a = is_array($cfg['access'] ?? null) ? $cfg['access'] : [];
+    $mails = [];
+    $listen = [(array) ($a['planners'] ?? [])];
+    foreach ((array) ($a['members'] ?? []) as $liste) {
+        $listen[] = (array) $liste;
+    }
+    foreach ($listen as $liste) {
+        foreach ($liste as $e) {
+            $e = strtolower(trim((string) $e));
+            if ($e !== '') {
+                $mails[$e] = true;
+            }
+        }
+    }
+    $gruppen = [];
+    foreach ((array) ($a['groups'] ?? []) as $liste) {
+        foreach ((array) $liste as $g) {
+            $g = strtolower(trim((string) $g));
+            if ($g !== '') {
+                $gruppen[$g] = true;
+            }
+        }
+    }
+    if (!$mails && !$gruppen) {
+        return true;
+    }
+    if ($upn !== '' && isset($mails[strtolower($upn)])) {
+        return true;
+    }
+    if (!$gruppen) {
+        return false;
+    }
+    $port = parse_url($gruppenUrl, PHP_URL_PORT);
+    $host = (string) parse_url($gruppenUrl, PHP_URL_SCHEME) . '://' . (string) parse_url($gruppenUrl, PHP_URL_HOST) . ($port ? ':' . $port : '') . '/';
+    $url = $gruppenUrl;
+    for ($seite = 0; $url !== '' && $seite < 20; $seite++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token]]);
+        $raw = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $d = is_string($raw) ? json_decode($raw, true) : null;
+        if ($code !== 200 || !is_array($d)) {
+            return null;
+        }
+        foreach ((array) ($d['value'] ?? []) as $o) {
+            if (is_array($o) && isset($gruppen[strtolower((string) ($o['id'] ?? ''))])) {
+                return true;
+            }
+        }
+        // weiter nur bei Microsoft Graph selbst (dieselbe Adresse wie die erste Seite)
+        $naechste = $d['@odata.nextLink'] ?? '';
+        $url = is_string($naechste) && str_starts_with($naechste, $host) ? $naechste : '';
+    }
+    return false;
 }
 
 function ist_vollzugriff(array $cfg, string $upn): bool
@@ -777,6 +846,12 @@ if ($aktion !== 'status' && $methode !== 'POST') {
     fehler(405, 'invalid_request_error', 'POST erwartet.');
 }
 $person = person($cfg);
+if ($aktion !== 'status' && $aktion !== 'einrichten' && $person['rolle'] !== true) {
+    if ($person['rolle'] === null) {
+        fehler(503, 'api_error', 'Die Rolle in der App ließ sich gerade nicht prüfen (Microsoft Graph). Bitte gleich noch einmal versuchen.');
+    }
+    fehler(403, 'permission_error', 'Routing nur für Personen mit einer Rolle in der App (Gruppe bzw. E-Mail in config.json → access).');
+}
 
 if ($aktion === 'status') {
     antwort(status($cfg, $person, $anbieter));
