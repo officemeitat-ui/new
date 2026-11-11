@@ -66,3 +66,8 @@ test('PDF: eine Seite je Person mit Name, Datum der Woche und Raster der Tage', 
   assert.equal(doc.content.filter((x) => x.pageBreak === 'before').length, 1)
   assert.equal(wastePlanPdfName(MO), 'Muellplan_KW47_2026-11-16.pdf')
 })
+
+test('PDF-Name: Umlaute ausgeschrieben, nur einfache Zeichen', () => {
+  assert.equal(wastePlanPdfName('2026-11-16', 'Gül Arslan-Öztürk'), 'Muellplan_KW47_2026-11-16_Guel_Arslan-Oeztuerk.pdf')
+  assert.equal(wastePlanPdfName('2026-11-16', 'Ştefan Dumitraşcu'), 'Muellplan_KW47_2026-11-16_Stefan_Dumitrascu.pdf')
+})

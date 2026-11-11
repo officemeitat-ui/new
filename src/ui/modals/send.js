@@ -9,6 +9,8 @@ import { addLog, app, confirmStep, openModal, persist, mayEdit, registerActions,
 import { allPdfName, pdfFileName, weekPdfBlob, weekPdfZip } from '../pdf.js'
 import { changeMessage } from '../planning.js'
 import { download, esc, ICON, modalFrame } from '../shared.js'
+import { waNumber } from '../../core/whatsapp.js'
+import { sendFileWhatsApp } from '../whatsapp.js'
 import { weekFileBase } from '../../export/excel.js'
 
 const fmt = (iso) => new Date(iso).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -78,7 +80,8 @@ function sendModal(c, modal) {
         <td><span class="pill ${st.cls} name">${esc(st.label)}</span></td>
         <td class="send-acts">
           ${canPdf() ? `<button class="btn small" data-action="send-pdf" data-emp="${esc(e.id)}" title="PDF herunterladen">${ICON.sheet} PDF</button>` : ''}
-          ${canShare() ? `<button class="btn small" data-action="send-share" data-emp="${esc(e.id)}" title="Am Handy z. B. per WhatsApp senden">${ICON.send} Teilen</button>` : ''}
+          ${canPdf() ? `<button class="btn small" data-action="send-wa" data-emp="${esc(e.id)}" title="${esc(waNumber(e.phone) ? `Per WhatsApp an ${e.phone}` : 'Per WhatsApp senden (Handy-Nummer im Stammblatt fehlt: Kontakt in WhatsApp wählen)')}">${ICON.chat} WhatsApp</button>` : ''}
+          ${canShare() ? `<button class="btn small ghost" data-action="send-share" data-emp="${esc(e.id)}" title="Am Handy: Signal, Mail und andere">${ICON.send} Teilen</button>` : ''}
           ${canMail() && e.email && p ? `<button class="btn small primary edit-only" data-action="send-mail" data-emp="${esc(e.id)}">${ICON.send} E-Mail</button>` : ''}
         </td></tr>`
     })
@@ -146,6 +149,21 @@ registerActions({
     } catch (err) {
       setBusy('')
       toast(`PDF fehlgeschlagen: ${err.message}`)
+    }
+  },
+  // WhatsApp: am Handy „Teilen“ mit dem PDF (WhatsApp wählen), am PC WhatsApp beim Kontakt öffnen und das PDF speichern
+  'send-wa': async (el) => {
+    const c = app.cur
+    const emp = empOf(el.dataset.emp)
+    const kw = isoWeek(c.monday).week
+    try {
+      const res = await sendFileWhatsApp({ kind: 'wochenplan', makeBlob: () => weekPdfBlob(c, [emp]), name: pdfFileName(c.monday, emp.name), phone: emp.phone, title: `Dienstplan KW ${kw}`, text: `Hallo ${String(emp.name).split(' ')[0]}, dein Dienstplan für KW ${kw}.` })
+      if (res === 'geteilt' || res === 'link') {
+        if (c.published && sendState(c, emp).key !== 'aktuell') markSent(c, [emp], 'WhatsApp')
+        renderModal()
+      }
+    } catch (err) {
+      toast(`WhatsApp fehlgeschlagen: ${err.message}`)
     }
   },
   'send-share': async (el) => {

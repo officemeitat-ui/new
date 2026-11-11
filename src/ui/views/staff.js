@@ -71,6 +71,7 @@ function employeeModal(c, { id, prefill = null, from = '' }) {
         <label class="field"><span>Personalnummer</span><input type="text" id="emp-pnr" value="${esc(e.personnelNo || '')}"></label>
         <label class="field"><span>Revier / Team</span><input type="text" id="emp-team" list="team-list" value="${esc(e.team || '')}"><datalist id="team-list">${teams.map((t) => `<option value="${esc(t)}">`).join('')}</datalist></label>
         <label class="field"><span>E-Mail (Microsoft 365)</span><input type="email" id="emp-email" value="${esc(e.email || '')}"></label>
+        <label class="field"><span>Handy (für WhatsApp)</span><input type="tel" id="emp-phone" value="${esc(e.phone || '')}" placeholder="z. B. 0664 1234567" autocomplete="off"></label>
         <label class="field"><span>Sprache am Handy (Plan am Handy, Hinweise)</span><select id="emp-lang">${options(LANGUAGES.map((l) => [l.id, langLabel(l.id)]), langOf(e))}</select><small class="muted">Die Person kann sie am Handy umstellen.</small></label>
         <label class="field"><span>Beschäftigung</span><select id="emp-type">${EMPLOYMENT_TYPES.map((t) => `<option ${t === e.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>Wochenstunden (Soll)</span><input type="number" id="emp-hours" step="0.5" min="0" max="${MAX_WEEKLY_HOURS}" value="${esc(e.weeklyHours ?? '')}"></label>
@@ -106,6 +107,7 @@ function readEmployeeForm(existing) {
     personnelNo: val('emp-pnr').trim() || undefined,
     team: val('emp-team').trim() || undefined,
     email: val('emp-email').trim().toLowerCase() || undefined,
+    phone: document.getElementById('emp-phone') ? val('emp-phone').trim() || undefined : existing?.phone,
     lang: document.getElementById('emp-lang') && val('emp-lang') !== 'de' ? val('emp-lang') : undefined,
     type: val('emp-type'),
     weeklyHours: num('emp-hours') ?? 0,

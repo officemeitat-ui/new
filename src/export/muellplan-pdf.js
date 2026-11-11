@@ -3,11 +3,12 @@
 // (nur bei mehreren) und die Gänge „Biomüll raus – Davisstraße 7, 9, 11“. Eine Seite je Person.
 
 import { addDays, formatDate, isoWeek, WEEKDAY_LONG } from '../core/dates.js'
+import { fileSafe } from '../core/filename.js'
 import { ACTION_TEXT, hasDuties, wastePlanTitle } from '../core/muellplan.js'
 import { docShell, header, inkColors } from './pdf-parts.js'
 
 const day = (d) => formatDate(d, { weekday: false, year: true })
-const fileSafe = (s) => String(s || '').replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g, '-').replace(/^-+|-+$/g, '')
+
 
 function dayBlock(plan, i, colors) {
   const d = plan.days[i]

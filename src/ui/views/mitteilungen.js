@@ -43,6 +43,7 @@ import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, onMod
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { call, portalSettings } from '../staffplan.js'
 import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
+import { waLink } from '../whatsapp.js'
 import { mitIcon } from './lazy.js'
 
 const MODULE = 'mitteilungen'
@@ -561,7 +562,7 @@ function detailModal(c, { id }) {
       }
       ${S.error ? `<p class="banner warn-banner">Abholen: ${esc(S.error)}</p>` : ''}`,
     foot: `<div class="actions">${ed && st === 'entwurf' ? `<button class="btn ${confirmDelete ? 'danger' : ''}" data-action="mit-delete" data-id="${esc(m.id)}">${confirmDelete ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}${ed && live ? `<button class="btn ${confirmWithdraw ? 'danger' : ''}" data-action="mit-withdraw" data-id="${esc(m.id)}" title="Am Handy und in der App nicht mehr sichtbar; der Nachweis bleibt">${confirmWithdraw ? 'Wirklich zurückziehen?' : 'Zurückziehen'}</button>` : ''}</div>
-      <div class="actions">${st !== 'entwurf' ? `<button class="btn" data-action="mit-pdf" data-id="${esc(m.id)}">${ICON.download} Nachweis (PDF)</button>` : ''}${ed && st === 'entwurf' ? `<button class="btn primary" data-action="mit-edit-open" data-id="${esc(m.id)}">Bearbeiten</button>` : ''}${ed && st === 'laeuft' && p.open.length ? `<button class="btn primary" data-action="mit-remind" data-id="${esc(m.id)}" title="Bei den offenen Personen wieder oben und hervorgehoben; mit Push eine Nachricht">${ICON.bell} Erinnern (${p.open.length})</button>` : ''}</div>`,
+      <div class="actions">${st !== 'entwurf' ? `<button class="btn" data-action="mit-pdf" data-id="${esc(m.id)}">${ICON.download} Nachweis (PDF)</button>` : ''}${st === 'laeuft' ? waLink({ kind: 'mitteilung', text: [m.titel, m.text, m.unterweisung ? 'Bitte in „Plan am Handy“ mit „Verstanden“ bestätigen.' : ''].filter((x) => String(x || '').trim()).join('\n\n'), cls: 'btn', label: 'Per WhatsApp (z. B. in die Gruppe)' }) : ''}${ed && st === 'entwurf' ? `<button class="btn primary" data-action="mit-edit-open" data-id="${esc(m.id)}">Bearbeiten</button>` : ''}${ed && st === 'laeuft' && p.open.length ? `<button class="btn primary" data-action="mit-remind" data-id="${esc(m.id)}" title="Bei den offenen Personen wieder oben und hervorgehoben; mit Push eine Nachricht">${ICON.bell} Erinnern (${p.open.length})</button>` : ''}</div>`,
   })
 }
 registerModal('mit-detail', detailModal, { module: MODULE })

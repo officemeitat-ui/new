@@ -2,12 +2,12 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 409 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 410 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
-- [Planung](#planung) (42)
+- [Planung](#planung) (43)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
 - [Objekte & Kunden](#objekte-kunden) (103)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
@@ -718,6 +718,20 @@ Im Versand-Dialog schickst du jeder Person ihr PDF: per E-Mail aus deinem Micros
 > Tipp: E-Mail geht nur mit Netz und hinterlegter Adresse bei der Person.
 > Tipp: Das PDF steht in der Sprache der Person (Stammblatt → „Sprache am Handy“): Überschriften, Wochentage, Summen und feste Hinweise; Objekt- und Leistungsnamen bleiben, wie sie sind.
 
+### Per WhatsApp senden (Pläne, Links, Touren)
+
+*In der App: Wochenübersicht*
+
+Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan, Link für Plan am Handy, Müllplan, Matten-Tour, Fahrer-Link und Mitteilungen. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text und das PDF wird gespeichert. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind dafür gesperrt.
+
+1. Im Stammblatt der Person unter „Handy (für WhatsApp)“ die Nummer eintragen.
+2. Beim Wochenplan-Versand, im Müllplan, bei Plan am Handy oder der Tour auf „WhatsApp“ tippen.
+3. In WhatsApp prüfen und senden.
+
+> Tipp: Ohne Nummer wählt man den Kontakt oder eine Gruppe selbst in WhatsApp.
+> Tipp: Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir.
+> Tipp: Eine Mitteilung lässt sich so auch in eure WhatsApp-Gruppe stellen.
+
 ### Korrektur nach dem Veröffentlichen
 
 *In der App: Wochenübersicht*
@@ -995,11 +1009,11 @@ Der Müllplan zeigt je Objekt die Abfuhr der Woche und wer die Tonnen raus- und 
 
 *In der App: Müllplan*
 
-Im Müllplan macht „Müllpläne je Person (PDF)“ eine Seite je Person – wie die bisherigen Word-Pläne: Orte, Datum der Woche, je Tag was raus und was zurück kommt, z. B. „Biomüll raus – Davisstraße 7, 9, 11“. Grundlage sind die eingeteilten Müll-Gänge der Woche.
+Im Müllplan öffnet „Müllpläne je Person“ die Liste der Personen mit Müll-Gängen: je Person PDF oder WhatsApp, oder alle als ein PDF. Aufbau wie die bisherigen Word-Pläne: Orte, Datum der Woche, je Tag was raus und was zurück kommt, z. B. „Biomüll raus – Davisstraße 7, 9, 11“.
 
 1. „Müllplan“ unter „Einsätze & Zeiten“ öffnen und die Woche wählen.
 2. Offene Gänge mit „Müll-Gänge einteilen“ besetzen.
-3. „Müllpläne je Person (PDF)“ – das PDF hat eine Seite je Person.
+3. „Müllpläne je Person“: je Person „PDF“ oder „WhatsApp“, unten „Alle als ein PDF“.
 
 > Tipp: Die Straßen kommen aus der Adresse der Objekte („Straße Nummer, Postleitzahl Ort“); ohne Adresse steht der Kurzname des Objekts.
 > Tipp: Altpapier steht als „Papier“, Leichtverpackung als „Plastik“.

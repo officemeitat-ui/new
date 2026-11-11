@@ -64,6 +64,7 @@ import { chosenName, chosenProvider, findCoords, providerStatus, providerText, r
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { completeWebDrivers, publishWebTour, pushWebDrivers, startWebPolling, syncWebspace, webIdentityFor, webLinkOf, webReady, webTourNote, withdrawWebTour } from '../matten-webspace.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
+import { waLink } from '../whatsapp.js'
 import { tourStockHint } from './matten-bestand.js'
 
 const MODULE = 'matten'
@@ -317,7 +318,7 @@ function tourCard(t, { ed, today, others }) {
     ? draft
       ? `<button class="btn small" data-action="mw-tp-edit-open" data-tour="${esc(t.id)}">Fahrer und Fahrzeug</button><button class="btn small primary" data-action="mw-tp-release" data-tour="${esc(t.id)}" ${t.date < today ? 'disabled' : ''}>Tour freigeben</button><button class="btn small ${confirmDel ? 'danger confirm' : 'ghost'}" data-action="mw-tp-delete" data-tour="${esc(t.id)}">${confirmDel ? 'Wirklich löschen?' : 'Entwurf löschen'}</button>`
       : t.status === 'freigegeben'
-        ? '<button class="btn small" data-action="mw-tp-withdraw" data-tour="' + esc(t.id) + '">Freigabe zurücknehmen</button>'
+        ? '<button class="btn small" data-action="mw-tp-withdraw" data-tour="' + esc(t.id) + '">Freigabe zurücknehmen</button>' + tourWa(t)
         : ''
     : ''
   // ohne E-Mail erkennt die Fahreransicht die Tour nicht als die des Fahrers
@@ -791,10 +792,25 @@ function readDrivers() {
   const m = driversDraft(app.ui.modal)
   m.rows = m.rows.map((r, i) =>
     document.getElementById(`mw-dr-name-${i}`)
-      ? { ...r, name: val(`mw-dr-name-${i}`), email: val(`mw-dr-mail-${i}`).trim().toLowerCase(), start: val(`mw-dr-from-${i}`), end: val(`mw-dr-to-${i}`), vehicleId: val(`mw-dr-veh-${i}`), capacity: val(`mw-dr-cap-${i}`), areaId: val(`mw-dr-area-${i}`), active: checked(`mw-dr-on-${i}`), webspace: checked(`mww-dr-web-${i}`), lang: val(`mww-dr-lang-${i}`) || r.lang || '' }
+      ? { ...r, name: val(`mw-dr-name-${i}`), email: val(`mw-dr-mail-${i}`).trim().toLowerCase(), phone: document.getElementById(`mw-dr-phone-${i}`) ? val(`mw-dr-phone-${i}`).trim() : r.phone || '', start: val(`mw-dr-from-${i}`), end: val(`mw-dr-to-${i}`), vehicleId: val(`mw-dr-veh-${i}`), capacity: val(`mw-dr-cap-${i}`), areaId: val(`mw-dr-area-${i}`), active: checked(`mw-dr-on-${i}`), webspace: checked(`mww-dr-web-${i}`), lang: val(`mww-dr-lang-${i}`) || r.lang || '' }
       : r,
   )
   return m
+}
+
+/** Handy eines Fahrers: im Dialog eingetragen, sonst aus dem Stammblatt der Person (Mitarbeitende). */
+const empPhone = (r) => (r?.employeeId && (app.data.employees || []).find((e) => e.id === r.employeeId)?.phone) || ''
+const driverPhone = (r) => String(r?.phone || '').trim() || empPhone(r)
+
+/** Freigegebene Tour dem Fahrer per WhatsApp ankündigen: Tag, Stopps, Start und wo er sie findet. */
+function tourWa(t) {
+  const d = driverOf(drivers(), t.driverId)
+  if (!d) return ''
+  const r = t.route || {}
+  const own = isWebDriver(d) ? webLinkOf(d)?.link : ''
+  const where = own ? `Deine Tour: ${own}` : isWebDriver(d) ? 'Du findest sie in „Plan am Handy“ unter „Matten-Tour öffnen“.' : 'Du findest sie in der Cleanos App unter „Matten-Touren“.'
+  const text = [`Hallo ${String(d.name).split(' ')[0]}, deine Matten-Tour am ${WEEKDAY_LONG[isoWeekday(t.date) - 1]}, ${formatDate(t.date, { weekday: false, year: true })}: ${plural((t.stops || []).length, 'Stopp', 'Stopps')}${r.start ? `, Start ${r.start}` : ''}${r.load ? `, ${r.load} Matten` : ''}.`, where].join('\n')
+  return waLink({ kind: 'matten-tour', phone: driverPhone(d), text, label: 'Fahrer per WhatsApp' })
 }
 
 /** Fahrer ohne Konto im Dialog: Sprache am Handy und persönlicher Link (Kopieren, WhatsApp, E-Mail, neuer Link). */
@@ -805,7 +821,7 @@ function webDriverBlock(r, i, dis) {
   const link = fromPlan
     ? '<p class="note mww-dr-link">Link von „Plan am Handy“: die Tour erscheint dort mit dem Knopf „Matten-Tour öffnen“; Sprache wie im Stammblatt.</p>'
     : l
-      ? `<div class="mww-dr-link"><input type="text" readonly value="${esc(l.link)}" aria-label="Link zur Fahrerseite für ${esc(r.name)}"><button type="button" class="btn small" data-action="mww-copy" data-text="${esc(l.link)}">${ICON.copy} Link kopieren</button><a class="btn small" href="https://wa.me/?text=${esc(encodeURIComponent(l.text))}" target="_blank" rel="noopener">WhatsApp</a><a class="btn small" href="mailto:${esc(encodeURIComponent(r.email || ''))}?subject=${esc(encodeURIComponent(l.subject))}&amp;body=${esc(encodeURIComponent(l.text))}">E-Mail</a>${dis ? '' : `<button type="button" class="btn small ghost" data-action="mww-dr-newlink" data-i="${i}" title="Wenn der Link in falsche Hände geraten ist: nach dem Speichern gilt der alte nicht mehr">Neuer Link</button>`}</div>`
+      ? `<div class="mww-dr-link"><input type="text" readonly value="${esc(l.link)}" aria-label="Link zur Fahrerseite für ${esc(r.name)}"><button type="button" class="btn small" data-action="mww-copy" data-text="${esc(l.link)}">${ICON.copy} Link kopieren</button>${waLink({ kind: 'fahrer-link', phone: driverPhone(r), text: l.text })}<a class="btn small" href="mailto:${esc(encodeURIComponent(r.email || ''))}?subject=${esc(encodeURIComponent(l.subject))}&amp;body=${esc(encodeURIComponent(l.text))}">E-Mail</a>${dis ? '' : `<button type="button" class="btn small ghost" data-action="mww-dr-newlink" data-i="${i}" title="Wenn der Link in falsche Hände geraten ist: nach dem Speichern gilt der alte nicht mehr">Neuer Link</button>`}</div>`
       : '<p class="note mww-dr-link">Der persönliche Link entsteht beim Speichern (bei Personen mit „Plan am Handy“ gilt deren Link).</p>'
   return `${lang}${link}`
 }
@@ -824,6 +840,7 @@ registerModal(
         (r, i) => `<div class="mw-dr-row">
           <label class="field"><span>Name</span><input type="text" id="mw-dr-name-${i}" value="${esc(r.name)}" ${dis}></label>
           <label class="field"><span>E-Mail (Microsoft 365)</span><input type="email" id="mw-dr-mail-${i}" value="${esc(r.email)}" placeholder="für „meine Touren“ am Handy" ${dis}></label>
+          <label class="field"><span>Handy (für WhatsApp)</span><input type="tel" id="mw-dr-phone-${i}" value="${esc(r.phone || '')}" placeholder="${esc(empPhone(r) || 'z. B. 0664 1234567')}" ${dis}></label>
           <label class="field"><span>von</span><input type="time" id="mw-dr-from-${i}" value="${esc(r.start)}" ${dis}></label>
           <label class="field"><span>bis</span><input type="time" id="mw-dr-to-${i}" value="${esc(r.end)}" ${dis}></label>
           <label class="field"><span>Fahrzeug</span><select id="mw-dr-veh-${i}" ${dis}>${options(vs, r.vehicleId || '', { empty: 'ohne' })}</select></label>

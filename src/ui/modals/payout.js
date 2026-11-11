@@ -1,7 +1,7 @@
 // Auszahlungen versenden: gesammelt an die Lohnverrechnung (wer bekommt wie
 // viel, PDF + CSV) und einzeln an die Mitarbeitenden (eigene Aufstellung).
 // Per E-Mail über Microsoft 365, sonst über das eigene E-Mail-Programm, als
-// PDF/ZIP oder „Teilen“ am Handy. Versandstand je Empfänger:in.
+// PDF/ZIP (kein „Teilen“ über WhatsApp & Co.: Finanzen). Versandstand je Empfänger:in.
 
 import { sendMail } from '../../auth/graph-mail.js'
 import { formatHours } from '../../core/dates.js'
@@ -18,7 +18,7 @@ import { canMail } from './send.js'
 
 const fmt = (iso) => new Date(iso).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const canPdf = () => app.config.features.pdf && app.config.features.download
-const canShare = () => app.config.features.pdf && typeof navigator.canShare === 'function' && typeof navigator.share === 'function'
+// Kein „Teilen“ (WhatsApp & Co.): Auszahlungen sind Finanzen und gehen nur per E-Mail oder als PDF (entschieden 11.11.2026).
 
 function context(month) {
   const data = payroll(month)
@@ -107,7 +107,6 @@ function payoutModal(c, modal) {
       <td><span class="pill ${st.cls} name">${esc(st.label)}</span></td>
       <td class="send-acts">
         ${canPdf() ? `<button class="btn small" data-action="po-person-pdf" data-emp="${esc(e.employee.id)}">${ICON.sheet} PDF</button>` : ''}
-        ${canShare() ? `<button class="btn small" data-action="po-person-share" data-emp="${esc(e.employee.id)}">${ICON.send} Teilen</button>` : ''}
         ${e.employee.email ? (canMail() ? `<button class="btn small primary edit-only" data-action="po-person-mail" data-emp="${esc(e.employee.id)}">${ICON.send} E-Mail</button>` : `<button class="btn small" data-action="po-person-mailto" data-emp="${esc(e.employee.id)}">${ICON.send} E-Mail</button>`) : ''}
       </td></tr>`)
     .join('')
@@ -197,23 +196,6 @@ registerActions({
       download(payoutPersonFile(month, e.employee.name), await personPdf(month, ctx, [e]))
       if (!ctx.sent.people?.[e.employee.id]) markSent(month, { people: { [e.employee.id]: { via: 'PDF', sig: payoutSig(e) } } })
     })
-  },
-  'po-person-share': async (el) => {
-    const month = currentMonth()
-    const ctx = context(month)
-    const e = entryOf(ctx, el.dataset.emp)
-    try {
-      const file = new File([await personPdf(month, ctx, [e])], payoutPersonFile(month, e.employee.name), { type: 'application/pdf' })
-      if (!navigator.canShare({ files: [file] })) {
-        download(file.name, file)
-        return toast('Teilen von Dateien wird hier nicht unterstützt: PDF wurde heruntergeladen.')
-      }
-      await navigator.share({ files: [file], title: personSubject(month), text: payoutPersonText(e, { month, sender: sender(), brand: brandName() }) })
-      markSent(month, { people: { [e.employee.id]: { via: 'Teilen', sig: payoutSig(e) } } })
-      renderModal()
-    } catch (err) {
-      if (err.name !== 'AbortError') toast(err.name === 'NotAllowedError' ? 'Das PDF ist bereit: bitte nochmals auf „Teilen“ tippen.' : `Teilen fehlgeschlagen: ${err.message}`)
-    }
   },
   'po-person-mailto': (el) => {
     const month = currentMonth()

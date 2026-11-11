@@ -35,6 +35,7 @@ import { accountAfterWeek } from './pdf.js'
 import { publishWeek } from './planning.js'
 import { downloadQrPosters } from './timeclock.js'
 import { checked, download, esc, ICON, modalFrame, val } from './shared.js'
+import { waLink } from './whatsapp.js'
 
 /** Termine einer Person in der Woche (Modul Termine), ohne abgesagte, mit Ort für das Handy. */
 function appointmentsFor(empId, monday) {
@@ -456,7 +457,7 @@ function portalModal() {
       const mail = e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}` : ''
       const lang = langOf(e)
       return `<tr><td>${esc(e.name)}${lang !== 'de' ? ` <span class="tag" lang="${esc(langInfo(lang).html)}" title="Sprache am Handy und in der Nachricht">${esc(langInfo(lang).own)}</span>` : ''}</td>
-        <td class="actions"><button class="btn small" data-action="portal-copy" data-text="${esc(personalLink(address(), d.codes[e.id]))}">${ICON.copy} Link</button><a class="btn small" href="https://wa.me/?text=${esc(encodeURIComponent(msg))}" target="_blank" rel="noopener">WhatsApp</a>${mail ? `<a class="btn small" href="${esc(mail)}">E-Mail</a>` : ''}</td>
+        <td class="actions"><button class="btn small" data-action="portal-copy" data-text="${esc(personalLink(address(), d.codes[e.id]))}">${ICON.copy} Link</button>${waLink({ kind: 'plan-link', phone: e.phone, text: msg })}${mail ? `<a class="btn small" href="${esc(mail)}">E-Mail</a>` : ''}</td>
         <td>${topic ? `<code>${esc(topic)}</code> <button class="btn small" data-action="portal-push" data-emp="${esc(e.id)}" title="Keine Push-Nachrichten mehr">aus</button>` : `<button class="btn small" data-action="portal-push" data-emp="${esc(e.id)}">Push einrichten</button>`}</td>
         <td><button class="btn small" data-action="portal-newlink" data-emp="${esc(e.id)}" title="Wenn der Link in falsche Hände geraten ist (z. B. Handy verloren): der alte gilt dann nicht mehr">Neuer Link</button></td></tr>`
     })

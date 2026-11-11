@@ -32,6 +32,7 @@ export const ICON = {
   plus: svg('<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'),
   copy: svg('<rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 11V3a1 1 0 0 1 1-1h7" fill="none" stroke="currentColor" stroke-width="1.6"/>'),
   send: svg('<path d="M1.5 7.5 14.5 2 9 14.5 7.3 9.2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>'),
+  chat: svg('<path d="M8 2.2c3.4 0 6 2.3 6 5.3s-2.6 5.3-6 5.3c-.8 0-1.6-.1-2.3-.4L2.3 13.7l.9-2.8C2.4 10 2 8.8 2 7.5 2 4.5 4.6 2.2 8 2.2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
   print: svg('<path d="M4 6V2h8v4M4 12H2.5V6.5h11V12H12" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="4" y="9.5" width="8" height="5" fill="none" stroke="currentColor" stroke-width="1.6"/>'),
   sheet: svg('<rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2 6h12M2 10h12M6 6v8" stroke="currentColor" stroke-width="1.4"/>'),
   key: svg('<circle cx="5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 8h6.5M12 8v2.5M14 8v2" stroke="currentColor" stroke-width="1.6"/>'),

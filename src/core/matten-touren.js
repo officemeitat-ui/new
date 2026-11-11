@@ -414,6 +414,8 @@ export function normalizeDrivers(list = []) {
     .map((d) => {
       const out = { id: text(d?.id), name: text(d?.name), email: text(d?.email).toLowerCase(), start: isTime(d?.start) ? d.start : '', end: isTime(d?.end) ? d.end : '', vehicleId: text(d?.vehicleId), capacity: Number(d?.capacity) > 0 ? Math.round(Number(d.capacity)) : null, areaId: text(d?.areaId), active: d?.active !== false }
       if (text(d?.employeeId)) out.employeeId = text(d.employeeId)
+      // Handy für WhatsApp (nur im Büro, geht nicht an den Webspace)
+      if (text(d?.phone)) out.phone = text(d.phone).slice(0, 40)
       // Fahrer ohne Microsoft-Konto (Fahrerseite am Webspace, P10b): Sprache und Link (Hash; Code nur bei eigenem Link)
       if (d?.webspace === true) {
         out.webspace = true
