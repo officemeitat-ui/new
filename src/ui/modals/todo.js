@@ -92,16 +92,19 @@ function planItems(today, { extra, extraIds }) {
 }
 
 // Berechnung nur nach Änderungen
-let cache = { key: null, todo: null }
+let cache = { key: null, todo: null, access: null }
+// Der letzte Datenstand darf innerhalb derselben Rolle weiter sichtbar bleiben,
+// aber beim Rollenwechsel nicht Aufgaben der vorherigen Rolle übernehmen.
+const lastForAccess = () => (cache.access === app.access ? cache.todo : null)
 const keyNow = () => `${dataStamp()}|${todayISO()}|${Object.keys(app.data.assignments).length}|${(app.data.absences || []).length}|${Object.keys(app.data.published || {}).length}|${app.access?.roles.join() || ''}`
 /** Neu berechnen beim nächsten Mal (z. B. wenn eine Quelle Daten vom Webspace bekommen hat). */
 export const invalidateTodo = () => (cache.key = null)
 export function todo() {
   const key = keyNow()
   // wie beim Zeichnen: Bezüge der Belege über einen Index (context.js drawing), die Daten ändern sich dabei nicht
-  if (cache.key !== key) {
+  if (cache.key !== key || cache.access !== app.access) {
     job = null
-    cache = { key, todo: drawing(() => computeTodo()) }
+    cache = { key, todo: drawing(() => computeTodo()), access: app.access }
   }
   return cache.todo
 }
@@ -113,23 +116,23 @@ const EMPTY = { today: '', lead: 0, absences: [], periodic: [], weeks: [], extra
 let job = null
 let staleDrawn = false
 /** Ergebnis zum aktuellen Datenstand oder null (rechnet nicht). */
-export const todoReady = () => (app.data && cache.key === keyNow() ? cache.todo : null)
+export const todoReady = () => (app.data && cache.key === keyNow() ? lastForAccess() : null)
 /** Ergebnis zum aktuellen Datenstand, sonst der letzte Stand (und im Hintergrund neu rechnen). Für Zähler und Übersichten. */
 export function todoOrLast() {
   const ready = todoReady()
   if (ready) return ready
   staleDrawn = true
   todoSoon()
-  return cache.todo || EMPTY
+  return lastForAccess() || EMPTY
 }
 const idle = () => new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(), { timeout: 300 }) : setTimeout(resolve, 0)))
 /** „Zu erledigen“ im Hintergrund neu rechnen (Quelle für Quelle); fertig: Glocke anpassen, bei Bedarf neu zeichnen. */
 export function todoSoon() {
   if (!app.data) return
   const key = keyNow()
-  if (cache.key === key || job?.key === key) return
-  const my = (job = { key })
-  const alive = () => job === my && keyNow() === key
+  if ((cache.key === key && cache.access === app.access) || (job?.key === key && job.access === app.access)) return
+  const my = (job = { key, access: app.access })
+  const alive = () => job === my && keyNow() === key && app.access === my.access
   ;(async () => {
     const today = todayISO()
     const extra = []
@@ -144,8 +147,8 @@ export function todoSoon() {
     const extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
     const t = drawing(() => planItems(today, { extra, extraIds }))
     job = null
-    if (cache.key === key) return
-    cache = { key, todo: t }
+    if (cache.key === key && cache.access === app.access) return
+    cache = { key, todo: t, access: app.access }
     setBell(t.count)
     // neu zeichnen, was mit dem alten Stand gezeichnet wurde – nicht bei offenem Dialog oder während einer Eingabe
     // (das nächste Zeichnen nimmt ohnehin den neuen Stand)
@@ -168,7 +171,7 @@ function setBell(count) {
 
 /** Modul nachgeladen: im gemerkten Ergebnis die Punkte der Module neu, die (teure) Planung bleibt. */
 function refreshSources() {
-  const t = cache.todo
+  const t = lastForAccess()
   if (!t) return
   const planIds = t.ids.slice(0, t.ids.length - t.extra.reduce((n, x) => n + x.items.length, 0))
   const { extra, extraIds } = drawing(() => sourceItems(t.today))
@@ -195,7 +198,7 @@ function markSeen(ids) {
 // ---------------------------------------------------------------- Glocke
 
 export function bellButton() {
-  const count = cache.todo?.count || 0
+  const count = lastForAccess()?.count || 0
   return `<button class="btn bell" data-action="open-todo" title="Zu erledigen: offene Punkte deiner Bereiche">${ICON.bell}<span class="bell-label">Zu erledigen</span><span id="todo-count" class="flag error" ${count ? '' : 'hidden'}>${count || ''}</span></button>`
 }
 

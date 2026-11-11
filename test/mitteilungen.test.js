@@ -262,7 +262,7 @@ test('Rechte: Büro bearbeitet, Konten lesen ihr Postfach und schreiben die eige
 
 // ---------------------------------------------------------------- mein-plan.php
 
-const PHP = readFileSync(new URL('../mein-plan.php', import.meta.url), 'utf8')
+const PHP = readFileSync(new URL('../mein-plan.php', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const hasPhp = (() => {
   try {
     execFileSync('php', ['-v'], { stdio: 'ignore' })

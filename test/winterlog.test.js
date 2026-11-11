@@ -90,7 +90,7 @@ test('PDF-Nachweis: Kopf mit Monat, Tabelle, Fotos im Anhang, ein Objekt allein'
 })
 
 test('wetter-alarm.php: Protokolle „voriger und dieser Monat“ in Wiener Zeit, auch am 1. nach Mitternacht', () => {
-  const php = readFileSync(new URL('../wetter-alarm.php', import.meta.url), 'utf8')
+  const php = readFileSync(new URL('../wetter-alarm.php', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
   const block = php.slice(php.indexOf("if ($aktion === 'protokolle')"), php.indexOf("if ($aktion === 'foto')"))
   assert.doesNotMatch(block, /strtotime\(/, 'strtotime() rechnet in der Zeitzone des Servers')
   const fn = php.match(/function protokoll_monate\([^]*?\n}\n/)?.[0]

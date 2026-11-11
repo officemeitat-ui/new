@@ -17,7 +17,7 @@ import { dataRights, MODULE_DOCS } from '../src/storage/data-service.js'
 import { POSTER_TEXT, posterDocument, posterPdfName } from '../src/export/aushang-pdf.js'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const read = (f) => readFileSync(`${root}${f}`, 'utf8')
+const read = (f) => readFileSync(`${root}${f}`, 'utf8').replace(/\r\n/g, '\n')
 const PHP = read('kunden.php')
 const hasPhp = (() => {
   try {

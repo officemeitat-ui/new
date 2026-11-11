@@ -74,7 +74,7 @@ test('Fahrerseite: fehlt ein Foto am Webspace (404), wird die Meldung trotzdem �
 })
 
 test('Fahrerseite: Abholen läuft je Tour für sich, 404 beim Foto hält nicht an (ui/matten-webspace.js)', () => {
-  const src = readFileSync(join(ROOT, 'src/ui/matten-webspace.js'), 'utf8')
+  const src = readFileSync(join(ROOT, 'src/ui/matten-webspace.js'), 'utf8').replace(/\r\n/g, '\n')
   const loop = src.slice(src.indexOf('for (const [id, evs] of eventsByTour(meldungen))'), src.indexOf('// nicht übertragene Touren'))
   assert.match(loop, /try \{[\s\S]*\} catch \(err\) \{\n\s+skipped\.push\(\{ tour: id, reason: String\(err\?\.message \|\| err\) \}\)/, 'Fehler einer Tour: vermerkt, weiter mit der nächsten')
   assert.match(loop, /if \(err\?\.status === 404\) return null/, '404 beim Foto: als fehlend vermerken')
@@ -85,7 +85,7 @@ test('Fahrerseite: Abholen läuft je Tour für sich, 404 beim Foto hält nicht a
 // ---------------------------------------------------------------- 2. Systemcheck: Dateien mit Schlüsseln in privat/
 
 test('Systemcheck: ki.json, routing.json und mattentour.json – Abruf von außen muss 403 oder 404 liefern', () => {
-  const src = readFileSync(join(ROOT, 'src/ui/views/system.js'), 'utf8')
+  const src = readFileSync(join(ROOT, 'src/ui/views/system.js'), 'utf8').replace(/\r\n/g, '\n')
   for (const f of ['privat/ki.json', 'privat/routing.json', 'privat/mattentour.json']) assert.ok(src.includes(`'${f}'`), f)
   assert.match(src, /if \(st === 200\) open\.push\(f\)\n\s+else if \(st !== 403 && st !== 404\) unclear\.push/)
 })
@@ -108,8 +108,8 @@ test('Systemcheck: system.php meldet nur, ob die Dateien mit Schlüsseln da sind
 
 test('Systemcheck: system.php erkennt die Ablage (eigener Ordner, .htaccess der App, nichts im Ordner der Homepage)', { skip: !hasPhp && 'ohne PHP' }, async () => {
   const { MARKE, htaccessFor } = await import('../scripts/htaccess.js')
-  const files = htaccessFor(JSON.parse(readFileSync(join(ROOT, 'staticwebapp.config.json'), 'utf8')))
-  assert.ok(readFileSync(join(ROOT, 'system.php'), 'utf8').includes(`'${MARKE}'`), 'system.php sucht dasselbe Erkennungszeichen')
+  const files = htaccessFor(JSON.parse(readFileSync(join(ROOT, 'staticwebapp.config.json'), 'utf8').replace(/\r\n/g, '\n')))
+  assert.ok(readFileSync(join(ROOT, 'system.php'), 'utf8').replace(/\r\n/g, '\n').includes(`'${MARKE}'`), 'system.php sucht dasselbe Erkennungszeichen')
   const dir = mkdtempSync(join(tmpdir(), 'ablage-'))
   try {
     const home = join(dir, 'www')
@@ -136,7 +136,7 @@ test('Systemcheck: system.php erkennt die Ablage (eigener Ordner, .htaccess der 
 })
 
 test('Systemcheck: Ablage am Webspace mit Hinweisen, auch wenn PHP-Seiten ein Jahr im Browser blieben', () => {
-  const src = readFileSync(join(ROOT, 'src/ui/views/system.js'), 'utf8')
+  const src = readFileSync(join(ROOT, 'src/ui/views/system.js'), 'utf8').replace(/\r\n/g, '\n')
   assert.match(src, /sysCache = r\.headers\.get\('cache-control'\)/)
   assert.match(src, /const jahr = \/immutable\|max-age=31536000\/\.test\(sysCache\)/)
   for (const label of ['Eigener Ordner der App', '.htaccess im Ordner der App', 'Ordner darüber (Homepage)', 'Ablage am Webspace']) assert.ok(src.includes(`'${label}'`), label)
@@ -301,7 +301,7 @@ test('Webspace: PNG ohne eXIf- und Text-Blöcke, WebP ohne EXIF/XMP (Merker im K
 })
 
 test('Webspace: Fotos ohne Neuspeicherung gehen durch bild_ohne_metadaten (Winterdienst, Kundenbereich, Fahrerseite, Checkliste)', () => {
-  const read = (f) => readFileSync(join(ROOT, f), 'utf8')
+  const read = (f) => readFileSync(join(ROOT, f), 'utf8').replace(/\r\n/g, '\n')
   assert.match(read('wetter-alarm.php'), /if \(move_uploaded_file\(\$f\['tmp'\], \$ziel\)\) \{\n\s+if \(bild_ohne_metadaten\(\$ziel\)\) \{/)
   assert.match(read('kunden.php'), /if \(!bild_ohne_metadaten\(\$datei\)\) \{\n\s+@unlink\(\$datei\);/)
   // Fahrerseite und Checkliste am Handy: gemeinsam über bild_speichern (webspace-lib.php)
