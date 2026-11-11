@@ -118,10 +118,18 @@ export function toolCustomerKey(s, kunden = []) {
 
 /** Größe als Schlüssel: „85 x 150 cm“ → „85x150“ (kleinere Zahl zuerst); ohne zwei Zahlen ''. */
 export function sizeKey(s) {
-  const m = String(s || '').match(/(\d{2,3})\s*[x×*/]\s*(\d{2,3})/i)
-  if (!m) return ''
-  const [a, b] = [Number(m[1]), Number(m[2])].sort((x, y) => x - y)
-  return `${a}x${b}`
+  // Zentimeter („85 x 120 cm“) oder Meter mit Komma („0,85x 1,20 cm“, „1,5 x 2,5 m“), auch gemischt („0,85x 120 cm“).
+  // Ganze Zahlen unter 20 sind keine Maße (z. B. die Stückzahl in „2x 85x120“): dann zählt das nächste Paar.
+  const cm = (v) => {
+    const n = Number(v.replace(',', '.'))
+    if (/[.,]/.test(v)) return n < 10 ? Math.round(n * 100) : Math.round(n)
+    return n >= 20 ? n : 0
+  }
+  for (const m of String(s || '').matchAll(/(?=(?<!\d)(\d+(?:[.,]\d+)?)\s*(?:cm|m)?\s*[x×*/]\s*(\d+(?:[.,]\d+)?))/gi)) {
+    const [a, b] = [cm(m[1]), cm(m[2])].sort((x, y) => x - y)
+    if (a >= 20 && b <= 1000) return `${a}x${b}`
+  }
+  return ''
 }
 /** Farbe als Schlüssel (Groß/klein und Leerzeichen egal, „Grau / Schwarz“ = „grau/schwarz“). */
 export const colorKey = (s) => String(s || '').toLowerCase().replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim()
