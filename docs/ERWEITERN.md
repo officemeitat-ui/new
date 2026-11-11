@@ -139,7 +139,7 @@ Wie gut eine Person zu einem Einsatz passt, steht in `candidateFactors()` (src/c
 
 Ab 701 px Breite stehen alle Ansichten in der Seitenleiste (`src/ui/sidebar.js`, zwischen 701 und 1180 px nur mit Symbolen), darüber eine schlanke Kopfleiste (`topbar` in `src/ui/app.js`) mit Titel, Wochenwahl und dem Menü „⋯“. Unter 700 px Breite zeigt `isMobile()` (src/ui/mobile.js) die Handy-Ansicht: eigene Kopfzeile, Leiste unten, Menü „Mehr“ mit allen registrierten Ansichten. Eine neue Ansicht erscheint an beiden Stellen automatisch. Tabellen mit `class="data"` werden am Handy zu Karten; die Spaltenüberschrift kommt als `data-label` in jede Zelle (`labelTables()`). Eine Ansicht kann am Handy eine eigene Darstellung liefern, wie die Wochenübersicht mit `isMobile() ? mobileWeek(c) : …`.
 
-Installierbar (PWA): `npm run build` schreibt `manifest.webmanifest` (aus `config.json` → brand: Name, Farbe, `appIcons`, `appleTouchIcon`) und `sw.js` (hält die gebündelten Dateien vor; Seite, Anmeldung und Daten kommen immer aus dem Netz). Logik in `scripts/pwa.js`.
+Installierbar (PWA): `npm run build` schreibt `manifest.webmanifest` (aus `config.json` → brand: Name, Farbe, `appIcons`, `appleTouchIcon`) und `sw.js` (hält die gebündelten Dateien vor; Seite, Anmeldung und Daten kommen immer aus dem Netz; als `index.html` vorgehalten wird nur die App-Seite selbst, `*.php` und andere Seiten am Webspace fängt er nicht ab). Logik in `scripts/pwa.js`.
 
 ## Rückgängig
 

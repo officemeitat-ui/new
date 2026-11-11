@@ -112,6 +112,15 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'werkzeuge-vorhalten' && Array.isArray(event.data.urls)) event.waitUntil(werkzeugeVorhalten(event.data.urls))
 })
 
+// Die App-Seite selbst: der Ordner des Service Workers (start_url './') oder index.html darin.
+// Nur diese Navigationen landen als index.html im Speicher. Andere Seiten am selben
+// Webspace (mein-plan.php, kunden.php, wetter-alarm.php, wetter.php …) gehen am
+// Service Worker vorbei: Sonst läge ihr HTML als index.html im Speicher und erschiene
+// ohne Netz statt der App.
+function istAppSeite(url) {
+  return url.pathname === BASIS || url.pathname === BASIS + 'index.html'
+}
+
 async function cacheFirst(request) {
   const cached = await caches.match(request)
   if (cached) return cached
@@ -129,8 +138,12 @@ self.addEventListener('fetch', (event) => {
   // Seiten am Webspace (Plan am Handy, Kundenbereich, Fahrerseite, Schnee-Alarm …) gehören nicht zur App: nicht
   // abfangen, sonst landen sie im Speicher als Startseite der App (ohne Netz öffnete die App dann diese Seite)
   if (/\\.php$/i.test(url.pathname)) return
-  // Seite und Konfiguration: immer zuerst aus dem Netz (Anmeldung, aktuelle Einstellungen)
-  if (request.mode === 'navigate') return event.respondWith(networkFirst(request, './index.html'))
+  // Seite und Konfiguration: immer zuerst aus dem Netz (Anmeldung, aktuelle Einstellungen). Als Seite gilt nur die
+  // App selbst (istAppSeite); andere Seiten derselben Adresse (Abmelden, eine Homepage daneben …) lädt der Browser selbst.
+  if (request.mode === 'navigate') {
+    if (istAppSeite(url)) event.respondWith(networkFirst(request, './index.html'))
+    return
+  }
   if (url.pathname.endsWith('/config.json')) return event.respondWith(networkFirst(request))
   // Gebündelte Dateien, Bibliotheken, Logo, Schriften: aus dem Speicher
   if (unter(url, /^(app|vendor|assets|themes)\\//)) return event.respondWith(cacheFirst(request))
