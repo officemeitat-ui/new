@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 407 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 408 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (103)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (64)
+- [Verwaltung](#verwaltung) (65)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4821,6 +4821,23 @@ Unter „Berechtigungen“ liest „Rechte prüfen“ die echten Freigaben jedes
 > Tipp: Werden Website-Gruppen entfernt, verliert Zugriff, wer nur über sie hineinkam: vorher alle in die passenden Gruppen aufnehmen.
 > Tipp: Neue Unterordner erben die Rechte des Hauptordners der App; der gehört nur dem Vollzugriff.
 > Tipp: Was nicht geht (z. B. geerbte Rechte), steht im Bericht; in SharePoint dann „Zugriff verwalten“.
+
+*Vollzugriff*
+
+### Anmeldung: „Leider können wir Sie nicht anmelden“ (AADSTS50105)
+
+*In der App: Berechtigungen*
+
+Die Meldung kommt von Microsoft (AADSTS50105): Die Cleanos App steht in Entra ID auf „Zuweisung erforderlich“, und die Person ist ihr nicht zugewiesen. Abhilfe: Unternehmensanwendungen → Cleanos App → Benutzer und Gruppen → Person oder Gruppe zuweisen. Bei Gruppen zählen nur direkte Mitglieder.
+
+1. Im Microsoft Entra Admin Center (entra.microsoft.com) als Administrator anmelden.
+2. „Unternehmensanwendungen“ → „Cleanos App“ → „Benutzer und Gruppen“ öffnen.
+3. „Benutzer/Gruppe hinzufügen“, die Person oder ihre Gruppe wählen, „Zuweisen“.
+4. Die App neu öffnen.
+
+> Tipp: Gruppen zuweisen geht nur mit Entra ID P1 (z. B. Microsoft 365 Business Premium), sonst jede Person einzeln.
+> Tipp: Verschachtelte Gruppen zählen nicht: die Person direkt in die zugewiesene Gruppe aufnehmen.
+> Tipp: Dass es nach dem Neuladen manchmal doch geht, liegt an der gespeicherten Anmeldung; sobald Microsoft neu prüft, kommt die Meldung wieder.
 
 *Vollzugriff*
 

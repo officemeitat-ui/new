@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { resolveAccess, roleOptions } from '../src/core/access.js'
+import { accessSnippet, resolveAccess, roleOptions } from '../src/core/access.js'
 
 test('Rollen: ohne Einrichtung darf jede angemeldete Person alles (wie bisher)', () => {
   const a = resolveAccess({ email: 'x@firma.at' })
@@ -48,4 +48,22 @@ test('Rollen: Einkauf & Kasse für Buchhaltung und Vollzugriff, nicht für Lager
   assert.ok(b.sees('einkauf') && b.canEdit('einkauf') && b.canEdit('fakturierung') && !b.sees('material') && !b.sees('planung'))
   assert.ok(resolveAccess({ email: 'x@firma.at' }).canEdit('einkauf'), 'Vollzugriff')
   for (const role of ['lager', 'objektleitung', 'objektmanagement', 'objektservice', 'lohnverrechnung', 'lesen', 'vorarbeiter']) assert.ok(!resolveAccess({ roleClaims: [role] }).sees('einkauf'), role)
+})
+
+test('Ausschnitt für config.json: behält planners, members und eigene Rollen, nimmt groups und reviere aus dem Entwurf', () => {
+  const access = {
+    planners: ['office@cleanos.at'],
+    members: { objektmanagement: ['om@cleanos.at'] },
+    roles: { mattenbuero: { label: 'Mattenwechsel Büro mit Lieferscheinen', modules: ['matten'], edit: ['matten'] } },
+    groups: { lager: ['alt'] },
+    reviere: { Nord: ['r-alt'] },
+  }
+  const { access: out } = accessSnippet(access, { disposition: ['g-buero'], lager: [], objektmanagement: ['g-om'] }, { Nord: ['r-neu'], Sued: [] })
+  assert.deepEqual(out.planners, ['office@cleanos.at'])
+  assert.deepEqual(out.members, { objektmanagement: ['om@cleanos.at'] })
+  assert.equal(out.roles.mattenbuero.label, 'Mattenwechsel Büro mit Lieferscheinen')
+  assert.deepEqual(out.groups, { disposition: ['g-buero'], objektmanagement: ['g-om'] })
+  assert.deepEqual(out.reviere, { Nord: ['r-neu'] })
+  assert.equal(accessSnippet(undefined, {}, {}).access.reviere, undefined)
+  assert.deepEqual(accessSnippet({ reviere: { Nord: ['x'] } }, {}, { Nord: [] }).access, { groups: {} })
 })

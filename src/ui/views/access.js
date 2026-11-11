@@ -10,7 +10,7 @@
 // Aktionen und Dialoge mit dem Kürzel „acc-“.
 
 import { todayISO } from '../../core/dates.js'
-import { allRoles as rolesOf, MODULES, resolveAccess } from '../../core/access.js'
+import { accessSnippet, allRoles as rolesOf, MODULES, resolveAccess } from '../../core/access.js'
 import { KONTROLLE_LIST, kontrolleRevierList, moveRows, moveTarget, REVIER_TOOLS, revierName, revierSetup, splitObjectList } from '../../core/reviere.js'
 import { auditFolder, expectedRights, fixPlan, groupNames, summary } from '../../core/rights-audit.js'
 import { folderRights, TOOL_FOLDERS, toolFolderRights } from '../../storage/data-service.js'
@@ -438,21 +438,15 @@ function fixModal() {
 registerModal('acc-fix', fixModal, { module: 'stammdaten' })
 
 function snippet() {
-  const roles = allRoles()
-  const groups = {}
-  for (const id of Object.keys(roles)) {
-    const g = groupsOf(id)
-    if (g.length) groups[id] = g
-  }
-  const reviere = Object.fromEntries(Object.entries(revierGroups()).filter(([, g]) => g.length))
-  return JSON.stringify({ access: { ...(app.config.access?.planners ? { planners: app.config.access.planners } : {}), groups, ...(Object.keys(reviere).length ? { reviere } : {}) } }, null, 2)
+  const groups = Object.fromEntries(Object.keys(allRoles()).map((id) => [id, groupsOf(id)]))
+  return JSON.stringify(accessSnippet(app.config.access, groups, revierGroups()), null, 2)
 }
 
 function snippetModal() {
   return modalFrame({
     title: 'Ausschnitt für config.json',
     wide: true,
-    body: `<p>Diesen Teil in <code>config.json</code> am Webspace (app.cleanos.at) bei <code>"access"</code> übernehmen – oder vor dem Build in <code>config.production.json</code>. Danach die App neu laden; jede Rolle mit „Ansicht als“ und einem Testkonto prüfen.</p>
+    body: `<p>Damit in <code>config.json</code> am Webspace (app.cleanos.at) den ganzen Block <code>"access"</code> ersetzen – oder vor dem Build in <code>config.production.json</code>. Personen nach E-Mail (<code>planners</code>, <code>members</code>) und eigene Rollen sind schon enthalten. Danach die App neu laden; jede Rolle mit „Ansicht als“ und einem Testkonto prüfen.</p>
       <textarea id="acc-snippet-text" class="acc-snippet" rows="14" readonly spellcheck="false">${esc(snippet())}</textarea>`,
     foot: `<div class="actions"><button class="btn" data-action="close-modal">Schließen</button><button class="btn primary" data-action="acc-copy">${ICON.copy || ''} Kopieren</button></div>`,
   })

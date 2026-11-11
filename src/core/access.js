@@ -166,4 +166,16 @@ export function resolveAccess({ roleClaims = [], groupClaims = [], email = '', a
   }
 }
 
+/**
+ * Block „access“ für config.json (Verwaltung → Berechtigungen → „Ausschnitt für config.json“). Er ersetzt den ganzen
+ * Block: Darum bleibt alles Übrige aus dem bisherigen access (planners, members, eigene Rollen, …) erhalten; nur
+ * groups und reviere kommen aus dem Entwurf. Rollen bzw. Reviere ohne Gruppe fallen weg.
+ */
+export function accessSnippet(access = {}, groups = {}, reviere = {}) {
+  const { groups: _g, reviere: _r, ...rest } = access || {}
+  const nonEmpty = (o) => Object.fromEntries(Object.entries(o || {}).filter(([, g]) => Array.isArray(g) && g.length))
+  const rev = nonEmpty(reviere)
+  return { access: { ...rest, groups: nonEmpty(groups), ...(Object.keys(rev).length ? { reviere: rev } : {}) } }
+}
+
 export const roleOptions = (access = {}) => Object.entries(allRoles(access)).map(([id, r]) => [id, r.label])
