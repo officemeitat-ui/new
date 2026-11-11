@@ -1,0 +1,13 @@
+# Zeilenenden: im Repository und im Arbeitsordner immer LF, auch unter Windows (Codex, VS Code).
+# Tests lesen Quelltext und PHP-Seiten direkt; .htaccess und PHP kommen so wie am Webspace.
+* text=auto eol=lf
+# Werkzeuge: genau die Datei aus dem Webspace-Paket, Byte für Byte unverändert
+werkzeuge/*/index.html -text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff2 binary

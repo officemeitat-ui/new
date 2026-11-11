@@ -1,6 +1,6 @@
 # Erweitern
 
-Der Dienstplan ist so gebaut, dass neue Regeln, Ansichten, Exporte oder eine andere Ablage jeweils **eine neue Datei** sind. Beim Entwickeln gibt es keinen Build-Schritt: ES-Module, die der Browser direkt lädt (`npm start`). Für den Betrieb bündelt `npm run build` alles mit esbuild. Tests laufen mit `npm test` (Node).
+Der Dienstplan ist so gebaut, dass neue Regeln, Ansichten, Exporte oder eine andere Ablage jeweils **eine neue Datei** sind. Beim Entwickeln gibt es keinen Build-Schritt: ES-Module, die der Browser direkt lädt (`npm start`). Für den Betrieb bündelt `npm run build` alles mit esbuild. Tests laufen mit `npm test` (Node). Unter Windows (z. B. mit VS Code oder Codex) läuft alles gleich: `npm start` liefert auch mit Windows-Pfaden aus (`scripts/serve.js`, Test `test/serve.test.js`), und `.gitattributes` hält die Zeilenenden auch im Windows-Arbeitsordner bei LF; die Werkzeuge in `werkzeuge/*/index.html` bleiben Byte für Byte unverändert. Arbeiten mehrere Helfer (Claude, Codex) am selben Zweig, nacheinander: vorher den neuesten Stand holen (`git pull`), danach pushen.
 
 ## Aufbau
 
