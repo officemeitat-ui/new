@@ -57,7 +57,7 @@ test('Werkzeuge: „Abschließen“ legt alles in SharePoint ab und holt Offenes
     // 1.14 / 2.10 / 2.2: Ablage je Revier (Ordner „Revier <Name>“, core/reviere.js)
     wasserzaehler: { version: '1.15', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /function pdfsNachreichen\(/, /pdfOffenSetzen\(doc\.id, doc\.aktiv, true\)/, /function revierName\(/] },
     // 2.8 rief graphFotosAblegen auf, ohne sie zu enthalten
-    objektkontrolle: { version: '2.11', muss: [/function heute\(\)\{[^}]*getDate\(\)/, /async function graphFotosAblegen\(/, /function ablageNachholen\(/, /addEventListener\("online"/, /function revierName\(/] },
+    objektkontrolle: { version: '2.12', muss: [/function vorlageVon\(p\)/, /Kontrollvorlagen\.json/, /const KATALOG_BUERO = \[/, /function heute\(\)\{[^}]*getDate\(\)/, /async function graphFotosAblegen\(/, /function ablageNachholen\(/, /addEventListener\("online"/, /function revierName\(/] },
     // 2.3: Hilfe schließt per Knopf, „geändert“ nur bei echter Änderung (Abgleich ohne falsche Konflikte),
     // Bilder vom anderen Gerät werden nachgeladen
     objektdoku: { version: '2.3', muss: [/id="kAbschluss"/, /async function abschliessen\(/, /function ablageNachholen\(/, /function revierName\(/, /\$\("kHilfeZu"\)\.addEventListener\("click"/, /function objektFingerabdruck\(/, /function bilderNachholen\(/] },

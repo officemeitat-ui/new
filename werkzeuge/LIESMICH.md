@@ -3,11 +3,23 @@
 | Ordner | Werkzeug | Fassung | Ansicht in der App | Rolle (Modul) |
 |---|---|---|---|---|
 | `wasserzaehler/` | Wasserzähler-Ablesung | 1.15 | `#wasserzaehler` | `zaehler` |
-| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.11 | `#objektkontrolle` | `kontrolle` |
+| `objektkontrolle/` | Objektkontrolle (Prüfprotokoll, Schnellversion) | 2.12 | `#objektkontrolle` | `kontrolle` |
 | `objektdoku/` | Objektdokumentation (Leistungsverzeichnis) | 2.3 | `#objektdoku` | `objektmappe` |
 | `mattenwechsel/` | Mattenwechsel | 2.5 | `#matten` | `matten` |
 
 Jede `index.html` ist **genau die Datei aus dem Webspace-Paket** des Werkzeugs, unverändert.
+
+## Objektkontrolle 2.12 – Vorlagen (Stand 11.11.2026)
+
+Jede Kontrolle hat jetzt eine **Vorlage** (Kapitel und Prüfpunkte), wählbar oben bei „Objekt und Kontrolle“:
+
+- **Stiegenhaus / Wohnhausanlage** – der bisherige Katalog (9 Kapitel, 39 Prüfpunkte). Kontrollen von vor 2.12 gelten als diese Vorlage.
+- **Büroreinigung** – neu: Eingangsbereich, Arbeitsplätze und Büroräume, Besprechungsräume, Sanitärräume, Teeküche, Gänge/Stiegen/Lift, Glas und Türen, Abfall, Ordnung und Sicherheit (9 Kapitel, 37 Prüfpunkte).
+- **Eigene Vorlagen** über „Vorlagen …“: anlegen (auch als Kopie einer vorhandenen), Kapitel mit Titel und Prüfpunkten (ein Punkt pro Zeile), Reihenfolge, löschen. Sie liegen für alle in SharePoint unter `Objektpruefprotokolle/Stammdaten/Kontrollvorlagen.json` (neben `Kunden.json`, für alle Reviere gemeinsam; zum Speichern braucht es das Schreibrecht auf diesen Ordner, sonst bleibt die Vorlage auf dem Gerät und das Werkzeug sagt es).
+
+Jede Kontrolle speichert eine **Momentaufnahme ihrer Vorlage** (`vorlage: { id, name, stand, sektionen }`): Wird eine Vorlage später geändert, bleiben Berichte, PDF und Mängelliste alter Kontrollen gleich; die Kontrolle zeigt dann „ältere Fassung“. Eine neue Kontrolle nimmt die zuletzt gewählte Vorlage, für ein Objekt mit früherer Kontrolle dessen Vorlage (neueste Fassung), außer man hat bewusst eine andere gewählt. Vorlage wechseln geht jederzeit; ist schon etwas bewertet, fragt das Werkzeug vorher (die Bewertungen passen nicht zur anderen Vorlage). „Nicht vorhanden“ und offene Punkte aus früheren Kontrollen werden nur bei gleicher Vorlage und gleichem Prüfpunkt übernommen. Das PDF nennt die Vorlage.
+
+Geändert ist nur `objektkontrolle/index.html` (= `Objektpruefprotokoll-Schnell.html`, auch im Ordner `Webspace`); sie liegt im Paket `Werkzeuge-Quellen_2026-11-11.zip`. Tests: `.pruefung/kontrolle_vorlagen_app.mjs`, `.pruefung/kontrolle_revier_app.mjs` (h).
 
 ## Objektdoku 2.3 (Stand 10.11.2026)
 

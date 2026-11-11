@@ -173,6 +173,8 @@ Die Objektdoku liest zusätzlich die Objektliste unter `Objektpruefprotokolle/St
 
 ## Die eigenen Werkzeuge in der App
 
+**Objektkontrolle mit Vorlagen (2.12):** Je Kontrolle wählbar „Stiegenhaus / Wohnhausanlage“, „Büroreinigung“ oder eine eigene Vorlage (Kapitel und Prüfpunkte, „Vorlagen …“, für alle in `Objektpruefprotokolle/Stammdaten/Kontrollvorlagen.json`). Jede Kontrolle merkt sich ihre Vorlage, alte Berichte bleiben gleich. Einzelheiten: [werkzeuge/LIESMICH.md](../werkzeuge/LIESMICH.md).
+
 Die vier Werkzeuge kommen **unverändert** in die App, genau so, wie sie für den Webspace gebaut sind (`werkzeuge/<name>/index.html`). Nur ihre Farbtöne stellt der Bau auf die Cleanos-Farben der App um, damit alles gleich aussieht (siehe `werkzeuge/LIESMICH.md`, „Farben“):
 
 | Werkzeug | Fassung | Ordner in der App | SharePoint |

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 406 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 407 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (42)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
-- [Objekte & Kunden](#objekte-kunden) (102)
+- [Objekte & Kunden](#objekte-kunden) (103)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (64)
@@ -1966,6 +1966,19 @@ Die Objektkontrolle ist das Prüfprotokoll mit Bewertung, Fotos, Unterschriften 
 3. Unterschreiben lassen und „Abschließen“ klicken.
 
 > Tipp: Gefundene Mängel kannst du als Reklamation mit Eingang „Objektkontrolle“ erfassen.
+
+*Objektmanagement, Objektleitung, Objektservice, Prüfer/in, Vollzugriff*
+
+### Objektkontrolle: Vorlagen (Stiegenhaus, Büroreinigung, eigene)
+
+Oben bei „Objekt und Kontrolle“ wählst du die Vorlage: Stiegenhaus / Wohnhausanlage, Büroreinigung oder eine eigene. Mit „Vorlagen …“ legst du weitere an – Kapitel mit Prüfpunkten, ein Punkt pro Zeile. Eigene Vorlagen gelten für alle; jede Kontrolle merkt sich ihre Vorlage.
+
+1. „Objektkontrolle“ öffnen.
+2. Bei „Vorlage“ die passende wählen.
+3. Für eine neue: „Vorlagen …“ → „Neue Vorlage“ oder „Kopieren“, Kapitel und Prüfpunkte eintragen, „Speichern“.
+
+> Tipp: Ist schon etwas bewertet, fragt das Werkzeug vor dem Wechsel der Vorlage.
+> Tipp: Ein Objekt bekommt bei der nächsten Kontrolle von selbst wieder seine Vorlage.
 
 *Objektmanagement, Objektleitung, Objektservice, Prüfer/in, Vollzugriff*
 

@@ -127,6 +127,15 @@ textarea.auto{resize:none; overflow:hidden; line-height:1.4}
 .note.blau{background:var(--blau-hell); border-color:var(--blau-rand); border-left-color:var(--blau); color:#14405e}
 .note.rot{background:var(--g-bg); border-color:var(--g-rand); border-left-color:var(--g); color:#7c1d17}
 .choices{display:flex; gap:6px; flex-wrap:wrap}
+/* 2.12 Vorlagen */
+.vorlzeile{display:flex; gap:8px; align-items:center}
+.vorlzeile select{flex:1; min-width:0}
+#dlgVorlagen input[type=text], #dlgVorlagen textarea{width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; font-size:16px; background:#fff; color:var(--text)}
+#dlgVorlagen .vkap{border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0}
+#dlgVorlagen .vkopf{display:flex; gap:8px; align-items:center}
+#dlgVorlagen .vkopf input{flex:1}
+#dlgVorlagen textarea{margin-top:6px; resize:vertical}
+#dlgVorlagen .vfehler{color:var(--m); margin-top:8px; font-weight:600}
 .choices label{border:1px solid var(--line); background:#fff; border-radius:8px; min-height:42px; padding:8px 14px; font-size:14px;
   position:relative; user-select:none; display:inline-flex; align-items:center; flex:1 1 auto; justify-content:center}
 .choices input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer}
@@ -407,6 +416,10 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
           <select id="f_objektWahl" class="hide"></select>
           <input type="text" id="f_objekt" data-obj="objekt" list="dlObjekte" placeholder="z. B. WHA Salzachstraße 14" autocomplete="off">
           <div id="objektMerkZeile" class="hint noprint" style="margin-top:5px"></div></div>
+        <div class="field" style="grid-column:1/-1"><label for="f_vorlage">Vorlage (Kapitel und Prüfpunkte)</label>
+          <div class="vorlzeile"><select id="f_vorlage" aria-describedby="vorlageHinweis"></select>
+            <button class="btn noprint" id="btnVorlagen" type="button" title="Vorlagen anlegen und bearbeiten">Vorlagen …</button></div>
+          <div id="vorlageHinweis" class="hint noprint" style="margin-top:4px"></div></div>
         <div class="field" style="grid-column:1/-1"><label for="f_adresse">Adresse</label>
           <input type="text" id="f_adresse" data-obj="adresse" placeholder="wird bei bekannten Kunden ergänzt"></div>
         <div class="field"><label for="f_pruefer">Prüfer/in</label>
@@ -549,11 +562,18 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
     <button class="btn" onclick="document.getElementById('dlgObjekte').close()">Schließen</button></footer>
 </dialog>
 
+<dialog id="dlgVorlagen">
+  <header><h2 id="vorlTitel">Vorlagen</h2></header>
+  <div class="body" id="vorlBody"></div>
+  <footer id="vorlFuss"></footer>
+</dialog>
+
 <dialog id="dlgHilfe">
   <header><h2>Kurzanleitung Objektkontrolle</h2></header>
   <div class="body">
     <ol style="margin:0 0 12px 18px;padding:0;line-height:1.7">
       <li><b>Objekt, Prüfer/in, Datum</b> eintragen – bekannte Objekte werden vorgeschlagen und ergänzt.</li>
+      <li><b>Vorlage</b> wählen: „Stiegenhaus / Wohnhausanlage“, „Büroreinigung“ oder eine eigene. Mit <b>„Vorlagen …“</b> legt ihr weitere an (Kapitel und Prüfpunkte); sie gelten für alle.</li>
       <li><b>Kapitel durchgehen</b> (Leiste oben zum Springen). Je Prüfpunkt antippen:
         <span class="key k-OK"><b>OK</b></span> <span class="key k-R"><b>R</b> Reinigung</span>
         <span class="key k-M"><b>M</b> Mangel</span> <span class="key k-G"><b>G</b> Gefahr</span>
@@ -650,7 +670,7 @@ body.gesperrt > *:not(#startGate):not(.toast){display:none !important}
        Kapitel 5 Brandschutz und 8 Keller/Technik bewusst entfallen,
        Wiederholungen zu Kapitel 1 gestrichen)
    ============================================================ */
-const SEKTIONEN = [
+const KATALOG_STIEGE = [
  {nr:1, titel:"Allgemeiner Objektzustand und Allgemeinflächen", items:[
   "Allgemeiner Reinigungszustand",
   "Böden sauber, trocken und unbeschädigt",
@@ -704,15 +724,108 @@ const NOTEN = [["OK","in Ordnung"],["R","Reinigung erforderlich"],["M","Mangel /
 const NOTE_LABEL = {OK:"OK", R:"R", M:"M", G:"G", NA:"N/A"};
 const NOTE_TASTE = {"1":"OK","2":"R","3":"M","4":"G","5":"NA"};
 const PRIO_DEFAULT = {G:"1", M:"2", R:"3"};
-const ALLE_IDS = SEKTIONEN.flatMap(s => s.items.map((_,i) => s.nr + "." + (i+1)));
-const PUNKT_TEXT = {}; SEKTIONEN.forEach(s => s.items.forEach((t,i) => PUNKT_TEXT[s.nr+"."+(i+1)] = t));
-const KAPITEL_TITEL = {}; SEKTIONEN.forEach(s => KAPITEL_TITEL[s.nr] = s.titel);
+/* ============================================================
+   1b) Vorlagen (2.12): Jede Kontrolle hat ihre Vorlage (Kapitel und
+       Prüfpunkte): eingebaut „Stiegenhaus / Wohnhausanlage“ (der Katalog
+       oben) und „Büroreinigung“, dazu eigene Vorlagen, die für alle in
+       SharePoint liegen (<Basis>/../Stammdaten/Kontrollvorlagen.json).
+       Die Kontrolle speichert eine Momentaufnahme ihrer Vorlage: Wird
+       eine Vorlage später geändert, bleiben alte Berichte gleich.
+       Kontrollen von vor 2.12 (ohne Vorlage) sind Stiegenhaus.
+   ============================================================ */
+const KATALOG_BUERO = [
+ {nr:1, titel:"Eingangsbereich und Empfang", items:[
+  "Eingangstür, Glas und Griffe sauber, ohne Fingerabdrücke",
+  "Sauberlaufzone und Boden im Eingang sauber",
+  "Empfangstheke und Ablagen staubfrei",
+  "Papierkörbe geleert, Säcke ersetzt"]},
+ {nr:2, titel:"Arbeitsplätze und Büroräume", items:[
+  "Freie Flächen der Schreibtische staub- und fleckenfrei",
+  "Telefone, Lichtschalter, Türgriffe und Kontaktflächen gereinigt",
+  "Papierkörbe geleert, Mülltrennung eingehalten",
+  "Böden gesaugt bzw. gewischt, auch Ecken, Kanten und unter den Tischen",
+  "Teppiche ohne Flecken",
+  "Fensterbänke, Heizkörper und Schränke (bis Griffhöhe) staubfrei",
+  "Türen und Türrahmen sauber"]},
+ {nr:3, titel:"Besprechungsräume", items:[
+  "Tische und Stühle sauber",
+  "Geschirr und Unterlagen nach Vereinbarung weggeräumt",
+  "Boden sauber",
+  "Tafel bzw. Whiteboard gereinigt (falls beauftragt)"]},
+ {nr:4, titel:"Sanitärräume", items:[
+  "WC-Schalen und Urinale innen und außen sauber, ohne Kalk",
+  "Waschbecken, Armaturen und Spiegel sauber und glänzend",
+  "Fliesen, Trennwände und Türen sauber",
+  "Boden sauber, Abfluss frei, kein unangenehmer Geruch",
+  "Seife, Toilettenpapier und Handtücher aufgefüllt",
+  "Hygienebehälter und Abfall geleert"]},
+ {nr:5, titel:"Teeküche und Sozialraum", items:[
+  "Arbeitsflächen, Spüle und Armaturen sauber",
+  "Geräte außen sauber (Kühlschrank, Mikrowelle, Kaffeemaschine)",
+  "Geschirrspüler nach Vereinbarung bedient",
+  "Tische, Stühle und Boden sauber",
+  "Abfall getrennt und geleert"]},
+ {nr:6, titel:"Gänge, Stiegen und Lift", items:[
+  "Böden in Gängen und auf Stiegen sauber",
+  "Handläufe und Geländer sauber",
+  "Liftkabine sauber (Wände, Spiegel, Boden, Tasten)"]},
+ {nr:7, titel:"Glas und Türen", items:[
+  "Glastüren und Glastrennwände ohne Fingerabdrücke",
+  "Türen, Rahmen und Türschilder sauber"]},
+ {nr:8, titel:"Abfall und Entsorgung", items:[
+  "Sammelstellen sauber, Behälter nicht überfüllt",
+  "Altpapier und Wertstoffe richtig getrennt"]},
+ {nr:9, titel:"Ordnung und Sicherheit", items:[
+  "Reinigungsraum ordentlich, Mittel und Geräte richtig verstaut",
+  "Warnschild bei Nassreinigung aufgestellt",
+  "Fenster geschlossen und Licht aus beim Verlassen (falls vereinbart)",
+  "Schäden und Auffälligkeiten gemeldet"]}
+];
+const VORLAGEN_EINGEBAUT = [
+  {id:"stiegenhaus", name:"Stiegenhaus / Wohnhausanlage", sektionen:KATALOG_STIEGE, eingebaut:true},
+  {id:"buero", name:"Büroreinigung", sektionen:KATALOG_BUERO, eingebaut:true}];
+/* Kapitel der geöffneten Kontrolle (katalogSetzen beim Öffnen, vorlageAnwenden) */
+let SEKTIONEN = KATALOG_STIEGE, ALLE_IDS = [], PUNKT_TEXT = {}, KAPITEL_TITEL = {}, KATALOG_SIG = "";
+function katalogSetzen(sek){
+  SEKTIONEN = sek;
+  ALLE_IDS = sek.flatMap(s => s.items.map((_,i) => s.nr + "." + (i+1)));
+  PUNKT_TEXT = {}; sek.forEach(s => s.items.forEach((t,i) => PUNKT_TEXT[s.nr+"."+(i+1)] = t));
+  KAPITEL_TITEL = {}; sek.forEach(s => KAPITEL_TITEL[s.nr] = s.titel);
+}
+katalogSetzen(KATALOG_STIEGE);
+const vorlageKopie = v => ({id:v.id, name:v.name, stand:v.stand || "", sektionen:v.sektionen.map(s => ({nr:s.nr, titel:s.titel, items:s.items.slice()}))});
+/* Eingebaute und eigene (nicht gelöschte) Vorlagen */
+function alleVorlagen(){
+  const eigene = (DB.vorlagen || []).filter(v => !v.geloescht && Array.isArray(v.sektionen) && v.sektionen.length);
+  return VORLAGEN_EINGEBAUT.concat(eigene.sort((a,b) => (a.name||"").localeCompare(b.name||"", "de")));
+}
+const vorlageNachId = id => alleVorlagen().find(v => v.id === id);
+/* Vorlage einer Kontrolle: ihre Momentaufnahme; ohne (vor 2.12): Stiegenhaus */
+function vorlageVon(p){
+  const v = p && p.vorlage;
+  return v && Array.isArray(v.sektionen) && v.sektionen.length ? v : VORLAGEN_EINGEBAUT[0];
+}
+const idsVon = p => vorlageVon(p).sektionen.flatMap(s => s.items.map((_,i) => s.nr + "." + (i+1)));
+function textVon(p, id){
+  const [n, i] = String(id).split(".");
+  const s = vorlageVon(p).sektionen.find(x => String(x.nr) === n);
+  return s ? (s.items[Number(i) - 1] || "") : "";
+}
+/* Kapitel passend zur geöffneten Kontrolle; neu aufbauen nur, wenn sich die Vorlage ändert */
+function vorlageAnwenden(){
+  const v = vorlageVon(doc), sig = JSON.stringify(v.sektionen);
+  if(sig === KATALOG_SIG) return;
+  KATALOG_SIG = sig;
+  katalogSetzen(v.sektionen);
+  fokusId = null;
+  baueSektionen();
+}
 
 /* ============================================================
    2) Speicher und Datenmodell – ein Datensatz = eine Kontrolle
    ============================================================ */
-const VERSION = "2.11";
-const VERSION_DATUM = "10.11.2026";
+const VERSION = "2.12";
+const VERSION_DATUM = "11.11.2026";
 const DB_KEY = "cleanos.schnellkontrolle.v1";
 const $  = (s,r=document) => r.querySelector(s);
 const $$ = (s,r=document) => Array.from(r.querySelectorAll(s));
@@ -881,12 +994,17 @@ function baueSektionen(){
   kb += `<button class="kchip" data-goto="sec-abschluss"><span class="nr">✓</span><span class="lbl">Abschluss</span></button>`;
   $("#sektionen").innerHTML = html;
   $("#kbar").innerHTML = kb;
+  if(sekBeob) $$("section.card").forEach(x => sekBeob.observe(x));
 }
+let sekBeob = null;
 
 /* ============================================================
    4) Formular ↔ Datenmodell
    ============================================================ */
 function formularFuellen(){
+  /* neue, noch leere Kontrolle ohne Vorlage: die zuletzt gewählte (sonst Stiegenhaus) */
+  if(!doc.vorlage && !begonnen(doc)) doc.vorlage = vorlageKopie(vorlageNachId(DB.letzteVorlage) || VORLAGEN_EINGEBAUT[0]);
+  vorlageAnwenden(); vorlageFeldFuellen();
   $$("[data-obj]").forEach(el => el.value = doc.meta[el.dataset.obj] || "");
   $$("[data-run]").forEach(el => { const k = el.dataset.run; if(el.type === "radio") el.checked = (doc[k] === el.value); else el.value = doc[k] || ""; });
   $$("[data-abs]").forEach(el => { const k = el.dataset.abs; if(el.type === "radio") el.checked = (doc.abschluss[k] === el.value); else el.value = doc.abschluss[k] || ""; });
@@ -997,7 +1115,7 @@ document.addEventListener("keydown", e => {
 /* ============================================================
    5) Mängelliste, Statistik, Kopf
    ============================================================ */
-function mangelIds(p){ return ALLE_IDS.filter(id => ["R","M","G"].includes((((p||doc).items||{})[id] || {}).b)); }
+function mangelIds(p){ return idsVon(p||doc).filter(id => ["R","M","G"].includes((((p||doc).items||{})[id] || {}).b)); }
 function maengelTextAktualisieren(id){
   const el = $(`[data-mtext="${id}"]`); if(el) el.textContent = (doc.items[id]||{}).bem || "";
 }
@@ -1019,7 +1137,7 @@ function maengelZeichnen(){
 }
 function zaehle(p){
   const z = {OK:0,R:0,M:0,G:0,NA:0}, q = p || doc;
-  ALLE_IDS.forEach(id => { const b = ((q.items||{})[id]||{}).b; if(b && z[b] !== undefined) z[b]++; });
+  idsVon(q).forEach(id => { const b = ((q.items||{})[id]||{}).b; if(b && z[b] !== undefined) z[b]++; });
   return z;
 }
 function statistikAktualisieren(){
@@ -1500,10 +1618,16 @@ function stammdatenErgaenzen(){
   ["objektId","objekt","adresse","auftraggeber"].forEach(k => { if(!m[k] && treffer.meta[k]){ m[k] = treffer.meta[k]; ergaenzt.push(k); } });
   /* „nicht vorhanden“ ist eine Eigenschaft des Objekts – übernehmen, solange noch nichts bewertet ist */
   let na = 0;
-  if(!begonnen(doc)) ALLE_IDS.forEach(id => { if(((treffer.items||{})[id]||{}).b === "NA"){ doc.items[id] = {b:"NA", bem:"", fotos:[], prio:""}; na++; } });
-  if(!ergaenzt.length && !na) return;
+  /* 2.12: dieselbe Vorlage wie zuletzt beim Objekt (neueste Fassung), solange noch nichts bewertet ist */
+  let vw = false;
+  if(!begonnen(doc)){
+    const tv = vorlageVon(treffer);
+    if(!doc.vorlageGewaehlt && vorlageVon(doc).id !== tv.id){ doc.vorlage = vorlageKopie(vorlageNachId(tv.id) || tv); vw = true; }
+  }
+  if(!begonnen(doc)) idsVon(doc).forEach(id => { if(((treffer.items||{})[id]||{}).b === "NA" && textVon(treffer, id) === textVon(doc, id)){ doc.items[id] = {b:"NA", bem:"", fotos:[], prio:""}; na++; } });
+  if(!ergaenzt.length && !na && !vw) return;
   formularFuellen(); markiereGeaendert(true);
-  toast("Objektdaten aus der letzten Kontrolle (" + deDat(treffer.datum) + ") übernommen" + (na ? ", " + na + "× nicht vorhanden" : "") + ".", 4000);
+  toast("Objektdaten aus der letzten Kontrolle (" + deDat(treffer.datum) + ") übernommen" + (vw ? ", Vorlage „" + vorlageVon(doc).name + "“" : "") + (na ? ", " + na + "× nicht vorhanden" : "") + ".", 4000);
 }
 $("#btnNeu").addEventListener("click", () => {
   if(begonnen(doc) || doc.meta.objekt){ if(!confirm("Neue Kontrolle beginnen?\nDie aktuelle bleibt gespeichert.")) return; }
@@ -1530,7 +1654,7 @@ function objListeZeichnen(){
       const z = zaehle(p), n = z.OK+z.R+z.M+z.G+z.NA;
       const st = p.status === "abgeschlossen" ? '<span class="qchip fertig">abgeschlossen</span>' : begonnen(p) ? '<span class="qchip begonnen">in Arbeit</span>' : '<span class="qchip">leer</span>';
       return `<div class="protrow"><div class="meta"><b>${esc(deDat(p.datum))}</b> ${p.id===doc.id?'<span class="pill done">geöffnet</span>':""} ${st}
-          <div class="hint">${esc(p.pruefer||"")} · ${n}/${ALLE_IDS.length} bewertet${z.G ? " · "+z.G+"× Gefahr" : ""}${z.M ? " · "+z.M+"× Mangel" : ""}</div></div>
+          <div class="hint">${esc(p.pruefer||"")}${vorlageVon(p).id !== "stiegenhaus" ? " · " + esc(vorlageVon(p).name) : ""} · ${n}/${idsVon(p).length} bewertet${z.G ? " · "+z.G+"× Gefahr" : ""}${z.M ? " · "+z.M+"× Mangel" : ""}</div></div>
         <button class="btn" data-load="${p.id}">Öffnen</button>
         <button class="btn icon danger" data-del="${p.id}" title="Löschen" aria-label="Löschen"><svg class="i"><use href="#i-trash"/></svg></button></div>`;
     }).join("");
@@ -1636,9 +1760,11 @@ function quartalOeffnen(oid, name, jahr, q){
     doc.meta = Object.assign({}, vorlage.meta);
     doc.pruefer = vorlage.pruefer || letzterPruefer();
     doc.kontrollart = vorlage.kontrollart || "Regelkontrolle";
-    /* kein Lift bleibt kein Lift */
+    const vv = vorlageVon(vorlage);
+    doc.vorlage = vorlageKopie(vorlageNachId(vv.id) || vv);
+    /* kein Lift bleibt kein Lift (nur derselbe Prüfpunkt) */
     Object.keys(vorlage.items || {}).forEach(id => {
-      if((vorlage.items[id]||{}).b === "NA") itemObj(id).b = "NA";
+      if((vorlage.items[id]||{}).b === "NA" && textVon(vorlage, id) && textVon(vorlage, id) === textVon(doc, id)) itemObj(id).b = "NA";
     });
   } else {
     doc.meta.objektId = oid; doc.meta.objekt = nameEcht;
@@ -1791,7 +1917,7 @@ async function graphRueckkehr(){
   try{
     tokenSpeichern(await graphTokenHolen({grant_type:"authorization_code", code:h.get("code"), code_verifier:merk.verifier}));
     sessionStorage.removeItem("cleanos.schnell.pkce");
-    await graphKontoLesen(); await stammLaden(); await objektStammLaden(); await graphAbgleichen(true);
+    await graphKontoLesen(); await stammLaden(); await objektStammLaden(); await vorlagenLaden(); await graphAbgleichen(true);
   }catch(e){ graphStatusZeigen("Anmeldung fehlgeschlagen", `<div class="note rot">${esc(e.message)}</div>`); $("#dlgMenu").showModal(); }
   return true;
 }
@@ -1983,7 +2109,7 @@ async function graphFotosAblegen(p){
   await graphZiel();
   const ordner = await graphOrdnerSichern(graphBasis().split("/").concat(ordnerTeile(p), "Fotos"));
   let hoch = 0;
-  for(const id of ALLE_IDS){
+  for(const id of idsVon(p)){
     const it = (p.items || {})[id];
     if(!it || !it.fotos || !it.fotos.length) continue;
     it.fotoDateien = it.fotoDateien || [];
@@ -2588,7 +2714,7 @@ async function graphTerminAnlegen(pr){
   }
   const offen = mangelIds(pr).map(id => {
     const it = pr.items[id];
-    return "\u2022 " + id + " " + (PUNKT_TEXT[id] || "") + (it.bem ? " \u2013 " + it.bem : "");
+    return "\u2022 " + id + " " + (textVon(pr, id) || "") + (it.bem ? " \u2013 " + it.bem : "");
   });
   const text = [
     "Nachkontrolle zur Objektkontrolle vom " + deDat(pr.datum) + ".",
@@ -2686,23 +2812,25 @@ function offeneVorbefunde(basis){
   const pr = basis || doc;
   const key = objektSchluessel(pr);
   if(key === "||") return [];
+  const vid = vorlageVon(pr).id;
   const frueher = dbLesen().protokolle
-    .filter(x => x.id !== pr.id && objektSchluessel(x) === key && (x.datum || "") <= (pr.datum || "9999"))
+    .filter(x => x.id !== pr.id && objektSchluessel(x) === key && (x.datum || "") <= (pr.datum || "9999") && vorlageVon(x).id === vid)
     .sort((a,b) => (b.datum || "").localeCompare(a.datum || ""));
   const raus = [], beantwortet = new Set();
   /* Was in der laufenden Kontrolle schon bewertet ist, ist damit
      beantwortet: ein OK erledigt den Vorbefund sofort sichtbar,
      ein erneutes M steht ohnehin in der Maengelliste. */
-  ALLE_IDS.forEach(id => { if(((pr.items || {})[id] || {}).b) beantwortet.add(id); });
+  idsVon(pr).forEach(id => { if(((pr.items || {})[id] || {}).b) beantwortet.add(id); });
   for(const alt of frueher){
-    for(const id of ALLE_IDS){
+    for(const id of idsVon(alt)){
       if(beantwortet.has(id)) continue;
+      if(textVon(alt, id) !== textVon(pr, id)) continue;   /* Prüfpunkt in der Vorlage geändert */
       const it = (alt.items || {})[id];
       if(!it || !it.b) continue;
       beantwortet.add(id);                       /* juengster Befund zaehlt */
       if(!["R","M","G"].includes(it.b)) continue;
       if(it.erledigt) continue;
-      raus.push({ref:id, bew:it.b, bem:it.bem || "", prio:it.prio || "",
+      raus.push({ref:id, text:textVon(alt, id), bew:it.b, bem:it.bem || "", prio:it.prio || "",
                  datum:alt.datum || "", pid:alt.id, objekt:(alt.meta||{}).objekt || "",
                  kunde:(alt.meta||{}).auftraggeber || ""});
     }
@@ -2743,7 +2871,7 @@ function vorbefundZeigen(){
     + '<div class="vorliste">'
     + liste.map(o => '<label class="z"><input type="checkbox" data-verledigt="' + esc(o.pid) + '" data-vref="' + esc(o.ref) + '">'
         + '<span><span class="tagref b-' + o.bew + '">' + esc(o.ref) + '</span> '
-        + esc(PUNKT_TEXT[o.ref] || "") + (o.bem ? ' \u2013 ' + esc(o.bem) : "")
+        + esc(o.text || PUNKT_TEXT[o.ref] || "") + (o.bem ? ' \u2013 ' + esc(o.bem) : "")
         + ' <span class="hint">\u00b7 seit ' + esc(deDat(o.datum)) + '</span></span></label>').join("")
     + '</div></div></div>';
   box.querySelectorAll("[data-verledigt]").forEach(cb => cb.onchange = () =>
@@ -2785,7 +2913,7 @@ function offeneMaengelZeigen(){
       + liste.map(o => '<tr><td><b>' + esc(o.objekt) + '</b>'
           + (o.kunde ? '<div class="hint">' + esc(o.kunde) + '</div>' : "") + '</td>'
           + '<td><span class="tagref b-' + o.bew + '">' + esc(o.ref) + '</span></td>'
-          + '<td>' + esc(PUNKT_TEXT[o.ref] || "") + (o.bem ? '<div class="hint">' + esc(o.bem) + '</div>' : "") + '</td>'
+          + '<td>' + esc(o.text || PUNKT_TEXT[o.ref] || "") + (o.bem ? '<div class="hint">' + esc(o.bem) + '</div>' : "") + '</td>'
           + '<td>' + esc(o.prio) + '</td><td>' + esc(deDat(o.datum)) + '</td>'
           + '<td><button class="mini" data-load="' + esc(o.pid) + '">\u00f6ffnen</button></td></tr>').join("")
       + '</tbody></table>'
@@ -2889,7 +3017,7 @@ async function graphStarten(){
     return;
   }
   gateSchliessen();
-  try{ await graphKontoLesen(); await stammLaden(); await objektStammLaden(); await graphAbgleichen(false); }
+  try{ await graphKontoLesen(); await stammLaden(); await objektStammLaden(); await vorlagenLaden(); await graphAbgleichen(false); }
   catch(e){ graphStatusZeigen("Anmeldung abgelaufen", ""); gateZeigen("Die Anmeldung ist abgelaufen."); }
 }
 
@@ -2995,11 +3123,12 @@ async function protokollHtml(p){
     <tr><td class="b">Kontrolle</td><td>${esc(p.kontrollart || "")} am ${esc(deDat(p.datum))}${p.zeit ? ", " + esc(p.zeit) + " Uhr" : ""}
       <span style="color:#717274">(${esc(quartalVon(p.datum))} ${esc(String(p.datum||"").slice(0,4))})</span></td></tr>
     <tr><td class="b">Prüfer/in</td><td>${esc(p.pruefer || "—")}</td></tr>
+    <tr><td class="b">Vorlage</td><td>${esc(vorlageVon(p).name)}</td></tr>
     <tr><td class="b">Ergebnis</td><td>${z.OK} in Ordnung · ${z.R} Reinigung · ${z.M} Mangel · ${z.G} Gefahr · ${z.NA} nicht vorhanden</td></tr>
   </table>`);
 
   /* Kapitel */
-  SEKTIONEN.forEach(s => {
+  vorlageVon(p).sektionen.forEach(s => {
     const zeilen = s.items.map((text, i) => {
       const id = s.nr + "." + (i + 1);
       const it = (p.items || {})[id] || {};
@@ -3029,7 +3158,7 @@ async function protokollHtml(p){
       mids.map(id => { const it = p.items[id];
         return `<tr>
           <td class="nr">${id}</td>
-          <td>${esc(PUNKT_TEXT[id] || "")}</td>
+          <td>${esc(textVon(p, id))}</td>
           <td class="bew" style="background:${NOTE_FARBE[it.b]}">${esc(NOTE_LABEL[it.b])} – ${esc(NOTE_LANG[it.b])}</td>
           <td>${esc(it.prio || PRIO_DEFAULT[it.b] || "")}</td>
           <td>${it.bem ? esc(it.bem) : ""}</td>
@@ -3050,7 +3179,7 @@ async function protokollHtml(p){
       for(const f of fotos.slice(i, i + 2)){
         const klein = await bildFuerPdf(f.d, breite, guete);
         H.push(`<td class="foto">${klein ? `<img src="${klein}">` : ""}
-          <div style="font-size:8.5pt;color:#595959;margin-top:2pt">Zu Punkt ${esc(f.id)} – ${esc(PUNKT_TEXT[f.id] || "")}</div></td>`);
+          <div style="font-size:8.5pt;color:#595959;margin-top:2pt">Zu Punkt ${esc(f.id)} – ${esc(textVon(p, f.id))}</div></td>`);
       }
       if(fotos.slice(i, i + 2).length === 1) H.push(`<td class="foto"></td>`);
       H.push("</tr>");
@@ -3224,6 +3353,185 @@ $("#btnGraphPdf").addEventListener("click", async () => {
 });
 
 /* ============================================================
+   11b) Vorlagen: Auswahl je Kontrolle, eigene Vorlagen anlegen,
+        für alle in SharePoint (Stammdaten/Kontrollvorlagen.json)
+   ============================================================ */
+let vorlEdit = null, vorlagenStatus = "";
+function vorlageFeldFuellen(){
+  const sel = $("#f_vorlage"); if(!sel) return;
+  const aktuell = vorlageVon(doc), liste = alleVorlagen();
+  const opts = liste.map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`);
+  if(!liste.some(v => v.id === aktuell.id)) opts.push(`<option value="${esc(aktuell.id)}">${esc(aktuell.name)} (nicht mehr vorhanden)</option>`);
+  sel.innerHTML = opts.join("");
+  sel.value = aktuell.id;
+  sel.disabled = gesperrt();
+  const neu = vorlageNachId(aktuell.id), h = $("#vorlageHinweis");
+  const n = aktuell.sektionen.reduce((a, x) => a + x.items.length, 0);
+  if(h) h.textContent = aktuell.sektionen.length + " Kapitel · " + n + " Prüfpunkte"
+    + (neu && !neu.eingebaut && JSON.stringify(neu.sektionen) !== JSON.stringify(aktuell.sektionen) ? " · Diese Kontrolle nutzt eine ältere Fassung der Vorlage." : "");
+}
+$("#f_vorlage").addEventListener("change", e => {
+  const v = vorlageNachId(e.target.value);
+  if(!v || gesperrt()){ vorlageFeldFuellen(); return; }
+  const alt = vorlageVon(doc);
+  if(alt.id === v.id && JSON.stringify(alt.sektionen) === JSON.stringify(v.sektionen)) return;
+  if(begonnen(doc) && !confirm("Vorlage wechseln?\nBewertungen, Bemerkungen und Fotos dieser Kontrolle passen nicht zur anderen Vorlage und werden entfernt.")){ vorlageFeldFuellen(); return; }
+  doc.items = {};
+  doc.vorlage = vorlageKopie(v);
+  doc.vorlageGewaehlt = true;
+  DB.letzteVorlage = v.id; dbSichern();
+  formularFuellen(); markiereGeaendert(true);
+  toast("Vorlage: " + v.name + ".");
+});
+$("#btnVorlagen").addEventListener("click", () => { vorlEdit = null; vorlagenStatus = ""; vorlagenZeichnen(); $("#dlgVorlagen").showModal(); vorlagenLaden(); });
+
+const vorlKapitel = v => v.sektionen.map(x => ({titel:x.titel, text:x.items.join("\n")}));
+function vorlagenZeichnen(){
+  const body = $("#vorlBody"), fuss = $("#vorlFuss");
+  if(!vorlEdit){
+    $("#vorlTitel").textContent = "Vorlagen";
+    body.innerHTML = '<p class="hint" style="margin:0 0 10px">Eine Vorlage legt Kapitel und Prüfpunkte fest – z. B. Stiegenhaus, Büroreinigung, Arztpraxis oder Schule. Eigene Vorlagen gelten für alle und liegen in SharePoint. Jede Kontrolle merkt sich ihre Vorlage; ändert man sie später, bleiben alte Berichte gleich.</p>'
+      + alleVorlagen().map(v => {
+        const n = v.sektionen.reduce((a, x) => a + x.items.length, 0);
+        return `<div class="protrow"><div class="meta"><b>${esc(v.name)}</b> ${v.eingebaut ? '<span class="qchip">eingebaut</span>' : ""}<div class="hint">${v.sektionen.length} Kapitel · ${n} Prüfpunkte</div></div>
+          <button class="btn" data-vkopie="${esc(v.id)}">Kopieren</button>
+          ${v.eingebaut ? "" : `<button class="btn" data-vedit="${esc(v.id)}">Bearbeiten</button><button class="btn icon danger" data-vdel="${esc(v.id)}" title="Löschen" aria-label="Vorlage ${esc(v.name)} löschen"><svg class="i"><use href="#i-trash"/></svg></button>`}</div>`;
+      }).join("")
+      + `<div class="hint" id="vorlStatus" role="status" style="margin-top:8px">${esc(vorlagenStatus)}</div>`;
+    fuss.innerHTML = '<button class="btn primary" data-vneu="1">Neue Vorlage</button><span style="margin-right:auto"></span><button class="btn" data-vclose="1">Schließen</button>';
+    return;
+  }
+  $("#vorlTitel").textContent = vorlEdit.id ? "Vorlage bearbeiten" : "Neue Vorlage";
+  body.innerHTML = `<div class="field"><label for="v_name">Name der Vorlage</label><input type="text" id="v_name" maxlength="60" value="${esc(vorlEdit.name)}" placeholder="z. B. Arztpraxis"></div>
+    <p class="hint" style="margin:8px 0">Je Kapitel einen Titel und darunter die Prüfpunkte – ein Prüfpunkt pro Zeile.</p>
+    ${vorlEdit.sektionen.map((x, i) => `<div class="vkap"><div class="vkopf"><b>${i + 1}.</b>
+        <input type="text" data-vtitel="${i}" maxlength="80" value="${esc(x.titel)}" placeholder="Kapitel, z. B. Sanitärräume" aria-label="Titel von Kapitel ${i + 1}">
+        <button class="btn icon" data-vauf="${i}" title="Nach oben" aria-label="Kapitel ${i + 1} nach oben" ${i ? "" : "disabled"}>↑</button>
+        <button class="btn icon danger" data-vweg="${i}" title="Kapitel entfernen" aria-label="Kapitel ${i + 1} entfernen"><svg class="i"><use href="#i-trash"/></svg></button></div>
+      <textarea data-vpunkte="${i}" rows="${Math.min(14, Math.max(3, x.text.split("\n").length + 1))}" placeholder="Ein Prüfpunkt pro Zeile" aria-label="Prüfpunkte von Kapitel ${i + 1}">${esc(x.text)}</textarea></div>`).join("")}
+    <button class="btn" data-vkap="1">Kapitel hinzufügen</button>
+    <div class="vfehler" id="vorlFehler" role="alert"></div>`;
+  fuss.innerHTML = '<button class="btn" data-vzurueck="1">Zurück</button><span style="margin-right:auto"></span><button class="btn primary" data-vsave="1">Speichern</button>';
+}
+function vorlEditLesen(){
+  if(!vorlEdit) return;
+  const n = $("#v_name"); if(n) vorlEdit.name = n.value;
+  $$("[data-vtitel]").forEach(el => { vorlEdit.sektionen[+el.dataset.vtitel].titel = el.value; });
+  $$("[data-vpunkte]").forEach(el => { vorlEdit.sektionen[+el.dataset.vpunkte].text = el.value; });
+}
+/* Eingaben prüfen: Fehlertext oder {name, sektionen} */
+function vorlEditPruefen(){
+  const zeile = t => String(t || "").trim().replace(/\s+/g, " ");
+  const name = zeile(vorlEdit.name);
+  if(!name) return "Bitte einen Namen für die Vorlage eintragen.";
+  if(alleVorlagen().some(v => v.id !== vorlEdit.id && v.name.trim().toLowerCase() === name.toLowerCase())) return "Eine Vorlage mit diesem Namen gibt es schon.";
+  const sek = vorlEdit.sektionen.map(x => ({titel:zeile(x.titel), items:String(x.text || "").split("\n").map(zeile).filter(Boolean)}))
+    .filter(x => x.titel || x.items.length);
+  if(!sek.length) return "Bitte mindestens ein Kapitel mit Prüfpunkten eintragen.";
+  const ohneTitel = sek.findIndex(x => !x.titel); if(ohneTitel >= 0) return "Kapitel " + (ohneTitel + 1) + " braucht einen Titel.";
+  const leer = sek.find(x => !x.items.length); if(leer) return "Kapitel „" + leer.titel + "“ hat noch keine Prüfpunkte.";
+  if(sek.length > 30) return "Höchstens 30 Kapitel je Vorlage.";
+  if(sek.some(x => x.items.length > 60)) return "Höchstens 60 Prüfpunkte je Kapitel.";
+  if(sek.some(x => x.titel.length > 80 || x.items.some(t => t.length > 200))) return "Kapitel höchstens 80, Prüfpunkte höchstens 200 Zeichen.";
+  return {name, sektionen: sek.map((x, i) => ({nr:i + 1, titel:x.titel, items:x.items}))};
+}
+async function vorlSpeichern(){
+  vorlEditLesen();
+  const r = vorlEditPruefen();
+  if(typeof r === "string"){ $("#vorlFehler").textContent = r; return; }
+  const db = dbLesen();
+  const id = vorlEdit.id || ("v-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  db.vorlagen = (db.vorlagen || []).filter(x => x.id !== id).concat({id, name:r.name, sektionen:r.sektionen, stand:new Date().toISOString()});
+  dbSchreiben(db);
+  vorlEdit = null;
+  vorlagenStatus = "Gespeichert.";
+  vorlagenZeichnen(); vorlageFeldFuellen();
+  await vorlagenHochladen();
+}
+$("#dlgVorlagen").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if(!b) return;
+  const d = b.dataset;
+  if(d.vclose){ $("#dlgVorlagen").close(); return; }
+  if(d.vneu){ vorlEdit = {id:null, name:"", sektionen:[{titel:"", text:""}]}; vorlagenZeichnen(); $("#v_name").focus(); return; }
+  if(d.vkopie){ const v = vorlageNachId(d.vkopie); if(!v) return; vorlEdit = {id:null, name:v.name + " (Kopie)", sektionen:vorlKapitel(v)}; vorlagenZeichnen(); $("#v_name").focus(); return; }
+  if(d.vedit){ const v = vorlageNachId(d.vedit); if(!v || v.eingebaut) return; vorlEdit = {id:v.id, name:v.name, sektionen:vorlKapitel(v)}; vorlagenZeichnen(); return; }
+  if(d.vdel){
+    const v = vorlageNachId(d.vdel); if(!v || v.eingebaut) return;
+    if(!confirm("Vorlage „" + v.name + "“ löschen?\nGespeicherte Kontrollen mit dieser Vorlage bleiben, wie sie sind.")) return;
+    const db = dbLesen();
+    db.vorlagen = (db.vorlagen || []).map(x => x.id === v.id ? {id:x.id, name:x.name, geloescht:true, stand:new Date().toISOString()} : x);
+    if(db.letzteVorlage === v.id) delete db.letzteVorlage;
+    dbSchreiben(db); vorlagenStatus = "Gelöscht."; vorlagenZeichnen(); vorlageFeldFuellen();
+    await vorlagenHochladen(); return;
+  }
+  if(d.vzurueck){ vorlEdit = null; vorlagenZeichnen(); return; }
+  if(d.vsave){ await vorlSpeichern(); return; }
+  if(d.vkap){ vorlEditLesen(); vorlEdit.sektionen.push({titel:"", text:""}); vorlagenZeichnen(); const t = $$("[data-vtitel]").pop(); if(t) t.focus(); return; }
+  if(d.vweg !== undefined){ vorlEditLesen(); vorlEdit.sektionen.splice(+d.vweg, 1); if(!vorlEdit.sektionen.length) vorlEdit.sektionen.push({titel:"", text:""}); vorlagenZeichnen(); return; }
+  if(d.vauf !== undefined){ vorlEditLesen(); const i = +d.vauf; if(i > 0){ const x = vorlEdit.sektionen.splice(i, 1)[0]; vorlEdit.sektionen.splice(i - 1, 0, x); } vorlagenZeichnen(); return; }
+});
+
+/* SharePoint: <Basis>/../Stammdaten/Kontrollvorlagen.json – wie der Kundenstamm für alle Reviere gemeinsam */
+function vorlagenPfad(){
+  const teile = graphBasis().split("/");
+  teile.pop();
+  return teile.concat("Stammdaten", "Kontrollvorlagen.json").join("/");
+}
+const vorlageGueltig = v => !!v && typeof v.id === "string" && typeof v.name === "string" && v.id !== "stiegenhaus" && v.id !== "buero"
+  && (v.geloescht || (Array.isArray(v.sektionen) && v.sektionen.length > 0 && v.sektionen.every(x => typeof x.titel === "string" && Array.isArray(x.items) && x.items.every(t => typeof t === "string"))));
+/* je Vorlage die neuere Fassung (stand) */
+function vorlagenMischen(a, b){
+  const m = new Map();
+  for(const v of a.concat(b)){ if(!vorlageGueltig(v)) continue; const x = m.get(v.id); if(!x || (v.stand || "") > (x.stand || "")) m.set(v.id, v); }
+  return Array.from(m.values());
+}
+async function vorlagenHolen(){
+  try{
+    const d = await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(vorlagenPfad())}`);
+    const inhalt = JSON.parse(await (await fetch(d["@microsoft.graph.downloadUrl"])).text());
+    return {liste: Array.isArray(inhalt.vorlagen) ? inhalt.vorlagen : [], eTag: d.eTag || ""};
+  }catch(e){
+    if(e.status === 404) return {liste: [], eTag: ""};   /* gibt es noch nicht */
+    throw e;
+  }
+}
+const vorlagenNeuZeichnen = () => { if($("#dlgVorlagen").open && !vorlEdit) vorlagenZeichnen(); };
+async function vorlagenLaden(){
+  if(!graphBereit() || !graphToken) return;
+  try{
+    await graphZiel();
+    const {liste} = await vorlagenHolen();
+    const db = dbLesen();
+    db.vorlagen = vorlagenMischen(db.vorlagen || [], liste);
+    dbSchreiben(db); vorlageFeldFuellen(); vorlagenNeuZeichnen();
+  }catch(e){ /* ohne Netz oder ohne Leserecht: die Vorlagen dieses Geräts */ }
+}
+async function vorlagenHochladen(){
+  if(!graphBereit() || !graphToken){ vorlagenStatus = "Gespeichert auf diesem Gerät – in SharePoint, sobald angemeldet (dann für alle)."; vorlagenNeuZeichnen(); return; }
+  for(let versuch = 0; versuch < 2; versuch++){
+    try{
+      await graphZiel();
+      const {liste, eTag} = await vorlagenHolen();
+      const db = dbLesen();
+      const neu = vorlagenMischen(liste, db.vorlagen || []);
+      const kopf = {"Content-Type":"application/json"};
+      if(eTag) kopf["If-Match"] = eTag;
+      await graphRuf(`/drives/${graphDriveId}/root:/${encodeURI(vorlagenPfad())}:/content`,
+        {method:"PUT", headers:kopf, body: JSON.stringify({stand:heute(), vorlagen:neu}, null, 1)});
+      db.vorlagen = neu; dbSchreiben(db);
+      vorlagenStatus = "In SharePoint gespeichert – gilt für alle.";
+      vorlagenNeuZeichnen(); vorlageFeldFuellen(); return;
+    }catch(e){
+      if(e.status === 412 && versuch === 0) continue;      /* inzwischen von jemand anderem geändert: neu lesen, mischen */
+      vorlagenStatus = e.status === 403
+        ? "Nur auf diesem Gerät gespeichert: Für SharePoint fehlt das Schreibrecht auf den Ordner Stammdaten (bitte das Büro fragen)."
+        : "Nur auf diesem Gerät gespeichert (" + (e.message || e) + "). Beim nächsten Speichern wird es noch einmal versucht.";
+      vorlagenNeuZeichnen(); return;
+    }
+  }
+}
+
+/* ============================================================
    12) Start
    ============================================================ */
 (async function start(){
@@ -3242,12 +3550,14 @@ $("#btnGraphPdf").addEventListener("click", async () => {
   graphStarten();
   stammLaden();
   objektStammLaden();
+  vorlagenLaden();
   const beob = new IntersectionObserver(es => {
     es.forEach(en => { if(!en.isIntersecting) return;
       const b = $(`.kchip[data-goto="${en.target.id}"]`);
       if(b){ $$(".kchip").forEach(n => n.classList.remove("active")); b.classList.add("active"); b.scrollIntoView({inline:"center", block:"nearest", behavior:"smooth"}); } });
   }, {rootMargin:"-110px 0px -70% 0px"});
   $$("section.card").forEach(s => beob.observe(s));
+  sekBeob = beob;
 })();
 </script>
 </body>
