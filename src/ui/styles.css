@@ -2094,6 +2094,10 @@ tr.muted td { color: var(--muted); }
 .cleo-title { display: block; margin-bottom: 4px; }
 .cleo-tip { color: var(--muted); font-size: 0.86rem; }
 .cleo-more { margin: 8px 0 4px !important; color: var(--muted); font-size: 0.82rem; }
+/* Cleo mit KI: Antwort der KI mit Hinweis, Warten */
+.cleo-ki ul, .cleo-ki ol { margin: 4px 0 6px 18px; padding: 0; }
+.cleo-ki-note { margin: 6px 0 2px !important; color: var(--muted); font-size: 0.8rem; }
+.cleo-ki-wait { color: var(--muted); font-style: italic; }
 .cleo-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .cleo-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 2px; }
 .cleo-list > li { padding: 5px 0; border-bottom: 1px solid var(--line); line-height: 1.35; font-size: 0.9rem; }

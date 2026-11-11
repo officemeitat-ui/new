@@ -7,7 +7,7 @@
 import { sendMail } from '../auth/graph-mail.js'
 import { createEvent, listEvents } from '../auth/graph-calendar.js'
 import { absenceImpact } from '../core/attention.js'
-import { defaultDue, KINDS, SOURCES } from '../core/complaints.js'
+import { dayOf, defaultDue, isOpen, isOverdue, KINDS, SOURCES, STATUS } from '../core/complaints.js'
 import { addDays, formatDate, formatHours, mondayOf, todayISO } from '../core/dates.js'
 import { isActive, keysOf, objectKeys } from '../core/keys.js'
 import { stockRows } from '../core/material.js'
@@ -252,6 +252,42 @@ registerAgentTool({
     }
     if (person) keys = keysOf(keys, findEmployee(person).id)
     return { schluessel: keys.slice(0, 60).map((k) => ({ objekt: app.data.objects.find((o) => o.id === k.objectId)?.name || '', schluessel: `${k.label}${k.no ? ` Nr. ${k.no}` : ''}`, bei: k.holderId ? empName(k.holderId) : 'Büro', seit: k.since || '', rueckgabe_bis: k.due || '' })) }
+  },
+})
+
+registerAgentTool({
+  name: 'reklamationen_abfragen',
+  modules: ['reklamationen'],
+  description: 'Reklamationen lesen: offene (Standard), erledigte oder alle, für ein Objekt oder alle Objekte, mit Art, Beschreibung, Eingang, Frist, Stand, ob überfällig, Maßnahme und Ergebnis. Für Fragen wie „Welche Reklamationen sind offen?“ oder einen Lagebericht zu einem Objekt.',
+  input_schema: { type: 'object', properties: { objekt: { type: 'string', description: 'Name des Objekts (optional)' }, stand: { type: 'string', enum: ['offen', 'erledigt', 'alle'] }, tage: { type: 'integer', description: 'nur die letzten n Tage (Standard 90; offene immer alle)' } } },
+  run({ objekt, stand = 'offen', tage = 90 }) {
+    const today = todayISO()
+    const obj = objekt ? findObject(objekt) : null
+    const seit = addDays(today, -Math.max(1, Math.min(730, Number(tage) || 90)))
+    const all = app.data.reklamationen?.items || []
+    const list = all
+      .filter((c) => !obj || c.objectId === obj.id)
+      .filter((c) => (stand === 'offen' ? isOpen(c) : stand === 'erledigt' ? !isOpen(c) && dayOf(c.received) >= seit : isOpen(c) || dayOf(c.received) >= seit))
+      .sort((a, b) => String(b.received).localeCompare(String(a.received)))
+    const objName = (id) => app.data.objects.find((o) => o.id === id)?.name || ''
+    return {
+      anzahl: list.length,
+      ueberfaellig: list.filter((c) => isOverdue(c, today)).length,
+      reklamationen: list.slice(0, 40).map((c) => ({
+        objekt: objName(c.objectId),
+        art: c.kind,
+        beschreibung: String(c.text || '').slice(0, 300),
+        eingegangen: dayOf(c.received),
+        eingang: c.source || '',
+        frist: c.due || '',
+        stand: STATUS[c.status] || c.status,
+        ueberfaellig: isOverdue(c, today),
+        massnahme: String(c.measure || '').slice(0, 200),
+        ergebnis: String(c.result || '').slice(0, 200),
+        kunde_informiert: !!c.informed,
+      })),
+      ...(list.length > 40 ? { hinweis: `Nur die neuesten 40 von ${list.length}.` } : {}),
+    }
   },
 })
 

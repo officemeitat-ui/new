@@ -2,17 +2,17 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 404 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 406 Themen, 45 Begriffe.*
 
 ## Inhalt
 
-- [Start & Übersicht](#start-uebersicht) (17)
+- [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (42)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (29)
 - [Objekte & Kunden](#objekte-kunden) (102)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (63)
+- [Verwaltung](#verwaltung) (64)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -245,6 +245,18 @@ Hast du ein Konto und eine E-Mail im Stammblatt, kommen Mitteilungen des Büros 
 3. „Gelesen“ bzw. „Verstanden“ tippen.
 
 > Tipp: Ohne Konto kommen Mitteilungen über den persönlichen Link „Mein Plan“.
+
+### Cleo mit KI
+
+Findet Cleo in der Hilfe nichts Sicheres, fragt sie die KI – wenn der KI-Assistent eingerichtet ist. Vor der ersten Frage fragt Cleo einmal nach, weil die Frage dafür an Anthropic geht. Die Antwort stützt sich auf die Hilfe und ist als KI-Antwort gekennzeichnet.
+
+1. Cleo öffnen und die Frage stellen.
+2. Beim ersten Mal „Ja, mit KI beantworten“ tippen.
+3. Antwort lesen; passende Hilfethemen stehen darunter.
+4. Für echte Daten („Welche Reklamationen sind offen?“) „Im KI-Assistenten nachsehen“.
+
+> Tipp: Keine Namen, Adressen oder Gesundheitsdaten eintippen.
+> Tipp: Eine Frage an Cleo kostet mit dem Modell für Cleo rund 0,1 Cent.
 
 ## Planung
 
@@ -4891,15 +4903,27 @@ Alle Daten liegen in SharePoint mit Versionsverlauf. Die vollständige Sicherung
 
 ### KI-Assistent einrichten
 
-Mit Vollzugriff öffnest du im Assistenten „Einstellungen“, trägst den API-Schlüssel ein und wählst Modell, Aufwand und Tageslimits je Person und gesamt. Danach zeigen die Einstellungen Anfragen und geschätzte Kosten des Monats.
+Einmal mit Vollzugriff den API-Schlüssel von Anthropic eintragen, dann helfen der Assistent, Cleo und die KI-Knöpfe in den Bereichen dauerhaft – auch nach jedem neuen Paket. Solange er fehlt, erinnert „Zu erledigen“ daran. Die Einstellungen zeigen danach Anfragen und Kosten des Monats.
 
-1. „Assistent“ öffnen und „Einstellungen“ klicken.
-2. API-Schlüssel einfügen, Modell, Aufwand und Limits wählen.
-3. Speichern.
-4. Im „Systemcheck“ den Abschnitt „KI-Assistent“ prüfen.
+1. Auf console.anthropic.com ein Firmenkonto anlegen, Zahlungsmittel und ein Monatslimit hinterlegen.
+2. Unter „API Keys“ einen Schlüssel erstellen und kopieren.
+3. „Assistent“ → „Einstellungen“ (oder „KI einrichten“ in „Zu erledigen“): Schlüssel einfügen, Modell und Modell für Cleo wählen.
+4. Speichern und im „Systemcheck“ den Abschnitt „KI-Assistent“ prüfen.
 
 > Tipp: Für Termine und E-Mails braucht die App-Registrierung die Rechte Calendars.ReadWrite und Mail.Send.
 > Tipp: Vorher die Datenschutzinformation und, falls vorhanden, die Betriebsvereinbarung ergänzen.
+
+*Nur Vollzugriff*
+
+### KI: Kosten und ohne eigenen Schlüssel?
+
+Jede KI braucht ein Konto bei einem Anbieter, der die Rechenleistung verrechnet. Am einfachsten ist ein eigenes Anthropic-Konto mit Monatslimit: Cleo kostet je Frage rund 0,1 Cent, eine Aufgabe für den Assistenten einige Cent. Die Einstellungen zeigen den Verbrauch des Monats.
+
+1. Bei Anthropic ein Monatslimit setzen (z. B. 30 $).
+2. In den Einstellungen des Assistenten Tageslimits je Person und gesamt wählen.
+3. Für Cleo das günstige Modell lassen (die Vorgabe).
+
+> Tipp: Abrechnung über Microsoft (dieselbe KI im eigenen Azure-Konto) wäre auch möglich, braucht aber eine Erweiterung von ki.php.
 
 *Nur Vollzugriff*
 

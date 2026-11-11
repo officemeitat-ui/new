@@ -11,6 +11,7 @@
 import { GLOSSARY, loadTopics, TOPICS } from '../help/lazy.js'
 import { answer, dataExamples, rangeFor, understand } from '../help/brain.js'
 import { glossary, search, smalltalk, SURE } from '../help/match.js'
+import { allRoles } from '../core/access.js'
 import { mondayOf, todayISO } from '../core/dates.js'
 import { holidaysInRange } from '../core/holidays.js'
 import { findAbsence } from '../core/rules.js'
@@ -89,9 +90,112 @@ export function respond(text) {
     return push({ from: 'cleo', mood: topicMood(hits[0].topic), topic: hits[0].topic.id, html: answerHtml(hits[0].topic) + (others.length ? `<p class="cleo-more">Oder meinst du:</p>${chips(others)}` : '') })
   }
   if (all.length && all[0].score >= SURE && !hits.length) return push({ from: 'cleo', mood: 'hoppla', html: `<p>Das gehört zu „${esc(viewLabel(all[0].topic.view) || all[0].topic.title)}“ – da lässt mich deine Rolle nicht rein. Frag bitte das Büro, wenn du den Bereich brauchst.</p>` })
-  if (hits.length) return push({ from: 'cleo', mood: 'denkt', html: `<p>Meinst du eines davon?</p>${chips(hits.map((x) => x.topic))}` })
-  const ai = ACTIONS['ai-open'] ? `<div class="cleo-acts"><button class="btn small" data-action="help-ai" data-q="${esc(text)}">${cleoIcon()} KI-Assistent fragen</button></div>` : ''
-  return push({ from: 'cleo', mood: 'hoppla', html: `<p>Hoppla – da hat sogar mein Heldenblick nichts gefunden. Versuch es mit anderen Worten (z. B. „Urlaub eintragen“, „Rechnung schreiben“, „Wer arbeitet morgen?“) oder schau in die Anleitung.</p>${ai}${askChips(examples().slice(0, 2))}${chips(suggestionsFor(app.ui.view, ids).slice(0, 3))}` })
+  // Unsicher oder nichts gefunden: ist die KI eingerichtet, beantwortet sie die Frage (Cleo mit KI, unten)
+  if (KI.ok === true && kiConsented()) return askKi(text)
+  if (hits.length) {
+    push({ from: 'cleo', mood: 'denkt', html: `<p>Meinst du eines davon?</p>${chips(hits.map((x) => x.topic))}` })
+    return offerKi(text)
+  }
+  const ai = ACTIONS['ai-open'] && KI.ok !== true ? `<div class="cleo-acts"><button class="btn small" data-action="help-ai" data-q="${esc(text)}">${cleoIcon()} KI-Assistent fragen</button></div>` : ''
+  push({ from: 'cleo', mood: 'hoppla', html: `<p>Hoppla – da hat sogar mein Heldenblick nichts gefunden. Versuch es mit anderen Worten (z. B. „Urlaub eintragen“, „Rechnung schreiben“, „Wer arbeitet morgen?“) oder schau in die Anleitung.</p>${ai}${askChips(examples().slice(0, 2))}${chips(suggestionsFor(app.ui.view, ids).slice(0, 3))}` })
+  return offerKi(text)
+}
+
+// ---------------------------------------------------------------- Cleo mit KI
+
+// Findet Cleo in den Hilfethemen nichts Sicheres, fragt sie die KI – nur wenn der KI-Assistent am Webspace eingerichtet
+// ist (ki.php, günstiges Modell für die Hilfe) und die Person einmal je Gerät zugestimmt hat (die Frage geht an
+// Anthropic). Anfrage und Auswertung: core/cleo-ki.js. Grundlage sind nur Hilfethemen, die die Rolle sehen darf.
+const KI = { ok: null, at: 0, pending: null }
+const KI_CONSENT = 'cleanos-cleo-ki'
+const kiConsented = () => {
+  try {
+    return localStorage.getItem(KI_CONSENT) === '1'
+  } catch {
+    return false
+  }
+}
+/** Ist der KI-Assistent eingerichtet und eingeschaltet? (gemerkt; „nein“ wird nach 5 Minuten neu gefragt) */
+export function cleoKiCheck() {
+  if (app.config?.assistant === false) return Promise.resolve(false)
+  if (KI.ok === true || (KI.ok === false && Date.now() - KI.at < 300e3)) return Promise.resolve(KI.ok)
+  KI.pending ||= import('../ai/agent.js')
+    .then((m) => m.kiRequest('status'))
+    .then((st) => !!st?.aktiv, () => false)
+    .then((ok) => {
+      Object.assign(KI, { ok, at: Date.now(), pending: null })
+      return ok
+    })
+  return KI.pending
+}
+
+/** Nach dem Einrichten: gleich neu nachsehen (nicht erst nach 5 Minuten). */
+export const resetCleoKi = () => Object.assign(KI, { ok: null, at: 0, pending: null })
+
+/** Noch nicht zugestimmt: einmal fragen, ob Cleo die KI fragen darf. */
+function offerKi(text) {
+  if (KI.ok !== true || kiConsented()) return
+  push({ from: 'cleo', mood: 'denkt', html: `<p>Soll ich die KI fragen? Dafür geht deine Frage an die KI von Anthropic (Claude) – bitte keine Namen, Adressen oder Gesundheitsdaten eintippen.</p><div class="cleo-acts"><button class="btn small primary" data-action="help-ki" data-q="${esc(text)}">${cleoIcon()} Ja, mit KI beantworten</button></div>` })
+}
+
+/** Passende Hilfethemen für die KI: Treffer zur Frage, dann Themen des Bereichs – nur Sichtbares. */
+function kiTopics(q, ids) {
+  const found = search(TOPICS, q, { limit: 6, view: app.ui.view, visible: (v) => ids.has(v) }).map((x) => x.topic)
+  return [...found, ...suggestionsFor(app.ui.view, ids).filter((t) => !found.includes(t))].slice(0, 6)
+}
+
+const roleLabel = () => {
+  const roles = allRoles(app.config?.access || {})
+  return (app.access?.roles || []).map((r) => roles[r]?.label || r).join(', ') || (app.access ? '' : 'alle Bereiche')
+}
+
+/** Etwas Markdown der KI: Absätze, Listen, **fett** (nach dem Escapen). */
+function kiHtml(text) {
+  let html = ''
+  let list = ''
+  for (const raw of esc(text).split('\n')) {
+    const line = raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    const item = /^\s*(?:[-*•]|(\d+)\.)\s+(.*)$/.exec(line)
+    if (item) {
+      const tag = item[1] ? 'ol' : 'ul'
+      if (list !== tag) html += `${list ? `</${list}>` : ''}<${tag}>`
+      list = tag
+      html += `<li>${item[2]}</li>`
+      continue
+    }
+    if (list) html += `</${list}>`
+    list = ''
+    if (line.trim()) html += `<p>${line}</p>`
+  }
+  return html + (list ? `</${list}>` : '')
+}
+
+/** Frage an die KI; Cleo zeigt „ich frag kurz“ und ersetzt es durch die Antwort. */
+export async function askKi(q) {
+  const h = H()
+  const ids = visibleIds()
+  const entry = { from: 'cleo', mood: 'denkt', html: '<p class="cleo-ki-wait">Gute Frage – ich frag kurz die KI …</p>' }
+  push(entry)
+  h.scroll = true
+  renderHelp()
+  const topics = kiTopics(q, ids)
+  try {
+    const [{ cleoKiRequest, parseCleoAnswer }, { kiSend }] = await Promise.all([import('../core/cleo-ki.js'), import('../ai/client.js')])
+    const { max_tokens: maxTokens, ...params } = cleoKiRequest({ question: q, topics, role: roleLabel(), view: viewLabel(app.ui.view), areas: visibleViews().map((v) => v.label) })
+    const res = parseCleoAnswer(await kiSend(params, { maxTokens, purpose: 'hilfe' }), topics.map((t) => t.id))
+    const more = res.topicIds.map(topicById).filter(Boolean)
+    const ai = ACTIONS['ai-open'] ? `<button class="btn small ghost" data-action="help-ai" data-q="${esc(q)}">${cleoIcon()} Im KI-Assistenten nachsehen</button>` : ''
+    Object.assign(entry, {
+      mood: 'froh',
+      html: `<div class="cleo-answer cleo-ki">${kiHtml(res.text) || '<p>Dazu habe ich leider nichts gefunden.</p>'}<p class="cleo-ki-note">Antwort der KI aus der Hilfe – bitte kurz prüfen.</p>${more.length ? `<p class="cleo-more">Mehr dazu:</p>${chips(more)}` : ''}${ai ? `<div class="cleo-acts">${ai}</div>` : ''}</div>`,
+    })
+  } catch (err) {
+    const hits = search(TOPICS, q, { limit: 3, view: app.ui.view, visible: (v) => ids.has(v) })
+    Object.assign(entry, { mood: 'hoppla', html: `<p>Die KI antwortet gerade nicht${err?.message ? `: ${esc(String(err.message).replace(/[.!\s]+$/, ''))}` : ''}.</p>${hits.length ? `<p class="cleo-more">Vielleicht hilft das:</p>${chips(hits.map((x) => x.topic))}` : ''}` })
+  }
+  h.scroll = true
+  renderHelp()
+  return entry
 }
 
 // ---------------------------------------------------------------- Cleo kennt den Betrieb
@@ -258,6 +362,8 @@ export function openHelp(question = '') {
   renderHelp()
   // Themen kommen nach dem Start (help/lazy.js): noch nicht da, dann gleich laden und Vorschläge nachzeichnen
   if (!TOPICS.length) loadTopics().then(renderHelp, () => {})
+  // Cleo mit KI: im Hintergrund nachsehen, ob der KI-Assistent eingerichtet ist
+  if (typeof fetch === 'function') cleoKiCheck().catch(() => {})
   if (question) ask(question)
   else setTimeout(() => document.getElementById('cleo-q')?.focus({ preventScroll: true }), 30)
 }
@@ -389,6 +495,16 @@ registerActions({
     }
   },
   'help-ask': (el) => ask(el.dataset.q || ''),
+  // Cleo mit KI: einmal je Gerät zugestimmt, dann die Frage gleich an die KI
+  'help-ki': (el) => {
+    try {
+      localStorage.setItem(KI_CONSENT, '1')
+    } catch {
+      /* privat: gilt für dieses Mal */
+    }
+    const q = el?.dataset?.q || ''
+    if (q) askKi(q)
+  },
   // Knöpfe in Cleos Antworten: Aktion der App ausführen (am Handy macht Cleo dafür Platz)
   'help-run': (el) => {
     const run = el.dataset.run

@@ -4,6 +4,8 @@
 
 import { app, closeModal, onModalRender, openModal, registerActions, registerModal, renderModal, renderModalKeepingInput, toast, VIEWS } from './context.js'
 import { esc, modalFrame, options, val } from './shared.js'
+import { resetCleoKi } from './help.js'
+import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { speechAvailable, startSpeech } from './speech.js'
 
 // Sprechblase statt „Funkeln“: der Assistent ist ein Gesprächspartner, kein Effekt
@@ -15,6 +17,26 @@ const MODEL_INFO = {
 }
 const EFFORT = [['low', 'schnell (wenig Nachdenken)'], ['medium', 'ausgewogen (empfohlen)'], ['high', 'gründlich (langsamer, teurer)']]
 const STARTERS = ['Was steht heute an?', 'Wer arbeitet morgen und wo ist noch etwas offen?', 'Termin morgen um 12 Uhr in Salzburg mit ', ' ist ab heute bis Freitag krank', 'Reklamation: ']
+// Vorschläge passend zum Bereich, aus dem der Assistent geöffnet wird (Leerzeichen am Ende: zum Ergänzen ins Feld)
+const AREA_STARTERS = {
+  reklamationen: ['Welche Reklamationen sind offen und welche sind überfällig?', 'Reklamation: ', 'Antwort an den Kunden zur Reklamation im Objekt '],
+  objects: ['Lagebericht für das Objekt ', 'Welche Objekte haben gerade offene Reklamationen?'],
+  sheet: ['Lagebericht für das Objekt ', 'Was steht in diesem Objekt diese Woche an? Objekt: '],
+  kontrolle: ['Nachkontrolle als Termin eintragen für das Objekt ', 'Welche Reklamationen sind in meinen Objekten offen?'],
+  objektmappe: ['Lagebericht für das Objekt ', 'Welche Schlüssel hat das Objekt '],
+  qualitaet: ['Wie waren die letzten Qualitätsmessungen in meinen Objekten?', 'Welche Objekte lagen bei der letzten Messung unter dem Ziel?'],
+  anlagen: ['Welche Prüfungen von Anlagen sind fällig oder überfällig?', 'Termin für die nächste fällige Prüfung im Objekt '],
+  regie: ['Welche Regieberichte sind noch nicht verrechnet?', 'Regiebericht zum Objekt '],
+  material: ['Welches Material ist knapp oder leer?', 'Material anfordern: '],
+  schluessel: ['Welche Schlüssel sind gerade ausgegeben?', 'Welche Schlüssel hat '],
+  termine: ['Welche Termine habe ich diese Woche?', 'Termin morgen um 10 Uhr im Objekt '],
+  week: ['Wer arbeitet morgen und wo ist noch etwas offen?', ' ist ab heute bis Freitag krank', 'Schlag eine Vertretung vor für '],
+  timeline: ['Wer arbeitet heute wo?', 'Wo ist morgen noch etwas offen?'],
+  absences: ['Wer ist diese Woche abwesend?', ' ist ab heute bis Freitag krank'],
+  coverage: ['Wo fehlt diese Woche noch jemand?', 'Verteile die offenen Vertretungen von morgen'],
+}
+/** Vorschläge für den Bereich, aus dem der Assistent geöffnet wurde (sonst die allgemeinen). */
+export const startersFor = (view) => AREA_STARTERS[view] || STARTERS
 
 const ai = () => (app.ui.ai ||= { log: [], history: [], busy: false, pending: null, status: null, statusError: '' })
 
@@ -66,7 +88,7 @@ function assistantModal() {
   const notice = s.statusError
     ? `<div class="banner warn-banner"><p>${esc(s.statusError)}</p></div>`
     : st && !st.eingerichtet
-      ? `<div class="banner welcome"><p><strong>Der KI-Assistent ist noch nicht eingerichtet.</strong> ${st.vollzugriff ? 'Unter „Einstellungen“ den API-Schlüssel von Anthropic eintragen.' : 'Bitte das Büro (Vollzugriff) bitten, ihn einzurichten.'}</p></div>`
+      ? `<div class="banner welcome"><p><strong>Der KI-Assistent ist noch nicht eingerichtet.</strong> ${st.vollzugriff ? 'Einmal den API-Schlüssel von Anthropic eintragen, dann helfen der Assistent, Cleo und die KI-Knöpfe in den Bereichen dauerhaft – auch nach jedem neuen Paket.' : 'Bitte das Büro (Vollzugriff) bitten, ihn einmal einzurichten.'}</p>${st.vollzugriff ? '<p><button class="btn primary" data-action="ai-settings">Jetzt einrichten</button></p>' : ''}</div>`
       : st && !st.aktiv
         ? '<div class="banner warn-banner"><p>Der KI-Assistent ist ausgeschaltet.</p></div>'
         : ''
@@ -76,7 +98,7 @@ function assistantModal() {
     subtitle: st?.modellName ? `${esc(st.modellName)} · fragt vor jeder Änderung nach` : 'fragt vor jeder Änderung nach',
     wide: true,
     body: `${notice}
-      <div class="ai-log" aria-live="polite">${empty ? `<div class="ai-intro"><p>Sag oder schreib, was zu tun ist, zum Beispiel:</p><div class="ai-starters">${STARTERS.map((x, i) => `<button class="btn small" data-action="ai-starter" data-i="${i}">${esc(x.trim() || x)}${x.endsWith(' ') ? '…' : ''}</button>`).join('')}</div></div>` : logHtml()}${s.busy && !s.pending ? '<div class="ai-step running"><span class="ai-dots"></span> arbeitet …</div>' : ''}</div>
+      <div class="ai-log" aria-live="polite">${empty ? `<div class="ai-intro"><p>Sag oder schreib, was zu tun ist, zum Beispiel:</p><div class="ai-starters">${startersFor(app.ui.view).map((x, i) => `<button class="btn small" data-action="ai-starter" data-i="${i}">${esc(x.trim() || x)}${x.endsWith(' ') ? '…' : ''}</button>`).join('')}</div></div>` : logHtml()}${s.busy && !s.pending ? '<div class="ai-step running"><span class="ai-dots"></span> arbeitet …</div>' : ''}</div>
       <div class="ai-input">
         <textarea id="ai-text" rows="2" placeholder="${ready ? 'z. B. „Termin morgen 12 Uhr in Salzburg mit Herrn Maier“' : 'noch nicht verfügbar'}" ${ready && !s.busy ? '' : 'disabled'} data-ai-enter="1">${esc(app.ui.modal?.prefill || '')}</textarea>
         ${speech() ? `<button class="btn icon ai-mic ${s.listening ? 'on' : ''}" data-action="ai-mic" title="Sprechen" aria-label="Sprechen" ${ready && !s.busy ? '' : 'disabled'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5" fill="currentColor"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>` : ''}
@@ -219,11 +241,13 @@ function settingsModal() {
   return modalFrame({
     title: 'KI-Assistent einrichten',
     subtitle: st.eingerichtet ? `eingerichtet · Schlüssel …${esc(st.schluesselEnde || '')}` : 'noch nicht eingerichtet',
-    body: `<p class="note">Der Assistent nutzt die Claude-API von Anthropic. Den API-Schlüssel unter <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> anlegen (Firmenkonto, Zahlungsmittel hinterlegen, Ausgabenlimit setzen). Er wird nur am Webspace gespeichert (privat/ki.json), nie im Browser oder in SharePoint.</p>
+    body: `<ol class="ai-setup-steps"><li><a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> öffnen und ein Firmenkonto anlegen (E-Mail des Büros).</li><li>Unter <em>Billing</em> ein Zahlungsmittel hinterlegen und ein <strong>Monatslimit</strong> setzen (z. B. 30 $) – mehr kann dann nie anfallen.</li><li>Unter <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener"><em>API Keys</em></a> „Create Key“, Name „Cleanos App“, den Schlüssel kopieren (beginnt mit sk-ant-).</li><li>Hier einfügen und speichern. Der Schlüssel liegt nur am Webspace (privat/ki.json) und bleibt bei jedem neuen Paket.</li></ol>
+      <p class="note">Kosten: Eine Frage an Cleo kostet mit Claude Haiku rund 0,1 Cent, eine Aufgabe für den Assistenten mit Claude Opus einige Cent. Unten steht der Verbrauch des Monats.</p>
       <div class="form-grid">
         <label class="field wide"><span>API-Schlüssel${st.eingerichtet ? ' (leer lassen = bleibt)' : ''}</span><input type="password" id="ais-key" autocomplete="off" placeholder="${st.eingerichtet ? `•••• ${esc(st.schluesselEnde || '')}` : 'sk-ant-…'}"></label>
         <label class="field wide"><span>Modell</span><select id="ais-model">${options(Object.entries(MODEL_INFO), st.modell || 'claude-opus-5-5')}</select></label>
         <label class="field"><span>Aufwand</span><select id="ais-effort">${options(EFFORT, st.aufwand || 'medium')}</select></label>
+        <label class="field wide"><span>Modell für Cleo (Fragen zur Bedienung)</span><select id="ais-model-help">${options(Object.entries(MODEL_INFO), st.modellHilfe || 'claude-haiku-5-5')}</select></label>
         <label class="field"><span>Anfragen je Person und Tag</span><input type="number" id="ais-lp" min="1" max="2000" value="${esc(st.limitPerson || 150)}"></label>
         <label class="field"><span>Anfragen gesamt je Tag</span><input type="number" id="ais-lg" min="1" max="20000" value="${esc(st.limitGesamt || 1500)}"></label>
         <label class="check"><input type="checkbox" id="ais-on" ${st.aktiv !== false ? 'checked' : ''}><span>eingeschaltet</span></label>
@@ -234,6 +258,43 @@ function settingsModal() {
   })
 }
 registerModal('ai-settings', settingsModal)
+
+// ---------------------------------------------------------------- Zu erledigen: KI einmal einrichten
+
+// Nur mit SharePoint (Betrieb) und nur für Vollzugriff (ki.php meldet es): solange kein Schlüssel eingetragen ist,
+// erinnert „Zu erledigen“ daran. Der Stand wird höchstens alle 10 Minuten nachgesehen.
+const SETUP = { st: null, at: 0, pending: false }
+function setupStatus() {
+  if (app.config?.assistant === false || app.config?.storage !== 'sharepoint') return null
+  if (!SETUP.pending && Date.now() - SETUP.at > 600e3) {
+    SETUP.pending = true
+    import('../ai/agent.js')
+      .then((m) => m.kiRequest('status'))
+      .then(
+        (st) => (SETUP.st = st),
+        () => (SETUP.st = null),
+      )
+      .finally(() => {
+        SETUP.at = Date.now()
+        SETUP.pending = false
+        invalidateTodo()
+        refreshBell()
+      })
+  }
+  return SETUP.st
+}
+
+registerTodo({
+  id: 'ki-einrichten',
+  module: null, // für jede Rolle gefragt, aber nur Vollzugriff bekommt den Punkt (ki.php: vollzugriff)
+  title: 'KI einrichten (einmalig)',
+  compute: () => {
+    const st = setupStatus()
+    return st?.vollzugriff && !st.eingerichtet ? [{ id: 'ki-einrichten' }] : []
+  },
+  render: () =>
+    '<div class="todo-item"><span class="flag warning">!</span><div class="todo-text"><strong>KI-Assistent noch nicht eingerichtet</strong><br><span class="muted">Einmal den API-Schlüssel von Anthropic eintragen – dann helfen der Assistent, Cleo und die KI-Knöpfe in allen Bereichen dauerhaft, auch nach jedem neuen Paket.</span></div><button class="btn small" data-action="ai-settings">Einrichten</button></div>',
+})
 
 // ---------------------------------------------------------------- Aktionen
 
@@ -254,7 +315,8 @@ registerActions({
     }
   },
   'ai-starter': (el) => {
-    const x = STARTERS[Number(el.dataset.i)]
+    const x = startersFor(app.ui.view)[Number(el.dataset.i)]
+    if (!x) return
     if (!x.endsWith(' ') && !x.startsWith(' ')) return send(x)
     renderModal()
     const ta = document.getElementById('ai-text')
@@ -276,12 +338,21 @@ registerActions({
     renderModal()
   },
   'ai-mic': () => listen(),
-  'ai-settings': () => openModal({ type: 'ai-settings' }),
+  'ai-settings': async () => {
+    if (!ai().status) await loadStatus()
+    openModal({ type: 'ai-settings' })
+  },
   'ai-settings-save': async () => {
     try {
       const { kiRequest } = await import('../ai/agent.js')
-      ai().status = await kiRequest('einrichten', { schluessel: val('ais-key').trim(), modell: val('ais-model'), aufwand: val('ais-effort'), limitPerson: Number(val('ais-lp')), limitGesamt: Number(val('ais-lg')), aktiv: document.getElementById('ais-on')?.checked })
+      ai().status = await kiRequest('einrichten', { schluessel: val('ais-key').trim(), modell: val('ais-model'), modellHilfe: val('ais-model-help'), aufwand: val('ais-effort'), limitPerson: Number(val('ais-lp')), limitGesamt: Number(val('ais-lg')), aktiv: document.getElementById('ais-on')?.checked })
       toast('Gespeichert. Der Assistent ist bereit.')
+      // Cleo, die KI-Knöpfe und „Zu erledigen“ sofort mit dem neuen Stand (nicht erst nach dem nächsten Nachsehen)
+      resetCleoKi()
+      import('./kix.js').then((m) => m.kixReset?.(), () => {})
+      SETUP.at = 0
+      invalidateTodo()
+      refreshBell()
       openModal({ type: 'assistant' })
     } catch (err) {
       toast(`Nicht gespeichert: ${err.message}`)

@@ -14,10 +14,12 @@ export class KixError extends Error {
 }
 
 /** Anfrage senden, Text der Antwort zurück. Wirft KixError mit lesbarer Meldung (Limit, nicht eingerichtet, zu groß …). */
-export async function kiSend(params, { maxTokens = 8000, signal } = {}) {
+export async function kiSend(params, { maxTokens = 8000, signal, purpose = '' } = {}) {
   const { Anthropic } = await import('./sdk.js')
   const token = app.auth ? await app.auth.getToken() : ''
-  const client = new Anthropic({ apiKey: 'ueber-ki-php', baseURL: new URL('ki.php', location.href).href.replace(/\/$/, ''), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 180_000, defaultHeaders: { 'X-Microsoft-Token': token } })
+  // purpose 'hilfe' (Cleo): ki.php nimmt das günstige Modell für die Hilfe, ohne Werkzeuge
+  const headers = { 'X-Microsoft-Token': token, ...(purpose ? { 'X-KI-Zweck': purpose } : {}) }
+  const client = new Anthropic({ apiKey: 'ueber-ki-php', baseURL: new URL('ki.php', location.href).href.replace(/\/$/, ''), dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 180_000, defaultHeaders: headers })
   let res
   try {
     res = await client.beta.messages.create({ model: MODEL, max_tokens: maxTokens, ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }, { signal })

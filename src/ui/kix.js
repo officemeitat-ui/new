@@ -17,6 +17,9 @@ const CONSENT = 'kix-hinweis'
 const off = () => app.config?.assistant === false
 const fresh = () => Date.now() - STATUS.at < STALE
 
+/** Nach dem Einrichten des Assistenten: gleich neu fragen. */
+export const kixReset = () => Object.assign(STATUS, { ok: null, at: 0, pending: null })
+
 /** Ist die KI eingerichtet und eingeschaltet? (gemerkt; „nein“ wird nach 5 Minuten neu gefragt) */
 export function kixCheck() {
   if (off()) return Promise.resolve(false)

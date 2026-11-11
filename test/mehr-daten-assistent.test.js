@@ -25,7 +25,7 @@ const WRITE_TOOLS = ['abwesenheit_eintragen', 'einteilen', 'email_senden', 'mate
 
 test('Assistent: Werkzeugnamen eindeutig und für die API gültig, Beschreibung vorhanden', () => {
   const tools = all()
-  assert.deepEqual(tools.map((t) => t.name), ['abwesenheit_eintragen', 'abwesenheiten_abfragen', 'digitale_mitarbeiter', 'einteilen', 'email_senden', 'kalender_lesen', 'material_anfordern', 'material_bestand', 'objekte_suchen', 'personen_suchen', 'plan_abfragen', 'reklamation_erfassen', 'schluessel_abfragen', 'termin_erstellen', 'vertretung_vorschlagen', 'vertretungen_verteilen', 'zu_erledigen'])
+  assert.deepEqual(tools.map((t) => t.name), ['abwesenheit_eintragen', 'abwesenheiten_abfragen', 'digitale_mitarbeiter', 'einteilen', 'email_senden', 'kalender_lesen', 'material_anfordern', 'material_bestand', 'objekte_suchen', 'personen_suchen', 'plan_abfragen', 'reklamation_erfassen', 'reklamationen_abfragen', 'schluessel_abfragen', 'termin_erstellen', 'vertretung_vorschlagen', 'vertretungen_verteilen', 'zu_erledigen'])
   assert.equal(new Set(tools.map((t) => t.name)).size, tools.length)
   for (const t of tools) {
     assert.match(t.name, /^[a-z][a-z_]{2,63}$/, t.name)
@@ -153,4 +153,44 @@ test('Assistent: gleichnamiges Werkzeug ersetzt das alte statt doppelt aufzutauc
   assert.match(tools.find((t) => t.name === 'zu_erledigen').description, /^Ersatz für den Test/)
   registerAgentTool({ name: 'nur_wenn', modules: '*', when: () => false, description: 'Werkzeug, das gerade nicht verfügbar ist (Bedingung nicht erfüllt).', input_schema: { type: 'object', properties: {} }, run: () => ({}) })
   assert.ok(!all().some((t) => t.name === 'nur_wenn'))
+})
+
+test('Assistent: Reklamationen lesen – nur mit Recht auf Reklamationen; offen, überfällig, je Objekt, ohne zu viel Text', () => {
+  const before = { data: app.data }
+  const today = new Date().toISOString().slice(0, 10)
+  const tage = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10)
+  app.data = {
+    ...(app.data || {}),
+    objects: [{ id: 'o1', name: 'Bürohaus Nord' }, { id: 'o2', name: 'Praxis Süd' }],
+    employees: [],
+    reklamationen: {
+      items: [
+        { id: 'r1', objectId: 'o1', received: `${tage(-10)}T08:00:00Z`, kind: 'Reinigung mangelhaft', text: 'Staub '.repeat(100), due: tage(-2), status: 'offen', measure: 'Nachreinigung', source: 'Kunde (E-Mail)' },
+        { id: 'r2', objectId: 'o2', received: `${tage(-3)}T08:00:00Z`, kind: 'Schaden', text: 'Vase', due: tage(3), status: 'arbeit' },
+        { id: 'r3', objectId: 'o1', received: `${tage(-40)}T08:00:00Z`, kind: 'Verhalten', text: 'erledigt', due: tage(-35), status: 'erledigt', doneAt: tage(-30), result: 'Gespräch geführt' },
+        { id: 'r4', objectId: 'o1', received: `${tage(-400)}T08:00:00Z`, kind: 'Sonstiges', text: 'alt', status: 'erledigt' },
+      ],
+    },
+  }
+  try {
+    withApp({ access: role(['material']), readOnly: false, auth: null }, () => assert.ok(!names().includes('reklamationen_abfragen'), 'ohne Recht auf Reklamationen nicht da'))
+    withApp({ access: role(['reklamationen']), readOnly: false, auth: null }, () => {
+      const tool = availableTools().find((t) => t.name === 'reklamationen_abfragen')
+      assert.ok(tool, 'mit Leserecht da')
+      const offen = tool.run({})
+      assert.equal(offen.anzahl, 2)
+      assert.equal(offen.ueberfaellig, 1)
+      assert.deepEqual(offen.reklamationen.map((r) => r.objekt), ['Praxis Süd', 'Bürohaus Nord'], 'neueste zuerst')
+      assert.equal(offen.reklamationen[1].ueberfaellig, true)
+      assert.equal(offen.reklamationen[0].stand, 'in Arbeit')
+      assert.ok(offen.reklamationen[1].beschreibung.length <= 300, 'Beschreibung gekürzt')
+      const nord = tool.run({ objekt: 'Bürohaus', stand: 'alle' })
+      assert.deepEqual(nord.reklamationen.map((r) => r.art), ['Reinigung mangelhaft', 'Verhalten'], 'ein Objekt, die letzten 90 Tage plus offene')
+      assert.equal(tool.run({ stand: 'erledigt', tage: 1000 }).anzahl, 2)
+      assert.equal(tool.run({ stand: 'erledigt' }).reklamationen[0].ergebnis, 'Gespräch geführt')
+      assert.ok(today)
+    })
+  } finally {
+    app.data = before.data
+  }
 })

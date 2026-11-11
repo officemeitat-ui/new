@@ -25,6 +25,9 @@ if (PHP_SAPI !== 'cli') {
 }
 
 const MODELLE = ['claude-opus-5-5' => 'Claude Opus 5.5', 'claude-sonnet-5-5' => 'Claude Sonnet 5.5', 'claude-haiku-5-5' => 'Claude Haiku 5.5'];
+/** Fragen an Cleo (Hilfe): günstiges Modell als Vorgabe, kurze Antwort. */
+const MODELL_HILFE = 'claude-haiku-5-5';
+const MAX_TOKENS_HILFE = 1500;
 const AUFWAND = ['low', 'medium', 'high'];
 const MAX_TOKENS = 16000;
 const MAX_ANFRAGE = 3 * 1024 * 1024;        // ohne Dateien
@@ -259,6 +262,7 @@ function status(array $cfg, array $person): array
         'modell' => $e['modell'] ?? 'claude-opus-5-5',
         'modellName' => MODELLE[$e['modell'] ?? 'claude-opus-5-5'] ?? '',
         'aufwand' => $e['aufwand'] ?? 'medium',
+        'modellHilfe' => isset(MODELLE[$e['modellHilfe'] ?? '']) ? $e['modellHilfe'] : MODELL_HILFE,
         'limitPerson' => (int) ($e['limitPerson'] ?? 150),
         'limitGesamt' => (int) ($e['limitGesamt'] ?? 1500),
         'heutePerson' => (int) (($n['tag'] ?? '') === heute() ? ($n['personen'][$person['upn']] ?? 0) : 0),
@@ -305,6 +309,7 @@ if ($aktion === 'einrichten') {
         'schluessel' => $schluessel !== '' ? $schluessel : ($alt['schluessel'] ?? ''),
         'modell' => isset(MODELLE[$d['modell'] ?? '']) ? $d['modell'] : ($alt['modell'] ?? 'claude-opus-5-5'),
         'aufwand' => in_array($d['aufwand'] ?? '', AUFWAND, true) ? $d['aufwand'] : ($alt['aufwand'] ?? 'medium'),
+        'modellHilfe' => isset(MODELLE[$d['modellHilfe'] ?? '']) ? $d['modellHilfe'] : ($alt['modellHilfe'] ?? MODELL_HILFE),
         'limitPerson' => max(1, min(2000, (int) ($d['limitPerson'] ?? $alt['limitPerson'] ?? 150))),
         'limitGesamt' => max(1, min(20000, (int) ($d['limitGesamt'] ?? $alt['limitGesamt'] ?? 1500))),
         'aktiv' => ($d['aktiv'] ?? true) !== false,
@@ -351,11 +356,17 @@ if (!empty($body['stream'])) {
 // Weitergereicht wird die Anfrage als Objekte gelesen: so bleiben leere {} erhalten (Werkzeug ohne Angaben,
 // Eingabe {} im Verlauf, Schema ohne Felder); als Liste gelesen würden sie zu [] und die API lehnte ab.
 $senden = json_decode($roh);
-// Webspace bestimmt Modell, Aufwand und Obergrenze
-$modell = isset(MODELLE[$e['modell'] ?? '']) ? $e['modell'] : 'claude-opus-5-5';
+// Webspace bestimmt Modell, Aufwand und Obergrenze. Fragen an Cleo (Kopf X-KI-Zweck: hilfe) gehen an das günstige
+// Modell für die Hilfe, ohne Werkzeuge und mit kurzer Antwort: Hilfetexte brauchen kein großes Modell.
+$hilfe = (string) ($_SERVER['HTTP_X_KI_ZWECK'] ?? '') === 'hilfe';
+$modell = $hilfe ? (isset(MODELLE[$e['modellHilfe'] ?? '']) ? $e['modellHilfe'] : MODELL_HILFE) : (isset(MODELLE[$e['modell'] ?? '']) ? $e['modell'] : 'claude-opus-5-5');
 $senden->model = $modell;
-$senden->max_tokens = max(1, min(MAX_TOKENS, (int) ($body['max_tokens'] ?? 4096)));
-$senden->output_config = (object) array_merge(is_object($senden->output_config ?? null) ? get_object_vars($senden->output_config) : [], ['effort' => in_array($e['aufwand'] ?? '', AUFWAND, true) ? $e['aufwand'] : 'medium']);
+$senden->max_tokens = max(1, min($hilfe ? MAX_TOKENS_HILFE : MAX_TOKENS, (int) ($body['max_tokens'] ?? 4096)));
+if ($hilfe) {
+    unset($senden->tools, $senden->tool_choice, $senden->thinking, $senden->output_config);
+} else {
+    $senden->output_config = (object) array_merge(is_object($senden->output_config ?? null) ? get_object_vars($senden->output_config) : [], ['effort' => in_array($e['aufwand'] ?? '', AUFWAND, true) ? $e['aufwand'] : 'medium']);
+}
 $betas = array_values(array_filter(array_map('trim', explode(',', (string) ($_SERVER['HTTP_ANTHROPIC_BETA'] ?? ''))), fn ($b) => preg_match(BETAS_ERLAUBT, $b)));
 // Haiku hat keine Ausweich-Modelle
 if (str_starts_with($modell, 'claude-haiku')) {
