@@ -2,13 +2,13 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 408 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 409 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (42)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (29)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (30)
 - [Objekte & Kunden](#objekte-kunden) (103)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
@@ -990,6 +990,20 @@ Der Müllplan zeigt je Objekt die Abfuhr der Woche und wer die Tonnen raus- und 
 
 > Tipp: Fällt die Abfuhr auf einen Feiertag, rückt sie auf den nächsten Werktag.
 > Tipp: Im Wochenzettel steht z. B. „Müll rausstellen: Restmüll (+10 min)“.
+
+### Müllplan je Person als PDF (zum Ausdrucken)
+
+*In der App: Müllplan*
+
+Im Müllplan macht „Müllpläne je Person (PDF)“ eine Seite je Person – wie die bisherigen Word-Pläne: Orte, Datum der Woche, je Tag was raus und was zurück kommt, z. B. „Biomüll raus – Davisstraße 7, 9, 11“. Grundlage sind die eingeteilten Müll-Gänge der Woche.
+
+1. „Müllplan“ unter „Einsätze & Zeiten“ öffnen und die Woche wählen.
+2. Offene Gänge mit „Müll-Gänge einteilen“ besetzen.
+3. „Müllpläne je Person (PDF)“ – das PDF hat eine Seite je Person.
+
+> Tipp: Die Straßen kommen aus der Adresse der Objekte („Straße Nummer, Postleitzahl Ort“); ohne Adresse steht der Kurzname des Objekts.
+> Tipp: Altpapier steht als „Papier“, Leichtverpackung als „Plastik“.
+> Tipp: Gänge ohne Person kommen auf keinen Plan: die Meldung nennt, wie viele noch offen sind.
 
 ### Abfuhrtage und Abfuhrkalender eintragen
 

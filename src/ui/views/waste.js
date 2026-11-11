@@ -2,10 +2,13 @@
 // reinstellt (mit einem Einsatz im Objekt oder als eigener Gang).
 
 import { formatDate } from '../../core/dates.js'
+import { personWastePlan } from '../../core/muellplan.js'
 import { autoPlan } from '../../core/scheduler.js'
 import { streamText, wasteSettings } from '../../core/waste.js'
+import { wastePlanDocument, wastePlanPdfName } from '../../export/muellplan-pdf.js'
 import { addLog, app, empName, persist, recordUndo, registerActions, registerView, renderNow, toast } from '../context.js'
-import { esc, ICON } from '../shared.js'
+import { loadLogo, pdfBlob } from '../pdf.js'
+import { download, esc, ICON } from '../shared.js'
 import { regionFilter } from './objects.js'
 
 /** Alle Gänge der Woche: { duty, inst, attached } */
@@ -20,6 +23,19 @@ export function weekDuties(c) {
 }
 
 const openDuties = (c, list) => list.filter((d) => !d.attached && d.inst.status !== 'cancelled' && c.state.count(d.inst.key) < d.inst.staff)
+
+/** Müll-Gänge der Woche je Person (nur eingeteilte, nicht abgesagte): Map employeeId → [Gang] */
+export function dutiesByPerson(c, list = weekDuties(c)) {
+  const out = new Map()
+  for (const { duty, inst } of list) {
+    if (inst.status === 'cancelled') continue
+    for (const a of c.state.assigned(inst.key)) {
+      if (!out.has(a.employeeId)) out.set(a.employeeId, [])
+      out.get(a.employeeId).push(duty)
+    }
+  }
+  return out
+}
 
 function dutyRow(c, { duty, inst, attached }) {
   const names = c.state.assigned(inst.key).map((a) => empName(a.employeeId))
@@ -60,13 +76,27 @@ function wasteView(c) {
     .join('')
   const attached = all.filter((d) => d.attached).length
   return `<div class="section-head"><div><h2>${ICON.trash} Müllplan <span class="muted">(${all.length} Gänge diese Woche)</span></h2><p>Abfuhrtage je Objekt und wer die Tonnen raus- und reinstellt. ${attached} Gänge laufen mit einem Einsatz mit, ${all.length - attached} als eigener Gang.${open.length ? ` <span class="err-text">${open.length} noch offen.</span>` : ''}</p></div>
-    <div class="actions edit-only"><button class="btn primary" data-action="waste-plan" ${open.length ? '' : 'disabled'}>Müll-Gänge einteilen</button></div></div>
+    <div class="actions"><button class="btn" data-action="waste-person-pdf" ${all.length ? '' : 'disabled'} title="Eine Seite je Person: Tage, Orte, was raus und was zurück kommt">${ICON.download || ''} Müllpläne je Person (PDF)</button><span class="edit-only"><button class="btn primary" data-action="waste-plan" ${open.length ? '' : 'disabled'}>Müll-Gänge einteilen</button></span></div></div>
     ${regionFilter()}
     ${withPlan.length ? `<div class="objects">${cards}</div>` : '<p class="note">Noch kein Objekt mit Müllplan. Unter „Objekte & Leistungen“ beim Objekt die Abfuhrtage eintragen oder den Abfuhrkalender einlesen.</p>'}
     ${without.length ? `<details class="waste-without-box"><summary>${without.length} ${without.length === 1 ? 'Objekt' : 'Objekte'} ohne Müllplan</summary><div class="waste-without">${without.map((o) => `<button class="btn small" data-action="obj-edit" data-id="${esc(o.id)}" data-focus="waste-form" ${app.readOnly ? 'disabled' : ''}>${esc(o.short || o.name)}</button>`).join('')}</div></details>` : ''}`
 }
 
 registerView({ id: 'waste', order: 47, label: 'Müllplan', group: 'plan', render: wasteView })
+
+registerActions({
+  'waste-person-pdf': async () => {
+    const c = app.cur
+    const byPerson = dutiesByPerson(c)
+    if (!byPerson.size) return toast('Diese Woche ist noch kein Müll-Gang einer Person zugeteilt: zuerst „Müll-Gänge einteilen“.')
+    const sheets = [...byPerson]
+      .map(([id, duties]) => ({ name: empName(id), plan: personWastePlan(duties, app.data.objects, c.monday) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+    const open = openDuties(c, weekDuties(c)).length
+    download(wastePlanPdfName(c.monday), await pdfBlob(wastePlanDocument({ sheets, monday: c.monday, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null) })))
+    toast(`${sheets.length} ${sheets.length === 1 ? 'Müllplan' : 'Müllpläne'} erstellt${open ? ` · ${open} ${open === 1 ? 'Gang ist' : 'Gänge sind'} noch ohne Person` : ''}.`)
+  },
+})
 
 registerActions(
   {
