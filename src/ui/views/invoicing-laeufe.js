@@ -190,6 +190,12 @@ async function printBatch(items, { title, fileName, makeDef, archiveName, onEach
 
 // ---------------------------------------------------------------- Mahnlauf
 
+/** Nach der Mahnsperre zur selben Auswahl und Erinnerungsstufe zurückkehren. */
+function returnFromBlock(m) {
+  if (m.back) openModal({ ...m.backState, type: m.back })
+  else closeModal()
+}
+
 /**
  * Zu mahnende Rechnungen des Dialogs. m.only === 'erinnerung': nur die freundliche erste Stufe per E-Mail
  * (Zahlungserinnerung, aus „Zu erledigen“ bzw. vom digitalen Mitarbeiter zur Freigabe angeboten).
@@ -712,16 +718,16 @@ registerActions(
       toast(`${mailed ? `${plural(mailed, 'Mahnung', 'Mahnungen')} per E-Mail gesendet` : ''}${mailed && post.length ? ', ' : ''}${post.length ? `${plural(post.length, 'Mahnung', 'Mahnungen')} im Sammel-PDF zum Drucken` : ''}.`)
     },
 
-    'fak-block-open': (el) => openModal({ type: 'fak-block', doc: el.dataset.doc || '', customer: el.dataset.customer || '', back: el.dataset.back || '' }),
+    'fak-block-open': (el) => {
+      const back = el.dataset.back || ''
+      const backState = back && app.ui.modal?.type === back ? { ...app.ui.modal } : null
+      openModal({ type: 'fak-block', doc: el.dataset.doc || '', customer: el.dataset.customer || '', back, backState })
+    },
     'fak-block-scope': (el) => {
       app.ui.modal.scope = el.value
       renderModal()
     },
-    'fak-block-back': () => {
-      const back = app.ui.modal?.back
-      if (back) openModal({ type: back })
-      else closeModal()
-    },
+    'fak-block-back': () => returnFromBlock(app.ui.modal),
     'fak-block-save': () => {
       const m = app.ui.modal
       const x = m.doc ? docOf(m.doc) : null
@@ -738,8 +744,7 @@ registerActions(
       }
       persist()
       toast(`Mahnsperre gespeichert${m.scope === 'kunde' ? ` für ${customerName(cu)}` : ''}.`)
-      if (m.back) openModal({ type: m.back })
-      else closeModal()
+      returnFromBlock(m)
       renderNow()
     },
     'fak-block-clear': () => {
@@ -753,8 +758,7 @@ registerActions(
       }
       persist()
       toast('Mahnsperre aufgehoben.')
-      if (m.back) openModal({ type: m.back })
-      else closeModal()
+      returnFromBlock(m)
       renderNow()
     },
 

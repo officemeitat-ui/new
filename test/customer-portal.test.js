@@ -11,7 +11,7 @@ import { winterLogDocument } from '../src/export/winter-pdf.js'
 import { dataRights, MODULE_DOCS } from '../src/storage/data-service.js'
 import { resolveAccess } from '../src/core/access.js'
 
-const PHP = readFileSync(new URL('../kunden.php', import.meta.url), 'utf8')
+const PHP = readFileSync(new URL('../kunden.php', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 test('Kundenbereich: Link enthält nur den Code, Kennung des Links', () => {
   assert.equal(customerLink('https://app.cleanos.at', 'Abc123xyz'), 'https://app.cleanos.at/kunden.php?k=Abc123xyz')

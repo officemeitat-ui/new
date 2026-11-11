@@ -2,8 +2,9 @@ name: Tests und Deployment
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/automated-shift-scheduling-cleaning-1h02ms]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:

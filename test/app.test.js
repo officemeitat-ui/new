@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+import { fileURLToPath } from 'node:url'
 
 import { manifestFor, serviceWorkerSource } from '../scripts/pwa.js'
 
@@ -36,7 +37,7 @@ test('Quelltext: alle Module der Oberfläche sind gültiges JavaScript', async (
   const { readdirSync } = await import('node:fs')
   const { join } = await import('node:path')
   const { execFileSync } = await import('node:child_process')
-  const root = new URL('../src', import.meta.url).pathname
+  const root = fileURLToPath(new URL('../src', import.meta.url))
   const files = []
   const walk = (dir) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
-const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
+const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 const hasPhp = (() => {
   try {
     execFileSync('php', ['-v'], { stdio: 'ignore' })
