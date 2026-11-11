@@ -229,3 +229,23 @@ test('Dateien aus dem Browser-Modus: Sicherung „Alles sichern“, Einzeldateie
   assert.deepEqual([b.standorte.length, b.kunden.length, b.touren.length], [6, 4, 2])
   assert.equal(b.touren.find((x) => x.id === 'T-beispiel-a1').bemerkung, 'neuer', 'jüngere Fassung derselben Tour')
 })
+
+test('Vorbereitete Liste (ohne Touren): letzter Wechsel aus dem Feld letzterWechsel, sonst ab heute; Größe in Metern', () => {
+  const tool = {
+    standorte: [
+      { id: 'LISTE-A', gebiet: 'Liste Süd', kunde: 'Hausverwaltung Beispiel GmbH', strasse: 'Probeweg 3', plz: '5400', ort: 'Hallein', position: 'Eingänge Probeweg 3, 5', matten: [{ anzahl: 2, farbe: 'grau', groesse: '0,85x 1,50 cm', eigentum: 'wir' }], intervallWochen: 4, aktiv: true, quelle: 'Liste', letzterWechsel: '2026-11-02' },
+      { id: 'LISTE-B', gebiet: 'Liste Süd', kunde: 'Hausverwaltung Beispiel GmbH', strasse: 'Probeweg 7', plz: '5400', ort: 'Hallein', matten: [{ anzahl: 1, farbe: 'grau', groesse: '85x150' }], intervallWochen: 2, aktiv: true, quelle: 'Liste', letzterWechsel: 'bald' },
+    ],
+    kunden: [],
+    touren: [],
+  }
+  const { plan, res } = run(start(), {}, tool)
+  assert.equal(plan.counts.neu, 2)
+  const A = res.doc.placements.find((p) => p.legacyId === 'LISTE-A')
+  const B = res.doc.placements.find((p) => p.legacyId === 'LISTE-B')
+  assert.deepEqual([A.startDate, A.lastExchange, A.intervalDays], ['2026-11-02', { date: '2026-11-02', tourId: '', source: 'liste' }, 28])
+  assert.ok(A.mats[0].articleId, 'Mattentyp 85 × 150 grau auch aus „0,85x 1,50 cm“')
+  assert.equal(B.startDate, NOW.slice(0, 10), 'ungültiges Datum: ab heute')
+  assert.equal(B.lastExchange, undefined)
+  assert.equal(B.intervalDays, 14)
+})

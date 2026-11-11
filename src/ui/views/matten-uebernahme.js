@@ -80,10 +80,13 @@ const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="l
 function intro() {
   const store = sp()
   const st = S()
+  const pick = (label) => `<label class="btn"><input type="file" accept="application/json,.json" multiple hidden data-change="mw-imp-files">${ICON.upload} ${label}</label>`
   const how = store
-    ? `<p><button class="btn primary" data-action="mw-imp-read" ${st.busy ? 'disabled' : ''}>${ICON.download} Sichern und Daten des Werkzeugs lesen</button>${st.busy ? ` <span class="muted">${esc(st.busy)}</span>` : ''}</p>`
+    ? `<p><button class="btn primary" data-action="mw-imp-read" ${st.busy ? 'disabled' : ''}>${ICON.download} Sichern und Daten des Werkzeugs lesen</button>${st.busy ? ` <span class="muted">${esc(st.busy)}</span>` : ''}</p>
+       <p class="muted">Oder eine vorbereitete Datei mit Liegeplätzen wählen (z. B. aus euren bisherigen Listen umgewandelt, Format wie Standorte.json). Sie wird nur gelesen; danach dieselbe Vorschau.</p>
+       ${pick('Datei mit Liegeplätzen wählen')}`
     : `<p class="muted">Ohne SharePoint (Browser-Modus): die Dateien des Werkzeugs wählen – Standorte.json, Kunden.json und Tour-Dateien – oder die Sicherung aus dem Werkzeug („Alles sichern“).</p>
-       <label class="btn"><input type="file" accept="application/json,.json" multiple hidden data-change="mw-imp-files">${ICON.upload} Dateien des Werkzeugs wählen</label>`
+       ${pick('Dateien des Werkzeugs wählen')}`
   return `<section class="mw-imp">
     <h3>Übernahme aus dem Werkzeug Mattenwechsel</h3>
     <p>Übernimmt die Liegeplätze des Werkzeugs (Datei Standorte.json) einmalig in dieses Modul: Kunden der Fakturierung zuordnen, Liegeplätze je Kunde und Adresse zu Objekten zusammenfassen, Matten den Mattentypen zuordnen und den letzten Wechsel aus allen Touren in SharePoint holen.</p>
@@ -104,8 +107,12 @@ export function importTab() {
   const tours = st.tool.touren || []
   const dates = tours.map((t) => t.datum).filter(Boolean).sort()
   const b = st.backup
-  const source = `<div class="banner"><p><strong>Gelesen:</strong> ${plural(plan.counts.standorte, 'Liegeplatz', 'Liegeplätze')} (Standorte.json), ${plural(toolList(st.tool.kunden, 'kunden').length, 'Kunde', 'Kunden')} (Kunden.json), ${plural(tours.length, 'Tour', 'Touren')}${dates.length ? ` vom ${short(dates[0])} bis ${short(dates.at(-1))}` : ''} mit ${plural(plan.counts.wechsel, 'gewechseltem Liegeplatz', 'gewechselten Liegeplätzen')}.${st.files?.broken?.length ? ` ${plural(st.files.broken.length, 'Tour-Datei', 'Tour-Dateien')} nicht lesbar.` : ''}<br>
-      ${b ? `<strong>Sicherung:</strong> <code>${esc(b.folder)}/</code>${b.written.length ? ` – neu: ${esc(b.written.join(', '))}` : ''}${b.existed.length ? ` – von heute schon vorhanden: ${esc(b.existed.join(', '))}` : ''}${b.missing.length ? ` – nicht gefunden: ${esc(b.missing.join(', '))}` : ''}` : '<strong>Browser-Modus:</strong> keine Sicherung nötig, die gewählten Dateien bleiben unverändert.'}</p>
+  const fromList = !b && st.files?.names?.length && !tours.length && !toolList(st.tool.kunden, 'kunden').length
+  const read = fromList
+    ? `${plural(plan.counts.standorte, 'Liegeplatz', 'Liegeplätze')} aus der Datei, ohne Touren (noch kein Wechsel bekannt: fällig ab heute).`
+    : `${plural(plan.counts.standorte, 'Liegeplatz', 'Liegeplätze')} (Standorte.json), ${plural(toolList(st.tool.kunden, 'kunden').length, 'Kunde', 'Kunden')} (Kunden.json), ${plural(tours.length, 'Tour', 'Touren')}${dates.length ? ` vom ${short(dates[0])} bis ${short(dates.at(-1))}` : ''} mit ${plural(plan.counts.wechsel, 'gewechseltem Liegeplatz', 'gewechselten Liegeplätzen')}.`
+  const source = `<div class="banner"><p><strong>Gelesen:</strong> ${read}${st.files?.broken?.length ? ` ${plural(st.files.broken.length, 'Tour-Datei', 'Tour-Dateien')} nicht lesbar.` : ''}<br>
+      ${b ? `<strong>Sicherung:</strong> <code>${esc(b.folder)}/</code>${b.written.length ? ` – neu: ${esc(b.written.join(', '))}` : ''}${b.existed.length ? ` – von heute schon vorhanden: ${esc(b.existed.join(', '))}` : ''}${b.missing.length ? ` – nicht gefunden: ${esc(b.missing.join(', '))}` : ''}` : st.files?.names?.length ? `<strong>Aus Datei:</strong> ${esc(st.files.names.join(', '))} – wird nur gelesen, keine Sicherung nötig.` : '<strong>Browser-Modus:</strong> keine Sicherung nötig, die gewählten Dateien bleiben unverändert.'}</p>
       <button class="btn small" data-action="mw-imp-reset">Neu lesen</button></div>`
   const result = st.result ? `<div class="banner welcome"><p><strong>Übernommen:</strong> ${plural(st.result.placements, 'Liegeplatz', 'Liegeplätze')} neu, ${plural(st.result.updated, 'Liegeplatz', 'Liegeplätze')} aktualisiert, ${plural(st.result.customers, 'Kunde', 'Kunden')} und ${plural(st.result.objects, 'Objekt', 'Objekte')} angelegt, ${plural(st.result.areas, 'Gebiet', 'Gebiete')}.</p></div>` : ''
   const c = plan.counts
@@ -210,7 +217,7 @@ registerActions(
       }
       const tool = toolDataFromFiles(read)
       if (!tool.standorte.length) return toast('Keine Liegeplätze gefunden: bitte Standorte.json oder die Sicherung des Werkzeugs („Alles sichern“) wählen.')
-      Object.assign(S(), { tool, files: { tours: tool.touren.length, broken: [] }, backup: null, result: null })
+      Object.assign(S(), { tool, files: { tours: tool.touren.length, broken: [], names: files.map((f) => f.name) }, backup: null, result: null })
       renderNow()
     },
     'mw-imp-reset': () => {

@@ -2226,6 +2226,7 @@ Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werk
 3. Kunden, Objekte und Mattentypen prüfen; fehlende Kunden nur bei Bedarf „neu anlegen“.
 4. „Übernehmen“ klicken und noch einmal bestätigen.
 
+> Tipp: Statt des Werkzeugs geht auch eine vorbereitete Datei mit Liegeplätzen (z. B. aus euren bisherigen Listen umgewandelt): „Datei mit Liegeplätzen wählen“, dann dieselbe Vorschau.
 > Tipp: Ein zweiter Lauf ändert nichts; er trägt nur nach, was neu ist (jüngere Touren, inzwischen angelegte Mattentypen, neue Liegeplätze).
 > Tipp: Die Dateien des Werkzeugs werden nie geändert; alte Touren und Lieferscheine werden nicht verrechnet.
 > Tipp: Übernommene Liegeplätze nicht löschen, sondern auf inaktiv setzen.

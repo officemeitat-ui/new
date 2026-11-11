@@ -5,7 +5,8 @@
 // Quellen (werden nur gelesen, nie geschrieben):
 //   Mattenwechsel/Stammdaten/Standorte.json   Liegeplätze des Werkzeugs („Standorte“, Array):
 //       { id 'L-0001', gebiet, kunde, kundeId, strasse, plz, ort, position, matten [{ anzahl, farbe, groesse, eigentum }],
-//         intervallWochen, aktiv, hinweis, quelle, pruefen, pruefGrund, lat, lon }
+//         intervallWochen, aktiv, hinweis, quelle, pruefen, pruefGrund, lat, lon,
+//         letzterWechsel 'JJJJ-MM-TT' (nur vorbereitete Listen ohne Touren) }
 //   Stammdaten/Kunden.json                     Kundenliste des Werkzeugs (Array oder { kunden }):
 //       { id 'K-0001', nr, name, strasse, ort ('PLZ Ort'), mails [], ansprech, telefon, notiz, aktiv, neuerKunde }
 //   Mattenwechsel/Touren/<Jahr>/<Ordner>/<Datum>_<TourId>.json   Touren mit Halten { lid, status: 'gewechselt' … }
@@ -296,7 +297,9 @@ export function planImport({ tool = {}, customers = [], objects = [], articles =
   const rows = standorte.map((s) => {
     const ck = toolCustomerKey(s, kunden)
     const existing = byLegacy.get(s.id) || null
-    const lastEx = last[s.id] || null
+    // letzter Wechsel aus den Touren; sonst aus einer vorbereiteten Liste (Feld letzterWechsel, JJJJ-MM-TT)
+    const listed = /^\d{4}-\d{2}-\d{2}$/.test(text(s.letzterWechsel)) ? { date: text(s.letzterWechsel), tourId: '' } : null
+    const lastEx = last[s.id] || listed
     const base = { lid: s.id, standort: s, customerKey: ck, objectKey: `${ck}#${addressKey(s)}`, last: lastEx, existing }
     if (existing) {
       const newer = lastEx && (!existing.lastExchange?.date || lastEx.date > existing.lastExchange.date)
@@ -429,7 +432,7 @@ export function applyImport(plan, { doc = {}, customers = [], objects = [], arti
     if (r.action === 'aktualisieren') {
       const p = out.doc.placements.find((x) => x.id === r.existing.id)
       if (!p) continue
-      if (r.newer) p.lastExchange = { date: r.last.date, tourId: r.last.tourId, source: 'werkzeug' }
+      if (r.newer) p.lastExchange = { date: r.last.date, tourId: r.last.tourId, source: r.last.tourId ? 'werkzeug' : 'liste' }
       if (r.fill)
         p.mats = (p.mats || []).map((m) => {
           const a = !m.articleId && m.legacy && artById.get(matChoice.get(matKey(m.legacy)))
@@ -470,7 +473,7 @@ export function applyImport(plan, { doc = {}, customers = [], objects = [], arti
       pauses: [],
       areaId: area?.id || '',
       ...coords,
-      ...(r.last ? { lastExchange: { date: r.last.date, tourId: r.last.tourId, source: 'werkzeug' } } : {}),
+      ...(r.last ? { lastExchange: { date: r.last.date, tourId: r.last.tourId, source: r.last.tourId ? 'werkzeug' : 'liste' } } : {}),
       ...(reasons.length ? { check: { reason: reasons.join('; ') } } : {}),
       source: { system: 'mattenwechsel', quelle: text(s.quelle) },
       ...stamp,
