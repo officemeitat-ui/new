@@ -294,14 +294,26 @@ function ask(text) {
 /** Knopf der Aktion in der Ansicht kurz hervorheben (Cleo „zeigt“ darauf). */
 function spotlight(t) {
   const sel = t.action?.action ? `[data-action="${t.action.action}"]` : ''
-  setTimeout(() => {
-    const el = sel && [...document.querySelectorAll(`#app ${sel}`)].find((x) => x.offsetParent)
+  // Die Ansicht kann noch laden (Bereiche werden erst bei Bedarf geholt): bis zu 3 s nach der Stelle suchen
+  let tries = 0
+  const find = () => {
+    // der Knopf selbst oder, steckt er in einem zugeklappten Menü, der Knopf dieses Menüs
+    const all = sel ? [...document.querySelectorAll(`#app ${sel}`)] : []
+    const el = all.find((x) => x.offsetParent) || all.map((x) => x.closest('details')?.querySelector(':scope > summary')).find((x) => x?.offsetParent)
     const target = el || document.querySelector('#app main h2, #app main .section-head')
-    if (!target) return
+    if (!target || (sel && !el && tries < 2)) {
+      if (tries++ < 25) setTimeout(find, 120)
+      else if (target) mark(target)
+      return
+    }
+    mark(target)
+  }
+  const mark = (target) => {
     target.scrollIntoView?.({ block: 'center', behavior: calm() ? 'auto' : 'smooth' })
     target.classList.add('cleo-spot')
     setTimeout(() => target.classList.remove('cleo-spot'), 2600)
-  }, 120)
+  }
+  setTimeout(find, 120)
 }
 
 const go = (view) => {
