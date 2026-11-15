@@ -700,3 +700,19 @@ test('Rechte: Kundenverträge wie die Daueraufträge – Buchhaltung bearbeitet,
   assert.ok(dataRights(lesen).read(FAK) && !dataRights(lesen).write(FAK))
   assert.deepEqual(contractRights(null), { view: true, edit: true })
 })
+
+test('Anmeldung: gescheiterte Rückkehr von Microsoft einmal still neu, Ablehnungen erklären', async () => {
+  const { redirectFailure, signInProblem } = await import('../src/auth/msal.js')
+  const cache = { errorCode: 'no_token_request_cache_error', message: 'no_token_request_cache_error: No cached authorization code request' }
+  assert.equal(redirectFailure(cache, false), 'nochmal')
+  assert.equal(redirectFailure(cache, true), 'fehler', 'zweimal hintereinander: Meldung statt Schleife')
+  assert.equal(redirectFailure({ errorCode: 'invalid_grant', errorMessage: 'AADSTS70008: The provided authorization code has expired' }), 'nochmal')
+  const blocked = { errorCode: 'access_denied', errorMessage: 'AADSTS50105: Your administrator has configured the application to block users unless they are specifically granted access.' }
+  assert.equal(redirectFailure(blocked), 'abgelehnt')
+  assert.match(signInProblem(blocked), /nicht freigeschaltet.*Zuweisung erforderlich.*\(AADSTS50105\)/)
+  assert.equal(redirectFailure({ errorCode: 'access_denied', message: 'user cancelled' }), 'abgelehnt')
+  assert.match(signInProblem({ errorCode: 'access_denied' }), /abgebrochen oder von Microsoft abgelehnt/)
+  assert.match(signInProblem(cache), /zweimal hintereinander.*\(no_token_request_cache_error\)/)
+  assert.match(signInProblem({ errorMessage: 'AADSTS70008: expired' }), /\(AADSTS70008\)/)
+  assert.equal(redirectFailure(undefined), 'nochmal')
+})

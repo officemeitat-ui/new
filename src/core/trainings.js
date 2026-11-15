@@ -8,6 +8,7 @@
 //     sessions: [{ id, typeId, date, topic, trainer, place, participants: [empId], by, at }],
 //     requests: [{ id, empId, typeId, date, via: 'whatsapp' | 'vermerk', by, at }] }   Aufforderungen („bitte nachholen“)
 //   link (je Art, optional): Adresse zum Sicherheitsvideo oder zu den Unterlagen, steht in der Aufforderung
+//   content (je Art, optional): Standard-Inhalt der Unterweisung, z. B. der Text des bisherigen Sicherheitsblatts
 //   who: 'alle' (Pflicht für alle) | 'optional' (nur wer einen Eintrag hat) | 'skill:Führerschein' (Pflicht mit dieser Qualifikation)
 //   months: Gültigkeit ab dem Datum (0 = kein Ablauf bzw. „gültig bis“ von Hand, z. B. Aufenthaltstitel)
 //   blocking: abgelaufen = Fehler im Plan (darf nicht arbeiten), sonst Warnung (nur bei passender Qualifikation)

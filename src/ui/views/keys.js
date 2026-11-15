@@ -4,6 +4,7 @@
 // (Rechenkern: core/keys.js). Die Prüfregel „Schlüsselübergabe nötig“ im Plan liest dieses Buch.
 
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
+import { fileSafe } from '../../core/filename.js'
 import { effectiveKeys, emptyKeys, giveBack, handOver, handoversNeeded, historyText, importFromObjects, isActive, KEY_KINDS, KEY_STATUS, keysFromImport, keysOf, keyWarnings, markFound, markLost, objectKeys, parseKeyTable, returnToCustomer } from '../../core/keys.js'
 import { toCSV } from '../../core/reports.js'
 import { lossDocument, personListDocument, receiptDocument, receiptPdfName } from '../../export/key-pdf.js'
@@ -12,6 +13,7 @@ import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
+import { sendFileWhatsApp } from '../whatsapp.js'
 
 const MODULE = 'schluessel'
 const ICON_KEY = '<circle cx="8" cy="15" r="4.5"/><path d="m11.2 11.8 9.3-9.3M17 6l3 3M14.5 8.5l2 2"/>'
@@ -125,7 +127,7 @@ function personTable() {
       const e = app.data.employees.find((x) => x.id === empId)
       return `<tr><td><strong>${esc(empName(empId))}</strong>${e?.exitDate ? ` <span class="pill ${e.exitDate < todayISO() ? 'error' : 'warning'}">Austritt ${formatDate(e.exitDate)}</span>` : ''}</td><td class="num">${list.length}</td>
         <td>${list.map((k) => `${esc(objName(k.objectId))}: ${esc(k.label)}${k.no ? ` (${esc(k.no)})` : ''}`).join('<br>')}</td>
-        <td class="actions-cell"><button class="btn small" data-action="keys-person-pdf" data-emp="${esc(empId)}">${ICON.download} Liste</button>${ed ? ` <button class="btn small" data-action="key-move-open" data-mode="rueckgabe" data-emp="${esc(empId)}">Rückgabe</button>` : ''}</td></tr>`
+        <td class="actions-cell"><button class="btn small" data-action="keys-person-pdf" data-emp="${esc(empId)}">${ICON.download} Liste</button> <button class="btn small" data-action="keys-person-wa" data-emp="${esc(empId)}" title="Schlüsselliste als PDF per WhatsApp an die Person">${ICON.chat} WhatsApp</button>${ed ? ` <button class="btn small" data-action="key-move-open" data-mode="rueckgabe" data-emp="${esc(empId)}">Rückgabe</button>` : ''}</td></tr>`
     })
     .join('')
   return rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th class="num">Schlüssel</th><th>welche</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Niemand hat gerade einen Schlüssel: alle im Büro.</p>'
@@ -231,6 +233,11 @@ function readPaste() {
   if (text !== m.text) m.result = null
   m.text = text
   return m
+}
+const personListName = (empId) => `Schluessel_${fileSafe(empName(empId))}_${todayISO()}.pdf`
+async function personListBlob(empId) {
+  const rows = keysOf(book().keys, empId).map((key) => ({ key, objectName: objName(key.objectId) }))
+  return pdfBlob(personListDocument({ person: empName(empId), rows, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null) }))
 }
 const parsePaste = (text) => parseKeyTable(text, { objects: app.data.objects, employees: activeEmployees(), book: book().keys })
 
@@ -373,8 +380,19 @@ registerActions({
   },
   'keys-person-pdf': async (el) => {
     const empId = el.dataset.emp
-    const rows = keysOf(book().keys, empId).map((key) => ({ key, objectName: objName(key.objectId) }))
-    download(`Schluessel_${empName(empId).replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g, '-')}_${todayISO()}.pdf`, await pdfBlob(personListDocument({ person: empName(empId), rows, brand: app.config.brand || {}, logo: await loadLogo().catch(() => null) })))
+    download(personListName(empId), await personListBlob(empId))
+  },
+  // Schlüsselliste der Person per WhatsApp (zum Gegenprüfen: „diese Schlüssel hast du“)
+  'keys-person-wa': async (el) => {
+    const empId = el.dataset.emp
+    const emp = app.data.employees.find((e) => e.id === empId)
+    if (!emp) return
+    const n = keysOf(book().keys, empId).length
+    try {
+      await sendFileWhatsApp({ kind: 'schluessel', makeBlob: () => personListBlob(empId), name: personListName(empId), phone: emp.phone || '', title: 'Schlüsselliste', text: `Hallo ${emp.name.split(' ')[0]}, anbei die Liste deiner ${n === 1 ? 'Schlüssel (1 Stück)' : `${n} Schlüssel`} von uns, Stand ${formatDate(todayISO(), { weekday: false, year: true })}. Bitte kurz prüfen und melden, falls etwas nicht stimmt.` })
+    } catch (err) {
+      toast(`WhatsApp fehlgeschlagen: ${err.message}`)
+    }
   },
   'key-loss-pdf': async (el) => {
     const k = keyOf(el.dataset.id)

@@ -603,6 +603,11 @@ if (!inAuthFrame) boot().catch((err) => {
     return showMessage(setupHtml(app.config || {}, err.redirectUri))
   }
   console.error(err)
+  // Anmeldung bei Microsoft gescheitert (nach einem stillen zweiten Versuch) oder von Microsoft abgelehnt
+  if (err.signInFailed) {
+    ACTIONS.reload = () => location.reload()
+    return showMessage(`<h2>Anmeldung bei Microsoft nicht möglich</h2><p>${esc(err.message)}</p><p><button class="btn primary" data-action="reload">Erneut versuchen</button></p>`)
+  }
   // SharePoint verweigert (oft nach „Vererbung beenden“ ohne eigenes Konto/Gruppe): klar sagen, was zu tun ist
   if (err.status === 403 || /access ?denied|accessdenied/i.test(err.message || '')) {
     const sp = app.config?.sharepoint || {}

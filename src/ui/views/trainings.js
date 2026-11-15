@@ -37,6 +37,8 @@ const CLS = { ok: 'ok', bald: 'warning', abgelaufen: 'error', fehlt: 'error', na
 const ASK_STATES = ['abgelaufen', 'fehlt', 'bald']
 const company = () => app.config.brand?.name || ''
 const VIA = { whatsapp: 'per WhatsApp', vermerk: 'vermerkt' }
+/** Vorgeschlagener Inhalt einer Unterweisung: der gemerkte Text der Art, sonst ihr Hinweis. */
+const contentOf = (type) => type?.content || type?.note || ''
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const skillsAll = () => [...new Set([...(app.data.skills || []), ...app.data.employees.flatMap((e) => e.skills || [])])].sort((a, b) => a.localeCompare(b, 'de'))
 
@@ -164,7 +166,7 @@ function sessionDraft() {
     m.date ||= todayISO()
     m.trainer ??= app.user?.name || ''
     m.place ??= ''
-    m.topic ??= typeOf(m.typeId)?.note || ''
+    m.topic ??= contentOf(typeOf(m.typeId))
     // Teilnehmende vorgegeben (z. B. aus dem Arbeitsschutz: noch nicht unterwiesen), sonst wer die Art braucht
     m.participants ??= due(m.typeId)
     m.sign = false
@@ -187,14 +189,14 @@ function readSession() {
   if (!document.getElementById('ts-type')) return m
   const typeId = val('ts-type')
   if (typeId !== m.typeId) {
-    m.topic = typeOf(typeId)?.note || ''
+    m.topic = contentOf(typeOf(typeId))
     m.participants = due(typeId)
     m.typeId = typeId
   } else {
     m.topic = val('ts-topic')
     m.participants = checkedValues('ts-p')
   }
-  Object.assign(m, { date: val('ts-date') || todayISO(), trainer: val('ts-trainer'), place: val('ts-place'), sign: checked('ts-sign'), pdf: checked('ts-pdf') })
+  Object.assign(m, { date: val('ts-date') || todayISO(), trainer: val('ts-trainer'), place: val('ts-place'), sign: checked('ts-sign'), pdf: checked('ts-pdf'), keep: checked('ts-keep') })
   return m
 }
 
@@ -216,7 +218,8 @@ function sessionModal() {
         <label class="field"><span>Datum</span><input type="date" id="ts-date" value="${esc(m.date)}"></label>
         <label class="field"><span>Unterwiesen von</span><input type="text" id="ts-trainer" value="${esc(m.trainer)}"></label>
         <label class="field"><span>Ort</span><input type="text" id="ts-place" value="${esc(m.place)}" placeholder="z. B. Büro, Objekt Wohnanlage Lehen"></label>
-        <label class="field wide"><span>Inhalt</span><textarea id="ts-topic" rows="3">${esc(m.topic)}</textarea></label>
+        <label class="field wide"><span>Inhalt</span><textarea id="ts-topic" rows="3" placeholder="Was unterwiesen wurde oder der Text, den die Teilnehmenden bestätigen (z. B. euer Sicherheitsblatt)">${esc(m.topic)}</textarea></label>
+        <label class="check wide"><input type="checkbox" id="ts-keep" ${m.keep ? 'checked' : ''}><span>Inhalt als Standard für diese Art merken</span></label>
       </div>
       <section><h3>Teilnehmende</h3><p><button class="btn small" data-action="ts-pick" data-v="due">mit Bedarf</button> <button class="btn small" data-action="ts-pick" data-v="all">alle</button> <button class="btn small" data-action="ts-pick" data-v="none">keine</button></p><div class="form-grid tr-people">${list}</div></section>
       <label class="check"><input type="checkbox" id="ts-sign" ${m.sign ? 'checked' : ''} data-change="ts-redraw"><span>Unterschriften hier am Tablet</span></label>
@@ -429,6 +432,11 @@ registerActions(
       if (!m.trainer.trim()) return toast('Bitte eintragen, wer unterwiesen hat.')
       const session = { id: uid('s'), typeId: type.id, date: m.date, topic: m.topic.trim(), trainer: m.trainer.trim(), place: m.place.trim(), participants: [...m.participants], by: by(), at: nowIso() }
       const signatures = m.sign ? Object.fromEntries(m.participants.map((id) => [id, signatureSvg(`tr-sig-${id}`)]).filter(([, svg]) => svg)) : {}
+      // Standard-Inhalt der Art (z. B. der Text des bisherigen Sicherheitsblatts): steht beim nächsten Mal schon da
+      if (m.keep && session.topic) {
+        const own = ownTypes().find((t) => t.id === type.id)
+        if (own) own.content = session.topic
+      }
       doc().sessions.push(session)
       doc().records.push(...sessionRecords(session, type, { newId: () => uid('u'), at: nowIso(), by: by(), signatures }))
       persist()

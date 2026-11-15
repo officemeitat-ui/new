@@ -348,7 +348,7 @@ lazy(BUERO, {
     },
   ],
   modals: 'key-edit key-move key-lost keys-paste',
-  actions: `keys-mode keys-obj keys-all keys-open-object key-edit-open keys-csv keys-person-pdf key-loss-pdf keys-import keys-paste-open kp-check kp-save key-save key-delete
+  actions: `keys-mode keys-obj keys-all keys-open-object key-edit-open keys-csv keys-person-pdf keys-person-wa key-loss-pdf keys-import keys-paste-open kp-check kp-save key-save key-delete
     key-move-open key-move-redraw key-move-save key-lost-open key-lost-save key-found key-customer`,
   hints: true,
   todo: ['schluessel'],

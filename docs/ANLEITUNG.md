@@ -731,6 +731,7 @@ Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan und Planänderu
 > Tipp: Ohne Nummer wählt man den Kontakt oder eine Gruppe selbst in WhatsApp.
 > Tipp: Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir.
 > Tipp: Eine Mitteilung lässt sich so auch in eure WhatsApp-Gruppe stellen.
+> Tipp: Im Schlüsselbuch unter „je Person“ schickt „WhatsApp“ der Person ihre Schlüsselliste als PDF.
 
 ### Korrektur nach dem Veröffentlichen
 
@@ -4626,6 +4627,8 @@ Die Matrix zeigt je Person und Art eine Ampel: grün gültig, gelb läuft in 30 
 4. Unterschreiben lassen und „Für … Personen eintragen“.
 5. Unter „Letzte Unterweisungen“ „Nachweis“ als PDF.
 
+> Tipp: „Inhalt als Standard für diese Art merken“ speichert den Text, z. B. euer Sicherheitsblatt: er steht beim nächsten Mal schon da und kommt auf den Nachweis.
+
 ### Zur Unterweisung auffordern (WhatsApp)
 
 *In der App: Unterweisungen & Fristen*
@@ -4936,6 +4939,7 @@ Die Meldung kommt von Microsoft (AADSTS50105): Die Cleanos App steht in Entra ID
 > Tipp: Gruppen zuweisen geht nur mit Entra ID P1 (z. B. Microsoft 365 Business Premium), sonst jede Person einzeln.
 > Tipp: Verschachtelte Gruppen zählen nicht: die Person direkt in die zugewiesene Gruppe aufnehmen.
 > Tipp: Dass es nach dem Neuladen manchmal doch geht, liegt an der gespeicherten Anmeldung; sobald Microsoft neu prüft, kommt die Meldung wieder.
+> Tipp: Kann die App die Rückkehr von der Microsoft-Anmeldung einmal nicht auswerten, versucht sie es selbst noch einmal. Erst wenn es zweimal scheitert, kommt „Anmeldung bei Microsoft nicht möglich“ mit „Erneut versuchen“.
 
 *Vollzugriff*
 

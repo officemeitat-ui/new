@@ -116,6 +116,56 @@ function markReauth() {
   }
 }
 
+// ---------------------------------------------------------------- Rückkehr von der Anmeldung
+// Kommt die Seite von Microsoft zurück und die Antwort lässt sich nicht auswerten, ist das meist vorübergehend: die
+// Anmeldung wurde in einem anderen Fenster fortgesetzt, der Zwischenspeicher ist weg (App vom Startbildschirm), der
+// Einmal-Code wurde doppelt eingelöst oder das Netz war kurz weg. Bisher half „Seite aktualisieren“ – das macht die
+// App jetzt einmal selbst. Klare Ablehnungen von Microsoft (Konto nicht zugewiesen, Zustimmung verweigert, App falsch
+// registriert) werden nicht wiederholt, sondern erklärt.
+const DENIED = {
+  50105: 'Dein Konto ist für diese App nicht freigeschaltet. Bitte an die Administration: in Entra ID unter „Unternehmensanwendungen“ bei der App „Zuweisung erforderlich“ auf „Nein“ stellen oder dein Konto unter „Benutzer und Gruppen“ hinzufügen.',
+  50020: 'Dieses Konto gehört nicht zur Firma. Bitte mit dem Firmenkonto anmelden.',
+  65004: 'Die Zustimmung zu den Berechtigungen wurde abgelehnt. Bitte noch einmal anmelden und zustimmen, oder die Administration erteilt die Zustimmung für alle.',
+  65001: 'Für die App fehlt noch die Zustimmung zu den Berechtigungen. Bitte die Administration: in Entra ID bei der App „Administratorzustimmung erteilen“.',
+  50011: 'Die Adresse dieser Seite ist bei Microsoft nicht als Umleitungs-URI eingetragen (Entra ID → App-Registrierung → Authentifizierung).',
+  700016: 'Die Anwendungs-ID in config.json passt nicht zu diesem Microsoft-Tenant (sharepoint.clientId und tenantId prüfen).',
+  90002: 'Die Verzeichnis-ID in config.json stimmt nicht (sharepoint.tenantId prüfen).',
+}
+const codeOf = (err) => Number((/AADSTS(\d{5,7})/.exec(`${err?.errorMessage || ''} ${err?.message || ''}`) || [])[1] || 0)
+
+/** Was tun, wenn die Rückkehr von der Anmeldung scheitert? 'nochmal' (einmal still neu), 'abgelehnt' (erklären), 'fehler'. */
+export function redirectFailure(err, justTried = false) {
+  if (DENIED[codeOf(err)] || err?.errorCode === 'access_denied') return 'abgelehnt'
+  return justTried ? 'fehler' : 'nochmal'
+}
+
+/** Verständlicher Text zu einem Anmeldefehler (mit der Nummer von Microsoft, damit die Administration ihn findet). */
+export function signInProblem(err) {
+  const code = codeOf(err)
+  if (DENIED[code]) return `${DENIED[code]} (AADSTS${code})`
+  if (err?.errorCode === 'access_denied') return 'Die Anmeldung wurde abgebrochen oder von Microsoft abgelehnt. Bitte noch einmal versuchen.'
+  return `Die Anmeldung bei Microsoft hat zweimal hintereinander nicht geklappt. Bitte „Erneut versuchen“; hilft das nicht, alle Fenster der App schließen und neu öffnen.${code ? ` (AADSTS${code})` : err?.errorCode ? ` (${err.errorCode})` : ''}`
+}
+
+/** Hängen gebliebene Anmeldung vergessen (Fenster zu früh geschlossen, „Zurück“ auf der Microsoft-Seite). */
+function clearInteraction() {
+  try {
+    for (const key of Object.keys(sessionStorage)) if (key.includes('interaction.status')) sessionStorage.removeItem(key)
+  } catch {
+    /* ohne Speicher */
+  }
+}
+
+async function startLogin(pca, request) {
+  try {
+    await pca.loginRedirect(request)
+  } catch (err) {
+    if (err?.errorCode !== 'interaction_in_progress') throw err
+    clearInteraction()
+    await pca.loginRedirect(request)
+  }
+}
+
 export async function signIn({ tenantId, clientId, allowGuests = false, redirectUri = `${location.origin}${location.pathname}`, scopes = GRAPH_SCOPES }) {
   if (!GUID.test(tenantId || '')) throw new Error('In config.json fehlt sharepoint.tenantId (Verzeichnis-ID des Microsoft-365-Tenants).')
   if (!GUID.test(clientId || '')) throw Object.assign(new Error('Die App ist noch nicht bei Microsoft registriert: In config.json fehlt sharepoint.clientId (Anwendungs-ID aus Entra ID, Einrichtung Schritt 2).'), { unregistered: true, redirectUri })
@@ -126,7 +176,17 @@ export async function signIn({ tenantId, clientId, allowGuests = false, redirect
     cache: { cacheLocation: 'localStorage' },
   })
   await pca.initialize()
-  const result = await pca.handleRedirectPromise()
+  let result = null
+  try {
+    result = await pca.handleRedirectPromise()
+  } catch (err) {
+    if (redirectFailure(err, reauthJustTried()) !== 'nochmal') throw Object.assign(new Error(signInProblem(err)), { cause: err, signInFailed: true })
+    console.warn('Anmeldung: Rückkehr von Microsoft nicht auswertbar, ein neuer Versuch', err?.errorCode || err?.message)
+    markReauth()
+    clearInteraction()
+    // Rest der Antwort aus der Adresse nehmen, damit der neue Versuch sauber beginnt
+    if (/(^|[#&?])(code|error|state)=/.test(`${location.hash}&${location.search}`)) history.replaceState(null, '', `${location.pathname}`)
+  }
   let account = result?.account || pca.getActiveAccount() || pca.getAllAccounts()[0]
   if (!account) {
     const loginHint = await hostLogin()
@@ -138,7 +198,7 @@ export async function signIn({ tenantId, clientId, allowGuests = false, redirect
       }
     }
     if (!account) {
-      await pca.loginRedirect({ scopes, ...(loginHint ? { loginHint } : {}) })
+      await startLogin(pca, { scopes, ...(loginHint ? { loginHint } : {}) })
       return new Promise(() => {}) // Seite wird zur Anmeldung umgeleitet
     }
   }

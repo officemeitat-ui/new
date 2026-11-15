@@ -545,7 +545,7 @@ export const TOPICS = [
     q: ['whatsapp', 'per whatsapp', 'whatsapp senden', 'whatsapp teilen', 'handynummer', 'whatsapp gruppe', 'plan per whatsapp', 'tour per whatsapp'],
     answer: 'Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan und Planänderung, Arbeitszeitaufzeichnung, Plan am Handy, Müllplan, Matten-Tour, Mitteilungen, Aufforderung zur Unterweisung, Reifenwechsel-Termin und Schnee-Alarm. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind gesperrt.',
     steps: ['Im Stammblatt der Person unter „Handy (für WhatsApp)“ die Nummer eintragen.', 'Beim Wochenplan-Versand, im Müllplan, bei Plan am Handy oder der Tour auf „WhatsApp“ tippen.', 'In WhatsApp prüfen und senden.'],
-    tips: ['Ohne Nummer wählt man den Kontakt oder eine Gruppe selbst in WhatsApp.', 'Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir.', 'Eine Mitteilung lässt sich so auch in eure WhatsApp-Gruppe stellen.'],
+    tips: ['Ohne Nummer wählt man den Kontakt oder eine Gruppe selbst in WhatsApp.', 'Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir.', 'Eine Mitteilung lässt sich so auch in eure WhatsApp-Gruppe stellen.', 'Im Schlüsselbuch unter „je Person“ schickt „WhatsApp“ der Person ihre Schlüsselliste als PDF.'],
     related: ['versenden', 'muellplan-pdf', 'unterweisung-aufforderung'],
   },
   {
@@ -3904,8 +3904,9 @@ export const TOPICS = [
     q: ['unterweisung durchführen', 'schulung eintragen', 'teilnehmerliste', 'unterschrift tablet unterweisung', 'nachweis unterweisung pdf', 'unterweisung eintragen'],
     answer: '„Unterweisung durchführen“ trägt eine Unterweisung für viele auf einmal ein: Art, Datum, Ort, wer unterweist, Inhalt. Vorausgewählt sind alle mit Bedarf. Wahlweise unterschreibt jede Person am Tablet; den Nachweis als PDF kannst du jederzeit wieder erstellen.',
     steps: ['„Unterweisung durchführen“ klicken.', 'Art, Datum, Ort, wer unterweist und Inhalt eintragen.', 'Teilnehmende mit „mit Bedarf“, „alle“ oder „keine“ wählen.', 'Unterschreiben lassen und „Für … Personen eintragen“.', 'Unter „Letzte Unterweisungen“ „Nachweis“ als PDF.'],
+    tips: ['„Inhalt als Standard für diese Art merken“ speichert den Text, z. B. euer Sicherheitsblatt: er steht beim nächsten Mal schon da und kommt auf den Nachweis.'],
     action: { action: 'tr-session-open', label: 'Unterweisung durchführen' },
-    related: ['unterweisungen', 'digitale-mitarbeiter'],
+    related: ['unterweisungen', 'unterweisung-aufforderung', 'digitale-mitarbeiter'],
   },
   {
     id: 'unterweisung-aufforderung',
@@ -4188,7 +4189,7 @@ export const TOPICS = [
     q: ['leider können wir sie nicht anmelden', 'aadsts50105', 'anmeldung gesperrt', 'kann mich nicht anmelden', 'zuweisung erforderlich', 'nicht zugewiesen', 'anmelden geht nicht', 'microsoft fehler anmeldung', 'unternehmensanwendung zuweisen'],
     answer: 'Die Meldung kommt von Microsoft (AADSTS50105): Die Cleanos App steht in Entra ID auf „Zuweisung erforderlich“, und die Person ist ihr nicht zugewiesen. Abhilfe: Unternehmensanwendungen → Cleanos App → Benutzer und Gruppen → Person oder Gruppe zuweisen. Bei Gruppen zählen nur direkte Mitglieder.',
     steps: ['Im Microsoft Entra Admin Center (entra.microsoft.com) als Administrator anmelden.', '„Unternehmensanwendungen“ → „Cleanos App“ → „Benutzer und Gruppen“ öffnen.', '„Benutzer/Gruppe hinzufügen“, die Person oder ihre Gruppe wählen, „Zuweisen“.', 'Die App neu öffnen.'],
-    tips: ['Gruppen zuweisen geht nur mit Entra ID P1 (z. B. Microsoft 365 Business Premium), sonst jede Person einzeln.', 'Verschachtelte Gruppen zählen nicht: die Person direkt in die zugewiesene Gruppe aufnehmen.', 'Dass es nach dem Neuladen manchmal doch geht, liegt an der gespeicherten Anmeldung; sobald Microsoft neu prüft, kommt die Meldung wieder.'],
+    tips: ['Gruppen zuweisen geht nur mit Entra ID P1 (z. B. Microsoft 365 Business Premium), sonst jede Person einzeln.', 'Verschachtelte Gruppen zählen nicht: die Person direkt in die zugewiesene Gruppe aufnehmen.', 'Dass es nach dem Neuladen manchmal doch geht, liegt an der gespeicherten Anmeldung; sobald Microsoft neu prüft, kommt die Meldung wieder.', 'Kann die App die Rückkehr von der Microsoft-Anmeldung einmal nicht auswerten, versucht sie es selbst noch einmal. Erst wenn es zweimal scheitert, kommt „Anmeldung bei Microsoft nicht möglich“ mit „Erneut versuchen“.'],
     related: ['berechtigungen', 'rollen-gruppen'],
     roles: 'Vollzugriff',
   },
