@@ -26,7 +26,7 @@ from .agents.qbr import create_qbr
 from .growth import ensure_mrr_baseline, health_overview, health_score, log_mrr, nrr, pipeline, recurring_share
 from .knowledge import KnowledgeBase
 from .llm import Router
-from .mail import Mailer
+from .mail import make_mailer
 from .mitarbeiter_api import is_public_path, register as register_mitarbeiter, start_mail_poller
 from .radar import Radar, eol_info
 from .security import QUESTIONS
@@ -146,7 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     router = Router(settings)
     kb = KnowledgeBase(db, router)
     radar = Radar(db)
-    mailer = Mailer(settings)
+    mailer = make_mailer(settings)
     ctx = AgentContext(db=db, router=router, kb=kb, radar=radar, company=settings.company_name,
                        settings=settings, mailer=mailer)
 

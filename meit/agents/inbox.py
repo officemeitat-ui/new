@@ -285,6 +285,7 @@ def process_message(ctx: AgentContext, message_id: int) -> dict[str, Any]:
                     "phone": phone},
         "need": "", "qualification": {}, "receipt": {}, "reply": "", "provider": "regeln",
         "customer": customer["name"] if customer else "", "attachment_text": m["attachment_text"],
+        "mail_handle": ai_prev.get("mail_handle", ""),
     }
     llm = ctx.llm()
     if llm.available():
@@ -444,7 +445,9 @@ def send_message_reply(ctx: AgentContext, message_id: int, text: str, handled_by
     if not manual:
         if ctx.mailer is None:
             raise MailError("Kein E-Mail-Versand konfiguriert.")
-        sent_id = ctx.mailer.send(to, subject, text, in_reply_to=m["external_id"] if incoming else "")
+        ai_meta = loads(m["ai_result"], {}) or {}
+        sent_id = ctx.mailer.send(to, subject, text, in_reply_to=m["external_id"] if incoming else "",
+                                  reply_handle=ai_meta.get("mail_handle", "") if incoming else "")
     ts = now_iso()
     ai = loads(m["ai_result"], {}) or {}
     ai["handled_by"] = "manuell" if manual else handled_by
@@ -570,6 +573,7 @@ def overview(ctx: AgentContext, days: int = 7) -> dict[str, Any]:
         "open_receipts": db.scalar("SELECT COUNT(*) FROM receipts WHERE status = 'offen'") or 0,
         "modes": get_modes(db),
         "mail": {
+            "provider": getattr(ctx.mailer, "provider", "imap"),
             "imap": bool(ctx.mailer and ctx.mailer.imap_configured),
             "smtp": bool(ctx.mailer and ctx.mailer.smtp_configured),
             "last_fetch": db.get_setting("mail_last_fetch", ""),
@@ -581,12 +585,13 @@ def overview(ctx: AgentContext, days: int = 7) -> dict[str, Any]:
 # ------------------------------------------------------------------ Postfach-Abruf
 def insert_incoming(ctx: AgentContext, *, channel: str, from_name: str = "", from_email: str = "", phone: str = "",
                     company: str = "", subject: str = "", body: str = "", attachments: list[str] | None = None,
-                    external_id: str = "", attachment_text: str = "") -> int:
+                    external_id: str = "", attachment_text: str = "", mail_handle: str = "") -> int:
+    meta = {k: v for k, v in {"attachment_text": attachment_text, "mail_handle": mail_handle}.items() if v}
     return ctx.db.insert("messages", {
         "channel": channel, "direction": "in", "external_id": external_id, "from_name": from_name[:200],
         "from_email": (from_email or "").strip().lower()[:200], "phone": phone[:60], "company": company[:200],
         "subject": subject[:300], "body": body[:20000], "attachments": attachments or [], "status": "neu",
-        "ai_result": json.dumps({"attachment_text": attachment_text}) if attachment_text else "",
+        "ai_result": json.dumps(meta) if meta else "",
     })
 
 
@@ -606,7 +611,8 @@ def fetch_and_process(ctx: AgentContext, limit: int = 25) -> dict[str, Any]:
             continue
         new_ids.append(insert_incoming(ctx, channel="email", from_name=pm.from_name, from_email=pm.from_email,
                                        subject=pm.subject, body=pm.body, attachments=pm.attachments,
-                                       external_id=pm.message_id, attachment_text=pm.attachment_text))
+                                       external_id=pm.message_id, attachment_text=pm.attachment_text,
+                                       mail_handle=getattr(pm, "handle", "")))
     errors = 0
     for mid in new_ids:
         try:

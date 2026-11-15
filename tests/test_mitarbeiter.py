@@ -18,8 +18,9 @@ class FakeMailer:
         self.sent = []
         self.inbox = inbox or []
 
-    def send(self, to, subject, body, in_reply_to=""):
-        self.sent.append({"to": to, "subject": subject, "body": body, "in_reply_to": in_reply_to})
+    def send(self, to, subject, body, in_reply_to="", reply_handle=""):
+        self.sent.append({"to": to, "subject": subject, "body": body, "in_reply_to": in_reply_to,
+                          "reply_handle": reply_handle})
         return f"<sent-{len(self.sent)}@test>"
 
     def fetch_unseen(self, limit=25):

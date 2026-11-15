@@ -31,6 +31,7 @@ class ParsedMail:
     body: str
     attachments: list[str] = field(default_factory=list)
     attachment_text: str = ""
+    handle: str = ""  # anbieterspezifische ID (z. B. Microsoft-Graph-Nachrichten-ID) für Antworten im Verlauf
 
 
 def _decode(value: str | None) -> str:
@@ -117,6 +118,10 @@ class MailError(RuntimeError):
 
 
 class Mailer:
+    """IMAP/SMTP (jeder klassische Mailanbieter)."""
+
+    provider = "imap"
+
     def __init__(self, settings: Settings):
         self.s = settings
 
@@ -150,7 +155,7 @@ class Mailer:
         except (imaplib.IMAP4.error, OSError) as exc:
             raise MailError(f"IMAP-Fehler: {exc}") from exc
 
-    def send(self, to: str, subject: str, body: str, in_reply_to: str = "") -> str:
+    def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "") -> str:
         if not self.smtp_configured:
             raise MailError("SMTP ist nicht konfiguriert (MAIL_SMTP_HOST/MAIL_FROM in .env).")
         if not to or "@" not in to:
@@ -179,3 +184,127 @@ class Mailer:
         except (smtplib.SMTPException, OSError) as exc:
             raise MailError(f"SMTP-Fehler: {exc}") from exc
         return msg_id
+
+
+class GraphMailer:
+    """Microsoft 365 über Microsoft Graph (App-Registrierung, Client-Credentials).
+
+    Benötigte Anwendungsberechtigungen: Mail.ReadWrite und Mail.Send (Admin-Zustimmung),
+    Zugriff am besten per Exchange-Online-Richtlinie auf das eine Postfach beschränken.
+    """
+
+    provider = "graph"
+    GRAPH = "https://graph.microsoft.com/v1.0"
+
+    def __init__(self, settings: Settings):
+        self.s = settings
+        self._token: tuple[float, str] | None = None
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.s.graph_tenant_id and self.s.graph_client_id and self.s.graph_client_secret
+                    and self.s.graph_mailbox)
+
+    imap_configured = property(lambda self: self.configured)
+    smtp_configured = property(lambda self: self.configured)
+
+    def _headers(self) -> dict[str, str]:
+        import time
+
+        import httpx
+
+        if not self.configured:
+            raise MailError("Microsoft 365 ist nicht konfiguriert (GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET/MAILBOX).")
+        if not self._token or self._token[0] < time.time() + 60:
+            try:
+                resp = httpx.post(
+                    f"https://login.microsoftonline.com/{self.s.graph_tenant_id}/oauth2/v2.0/token",
+                    data={"grant_type": "client_credentials", "client_id": self.s.graph_client_id,
+                          "client_secret": self.s.graph_client_secret,
+                          "scope": "https://graph.microsoft.com/.default"},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except httpx.HTTPError as exc:
+                raise MailError(f"Anmeldung bei Microsoft 365 fehlgeschlagen: {exc}") from exc
+            self._token = (time.time() + int(data.get("expires_in", 3600)), data["access_token"])
+        return {"Authorization": f"Bearer {self._token[1]}"}
+
+    def _url(self, path: str) -> str:
+        from urllib.parse import quote
+
+        return f"{self.GRAPH}/users/{quote(self.s.graph_mailbox)}{path}"
+
+    def _request(self, method: str, path: str, **kwargs):
+        import httpx
+
+        try:
+            resp = httpx.request(method, self._url(path), headers={**self._headers(), **kwargs.pop("headers", {})},
+                                 timeout=30, **kwargs)
+            resp.raise_for_status()
+            return resp
+        except httpx.HTTPStatusError as exc:
+            detail = ""
+            try:
+                detail = exc.response.json().get("error", {}).get("message", "")
+            except Exception:  # noqa: BLE001
+                pass
+            raise MailError(f"Microsoft Graph {exc.response.status_code}: {detail or exc}") from exc
+        except httpx.HTTPError as exc:
+            raise MailError(f"Microsoft Graph nicht erreichbar: {exc}") from exc
+
+    def fetch_unseen(self, limit: int = 25) -> list[ParsedMail]:
+        folder = self.s.mail_imap_folder if self.s.mail_imap_folder.upper() != "INBOX" else "inbox"
+        resp = self._request(
+            "GET", f"/mailFolders/{folder}/messages",
+            # Hinweis: $orderby zusammen mit $filter lehnt Graph oft ab ("too complex") – daher ohne Sortierung.
+            params={"$filter": "isRead eq false", "$top": str(limit),
+                    "$select": "id,internetMessageId,subject,from,body,hasAttachments"},
+            headers={"Prefer": 'outlook.body-content-type="text"'},
+        )
+        mails = []
+        for item in resp.json().get("value", []):
+            sender = (item.get("from") or {}).get("emailAddress") or {}
+            attachments, attachment_text = [], []
+            if item.get("hasAttachments"):
+                att = self._request("GET", f"/messages/{item['id']}/attachments",
+                                    params={"$select": "name,contentType,size"}).json().get("value", [])
+                for a in att:
+                    attachments.append(a.get("name") or a.get("contentType") or "Anhang")
+                    if (a.get("name") or "").lower().endswith(".pdf") and (a.get("size") or 0) < 5_000_000:
+                        full = self._request("GET", f"/messages/{item['id']}/attachments/{a['id']}").json() \
+                            if a.get("id") else {}
+                        if full.get("contentBytes"):
+                            import base64
+
+                            attachment_text.append(_pdf_text(base64.b64decode(full["contentBytes"])))
+            body = (item.get("body") or {}).get("content") or ""
+            if (item.get("body") or {}).get("contentType", "").lower() == "html":
+                body = html_to_text(body)
+            mails.append(ParsedMail(
+                message_id=item.get("internetMessageId") or item["id"], from_name=sender.get("name", ""),
+                from_email=(sender.get("address") or "").lower(), subject=item.get("subject") or "",
+                body=strip_quoted(body)[:MAX_BODY], attachments=attachments,
+                attachment_text="\n".join(t for t in attachment_text if t)[:8000], handle=item["id"],
+            ))
+            self._request("PATCH", f"/messages/{item['id']}", json={"isRead": True})
+        return mails
+
+    def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "") -> str:
+        if not to or "@" not in to:
+            raise MailError("Keine gültige Empfängeradresse.")
+        if reply_handle:
+            # Antwort im selben Verlauf (Outlook zeigt sie als Konversation)
+            self._request("POST", f"/messages/{reply_handle}/reply", json={"comment": body})
+        else:
+            self._request("POST", "/sendMail", json={
+                "message": {"subject": subject, "body": {"contentType": "Text", "content": body},
+                            "toRecipients": [{"emailAddress": {"address": to}}]},
+                "saveToSentItems": True})
+        return ""
+
+
+def make_mailer(settings: Settings):
+    """Wählt die Postfach-Anbindung: MAIL_PROVIDER=graph (Microsoft 365) oder imap (Standard)."""
+    return GraphMailer(settings) if settings.mail_provider == "graph" else Mailer(settings)

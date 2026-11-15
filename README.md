@@ -70,7 +70,8 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `ALLOW_CLOUD_FALLBACK` | `false` | Nur bei `true` darf Claude einspringen, wenn lokal keine KI läuft |
 | `MEIT_PASSWORD` | leer | Passwortschutz (HTTP Basic), **Pflicht**, wenn die App im Netzwerk erreichbar ist |
 | `MEIT_HOST` | `127.0.0.1` | `0.0.0.0` für Zugriff aus dem LAN |
-| `MAIL_IMAP_*`, `MAIL_SMTP_*`, `MAIL_FROM` | leer | Postfach für den KI-Mitarbeiter (Details: docs/KI-MITARBEITER.md) |
+| `MAIL_PROVIDER` | `imap` | `graph` für Microsoft 365 (mit `GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET/MAILBOX`) |
+| `MAIL_IMAP_*`, `MAIL_SMTP_*`, `MAIL_FROM` | leer | Postfach per IMAP/SMTP (Details: docs/KI-MITARBEITER.md) |
 | `MAIL_POLL_MINUTES` | `0` | Postfach automatisch alle X Minuten abrufen |
 | `BOOKING_URL` | leer | Terminbuchungs-Link für Antworten an Interessenten |
 | `PUBLIC_FORM_ENABLED` / `PUBLIC_FORM_ORIGINS` | `true` / leer | Anfrageformular an/aus, Websites, die es einbinden dürfen |
@@ -130,7 +131,6 @@ docs/                       Strategie 2026–2030, KI-PC-Empfehlung
 ## Nächste Ausbaustufen (Vorschläge)
 
 - Anbindung an RMM/PSA (z. B. NinjaOne, Datto, Atera), damit Geräte automatisch importiert werden
-- Microsoft-365-Postfach über Graph/OAuth (statt IMAP/SMTP)
 - Kundenportal mit KI-Self-Service (Level-1)
 - Zeiterfassung → Rechnungsexport (z. B. BMD, RZL)
 - Mehrbenutzer mit Rollen (Techniker, Vertrieb, Geschäftsführung)

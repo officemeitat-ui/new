@@ -46,11 +46,30 @@ FOLLOWUP_DAYS=5              # nach wie vielen Tagen nachgefasst wird
 PUBLIC_FORM_ORIGINS=https://www.deine-firma.at   # Website, die das Formular per JS einbinden darf
 ```
 
-**Wichtig bei Microsoft 365:** Microsoft hat die Anmeldung per Passwort für IMAP in Exchange Online
-abgeschaltet und schaltet sie für SMTP ebenfalls ab. Für M365-Postfächer ist die Anbindung über OAuth bzw.
-Microsoft Graph der nächste Ausbauschritt. Bis dahin gibt es zwei Übergangswege:
-- Mails per Regel an ein IMAP-fähiges Postfach weiterleiten,
-- Mails im Posteingang über „+ Nachricht erfassen“ einfügen. Das funktioniert auch für Telefonnotizen.
+### Microsoft 365 (empfohlen bei M365-Postfächern)
+Microsoft hat die Anmeldung per Passwort für IMAP/SMTP in Exchange Online abgeschaltet. Der KI-Mitarbeiter
+spricht deshalb direkt mit **Microsoft Graph**:
+
+1. **Entra Admin Center → App-Registrierungen → Neue Registrierung** (Name z. B. „ME-IT KI-Mitarbeiter“, nur dieser Mandant).
+2. **API-Berechtigungen → Microsoft Graph → Anwendungsberechtigungen:** `Mail.ReadWrite` und `Mail.Send`
+   hinzufügen, dann **Administratorzustimmung erteilen**.
+3. **Zertifikate & Geheimnisse → Neuer geheimer Clientschlüssel.** Wert sofort kopieren und das Ablaufdatum notieren.
+4. **Zugriff auf das eine Postfach beschränken** (wichtig!). Sonst darf die App alle Postfächer lesen.
+   Das geht in Exchange Online über „RBAC für Anwendungen“ (früher Application Access Policy).
+5. In `.env`:
+   ```
+   MAIL_PROVIDER=graph
+   GRAPH_TENANT_ID=<Verzeichnis-ID>
+   GRAPH_CLIENT_ID=<Anwendungs-ID>
+   GRAPH_CLIENT_SECRET=<geheimer Schlüssel>
+   GRAPH_MAILBOX=office@deine-firma.at
+   MAIL_POLL_MINUTES=5
+   ```
+Antworten gehen als echte Antwort im Outlook-Verlauf raus und landen in „Gesendete Elemente“.
+Abgerufene Mails werden als gelesen markiert.
+
+> Für Kundeninstallationen: Pro Kunde eine eigene App-Registrierung im Kunden-Mandanten anlegen. Das
+> Geheimnis gehört ins Passwort-Management, nicht in Tickets oder Mails.
 
 Ohne Mail-Anbindung funktioniert alles andere trotzdem: Formular, manuelle Erfassung, Entwürfe kopieren und
 als „manuell erledigt“ markieren.
@@ -99,7 +118,7 @@ Setze den KI-Mitarbeiter **zuerst im eigenen Betrieb** ein: Postfach office@, An
 Belege. Nach 4 Wochen hast du echte Zahlen (Zeitersparnis, Antwortzeit) und eine glaubwürdige Demo für Kunden.
 
 ## Ausbaustufen (Vorschläge)
-- Microsoft-365-Anbindung über Graph/OAuth (Postfach, Kalender für echte Terminvorschläge)
+- Microsoft-365-Kalender (Graph) für echte Terminvorschläge statt Buchungslink
 - Telefon-Assistent (Anrufannahme, Rückrufnotiz), lokal mit Spracherkennung
 - WhatsApp Business (offizielle API) als weiterer Kanal
 - Belege per OCR aus Scans/Fotos, Export direkt im BMD/RZL-Format

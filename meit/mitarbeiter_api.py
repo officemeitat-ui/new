@@ -235,7 +235,8 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
     @app.post("/api/inbox/fetch")
     def fetch_mail() -> dict:
         if not (ctx.mailer and ctx.mailer.imap_configured):
-            raise HTTPException(409, "Postfach nicht verbunden: MAIL_IMAP_HOST, MAIL_IMAP_USER und MAIL_IMAP_PASSWORD in .env setzen.")
+            raise HTTPException(409, "Postfach nicht verbunden: in .env entweder MAIL_IMAP_HOST/USER/PASSWORD "
+                                     "oder für Microsoft 365 MAIL_PROVIDER=graph und GRAPH_* setzen.")
         try:
             return fetch_and_process(ctx)
         except MailError as exc:

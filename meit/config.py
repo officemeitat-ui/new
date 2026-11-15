@@ -64,6 +64,11 @@ class Settings:
     seed_demo_data: bool
     app_password: str
     # --- KI-Mitarbeiter: E-Mail-Anbindung -------------------------------------
+    mail_provider: str = "imap"  # "imap" (IMAP/SMTP) oder "graph" (Microsoft 365)
+    graph_tenant_id: str = ""
+    graph_client_id: str = ""
+    graph_client_secret: str = ""
+    graph_mailbox: str = ""
     mail_imap_host: str = ""
     mail_imap_port: int = 993
     mail_imap_user: str = ""
@@ -100,6 +105,11 @@ def get_settings() -> Settings:
         llm_timeout=float(os.environ.get("LLM_TIMEOUT", "180")),
         seed_demo_data=_bool("MEIT_SEED_DEMO", True),
         app_password=os.environ.get("MEIT_PASSWORD", ""),
+        mail_provider=(os.environ.get("MAIL_PROVIDER") or "imap").strip().lower(),
+        graph_tenant_id=os.environ.get("GRAPH_TENANT_ID", ""),
+        graph_client_id=os.environ.get("GRAPH_CLIENT_ID", ""),
+        graph_client_secret=os.environ.get("GRAPH_CLIENT_SECRET", ""),
+        graph_mailbox=os.environ.get("GRAPH_MAILBOX", ""),
         mail_imap_host=os.environ.get("MAIL_IMAP_HOST", ""),
         mail_imap_port=_int("MAIL_IMAP_PORT", 993),
         mail_imap_user=os.environ.get("MAIL_IMAP_USER", ""),

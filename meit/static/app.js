@@ -1049,10 +1049,13 @@ views["ki-mitarbeiter"] = async () => {
         Object.keys(o.categories).map(modeRow)),
       h("div", { class: "stack" },
         h("div", { class: "card" }, h("h2", {}, "Postfach"),
-          h("div", { class: "row" }, badge(o.mail.imap ? "Abruf (IMAP) verbunden" : "Abruf (IMAP) aus", o.mail.imap ? "ok" : "warn"), badge(o.mail.smtp ? "Versand (SMTP) verbunden" : "Versand (SMTP) aus", o.mail.smtp ? "ok" : "warn"),
+          h("div", { class: "row" }, o.mail.provider === "graph"
+            ? badge(o.mail.imap ? "Microsoft 365 verbunden" : "Microsoft 365 nicht konfiguriert", o.mail.imap ? "ok" : "warn")
+            : [badge(o.mail.imap ? "Abruf (IMAP) verbunden" : "Abruf (IMAP) aus", o.mail.imap ? "ok" : "warn"), badge(o.mail.smtp ? "Versand (SMTP) verbunden" : "Versand (SMTP) aus", o.mail.smtp ? "ok" : "warn")],
             o.poll_minutes ? badge(`automatisch alle ${o.poll_minutes} min`, "info") : null),
           h("p", { class: "small muted" }, o.mail.last_fetch ? `Letzter Abruf: ${o.mail.last_fetch}` : "Noch nicht abgerufen.", o.mail.last_error ? h("span", { style: "color:var(--bad)" }, ` Fehler: ${o.mail.last_error}`) : null),
-          md(["Einrichtung in `.env` (danach neu starten):", "```", "MAIL_IMAP_HOST=imap.dein-provider.at", "MAIL_IMAP_USER=office@deine-firma.at", "MAIL_IMAP_PASSWORD=App-Kennwort",
+          md(["**Microsoft 365** (empfohlen bei M365): App-Registrierung, siehe docs/KI-MITARBEITER.md", "```", "MAIL_PROVIDER=graph", "GRAPH_TENANT_ID=…", "GRAPH_CLIENT_ID=…", "GRAPH_CLIENT_SECRET=…", "GRAPH_MAILBOX=office@deine-firma.at", "```",
+            "**Andere Anbieter** (IMAP/SMTP) in `.env` (danach neu starten):", "```", "MAIL_IMAP_HOST=imap.dein-provider.at", "MAIL_IMAP_USER=office@deine-firma.at", "MAIL_IMAP_PASSWORD=App-Kennwort",
             "MAIL_SMTP_HOST=smtp.dein-provider.at", "MAIL_FROM=office@deine-firma.at", "MAIL_POLL_MINUTES=5", "BOOKING_URL=https://… (optional)", "```"].join("\n"))),
         h("div", { class: "card" }, h("h2", {}, "Anfrageformular für die Website"),
           o.public_form_enabled ? h("div", {}, h("p", { class: "small" }, "Anfragen landen direkt im Posteingang, der Interessent bekommt einen Antwortentwurf mit Qualifizierungsfragen. Kein Passwort nötig, mit Spam- und Missbrauchsschutz."),
