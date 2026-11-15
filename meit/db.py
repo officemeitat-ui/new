@@ -267,6 +267,24 @@ CREATE TABLE IF NOT EXISTS invoices (
 
 CREATE INDEX IF NOT EXISTS idx_time_open ON time_entries(customer_id, invoice_id);
 
+CREATE TABLE IF NOT EXISTS portal_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    name TEXT DEFAULT '',
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    active INTEGER DEFAULT 1,
+    last_login_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS portal_sessions (
+    token_hash TEXT PRIMARY KEY,
+    portal_user_id INTEGER NOT NULL REFERENCES portal_users(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -293,7 +311,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
         "customer_id", "name", "type", "os", "serial", "purchase_date", "warranty_end",
         "last_seen", "notes",
     },
-    "kb_articles": {"title", "content", "tags", "embedding", "embedding_model"},
+    "kb_articles": {"title", "content", "tags", "embedding", "embedding_model", "public"},
     "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
     "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status",
                "sent_at", "followup_count", "last_followup_at", "tiers", "chosen_tier", "invoice_id"},
@@ -310,6 +328,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                  "status", "note"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
     "users": {"name", "email", "role", "password_hash", "active", "last_login_at"},
+    "portal_users": {"customer_id", "name", "email", "password_hash", "active", "last_login_at"},
     "time_entries": {"customer_id", "ticket_id", "user_id", "date", "minutes", "description", "billable", "rate",
                      "invoice_id"},
     "invoices": {"number", "customer_id", "customer_name", "period", "date", "due_date", "items", "net", "vat_rate",
@@ -325,13 +344,14 @@ TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
 TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
-    "time_entries", "invoices",
+    "time_entries", "invoices", "portal_users",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''"},
     "tickets": {"assigned_to": "INTEGER"},
+    "kb_articles": {"public": "INTEGER DEFAULT 0"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",
                "last_followup_at": "TEXT DEFAULT ''", "tiers": "TEXT DEFAULT '[]'", "chosen_tier": "TEXT DEFAULT ''",

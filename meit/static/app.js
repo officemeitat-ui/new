@@ -345,6 +345,7 @@ views.kunde = async (id) => {
         c.booked_services.length ? c.booked_services.map((s) => badge(s, "info")) : h("span", { class: "muted" }, "keine")))),
     health,
     c.notes ? h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, "Notizen: "), c.notes) : null,
+    await portalCard(c),
     h("div", { class: "grid two" },
       h("div", { class: "card" }, h("h2", {}, `Verkaufschancen (${c.opportunities.length})`),
         c.opportunities.length ? h("ul", { class: "list" }, c.opportunities.map((o) => h("li", {},
@@ -530,7 +531,7 @@ views.wissen = async () => {
   const results = h("div");
   const showList = (items, scored = false) => results.replaceChildren(items.length ? h("div", { class: "stack" }, items.map((a) =>
     h("details", { class: "card" },
-      h("summary", { style: "cursor:pointer" }, h("strong", {}, a.title), " ", a.tags ? h("span", { class: "small muted" }, `· ${a.tags}`) : null,
+      h("summary", { style: "cursor:pointer" }, h("strong", {}, a.title), " ", a.public ? badge("Portal", "ok") : null, " ", a.tags ? h("span", { class: "small muted" }, `· ${a.tags}`) : null,
         scored ? h("span", { class: "small muted" }, ` · Treffer ${Math.round(a.score * 100)} % (${a.mode})`) : null),
       h("div", { style: "margin-top:.6rem" }, md(a.content)),
       h("div", { class: "row" }, h("span", { class: "spacer" }), h("button", { class: "btn small", onclick: () => articleForm(a) }, "Bearbeiten"))))) :
@@ -550,7 +551,8 @@ function articleForm(a = null) {
     { name: "title", label: "Titel", required: true, full: true },
     { name: "tags", label: "Schlagworte", full: true, placeholder: "drucker, windows" },
     { name: "content", label: "Inhalt (Markdown)", type: "textarea", rows: 14, full: true },
-  ], a || {});
+    { name: "public", label: "Im Kundenportal für die KI-Hilfe freigeben (nur Anleitungen ohne Admin-Schritte/Interna)", type: "checkbox", full: true },
+  ], a ? { ...a, public: !!a.public } : {});
   modal(a ? "Artikel bearbeiten" : "Neuer Artikel", f, [
     a ? (close) => h("button", { class: "btn danger", onclick: async () => {
       if (!confirm("Artikel löschen?")) return;
@@ -1441,6 +1443,31 @@ views.abrechnung = async () => {
   }
   show(tabs, content);
 };
+
+// ---- Kundenportal (Verwaltung)
+async function portalCard(c) {
+  let users = [];
+  try { users = await api(`/api/customers/${c.id}/portal-users`); } catch { users = []; }
+  const showPw = (email, pw) => modal("Zugangsdaten Kundenportal", h("div", {},
+    h("p", {}, "Bitte jetzt sicher an den Kunden übermitteln (z. B. Passwort per SMS, Link per Mail). Das Passwort wird nicht noch einmal angezeigt."),
+    h("pre", { style: "background:var(--surface-2);padding:.8rem;border-radius:8px" }, `Portal:   ${location.origin}/portal\nE-Mail:   ${email}\nPasswort: ${pw}`)),
+    [copyButton(() => `Portal: ${location.origin}/portal\nE-Mail: ${email}\nPasswort: ${pw}`, "Kopieren")]);
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Kundenportal"), h("div", { class: "row" },
+      h("a", { class: "btn small", href: "/portal", target: "_blank", rel: "noopener" }, "Portal öffnen"),
+      h("button", { class: "btn small", onclick: () => {
+        const f = form([{ name: "name", label: "Name" }, { name: "email", label: "E-Mail", type: "email", value: c.email }]);
+        modal("Portalzugang anlegen", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+          const r = await api(`/api/customers/${c.id}/portal-users`, { method: "POST", body: readForm(f) }); close(); showPw(r.email, r.password); render();
+        }) }, "Anlegen")]);
+      } }, "+ Zugang"))),
+    users.length ? table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Aktiv", render: (r) => r.active ? badge("aktiv", "ok") : badge("gesperrt", "warn") },
+      { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" },
+      { label: "", render: (r) => h("div", { class: "row" },
+        h("button", { class: "btn small", onclick: async () => { const x = await api(`/api/portal-users/${r.id}`, { method: "PUT", body: { reset_password: true } }); showPw(r.email, x.password); } }, "Neues Passwort"),
+        h("button", { class: "btn small", onclick: async () => { await api(`/api/portal-users/${r.id}`, { method: "PUT", body: { active: !r.active } }); render(); } }, r.active ? "Sperren" : "Freischalten")) }], users)
+      : h("p", { class: "small muted", style: "margin:0" }, "Noch kein Zugang. Im Portal sieht der Kunde seine Tickets, Geräte, Angebote (online annehmen) und Rechnungen und bekommt KI-Hilfe aus freigegebenen Anleitungen."));
+}
 
 // ---------------------------------------------------------------- Router
 async function render() {

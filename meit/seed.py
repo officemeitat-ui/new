@@ -270,8 +270,10 @@ def seed_demo(db: Database) -> None:
         db.insert("tickets", {"customer_id": cid, "title": title, "description": desc, "status": "neu",
                               **rule_triage(title, desc)})
 
+    public_titles = ("Outlook", "Drucker", "VPN", "MFA", "Phishing")
     for title, tags, content in KB_ARTICLES:
-        db.insert("kb_articles", {"title": title, "tags": tags, "content": content})
+        db.insert("kb_articles", {"title": title, "tags": tags, "content": content,
+                                  "public": title.startswith(public_titles)})
 
     # Ein Beispiel-Security-Check, damit der Radar etwas zum Auswerten hat.
     db.insert("assessments", {"customer_id": steiner, "answers": json.dumps({}), "score": 31.0,

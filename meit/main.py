@@ -32,6 +32,7 @@ from .knowledge import KnowledgeBase
 from .llm import Router
 from .mail import make_mailer
 from .mitarbeiter_api import RateLimiter, is_public_path, register as register_mitarbeiter, start_mail_poller
+from .portal import register as register_portal
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
     users_exist,
@@ -101,6 +102,7 @@ class ArticleIn(BaseModel):
     title: str = Field(min_length=1)
     content: str = ""
     tags: str = ""
+    public: bool = False  # im Kundenportal für die KI-Hilfe freigegeben
 
 
 class ServiceIn(BaseModel):
@@ -499,7 +501,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Wissensdatenbank -------------------------------------------------------
     @app.get("/api/kb")
     def list_articles() -> list[dict]:
-        return db.query("SELECT id, title, tags, content, updated_at FROM kb_articles ORDER BY title")
+        return db.query("SELECT id, title, tags, content, public, updated_at FROM kb_articles ORDER BY title")
 
     @app.get("/api/kb/search")
     def search_articles(q: str = Query(min_length=1), limit: int = 5) -> list[dict]:
@@ -593,23 +595,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.put("/api/quotes/{qid}")
     def set_quote_status(qid: int, data: QuoteStatus, request: Request) -> dict:
-        if data.status not in {"entwurf", "versendet", "angenommen", "abgelehnt"}:
+        return apply_quote_status(qid, data.status, data.tier, current_user_id(request))
+
+    def apply_quote_status(qid: int, status: str, tier: Optional[str] = None, actor: Optional[int] = None,
+                           via: str = "") -> dict:
+        """Statuswechsel eines Angebots – auch vom Kundenportal genutzt (Annahme online)."""
+        if status not in {"entwurf", "versendet", "angenommen", "abgelehnt"}:
             raise HTTPException(422, "Ungültiger Status")
         q = must(db.get("quotes", qid), "Angebot")
-        update: dict[str, Any] = {"status": data.status}
+        update: dict[str, Any] = {"status": status}
         tiers = loads(q.get("tiers"), [])
-        if data.status == "angenommen" and q["status"] != "angenommen" and tiers:
-            chosen = next((t for t in tiers if t["key"] == (data.tier or "M")), None)
+        if status == "angenommen" and q["status"] != "angenommen" and tiers:
+            chosen = next((t for t in tiers if t["key"] == (tier or "M")), None)
             if not chosen:
                 raise HTTPException(422, "Unbekanntes Paket")
             update.update({"items": chosen["items"], "total_once": chosen["total_once"],
                            "total_monthly": chosen["total_monthly"], "chosen_tier": chosen["key"]})
             q = {**q, "items": json.dumps(chosen["items"]), "total_once": chosen["total_once"],
                  "total_monthly": chosen["total_monthly"]}
-        if data.status == "versendet" and q["status"] != "versendet":
+        if status == "versendet" and q["status"] != "versendet":
             update.update({"sent_at": now_iso(), "followup_count": 0, "last_followup_at": ""})
         db.update("quotes", qid, update)
-        if data.status == "angenommen" and q["status"] != "angenommen":
+        if status == "angenommen" and q["status"] != "angenommen":
             # Angenommene wiederkehrende Leistungen erhöhen automatisch den MRR des Kunden.
             customer = db.get("customers", q["customer_id"])
             if customer:
@@ -625,8 +632,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 })
                 db.query("UPDATE leads SET stage = 'gewonnen' WHERE customer_id = ? AND stage != 'gewonnen'",
                          (customer["id"],))
-                log_activity(db, current_user_id(request), "abschluss", "quote", qid,
-                             f"{q['title']} ({customer['name']})")
+                log_activity(db, actor, "abschluss", "quote", qid, f"{q['title']} ({customer['name']}){via}")
         return db.get("quotes", qid)
 
     @app.delete("/api/quotes/{qid}")
@@ -692,6 +698,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     if settings.backup_hours > 0 and settings.db_path != ":memory:":
         start_backup_scheduler(db, settings.db_path, bdir, settings.backup_hours, settings.backup_keep)
+
+    # --- Kundenportal ------------------------------------------------------------
+    register_portal(app, ctx, admin_only, apply_quote_status)
 
     # --- KI-Mitarbeiter (Posteingang, Leads, Belege, Anfrageformular) -----------
     register_mitarbeiter(app, ctx)

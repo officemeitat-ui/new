@@ -97,8 +97,8 @@ class KnowledgeBase:
             self.db.update("kb_articles", row["id"], {"embedding": json.dumps(vec), "embedding_model": model})
         return len(rows)
 
-    def search(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
-        articles = self.db.query("SELECT * FROM kb_articles")
+    def search(self, query: str, limit: int = 5, public_only: bool = False) -> list[dict[str, Any]]:
+        articles = self.db.query("SELECT * FROM kb_articles" + (" WHERE public = 1" if public_only else ""))
         if not articles or not query.strip():
             return []
         kw = keyword_scores(query, [article_text(a) for a in articles])
@@ -131,6 +131,7 @@ class KnowledgeBase:
                         "title": article["title"],
                         "tags": article["tags"],
                         "content": article["content"],
+                        "public": article.get("public", 0),
                         "score": round(score, 3),
                         "mode": "semantisch+stichwort" if semantic is not None else "stichwort",
                     }
