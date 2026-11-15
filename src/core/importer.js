@@ -253,3 +253,48 @@ export function importTasks(text, employees, { anchor } = {}) {
   })
   return { items: items.filter((t) => t.object && weekdaysOf(t.task.recurrence) && t.task.start && t.task.end), errors }
 }
+
+// ---------------------------------------------------------------- Übernehmen ohne Doppelte
+
+const GENERIC = new Set(['objekt', 'dr', 'fa', 'firma', 'stiegenhaus', 'privathaus', 'buro', 'ordination', 'container', 'tankstelle', 'haus', 'wohnanlage', 'am', 'im', 'zum', 'zur', 'der', 'die', 'das'])
+
+/**
+ * Kurzname eines Objekts für den Plan: so viele Wörter vom Namen, bis er aussagt, was es ist, noch frei ist und kein
+ * anderes Objekt genauso beginnt („Leikermoser Tankstelle Wals“ und „Leikermoser Tankstelle Anif“ bleiben unterscheidbar).
+ * taken: schon vergebene Kurznamen; others: Namen der anderen Objekte (bestehende und mit eingefügte). Höchstens
+ * 30 Zeichen; zur Not mit Nummer.
+ */
+export function uniqueShort(name, taken = [], others = []) {
+  const MAX = 30
+  const low = (x) => String(x || '').trim().toLowerCase()
+  const used = new Set([...taken].map(low).filter(Boolean))
+  const clean = (x) => String(x || '').replace(/[,;(/].*$/, '').replace(/\s+-\s*.*$/, '').replace(/\s+/g, ' ').trim()
+  const words = clean(name).split(' ').filter(Boolean)
+  if (!words.length) return ''
+  const full = low(clean(name))
+  const rivals = [...others].map((o) => low(clean(o))).filter((o) => o && o !== full)
+  const weak = (w) => GENERIC.has(norm(w)) || /^\d+[.)]?$/.test(w) || w.length < 3
+  const shared = (p) => rivals.some((o) => o === p || o.startsWith(`${p} `))
+  let short = ''
+  let free = ''
+  for (let n = 1; n <= words.length; n++) {
+    const next = words.slice(0, n).join(' ')
+    if (next.length > MAX && short) break
+    short = next.slice(0, MAX).trim()
+    if (words.slice(0, n).every(weak) || used.has(low(short))) continue
+    free ||= short // sagt etwas aus und ist frei – aber vielleicht beginnt ein anderes Objekt genauso
+    if (!shared(low(short))) return short
+  }
+  if (!used.has(low(short))) return short // ganzer (gekürzter) Name: so genau wie möglich
+  if (free) return free
+  for (let i = 2; ; i++) {
+    const numbered = `${short.slice(0, MAX - 3).trim()} ${i}`
+    if (!used.has(low(numbered))) return numbered
+  }
+}
+
+/** Dieselbe Leistung? Gleiches Objekt, gleiche Bezeichnung, gleiche Zeit und gleicher Rhythmus (ohne Starttermin). */
+export function sameTask(a, b) {
+  const rhythm = (r = {}) => (r.type === 'monthly' ? `m${r.everyMonths || 1}:${r.mode || ''}:${r.nth || ''}:${r.weekday || ''}:${r.day || ''}` : `w${r.everyWeeks || 1}:${[...(r.weekdays || [])].sort().join('')}`)
+  return a.objectId === b.objectId && norm(a.label) === norm(b.label) && a.start === b.start && a.end === b.end && (a.recurrence?.type || 'weekly') === (b.recurrence?.type || 'weekly') && rhythm(a.recurrence) === rhythm(b.recurrence)
+}

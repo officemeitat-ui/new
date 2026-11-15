@@ -294,3 +294,25 @@ test('Leistungen einfügen: Spalte „Pause“ wird zur unbezahlten Pause der Le
   assert.deepEqual(r.items.map((x) => x.task.breakMin), [60, 30, undefined])
   assert.equal(typeof buildInstances, 'function')
 })
+
+test('Leistungen einfügen: eindeutige Kurznamen, dieselbe Leistung wird erkannt', async () => {
+  const { sameTask, uniqueShort } = await import('../src/core/importer.js')
+  const names = ['Leikermoser Tankstelle Wals', 'Leikermoser Tankstelle Anif / Shop + WC', 'Leikermoser Energiehandl Sterneckstraße', 'Leikermoser Wals Himmelreich Büro', 'Stiegenhaus Davisstraße 9 / Hallein', 'Stiegenhaus Davisstraße 7.1 / Hallein', 'Dr. Fischer Ordination Salzburg', '1 Stiegenhaus Abtenau Markt 303 und Biotonnen zurück', 'Carrera Toys - Rennbahnallee 1 -5412 Puch Urstein', 'Carrera Küche', 'Sonova', 'Seniorenheim Schloss Kahlsperg']
+  const taken = []
+  const shorts = names.map((n) => { const s = uniqueShort(n, taken, names); taken.push(s); return s })
+  assert.deepEqual(shorts, ['Leikermoser Tankstelle Wals', 'Leikermoser Tankstelle Anif', 'Leikermoser Energiehandl', 'Leikermoser Wals', 'Stiegenhaus Davisstraße 9', 'Stiegenhaus Davisstraße 7.1', 'Dr. Fischer', '1 Stiegenhaus Abtenau', 'Carrera Toys', 'Carrera Küche', 'Sonova', 'Seniorenheim'])
+  assert.equal(new Set(shorts.map((s) => s.toLowerCase())).size, shorts.length, 'alle verschieden')
+  assert.ok(shorts.every((s) => s.length <= 30))
+  // ohne andere Namen genügt das erste aussagekräftige Wort; gleicher Name zweimal bekommt eine Nummer
+  assert.equal(uniqueShort('Leikermoser Tankstelle Wals'), 'Leikermoser')
+  assert.equal(uniqueShort('Sonova', ['sonova']), 'Sonova 2')
+  assert.equal(uniqueShort('Sonova Lager', ['Sonova'], ['Sonova', 'Sonova Lager Nord']), 'Sonova Lager')
+  assert.equal(uniqueShort('', []), '')
+  const t = { objectId: 'o1', label: 'Unterhaltsreinigung', start: '07:30', end: '16:30', recurrence: { type: 'weekly', weekdays: [1, 2, 3], everyWeeks: 1, anchor: '2026-11-16' } }
+  assert.equal(sameTask(t, { ...t, staff: 2, recurrence: { ...t.recurrence, weekdays: [3, 2, 1], anchor: '2026-01-05' } }), true)
+  assert.equal(sameTask(t, { ...t, end: '16:00' }), false)
+  assert.equal(sameTask(t, { ...t, recurrence: { ...t.recurrence, everyWeeks: 2 } }), false)
+  assert.equal(sameTask(t, { ...t, recurrence: { ...t.recurrence, weekdays: [1, 2] } }), false)
+  assert.equal(sameTask(t, { ...t, objectId: 'o2' }), false)
+  assert.equal(sameTask(t, { ...t, label: 'unterhaltsreinigung ' }), true)
+})

@@ -4,7 +4,7 @@
 
 import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
-import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, TASK_TEMPLATE } from '../../core/importer.js'
+import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, sameTask, TASK_TEMPLATE, uniqueShort } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
@@ -185,21 +185,37 @@ function runImport(kind, text, apply) {
   }
   const { items, errors } = importTasks(text, data.employees, { anchor: app.cur.monday })
   const objectNames = new Set(items.map((i) => i.object))
-  if (apply) {
-    for (const item of items) {
-      let obj = data.objects.find((o) => o.name.toLowerCase() === item.object.toLowerCase())
-      if (!obj) {
-        obj = { id: uid('o'), name: item.object, short: item.object.split(' ')[0], address: item.address, region: item.region || undefined, color: (data.objects.length % 12) + 1, onlyTrained: false }
-        data.objects.push(obj)
-      }
-      data.tasks.push({ id: uid('t'), objectId: obj.id, ...item.task, recurrence: { ...item.task.recurrence, anchor: app.cur.monday } })
+  // Schon vorhandene Leistungen (gleiches Objekt, Bezeichnung, Zeit, Rhythmus) werden aktualisiert statt doppelt angelegt
+  const objects = apply ? data.objects : data.objects.map((o) => ({ ...o }))
+  const tasks = apply ? data.tasks : [...data.tasks]
+  let added = 0
+  let updated = 0
+  for (const item of items) {
+    let obj = objects.find((o) => o.name.toLowerCase() === item.object.toLowerCase())
+    if (!obj) {
+      obj = { id: apply ? uid('o') : `neu-${objects.length}`, name: item.object, short: uniqueShort(item.object, objects.map((o) => o.short), [...objects.map((o) => o.name), ...objectNames]), address: item.address, region: item.region || undefined, color: (objects.length % 12) + 1, onlyTrained: false }
+      objects.push(obj)
+    } else if (apply) {
+      if (!obj.address && item.address) obj.address = item.address
+      if (!obj.region && item.region) obj.region = item.region
+    }
+    const task = { objectId: obj.id, ...item.task, recurrence: { ...item.task.recurrence, anchor: app.cur.monday } }
+    const existing = tasks.find((t) => sameTask(t, task))
+    if (existing) {
+      updated++
+      // Rhythmus und Starttermin der bestehenden Leistung bleiben (sonst verschiebt sich z. B. die 14-tägige Woche)
+      if (apply) Object.assign(existing, { ...item.task, recurrence: existing.recurrence })
+    } else {
+      added++
+      tasks.push(apply ? { id: uid('t'), ...task } : task)
+    }
+    if (apply)
       for (const empId of item.task.regulars) {
         const emp = data.employees.find((e) => e.id === empId)
         if (emp && !(emp.trained || []).includes(obj.id)) emp.trained = [...(emp.trained || []), obj.id]
       }
-    }
   }
-  return { count: items.length, errors, summary: `${items.length} Leistungen in ${objectNames.size} Objekten erkannt` }
+  return { count: items.length, errors, summary: `${items.length} Leistungen in ${objectNames.size} Objekten erkannt${updated ? ` – ${added} neu, ${updated} schon vorhanden (${apply ? 'aktualisiert' : 'werden aktualisiert, nicht doppelt angelegt'})` : ''}` }
 }
 
 registerView({ id: 'staff', order: 80, label: 'Mitarbeitende', group: 'stamm', render: staffView })
