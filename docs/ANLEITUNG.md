@@ -159,6 +159,7 @@ Ist die Ablage noch leer, zeigt die App „Willkommen“. Am schnellsten geht es
 5. Dann die erste Woche mit „Woche planen“ einteilen.
 
 > Tipp: „Beispieldaten laden“ ist nur zum Ausprobieren gedacht.
+> Tipp: Auch per Liste: Handynummern, Resturlaub und Zeitkonto (Spalten bei den Mitarbeitenden), die Unterweisungen und die Schlüsselliste.
 
 *Vollzugriff*
 

@@ -131,8 +131,8 @@ export const TOPICS = [
     q: ['willkommen', 'noch keine daten', 'ablage leer', 'app einrichten daten', 'beispieldaten laden', 'wie starte ich mit daten'],
     answer: 'Ist die Ablage noch leer, zeigt die App „Willkommen“. Am schnellsten geht es mit den bestehenden Excel-Listen: zuerst die Mitarbeitenden einfügen, dann Objekte und Leistungen mit Stammkraft, danach die Zuweisung.',
     steps: ['Bei „Willkommen“ auf „Mitarbeitende einfügen“ klicken und die Excel-Liste einfügen.', '„Objekte & Leistungen einfügen“ klicken und die zweite Liste einfügen.', 'Unter „Zuweisung“ jeder Leistung ohne Stammkraft eine feste Person geben.', 'Unter „Regeln & Feiertage“ die Werte aus dem Kollektivvertrag prüfen.', 'Dann die erste Woche mit „Woche planen“ einteilen.'],
-    tips: ['„Beispieldaten laden“ ist nur zum Ausprobieren gedacht.'],
-    related: ['mitarbeitende-import', 'objekte-import', 'zuweisung', 'woche-planen'],
+    tips: ['„Beispieldaten laden“ ist nur zum Ausprobieren gedacht.', 'Auch per Liste: Handynummern, Resturlaub und Zeitkonto (Spalten bei den Mitarbeitenden), die Unterweisungen und die Schlüsselliste.'],
+    related: ['mitarbeitende-import', 'objekte-import', 'zuweisung', 'woche-planen', 'unterweisung-import', 'schluessel-import', 'resturlaub-stichtag'],
     roles: 'Vollzugriff',
   },
 
