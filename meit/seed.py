@@ -51,6 +51,14 @@ SERVICES = [
      "Monat", 149.0, 1, "ki box betreuung wartung modell"),
     ("KIAGENT", "KI-Agenten-Automatisierung", "Analyse und Automatisierung eines Geschäftsprozesses mit KI-Agenten",
      "Pauschal", 2900.0, 0, "automatisierung agent workflow prozess ki effizienz"),
+    ("KIMA-POT", "KI-Mitarbeiter Potenzialanalyse", "Vor Ort: Abläufe aufnehmen, Einsparpotenzial und ROI berechnen "
+     "(wird bei Beauftragung angerechnet)", "Pauschal", 490.0, 0,
+     "ki mitarbeiter potenzialanalyse automatisierung prozesse workshop roi"),
+    ("KIMA", "KI-Mitarbeiter Einrichtung", "Individueller KI-Mitarbeiter: Posteingang sortieren, Anfragen ins CRM, "
+     "Antwortentwürfe, Belege, Nachfassen – lokal und DSGVO-konform", "Pauschal", 3900.0, 0,
+     "ki mitarbeiter assistent automatisierung email posteingang anfragen crm belege kundenanfragen"),
+    ("KIMAM", "KI-Mitarbeiter Betrieb & Optimierung", "Monitoring, Anpassungen, neue Abläufe, monatlicher Wirkungsbericht",
+     "Monat", 249.0, 1, "ki mitarbeiter betrieb wartung optimierung"),
     ("STD", "Technikerstunde", "Arbeitszeit vor Ort oder remote",
      "Stunde", 110.0, 0, "stunde techniker vor ort remote einsatz"),
 ]
@@ -59,9 +67,11 @@ PACKAGES = {"keins": 0, "basis": 1, "pro": 2, "premium": 3}
 
 
 def seed_services(db: Database) -> None:
-    if db.scalar("SELECT COUNT(*) FROM services"):
-        return
+    """Legt fehlende Katalog-Leistungen an (bestehende, evtl. angepasste Preise bleiben unverändert)."""
+    existing = {r["code"] for r in db.query("SELECT code FROM services")}
     for code, name, desc, unit, price, recurring, keywords in SERVICES:
+        if code in existing:
+            continue
         db.insert(
             "services",
             {"code": code, "name": name, "description": desc, "unit": unit, "price": price,
@@ -193,6 +203,16 @@ def seed_demo(db: Database) -> None:
     ids = [db.insert("customers", c) for c in customers]
     huber, gruber, steiner, berger, hotel = ids
 
+    # MRR-Verlauf (Demo): Start vor ~14 Monaten, Upsell vor ~5 Monaten → NRR über 100 %
+    with db.connect() as conn:
+        for cid, c in zip(ids, customers):
+            if not c["mrr"]:
+                continue
+            start = round(c["mrr"] * 0.8, 2)
+            for old, new, reason, days in ((0, start, "neukunde", 420), (start, c["mrr"], "upsell", 150)):
+                conn.execute("INSERT INTO mrr_history (customer_id, customer_name, old_mrr, new_mrr, reason, created_at) "
+                             "VALUES (?, ?, ?, ?, ?, ?)", (cid, c["name"], old, new, reason, f"{_d(-days)} 09:00:00"))
+
     assets = [
         (huber, "HUBER-PC01", "pc", "Windows 10 Pro 22H2", _d(-6 * 365), _d(-1 * 365)),
         (huber, "HUBER-PC02", "pc", "Windows 11 Pro", _d(-2 * 365), _d(365)),
@@ -255,7 +275,40 @@ def seed_demo(db: Database) -> None:
                               "level": "kritisch", "report": "Demo-Bewertung – bitte echten Check durchführen."})
 
 
+DEMO_MESSAGES = [
+    dict(channel="email", from_name="Franz Huber", from_email="franz.huber@huber-demo.at",
+         subject="Outlook geht schon wieder nicht",
+         body="Hallo,\nbei mir im Büro startet Outlook seit heute früh nicht mehr, es bleibt beim Profil laden hängen. "
+              "Kann sich das bitte wer anschauen? Dringend, ich warte auf Aufträge.\n\nLG Franz Huber"),
+    dict(channel="web", from_name="Sabine Wagner", from_email="s.wagner@wagner-logistik-demo.at",
+         company="Wagner Logistik GmbH", phone="+43 732 998877",
+         subject="Webanfrage: Neuer IT-Partner gesucht",
+         body="Guten Tag,\nwir sind eine Spedition mit 25 Mitarbeitern in Linz und suchen einen neuen IT-Partner. "
+              "Unser bisheriger Betreuer hört auf. Wichtig sind uns laufende Betreuung, ein sicheres Backup und "
+              "Schutz vor Ransomware. Umstellung am besten noch diesen Monat.\nMit freundlichen Grüßen\nSabine Wagner"),
+    dict(channel="email", from_name="Distributor Demo GmbH", from_email="rechnung@distri-demo.at",
+         subject="Ihre Rechnung RE-2026-1187", attachments=["RE-2026-1187.pdf"],
+         body="Sehr geehrte Damen und Herren,\nanbei erhalten Sie die Rechnung Nr. RE-2026-1187 vom 03.11.2026 "
+              "für 2 Notebooks und Microsoft-365-Lizenzen.\nGesamtbetrag: € 1.284,00\nZahlbar binnen 14 Tagen."),
+    dict(channel="email", from_name="Firewall-Hersteller Demo", from_email="newsletter@hersteller-demo.com",
+         subject="Webinar: Neue Firewall-Features 2027",
+         body="Melden Sie sich jetzt zu unserem kostenlosen Webinar an! Abmelden: hier klicken."),
+    dict(channel="email", from_name="Markus Lechner", from_email="markus.lechner.demo@gmail.com",
+         subject="Rückruf wegen KI für unsere Kanzlei",
+         body="Hallo, ich habe gelesen, dass Sie KI lokal ohne Cloud einrichten. Wir sind eine Kanzlei mit 8 Leuten. "
+              "Bitte rufen Sie mich zurück, am besten vormittags: 0664 1234567. Danke, M. Lechner"),
+]
+
+
+def seed_demo_inbox(db: Database) -> None:
+    if db.scalar("SELECT COUNT(*) FROM messages"):
+        return
+    for m in DEMO_MESSAGES:
+        db.insert("messages", {**m, "direction": "in", "status": "neu"})
+
+
 def seed_all(db: Database, demo: bool = True) -> None:
     seed_services(db)
     if demo:
         seed_demo(db)
+        seed_demo_inbox(db)

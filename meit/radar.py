@@ -42,7 +42,9 @@ NETWORK_TYPES = {"accesspoint", "switch", "firewall", "router"}
 
 FALLBACK_PRICES = {"MW": 39, "SEC": 12, "BCK": 89, "AWR": 4, "NIS2GAP": 1900, "VCISO": 490, "WIN11": 180,
                    "NEWPC": 150, "SRVMOD": 3500, "NET": 2400, "KIWS": 1200, "KIBOX": 4900, "KIBOXM": 149,
-                   "M365MIG": 95}
+                   "M365MIG": 95, "KIMA": 3900, "KIMAM": 249}
+CONTACT_HEAVY = ("tourismus", "hotel", "handwerk", "steuer", "gesundheit", "ordination", "kanzlei", "handel",
+                 "immobilien", "logistik", "spedition", "versicherung", "dienstleistung")
 
 
 def eol_info(os_name: str) -> tuple[date, str] | None:
@@ -140,10 +142,14 @@ class Radar:
                         f"{label} ohne regulären Support seit Okt. 2025 (ESU nur gegen Aufpreis): {', '.join(names)}.",
                         "WIN11", once=price("WIN11") * len(names), priority=3)
             for (label, typ), names in soon_groups.items():
+                eol_date = next(e for p_, e, l_ in EOL_TABLE if l_ == label)
+                urgent = eol_date <= today + timedelta(days=120)
                 add(c, "lifecycle", f"{label}-Ablöse planen ({len(names)}×)",
-                    f"Support-Ende in < 18 Monaten: {', '.join(names)}. Jetzt budgetieren.",
+                    f"Support-Ende am {eol_date.strftime('%d.%m.%Y')}: {', '.join(names)}. "
+                    + ("Jetzt umsetzen – die Zeit wird knapp." if urgent else "Jetzt budgetieren."),
                     "SRVMOD" if typ == "server" or "server" in label.lower() else "WIN11",
-                    once=price("SRVMOD") if typ == "server" else price("WIN11") * len(names), priority=2)
+                    once=price("SRVMOD") if typ == "server" else price("WIN11") * len(names),
+                    priority=3 if urgent else 2)
             if old_clients:
                 add(c, "lifecycle", f"Hardware-Erneuerung ({len(old_clients)} Geräte)",
                     f"Geräte ≥ 5 Jahre alt und ohne Garantie: {', '.join(old_clients)}.",
@@ -203,6 +209,14 @@ class Radar:
                 add(c, "ki", "Private KI-Box (lokal, DSGVO-konform)",
                     "Sensible Daten – KI-Nutzung nur ohne Cloud sinnvoll. Lokaler KI-Server mit Dokumentensuche.",
                     "KIBOX", once=price("KIBOX"), monthly=price("KIBOXM"), priority=2)
+
+            if employees >= 5 and "KIMA" not in booked:
+                contact_heavy = any(w in industry for w in CONTACT_HEAVY)
+                add(c, "ki", "KI-Mitarbeiter für Routinearbeit",
+                    "Posteingang sortieren, Anfragen ins CRM, Antwortentwürfe, Belege für den Steuerberater, "
+                    "Angebote nachfassen – rund um die Uhr, lokal betrieben."
+                    + (" Viel Kundenkontakt in der Branche – hoher Nutzen." if contact_heavy else ""),
+                    "KIMA", once=price("KIMA"), monthly=price("KIMAM"), priority=2 if contact_heavy else 1)
 
             # --- Ticket-Muster -----------------------------------------------------------
             since = (today - timedelta(days=180)).isoformat()

@@ -25,6 +25,8 @@ class AgentContext:
     kb: KnowledgeBase
     radar: Radar
     company: str = "ME-IT"
+    settings: Any = None  # meit.config.Settings
+    mailer: Any = None    # meit.mail.Mailer
 
     def llm(self) -> LLM:
         return self.router.get()

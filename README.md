@@ -7,6 +7,7 @@ vorschlagen, Angebote schreiben, Monatsberichte erstellen und automatisch Umsatz
 läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 
 > Strategie dahinter: [docs/STRATEGIE-2026-2030.md](docs/STRATEGIE-2026-2030.md) ·
+> KI-Mitarbeiter als Produkt: [docs/KI-MITARBEITER.md](docs/KI-MITARBEITER.md) ·
 > PC-Empfehlung und Training: [docs/OFFLINE-KI-PC.md](docs/OFFLINE-KI-PC.md)
 
 ## Funktionen
@@ -22,6 +23,12 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Angebots-Agent** | Aus Gesprächsnotizen ein fertiges Angebot. Die KI wählt Leistungen aus dem Katalog, **gerechnet wird im Code**. Angenommene Angebote erhöhen automatisch den MRR. |
 | **Security- & NIS2-Check** | 15 Fragen nach NIS2 Art. 21 / NISG 2026 → Score, priorisierte Maßnahmen, Bericht für die Geschäftsführung, passendes Angebot |
 | **Monatsbericht-Agent** | Kundenbericht mit Kennzahlen, Erledigtem und Empfehlungen (Kundenbindung) |
+| **KI-Mitarbeiter: Posteingang** | Sortiert E-Mails, Formularanfragen und Telefonnotizen (Support · Anfrage · Termin · Beleg · Info). Daraus entstehen Ticket, Lead oder Beleg, dazu ein Antwortentwurf. Modus je Art: **Entwurf + Freigabe** oder **Autopilot**. IMAP/SMTP-Anbindung. |
+| **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
+| **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, CSV-Export für den Steuerberater |
+| **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
+| **Customer Success** | Health Score je Kunde, QBR-Agent („Plan → erreicht → nächster Hebel“), NRR, Anteil wiederkehrender Umsatz, Aktivitäten-Kaskade, 10-Punkte-Selbst-Check |
+| **ROI-Rechner** | Für das Verkaufsgespräch: Zeitgewinn, Wert, Amortisation, ROI im ersten Jahr |
 | **KI-Training** | Export pseudonymisierter Trainingsdaten (JSONL) und LoRA-Skript für ein eigenes „ME-IT-Modell“ |
 | **Protokoll** | Jeder Agentenlauf wird protokolliert (Nachvollziehbarkeit, AI Act) |
 
@@ -63,6 +70,10 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `ALLOW_CLOUD_FALLBACK` | `false` | Nur bei `true` darf Claude einspringen, wenn lokal keine KI läuft |
 | `MEIT_PASSWORD` | leer | Passwortschutz (HTTP Basic), **Pflicht**, wenn die App im Netzwerk erreichbar ist |
 | `MEIT_HOST` | `127.0.0.1` | `0.0.0.0` für Zugriff aus dem LAN |
+| `MAIL_IMAP_*`, `MAIL_SMTP_*`, `MAIL_FROM` | leer | Postfach für den KI-Mitarbeiter (Details: docs/KI-MITARBEITER.md) |
+| `MAIL_POLL_MINUTES` | `0` | Postfach automatisch alle X Minuten abrufen |
+| `BOOKING_URL` | leer | Terminbuchungs-Link für Antworten an Interessenten |
+| `PUBLIC_FORM_ENABLED` / `PUBLIC_FORM_ORIGINS` | `true` / leer | Anfrageformular an/aus, Websites, die es einbinden dürfen |
 
 ## Architektur
 
@@ -101,7 +112,11 @@ API-Dokumentation (automatisch): http://localhost:8080/docs
 meit/
   main.py          API + Weboberfläche
   llm.py           KI-Provider (Ollama, OpenAI-kompatibel, Claude) + Router
-  agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security
+  agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,
+                   Posteingang/KI-Mitarbeiter (inbox.py), Quartalsgespräch (qbr.py)
+  mitarbeiter_api.py  API für Posteingang, Leads, Belege, Anfrageformular
+  mail.py          IMAP-Abruf und SMTP-Versand (Standardbibliothek)
+  growth.py        Health Score, NRR, wiederkehrender Anteil, Aktivitäten-Kaskade
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25)
@@ -115,7 +130,7 @@ docs/                       Strategie 2026–2030, KI-PC-Empfehlung
 ## Nächste Ausbaustufen (Vorschläge)
 
 - Anbindung an RMM/PSA (z. B. NinjaOne, Datto, Atera), damit Geräte automatisch importiert werden
-- E-Mail-Postfach → Tickets (IMAP) mit automatischer Triage
+- Microsoft-365-Postfach über Graph/OAuth (statt IMAP/SMTP)
 - Kundenportal mit KI-Self-Service (Level-1)
 - Zeiterfassung → Rechnungsexport (z. B. BMD, RZL)
 - Mehrbenutzer mit Rollen (Techniker, Vertrieb, Geschäftsführung)

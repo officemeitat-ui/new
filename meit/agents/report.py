@@ -66,7 +66,7 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
     lines = [f"# IT-Monatsbericht {month} – {customer['name']}", "", summary.strip(), "", "## Kennzahlen",
              f"- Tickets im Monat: **{len(tickets)}** (gelöst: {len(resolved)})",
              f"- Offene Tickets gesamt: **{open_all}**",
-             f"- Aufgewendete Zeit: **{facts['arbeitszeit_stunden']} h**"]
+             f"- Aufgewendete Zeit: **{str(facts['arbeitszeit_stunden']).replace('.', ',')} h**"]
     if assessment:
         lines.append(f"- Security-Score: **{assessment['score']:.0f}/100** ({assessment['level']})")
     if resolved:

@@ -114,6 +114,93 @@ CREATE TABLE IF NOT EXISTS agent_log (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel TEXT DEFAULT 'manuell',
+    direction TEXT DEFAULT 'in',
+    external_id TEXT DEFAULT '',
+    from_name TEXT DEFAULT '',
+    from_email TEXT DEFAULT '',
+    to_email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    company TEXT DEFAULT '',
+    subject TEXT DEFAULT '',
+    body TEXT DEFAULT '',
+    attachments TEXT DEFAULT '[]',
+    category TEXT DEFAULT '',
+    status TEXT DEFAULT 'neu',
+    ai_result TEXT DEFAULT '',
+    draft_reply TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    linked_type TEXT DEFAULT '',
+    linked_id INTEGER,
+    reply_to_id INTEGER,
+    sent_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT DEFAULT '',
+    company TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    source TEXT DEFAULT '',
+    need TEXT DEFAULT '',
+    stage TEXT DEFAULT 'neu',
+    score INTEGER DEFAULT 0,
+    qualification TEXT DEFAULT '{}',
+    notes TEXT DEFAULT '',
+    followups INTEGER DEFAULT 0,
+    last_contact_at TEXT DEFAULT '',
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    vendor TEXT DEFAULT '',
+    invoice_no TEXT DEFAULT '',
+    invoice_date TEXT DEFAULT '',
+    amount REAL DEFAULT 0,
+    currency TEXT DEFAULT 'EUR',
+    category TEXT DEFAULT '',
+    status TEXT DEFAULT 'offen',
+    note TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mrr_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    customer_name TEXT DEFAULT '',
+    old_mrr REAL DEFAULT 0,
+    new_mrr REAL DEFAULT 0,
+    reason TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS qbrs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    period TEXT DEFAULT '',
+    health_score INTEGER DEFAULT 0,
+    text TEXT DEFAULT '',
+    next_steps TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
+CREATE INDEX IF NOT EXISTS idx_messages_external ON messages(external_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_customer ON tickets(customer_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_assets_customer ON assets(customer_id);
@@ -123,7 +210,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_customer ON assets(customer_id);
 WRITABLE_FIELDS: dict[str, set[str]] = {
     "customers": {
         "name", "contact_name", "email", "phone", "address", "industry", "employees",
-        "package", "mrr", "contract_end", "booked_services", "notes",
+        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at",
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
@@ -135,14 +222,36 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "kb_articles": {"title", "content", "tags", "embedding", "embedding_model"},
     "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
-    "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status"},
+    "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status",
+               "sent_at", "followup_count", "last_followup_at"},
+    "messages": {
+        "channel", "direction", "external_id", "from_name", "from_email", "to_email", "phone", "company",
+        "subject", "body", "attachments", "category", "status", "ai_result", "draft_reply", "note",
+        "customer_id", "linked_type", "linked_id", "reply_to_id", "sent_at",
+    },
+    "leads": {
+        "name", "company", "email", "phone", "source", "need", "stage", "score", "qualification", "notes",
+        "followups", "last_contact_at", "customer_id",
+    },
+    "receipts": {"message_id", "vendor", "invoice_no", "invoice_date", "amount", "currency", "category",
+                 "status", "note"},
+    "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
+    "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
     "assessments": {"customer_id", "answers", "score", "level", "report"},
     "agent_log": {"agent", "provider", "input", "output", "ok", "duration_ms"},
 }
 
-TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles"}
+TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
 TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
+    "messages", "leads", "receipts", "mrr_history", "qbrs",
+}
+
+# Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
+MIGRATIONS = {
+    "customers": {"last_qbr_at": "TEXT DEFAULT ''"},
+    "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",
+               "last_followup_at": "TEXT DEFAULT ''"},
 }
 
 
@@ -173,6 +282,24 @@ class Database:
     def init_schema(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            for table, columns in MIGRATIONS.items():
+                existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+                for column, definition in columns.items():
+                    if column not in existing:
+                        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    # --- Einstellungen (Schlüssel/Wert, JSON) -------------------------------
+    def get_setting(self, key: str, default: Any = None) -> Any:
+        row = self.query_one("SELECT value FROM app_settings WHERE key = ?", (key,))
+        return loads(row["value"], default) if row else default
+
+    def set_setting(self, key: str, value: Any) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, json.dumps(value, ensure_ascii=False)),
+            )
 
     # --- generische Helfer -------------------------------------------------
     def query(self, sql: str, params: tuple | list = ()) -> list[dict[str, Any]]:

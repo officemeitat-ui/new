@@ -22,8 +22,12 @@ from .agents import (
 )
 from .config import Settings, get_settings
 from .db import Database, loads, now_iso
+from .agents.qbr import create_qbr
+from .growth import ensure_mrr_baseline, health_overview, health_score, log_mrr, nrr, pipeline, recurring_share
 from .knowledge import KnowledgeBase
 from .llm import Router
+from .mail import Mailer
+from .mitarbeiter_api import is_public_path, register as register_mitarbeiter, start_mail_poller
 from .radar import Radar, eol_info
 from .security import QUESTIONS
 from .seed import seed_all
@@ -110,6 +114,11 @@ class QuoteIn(BaseModel):
     service_codes: list[str] = []
 
 
+class GrowthSettingsIn(BaseModel):
+    target_closings_per_week: Optional[float] = None
+    selfcheck: Optional[dict[str, bool]] = None
+
+
 class QuoteStatus(BaseModel):
     status: str
 
@@ -133,10 +142,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db = Database(settings.db_path)
     db.init_schema()
     seed_all(db, demo=settings.seed_demo_data)
+    ensure_mrr_baseline(db)
     router = Router(settings)
     kb = KnowledgeBase(db, router)
     radar = Radar(db)
-    ctx = AgentContext(db=db, router=router, kb=kb, radar=radar, company=settings.company_name)
+    mailer = Mailer(settings)
+    ctx = AgentContext(db=db, router=router, kb=kb, radar=radar, company=settings.company_name,
+                       settings=settings, mailer=mailer)
 
     app = FastAPI(title=f"{settings.company_name} Cockpit", version=__version__)
     app.state.ctx = ctx
@@ -145,6 +157,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- optionaler Passwortschutz (HTTP Basic), wenn im LAN erreichbar ----------
     @app.middleware("http")
     async def basic_auth(request: Request, call_next):
+        path = request.url.path
+        if is_public_path(path):
+            # Öffentliches Anfrageformular: ohne Passwort, CORS nur für freigegebene Websites.
+            origin = (request.headers.get("origin") or "").rstrip("/")
+            cors = {}
+            if origin and origin in settings.public_form_origins:
+                cors = {"Access-Control-Allow-Origin": origin, "Vary": "Origin",
+                        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type"}
+            if request.method == "OPTIONS":
+                return Response(status_code=204 if cors else 403, headers=cors)
+            response = await call_next(request)
+            for key, value in cors.items():
+                response.headers[key] = value
+            return response
         if settings.app_password:
             header = request.headers.get("authorization", "")
             ok = False
@@ -211,7 +238,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "recent_agent_runs": db.query(
                 "SELECT agent, provider, ok, duration_ms, created_at FROM agent_log ORDER BY id DESC LIMIT 8"),
             "llm": router.status(),
+            "nrr": nrr(db),
+            "recurring_share": recurring_share(db),
+            "health": {k: v for k, v in health_overview(db).items() if k != "customers"},
         }
+
+    # --- Wachstum (Customer Success, Pipeline, Firmenwert) ------------------------
+    @app.get("/api/growth")
+    def growth() -> dict[str, Any]:
+        target = float(db.get_setting("target_closings_per_week", 1.0) or 1.0)
+        return {"nrr": nrr(db), "recurring_share": recurring_share(db), "health": health_overview(db),
+                "pipeline": pipeline(db, target),
+                "mrr_history": db.query("SELECT * FROM mrr_history ORDER BY created_at DESC, id DESC LIMIT 50"),
+                "selfcheck": db.get_setting("selfcheck", {})}
+
+    @app.put("/api/growth/settings")
+    def growth_settings(data: GrowthSettingsIn) -> dict[str, Any]:
+        if data.target_closings_per_week is not None:
+            db.set_setting("target_closings_per_week", max(0.1, min(data.target_closings_per_week, 50)))
+        if data.selfcheck is not None:
+            db.set_setting("selfcheck", {k: bool(v) for k, v in data.selfcheck.items()})
+        return growth()
+
+    @app.post("/api/agents/qbr", status_code=201)
+    def qbr(data: ReportIn) -> dict:
+        must(db.get("customers", data.customer_id), "Kunde")
+        return create_qbr(ctx, data.customer_id)
+
+    @app.get("/api/qbrs/{qid}")
+    def get_qbr(qid: int) -> dict:
+        row = must(db.get("qbrs", qid), "QBR")
+        row["next_steps"] = loads(row["next_steps"], [])
+        return row
 
     # --- Kunden -------------------------------------------------------------------
     @app.get("/api/customers")
@@ -219,11 +277,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         rows = db.query(
             "SELECT c.*, (SELECT COUNT(*) FROM tickets t WHERE t.customer_id = c.id AND t.status != 'geloest') AS open_tickets, "
             "(SELECT COUNT(*) FROM assets a WHERE a.customer_id = c.id) AS asset_count FROM customers c ORDER BY c.name")
+        for r in rows:
+            h = health_score(db, r)
+            r["health_score"], r["health_status"] = h["score"], h["status"]
         return [customer_out(r) for r in rows]
 
     @app.post("/api/customers", status_code=201)
     def add_customer(data: CustomerIn) -> dict:
-        return customer_out(db.get("customers", db.insert("customers", data.model_dump())))
+        cid = db.insert("customers", data.model_dump())
+        log_mrr(db, cid, data.name, 0, data.mrr, "neukunde")
+        return customer_out(db.get("customers", cid))
 
     @app.get("/api/customers/{cid}")
     def get_customer(cid: int) -> dict:
@@ -235,16 +298,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         c["assessments"] = db.query("SELECT id, score, level, created_at FROM assessments WHERE customer_id = ? "
                                     "ORDER BY id DESC", (cid,))
         c["opportunities"] = radar.scan(cid)["opportunities"]
+        c["health"] = health_score(db, c)
+        c["qbrs"] = db.query("SELECT id, period, health_score, created_at FROM qbrs WHERE customer_id = ? ORDER BY id DESC",
+                             (cid,))
         return c
 
     @app.put("/api/customers/{cid}")
     def update_customer(cid: int, data: CustomerIn) -> dict:
-        must(db.get("customers", cid), "Kunde")
+        before = must(db.get("customers", cid), "Kunde")
         db.update("customers", cid, data.model_dump())
+        old_mrr = before["mrr"] or 0
+        reason = "kündigung" if data.mrr == 0 else ("upsell" if data.mrr > old_mrr else "reduktion")
+        log_mrr(db, cid, data.name, old_mrr, data.mrr, reason)
         return customer_out(db.get("customers", cid))
 
     @app.delete("/api/customers/{cid}")
     def delete_customer(cid: int) -> dict:
+        existing = db.get("customers", cid)
+        if existing:
+            log_mrr(db, cid, existing["name"], existing["mrr"] or 0, 0, "kündigung")
         if not db.delete("customers", cid):
             raise HTTPException(404, "Kunde nicht gefunden")
         return {"ok": True}
@@ -455,7 +527,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if data.status not in {"entwurf", "versendet", "angenommen", "abgelehnt"}:
             raise HTTPException(422, "Ungültiger Status")
         q = must(db.get("quotes", qid), "Angebot")
-        db.update("quotes", qid, {"status": data.status})
+        update: dict[str, Any] = {"status": data.status}
+        if data.status == "versendet" and q["status"] != "versendet":
+            update.update({"sent_at": now_iso(), "followup_count": 0, "last_followup_at": ""})
+        db.update("quotes", qid, update)
         if data.status == "angenommen" and q["status"] != "angenommen":
             # Angenommene wiederkehrende Leistungen erhöhen automatisch den MRR des Kunden.
             customer = db.get("customers", q["customer_id"])
@@ -463,11 +538,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 items = loads(q["items"], [])
                 booked = set(loads(customer["booked_services"], []))
                 booked.update(i["code"] for i in items if i.get("recurring"))
+                log_mrr(db, customer["id"], customer["name"], customer["mrr"] or 0,
+                        round((customer["mrr"] or 0) + (q["total_monthly"] or 0), 2), f"angebot #{qid}")
                 db.update("customers", customer["id"], {
                     "mrr": round((customer["mrr"] or 0) + (q["total_monthly"] or 0), 2),
                     "booked_services": sorted(booked),
                     "package": customer["package"] if customer["package"] != "keins" or not q["total_monthly"] else "basis",
                 })
+                db.query("UPDATE leads SET stage = 'gewonnen' WHERE customer_id = ? AND stage != 'gewonnen'",
+                         (customer["id"],))
         return db.get("quotes", qid)
 
     @app.delete("/api/quotes/{qid}")
@@ -502,6 +581,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = to_jsonl(build_dataset(db, include_kb=include_kb))
         return PlainTextResponse(body, media_type="application/jsonl", headers={
             "Content-Disposition": f'attachment; filename="meit-training-{date.today().isoformat()}.jsonl"'})
+
+    # --- KI-Mitarbeiter (Posteingang, Leads, Belege, Anfrageformular) -----------
+    register_mitarbeiter(app, ctx)
+    if settings.mail_poll_minutes > 0 and mailer.imap_configured:
+        start_mail_poller(ctx, settings.mail_poll_minutes)
 
     # --- Weboberfläche ----------------------------------------------------------
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

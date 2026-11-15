@@ -51,8 +51,9 @@ die eigene Kalkulation angepasst werden.
 | 4 | **NIS2-Gap-Analyse** → **vCISO** | Pauschal → monatlich | 1.900 € → 490 €/Mon. | Gesetzlicher Druck, Haftung der Geschäftsführung |
 | 5 | **Private KI-Box** (lokaler KI-Server) + Betreuung | Projekt + monatlich | 4.900 € + 149 €/Mon. (zzgl. Hardware) | Alleinstellung, DSGVO, hohe Begeisterung |
 | 6 | **KI-Workshop / AI-Act-Schulung** | Pauschal | 1.200 € | Einstieg ins KI-Thema, Pflicht nach Art. 4 |
-| 7 | **KI-Agenten-Automatisierung** (ein Prozess pro Projekt) | Projekt | ab 2.900 € | Wachstumsfeld 2027–2030 |
-| 8 | Modernisierung (Win11, Server, M365, Netzwerk) | Projekt | siehe Katalog | Lifecycle-Umsatz |
+| 7 | **KI-Mitarbeiter** (Posteingang, Anfragen/CRM, Belege, Nachfassen) – siehe [KI-MITARBEITER.md](KI-MITARBEITER.md) | Analyse → Einrichtung → monatlich | 490 € → 3.900 € → 249 €/Mon. | Wird regional bereits beworben, Nachfrage ist da. ME-IT-Vorteil: lokal + IT aus einer Hand |
+| 8 | **KI-Agenten-Automatisierung** (weitere Prozesse) | Projekt | ab 2.900 € | Land & Expand nach dem ersten KI-Mitarbeiter |
+| 9 | Modernisierung (Win11, Server, M365, Netzwerk) | Projekt | siehe Katalog | Lifecycle-Umsatz |
 
 **Paketlogik:** Bündle 1 bis 3 als „Basis“, „Pro“ (+ Awareness, Firewall) und „Premium“ (+ vCISO,
 Restore-Tests, Berichte). Kunden kaufen lieber ein Paket als zehn Einzelpositionen.
@@ -81,6 +82,8 @@ Radar-Potenzial (gehoben vs. offen).
 
 ### Q4 2026: Fundament
 - [ ] Cockpit in Betrieb nehmen: echte Kunden, Geräte und Leistungskatalog mit eigenen Preisen erfassen
+- [ ] **KI-Mitarbeiter zuerst bei ME-IT selbst** einsetzen (office@-Postfach, Anfrageformular auf der Website, Belege) und nach 4 Wochen die echten Zahlen als Verkaufsargument nutzen
+- [ ] Mit den 5 wichtigsten Kunden das erste **Quartalsgespräch (QBR)** führen (Cockpit: Kunde → „QBR erstellen“)
 - [ ] KI-PC anschaffen (siehe [OFFLINE-KI-PC.md](OFFLINE-KI-PC.md)), Ollama und Modelle einrichten
 - [ ] **NIS2-Kampagne an alle Bestandskunden ab 20 MA:** Security-Check im Gespräch, Registrierung bis Jahresende begleiten
 - [ ] Windows-10-Restbestand mit Radar identifizieren und Migration anbieten
@@ -107,7 +110,25 @@ Radar-Potenzial (gehoben vs. offen).
 
 ---
 
-## 5. Was du besser lassen solltest
+## 5. Wachstumssystem: 5 Ebenen
+
+Abgeglichen mit dem Leitfaden „Der Skalierungs-Blueprint“ (Schröder Sales Solutions). Dessen Kern: Von
+Zeit-gegen-Geld zu wiederkehrendem Umsatz, indem fünf Ebenen ineinandergreifen. So setzt ME-IT jede Ebene um:
+
+| Ebene | Prinzip | Umsetzung bei ME-IT | Im Cockpit |
+|---|---|---|---|
+| **1 Marketing** | Ein Anfragekanal, den man per Budget steuern kann | Quartals-Webinar „NIS2 & KI für KMU in OÖ“ mit Terminbuchung im Anschluss, beworben über LinkedIn/Meta. Dazu jede Woche Bestandskunden und Wunschkunden direkt ansprechen. | Anfrageformular `/anfrage` → Posteingang → Lead mit Score |
+| **2 Sales** | Drei Gespräche: Diagnose (Warum ändern?) → Pitch (Warum wir?) → Angebotsbesprechung (Warum jetzt?). Preis erst nach Referenz, ROI und Timing. | Erstgespräch mit Security-Check als Diagnose, Pitch mit Referenz und ROI-Rechner, danach Angebot | Pipeline-Phasen, ROI-Rechner, Angebots-Agent, Nachfassen |
+| **3 Customer Success** | Trusted Advisor statt Bittsteller: Health Score und Quartalsgespräche (QBR) machen den Bestand zum Umsatzmotor | QBR mit den A-Kunden: „Das war der Plan, das haben wir erreicht, das ist der nächste Hebel“ | Health Score je Kunde, QBR-Agent, Umsatz-Radar als Hebel-Liste |
+| **4 Team** | Wochenziele, Top-Deal-Review, „was nicht im System steht, ist nicht passiert“ | Montag Wochenziel (z. B. 5 Erstgespräche), Freitag Abgleich. Tickets, Leads und Lösungen immer im Cockpit. | Aktivitäten-Kaskade (rückwärts geplant), Agenten-Protokoll |
+| **5 Firmenwert** | Recurring vor Einmalumsatz, NRR über 100 %, Einstieg mit kleinem Angebot (Land & Expand), dreistufige Preise | Potenzialanalyse/Security-Check als Einstieg, dann Managed-Pakete. Angebote in drei Stufen (Premium als Anker, Einstieg, Empfehlung). | NRR, Anteil wiederkehrend, MRR-Verlauf, 10-Punkte-Selbst-Check |
+
+**Kennzahlen-Ziele bis 2028:** NRR > 110 %, wiederkehrender Anteil > 60 %, jeder A-Kunde 4 QBRs pro Jahr,
+kein Kunde länger als 30 Tage im Health-Status „Risiko“ ohne Maßnahme.
+
+---
+
+## 6. Was du besser lassen solltest
 
 - **Break-Fix ohne Vertrag ausbauen.** Das skaliert nicht und lastet Techniker schlecht aus.
 - **Kundendaten unkontrolliert in Cloud-KI kippen.** Das bringt DSGVO-Risiko und kostet Vertrauen. Lokal ist dein Vorteil.

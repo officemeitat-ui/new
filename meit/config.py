@@ -29,6 +29,13 @@ def _resolve(path: str) -> str:
     return str(BASE_DIR / path)
 
 
+def _int(name: str, default: int) -> int:
+    try:
+        return int((os.environ.get(name) or "").strip() or default)
+    except ValueError:
+        return default
+
+
 def _bool(name: str, default: bool) -> bool:
     value = os.environ.get(name)
     if value is None:
@@ -56,6 +63,23 @@ class Settings:
     llm_timeout: float
     seed_demo_data: bool
     app_password: str
+    # --- KI-Mitarbeiter: E-Mail-Anbindung -------------------------------------
+    mail_imap_host: str = ""
+    mail_imap_port: int = 993
+    mail_imap_user: str = ""
+    mail_imap_password: str = ""
+    mail_imap_folder: str = "INBOX"
+    mail_smtp_host: str = ""
+    mail_smtp_port: int = 587
+    mail_smtp_user: str = ""
+    mail_smtp_password: str = ""
+    mail_from: str = ""
+    mail_poll_minutes: int = 0
+    # --- KI-Mitarbeiter: Kundenkontakt -----------------------------------------
+    booking_url: str = ""
+    followup_days: int = 5
+    public_form_enabled: bool = True
+    public_form_origins: tuple[str, ...] = ()
 
 
 def get_settings() -> Settings:
@@ -76,4 +100,21 @@ def get_settings() -> Settings:
         llm_timeout=float(os.environ.get("LLM_TIMEOUT", "180")),
         seed_demo_data=_bool("MEIT_SEED_DEMO", True),
         app_password=os.environ.get("MEIT_PASSWORD", ""),
+        mail_imap_host=os.environ.get("MAIL_IMAP_HOST", ""),
+        mail_imap_port=_int("MAIL_IMAP_PORT", 993),
+        mail_imap_user=os.environ.get("MAIL_IMAP_USER", ""),
+        mail_imap_password=os.environ.get("MAIL_IMAP_PASSWORD", ""),
+        mail_imap_folder=os.environ.get("MAIL_IMAP_FOLDER", "INBOX"),
+        mail_smtp_host=os.environ.get("MAIL_SMTP_HOST", ""),
+        mail_smtp_port=_int("MAIL_SMTP_PORT", 587),
+        mail_smtp_user=os.environ.get("MAIL_SMTP_USER") or os.environ.get("MAIL_IMAP_USER", ""),
+        mail_smtp_password=os.environ.get("MAIL_SMTP_PASSWORD") or os.environ.get("MAIL_IMAP_PASSWORD", ""),
+        mail_from=os.environ.get("MAIL_FROM") or os.environ.get("MAIL_IMAP_USER", ""),
+        mail_poll_minutes=_int("MAIL_POLL_MINUTES", 0),
+        booking_url=os.environ.get("BOOKING_URL", ""),
+        followup_days=_int("FOLLOWUP_DAYS", 5),
+        public_form_enabled=_bool("PUBLIC_FORM_ENABLED", True),
+        public_form_origins=tuple(
+            o.strip().rstrip("/") for o in os.environ.get("PUBLIC_FORM_ORIGINS", "").split(",") if o.strip()
+        ),
     )

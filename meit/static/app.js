@@ -3,7 +3,9 @@
 
 // ---------------------------------------------------------------- Helfer
 const $app = document.getElementById("app");
-const state = { customers: [], services: [], chat: [] };
+const state = { customers: [], services: [], chat: [], km: null };
+/** Inhalt der Hauptfläche setzen (null/false-Einträge werden ignoriert). */
+const show = (...nodes) => $app.replaceChildren(...nodes.flat().filter((x) => x !== null && x !== undefined && x !== false && x !== ""));
 
 function h(tag, attrs, ...children) {
   const el = document.createElement(tag);
@@ -202,6 +204,7 @@ async function refreshAiStatus() {
     el.className = "ai-status off";
     el.textContent = "Server nicht erreichbar";
   }
+  kmOverview();
 }
 
 // ---------------------------------------------------------------- Ansichten
@@ -209,10 +212,17 @@ const views = {};
 
 views.dashboard = async () => {
   setTitle("Übersicht", [h("a", { class: "btn primary", href: "#/tickets?neu=1" }, "+ Ticket")]);
-  const d = await api("/api/dashboard");
-  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` },
+  const [d, km] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null)]);
+  const kpi = (label, value, sub, cls = "", href = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
-  $app.replaceChildren(
+  const nrrVal = d.nrr && d.nrr.nrr !== null ? `${d.nrr.nrr.toLocaleString("de-AT")} %` : "–";
+  const share = d.recurring_share && d.recurring_share.share !== null ? `${Math.round(d.recurring_share.share)} %` : "–";
+  show(
+    h("div", { class: "grid kpis" },
+      kpi("Net Revenue Retention", nrrVal, d.nrr && d.nrr.nrr !== null ? "Ziel: über 100 % (Bestand wächst)" : "Verlauf wird aufgezeichnet", "", "#/wachstum"),
+      kpi("Anteil wiederkehrend", share, "Ziel: über 60 %", "", "#/wachstum"),
+      kpi("Kunden-Health", `${d.health.counts.risiko} Risiko`, `${d.health.counts.beobachten} beobachten · ${d.health.counts.gesund} gesund`, d.health.counts.risiko ? "" : "", "#/wachstum"),
+      km ? kpi("KI-Mitarbeiter", `${km.pending_approval} Freigaben`, `${km.unprocessed} neu · ca. ${(Math.round(km.minutes_saved / 6) / 10).toLocaleString("de-AT")} h gespart (7 Tage)`, "", "#/posteingang") : null),
     h("div", { class: "grid kpis" },
       kpi("Wiederkehrender Umsatz", eur(d.mrr), `pro Monat · ${eur(d.mrr * 12)} pro Jahr`),
       kpi("Kunden", d.customers, `${d.managed_customers} mit Managed-Vertrag`),
@@ -253,12 +263,13 @@ views.dashboard = async () => {
 views.kunden = async () => {
   setTitle("Kunden", [h("button", { class: "btn primary", onclick: () => customerForm() }, "+ Kunde")]);
   const rows = await loadCustomers();
-  $app.replaceChildren(h("div", { class: "card" }, table([
+  show(h("div", { class: "card" }, table([
     { label: "Kunde", render: (r) => h("strong", {}, r.name) },
     { label: "Branche", key: "industry" },
     { label: "MA", key: "employees", num: true },
     { label: "Paket", render: (r) => badge(r.package, r.package === "keins" ? "warn" : "info") },
     { label: "MRR", num: true, render: (r) => eur(r.mrr) },
+    { label: "Health", render: (r) => badge(`${r.health_score} ${r.health_status}`, r.health_status) },
     { label: "Tickets", key: "open_tickets", num: true },
     { label: "Geräte", key: "asset_count", num: true },
     { label: "Vertragsende", render: (r) => dt(r.contract_end) },
@@ -302,9 +313,22 @@ views.kunde = async (id) => {
       modal("Monatsbericht", h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)), [copyButton(() => r.text)]);
     }) }, "Monatsbericht (KI)"),
     h("a", { class: "btn", href: `#/security?kunde=${c.id}` }, "Security-Check"),
+    h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/agents/qbr", { method: "POST", body: { customer_id: c.id } });
+      modal("Quartalsgespräch (QBR)", h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)), [copyButton(() => r.text)]);
+      render();
+    }) }, "QBR erstellen (KI)"),
     h("button", { class: "btn primary", onclick: () => quoteCreate(c.id) }, "Angebot (KI)"),
   ]);
-  $app.replaceChildren(
+  const health = h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Health Score"), badge(`${c.health.score}/100 ${c.health.status}`, c.health.status)),
+    h("div", { class: "bar", style: "margin-bottom:.7rem" }, h("span", { style: `width:${c.health.score}%` })),
+    h("div", { class: "row small" }, c.health.factors.map((f) => h("span", { class: `badge ${f.delta > 0 ? "ok" : "warn"}` }, `${f.delta > 0 ? "+" : ""}${f.delta} ${f.text}`))),
+    c.qbrs.length ? h("p", { class: "small muted", style: "margin-bottom:0" }, "Letzte QBRs: ",
+      c.qbrs.slice(0, 4).map((q) => h("a", { href: "#", style: "margin-right:.6rem", onclick: async (e) => {
+        e.preventDefault(); const full = await api(`/api/qbrs/${q.id}`); modal(`QBR ${q.period}`, md(full.text), [copyButton(() => full.text)]);
+      } }, `${q.period} (${dt(q.created_at)})`))) : h("p", { class: "small muted", style: "margin-bottom:0" }, "Noch kein Quartalsgespräch – Health Score und nächste Hebel machen daraus ein Strategiegespräch statt Nachverhandlung."));
+  show(
     h("div", { class: "grid kpis" },
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Paket / MRR"), h("div", { class: "value" }, eur(c.mrr)), h("div", { class: "sub" }, `Paket: ${c.package}`)),
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Mitarbeiter"), h("div", { class: "value" }, c.employees), h("div", { class: "sub" }, c.industry || "–")),
@@ -312,6 +336,7 @@ views.kunde = async (id) => {
         h("div", { class: "sub" }, [c.email, c.phone].filter(Boolean).join(" · "))),
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Gebuchte Leistungen"), h("div", { class: "row", style: "margin-top:.4rem" },
         c.booked_services.length ? c.booked_services.map((s) => badge(s, "info")) : h("span", { class: "muted" }, "keine")))),
+    health,
     c.notes ? h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, "Notizen: "), c.notes) : null,
     h("div", { class: "grid two" },
       h("div", { class: "card" }, h("h2", {}, `Verkaufschancen (${c.opportunities.length})`),
@@ -353,7 +378,7 @@ views.tickets = async (_, params) => {
   const rows = await api(`/api/tickets${query}`);
   const tabs = h("div", { class: "tabs" }, [["offen", "Offen"], ["alle", "Alle"], ["geloest", "Gelöst"]].map(([k, l]) =>
     h("button", { class: ticketFilter === k ? "active" : "", onclick: () => { ticketFilter = k; render(); } }, l)));
-  $app.replaceChildren(tabs, h("div", { class: "card" }, table([
+  show(tabs, h("div", { class: "card" }, table([
     { label: "#", key: "id" },
     { label: "Titel", render: (r) => h("div", {}, h("strong", {}, r.title), r.ai_suggestion?.summary && r.ai_suggestion.summary !== r.title
       ? h("div", { class: "small muted" }, r.ai_suggestion.summary) : null) },
@@ -451,7 +476,7 @@ views.assets = async (_, params) => {
   const select = h("select", { style: "max-width:320px", onchange: (e) => { location.hash = e.target.value ? `#/assets?kunde=${e.target.value}` : "#/assets"; } },
     customerOptions(true).map(([v, l]) => h("option", { value: v, selected: String(v) === filter }, v ? l : "Alle Kunden")));
   const eol = rows.filter((r) => r.eol_status === "abgelaufen").length;
-  $app.replaceChildren(h("div", { class: "row", style: "margin-bottom:1rem" }, select, h("span", { class: "spacer" }),
+  show(h("div", { class: "row", style: "margin-bottom:1rem" }, select, h("span", { class: "spacer" }),
     h("span", { class: "muted small" }, `${rows.length} Geräte · ${eol} ohne Herstellersupport`)),
   h("div", { class: "card" }, assetTable(rows)));
 };
@@ -506,7 +531,7 @@ views.wissen = async () => {
     timer = setTimeout(async () => { if (!q) return showList(articles); showList(await api(`/api/kb/search?q=${encodeURIComponent(q)}&limit=10`), true); }, 350);
   } });
   showList(articles);
-  $app.replaceChildren(h("div", { class: "card", style: "margin-bottom:1rem" }, search), results);
+  show(h("div", { class: "card", style: "margin-bottom:1rem" }, search), results);
 };
 
 function articleForm(a = null) {
@@ -561,7 +586,7 @@ views.assistent = async () => {
   const examples = ["Welche Kunden haben noch Windows 10?", "Was sind die 3 wichtigsten Verkaufschancen?",
     "Wie behebe ich eine hängende Druckwarteschlange?", "Welche kritischen Tickets sind offen?",
     "Leg für die Tischlerei Huber ein Ticket an: Bildschirm flackert"];
-  $app.replaceChildren(h("div", { class: "card chat" },
+  show(h("div", { class: "card chat" },
     state.chat.length ? null : h("div", {}, h("p", { class: "muted" }, "Der Assistent arbeitet mit deinen echten Daten (Kunden, Tickets, Geräte, Wissen) – lokal, ohne Cloud."),
       h("div", { class: "chips" }, examples.map((x) => h("button", { class: "chip", onclick: () => send(x) }, x)))),
     log, h("div", { class: "chat-input" }, input, sendBtn)));
@@ -577,7 +602,7 @@ views.radar = async () => {
   const r = await api("/api/radar");
   const kinds = { alle: "Alle", managed: "Managed", security: "Security", compliance: "NIS2", lifecycle: "Lifecycle", ki: "KI", vertrag: "Verträge", projekt: "Projekte" };
   const list = r.opportunities.filter((o) => radarKind === "alle" || o.kind === radarKind);
-  $app.replaceChildren(
+  show(
     h("div", { class: "grid kpis" },
       h("div", { class: "card kpi accent" }, h("div", { class: "label" }, "Potenzial (Jahreswert)"), h("div", { class: "value" }, eur(r.total_annual)), h("div", { class: "sub" }, `${r.count} Chancen`)),
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Zusätzlicher MRR"), h("div", { class: "value" }, eur(r.total_monthly)), h("div", { class: "sub" }, "pro Monat, wiederkehrend")),
@@ -620,7 +645,7 @@ views.angebote = async () => {
   setTitle("Angebote", [h("button", { class: "btn primary", onclick: () => quoteCreate() }, "+ Angebot (KI)")]);
   const rows = await api("/api/quotes");
   const sum = (st) => rows.filter((r) => r.status === st).reduce((a, r) => a + r.total_monthly, 0);
-  $app.replaceChildren(
+  show(
     h("div", { class: "grid kpis" },
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Offen (versendet)"), h("div", { class: "value" }, eur(sum("versendet"))), h("div", { class: "sub" }, "MRR in Verhandlung")),
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Gewonnen"), h("div", { class: "value" }, eur(sum("angenommen"))), h("div", { class: "sub" }, "MRR aus angenommenen Angeboten"))),
@@ -666,7 +691,7 @@ views.security = async (_, params) => {
       md(r.report)));
     result.scrollIntoView({ behavior: "smooth" });
   }) }, "Auswerten");
-  $app.replaceChildren(
+  show(
     h("div", { class: "card", style: "margin-bottom:1rem" },
       h("p", { class: "muted small", style: "margin-top:0" }, "15 Fragen nach NIS2 Art. 21 / NISG 2026 – ideal als Gesprächsleitfaden beim Kunden. Ergebnis mit priorisierten Maßnahmen und passenden Leistungen."),
       h("div", { class: "row" }, h("label", { style: "margin:0" }, "Kunde:"), h("div", { style: "min-width:260px" }, customerSel))),
@@ -677,7 +702,7 @@ views.security = async (_, params) => {
 views.training = async () => {
   setTitle("KI-Training (eigenes ME-IT-Modell)");
   const s = await api("/api/training/stats");
-  $app.replaceChildren(
+  show(
     h("div", { class: "grid kpis" },
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Trainingsbeispiele"), h("div", { class: "value" }, s.examples), h("div", { class: "sub" }, `${s.from_tickets} aus Tickets · ${s.from_kb} aus Wissen`))),
     h("div", { class: "grid two" },
@@ -705,7 +730,7 @@ views.einstellungen = async () => {
   const [s, services, log] = await Promise.all([api("/api/settings"), api("/api/services"), api("/api/agents/log?limit=30")]);
   state.services = services;
   const llm = s.llm;
-  $app.replaceChildren(
+  show(
     h("div", { class: "grid two" },
       h("div", { class: "card" }, h("h2", {}, "KI-Konfiguration"),
         table([{ label: "Einstellung", key: "k" }, { label: "Wert", render: (r) => r.v }], [
@@ -763,6 +788,351 @@ function serviceForm(svc = null) {
   ]);
 }
 
+// ---- KI-Mitarbeiter: Posteingang
+const CAT_LABEL = { support: "Support", anfrage: "Anfrage", termin: "Termin", beleg: "Beleg", info: "Info", nachfassen: "Nachfassen" };
+const MSG_STATUS = { neu: "neu", freigabe: "Freigabe", beantwortet: "beantwortet", erledigt: "erledigt", gesendet: "gesendet", manuell: "manuell erledigt", ignoriert: "ignoriert" };
+let inboxTab = "freigabe";
+
+async function kmOverview() {
+  try { state.km = await api("/api/ki-mitarbeiter/overview"); } catch { state.km = null; }
+  const b = document.getElementById("inbox-badge");
+  if (b && state.km) { const n = state.km.pending_approval + state.km.unprocessed; b.hidden = !n; b.textContent = n; }
+  return state.km;
+}
+
+function manualMessageForm() {
+  const f = form([
+    { name: "from_name", label: "Name" }, { name: "from_email", label: "E-Mail", type: "email" },
+    { name: "company", label: "Firma" }, { name: "phone", label: "Telefon" },
+    { name: "channel", label: "Kanal", type: "select", options: [["manuell", "manuell"], ["telefon", "Telefonnotiz"], ["email", "E-Mail (eingefügt)"]] },
+    { name: "subject", label: "Betreff", full: true },
+    { name: "body", label: "Nachricht / Telefonnotiz", type: "textarea", rows: 8, full: true, placeholder: "E-Mail-Text einfügen oder Telefonnotiz schreiben …" },
+  ]);
+  modal("Nachricht erfassen", f, [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const m = await api("/api/inbox", { method: "POST", body: { ...readForm(f), process: true } });
+      close(); toast(`Eingeordnet als: ${CAT_LABEL[m.category] || m.category}`); await render(); messageDetail(m.id);
+    }) }, "Erfassen & vom KI-Mitarbeiter bearbeiten lassen"),
+  ]);
+}
+
+views.posteingang = async () => {
+  const km = await kmOverview();
+  setTitle("Posteingang", [
+    h("button", { class: "btn", onclick: () => manualMessageForm() }, "+ Nachricht erfassen"),
+    h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/agents/followups", { method: "POST" });
+      toast(r.created ? `${r.created} Nachfass-Entwurf/Entwürfe zur Freigabe angelegt` : "Nichts nachzufassen"); render();
+    }) }, "Nachfassen prüfen"),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/inbox/fetch", { method: "POST" });
+      toast(`${r.new} neue E-Mail(s) abgerufen und bearbeitet`); render();
+    }) }, "Postfach abrufen"),
+  ]);
+  const query = { freigabe: "?status=freigabe", neu: "?status=neu", erledigt: "?status=beantwortet,erledigt,gesendet,manuell,ignoriert", alle: "" }[inboxTab];
+  const rows = await api(`/api/inbox${query}`);
+  const tabs = h("div", { class: "tabs" }, [["freigabe", `Zur Freigabe (${km ? km.pending_approval : "?"})`], ["neu", `Neu (${km ? km.unprocessed : "?"})`], ["erledigt", "Erledigt"], ["alle", "Alle"]].map(([k, l]) =>
+    h("button", { class: inboxTab === k ? "active" : "", onclick: () => { inboxTab = k; render(); } }, l)));
+  const banner = km && km.unprocessed ? h("div", { class: "card", style: "margin-bottom:1rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap" },
+    h("div", { style: "flex:1;min-width:220px" }, h("strong", {}, `${km.unprocessed} neue Nachricht(en)`), h("div", { class: "small muted" }, "Der KI-Mitarbeiter sortiert, liest Daten aus, legt Tickets/Leads/Belege an und schreibt Antwortentwürfe.")),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/inbox/process-new", { method: "POST" }); toast(`${r.processed} Nachricht(en) bearbeitet`); inboxTab = "freigabe"; render();
+    }) }, "Jetzt bearbeiten lassen")) : null;
+  show(banner || "", tabs, h("div", { class: "card" }, table([
+    { label: "Art", render: (r) => r.direction === "out" ? badge("Entwurf → raus", "info") : (r.category ? badge(CAT_LABEL[r.category] || r.category, "info") : badge("neu")) },
+    { label: "Von / An", render: (r) => r.direction === "out" ? `An: ${r.to_email}` : h("div", {}, h("strong", {}, r.from_name || r.from_email || "–"),
+      h("div", { class: "small muted" }, [r.company || r.customer_name, r.from_email].filter(Boolean).join(" · "))) },
+    { label: "Betreff", render: (r) => h("div", {}, r.subject || "(ohne Betreff)", r.ai_result && r.ai_result.summary && r.ai_result.summary !== r.subject
+      ? h("div", { class: "small muted" }, r.ai_result.summary) : null) },
+    { label: "Kanal", key: "channel" },
+    { label: "Status", render: (r) => badge(MSG_STATUS[r.status] || r.status, r.status) },
+    { label: "Eingang", render: (r) => dt(r.created_at) },
+  ], rows, (r) => messageDetail(r.id))));
+};
+
+async function messageDetail(id) {
+  const m = await api(`/api/inbox/${id}`);
+  const km = state.km || await kmOverview();
+  const smtp = km && km.mail && km.mail.smtp;
+  const ai = m.ai_result || {};
+  const incoming = m.direction === "in";
+  const replyCats = ["support", "anfrage", "termin"];
+  const needsText = !incoming || (replyCats.includes(m.category) && m.from_email);
+  const reply = h("textarea", { rows: 10 }, incoming ? (m.draft_reply || "") : (m.body || ""));
+  const linkBtn = (() => {
+    if (!m.linked_type) return null;
+    if (m.linked_type === "ticket") return h("button", { class: "btn small", onclick: () => ticketDetail(m.linked_id) }, `Ticket #${m.linked_id} öffnen`);
+    if (m.linked_type === "lead") return h("a", { class: "btn small", href: "#/leads" }, `Lead #${m.linked_id}`);
+    if (m.linked_type === "receipt") return h("a", { class: "btn small", href: "#/belege" }, `Beleg #${m.linked_id}`);
+    if (m.linked_type === "quote") return h("a", { class: "btn small", href: "#/angebote" }, `Angebot #${m.linked_id}`);
+    return null;
+  })();
+  const q = ai.qualification || {};
+  const rc = ai.receipt || {};
+  const analysis = incoming && m.category ? h("div", { class: "card", style: "background:var(--surface-2);margin:1rem 0" },
+    h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "Analyse des KI-Mitarbeiters"), h("span", { class: "small muted" }, ai.provider || "")),
+    ai.error ? h("p", { class: "small", style: "color:var(--warn)" }, ai.error) : null,
+    h("div", { class: "row" }, badge(CAT_LABEL[m.category] || m.category, "info"), ai.urgency && ai.urgency !== "normal" ? badge(`Dringlichkeit: ${ai.urgency}`, ai.urgency === "hoch" ? "hoch" : "") : null,
+      ai.lead_score !== undefined ? badge(`Lead-Score ${ai.lead_score}/100`, ai.lead_score >= 60 ? "ok" : "") : null, m.customer_name ? badge(`Kunde: ${m.customer_name}`, "ok") : null, linkBtn),
+    h("p", {}, h("strong", {}, "Zusammenfassung: "), ai.summary || "–"),
+    ai.need ? h("p", {}, h("strong", {}, "Bedarf: "), ai.need) : null,
+    Object.keys(q).length ? h("p", { class: "small" }, h("strong", {}, "Qualifizierung: "),
+      [q.mitarbeiter ? `${q.mitarbeiter} Mitarbeiter` : "", q.zeitrahmen ? `Zeitrahmen: ${q.zeitrahmen}` : "", q.budget ? `Budget: ${q.budget}` : "",
+        (q.offene_fragen || []).length ? `Offene Fragen: ${q.offene_fragen.join("; ")}` : ""].filter(Boolean).join(" · ") || "–") : null,
+    m.category === "beleg" ? h("p", { class: "small" }, h("strong", {}, "Beleg: "),
+      `${rc.vendor || "?"} · Nr. ${rc.invoice_no || "?"} · ${rc.invoice_date ? dt(rc.invoice_date) : "Datum ?"} · ${eur2(rc.amount)} · ${rc.category || ""}`) : null) : null;
+  const actions = [
+    h("button", { class: "btn danger", onclick: async () => { await api(`/api/inbox/${m.id}/ignore`, { method: "POST" }); document.querySelector(".modal-backdrop")?.remove(); toast("Ignoriert"); render(); } }, "Ignorieren"),
+    incoming ? (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      await api(`/api/inbox/${m.id}/process`, { method: "POST" }); close(); messageDetail(m.id); render();
+    }) }, "Neu analysieren") : null,
+    needsText ? h("button", { class: "btn", onclick: async () => { await api(`/api/inbox/${m.id}/draft`, { method: "PUT", body: { text: reply.value } }); toast("Entwurf gespeichert"); } }, "Entwurf speichern") : null,
+    needsText ? (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      try { await navigator.clipboard.writeText(reply.value); } catch { /* ignorieren */ }
+      await api(`/api/inbox/${m.id}/approve`, { method: "POST", body: { text: reply.value, manual: true } });
+      close(); toast("Text kopiert – als manuell erledigt markiert"); render();
+    }) }, "Kopieren & manuell erledigt") : null,
+    (close) => h("button", { class: "btn primary", disabled: needsText && !smtp ? true : null, title: needsText && !smtp ? "SMTP in .env einrichten, um direkt zu senden" : null,
+      onclick: (e) => withBusy(e.target, async () => {
+        const r = await api(`/api/inbox/${m.id}/approve`, { method: "POST", body: { text: reply.value } });
+        close(); toast(r.sent ? `Gesendet an ${r.to}` : "Erledigt"); render();
+      }) }, needsText ? "Freigeben & senden" : "Geprüft – erledigt"),
+  ].filter(Boolean);
+  modal(m.subject || "(ohne Betreff)", h("div", {},
+    h("p", { class: "muted small" }, incoming ? `Von ${m.from_name || ""} <${m.from_email || "–"}>${m.phone ? " · " + m.phone : ""} · ${m.channel} · ${dt(m.created_at)}` : `An ${m.to_email} · Nachfass-Entwurf · ${dt(m.created_at)}`),
+    incoming ? h("pre", { style: "white-space:pre-wrap;font-family:inherit;background:var(--surface-2);padding:.8rem;border-radius:8px;max-height:260px;overflow:auto" }, m.body) : null,
+    (m.attachments || []).length ? h("p", { class: "small muted" }, "Anhänge: ", m.attachments.join(", ")) : null,
+    analysis,
+    needsText ? h("div", {}, h("label", {}, incoming ? "Antwortentwurf (bearbeitbar)" : "Nachricht (bearbeitbar)"), reply,
+      !smtp ? h("p", { class: "small muted" }, "Direktes Senden ist aus, weil kein SMTP eingerichtet ist (siehe Steuerung). Bis dahin: kopieren, im eigenen Mailprogramm senden, „manuell erledigt“.") : null) : null,
+    (m.thread || []).length ? h("div", {}, h("h3", {}, "Gesendet"), m.thread.map((t) => h("pre", { style: "white-space:pre-wrap;font-family:inherit;border-left:3px solid var(--ok);padding-left:.7rem" }, `${dt(t.sent_at || t.created_at)} → ${t.to_email}\n${t.body}`))) : null), actions);
+}
+
+// ---- Leads & Pipeline
+const STAGES = [["neu", "Neu"], ["erstgespraech", "Erstgespräch"], ["pitch", "Pitch"], ["angebot", "Angebotsbesprechung"], ["gewonnen", "Gewonnen"]];
+views.leads = async () => {
+  setTitle("Leads & Pipeline", [
+    h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/agents/followups", { method: "POST" }); toast(r.created ? `${r.created} Nachfass-Entwurf/Entwürfe im Posteingang` : "Nichts nachzufassen");
+    }) }, "Nachfassen prüfen"),
+    h("a", { class: "btn", href: "#/wachstum" }, "Aktivitäten-Kaskade"),
+  ]);
+  const leads = await api("/api/leads");
+  const col = ([key, label]) => {
+    const items = leads.filter((l) => l.stage === key);
+    return h("div", { class: "stage" }, h("div", { class: "small muted" }, label), h("div", { class: "n" }, items.length),
+      items.map((l) => h("div", { class: "lead-card", onclick: () => leadDetail(l.id) }, h("strong", {}, l.company || l.name || l.email),
+        h("div", { class: "small muted" }, `${l.name && l.company ? l.name + " · " : ""}Score ${l.score}`))));
+  };
+  const lost = leads.filter((l) => l.stage === "verloren");
+  show(
+    h("p", { class: "muted small", style: "margin-top:0" }, "Drei Gespräche, drei Entscheidungen: Erstgespräch (Warum ändern?) → Pitch (Warum wir?) → Angebotsbesprechung (Warum jetzt?). Der Preis kommt erst nach Referenz, ROI und Zeitplan."),
+    h("div", { class: "pipeline" }, STAGES.map(col)),
+    lost.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, `Verloren (${lost.length})`),
+      table([{ label: "Lead", render: (l) => l.company || l.name }, { label: "E-Mail", key: "email" }, { label: "Notiz", key: "notes" }], lost, (l) => leadDetail(l.id))) : null);
+};
+
+async function leadDetail(id) {
+  const l = await api(`/api/leads/${id}`);
+  const f = form([
+    { name: "name", label: "Name" }, { name: "company", label: "Firma" }, { name: "email", label: "E-Mail" }, { name: "phone", label: "Telefon" },
+    { name: "stage", label: "Phase", type: "select", options: [...STAGES, ["verloren", "Verloren"]] },
+    { name: "score", label: "Lead-Score (0–100)", type: "number" },
+    { name: "need", label: "Bedarf", type: "textarea", full: true }, { name: "notes", label: "Notizen (Diagnose, Business Impact, ROI, Timing)", type: "textarea", full: true },
+  ], l);
+  const q = l.qualification || {};
+  modal(l.company || l.name || "Lead", h("div", {},
+    h("p", { class: "small muted" }, `Quelle: ${l.source || "–"} · seit ${dt(l.created_at)} · Nachfassungen: ${l.followups}${l.last_contact_at ? " · letzter Kontakt " + dt(l.last_contact_at) : ""}`),
+    Object.keys(q).length ? h("p", { class: "small" }, h("strong", {}, "Qualifizierung: "), JSON.stringify(q).replace(/[{}"]/g, "").replace(/,/g, " · ")) : null,
+    f,
+    l.messages.length ? h("div", {}, h("h3", {}, "Nachrichten"), h("ul", { class: "list" }, l.messages.map((m) => h("li", { class: "row", style: "cursor:pointer", onclick: () => messageDetail(m.id) },
+      badge(m.direction === "in" ? "rein" : "raus", "info"), m.subject || "(ohne Betreff)", h("span", { class: "spacer" }), h("span", { class: "small muted" }, dt(m.created_at)))))) : null), [
+    (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Lead löschen?")) return; await api(`/api/leads/${l.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen"),
+    l.customer_id ? h("a", { class: "btn", href: `#/kunde/${l.customer_id}` }, "Zum Kunden") :
+      (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api(`/api/leads/${l.id}/convert`, { method: "POST" }); close(); toast("Als Kunde angelegt"); location.hash = `#/kunde/${r.customer_id}`;
+      }) }, "In Kunden umwandeln"),
+    l.customer_id ? (close) => h("button", { class: "btn", onclick: () => { close(); quoteCreate(l.customer_id, l.need); } }, "Angebot (KI)") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api(`/api/leads/${l.id}`, { method: "PUT", body: readForm(f) }); close(); toast("Gespeichert"); render();
+    }) }, "Speichern"),
+  ].filter(Boolean));
+}
+
+// ---- Belege
+let receiptTab = "offen";
+views.belege = async () => {
+  setTitle("Belege (für Steuerberater)", [
+    h("a", { class: "btn", href: "/api/receipts/export.csv?status=alle", download: "" }, "Alle als CSV"),
+    h("a", { class: "btn primary", href: "/api/receipts/export.csv?status=geprueft&mark=true", download: "", onclick: () => setTimeout(render, 1500) }, "Geprüfte exportieren"),
+  ]);
+  const rows = await api(`/api/receipts${receiptTab === "alle" ? "" : "?status=" + receiptTab}`);
+  const sum = rows.reduce((a, r) => a + (r.amount || 0), 0);
+  show(
+    h("div", { class: "tabs" }, [["offen", "Offen"], ["geprueft", "Geprüft"], ["exportiert", "Exportiert"], ["alle", "Alle"]].map(([k, lbl]) =>
+      h("button", { class: receiptTab === k ? "active" : "", onclick: () => { receiptTab = k; render(); } }, lbl))),
+    h("p", { class: "small muted" }, `${rows.length} Beleg(e) · Summe ${eur2(sum)}. Rechnungen aus dem Posteingang landen automatisch hier. Bitte Beträge vor dem Export prüfen.`),
+    h("div", { class: "card" }, table([
+      { label: "Datum", render: (r) => dt(r.invoice_date) }, { label: "Lieferant", key: "vendor" }, { label: "Rechnungsnr.", key: "invoice_no" },
+      { label: "Betrag", num: true, render: (r) => eur2(r.amount) }, { label: "Kategorie", key: "category" }, { label: "Status", render: (r) => badge(r.status) },
+    ], rows, (r) => receiptForm(r))));
+};
+
+function receiptForm(r) {
+  const f = form([
+    { name: "vendor", label: "Lieferant" }, { name: "invoice_no", label: "Rechnungsnummer" }, { name: "invoice_date", label: "Datum", type: "date" },
+    { name: "amount", label: "Betrag brutto (€)", type: "number", step: "0.01" }, { name: "category", label: "Kategorie" },
+    { name: "status", label: "Status", type: "select", options: [["offen", "offen"], ["geprueft", "geprüft"], ["exportiert", "exportiert"]] },
+    { name: "note", label: "Notiz", full: true },
+  ], r);
+  modal("Beleg prüfen", f, [
+    (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Beleg löschen?")) return; await api(`/api/receipts/${r.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api(`/api/receipts/${r.id}`, { method: "PUT", body: readForm(f) }); close(); toast("Gespeichert"); render();
+    }) }, "Speichern"),
+  ]);
+}
+
+// ---- KI-Mitarbeiter: Steuerung
+views["ki-mitarbeiter"] = async () => {
+  setTitle("KI-Mitarbeiter – Steuerung");
+  const [o, services] = await Promise.all([kmOverview(), api("/api/services")]);
+  const price = (code, fallback) => (services.find((s) => s.code === code) || {}).price ?? fallback;
+  const kpi = (label, value, sub) => h("div", { class: "card kpi" }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  const modeRow = (cat) => {
+    const seg = h("div", { class: "seg" }, ["entwurf", "autopilot"].map((v) => h("label", {},
+      h("input", { type: "radio", name: `mode-${cat}`, value: v, checked: o.modes[cat] === v, onchange: async () => {
+        try { await api("/api/ki-mitarbeiter/modes", { method: "PUT", body: { modes: { [cat]: v } } }); toast(`${CAT_LABEL[cat]}: ${v === "autopilot" ? "Autopilot" : "Entwurf mit Freigabe"}`); }
+        catch (e) { toast(e.message, true); }
+      } }), h("span", {}, v === "entwurf" ? "Entwurf + Freigabe" : "Autopilot"))));
+    return h("div", { class: "question" }, h("div", {}, h("strong", {}, CAT_LABEL[cat]), h("div", { class: "small muted" }, o.categories[cat])), seg);
+  };
+  // ROI-Rechner: Wirkung vor Preis
+  const roiForm = form([
+    { name: "people", label: "Mitarbeiter mit Routinearbeit", type: "number", value: 3 },
+    { name: "hours", label: "Routine-Stunden pro Woche je Person", type: "number", value: 6 },
+    { name: "share", label: "Davon automatisierbar (%)", type: "number", value: 50 },
+    { name: "rate", label: "Interne Kosten je Stunde (€)", type: "number", value: 45 },
+    { name: "setup", label: "Einrichtung (€)", type: "number", value: price("KIMA", 3900) },
+    { name: "monthly", label: "Betrieb (€/Monat)", type: "number", value: price("KIMAM", 249) },
+  ]);
+  const roiOut = h("div", { style: "margin-top:.8rem" });
+  const calc = () => {
+    const v = readForm(roiForm);
+    const hoursMonth = v.people * v.hours * (v.share / 100) * 4.33;
+    const saving = hoursMonth * v.rate;
+    const net = saving - v.monthly;
+    const payback = net > 0 ? v.setup / net : null;
+    const roi1 = ((saving * 12) - (v.setup + v.monthly * 12)) / (v.setup + v.monthly * 12) * 100;
+    const text = `Zeitgewinn: ca. ${Math.round(hoursMonth)} Stunden pro Monat (${Math.round(hoursMonth / 4.33)} h/Woche).\n` +
+      `Wert der Zeit: ${eur(saving)} pro Monat, ${eur(saving * 12)} pro Jahr.\n` +
+      `Kosten: ${eur(v.setup)} einmalig + ${eur(v.monthly)} pro Monat.\n` +
+      (payback ? `Amortisation nach ca. ${payback.toFixed(1).replace(".", ",")} Monaten. ROI im ersten Jahr: ${Math.round(roi1)} %.` : "Bei diesen Annahmen rechnet es sich (noch) nicht – Umfang oder Annahmen prüfen.");
+    roiOut.replaceChildren(h("div", { class: "grid kpis", style: "margin:0" },
+      kpi("Zeitgewinn", `${Math.round(hoursMonth)} h`, "pro Monat"), kpi("Wert", eur(saving), "pro Monat"),
+      kpi("Amortisation", payback ? `${payback.toFixed(1).replace(".", ",")} Mon.` : "–", "Einrichtung ÷ Nettoersparnis"),
+      kpi("ROI Jahr 1", `${Math.round(roi1)} %`, "nach allen Kosten")), h("div", { class: "row", style: "margin-top:.6rem" }, h("span", { class: "spacer" }), copyButton(() => text, "Ergebnis für Kunden kopieren")));
+  };
+  roiForm.addEventListener("input", calc);
+  calc();
+  const formUrl = `${location.origin}/anfrage`;
+  const embed = `<iframe src="${formUrl}" style="width:100%;min-height:720px;border:0" title="Anfrage"></iframe>`;
+  show(
+    h("div", { class: "grid kpis" },
+      kpi(`Nachrichten (${o.days} Tage)`, o.received, `${o.processed} bearbeitet`),
+      kpi("Automatisch erledigt", o.auto_handled, "Autopilot ohne Eingriff"),
+      kpi("Warten auf Freigabe", o.pending_approval, `${o.unprocessed} noch unbearbeitet`),
+      kpi("Zeitersparnis (Schätzung)", `${(Math.round(o.minutes_saved / 6) / 10).toLocaleString("de-AT")} h`, `in ${o.days} Tagen · ${o.followups_sent} Nachfassungen`)),
+    h("div", { class: "grid two" },
+      h("div", { class: "card" }, h("h2", {}, "Arbeitsweise je Nachrichtenart"),
+        h("p", { class: "small muted" }, "Empfehlung: mit „Entwurf + Freigabe“ starten. Wenn die Entwürfe ein paar Wochen passen, einzelne Arten auf Autopilot stellen. Autopilot sendet nur, wenn SMTP eingerichtet ist."),
+        Object.keys(o.categories).map(modeRow)),
+      h("div", { class: "stack" },
+        h("div", { class: "card" }, h("h2", {}, "Postfach"),
+          h("div", { class: "row" }, badge(o.mail.imap ? "Abruf (IMAP) verbunden" : "Abruf (IMAP) aus", o.mail.imap ? "ok" : "warn"), badge(o.mail.smtp ? "Versand (SMTP) verbunden" : "Versand (SMTP) aus", o.mail.smtp ? "ok" : "warn"),
+            o.poll_minutes ? badge(`automatisch alle ${o.poll_minutes} min`, "info") : null),
+          h("p", { class: "small muted" }, o.mail.last_fetch ? `Letzter Abruf: ${o.mail.last_fetch}` : "Noch nicht abgerufen.", o.mail.last_error ? h("span", { style: "color:var(--bad)" }, ` Fehler: ${o.mail.last_error}`) : null),
+          md(["Einrichtung in `.env` (danach neu starten):", "```", "MAIL_IMAP_HOST=imap.dein-provider.at", "MAIL_IMAP_USER=office@deine-firma.at", "MAIL_IMAP_PASSWORD=App-Kennwort",
+            "MAIL_SMTP_HOST=smtp.dein-provider.at", "MAIL_FROM=office@deine-firma.at", "MAIL_POLL_MINUTES=5", "BOOKING_URL=https://… (optional)", "```"].join("\n"))),
+        h("div", { class: "card" }, h("h2", {}, "Anfrageformular für die Website"),
+          o.public_form_enabled ? h("div", {}, h("p", { class: "small" }, "Anfragen landen direkt im Posteingang, der Interessent bekommt einen Antwortentwurf mit Qualifizierungsfragen. Kein Passwort nötig, mit Spam- und Missbrauchsschutz."),
+            h("div", { class: "row" }, h("a", { class: "btn small", href: "/anfrage", target: "_blank", rel: "noopener" }, "Formular öffnen"), copyButton(() => formUrl, "Link kopieren"), copyButton(() => embed, "Einbettungscode kopieren")),
+            h("p", { class: "small muted" }, "Für Besucher von außen muss die App über eine Domain erreichbar sein (Reverse-Proxy, nur /anfrage und /api/public/ freigeben). Termin-Link: ", o.booking_url || "nicht gesetzt (BOOKING_URL)")) :
+            h("p", { class: "muted" }, "Deaktiviert (PUBLIC_FORM_ENABLED=false)")))),
+    h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "ROI-Rechner für das Kundengespräch"),
+      h("p", { class: "small muted" }, "Erst die Wirkung, dann der Preis: Gemeinsam mit dem Kunden ausfüllen, Ergebnis kopieren und ins Angebot übernehmen."),
+      roiForm, roiOut));
+};
+
+// ---- Wachstum / Customer Success
+const SELFCHECK = [
+  ["m1", "Marketing", "Wir haben einen Kanal für Anfragen, den wir per Budget hoch- und runterdrehen können (z. B. beworbenes Webinar)."],
+  ["m2", "Marketing", "Der Vertrieb bekommt jede Woche fertige Kontaktlisten (warm und kalt) mit Telefonnummer."],
+  ["s1", "Sales", "Unser Verkauf läuft in drei Gesprächen: Diagnose – Pitch – Entscheidung."],
+  ["s2", "Sales", "Den Preis nennen wir erst nach Referenz, ROI und Zeitplan."],
+  ["c1", "Customer Success", "Jeder Kunde hat einen aktuellen Health Score."],
+  ["c2", "Customer Success", "Mit den wichtigsten Kunden führen wir jedes Quartal ein Strategiegespräch (QBR)."],
+  ["t1", "Team", "Wochenziele werden montags festgelegt und freitags abgeglichen."],
+  ["t2", "Team", "Was nicht im System steht, ist nicht passiert – auch für die Geschäftsführung."],
+  ["f1", "Firmenwert", "Der Anteil wiederkehrender Umsätze steigt jedes Quartal messbar."],
+  ["f2", "Firmenwert", "Wir kennen unsere NRR und sie liegt über 100 %."],
+];
+
+views.wachstum = async () => {
+  setTitle("Customer Success & Wachstum");
+  const g = await api("/api/growth");
+  const n = g.nrr, rs = g.recurring_share, hl = g.health, p = g.pipeline;
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  const auto = {
+    c1: [true, "Cockpit berechnet ihn automatisch"],
+    c2: (() => { const managed = hl.customers.length; return [false, `${managed} Kunden – QBR-Status siehe Health-Faktoren`]; })(),
+    f2: n.nrr !== null ? [n.nrr > 100, `aktuell ${n.nrr.toLocaleString("de-AT")} %`] : [false, "Verlauf wird aufgezeichnet"],
+    f1: rs.share !== null ? [false, `aktuell ${Math.round(rs.share)} % (Schätzung) – Entwicklung quartalsweise vergleichen`] : [false, ""],
+  };
+  const saved = g.selfcheck || {};
+  const checks = SELFCHECK.map(([key, area, text]) => {
+    const box = h("input", { type: "checkbox", checked: saved[key] ?? (auto[key] ? auto[key][0] : false), onchange: async () => {
+      const all = {}; checks.forEach((c) => { all[c.key] = c.box.checked; });
+      await api("/api/growth/settings", { method: "PUT", body: { selfcheck: all } }); scoreEl.textContent = `${Object.values(all).filter(Boolean).length}/10`;
+    } });
+    return { key, box, el: h("label", { class: "check" }, box, h("span", {}, h("strong", {}, `${area}: `), text, auto[key] && auto[key][1] ? h("span", { class: "small muted" }, ` (${auto[key][1]})`) : null)) };
+  });
+  const scoreEl = h("span", {}, `${checks.filter((c) => c.box.checked).length}/10`);
+  const target = h("input", { type: "number", step: "0.5", min: "0.5", value: p.target_closings_per_week, style: "width:90px" });
+  show(
+    h("div", { class: "grid kpis" },
+      kpi("Net Revenue Retention", n.nrr !== null ? `${n.nrr.toLocaleString("de-AT")} %` : "–", n.nrr !== null ? `+${eur(n.expansion)} Upsell · −${eur(n.churn + n.contraction)} Verlust (12 Mon.)` : n.note, n.nrr > 100 ? "accent" : ""),
+      kpi("Anteil wiederkehrend", rs.share !== null ? `${Math.round(rs.share)} %` : "–", `${eur(rs.annual_recurring)} p.a. vs. ${eur(rs.one_time_12m)} Projekte/Stunden (Schätzung)`),
+      kpi("Kunden im Risiko", hl.counts.risiko, `${eur(hl.mrr_at_risk)} MRR gefährdet`),
+      kpi("Selbst-Check", h("span", {}, scoreEl), "Punkte erfüllt – jede Lücke ist ein Hebel")),
+    h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", {}, "Health Score je Kunde"), h("span", { class: "small muted" }, "Niedrig zuerst – hier entsteht Churn oder der nächste Upsell")),
+      table([
+        { label: "Kunde", render: (r) => h("a", { href: `#/kunde/${r.customer_id}` }, r.customer) },
+        { label: "Health", render: (r) => badge(`${r.score} ${r.status}`, r.status) },
+        { label: "MRR", num: true, render: (r) => eur(r.mrr) },
+        { label: "Wichtigste Faktoren", render: (r) => h("span", { class: "small" }, r.factors.filter((f) => f.delta < 0).slice(0, 3).map((f) => f.text).join(" · ") || "–") },
+        { label: "", render: (r) => h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); withBusy(e.target, async () => {
+          const q = await api("/api/agents/qbr", { method: "POST", body: { customer_id: r.customer_id } });
+          modal("Quartalsgespräch (QBR)", md(q.text), [copyButton(() => q.text)]); render();
+        }); } }, "QBR") },
+      ], hl.customers)),
+    h("div", { class: "card", style: "margin-top:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, "Aktivitäten-Kaskade (rückwärts geplant)"),
+        h("div", { class: "row small" }, "Ziel-Abschlüsse pro Woche:", target, h("button", { class: "btn small", onclick: async () => {
+          await api("/api/growth/settings", { method: "PUT", body: { target_closings_per_week: Number(target.value) } }); render();
+        } }, "Berechnen"))),
+      h("div", { class: "pipeline" }, p.stages.map((st) => h("div", { class: "stage" }, h("div", { class: "small muted" }, st.label),
+        h("div", { class: "n" }, st.needed_per_week.toLocaleString("de-AT")), h("div", { class: "small" }, "pro Woche nötig"),
+        h("div", { class: "small muted" }, `aktuell: ${st.current} · Quote: ${st.conversion_in !== null ? Math.round(st.conversion_in * 100) + " %" : "–"}`)))),
+      h("p", { class: "small muted" }, p.own_data ? "Quoten aus euren eigenen Leads berechnet." : "Noch zu wenige Leads – Quoten sind Annahmen und werden automatisch durch eure echten Werte ersetzt.")),
+    h("div", { class: "grid two", style: "margin-top:1rem" },
+      h("div", { class: "card" }, h("h2", {}, "10-Punkte-Selbst-Check"), checks.map((c) => c.el)),
+      h("div", { class: "card" }, h("h2", {}, "MRR-Verlauf (letzte Änderungen)"), table([
+        { label: "Datum", render: (r) => dt(r.created_at) }, { label: "Kunde", key: "customer_name" },
+        { label: "Änderung", num: true, render: (r) => `${r.new_mrr - r.old_mrr >= 0 ? "+" : ""}${eur(r.new_mrr - r.old_mrr)}` }, { label: "Grund", key: "reason" },
+      ], g.mrr_history.slice(0, 15)))));
+};
+
 // ---------------------------------------------------------------- Router
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
@@ -773,7 +1143,7 @@ async function render() {
   document.getElementById("sidebar").classList.remove("open");
   const view = views[route] || views.dashboard;
   try { await view(id, params); }
-  catch (e) { $app.replaceChildren(h("div", { class: "card empty" }, `Fehler: ${e.message}`)); }
+  catch (e) { show(h("div", { class: "card empty" }, `Fehler: ${e.message}`)); }
 }
 
 document.getElementById("menu-btn").addEventListener("click", () => document.getElementById("sidebar").classList.toggle("open"));

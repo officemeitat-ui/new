@@ -152,6 +152,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .badge.kritisch, .badge.bad, .badge.abgelaufen { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 .badge.hoch, .badge.warn, .badge.bald { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
 .badge.ok, .badge.gut, .badge.geloest, .badge.angenommen { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.badge.risiko { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+.badge.beobachten, .badge.freigabe { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.badge.gesund, .badge.beantwortet, .badge.erledigt, .badge.gesendet, .badge.exportiert, .badge.geprueft { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
 .badge.info, .badge.neu, .badge.mittel { background: var(--info-soft); color: var(--primary); border-color: transparent; }
 .prio-3 { border-left: 4px solid var(--bad); }
 .prio-2 { border-left: 4px solid var(--warn); }
@@ -234,3 +237,13 @@ label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .25r
   .question { grid-template-columns: 1fr; }
   .msg { max-width: 100%; }
 }
+
+.pipeline { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .6rem; }
+.pipeline .stage { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: .7rem; min-width: 0; }
+.pipeline .stage .n { font-size: 1.5rem; font-weight: 700; }
+.lead-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .5rem .6rem; margin-top: .5rem; cursor: pointer; font-size: .85rem; }
+.lead-card:hover { border-color: var(--primary); }
+.check { display: flex; gap: .6rem; align-items: flex-start; padding: .55rem 0; border-bottom: 1px solid var(--border); font-weight: 400; margin: 0; cursor: pointer; }
+.check input { width: auto; margin-top: .3rem; }
+.nav-badge { float: right; background: #f59e0b; color: #111; border-radius: 999px; font-size: .7rem; padding: 0 .45rem; font-weight: 700; }
+@media (max-width: 860px) { .pipeline { grid-template-columns: 1fr 1fr; } }
