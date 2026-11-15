@@ -273,7 +273,10 @@ export function importTasks(text, employees, { anchor } = {}) {
       ? { type: 'monthly', mode: 'nth', nth: 1, weekday: weekdays[0], everyMonths: months, ...(anchor ? { anchor: `${anchor.slice(0, 7)}-01` } : {}) }
       : { type: 'weekly', weekdays, everyWeeks: every, ...(anchor && every > 1 ? { anchor } : {}) }
     const category = /sonder|blume|garten/i.test(pick(row, 'category') + pick(row, 'label')) ? 'sonder' : 'reinigung'
+    // Welche Angaben stehen wirklich in der Zeile? Beim Aktualisieren einer vorhandenen Leistung zählen nur diese.
+    const has = (k) => String(pick(row, k) ?? '').trim() !== ''
     return {
+      given: ['staff', 'regulars', 'holiday', 'category'].filter(has),
       object,
       address: pick(row, 'address'),
       region: pick(row, 'team'),
@@ -334,6 +337,22 @@ export function uniqueShort(name, taken = [], others = []) {
     const numbered = `${short.slice(0, MAX - 3).trim()} ${i}`
     if (!used.has(low(numbered))) return numbered
   }
+}
+
+/**
+ * Eingefügte Leistung auf eine vorhandene übertragen: nur was in der Zeile stand (item.given) – eine Liste ohne
+ * Spalte „Stammkraft“ leert die Stammkräfte nicht. Rhythmus, Starttermin und Qualifikationen bleiben immer.
+ */
+export function mergeTask(existing, item) {
+  const given = item.given || []
+  const t = item.task
+  const out = { ...existing }
+  if (given.includes('regulars')) out.regulars = t.regulars
+  if (given.includes('staff') || given.includes('regulars')) out.staff = given.includes('staff') ? t.staff : Math.max(existing.staff || 1, t.regulars.length)
+  if (given.includes('holiday')) out.holidayRule = t.holidayRule
+  if (given.includes('category')) out.category = t.category
+  for (const k of ['travelAfterMin', 'travelNote', 'breakMin']) if (t[k] !== undefined) out[k] = t[k]
+  return out
 }
 
 /** Dieselbe Leistung? Gleiches Objekt, gleiche Bezeichnung, gleiche Zeit und gleicher Rhythmus (ohne Starttermin). */

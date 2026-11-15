@@ -4,7 +4,7 @@
 
 import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
-import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, mergeEmployee, sameTask, TASK_TEMPLATE, uniqueShort } from '../../core/importer.js'
+import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, mergeEmployee, mergeTask, sameTask, TASK_TEMPLATE, uniqueShort } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
@@ -210,7 +210,7 @@ function runImport(kind, text, apply) {
     if (existing) {
       updated++
       // Rhythmus und Starttermin der bestehenden Leistung bleiben (sonst verschiebt sich z. B. die 14-tägige Woche)
-      if (apply) Object.assign(existing, { ...item.task, recurrence: existing.recurrence })
+      if (apply) Object.assign(existing, mergeTask(existing, item))
     } else {
       added++
       tasks.push(apply ? { id: uid('t'), ...task } : task)

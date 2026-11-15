@@ -377,3 +377,20 @@ test('Mitarbeitende einfügen: Startwerte Resturlaub (Stichtag heute) und Zeitko
   // ohne Datum von heute kein Stichtag (reiner Kern-Aufruf)
   assert.equal(importEmployees('Name\tResturlaub\nAna\t5').items[0].vacationBase, undefined)
 })
+
+test('Leistungen einfügen: vorhandene Leistung bekommt nur die eingefügten Angaben', async () => {
+  const { importTasks, mergeTask } = await import('../src/core/importer.js')
+  const employees = [{ id: 'e1', name: 'Ana Popescu' }, { id: 'e2', name: 'Ion Kast' }]
+  const existing = { id: 't1', objectId: 'o1', label: 'Unterhaltsreinigung', category: 'sonder', start: '07:30', end: '16:30', staff: 2, regulars: ['e1', 'e2'], skills: ['Spital'], holidayRule: 'findet_statt', travelAfterMin: 20, recurrence: { type: 'weekly', weekdays: [1], everyWeeks: 2, anchor: '2026-01-05' } }
+  // nur Pause: Stammkräfte, Personen, Feiertagsregel, Art, Fahrzeit, Qualifikation und Rhythmus bleiben
+  const pause = importTasks('Objekt\tTage\tVon\tBis\tPause\nHeim\tMo\t07:30\t16:30\t60', employees).items[0]
+  assert.deepEqual(pause.given, [])
+  assert.deepEqual(mergeTask(existing, pause), { ...existing, breakMin: 60 })
+  // Stammkraft genannt: ersetzt die Stammkräfte, Personen bleiben mindestens so viele wie Stammkräfte
+  const reg = importTasks('Objekt\tTage\tVon\tBis\tStammkraft\tAn Feiertagen\nHeim\tMo\t07:30\t16:30\tAna Popescu\tentfällt', employees).items[0]
+  const m = mergeTask(existing, reg)
+  assert.deepEqual([m.regulars, m.staff, m.holidayRule, m.category, m.skills, m.recurrence.everyWeeks, m.travelAfterMin], [['e1'], 2, 'entfaellt', 'sonder', ['Spital'], 2, 20])
+  // Personen ausdrücklich genannt
+  const staff = importTasks('Objekt\tTage\tVon\tBis\tPersonen\nHeim\tMo\t07:30\t16:30\t1', employees).items[0]
+  assert.deepEqual([mergeTask(existing, staff).staff, mergeTask(existing, staff).regulars], [1, ['e1', 'e2']])
+})
