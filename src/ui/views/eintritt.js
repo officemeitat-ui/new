@@ -11,7 +11,7 @@
 import { AUSTRITT_DEFAULTS, addTask, checklistAttention, EINTRITT_DEFAULTS, emptyEintritt, futureWork, keyCheck, linkedOf, markDone, markOpen, moveList, nextTask, payrollGaps, payrollText, progress, startList, TASK_TYPES, taskState, templateOf, trainingCheck } from '../../core/bewerber.js'
 import { addDays, formatDate, formatHours, mondayOf, todayISO } from '../../core/dates.js'
 import { mergeRules } from '../../core/rules.js'
-import { timeAccount, vacationSummary } from '../../core/reports.js'
+import { timeAccount, vacationSummary, vacationText } from '../../core/reports.js'
 import { LANGUAGES, langLabel, langOf, linkMessage } from '../../core/sprachen.js'
 import { newCode, personalLink, sha256Hex } from '../../core/staffplan.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, ensureRange, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, seesAbsenceReasons, seesAccount, toast, visibleViews } from '../context.js'
@@ -154,7 +154,7 @@ function taskPanel(t, l, ctx, ed) {
     else parts.push('Zeitkonto: sieht die Lohnverrechnung.')
     if (seesAbsenceReasons()) {
       const v = vacationSummary(emp, app.data.absences || [], Number(l.date.slice(0, 4)), app.data.extraFreeDays)
-      parts.push(`Urlaub ${esc(l.date.slice(0, 4))}: Anspruch ${v.entitlement}, verplant ${v.used}, <strong>Rest ${v.rest} Tage</strong> (ganzjährig, vor Aliquotierung)`)
+      parts.push(`Urlaub ${esc(l.date.slice(0, 4))}: ${esc(vacationText(v))}, <strong>Rest ${String(v.rest).replace('.', ',')} Tage</strong> (ganzjährig, vor Aliquotierung)`)
     }
     return `<p>${parts.join('<br>')}</p><p class="muted">Nur Anzeige: Resturlaub (Ersatzleistung), Zeitguthaben und Überstunden rechnet die Lohnverrechnung ab; die App zahlt nichts aus.</p>
       <div class="actions">${sees('auswertung') ? btn('bew-overtime', 'Überstunden &amp; Auszahlung', { month: l.date.slice(0, 7) }) : ''}${ed ? btn('bew-payroll-mail', `${ICON.send} An die Lohnverrechnung`, { list: l.id, task: t.id }) : ''}</div>`

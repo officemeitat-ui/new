@@ -339,3 +339,41 @@ test('Mitarbeitende einfügen: Teilliste ändert bei bestehenden Personen nur di
   assert.equal(m2.hoursHistory, undefined)
   assert.equal('lang' in m2, false)
 })
+
+test('Urlaub: Resturlaub am Stichtag zählt ab dem Stichtag, danach Übertrag ins nächste Jahr', async () => {
+  const { vacationText } = await import('../src/core/reports.js')
+  const absences = [
+    { employeeId: 'e', type: 'Urlaub', from: '2026-03-02', to: '2026-03-06' }, // vor dem Stichtag: zählt nicht mehr
+    { employeeId: 'e', type: 'Urlaub', from: '2026-11-23', to: '2026-11-24' }, // 2 Tage nach dem Stichtag
+    { employeeId: 'e', type: 'Urlaub', from: '2026-12-30', to: '2027-01-04' }, // Mi, Do (31.12. ist Arbeitstag) | 2027: Mo 4.1. (1.1. Feiertag)
+    { employeeId: 'e', type: 'Krankenstand', from: '2026-12-01', to: '2026-12-05' },
+  ]
+  const emp = { id: 'e', vacationDaysYear: 25, vacationBase: { date: '2026-11-16', days: 8 } }
+  const y26 = vacationSummary(emp, absences, 2026)
+  assert.deepEqual(y26, { entitlement: 25, used: 4, rest: 4, base: { date: '2026-11-16', days: 8 } })
+  assert.equal(vacationText(y26), 'Resturlaub am 16.11.2026: 8, seither verplant 4')
+  const y27 = vacationSummary(emp, absences, 2027)
+  assert.deepEqual(y27, { entitlement: 25, used: 1, rest: 28, carry: 4 })
+  assert.equal(vacationText(y27), 'Übertrag 4 + Anspruch 25, verplant 1')
+  assert.deepEqual(vacationSummary(emp, absences, 2028), { entitlement: 25, used: 0, rest: 53, carry: 28 })
+  // vor dem Stichtag und ohne Stichtag: wie bisher
+  assert.deepEqual(vacationSummary(emp, absences, 2025), { entitlement: 25, used: 0, rest: 25 })
+  assert.deepEqual(vacationSummary({ id: 'e' }, absences, 2026), { entitlement: 25, used: 9, rest: 16 })
+  assert.equal(vacationText(vacationSummary({ id: 'e' }, absences, 2026)), 'Anspruch 25, verplant 9')
+  // Vorgriff: Minus wird mitgenommen; halbe Tage als Stand möglich
+  assert.deepEqual(vacationSummary({ id: 'e', vacationBase: { date: '2026-11-16', days: 2.5 } }, absences, 2027), { entitlement: 25, used: 1, rest: 22.5, carry: -1.5 })
+  // unbrauchbarer Stichtag wird ignoriert
+  assert.deepEqual(vacationSummary({ id: 'e', vacationBase: { date: '', days: 3 } }, absences, 2027), { entitlement: 25, used: 1, rest: 24 })
+})
+
+test('Mitarbeitende einfügen: Startwerte Resturlaub (Stichtag heute) und Zeitkonto', async () => {
+  const { importEmployees, mergeEmployee } = await import('../src/core/importer.js')
+  const r = importEmployees('Name\tResturlaub\tZeitkonto\nAna Popescu\t7,5\t-3\nNeu Person\t\t', { today: '2026-11-16' })
+  assert.deepEqual(r.errors, [])
+  assert.deepEqual([r.items[0].vacationBase, r.items[0].startBalanceHours, r.items[0].given], [{ date: '2026-11-16', days: 7.5 }, -3, ['vacationBase', 'startBalanceHours']])
+  assert.deepEqual([r.items[1].vacationBase, r.items[1].startBalanceHours, r.items[1].given], [undefined, undefined, []])
+  const merged = mergeEmployee({ id: 'e1', name: 'Ana Popescu', weeklyHours: 30, email: 'a@b.at', startBalanceHours: 2 }, r.items[0], { from: '2026-11-16' })
+  assert.deepEqual(merged, { id: 'e1', name: 'Ana Popescu', weeklyHours: 30, email: 'a@b.at', startBalanceHours: -3, vacationBase: { date: '2026-11-16', days: 7.5 } })
+  // ohne Datum von heute kein Stichtag (reiner Kern-Aufruf)
+  assert.equal(importEmployees('Name\tResturlaub\nAna\t5').items[0].vacationBase, undefined)
+})

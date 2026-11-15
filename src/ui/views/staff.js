@@ -80,6 +80,8 @@ function employeeModal(c, { id, prefill = null, from = '' }) {
         <label class="field"><span>Austritt (letzter Arbeitstag)</span><input type="date" id="emp-exit" value="${esc(e.exitDate || '')}"></label>
         <label class="field"><span>Max. Stunden pro Monat (geringfügig)</span><input type="number" id="emp-maxmonth" step="0.5" min="0" value="${esc(e.maxMonthHours ?? '')}" placeholder="leer = kein Limit"></label>
         <label class="field"><span>Urlaubsanspruch (Arbeitstage/Jahr)</span><input type="number" id="emp-vacation" step="1" min="0" value="${esc(e.vacationDaysYear ?? 25)}"></label>
+        <label class="field"><span>Resturlaub am Stichtag (Tage)</span><input type="number" id="emp-vac-days" step="0.5" value="${esc(e.vacationBase?.days ?? '')}" placeholder="leer = voller Jahresanspruch"><small class="muted">z. B. beim Start mit der App oder laut Lohnverrechnung; ab dem Stichtag zählt die App weiter, der Rest geht ins nächste Jahr</small></label>
+        <label class="field"><span>Stichtag Resturlaub</span><input type="date" id="emp-vac-date" value="${esc(e.vacationBase?.date || '')}"><small class="muted">leer = heute</small></label>
         <label class="field"><span>Zeitkonto Startsaldo (h)</span><input type="number" id="emp-start" step="0.25" value="${esc(e.startBalanceHours ?? 0)}"></label>
         ${editsPay() ? `<label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${euro(w)}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
         <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${esc(e.hourlyWage ?? '')}" placeholder="leer = KV-Lohn der Lohngruppe"></label>` : '<p class="note">Lohngruppe und Stundenlohn trägt die Lohnverrechnung ein (Zeitkonto).</p>'}
@@ -115,6 +117,7 @@ function readEmployeeForm(existing) {
     exitDate: val('emp-exit') || undefined,
     maxMonthHours: num('emp-maxmonth') || undefined,
     vacationDaysYear: num('emp-vacation') ?? 25,
+    vacationBase: val('emp-vac-days').trim() === '' || !Number.isFinite(num('emp-vac-days')) ? undefined : { date: val('emp-vac-date') || todayISO(), days: num('emp-vac-days') },
     startBalanceHours: num('emp-start') || undefined,
     wageGroup: document.getElementById('emp-wagegroup') ? Number(val('emp-wagegroup')) || undefined : existing.wageGroup,
     hourlyWage: document.getElementById('emp-wage') ? num('emp-wage') || undefined : existing.hourlyWage,
@@ -166,7 +169,7 @@ function importModal(c, { kind, text = '', preview = null }) {
 function runImport(kind, text, apply) {
   const { data } = app
   if (kind === 'employees') {
-    const { items, errors } = importEmployees(text)
+    const { items, errors } = importEmployees(text, { today: todayISO() })
     if (apply) {
       for (const item of items) {
         const existing = data.employees.find((e) => e.name.toLowerCase() === item.name.toLowerCase())

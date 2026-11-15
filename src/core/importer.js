@@ -6,7 +6,7 @@ import { WEEKDAY_SHORT } from './dates.js'
 import { DEFAULT_HOLIDAY_RULE } from './plan.js'
 import { langInfo, LANGUAGES } from './sprachen.js'
 
-export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis', 'Sprache']
+export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis', 'Sprache', 'Handy', 'Resturlaub', 'Zeitkonto']
 export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art', 'Fahrzeit danach', 'Fahrtnotiz', 'Pause']
 
 const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
@@ -34,6 +34,8 @@ const ALIASES = {
   travel: ['fahrzeit', 'fahrzeitdanach', 'fahrzeitmin', 'fahrt'],
   travelNote: ['fahrtnotiz', 'notizfahrt', 'fahrthinweis'],
   pause: ['pause', 'pausemin', 'pauseminuten', 'pausen'],
+  vacationRest: ['resturlaub', 'urlaubrest', 'resturlaubstage', 'urlaubsrest'],
+  startBalance: ['zeitkonto', 'startsaldo', 'zeitkontostartsaldo', 'zeitguthaben', 'gutstunden'],
   lang: ['sprache', 'sprachehandy', 'sprachamhandy', 'muttersprache', 'language'],
 }
 
@@ -164,7 +166,7 @@ const weekdaysOf = (r) => (r.type === 'monthly' ? !!r.weekday : r.weekdays.lengt
  * ('' = Deutsch); leere Zelle oder unbekannter Wert: kein lang (bestehende Personen behalten ihre Sprache), ein
  * unbekannter Wert steht als Hinweis in errors.
  */
-export function importEmployees(text) {
+export function importEmployees(text, { today = '' } = {}) {
   const errors = []
   const items = parseTable(text).map((row, i) => {
     const name = pick(row, 'name')
@@ -181,7 +183,20 @@ export function importEmployees(text) {
     const given = ['personnelNo', 'type', 'weeklyHours', 'email', 'phone', 'team', 'skills'].filter(has)
     if (has('days') || has('from') || has('to')) given.push('availability')
     if (lang) given.push('lang')
+    // Startwerte: Resturlaub (Tage, gilt ab heute als Stichtag) und Zeitkonto (Stunden)
+    const start = {}
+    const restDays = toNumber(pick(row, 'vacationRest'))
+    if (has('vacationRest') && restDays !== null && today) {
+      start.vacationBase = { date: today, days: restDays }
+      given.push('vacationBase')
+    }
+    const saldo = toNumber(pick(row, 'startBalance'))
+    if (has('startBalance') && saldo !== null) {
+      start.startBalanceHours = saldo
+      given.push('startBalanceHours')
+    }
     return {
+      ...start,
       given,
       givenTimes: has('from') || has('to'),
       name,

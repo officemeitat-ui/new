@@ -245,7 +245,7 @@ test('KI: Anfrage mit JSON-Schema je Sprache, Text als Inhalt, Antwort nur für 
 // ---------------------------------------------------------------- Excel-Import: Spalte „Sprache“
 
 test('Import Mitarbeitende: Spalte „Sprache“ (Bezeichnung, Kennung, BKS), unbekannt als Hinweis', () => {
-  assert.equal(EMPLOYEE_TEMPLATE.at(-1), 'Sprache')
+  assert.ok(EMPLOYEE_TEMPLATE.includes('Sprache'))
   const cases = { Türkisch: 'tr', tr: 'tr', TR: 'tr', 'Türkisch (Türkçe)': 'tr', Rumänisch: 'ro', Română: 'ro', 'BKS/Bosnisch/Kroatisch/Serbisch': 'bks', 'Bosnisch/Kroatisch/Serbisch': 'bks', BKS: 'bks', Kroatisch: 'bks', Serbisch: 'bks', Ungarisch: 'hu', Magyar: 'hu', Englisch: 'en', english: 'en', Deutsch: 'de', de: 'de', '': '', Arabisch: null, 'Deutsch/Türkisch': null }
   for (const [v, want] of Object.entries(cases)) assert.equal(parseLanguage(v), want, v)
   const text = 'Name\tWochenstunden\tSprache\nElif Kaya\t20\tTürkisch\nAna Popescu\t30\tro\nDragan Jović\t40\tBKS/Bosnisch/Kroatisch/Serbisch\nKlara Beispiel\t20\tDeutsch\nPetra Muster\t20\t\nSami Haddad\t20\tArabisch'

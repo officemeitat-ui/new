@@ -2,12 +2,12 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 415 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 416 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
-- [Planung](#planung) (43)
+- [Planung](#planung) (44)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
 - [Objekte & Kunden](#objekte-kunden) (105)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
@@ -627,6 +627,21 @@ Unter „Abwesenheiten“ siehst du einen Monatskalender aller Personen mit ihre
 
 > Tipp: Den Urlaubsanspruch trägst du bei der Person unter „Mitarbeitende“ ein.
 > Tipp: Unten steht je Tag, wie viele abwesend sind (rot über der Höchstzahl); Sperrzeiten sind im Kopf markiert.
+
+### Resturlaub am Stichtag und Übertrag ins nächste Jahr
+
+*In der App: Abwesenheiten*
+
+Ohne Angabe rechnet die App je Jahr: Anspruch minus verplante Urlaubstage. Trägst du im Stammblatt „Resturlaub am Stichtag“ ein (z. B. den Stand beim Start mit der App), zählt sie ab dem Stichtag weiter: Urlaub danach wird abgezogen, der Rest geht als Übertrag ins nächste Jahr.
+
+1. „Mitarbeitende“ öffnen und die Person bearbeiten.
+2. Bei „Resturlaub am Stichtag (Tage)“ die offenen Tage eintragen, Stichtag leer = heute.
+3. „Speichern“ klicken.
+4. Unter „Abwesenheiten“ steht in der Spalte Resturlaub „Rest / Stand“.
+
+> Tipp: Für alle auf einmal: „Aus Excel einfügen“ mit den Spalten „Name“ und „Resturlaub“; der Stichtag ist der Tag des Einfügens.
+> Tipp: Den Stand der Lohnverrechnung nehmen: die App zahlt nichts aus und rechnet keine Aliquotierung.
+> Tipp: Ein Minus (Vorgriff) wird ins nächste Jahr mitgenommen.
 
 ### Urlaubssperren und Höchstzahl gleichzeitig Abwesender
 
@@ -4180,7 +4195,7 @@ Unter „Mitarbeitende“ pflegst du Name, Personalnummer, Revier/Team, E-Mail (
 
 *In der App: Mitarbeitende*
 
-Eine Excel-Liste mit Überschrift (Name, Beschäftigung, Wochenstunden, Team, Qualifikationen, Tage, Von, Bis, Sprache) kopierst du einfach in die App. „Vorlage kopieren“ liefert die passenden Überschriften. Die Spalte „Sprache“ setzt die Sprache am Handy, z. B. Türkisch, tr, Rumänisch, Bosnisch/Kroatisch/Serbisch, Ungarisch, Englisch oder Deutsch.
+Eine Excel-Liste mit Überschrift (Name, Beschäftigung, Wochenstunden, Team, Qualifikationen, Tage, Von, Bis, Sprache, Handy, Resturlaub, Zeitkonto) kopierst du einfach in die App. „Vorlage kopieren“ liefert die passenden Überschriften. Die Spalte „Sprache“ setzt die Sprache am Handy, z. B. Türkisch, tr, Rumänisch, Bosnisch/Kroatisch/Serbisch, Ungarisch, Englisch oder Deutsch.
 
 1. „Mitarbeitende“ → „Mehr ▾“ → „Aus Excel einfügen“.
 2. In Excel die Liste mit Überschrift kopieren und einfügen.

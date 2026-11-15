@@ -126,21 +126,52 @@ export function payrollBookings(emp, payroll = {}, upto) {
   return total
 }
 
-/** Urlaubsanspruch und verplante Urlaubstage (Werktage Mo–Fr ohne Feiertage) in einem Jahr. */
+/**
+ * Urlaub in einem Jahr: Anspruch, verplante Urlaubstage (Werktage Mo–Fr ohne Feiertage) und Rest.
+ *
+ * Mit „Resturlaub am Stichtag“ (emp.vacationBase = { date, days }, z. B. bei Einführung der App oder aus der
+ * Lohnverrechnung): Im Jahr des Stichtags zählt nur Urlaub ab dem Stichtag, abgezogen vom eingetragenen Stand. In den
+ * Jahren danach kommt der Rest des Vorjahres als Übertrag zum Anspruch dazu (auch ein Vorgriff, also ein Minus).
+ * Ohne Stichtag wie bisher: Anspruch des Jahres minus verplante Tage, ohne Übertrag.
+ * → { entitlement, used, rest } – nach einem Stichtag zusätzlich carry (Übertrag aus dem Vorjahr), im Jahr des Stichtags base
+ */
 export function vacationSummary(emp, absences, year, extraFreeDays = []) {
-  const from = `${year}-01-01`
-  const to = `${year}-12-31`
-  const cal = holidayCalendar(from, to, extraFreeDays)
-  let used = 0
-  for (const a of absences) {
-    if (a.employeeId !== emp.id || a.type !== 'Urlaub') continue
-    const s = a.from > from ? a.from : from
-    const e = a.to < to ? a.to : to
-    if (s > e) continue
-    used += eachDay(s, e).filter((d) => isoWeekday(d) <= 5 && !cal.get(d)?.legal).length
+  const usedIn = (from, to) => {
+    const cal = holidayCalendar(from, to, extraFreeDays)
+    let used = 0
+    for (const a of absences) {
+      if (a.employeeId !== emp.id || a.type !== 'Urlaub') continue
+      const s = a.from > from ? a.from : from
+      const e = a.to < to ? a.to : to
+      if (s > e) continue
+      used += eachDay(s, e).filter((d) => isoWeekday(d) <= 5 && !cal.get(d)?.legal).length
+    }
+    return used
   }
   const entitlement = emp.vacationDaysYear ?? 25
-  return { entitlement, used, rest: entitlement - used }
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(emp.vacationBase?.date || '') && Number.isFinite(Number(emp.vacationBase.days)) ? { date: emp.vacationBase.date, days: Number(emp.vacationBase.days) } : null
+  const baseYear = base ? Number(base.date.slice(0, 4)) : null
+  if (!base || year < baseYear) {
+    const used = usedIn(`${year}-01-01`, `${year}-12-31`)
+    return { entitlement, used, rest: entitlement - used }
+  }
+  let used = usedIn(base.date, `${baseYear}-12-31`)
+  let rest = base.days - used
+  if (year === baseYear) return { entitlement, used, rest, base }
+  let carry = 0
+  for (let y = baseYear + 1; y <= year; y++) {
+    carry = rest
+    used = usedIn(`${y}-01-01`, `${y}-12-31`)
+    rest = carry + entitlement - used
+  }
+  return { entitlement, used, rest, carry }
+}
+
+/** Kurztext zum Urlaub eines Jahres, z. B. für Tooltips: „Stand 16.11.2026: 8, seither verplant 2“ oder „Übertrag 6 + Anspruch 25, verplant 3“. */
+export function vacationText(v) {
+  const n = (x) => String(x).replace('.', ',')
+  if (v.base) return `Resturlaub am ${v.base.date.slice(8)}.${v.base.date.slice(5, 7)}.${v.base.date.slice(0, 4)}: ${n(v.base.days)}, seither verplant ${n(v.used)}`
+  return `${v.carry ? `Übertrag ${n(v.carry)} + ` : ''}Anspruch ${n(v.entitlement)}, verplant ${n(v.used)}`
 }
 
 export const monthOf = (date) => date.slice(0, 7)

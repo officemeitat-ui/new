@@ -1,7 +1,7 @@
 // Abwesenheiten: Monatskalender, Urlaubsanspruch, Erfassung.
 
 import { eachDay, formatDate, isoWeekday, lastOfMonth, MONTH_LONG, WEEKDAY_SHORT } from '../../core/dates.js'
-import { vacationSummary } from '../../core/reports.js'
+import { vacationSummary, vacationText } from '../../core/reports.js'
 import { absentPerDay, vacationSettings } from '../../core/urlaub.js'
 import { dataRights, DOC } from '../../storage/data-service.js'
 import { app, confirmStep, empName, persist, registerActions, registerView, renderNow } from '../context.js'
@@ -15,6 +15,8 @@ import { filterBar, filteredEmployees } from './week.js'
  * kommt aus daten/abwesend.json nur „abwesend von–bis“ (Krankenstand ist ein Gesundheitsdatum).
  */
 export const seesReasons = () => app.data.absencesFull !== false && dataRights(app.access).read(DOC.absences)
+
+const fmtDays = (n) => String(Math.round(n * 100) / 100).replace('.', ',')
 
 function calendar(c, employees, full = true) {
   const from = `${c.month}-01`
@@ -40,14 +42,14 @@ function calendar(c, employees, full = true) {
         .join('')
       if (!full) return `<tr><th class="name-col">${esc(e.name)}</th>${cells}</tr>`
       const v = vacationSummary(e, app.data.absences || [], year, app.data.extraFreeDays)
-      return `<tr><th class="name-col">${esc(e.name)}</th>${cells}<td class="sum num ${v.rest < 0 ? 'err-text' : ''}" title="Anspruch ${v.entitlement}, verplant ${v.used}">${v.rest} / ${v.entitlement}</td></tr>`
+      return `<tr><th class="name-col">${esc(e.name)}</th>${cells}<td class="sum num ${v.rest < 0 ? 'err-text' : ''}" title="${esc(vacationText(v))}">${fmtDays(v.rest)} / ${fmtDays(v.base ? v.base.days : v.entitlement + (v.carry || 0))}</td></tr>`
     })
     .join('')
   if (!full)
     return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}</tr></thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div>
     <div class="legend"><span><span class="cal-key abs-sonst">–</span> abwesend</span><span>Den Grund (Urlaub, Krankenstand …) sieht nur das Büro.</span></div>`
   return `<div class="grid-wrap"><table class="grid cal"><thead><tr><th class="name-col">Mitarbeiter:in</th>${head}<th class="sum-col">Resturlaub ${year}</th></tr></thead><tbody>${rows}</tbody><tfoot>${foot}</tfoot></table></div>
-    <div class="legend">${ABSENCE_TYPES.map((t) => `<span><span class="cal-key ${ABSENCE_CLASS[t]}">${t[0]}</span> ${t}</span>`).join('')}<span>Resturlaub = Anspruch − verplante Urlaubstage (Mo–Fr ohne Feiertage)</span>${(vac.blackouts || []).length ? '<span><span class="cal-key blackout-key"></span> Urlaubssperre (Regeln &amp; Feiertage)</span>' : ''}</div>`
+    <div class="legend">${ABSENCE_TYPES.map((t) => `<span><span class="cal-key ${ABSENCE_CLASS[t]}">${t[0]}</span> ${t}</span>`).join('')}<span>Resturlaub = Anspruch − verplante Urlaubstage (Mo–Fr ohne Feiertage); mit „Resturlaub am Stichtag“ im Stammblatt zählt die App ab dem Stichtag und nimmt den Rest ins nächste Jahr mit</span>${(vac.blackouts || []).length ? '<span><span class="cal-key blackout-key"></span> Urlaubssperre (Regeln &amp; Feiertage)</span>' : ''}</div>`
 }
 
 function absencesView(c) {
