@@ -71,3 +71,13 @@ test('PDF-Name: Umlaute ausgeschrieben, nur einfache Zeichen', () => {
   assert.equal(wastePlanPdfName('2026-11-16', 'Gül Arslan-Öztürk'), 'Muellplan_KW47_2026-11-16_Guel_Arslan-Oeztuerk.pdf')
   assert.equal(wastePlanPdfName('2026-11-16', 'Ştefan Dumitraşcu'), 'Muellplan_KW47_2026-11-16_Stefan_Dumitrascu.pdf')
 })
+
+test('Adresse zerlegen: Hausnummer mit Stiege („7.1“) bleibt zusammen', async () => {
+  const { joinStreets, splitAddress } = await import('../src/core/muellplan.js')
+  assert.deepEqual(splitAddress('Davisstraße 7.1, Hallein'), { street: 'Davisstraße', no: '7.1', town: 'Hallein' })
+  assert.deepEqual(splitAddress('Davisstraße 7.2, 5400 Hallein'), { street: 'Davisstraße', no: '7.2', town: 'Hallein' })
+  assert.deepEqual(splitAddress('Davisstraße 9, Hallein'), { street: 'Davisstraße', no: '9', town: 'Hallein' })
+  assert.deepEqual(splitAddress('Markt 303 5441 Abtenau'), { street: 'Markt', no: '303', town: 'Abtenau' })
+  assert.deepEqual(splitAddress('Str. des 12. Februar 3, Wien'), { street: 'Str. des 12. Februar', no: '3', town: 'Wien' })
+  assert.equal(joinStreets([splitAddress('Davisstraße 9, Hallein'), splitAddress('Davisstraße 7.2, Hallein'), splitAddress('Davisstraße 7.1, Hallein')]), 'Davisstraße 7.1, 7.2, 9')
+})

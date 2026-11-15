@@ -37,7 +37,8 @@ export function splitAddress(address = '') {
     }
   }
   if (!town && parts.length > 1 && !/\d/.test(parts.at(-1))) town = parts.at(-1)
-  const m = first.match(/^(.*?\D)\s*(\d+\s*[a-z]?(?:\s*[/-]\s*\d+\s*[a-z]?)?)$/i)
+  // Hausnummer auch mit Stiege („7.1“), Bereich („7-9“) oder Bruch („3/2“)
+  const m = first.match(/^(.*?[^\d\s.])\s*(\d+\s*[a-z]?(?:\s*[/.-]\s*\d+\s*[a-z]?)?)$/i)
   return m ? { street: m[1].trim(), no: m[2].replace(/\s+/g, ''), town } : { street: first, no: '', town }
 }
 
