@@ -138,7 +138,10 @@ export async function testCalendarConnection(): Promise<ActionState> {
     if (!calendar) return { error: "Kein externer Kalender gewählt (CALENDAR_PROVIDER)." };
     const now = new Date();
     const busy = await calendar.listBusy(now, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000));
-    return { ok: true, message: `Verbunden mit ${calendar.label}: ${busy.length === 1 ? "1 belegter Eintrag" : `${busy.length} belegte Einträge`} in den nächsten 7 Tagen.` };
+    return {
+      ok: true,
+      message: `Verbunden mit ${calendar.label}: ${busy.length === 1 ? "1 belegter Eintrag" : `${busy.length} belegte Einträge`} in den nächsten 7 Tagen.`,
+    };
   } catch (error) {
     if (!(error instanceof CalendarSyncError)) throw error;
     return { error: error.message };
