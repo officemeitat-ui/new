@@ -11,6 +11,7 @@ import { ALARM_DEFAULTS, alarmFile, alarmPlace, alarmProblems, findPlace, onCall
 import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { checked, download, esc, ICON, modalFrame, num, options, val } from '../shared.js'
 import { weatherLocations } from '../weather.js'
+import { waLink } from '../whatsapp.js'
 
 const hex = (bytes) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
 const newTopic = () => `wd-${hex(8)}`
@@ -255,9 +256,10 @@ function alarmModal() {
       if (!e) return ''
       const t = d.topics[id]
       const link = t ? `${ntfy}/${t}` : ''
-      const invite = t && e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent('Winterdienst: Schnee-Alarm aufs Handy')}&body=${encodeURIComponent(`Hallo ${e.name},\n\nfür den Schnee-Alarm bitte die App „ntfy“ installieren (Play Store bzw. App Store), dann auf + tippen und dieses Thema abonnieren:\n\n${t}\n\n(Server: ${ntfy}, oder diesen Link öffnen: ${link})\n\nIn der App beim Thema die Benachrichtigungen auf höchste Priorität stellen und „Nicht stören“ übergehen lassen, damit der Alarm auch nachts weckt.\n\nDanke!`)}` : ''
+      const inviteText = t ? `Hallo ${e.name},\n\nfür den Schnee-Alarm bitte die App „ntfy“ installieren (Play Store bzw. App Store), dann auf + tippen und dieses Thema abonnieren:\n\n${t}\n\n(Server: ${ntfy}, oder diesen Link öffnen: ${link})\n\nIn der App beim Thema die Benachrichtigungen auf höchste Priorität stellen und „Nicht stören“ übergehen lassen, damit der Alarm auch nachts weckt.\n\nDanke!` : ''
+      const invite = t && e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent('Winterdienst: Schnee-Alarm aufs Handy')}&body=${encodeURIComponent(inviteText)}` : ''
       return `<tr><td>${esc(e.name)}</td><td>${t ? `<code>${esc(t)}</code>` : '<span class="muted">wird beim Speichern angelegt</span>'}</td><td>${esc(e.email || '–')}</td>
-        <td class="actions">${invite ? `<a class="btn small" href="${esc(invite)}">Einladung per E-Mail</a>` : ''}${t ? `<button class="btn small" data-action="wx-alarm-copy" data-text="${esc(t)}">Thema kopieren</button><button class="btn small" data-action="wx-alarm-newtopic" data-emp="${esc(id)}" title="Wenn jemand das Thema nicht mehr bekommen soll (z. B. Handy verloren)">Neues Thema</button>` : ''}</td></tr>`
+        <td class="actions">${invite ? `<a class="btn small" href="${esc(invite)}">Einladung per E-Mail</a>` : ''}${t ? waLink({ kind: 'schnee-alarm', phone: e.phone, text: inviteText, label: 'Einladung per WhatsApp' }) : ''}${t ? `<button class="btn small" data-action="wx-alarm-copy" data-text="${esc(t)}">Thema kopieren</button><button class="btn small" data-action="wx-alarm-newtopic" data-emp="${esc(id)}" title="Wenn jemand das Thema nicht mehr bekommen soll (z. B. Handy verloren)">Neues Thema</button>` : ''}</td></tr>`
     })
     .join('')
   const file = fileFor(complete(d, locations), locations)

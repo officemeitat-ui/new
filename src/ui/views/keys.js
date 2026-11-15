@@ -4,7 +4,7 @@
 // (Rechenkern: core/keys.js). Die Prüfregel „Schlüsselübergabe nötig“ im Plan liest dieses Buch.
 
 import { addDays, formatDate, todayISO } from '../../core/dates.js'
-import { effectiveKeys, emptyKeys, giveBack, handOver, handoversNeeded, historyText, importFromObjects, isActive, KEY_KINDS, KEY_STATUS, keysOf, keyWarnings, markFound, markLost, objectKeys, returnToCustomer } from '../../core/keys.js'
+import { effectiveKeys, emptyKeys, giveBack, handOver, handoversNeeded, historyText, importFromObjects, isActive, KEY_KINDS, KEY_STATUS, keysFromImport, keysOf, keyWarnings, markFound, markLost, objectKeys, parseKeyTable, returnToCustomer } from '../../core/keys.js'
 import { toCSV } from '../../core/reports.js'
 import { lossDocument, personListDocument, receiptDocument, receiptPdfName } from '../../export/key-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
@@ -62,7 +62,7 @@ function keysView() {
   const mode = app.ui.keyMode === 'person' ? 'person' : 'objekt'
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
   const banner = legacy.length && ed ? `<div class="banner welcome"><p><strong>${plural(legacy.length, 'Schlüssel ist', 'Schlüssel sind')} bisher direkt bei den Objekten eingetragen.</strong> Ins Schlüsselbuch übernehmen (mit der Person, die ihn hat): ab dann mit Ausgabe, Rückgabe und Quittung.</p><button class="btn primary" data-action="keys-import">Übernehmen</button></div>` : ''
-  const empty = !d.keys.length && !legacy.length ? `<div class="banner welcome"><p><strong>Noch keine Schlüssel.</strong> Je Objekt die Schlüssel, Transponder und Karten anlegen (auch mehrere gleiche auf einmal), dann ausgeben: mit Unterschrift am Handy oder Tablet und Quittung als PDF.</p>${ed ? `<button class="btn primary" data-action="key-edit-open">${ICON.plus} Schlüssel anlegen</button>` : ''}</div>` : ''
+  const empty = !d.keys.length && !legacy.length ? `<div class="banner welcome"><p><strong>Noch keine Schlüssel.</strong> Je Objekt die Schlüssel, Transponder und Karten anlegen (auch mehrere gleiche auf einmal), dann ausgeben: mit Unterschrift am Handy oder Tablet und Quittung als PDF.</p>${ed ? `<button class="btn primary" data-action="key-edit-open">${ICON.plus} Schlüssel anlegen</button><button class="btn" data-action="keys-paste-open">${ICON.upload} Liste aus Excel einfügen</button>` : ''}</div>` : ''
   const warnHtml = warn.length
     ? `<div class="table-wrap"><table class="data"><thead><tr><th></th><th>Objekt</th><th>Schlüssel</th><th>Hinweis</th><th></th></tr></thead><tbody>${warn
         .map((w) => `<tr><td><span class="flag ${SEV[w.severity]}">${w.severity === 'info' ? 'i' : '!'}</span></td><td>${esc(objName(w.key.objectId))}</td><td>${esc(w.key.label)}${w.key.no ? ` <span class="muted">${esc(w.key.no)}</span>` : ''}</td><td>${esc(w.text)}</td>
@@ -84,6 +84,7 @@ function keysView() {
         single: false,
         items: [
           ed && { label: 'Schlüssel anlegen', icon: ICON.plus, action: 'key-edit-open', hint: 'Bezeichnung, Nummer, Objekt, Schließanlage' },
+          ed && { label: 'Liste aus Excel einfügen', icon: ICON.upload, action: 'keys-paste-open', hint: 'bisherige Schlüsselliste: Nummer, Objekt, Mitarbeiter' },
           { heading: 'Export' },
           { label: 'Schlüsselliste (CSV)', icon: ICON.download, action: 'keys-csv', mail: true },
         ],
@@ -198,6 +199,40 @@ function saveKey(id) {
   renderNow()
   if (id) toast('Gespeichert.')
 }
+
+// ---------------------------------------------------------------- Schlüsselliste aus Excel einfügen
+
+function pasteModal() {
+  const m = app.ui.modal
+  const r = m.result
+  const more = (names) => esc(names.slice(0, 12).join(', ')) + (names.length > 12 ? ' …' : '')
+  const diff = (w) => (w ? ` <span class="pill warning" title="In der Liste anders geschrieben">in der Liste: ${esc(w)}</span>` : '')
+  const preview = r
+    ? `<section><h3>Vorschau</h3>${r.errors.length ? `<p class="err-text">${esc(r.errors.join(' '))}</p>` : ''}
+      ${r.items.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Objekt</th><th>Schlüssel</th><th>Nummer</th><th>bei</th></tr></thead><tbody>${r.items.map((x) => `<tr><td>${esc(x.objectName)}${diff(x.objectWritten)}</td><td>${esc(x.label)}</td><td>${esc(x.no || '–')}</td><td>${x.holderId ? `${esc(x.holderName)}${diff(x.holderWritten)}` : x.holderWritten ? `Büro <span class="pill warning">nicht gefunden: ${esc(x.holderWritten)}</span>` : 'Büro'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${r.unknownObjects.length ? `<p class="note"><strong>Objekt nicht gefunden (${r.unknownObjects.length}):</strong> ${more(r.unknownObjects)} – so schreiben wie unter „Objekte“ oder das Objekt zuerst anlegen.</p>` : ''}
+      ${r.unknownPeople.length ? `<p class="note"><strong>Person nicht gefunden (${r.unknownPeople.length}):</strong> ${more(r.unknownPeople)} – der Schlüssel kommt ins Büro, der Name steht in der Notiz. Danach „Ausgeben“.</p>` : ''}
+      ${r.known ? `<p class="note">${plural(r.known, 'Schlüssel ist', 'Schlüssel sind')} schon im Schlüsselbuch und ${r.known === 1 ? 'bleibt' : 'bleiben'} aus.</p>` : ''}</section>`
+    : ''
+  return modalFrame({
+    title: 'Schlüsselliste aus Excel einfügen',
+    wide: true,
+    body: `<p class="note">In Excel die Zeilen samt Überschrift markieren, kopieren und hier einfügen. Spalten wie in eurer Liste: „Nummerierung“, „Schlüssel Nummer“, „Objekt“, „Mitarbeiter“ – wahlweise „Bezeichnung“, „Aufbewahrung“, „Notiz“. Mit Mitarbeiter gilt der Schlüssel gleich als ausgegeben, sonst liegt er im Büro. Leicht anders geschriebene Namen ordnet die App zu und zeigt es gelb.</p>
+      <label class="field"><span>Tabelle</span><textarea id="kp-text" rows="8" placeholder="Nummerierung&#9;Schlüssel Nummer&#9;Objekt&#9;Mitarbeiter">${esc(m.text || '')}</textarea></label>
+      ${preview}`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="kp-check">Prüfen</button>${r?.items.length ? `<button class="btn primary" data-action="kp-save">Übernehmen (${r.items.length})</button>` : ''}</div>`,
+  })
+}
+registerModal('keys-paste', pasteModal, { module: MODULE })
+
+function readPaste() {
+  const m = app.ui.modal
+  const text = val('kp-text')
+  if (text !== m.text) m.result = null
+  m.text = text
+  return m
+}
+const parsePaste = (text) => parseKeyTable(text, { objects: app.data.objects, employees: activeEmployees(), book: book().keys })
 
 // ---------------------------------------------------------------- Ausgeben und zurücknehmen
 
@@ -357,6 +392,26 @@ registerActions(
       persist()
       renderNow()
       toast(`${plural(list.length, 'Schlüssel', 'Schlüssel')} übernommen. Nummern und Art bei Bedarf ergänzen.`)
+    },
+    'keys-paste-open': () => openModal({ type: 'keys-paste' }),
+    'kp-check': () => {
+      const m = readPaste()
+      m.result = parsePaste(m.text)
+      const r = m.result
+      if (!r.items.length && !r.errors.length && !r.unknownObjects.length && !r.known) r.errors.push('Keine Zeilen gefunden.')
+      renderModal()
+    },
+    'kp-save': () => {
+      const m = readPaste()
+      const r = (m.result ||= parsePaste(m.text))
+      if (!r.items.length) return toast('Nichts zu übernehmen – bitte zuerst „Prüfen“.')
+      const list = keysFromImport(r.items, { newId: () => uid('k'), at: nowIso(), date: todayISO(), by: by() })
+      book().keys.push(...list)
+      persist()
+      closeModal()
+      renderNow()
+      const out = list.filter((k) => k.holderId).length
+      toast(`${plural(list.length, 'Schlüssel', 'Schlüssel')} übernommen${out ? `, ${out} davon ausgegeben` : ''}.`)
     },
     'key-save': (el) => saveKey(el.dataset.id || ''),
     'key-delete': (el) => {

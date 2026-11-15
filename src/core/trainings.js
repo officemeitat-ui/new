@@ -5,7 +5,9 @@
 // Datei unterweisungen/unterweisungen.json:
 //   { types: [{ id, name, months, who, law, note, kind, blocking, active }],
 //     records: [{ id, empId, typeId, date, until, note, sessionId, signature, by, at }],
-//     sessions: [{ id, typeId, date, topic, trainer, place, participants: [empId], by, at }] }
+//     sessions: [{ id, typeId, date, topic, trainer, place, participants: [empId], by, at }],
+//     requests: [{ id, empId, typeId, date, via: 'whatsapp' | 'vermerk', by, at }] }   Aufforderungen („bitte nachholen“)
+//   link (je Art, optional): Adresse zum Sicherheitsvideo oder zu den Unterlagen, steht in der Aufforderung
 //   who: 'alle' (Pflicht für alle) | 'optional' (nur wer einen Eintrag hat) | 'skill:Führerschein' (Pflicht mit dieser Qualifikation)
 //   months: Gültigkeit ab dem Datum (0 = kein Ablauf bzw. „gültig bis“ von Hand, z. B. Aufenthaltstitel)
 //   blocking: abgelaufen = Fehler im Plan (darf nicht arbeiten), sonst Warnung (nur bei passender Qualifikation)
@@ -16,6 +18,9 @@
 // § 103 Abs. 1 Z 3 KFG: Firmenfahrzeuge nur Personen mit Lenkberechtigung überlassen (Kontrolle sinnvoll).
 
 import { addDays, formatDate } from './dates.js'
+import { headKey, nameMatcher } from './names.js'
+
+export { nameMatcher }
 
 export const TRAINING_DEFAULTS = [
   { id: 'sicherheit', name: 'Sicherheitsunterweisung', months: 12, who: 'alle', law: '§ 14 ASchG', note: 'beim Eintritt, bei Änderungen und regelmäßig; Intervall laut Evaluierung', kind: 'unterweisung' },
@@ -124,16 +129,38 @@ export function shiftProblems({ doc, emp, date, skills = [] }) {
   return out
 }
 
+// ---------------------------------------------------------------- Aufforderung („bitte nachholen“)
+
+/** Offene Aufforderung: die jüngste zur Person und Art, solange seither nichts eingetragen wurde (sonst null). */
+export function openRequest(doc, empId, typeId) {
+  let last = null
+  for (const q of doc?.requests || []) if (q.empId === empId && q.typeId === typeId && (!last || q.date > last.date || (q.date === last.date && (q.at || '') > (last.at || '')))) last = q
+  if (!last) return null
+  return (doc.records || []).some((r) => r.empId === empId && r.typeId === typeId && r.date >= last.date) ? null : last
+}
+
+/** Text der Aufforderung für WhatsApp: Stand, was zu tun ist (je Art), Link der Art. status = statusOf(…). */
+export function requestText({ type, emp, status, company = '' }) {
+  const first = String(emp?.name || '').trim().split(/\s+/)[0] || ''
+  const day = (d) => formatDate(d, { weekday: false, year: true })
+  const kind = type.kind || 'unterweisung'
+  const what = kind === 'dokument' ? `dein Nachweis „${type.name}“` : `deine ${type.name}`
+  const stand =
+    status?.state === 'abgelaufen' ? `${what} ist am ${day(status.until)} abgelaufen` : status?.state === 'bald' ? `${what} läuft am ${day(status.until)} ab` : status?.state === 'fehlt' ? `${what} fehlt uns noch` : `${what} steht wieder an`
+  const link = String(type.link || '').trim()
+  const todo =
+    kind === 'dokument'
+      ? 'Bitte bring das neue Dokument in den nächsten Tagen im Büro vorbei.'
+      : kind === 'kontrolle'
+        ? 'Bitte komm dafür in den nächsten Tagen kurz im Büro vorbei.'
+        : link
+          ? `Bitte hol sie in den nächsten Tagen nach:\n${link}\n\nDanach schick uns bitte den Nachweis (Zertifikat).`
+          : 'Bitte melde dich bei uns, damit wir sie in den nächsten Tagen nachholen.'
+  return [`Hallo ${first},`.replace(' ,', ','), '', `${stand}.`, todo, '', 'Danke!', company].filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n').trim()
+}
+
 // ---------------------------------------------------------------- Aus Excel einfügen
 
-const nameKey = (s) =>
-  String(s ?? '')
-    .toLowerCase()
-    .replace(/ß/g, 'ss')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z]/g, '')
-const headKey = (s) => nameKey(s).replace(/ue/g, 'u')
 const COLS = {
   name: ['name', 'mitarbeiter', 'mitarbeiterin', 'person', 'mitarbeiterinnen'],
   date: ['datum', 'am', 'zertifikat', 'zertifikatsicherheitsvideo', 'unterweisungam', 'durchgefuhrtam', 'unterwiesenam', 'zertifikatsdatum'],
@@ -196,51 +223,6 @@ export function parseRecordTable(text, { employees = [] } = {}) {
     out.items.push({ empId: e.id, name: e.name, ...(hit.exact ? {} : { written: name }), date, until: ix.until >= 0 ? tableDate(c[ix.until]) : '', by: ix.by >= 0 ? c[ix.by] || '' : '', note: ix.note >= 0 ? c[ix.note] || '' : '' })
   }
   return out
-}
-
-function editDistance(a, b) {
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i]
-    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
-    prev = cur
-  }
-  return prev[b.length]
-}
-
-/**
- * Person zu einem geschriebenen Namen: genau (auch „Nachname Vorname“), sonst eindeutig ähnlich – alle Namensteile
- * kommen vor („Ion Kast“ → „Ion Constantin Kast“) oder ein, zwei Buchstaben anders („Mariana“ → „Marianna“).
- * → { emp, exact } oder null (auch wenn mehrere passen würden).
- */
-export function nameMatcher(employees = []) {
-  const people = employees.map((e) => {
-    const parts = String(e.name || '').trim().split(/\s+/).map(nameKey).filter(Boolean)
-    return { emp: e, parts, keys: [...new Set([parts.join(''), ...(parts.length >= 2 ? [[...parts.slice(1), parts[0]].join(''), [parts.at(-1), ...parts.slice(0, -1)].join('')] : [])])] }
-  })
-  const exact = new Map()
-  for (const p of people) for (const k of p.keys) if (!exact.has(k)) exact.set(k, p.emp)
-  const only = (list) => (list.length === 1 ? { emp: list[0].emp, exact: false } : null)
-  return (written) => {
-    const parts = String(written || '').trim().split(/\s+/).map(nameKey).filter(Boolean)
-    const key = parts.join('')
-    if (!key) return null
-    if (exact.has(key)) return { emp: exact.get(key), exact: true }
-    if (parts.length >= 2) {
-      const sub = only(people.filter((p) => parts.every((x) => p.parts.includes(x))))
-      if (sub) return sub
-    }
-    const limit = key.length >= 14 ? 2 : key.length >= 6 ? 1 : 0
-    if (!limit) return null
-    let best = Infinity
-    let hits = []
-    for (const p of people) {
-      const d = Math.min(...p.keys.map((k) => editDistance(key, k)))
-      if (d < best) [best, hits] = [d, [p]]
-      else if (d === best) hits.push(p)
-    }
-    return best <= limit ? only(hits) : null
-  }
 }
 
 /** Eingefügte Einträge übernehmen; schon vorhandene (Person, Art, Datum) bleiben einmal. → { records, added, skipped } */

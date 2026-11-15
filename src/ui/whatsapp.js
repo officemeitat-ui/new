@@ -23,6 +23,17 @@ function openWa(phone, text) {
   return !!win
 }
 
+/** WhatsApp mit Text öffnen, aus einer Aktion heraus (z. B. um den Versand zu vermerken). → geöffnet? Gesperrte Art: false. */
+export function openWhatsApp({ kind, phone = '', text = '' } = {}) {
+  if (!mayWhatsApp(kind)) {
+    toast('Das darf nicht per WhatsApp hinaus (Finanzen).')
+    return false
+  }
+  const opened = openWa(phone, text)
+  if (!opened) toast('Der Browser hat WhatsApp nicht geöffnet: Fenster für diese Seite erlauben.')
+  return opened
+}
+
 /**
  * Datei (PDF) per WhatsApp. makeBlob erstellt die Datei erst hier.
  *  - Handy (Teilen mit Dateien möglich): „Teilen“ öffnen, dort WhatsApp und den Kontakt wählen – das PDF hängt dran.

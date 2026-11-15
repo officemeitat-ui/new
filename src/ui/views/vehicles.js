@@ -19,6 +19,7 @@ import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRan
 import { canMail } from '../modals/send.js'
 import { registerTodo } from '../modals/todo.js'
 import { download, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
+import { openWhatsApp } from '../whatsapp.js'
 import { fahrtenbuchView, fbOpenCount, fbRange } from './fahrtenbuch.js'
 import { costsView } from './fuhrparkkosten.js'
 
@@ -590,7 +591,7 @@ function mailModal(c, m) {
         return `<tr><td><input type="checkbox" name="vm-pick" value="${i}" ${sent ? '' : 'checked'} aria-label="senden"></td><td><strong>${esc(r.vehicle.plate)}</strong></td><td>${esc(r.driver?.name || '–')}</td>
           <td><input type="email" id="vm-to-${i}" value="${esc(r.driver?.email || '')}" placeholder="E-Mail eintragen" aria-label="E-Mail ${esc(r.driver?.name || '')}"></td>
           <td>${formatDate(r.change.date)} ${esc(r.change.time)}${sent ? `<br><span class="muted">informiert ${new Date(sent.at).toLocaleDateString('de-AT')}</span>` : ''}</td>
-          <td class="actions-cell">${canMail() ? '' : `<button class="btn small" data-action="vm-mailto" data-i="${i}">${ICON.send} E-Mail-Programm</button>`}${canDownload() ? `<button class="btn small" data-action="vm-ics" data-i="${i}">${ICON.calendar} .ics</button>` : ''}</td></tr>`
+          <td class="actions-cell">${canMail() ? '' : `<button class="btn small" data-action="vm-mailto" data-i="${i}">${ICON.send} E-Mail-Programm</button>`}<button class="btn small" data-action="vm-wa" data-i="${i}" title="${esc(r.driver?.phone ? `Termin per WhatsApp an ${r.driver.phone}` : 'Termin per WhatsApp – den Kontakt in WhatsApp wählen')}">${ICON.chat} WhatsApp</button>${canDownload() ? `<button class="btn small" data-action="vm-ics" data-i="${i}">${ICON.calendar} .ics</button>` : ''}</td></tr>`
       })
       .join('')}</tbody></table></div>
       ${first ? `<details ${list.length === 1 ? 'open' : ''}><summary>Vorschau: ${esc(first.subject)}</summary><pre class="mail-preview">${esc(first.text)}</pre></details>` : ''}
@@ -891,6 +892,14 @@ registerActions(
       rememberEmail(r.driver, to)
       persist()
       location.href = mailtoHref(to, mail.subject, mail.text)
+      renderModalKeepingInput()
+    },
+    'vm-wa': (el) => {
+      const r = driverRows(app.ui.modal.ids)[Number(el.dataset.i)]
+      if (!r) return
+      if (!openWhatsApp({ kind: 'fahrzeug-termin', phone: r.driver?.phone || '', text: mailFor(r).text })) return
+      noteMail(r.change, r.driver?.name || '', 'fahrer', 'whatsapp')
+      persist()
       renderModalKeepingInput()
     },
     'vm-ics': (el) => {

@@ -7,7 +7,7 @@ import { DEFAULT_HOLIDAY_RULE } from './plan.js'
 import { langInfo, LANGUAGES } from './sprachen.js'
 
 export const EMPLOYEE_TEMPLATE = ['Name', 'Personalnummer', 'Beschäftigung', 'Wochenstunden', 'E-Mail', 'Team', 'Qualifikationen', 'Tage', 'Von', 'Bis', 'Sprache']
-export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art', 'Fahrzeit danach', 'Fahrtnotiz']
+export const TASK_TEMPLATE = ['Objekt', 'Adresse', 'Revier', 'Leistung', 'Tage', 'Von', 'Bis', 'Personen', 'Stammkraft', 'Intervall', 'An Feiertagen', 'Art', 'Fahrzeit danach', 'Fahrtnotiz', 'Pause']
 
 const norm = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 
@@ -33,6 +33,7 @@ const ALIASES = {
   category: ['art', 'kategorie'],
   travel: ['fahrzeit', 'fahrzeitdanach', 'fahrzeitmin', 'fahrt'],
   travelNote: ['fahrtnotiz', 'notizfahrt', 'fahrthinweis'],
+  pause: ['pause', 'pausemin', 'pauseminuten', 'pausen'],
   lang: ['sprache', 'sprachehandy', 'sprachamhandy', 'muttersprache', 'language'],
 }
 
@@ -245,6 +246,8 @@ export function importTasks(text, employees, { anchor } = {}) {
         holidayRule: HOLIDAY[norm(pick(row, 'holiday'))] || DEFAULT_HOLIDAY_RULE,
         ...(travelMinutes(pick(row, 'travel')) !== null ? { travelAfterMin: travelMinutes(pick(row, 'travel')) } : {}),
         ...(pick(row, 'travelNote') ? { travelNote: pick(row, 'travelNote') } : {}),
+        // Pause wie die Fahrzeit: „60“, „60 min“, „1 h“, „0,5“ (Stunden) → Minuten, unbezahlt; ohne Angabe gilt die Regel
+        ...(travelMinutes(pick(row, 'pause')) > 0 ? { breakMin: Math.min(240, travelMinutes(pick(row, 'pause'))) } : {}),
       },
     }
   })

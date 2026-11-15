@@ -6,13 +6,14 @@
 
 import { formatDate, todayISO } from '../../core/dates.js'
 import { toCSV } from '../../core/reports.js'
-import { addImported, dueList, emptyTrainings, isRequired, KINDS, matrix, parseRecordTable, sessionRecords, STATE_TEXT, statusOf, TRAINING_DEFAULTS, typesOf, untilOf, addMonths } from '../../core/trainings.js'
+import { addImported, dueList, emptyTrainings, openRequest, requestText, isRequired, KINDS, matrix, parseRecordTable, sessionRecords, STATE_TEXT, statusOf, TRAINING_DEFAULTS, typesOf, untilOf, addMonths } from '../../core/trainings.js'
 import { sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
 import { app, canEdit, closeModal, confirmStep, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
+import { openWhatsApp } from '../whatsapp.js'
 
 const MODULE = 'unterweisungen'
 const ICON_TRAIN = '<path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="M6 10.2V15c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8M21.5 8v5.5"/>'
@@ -32,6 +33,10 @@ const nowIso = () => new Date().toISOString()
 const by = () => app.user?.name || 'Browser'
 const short = (d) => formatDate(d, { weekday: false, year: true })
 const CLS = { ok: 'ok', bald: 'warning', abgelaufen: 'error', fehlt: 'error', na: '' }
+// Zustände, bei denen eine Aufforderung („bitte nachholen“) Sinn hat
+const ASK_STATES = ['abgelaufen', 'fehlt', 'bald']
+const company = () => app.config.brand?.name || ''
+const VIA = { whatsapp: 'per WhatsApp', vermerk: 'vermerkt' }
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const skillsAll = () => [...new Set([...(app.data.skills || []), ...app.data.employees.flatMap((e) => e.skills || [])])].sort((a, b) => a.localeCompare(b, 'de'))
 
@@ -61,7 +66,8 @@ function trainingsView() {
       .map((x) => {
         const c = r.cells[x.id]
         const label = c.state === 'na' ? '–' : c.state === 'fehlt' ? 'fehlt' : c.until ? `bis ${short(c.until)}` : `am ${short(c.record.date)}`
-        return `<td><button class="tr-cell pill ${CLS[c.state]}" data-action="tr-record-open" data-emp="${esc(r.emp.id)}" data-type="${esc(x.id)}" title="${esc(STATE_TEXT[c.state])}">${esc(label)}</button></td>`
+        const asked = ASK_STATES.includes(c.state) ? openRequest(doc(), r.emp.id, x.id) : null
+        return `<td><button class="tr-cell pill ${CLS[c.state]}" data-action="tr-record-open" data-emp="${esc(r.emp.id)}" data-type="${esc(x.id)}" title="${esc(STATE_TEXT[c.state] + (asked ? ` · aufgefordert am ${short(asked.date)}` : ''))}">${esc(label)}</button>${asked ? `<br><small class="muted tr-asked">aufgefordert ${short(asked.date)}</small>` : ''}</td>`
       })
       .join('')}</tr>`)
     .join('')
@@ -77,6 +83,7 @@ function trainingsView() {
         single: false,
         items: [
           ed && { label: 'Einzeln eintragen', icon: ICON.plus, action: 'tr-record-open', hint: 'z. B. Kurs oder Nachweis von außen' },
+          ed && { label: 'Aufforderungen senden', icon: ICON.chat, action: 'tr-ask-open', hint: 'wer etwas nachholen muss, per WhatsApp' },
           ed && { label: 'Aus Excel einfügen', icon: ICON.upload, action: 'tr-import-open', hint: 'bisherige Liste: Name und Datum' },
           ed && { label: 'Arten verwalten', icon: ICON.gear, action: 'tr-types-open', hint: 'Unterweisungen, Kurse, Fristen' },
           { heading: 'Export' },
@@ -133,6 +140,7 @@ function recordModal(c, m) {
         <label class="field wide"><span>Notiz</span><input type="text" id="tr-note" value="${esc(m.note || '')}" placeholder="${doc0 ? 'z. B. Rot-Weiß-Rot – Karte (keine Kopie speichern)' : 'z. B. Inhalt, Kursanbieter'}" ${dis}></label>
       </div>
       ${type?.law || type?.note ? `<p class="note">${esc([type.law, type.note].filter(Boolean).join(' · '))}</p>` : ''}
+      ${ed && emp && type && s && ASK_STATES.includes(s.state) ? `<section><h3>Aufforderung</h3>${askLine(emp, type)}<div class="actions">${askButtons(emp, type)}</div></section>` : ''}
       ${history.length ? `<section><h3>Bisher</h3><ul class="tc-list">${history.map((r) => `<li>${short(r.date)}${untilOf(r, type) ? ` · gültig bis ${short(untilOf(r, type))}` : ''}${r.note ? ` · ${esc(r.note)}` : ''}${r.signature ? ' <span class="pill ok">unterschrieben</span>' : ''} <span class="muted">${esc(r.by || '')}</span>${ed ? ` <button class="btn small ghost" data-action="tr-record-delete" data-id="${esc(r.id)}">${app.ui.confirm === `tr-del:${r.id}` ? 'Wirklich löschen?' : 'Löschen'}</button>` : ''}</li>`).join('')}</ul></section>` : ''}`,
     foot: `<button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<div class="actions"><button class="btn primary" data-action="tr-record-save">Eintragen</button></div>' : ''}`,
   })
@@ -233,15 +241,15 @@ function typesModal() {
   const rows = m.rows
     .map((t, i) => `<tr><td><input type="text" id="tt-name-${i}" value="${esc(t.name)}" aria-label="Name"></td><td><input type="number" id="tt-months-${i}" min="0" max="120" value="${esc(t.months ?? 0)}" aria-label="Monate" class="num-input"></td>
       <td><select id="tt-who-${i}" aria-label="Pflicht">${options(whoOptions, t.who || 'optional')}</select></td><td><select id="tt-kind-${i}" aria-label="Art">${options(Object.entries(KINDS), t.kind || 'unterweisung')}</select></td>
-      <td><input type="text" id="tt-law-${i}" value="${esc(t.law || '')}" aria-label="Grundlage"></td><td><label class="check"><input type="checkbox" id="tt-block-${i}" ${t.blocking ? 'checked' : ''}><span>sperrt</span></label></td>
+      <td><input type="text" id="tt-law-${i}" value="${esc(t.law || '')}" aria-label="Grundlage"></td><td><input type="url" id="tt-link-${i}" value="${esc(t.link || '')}" placeholder="https://…" aria-label="Link zu Video oder Unterlagen"></td><td><label class="check"><input type="checkbox" id="tt-block-${i}" ${t.blocking ? 'checked' : ''}><span>sperrt</span></label></td>
       <td><label class="check"><input type="checkbox" id="tt-active-${i}" ${t.active !== false ? 'checked' : ''}><span>aktiv</span></label></td></tr>`)
     .join('')
   return modalFrame({
     title: 'Arten von Unterweisungen und Fristen',
     wide: true,
-    body: `<div class="table-wrap"><table class="data tr-types"><thead><tr><th>Name</th><th>gültig (Monate)</th><th>Pflicht</th><th>Art</th><th>Grundlage</th><th>Plan</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    body: `<div class="table-wrap"><table class="data tr-types"><thead><tr><th>Name</th><th>gültig (Monate)</th><th>Pflicht</th><th>Art</th><th>Grundlage</th><th>Link (Video, Unterlagen)</th><th>Plan</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <p><button class="btn small" data-action="tt-add">${ICON.plus} Art</button></p>
-      <p class="note">0 Monate = kein automatischer Ablauf (z. B. Aufenthaltstitel: Ablaufdatum beim Eintragen). „sperrt“: abgelaufen = Fehler im Plan (Person darf nicht eingeteilt werden). Pflicht mit Qualifikation: Warnung im Plan, wenn ein Einsatz diese Qualifikation verlangt und die Frist abgelaufen ist. Nicht mehr nötige Arten auf „aktiv“ aus, damit die Einträge erhalten bleiben.</p>`,
+      <p class="note">0 Monate = kein automatischer Ablauf (z. B. Aufenthaltstitel: Ablaufdatum beim Eintragen). „sperrt“: abgelaufen = Fehler im Plan (Person darf nicht eingeteilt werden). Pflicht mit Qualifikation: Warnung im Plan, wenn ein Einsatz diese Qualifikation verlangt und die Frist abgelaufen ist. Nicht mehr nötige Arten auf „aktiv“ aus, damit die Einträge erhalten bleiben. Der Link (z. B. zum Sicherheitsvideo) steht in der Aufforderung per WhatsApp.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="tt-save">Speichern</button></div>`,
   })
 }
@@ -249,9 +257,53 @@ registerModal('tr-types', typesModal, { module: MODULE })
 
 function readTypes() {
   const m = app.ui.modal
-  m.rows = m.rows.map((t, i) => ({ ...t, name: val(`tt-name-${i}`).trim(), months: Math.max(0, Math.round(Number(val(`tt-months-${i}`)) || 0)), who: val(`tt-who-${i}`), kind: val(`tt-kind-${i}`), law: val(`tt-law-${i}`).trim(), blocking: checked(`tt-block-${i}`), active: checked(`tt-active-${i}`) }))
+  m.rows = m.rows.map((t, i) => ({ ...t, name: val(`tt-name-${i}`).trim(), months: Math.max(0, Math.round(Number(val(`tt-months-${i}`)) || 0)), who: val(`tt-who-${i}`), kind: val(`tt-kind-${i}`), law: val(`tt-law-${i}`).trim(), link: val(`tt-link-${i}`).trim(), blocking: checked(`tt-block-${i}`), active: checked(`tt-active-${i}`) }))
   return m.rows
 }
+
+// ---------------------------------------------------------------- Aufforderung („bitte nachholen“)
+
+function askLine(emp, type) {
+  const q = openRequest(doc(), emp.id, type.id)
+  return q ? `<p>Aufgefordert am ${short(q.date)} (${esc(VIA[q.via] || q.via || '')}${q.by ? `, ${esc(q.by)}` : ''}).</p>` : '<p class="muted">Noch nicht aufgefordert.</p>'
+}
+const askButtons = (emp, type) =>
+  `<button class="btn small" data-action="tr-ask-wa" data-emp="${esc(emp.id)}" data-type="${esc(type.id)}" title="${esc(emp.phone ? `Per WhatsApp an ${emp.phone}` : 'Per WhatsApp – den Kontakt in WhatsApp wählen')}">${ICON.chat} Per WhatsApp auffordern</button><button class="btn small" data-action="tr-ask-note" data-emp="${esc(emp.id)}" data-type="${esc(type.id)}" title="Wenn du die Person schon anders erinnert hast (Anruf, persönlich)">Nur vermerken</button>`
+
+function addRequest(emp, type, via) {
+  const d = doc()
+  d.requests = [...(d.requests || []), { id: uid('q'), empId: emp.id, typeId: type.id, date: todayISO(), via, by: by(), at: nowIso() }]
+  persist()
+}
+
+function askModal() {
+  const m = app.ui.modal
+  const today = todayISO()
+  const list = dueList({ doc: doc(), employees: app.data.employees, today })
+  const count = (id) => list.filter((d) => d.type.id === id).length
+  const withNeed = types().filter((t) => count(t.id))
+  m.typeId ||= (withNeed.find((t) => t.id === 'sicherheit') || withNeed[0] || types()[0])?.id || ''
+  const type = typeOf(m.typeId)
+  const rows = list
+    .filter((d) => d.type.id === m.typeId)
+    .sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'de'))
+    .map((d) => {
+      const q = openRequest(doc(), d.emp.id, d.type.id)
+      const stand = d.state === 'fehlt' ? 'fehlt' : d.state === 'bald' ? `läuft am ${short(d.until)} ab` : `abgelaufen seit ${short(d.until)}`
+      return `<tr><td><strong>${esc(d.emp.name)}</strong>${d.emp.phone ? '' : '<br><small class="muted">keine Handynummer</small>'}</td><td><span class="pill ${CLS[d.state]}">${esc(stand)}</span></td><td>${q ? `${short(q.date)}<br><small class="muted">${esc(VIA[q.via] || '')}</small>` : '<span class="muted">–</span>'}</td><td class="send-acts">${askButtons(d.emp, d.type)}</td></tr>`
+    })
+    .join('')
+  return modalFrame({
+    title: 'Aufforderungen senden',
+    wide: true,
+    body: `<div class="form-grid"><label class="field"><span>Art</span><select id="ta-type" data-change="tr-ask-type">${options(types().map((t) => [t.id, `${t.name} (${count(t.id)})`]), m.typeId)}</select></label></div>
+      ${type && !type.link && (type.kind || 'unterweisung') !== 'dokument' && type.kind !== 'kontrolle' ? '<p class="note">Tipp: unter „Arten verwalten“ den Link zum Video oder zu den Unterlagen eintragen, dann steht er in der Nachricht.</p>' : ''}
+      ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Stand</th><th>aufgefordert</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="empty">Bei dieser Art hat niemand Bedarf.</p>'}
+      <p class="note">„Per WhatsApp auffordern“ öffnet WhatsApp mit dem fertigen Text (mit Handynummer im Stammblatt gleich beim Kontakt) und merkt das Datum. Senden tippst du selbst. Sobald die Unterweisung eingetragen ist, gilt die Aufforderung als erledigt.</p>`,
+    foot: '<button class="btn" data-action="close-modal">Schließen</button>',
+  })
+}
+registerModal('tr-ask', askModal, { module: MODULE })
 
 // ---------------------------------------------------------------- Aus Excel einfügen (bisherige Liste)
 
@@ -392,6 +444,33 @@ registerActions(
       } catch (err) {
         toast(`${done} Das PDF ging nicht (${err.message}): später unter „Letzte Unterweisungen“ → „Nachweis“.`)
       }
+    },
+    'tr-ask-open': () => openModal({ type: 'tr-ask' }),
+    'tr-ask-type': () => {
+      app.ui.modal.typeId = val('ta-type')
+      renderModal()
+    },
+    'tr-ask-wa': (el) => {
+      const emp = empOf(el.dataset.emp)
+      const type = typeOf(el.dataset.type)
+      if (!emp || !type) return
+      if (app.ui.modal?.type === 'tr-record') readRecord()
+      const status = statusOf({ type, emp, records: doc().records, today: todayISO() })
+      if (!openWhatsApp({ kind: 'unterweisung', phone: emp.phone || '', text: requestText({ type, emp, status, company: company() }) })) return
+      addRequest(emp, type, 'whatsapp')
+      renderModal()
+      renderNow()
+      toast(`Aufforderung für ${emp.name} vermerkt – in WhatsApp noch senden.`)
+    },
+    'tr-ask-note': (el) => {
+      const emp = empOf(el.dataset.emp)
+      const type = typeOf(el.dataset.type)
+      if (!emp || !type) return
+      if (app.ui.modal?.type === 'tr-record') readRecord()
+      addRequest(emp, type, 'vermerk')
+      renderModal()
+      renderNow()
+      toast(`${emp.name}: als aufgefordert vermerkt.`)
     },
     'tr-import-open': () => openModal({ type: 'tr-import' }),
     'ti-check': () => {

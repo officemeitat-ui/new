@@ -10,6 +10,7 @@
 // Eintrag im Schlüsselbuch behalten ihre bisherigen Schlüssel (Objekt bearbeiten → Schlüssel).
 
 import { addDays, formatDate } from './dates.js'
+import { headKey, nameMatcher } from './names.js'
 
 const day = (d) => formatDate(d, { year: true })
 
@@ -138,4 +139,106 @@ export function historyText(h, name = (id) => id) {
   if (h.kind === 'rueckgabe') return `${base}${h.from ? ` von ${name(h.from)}` : ''} ins Büro`
   if (h.kind === 'uebernommen' && h.to) return `${base} (bei ${name(h.to)})`
   return base
+}
+
+// ---------------------------------------------------------------- Schlüsselliste aus Excel einfügen
+
+const KEY_COLS = {
+  seq: ['nummerierung', 'nummerrierung', 'lfdnr', 'lfdnummer', 'laufendenummer', 'pos', 'position'],
+  no: ['schlusselnummer', 'schlusselnr', 'nummer', 'nr', 'schliessnummer', 'code'],
+  object: ['objekt', 'objektname', 'haus', 'liegenschaft', 'kunde'],
+  holder: ['mitarbeiter', 'mitarbeiterin', 'person', 'inhaber', 'ausgegebenan', 'wer', 'name'],
+  label: ['bezeichnung', 'schlussel', 'tur', 'wofur'],
+  storage: ['aufbewahrung', 'schlusselkasten', 'haken', 'ort'],
+  note: ['notiz', 'bemerkung', 'anmerkung', 'hinweis'],
+}
+
+/** Laufende Nummer aus der Liste: „3“, „3.“ – und „03.01.1900“ bzw. „1900-01-03“, wenn Excel die Zahl als Datum zeigt. */
+export function listNumber(v) {
+  const s = String(v ?? '').trim()
+  let m = /^(\d{1,4})\.?$/.exec(s)
+  if (m) return String(Number(m[1]))
+  m = /^1900-01-(\d{2})/.exec(s) || /^(\d{1,2})\.0?1\.1900\b/.exec(s)
+  return m ? String(Number(m[1])) : ''
+}
+
+/**
+ * Schlüssel aus einer eingefügten Tabelle (Tabulator wie aus Excel, sonst Semikolon). Überschrift wie in der bisherigen
+ * Schlüsselliste: Nummerierung, Schlüssel Nummer, Objekt, Mitarbeiter – dazu wahlweise Bezeichnung, Aufbewahrung, Notiz.
+ * Objekt und Person über den Namen (auch leicht anders geschrieben). Ohne Person liegt der Schlüssel im Büro.
+ * → { items: [{ objectId, objectName, objectWritten?, label, no, holderId, holderName, holderWritten?, storage, note }],
+ *     unknownObjects: [Name], unknownPeople: [Name], known: Anzahl schon vorhandener, errors: [Text] }
+ */
+export function parseKeyTable(text, { objects = [], employees = [], book = [] } = {}) {
+  const lines = String(text ?? '').replace(/\r/g, '').split('\n').filter((l) => l.trim())
+  const out = { items: [], unknownObjects: [], unknownPeople: [], known: 0, errors: [] }
+  if (!lines.length) return out
+  const sep = lines.some((l) => l.includes('\t')) ? '\t' : ';'
+  const headAt = lines.slice(0, 10).findIndex((l) => {
+    const h = l.split(sep).map(headKey)
+    return h.some((x) => KEY_COLS.object.includes(x)) && h.some((x) => KEY_COLS.no.includes(x) || KEY_COLS.label.includes(x) || KEY_COLS.seq.includes(x))
+  })
+  if (headAt < 0) {
+    out.errors.push('Die Überschrift fehlt: gebraucht werden „Objekt“ und „Schlüssel Nummer“ (oder „Bezeichnung“).')
+    return out
+  }
+  const head = lines[headAt].split(sep).map(headKey)
+  const ix = Object.fromEntries(Object.keys(KEY_COLS).map((k) => [k, head.findIndex((h) => KEY_COLS[k].includes(h))]))
+  const cell = (c, k) => (ix[k] >= 0 ? (c[ix[k]] || '').replace(/\s+/g, ' ').trim() : '')
+  const findObject = nameMatcher(objects, (o) => [o.name, o.short])
+  const findPerson = nameMatcher(employees)
+  const have = new Set(book.filter((k) => (k.status || 'aktiv') === 'aktiv').map((k) => `${k.objectId}|${headKey(k.no)}|${headKey(k.label)}`))
+  for (const line of lines.slice(headAt + 1)) {
+    const c = line.split(sep).map((x) => x.trim().replace(/^"(.*)"$/, '$1'))
+    const written = cell(c, 'object')
+    const no = cell(c, 'no')
+    const seq = listNumber(cell(c, 'seq'))
+    if (!written) continue
+    const hit = findObject(written)
+    if (!hit) {
+      if (!out.unknownObjects.includes(written)) out.unknownObjects.push(written)
+      continue
+    }
+    const label = cell(c, 'label') || (seq ? `Schlüssel ${seq}` : 'Schlüssel')
+    const key = `${hit.emp.id}|${headKey(no)}|${headKey(label)}`
+    if (have.has(key)) {
+      out.known++
+      continue
+    }
+    have.add(key)
+    const who = cell(c, 'holder')
+    const person = who ? findPerson(who) : null
+    if (who && !person && !out.unknownPeople.includes(who)) out.unknownPeople.push(who)
+    out.items.push({
+      objectId: hit.emp.id,
+      objectName: hit.emp.name,
+      ...(hit.exact ? {} : { objectWritten: written }),
+      label,
+      no,
+      holderId: person?.emp.id || '',
+      holderName: person?.emp.name || '',
+      ...(who && (!person || !person.exact) ? { holderWritten: who } : {}),
+      storage: cell(c, 'storage'),
+      note: [cell(c, 'note'), who && !person ? `laut Liste bei ${who}` : ''].filter(Boolean).join(' · '),
+    })
+  }
+  return out
+}
+
+/** Eingefügte Schlüssel als Einträge fürs Schlüsselbuch (angelegt, mit Person gleich als ausgegeben). */
+export function keysFromImport(items = [], { newId, at, date, by = '' }) {
+  return items.map((x) => ({
+    id: newId(),
+    objectId: x.objectId,
+    label: x.label,
+    no: x.no || '',
+    kind: 'schluessel',
+    storage: x.storage || '',
+    holderId: x.holderId || '',
+    since: date,
+    due: '',
+    status: 'aktiv',
+    note: x.note || '',
+    history: [entry('angelegt', { at, date, by, note: 'aus der Schlüsselliste' }), ...(x.holderId ? [entry('ausgabe', { at, date, by, to: x.holderId, note: 'laut Schlüsselliste' })] : [])],
+  }))
 }

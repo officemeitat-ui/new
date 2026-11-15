@@ -113,3 +113,19 @@ test('Namen zuordnen: Schreibvarianten eindeutig, Titel über der Überschrift, 
   assert.deepEqual(r.items, [{ empId: 'd', name: 'Doina Hergheligiu', written: 'Doina Herghelegiu', date: '2025-01-01', until: '', by: 'Carina', note: '' }])
   assert.deepEqual(r.noDate, ['Ion Kast'])
 })
+
+test('Aufforderung: offen bis zum nächsten Eintrag, Text je Art mit Link', async () => {
+  const { openRequest, requestText } = await import('../src/core/trainings.js')
+  const doc = { records: [{ empId: 'e1', typeId: 'sicherheit', date: '2025-01-01' }], requests: [{ id: 'q1', empId: 'e1', typeId: 'sicherheit', date: '2026-11-10', at: 'a' }, { id: 'q2', empId: 'e1', typeId: 'sicherheit', date: '2026-11-12', at: 'b' }, { id: 'q3', empId: 'e2', typeId: 'sicherheit', date: '2024-01-16' }] }
+  assert.equal(openRequest(doc, 'e1', 'sicherheit').id, 'q2')
+  assert.equal(openRequest(doc, 'e1', 'chemie'), null)
+  doc.records.push({ empId: 'e1', typeId: 'sicherheit', date: '2026-11-14' })
+  assert.equal(openRequest(doc, 'e1', 'sicherheit'), null, 'nach dem Eintrag erledigt')
+  assert.equal(openRequest({}, 'e1', 'sicherheit'), null)
+  const emp = { id: 'e1', name: 'Ana Maria Popescu' }
+  const video = requestText({ type: { name: 'Sicherheitsunterweisung', kind: 'unterweisung', link: 'https://beispiel.at/video' }, emp, status: { state: 'abgelaufen', until: '2026-01-01' }, company: 'Firma' })
+  assert.equal(video, 'Hallo Ana,\n\ndeine Sicherheitsunterweisung ist am 01.01.2026 abgelaufen.\nBitte hol sie in den nächsten Tagen nach:\nhttps://beispiel.at/video\n\nDanach schick uns bitte den Nachweis (Zertifikat).\n\nDanke!\nFirma')
+  assert.match(requestText({ type: { name: 'Sicherheitsunterweisung' }, emp, status: { state: 'fehlt' } }), /fehlt uns noch\.\nBitte melde dich bei uns/)
+  assert.match(requestText({ type: { name: 'Aufenthaltstitel', kind: 'dokument' }, emp, status: { state: 'bald', until: '2026-12-10' } }), /dein Nachweis „Aufenthaltstitel“ läuft am 10\.12\.2026 ab\.\nBitte bring das neue Dokument/)
+  assert.match(requestText({ type: { name: 'Führerscheinkontrolle', kind: 'kontrolle' }, emp, status: { state: 'abgelaufen', until: '2026-05-01' } }), /kurz im Büro vorbei/)
+})

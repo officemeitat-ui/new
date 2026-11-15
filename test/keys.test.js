@@ -78,3 +78,26 @@ test('Schlüssel: Prüfregel und Übergaben laut Plan nutzen das Schlüsselbuch'
   const ho = handoversNeeded({ instances: r.instances, state: r.state, keysByObject: r.ctx.keysByObject, from: '2026-11-03', to: '2026-11-10' })
   assert.deepEqual(ho.map((h) => [h.date, h.empId, h.holders, h.office]), [['2026-11-03', 'x', ['y'], true]])
 })
+
+test('Schlüsselliste einfügen: Spalten der bisherigen Liste, Objekt und Person ähnlich geschrieben, nichts doppelt', async () => {
+  const { keysFromImport, listNumber, parseKeyTable } = await import('../src/core/keys.js')
+  assert.deepEqual(['1', '12.', '1900-01-03 00:00:00', '03.01.1900', 'x'].map(listNumber), ['1', '12', '3', '3', ''])
+  const objects = [{ id: 'o1', name: 'Ferienwohnung Seeblick', short: 'FeWo' }, { id: 'o2', name: 'Seniorenheim Schloss Kahlsperg' }]
+  const employees = [{ id: 'e1', name: 'Maria Fülöp' }, { id: 'e2', name: 'Ion Constantin Kast' }]
+  const text = ['\tSCHLÜSSELLISTE', 'Nummerrierung\tSchlüssel Nummer\tObjekt\tMitarbeiter', '01.01.1900\tH14BIVV93\tFerienwohnung Seeblick\tMaria Fülop', '2\tK77\tFeWo\t', '3\tZ1\tSeniorenheim Kahlsperg\tIon Kast', '4\tQ9\tUnbekanntes Haus\tMaria Fülöp', '5\tZ2\tSeniorenheim Schloss Kahlsperg\tFrau Niemand'].join('\n')
+  const r = parseKeyTable(text, { objects, employees, book: [{ objectId: 'o1', no: 'k77', label: 'Schlüssel 2', status: 'aktiv' }] })
+  assert.deepEqual(r.errors, [])
+  assert.deepEqual(r.unknownObjects, ['Unbekanntes Haus'])
+  assert.deepEqual(r.unknownPeople, ['Frau Niemand'])
+  assert.equal(r.known, 1)
+  assert.deepEqual(r.items.map((x) => [x.objectId, x.label, x.no, x.holderId, x.objectWritten || '', x.holderWritten || '', x.note]), [
+    ['o1', 'Schlüssel 1', 'H14BIVV93', 'e1', '', '', ''],
+    ['o2', 'Schlüssel 3', 'Z1', 'e2', 'Seniorenheim Kahlsperg', 'Ion Kast', ''],
+    ['o2', 'Schlüssel 5', 'Z2', '', '', 'Frau Niemand', 'laut Liste bei Frau Niemand'],
+  ])
+  let n = 0
+  const keys = keysFromImport(r.items, { newId: () => `k${++n}`, at: 'T', date: '2026-11-15', by: 'Büro' })
+  assert.deepEqual(keys[0].history.map((h) => [h.kind, h.to || '']), [['angelegt', ''], ['ausgabe', 'e1']])
+  assert.deepEqual([keys[2].holderId, keys[2].history.length, keys[2].since, keys[2].status], ['', 1, '2026-11-15', 'aktiv'])
+  assert.match(parseKeyTable('Name;Ort\nA;B', { objects }).errors[0], /Überschrift fehlt/)
+})

@@ -284,3 +284,13 @@ test('Browser-Ablage: startet auch, wenn der Zugriff auf localStorage gesperrt i
     else delete globalThis.localStorage
   }
 })
+
+test('Leistungen einfügen: Spalte „Pause“ wird zur unbezahlten Pause der Leistung', async () => {
+  const { importTasks } = await import('../src/core/importer.js')
+  const { buildInstances } = await import('../src/core/plan.js')
+  const text = ['Objekt\tLeistung\tTage\tVon\tBis\tPause', 'Heim\tReinigung\tMo\t07:30\t16:30\t60', 'Büro\tReinigung\tMo\t10:00\t16:00\t0,5', 'Lager\tReinigung\tMo\t08:00\t10:00\t'].join('\n')
+  const r = importTasks(text, [])
+  assert.deepEqual(r.errors, [])
+  assert.deepEqual(r.items.map((x) => x.task.breakMin), [60, 30, undefined])
+  assert.equal(typeof buildInstances, 'function')
+})

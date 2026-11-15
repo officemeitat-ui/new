@@ -23,7 +23,7 @@ test('WhatsApp: Link mit Text, ohne Nummer wählt man den Kontakt', () => {
 
 test('WhatsApp: Mitarbeiter-Sachen ja, Finanzen nie, Unbekanntes nicht', async () => {
   const { mayWhatsApp } = await import('../src/core/whatsapp.js')
-  for (const k of ['wochenplan', 'plan-link', 'muellplan', 'matten-tour', 'fahrer-link', 'mitteilung']) assert.equal(mayWhatsApp(k), true, k)
+  for (const k of ['wochenplan', 'plan-aenderung', 'plan-link', 'muellplan', 'matten-tour', 'fahrer-link', 'mitteilung', 'unterweisung', 'arbeitszeit', 'fahrzeug-termin', 'schnee-alarm', 'schluessel']) assert.equal(mayWhatsApp(k), true, k)
   for (const k of ['rechnung', 'angebot', 'lieferschein', 'mahnung', 'auszahlung', 'lohn', 'kassenbuch']) assert.equal(mayWhatsApp(k), false, k)
   assert.equal(mayWhatsApp('irgendwas'), false)
 })

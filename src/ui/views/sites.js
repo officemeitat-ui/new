@@ -32,7 +32,7 @@ function sitesView() {
         .map(
           (t) => `<tr>
           <td><strong>${esc(t.label)}</strong>${t.category === 'sonder' ? ' <span class="tag special">Sonderleistung</span>' : ''}${t.outdoor ? ' <span class="tag">im Freien</span>' : ''}${t.checklist?.length ? ` <span class="tag" title="Checkliste am Handy">Checkliste: ${t.checklist.length}</span>` : ''}</td>
-          <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}${Number.isFinite(t.travelAfterMin) || t.travelNote ? `<br><span class="muted">Fahrt danach ${Number.isFinite(t.travelAfterMin) ? `${t.travelAfterMin} min` : 'automatisch'}${t.travelNote ? `: ${esc(t.travelNote)}` : ''}</span>` : ''}</td><td class="num">${t.staff}</td>
+          <td>${esc(rhythmText(t))}</td><td class="num">${esc(t.start)}–${esc(t.end)}${Number(t.breakMin) > 0 ? `<br><span class="muted">Pause ${Number(t.breakMin)} min</span>` : ''}${Number.isFinite(t.travelAfterMin) || t.travelNote ? `<br><span class="muted">Fahrt danach ${Number.isFinite(t.travelAfterMin) ? `${t.travelAfterMin} min` : 'automatisch'}${t.travelNote ? `: ${esc(t.travelNote)}` : ''}</span>` : ''}</td><td class="num">${t.staff}</td>
           <td>${t.regulars.map((id) => esc(empName(id))).join(', ') || '<span class="muted">–</span>'}</td>
           <td>${esc(HOLIDAY_RULES[t.holidayRule || DEFAULT_HOLIDAY_RULE])}</td>
           <td>${(t.skills || []).map((s) => `<span class="tag">${esc(s)}</span>`).join(' ') || '<span class="muted">–</span>'}</td>
@@ -264,6 +264,7 @@ function taskModal(c, { id, objectId }) {
         <label class="field"><span>Ende</span><input type="time" id="task-end" value="${esc(t.end)}"></label>
         <label class="field"><span>Personen</span><input type="number" id="task-staff" min="1" step="1" value="${esc(t.staff)}"></label>
         <label class="field"><span>An Feiertagen</span><select id="task-holiday">${options(Object.entries(HOLIDAY_RULES), t.holidayRule || DEFAULT_HOLIDAY_RULE)}</select></label>
+        <label class="field"><span>Pause (min)</span><input type="number" id="task-break" min="0" max="240" step="5" value="${Number(t.breakMin) > 0 ? Number(t.breakMin) : ''}" placeholder="automatisch"><small class="muted">unbezahlt; leer = laut Regeln (30 min ab 6 h)</small></label>
         <label class="field"><span>Fahrzeit danach (min)</span><input type="number" id="task-travel" min="0" step="5" value="${Number.isFinite(t.travelAfterMin) ? t.travelAfterMin : ''}" placeholder="automatisch"></label>
         <label class="field wide"><span>Fahrtnotiz (Standard, je Woche änderbar)</span><input type="text" id="task-travel-note" value="${esc(t.travelNote || '')}" placeholder="z. B. Firmenauto zurück ins Lager"></label>
         <label class="check wide"><input type="checkbox" id="task-outdoor" ${t.outdoor ? 'checked' : ''}><span>Arbeit im Freien (Außenanlage, Fassade, Glas außen): Hinweise bei Hitze und Sturm</span></label>
@@ -318,6 +319,7 @@ function readTaskForm(existing) {
     end: val('task-end'),
     staff: Math.max(1, Math.round(num('task-staff') || 1)),
     holidayRule: val('task-holiday'),
+    breakMin: val('task-break').trim() === '' ? undefined : Math.max(0, Math.min(240, Math.round(num('task-break') ?? 0))) || undefined,
     travelAfterMin: val('task-travel').trim() === '' ? undefined : Math.max(0, Math.round(num('task-travel') ?? 0)),
     travelNote: val('task-travel-note').trim() || undefined,
     regulars: checkedValues('task-reg'),

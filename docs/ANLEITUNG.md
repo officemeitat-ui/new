@@ -2,17 +2,17 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 412 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 415 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (43)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
-- [Objekte & Kunden](#objekte-kunden) (104)
+- [Objekte & Kunden](#objekte-kunden) (105)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (66)
+- [Verwaltung](#verwaltung) (68)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -722,7 +722,7 @@ Im Versand-Dialog schickst du jeder Person ihr PDF: per E-Mail aus deinem Micros
 
 *In der App: Wochenübersicht*
 
-Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan, Arbeitszeitaufzeichnung, Link für Plan am Handy, Müllplan, Matten-Tour, Fahrer-Link und Mitteilungen. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text und das PDF wird gespeichert. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind dafür gesperrt.
+Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan und Planänderung, Arbeitszeitaufzeichnung, Plan am Handy, Müllplan, Matten-Tour, Mitteilungen, Aufforderung zur Unterweisung, Reifenwechsel-Termin und Schnee-Alarm. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind gesperrt.
 
 1. Im Stammblatt der Person unter „Handy (für WhatsApp)“ die Nummer eintragen.
 2. Beim Wochenplan-Versand, im Müllplan, bei Plan am Handy oder der Tour auf „WhatsApp“ tippen.
@@ -1673,6 +1673,20 @@ Neue Schlüssel legst du je Objekt an: Bezeichnung, Nummer oder Prägung, Art un
 1. „Mehr ▾“ → „Schlüssel anlegen“ klicken.
 2. Objekt, Bezeichnung, Nummer und Art eintragen.
 3. „Speichern“ klicken.
+
+### Schlüsselliste aus Excel einfügen
+
+*In der App: Schlüsselbuch*
+
+„Mehr“ → „Liste aus Excel einfügen“ übernimmt eure Schlüsselliste: Zeilen samt Überschrift kopieren und einfügen. Spalten wie bisher: Nummerierung, Schlüssel Nummer, Objekt, Mitarbeiter. Mit Mitarbeiter gilt der Schlüssel gleich als ausgegeben, sonst liegt er im Büro. Schon vorhandene Schlüssel bleiben aus.
+
+1. „Schlüsselbuch“ öffnen.
+2. „Mehr“ → „Liste aus Excel einfügen“.
+3. Tabelle einfügen und „Prüfen“.
+4. Gelb markierte Namen kontrollieren, dann „Übernehmen (Anzahl)“.
+
+> Tipp: Objekte, die die App nicht findet, zuerst unter „Objekte“ anlegen oder gleich schreiben.
+> Tipp: Findet sie die Person nicht, kommt der Schlüssel ins Büro und der Name steht in der Notiz.
 
 ### Schlüsselübergaben laut Plan
 
@@ -4461,12 +4475,25 @@ Unter „Objekte & Leistungen“ steht der Stammplan: je Objekt Name, Kurzname, 
 
 *In der App: Objekte & Leistungen*
 
-Eine Leistung legt fest, was in welchem Rhythmus, zu welcher Zeit, mit wie vielen Personen und mit welcher Stammkraft gereinigt wird. Dazu kommen: was an Feiertagen passiert, Fahrzeit danach, Arbeit im Freien und die benötigte Qualifikation.
+Eine Leistung legt fest, was in welchem Rhythmus, zu welcher Zeit, mit wie vielen Personen und mit welcher Stammkraft gereinigt wird. Dazu kommen: was an Feiertagen passiert, eine eigene Pause, Fahrzeit danach, Arbeit im Freien und die benötigte Qualifikation.
 
 1. Beim Objekt „+ Leistung“ klicken (oder „+ Neu“ → „Leistung im Reinigungsplan“).
 2. Bezeichnung, Art (Reinigung oder Sonderleistung) und Rhythmus wählen.
 3. Beginn, Ende, Personen und „An Feiertagen“ eintragen.
 4. Stammkraft und Qualifikation anhaken und „Speichern“.
+
+### Pause je Leistung (z. B. 1 Stunde Mittag)
+
+*In der App: Objekte & Leistungen*
+
+Ohne Angabe zieht die App bei mehr als 6 Stunden 30 Minuten Pause ab. Hat ein Einsatz eine längere Pause, etwa 07:30 bis 16:30 mit einer Stunde Mittag, trägst du bei der Leistung „Pause (min)“ 60 ein: dann zählen 8 Stunden. Die Pause ist unbezahlt und gilt für jeden Einsatz dieser Leistung.
+
+1. „Objekte & Leistungen“ öffnen und bei der Leistung „Bearbeiten“.
+2. Bei „Pause (min)“ die Minuten eintragen, z. B. 60.
+3. „Speichern“ klicken.
+
+> Tipp: Leer lassen heißt: Pause laut Regeln (30 min ab 6 Stunden).
+> Tipp: Beim Einfügen aus Excel gibt es dafür die Spalte „Pause“.
 
 ### Rhythmus: 14-tägig, monatlich, quartalsweise, einmalig
 
@@ -4486,7 +4513,7 @@ Bei „Rhythmus“ wählst du „wöchentlich / 14-tägig“ (Wochentage, bis al
 
 *In der App: Objekte & Leistungen*
 
-Objekte und Leistungen kopierst du aus Excel: Objekt, Adresse, Revier, Leistung, Tage, Von, Bis, Personen, Stammkraft, Intervall, An Feiertagen und optional Fahrzeit danach und Fahrtnotiz.
+Objekte und Leistungen kopierst du aus Excel: Objekt, Adresse, Revier, Leistung, Tage, Von, Bis, Personen, Stammkraft, Intervall, An Feiertagen und optional Fahrzeit danach, Fahrtnotiz und Pause (Minuten).
 
 1. „Objekte & Leistungen“ → „Aus Excel einfügen“.
 2. Die Liste mit Überschrift einfügen (Überschriften über „Vorlage kopieren“).
@@ -4598,6 +4625,20 @@ Die Matrix zeigt je Person und Art eine Ampel: grün gültig, gelb läuft in 30 
 3. Teilnehmende mit „mit Bedarf“, „alle“ oder „keine“ wählen.
 4. Unterschreiben lassen und „Für … Personen eintragen“.
 5. Unter „Letzte Unterweisungen“ „Nachweis“ als PDF.
+
+### Zur Unterweisung auffordern (WhatsApp)
+
+*In der App: Unterweisungen & Fristen*
+
+„Mehr“ → „Aufforderungen senden“ zeigt je Art alle, die etwas nachholen müssen. „Per WhatsApp auffordern“ öffnet WhatsApp mit fertigem Text und dem Link der Art (z. B. Sicherheitsvideo) und merkt das Datum. In der Matrix steht dann „aufgefordert“ unter dem Feld, bis die Unterweisung eingetragen ist.
+
+1. Unter „Mehr“ → „Arten verwalten“ den Link zum Video oder zu den Unterlagen eintragen.
+2. „Mehr“ → „Aufforderungen senden“ und die Art wählen.
+3. Je Person „Per WhatsApp auffordern“ und in WhatsApp senden.
+4. Kommt der Nachweis, das Feld in der Matrix anklicken und eintragen.
+
+> Tipp: „Nur vermerken“ merkt das Datum ohne WhatsApp, z. B. nach einem Anruf.
+> Tipp: Mit der Handynummer im Stammblatt öffnet WhatsApp gleich beim richtigen Kontakt.
 
 ### Bisherige Unterweisungsliste aus Excel einfügen
 

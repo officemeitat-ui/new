@@ -200,10 +200,10 @@ lazy(BUERO, {
       text: 'Sicherheitsunterweisung, Führerschein, Arbeitserlaubnis',
     },
   ],
-  modals: 'tr-record tr-session tr-types tr-import',
+  modals: 'tr-record tr-session tr-types tr-import tr-ask',
   // sig-clear: Unterschriftsfeld (signature.js, auch im Schlüsselbuch)
   actions: `sig-clear tr-team tr-only tr-search tr-record-open tr-record-redraw tr-csv tr-session-pdf tr-record-save tr-record-delete tr-session-open
-    ts-redraw ts-pick ts-save tr-types-open tt-add tt-save tr-import-open ti-check ti-save`,
+    ts-redraw ts-pick ts-save tr-types-open tt-add tt-save tr-import-open ti-check ti-save tr-ask-open tr-ask-type tr-ask-wa tr-ask-note`,
   todo: ['unterweisungen'],
 })
 
@@ -251,7 +251,7 @@ lazy(BUERO, {
   modals: 'veh-edit veh-ws veh-import veh-plan veh-propose veh-done veh-km veh-mail fb-trip fb-cancel',
   actions: `veh-filter veh-tab veh-csv veh-edit-open veh-set veh-save veh-del veh-due-add veh-due-del veh-km-open vk-save veh-ws-open veh-ws-set
     veh-ws-add veh-ws-del veh-ws-save veh-import-open veh-import-run veh-plan-open vp-update vp-next vp-save vp-cancel veh-propose-open vq-run
-    vq-apply veh-done-open vd-save veh-mail-open vm-ws vm-send vm-mailto vm-ics vm-send-ws veh-import-text fb-month fb-vehicle fb-new-open
+    vq-apply veh-done-open vd-save veh-mail-open vm-ws vm-send vm-mailto vm-wa vm-ics vm-send-ws veh-import-text fb-month fb-vehicle fb-new-open
     fb-confirm-open fb-edit-open fb-cancel-open fb-dismiss fb-save fb-cancel-save fb-csv fb-goto fpk-year fpk-open fpk-csv`,
   todo: ['reifen', 'fahrtenbuch'],
 })
@@ -347,8 +347,8 @@ lazy(BUERO, {
       text: 'Schlüssel, Ausgabe, Rückgabe, Quittung',
     },
   ],
-  modals: 'key-edit key-move key-lost',
-  actions: `keys-mode keys-obj keys-all keys-open-object key-edit-open keys-csv keys-person-pdf key-loss-pdf keys-import key-save key-delete
+  modals: 'key-edit key-move key-lost keys-paste',
+  actions: `keys-mode keys-obj keys-all keys-open-object key-edit-open keys-csv keys-person-pdf key-loss-pdf keys-import keys-paste-open kp-check kp-save key-save key-delete
     key-move-open key-move-redraw key-move-save key-lost-open key-lost-save key-found key-customer`,
   hints: true,
   todo: ['schluessel'],

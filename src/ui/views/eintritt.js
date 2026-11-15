@@ -20,6 +20,7 @@ import { openCompose } from '../mailer.js'
 import { registerTodo } from '../modals/todo.js'
 import { portalSettings, sendWeeks } from '../staffplan.js'
 import { checked, dayAt, esc, euro, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
+import { waLink } from '../whatsapp.js'
 import { onAppointmentSaved } from './appointments.js'
 
 const MODULE = 'eintritt'
@@ -222,7 +223,7 @@ function taskPanel(t, l, ctx, ed) {
     const { subject, text } = linkMessage(langOf(emp), { name: emp.name.split(' ')[0], product: product(), link: personalLink(address(), code), topic: p.topics?.[emp.id] || '' })
     const mail = emp.email ? `mailto:${encodeURIComponent(emp.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}` : ''
     return `<p>Link vorhanden (Sprache: ${esc(langLabel(langOf(emp)))}). Er gilt, sobald die Pläne übertragen sind (beim Veröffentlichen oder unter „Plan am Handy“).</p>
-      <div class="actions">${btn('bew-copy', `${ICON.copy} Link kopieren`, { text: personalLink(address(), code) })}<a class="btn small" href="https://wa.me/?text=${esc(encodeURIComponent(text))}" target="_blank" rel="noopener">WhatsApp</a>${mail ? `<a class="btn small" href="${esc(mail)}">E-Mail</a>` : ''}${canEdit('planung') && !app.readOnly ? btn('bew-handy-send', 'Jetzt übertragen') : ''}</div>`
+      <div class="actions">${btn('bew-copy', `${ICON.copy} Link kopieren`, { text: personalLink(address(), code) })}${waLink({ kind: 'plan-link', phone: emp.phone, text })}${mail ? `<a class="btn small" href="${esc(mail)}">E-Mail</a>` : ''}${canEdit('planung') && !app.readOnly ? btn('bew-handy-send', 'Jetzt übertragen') : ''}</div>`
   }
   if (t.type === 'sprache') {
     const may = mayStamm()

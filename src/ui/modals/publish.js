@@ -7,6 +7,7 @@ import { app, empName, openModal, registerActions, registerModal, toast } from '
 import { changedEmployees, changeMessage, currentSaldi, publishWeek } from '../planning.js'
 import { esc, ICON, modalFrame, saldoClass, signed } from '../shared.js'
 import { copyText } from '../views/sheet.js'
+import { waLink } from '../whatsapp.js'
 
 function publishModal(c) {
   const kw = isoWeek(c.monday).week
@@ -51,8 +52,8 @@ function publishModal(c) {
       </ul></section>
       ${
         changed.length
-          ? `<section><h3>Seit der letzten Veröffentlichung geändert (${changed.length})</h3><p class="note">Diese Personen informieren. Text kopieren und per Teams, SMS oder WhatsApp senden.</p>
-        ${changed.map((e) => `<div class="person"><div class="pname">${esc(e.name)}<small>${esc(e.team || '')}</small></div><pre class="msg" id="msg-${esc(e.id)}">${esc(changeMessage(c, e))}</pre><div class="acts"><button class="btn small" data-action="copy-msg" data-emp="${esc(e.id)}">${ICON.copy} Kopieren</button></div></div>`).join('')}</section>`
+          ? `<section><h3>Seit der letzten Veröffentlichung geändert (${changed.length})</h3><p class="note">Diese Personen informieren: „WhatsApp“ öffnet die Nachricht fertig (mit Handynummer im Stammblatt gleich beim Kontakt), oder Text kopieren für Teams und SMS.</p>
+        ${changed.map((e) => `<div class="person"><div class="pname">${esc(e.name)}<small>${esc(e.team || '')}</small></div><pre class="msg" id="msg-${esc(e.id)}">${esc(changeMessage(c, e))}</pre><div class="acts"><button class="btn small" data-action="copy-msg" data-emp="${esc(e.id)}">${ICON.copy} Kopieren</button>${waLink({ kind: 'plan-aenderung', phone: e.phone, text: changeMessage(c, e) })}</div></div>`).join('')}</section>`
           : ''
       }
       ${earlierSection}
