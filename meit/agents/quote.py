@@ -61,8 +61,48 @@ def build_items(selection: list[dict[str, Any]], services: dict[str, dict[str, A
     return items
 
 
+# Sinnvolle Ergänzungen je Leistung – daraus entsteht das Premium-Paket.
+TIER_ADDONS = {
+    "MW": ["SEC", "BCK", "AWR"], "SEC": ["AWR", "MFW", "BCK"], "BCK": ["M365B", "SEC"], "M365B": ["BCK"],
+    "NIS2GAP": ["VCISO", "AWR"], "VCISO": ["AWR", "SEC"], "AWR": ["SEC"], "MFW": ["SEC", "NET"],
+    "KIMA-POT": ["KIMA", "KIMAM"], "KIMA": ["KIMAM", "KIBOX", "KIWS"], "KIMAM": ["KIBOX"],
+    "KIBOX": ["KIBOXM", "KIWS", "KIMA"], "KIBOXM": ["KIWS"], "KIWS": ["KIMA-POT", "KIBOX"],
+    "WIN11": ["MW", "SEC"], "NEWPC": ["MW", "SEC"], "SRVMOD": ["MS", "BCK"], "MS": ["BCK", "MON"],
+    "M365MIG": ["M365B", "SEC", "AWR"], "NET": ["MFW"], "MON": ["MW"], "KIAGENT": ["KIMAM"],
+}
+TIER_LABELS = {"XL": "Premium – Rundum-sorglos", "S": "Einstieg", "M": "Empfehlung"}
+
+
+def _totals(items: list[dict[str, Any]]) -> tuple[float, float]:
+    return (round(sum(i["total"] for i in items if not i["recurring"]), 2),
+            round(sum(i["total"] for i in items if i["recurring"]), 2))
+
+
+def build_tiers(items: list[dict[str, Any]], services: dict[str, dict[str, Any]], customer: dict[str, Any],
+                devices: int, servers: int, booked: list[str]) -> list[dict[str, Any]]:
+    """Drei Pakete in Verkaufsreihenfolge: Premium als Anker → Einstieg → Empfehlung (Mitte)."""
+    m_items = items
+    s_items = items[:max(1, len(items) // 2)] if len(items) > 1 else items
+    codes = [i["code"] for i in items]
+    addons: list[str] = []
+    for code in codes:
+        for add in TIER_ADDONS.get(code, []):
+            if add in services and add not in codes and add not in booked and add not in addons:
+                addons.append(add)
+    xl_items = items + build_items([{"code": c, "reason": "Premium-Ergänzung"} for c in addons[:3]],
+                                   services, customer, devices, servers)
+    tiers = []
+    for key, tier_items in (("XL", xl_items), ("S", s_items), ("M", m_items)):
+        if key != "M" and [i["code"] for i in tier_items] == codes:
+            continue  # identisch mit der Empfehlung → weglassen
+        once, monthly = _totals(tier_items)
+        tiers.append({"key": key, "label": TIER_LABELS[key], "items": tier_items, "total_once": once,
+                      "total_monthly": monthly, "recommended": key == "M"})
+    return tiers if len(tiers) > 1 else []
+
+
 def create_quote(ctx: AgentContext, customer_id: int, need: str,
-                 service_codes: list[str] | None = None) -> dict[str, Any]:
+                 service_codes: list[str] | None = None, tiers: bool = False) -> dict[str, Any]:
     started = time.time()
     customer = ctx.db.get("customers", customer_id)
     if not customer:
@@ -134,9 +174,21 @@ def create_quote(ctx: AgentContext, customer_id: int, need: str,
         intro = ("vielen Dank für Ihr Interesse. Auf Basis unseres Gesprächs unterbreiten wir Ihnen gerne "
                  "folgendes Angebot. Ziel ist eine sichere, planbare IT – ohne Überraschungen bei den Kosten.")
 
+    tier_list = build_tiers(items, services, customer, devices, servers, booked) if tiers else []
     lines = [f"# {title}", "", f"**Kunde:** {customer['name']}  ", f"**Ansprechpartner:** {customer['contact_name']}", "",
-             f"Guten Tag {customer['contact_name']}," if customer.get("contact_name") else "Guten Tag,", "", intro, "",
-             "| Pos. | Leistung | Menge | Einheit | Einzelpreis | Gesamt |", "|---|---|---|---|---|---|"]
+             f"Guten Tag {customer['contact_name']}," if customer.get("contact_name") else "Guten Tag,", "", intro, ""]
+    if tier_list:
+        lines += ["## Ihre Optionen", "", "| Paket | Leistungen | Einmalig | Monatlich |", "|---|---|---|---|"]
+        for t in tier_list:
+            label = f"**{t['label']}**" + (" (unsere Empfehlung)" if t["recommended"] else "")
+            lines.append(f"| {label} | {', '.join(i['name'] for i in t['items'])} | {eur(t['total_once'])} | "
+                         f"{eur(t['total_monthly'])} |")
+        xl = next((t for t in tier_list if t["key"] == "XL"), None)
+        if xl:
+            extra = [i for i in xl["items"] if i["code"] not in {x["code"] for x in items}]
+            lines += ["", "**Zusätzlich im Premium-Paket:** " + "; ".join(f"{i['name']} ({i['description']})" for i in extra)]
+        lines += ["", "## Unsere Empfehlung im Detail", ""]
+    lines += ["| Pos. | Leistung | Menge | Einheit | Einzelpreis | Gesamt |", "|---|---|---|---|---|---|"]
     for n, item in enumerate(items, 1):
         lines.append(f"| {n} | {item['name']} | {item['quantity']:g} | {item['unit']} | "
                      f"{eur(item['price'])} | {eur(item['total'])} |")
@@ -153,9 +205,10 @@ def create_quote(ctx: AgentContext, customer_id: int, need: str,
     quote_id = ctx.db.insert("quotes", {
         "customer_id": customer_id, "title": title, "need": need, "items": items,
         "total_once": total_once, "total_monthly": total_monthly, "text": text, "status": "entwurf",
+        "tiers": tier_list,
     })
     result = {"id": quote_id, "title": title, "items": items, "total_once": total_once,
-              "total_monthly": total_monthly, "text": text, "provider": provider}
+              "total_monthly": total_monthly, "text": text, "provider": provider, "tiers": tier_list}
     if error:
         result["error"] = error
     ctx.log("angebot", provider, need, result, not error, started)

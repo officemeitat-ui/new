@@ -6,6 +6,7 @@ Start:  python -m meit   (oder: uvicorn meit.main:app --host 127.0.0.1 --port 80
 from __future__ import annotations
 
 import base64
+import json
 import secrets
 from datetime import date, timedelta
 from pathlib import Path
@@ -112,6 +113,7 @@ class QuoteIn(BaseModel):
     customer_id: int
     need: str = Field(min_length=3)
     service_codes: list[str] = []
+    tiers: bool = False
 
 
 class GrowthSettingsIn(BaseModel):
@@ -121,6 +123,7 @@ class GrowthSettingsIn(BaseModel):
 
 class QuoteStatus(BaseModel):
     status: str
+    tier: Optional[str] = None  # bei 3-Stufen-Angeboten: gewähltes Paket (XL, S, M)
 
 
 class SecurityIn(BaseModel):
@@ -502,7 +505,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/agents/quote", status_code=201)
     def quote(data: QuoteIn) -> dict:
         must(db.get("customers", data.customer_id), "Kunde")
-        return create_quote(ctx, data.customer_id, data.need, data.service_codes)
+        return create_quote(ctx, data.customer_id, data.need, data.service_codes, tiers=data.tiers)
 
     @app.post("/api/agents/report")
     def report(data: ReportIn) -> dict:
@@ -520,6 +523,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "ORDER BY q.id DESC")
         for r in rows:
             r["items"] = loads(r["items"], [])
+            r["tiers"] = loads(r.get("tiers"), [])
         return rows
 
     @app.put("/api/quotes/{qid}")
@@ -528,6 +532,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(422, "Ungültiger Status")
         q = must(db.get("quotes", qid), "Angebot")
         update: dict[str, Any] = {"status": data.status}
+        tiers = loads(q.get("tiers"), [])
+        if data.status == "angenommen" and q["status"] != "angenommen" and tiers:
+            chosen = next((t for t in tiers if t["key"] == (data.tier or "M")), None)
+            if not chosen:
+                raise HTTPException(422, "Unbekanntes Paket")
+            update.update({"items": chosen["items"], "total_once": chosen["total_once"],
+                           "total_monthly": chosen["total_monthly"], "chosen_tier": chosen["key"]})
+            q = {**q, "items": json.dumps(chosen["items"]), "total_once": chosen["total_once"],
+                 "total_monthly": chosen["total_monthly"]}
         if data.status == "versendet" and q["status"] != "versendet":
             update.update({"sent_at": now_iso(), "followup_count": 0, "last_followup_at": ""})
         db.update("quotes", qid, update)

@@ -223,7 +223,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "kb_articles": {"title", "content", "tags", "embedding", "embedding_model"},
     "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
     "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status",
-               "sent_at", "followup_count", "last_followup_at"},
+               "sent_at", "followup_count", "last_followup_at", "tiers", "chosen_tier"},
     "messages": {
         "channel", "direction", "external_id", "from_name", "from_email", "to_email", "phone", "company",
         "subject", "body", "attachments", "category", "status", "ai_result", "draft_reply", "note",
@@ -251,7 +251,7 @@ TABLES_WITH_CREATED_AT = {
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",
-               "last_followup_at": "TEXT DEFAULT ''"},
+               "last_followup_at": "TEXT DEFAULT ''", "tiers": "TEXT DEFAULT '[]'", "chosen_tier": "TEXT DEFAULT ''"},
 }
 
 

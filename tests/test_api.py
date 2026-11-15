@@ -167,3 +167,27 @@ def test_password_protection(settings):
     assert c.get("/api/health", headers={"Authorization": f"Basic {token}"}).status_code == 200
     wrong = base64.b64encode(b"admin:falsch").decode()
     assert c.get("/api/health", headers={"Authorization": f"Basic {wrong}"}).status_code == 401
+
+
+def test_three_tier_quote_and_accept_premium(client):
+    q = client.post("/api/agents/quote", json={"customer_id": 3, "need": "Backup", "service_codes": ["MW", "BCK"],
+                                               "tiers": True}).json()
+    keys = [t["key"] for t in q["tiers"]]
+    assert keys == ["XL", "S", "M"]  # Anker zuerst, Empfehlung zuletzt
+    tiers = {t["key"]: t for t in q["tiers"]}
+    assert [i["code"] for i in tiers["M"]["items"]] == ["MW", "BCK"]
+    assert [i["code"] for i in tiers["S"]["items"]] == ["MW"]
+    assert len(tiers["XL"]["items"]) > 2 and tiers["XL"]["total_monthly"] > tiers["M"]["total_monthly"]
+    assert "## Ihre Optionen" in q["text"] and "(unsere Empfehlung)" in q["text"]
+    before = client.get("/api/customers/3").json()["mrr"]
+    assert client.put(f"/api/quotes/{q['id']}", json={"status": "angenommen", "tier": "ZZ"}).status_code == 422
+    r = client.put(f"/api/quotes/{q['id']}", json={"status": "angenommen", "tier": "XL"}).json()
+    assert r["chosen_tier"] == "XL" and r["total_monthly"] == tiers["XL"]["total_monthly"]
+    after = client.get("/api/customers/3").json()
+    assert after["mrr"] == round(before + tiers["XL"]["total_monthly"], 2)
+    assert set(i["code"] for i in tiers["XL"]["items"] if i["recurring"]) <= set(after["booked_services"])
+
+
+def test_single_item_quote_without_addons_has_no_tiers(client):
+    q = client.post("/api/agents/quote", json={"customer_id": 1, "need": "Stunden", "service_codes": ["STD"], "tiers": True}).json()
+    assert q["tiers"] == []

@@ -624,11 +624,12 @@ async function quoteCreate(customerId = null, need = "", serviceCodes = []) {
     { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: customerId ?? "" },
     { name: "need", label: "Bedarf (Stichworte aus dem Kundengespräch genügen)", type: "textarea", full: true, value: need,
       placeholder: "z. B. 15 PCs, Backup fehlt, Chef will Schutz vor Ransomware, Interesse an KI ohne Cloud" },
+    { name: "tiers", label: "3 Pakete anbieten: Premium als Anker → Einstieg → Empfehlung (Value-Based Pricing)", type: "checkbox", value: true, full: true },
   ]);
   modal("Angebot mit KI erstellen", f, [
     (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
       const data = readForm(f);
-      const q = await api("/api/agents/quote", { method: "POST", body: { customer_id: Number(data.customer_id), need: data.need, service_codes: serviceCodes } });
+      const q = await api("/api/agents/quote", { method: "POST", body: { customer_id: Number(data.customer_id), need: data.need, service_codes: serviceCodes, tiers: data.tiers } });
       close(); showQuote(q);
     }) }, "Angebot erstellen"),
   ]);
@@ -652,14 +653,24 @@ views.angebote = async () => {
     h("div", { class: "card" }, table([
       { label: "Datum", render: (r) => dt(r.created_at) },
       { label: "Kunde", key: "customer_name" },
-      { label: "Titel", key: "title" },
+      { label: "Titel", render: (r) => h("div", {}, r.title, (r.tiers || []).length ? h("div", { class: "small muted" },
+        r.chosen_tier ? `Paket: ${(r.tiers.find((t) => t.key === r.chosen_tier) || {}).label || r.chosen_tier}` : `${r.tiers.length} Pakete`) : null) },
       { label: "Einmalig", num: true, render: (r) => eur(r.total_once) },
       { label: "Monatlich", num: true, render: (r) => eur(r.total_monthly) },
       { label: "Status", render: (r) => {
-        const sel = h("select", { onclick: (e) => e.stopPropagation(), onchange: async (e) => {
-          try { await api(`/api/quotes/${r.id}`, { method: "PUT", body: { status: e.target.value } });
-            toast(e.target.value === "angenommen" ? "Angenommen – MRR und Leistungen beim Kunden aktualisiert" : "Status gespeichert"); render(); }
-          catch (err) { toast(err.message, true); }
+        const save = async (status, tier = null) => {
+          try { await api(`/api/quotes/${r.id}`, { method: "PUT", body: { status, tier } });
+            toast(status === "angenommen" ? "Angenommen – MRR und Leistungen beim Kunden aktualisiert" : "Status gespeichert"); render(); }
+          catch (err) { toast(err.message, true); render(); }
+        };
+        const sel = h("select", { onclick: (e) => e.stopPropagation(), onchange: (e) => {
+          if (e.target.value === "angenommen" && (r.tiers || []).length && r.status !== "angenommen") {
+            modal("Welches Paket wurde beauftragt?", h("div", { class: "stack" }, r.tiers.map((t) => h("button", { class: `btn ${t.recommended ? "primary" : ""}`, style: "width:100%;justify-content:space-between",
+              onclick: () => { document.querySelector(".modal-backdrop")?.remove(); save("angenommen", t.key); } },
+              h("span", {}, t.label), h("span", {}, `${eur(t.total_once)} + ${eur(t.total_monthly)}/Mon.`)))));
+            return;
+          }
+          save(e.target.value);
         } }, ["entwurf", "versendet", "angenommen", "abgelehnt"].map((s) => h("option", { value: s, selected: s === r.status }, s)));
         return sel;
       } },
