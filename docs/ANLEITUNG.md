@@ -4188,6 +4188,7 @@ Eine Excel-Liste mit Überschrift (Name, Beschäftigung, Wochenstunden, Team, Qu
 4. „Übernehmen“ klicken.
 
 > Tipp: Eine unbekannte Sprache steht in der Vorschau als Hinweis; die Person behält dann ihre bisherige Sprache. Eine leere Zelle ändert nichts.
+> Tipp: Gibt es die Person schon (gleicher Name), ändert die App nur, was in der Liste steht. So trägst du mit einer Liste aus Name und Handy die Handynummern für WhatsApp nach, ohne Stunden oder E-Mail zu verlieren.
 
 ### Lohngruppe, Überstunden und Durchrechnung bei der Person
 
@@ -4519,6 +4520,9 @@ Objekte und Leistungen kopierst du aus Excel: Objekt, Adresse, Revier, Leistung,
 1. „Objekte & Leistungen“ → „Aus Excel einfügen“.
 2. Die Liste mit Überschrift einfügen (Überschriften über „Vorlage kopieren“).
 3. „Prüfen“ und dann „Übernehmen“.
+
+> Tipp: Fügst du dieselbe Liste noch einmal ein, wird nichts doppelt angelegt: gleiche Leistungen (Objekt, Bezeichnung, Zeit, Rhythmus) werden aktualisiert.
+> Tipp: Neue Objekte bekommen einen Kurznamen, der sich von den anderen unterscheidet; ändern unter „Objekt bearbeiten“.
 
 ### Objektinfo, Ansprechperson und E-Mail
 

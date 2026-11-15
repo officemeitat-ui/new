@@ -316,3 +316,26 @@ test('Leistungen einfügen: eindeutige Kurznamen, dieselbe Leistung wird erkannt
   assert.equal(sameTask(t, { ...t, objectId: 'o2' }), false)
   assert.equal(sameTask(t, { ...t, label: 'unterhaltsreinigung ' }), true)
 })
+
+test('Mitarbeitende einfügen: Teilliste ändert bei bestehenden Personen nur die eingefügten Angaben', async () => {
+  const { importEmployees, mergeEmployee } = await import('../src/core/importer.js')
+  const { changeWeeklyHours } = await import('../src/core/contract.js')
+  const existing = { id: 'e1', name: 'Ana Popescu', weeklyHours: 30, email: 'ana@beispiel.at', team: 'Hallein', skills: ['Führerschein'], personnelNo: '17', type: 'teilzeit', lang: 'ro', trained: ['o1'], availability: { 1: { from: '07:00', to: '12:00' }, 2: { from: '07:00', to: '12:00' } } }
+  // nur Name und Handy: alles andere bleibt
+  const phone = importEmployees('Name\tHandy\nAna Popescu\t0664 1234567').items[0]
+  assert.deepEqual(phone.given, ['phone'])
+  assert.deepEqual(mergeEmployee(existing, phone, { from: '2026-11-16', changeHours: changeWeeklyHours }), { ...existing, phone: '0664 1234567' })
+  // Stunden geändert: gelten ab der Woche, die Vorgeschichte bleibt
+  const hours = importEmployees('Name\tWochenstunden\tTage\nAna Popescu\t40\tMo-Mi').items[0]
+  const merged = mergeEmployee(existing, hours, { from: '2026-11-16', changeHours: changeWeeklyHours })
+  assert.equal(merged.weeklyHours, 40)
+  assert.deepEqual(merged.hoursHistory, [{ from: '0000-01-01', weeklyHours: 30 }, { from: '2026-11-16', weeklyHours: 40 }])
+  assert.deepEqual([merged.email, merged.team, merged.skills, merged.lang, merged.trained], ['ana@beispiel.at', 'Hallein', ['Führerschein'], 'ro', ['o1']])
+  // Tage ohne Uhrzeit: bisherige Zeiten bleiben, neuer Tag bekommt die Vorgabe
+  assert.deepEqual(merged.availability, { 1: { from: '07:00', to: '12:00' }, 2: { from: '07:00', to: '12:00' }, 3: { from: '06:00', to: '20:00' } })
+  // gleiche Stunden: keine neue Zeile in der Vorgeschichte; Sprache Deutsch entfernt das Feld
+  const same = importEmployees('Name\tWochenstunden\tSprache\nAna Popescu\t30\tDeutsch').items[0]
+  const m2 = mergeEmployee(existing, same, { from: '2026-11-16', changeHours: changeWeeklyHours })
+  assert.equal(m2.hoursHistory, undefined)
+  assert.equal('lang' in m2, false)
+})

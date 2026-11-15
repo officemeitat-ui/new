@@ -175,7 +175,15 @@ export function importEmployees(text) {
     const days = parseWeekdays(pick(row, 'days') || 'Mo-Fr')
     const from = toTime(pick(row, 'from')) || '06:00'
     const to = toTime(pick(row, 'to')) || '20:00'
+    // Welche Angaben stehen in dieser Zeile wirklich? Beim Aktualisieren einer bestehenden Person zählen nur diese
+    // (eine Teilliste, z. B. nur Name und Handy, darf Stunden, E-Mail oder Qualifikationen nicht leeren).
+    const has = (k) => String(pick(row, k) ?? '').trim() !== ''
+    const given = ['personnelNo', 'type', 'weeklyHours', 'email', 'phone', 'team', 'skills'].filter(has)
+    if (has('days') || has('from') || has('to')) given.push('availability')
+    if (lang) given.push('lang')
     return {
+      given,
+      givenTimes: has('from') || has('to'),
       name,
       personnelNo: pick(row, 'personnelNo') || undefined,
       type: normalizeType(pick(row, 'type')),
@@ -200,6 +208,26 @@ export function languageSummary(items = []) {
 }
 
 const HOLIDAY = { entfallt: 'entfaellt', entfaellt: 'entfaellt', nein: 'entfaellt', geschlossen: 'entfaellt', findetstatt: 'findet_statt', ja: 'findet_statt', arbeiten: 'findet_statt', verschieben: 'verschieben', verschoben: 'verschieben' }
+
+/**
+ * Eingefügte Person auf eine bestehende übertragen: nur die Angaben, die in der Zeile standen (item.given). Geänderte
+ * Wochenstunden gelten ab `from` (bisherige Wochen behalten ihr Soll). → neue Fassung der Person
+ */
+export function mergeEmployee(existing, item, { from, changeHours = (e, h) => ({ ...e, weeklyHours: h }) } = {}) {
+  let out = { ...existing }
+  for (const key of item.given || []) {
+    if (key === 'weeklyHours') {
+      if ((existing.weeklyHours || 0) !== item.weeklyHours) out = changeHours(out, item.weeklyHours, from)
+    } else if (key === 'lang') {
+      if (item.lang) out.lang = item.lang
+      else delete out.lang // Deutsch = kein Feld
+    } else if (key === 'availability') {
+      // genannte Tage ersetzen die Verfügbarkeit; fehlen Von/Bis, bleiben die bisherigen Zeiten des Tages
+      out.availability = Object.fromEntries(Object.entries(item.availability).map(([d, t]) => [d, existing.availability?.[d] && !item.givenTimes ? existing.availability[d] : t]))
+    } else out[key] = item[key]
+  }
+  return out
+}
 
 /**
  * Objekte + Leistungen aus Tabelle. Stammkräfte werden über den Namen zugeordnet.

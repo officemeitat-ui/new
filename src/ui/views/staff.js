@@ -4,7 +4,7 @@
 
 import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
-import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, sameTask, TASK_TEMPLATE, uniqueShort } from '../../core/importer.js'
+import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, mergeEmployee, sameTask, TASK_TEMPLATE, uniqueShort } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
@@ -170,18 +170,21 @@ function runImport(kind, text, apply) {
     if (apply) {
       for (const item of items) {
         const existing = data.employees.find((e) => e.name.toLowerCase() === item.name.toLowerCase())
-        // Sprache: leer = Deutsch (kein Feld); ohne erkannte Sprache bleibt die bisherige
+        const { given, givenTimes, ...fields } = item
         if (existing) {
-          Object.assign(existing, { ...item, trained: existing.trained, availability: Object.keys(item.availability).length ? item.availability : existing.availability })
-          if (existing.lang === '') delete existing.lang
+          // nur was in der Zeile stand; Stunden gelten ab dieser Woche, vergangene Wochen bleiben
+          const merged = mergeEmployee(existing, item, { from: mondayOf(todayISO()), changeHours: changeWeeklyHours })
+          data.employees = data.employees.map((e) => (e === existing ? merged : e))
         } else {
-          const { lang, ...rest } = item
+          // Sprache: leer = Deutsch (kein Feld)
+          const { lang, ...rest } = fields
           data.employees.push({ id: uid('e'), vacationDaysYear: 25, ...rest, ...(lang ? { lang } : {}) })
         }
       }
     }
+    const known = items.filter((item) => data.employees.some((e) => e.name.toLowerCase() === item.name.toLowerCase())).length
     const langs = languageSummary(items)
-    return { count: items.length, errors, summary: `${items.length} Mitarbeitende erkannt${langs ? `, Sprache am Handy: ${langs}` : ''}` }
+    return { count: items.length, errors, summary: `${items.length} Mitarbeitende erkannt${!apply && known ? ` – ${items.length - known} neu, ${known} schon vorhanden (nur die eingefügten Angaben werden geändert)` : ''}${langs ? `, Sprache am Handy: ${langs}` : ''}` }
   }
   const { items, errors } = importTasks(text, data.employees, { anchor: app.cur.monday })
   const objectNames = new Set(items.map((i) => i.object))
