@@ -91,7 +91,8 @@ def build_tiers(items: list[dict[str, Any]], services: dict[str, dict[str, Any]]
         for add in TIER_ADDONS.get(code, []):
             if add in services and add not in codes and add not in booked and add not in addons:
                 addons.append(add)
-    for add in GENERIC_PREMIUM:
+    has_recurring = any(i["recurring"] for i in items)
+    for add in GENERIC_PREMIUM if has_recurring else []:  # reine Stunden/Projekte: kein Premium-Aufschlag
         if len(addons) >= 2:
             break
         if add in services and add not in codes and add not in booked and add not in addons:

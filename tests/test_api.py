@@ -191,3 +191,11 @@ def test_three_tier_quote_and_accept_premium(client):
 def test_single_item_quote_without_addons_has_no_tiers(client):
     q = client.post("/api/agents/quote", json={"customer_id": 1, "need": "Stunden", "service_codes": ["STD"], "tiers": True}).json()
     assert q["tiers"] == []
+
+
+def test_premium_falls_back_to_generic_addons(client):
+    # Hotel hat MW + MFW gebucht; Backup/Security/Awareness haben keine weiteren passenden Ergänzungen
+    q = client.post("/api/agents/quote", json={"customer_id": 5, "need": "Sicherheit",
+                                               "service_codes": ["BCK", "SEC", "M365B", "AWR"], "tiers": True}).json()
+    xl = next(t for t in q["tiers"] if t["key"] == "XL")
+    assert {i["code"] for i in xl["items"]} - {"BCK", "SEC", "M365B", "AWR"} == {"VCISO", "MON"}
