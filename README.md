@@ -29,6 +29,10 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
 | **Customer Success** | Health Score je Kunde, QBR-Agent („Plan → erreicht → nächster Hebel“), NRR, Anteil wiederkehrender Umsatz, Aktivitäten-Kaskade, 10-Punkte-Selbst-Check |
 | **ROI-Rechner** | Für das Verkaufsgespräch: Zeitgewinn, Wert, Amortisation, ROI im ersten Jahr |
+| **3-Stufen-Angebote** | Premium als Anker, dann Einstieg, dann Empfehlung. Beim Annehmen wird das gewählte Paket übernommen. |
+| **Benutzer & Rollen** | Login (sobald der erste Admin angelegt ist), Rollen Admin, Technik und Vertrieb. Tickets und Leads haben Verantwortliche, Filter „Meine“. |
+| **Wochenrhythmus** | Montag Ziele, Freitag Abgleich: Ist-Werte zählt das Cockpit automatisch (Pitches, Angebote, QBRs, gelöste Tickets) plus erfasste Anrufe. Dazu ein Top-10-Deal-Review mit nächstem Schritt und Risiko. |
+| **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
 | **Import & Sicherung** | CSV-Import für Kunden und Geräte (erkennt deutsche/englische Spalten und RMM-Exporte, mit Vorschau). Automatische Datensicherung mit Aufbewahrung, Download per Klick. |
 | **KI-Training** | Export pseudonymisierter Trainingsdaten (JSONL) und LoRA-Skript für ein eigenes „ME-IT-Modell“ |
 | **Protokoll** | Jeder Agentenlauf wird protokolliert (Nachvollziehbarkeit, AI Act) |
@@ -69,7 +73,7 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `OLLAMA_MODEL` | `qwen3:14b` | Chat-/Agentenmodell (`qwen3:8b` für schwache PCs, `qwen3:32b` für RTX 5090) |
 | `EMBED_MODEL` | `bge-m3` | Modell für die semantische Suche |
 | `ALLOW_CLOUD_FALLBACK` | `false` | Nur bei `true` darf Claude einspringen, wenn lokal keine KI läuft |
-| `MEIT_PASSWORD` | leer | Passwortschutz (HTTP Basic), **Pflicht**, wenn die App im Netzwerk erreichbar ist |
+| `MEIT_PASSWORD` | leer | Zusätzlicher Passwortschutz (HTTP Basic) vor allem anderen. Für Teams besser: unter Einstellungen Benutzer anlegen (Login mit Rollen). |
 | `MEIT_HOST` | `127.0.0.1` | `0.0.0.0` für Zugriff aus dem LAN |
 | `MAIL_PROVIDER` | `imap` | `graph` für Microsoft 365 (mit `GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET/MAILBOX`) |
 | `MAIL_IMAP_*`, `MAIL_SMTP_*`, `MAIL_FROM` | leer | Postfach per IMAP/SMTP (Details: docs/KI-MITARBEITER.md) |
@@ -119,6 +123,8 @@ meit/
   mitarbeiter_api.py  API für Posteingang, Leads, Belege, Anfrageformular
   mail.py          IMAP-Abruf und SMTP-Versand (Standardbibliothek)
   growth.py        Health Score, NRR, wiederkehrender Anteil, Aktivitäten-Kaskade
+  team.py          Benutzer, Login, Rollen, Aktivitäten, Wochenziele
+  data_tools.py    CSV-Import (Kunden, Geräte, RMM) und Datensicherung
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25)
@@ -134,4 +140,3 @@ docs/                       Strategie 2026–2030, KI-PC-Empfehlung
 - Direkte API-Anbindung an RMM/PSA (NinjaOne, Datto, Atera) statt CSV-Export
 - Kundenportal mit KI-Self-Service (Level-1)
 - Zeiterfassung → Rechnungsexport (z. B. BMD, RZL)
-- Mehrbenutzer mit Rollen (Techniker, Vertrieb, Geschäftsführung)

@@ -11,7 +11,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,7 @@ from .agents.inbox import (
 )
 from .db import loads
 from .mail import MailError
+from .team import current_user_id, log_activity, make_admin_dependency
 
 STATIC_DIR = Path(__file__).parent / "static"
 # Phasen nach dem 3-Gespräche-Prinzip: Erstgespräch (Diagnose) → Pitch → Angebotsbesprechung
@@ -58,6 +59,9 @@ class LeadIn(BaseModel):
     stage: Optional[str] = None
     notes: Optional[str] = None
     score: Optional[int] = None
+    owner_id: Optional[int] = None
+    next_step: Optional[str] = None
+    risk: Optional[str] = None
 
 
 class ReceiptIn(BaseModel):
@@ -124,6 +128,7 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
     db = ctx.db
     settings = ctx.settings
     limiter = RateLimiter()
+    admin_only = make_admin_dependency(db)
 
     def must(row: dict | None, what: str = "Eintrag") -> dict:
         if not row:
@@ -253,8 +258,10 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
         sql, params = "SELECT * FROM leads", ()
         if stage:
             sql, params = sql + " WHERE stage = ?", (stage,)
-        rows = db.query(sql + " ORDER BY CASE stage WHEN 'neu' THEN 0 WHEN 'erstgespraech' THEN 1 WHEN 'pitch' THEN 2 "
-                        "WHEN 'angebot' THEN 3 ELSE 4 END, score DESC, id DESC", params)
+        sql = sql.replace("SELECT * FROM leads", "SELECT l.*, u.name AS owner FROM leads l LEFT JOIN users u ON u.id = l.owner_id")
+        sql = sql.replace(" WHERE stage = ?", " WHERE l.stage = ?")
+        rows = db.query(sql + " ORDER BY CASE l.stage WHEN 'neu' THEN 0 WHEN 'erstgespraech' THEN 1 WHEN 'pitch' THEN 2 "
+                        "WHEN 'angebot' THEN 3 ELSE 4 END, l.score DESC, l.id DESC", params)
         for r in rows:
             r["qualification"] = loads(r["qualification"], {})
         return rows
@@ -268,12 +275,18 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
         return lead
 
     @app.put("/api/leads/{lid}")
-    def update_lead(lid: int, data: LeadIn) -> dict:
-        must(db.get("leads", lid), "Lead")
+    def update_lead(lid: int, data: LeadIn, request: Request) -> dict:
+        lead = must(db.get("leads", lid), "Lead")
         payload = {k: v for k, v in data.model_dump().items() if v is not None}
         if "stage" in payload and payload["stage"] not in LEAD_STAGES:
             raise HTTPException(422, "Ungültige Phase")
+        if payload.get("owner_id") == 0:
+            payload.pop("owner_id")
+            db.query("UPDATE leads SET owner_id = NULL WHERE id = ?", (lid,))
         db.update("leads", lid, payload)
+        if payload.get("stage") and payload["stage"] != lead["stage"] and payload["stage"] != "neu":
+            log_activity(db, current_user_id(request) or lead.get("owner_id"), payload["stage"], "lead", lid,
+                         lead["company"] or lead["name"])
         return get_lead(lid)
 
     @app.delete("/api/leads/{lid}")
@@ -352,7 +365,7 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
         data["poll_minutes"] = settings.mail_poll_minutes
         return data
 
-    @app.put("/api/ki-mitarbeiter/modes")
+    @app.put("/api/ki-mitarbeiter/modes", dependencies=[Depends(admin_only)])
     def set_modes(data: ModesIn) -> dict:
         clean = {k: v for k, v in data.modes.items() if k in CATEGORIES and v in ("entwurf", "autopilot")}
         current = db.get_setting("inbox_modes", {}) or {}

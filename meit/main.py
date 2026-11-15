@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -24,12 +24,17 @@ from .agents import (
 from .config import Settings, get_settings
 from .data_tools import backup_dir, create_backup, import_csv, list_backups, start_backup_scheduler
 from .db import Database, loads, now_iso
+from .agents.briefing import weekly_briefing
 from .agents.qbr import create_qbr
 from .growth import ensure_mrr_baseline, health_overview, health_score, log_mrr, nrr, pipeline, recurring_share
 from .knowledge import KnowledgeBase
 from .llm import Router
 from .mail import make_mailer
-from .mitarbeiter_api import is_public_path, register as register_mitarbeiter, start_mail_poller
+from .mitarbeiter_api import RateLimiter, is_public_path, register as register_mitarbeiter, start_mail_poller
+from .team import (
+    SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
+    users_exist,
+)
 from .radar import Radar, eol_info
 from .security import QUESTIONS
 from .seed import seed_all
@@ -68,6 +73,7 @@ class TicketIn(BaseModel):
 
 class TicketUpdate(BaseModel):
     customer_id: Optional[int] = None
+    assigned_to: Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
@@ -120,6 +126,10 @@ class QuoteIn(BaseModel):
 class GrowthSettingsIn(BaseModel):
     target_closings_per_week: Optional[float] = None
     selfcheck: Optional[dict[str, bool]] = None
+
+
+class BriefingIn(BaseModel):
+    send_to: Optional[str] = None
 
 
 class ImportIn(BaseModel):
@@ -193,12 +203,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     ok = False
             if not ok:
                 return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="ME-IT"'})
+        # Benutzer-Anmeldung (aktiv, sobald der erste Benutzer angelegt ist)
+        request.state.user = user_from_token(db, request.cookies.get(SESSION_COOKIE))
+        if path.startswith("/api/") and not path.startswith("/api/auth/") and users_exist(db):
+            if not request.state.user:
+                return JSONResponse({"detail": "Bitte anmelden."}, status_code=401)
+            origin = request.headers.get("origin")
+            if request.method not in ("GET", "HEAD", "OPTIONS") and origin and \
+                    origin.split("://")[-1].rstrip("/") != request.headers.get("host", ""):
+                return JSONResponse({"detail": "Anfrage von fremder Herkunft blockiert."}, status_code=403)
         return await call_next(request)
 
     def must(row: dict | None, what: str = "Eintrag") -> dict:
         if not row:
             raise HTTPException(404, f"{what} nicht gefunden")
         return row
+
+    admin_only = make_admin_dependency(db)
+    register_team(app, db, RateLimiter(limit=10, window_s=600))
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])
@@ -271,9 +293,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return growth()
 
     @app.post("/api/agents/qbr", status_code=201)
-    def qbr(data: ReportIn) -> dict:
-        must(db.get("customers", data.customer_id), "Kunde")
-        return create_qbr(ctx, data.customer_id)
+    def qbr(data: ReportIn, request: Request) -> dict:
+        customer = must(db.get("customers", data.customer_id), "Kunde")
+        result = create_qbr(ctx, data.customer_id)
+        log_activity(db, current_user_id(request), "qbr", "customer", data.customer_id, customer["name"])
+        return result
+
+    @app.post("/api/agents/briefing")
+    def briefing(data: BriefingIn) -> dict:
+        result = weekly_briefing(ctx)
+        result["sent"] = False
+        if data.send_to:
+            if not (mailer and mailer.smtp_configured):
+                raise HTTPException(409, "Kein E-Mail-Versand eingerichtet – Briefing kopieren.")
+            try:
+                mailer.send(data.send_to, f"Wochenbriefing {result['week']}", result["text"])
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f"Versand fehlgeschlagen: {exc}")
+            result["sent"] = True
+        return result
 
     @app.get("/api/qbrs/{qid}")
     def get_qbr(qid: int) -> dict:
@@ -322,7 +360,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         log_mrr(db, cid, data.name, old_mrr, data.mrr, reason)
         return customer_out(db.get("customers", cid))
 
-    @app.delete("/api/customers/{cid}")
+    @app.delete("/api/customers/{cid}", dependencies=[Depends(admin_only)])
     def delete_customer(cid: int) -> dict:
         existing = db.get("customers", cid)
         if existing:
@@ -333,11 +371,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Tickets ------------------------------------------------------------------
     @app.get("/api/tickets")
-    def list_tickets(status: Optional[str] = None, customer_id: Optional[int] = None,
-                     open_only: bool = False) -> list[dict]:
-        sql = ("SELECT t.*, c.name AS customer_name FROM tickets t LEFT JOIN customers c ON c.id = t.customer_id "
-               "WHERE 1=1")
+    def list_tickets(request: Request, status: Optional[str] = None, customer_id: Optional[int] = None,
+                     open_only: bool = False, mine: bool = False) -> list[dict]:
+        sql = ("SELECT t.*, c.name AS customer_name, u.name AS assigned_name FROM tickets t "
+               "LEFT JOIN customers c ON c.id = t.customer_id LEFT JOIN users u ON u.id = t.assigned_to WHERE 1=1")
         params: list[Any] = []
+        if mine and current_user_id(request):
+            sql += " AND t.assigned_to = ?"
+            params.append(current_user_id(request))
         if status:
             sql += " AND t.status = ?"
             params.append(status)
@@ -373,21 +414,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/tickets/{tid}")
     def get_ticket(tid: int) -> dict:
         row = must(db.query_one(
-            "SELECT t.*, c.name AS customer_name FROM tickets t LEFT JOIN customers c ON c.id = t.customer_id "
+            "SELECT t.*, c.name AS customer_name, u.name AS assigned_name FROM tickets t "
+            "LEFT JOIN customers c ON c.id = t.customer_id LEFT JOIN users u ON u.id = t.assigned_to "
             "WHERE t.id = ?", (tid,)), "Ticket")
         row["ai_suggestion"] = loads(row.get("ai_suggestion"), None)
         return row
 
     @app.put("/api/tickets/{tid}")
-    def update_ticket(tid: int, data: TicketUpdate) -> dict:
+    def update_ticket(tid: int, data: TicketUpdate, request: Request) -> dict:
         ticket = must(db.get("tickets", tid), "Ticket")
         payload = {k: v for k, v in data.model_dump().items() if v is not None}
         if "status" in payload and payload["status"] not in TICKET_STATUSES:
             raise HTTPException(422, "Ungültiger Status")
         if "priority" in payload and payload["priority"] not in PRIORITIES:
             raise HTTPException(422, "Ungültige Priorität")
+        if payload.get("assigned_to") == 0:
+            payload["assigned_to"] = None
+            db.query("UPDATE tickets SET assigned_to = NULL WHERE id = ?", (tid,))
         if payload.get("status") == "geloest" and ticket["status"] != "geloest":
             payload["resolved_at"] = now_iso()
+            log_activity(db, payload.get("assigned_to") or ticket.get("assigned_to") or current_user_id(request),
+                         "ticket_geloest", "ticket", tid, ticket["title"])
         elif payload.get("status") and payload["status"] != "geloest":
             payload["resolved_at"] = ""
         db.update("tickets", tid, payload)
@@ -485,13 +532,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def list_services() -> list[dict]:
         return db.query("SELECT * FROM services ORDER BY recurring DESC, code")
 
-    @app.post("/api/services", status_code=201)
+    @app.post("/api/services", status_code=201, dependencies=[Depends(admin_only)])
     def add_service(data: ServiceIn) -> dict:
         if db.query_one("SELECT id FROM services WHERE code = ?", (data.code.upper(),)):
             raise HTTPException(409, "Code existiert bereits")
         return db.get("services", db.insert("services", {**data.model_dump(), "code": data.code.upper()}))
 
-    @app.put("/api/services/{sid}")
+    @app.put("/api/services/{sid}", dependencies=[Depends(admin_only)])
     def update_service(sid: int, data: ServiceIn) -> dict:
         must(db.get("services", sid), "Leistung")
         db.update("services", sid, {**data.model_dump(), "code": data.code.upper()})
@@ -510,9 +557,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return run_assistant(ctx, data.messages)
 
     @app.post("/api/agents/quote", status_code=201)
-    def quote(data: QuoteIn) -> dict:
+    def quote(data: QuoteIn, request: Request) -> dict:
         must(db.get("customers", data.customer_id), "Kunde")
-        return create_quote(ctx, data.customer_id, data.need, data.service_codes, tiers=data.tiers)
+        result = create_quote(ctx, data.customer_id, data.need, data.service_codes, tiers=data.tiers)
+        log_activity(db, current_user_id(request), "angebot_erstellt", "quote", result["id"], result["title"])
+        return result
 
     @app.post("/api/agents/report")
     def report(data: ReportIn) -> dict:
@@ -534,7 +583,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return rows
 
     @app.put("/api/quotes/{qid}")
-    def set_quote_status(qid: int, data: QuoteStatus) -> dict:
+    def set_quote_status(qid: int, data: QuoteStatus, request: Request) -> dict:
         if data.status not in {"entwurf", "versendet", "angenommen", "abgelehnt"}:
             raise HTTPException(422, "Ungültiger Status")
         q = must(db.get("quotes", qid), "Angebot")
@@ -567,6 +616,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 })
                 db.query("UPDATE leads SET stage = 'gewonnen' WHERE customer_id = ? AND stage != 'gewonnen'",
                          (customer["id"],))
+                log_activity(db, current_user_id(request), "abschluss", "quote", qid,
+                             f"{q['title']} ({customer['name']})")
         return db.get("quotes", qid)
 
     @app.delete("/api/quotes/{qid}")
@@ -605,7 +656,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Daten: Import & Sicherung ------------------------------------------------
     bdir = backup_dir(settings.db_path, settings.backup_dir)
 
-    @app.post("/api/import/{kind}")
+    @app.post("/api/import/{kind}", dependencies=[Depends(admin_only)])
     def import_data(kind: str, data: ImportIn) -> dict:
         try:
             return import_csv(db, kind, data.csv, commit=data.commit, create_customers=data.create_customers)
@@ -618,13 +669,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "last": db.get_setting("backup_last", ""), "error": db.get_setting("backup_error", ""),
                 "backups": list_backups(bdir)}
 
-    @app.post("/api/backup/run", status_code=201)
+    @app.post("/api/backup/run", status_code=201, dependencies=[Depends(admin_only)])
     def backup_now() -> dict:
         target = create_backup(settings.db_path, bdir, settings.backup_keep)
         db.set_setting("backup_last", now_iso())
         return {"file": target.name, **backup_status()}
 
-    @app.get("/api/backup/download")
+    @app.get("/api/backup/download", dependencies=[Depends(admin_only)])
     def backup_download() -> FileResponse:
         target = create_backup(settings.db_path, bdir, settings.backup_keep)
         db.set_setting("backup_last", now_iso())

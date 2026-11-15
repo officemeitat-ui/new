@@ -3,7 +3,7 @@
 
 // ---------------------------------------------------------------- Helfer
 const $app = document.getElementById("app");
-const state = { customers: [], services: [], chat: [], km: null };
+const state = { customers: [], services: [], chat: [], km: null, auth: null, users: [] };
 /** Inhalt der Hauptfläche setzen (null/false-Einträge werden ignoriert). */
 const show = (...nodes) => $app.replaceChildren(...nodes.flat().filter((x) => x !== null && x !== undefined && x !== false && x !== ""));
 
@@ -32,6 +32,10 @@ async function api(path, opts = {}) {
   const res = await fetch(path, init);
   const type = res.headers.get("content-type") || "";
   const data = type.includes("json") ? await res.json() : await res.text();
+  if (res.status === 401 && state.auth && state.auth.login_required && !path.startsWith("/api/auth/")) {
+    showLogin();
+    throw new Error("Bitte anmelden.");
+  }
   if (!res.ok) {
     let msg = data && data.detail ? data.detail : res.statusText;
     if (Array.isArray(msg)) msg = msg.map((d) => `${(d.loc || []).slice(-1)[0]}: ${d.msg}`).join(", ");
@@ -211,7 +215,8 @@ async function refreshAiStatus() {
 const views = {};
 
 views.dashboard = async () => {
-  setTitle("Übersicht", [h("a", { class: "btn primary", href: "#/tickets?neu=1" }, "+ Ticket")]);
+  setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
+    h("a", { class: "btn primary", href: "#/tickets?neu=1" }, "+ Ticket")]);
   const [d, km] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null)]);
   const kpi = (label, value, sub, cls = "", href = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
@@ -374,9 +379,9 @@ let ticketFilter = "offen";
 views.tickets = async (_, params) => {
   await loadCustomers();
   setTitle("Tickets", [h("button", { class: "btn primary", onclick: () => ticketCreate() }, "+ Ticket")]);
-  const query = ticketFilter === "offen" ? "?open_only=true" : ticketFilter === "geloest" ? "?status=geloest" : "";
+  const query = ticketFilter === "offen" ? "?open_only=true" : ticketFilter === "geloest" ? "?status=geloest" : ticketFilter === "meine" ? "?open_only=true&mine=true" : "";
   const rows = await api(`/api/tickets${query}`);
-  const tabs = h("div", { class: "tabs" }, [["offen", "Offen"], ["alle", "Alle"], ["geloest", "Gelöst"]].map(([k, l]) =>
+  const tabs = h("div", { class: "tabs" }, [["offen", "Offen"], ...(state.auth && state.auth.user ? [["meine", "Meine"]] : []), ["alle", "Alle"], ["geloest", "Gelöst"]].map(([k, l]) =>
     h("button", { class: ticketFilter === k ? "active" : "", onclick: () => { ticketFilter = k; render(); } }, l)));
   show(tabs, h("div", { class: "card" }, table([
     { label: "#", key: "id" },
@@ -384,6 +389,7 @@ views.tickets = async (_, params) => {
       ? h("div", { class: "small muted" }, r.ai_suggestion.summary) : null) },
     { label: "Kunde", render: (r) => r.customer_name || "–" },
     { label: "Kategorie", render: (r) => r.category || "–" },
+    ...(state.users.length ? [{ label: "Zuständig", render: (r) => r.assigned_name || "–" }] : []),
     { label: "Priorität", render: (r) => badge(r.priority) },
     { label: "Status", render: (r) => badge(STATUS_LABEL[r.status] || r.status, r.status) },
     { label: "Erstellt", render: (r) => dt(r.created_at) },
@@ -416,6 +422,7 @@ async function ticketDetail(id) {
   const s = t.ai_suggestion;
   const edit = form([
     { name: "status", label: "Status", type: "select", options: Object.entries(STATUS_LABEL) },
+    ...(state.users.length ? [{ name: "assigned_to", label: "Zuständig", type: "select", options: userOptions(), value: t.assigned_to || 0 }] : []),
     { name: "priority", label: "Priorität", type: "select", options: ["niedrig", "normal", "hoch", "kritisch"] },
     { name: "category", label: "Kategorie" },
     { name: "time_spent_min", label: "Aufwand (Minuten)", type: "number" },
@@ -447,7 +454,8 @@ async function ticketDetail(id) {
       await api(`/api/tickets/${t.id}/triage`, { method: "POST" }); close(); ticketDetail(t.id); render();
     }) }, s ? "KI-Triage erneut" : "KI-Triage starten"),
     (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
-      await api(`/api/tickets/${t.id}`, { method: "PUT", body: readForm(edit) }); close(); toast("Gespeichert"); render();
+      const body = readForm(edit); if ("assigned_to" in body) body.assigned_to = Number(body.assigned_to);
+      await api(`/api/tickets/${t.id}`, { method: "PUT", body }); close(); toast("Gespeichert"); render();
     }) }, "Speichern"),
   ].filter(Boolean));
 }
@@ -739,6 +747,7 @@ views.training = async () => {
 views.einstellungen = async () => {
   setTitle("Einstellungen");
   const [s, services, log] = await Promise.all([api("/api/settings"), api("/api/services"), api("/api/agents/log?limit=30")]);
+  await loadUsers(true);
   state.services = services;
   const llm = s.llm;
   show(
@@ -773,6 +782,13 @@ views.einstellungen = async () => {
         { label: "Art", render: (r) => badge(r.recurring ? "monatlich" : "einmalig", r.recurring ? "ok" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") },
       ], services, (r) => serviceForm(r))),
+    h("div", { class: "card", style: "margin-top:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, "Benutzer & Rollen"), h("button", { class: "btn small", onclick: () => userForm() }, "+ Benutzer")),
+      h("p", { class: "small muted" }, state.auth && state.auth.login_required
+        ? "Anmeldung ist aktiv. Admins verwalten Benutzer, Preise, Import und Sicherung; Technik und Vertrieb arbeiten im Tagesgeschäft."
+        : "Noch kein Benutzer angelegt – das Cockpit ist offen (Einzelplatz). Sobald du den ersten Benutzer (Admin) anlegst, ist eine Anmeldung Pflicht."),
+      table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
+        { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "Agenten-Protokoll (Nachvollziehbarkeit / AI Act)"),
       table([
         { label: "Zeit", render: (r) => r.created_at }, { label: "Agent", key: "agent" }, { label: "Provider", key: "provider" },
@@ -933,7 +949,8 @@ views.leads = async () => {
     const items = leads.filter((l) => l.stage === key);
     return h("div", { class: "stage" }, h("div", { class: "small muted" }, label), h("div", { class: "n" }, items.length),
       items.map((l) => h("div", { class: "lead-card", onclick: () => leadDetail(l.id) }, h("strong", {}, l.company || l.name || l.email),
-        h("div", { class: "small muted" }, `${l.name && l.company ? l.name + " · " : ""}Score ${l.score}`))));
+        h("div", { class: "small muted" }, `${l.name && l.company ? l.name + " · " : ""}Score ${l.score}${l.owner ? " · " + l.owner : ""}`),
+        l.next_step ? h("div", { class: "small" }, "→ ", l.next_step) : null)));
   };
   const lost = leads.filter((l) => l.stage === "verloren");
   show(
@@ -948,6 +965,8 @@ async function leadDetail(id) {
   const f = form([
     { name: "name", label: "Name" }, { name: "company", label: "Firma" }, { name: "email", label: "E-Mail" }, { name: "phone", label: "Telefon" },
     { name: "stage", label: "Phase", type: "select", options: [...STAGES, ["verloren", "Verloren"]] },
+    ...(state.users.length ? [{ name: "owner_id", label: "Verantwortlich", type: "select", options: userOptions(), value: l.owner_id || 0 }] : []),
+    { name: "next_step", label: "Nächster Schritt (mit Datum)" }, { name: "risk", label: "Risiko" },
     { name: "score", label: "Lead-Score (0–100)", type: "number" },
     { name: "need", label: "Bedarf", type: "textarea", full: true }, { name: "notes", label: "Notizen (Diagnose, Business Impact, ROI, Timing)", type: "textarea", full: true },
   ], l);
@@ -965,7 +984,8 @@ async function leadDetail(id) {
       }) }, "In Kunden umwandeln"),
     l.customer_id ? (close) => h("button", { class: "btn", onclick: () => { close(); quoteCreate(l.customer_id, l.need); } }, "Angebot (KI)") : null,
     (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
-      await api(`/api/leads/${l.id}`, { method: "PUT", body: readForm(f) }); close(); toast("Gespeichert"); render();
+      const body = readForm(f); if ("owner_id" in body) body.owner_id = Number(body.owner_id);
+      await api(`/api/leads/${l.id}`, { method: "PUT", body }); close(); toast("Gespeichert"); render();
     }) }, "Speichern"),
   ].filter(Boolean));
 }
@@ -1194,6 +1214,136 @@ views.daten = async () => {
     result);
 };
 
+// ---- Team: Benutzer, Login, Wochenrhythmus
+const userOptions = () => [[0, "– niemand –"], ...state.users.map((u) => [u.id, u.name])];
+async function loadUsers(all = false) {
+  try { const list = await api("/api/users"); state.allUsers = list; state.users = list.filter((u) => u.active); } catch { state.users = []; }
+  return all ? state.allUsers : state.users;
+}
+
+function userForm(u = null) {
+  const first = !(state.allUsers || []).length;
+  const f = form([
+    { name: "name", label: "Name", required: true }, { name: "email", label: "E-Mail (Login)", type: "email", required: true },
+    { name: "role", label: "Rolle", type: "select", options: Object.entries((state.auth && state.auth.roles) || { admin: "Admin", technik: "Technik", vertrieb: "Vertrieb" }), value: first ? "admin" : (u ? u.role : "technik") },
+    { name: "password", label: u ? "Neues Passwort (leer = unverändert)" : "Passwort (mind. 10 Zeichen)", type: "password" },
+    { name: "active", label: "Aktiv", type: "checkbox", value: u ? !!u.active : true },
+  ], u || {});
+  modal(u ? "Benutzer bearbeiten" : (first ? "Ersten Benutzer (Admin) anlegen" : "Neuer Benutzer"), h("div", {},
+    first ? h("p", { class: "small", style: "color:var(--warn)" }, "Danach ist eine Anmeldung Pflicht. Passwort gut merken (Passwort-Manager)!") : null, f), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const body = readForm(f); if (!body.password) body.password = null;
+      await api(u ? `/api/users/${u.id}` : "/api/users", { method: u ? "PUT" : "POST", body });
+      close(); toast("Gespeichert");
+      if (first) { location.reload(); return; }
+      render();
+    }) }, "Speichern"),
+  ]);
+}
+
+function showLogin() {
+  if (document.getElementById("login-screen")) return;
+  document.querySelector(".layout").style.display = "none";
+  const email = h("input", { type: "email", placeholder: "E-Mail", autocomplete: "username" });
+  const pw = h("input", { type: "password", placeholder: "Passwort", autocomplete: "current-password" });
+  const msg = h("div", { class: "small", style: "color:var(--bad);min-height:1.2em;margin-top:.6rem" });
+  const submit = async (e) => {
+    e.preventDefault();
+    try { await api("/api/auth/login", { method: "POST", body: { email: email.value, password: pw.value } }); location.reload(); }
+    catch (err) { msg.textContent = err.message; }
+  };
+  document.body.append(h("div", { id: "login-screen", style: "min-height:100vh;display:grid;place-items:center;padding:16px" },
+    h("form", { class: "card", style: "width:min(380px,100%)", onsubmit: submit },
+      h("div", { class: "brand", style: "padding:0 0 1rem" }, h("span", { class: "logo" }, "ME"), h("div", {}, h("div", { style: "font-weight:700" }, "ME-IT Cockpit"), h("div", { class: "small muted" }, "Bitte anmelden"))),
+      h("label", {}, "E-Mail"), email, h("label", { style: "margin-top:.7rem" }, "Passwort"), pw,
+      h("button", { class: "btn primary", type: "submit", style: "width:100%;justify-content:center;margin-top:1rem" }, "Anmelden"), msg)));
+  email.focus();
+}
+
+function renderUserBox() {
+  const box = document.getElementById("user-box") || h("div", { id: "user-box", class: "ai-status", style: "margin-bottom:.4rem" });
+  const u = state.auth && state.auth.user;
+  if (!u) { box.remove(); return; }
+  box.replaceChildren(h("strong", { style: "color:#fff" }, u.name), h("br"), h("span", { class: "small muted" }, (state.auth.roles || {})[u.role] || u.role), " · ",
+    h("a", { href: "#", style: "color:#93c5fd", onclick: async (e) => { e.preventDefault(); await api("/api/auth/logout", { method: "POST" }); location.reload(); } }, "Abmelden"));
+  const ai = document.getElementById("ai-status");
+  if (!box.parentNode) ai.parentNode.insertBefore(box, ai);
+}
+
+async function showBriefing() {
+  const r = await api("/api/agents/briefing", { method: "POST", body: {} });
+  const to = h("input", { type: "email", placeholder: "E-Mail der Geschäftsführung", style: "max-width:280px" });
+  modal(`Wochenbriefing ${r.week}`, h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)), [
+    to, h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      const s = await api("/api/agents/briefing", { method: "POST", body: { send_to: to.value } }); if (s.sent) toast(`Gesendet an ${to.value}`);
+    }) }, "Per E-Mail senden"), copyButton(() => r.text)]);
+}
+
+function activityForm(defaults = {}) {
+  const f = form([
+    { name: "type", label: "Art", type: "select", options: Object.entries(state.activityTypes || { anruf: "Anruf" }), value: defaults.type || "anruf" },
+    { name: "note", label: "Notiz", full: true },
+  ]);
+  modal("Aktivität erfassen", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+    await api("/api/activities", { method: "POST", body: { ...readForm(f), ref_type: defaults.ref_type || "", ref_id: defaults.ref_id || null } });
+    close(); toast("Erfasst"); render();
+  }) }, "Speichern")]);
+}
+
+function shiftWeek(week, delta) {
+  const [y, w] = week.split("-W").map(Number);
+  const jan4 = new Date(Date.UTC(y, 0, 4));
+  const monday = new Date(jan4); monday.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + (w - 1) * 7 + delta * 7);
+  const t = new Date(monday); t.setUTCDate(t.getUTCDate() + 3);
+  const fy = t.getUTCFullYear(); const fj4 = new Date(Date.UTC(fy, 0, 4));
+  const wk = 1 + Math.round(((t - fj4) / 86400000 - 3 + ((fj4.getUTCDay() + 6) % 7)) / 7);
+  return `${fy}-W${String(wk).padStart(2, "0")}`;
+}
+
+let teamWeek = null;
+views.team = async () => {
+  await loadUsers();
+  const w = await api(`/api/team/week${teamWeek ? "?week=" + teamWeek : ""}`);
+  teamWeek = w.week;
+  state.activityTypes = w.activity_types;
+  setTitle(`Wochenrhythmus ${w.week}`, [
+    h("button", { class: "btn", onclick: () => { teamWeek = shiftWeek(w.week, -1); render(); } }, "← Vorwoche"),
+    h("button", { class: "btn", onclick: () => { teamWeek = shiftWeek(w.week, 1); render(); } }, "Nächste →"),
+    h("button", { class: "btn", onclick: () => activityForm() }, "+ Aktivität"),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
+  ]);
+  const goalTypes = Object.entries(w.goal_types);
+  const rows = w.rows.map((r) => {
+    const inputs = {};
+    const note = h("input", { value: r.review_note || "", placeholder: "Freitag: Was lief, was ändern wir?", style: "min-width:170px" });
+    const cells = goalTypes.map(([t]) => {
+      const act = r.actual[t] || 0; const goal = r.goals[t] || 0;
+      inputs[t] = h("input", { type: "number", min: "0", value: goal || "", style: "width:54px;padding:.35rem .4rem", placeholder: "Ziel" });
+      return h("td", { class: "num" }, h("div", { class: "row", style: "justify-content:flex-end;gap:.3rem;flex-wrap:nowrap" },
+        h("strong", { style: `color:${goal ? (act >= goal ? "var(--ok)" : "var(--warn)") : "inherit"}` }, act), h("span", { class: "muted" }, "/"), inputs[t]));
+    });
+    return h("tr", {}, h("td", {}, h("strong", {}, r.name), h("div", { class: "small muted" }, `erfüllt ${r.fulfilled}`)), cells,
+      h("td", {}, note), h("td", {}, h("button", { class: "btn small", onclick: async () => {
+        const goals = {}; for (const [t, el] of Object.entries(inputs)) goals[t] = Number(el.value || 0);
+        try { await api("/api/team/goals", { method: "PUT", body: { week: w.week, user_id: r.user_id, goals, review_note: note.value } }); toast("Gespeichert"); render(); }
+        catch (e) { toast(e.message, true); }
+      } }, "Speichern")));
+  });
+  show(
+    h("p", { class: "muted small", style: "margin-top:0" }, `Montag: Ziel festlegen · Freitag: abgleichen. Ist-Werte zählt das Cockpit automatisch (Phasenwechsel bei Leads, Angebote, QBRs, gelöste Tickets) plus manuell erfasste Anrufe/Termine. Woche ${dt(w.start)} – ${dt(new Date(new Date(w.end) - 86400000).toISOString().slice(0, 10))}.`),
+    h("div", { class: "card" }, h("h2", {}, "Ziel vs. Ist"), h("div", { class: "table-wrap" }, h("table", {},
+      h("thead", {}, h("tr", {}, h("th", {}, "Person"), goalTypes.map(([, l]) => h("th", { class: "num" }, l)), h("th", {}, "Abgleich"), h("th", {}, ""))),
+      h("tbody", {}, rows)))),
+    h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Top-10-Opportunity-Review"), h("a", { class: "btn small", href: "#/leads" }, "Pipeline")),
+      h("p", { class: "small muted" }, "Für jeden Deal: Phase, nächster Schritt mit Datum, Risiko. Was nicht im Cockpit steht, ist nicht passiert."),
+      table([
+        { label: "Lead", render: (r) => h("strong", {}, r.company || r.name) }, { label: "Phase", render: (r) => badge((STAGES.find((s) => s[0] === r.stage) || [r.stage, r.stage])[1], "info") },
+        { label: "Score", key: "score", num: true }, { label: "Verantwortlich", render: (r) => r.owner || "–" },
+        { label: "Nächster Schritt", render: (r) => r.next_step || h("span", { style: "color:var(--warn)" }, "fehlt!") },
+        { label: "Risiko", render: (r) => r.risk || "–" },
+      ], w.top_opportunities, (r) => leadDetail(r.id))));
+};
+
 // ---------------------------------------------------------------- Router
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
@@ -1209,6 +1359,12 @@ async function render() {
 
 document.getElementById("menu-btn").addEventListener("click", () => document.getElementById("sidebar").classList.toggle("open"));
 window.addEventListener("hashchange", render);
-render();
+(async () => {
+  try { state.auth = await api("/api/auth/status"); } catch { state.auth = { login_required: false, user: null, roles: {} }; }
+  if (state.auth.login_required && !state.auth.user) { showLogin(); return; }
+  renderUserBox();
+  await loadUsers();
+  render();
+})();
 refreshAiStatus();
 setInterval(refreshAiStatus, 30000);

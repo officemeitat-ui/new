@@ -194,6 +194,44 @@ CREATE TABLE IF NOT EXISTS qbrs (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    role TEXT DEFAULT 'technik',
+    password_hash TEXT NOT NULL,
+    active INTEGER DEFAULT 1,
+    last_login_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    type TEXT NOT NULL,
+    ref_type TEXT DEFAULT '',
+    ref_id INTEGER,
+    note TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS weekly_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    week TEXT NOT NULL,
+    goals TEXT DEFAULT '{}',
+    review_note TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, week)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -214,7 +252,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
-        "solution", "ai_suggestion", "time_spent_min", "resolved_at",
+        "solution", "ai_suggestion", "time_spent_min", "resolved_at", "assigned_to",
     },
     "assets": {
         "customer_id", "name", "type", "os", "serial", "purchase_date", "warranty_end",
@@ -231,11 +269,14 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "leads": {
         "name", "company", "email", "phone", "source", "need", "stage", "score", "qualification", "notes",
-        "followups", "last_contact_at", "customer_id",
+        "followups", "last_contact_at", "customer_id", "owner_id", "next_step", "risk",
     },
     "receipts": {"message_id", "vendor", "invoice_no", "invoice_date", "amount", "currency", "category",
                  "status", "note"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
+    "users": {"name", "email", "role", "password_hash", "active", "last_login_at"},
+    "activities": {"user_id", "type", "ref_type", "ref_id", "note"},
+    "weekly_goals": {"user_id", "week", "goals", "review_note"},
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
     "assessments": {"customer_id", "answers", "score", "level", "report"},
     "agent_log": {"agent", "provider", "input", "output", "ok", "duration_ms"},
@@ -244,12 +285,14 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
 TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
 TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
-    "messages", "leads", "receipts", "mrr_history", "qbrs",
+    "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''"},
+    "tickets": {"assigned_to": "INTEGER"},
+    "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",
                "last_followup_at": "TEXT DEFAULT ''", "tiers": "TEXT DEFAULT '[]'", "chosen_tier": "TEXT DEFAULT ''"},
 }
