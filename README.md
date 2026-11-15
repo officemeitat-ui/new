@@ -1,29 +1,43 @@
-# Funnel & Pipeline
+# KI-Mitarbeiter-Cockpit
 
-Vorlage für Vertriebs- und Recruiting-Funnels nach dem Vorbild von Anbietern wie justclose.de – für das eigene Angebot
-oder als Kundenprojekt. Eine Installation pro Marke; Inhalte, Funnels und Pipelines stehen in einer einzigen Datei.
+Plattform für „KI-Mitarbeiter“ in kleinen und mittleren Betrieben: Ein **Telefon-Assistent** nimmt Anrufe an,
+beantwortet Fragen, bucht Termine und notiert Rückrufe. Ein **E-Mail-Assistent** ordnet eingehende E-Mails ein
+und schreibt Antworten zur Freigabe. Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und
+Monatskennzahlen. Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
 
-Hintergrund und Marktanalyse: [docs/justclose-analyse.md](docs/justclose-analyse.md)
+Pro Kunde gibt es eine Installation. Der Betrieb wird in [`config/business.ts`](config/business.ts) beschrieben,
+die Website in [`config/site.ts`](config/site.ts).
+
+Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mitarbeiter-angebot.md)
 
 ## Funktionen
 
+**Telefon-Assistent (über Vapi)**
+- Stellt sich als KI vor (Pflicht nach EU AI Act), spricht österreichisches Deutsch (Azure-Stimme `de-AT`, Spracherkennung `de-AT`)
+- Kennt Öffnungszeiten, Leistungen und häufige Fragen aus dem Betriebsprofil und erfindet keine Preise oder Zusagen
+- Prüft freie Termine im Kalender und bucht direkt. Zwei Anrufer können nie denselben letzten Platz bekommen.
+- Notiert Rückrufwünsche (auch dringende) und informiert das Team per E-Mail; Weiterverbinden optional
+- Nach jedem Gespräch landen Zusammenfassung, Transkript und Aufnahme beim Kontakt im Cockpit
+- Konfiguration wird bei jedem Anruf frisch erzeugt (aktuelles Datum, aktuelles Profil), kein manuelles Nachpflegen in Vapi
+
+**E-Mail-Assistent**
+- Liest das Postfach per IMAP. Lese-Status bleibt unverändert, jede E-Mail wird nur einmal verarbeitet.
+- Ordnet ein (Terminanfrage, Frage, Angebot, Reklamation, Beleg, Werbung …), erkennt Dringendes und ordnet den Kontakt zu
+- Schreibt Antwortentwürfe mit echten freien Terminen. Freigabe per Klick, Entwürfe lassen sich bearbeiten.
+- Modus „Entwurf“ (alles zur Freigabe) oder „autonom“: Routinefälle gehen direkt raus, Dringendes nie
+- Antwortet nie auf automatische Absender oder die eigene Adresse (keine Antwort-Schleifen)
+- „Test-E-Mail simulieren“ im Cockpit für Vorführungen ohne echtes Postfach
+
+**Cockpit (`/admin`)**
+- Dashboard mit **Wirkung**: angenommene Anrufe, gebuchte Termine, bearbeitete E-Mails, geschätzte Zeitersparnis (Grundlage für den Monatsbericht)
+- E-Mails (Freigabe), Anrufe (Zusammenfassung, Transkript, Aufnahme), Termine (Kalender, manuell eintragen, stornieren)
+- Pipelines mit Drag & Drop. Kontakte aus Telefon und E-Mail landen in „Anfragen“, Website-Leads in „Vertrieb“.
+- Kontakt-Detail mit Verlauf, KI-Gesprächsvorbereitung und KI-Follow-up
+- Seite „Telefon-Assistent“: Einrichtungsstatus und Vorschau der Anweisungen an die KI
+
 **Website**
-- Landingpage mit Hero, Problem, 3-Phasen-Prozess, Kundenstimmen, FAQ und einem durchgehenden Call-to-Action
-- Vorqualifizierungs-Funnel (`/termin`): Fragen mit Punkten, Schwelle und Ausschlusskriterien; qualifizierte Interessenten sehen direkt die Terminbuchung (Cal.com, Calendly …) mit vorausgefülltem Namen und E-Mail
-- Recruiting-Funnel (`/bewerben`): Bewerbung in 60 Sekunden ohne Anschreiben
-- Kampagnen-Zuordnung: UTM-Parameter, Klick-IDs und Referrer werden beim ersten Seitenaufruf gemerkt und mit dem Lead gespeichert
-- Spam-Schutz per Honeypot, Einwilligungs-Checkbox, Impressum- und Datenschutz-Vorlage (AT)
-
-**Admin-Bereich (`/admin`)**
-- Dashboard: Eingänge, Qualifizierungsquote, gewichteter Forecast, Abschlüsse, Verteilung über die Stufen
-- Pipeline-Board je Pipeline (Vertrieb, Recruiting) mit Drag & Drop
-- Lead-Detail: Antworten, Quelle, Kontakt, Stufe, Deal-Wert, Notizen und Verlauf
-- **KI-Gesprächsvorbereitung** aus den Funnel-Antworten (Zusammenfassung, Fragen, mögliche Einwände)
-- **KI-Follow-up** aus Gesprächsnotizen oder Transkript: Zusammenfassung, nächste Schritte, empfohlene Stufe und fertiger E-Mail-Entwurf
-
-**Integrationen**
-- Webhook für CRM/n8n/Make/Zapier bei neuem Lead und Stufenwechsel, optional HMAC-signiert
-- Datenbank: lokal SQLite-Datei, in Produktion Turso/libSQL
+- Landingpage für das KI-Mitarbeiter-Angebot, Potentialanalyse-Funnel mit Bewertung und Terminbuchung, Recruiting-Funnel
+- Kampagnen-Zuordnung (UTM), Spam-Schutz, Impressum- und Datenschutz-Vorlage
 
 ## Schnellstart
 
@@ -33,88 +47,65 @@ cp .env.example .env.local   # mindestens ADMIN_PASSWORD und SESSION_SECRET setz
 npm run dev
 ```
 
-- Website: http://localhost:3000
-- Funnel: http://localhost:3000/termin · Recruiting: http://localhost:3000/bewerben
-- Admin: http://localhost:3000/admin
+Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROPIC_API_KEY`.
 
-Weitere Befehle: `npm test` (Unit-Tests), `npm run typecheck`, `npm run build`.
-
-## An ein Projekt anpassen
-
-Alles Projektspezifische steht in [`config/site.ts`](config/site.ts):
-
-| Bereich | Inhalt |
+| Befehl | Zweck |
 |---|---|
-| `site.brand` | Name, Claim, Primärfarbe |
-| `site.hero`, `problems`, `process`, `testimonials`, `faq`, `finalCta` | Texte der Landingpage |
-| `site.legal` | Impressumsangaben |
-| `site.recruiting` | Stelle für den Recruiting-Funnel |
-| `funnels` | Fragen, Antworten mit Punkten, Schwelle, Ausschlusskriterien, Kontaktfelder, Ergebnistexte |
-| `pipelines` | Stufen mit Abschlusswahrscheinlichkeit, Standard-Deal-Wert |
+| `npm test` | Unit- und Integrationstests (Kalender, Buchung, Telefon-Webhook, E-Mail-Verarbeitung inkl. SMTP) |
+| `npm run typecheck` | TypeScript-Prüfung |
+| `npm run build` / `npm start` | Produktions-Build |
+| `npm run vapi:connect` | Telefonnummer in Vapi mit dieser Installation verbinden |
+| `npm run format` | Code formatieren (Prettier) |
 
-Inhalte mit `placeholder: true` werden auf der Seite mit einem gelben „Platzhalter“-Hinweis markiert und müssen vor
-dem Livegang ersetzt werden.
+## Einrichtung für einen Kunden
 
-**Bewertung im Funnel:** Jede Antwort bringt Punkte; ab `threshold` gilt ein Eintrag als qualifiziert, außer eine
-Antwort ist mit `disqualify: true` markiert. Die Bewertung läuft ausschließlich auf dem Server – Punkte und
-Ausschlusskriterien werden nicht an den Browser ausgeliefert.
+1. **Betriebsprofil** in `config/business.ts`: Öffnungszeiten, Feiertage, Leistungen mit Dauer, Kapazität, häufige Fragen,
+   Name und Hinweise für den Assistenten, E-Mail-Signatur und Modus.
+2. **Hosting** mit `PUBLIC_URL` (https). Bei Vercel `DATABASE_URL` auf Turso setzen, bei eigenem Server die SQLite-Datei sichern.
+3. **Telefon:**
+   1. Bei [Vapi](https://vapi.ai) eine Nummer anlegen oder importieren (z. B. Twilio) und dort **keinen** Assistenten zuweisen.
+   2. `VAPI_WEBHOOK_SECRET`, `VAPI_API_KEY` und `VAPI_PHONE_NUMBER` setzen, dann `npm run vapi:connect` ausführen.
+   3. Die bestehende Firmennummer bei Nichterreichen oder ganz auf die Vapi-Nummer umleiten.
+   4. Prüfen unter Cockpit → Telefon-Assistent.
+4. **E-Mail:**
+   1. `IMAP_*`, `SMTP_*` und `CRON_SECRET` setzen.
+   2. `/api/cron/mail` alle 5 Minuten aufrufen:
+      `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/mail`
+      (oder per Vercel Cron, der diesen Header bei gesetztem `CRON_SECRET` selbst mitschickt).
+   3. Zum Start Modus „Entwurf“. Nach ein paar Wochen Vertrauen auf „autonom“ umstellen.
+5. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
 
-## Integrationen
+## Webhook-Ereignisse
 
-### Terminbuchung
-`BOOKING_URL` auf den Buchungslink setzen (z. B. `https://cal.com/name/erstgespraech`). Der Link wird nach erfolgreicher
-Qualifizierung eingebettet, `name` und `email` werden als Parameter übergeben.
+Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_SECRET` signiert im Header
+`X-Signature: sha256=…`): `lead.created`, `lead.stage_changed`, `appointment.booked`, `callback.requested`,
+`call.ended`, `email.received`. Die Felder stehen in [`lib/webhook.ts`](lib/webhook.ts).
 
-### Webhook
-Ist `WEBHOOK_URL` gesetzt, wird ein `POST` mit JSON gesendet:
+## Was vor dem Livegang zu klären ist
 
-```json
-{ "event": "lead.created", "lead": { "id": "…", "funnel": "erstgespraech", "stage": "qualifiziert", "name": "…", "email": "…", "answers": {}, "score": 15, "qualified": true, "source": { "utm_source": "linkedin" } }, "sentAt": "…" }
-{ "event": "lead.stage_changed", "leadId": "…", "from": "qualifiziert", "to": "termin", "sentAt": "…" }
-```
-
-Mit `WEBHOOK_SECRET` enthält der Header `X-Signature` den Wert `sha256=<HMAC-SHA256 des Bodys>`.
-Über n8n/Make lassen sich so z. B. E-Mail- oder Slack-Benachrichtigungen bei neuen Leads oder der Sync ins CRM bauen.
-
-### KI (Claude)
-`ANTHROPIC_API_KEY` setzen. Standardmodell ist `claude-opus-5-5` (über `ANTHROPIC_MODEL` änderbar). Die Ausgaben sind
-strukturiert (JSON-Schema) und werden validiert. Lehnt das Modell eine Anfrage über seine Sicherheitsfilter ab,
-übernimmt serverseitig automatisch ein Ersatzmodell (`fallbacks: "default"`).
-
-Datenschutz: Für die KI-Funktionen werden Lead-Daten und Gesprächsnotizen an Anthropic übermittelt – das muss in der
-Datenschutzerklärung stehen (ist in der Vorlage enthalten), ein Auftragsverarbeitungsvertrag ist abzuschließen.
-
-## Deployment
-
-- **Vercel / Serverless:** Dateisystem ist nicht dauerhaft → `DATABASE_URL` auf eine Turso-Datenbank (`libsql://…`) und `DATABASE_AUTH_TOKEN` setzen.
-- **Eigener Server / Docker:** `npm run build && npm start`; die SQLite-Datei unter `data/` muss auf einem persistenten Volume liegen und gesichert werden.
-
-## Checkliste vor dem Livegang
-
-- [ ] Alle Platzhalter in `config/site.ts` ersetzt (Kundenstimmen nur echt und mit Einverständnis)
-- [ ] Impressum und Datenschutzerklärung geprüft, eingesetzte Dienstleister eingetragen
-- [ ] Auftragsverarbeitungsverträge (Hosting, Datenbank, Terminbuchung, Anthropic, CRM)
-- [ ] Werden Tracking-Pixel (Meta, LinkedIn, Google) ergänzt: Consent-Banner einbauen
-- [ ] Starkes `ADMIN_PASSWORD` und zufälliges `SESSION_SECRET`
-- [ ] Werbeaussagen (Zahlen, Garantien) belegbar
+- [ ] Platzhalter ersetzen (gelb markiert): Betriebsprofil, Impressum, Kundenstimmen nur echt und mit Einverständnis
+- [ ] Datenschutzerklärung des **Kunden** um Telefon-Assistent (Transkription), E-Mail-Assistent und alle Dienstleister ergänzen
+- [ ] Auftragsverarbeitungsverträge: Hosting, Datenbank, Anthropic, Vapi samt Telefonie- und Sprachdienst, ggf. CRM.
+      Vapi und Azure verarbeiten Gesprächsdaten, für Drittländer den Datentransfer prüfen.
+- [ ] Hinweis auf Gesprächsaufzeichnung bzw. Transkription am Gesprächsbeginn, falls Aufnahmen gespeichert werden
+- [ ] Keine Werbeanrufe oder Werbe-E-Mails ohne Einwilligung (§ 174 TKG 2021 bzw. § 7 UWG). Der Assistent nimmt nur Anrufe an.
+- [ ] Bei Praxen und Gesundheitsdaten (Art. 9 DSGVO) gesondert prüfen
+- [ ] Starkes `ADMIN_PASSWORD`, zufällige Geheimnisse
 
 ## Projektstruktur
 
 ```
-config/site.ts           Marke, Texte, Funnels, Pipelines
-app/(site)/              öffentliche Seiten (Landingpage, /termin, /bewerben, Impressum, Datenschutz)
-app/api/leads/           Entgegennahme der Funnel-Einträge
-app/admin/               Login, Dashboard, Pipeline-Board, Lead-Detail, Server Actions
-components/              Funnel-Formular, Pipeline-Board, KI-Bedienelemente
-lib/                     Bewertung, Forecast, Datenbank, Sessions, Webhook, KI
-tests/                   Unit-Tests (Vitest)
-proxy.ts                 Weiterleitung nicht angemeldeter Aufrufe von /admin
+config/business.ts       Betriebsprofil des Kunden (Wissen, Öffnungszeiten, Leistungen, Assistent)
+config/site.ts           Website-Texte, Funnels, Pipelines, Kanäle
+lib/calendar.ts          Terminlogik (zeitzonenfest, rein funktional)
+lib/appointments.ts      Buchungen mit Kapazitätsprüfung in einer Transaktion
+lib/voice/               Telefon-Assistent: Vapi-Konfiguration und Webhook-Verarbeitung
+lib/mail/                E-Mail-Assistent: Auswertung (Claude), IMAP, SMTP, Verarbeitung
+lib/stats.ts             Kennzahlen zur Wirkung
+app/api/voice/vapi/      Webhook für Vapi
+app/api/cron/mail/       Postfach-Abruf
+app/admin/               Cockpit
+app/(site)/              Website und Funnels
+scripts/vapi-connect.mjs Telefonnummer verbinden
+tests/                   Vitest
 ```
-
-## Mögliche nächste Ausbaustufen
-
-- E-Mail-Benachrichtigung bei neuem Lead direkt aus der App (statt über Webhook)
-- Mehrere Benutzer mit eigenen Zugängen statt eines gemeinsamen Admin-Passworts
-- Mandantenfähigkeit (mehrere Kunden in einer Installation)
-- Lead-Anreicherung (Firmendaten, Ansprechpartner) und automatische Transkription von Gesprächen
-- Tracking-Pixel inkl. Consent-Management und Conversion-API

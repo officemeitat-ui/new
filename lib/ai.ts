@@ -32,28 +32,37 @@ function systemPrompt(pipeline: Pipeline): string {
   ].join("\n\n");
 }
 
-function leadContext(lead: Lead, funnel: Funnel, pipeline: Pipeline): string {
+/** Herkunft eines Eintrags: Funnel mit Fragen und Bewertung oder Kanal (Telefon, E-Mail). */
+export type LeadSource = { label: string; funnel?: Funnel };
+
+function leadContext(lead: Lead, source: LeadSource, pipeline: Pipeline): string {
+  const { funnel } = source;
   const lines = [
     `${pipeline.itemLabel}: ${lead.name}`,
     lead.company && `Unternehmen: ${lead.company}`,
     lead.link && `Link: ${lead.link}`,
     lead.message && `Nachricht: ${lead.message}`,
-    `Funnel: ${funnel.title}`,
-    `Score: ${lead.score} (Schwelle ${funnel.threshold}, ${lead.qualified ? "qualifiziert" : "nicht qualifiziert"})`,
-    "Antworten:",
-    ...describeAnswers(funnel, lead.answers).map((a) => `- ${a.question} ${a.answer}`),
+    `Eingang über: ${source.label}`,
+    ...(funnel
+      ? [
+          `Score: ${lead.score} (Schwelle ${funnel.threshold}, ${lead.qualified ? "qualifiziert" : "nicht qualifiziert"})`,
+          "Antworten:",
+          ...describeAnswers(funnel, lead.answers).map((a) => `- ${a.question} ${a.answer}`),
+        ]
+      : []),
   ];
   return lines.filter(Boolean).join("\n");
 }
 
-async function generate<T extends z.ZodType>(pipeline: Pipeline, schema: T, prompt: string): Promise<z.infer<T>> {
+/** Strukturierte Claude-Antwort nach Zod-Schema; Fehler werden als verständliche AiError gemeldet. */
+export async function generateStructured<T extends z.ZodType>(system: string, schema: T, prompt: string): Promise<z.infer<T>> {
   try {
     const response = await client().beta.messages.parse({
       model: MODEL,
       max_tokens: 16000,
       output_config: { effort: "medium", format: betaZodOutputFormat(schema) },
       ...(FALLBACK_MODELS.has(MODEL) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
-      system: systemPrompt(pipeline),
+      system,
       messages: [{ role: "user", content: prompt }],
     });
     if (response.stop_reason === "refusal") {
@@ -80,28 +89,28 @@ async function generate<T extends z.ZodType>(pipeline: Pipeline, schema: T, prom
   }
 }
 
-export function generateBriefing(lead: Lead, funnel: Funnel, pipeline: Pipeline): Promise<Briefing> {
+export function generateBriefing(lead: Lead, source: LeadSource, pipeline: Pipeline): Promise<Briefing> {
   const goal =
     pipeline.id === "recruiting"
       ? "Bereite das erste Telefoninterview vor."
       : "Bereite das Erstgespräch vor: Ziel ist herauszufinden, ob und wie wir helfen können, und einen klaren nächsten Schritt zu vereinbaren.";
-  return generate(
-    pipeline,
+  return generateStructured(
+    systemPrompt(pipeline),
     BriefingSchema,
-    `${goal}\n\n<eintrag>\n${leadContext(lead, funnel, pipeline)}\n</eintrag>`,
+    `${goal}\n\n<eintrag>\n${leadContext(lead, source, pipeline)}\n</eintrag>`,
   );
 }
 
-export function generateFollowUp(lead: Lead, funnel: Funnel, pipeline: Pipeline, notes: string): Promise<FollowUp> {
+export function generateFollowUp(lead: Lead, source: LeadSource, pipeline: Pipeline, notes: string): Promise<FollowUp> {
   const stages = pipeline.stages.map((s) => `${s.id} (${s.label})`).join(", ");
-  return generate(
-    pipeline,
+  return generateStructured(
+    systemPrompt(pipeline),
     FollowUpSchema,
     [
       "Werte das Gespräch aus und entwirf eine Follow-up-E-Mail, die das Gespräch kurz zusammenfasst, die vereinbarten nächsten Schritte nennt und mit einer klaren, einzelnen Handlungsaufforderung endet.",
       `Wähle als suggestedStage die ID der passenden Pipeline-Stufe aus: ${stages}.`,
       'Unterschreibe die E-Mail mit dem Platzhalter "[Ihr Name]".',
-      `<eintrag>\n${leadContext(lead, funnel, pipeline)}\n\nGesprächsnotizen:\n${notes}\n</eintrag>`,
+      `<eintrag>\n${leadContext(lead, source, pipeline)}\n\nGesprächsnotizen:\n${notes}\n</eintrag>`,
     ].join("\n\n"),
   );
 }

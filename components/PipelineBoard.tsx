@@ -10,8 +10,8 @@ export type BoardCard = {
   name: string;
   company: string | null;
   stage: string;
-  score: number;
-  qualified: boolean;
+  score: number | null;
+  qualified: boolean | null;
   /** Bereits formatierter Wert (oder null, wenn die Pipeline keine Werte führt). */
   value: string | null;
   createdAt: string;
@@ -79,7 +79,11 @@ export function PipelineBoard({ stages, cards }: { stages: Stage[]; cards: Board
                     </Link>
                     {card.company && <p className="text-slate-500">{card.company}</p>}
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                      <span className={card.qualified ? "text-emerald-700" : "text-amber-700"}>Score {card.score}</span>
+                      {card.score === null ? (
+                        <span />
+                      ) : (
+                        <span className={card.qualified ? "text-emerald-700" : "text-amber-700"}>Score {card.score}</span>
+                      )}
                       {card.value && <span className="font-medium text-slate-700">{card.value}</span>}
                       <span>{card.createdAt}</span>
                     </div>

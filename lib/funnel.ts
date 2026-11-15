@@ -48,15 +48,10 @@ export type Funnel = {
 
 export type Answers = Record<string, string>;
 
-export type ScoreResult =
-  | { ok: true; score: number; maxScore: number; qualified: boolean }
-  | { ok: false; error: string };
+export type ScoreResult = { ok: true; score: number; maxScore: number; qualified: boolean } | { ok: false; error: string };
 
 export function maxScore(funnel: Funnel): number {
-  return funnel.questions.reduce(
-    (sum, q) => sum + Math.max(0, ...q.options.map((o) => o.points)),
-    0,
-  );
+  return funnel.questions.reduce((sum, q) => sum + Math.max(0, ...q.options.map((o) => o.points)), 0);
 }
 
 export function scoreAnswers(funnel: Funnel, answers: Answers): ScoreResult {
@@ -82,10 +77,7 @@ export function scoreAnswers(funnel: Funnel, answers: Answers): ScoreResult {
 }
 
 /** Antworten als lesbare Frage/Antwort-Paare, z. B. für Admin-Ansicht und KI-Prompts. */
-export function describeAnswers(
-  funnel: Funnel,
-  answers: Answers,
-): { question: string; answer: string }[] {
+export function describeAnswers(funnel: Funnel, answers: Answers): { question: string; answer: string }[] {
   return funnel.questions.map((q) => ({
     question: q.title,
     answer: q.options.find((o) => o.id === answers[q.id])?.label ?? "–",

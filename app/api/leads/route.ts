@@ -15,7 +15,10 @@ const LeadRequest = z.object({
     email: z.email("Bitte gültige E-Mail-Adresse angeben").max(200),
     phone: optionalText(50),
     company: optionalText(200),
-    link: z.url({ protocol: /^https?$/, error: "Bitte gültigen Link angeben (https://…)" }).max(500).optional(),
+    link: z
+      .url({ protocol: /^https?$/, error: "Bitte gültigen Link angeben (https://…)" })
+      .max(500)
+      .optional(),
     message: optionalText(2000),
   }),
   consent: z.literal(true, "Bitte der Datenverarbeitung zustimmen"),
@@ -23,7 +26,17 @@ const LeadRequest = z.object({
   source: z.record(z.string(), z.string().max(200)).optional(),
 });
 
-const SOURCE_KEYS = new Set(["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "fbclid", "li_fat_id", "referrer"]);
+const SOURCE_KEYS = new Set([
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "gclid",
+  "fbclid",
+  "li_fat_id",
+  "referrer",
+]);
 
 function bookingUrl(name: string, email: string): string | null {
   const base = process.env.BOOKING_URL;
@@ -69,26 +82,29 @@ export async function POST(request: Request) {
   const allowedFields = new Set(funnel.contactFields.map((f) => f.id));
   const field = (id: keyof typeof contact) => (allowedFields.has(id) ? contact[id] : undefined);
 
-  const lead = await createLead({
-    funnel: funnel.id,
-    stage: score.qualified ? funnel.stageQualified : funnel.stageNotQualified,
-    name: contact.name,
-    email: contact.email,
-    phone: field("phone"),
-    company: field("company"),
-    link: field("link"),
-    message: field("message"),
-    answers: Object.fromEntries(funnel.questions.map((q) => [q.id, answers[q.id]])),
-    score: score.score,
-    qualified: score.qualified,
-    source: Object.fromEntries(Object.entries(source ?? {}).filter(([key]) => SOURCE_KEYS.has(key))),
-  }, `Eingang über „${funnel.title}“ (Score ${score.score}/${score.maxScore})`);
+  const lead = await createLead(
+    {
+      funnel: funnel.id,
+      stage: score.qualified ? funnel.stageQualified : funnel.stageNotQualified,
+      name: contact.name,
+      email: contact.email,
+      phone: field("phone"),
+      company: field("company"),
+      link: field("link"),
+      message: field("message"),
+      answers: Object.fromEntries(funnel.questions.map((q) => [q.id, answers[q.id]])),
+      score: score.score,
+      qualified: score.qualified,
+      source: Object.fromEntries(Object.entries(source ?? {}).filter(([key]) => SOURCE_KEYS.has(key))),
+    },
+    `Eingang über „${funnel.title}“ (Score ${score.score}/${score.maxScore})`,
+  );
 
   after(() => sendWebhook({ event: "lead.created", lead }));
 
   return NextResponse.json({
     qualified: score.qualified,
     ...outcome,
-    bookingUrl: score.qualified && funnel.showBooking ? bookingUrl(lead.name, lead.email) : null,
+    bookingUrl: score.qualified && funnel.showBooking ? bookingUrl(lead.name, contact.email) : null,
   });
 }

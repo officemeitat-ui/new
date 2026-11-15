@@ -1,6 +1,7 @@
 import "server-only";
 import type { Row } from "@libsql/client";
 import { randomUUID } from "node:crypto";
+import { business } from "@/config/business";
 import { db } from "@/lib/db";
 import type { Answers } from "@/lib/funnel";
 import { BriefingSchema, FollowUpSchema, type Briefing, type FollowUp } from "@/lib/ai-schema";
@@ -10,14 +11,15 @@ export type Lead = {
   funnel: string;
   stage: string;
   name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   company: string | null;
   link: string | null;
   message: string | null;
   answers: Answers;
-  score: number;
-  qualified: boolean;
+  /** Nur bei Einträgen aus Funnels mit Bewertung, sonst null. */
+  score: number | null;
+  qualified: boolean | null;
   value: number | null;
   source: Record<string, string> | null;
   briefing: Briefing | null;
@@ -26,7 +28,7 @@ export type Lead = {
   updatedAt: string;
 };
 
-export type ActivityType = "created" | "stage" | "value" | "note" | "ai";
+export type ActivityType = "created" | "stage" | "value" | "note" | "ai" | "call" | "email" | "appointment";
 
 export type Activity = {
   id: number;
@@ -37,17 +39,18 @@ export type Activity = {
 };
 
 export type NewLead = {
+  /** Funnel- oder Kanal-ID (z. B. „telefon“, „email“), bestimmt die Pipeline. */
   funnel: string;
   stage: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
   company?: string;
   link?: string;
   message?: string;
-  answers: Answers;
-  score: number;
-  qualified: boolean;
+  answers?: Answers;
+  score?: number;
+  qualified?: boolean;
   source?: Record<string, string>;
 };
 
@@ -66,14 +69,14 @@ function toLead(row: Row): Lead {
     funnel: String(row.funnel),
     stage: String(row.stage),
     name: String(row.name),
-    email: String(row.email),
+    email: (row.email as string | null) ?? null,
     phone: (row.phone as string | null) ?? null,
     company: (row.company as string | null) ?? null,
     link: (row.link as string | null) ?? null,
     message: (row.message as string | null) ?? null,
     answers: parseJson(row.answers, (v) => v as Answers) ?? {},
-    score: Number(row.score),
-    qualified: Number(row.qualified) === 1,
+    score: row.score === null ? null : Number(row.score),
+    qualified: row.qualified === null ? null : Number(row.qualified) === 1,
     value: row.value === null ? null : Number(row.value),
     source: parseJson(row.source, (v) => v as Record<string, string>),
     briefing: parseJson(row.briefing, (v) => BriefingSchema.safeParse(v).data ?? null),
@@ -108,14 +111,14 @@ export async function createLead(input: NewLead, activityText: string): Promise<
           input.funnel,
           input.stage,
           input.name,
-          input.email,
-          input.phone || null,
+          input.email || null,
+          input.phone ? normalizePhone(input.phone) : null,
           input.company || null,
           input.link || null,
           input.message || null,
-          JSON.stringify(input.answers),
-          input.score,
-          input.qualified ? 1 : 0,
+          JSON.stringify(input.answers ?? {}),
+          input.score ?? null,
+          input.qualified === undefined ? null : input.qualified ? 1 : 0,
           input.source && Object.keys(input.source).length > 0 ? JSON.stringify(input.source) : null,
           now,
           now,
@@ -131,6 +134,53 @@ export async function createLead(input: NewLead, activityText: string): Promise<
   const lead = await getLead(id);
   if (!lead) throw new Error("Lead konnte nicht gespeichert werden");
   return lead;
+}
+
+/**
+ * Vereinheitlicht Telefonnummern ins internationale Format, damit Anrufe derselben Person
+ * demselben Kontakt zugeordnet werden („0664 123“ → „+43664123“).
+ */
+export function normalizePhone(raw: string, countryCode = business.countryCode): string {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+")) return `+${digits}`;
+  if (digits.startsWith("00")) return `+${digits.slice(2)}`;
+  if (digits.startsWith("0")) return `+${countryCode}${digits.slice(1)}`;
+  return digits ? `+${digits}` : trimmed;
+}
+
+/** Sucht einen bestehenden Kontakt per Telefonnummer oder E-Mail-Adresse (jüngster zuerst). */
+export async function findLeadByContact(contact: { phone?: string | null; email?: string | null }): Promise<Lead | null> {
+  const client = await db();
+  if (contact.phone) {
+    const result = await client.execute({
+      sql: "SELECT * FROM leads WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
+      args: [normalizePhone(contact.phone)],
+    });
+    if (result.rows[0]) return toLead(result.rows[0]);
+  }
+  if (contact.email) {
+    const result = await client.execute({
+      sql: "SELECT * FROM leads WHERE lower(email) = lower(?) ORDER BY created_at DESC LIMIT 1",
+      args: [contact.email.trim()],
+    });
+    if (result.rows[0]) return toLead(result.rows[0]);
+  }
+  return null;
+}
+
+/** Ergänzt fehlende Kontaktdaten (Name, Telefon, E-Mail), ohne vorhandene zu überschreiben. */
+export async function completeContact(lead: Lead, data: { name?: string; phone?: string; email?: string }): Promise<void> {
+  const updates: [string, string][] = [];
+  if (data.phone && !lead.phone) updates.push(["phone", normalizePhone(data.phone)]);
+  if (data.email && !lead.email) updates.push(["email", data.email.trim()]);
+  if (data.name && /^(unbekannt|anrufer)/i.test(lead.name)) updates.push(["name", data.name.trim()]);
+  if (updates.length === 0) return;
+  const client = await db();
+  await client.execute({
+    sql: `UPDATE leads SET ${updates.map(([column]) => `${column} = ?`).join(", ")}, updated_at = ? WHERE id = ?`,
+    args: [...updates.map(([, value]) => value), new Date().toISOString(), lead.id],
+  });
 }
 
 export async function getLead(id: string): Promise<Lead | null> {

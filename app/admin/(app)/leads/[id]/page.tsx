@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFunnel, getPipeline } from "@/config/site";
+import { resolveSource } from "@/config/site";
 import { QualifiedBadge, StageBadge } from "@/components/admin";
 import { BriefingForm, CopyButton, FollowUpForm } from "@/components/AiPanels";
 import { addNote, moveLeadFromForm, updateValue } from "@/app/admin/actions";
@@ -32,16 +32,18 @@ function List({ items }: { items: string[] }) {
 export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]">) {
   await requireAdmin();
   const lead = await getLead((await params).id);
-  const funnel = lead && getFunnel(lead.funnel);
-  const pipeline = funnel && getPipeline(funnel.pipelineId);
-  if (!lead || !funnel || !pipeline) notFound();
+  const source = lead && resolveSource(lead.funnel);
+  const pipeline = source?.pipeline;
+  if (!lead || !source || !pipeline) notFound();
+  const { funnel } = source;
 
   const activities = await listActivities(lead.id);
   const { briefing, followup } = lead;
   const suggested = followup && findStage(pipeline, followup.suggestedStage);
-  const mailto = followup
-    ? `mailto:${lead.email}?subject=${encodeURIComponent(followup.emailSubject)}&body=${encodeURIComponent(followup.emailBody)}`
-    : null;
+  const mailto =
+    followup && lead.email
+      ? `mailto:${lead.email}?subject=${encodeURIComponent(followup.emailSubject)}&body=${encodeURIComponent(followup.emailBody)}`
+      : null;
 
   return (
     <div>
@@ -53,7 +55,8 @@ export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]"
         <StageBadge pipeline={pipeline} stageId={lead.stage} />
         <QualifiedBadge qualified={lead.qualified} />
         <span className="text-sm text-slate-500">
-          Score {lead.score}/{maxScore(funnel)} · {funnel.title} · {formatDateTime(lead.createdAt)}
+          {funnel && `Score ${lead.score}/${maxScore(funnel)} · `}
+          {source.label} · {formatDateTime(lead.createdAt)}
         </span>
       </div>
 
@@ -77,7 +80,9 @@ export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]"
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-500">Erstellt aus den Funnel-Antworten eine Zusammenfassung und konkrete Gesprächsfragen.</p>
+              <p className="text-sm text-slate-500">
+                Erstellt aus den bisherigen Angaben eine Zusammenfassung und konkrete Gesprächsfragen.
+              </p>
             )}
             <div className="mt-4">
               <BriefingForm leadId={lead.id} hasBriefing={Boolean(briefing)} />
@@ -153,11 +158,13 @@ export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]"
           <Card title="Kontakt">
             <div className="space-y-2 text-sm">
               {lead.company && <p className="font-medium">{lead.company}</p>}
-              <p>
-                <a href={`mailto:${lead.email}`} className="text-brand hover:underline">
-                  {lead.email}
-                </a>
-              </p>
+              {lead.email && (
+                <p>
+                  <a href={`mailto:${lead.email}`} className="text-brand hover:underline">
+                    {lead.email}
+                  </a>
+                </p>
+              )}
               {lead.phone && (
                 <p>
                   <a href={`tel:${lead.phone}`} className="text-brand hover:underline">
@@ -205,21 +212,21 @@ export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]"
                 </button>
               </form>
             )}
-            {pipeline.trackValue && (
-              <p className="mt-2 text-xs text-slate-500">Im Forecast: {formatEuro(itemValue(pipeline, lead))}</p>
-            )}
+            {pipeline.trackValue && <p className="mt-2 text-xs text-slate-500">Im Forecast: {formatEuro(itemValue(pipeline, lead))}</p>}
           </Card>
 
-          <Card title="Antworten">
-            <dl className="space-y-3 text-sm">
-              {describeAnswers(funnel, lead.answers).map(({ question, answer }) => (
-                <div key={question}>
-                  <dt className="text-slate-500">{question}</dt>
-                  <dd className="font-medium">{answer}</dd>
-                </div>
-              ))}
-            </dl>
-          </Card>
+          {funnel && (
+            <Card title="Antworten">
+              <dl className="space-y-3 text-sm">
+                {describeAnswers(funnel, lead.answers).map(({ question, answer }) => (
+                  <div key={question}>
+                    <dt className="text-slate-500">{question}</dt>
+                    <dd className="font-medium">{answer}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          )}
 
           {lead.source && (
             <Card title="Quelle">

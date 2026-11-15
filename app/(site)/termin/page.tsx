@@ -3,7 +3,7 @@ import { funnels } from "@/config/site";
 import { FunnelForm } from "@/components/FunnelForm";
 import { toPublicFunnel } from "@/lib/funnel";
 
-const funnel = funnels.erstgespraech;
+const funnel = funnels.potentialanalyse;
 
 export const metadata: Metadata = { title: funnel.title };
 

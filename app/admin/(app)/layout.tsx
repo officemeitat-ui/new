@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { pipelines, site } from "@/config/site";
 import { requireAdmin } from "@/lib/auth";
+import { listEmails } from "@/lib/emails";
 import { logout } from "../actions";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
+  const openDrafts = (await listEmails(["entwurf", "fehler"])).length;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -20,11 +22,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/admin" className="hover:text-slate-900">
               Dashboard
             </Link>
+            <Link href="/admin/emails" className="hover:text-slate-900">
+              E-Mails
+              {openDrafts > 0 && <span className="ml-1 rounded-full bg-brand px-1.5 py-0.5 text-xs text-white">{openDrafts}</span>}
+            </Link>
+            <Link href="/admin/anrufe" className="hover:text-slate-900">
+              Anrufe
+            </Link>
+            <Link href="/admin/termine" className="hover:text-slate-900">
+              Termine
+            </Link>
             {Object.values(pipelines).map((pipeline) => (
               <Link key={pipeline.id} href={`/admin/pipeline/${pipeline.id}`} className="hover:text-slate-900">
                 {pipeline.label}
               </Link>
             ))}
+            <Link href="/admin/telefon" className="hover:text-slate-900">
+              Telefon-Assistent
+            </Link>
           </nav>
           <div className="flex items-center gap-4 text-sm">
             <Link href="/" className="text-slate-500 hover:text-slate-900">

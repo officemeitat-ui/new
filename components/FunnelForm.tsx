@@ -67,11 +67,7 @@ export function FunnelForm({ funnel }: { funnel: PublicFunnel }) {
         </div>
         {result.bookingUrl && (
           <div className="mt-8">
-            <iframe
-              src={result.bookingUrl}
-              title="Termin buchen"
-              className="h-[700px] w-full rounded-xl border border-slate-200"
-            />
+            <iframe src={result.bookingUrl} title="Termin buchen" className="h-[700px] w-full rounded-xl border border-slate-200" />
             <p className="mt-3 text-center text-sm text-slate-500">
               Kalender wird nicht angezeigt?{" "}
               <a href={result.bookingUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-brand underline">

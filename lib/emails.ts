@@ -1,0 +1,144 @@
+import "server-only";
+import type { Row } from "@libsql/client";
+import { randomUUID } from "node:crypto";
+import { db } from "@/lib/db";
+
+export const EMAIL_CATEGORIES = {
+  terminanfrage: "Terminanfrage",
+  allgemeine_frage: "Allgemeine Frage",
+  angebotsanfrage: "Angebotsanfrage",
+  reklamation: "Reklamation",
+  rechnung_beleg: "Rechnung / Beleg",
+  werbung_spam: "Werbung / Spam",
+  sonstiges: "Sonstiges",
+} as const;
+export type EmailCategory = keyof typeof EMAIL_CATEGORIES;
+
+/**
+ * neu: eingegangen, noch nicht ausgewertet · entwurf: Antwort wartet auf Freigabe · gesendet · erledigt: keine Antwort nötig
+ * verworfen: Entwurf abgelehnt · fehler: Auswertung fehlgeschlagen (erneut versuchbar)
+ */
+export type EmailStatus = "neu" | "entwurf" | "gesendet" | "erledigt" | "verworfen" | "fehler";
+
+export type Email = {
+  id: string;
+  messageId: string | null;
+  leadId: string | null;
+  fromAddress: string;
+  fromName: string | null;
+  subject: string;
+  body: string;
+  receivedAt: string;
+  category: EmailCategory | null;
+  summary: string | null;
+  status: EmailStatus;
+  replySubject: string | null;
+  replyBody: string | null;
+  error: string | null;
+  sentAt: string | null;
+  createdAt: string;
+};
+
+export type IncomingEmail = {
+  messageId: string;
+  fromAddress: string;
+  fromName: string | null;
+  subject: string;
+  body: string;
+  receivedAt: Date;
+  /** Automatisch erzeugte E-Mail (Auto-Submitted-Header), wird nie beantwortet. */
+  autoSubmitted?: boolean;
+};
+
+const text = (value: unknown) => (value === null || value === undefined ? null : String(value));
+
+function toEmail(row: Row): Email {
+  return {
+    id: String(row.id),
+    messageId: text(row.message_id),
+    leadId: text(row.lead_id),
+    fromAddress: String(row.from_address),
+    fromName: text(row.from_name),
+    subject: String(row.subject),
+    body: String(row.body),
+    receivedAt: String(row.received_at),
+    category: text(row.category) as EmailCategory | null,
+    summary: text(row.summary),
+    status: String(row.status) as EmailStatus,
+    replySubject: text(row.reply_subject),
+    replyBody: text(row.reply_body),
+    error: text(row.error),
+    sentAt: text(row.sent_at),
+    createdAt: String(row.created_at),
+  };
+}
+
+/** Speichert eine eingegangene E-Mail; null, wenn sie (gleiche Message-ID) schon vorhanden ist. */
+export async function insertEmail(mail: IncomingEmail): Promise<Email | null> {
+  const client = await db();
+  const id = randomUUID();
+  const result = await client.execute({
+    sql: `INSERT INTO emails (id, message_id, from_address, from_name, subject, body, received_at, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'neu', ?) ON CONFLICT(message_id) DO NOTHING`,
+    args: [
+      id,
+      mail.messageId,
+      mail.fromAddress,
+      mail.fromName,
+      mail.subject.slice(0, 500),
+      mail.body.slice(0, 50_000),
+      mail.receivedAt.toISOString(),
+      new Date().toISOString(),
+    ],
+  });
+  return result.rowsAffected > 0 ? getEmail(id) : null;
+}
+
+export async function getEmail(id: string): Promise<Email | null> {
+  const client = await db();
+  const result = await client.execute({ sql: "SELECT * FROM emails WHERE id = ?", args: [id] });
+  return result.rows[0] ? toEmail(result.rows[0]) : null;
+}
+
+export async function knownMessageIds(ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const client = await db();
+  const result = await client.execute({
+    sql: `SELECT message_id FROM emails WHERE message_id IN (${ids.map(() => "?").join(", ")})`,
+    args: ids,
+  });
+  return new Set(result.rows.map((r) => String(r.message_id)));
+}
+
+export async function listEmails(statuses?: EmailStatus[], limit = 200): Promise<Email[]> {
+  const client = await db();
+  const where = statuses?.length ? `WHERE status IN (${statuses.map(() => "?").join(", ")})` : "";
+  const result = await client.execute({
+    sql: `SELECT * FROM emails ${where} ORDER BY received_at DESC LIMIT ?`,
+    args: [...(statuses ?? []), limit],
+  });
+  return result.rows.map(toEmail);
+}
+
+export async function updateEmail(
+  id: string,
+  fields: Partial<Pick<Email, "leadId" | "category" | "summary" | "status" | "replySubject" | "replyBody" | "error" | "sentAt">>,
+): Promise<void> {
+  const columns: Record<string, string> = {
+    leadId: "lead_id",
+    category: "category",
+    summary: "summary",
+    status: "status",
+    replySubject: "reply_subject",
+    replyBody: "reply_body",
+    error: "error",
+    sentAt: "sent_at",
+  };
+  const entries = Object.entries(fields).filter(([key]) => key in columns);
+  if (entries.length === 0) return;
+  const client = await db();
+  await client.execute({
+    sql: `UPDATE emails SET ${entries.map(([key]) => `${columns[key]} = ?`).join(", ")} WHERE id = ?`,
+    args: [...entries.map(([, value]) => (value === undefined ? null : value)), id],
+  });
+}

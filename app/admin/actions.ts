@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { getFunnel, getPipeline } from "@/config/site";
+import { resolveSource } from "@/config/site";
 import { AiError, generateBriefing, generateFollowUp } from "@/lib/ai";
 import { passwordMatches, requireAdmin } from "@/lib/auth";
 import { formatEuro } from "@/lib/format";
@@ -37,10 +37,9 @@ export async function logout() {
 
 async function loadLead(leadId: string) {
   const lead = await getLead(leadId);
-  const funnel = lead && getFunnel(lead.funnel);
-  const pipeline = funnel && getPipeline(funnel.pipelineId);
-  if (!lead || !funnel || !pipeline) throw new Error("Eintrag nicht gefunden");
-  return { lead, funnel, pipeline };
+  const source = lead && resolveSource(lead.funnel);
+  if (!lead || !source?.pipeline) throw new Error("Eintrag nicht gefunden");
+  return { lead, funnel: source.funnel, sourceLabel: source.label, pipeline: source.pipeline };
 }
 
 function refresh(lead: Lead) {
@@ -75,7 +74,9 @@ export async function updateValue(formData: FormData) {
 export async function addNote(formData: FormData) {
   await requireAdmin();
   const { lead } = await loadLead(String(formData.get("leadId")));
-  const text = String(formData.get("note") ?? "").trim().slice(0, 10000);
+  const text = String(formData.get("note") ?? "")
+    .trim()
+    .slice(0, 10000);
   if (!text) return;
   await addActivity(lead.id, "note", text);
   refresh(lead);
@@ -85,9 +86,9 @@ export type AiState = { error?: string; ok?: boolean };
 
 export async function createBriefing(_prev: AiState, formData: FormData): Promise<AiState> {
   await requireAdmin();
-  const { lead, funnel, pipeline } = await loadLead(String(formData.get("leadId")));
+  const { lead, funnel, sourceLabel, pipeline } = await loadLead(String(formData.get("leadId")));
   try {
-    await saveBriefing(lead.id, await generateBriefing(lead, funnel, pipeline));
+    await saveBriefing(lead.id, await generateBriefing(lead, { label: sourceLabel, funnel }, pipeline));
   } catch (error) {
     if (error instanceof AiError) return { error: error.message };
     throw error;
@@ -98,11 +99,13 @@ export async function createBriefing(_prev: AiState, formData: FormData): Promis
 
 export async function createFollowUp(_prev: AiState, formData: FormData): Promise<AiState> {
   await requireAdmin();
-  const { lead, funnel, pipeline } = await loadLead(String(formData.get("leadId")));
-  const notes = String(formData.get("notes") ?? "").trim().slice(0, 50000);
+  const { lead, funnel, sourceLabel, pipeline } = await loadLead(String(formData.get("leadId")));
+  const notes = String(formData.get("notes") ?? "")
+    .trim()
+    .slice(0, 50000);
   if (notes.length < 20) return { error: "Bitte Gesprächsnotizen oder ein Transkript einfügen (mindestens 20 Zeichen)." };
   try {
-    const followup = await generateFollowUp(lead, funnel, pipeline, notes);
+    const followup = await generateFollowUp(lead, { label: sourceLabel, funnel }, pipeline, notes);
     await addActivity(lead.id, "note", notes);
     await saveFollowup(lead.id, followup);
   } catch (error) {

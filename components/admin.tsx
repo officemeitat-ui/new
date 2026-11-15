@@ -6,7 +6,7 @@ import { formatDateTime } from "@/lib/format";
 
 export function Kpi({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="h-full rounded-xl border border-slate-200 bg-white p-5">
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
@@ -29,7 +29,8 @@ export function StageBadge({ pipeline, stageId }: { pipeline: Pipeline; stageId:
   );
 }
 
-export function QualifiedBadge({ qualified }: { qualified: boolean }) {
+export function QualifiedBadge({ qualified }: { qualified: boolean | null }) {
+  if (qualified === null) return null;
   return qualified ? (
     <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">qualifiziert</span>
   ) : (
@@ -67,7 +68,7 @@ export function LeadTable({ leads, pipelineFor }: { leads: Lead[]; pipelineFor: 
                 <td className="px-4 py-3 text-slate-600">{lead.company ?? "–"}</td>
                 <td className="px-4 py-3 text-slate-600">{pipeline?.label ?? lead.funnel}</td>
                 <td className="px-4 py-3">{pipeline ? <StageBadge pipeline={pipeline} stageId={lead.stage} /> : lead.stage}</td>
-                <td className="px-4 py-3 tabular-nums">{lead.score}</td>
+                <td className="px-4 py-3 tabular-nums">{lead.score ?? "–"}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-slate-500">{formatDateTime(lead.createdAt)}</td>
               </tr>
             );

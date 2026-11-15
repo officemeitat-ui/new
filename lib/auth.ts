@@ -1,7 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { secretsMatch } from "@/lib/secrets";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
 export function adminConfigured(): boolean {
@@ -10,10 +10,7 @@ export function adminConfigured(): boolean {
 
 export function passwordMatches(input: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  const a = createHash("sha256").update(input).digest();
-  const b = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(a, b);
+  return expected ? secretsMatch(input, expected) : false;
 }
 
 export async function isAdmin(): Promise<boolean> {

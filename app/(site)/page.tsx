@@ -8,9 +8,7 @@ export default function HomePage() {
     <>
       <section className="bg-gradient-to-b from-brand-soft to-white px-4 pt-16 pb-20 sm:pt-24">
         <div className="mx-auto max-w-4xl text-center">
-          <p className="mb-4 inline-block rounded-full bg-white px-4 py-1 text-sm font-medium text-brand shadow-sm">
-            {hero.eyebrow}
-          </p>
+          <p className="mb-4 inline-block rounded-full bg-white px-4 py-1 text-sm font-medium text-brand shadow-sm">{hero.eyebrow}</p>
           <h1 className="text-4xl font-extrabold tracking-tight text-balance sm:text-6xl">{hero.title}</h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-pretty text-slate-600">{hero.subtitle}</p>
           <div className="mt-10 flex flex-col items-center gap-3">

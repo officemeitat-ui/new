@@ -3,7 +3,11 @@ import { createHmac } from "node:crypto";
 
 export type WebhookEvent =
   | { event: "lead.created"; lead: Record<string, unknown> }
-  | { event: "lead.stage_changed"; leadId: string; from: string; to: string };
+  | { event: "lead.stage_changed"; leadId: string; from: string; to: string }
+  | { event: "appointment.booked"; appointmentId: string; leadId: string | null; service: string; start: string; name: string }
+  | { event: "callback.requested"; leadId: string; name: string; phone: string; concern: string; urgent: boolean }
+  | { event: "call.ended"; callId: string; leadId: string | null; phone: string | null; summary: string | null }
+  | { event: "email.received"; emailId: string; leadId: string | null; category: string; urgent: boolean; summary: string };
 
 /**
  * Sendet ein Ereignis an WEBHOOK_URL (z. B. n8n, Make, Zapier oder ein CRM).

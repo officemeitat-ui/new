@@ -22,7 +22,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               Karriere
             </Link>
             <Link href="/termin" className="rounded-lg bg-brand px-4 py-2 text-white hover:bg-brand-dark">
-              Erstgespräch
+              Potentialanalyse
             </Link>
           </nav>
         </div>

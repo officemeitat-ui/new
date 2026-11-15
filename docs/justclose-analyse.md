@@ -1,3 +1,6 @@
+> **Stand:** Diese erste Analyse ist überholt – die Richtung ist jetzt das KI-Mitarbeiter-Angebot, siehe
+> [ki-mitarbeiter-angebot.md](ki-mitarbeiter-angebot.md).
+
 # JustClose (justclose.de) – Analyse & Machbarkeit
 
 > **Hinweis zur Quellenlage:** justclose.de konnte aus der Cloud-Umgebung nicht direkt geladen werden

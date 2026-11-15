@@ -10,7 +10,7 @@ export const site = {
   timeZone: "Europe/Vienna",
   brand: {
     name: "Musterfirma",
-    claim: "Vertriebssysteme für B2B-Dienstleister",
+    claim: "KI-Mitarbeiter für Betriebe in Österreich",
     /** Primärfarbe (CSS-Farbwert), wird als --brand gesetzt. */
     color: "#4f46e5",
   },
@@ -26,51 +26,51 @@ export const site = {
   },
 
   hero: {
-    eyebrow: "Für B2B-Dienstleister mit 5–100 Mitarbeitenden",
-    title: "Planbar neue Kunden gewinnen – statt auf Empfehlungen zu hoffen",
+    eyebrow: "Für Betriebe, die Telefon und Postfach nicht mehr bremsen sollen",
+    title: "Ihr KI-Mitarbeiter nimmt Anrufe an, beantwortet E-Mails und vereinbart Termine",
     subtitle:
-      "Wir bauen mit Ihnen ein Vertriebssystem aus klarer Zielkunden-Definition, Kampagnen und einem sauberen Pipeline-Prozess. Sie sprechen nur noch mit Interessenten, die wirklich passen.",
-    cta: "Kostenloses Erstgespräch sichern",
-    ctaHint: "60 Sekunden Vorqualifizierung · unverbindlich",
+      "Rund um die Uhr erreichbar, ohne zusätzliches Personal. Wir richten den KI-Mitarbeiter mit Ihrem Wissen, Ihren Öffnungszeiten und Ihrem Kalender ein – Sie behalten die Kontrolle und sehen jeden Monat, was er erledigt hat.",
+    cta: "Kostenlose Potentialanalyse sichern",
+    ctaHint: "60 Sekunden Fragebogen · unverbindlich",
     bullets: [
-      "Vorqualifizierte Termine statt Kaltakquise",
-      "Ein System, das Ihr Team selbst weiterführen kann",
-      "KI-Unterstützung für Gesprächsvorbereitung und Follow-ups",
+      "Kein verpasster Anruf mehr – auch abends und am Wochenende",
+      "Antwortentwürfe, die Sie mit einem Klick freigeben",
+      "Eingerichtet und betreut von uns – kein Technik-Projekt für Sie",
     ],
   },
 
   problems: {
-    title: "Kommt Ihnen das bekannt vor?",
+    title: "Wo Ihrem Betrieb jeden Tag Zeit und Aufträge verloren gehen",
     items: [
       {
-        title: "Wachstum hängt an Empfehlungen",
-        text: "Gute Monate und leere Monate wechseln sich ab – planbar ist der Umsatz nicht.",
+        title: "Das Telefon läutet im falschen Moment",
+        text: "Mitten in der Arbeit, in der Mittagspause oder nach Feierabend. Wer nicht durchkommt, ruft beim Mitbewerb an.",
       },
       {
-        title: "Vertrieb passiert nebenbei",
-        text: "Geschäftsführung und Fachleute verkaufen zwischen zwei Projekten. Follow-ups bleiben liegen.",
+        title: "Das Postfach frisst den Vormittag",
+        text: "Immer gleiche Fragen zu Preisen, Öffnungszeiten und Terminen – jede einzeln beantwortet, oft erst Tage später.",
       },
       {
-        title: "Falsche Gespräche",
-        text: "Viele Erstgespräche, wenige Abschlüsse – weil Budget, Bedarf oder Timing nicht passen.",
+        title: "Terminvereinbarung als Pingpong",
+        text: "Drei E-Mails und zwei Rückrufe für einen Termin. Angebote, bei denen niemand nachfasst, versanden.",
       },
     ],
   },
 
   process: {
-    title: "In drei Phasen zum planbaren Vertrieb",
+    title: "In drei Schritten zum eigenen KI-Mitarbeiter",
     steps: [
       {
-        title: "Zielkunden & Angebot schärfen",
-        text: "Wir definieren Ihr Ideal Customer Profile, das Kernproblem Ihrer Kunden und ein Angebot, das sich klar abhebt.",
+        title: "Potentialanalyse",
+        text: "Wir schauen uns an, wo Anrufe, E-Mails und Termine bei Ihnen Zeit kosten, und rechnen gemeinsam durch, was ein KI-Mitarbeiter einspart.",
       },
       {
-        title: "Kampagnen & Vorqualifizierung",
-        text: "Gezielte Ansprache über LinkedIn und Anzeigen, ein Funnel mit Vorqualifizierung und automatischer Terminbuchung.",
+        title: "Einrichtung bei Ihnen",
+        text: "Wir richten Telefon- und E-Mail-Assistent mit Ihren Leistungen, Öffnungszeiten und Ihrem Kalender ein. Zum Start schreibt er Entwürfe, die Sie freigeben.",
       },
       {
-        title: "Pipeline, Forecast & Coaching",
-        text: "Ein klarer Prozess vom Erstgespräch bis zum Abschluss – mit Forecast, Gesprächsleitfäden und KI-Follow-ups.",
+        title: "Betreuung & Ausbau",
+        text: "Jeden Monat ein Bericht: angenommene Anrufe, gebuchte Termine, gesparte Stunden. Läuft alles rund, übernimmt der KI-Mitarbeiter weitere Aufgaben.",
       },
     ],
   },
@@ -79,21 +79,21 @@ export const site = {
     title: "Was Kunden sagen",
     items: [
       {
-        quote: "Hier steht ein echtes Kundenzitat mit einem konkreten, belegbaren Ergebnis.",
+        quote: "Hier steht ein echtes Kundenzitat mit einem konkreten, belegbaren Ergebnis, z. B. verpasste Anrufe vorher und nachher.",
         name: "Vorname Nachname",
-        role: "Geschäftsführung, Beispiel IT GmbH",
+        role: "Inhaber, Beispiel Kfz-Werkstatt",
         placeholder: true,
       },
       {
-        quote: "Zweites Kundenzitat – idealerweise mit Zahlen: Zeitraum, Anzahl Termine, Abschlüsse.",
+        quote: "Zweites Kundenzitat – idealerweise mit Zahlen: gebuchte Termine pro Monat, eingesparte Stunden.",
         name: "Vorname Nachname",
-        role: "Head of Sales, Beispiel Software GmbH",
+        role: "Geschäftsführung, Beispiel Installateur GmbH",
         placeholder: true,
       },
       {
-        quote: "Drittes Kundenzitat, z. B. zur Zusammenarbeit oder zum Recruiting-Funnel.",
+        quote: "Drittes Kundenzitat, z. B. zur Einrichtung vor Ort oder zur laufenden Betreuung.",
         name: "Vorname Nachname",
-        role: "CEO, Beispiel Consulting GmbH",
+        role: "Praxismanagement, Beispiel Physiotherapie",
         placeholder: true,
       },
     ],
@@ -103,31 +103,35 @@ export const site = {
     title: "Häufige Fragen",
     items: [
       {
-        q: "Für wen ist das Angebot gedacht?",
-        a: "Für B2B-Dienstleister und Softwarefirmen mit etwa 5 bis 100 Mitarbeitenden, die ihren Vertrieb unabhängiger von Empfehlungen machen wollen.",
+        q: "Merken Anrufer, dass sie mit einer KI sprechen?",
+        a: "Ja. Der Assistent stellt sich als KI vor – das ist gesetzlich vorgeschrieben und schafft Vertrauen. Er spricht natürlich, versteht österreichisches Deutsch und hält sich kurz.",
       },
       {
-        q: "Wie läuft das Erstgespräch ab?",
-        a: "Nach einer kurzen Vorqualifizierung buchen Sie direkt einen Termin. Im Gespräch analysieren wir Ihre aktuelle Neukundengewinnung und zeigen konkrete nächste Schritte – unverbindlich.",
+        q: "Was passiert, wenn die KI etwas nicht weiß?",
+        a: "Sie erfindet nichts. Bei Fragen außerhalb ihres Wissens, Reklamationen oder dringenden Fällen notiert sie einen Rückruf und informiert Ihr Team sofort – oder verbindet direkt weiter.",
       },
       {
-        q: "Machen Sie Kaltakquise per E-Mail?",
-        a: "Nein. Unaufgeforderte Werbe-E-Mails sind in Österreich und Deutschland auch im B2B-Bereich grundsätzlich unzulässig. Wir setzen auf LinkedIn, Anzeigen und Inbound.",
+        q: "Ersetzt der KI-Mitarbeiter mein Team?",
+        a: "Er nimmt Ihrem Team die wiederkehrende Routine ab, damit es sich auf Kunden und Aufträge konzentrieren kann. Was er erledigt, sehen Sie jederzeit im Cockpit.",
       },
       {
-        q: "Wie schnell sehen wir Ergebnisse?",
-        a: "Das hängt von Markt, Angebot und Ausgangslage ab. Im Erstgespräch geben wir eine ehrliche Einschätzung.",
+        q: "Funktioniert das mit meinem Telefon und Postfach?",
+        a: "Ja. Ihre bestehende Nummer leitet auf den Assistenten weiter, Ihr E-Mail-Postfach wird angebunden. Termine landen in einem Kalender, neue Kontakte auf Wunsch auch in Ihrem CRM.",
       },
       {
-        q: "Was passiert mit meinen Daten?",
-        a: "Ihre Angaben werden ausschließlich zur Bearbeitung Ihrer Anfrage verwendet. Details finden Sie in der Datenschutzerklärung.",
+        q: "Was kostet das?",
+        a: "Eine einmalige Einrichtung und eine monatliche Pauschale, abhängig davon, welche Aufgaben der KI-Mitarbeiter übernimmt. In der Potentialanalyse rechnen wir durch, ob es sich für Sie lohnt.",
+      },
+      {
+        q: "Was passiert mit meinen Daten und denen meiner Kunden?",
+        a: "Wir schließen einen Auftragsverarbeitungsvertrag ab und legen alle eingesetzten Dienstleister offen. Details finden Sie in der Datenschutzerklärung.",
       },
     ],
   },
 
   finalCta: {
-    title: "Bereit für planbares Wachstum?",
-    text: "Beantworten Sie fünf kurze Fragen und sichern Sie sich ein kostenloses Erstgespräch.",
+    title: "Wie viel Zeit könnte Ihr Betrieb sparen?",
+    text: "Beantworten Sie fünf kurze Fragen und sichern Sie sich eine kostenlose Potentialanalyse.",
   },
 
   recruiting: {
@@ -141,6 +145,20 @@ export const site = {
 };
 
 export const pipelines: Record<string, Pipeline> = {
+  anfragen: {
+    id: "anfragen",
+    label: "Anfragen",
+    itemLabel: "Anfrage",
+    trackValue: false,
+    defaultValue: 0,
+    stages: [
+      { id: "neu", label: "Neu", probability: 10 },
+      { id: "in_bearbeitung", label: "In Bearbeitung", probability: 30 },
+      { id: "termin", label: "Termin vereinbart", probability: 70 },
+      { id: "erledigt", label: "Erledigt", probability: 100, closed: "won" },
+      { id: "kein_bedarf", label: "Kein Bedarf", probability: 0, closed: "lost" },
+    ],
+  },
   vertrieb: {
     id: "vertrieb",
     label: "Vertrieb",
@@ -174,81 +192,81 @@ export const pipelines: Record<string, Pipeline> = {
 };
 
 export const funnels: Record<string, Funnel> = {
-  erstgespraech: {
-    id: "erstgespraech",
+  potentialanalyse: {
+    id: "potentialanalyse",
     pipelineId: "vertrieb",
-    title: "Kostenloses Erstgespräch",
-    intro: "Fünf kurze Fragen, damit wir das Gespräch optimal vorbereiten können.",
-    threshold: 7,
+    title: "Kostenlose Potentialanalyse",
+    intro: "Fünf kurze Fragen, damit wir das Gespräch auf Ihren Betrieb zuschneiden können.",
+    threshold: 9,
     stageQualified: "qualifiziert",
     stageNotQualified: "neu",
     showBooking: true,
     questions: [
       {
         id: "branche",
-        title: "Was beschreibt Ihr Unternehmen am besten?",
+        title: "In welcher Branche ist Ihr Betrieb tätig?",
         options: [
-          { id: "it", label: "IT-Dienstleister / Systemhaus", points: 3 },
-          { id: "saas", label: "Software / SaaS", points: 3 },
-          { id: "agentur", label: "Agentur / Beratung", points: 2 },
-          { id: "andere", label: "Andere Branche", points: 0 },
+          { id: "handwerk", label: "Handwerk / Bau / Installation", points: 3 },
+          { id: "kfz", label: "Kfz-Werkstatt / Autohandel", points: 3 },
+          { id: "gesundheit", label: "Praxis / Therapie / Gesundheit", points: 2 },
+          { id: "dienstleistung", label: "Büro / Dienstleistung / Beratung", points: 2 },
+          { id: "andere", label: "Andere Branche", points: 1 },
         ],
       },
       {
         id: "groesse",
-        title: "Wie viele Mitarbeitende hat Ihr Unternehmen?",
+        title: "Wie viele Personen arbeiten in Ihrem Betrieb?",
         options: [
-          { id: "1", label: "Nur ich", points: 0, disqualify: true },
-          { id: "2-4", label: "2–4", points: 1 },
-          { id: "5-20", label: "5–20", points: 3 },
-          { id: "21-100", label: "21–100", points: 3 },
-          { id: "100+", label: "Mehr als 100", points: 1 },
+          { id: "1", label: "Nur ich", points: 1 },
+          { id: "2-9", label: "2–9", points: 3 },
+          { id: "10-49", label: "10–49", points: 3 },
+          { id: "50+", label: "50 oder mehr", points: 2 },
         ],
       },
       {
-        id: "akquise",
-        title: "Woher kommen Ihre Neukunden heute hauptsächlich?",
+        id: "zeitfresser",
+        title: "Was kostet Sie und Ihr Team am meisten Zeit?",
         options: [
-          { id: "empfehlung", label: "Fast nur Empfehlungen", points: 3 },
-          { id: "mix", label: "Mix aus Empfehlungen und eigenem Vertrieb", points: 2 },
-          { id: "vertrieb", label: "Eigenes Vertriebsteam", points: 1 },
-          { id: "keine", label: "Bisher kaum Neukunden", points: 1 },
+          { id: "telefon", label: "Telefon und Erreichbarkeit", points: 3 },
+          { id: "emails", label: "E-Mails und Anfragen", points: 3 },
+          { id: "termine", label: "Terminvereinbarung", points: 3 },
+          { id: "nachfassen", label: "Angebote nachfassen", points: 2 },
+          { id: "buero", label: "Belege und Büroarbeit", points: 1 },
+        ],
+      },
+      {
+        id: "anrufe",
+        title: "Wie viele Anrufe bekommen Sie ungefähr pro Tag?",
+        options: [
+          { id: "unter10", label: "Unter 10", points: 1 },
+          { id: "10-30", label: "10–30", points: 3 },
+          { id: "ueber30", label: "Mehr als 30", points: 3 },
         ],
       },
       {
         id: "timing",
-        title: "Wann möchten Sie das Thema angehen?",
+        title: "Wann möchten Sie starten?",
         options: [
-          { id: "sofort", label: "Sofort", points: 3 },
+          { id: "sofort", label: "So bald wie möglich", points: 3 },
           { id: "quartal", label: "In den nächsten 3 Monaten", points: 2 },
           { id: "spaeter", label: "Später / nur informieren", points: 0 },
-        ],
-      },
-      {
-        id: "budget",
-        title: "Ist ein Budget für Vertrieb und Marketing vorgesehen?",
-        hint: "Hilft uns, realistische Vorschläge zu machen.",
-        options: [
-          { id: "ja", label: "Ja, Budget ist eingeplant", points: 3 },
-          { id: "klaeren", label: "Muss noch geklärt werden", points: 1 },
-          { id: "nein", label: "Nein", points: 0, disqualify: true },
         ],
       },
     ],
     contactFields: [
       { id: "name", label: "Vor- und Nachname", type: "text", required: true },
-      { id: "email", label: "Geschäftliche E-Mail", type: "email", required: true },
-      { id: "company", label: "Unternehmen", type: "text", required: true },
+      { id: "email", label: "E-Mail", type: "email", required: true },
+      { id: "company", label: "Betrieb", type: "text", required: true },
       { id: "phone", label: "Telefon", type: "tel", required: false },
     ],
     outcome: {
       qualified: {
-        title: "Passt! Wählen Sie jetzt Ihren Termin.",
-        text: "Basierend auf Ihren Angaben können wir Ihnen im Erstgespräch konkret weiterhelfen.",
+        title: "Ihr Betrieb hat Potenzial – wählen Sie jetzt Ihren Termin.",
+        text: "Im Gespräch rechnen wir gemeinsam durch, wo ein KI-Mitarbeiter Ihnen die meiste Zeit spart.",
       },
       notQualified: {
         title: "Danke für Ihre Angaben!",
-        text: "Aktuell passt unser Angebot vermutlich noch nicht optimal zu Ihrer Situation. Wir sehen uns Ihre Anfrage trotzdem an und melden uns, falls wir helfen können.",
+        text: "Wir sehen uns Ihre Situation an und melden uns per E-Mail mit einer ehrlichen Einschätzung, ob sich ein KI-Mitarbeiter für Sie lohnt.",
       },
     },
   },
@@ -320,6 +338,23 @@ export const funnels: Record<string, Funnel> = {
     },
   },
 };
+
+/** Kanäle der KI-Mitarbeiter: Kontakte aus Anrufen und E-Mails landen in der angegebenen Pipeline. */
+export type Channel = { id: string; label: string; pipelineId: string; initialStage: string };
+
+export const channels: Record<string, Channel> = {
+  telefon: { id: "telefon", label: "Telefon-Assistent", pipelineId: "anfragen", initialStage: "neu" },
+  email: { id: "email", label: "E-Mail-Assistent", pipelineId: "anfragen", initialStage: "neu" },
+};
+
+/** Herkunft eines Eintrags: Funnel (mit Fragen und Bewertung) oder Kanal eines KI-Mitarbeiters. */
+export function resolveSource(id: string): { label: string; pipeline: Pipeline | undefined; funnel?: Funnel } | undefined {
+  const funnel = getFunnel(id);
+  if (funnel) return { label: funnel.title, pipeline: getPipeline(funnel.pipelineId), funnel };
+  const channel = Object.hasOwn(channels, id) ? channels[id] : undefined;
+  if (channel) return { label: channel.label, pipeline: getPipeline(channel.pipelineId) };
+  return undefined;
+}
 
 export function getFunnel(id: string): Funnel | undefined {
   return Object.hasOwn(funnels, id) ? funnels[id] : undefined;

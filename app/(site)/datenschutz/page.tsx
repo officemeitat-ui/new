@@ -28,14 +28,19 @@ export default function DatenschutzPage() {
           <li>Terminbuchung: [z. B. Cal.com oder Calendly]</li>
           <li>CRM / Automatisierung: [z. B. HubSpot, Pipedrive, n8n]</li>
           <li>
-            KI-gestützte Gesprächsvorbereitung und -nachbereitung: Anthropic (Claude API). Ihre Angaben werden dafür an Anthropic übermittelt.
+            KI-gestützte Gesprächsvorbereitung und -nachbereitung sowie E-Mail-Assistent: Anthropic (Claude API). Ihre Angaben werden dafür
+            an Anthropic übermittelt.
+          </li>
+          <li>
+            Telefon-Assistent: [z. B. Vapi, Telefonie-Anbieter, Sprachdienst]. Anrufe werden zur Bearbeitung transkribiert und
+            zusammengefasst.
           </li>
         </ul>
         <h2 className="text-xl font-semibold text-slate-900">Speicherdauer und Ihre Rechte</h2>
         <p>
           Wir speichern Ihre Daten, solange es für die Bearbeitung erforderlich ist, Bewerbungsdaten höchstens sieben Monate nach Abschluss
-          des Verfahrens. Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch sowie
-          auf Widerruf Ihrer Einwilligung. Beschwerden können Sie bei der Datenschutzbehörde einbringen.
+          des Verfahrens. Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit und Widerspruch
+          sowie auf Widerruf Ihrer Einwilligung. Beschwerden können Sie bei der Datenschutzbehörde einbringen.
         </p>
       </div>
     </Section>
