@@ -26,9 +26,10 @@ und laufender Betreuung. Angreifbar sind sie bei Datenschutz (fast alles auf US-
 |---|---|---|
 | Telefon-Assistent | fertig (Vapi-Anbindung, Terminbuchung, Rückrufe, Protokoll) | keine verpassten Anrufe, Termine rund um die Uhr |
 | E-Mail-Assistent | fertig (IMAP/SMTP, Einordnung, Entwürfe, Autonom-Modus) | Postfach in Minuten statt Stunden |
-| Cockpit mit Wirkungszahlen | fertig | Kontrolle und Monatsbericht, Grundlage für Verlängerung und Ausbau |
+| Cockpit mit Wirkungszahlen | fertig | Kontrolle im Alltag |
+| Monatsbericht (Seite, PDF, E-Mail) | fertig | Grundlage für Quartalsgespräch, Verlängerung und Ausbau |
+| Kalender-Sync Google/Microsoft 365 | fertig | Assistent bucht direkt im Kalender, den der Betrieb schon nutzt |
 | Nachfass-Assistent (Angebote, Bewertungen) | offen | mehr Abschlüsse aus bestehenden Anfragen |
-| Kalender-Sync Google/Outlook | offen, **wichtig** | viele Betriebe haben schon einen Kalender |
 | WhatsApp-Kanal | offen | bevorzugter Kanal vieler Kunden |
 
 **Abgrenzung zum Vorbild:** Preise transparent, Datenschutz offen dokumentiert, keine Werbeanrufe.
@@ -63,7 +64,8 @@ Das Cockpit zeigt dem Kunden jeden Monat schwarz auf weiß, was der KI-Mitarbeit
 
 ## 5. Kundenbetreuung
 
-- **Monatsbericht** aus den Wirkungszahlen im Dashboard: Anrufe, Termine, E-Mails, geschätzte Zeitersparnis.
+- **Monatsbericht** (Cockpit → Bericht, automatisch per E-Mail am Monatsanfang): Anrufe, Termine, Rückrufwünsche, E-Mails,
+  geschätzte Zeitersparnis, jeweils mit Vergleich zum Vormonat.
 - **Quartalsgespräch** mit dem Inhaber: Was hat es gebracht, was ist der nächste KI-Mitarbeiter? Hier entsteht der Zusatzverkauf.
 - **Warnsignale:** wenig Anrufe oder E-Mails, viele verworfene Entwürfe, viele Rückrufwünsche. Dann früh nachjustieren.
 
@@ -82,5 +84,5 @@ Das Cockpit zeigt dem Kunden jeden Monat schwarz auf weiß, was der KI-Mitarbeit
 |---|---|
 | Woche 1 | Konten anlegen (Vapi, Nummer, Anthropic, Hosting), Cockpit für den **eigenen Betrieb** live schalten und selbst nutzen |
 | Woche 2 | Vorführ-Betriebsprofile für 2–3 Zielbranchen, Leitfaden für Potentialanalyse und ROI-Rechnung, AGB/AVV beauftragen |
-| Woche 3–4 | 2–3 Pilotkunden zum Vorzugspreis gegen Video-Referenz, Kalender-Sync bauen |
+| Woche 3–4 | 2–3 Pilotkunden zum Vorzugspreis gegen Video-Referenz, deren Google- oder Microsoft-Kalender anbinden |
 | Monat 2–3 | Meta-Anzeigen starten, Nachfass-Assistent und Monatsbericht per E-Mail, Preise schärfen |

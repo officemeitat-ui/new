@@ -18,7 +18,7 @@ const profile: BusinessProfile = {
     so: [],
   },
   closedDates: ["2026-11-24"],
-  booking: { slotStepMinutes: 60, capacity: 1, minLeadHours: 2, maxDaysAhead: 30 },
+  booking: { slotStepMinutes: 60, capacity: 1, minLeadHours: 2, maxDaysAhead: 30, externalEvents: "alles" },
 };
 
 // Sonntag, 15.11.2026, 12:00 Uhr Wiener Zeit

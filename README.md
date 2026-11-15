@@ -28,6 +28,16 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
 - Antwortet nie auf automatische Absender oder die eigene Adresse (keine Antwort-Schleifen)
 - „Test-E-Mail simulieren“ im Cockpit für Vorführungen ohne echtes Postfach
 
+**Kalender**
+- Interner Kalender, oder angebunden an **Google Kalender** bzw. **Microsoft 365 / Outlook**: Einträge dort (auch ganztägige wie Urlaub) zählen als belegt,
+  neue Buchungen werden eingetragen, Stornos gelöscht
+- Ist der externe Kalender nicht erreichbar, wird nicht gebucht. Der Telefon-Assistent bietet dann einen Rückruf an, es gibt keine Doppelbuchung.
+- Übertragungsfehler sind im Cockpit markiert und lassen sich per Klick nachholen. Mit „Verbindung testen“ lässt sich die Anbindung prüfen.
+
+**Monatsbericht**
+- Cockpit → Bericht: Anrufe, Termine, Rückrufwünsche, E-Mails, Gesprächszeit und geschätzte Zeitersparnis, jeweils im Vergleich zum Vormonat
+- Druckbar bzw. als PDF speicherbar. Wird am Monatsanfang automatisch per E-Mail verschickt (`/api/cron/report`).
+
 **Cockpit (`/admin`)**
 - Dashboard mit **Wirkung**: angenommene Anrufe, gebuchte Termine, bearbeitete E-Mails, geschätzte Zeitersparnis (Grundlage für den Monatsbericht)
 - E-Mails (Freigabe), Anrufe (Zusammenfassung, Transkript, Aufnahme), Termine (Kalender, manuell eintragen, stornieren)
@@ -51,7 +61,7 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
 | Befehl | Zweck |
 |---|---|
-| `npm test` | Unit- und Integrationstests (Kalender, Buchung, Telefon-Webhook, E-Mail-Verarbeitung inkl. SMTP) |
+| `npm test` | Unit- und Integrationstests (Kalender, Buchung, Google/Microsoft-Anbindung gegen nachgebaute APIs, Telefon-Webhook, E-Mail inkl. SMTP, Monatsbericht) |
 | `npm run typecheck` | TypeScript-Prüfung |
 | `npm run build` / `npm start` | Produktions-Build |
 | `npm run vapi:connect` | Telefonnummer in Vapi mit dieser Installation verbinden |
@@ -73,7 +83,22 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
       `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/mail`
       (oder per Vercel Cron, der diesen Header bei gesetztem `CRON_SECRET` selbst mitschickt).
    3. Zum Start Modus „Entwurf“. Nach ein paar Wochen Vertrauen auf „autonom“ umstellen.
-5. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
+5. **Kalender** (optional, `CALENDAR_PROVIDER`):
+   - *Google:*
+     1. In der Google Cloud Console die Google Calendar API aktivieren.
+     2. Ein Dienstkonto anlegen und einen JSON-Schlüssel erzeugen. Dessen Inhalt kommt in `GOOGLE_SERVICE_ACCOUNT_JSON`.
+     3. Den Kalender des Betriebs in Google Kalender für die `client_email` des Dienstkontos freigeben, mit „Änderungen an Terminen vornehmen“.
+     4. `GOOGLE_CALENDAR_ID` aus den Kalendereinstellungen setzen (beim Hauptkalender die E-Mail-Adresse).
+   - *Microsoft 365:*
+     1. Im Entra-Admin-Center eine App registrieren.
+     2. Die Anwendungsberechtigung `Calendars.ReadWrite` mit Administratorzustimmung vergeben und ein Client-Secret anlegen.
+     3. Den Zugriff per Application Access Policy auf das eine Postfach beschränken.
+     4. `MS_*` setzen.
+   - Danach im Cockpit unter Termine auf „Verbindung testen“ klicken.
+   - `booking.externalEvents` in `config/business.ts` regelt, ob ein externer Eintrag alle Plätze blockiert (Standard) oder nur einen.
+6. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
+7. **Monatsbericht:** am 1. jedes Monats `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/report` aufrufen.
+   Empfänger ist `REPORT_EMAIL` (sonst `TEAM_NOTIFY_EMAIL`).
 
 ## Webhook-Ereignisse
 
@@ -98,12 +123,15 @@ Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_S
 config/business.ts       Betriebsprofil des Kunden (Wissen, Öffnungszeiten, Leistungen, Assistent)
 config/site.ts           Website-Texte, Funnels, Pipelines, Kanäle
 lib/calendar.ts          Terminlogik (zeitzonenfest, rein funktional)
-lib/appointments.ts      Buchungen mit Kapazitätsprüfung in einer Transaktion
+lib/appointments.ts      Buchungen mit Kapazitätsprüfung in einer Transaktion, Abgleich mit externem Kalender
+lib/calendar-sync/       Google Kalender (Dienstkonto) und Microsoft 365 (Graph)
 lib/voice/               Telefon-Assistent: Vapi-Konfiguration und Webhook-Verarbeitung
 lib/mail/                E-Mail-Assistent: Auswertung (Claude), IMAP, SMTP, Verarbeitung
 lib/stats.ts             Kennzahlen zur Wirkung
+lib/report.ts            Monatsbericht (Seite und E-Mail-Text)
 app/api/voice/vapi/      Webhook für Vapi
 app/api/cron/mail/       Postfach-Abruf
+app/api/cron/report/     Versand des Monatsberichts
 app/admin/               Cockpit
 app/(site)/              Website und Funnels
 scripts/vapi-connect.mjs Telefonnummer verbinden

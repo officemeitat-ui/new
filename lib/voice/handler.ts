@@ -4,6 +4,7 @@ import { business, getService } from "@/config/business";
 import { bookAppointment } from "@/lib/appointments";
 import { offerSlots, SEARCH_DAYS } from "@/lib/availability";
 import { formatSlot, localDate } from "@/lib/calendar";
+import { CalendarSyncError } from "@/lib/calendar-sync";
 import { saveCall } from "@/lib/calls";
 import { ensureContact, markAppointmentStage } from "@/lib/contacts";
 import { addActivity, findLeadByContact, normalizePhone } from "@/lib/leads";
@@ -84,6 +85,9 @@ async function book(args: z.infer<typeof BookArgs>, ctx: Context): Promise<strin
     { serviceId: service.id, start, name: args.name, phone, notes: args.notiz, leadId: lead.id, source: "telefon" },
     ctx.now,
   );
+  if (!result.ok && result.reason === "kalender_nicht_erreichbar") {
+    return "Der Kalender ist gerade nicht erreichbar, der Termin wurde NICHT gebucht. Biete einen Rückruf an.";
+  }
   if (!result.ok) {
     const alternatives = await offerSlots(service.id, localDate(start, business.timeZone), ctx.now);
     return JSON.stringify({
@@ -112,7 +116,7 @@ async function requestCallback(args: z.infer<typeof CallbackArgs>, ctx: Context)
   const lead = await ensureContact("telefon", { name: args.name, phone });
   await addActivity(
     lead.id,
-    "call",
+    "callback",
     `Rückrufwunsch${args.dringend ? " (DRINGEND)" : ""}: ${args.anliegen} – Tel. ${normalizePhone(phone)}`,
   );
   ctx.events.push({
@@ -150,6 +154,7 @@ async function runTool(name: string, rawArgs: unknown, ctx: Context): Promise<{ 
     return { result: await tool.run(parsed.data as never, ctx) };
   } catch (error) {
     console.error(`Werkzeug ${name} fehlgeschlagen:`, error);
+    if (error instanceof CalendarSyncError) return { error: "Der Kalender ist gerade nicht erreichbar. Biete einen Rückruf an." };
     return { error: "Interner Fehler. Biete einen Rückruf an." };
   }
 }

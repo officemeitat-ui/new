@@ -28,7 +28,7 @@ export type Lead = {
   updatedAt: string;
 };
 
-export type ActivityType = "created" | "stage" | "value" | "note" | "ai" | "call" | "email" | "appointment";
+export type ActivityType = "created" | "stage" | "value" | "note" | "ai" | "call" | "callback" | "email" | "appointment";
 
 export type Activity = {
   id: number;

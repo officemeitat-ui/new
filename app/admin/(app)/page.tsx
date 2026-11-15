@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   await requireAdmin();
   const since = new Date(Date.now() - DAYS * 24 * 60 * 60 * 1000);
   const [impact, recent, sections] = await Promise.all([
-    impactStats(since),
+    impactStats(since, new Date()),
     listLeads().then((leads) => leads.slice(0, 10)),
     Promise.all(
       Object.values(pipelines).map(async (pipeline) => {

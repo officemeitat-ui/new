@@ -38,6 +38,11 @@ export type BusinessProfile = {
     minLeadHours: number;
     /** Spätester Termin: so viele Tage im Voraus. */
     maxDaysAhead: number;
+    /**
+     * Wie Einträge im externen Kalender (Google/Microsoft) zählen: „alles“ = blockieren den Zeitraum komplett
+     * (z. B. Urlaub, Zahnarzt), „ein_platz“ = belegen nur einen von mehreren Plätzen (wenn pro Platz ein Eintrag geführt wird).
+     */
+    externalEvents: "alles" | "ein_platz";
   };
   faq: { q: string; a: string }[];
   assistant: {
@@ -116,7 +121,7 @@ export const business: BusinessProfile = {
       info: "Auslesen des Fehlerspeichers und Erstbefund. Bei Warnleuchten bitte den Hinweis im Display notieren.",
     },
   ],
-  booking: { slotStepMinutes: 30, capacity: 2, minLeadHours: 2, maxDaysAhead: 30 },
+  booking: { slotStepMinutes: 30, capacity: 2, minLeadHours: 2, maxDaysAhead: 30, externalEvents: "alles" },
   faq: [
     { q: "Gibt es ein Ersatzauto?", a: "Ja, nach Verfügbarkeit gegen eine kleine Gebühr. Bitte bei der Terminbuchung erwähnen." },
     { q: "Welche Marken?", a: "Alle Marken, Pkw und leichte Nutzfahrzeuge bis 3,5 Tonnen." },

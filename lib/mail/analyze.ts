@@ -3,6 +3,7 @@ import { z } from "zod";
 import { business } from "@/config/business";
 import { generateStructured } from "@/lib/ai";
 import { offerSlots } from "@/lib/availability";
+import { CalendarSyncError } from "@/lib/calendar-sync";
 import { describeOpeningHours, localDate } from "@/lib/calendar";
 import { EMAIL_CATEGORIES, type EmailCategory } from "@/lib/emails";
 
@@ -22,13 +23,18 @@ export type EmailAnalysis = z.infer<typeof EmailAnalysisSchema>;
 
 async function availabilityOverview(now: Date): Promise<string> {
   const today = localDate(now, business.timeZone);
-  const lines = await Promise.all(
-    business.services.map(async (s) => {
-      const offer = await offerSlots(s.id, today, now, { total: 3, perDay: 1 });
-      return `- ${s.name}: ${offer?.slots.length ? offer.slots.map((slot) => slot.vorlesen).join("; ") : "in den nächsten zwei Wochen nichts frei"}`;
-    }),
-  );
-  return lines.join("\n");
+  try {
+    const lines = await Promise.all(
+      business.services.map(async (s) => {
+        const offer = await offerSlots(s.id, today, now, { total: 3, perDay: 1 });
+        return `- ${s.name}: ${offer?.slots.length ? offer.slots.map((slot) => slot.vorlesen).join("; ") : "in den nächsten zwei Wochen nichts frei"}`;
+      }),
+    );
+    return lines.join("\n");
+  } catch (error) {
+    if (!(error instanceof CalendarSyncError)) throw error;
+    return "Der Kalender ist gerade nicht abrufbar. Keine konkreten Zeiten vorschlagen, sondern eine Rückmeldung mit Terminvorschlägen ankündigen.";
+  }
 }
 
 function systemPrompt(today: string, availability: string): string {

@@ -12,8 +12,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const openDrafts = (await listEmails(["entwurf", "fehler"])).length;
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-slate-100 print:bg-white">
+      <header className="border-b border-slate-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Link href="/admin" className="font-bold">
             <span className="text-brand">●</span> {site.brand.name}
@@ -31,6 +31,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </Link>
             <Link href="/admin/termine" className="hover:text-slate-900">
               Termine
+            </Link>
+            <Link href="/admin/bericht" className="hover:text-slate-900">
+              Bericht
             </Link>
             {Object.values(pipelines).map((pipeline) => (
               <Link key={pipeline.id} href={`/admin/pipeline/${pipeline.id}`} className="hover:text-slate-900">

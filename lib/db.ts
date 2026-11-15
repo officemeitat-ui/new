@@ -90,6 +90,21 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_activities_lead ON activities(lead_id, created_at)`,
 ];
 
+// Spalten, die nach der ersten Version dazugekommen sind. Bestehende Datenbanken werden beim Start ergänzt.
+const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
+  { table: "appointments", column: "external_id", definition: "TEXT" },
+  { table: "appointments", column: "sync_error", definition: "TEXT" },
+];
+
+async function addMissingColumns(client: Client): Promise<void> {
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    const info = await client.execute(`PRAGMA table_info(${table})`);
+    if (!info.rows.some((row) => row.name === column)) {
+      await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  }
+}
+
 const globalForDb = globalThis as unknown as { dbReady?: Promise<Client> };
 
 async function init(): Promise<Client> {
@@ -99,6 +114,7 @@ async function init(): Promise<Client> {
   const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN || undefined });
   await client.execute("PRAGMA foreign_keys = ON");
   await client.batch(SCHEMA, "write");
+  await addMissingColumns(client);
   return client;
 }
 

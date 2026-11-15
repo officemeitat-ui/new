@@ -2,7 +2,8 @@ import "server-only";
 import { LibsqlError, type Row } from "@libsql/client";
 import { randomUUID } from "node:crypto";
 import { business, getService } from "@/config/business";
-import { isBookable, type Busy } from "@/lib/calendar";
+import { formatSlot, isBookable, type Busy } from "@/lib/calendar";
+import { calendarProvider, CalendarSyncError, externalBusy, invalidateExternalBusy } from "@/lib/calendar-sync";
 import { db } from "@/lib/db";
 import { normalizePhone } from "@/lib/leads";
 
@@ -20,6 +21,10 @@ export type Appointment = {
   notes: string | null;
   leadId: string | null;
   source: AppointmentSource;
+  /** ID des Eintrags im externen Kalender (Google/Microsoft), sofern übertragen. */
+  externalId: string | null;
+  /** Letzter Fehler beim Übertragen in den externen Kalender. */
+  syncError: string | null;
   createdAt: string;
 };
 
@@ -36,18 +41,39 @@ function toAppointment(row: Row): Appointment {
     notes: (row.notes as string | null) ?? null,
     leadId: (row.lead_id as string | null) ?? null,
     source: String(row.source) as AppointmentSource,
+    externalId: (row.external_id as string | null) ?? null,
+    syncError: (row.sync_error as string | null) ?? null,
     createdAt: String(row.created_at),
   };
 }
 
-/** Belegte Zeiten im Zeitraum (nur gebuchte Termine). */
-export async function busyBetween(from: Date, to: Date): Promise<Busy[]> {
-  const client = await db();
-  const result = await client.execute({
-    sql: "SELECT start_at, end_at FROM appointments WHERE status = 'gebucht' AND start_at < ? AND end_at > ?",
+type Executor = { execute: Awaited<ReturnType<typeof db>>["execute"] };
+
+async function internalBusy(executor: Executor, from: Date, to: Date): Promise<(Busy & { externalId: string | null })[]> {
+  const result = await executor.execute({
+    sql: "SELECT start_at, end_at, external_id FROM appointments WHERE status = 'gebucht' AND start_at < ? AND end_at > ?",
     args: [to.toISOString(), from.toISOString()],
   });
-  return result.rows.map((r) => ({ start: new Date(String(r.start_at)), end: new Date(String(r.end_at)) }));
+  return result.rows.map((r) => ({
+    start: new Date(String(r.start_at)),
+    end: new Date(String(r.end_at)),
+    externalId: (r.external_id as string | null) ?? null,
+  }));
+}
+
+/** Gebuchte Termine plus belegte Zeiten im externen Kalender; eigene, bereits übertragene Termine zählen nur einmal. */
+function mergeBusy(internal: (Busy & { externalId: string | null })[], external: (Busy & { externalId: string })[]): Busy[] {
+  const own = new Set(internal.map((b) => b.externalId).filter(Boolean));
+  const foreign = external.filter((b) => !own.has(b.externalId));
+  // „alles“: Ein externer Eintrag belegt alle Plätze – er wird dafür so oft gezählt, wie es Plätze gibt.
+  const weight = business.booking.externalEvents === "alles" ? business.booking.capacity : 1;
+  return [...internal, ...foreign.flatMap((b) => Array.from({ length: weight }, () => b))];
+}
+
+/** Belegte Zeiten im Zeitraum: eigene Buchungen und – falls angebunden – der Kalender des Betriebs. */
+export async function busyBetween(from: Date, to: Date): Promise<Busy[]> {
+  const [internal, external] = await Promise.all([internalBusy(await db(), from, to), externalBusy(from, to)]);
+  return mergeBusy(internal, external);
 }
 
 export async function listAppointments(from: Date, to: Date): Promise<Appointment[]> {
@@ -70,7 +96,9 @@ export type BookingRequest = {
   source: AppointmentSource;
 };
 
-export type BookingResult = { ok: true; appointment: Appointment } | { ok: false; reason: "unbekannte_leistung" | "nicht_verfuegbar" };
+export type BookingResult =
+  | { ok: true; appointment: Appointment }
+  | { ok: false; reason: "unbekannte_leistung" | "nicht_verfuegbar" | "kalender_nicht_erreichbar" };
 
 // Buchungen innerhalb dieses Prozesses nacheinander ausführen; SQLite erlaubt nur einen Schreiber.
 let bookingQueue: Promise<unknown> = Promise.resolve();
@@ -99,7 +127,11 @@ async function retryWhenBusy<T>(task: () => Promise<T>, attempts = 5): Promise<T
  * damit zwei gleichzeitige Anrufe nicht denselben letzten freien Platz bekommen.
  */
 export function bookAppointment(request: BookingRequest, now = new Date()): Promise<BookingResult> {
-  return serialized(() => retryWhenBusy(() => bookInTransaction(request, now)));
+  return serialized(async () => {
+    const result = await retryWhenBusy(() => bookInTransaction(request, now));
+    if (result.ok) result.appointment = await pushToCalendar(result.appointment);
+    return result;
+  });
 }
 
 async function bookInTransaction(request: BookingRequest, now: Date): Promise<BookingResult> {
@@ -107,14 +139,21 @@ async function bookInTransaction(request: BookingRequest, now: Date): Promise<Bo
   if (!service) return { ok: false, reason: "unbekannte_leistung" };
   const end = new Date(request.start.getTime() + service.durationMinutes * 60_000);
 
+  // Externer Kalender vor der Transaktion lesen. Ist er nicht erreichbar, wird nicht gebucht (keine Doppelbuchung).
+  let external;
+  try {
+    invalidateExternalBusy();
+    external = await externalBusy(request.start, end, now.getTime());
+  } catch (error) {
+    if (!(error instanceof CalendarSyncError)) throw error;
+    console.error("Kalender nicht erreichbar:", error.message);
+    return { ok: false, reason: "kalender_nicht_erreichbar" };
+  }
+
   const client = await db();
   const tx = await client.transaction("write");
   try {
-    const busyRows = await tx.execute({
-      sql: "SELECT start_at, end_at FROM appointments WHERE status = 'gebucht' AND start_at < ? AND end_at > ?",
-      args: [end.toISOString(), request.start.toISOString()],
-    });
-    const busy = busyRows.rows.map((r) => ({ start: new Date(String(r.start_at)), end: new Date(String(r.end_at)) }));
+    const busy = mergeBusy(await internalBusy(tx, request.start, end), external);
     if (!isBookable(business, service.durationMinutes, request.start, busy, now)) {
       await tx.rollback();
       return { ok: false, reason: "nicht_verfuegbar" };
@@ -146,9 +185,67 @@ async function bookInTransaction(request: BookingRequest, now: Date): Promise<Bo
   }
 }
 
+export async function getAppointment(id: string): Promise<Appointment | null> {
+  const client = await db();
+  const result = await client.execute({ sql: "SELECT * FROM appointments WHERE id = ?", args: [id] });
+  return result.rows[0] ? toAppointment(result.rows[0]) : null;
+}
+
+async function setSyncState(id: string, externalId: string | null, syncError: string | null): Promise<void> {
+  const client = await db();
+  await client.execute({ sql: "UPDATE appointments SET external_id = ?, sync_error = ? WHERE id = ?", args: [externalId, syncError, id] });
+}
+
+/**
+ * Gleicht einen Termin mit dem externen Kalender ab: gebuchte Termine eintragen, stornierte löschen.
+ * Fehler werden am Termin vermerkt und können im Cockpit erneut versucht werden.
+ */
+export async function pushToCalendar(appointment: Appointment): Promise<Appointment> {
+  let calendar;
+  try {
+    calendar = calendarProvider();
+  } catch (error) {
+    if (!(error instanceof CalendarSyncError)) throw error;
+    await setSyncState(appointment.id, appointment.externalId, error.message);
+    return (await getAppointment(appointment.id))!;
+  }
+  if (!calendar) return appointment;
+
+  try {
+    if (appointment.status === "gebucht" && !appointment.externalId) {
+      const service = getService(appointment.serviceId);
+      const externalId = await calendar.createEvent({
+        appointmentId: appointment.id,
+        title: `${service?.name ?? appointment.serviceId} – ${appointment.name}`,
+        description: [
+          appointment.phone && `Telefon: ${appointment.phone}`,
+          appointment.email && `E-Mail: ${appointment.email}`,
+          appointment.notes && `Notiz: ${appointment.notes}`,
+          `Gebucht über: ${appointment.source} (KI-Mitarbeiter-Cockpit), ${formatSlot(appointment.start, business)}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        start: appointment.start,
+        end: appointment.end,
+      });
+      await setSyncState(appointment.id, externalId, null);
+    } else if (appointment.status === "storniert" && appointment.externalId) {
+      await calendar.deleteEvent(appointment.externalId);
+      await setSyncState(appointment.id, null, null);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Kalender-Abgleich für Termin ${appointment.id} fehlgeschlagen:`, message);
+    await setSyncState(appointment.id, appointment.externalId, message.slice(0, 500));
+  } finally {
+    invalidateExternalBusy();
+  }
+  return (await getAppointment(appointment.id))!;
+}
+
 export async function cancelAppointment(id: string): Promise<Appointment | null> {
   const client = await db();
   await client.execute({ sql: "UPDATE appointments SET status = 'storniert' WHERE id = ?", args: [id] });
-  const result = await client.execute({ sql: "SELECT * FROM appointments WHERE id = ?", args: [id] });
-  return result.rows[0] ? toAppointment(result.rows[0]) : null;
+  const appointment = await getAppointment(id);
+  return appointment ? pushToCalendar(appointment) : null;
 }
