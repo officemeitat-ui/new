@@ -94,6 +94,13 @@ const SCHEMA = [
 const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "appointments", column: "external_id", definition: "TEXT" },
   { table: "appointments", column: "sync_error", definition: "TEXT" },
+  { table: "appointments", column: "confirmation_sent_at", definition: "TEXT" },
+  { table: "appointments", column: "confirmation_channel", definition: "TEXT" },
+  { table: "appointments", column: "reminder_sent_at", definition: "TEXT" },
+  { table: "appointments", column: "reminder_channel", definition: "TEXT" },
+  { table: "appointments", column: "notify_error", definition: "TEXT" },
+  { table: "emails", column: "kind", definition: "TEXT NOT NULL DEFAULT 'eingang'" },
+  { table: "emails", column: "thread_message_id", definition: "TEXT" },
 ];
 
 async function addMissingColumns(client: Client): Promise<void> {

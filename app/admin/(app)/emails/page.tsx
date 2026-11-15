@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { business } from "@/config/business";
-import { EmailDraftForm, SimulateEmailForm } from "@/components/EmailPanels";
+import { EmailDraftForm, FollowUpButton, SimulateEmailForm } from "@/components/EmailPanels";
 import { retryEmail } from "@/app/admin/assistant-actions";
 import { requireAdmin } from "@/lib/auth";
 import { EMAIL_CATEGORIES, listEmails, type Email, type EmailStatus } from "@/lib/emails";
@@ -24,16 +24,19 @@ const statusLabel: Record<EmailStatus, string> = {
 };
 
 function EmailCard({ email, canSend }: { email: Email; canSend: boolean }) {
+  const followUp = email.kind === "nachfass";
+  const contact = email.fromName ? `${email.fromName} <${email.fromAddress}>` : email.fromAddress;
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-5">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="font-semibold">{email.subject}</p>
           <p className="text-sm text-slate-500">
-            {email.fromName ? `${email.fromName} <${email.fromAddress}>` : email.fromAddress} · {formatDateTime(email.receivedAt)}
+            {followUp ? `An ${contact} · erstellt ${formatDateTime(email.receivedAt)}` : `${contact} · ${formatDateTime(email.receivedAt)}`}
           </p>
         </div>
         <div className="flex gap-2 text-xs">
+          {followUp && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">Nachfassen</span>}
           {email.category && (
             <span className="rounded-full bg-brand-soft px-2 py-0.5 font-medium text-brand">{EMAIL_CATEGORIES[email.category]}</span>
           )}
@@ -47,7 +50,7 @@ function EmailCard({ email, canSend }: { email: Email; canSend: boolean }) {
         </Link>
       )}
       <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-slate-500">Original-E-Mail</summary>
+        <summary className="cursor-pointer text-slate-500">{followUp ? "Bisheriger Verlauf" : "Original-E-Mail"}</summary>
         <p className="mt-2 rounded-lg bg-slate-50 p-3 whitespace-pre-wrap text-slate-700">{email.body}</p>
       </details>
 
@@ -112,6 +115,8 @@ export default async function EmailsPage({ searchParams }: PageProps<"/admin/ema
           ))}
         </nav>
       </div>
+
+      <FollowUpButton />
 
       <details className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
         <summary className="cursor-pointer font-semibold">Test-E-Mail simulieren (für Vorführungen)</summary>

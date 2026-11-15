@@ -59,6 +59,27 @@ export type BusinessProfile = {
     autoSendCategories: string[];
     signature: string;
   };
+  /** Nachrichten an Kunden rund um gebuchte Termine (rein organisatorisch, keine Werbung). */
+  reminders: {
+    /** Bestätigung direkt nach der Buchung senden. */
+    confirmation: boolean;
+    /** Erinnerung so viele Stunden vor dem Termin; 0 = keine Erinnerung. */
+    hoursBefore: number;
+    /** Nur in diesem Zeitfenster (volle Stunden, Ortszeit) versenden, z. B. [8, 20]. */
+    sendBetween: [number, number];
+    /** Kanäle in bevorzugter Reihenfolge; SMS nur an Mobilnummern. */
+    channels: ("sms" | "email")[];
+  };
+  /** Nachfass-Assistent: erinnert per E-Mail an offene Anfragen. Entwürfe gehen immer zur Freigabe, nie automatisch raus. */
+  followUp: {
+    enabled: boolean;
+    /** Nach so vielen Tagen ohne Reaktion auf unsere Antwort nachfassen. */
+    afterDays: number;
+    /** Ältere Verläufe nicht mehr aufgreifen. */
+    maxAgeDays: number;
+    /** Nur bei diesen Arten von Anfragen (Kategorien des E-Mail-Assistenten). */
+    categories: string[];
+  };
   /** Annahmen für die geschätzte Zeitersparnis im Cockpit (Minuten, die ein Mensch pro Vorgang bräuchte). */
   impact: { minutesPerCall: number; minutesPerEmail: number; minutesPerAppointment: number };
   placeholder: boolean;
@@ -141,6 +162,8 @@ export const business: BusinessProfile = {
     autoSendCategories: ["terminanfrage", "allgemeine_frage"],
     signature: "Mit freundlichen Grüßen\nIhr Team der Autowerkstatt Muster\n+43 1 234 56 78",
   },
+  reminders: { confirmation: true, hoursBefore: 24, sendBetween: [8, 20], channels: ["sms", "email"] },
+  followUp: { enabled: true, afterDays: 3, maxAgeDays: 21, categories: ["terminanfrage", "angebotsanfrage"] },
   impact: { minutesPerCall: 4, minutesPerEmail: 6, minutesPerAppointment: 3 },
   placeholder: true,
 };

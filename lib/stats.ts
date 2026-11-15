@@ -46,7 +46,10 @@ export async function impactStats(from: Date, to = new Date()): Promise<ImpactSt
       "SELECT COUNT(*) AS n FROM appointments WHERE source = 'manuell' AND status = 'gebucht' AND created_at >= ? AND created_at < ?",
       range,
     ),
-    count("SELECT COUNT(*) AS n FROM emails WHERE status NOT IN ('neu', 'fehler') AND received_at >= ? AND received_at < ?", range),
+    count(
+      "SELECT COUNT(*) AS n FROM emails WHERE kind = 'eingang' AND status NOT IN ('neu', 'fehler') AND received_at >= ? AND received_at < ?",
+      range,
+    ),
     count("SELECT COUNT(*) AS n FROM emails WHERE status = 'gesendet' AND received_at >= ? AND received_at < ?", range),
     count("SELECT COUNT(*) AS n FROM emails WHERE status = 'entwurf'", []),
   ]);
@@ -73,7 +76,7 @@ export async function breakdown(kind: "appointmentsByService" | "emailsByCategor
           range,
         )
       : await query(
-          "SELECT category AS k, COUNT(*) AS n FROM emails WHERE status NOT IN ('neu', 'fehler') AND category IS NOT NULL AND received_at >= ? AND received_at < ? GROUP BY category",
+          "SELECT category AS k, COUNT(*) AS n FROM emails WHERE kind = 'eingang' AND status NOT IN ('neu', 'fehler') AND category IS NOT NULL AND received_at >= ? AND received_at < ? GROUP BY category",
           range,
         );
   return Object.fromEntries(rows.map((r) => [String(r.k), Number(r.n)]));

@@ -15,7 +15,9 @@ import { getEmail, updateEmail } from "@/lib/emails";
 import { addActivity } from "@/lib/leads";
 import { smtpConfigured } from "@/lib/mail/smtp";
 import { analyzeAndRoute, processIncomingEmail, sendReply } from "@/lib/mail/process";
+import { createFollowUps } from "@/lib/followup";
 import { dispatchEvents } from "@/lib/notify";
+import { confirmAppointment } from "@/lib/reminders";
 
 export type ActionState = { error?: string; ok?: boolean; message?: string };
 
@@ -106,6 +108,8 @@ export async function bookManually(formData: FormData) {
   const result = await bookAppointment({ serviceId: service!.id, start, name, phone, email, leadId: lead?.id, source: "manuell" });
   if (!result.ok) back(result.reason === "kalender_nicht_erreichbar" ? "fehler=kalender" : "fehler=belegt");
   if (lead) await markAppointmentStage(lead, `Termin manuell eingetragen: ${service!.name}, ${formatSlot(start, business)}`);
+  const appointmentId = result.ok ? result.appointment.id : null;
+  if (appointmentId) after(() => confirmAppointment(appointmentId));
   refreshCockpit();
   back("gebucht=1");
 }
@@ -146,4 +150,17 @@ export async function testCalendarConnection(): Promise<ActionState> {
     if (!(error instanceof CalendarSyncError)) throw error;
     return { error: error.message };
   }
+}
+
+/** Erstellt sofort Nachfass-Entwürfe (sonst täglich per Cron). */
+export async function runFollowUps(): Promise<ActionState> {
+  await requireAdmin();
+  const { created, failed } = await createFollowUps();
+  refreshCockpit();
+  if (created === 0 && failed === 0) return { ok: true, message: "Keine offenen Anfragen zum Nachfassen." };
+  return {
+    ok: failed === 0,
+    message: `${created === 1 ? "1 Nachfass-Entwurf" : `${created} Nachfass-Entwürfe`} erstellt.`,
+    ...(failed > 0 ? { error: `${failed} konnten nicht erstellt werden (KI nicht verfügbar).` } : {}),
+  };
 }

@@ -16,6 +16,37 @@ function dayHeading(date: string) {
   );
 }
 
+const channelLabel = (channel: string | null) => (channel === "sms" ? "SMS" : "E-Mail");
+
+/** Zeigt, ob der Kunde Bestätigung und Erinnerung erhalten hat. */
+function NotificationStatus({ appointment }: { appointment: Appointment }) {
+  const items: { ok: boolean; text: string }[] = [];
+  if (appointment.confirmationSentAt) {
+    items.push(
+      appointment.confirmationChannel
+        ? { ok: true, text: `bestätigt per ${channelLabel(appointment.confirmationChannel)}` }
+        : { ok: false, text: "Bestätigung nicht zustellbar" },
+    );
+  }
+  if (appointment.reminderSentAt) {
+    items.push(
+      appointment.reminderChannel
+        ? { ok: true, text: `erinnert per ${channelLabel(appointment.reminderChannel)}` }
+        : { ok: false, text: "Erinnerung nicht zustellbar" },
+    );
+  }
+  if (items.length === 0) return null;
+  return (
+    <span className="mt-0.5 flex flex-wrap gap-2 text-xs" title={appointment.notifyError ?? undefined}>
+      {items.map((item) => (
+        <span key={item.text} className={item.ok ? "text-emerald-700" : "text-amber-700"}>
+          {item.ok ? "✓" : "⚠"} {item.text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function AppointmentRow({ appointment, synced }: { appointment: Appointment; synced: boolean }) {
   const service = getService(appointment.serviceId);
   const cancelled = appointment.status === "storniert";
@@ -36,6 +67,7 @@ function AppointmentRow({ appointment, synced }: { appointment: Appointment; syn
         )}
         {appointment.phone && <span className="text-slate-500"> · {appointment.phone}</span>}
         {appointment.notes && <span className="block text-slate-500">{appointment.notes}</span>}
+        {!cancelled && <NotificationStatus appointment={appointment} />}
       </span>
       <span>{service?.name ?? appointment.serviceId}</span>
       <span className="text-xs text-slate-500">{sourceLabel[appointment.source]}</span>

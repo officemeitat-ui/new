@@ -35,6 +35,7 @@ export default function DatenschutzPage() {
             Telefon-Assistent: [z. B. Vapi, Telefonie-Anbieter, Sprachdienst]. Anrufe werden zur Bearbeitung transkribiert und
             zusammengefasst.
           </li>
+          <li>Terminbestätigungen und -erinnerungen per SMS: [z. B. Twilio].</li>
         </ul>
         <h2 className="text-xl font-semibold text-slate-900">Speicherdauer und Ihre Rechte</h2>
         <p>

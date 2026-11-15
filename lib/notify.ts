@@ -2,6 +2,7 @@ import "server-only";
 import { business } from "@/config/business";
 import { formatSlot } from "@/lib/calendar";
 import { notifyTeam } from "@/lib/mail/smtp";
+import { confirmAppointment } from "@/lib/reminders";
 import { sendWebhook, type WebhookEvent } from "@/lib/webhook";
 
 function cockpitLink(leadId: string | null): string {
@@ -30,11 +31,12 @@ function teamNotification(event: WebhookEvent): { subject: string; text: string 
   }
 }
 
-/** Verschickt Ereignisse an den Webhook und benachrichtigt bei Bedarf das Team. */
+/** Verschickt Ereignisse an den Webhook, bestätigt gebuchte Termine beim Kunden und benachrichtigt bei Bedarf das Team. */
 export async function dispatchEvents(events: WebhookEvent[]): Promise<void> {
   await Promise.all(
     events.map(async (event) => {
       await sendWebhook(event);
+      if (event.event === "appointment.booked") await confirmAppointment(event.appointmentId);
       const notification = teamNotification(event);
       if (notification) await notifyTeam(notification.subject, notification.text);
     }),

@@ -25,6 +25,12 @@ export type Appointment = {
   externalId: string | null;
   /** Letzter Fehler beim Übertragen in den externen Kalender. */
   syncError: string | null;
+  confirmationSentAt: string | null;
+  confirmationChannel: string | null;
+  reminderSentAt: string | null;
+  reminderChannel: string | null;
+  /** Letzter Fehler beim Benachrichtigen des Kunden (Bestätigung/Erinnerung). */
+  notifyError: string | null;
   createdAt: string;
 };
 
@@ -43,6 +49,11 @@ function toAppointment(row: Row): Appointment {
     source: String(row.source) as AppointmentSource,
     externalId: (row.external_id as string | null) ?? null,
     syncError: (row.sync_error as string | null) ?? null,
+    confirmationSentAt: (row.confirmation_sent_at as string | null) ?? null,
+    confirmationChannel: (row.confirmation_channel as string | null) ?? null,
+    reminderSentAt: (row.reminder_sent_at as string | null) ?? null,
+    reminderChannel: (row.reminder_channel as string | null) ?? null,
+    notifyError: (row.notify_error as string | null) ?? null,
     createdAt: String(row.created_at),
   };
 }
@@ -183,6 +194,27 @@ async function bookInTransaction(request: BookingRequest, now: Date): Promise<Bo
   } finally {
     tx.close();
   }
+}
+
+/** Gebuchte Termine, deren Erinnerung fällig ist: Beginn im Zeitraum (from, to], noch nicht erinnert, nicht kurzfristig gebucht. */
+export async function appointmentsDueForReminder(from: Date, to: Date, bookedBefore: (start: Date) => Date): Promise<Appointment[]> {
+  const client = await db();
+  const result = await client.execute({
+    sql: "SELECT * FROM appointments WHERE status = 'gebucht' AND reminder_sent_at IS NULL AND start_at > ? AND start_at <= ? ORDER BY start_at",
+    args: [from.toISOString(), to.toISOString()],
+  });
+  return result.rows.map(toAppointment).filter((a) => new Date(a.createdAt) <= bookedBefore(a.start));
+}
+
+/** Vermerkt eine versendete Bestätigung bzw. Erinnerung (Kanal null = nicht zustellbar, Grund in error). */
+export async function recordNotification(id: string, kind: "bestaetigung" | "erinnerung", channel: string | null, error: string | null) {
+  const client = await db();
+  const [sentColumn, channelColumn] =
+    kind === "bestaetigung" ? ["confirmation_sent_at", "confirmation_channel"] : ["reminder_sent_at", "reminder_channel"];
+  await client.execute({
+    sql: `UPDATE appointments SET ${sentColumn} = ?, ${channelColumn} = ?, notify_error = ? WHERE id = ?`,
+    args: [new Date().toISOString(), channel, error, id],
+  });
 }
 
 export async function getAppointment(id: string): Promise<Appointment | null> {

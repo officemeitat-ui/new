@@ -34,6 +34,18 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
 - Ist der externe Kalender nicht erreichbar, wird nicht gebucht. Der Telefon-Assistent bietet dann einen Rückruf an, es gibt keine Doppelbuchung.
 - Übertragungsfehler sind im Cockpit markiert und lassen sich per Klick nachholen. Mit „Verbindung testen“ lässt sich die Anbindung prüfen.
 
+**Terminbestätigung und -erinnerung**
+- Nach jeder Buchung bekommt der Kunde eine Bestätigung, rund 24 Stunden vorher eine Erinnerung.
+  Das geht per SMS an Mobilnummern (Twilio), sonst per E-Mail. Bei einem SMS-Fehler wird automatisch die E-Mail genommen.
+- Versand nur tagsüber (Standard 8–20 Uhr). Wer erst innerhalb der letzten 24 Stunden vor dem Termin bucht, bekommt nur die Bestätigung, keine zweite Nachricht.
+- Im Cockpit steht pro Termin, ob und wie bestätigt bzw. erinnert wurde.
+
+**Nachfass-Assistent**
+- Erkennt Anfragen (Termin- oder Angebotsanfragen), die wir beantwortet haben und auf die nach 3 Tagen nichts kam:
+  keine E-Mail, kein Anruf, kein Termin, Kontakt nicht abgeschlossen.
+- Schreibt einen kurzen Nachfass-Entwurf mit aktuellen freien Terminen, im selben E-Mail-Verlauf.
+- Entwürfe gehen **immer** zur Freigabe, auch im autonomen Modus. Pro Verlauf wird höchstens einmal nachgefasst.
+
 **Monatsbericht**
 - Cockpit → Bericht: Anrufe, Termine, Rückrufwünsche, E-Mails, Gesprächszeit und geschätzte Zeitersparnis, jeweils im Vergleich zum Vormonat
 - Druckbar bzw. als PDF speicherbar. Wird am Monatsanfang automatisch per E-Mail verschickt (`/api/cron/report`).
@@ -61,7 +73,7 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
 | Befehl | Zweck |
 |---|---|
-| `npm test` | Unit- und Integrationstests (Kalender, Buchung, Google/Microsoft-Anbindung gegen nachgebaute APIs, Telefon-Webhook, E-Mail inkl. SMTP, Monatsbericht) |
+| `npm test` | Unit- und Integrationstests (Kalender, Buchung, Google/Microsoft gegen nachgebaute APIs, Telefon-Webhook, E-Mail inkl. SMTP, SMS, Erinnerungen, Nachfassen, Monatsbericht) |
 | `npm run typecheck` | TypeScript-Prüfung |
 | `npm run build` / `npm start` | Produktions-Build |
 | `npm run vapi:connect` | Telefonnummer in Vapi mit dieser Installation verbinden |
@@ -97,8 +109,15 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    - Danach im Cockpit unter Termine auf „Verbindung testen“ klicken.
    - `booking.externalEvents` in `config/business.ts` regelt, ob ein externer Eintrag alle Plätze blockiert (Standard) oder nur einen.
 6. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
-7. **Monatsbericht:** am 1. jedes Monats `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/report` aufrufen.
-   Empfänger ist `REPORT_EMAIL` (sonst `TEAM_NOTIFY_EMAIL`).
+7. **SMS** (optional): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` und `TWILIO_FROM` setzen. Einstellungen unter `reminders` in `config/business.ts`.
+8. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
+
+   | Route | Rhythmus | Zweck |
+   |---|---|---|
+   | `/api/cron/mail` | alle 5 Minuten | Postfach abrufen |
+   | `/api/cron/reminders` | stündlich | Terminerinnerungen |
+   | `/api/cron/followups` | täglich morgens | Nachfass-Entwürfe |
+   | `/api/cron/report` | am 1. des Monats | Monatsbericht an `REPORT_EMAIL` (sonst `TEAM_NOTIFY_EMAIL`) |
 
 ## Webhook-Ereignisse
 
@@ -109,7 +128,9 @@ Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_S
 ## Was vor dem Livegang zu klären ist
 
 - [ ] Platzhalter ersetzen (gelb markiert): Betriebsprofil, Impressum, Kundenstimmen nur echt und mit Einverständnis
-- [ ] Datenschutzerklärung des **Kunden** um Telefon-Assistent (Transkription), E-Mail-Assistent und alle Dienstleister ergänzen
+- [ ] Datenschutzerklärung des **Kunden** um Telefon-Assistent (Transkription), E-Mail-Assistent, SMS-Versand und alle Dienstleister ergänzen
+- [ ] Bestätigungen, Erinnerungen und Nachfass-E-Mails beziehen sich nur auf die konkrete Anfrage bzw. den gebuchten Termin.
+      Bewertungsanfragen oder Werbung ohne Einwilligung sind bewusst **nicht** eingebaut (§ 174 TKG, § 7 UWG).
 - [ ] Auftragsverarbeitungsverträge: Hosting, Datenbank, Anthropic, Vapi samt Telefonie- und Sprachdienst, ggf. CRM.
       Vapi und Azure verarbeiten Gesprächsdaten, für Drittländer den Datentransfer prüfen.
 - [ ] Hinweis auf Gesprächsaufzeichnung bzw. Transkription am Gesprächsbeginn, falls Aufnahmen gespeichert werden
@@ -129,9 +150,14 @@ lib/voice/               Telefon-Assistent: Vapi-Konfiguration und Webhook-Verar
 lib/mail/                E-Mail-Assistent: Auswertung (Claude), IMAP, SMTP, Verarbeitung
 lib/stats.ts             Kennzahlen zur Wirkung
 lib/report.ts            Monatsbericht (Seite und E-Mail-Text)
+lib/reminders.ts         Terminbestätigung und -erinnerung (SMS/E-Mail)
+lib/followup.ts          Nachfass-Assistent
+lib/sms.ts               SMS über Twilio
 app/api/voice/vapi/      Webhook für Vapi
 app/api/cron/mail/       Postfach-Abruf
 app/api/cron/report/     Versand des Monatsberichts
+app/api/cron/reminders/  Terminerinnerungen
+app/api/cron/followups/  Nachfass-Entwürfe
 app/admin/               Cockpit
 app/(site)/              Website und Funnels
 scripts/vapi-connect.mjs Telefonnummer verbinden

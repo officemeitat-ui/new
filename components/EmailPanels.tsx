@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { handleEmailDraft, simulateEmail, type ActionState } from "@/app/admin/assistant-actions";
+import { handleEmailDraft, runFollowUps, simulateEmail, type ActionState } from "@/app/admin/assistant-actions";
 import { CopyButton } from "@/components/AiPanels";
 
 function IntentButton({ intent, children, primary }: { intent: string; children: React.ReactNode; primary?: boolean }) {
@@ -128,6 +128,22 @@ export function SimulateEmailForm() {
       >
         {pending ? "KI arbeitet …" : "Test-E-Mail durch den Assistenten schicken"}
       </button>
+    </form>
+  );
+}
+
+export function FollowUpButton() {
+  const [state, action, pending] = useActionState<ActionState>(runFollowUps, {});
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-3">
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-60"
+      >
+        {pending ? "KI arbeitet …" : "Offene Anfragen nachfassen"}
+      </button>
+      <Feedback state={state} />
     </form>
   );
 }

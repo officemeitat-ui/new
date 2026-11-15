@@ -29,7 +29,9 @@ und laufender Betreuung. Angreifbar sind sie bei Datenschutz (fast alles auf US-
 | Cockpit mit Wirkungszahlen | fertig | Kontrolle im Alltag |
 | Monatsbericht (Seite, PDF, E-Mail) | fertig | Grundlage für Quartalsgespräch, Verlängerung und Ausbau |
 | Kalender-Sync Google/Microsoft 365 | fertig | Assistent bucht direkt im Kalender, den der Betrieb schon nutzt |
-| Nachfass-Assistent (Angebote, Bewertungen) | offen | mehr Abschlüsse aus bestehenden Anfragen |
+| Terminbestätigung und -erinnerung (SMS/E-Mail) | fertig | weniger Kunden, die nicht erscheinen, weniger Rückfragen |
+| Nachfass-Assistent (offene Anfragen) | fertig, Entwürfe zur Freigabe | mehr Abschlüsse aus bestehenden Anfragen |
+| Bewertungsanfragen nach dem Termin | bewusst offen | nur mit Einwilligung zulässig; braucht einen Einwilligungs-Schritt bei der Buchung |
 | WhatsApp-Kanal | offen | bevorzugter Kanal vieler Kunden |
 
 **Abgrenzung zum Vorbild:** Preise transparent, Datenschutz offen dokumentiert, keine Werbeanrufe.
@@ -85,4 +87,4 @@ Das Cockpit zeigt dem Kunden jeden Monat schwarz auf weiß, was der KI-Mitarbeit
 | Woche 1 | Konten anlegen (Vapi, Nummer, Anthropic, Hosting), Cockpit für den **eigenen Betrieb** live schalten und selbst nutzen |
 | Woche 2 | Vorführ-Betriebsprofile für 2–3 Zielbranchen, Leitfaden für Potentialanalyse und ROI-Rechnung, AGB/AVV beauftragen |
 | Woche 3–4 | 2–3 Pilotkunden zum Vorzugspreis gegen Video-Referenz, deren Google- oder Microsoft-Kalender anbinden |
-| Monat 2–3 | Meta-Anzeigen starten, Nachfass-Assistent und Monatsbericht per E-Mail, Preise schärfen |
+| Monat 2–3 | Meta-Anzeigen starten, Preise schärfen, Bewertungsanfragen mit Einwilligung, WhatsApp-Kanal |

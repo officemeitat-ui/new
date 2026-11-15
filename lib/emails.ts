@@ -22,6 +22,10 @@ export type EmailStatus = "neu" | "entwurf" | "gesendet" | "erledigt" | "verworf
 
 export type Email = {
   id: string;
+  /** eingang: E-Mail des Kunden mit Antwortentwurf · nachfass: von uns angestoßene Nachfass-E-Mail */
+  kind: "eingang" | "nachfass";
+  /** Bei Nachfass-E-Mails: Message-ID der ursprünglichen Anfrage, damit die Antwort im selben Verlauf landet. */
+  threadMessageId: string | null;
   messageId: string | null;
   leadId: string | null;
   fromAddress: string;
@@ -55,6 +59,8 @@ const text = (value: unknown) => (value === null || value === undefined ? null :
 function toEmail(row: Row): Email {
   return {
     id: String(row.id),
+    kind: (text(row.kind) ?? "eingang") as Email["kind"],
+    threadMessageId: text(row.thread_message_id),
     messageId: text(row.message_id),
     leadId: text(row.lead_id),
     fromAddress: String(row.from_address),
@@ -92,6 +98,46 @@ export async function insertEmail(mail: IncomingEmail): Promise<Email | null> {
     ],
   });
   return result.rowsAffected > 0 ? getEmail(id) : null;
+}
+
+/**
+ * Legt einen Nachfass-Entwurf an. Er erscheint in der Freigabe-Warteschlange wie ein Antwortentwurf;
+ * Empfänger ist der Kunde (from_address), der Text der letzten Antwort steht als Kontext im body.
+ */
+export async function insertFollowUp(followUp: {
+  leadId: string;
+  to: string;
+  toName: string | null;
+  threadMessageId: string;
+  context: string;
+  summary: string;
+  subject: string;
+  body: string;
+}): Promise<Email> {
+  const client = await db();
+  const id = randomUUID();
+  const now = new Date().toISOString();
+  await client.execute({
+    sql: `INSERT INTO emails (id, kind, message_id, thread_message_id, lead_id, from_address, from_name, subject, body, received_at,
+            category, summary, status, reply_subject, reply_body, created_at)
+          VALUES (?, 'nachfass', ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'entwurf', ?, ?, ?)`,
+    args: [
+      id,
+      `<nachfass-${id}@cockpit>`,
+      followUp.threadMessageId,
+      followUp.leadId,
+      followUp.to,
+      followUp.toName,
+      followUp.subject,
+      followUp.context,
+      now,
+      followUp.summary,
+      followUp.subject,
+      followUp.body,
+      now,
+    ],
+  });
+  return (await getEmail(id))!;
 }
 
 export async function getEmail(id: string): Promise<Email | null> {

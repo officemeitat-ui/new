@@ -89,9 +89,11 @@ export async function sendReply(email: Email, edited?: { subject: string; body: 
   const subject = edited?.subject ?? email.replySubject;
   const body = edited?.body ?? email.replyBody;
   if (!subject || !body) throw new Error("Kein Antwortentwurf vorhanden");
-  await sendMail({ to: email.fromAddress, subject, text: body, inReplyTo: email.messageId });
+  await sendMail({ to: email.fromAddress, subject, text: body, inReplyTo: email.threadMessageId ?? email.messageId });
   await updateEmail(email.id, { status: "gesendet", replySubject: subject, replyBody: body, sentAt: new Date().toISOString() });
-  if (email.leadId) await addActivity(email.leadId, "email", `Antwort gesendet: „${subject}“`);
+  if (email.leadId) {
+    await addActivity(email.leadId, "email", `${email.kind === "nachfass" ? "Nachfass-E-Mail" : "Antwort"} gesendet: „${subject}“`);
+  }
 }
 
 /** Ruft das Postfach ab und verarbeitet alle neuen E-Mails. */
