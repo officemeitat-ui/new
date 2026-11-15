@@ -56,7 +56,13 @@ Anhänge:
 [C – Playbook Angriff auf eigene KI-Systeme](anhang/C-playbook-angriff-auf-ki-systeme.md) ·
 [D – KI-Nutzungsrichtlinie](anhang/D-richtlinie-ki-nutzung.md) ·
 [E – Verifikationsregeln](anhang/E-verifikationsregeln.md) ·
-[F – Selbstbewertung](anhang/F-checkliste-selbstbewertung.md)
+[F – Selbstbewertung](anhang/F-checkliste-selbstbewertung.md) ·
+[G – Beschlussvorlage](anhang/G-beschlussvorlage-geschaeftsfuehrung.md) ·
+[H – Notfallübung](anhang/H-notfalluebung-tabletop.md) ·
+[I – Kommunikationsvorlagen](anhang/I-kommunikationsvorlagen.md) ·
+[J – Technische Umsetzung](anhang/J-technische-umsetzung.md) ·
+[K – KI-Inventar & Anbieterbewertung](anhang/K-vorlagen-ki-inventar-anbieter.md) ·
+[L – Awareness-Jahresplan](anhang/L-awareness-jahresplan.md)
 
 ---
 
@@ -154,11 +160,11 @@ Prioritäten: **P1** = sofort (0–30 Tage), **P2** = Grundschutz (31–90 Tage)
 
 | ID | Maßnahme | Prio | Verantwortlich |
 |---|---|---|---|
-| G1 | Geschäftsführung beschließt diese Strategie, benennt eine verantwortliche Person für Informationssicherheit und eine für KI-Governance (kann dieselbe Person sein) | P1 | Geschäftsführung |
-| G2 | **KI-Inventar** aufbauen: alle genutzten KI-Systeme inkl. eingebetteter KI-Funktionen – Zweck, verarbeitete Daten, Anbieter, Berechtigungen, Risiko | P1 | KI-Verantwortliche/r |
+| G1 | Geschäftsführung beschließt diese Strategie, benennt eine verantwortliche Person für Informationssicherheit und eine für KI-Governance (kann dieselbe Person sein) – [Beschlussvorlage](anhang/G-beschlussvorlage-geschaeftsfuehrung.md) | P1 | Geschäftsführung |
+| G2 | **KI-Inventar** aufbauen: alle genutzten KI-Systeme inkl. eingebetteter KI-Funktionen – Zweck, verarbeitete Daten, Anbieter, Berechtigungen, Risiko ([Vorlage](anhang/K-vorlagen-ki-inventar-anbieter.md)) | P1 | KI-Verantwortliche/r |
 | G3 | **KI-Nutzungsrichtlinie** in Kraft setzen ([Anhang D](anhang/D-richtlinie-ki-nutzung.md)) | P1 | Informationssicherheit, Datenschutz |
 | G4 | KI-spezifische Bedrohungen in die Risikoanalyse des ISMS aufnehmen (Orientierung: ISO/IEC 27001; optional ISO/IEC 42001 für ein KI-Managementsystem) | P2 | Informationssicherheit |
-| G5 | Bewertungskriterien für KI-Anbieter festlegen: Auftragsverarbeitungsvertrag, Datenstandort, kein Training mit unseren Daten, Subdienstleister, Zertifizierungen, Audit-Logs, Vorfallmeldung | P2 | Einkauf, Informationssicherheit |
+| G5 | Bewertungskriterien für KI-Anbieter festlegen: Auftragsverarbeitungsvertrag, Datenstandort, kein Training mit unseren Daten, Subdienstleister, Zertifizierungen, Audit-Logs, Vorfallmeldung ([Fragebogen](anhang/K-vorlagen-ki-inventar-anbieter.md#k4-fragebogen-für-ki-anbieter-g5-l4)) | P2 | Einkauf, Informationssicherheit |
 | G6 | Compliance-Abgleich NISG 2026, DSGVO, AI Act (siehe [Kapitel 9](#9-rechtlicher-und-regulatorischer-rahmen)); Betroffenheit nach NISG 2026 klären | P1 | Geschäftsführung, Recht |
 | G7 | Quartalsbericht an die Geschäftsführung (Kennzahlen, Vorfälle, Fortschritt der Roadmap) | P2 | Informationssicherheit |
 | G8 | Budget für die Roadmap verbindlich freigeben | P1 | Geschäftsführung |
@@ -167,7 +173,7 @@ Prioritäten: **P1** = sofort (0–30 Tage), **P2** = Grundschutz (31–90 Tage)
 
 | ID | Maßnahme | Prio | Verantwortlich |
 |---|---|---|---|
-| I1 | **Phishing-resistente MFA** (Passkeys oder FIDO2-Sicherheitsschlüssel) – zuerst Administration, Geschäftsführung, Finanzen, HR, Helpdesk; danach alle. SMS- und Anruf-MFA für privilegierte Konten abschalten; Push-Bestätigung nur mit Nummernabgleich | P1 → P3 | IT-Betrieb |
+| I1 | **Phishing-resistente MFA** (Passkeys oder FIDO2-Sicherheitsschlüssel) – zuerst Administration, Geschäftsführung, Finanzen, HR, Helpdesk; danach alle. SMS- und Anruf-MFA für privilegierte Konten abschalten; Push-Bestätigung nur mit Nummernabgleich ([Umsetzung](anhang/J-technische-umsetzung.md#j1-phishing-resistente-mfa-einführen-i1)) | P1 → P3 | IT-Betrieb |
 | I2 | **Legacy-Authentifizierung blockieren** (Protokolle ohne MFA-Unterstützung) | P1 | IT-Betrieb |
 | I3 | **Helpdesk-Prozess für Resets:** Passwort- oder MFA-Reset nur nach starker Identitätsprüfung – Rückruf an hinterlegte Nummer **und** Bestätigung durch die vorgesetzte Person; nie allein aufgrund eines Anrufs, Chats oder Videocalls | P1 | IT-Helpdesk |
 | I4 | **Bedingter Zugriff:** Anmeldung nur von verwalteten Geräten; risikobasierte Regeln (ungewöhnlicher Ort, anonyme IP-Adressen) | P2 | IT-Betrieb |
@@ -189,7 +195,7 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 | P4 | **Codewort-Verfahren** für Geschäftsführung, Assistenz und Finanzen: persönlich vereinbart, nirgends digital gespeichert, regelmäßig gewechselt | P1 | Geschäftsführung |
 | P5 | **Rote Flaggen** verbindlich definieren: Dringlichkeit + Geheimhaltung + Abweichung vom Prozess + ungewohnter Kanal (privates Handy, Messenger) = **STOPP und prüfen** | P1 | Informationssicherheit |
 | P6 | **Keine geschäftskritischen Anweisungen über private Messenger** oder neue, unbekannte Konten | P1 | alle |
-| P7 | **Schriftliche Rückendeckung der Geschäftsführung:** Niemand wird kritisiert, weil er eine Anweisung verzögert, um sie zu prüfen – auch nicht, wenn sie echt war | P1 | Geschäftsführung |
+| P7 | **Schriftliche Rückendeckung der Geschäftsführung:** Niemand wird kritisiert, weil er eine Anweisung verzögert, um sie zu prüfen – auch nicht, wenn sie echt war ([Vorlage](anhang/I-kommunikationsvorlagen.md)) | P1 | Geschäftsführung |
 | P8 | **Lieferanten-Stammdaten:** Änderungen nur nach Rückruf und dokumentierter Freigabe durch zweite Person; Lieferanten und Kunden über unser Verfahren informieren („Wir ändern unsere Bankdaten nie per E-Mail“) | P1 | Finanzen, Einkauf |
 | P9 | **Öffentlich verfügbare Angriffsinformationen reduzieren:** Website, Social Media und Stellenanzeigen auf Organigramme, Zuständigkeiten in Finanzen/IT, Durchwahlen und eingesetzte Systeme prüfen | P2 | Marketing, Informationssicherheit |
 | P10 | **Recruiting absichern:** mindestens ein persönliches Gespräch oder verifizierte Identität (z. B. ID Austria) vor Vergabe privilegierter Zugänge; Referenzen über selbst recherchierte Kontaktdaten prüfen; neue Mitarbeitende starten mit minimalen Rechten | P2 | HR |
@@ -238,7 +244,7 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 | K1 | **Freigegebene KI-Werkzeuge** bereitstellen – nur Business-/Enterprise-Verträge: kein Training mit unseren Daten, Auftragsverarbeitungsvertrag, Single Sign-on, Audit-Logs, Admin-Kontrolle, Datenverarbeitung in der EU wo erforderlich. Nicht freigegebene Dienste blockieren oder mit Warnhinweis versehen | P1 | IT-Betrieb, KI-Verantwortliche/r |
 | K2 | **Datenklassen-Matrix:** welche Daten in welches Werkzeug dürfen ([Anhang D](anhang/D-richtlinie-ki-nutzung.md)) | P1 | Informationssicherheit, Datenschutz |
 | K3 | **Berechtigungen bereinigen, bevor KI-Suche oder Office-Assistenten aktiviert werden** – die KI findet alles, worauf der Nutzer formal Zugriff hat | P1 | IT-Betrieb |
-| K4 | **Regeln für KI-Agenten** (siehe unten) verbindlich anwenden; jeder Agent mit Systemzugriff benötigt eine dokumentierte Freigabe | P2 | KI-Verantwortliche/r |
+| K4 | **Regeln für KI-Agenten** (siehe unten) verbindlich anwenden; jeder Agent mit Systemzugriff benötigt eine dokumentierte Freigabe ([Checkliste](anhang/K-vorlagen-ki-inventar-anbieter.md#k3-freigabe-checkliste-für-ki-agenten-k4)) | P2 | KI-Verantwortliche/r |
 | K5 | **Wissensdatenbanken (RAG):** Berechtigungen der Quelldokumente werden in Antworten durchgesetzt; Schreibzugriff auf Quellen ist kontrolliert und protokolliert | P2 | IT-Betrieb |
 | K6 | **KI-generierter Code:** gleiche Review-Pflicht wie für menschlichen Code; statische Analyse, Secret-Scanning, Prüfung aller Abhängigkeiten (existiert das Paket wirklich, ist es etabliert?) | P2 | Entwicklung |
 | K7 | **KI-Lieferkette:** Modelle, Plugins, Erweiterungen und MCP-Server nur aus geprüften Quellen und von einer Allowlist; Versionen fixieren; Integrität prüfen (Hashes/Signaturen); bei eigenen Modellen sichere Formate (z. B. safetensors) und eine Stückliste (AI-BOM) | P2 | IT-Betrieb, Entwicklung |
@@ -264,7 +270,7 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 |---|---|---|---|
 | M1 | **Kernbotschaft neu ausrichten:** „Echtheit lässt sich nicht mehr erkennen – deshalb halten wir den Prozess ein.“ | P1 | Informationssicherheit |
 | M2 | **Deepfake-Demonstration** bei der nächsten Mitarbeiterveranstaltung (z. B. mit Einverständnis geklonte Stimme der Geschäftsführung) – die wirksamste Einzelmaßnahme für Bewusstsein | P1 | Informationssicherheit, Geschäftsführung |
-| M3 | **Zielgruppenspezifische Schulungen** (siehe Tabelle) | P1 → P2 | Informationssicherheit, HR |
+| M3 | **Zielgruppenspezifische Schulungen** (siehe Tabelle) und monatliche Kurzimpulse ([Jahresplan](anhang/L-awareness-jahresplan.md)) | P1 → P2 | Informationssicherheit, HR |
 | M4 | **Realistische Simulationen:** KI-generiertes Phishing, Vishing-Tests (nach Information des Betriebsrats und unter Wahrung der Datenschutzanforderungen) | P2 | Informationssicherheit |
 | M5 | **KI-Kompetenz nach AI Act Art. 4** für alle, die KI nutzen – Inhalte und Teilnahme dokumentieren | P2 | HR, KI-Verantwortliche/r |
 | M6 | **Meldekultur:** Melden mit einem Klick, schnelle Rückmeldung, Anerkennung für Meldungen, keine Sanktion bei gemeldeten Fehlern | P1 | Geschäftsführung |
@@ -286,11 +292,11 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 | ID | Maßnahme | Prio | Verantwortlich |
 |---|---|---|---|
 | R1 | **24/7-Überwachung** durch eigenes SOC oder MDR-Dienstleister – automatisierte Angriffe richten sich nicht nach Bürozeiten | P2 | IT-Betrieb |
-| R2 | **Erkennungsregeln für typische Muster:** unmögliche Reisen, neue MFA-Methode registriert, Reset nach Helpdesk-Kontakt, neue Posteingangsregeln (Weiterleitung, Löschung), App-Zustimmungen, Massen-Downloads, Anmeldungen über Hosting-/Anonymisierungs-IPs, ungewöhnliche Agenten- oder API-Aktivität, Bankdatenänderungen im ERP | P2 | IT-Betrieb / MDR |
+| R2 | **Erkennungsregeln für typische Muster:** unmögliche Reisen, neue MFA-Methode registriert, Reset nach Helpdesk-Kontakt, neue Posteingangsregeln (Weiterleitung, Löschung), App-Zustimmungen, Massen-Downloads, Anmeldungen über Hosting-/Anonymisierungs-IPs, ungewöhnliche Agenten- oder API-Aktivität, Bankdatenänderungen im ERP ([Anwendungsfälle und Abfragen](anhang/J-technische-umsetzung.md#j5-erkennungsregeln-r2)) | P2 | IT-Betrieb / MDR |
 | R3 | **Incident-Response-Plan** mit KI-spezifischen Playbooks ([A](anhang/A-playbook-deepfake-ceo-betrug.md), [B](anhang/B-playbook-ki-phishing-kontouebernahme.md), [C](anhang/C-playbook-angriff-auf-ki-systeme.md)); klare Entscheidungsbefugnisse (wer darf Systeme vom Netz nehmen?) | P1 | Informationssicherheit |
 | R4 | **Meldeprozesse vorbereiten:** NISG 2026 (Frühwarnung ≤ 24 h, Meldung ≤ 72 h, Abschlussbericht ≤ 1 Monat an das zuständige CSIRT), DSGVO (≤ 72 h an die Datenschutzbehörde), Bank, Polizei, Versicherung | P1 | Informationssicherheit, Recht |
 | R5 | **Notfallkontakte vorab festlegen:** Incident-Response-Dienstleister mit Rahmenvertrag, Hausbank (Betrugs-Hotline), CERT.at, Polizei, WKO Cyber-Security-Hotline (0800 888 133), Versicherung | P1 | Informationssicherheit |
-| R6 | **Übungen:** jährliche Tabletop-Übung mit der Geschäftsführung (z. B. „Deepfake-Anruf der Geschäftsführung und Ransomware am Freitagabend“); Wiederherstellungstests quartalsweise | P2 | Informationssicherheit |
+| R6 | **Übungen:** jährliche Tabletop-Übung mit der Geschäftsführung (z. B. „Deepfake-Anruf der Geschäftsführung und Ransomware am Freitagabend“); Wiederherstellungstests quartalsweise ([Drehbuch](anhang/H-notfalluebung-tabletop.md)) | P2 | Informationssicherheit |
 | R7 | **Krisenkommunikation**, auch für Deepfakes der eigenen Führung: vorbereitete Stellungnahmen, verifizierte Kommunikationskanäle, Monitoring | P3 | Kommunikation |
 | R8 | **Cyber-Versicherung prüfen:** Ist Social Engineering bzw. „Fake President“ ausdrücklich gedeckt (häufig ausgeschlossen oder nur mit niedrigem Sublimit)? | P2 | Geschäftsführung |
 

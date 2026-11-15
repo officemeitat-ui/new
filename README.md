@@ -17,15 +17,23 @@ Strategie, Playbooks und Vorlagen zum Schutz unserer Organisation vor KI-gestüt
 | [D – KI-Nutzungsrichtlinie](anhang/D-richtlinie-ki-nutzung.md) | Muster-Richtlinie: freigegebene Tools, Datenklassen, Verbote, Pflichten | alle Mitarbeitenden |
 | [E – Verifikationsregeln](anhang/E-verifikationsregeln.md) | Einseiter „STOPP · PRÜFEN · BESTÄTIGEN“ zum Aushängen | alle Mitarbeitenden |
 | [F – Selbstbewertung](anhang/F-checkliste-selbstbewertung.md) | Checkliste mit Punktesystem zur Standortbestimmung | Informationssicherheit, Geschäftsführung |
+| [G – Beschlussvorlage](anhang/G-beschlussvorlage-geschaeftsfuehrung.md) | Beschlusspunkte, Budgetrahmen, nächste 30 Tage, Unterschriften | Geschäftsführung |
+| [H – Notfallübung „Freitagabend“](anhang/H-notfalluebung-tabletop.md) | Drehbuch mit sechs Einspielungen (Deepfake-Anruf bis Wiederanlauf), Beobachtungsbogen | Geschäftsführung, Krisenteam |
+| [I – Kommunikationsvorlagen](anhang/I-kommunikationsvorlagen.md) | Rundschreiben, Lieferantenbrief, Kundenhinweis, Warnmeldung, Stellungnahme bei Deepfake | Geschäftsführung, Kommunikation, Finanzen |
+| [J – Technische Umsetzung](anhang/J-technische-umsetzung.md) | Konkrete Einstellungen für Microsoft 365 / Entra ID und Google Workspace, DNS-Beispiele, Erkennungsregeln mit KQL-Abfragen, Absicherung von KI-Agenten | IT-Betrieb, IT-Dienstleister |
+| [K – KI-Inventar & Anbieterbewertung](anhang/K-vorlagen-ki-inventar-anbieter.md) | Inventarfelder, Risikostufen, Freigabe-Checkliste für Agenten, Fragebogen für KI-Anbieter, Anforderungen an IT-Dienstleister | KI-Verantwortliche, Einkauf |
+| [L – Awareness-Jahresplan](anhang/L-awareness-jahresplan.md) | Zwölf Monatsimpulse mit versandfertigen Texten, Simulationsplan, Ablauf der Deepfake-Demonstration | Informationssicherheit, HR |
+| [vorlagen/ki-inventar.csv](vorlagen/ki-inventar.csv) | Ausfüllbare Inventartabelle (öffnet direkt in Excel) | KI-Verantwortliche |
 
 ## So verwenden Sie dieses Paket
 
 1. **Standort bestimmen:** Selbstbewertung ([Anhang F](anhang/F-checkliste-selbstbewertung.md)) durchführen.
 2. **Anpassen:** Alle Stellen mit **[ANPASSEN]** ergänzen (Schwellenwerte, Kontakte, Werkzeuge, Verantwortliche).
-3. **Beschließen:** Strategie durch die Geschäftsführung freigeben und Budget zuweisen.
-4. **Sofort starten:** Phase 1 der Roadmap (Tag 0–30) umsetzen – insbesondere Verifikationsregeln, phishing-resistente MFA für Risikogruppen und die KI-Nutzungsrichtlinie.
-5. **Kommunizieren:** Verifikationsregeln ([Anhang E](anhang/E-verifikationsregeln.md)) an alle verteilen, Deepfake-Demonstration durchführen.
-6. **Überprüfen:** Nach 90 Tagen Selbstbewertung wiederholen, danach halbjährlich.
+3. **Beschließen:** Beschlussvorlage ([Anhang G](anhang/G-beschlussvorlage-geschaeftsfuehrung.md)) mit dem Ergebnis der Selbstbewertung der Geschäftsführung vorlegen.
+4. **Sofort starten:** Phase 1 der Roadmap (Tag 0–30) umsetzen – insbesondere Verifikationsregeln, phishing-resistente MFA für Risikogruppen ([Anhang J](anhang/J-technische-umsetzung.md)) und die KI-Nutzungsrichtlinie.
+5. **Kommunizieren:** Rundschreiben ([Anhang I](anhang/I-kommunikationsvorlagen.md)) und Verifikationsregeln ([Anhang E](anhang/E-verifikationsregeln.md)) an alle verteilen, Deepfake-Demonstration durchführen ([Anhang L](anhang/L-awareness-jahresplan.md)).
+6. **Üben:** Innerhalb von 90 Tagen die Notfallübung ([Anhang H](anhang/H-notfalluebung-tabletop.md)) mit der Geschäftsführung durchführen.
+7. **Überprüfen:** Nach 90 Tagen Selbstbewertung wiederholen, danach halbjährlich.
 
 ## Annahmen
 
