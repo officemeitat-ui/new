@@ -339,7 +339,8 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 - [ ] Berechtigungen geprüft, bevor KI-Suche/Office-Assistenten aktiv sind (K3)
 - [ ] Offline-/unveränderliche Sicherung geprüft (T12), externe Angriffsfläche gescannt (T9), Patch-Fristen festgelegt (T8)
 - [ ] Kurzbriefing und Deepfake-Demonstration für Risikogruppen (M1–M3)
-- [ ] Notfallkontakte und Meldewege dokumentiert (R4, R5); NISG-Betroffenheit geklärt (G6)
+- [ ] Notfallkontakte und Meldewege dokumentiert (R4, R5)
+- [ ] NISG-Betroffenheit geklärt und, falls betroffen, Registrierung bei der Cybersicherheitsbehörde – **Frist 31.12.2026** (G6)
 
 ### Phase 2 – Grundschutz (Tag 31–90)
 
@@ -354,7 +355,6 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 - [ ] Zielgruppenschulungen gestartet, erste Phishing-Simulation (M3, M4)
 - [ ] Erste Tabletop-Übung mit der Geschäftsführung (R6)
 - [ ] Anforderungen an IT-Dienstleister und KI-Anbieter vertraglich verankert (L1, L4, G5)
-- [ ] Registrierung nach NISG 2026 (falls betroffen) – **Frist 31.12.2026**
 
 ### Phase 3 – Ausbau (Monat 4–12)
 

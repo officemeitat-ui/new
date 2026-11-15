@@ -10,6 +10,7 @@ Strategie, Playbooks und Vorlagen zum Schutz unserer Organisation vor KI-gestüt
 
 | Dokument | Zweck | Zielgruppe |
 |---|---|---|
+| [**Übersicht für die Geschäftsführung**](uebersicht-geschaeftsfuehrung.html) | Webseite: Kernaussage, Angriffsbeispiel, Sofortmaßnahmen, Fahrplan, Fristen mit Countdown, interaktiver Schnell-Check, Beschlusspunkte | Geschäftsführung |
 | [**KI-Cybersicherheitsstrategie**](KI-Cybersicherheitsstrategie.md) | Bedrohungslage, Ziele, Leitprinzipien, 9 Handlungsfelder mit Maßnahmen, Roadmap, Rollen, Kennzahlen, Rechtsrahmen | Geschäftsführung, Informationssicherheit, IT |
 | [A – Playbook Deepfake- & CEO-Betrug](anhang/A-playbook-deepfake-ceo-betrug.md) | Vorgehen bei Täuschungsversuchen und nach erfolgter Fehlüberweisung | Finanzen, Assistenz, Informationssicherheit |
 | [B – Playbook KI-Phishing & Kontoübernahme](anhang/B-playbook-ki-phishing-kontouebernahme.md) | Vorgehen bei Phishing und übernommenen Konten | IT, Informationssicherheit |

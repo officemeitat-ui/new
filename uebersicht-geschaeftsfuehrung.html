@@ -1,0 +1,979 @@
+<title>Strategie gegen KI-Angriffe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: Lagebericht – eine ruhige Lesespalte; Uhrzeiten, Fristen und Kennzahlen in Monospace an einer linken Zeitachse */
+:root {
+  --bg: #F3F6F7;
+  --surface: #FFFFFF;
+  --ink: #14212B;
+  --muted: #55646E;
+  --line: #D5DDE2;
+  --accent: #0A6870;
+  --accent-soft: #DCEDEE;
+  --warn: #8F5400;
+  --warn-soft: #FAEBD3;
+  --ok: #24704A;
+  --ok-soft: #DCEFE3;
+  --bad: #B0261D;
+  --bad-soft: #F8E0DC;
+  --font-display: "Archivo", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: clamp(1.625rem, 3.2vw, 2.125rem);
+  --step-4: clamp(2.25rem, 6vw, 3.5rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D151B;
+    --surface: #142029;
+    --ink: #E4ECF1;
+    --muted: #98A9B5;
+    --line: #253541;
+    --accent: #52C0C8;
+    --accent-soft: #12363B;
+    --warn: #F0A74E;
+    --warn-soft: #382812;
+    --ok: #62C690;
+    --ok-soft: #133221;
+    --bad: #F27A6E;
+    --bad-soft: #3B1916;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D151B;
+  --surface: #142029;
+  --ink: #E4ECF1;
+  --muted: #98A9B5;
+  --line: #253541;
+  --accent: #52C0C8;
+  --accent-soft: #12363B;
+  --warn: #F0A74E;
+  --warn-soft: #382812;
+  --ok: #62C690;
+  --ok-soft: #133221;
+  --bad: #F27A6E;
+  --bad-soft: #3B1916;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+}
+.wrap {
+  max-width: 66rem;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 3rem 4rem;
+  display: grid;
+  gap: 4.5rem;
+}
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  line-height: 1.12;
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+h1 { font-size: var(--step-4); font-weight: 800; }
+h2 { font-size: var(--step-3); font-weight: 750; }
+h3 { font-size: var(--step-1); font-weight: 700; }
+p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+section { display: grid; gap: 1.5rem; }
+.section-head { display: grid; gap: 0.6rem; max-width: 42rem; }
+.section-head p:not(.eyebrow) { color: var(--muted); }
+.ref {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Kopf */
+.hero { display: grid; gap: 1.5rem; }
+.lead { font-size: var(--step-1); max-width: 40rem; line-height: 1.55; }
+.lead strong { color: var(--accent); font-weight: 600; }
+.shifts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  border-top: 2px solid var(--ink);
+  padding-top: 1.25rem;
+  margin-top: 0.5rem;
+}
+.shifts li { display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
+.shifts h3 { font-size: var(--step-1); }
+.shifts p { color: var(--muted); font-size: 0.95rem; }
+
+/* Angriffsablauf */
+.timeline { display: grid; gap: 0; border-left: 2px solid var(--line); margin-left: 3.6rem; }
+.timeline li {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(0, 1fr);
+  gap: 1.25rem;
+  margin-left: -3.6rem;
+  padding-block: 0.75rem;
+  position: relative;
+}
+.timeline time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: var(--muted);
+  padding-top: 0.1rem;
+  text-align: right;
+  padding-right: 0.9rem;
+}
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: calc(3.6rem - 6px);
+  top: 1.2rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--muted);
+}
+.timeline li[data-side="angreifer"]::before { border-color: var(--bad); }
+.timeline li[data-side="wir"]::before { border-color: var(--accent); background: var(--accent); }
+.timeline .who {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.timeline li[data-side="angreifer"] .who { color: var(--bad); }
+.timeline li[data-side="wir"] .who { color: var(--accent); }
+.timeline li[data-side="ende"] .who { color: var(--muted); }
+.timeline .body { display: grid; gap: 0.2rem; max-width: 40rem; }
+.outcome {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.out {
+  border-radius: 6px;
+  padding: 1.25rem 1.4rem;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.out.bad { background: var(--bad-soft); }
+.out.ok { background: var(--ok-soft); }
+.out .amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step-3);
+  font-weight: 500;
+  line-height: 1.1;
+}
+.out.bad .amount { color: var(--bad); }
+.out.ok .amount { color: var(--ok); }
+.note { font-size: var(--step--1); color: var(--muted); }
+
+/* Bedrohungen */
+.threats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem 2.5rem;
+}
+.threats > div { display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.threat-list { display: grid; }
+.threat-list li {
+  display: grid;
+  gap: 0.15rem;
+  padding-block: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+.threat-list li:last-child { border-bottom: 1px solid var(--line); }
+.threat-list .what { font-weight: 600; }
+.threat-list .counter { color: var(--muted); font-size: 0.95rem; }
+.threat-list .counter::before { content: "Gegenmittel: "; color: var(--accent); font-weight: 500; }
+
+/* Sofortmaßnahmen */
+.measures { display: grid; gap: 0; counter-reset: m; }
+.measures li {
+  counter-increment: m;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 1rem;
+  padding-block: 1.1rem;
+  border-top: 1px solid var(--line);
+}
+.measures li:last-child { border-bottom: 1px solid var(--line); }
+.measures li::before {
+  content: counter(m);
+  font-family: var(--font-display);
+  font-stretch: 85%;
+  font-weight: 800;
+  font-size: var(--step-3);
+  line-height: 1;
+  color: var(--accent);
+}
+.measures .body { display: grid; gap: 0.3rem; max-width: 44rem; }
+.measures h3 { display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: baseline; }
+.measures p { color: var(--muted); }
+
+/* Fahrplan */
+.phases {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+.phase {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.1rem 1.1rem 1.25rem;
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-width: 0;
+}
+.phase.now { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+.phase .when { font-family: var(--font-mono); font-size: var(--step--1); color: var(--accent); }
+.phase ul { display: grid; gap: 0.45rem; font-size: 0.9rem; }
+.phase li { padding-left: 0.9rem; position: relative; }
+.phase li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  background: var(--muted);
+  border-radius: 1px;
+}
+.phase li.key { font-weight: 600; }
+.phase li.key::before { background: var(--warn); }
+
+/* Fristen */
+.legal { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+.deadlines { display: grid; }
+.deadlines li {
+  display: grid;
+  grid-template-columns: 6.6rem 6.4rem minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: baseline;
+  padding-block: 0.65rem;
+  border-top: 1px solid var(--line);
+}
+.deadlines li:last-child { border-bottom: 1px solid var(--line); }
+.deadlines time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.deadlines li.key { background: var(--warn-soft); margin-inline: -0.6rem; padding-inline: 0.6rem; border-radius: 4px; border-top-color: transparent; }
+.deadlines li.key + li { border-top-color: transparent; }
+.status {
+  justify-self: start;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.status[data-state="past"] { color: var(--muted); }
+.status[data-state="soon"] { color: var(--warn); font-weight: 500; }
+.status[data-state="future"] { color: var(--accent); }
+.status[data-state="expired"] { color: var(--bad); font-weight: 500; }
+.deadlines .what { min-width: 0; }
+.deadlines .what span { display: block; color: var(--muted); font-size: 0.875rem; }
+.report {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+.report-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.report-steps li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.6rem;
+  background: var(--accent-soft);
+  border-radius: 4px;
+  min-width: 0;
+}
+.report-steps .big {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--step-2);
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--accent);
+}
+.report-steps span:last-child { font-size: 0.8rem; }
+.report p { font-size: 0.9rem; color: var(--muted); }
+
+/* Schnell-Check */
+.check { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+.questions { display: grid; gap: 0; }
+.q {
+  border: 0;
+  margin: 0;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem 1.25rem;
+  align-items: center;
+}
+.q:last-child { border-bottom: 1px solid var(--line); }
+.q legend { float: left; padding: 0; width: 100%; }
+.q .qtext { font-size: 0.95rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--surface); }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.seg label {
+  padding: 0.38rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  min-width: 3.2rem;
+  text-align: center;
+}
+.seg label:first-of-type { border-left: 0; }
+.seg label:hover { color: var(--ink); }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+.seg input[value="2"]:checked + label { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.seg input[value="1"]:checked + label { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+.seg input[value="0"]:checked + label { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+.result {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 1rem);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1.25rem;
+  display: grid;
+  gap: 0.9rem;
+}
+.score { display: flex; align-items: baseline; gap: 0.4rem; }
+.score .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--step-4); font-weight: 500; line-height: 1; }
+.score .max { font-family: var(--font-mono); color: var(--muted); }
+.bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.bar span { display: block; height: 100%; width: 0; background: var(--muted); transition: width 0.3s ease; }
+.result[data-rating="bad"] .bar span { background: var(--bad); }
+.result[data-rating="warn"] .bar span { background: var(--warn); }
+.result[data-rating="ok"] .bar span { background: var(--ok); }
+.rating { font-weight: 600; }
+.result[data-rating="bad"] .rating { color: var(--bad); }
+.result[data-rating="warn"] .rating { color: var(--warn); }
+.result[data-rating="ok"] .rating { color: var(--ok); }
+.gaps { display: grid; gap: 0.35rem; font-size: 0.9rem; }
+.gaps li { display: flex; justify-content: space-between; gap: 0.75rem; }
+.gaps-title { font-size: var(--step--1); color: var(--muted); }
+.reset {
+  justify-self: start;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.reset:hover { border-color: var(--accent); }
+
+/* Beschluss */
+.decisions { display: grid; gap: 0; max-width: 48rem; }
+.decisions li {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-block: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+.decisions li:last-child { border-bottom: 1px solid var(--line); }
+.decisions .id { font-family: var(--font-mono); color: var(--accent); font-weight: 500; }
+
+/* Kennzahlen */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; min-width: 34rem; }
+th, td { text-align: left; padding: 0.65rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+td.target { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--accent); font-weight: 500; }
+
+/* Unterlagen */
+.docs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2.5rem;
+}
+.docs div { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.75rem; padding-block: 0.6rem; border-top: 1px solid var(--line); }
+.docs dt { font-family: var(--font-mono); color: var(--accent); font-weight: 500; }
+.docs dd { margin: 0; font-size: 0.92rem; }
+.docs dd b { font-weight: 600; }
+footer { border-top: 2px solid var(--ink); padding-top: 1.25rem; display: grid; gap: 0.5rem; font-size: var(--step--1); color: var(--muted); max-width: 48rem; }
+footer code { font-family: var(--font-mono); font-size: 0.95em; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .legal, .check { grid-template-columns: minmax(0, 1fr); }
+  .result { position: static; }
+}
+@media (max-width: 640px) {
+  .wrap { gap: 3.5rem; padding-block: 2rem 3rem; }
+  .shifts, .outcome, .threats, .phases, .docs { grid-template-columns: minmax(0, 1fr); }
+  .q { grid-template-columns: minmax(0, 1fr); }
+  .deadlines li { grid-template-columns: 6.2rem minmax(0, 1fr); }
+  .deadlines .what { grid-column: 1 / -1; }
+  .report-steps { grid-template-columns: minmax(0, 1fr); }
+  .timeline { margin-left: 3.2rem; }
+  .timeline li { grid-template-columns: 3.2rem minmax(0, 1fr); margin-left: -3.2rem; gap: 1rem; }
+  .timeline li::before { left: calc(3.2rem - 6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar span { transition: none; }
+}
+</style>
+
+<main class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Entscheidungsgrundlage für die Geschäftsführung · Entwurf 1.0 · November 2026</p>
+    <h1>Strategie gegen KI-Angriffe</h1>
+    <p class="lead">KI fälscht Stimmen, Gesichter und Schreibstile so gut, dass wir Fälschungen nicht mehr zuverlässig erkennen. <strong>Deshalb machen wir uns davon unabhängig:</strong> mit Abläufen, die auch gegen perfekte Fälschungen halten, mit Anmeldungen, die sich nicht abfangen lassen, mit Überwachung rund um die Uhr und mit einer sicheren eigenen KI-Nutzung.</p>
+    <ul class="shifts">
+      <li>
+        <h3>Täuschung ist perfekt</h3>
+        <p>Phishing-Mails sind fehlerfrei und persönlich. Wenige Sekunden Audio reichen für eine geklonte Stimme, Videocalls lassen sich live fälschen.</p>
+      </li>
+      <li>
+        <h3>Angriffe sind schneller</h3>
+        <p>Sicherheitslücken werden oft binnen Stunden bis Tagen ausgenutzt. KI-Agenten greifen teilautonom an, auch nachts und am Wochenende.</p>
+      </li>
+      <li>
+        <h3>Unsere KI ist Angriffsfläche</h3>
+        <p>Versteckte Anweisungen in Mails und Dokumenten steuern KI-Assistenten um. Vertrauliche Daten landen in privaten KI-Diensten.</p>
+      </li>
+    </ul>
+  </header>
+
+  <section aria-labelledby="ablauf">
+    <div class="section-head">
+      <p class="eyebrow">Beispiel</p>
+      <h2 id="ablauf">Ein Angriff, wie er heute abläuft</h2>
+      <p>Freitagnachmittag in der Buchhaltung. Das Szenario stammt aus unserer Notfallübung und folgt dem Muster realer Betrugsfälle.</p>
+    </div>
+    <ol class="timeline">
+      <li data-side="angreifer">
+        <time>16:40</time>
+        <div class="body">
+          <p class="who">Angreifer</p>
+          <p>Anruf von einer unbekannten Mobilnummer. Die Stimme ist eindeutig die der Geschäftsführerin: vertrauliche Firmenübernahme, 185.000 € müssen bis 17:30 Uhr auf ein Treuhandkonto.</p>
+        </div>
+      </li>
+      <li data-side="angreifer">
+        <time>16:42</time>
+        <div class="body">
+          <p class="who">Angreifer</p>
+          <p>E-Mail mit der Bankverbindung. Die Absenderdomain weicht um einen einzigen Buchstaben von unserer ab.</p>
+        </div>
+      </li>
+      <li data-side="wir">
+        <time>16:43</time>
+        <div class="body">
+          <p class="who">Buchhaltung</p>
+          <p>Drei rote Flaggen zugleich: Dringlichkeit, Geheimhaltung, ungewohnter Kanal. Die Buchhalterin beendet das Gespräch: „Ich rufe Sie gleich über die bekannte Nummer zurück.“</p>
+        </div>
+      </li>
+      <li data-side="wir">
+        <time>16:45</time>
+        <div class="body">
+          <p class="who">Buchhaltung</p>
+          <p>Rückruf über die hinterlegte Nummer: nur die Mailbox. Ohne Bestätigung keine Zahlung, und das Online-Banking verlangt ohnehin eine zweite Freigabe.</p>
+        </div>
+      </li>
+      <li data-side="wir">
+        <time>16:47</time>
+        <div class="body">
+          <p class="who">Informationssicherheit</p>
+          <p>Meldung eingegangen. Die gefälschte Domain wird gesperrt, Finanzen und Assistenz werden gewarnt.</p>
+        </div>
+      </li>
+      <li data-side="ende">
+        <time>17:30</time>
+        <div class="body">
+          <p class="who">Ergebnis</p>
+          <p>Die Frist der Angreifer verstreicht. Die Geschäftsführerin meldet sich aus dem Urlaub: Sie hat nie angerufen.</p>
+        </div>
+      </li>
+    </ol>
+    <div class="outcome">
+      <div class="out bad">
+        <p class="eyebrow">Ohne Verifikationsregel</p>
+        <p class="amount">185.000 €</p>
+        <p>überwiesen. Zurück kommt das Geld nur, wenn die Bank innerhalb weniger Stunden reagiert.</p>
+      </div>
+      <div class="out ok">
+        <p class="eyebrow">Mit Verifikationsregel</p>
+        <p class="amount">0 €</p>
+        <p>Schaden. Die Kosten der Maßnahme: ein Rückruf und eine zweite Freigabe.</p>
+      </div>
+    </div>
+    <p class="note">Beispielbetrag aus der Notfallübung. Ein realer Fall: 2024 überwies ein Mitarbeiter eines internationalen Ingenieurbüros in Hongkong nach einem Videocall mit ausschließlich gefälschten Kollegen rund 25 Mio. US-Dollar.</p>
+  </section>
+
+  <section aria-labelledby="bedrohungen">
+    <div class="section-head">
+      <p class="eyebrow">Bedrohungslage</p>
+      <h2 id="bedrohungen">Wogegen wir uns schützen</h2>
+      <p>Zwei Richtungen: Angreifer nutzen KI gegen uns, und sie missbrauchen die KI, die wir selbst einsetzen.</p>
+    </div>
+    <div class="threats">
+      <div>
+        <h3>Angriffe mit KI</h3>
+        <ul class="threat-list">
+          <li><span class="what">Phishing ohne Tippfehler, persönlich zugeschnitten</span><span class="counter">Passkeys statt Passwörtern, Melde-Button</span></li>
+          <li><span class="what">Rechnungsbetrug aus echten, übernommenen Mail-Verläufen</span><span class="counter">Rückruf bei jeder Änderung von Bankdaten</span></li>
+          <li><span class="what">Geklonte Stimme der Geschäftsführung am Telefon</span><span class="counter">Verifikationsregel, Codewort, Vier-Augen-Prinzip</span></li>
+          <li><span class="what">Gefälschte Videocalls mit bekannten Gesichtern</span><span class="counter">Video gilt nicht als Identitätsnachweis</span></li>
+          <li><span class="what">Falscher IT-Support verlangt einen MFA-Reset</span><span class="counter">Reset nur nach Rückruf und zweiter Bestätigung</span></li>
+          <li><span class="what">Automatisierte Ausnutzung von Sicherheitslücken</span><span class="counter">48-Stunden-Patchfrist, Überwachung rund um die Uhr</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Angriffe auf unsere KI</h3>
+        <ul class="threat-list">
+          <li><span class="what">Vertrauliche Daten in privaten KI-Diensten</span><span class="counter">Freigegebenes KI-Werkzeug und klare Richtlinie</span></li>
+          <li><span class="what">Versteckte Anweisungen in Mails und Dokumenten (Prompt Injection)</span><span class="counter">Minimale Rechte, menschliche Freigabe für Aktionen</span></li>
+          <li><span class="what">KI-Agenten mit zu weitreichenden Rechten</span><span class="counter">Freigabe-Checkliste und Notabschaltung je Agent</span></li>
+          <li><span class="what">KI-Suche zeigt Daten, die niemand sehen sollte</span><span class="counter">Berechtigungen vor der Aktivierung bereinigen</span></li>
+          <li><span class="what">Manipulierte Plugins und erfundene Software-Pakete</span><span class="counter">Nur geprüfte Quellen, Freigabeliste</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="sofort">
+    <div class="section-head">
+      <p class="eyebrow">Priorität</p>
+      <h2 id="sofort">Fünf Maßnahmen für die ersten 30 Tage</h2>
+      <p>Geordnet nach Wirkung. Die ersten beiden verhindern die teuersten Schäden und kosten fast nichts.</p>
+    </div>
+    <ol class="measures">
+      <li>
+        <div class="body">
+          <h3>Verifikationsregeln verbindlich machen <span class="ref">P1–P8</span></h3>
+          <p>Zahlungen, Bankdatenänderungen, Passwort-Resets und vertrauliche Daten nur nach Rückruf über die hinterlegte Nummer und mit einer zweiten Person. Codewort für Geschäftsführung, Assistenz und Finanzen. Schriftliche Rückendeckung: Wer prüft, wird nie kritisiert.</p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <h3>Passkeys für Risikogruppen <span class="ref">I1–I3, I6</span></h3>
+          <p>Administration, Geschäftsführung, Finanzen, HR und Helpdesk melden sich mit Passkeys oder Sicherheitsschlüsseln an. Sie funktionieren auf gefälschten Seiten nicht. Veraltete Anmeldeverfahren und App-Zustimmungen durch Benutzer werden gesperrt.</p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <h3>Sichere KI bereitstellen statt verbieten <span class="ref">K1–K3, G3</span></h3>
+          <p>Ein freigegebenes KI-Werkzeug mit Business-Vertrag, das nicht mit unseren Daten trainiert, plus eine KI-Nutzungsrichtlinie. Berechtigungen bereinigen, bevor eine KI-Suche Zugriff auf unsere Ablagen bekommt.</p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <h3>Schneller erkennen und schließen <span class="ref">R1, T8, T9, T12</span></h3>
+          <p>Überwachung rund um die Uhr, eigen oder als Dienstleistung. Aktiv ausgenutzte Lücken an Systemen im Internet binnen 48 Stunden schließen. Eine Sicherung offline oder unveränderlich halten und die Wiederherstellung testen.</p>
+        </div>
+      </li>
+      <li>
+        <div class="body">
+          <h3>Schulung neu ausrichten <span class="ref">M1–M6</span></h3>
+          <p>Weg von „Tippfehler erkennen“, hin zu „Ablauf einhalten und melden“. Eine Live-Vorführung mit der geklonten Stimme der Geschäftsführung wirkt stärker als jede Folie.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="fahrplan">
+    <div class="section-head">
+      <p class="eyebrow">Umsetzung</p>
+      <h2 id="fahrplan">Fahrplan</h2>
+    </div>
+    <div class="phases">
+      <article class="phase now">
+        <p class="when">Tag 0–30</p>
+        <h3>Sofortmaßnahmen</h3>
+        <ul>
+          <li>Verifikationsregeln, Codewort, Rückendeckung</li>
+          <li>Passkeys für Risikogruppen</li>
+          <li>Veraltete Anmeldungen und App-Zustimmungen gesperrt</li>
+          <li>KI-Werkzeug und Richtlinie</li>
+          <li>Sicherung geprüft, Notfallkontakte festgelegt</li>
+          <li class="key">NISG-Betroffenheit klären, ggf. registrieren (bis 31.12.2026)</li>
+        </ul>
+      </article>
+      <article class="phase">
+        <p class="when">Tag 31–90</p>
+        <h3>Grundschutz</h3>
+        <ul>
+          <li>KI-Inventar vollständig</li>
+          <li>EDR und Überwachung rund um die Uhr</li>
+          <li>Bedingter Zugriff, getrennte Admin-Konten</li>
+          <li>Regeln für KI-Agenten</li>
+          <li>Schulungen und erste Phishing-Simulation</li>
+          <li>Notfallübung mit der Geschäftsführung</li>
+        </ul>
+      </article>
+      <article class="phase">
+        <p class="when">Monat 4–12</p>
+        <h3>Ausbau</h3>
+        <ul>
+          <li>Passkeys für mindestens 90 % aller Konten</li>
+          <li>Netzwerksegmentierung und Härtung</li>
+          <li>Schutz vor Datenabfluss, auch in KI-Dienste</li>
+          <li>Sicherheitstests eigener KI-Anwendungen</li>
+          <li>Krisenkommunikation inkl. Deepfake-Szenario</li>
+        </ul>
+      </article>
+      <article class="phase">
+        <p class="when">ab Monat 12</p>
+        <h3>Laufend</h3>
+        <ul>
+          <li>Überprüfung der Strategie halbjährlich</li>
+          <li>Notfallübung jährlich</li>
+          <li>Wiederherstellungstest quartalsweise</li>
+          <li>Bewertung von KI-Anbietern und IT-Dienstleistern</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="fristen">
+    <div class="section-head">
+      <p class="eyebrow">Recht</p>
+      <h2 id="fristen">Fristen und Pflichten</h2>
+      <p>NISG 2026, AI Act und Cyber Resilience Act. Der Status wird beim Öffnen anhand des heutigen Datums berechnet.</p>
+    </div>
+    <div class="legal">
+      <ol class="deadlines">
+        <li data-date="2025-02-02">
+          <time datetime="2025-02-02">02.02.2025</time>
+          <span class="status" data-state="past">gilt</span>
+          <p class="what">AI Act: Pflicht zur KI-Kompetenz<span>Wer KI nutzt, muss dafür geschult sein (Art. 4).</span></p>
+        </li>
+        <li data-date="2026-08-02">
+          <time datetime="2026-08-02">02.08.2026</time>
+          <span class="status" data-state="past">gilt</span>
+          <p class="what">AI Act: Transparenzpflichten<span>Von uns veröffentlichte Deepfakes kennzeichnen (Art. 50).</span></p>
+        </li>
+        <li data-date="2026-09-11">
+          <time datetime="2026-09-11">11.09.2026</time>
+          <span class="status" data-state="past">gilt</span>
+          <p class="what">Cyber Resilience Act: Meldepflichten<span>Nur für Hersteller von Produkten mit digitalen Elementen.</span></p>
+        </li>
+        <li data-date="2026-10-01">
+          <time datetime="2026-10-01">01.10.2026</time>
+          <span class="status" data-state="past">gilt</span>
+          <p class="what">NISG 2026 in Kraft<span>Risikomanagement und Meldepflichten ohne Übergangsfrist.</span></p>
+        </li>
+        <li class="key" data-date="2026-12-31" data-kind="frist">
+          <time datetime="2026-12-31">31.12.2026</time>
+          <span class="status" data-state="soon">in 46 Tagen</span>
+          <p class="what">NISG 2026: Registrierung<span>Bei der Cybersicherheitsbehörde, falls wir erfasst sind.</span></p>
+        </li>
+        <li data-date="2027-12-02">
+          <time datetime="2027-12-02">02.12.2027</time>
+          <span class="status" data-state="future">kommt</span>
+          <p class="what">AI Act: Hochrisiko-KI<span>Z. B. KI im Recruiting; verschoben durch den Digital Omnibus.</span></p>
+        </li>
+        <li data-date="2027-12-11">
+          <time datetime="2027-12-11">11.12.2027</time>
+          <span class="status" data-state="future">kommt</span>
+          <p class="what">Cyber Resilience Act: volle Anwendung<span>Nur für Hersteller.</span></p>
+        </li>
+      </ol>
+      <div class="report">
+        <h3>Wenn es passiert: Meldefristen</h3>
+        <ol class="report-steps">
+          <li><span class="big">24 h</span><span>Frühwarnung an das CSIRT</span></li>
+          <li><span class="big">72 h</span><span>Meldung mit Bewertung</span></li>
+          <li><span class="big">1 Mon.</span><span>Abschlussbericht</span></li>
+        </ol>
+        <p>Gilt bei erheblichen Vorfällen für Einrichtungen, die das NISG 2026 erfasst. Bei Datenschutzverletzungen zusätzlich 72 Stunden an die Datenschutzbehörde (DSGVO).</p>
+        <p>Die Geschäftsführung muss die Maßnahmen billigen, ihre Umsetzung überwachen und an Schulungen teilnehmen. Strafrahmen bis 10 Mio. € bzw. 2 % des weltweiten Jahresumsatzes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="check">
+    <div class="section-head">
+      <p class="eyebrow">Selbsteinschätzung</p>
+      <h2 id="check">Schnell-Check: Wo stehen wir?</h2>
+      <p>Zehn Kernfragen aus der vollständigen Selbstbewertung. Die Antworten bleiben nur in Ihrem Browser gespeichert.</p>
+    </div>
+    <div class="check">
+      <form class="questions" id="check-form" aria-label="Schnell-Check"></form>
+      <aside class="result" id="result" data-rating="none" aria-live="polite">
+        <p class="eyebrow">Ergebnis</p>
+        <div class="score"><span class="num" id="score">0</span><span class="max">/ 20 Punkte</span></div>
+        <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+        <p class="rating" id="rating">Noch 10 Fragen offen</p>
+        <p class="gaps-title" id="gaps-title" hidden>Vorrangige Lücken</p>
+        <ul class="gaps" id="gaps"></ul>
+        <button type="button" class="reset" id="reset">Antworten zurücksetzen</button>
+      </aside>
+    </div>
+  </section>
+
+  <section aria-labelledby="beschluss">
+    <div class="section-head">
+      <p class="eyebrow">Entscheidung</p>
+      <h2 id="beschluss">Was wir von der Geschäftsführung brauchen</h2>
+      <p>Die vollständige Beschlussvorlage mit Budgettabelle und Unterschriftenfeld liegt als Anhang G bei.</p>
+    </div>
+    <ol class="decisions">
+      <li><span class="id">B1</span><span>Die Strategie gegen KI-gestützte Angriffe verabschieden.</span></li>
+      <li><span class="id">B2</span><span>Verantwortliche für Informationssicherheit und für KI-Governance benennen.</span></li>
+      <li><span class="id">B3</span><span>Verifikationsregeln und KI-Nutzungsrichtlinie in Kraft setzen; die Rückendeckungserklärung unterschreiben.</span></li>
+      <li><span class="id">B4</span><span>Das Budget für die ersten 90 Tage freigeben.</span></li>
+      <li><span class="id">B5</span><span>Die Prüfung der Betroffenheit nach NISG 2026 beauftragen, Ergebnis bis Anfang Dezember 2026.</span></li>
+      <li><span class="id">B6</span><span>An einer Cybersicherheitsschulung und an der jährlichen Notfallübung teilnehmen.</span></li>
+      <li><span class="id">B7</span><span>Quartalsweise einen Bericht zu Kennzahlen, Vorfällen und Umsetzungsstand erhalten.</span></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="kennzahlen">
+    <div class="section-head">
+      <p class="eyebrow">Erfolgsmessung</p>
+      <h2 id="kennzahlen">Woran wir den Erfolg messen</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Kennzahl</th><th scope="col">Ziel nach 12 Monaten</th><th scope="col">Frequenz</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Konten mit Passkeys oder Sicherheitsschlüssel, privilegiert / alle</td><td class="target">100 % / ≥ 90 %</td><td>monatlich</td></tr>
+          <tr><td>Kritische Transaktionen mit dokumentiertem Rückruf</td><td class="target">100 %</td><td>quartalsweise</td></tr>
+          <tr><td>Melderate in Phishing-Simulationen</td><td class="target">≥ 70 %</td><td>je Kampagne</td></tr>
+          <tr><td>Aktiv ausgenutzte Lücken an Internet-Systemen geschlossen</td><td class="target">≤ 48 h</td><td>monatlich</td></tr>
+          <tr><td>Eindämmung kritischer Vorfälle</td><td class="target">≤ 4 h</td><td>je Vorfall</td></tr>
+          <tr><td>Genutzte KI-Systeme im Inventar und bewertet</td><td class="target">100 %</td><td>quartalsweise</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="unterlagen">
+    <div class="section-head">
+      <p class="eyebrow">Paket</p>
+      <h2 id="unterlagen">Die Unterlagen</h2>
+      <p>Strategie mit neun Handlungsfeldern und rund 80 Maßnahmen, dazu zwölf Anhänge zur direkten Umsetzung.</p>
+    </div>
+    <dl class="docs">
+      <div><dt>A</dt><dd><b>Playbook Deepfake- und CEO-Betrug</b> – was in den ersten Minuten und Stunden zu tun ist</dd></div>
+      <div><dt>B</dt><dd><b>Playbook KI-Phishing und Kontoübernahme</b> – Angreifer in 30 Minuten aussperren</dd></div>
+      <div><dt>C</dt><dd><b>Playbook Angriff auf eigene KI</b> – Prompt Injection, Agenten-Missbrauch, Datenabfluss</dd></div>
+      <div><dt>D</dt><dd><b>KI-Nutzungsrichtlinie</b> – freigegebene Werkzeuge, Datenklassen, Verbote</dd></div>
+      <div><dt>E</dt><dd><b>Verifikationsregeln</b> – Einseiter „STOPP · PRÜFEN · BESTÄTIGEN“ zum Aushängen</dd></div>
+      <div><dt>F</dt><dd><b>Selbstbewertung</b> – 48 Fragen mit Punktesystem</dd></div>
+      <div><dt>G</dt><dd><b>Beschlussvorlage</b> – Beschlusspunkte, Budget, Unterschriften</dd></div>
+      <div><dt>H</dt><dd><b>Notfallübung „Freitagabend“</b> – sechs Einspielungen, Beobachtungsbogen</dd></div>
+      <div><dt>I</dt><dd><b>Kommunikationsvorlagen</b> – Rundschreiben, Lieferantenbrief, Stellungnahme bei Deepfake</dd></div>
+      <div><dt>J</dt><dd><b>Technische Umsetzung</b> – Microsoft 365, Google Workspace, Erkennungsregeln</dd></div>
+      <div><dt>K</dt><dd><b>KI-Inventar und Anbieterbewertung</b> – Risikostufen, Agenten-Freigabe, Fragebogen</dd></div>
+      <div><dt>L</dt><dd><b>Awareness-Jahresplan</b> – zwölf versandfertige Monatsimpulse</dd></div>
+    </dl>
+  </section>
+
+  <footer>
+    <p>Vollständige Unterlagen im Repository <code>officemeitat-ui/new</code>, Branch <code>claude/cybersecurity-ai-attacks-strategy-brtr0l</code>.</p>
+    <p>Diese Übersicht ersetzt keine Rechtsberatung. Stand der Rechtslage: November 2026. Fristen und Pflichten vor Entscheidungen im RIS bzw. auf EUR-Lex prüfen.</p>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Fristen: Status relativ zum heutigen Datum */
+  var DAY = 86400000;
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var items = document.querySelectorAll(".deadlines li[data-date]");
+  for (var i = 0; i < items.length; i++) {
+    var li = items[i];
+    var parts = li.getAttribute("data-date").split("-");
+    var d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    var diff = Math.round((d - today) / DAY);
+    var isDeadline = li.getAttribute("data-kind") === "frist";
+    var status = li.querySelector(".status");
+    var label, state;
+    if (diff < 0) {
+      label = isDeadline ? "abgelaufen" : "gilt";
+      state = isDeadline ? "expired" : "past";
+    } else if (diff === 0) {
+      label = "heute";
+      state = "soon";
+    } else if (diff <= 90) {
+      label = "in " + diff + (diff === 1 ? " Tag" : " Tagen");
+      state = "soon";
+    } else {
+      label = "kommt";
+      state = "future";
+    }
+    status.textContent = label;
+    status.setAttribute("data-state", state);
+  }
+
+  /* Schnell-Check */
+  var QUESTIONS = [
+    { id: "q1", text: "Gibt es verbindliche Verifikationsregeln mit Rückruf über die hinterlegte Nummer für Zahlungen und Bankdatenänderungen?", short: "Verifikationsregeln", ref: "P1, P2, P8" },
+    { id: "q2", text: "Ist das Vier-Augen-Prinzip im Online-Banking technisch erzwungen?", short: "Vier-Augen-Prinzip im Banking", ref: "P3" },
+    { id: "q3", text: "Melden sich Geschäftsführung und alle Admin-Konten mit Passkeys oder Sicherheitsschlüsseln an?", short: "Passkeys für Risikokonten", ref: "I1" },
+    { id: "q4", text: "Werden Passwort- und MFA-Resets nur nach Rückruf und zweiter Bestätigung durchgeführt?", short: "Sicherer Reset-Prozess", ref: "I3" },
+    { id: "q5", text: "Gibt es ein freigegebenes KI-Werkzeug mit Business-Vertrag und eine KI-Nutzungsrichtlinie?", short: "Freigegebene KI und Richtlinie", ref: "K1, G3" },
+    { id: "q6", text: "Werden Sicherheitsalarme rund um die Uhr bearbeitet, auch am Wochenende?", short: "Überwachung rund um die Uhr", ref: "R1" },
+    { id: "q7", text: "Werden aktiv ausgenutzte Lücken an Systemen im Internet binnen 48 Stunden geschlossen?", short: "48-Stunden-Patchfrist", ref: "T8" },
+    { id: "q8", text: "Gibt es eine Offline- oder unveränderliche Sicherung, deren Wiederherstellung getestet wurde?", short: "Getestete Offline-Sicherung", ref: "T12" },
+    { id: "q9", text: "Sind Meldewege, Fristen (NISG, DSGVO) und Notfallkontakte dokumentiert und bekannt?", short: "Meldewege und Notfallkontakte", ref: "R4, R5" },
+    { id: "q10", text: "Ist geklärt, ob wir unter das NISG 2026 fallen, und sind wir gegebenenfalls registriert?", short: "NISG-Betroffenheit", ref: "G6" }
+  ];
+  var OPTIONS = [
+    { v: 2, label: "Ja" },
+    { v: 1, label: "Teilweise" },
+    { v: 0, label: "Nein" }
+  ];
+  var KEY = "ki-schnellcheck-v1";
+  var answers = {};
+  try {
+    var saved = window.localStorage.getItem(KEY);
+    if (saved) answers = JSON.parse(saved) || {};
+  } catch (e) { answers = {}; }
+
+  var form = document.getElementById("check-form");
+  QUESTIONS.forEach(function (q, idx) {
+    var fs = document.createElement("fieldset");
+    fs.className = "q";
+    var legend = document.createElement("legend");
+    legend.className = "qtext";
+    legend.textContent = (idx + 1) + ". " + q.text;
+    fs.appendChild(legend);
+    var seg = document.createElement("div");
+    seg.className = "seg";
+    OPTIONS.forEach(function (o) {
+      var input = document.createElement("input");
+      input.type = "radio";
+      input.name = q.id;
+      input.value = String(o.v);
+      input.id = q.id + "-" + o.v;
+      if (answers[q.id] === o.v) input.checked = true;
+      var label = document.createElement("label");
+      label.htmlFor = input.id;
+      label.textContent = o.label;
+      seg.appendChild(input);
+      seg.appendChild(label);
+    });
+    fs.appendChild(seg);
+    form.appendChild(fs);
+  });
+
+  var result = document.getElementById("result");
+  var scoreEl = document.getElementById("score");
+  var barEl = document.getElementById("bar");
+  var ratingEl = document.getElementById("rating");
+  var gapsEl = document.getElementById("gaps");
+  var gapsTitle = document.getElementById("gaps-title");
+
+  function render() {
+    var score = 0, answered = 0, gaps = [];
+    QUESTIONS.forEach(function (q) {
+      if (typeof answers[q.id] === "number") {
+        answered++;
+        score += answers[q.id];
+        if (answers[q.id] === 0) gaps.push(q);
+      }
+    });
+    scoreEl.textContent = String(score);
+    barEl.style.width = (score / 20 * 100) + "%";
+    var open = QUESTIONS.length - answered;
+    var rating = "none", text;
+    if (answered === 0) {
+      text = "Noch 10 Fragen offen";
+    } else {
+      if (score <= 9) rating = "bad";
+      else if (score <= 15) rating = "warn";
+      else rating = "ok";
+      if (open > 0) rating = gaps.length ? "bad" : "none";
+      if (open > 0) {
+        text = "Noch " + open + (open === 1 ? " Frage" : " Fragen") + " offen";
+      } else if (rating === "bad") {
+        text = "Hohes Risiko: sofort mit den Maßnahmen für die ersten 30 Tage beginnen";
+      } else if (rating === "warn") {
+        text = "Grundschutz lückenhaft: offene Punkte in den ersten 90 Tagen schließen";
+      } else {
+        text = "Guter Basisschutz: halten, üben, regelmäßig überprüfen";
+      }
+    }
+    result.setAttribute("data-rating", rating);
+    ratingEl.textContent = text;
+    gapsEl.textContent = "";
+    gapsTitle.hidden = gaps.length === 0;
+    gaps.forEach(function (q) {
+      var li = document.createElement("li");
+      var name = document.createElement("span");
+      name.textContent = q.short;
+      var ref = document.createElement("span");
+      ref.className = "ref";
+      ref.textContent = q.ref;
+      li.appendChild(name);
+      li.appendChild(ref);
+      gapsEl.appendChild(li);
+    });
+  }
+
+  form.addEventListener("change", function (ev) {
+    var t = ev.target;
+    if (t && t.type === "radio") {
+      answers[t.name] = Number(t.value);
+      try { window.localStorage.setItem(KEY, JSON.stringify(answers)); } catch (e) {}
+      render();
+    }
+  });
+  form.addEventListener("submit", function (ev) { ev.preventDefault(); });
+
+  document.getElementById("reset").addEventListener("click", function () {
+    answers = {};
+    try { window.localStorage.removeItem(KEY); } catch (e) {}
+    var inputs = form.querySelectorAll("input");
+    for (var j = 0; j < inputs.length; j++) inputs[j].checked = false;
+    render();
+  });
+
+  render();
+})();
+</script>
