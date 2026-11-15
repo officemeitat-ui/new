@@ -516,7 +516,7 @@ lazy(BUERO, {
     },
   ],
   modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwg-routing mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
-  actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode
+  actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode mw-geo-all
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
     mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save

@@ -222,3 +222,31 @@ test('Gebiete und Koordinaten: Namen eindeutig (Groß/klein egal), Koordinaten v
   assert.deepEqual(coordsFromObject(OBJECTS[0]), { lat: 47.81, lon: 13.03, geoQuality: 'objekt' })
   assert.equal(coordsFromObject(OBJECTS[1]), null)
 })
+
+test('Koordinaten für alle fehlenden: je Adresse eine Suche, Objekte mit Koordinaten und inaktive bleiben draußen', async () => {
+  const { applyCoords, missingCoords } = await import('../src/core/matten.js')
+  const objects = [
+    { id: 'o1', name: 'Kirche', address: 'Probegasse 2, 5400 Hallein' },
+    { id: 'o2', name: 'Büro', address: 'Testweg 1, 5020 Salzburg', lat: 47.8, lon: 13.04 },
+    { id: 'o3', name: 'Ohne Adresse' },
+  ]
+  const placements = [
+    { id: 'p1', objectId: 'o1', name: 'Haupteingang', active: true },
+    { id: 'p2', objectId: 'o1', name: 'Lift', active: true },
+    { id: 'p3', objectId: 'o2', name: 'Eingang', active: true },
+    { id: 'p4', objectId: 'o1', name: 'Keller', active: false },
+    { id: 'p5', objectId: 'o1', name: 'Hof', active: true, lat: 47.68, lon: 13.09 },
+    { id: 'p6', objectId: 'o3', name: 'Tür', active: true },
+  ]
+  const todo = missingCoords(placements, objects)
+  assert.deepEqual(todo.map((g) => [g.address, g.ids]), [['Probegasse 2, 5400 Hallein', ['p1', 'p2']], ['', ['p6']]])
+  const p = applyCoords(placements[0], { lat: 47.6812345, lon: 13.0961234, quality: 'adresse' }, { now: 'T', user: 'U' })
+  assert.deepEqual([p.lat, p.lon, p.geoQuality, p.check, p.updatedBy], [47.681235, 13.096123, 'adresse', undefined, 'U'])
+  const unsicher = applyCoords({ ...placements[1], check: { reason: 'Hausnummer prüfen' } }, { lat: 47.6, lon: 13.1, quality: 'google', partial: true })
+  assert.equal(unsicher.geoQuality, 'google')
+  assert.equal(unsicher.check.reason, 'Hausnummer prüfen; Koordinaten prüfen (Treffer unsicher)')
+  const keiner = applyCoords(placements[5], null)
+  assert.match(keiner.check.reason, /nicht gefunden/)
+  assert.equal(keiner.lat, undefined)
+  assert.equal(applyCoords(keiner, null).check.reason, keiner.check.reason, 'Grund nicht doppelt')
+})

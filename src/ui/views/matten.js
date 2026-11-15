@@ -13,6 +13,8 @@ import { matTypes } from '../../core/invoicing.js'
 import { confirmedExchanges, planSettings } from '../../core/matten-einsaetze.js'
 import {
   activeAreas,
+  addCheck,
+  applyCoords,
   areaOf,
   areaProblem,
   coordsFromObject,
@@ -27,6 +29,7 @@ import {
   intervalText,
   knownCustomers,
   knownTypes,
+  missingCoords,
   normalizePlacement,
   OWNERS,
   placementProblem,
@@ -39,6 +42,7 @@ import {
 } from '../../core/matten.js'
 import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { geocode } from '../geocode.js'
+import { chosenProvider, findCoords } from '../matten-routing.js'
 import { checked, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 import { importTab, mayImport } from './matten-uebernahme.js'
 
@@ -59,6 +63,9 @@ const fakCustomers = () => fak()?.customers || null
 const fakArticles = () => fak()?.articles || null
 const objOf = (id) => (app.data.objects || []).find((o) => o.id === id) || null
 const placementOf = (id) => doc().placements.find((p) => p.id === id) || null
+/** Anzahl aktiver Liegeplätze ohne Koordinaten (auch nicht am Objekt). */
+const geoMissing = () => missingCoords(doc().placements, app.data.objects || []).reduce((n, g) => n + g.ids.length, 0)
+const geoRun = { busy: false }
 const short = (d) => (d ? formatDate(d, { weekday: false, year: true }) : '–')
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const STATE_TEXT = { ueberfaellig: 'überfällig', faellig: 'bald', geplant: 'geplant', pausiert: 'pausiert', inaktiv: 'inaktiv', ohne: 'kein Termin' }
@@ -109,6 +116,7 @@ function mattenView() {
       items: [
         { label: 'Kalender', icon: ICON.calendar, action: 'view', data: { view: 'mw-kalender' }, hint: 'Einsätze planen, verschieben' },
         ed && { label: 'Gebiete (Tourrunden)', icon: ICON.gear, action: 'mw-areas-open', hint: 'anlegen, umbenennen' },
+        ed && geoMissing() && { label: `Koordinaten für alle fehlenden suchen (${geoMissing()})`, icon: ICON.search, action: 'mw-geo-all', hint: `für Route und Karte, über ${chosenProvider()?.short || 'OpenStreetMap'}` },
         sees('fakturierung') && { label: 'Mattentypen und Preise', icon: ICON.gear, action: 'mw-types-goto', hint: 'in der Fakturierung' },
         mayImport() && { label: 'Übernahme aus dem Werkzeug', icon: ICON.download, action: 'mw-tab', data: { v: 'uebernahme' }, hint: 'einmalig, mit Sicherung' },
         sees('matten') && app.config?.tools !== false && { label: cutover() ? 'Mattenwechsel (alt) ansehen' : 'Werkzeug öffnen', action: 'view', data: { view: 'matten' }, hint: cutover() ? 'nur lesend' : 'Mattenwechsel (Werkzeug)' },
@@ -510,6 +518,50 @@ registerActions(
         toast(`Suche nicht möglich: ${err.message}`)
       } finally {
         el.disabled = false
+      }
+    },
+    // alle Liegeplätze ohne Koordinaten: je Adresse eine Suche (gewählter Anbieter, sonst OpenStreetMap, 1 je Sekunde)
+    'mw-geo-all': async () => {
+      if (geoRun.busy) return toast('Die Suche läuft schon.')
+      const todo = missingCoords(doc().placements, app.data.objects || [])
+      if (!todo.length) return toast('Alle aktiven Liegeplätze haben Koordinaten.')
+      const search = todo.filter((g) => g.address)
+      const now = nowIso()
+      const by = user()
+      const set = (ids, fn) => {
+        const d = doc()
+        d.placements = d.placements.map((p) => (ids.includes(p.id) ? fn(p) : p))
+      }
+      let found = 0
+      let unsure = 0
+      let missing = 0
+      geoRun.busy = true
+      try {
+        for (const [i, g] of search.entries()) {
+          toast(`Koordinaten ${i + 1} von ${search.length}: ${g.address}`)
+          let hit = null
+          try {
+            hit = await findCoords(g.address)
+          } catch {
+            hit = null
+          }
+          set(g.ids, (p) => applyCoords(p, hit, { now, user: by }))
+          if (hit) {
+            found += g.ids.length
+            if (hit.partial) unsure += g.ids.length
+          } else missing += g.ids.length
+          if ((i + 1) % 10 === 0) persist()
+        }
+        const noAddress = todo.find((g) => !g.address)
+        if (noAddress) {
+          set(noAddress.ids, (p) => ({ ...addCheck(p, 'Objekt ohne Adresse: Koordinaten von Hand eintragen'), updatedAt: now, updatedBy: by }))
+          missing += noAddress.ids.length
+        }
+        persist()
+        renderNow()
+        toast(`Koordinaten: ${found} gefunden${unsure ? `, davon ${unsure} unsicher` : ''}${missing ? `, ${missing} nicht gefunden – stehen unter „zu prüfen“` : ''}.`)
+      } finally {
+        geoRun.busy = false
       }
     },
     'mw-save': () => savePlacement(),

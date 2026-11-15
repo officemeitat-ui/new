@@ -1866,6 +1866,17 @@ export const TOPICS = [
     roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
   },
   {
+    id: 'mw-koordinaten',
+    section: 'objekte',
+    view: 'mw-liegeplaetze',
+    title: 'Koordinaten für alle Liegeplätze auf einmal',
+    q: ['koordinaten für alle', 'koordinaten suchen alle', 'liegeplätze ohne koordinaten', 'route geht nicht', 'keine koordinaten', 'karte liegeplatz', 'geokodieren'],
+    answer: 'Ohne Koordinaten plant die Tourenplanung keinen Liegeplatz ein. „Mehr“ → „Koordinaten für alle fehlenden suchen“ holt sie für alle aktiven Liegeplätze aus der Adresse des Objekts, eine Suche je Adresse. Unsichere oder fehlende Treffer stehen danach unter „zu prüfen“.',
+    steps: ['„Matten-Liegeplätze“ öffnen.', '„Mehr“ → „Koordinaten für alle fehlenden suchen (Anzahl)“.', 'Warten, bis die Meldung „Koordinaten: … gefunden“ kommt.', 'Filter „zu prüfen“: diese Liegeplätze öffnen und die Koordinaten von Hand setzen.'],
+    tips: ['Gesucht wird über den gewählten Routing-Anbieter, sonst über OpenStreetMap (eine Anfrage je Sekunde).', 'Steht im Objekt nur ein Firmenname statt der Straße, findet die Suche nichts: dann die Adresse im Objekt verbessern oder die Koordinaten aus Google Maps eintragen (Rechtsklick auf den Ort).'],
+    related: ['mw-liegeplaetze'],
+  },
+  {
     id: 'mw-liegeplatz-anlegen',
     section: 'objekte',
     view: 'mw-liegeplaetze',

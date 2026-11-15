@@ -354,3 +354,45 @@ export function counts(rows) {
 export function coordsFromObject(object) {
   return Number.isFinite(object?.lat) && Number.isFinite(object?.lon) ? { lat: object.lat, lon: object.lon, geoQuality: 'objekt' } : null
 }
+
+// ---------------------------------------------------------------- Koordinaten für alle fehlenden
+
+/**
+ * Aktive Liegeplätze ohne Koordinaten (weder eigene noch am Objekt), je Adresse des Objekts gruppiert: eine Suche je
+ * Adresse. → [{ address, ids: [Liegeplatz-IDs], names: [Text] }]; Liegeplätze ohne Adresse unter address ''.
+ */
+export function missingCoords(placements = [], objects = []) {
+  const byId = new Map((objects || []).map((o) => [o.id, o]))
+  const has = (x) => Number.isFinite(x?.lat) && Number.isFinite(x?.lon)
+  const groups = new Map()
+  for (const p of placements || []) {
+    if (p.active === false || has(p)) continue
+    const o = byId.get(p.objectId)
+    if (has(o)) continue
+    const address = text(o?.address)
+    if (!groups.has(address)) groups.set(address, { address, ids: [], names: [] })
+    const g = groups.get(address)
+    g.ids.push(p.id)
+    g.names.push([o?.name, p.name].filter(Boolean).join(' – '))
+  }
+  return [...groups.values()].sort((a, b) => Number(!a.address) - Number(!b.address) || a.address.localeCompare(b.address, 'de'))
+}
+
+/** Hinweis „zu prüfen“ ergänzen (vorhandene Gründe bleiben, keiner doppelt). */
+export function addCheck(p, reason) {
+  const old = text(p.check?.reason)
+  if (old.split('; ').includes(reason)) return p
+  return { ...p, check: { ...(p.check || {}), reason: [old, reason].filter(Boolean).join('; ') } }
+}
+
+/**
+ * Ergebnis einer Suche an die Liegeplätze: Treffer → lat, lon, geoQuality ('google' | 'ors' | sonst 'adresse'); ein
+ * unsicherer Treffer (Ort statt Hausnummer) zusätzlich „zu prüfen“; kein Treffer → „zu prüfen“ mit Grund.
+ */
+export function applyCoords(p, hit, { now = '', user = '' } = {}) {
+  const stamp = { updatedAt: now, updatedBy: user }
+  if (!hit) return { ...addCheck(p, 'Adresse für die Karte nicht gefunden – Koordinaten von Hand eintragen'), ...stamp }
+  const quality = hit.quality === 'google' || hit.quality === 'ors' ? hit.quality : 'adresse'
+  const out = { ...p, lat: Math.round(hit.lat * 1e6) / 1e6, lon: Math.round(hit.lon * 1e6) / 1e6, geoQuality: quality, ...stamp }
+  return hit.partial ? addCheck(out, 'Koordinaten prüfen (Treffer unsicher)') : out
+}

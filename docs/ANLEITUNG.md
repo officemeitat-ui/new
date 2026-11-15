@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 410 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 411 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (43)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
-- [Objekte & Kunden](#objekte-kunden) (103)
+- [Objekte & Kunden](#objekte-kunden) (104)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (65)
@@ -2200,6 +2200,20 @@ Ein Liegeplatz ist die Stelle beim Kunden, an der Matten liegen, z. B. „Haupte
 > Tipp: Am Handy steht „Liegeplätze“ in der Leiste unten.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Koordinaten für alle Liegeplätze auf einmal
+
+*In der App: Matten-Liegeplätze*
+
+Ohne Koordinaten plant die Tourenplanung keinen Liegeplatz ein. „Mehr“ → „Koordinaten für alle fehlenden suchen“ holt sie für alle aktiven Liegeplätze aus der Adresse des Objekts, eine Suche je Adresse. Unsichere oder fehlende Treffer stehen danach unter „zu prüfen“.
+
+1. „Matten-Liegeplätze“ öffnen.
+2. „Mehr“ → „Koordinaten für alle fehlenden suchen (Anzahl)“.
+3. Warten, bis die Meldung „Koordinaten: … gefunden“ kommt.
+4. Filter „zu prüfen“: diese Liegeplätze öffnen und die Koordinaten von Hand setzen.
+
+> Tipp: Gesucht wird über den gewählten Routing-Anbieter, sonst über OpenStreetMap (eine Anfrage je Sekunde).
+> Tipp: Steht im Objekt nur ein Firmenname statt der Straße, findet die Suche nichts: dann die Adresse im Objekt verbessern oder die Koordinaten aus Google Maps eintragen (Rechtsklick auf den Ort).
 
 ### Liegeplatz anlegen
 
