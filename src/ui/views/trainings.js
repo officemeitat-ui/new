@@ -6,7 +6,7 @@
 
 import { formatDate, todayISO } from '../../core/dates.js'
 import { toCSV } from '../../core/reports.js'
-import { dueList, emptyTrainings, isRequired, KINDS, matrix, sessionRecords, STATE_TEXT, statusOf, TRAINING_DEFAULTS, typesOf, untilOf, addMonths } from '../../core/trainings.js'
+import { addImported, dueList, emptyTrainings, isRequired, KINDS, matrix, parseRecordTable, sessionRecords, STATE_TEXT, statusOf, TRAINING_DEFAULTS, typesOf, untilOf, addMonths } from '../../core/trainings.js'
 import { sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
 import { app, canEdit, closeModal, confirmStep, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { registerTodo } from '../modals/todo.js'
@@ -77,6 +77,7 @@ function trainingsView() {
         single: false,
         items: [
           ed && { label: 'Einzeln eintragen', icon: ICON.plus, action: 'tr-record-open', hint: 'z. B. Kurs oder Nachweis von außen' },
+          ed && { label: 'Aus Excel einfügen', icon: ICON.upload, action: 'tr-import-open', hint: 'bisherige Liste: Name und Datum' },
           ed && { label: 'Arten verwalten', icon: ICON.gear, action: 'tr-types-open', hint: 'Unterweisungen, Kurse, Fristen' },
           { heading: 'Export' },
           { label: 'Übersicht (CSV)', icon: ICON.download, action: 'tr-csv', mail: true },
@@ -252,6 +253,40 @@ function readTypes() {
   return m.rows
 }
 
+// ---------------------------------------------------------------- Aus Excel einfügen (bisherige Liste)
+
+function importModal() {
+  const m = app.ui.modal
+  m.typeId ||= (types().find((t) => t.id === 'sicherheit') || types()[0])?.id || ''
+  const r = m.result
+  const list = (names) => esc(names.slice(0, 12).join(', ')) + (names.length > 12 ? ' …' : '')
+  const preview = r
+    ? `<section><h3>Vorschau</h3>${r.errors.length ? `<p class="err-text">${esc(r.errors.join(' '))}</p>` : ''}
+      ${r.items.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>Datum</th><th>gültig bis</th><th>Notiz</th></tr></thead><tbody>${r.items.map((x) => `<tr><td>${esc(x.name)}${x.written ? ` <span class="pill warning" title="In der Liste anders geschrieben">in der Liste: ${esc(x.written)}</span>` : ''}</td><td>${short(x.date)}</td><td>${x.until ? short(x.until) : '<span class="muted">nach Art</span>'}</td><td>${esc([x.by ? `durchgeführt von ${x.by}` : '', x.note].filter(Boolean).join(' · '))}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${r.unknown.length ? `<p class="note"><strong>Nicht gefunden (${r.unknown.length}):</strong> ${list(r.unknown)} – Name wie unter „Mitarbeitende“ schreiben oder die Person zuerst anlegen.</p>` : ''}
+      ${r.noDate.length ? `<p class="note"><strong>Ohne Datum (${r.noDate.length}):</strong> ${list(r.noDate)} – bleiben bei „fehlt“; am besten gleich „Unterweisung durchführen“.</p>` : ''}</section>`
+    : ''
+  return modalFrame({
+    title: 'Unterweisungen aus Excel einfügen',
+    wide: true,
+    body: `<p class="note">In Excel die Zeilen samt Überschrift markieren, kopieren und hier einfügen. Gebraucht werden die Spalten „Name“ und „Datum“ (auch „Zertifikat …“); „Gültig bis“, „Durchgeführt von“ und „Notiz“ werden mitgenommen. Ohne „Gültig bis“ gilt die Gültigkeit der Art. Leicht anders geschriebene Namen ordnet die App zu und zeigt es gelb – bitte kurz prüfen.</p>
+      <div class="form-grid"><label class="field"><span>Art</span><select id="ti-type">${options(types().map((t) => [t.id, t.name]), m.typeId)}</select></label></div>
+      <label class="field"><span>Tabelle</span><textarea id="ti-text" rows="8" placeholder="Name&#9;Datum&#9;Durchgeführt von">${esc(m.text || '')}</textarea></label>
+      ${preview}`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn" data-action="ti-check">Prüfen</button>${r?.items.length ? `<button class="btn primary" data-action="ti-save">Übernehmen (${r.items.length})</button>` : ''}</div>`,
+  })
+}
+registerModal('tr-import', importModal, { module: MODULE })
+
+function readImport() {
+  const m = app.ui.modal
+  m.typeId = val('ti-type') || m.typeId
+  const text = val('ti-text')
+  if (text !== m.text) m.result = null
+  m.text = text
+  return m
+}
+
 // ---------------------------------------------------------------- Aktionen
 
 registerActions({
@@ -357,6 +392,27 @@ registerActions(
       } catch (err) {
         toast(`${done} Das PDF ging nicht (${err.message}): später unter „Letzte Unterweisungen“ → „Nachweis“.`)
       }
+    },
+    'tr-import-open': () => openModal({ type: 'tr-import' }),
+    'ti-check': () => {
+      const m = readImport()
+      m.result = parseRecordTable(m.text, { employees: active() })
+      if (!m.result.items.length && !m.result.errors.length && !m.result.unknown.length && !m.result.noDate.length) m.result.errors.push('Keine Zeilen gefunden.')
+      renderModal()
+    },
+    'ti-save': () => {
+      const m = readImport()
+      const type = typeOf(m.typeId)
+      if (!type) return toast('Bitte die Art wählen.')
+      const r = (m.result ||= parseRecordTable(m.text, { employees: active() }))
+      if (!r.items.length) return toast('Nichts zu übernehmen – bitte zuerst „Prüfen“.')
+      const d = doc()
+      const res = addImported(d.records, r.items, type.id, { newId: () => uid('u'), at: nowIso(), by: by() })
+      d.records = res.records
+      persist()
+      closeModal()
+      renderNow()
+      toast(`${type.name}: ${plural(res.added, 'Eintrag', 'Einträge')} übernommen${res.skipped ? `, ${res.skipped} ${res.skipped === 1 ? 'war' : 'waren'} schon da` : ''}.`)
     },
     'tr-types-open': () => openModal({ type: 'tr-types' }),
     'tt-add': () => {

@@ -76,3 +76,40 @@ test('Fristen: Nachweis als PDF mit Unterschrift', () => {
   assert.match(json, /Unterschrift Büro/)
   assert.equal(sessionPdfName({ date: '2026-11-03' }, T.sicherheit), 'Unterweisung_2026-11-03_Sicherheitsunterweisung.pdf')
 })
+
+test('Aus Excel einfügen: Spalten erkennen, Namen auch umgekehrt, ohne Datum und unbekannt getrennt, nichts doppelt', async () => {
+  const { addImported, parseRecordTable, tableDate } = await import('../src/core/trainings.js')
+  assert.equal(tableDate('16.01.2024'), '2024-01-16')
+  assert.equal(tableDate('1.2.25'), '2025-02-01')
+  assert.equal(tableDate('2025-11-01 00:00:00'), '2025-11-01')
+  assert.equal(tableDate('31.13.2025'), '')
+  const employees = [{ id: 'e1', name: 'Ana Popescu' }, { id: 'e2', name: 'Jürgen Beispiel' }, { id: 'e3', name: 'Alt Person', inactive: true }]
+  const text = ['Mitarbeiter\tAufforderung Sicherheitsvideo\tZertifikat Sicherheitsvideo\tdurchgeführt von', 'Ana Popescu\t16.01.2024\t01.01.2025\tChefin', 'Beispiel Jürgen\t\t01.11.2025\t', 'Niemand Hier\t\t01.02.2025\t', 'Ohne Datum\t\t\t', 'Alt Person\t\t01.03.2025\t'].join('\n')
+  const r = parseRecordTable(text, { employees })
+  assert.deepEqual(r.items.map((x) => [x.empId, x.date, x.by]), [['e1', '2025-01-01', 'Chefin'], ['e2', '2025-11-01', '']])
+  assert.deepEqual(r.unknown, ['Niemand Hier', 'Alt Person'])
+  assert.deepEqual(r.noDate, ['Ohne Datum'])
+  let n = 0
+  const a = addImported([{ id: 'x', empId: 'e1', typeId: 'sicherheit', date: '2025-01-01' }], r.items, 'sicherheit', { newId: () => `n${++n}`, at: 'T', by: 'Büro' })
+  assert.deepEqual([a.added, a.skipped, a.records.length], [1, 1, 2])
+  assert.deepEqual(a.records[1], { id: 'n1', empId: 'e2', typeId: 'sicherheit', date: '2025-11-01', note: '', by: 'Büro', at: 'T', source: 'import' })
+  assert.match(parseRecordTable('Name;Ort\nAna;Wien', { employees }).errors[0], /Datum/)
+})
+
+test('Namen zuordnen: Schreibvarianten eindeutig, Titel über der Überschrift, mehrdeutig bleibt offen', async () => {
+  const { nameMatcher, parseRecordTable } = await import('../src/core/trainings.js')
+  const employees = [{ id: 'd', name: 'Doina Hergheligiu' }, { id: 'm', name: 'Marianna Gheorghe' }, { id: 'p', name: 'Petre Gheorghe' }, { id: 'i', name: 'Ion Constantin Kast' }, { id: 'a', name: 'Anna Maier' }, { id: 'b', name: 'Anna Meier' }]
+  const find = nameMatcher(employees)
+  assert.deepEqual(find('Doina Herghelegiu '), { emp: employees[0], exact: false })
+  assert.equal(find('Mariana Gheorghe').emp.id, 'm')
+  assert.equal(find('PETRE GHEORGHE').exact, true)
+  assert.equal(find('Kast Ion Constantin').exact, true)
+  assert.equal(find('Ion Kast').emp.id, 'i')
+  assert.equal(find('Anna Mxier'), null, 'zwei gleich nah: nicht raten')
+  assert.equal(find('Anna Mayer').emp.id, 'a', 'der nächste eindeutige')
+  assert.equal(find('Gheorghe'), null)
+  const text = ['Sicherheitsunterweisungen \t\t2026', '\t\t', 'Mitarbeiter\t\tAufforderung Sicherheitsvideo\t\tZertifikat Sicherheitsvideo\t\tdurchgeführt von ', 'Doina Herghelegiu \t\t16.01.2024\t\t01.01.2025\t\tCarina', 'Ion Kast\t\t\t\t\t\t'].join('\n')
+  const r = parseRecordTable(text, { employees })
+  assert.deepEqual(r.items, [{ empId: 'd', name: 'Doina Hergheligiu', written: 'Doina Herghelegiu', date: '2025-01-01', until: '', by: 'Carina', note: '' }])
+  assert.deepEqual(r.noDate, ['Ion Kast'])
+})

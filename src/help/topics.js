@@ -3870,7 +3870,7 @@ export const TOPICS = [
     answer: 'Die Matrix zeigt je Person und Art eine Ampel: grün gültig, gelb läuft in 30 Tagen ab, rot abgelaufen oder fehlt. Arten sind z. B. Sicherheitsunterweisung, Unterweisung Reinigungsmittel, Erste-Hilfe-Auffrischung, Führerscheinkontrolle und Aufenthaltstitel/Arbeitserlaubnis.',
     steps: ['„Unterweisungen & Fristen“ unter „Verwaltung“ öffnen.', 'Mit „nur mit Handlungsbedarf“, Team und Suche filtern.', 'Ein Feld anklicken, um Datum und „gültig bis“ einzutragen.'],
     tips: ['Export: „Mehr ▾“ → „Übersicht (CSV)“.'],
-    related: ['unterweisung-durchfuehren', 'unterweisung-arten', 'fristen-plan'],
+    related: ['unterweisung-durchfuehren', 'unterweisung-import', 'unterweisung-arten', 'fristen-plan'],
     roles: 'Vollzugriff, Objektleitung',
   },
   {
@@ -3883,6 +3883,18 @@ export const TOPICS = [
     steps: ['„Unterweisung durchführen“ klicken.', 'Art, Datum, Ort, wer unterweist und Inhalt eintragen.', 'Teilnehmende mit „mit Bedarf“, „alle“ oder „keine“ wählen.', 'Unterschreiben lassen und „Für … Personen eintragen“.', 'Unter „Letzte Unterweisungen“ „Nachweis“ als PDF.'],
     action: { action: 'tr-session-open', label: 'Unterweisung durchführen' },
     related: ['unterweisungen', 'digitale-mitarbeiter'],
+  },
+  {
+    id: 'unterweisung-import',
+    section: 'verwaltung',
+    view: 'unterweisungen',
+    title: 'Bisherige Unterweisungsliste aus Excel einfügen',
+    q: ['unterweisungen aus excel', 'unterweisungsliste übernehmen', 'zertifikat sicherheitsvideo', 'liste einfügen unterweisung', 'alte unterweisungen übernehmen', 'unterweisungen importieren'],
+    answer: '„Mehr“ → „Aus Excel einfügen“ übernimmt eure bisherige Liste: Zeilen samt Überschrift kopieren und einfügen. Gebraucht werden Name und Datum (auch „Zertifikat …“). Leicht anders geschriebene Namen ordnet die App zu und zeigt sie gelb. Zeilen ohne Datum bleiben bei „fehlt“, doppelte werden nicht noch einmal eingetragen.',
+    steps: ['„Unterweisungen & Fristen“ öffnen.', '„Mehr“ → „Aus Excel einfügen“.', 'Art wählen, die Tabelle einfügen und „Prüfen“.', 'Gelb markierte Namen kontrollieren, dann „Übernehmen (Anzahl)“.'],
+    tips: ['Wer „Nicht gefunden“ ist, zuerst unter „Mitarbeitende“ anlegen und noch einmal einfügen.', 'Gültig bis rechnet die App aus der Art (Sicherheitsunterweisung 12 Monate), außer die Liste hat eine Spalte „Gültig bis“.'],
+    action: { action: 'tr-import-open', label: 'Aus Excel einfügen' },
+    related: ['unterweisungen', 'unterweisung-durchfuehren'],
   },
   {
     id: 'unterweisung-arten',

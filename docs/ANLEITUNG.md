@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 411 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 412 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (104)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (65)
+- [Verwaltung](#verwaltung) (66)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4598,6 +4598,20 @@ Die Matrix zeigt je Person und Art eine Ampel: grün gültig, gelb läuft in 30 
 3. Teilnehmende mit „mit Bedarf“, „alle“ oder „keine“ wählen.
 4. Unterschreiben lassen und „Für … Personen eintragen“.
 5. Unter „Letzte Unterweisungen“ „Nachweis“ als PDF.
+
+### Bisherige Unterweisungsliste aus Excel einfügen
+
+*In der App: Unterweisungen & Fristen*
+
+„Mehr“ → „Aus Excel einfügen“ übernimmt eure bisherige Liste: Zeilen samt Überschrift kopieren und einfügen. Gebraucht werden Name und Datum (auch „Zertifikat …“). Leicht anders geschriebene Namen ordnet die App zu und zeigt sie gelb. Zeilen ohne Datum bleiben bei „fehlt“, doppelte werden nicht noch einmal eingetragen.
+
+1. „Unterweisungen & Fristen“ öffnen.
+2. „Mehr“ → „Aus Excel einfügen“.
+3. Art wählen, die Tabelle einfügen und „Prüfen“.
+4. Gelb markierte Namen kontrollieren, dann „Übernehmen (Anzahl)“.
+
+> Tipp: Wer „Nicht gefunden“ ist, zuerst unter „Mitarbeitende“ anlegen und noch einmal einfügen.
+> Tipp: Gültig bis rechnet die App aus der Art (Sicherheitsunterweisung 12 Monate), außer die Liste hat eine Spalte „Gültig bis“.
 
 ### Arten und Intervalle verwalten
 

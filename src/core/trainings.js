@@ -123,3 +123,141 @@ export function shiftProblems({ doc, emp, date, skills = [] }) {
   }
   return out
 }
+
+// ---------------------------------------------------------------- Aus Excel einfügen
+
+const nameKey = (s) =>
+  String(s ?? '')
+    .toLowerCase()
+    .replace(/ß/g, 'ss')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z]/g, '')
+const headKey = (s) => nameKey(s).replace(/ue/g, 'u')
+const COLS = {
+  name: ['name', 'mitarbeiter', 'mitarbeiterin', 'person', 'mitarbeiterinnen'],
+  date: ['datum', 'am', 'zertifikat', 'zertifikatsicherheitsvideo', 'unterweisungam', 'durchgefuhrtam', 'unterwiesenam', 'zertifikatsdatum'],
+  until: ['gultigbis', 'bis', 'ablauf', 'ablaufdatum'],
+  by: ['durchgefuhrtvon', 'von', 'trainer', 'unterwiesenvon', 'durch'],
+  note: ['notiz', 'bemerkung', 'hinweis', 'anmerkung'],
+}
+/** Datum „16.01.2024“, „16.1.24“, „2024-01-16“ (auch mit Uhrzeit) → „2024-01-16“; sonst ''. */
+export function tableDate(v) {
+  const s = String(v ?? '').trim()
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  m = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})\b/.exec(s)
+  if (!m) return ''
+  const y = m[3].length === 2 ? `20${m[3]}` : m[3]
+  const d = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  return Number(m[2]) >= 1 && Number(m[2]) <= 12 && Number(m[1]) >= 1 && Number(m[1]) <= 31 ? d : ''
+}
+
+/**
+ * Einträge aus einer eingefügten Tabelle (Tabulator wie aus Excel, sonst Semikolon), erste Zeile = Überschriften:
+ * Name, Datum (auch „Zertifikat …“), optional „Gültig bis“, „Durchgeführt von“, Notiz. Personen über den Namen
+ * (Groß/klein, Akzente, Leerzeichen egal; auch „Nachname Vorname“). Zeilen ohne Datum zählen als „ohne Datum“.
+ * → { items: [{ empId, name, date, until, by, note }], unknown: [Name], noDate: [Name], errors: [Text] }
+ */
+export function parseRecordTable(text, { employees = [] } = {}) {
+  const lines = String(text ?? '').replace(/\r/g, '').split('\n').filter((l) => l.trim())
+  const out = { items: [], unknown: [], noDate: [], errors: [] }
+  if (!lines.length) return out
+  const sep = lines.some((l) => l.includes('\t')) ? '\t' : ';'
+  const isDateHead = (h) => COLS.date.includes(h) || h.startsWith('zertifikat') || h.startsWith('datum')
+  // Überschrift: die erste Zeile mit „Name“ und „Datum“ (darüber darf ein Titel stehen, wie in der bisherigen Liste)
+  const headAt = lines.slice(0, 10).findIndex((l) => {
+    const h = l.split(sep).map(headKey)
+    return h.some((x) => COLS.name.includes(x)) && h.some(isDateHead)
+  })
+  if (headAt < 0) {
+    out.errors.push(lines.length < 2 ? 'Bitte die Überschriften mit einfügen (erste Zeile: Name, Datum …).' : 'Spalten „Name“ und „Datum“ (oder „Zertifikat“) fehlen in der Überschrift.')
+    return out
+  }
+  const head = lines[headAt].split(sep).map(headKey)
+  const ix = Object.fromEntries(Object.keys(COLS).map((k) => [k, head.findIndex((h) => COLS[k].includes(h))]))
+  if (ix.date < 0) ix.date = head.findIndex(isDateHead)
+  const find = nameMatcher(employees.filter((e) => !e.inactive))
+  for (const line of lines.slice(headAt + 1)) {
+    const c = line.split(sep).map((x) => x.trim().replace(/^"(.*)"$/, '$1'))
+    const name = (c[ix.name] || '').replace(/\s+/g, ' ').trim()
+    if (!name) continue
+    const date = tableDate(c[ix.date])
+    if (!date) {
+      out.noDate.push(name)
+      continue
+    }
+    const hit = find(name)
+    if (!hit) {
+      out.unknown.push(name)
+      continue
+    }
+    const e = hit.emp
+    out.items.push({ empId: e.id, name: e.name, ...(hit.exact ? {} : { written: name }), date, until: ix.until >= 0 ? tableDate(c[ix.until]) : '', by: ix.by >= 0 ? c[ix.by] || '' : '', note: ix.note >= 0 ? c[ix.note] || '' : '' })
+  }
+  return out
+}
+
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    prev = cur
+  }
+  return prev[b.length]
+}
+
+/**
+ * Person zu einem geschriebenen Namen: genau (auch „Nachname Vorname“), sonst eindeutig ähnlich – alle Namensteile
+ * kommen vor („Ion Kast“ → „Ion Constantin Kast“) oder ein, zwei Buchstaben anders („Mariana“ → „Marianna“).
+ * → { emp, exact } oder null (auch wenn mehrere passen würden).
+ */
+export function nameMatcher(employees = []) {
+  const people = employees.map((e) => {
+    const parts = String(e.name || '').trim().split(/\s+/).map(nameKey).filter(Boolean)
+    return { emp: e, parts, keys: [...new Set([parts.join(''), ...(parts.length >= 2 ? [[...parts.slice(1), parts[0]].join(''), [parts.at(-1), ...parts.slice(0, -1)].join('')] : [])])] }
+  })
+  const exact = new Map()
+  for (const p of people) for (const k of p.keys) if (!exact.has(k)) exact.set(k, p.emp)
+  const only = (list) => (list.length === 1 ? { emp: list[0].emp, exact: false } : null)
+  return (written) => {
+    const parts = String(written || '').trim().split(/\s+/).map(nameKey).filter(Boolean)
+    const key = parts.join('')
+    if (!key) return null
+    if (exact.has(key)) return { emp: exact.get(key), exact: true }
+    if (parts.length >= 2) {
+      const sub = only(people.filter((p) => parts.every((x) => p.parts.includes(x))))
+      if (sub) return sub
+    }
+    const limit = key.length >= 14 ? 2 : key.length >= 6 ? 1 : 0
+    if (!limit) return null
+    let best = Infinity
+    let hits = []
+    for (const p of people) {
+      const d = Math.min(...p.keys.map((k) => editDistance(key, k)))
+      if (d < best) [best, hits] = [d, [p]]
+      else if (d === best) hits.push(p)
+    }
+    return best <= limit ? only(hits) : null
+  }
+}
+
+/** Eingefügte Einträge übernehmen; schon vorhandene (Person, Art, Datum) bleiben einmal. → { records, added, skipped } */
+export function addImported(records = [], items = [], typeId, { newId, at = '', by = '' } = {}) {
+  const have = new Set(records.map((r) => `${r.empId}|${r.typeId}|${r.date}`))
+  const out = [...records]
+  let added = 0
+  let skipped = 0
+  for (const x of items) {
+    const key = `${x.empId}|${typeId}|${x.date}`
+    if (have.has(key)) {
+      skipped++
+      continue
+    }
+    have.add(key)
+    out.push({ id: newId(), empId: x.empId, typeId, date: x.date, ...(x.until ? { until: x.until } : {}), note: [x.by ? `durchgeführt von ${x.by}` : '', x.note].filter(Boolean).join(' · '), by, at, source: 'import' })
+    added++
+  }
+  return { records: out, added, skipped }
+}

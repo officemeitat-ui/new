@@ -200,10 +200,10 @@ lazy(BUERO, {
       text: 'Sicherheitsunterweisung, Führerschein, Arbeitserlaubnis',
     },
   ],
-  modals: 'tr-record tr-session tr-types',
+  modals: 'tr-record tr-session tr-types tr-import',
   // sig-clear: Unterschriftsfeld (signature.js, auch im Schlüsselbuch)
   actions: `sig-clear tr-team tr-only tr-search tr-record-open tr-record-redraw tr-csv tr-session-pdf tr-record-save tr-record-delete tr-session-open
-    ts-redraw ts-pick ts-save tr-types-open tt-add tt-save`,
+    ts-redraw ts-pick ts-save tr-types-open tt-add tt-save tr-import-open ti-check ti-save`,
   todo: ['unterweisungen'],
 })
 
