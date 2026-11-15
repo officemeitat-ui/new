@@ -1147,6 +1147,53 @@ views.wachstum = async () => {
       ], g.mrr_history.slice(0, 15)))));
 };
 
+// ---- Daten: Import & Sicherung
+views.daten = async () => {
+  setTitle("Import & Datensicherung");
+  const b = await api("/api/backup");
+  let csvText = "";
+  const kind = h("select", {}, h("option", { value: "customers" }, "Kunden"), h("option", { value: "assets" }, "Geräte (auch RMM-Export: NinjaOne, Datto, Atera …)"));
+  const createCust = h("input", { type: "checkbox", checked: true, style: "width:auto" });
+  const result = h("div");
+  const file = h("input", { type: "file", accept: ".csv,text/csv,text/plain", onchange: async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    csvText = await f.text();
+    run(false);
+  } });
+  const run = async (commit) => {
+    if (!csvText) return toast("Bitte zuerst eine CSV-Datei wählen", true);
+    try {
+      const r = await api(`/api/import/${kind.value}`, { method: "POST", body: { csv: csvText, commit, create_customers: createCust.checked } });
+      const cols = Object.entries(r.columns).map(([c, f]) => `${c} → ${f}`).join(" · ");
+      const previewCols = r.preview.length ? Object.keys(r.preview[0]).filter((k) => k !== "booked_services") : [];
+      result.replaceChildren(h("div", { class: "card", style: "margin-top:1rem" },
+        h("h3", {}, commit ? "Import abgeschlossen" : "Vorschau – noch nichts gespeichert"),
+        h("p", { class: "small" }, `${r.total} Zeilen · ${commit ? "angelegt" : "neu"}: ${r.created} · ${commit ? "aktualisiert" : "wird aktualisiert"}: ${r.updated} · übersprungen: ${r.skipped.length}`
+          + (r.new_customers.length ? ` · neue Kunden: ${r.new_customers.join(", ")}` : "")),
+        h("p", { class: "small muted" }, "Erkannte Spalten: ", cols || "–"),
+        r.skipped.length ? h("details", {}, h("summary", { class: "small" }, "Übersprungene Zeilen"), h("ul", { class: "small" }, r.skipped.slice(0, 50).map((x) => h("li", {}, `Zeile ${x.row}: ${x.reason}`)))) : null,
+        r.preview.length ? table(previewCols.map((k) => ({ label: k, key: k })), r.preview) : null,
+        !commit ? h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }),
+          h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, () => run(true)) }, "Jetzt importieren")) : null));
+      if (commit) toast("Import fertig");
+    } catch (e) { toast(e.message, true); }
+  };
+  show(
+    h("div", { class: "grid two" },
+      h("div", { class: "card" }, h("h2", {}, "Daten importieren (CSV)"),
+        h("p", { class: "small muted" }, "Excel: „Speichern unter → CSV (Trennzeichen-getrennt)“. Spalten werden automatisch erkannt (deutsch/englisch, z. B. Firma, Ansprechpartner, Hostname, Betriebssystem, Seriennummer, Garantie bis). Erst Vorschau, dann Import. Erneuter Geräte-Import aktualisiert bestehende Geräte."),
+        h("div", { class: "form-grid" }, h("div", {}, h("label", {}, "Was importieren?"), kind), h("div", {}, h("label", {}, "CSV-Datei"), file),
+          h("label", { class: "check full" }, createCust, h("span", {}, "Unbekannte Kunden aus Geräte-Import automatisch anlegen")))),
+      h("div", { class: "card" }, h("h2", {}, "Datensicherung"),
+        h("p", { class: "small" }, b.hours > 0 ? `Automatisch alle ${b.hours} h, die letzten ${b.keep} Sicherungen bleiben erhalten.` : "Automatische Sicherung ist aus (BACKUP_HOURS=0)."),
+        h("p", { class: "small muted" }, `Ordner: ${b.dir}`, h("br"), `Letzte Sicherung: ${b.last || "noch keine"}`, b.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${b.error}`) : null),
+        h("div", { class: "row" }, h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { await api("/api/backup/run", { method: "POST" }); toast("Sicherung erstellt"); render(); }) }, "Jetzt sichern"),
+          h("a", { class: "btn primary", href: "/api/backup/download" }, "Sicherung herunterladen")),
+        h("p", { class: "small muted" }, "Tipp: Den Sicherungsordner zusätzlich auf NAS oder ins Offsite-Backup aufnehmen (3-2-1-Regel). Wiederherstellen: App stoppen, Sicherungsdatei als data/meit.db einsetzen, starten."),
+        b.backups.length ? table([{ label: "Datei", key: "file" }, { label: "Größe", num: true, render: (r) => `${r.size_kb} KB` }, { label: "Erstellt", key: "created" }], b.backups.slice(0, 8)) : null)),
+    result);
+};
+
 // ---------------------------------------------------------------- Router
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";

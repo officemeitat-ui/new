@@ -29,6 +29,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
 | **Customer Success** | Health Score je Kunde, QBR-Agent („Plan → erreicht → nächster Hebel“), NRR, Anteil wiederkehrender Umsatz, Aktivitäten-Kaskade, 10-Punkte-Selbst-Check |
 | **ROI-Rechner** | Für das Verkaufsgespräch: Zeitgewinn, Wert, Amortisation, ROI im ersten Jahr |
+| **Import & Sicherung** | CSV-Import für Kunden und Geräte (erkennt deutsche/englische Spalten und RMM-Exporte, mit Vorschau). Automatische Datensicherung mit Aufbewahrung, Download per Klick. |
 | **KI-Training** | Export pseudonymisierter Trainingsdaten (JSONL) und LoRA-Skript für ein eigenes „ME-IT-Modell“ |
 | **Protokoll** | Jeder Agentenlauf wird protokolliert (Nachvollziehbarkeit, AI Act) |
 
@@ -130,7 +131,7 @@ docs/                       Strategie 2026–2030, KI-PC-Empfehlung
 
 ## Nächste Ausbaustufen (Vorschläge)
 
-- Anbindung an RMM/PSA (z. B. NinjaOne, Datto, Atera), damit Geräte automatisch importiert werden
+- Direkte API-Anbindung an RMM/PSA (NinjaOne, Datto, Atera) statt CSV-Export
 - Kundenportal mit KI-Self-Service (Level-1)
 - Zeiterfassung → Rechnungsexport (z. B. BMD, RZL)
 - Mehrbenutzer mit Rollen (Techniker, Vertrieb, Geschäftsführung)

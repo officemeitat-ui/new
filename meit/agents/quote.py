@@ -71,6 +71,8 @@ TIER_ADDONS = {
     "M365MIG": ["M365B", "SEC", "AWR"], "NET": ["MFW"], "MON": ["MW"], "KIAGENT": ["KIMAM"],
 }
 TIER_LABELS = {"XL": "Premium – Rundum-sorglos", "S": "Einstieg", "M": "Empfehlung"}
+# Falls keine passende Ergänzung existiert: allgemeine Premium-Bausteine
+GENERIC_PREMIUM = ["VCISO", "AWR", "MON", "M365B", "KIWS"]
 
 
 def _totals(items: list[dict[str, Any]]) -> tuple[float, float]:
@@ -89,6 +91,11 @@ def build_tiers(items: list[dict[str, Any]], services: dict[str, dict[str, Any]]
         for add in TIER_ADDONS.get(code, []):
             if add in services and add not in codes and add not in booked and add not in addons:
                 addons.append(add)
+    for add in GENERIC_PREMIUM:
+        if len(addons) >= 2:
+            break
+        if add in services and add not in codes and add not in booked and add not in addons:
+            addons.append(add)
     xl_items = items + build_items([{"code": c, "reason": "Premium-Ergänzung"} for c in addons[:3]],
                                    services, customer, devices, servers)
     tiers = []

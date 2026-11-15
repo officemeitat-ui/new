@@ -85,6 +85,10 @@ class Settings:
     followup_days: int = 5
     public_form_enabled: bool = True
     public_form_origins: tuple[str, ...] = ()
+    # --- Datensicherung -------------------------------------------------------
+    backup_hours: int = 24
+    backup_keep: int = 14
+    backup_dir: str = ""
 
 
 def get_settings() -> Settings:
@@ -124,6 +128,9 @@ def get_settings() -> Settings:
         booking_url=os.environ.get("BOOKING_URL", ""),
         followup_days=_int("FOLLOWUP_DAYS", 5),
         public_form_enabled=_bool("PUBLIC_FORM_ENABLED", True),
+        backup_hours=_int("BACKUP_HOURS", 24),
+        backup_keep=_int("BACKUP_KEEP", 14),
+        backup_dir=_resolve(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else "",
         public_form_origins=tuple(
             o.strip().rstrip("/") for o in os.environ.get("PUBLIC_FORM_ORIGINS", "").split(",") if o.strip()
         ),

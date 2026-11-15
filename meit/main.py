@@ -22,6 +22,7 @@ from .agents import (
     AgentContext, create_quote, monthly_report, run_assistant, run_security_check, triage_ticket,
 )
 from .config import Settings, get_settings
+from .data_tools import backup_dir, create_backup, import_csv, list_backups, start_backup_scheduler
 from .db import Database, loads, now_iso
 from .agents.qbr import create_qbr
 from .growth import ensure_mrr_baseline, health_overview, health_score, log_mrr, nrr, pipeline, recurring_share
@@ -119,6 +120,12 @@ class QuoteIn(BaseModel):
 class GrowthSettingsIn(BaseModel):
     target_closings_per_week: Optional[float] = None
     selfcheck: Optional[dict[str, bool]] = None
+
+
+class ImportIn(BaseModel):
+    csv: str = Field(min_length=1, max_length=20_000_000)
+    commit: bool = False
+    create_customers: bool = True
 
 
 class QuoteStatus(BaseModel):
@@ -594,6 +601,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = to_jsonl(build_dataset(db, include_kb=include_kb))
         return PlainTextResponse(body, media_type="application/jsonl", headers={
             "Content-Disposition": f'attachment; filename="meit-training-{date.today().isoformat()}.jsonl"'})
+
+    # --- Daten: Import & Sicherung ------------------------------------------------
+    bdir = backup_dir(settings.db_path, settings.backup_dir)
+
+    @app.post("/api/import/{kind}")
+    def import_data(kind: str, data: ImportIn) -> dict:
+        try:
+            return import_csv(db, kind, data.csv, commit=data.commit, create_customers=data.create_customers)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+
+    @app.get("/api/backup")
+    def backup_status() -> dict:
+        return {"dir": str(bdir), "hours": settings.backup_hours, "keep": settings.backup_keep,
+                "last": db.get_setting("backup_last", ""), "error": db.get_setting("backup_error", ""),
+                "backups": list_backups(bdir)}
+
+    @app.post("/api/backup/run", status_code=201)
+    def backup_now() -> dict:
+        target = create_backup(settings.db_path, bdir, settings.backup_keep)
+        db.set_setting("backup_last", now_iso())
+        return {"file": target.name, **backup_status()}
+
+    @app.get("/api/backup/download")
+    def backup_download() -> FileResponse:
+        target = create_backup(settings.db_path, bdir, settings.backup_keep)
+        db.set_setting("backup_last", now_iso())
+        return FileResponse(target, media_type="application/octet-stream", filename=target.name)
+
+    if settings.backup_hours > 0 and settings.db_path != ":memory:":
+        start_backup_scheduler(db, settings.db_path, bdir, settings.backup_hours, settings.backup_keep)
 
     # --- KI-Mitarbeiter (Posteingang, Leads, Belege, Anfrageformular) -----------
     register_mitarbeiter(app, ctx)
