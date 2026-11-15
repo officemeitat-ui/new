@@ -218,6 +218,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return JSONResponse({"detail": "Anfrage von fremder Herkunft blockiert."}, status_code=403)
         return await call_next(request)
 
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if request.url.path != "/anfrage":  # das Formular darf eingebettet werden, alles andere nicht
+            response.headers.setdefault("X-Frame-Options", "DENY")
+        return response
+
     def must(row: dict | None, what: str = "Eintrag") -> dict:
         if not row:
             raise HTTPException(404, f"{what} nicht gefunden")

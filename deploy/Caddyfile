@@ -1,0 +1,35 @@
+# Reverse-Proxy mit automatischem HTTPS (https://caddyserver.com)
+# Von außen erreichbar: NUR Anfrageformular und Kundenportal.
+# Das Cockpit selbst (Mitarbeiter) nur aus dem Firmennetz/VPN.
+#
+# 1. Domain (z. B. portal.deine-firma.at) per DNS auf die öffentliche IP zeigen lassen,
+#    Ports 80/443 an diesen Server weiterleiten.
+# 2. Cockpit auf 127.0.0.1:8080 laufen lassen (Standard).
+# 3. caddy run --config deploy/Caddyfile   (oder als Dienst)
+
+portal.deine-firma.at {
+	encode gzip
+
+	# Öffentlich: Formular, Kundenportal und ihre APIs
+	@public path /anfrage /api/public/* /portal /api/portal/*
+	handle @public {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	# Intern: alles andere nur aus privaten Netzen (LAN/VPN)
+	@intern remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.1/32
+	handle @intern {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	handle {
+		respond "Nicht verfügbar" 404
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	# Formular darf auf der eigenen Website per iframe eingebunden werden:
+	header /anfrage Content-Security-Policy "frame-ancestors 'self' https://www.deine-firma.at"
+}

@@ -1,0 +1,33 @@
+# ME-IT Cockpit als Linux-Dienst (systemd)
+#   sudo useradd --system --home /opt/meit meit
+#   sudo cp -r . /opt/meit && sudo chown -R meit:meit /opt/meit
+#   sudo -u meit python3 -m venv /opt/meit/.venv && sudo -u meit /opt/meit/.venv/bin/pip install -r /opt/meit/requirements.txt
+#   sudo cp deploy/meit.service /etc/systemd/system/ && sudo systemctl enable --now meit
+#   Logs: journalctl -u meit -f
+[Unit]
+Description=ME-IT Cockpit
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meit
+Group=meit
+WorkingDirectory=/opt/meit
+EnvironmentFile=-/opt/meit/.env
+Environment=MEIT_HOST=127.0.0.1 MEIT_PORT=8080
+ExecStart=/opt/meit/.venv/bin/python -m meit
+Restart=on-failure
+RestartSec=5
+# Härtung
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/meit/data
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

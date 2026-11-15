@@ -102,6 +102,20 @@ Browser (Vanilla JS, kein Build)  ──►  FastAPI (meit/main.py)  ──►  
   formuliert und wählt aus.
 - **Keine schweren Abhängigkeiten:** FastAPI, httpx, SQLite. Das Training läuft separat (`requirements-training.txt`).
 
+## Betrieb im Unternehmen
+
+| Aufgabe | Vorlage |
+|---|---|
+| **Windows-Dienst** (startet mit Windows) | `deploy/install-windows-service.ps1` (mit NSSM) |
+| **Linux-Dienst** (systemd, gehärtet) | `deploy/meit.service` |
+| **Von außen erreichbar** (nur Formular + Portal, HTTPS) | `deploy/Caddyfile`. Das Cockpit selbst bleibt im LAN/VPN. |
+| **Benutzer** | Einstellungen → Benutzer & Rollen (ab dem ersten Admin gilt Login-Pflicht) |
+| **Sicherung** | automatisch täglich in `data/backups/`. Den Ordner zusätzlich ins Offsite-Backup aufnehmen. |
+| **Update** | `git pull` → `pip install -r requirements.txt` → Dienst neu starten. Die Datenbank wird automatisch ergänzt. |
+
+Hinter einem Reverse-Proxy auf demselben Rechner erkennt die App die echte Besucher-IP
+(Rate-Limits) und HTTPS (sichere Cookies) automatisch.
+
 ## Entwicklung & Tests
 
 ```bash
