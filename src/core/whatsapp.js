@@ -28,10 +28,10 @@ export const firstNumber = (...list) => list.map((x) => waNumber(x)).find(Boolea
 
 // ---------------------------------------------------------------- Was darf per WhatsApp hinaus?
 // Entschieden am 11.11.2026: alles, was Mitarbeitende betrifft (Wochen- und Stundenpläne, Plan am Handy, Müllpläne,
-// Touren, Mitteilungen, Unterweisungen), ja; alles aus den Finanzen nein – Rechnungen, Angebote, Lieferscheine,
+// Touren, Mitteilungen, Unterweisungen, Arbeitszeitaufzeichnung – nur Stunden, keine Beträge), ja; alles aus den Finanzen nein – Rechnungen, Angebote, Lieferscheine,
 // Mahnungen, Auszahlungen, Lohn, Kassenbuch, Eingangsrechnungen, Umsatzsteuer. Neue Knöpfe nennen ihre Art (kind).
 
-export const WA_EMPLOYEE_KINDS = ['wochenplan', 'plan-link', 'muellplan', 'matten-tour', 'fahrer-link', 'mitteilung', 'unterweisung', 'bewerbung-link']
+export const WA_EMPLOYEE_KINDS = ['wochenplan', 'plan-link', 'muellplan', 'matten-tour', 'fahrer-link', 'mitteilung', 'unterweisung', 'bewerbung-link', 'arbeitszeit']
 export const WA_FINANCE_KINDS = ['rechnung', 'angebot', 'lieferschein', 'mahnung', 'gutschrift', 'auszahlung', 'lohn', 'kassenbuch', 'eingangsrechnung', 'umsatzsteuer', 'sepa', 'steuerberatung']
 
 /** Darf diese Art per WhatsApp geteilt werden? Finanzen nie; sonst nur, was ausdrücklich für Mitarbeitende freigegeben ist. */

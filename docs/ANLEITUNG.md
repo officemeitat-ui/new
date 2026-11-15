@@ -722,7 +722,7 @@ Im Versand-Dialog schickst du jeder Person ihr PDF: per E-Mail aus deinem Micros
 
 *In der App: Wochenübersicht*
 
-Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan, Link für Plan am Handy, Müllplan, Matten-Tour, Fahrer-Link und Mitteilungen. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text und das PDF wird gespeichert. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind dafür gesperrt.
+Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan, Arbeitszeitaufzeichnung, Link für Plan am Handy, Müllplan, Matten-Tour, Fahrer-Link und Mitteilungen. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text und das PDF wird gespeichert. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind dafür gesperrt.
 
 1. Im Stammblatt der Person unter „Handy (für WhatsApp)“ die Nummer eintragen.
 2. Beim Wochenplan-Versand, im Müllplan, bei Plan am Handy oder der Tour auf „WhatsApp“ tippen.

@@ -16,6 +16,8 @@ import { loadScript } from './load-script.js'
 import { invalidateTodo, refreshBell, registerTodo } from './modals/todo.js'
 import { loadLogo, pdfBlob } from './pdf.js'
 import { download, esc, ICON, menu, modalFrame, options } from './shared.js'
+import { fileSafe } from '../core/filename.js'
+import { sendFileWhatsApp } from './whatsapp.js'
 import { call, portalSettings } from './staffplan.js'
 
 const stampsOf = () => (app.data.stamps ||= {})
@@ -200,7 +202,7 @@ function monthTable(c) {
   const prev = addDays(`${month}-01`, -1).slice(0, 7)
   const next = addDays(lastOfMonth(`${month}-01`), 1).slice(0, 7)
   const body = list
-    .map((p) => `<tr><td><button class="link-btn" data-action="open-person" data-emp="${esc(p.empId)}">${esc(empName(p.empId))}</button></td><td class="num">${hm(p.soll)}</td><td class="num">${hm(p.ist)}</td><td class="num ${p.diff < -15 ? 'err-text' : ''}">${sign(p.diff)}</td><td class="num">${p.tage}</td><td class="num">${p.spaet + p.frueh || ''}</td><td class="num ${p.fehlt ? 'err-text' : ''}">${p.fehlt || ''}</td><td class="num">${p.manuell || ''}</td><td class="num">${p.offen ? `<span class="pill warning">${p.offen}</span>` : `<span class="tc-ok">${ICON.check}</span>`}</td><td><button class="btn small" data-action="tc-pdf" data-emp="${esc(p.empId)}" data-month="${month}">${ICON.download} PDF</button></td></tr>`)
+    .map((p) => `<tr><td><button class="link-btn" data-action="open-person" data-emp="${esc(p.empId)}">${esc(empName(p.empId))}</button></td><td class="num">${hm(p.soll)}</td><td class="num">${hm(p.ist)}</td><td class="num ${p.diff < -15 ? 'err-text' : ''}">${sign(p.diff)}</td><td class="num">${p.tage}</td><td class="num">${p.spaet + p.frueh || ''}</td><td class="num ${p.fehlt ? 'err-text' : ''}">${p.fehlt || ''}</td><td class="num">${p.manuell || ''}</td><td class="num">${p.offen ? `<span class="pill warning">${p.offen}</span>` : `<span class="tc-ok">${ICON.check}</span>`}</td><td class="send-acts"><button class="btn small" data-action="tc-pdf" data-emp="${esc(p.empId)}" data-month="${month}">${ICON.download} PDF</button><button class="btn small" data-action="tc-wa" data-emp="${esc(p.empId)}" data-month="${month}" title="Arbeitszeitaufzeichnung per WhatsApp an die Person">${ICON.chat} WhatsApp</button></td></tr>`)
     .join('')
   const sum = (k) => list.reduce((n, p) => n + p[k], 0)
   return `<div class="tc-monthnav"><button class="btn icon ghost" data-action="tc-month" data-month="${prev}" aria-label="Voriger Monat">${ICON.left}</button><strong>${esc(monthLabel(month))}</strong><button class="btn icon ghost" data-action="tc-month" data-month="${next}" aria-label="Nächster Monat">${ICON.right}</button>
@@ -445,8 +447,10 @@ async function personPdf(empId, month) {
   const [summary] = monthSummary(rows)
   const employee = app.data.employees.find((e) => e.id === empId) || { name: empName(empId) }
   const doc = worktimeDocument({ employee, monthLabel: monthLabel(month), rows, summary: summary || { soll: 0, ist: 0, diff: 0, tage: 0, spaet: 0, frueh: 0, fehlt: 0, manuell: 0 }, objName, brand: app.config.brand, logo: await loadLogo().catch(() => null) })
-  return { blob: await pdfBlob(doc), name: `Arbeitszeit_${month}_${employee.name.replace(/[^A-Za-z0-9ÄÖÜäöüß-]+/g, '-')}.pdf` }
+  return { blob: await pdfBlob(doc), name: tcFileName(month, employee.name) }
 }
+// Dateiname ohne Umlaute (sonst verwerfen Browser teils den Namen und das PDF heißt „download“)
+const tcFileName = (month, name) => `Arbeitszeit_${month}_${fileSafe(name)}.pdf`
 
 registerActions({
   'tc-tab': (el) => {
@@ -460,6 +464,16 @@ registerActions({
   'tc-pdf': async (el) => {
     const { blob, name } = await personPdf(el.dataset.emp, el.dataset.month)
     download(name, blob)
+  },
+  // Arbeitszeitaufzeichnung per WhatsApp (nur Stunden, keine Beträge – Finanzen bleiben gesperrt)
+  'tc-wa': async (el) => {
+    const { emp, month } = el.dataset
+    const employee = app.data.employees.find((e) => e.id === emp) || { name: empName(emp) }
+    try {
+      await sendFileWhatsApp({ kind: 'arbeitszeit', makeBlob: async () => (await personPdf(emp, month)).blob, name: tcFileName(month, employee.name), phone: employee.phone, title: 'Arbeitszeitaufzeichnung', text: `Hallo ${String(employee.name).split(' ')[0]}, deine Arbeitszeitaufzeichnung für ${monthLabel(month)} – bitte prüfen.` })
+    } catch (err) {
+      toast(`WhatsApp fehlgeschlagen: ${err.message}`)
+    }
   },
   'tc-pdf-all': async (el) => {
     const month = el.dataset.month

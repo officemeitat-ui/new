@@ -543,7 +543,7 @@ export const TOPICS = [
     view: 'week',
     title: 'Per WhatsApp senden (Pläne, Links, Touren)',
     q: ['whatsapp', 'per whatsapp', 'whatsapp senden', 'whatsapp teilen', 'handynummer', 'whatsapp gruppe', 'plan per whatsapp', 'tour per whatsapp'],
-    answer: 'Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan, Link für Plan am Handy, Müllplan, Matten-Tour, Fahrer-Link und Mitteilungen. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text und das PDF wird gespeichert. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind dafür gesperrt.',
+    answer: 'Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan, Arbeitszeitaufzeichnung, Link für Plan am Handy, Müllplan, Matten-Tour, Fahrer-Link und Mitteilungen. Am Handy hängt das PDF dran, am PC öffnet WhatsApp mit dem Text und das PDF wird gespeichert. Finanzen (Rechnungen, Lieferscheine, Auszahlungen) sind dafür gesperrt.',
     steps: ['Im Stammblatt der Person unter „Handy (für WhatsApp)“ die Nummer eintragen.', 'Beim Wochenplan-Versand, im Müllplan, bei Plan am Handy oder der Tour auf „WhatsApp“ tippen.', 'In WhatsApp prüfen und senden.'],
     tips: ['Ohne Nummer wählt man den Kontakt oder eine Gruppe selbst in WhatsApp.', 'Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir.', 'Eine Mitteilung lässt sich so auch in eure WhatsApp-Gruppe stellen.'],
     related: ['versenden', 'muellplan-pdf'],
