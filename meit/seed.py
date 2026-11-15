@@ -248,10 +248,13 @@ def seed_demo(db: Database) -> None:
         (steiner, "VPN aus dem Homeoffice geht nicht", "Techniker kommt von zuhause nicht mehr ins Firmennetz.",
          "Netzwerk", "normal", "Heimrouter nutzte denselben IP-Bereich wie die Firma. VPN-Pool auf 10.20.0.0/24 umgestellt.", 45),
     ]
+    managed = {cid for cid, c in zip(ids, customers) if c["package"] != "keins"}
     for cid, title, desc, cat, prio, solution, minutes in resolved:
         tid = db.insert("tickets", {"customer_id": cid, "title": title, "description": desc, "status": "geloest",
                                     "priority": prio, "category": cat, "solution": solution,
                                     "time_spent_min": minutes})
+        db.insert("time_entries", {"customer_id": cid, "ticket_id": tid, "date": _d(-3), "minutes": minutes,
+                                   "description": title, "billable": cid not in managed, "rate": 110.0})
         db.update("tickets", tid, {"resolved_at": db.scalar("SELECT created_at FROM tickets WHERE id = ?", (tid,))})
 
     open_tickets = [

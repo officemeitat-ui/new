@@ -21,6 +21,7 @@ from . import __version__
 from .agents import (
     AgentContext, create_quote, monthly_report, run_assistant, run_security_check, triage_ticket,
 )
+from .billing import add_time, register as register_billing, unbilled_overview
 from .config import Settings, get_settings
 from .data_tools import backup_dir, create_backup, import_csv, list_backups, start_backup_scheduler
 from .db import Database, loads, now_iso
@@ -57,6 +58,7 @@ class CustomerIn(BaseModel):
     contract_end: str = ""
     booked_services: list[str] = []
     notes: str = ""
+    uid: str = ""
 
 
 class TicketIn(BaseModel):
@@ -221,6 +223,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     admin_only = make_admin_dependency(db)
     register_team(app, db, RateLimiter(limit=10, window_s=600))
+    register_billing(app, db, settings.company_name, admin_only)
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])
@@ -270,6 +273,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "recent_agent_runs": db.query(
                 "SELECT agent, provider, ok, duration_ms, created_at FROM agent_log ORDER BY id DESC LIMIT 8"),
             "llm": router.status(),
+            "unbilled_value": unbilled_overview(db)["total_value"],
             "nrr": nrr(db),
             "recurring_share": recurring_share(db),
             "health": {k: v for k, v in health_overview(db).items() if k != "customers"},
@@ -431,6 +435,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if payload.get("assigned_to") == 0:
             payload["assigned_to"] = None
             db.query("UPDATE tickets SET assigned_to = NULL WHERE id = ?", (tid,))
+        delta = (payload.get("time_spent_min") or 0) - (ticket["time_spent_min"] or 0)
+        if "time_spent_min" in payload and delta > 0 and (payload.get("customer_id") or ticket["customer_id"]):
+            # Manuell erhöhte Ticketzeit wird als Zeiteintrag erfasst (für die Abrechnung)
+            add_time(db, customer_id=payload.get("customer_id") or ticket["customer_id"], minutes=delta,
+                     description=ticket["title"], ticket_id=tid, user_id=current_user_id(request), touch_ticket=False)
         if payload.get("status") == "geloest" and ticket["status"] != "geloest":
             payload["resolved_at"] = now_iso()
             log_activity(db, payload.get("assigned_to") or ticket.get("assigned_to") or current_user_id(request),

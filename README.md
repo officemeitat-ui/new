@@ -33,6 +33,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Benutzer & Rollen** | Login (sobald der erste Admin angelegt ist), Rollen Admin, Technik und Vertrieb. Tickets und Leads haben Verantwortliche, Filter „Meine“. |
 | **Wochenrhythmus** | Montag Ziele, Freitag Abgleich: Ist-Werte zählt das Cockpit automatisch (Pitches, Angebote, QBRs, gelöste Tickets) plus erfasste Anrufe. Dazu ein Top-10-Deal-Review mit nächstem Schritt und Risiko. |
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
+| **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG zum Drucken/PDF, Storno, Rechnungsausgangsbuch als CSV |
 | **Import & Sicherung** | CSV-Import für Kunden und Geräte (erkennt deutsche/englische Spalten und RMM-Exporte, mit Vorschau). Automatische Datensicherung mit Aufbewahrung, Download per Klick. |
 | **KI-Training** | Export pseudonymisierter Trainingsdaten (JSONL) und LoRA-Skript für ein eigenes „ME-IT-Modell“ |
 | **Protokoll** | Jeder Agentenlauf wird protokolliert (Nachvollziehbarkeit, AI Act) |
@@ -125,6 +126,7 @@ meit/
   growth.py        Health Score, NRR, wiederkehrender Anteil, Aktivitäten-Kaskade
   team.py          Benutzer, Login, Rollen, Aktivitäten, Wochenziele
   data_tools.py    CSV-Import (Kunden, Geräte, RMM) und Datensicherung
+  billing.py       Zeiterfassung, Rechnungslauf, Rechnungen, Export
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25)
@@ -139,4 +141,4 @@ docs/                       Strategie 2026–2030, KI-PC-Empfehlung
 
 - Direkte API-Anbindung an RMM/PSA (NinjaOne, Datto, Atera) statt CSV-Export
 - Kundenportal mit KI-Self-Service (Level-1)
-- Zeiterfassung → Rechnungsexport (z. B. BMD, RZL)
+- ebInterface/ZUGFeRD-E-Rechnung und direkter BMD/RZL-Buchungsexport

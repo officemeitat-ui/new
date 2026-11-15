@@ -232,6 +232,41 @@ CREATE TABLE IF NOT EXISTS weekly_goals (
     UNIQUE(user_id, week)
 );
 
+CREATE TABLE IF NOT EXISTS time_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    ticket_id INTEGER,
+    user_id INTEGER,
+    date TEXT NOT NULL,
+    minutes INTEGER NOT NULL,
+    description TEXT DEFAULT '',
+    billable INTEGER DEFAULT 1,
+    rate REAL DEFAULT 0,
+    invoice_id INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    number TEXT DEFAULT '',
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    customer_name TEXT DEFAULT '',
+    period TEXT DEFAULT '',
+    date TEXT DEFAULT '',
+    due_date TEXT DEFAULT '',
+    items TEXT DEFAULT '[]',
+    net REAL DEFAULT 0,
+    vat_rate REAL DEFAULT 20,
+    vat REAL DEFAULT 0,
+    gross REAL DEFAULT 0,
+    status TEXT DEFAULT 'entwurf',
+    note TEXT DEFAULT '',
+    paid_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_time_open ON time_entries(customer_id, invoice_id);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -248,7 +283,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_customer ON assets(customer_id);
 WRITABLE_FIELDS: dict[str, set[str]] = {
     "customers": {
         "name", "contact_name", "email", "phone", "address", "industry", "employees",
-        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at",
+        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at", "uid",
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
@@ -261,7 +296,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "kb_articles": {"title", "content", "tags", "embedding", "embedding_model"},
     "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
     "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status",
-               "sent_at", "followup_count", "last_followup_at", "tiers", "chosen_tier"},
+               "sent_at", "followup_count", "last_followup_at", "tiers", "chosen_tier", "invoice_id"},
     "messages": {
         "channel", "direction", "external_id", "from_name", "from_email", "to_email", "phone", "company",
         "subject", "body", "attachments", "category", "status", "ai_result", "draft_reply", "note",
@@ -275,6 +310,10 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                  "status", "note"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
     "users": {"name", "email", "role", "password_hash", "active", "last_login_at"},
+    "time_entries": {"customer_id", "ticket_id", "user_id", "date", "minutes", "description", "billable", "rate",
+                     "invoice_id"},
+    "invoices": {"number", "customer_id", "customer_name", "period", "date", "due_date", "items", "net", "vat_rate",
+                 "vat", "gross", "status", "note", "paid_at"},
     "activities": {"user_id", "type", "ref_type", "ref_id", "note"},
     "weekly_goals": {"user_id", "week", "goals", "review_note"},
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
@@ -286,15 +325,17 @@ TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
 TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
+    "time_entries", "invoices",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
-    "customers": {"last_qbr_at": "TEXT DEFAULT ''"},
+    "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''"},
     "tickets": {"assigned_to": "INTEGER"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",
-               "last_followup_at": "TEXT DEFAULT ''", "tiers": "TEXT DEFAULT '[]'", "chosen_tier": "TEXT DEFAULT ''"},
+               "last_followup_at": "TEXT DEFAULT ''", "tiers": "TEXT DEFAULT '[]'", "chosen_tier": "TEXT DEFAULT ''",
+               "invoice_id": "INTEGER"},
 }
 
 

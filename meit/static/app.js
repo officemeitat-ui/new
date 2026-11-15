@@ -227,6 +227,7 @@ views.dashboard = async () => {
       kpi("Net Revenue Retention", nrrVal, d.nrr && d.nrr.nrr !== null ? "Ziel: über 100 % (Bestand wächst)" : "Verlauf wird aufgezeichnet", "", "#/wachstum"),
       kpi("Anteil wiederkehrend", share, "Ziel: über 60 %", "", "#/wachstum"),
       kpi("Kunden-Health", `${d.health.counts.risiko} Risiko`, `${d.health.counts.beobachten} beobachten · ${d.health.counts.gesund} gesund`, d.health.counts.risiko ? "" : "", "#/wachstum"),
+      kpi("Unverrechnet", eur(d.unbilled_value), "Stunden + Projekte → Rechnungslauf", d.unbilled_value > 0 ? "" : "", "#/abrechnung"),
       km ? kpi("KI-Mitarbeiter", `${km.pending_approval} Freigaben`, `${km.unprocessed} neu · ca. ${(Math.round(km.minutes_saved / 6) / 10).toLocaleString("de-AT")} h gespart (7 Tage)`, "", "#/posteingang") : null),
     h("div", { class: "grid kpis" },
       kpi("Wiederkehrender Umsatz", eur(d.mrr), `pro Monat · ${eur(d.mrr * 12)} pro Jahr`),
@@ -293,6 +294,7 @@ function customerForm(c = null) {
     { name: "package", label: "Paket", type: "select", options: ["keins", "basis", "pro", "premium"] },
     { name: "mrr", label: "MRR (€/Monat)", type: "number", step: "0.01" },
     { name: "contract_end", label: "Vertragsende", type: "date" },
+    { name: "uid", label: "UID-Nummer (für Rechnungen)" },
     { name: "booked_services", label: "Gebuchte Leistungen (Codes, kommagetrennt)", placeholder: "MW, SEC, BCK" },
     { name: "notes", label: "Notizen", type: "textarea", full: true },
   ], c ? { ...c, booked_services: (c.booked_services || []).join(", ") } : {});
@@ -450,6 +452,7 @@ async function ticketDetail(id) {
     t.status === "geloest" && t.solution ? h("button", { class: "btn", onclick: async (e) => withBusy(e.target, async () => {
       await api(`/api/tickets/${t.id}/to-kb`, { method: "POST" }); toast("Als Wissensartikel gespeichert");
     }) }, "→ Wissensdatenbank") : null,
+    t.customer_id ? (close) => h("button", { class: "btn", onclick: () => { close(); timeForm({ ticket_id: t.id, description: t.title }); } }, "Zeit buchen") : null,
     (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
       await api(`/api/tickets/${t.id}/triage`, { method: "POST" }); close(); ticketDetail(t.id); render();
     }) }, s ? "KI-Triage erneut" : "KI-Triage starten"),
@@ -1342,6 +1345,101 @@ views.team = async () => {
         { label: "Nächster Schritt", render: (r) => r.next_step || h("span", { style: "color:var(--warn)" }, "fehlt!") },
         { label: "Risiko", render: (r) => r.risk || "–" },
       ], w.top_opportunities, (r) => leadDetail(r.id))));
+};
+
+// ---- Abrechnung
+let billingTab = "offen";
+const INV_STATUS = { entwurf: "Entwurf", gestellt: "gestellt", bezahlt: "bezahlt", storniert: "storniert" };
+function timeForm(defaults = {}) {
+  const f = form([
+    ...(defaults.ticket_id ? [] : [{ name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: defaults.customer_id || "" }]),
+    { name: "minutes", label: "Minuten", type: "number", value: defaults.minutes || 30 },
+    { name: "date", label: "Datum", type: "date", value: new Date().toISOString().slice(0, 10) },
+    { name: "billable", label: "Abrechnung", type: "select", options: [["auto", "automatisch (nach Vertrag)"], ["ja", "verrechenbar"], ["nein", "nicht verrechenbar (Flatrate/Kulanz)"]] },
+    { name: "description", label: "Tätigkeit (steht so auf der Rechnung)", full: true, value: defaults.description || "" },
+  ]);
+  modal("Zeit buchen", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+    const d = readForm(f);
+    const body = { minutes: Number(d.minutes), date: d.date, description: d.description, ticket_id: defaults.ticket_id || null,
+      customer_id: d.customer_id ? Number(d.customer_id) : (defaults.customer_id || null), billable: d.billable === "auto" ? null : d.billable === "ja" };
+    await api("/api/time", { method: "POST", body }); close(); toast("Zeit gebucht"); render();
+  }) }, "Buchen")]);
+}
+
+views.abrechnung = async () => {
+  await loadCustomers();
+  const month = new Date().toISOString().slice(0, 7);
+  const periodSel = h("input", { type: "month", value: month, style: "max-width:170px" });
+  setTitle("Abrechnung", [
+    h("button", { class: "btn", onclick: () => timeForm() }, "+ Zeit buchen"),
+    periodSel,
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/billing/run", { method: "POST", body: { period: periodSel.value } });
+      toast(r.count ? `${r.count} Rechnungsentwurf/-entwürfe erstellt` : "Nichts abzurechnen"); billingTab = "rechnungen"; render();
+    }) }, "Rechnungslauf"),
+  ]);
+  const tabs = h("div", { class: "tabs" }, [["offen", "Unverrechnet"], ["rechnungen", "Rechnungen"], ["zeiten", "Zeiten"], ["firma", "Firmendaten"]].map(([k, l]) =>
+    h("button", { class: billingTab === k ? "active" : "", onclick: () => { billingTab = k; render(); } }, l)));
+  let content;
+  if (billingTab === "offen") {
+    const u = await api("/api/billing/unbilled");
+    content = h("div", {},
+      h("div", { class: "grid kpis" }, h("div", { class: "card kpi accent" }, h("div", { class: "label" }, "Noch nicht verrechnet"), h("div", { class: "value" }, eur(u.total_value)), h("div", { class: "sub" }, "Stunden + angenommene Projekte"))),
+      h("div", { class: "grid two" },
+        h("div", { class: "card" }, h("h2", {}, "Verrechenbare Stunden"), table([
+          { label: "Kunde", key: "customer" }, { label: "Stunden", num: true, render: (r) => r.hours.toLocaleString("de-AT") },
+          { label: "Wert", num: true, render: (r) => eur(r.value) }, { label: "seit", render: (r) => dt(r.since) }], u.hours)),
+        h("div", { class: "card" }, h("h2", {}, "Angenommene Projekte"), table([
+          { label: "Kunde", key: "customer" }, { label: "Projekt", key: "title" }, { label: "Betrag", num: true, render: (r) => eur(r.total_once) }], u.projects))),
+      h("p", { class: "small muted" }, "Der Rechnungslauf erstellt Entwürfe: Betreuungspauschale (MRR) des Monats, verrechenbare Stunden (Viertelstundentakt) und angenommene Projekte. Nummern werden erst beim Stellen vergeben – fortlaufend und lückenlos."));
+  } else if (billingTab === "rechnungen") {
+    const inv = await api("/api/invoices");
+    const act = (r, status, label, cls = "") => h("button", { class: `btn small ${cls}`, onclick: async (e) => { e.stopPropagation();
+      if (status === "storniert" && !confirm("Rechnung stornieren? Die Leistungen werden wieder abrechenbar.")) return;
+      try { await api(`/api/invoices/${r.id}`, { method: "PUT", body: { status } }); toast(label); render(); } catch (err) { toast(err.message, true); } } }, label);
+    const open = inv.filter((r) => r.status === "gestellt").reduce((a, r) => a + r.gross, 0);
+    content = h("div", {},
+      h("p", { class: "small muted" }, `Offene Forderungen: ${eur2(open)} · überfällig: ${inv.filter((r) => r.overdue).length}`),
+      h("div", { class: "card" }, table([
+        { label: "Nr.", render: (r) => r.number || h("em", { class: "muted" }, "Entwurf") }, { label: "Kunde", key: "customer_name" },
+        { label: "Zeitraum", key: "period" }, { label: "Netto", num: true, render: (r) => eur2(r.net) }, { label: "Brutto", num: true, render: (r) => eur2(r.gross) },
+        { label: "Status", render: (r) => r.overdue ? badge("überfällig", "bad") : badge(INV_STATUS[r.status], { entwurf: "warn", gestellt: "info", bezahlt: "ok", storniert: "" }[r.status]) },
+        { label: "", render: (r) => h("div", { class: "row", style: "justify-content:flex-end" },
+          h("a", { class: "btn small", href: `/api/invoices/${r.id}/html`, target: "_blank", rel: "noopener", onclick: (e) => e.stopPropagation() }, "Ansehen/Drucken"),
+          r.status === "entwurf" ? act(r, "gestellt", "Stellen", "primary") : null,
+          r.status === "gestellt" ? act(r, "bezahlt", "Bezahlt") : null,
+          ["gestellt", "bezahlt"].includes(r.status) ? act(r, "storniert", "Storno", "danger") : null,
+          r.status === "entwurf" ? h("button", { class: "btn small danger", onclick: async (e) => { e.stopPropagation(); await api(`/api/invoices/${r.id}`, { method: "DELETE" }); toast("Entwurf gelöscht"); render(); } }, "Löschen") : null) },
+      ], inv)),
+      h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }),
+        h("a", { class: "btn", href: `/api/invoices/export.csv?year=${new Date().getFullYear()}` }, "Rechnungsausgangsbuch (CSV) für Buchhaltung")));
+  } else if (billingTab === "zeiten") {
+    const rows = await api("/api/time?limit=300");
+    content = h("div", { class: "card" }, table([
+      { label: "Datum", render: (r) => dt(r.date) }, { label: "Kunde", key: "customer_name" }, { label: "Tätigkeit", key: "description" },
+      { label: "Min.", key: "minutes", num: true }, { label: "Wer", render: (r) => r.user_name || "–" },
+      { label: "Abrechnung", render: (r) => r.invoice_id ? badge("abgerechnet", "ok") : (r.billable ? badge("offen", "warn") : badge("Flatrate")) },
+      { label: "", render: (r) => r.invoice_id ? "" : h("button", { class: "btn small danger", onclick: async () => { await api(`/api/time/${r.id}`, { method: "DELETE" }); render(); } }, "×") },
+    ], rows));
+  } else {
+    const p = await api("/api/billing/profile");
+    const f = form([
+      { name: "name", label: "Firmenname (wie auf der Rechnung)" }, { name: "uid", label: "UID-Nummer" },
+      { name: "address", label: "Anschrift", type: "textarea", rows: 3, full: true },
+      { name: "email", label: "E-Mail" }, { name: "phone", label: "Telefon" },
+      { name: "bank", label: "Bank" }, { name: "iban", label: "IBAN" }, { name: "bic", label: "BIC" },
+      { name: "invoice_prefix", label: "Präfix Rechnungsnummer", placeholder: "z. B. RE-" },
+      { name: "payment_days", label: "Zahlungsziel (Tage)", type: "number" }, { name: "vat_rate", label: "USt-Satz (%)", type: "number" },
+      { name: "round_minutes", label: "Abrechnungstakt (Minuten)", type: "number" },
+      { name: "kleinunternehmer", label: "Kleinunternehmer (keine USt)", type: "checkbox" },
+      { name: "footer", label: "Fußzeile", full: true },
+    ], p);
+    content = h("div", { class: "card" }, h("p", { class: "small muted" }, "Pflichtangaben auf Rechnungen (§ 11 UStG): Name/Anschrift, UID, fortlaufende Nummer, Datum, Leistungszeitraum, Netto, Steuersatz, Steuerbetrag. Ab € 10.000 brutto auch die UID des Kunden (beim Kunden hinterlegen)."), f,
+      h("div", { class: "row", style: "margin-top:1rem" }, h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        await api("/api/billing/profile", { method: "PUT", body: readForm(f) }); toast("Gespeichert");
+      }) }, "Speichern")));
+  }
+  show(tabs, content);
 };
 
 // ---------------------------------------------------------------- Router
