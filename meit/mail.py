@@ -291,6 +291,39 @@ class GraphMailer:
             self._request("PATCH", f"/messages/{item['id']}", json={"isRead": True})
         return mails
 
+    def free_slots(self, count: int = 3, duration_min: int = 30, days: int = 7, start_hour: int = 9,
+                   end_hour: int = 16, now=None) -> list:
+        """Freie Termine aus dem M365-Kalender des Postfachs (benötigt Calendars.Read). Max. ein Vorschlag pro Tag."""
+        from datetime import datetime, time as dtime, timedelta
+
+        now = now or datetime.now()
+        window_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        window_end = window_start + timedelta(days=days + 3)
+        resp = self._request("GET", "/calendarView", params={
+            "startDateTime": window_start.isoformat(), "endDateTime": window_end.isoformat(),
+            "$select": "start,end,showAs", "$top": "250"},
+            headers={"Prefer": 'outlook.timezone="W. Europe Standard Time"'})
+
+        def parse(v: dict) -> datetime:
+            return datetime.fromisoformat((v.get("dateTime") or "")[:19])
+
+        busy = [(parse(e["start"]), parse(e["end"])) for e in resp.json().get("value", [])
+                if e.get("showAs", "busy") not in ("free", "workingElsewhere")]
+        earliest = now + timedelta(hours=2)
+        dur = timedelta(minutes=duration_min)
+        slots = []
+        day = now.date()
+        while len(slots) < count and day <= window_end.date():
+            if day.weekday() < 5:
+                t = datetime.combine(day, dtime(start_hour))
+                while t + dur <= datetime.combine(day, dtime(end_hour)):
+                    if t >= earliest and not any(b0 < t + dur and t < b1 for b0, b1 in busy):
+                        slots.append(t)
+                        break
+                    t += timedelta(minutes=30)
+            day += timedelta(days=1)
+        return slots
+
     def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "") -> str:
         if not to or "@" not in to:
             raise MailError("Keine gültige Empfängeradresse.")

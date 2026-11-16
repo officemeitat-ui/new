@@ -38,6 +38,7 @@ from .team import (
     users_exist,
 )
 from .radar import Radar, eol_info
+from .rmm import register as register_rmm
 from .security import QUESTIONS
 from .sla import register as register_sla, sla_config, sla_overview, ticket_sla
 from .seed import seed_all
@@ -238,6 +239,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_team(app, db, RateLimiter(limit=10, window_s=600))
     register_billing(app, db, settings.company_name, admin_only)
     register_sla(app, db, admin_only)
+    register_rmm(app, db, settings, admin_only)
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])

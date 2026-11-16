@@ -1177,7 +1177,7 @@ views.wachstum = async () => {
 // ---- Daten: Import & Sicherung
 views.daten = async () => {
   setTitle("Import & Datensicherung");
-  const b = await api("/api/backup");
+  const [b, rmm] = await Promise.all([api("/api/backup"), api("/api/rmm/status")]);
   let csvText = "";
   const kind = h("select", {}, h("option", { value: "customers" }, "Kunden"), h("option", { value: "assets" }, "Geräte (auch RMM-Export: NinjaOne, Datto, Atera …)"));
   const createCust = h("input", { type: "checkbox", checked: true, style: "width:auto" });
@@ -1218,6 +1218,15 @@ views.daten = async () => {
           h("a", { class: "btn primary", href: "/api/backup/download" }, "Sicherung herunterladen")),
         h("p", { class: "small muted" }, "Tipp: Den Sicherungsordner zusätzlich auf NAS oder ins Offsite-Backup aufnehmen (3-2-1-Regel). Wiederherstellen: App stoppen, Sicherungsdatei als data/meit.db einsetzen, starten."),
         b.backups.length ? table([{ label: "Datei", key: "file" }, { label: "Größe", num: true, render: (r) => `${r.size_kb} KB` }, { label: "Erstellt", key: "created" }], b.backups.slice(0, 8)) : null)),
+    h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "RMM: NinjaOne"),
+      rmm.configured ? h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api("/api/rmm/sync", { method: "POST" });
+        toast(`${r.assets_created} Geräte neu, ${r.assets_updated} aktualisiert${r.alert_tickets ? `, ${r.alert_tickets} Alarm-Tickets` : ""}`); render();
+      }) }, "Jetzt abgleichen") : badge("nicht eingerichtet", "warn")),
+      rmm.configured ? h("p", { class: "small" }, `Instanz: ${rmm.url} · ${rmm.sync_hours ? `automatisch alle ${rmm.sync_hours} h` : "Abgleich per Knopf"} · Alarme → Tickets: ${rmm.alert_tickets ? "ja" : "nein"}`,
+        rmm.last ? h("span", { class: "muted" }, ` · letzter Abgleich ${rmm.last.at}: ${rmm.last.assets_created} neu / ${rmm.last.assets_updated} aktualisiert`) : null,
+        rmm.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${rmm.error}`) : null)
+        : md(["Organisationen werden zu Kunden, Geräte inkl. Betriebssystem, Seriennummer und „zuletzt gesehen“ werden übernommen (Support-Ende-Erkennung, Umsatz-Radar). In NinjaOne: *Administration → Apps → API* → Client-App (API Services, Client Credentials, Scope Monitoring). Dann in `.env`:", "```", "NINJA_URL=https://eu.ninjarmm.com", "NINJA_CLIENT_ID=…", "NINJA_CLIENT_SECRET=…", "NINJA_SYNC_HOURS=6", "NINJA_ALERT_TICKETS=true", "```"].join("\n"))),
     result);
 };
 

@@ -66,6 +66,10 @@ spricht deshalb direkt mit **Microsoft Graph**:
    MAIL_POLL_MINUTES=5
    ```
 Antworten gehen als echte Antwort im Outlook-Verlauf raus und landen in „Gesendete Elemente“.
+
+**Terminvorschläge aus dem Kalender:** Zusätzlich die Berechtigung `Calendars.Read` erteilen und
+`GRAPH_CALENDAR=true` setzen. Dann enthalten Antworten auf Anfragen und Rückrufbitten drei freie Termine
+(je einer pro Werktag, 9–16 Uhr, frühestens in 2 Stunden). Belegte Kalenderzeiten werden ausgelassen.
 Abgerufene Mails werden als gelesen markiert.
 
 > Für Kundeninstallationen: Pro Kunde eine eigene App-Registrierung im Kunden-Mandanten anlegen. Das
@@ -118,7 +122,6 @@ Setze den KI-Mitarbeiter **zuerst im eigenen Betrieb** ein: Postfach office@, An
 Belege. Nach 4 Wochen hast du echte Zahlen (Zeitersparnis, Antwortzeit) und eine glaubwürdige Demo für Kunden.
 
 ## Ausbaustufen (Vorschläge)
-- Microsoft-365-Kalender (Graph) für echte Terminvorschläge statt Buchungslink
 - Telefon-Assistent (Anrufannahme, Rückrufnotiz), lokal mit Spracherkennung
 - WhatsApp Business (offizielle API) als weiterer Kanal
 - Belege per OCR aus Scans/Fotos, Export direkt im BMD/RZL-Format

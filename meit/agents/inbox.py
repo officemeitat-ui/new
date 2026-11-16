@@ -382,6 +382,18 @@ def process_message(ctx: AgentContext, message_id: int) -> dict[str, Any]:
         else:
             linked_type, linked_id = "receipt", db.insert("receipts", {**parsed, "message_id": message_id})
 
+    if reply and category in ("anfrage", "termin") and getattr(ctx.settings, "graph_calendar", False) \
+            and hasattr(ctx.mailer, "free_slots") and getattr(ctx.mailer, "configured", False):
+        try:
+            slots = ctx.mailer.free_slots()
+            if slots:
+                result["slots"] = [s_.isoformat(timespec="minutes") for s_ in slots]
+                days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+                reply += ("\n\nGerne schlagen wir folgende Termine für ein kurzes Gespräch (ca. 30 Minuten, Telefon oder Teams) vor:\n"
+                          + "\n".join(f"- {days[s_.weekday()]}, {s_.strftime('%d.%m.')} um {s_.strftime('%H:%M')} Uhr" for s_ in slots)
+                          + "\nBitte antworten Sie einfach mit dem passenden Termin.")
+        except Exception as exc:  # noqa: BLE001 - Kalender ist optional
+            result["calendar_error"] = str(exc)
     booking = getattr(ctx.settings, "booking_url", "") if ctx.settings else ""
     if reply and booking and category in ("anfrage", "termin") and booking not in reply:
         reply += f"\n\nTermin direkt buchen: {booking}"

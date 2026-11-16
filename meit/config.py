@@ -85,6 +85,13 @@ class Settings:
     followup_days: int = 5
     public_form_enabled: bool = True
     public_form_origins: tuple[str, ...] = ()
+    # --- RMM (NinjaOne) & Kalender ---------------------------------------------
+    ninja_url: str = ""
+    ninja_client_id: str = ""
+    ninja_client_secret: str = ""
+    ninja_sync_hours: int = 0
+    ninja_alert_tickets: bool = False
+    graph_calendar: bool = False
     # --- Datensicherung -------------------------------------------------------
     backup_hours: int = 24
     backup_keep: int = 14
@@ -128,6 +135,12 @@ def get_settings() -> Settings:
         booking_url=os.environ.get("BOOKING_URL", ""),
         followup_days=_int("FOLLOWUP_DAYS", 5),
         public_form_enabled=_bool("PUBLIC_FORM_ENABLED", True),
+        ninja_url=(os.environ.get("NINJA_URL") or "").rstrip("/"),
+        ninja_client_id=os.environ.get("NINJA_CLIENT_ID", ""),
+        ninja_client_secret=os.environ.get("NINJA_CLIENT_SECRET", ""),
+        ninja_sync_hours=_int("NINJA_SYNC_HOURS", 0),
+        ninja_alert_tickets=_bool("NINJA_ALERT_TICKETS", False),
+        graph_calendar=_bool("GRAPH_CALENDAR", False),
         backup_hours=_int("BACKUP_HOURS", 24),
         backup_keep=_int("BACKUP_KEEP", 14),
         backup_dir=_resolve(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else "",
