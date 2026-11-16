@@ -80,6 +80,28 @@ const SCHEMA = [
     sent_at TEXT,
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS conversations (
+    id TEXT PRIMARY KEY,
+    channel TEXT NOT NULL,
+    contact TEXT NOT NULL,
+    contact_name TEXT,
+    lead_id TEXT REFERENCES leads(id) ON DELETE SET NULL,
+    mode TEXT NOT NULL,
+    last_inbound_at TEXT,
+    updated_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(channel, contact)
+  )`,
+  `CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    author TEXT NOT NULL,
+    text TEXT NOT NULL,
+    external_id TEXT UNIQUE,
+    delivery_error TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages(conversation_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_leads_funnel_stage ON leads(funnel, stage)`,
   `CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone)`,
   `CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email)`,

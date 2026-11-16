@@ -36,6 +36,7 @@ export default function DatenschutzPage() {
             zusammengefasst.
           </li>
           <li>Terminbestätigungen und -erinnerungen per SMS: [z. B. Twilio].</li>
+          <li>WhatsApp-Assistent: WhatsApp Business Platform (Meta). Nachrichten werden von einer KI (Anthropic) beantwortet.</li>
         </ul>
         <h2 className="text-xl font-semibold text-slate-900">Speicherdauer und Ihre Rechte</h2>
         <p>

@@ -45,12 +45,13 @@ export default async function DashboardPage() {
 
       <section>
         <h2 className="mb-4 text-lg font-semibold">Wirkung der KI-Mitarbeiter ({DAYS} Tage)</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Kpi label="Anrufe angenommen" value={impact.calls} />
+          <Kpi label="WhatsApp-Gespräche" value={impact.chats} hint={`${impact.chatReplies} Antworten`} />
           <Kpi
             label="Termine gebucht"
-            value={impact.appointments.telefon + impact.appointments.email}
-            hint={`${impact.appointments.telefon} per Telefon, ${impact.appointments.email} per E-Mail`}
+            value={impact.appointments.automated}
+            hint={`${impact.appointments.telefon} Telefon, ${impact.appointments.whatsapp} WhatsApp, ${impact.appointments.email} E-Mail`}
           />
           <Kpi label="E-Mails bearbeitet" value={impact.emailsHandled} hint={`${impact.repliesSent} Antworten gesendet`} />
           <Link href="/admin/emails" className="block h-full">
@@ -59,7 +60,7 @@ export default async function DashboardPage() {
           <Kpi
             label="Geschätzte Zeitersparnis"
             value={`${(impact.minutesSaved / 60).toLocaleString("de-AT", { maximumFractionDigits: 1 })} Std.`}
-            hint={`Annahme: ${business.impact.minutesPerCall} Min./Anruf, ${business.impact.minutesPerEmail} Min./E-Mail, ${business.impact.minutesPerAppointment} Min./Termin`}
+            hint={`Annahme: ${business.impact.minutesPerCall} Min./Anruf, ${business.impact.minutesPerEmail} Min./E-Mail, ${business.impact.minutesPerChat} Min./Chat, ${business.impact.minutesPerAppointment} Min./Termin`}
           />
         </div>
       </section>

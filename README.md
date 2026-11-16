@@ -1,8 +1,20 @@
 # KI-Mitarbeiter-Cockpit
 
 Plattform für „KI-Mitarbeiter“ in kleinen und mittleren Betrieben: Ein **Telefon-Assistent** nimmt Anrufe an,
-beantwortet Fragen, bucht Termine und notiert Rückrufe. Ein **E-Mail-Assistent** ordnet eingehende E-Mails ein
-und schreibt Antworten zur Freigabe. Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und
+beantwortet Fragen, bucht Termine und notiert Rückrufe. Ein **WhatsApp-Assistent** macht dasselbe im Chat. Ein
+**WhatsApp-Assistent (WhatsApp Cloud API von Meta)**
+- Antwortet sofort und kurz, stellt sich als KI vor, kennt das Betriebsprofil.
+  Nutzt dieselben Werkzeuge wie der Telefon-Assistent: freie Termine, buchen, Rückruf.
+- Übergibt an das Team bei Reklamationen, dringenden Fällen oder wenn der Kunde einen Menschen möchte. Das Team wird per E-Mail benachrichtigt, der Assistent schweigt danach in diesem Gespräch.
+- Mehrere kurze Nachrichten hintereinander werden einmal gemeinsam beantwortet. Doppelt zugestellte Webhooks werden erkannt.
+- Bilder und Sprachnachrichten bekommen einen freundlichen Hinweis, dass nur Text geht.
+- Cockpit → Chats:
+  - alle Gespräche, Übernahme durch das Team und Rückgabe an die KI
+  - Team-Antworten, aber nur innerhalb des 24-Stunden-Fensters von WhatsApp
+  - **Test-Chat** für Vorführungen ohne WhatsApp
+- Der Verlauf liegt nur in der eigenen Datenbank. Claude bekommt bei jedem Aufruf den vollständigen Verlauf, Anthropic hält keinen Gesprächszustand.
+
+**E-Mail-Assistent** ordnet eingehende E-Mails ein und schreibt Antworten zur Freigabe. Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und
 Monatskennzahlen. Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
 
 Pro Kunde gibt es eine Installation. Der Betrieb wird in [`config/business.ts`](config/business.ts) beschrieben,
@@ -19,6 +31,18 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
 - Notiert Rückrufwünsche (auch dringende) und informiert das Team per E-Mail; Weiterverbinden optional
 - Nach jedem Gespräch landen Zusammenfassung, Transkript und Aufnahme beim Kontakt im Cockpit
 - Konfiguration wird bei jedem Anruf frisch erzeugt (aktuelles Datum, aktuelles Profil), kein manuelles Nachpflegen in Vapi
+
+**WhatsApp-Assistent (WhatsApp Cloud API von Meta)**
+- Antwortet sofort und kurz, stellt sich als KI vor, kennt das Betriebsprofil.
+  Nutzt dieselben Werkzeuge wie der Telefon-Assistent: freie Termine, buchen, Rückruf.
+- Übergibt an das Team bei Reklamationen, dringenden Fällen oder wenn der Kunde einen Menschen möchte. Das Team wird per E-Mail benachrichtigt, der Assistent schweigt danach in diesem Gespräch.
+- Mehrere kurze Nachrichten hintereinander werden einmal gemeinsam beantwortet. Doppelt zugestellte Webhooks werden erkannt.
+- Bilder und Sprachnachrichten bekommen einen freundlichen Hinweis, dass nur Text geht.
+- Cockpit → Chats:
+  - alle Gespräche, Übernahme durch das Team und Rückgabe an die KI
+  - Team-Antworten, aber nur innerhalb des 24-Stunden-Fensters von WhatsApp
+  - **Test-Chat** für Vorführungen ohne WhatsApp
+- Der Verlauf liegt nur in der eigenen Datenbank. Claude bekommt bei jedem Aufruf den vollständigen Verlauf, Anthropic hält keinen Gesprächszustand.
 
 **E-Mail-Assistent**
 - Liest das Postfach per IMAP. Lese-Status bleibt unverändert, jede E-Mail wird nur einmal verarbeitet.
@@ -73,7 +97,7 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
 | Befehl | Zweck |
 |---|---|
-| `npm test` | Unit- und Integrationstests (Kalender, Buchung, Google/Microsoft gegen nachgebaute APIs, Telefon-Webhook, E-Mail inkl. SMTP, SMS, Erinnerungen, Nachfassen, Monatsbericht) |
+| `npm test` | Unit- und Integrationstests, u. a. gegen nachgebaute APIs von Google, Microsoft, Claude (Werkzeugschleife), Meta (WhatsApp) und Twilio sowie einen lokalen SMTP-Server |
 | `npm run typecheck` | TypeScript-Prüfung |
 | `npm run build` / `npm start` | Produktions-Build |
 | `npm run vapi:connect` | Telefonnummer in Vapi mit dieser Installation verbinden |
@@ -108,9 +132,17 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
      4. `MS_*` setzen.
    - Danach im Cockpit unter Termine auf „Verbindung testen“ klicken.
    - `booking.externalEvents` in `config/business.ts` regelt, ob ein externer Eintrag alle Plätze blockiert (Standard) oder nur einen.
-6. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
-7. **SMS** (optional): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` und `TWILIO_FROM` setzen. Einstellungen unter `reminders` in `config/business.ts`.
-8. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
+6. **WhatsApp:**
+   1. Im Meta-Business-Konto eine App (Typ Business) mit dem Produkt WhatsApp anlegen.
+   2. Eine eigene Nummer für die WhatsApp Business Platform registrieren. Diese Nummer kann nicht gleichzeitig in der normalen WhatsApp-App laufen.
+   3. `WHATSAPP_PHONE_NUMBER_ID` und das dauerhafte Zugriffstoken eines Systembenutzers (`WHATSAPP_ACCESS_TOKEN`) eintragen.
+   4. Das App-Geheimnis kommt in `WHATSAPP_APP_SECRET`. `WHATSAPP_VERIFY_TOKEN` frei wählen.
+   5. In der Meta-App den Webhook `https://…/api/whatsapp` mit diesem Verify-Token eintragen und das Feld `messages` abonnieren.
+   6. Testen mit einer Nachricht an die Nummer. Das Gespräch erscheint im Cockpit unter Chats.
+   7. Kosten und die nötige Unternehmensverifizierung laut aktuellen Meta-Bedingungen prüfen.
+7. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
+8. **SMS** (optional): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` und `TWILIO_FROM` setzen. Einstellungen unter `reminders` in `config/business.ts`.
+9. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
 
    | Route | Rhythmus | Zweck |
    |---|---|---|
@@ -123,12 +155,13 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
 Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_SECRET` signiert im Header
 `X-Signature: sha256=…`): `lead.created`, `lead.stage_changed`, `appointment.booked`, `callback.requested`,
-`call.ended`, `email.received`. Die Felder stehen in [`lib/webhook.ts`](lib/webhook.ts).
+`call.ended`, `email.received`, `chat.handoff`. Die Felder stehen in [`lib/webhook.ts`](lib/webhook.ts).
 
 ## Was vor dem Livegang zu klären ist
 
 - [ ] Platzhalter ersetzen (gelb markiert): Betriebsprofil, Impressum, Kundenstimmen nur echt und mit Einverständnis
-- [ ] Datenschutzerklärung des **Kunden** um Telefon-Assistent (Transkription), E-Mail-Assistent, SMS-Versand und alle Dienstleister ergänzen
+- [ ] Datenschutzerklärung des **Kunden** um Telefon-, WhatsApp- und E-Mail-Assistent, SMS-Versand und alle Dienstleister ergänzen
+      (WhatsApp: Meta als Auftragsverarbeiter, Drittlandtransfer)
 - [ ] Bestätigungen, Erinnerungen und Nachfass-E-Mails beziehen sich nur auf die konkrete Anfrage bzw. den gebuchten Termin.
       Bewertungsanfragen oder Werbung ohne Einwilligung sind bewusst **nicht** eingebaut (§ 174 TKG, § 7 UWG).
 - [ ] Auftragsverarbeitungsverträge: Hosting, Datenbank, Anthropic, Vapi samt Telefonie- und Sprachdienst, ggf. CRM.
@@ -146,7 +179,11 @@ config/site.ts           Website-Texte, Funnels, Pipelines, Kanäle
 lib/calendar.ts          Terminlogik (zeitzonenfest, rein funktional)
 lib/appointments.ts      Buchungen mit Kapazitätsprüfung in einer Transaktion, Abgleich mit externem Kalender
 lib/calendar-sync/       Google Kalender (Dienstkonto) und Microsoft 365 (Graph)
+lib/assistant/           Gemeinsame Werkzeuge und Betriebswissen für Telefon- und Chat-Assistent
 lib/voice/               Telefon-Assistent: Vapi-Konfiguration und Webhook-Verarbeitung
+lib/chat/                Chat-Assistent: Claude-Werkzeugschleife, Ablauf, Versandwege
+lib/whatsapp.ts          WhatsApp Cloud API: Signaturprüfung, Webhook, Versand
+lib/conversations.ts     Chat-Gespräche und -Nachrichten
 lib/mail/                E-Mail-Assistent: Auswertung (Claude), IMAP, SMTP, Verarbeitung
 lib/stats.ts             Kennzahlen zur Wirkung
 lib/report.ts            Monatsbericht (Seite und E-Mail-Text)
@@ -154,6 +191,7 @@ lib/reminders.ts         Terminbestätigung und -erinnerung (SMS/E-Mail)
 lib/followup.ts          Nachfass-Assistent
 lib/sms.ts               SMS über Twilio
 app/api/voice/vapi/      Webhook für Vapi
+app/api/whatsapp/        Webhook für WhatsApp
 app/api/cron/mail/       Postfach-Abruf
 app/api/cron/report/     Versand des Monatsberichts
 app/api/cron/reminders/  Terminerinnerungen

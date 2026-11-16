@@ -24,6 +24,13 @@ function teamNotification(event: WebhookEvent): { subject: string; text: string 
         subject: `Neuer Termin: ${event.service}`,
         text: `${event.name} hat einen Termin gebucht: ${event.service}, ${formatSlot(new Date(event.start), business)}.${cockpitLink(event.leadId)}`,
       };
+    case "chat.handoff":
+      return {
+        subject: `Chat-Übergabe: ${event.contact} wartet auf eine Antwort`,
+        text: `Der KI-Assistent hat ein Chat-Gespräch an das Team übergeben.\nGrund: ${event.reason}${
+          process.env.PUBLIC_URL ? `\n\nZum Gespräch: ${process.env.PUBLIC_URL.replace(/\/$/, "")}/admin/chats/${event.conversationId}` : ""
+        }`,
+      };
     case "email.received":
       return event.urgent ? { subject: "Dringende E-Mail eingegangen", text: `${event.summary}${cockpitLink(event.leadId)}` } : null;
     default:

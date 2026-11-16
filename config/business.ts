@@ -81,7 +81,7 @@ export type BusinessProfile = {
     categories: string[];
   };
   /** Annahmen für die geschätzte Zeitersparnis im Cockpit (Minuten, die ein Mensch pro Vorgang bräuchte). */
-  impact: { minutesPerCall: number; minutesPerEmail: number; minutesPerAppointment: number };
+  impact: { minutesPerCall: number; minutesPerEmail: number; minutesPerChat: number; minutesPerAppointment: number };
   placeholder: boolean;
 };
 
@@ -164,7 +164,7 @@ export const business: BusinessProfile = {
   },
   reminders: { confirmation: true, hoursBefore: 24, sendBetween: [8, 20], channels: ["sms", "email"] },
   followUp: { enabled: true, afterDays: 3, maxAgeDays: 21, categories: ["terminanfrage", "angebotsanfrage"] },
-  impact: { minutesPerCall: 4, minutesPerEmail: 6, minutesPerAppointment: 3 },
+  impact: { minutesPerCall: 4, minutesPerEmail: 6, minutesPerChat: 3, minutesPerAppointment: 3 },
   placeholder: true,
 };
 

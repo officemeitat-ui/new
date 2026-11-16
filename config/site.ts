@@ -345,6 +345,7 @@ export type Channel = { id: string; label: string; pipelineId: string; initialSt
 export const channels: Record<string, Channel> = {
   telefon: { id: "telefon", label: "Telefon-Assistent", pipelineId: "anfragen", initialStage: "neu" },
   email: { id: "email", label: "E-Mail-Assistent", pipelineId: "anfragen", initialStage: "neu" },
+  whatsapp: { id: "whatsapp", label: "WhatsApp-Assistent", pipelineId: "anfragen", initialStage: "neu" },
 };
 
 /** Herkunft eines Eintrags: Funnel (mit Fragen und Bewertung) oder Kanal eines KI-Mitarbeiters. */

@@ -1,15 +1,12 @@
 import type { Vapi } from "@vapi-ai/server-sdk";
 import { business } from "@/config/business";
-import { describeOpeningHours } from "@/lib/calendar";
+import { TOOL_NAMES } from "@/lib/assistant/tool-names";
+import { businessKnowledge, todayForPrompt } from "@/lib/assistant/knowledge";
 
 // Konfiguration des Telefon-Assistenten für Vapi. Sie wird bei jedem Anruf frisch erzeugt
 // (Vapi fragt per „assistant-request“ an), damit Datum und Betriebsprofil immer aktuell sind.
 
-export const TOOL_NAMES = {
-  availability: "termin_verfuegbarkeit",
-  book: "termin_buchen",
-  callback: "rueckruf_notieren",
-} as const;
+export { TOOL_NAMES };
 
 const serviceIds = business.services.map((s) => s.id);
 
@@ -30,15 +27,7 @@ function functionTool(
 }
 
 export function systemPrompt(now: Date, callerNumber: string | undefined): string {
-  const today = new Intl.DateTimeFormat("de-AT", {
-    timeZone: business.timeZone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(now);
+  const today = todayForPrompt(now);
 
   return [
     `Du bist ${business.assistant.name}, die KI-Telefonassistentin von ${business.name} (${business.industry}). Du nimmst Anrufe entgegen, beantwortest Fragen, vereinbarst Termine und notierst Rückrufwünsche.`,
@@ -51,7 +40,7 @@ export function systemPrompt(now: Date, callerNumber: string | undefined): strin
     "- Erfinde nichts: keine Preise, Diagnosen, Zusagen oder Termine, die nicht aus den Werkzeugen oder diesem Profil stammen. Wenn du etwas nicht weißt, biete einen Rückruf an.",
     "- Lies Termine natürlich vor („Montag, den 23. November, um halb acht“), nie im technischen Format.",
     "- Wiederhole vor dem Buchen kurz Leistung, Datum, Uhrzeit und Namen und lass dir das bestätigen.",
-    business.assistant.instructions && `- ${business.assistant.instructions}`,
+    ...(business.assistant.instructions ? [`- ${business.assistant.instructions}`] : []),
     "",
     "## Termine",
     `- Erst die gewünschte Leistung klären, dann mit ${TOOL_NAMES.availability} freie Zeiten holen und höchstens zwei bis drei davon anbieten.`,
@@ -62,21 +51,8 @@ export function systemPrompt(now: Date, callerNumber: string | undefined): strin
       : "- Weiterverbinden ist nicht möglich; biete stattdessen einen Rückruf an.",
     "- Beende das Gespräch höflich, wenn alles erledigt ist.",
     "",
-    "## Betrieb",
-    `Name: ${business.name}`,
-    `Adresse: ${business.address}`,
-    `Telefon: ${business.phone} · E-Mail: ${business.email} · Web: ${business.website}`,
-    `Öffnungszeiten: ${describeOpeningHours(business)}`,
-    business.closedDates.length > 0 && `Geschlossen an: ${business.closedDates.join(", ")}`,
-    "",
-    "## Leistungen",
-    ...business.services.map((s) => `- ${s.name} (ID ${s.id}, Dauer ${s.durationMinutes} Min.): ${s.info}`),
-    "",
-    "## Häufige Fragen",
-    ...business.faq.map((f) => `- ${f.q} ${f.a}`),
-  ]
-    .filter((line) => line !== false && line !== undefined)
-    .join("\n");
+    ...businessKnowledge(),
+  ].join("\n");
 }
 
 export type AssistantOptions = {

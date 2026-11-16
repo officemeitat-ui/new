@@ -7,7 +7,18 @@ export type ImpactStats = {
   /** Gesprächszeit des Telefon-Assistenten in Minuten. */
   callMinutes: number;
   callbacks: number;
-  appointments: { total: number; telefon: number; email: number; manuell: number };
+  /** WhatsApp-Gespräche mit Kundennachrichten im Zeitraum und Antworten des Assistenten darin. */
+  chats: number;
+  chatReplies: number;
+  appointments: {
+    total: number;
+    /** von KI-Mitarbeitern gebucht (Telefon, WhatsApp, E-Mail) */
+    automated: number;
+    telefon: number;
+    whatsapp: number;
+    email: number;
+    manuell: number;
+  };
   emailsHandled: number;
   repliesSent: number;
   openDrafts: number;
@@ -30,39 +41,50 @@ async function count(sql: string, args: string[]): Promise<number> {
  */
 export async function impactStats(from: Date, to = new Date()): Promise<ImpactStats> {
   const range = [from.toISOString(), to.toISOString()];
-  const [calls, callSeconds, callbacks, telefon, email, manuell, emailsHandled, repliesSent, openDrafts] = await Promise.all([
-    count("SELECT COUNT(*) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
-    count("SELECT COALESCE(SUM(duration_seconds), 0) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
-    count("SELECT COUNT(*) AS n FROM activities WHERE type = 'callback' AND created_at >= ? AND created_at < ?", range),
+  const bySource = (source: string) =>
     count(
-      "SELECT COUNT(*) AS n FROM appointments WHERE source = 'telefon' AND status = 'gebucht' AND created_at >= ? AND created_at < ?",
+      `SELECT COUNT(*) AS n FROM appointments WHERE source = '${source}' AND status = 'gebucht' AND created_at >= ? AND created_at < ?`,
       range,
-    ),
-    count(
-      "SELECT COUNT(*) AS n FROM appointments WHERE source = 'email' AND status = 'gebucht' AND created_at >= ? AND created_at < ?",
-      range,
-    ),
-    count(
-      "SELECT COUNT(*) AS n FROM appointments WHERE source = 'manuell' AND status = 'gebucht' AND created_at >= ? AND created_at < ?",
-      range,
-    ),
-    count(
-      "SELECT COUNT(*) AS n FROM emails WHERE kind = 'eingang' AND status NOT IN ('neu', 'fehler') AND received_at >= ? AND received_at < ?",
-      range,
-    ),
-    count("SELECT COUNT(*) AS n FROM emails WHERE status = 'gesendet' AND received_at >= ? AND received_at < ?", range),
-    count("SELECT COUNT(*) AS n FROM emails WHERE status = 'entwurf'", []),
-  ]);
-  const { minutesPerCall, minutesPerEmail, minutesPerAppointment } = business.impact;
+    );
+  const [calls, callSeconds, callbacks, telefon, whatsapp, email, manuell, emailsHandled, repliesSent, openDrafts, chats, chatReplies] =
+    await Promise.all([
+      count("SELECT COUNT(*) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
+      count("SELECT COALESCE(SUM(duration_seconds), 0) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
+      count("SELECT COUNT(*) AS n FROM activities WHERE type = 'callback' AND created_at >= ? AND created_at < ?", range),
+      bySource("telefon"),
+      bySource("whatsapp"),
+      bySource("email"),
+      bySource("manuell"),
+      count(
+        "SELECT COUNT(*) AS n FROM emails WHERE kind = 'eingang' AND status NOT IN ('neu', 'fehler') AND received_at >= ? AND received_at < ?",
+        range,
+      ),
+      count("SELECT COUNT(*) AS n FROM emails WHERE status = 'gesendet' AND received_at >= ? AND received_at < ?", range),
+      count("SELECT COUNT(*) AS n FROM emails WHERE status = 'entwurf'", []),
+      count(
+        `SELECT COUNT(DISTINCT m.conversation_id) AS n FROM chat_messages m JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.channel = 'whatsapp' AND m.author = 'kunde' AND m.created_at >= ? AND m.created_at < ?`,
+        range,
+      ),
+      count(
+        `SELECT COUNT(*) AS n FROM chat_messages m JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.channel = 'whatsapp' AND m.author = 'ki' AND m.created_at >= ? AND m.created_at < ?`,
+        range,
+      ),
+    ]);
+  const { minutesPerCall, minutesPerEmail, minutesPerChat, minutesPerAppointment } = business.impact;
+  const automated = telefon + whatsapp + email;
   return {
     calls,
     callMinutes: Math.round(callSeconds / 60),
     callbacks,
-    appointments: { total: telefon + email + manuell, telefon, email, manuell },
+    chats,
+    chatReplies,
+    appointments: { total: automated + manuell, automated, telefon, whatsapp, email, manuell },
     emailsHandled,
     repliesSent,
     openDrafts,
-    minutesSaved: calls * minutesPerCall + emailsHandled * minutesPerEmail + (telefon + email) * minutesPerAppointment,
+    minutesSaved: calls * minutesPerCall + emailsHandled * minutesPerEmail + chats * minutesPerChat + automated * minutesPerAppointment,
   };
 }
 

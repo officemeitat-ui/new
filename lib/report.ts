@@ -85,19 +85,20 @@ export async function monthlyReport(month: string): Promise<MonthlyReport> {
 /** Bericht als Text für die E-Mail an den Kunden. */
 export function reportText(report: MonthlyReport, link?: string): string {
   const { current: c, previous: p } = report;
-  const { minutesPerCall, minutesPerEmail, minutesPerAppointment } = business.impact;
-  const booked = c.appointments.telefon + c.appointments.email;
+  const { minutesPerCall, minutesPerEmail, minutesPerChat, minutesPerAppointment } = business.impact;
+  const booked = c.appointments.automated;
   const lines = [
     `Monatsbericht ${report.label} – ${business.name}`,
     "",
     `Ihre KI-Mitarbeiter haben im ${report.label}:`,
     `• ${plural(c.calls, "Anruf", "Anrufe")} angenommen (Vormonat ${p.calls}, ${change(c.calls, p.calls)}), ${hours(c.callMinutes)} Std. Gesprächszeit`,
-    `• ${plural(booked, "Termin", "Termine")} gebucht (${c.appointments.telefon} per Telefon, ${c.appointments.email} per E-Mail; Vormonat ${p.appointments.telefon + p.appointments.email})`,
+    `• ${plural(booked, "Termin", "Termine")} gebucht (${c.appointments.telefon} per Telefon, ${c.appointments.whatsapp} per WhatsApp, ${c.appointments.email} per E-Mail; Vormonat ${p.appointments.automated})`,
+    `• ${plural(c.chats, "WhatsApp-Gespräch", "WhatsApp-Gespräche")} geführt (${plural(c.chatReplies, "Antwort", "Antworten")})`,
     `• ${plural(c.callbacks, "Rückrufwunsch", "Rückrufwünsche")} für Sie notiert`,
     `• ${plural(c.emailsHandled, "E-Mail", "E-Mails")} bearbeitet, ${plural(c.repliesSent, "Antwort", "Antworten")} gesendet (Vormonat ${p.emailsHandled})`,
     "",
     `Geschätzte Zeitersparnis: ${hours(c.minutesSaved)} Stunden (Vormonat ${hours(p.minutesSaved)})`,
-    `Annahmen: ${minutesPerCall} Min. je Anruf, ${minutesPerEmail} Min. je E-Mail, ${minutesPerAppointment} Min. je Terminvereinbarung.`,
+    `Annahmen: ${minutesPerCall} Min. je Anruf, ${minutesPerEmail} Min. je E-Mail, ${minutesPerChat} Min. je WhatsApp-Gespräch, ${minutesPerAppointment} Min. je Terminvereinbarung.`,
   ];
   if (report.appointmentsByService.length > 0) {
     lines.push("", "Termine nach Leistung:", ...report.appointmentsByService.map((s) => `• ${s.name}: ${s.count}`));

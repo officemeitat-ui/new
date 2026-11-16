@@ -8,7 +8,7 @@ import { addDays, localDate, localTime, slotsForDay, zonedToUtc, type Busy } fro
 import { calendarProvider, CalendarSyncError } from "@/lib/calendar-sync";
 
 const DAYS_SHOWN = 14;
-const sourceLabel = { telefon: "Telefon-Assistent", email: "E-Mail", manuell: "Manuell" };
+const sourceLabel = { telefon: "Telefon-Assistent", whatsapp: "WhatsApp-Assistent", email: "E-Mail", manuell: "Manuell" };
 
 function dayHeading(date: string) {
   return new Intl.DateTimeFormat("de-AT", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(

@@ -7,7 +7,7 @@ import { calendarProvider, CalendarSyncError, externalBusy, invalidateExternalBu
 import { db } from "@/lib/db";
 import { normalizePhone } from "@/lib/leads";
 
-export type AppointmentSource = "telefon" | "email" | "manuell";
+export type AppointmentSource = "telefon" | "whatsapp" | "email" | "manuell";
 
 export type Appointment = {
   id: string;

@@ -95,15 +95,12 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/ber
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Metric label="Anrufe angenommen" value={c.calls} previous={p.calls} />
-        <Metric
-          label="Termine gebucht (Telefon + E-Mail)"
-          value={c.appointments.telefon + c.appointments.email}
-          previous={p.appointments.telefon + p.appointments.email}
-        />
+        <Metric label="Termine gebucht (Telefon + E-Mail)" value={c.appointments.automated} previous={p.appointments.automated} />
         <Metric label="Rückrufwünsche notiert" value={c.callbacks} previous={p.callbacks} />
         <Metric label="E-Mails bearbeitet" value={c.emailsHandled} previous={p.emailsHandled} />
         <Metric label="Antworten gesendet" value={c.repliesSent} previous={p.repliesSent} />
         <Metric label="Gesprächszeit" value={c.callMinutes} previous={p.callMinutes} unit=" Min." />
+        <Metric label="WhatsApp-Gespräche" value={c.chats} previous={p.chats} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -112,8 +109,9 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/ber
       </div>
 
       <p className="text-xs text-slate-500">
-        Zeitersparnis geschätzt mit {business.impact.minutesPerCall} Min. je Anruf, {business.impact.minutesPerEmail} Min. je E-Mail und{" "}
-        {business.impact.minutesPerAppointment} Min. je Terminvereinbarung. Termine zählen nach Buchungsdatum, E-Mails nach Eingang.
+        Zeitersparnis geschätzt mit {business.impact.minutesPerCall} Min. je Anruf, {business.impact.minutesPerEmail} Min. je E-Mail,{" "}
+        {business.impact.minutesPerChat} Min. je WhatsApp-Gespräch und {business.impact.minutesPerAppointment} Min. je Terminvereinbarung.
+        Termine zählen nach Buchungsdatum, E-Mails nach Eingang.
       </p>
     </div>
   );
