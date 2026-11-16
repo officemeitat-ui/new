@@ -305,7 +305,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
-        "solution", "ai_suggestion", "time_spent_min", "resolved_at", "assigned_to",
+        "solution", "ai_suggestion", "time_spent_min", "resolved_at", "assigned_to", "first_response_at",
     },
     "assets": {
         "customer_id", "name", "type", "os", "serial", "purchase_date", "warranty_end",
@@ -351,7 +351,7 @@ TABLES_WITH_CREATED_AT = {
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''"},
     "invoices": {"order_ref": "TEXT DEFAULT ''"},
-    "tickets": {"assigned_to": "INTEGER"},
+    "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",

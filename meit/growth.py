@@ -151,6 +151,14 @@ def health_score(db: Database, customer: dict[str, Any], today: date | None = No
             factor(f"Letztes QBR am {last_qbr.strftime('%d.%m.%Y')} – überfällig", -10)
         else:
             factor("QBR aktuell", +5)
+    if (customer.get("package") or "keins") != "keins":
+        from .sla import customer_sla_quote
+
+        q = customer_sla_quote(db, customer, days=90, now=datetime.combine(today, datetime.now().time()))
+        if q["breached"]:
+            factor(f"{q['breached']} SLA-Verletzung(en) in 90 Tagen (Quote {q['quote']:.0f} %)", -min(20, 5 * q["breached"]))
+        elif q["measured"]:
+            factor("SLA eingehalten", +5)
     contract_end = _parse(customer.get("contract_end"))
     if contract_end and today <= contract_end <= today + timedelta(days=60):
         factor(f"Vertrag endet am {contract_end.strftime('%d.%m.%Y')}", -15)

@@ -232,7 +232,7 @@ views.dashboard = async () => {
     h("div", { class: "grid kpis" },
       kpi("Wiederkehrender Umsatz", eur(d.mrr), `pro Monat · ${eur(d.mrr * 12)} pro Jahr`),
       kpi("Kunden", d.customers, `${d.managed_customers} mit Managed-Vertrag`),
-      kpi("Offene Tickets", d.open_tickets, `${d.critical_tickets} dringend`),
+      kpi("Offene Tickets", d.open_tickets, `${d.critical_tickets} dringend · ${d.sla.breached_open} SLA verletzt`, d.sla.breached_open ? "" : "", "#/sla"),
       kpi("Geräte ohne Support", d.assets_eol, `${d.assets_eol_soon} bald · ${d.warranty_soon} Garantie < 90 Tage`),
       kpi("Umsatz-Potenzial", eur(d.radar_annual), `${d.radar_count} Chancen · +${eur(d.radar_monthly)}/Monat`, "accent")),
     h("div", { class: "grid two" },
@@ -395,6 +395,7 @@ views.tickets = async (_, params) => {
     { label: "Kategorie", render: (r) => r.category || "–" },
     ...(state.users.length ? [{ label: "Zuständig", render: (r) => r.assigned_name || "–" }] : []),
     { label: "Priorität", render: (r) => badge(r.priority) },
+    { label: "SLA", render: (r) => slaBadge(r.sla) },
     { label: "Status", render: (r) => badge(STATUS_LABEL[r.status] || r.status, r.status) },
     { label: "Erstellt", render: (r) => dt(r.created_at) },
   ], rows, (r) => ticketDetail(r.id))));
@@ -1473,6 +1474,56 @@ async function portalCard(c) {
         h("button", { class: "btn small", onclick: async () => { await api(`/api/portal-users/${r.id}`, { method: "PUT", body: { active: !r.active } }); render(); } }, r.active ? "Sperren" : "Freischalten")) }], users)
       : h("p", { class: "small muted", style: "margin:0" }, "Noch kein Zugang. Im Portal sieht der Kunde seine Tickets, Geräte, Angebote (online annehmen) und Rechnungen und bekommt KI-Hilfe aus freigegebenen Anleitungen."));
 }
+
+// ---- SLA
+function slaBadge(sla) {
+  if (!sla) return "–";
+  const parts = [["Reaktion", sla.response], ["Lösung", sla.resolution]].filter(([, x]) => x && x.state !== "keine Zusage");
+  if (!parts.length) return h("span", { class: "small muted" }, "keine Zusage");
+  const worst = parts.find(([, x]) => x.state === "verletzt") || parts.find(([, x]) => x.state === "knapp") || parts.find(([, x]) => x.state === "ok") || parts[0];
+  const [label, x] = worst;
+  const cls = { verletzt: "bad", knapp: "warn", ok: "", "erfüllt": "ok" }[x.state] || "";
+  const txt = x.state === "erfüllt" ? "erfüllt" : x.state === "verletzt" ? `${label} überfällig` : `${label} in ${String(x.left_h).replace(".", ",")} h`;
+  return badge(txt, cls);
+}
+
+views.sla = async () => {
+  setTitle("SLA – Reaktions- & Lösungszeiten");
+  const o = await api("/api/sla?days=30");
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  const prios = ["kritisch", "hoch", "normal", "niedrig"];
+  const inputs = {};
+  const cfgRows = Object.entries(o.config.packages).map(([pkg, pr]) => h("tr", {}, h("td", {}, h("strong", {}, pkg)),
+    prios.map((p) => h("td", {}, h("div", { class: "row", style: "flex-wrap:nowrap;gap:.25rem" }, ...[0, 1].map((i) => {
+      const el = h("input", { type: "number", step: "0.5", min: "0", value: pr[p][i] ?? "", placeholder: "–", style: "width:58px;padding:.3rem .4rem", title: i ? "Lösung (h)" : "Reaktion (h)" });
+      (inputs[pkg] ??= {})[p] ??= []; inputs[pkg][p][i] = el; return el;
+    }))))));
+  show(
+    h("div", { class: "grid kpis" },
+      kpi("SLA verletzt (offen)", o.breached_open, "sofort handeln", o.breached_open ? "" : ""),
+      kpi("Knapp (offen)", o.at_risk_open, "wird bald fällig"),
+      kpi("Erfüllungsquote", o.quote !== null ? `${Math.round(o.quote)} %` : "–", `letzte ${o.days} Tage`, o.quote >= 95 ? "accent" : "")),
+    h("div", { class: "card" }, h("h2", {}, "Offene Tickets nach Dringlichkeit"), table([
+      { label: "#", key: "id" }, { label: "Ticket", key: "title" }, { label: "Kunde", render: (r) => r.customer || "–" }, { label: "Prio", render: (r) => badge(r.priority) },
+      { label: "Reaktion", render: (r) => slaBadge({ response: r.sla.response, resolution: { state: "keine Zusage" } }) },
+      { label: "Lösung", render: (r) => slaBadge({ resolution: r.sla.resolution, response: { state: "keine Zusage" } }) },
+      { label: "Paket", render: (r) => r.sla.package },
+    ], o.open, (r) => ticketDetail(r.id))),
+    h("div", { class: "grid two", style: "margin-top:1rem" },
+      h("div", { class: "card" }, h("h2", {}, "Erfüllung je Kunde (30 Tage)"), table([
+        { label: "Kunde", render: (r) => h("a", { href: `#/kunde/${r.customer_id}` }, r.customer) }, { label: "Paket", key: "package" },
+        { label: "Tickets", key: "tickets", num: true }, { label: "Verletzt", key: "breached", num: true },
+        { label: "Quote", num: true, render: (r) => r.quote === null ? "–" : badge(`${Math.round(r.quote)} %`, r.quote >= 95 ? "ok" : r.quote >= 80 ? "warn" : "bad") },
+      ], o.customers)),
+      h("div", { class: "card" }, h("h2", {}, "Zusagen je Paket (Geschäftsstunden: Reaktion / Lösung)"),
+        h("p", { class: "small muted" }, `Geschäftszeiten: ${o.config.business_hours.start}–${o.config.business_hours.end} Uhr, Mo–Fr. Leer = keine Zusage. Diese Werte gehören in eure Verträge.`),
+        h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Paket"), prios.map((p) => h("th", {}, p)))), h("tbody", {}, cfgRows))),
+        h("div", { class: "row", style: "margin-top:.6rem" }, h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+          const packages = {};
+          for (const [pkg, pr] of Object.entries(inputs)) { packages[pkg] = {}; for (const [p, els] of Object.entries(pr)) packages[pkg][p] = els.map((el) => el.value === "" ? null : Number(el.value)); }
+          await api("/api/sla/config", { method: "PUT", body: { packages } }); toast("SLA-Zusagen gespeichert"); render();
+        }) }, "Speichern")))));
+};
 
 // ---------------------------------------------------------------- Router
 async function render() {

@@ -465,6 +465,10 @@ def send_message_reply(ctx: AgentContext, message_id: int, text: str, handled_by
                                            "ai_result": json.dumps(ai, ensure_ascii=False, default=str)})
     if m["linked_type"] == "lead" and m["linked_id"]:
         db.update("leads", m["linked_id"], {"last_contact_at": ts})
+    if m["linked_type"] == "ticket" and m["linked_id"]:
+        # SLA: Antwort an den Kunden (auch manuell versendet) zählt als Reaktion
+        db.query("UPDATE tickets SET first_response_at = ? WHERE id = ? AND (first_response_at IS NULL OR first_response_at = '')",
+                 (ts, m["linked_id"]))
     return {"sent": not manual, "to": to, "subject": subject}
 
 

@@ -27,6 +27,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
 | **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, CSV-Export für den Steuerberater |
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
+| **SLA-Tracking** | Reaktions- und Lösungszeiten je Paket und Priorität in Geschäftszeiten (konfigurierbar). Ampel je Ticket, Erfüllungsquote je Kunde, fließt in Health Score, Monatsbericht und QBR ein. |
 | **Customer Success** | Health Score je Kunde, QBR-Agent („Plan → erreicht → nächster Hebel“), NRR, Anteil wiederkehrender Umsatz, Aktivitäten-Kaskade, 10-Punkte-Selbst-Check |
 | **ROI-Rechner** | Für das Verkaufsgespräch: Zeitgewinn, Wert, Amortisation, ROI im ersten Jahr |
 | **3-Stufen-Angebote** | Premium als Anker, dann Einstieg, dann Empfehlung. Beim Annehmen wird das gewählte Paket übernommen. |
@@ -143,6 +144,8 @@ meit/
   data_tools.py    CSV-Import (Kunden, Geräte, RMM) und Datensicherung
   billing.py       Zeiterfassung, Rechnungslauf, Rechnungen, Export
   portal.py        Kundenportal (eigene Zugänge, KI-Hilfe, Angebotsannahme)
+  sla.py           SLA-Zusagen, Geschäftszeiten, Ampel, Quoten
+  einvoice.py      E-Rechnung ebInterface 6.1
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25)

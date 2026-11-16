@@ -39,6 +39,7 @@ from .team import (
 )
 from .radar import Radar, eol_info
 from .security import QUESTIONS
+from .sla import register as register_sla, sla_config, sla_overview, ticket_sla
 from .seed import seed_all
 from .training import build_dataset, stats as training_stats, to_jsonl
 
@@ -236,6 +237,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     admin_only = make_admin_dependency(db)
     register_team(app, db, RateLimiter(limit=10, window_s=600))
     register_billing(app, db, settings.company_name, admin_only)
+    register_sla(app, db, admin_only)
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])
@@ -286,6 +288,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "SELECT agent, provider, ok, duration_ms, created_at FROM agent_log ORDER BY id DESC LIMIT 8"),
             "llm": router.status(),
             "unbilled_value": unbilled_overview(db)["total_value"],
+            "sla": {k: v for k, v in sla_overview(db, days=30).items() if k in ("breached_open", "at_risk_open", "quote")},
             "nrr": nrr(db),
             "recurring_share": recurring_share(db),
             "health": {k: v for k, v in health_overview(db).items() if k != "customers"},
@@ -406,8 +409,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         sql += (" ORDER BY CASE t.status WHEN 'geloest' THEN 1 ELSE 0 END, "
                 "CASE t.priority WHEN 'kritisch' THEN 0 WHEN 'hoch' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, t.id DESC")
         rows = db.query(sql, params)
+        cfg = sla_config(db)
+        packages = {c["id"]: c["package"] for c in db.query("SELECT id, package FROM customers")}
         for r in rows:
             r["ai_suggestion"] = loads(r.get("ai_suggestion"), None)
+            r["sla"] = ticket_sla(r, packages.get(r["customer_id"], "keins"), cfg)
         return rows
 
     @app.post("/api/tickets", status_code=201)
@@ -452,6 +458,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Manuell erhöhte Ticketzeit wird als Zeiteintrag erfasst (für die Abrechnung)
             add_time(db, customer_id=payload.get("customer_id") or ticket["customer_id"], minutes=delta,
                      description=ticket["title"], ticket_id=tid, user_id=current_user_id(request), touch_ticket=False)
+        if payload.get("status") and payload["status"] != "neu" and not ticket.get("first_response_at"):
+            db.query("UPDATE tickets SET first_response_at = ? WHERE id = ?", (now_iso(), tid))  # SLA: Reaktion
         if payload.get("status") == "geloest" and ticket["status"] != "geloest":
             payload["resolved_at"] = now_iso()
             log_activity(db, payload.get("assigned_to") or ticket.get("assigned_to") or current_user_id(request),

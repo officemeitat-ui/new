@@ -15,6 +15,7 @@ from typing import Any
 from ..db import loads, now_iso
 from ..growth import health_score
 from ..llm import LLMError
+from ..sla import customer_sla_quote
 from .base import AgentContext
 
 
@@ -47,6 +48,7 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
     if not plan:
         plan = [f"Stabiler und sicherer IT-Betrieb im Rahmen des Pakets „{customer['package']}“"]
     health = health_score(db, customer, today)
+    sla_q = customer_sla_quote(db, customer, days=90)
     levers = ctx.radar.scan(customer_id, today=today)["opportunities"][:3]
     next_steps = [o["title"] for o in levers]
 
@@ -54,7 +56,7 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
         "kunde": customer["name"], "zeitraum": f"{_quarter(today)} (letzte 90 Tage)", "plan_letztes_qbr": plan,
         "tickets": len(tickets), "geloest": len(resolved), "kritische_vorfaelle": len(critical),
         "arbeitszeit_stunden": hours, "umgesetzte_projekte": [p["title"] for p in projects],
-        "health_score": health["score"], "health_faktoren": [f["text"] for f in health["factors"]],
+        "sla_quote": sla_q["quote"], "health_score": health["score"], "health_faktoren": [f["text"] for f in health["factors"]],
         "naechste_hebel": [{"titel": o["title"], "grund": o["reason"]} for o in levers],
     }
 
@@ -95,6 +97,8 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
              f"- Aufgewendete Zeit: **{str(hours).replace('.', ',')} h**"]
     if projects:
         lines += [f"- Projekt umgesetzt: **{p['title']}**" for p in projects]
+    if sla_q["quote"] is not None:
+        lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")
     lines += ["", "## 3. Wo wir stehen"] + [
         f"- {'▲' if f['delta'] > 0 else '▼'} {f['text']}" for f in health["factors"]] + [""]
     lines += ["## 4. Der nächste Hebel", lever_text or "Aktuell keine offenen Hebel – Fokus auf stabilen Betrieb.", ""]
