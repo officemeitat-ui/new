@@ -252,6 +252,7 @@ class RunIn(BaseModel):
 class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     note: Optional[str] = Field(None, max_length=2000)
+    order_ref: Optional[str] = Field(None, max_length=100)  # Auftragsreferenz/Bestellnummer (E-Rechnung an Bund)
 
 
 def register(app: FastAPI, db: Database, company_name: str, admin_only) -> None:
@@ -355,6 +356,20 @@ def register(app: FastAPI, db: Database, company_name: str, admin_only) -> None:
             raise HTTPException(404, "Rechnung nicht gefunden")
         return invoice_html(db, inv, profile())
 
+    @app.get("/api/invoices/{iid}/ebinterface.xml")
+    def invoice_ebinterface(iid: int) -> Response:
+        from .einvoice import ebinterface_xml
+
+        inv = db.get("invoices", iid)
+        if not inv:
+            raise HTTPException(404, "Rechnung nicht gefunden")
+        try:
+            body = ebinterface_xml(db, inv, profile())
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        return Response(body, media_type="application/xml", headers={
+            "Content-Disposition": f'attachment; filename="ebinterface-{inv["number"]}.xml"'})
+
     @app.put("/api/invoices/{iid}", dependencies=[Depends(admin_only)])
     def update_invoice(iid: int, data: InvoiceUpdate) -> dict:
         inv = db.get("invoices", iid)
@@ -362,6 +377,8 @@ def register(app: FastAPI, db: Database, company_name: str, admin_only) -> None:
             raise HTTPException(404, "Rechnung nicht gefunden")
         if data.note is not None:
             db.update("invoices", iid, {"note": data.note})
+        if data.order_ref is not None:
+            db.update("invoices", iid, {"order_ref": data.order_ref.strip()})
         if data.status and data.status != inv["status"]:
             if data.status == "gestellt":
                 try:

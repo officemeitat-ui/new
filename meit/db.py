@@ -301,7 +301,7 @@ CREATE INDEX IF NOT EXISTS idx_assets_customer ON assets(customer_id);
 WRITABLE_FIELDS: dict[str, set[str]] = {
     "customers": {
         "name", "contact_name", "email", "phone", "address", "industry", "employees",
-        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at", "uid",
+        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at", "uid", "supplier_no",
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
@@ -332,7 +332,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "time_entries": {"customer_id", "ticket_id", "user_id", "date", "minutes", "description", "billable", "rate",
                      "invoice_id"},
     "invoices": {"number", "customer_id", "customer_name", "period", "date", "due_date", "items", "net", "vat_rate",
-                 "vat", "gross", "status", "note", "paid_at"},
+                 "vat", "gross", "status", "note", "paid_at", "order_ref"},
     "activities": {"user_id", "type", "ref_type", "ref_id", "note"},
     "weekly_goals": {"user_id", "week", "goals", "review_note"},
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
@@ -349,7 +349,8 @@ TABLES_WITH_CREATED_AT = {
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
-    "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''"},
+    "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''"},
+    "invoices": {"order_ref": "TEXT DEFAULT ''"},
     "tickets": {"assigned_to": "INTEGER"},
     "kb_articles": {"public": "INTEGER DEFAULT 0"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},

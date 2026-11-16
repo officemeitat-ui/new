@@ -295,6 +295,7 @@ function customerForm(c = null) {
     { name: "mrr", label: "MRR (€/Monat)", type: "number", step: "0.01" },
     { name: "contract_end", label: "Vertragsende", type: "date" },
     { name: "uid", label: "UID-Nummer (für Rechnungen)" },
+    { name: "supplier_no", label: "Unsere Lieferantennummer beim Kunden (E-Rechnung)" },
     { name: "booked_services", label: "Gebuchte Leistungen (Codes, kommagetrennt)", placeholder: "MW, SEC, BCK" },
     { name: "notes", label: "Notizen", type: "textarea", full: true },
   ], c ? { ...c, booked_services: (c.booked_services || []).join(", ") } : {});
@@ -1408,6 +1409,10 @@ views.abrechnung = async () => {
         { label: "Status", render: (r) => r.overdue ? badge("überfällig", "bad") : badge(INV_STATUS[r.status], { entwurf: "warn", gestellt: "info", bezahlt: "ok", storniert: "" }[r.status]) },
         { label: "", render: (r) => h("div", { class: "row", style: "justify-content:flex-end" },
           h("a", { class: "btn small", href: `/api/invoices/${r.id}/html`, target: "_blank", rel: "noopener", onclick: (e) => e.stopPropagation() }, "Ansehen/Drucken"),
+          ["gestellt", "bezahlt"].includes(r.status) ? h("a", { class: "btn small", href: `/api/invoices/${r.id}/ebinterface.xml`, title: "E-Rechnung ebInterface 6.1 (z. B. Upload auf e-rechnung.gv.at)" }, "E-Rechnung") : null,
+          r.status === "entwurf" ? h("button", { class: "btn small", title: "Auftragsreferenz/Bestellnummer des Kunden (Pflicht bei Rechnungen an den Bund)", onclick: async (e) => {
+            e.stopPropagation(); const v = prompt("Auftragsreferenz / Bestellnummer des Kunden:", r.order_ref || ""); if (v === null) return;
+            await api(`/api/invoices/${r.id}`, { method: "PUT", body: { order_ref: v } }); toast("Gespeichert"); render(); } }, r.order_ref ? `Ref. ${r.order_ref}` : "Auftragsref.") : null,
           r.status === "entwurf" ? act(r, "gestellt", "Stellen", "primary") : null,
           r.status === "gestellt" ? act(r, "bezahlt", "Bezahlt") : null,
           ["gestellt", "bezahlt"].includes(r.status) ? act(r, "storniert", "Storno", "danger") : null,

@@ -34,7 +34,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Wochenrhythmus** | Montag Ziele, Freitag Abgleich: Ist-Werte zählt das Cockpit automatisch (Pitches, Angebote, QBRs, gelöste Tickets) plus erfasste Anrufe. Dazu ein Top-10-Deal-Review mit nächstem Schritt und Risiko. |
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
 | **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
-| **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG zum Drucken/PDF, Storno, Rechnungsausgangsbuch als CSV |
+| **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG zum Drucken/PDF, Storno, Rechnungsausgangsbuch als CSV, **E-Rechnung ebInterface 6.1** (gegen das offizielle Schema geprüft; mit Auftragsreferenz und Lieferantennummer für den Bund) |
 | **Import & Sicherung** | CSV-Import für Kunden und Geräte (erkennt deutsche/englische Spalten und RMM-Exporte, mit Vorschau). Automatische Datensicherung mit Aufbewahrung, Download per Klick. |
 | **KI-Training** | Export pseudonymisierter Trainingsdaten (JSONL) und LoRA-Skript für ein eigenes „ME-IT-Modell“ |
 | **Protokoll** | Jeder Agentenlauf wird protokolliert (Nachvollziehbarkeit, AI Act) |
@@ -156,4 +156,4 @@ docs/                       Strategie 2026–2030, KI-PC-Empfehlung
 ## Nächste Ausbaustufen (Vorschläge)
 
 - Direkte API-Anbindung an RMM/PSA (NinjaOne, Datto, Atera) statt CSV-Export
-- ebInterface/ZUGFeRD-E-Rechnung und direkter BMD/RZL-Buchungsexport
+- Direkter BMD/RZL-Buchungsexport

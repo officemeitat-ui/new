@@ -60,6 +60,7 @@ class CustomerIn(BaseModel):
     booked_services: list[str] = []
     notes: str = ""
     uid: str = ""
+    supplier_no: str = ""  # unsere Lieferantennummer beim Kunden (E-Rechnung an Bund)
 
 
 class TicketIn(BaseModel):
