@@ -16,7 +16,7 @@
 | 2 | STOPP · PRÜFEN · BESTÄTIGEN | Verteilung des Einseiters ([Anhang E](E-verifikationsregeln.md)) | Finanzen, Assistenz |
 | 3 | Phishing ohne Tippfehler | 1. Phishing-Simulation (KI-generiert) | alle |
 | 4 | Passkeys statt Passwörter | Unterstützung bei der Passkey-Einrichtung | alle |
-| 5 | KI sicher nutzen | Schulung KI-Kompetenz (AI Act Art. 4) | alle KI-Nutzenden |
+| 5 | KI sicher nutzen | Basisschulung KI-Kompetenz ([Anhang M](M-schulungsmodul-ki-kompetenz.md)) | alle KI-Nutzenden |
 | 6 | Der falsche IT-Support | Vishing-Test beim Helpdesk (abgestimmt) | IT-Helpdesk, alle |
 | 7 | Rechnungsbetrug | 2. Phishing-Simulation (gefälschte Lieferantenmail) | Finanzen, Einkauf |
 | 8 | Unterwegs und im Urlaub | – | alle, Führungskräfte |

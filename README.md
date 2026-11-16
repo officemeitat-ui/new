@@ -24,6 +24,8 @@ Strategie, Playbooks und Vorlagen zum Schutz unserer Organisation vor KI-gestüt
 | [J – Technische Umsetzung](anhang/J-technische-umsetzung.md) | Konkrete Einstellungen für Microsoft 365 / Entra ID und Google Workspace, DNS-Beispiele, Erkennungsregeln mit KQL-Abfragen, Absicherung von KI-Agenten | IT-Betrieb, IT-Dienstleister |
 | [K – KI-Inventar & Anbieterbewertung](anhang/K-vorlagen-ki-inventar-anbieter.md) | Inventarfelder, Risikostufen, Freigabe-Checkliste für Agenten, Fragebogen für KI-Anbieter, Anforderungen an IT-Dienstleister | KI-Verantwortliche, Einkauf |
 | [L – Awareness-Jahresplan](anhang/L-awareness-jahresplan.md) | Zwölf Monatsimpulse mit versandfertigen Texten, Simulationsplan, Ablauf der Deepfake-Demonstration | Informationssicherheit, HR |
+| [M – Schulungsmodul KI-Kompetenz](anhang/M-schulungsmodul-ki-kompetenz.md) | 60-Minuten-Basisschulung mit Sprechernotizen, Übung „Echt oder Angriff?“, Quiz mit Lösungen, Teilnahmenachweis, Vertiefungen für Risikogruppen (AI Act Art. 4) | alle Mitarbeitenden, Schulungsleitung |
+| [vorlagen/massnahmenplan.xlsx](vorlagen/massnahmenplan.xlsx) | Alle 75 Maßnahmen mit Status, Fälligkeit (aus dem Projektstart berechnet), Verantwortlichen und Nachweis; Übersichtsblatt mit Fortschritt nach Phase und Handlungsfeld | Informationssicherheit, Geschäftsführung |
 | [vorlagen/ki-inventar.csv](vorlagen/ki-inventar.csv) | Ausfüllbare Inventartabelle (öffnet direkt in Excel) | KI-Verantwortliche |
 
 ## So verwenden Sie dieses Paket

@@ -70,7 +70,7 @@ minimale Rechte, menschliche Freigabe für Aktionen mit Außenwirkung, kein „g
 
 ## 8. Schulung (KI-Kompetenz)
 
-Alle, die KI-Werkzeuge nutzen, absolvieren die Schulung zur KI-Kompetenz (AI Act Art. 4) vor der ersten Nutzung und danach jährlich. Die Teilnahme wird dokumentiert.
+Alle, die KI-Werkzeuge nutzen, absolvieren die Schulung zur KI-Kompetenz (AI Act Art. 4, [Anhang M](M-schulungsmodul-ki-kompetenz.md)) vor der ersten Nutzung und danach jährlich. Die Teilnahme wird dokumentiert.
 
 ## 9. Vorfälle melden
 

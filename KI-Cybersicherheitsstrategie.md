@@ -62,7 +62,10 @@ Anhänge:
 [I – Kommunikationsvorlagen](anhang/I-kommunikationsvorlagen.md) ·
 [J – Technische Umsetzung](anhang/J-technische-umsetzung.md) ·
 [K – KI-Inventar & Anbieterbewertung](anhang/K-vorlagen-ki-inventar-anbieter.md) ·
-[L – Awareness-Jahresplan](anhang/L-awareness-jahresplan.md)
+[L – Awareness-Jahresplan](anhang/L-awareness-jahresplan.md) ·
+[M – Schulungsmodul KI-Kompetenz](anhang/M-schulungsmodul-ki-kompetenz.md)
+
+Umsetzungsstand aller Maßnahmen: [Maßnahmenplan](vorlagen/massnahmenplan.xlsx) (Excel) bzw. als gemeinsame Tabelle.
 
 ---
 
@@ -272,7 +275,7 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 | M2 | **Deepfake-Demonstration** bei der nächsten Mitarbeiterveranstaltung (z. B. mit Einverständnis geklonte Stimme der Geschäftsführung) – die wirksamste Einzelmaßnahme für Bewusstsein | P1 | Informationssicherheit, Geschäftsführung |
 | M3 | **Zielgruppenspezifische Schulungen** (siehe Tabelle) und monatliche Kurzimpulse ([Jahresplan](anhang/L-awareness-jahresplan.md)) | P1 → P2 | Informationssicherheit, HR |
 | M4 | **Realistische Simulationen:** KI-generiertes Phishing, Vishing-Tests (nach Information des Betriebsrats und unter Wahrung der Datenschutzanforderungen) | P2 | Informationssicherheit |
-| M5 | **KI-Kompetenz nach AI Act Art. 4** für alle, die KI nutzen – Inhalte und Teilnahme dokumentieren | P2 | HR, KI-Verantwortliche/r |
+| M5 | **KI-Kompetenz nach AI Act Art. 4** für alle, die KI nutzen – Inhalte und Teilnahme dokumentieren ([Schulungsmodul](anhang/M-schulungsmodul-ki-kompetenz.md)) | P2 | HR, KI-Verantwortliche/r |
 | M6 | **Meldekultur:** Melden mit einem Klick, schnelle Rückmeldung, Anerkennung für Meldungen, keine Sanktion bei gemeldeten Fehlern | P1 | Geschäftsführung |
 
 **Schulungsprogramm nach Zielgruppen** [ANPASSEN]
@@ -432,10 +435,11 @@ Dies ist das wirksamste und günstigste Handlungsfeld: **Ein gut eingehaltener P
 
 ### EU-Verordnung über künstliche Intelligenz (AI Act, VO (EU) 2024/1689)
 
-- **Seit 2. Februar 2025:** Verbotene KI-Praktiken; **Pflicht zur KI-Kompetenz** (Art. 4) für Personal, das KI-Systeme betreibt oder nutzt → Maßnahme M5.
+- **Digital Omnibus (VO (EU) 2026/1744):** seit 27. Juli 2026 in Kraft; ändert u. a. Art. 4 und verschiebt die Hochrisiko-Pflichten.
+- **Seit 2. Februar 2025:** Verbotene KI-Praktiken; **Förderung der KI-Kompetenz** (Art. 4) für Personal, das KI-Systeme betreibt oder nutzt → Maßnahme M5, [Schulungsmodul](anhang/M-schulungsmodul-ki-kompetenz.md). Seit dem Digital Omnibus eine Pflicht zum Bemühen: Maßnahmen sind verpflichtend, ein bestimmtes Kompetenzniveau jeder Person muss nicht garantiert werden. Die Aufsicht liegt bei den nationalen Marktüberwachungsbehörden.
 - **Seit 2. August 2025:** Pflichten für Anbieter von KI-Modellen mit allgemeinem Verwendungszweck.
 - **Seit 2. August 2026:** **Transparenzpflichten** (Art. 50) – u. a. Kennzeichnung von Deepfakes durch Betreiber → Maßnahme K9.
-- **Hochrisiko-KI:** Durch den „Digital Omnibus“ verschoben – eigenständige Hochrisiko-Systeme (Anhang III) voraussichtlich ab 2. Dezember 2027, in Produkte eingebettete (Anhang I) ab 2. August 2028. Relevant, falls wir KI z. B. im Recruiting oder zur Bewertung von Beschäftigten einsetzen.
+- **Hochrisiko-KI:** Durch den Digital Omnibus verschoben – eigenständige Hochrisiko-Systeme (Anhang III) ab 2. Dezember 2027, in Produkte eingebettete (Anhang I) ab 2. August 2028. Relevant, falls wir KI z. B. im Recruiting oder zur Bewertung von Beschäftigten einsetzen.
 
 ### DSGVO
 
