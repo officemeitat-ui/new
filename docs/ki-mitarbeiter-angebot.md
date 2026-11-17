@@ -89,3 +89,13 @@ Das Cockpit zeigt dem Kunden jeden Monat schwarz auf weiß, was der KI-Mitarbeit
 | Woche 2 | Vorführ-Betriebsprofile für 2–3 Zielbranchen, Leitfaden für Potentialanalyse und ROI-Rechnung, AGB/AVV beauftragen |
 | Woche 3–4 | 2–3 Pilotkunden zum Vorzugspreis gegen Video-Referenz, deren Google- oder Microsoft-Kalender anbinden |
 | Monat 2–3 | Meta-Anzeigen starten, Preise schärfen, Bewertungsanfragen mit Einwilligung |
+
+## Zweites Produkt: Arbeitsplatz für IT-Dienstleister
+
+Entstanden aus dem eigenen Bedarf (Atera, Keeper, Microsoft 365, Windows): eine App für Handy und PC, die den Tag strukturiert –
+Heute-Übersicht, Aufgaben statt To Do, Tickets mit KI-Zusammenfassung, Kundenakte und ein Assistent für Termine und E-Mail-Entwürfe.
+
+- Zuerst im eigenen Betrieb einsetzen und messen (Zeit pro Ticket, offene Tickets, „wartet auf mich“).
+- Laut Recherche ist KI-gestützte Ticket-Triage bei MSPs der häufigste Nutzen; genau das ist der nächste Ausbauschritt
+  (automatische Einordnung neuer Tickets, Antwortentwürfe direkt in Atera, Wissensbasis aus gelösten Tickets).
+- Danach als Paket für andere kleine IT-Dienstleister anbieten (gleiche Technik, eigene Installation je Kunde).

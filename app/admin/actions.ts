@@ -17,7 +17,7 @@ export async function login(formData: FormData) {
   if (!passwordMatches(String(formData.get("password") ?? ""))) {
     // Bremst automatisiertes Durchprobieren von Passwörtern.
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    redirect("/admin/login?fehler=1");
+    redirect(`/admin/login?fehler=1${formData.get("weiter") === "/app" ? "&weiter=/app" : ""}`);
   }
   const store = await cookies();
   store.set(SESSION_COOKIE, await createSessionToken(), {
@@ -27,7 +27,8 @@ export async function login(formData: FormData) {
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
-  redirect("/admin");
+  // Nur feste Ziele zulassen (keine offenen Weiterleitungen).
+  redirect(formData.get("weiter") === "/app" ? "/app" : "/admin");
 }
 
 export async function logout() {

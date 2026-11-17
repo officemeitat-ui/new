@@ -182,9 +182,11 @@ describe("Chat-Assistent über WhatsApp", () => {
 
   it("Team-Antworten gehen nur innerhalb von 24 Stunden nach der letzten Kundennachricht", async () => {
     const { conversation } = await conversations.openConversation("whatsapp", "436769998877", null);
-    const sent = await chat.sendTeamMessage(conversation.id, "Grüß Gott, hier ist Maria aus der Werkstatt.", sender, new Date());
+    // Feste Zeitpunkte relativ zur letzten Kundennachricht – unabhängig vom heutigen Datum.
+    const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+    const sent = await chat.sendTeamMessage(conversation.id, "Grüß Gott, hier ist Maria aus der Werkstatt.", sender, inOneHour);
     expect(sent).toMatchObject({ author: "team", deliveryError: null });
-    await expect(chat.sendTeamMessage(conversation.id, "Zu spät", sender, new Date(Date.now() + 25 * 60 * 60 * 1000))).rejects.toThrow(
+    await expect(chat.sendTeamMessage(conversation.id, "Zu spät", sender, new Date(now.getTime() + 25 * 60 * 60 * 1000))).rejects.toThrow(
       "24 Stunden",
     );
   });

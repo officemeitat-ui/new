@@ -6,9 +6,12 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/admin/login") return NextResponse.next();
   if (await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)) return NextResponse.next();
-  return NextResponse.redirect(new URL("/admin/login", request.url));
+  const login = new URL("/admin/login", request.url);
+  // Nach der Anmeldung zurück in den Arbeitsplatz, wenn er das Ziel war.
+  if (request.nextUrl.pathname.startsWith("/app")) login.searchParams.set("weiter", "/app");
+  return NextResponse.redirect(login);
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/app/:path*"],
 };

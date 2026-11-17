@@ -6,7 +6,7 @@ import { login } from "../actions";
 export const metadata: Metadata = { title: "Admin-Login", robots: { index: false } };
 
 export default async function LoginPage({ searchParams }: PageProps<"/admin/login">) {
-  const { fehler } = await searchParams;
+  const { fehler, weiter } = await searchParams;
   const configured = adminConfigured();
 
   return (
@@ -18,6 +18,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/admin/logi
         <h1 className="mt-1 text-sm text-slate-500">Admin-Bereich</h1>
         {configured ? (
           <>
+            {weiter === "/app" && <input type="hidden" name="weiter" value="/app" />}
             <label className="mt-6 block">
               <span className="text-sm font-medium">Passwort</span>
               <input

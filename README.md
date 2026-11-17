@@ -1,22 +1,16 @@
 # KI-Mitarbeiter-Cockpit
 
-Plattform für „KI-Mitarbeiter“ in kleinen und mittleren Betrieben: Ein **Telefon-Assistent** nimmt Anrufe an,
-beantwortet Fragen, bucht Termine und notiert Rückrufe. Ein **WhatsApp-Assistent** macht dasselbe im Chat. Ein
-**WhatsApp-Assistent (WhatsApp Cloud API von Meta)**
-- Antwortet sofort und kurz, stellt sich als KI vor, kennt das Betriebsprofil.
-  Nutzt dieselben Werkzeuge wie der Telefon-Assistent: freie Termine, buchen, Rückruf.
-- Übergibt an das Team bei Reklamationen, dringenden Fällen oder wenn der Kunde einen Menschen möchte. Das Team wird per E-Mail benachrichtigt, der Assistent schweigt danach in diesem Gespräch.
-- Mehrere kurze Nachrichten hintereinander werden einmal gemeinsam beantwortet. Doppelt zugestellte Webhooks werden erkannt.
-- Bilder und Sprachnachrichten bekommen einen freundlichen Hinweis, dass nur Text geht.
-- Cockpit → Chats:
-  - alle Gespräche, Übernahme durch das Team und Rückgabe an die KI
-  - Team-Antworten, aber nur innerhalb des 24-Stunden-Fensters von WhatsApp
-  - **Test-Chat** für Vorführungen ohne WhatsApp
-- Der Verlauf liegt nur in der eigenen Datenbank. Claude bekommt bei jedem Aufruf den vollständigen Verlauf, Anthropic hält keinen Gesprächszustand.
+Zwei Produkte in einer Installation:
 
-**E-Mail-Assistent** ordnet eingehende E-Mails ein und schreibt Antworten zur Freigabe – mit Microsoft 365 direkt als Entwurf in Outlook.
-Die **Belege-Ablage** erkennt Rechnungen im Postfach, liest sie aus und stellt sie monatlich gesammelt für die Buchhaltung bereit.
-Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und Monatskennzahlen. Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
+1. **KI-Mitarbeiter für Betriebe:** Ein **Telefon-Assistent** nimmt Anrufe an, beantwortet Fragen, bucht Termine und notiert Rückrufe.
+   Ein **WhatsApp-Assistent** macht dasselbe im Chat. Ein **E-Mail-Assistent** ordnet eingehende E-Mails ein und schreibt Antworten –
+   mit Microsoft 365 direkt als Entwurf in Outlook. Die **Belege-Ablage** erkennt Rechnungen im Postfach, liest sie aus und stellt sie
+   monatlich gesammelt für die Buchhaltung bereit. Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und Monatskennzahlen.
+2. **Arbeitsplatz für IT-Dienstleister** (`/app`, am Handy und PC als App installierbar): Heute-Übersicht, Aufgaben statt Microsoft To Do,
+   Tickets, Warnungen und Geräte aus **Atera**, Kundenakte mit **Keeper**-Link und ein **KI-Assistent**, dem man per Sprache oder Text sagt,
+   was zu tun ist („Termin Donnerstag 14 Uhr bei Huber“, „schreib Frau Huber, dass wir kommen“).
+
+Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
 
 Pro Kunde gibt es eine Installation. Der Betrieb wird in [`config/business.ts`](config/business.ts) beschrieben,
 die Website in [`config/site.ts`](config/site.ts).
@@ -73,6 +67,24 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   plus Liste als CSV für Excel. Einmal in FreeFinance bzw. der Buchhaltung hochladen, dann „als übergeben“ markieren.
 - Dateien übergebener Belege werden nach einer Frist gelöscht (`receipts.keepFilesDaysAfterExport`, Standard 90 Tage);
   aufbewahrt wird in der Buchhaltung.
+
+**Arbeitsplatz für IT-Dienstleister** (`/app`)
+- **Heute:** Termine aus Outlook, fällige und überfällige Aufgaben, Tickets im Fokus (kritisch, hoch, „wartet auf dich“),
+  Warnungen aus Atera, offene E-Mail-Entwürfe und Belege – auf einen Blick, am Handy wie am PC.
+- **Aufgaben** statt Microsoft To Do: Listen, Fälligkeit mit Uhrzeit, Priorität, Kunde, Ticketbezug, Wiederholung
+  (täglich, wöchentlich, monatlich – die nächste wird beim Abhaken angelegt). Offene To-Do-Aufgaben lassen sich einmalig übernehmen.
+- **Tickets** aus Atera: Filter „wartet auf mich“ (letzte Nachricht kam vom Kunden), Verlauf, Status ändern, in Atera öffnen,
+  als Aufgabe merken und **KI-Zusammenfassung** mit nächsten Schritten, Rückfragen und Antwortvorschlag zum Kopieren.
+- **Kunden:** Kundenakte mit Tickets, Warnungen, Geräten (online/offline), Aufgaben, Notizen und Knopf „Zugänge in Keeper“.
+  Passwörter liegen nie im Arbeitsplatz und gehen nie an die KI.
+- **KI-Assistent** per Text oder Sprache (Mikrofon im Browser, am Handy auch Diktieren über die Tastatur):
+  - legt Aufgaben an und hakt sie ab, trägt Termine in den eigenen Outlook-Kalender ein (ohne Einladungen),
+  - schreibt E-Mails als **Entwurf** in Outlook an die hinterlegte Kundenadresse – gesendet wird nie automatisch,
+  - beantwortet „Was steht heute an?“, „Wie ist der Stand bei Huber?“, „Welche Tickets warten auf mich?“.
+  - Ohne Outlook werden Termine zu Aufgaben mit Uhrzeit und E-Mails zum Link ins Mailprogramm.
+- **Als App installieren:** iPhone/iPad in Safari → Teilen → „Zum Home-Bildschirm“; Android in Chrome → „App installieren“;
+  Windows in Edge oder Chrome → Symbol „App installieren“ in der Adressleiste. Start direkt im Arbeitsplatz, Kurzbefehle für
+  Assistent, Aufgaben und Tickets.
 
 **Kalender**
 - Interner Kalender, oder angebunden an **Google Kalender** bzw. **Microsoft 365 / Outlook**: Einträge dort (auch ganztägige wie Urlaub) zählen als belegt,
@@ -178,11 +190,22 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    7. Kosten und die nötige Unternehmensverifizierung laut aktuellen Meta-Bedingungen prüfen.
 7. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
 8. **SMS** (optional): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` und `TWILIO_FROM` setzen. Einstellungen unter `reminders` in `config/business.ts`.
-9. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
+9. **Arbeitsplatz** (für den eigenen IT-Betrieb):
+   1. In Atera unter Admin → API einen API-Schlüssel erzeugen und als `ATERA_API_KEY` setzen.
+   2. `/api/cron/atera` alle 5 Minuten aufrufen. Der erste Abgleich legt die Kunden an.
+   3. Outlook: dieselbe App-Registrierung wie beim E-Mail-Assistenten. Für Termine `Application Calendars.ReadWrite`, für Entwürfe
+      `Application Mail.ReadWrite` (beides per RBAC für Anwendungen nur auf das eigene Postfach). Für die einmalige Übernahme aus
+      Microsoft To Do zusätzlich `Tasks.Read.All` (gilt mandantenweit – danach wieder entfernen).
+   4. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf.
+   5. Pro Kunde im Arbeitsplatz E-Mail, Adresse, E-Mail-Domains und den Keeper-Link (geteilter Ordner) hinterlegen.
+   6. Feldnamen der Atera-API sind nach Atera-Doku v3 umgesetzt und gegen eine nachgebaute API getestet –
+      beim ersten echten Abgleich kurz prüfen, ob Tickets, Warnungen und Geräte vollständig ankommen.
+10. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
 
    | Route | Rhythmus | Zweck |
    |---|---|---|
    | `/api/cron/mail` | alle 5 Minuten | Postfach abrufen, Belege ablegen, Outlook-Entwürfe abgleichen |
+   | `/api/cron/atera` | alle 5 Minuten | Kunden, Tickets, Warnungen und Geräte aus Atera |
    | `/api/cron/reminders` | stündlich | Terminerinnerungen |
    | `/api/cron/followups` | täglich morgens | Nachfass-Entwürfe |
    | `/api/cron/report` | am 1. des Monats | Monatsbericht an `REPORT_EMAIL` (sonst `TEAM_NOTIFY_EMAIL`) |
@@ -207,7 +230,10 @@ Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_S
 - [ ] Hinweis auf Gesprächsaufzeichnung bzw. Transkription am Gesprächsbeginn, falls Aufnahmen gespeichert werden
 - [ ] Keine Werbeanrufe oder Werbe-E-Mails ohne Einwilligung (§ 174 TKG 2021 bzw. § 7 UWG). Der Assistent nimmt nur Anrufe an.
 - [ ] Bei Praxen und Gesundheitsdaten (Art. 9 DSGVO) gesondert prüfen
-- [ ] Starkes `ADMIN_PASSWORD`, zufällige Geheimnisse
+- [ ] Starkes `ADMIN_PASSWORD`, zufällige Geheimnisse. Der Arbeitsplatz zeigt Kundendaten – nur über HTTPS betreiben,
+      am Handy Bildschirmsperre verwenden.
+- [ ] Arbeitsplatz: Ticketverläufe und Kundennotizen gehen für Zusammenfassungen an Anthropic – Auftragsverarbeitung prüfen,
+      in Notizen keine Zugangsdaten ablegen (dafür ist Keeper da).
 
 ## Projektstruktur
 
@@ -224,6 +250,9 @@ lib/whatsapp.ts          WhatsApp Cloud API: Signaturprüfung, Webhook, Versand
 lib/conversations.ts     Chat-Gespräche und -Nachrichten
 lib/mail/                E-Mail-Assistent: Auswertung (Claude), Postfach (Microsoft 365, IMAP), SMTP, Verarbeitung
 lib/receipts/            Belege-Ablage: Erkennen, Auslesen (Claude), Speicher, Monatspaket (ZIP + CSV)
+lib/workspace/           Arbeitsplatz: Aufgaben, Kunden, Atera-Abgleich, Outlook (Kalender, Entwürfe, To Do), KI-Assistent
+lib/atera.ts             Atera-API v3
+config/workspace.ts      Einstellungen des Arbeitsplatzes
 lib/graph.ts             Microsoft Graph mit App-Zugang
 lib/stats.ts             Kennzahlen zur Wirkung
 lib/report.ts            Monatsbericht (Seite und E-Mail-Text)
@@ -237,6 +266,7 @@ app/api/cron/report/     Versand des Monatsberichts
 app/api/cron/reminders/  Terminerinnerungen
 app/api/cron/followups/  Nachfass-Entwürfe
 app/admin/               Cockpit
+app/app/                 Arbeitsplatz (installierbare App), app/manifest.ts und public/sw.js
 app/(site)/              Website und Funnels
 scripts/vapi-connect.mjs Telefonnummer verbinden
 tests/                   Vitest
