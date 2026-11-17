@@ -29,6 +29,7 @@ export const ICONS = {
   ),
   assistent: icon("M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3"),
   stunden: icon("M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"),
+  doku: icon("M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5zM8 7h8M8 11h6"),
 };
 
 export function WorkspaceNav({ ticketsWaiting, tasksDue, hoursLow }: { ticketsWaiting: number; tasksDue: number; hoursLow: number }) {
@@ -40,9 +41,10 @@ export function WorkspaceNav({ ticketsWaiting, tasksDue, hoursLow }: { ticketsWa
     { href: "/app/tickets", label: "Tickets", icon: ICONS.tickets, badge: ticketsWaiting },
     { href: "/app/kunden", label: "Kunden", icon: ICONS.kunden },
     { href: "/app/stunden", label: "Stunden", icon: ICONS.stunden, badge: hoursLow },
+    { href: "/app/doku", label: "Doku", icon: ICONS.doku },
   ];
   // Am Handy: fünf Reiter unten, der Assistent als runder Knopf darüber (immer mit dem Daumen erreichbar).
-  const tabs = items.filter((item) => item.href !== "/app/assistent");
+  const tabs = items.filter((item) => item.href !== "/app/assistent" && item.href !== "/app/doku");
   const active = (href: string) => (href === "/app" ? pathname === "/app" : pathname.startsWith(href));
   const cockpit = [
     { href: "/admin/emails", label: "E-Mails" },

@@ -55,6 +55,12 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
             {customer.keeperUrl ? "Zugänge in Keeper" : "Keeper öffnen"}
           </a>
           <Link
+            href={`/app/kunden/${customer.id}/doku`}
+            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+          >
+            Dokumentation
+          </Link>
+          <Link
             href={`/app/assistent?frage=${encodeURIComponent(`Wie ist der Stand bei ${customer.name}?`)}`}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium"
           >

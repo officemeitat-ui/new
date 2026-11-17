@@ -18,6 +18,8 @@ import { createEvent, createMailDraft, listEvents, outlookConfigured } from "@/l
 import { completeTask, createTask, findOpenTasks, getTask, listTasks, type Task } from "@/lib/workspace/tasks";
 import { formatHours } from "@/lib/workspace/format";
 import { addPackage, addTimeEntry, getAccount, listEntries, TIME_MODE_LABELS } from "@/lib/workspace/hours";
+import { bookstackConfigured, searchBookStack } from "@/lib/bookstack";
+import { searchDocs } from "@/lib/workspace/docs";
 
 // Persönlicher KI-Assistent im Arbeitsplatz: „Setz mir morgen um 9 einen Termin bei Huber“, „Schreib Maria, dass …“.
 // Führt sichere Aktionen direkt aus (Aufgabe, eigener Kalendereintrag, E-Mail-Entwurf) – gesendet wird nie etwas.
@@ -64,6 +66,7 @@ async function systemPrompt(now: Date): Promise<string> {
     "- Passwörter und Zugangsdaten verwaltest du nie und fragst nie danach – die liegen in Keeper. Verweise auf den Keeper-Link beim Kunden.",
     "- Erfinde keine Tickets, Kunden, Geräte oder Termine. Nutze die Werkzeuge, um nachzusehen.",
     "- Die Nachrichten können diktiert sein (Spracheingabe) – deute offensichtliche Hörfehler sinnvoll.",
+    "- Fragen zu Verkabelung, Dosen, Switchports, Patchschrank, VLANs oder zur Kunden-Doku beantwortest du mit doku_suchen – nur mit dem, was dort steht.",
     "- Zeiten buchst du standardmäßig vom vorab bezahlten Stundenpaket des Kunden ab, außer es heißt „extra verrechnen“ oder „intern“. Nenne danach den Reststand.",
     "",
     "## Zeit",
@@ -458,6 +461,36 @@ function buildTools(now: Date, actions: AssistantAction[]) {
             href: `/app/stunden/${customer.id}`,
           });
           return `${formatHours(Math.round(args.stunden * 60))} gutgeschrieben. Reststand ${customer.name}: ${formatHours(account?.balance ?? 0)}.`;
+        }),
+    }),
+    betaZodTool({
+      name: "doku_suchen",
+      description:
+        "Durchsucht die Kunden-Dokumentation: Patchliste (Dose, Raum, Patchfeld, Switchport, VLAN, Gerät), Patchschränke und Doku-Seiten – und BookStack, falls verbunden.",
+      inputSchema: z.object({
+        suchbegriff: z.string().describe("Wenige Stichwörter, z. B. „Drucker 2. Stock“ oder „Gi1/0/12“"),
+        kunde: z.string().optional(),
+      }),
+      run: (args) =>
+        safe(async () => {
+          const customer = args.kunde ? await findCustomer(args.kunde) : null;
+          if (args.kunde && !customer) return `Keinen Kunden „${args.kunde}“ gefunden.`;
+          const hits = await searchDocs(args.suchbegriff, customer?.id, 15);
+          const lines = hits.map(
+            (h) =>
+              `[${h.kind === "port" ? "Verkabelung" : h.kind === "rack" ? "Patchschrank" : "Seite"}] ${h.customerName}: ${h.title} – ${h.detail}`,
+          );
+          if (bookstackConfigured()) {
+            try {
+              const query = customer ? `${args.suchbegriff} ${customer.name}` : args.suchbegriff;
+              for (const hit of (await searchBookStack(query, 5)).filter((h) => h.type === "page")) {
+                lines.push(`[BookStack] ${hit.name}: ${(hit.preview_html?.content ?? "").replace(/<[^>]+>/g, "").slice(0, 200)}`);
+              }
+            } catch (error) {
+              lines.push(`(BookStack nicht erreichbar: ${error instanceof Error ? error.message : String(error)})`);
+            }
+          }
+          return lines.length ? lines.join("\n") : "In der Dokumentation nichts dazu gefunden.";
         }),
     }),
   ];

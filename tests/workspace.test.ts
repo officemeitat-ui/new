@@ -105,6 +105,7 @@ function respond(body: Body) {
   if (text.includes("heute an"))
     return toolUse(["aufgaben_anzeigen", { ansicht: "heute" }], ["termine_anzeigen", { von: "2026-11-17", bis: "2026-11-17" }]);
   if (text.includes("Erledige")) return toolUse(["aufgabe_erledigen", { suchbegriff: "Backup" }]);
+  if (text.includes("Wo hängt")) return toolUse(["doku_suchen", { suchbegriff: "Drucker", kunde: "Huber" }]);
   if (text.includes("gekauft"))
     return toolUse(["stunden_gutschreiben", { kunde: "Huber", stunden: 10, betrag_euro: 950, rechnung: "RE 2026-118" }]);
   if (text.includes("Stunden bei Huber"))
@@ -243,6 +244,7 @@ describe("KI-Assistent", () => {
       "zeit_buchen",
       "stundenkonto",
       "stunden_gutschreiben",
+      "doku_suchen",
     ]);
     expect(request.output_config).toEqual({ effort: "low" });
     expect(request.thread).toBeUndefined();
@@ -299,6 +301,26 @@ describe("KI-Assistent", () => {
     const stand = await ask("Wie viele Stunden hat Huber noch?");
     expect(stand.text).toContain("8,5 h übrig (gekauft 10 h, verbraucht 1,5 h)");
     expect(stand.text).toContain("1,5 h Drucker eingerichtet (vom Stundenpaket)");
+  });
+
+  it("beantwortet Fragen zur Verkabelung aus der Kunden-Doku", async () => {
+    const docs = await import("@/lib/workspace/docs");
+    const huber = (await customers.findCustomer("Huber"))!;
+    await docs.savePort(huber.id, {
+      panel: "PP2",
+      panelPort: "1",
+      outlet: "2.14",
+      room: "Kopierraum",
+      switchName: "SW-Core",
+      switchPort: "Gi1/0/25",
+      vlan: "30",
+      device: "Drucker 2. Stock",
+      cable: null,
+      notes: null,
+    });
+    const reply = await ask("Wo hängt der Drucker bei Huber?");
+    expect(reply.text).toContain("[Verkabelung] Huber Steuerberatung: Drucker 2. Stock");
+    expect(reply.text).toContain("Switch SW-Core Port Gi1/0/25");
   });
 
   it("ohne Outlook: Termin wird Aufgabe, E-Mail ein Link zum Mailprogramm", async () => {

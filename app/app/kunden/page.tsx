@@ -10,7 +10,12 @@ export default async function KundenPage({ searchParams }: PageProps<"/app/kunde
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Kunden</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Kunden</h1>
+        <Link href="/app/doku" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-50">
+          Doku durchsuchen
+        </Link>
+      </div>
       <form className="flex gap-2">
         <input
           name="q"

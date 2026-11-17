@@ -17,6 +17,9 @@ export type Customer = {
   /** Link zum Ordner oder Datensatz in Keeper – Passwörter selbst liegen nie hier. */
   keeperUrl: string | null;
   notes: string | null;
+  /** Verknüpftes Buch in BookStack und die dorthin veröffentlichte Verkabelungsseite. */
+  bookstackBookId: string | null;
+  bookstackPageId: string | null;
 };
 
 export type CustomerOverview = Customer & { openTickets: number; alerts: number; devices: number; offline: number; openTasks: number };
@@ -95,6 +98,8 @@ function toCustomer(row: Row): Customer {
     address: text(row.address),
     keeperUrl: text(row.keeper_url),
     notes: text(row.notes),
+    bookstackBookId: text(row.bookstack_book_id),
+    bookstackPageId: text(row.bookstack_page_id),
   };
 }
 
@@ -217,6 +222,20 @@ export async function updateCustomer(
     sql: `UPDATE customers SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`,
     args: [...args, now.toISOString(), id],
   });
+}
+
+export async function setCustomerBookstack(id: string, fields: { bookId?: string | null; pageId?: string | null }): Promise<void> {
+  const client = await db();
+  if (fields.bookId !== undefined) {
+    // Neues Buch: die alte Verkabelungsseite gehört zum alten Buch.
+    await client.execute({
+      sql: "UPDATE customers SET bookstack_book_id = ?, bookstack_page_id = NULL WHERE id = ?",
+      args: [fields.bookId, id],
+    });
+  }
+  if (fields.pageId !== undefined) {
+    await client.execute({ sql: "UPDATE customers SET bookstack_page_id = ? WHERE id = ?", args: [fields.pageId, id] });
+  }
 }
 
 export async function listCustomers(): Promise<CustomerOverview[]> {

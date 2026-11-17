@@ -227,6 +227,57 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_hour_packages_customer ON hour_packages(customer_id, date)`,
   `CREATE INDEX IF NOT EXISTS idx_time_entries_customer ON time_entries(customer_id, date)`,
+  `CREATE TABLE IF NOT EXISTS doc_pages (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    format TEXT NOT NULL DEFAULT 'markdown',
+    source TEXT NOT NULL DEFAULT 'app',
+    bookstack_page_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS racks (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    location TEXT,
+    units INTEGER NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS rack_items (
+    id TEXT PRIMARY KEY,
+    rack_id TEXT NOT NULL REFERENCES racks(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    unit_start INTEGER NOT NULL,
+    unit_height INTEGER NOT NULL,
+    model TEXT,
+    ip TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS patch_ports (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    panel TEXT,
+    panel_port TEXT,
+    outlet TEXT,
+    room TEXT,
+    switch_name TEXT,
+    switch_port TEXT,
+    vlan TEXT,
+    device TEXT,
+    cable TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_doc_pages_customer ON doc_pages(customer_id, title)`,
+  `CREATE INDEX IF NOT EXISTS idx_racks_customer ON racks(customer_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_patch_ports_customer ON patch_ports(customer_id, panel)`,
   `CREATE TABLE IF NOT EXISTS sync_state (
     key TEXT PRIMARY KEY,
     value TEXT,
@@ -258,6 +309,8 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "emails", column: "draft_id", definition: "TEXT" },
   { table: "emails", column: "draft_created_at", definition: "TEXT" },
   { table: "emails", column: "filed_to", definition: "TEXT" },
+  { table: "customers", column: "bookstack_book_id", definition: "TEXT" },
+  { table: "customers", column: "bookstack_page_id", definition: "TEXT" },
 ];
 
 async function addMissingColumns(client: Client): Promise<void> {

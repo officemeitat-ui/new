@@ -82,6 +82,16 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   Knappe und überzogene Pakete erscheinen auf „Heute“ und im Menü. Zeit lässt sich auch direkt am Ticket buchen.
   Je Kunde und Monat gibt es den **Leistungsnachweis als CSV** (mit Summen und Reststand).
   Optional Aufrunden im 15-Minuten-Takt (`hours.roundToMinutes` in `config/workspace.ts`).
+- **Dokumentation je Kunde** (Kundenakte → Dokumentation, Suche über alle Kunden unter „Doku“):
+  - **Patchschrank:** Schränke mit Höheneinheiten und grafischer Ansicht; Geräte mit Art, Modell, IP, Notiz; Überschneidungen werden verhindert.
+  - **Verkabelung:** Patchliste (Patchfeld, Port, Dose, Raum, Switch, Switchport, VLAN, Gerät, Kabel, Notiz) mit Sofortsuche,
+    **Übernahme bestehender Excel-Listen** (CSV, Spalten werden an den Überschriften erkannt) und Export als CSV.
+  - **Seiten** in Markdown mit Vorlagen (Netzwerk, Server und Dienste, Datensicherung, Ansprechpartner, Notfallplan) und Vorschau.
+    Hinweis, wenn eine Seite nach Passwort aussieht – Zugangsdaten gehören in Keeper.
+  - **BookStack:** Buch je Kunde verknüpfen, Verkabelung und Patchschränke als Seite dorthin veröffentlichen (wird bei jeder
+    Veröffentlichung aktualisiert), bestehende Seiten in den Arbeitsplatz übernehmen (HTML-Seiten werden abgeschottet angezeigt),
+    BookStack-Treffer in der Doku-Suche.
+  - Der Assistent beantwortet Fragen wie „Wo hängt der Drucker bei Huber?“ aus Patchliste, Schränken, Seiten und BookStack.
 - **KI-Assistent** per Text oder Sprache (Mikrofon im Browser, am Handy auch Diktieren über die Tastatur):
   - legt Aufgaben an und hakt sie ab, trägt Termine in den eigenen Outlook-Kalender ein (ohne Einladungen),
   - schreibt E-Mails als **Entwurf** in Outlook an die hinterlegte Kundenadresse – gesendet wird nie automatisch,
@@ -202,9 +212,11 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    3. Outlook: dieselbe App-Registrierung wie beim E-Mail-Assistenten. Für Termine `Application Calendars.ReadWrite`, für Entwürfe
       `Application Mail.ReadWrite` (beides per RBAC für Anwendungen nur auf das eigene Postfach). Für die einmalige Übernahme aus
       Microsoft To Do zusätzlich `Tasks.Read.All` (gilt mandantenweit – danach wieder entfernen).
-   4. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf.
-   5. Pro Kunde im Arbeitsplatz E-Mail, Adresse, E-Mail-Domains und den Keeper-Link (geteilter Ordner) hinterlegen.
-   6. Feldnamen der Atera-API sind nach Atera-Doku v3 umgesetzt und gegen eine nachgebaute API getestet –
+   4. Optional BookStack: im BookStack-Profil einen API-Token anlegen (Rolle mit „Zugriff auf die System-API“) und
+      `BOOKSTACK_URL`, `BOOKSTACK_TOKEN_ID`, `BOOKSTACK_TOKEN_SECRET` setzen. Danach je Kunde unter Dokumentation → BookStack das Buch verknüpfen.
+   5. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf.
+   6. Pro Kunde im Arbeitsplatz E-Mail, Adresse, E-Mail-Domains und den Keeper-Link (geteilter Ordner) hinterlegen.
+   7. Feldnamen der Atera-API sind nach Atera-Doku v3 umgesetzt und gegen eine nachgebaute API getestet –
       beim ersten echten Abgleich kurz prüfen, ob Tickets, Warnungen und Geräte vollständig ankommen.
 10. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
 
@@ -258,6 +270,7 @@ lib/mail/                E-Mail-Assistent: Auswertung (Claude), Postfach (Micros
 lib/receipts/            Belege-Ablage: Erkennen, Auslesen (Claude), Speicher, Monatspaket (ZIP + CSV)
 lib/workspace/           Arbeitsplatz: Aufgaben, Kunden, Atera-Abgleich, Outlook (Kalender, Entwürfe, To Do), KI-Assistent
 lib/atera.ts             Atera-API v3
+lib/bookstack.ts         BookStack-API (Bücher, Seiten, Suche)
 config/workspace.ts      Einstellungen des Arbeitsplatzes
 lib/graph.ts             Microsoft Graph mit App-Zugang
 lib/stats.ts             Kennzahlen zur Wirkung
