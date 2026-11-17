@@ -18,9 +18,9 @@ class FakeMailer:
         self.sent = []
         self.inbox = inbox or []
 
-    def send(self, to, subject, body, in_reply_to="", reply_handle=""):
+    def send(self, to, subject, body, in_reply_to="", reply_handle="", attachments=None, html="", cc=""):
         self.sent.append({"to": to, "subject": subject, "body": body, "in_reply_to": in_reply_to,
-                          "reply_handle": reply_handle})
+                          "reply_handle": reply_handle, "attachments": attachments or [], "html": html, "cc": cc})
         return f"<sent-{len(self.sent)}@test>"
 
     def fetch_unseen(self, limit=25):
@@ -115,7 +115,7 @@ def test_imap_fetch_dedupes(app, client):
     fake = FakeMailer(inbox=[parse_raw(raw), parse_raw(raw)])
     app.state.ctx.mailer = fake
     r = client.post("/api/inbox/fetch").json()
-    assert r == {"fetched": 2, "new": 1, "errors": 0}
+    assert r == {"fetched": 2, "new": 1, "errors": 0, "archived": 0}
     m = client.get("/api/inbox?direction=in").json()[0]
     assert m["from_name"] == "Jürgen Test" and "alte Mail" not in m["body"]
 

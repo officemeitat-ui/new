@@ -89,6 +89,9 @@ def test_portal_invoices_only_issued(app, client):
     other = next(i for i in client.get("/api/invoices").json() if i["customer_name"].startswith("Tischlerei"))
     client.put(f"/api/invoices/{other['id']}", json={"status": "gestellt"})
     assert c.get(f"/api/portal/invoices/{other['id']}/html").status_code == 404
+    pdf = c.get(f"/api/portal/invoices/{inv['id']}/pdf")
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    assert c.get(f"/api/portal/invoices/{other['id']}/pdf").status_code == 404
 
 
 def test_portal_ask_uses_only_public_articles(app, client, use_fake_llm):

@@ -27,6 +27,7 @@ class AgentContext:
     company: str = "ME-IT"
     settings: Any = None  # meit.config.Settings
     mailer: Any = None    # meit.mail.Mailer
+    docs: Any = None      # meit.documents.DocumentService
 
     def llm(self) -> LLM:
         return self.router.get()

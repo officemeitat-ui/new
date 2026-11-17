@@ -24,7 +24,7 @@ from .agents import (
 from .billing import add_time, register as register_billing, unbilled_overview
 from .branding import register as register_branding
 from .config import Settings, get_settings
-from .data_tools import backup_dir, create_backup, import_csv, list_backups, start_backup_scheduler
+from .data_tools import backup_dir, create_backup, import_csv, list_backups, mirror_archive, start_backup_scheduler
 from .db import Database, loads, now_iso
 from .agents.briefing import weekly_briefing
 from .agents.qbr import create_qbr
@@ -34,6 +34,7 @@ from .llm import Router
 from .mail import make_mailer
 from .mitarbeiter_api import RateLimiter, is_public_path, register as register_mitarbeiter, start_mail_poller
 from .portal import register as register_portal
+from .documents import DocumentService, register as register_documents
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
     users_exist,
@@ -176,8 +177,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     kb = KnowledgeBase(db, router)
     radar = Radar(db)
     mailer = make_mailer(settings)
+    data_dir = Path(settings.db_path).resolve().parent
+    docs = DocumentService(db, settings, data_dir, settings.company_name)
     ctx = AgentContext(db=db, router=router, kb=kb, radar=radar, company=settings.company_name,
-                       settings=settings, mailer=mailer)
+                       settings=settings, mailer=mailer, docs=docs)
 
     app = FastAPI(title=f"{settings.company_name} Cockpit", version=__version__)
     app.state.ctx = ctx
@@ -239,11 +242,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     admin_only = make_admin_dependency(db)
     register_team(app, db, RateLimiter(limit=10, window_s=600))
-    register_billing(app, db, settings.company_name, admin_only)
+    def invoice_finalized(invoice_id: int) -> None:
+        # Gestellte Rechnung sofort als PDF archivieren (lokal + SharePoint/OneDrive)
+        if docs.conf().get("auto_invoice"):
+            try:
+                docs.archive_invoice(invoice_id)
+            except Exception as exc:  # noqa: BLE001 - Archiv darf das Stellen nicht verhindern
+                db.set_setting("documents_last_error", f"Rechnung {invoice_id}: {exc}")
+
+    register_billing(app, db, settings.company_name, admin_only, on_finalized=invoice_finalized)
     register_sla(app, db, admin_only)
     register_rmm(app, db, settings, admin_only)
     register_subscriptions(app, db, admin_only)
-    register_branding(app, db, settings.company_name, Path(settings.db_path).resolve().parent, admin_only)
+    register_branding(app, db, settings.company_name, data_dir, admin_only)
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])
@@ -708,13 +719,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def backup_status() -> dict:
         return {"dir": str(bdir), "hours": settings.backup_hours, "keep": settings.backup_keep,
                 "last": db.get_setting("backup_last", ""), "error": db.get_setting("backup_error", ""),
-                "backups": list_backups(bdir)}
+                "backups": list_backups(bdir), "archive_mirror": str(bdir / "archiv")}
 
     @app.post("/api/backup/run", status_code=201, dependencies=[Depends(admin_only)])
     def backup_now() -> dict:
         target = create_backup(settings.db_path, bdir, settings.backup_keep)
+        copied = mirror_archive(docs.archive_dir, bdir / "archiv")
         db.set_setting("backup_last", now_iso())
-        return {"file": target.name, **backup_status()}
+        return {"file": target.name, "archive_copied": copied, **backup_status()}
 
     @app.get("/api/backup/download", dependencies=[Depends(admin_only)])
     def backup_download() -> FileResponse:
@@ -723,10 +735,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return FileResponse(target, media_type="application/octet-stream", filename=target.name)
 
     if settings.backup_hours > 0 and settings.db_path != ":memory:":
-        start_backup_scheduler(db, settings.db_path, bdir, settings.backup_hours, settings.backup_keep)
+        start_backup_scheduler(db, settings.db_path, bdir, settings.backup_hours, settings.backup_keep,
+                               archive_dir=docs.archive_dir)
 
     # --- Kundenportal ------------------------------------------------------------
     register_portal(app, ctx, admin_only, apply_quote_status)
+
+    # --- Dokumentenprozess (PDF, SharePoint/OneDrive, Versand per Outlook) ------
+    register_documents(app, ctx, admin_only, apply_quote_status)
 
     # --- KI-Mitarbeiter (Posteingang, Leads, Belege, Anfrageformular) -----------
     register_mitarbeiter(app, ctx)

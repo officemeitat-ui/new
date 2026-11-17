@@ -232,6 +232,30 @@ def create_backup(db_path: str, target_dir: Path, keep: int = 14) -> Path:
     return target
 
 
+def mirror_archive(archive_dir: Path, target_dir: Path) -> int:
+    """Dokumentenarchiv inkrementell spiegeln (nur neue/geänderte Dateien, nichts wird gelöscht).
+
+    Belege und Rechnungen unterliegen der 7-jährigen Aufbewahrungspflicht (§ 132 BAO) – darum wird im
+    Sicherungsordner nie gelöscht, auch wenn eine Datei im Archiv entfernt wurde.
+    """
+    import shutil
+
+    if not archive_dir.exists():
+        return 0
+    copied = 0
+    for src in archive_dir.rglob("*"):
+        if not src.is_file():
+            continue
+        dst = target_dir / src.relative_to(archive_dir)
+        st = src.stat()
+        if dst.exists() and dst.stat().st_size == st.st_size and dst.stat().st_mtime >= st.st_mtime:
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        copied += 1
+    return copied
+
+
 def list_backups(target_dir: Path) -> list[dict[str, Any]]:
     if not target_dir.exists():
         return []
@@ -240,12 +264,15 @@ def list_backups(target_dir: Path) -> list[dict[str, Any]]:
             for f in sorted(target_dir.glob("meit-*.db"), reverse=True)]
 
 
-def start_backup_scheduler(db: Database, db_path: str, target_dir: Path, hours: int, keep: int) -> threading.Thread:
+def start_backup_scheduler(db: Database, db_path: str, target_dir: Path, hours: int, keep: int,
+                           archive_dir: Path | None = None) -> threading.Thread:
     def loop() -> None:
         time.sleep(60)
         while True:
             try:
                 create_backup(db_path, target_dir, keep)
+                if archive_dir:
+                    mirror_archive(archive_dir, target_dir / "archiv")
                 db.set_setting("backup_last", now_iso())
                 db.set_setting("backup_error", "")
             except Exception as exc:  # noqa: BLE001 - Fehler sichtbar machen, Schleife läuft weiter

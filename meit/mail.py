@@ -32,6 +32,15 @@ class ParsedMail:
     attachments: list[str] = field(default_factory=list)
     attachment_text: str = ""
     handle: str = ""  # anbieterspezifische ID (z. B. Microsoft-Graph-Nachrichten-ID) für Antworten im Verlauf
+    files: list[tuple[str, bytes]] = field(default_factory=list)  # PDF-Anhänge (für die Belegablage)
+
+
+@dataclass
+class Attachment:
+    name: str
+    data: bytes
+    content_type: str = "application/octet-stream"
+    inline_id: str = ""  # gesetzt → eingebettetes Bild (z. B. Logo im Mailkopf)
 
 
 def _decode(value: str | None) -> str:
@@ -80,7 +89,7 @@ def _pdf_text(data: bytes) -> str:
 def parse_raw(raw: bytes) -> ParsedMail:
     msg = email.message_from_bytes(raw)
     name, addr = parseaddr(_decode(msg.get("From")))
-    plain, markup, attachments, attachment_text = [], [], [], []
+    plain, markup, attachments, attachment_text, files = [], [], [], [], []
     for part in msg.walk():
         if part.is_multipart():
             continue
@@ -91,6 +100,8 @@ def parse_raw(raw: bytes) -> ParsedMail:
             attachments.append(filename or ctype)
             if ctype == "application/pdf" or filename.lower().endswith(".pdf"):
                 attachment_text.append(_pdf_text(payload))
+                if payload and len(payload) <= 20 * 1024 * 1024:
+                    files.append((filename or "anhang.pdf", payload))
             continue
         charset = part.get_content_charset() or "utf-8"
         try:
@@ -110,6 +121,7 @@ def parse_raw(raw: bytes) -> ParsedMail:
         body=strip_quoted(body)[:MAX_BODY],
         attachments=attachments,
         attachment_text="\n".join(t for t in attachment_text if t)[:8000],
+        files=files,
     )
 
 
@@ -155,7 +167,8 @@ class Mailer:
         except (imaplib.IMAP4.error, OSError) as exc:
             raise MailError(f"IMAP-Fehler: {exc}") from exc
 
-    def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "") -> str:
+    def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "",
+             attachments: list[Attachment] | None = None, html: str = "", cc: str = "") -> str:
         if not self.smtp_configured:
             raise MailError("SMTP ist nicht konfiguriert (MAIL_SMTP_HOST/MAIL_FROM in .env).")
         if not to or "@" not in to:
@@ -163,6 +176,8 @@ class Mailer:
         msg = EmailMessage()
         msg["From"] = self.s.mail_from
         msg["To"] = to
+        if cc:
+            msg["Cc"] = cc
         msg["Subject"] = subject
         msg_id = make_msgid(domain=self.s.mail_from.split("@")[-1] or "localhost")
         msg["Message-ID"] = msg_id
@@ -170,6 +185,20 @@ class Mailer:
             msg["In-Reply-To"] = in_reply_to
             msg["References"] = in_reply_to
         msg.set_content(body)
+        inline = [a for a in (attachments or []) if a.inline_id]
+        if html:
+            msg.add_alternative(html, subtype="html")
+            html_part = msg.get_payload()[-1]
+            for a in inline:
+                maintype, _, subtype = a.content_type.partition("/")
+                html_part.add_related(a.data, maintype=maintype, subtype=subtype, cid=f"<{a.inline_id}>",
+                                      filename=a.name)
+        for a in attachments or []:
+            if a.inline_id:
+                continue
+            maintype, _, subtype = a.content_type.partition("/")
+            msg.add_attachment(a.data, maintype=maintype or "application", subtype=subtype or "octet-stream",
+                               filename=a.name)
         try:
             if self.s.mail_smtp_port == 465:
                 server = smtplib.SMTP_SSL(self.s.mail_smtp_host, 465, timeout=30,
@@ -266,7 +295,7 @@ class GraphMailer:
         mails = []
         for item in resp.json().get("value", []):
             sender = (item.get("from") or {}).get("emailAddress") or {}
-            attachments, attachment_text = [], []
+            attachments, attachment_text, files = [], [], []
             if item.get("hasAttachments"):
                 att = self._request("GET", f"/messages/{item['id']}/attachments",
                                     params={"$select": "name,contentType,size"}).json().get("value", [])
@@ -278,7 +307,9 @@ class GraphMailer:
                         if full.get("contentBytes"):
                             import base64
 
-                            attachment_text.append(_pdf_text(base64.b64decode(full["contentBytes"])))
+                            pdf = base64.b64decode(full["contentBytes"])
+                            attachment_text.append(_pdf_text(pdf))
+                            files.append((a.get("name") or "anhang.pdf", pdf))
             body = (item.get("body") or {}).get("content") or ""
             if (item.get("body") or {}).get("contentType", "").lower() == "html":
                 body = html_to_text(body)
@@ -287,6 +318,7 @@ class GraphMailer:
                 from_email=(sender.get("address") or "").lower(), subject=item.get("subject") or "",
                 body=strip_quoted(body)[:MAX_BODY], attachments=attachments,
                 attachment_text="\n".join(t for t in attachment_text if t)[:8000], handle=item["id"],
+                files=files,
             ))
             self._request("PATCH", f"/messages/{item['id']}", json={"isRead": True})
         return mails
@@ -324,17 +356,27 @@ class GraphMailer:
             day += timedelta(days=1)
         return slots
 
-    def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "") -> str:
+    def send(self, to: str, subject: str, body: str, in_reply_to: str = "", reply_handle: str = "",
+             attachments: list[Attachment] | None = None, html: str = "", cc: str = "") -> str:
+        import base64
+
         if not to or "@" not in to:
             raise MailError("Keine gültige Empfängeradresse.")
-        if reply_handle:
+        if reply_handle and not attachments and not html:
             # Antwort im selben Verlauf (Outlook zeigt sie als Konversation)
             self._request("POST", f"/messages/{reply_handle}/reply", json={"comment": body})
-        else:
-            self._request("POST", "/sendMail", json={
-                "message": {"subject": subject, "body": {"contentType": "Text", "content": body},
-                            "toRecipients": [{"emailAddress": {"address": to}}]},
-                "saveToSentItems": True})
+            return ""
+        message: dict = {"subject": subject,
+                         "body": {"contentType": "HTML", "content": html} if html else {"contentType": "Text", "content": body},
+                         "toRecipients": [{"emailAddress": {"address": to}}]}
+        if cc:
+            message["ccRecipients"] = [{"emailAddress": {"address": a.strip()}} for a in cc.split(",") if a.strip()]
+        if attachments:
+            message["attachments"] = [{
+                "@odata.type": "#microsoft.graph.fileAttachment", "name": a.name, "contentType": a.content_type,
+                "contentBytes": base64.b64encode(a.data).decode(), **({"isInline": True, "contentId": a.inline_id} if a.inline_id else {}),
+            } for a in attachments]
+        self._request("POST", "/sendMail", json={"message": message, "saveToSentItems": True})
         return ""
 
 

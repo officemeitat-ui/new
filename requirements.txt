@@ -2,5 +2,9 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 httpx>=0.27
 pydantic>=2.7
+# PDFs im Corporate Design (Rechnungen, Angebote, Berichte) – reines Python
+fpdf2>=2.8
+# Text aus PDF-Belegen lesen (Lieferant, Nummer, Betrag)
+pypdf>=5.0
 # optional – nur für Claude als Cloud-Option (LLM_PROVIDER=anthropic oder ALLOW_CLOUD_FALLBACK=true)
 anthropic>=2.4

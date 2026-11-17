@@ -322,12 +322,14 @@ views.kunde = async (id) => {
     h("button", { class: "btn", onclick: () => assetForm(null, c.id) }, "+ Gerät"),
     h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
       const r = await api("/api/agents/report", { method: "POST", body: { customer_id: c.id } });
-      modal("Monatsbericht", h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)), [copyButton(() => r.text)]);
+      modal("Monatsbericht", h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)),
+        [copyButton(() => r.text), archiveButton(`Monatsbericht ${r.month} – ${c.name}`, () => r.text, c.id, "bericht")]);
     }) }, "Monatsbericht (KI)"),
     h("a", { class: "btn", href: `#/security?kunde=${c.id}` }, "Security-Check"),
     h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
       const r = await api("/api/agents/qbr", { method: "POST", body: { customer_id: c.id } });
-      modal("Quartalsgespräch (QBR)", h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)), [copyButton(() => r.text)]);
+      modal("Quartalsgespräch (QBR)", h("div", {}, h("p", { class: "small muted" }, `Erstellt mit: ${r.provider}`), md(r.text)),
+        [copyButton(() => r.text), archiveButton(`QBR ${r.period || ""} – ${c.name}`.replace("  ", " "), () => r.text, c.id, "qbr")]);
       render();
     }) }, "QBR erstellen (KI)"),
     h("button", { class: "btn primary", onclick: () => quoteCreate(c.id) }, "Angebot (KI)"),
@@ -338,7 +340,8 @@ views.kunde = async (id) => {
     h("div", { class: "row small" }, c.health.factors.map((f) => h("span", { class: `badge ${f.delta > 0 ? "ok" : "warn"}` }, `${f.delta > 0 ? "+" : ""}${f.delta} ${f.text}`))),
     c.qbrs.length ? h("p", { class: "small muted", style: "margin-bottom:0" }, "Letzte QBRs: ",
       c.qbrs.slice(0, 4).map((q) => h("a", { href: "#", style: "margin-right:.6rem", onclick: async (e) => {
-        e.preventDefault(); const full = await api(`/api/qbrs/${q.id}`); modal(`QBR ${q.period}`, md(full.text), [copyButton(() => full.text)]);
+        e.preventDefault(); const full = await api(`/api/qbrs/${q.id}`);
+        modal(`QBR ${q.period}`, md(full.text), [copyButton(() => full.text), archiveButton(`QBR ${q.period} – ${c.name}`, () => full.text, c.id, "qbr")]);
       } }, `${q.period} (${dt(q.created_at)})`))) : h("p", { class: "small muted", style: "margin-bottom:0" }, "Noch kein Quartalsgespräch – Health Score und nächste Hebel machen daraus ein Strategiegespräch statt Nachverhandlung."));
   show(
     h("div", { class: "grid kpis" },
@@ -355,6 +358,10 @@ views.kunde = async (id) => {
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Lizenzen & Verträge"),
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
+    await (async () => { const docs = await api(`/api/documents?customer_id=${c.id}&limit=50`).catch(() => []);
+      return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, `Dokumente (${docs.length})`),
+        h("a", { class: "btn small", href: "#/dokumente" }, "Alle Dokumente")),
+        docs.length ? docsTable(docs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Dokumente – Rechnungen, Angebote und Berichte landen hier automatisch als PDF (und in SharePoint/OneDrive, falls eingerichtet).")); })(),
     h("div", { class: "grid two" },
       h("div", { class: "card" }, h("h2", {}, `Verkaufschancen (${c.opportunities.length})`),
         c.opportunities.length ? h("ul", { class: "list" }, c.opportunities.map((o) => h("li", {},
@@ -377,7 +384,7 @@ views.kunde = async (id) => {
         { label: "Bewertung", render: (r) => badge(r.level) },
       ], c.assessments, async (r) => {
         const a = await api(`/api/security/assessments/${r.id}`);
-        modal("Security-Bericht", md(a.report), [copyButton(() => a.report)]);
+        modal("Security-Bericht", md(a.report), [copyButton(() => a.report), archiveButton(`Security-Check ${dt(a.created_at)} – ${c.name}`, () => a.report, c.id, "bericht")]);
       }))),
     h("div", { class: "row", style: "margin-top:1rem" }, h("span", { class: "spacer" }),
       h("button", { class: "btn danger small", onclick: async () => {
@@ -659,9 +666,13 @@ async function quoteCreate(customerId = null, need = "", serviceCodes = []) {
 }
 
 function showQuote(q) {
+  const open = !["angenommen", "abgelehnt"].includes(q.status || "entwurf");
   modal(q.title, h("div", {}, q.error ? h("p", { class: "small", style: "color:var(--warn)" }, q.error) : null,
     h("p", { class: "small muted" }, `Erstellt mit: ${q.provider || "–"} · Positionen und Summen werden immer im Code berechnet.`), md(q.text)),
-  [copyButton(() => q.text, "Text kopieren"), h("a", { class: "btn primary", href: "#/angebote" }, "Zu den Angeboten")]);
+  [copyButton(() => q.text, "Text kopieren"),
+    h("a", { class: "btn small", href: `/api/quotes/${q.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF"),
+    open ? (close) => h("button", { class: "btn small", onclick: () => { close(); sendDocModal("quote", q.id, "Angebot"); } }, "Per Mail senden") : null,
+    location.hash.startsWith("#/angebote") ? null : h("a", { class: "btn primary", href: "#/angebote" }, "Zu den Angeboten")].filter(Boolean));
 }
 
 views.angebote = async () => {
@@ -697,6 +708,9 @@ views.angebote = async () => {
         } }, ["entwurf", "versendet", "angenommen", "abgelehnt"].map((s) => h("option", { value: s, selected: s === r.status }, s)));
         return sel;
       } },
+      { label: "", render: (r) => h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:nowrap" },
+        h("a", { class: "btn small", href: `/api/quotes/${r.id}/pdf`, target: "_blank", rel: "noopener", onclick: (e) => e.stopPropagation() }, "PDF"),
+        ["entwurf", "versendet"].includes(r.status) ? h("button", { class: "btn small", title: r.sent_at ? `versendet am ${dt(r.sent_at)}` : "", onclick: (e) => { e.stopPropagation(); sendDocModal("quote", r.id, "Angebot"); } }, r.status === "versendet" ? "Erneut senden" : "Senden") : null) },
     ], rows, (r) => showQuote(r))));
 };
 
@@ -720,6 +734,7 @@ views.security = async (_, params) => {
     result.replaceChildren(h("div", { class: "card", style: "margin-bottom:1rem" },
       h("div", { class: "row" }, h("div", { class: "score" }, `${Math.round(r.score)}`), h("div", {}, h("div", { class: "muted" }, "von 100 Punkten"), badge(r.level)),
         h("span", { class: "spacer" }), copyButton(() => r.report, "Bericht kopieren"),
+        archiveButton(`Security- & NIS2-Check – ${customerSel.selectedOptions[0]?.textContent || ""}`, () => r.report, Number(customerSel.value), "bericht"),
         h("button", { class: "btn primary", onclick: () => quoteCreate(Number(customerSel.value), `Maßnahmen aus Security-Check: ${r.gaps.slice(0, 5).map((g) => g.fix).join("; ")}`, r.recommended_services) }, "Angebot für Maßnahmen")),
       h("div", { class: "bar", style: "margin:.8rem 0" }, h("span", { style: `width:${r.score}%` })),
       md(r.report)));
@@ -805,6 +820,7 @@ views.einstellungen = async () => {
       table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
     await brandingCard(),
+    await docsSettingsCard(),
     state.users.length ? await routingCard() : null,
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "Agenten-Protokoll (Nachvollziehbarkeit / AI Act)"),
       table([
@@ -1011,7 +1027,16 @@ async function leadDetail(id) {
 // ---- Belege
 let receiptTab = "offen";
 views.belege = async () => {
+  const upload = h("input", { type: "file", accept: "application/pdf", multiple: true, hidden: true, onchange: async (e) => {
+    let ok = 0;
+    for (const f of e.target.files) {
+      const res = await fetch("/api/receipts/upload", { method: "POST", body: f, headers: { "Content-Type": "application/pdf", "X-Filename": encodeURIComponent(f.name) } });
+      if (res.ok) ok++; else { const d = await res.json().catch(() => ({})); toast(`${f.name}: ${d.detail || "Upload fehlgeschlagen"}`, true); }
+    }
+    if (ok) { toast(`${ok} Beleg(e) erfasst und abgelegt – bitte Beträge prüfen`); render(); }
+  } });
   setTitle("Belege (für Steuerberater)", [
+    upload, h("button", { class: "btn", onclick: () => upload.click() }, "PDF hochladen"),
     h("a", { class: "btn", href: "/api/receipts/export.csv?status=alle", download: "" }, "Alle als CSV"),
     h("a", { class: "btn primary", href: "/api/receipts/export.csv?status=geprueft&mark=true", download: "", onclick: () => setTimeout(render, 1500) }, "Geprüfte exportieren"),
   ]);
@@ -1020,10 +1045,11 @@ views.belege = async () => {
   show(
     h("div", { class: "tabs" }, [["offen", "Offen"], ["geprueft", "Geprüft"], ["exportiert", "Exportiert"], ["alle", "Alle"]].map(([k, lbl]) =>
       h("button", { class: receiptTab === k ? "active" : "", onclick: () => { receiptTab = k; render(); } }, lbl))),
-    h("p", { class: "small muted" }, `${rows.length} Beleg(e) · Summe ${eur2(sum)}. Rechnungen aus dem Posteingang landen automatisch hier. Bitte Beträge vor dem Export prüfen.`),
+    h("p", { class: "small muted" }, `${rows.length} Beleg(e) · Summe ${eur2(sum)}. Rechnungen aus dem Posteingang landen automatisch hier – das PDF zusätzlich in Buchhaltung/Eingangsrechnungen (lokal bzw. SharePoint/OneDrive). Bitte Beträge vor dem Export prüfen.`),
     h("div", { class: "card" }, table([
       { label: "Datum", render: (r) => dt(r.invoice_date) }, { label: "Lieferant", key: "vendor" }, { label: "Rechnungsnr.", key: "invoice_no" },
       { label: "Betrag", num: true, render: (r) => eur2(r.amount) }, { label: "Kategorie", key: "category" }, { label: "Status", render: (r) => badge(r.status) },
+      { label: "PDF", render: (r) => r.document_id ? h("a", { class: "btn small", href: `/api/documents/${r.document_id}/download`, target: "_blank", rel: "noopener", onclick: (e) => e.stopPropagation() }, "PDF") : "–" },
     ], rows, (r) => receiptForm(r))));
 };
 
@@ -1418,7 +1444,8 @@ views.abrechnung = async () => {
           { label: "Kunde", key: "customer" }, { label: "Projekt", key: "title" }, { label: "Betrag", num: true, render: (r) => eur(r.total_once) }], u.projects))),
       h("p", { class: "small muted" }, "Der Rechnungslauf erstellt Entwürfe: Betreuungspauschale (MRR) des Monats, verrechenbare Stunden (Viertelstundentakt) und angenommene Projekte. Nummern werden erst beim Stellen vergeben – fortlaufend und lückenlos."));
   } else if (billingTab === "rechnungen") {
-    const inv = await api("/api/invoices");
+    const [inv, invDocs] = await Promise.all([api("/api/invoices"), api("/api/documents?ref_type=invoice&limit=1000").catch(() => [])]);
+    const docOf = Object.fromEntries(invDocs.map((d) => [d.ref_id, d]));
     const act = (r, status, label, cls = "") => h("button", { class: `btn small ${cls}`, onclick: async (e) => { e.stopPropagation();
       if (status === "storniert" && !confirm("Rechnung stornieren? Die Leistungen werden wieder abrechenbar.")) return;
       try { await api(`/api/invoices/${r.id}`, { method: "PUT", body: { status } }); toast(label); render(); } catch (err) { toast(err.message, true); } } }, label);
@@ -1426,11 +1453,16 @@ views.abrechnung = async () => {
     content = h("div", {},
       h("p", { class: "small muted" }, `Offene Forderungen: ${eur2(open)} · überfällig: ${inv.filter((r) => r.overdue).length}`),
       h("div", { class: "card" }, table([
-        { label: "Nr.", render: (r) => r.number || h("em", { class: "muted" }, "Entwurf") }, { label: "Kunde", key: "customer_name" },
+        { label: "Nr.", render: (r) => r.number ? h("span", { style: "white-space:nowrap" }, r.number) : h("em", { class: "muted" }, "Entwurf") }, { label: "Kunde", key: "customer_name" },
         { label: "Zeitraum", key: "period" }, { label: "Netto", num: true, render: (r) => eur2(r.net) }, { label: "Brutto", num: true, render: (r) => eur2(r.gross) },
-        { label: "Status", render: (r) => r.overdue ? badge("überfällig", "bad") : badge(INV_STATUS[r.status], { entwurf: "warn", gestellt: "info", bezahlt: "ok", storniert: "" }[r.status]) },
+        { label: "Status", render: (r) => h("div", {}, r.overdue ? badge("überfällig", "bad") : badge(INV_STATUS[r.status], { entwurf: "warn", gestellt: "info", bezahlt: "ok", storniert: "" }[r.status]),
+          r.sent_at ? h("div", { class: "small muted", title: r.sent_to }, `versendet ${dt(r.sent_at)}`) : null) },
+        { label: "Ablage", render: (r) => docOf[r.id] ? docStatus(docOf[r.id]) : (["gestellt", "bezahlt"].includes(r.status)
+          ? h("button", { class: "btn small", title: "PDF im Archiv/SharePoint ablegen", onclick: async (e) => { e.stopPropagation();
+            try { await api(`/api/invoices/${r.id}/archive`, { method: "POST" }); toast("Abgelegt"); render(); } catch (err) { toast(err.message, true); } } }, "Ablegen") : "–") },
         { label: "", render: (r) => h("div", { class: "row", style: "justify-content:flex-end" },
-          h("a", { class: "btn small", href: `/api/invoices/${r.id}/html`, target: "_blank", rel: "noopener", onclick: (e) => e.stopPropagation() }, "Ansehen/Drucken"),
+          h("a", { class: "btn small", href: `/api/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener", title: r.status === "entwurf" ? "Vorschau des Entwurfs" : "PDF im ME-IT-Design", onclick: (e) => e.stopPropagation() }, "PDF"),
+          ["gestellt", "bezahlt"].includes(r.status) ? h("button", { class: `btn small ${r.sent_at ? "" : "primary"}`, onclick: (e) => { e.stopPropagation(); sendDocModal("invoice", r.id, `Rechnung ${r.number}`); } }, r.sent_at ? "Erneut senden" : "Senden") : null,
           ["gestellt", "bezahlt"].includes(r.status) ? h("a", { class: "btn small", href: `/api/invoices/${r.id}/ebinterface.xml`, title: "E-Rechnung ebInterface 6.1 (z. B. Upload auf e-rechnung.gv.at)" }, "E-Rechnung") : null,
           r.status === "entwurf" ? h("button", { class: "btn small", title: "Auftragsreferenz/Bestellnummer des Kunden (Pflicht bei Rechnungen an den Bund)", onclick: async (e) => {
             e.stopPropagation(); const v = prompt("Auftragsreferenz / Bestellnummer des Kunden:", r.order_ref || ""); if (v === null) return;
@@ -1658,6 +1690,140 @@ async function voiceNoteForm() {
 }
 
 // ---- Corporate Design
+// ---------------------------------------------------------------- Dokumente (PDF, SharePoint/OneDrive, Outlook)
+const DOC_KIND = { rechnung: "Rechnung", angebot: "Angebot", beleg: "Beleg", bericht: "Bericht", qbr: "QBR", sonstiges: "Sonstiges" };
+const DOC_TARGET = { local: "nur lokal", sharepoint: "SharePoint", onedrive: "OneDrive" };
+
+function docStatus(d) {
+  if (!d.remote || d.remote === "local") return h("span", { class: "badge", title: d.folder }, "lokal");
+  if (d.remote_status === "ok") return d.remote_url
+    ? h("a", { class: "badge ok", href: d.remote_url, target: "_blank", rel: "noopener", title: d.folder, onclick: (e) => e.stopPropagation() }, `${DOC_TARGET[d.remote]} ↗`)
+    : badge("hochgeladen", "ok");
+  if (d.remote_status === "fehler") return h("button", { class: "badge bad", style: "cursor:pointer;border:0", title: `${d.remote_error}\n\nKlicken zum Wiederholen`, onclick: async (e) => {
+    e.stopPropagation();
+    try { const r = await api(`/api/documents/${d.id}/retry`, { method: "POST" }); toast(r.remote_status === "ok" ? "Hochgeladen" : r.remote_error, r.remote_status !== "ok"); render(); }
+    catch (err) { toast(err.message, true); } } }, "Upload-Fehler ↻");
+  return badge("ausstehend", "warn");
+}
+
+function docsTable(rows, showCustomer = true) {
+  return table([
+    { label: "Datum", render: (d) => dt(d.created_at) },
+    { label: "Art", render: (d) => badge(DOC_KIND[d.kind] || d.kind, "info") },
+    { label: "Dokument", render: (d) => h("a", { href: `/api/documents/${d.id}/download`, target: "_blank", rel: "noopener" }, d.title || d.filename) },
+    showCustomer ? { label: "Kunde", render: (d) => d.customer_name ? h("a", { href: `#/kunde/${d.customer_id}` }, d.customer_name) : "–" } : null,
+    { label: "Ordner", render: (d) => h("span", { class: "small muted" }, d.folder) },
+    { label: "Ablage", render: (d) => docStatus(d) },
+  ].filter(Boolean), rows);
+}
+
+/** Bericht/QBR/Security-Check als PDF im Corporate Design ablegen (Kundenordner). */
+function archiveButton(title, getText, customerId, kind = "bericht") {
+  const btn = h("button", { class: "btn small", title: "PDF im ME-IT-Design erzeugen und im Kundenordner ablegen (lokal + SharePoint/OneDrive)", onclick: (e) => withBusy(e.target, async () => {
+    const d = await api("/api/documents/report", { method: "POST", body: { title, text: getText(), customer_id: customerId || null, kind } });
+    toast(d.remote_status === "fehler" ? `Lokal abgelegt – Upload fehlgeschlagen: ${d.remote_error}` : `Abgelegt in ${d.folder}`, d.remote_status === "fehler");
+    setTimeout(() => btn.replaceWith(h("a", { class: "btn small", href: `/api/documents/${d.id}/download`, target: "_blank", rel: "noopener" }, "PDF öffnen")), 0);
+  }) }, "Als PDF ablegen");
+  return btn;
+}
+
+/** Rechnung/Angebot per Outlook (Microsoft 365) bzw. SMTP versenden – PDF im Anhang, Mail im Corporate Design. */
+async function sendDocModal(kind, id, label) {
+  const base = kind === "invoice" ? `/api/invoices/${id}` : `/api/quotes/${id}`;
+  let m;
+  try { m = await api(`${base}/mail`); } catch (err) { return toast(err.message, true); }
+  const fields = [
+    { name: "to", label: "An", required: true }, { name: "cc", label: "Kopie (CC)", placeholder: "z. B. buchhaltung@kunde.at" },
+    { name: "subject", label: "Betreff", full: true }, { name: "text", label: "Nachricht", type: "textarea", rows: 9, full: true }];
+  if (kind === "invoice") fields.push({ name: "attach_xml", label: "E-Rechnung (ebInterface 6.1 XML) zusätzlich anhängen", type: "checkbox", full: true });
+  const f = form(fields, m);
+  modal(`${label} per Mail senden`, h("div", {},
+    h("p", { class: "small muted" }, "Versand über Ihr Postfach (Microsoft 365/Outlook bzw. SMTP) – die Mail erscheint in „Gesendete Elemente“. Das PDF im ME-IT-Design hängt automatisch an und wird zusätzlich im Archiv bzw. in SharePoint/OneDrive abgelegt."),
+    f, h("p", { class: "small", style: "margin-bottom:0" }, h("a", { href: `${base}/pdf`, target: "_blank", rel: "noopener" }, "PDF-Vorschau öffnen"))), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api(`${base}/send`, { method: "POST", body: readForm(f) });
+      close(); toast(`Gesendet an ${r.to} (${r.attachments.length} Anhang/Anhänge)${r.note ? " – " + r.note : ""}`); render();
+    }) }, "Senden"),
+  ]);
+}
+
+let docKind = "";
+views.dokumente = async () => {
+  const [st, rows] = await Promise.all([api("/api/documents/settings"), api(`/api/documents?limit=500${docKind ? "&kind=" + docKind : ""}`)]);
+  setTitle("Dokumente", [
+    st.errors ? h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/documents/retry-failed", { method: "POST" }); toast(`${r.ok} von ${r.tried} hochgeladen`, r.ok < r.tried); render(); }) }, `${st.errors} Upload(s) wiederholen`) : null,
+    h("a", { class: "btn", href: "#/einstellungen", onclick: () => setTimeout(() => document.getElementById("docs-settings")?.scrollIntoView({ behavior: "smooth" }), 400) }, "Ablage einrichten"),
+  ].filter(Boolean));
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  show(
+    h("div", { class: "grid kpis" },
+      kpi("Ablageziel", DOC_TARGET[st.target], st.target === "local" ? "Archivordner auf dem ME-IT-PC" : (st.graph_credentials ? "über Microsoft Graph" : "Zugangsdaten fehlen!"), "accent"),
+      kpi("Dokumente", st.total, "Rechnungen, Angebote, Belege, Berichte"),
+      kpi("Synchronisiert", st.target === "local" ? "–" : st.synced, st.target === "local" ? "nur lokales Archiv" : DOC_TARGET[st.target]),
+      kpi("Upload-Fehler", st.errors, st.errors ? "Klick auf „Upload-Fehler“ wiederholt" : "alles in Ordnung")),
+    h("div", { class: "tabs" }, [["", "Alle"], ["rechnung", "Rechnungen"], ["angebot", "Angebote"], ["beleg", "Belege"], ["bericht", "Berichte"], ["qbr", "QBR"]].map(([k, l]) =>
+      h("button", { class: docKind === k ? "active" : "", onclick: () => { docKind = k; render(); } }, l))),
+    h("div", { class: "card" }, docsTable(rows)),
+    h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "So läuft der Dokumentenprozess"), md([
+      "1. **Outlook / Microsoft 365** – Eingangsrechnungen kommen ins Postfach. Der KI-Mitarbeiter erkennt sie, liest Lieferant, Nummer, Datum und Betrag aus und legt das PDF in `Buchhaltung/Eingangsrechnungen/<Jahr>/<Monat>` ab.",
+      "2. **Abrechnung** – beim „Stellen“ entsteht die Rechnung als PDF im ME-IT-Design und landet in `Buchhaltung/Ausgangsrechnungen/<Jahr>` und im Kundenordner. „Senden“ verschickt sie über Ihr Outlook-Postfach (PDF + E-Rechnung).",
+      "3. **Angebote, Monatsberichte, QBR, Security-Checks** – per Knopfdruck als PDF in `Kunden/<Kunde>/…`, Angebote direkt per Mail an den Kunden.",
+      "4. **SharePoint / OneDrive** – alles wird zusätzlich in die Dokumentbibliothek hochgeladen. Über „Synchronisieren“ (OneDrive-Client) haben Sie und Ihr Steuerberater die Ordner im Explorer.",
+      "",
+      `Lokales Archiv: \`${st.archive_dir}\` (wird mitgesichert – Aufbewahrungspflicht 7 Jahre, § 132 BAO).`,
+    ].join("\n"))));
+};
+
+async function docsSettingsCard() {
+  const s = await api("/api/documents/settings");
+  const folderLabels = { rechnung: "Ausgangsrechnungen", rechnung_kunde: "Rechnungs-Kopie im Kundenordner", beleg: "Eingangsrechnungen (Belege)", angebot: "Angebote", bericht: "Berichte / QBR" };
+  const values = { ...s };
+  for (const k of Object.keys(folderLabels)) values[`folder_${k}`] = s.folders[k] || "";
+  const f = form([
+    { name: "target", label: "Ablageziel", type: "select", options: [["local", "Nur lokal (Archivordner)"], ["sharepoint", "SharePoint (Dokumentbibliothek)"], ["onedrive", "OneDrive (eines Benutzers)"]] },
+    { name: "base_folder", label: "Hauptordner in SharePoint/OneDrive", placeholder: "ME-IT" },
+    { name: "sharepoint_site", label: "SharePoint-Site (nur bei SharePoint)", placeholder: "https://firma.sharepoint.com/sites/ME-IT" },
+    { name: "library", label: "Dokumentbibliothek (leer = „Dokumente“)" },
+    { name: "onedrive_user", label: "OneDrive-Benutzer (nur bei OneDrive)", placeholder: "office@firma.at" },
+    { name: "cc", label: "Rechnungen/Angebote in Kopie an", placeholder: "z. B. buchhaltung@meit.at" },
+    ...Object.entries(folderLabels).map(([k, l]) => ({ name: `folder_${k}`, label: `Ordner: ${l}` })),
+    { name: "auto_invoice", label: "Rechnungen beim Stellen automatisch ablegen", type: "checkbox" },
+    { name: "auto_receipts", label: "Beleg-PDFs aus dem Postfach automatisch ablegen", type: "checkbox" },
+    { name: "attach_xml", label: "E-Rechnung (ebInterface) an Rechnungsmails anhängen", type: "checkbox" },
+    { name: "invoice_subject", label: "Betreff Rechnungsmail", full: true },
+    { name: "invoice_text", label: "Text Rechnungsmail – Platzhalter: {anrede} {nummer} {betrag} {faellig} {firma} {kunde}", type: "textarea", rows: 6, full: true },
+    { name: "quote_subject", label: "Betreff Angebotsmail", full: true },
+    { name: "quote_text", label: "Text Angebotsmail – Platzhalter: {anrede} {titel} {firma} {kunde}", type: "textarea", rows: 6, full: true },
+  ], values);
+  const collect = () => {
+    const data = readForm(f); const folders = {};
+    for (const k of Object.keys(folderLabels)) { folders[k] = data[`folder_${k}`]; delete data[`folder_${k}`]; }
+    return { ...data, folders };
+  };
+  return h("div", { class: "card", style: "margin-top:1rem", id: "docs-settings" },
+    h("div", { class: "card-head" }, h("h2", {}, "Dokumentenablage & Versand (Microsoft 365)"),
+      docsTargetBadge(s)),
+    h("p", { class: "small muted" }, "PDFs im ME-IT-Design werden immer im lokalen Archiv gespeichert und – je nach Ablageziel – zusätzlich nach SharePoint oder OneDrive hochgeladen. Ordner-Platzhalter: {kunde} {jahr} {monat}. ",
+      "Microsoft 365: dieselbe App-Registrierung wie für die Mail (GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET in der .env) plus Anwendungsberechtigung Sites.Selected (mit Freigabe für die Site) oder Files.ReadWrite.All. Anleitung: docs/M365-DOKUMENTENPROZESS.md"),
+    f,
+    h("div", { class: "row", style: "margin-top:1rem" },
+      h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+        await api("/api/documents/settings", { method: "PUT", body: collect() });
+        const r = await api("/api/documents/test", { method: "POST" });
+        toast(r.url ? `Verbindung OK: ${r.url}` : `OK: ${r.name}${r.local ? " – " + r.local : ""}`);
+      }) }, "Speichern & Verbindung testen"),
+      h("span", { class: "spacer" }),
+      h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        await api("/api/documents/settings", { method: "PUT", body: collect() }); toast("Dokumentenablage gespeichert");
+      }) }, "Speichern")));
+}
+
+function docsTargetBadge(s) {
+  if (s.target === "local") return badge("nur lokal");
+  return s.graph_credentials ? badge(`${DOC_TARGET[s.target]} · Graph eingerichtet`, "ok") : badge("Graph-Zugangsdaten fehlen (.env)", "warn");
+}
+
 async function brandingCard() {
   const b = await api("/api/public/branding");
   const labels = { brand: "Markenfarbe (Cyan „ME“)", brand_2: "Türkis (Power-Ring)", primary: "Buttons/Links", accent: "Akzent (Orange)", dark: "Dunkel (Seitenleiste)", anthracite: "Anthrazit („-IT“)" };

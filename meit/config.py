@@ -96,6 +96,9 @@ class Settings:
     backup_hours: int = 24
     backup_keep: int = 14
     backup_dir: str = ""
+    # --- Dokumentenarchiv (PDF-Rechnungen, Belege, Berichte) -----------------
+    # Leer = <Datenordner>/archiv. Tipp: auf einen per OneDrive-Client synchronisierten Ordner zeigen lassen.
+    archive_dir: str = ""
 
 
 def get_settings() -> Settings:
@@ -144,6 +147,7 @@ def get_settings() -> Settings:
         backup_hours=_int("BACKUP_HOURS", 24),
         backup_keep=_int("BACKUP_KEEP", 14),
         backup_dir=_resolve(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else "",
+        archive_dir=_resolve(os.environ["ARCHIVE_DIR"]) if os.environ.get("ARCHIVE_DIR") else "",
         public_form_origins=tuple(
             o.strip().rstrip("/") for o in os.environ.get("PUBLIC_FORM_ORIGINS", "").split(",") if o.strip()
         ),

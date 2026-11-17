@@ -620,21 +620,34 @@ def fetch_and_process(ctx: AgentContext, limit: int = 25) -> dict[str, Any]:
         raise
     own = (getattr(ctx.settings, "mail_from", "") or "").lower()
     new_ids = []
+    files: dict[int, list[tuple[str, bytes]]] = {}
     for pm in mails:
         if pm.message_id and ctx.db.scalar("SELECT COUNT(*) FROM messages WHERE external_id = ?", (pm.message_id,)):
             continue
         if own and pm.from_email == own:
             continue
-        new_ids.append(insert_incoming(ctx, channel="email", from_name=pm.from_name, from_email=pm.from_email,
-                                       subject=pm.subject, body=pm.body, attachments=pm.attachments,
-                                       external_id=pm.message_id, attachment_text=pm.attachment_text,
-                                       mail_handle=getattr(pm, "handle", "")))
-    errors = 0
+        mid = insert_incoming(ctx, channel="email", from_name=pm.from_name, from_email=pm.from_email,
+                              subject=pm.subject, body=pm.body, attachments=pm.attachments,
+                              external_id=pm.message_id, attachment_text=pm.attachment_text,
+                              mail_handle=getattr(pm, "handle", ""))
+        new_ids.append(mid)
+        if getattr(pm, "files", None):
+            files[mid] = pm.files
+    errors = archived = 0
+    docs = getattr(ctx, "docs", None)
     for mid in new_ids:
         try:
             process_message(ctx, mid)
         except Exception:  # noqa: BLE001 - eine kaputte Mail darf den Rest nicht blockieren
             errors += 1
+            continue
+        if docs and files.get(mid):
+            m = ctx.db.get("messages", mid)
+            if m and m["linked_type"] == "receipt" and m["linked_id"] and docs.conf().get("auto_receipts"):
+                try:
+                    archived += len(docs.archive_receipt(m["linked_id"], files[mid]))
+                except Exception as exc:  # noqa: BLE001 - Ablage-Fehler darf den Abruf nicht stoppen
+                    ctx.db.set_setting("documents_last_error", f"Beleg aus Nachricht {mid}: {exc}")
     ctx.db.set_setting("mail_last_fetch", now_iso())
     ctx.db.set_setting("mail_last_error", "")
-    return {"fetched": len(mails), "new": len(new_ids), "errors": errors}
+    return {"fetched": len(mails), "new": len(new_ids), "errors": errors, "archived": archived}

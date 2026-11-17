@@ -205,6 +205,24 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             raise HTTPException(404, "Rechnung nicht gefunden")
         return invoice_html(db, inv, company_profile(db, ctx.company))
 
+    @app.get("/api/portal/invoices/{iid}/pdf")
+    def invoice_pdf(iid: int, u: dict = Depends(portal_user)):
+        from .documents import pdf_response
+
+        inv = db.get("invoices", iid)
+        if not inv or inv["customer_id"] != u["customer_id"] or inv["status"] not in ("gestellt", "bezahlt"):
+            raise HTTPException(404, "Rechnung nicht gefunden")
+        return pdf_response(ctx.docs.invoice_pdf(inv), ctx.docs.invoice_filename(inv))
+
+    @app.get("/api/portal/quotes/{qid}/pdf")
+    def quote_pdf(qid: int, u: dict = Depends(portal_user)):
+        from .documents import pdf_response
+
+        q = db.get("quotes", qid)
+        if not q or q["customer_id"] != u["customer_id"] or q["status"] not in ("versendet", "angenommen"):
+            raise HTTPException(404, "Angebot nicht gefunden")
+        return pdf_response(ctx.docs.quote_pdf(q), ctx.docs.quote_filename(q))
+
     @app.post("/api/portal/ask")
     def ask(data: PortalAskIn, u: dict = Depends(portal_user)) -> dict:
         if not ask_limiter.allow(f"a{u['id']}"):

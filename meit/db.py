@@ -311,6 +311,28 @@ CREATE TABLE IF NOT EXISTS subscription_billing (
     PRIMARY KEY (subscription_id, period)
 );
 
+CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    title TEXT DEFAULT '',
+    filename TEXT NOT NULL,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    ref_type TEXT DEFAULT '',
+    ref_id INTEGER,
+    folder TEXT DEFAULT '',
+    local_path TEXT DEFAULT '',
+    size INTEGER DEFAULT 0,
+    sha256 TEXT DEFAULT '',
+    remote TEXT DEFAULT '',
+    remote_url TEXT DEFAULT '',
+    remote_id TEXT DEFAULT '',
+    remote_status TEXT DEFAULT '',
+    remote_error TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_ref ON documents(ref_type, ref_id);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -351,7 +373,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
         "followups", "last_contact_at", "customer_id", "owner_id", "next_step", "risk",
     },
     "receipts": {"message_id", "vendor", "invoice_no", "invoice_date", "amount", "currency", "category",
-                 "status", "note"},
+                 "status", "note", "document_id"},
+    "documents": {"kind", "title", "filename", "customer_id", "ref_type", "ref_id", "folder", "local_path", "size",
+                  "sha256", "remote", "remote_url", "remote_id", "remote_status", "remote_error"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
     "users": {"name", "email", "role", "password_hash", "active", "last_login_at"},
     "subscriptions": {"customer_id", "name", "vendor", "kind", "quantity", "unit_cost", "unit_price", "billing_cycle",
@@ -360,7 +384,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "time_entries": {"customer_id", "ticket_id", "user_id", "date", "minutes", "description", "billable", "rate",
                      "invoice_id"},
     "invoices": {"number", "customer_id", "customer_name", "period", "date", "due_date", "items", "net", "vat_rate",
-                 "vat", "gross", "status", "note", "paid_at", "order_ref"},
+                 "vat", "gross", "status", "note", "paid_at", "order_ref", "sent_at", "sent_to"},
     "activities": {"user_id", "type", "ref_type", "ref_id", "note"},
     "weekly_goals": {"user_id", "week", "goals", "review_note"},
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
@@ -372,13 +396,14 @@ TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
 TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
-    "time_entries", "invoices", "portal_users", "subscriptions",
+    "time_entries", "invoices", "portal_users", "subscriptions", "documents",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''"},
-    "invoices": {"order_ref": "TEXT DEFAULT ''"},
+    "invoices": {"order_ref": "TEXT DEFAULT ''", "sent_at": "TEXT DEFAULT ''", "sent_to": "TEXT DEFAULT ''"},
+    "receipts": {"document_id": "INTEGER"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},

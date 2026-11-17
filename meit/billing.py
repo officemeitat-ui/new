@@ -4,7 +4,7 @@
   bei Managed-Kunden durch die Flatrate abgedeckt (pro Eintrag änderbar).
 * Monatlicher Rechnungslauf: Betreuungspauschale (MRR) + verrechenbare Stunden + angenommene Projekte.
 * Rechnungsnummern werden erst beim „Stellen“ vergeben → fortlaufend und lückenlos.
-* Rechnung mit den Pflichtangaben nach § 11 UStG (Österreich), druckbar als PDF über den Browser.
+* Rechnung mit den Pflichtangaben nach § 11 UStG (Österreich) – als PDF siehe ``meit.documents``.
 """
 
 from __future__ import annotations
@@ -272,7 +272,7 @@ class InvoiceUpdate(BaseModel):
     order_ref: Optional[str] = Field(None, max_length=100)  # Auftragsreferenz/Bestellnummer (E-Rechnung an Bund)
 
 
-def register(app: FastAPI, db: Database, company_name: str, admin_only) -> None:
+def register(app: FastAPI, db: Database, company_name: str, admin_only, on_finalized=None) -> None:
     def profile() -> dict[str, Any]:
         return company_profile(db, company_name)
 
@@ -402,6 +402,8 @@ def register(app: FastAPI, db: Database, company_name: str, admin_only) -> None:
                     finalize(db, iid, profile())
                 except ValueError as exc:
                     raise HTTPException(422, str(exc))
+                if on_finalized:
+                    on_finalized(iid)
             elif data.status == "bezahlt" and inv["status"] == "gestellt":
                 db.update("invoices", iid, {"status": "bezahlt", "paid_at": now_iso()})
             elif data.status == "storniert" and inv["status"] in ("gestellt", "bezahlt"):

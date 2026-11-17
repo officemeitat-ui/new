@@ -170,7 +170,8 @@
         };
         return h("div", { class: "card" }, h("div", { class: "row" }, h("h2", { style: "margin:0" }, q.title), h("span", { class: "spacer" }),
           h("span", { class: `badge ${q.status === "angenommen" ? "ok" : "warn"}` }, q.status === "angenommen" ? "angenommen" : "wartet auf Entscheidung")),
-          h("details", { style: "margin-top:.6rem" }, h("summary", {}, "Angebot lesen"), md(q.text)),
+          h("details", { style: "margin-top:.6rem" }, h("summary", {}, "Angebot lesen"), md(q.text),
+            h("p", {}, h("a", { href: `/api/portal/quotes/${q.id}/pdf`, target: "_blank", rel: "noopener" }, "Als PDF herunterladen"))),
           q.status === "versendet" ? h("div", { class: "row", style: "margin-top:.8rem" }, tiers.length
             ? tiers.map((t) => h("button", { class: `btn ${t.recommended ? "primary" : ""}`, onclick: () => accept(t.key) }, `${t.label} annehmen (${eur(t.total_once)} + ${eur(t.total_monthly)}/Monat)`))
             : h("button", { class: "btn primary", onclick: () => accept(null) }, `Angebot annehmen (${eur(q.total_once)} + ${eur(q.total_monthly)}/Monat)`)) : null);
@@ -181,7 +182,7 @@
       const rows = await api("/api/portal/invoices");
       return h("div", { class: "card" }, h("h2", {}, "Rechnungen"), table([["Nr.", (r) => r.number], ["Datum", (r) => dt(r.date)], ["Zeitraum", (r) => r.period], ["Betrag", (r) => eur(r.gross)],
         ["Status", (r) => h("span", { class: `badge ${r.status === "bezahlt" ? "ok" : r.overdue ? "bad" : "warn"}` }, r.status === "bezahlt" ? "bezahlt" : r.overdue ? "überfällig" : `offen bis ${dt(r.due_date)}`)],
-        ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/html`, target: "_blank", rel: "noopener" }, "Öffnen / PDF")]], rows));
+        ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], rows));
     };
 
     const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["geraete", "Geräte"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen"]];
