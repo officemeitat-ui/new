@@ -7,9 +7,10 @@ import { addDays, localDate, localTime, zonedToUtc } from "@/lib/calendar";
 import { listEmails } from "@/lib/emails";
 import { openReceiptCount } from "@/lib/receipts/store";
 import { getSyncState, listAlerts, listTickets, TICKET_PRIORITY_LABELS } from "@/lib/workspace/customers";
-import { ago, dueLabel, PRIORITY_DOT, SEVERITY_STYLE } from "@/lib/workspace/format";
+import { ago, BALANCE_STYLE, dueLabel, formatHours, PRIORITY_DOT, SEVERITY_STYLE } from "@/lib/workspace/format";
 import { listEvents, outlookConfigured, type CalendarEntry } from "@/lib/workspace/outlook";
 import { listTasks } from "@/lib/workspace/tasks";
+import { listAccounts } from "@/lib/workspace/hours";
 
 function Card({ title, href, count, children }: { title: string; href?: string; count?: number; children: React.ReactNode }) {
   return (
@@ -54,18 +55,20 @@ export default async function HeutePage() {
       calendarError = error instanceof Error ? error.message : "Kalender nicht erreichbar";
     }
   }
-  const [tasks, tickets, alerts, drafts, receipts, sync] = await Promise.all([
+  const [tasks, tickets, alerts, drafts, receipts, sync, accounts] = await Promise.all([
     listTasks("heute", today),
     listTickets(),
     listAlerts(),
     listEmails(["entwurf"]),
     openReceiptCount(),
     getSyncState("atera"),
+    listAccounts(today.slice(0, 7)),
   ]);
   const waiting = tickets.filter((t) => t.waitingForUs);
   const urgentTickets = tickets.filter((t) => t.priority === "Critical" || t.priority === "High");
   const ticketFocus = [...new Map([...urgentTickets, ...waiting].map((t) => [t.id, t])).values()].slice(0, 6);
   const critical = alerts.filter((a) => a.severity === "Critical");
+  const lowAccounts = accounts.filter((a) => a.status === "knapp" || a.status === "ueberzogen");
 
   return (
     <div className="space-y-5">
@@ -199,6 +202,23 @@ export default async function HeutePage() {
             </ul>
           )}
         </Card>
+
+        {lowAccounts.length > 0 && (
+          <Card title="Stundenpakete knapp" count={lowAccounts.length} href="/app/stunden">
+            <ul className="space-y-2">
+              {lowAccounts.slice(0, 6).map((a) => (
+                <li key={a.customerId}>
+                  <Link href={`/app/stunden/${a.customerId}`} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate font-medium">{a.customerName}</span>
+                    <span className={`shrink-0 font-semibold tabular-nums ${BALANCE_STYLE[a.status].className}`}>
+                      {formatHours(a.balance)} {a.status === "ueberzogen" ? "überzogen" : "übrig"}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </div>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

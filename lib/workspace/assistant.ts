@@ -16,6 +16,8 @@ import {
 } from "@/lib/workspace/customers";
 import { createEvent, createMailDraft, listEvents, outlookConfigured } from "@/lib/workspace/outlook";
 import { completeTask, createTask, findOpenTasks, getTask, listTasks, type Task } from "@/lib/workspace/tasks";
+import { formatHours } from "@/lib/workspace/format";
+import { addPackage, addTimeEntry, getAccount, listEntries, TIME_MODE_LABELS } from "@/lib/workspace/hours";
 
 // Persönlicher KI-Assistent im Arbeitsplatz: „Setz mir morgen um 9 einen Termin bei Huber“, „Schreib Maria, dass …“.
 // Führt sichere Aktionen direkt aus (Aufgabe, eigener Kalendereintrag, E-Mail-Entwurf) – gesendet wird nie etwas.
@@ -25,7 +27,7 @@ const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fab
 const MAX_HISTORY = 20;
 
 export type AssistantAction = {
-  kind: "aufgabe" | "erledigt" | "termin" | "entwurf";
+  kind: "aufgabe" | "erledigt" | "termin" | "entwurf" | "zeit" | "stunden";
   title: string;
   detail?: string;
   href?: string;
@@ -62,6 +64,7 @@ async function systemPrompt(now: Date): Promise<string> {
     "- Passwörter und Zugangsdaten verwaltest du nie und fragst nie danach – die liegen in Keeper. Verweise auf den Keeper-Link beim Kunden.",
     "- Erfinde keine Tickets, Kunden, Geräte oder Termine. Nutze die Werkzeuge, um nachzusehen.",
     "- Die Nachrichten können diktiert sein (Spracheingabe) – deute offensichtliche Hörfehler sinnvoll.",
+    "- Zeiten buchst du standardmäßig vom vorab bezahlten Stundenpaket des Kunden ab, außer es heißt „extra verrechnen“ oder „intern“. Nenne danach den Reststand.",
     "",
     "## Zeit",
     `Jetzt: ${germanDate(today)}, ${localTime(now, workspace.timeZone)} Uhr (${workspace.timeZone}).`,
@@ -353,6 +356,108 @@ function buildTools(now: Date, actions: AssistantAction[]) {
             `Kontakt: ${[ticket.contactName, ticket.contactEmail, ticket.contactPhone].filter(Boolean).join(", ") || "unbekannt"}`,
             ...comments.slice(-8).map((c) => `--- ${c.date ?? ""} ${c.author}${c.internal ? " (intern)" : ""}:\n${c.text.slice(0, 1200)}`),
           ].join("\n");
+        }),
+    }),
+    betaZodTool({
+      name: "zeit_buchen",
+      description: "Bucht Arbeitszeit bei einem Kunden – standardmäßig vom vorab bezahlten Stundenpaket.",
+      inputSchema: z.object({
+        kunde: z.string(),
+        minuten: z
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 60)
+          .describe("Dauer in Minuten, z. B. 90 für 1,5 Stunden"),
+        taetigkeit: z.string().describe("Was gemacht wurde, kurz"),
+        datum: z.string().optional().describe("JJJJ-MM-TT, Standard heute"),
+        art: z.enum(["kontingent", "verrechnen", "intern"]).optional().describe("kontingent = vom Stundenpaket (Standard)"),
+        ticket_id: z.string().optional(),
+      }),
+      run: (args) =>
+        safe(async () => {
+          const customer = await findCustomer(args.kunde);
+          if (!customer) return `Keinen Kunden „${args.kunde}“ gefunden.`;
+          if (args.datum && !DATE.test(args.datum)) return "Fehler: datum muss JJJJ-MM-TT sein.";
+          const entry = await addTimeEntry(
+            {
+              customerId: customer.id,
+              date: args.datum || today,
+              minutes: args.minuten,
+              description: args.taetigkeit,
+              mode: args.art ?? "kontingent",
+              ticketId: args.ticket_id?.replace(/^#/, "") || null,
+              source: "assistent",
+            },
+            now,
+          );
+          const account = await getAccount(customer.id, today.slice(0, 7));
+          const rest = account && account.purchased > 0 ? `Reststand ${formatHours(account.balance)}` : "kein Stundenpaket hinterlegt";
+          actions.push({
+            kind: "zeit",
+            title: `${formatHours(entry.minutes)} bei ${customer.name}`,
+            detail: `${entry.description} · ${TIME_MODE_LABELS[entry.mode]} · ${rest}`,
+            href: `/app/stunden/${customer.id}`,
+          });
+          return `Gebucht: ${formatHours(entry.minutes)} bei ${customer.name} (${TIME_MODE_LABELS[entry.mode]}). ${rest}.`;
+        }),
+    }),
+    betaZodTool({
+      name: "stundenkonto",
+      description: "Reststand des Stundenpakets eines Kunden und die letzten Buchungen.",
+      inputSchema: z.object({ kunde: z.string() }),
+      run: (args) =>
+        safe(async () => {
+          const customer = await findCustomer(args.kunde);
+          if (!customer) return `Keinen Kunden „${args.kunde}“ gefunden.`;
+          const account = await getAccount(customer.id, today.slice(0, 7));
+          if (!account) return `${customer.name} hat kein Stundenpaket und keine Buchungen.`;
+          const entries = await listEntries({ customerId: customer.id, limit: 5 });
+          return [
+            account.purchased > 0
+              ? `${customer.name}: ${formatHours(account.balance)} übrig (gekauft ${formatHours(account.purchased)}, verbraucht ${formatHours(account.used)})${account.status === "ueberzogen" ? " – überzogen!" : account.status === "knapp" ? " – wird knapp" : ""}`
+              : `${customer.name}: kein Stundenpaket`,
+            account.billableThisMonth > 0 ? `Diesen Monat separat zu verrechnen: ${formatHours(account.billableThisMonth)}` : null,
+            "Letzte Buchungen:",
+            ...entries.map((e) => `- ${germanDate(e.date)}: ${formatHours(e.minutes)} ${e.description} (${TIME_MODE_LABELS[e.mode]})`),
+          ]
+            .filter(Boolean)
+            .join("\n");
+        }),
+    }),
+    betaZodTool({
+      name: "stunden_gutschreiben",
+      description: "Schreibt einem Kunden vorab bezahlte Stunden gut (neues Stundenpaket).",
+      inputSchema: z.object({
+        kunde: z.string(),
+        stunden: z.number().positive().max(1000),
+        bezahlt_am: z.string().optional().describe("JJJJ-MM-TT, Standard heute"),
+        betrag_euro: z.number().nonnegative().optional(),
+        rechnung: z.string().optional().describe("Rechnungsnummer oder Notiz"),
+      }),
+      run: (args) =>
+        safe(async () => {
+          const customer = await findCustomer(args.kunde);
+          if (!customer) return `Keinen Kunden „${args.kunde}“ gefunden.`;
+          if (args.bezahlt_am && !DATE.test(args.bezahlt_am)) return "Fehler: bezahlt_am muss JJJJ-MM-TT sein.";
+          await addPackage(
+            {
+              customerId: customer.id,
+              minutes: Math.round(args.stunden * 60),
+              date: args.bezahlt_am || today,
+              priceCents: args.betrag_euro === undefined ? null : Math.round(args.betrag_euro * 100),
+              reference: args.rechnung ?? null,
+            },
+            now,
+          );
+          const account = await getAccount(customer.id, today.slice(0, 7));
+          actions.push({
+            kind: "stunden",
+            title: `+${formatHours(Math.round(args.stunden * 60))} für ${customer.name}`,
+            detail: `Reststand jetzt ${formatHours(account?.balance ?? 0)}`,
+            href: `/app/stunden/${customer.id}`,
+          });
+          return `${formatHours(Math.round(args.stunden * 60))} gutgeschrieben. Reststand ${customer.name}: ${formatHours(account?.balance ?? 0)}.`;
         }),
     }),
   ];

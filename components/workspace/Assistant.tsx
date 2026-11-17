@@ -15,6 +15,7 @@ const SUGGESTIONS = [
   "Welche Tickets warten auf mich?",
   "Erinnere mich morgen um 9 an die Backup-Kontrolle",
   "Trag mir Donnerstag 14 Uhr einen Vor-Ort-Termin ein",
+  "Buch 1,5 Stunden bei Huber: Drucker eingerichtet",
 ];
 
 const ACTION_STYLE: Record<AssistantAction["kind"], { label: string; className: string }> = {
@@ -22,6 +23,8 @@ const ACTION_STYLE: Record<AssistantAction["kind"], { label: string; className: 
   erledigt: { label: "Erledigt", className: "bg-slate-50 text-slate-700 ring-slate-200" },
   termin: { label: "Termin", className: "bg-sky-50 text-sky-800 ring-sky-200" },
   entwurf: { label: "E-Mail-Entwurf", className: "bg-violet-50 text-violet-800 ring-violet-200" },
+  zeit: { label: "Zeit gebucht", className: "bg-amber-50 text-amber-900 ring-amber-200" },
+  stunden: { label: "Stunden gutgeschrieben", className: "bg-emerald-50 text-emerald-800 ring-emerald-200" },
 };
 
 function load(): Turn[] {

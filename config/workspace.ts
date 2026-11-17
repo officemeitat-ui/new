@@ -16,6 +16,12 @@ export type WorkspaceProfile = {
     /** Darf der Arbeitsplatz den Ticketstatus in Atera ändern? */
     allowStatusChange: boolean;
   };
+  hours: {
+    /** Zeitbuchungen auf volle Minuten-Schritte aufrunden (z. B. 15 = angefangene Viertelstunde); 0 = minutengenau. */
+    roundToMinutes: number;
+    /** Ab diesem Reststand (Minuten) wird das Stundenkonto als knapp markiert. */
+    lowBalanceMinutes: number;
+  };
   keeper: {
     /** Tresor-Adresse für den Knopf „In Keeper öffnen“, wenn beim Kunden kein eigener Link hinterlegt ist. */
     vaultUrl: string;
@@ -32,6 +38,10 @@ export const workspace: WorkspaceProfile = {
   atera: {
     ticketUrl: "https://app.atera.com/new/ticket/{id}",
     allowStatusChange: true,
+  },
+  hours: {
+    roundToMinutes: 0,
+    lowBalanceMinutes: 120,
   },
   keeper: {
     vaultUrl: "https://keepersecurity.eu/vault/",

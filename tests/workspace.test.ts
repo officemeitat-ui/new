@@ -105,6 +105,11 @@ function respond(body: Body) {
   if (text.includes("heute an"))
     return toolUse(["aufgaben_anzeigen", { ansicht: "heute" }], ["termine_anzeigen", { von: "2026-11-17", bis: "2026-11-17" }]);
   if (text.includes("Erledige")) return toolUse(["aufgabe_erledigen", { suchbegriff: "Backup" }]);
+  if (text.includes("gekauft"))
+    return toolUse(["stunden_gutschreiben", { kunde: "Huber", stunden: 10, betrag_euro: 950, rechnung: "RE 2026-118" }]);
+  if (text.includes("Stunden bei Huber"))
+    return toolUse(["zeit_buchen", { kunde: "Huber", minuten: 90, taetigkeit: "Drucker eingerichtet", ticket_id: "#101" }]);
+  if (text.includes("noch")) return toolUse(["stundenkonto", { kunde: "Huber" }]);
   if (text.includes("Passwort")) return say("Zugangsdaten verwalte ich nicht – schau in Keeper beim Kunden.");
   return say("Wie kann ich helfen?");
 }
@@ -235,6 +240,9 @@ describe("KI-Assistent", () => {
       "kunde_info",
       "tickets_anzeigen",
       "ticket_details",
+      "zeit_buchen",
+      "stundenkonto",
+      "stunden_gutschreiben",
     ]);
     expect(request.output_config).toEqual({ effort: "low" });
     expect(request.thread).toBeUndefined();
@@ -277,6 +285,20 @@ describe("KI-Assistent", () => {
     // „Backup“ passt auf zwei offene Aufgaben → Rückfrage statt Raten
     expect(reply.text).toContain("Mehrere Treffer");
     expect(reply.actions).toEqual([]);
+  });
+
+  it("schreibt Stundenpakete gut, bucht Zeit davon ab und nennt den Reststand", async () => {
+    const paket = await ask("Huber hat 10 Stunden gekauft, Rechnung RE 2026-118 über 950 Euro");
+    expect(paket.actions[0]).toMatchObject({ kind: "stunden", title: "+10 h für Huber Steuerberatung", detail: "Reststand jetzt 10 h" });
+    const zeit = await ask("Buch 1,5 Stunden bei Huber: Drucker eingerichtet");
+    expect(zeit.actions[0]).toMatchObject({
+      kind: "zeit",
+      title: "1,5 h bei Huber Steuerberatung",
+      detail: "Drucker eingerichtet · vom Stundenpaket · Reststand 8,5 h",
+    });
+    const stand = await ask("Wie viele Stunden hat Huber noch?");
+    expect(stand.text).toContain("8,5 h übrig (gekauft 10 h, verbraucht 1,5 h)");
+    expect(stand.text).toContain("1,5 h Drucker eingerichtet (vom Stundenpaket)");
   });
 
   it("ohne Outlook: Termin wird Aufgabe, E-Mail ein Link zum Mailprogramm", async () => {

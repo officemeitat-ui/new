@@ -5,7 +5,8 @@ import { CustomerForm, QuickAddTask, TaskCheck } from "@/components/workspace/Fo
 import { requireAdmin } from "@/lib/auth";
 import { localDate } from "@/lib/calendar";
 import { getCustomer, listAlerts, listCustomers, listDevices, listTickets, TICKET_STATUS_LABELS } from "@/lib/workspace/customers";
-import { ago, dueLabel, PRIORITY_DOT, SEVERITY_STYLE } from "@/lib/workspace/format";
+import { ago, BALANCE_STYLE, dueLabel, formatHours, PRIORITY_DOT, SEVERITY_STYLE } from "@/lib/workspace/format";
+import { getAccount } from "@/lib/workspace/hours";
 import { listTasks } from "@/lib/workspace/tasks";
 
 export default async function KundePage({ params }: PageProps<"/app/kunden/[id]">) {
@@ -14,12 +15,13 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
   const customer = await getCustomer(id);
   if (!customer) notFound();
   const today = localDate(new Date(), workspace.timeZone);
-  const [tickets, alerts, devices, tasks, customers] = await Promise.all([
+  const [tickets, alerts, devices, tasks, customers, account] = await Promise.all([
     listTickets({ customerId: id }),
     listAlerts(id),
     listDevices(id),
     listTasks("alle", today, { customerId: id }),
     listCustomers(),
+    getAccount(id, today.slice(0, 7)),
   ]);
   const offline = devices.filter((d) => d.online === false).length;
 
@@ -72,6 +74,17 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
             </div>
           ))}
         </div>
+        <Link
+          href={`/app/stunden/${customer.id}`}
+          className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 text-sm hover:bg-slate-100"
+        >
+          <span className="font-medium">Stundenkonto</span>
+          <span className={`font-semibold tabular-nums ${BALANCE_STYLE[account?.status ?? "kein_paket"].className}`}>
+            {account && account.purchased > 0
+              ? `${formatHours(account.balance)} übrig${BALANCE_STYLE[account.status].label ? ` · ${BALANCE_STYLE[account.status].label}` : ""}`
+              : "kein Paket – Zeit buchen →"}
+          </span>
+        </Link>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">

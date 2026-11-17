@@ -22,6 +22,8 @@ import {
   type TaskRecurrence,
 } from "@/lib/workspace/tasks";
 import { briefTicket, type TicketBrief } from "@/lib/workspace/ticket-ai";
+import { parseDuration } from "@/lib/workspace/format";
+import { addPackage, addTimeEntry, deletePackage, deleteTimeEntry, type TimeMode } from "@/lib/workspace/hours";
 
 export type WorkspaceActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -158,4 +160,70 @@ export async function summarizeTicket(_prev: BriefState, formData: FormData): Pr
     if (error instanceof AiError || error instanceof AteraError) return { error: error.message };
     throw error;
   }
+}
+
+const MODES: TimeMode[] = ["kontingent", "verrechnen", "intern"];
+
+/** Zeit buchen – vom Stundenpaket, separat zu verrechnen oder intern. */
+export async function bookTime(_prev: WorkspaceActionState, formData: FormData): Promise<WorkspaceActionState> {
+  await requireAdmin();
+  const field = (name: string) => String(formData.get(name) ?? "").trim();
+  const customer = await getCustomer(field("customerId"));
+  if (!customer) return { error: "Bitte einen Kunden wählen" };
+  const minutes = parseDuration(field("duration"));
+  if (!minutes || minutes > 24 * 60) return { error: "Dauer bitte z. B. als 1,5 oder 1:30 oder 45 min angeben" };
+  const description = field("description");
+  if (!description) return { error: "Bitte kurz beschreiben, was gemacht wurde" };
+  const mode = MODES.includes(field("mode") as TimeMode) ? (field("mode") as TimeMode) : "kontingent";
+  const entry = await addTimeEntry({
+    customerId: customer.id,
+    date: DATE.test(field("date")) ? field("date") : today(),
+    minutes,
+    description,
+    mode,
+    ticketId: field("ticketId") || null,
+  });
+  refresh();
+  const hours = (entry.minutes / 60).toLocaleString("de-AT", { maximumFractionDigits: 2 });
+  return { ok: true, message: `${hours} h bei ${customer.name} gebucht` };
+}
+
+/** Vorab bezahlte Stunden gutschreiben. */
+export async function addHourPackage(_prev: WorkspaceActionState, formData: FormData): Promise<WorkspaceActionState> {
+  await requireAdmin();
+  const field = (name: string) => String(formData.get(name) ?? "").trim();
+  const customer = await getCustomer(field("customerId"));
+  if (!customer) return { error: "Bitte einen Kunden wählen" };
+  const minutes = parseDuration(field("hours"));
+  if (!minutes) return { error: "Stunden bitte als Zahl angeben, z. B. 10 oder 7,5" };
+  const price = field("price")
+    .replace(/\s|€/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+  const priceCents = price ? Math.round(Number(price) * 100) : null;
+  if (priceCents !== null && !Number.isFinite(priceCents)) return { error: "Ungültiger Betrag" };
+  await addPackage({
+    customerId: customer.id,
+    minutes,
+    date: DATE.test(field("date")) ? field("date") : today(),
+    priceCents,
+    reference: field("reference") || null,
+  });
+  refresh();
+  return {
+    ok: true,
+    message: `${(minutes / 60).toLocaleString("de-AT", { maximumFractionDigits: 2 })} h für ${customer.name} gutgeschrieben`,
+  };
+}
+
+export async function removeTimeEntry(formData: FormData) {
+  await requireAdmin();
+  await deleteTimeEntry(String(formData.get("id")));
+  refresh();
+}
+
+export async function removeHourPackage(formData: FormData) {
+  await requireAdmin();
+  await deletePackage(String(formData.get("id")));
+  refresh();
 }

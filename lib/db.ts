@@ -205,6 +205,28 @@ const SCHEMA = [
     app_url TEXT,
     synced_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS hour_packages (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    minutes INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    price_cents INTEGER,
+    reference TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS time_entries (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    minutes INTEGER NOT NULL,
+    description TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    ticket_id TEXT,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_hour_packages_customer ON hour_packages(customer_id, date)`,
+  `CREATE INDEX IF NOT EXISTS idx_time_entries_customer ON time_entries(customer_id, date)`,
   `CREATE TABLE IF NOT EXISTS sync_state (
     key TEXT PRIMARY KEY,
     value TEXT,

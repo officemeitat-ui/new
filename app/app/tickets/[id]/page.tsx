@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { workspace } from "@/config/workspace";
 import { changeTicketStatus } from "@/app/app/actions";
 import { QuickAddTask, Submit, TicketBriefPanel } from "@/components/workspace/Forms";
+import { TimeEntryForm } from "@/components/workspace/HoursForms";
+import { localDate } from "@/lib/calendar";
+import { formatHours } from "@/lib/workspace/format";
+import { getAccount } from "@/lib/workspace/hours";
 import { requireAdmin } from "@/lib/auth";
 import { ateraConfigured, ateraTicketComments, type TicketComment } from "@/lib/atera";
 import { getCustomer, getTicket, listCustomers, TICKET_PRIORITY_LABELS, TICKET_STATUS_LABELS } from "@/lib/workspace/customers";
@@ -14,7 +18,12 @@ export default async function TicketPage({ params, searchParams }: PageProps<"/a
   const { fehler } = await searchParams;
   const ticket = await getTicket(id);
   if (!ticket) notFound();
-  const [customer, customers] = await Promise.all([ticket.customerId ? getCustomer(ticket.customerId) : null, listCustomers()]);
+  const month = localDate(new Date(), workspace.timeZone).slice(0, 7);
+  const [customer, customers, account] = await Promise.all([
+    ticket.customerId ? getCustomer(ticket.customerId) : null,
+    listCustomers(),
+    ticket.customerId ? getAccount(ticket.customerId, month) : null,
+  ]);
   let comments: TicketComment[] = [];
   let commentsError: string | null = null;
   if (ateraConfigured()) {
@@ -104,6 +113,25 @@ export default async function TicketPage({ params, searchParams }: PageProps<"/a
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-3 font-semibold">KI-Unterstützung</h2>
         <TicketBriefPanel ticketId={ticket.id} />
+      </section>
+
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <h2 className="font-semibold">Zeit buchen</h2>
+          {account && account.purchased > 0 && (
+            <Link href={`/app/stunden/${account.customerId}`} className="text-sm text-slate-500 hover:text-brand">
+              Stundenpaket: {formatHours(account.balance)} übrig
+            </Link>
+          )}
+        </div>
+        <TimeEntryForm
+          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+          customerId={ticket.customerId ?? undefined}
+          ticketId={ticket.id}
+          defaultDescription={`#${ticket.id} ${ticket.title}`}
+          today={localDate(new Date(), workspace.timeZone)}
+          roundTo={workspace.hours.roundToMinutes}
+        />
       </section>
 
       <section>

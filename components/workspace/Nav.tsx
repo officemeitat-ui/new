@@ -28,9 +28,10 @@ export const ICONS = {
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   ),
   assistent: icon("M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3"),
+  stunden: icon("M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"),
 };
 
-export function WorkspaceNav({ ticketsWaiting, tasksDue }: { ticketsWaiting: number; tasksDue: number }) {
+export function WorkspaceNav({ ticketsWaiting, tasksDue, hoursLow }: { ticketsWaiting: number; tasksDue: number; hoursLow: number }) {
   const pathname = usePathname();
   const items: Item[] = [
     { href: "/app", label: "Heute", icon: ICONS.heute },
@@ -38,7 +39,10 @@ export function WorkspaceNav({ ticketsWaiting, tasksDue }: { ticketsWaiting: num
     { href: "/app/assistent", label: "Assistent", icon: ICONS.assistent },
     { href: "/app/tickets", label: "Tickets", icon: ICONS.tickets, badge: ticketsWaiting },
     { href: "/app/kunden", label: "Kunden", icon: ICONS.kunden },
+    { href: "/app/stunden", label: "Stunden", icon: ICONS.stunden, badge: hoursLow },
   ];
+  // Am Handy: fünf Reiter unten, der Assistent als runder Knopf darüber (immer mit dem Daumen erreichbar).
+  const tabs = items.filter((item) => item.href !== "/app/assistent");
   const active = (href: string) => (href === "/app" ? pathname === "/app" : pathname.startsWith(href));
   const cockpit = [
     { href: "/admin/emails", label: "E-Mails" },
@@ -83,37 +87,37 @@ export function WorkspaceNav({ ticketsWaiting, tasksDue }: { ticketsWaiting: num
         </nav>
       </aside>
 
-      {/* Handy: Leiste unten, Assistent in der Mitte */}
+      {/* Handy: Leiste unten */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden print:hidden">
         <ul className="grid grid-cols-5">
-          {items.map((item) => {
-            const center = item.href === "/app/assistent";
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  aria-label={item.label}
-                  className={`relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${active(item.href) ? "text-brand" : "text-slate-500"}`}
-                >
-                  {center ? (
-                    <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-lg ring-4 ring-white">
-                      {item.icon}
-                    </span>
-                  ) : (
-                    item.icon
-                  )}
-                  <span>{item.label}</span>
-                  {item.badge ? (
-                    <span className="absolute top-1 right-[calc(50%-1.25rem)] rounded-full bg-amber-500 px-1.5 text-[10px] text-white">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            );
-          })}
+          {tabs.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                aria-label={item.label}
+                className={`relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${active(item.href) ? "text-brand" : "text-slate-500"}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {item.badge ? (
+                  <span className="absolute top-1 right-[calc(50%-1.25rem)] rounded-full bg-amber-500 px-1.5 text-[10px] text-white">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </Link>
+            </li>
+          ))}
         </ul>
       </nav>
+      {!active("/app/assistent") && (
+        <Link
+          href="/app/assistent"
+          aria-label="Assistent"
+          className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-lg ring-4 ring-white md:hidden print:hidden"
+        >
+          {ICONS.assistent}
+        </Link>
+      )}
     </>
   );
 }

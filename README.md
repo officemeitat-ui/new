@@ -77,9 +77,15 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   als Aufgabe merken und **KI-Zusammenfassung** mit nächsten Schritten, Rückfragen und Antwortvorschlag zum Kopieren.
 - **Kunden:** Kundenakte mit Tickets, Warnungen, Geräten (online/offline), Aufgaben, Notizen und Knopf „Zugänge in Keeper“.
   Passwörter liegen nie im Arbeitsplatz und gehen nie an die KI.
+- **Stunden** (eigener Menüpunkt): vorab bezahlte Stundenpakete je Kunde gutschreiben (mit Betrag und Rechnungsnummer),
+  Zeiten buchen – vom Paket abziehen, separat verrechnen oder intern – und jederzeit den Reststand sehen.
+  Knappe und überzogene Pakete erscheinen auf „Heute“ und im Menü. Zeit lässt sich auch direkt am Ticket buchen.
+  Je Kunde und Monat gibt es den **Leistungsnachweis als CSV** (mit Summen und Reststand).
+  Optional Aufrunden im 15-Minuten-Takt (`hours.roundToMinutes` in `config/workspace.ts`).
 - **KI-Assistent** per Text oder Sprache (Mikrofon im Browser, am Handy auch Diktieren über die Tastatur):
   - legt Aufgaben an und hakt sie ab, trägt Termine in den eigenen Outlook-Kalender ein (ohne Einladungen),
   - schreibt E-Mails als **Entwurf** in Outlook an die hinterlegte Kundenadresse – gesendet wird nie automatisch,
+  - bucht Zeiten („1,5 Stunden bei Huber, Drucker eingerichtet“), schreibt gekaufte Stunden gut und nennt den Reststand,
   - beantwortet „Was steht heute an?“, „Wie ist der Stand bei Huber?“, „Welche Tickets warten auf mich?“.
   - Ohne Outlook werden Termine zu Aufgaben mit Uhrzeit und E-Mails zum Link ins Mailprogramm.
 - **Als App installieren:** iPhone/iPad in Safari → Teilen → „Zum Home-Bildschirm“; Android in Chrome → „App installieren“;

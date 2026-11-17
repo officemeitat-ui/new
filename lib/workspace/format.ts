@@ -46,3 +46,35 @@ export const SEVERITY_STYLE: Record<string, string> = {
   Warning: "bg-amber-100 text-amber-800",
   Information: "bg-sky-100 text-sky-800",
 };
+
+/** Minuten als Stunden mit Dezimalkomma: 90 → „1,5 h“, -30 → „−0,5 h“. */
+export function formatHours(minutes: number): string {
+  const hours = new Intl.NumberFormat("de-AT", { maximumFractionDigits: 2 }).format(Math.abs(minutes) / 60);
+  return `${minutes < 0 ? "−" : ""}${hours} h`;
+}
+
+/**
+ * Dauer aus einer Eingabe in Minuten: „1,5“ oder „1.5“ (Stunden), „1:30“, „90 min“, „2 h“, „1 h 15“, „45m“.
+ * null bei leerer oder ungültiger Eingabe.
+ */
+export function parseDuration(input: string): number | null {
+  const value = input.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!value) return null;
+  let match = value.match(/^(\d{1,3}):([0-5]\d)$/);
+  if (match) return Number(match[1]) * 60 + Number(match[2]);
+  match = value.match(/^(\d{1,4}) ?(m|min|minuten)$/);
+  if (match) return Number(match[1]);
+  match = value.match(/^(\d{1,3}) ?(h|std\.?|stunden?) ?(\d{1,2}) ?(m|min|minuten)?$/);
+  if (match) return Number(match[1]) * 60 + Number(match[3]);
+  match = value.match(/^(\d{1,3}(?:[.,]\d{1,2})?) ?(h|std\.?|stunden?)?$/);
+  if (match) return Math.round(Number(match[1].replace(",", ".")) * 60);
+  return null;
+}
+
+/** Darstellung des Reststands eines Stundenkontos. */
+export const BALANCE_STYLE: Record<"ok" | "knapp" | "ueberzogen" | "kein_paket", { label: string; className: string }> = {
+  ok: { label: "", className: "text-emerald-700" },
+  knapp: { label: "knapp", className: "text-amber-600" },
+  ueberzogen: { label: "überzogen", className: "text-red-600" },
+  kein_paket: { label: "kein Paket", className: "text-slate-400" },
+};
