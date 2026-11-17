@@ -54,8 +54,15 @@ function leadContext(lead: Lead, source: LeadSource, pipeline: Pipeline): string
   return lines.filter(Boolean).join("\n");
 }
 
-/** Strukturierte Claude-Antwort nach Zod-Schema; Fehler werden als verständliche AiError gemeldet. */
-export async function generateStructured<T extends z.ZodType>(system: string, schema: T, prompt: string): Promise<z.infer<T>> {
+/**
+ * Strukturierte Claude-Antwort nach Zod-Schema; Fehler werden als verständliche AiError gemeldet.
+ * prompt ist Text oder eine Liste von Inhaltsblöcken (z. B. PDF-Beleg plus Anweisung).
+ */
+export async function generateStructured<T extends z.ZodType>(
+  system: string,
+  schema: T,
+  prompt: string | Anthropic.Beta.BetaContentBlockParam[],
+): Promise<z.infer<T>> {
   try {
     const response = await client().beta.messages.parse({
       model: MODEL,

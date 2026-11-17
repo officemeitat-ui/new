@@ -21,6 +21,8 @@ export type ImpactStats = {
   };
   emailsHandled: number;
   repliesSent: number;
+  /** Belege, die aus E-Mails oder Uploads erfasst und ausgelesen wurden. */
+  receipts: number;
   openDrafts: number;
   /** Geschätzte Minuten, die ohne KI-Mitarbeiter angefallen wären (Annahmen in business.impact). */
   minutesSaved: number;
@@ -46,33 +48,47 @@ export async function impactStats(from: Date, to = new Date()): Promise<ImpactSt
       `SELECT COUNT(*) AS n FROM appointments WHERE source = '${source}' AND status = 'gebucht' AND created_at >= ? AND created_at < ?`,
       range,
     );
-  const [calls, callSeconds, callbacks, telefon, whatsapp, email, manuell, emailsHandled, repliesSent, openDrafts, chats, chatReplies] =
-    await Promise.all([
-      count("SELECT COUNT(*) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
-      count("SELECT COALESCE(SUM(duration_seconds), 0) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
-      count("SELECT COUNT(*) AS n FROM activities WHERE type = 'callback' AND created_at >= ? AND created_at < ?", range),
-      bySource("telefon"),
-      bySource("whatsapp"),
-      bySource("email"),
-      bySource("manuell"),
-      count(
-        "SELECT COUNT(*) AS n FROM emails WHERE kind = 'eingang' AND status NOT IN ('neu', 'fehler') AND received_at >= ? AND received_at < ?",
-        range,
-      ),
-      count("SELECT COUNT(*) AS n FROM emails WHERE status = 'gesendet' AND received_at >= ? AND received_at < ?", range),
-      count("SELECT COUNT(*) AS n FROM emails WHERE status = 'entwurf'", []),
-      count(
-        `SELECT COUNT(DISTINCT m.conversation_id) AS n FROM chat_messages m JOIN conversations c ON c.id = m.conversation_id
+  const [
+    calls,
+    callSeconds,
+    callbacks,
+    telefon,
+    whatsapp,
+    email,
+    manuell,
+    emailsHandled,
+    repliesSent,
+    openDrafts,
+    chats,
+    chatReplies,
+    receipts,
+  ] = await Promise.all([
+    count("SELECT COUNT(*) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
+    count("SELECT COALESCE(SUM(duration_seconds), 0) AS n FROM calls WHERE created_at >= ? AND created_at < ?", range),
+    count("SELECT COUNT(*) AS n FROM activities WHERE type = 'callback' AND created_at >= ? AND created_at < ?", range),
+    bySource("telefon"),
+    bySource("whatsapp"),
+    bySource("email"),
+    bySource("manuell"),
+    count(
+      "SELECT COUNT(*) AS n FROM emails WHERE kind = 'eingang' AND status NOT IN ('neu', 'fehler') AND received_at >= ? AND received_at < ?",
+      range,
+    ),
+    count("SELECT COUNT(*) AS n FROM emails WHERE status = 'gesendet' AND received_at >= ? AND received_at < ?", range),
+    count("SELECT COUNT(*) AS n FROM emails WHERE status = 'entwurf'", []),
+    count(
+      `SELECT COUNT(DISTINCT m.conversation_id) AS n FROM chat_messages m JOIN conversations c ON c.id = m.conversation_id
        WHERE c.channel = 'whatsapp' AND m.author = 'kunde' AND m.created_at >= ? AND m.created_at < ?`,
-        range,
-      ),
-      count(
-        `SELECT COUNT(*) AS n FROM chat_messages m JOIN conversations c ON c.id = m.conversation_id
+      range,
+    ),
+    count(
+      `SELECT COUNT(*) AS n FROM chat_messages m JOIN conversations c ON c.id = m.conversation_id
        WHERE c.channel = 'whatsapp' AND m.author = 'ki' AND m.created_at >= ? AND m.created_at < ?`,
-        range,
-      ),
-    ]);
-  const { minutesPerCall, minutesPerEmail, minutesPerChat, minutesPerAppointment } = business.impact;
+      range,
+    ),
+    count("SELECT COUNT(*) AS n FROM receipts WHERE status != 'fehlt' AND created_at >= ? AND created_at < ?", range),
+  ]);
+  const { minutesPerCall, minutesPerEmail, minutesPerChat, minutesPerAppointment, minutesPerReceipt } = business.impact;
   const automated = telefon + whatsapp + email;
   return {
     calls,
@@ -84,7 +100,13 @@ export async function impactStats(from: Date, to = new Date()): Promise<ImpactSt
     emailsHandled,
     repliesSent,
     openDrafts,
-    minutesSaved: calls * minutesPerCall + emailsHandled * minutesPerEmail + chats * minutesPerChat + automated * minutesPerAppointment,
+    receipts,
+    minutesSaved:
+      calls * minutesPerCall +
+      emailsHandled * minutesPerEmail +
+      chats * minutesPerChat +
+      automated * minutesPerAppointment +
+      receipts * minutesPerReceipt,
   };
 }
 

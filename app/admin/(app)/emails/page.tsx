@@ -5,8 +5,9 @@ import { retryEmail } from "@/app/admin/assistant-actions";
 import { requireAdmin } from "@/lib/auth";
 import { EMAIL_CATEGORIES, listEmails, type Email, type EmailStatus } from "@/lib/emails";
 import { formatDateTime } from "@/lib/format";
-import { imapConfigured } from "@/lib/mail/imap";
+import { activeMailbox } from "@/lib/mail/mailbox";
 import { smtpConfigured } from "@/lib/mail/smtp";
+import { receiptsForEmails, type Receipt } from "@/lib/receipts/store";
 
 const TABS: { id: string; label: string; statuses: EmailStatus[] }[] = [
   { id: "offen", label: "Zur Freigabe", statuses: ["entwurf", "fehler"] },
@@ -23,7 +24,7 @@ const statusLabel: Record<EmailStatus, string> = {
   fehler: "Fehler",
 };
 
-function EmailCard({ email, canSend }: { email: Email; canSend: boolean }) {
+function EmailCard({ email, canSend, receipts }: { email: Email; canSend: boolean; receipts: Receipt[] }) {
   const followUp = email.kind === "nachfass";
   const contact = email.fromName ? `${email.fromName} <${email.fromAddress}>` : email.fromAddress;
   return (
@@ -44,6 +45,19 @@ function EmailCard({ email, canSend }: { email: Email; canSend: boolean }) {
         </div>
       </header>
       {email.summary && <p className="mt-3 text-sm text-slate-700">{email.summary}</p>}
+      {(receipts.length > 0 || email.filedTo) && (
+        <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+          {receipts.map((r) => (
+            <Link key={r.id} href={`/admin/belege/${r.id}`} className="font-medium text-brand hover:underline">
+              {r.status === "fehlt" ? "Beleg fehlt (nur Link?) →" : `Beleg erfasst: ${r.supplier ?? "unbekannt"} →`}
+            </Link>
+          ))}
+          {email.filedTo && <span>In Outlook abgelegt: {email.filedTo}</span>}
+        </p>
+      )}
+      {email.error && email.status !== "fehler" && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{email.error}</p>
+      )}
       {email.leadId && (
         <Link href={`/admin/leads/${email.leadId}`} className="mt-1 inline-block text-sm font-medium text-brand hover:underline">
           Zum Kontakt →
@@ -54,7 +68,19 @@ function EmailCard({ email, canSend }: { email: Email; canSend: boolean }) {
         <p className="mt-2 rounded-lg bg-slate-50 p-3 whitespace-pre-wrap text-slate-700">{email.body}</p>
       </details>
 
-      {email.status === "entwurf" && email.replyBody && (
+      {email.status === "entwurf" && email.replyBody && email.draftId && (
+        <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+          <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">
+            <strong>Entwurf liegt in Outlook</strong> – direkt bei dieser E-Mail bzw. im Ordner „Entwürfe“. Dort prüfen, anpassen und
+            senden. Das Cockpit erkennt den Versand automatisch.
+          </p>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-slate-500">Vorschlag ansehen</summary>
+            <p className="mt-2 rounded-lg bg-slate-50 p-3 whitespace-pre-wrap text-slate-700">{email.replyBody}</p>
+          </details>
+        </div>
+      )}
+      {email.status === "entwurf" && email.replyBody && !email.draftId && (
         <div className="mt-4 border-t border-slate-100 pt-4">
           <EmailDraftForm
             emailId={email.id}
@@ -91,7 +117,9 @@ export default async function EmailsPage({ searchParams }: PageProps<"/admin/ema
   const { tab: tabParam } = await searchParams;
   const tab = TABS.find((t) => t.id === tabParam) ?? TABS[0];
   const emails = await listEmails(tab.statuses);
+  const receipts = await receiptsForEmails(emails.map((e) => e.id));
   const canSend = smtpConfigured();
+  const mailbox = activeMailbox();
 
   return (
     <div className="space-y-6">
@@ -99,8 +127,11 @@ export default async function EmailsPage({ searchParams }: PageProps<"/admin/ema
         <div>
           <h1 className="text-2xl font-bold">E-Mail-Assistent</h1>
           <p className="text-sm text-slate-500">
-            Modus: {business.emailAssistant.mode === "autonom" ? "autonom für Routineanfragen" : "alle Antworten zur Freigabe"} · Postfach{" "}
-            {imapConfigured() ? "verbunden" : "nicht verbunden"} · Versand {canSend ? "eingerichtet" : "nicht eingerichtet"}
+            {mailbox?.kind === "microsoft"
+              ? "Antworten als Entwurf in Outlook – gesendet wird dort"
+              : `Modus: ${business.emailAssistant.mode === "autonom" ? "autonom für Routineanfragen" : "alle Antworten zur Freigabe"}`}{" "}
+            · Postfach: {mailbox ? mailbox.label : "nicht verbunden"}
+            {mailbox?.kind !== "microsoft" && ` · Versand ${canSend ? "eingerichtet" : "nicht eingerichtet"}`}
           </p>
         </div>
         <nav className="flex gap-1 rounded-lg bg-slate-200/60 p-1 text-sm font-medium">
@@ -130,7 +161,7 @@ export default async function EmailsPage({ searchParams }: PageProps<"/admin/ema
       ) : (
         <div className="space-y-4">
           {emails.map((email) => (
-            <EmailCard key={email.id} email={email} canSend={canSend} />
+            <EmailCard key={email.id} email={email} canSend={canSend} receipts={receipts.get(email.id) ?? []} />
           ))}
         </div>
       )}

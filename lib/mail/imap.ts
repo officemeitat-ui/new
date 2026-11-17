@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import type { IncomingEmail } from "@/lib/emails";
+import type { Mailbox } from "@/lib/mail/mailbox";
+import { receiptFileKind } from "@/lib/receipts/files";
 
 export function imapConfigured(): boolean {
   return Boolean(process.env.IMAP_HOST && process.env.IMAP_USER && process.env.IMAP_PASSWORD);
@@ -18,6 +20,10 @@ export async function parseRawEmail(source: Buffer | string): Promise<IncomingEm
   const fingerprint = [from.address, parsed.subject, parsed.date?.toISOString() ?? "", (parsed.text ?? "").slice(0, 500)].join("|");
   const fallbackId = `<${createHash("sha256").update(fingerprint).digest("hex")}@ersatz>`;
   const autoSubmitted = String(parsed.headers.get("auto-submitted") ?? "no").toLowerCase();
+  // Nur Anhänge, die Belege sein können (PDF, Bilder, E-Rechnung als XML) – andere werden nicht aufgehoben.
+  const attachments = parsed.attachments
+    .filter((a) => a.contentDisposition !== "inline" && receiptFileKind(a.contentType, a.filename))
+    .map((a) => ({ name: a.filename || "anhang", contentType: a.contentType, content: a.content }));
   return {
     messageId: parsed.messageId ?? fallbackId,
     fromAddress: from.address,
@@ -26,7 +32,14 @@ export async function parseRawEmail(source: Buffer | string): Promise<IncomingEm
     body: (parsed.text ?? "").trim(),
     receivedAt: date,
     autoSubmitted: autoSubmitted !== "no",
+    hasAttachments: attachments.length > 0,
+    attachments,
   };
+}
+
+/** IMAP liest nur; Antworten gehen über SMTP raus. Anhänge kommen direkt mit der E-Mail. */
+export function imapMailbox(): Mailbox {
+  return { kind: "imap", label: `IMAP (${process.env.IMAP_USER})`, fetchRecent: () => fetchRecentEmails() };
 }
 
 /**

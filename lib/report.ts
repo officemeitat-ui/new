@@ -85,7 +85,7 @@ export async function monthlyReport(month: string): Promise<MonthlyReport> {
 /** Bericht als Text für die E-Mail an den Kunden. */
 export function reportText(report: MonthlyReport, link?: string): string {
   const { current: c, previous: p } = report;
-  const { minutesPerCall, minutesPerEmail, minutesPerChat, minutesPerAppointment } = business.impact;
+  const { minutesPerCall, minutesPerEmail, minutesPerChat, minutesPerAppointment, minutesPerReceipt } = business.impact;
   const booked = c.appointments.automated;
   const lines = [
     `Monatsbericht ${report.label} – ${business.name}`,
@@ -96,9 +96,12 @@ export function reportText(report: MonthlyReport, link?: string): string {
     `• ${plural(c.chats, "WhatsApp-Gespräch", "WhatsApp-Gespräche")} geführt (${plural(c.chatReplies, "Antwort", "Antworten")})`,
     `• ${plural(c.callbacks, "Rückrufwunsch", "Rückrufwünsche")} für Sie notiert`,
     `• ${plural(c.emailsHandled, "E-Mail", "E-Mails")} bearbeitet, ${plural(c.repliesSent, "Antwort", "Antworten")} gesendet (Vormonat ${p.emailsHandled})`,
+    ...(c.receipts > 0 || p.receipts > 0
+      ? [`• ${plural(c.receipts, "Beleg", "Belege")} für die Buchhaltung erfasst (Vormonat ${p.receipts})`]
+      : []),
     "",
     `Geschätzte Zeitersparnis: ${hours(c.minutesSaved)} Stunden (Vormonat ${hours(p.minutesSaved)})`,
-    `Annahmen: ${minutesPerCall} Min. je Anruf, ${minutesPerEmail} Min. je E-Mail, ${minutesPerChat} Min. je WhatsApp-Gespräch, ${minutesPerAppointment} Min. je Terminvereinbarung.`,
+    `Annahmen: ${minutesPerCall} Min. je Anruf, ${minutesPerEmail} Min. je E-Mail, ${minutesPerChat} Min. je WhatsApp-Gespräch, ${minutesPerAppointment} Min. je Terminvereinbarung, ${minutesPerReceipt} Min. je Beleg.`,
   ];
   if (report.appointmentsByService.length > 0) {
     lines.push("", "Termine nach Leistung:", ...report.appointmentsByService.map((s) => `• ${s.name}: ${s.count}`));

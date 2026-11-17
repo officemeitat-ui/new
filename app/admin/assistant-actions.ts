@@ -14,6 +14,7 @@ import { ensureContact, markAppointmentStage } from "@/lib/contacts";
 import { getEmail, updateEmail } from "@/lib/emails";
 import { addActivity } from "@/lib/leads";
 import { smtpConfigured } from "@/lib/mail/smtp";
+import { activeMailbox } from "@/lib/mail/mailbox";
 import { analyzeAndRoute, processIncomingEmail, sendReply } from "@/lib/mail/process";
 import { createFollowUps } from "@/lib/followup";
 import { dispatchEvents } from "@/lib/notify";
@@ -63,7 +64,7 @@ export async function retryEmail(formData: FormData) {
   await requireAdmin();
   const email = await getEmail(String(formData.get("emailId")));
   if (!email) return;
-  const { events } = await analyzeAndRoute(email);
+  const { events } = await analyzeAndRoute(email, new Date(), { mailbox: activeMailbox() });
   if (events.length > 0) after(() => dispatchEvents(events));
   refreshCockpit();
 }

@@ -9,6 +9,7 @@ export const EMAIL_CATEGORIES = {
   angebotsanfrage: "Angebotsanfrage",
   reklamation: "Reklamation",
   rechnung_beleg: "Rechnung / Beleg",
+  lieferant_bestellung: "Lieferant / Bestellung",
   werbung_spam: "Werbung / Spam",
   sonstiges: "Sonstiges",
 } as const;
@@ -41,6 +42,14 @@ export type Email = {
   error: string | null;
   sentAt: string | null;
   createdAt: string;
+  /** ID der E-Mail im Postfach (Microsoft 365), für Entwurf, Kategorie und Ablage. */
+  externalId: string | null;
+  conversationId: string | null;
+  /** Antwortentwurf, der direkt im Postfach (Outlook, Ordner „Entwürfe“) liegt. */
+  draftId: string | null;
+  draftCreatedAt: string | null;
+  /** Outlook-Ordner, in den die E-Mail abgelegt wurde. */
+  filedTo: string | null;
 };
 
 export type IncomingEmail = {
@@ -52,7 +61,17 @@ export type IncomingEmail = {
   receivedAt: Date;
   /** Automatisch erzeugte E-Mail (Auto-Submitted-Header), wird nie beantwortet. */
   autoSubmitted?: boolean;
+  /** Microsoft 365: ID im Postfach und Gesprächs-ID. */
+  externalId?: string;
+  conversationId?: string;
+  hasAttachments?: boolean;
+  /** In Outlook als „Privat“ oder „Vertraulich“ markiert – geht nie an die KI. */
+  confidential?: boolean;
+  /** IMAP: Anhänge (nur PDF, Bilder, XML), direkt beim Abruf gelesen. */
+  attachments?: MailAttachment[];
 };
+
+export type MailAttachment = { name: string; contentType: string; content: Buffer };
 
 const text = (value: unknown) => (value === null || value === undefined ? null : String(value));
 
@@ -76,6 +95,11 @@ function toEmail(row: Row): Email {
     error: text(row.error),
     sentAt: text(row.sent_at),
     createdAt: String(row.created_at),
+    externalId: text(row.external_id),
+    conversationId: text(row.conversation_id),
+    draftId: text(row.draft_id),
+    draftCreatedAt: text(row.draft_created_at),
+    filedTo: text(row.filed_to),
   };
 }
 
@@ -84,8 +108,8 @@ export async function insertEmail(mail: IncomingEmail): Promise<Email | null> {
   const client = await db();
   const id = randomUUID();
   const result = await client.execute({
-    sql: `INSERT INTO emails (id, message_id, from_address, from_name, subject, body, received_at, status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'neu', ?) ON CONFLICT(message_id) DO NOTHING`,
+    sql: `INSERT INTO emails (id, message_id, from_address, from_name, subject, body, received_at, status, created_at, external_id, conversation_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'neu', ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
     args: [
       id,
       mail.messageId,
@@ -95,6 +119,8 @@ export async function insertEmail(mail: IncomingEmail): Promise<Email | null> {
       mail.body.slice(0, 50_000),
       mail.receivedAt.toISOString(),
       new Date().toISOString(),
+      mail.externalId ?? null,
+      mail.conversationId ?? null,
     ],
   });
   return result.rowsAffected > 0 ? getEmail(id) : null;
@@ -168,7 +194,22 @@ export async function listEmails(statuses?: EmailStatus[], limit = 200): Promise
 
 export async function updateEmail(
   id: string,
-  fields: Partial<Pick<Email, "leadId" | "category" | "summary" | "status" | "replySubject" | "replyBody" | "error" | "sentAt">>,
+  fields: Partial<
+    Pick<
+      Email,
+      | "leadId"
+      | "category"
+      | "summary"
+      | "status"
+      | "replySubject"
+      | "replyBody"
+      | "error"
+      | "sentAt"
+      | "draftId"
+      | "draftCreatedAt"
+      | "filedTo"
+    >
+  >,
 ): Promise<void> {
   const columns: Record<string, string> = {
     leadId: "lead_id",
@@ -179,6 +220,9 @@ export async function updateEmail(
     replyBody: "reply_body",
     error: "error",
     sentAt: "sent_at",
+    draftId: "draft_id",
+    draftCreatedAt: "draft_created_at",
+    filedTo: "filed_to",
   };
   const entries = Object.entries(fields).filter(([key]) => key in columns);
   if (entries.length === 0) return;
@@ -187,4 +231,14 @@ export async function updateEmail(
     sql: `UPDATE emails SET ${entries.map(([key]) => `${columns[key]} = ?`).join(", ")} WHERE id = ?`,
     args: [...entries.map(([, value]) => (value === undefined ? null : value)), id],
   });
+}
+
+/** Entwürfe, die im Postfach (Outlook) auf Versand warten – für den Abgleich, ob sie inzwischen gesendet wurden. */
+export async function listMailboxDrafts(limit = 100): Promise<Email[]> {
+  const client = await db();
+  const result = await client.execute({
+    sql: "SELECT * FROM emails WHERE status = 'entwurf' AND draft_id IS NOT NULL ORDER BY received_at LIMIT ?",
+    args: [limit],
+  });
+  return result.rows.map(toEmail);
 }

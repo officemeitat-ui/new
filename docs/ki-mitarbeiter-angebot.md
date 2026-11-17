@@ -25,7 +25,8 @@ und laufender Betreuung. Angreifbar sind sie bei Datenschutz (fast alles auf US-
 | KI-Mitarbeiter | Stand im Code | Nutzen für den Betrieb |
 |---|---|---|
 | Telefon-Assistent | fertig (Vapi-Anbindung, Terminbuchung, Rückrufe, Protokoll) | keine verpassten Anrufe, Termine rund um die Uhr |
-| E-Mail-Assistent | fertig (IMAP/SMTP, Einordnung, Entwürfe, Autonom-Modus) | Postfach in Minuten statt Stunden |
+| E-Mail-Assistent | fertig (Microsoft 365 mit Entwürfen direkt in Outlook, oder IMAP/SMTP; Einordnung, Ablage, Ausnahmen) | Postfach in Minuten statt Stunden |
+| Belege-Ablage | fertig (Rechnungen aus dem Postfach erkennen und auslesen, Monatspaket für FreeFinance/Buchhaltung) | Monatsabschluss in Minuten, keine verlorenen Belege |
 | Cockpit mit Wirkungszahlen | fertig | Kontrolle im Alltag |
 | Monatsbericht (Seite, PDF, E-Mail) | fertig | Grundlage für Quartalsgespräch, Verlängerung und Ausbau |
 | Kalender-Sync Google/Microsoft 365 | fertig | Assistent bucht direkt im Kalender, den der Betrieb schon nutzt |

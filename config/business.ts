@@ -58,6 +58,22 @@ export type BusinessProfile = {
     mode: "entwurf" | "autonom";
     autoSendCategories: string[];
     signature: string;
+    /**
+     * Absender (ganze Adresse) oder Domains („@kanzlei.example“), deren E-Mails nie an die KI gehen –
+     * z. B. Bank, Steuerberatung oder Kunden mit Verschwiegenheitsvereinbarung. In Outlook als „Privat“ oder
+     * „Vertraulich“ markierte E-Mails sind immer ausgenommen.
+     */
+    excludeSenders: string[];
+    /** Nur Microsoft 365: Ablage in Outlook-Ordner je Kategorie („Buchhaltung/Eingangsrechnungen“); fehlt = bleibt im Posteingang. */
+    filing: Record<string, string>;
+    /** Nur Microsoft 365: Präfix der Outlook-Kategorie, die jede ausgewertete E-Mail bekommt (z. B. „KI: Angebotsanfrage“). */
+    outlookCategoryPrefix: string;
+  };
+  /** Belege-Ablage: Rechnungen aus E-Mails erkennen, auslesen und monatlich gesammelt für die Buchhaltung bereitstellen. */
+  receipts: {
+    enabled: boolean;
+    /** Dateien nach dem Export so viele Tage aufbewahren, danach bleiben nur die Eckdaten; 0 = nie löschen. */
+    keepFilesDaysAfterExport: number;
   };
   /** Nachrichten an Kunden rund um gebuchte Termine (rein organisatorisch, keine Werbung). */
   reminders: {
@@ -81,7 +97,13 @@ export type BusinessProfile = {
     categories: string[];
   };
   /** Annahmen für die geschätzte Zeitersparnis im Cockpit (Minuten, die ein Mensch pro Vorgang bräuchte). */
-  impact: { minutesPerCall: number; minutesPerEmail: number; minutesPerChat: number; minutesPerAppointment: number };
+  impact: {
+    minutesPerCall: number;
+    minutesPerEmail: number;
+    minutesPerChat: number;
+    minutesPerAppointment: number;
+    minutesPerReceipt: number;
+  };
   placeholder: boolean;
 };
 
@@ -161,10 +183,18 @@ export const business: BusinessProfile = {
     mode: "entwurf",
     autoSendCategories: ["terminanfrage", "allgemeine_frage"],
     signature: "Mit freundlichen Grüßen\nIhr Team der Autowerkstatt Muster\n+43 1 234 56 78",
+    excludeSenders: [],
+    filing: {
+      rechnung_beleg: "Buchhaltung/Eingangsrechnungen",
+      lieferant_bestellung: "Lieferanten",
+      werbung_spam: "Newsletter und Werbung",
+    },
+    outlookCategoryPrefix: "KI: ",
   },
+  receipts: { enabled: true, keepFilesDaysAfterExport: 90 },
   reminders: { confirmation: true, hoursBefore: 24, sendBetween: [8, 20], channels: ["sms", "email"] },
   followUp: { enabled: true, afterDays: 3, maxAgeDays: 21, categories: ["terminanfrage", "angebotsanfrage"] },
-  impact: { minutesPerCall: 4, minutesPerEmail: 6, minutesPerChat: 3, minutesPerAppointment: 3 },
+  impact: { minutesPerCall: 4, minutesPerEmail: 6, minutesPerChat: 3, minutesPerAppointment: 3, minutesPerReceipt: 3 },
   placeholder: true,
 };
 

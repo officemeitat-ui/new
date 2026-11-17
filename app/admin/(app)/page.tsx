@@ -54,13 +54,16 @@ export default async function DashboardPage() {
             hint={`${impact.appointments.telefon} Telefon, ${impact.appointments.whatsapp} WhatsApp, ${impact.appointments.email} E-Mail`}
           />
           <Kpi label="E-Mails bearbeitet" value={impact.emailsHandled} hint={`${impact.repliesSent} Antworten gesendet`} />
+          <Link href="/admin/belege" className="block h-full">
+            <Kpi label="Belege erfasst" value={impact.receipts} hint="für die Buchhaltung abgelegt →" />
+          </Link>
           <Link href="/admin/emails" className="block h-full">
             <Kpi label="Offene Entwürfe" value={impact.openDrafts} hint="warten auf Freigabe →" />
           </Link>
           <Kpi
             label="Geschätzte Zeitersparnis"
             value={`${(impact.minutesSaved / 60).toLocaleString("de-AT", { maximumFractionDigits: 1 })} Std.`}
-            hint={`Annahme: ${business.impact.minutesPerCall} Min./Anruf, ${business.impact.minutesPerEmail} Min./E-Mail, ${business.impact.minutesPerChat} Min./Chat, ${business.impact.minutesPerAppointment} Min./Termin`}
+            hint={`Annahme: ${business.impact.minutesPerCall} Min./Anruf, ${business.impact.minutesPerEmail} Min./E-Mail, ${business.impact.minutesPerChat} Min./Chat, ${business.impact.minutesPerAppointment} Min./Termin, ${business.impact.minutesPerReceipt} Min./Beleg`}
           />
         </div>
       </section>

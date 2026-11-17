@@ -14,8 +14,9 @@ beantwortet Fragen, bucht Termine und notiert Rückrufe. Ein **WhatsApp-Assisten
   - **Test-Chat** für Vorführungen ohne WhatsApp
 - Der Verlauf liegt nur in der eigenen Datenbank. Claude bekommt bei jedem Aufruf den vollständigen Verlauf, Anthropic hält keinen Gesprächszustand.
 
-**E-Mail-Assistent** ordnet eingehende E-Mails ein und schreibt Antworten zur Freigabe. Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und
-Monatskennzahlen. Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
+**E-Mail-Assistent** ordnet eingehende E-Mails ein und schreibt Antworten zur Freigabe – mit Microsoft 365 direkt als Entwurf in Outlook.
+Die **Belege-Ablage** erkennt Rechnungen im Postfach, liest sie aus und stellt sie monatlich gesammelt für die Buchhaltung bereit.
+Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und Monatskennzahlen. Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
 
 Pro Kunde gibt es eine Installation. Der Betrieb wird in [`config/business.ts`](config/business.ts) beschrieben,
 die Website in [`config/site.ts`](config/site.ts).
@@ -45,12 +46,33 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
 - Der Verlauf liegt nur in der eigenen Datenbank. Claude bekommt bei jedem Aufruf den vollständigen Verlauf, Anthropic hält keinen Gesprächszustand.
 
 **E-Mail-Assistent**
-- Liest das Postfach per IMAP. Lese-Status bleibt unverändert, jede E-Mail wird nur einmal verarbeitet.
+- Liest das Postfach per **Microsoft 365 (Outlook)** oder IMAP. Lese-Status bleibt unverändert, jede E-Mail wird nur einmal verarbeitet.
+- Mit Microsoft 365:
+  - Antwortentwürfe liegen **direkt in Outlook**, im Verlauf der Kunden-E-Mail. Geprüft und gesendet wird dort.
+    Der Assistent hat bewusst kein Recht zum Senden (`Mail.Send`) – er kann technisch nichts selbst verschicken.
+  - Der bisherige Verlauf (auch eigene gesendete E-Mails) fließt in die Antwort ein.
+  - Jede ausgewertete E-Mail bekommt eine Outlook-Kategorie („KI: Angebotsanfrage“, „KI: Dringend“ …).
+    Rechnungen, Lieferanten-E-Mails und Werbung werden in Ordner abgelegt (`emailAssistant.filing`).
+  - Das Cockpit erkennt, wenn ein Entwurf in Outlook gesendet oder gelöscht wurde.
+- Nie an die KI gehen: in Outlook als „Privat“ oder „Vertraulich“ markierte E-Mails, Absender auf der Ausnahmeliste
+  (`emailAssistant.excludeSenders`, z. B. Bank, Steuerberatung) und automatische E-Mails, die nicht nach Rechnung aussehen.
 - Ordnet ein (Terminanfrage, Frage, Angebot, Reklamation, Beleg, Werbung …), erkennt Dringendes und ordnet den Kontakt zu
 - Schreibt Antwortentwürfe mit echten freien Terminen. Freigabe per Klick, Entwürfe lassen sich bearbeiten.
 - Modus „Entwurf“ (alles zur Freigabe) oder „autonom“: Routinefälle gehen direkt raus, Dringendes nie
 - Antwortet nie auf automatische Absender oder die eigene Adresse (keine Antwort-Schleifen)
 - „Test-E-Mail simulieren“ im Cockpit für Vorführungen ohne echtes Postfach
+
+**Belege-Ablage**
+- Erkennt Rechnungen im Postfach – auch von „noreply“-Absendern – und liest PDF, Foto oder E-Rechnung (XML) mit Claude aus:
+  Lieferant, Rechnungsnummer, Datum, Brutto/Netto/USt, Fälligkeit, ob schon bezahlt.
+- AGB, Lieferscheine und Ähnliches werden nicht abgelegt, doppelte Dateien erkannt, gleiche Rechnungsnummern zur Prüfung markiert.
+- Rechnungen, die nur als Link kommen („Ihre Rechnung liegt im Kundenportal“), stehen als **„Datei fehlt“** in der Liste –
+  herunterladen und im Cockpit nachreichen. Mahnungen werden zur Prüfung markiert.
+- Cockpit → Belege: Monatsübersicht, Korrektur mit PDF-Vorschau, Upload weiterer Belege (z. B. Tankbeleg als Foto).
+- **Monatspaket:** ZIP mit allen Belegen des Monats, sprechend benannt (`2026-11-16_Lieferant_Nummer_Betrag.pdf`),
+  plus Liste als CSV für Excel. Einmal in FreeFinance bzw. der Buchhaltung hochladen, dann „als übergeben“ markieren.
+- Dateien übergebener Belege werden nach einer Frist gelöscht (`receipts.keepFilesDaysAfterExport`, Standard 90 Tage);
+  aufbewahrt wird in der Buchhaltung.
 
 **Kalender**
 - Interner Kalender, oder angebunden an **Google Kalender** bzw. **Microsoft 365 / Outlook**: Einträge dort (auch ganztägige wie Urlaub) zählen als belegt,
@@ -114,11 +136,25 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    3. Die bestehende Firmennummer bei Nichterreichen oder ganz auf die Vapi-Nummer umleiten.
    4. Prüfen unter Cockpit → Telefon-Assistent.
 4. **E-Mail:**
-   1. `IMAP_*`, `SMTP_*` und `CRON_SECRET` setzen.
-   2. `/api/cron/mail` alle 5 Minuten aufrufen:
+   - *Microsoft 365 (empfohlen bei Outlook):*
+     1. Im Entra-Admin-Center eine App registrieren und ein Client-Secret anlegen (dieselbe App wie für den Kalender).
+     2. Zugriff nur auf das eine Postfach geben, mit „RBAC für Anwendungen“ in Exchange Online – **ohne** `Mail.Send`.
+        Die Berechtigung `Mail.ReadWrite` dann nicht zusätzlich mandantenweit in Entra vergeben (die Rechte addieren sich).
+        Befehle laut Microsoft-Doku „Role Based Access Control for Applications in Exchange Online“ (vor dem Ausführen dort gegenprüfen):
+        ```powershell
+        Connect-ExchangeOnline
+        New-ServicePrincipal -AppId <Client-ID> -ObjectId <Objekt-ID der Unternehmensanwendung> -DisplayName "KI-Büroassistent"
+        New-ManagementScope -Name "KI-Postfach" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'office@firma.at'"
+        New-ManagementRoleAssignment -App <Client-ID> -Role "Application Mail.ReadWrite" -CustomResourceScope "KI-Postfach"
+        Test-ServicePrincipalAuthorization -Identity <Client-ID> -Resource office@firma.at
+        ```
+     3. `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_MAILBOX` und `CRON_SECRET` setzen.
+     4. Ausnahmen (`excludeSenders`) und Ablage-Ordner (`filing`) unter `emailAssistant` in `config/business.ts` festlegen.
+   - *IMAP:* `IMAP_*`, `SMTP_*` und `CRON_SECRET` setzen.
+   - `/api/cron/mail` alle 5 Minuten aufrufen:
       `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/mail`
-      (oder per Vercel Cron, der diesen Header bei gesetztem `CRON_SECRET` selbst mitschickt).
-   3. Zum Start Modus „Entwurf“. Nach ein paar Wochen Vertrauen auf „autonom“ umstellen.
+     (oder per Vercel Cron, der diesen Header bei gesetztem `CRON_SECRET` selbst mitschickt).
+   - Bei IMAP zum Start Modus „Entwurf“. Nach ein paar Wochen Vertrauen auf „autonom“ umstellen. Mit Microsoft 365 wird immer in Outlook gesendet.
 5. **Kalender** (optional, `CALENDAR_PROVIDER`):
    - *Google:*
      1. In der Google Cloud Console die Google Calendar API aktivieren.
@@ -146,7 +182,7 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
    | Route | Rhythmus | Zweck |
    |---|---|---|
-   | `/api/cron/mail` | alle 5 Minuten | Postfach abrufen |
+   | `/api/cron/mail` | alle 5 Minuten | Postfach abrufen, Belege ablegen, Outlook-Entwürfe abgleichen |
    | `/api/cron/reminders` | stündlich | Terminerinnerungen |
    | `/api/cron/followups` | täglich morgens | Nachfass-Entwürfe |
    | `/api/cron/report` | am 1. des Monats | Monatsbericht an `REPORT_EMAIL` (sonst `TEAM_NOTIFY_EMAIL`) |
@@ -164,7 +200,9 @@ Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_S
       (WhatsApp: Meta als Auftragsverarbeiter, Drittlandtransfer)
 - [ ] Bestätigungen, Erinnerungen und Nachfass-E-Mails beziehen sich nur auf die konkrete Anfrage bzw. den gebuchten Termin.
       Bewertungsanfragen oder Werbung ohne Einwilligung sind bewusst **nicht** eingebaut (§ 174 TKG, § 7 UWG).
-- [ ] Auftragsverarbeitungsverträge: Hosting, Datenbank, Anthropic, Vapi samt Telefonie- und Sprachdienst, ggf. CRM.
+- [ ] E-Mail-Assistent: Was an Anthropic geht, sind Text der ausgewerteten E-Mails und Rechnungsanhänge. Kundenverträge mit
+      Verschwiegenheitspflichten prüfen und betroffene Absender in `excludeSenders` aufnehmen.
+- [ ] Auftragsverarbeitungsverträge: Hosting, Datenbank, Anthropic, Microsoft, Vapi samt Telefonie- und Sprachdienst, ggf. CRM.
       Vapi und Azure verarbeiten Gesprächsdaten, für Drittländer den Datentransfer prüfen.
 - [ ] Hinweis auf Gesprächsaufzeichnung bzw. Transkription am Gesprächsbeginn, falls Aufnahmen gespeichert werden
 - [ ] Keine Werbeanrufe oder Werbe-E-Mails ohne Einwilligung (§ 174 TKG 2021 bzw. § 7 UWG). Der Assistent nimmt nur Anrufe an.
@@ -184,7 +222,9 @@ lib/voice/               Telefon-Assistent: Vapi-Konfiguration und Webhook-Verar
 lib/chat/                Chat-Assistent: Claude-Werkzeugschleife, Ablauf, Versandwege
 lib/whatsapp.ts          WhatsApp Cloud API: Signaturprüfung, Webhook, Versand
 lib/conversations.ts     Chat-Gespräche und -Nachrichten
-lib/mail/                E-Mail-Assistent: Auswertung (Claude), IMAP, SMTP, Verarbeitung
+lib/mail/                E-Mail-Assistent: Auswertung (Claude), Postfach (Microsoft 365, IMAP), SMTP, Verarbeitung
+lib/receipts/            Belege-Ablage: Erkennen, Auslesen (Claude), Speicher, Monatspaket (ZIP + CSV)
+lib/graph.ts             Microsoft Graph mit App-Zugang
 lib/stats.ts             Kennzahlen zur Wirkung
 lib/report.ts            Monatsbericht (Seite und E-Mail-Text)
 lib/reminders.ts         Terminbestätigung und -erinnerung (SMS/E-Mail)

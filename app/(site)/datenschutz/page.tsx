@@ -35,6 +35,10 @@ export default function DatenschutzPage() {
             Telefon-Assistent: [z. B. Vapi, Telefonie-Anbieter, Sprachdienst]. Anrufe werden zur Bearbeitung transkribiert und
             zusammengefasst.
           </li>
+          <li>
+            E-Mail-Postfach: [z. B. Microsoft 365]. Eingehende E-Mails und Rechnungsanhänge werden mit KI-Unterstützung (Anthropic)
+            eingeordnet und ausgelesen.
+          </li>
           <li>Terminbestätigungen und -erinnerungen per SMS: [z. B. Twilio].</li>
           <li>WhatsApp-Assistent: WhatsApp Business Platform (Meta). Nachrichten werden von einer KI (Anthropic) beantwortet.</li>
         </ul>

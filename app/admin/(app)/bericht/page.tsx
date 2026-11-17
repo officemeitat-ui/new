@@ -101,6 +101,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/ber
         <Metric label="Antworten gesendet" value={c.repliesSent} previous={p.repliesSent} />
         <Metric label="Gesprächszeit" value={c.callMinutes} previous={p.callMinutes} unit=" Min." />
         <Metric label="WhatsApp-Gespräche" value={c.chats} previous={p.chats} />
+        {(c.receipts > 0 || p.receipts > 0) && <Metric label="Belege erfasst" value={c.receipts} previous={p.receipts} />}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -110,8 +111,8 @@ export default async function ReportPage({ searchParams }: PageProps<"/admin/ber
 
       <p className="text-xs text-slate-500">
         Zeitersparnis geschätzt mit {business.impact.minutesPerCall} Min. je Anruf, {business.impact.minutesPerEmail} Min. je E-Mail,{" "}
-        {business.impact.minutesPerChat} Min. je WhatsApp-Gespräch und {business.impact.minutesPerAppointment} Min. je Terminvereinbarung.
-        Termine zählen nach Buchungsdatum, E-Mails nach Eingang.
+        {business.impact.minutesPerChat} Min. je WhatsApp-Gespräch, {business.impact.minutesPerAppointment} Min. je Terminvereinbarung und{" "}
+        {business.impact.minutesPerReceipt} Min. je Beleg. Termine zählen nach Buchungsdatum, E-Mails nach Eingang.
       </p>
     </div>
   );
