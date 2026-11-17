@@ -388,6 +388,44 @@ const SCHEMA = [
     created_by TEXT,
     created_at TEXT NOT NULL
   )`,
+  // ── Kundenakte: strukturierte Einträge (Inhalt verschlüsselt, Frist und Prüfziel lesbar für Erinnerungen) ──
+  `CREATE TABLE IF NOT EXISTS records (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    data TEXT NOT NULL,
+    due_at TEXT,
+    check_target TEXT,
+    check_result TEXT,
+    checked_at TEXT,
+    updated_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS checklists (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    template_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    due_date TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    done_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS checklist_items (
+    checklist_id TEXT NOT NULL REFERENCES checklists(id) ON DELETE CASCADE,
+    idx INTEGER NOT NULL,
+    section TEXT,
+    text TEXT NOT NULL,
+    hint TEXT,
+    done_at TEXT,
+    done_by TEXT,
+    PRIMARY KEY (checklist_id, idx)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_records_customer ON records(customer_id, kind)`,
+  `CREATE INDEX IF NOT EXISTS idx_records_due ON records(due_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_checklists_customer ON checklists(customer_id)`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(key, at)`,
   `CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at)`,

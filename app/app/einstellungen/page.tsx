@@ -1,5 +1,6 @@
 import { disconnectMicrosoft, endOtherSessions, endSession } from "@/app/app/einstellungen/actions";
-import { PasswordChangeForm, RecoveryCodesForm } from "@/components/workspace/SettingsUI";
+import { DemoData, PasswordChangeForm, RecoveryCodesForm } from "@/components/workspace/SettingsUI";
+import { demoLoaded } from "@/lib/demo";
 import { workspace } from "@/config/workspace";
 import { currentSession, requireAdmin } from "@/lib/auth";
 import { microsoftLoginConfigured } from "@/lib/entra";
@@ -104,6 +105,17 @@ export default async function KontoPage() {
         <PasswordChangeForm hasPassword={user.hasPassword} />
         {user.totpEnabled && <RecoveryCodesForm />}
       </section>
+
+      {user.role === "inhaber" && (
+        <section className={card}>
+          <h2 className="font-semibold">Demo-Daten</h2>
+          <p className="text-sm text-slate-600">
+            Drei Beispielkunden mit Tickets, vollständiger Kundenakte, Netzplan, Fristen, Checklisten, Stunden und Schulungen – zum
+            Ausprobieren und Vorführen. Alles ist als „(Demo)“ gekennzeichnet und lässt sich wieder entfernen.
+          </p>
+          <DemoData loaded={await demoLoaded()} />
+        </section>
+      )}
 
       <section className={card}>
         <div className="flex flex-wrap items-center justify-between gap-2">

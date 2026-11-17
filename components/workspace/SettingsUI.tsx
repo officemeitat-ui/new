@@ -1,7 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import { addUser, changeOwnPassword, manageUser, newRecoveryCodes, type SettingsState } from "@/app/app/einstellungen/actions";
+import {
+  addUser,
+  changeOwnPassword,
+  loadDemoAction,
+  manageUser,
+  newRecoveryCodes,
+  removeDemoAction,
+  type SettingsState,
+} from "@/app/app/einstellungen/actions";
 import { Submit } from "@/components/workspace/Forms";
 
 const input = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base md:text-sm focus:border-brand focus:outline-none";
@@ -162,5 +170,26 @@ export function UserActions({ id, role, disabled, self }: { id: string; role: st
         <Feedback state={state} />
       </div>
     </form>
+  );
+}
+
+export function DemoData({ loaded }: { loaded: boolean }) {
+  const [loadState, load] = useActionState(loadDemoAction, {});
+  const [removeState, remove] = useActionState(removeDemoAction, {});
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <form action={load}>
+          <Submit>{loaded ? "Demo-Daten neu laden" : "Demo-Daten laden"}</Submit>
+        </form>
+        {loaded && (
+          <form action={remove}>
+            <Submit className={secondary}>Demo-Daten entfernen</Submit>
+          </form>
+        )}
+      </div>
+      <Feedback state={loadState} />
+      <Feedback state={removeState} />
+    </div>
   );
 }

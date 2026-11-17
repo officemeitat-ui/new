@@ -24,6 +24,7 @@ import { searchDocs } from "@/lib/workspace/docs";
 import { loadNetwork } from "@/lib/workspace/network";
 import { checkNetwork } from "@/lib/network/check";
 import { M365Error, searchFiles } from "@/lib/m365";
+import { allDeadlines } from "@/lib/workspace/deadlines";
 
 // Persönlicher KI-Assistent im Arbeitsplatz: „Setz mir morgen um 9 einen Termin bei Huber“, „Schreib Maria, dass …“.
 // Führt sichere Aktionen direkt aus (Aufgabe, eigener Kalendereintrag, E-Mail-Entwurf) – gesendet wird nie etwas.
@@ -71,6 +72,7 @@ async function systemPrompt(now: Date, user: AssistantUser | null, outlook: bool
     "- Erfinde keine Tickets, Kunden, Geräte oder Termine. Nutze die Werkzeuge, um nachzusehen.",
     "- Die Nachrichten können diktiert sein (Spracheingabe) – deute offensichtliche Hörfehler sinnvoll.",
     "- Fragen zu Verkabelung, Dosen, Switchports, Patchschrank, VLANs, Netzwerkgeräten oder zur Kunden-Doku beantwortest du mit doku_suchen – nur mit dem, was dort steht.",
+    "- Fragen wie „Was läuft demnächst ab?“ oder „Welche Verträge muss ich kündigen?“ beantwortest du mit fristen_anzeigen.",
     "- „Passt das Netz bei …?“ oder Fragen nach Fehlern in der Netzwerkkonfiguration beantwortest du mit netzwerk_pruefen.",
     "- Dateien, Angebote, Verträge, Anleitungen oder Vorlagen suchst du mit dateien_suchen (OneDrive/SharePoint, mit den Rechten der Person). Nenne die Fundstellen mit Link.",
     "- Zeiten buchst du standardmäßig vom vorab bezahlten Stundenpaket des Kunden ab, außer es heißt „extra verrechnen“ oder „intern“. Nenne danach den Reststand.",
@@ -484,7 +486,7 @@ function buildTools(now: Date, actions: AssistantAction[], user: AssistantUser |
           const hits = await searchDocs(args.suchbegriff, customer?.id, 15);
           const lines = hits.map(
             (h) =>
-              `[${{ port: "Verkabelung", rack: "Patchschrank", page: "Seite", network: "Netzwerk" }[h.kind]}] ${h.customerName}: ${h.title} – ${h.detail}`,
+              `[${{ port: "Verkabelung", rack: "Patchschrank", page: "Seite", network: "Netzwerk", record: "Kundenakte" }[h.kind]}] ${h.customerName}: ${h.title} – ${h.detail}`,
           );
           if (bookstackConfigured()) {
             try {
@@ -529,6 +531,21 @@ function buildTools(now: Date, actions: AssistantAction[], user: AssistantUser |
             if (error instanceof M365Error) return error.message;
             throw error;
           }
+        }),
+    }),
+    betaZodTool({
+      name: "fristen_anzeigen",
+      description:
+        "Zeigt Fristen: ablaufende Lizenzen, Kündigungstermine von Verträgen, Garantien, Domains, Zertifikate, fällige Backup-Tests und Schulungen.",
+      inputSchema: z.object({ tage: z.number().int().min(1).max(365).optional(), kunde: z.string().optional() }),
+      run: (args) =>
+        safe(async () => {
+          const customer = args.kunde ? await findCustomer(args.kunde) : null;
+          if (args.kunde && !customer) return `Keinen Kunden „${args.kunde}“ gefunden.`;
+          const items = (await allDeadlines(args.tage ?? 60, now)).filter((d) => !customer || d.customerId === customer.id);
+          if (!items.length) return "In diesem Zeitraum ist nichts fällig.";
+          actions.push({ kind: "link", title: "Fristen", href: "/app/fristen" });
+          return items.map((d) => `${d.dueAt}: ${d.label} – ${d.title ?? d.kind} (${d.customerName})`).join("\n");
         }),
     }),
     betaZodTool({

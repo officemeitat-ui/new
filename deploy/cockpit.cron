@@ -9,5 +9,7 @@ PATH=/usr/local/bin:/usr/bin:/bin
 7 * * * * cockpit /opt/cockpit/app/deploy/cron.sh reminders
 40 7 * * 1-5 cockpit /opt/cockpit/app/deploy/cron.sh followups
 20 6 1 * * cockpit /opt/cockpit/app/deploy/cron.sh report
+# Domains der Kunden prüfen (SPF, DMARC, DKIM, Zertifikate) jeden Morgen
+35 5 * * * cockpit /opt/cockpit/app/deploy/cron.sh checks
 # Datensicherung jede Nacht
 15 2 * * * cockpit /opt/cockpit/app/deploy/backup.sh

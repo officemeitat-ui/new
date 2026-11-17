@@ -5,7 +5,7 @@ import { bookstackConfigured, BookStackError, searchBookStack, type BookStackSea
 import { listCustomers } from "@/lib/workspace/customers";
 import { searchDocs } from "@/lib/workspace/docs";
 
-const KIND_LABEL = { port: "Verkabelung", rack: "Patchschrank", page: "Seite", network: "Netzwerk" };
+const KIND_LABEL = { port: "Verkabelung", rack: "Patchschrank", page: "Seite", network: "Netzwerk", record: "Kundenakte" };
 
 /** Eine Suche über die Doku aller Kunden – und, wenn verbunden, über BookStack. */
 export default async function DokuSuchePage({ searchParams }: PageProps<"/app/doku">) {

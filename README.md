@@ -99,6 +99,21 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   Knappe und überzogene Pakete erscheinen auf „Heute“ und im Menü. Zeit lässt sich auch direkt am Ticket buchen.
   Je Kunde und Monat gibt es den **Leistungsnachweis als CSV** (mit Summen und Reststand).
   Optional Aufrunden im 15-Minuten-Takt (`hours.roundToMinutes` in `config/workspace.ts`).
+- **Kundenakte wie IT Glue/Hudu** (Kundenakte → Dokumentation, mit Navigation nach Bereichen):
+  **Ansprechpartner** (wer darf freigeben, VIP), **Standorte** (Zutritt, Technikraum), **Inventar** (Seriennummer, Benutzer,
+  Garantie), **WLAN**, **Domains & E-Mail**, **Microsoft 365** (MFA, Conditional Access, Notfallkonto, GDAP), **Lizenzen**,
+  **Verträge** (mit Kündigungsfrist), **Anwendungen** (Hersteller-Support), **Datensicherung** (letzter Wiederherstellungstest).
+  Felder kommen aus Vorlagen in [`config/records.ts`](config/records.ts) – eigene Felder oder Bereiche dort ergänzen.
+  Alles verschlüsselt im Doku-Tresor; Übersicht mit Vollständigkeit, Fristen und Domain-Noten; Suche und Assistent finden alles.
+- **Domain-Prüfung** (täglich und auf Knopfdruck): Mailserver, **SPF, DMARC, DKIM** und **Zertifikat** der Website – mit Note A–F
+  und konkreten Hinweisen („TXT: v=spf1 include:spf.protection.outlook.com -all“). Prüft nur öffentliche DNS-Daten.
+- **Fristen** über alle Kunden: Lizenzen, **spätester Kündigungstermin** von Verträgen, Garantien, Domains, Zertifikate,
+  fällige Backup-Tests und Schulungs-Auffrischungen – mit „Als Aufgabe“ (zwei Wochen vorher) und Hinweis auf „Heute“.
+- **Checklisten** für Onboarding, Offboarding, neuen PC, Jahreswartung, Neukunden-Übernahme und M365-Grundschutz –
+  je Kunde, mit „wer hat wann abgehakt“. Vorlagen in [`config/checklists.ts`](config/checklists.ts).
+- **Kunden-Gesundheit** 0–100 je Kunde aus Tickets, Warnungen, Geräten, Fristen, E-Mail-Sicherheit, Datensicherung,
+  Schulungsstand und Vollständigkeit der Doku – in der Kundenliste und in der Kundenakte mit Begründung.
+- **Demo-Daten** (Einstellungen, nur Inhaber/in): drei Beispielkunden mit allem – zum Ausprobieren und Vorführen, per Klick wieder weg.
 - **Dokumentation je Kunde** (Kundenakte → Dokumentation, Suche über alle Kunden unter „Doku“):
   - **Doku-Tresor:** Die gesamte Dokumentation liegt verschlüsselt in der Datenbank (AES-256-GCM) und öffnet sich nur mit einem
     eigenen Doku-Passwort – zusätzlich zur Anmeldung. Beim Einrichten gibt es einen **Wiederherstellungsschlüssel** (einmalig
@@ -276,6 +291,7 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    | `/api/cron/reminders` | stündlich | Terminerinnerungen |
    | `/api/cron/followups` | täglich morgens | Nachfass-Entwürfe |
    | `/api/cron/report` | am 1. des Monats | Monatsbericht an `REPORT_EMAIL` (sonst `TEAM_NOTIFY_EMAIL`) |
+   | `/api/cron/checks` | täglich morgens | Domains der Kunden prüfen (SPF, DMARC, DKIM, Zertifikat) |
 
 ## Webhook-Ereignisse
 
@@ -332,6 +348,12 @@ lib/m365.ts              OneDrive/SharePoint mit den Rechten der angemeldeten Pe
 lib/awareness/           Security Awareness: Inhalte (aus dem Awareness-Paket), Lernende, Fortschritt, Quiz, Selbstbewertung
 app/lernen/              Lernbereich für Teilnehmende (persönlicher Link, ohne Konto)
 lib/workspace/vault.ts   Doku-Tresor: Schlüsselableitung (scrypt), Verschlüsselung (AES-256-GCM), Entsperren
+config/records.ts        Feldvorlagen der Kundenakte (Ansprechpartner, Inventar, Domains, Lizenzen, Verträge …)
+config/checklists.ts     Checklisten-Vorlagen (Onboarding, Offboarding, Wartung …)
+lib/workspace/records.ts Einträge der Kundenakte (verschlüsselt), Fristen
+lib/checks/              Domain-Prüfung (DNS, TLS)
+lib/workspace/health.ts  Kunden-Gesundheit
+lib/demo.ts              Demo-Daten
 lib/network/             Netzwerkdokumentation: IP-Rechnen, Gerätebibliothek, Prüfung, Wegverfolgung, Plan-Anordnung
 lib/ai-client.ts         Claude-Zugang direkt bei Anthropic oder über Azure (Microsoft Foundry)
 lib/bookstack.ts         BookStack-API (Bücher, Seiten, Suche)

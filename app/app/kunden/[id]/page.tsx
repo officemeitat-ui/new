@@ -8,6 +8,8 @@ import { requireAdmin } from "@/lib/auth";
 import { localDate } from "@/lib/calendar";
 import { listFolder, M365Error, type DriveFile } from "@/lib/m365";
 import { microsoftRefreshToken } from "@/lib/users";
+import { listChecklists } from "@/lib/workspace/checklists";
+import { HEALTH_STYLE, healthFor } from "@/lib/workspace/health";
 import { getCustomer, listAlerts, listCustomers, listDevices, listTickets, TICKET_STATUS_LABELS } from "@/lib/workspace/customers";
 import { ago, BALANCE_STYLE, dueLabel, formatHours, PRIORITY_DOT, SEVERITY_STYLE } from "@/lib/workspace/format";
 import { getAccount } from "@/lib/workspace/hours";
@@ -28,6 +30,7 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
     getAccount(id, today.slice(0, 7)),
   ]);
   const offline = devices.filter((d) => d.online === false).length;
+  const [health, checklists] = await Promise.all([healthFor(id), listChecklists({ customerId: id, open: true })]);
   // Kundenordner in OneDrive/SharePoint – mit den Rechten der angemeldeten Person
   const microsoft = Boolean(await microsoftRefreshToken(user.id));
   let files: DriveFile[] = [];
@@ -108,6 +111,61 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
           </span>
         </Link>
       </header>
+
+      <section className="grid gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:grid-cols-[auto_1fr]">
+        <div className="flex items-center gap-3 md:flex-col md:justify-center md:px-4">
+          <span className={`flex h-20 w-20 items-center justify-center rounded-full text-3xl font-black ${HEALTH_STYLE[health.grade]}`}>
+            {health.score}
+          </span>
+          <span className="text-sm font-semibold">Gesundheit: {health.grade}</span>
+        </div>
+        <ul className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {health.factors.map((f) => (
+            <li key={f.label}>
+              <div className="flex justify-between text-xs">
+                <span className="font-medium text-slate-700">{f.label}</span>
+                <span className="text-slate-500">
+                  {f.points}/{f.max}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className={`h-full rounded-full ${f.points / f.max >= 0.8 ? "bg-emerald-500" : f.points / f.max >= 0.5 ? "bg-amber-400" : "bg-red-500"}`}
+                  style={{ width: `${Math.round((f.points / f.max) * 100)}%` }}
+                />
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500">{f.note}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {checklists.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="font-semibold">Offene Checklisten</h2>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {checklists.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/app/checklisten/${c.id}`}
+                  className="block rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 hover:ring-brand"
+                >
+                  <span className="block font-medium">{c.title}</span>
+                  <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <span
+                      className="block h-full rounded-full bg-brand"
+                      style={{ width: `${c.total ? Math.round((c.done / c.total) * 100) : 0}%` }}
+                    />
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {c.done}/{c.total} erledigt
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">

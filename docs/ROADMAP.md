@@ -12,13 +12,15 @@ Sortiert nach Nutzen im Verhältnis zum Aufwand. ✅ = vorhanden.
 - ✅ Konten mit Microsoft-Anmeldung (SSO, MFA über Conditional Access) oder Passwort + Einmalcode, Rollen, Protokoll
 - ✅ Wissen & Dateien aus OneDrive/SharePoint, „Frag die Wissensdatenbank“
 - ✅ Security-Awareness-Plattform für Team und Kunden (AI Act Art. 4, Nachweis, Selbstbewertung)
+- ✅ Kundenakte wie IT Glue/Hudu (Ansprechpartner, Standorte, Inventar, WLAN, Domains, M365, Lizenzen, Verträge, Anwendungen, Backup)
+- ✅ Domain-Prüfung (SPF/DMARC/DKIM/Zertifikat), Fristen-Übersicht, Checklisten, Kunden-Gesundheit, Demo-Daten
 
 ## Als Nächstes (größter Hebel)
 
 1. **UniFi- und Securepoint-Import** – Geräte, Ports, VLANs und WAN direkt aus UniFi Network (API) bzw. der Securepoint-Konfiguration
    übernehmen statt abtippen; regelmäßiger Abgleich zeigt Abweichungen zur Doku („Port 12 ist jetzt VLAN 30 – Doku sagt 20“).
-2. **Ablauf-Überwachung** – Zertifikate (TLS), Domains, Lizenzen (M365, Securepoint, Sophos, Kaspersky), Garantien (HP, Lenovo,
-   TERRA) je Kunde; 60/30/7 Tage vorher als Aufgabe auf „Heute“ und als Angebotsentwurf.
+2. **Garantie- und Lizenzdaten automatisch** – Garantien direkt bei HP, Lenovo und Wortmann abfragen, Lizenzen aus Pax8 bzw.
+   dem Securepoint-Partnerportal übernehmen; Verlängerungs-Angebot als Entwurf.
 3. **M365-Mandanten-Check für Kunden** (über GDAP/Lighthouse): MFA-Abdeckung, Legacy-Auth, Admin-Konten, Weiterleitungen nach außen,
    Secure Score – Ergebnis direkt in die Selbstbewertung und den Monatsbericht.
 4. **Onboarding/Offboarding-Assistent** – Checkliste je Kunde; legt in Entra ID Konto, Gruppen, Lizenz an bzw. sperrt, entzieht,

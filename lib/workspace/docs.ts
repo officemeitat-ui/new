@@ -2,6 +2,8 @@ import "server-only";
 import type { Row } from "@libsql/client";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { findLayout } from "@/config/records";
+import { allRecordsForSearch, describeRecord } from "@/lib/workspace/records";
 import { docKey, isSealed, seal, unseal } from "@/lib/workspace/vault";
 
 // Kunden-Dokumentation: Doku-Seiten (Markdown), Patchschränke mit Höheneinheiten und die Patchliste (Verkabelung).
@@ -505,7 +507,7 @@ export function portsCsv(ports: PatchPort[]): string {
 // ── Suche und Export ──
 
 export type DocHit = {
-  kind: "port" | "rack" | "page" | "network";
+  kind: "port" | "rack" | "page" | "network" | "record";
   customerId: string;
   customerName: string;
   title: string;
@@ -635,6 +637,19 @@ export async function searchDocs(query: string, customerId?: string, limit = 30)
       });
     }
   }
+  for (const item of await allRecordsForSearch(key, customerId)) {
+    const layout = findLayout(item.kind);
+    const detail = describeRecord(item);
+    if (!layout || !matches(layout.label, item.title, detail, item.customerName)) continue;
+    hits.push({
+      kind: "record",
+      customerId: item.customerId,
+      customerName: item.customerName,
+      title: item.title,
+      detail: `${layout.label}${detail ? ` · ${detail}` : ""}`.slice(0, 240),
+      href: `/app/kunden/${item.customerId}/doku/eintraege/${item.kind}/${item.id}`,
+    });
+  }
   return hits.slice(0, limit);
 }
 
@@ -647,6 +662,7 @@ export async function encryptExistingDocs(key: Buffer): Promise<number> {
     ["rack_items", ["name", "model", "ip", "notes"]],
     ["patch_ports", ["panel", "panel_port", "outlet", "room", "switch_name", "switch_port", "vlan", "device", "cable", "notes"]],
     ["network_models", ["data"]],
+    ["records", ["title", "data"]],
   ];
   let count = 0;
   for (const [table, columns] of tables) {
@@ -694,4 +710,17 @@ export function cablingMarkdown(customerName: string, racks: Rack[], ports: Patc
   parts.push(`| ${PATCH_FIELDS.map((f) => f.label).join(" | ")} |`, `|${PATCH_FIELDS.map(() => "---").join("|")}|`);
   for (const port of ports) parts.push(`| ${PATCH_FIELDS.map(({ key }) => cell(port[key])).join(" | ")} |`);
   return `# Verkabelung und Patchschrank – ${customerName}\n\n${parts.join("\n")}\n`;
+}
+
+/** Anzahl der Doku-Elemente je Bereich – ohne Entschlüsseln (für die Navigation). */
+export async function countDocs(customerId: string): Promise<{ seiten: number; schrank: number; verkabelung: number; netzwerk: number }> {
+  const client = await db();
+  const count = async (sql: string) => Number((await client.execute({ sql, args: [customerId] })).rows[0].n);
+  const [seiten, schrank, verkabelung, netzwerk] = await Promise.all([
+    count("SELECT COUNT(*) AS n FROM doc_pages WHERE customer_id = ?"),
+    count("SELECT COUNT(*) AS n FROM racks WHERE customer_id = ?"),
+    count("SELECT COUNT(*) AS n FROM patch_ports WHERE customer_id = ?"),
+    count("SELECT COUNT(*) AS n FROM network_models WHERE customer_id = ?"),
+  ]);
+  return { seiten, schrank, verkabelung, netzwerk };
 }

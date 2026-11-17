@@ -7,6 +7,8 @@ import { requireAdmin } from "@/lib/auth";
 export default async function MehrPage() {
   const user = await requireAdmin();
   const links = [
+    { href: "/app/checklisten", label: "Checklisten", hint: "Onboarding, Offboarding, Wartung", icon: ICONS.checklisten },
+    { href: "/app/fristen", label: "Fristen", hint: "Lizenzen, Verträge, Garantien, Zertifikate", icon: ICONS.fristen },
     { href: "/app/stunden", label: "Stunden", hint: "Stundenpakete und Zeiten", icon: ICONS.stunden },
     { href: "/app/doku", label: "Doku", hint: "Dokumentation, Netzwerk, Suche", icon: ICONS.doku },
     { href: "/app/wissen", label: "Wissen & Dateien", hint: "OneDrive, SharePoint, Wissensdatenbank", icon: ICONS.wissen },

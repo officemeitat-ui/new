@@ -11,6 +11,8 @@ import { ago, BALANCE_STYLE, dueLabel, formatHours, PRIORITY_DOT, SEVERITY_STYLE
 import { listEvents, outlookConfigured, type CalendarEntry } from "@/lib/workspace/outlook";
 import { listTasks } from "@/lib/workspace/tasks";
 import { listAccounts } from "@/lib/workspace/hours";
+import { allDeadlines } from "@/lib/workspace/deadlines";
+import { listCustomers } from "@/lib/workspace/customers";
 
 function Card({ title, href, count, children }: { title: string; href?: string; count?: number; children: React.ReactNode }) {
   return (
@@ -65,6 +67,8 @@ export default async function HeutePage({ searchParams }: PageProps<"/app">) {
     getSyncState("atera"),
     listAccounts(today.slice(0, 7)),
   ]);
+  const deadlines = await allDeadlines(30, now);
+  const empty = (await listCustomers()).length === 0;
   const waiting = tickets.filter((t) => t.waitingForUs);
   const urgentTickets = tickets.filter((t) => t.priority === "Critical" || t.priority === "High");
   const ticketFocus = [...new Map([...urgentTickets, ...waiting].map((t) => [t.id, t])).values()].slice(0, 6);
@@ -73,6 +77,20 @@ export default async function HeutePage({ searchParams }: PageProps<"/app">) {
 
   return (
     <div className="space-y-5">
+      {empty && (
+        <p className="rounded-xl bg-sky-50 px-4 py-3 text-sm text-sky-900 ring-1 ring-sky-200">
+          Noch keine Kunden – sie kommen mit dem Atera-Abgleich (Tickets → Jetzt abgleichen).{" "}
+          {user.role === "inhaber" && (
+            <>
+              Zum Ausprobieren:{" "}
+              <Link href="/app/einstellungen" className="font-semibold underline">
+                Demo-Daten laden
+              </Link>
+              .
+            </>
+          )}
+        </p>
+      )}
       {denied && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
           Dieser Bereich (Büro, Cockpit, Benutzerverwaltung) ist dem Inhaber-Konto vorbehalten.
@@ -209,6 +227,25 @@ export default async function HeutePage({ searchParams }: PageProps<"/app">) {
           )}
         </Card>
 
+        {deadlines.length > 0 && (
+          <Card title="Fristen (30 Tage)" count={deadlines.length} href="/app/fristen">
+            <ul className="space-y-2">
+              {deadlines.slice(0, 6).map((d) => (
+                <li key={d.key} className="flex items-center justify-between gap-2 text-sm">
+                  <Link href={d.href} className="min-w-0 truncate hover:underline">
+                    <span className="font-medium">{d.label}</span> · {d.title ?? d.kind} ·{" "}
+                    <span className="text-slate-500">{d.customerName}</span>
+                  </Link>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${d.dueAt < today ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}
+                  >
+                    {d.dueAt < today ? "überfällig" : dueLabel(d.dueAt, today).label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
         {lowAccounts.length > 0 && (
           <Card title="Stundenpakete knapp" count={lowAccounts.length} href="/app/stunden">
             <ul className="space-y-2">

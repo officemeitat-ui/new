@@ -10,6 +10,7 @@ import {
   RackForm,
   RackItemForm,
 } from "@/components/workspace/DocsUI";
+import { DokuOverview } from "@/components/workspace/DokuOverview";
 import { requireAdmin } from "@/lib/auth";
 import { bookstackConfigured, BookStackError, bookstackUrl, listBookPages, listBooks, type BookStackBook } from "@/lib/bookstack";
 import { getCustomer } from "@/lib/workspace/customers";
@@ -17,6 +18,7 @@ import { listPages, listPorts, listRacks, PAGE_TEMPLATES, PATCH_FIELDS, RACK_ITE
 import { shortDate } from "@/lib/workspace/format";
 
 const TABS = [
+  { id: "uebersicht", label: "Übersicht" },
   { id: "netzwerk", label: "Netzwerk" },
   { id: "seiten", label: "Seiten" },
   { id: "schrank", label: "Patchschrank" },
@@ -85,7 +87,7 @@ export default async function KundenDokuPage({ params, searchParams }: PageProps
   const { tab: tabParam, bearbeiten } = await searchParams;
   const customer = await getCustomer(id);
   if (!customer) notFound();
-  const tab = TABS.find((t) => t.id === tabParam)?.id ?? "seiten";
+  const tab = TABS.find((t) => t.id === tabParam)?.id ?? "uebersicht";
   const [pages, racks, ports] = await Promise.all([listPages(id), listRacks(id), listPorts(id)]);
   const editing = typeof bearbeiten === "string" ? ports.find((p) => p.id === bearbeiten) : undefined;
 
@@ -101,27 +103,17 @@ export default async function KundenDokuPage({ params, searchParams }: PageProps
     }
   }
   const linkedBook = books.find((b) => String(b.id) === customer.bookstackBookId);
-  const counts: Record<string, number> = { seiten: pages.length, schrank: racks.length, verkabelung: ports.length };
 
   return (
     <div className="space-y-4">
       <Link href={`/app/kunden/${customer.id}`} className="text-sm text-slate-500 hover:text-slate-900">
         ← {customer.name}
       </Link>
-      <h1 className="text-2xl font-bold">Dokumentation</h1>
+      <h1 className="text-2xl font-bold">
+        Dokumentation <span className="font-normal text-slate-500">· {customer.name}</span>
+      </h1>
 
-      <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 text-sm font-medium">
-        {TABS.map((t) => (
-          <Link
-            key={t.id}
-            href={t.id === "netzwerk" ? `/app/kunden/${customer.id}/doku/netzwerk` : `/app/kunden/${customer.id}/doku?tab=${t.id}`}
-            className={`rounded-full px-3 py-1.5 whitespace-nowrap ${t.id === tab ? "bg-brand text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"}`}
-          >
-            {t.label}
-            {counts[t.id] ? <span className="ml-1 opacity-70">{counts[t.id]}</span> : null}
-          </Link>
-        ))}
-      </nav>
+      {tab === "uebersicht" && <DokuOverview customerId={customer.id} />}
 
       {tab === "seiten" && (
         <div className="space-y-4">

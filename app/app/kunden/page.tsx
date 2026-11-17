@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { listCustomers } from "@/lib/workspace/customers";
+import { HEALTH_STYLE, healthForCustomers } from "@/lib/workspace/health";
 
 export default async function KundenPage({ searchParams }: PageProps<"/app/kunden">) {
   await requireAdmin();
   const { q } = await searchParams;
   const query = typeof q === "string" ? q.trim().toLowerCase() : "";
   const customers = (await listCustomers()).filter((c) => !query || c.name.toLowerCase().includes(query));
+  const health = await healthForCustomers(customers.map((c) => c.id));
 
   return (
     <div className="space-y-4">
@@ -42,9 +44,17 @@ export default async function KundenPage({ searchParams }: PageProps<"/app/kunde
                     {c.devices} Geräte{c.offline > 0 && `, ${c.offline} offline`} · {c.openTasks} Aufgaben
                   </span>
                 </span>
-                <span className="flex shrink-0 gap-1 text-xs font-medium">
+                <span className="flex shrink-0 items-center gap-1 text-xs font-medium">
                   {c.openTickets > 0 && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-800">{c.openTickets} Tickets</span>}
                   {c.alerts > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-800">{c.alerts} Warn.</span>}
+                  {health.get(c.id) && (
+                    <span
+                      title={`Gesundheit: ${health.get(c.id)!.grade}`}
+                      className={`rounded-lg px-2 py-1 text-sm font-bold tabular-nums ${HEALTH_STYLE[health.get(c.id)!.grade]}`}
+                    >
+                      {health.get(c.id)!.score}
+                    </span>
+                  )}
                 </span>
               </Link>
             </li>

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logAction, requireAdmin, requireOwner, currentSession } from "@/lib/auth";
+import { VaultLockedError } from "@/lib/workspace/vault";
 import {
   checkPassword,
   createUser,
@@ -134,4 +135,33 @@ export async function manageUser(_prev: SettingsState, formData: FormData): Prom
   }
   revalidatePath("/app/einstellungen/benutzer");
   return { ok: true, message: "Gespeichert." };
+}
+
+// ── Demo-Daten (nur Inhaber/in) ──
+
+export async function loadDemoAction(_prev: SettingsState, _formData: FormData): Promise<SettingsState> {
+  const user = await requireOwner();
+  try {
+    const { seedDemo } = await import("@/lib/demo");
+    const result = await seedDemo(user.name);
+    await logAction("Demo-Daten geladen", `${result.customers} Kunden`);
+  } catch (error) {
+    if (error instanceof VaultLockedError)
+      return { error: "Bitte zuerst die Doku entsperren – die Demo-Doku wird verschlüsselt gespeichert." };
+    return fail(error);
+  }
+  revalidatePath("/app", "layout");
+  return {
+    ok: true,
+    message: "Demo-Daten geladen: drei Kunden mit Tickets, Doku, Netzplan, Fristen, Checklisten, Stunden und Schulungen.",
+  };
+}
+
+export async function removeDemoAction(_prev: SettingsState, _formData: FormData): Promise<SettingsState> {
+  await requireOwner();
+  const { removeDemo } = await import("@/lib/demo");
+  await removeDemo();
+  await logAction("Demo-Daten entfernt");
+  revalidatePath("/app", "layout");
+  return { ok: true, message: "Demo-Daten entfernt." };
 }
