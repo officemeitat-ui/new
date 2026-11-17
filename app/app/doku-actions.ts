@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { BookStackError } from "@/lib/bookstack";
+import { BookStackError, listBooks } from "@/lib/bookstack";
+import { findCustomer } from "@/lib/workspace/customers";
+import { saveNetwork } from "@/lib/workspace/network";
+import { VaultLockedError } from "@/lib/workspace/vault";
 import { importPagesFromBookstack, publishCablingToBookstack } from "@/lib/workspace/bookstack-sync";
 import { getCustomer, setCustomerBookstack } from "@/lib/workspace/customers";
 import {
@@ -207,4 +210,55 @@ export async function importBookstackPages(_prev: DocActionState, formData: Form
     if (error instanceof BookStackError) return { error: error.message };
     throw error;
   }
+}
+
+// ── Netzwerk ──
+
+/** Speichert den kompletten Netzwerkplan eines Kunden (verschlüsselt, wenn der Tresor eingerichtet ist). */
+export async function saveNetworkModel(customerId: string, model: unknown): Promise<DocActionState> {
+  await requireAdmin();
+  const customer = await getCustomer(customerId);
+  if (!customer) return { error: "Kunde nicht gefunden" };
+  try {
+    await saveNetwork(customer.id, model);
+  } catch (error) {
+    if (error instanceof VaultLockedError) return { error: error.message };
+    return { error: "Der Plan enthält ungültige Angaben und wurde nicht gespeichert." };
+  }
+  revalidatePath(`${docPath(customer.id)}/netzwerk`);
+  return { ok: true, message: "Gespeichert" };
+}
+
+// ── Umzug aus BookStack ──
+
+/** Übernimmt alle BookStack-Bücher, deren Name zu einem Kunden passt (einmaliger Umzug in den Arbeitsplatz). */
+export async function migrateAllFromBookstack(_prev: DocActionState, _formData: FormData): Promise<DocActionState> {
+  await requireAdmin();
+  const done: string[] = [];
+  const unmatched: string[] = [];
+  let pages = 0;
+  try {
+    for (const book of await listBooks()) {
+      const customer = await findCustomer(book.name);
+      if (!customer) {
+        unmatched.push(book.name);
+        continue;
+      }
+      if (customer.bookstackBookId !== String(book.id)) await setCustomerBookstack(customer.id, { bookId: String(book.id) });
+      const result = await importPagesFromBookstack({ ...customer, bookstackBookId: String(book.id) });
+      pages += result.created + result.updated;
+      done.push(customer.name);
+    }
+  } catch (error) {
+    if (error instanceof BookStackError || error instanceof VaultLockedError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath("/app/doku");
+  return {
+    ok: true,
+    message: `${pages} Seiten aus ${done.length} Büchern übernommen${done.length ? ` (${done.join(", ")})` : ""}.`,
+    warning: unmatched.length
+      ? `Kein passender Kunde für: ${unmatched.join(", ")} – Kunde anlegen bzw. Buch beim Kunden verknüpfen.`
+      : undefined,
+  };
 }

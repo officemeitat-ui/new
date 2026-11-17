@@ -278,6 +278,19 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_doc_pages_customer ON doc_pages(customer_id, title)`,
   `CREATE INDEX IF NOT EXISTS idx_racks_customer ON racks(customer_id)`,
   `CREATE INDEX IF NOT EXISTS idx_patch_ports_customer ON patch_ports(customer_id, panel)`,
+  `CREATE TABLE IF NOT EXISTS vault (
+    id TEXT PRIMARY KEY,
+    salt TEXT NOT NULL,
+    wrapped TEXT NOT NULL,
+    recovery_salt TEXT NOT NULL,
+    recovery_wrapped TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS network_models (
+    customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+    data TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS sync_state (
     key TEXT PRIMARY KEY,
     value TEXT,

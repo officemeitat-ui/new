@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { BookstackMigration } from "@/components/workspace/DocsUI";
 import { requireAdmin } from "@/lib/auth";
 import { bookstackConfigured, BookStackError, searchBookStack, type BookStackSearchHit } from "@/lib/bookstack";
 import { listCustomers } from "@/lib/workspace/customers";
 import { searchDocs } from "@/lib/workspace/docs";
 
-const KIND_LABEL = { port: "Verkabelung", rack: "Patchschrank", page: "Seite" };
+const KIND_LABEL = { port: "Verkabelung", rack: "Patchschrank", page: "Seite", network: "Netzwerk" };
 
 /** Eine Suche über die Doku aller Kunden – und, wenn verbunden, über BookStack. */
 export default async function DokuSuchePage({ searchParams }: PageProps<"/app/doku">) {
@@ -102,6 +103,8 @@ export default async function DokuSuchePage({ searchParams }: PageProps<"/app/do
           </ul>
         </section>
       )}
+
+      {!query && bookstackConfigured() && <BookstackMigration />}
     </div>
   );
 }

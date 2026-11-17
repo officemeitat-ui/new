@@ -25,6 +25,7 @@ const ACTION_STYLE: Record<AssistantAction["kind"], { label: string; className: 
   entwurf: { label: "E-Mail-Entwurf", className: "bg-violet-50 text-violet-800 ring-violet-200" },
   zeit: { label: "Zeit gebucht", className: "bg-amber-50 text-amber-900 ring-amber-200" },
   stunden: { label: "Stunden gutgeschrieben", className: "bg-emerald-50 text-emerald-800 ring-emerald-200" },
+  link: { label: "Öffnen", className: "bg-slate-50 text-slate-700 ring-slate-200" },
 };
 
 function load(): Turn[] {

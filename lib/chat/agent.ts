@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { claudeClient, fallbackOptions } from "@/lib/ai-client";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { business } from "@/config/business";
@@ -21,7 +22,6 @@ import type { ChatMessage } from "@/lib/conversations";
 // und übergibt an einen Menschen, wenn er nicht weiterkommt oder der Kunde das möchte.
 
 const MODEL = process.env.CHAT_MODEL || "claude-opus-5-5";
-const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
 /** WhatsApp erlaubt bis 4096 Zeichen je Nachricht. */
 const MAX_REPLY_LENGTH = 4000;
 
@@ -30,11 +30,7 @@ export type ChatReply = { text: string; handoff: boolean; handoffReason: string 
 const TECHNICAL_PROBLEM =
   "Entschuldigung, gerade gibt es ein technisches Problem. Eine Kollegin oder ein Kollege meldet sich hier im Chat bei Ihnen.";
 
-let anthropic: Anthropic | undefined;
-function client(): Anthropic {
-  anthropic ??= new Anthropic();
-  return anthropic;
-}
+const client = claudeClient;
 
 function systemPrompt(now: Date, contactPhone: string | undefined): string {
   return [
@@ -127,7 +123,7 @@ export async function generateChatReply(input: {
       max_tokens: 4096,
       max_iterations: 6,
       output_config: { effort: "low" },
-      ...(FALLBACK_MODELS.has(MODEL) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+      ...fallbackOptions(MODEL),
       system: systemPrompt(ctx.now, input.contactPhone),
       messages: toMessageParams(input.history),
       tools,

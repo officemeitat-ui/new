@@ -106,6 +106,7 @@ function respond(body: Body) {
     return toolUse(["aufgaben_anzeigen", { ansicht: "heute" }], ["termine_anzeigen", { von: "2026-11-17", bis: "2026-11-17" }]);
   if (text.includes("Erledige")) return toolUse(["aufgabe_erledigen", { suchbegriff: "Backup" }]);
   if (text.includes("Wo hängt")) return toolUse(["doku_suchen", { suchbegriff: "Drucker", kunde: "Huber" }]);
+  if (text.includes("Passt das Netz")) return toolUse(["netzwerk_pruefen", { kunde: "Huber" }]);
   if (text.includes("gekauft"))
     return toolUse(["stunden_gutschreiben", { kunde: "Huber", stunden: 10, betrag_euro: 950, rechnung: "RE 2026-118" }]);
   if (text.includes("Stunden bei Huber"))
@@ -245,6 +246,7 @@ describe("KI-Assistent", () => {
       "stundenkonto",
       "stunden_gutschreiben",
       "doku_suchen",
+      "netzwerk_pruefen",
     ]);
     expect(request.output_config).toEqual({ effort: "low" });
     expect(request.thread).toBeUndefined();
@@ -321,6 +323,23 @@ describe("KI-Assistent", () => {
     const reply = await ask("Wo hängt der Drucker bei Huber?");
     expect(reply.text).toContain("[Verkabelung] Huber Steuerberatung: Drucker 2. Stock");
     expect(reply.text).toContain("Switch SW-Core Port Gi1/0/25");
+  });
+
+  it("prüft auf Zuruf das Netzwerk eines Kunden", async () => {
+    const network = await import("@/lib/workspace/network");
+    const huber = (await customers.findCustomer("Huber"))!;
+    expect((await ask("Passt das Netz bei Huber?")).text).toContain("Für Huber Steuerberatung ist noch kein Netzwerk dokumentiert.");
+    await network.saveNetwork(huber.id, {
+      version: 1,
+      wan: { mode: "statisch", ip: "203.0.113.10", prefix: 29, gateway: "203.0.113.1" },
+      networks: [{ id: "lan", name: "LAN", vlan: 1, subnet: "192.168.1.0/24", gateway: "192.168.1.1" }],
+      devices: [{ id: "fw", name: "FW-01", kind: "firewall", vendor: "Securepoint", ip: "192.168.1.1", networkId: "lan" }],
+      links: [],
+    });
+    const reply = await ask("Passt das Netz bei Huber?");
+    expect(reply.text).toContain("Netzwerk Huber Steuerberatung: 1 Gerät, 1 Netz.");
+    expect(reply.text).toContain("[fehler] Gateway 203.0.113.1 liegt nicht im WAN-Netz 203.0.113.8/29");
+    expect(reply.actions[0]).toMatchObject({ kind: "link", href: `/app/kunden/${huber.id}/doku/netzwerk` });
   });
 
   it("ohne Outlook: Termin wird Aufgabe, E-Mail ein Link zum Mailprogramm", async () => {

@@ -17,6 +17,7 @@ import { listPages, listPorts, listRacks, PAGE_TEMPLATES, PATCH_FIELDS, RACK_ITE
 import { shortDate } from "@/lib/workspace/format";
 
 const TABS = [
+  { id: "netzwerk", label: "Netzwerk" },
   { id: "seiten", label: "Seiten" },
   { id: "schrank", label: "Patchschrank" },
   { id: "verkabelung", label: "Verkabelung" },
@@ -113,7 +114,7 @@ export default async function KundenDokuPage({ params, searchParams }: PageProps
         {TABS.map((t) => (
           <Link
             key={t.id}
-            href={`/app/kunden/${customer.id}/doku?tab=${t.id}`}
+            href={t.id === "netzwerk" ? `/app/kunden/${customer.id}/doku/netzwerk` : `/app/kunden/${customer.id}/doku?tab=${t.id}`}
             className={`rounded-full px-3 py-1.5 whitespace-nowrap ${t.id === tab ? "bg-brand text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"}`}
           >
             {t.label}

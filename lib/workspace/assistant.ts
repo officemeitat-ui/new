@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { claudeClient, fallbackOptions } from "@/lib/ai-client";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { workspace } from "@/config/workspace";
@@ -20,16 +21,17 @@ import { formatHours } from "@/lib/workspace/format";
 import { addPackage, addTimeEntry, getAccount, listEntries, TIME_MODE_LABELS } from "@/lib/workspace/hours";
 import { bookstackConfigured, searchBookStack } from "@/lib/bookstack";
 import { searchDocs } from "@/lib/workspace/docs";
+import { loadNetwork } from "@/lib/workspace/network";
+import { checkNetwork } from "@/lib/network/check";
 
 // Persönlicher KI-Assistent im Arbeitsplatz: „Setz mir morgen um 9 einen Termin bei Huber“, „Schreib Maria, dass …“.
 // Führt sichere Aktionen direkt aus (Aufgabe, eigener Kalendereintrag, E-Mail-Entwurf) – gesendet wird nie etwas.
 
 const MODEL = process.env.ASSISTANT_MODEL || "claude-opus-5-5";
-const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
 const MAX_HISTORY = 20;
 
 export type AssistantAction = {
-  kind: "aufgabe" | "erledigt" | "termin" | "entwurf" | "zeit" | "stunden";
+  kind: "aufgabe" | "erledigt" | "termin" | "entwurf" | "zeit" | "stunden" | "link";
   title: string;
   detail?: string;
   href?: string;
@@ -37,8 +39,7 @@ export type AssistantAction = {
 export type AssistantTurn = { role: "user" | "assistant"; text: string };
 export type AssistantReply = { text: string; actions: AssistantAction[] };
 
-let anthropic: Anthropic | undefined;
-const client = () => (anthropic ??= new Anthropic());
+const client = claudeClient;
 
 const WEEKDAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 const weekday = (date: string) => WEEKDAYS[new Date(`${date}T12:00:00Z`).getUTCDay()];
@@ -66,7 +67,8 @@ async function systemPrompt(now: Date): Promise<string> {
     "- Passwörter und Zugangsdaten verwaltest du nie und fragst nie danach – die liegen in Keeper. Verweise auf den Keeper-Link beim Kunden.",
     "- Erfinde keine Tickets, Kunden, Geräte oder Termine. Nutze die Werkzeuge, um nachzusehen.",
     "- Die Nachrichten können diktiert sein (Spracheingabe) – deute offensichtliche Hörfehler sinnvoll.",
-    "- Fragen zu Verkabelung, Dosen, Switchports, Patchschrank, VLANs oder zur Kunden-Doku beantwortest du mit doku_suchen – nur mit dem, was dort steht.",
+    "- Fragen zu Verkabelung, Dosen, Switchports, Patchschrank, VLANs, Netzwerkgeräten oder zur Kunden-Doku beantwortest du mit doku_suchen – nur mit dem, was dort steht.",
+    "- „Passt das Netz bei …?“ oder Fragen nach Fehlern in der Netzwerkkonfiguration beantwortest du mit netzwerk_pruefen.",
     "- Zeiten buchst du standardmäßig vom vorab bezahlten Stundenpaket des Kunden ab, außer es heißt „extra verrechnen“ oder „intern“. Nenne danach den Reststand.",
     "",
     "## Zeit",
@@ -466,7 +468,7 @@ function buildTools(now: Date, actions: AssistantAction[]) {
     betaZodTool({
       name: "doku_suchen",
       description:
-        "Durchsucht die Kunden-Dokumentation: Patchliste (Dose, Raum, Patchfeld, Switchport, VLAN, Gerät), Patchschränke und Doku-Seiten – und BookStack, falls verbunden.",
+        "Durchsucht die Kunden-Dokumentation: Patchliste (Dose, Raum, Patchfeld, Switchport, VLAN, Gerät), Patchschränke, Netzwerkgeräte und Doku-Seiten – und BookStack, falls verbunden.",
       inputSchema: z.object({
         suchbegriff: z.string().describe("Wenige Stichwörter, z. B. „Drucker 2. Stock“ oder „Gi1/0/12“"),
         kunde: z.string().optional(),
@@ -478,7 +480,7 @@ function buildTools(now: Date, actions: AssistantAction[]) {
           const hits = await searchDocs(args.suchbegriff, customer?.id, 15);
           const lines = hits.map(
             (h) =>
-              `[${h.kind === "port" ? "Verkabelung" : h.kind === "rack" ? "Patchschrank" : "Seite"}] ${h.customerName}: ${h.title} – ${h.detail}`,
+              `[${{ port: "Verkabelung", rack: "Patchschrank", page: "Seite", network: "Netzwerk" }[h.kind]}] ${h.customerName}: ${h.title} – ${h.detail}`,
           );
           if (bookstackConfigured()) {
             try {
@@ -491,6 +493,27 @@ function buildTools(now: Date, actions: AssistantAction[]) {
             }
           }
           return lines.length ? lines.join("\n") : "In der Dokumentation nichts dazu gefunden.";
+        }),
+    }),
+    betaZodTool({
+      name: "netzwerk_pruefen",
+      description:
+        "Prüft die Netzwerkdokumentation eines Kunden (WAN, Netze/VLANs, DHCP, IPs, Verbindungen) und nennt Fehler und Hinweise – wie ein Konfigurations-Check.",
+      inputSchema: z.object({ kunde: z.string() }),
+      run: (args) =>
+        safe(async () => {
+          const customer = await findCustomer(args.kunde);
+          if (!customer) return `Keinen Kunden „${args.kunde}“ gefunden.`;
+          const model = await loadNetwork(customer.id);
+          if (!model.devices.length && !model.networks.length) return `Für ${customer.name} ist noch kein Netzwerk dokumentiert.`;
+          actions.push({ kind: "link", title: `Netzwerk ${customer.name}`, href: `/app/kunden/${customer.id}/doku/netzwerk` });
+          const findings = checkNetwork(model);
+          const size = `${model.devices.length} ${model.devices.length === 1 ? "Gerät" : "Geräte"}, ${model.networks.length} ${model.networks.length === 1 ? "Netz" : "Netze"}`;
+          if (!findings.length) return `Netzwerk ${customer.name}: ${size} – keine Fehler oder Hinweise.`;
+          return [
+            `Netzwerk ${customer.name}: ${size}.`,
+            ...findings.map((f) => `[${f.level}] ${f.message}${f.hint ? ` → ${f.hint}` : ""}`),
+          ].join("\n");
         }),
     }),
   ];
@@ -509,7 +532,7 @@ export async function runAssistant(history: AssistantTurn[], now = new Date()): 
       max_tokens: 4096,
       max_iterations: 8,
       output_config: { effort: "low" },
-      ...(FALLBACK_MODELS.has(MODEL) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+      ...fallbackOptions(MODEL),
       system: await systemPrompt(now),
       messages,
       tools: buildTools(now, actions),

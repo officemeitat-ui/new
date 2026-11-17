@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { claudeClient, fallbackOptions } from "@/lib/ai-client";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { site } from "@/config/site";
@@ -9,16 +10,10 @@ import type { Lead } from "@/lib/leads";
 import type { Pipeline } from "@/lib/pipeline";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
-// Modelle, die serverseitige Fallbacks bei Ablehnungen durch Sicherheitsfilter unterstützen.
-const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
 
 export class AiError extends Error {}
 
-let anthropic: Anthropic | undefined;
-function client(): Anthropic {
-  anthropic ??= new Anthropic();
-  return anthropic;
-}
+const client = claudeClient;
 
 function systemPrompt(pipeline: Pipeline): string {
   const role =
@@ -68,7 +63,7 @@ export async function generateStructured<T extends z.ZodType>(
       model: MODEL,
       max_tokens: 16000,
       output_config: { effort: "medium", format: betaZodOutputFormat(schema) },
-      ...(FALLBACK_MODELS.has(MODEL) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+      ...fallbackOptions(MODEL),
       system,
       messages: [{ role: "user", content: prompt }],
     });

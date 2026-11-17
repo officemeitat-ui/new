@@ -8,7 +8,8 @@ Zwei Produkte in einer Installation:
    monatlich gesammelt für die Buchhaltung bereit. Alles läuft im **Cockpit** zusammen, mit Kontakten, Pipeline, Kalender und Monatskennzahlen.
 2. **Arbeitsplatz für IT-Dienstleister** (`/app`, am Handy und PC als App installierbar): Heute-Übersicht, Aufgaben statt Microsoft To Do,
    Tickets, Warnungen und Geräte aus **Atera**, Kundenakte mit **Keeper**-Link und ein **KI-Assistent**, dem man per Sprache oder Text sagt,
-   was zu tun ist („Termin Donnerstag 14 Uhr bei Huber“, „schreib Frau Huber, dass wir kommen“).
+   was zu tun ist („Termin Donnerstag 14 Uhr bei Huber“, „schreib Frau Huber, dass wir kommen“). Dazu **verschlüsselte Kunden-Doku**
+   mit Doku-Passwort: Netzwerkplan mit Live-Prüfung der Konfiguration, Patchschränke, Verkabelung, Seiten – Umzug aus BookStack per Klick.
 
 Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
 
@@ -83,15 +84,28 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   Je Kunde und Monat gibt es den **Leistungsnachweis als CSV** (mit Summen und Reststand).
   Optional Aufrunden im 15-Minuten-Takt (`hours.roundToMinutes` in `config/workspace.ts`).
 - **Dokumentation je Kunde** (Kundenakte → Dokumentation, Suche über alle Kunden unter „Doku“):
+  - **Doku-Tresor:** Die gesamte Dokumentation liegt verschlüsselt in der Datenbank (AES-256-GCM) und öffnet sich nur mit einem
+    eigenen Doku-Passwort – zusätzlich zur Anmeldung. Beim Einrichten gibt es einen **Wiederherstellungsschlüssel** (einmalig
+    angezeigt); ohne Passwort und ohne diesen Schlüssel sind die Daten nicht mehr lesbar. Nach 30 Minuten (`vault.unlockMinutes`)
+    oder mit „Jetzt sperren“ ist die Doku wieder zu. Ein Datenbank-Backup allein verrät nichts über die Netze der Kunden.
+  - **Netzwerk:** Geräte aus einer Bibliothek (UniFi, Securepoint, HPE/Aruba, HP, TERRA, Lenovo, Synology, QNAP, APC, AVM, LANCOM …
+    mit ihren Ports) oder eigene, Netze/VLANs mit DHCP und DNS, Internetanschluss (feste IP, DHCP, PPPoE) und Verbindungen mit
+    Ports, Kabelart und VLANs (untagged/tagged). Daraus entsteht automatisch ein **grafischer Plan** (Internet → Firewall → Switches
+    → Geräte). Die **Prüfung läuft beim Eintippen mit**, ähnlich wie im Packet Tracer: Gateway außerhalb des WAN-Netzes, doppeltes
+    NAT oder CGNAT, überschneidende Netze, doppelte VLANs, Gateway oder feste IPs im DHCP-Bereich, doppelte IPs, Geräte im falschen
+    Netz, falsches VLAN am Switchport, VLAN fehlt am Uplink, doppelt belegte Ports, Geräte ohne Weg zur Firewall.
+    **Weg testen** zeigt im Plan, wie ein Gerät ins Internet oder zu einem anderen Gerät kommt – und wo es scheitert
+    (inkl. Hinweis auf nötige Firewall-Regel zwischen VLANs). Geräte aus Atera lassen sich übernehmen.
   - **Patchschrank:** Schränke mit Höheneinheiten und grafischer Ansicht; Geräte mit Art, Modell, IP, Notiz; Überschneidungen werden verhindert.
   - **Verkabelung:** Patchliste (Patchfeld, Port, Dose, Raum, Switch, Switchport, VLAN, Gerät, Kabel, Notiz) mit Sofortsuche,
     **Übernahme bestehender Excel-Listen** (CSV, Spalten werden an den Überschriften erkannt) und Export als CSV.
   - **Seiten** in Markdown mit Vorlagen (Netzwerk, Server und Dienste, Datensicherung, Ansprechpartner, Notfallplan) und Vorschau.
     Hinweis, wenn eine Seite nach Passwort aussieht – Zugangsdaten gehören in Keeper.
-  - **BookStack:** Buch je Kunde verknüpfen, Verkabelung und Patchschränke als Seite dorthin veröffentlichen (wird bei jeder
-    Veröffentlichung aktualisiert), bestehende Seiten in den Arbeitsplatz übernehmen (HTML-Seiten werden abgeschottet angezeigt),
-    BookStack-Treffer in der Doku-Suche.
-  - Der Assistent beantwortet Fragen wie „Wo hängt der Drucker bei Huber?“ aus Patchliste, Schränken, Seiten und BookStack.
+  - **Umzug aus BookStack:** unter „Doku“ mit einem Klick alle Bücher übernehmen (Zuordnung über den Kundennamen), oder je Kunde
+    ein Buch verknüpfen. Übernommene Seiten werden – wie alles andere – verschlüsselt gespeichert. Für die Übergangszeit kann die
+    Verkabelung weiter nach BookStack veröffentlicht werden.
+  - Der Assistent beantwortet Fragen wie „Wo hängt der Drucker bei Huber?“ aus Patchliste, Schränken, Netzwerk und Seiten und
+    prüft auf Zuruf das Netz eines Kunden („Passt das Netz bei Huber?“). Ist die Doku gesperrt, sagt er das.
 - **KI-Assistent** per Text oder Sprache (Mikrofon im Browser, am Handy auch Diktieren über die Tastatur):
   - legt Aufgaben an und hakt sie ab, trägt Termine in den eigenen Outlook-Kalender ein (ohne Einladungen),
   - schreibt E-Mails als **Entwurf** in Outlook an die hinterlegte Kundenadresse – gesendet wird nie automatisch,
@@ -155,6 +169,10 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
 ## Einrichtung für einen Kunden
 
+0. **KI-Zugang:** entweder `ANTHROPIC_API_KEY` (direkt bei Anthropic) oder **Claude über Azure**: in Microsoft Foundry die
+   Claude-Modelle bereitstellen (Bereitstellungsname = Modellname, z. B. `claude-opus-5-5`, sonst die `*_MODEL`-Variablen
+   anpassen), dann `AI_PROVIDER=azure`, `ANTHROPIC_FOUNDRY_RESOURCE` und `ANTHROPIC_FOUNDRY_API_KEY` setzen. Abrechnung und
+   Vertrag laufen dann über das Azure-Abo. Verfügbare Regionen und den Datenverarbeitungsort in Foundry prüfen.
 1. **Betriebsprofil** in `config/business.ts`: Öffnungszeiten, Feiertage, Leistungen mit Dauer, Kapazität, häufige Fragen,
    Name und Hinweise für den Assistenten, E-Mail-Signatur und Modus.
 2. **Hosting** auf einem eigenen Linux-Server (z. B. World4You Linux vServer) mit `deploy/setup.sh` – Anleitung in [deploy/README.md](deploy/README.md). Alternativ Vercel mit Turso (`DATABASE_URL`).
@@ -212,11 +230,16 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    3. Outlook: dieselbe App-Registrierung wie beim E-Mail-Assistenten. Für Termine `Application Calendars.ReadWrite`, für Entwürfe
       `Application Mail.ReadWrite` (beides per RBAC für Anwendungen nur auf das eigene Postfach). Für die einmalige Übernahme aus
       Microsoft To Do zusätzlich `Tasks.Read.All` (gilt mandantenweit – danach wieder entfernen).
-   4. Optional BookStack: im BookStack-Profil einen API-Token anlegen (Rolle mit „Zugriff auf die System-API“) und
-      `BOOKSTACK_URL`, `BOOKSTACK_TOKEN_ID`, `BOOKSTACK_TOKEN_SECRET` setzen. Danach je Kunde unter Dokumentation → BookStack das Buch verknüpfen.
-   5. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf.
-   6. Pro Kunde im Arbeitsplatz E-Mail, Adresse, E-Mail-Domains und den Keeper-Link (geteilter Ordner) hinterlegen.
-   7. Feldnamen der Atera-API sind nach Atera-Doku v3 umgesetzt und gegen eine nachgebaute API getestet –
+   4. **Doku-Tresor:** beim ersten Öffnen von „Doku“ ein Doku-Passwort (mind. 12 Zeichen) festlegen. Den angezeigten
+      Wiederherstellungsschlüssel ausdrucken oder in Keeper ablegen – er ist der einzige Weg zurück, wenn das Passwort fehlt.
+      Bereits vorhandene Doku wird dabei verschlüsselt. `SESSION_SECRET` danach nicht mehr ändern (sonst nur neu entsperren nötig,
+      die Daten bleiben lesbar).
+   5. Umzug aus BookStack: im BookStack-Profil einen API-Token anlegen (Rolle mit „Zugriff auf die System-API“) und
+      `BOOKSTACK_URL`, `BOOKSTACK_TOKEN_ID`, `BOOKSTACK_TOKEN_SECRET` setzen. Dann unter „Doku“ → „Alles aus BookStack übernehmen“
+      (Bücher müssen wie der Kunde heißen) oder je Kunde unter Dokumentation → BookStack das Buch verknüpfen.
+   6. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf.
+   7. Pro Kunde im Arbeitsplatz E-Mail, Adresse, E-Mail-Domains und den Keeper-Link (geteilter Ordner) hinterlegen.
+   8. Feldnamen der Atera-API sind nach Atera-Doku v3 umgesetzt und gegen eine nachgebaute API getestet –
       beim ersten echten Abgleich kurz prüfen, ob Tickets, Warnungen und Geräte vollständig ankommen.
 10. **Regelmäßige Aufgaben** (alle mit `Authorization: Bearer $CRON_SECRET`, z. B. per Server-Cron oder Vercel Cron):
 
@@ -250,8 +273,10 @@ Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_S
 - [ ] Bei Praxen und Gesundheitsdaten (Art. 9 DSGVO) gesondert prüfen
 - [ ] Starkes `ADMIN_PASSWORD`, zufällige Geheimnisse. Der Arbeitsplatz zeigt Kundendaten – nur über HTTPS betreiben,
       am Handy Bildschirmsperre verwenden.
-- [ ] Arbeitsplatz: Ticketverläufe und Kundennotizen gehen für Zusammenfassungen an Anthropic – Auftragsverarbeitung prüfen,
+- [ ] Arbeitsplatz: Ticketverläufe und Kundennotizen gehen für Zusammenfassungen an Anthropic bzw. Azure – Auftragsverarbeitung prüfen,
       in Notizen keine Zugangsdaten ablegen (dafür ist Keeper da).
+- [ ] Doku-Tresor eingerichtet, Wiederherstellungsschlüssel sicher abgelegt (nicht auf demselben Server). Doku-Inhalte gehen nur an
+      die KI, wenn der Assistent danach gefragt wird und die Doku entsperrt ist.
 
 ## Projektstruktur
 
@@ -270,6 +295,9 @@ lib/mail/                E-Mail-Assistent: Auswertung (Claude), Postfach (Micros
 lib/receipts/            Belege-Ablage: Erkennen, Auslesen (Claude), Speicher, Monatspaket (ZIP + CSV)
 lib/workspace/           Arbeitsplatz: Aufgaben, Kunden, Atera-Abgleich, Outlook (Kalender, Entwürfe, To Do), KI-Assistent
 lib/atera.ts             Atera-API v3
+lib/workspace/vault.ts   Doku-Tresor: Schlüsselableitung (scrypt), Verschlüsselung (AES-256-GCM), Entsperren
+lib/network/             Netzwerkdokumentation: IP-Rechnen, Gerätebibliothek, Prüfung, Wegverfolgung, Plan-Anordnung
+lib/ai-client.ts         Claude-Zugang direkt bei Anthropic oder über Azure (Microsoft Foundry)
 lib/bookstack.ts         BookStack-API (Bücher, Seiten, Suche)
 config/workspace.ts      Einstellungen des Arbeitsplatzes
 lib/graph.ts             Microsoft Graph mit App-Zugang

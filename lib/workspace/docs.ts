@@ -2,6 +2,7 @@ import "server-only";
 import type { Row } from "@libsql/client";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { docKey, isSealed, seal, unseal } from "@/lib/workspace/vault";
 
 // Kunden-Dokumentation: Doku-Seiten (Markdown), Patchschränke mit Höheneinheiten und die Patchliste (Verkabelung).
 
@@ -98,12 +99,17 @@ const PATCH_COLUMNS: Record<keyof PatchInput, string> = {
 const text = (value: unknown) => (value === null || value === undefined || value === "" ? null : String(value));
 const clean = (value: string | null | undefined, max = 200) => (value ?? "").trim().slice(0, max) || null;
 
-function toPage(row: Row): DocPage {
+// Alle Inhalte der Dokumentation liegen verschlüsselt in der Datenbank, sobald der Doku-Tresor eingerichtet ist (siehe vault.ts).
+type Key = Buffer | null;
+const open = (key: Key, value: unknown) => text(unseal(key, value));
+const byText = (a: string, b: string) => a.localeCompare(b, "de", { sensitivity: "base", numeric: true });
+
+function toPage(row: Row, key: Key): DocPage {
   return {
     id: String(row.id),
     customerId: String(row.customer_id),
-    title: String(row.title),
-    content: String(row.content),
+    title: unseal(key, row.title) ?? "",
+    content: unseal(key, row.content) ?? "",
     format: String(row.format) as DocPage["format"],
     source: String(row.source) as DocPage["source"],
     bookstackPageId: text(row.bookstack_page_id),
@@ -111,20 +117,20 @@ function toPage(row: Row): DocPage {
   };
 }
 
-function toPort(row: Row): PatchPort {
+function toPort(row: Row, key: Key): PatchPort {
   return {
     id: String(row.id),
     customerId: String(row.customer_id),
-    panel: text(row.panel),
-    panelPort: text(row.panel_port),
-    outlet: text(row.outlet),
-    room: text(row.room),
-    switchName: text(row.switch_name),
-    switchPort: text(row.switch_port),
-    vlan: text(row.vlan),
-    device: text(row.device),
-    cable: text(row.cable),
-    notes: text(row.notes),
+    panel: open(key, row.panel),
+    panelPort: open(key, row.panel_port),
+    outlet: open(key, row.outlet),
+    room: open(key, row.room),
+    switchName: open(key, row.switch_name),
+    switchPort: open(key, row.switch_port),
+    vlan: open(key, row.vlan),
+    device: open(key, row.device),
+    cable: open(key, row.cable),
+    notes: open(key, row.notes),
   };
 }
 
@@ -142,15 +148,17 @@ export const PAGE_TEMPLATES: Record<string, string> = {
 };
 
 export async function listPages(customerId: string): Promise<DocPage[]> {
+  const key = await docKey();
   const client = await db();
-  const result = await client.execute({ sql: "SELECT * FROM doc_pages WHERE customer_id = ? ORDER BY lower(title)", args: [customerId] });
-  return result.rows.map(toPage);
+  const result = await client.execute({ sql: "SELECT * FROM doc_pages WHERE customer_id = ?", args: [customerId] });
+  return result.rows.map((row) => toPage(row, key)).sort((a, b) => byText(a.title, b.title));
 }
 
 export async function getPage(id: string): Promise<DocPage | null> {
+  const key = await docKey();
   const client = await db();
   const result = await client.execute({ sql: "SELECT * FROM doc_pages WHERE id = ?", args: [id] });
-  return result.rows[0] ? toPage(result.rows[0]) : null;
+  return result.rows[0] ? toPage(result.rows[0], key) : null;
 }
 
 export async function createPage(
@@ -164,6 +172,7 @@ export async function createPage(
   },
   now = new Date(),
 ): Promise<DocPage> {
+  const key = await docKey();
   const client = await db();
   const id = randomUUID();
   await client.execute({
@@ -172,8 +181,8 @@ export async function createPage(
     args: [
       id,
       input.customerId,
-      input.title.trim().slice(0, 200) || "Ohne Titel",
-      input.content,
+      seal(key, input.title.trim().slice(0, 200) || "Ohne Titel"),
+      seal(key, input.content),
       input.format ?? "markdown",
       input.source ?? "app",
       input.bookstackPageId ?? null,
@@ -190,10 +199,17 @@ export async function updatePage(
   fields: { title: string; content: string; format?: DocPage["format"] },
   now = new Date(),
 ): Promise<void> {
+  const key = await docKey();
   const client = await db();
   await client.execute({
     sql: "UPDATE doc_pages SET title = ?, content = ?, format = ?, updated_at = ? WHERE id = ?",
-    args: [fields.title.trim().slice(0, 200) || "Ohne Titel", fields.content, fields.format ?? "markdown", now.toISOString(), id],
+    args: [
+      seal(key, fields.title.trim().slice(0, 200) || "Ohne Titel"),
+      seal(key, fields.content),
+      fields.format ?? "markdown",
+      now.toISOString(),
+      id,
+    ],
   });
 }
 
@@ -203,12 +219,13 @@ export async function deletePage(id: string): Promise<void> {
 }
 
 export async function pageByBookstackId(customerId: string, bookstackPageId: string): Promise<DocPage | null> {
+  const key = await docKey();
   const client = await db();
   const result = await client.execute({
     sql: "SELECT * FROM doc_pages WHERE customer_id = ? AND bookstack_page_id = ?",
     args: [customerId, bookstackPageId],
   });
-  return result.rows[0] ? toPage(result.rows[0]) : null;
+  return result.rows[0] ? toPage(result.rows[0], key) : null;
 }
 
 /** Passwörter gehören in Keeper – Hinweis, wenn eine Seite danach aussieht. */
@@ -219,33 +236,36 @@ export function looksLikeSecret(content: string): boolean {
 // ── Patchschränke ──
 
 export async function listRacks(customerId: string): Promise<Rack[]> {
+  const key = await docKey();
   const client = await db();
-  const racks = await client.execute({ sql: "SELECT * FROM racks WHERE customer_id = ? ORDER BY lower(name)", args: [customerId] });
+  const racks = await client.execute({ sql: "SELECT * FROM racks WHERE customer_id = ?", args: [customerId] });
   const items = await client.execute({
     sql: `SELECT i.* FROM rack_items i JOIN racks r ON r.id = i.rack_id WHERE r.customer_id = ? ORDER BY i.unit_start DESC`,
     args: [customerId],
   });
-  return racks.rows.map((row) => ({
-    id: String(row.id),
-    customerId: String(row.customer_id),
-    name: String(row.name),
-    location: text(row.location),
-    units: Number(row.units),
-    notes: text(row.notes),
-    items: items.rows
-      .filter((i) => i.rack_id === row.id)
-      .map((i) => ({
-        id: String(i.id),
-        rackId: String(i.rack_id),
-        name: String(i.name),
-        kind: String(i.kind) as RackItemKind,
-        unitStart: Number(i.unit_start),
-        unitHeight: Number(i.unit_height),
-        model: text(i.model),
-        ip: text(i.ip),
-        notes: text(i.notes),
-      })),
-  }));
+  return racks.rows
+    .map((row) => ({
+      id: String(row.id),
+      customerId: String(row.customer_id),
+      name: unseal(key, row.name) ?? "",
+      location: open(key, row.location),
+      units: Number(row.units),
+      notes: open(key, row.notes),
+      items: items.rows
+        .filter((i) => i.rack_id === row.id)
+        .map((i) => ({
+          id: String(i.id),
+          rackId: String(i.rack_id),
+          name: unseal(key, i.name) ?? "",
+          kind: String(i.kind) as RackItemKind,
+          unitStart: Number(i.unit_start),
+          unitHeight: Number(i.unit_height),
+          model: open(key, i.model),
+          ip: open(key, i.ip),
+          notes: open(key, i.notes),
+        })),
+    }))
+    .sort((a, b) => byText(a.name, b.name));
 }
 
 export async function createRack(
@@ -253,6 +273,7 @@ export async function createRack(
   now = new Date(),
 ) {
   if (!Number.isInteger(input.units) || input.units < 1 || input.units > 60) throw new Error("Höhe bitte zwischen 1 und 60 HE");
+  const key = await docKey();
   const client = await db();
   const id = randomUUID();
   await client.execute({
@@ -260,10 +281,10 @@ export async function createRack(
     args: [
       id,
       input.customerId,
-      input.name.trim().slice(0, 100) || "Patchschrank",
-      clean(input.location),
+      seal(key, input.name.trim().slice(0, 100) || "Patchschrank"),
+      seal(key, clean(input.location)),
       input.units,
-      clean(input.notes, 2000),
+      seal(key, clean(input.notes, 2000)),
       now.toISOString(),
     ],
   });
@@ -289,6 +310,7 @@ export async function addRackItem(
   },
   now = new Date(),
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const key = await docKey();
   const client = await db();
   const rack = (await client.execute({ sql: "SELECT units FROM racks WHERE id = ?", args: [input.rackId] })).rows[0];
   if (!rack) return { ok: false, error: "Schrank nicht gefunden" };
@@ -302,20 +324,20 @@ export async function addRackItem(
       args: [input.rackId, top, input.unitStart],
     })
   ).rows[0];
-  if (clash) return { ok: false, error: `HE ${input.unitStart}–${top} überschneidet sich mit „${clash.name}“` };
+  if (clash) return { ok: false, error: `HE ${input.unitStart}–${top} überschneidet sich mit „${unseal(key, clash.name)}“` };
   await client.execute({
     sql: `INSERT INTO rack_items (id, rack_id, name, kind, unit_start, unit_height, model, ip, notes, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       randomUUID(),
       input.rackId,
-      input.name.trim().slice(0, 100),
+      seal(key, input.name.trim().slice(0, 100)),
       input.kind,
       input.unitStart,
       input.unitHeight,
-      clean(input.model),
-      clean(input.ip, 100),
-      clean(input.notes, 1000),
+      seal(key, clean(input.model)),
+      seal(key, clean(input.ip, 100)),
+      seal(key, clean(input.notes, 1000)),
       now.toISOString(),
     ],
   });
@@ -333,10 +355,11 @@ export async function deleteRackItem(id: string): Promise<void> {
 const natural = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 
 export async function listPorts(customerId: string): Promise<PatchPort[]> {
+  const key = await docKey();
   const client = await db();
   const result = await client.execute({ sql: "SELECT * FROM patch_ports WHERE customer_id = ?", args: [customerId] });
   return result.rows
-    .map(toPort)
+    .map((row) => toPort(row, key))
     .sort(
       (a, b) =>
         natural.compare(a.panel ?? "~", b.panel ?? "~") ||
@@ -346,8 +369,10 @@ export async function listPorts(customerId: string): Promise<PatchPort[]> {
 }
 
 export async function savePort(customerId: string, input: PatchInput, id?: string, now = new Date()): Promise<string> {
-  const values = PATCH_FIELDS.map(({ key }) => clean(input[key], key === "notes" ? 1000 : 200));
-  if (values.every((v) => v === null)) throw new Error("Bitte mindestens ein Feld ausfüllen");
+  const plain = PATCH_FIELDS.map(({ key }) => clean(input[key], key === "notes" ? 1000 : 200));
+  if (plain.every((v) => v === null)) throw new Error("Bitte mindestens ein Feld ausfüllen");
+  const vaultKey = await docKey();
+  const values = plain.map((v) => seal(vaultKey, v));
   const client = await db();
   if (id) {
     await client.execute({
@@ -480,7 +505,7 @@ export function portsCsv(ports: PatchPort[]): string {
 // ── Suche und Export ──
 
 export type DocHit = {
-  kind: "port" | "rack" | "page";
+  kind: "port" | "rack" | "page" | "network";
   customerId: string;
   customerName: string;
   title: string;
@@ -503,36 +528,60 @@ export function describePort(p: PatchPort): string {
     .join(" · ");
 }
 
-/** Durchsucht Patchlisten, Schränke und Doku-Seiten – alle Kunden oder einen. */
+/** Durchsucht Patchlisten, Schränke, Doku-Seiten und Netzwerkgeräte – alle Kunden oder einen. */
 export async function searchDocs(query: string, customerId?: string, limit = 30): Promise<DocHit[]> {
   const words = query
     .toLowerCase()
     .split(/\s+/)
     .filter((w) => w.length > 1);
   if (words.length === 0) return [];
+  // Die Inhalte sind verschlüsselt – gesucht wird nach dem Entschlüsseln (die Datenmengen je Betrieb sind klein).
+  const key = await docKey();
   const client = await db();
-  const scope = customerId ? "AND c.id = ?" : "";
-  const scopeArgs = customerId ? [customerId] : [];
-  const all = (expr: string) => words.map(() => `lower(${expr}) LIKE ?`).join(" AND ");
-  const likes = words.map((w) => `%${w}%`);
+  const scope = customerId ? "WHERE c.id = ?" : "";
+  const args = customerId ? [customerId] : [];
+  const matches = (...parts: (string | null | undefined)[]) => {
+    const haystack = parts.filter(Boolean).join(" ").toLowerCase();
+    return words.every((w) => haystack.includes(w));
+  };
 
-  const portExpr = `COALESCE(p.panel,'')||' '||COALESCE(p.panel_port,'')||' '||COALESCE(p.outlet,'')||' '||COALESCE(p.room,'')||' '||
-    COALESCE(p.switch_name,'')||' '||COALESCE(p.switch_port,'')||' '||COALESCE(p.vlan,'')||' '||COALESCE(p.device,'')||' '||COALESCE(p.notes,'')||' '||c.name`;
+  const hits: DocHit[] = [];
   const ports = await client.execute({
-    sql: `SELECT p.*, c.name AS customer_name FROM patch_ports p JOIN customers c ON c.id = p.customer_id WHERE ${all(portExpr)} ${scope} LIMIT ?`,
-    args: [...likes, ...scopeArgs, limit],
+    sql: `SELECT p.*, c.name AS customer_name FROM patch_ports p JOIN customers c ON c.id = p.customer_id ${scope}`,
+    args,
   });
-  const itemExpr = `i.name||' '||COALESCE(i.model,'')||' '||COALESCE(i.ip,'')||' '||COALESCE(i.notes,'')||' '||r.name||' '||c.name`;
+  for (const row of ports.rows) {
+    const port = toPort(row, key);
+    if (!matches(describePort(port), port.panel, port.panelPort, String(row.customer_name))) continue;
+    hits.push({
+      kind: "port",
+      customerId: port.customerId,
+      customerName: String(row.customer_name),
+      title: port.device || port.outlet || `${port.panel ?? ""} ${port.panelPort ?? ""}`.trim() || "Patchport",
+      detail: describePort(port),
+      href: `/app/kunden/${port.customerId}/doku?tab=verkabelung`,
+    });
+  }
+
   const items = await client.execute({
     sql: `SELECT i.*, r.name AS rack_name, c.id AS customer_id, c.name AS customer_name FROM rack_items i JOIN racks r ON r.id = i.rack_id
-          JOIN customers c ON c.id = r.customer_id WHERE ${all(itemExpr)} ${scope} LIMIT ?`,
-    args: [...likes, ...scopeArgs, limit],
+          JOIN customers c ON c.id = r.customer_id ${scope}`,
+    args,
   });
-  const pageExpr = `d.title||' '||d.content||' '||c.name`;
-  const pages = await client.execute({
-    sql: `SELECT d.*, c.name AS customer_name FROM doc_pages d JOIN customers c ON c.id = d.customer_id WHERE ${all(pageExpr)} ${scope} LIMIT ?`,
-    args: [...likes, ...scopeArgs, limit],
-  });
+  for (const row of items.rows) {
+    const [name, model, ip, notes, rackName] = [row.name, row.model, row.ip, row.notes, row.rack_name].map((v) => open(key, v));
+    if (!matches(name, model, ip, notes, rackName, String(row.customer_name))) continue;
+    const units =
+      Number(row.unit_height) > 1 ? `${row.unit_start}–${Number(row.unit_start) + Number(row.unit_height) - 1}` : String(row.unit_start);
+    hits.push({
+      kind: "rack",
+      customerId: String(row.customer_id),
+      customerName: String(row.customer_name),
+      title: name ?? "Gerät",
+      detail: [`${rackName}, HE ${units}`, model, ip, notes].filter(Boolean).join(" · "),
+      href: `/app/kunden/${row.customer_id}/doku?tab=schrank`,
+    });
+  }
 
   const snippet = (content: string) => {
     const lower = content.toLowerCase();
@@ -546,45 +595,75 @@ export async function searchDocs(query: string, customerId?: string, limit = 30)
       .trim();
     return `${at > 0 ? "…" : ""}${plain.slice(0, 180)}…`;
   };
-  return [
-    ...ports.rows.map((row) => {
-      const port = toPort(row);
-      return {
-        kind: "port" as const,
-        customerId: port.customerId,
-        customerName: String(row.customer_name),
-        title: port.device || port.outlet || `${port.panel ?? ""} ${port.panelPort ?? ""}`.trim() || "Patchport",
-        detail: describePort(port),
-        href: `/app/kunden/${port.customerId}/doku?tab=verkabelung`,
-      };
-    }),
-    ...items.rows.map((row) => ({
-      kind: "rack" as const,
-      customerId: String(row.customer_id),
+  const pages = await client.execute({
+    sql: `SELECT d.*, c.name AS customer_name FROM doc_pages d JOIN customers c ON c.id = d.customer_id ${scope}`,
+    args,
+  });
+  for (const row of pages.rows) {
+    const page = toPage(row, key);
+    const content = page.format === "html" ? page.content.replace(/<[^>]+>/g, " ") : page.content;
+    if (!matches(page.title, content, String(row.customer_name))) continue;
+    hits.push({
+      kind: "page",
+      customerId: page.customerId,
       customerName: String(row.customer_name),
-      title: String(row.name),
-      detail: [
-        `${row.rack_name}, HE ${row.unit_start}${Number(row.unit_height) > 1 ? `–${Number(row.unit_start) + Number(row.unit_height) - 1}` : ""}`,
-        row.model,
-        row.ip,
-        row.notes,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      href: `/app/kunden/${row.customer_id}/doku?tab=schrank`,
-    })),
-    ...pages.rows.map((row) => {
-      const page = toPage(row);
-      return {
-        kind: "page" as const,
-        customerId: page.customerId,
+      title: page.title,
+      detail: snippet(content),
+      href: `/app/kunden/${page.customerId}/doku/${page.id}`,
+    });
+  }
+
+  const networks = await client.execute({
+    sql: `SELECT n.*, c.name AS customer_name FROM network_models n JOIN customers c ON c.id = n.customer_id ${scope}`,
+    args,
+  });
+  for (const row of networks.rows) {
+    const model = JSON.parse(unseal(key, row.data) ?? "{}") as {
+      devices?: { id: string; name: string; vendor?: string; model?: string; ip?: string; location?: string; notes?: string }[];
+    };
+    for (const device of model.devices ?? []) {
+      if (!matches(device.name, device.vendor, device.model, device.ip, device.location, device.notes, String(row.customer_name))) continue;
+      hits.push({
+        kind: "network",
+        customerId: String(row.customer_id),
         customerName: String(row.customer_name),
-        title: page.title,
-        detail: snippet(page.format === "html" ? page.content.replace(/<[^>]+>/g, " ") : page.content),
-        href: `/app/kunden/${page.customerId}/doku/${page.id}`,
-      };
-    }),
-  ].slice(0, limit);
+        title: device.name,
+        detail: [[device.vendor, device.model].filter(Boolean).join(" "), device.ip, device.location, device.notes]
+          .filter(Boolean)
+          .join(" · "),
+        href: `/app/kunden/${row.customer_id}/doku/netzwerk`,
+      });
+    }
+  }
+  return hits.slice(0, limit);
+}
+
+/** Verschlüsselt alle noch unverschlüsselten Doku-Daten (beim Einrichten des Tresors). */
+export async function encryptExistingDocs(key: Buffer): Promise<number> {
+  const client = await db();
+  const tables: [string, string[]][] = [
+    ["doc_pages", ["title", "content"]],
+    ["racks", ["name", "location", "notes"]],
+    ["rack_items", ["name", "model", "ip", "notes"]],
+    ["patch_ports", ["panel", "panel_port", "outlet", "room", "switch_name", "switch_port", "vlan", "device", "cable", "notes"]],
+    ["network_models", ["data"]],
+  ];
+  let count = 0;
+  for (const [table, columns] of tables) {
+    const id = table === "network_models" ? "customer_id" : "id";
+    const rows = (await client.execute(`SELECT ${id} AS row_id, ${columns.join(", ")} FROM ${table}`)).rows;
+    for (const row of rows) {
+      const values = columns.map((column) =>
+        row[column] === null || isSealed(row[column]) ? row[column] : seal(key, String(row[column])),
+      );
+      await client.execute({
+        sql: `UPDATE ${table} SET ${columns.map((c) => `${c} = ?`).join(", ")} WHERE ${id} = ?`,
+        args: [...(values as (string | null)[]), String(row.row_id)],
+      });
+      count++;
+    }
+  }
+  return count;
 }
 
 const cell = (value: string | number | null | undefined) =>

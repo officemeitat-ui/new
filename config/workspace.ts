@@ -22,6 +22,10 @@ export type WorkspaceProfile = {
     /** Ab diesem Reststand (Minuten) wird das Stundenkonto als knapp markiert. */
     lowBalanceMinutes: number;
   };
+  vault: {
+    /** So lange bleibt die Dokumentation nach dem Entsperren offen (Minuten). */
+    unlockMinutes: number;
+  };
   keeper: {
     /** Tresor-Adresse für den Knopf „In Keeper öffnen“, wenn beim Kunden kein eigener Link hinterlegt ist. */
     vaultUrl: string;
@@ -42,6 +46,9 @@ export const workspace: WorkspaceProfile = {
   hours: {
     roundToMinutes: 0,
     lowBalanceMinutes: 120,
+  },
+  vault: {
+    unlockMinutes: 30,
   },
   keeper: {
     vaultUrl: "https://keepersecurity.eu/vault/",

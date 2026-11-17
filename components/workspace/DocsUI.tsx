@@ -9,6 +9,7 @@ import {
   importBookstackPages,
   importPatchList,
   linkBookstackBook,
+  migrateAllFromBookstack,
   publishCabling,
   saveDocPage,
   savePatchPort,
@@ -399,5 +400,24 @@ export function BookstackPanel({
       <Feedback state={publishState} />
       <Feedback state={importState} />
     </div>
+  );
+}
+
+/** Komplett-Umzug: alle BookStack-Bücher den Kunden mit gleichem Namen zuordnen und ihre Seiten übernehmen. */
+export function BookstackMigration() {
+  const [state, action] = useActionState(migrateAllFromBookstack, {});
+  return (
+    <section className="space-y-2 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <h2 className="font-semibold">Aus BookStack übersiedeln</h2>
+      <p className="text-sm text-slate-600">
+        Übernimmt alle Bücher, deren Name zu einem Kunden passt, mit allen Seiten – verschlüsselt, wenn der Doku-Tresor eingerichtet ist.
+        Nochmals ausführen legt nichts doppelt an, setzt aber schon übernommene Seiten auf den BookStack-Stand zurück – also nach dem Umzug
+        nur noch hier bearbeiten.
+      </p>
+      <form action={action}>
+        <Submit>Alles aus BookStack übernehmen</Submit>
+      </form>
+      <Feedback state={state} />
+    </section>
   );
 }

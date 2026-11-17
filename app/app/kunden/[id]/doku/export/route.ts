@@ -3,6 +3,7 @@ import { isAdmin } from "@/lib/auth";
 import { safeNamePart } from "@/lib/receipts/files";
 import { getCustomer } from "@/lib/workspace/customers";
 import { listPorts, portsCsv } from "@/lib/workspace/docs";
+import { VaultLockedError } from "@/lib/workspace/vault";
 
 // Patchliste eines Kunden als CSV (für Excel, zum Ausdrucken oder als Übergabe an den Elektriker).
 export async function GET(_request: Request, { params }: RouteContext<"/app/kunden/[id]/doku/export">) {
@@ -10,7 +11,14 @@ export async function GET(_request: Request, { params }: RouteContext<"/app/kund
   const { id } = await params;
   const customer = await getCustomer(id);
   if (!customer) return NextResponse.json({ error: "Kunde nicht gefunden" }, { status: 404 });
-  return new Response(portsCsv(await listPorts(id)), {
+  let ports;
+  try {
+    ports = await listPorts(id);
+  } catch (error) {
+    if (error instanceof VaultLockedError) return NextResponse.json({ error: error.message }, { status: 423 });
+    throw error;
+  }
+  return new Response(portsCsv(ports), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="patchliste-${safeNamePart(customer.name)}.csv"`,
