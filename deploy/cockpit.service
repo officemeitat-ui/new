@@ -1,0 +1,31 @@
+# systemd-Dienst für Cockpit und Arbeitsplatz. Wird von setup.sh nach /etc/systemd/system/ kopiert.
+[Unit]
+Description=KI-Mitarbeiter-Cockpit und Arbeitsplatz (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cockpit
+Group=cockpit
+WorkingDirectory=/opt/cockpit/app
+EnvironmentFile=/etc/cockpit.env
+# Nur lokal erreichbar – nach außen spricht ausschließlich Caddy (HTTPS).
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=5
+
+# Absicherung: Schreibrechte nur für Datenbank und Next-Cache
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cockpit /opt/cockpit/app/.next
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

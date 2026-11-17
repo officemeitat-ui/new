@@ -141,7 +141,7 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 
 1. **Betriebsprofil** in `config/business.ts`: Öffnungszeiten, Feiertage, Leistungen mit Dauer, Kapazität, häufige Fragen,
    Name und Hinweise für den Assistenten, E-Mail-Signatur und Modus.
-2. **Hosting** mit `PUBLIC_URL` (https). Bei Vercel `DATABASE_URL` auf Turso setzen, bei eigenem Server die SQLite-Datei sichern.
+2. **Hosting** auf einem eigenen Linux-Server (z. B. World4You Linux vServer) mit `deploy/setup.sh` – Anleitung in [deploy/README.md](deploy/README.md). Alternativ Vercel mit Turso (`DATABASE_URL`).
 3. **Telefon:**
    1. Bei [Vapi](https://vapi.ai) eine Nummer anlegen oder importieren (z. B. Twilio) und dort **keinen** Assistenten zuweisen.
    2. `VAPI_WEBHOOK_SECRET`, `VAPI_API_KEY` und `VAPI_PHONE_NUMBER` setzen, dann `npm run vapi:connect` ausführen.

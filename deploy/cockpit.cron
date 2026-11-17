@@ -1,0 +1,13 @@
+# Regelmäßige Aufgaben des Cockpits (wird von setup.sh nach /etc/cron.d/cockpit kopiert).
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Postfach (E-Mail-Assistent, Belege) und Atera alle 5 Minuten
+*/5 * * * * cockpit /opt/cockpit/app/deploy/cron.sh mail
+*/5 * * * * cockpit /opt/cockpit/app/deploy/cron.sh atera
+# Terminerinnerungen stündlich, Nachfassen täglich, Monatsbericht am 1.
+7 * * * * cockpit /opt/cockpit/app/deploy/cron.sh reminders
+40 7 * * 1-5 cockpit /opt/cockpit/app/deploy/cron.sh followups
+20 6 1 * * cockpit /opt/cockpit/app/deploy/cron.sh report
+# Datensicherung jede Nacht
+15 2 * * * cockpit /opt/cockpit/app/deploy/backup.sh

@@ -1,0 +1,20 @@
+# Webserver vor der App: holt und erneuert das HTTPS-Zertifikat automatisch (Let's Encrypt).
+# setup.sh ersetzt __DOMAIN__ und kopiert die Datei nach /etc/caddy/Caddyfile.
+__DOMAIN__ {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), geolocation=(), microphone=(self)"
+		-Server
+	}
+
+	request_body {
+		max_size 25MB
+	}
+
+	reverse_proxy 127.0.0.1:3000
+}
