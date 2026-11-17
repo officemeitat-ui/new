@@ -35,6 +35,7 @@ from .mail import make_mailer
 from .mitarbeiter_api import RateLimiter, is_public_path, register as register_mitarbeiter, start_mail_poller
 from .portal import register as register_portal
 from .documents import DocumentService, register as register_documents
+from .payments import register as register_payments
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
     users_exist,
@@ -743,6 +744,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Dokumentenprozess (PDF, SharePoint/OneDrive, Versand per Outlook) ------
     register_documents(app, ctx, admin_only, apply_quote_status)
+
+    # --- Geldkreislauf: Kontoauszug, Zahlungsabgleich, Mahnwesen -------------------
+    register_payments(app, ctx, admin_only, start_scheduler=settings.db_path != ":memory:")
 
     # --- KI-Mitarbeiter (Posteingang, Leads, Belege, Anfrageformular) -----------
     register_mitarbeiter(app, ctx)

@@ -4,6 +4,8 @@ httpx>=0.27
 pydantic>=2.7
 # PDFs im Corporate Design (Rechnungen, Angebote, Berichte) – reines Python
 fpdf2>=2.8
+# QR-Code „Zahlen mit Code“ (EPC/GiroCode) auf Rechnungen und Mahnungen
+segno>=1.6
 # Text aus PDF-Belegen lesen (Lieferant, Nummer, Betrag)
 pypdf>=5.0
 # optional – nur für Claude als Cloud-Option (LLM_PROVIDER=anthropic oder ALLOW_CLOUD_FALLBACK=true)

@@ -112,15 +112,57 @@ class BrandPDF(FPDF):
         self.multi_cell(0, h, clean(text), markdown=True, align="L", new_x="LMARGIN", new_y="NEXT")
 
 
-def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict[str, Any], profile: dict[str, Any],
-                branding: dict[str, Any], logo: Path, period: tuple[date, date] | None) -> bytes:
-    draft = inv["status"] == "entwurf"
-    pdf = BrandPDF(branding, profile, logo, f"Rechnung {inv['number'] or 'Entwurf'}")
-    pdf.alias_nb_pages()
-    pdf.add_page()
+def valid_iban(iban: str) -> bool:
+    """Prüfziffer nach ISO 13616 (mod 97)."""
+    iban = re.sub(r"\s+", "", iban or "").upper()
+    if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", iban):
+        return False
+    digits = "".join(str(int(ch, 36)) for ch in iban[4:] + iban[:4])
+    return int(digits) % 97 == 1
+
+
+def epc_payload(name: str, iban: str, amount: float, reference: str, bic: str = "") -> str:
+    """Inhalt für den EPC-QR-Code („Zahlen mit Code“, GiroCode) nach EPC069-12, Version 002."""
+    lines = ["BCD", "002", "1", "SCT", re.sub(r"\s+", "", bic or "").upper(), clean(name)[:70],
+             re.sub(r"\s+", "", iban).upper(), f"EUR{amount:.2f}", "", "", clean(reference)[:140]]
+    return "\n".join(lines)
+
+
+def payment_qr(profile: dict[str, Any], amount: float, reference: str) -> str:
+    """EPC-Inhalt, wenn IBAN gültig und Betrag zahlbar – sonst leer (dann ohne QR-Code)."""
+    if amount < 0.01 or amount > 999_999_999 or not valid_iban(profile.get("iban", "")):
+        return ""
+    return epc_payload(profile.get("name") or "", profile["iban"], amount, reference, profile.get("bic", ""))
+
+
+def _draw_qr(pdf: FPDF, x: float, y: float, size: float, payload: str) -> bool:
+    try:
+        import segno
+    except ImportError:  # optional – ohne segno einfach ohne QR-Code
+        return False
+    rows = [list(r) for r in segno.make(payload, error="m", micro=False, encoding="utf-8",
+                                        boost_error=False).matrix_iter(border=0)]
+    n = len(rows)
+    m = size / n
+    pdf.set_fill_color(0, 0, 0)
+    for r, row in enumerate(rows):
+        c = 0
+        while c < n:
+            if not row[c]:
+                c += 1
+                continue
+            start = c
+            while c < n and row[c]:
+                c += 1
+            pdf.rect(x + start * m, y + r * m, (c - start) * m, m + 0.02, "F")
+    return True
+
+
+def _recipient(pdf: "BrandPDF", customer: dict[str, Any], fallback_name: str = "") -> None:
     pdf.set_y(48)
     pdf.set_font("Roboto", "B", 10)
-    pdf.cell(0, 5, clean(customer.get("name") or inv.get("customer_name", "")), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*pdf.color("dark"))
+    pdf.cell(0, 5, clean(customer.get("name") or fallback_name), new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Roboto", "", 10)
     for line in [customer.get("contact_name", "")] + re.split(r"[\n,]", customer.get("address") or ""):
         if line and line.strip():
@@ -128,6 +170,39 @@ def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict
     if customer.get("uid"):
         pdf.cell(0, 5, clean(f"UID: {customer['uid']}"), new_x="LMARGIN", new_y="NEXT")
     pdf.ln(10)
+
+
+def _payment_block(pdf: "BrandPDF", profile: dict[str, Any], text: str, qr: str) -> None:
+    """Zahlungshinweis, rechts daneben der QR-Code zum Scannen mit der Banking-App."""
+    size = 30
+    if not qr:
+        pdf.text_block(text, size=9.5)
+        return
+    if pdf.get_y() + size + 8 > pdf.page_break_trigger:
+        pdf.add_page()
+        pdf.set_y(40)
+    y = pdf.get_y()
+    if not _draw_qr(pdf, 190 - size, y, size, qr):
+        pdf.text_block(text, size=9.5)
+        return
+    pdf.set_xy(190 - size - 4, y + size + 0.5)
+    pdf.set_font("Roboto", "", 7)
+    pdf.set_text_color(*pdf.color("anthracite"))
+    pdf.cell(size + 8, 3.5, "Zahlen mit Code – mit der Banking-App scannen", align="C")
+    pdf.set_xy(20, y)
+    pdf.set_font("Roboto", "", 9.5)
+    pdf.set_text_color(*pdf.color("dark"))
+    pdf.multi_cell(170 - size - 8, 5, clean(text), markdown=True, align="L", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_y(max(pdf.get_y(), y + size + 6))
+
+
+def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict[str, Any], profile: dict[str, Any],
+                branding: dict[str, Any], logo: Path, period: tuple[date, date] | None) -> bytes:
+    draft = inv["status"] == "entwurf"
+    pdf = BrandPDF(branding, profile, logo, f"Rechnung {inv['number'] or 'Entwurf'}")
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    _recipient(pdf, customer, inv.get("customer_name", ""))
     pdf.heading("RECHNUNGSENTWURF" if draft else f"Rechnung {inv['number']}")
     meta = [f"Rechnungsdatum: {_d(inv['date']) if inv['date'] else '–'}"]
     if period:
@@ -204,7 +279,9 @@ def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict
         if profile.get("bic"):
             pay += f", BIC {profile['bic']}"
     pay += f". Verwendungszweck: {inv['number'] or '–'}."
-    pdf.text_block(pay, size=9.5)
+    qr = payment_qr(profile, float(inv["gross"]), f"Rechnung {inv['number']}") \
+        if inv.get("number") and inv["status"] in ("gestellt", "bezahlt") else ""
+    _payment_block(pdf, profile, pay, qr)
     if profile.get("footer"):
         pdf.ln(2)
         pdf.text_block(profile["footer"], size=9.5, color="anthracite")
@@ -315,4 +392,49 @@ def markdown_pdf(title: str, text: str, profile: dict[str, Any], branding: dict[
         else:
             pdf.text_block(line.replace("  ", " "), size=10)
         i += 1
+    return bytes(pdf.output())
+
+
+def dunning_pdf(*, title: str, inv: dict[str, Any], customer: dict[str, Any], profile: dict[str, Any],
+                branding: dict[str, Any], logo: Path, text: str, rows: list[tuple[str, float]], total: float,
+                due_text: str, closing: str = "") -> bytes:
+    """Zahlungserinnerung/Mahnung im Corporate Design mit Aufstellung und QR-Code über den Gesamtbetrag."""
+    pdf = BrandPDF(branding, profile, logo, f"{title} – Rechnung {inv['number']}")
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    _recipient(pdf, customer, inv.get("customer_name", ""))
+    pdf.heading(title)
+    pdf.text_block(f"zu Rechnung {inv['number']} vom {_d(inv['date'])}   ·   Datum: {date.today().strftime('%d.%m.%Y')}",
+                   size=9, color="anthracite")
+    pdf.ln(4)
+    for para in text.strip().split("\n\n"):
+        pdf.text_block(para, size=10)
+        pdf.ln(2)
+    pdf.ln(2)
+    pdf.set_draw_color(220, 228, 230)
+    for label, value in rows:
+        pdf.set_font("Roboto", "", 9.5)
+        pdf.set_x(20)
+        pdf.cell(140, 7, clean(label))
+        pdf.cell(30, 7, ("− " if value < 0 else "") + _eur(abs(value)), align="R", new_x="LMARGIN", new_y="NEXT")
+        pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+    pdf.set_draw_color(*pdf.color("brand"))
+    pdf.set_line_width(0.6)
+    pdf.line(20, pdf.get_y() + 0.5, 190, pdf.get_y() + 0.5)
+    pdf.set_line_width(0.2)
+    pdf.set_font("Roboto", "B", 11)
+    pdf.set_x(20)
+    pdf.cell(140, 8, "Offener Gesamtbetrag")
+    pdf.cell(30, 8, _eur(total), align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(6)
+    pay = f"Bitte überweisen Sie {_eur(total)} {due_text}"
+    if profile.get("iban"):
+        pay += f" auf {profile.get('bank') or 'unser Konto'}, IBAN {profile['iban']}"
+        if profile.get("bic"):
+            pay += f", BIC {profile['bic']}"
+    pay += f". Verwendungszweck: {inv['number']}. Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, " \
+           "betrachten Sie es bitte als gegenstandslos."
+    _payment_block(pdf, profile, pay, payment_qr(profile, total, f"Rechnung {inv['number']}"))
+    pdf.ln(2)
+    pdf.text_block(closing or f"Freundliche Grüße\n{profile.get('name') or ''}", size=10)
     return bytes(pdf.output())

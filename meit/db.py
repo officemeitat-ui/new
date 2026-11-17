@@ -333,6 +333,38 @@ CREATE TABLE IF NOT EXISTS documents (
 
 CREATE INDEX IF NOT EXISTS idx_documents_ref ON documents(ref_type, ref_id);
 
+CREATE TABLE IF NOT EXISTS bank_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_date TEXT NOT NULL,
+    amount REAL NOT NULL,
+    currency TEXT DEFAULT 'EUR',
+    partner TEXT DEFAULT '',
+    iban TEXT DEFAULT '',
+    text TEXT DEFAULT '',
+    reference TEXT DEFAULT '',
+    dedupe_key TEXT NOT NULL UNIQUE,
+    status TEXT DEFAULT 'offen',
+    match_note TEXT DEFAULT '',
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    receipt_id INTEGER REFERENCES receipts(id) ON DELETE SET NULL,
+    suggestion TEXT DEFAULT '',
+    import_file TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    transaction_id INTEGER REFERENCES bank_transactions(id) ON DELETE CASCADE,
+    amount REAL NOT NULL,
+    date TEXT NOT NULL,
+    note TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_bank_status ON bank_transactions(status);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -374,6 +406,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "receipts": {"message_id", "vendor", "invoice_no", "invoice_date", "amount", "currency", "category",
                  "status", "note", "document_id"},
+    "bank_transactions": {"booking_date", "amount", "currency", "partner", "iban", "text", "reference", "dedupe_key",
+                          "status", "match_note", "customer_id", "receipt_id", "suggestion", "import_file"},
+    "payments": {"invoice_id", "transaction_id", "amount", "date", "note"},
     "documents": {"kind", "title", "filename", "customer_id", "ref_type", "ref_id", "folder", "local_path", "size",
                   "sha256", "remote", "remote_url", "remote_id", "remote_status", "remote_error"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
@@ -384,7 +419,8 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "time_entries": {"customer_id", "ticket_id", "user_id", "date", "minutes", "description", "billable", "rate",
                      "invoice_id"},
     "invoices": {"number", "customer_id", "customer_name", "period", "date", "due_date", "items", "net", "vat_rate",
-                 "vat", "gross", "status", "note", "paid_at", "order_ref", "sent_at", "sent_to"},
+                 "vat", "gross", "status", "note", "paid_at", "order_ref", "sent_at", "sent_to",
+                 "paid_amount", "dunning_level", "dunned_at"},
     "activities": {"user_id", "type", "ref_type", "ref_id", "note"},
     "weekly_goals": {"user_id", "week", "goals", "review_note"},
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
@@ -397,12 +433,14 @@ TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
+    "bank_transactions", "payments",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''"},
-    "invoices": {"order_ref": "TEXT DEFAULT ''", "sent_at": "TEXT DEFAULT ''", "sent_to": "TEXT DEFAULT ''"},
+    "invoices": {"order_ref": "TEXT DEFAULT ''", "sent_at": "TEXT DEFAULT ''", "sent_to": "TEXT DEFAULT ''",
+                 "paid_amount": "REAL DEFAULT 0", "dunning_level": "INTEGER DEFAULT 0", "dunned_at": "TEXT DEFAULT ''"},
     "receipts": {"document_id": "INTEGER"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0"},

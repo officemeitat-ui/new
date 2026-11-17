@@ -405,7 +405,7 @@ def register(app: FastAPI, db: Database, company_name: str, admin_only, on_final
                 if on_finalized:
                     on_finalized(iid)
             elif data.status == "bezahlt" and inv["status"] == "gestellt":
-                db.update("invoices", iid, {"status": "bezahlt", "paid_at": now_iso()})
+                db.update("invoices", iid, {"status": "bezahlt", "paid_at": now_iso(), "paid_amount": inv["gross"]})
             elif data.status == "storniert" and inv["status"] in ("gestellt", "bezahlt"):
                 db.update("invoices", iid, {"status": "storniert"})
                 release(db, iid)

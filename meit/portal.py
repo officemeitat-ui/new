@@ -131,7 +131,7 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             "open_tickets": db.scalar("SELECT COUNT(*) FROM tickets WHERE customer_id = ? AND status != 'geloest'", (cid,)),
             "devices": db.scalar("SELECT COUNT(*) FROM assets WHERE customer_id = ?", (cid,)), "devices_eol": eol,
             "security": sec, "open_quotes": db.scalar("SELECT COUNT(*) FROM quotes WHERE customer_id = ? AND status = 'versendet'", (cid,)),
-            "open_invoices": db.scalar("SELECT COALESCE(SUM(gross), 0) FROM invoices WHERE customer_id = ? AND status = 'gestellt'", (cid,)),
+            "open_invoices": db.scalar("SELECT COALESCE(SUM(gross - COALESCE(paid_amount, 0)), 0) FROM invoices WHERE customer_id = ? AND status = 'gestellt'", (cid,)),
         }
 
     @app.get("/api/portal/tickets")
@@ -191,7 +191,7 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
 
     @app.get("/api/portal/invoices")
     def invoices(u: dict = Depends(portal_user)) -> list[dict]:
-        rows = db.query("SELECT id, number, period, date, due_date, gross, status FROM invoices WHERE customer_id = ? "
+        rows = db.query("SELECT id, number, period, date, due_date, gross, paid_amount, status FROM invoices WHERE customer_id = ? "
                         "AND status IN ('gestellt', 'bezahlt') ORDER BY date DESC", (u["customer_id"],))
         today = date.today().isoformat()
         for r in rows:

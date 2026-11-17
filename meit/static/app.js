@@ -217,8 +217,8 @@ const views = {};
 views.dashboard = async () => {
   setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
     h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
-  const [d, km] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null)]);
-  const kpi = (label, value, sub, cls = "", href = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, style: href ? "text-decoration:none;color:inherit" : null },
+  const [d, km, pay] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null), api("/api/payments/summary").catch(() => null)]);
+  const kpi = (label, value, sub, cls = "", href = null, onclick = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, onclick, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
   const nrrVal = d.nrr && d.nrr.nrr !== null ? `${d.nrr.nrr.toLocaleString("de-AT")} %` : "–";
   const share = d.recurring_share && d.recurring_share.share !== null ? `${Math.round(d.recurring_share.share)} %` : "–";
@@ -228,6 +228,8 @@ views.dashboard = async () => {
       kpi("Anteil wiederkehrend", share, "Ziel: über 60 %", "", "#/wachstum"),
       kpi("Kunden-Health", `${d.health.counts.risiko} Risiko`, `${d.health.counts.beobachten} beobachten · ${d.health.counts.gesund} gesund`, d.health.counts.risiko ? "" : "", "#/wachstum"),
       kpi("Unverrechnet", eur(d.unbilled_value), "Stunden + Projekte → Rechnungslauf", d.unbilled_value > 0 ? "" : "", "#/abrechnung"),
+      pay ? kpi("Offene Forderungen", eur(pay.open_total), `${eur(pay.overdue_total)} überfällig · ${pay.dunning_due} Mahnvorschläge${pay.missing_receipts ? ` · ${pay.missing_receipts} ohne Beleg` : ""}`, "",
+        "#/abrechnung", () => { billingTab = "zahlungen"; }) : null,
       km ? kpi("KI-Mitarbeiter", `${km.pending_approval} Freigaben`, `${km.unprocessed} neu · ca. ${(Math.round(km.minutes_saved / 6) / 10).toLocaleString("de-AT")} h gespart (7 Tage)`, "", "#/posteingang") : null),
     h("div", { class: "grid kpis" },
       kpi("Wiederkehrender Umsatz", eur(d.mrr), `pro Monat · ${eur(d.mrr * 12)} pro Jahr`),
@@ -1429,7 +1431,7 @@ views.abrechnung = async () => {
       toast(r.count ? `${r.count} Rechnungsentwurf/-entwürfe erstellt` : "Nichts abzurechnen"); billingTab = "rechnungen"; render();
     }) }, "Rechnungslauf"),
   ]);
-  const tabs = h("div", { class: "tabs" }, [["offen", "Unverrechnet"], ["rechnungen", "Rechnungen"], ["zeiten", "Zeiten"], ["firma", "Firmendaten"]].map(([k, l]) =>
+  const tabs = h("div", { class: "tabs" }, [["offen", "Unverrechnet"], ["rechnungen", "Rechnungen"], ["zahlungen", "Zahlungen & Mahnwesen"], ["zeiten", "Zeiten"], ["firma", "Firmendaten"]].map(([k, l]) =>
     h("button", { class: billingTab === k ? "active" : "", onclick: () => { billingTab = k; render(); } }, l)));
   let content;
   if (billingTab === "offen") {
@@ -1454,9 +1456,11 @@ views.abrechnung = async () => {
       h("p", { class: "small muted" }, `Offene Forderungen: ${eur2(open)} · überfällig: ${inv.filter((r) => r.overdue).length}`),
       h("div", { class: "card" }, table([
         { label: "Nr.", render: (r) => r.number ? h("span", { style: "white-space:nowrap" }, r.number) : h("em", { class: "muted" }, "Entwurf") }, { label: "Kunde", key: "customer_name" },
-        { label: "Zeitraum", key: "period" }, { label: "Netto", num: true, render: (r) => eur2(r.net) }, { label: "Brutto", num: true, render: (r) => eur2(r.gross) },
+        { label: "Zeitraum", key: "period" }, { label: "Netto", num: true, render: (r) => eur2(r.net) }, { label: "Brutto", num: true, render: (r) => h("div", {}, eur2(r.gross),
+          r.status === "gestellt" && r.paid_amount > 0 ? h("div", { class: "small muted" }, `offen ${eur2(r.gross - r.paid_amount)}`) : null) },
         { label: "Status", render: (r) => h("div", {}, r.overdue ? badge("überfällig", "bad") : badge(INV_STATUS[r.status], { entwurf: "warn", gestellt: "info", bezahlt: "ok", storniert: "" }[r.status]),
-          r.sent_at ? h("div", { class: "small muted", title: r.sent_to }, `versendet ${dt(r.sent_at)}`) : null) },
+          r.sent_at ? h("div", { class: "small muted", title: r.sent_to }, `versendet ${dt(r.sent_at)}`) : null,
+          r.dunning_level > 0 && r.status === "gestellt" ? h("div", {}, badge(`Mahnstufe ${r.dunning_level}`, "warn")) : null) },
         { label: "Ablage", render: (r) => docOf[r.id] ? docStatus(docOf[r.id]) : (["gestellt", "bezahlt"].includes(r.status)
           ? h("button", { class: "btn small", title: "PDF im Archiv/SharePoint ablegen", onclick: async (e) => { e.stopPropagation();
             try { await api(`/api/invoices/${r.id}/archive`, { method: "POST" }); toast("Abgelegt"); render(); } catch (err) { toast(err.message, true); } } }, "Ablegen") : "–") },
@@ -1474,6 +1478,8 @@ views.abrechnung = async () => {
       ], inv)),
       h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }),
         h("a", { class: "btn", href: `/api/invoices/export.csv?year=${new Date().getFullYear()}` }, "Rechnungsausgangsbuch (CSV) für Buchhaltung")));
+  } else if (billingTab === "zahlungen") {
+    content = await paymentsTab();
   } else if (billingTab === "zeiten") {
     const rows = await api("/api/time?limit=300");
     content = h("div", { class: "card" }, table([
@@ -1502,6 +1508,142 @@ views.abrechnung = async () => {
   }
   show(tabs, content);
 };
+
+// ---- Zahlungen & Mahnwesen
+let bankFilter = "pruefen";
+const BANK_STATUS = { offen: ["offen", "warn"], vorschlag: ["Vorschlag", "info"], zugeordnet: ["zugeordnet", "ok"], ignoriert: ["ignoriert", ""], beleg_fehlt: ["Beleg fehlt", "bad"] };
+
+async function paymentsTab() {
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  const [s, dun] = await Promise.all([api("/api/payments/summary"), api("/api/dunning")]);
+  const bank = isAdmin ? await api(`/api/bank${bankFilter === "pruefen" ? "?status=offen,vorschlag&direction=in" : bankFilter === "belege" ? "?status=beleg_fehlt" : "?limit=300"}`).catch(() => []) : [];
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  const upload = h("input", { type: "file", accept: ".csv,.txt,.xml,.sta,.mt940,.940", multiple: true, hidden: true, onchange: async (e) => {
+    for (const f of e.target.files) {
+      const res = await fetch("/api/bank/import", { method: "POST", body: f, headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(f.name) } });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { toast(`${f.name}: ${d.detail || "Import fehlgeschlagen"}`, true); continue; }
+      toast(`${f.name}: ${d.imported} neu (${d.duplicates} schon bekannt) · ${d.matched} Rechnung(en) bezahlt · ${d.suggested} Vorschläge · ${d.receipts_linked} Belege gefunden`);
+    }
+    render();
+  } });
+  const aging = s.aging; const agingTotal = Math.max(1, s.open_total);
+  const seg = (v, color, label) => v > 0 ? h("span", { title: `${label}: ${eur2(v)}`, style: `width:${(v / agingTotal) * 100}%;background:${color}` }) : null;
+  const sendDunning = async (p) => {
+    const m = await api(`/api/dunning/${p.invoice_id}/mail`);
+    const f = form([{ name: "to", label: "An", required: true }, { name: "cc", label: "Kopie (CC)" }, { name: "subject", label: "Betreff", full: true },
+      { name: "text", label: "Nachricht (erscheint auch im Mahnschreiben)", type: "textarea", rows: 10, full: true }], m);
+    modal(`${m.level} – Rechnung ${m.number}`, h("div", {},
+      h("p", { class: "small muted" }, `${m.customer_name} · ${m.days_overdue} Tage überfällig · offen ${eur2(m.open)}${m.fees || m.interest ? `${m.fees ? ` + Spesen ${eur2(m.fees)}` : ""}${m.interest ? ` + Zinsen ${eur2(m.interest)}` : ""} = ${eur2(m.total)}` : ""}. Anhänge: Mahnschreiben (PDF mit QR-Code) + Rechnung.`),
+      f, h("p", { class: "small", style: "margin-bottom:0" }, h("a", { href: `/api/dunning/${p.invoice_id}/pdf`, target: "_blank", rel: "noopener" }, "Mahnschreiben-Vorschau (PDF)"))), [
+      (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api(`/api/dunning/${p.invoice_id}/send`, { method: "POST", body: readForm(f) }); close(); toast(`${r.level} an ${r.to} gesendet`); render();
+      }) }, "Senden")]);
+  };
+  const assignInvoice = async (t) => {
+    const rest = (i) => i.gross - (i.paid_amount || 0);
+    const open = (await api("/api/invoices?status=gestellt")).filter((i) => rest(i) > 0.004)
+      .sort((a, b) => (b.customer_id === t.customer_id) - (a.customer_id === t.customer_id));
+    const mine = open.filter((i) => t.customer_id && i.customer_id === t.customer_id);
+    const exact = open.filter((i) => Math.abs(rest(i) - t.amount) < 0.01);
+    const pre = mine.length === 1 ? mine[0].id : exact.length === 1 ? exact[0].id : null;
+    const box = h("div", { class: "stack" }, open.length ? open.map((i) => h("label", { class: "row", style: "gap:.5rem;font-weight:400" },
+      h("input", { type: "checkbox", value: i.id, style: "width:auto", checked: i.id === pre }),
+      h("span", {}, `${i.number} · ${i.customer_name} · offen ${eur2(rest(i))}`, i.customer_id === t.customer_id ? h("strong", {}, " · erkannter Kunde") : null))) : h("p", { class: "muted" }, "Keine offenen Rechnungen."));
+    modal(`Zahlung ${eur2(t.amount)} zuordnen`, h("div", {}, h("p", { class: "small muted" }, `${t.partner || "–"} · ${t.text || ""}`), box), [
+      (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const ids = [...box.querySelectorAll("input:checked")].map((x) => Number(x.value));
+        if (!ids.length) throw new Error("Bitte mindestens eine Rechnung wählen");
+        const r = await api(`/api/bank/${t.id}/assign`, { method: "POST", body: { invoice_ids: ids } }); close(); toast(r.match_note); render();
+      }) }, "Zuordnen")]);
+  };
+  const assignReceipt = async (t) => {
+    const receipts = (await api("/api/receipts")).sort((a, b) => Math.abs(a.amount + t.amount) - Math.abs(b.amount + t.amount)).slice(0, 25);
+    const sel = h("select", {}, receipts.map((r) => h("option", { value: r.id }, `${dt(r.invoice_date)} · ${r.vendor || "–"} · ${r.invoice_no || ""} · ${eur2(r.amount)}`)));
+    modal(`Beleg für ${eur2(-t.amount)} zuordnen`, h("div", {}, h("p", { class: "small muted" }, `${t.partner || "–"} · ${t.text || ""}`),
+      receipts.length ? sel : h("p", { class: "muted" }, "Keine Belege vorhanden – PDF unter Belege hochladen."),
+      h("p", { class: "small" }, h("a", { href: "#/belege" }, "Beleg fehlt? → Belege → PDF hochladen"))), [
+      (close) => h("button", { class: "btn primary", disabled: !receipts.length, onclick: (e) => withBusy(e.target, async () => {
+        await api(`/api/bank/${t.id}/assign`, { method: "POST", body: { receipt_id: Number(sel.value) } }); close(); toast("Beleg zugeordnet"); render();
+      }) }, "Zuordnen")]);
+  };
+  const txAction = (t) => h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:nowrap" },
+    t.status === "vorschlag" ? h("button", { class: "btn small primary", onclick: async () => { try { const r = await api(`/api/bank/${t.id}/accept`, { method: "POST" }); toast(r.match_note); render(); } catch (err) { toast(err.message, true); } } }, "Übernehmen") : null,
+    ["offen", "vorschlag"].includes(t.status) ? h("button", { class: "btn small", onclick: () => assignInvoice(t) }, "Zuordnen") : null,
+    t.status === "beleg_fehlt" ? h("button", { class: "btn small", onclick: () => assignReceipt(t) }, "Beleg wählen") : null,
+    ["offen", "vorschlag", "beleg_fehlt"].includes(t.status) ? h("button", { class: "btn small", title: t.amount < 0 ? "z. B. Bankspesen, Abgaben – kein eigener Beleg nötig" : "z. B. Privateinlage, Umbuchung", onclick: async () => {
+      await api(`/api/bank/${t.id}/ignore`, { method: "POST", body: { note: t.amount < 0 ? "kein Beleg nötig" : "ignoriert" } }); render(); } }, t.amount < 0 ? "Kein Beleg nötig" : "Ignorieren") : null,
+    t.status === "zugeordnet" ? h("button", { class: "btn small", onclick: async () => { if (!confirm("Zuordnung lösen? Bezahlte Rechnungen werden wieder offen.")) return; await api(`/api/bank/${t.id}/unassign`, { method: "POST" }); render(); } }, "Lösen") : null);
+  const bankTable = table([
+    { label: "Datum", render: (t) => dt(t.booking_date) },
+    { label: "Auftraggeber/Empfänger", render: (t) => h("div", {}, t.partner || "–", t.iban ? h("div", { class: "small muted" }, t.iban) : null) },
+    { label: "Verwendungszweck", render: (t) => h("div", { class: "small", style: "max-width:340px" }, t.text || "–", t.match_note ? h("div", { class: "muted" }, t.match_note) : null) },
+    { label: "Betrag", num: true, render: (t) => h("span", { style: `color:var(--${t.amount < 0 ? "bad" : "ok"});white-space:nowrap` }, eur2(t.amount)) },
+    { label: "Status", render: (t) => h("div", {}, badge(...(BANK_STATUS[t.status] || [t.status])),
+      t.invoice_numbers ? h("div", { class: "small muted" }, t.invoice_numbers) : null, t.receipt_vendor ? h("div", { class: "small muted" }, `Beleg: ${t.receipt_vendor}`) : null) },
+    { label: "", render: txAction },
+  ], bank);
+  const conf = isAdmin ? await api("/api/dunning/settings") : null;
+  return h("div", {},
+    h("div", { class: "grid kpis" },
+      kpi("Offene Forderungen", eur2(s.open_total), `davon überfällig ${eur2(s.overdue_total)}`, "accent"),
+      kpi("Ø Zahlungsdauer (DSO)", s.dso === null ? "–" : `${s.dso} Tage`, `aus ${s.paid_count_180} bezahlten Rechnungen (180 Tage)`),
+      kpi("Mahnvorschläge", dun.proposals.length, dun.escalations.length ? `${dun.escalations.length} × alle Stufen ausgeschöpft` : "nach Fälligkeit + Kulanz"),
+      kpi("Ausgaben ohne Beleg", s.missing_receipts, s.missing_receipts ? `${eur2(s.missing_receipts_sum)} – für den Steuerberater nachreichen` : "alles belegt")),
+    h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, "Altersstruktur offener Rechnungen"), h("span", { class: "small muted" }, `Kontoauszug zuletzt: ${s.last_import ? dt(s.last_import) : "noch nie"}`)),
+      h("div", { class: "bar stack-bar", style: "height:14px;display:flex;overflow:hidden" },
+        seg(aging.nicht_faellig, "var(--ok)", "nicht fällig"), seg(aging["1_30"], "var(--accent)", "1–30 Tage"), seg(aging["31_60"], "#e8590c", "31–60 Tage"), seg(aging.ueber_60, "var(--bad)", "> 60 Tage")),
+      h("div", { class: "row small", style: "margin-top:.5rem;gap:1rem" },
+        h("span", {}, `nicht fällig ${eur2(aging.nicht_faellig)}`), h("span", {}, `1–30 Tage ${eur2(aging["1_30"])}`), h("span", {}, `31–60 Tage ${eur2(aging["31_60"])}`), h("span", {}, `> 60 Tage ${eur2(aging.ueber_60)}`)),
+      s.iban_ok ? null : h("p", { class: "small", style: "color:var(--warn);margin-bottom:0" }, "Hinweis: Unter „Firmendaten“ ist keine gültige IBAN hinterlegt – ohne IBAN kein QR-Code „Zahlen mit Code“ auf Rechnungen und Mahnungen.")),
+    h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, `Mahnwesen (${dun.proposals.length})`),
+        dun.proposals.length && isAdmin ? h("button", { class: "btn small primary", onclick: (e) => withBusy(e.target, async () => {
+          if (!confirm(`${dun.proposals.length} Mahnung(en) jetzt per Mail versenden?`)) return;
+          const r = await api("/api/dunning/run", { method: "POST" }); toast(`${r.sent} versendet${r.errors.length ? `, ${r.errors.length} Fehler: ${r.errors[0].error}` : ""}`, r.errors.length > 0); render();
+        }) }, "Alle senden") : null),
+      h("p", { class: "small muted" }, conf && conf.auto_send ? (dun.autopilot.ready ? "Autopilot aktiv: fällige Mahnungen gehen täglich ab 8 Uhr automatisch hinaus." : `Autopilot pausiert: ${dun.autopilot.reason}.`)
+        : "Freigabe-Modus: Vorschläge prüfen und senden. Tipp: vorher den aktuellen Kontoauszug importieren, damit niemand gemahnt wird, der schon bezahlt hat."),
+      table([
+        { label: "Rechnung", render: (p) => h("span", { style: "white-space:nowrap" }, p.number) }, { label: "Kunde", key: "customer_name" },
+        { label: "überfällig", num: true, render: (p) => `${p.days_overdue} Tage` }, { label: "offen", num: true, render: (p) => eur2(p.open) },
+        { label: "Stufe", render: (p) => badge(p.level, p.level_index === 0 ? "info" : "warn") }, { label: "Gesamt", num: true, render: (p) => eur2(p.total) },
+        { label: "", render: (p) => h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:nowrap" },
+          h("a", { class: "btn small", href: `/api/dunning/${p.invoice_id}/pdf`, target: "_blank", rel: "noopener" }, "PDF"),
+          isAdmin ? h("button", { class: "btn small primary", onclick: () => sendDunning(p) }, "Senden") : null) },
+      ], dun.proposals),
+      dun.escalations.length ? h("div", { style: "margin-top:.8rem" }, h("strong", {}, "Alle Mahnstufen ausgeschöpft – persönlich anrufen oder Inkasso:"),
+        h("ul", { class: "list" }, dun.escalations.map((p) => h("li", {}, `${p.number} · ${p.customer_name} · ${p.days_overdue} Tage · ${eur2(p.total)}`)))) : null),
+    isAdmin ? h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, "Kontoauszug & Zahlungsabgleich"),
+        h("div", { class: "row" }, upload, h("button", { class: "btn small primary", onclick: () => upload.click() }, "Kontoauszug importieren"),
+          h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => { const r = await api("/api/bank/rematch", { method: "POST" }); toast(`${r.matched} zugeordnet, ${r.suggested} Vorschläge, ${r.receipts_linked} Belege gefunden`); render(); }) }, "Neu abgleichen"))),
+      h("p", { class: "small muted" }, "CSV aus George, ELBA, Bank Austria & Co., CAMT.053 (XML) oder MT940. Zahlungen mit Rechnungsnummer im Verwendungszweck werden automatisch verbucht (auch Teil- und Sammelzahlungen), sonst gibt es Vorschläge über Kunde/IBAN und Betrag. Abbuchungen werden mit den Belegen abgeglichen."),
+      h("div", { class: "tabs" }, [["pruefen", `Zu prüfen (${s.unassigned})`], ["belege", `Ausgaben ohne Beleg (${s.missing_receipts})`], ["alle", "Alle Buchungen"]].map(([k, l]) =>
+        h("button", { class: bankFilter === k ? "active" : "", onclick: () => { bankFilter = k; render(); } }, l))),
+      bankTable) : null,
+    conf ? dunningSettingsCard(conf) : null);
+}
+
+function dunningSettingsCard(conf) {
+  const levelForms = conf.levels.map((lv) => form([
+    { name: "name", label: "Bezeichnung" }, { name: "days", label: "ab Tagen nach Fälligkeit", type: "number" },
+    { name: "fee", label: "Mahnspesen (€)", type: "number", step: "0.01" }, { name: "payment_days", label: "Neue Frist (Tage)", type: "number" },
+    { name: "subject", label: "Betreff", full: true }, { name: "text", label: "Text", type: "textarea", rows: 7, full: true }], lv));
+  const general = form([
+    { name: "auto_send", label: "Autopilot: fällige Mahnungen täglich automatisch senden", type: "checkbox", full: true },
+    { name: "min_days_between", label: "Mindestabstand zwischen Stufen (Tage)", type: "number" },
+    { name: "interest_rate", label: "Verzugszinsen % p. a. (0 = keine)", type: "number", step: "0.01" },
+    { name: "max_import_age_days", label: "Autopilot nur bei Kontoauszug jünger als (Tage)", type: "number" }], conf);
+  return h("details", { class: "card" }, h("summary", { style: "cursor:pointer;font-weight:600" }, "Einstellungen Mahnwesen"),
+    h("p", { class: "small muted" }, "Platzhalter: {anrede} {nummer} {datum} {betrag} {offen} {gesamt} {faellig} {frist} {tage} {firma} {kunde}. Rechtlicher Rahmen B2B (Österreich): Verzugszinsen 9,2 %-Punkte über dem Basiszinssatz (§ 456 UGB), Pauschale € 40 (§ 458 UGB); gegenüber Verbrauchern 4 % (§ 1000 ABGB). Mahnspesen nur, wenn vereinbart bzw. angemessen."),
+    general,
+    levelForms.map((f, i) => h("div", { style: "margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border)" }, h("h3", { style: "margin:.2rem 0 .6rem" }, `Stufe ${i + 1}`), f)),
+    h("div", { class: "row", style: "margin-top:1rem" }, h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api("/api/dunning/settings", { method: "PUT", body: { ...readForm(general), levels: levelForms.map(readForm) } }); toast("Mahnwesen gespeichert"); render();
+    }) }, "Speichern")));
+}
 
 // ---- Kundenportal (Verwaltung)
 async function portalCard(c) {
@@ -1691,7 +1833,7 @@ async function voiceNoteForm() {
 
 // ---- Corporate Design
 // ---------------------------------------------------------------- Dokumente (PDF, SharePoint/OneDrive, Outlook)
-const DOC_KIND = { rechnung: "Rechnung", angebot: "Angebot", beleg: "Beleg", bericht: "Bericht", qbr: "QBR", sonstiges: "Sonstiges" };
+const DOC_KIND = { rechnung: "Rechnung", angebot: "Angebot", beleg: "Beleg", bericht: "Bericht", qbr: "QBR", mahnung: "Mahnung", sonstiges: "Sonstiges" };
 const DOC_TARGET = { local: "nur lokal", sharepoint: "SharePoint", onedrive: "OneDrive" };
 
 function docStatus(d) {
@@ -1762,7 +1904,7 @@ views.dokumente = async () => {
       kpi("Dokumente", st.total, "Rechnungen, Angebote, Belege, Berichte"),
       kpi("Synchronisiert", st.target === "local" ? "–" : st.synced, st.target === "local" ? "nur lokales Archiv" : DOC_TARGET[st.target]),
       kpi("Upload-Fehler", st.errors, st.errors ? "Klick auf „Upload-Fehler“ wiederholt" : "alles in Ordnung")),
-    h("div", { class: "tabs" }, [["", "Alle"], ["rechnung", "Rechnungen"], ["angebot", "Angebote"], ["beleg", "Belege"], ["bericht", "Berichte"], ["qbr", "QBR"]].map(([k, l]) =>
+    h("div", { class: "tabs" }, [["", "Alle"], ["rechnung", "Rechnungen"], ["angebot", "Angebote"], ["beleg", "Belege"], ["bericht", "Berichte"], ["qbr", "QBR"], ["mahnung", "Mahnungen"]].map(([k, l]) =>
       h("button", { class: docKind === k ? "active" : "", onclick: () => { docKind = k; render(); } }, l))),
     h("div", { class: "card" }, docsTable(rows)),
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "So läuft der Dokumentenprozess"), md([
@@ -1777,7 +1919,7 @@ views.dokumente = async () => {
 
 async function docsSettingsCard() {
   const s = await api("/api/documents/settings");
-  const folderLabels = { rechnung: "Ausgangsrechnungen", rechnung_kunde: "Rechnungs-Kopie im Kundenordner", beleg: "Eingangsrechnungen (Belege)", angebot: "Angebote", bericht: "Berichte / QBR" };
+  const folderLabels = { rechnung: "Ausgangsrechnungen", rechnung_kunde: "Rechnungs-Kopie im Kundenordner", beleg: "Eingangsrechnungen (Belege)", angebot: "Angebote", bericht: "Berichte / QBR", mahnung: "Mahnungen" };
   const values = { ...s };
   for (const k of Object.keys(folderLabels)) values[`folder_${k}`] = s.folders[k] || "";
   const f = form([

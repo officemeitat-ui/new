@@ -50,6 +50,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "beleg": "Buchhaltung/Eingangsrechnungen/{jahr}/{monat}",
         "angebot": "Kunden/{kunde}/Angebote/{jahr}",
         "bericht": "Kunden/{kunde}/Berichte/{jahr}",
+        "mahnung": "Buchhaltung/Mahnungen/{jahr}",
     },
     "auto_invoice": True,       # Rechnung beim Stellen automatisch ablegen
     "auto_receipts": True,      # Beleg-PDFs aus dem Postfach automatisch ablegen
@@ -64,7 +65,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
                    "Freundliche Grüße\n{firma}"),
 }
 FOLDER_KEYS = set(DEFAULT_SETTINGS["folders"])
-KINDS = {"rechnung", "angebot", "beleg", "bericht", "qbr", "sonstiges"}
+KINDS = {"rechnung", "angebot", "beleg", "bericht", "qbr", "mahnung", "sonstiges"}
 SIMPLE_UPLOAD_LIMIT = 4 * 1024 * 1024
 CHUNK = 320 * 1024 * 16  # 5 MiB, Vielfaches von 320 KiB (Graph-Vorgabe)
 
@@ -507,7 +508,7 @@ class DocumentService:
         return {"to": (customer or {}).get("email", ""), "cc": conf["cc"],
                 "subject": fill_text(conf["quote_subject"], values), "text": fill_text(conf["quote_text"], values)}
 
-    def _send(self, mailer: Any, to: str, cc: str, subject: str, text: str, attachments: list[Attachment]) -> str:
+    def send_branded(self, mailer: Any, to: str, cc: str, subject: str, text: str, attachments: list[Attachment]) -> str:
         if mailer is None or not getattr(mailer, "smtp_configured", False):
             raise MailError("Kein Mailversand eingerichtet (Microsoft 365 oder SMTP in der .env).")
         if not re.fullmatch(r"[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+", to or ""):
@@ -540,10 +541,10 @@ class DocumentService:
                                               "application/xml"))
             except ValueError as exc:
                 xml_note = f"ebInterface nicht angehängt: {exc}"
-        external_id = self._send(mailer, to, cc, subject, text, attachments)
+        external_id = self.send_branded(mailer, to, cc, subject, text, attachments)
         ts = now_iso()
         self.db.update("invoices", invoice_id, {"sent_at": ts, "sent_to": to})
-        self._log_out(to, subject, text, inv["customer_id"], "invoice", invoice_id, external_id, len(attachments))
+        self.log_out(to, subject, text, inv["customer_id"], "invoice", invoice_id, external_id, len(attachments))
         doc = None
         if not self.db.query_one("SELECT id FROM documents WHERE ref_type = 'invoice' AND ref_id = ?", (invoice_id,)):
             doc = self.archive_invoice(invoice_id)
@@ -558,12 +559,12 @@ class DocumentService:
             raise DocumentError("Angebot ist bereits abgeschlossen.")
         pdf = self.quote_pdf(q)
         name = self.quote_filename(q)
-        external_id = self._send(mailer, to, cc, subject, text, [Attachment(name, pdf, "application/pdf")])
-        self._log_out(to, subject, text, q["customer_id"], "quote", quote_id, external_id, 1)
+        external_id = self.send_branded(mailer, to, cc, subject, text, [Attachment(name, pdf, "application/pdf")])
+        self.log_out(to, subject, text, q["customer_id"], "quote", quote_id, external_id, 1)
         doc = self.archive_quote(quote_id)
         return {"sent": True, "to": to, "attachments": [name], "document": doc}
 
-    def _log_out(self, to: str, subject: str, text: str, customer_id: int | None, ref_type: str, ref_id: int,
+    def log_out(self, to: str, subject: str, text: str, customer_id: int | None, ref_type: str, ref_id: int,
                  external_id: str, n_attachments: int) -> None:
         self.db.insert("messages", {"channel": "email", "direction": "out", "external_id": external_id or "",
                                     "to_email": to, "subject": subject, "body": text, "status": "gesendet",

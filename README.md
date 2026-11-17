@@ -9,7 +9,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Strategie dahinter: [docs/STRATEGIE-2026-2030.md](docs/STRATEGIE-2026-2030.md) ·
 > KI-Mitarbeiter als Produkt: [docs/KI-MITARBEITER.md](docs/KI-MITARBEITER.md) ·
 > PC-Empfehlung und Training: [docs/OFFLINE-KI-PC.md](docs/OFFLINE-KI-PC.md) ·
-> Outlook/SharePoint/OneDrive: [docs/M365-DOKUMENTENPROZESS.md](docs/M365-DOKUMENTENPROZESS.md)
+> Outlook/SharePoint/OneDrive: [docs/M365-DOKUMENTENPROZESS.md](docs/M365-DOKUMENTENPROZESS.md) ·
+> Zahlungen & Mahnwesen: [docs/ZAHLUNGEN-MAHNWESEN.md](docs/ZAHLUNGEN-MAHNWESEN.md)
 
 ## Funktionen
 
@@ -28,6 +29,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
 | **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, PDF automatisch in `Buchhaltung/Eingangsrechnungen`, Scans per Upload, CSV-Export für den Steuerberater |
+| **Zahlungen & Mahnwesen** | **QR-Code „Zahlen mit Code“** auf jeder Rechnung (EPC, alle österreichischen Banking-Apps). **Kontoauszug-Import** (George/ELBA-CSV, CAMT.053, MT940) mit automatischem Abgleich: Rechnungsnummer im Verwendungszweck → bezahlt (auch Teil- und Sammelzahlungen), sonst Vorschlag über IBAN/Kunde + Betrag. **Ausgaben ohne Beleg** für den Steuerberater. **Mahnwesen** in 3 Stufen als PDF im CD mit QR-Code, Versand per Outlook, Spesen/Verzugszinsen optional, Freigabe oder Autopilot. Altersstruktur und Zahlungsdauer (DSO). |
 | **Dokumente (Microsoft 365)** | Rechnungen, Angebote, Monatsberichte, QBR und Security-Checks als **PDF im ME-IT-Design**, automatisch abgelegt (lokal + **SharePoint/OneDrive** über Microsoft Graph, mit Ordnervorlagen je Kunde/Jahr). **Versand per Outlook** mit PDF und E-Rechnung im Anhang, Mail im Corporate Design. Fehlgeschlagene Uploads per Klick wiederholen. |
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
 | **Lizenzen & Verträge** | Pro Kunde: M365, Virenschutz, Domains, Zertifikate, Wartung. Verlängerung, Kündigungsfrist, Einkauf/Verkauf/Marge, Abgleich der Lizenzanzahl mit den Mitarbeitern. Läuft automatisch im Rechnungslauf mit (monatlich bzw. im Verlängerungsmonat), Fristen und Unterlizenzierung erscheinen im Radar. |
@@ -156,6 +158,7 @@ meit/
   einvoice.py      E-Rechnung ebInterface 6.1
   pdf.py           PDFs im Corporate Design (Rechnung, Angebot, Berichte)
   documents.py     Archiv, SharePoint/OneDrive (Graph), Versand per Outlook
+  payments.py      Kontoauszug-Import, Zahlungsabgleich, Belegabgleich, Mahnwesen
   branding.py      Corporate Design (Logo, Farben, Schrift)
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
   subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)
