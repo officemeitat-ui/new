@@ -365,6 +365,42 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_bank_status ON bank_transactions(status);
 
+CREATE TABLE IF NOT EXISTS maintenance_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    template TEXT DEFAULT '',
+    title TEXT NOT NULL,
+    checklist TEXT DEFAULT '[]',
+    interval TEXT DEFAULT 'monat',
+    next_due TEXT NOT NULL,
+    lead_days INTEGER DEFAULT 3,
+    assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    estimate_min INTEGER DEFAULT 15,
+    active INTEGER DEFAULT 1,
+    last_done_at TEXT DEFAULT '',
+    last_result TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS maintenance_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL REFERENCES maintenance_tasks(id) ON DELETE CASCADE,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+    title TEXT DEFAULT '',
+    due_date TEXT NOT NULL,
+    status TEXT DEFAULT 'offen',
+    result TEXT DEFAULT '',
+    checklist TEXT DEFAULT '[]',
+    note TEXT DEFAULT '',
+    minutes INTEGER DEFAULT 0,
+    done_at TEXT DEFAULT '',
+    done_by INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mruns_task ON maintenance_runs(task_id, status);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -409,6 +445,10 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "bank_transactions": {"booking_date", "amount", "currency", "partner", "iban", "text", "reference", "dedupe_key",
                           "status", "match_note", "customer_id", "receipt_id", "suggestion", "import_file"},
     "payments": {"invoice_id", "transaction_id", "amount", "date", "note"},
+    "maintenance_tasks": {"customer_id", "template", "title", "checklist", "interval", "next_due", "lead_days",
+                          "assigned_to", "estimate_min", "active", "last_done_at", "last_result"},
+    "maintenance_runs": {"task_id", "customer_id", "ticket_id", "title", "due_date", "status", "result", "checklist",
+                         "note", "minutes", "done_at", "done_by"},
     "documents": {"kind", "title", "filename", "customer_id", "ref_type", "ref_id", "folder", "local_path", "size",
                   "sha256", "remote", "remote_url", "remote_id", "remote_status", "remote_error"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
@@ -433,7 +473,7 @@ TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
-    "bank_transactions", "payments",
+    "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

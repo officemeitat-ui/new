@@ -159,6 +159,14 @@ def health_score(db: Database, customer: dict[str, Any], today: date | None = No
             factor(f"{q['breached']} SLA-Verletzung(en) in 90 Tagen (Quote {q['quote']:.0f} %)", -min(20, 5 * q["breached"]))
         elif q["measured"]:
             factor("SLA eingehalten", +5)
+    if db.scalar("SELECT COUNT(*) FROM maintenance_tasks WHERE customer_id = ? AND active = 1", (cid,)):
+        late = db.scalar("SELECT COUNT(*) FROM maintenance_runs WHERE customer_id = ? AND status = 'offen' AND due_date < ?",
+                         (cid, (today - timedelta(days=7)).isoformat())) or 0
+        if late:
+            factor(f"{late} Wartung(en) seit über 7 Tagen überfällig", -min(15, 5 * late))
+        elif db.scalar("SELECT COUNT(*) FROM maintenance_runs WHERE customer_id = ? AND status = 'erledigt' "
+                       "AND done_at >= ?", (cid, (today - timedelta(days=45)).isoformat())):
+            factor("Wartungsplan eingehalten (mit Nachweis)", +5)
     contract_end = _parse(customer.get("contract_end"))
     if contract_end and today <= contract_end <= today + timedelta(days=60):
         factor(f"Vertrag endet am {contract_end.strftime('%d.%m.%Y')}", -15)

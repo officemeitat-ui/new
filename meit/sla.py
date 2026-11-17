@@ -80,6 +80,8 @@ def ticket_sla(ticket: dict[str, Any], package: str, cfg: dict[str, Any], now: d
     now = now or datetime.now()
     bh = cfg["business_hours"]
     targets = cfg["packages"].get(package or "keins", cfg["packages"]["keins"]).get(ticket.get("priority") or "normal", [None, None])
+    if ticket.get("category") == "Wartung" and str(ticket.get("title") or "").startswith("Wartung:"):
+        targets = [None, None]  # geplante Wartung (Wartungsplan) ist keine Störung – zählt nicht in die SLA
     created = _parse(ticket.get("created_at")) or now
     responded = _parse(ticket.get("first_response_at"))
     resolved = _parse(ticket.get("resolved_at")) if ticket.get("status") == "geloest" else None

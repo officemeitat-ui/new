@@ -169,6 +169,27 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
                             f"endet {info[0].strftime('%d.%m.%Y')}" if info and info[0] <= today + timedelta(days=548) else "ok")
         return rows
 
+    @app.get("/api/portal/maintenance")
+    def maintenance(u: dict = Depends(portal_user)) -> dict:
+        """Wartungsnachweise: was wir vorbeugend prüfen und mit welchem Ergebnis (ohne interne Notizen)."""
+        from .maintenance import INTERVALS, RESULTS
+
+        cid = u["customer_id"]
+        plan = db.query("SELECT title, interval, next_due, last_done_at, last_result FROM maintenance_tasks "
+                        "WHERE customer_id = ? AND active = 1 ORDER BY title", (cid,))
+        for p in plan:
+            p["interval_label"] = INTERVALS.get(p["interval"], p["interval"])
+            p["last_result_label"] = RESULTS.get(p["last_result"], "")
+        since = (date.today() - timedelta(days=365)).isoformat()
+        done = db.query("SELECT r.id, r.title, r.done_at, r.result, r.checklist FROM maintenance_runs r WHERE r.customer_id = ? "
+                        "AND r.status = 'erledigt' AND r.done_at >= ? ORDER BY r.done_at DESC LIMIT 100", (cid, since))
+        for r in done:
+            items = loads(r.pop("checklist"), [])
+            r["checked"] = sum(1 for i in items if i.get("done"))
+            r["items"] = len(items)
+            r["result_label"] = RESULTS.get(r["result"], r["result"])
+        return {"plan": plan, "done": done}
+
     @app.get("/api/portal/quotes")
     def quotes(u: dict = Depends(portal_user)) -> list[dict]:
         rows = db.query("SELECT id, title, text, status, total_once, total_monthly, tiers, chosen_tier, created_at FROM quotes "

@@ -52,7 +52,11 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
     levers = ctx.radar.scan(customer_id, today=today)["opportunities"][:3]
     next_steps = [o["title"] for o in levers]
 
+    from ..maintenance import Maintenance
+
+    wartung = Maintenance(db).summary(customer_id, today - timedelta(days=90), today)
     facts = {
+        "wartung": {"durchgefuehrt": wartung["count"], "mit_handlungsbedarf": len(wartung["problems"])},
         "kunde": customer["name"], "zeitraum": f"{_quarter(today)} (letzte 90 Tage)", "plan_letztes_qbr": plan,
         "tickets": len(tickets), "geloest": len(resolved), "kritische_vorfaelle": len(critical),
         "arbeitszeit_stunden": hours, "umgesetzte_projekte": [p["title"] for p in projects],
@@ -99,6 +103,11 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
         lines += [f"- Projekt umgesetzt: **{p['title']}**" for p in projects]
     if sla_q["quote"] is not None:
         lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")
+    if wartung["count"]:
+        restore = sum(1 for r in wartung["done"] if "Restore" in r["title"])
+        lines.append(f"- Vorbeugende Wartung: **{wartung['count']} Prüfungen** durchgeführt"
+                     + (f", davon {restore} Restore-Test(s)" if restore else "")
+                     + (f" – {len(wartung['problems'])} mit Handlungsbedarf" if wartung["problems"] else " – alles in Ordnung"))
     lines += ["", "## 3. Wo wir stehen"] + [
         f"- {'▲' if f['delta'] > 0 else '▼'} {f['text']}" for f in health["factors"]] + [""]
     lines += ["## 4. Der nächste Hebel", lever_text or "Aktuell keine offenen Hebel – Fokus auf stabilen Betrieb.", ""]

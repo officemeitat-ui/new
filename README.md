@@ -10,7 +10,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > KI-Mitarbeiter als Produkt: [docs/KI-MITARBEITER.md](docs/KI-MITARBEITER.md) ·
 > PC-Empfehlung und Training: [docs/OFFLINE-KI-PC.md](docs/OFFLINE-KI-PC.md) ·
 > Outlook/SharePoint/OneDrive: [docs/M365-DOKUMENTENPROZESS.md](docs/M365-DOKUMENTENPROZESS.md) ·
-> Zahlungen & Mahnwesen: [docs/ZAHLUNGEN-MAHNWESEN.md](docs/ZAHLUNGEN-MAHNWESEN.md)
+> Zahlungen & Mahnwesen: [docs/ZAHLUNGEN-MAHNWESEN.md](docs/ZAHLUNGEN-MAHNWESEN.md) ·
+> Wartungsplan: [docs/WARTUNGSPLAN.md](docs/WARTUNGSPLAN.md)
 
 ## Funktionen
 
@@ -18,6 +19,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 |---|---|
 | **Übersicht** | MRR, offene/dringende Tickets, Geräte ohne Herstellersupport, Umsatzpotenzial, auslaufende Verträge |
 | **Tickets + Triage-Agent** | Jedes neue Ticket wird automatisch eingeordnet: Kategorie, Priorität, Lösungsschritte (aus Wissensdatenbank und ähnlichen gelösten Tickets), Antwortentwurf an den Kunden, Hinweis auf Verkaufschance |
+| **Wartungsplan** | Wiederkehrende Prüfungen je Kunde (Backup-Restore-Test, Patch-Status, Security, Firewall, USV …), passend zu den gebuchten Leistungen vorgeschlagen. Fällige Prüfungen werden automatisch zu Tickets, Abschluss mit Checkliste und Ergebnis. **Nachweis** im Monatsbericht, QBR, Kundenportal und als Wartungsprotokoll-PDF; fließt in den Health Score ein, zählt nicht in die SLA. |
 | **Kunden & Geräte** | Stammdaten, Pakete, gebuchte Leistungen, Geräte mit automatischer Support-Ende-Erkennung (Windows 10, Server 2012/2016/2019, Exchange, Office) |
 | **Wissensdatenbank (RAG)** | Semantische Suche mit lokalem Embedding-Modell, ohne KI als Stichwortsuche. Gelöste Tickets lassen sich per Klick übernehmen. |
 | **KI-Assistent** | Chat mit Werkzeugen auf deine echten Daten: „Welche Kunden haben noch Windows 10?“, „Leg für Huber ein Ticket an …“ |
@@ -159,6 +161,7 @@ meit/
   pdf.py           PDFs im Corporate Design (Rechnung, Angebot, Berichte)
   documents.py     Archiv, SharePoint/OneDrive (Graph), Versand per Outlook
   payments.py      Kontoauszug-Import, Zahlungsabgleich, Belegabgleich, Mahnwesen
+  maintenance.py   Wartungsplan: Vorlagen, Fälligkeit → Ticket, Nachweise
   branding.py      Corporate Design (Logo, Farben, Schrift)
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
   subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)

@@ -34,7 +34,12 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
         "SELECT score, level, created_at FROM assessments WHERE customer_id = ? ORDER BY id DESC LIMIT 1",
         (customer_id,))
 
+    from ..maintenance import Maintenance, month_bounds, report_lines
+
+    m_start, m_end, _ = month_bounds(month)
+    wartung = Maintenance(ctx.db).summary(customer_id, m_start, m_end)
     facts = {
+        "wartung_durchgefuehrt": [f"{r['title']}: {r['result']}" for r in wartung["done"]],
         "monat": month, "tickets_gesamt": len(tickets), "geloest": len(resolved), "offen_gesamt": open_all,
         "arbeitszeit_stunden": round(minutes / 60, 1),
         "kategorien": sorted({t["category"] for t in tickets if t["category"]}),
@@ -73,8 +78,10 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
     sla_q = customer_sla_quote(ctx.db, customer, days=31)
     if sla_q["quote"] is not None:
         lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")
-    if resolved:
-        lines += ["", "## Erledigt"] + [f"- {t['title']}" for t in resolved]
+    done_tickets = [t for t in resolved if t["category"] != "Wartung"]
+    if done_tickets:
+        lines += ["", "## Erledigt"] + [f"- {t['title']}" for t in done_tickets]
+    lines += report_lines(wartung)
     if risks:
         lines += ["", "## Empfehlungen & Risiken"] + [f"- **{r['title']}** – {r['reason']}" for r in risks]
     lines += ["", f"_Erstellt von {ctx.company}_"]

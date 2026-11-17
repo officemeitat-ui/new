@@ -217,7 +217,8 @@ const views = {};
 views.dashboard = async () => {
   setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
     h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
-  const [d, km, pay] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null), api("/api/payments/summary").catch(() => null)]);
+  const [d, km, pay, wt] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
+    api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null)]);
   const kpi = (label, value, sub, cls = "", href = null, onclick = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, onclick, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
   const nrrVal = d.nrr && d.nrr.nrr !== null ? `${d.nrr.nrr.toLocaleString("de-AT")} %` : "–";
@@ -236,6 +237,7 @@ views.dashboard = async () => {
       kpi("Kunden", d.customers, `${d.managed_customers} mit Managed-Vertrag`),
       kpi("Offene Tickets", d.open_tickets, `${d.critical_tickets} dringend · ${d.sla.breached_open} SLA verletzt`, d.sla.breached_open ? "" : "", "#/sla"),
       kpi("Geräte ohne Support", d.assets_eol, `${d.assets_eol_soon} bald · ${d.warranty_soon} Garantie < 90 Tage`),
+      wt ? kpi("Wartung", `${wt.open} fällig`, wt.tasks ? `${wt.overdue} überfällig · ${wt.done_this_month} erledigt (Monat)` : `${wt.customers_without_plan} Managed-Kunden ohne Plan`, "", "#/wartung") : null,
       kpi("Umsatz-Potenzial", eur(d.radar_annual), `${d.radar_count} Chancen · +${eur(d.radar_monthly)}/Monat`, "accent")),
     h("div", { class: "grid two" },
       h("div", { class: "card" },
@@ -360,6 +362,7 @@ views.kunde = async (id) => {
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Lizenzen & Verträge"),
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
+    await maintenanceCard(c),
     await (async () => { const docs = await api(`/api/documents?customer_id=${c.id}&limit=50`).catch(() => []);
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, `Dokumente (${docs.length})`),
         h("a", { class: "btn small", href: "#/dokumente" }, "Alle Dokumente")),
@@ -1507,6 +1510,152 @@ views.abrechnung = async () => {
       }) }, "Speichern")));
   }
   show(tabs, content);
+};
+
+// ---- Wartungsplan
+let maintTab = "faellig";
+const M_RESULT = { ok: ["in Ordnung", "ok"], hinweis: ["Hinweis", "warn"], problem: ["Problem", "bad"] };
+const M_INTERVAL = { woche: "wöchentlich", monat: "monatlich", quartal: "vierteljährlich", halbjahr: "halbjährlich", jahr: "jährlich" };
+const resultBadge = (r) => r ? badge(...(M_RESULT[r] || [r])) : h("span", { class: "muted" }, "–");
+
+function completeRun(run) {
+  const boxes = run.checklist.map((i) => h("input", { type: "checkbox", checked: i.done, style: "width:auto" }));
+  let result = "ok";
+  const seg = h("div", { class: "seg" }, Object.entries(M_RESULT).map(([k, [l]]) => h("label", {},
+    h("input", { type: "radio", name: "mresult", value: k, checked: k === "ok", onchange: () => { result = k; follow.parentElement.hidden = k !== "problem"; } }), h("span", {}, l))));
+  const note = h("textarea", { rows: 3, placeholder: "Was wurde festgestellt/gemacht? (Hinweise und Probleme erscheinen im Monatsbericht)" });
+  const minutes = h("input", { type: "number", value: 15, min: 0, style: "max-width:120px" });
+  const follow = h("input", { type: "checkbox", checked: true, style: "width:auto" });
+  modal(`Wartung: ${run.title}`, h("div", { class: "stack" },
+    h("p", { class: "small muted", style: "margin:0" }, `${run.customer_name} · fällig ${dt(run.due_date)}`),
+    h("div", {}, h("label", {}, "Checkliste"), run.checklist.length ? run.checklist.map((i, n) => h("label", { class: "row", style: "gap:.5rem;font-weight:400" }, boxes[n], h("span", {}, i.item)))
+      : h("p", { class: "muted" }, "Keine Checkliste hinterlegt.")),
+    h("div", {}, h("label", {}, "Ergebnis"), seg),
+    h("div", {}, h("label", {}, "Notiz"), note),
+    h("div", { class: "row" }, h("div", {}, h("label", {}, "Zeit (Minuten)"), minutes),
+      h("label", { class: "row", style: "gap:.5rem;font-weight:400;margin-top:1.4rem", hidden: true }, follow, h("span", {}, "Folgeticket (Priorität hoch) anlegen")))), [
+    (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      if (!note.value.trim() && !confirm("Ohne Begründung überspringen?")) return;
+      await api(`/api/maintenance/runs/${run.id}/complete`, { method: "POST", body: { skip: true, note: note.value } }); close(); toast("Übersprungen – nächster Termin geplant"); render();
+    }) }, "Überspringen"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api(`/api/maintenance/runs/${run.id}/complete`, { method: "POST", body: {
+        done: boxes.map((b) => b.checked), result, note: note.value, minutes: Number(minutes.value) || 0, followup: follow.checked } });
+      close(); toast(r.followup_ticket_id ? `Erledigt – Folgeticket #${r.followup_ticket_id} angelegt` : "Wartung dokumentiert"); render();
+    }) }, "Abschließen"),
+  ]);
+}
+
+function taskForm(t = null, customerId = null) {
+  const f = form([
+    ...(t ? [] : [{ name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: customerId || "" }]),
+    { name: "title", label: "Prüfung", required: true, full: true },
+    { name: "interval", label: "Rhythmus", type: "select", options: Object.entries(M_INTERVAL) },
+    { name: "next_due", label: "Nächste Fälligkeit", type: "date" },
+    { name: "assigned_to", label: "Zuständig", type: "select", options: [["", "– automatisch –"], ...state.users.map((u) => [u.id, u.name])] },
+    { name: "estimate_min", label: "Aufwand (Minuten)", type: "number" },
+    { name: "checklist", label: "Checkliste (eine Zeile pro Punkt)", type: "textarea", rows: 5, full: true },
+    ...(t ? [{ name: "active", label: "aktiv", type: "checkbox" }] : []),
+  ], t ? { ...t, checklist: (t.checklist || []).join("\n"), assigned_to: t.assigned_to || "" } : { interval: "monat", estimate_min: 15 });
+  modal(t ? "Prüfung bearbeiten" : "Neue Prüfung", f, [
+    t ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Prüfung löschen? Bisherige Nachweise bleiben nicht erhalten.")) return;
+      await api(`/api/maintenance/tasks/${t.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const d = readForm(f);
+      d.checklist = d.checklist.split("\n").map((x) => x.trim()).filter(Boolean);
+      d.assigned_to = d.assigned_to ? Number(d.assigned_to) : null;
+      if (!d.next_due) delete d.next_due;
+      if (t) await api(`/api/maintenance/tasks/${t.id}`, { method: "PUT", body: d });
+      else await api("/api/maintenance/tasks", { method: "POST", body: { ...d, customer_id: Number(d.customer_id) } });
+      close(); toast("Gespeichert"); render();
+    }) }, "Speichern"),
+  ].filter(Boolean));
+}
+
+async function planWizard(customerId, customerName) {
+  const s = await api(`/api/maintenance/suggest/${customerId}`);
+  if (!s.templates.length) return toast("Alle passenden Standard-Prüfungen sind bereits angelegt – eigene über „+ Prüfung“.");
+  const boxes = s.templates.map((t) => [t.key, h("input", { type: "checkbox", checked: true, style: "width:auto" })]);
+  modal(`Wartungsplan für ${customerName}`, h("div", { class: "stack" },
+    h("p", { class: "small muted", style: "margin:0" }, "Vorschlag passend zu den gebuchten Leistungen und Geräten. Fälligkeiten werden über den Monat verteilt, Tickets entstehen automatisch 3 Tage vorher."),
+    s.templates.map((t, i) => h("label", { class: "row", style: "gap:.5rem;font-weight:400;align-items:flex-start" }, boxes[i][1],
+      h("span", {}, h("strong", {}, t.title), ` · ${M_INTERVAL[t.interval]}`, h("div", { class: "small muted" }, t.checklist.join(" · ")))))), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/maintenance/plan", { method: "POST", body: { customer_id: customerId, templates: boxes.filter(([, b]) => b.checked).map(([k]) => k) } });
+      close(); toast(`${r.created} Prüfung(en) angelegt`); render();
+    }) }, "Plan anlegen")]);
+}
+
+async function maintenanceCard(c) {
+  const tasks = await api(`/api/maintenance/tasks?customer_id=${c.id}`).catch(() => []);
+  const month = new Date().toISOString().slice(0, 7);
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, `Wartungsplan (${tasks.filter((t) => t.active).length})`),
+      h("div", { class: "row" },
+        tasks.length ? h("a", { class: "btn small", href: `/api/maintenance/protocol.pdf?customer_id=${c.id}&month=${month}`, target: "_blank", rel: "noopener" }, "Protokoll (PDF)") : null,
+        tasks.length ? h("button", { class: "btn small", title: "Wartungsprotokoll des Monats im Kundenordner ablegen (lokal + SharePoint/OneDrive)", onclick: (e) => withBusy(e.target, async () => {
+          const d = await api("/api/maintenance/protocol", { method: "POST", body: { customer_id: c.id, month } }); toast(`Abgelegt in ${d.folder}`); }) }, "Protokoll ablegen") : null,
+        h("button", { class: "btn small", onclick: () => planWizard(c.id, c.name) }, "Standard-Plan"),
+        h("button", { class: "btn small", onclick: () => taskForm(null, c.id) }, "+ Prüfung"))),
+    tasks.length ? table([
+      { label: "Prüfung", render: (t) => h("div", {}, t.title, t.active ? null : h("span", { class: "small muted" }, " (pausiert)")) },
+      { label: "Rhythmus", render: (t) => M_INTERVAL[t.interval] || t.interval },
+      { label: "Nächste", render: (t) => dt(t.next_due) },
+      { label: "Zuletzt", render: (t) => t.last_done_at ? h("div", { class: "row", style: "gap:.4rem" }, dt(t.last_done_at), resultBadge(t.last_result)) : "–" },
+    ], tasks, (t) => taskForm(t)) : h("p", { class: "small muted", style: "margin:0" },
+      (c.package || "keins") !== "keins" ? "Noch kein Wartungsplan – „Standard-Plan“ schlägt passende Prüfungen vor (Backup-Restore-Test, Patch-Status, Security …). Nachweise erscheinen im Monatsbericht und im Kundenportal."
+        : "Kein Betreuungsvertrag – Wartungsplan ist ein gutes Argument für Managed Services."));
+}
+
+views.wartung = async () => {
+  await Promise.all([loadCustomers(), loadUsers()]);
+  setTitle("Wartung", [h("button", { class: "btn primary", onclick: () => taskForm() }, "+ Prüfung")]);
+  const ov = await api("/api/maintenance");
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  let content;
+  if (maintTab === "faellig") {
+    const runs = await api("/api/maintenance/runs?status=offen");
+    content = h("div", { class: "card" }, table([
+      { label: "Fällig", render: (r) => h("div", {}, dt(r.due_date), r.overdue ? h("div", {}, badge("überfällig", "bad")) : null) },
+      { label: "Kunde", render: (r) => h("a", { href: `#/kunde/${r.customer_id}` }, r.customer_name) },
+      { label: "Prüfung", render: (r) => h("div", {}, r.title, h("div", { class: "small muted" }, `${r.checklist.length} Punkte · ${M_INTERVAL[r.interval] || ""}`)) },
+      { label: "Zuständig", render: (r) => r.assigned_name || "–" },
+      { label: "Ticket", render: (r) => r.ticket_id ? h("a", { href: "#", onclick: (e) => { e.preventDefault(); ticketDetail(r.ticket_id); } }, `#${r.ticket_id}`) : "–" },
+      { label: "", render: (r) => h("button", { class: "btn small primary", onclick: () => completeRun(r) }, "Abschließen") },
+    ], runs));
+  } else if (maintTab === "plan") {
+    const tasks = await api("/api/maintenance/tasks");
+    const managed = state.customers.filter((c) => (c.package || "keins") !== "keins" && !tasks.some((t) => t.customer_id === c.id && t.active));
+    content = h("div", {},
+      managed.length ? h("div", { class: "card", style: "margin-bottom:1rem;border-left:4px solid var(--accent)" },
+        h("h2", {}, `${managed.length} Managed-Kunde(n) ohne Wartungsplan`),
+        h("div", { class: "row" }, managed.map((c) => h("button", { class: "btn small", onclick: () => planWizard(c.id, c.name) }, `${c.name} → Plan anlegen`)))) : null,
+      h("div", { class: "card" }, table([
+        { label: "Kunde", render: (t) => h("a", { href: `#/kunde/${t.customer_id}`, onclick: (e) => e.stopPropagation() }, t.customer_name) },
+        { label: "Prüfung", render: (t) => h("div", {}, t.title, t.active ? null : h("span", { class: "small muted" }, " (pausiert)")) },
+        { label: "Rhythmus", render: (t) => M_INTERVAL[t.interval] || t.interval }, { label: "Nächste", render: (t) => dt(t.next_due) },
+        { label: "Zuletzt", render: (t) => t.last_done_at ? h("div", { class: "row", style: "gap:.4rem" }, dt(t.last_done_at), resultBadge(t.last_result)) : "–" },
+        { label: "Zuständig", render: (t) => t.assigned_name || "automatisch" },
+      ], tasks, (t) => taskForm(t))));
+  } else {
+    const runs = (await api("/api/maintenance/runs?limit=200")).filter((r) => r.status !== "offen");
+    content = h("div", { class: "card" }, table([
+      { label: "Erledigt", render: (r) => dt(r.done_at) }, { label: "Kunde", key: "customer_name" }, { label: "Prüfung", key: "title" },
+      { label: "Ergebnis", render: (r) => r.status === "uebersprungen" ? badge("übersprungen") : resultBadge(r.result) },
+      { label: "Checkliste", render: (r) => `${r.checklist.filter((i) => i.done).length}/${r.checklist.length}` },
+      { label: "Notiz", render: (r) => h("span", { class: "small" }, r.note || "–") }, { label: "Von", render: (r) => r.done_by_name || "–" },
+    ], runs));
+  }
+  show(
+    h("div", { class: "grid kpis" },
+      kpi("Fällig", ov.open, `${ov.overdue} überfällig`, ov.overdue ? "" : "accent"),
+      kpi("Nächste 7 Tage", ov.next_7_days, "Prüfungen werden zu Tickets"),
+      kpi("Erledigt (Monat)", ov.done_this_month, "Nachweis im Monatsbericht & Portal"),
+      kpi("Prüfungen im Plan", ov.tasks, ov.customers_without_plan ? `${ov.customers_without_plan} Managed-Kunde(n) ohne Plan` : "alle Managed-Kunden abgedeckt")),
+    h("div", { class: "tabs" }, [["faellig", `Fällig (${ov.open})`], ["plan", "Plan"], ["erledigt", "Erledigt"]].map(([k, l]) =>
+      h("button", { class: maintTab === k ? "active" : "", onclick: () => { maintTab = k; render(); } }, l))),
+    content,
+    h("p", { class: "small muted" }, "Wiederkehrende Prüfungen werden 3 Tage vor Fälligkeit automatisch zu Tickets. Abschluss mit Checkliste und Ergebnis = Nachweis für Monatsbericht, QBR, Kundenportal und NIS2 (regelmäßige Überprüfung der Maßnahmen). Geplante Wartung zählt nicht in die SLA."));
 };
 
 // ---- Zahlungen & Mahnwesen

@@ -290,7 +290,14 @@ def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict
 
 def _is_num(value: str) -> bool:
     v = value.strip()
-    return v in ("–", "-") or bool(re.fullmatch(r"[€+\-−–]?\s*[\d.,\s]+\s*(%|€|h|Std\.?|EUR)?", v))
+    if re.fullmatch(r"\d{1,2}\.\d{1,2}\.(\d{2}|\d{4})?", v):  # Datum (z. B. 17.11.2026) bleibt linksbündig
+        return False
+    return bool(re.fullmatch(r"[€+\-−–]?\s*[\d.,\s]+\s*(%|€|h|Std\.?|EUR)?", v))
+
+
+def _numeric_column(rows: list[list[str]], ci: int) -> bool:
+    values = [r[ci].strip() for r in rows[1:] if ci < len(r) and r[ci].strip() not in ("", "–", "-")]
+    return bool(values) and all(_is_num(v) for v in values)
 
 
 def _col_widths(pdf: FPDF, rows: list[list[str]], ncol: int, numeric: list[bool], total: float = 170) -> list[float]:
@@ -342,7 +349,7 @@ def markdown_pdf(title: str, text: str, profile: dict[str, Any], branding: dict[
                     rows.append([c.strip().replace("**", "") for c in lines[i].strip().strip("|").split("|")])
                 i += 1
             ncol = max(len(r) for r in rows)
-            numeric = [all(_is_num(r[ci]) for r in rows[1:] if ci < len(r) and r[ci]) for ci in range(ncol)]
+            numeric = [_numeric_column(rows, ci) for ci in range(ncol)]
             widths = _col_widths(pdf, rows, ncol, numeric)
             for ri, r in enumerate(rows):
                 pdf.set_font("Roboto", "B" if ri == 0 else "", 8.5 if ri == 0 else 9)
