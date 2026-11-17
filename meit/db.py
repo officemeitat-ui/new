@@ -285,6 +285,32 @@ CREATE TABLE IF NOT EXISTS portal_sessions (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    vendor TEXT DEFAULT '',
+    kind TEXT DEFAULT 'lizenz',
+    quantity REAL DEFAULT 1,
+    unit_cost REAL DEFAULT 0,
+    unit_price REAL DEFAULT 0,
+    billing_cycle TEXT DEFAULT 'monat',
+    renewal_date TEXT DEFAULT '',
+    auto_renew INTEGER DEFAULT 1,
+    notice_days INTEGER DEFAULT 30,
+    billable INTEGER DEFAULT 1,
+    per_user INTEGER DEFAULT 0,
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS subscription_billing (
+    subscription_id INTEGER NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
+    period TEXT NOT NULL,
+    invoice_id INTEGER NOT NULL,
+    PRIMARY KEY (subscription_id, period)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -328,6 +354,8 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                  "status", "note"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
     "users": {"name", "email", "role", "password_hash", "active", "last_login_at"},
+    "subscriptions": {"customer_id", "name", "vendor", "kind", "quantity", "unit_cost", "unit_price", "billing_cycle",
+                      "renewal_date", "auto_renew", "notice_days", "billable", "per_user", "notes"},
     "portal_users": {"customer_id", "name", "email", "password_hash", "active", "last_login_at"},
     "time_entries": {"customer_id", "ticket_id", "user_id", "date", "minutes", "description", "billable", "rate",
                      "invoice_id"},
@@ -344,7 +372,7 @@ TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
 TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
-    "time_entries", "invoices", "portal_users",
+    "time_entries", "invoices", "portal_users", "subscriptions",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

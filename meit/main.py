@@ -39,6 +39,7 @@ from .team import (
 )
 from .radar import Radar, eol_info
 from .rmm import register as register_rmm
+from .subscriptions import list_enriched as list_subscriptions, register as register_subscriptions
 from .security import QUESTIONS
 from .sla import register as register_sla, sla_config, sla_overview, ticket_sla
 from .seed import seed_all
@@ -240,6 +241,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_billing(app, db, settings.company_name, admin_only)
     register_sla(app, db, admin_only)
     register_rmm(app, db, settings, admin_only)
+    register_subscriptions(app, db, admin_only)
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])
@@ -290,6 +292,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "SELECT agent, provider, ok, duration_ms, created_at FROM agent_log ORDER BY id DESC LIMIT 8"),
             "llm": router.status(),
             "unbilled_value": unbilled_overview(db)["total_value"],
+            "renewals": [{k: r[k] for k in ("id", "customer_id", "customer_name", "name", "next_renewal", "state", "notice_deadline")}
+                         for r in list_subscriptions(db) if r["state"] in ("kündigungsfrist", "abgelaufen", "bald")][:8],
             "sla": {k: v for k, v in sla_overview(db, days=30).items() if k in ("breached_open", "at_risk_open", "quote")},
             "nrr": nrr(db),
             "recurring_share": recurring_share(db),

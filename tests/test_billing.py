@@ -52,7 +52,9 @@ def test_billing_run_finalize_and_numbering(client):
     assert hours_line["quantity"] == 1.75 and hours_line["total"] == round(1.75 * 110, 2)  # 95 min → 1,75 h
     assert st["vat"] == round(st["net"] * 0.2, 2) and st["gross"] == round(st["net"] + st["vat"], 2)
     gr = invs["Steuerberatung Gruber & Partner"]
-    assert gr["items"][0]["kind"] == "recurring" and gr["net"] == 1680.0
+    assert gr["items"][0]["kind"] == "recurring" and gr["items"][0]["total"] == 1680.0
+    lic = next(i for i in gr["items"] if i["kind"] == "subscription")  # M365-Lizenzen laufen mit
+    assert lic["quantity"] == 30 and lic["total"] == 660.0 and gr["net"] == 1680.0 + 660.0
 
     # zweiter Lauf im selben Monat: nichts doppelt
     assert client.post("/api/billing/run", json={"period": _period()}).json()["count"] == 0

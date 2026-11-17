@@ -115,6 +115,10 @@ def billing_run(db: Database, period: str, profile: dict[str, Any]) -> list[dict
             items.append({"kind": "hours", "ref": e["id"], "description": f"{d[8:10]}.{d[5:7]}.: {e['description'] or 'Technikereinsatz'}",
                           "quantity": round(hours, 2), "unit": "Std.", "price": round(e["rate"], 2),
                           "total": round(hours * e["rate"], 2)})
+        from .subscriptions import billable_items
+
+        subs = billable_items(db, c["id"], period)
+        items += subs
         quotes = db.query("SELECT * FROM quotes WHERE customer_id = ? AND status = 'angenommen' AND total_once > 0 "
                           "AND invoice_id IS NULL", (c["id"],))
         for q in quotes:
@@ -129,6 +133,9 @@ def billing_run(db: Database, period: str, profile: dict[str, Any]) -> list[dict
                      [inv_id, *[e["id"] for e in entries]])
         for q in quotes:
             db.update("quotes", q["id"], {"invoice_id": inv_id})
+        for it in subs:
+            db.query("INSERT INTO subscription_billing (subscription_id, period, invoice_id) VALUES (?, ?, ?)",
+                     (it["ref"], period, inv_id))
         created.append({"id": inv_id, "customer": c["name"], "net": _totals(items, profile)["net"], "items": len(items)})
     return created
 
@@ -157,6 +164,7 @@ def release(db: Database, invoice_id: int) -> None:
     """Entwurf löschen oder Rechnung stornieren: Leistungen werden wieder abrechenbar."""
     db.query("UPDATE time_entries SET invoice_id = NULL WHERE invoice_id = ?", (invoice_id,))
     db.query("UPDATE quotes SET invoice_id = NULL WHERE invoice_id = ?", (invoice_id,))
+    db.query("DELETE FROM subscription_billing WHERE invoice_id = ?", (invoice_id,))
 
 
 def _eur(v: float) -> str:

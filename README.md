@@ -27,6 +27,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
 | **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, CSV-Export für den Steuerberater |
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
+| **Lizenzen & Verträge** | Pro Kunde: M365, Virenschutz, Domains, Zertifikate, Wartung. Verlängerung, Kündigungsfrist, Einkauf/Verkauf/Marge, Abgleich der Lizenzanzahl mit den Mitarbeitern. Läuft automatisch im Rechnungslauf mit (monatlich bzw. im Verlängerungsmonat), Fristen und Unterlizenzierung erscheinen im Radar. |
 | **SLA-Tracking** | Reaktions- und Lösungszeiten je Paket und Priorität in Geschäftszeiten (konfigurierbar). Ampel je Ticket, Erfüllungsquote je Kunde, fließt in Health Score, Monatsbericht und QBR ein. |
 | **Customer Success** | Health Score je Kunde, QBR-Agent („Plan → erreicht → nächster Hebel“), NRR, Anteil wiederkehrender Umsatz, Aktivitäten-Kaskade, 10-Punkte-Selbst-Check |
 | **ROI-Rechner** | Für das Verkaufsgespräch: Zeitgewinn, Wert, Amortisation, ROI im ersten Jahr |
@@ -149,6 +150,7 @@ meit/
   sla.py           SLA-Zusagen, Geschäftszeiten, Ampel, Quoten
   einvoice.py      E-Rechnung ebInterface 6.1
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
+  subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25)

@@ -47,6 +47,10 @@ CONTACT_HEAVY = ("tourismus", "hotel", "handwerk", "steuer", "gesundheit", "ordi
                  "immobilien", "logistik", "spedition", "versicherung", "dienstleistung")
 
 
+def monthly_price(sub: dict[str, Any]) -> float:
+    return float(sub.get("unit_price") or 0) / (12 if sub.get("billing_cycle") == "jahr" else 1)
+
+
 def eol_info(os_name: str) -> tuple[date, str] | None:
     text = normalize(os_name)
     for pattern, eol, label in EOL_TABLE:
@@ -217,6 +221,25 @@ class Radar:
                     "Angebote nachfassen – rund um die Uhr, lokal betrieben."
                     + (" Viel Kundenkontakt in der Branche – hoher Nutzen." if contact_heavy else ""),
                     "KIMA", once=price("KIMA"), monthly=price("KIMAM"), priority=2 if contact_heavy else 1)
+
+            # --- Lizenzen & Verträge -------------------------------------------------
+            from .subscriptions import enrich
+
+            for sub in self.db.query("SELECT * FROM subscriptions WHERE customer_id = ?", (c["id"],)):
+                e = enrich(sub, employees, today)
+                if e["state"] in ("kündigungsfrist", "abgelaufen", "bald") and not sub["auto_renew"]:
+                    add(c, "vertrag", f"Verlängerung: {sub['name']}",
+                        f"Läuft am {e['next_renewal']} aus (keine automatische Verlängerung). Jetzt verlängern oder upgraden.",
+                        "STD", monthly=e["price_month"], priority=3 if e["state"] != "bald" else 2)
+                elif e["state"] == "kündigungsfrist":
+                    add(c, "vertrag", f"Kündigungsfrist: {sub['name']}",
+                        f"Kündigungsfrist endet am {e['notice_deadline']} – Bedarf/Anzahl mit dem Kunden prüfen.",
+                        "STD", priority=2)
+                if e["seats"] and e["seats"]["diff"] < 0:
+                    missing = -e["seats"]["diff"]
+                    add(c, "vertrag", f"Unterlizenziert: {sub['name']} ({missing} fehlen)",
+                        f"{e['seats']['licensed']} Lizenzen für {employees} Mitarbeiter – Compliance-Risiko.",
+                        "STD", monthly=round(monthly_price(sub) * missing, 2), priority=3)
 
             # --- Ticket-Muster -----------------------------------------------------------
             since = (today - timedelta(days=180)).isoformat()

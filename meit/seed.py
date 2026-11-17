@@ -275,6 +275,18 @@ def seed_demo(db: Database) -> None:
         db.insert("kb_articles", {"title": title, "tags": tags, "content": content,
                                   "public": title.startswith(public_titles)})
 
+    subs = [
+        (gruber, "Microsoft 365 Business Premium", "Microsoft", "lizenz", 30, 19.70, 22.0, "monat", _d(200), 1, 30, 1),
+        (gruber, "Firewall-Lizenz FortiGuard", "Fortinet", "wartung", 1, 420.0, 590.0, "jahr", _d(40), 0, 30, 0),
+        (hotel, "Microsoft 365 Business Standard", "Microsoft", "lizenz", 35, 11.70, 13.5, "monat", _d(120), 1, 30, 1),
+        (hotel, "SSL-Zertifikat hotel-alpenblick-demo.at", "Sectigo", "zertifikat", 1, 60.0, 120.0, "jahr", _d(25), 0, 14, 0),
+        (huber, "Domain huber-demo.at", "nic.at", "domain", 1, 15.0, 39.0, "jahr", _d(75), 1, 30, 0),
+    ]
+    for cid, name, vendor, kind, qty, cost, price, cycle, renewal, auto, notice, per_user in subs:
+        db.insert("subscriptions", {"customer_id": cid, "name": name, "vendor": vendor, "kind": kind, "quantity": qty,
+                                    "unit_cost": cost, "unit_price": price, "billing_cycle": cycle, "renewal_date": renewal,
+                                    "auto_renew": auto, "notice_days": notice, "billable": 1, "per_user": per_user})
+
     # Ein Beispiel-Security-Check, damit der Radar etwas zum Auswerten hat.
     db.insert("assessments", {"customer_id": steiner, "answers": json.dumps({}), "score": 31.0,
                               "level": "kritisch", "report": "Demo-Bewertung – bitte echten Check durchführen."})

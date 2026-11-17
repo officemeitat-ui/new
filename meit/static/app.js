@@ -243,6 +243,10 @@ views.dashboard = async () => {
             h("span", { class: "small" }, o.monthly ? `+${eur(o.monthly)}/Mon.` : eur(o.once))),
           h("div", { class: "small muted" }, `${o.customer} · ${o.reason}`)))) : h("div", { class: "empty" }, "Keine offenen Chancen.")),
       h("div", { class: "stack" },
+        d.renewals && d.renewals.length ? h("div", { class: "card" },
+          h("div", { class: "card-head" }, h("h2", {}, "Lizenzen: Verlängerung/Frist"), h("a", { class: "btn small", href: "#/lizenzen" }, "Alle")),
+          h("ul", { class: "list" }, d.renewals.map((r) => h("li", { class: "row" }, h("span", {}, h("strong", {}, r.name), h("span", { class: "small muted" }, ` · ${r.customer_name}`)),
+            h("span", { class: "spacer" }), badge(r.state === "kündigungsfrist" ? `Frist ${dt(r.notice_deadline)}` : dt(r.next_renewal), SUB_STATE[r.state]))))) : null,
         h("div", { class: "card" },
           h("h2", {}, "Verträge laufen aus (90 Tage)"),
           d.contracts_ending.length ? h("ul", { class: "list" }, d.contracts_ending.map((c) => h("li", { class: "row" },
@@ -347,6 +351,10 @@ views.kunde = async (id) => {
     health,
     c.notes ? h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, "Notizen: "), c.notes) : null,
     await portalCard(c),
+    await (async () => { const subs = await api(`/api/subscriptions?customer_id=${c.id}`).catch(() => []);
+      return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Lizenzen & Verträge"),
+        h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
+        subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
     h("div", { class: "grid two" },
       h("div", { class: "card" }, h("h2", {}, `Verkaufschancen (${c.opportunities.length})`),
         c.opportunities.length ? h("ul", { class: "list" }, c.opportunities.map((o) => h("li", {},
@@ -1532,6 +1540,54 @@ views.sla = async () => {
           for (const [pkg, pr] of Object.entries(inputs)) { packages[pkg] = {}; for (const [p, els] of Object.entries(pr)) packages[pkg][p] = els.map((el) => el.value === "" ? null : Number(el.value)); }
           await api("/api/sla/config", { method: "PUT", body: { packages } }); toast("SLA-Zusagen gespeichert"); render();
         }) }, "Speichern")))));
+};
+
+// ---- Lizenzen & Verträge
+const SUB_STATE = { "abgelaufen": "bad", "kündigungsfrist": "hoch", "bald": "warn", "ok": "ok" };
+async function subscriptionForm(sub = null, customerId = null) {
+  if (!state.customers.length) await loadCustomers();
+  const kinds = { lizenz: "Lizenz", abo: "Abo/Cloud", domain: "Domain", zertifikat: "Zertifikat", wartung: "Wartung/Support", garantie: "Garantie", sonstiges: "Sonstiges" };
+  const f = form([
+    { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: sub ? sub.customer_id : customerId ?? "" },
+    { name: "name", label: "Bezeichnung", required: true, placeholder: "z. B. Microsoft 365 Business Premium" },
+    { name: "vendor", label: "Hersteller/Lieferant" }, { name: "kind", label: "Art", type: "select", options: Object.entries(kinds) },
+    { name: "quantity", label: "Anzahl", type: "number", step: "1", value: 1 },
+    { name: "billing_cycle", label: "Abrechnung", type: "select", options: [["monat", "monatlich"], ["jahr", "jährlich"]] },
+    { name: "unit_cost", label: "Einkauf je Einheit (€)", type: "number", step: "0.01" }, { name: "unit_price", label: "Verkauf je Einheit (€)", type: "number", step: "0.01" },
+    { name: "renewal_date", label: "Verlängerung/Ablauf am", type: "date" }, { name: "notice_days", label: "Kündigungsfrist (Tage)", type: "number", value: 30 },
+    { name: "auto_renew", label: "Verlängert sich automatisch", type: "checkbox", value: true },
+    { name: "billable", label: "Über uns verrechnet (läuft im Rechnungslauf mit)", type: "checkbox", value: true },
+    { name: "per_user", label: "Je Benutzer lizenziert (Abgleich mit Mitarbeiterzahl)", type: "checkbox" },
+    { name: "notes", label: "Notizen (Lizenzschlüssel NICHT hier speichern)", type: "textarea", full: true },
+  ], sub ? { ...sub, auto_renew: !!sub.auto_renew, billable: !!sub.billable, per_user: !!sub.per_user } : {});
+  modal(sub ? "Lizenz/Vertrag bearbeiten" : "Neue Lizenz / neuer Vertrag", f, [
+    sub ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Eintrag löschen?")) return; await api(`/api/subscriptions/${sub.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const d = readForm(f); d.customer_id = Number(d.customer_id);
+      await api(sub ? `/api/subscriptions/${sub.id}` : "/api/subscriptions", { method: sub ? "PUT" : "POST", body: d }); close(); toast("Gespeichert"); render();
+    }) }, "Speichern"),
+  ].filter(Boolean));
+}
+function subscriptionTable(rows, showCustomer = true) {
+  return table([
+    ...(showCustomer ? [{ label: "Kunde", key: "customer_name" }] : []),
+    { label: "Lizenz/Vertrag", render: (r) => h("div", {}, h("strong", {}, r.name), h("div", { class: "small muted" }, [r.vendor, r.kind].filter(Boolean).join(" · "))) },
+    { label: "Anzahl", num: true, render: (r) => h("div", {}, String(r.quantity).replace(".", ","), r.seats && r.seats.diff !== 0 ? h("div", { class: "small", style: `color:${r.seats.diff < 0 ? "var(--bad)" : "var(--warn)"}` }, r.seats.diff < 0 ? `${-r.seats.diff} fehlen` : `${r.seats.diff} zu viel?`) : null) },
+    { label: "Verkauf/Monat", num: true, render: (r) => eur2(r.price_month) }, { label: "Marge/Monat", num: true, render: (r) => r.margin_pct === null ? "–" : `${eur2(r.margin_month)} (${Math.round(r.margin_pct)} %)` },
+    { label: "Verlängerung", render: (r) => r.next_renewal ? h("div", {}, badge(dt(r.next_renewal), SUB_STATE[r.state]), r.state === "kündigungsfrist" ? h("div", { class: "small", style: "color:var(--warn)" }, `Frist bis ${dt(r.notice_deadline)}`) : null) : "–" },
+    { label: "Auto", render: (r) => (r.auto_renew ? "ja" : "nein") },
+  ], rows, (r) => subscriptionForm(r));
+}
+views.lizenzen = async () => {
+  await loadCustomers();
+  setTitle("Lizenzen & Verträge", [h("button", { class: "btn primary", onclick: () => subscriptionForm() }, "+ Lizenz/Vertrag")]);
+  const [rows, sum] = await Promise.all([api("/api/subscriptions"), api("/api/subscriptions/summary")]);
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  show(h("div", { class: "grid kpis" },
+      kpi("Lizenzumsatz", eur(sum.price_month), "pro Monat (über uns verrechnet)"), kpi("Marge", eur(sum.margin_month), "pro Monat", "accent"),
+      kpi("Verlängerungen", sum.due_60, `in 60 Tagen · ${sum.notice_soon} Kündigungsfrist läuft`), kpi("Lizenzanzahl prüfen", sum.seat_issues, "über-/unterlizenziert")),
+    h("div", { class: "card" }, subscriptionTable(rows)),
+    h("p", { class: "small muted" }, "Monatliche Lizenzen werden jeden Monat, Jahreslizenzen im Monat der Verlängerung automatisch im Rechnungslauf verrechnet. Kündigungsfristen und fehlende Lizenzen erscheinen im Umsatz-Radar."));
 };
 
 // ---------------------------------------------------------------- Router
