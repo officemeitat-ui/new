@@ -75,6 +75,36 @@ def log_activity(db: Database, user_id: int | None, type_: str, ref_type: str = 
                                     "note": note[:500]})
 
 
+# ------------------------------------------------------------------ Ticket-Zuweisung
+ROUTING_DEFAULT = {"enabled": False, "rules": {}, "pool_roles": ["technik"]}
+
+
+def routing_config(db: Database) -> dict[str, Any]:
+    return {**ROUTING_DEFAULT, **(db.get_setting("routing", {}) or {})}
+
+
+def auto_assign(db: Database, ticket_id: int) -> int | None:
+    """Weist ein Ticket zu: Regel je Kategorie, sonst Pool nach Rolle – jeweils an die Person mit den
+    wenigsten offenen Tickets. Bereits zugewiesene Tickets bleiben unverändert."""
+    cfg = routing_config(db)
+    if not cfg["enabled"]:
+        return None
+    t = db.get("tickets", ticket_id)
+    if not t or t.get("assigned_to") or t["status"] == "geloest":
+        return None
+    active = {u["id"]: u for u in db.query("SELECT id, role FROM users WHERE active = 1")}
+    candidates = [uid for uid in (cfg["rules"].get(t["category"] or "") or []) if uid in active]
+    if not candidates:
+        candidates = [uid for uid, u in active.items() if u["role"] in cfg["pool_roles"]]
+    if not candidates:
+        return None
+    load = {uid: db.scalar("SELECT COUNT(*) FROM tickets WHERE assigned_to = ? AND status != 'geloest'", (uid,)) or 0
+            for uid in candidates}
+    chosen = min(candidates, key=lambda uid: (load[uid], uid))
+    db.update("tickets", ticket_id, {"assigned_to": chosen})
+    return chosen
+
+
 def current_user_id(request: Request) -> int | None:
     user = getattr(request.state, "user", None)
     return user["id"] if user else None
@@ -139,6 +169,12 @@ class ActivityIn(BaseModel):
     ref_type: str = ""
     ref_id: Optional[int] = None
     note: str = Field("", max_length=500)
+
+
+class RoutingIn(BaseModel):
+    enabled: bool = False
+    rules: dict[str, list[int]] = {}
+    pool_roles: list[str] = ["technik"]
 
 
 class GoalsIn(BaseModel):
@@ -233,6 +269,18 @@ def register(app: FastAPI, db: Database, login_limiter) -> None:
             with db.connect() as conn:  # Sitzungen beenden
                 conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
         return public_user(db.get("users", uid))
+
+    # --- Automatische Ticket-Zuweisung -----------------------------------------
+    @app.get("/api/team/routing")
+    def get_routing() -> dict:
+        return routing_config(db)
+
+    @app.put("/api/team/routing", dependencies=[Depends(admin_only)])
+    def set_routing(data: RoutingIn) -> dict:
+        roles = [r for r in data.pool_roles if r in ROLES]
+        rules = {cat: [int(u) for u in ids] for cat, ids in data.rules.items() if ids}
+        db.set_setting("routing", {"enabled": data.enabled, "rules": rules, "pool_roles": roles or ["technik"]})
+        return routing_config(db)
 
     # --- Aktivitäten & Wochenrhythmus ------------------------------------------
     @app.post("/api/activities", status_code=201)

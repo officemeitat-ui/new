@@ -33,6 +33,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **ROI-Rechner** | Für das Verkaufsgespräch: Zeitgewinn, Wert, Amortisation, ROI im ersten Jahr |
 | **3-Stufen-Angebote** | Premium als Anker, dann Einstieg, dann Empfehlung. Beim Annehmen wird das gewählte Paket übernommen. |
 | **Benutzer & Rollen** | Login (sobald der erste Admin angelegt ist), Rollen Admin, Technik und Vertrieb. Tickets und Leads haben Verantwortliche, Filter „Meine“. |
+| **Automatische Zuweisung** | Tickets gehen nach der KI-Einordnung an die zuständige Person (Regel je Kategorie oder Pool), jeweils an die mit den wenigsten offenen Tickets |
 | **Wochenrhythmus** | Montag Ziele, Freitag Abgleich: Ist-Werte zählt das Cockpit automatisch (Pitches, Angebote, QBRs, gelöste Tickets) plus erfasste Anrufe. Dazu ein Top-10-Deal-Review mit nächstem Schritt und Risiko. |
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
 | **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |

@@ -119,3 +119,24 @@ def test_briefing(client):
     assert len(r["priorities"]) == 3 and r["sent"] is False
     assert any("Kritische Tickets" in p or "Risiko" in p for p in r["priorities"])
     assert client.post("/api/agents/briefing", json={"send_to": "chef@me-it-demo.at"}).status_code == 409
+
+
+def test_auto_assignment(client):
+    client.post("/api/users", json=ADMIN)
+    _login(client, ADMIN)
+    tom = client.post("/api/users", json=TECH).json()
+    eva = client.post("/api/users", json={"name": "Eva Netz", "email": "eva@me-it-demo.at", "role": "technik",
+                                          "password": "netz-geheim-789"}).json()
+    # aus: nichts passiert
+    t0 = client.post("/api/tickets", json={"customer_id": 1, "title": "Drucker druckt nicht"}).json()
+    assert client.get(f"/api/tickets/{t0['id']}").json()["assigned_to"] is None
+    r = client.put("/api/team/routing", json={"enabled": True, "rules": {"Netzwerk": [eva["id"]]}, "pool_roles": ["technik"]})
+    assert r.json()["rules"] == {"Netzwerk": [eva["id"]]}
+    net = client.post("/api/tickets", json={"customer_id": 5, "title": "WLAN in der Lobby weg", "description": "wlan"}).json()
+    assert client.get(f"/api/tickets/{net['id']}").json()["assigned_to"] == eva["id"]
+    # ohne Regel: Pool Technik, geringste Auslastung (Eva hat schon 1 Ticket → Tom)
+    hw = client.post("/api/tickets", json={"customer_id": 1, "title": "Monitor flackert"}).json()
+    assert client.get(f"/api/tickets/{hw['id']}").json()["assigned_to"] == tom["id"]
+    # bereits zugewiesene bleiben unverändert
+    client.post(f"/api/tickets/{hw['id']}/triage")
+    assert client.get(f"/api/tickets/{hw['id']}").json()["assigned_to"] == tom["id"]

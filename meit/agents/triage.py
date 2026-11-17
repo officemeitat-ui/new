@@ -172,6 +172,11 @@ def triage_ticket(ctx: AgentContext, ticket_id: int, apply: bool = True) -> dict
             "category": result["category"], "priority": result["priority"],
             "ai_suggestion": json.dumps(result, ensure_ascii=False),
         })
+        from ..team import auto_assign
+
+        assigned = auto_assign(ctx.db, ticket_id)
+        if assigned:
+            result["assigned_to"] = assigned
     ctx.log("triage", result["provider"], query, result, "error" not in result, started)
     return result
 

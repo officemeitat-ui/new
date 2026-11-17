@@ -804,6 +804,7 @@ views.einstellungen = async () => {
         : "Noch kein Benutzer angelegt – das Cockpit ist offen (Einzelplatz). Sobald du den ersten Benutzer (Admin) anlegst, ist eine Anmeldung Pflicht."),
       table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
+    state.users.length ? await routingCard() : null,
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "Agenten-Protokoll (Nachvollziehbarkeit / AI Act)"),
       table([
         { label: "Zeit", render: (r) => r.created_at }, { label: "Agent", key: "agent" }, { label: "Provider", key: "provider" },
@@ -1589,6 +1590,33 @@ views.lizenzen = async () => {
     h("div", { class: "card" }, subscriptionTable(rows)),
     h("p", { class: "small muted" }, "Monatliche Lizenzen werden jeden Monat, Jahreslizenzen im Monat der Verlängerung automatisch im Rechnungslauf verrechnet. Kündigungsfristen und fehlende Lizenzen erscheinen im Umsatz-Radar."));
 };
+
+// ---- Ticket-Zuweisung
+async function routingCard() {
+  const cfg = await api("/api/team/routing");
+  const cats = ["Netzwerk", "E-Mail/M365", "Hardware", "Software", "Sicherheit", "Server/Backup", "Benutzer/Zugang", "Beratung/Anfrage"];
+  const enabled = h("input", { type: "checkbox", checked: cfg.enabled, style: "width:auto" });
+  const boxes = {};
+  const poolBoxes = Object.entries((state.auth && state.auth.roles) || {}).map(([k, l]) => {
+    const el = h("input", { type: "checkbox", checked: cfg.pool_roles.includes(k), style: "width:auto" }); el.dataset.role = k;
+    return h("label", { class: "row", style: "font-weight:400;margin:0" }, el, l);
+  });
+  const rows = cats.map((cat) => h("tr", {}, h("td", {}, cat), h("td", {}, h("div", { class: "row" }, state.users.map((u) => {
+    const el = h("input", { type: "checkbox", checked: (cfg.rules[cat] || []).includes(u.id), style: "width:auto" });
+    (boxes[cat] ??= []).push([u.id, el]);
+    return h("label", { class: "row", style: "font-weight:400;margin:0;gap:.3rem" }, el, u.name);
+  })))));
+  return h("div", { class: "card", style: "margin-top:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Automatische Ticket-Zuweisung"), h("label", { class: "row", style: "margin:0" }, enabled, "aktiv")),
+    h("p", { class: "small muted" }, "Nach der KI-Einordnung bekommt das Ticket die zuständige Person mit den wenigsten offenen Tickets. Ohne Regel für die Kategorie: Pool nach Rolle. Manuell zugewiesene Tickets bleiben unverändert."),
+    h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Kategorie"), h("th", {}, "Zuständig"))), h("tbody", {}, rows))),
+    h("div", { class: "row", style: "margin-top:.6rem" }, h("span", { class: "small" }, "Pool ohne Regel:"), poolBoxes, h("span", { class: "spacer" }),
+      h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const rules = {}; for (const [cat, list] of Object.entries(boxes)) rules[cat] = list.filter(([, el]) => el.checked).map(([id]) => id);
+        const pool_roles = poolBoxes.map((l) => l.querySelector("input")).filter((el) => el.checked).map((el) => el.dataset.role);
+        await api("/api/team/routing", { method: "PUT", body: { enabled: enabled.checked, rules, pool_roles } }); toast("Zuweisung gespeichert");
+      }) }, "Speichern")));
+}
 
 // ---------------------------------------------------------------- Router
 async function render() {
