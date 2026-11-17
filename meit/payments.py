@@ -37,6 +37,10 @@ from .pdf import _d, _eur, dunning_pdf, valid_iban
 NO_RECEIPT_KEYWORDS = ("finanzamt", "abgabenkonto", "svs ", "sozialversicherung", "ögk", "oegk", "gehalt", "lohn ",
                        "löhne", "kontoführung", "kontofuehrung", "kontoführungsentgelt", "habenzinsen", "sollzinsen",
                        "kest", "kapitalertragsteuer", "umbuchung", "eigenübertrag", "privatentnahme")
+# Rücklastschrift: Stichworte und ISO-20022-Rückgabegründe (z. B. AM04 = Deckung, MD06 = Widerspruch)
+RETURN_WORDS = ("rücklastschrift", "ruecklastschrift", "rückbuchung", "rueckbuchung", "r-transaktion", "retoure",
+                "lastschriftrückgabe", "nicht eingelöst", "nicht eingeloest", "widerspruch")
+RETURN_CODES = re.compile(r"\b(AC0[146]|AG0[12]|AM0[45]|BE05|MD0[1267]|MS0[23]|RC01|RR0[1-4]|SL01|FF01)\b")
 LEGAL_WORDS = {"gmbh", "kg", "og", "eu", "ag", "co", "und", "partner", "dr", "mag", "ing", "gesmbh", "e", "u", "the",
                "firma", "gruppe", "ges", "mbh", "bei", "von", "der", "die", "das"}
 
@@ -421,10 +425,21 @@ class Ledger:
         return stats
 
     def match_credit(self, tx: dict[str, Any]) -> str:
+        amount = round(float(tx["amount"]), 2)
+        # Sammelgutschrift einer SEPA-Einzugsdatei: Summe passt, frühestens 3 Tage vor dem Einzugstermin
+        for b in self.db.query("SELECT * FROM sepa_batches WHERE status IN ('erstellt', 'eingereicht') ORDER BY id"):
+            if abs(float(b["total"]) - amount) > 0.01:
+                continue
+            if tx["booking_date"] < (date.fromisoformat(b["collection_date"]) - timedelta(days=3)).isoformat():
+                continue
+            ids = [r["id"] for r in self.db.query("SELECT id FROM invoices WHERE sepa_batch_id = ? AND status = 'gestellt'",
+                                                  (b["id"],))]
+            if ids:
+                self.assign(tx["id"], ids, note=f"SEPA-Lastschrift-Einzug vom {_d(b['collection_date'])}", auto=True)
+                return "zugeordnet"
         open_inv = self.open_invoices()
         text = norm(f"{tx['text']} {tx['reference']} {tx['partner']}")
         by_number = [i for i in open_inv if i["number"] and _contains_number(text, i["number"])]
-        amount = round(float(tx["amount"]), 2)
         if len(by_number) == 1:
             self.assign(tx["id"], [by_number[0]["id"]], note="Rechnungsnummer im Verwendungszweck", auto=True)
             return "zugeordnet"
@@ -463,6 +478,9 @@ class Ledger:
 
     def match_debit(self, tx: dict[str, Any]) -> int:
         hay = f"{tx['partner']} {tx['text']}".lower()
+        if any(w in hay for w in RETURN_WORDS) or RETURN_CODES.search(f"{tx['text']} {tx['reference']}".upper()):
+            if self.handle_return(tx):
+                return 0
         if any(k in f" {hay} " for k in NO_RECEIPT_KEYWORDS):
             self.db.update("bank_transactions", tx["id"], {"status": "ignoriert",
                                                            "match_note": "kein Beleg nötig (Abgaben/Gehalt/Bankspesen)"})
@@ -527,7 +545,42 @@ class Ledger:
         update: dict[str, Any] = {"paid_amount": paid}
         if paid >= float(inv["gross"]) - 0.004:
             update.update({"status": "bezahlt", "paid_at": f"{day} 00:00:00" if len(day) == 10 else day})
+            if inv.get("payment_method") == "lastschrift":
+                update["sepa_status"] = "eingezogen"
         self.db.update("invoices", inv["id"], update)
+        if inv.get("sepa_batch_id") and not self.db.scalar(
+                "SELECT COUNT(*) FROM invoices WHERE sepa_batch_id = ? AND status = 'gestellt'", (inv["sepa_batch_id"],)):
+            self.db.update("sepa_batches", inv["sepa_batch_id"], {"status": "gutgeschrieben"})
+
+    def handle_return(self, tx: dict[str, Any]) -> bool:
+        """Rücklastschrift: Zahlung stornieren, Rechnung wieder offen (Mahnwesen mit QR-Code übernimmt)."""
+        text = norm(f"{tx['text']} {tx['reference']}")
+        amount = abs(float(tx["amount"]))
+        paid = self.db.query("SELECT * FROM invoices WHERE payment_method = 'lastschrift' AND paid_amount > 0 "
+                             "AND status IN ('bezahlt', 'gestellt') AND number != ''")
+        cands = [i for i in paid if _contains_number(text, i["number"])]
+        if not cands:  # ohne Nummer: Betrag (+ max. € 15 Bankspesen) muss eindeutig passen
+            cands = [i for i in paid if float(i["paid_amount"]) - 0.01 <= amount <= float(i["paid_amount"]) + 15]
+        if len(cands) != 1:
+            return False
+        inv = cands[0]
+        back = round(min(float(inv["paid_amount"]), amount), 2)
+        fee = round(amount - back, 2)
+        self.db.insert("payments", {"invoice_id": inv["id"], "transaction_id": tx["id"], "amount": -back,
+                                    "date": tx["booking_date"], "note": "Rücklastschrift"})
+        self.db.update("invoices", inv["id"], {
+            "paid_amount": round(float(inv["paid_amount"]) - back, 2), "status": "gestellt", "paid_at": "",
+            "sepa_status": "ruecklastschrift", "payment_method": "ueberweisung", "due_date": tx["booking_date"],
+            "dunning_level": 0, "dunned_at": ""})
+        self.db.update("bank_transactions", tx["id"], {
+            "status": "zugeordnet", "customer_id": inv["customer_id"],
+            "match_note": f"Rücklastschrift zu Rechnung {inv['number']} – Rechnung wieder offen"
+                          + (f", Bankspesen {_eur(fee)}" if fee > 0.004 else "")})
+        from .team import log_activity
+
+        log_activity(self.db, None, "ruecklastschrift", "invoice", inv["id"],
+                     f"Rücklastschrift {inv['number']} ({inv['customer_name']}) {_eur(back)}")
+        return True
 
     def unassign(self, tx_id: int) -> dict[str, Any]:
         tx = self.db.get("bank_transactions", tx_id)
@@ -540,6 +593,12 @@ class Ledger:
                 update: dict[str, Any] = {"paid_amount": paid}
                 if inv["status"] == "bezahlt" and paid < float(inv["gross"]) - 0.004:
                     update.update({"status": "gestellt", "paid_at": ""})
+                    if inv.get("sepa_status") == "eingezogen":
+                        update["sepa_status"] = "eingereicht"
+                elif inv["status"] == "gestellt" and paid >= float(inv["gross"]) - 0.004:  # Rücklastschrift gelöst
+                    update.update({"status": "bezahlt", "paid_at": now_iso()})
+                    if inv.get("sepa_status") == "ruecklastschrift":
+                        update.update({"sepa_status": "eingezogen", "payment_method": "lastschrift"})
                 self.db.update("invoices", inv["id"], update)
             self.db.delete("payments", p["id"])
         self.db.update("bank_transactions", tx_id, {
@@ -639,6 +698,8 @@ class Ledger:
         for inv in self.open_invoices():
             if not inv["due_date"]:
                 continue
+            if inv.get("payment_method") == "lastschrift" and inv.get("sepa_status") in ("vorgemerkt", "eingereicht"):
+                continue  # wird per Lastschrift eingezogen – nicht mahnen
             level = int(inv.get("dunning_level") or 0)
             if level >= len(conf["levels"]):
                 continue  # letzte Stufe erreicht → Inkasso/Anruf

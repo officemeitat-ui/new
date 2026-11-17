@@ -37,6 +37,7 @@ from .portal import register as register_portal
 from .documents import DocumentService, register as register_documents
 from .payments import register as register_payments
 from .maintenance import register as register_maintenance
+from .sepa import Sepa, register as register_sepa
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
     users_exist,
@@ -181,6 +182,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     mailer = make_mailer(settings)
     data_dir = Path(settings.db_path).resolve().parent
     docs = DocumentService(db, settings, data_dir, settings.company_name)
+    sepa = Sepa(db, settings.company_name)
     ctx = AgentContext(db=db, router=router, kb=kb, radar=radar, company=settings.company_name,
                        settings=settings, mailer=mailer, docs=docs)
 
@@ -245,6 +247,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     admin_only = make_admin_dependency(db)
     register_team(app, db, RateLimiter(limit=10, window_s=600))
     def invoice_finalized(invoice_id: int) -> None:
+        # Kunde mit SEPA-Mandat → Rechnung zur Lastschrift vormerken (Rechnung = Vorabankündigung)
+        try:
+            sepa.on_finalized(invoice_id)
+        except Exception as exc:  # noqa: BLE001 - Stellen darf nicht scheitern
+            db.set_setting("sepa_last_error", f"Rechnung {invoice_id}: {exc}")
         # Gestellte Rechnung sofort als PDF archivieren (lokal + SharePoint/OneDrive)
         if docs.conf().get("auto_invoice"):
             try:
@@ -748,6 +755,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Geldkreislauf: Kontoauszug, Zahlungsabgleich, Mahnwesen -------------------
     register_payments(app, ctx, admin_only, start_scheduler=settings.db_path != ":memory:")
+
+    # --- SEPA-Lastschrift (Mandate, Einzugsdatei, Rücklastschriften) -----------------
+    register_sepa(app, ctx, admin_only, sepa)
 
     # --- Wartungsplan (wiederkehrende Prüfungen mit Nachweis) -----------------------
     register_maintenance(app, ctx, admin_only, start=settings.db_path != ":memory:")

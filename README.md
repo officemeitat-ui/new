@@ -31,7 +31,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
 | **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, PDF automatisch in `Buchhaltung/Eingangsrechnungen`, Scans per Upload, CSV-Export für den Steuerberater |
-| **Zahlungen & Mahnwesen** | **QR-Code „Zahlen mit Code“** auf jeder Rechnung (EPC, alle österreichischen Banking-Apps). **Kontoauszug-Import** (George/ELBA-CSV, CAMT.053, MT940) mit automatischem Abgleich: Rechnungsnummer im Verwendungszweck → bezahlt (auch Teil- und Sammelzahlungen), sonst Vorschlag über IBAN/Kunde + Betrag. **Ausgaben ohne Beleg** für den Steuerberater. **Mahnwesen** in 3 Stufen als PDF im CD mit QR-Code, Versand per Outlook, Spesen/Verzugszinsen optional, Freigabe oder Autopilot. Altersstruktur und Zahlungsdauer (DSO). |
+| **Zahlungen & Mahnwesen** | **QR-Code „Zahlen mit Code“** auf jeder Rechnung (EPC, alle österreichischen Banking-Apps). **Kontoauszug-Import** (George/ELBA-CSV, CAMT.053, MT940) mit automatischem Abgleich: Rechnungsnummer im Verwendungszweck → bezahlt (auch Teil- und Sammelzahlungen), sonst Vorschlag über IBAN/Kunde + Betrag. **Ausgaben ohne Beleg** für den Steuerberater. **Mahnwesen** in 3 Stufen als PDF im CD mit QR-Code, Versand per Outlook, Spesen/Verzugszinsen optional, Freigabe oder Autopilot. **SEPA-Lastschrift** (CORE/B2B): Mandat-PDF, Vormerkung beim Stellen mit Vorabankündigung auf der Rechnung, Einzugsdatei pain.008 (schemageprüft), Gutschrift und Rücklastschrift werden beim Kontoauszug erkannt. Altersstruktur und Zahlungsdauer (DSO). |
 | **Dokumente (Microsoft 365)** | Rechnungen, Angebote, Monatsberichte, QBR und Security-Checks als **PDF im ME-IT-Design**, automatisch abgelegt (lokal + **SharePoint/OneDrive** über Microsoft Graph, mit Ordnervorlagen je Kunde/Jahr). **Versand per Outlook** mit PDF und E-Rechnung im Anhang, Mail im Corporate Design. Fehlgeschlagene Uploads per Klick wiederholen. |
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
 | **Lizenzen & Verträge** | Pro Kunde: M365, Virenschutz, Domains, Zertifikate, Wartung. Verlängerung, Kündigungsfrist, Einkauf/Verkauf/Marge, Abgleich der Lizenzanzahl mit den Mitarbeitern. Läuft automatisch im Rechnungslauf mit (monatlich bzw. im Verlängerungsmonat), Fristen und Unterlizenzierung erscheinen im Radar. |
@@ -162,6 +162,7 @@ meit/
   documents.py     Archiv, SharePoint/OneDrive (Graph), Versand per Outlook
   payments.py      Kontoauszug-Import, Zahlungsabgleich, Belegabgleich, Mahnwesen
   maintenance.py   Wartungsplan: Vorlagen, Fälligkeit → Ticket, Nachweise
+  sepa.py          SEPA-Lastschrift: Mandate, pain.008-Einzugsdatei, Bankarbeitstage
   branding.py      Corporate Design (Logo, Farben, Schrift)
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
   subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)

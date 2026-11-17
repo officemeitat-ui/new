@@ -97,3 +97,49 @@ und Bankspesen werden automatisch als „kein Beleg nötig“ markiert. Kommt de
 - **DSO** (Days Sales Outstanding): durchschnittliche Tage von Rechnung bis Zahlungseingang, letzte 180 Tage.
   Ziel für Managed-Services: unter 20 Tagen. Hebel: QR-Code, Versand am Monatsersten, SEPA-Lastschrift
   für Pauschalen.
+
+## 4. SEPA-Lastschrift – Pauschalen pünktlich am Konto
+
+Für Managed-Pauschalen und Lizenzen der beste Hebel gegen offene Posten: **kein Mahnen, kein Nachlaufen.**
+
+```
+Mandat (PDF aus dem Cockpit, vom Kunden unterschrieben) ──► im Kunden erfassen
+        │
+Rechnung stellen ──► „wird am TT.MM. per SEPA-Lastschrift eingezogen“ (= Vorabankündigung)
+        │
+Abrechnung → Zahlungen → „Einzugsdatei erstellen“ ──► pain.008-XML im Business-Banking hochladen
+        │
+Kontoauszug-Import: Sammel- oder Einzelgutschrift ──► Rechnungen „bezahlt“
+        └─ Rücklastschrift (z. B. AM04 mangels Deckung, MD06 Widerspruch) ──► Rechnung wieder offen,
+           Zahlungsart Überweisung (QR-Code), Mahnwesen übernimmt – oder „Erneut einziehen“
+```
+
+**Einmalig einrichten**
+1. **Gläubiger-ID (Creditor Identifier)** kostenlos bei der Oesterreichischen Nationalbank beantragen
+   (Format `AT..ZZZ...`), unter *Abrechnung → Firmendaten* eintragen (Prüfziffer wird kontrolliert).
+2. Bei der Hausbank die **Lastschrift-Einreichung** für das Business-Banking freischalten lassen
+   (George Business, ELBA, BusinessNet …) – inkl. Rahmen/Limit.
+3. *Vorabankündigung (Tage)*: ohne Vereinbarung 14 Tage; in AGB/Mandat kann eine kürzere Frist
+   (z. B. 5 Tage) vereinbart werden.
+4. Dateiformat: **pain.008.001.08** (aktueller ISO-20022-Standard 2019), für ältere Banking-Software
+   pain.008.001.02.
+
+**Pro Kunde**
+- *Mandatsformular (PDF)* drucken/senden – vorausgefüllt mit Gläubiger-ID und Mandatsreferenz,
+  **CORE** (Basislastschrift, Kunde kann 8 Wochen widersprechen) oder **B2B** (Firmenlastschrift,
+  kein Widerspruch, der Kunde muss das Mandat seiner Bank bestätigen).
+- Nach Unterschrift *Mandat erfassen* (IBAN wird geprüft). Ab dann werden neue Rechnungen dieses Kunden
+  automatisch zur Lastschrift vorgemerkt; ein neues Mandat ersetzt das alte, *Widerrufen* macht
+  vorgemerkte Rechnungen wieder zu Überweisungsrechnungen.
+- Original bzw. Scan des Mandats aufbewahren (Nachweispflicht des Zahlungsempfängers).
+
+**Technik**
+- Einzugstermin = Rechnungsdatum + Vorabankündigung, auf den nächsten TARGET2-Bankarbeitstag
+  (Wochenende, Neujahr, Karfreitag, Ostermontag, 1. Mai, 25./26. Dezember werden übersprungen).
+- Je Verfahren (CORE/B2B) und Sequenz (wiederkehrend `RCUR` / einmalig `OOFF`) ein Zahlungsblock;
+  Namen und Texte werden auf den SEPA-Zeichensatz umgesetzt (ä → ae, & → +).
+- Die Datei wurde gegen die offiziellen ISO-20022-Schemas pain.008.001.08 und .02 geprüft
+  (Tests: `PAIN008_XSD=…/pain.008.001.08.xsd pytest tests/test_sepa.py`).
+- E-Rechnung (ebInterface) enthält bei Lastschrift die Zahlungsart *SEPADirectDebit* mit Mandat und
+  Einzugstermin.
+- Solange eine Lastschrift vorgemerkt oder eingereicht ist, wird die Rechnung **nicht gemahnt**.

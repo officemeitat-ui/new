@@ -51,6 +51,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "angebot": "Kunden/{kunde}/Angebote/{jahr}",
         "bericht": "Kunden/{kunde}/Berichte/{jahr}",
         "mahnung": "Buchhaltung/Mahnungen/{jahr}",
+        "lastschrift": "Buchhaltung/Lastschriften/{jahr}",
     },
     "auto_invoice": True,       # Rechnung beim Stellen automatisch ablegen
     "auto_receipts": True,      # Beleg-PDFs aus dem Postfach automatisch ablegen
@@ -59,6 +60,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "invoice_subject": "Rechnung {nummer} – {firma}",
     "invoice_text": ("{anrede}\n\nanbei erhalten Sie unsere Rechnung {nummer} über {betrag}, zahlbar bis {faellig}.\n\n"
                      "Bei Fragen melden Sie sich jederzeit gerne.\n\nFreundliche Grüße\n{firma}"),
+    "invoice_text_sepa": ("{anrede}\n\nanbei erhalten Sie unsere Rechnung {nummer} über {betrag}. Der Betrag wird am "
+                          "{faellig} per SEPA-Lastschrift von Ihrem Konto eingezogen – Sie müssen nichts überweisen.\n\n"
+                          "Bei Fragen melden Sie sich jederzeit gerne.\n\nFreundliche Grüße\n{firma}"),
     "quote_subject": "Angebot: {titel}",
     "quote_text": ("{anrede}\n\nvielen Dank für Ihr Interesse. Anbei erhalten Sie unser Angebot „{titel}“.\n\n"
                    "Gerne besprechen wir die Details in einem kurzen Termin – antworten Sie einfach auf diese Mail.\n\n"
@@ -392,8 +396,14 @@ class DocumentService:
         profile, branding, logo = self._brand()
         customer = self.db.get("customers", inv["customer_id"]) if inv.get("customer_id") else None
         period = period_bounds(inv["period"]) if inv.get("period") else None
+        sepa = None
+        if inv.get("payment_method") == "lastschrift" and inv.get("sepa_mandate_id"):
+            m = self.db.get("sepa_mandates", inv["sepa_mandate_id"])
+            if m:
+                sepa = {"due": inv.get("sepa_due") or inv.get("due_date"), "iban": m["iban"], "reference": m["reference"],
+                        "scheme": m["scheme"], "creditor_id": profile.get("creditor_id", "")}
         return invoice_pdf(inv, loads(inv["items"], []), customer or {"name": inv.get("customer_name", "")},
-                           profile, branding, logo, period)
+                           profile, branding, logo, period, sepa=sepa)
 
     def quote_pdf(self, q: dict[str, Any]) -> bytes:
         profile, branding, logo = self._brand()
@@ -498,7 +508,9 @@ class DocumentService:
         values = {**self._values(customer), "nummer": inv["number"] or "", "betrag": _eur(inv["gross"]),
                   "faellig": _d(inv["due_date"]) if inv.get("due_date") else "–"}
         return {"to": (customer or {}).get("email", ""), "cc": conf["cc"],
-                "subject": fill_text(conf["invoice_subject"], values), "text": fill_text(conf["invoice_text"], values),
+                "subject": fill_text(conf["invoice_subject"], values),
+                "text": fill_text(conf["invoice_text_sepa" if inv.get("payment_method") == "lastschrift" else "invoice_text"],
+                                  values),
                 "attach_xml": conf["attach_xml"]}
 
     def quote_mail(self, q: dict[str, Any]) -> dict[str, str]:
@@ -586,6 +598,7 @@ class DocSettingsIn(BaseModel):
     cc: Optional[str] = Field(None, max_length=300)
     invoice_subject: Optional[str] = Field(None, max_length=200)
     invoice_text: Optional[str] = Field(None, max_length=3000)
+    invoice_text_sepa: Optional[str] = Field(None, max_length=3000)
     quote_subject: Optional[str] = Field(None, max_length=200)
     quote_text: Optional[str] = Field(None, max_length=3000)
 

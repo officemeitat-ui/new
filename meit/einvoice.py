@@ -121,7 +121,22 @@ def ebinterface_xml(db: Database, inv: dict[str, Any], profile: dict[str, Any], 
     _sub(root, "TotalGrossAmount", _amount(inv["gross"]))
     _sub(root, "PayableAmount", _amount(inv["gross"]))
 
-    if profile.get("iban"):
+    mandate = db.get("sepa_mandates", inv["sepa_mandate_id"]) if inv.get("payment_method") == "lastschrift" \
+        and inv.get("sepa_mandate_id") else None
+    if mandate:
+        pm = _sub(root, "PaymentMethod")
+        _sub(pm, "Comment", "Einzug per SEPA-Lastschrift")
+        dd = _sub(pm, "SEPADirectDebit")
+        _sub(dd, "Type", "B2B" if mandate["scheme"] == "B2B" else "B2C")
+        if mandate["bic"]:
+            _sub(dd, "BIC", mandate["bic"])
+        _sub(dd, "IBAN", mandate["iban"])
+        _sub(dd, "BankAccountOwner", mandate["holder"] or inv["customer_name"])
+        _sub(dd, "CreditorID", (profile.get("creditor_id") or "").replace(" ", "")[:35])
+        _sub(dd, "MandateReference", mandate["reference"][:35])
+        if inv.get("sepa_due"):
+            _sub(dd, "DebitCollectionDate", inv["sepa_due"])
+    elif profile.get("iban"):
         pm = _sub(root, "PaymentMethod")
         _sub(pm, "Comment", "Zahlbar per Überweisung")
         ubt = _sub(pm, "UniversalBankTransaction")

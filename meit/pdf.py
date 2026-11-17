@@ -197,7 +197,8 @@ def _payment_block(pdf: "BrandPDF", profile: dict[str, Any], text: str, qr: str)
 
 
 def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict[str, Any], profile: dict[str, Any],
-                branding: dict[str, Any], logo: Path, period: tuple[date, date] | None) -> bytes:
+                branding: dict[str, Any], logo: Path, period: tuple[date, date] | None,
+                sepa: dict[str, Any] | None = None) -> bytes:
     draft = inv["status"] == "entwurf"
     pdf = BrandPDF(branding, profile, logo, f"Rechnung {inv['number'] or 'Entwurf'}")
     pdf.alias_nb_pages()
@@ -272,6 +273,17 @@ def invoice_pdf(inv: dict[str, Any], items: list[dict[str, Any]], customer: dict
     if inv.get("note"):
         pdf.text_block(inv["note"], size=9.5)
         pdf.ln(2)
+    if sepa and inv["status"] == "gestellt":
+        iban = sepa["iban"].replace(" ", "")
+        masked = f"{iban[:4]} **** {iban[-4:]}" if len(iban) > 8 else iban
+        pdf.text_block(f"Der Rechnungsbetrag von {_eur(inv['gross'])} wird am **{_d(sepa['due'])}** per "
+                       f"{'SEPA-Firmenlastschrift' if sepa['scheme'] == 'B2B' else 'SEPA-Lastschrift'} von Ihrem Konto {masked} "
+                       f"eingezogen (Mandatsreferenz {sepa['reference']}, Gläubiger-ID {sepa['creditor_id']}). "
+                       "Bitte sorgen Sie für ausreichende Deckung – Sie müssen nichts überweisen.", size=9.5)
+        if profile.get("footer"):
+            pdf.ln(2)
+            pdf.text_block(profile["footer"], size=9.5, color="anthracite")
+        return bytes(pdf.output())
     pay = (f"Bitte überweisen Sie den Betrag bis {_d(inv['due_date'])} ohne Abzug"
            if inv.get("due_date") else "Bitte überweisen Sie den Betrag ohne Abzug")
     if profile.get("iban"):

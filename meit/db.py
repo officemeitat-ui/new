@@ -401,6 +401,34 @@ CREATE TABLE IF NOT EXISTS maintenance_runs (
 
 CREATE INDEX IF NOT EXISTS idx_mruns_task ON maintenance_runs(task_id, status);
 
+CREATE TABLE IF NOT EXISTS sepa_mandates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    reference TEXT NOT NULL UNIQUE,
+    signed_on TEXT NOT NULL,
+    holder TEXT DEFAULT '',
+    iban TEXT NOT NULL,
+    bic TEXT DEFAULT '',
+    scheme TEXT DEFAULT 'CORE',
+    kind TEXT DEFAULT 'wiederkehrend',
+    status TEXT DEFAULT 'aktiv',
+    used_at TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sepa_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    msg_id TEXT NOT NULL UNIQUE,
+    collection_date TEXT NOT NULL,
+    count INTEGER DEFAULT 0,
+    total REAL DEFAULT 0,
+    format TEXT DEFAULT '',
+    status TEXT DEFAULT 'erstellt',
+    xml TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -445,6 +473,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "bank_transactions": {"booking_date", "amount", "currency", "partner", "iban", "text", "reference", "dedupe_key",
                           "status", "match_note", "customer_id", "receipt_id", "suggestion", "import_file"},
     "payments": {"invoice_id", "transaction_id", "amount", "date", "note"},
+    "sepa_mandates": {"customer_id", "reference", "signed_on", "holder", "iban", "bic", "scheme", "kind", "status",
+                      "used_at", "note"},
+    "sepa_batches": {"msg_id", "collection_date", "count", "total", "format", "status", "xml"},
     "maintenance_tasks": {"customer_id", "template", "title", "checklist", "interval", "next_due", "lead_days",
                           "assigned_to", "estimate_min", "active", "last_done_at", "last_result"},
     "maintenance_runs": {"task_id", "customer_id", "ticket_id", "title", "due_date", "status", "result", "checklist",
@@ -460,7 +491,8 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                      "invoice_id"},
     "invoices": {"number", "customer_id", "customer_name", "period", "date", "due_date", "items", "net", "vat_rate",
                  "vat", "gross", "status", "note", "paid_at", "order_ref", "sent_at", "sent_to",
-                 "paid_amount", "dunning_level", "dunned_at"},
+                 "paid_amount", "dunning_level", "dunned_at", "payment_method", "sepa_mandate_id", "sepa_status",
+                 "sepa_due", "sepa_batch_id"},
     "activities": {"user_id", "type", "ref_type", "ref_id", "note"},
     "weekly_goals": {"user_id", "week", "goals", "review_note"},
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
@@ -473,14 +505,16 @@ TABLES_WITH_CREATED_AT = {
     "customers", "tickets", "assets", "kb_articles", "quotes", "assessments", "agent_log",
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
-    "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs",
+    "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''"},
     "invoices": {"order_ref": "TEXT DEFAULT ''", "sent_at": "TEXT DEFAULT ''", "sent_to": "TEXT DEFAULT ''",
-                 "paid_amount": "REAL DEFAULT 0", "dunning_level": "INTEGER DEFAULT 0", "dunned_at": "TEXT DEFAULT ''"},
+                 "paid_amount": "REAL DEFAULT 0", "dunning_level": "INTEGER DEFAULT 0", "dunned_at": "TEXT DEFAULT ''",
+                 "payment_method": "TEXT DEFAULT 'ueberweisung'", "sepa_mandate_id": "INTEGER", "sepa_status": "TEXT DEFAULT ''",
+                 "sepa_due": "TEXT DEFAULT ''", "sepa_batch_id": "INTEGER"},
     "receipts": {"document_id": "INTEGER"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0"},

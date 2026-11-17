@@ -363,6 +363,7 @@ views.kunde = async (id) => {
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
     await maintenanceCard(c),
+    await mandateCard(c),
     await (async () => { const docs = await api(`/api/documents?customer_id=${c.id}&limit=50`).catch(() => []);
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, `Dokumente (${docs.length})`),
         h("a", { class: "btn small", href: "#/dokumente" }, "Alle Dokumente")),
@@ -1463,7 +1464,8 @@ views.abrechnung = async () => {
           r.status === "gestellt" && r.paid_amount > 0 ? h("div", { class: "small muted" }, `offen ${eur2(r.gross - r.paid_amount)}`) : null) },
         { label: "Status", render: (r) => h("div", {}, r.overdue ? badge("überfällig", "bad") : badge(INV_STATUS[r.status], { entwurf: "warn", gestellt: "info", bezahlt: "ok", storniert: "" }[r.status]),
           r.sent_at ? h("div", { class: "small muted", title: r.sent_to }, `versendet ${dt(r.sent_at)}`) : null,
-          r.dunning_level > 0 && r.status === "gestellt" ? h("div", {}, badge(`Mahnstufe ${r.dunning_level}`, "warn")) : null) },
+          r.dunning_level > 0 && r.status === "gestellt" ? h("div", {}, badge(`Mahnstufe ${r.dunning_level}`, "warn")) : null,
+          r.payment_method === "lastschrift" || r.sepa_status === "ruecklastschrift" ? h("div", { class: "small muted" }, `Lastschrift: ${SEPA_STATUS[r.sepa_status] || r.sepa_status}${r.sepa_due && ["vorgemerkt", "eingereicht"].includes(r.sepa_status) ? " " + dt(r.sepa_due) : ""}`) : null) },
         { label: "Ablage", render: (r) => docOf[r.id] ? docStatus(docOf[r.id]) : (["gestellt", "bezahlt"].includes(r.status)
           ? h("button", { class: "btn small", title: "PDF im Archiv/SharePoint ablegen", onclick: async (e) => { e.stopPropagation();
             try { await api(`/api/invoices/${r.id}/archive`, { method: "POST" }); toast("Abgelegt"); render(); } catch (err) { toast(err.message, true); } } }, "Ablegen") : "–") },
@@ -1502,6 +1504,9 @@ views.abrechnung = async () => {
       { name: "payment_days", label: "Zahlungsziel (Tage)", type: "number" }, { name: "vat_rate", label: "USt-Satz (%)", type: "number" },
       { name: "round_minutes", label: "Abrechnungstakt (Minuten)", type: "number" },
       { name: "kleinunternehmer", label: "Kleinunternehmer (keine USt)", type: "checkbox" },
+      { name: "creditor_id", label: "SEPA Gläubiger-ID (Creditor ID, bei der OeNB)", placeholder: "AT61ZZZ01234567890" },
+      { name: "sepa_prenotify_days", label: "Lastschrift: Vorabankündigung (Tage)", type: "number" },
+      { name: "sepa_format", label: "Lastschrift-Dateiformat", type: "select", options: [["pain.008.001.08", "pain.008.001.08 (aktuell, ISO 2019)"], ["pain.008.001.02", "pain.008.001.02 (ältere Banking-Software)"]] },
       { name: "footer", label: "Fußzeile", full: true },
     ], p);
     content = h("div", { class: "card" }, h("p", { class: "small muted" }, "Pflichtangaben auf Rechnungen (§ 11 UStG): Name/Anschrift, UID, fortlaufende Nummer, Datum, Leistungszeitraum, Netto, Steuersatz, Steuerbetrag. Ab € 10.000 brutto auch die UID des Kunden (beim Kunden hinterlegen)."), f,
@@ -1772,7 +1777,70 @@ async function paymentsTab() {
       h("div", { class: "tabs" }, [["pruefen", `Zu prüfen (${s.unassigned})`], ["belege", `Ausgaben ohne Beleg (${s.missing_receipts})`], ["alle", "Alle Buchungen"]].map(([k, l]) =>
         h("button", { class: bankFilter === k ? "active" : "", onclick: () => { bankFilter = k; render(); } }, l))),
       bankTable) : null,
+    isAdmin ? await sepaCard() : null,
     conf ? dunningSettingsCard(conf) : null);
+}
+
+const SEPA_STATUS = { vorgemerkt: "vorgemerkt", eingereicht: "eingereicht", eingezogen: "eingezogen", ruecklastschrift: "Rücklastschrift", "": "–" };
+
+async function sepaCard() {
+  const s = await api("/api/sepa");
+  const warn = !s.creditor_id_ok || !s.iban_ok;
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, `SEPA-Lastschrift (${s.pending.length} vorgemerkt)`),
+      s.pending.length && !warn ? h("button", { class: "btn small primary", onclick: (e) => withBusy(e.target, async () => {
+        const b = await api("/api/sepa/batches", { method: "POST", body: {} });
+        toast(`Einzugsdatei: ${b.count} Lastschrift(en), ${eur2(b.total)}, Einzug am ${dt(b.collection_date)} – Datei im Business-Banking hochladen`);
+        location.href = `/api/sepa/batches/${b.id}/xml`; setTimeout(render, 800);
+      }) }, "Einzugsdatei erstellen") : null),
+    warn ? h("p", { class: "small", style: "color:var(--warn)" }, "Für Lastschriften unter „Firmendaten“ eine gültige Gläubiger-ID (Creditor ID) und IBAN eintragen. Die Gläubiger-ID beantragst du kostenlos bei der Oesterreichischen Nationalbank.") : null,
+    h("p", { class: "small muted" }, `${s.mandates_active} aktive Mandate. Rechnungen von Kunden mit Mandat werden beim Stellen vorgemerkt; Einzug frühestens ${s.prenotify_days} Tage nach Rechnungsdatum (die Rechnung ist die Vorabankündigung). Die Gutschrift wird beim Kontoauszug-Import erkannt, Rücklastschriften öffnen die Rechnung wieder.`),
+    s.pending.length ? table([
+      { label: "Rechnung", key: "number" }, { label: "Kunde", key: "customer_name" }, { label: "Einzug ab", render: (r) => dt(r.sepa_due) },
+      { label: "Betrag", num: true, render: (r) => eur2(r.open) }, { label: "Mandat", render: (r) => h("span", { class: "small" }, `${r.mandate_ref} · ${r.scheme} · ${r.debtor_iban}`) },
+    ], s.pending) : null,
+    s.returns.length ? h("div", { style: "margin-top:.8rem" }, h("strong", {}, "Rücklastschriften:"), h("ul", { class: "list" }, s.returns.map((r) => h("li", { class: "row" },
+      h("span", {}, `${r.number} · ${r.customer_name} · ${eur2(r.gross - (r.paid_amount || 0))}`), h("span", { class: "spacer" }),
+      h("button", { class: "btn small", title: "Erneut zum Einzug vormerken (neue Vorabankündigung an den Kunden schicken)", onclick: async () => {
+        try { await api(`/api/invoices/${r.id}/sepa-requeue`, { method: "POST" }); toast("Erneut vorgemerkt"); render(); } catch (err) { toast(err.message, true); } } }, "Erneut einziehen"))))) : null,
+    s.batches.length ? h("details", { style: "margin-top:.8rem" }, h("summary", { style: "cursor:pointer" }, `Einzugsdateien (${s.batches.length})`), table([
+      { label: "Erstellt", render: (b) => dt(b.created_at) }, { label: "Einzug", render: (b) => dt(b.collection_date) }, { label: "Anzahl", key: "count", num: true },
+      { label: "Summe", num: true, render: (b) => eur2(b.total) }, { label: "Status", render: (b) => badge(b.status, b.status === "gutgeschrieben" ? "ok" : "info") },
+      { label: "", render: (b) => h("a", { class: "btn small", href: `/api/sepa/batches/${b.id}/xml` }, `XML (${b.format})`) },
+    ], s.batches)) : null);
+}
+
+async function mandateCard(c) {
+  const ms = await api(`/api/customers/${c.id}/mandates`).catch(() => []);
+  const active = ms.find((m) => m.status === "aktiv");
+  const mask = (iban) => iban.length > 8 ? `${iban.slice(0, 4)} **** ${iban.slice(-4)}` : iban;
+  const create = () => {
+    const f = form([
+      { name: "holder", label: "Kontoinhaber", value: c.name }, { name: "iban", label: "IBAN", required: true },
+      { name: "bic", label: "BIC (optional)" }, { name: "signed_on", label: "Unterschrieben am", type: "date", value: new Date().toISOString().slice(0, 10) },
+      { name: "scheme", label: "Verfahren", type: "select", options: [["CORE", "CORE – Basis-Lastschrift (8 Wochen Widerspruch)"], ["B2B", "B2B – Firmenlastschrift (kein Widerspruch, Bank muss bestätigen)"]] },
+      { name: "kind", label: "Art", type: "select", options: [["wiederkehrend", "wiederkehrend"], ["einmalig", "einmalig"]] },
+      { name: "reference", label: "Mandatsreferenz (leer = automatisch)" },
+    ], {});
+    modal("SEPA-Mandat erfassen", h("div", {}, h("p", { class: "small muted" }, "Erst erfassen, wenn das unterschriebene Mandat vorliegt (Original oder Scan aufbewahren). Ein neues Mandat ersetzt ein bestehendes."), f), [
+      (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const m = await api(`/api/customers/${c.id}/mandates`, { method: "POST", body: readForm(f) }); close(); toast(`Mandat ${m.reference} aktiv – neue Rechnungen werden eingezogen`); render();
+      }) }, "Speichern")]);
+  };
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "SEPA-Lastschrift"),
+      h("div", { class: "row" },
+        h("a", { class: "btn small", href: `/api/customers/${c.id}/mandate-form.pdf?scheme=${(c.package || "keins") !== "keins" ? "B2B" : "CORE"}`, target: "_blank", rel: "noopener", title: "Vorausgefülltes Mandat zum Unterschreiben" }, "Mandatsformular (PDF)"),
+        h("button", { class: "btn small", onclick: create }, active ? "Neues Mandat" : "+ Mandat erfassen"))),
+    ms.length ? table([
+      { label: "Referenz", key: "reference" }, { label: "IBAN", render: (m) => mask(m.iban) }, { label: "Verfahren", render: (m) => `${m.scheme} · ${m.kind}` },
+      { label: "Unterschrieben", render: (m) => dt(m.signed_on) }, { label: "Status", render: (m) => badge(m.status, m.status === "aktiv" ? "ok" : "") },
+      { label: "", render: (m) => h("div", { class: "row", style: "justify-content:flex-end" },
+        h("a", { class: "btn small", href: `/api/mandates/${m.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF"),
+        m.status === "aktiv" ? h("button", { class: "btn small danger", onclick: async () => {
+          if (!confirm("Mandat widerrufen? Vorgemerkte Lastschriften werden zu Überweisungsrechnungen.")) return;
+          await api(`/api/mandates/${m.id}/revoke`, { method: "POST" }); render(); } }, "Widerrufen") : null) },
+    ], ms) : h("p", { class: "small muted", style: "margin:0" }, "Kein Mandat. Mit SEPA-Lastschrift kommen Pauschalen pünktlich – ohne Mahnen. Mandatsformular drucken, unterschreiben lassen, hier erfassen."));
 }
 
 function dunningSettingsCard(conf) {
@@ -2084,6 +2152,7 @@ async function docsSettingsCard() {
     { name: "attach_xml", label: "E-Rechnung (ebInterface) an Rechnungsmails anhängen", type: "checkbox" },
     { name: "invoice_subject", label: "Betreff Rechnungsmail", full: true },
     { name: "invoice_text", label: "Text Rechnungsmail – Platzhalter: {anrede} {nummer} {betrag} {faellig} {firma} {kunde}", type: "textarea", rows: 6, full: true },
+    { name: "invoice_text_sepa", label: "Text Rechnungsmail bei SEPA-Lastschrift ({faellig} = Einzugstag)", type: "textarea", rows: 5, full: true },
     { name: "quote_subject", label: "Betreff Angebotsmail", full: true },
     { name: "quote_text", label: "Text Angebotsmail – Platzhalter: {anrede} {titel} {firma} {kunde}", type: "textarea", rows: 6, full: true },
   ], values);

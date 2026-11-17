@@ -27,6 +27,8 @@ COMPANY_DEFAULT = {
     "name": "ME-IT", "address": "", "uid": "", "email": "", "phone": "", "iban": "", "bic": "", "bank": "",
     "invoice_prefix": "", "payment_days": 14, "vat_rate": 20.0, "kleinunternehmer": False,
     "footer": "Vielen Dank für Ihr Vertrauen!", "round_minutes": 15,
+    # SEPA-Lastschrift: Gläubiger-ID (bei der OeNB beantragen), Vorabankündigung in Tagen, Dateiformat
+    "creditor_id": "", "sepa_prenotify_days": 14, "sepa_format": "pain.008.001.08",
 }
 MONTHS = ["Jänner", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
           "November", "Dezember"]
@@ -293,6 +295,16 @@ def register(app: FastAPI, db: Database, company_name: str, admin_only, on_final
             clean["vat_rate"] = float(clean["vat_rate"] or 20)
         if "round_minutes" in clean:
             clean["round_minutes"] = max(1, min(int(clean["round_minutes"] or 15), 60))
+        if "sepa_prenotify_days" in clean:
+            clean["sepa_prenotify_days"] = max(1, min(int(clean["sepa_prenotify_days"] or 14), 30))
+        if clean.get("creditor_id"):
+            from .sepa import valid_creditor_id
+
+            clean["creditor_id"] = clean["creditor_id"].replace(" ", "").upper()
+            if not valid_creditor_id(clean["creditor_id"]):
+                raise HTTPException(422, "Gläubiger-ID ungültig (Format z. B. AT61ZZZ01234567890, Prüfziffer prüfen)")
+        if clean.get("sepa_format") not in (None, "pain.008.001.08", "pain.008.001.02"):
+            raise HTTPException(422, "Format: pain.008.001.08 oder pain.008.001.02")
         db.set_setting("company_profile", {**(db.get_setting("company_profile", {}) or {}), **clean})
         return profile()
 
