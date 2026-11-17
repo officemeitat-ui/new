@@ -5,6 +5,7 @@ import { ateraConfigured } from "@/lib/atera";
 import { getSyncState, listTickets, TICKET_PRIORITY_LABELS, TICKET_STATUS_LABELS } from "@/lib/workspace/customers";
 import { ago, PRIORITY_DOT } from "@/lib/workspace/format";
 import { outlookConfigured } from "@/lib/workspace/outlook";
+import { formatHours, SLA_STYLE, slaOverview, worstState } from "@/lib/sla";
 
 const FILTERS = [
   { id: "offen", label: "Alle offenen" },
@@ -16,7 +17,8 @@ export default async function TicketsPage({ searchParams }: PageProps<"/app/tick
   await requireAdmin();
   const { filter: filterParam } = await searchParams;
   const filter = FILTERS.find((f) => f.id === filterParam)?.id ?? "offen";
-  const [all, sync] = await Promise.all([listTickets(), getSyncState("atera")]);
+  const [all, sync, sla] = await Promise.all([listTickets(), getSyncState("atera"), slaOverview(30)]);
+  const slaById = new Map(sla.open.map((t) => [t.id, t.sla]));
   const tickets = all.filter((t) =>
     filter === "wartend" ? t.waitingForUs : filter === "dringend" ? t.priority === "Critical" || t.priority === "High" : true,
   );
@@ -34,6 +36,21 @@ export default async function TicketsPage({ searchParams }: PageProps<"/app/tick
         </div>
         {(ateraConfigured() || outlookConfigured()) && <SyncButton todo={outlookConfigured()} />}
       </div>
+
+      <section className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+          <p className="text-xl font-bold tabular-nums">{sla.quote === null ? "–" : `${sla.quote.toLocaleString("de-AT")} %`}</p>
+          <p className="text-xs text-slate-500">SLA erfüllt (30 Tage)</p>
+        </div>
+        <div className={`rounded-2xl p-3 shadow-sm ring-1 ${sla.breachedOpen ? "bg-red-50 ring-red-200" : "bg-white ring-slate-200"}`}>
+          <p className="text-xl font-bold tabular-nums">{sla.breachedOpen}</p>
+          <p className="text-xs text-slate-500">offen & verletzt</p>
+        </div>
+        <div className={`rounded-2xl p-3 shadow-sm ring-1 ${sla.atRiskOpen ? "bg-amber-50 ring-amber-200" : "bg-white ring-slate-200"}`}>
+          <p className="text-xl font-bold tabular-nums">{sla.atRiskOpen}</p>
+          <p className="text-xs text-slate-500">knapp</p>
+        </div>
+      </section>
 
       <nav className="flex gap-1 overflow-x-auto text-sm font-medium">
         {FILTERS.map((f) => (
@@ -73,9 +90,31 @@ export default async function TicketsPage({ searchParams }: PageProps<"/app/tick
                     <span>{ago(t.lastCustomerCommentAt ?? t.createdAt)}</span>
                   </span>
                 </span>
-                {t.waitingForUs && (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">wartet</span>
-                )}
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  {t.waitingForUs && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">wartet</span>
+                  )}
+                  {(() => {
+                    const s = slaById.get(t.id);
+                    if (!s) return null;
+                    const state = worstState(s);
+                    if (state === "keine Zusage") return null;
+                    const part = s.response.state === state ? s.response : s.resolution;
+                    const label = part === s.response ? "Reaktion" : "Lösung";
+                    return (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${SLA_STYLE[state]}`}
+                        title={`SLA ${s.package}: ${label} in ${part.targetH} Geschäftsstunden`}
+                      >
+                        {state === "verletzt"
+                          ? `${label} überfällig`
+                          : state === "erfüllt"
+                            ? "SLA ok"
+                            : `${label}: noch ${formatHours(part.leftH ?? 0)}`}
+                      </span>
+                    );
+                  })()}
+                </span>
               </Link>
             </li>
           ))}

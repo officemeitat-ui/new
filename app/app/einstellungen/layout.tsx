@@ -5,6 +5,7 @@ export default async function EinstellungenLayout({ children }: { children: Reac
   const user = await requireAdmin();
   const tabs = [
     { href: "/app/einstellungen", label: "Konto & Sicherheit" },
+    { href: "/app/leistungen", label: "Leistungen & Preise" },
     ...(user.role === "inhaber"
       ? [
           { href: "/app/einstellungen/benutzer", label: "Benutzer" },

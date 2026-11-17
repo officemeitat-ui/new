@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { workspace } from "@/config/workspace";
 import { unlinkCustomerFolder } from "@/app/app/m365-actions";
 import { FileList, LinkFolderForm } from "@/components/workspace/FilesUI";
+import { BookServiceForm, ProfileForm, RemoveService } from "@/components/workspace/ContractUI";
 import { CustomerForm, QuickAddTask, TaskCheck } from "@/components/workspace/Forms";
+import { INDUSTRIES, PACKAGES } from "@/config/services";
+import { eolStatus } from "@/lib/lifecycle";
+import { bookedServices, contractProfile, eur, listServices } from "@/lib/workspace/catalog";
 import { requireAdmin } from "@/lib/auth";
 import { localDate } from "@/lib/calendar";
 import { listFolder, M365Error, type DriveFile } from "@/lib/m365";
@@ -30,7 +34,14 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
     getAccount(id, today.slice(0, 7)),
   ]);
   const offline = devices.filter((d) => d.online === false).length;
-  const [health, checklists] = await Promise.all([healthFor(id), listChecklists({ customerId: id, open: true })]);
+  const [health, checklists, profile, booked, catalog] = await Promise.all([
+    healthFor(id),
+    listChecklists({ customerId: id, open: true }),
+    contractProfile(id),
+    bookedServices(id),
+    listServices(),
+  ]);
+  const mrr = booked.reduce((sum, b) => sum + b.monthly, 0);
   // Kundenordner in OneDrive/SharePoint – mit den Rechten der angemeldeten Person
   const microsoft = Boolean(await microsoftRefreshToken(user.id));
   let files: DriveFile[] = [];
@@ -140,6 +151,50 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
         </ul>
       </section>
 
+      <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold">Vertrag & Leistungen</h2>
+          <span className="text-sm">
+            Paket <strong>{PACKAGES[profile.package]}</strong> · MRR <strong>{eur(mrr)}</strong>
+            {profile.contractEnd
+              ? ` · bis ${new Intl.DateTimeFormat("de-AT", { dateStyle: "medium" }).format(new Date(profile.contractEnd))}`
+              : ""}
+          </span>
+        </div>
+        <ProfileForm customerId={customer.id} profile={profile} packages={PACKAGES} industries={INDUSTRIES} />
+        {booked.length > 0 && (
+          <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
+            {booked.map((b) => (
+              <li key={b.code} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">{b.name}</span>{" "}
+                  <span className="text-xs text-slate-500">
+                    {b.quantity.toLocaleString("de-AT")} × {eur(b.price)} / {b.unit}
+                  </span>
+                </span>
+                <span className="font-semibold tabular-nums">{b.recurring ? `${eur(b.monthly)} / Monat` : "einmalig"}</span>
+                <RemoveService customerId={customer.id} code={b.code} />
+              </li>
+            ))}
+          </ul>
+        )}
+        <BookServiceForm
+          customerId={customer.id}
+          services={catalog.map((s) => ({ code: s.code, name: s.name, unit: s.unit, price: s.price }))}
+        />
+        <div className="flex flex-wrap gap-2 text-sm">
+          <Link
+            href={`/app/radar?kunde=${customer.id}`}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50"
+          >
+            Chancen (Umsatz-Radar)
+          </Link>
+          <Link href={`/app/angebote/neu?kunde=${customer.id}`} className="rounded-lg bg-brand px-3 py-1.5 font-semibold text-white">
+            Angebot erstellen
+          </Link>
+        </div>
+      </section>
+
       {checklists.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-semibold">Offene Checklisten</h2>
@@ -237,6 +292,16 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
+                    {(() => {
+                      const eol = eolStatus(d.os, today);
+                      return eol && eol.state !== "ok" ? (
+                        <span
+                          className={`mt-0.5 inline-block rounded px-1.5 text-[11px] font-medium ${eol.state === "abgelaufen" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}
+                        >
+                          {eol.state === "abgelaufen" ? "kein Support mehr" : "Support endet"} ({eol.label}, {eol.end.slice(0, 7)})
+                        </span>
+                      ) : null;
+                    })()}
                   </span>
                 </li>
               ))}

@@ -7,6 +7,7 @@ import { localDate } from "@/lib/calendar";
 import { db } from "@/lib/db";
 import { listAlerts, listTickets } from "@/lib/workspace/customers";
 import { checkResults } from "@/lib/workspace/records";
+import { customerSlaQuote } from "@/lib/sla";
 
 // Kunden-Gesundheit: ein Wert von 0 bis 100 aus Daten, die ohne Doku-Passwort lesbar sind –
 // Tickets, Warnungen, Geräte, Fristen, Domain-Sicherheit, Datensicherung, Schulungsstand und Vollständigkeit der Doku.
@@ -44,6 +45,7 @@ export async function healthForCustomers(customerIds: string[], now = new Date()
       factors.push({ label, points: clamp(points, max), max, note });
 
     const open = tickets.filter((t) => t.customerId === id);
+    const sla = await customerSlaQuote(id, 90, now);
     const critical = open.filter((t) => t.priority === "Critical").length;
     const high = open.filter((t) => t.priority === "High").length;
     push(
@@ -53,6 +55,9 @@ export async function healthForCustomers(customerIds: string[], now = new Date()
       open.length ? `${open.length} offen${critical ? `, ${critical} kritisch` : ""}` : "keine offenen",
     );
 
+    if (sla.measured) factors[factors.length - 1].note += ` · SLA ${sla.quote} % erfüllt`;
+    if (sla.quote !== null && sla.quote < 90)
+      factors[factors.length - 1].points = Math.max(0, factors[factors.length - 1].points - (sla.quote < 75 ? 6 : 3));
     const own = alerts.filter((a) => a.customerId === id);
     const criticalAlerts = own.filter((a) => a.severity === "Critical").length;
     push(

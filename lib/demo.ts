@@ -10,6 +10,8 @@ import { addPackage, addTimeEntry } from "@/lib/workspace/hours";
 import { saveNetwork } from "@/lib/workspace/network";
 import { saveCheckResult, saveRecord } from "@/lib/workspace/records";
 import { createTask } from "@/lib/workspace/tasks";
+import { serviceMap, setBookedService } from "@/lib/workspace/catalog";
+import { buildItems, buildTiers, insertQuote } from "@/lib/workspace/quotes";
 
 // Demo-Welt zum Ausprobieren: drei Kunden mit Tickets, Doku, Netzplan, Fristen, Checklisten, Stunden und Schulungen.
 // Alles hat IDs mit „demo-“ und lässt sich mit einem Klick wieder entfernen. Nie mit echten Kundendaten vermischen.
@@ -72,6 +74,8 @@ export async function removeDemo(): Promise<void> {
     "DELETE FROM checklists WHERE customer_id LIKE 'demo-%'",
     "DELETE FROM time_entries WHERE customer_id LIKE 'demo-%'",
     "DELETE FROM hour_packages WHERE customer_id LIKE 'demo-%'",
+    "DELETE FROM quotes WHERE customer_id LIKE 'demo-%'",
+    "DELETE FROM customer_services WHERE customer_id LIKE 'demo-%'",
     "DELETE FROM customers WHERE id LIKE 'demo-%'",
   ]) {
     await client.execute(sql);
@@ -113,6 +117,28 @@ export async function seedDemo(by: string, now = new Date()): Promise<{ customer
   }
   const [huber, gruber, berger] = CUSTOMERS;
 
+  // ── Vertrag, Paket, gebuchte Leistungen (MRR) ──
+  for (const [c, industry, employees, pkg, end] of [
+    [huber, "Steuerberatung", 12, "pro", day(400, now)],
+    [gruber, "Handwerk", 18, "keins", null],
+    [berger, "Handel", 25, "basis", day(45, now)],
+  ] as const) {
+    await client.execute({
+      sql: "UPDATE customers SET industry = ?, employees = ?, package = ?, contract_end = ? WHERE id = ?",
+      args: [industry, employees, pkg, end, c.id],
+    });
+  }
+  for (const [c, code, quantity] of [
+    [huber, "MW", 12],
+    [huber, "SEC", 12],
+    [huber, "BCK", 1],
+    [huber, "M365B", 12],
+    [huber, "MFW", 1],
+    [berger, "MW", 25],
+  ] as const) {
+    await setBookedService(c.id, code, quantity, null, now);
+  }
+
   // ── Tickets, Warnungen, Geräte (sonst aus Atera) ──
   const tickets: [string, DemoCustomer, string, string, string, number, boolean][] = [
     ["demo-t1", huber, "Outlook fragt ständig nach dem Passwort", "Open", "High", -20, true],
@@ -136,6 +162,28 @@ export async function seedDemo(by: string, now = new Date()): Promise<{ customer
         at(hours, now),
         at(hours + 1, now),
         waiting ? null : at(hours + 2, now),
+        stamp,
+      ],
+    });
+  }
+  for (const [id, c, title, priority, createdHours, responseHours, resolvedHours] of [
+    ["demo-r1", huber, "Drucker 2. OG offline", "Medium", -24 * 20, 2, 26],
+    ["demo-r2", huber, "Neues Postfach für Praktikantin", "Low", -24 * 12, 5, 30],
+    ["demo-r3", berger, "Kassa druckt keine Belege", "High", -24 * 8, 9, 40],
+    ["demo-r4", berger, "Passwort zurücksetzen", "Medium", -24 * 3, 1, 3],
+  ] as const) {
+    await client.execute({
+      sql: `INSERT INTO tickets (id, customer_id, customer_name, title, status, priority, created_at, first_response_at, resolved_at, synced_at)
+            VALUES (?, ?, ?, ?, 'Resolved', ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        c.id,
+        c.name,
+        title,
+        priority,
+        at(createdHours, now),
+        at(createdHours + responseHours, now),
+        at(createdHours + resolvedHours, now),
         stamp,
       ],
     });
@@ -705,6 +753,34 @@ export async function seedDemo(by: string, now = new Date()): Promise<{ customer
     now,
   );
   await addTimeEntry({ customerId: gruber.id, date: day(-2, now), minutes: 60, description: "Drucker Backstube", mode: "kontingent" }, now);
+
+  // ── Angebot an Bäckerei Gruber (ohne KI zusammengestellt, Preise aus dem Katalog) ──
+  const services = await serviceMap();
+  const ctx = { employees: 18, devices: 2, servers: 0 };
+  const quoteItems = buildItems(
+    [
+      { code: "MW", reason: "Planbare Kosten statt Abrechnung auf Zuruf" },
+      { code: "BCK", reason: "Kassendaten und Buchhaltung unveränderbar sichern" },
+      { code: "MAILSEC", reason: "Domain-Prüfung: Note F" },
+    ],
+    services,
+    ctx,
+  );
+  await insertQuote(
+    {
+      customerId: gruber.id,
+      title: "Rundum betreut: Arbeitsplätze, Backup und sichere E-Mail",
+      need: "Kassa fällt immer wieder aus, Backup nur auf USB, Domain ohne SPF/DMARC. Chef will planbare Kosten.",
+      intro:
+        "vielen Dank für das Gespräch. Damit Kassen und Büro zuverlässig laufen und Ihre Daten sicher sind, schlagen wir eine Betreuung mit festen monatlichen Kosten vor – in drei Varianten.",
+      notes: "Bestehende Hardware wird übernommen; die Kassa Filiale Wels sollte zeitnah erneuert werden (Windows 10).",
+      tiers: buildTiers(quoteItems, services, ctx, []),
+      provider: "regeln",
+      status: "gesendet",
+    },
+    by,
+    new Date(now.getTime() - 4 * 86_400_000),
+  );
 
   // ── Awareness ──
   await saveOrgContacts(

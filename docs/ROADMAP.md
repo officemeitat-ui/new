@@ -14,6 +14,18 @@ Sortiert nach Nutzen im Verhältnis zum Aufwand. ✅ = vorhanden.
 - ✅ Security-Awareness-Plattform für Team und Kunden (AI Act Art. 4, Nachweis, Selbstbewertung)
 - ✅ Kundenakte wie IT Glue/Hudu (Ansprechpartner, Standorte, Inventar, WLAN, Domains, M365, Lizenzen, Verträge, Anwendungen, Backup)
 - ✅ Domain-Prüfung (SPF/DMARC/DKIM/Zertifikat), Fristen-Übersicht, Checklisten, Kunden-Gesundheit, Demo-Daten
+- ✅ Aus dem ME-IT Cockpit: Leistungskatalog, Pakete/MRR, Umsatz-Radar, KI-Angebote in drei Paketen, SLA-Tracking, Support-Ende
+
+## Aus dem ME-IT Cockpit noch zu übernehmen
+
+1. **Kundenportal** – Kunden sehen Tickets, Geräte (Support-Ende), Security-Score, Angebote (online annehmen, Paketwahl) und Rechnungen;
+   Tickets anlegen mit KI-Hilfe aus freigegebenen Anleitungen.
+2. **NIS2-/Security-Check** (15 Fragen nach NIS2 Art. 21 / NISG 2026) mit Bericht für die Geschäftsführung und passendem Angebot.
+3. **Wochenrhythmus & Wochenbriefing** – Ziele Montag, Abgleich Freitag, Top-10-Deal-Review, Briefing-Agent; **QBR-Agent**, NRR.
+4. **Abrechnung** – Rechnungslauf (Pauschale + Stunden + Projekte), Rechnungen nach § 11 UStG, Storno, Rechnungsausgangsbuch,
+   **E-Rechnung ebInterface 6.1** – oder Übergabe an FreeFinance.
+5. **NinjaOne** als zweite RMM-Anbindung, **Terminvorschläge** aus dem M365-Kalender in Antworten, **ROI-Rechner**,
+   lokale KI (Ollama) als Alternative zu Claude.
 
 ## Als Nächstes (größter Hebel)
 

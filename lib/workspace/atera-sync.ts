@@ -65,6 +65,9 @@ export async function syncAtera(now = new Date()): Promise<SyncResult> {
   });
   const active = [...open, ...pending];
   if (active.length > 0) await client.batch(active.map(ticketRow), "write");
+  // Erste Reaktion für das SLA-Tracking: erste beobachtete Technikerantwort bzw. erster Statuswechsel weg von „Open“.
+  const firstResponse = `UPDATE tickets SET first_response_at = COALESCE(first_response_at, last_technician_comment_at,
+    CASE WHEN status != 'Open' THEN COALESCE(resolved_at, synced_at) END) WHERE first_response_at IS NULL`;
 
   // Tickets, die bei uns noch offen sind, in Atera aber nicht mehr: aktuellen Stand einzeln holen.
   const activeIds = new Set(active.map((t) => String(t.TicketID)));
@@ -77,6 +80,7 @@ export async function syncAtera(now = new Date()): Promise<SyncResult> {
     if (ticket) await client.execute(ticketRow(ticket));
     else await client.execute({ sql: "UPDATE tickets SET status = 'Closed', synced_at = ? WHERE id = ?", args: [stamp, id] });
   }
+  await client.execute(firstResponse);
 
   const alertRow = (a: AteraAlert) => ({
     sql: `INSERT INTO alerts (id, customer_id, customer_name, device_name, title, severity, message, ticket_id, created_at, synced_at)

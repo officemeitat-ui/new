@@ -423,6 +423,44 @@ const SCHEMA = [
     done_by TEXT,
     PRIMARY KEY (checklist_id, idx)
   )`,
+  // ── Leistungskatalog, gebuchte Leistungen, Angebote (aus dem ME-IT Cockpit übernommen) ──
+  `CREATE TABLE IF NOT EXISTS services (
+    code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    price_cents INTEGER NOT NULL,
+    recurring INTEGER NOT NULL,
+    keywords TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS customer_services (
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    price_cents INTEGER,
+    since TEXT,
+    PRIMARY KEY (customer_id, code)
+  )`,
+  `CREATE TABLE IF NOT EXISTS quotes (
+    id TEXT PRIMARY KEY,
+    number TEXT NOT NULL,
+    customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    need TEXT,
+    intro TEXT,
+    notes TEXT,
+    tiers TEXT NOT NULL,
+    chosen_tier TEXT,
+    status TEXT NOT NULL,
+    provider TEXT,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    decided_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_quotes_customer ON quotes(customer_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_records_customer ON records(customer_id, kind)`,
   `CREATE INDEX IF NOT EXISTS idx_records_due ON records(due_at)`,
   `CREATE INDEX IF NOT EXISTS idx_checklists_customer ON checklists(customer_id)`,
@@ -461,6 +499,11 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "customers", column: "files_drive_id", definition: "TEXT" },
   { table: "customers", column: "files_item_id", definition: "TEXT" },
   { table: "customers", column: "files_url", definition: "TEXT" },
+  { table: "customers", column: "industry", definition: "TEXT" },
+  { table: "customers", column: "employees", definition: "INTEGER" },
+  { table: "customers", column: "package", definition: "TEXT" },
+  { table: "customers", column: "contract_end", definition: "TEXT" },
+  { table: "tickets", column: "first_response_at", definition: "TEXT" },
 ];
 
 async function addMissingColumns(client: Client): Promise<void> {

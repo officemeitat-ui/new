@@ -7,6 +7,9 @@ import { requireAdmin } from "@/lib/auth";
 export default async function MehrPage() {
   const user = await requireAdmin();
   const links = [
+    { href: "/app/angebote", label: "Angebote", hint: "KI-Angebote in drei Paketen", icon: ICONS.angebote },
+    { href: "/app/radar", label: "Umsatz-Radar", hint: "Chancen mit €-Wert", icon: ICONS.radar },
+    { href: "/app/leistungen", label: "Leistungen & Preise", hint: "Katalog, MRR", icon: ICONS.angebote },
     { href: "/app/checklisten", label: "Checklisten", hint: "Onboarding, Offboarding, Wartung", icon: ICONS.checklisten },
     { href: "/app/fristen", label: "Fristen", hint: "Lizenzen, Verträge, Garantien, Zertifikate", icon: ICONS.fristen },
     { href: "/app/stunden", label: "Stunden", hint: "Stundenpakete und Zeiten", icon: ICONS.stunden },

@@ -113,6 +113,17 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   je Kunde, mit „wer hat wann abgehakt“. Vorlagen in [`config/checklists.ts`](config/checklists.ts).
 - **Kunden-Gesundheit** 0–100 je Kunde aus Tickets, Warnungen, Geräten, Fristen, E-Mail-Sicherheit, Datensicherung,
   Schulungsstand und Vollständigkeit der Doku – in der Kundenliste und in der Kundenakte mit Begründung.
+- **Vertrieb (aus dem ME-IT Cockpit übernommen):**
+  - **Leistungen & Preise:** Katalog mit Managed Workplace, Security, Backup, NIS2, KI-Leistungen usw. (Preise anpassbar),
+    je Kunde **Paket, Mitarbeiterzahl, Branche, Vertragsende und gebuchte Leistungen** – daraus der **MRR**.
+  - **Umsatz-Radar:** findet regelbasiert Chancen mit €-Wert und Begründung – Support-Ende (Windows 10, Server 2012/2016,
+    Exchange, Office), alte Hardware ohne Garantie, kein Managed-Vertrag, fehlendes EDR/Backup/Awareness, schwache Domain
+    (SPF/DMARC), NIS2-Betroffenheit, KI-Workshop/KI-Box/KI-Mitarbeiter, Vertragsverlängerung, wiederkehrende Ticket-Themen.
+  - **Angebote mit KI in drei Paketen** (Premium als Anker, Einstieg, Empfehlung): Claude wählt Leistungen aus dem Katalog und
+    schreibt den Text, **gerechnet wird im Code**. Angebot zum Drucken/PDF, als Outlook-Entwurf (mit Nachfass-Aufgabe), Status;
+    bei Annahme werden die laufenden Leistungen gebucht (MRR steigt).
+  - **SLA-Tracking:** Reaktions- und Lösungszeiten je Paket und Priorität in Geschäftszeiten (Mo–Fr 8–17, Wien), Ampel je
+    Atera-Ticket, Erfüllungsquote – fließt in die Kunden-Gesundheit ein. Zusagen in [`config/services.ts`](config/services.ts).
 - **Demo-Daten** (Einstellungen, nur Inhaber/in): drei Beispielkunden mit allem – zum Ausprobieren und Vorführen, per Klick wieder weg.
 - **Dokumentation je Kunde** (Kundenakte → Dokumentation, Suche über alle Kunden unter „Doku“):
   - **Doku-Tresor:** Die gesamte Dokumentation liegt verschlüsselt in der Datenbank (AES-256-GCM) und öffnet sich nur mit einem
@@ -353,6 +364,12 @@ config/checklists.ts     Checklisten-Vorlagen (Onboarding, Offboarding, Wartung 
 lib/workspace/records.ts Einträge der Kundenakte (verschlüsselt), Fristen
 lib/checks/              Domain-Prüfung (DNS, TLS)
 lib/workspace/health.ts  Kunden-Gesundheit
+config/services.ts       Leistungskatalog (Startwerte), Pakete, SLA-Zusagen
+lib/workspace/catalog.ts Katalog, gebuchte Leistungen, MRR
+lib/workspace/quotes.ts  Angebots-Agent, drei Pakete
+lib/radar.ts             Umsatz-Radar
+lib/sla.ts               SLA in Geschäftszeiten
+lib/lifecycle.ts         Support-Ende von Windows, Server, Exchange, Office
 lib/demo.ts              Demo-Daten
 lib/network/             Netzwerkdokumentation: IP-Rechnen, Gerätebibliothek, Prüfung, Wegverfolgung, Plan-Anordnung
 lib/ai-client.ts         Claude-Zugang direkt bei Anthropic oder über Azure (Microsoft Foundry)

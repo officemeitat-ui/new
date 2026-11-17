@@ -36,6 +36,8 @@ export const ICONS = {
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
   ),
   mehr: icon("M4 6h16M4 12h16M4 18h16"),
+  angebote: icon("M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6M10 8h2"),
+  radar: icon("M12 12l7-7M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5"),
   checklisten: icon("M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"),
   fristen: icon("M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM12 14v3l2 1"),
 };
@@ -70,6 +72,8 @@ export function WorkspaceNav({
     { href: "/app/tickets", label: "Tickets", icon: ICONS.tickets, badge: ticketsWaiting },
     { href: "/app/kunden", label: "Kunden", icon: ICONS.kunden },
     { href: "/app/stunden", label: "Stunden", icon: ICONS.stunden, badge: hoursLow },
+    { href: "/app/angebote", label: "Angebote", icon: ICONS.angebote },
+    { href: "/app/radar", label: "Umsatz-Radar", icon: ICONS.radar },
     { href: "/app/checklisten", label: "Checklisten", icon: ICONS.checklisten },
     { href: "/app/fristen", label: "Fristen", icon: ICONS.fristen },
     { href: "/app/doku", label: "Doku", icon: ICONS.doku },

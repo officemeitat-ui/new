@@ -12,6 +12,9 @@ import { listEvents, outlookConfigured, type CalendarEntry } from "@/lib/workspa
 import { listTasks } from "@/lib/workspace/tasks";
 import { listAccounts } from "@/lib/workspace/hours";
 import { allDeadlines } from "@/lib/workspace/deadlines";
+import { scanRadar } from "@/lib/radar";
+import { eur, mrrByCustomer } from "@/lib/workspace/catalog";
+import { listQuotes } from "@/lib/workspace/quotes";
 import { listCustomers } from "@/lib/workspace/customers";
 
 function Card({ title, href, count, children }: { title: string; href?: string; count?: number; children: React.ReactNode }) {
@@ -69,6 +72,15 @@ export default async function HeutePage({ searchParams }: PageProps<"/app">) {
   ]);
   const deadlines = await allDeadlines(30, now);
   const empty = (await listCustomers()).length === 0;
+  // Vertrieb nur für die Inhaberin bzw. den Inhaber
+  const sales =
+    user.role === "inhaber" && !empty
+      ? await Promise.all([mrrByCustomer(), scanRadar(undefined, now), listQuotes()]).then(([mrr, radar, quotes]) => ({
+          mrr: [...mrr.values()].reduce((a, b) => a + b, 0),
+          radar,
+          openQuotes: quotes.filter((q) => q.status === "gesendet"),
+        }))
+      : null;
   const waiting = tickets.filter((t) => t.waitingForUs);
   const urgentTickets = tickets.filter((t) => t.priority === "Critical" || t.priority === "High");
   const ticketFocus = [...new Map([...urgentTickets, ...waiting].map((t) => [t.id, t])).values()].slice(0, 6);
@@ -227,6 +239,34 @@ export default async function HeutePage({ searchParams }: PageProps<"/app">) {
           )}
         </Card>
 
+        {sales && (
+          <Card title="Vertrieb" href="/app/radar">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-slate-50 py-2">
+                <p className="font-bold tabular-nums">{eur(sales.mrr, 0)}</p>
+                <p className="text-xs text-slate-500">MRR</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 py-2">
+                <p className="font-bold tabular-nums">{eur(sales.radar.totalAnnual, 0)}</p>
+                <p className="text-xs text-slate-500">Potenzial/Jahr</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 py-2">
+                <p className="font-bold tabular-nums">{sales.openQuotes.length}</p>
+                <p className="text-xs text-slate-500">Angebote offen</p>
+              </div>
+            </div>
+            <ul className="mt-3 space-y-1.5 text-sm">
+              {sales.radar.opportunities.slice(0, 3).map((o, i) => (
+                <li key={i} className="flex justify-between gap-2">
+                  <Link href={`/app/radar?kunde=${o.customerId}`} className="min-w-0 truncate hover:underline">
+                    {o.title} · <span className="text-slate-500">{o.customer}</span>
+                  </Link>
+                  <span className="shrink-0 text-xs text-slate-500 tabular-nums">{eur(o.annual, 0)}/J.</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
         {deadlines.length > 0 && (
           <Card title="Fristen (30 Tage)" count={deadlines.length} href="/app/fristen">
             <ul className="space-y-2">
