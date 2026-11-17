@@ -148,6 +148,15 @@ class LLM:
         return None
 
 
+def _protect(messages: list[dict[str, Any]], system: str | None) -> tuple[list[dict[str, Any]], str | None]:
+    """Vor dem Versand an eine Cloud-KI: Klartext-Zugangsdaten schwärzen (Passwort-Wächter)."""
+    from .secrets_guard import redact
+
+    safe = [{**m, "content": redact(m["content"]) if isinstance(m.get("content"), str) else m.get("content")}
+            for m in messages]
+    return safe, (redact(system) if system else system)
+
+
 class NoLLM(LLM):
     provider = "none"
 
@@ -187,6 +196,8 @@ class OllamaLLM(LLM):
             return []
 
     def chat(self, messages, system=None, json_mode=False, temperature=0.2) -> str:
+        if not self.local:
+            messages, system = _protect(messages, system)
         msgs = ([{"role": "system", "content": system}] if system else []) + messages
         payload: dict[str, Any] = {
             "model": self.model,
@@ -315,6 +326,7 @@ class AnthropicLLM(LLM):
     def chat(self, messages, system=None, json_mode=False, temperature=0.2) -> str:
         import anthropic
 
+        messages, system = _protect(messages, system)  # Cloud: Zugangsdaten nie übertragen
         client = self._get_client()
         kwargs: dict[str, Any] = {
             "model": self.model,

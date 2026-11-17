@@ -429,6 +429,27 @@ CREATE TABLE IF NOT EXISTS sepa_batches (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS remote_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT DEFAULT 'atera',
+    started_at TEXT NOT NULL,
+    ended_at TEXT DEFAULT '',
+    minutes INTEGER DEFAULT 0,
+    technician TEXT DEFAULT '',
+    device TEXT DEFAULT '',
+    customer_hint TEXT DEFAULT '',
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    maintenance_run_id INTEGER REFERENCES maintenance_runs(id) ON DELETE SET NULL,
+    time_entry_id INTEGER REFERENCES time_entries(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'offen',
+    note TEXT DEFAULT '',
+    dedupe_key TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rsessions_customer ON remote_sessions(customer_id, started_at);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -445,7 +466,8 @@ CREATE INDEX IF NOT EXISTS idx_assets_customer ON assets(customer_id);
 WRITABLE_FIELDS: dict[str, set[str]] = {
     "customers": {
         "name", "contact_name", "email", "phone", "address", "industry", "employees",
-        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at", "uid", "supplier_no",
+        "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at", "uid", "supplier_no", "keeper_url",
+        "bookstack_url",
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
@@ -453,9 +475,12 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "assets": {
         "customer_id", "name", "type", "os", "serial", "purchase_date", "warranty_end",
-        "last_seen", "notes",
+        "last_seen", "notes", "external_id", "remote_url", "keeper_url",
     },
-    "kb_articles": {"title", "content", "tags", "embedding", "embedding_model", "public"},
+    "kb_articles": {"title", "content", "tags", "embedding", "embedding_model", "public", "source", "external_id",
+                    "external_url", "synced_at"},
+    "remote_sessions": {"source", "started_at", "ended_at", "minutes", "technician", "device", "customer_hint",
+                        "customer_id", "asset_id", "maintenance_run_id", "time_entry_id", "status", "note", "dedupe_key"},
     "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
     "quotes": {"customer_id", "title", "need", "items", "total_once", "total_monthly", "text", "status",
                "sent_at", "followup_count", "last_followup_at", "tiers", "chosen_tier", "invoice_id"},
@@ -506,18 +531,22 @@ TABLES_WITH_CREATED_AT = {
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
+    "remote_sessions",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
-    "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''"},
+    "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''",
+                  "keeper_url": "TEXT DEFAULT ''", "bookstack_url": "TEXT DEFAULT ''"},
+    "assets": {"external_id": "TEXT DEFAULT ''", "remote_url": "TEXT DEFAULT ''", "keeper_url": "TEXT DEFAULT ''"},
     "invoices": {"order_ref": "TEXT DEFAULT ''", "sent_at": "TEXT DEFAULT ''", "sent_to": "TEXT DEFAULT ''",
                  "paid_amount": "REAL DEFAULT 0", "dunning_level": "INTEGER DEFAULT 0", "dunned_at": "TEXT DEFAULT ''",
                  "payment_method": "TEXT DEFAULT 'ueberweisung'", "sepa_mandate_id": "INTEGER", "sepa_status": "TEXT DEFAULT ''",
                  "sepa_due": "TEXT DEFAULT ''", "sepa_batch_id": "INTEGER"},
     "receipts": {"document_id": "INTEGER"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
-    "kb_articles": {"public": "INTEGER DEFAULT 0"},
+    "kb_articles": {"public": "INTEGER DEFAULT 0", "source": "TEXT DEFAULT 'cockpit'", "external_id": "TEXT DEFAULT ''",
+                    "external_url": "TEXT DEFAULT ''", "synced_at": "TEXT DEFAULT ''"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",
                "last_followup_at": "TEXT DEFAULT ''", "tiers": "TEXT DEFAULT '[]'", "chosen_tier": "TEXT DEFAULT ''",

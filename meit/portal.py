@@ -188,6 +188,8 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             r["checked"] = sum(1 for i in items if i.get("done"))
             r["items"] = len(items)
             r["result_label"] = RESULTS.get(r["result"], r["result"])
+            r["remote_minutes"] = db.scalar("SELECT COALESCE(SUM(minutes), 0) FROM remote_sessions WHERE maintenance_run_id = ?",
+                                            (r["id"],)) or 0
         return {"plan": plan, "done": done}
 
     @app.get("/api/portal/quotes")

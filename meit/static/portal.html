@@ -162,7 +162,8 @@
             ["Ergebnis", (r) => res(r.last_result, r.last_result_label)], ["Nächste", (r) => dt(r.next_due)]], m.plan)
             : h("p", { class: "muted" }, "Für Ihr Unternehmen ist noch kein Wartungsplan hinterlegt.")),
         h("div", { class: "card" }, h("h2", {}, "Nachweise (letzte 12 Monate)"),
-          table([["Datum", (r) => dt(r.done_at)], ["Prüfung", (r) => r.title], ["Checkliste", (r) => `${r.checked}/${r.items} Punkte`], ["Ergebnis", (r) => res(r.result, r.result_label)]], m.done),
+          table([["Datum", (r) => dt(r.done_at)], ["Prüfung", (r) => r.title], ["Checkliste", (r) => `${r.checked}/${r.items} Punkte`],
+            ["Fernwartung", (r) => r.remote_minutes ? `${r.remote_minutes} Min. (protokolliert)` : "–"], ["Ergebnis", (r) => res(r.result, r.result_label)]], m.done),
           h("p", { class: "muted small" }, "Regelmäßige Prüfungen sind auch ein Nachweis für Versicherung und NIS2 (Wirksamkeit der Sicherheitsmaßnahmen).")));
     };
 

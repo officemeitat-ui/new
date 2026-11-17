@@ -11,7 +11,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > PC-Empfehlung und Training: [docs/OFFLINE-KI-PC.md](docs/OFFLINE-KI-PC.md) ·
 > Outlook/SharePoint/OneDrive: [docs/M365-DOKUMENTENPROZESS.md](docs/M365-DOKUMENTENPROZESS.md) ·
 > Zahlungen & Mahnwesen: [docs/ZAHLUNGEN-MAHNWESEN.md](docs/ZAHLUNGEN-MAHNWESEN.md) ·
-> Wartungsplan: [docs/WARTUNGSPLAN.md](docs/WARTUNGSPLAN.md)
+> Wartungsplan: [docs/WARTUNGSPLAN.md](docs/WARTUNGSPLAN.md) ·
+> Atera · Keeper · BookStack: [docs/ATERA-KEEPER-BOOKSTACK.md](docs/ATERA-KEEPER-BOOKSTACK.md)
 
 ## Funktionen
 
@@ -45,6 +46,9 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
 | **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
 | **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG als PDF im Corporate Design (Versand per Outlook), Storno, Rechnungsausgangsbuch als CSV, **E-Rechnung ebInterface 6.1** (gegen das offizielle Schema geprüft; mit Auftragsreferenz und Lieferantennummer für den Bund) |
+| **Atera (RMM + Splashtop)** | Kunden und Geräte inkl. Link zur Atera-Geräteseite, Alarme → Tickets. **Splashtop-Sitzungsprotokoll** importieren: Sitzungen werden Gerät → Kunde → Wartung zugeordnet und erscheinen als protokollierter Nachweis im Wartungsprotokoll, Portal und Wiki; Sitzungen ohne Zeitbuchung mit einem Klick buchen. |
+| **Keeper & Passwort-Wächter** | Keeper-Links je Kunde und Gerät statt Passwörtern im Cockpit. Scanner findet Klartext-Zugangsdaten in Tickets, Wissen, Notizen und E-Mails (Schwärzen per Klick); vor BookStack-Export und Cloud-KI wird automatisch geschwärzt. |
+| **BookStack** | Je Kunde ein automatisch aktuelles IT-Doku-Buch (Übersicht, Geräte mit Atera-/Keeper-Links, Lizenzen, Wartungsnachweise), Wissensartikel im Wiki, Wiki-Anleitungen als Wissen für KI-Triage, Assistent und Kundenportal. |
 | **NinjaOne (RMM)** | Organisationen → Kunden, Geräte inkl. Betriebssystem/Seriennummer/zuletzt gesehen (automatisch oder per Knopf), Alarme optional als Tickets |
 | **Terminvorschläge** | Bei Microsoft 365 (`GRAPH_CALENDAR=true`): Antworten auf Anfragen und Rückrufbitten enthalten 3 freie Termine aus dem Kalender |
 | **Import & Sicherung** | CSV-Import für Kunden und Geräte (erkennt deutsche/englische Spalten und RMM-Exporte, mit Vorschau). Automatische Datensicherung mit Aufbewahrung (inkl. Spiegel des Dokumentenarchivs), Download per Klick. |
@@ -163,6 +167,9 @@ meit/
   payments.py      Kontoauszug-Import, Zahlungsabgleich, Belegabgleich, Mahnwesen
   maintenance.py   Wartungsplan: Vorlagen, Fälligkeit → Ticket, Nachweise
   sepa.py          SEPA-Lastschrift: Mandate, pain.008-Einzugsdatei, Bankarbeitstage
+  atera.py         Atera-API (Kunden, Geräte, Alarme) + Splashtop-Sitzungsprotokolle
+  bookstack.py     BookStack: Kunden-IT-Doku, Wissen in beide Richtungen
+  secrets_guard.py Passwort-Wächter (Keeper statt Klartext, Schutz vor Cloud-KI)
   branding.py      Corporate Design (Logo, Farben, Schrift)
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
   subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)

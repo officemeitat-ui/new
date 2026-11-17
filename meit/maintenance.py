@@ -155,9 +155,14 @@ class Maintenance:
                               (t["id"], t["next_due"])):
                 continue
             checklist = loads(t["checklist"], [])
+            remote = self.db.query("SELECT name, remote_url FROM assets WHERE customer_id = ? AND remote_url != '' "
+                                   "ORDER BY type = 'server' DESC, name LIMIT 6", (t["customer_id"],))
             desc = "\n".join([f"Wiederkehrende Prüfung ({INTERVALS.get(t['interval'], t['interval'])}), "
                               f"fällig am {date.fromisoformat(t['next_due']).strftime('%d.%m.%Y')}.", "",
                               *[f"- [ ] {c}" for c in checklist], "",
+                              *(["Fernzugriff über Atera (Splashtop) – die Sitzung wird protokolliert und automatisch "
+                                 "als Nachweis zugeordnet:", *[f"- {a['name']}: {a['remote_url']}" for a in remote], ""]
+                                if remote else []),
                               "Abschluss mit Ergebnis unter „Wartung“ – erscheint als Nachweis im Monatsbericht."])
             ticket_id = self.db.insert("tickets", {
                 "customer_id": t["customer_id"], "title": f"Wartung: {t['title']}"[:200], "description": desc,
@@ -249,9 +254,18 @@ class Maintenance:
         order = " ORDER BY r.due_date, r.id" if status == "offen" else " ORDER BY r.done_at DESC, r.id DESC"
         rows = self.db.query(sql + order + " LIMIT ?", [*params, min(limit, 2000)])
         today = date.today().isoformat()
+        sessions: dict[int, list[dict[str, Any]]] = {}
+        if rows:
+            ids = [r["id"] for r in rows]
+            for srow in self.db.query(
+                    "SELECT id, maintenance_run_id, started_at, ended_at, minutes, technician, device, source FROM remote_sessions "
+                    f"WHERE maintenance_run_id IN ({','.join('?' * len(ids))}) ORDER BY started_at", ids):
+                sessions.setdefault(srow["maintenance_run_id"], []).append(srow)
         for r in rows:
             r["checklist"] = loads(r["checklist"], [])
             r["overdue"] = r["status"] == "offen" and r["due_date"] < today
+            r["sessions"] = sessions.get(r["id"], [])
+            r["remote_minutes"] = sum(x["minutes"] or 0 for x in r["sessions"])
         return rows
 
     def summary(self, customer_id: int, start: date, end: date) -> dict[str, Any]:
@@ -309,13 +323,20 @@ def protocol_markdown(db: Database, customer: dict[str, Any], runs: list[dict[st
     lines = [f"# Wartungsprotokoll {period}", "", f"**Kunde:** {customer['name']}", ""]
     if not runs:
         return "\n".join(lines + ["Im Zeitraum wurden keine Wartungen durchgeführt."])
-    lines += ["| Datum | Prüfung | Ergebnis | Durchgeführt von |", "|---|---|---|---|"]
+    lines += ["| Datum | Prüfung | Ergebnis | Fernwartung | Durchgeführt von |", "|---|---|---|---|---|"]
     for r in runs:
+        remote = f"{r.get('remote_minutes') or 0} Min." if r.get("sessions") else "–"
         lines.append(f"| {datetime.fromisoformat(r['done_at']).strftime('%d.%m.%Y')} | {r['title']} | "
-                     f"{RESULTS.get(r['result'], r['status'])} | {r.get('done_by_name') or '–'} |")
+                     f"{RESULTS.get(r['result'], r['status'])} | {remote} | {r.get('done_by_name') or '–'} |")
     for r in runs:
         lines += ["", f"## {r['title']} – {datetime.fromisoformat(r['done_at']).strftime('%d.%m.%Y')}"]
         lines += [f"- {'erledigt' if i['done'] else 'nicht geprüft'}: {i['item']}" for i in r["checklist"]]
+        for s in r.get("sessions") or []:
+            start = datetime.fromisoformat(s["started_at"])
+            end = f"–{datetime.fromisoformat(s['ended_at']).strftime('%H:%M')}" if s["ended_at"] else ""
+            lines.append(f"- Fernwartung ({'Splashtop' if s['source'] == 'splashtop' else 'Atera/Splashtop'}, protokolliert): "
+                         f"{start.strftime('%d.%m.%Y %H:%M')}{end}, {s['minutes']} Min."
+                         + (f", {s['technician']}" if s["technician"] else "") + (f", Gerät {s['device']}" if s["device"] else ""))
         if r["note"]:
             lines += ["", f"**Notiz:** {r['note']}"]
     return "\n".join(lines)

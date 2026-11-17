@@ -304,6 +304,7 @@ function customerForm(c = null) {
     { name: "contract_end", label: "Vertragsende", type: "date" },
     { name: "uid", label: "UID-Nummer (für Rechnungen)" },
     { name: "supplier_no", label: "Unsere Lieferantennummer beim Kunden (E-Rechnung)" },
+    { name: "keeper_url", label: "Keeper: Link zum Kundenordner (Zugangsdaten bleiben in Keeper)", placeholder: "https://keepersecurity.eu/vault/#detail/…", full: true },
     { name: "booked_services", label: "Gebuchte Leistungen (Codes, kommagetrennt)", placeholder: "MW, SEC, BCK" },
     { name: "notes", label: "Notizen", type: "textarea", full: true },
   ], c ? { ...c, booked_services: (c.booked_services || []).join(", ") } : {});
@@ -319,6 +320,7 @@ function customerForm(c = null) {
 
 views.kunde = async (id) => {
   const c = await api(`/api/customers/${id}`);
+  if (!state.bookstack) state.bookstack = await api("/api/bookstack/status").catch(() => ({ configured: false }));
   await loadCustomers();
   setTitle(c.name, [
     h("button", { class: "btn", onclick: () => customerForm(c) }, "Bearbeiten"),
@@ -338,6 +340,12 @@ views.kunde = async (id) => {
     }) }, "QBR erstellen (KI)"),
     h("button", { class: "btn primary", onclick: () => quoteCreate(c.id) }, "Angebot (KI)"),
   ]);
+  const links = h("div", { class: "row", style: "margin:-.4rem 0 1rem;gap:.5rem" },
+    c.keeper_url ? h("a", { class: "btn small", href: c.keeper_url, target: "_blank", rel: "noopener", title: "Zugangsdaten des Kunden in Keeper" }, "Keeper ↗")
+      : h("button", { class: "btn small", title: "Keeper-Ordner-Link hinterlegen", onclick: () => customerForm(c) }, "+ Keeper-Link"),
+    c.bookstack_url ? h("a", { class: "btn small", href: c.bookstack_url, target: "_blank", rel: "noopener" }, "IT-Doku in BookStack ↗") : null,
+    state.bookstack?.configured ? h("button", { class: "btn small", title: "Übersicht, Geräte, Lizenzen und Wartung als Seiten in BookStack aktualisieren", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api(`/api/bookstack/customer/${c.id}`, { method: "POST" }); toast(`${r.pages} Seiten in BookStack aktualisiert`); render(); }) }, "Doku → BookStack") : null);
   const health = h("div", { class: "card", style: "margin-bottom:1rem" },
     h("div", { class: "card-head" }, h("h2", {}, "Health Score"), badge(`${c.health.score}/100 ${c.health.status}`, c.health.status)),
     h("div", { class: "bar", style: "margin-bottom:.7rem" }, h("span", { style: `width:${c.health.score}%` })),
@@ -348,6 +356,7 @@ views.kunde = async (id) => {
         modal(`QBR ${q.period}`, md(full.text), [copyButton(() => full.text), archiveButton(`QBR ${q.period} – ${c.name}`, () => full.text, c.id, "qbr")]);
       } }, `${q.period} (${dt(q.created_at)})`))) : h("p", { class: "small muted", style: "margin-bottom:0" }, "Noch kein Quartalsgespräch – Health Score und nächste Hebel machen daraus ein Strategiegespräch statt Nachverhandlung."));
   show(
+    links,
     h("div", { class: "grid kpis" },
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Paket / MRR"), h("div", { class: "value" }, eur(c.mrr)), h("div", { class: "sub" }, `Paket: ${c.package}`)),
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Mitarbeiter"), h("div", { class: "value" }, c.employees), h("div", { class: "sub" }, c.industry || "–")),
@@ -498,8 +507,10 @@ function assetTable(rows) {
       const status = r.eol_status || "ok";
       return status === "ok" ? badge("ok") : badge(status === "abgelaufen" ? `abgelaufen ${dt(r.eol_date)}` : `endet ${dt(r.eol_date)}`, status);
     } },
-    { label: "Kauf", render: (r) => dt(r.purchase_date) },
     { label: "Garantie bis", render: (r) => dt(r.warranty_end) },
+    { label: "Zugriff", render: (r) => h("div", { class: "row", style: "gap:.3rem;flex-wrap:nowrap" },
+      r.remote_url ? h("a", { class: "btn small", href: r.remote_url, target: "_blank", rel: "noopener", title: "In Atera öffnen → Splashtop verbinden (Sitzung wird protokolliert)", onclick: (e) => e.stopPropagation() }, "Atera ↗") : null,
+      r.keeper_url ? h("a", { class: "btn small", href: r.keeper_url, target: "_blank", rel: "noopener", title: "Zugangsdaten in Keeper", onclick: (e) => e.stopPropagation() }, "Keeper ↗") : null) },
   ], rows, (r) => assetForm(r));
 }
 
@@ -526,7 +537,9 @@ function assetForm(a = null, customerId = null) {
     { name: "serial", label: "Seriennummer" },
     { name: "purchase_date", label: "Kaufdatum", type: "date" },
     { name: "warranty_end", label: "Garantie bis", type: "date" },
-    { name: "notes", label: "Notizen", type: "textarea", full: true },
+    { name: "remote_url", label: "Fernwartung: Link zur Atera-Geräteseite", placeholder: "https://app.atera.com/…", full: true },
+    { name: "keeper_url", label: "Keeper: Link zum Eintrag mit den Zugangsdaten", placeholder: "https://keepersecurity.eu/vault/#detail/…", full: true },
+    { name: "notes", label: "Notizen (keine Passwörter – die gehören in Keeper)", type: "textarea", full: true },
   ], a || {});
   modal(a ? "Gerät bearbeiten" : "Neues Gerät", f, [
     a ? (close) => h("button", { class: "btn danger", onclick: async () => {
@@ -554,10 +567,15 @@ views.wissen = async () => {
   const results = h("div");
   const showList = (items, scored = false) => results.replaceChildren(items.length ? h("div", { class: "stack" }, items.map((a) =>
     h("details", { class: "card" },
-      h("summary", { style: "cursor:pointer" }, h("strong", {}, a.title), " ", a.public ? badge("Portal", "ok") : null, " ", a.tags ? h("span", { class: "small muted" }, `· ${a.tags}`) : null,
+      h("summary", { style: "cursor:pointer" }, h("strong", {}, a.title), " ", a.public ? badge("Portal", "ok") : null, " ", a.source === "bookstack" ? badge("BookStack", "info") : null, " ", a.tags ? h("span", { class: "small muted" }, `· ${a.tags}`) : null,
         scored ? h("span", { class: "small muted" }, ` · Treffer ${Math.round(a.score * 100)} % (${a.mode})`) : null),
       h("div", { style: "margin-top:.6rem" }, md(a.content)),
-      h("div", { class: "row" }, h("span", { class: "spacer" }), h("button", { class: "btn small", onclick: () => articleForm(a) }, "Bearbeiten"))))) :
+      h("div", { class: "row" }, h("span", { class: "spacer" }),
+        a.external_url ? h("a", { class: "btn small", href: a.external_url, target: "_blank", rel: "noopener" }, a.source === "bookstack" ? "In BookStack bearbeiten ↗" : "In BookStack ↗") : null,
+        a.source === "bookstack" ? h("button", { class: "btn small", onclick: async () => {
+          await api(`/api/kb/${a.id}`, { method: "PUT", body: { title: a.title, content: a.content, tags: a.tags || "", public: !a.public } });
+          toast(a.public ? "Nicht mehr im Portal" : "Im Kundenportal freigegeben"); render(); } }, a.public ? "Portal-Freigabe entfernen" : "Fürs Portal freigeben")
+          : h("button", { class: "btn small", onclick: () => articleForm(a) }, "Bearbeiten"))))) :
     h("div", { class: "empty" }, "Nichts gefunden."));
   let timer;
   const search = h("input", { type: "search", placeholder: "Suchen … (z. B. „Drucker druckt nicht“ – mit KI auch sinngemäß)", oninput: (e) => {
@@ -826,6 +844,7 @@ views.einstellungen = async () => {
       table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
     await brandingCard(),
+    await secretsCard(),
     await docsSettingsCard(),
     state.users.length ? await routingCard() : null,
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "Agenten-Protokoll (Nachvollziehbarkeit / AI Act)"),
@@ -1220,7 +1239,7 @@ views.wachstum = async () => {
 // ---- Daten: Import & Sicherung
 views.daten = async () => {
   setTitle("Import & Datensicherung");
-  const [b, rmm] = await Promise.all([api("/api/backup"), api("/api/rmm/status")]);
+  const [b, rmm, atera, bs] = await Promise.all([api("/api/backup"), api("/api/rmm/status"), api("/api/atera/status"), api("/api/bookstack/status")]);
   let csvText = "";
   const kind = h("select", {}, h("option", { value: "customers" }, "Kunden"), h("option", { value: "assets" }, "Geräte (auch RMM-Export: NinjaOne, Datto, Atera …)"));
   const createCust = h("input", { type: "checkbox", checked: true, style: "width:auto" });
@@ -1269,9 +1288,65 @@ views.daten = async () => {
       rmm.configured ? h("p", { class: "small" }, `Instanz: ${rmm.url} · ${rmm.sync_hours ? `automatisch alle ${rmm.sync_hours} h` : "Abgleich per Knopf"} · Alarme → Tickets: ${rmm.alert_tickets ? "ja" : "nein"}`,
         rmm.last ? h("span", { class: "muted" }, ` · letzter Abgleich ${rmm.last.at}: ${rmm.last.assets_created} neu / ${rmm.last.assets_updated} aktualisiert`) : null,
         rmm.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${rmm.error}`) : null)
-        : md(["Organisationen werden zu Kunden, Geräte inkl. Betriebssystem, Seriennummer und „zuletzt gesehen“ werden übernommen (Support-Ende-Erkennung, Umsatz-Radar). In NinjaOne: *Administration → Apps → API* → Client-App (API Services, Client Credentials, Scope Monitoring). Dann in `.env`:", "```", "NINJA_URL=https://eu.ninjarmm.com", "NINJA_CLIENT_ID=…", "NINJA_CLIENT_SECRET=…", "NINJA_SYNC_HOURS=6", "NINJA_ALERT_TICKETS=true", "```"].join("\n"))),
+        : md(["Organisationen werden zu Kunden, Geräte inkl. Betriebssystem, Seriennummer und „zuletzt gesehen“ werden übernommen (Support-Ende-Erkennung, Umsatz-Radar). In NinjaOne: „Administration → Apps → API“ → Client-App (API Services, Client Credentials, Scope Monitoring). Dann in `.env`:", "```", "NINJA_URL=https://eu.ninjarmm.com", "NINJA_CLIENT_ID=…", "NINJA_CLIENT_SECRET=…", "NINJA_SYNC_HOURS=6", "NINJA_ALERT_TICKETS=true", "```"].join("\n"))),
+    ateraCard(atera), bookstackCard(bs),
     result);
 };
+
+// ---- Atera & BookStack
+function ateraCard(a) {
+  const s = a.sessions;
+  return h("div", { class: "card", style: "margin-top:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "RMM: Atera (mit Splashtop)"),
+      a.configured ? h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api("/api/atera/sync", { method: "POST" });
+        toast(`${r.assets_created} Geräte neu, ${r.assets_updated} aktualisiert${r.customers_created.length ? `, ${r.customers_created.length} Kunden neu` : ""}${r.alert_tickets ? `, ${r.alert_tickets} Alarm-Tickets` : ""}`); render();
+      }) }, "Jetzt abgleichen") : badge("nicht eingerichtet", "warn")),
+    a.configured ? h("p", { class: "small" }, `${a.sync_hours ? `Automatisch alle ${a.sync_hours} h` : "Abgleich per Knopf"} · Alarme → Tickets: ${a.alert_tickets ? "ja" : "nein"}`,
+      a.last ? h("span", { class: "muted" }, ` · letzter Abgleich ${a.last.at}: ${a.last.assets_created} neu / ${a.last.assets_updated} aktualisiert`) : null,
+      a.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${a.error}`) : null)
+      : md(["Kunden und Geräte (inkl. **Link zur Atera-Geräteseite** – von dort Splashtop starten) werden übernommen, optional offene Alarme als Tickets. In Atera: „Admin → API“ → API-Schlüssel kopieren. Dann in `.env`:", "```", "ATERA_API_KEY=…", "ATERA_SYNC_HOURS=6", "ATERA_ALERT_TICKETS=true", "```"].join("\n")),
+    h("p", { class: "small muted", style: "margin-bottom:0" }, `Fernwartungs-Sitzungen (Splashtop-Protokoll): ${s.maintenance_linked} als Wartungsnachweis zugeordnet · ${s.unbooked} ohne Zeitbuchung`,
+      s.last_import ? ` · letzter Import ${s.last_import}` : "", " → ", h("a", { href: "#/wartung", onclick: () => { maintTab = "fernwartung"; } }, "Wartung → Fernwartung")));
+}
+
+function bookstackCard(bs) {
+  const f = form([
+    { name: "customer_book", label: "Buch je Kunde ({kunde} = Kundenname)" }, { name: "kb_book", label: "Buch für die Wissensdatenbank" },
+    { name: "import_books", label: "Bücher als KI-Wissen übernehmen (kommagetrennt)", full: true },
+    { name: "push_customers", label: "Kundendokumentation automatisch pflegen (Übersicht, Geräte, Lizenzen, Wartung)", type: "checkbox", full: true },
+    { name: "push_kb", label: "Wissensartikel aus dem Cockpit nach BookStack übertragen", type: "checkbox", full: true },
+  ], { ...bs, import_books: (bs.import_books || []).join(", ") });
+  return h("div", { class: "card", style: "margin-top:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Dokumentation: BookStack"),
+      bs.configured ? h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api("/api/bookstack/sync", { method: "POST" });
+        toast(`BookStack: ${r.kb_pushed ?? 0} Artikel übertragen, ${r.kb_imported} Seiten als Wissen übernommen, ${(r.customers || []).length} Kundendokus aktualisiert`); render();
+      }) }, "Jetzt abgleichen") : badge("nicht eingerichtet", "warn")),
+    bs.configured ? h("p", { class: "small" }, h("a", { href: bs.url, target: "_blank", rel: "noopener" }, bs.url),
+      bs.last ? h("span", { class: "muted" }, ` · letzter Abgleich ${bs.last.at}`) : null, bs.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${bs.error}`) : null)
+      : md(["Je Kunde ein Buch mit automatisch aktueller IT-Doku (Geräte mit Atera- und Keeper-Links, Lizenzen, Wartungsnachweise), Wissensartikel im Wiki, Wiki-Anleitungen als Wissen für KI-Triage und Assistent. Passwörter werden vor dem Export geschwärzt (→ Keeper). In BookStack: „Profil → API-Tokens“ (Rolle mit „Zugriff auf System-API“). Dann in `.env`:", "```", "BOOKSTACK_URL=https://wiki.meit.at", "BOOKSTACK_TOKEN_ID=…", "BOOKSTACK_TOKEN_SECRET=…", "BOOKSTACK_SYNC_HOURS=6", "```"].join("\n")),
+    f, h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }), h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      const d = readForm(f); d.import_books = d.import_books.split(",").map((x) => x.trim()).filter(Boolean);
+      await api("/api/bookstack/settings", { method: "PUT", body: d }); toast("Gespeichert"); state.bookstack = null;
+    }) }, "Einstellungen speichern")));
+}
+
+async function secretsCard() {
+  const r = await api("/api/security/secrets").catch(() => null);
+  if (!r) return null;
+  const LABEL = { tickets: "Ticket", kb_articles: "Wissensartikel", customers: "Kunde", assets: "Gerät", messages: "Nachricht", maintenance_runs: "Wartung" };
+  return h("div", { class: "card", style: "margin-top:1rem;border-left:4px solid var(--" + (r.count ? "bad" : "ok") + ")" },
+    h("div", { class: "card-head" }, h("h2", {}, "Passwort-Wächter (Keeper)"), r.count ? badge(`${r.count} Fund(e)`, "bad") : badge("keine Klartext-Passwörter", "ok")),
+    h("p", { class: "small muted" }, "Zugangsdaten gehören in Keeper – nicht in Tickets, Wissen, Notizen oder E-Mails. Vor dem Export nach BookStack und vor jeder Cloud-KI werden sie automatisch geschwärzt; lokale KI (Ollama) sieht den Text, er verlässt das Haus nicht. Funde: Wert in Keeper übernehmen, dann hier schwärzen."),
+    r.count ? table([
+      { label: "Wo", render: (x) => h("a", { href: x.link }, `${LABEL[x.table] || x.table} #${x.id}`) }, { label: "Titel", key: "title" },
+      { label: "Feld", key: "field" }, { label: "Fund", render: (x) => h("code", { class: "small" }, x.preview) },
+      { label: "", render: (x) => h("button", { class: "btn small danger", onclick: async () => {
+        if (!confirm("Geheimen Wert jetzt durch „•••• (in Keeper)“ ersetzen? Vorher in Keeper übernehmen.")) return;
+        await api("/api/security/secrets/redact", { method: "POST", body: { table: x.table, id: x.id, field: x.field } }); toast("Geschwärzt"); render(); } }, "Schwärzen") },
+    ], r.findings) : null);
+}
 
 // ---- Team: Benutzer, Login, Wochenrhythmus
 const userOptions = () => [[0, "– niemand –"], ...state.users.map((u) => [u.id, u.name])];
@@ -1523,16 +1598,23 @@ const M_RESULT = { ok: ["in Ordnung", "ok"], hinweis: ["Hinweis", "warn"], probl
 const M_INTERVAL = { woche: "wöchentlich", monat: "monatlich", quartal: "vierteljährlich", halbjahr: "halbjährlich", jahr: "jährlich" };
 const resultBadge = (r) => r ? badge(...(M_RESULT[r] || [r])) : h("span", { class: "muted" }, "–");
 
-function completeRun(run) {
+async function completeRun(run) {
+  const devices = (await api(`/api/assets?customer_id=${run.customer_id}`).catch(() => [])).filter((a) => a.remote_url).slice(0, 8);
   const boxes = run.checklist.map((i) => h("input", { type: "checkbox", checked: i.done, style: "width:auto" }));
   let result = "ok";
   const seg = h("div", { class: "seg" }, Object.entries(M_RESULT).map(([k, [l]]) => h("label", {},
     h("input", { type: "radio", name: "mresult", value: k, checked: k === "ok", onchange: () => { result = k; follow.parentElement.hidden = k !== "problem"; } }), h("span", {}, l))));
   const note = h("textarea", { rows: 3, placeholder: "Was wurde festgestellt/gemacht? (Hinweise und Probleme erscheinen im Monatsbericht)" });
-  const minutes = h("input", { type: "number", value: 15, min: 0, style: "max-width:120px" });
+  const minutes = h("input", { type: "number", value: run.remote_minutes || 15, min: 0, style: "max-width:120px" });
   const follow = h("input", { type: "checkbox", checked: true, style: "width:auto" });
   modal(`Wartung: ${run.title}`, h("div", { class: "stack" },
     h("p", { class: "small muted", style: "margin:0" }, `${run.customer_name} · fällig ${dt(run.due_date)}`),
+    devices.length ? h("div", { class: "row small", style: "gap:.4rem" }, h("span", { class: "muted" }, "Fernwartung über Atera/Splashtop:"),
+      devices.map((d) => h("a", { class: "btn small", href: d.remote_url, target: "_blank", rel: "noopener" }, `${d.name} ↗`))) : null,
+    run.sessions && run.sessions.length ? h("div", { class: "small", style: "background:var(--bg);padding:.5rem .7rem;border-radius:8px" },
+      h("strong", {}, `Protokollierte Fernwartung (${run.remote_minutes} Min.) – wird als Nachweis ins Protokoll übernommen:`),
+      h("ul", { style: "margin:.3rem 0 0;padding-left:1.1rem" }, run.sessions.map((x) => h("li", {}, `${dt(x.started_at)} ${x.started_at.slice(11, 16)}${x.ended_at ? "–" + x.ended_at.slice(11, 16) : ""} · ${x.minutes} Min. · ${x.technician || "–"} · ${x.device || ""}`))))
+      : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Splashtop-Sitzung zugeordnet – nach der Wartung das Sitzungsprotokoll unter „Fernwartung“ importieren, dann erscheint es hier automatisch."),
     h("div", {}, h("label", {}, "Checkliste"), run.checklist.length ? run.checklist.map((i, n) => h("label", { class: "row", style: "gap:.5rem;font-weight:400" }, boxes[n], h("span", {}, i.item)))
       : h("p", { class: "muted" }, "Keine Checkliste hinterlegt.")),
     h("div", {}, h("label", {}, "Ergebnis"), seg),
@@ -1612,6 +1694,47 @@ async function maintenanceCard(c) {
         : "Kein Betreuungsvertrag – Wartungsplan ist ein gutes Argument für Managed Services."));
 }
 
+let sessFilter = "offen";
+async function sessionsPanel() {
+  const [st, rows] = await Promise.all([api("/api/atera/status"), api(`/api/sessions?limit=300${sessFilter ? `&status=${sessFilter}` : ""}`)]);
+  const s = st.sessions;
+  const upload = h("input", { type: "file", accept: ".csv,text/csv", hidden: true, onchange: async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const res = await fetch("/api/sessions/import", { method: "POST", body: f, headers: { "Content-Type": "text/csv", "X-Filename": encodeURIComponent(f.name) } });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return toast(d.detail || "Import fehlgeschlagen", true);
+    toast(`${d.imported} Sitzungen neu (${d.duplicates} schon bekannt) · ${d.maintenance} als Wartungsnachweis · ${d.already_booked} bereits gebucht · ${d.unbooked} ohne Zeitbuchung`); render();
+  } });
+  const assignCustomer = (x) => {
+    const sel = h("select", {}, customerOptions().map(([v, l]) => h("option", { value: v }, l)));
+    modal(`Sitzung ${x.device || ""} zuordnen`, h("div", {}, h("p", { class: "small muted" }, `${dt(x.started_at)} · ${x.minutes} Min. · ${x.technician}${x.customer_hint ? ` · Gruppe „${x.customer_hint}“` : ""}`), h("label", {}, "Kunde"), sel), [
+      (close) => h("button", { class: "btn primary", onclick: async () => { await api(`/api/sessions/${x.id}/assign`, { method: "POST", body: { customer_id: Number(sel.value) } }); close(); render(); } }, "Zuordnen")]);
+  };
+  const STATUS = { offen: ["ohne Zeitbuchung", "warn"], wartung: ["Wartungsnachweis", "ok"], gebucht: ["gebucht", "ok"], ignoriert: ["ignoriert", ""] };
+  return h("div", {},
+    h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, "Splashtop-Sitzungsprotokoll"), h("div", { class: "row" }, upload, h("button", { class: "btn small primary", onclick: () => upload.click() }, "Protokoll importieren (CSV)"))),
+      h("p", { class: "small muted" }, "Jede Fernwartung über Atera/Splashtop wird mit Beginn, Ende, Techniker und Gerät protokolliert. Export als CSV (Atera-Bericht bzw. Splashtop-Konsole → Logs → Sitzungen) hier importieren: Sitzungen werden über Gerät bzw. Kundengruppe zugeordnet, Sitzungen im Zeitfenster einer Wartung werden zu deren Nachweis, vorhandene Zeitbuchungen werden erkannt. Mehrfaches Importieren ist kein Problem (Duplikate werden erkannt)."),
+      h("div", { class: "row small", style: "gap:1.2rem" },
+        h("span", {}, h("strong", {}, s.unbooked), ` ohne Zeitbuchung (${Math.round(s.unbooked_minutes / 6) / 10} h${s.unbooked_value ? ` · ca. ${eur(s.unbooked_value)} verrechenbar` : ""})`),
+        h("span", {}, h("strong", {}, s.maintenance_linked), " Wartungsnachweise"), h("span", {}, h("strong", {}, s.unassigned), " ohne Kunde"),
+        h("span", { class: "muted" }, `letzter Import: ${s.last_import || "noch keiner"}`))),
+    h("div", { class: "tabs" }, [["offen", "Ohne Zeitbuchung"], ["ohne_kunde", "Ohne Kunde"], ["wartung", "Wartungsnachweise"], ["", "Alle"]].map(([k, l]) =>
+      h("button", { class: sessFilter === k ? "active" : "", onclick: () => { sessFilter = k; render(); } }, l))),
+    h("div", { class: "card" }, table([
+      { label: "Beginn", render: (x) => `${dt(x.started_at)} ${x.started_at.slice(11, 16)}` }, { label: "Dauer", num: true, render: (x) => `${x.minutes} Min.` },
+      { label: "Techniker", render: (x) => x.technician || "–" },
+      { label: "Gerät", render: (x) => x.remote_url ? h("a", { href: x.remote_url, target: "_blank", rel: "noopener" }, x.device || x.asset_name) : (x.device || "–") },
+      { label: "Kunde", render: (x) => x.customer_name ? h("a", { href: `#/kunde/${x.customer_id}` }, x.customer_name) : h("span", { class: "muted" }, x.customer_hint || "–") },
+      { label: "Status", render: (x) => h("div", {}, badge(...(STATUS[x.status] || [x.status])), x.run_title ? h("div", { class: "small muted" }, x.run_title) : null) },
+      { label: "", render: (x) => h("div", { class: "row", style: "justify-content:flex-end;flex-wrap:nowrap" },
+        x.status === "offen" && x.customer_id ? h("button", { class: "btn small primary", onclick: async () => {
+          try { await api(`/api/sessions/${x.id}/book`, { method: "POST", body: {} }); toast("Zeit gebucht"); render(); } catch (err) { toast(err.message, true); } } }, "Zeit buchen") : null,
+        !x.customer_id ? h("button", { class: "btn small", onclick: () => assignCustomer(x) }, "Kunde zuordnen") : null,
+        x.status === "offen" ? h("button", { class: "btn small", onclick: async () => { await api(`/api/sessions/${x.id}/ignore`, { method: "POST" }); render(); } }, "Ignorieren") : null) },
+    ], rows)));
+}
+
 views.wartung = async () => {
   await Promise.all([loadCustomers(), loadUsers()]);
   setTitle("Wartung", [h("button", { class: "btn primary", onclick: () => taskForm() }, "+ Prüfung")]);
@@ -1642,6 +1765,8 @@ views.wartung = async () => {
         { label: "Zuletzt", render: (t) => t.last_done_at ? h("div", { class: "row", style: "gap:.4rem" }, dt(t.last_done_at), resultBadge(t.last_result)) : "–" },
         { label: "Zuständig", render: (t) => t.assigned_name || "automatisch" },
       ], tasks, (t) => taskForm(t))));
+  } else if (maintTab === "fernwartung") {
+    content = await sessionsPanel();
   } else {
     const runs = (await api("/api/maintenance/runs?limit=200")).filter((r) => r.status !== "offen");
     content = h("div", { class: "card" }, table([
@@ -1657,7 +1782,7 @@ views.wartung = async () => {
       kpi("Nächste 7 Tage", ov.next_7_days, "Prüfungen werden zu Tickets"),
       kpi("Erledigt (Monat)", ov.done_this_month, "Nachweis im Monatsbericht & Portal"),
       kpi("Prüfungen im Plan", ov.tasks, ov.customers_without_plan ? `${ov.customers_without_plan} Managed-Kunde(n) ohne Plan` : "alle Managed-Kunden abgedeckt")),
-    h("div", { class: "tabs" }, [["faellig", `Fällig (${ov.open})`], ["plan", "Plan"], ["erledigt", "Erledigt"]].map(([k, l]) =>
+    h("div", { class: "tabs" }, [["faellig", `Fällig (${ov.open})`], ["plan", "Plan"], ["erledigt", "Erledigt"], ["fernwartung", "Fernwartung (Atera/Splashtop)"]].map(([k, l]) =>
       h("button", { class: maintTab === k ? "active" : "", onclick: () => { maintTab = k; render(); } }, l))),
     content,
     h("p", { class: "small muted" }, "Wiederkehrende Prüfungen werden 3 Tage vor Fälligkeit automatisch zu Tickets. Abschluss mit Checkliste und Ergebnis = Nachweis für Monatsbericht, QBR, Kundenportal und NIS2 (regelmäßige Überprüfung der Maßnahmen). Geplante Wartung zählt nicht in die SLA."));

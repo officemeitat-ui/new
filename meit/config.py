@@ -91,6 +91,15 @@ class Settings:
     ninja_client_secret: str = ""
     ninja_sync_hours: int = 0
     ninja_alert_tickets: bool = False
+    # --- Atera (RMM mit Splashtop) ----------------------------------------------
+    atera_api_key: str = ""
+    atera_sync_hours: int = 0
+    atera_alert_tickets: bool = False
+    # --- BookStack (Dokumentations-Wiki) ----------------------------------------
+    bookstack_url: str = ""
+    bookstack_token_id: str = ""
+    bookstack_token_secret: str = ""
+    bookstack_sync_hours: int = 0
     graph_calendar: bool = False
     # --- Datensicherung -------------------------------------------------------
     backup_hours: int = 24
@@ -143,6 +152,13 @@ def get_settings() -> Settings:
         ninja_client_secret=os.environ.get("NINJA_CLIENT_SECRET", ""),
         ninja_sync_hours=_int("NINJA_SYNC_HOURS", 0),
         ninja_alert_tickets=_bool("NINJA_ALERT_TICKETS", False),
+        atera_api_key=os.environ.get("ATERA_API_KEY", ""),
+        atera_sync_hours=_int("ATERA_SYNC_HOURS", 0),
+        atera_alert_tickets=_bool("ATERA_ALERT_TICKETS", False),
+        bookstack_url=(os.environ.get("BOOKSTACK_URL") or "").rstrip("/"),
+        bookstack_token_id=os.environ.get("BOOKSTACK_TOKEN_ID", ""),
+        bookstack_token_secret=os.environ.get("BOOKSTACK_TOKEN_SECRET", ""),
+        bookstack_sync_hours=_int("BOOKSTACK_SYNC_HOURS", 0),
         graph_calendar=_bool("GRAPH_CALENDAR", False),
         backup_hours=_int("BACKUP_HOURS", 24),
         backup_keep=_int("BACKUP_KEEP", 14),

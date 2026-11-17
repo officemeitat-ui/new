@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import secrets
 from datetime import date, timedelta
 from pathlib import Path
@@ -15,7 +16,7 @@ from typing import Any, Optional
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import __version__
 from .agents import (
@@ -38,6 +39,9 @@ from .documents import DocumentService, register as register_documents
 from .payments import register as register_payments
 from .maintenance import register as register_maintenance
 from .sepa import Sepa, register as register_sepa
+from .atera import register as register_atera
+from .bookstack import register as register_bookstack
+from .secrets_guard import redact_row, scan as scan_secrets
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
     users_exist,
@@ -54,6 +58,14 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 # --- Eingabemodelle --------------------------------------------------------------
+def https_link(value: str) -> str:
+    """Nur https-Links (kein javascript:/data: – die Links werden in der Oberfläche klickbar)."""
+    value = (value or "").strip()
+    if value and not re.match(r"^https://[^\s<>\"']+$", value):
+        raise ValueError("Link muss mit https:// beginnen")
+    return value[:500]
+
+
 class CustomerIn(BaseModel):
     name: str = Field(min_length=1)
     contact_name: str = ""
@@ -69,6 +81,12 @@ class CustomerIn(BaseModel):
     notes: str = ""
     uid: str = ""
     supplier_no: str = ""  # unsere Lieferantennummer beim Kunden (E-Rechnung an Bund)
+    keeper_url: str = ""   # Link auf den Keeper-Ordner des Kunden (Passwörter bleiben in Keeper)
+
+    @field_validator("keeper_url")
+    @classmethod
+    def _https(cls, v: str) -> str:
+        return https_link(v)
 
 
 class TicketIn(BaseModel):
@@ -105,6 +123,19 @@ class AssetIn(BaseModel):
     warranty_end: str = ""
     last_seen: str = ""
     notes: str = ""
+    keeper_url: str = ""   # Keeper-Eintrag mit den Zugangsdaten dieses Geräts
+    remote_url: str = ""   # Fernwartung (z. B. Atera-Geräteseite mit Splashtop)
+
+    @field_validator("keeper_url", "remote_url")
+    @classmethod
+    def _https(cls, v: str) -> str:
+        return https_link(v)
+
+
+class RedactIn(BaseModel):
+    table: str
+    id: int
+    field: str
 
 
 class ArticleIn(BaseModel):
@@ -547,7 +578,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Wissensdatenbank -------------------------------------------------------
     @app.get("/api/kb")
     def list_articles() -> list[dict]:
-        return db.query("SELECT id, title, tags, content, public, updated_at FROM kb_articles ORDER BY title")
+        return db.query("SELECT id, title, tags, content, public, updated_at, source, external_url FROM kb_articles "
+                        "ORDER BY title")
 
     @app.get("/api/kb/search")
     def search_articles(q: str = Query(min_length=1), limit: int = 5) -> list[dict]:
@@ -559,7 +591,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.put("/api/kb/{aid}")
     def update_article(aid: int, data: ArticleIn) -> dict:
-        must(db.get("kb_articles", aid), "Artikel")
+        article = must(db.get("kb_articles", aid), "Artikel")
+        if article.get("source") == "bookstack":
+            if article["title"] == data.title and article["content"] == data.content:
+                db.update("kb_articles", aid, {"public": data.public})  # Freigabe fürs Portal darf hier gesetzt werden
+                return db.get("kb_articles", aid)
+            raise HTTPException(409, "Dieser Artikel kommt aus BookStack – bitte dort bearbeiten (wird automatisch übernommen).")
         db.update("kb_articles", aid, {**data.model_dump(), "embedding": "", "embedding_model": ""})
         return db.get("kb_articles", aid)
 
@@ -761,6 +798,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Wartungsplan (wiederkehrende Prüfungen mit Nachweis) -----------------------
     register_maintenance(app, ctx, admin_only, start=settings.db_path != ":memory:")
+
+    # --- Atera (RMM + Splashtop-Sitzungsprotokolle), BookStack (Doku-Wiki) -----------
+    register_atera(app, db, settings, admin_only)
+    register_bookstack(app, db, settings, admin_only)
+
+    # --- Passwort-Wächter: Klartext-Zugangsdaten finden und schwärzen (→ Keeper) ------
+    @app.get("/api/security/secrets", dependencies=[Depends(admin_only)])
+    def secrets_scan() -> dict:
+        findings = scan_secrets(db)
+        return {"findings": findings, "count": len(findings)}
+
+    @app.post("/api/security/secrets/redact", dependencies=[Depends(admin_only)])
+    def secrets_redact(data: RedactIn) -> dict:
+        try:
+            changed = redact_row(db, data.table, data.id, data.field)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        return {"changed": changed}
 
     # --- KI-Mitarbeiter (Posteingang, Leads, Belege, Anfrageformular) -----------
     register_mitarbeiter(app, ctx)
