@@ -108,7 +108,7 @@ def triage_ticket(ctx: AgentContext, ticket_id: int, apply: bool = True) -> dict
         "provider": "regeln",
     }
 
-    llm = ctx.llm()
+    llm = ctx.llm("triage")
     if llm.available():
         context = {
             "ticket": {"titel": ticket["title"], "beschreibung": ticket["description"]},

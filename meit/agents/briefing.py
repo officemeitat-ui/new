@@ -57,7 +57,7 @@ def weekly_briefing(ctx: AgentContext, today: date | None = None) -> dict[str, A
     }
 
     summary, priorities, provider = "", [], "vorlage"
-    llm = ctx.llm()
+    llm = ctx.llm("briefing")
     if llm.available():
         try:
             data = llm.chat_json(

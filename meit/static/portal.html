@@ -47,6 +47,18 @@
     .err { color: var(--bad); min-height: 1.3em; margin-top: .5rem; font-size: .9rem; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     details summary { cursor: pointer; }
+    .thread { display: flex; flex-direction: column; gap: .5rem; margin: .7rem 0; }
+    .bubble { max-width: 85%; padding: .55rem .8rem; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .92rem; }
+    .bubble.mine { align-self: flex-end; background: color-mix(in srgb, var(--primary) 14%, var(--card)); }
+    .bubble.ours { align-self: flex-start; background: var(--soft); border: 1px solid var(--border); }
+    .bubble .meta { font-size: .74rem; color: var(--muted); margin-bottom: .15rem; white-space: normal; }
+    .files { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0; }
+    .files a { padding: .2rem .55rem; border: 1px solid var(--border); border-radius: 8px; font-size: .85rem; text-decoration: none; }
+    .dropzone { border: 2px dashed var(--border); border-radius: 10px; padding: .9rem 1rem; text-align: center; color: var(--muted); cursor: pointer; }
+    .dropzone:hover, .dropzone.over { border-color: var(--primary); color: var(--text); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+    .dropzone strong { color: var(--text); }
+    .verdict { padding: .8rem 1rem; border-radius: 10px; margin: .8rem 0; }
+    .verdict.bad { background: var(--bad-soft); color: var(--bad); } .verdict.warn { background: var(--warn-soft); color: var(--warn); } .verdict.ok { background: var(--ok-soft); color: var(--ok); }
     @media (max-width: 600px) { .msg { max-width: 100%; } }
   </style>
 </head>
@@ -75,6 +87,54 @@
     }
     const eur = (n) => new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR" }).format(n || 0);
     const dt = (s) => s ? new Date(s.replace(" ", "T")).toLocaleDateString("de-AT") : "–";
+    const dtt = (s) => s ? new Date(s.replace(" ", "T")).toLocaleString("de-AT", { dateStyle: "short", timeStyle: "short" }) : "";
+    const kb = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+    async function upload(url, file) {
+      const res = await fetch(url, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream", "X-Filename": encodeURIComponent(file.name) } });
+      const data = (res.headers.get("content-type") || "").includes("json") ? await res.json() : null;
+      if (res.status === 401) { showLogin(); throw new Error("Bitte anmelden."); }
+      if (!res.ok) throw new Error(data && typeof data.detail === "string" ? data.detail : "Upload fehlgeschlagen.");
+      return data;
+    }
+    function dropZone(label, hint, onFiles, accept = "", multiple = true) {
+      const input = h("input", { type: "file", accept: accept || null, multiple: multiple ? true : null, style: "display:none" });
+      const z = h("div", { class: "dropzone", tabindex: "0", role: "button" }, h("strong", {}, label), hint ? h("div", { class: "small" }, hint) : null, input);
+      const run = async (files) => { if (!files || !files.length) return; z.classList.add("over"); try { await onFiles([...files]); } finally { z.classList.remove("over"); input.value = ""; } };
+      z.addEventListener("click", (e) => { if (e.target !== input) input.click(); });
+      z.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+      input.addEventListener("change", () => run(input.files));
+      z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("over"); });
+      z.addEventListener("dragleave", () => z.classList.remove("over"));
+      z.addEventListener("drop", (e) => { e.preventDefault(); run(e.dataTransfer.files); });
+      return z;
+    }
+    async function ticketThread(t, box) {
+      box.replaceChildren(h("p", { class: "muted small" }, "Lädt …"));
+      let c;
+      try { c = await api(`/api/portal/tickets/${t.id}/conversation`); } catch (x) { box.replaceChildren(h("p", { class: "err" }, x.message)); return; }
+      // die erste Kundennachricht steht schon als Beschreibung über dem Verlauf
+      c.messages = c.messages.filter((m, i) => !(i === 0 && m.mine && (t.description || "").startsWith((m.text || "").trim())));
+      const text = h("textarea", { maxlength: 5000, placeholder: "Nachricht an Ihren IT-Partner (z. B. Rückfrage beantworten, neue Infos) …", style: "min-height:80px" });
+      const info = h("span", { class: "small" });
+      const send = h("button", { class: "btn primary", type: "submit" }, "Senden");
+      box.replaceChildren(
+        c.messages.length ? h("div", { class: "thread" }, c.messages.map((m) => h("div", { class: `bubble ${m.mine ? "mine" : "ours"}` }, h("div", { class: "meta" }, `${m.author} · ${dtt(m.at)}`), m.text))) : null,
+        c.files.length ? h("div", { class: "files" }, c.files.map((f) => h("a", { href: `/api/portal/attachments/${f.id}`, target: "_blank", rel: "noopener" }, `📎 ${f.name} (${kb(f.size)})`))) : null,
+        h("form", { onsubmit: async (e) => {
+          e.preventDefault(); if (!text.value.trim()) return; send.disabled = true;
+          try {
+            const r = await api(`/api/portal/tickets/${t.id}/comment`, { method: "POST", body: { text: text.value } });
+            const b = box.closest("details") && box.closest("details").querySelector("summary .badge");
+            if (b && r.status_label) { b.textContent = r.status_label; b.className = "badge warn"; }
+            ticketThread(t, box);
+          }
+          catch (x) { info.textContent = x.message; } finally { send.disabled = false; }
+        } }, text, h("div", { class: "row", style: "margin-top:.5rem" }, send, info)),
+        h("div", { style: "margin-top:.6rem" }, dropZone("Dateien anhängen", "Screenshots, Fotos von Fehlermeldungen, PDFs (max. 20 MB)", async (files) => {
+          for (const f of files) { try { await upload(`/api/portal/tickets/${t.id}/attachments`, f); } catch (x) { alert(`${f.name}: ${x.message}`); } }
+          ticketThread(t, box);
+        })));
+    }
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     function md(text) {
       const out = []; let list = null; let code = false;
@@ -120,24 +180,30 @@
       h("div", { class: "card" }, h("h2", {}, "Problem? So geht's am schnellsten"),
         h("ol", {}, h("li", {}, "Kurz in der ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("hilfe"); } }, "Hilfe"), " fragen – viele Dinge sind in 2 Minuten gelöst."),
           h("li", {}, "Sonst ein ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("tickets"); } }, "Ticket anlegen"), " – wir melden uns."),
-          h("li", {}, "Bei Virus-/Phishing-Verdacht oder Ausfall: Gerät vom Netz trennen und sofort anrufen."))));
+          h("li", {}, "Verdächtige E-Mail? ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("pruefen"); } }, "Hier prüfen lassen"), " – ohne Links anzuklicken."),
+          h("li", {}, "Bei Virus-Verdacht, bereits geklicktem Link oder Ausfall: Gerät vom Netz trennen und sofort anrufen."))));
 
     views.tickets = async () => {
       const rows = await api("/api/portal/tickets");
       const title = h("input", { maxlength: 200, placeholder: "z. B. Drucker im Büro druckt nicht" });
       const desc = h("textarea", { maxlength: 5000, placeholder: "Was genau passiert? Seit wann? Wer ist betroffen? Fehlermeldung?" });
       const msg = h("div", { class: "small" });
+      const files = h("input", { type: "file", multiple: true, style: "padding:.4rem" });
       const btn = h("button", { class: "btn primary", type: "submit" }, "Ticket senden");
       return h("div", {},
         h("form", { class: "card", onsubmit: async (e) => {
           e.preventDefault(); btn.disabled = true;
           try { const t = await api("/api/portal/tickets", { method: "POST", body: { title: title.value, description: desc.value } });
-            msg.textContent = `Danke! Ticket #${t.id} ist eingegangen (Priorität: ${t.priority}).`; title.value = ""; desc.value = ""; setTimeout(() => go("tickets"), 1200); }
+            for (const f of files.files) { try { await upload(`/api/portal/tickets/${t.id}/attachments`, f); } catch (x) { alert(`${f.name}: ${x.message}`); } }
+            msg.textContent = `Danke! Ticket #${t.id} ist eingegangen (Priorität: ${t.priority}).`; title.value = ""; desc.value = ""; files.value = ""; setTimeout(() => go("tickets"), 1200); }
           catch (x) { msg.textContent = x.message; } finally { btn.disabled = false; }
-        } }, h("h2", {}, "Neues Ticket"), h("label", {}, "Betreff"), title, h("label", {}, "Beschreibung"), desc, h("div", { class: "row", style: "margin-top:.8rem" }, btn, msg)),
-        h("div", { class: "card" }, h("h2", {}, "Ihre Tickets"), rows.length ? rows.map((t) => h("details", { style: "border-bottom:1px solid var(--border);padding:.6rem 0" },
-          h("summary", {}, h("strong", {}, `#${t.id} ${t.title}`), " ", h("span", { class: `badge ${t.status === "geloest" ? "ok" : "warn"}` }, t.status_label), h("span", { class: "muted small" }, ` · ${dt(t.created_at)}`)),
-          h("p", { class: "small", style: "white-space:pre-wrap" }, t.description), t.solution ? h("p", { class: "small" }, h("strong", {}, "Lösung: "), t.solution) : null,
+        } }, h("h2", {}, "Neues Ticket"), h("label", {}, "Betreff"), title, h("label", {}, "Beschreibung"), desc, h("label", {}, "Screenshots / Dateien (optional)"), files, h("div", { class: "row", style: "margin-top:.8rem" }, btn, msg)),
+        h("div", { class: "card" }, h("h2", {}, "Ihre Tickets"), rows.length ? rows.map((t) => { const thread = h("div"); return h("details", { style: "border-bottom:1px solid var(--border);padding:.6rem 0",
+          ontoggle: (e) => { if (e.target.open && !thread.dataset.loaded) { thread.dataset.loaded = "1"; ticketThread(t, thread); } } },
+          h("summary", {}, h("strong", {}, `#${t.id} ${t.title}`), " ", h("span", { class: `badge ${t.status === "geloest" ? "ok" : "warn"}` }, t.status_label),
+            t.replies ? h("span", { class: "badge", style: "margin-left:.3rem" }, `💬 ${t.replies}`) : null, t.files ? h("span", { class: "badge", style: "margin-left:.3rem" }, `📎 ${t.files}`) : null,
+            h("span", { class: "muted small" }, ` · ${dt(t.created_at)}`)),
+          h("p", { class: "small", style: "white-space:pre-wrap" }, t.description), t.solution ? h("p", { class: "small" }, h("strong", {}, "Lösung: "), t.solution) : null, thread,
           t.status === "geloest" ? h("div", { class: "row small", style: "gap:.3rem;align-items:center" },
             h("span", { class: "muted" }, t.rating ? "Ihre Bewertung:" : "Wie zufrieden waren Sie?"),
             [[1, "😞"], [2, "🙁"], [3, "😐"], [4, "🙂"], [5, "😀"]].map(([n, face]) => h("button", {
@@ -145,7 +211,27 @@
               onclick: async () => {
                 const comment = n <= 3 ? (prompt("Was können wir besser machen? (optional)") || "") : "";
                 try { await api(`/api/portal/tickets/${t.id}/rating`, { method: "POST", body: { rating: n, comment } }); go("tickets"); } catch (x) { alert(x.message); }
-              } }, face))) : null)) : h("p", { class: "muted" }, "Noch keine Tickets.")));
+              } }, face))) : null); }) : h("p", { class: "muted" }, "Noch keine Tickets.")));
+    };
+
+    views.pruefen = async () => {
+      const out = h("div");
+      const VC = { "gefährlich": "bad", "verdächtig": "warn", "unauffällig": "ok" };
+      return h("div", { class: "card" }, h("h2", {}, "Verdächtige E-Mail prüfen lassen"),
+        h("p", { class: "small muted" }, "Sie sind unsicher, ob eine E-Mail echt ist? Laden Sie sie hier hoch – Sie bekommen sofort eine Einschätzung und wir sehen sie uns zusätzlich an. Bitte vorher keine Links anklicken und keine Anhänge öffnen."),
+        h("ol", { class: "small" }, h("li", {}, "Outlook (Windows): Mail mit der Maus auf den Desktop ziehen – es entsteht eine .msg-Datei."),
+          h("li", {}, "Outlook im Web / neues Outlook: Mail öffnen → „…“ → „Herunterladen“ (.eml)."),
+          h("li", {}, "Datei hier hineinziehen oder anklicken und auswählen.")),
+        dropZone("E-Mail-Datei hier ablegen (.eml / .msg)", "Max. 20 MB · wird vertraulich behandelt", async ([f]) => {
+          out.replaceChildren(h("p", { class: "muted" }, "Wird geprüft …"));
+          try {
+            const r = await upload("/api/portal/phishing", f);
+            out.replaceChildren(h("div", { class: `verdict ${VC[r.verdict] || "warn"}` }, h("strong", {}, `${r.verdict === "unauffällig" ? "✓ Keine typischen Phishing-Merkmale" : `⚠ ${r.verdict === "gefährlich" ? "Sehr wahrscheinlich Phishing" : "Verdächtig"}`}`), ` · Risiko ${r.score}/100`),
+              r.reasons.length ? h("ul", {}, r.reasons.map((x) => h("li", {}, x))) : null,
+              h("p", {}, h("strong", {}, "Was Sie jetzt tun sollten: "), r.advice),
+              h("p", { class: "small muted" }, `Wir haben dazu Ticket #${r.ticket_id} angelegt und melden uns. Wenn Sie bereits auf einen Link geklickt oder Daten eingegeben haben: bitte sofort anrufen.`));
+          } catch (x) { out.replaceChildren(h("p", { class: "err" }, x.message)); }
+        }, ".eml,.msg,message/rfc822", false), out);
     };
 
     views.hilfe = async () => {
@@ -207,7 +293,7 @@
         ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], rows));
     };
 
-    const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen"]];
+    const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["pruefen", "E-Mail prüfen"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen"]];
     async function go(t) {
       tab = t;
       document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));

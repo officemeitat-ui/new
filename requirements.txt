@@ -8,5 +8,7 @@ fpdf2>=2.8
 segno>=1.6
 # Text aus PDF-Belegen lesen (Lieferant, Nummer, Betrag)
 pypdf>=5.0
+# Outlook-Mails (.msg) lesen: Drag & Drop ins Cockpit und Kundenportal
+olefile>=0.47
 # optional – nur für Claude als Cloud-Option (LLM_PROVIDER=anthropic oder ALLOW_CLOUD_FALLBACK=true)
 anthropic>=2.4

@@ -115,7 +115,7 @@ def test_imap_fetch_dedupes(app, client):
     fake = FakeMailer(inbox=[parse_raw(raw), parse_raw(raw)])
     app.state.ctx.mailer = fake
     r = client.post("/api/inbox/fetch").json()
-    assert r == {"fetched": 2, "new": 1, "errors": 0, "archived": 0}
+    assert r == {"fetched": 2, "new": 1, "errors": 0, "archived": 0, "threaded": 0}
     m = client.get("/api/inbox?direction=in").json()[0]
     assert m["from_name"] == "Jürgen Test" and "alte Mail" not in m["body"]
 

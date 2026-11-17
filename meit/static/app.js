@@ -479,6 +479,8 @@ async function ticketDetail(id) {
       [...s.sources.kb.map((k) => `Wissen „${k.title}“`), ...s.sources.tickets.map((k) => `Ticket #${k.id}`)].join(", ")) : null,
     h("div", { class: "row" }, h("strong", {}, "Antwortentwurf an den Kunden"), h("span", { class: "spacer" }), copyButton(() => s.reply)),
     h("pre", { style: "white-space:pre-wrap;font-family:inherit;margin:.4rem 0 0" }, s.reply)) : null;
+  const thread = h("div", {}, h("p", { class: "small muted" }, "Verlauf wird geladen …"));
+  ticketThread(t, thread);
   modal(`#${t.id} ${t.title}`, h("div", {},
     h("p", { class: "muted small" }, `${t.customer_name || "Kein Kunde"} · erstellt ${dt(t.created_at)}`),
     t.csat ? h("p", { class: "small" }, t.csat.rating
@@ -486,7 +488,7 @@ async function ticketDetail(id) {
         t.csat.comment ? ` „${t.csat.comment}“` : "", t.csat.followup_ticket_id ? ` · Rückruf-Ticket #${t.csat.followup_ticket_id}` : "")
       : h("span", { class: "muted" }, t.csat.sent_at ? `Zufriedenheits-Umfrage gesendet ${dt(t.csat.sent_at)} – noch keine Bewertung` : "Bewertung im Kundenportal möglich")) : null,
     h("p", { style: "white-space:pre-wrap" }, t.description || h("em", { class: "muted" }, "Keine Beschreibung")),
-    aiBox, edit), [
+    aiBox, thread, edit), [
     h("button", { class: "btn danger", onclick: async () => {
       if (!confirm("Ticket löschen?")) return;
       await api(`/api/tickets/${t.id}`, { method: "DELETE" }); document.querySelector(".modal-backdrop")?.remove(); toast("Gelöscht"); render();
@@ -505,6 +507,124 @@ async function ticketDetail(id) {
       await api(`/api/tickets/${t.id}`, { method: "PUT", body }); close(); toast("Gespeichert"); render();
     }) }, "Speichern"),
   ].filter(Boolean));
+}
+
+// ---- Dateien hochladen (Drag & Drop), Ticket-Verlauf, Phishing-Prüfung
+async function uploadRaw(url, file) {
+  const res = await fetch(url, { method: "POST", body: file, headers: { "Content-Type": file.type || "application/octet-stream", "X-Filename": encodeURIComponent(file.name) } });
+  const data = (res.headers.get("content-type") || "").includes("json") ? await res.json() : {};
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+
+function dropZone(label, onFiles, { accept = "", multiple = true, hint = "" } = {}) {
+  const input = h("input", { type: "file", accept, multiple: multiple ? true : null, style: "display:none" });
+  const zone = h("div", { class: "dropzone", tabindex: "0", role: "button" }, h("strong", {}, label), hint ? h("div", { class: "small" }, hint) : null, input);
+  const handle = async (files) => {
+    if (!files || !files.length) return;
+    zone.classList.add("over");
+    try { await onFiles([...files]); } finally { zone.classList.remove("over"); input.value = ""; }
+  };
+  zone.onclick = (e) => { if (e.target !== input) input.click(); };
+  zone.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } };
+  input.onchange = () => handle(input.files);
+  zone.ondragover = (e) => { e.preventDefault(); zone.classList.add("over"); };
+  zone.ondragleave = () => zone.classList.remove("over");
+  zone.ondrop = (e) => { e.preventDefault(); handle(e.dataTransfer.files); };
+  return zone;
+}
+
+const fileSize = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const OUTLOOK_HINT = "Outlook: Mail auf den Desktop ziehen (.msg) bzw. in Outlook im Web „Herunterladen“ (.eml) – dann hierher ziehen oder klicken.";
+
+async function ticketThread(t, box) {
+  let conv;
+  try { conv = await api(`/api/tickets/${t.id}/conversation`); } catch (e) { box.replaceChildren(h("p", { class: "small", style: "color:var(--bad)" }, e.message)); return; }
+  const reload = () => ticketThread(t, box);
+  const km = state.km;
+  const items = conv.messages.map((m) => {
+    const cls = m.internal ? "note" : m.direction === "in" ? "in" : "out";
+    const who = m.internal ? `Interne Notiz${m.subject && m.subject !== "Notiz" ? " · " + m.subject.replace(/^Notiz\s*/, "") : ""}`
+      : m.direction === "in" ? `${m.from_name || m.from_email || "Kunde"} · ${m.channel === "portal" ? "Kundenportal" : "E-Mail"}`
+      : `Wir → ${m.channel === "portal" ? "Kundenportal" : m.to_email || "Kunde"}`;
+    return h("div", { class: `item ${cls}` }, h("div", { class: "meta" }, `${who} · ${dt(m.sent_at || m.created_at)}`), m.body || "");
+  });
+  const files = h("div", { class: "files" }, conv.attachments.map((a) => h("span", { class: "file", title: `${a.source === "kunde" ? "vom Kunden" : a.source === "mail" ? "aus E-Mail" : "vom Team"} · ${dt(a.created_at)}` },
+    h("a", { href: `/api/attachments/${a.id}/download`, target: "_blank", rel: "noopener" }, a.filename), h("span", { class: "small muted" }, fileSize(a.size)),
+    h("button", { title: a.customer_visible ? "Im Kundenportal sichtbar – klicken zum Verbergen" : "Nur intern – klicken, um im Kundenportal freizugeben",
+      onclick: async () => { await api(`/api/attachments/${a.id}`, { method: "PUT", body: { customer_visible: !a.customer_visible } }); reload(); } }, a.customer_visible ? "👁" : "🔒"),
+    h("button", { title: "Löschen", onclick: async () => { if (!confirm(`${a.filename} löschen?`)) return; await api(`/api/attachments/${a.id}`, { method: "DELETE" }); reload(); } }, "✕"))));
+  const text = h("textarea", { rows: 4, placeholder: "Antwort an den Kunden oder interne Notiz …" });
+  if (t.ai_suggestion && t.ai_suggestion.reply && !conv.messages.some((m) => m.direction === "out")) text.value = t.ai_suggestion.reply;
+  const via = h("select", { style: "width:auto;flex:1 1 220px" }, h("option", { value: "email" }, "per E-Mail (+ im Portal sichtbar)"), h("option", { value: "portal" }, "nur im Kundenportal"), h("option", { value: "internal" }, "interne Notiz"));
+  const after = h("select", { style: "width:auto;flex:1 1 180px" }, h("option", { value: "" }, "Status beibehalten"), h("option", { value: "wait" }, "→ wartet auf Kunde"), h("option", { value: "resolve" }, "→ gelöst"));
+  const send = h("button", { class: "btn primary small", onclick: (e) => withBusy(e.target, async () => {
+    if (!text.value.trim()) return toast("Bitte Text eingeben", true);
+    const body = { text: text.value, internal: via.value === "internal", via: via.value === "internal" ? "email" : via.value, wait: after.value === "wait", resolve: after.value === "resolve" };
+    const r = await api(`/api/tickets/${t.id}/reply`, { method: "POST", body });
+    toast(body.internal ? "Notiz gespeichert" : via.value === "portal" ? "Antwort im Kundenportal veröffentlicht" : `Gesendet an ${r.message.to_email}`);
+    text.value = ""; reload(); render();
+  }) }, "Senden");
+  const zone = dropZone("Dateien oder E-Mails hierher ziehen", async (list) => {
+    for (const f of list) {
+      try {
+        const r = await uploadRaw(`/api/tickets/${t.id}/attachments`, f);
+        toast(r.message_id ? `E-Mail „${f.name}“ im Verlauf abgelegt` : `${f.name} hochgeladen`);
+      } catch (e) { toast(`${f.name}: ${e.message}`, true); }
+    }
+    reload();
+  }, { hint: "Screenshots, PDFs, Protokolle · .eml/.msg werden als Nachricht in den Verlauf übernommen" });
+  box.replaceChildren(h("div", { class: "card", style: "margin:1rem 0" },
+    h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "Verlauf"), h("span", { class: "small muted" }, `${conv.messages.length} Nachricht(en) · ${conv.attachments.length} Datei(en)`)),
+    items.length ? h("div", { class: "thread" }, items) : h("p", { class: "small muted" }, "Noch keine Nachrichten zu diesem Ticket."),
+    conv.attachments.length ? files : null,
+    h("div", { style: "margin-top:.6rem" }, text,
+      h("div", { class: "row", style: "margin-top:.4rem;gap:.4rem;flex-wrap:wrap" }, via, after, send),
+      km && km.mail && !km.mail.smtp ? h("p", { class: "small muted" }, "Kein Mailversand eingerichtet – „nur im Kundenportal“ oder „interne Notiz“ funktionieren trotzdem.") : null),
+    h("div", { style: "margin-top:.6rem" }, zone)));
+}
+
+const VERDICT_CLS = { "gefährlich": "bad", "verdächtig": "warn", "unauffällig": "ok" };
+function phishingResult(r) {
+  return h("div", {},
+    h("div", { class: `verdict ${VERDICT_CLS[r.verdict] || "warn"}` }, h("strong", {}, `${r.verdict === "unauffällig" ? "✓" : "⚠"} ${r.verdict[0].toUpperCase()}${r.verdict.slice(1)}`),
+      h("span", {}, ` · Risiko ${r.score}/100`), r.subject ? h("div", { class: "small" }, `„${r.subject}“ von ${r.from || "?"}`) : null),
+    r.reasons && r.reasons.length ? h("div", {}, h("strong", {}, "Auffälligkeiten"), h("ul", {}, r.reasons.map((x) => h("li", {}, x)))) : h("p", {}, "Keine typischen Phishing-Merkmale gefunden."),
+    r.links && r.links.filter((l) => l.issue).length ? h("div", {}, h("strong", {}, "Links"), table([
+      { label: "Ziel", render: (l) => h("code", { style: "overflow-wrap:anywhere" }, l.domain) },
+      { label: "Problem", key: "issue" },
+    ], r.links.filter((l) => l.issue))) : null,
+    r.advice ? h("p", { style: "margin-top:.8rem" }, h("strong", {}, "Empfehlung: "), r.advice) : null,
+    r.markdown ? h("div", { class: "row", style: "margin-top:.5rem" }, h("span", { class: "spacer" }), copyButton(() => r.markdown, "Bericht kopieren")) : null);
+}
+
+function aiOpinion(a) {
+  if (a.error) return h("p", { class: "small", style: "color:var(--warn)" }, a.error);
+  const cls = a.verdict === "Phishing" ? "bad" : a.verdict === "legitim" ? "ok" : "warn";
+  return h("div", { class: "card", style: "background:var(--surface-2);margin-top:.8rem" },
+    h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "KI-Zweitmeinung"), h("span", { class: "small muted" }, a.provider)),
+    h("p", {}, badge(a.verdict, cls), h("span", { class: "small muted" }, ` · Sicherheit ${a.confidence} %`)),
+    a.reasons.length ? h("ul", {}, a.reasons.map((x) => h("li", {}, x))) : null,
+    a.advice ? h("p", {}, h("strong", {}, "Empfehlung: "), a.advice) : null,
+    h("p", { class: "small muted" }, "Die Regelprüfung oben ist maßgeblich; die KI ergänzt Inhalt und Plausibilität."));
+}
+
+function phishingCheck() {
+  const out = h("div", {});
+  let last = null;
+  const zone = dropZone("Verdächtige E-Mail hierher ziehen", async ([f]) => {
+    try {
+      last = f;
+      const aiBox = h("div", {});
+      const aiBtn = h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => {
+        const r = await uploadRaw("/api/phishing/check?ai=true", last); aiBox.replaceChildren(aiOpinion(r.ai || { error: "Keine Antwort" }));
+      }) }, "KI-Zweitmeinung einholen");
+      out.replaceChildren(phishingResult(await uploadRaw("/api/phishing/check", f)), h("div", { class: "row", style: "margin-top:.4rem" }, aiBtn), aiBox);
+    } catch (e) { toast(e.message, true); }
+  }, { accept: ".eml,.msg,message/rfc822", multiple: false, hint: OUTLOOK_HINT });
+  modal("Phishing-Check", h("div", {},
+    h("p", { class: "small muted" }, "Prüft Absender (SPF/DKIM/DMARC), gefälschte Marken, Links, Anhänge und Drucktaktiken. Die Mail wird nur gelesen – Links werden nicht geöffnet, nichts verlässt den Server."),
+    zone, h("div", { style: "margin-top:1rem" }, out)));
 }
 
 // ---- Geräte
@@ -854,6 +974,7 @@ views.einstellungen = async () => {
         : "Noch kein Benutzer angelegt – das Cockpit ist offen (Einzelplatz). Sobald du den ersten Benutzer (Admin) anlegst, ist eine Anmeldung Pflicht."),
       table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
+    await claudeCard(),
     await brandingCard(),
     await secretsCard(),
     await csatCard(),
@@ -918,6 +1039,7 @@ views.posteingang = async () => {
   setTitle("Posteingang", [
     h("button", { class: "btn", onclick: () => voiceNoteForm() }, "Sprachnotiz"),
     h("button", { class: "btn", onclick: () => manualMessageForm() }, "+ Nachricht erfassen"),
+    h("button", { class: "btn", onclick: () => phishingCheck() }, "Phishing-Check"),
     h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
       const r = await api("/api/agents/followups", { method: "POST" });
       toast(r.created ? `${r.created} Nachfass-Entwurf/Entwürfe zur Freigabe angelegt` : "Nichts nachzufassen"); render();
@@ -936,8 +1058,23 @@ views.posteingang = async () => {
     h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
       const r = await api("/api/inbox/process-new", { method: "POST" }); toast(`${r.processed} Nachricht(en) bearbeitet`); inboxTab = "freigabe"; render();
     }) }, "Jetzt bearbeiten lassen")) : null;
-  show(banner || "", tabs, h("div", { class: "card" }, table([
-    { label: "Art", render: (r) => r.direction === "out" ? badge("Entwurf → raus", "info") : (r.category ? badge(CAT_LABEL[r.category] || r.category, "info") : badge("neu")) },
+  const upload = dropZone("E-Mails aus Outlook hier ablegen (.eml / .msg)", async (list) => {
+    let done = 0;
+    for (const f of list) {
+      try {
+        const r = await uploadRaw("/api/inbox/upload", f);
+        done += 1;
+        const where = r.linked_type === "ticket" ? `→ Ticket #${r.linked_id}` : r.linked_type ? `→ ${r.linked_type} #${r.linked_id}` : "→ Posteingang";
+        toast(r.duplicate ? `${f.name}: bereits vorhanden ${where}` : r.phishing && r.phishing.verdict !== "unauffällig"
+          ? `⚠ ${f.name}: ${r.phishing.verdict} (Phishing-Risiko ${r.phishing.score}/100)` : `${f.name} ${where}`, r.phishing && r.phishing.verdict === "gefährlich");
+      } catch (e) { toast(`${f.name}: ${e.message}`, true); }
+    }
+    if (done) { inboxTab = "alle"; render(); }
+  }, { accept: ".eml,.msg,message/rfc822", hint: `${OUTLOOK_HINT} Anhänge landen im Ticket, Belege in der Buchhaltung, Antworten im richtigen Ticket.` });
+  const phish = (r) => r.ai_result && r.ai_result.phishing && r.ai_result.phishing.verdict !== "unauffällig"
+    ? badge(`⚠ ${r.ai_result.phishing.verdict}`, r.ai_result.phishing.verdict === "gefährlich" ? "bad" : "warn") : null;
+  show(banner || "", h("div", { style: "margin-bottom:1rem" }, upload), tabs, h("div", { class: "card" }, table([
+    { label: "Art", render: (r) => h("span", {}, r.direction === "out" ? badge("Entwurf → raus", "info") : (r.category ? badge(CAT_LABEL[r.category] || r.category, "info") : badge("neu")), " ", phish(r)) },
     { label: "Von / An", render: (r) => r.direction === "out" ? `An: ${r.to_email}` : h("div", {}, h("strong", {}, r.from_name || r.from_email || "–"),
       h("div", { class: "small muted" }, [r.company || r.customer_name, r.from_email].filter(Boolean).join(" · "))) },
     { label: "Betreff", render: (r) => h("div", {}, r.subject || "(ohne Betreff)", r.ai_result && r.ai_result.summary && r.ai_result.summary !== r.subject
@@ -979,6 +1116,10 @@ async function messageDetail(id) {
         (q.offene_fragen || []).length ? `Offene Fragen: ${q.offene_fragen.join("; ")}` : ""].filter(Boolean).join(" · ") || "–") : null,
     m.category === "beleg" ? h("p", { class: "small" }, h("strong", {}, "Beleg: "),
       `${rc.vendor || "?"} · Nr. ${rc.invoice_no || "?"} · ${rc.invoice_date ? dt(rc.invoice_date) : "Datum ?"} · ${eur2(rc.amount)} · ${rc.category || ""}`) : null) : null;
+  const ph = ai.phishing;
+  const phishBox = ph && ph.verdict !== "unauffällig" ? h("div", { class: `verdict ${VERDICT_CLS[ph.verdict] || "warn"}` },
+    h("strong", {}, `⚠ Phishing-Verdacht: ${ph.verdict} (${ph.score}/100)`), h("ul", { style: "margin:.3rem 0 0" }, (ph.reasons || []).map((x) => h("li", {}, x))),
+    h("div", { class: "small" }, "Keine Links anklicken, keine Anhänge öffnen. Wurde schon geklickt: Passwort ändern, MFA prüfen, Gerät scannen.")) : null;
   const actions = [
     h("button", { class: "btn danger", onclick: async () => { await api(`/api/inbox/${m.id}/ignore`, { method: "POST" }); document.querySelector(".modal-backdrop")?.remove(); toast("Ignoriert"); render(); } }, "Ignorieren"),
     incoming ? (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
@@ -998,6 +1139,7 @@ async function messageDetail(id) {
   ].filter(Boolean);
   modal(m.subject || "(ohne Betreff)", h("div", {},
     h("p", { class: "muted small" }, incoming ? `Von ${m.from_name || ""} <${m.from_email || "–"}>${m.phone ? " · " + m.phone : ""} · ${m.channel} · ${dt(m.created_at)}` : `An ${m.to_email} · Nachfass-Entwurf · ${dt(m.created_at)}`),
+    phishBox,
     incoming ? h("pre", { style: "white-space:pre-wrap;font-family:inherit;background:var(--surface-2);padding:.8rem;border-radius:8px;max-height:260px;overflow:auto" }, m.body) : null,
     (m.attachments || []).length ? h("p", { class: "small muted" }, "Anhänge: ", m.attachments.join(", ")) : null,
     analysis,
@@ -1099,6 +1241,8 @@ function receiptForm(r) {
   ], r);
   modal("Beleg prüfen", f, [
     (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Beleg löschen?")) return; await api(`/api/receipts/${r.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen"),
+    r.document_id ? (close) => h("button", { class: "btn", title: "PDF (auch Scans) mit Claude auslesen – Lieferant, Nummer, Datum, Betrag", onclick: (e) => withBusy(e.target, async () => {
+      const x = await api(`/api/receipts/${r.id}/claude`, { method: "POST" }); close(); toast(`Gelesen: ${x.vendor} · ${eur2(x.amount)}`); render(); receiptForm(x); }) }, "Mit Claude lesen") : null,
     (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
       await api(`/api/receipts/${r.id}`, { method: "PUT", body: readForm(f) }); close(); toast("Gespeichert"); render();
     }) }, "Speichern"),
@@ -1342,6 +1486,49 @@ function bookstackCard(bs) {
       const d = readForm(f); d.import_books = d.import_books.split(",").map((x) => x.trim()).filter(Boolean);
       await api("/api/bookstack/settings", { method: "PUT", body: d }); toast("Gespeichert"); state.bookstack = null;
     }) }, "Einstellungen speichern")));
+}
+
+async function claudeCard() {
+  const c = await api("/api/ai/settings").catch(() => null);
+  if (!c) return null;
+  const u = c.usage;
+  const head = form([
+    { name: "cloud_enabled", label: "Claude (Cloud) verwenden – sonst arbeitet alles lokal bzw. mit Regeln", type: "checkbox", full: true },
+    { name: "model", label: "Modell", type: "select", options: Object.entries(c.models) },
+    { name: "budget_usd", label: "Monatsbudget in USD (0 = unbegrenzt)", type: "number", step: "1" },
+    { name: "mask_pii", label: "E-Mail-Adressen, Telefonnummern und IBANs vor dem Versand pseudonymisieren (Antwort wird zurückübersetzt)", type: "checkbox", full: true },
+  ], c);
+  const MODE = { lokal: "nur lokal", auto: "lokal, Claude als Ersatz", claude: "Claude bevorzugt" };
+  const sel = (name, value, options) => h("select", { name, style: "min-width:150px" }, options.map(([v, l]) => h("option", { value: v, selected: v === value }, l)));
+  const rows = Object.entries(c.task_labels).map(([k, label]) => ({ k, label,
+    mode: sel(`mode_${k}`, c.tasks[k], Object.entries(MODE)), effort: sel(`effort_${k}`, c.effort[k], c.efforts.map((e) => [e, e])) }));
+  const pct = u.budget_pct === null ? 0 : Math.min(100, u.budget_pct);
+  return h("div", { class: "card", style: "margin-top:1rem;border-top:4px solid var(--accent)" },
+    h("div", { class: "card-head" }, h("h2", {}, "Claude (Anthropic) – KI-Steuerung"),
+      h("div", { class: "row" }, c.claude.available ? badge("Claude erreichbar", "ok") : badge("Claude nicht eingerichtet", "warn"),
+        c.local.available ? badge("lokale KI aktiv", "ok") : badge("lokale KI aus", "warn"))),
+    h("p", { class: "small muted" }, "Je Aufgabe festlegen, ob die lokale KI (Ollama, Daten bleiben im Haus) oder Claude arbeitet. Zugangsdaten werden vor jedem Cloud-Aufruf geschwärzt. ",
+      c.claude.available ? c.claude.detail : "Einrichtung: in der .env ANTHROPIC_API_KEY=… setzen (console.anthropic.com → API Keys) oder auf dem Server „ant auth login“, dann App neu starten."),
+    h("div", { style: "margin:.6rem 0 1rem" },
+      h("div", { class: "row small", style: "justify-content:space-between" }, h("span", {}, `Verbrauch ${u.month}: ${u.calls} Aufrufe · $ ${u.cost_usd.toFixed(2)}`),
+        h("span", {}, u.budget_usd ? `Budget $ ${u.budget_usd.toFixed(0)} (${u.budget_pct ?? 0} %)${u.budget_ok ? "" : " – erreicht, Cloud pausiert"}` : "ohne Budgetgrenze")),
+      h("div", { class: "bar", style: "margin-top:.3rem" }, h("span", { style: `width:${pct}%;${u.budget_ok ? "" : "background:var(--bad)"}` }))),
+    head,
+    h("h3", { style: "margin:1rem 0 .4rem" }, "Aufgaben"),
+    table([{ label: "Aufgabe", key: "label" }, { label: "Wer arbeitet", render: (r) => r.mode }, { label: "Denktiefe (effort)", render: (r) => r.effort }], rows),
+    u.by_task.length ? h("details", { style: "margin-top:.8rem" }, h("summary", { style: "cursor:pointer" }, "Verbrauch je Aufgabe (Monat)"),
+      table([{ label: "Aufgabe", key: "label" }, { label: "Aufrufe", key: "calls", num: true }, { label: "Eingabe", num: true, render: (r) => (r.input || 0).toLocaleString("de-AT") },
+        { label: "Ausgabe", num: true, render: (r) => (r.output || 0).toLocaleString("de-AT") }, { label: "aus Cache", num: true, render: (r) => (r.cache_read || 0).toLocaleString("de-AT") },
+        { label: "Kosten", num: true, render: (r) => `$ ${r.cost.toFixed(3)}` }], u.by_task)) : null,
+    h("div", { class: "row", style: "margin-top:1rem" },
+      h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api("/api/ai/test", { method: "POST" }); toast(`Claude antwortet („${r.answer}“) in ${r.ms} ms`); }) }, "Verbindung testen"),
+      h("span", { class: "spacer" }),
+      h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const d = readForm(head); d.budget_usd = Number(d.budget_usd) || 0;
+        d.tasks = Object.fromEntries(rows.map((r) => [r.k, r.mode.value])); d.effort = Object.fromEntries(rows.map((r) => [r.k, r.effort.value]));
+        await api("/api/ai/settings", { method: "PUT", body: d }); toast("KI-Einstellungen gespeichert"); refreshAiStatus(); render();
+      }) }, "Speichern")));
 }
 
 async function csatCard() {

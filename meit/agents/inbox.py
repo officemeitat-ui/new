@@ -258,7 +258,7 @@ def _llm_analyse(ctx: AgentContext, m: dict, customer: dict | None, attachments:
         '"antwort": "Nur bei anfrage/termin: Antwortentwurf in Sie-Form – Dank, kurze Bestätigung, höchstens 3 '
         'Rückfragen zur Qualifizierung. Keine Preise oder Zusagen erfinden. Sonst leer."}'
     )
-    return ctx.llm().chat_json(
+    return ctx.llm("inbox").chat_json(
         [{"role": "user", "content": prompt}],
         system=(f"Du bist der KI-Sachbearbeiter von {ctx.company}, einem IT-Dienstleister in Österreich. "
                 "Du sortierst eingehende Nachrichten, liest Daten aus und schreibst Antwortentwürfe. Nur JSON."),
@@ -287,7 +287,7 @@ def process_message(ctx: AgentContext, message_id: int) -> dict[str, Any]:
         "customer": customer["name"] if customer else "", "attachment_text": m["attachment_text"],
         "mail_handle": ai_prev.get("mail_handle", ""),
     }
-    llm = ctx.llm()
+    llm = ctx.llm("inbox")
     if llm.available():
         try:
             data = _llm_analyse(ctx, m, customer, attachments)
@@ -492,7 +492,7 @@ def _open_draft_exists(db, linked_type: str, linked_id: int) -> bool:
 
 
 def _followup_text(ctx: AgentContext, kind: str, name: str, topic: str, number: int) -> tuple[str, str]:
-    llm = ctx.llm()
+    llm = ctx.llm("inbox")
     if llm.available():
         try:
             text = llm.chat(
@@ -621,6 +621,8 @@ def fetch_and_process(ctx: AgentContext, limit: int = 25) -> dict[str, Any]:
     own = (getattr(ctx.settings, "mail_from", "") or "").lower()
     new_ids = []
     files: dict[int, list[tuple[str, bytes]]] = {}
+    others: dict[int, list[tuple[str, bytes]]] = {}
+    threads: dict[int, str] = {}
     for pm in mails:
         if pm.message_id and ctx.db.scalar("SELECT COUNT(*) FROM messages WHERE external_id = ?", (pm.message_id,)):
             continue
@@ -633,13 +635,37 @@ def fetch_and_process(ctx: AgentContext, limit: int = 25) -> dict[str, Any]:
         new_ids.append(mid)
         if getattr(pm, "files", None):
             files[mid] = pm.files
-    errors = archived = 0
+        others[mid] = list(getattr(pm, "other_files", None) or [])
+        threads[mid] = getattr(pm, "in_reply_to", "") or ""
+    errors = archived = threaded = 0
     docs = getattr(ctx, "docs", None)
+    store = getattr(ctx, "attachments", None)
     for mid in new_ids:
+        m = ctx.db.get("messages", mid)
+        tid = None
         try:
-            process_message(ctx, mid)
-        except Exception:  # noqa: BLE001 - eine kaputte Mail darf den Rest nicht blockieren
-            errors += 1
+            from ..attachments import link_to_ticket, thread_ticket
+
+            tid = thread_ticket(ctx.db, m["subject"], threads.get(mid, ""), m["from_email"])
+            if tid:
+                link_to_ticket(ctx.db, mid, tid)  # Antwort des Kunden → bestehendes Ticket (statt neuem)
+                threaded += 1
+        except Exception:  # noqa: BLE001
+            tid = None
+        if not tid:
+            try:
+                process_message(ctx, mid)
+            except Exception:  # noqa: BLE001 - eine kaputte Mail darf den Rest nicht blockieren
+                errors += 1
+                continue
+        m = ctx.db.get("messages", mid)
+        if store and m["linked_type"] == "ticket" and m["linked_id"]:
+            for name, data in files.get(mid, []) + others.get(mid, []):
+                try:
+                    store.save("ticket", m["linked_id"], name, data, source="mail", message_id=mid)
+                except ValueError:
+                    continue
+        if tid:
             continue
         if docs and files.get(mid):
             m = ctx.db.get("messages", mid)
@@ -648,6 +674,15 @@ def fetch_and_process(ctx: AgentContext, limit: int = 25) -> dict[str, Any]:
                     archived += len(docs.archive_receipt(m["linked_id"], files[mid]))
                 except Exception as exc:  # noqa: BLE001 - Ablage-Fehler darf den Abruf nicht stoppen
                     ctx.db.set_setting("documents_last_error", f"Beleg aus Nachricht {mid}: {exc}")
+                router = ctx.router
+                pdfs = [d for n, d in files[mid] if n.lower().endswith(".pdf") or d[:4] == b"%PDF"]
+                if pdfs and router.control is not None and router.control.mode("receipts") == "claude" and router.claude_ok():
+                    try:
+                        from ..ai_control import claude_receipt
+
+                        ctx.db.update("receipts", m["linked_id"], claude_receipt(ctx, pdfs[0]))
+                    except Exception as exc:  # noqa: BLE001
+                        ctx.db.set_setting("ai_last_error", f"Beleg {m['linked_id']}: {exc}")
     ctx.db.set_setting("mail_last_fetch", now_iso())
     ctx.db.set_setting("mail_last_error", "")
-    return {"fetched": len(mails), "new": len(new_ids), "errors": errors, "archived": archived}
+    return {"fetched": len(mails), "new": len(new_ids), "errors": errors, "archived": archived, "threaded": threaded}

@@ -130,7 +130,7 @@ def create_quote(ctx: AgentContext, customer_id: int, need: str,
     provider = "regeln"
     error = ""
 
-    llm = ctx.llm()
+    llm = ctx.llm("quote")
     if llm.available():
         catalog = [{"code": s["code"], "name": s["name"], "einheit": s["unit"], "preis": s["price"],
                     "beschreibung": s["description"]} for s in services.values()]

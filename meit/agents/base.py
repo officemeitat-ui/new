@@ -28,9 +28,11 @@ class AgentContext:
     settings: Any = None  # meit.config.Settings
     mailer: Any = None    # meit.mail.Mailer
     docs: Any = None      # meit.documents.DocumentService
+    attachments: Any = None  # meit.attachments.Store (Anhänge an Tickets)
 
-    def llm(self) -> LLM:
-        return self.router.get()
+    def llm(self, task: str | None = None) -> LLM:
+        """KI für eine Aufgabe (triage, inbox, assistant, quote, report, qbr, briefing, portal, …)."""
+        return self.router.get(task)
 
     def log(self, agent: str, provider: str, input_data: Any, output: Any, ok: bool, started: float) -> None:
         def short(v: Any) -> str:

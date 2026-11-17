@@ -780,6 +780,14 @@ def register(app: FastAPI, ctx: Any, admin_only, apply_quote_status: Callable[..
         name = unquote(request.headers.get("x-filename", "beleg.pdf"))[:120] or "beleg.pdf"
         text = _pdf_text(data)
         parsed = parse_receipt(f"{name}\n{text}", "")
+        if ctx.router.control is not None and ctx.router.control.mode("receipts") == "claude" and ctx.router.claude_ok():
+            try:
+                from .ai_control import claude_receipt
+
+                parsed.update(claude_receipt(ctx, data))
+                name += " · mit Claude gelesen"
+            except Exception:  # noqa: BLE001 - dann bleibt die lokale Auswertung
+                pass
         rid = db.insert("receipts", {**parsed, "note": f"Hochgeladen: {name}"})
         docs = guard(lambda: svc.archive_receipt(rid, [(name, data)]))
         return {"receipt": db.get("receipts", rid), "documents": docs, "text_found": bool(text)}

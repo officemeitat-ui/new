@@ -49,7 +49,7 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
 
     summary = ""
     provider = "vorlage"
-    llm = ctx.llm()
+    llm = ctx.llm("report")
     if llm.available():
         try:
             summary = llm.chat(

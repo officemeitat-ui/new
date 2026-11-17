@@ -43,8 +43,10 @@ from .atera import register as register_atera
 from .bookstack import register as register_bookstack
 from .secrets_guard import redact_row, scan as scan_secrets
 from .profitability import register as register_profitability
+from .attachments import register as register_attachments
 from .csat import register as register_csat
 from .mobile import register as register_mobile
+from .ai_control import register as register_ai_control
 from .branding import get_branding
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
@@ -290,6 +292,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return row
 
     admin_only = make_admin_dependency(db)
+    ai_control = register_ai_control(app, ctx, admin_only)  # KI-Routing je Aufgabe, Claude-Budget, Verbrauch
     register_team(app, db, RateLimiter(limit=10, window_s=600))
     def invoice_finalized(invoice_id: int) -> None:
         # Kunde mit SEPA-Mandat → Rechnung zur Lastschrift vormerken (Rechnung = Vorabankündigung)
@@ -810,6 +813,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Dokumentenprozess (PDF, SharePoint/OneDrive, Versand per Outlook) ------
     register_documents(app, ctx, admin_only, apply_quote_status)
+
+    # --- E-Mails & Anhänge: .eml/.msg-Upload, Ticket-Verlauf, Antworten, Phishing-Check ----
+    ctx.attachments = register_attachments(app, ctx, admin_only)
 
     # --- Geldkreislauf: Kontoauszug, Zahlungsabgleich, Mahnwesen -------------------
     register_payments(app, ctx, admin_only, start_scheduler=settings.db_path != ":memory:")

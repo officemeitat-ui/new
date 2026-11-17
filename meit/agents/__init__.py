@@ -28,7 +28,7 @@ def run_security_check(ctx: AgentContext, customer_id: int, answers: dict[str, s
     result = evaluate(answers, int(customer.get("employees") or 0), customer.get("industry", ""))
     summary = ""
     provider = "regeln"
-    llm = ctx.llm()
+    llm = ctx.llm("security")
     if llm.available():
         top = "; ".join(g["fix"] for g in result["gaps"][:5])
         try:

@@ -33,6 +33,8 @@ class ParsedMail:
     attachment_text: str = ""
     handle: str = ""  # anbieterspezifische ID (z. B. Microsoft-Graph-Nachrichten-ID) für Antworten im Verlauf
     files: list[tuple[str, bytes]] = field(default_factory=list)  # PDF-Anhänge (für die Belegablage)
+    other_files: list[tuple[str, bytes]] = field(default_factory=list)  # übrige Anhänge (Screenshots, Dokumente)
+    in_reply_to: str = ""  # Antwort auf welche Mail? (Zuordnung zum bestehenden Ticket)
 
 
 @dataclass
@@ -89,7 +91,7 @@ def _pdf_text(data: bytes) -> str:
 def parse_raw(raw: bytes) -> ParsedMail:
     msg = email.message_from_bytes(raw)
     name, addr = parseaddr(_decode(msg.get("From")))
-    plain, markup, attachments, attachment_text, files = [], [], [], [], []
+    plain, markup, attachments, attachment_text, files, other = [], [], [], [], [], []
     for part in msg.walk():
         if part.is_multipart():
             continue
@@ -102,6 +104,8 @@ def parse_raw(raw: bytes) -> ParsedMail:
                 attachment_text.append(_pdf_text(payload))
                 if payload and len(payload) <= 20 * 1024 * 1024:
                     files.append((filename or "anhang.pdf", payload))
+            elif payload and len(payload) <= 20 * 1024 * 1024:
+                other.append((filename or f"anhang.{ctype.rsplit('/', 1)[-1]}", payload))
             continue
         charset = part.get_content_charset() or "utf-8"
         try:
@@ -122,6 +126,8 @@ def parse_raw(raw: bytes) -> ParsedMail:
         attachments=attachments,
         attachment_text="\n".join(t for t in attachment_text if t)[:8000],
         files=files,
+        other_files=other,
+        in_reply_to=(msg.get("In-Reply-To") or "").strip().split()[0] if (msg.get("In-Reply-To") or "").strip() else "",
     )
 
 
@@ -289,27 +295,32 @@ class GraphMailer:
             "GET", f"/mailFolders/{folder}/messages",
             # Hinweis: $orderby zusammen mit $filter lehnt Graph oft ab ("too complex") – daher ohne Sortierung.
             params={"$filter": "isRead eq false", "$top": str(limit),
-                    "$select": "id,internetMessageId,subject,from,body,hasAttachments"},
+                    "$select": "id,internetMessageId,subject,from,body,hasAttachments,internetMessageHeaders"},
             headers={"Prefer": 'outlook.body-content-type="text"'},
         )
         mails = []
         for item in resp.json().get("value", []):
             sender = (item.get("from") or {}).get("emailAddress") or {}
-            attachments, attachment_text, files = [], [], []
+            attachments, attachment_text, files, other = [], [], [], []
             if item.get("hasAttachments"):
                 att = self._request("GET", f"/messages/{item['id']}/attachments",
                                     params={"$select": "name,contentType,size"}).json().get("value", [])
                 for a in att:
                     attachments.append(a.get("name") or a.get("contentType") or "Anhang")
-                    if (a.get("name") or "").lower().endswith(".pdf") and (a.get("size") or 0) < 5_000_000:
-                        full = self._request("GET", f"/messages/{item['id']}/attachments/{a['id']}").json() \
-                            if a.get("id") else {}
+                    if (a.get("size") or 0) < 5_000_000 and a.get("id") and \
+                            a.get("@odata.type", "#microsoft.graph.fileAttachment") == "#microsoft.graph.fileAttachment":
+                        full = self._request("GET", f"/messages/{item['id']}/attachments/{a['id']}").json()
                         if full.get("contentBytes"):
                             import base64
 
-                            pdf = base64.b64decode(full["contentBytes"])
-                            attachment_text.append(_pdf_text(pdf))
-                            files.append((a.get("name") or "anhang.pdf", pdf))
+                            data = base64.b64decode(full["contentBytes"])
+                            name = a.get("name") or "anhang"
+                            if name.lower().endswith(".pdf") or data[:4] == b"%PDF":
+                                attachment_text.append(_pdf_text(data))
+                                files.append((name, data))
+                            else:
+                                other.append((name, data))
+            headers = {h.get("name", "").lower(): h.get("value", "") for h in item.get("internetMessageHeaders") or []}
             body = (item.get("body") or {}).get("content") or ""
             if (item.get("body") or {}).get("contentType", "").lower() == "html":
                 body = html_to_text(body)
@@ -318,7 +329,7 @@ class GraphMailer:
                 from_email=(sender.get("address") or "").lower(), subject=item.get("subject") or "",
                 body=strip_quoted(body)[:MAX_BODY], attachments=attachments,
                 attachment_text="\n".join(t for t in attachment_text if t)[:8000], handle=item["id"],
-                files=files,
+                files=files, other_files=other, in_reply_to=(headers.get("in-reply-to") or "").strip(),
             ))
             self._request("PATCH", f"/messages/{item['id']}", json={"isRead": True})
         return mails

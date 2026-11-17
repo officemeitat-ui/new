@@ -111,7 +111,7 @@ def run_assistant(ctx: AgentContext, messages: list[dict[str, str]]) -> dict[str
     started = time.time()
     messages = [m for m in messages if m.get("role") in ("user", "assistant") and m.get("content")][-12:]
     question = messages[-1]["content"] if messages else ""
-    llm = ctx.llm()
+    llm = ctx.llm("assistant")
     tools = _tools(ctx)
     if not llm.available():
         # Offline-Fallback: Wissensdatenbank durchsuchen.

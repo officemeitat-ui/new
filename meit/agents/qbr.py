@@ -67,7 +67,7 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
     intro = ""
     lever_text = ""
     provider = "vorlage"
-    llm = ctx.llm()
+    llm = ctx.llm("qbr")
     if llm.available():
         try:
             data = llm.chat_json(

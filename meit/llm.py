@@ -12,11 +12,13 @@ jedem Provider gleich.
 
 from __future__ import annotations
 
+import base64
+import copy
 import json
 import re
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -148,13 +150,48 @@ class LLM:
         return None
 
 
-def _protect(messages: list[dict[str, Any]], system: str | None) -> tuple[list[dict[str, Any]], str | None]:
-    """Vor dem Versand an eine Cloud-KI: Klartext-Zugangsdaten schwärzen (Passwort-Wächter)."""
+PII_PATTERNS = [
+    ("E-MAIL", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")),
+    ("IBAN", re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,4})?\b")),
+    ("TELEFON", re.compile(r"(?<![\w/.#-])(?:\+\d{2}[ /-]?|0)\d{1,4}(?:[ /-]?\d{2,})+(?![\w-])")),
+]
+
+
+def pseudonymize(text: str, mapping: dict[str, str]) -> str:
+    """E-Mail, IBAN, Telefon → Platzhalter ([E-MAIL-1] …); gleiche Werte bekommen denselben Platzhalter."""
+    reverse = {v: k for k, v in mapping.items()}
+    for label, rx in PII_PATTERNS:
+        def repl(m: re.Match) -> str:
+            value = m.group(0)
+            if label == "TELEFON" and sum(ch.isdigit() for ch in value) < 7:
+                return value  # z. B. Ticket-/Postleitzahlen
+            if value not in reverse:
+                key = f"[{label}-{sum(1 for k in mapping if k.startswith(f'[{label}-')) + 1}]"
+                mapping[key], reverse[value] = value, key
+            return reverse[value]
+        text = rx.sub(repl, text)
+    return text
+
+
+def restore(text: str, mapping: dict[str, str]) -> str:
+    for key, value in mapping.items():
+        text = text.replace(key, value)
+    return text
+
+
+def _protect(messages: list[dict[str, Any]], system: str | None,
+             mapping: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], str | None]:
+    """Vor dem Versand an eine Cloud-KI: Zugangsdaten schwärzen (Passwort-Wächter) und – wenn ``mapping``
+    übergeben wird – personenbezogene Kontaktdaten pseudonymisieren (Rückübersetzung mit ``restore``)."""
     from .secrets_guard import redact
 
-    safe = [{**m, "content": redact(m["content"]) if isinstance(m.get("content"), str) else m.get("content")}
+    def clean(text: str) -> str:
+        text = redact(text)
+        return pseudonymize(text, mapping) if mapping is not None else text
+
+    safe = [{**m, "content": clean(m["content"]) if isinstance(m.get("content"), str) else m.get("content")}
             for m in messages]
-    return safe, (redact(system) if system else system)
+    return safe, (clean(system) if system else system)
 
 
 class NoLLM(LLM):
@@ -297,10 +334,66 @@ class AnthropicLLM(LLM):
     def __init__(self, settings: Settings):
         super().__init__(settings)
         self._client = None
+        self.task = ""
+        self.effort: str | None = None          # je Aufgabe (low … max); sonst ANTHROPIC_EFFORT
+        self.model_override: str | None = None  # je Einstellung; sonst ANTHROPIC_MODEL (Standard claude-opus-5-5)
+        self.mask_pii = False
+        self.usage_hook: Callable[[str, str, Any], None] | None = None
 
     @property
     def model(self) -> str:
-        return self.settings.anthropic_model
+        return self.model_override or self.settings.anthropic_model
+
+    def for_task(self, task: str, *, effort: str | None = None, model: str | None = None, mask_pii: bool = False,
+                 usage_hook: Callable[[str, str, Any], None] | None = None) -> "AnthropicLLM":
+        """Kopie mit aufgabenspezifischer Konfiguration (teilt Client und Status-Cache)."""
+        clone = copy.copy(self)
+        clone.task, clone.effort, clone.model_override = task, effort, model
+        clone.mask_pii, clone.usage_hook = mask_pii, usage_hook
+        return clone
+
+    def _create(self, client: Any, kwargs: dict[str, Any]) -> Any:
+        """Opus/Sonnet/Fable: serverseitiger Fallback bei Ablehnung; Haiku hat keinen – normaler Aufruf."""
+        if self.model.startswith("claude-haiku"):
+            return client.messages.create(**kwargs)
+        return client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs)
+
+    def _report(self, response: Any) -> None:
+        if self.usage_hook and getattr(response, "usage", None) is not None:
+            try:
+                self.usage_hook(self.task or "allgemein", getattr(response, "model", "") or self.model, response.usage)
+            except Exception:  # noqa: BLE001 - Verbrauchsprotokoll darf nie die Antwort verhindern
+                pass
+
+    def extract_document(self, data: bytes, media_type: str, instruction: str, schema: dict[str, Any]) -> dict[str, Any]:
+        """PDF/Bild direkt an Claude (Dokument- bzw. Bild-Block) mit strukturierter JSON-Ausgabe."""
+        import anthropic
+
+        b64 = base64.standard_b64encode(data).decode("ascii")
+        block = ({"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}}
+                 if media_type == "application/pdf" else
+                 {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}})
+        kwargs: dict[str, Any] = {
+            "model": self.model, "max_tokens": 16000,
+            "messages": [{"role": "user", "content": [block, {"type": "text", "text": instruction}]}],
+            "output_config": {"effort": self.effort or "low",
+                              "format": {"type": "json_schema", "schema": schema}},
+        }
+        try:
+            response = self._create(self._get_client(), kwargs)
+        except anthropic.RateLimitError as exc:
+            raise LLMError("Claude: Rate-Limit erreicht, bitte später erneut versuchen.") from exc
+        except anthropic.APIStatusError as exc:
+            raise LLMError(f"Claude API-Fehler ({exc.status_code}): {exc.message}") from exc
+        except anthropic.APIConnectionError as exc:
+            raise LLMError("Claude nicht erreichbar (Internetverbindung?).") from exc
+        self._report(response)
+        if response.stop_reason == "refusal":
+            raise LLMError("Claude hat die Anfrage abgelehnt.")
+        if response.stop_reason == "max_tokens":
+            raise LLMError("Claude-Antwort unvollständig (max_tokens).")
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        return json.loads(text)
 
     def _get_client(self):
         if self._client is None:
@@ -319,37 +412,43 @@ class AnthropicLLM(LLM):
             import anthropic  # noqa: F401
         except ImportError:
             return LLMStatus(self.provider, self.model, False, "pip install anthropic", False)
-        if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
-            return LLMStatus(self.provider, self.model, False, "ANTHROPIC_API_KEY nicht gesetzt", False)
-        return LLMStatus(self.provider, self.model, True, "Cloud (Anthropic)", False)
+        from pathlib import Path
+
+        if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+            return LLMStatus(self.provider, self.model, True, "Cloud (Anthropic, API-Schlüssel)", False)
+        if os.environ.get("ANTHROPIC_PROFILE") or (Path.home() / ".config" / "anthropic").is_dir():
+            return LLMStatus(self.provider, self.model, True, "Cloud (Anthropic, Anmeldung über ant auth login)", False)
+        return LLMStatus(self.provider, self.model, False, "ANTHROPIC_API_KEY nicht gesetzt (oder „ant auth login“)", False)
 
     def chat(self, messages, system=None, json_mode=False, temperature=0.2) -> str:
         import anthropic
 
-        messages, system = _protect(messages, system)  # Cloud: Zugangsdaten nie übertragen
+        mapping: dict[str, str] | None = {} if self.mask_pii else None
+        messages, system = _protect(messages, system, mapping)  # Cloud: Zugangsdaten nie, Kontaktdaten optional nicht
         client = self._get_client()
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": 16000,
             "messages": messages,
-            "output_config": {"effort": self.settings.anthropic_effort},
-            # Bei einer Sicherheits-Ablehnung springt serverseitig ein passendes Modell ein.
-            "betas": ["server-side-fallback-2026-07-01"],
-            "fallbacks": "default",
+            "output_config": {"effort": self.effort or self.settings.anthropic_effort},
+            "cache_control": {"type": "ephemeral"},  # gleichbleibende Agenten-Prompts günstiger (Prompt-Caching)
         }
         if system:
             kwargs["system"] = system
         try:
-            response = client.beta.messages.create(**kwargs)
+            # Bei einer Sicherheits-Ablehnung springt serverseitig ein passendes Modell ein (außer Haiku).
+            response = self._create(client, kwargs)
         except anthropic.RateLimitError as exc:
             raise LLMError("Claude: Rate-Limit erreicht, bitte später erneut versuchen.") from exc
         except anthropic.APIStatusError as exc:
             raise LLMError(f"Claude API-Fehler ({exc.status_code}): {exc.message}") from exc
         except anthropic.APIConnectionError as exc:
             raise LLMError("Claude nicht erreichbar (Internetverbindung?).") from exc
+        self._report(response)
         if response.stop_reason == "refusal":
             raise LLMError("Claude hat die Anfrage abgelehnt.")
-        return "".join(block.text for block in response.content if block.type == "text").strip()
+        text = "".join(block.text for block in response.content if block.type == "text").strip()
+        return restore(text, mapping) if mapping else text
 
 
 def _make(provider: str, settings: Settings) -> LLM:
@@ -361,22 +460,52 @@ def _make(provider: str, settings: Settings) -> LLM:
 
 
 class Router:
-    """Wählt den Provider: primär lokal, Cloud nur wenn erlaubt und lokal nicht verfügbar."""
+    """Wählt die KI je Aufgabe: lokal (Ollama/LM Studio) oder Claude (Cloud).
+
+    Modi je Aufgabe (Einstellungen → KI): „lokal“ (nie Cloud), „auto“ (lokal, Claude nur wenn lokal nicht läuft),
+    „claude“ (Claude bevorzugt). Cloud nur, wenn freigegeben und das Monatsbudget nicht erreicht ist.
+    """
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self.primary = _make(settings.llm_provider, settings)
-        self.cloud = AnthropicLLM(settings) if settings.allow_cloud_fallback else None
+        self.claude = self.primary if isinstance(self.primary, AnthropicLLM) else AnthropicLLM(settings)
+        self.control: Any = None  # meit.ai_control.AiControl (Aufgaben-Routing, Budget, Verbrauch)
         # Embeddings immer lokal (Ollama), außer der Primär-Provider kann es selbst.
         self.embedder: LLM = (
             self.primary if isinstance(self.primary, (OllamaLLM, OpenAICompatLLM)) else OllamaLLM(settings)
         )
 
-    def get(self) -> LLM:
+    @property
+    def cloud_enabled(self) -> bool:
+        if self.control is not None:
+            return bool(self.control.conf()["cloud_enabled"])
+        return self.settings.allow_cloud_fallback or isinstance(self.primary, AnthropicLLM)
+
+    @property
+    def cloud(self) -> "AnthropicLLM | None":
+        return self.claude if self.cloud_enabled else None
+
+    def claude_ok(self) -> bool:
+        if not self.cloud_enabled or not self.claude.available():
+            return False
+        return self.control.budget_ok() if self.control is not None else True
+
+    def claude_for(self, task: str | None) -> AnthropicLLM:
+        if self.control is None:
+            return self.claude
+        return self.control.configure(self.claude, task or "allgemein")
+
+    def get(self, task: str | None = None) -> LLM:
+        mode = self.control.mode(task) if (self.control is not None and task) else "auto"
+        if isinstance(self.primary, AnthropicLLM):
+            return self.claude_for(task) if self.claude_ok() and mode != "lokal" else NoLLM(self.settings)
+        if mode == "claude" and self.claude_ok():
+            return self.claude_for(task)
         if self.primary.available():
             return self.primary
-        if self.cloud is not None and self.cloud is not self.primary and self.cloud.available():
-            return self.cloud
+        if mode != "lokal" and self.claude_ok():
+            return self.claude_for(task)
         return self.primary
 
     def embed(self, texts: list[str]) -> list[list[float]] | None:
@@ -394,7 +523,9 @@ class Router:
             "active_provider": active.provider if active.available() else "none",
             "active_model": active.model if active.available() else "",
             "active_local": active.local,
-            "cloud_fallback_allowed": self.settings.allow_cloud_fallback,
+            "cloud_fallback_allowed": self.cloud_enabled,
+            "claude": {"available": self.claude.available(), "model": self.claude_for(None).model,
+                       "detail": self.claude.status().detail, "budget_ok": self.control.budget_ok() if self.control else True},
             "embed_model": self.settings.embed_model,
             "installed_models": self.primary.list_models() if isinstance(self.primary, OllamaLLM) else [],
         }

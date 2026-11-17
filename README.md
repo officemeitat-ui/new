@@ -13,7 +13,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Zahlungen & Mahnwesen: [docs/ZAHLUNGEN-MAHNWESEN.md](docs/ZAHLUNGEN-MAHNWESEN.md) ·
 > Wartungsplan: [docs/WARTUNGSPLAN.md](docs/WARTUNGSPLAN.md) ·
 > Atera · Keeper · BookStack: [docs/ATERA-KEEPER-BOOKSTACK.md](docs/ATERA-KEEPER-BOOKSTACK.md) ·
-> Rentabilität, Zufriedenheit, App: [docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md](docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md)
+> Rentabilität, Zufriedenheit, App: [docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md](docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md) ·
+> E-Mails, Kundenportal, Phishing-Check, Claude: [docs/EMAIL-PORTAL-CLAUDE.md](docs/EMAIL-PORTAL-CLAUDE.md)
 
 ## Funktionen
 
@@ -35,6 +36,9 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **KI-Mitarbeiter: Posteingang** | Sortiert E-Mails, Formularanfragen und Telefonnotizen (Support · Anfrage · Termin · Beleg · Info). Daraus entstehen Ticket, Lead oder Beleg, dazu ein Antwortentwurf. Modus je Art: **Entwurf + Freigabe** oder **Autopilot**. IMAP/SMTP-Anbindung. |
 | **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
+| **E-Mails & Anhänge** | Mails aus Outlook (**.msg**) oder Outlook im Web (**.eml**) per Drag & Drop in den Posteingang oder direkt ins Ticket. Anhänge (Screenshots, PDFs) landen am Ticket, Belege in der Buchhaltung. **Antworten des Kunden landen im bestehenden Ticket** (In-Reply-To bzw. „[#123]“ im Betreff) und öffnen es wieder. Ticket-Verlauf mit Antworten per Mail, nur im Portal oder als interne Notiz. Ausführbare Dateien werden abgelehnt. |
+| **Phishing-Check** | Verdächtige Mail hochladen → Bewertung mit Begründung: SPF/DKIM/DMARC, gefälschte Absender und Marken, Links (Kurz-URLs, IP-Adressen, Punycode, Linktext ≠ Ziel), gefährliche Anhänge, Drucktaktiken. Im Cockpit und für Kunden im Portal (dort entsteht automatisch ein Ticket mit Priorität). Gefährliche Mails erzeugen im Posteingang keine Tickets/Leads. Läuft komplett lokal. |
+| **Claude (Cloud-KI)** | Optional zur lokalen KI: je Aufgabe **lokal / auto / Claude** (z. B. Angebote mit Claude, Kundenportal immer lokal), Modell (Opus/Sonnet/Haiku 5.5), Denktiefe je Aufgabe, **Monatsbudget** mit Kostenanzeige, **Pseudonymisierung** von E-Mail-Adressen, Telefonnummern und IBANs vor dem Versand (Antwort wird zurückübersetzt), Passwörter werden immer geschwärzt. **Belege-PDFs mit Claude lesen** (auch Scans) mit strukturierter Ausgabe. |
 | **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, PDF automatisch in `Buchhaltung/Eingangsrechnungen`, Scans per Upload, CSV-Export für den Steuerberater |
 | **Zahlungen & Mahnwesen** | **QR-Code „Zahlen mit Code“** auf jeder Rechnung (EPC, alle österreichischen Banking-Apps). **Kontoauszug-Import** (George/ELBA-CSV, CAMT.053, MT940) mit automatischem Abgleich: Rechnungsnummer im Verwendungszweck → bezahlt (auch Teil- und Sammelzahlungen), sonst Vorschlag über IBAN/Kunde + Betrag. **Ausgaben ohne Beleg** für den Steuerberater. **Mahnwesen** in 3 Stufen als PDF im CD mit QR-Code, Versand per Outlook, Spesen/Verzugszinsen optional, Freigabe oder Autopilot. **SEPA-Lastschrift** (CORE/B2B): Mandat-PDF, Vormerkung beim Stellen mit Vorabankündigung auf der Rechnung, Einzugsdatei pain.008 (schemageprüft), Gutschrift und Rücklastschrift werden beim Kontoauszug erkannt. Altersstruktur und Zahlungsdauer (DSO). |
 | **Dokumente (Microsoft 365)** | Rechnungen, Angebote, Monatsberichte, QBR und Security-Checks als **PDF im ME-IT-Design**, automatisch abgelegt (lokal + **SharePoint/OneDrive** über Microsoft Graph, mit Ordnervorlagen je Kunde/Jahr). **Versand per Outlook** mit PDF und E-Rechnung im Anhang, Mail im Corporate Design. Fehlgeschlagene Uploads per Klick wiederholen. |
@@ -48,7 +52,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Automatische Zuweisung** | Tickets gehen nach der KI-Einordnung an die zuständige Person (Regel je Kategorie oder Pool), jeweils an die mit den wenigsten offenen Tickets |
 | **Wochenrhythmus** | Montag Ziele, Freitag Abgleich: Ist-Werte zählt das Cockpit automatisch (Pitches, Angebote, QBRs, gelöste Tickets) plus erfasste Anrufe. Dazu ein Top-10-Deal-Review mit nächstem Schritt und Risiko. |
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
-| **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
+| **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage und Dateien, **Verlauf mit Antworten und Kommentaren**, Screenshots hochladen, **verdächtige E-Mails prüfen lassen**, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
 | **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG als PDF im Corporate Design (Versand per Outlook), Storno, Rechnungsausgangsbuch als CSV, **E-Rechnung ebInterface 6.1** (gegen das offizielle Schema geprüft; mit Auftragsreferenz und Lieferantennummer für den Bund) |
 | **Atera (RMM + Splashtop)** | Kunden und Geräte inkl. Link zur Atera-Geräteseite, Alarme → Tickets. **Splashtop-Sitzungsprotokoll** importieren: Sitzungen werden Gerät → Kunde → Wartung zugeordnet und erscheinen als protokollierter Nachweis im Wartungsprotokoll, Portal und Wiki; Sitzungen ohne Zeitbuchung mit einem Klick buchen. |
 | **Keeper & Passwort-Wächter** | Keeper-Links je Kunde und Gerät statt Passwörtern im Cockpit. Scanner findet Klartext-Zugangsdaten in Tickets, Wissen, Notizen und E-Mails (Schwärzen per Klick); vor BookStack-Export und Cloud-KI wird automatisch geschwärzt. |
@@ -94,7 +98,8 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `LLM_PROVIDER` | `ollama` | `ollama` (offline) · `openai` (LM Studio, llama.cpp, vLLM) · `anthropic` (Claude, Cloud) · `none` |
 | `OLLAMA_MODEL` | `qwen3:14b` | Chat-/Agentenmodell (`qwen3:8b` für schwache PCs, `qwen3:32b` für RTX 5090) |
 | `EMBED_MODEL` | `bge-m3` | Modell für die semantische Suche |
-| `ALLOW_CLOUD_FALLBACK` | `false` | Nur bei `true` darf Claude einspringen, wenn lokal keine KI läuft |
+| `ANTHROPIC_API_KEY` | leer | Schlüssel für Claude. Alles Weitere (je Aufgabe, Budget, Datenschutz) unter Steuerung → Claude |
+| `ALLOW_CLOUD_FALLBACK` | `false` | Startwert für den Cloud-Schalter (danach im Cockpit unter Steuerung → Claude) |
 | `MEIT_PASSWORD` | leer | Zusätzlicher Passwortschutz (HTTP Basic) vor allem anderen. Für Teams besser: unter Einstellungen Benutzer anlegen (Login mit Rollen). |
 | `MEIT_HOST` | `127.0.0.1` | `0.0.0.0` für Zugriff aus dem LAN |
 | `MAIL_PROVIDER` | `imap` | `graph` für Microsoft 365 (mit `GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET/MAILBOX`) |
@@ -156,6 +161,9 @@ API-Dokumentation (automatisch): http://localhost:8080/docs
 meit/
   main.py          API + Weboberfläche
   llm.py           KI-Provider (Ollama, OpenAI-kompatibel, Claude) + Router
+  ai_control.py    Claude-Steuerung: je Aufgabe lokal/auto/Claude, Budget, Kosten, Belege per Claude
+  emails.py        .eml/.msg lesen, Phishing-Prüfung (Regeln + KI-Zweitmeinung)
+  attachments.py   Anhänge, Mail-Upload, Ticket-Verlauf, Antworten, Zuordnung von Kundenantworten
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,
                    Posteingang/KI-Mitarbeiter (inbox.py), Quartalsgespräch (qbr.py)
   mitarbeiter_api.py  API für Posteingang, Leads, Belege, Anfrageformular

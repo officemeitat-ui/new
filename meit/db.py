@@ -475,6 +475,35 @@ CREATE TABLE IF NOT EXISTS timers (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task TEXT DEFAULT '',
+    model TEXT DEFAULT '',
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cache_read INTEGER DEFAULT 0,
+    cache_write INTEGER DEFAULT 0,
+    cost_usd REAL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref_type TEXT NOT NULL,
+    ref_id INTEGER NOT NULL,
+    filename TEXT NOT NULL,
+    content_type TEXT DEFAULT 'application/octet-stream',
+    size INTEGER DEFAULT 0,
+    sha256 TEXT DEFAULT '',
+    path TEXT NOT NULL,
+    source TEXT DEFAULT 'team',
+    customer_visible INTEGER DEFAULT 1,
+    message_id INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_attachments_ref ON attachments(ref_type, ref_id);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -504,6 +533,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "kb_articles": {"title", "content", "tags", "embedding", "embedding_model", "public", "source", "external_id",
                     "external_url", "synced_at"},
+    "ai_usage": {"task", "model", "input_tokens", "output_tokens", "cache_read", "cache_write", "cost_usd"},
+    "attachments": {"ref_type", "ref_id", "filename", "content_type", "size", "sha256", "path", "source",
+                    "customer_visible", "message_id"},
     "csat_surveys": {"ticket_id", "customer_id", "email", "token", "sent_at", "rating", "comment", "rated_at", "channel",
                      "followup_ticket_id"},
     "timers": {"user_id", "ticket_id", "customer_id", "note", "started_at"},
@@ -559,7 +591,7 @@ TABLES_WITH_CREATED_AT = {
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
-    "remote_sessions", "csat_surveys", "timers",
+    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

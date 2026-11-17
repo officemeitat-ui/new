@@ -68,11 +68,17 @@ class PortalRateIn(BaseModel):
     rating: int = Field(..., ge=1, le=5)
     comment: str = Field("", max_length=2000)
 
+
+class PortalCommentIn(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+
 def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote: Callable) -> None:
     db = ctx.db
     login_limiter = RateLimiter(limit=10, window_s=600)
     ask_limiter = RateLimiter(limit=20, window_s=600)
     ticket_limiter = RateLimiter(limit=10, window_s=3600)
+    upload_limiter = RateLimiter(limit=30, window_s=3600)
+    comment_limiter = RateLimiter(limit=30, window_s=3600)
 
     def portal_user(request: Request) -> dict[str, Any]:
         token = request.cookies.get(COOKIE)
@@ -142,7 +148,11 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
     @app.get("/api/portal/tickets")
     def tickets(u: dict = Depends(portal_user)) -> list[dict]:
         rows = db.query("SELECT t.id, t.title, t.description, t.status, t.priority, t.category, t.solution, t.created_at, "
-                        "t.resolved_at, s.rating FROM tickets t LEFT JOIN csat_surveys s ON s.ticket_id = t.id "
+                        "t.resolved_at, s.rating, (SELECT COUNT(*) FROM messages m WHERE m.linked_type = 'ticket' "
+                        "AND m.linked_id = t.id AND m.direction = 'out' AND m.channel != 'notiz' "
+                        "AND m.status IN ('gesendet', 'manuell')) AS replies, (SELECT COUNT(*) FROM attachments a "
+                        "WHERE a.ref_type = 'ticket' AND a.ref_id = t.id AND a.customer_visible = 1) AS files "
+                        "FROM tickets t LEFT JOIN csat_surveys s ON s.ticket_id = t.id "
                         "WHERE t.customer_id = ? ORDER BY CASE t.status WHEN 'geloest' THEN 1 ELSE 0 END, t.id DESC "
                         "LIMIT 100", (u["customer_id"],))
         for r in rows:
@@ -189,6 +199,110 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         except ValueError as exc:
             raise HTTPException(422, str(exc))
         return {"ok": True, "rating": s["rating"]}
+
+    # ------------------------------------------------ Verlauf, Kommentare, Dateien
+    def own_ticket(tid: int, u: dict) -> dict:
+        t = db.get("tickets", tid)
+        if not t or t["customer_id"] != u["customer_id"]:
+            raise HTTPException(404, "Ticket nicht gefunden")
+        return t
+
+    def store():
+        s = getattr(app.state, "attachments", None)
+        if s is None:
+            raise HTTPException(503, "Dateiablage nicht verfügbar")
+        return s
+
+    async def upload_body(request: Request, u: dict) -> tuple[bytes, str]:
+        from urllib.parse import unquote
+
+        if not upload_limiter.allow(f"u{u['id']}"):
+            raise HTTPException(429, "Zu viele Dateien in kurzer Zeit – bitte später erneut.")
+        data = await request.body()
+        if not data:
+            raise HTTPException(422, "Leere Datei")
+        if len(data) > 20 * 1024 * 1024:
+            raise HTTPException(413, "Datei zu groß (max. 20 MB)")
+        return data, unquote(request.headers.get("x-filename", "datei"))[:200]
+
+    @app.get("/api/portal/tickets/{tid}/conversation")
+    def ticket_conversation(tid: int, u: dict = Depends(portal_user)) -> dict:
+        from .attachments import conversation
+
+        t = own_ticket(tid, u)
+        conv = conversation(db, store(), tid, customer_view=True)
+        msgs = [{"id": m["id"], "mine": m["direction"] == "in",
+                 "author": (m["from_name"] or m["from_email"] or "Sie") if m["direction"] == "in" else ctx.company,
+                 "text": m["body"], "at": m["sent_at"] or m["created_at"]} for m in conv["messages"]]
+        files = [{"id": a["id"], "name": a["filename"], "size": a["size"], "mine": a["source"] == "kunde",
+                  "at": a["created_at"]} for a in conv["attachments"]]
+        return {"ticket": {"id": t["id"], "title": t["title"], "status": t["status"],
+                           "status_label": TICKET_STATUS.get(t["status"], t["status"]),
+                           "description": t["description"], "created_at": t["created_at"]},
+                "messages": msgs, "files": files}
+
+    @app.post("/api/portal/tickets/{tid}/comment", status_code=201)
+    def ticket_comment(tid: int, data: PortalCommentIn, u: dict = Depends(portal_user)) -> dict:
+        from .attachments import reopen
+        from .team import log_activity
+
+        own_ticket(tid, u)
+        if not comment_limiter.allow(f"c{u['id']}"):
+            raise HTTPException(429, "Zu viele Nachrichten in kurzer Zeit – bitte rufen Sie uns an.")
+        mid = db.insert("messages", {"channel": "portal", "direction": "in", "status": "zugeordnet",
+                                     "from_name": u["name"] or "", "from_email": u["email"], "subject": f"Kommentar zu Ticket #{tid}",
+                                     "body": data.text, "linked_type": "ticket", "linked_id": tid,
+                                     "customer_id": u["customer_id"], "category": "support"})
+        reopen(db, tid, "Kommentar im Kundenportal")
+        log_activity(db, None, "portal_kommentar", "ticket", tid, f"{u['name'] or u['email']}: {data.text[:200]}")
+        return {"ok": True, "id": mid, "status_label": TICKET_STATUS.get(db.get("tickets", tid)["status"], "")}
+
+    @app.post("/api/portal/tickets/{tid}/attachments", status_code=201)
+    async def ticket_attachment(tid: int, request: Request, u: dict = Depends(portal_user)) -> dict:
+        from .team import log_activity
+
+        own_ticket(tid, u)
+        data, name = await upload_body(request, u)
+        try:
+            att = store().save("ticket", tid, name, data, source="kunde", visible=True)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        log_activity(db, None, "portal_datei", "ticket", tid, f"{u['name'] or u['email']} hat {att['filename']} hochgeladen")
+        return {"id": att["id"], "name": att["filename"], "size": att["size"]}
+
+    @app.get("/api/portal/attachments/{aid}")
+    def portal_attachment(aid: int, u: dict = Depends(portal_user)):
+        att = db.get("attachments", aid)
+        if not att or att["ref_type"] != "ticket" or not att["customer_visible"]:
+            raise HTTPException(404, "Datei nicht gefunden")
+        own_ticket(att["ref_id"], u)
+        try:
+            return store().response(att)
+        except ValueError:
+            raise HTTPException(404, "Datei nicht gefunden")
+
+    @app.post("/api/portal/phishing", status_code=201)
+    async def portal_phishing(request: Request, u: dict = Depends(portal_user)) -> dict:
+        """Kunde lädt eine verdächtige E-Mail hoch (.eml/.msg aus Outlook): sofortige Einschätzung + Ticket an uns."""
+        from .emails import analyze_phishing, load_email, phishing_markdown
+
+        data, name = await upload_body(request, u)
+        try:
+            result = analyze_phishing(load_email(data, name))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        prio = {"gefährlich": "kritisch", "verdächtig": "hoch"}.get(result["verdict"], "normal")
+        tid = db.insert("tickets", {"customer_id": u["customer_id"], "title": f"Phishing-Verdacht: {result['subject'] or name}"[:200],
+                                    "description": phishing_markdown(result)
+                                    + f"\n\n— gemeldet über das Kundenportal von {u['name'] or u['email']}",
+                                    "status": "neu", "priority": prio, "category": "Sicherheit"})
+        try:
+            store().save("ticket", tid, name if name.lower().endswith((".eml", ".msg")) else f"{name}.eml", data,
+                         source="kunde", visible=True)
+        except ValueError:
+            pass
+        return {"ticket_id": tid, "verdict": result["verdict"], "score": result["score"], "reasons": result["reasons"],
+                "advice": result["advice"], "links": result["links"][:10]}
 
     @app.get("/api/portal/maintenance")
     def maintenance(u: dict = Depends(portal_user)) -> dict:
@@ -273,7 +387,7 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             raise HTTPException(429, "Zu viele Fragen in kurzer Zeit – bitte später erneut.")
         hits = ctx.kb.search(data.question, limit=3, public_only=True)
         sources = [{"title": h["title"]} for h in hits]
-        llm = ctx.llm()
+        llm = ctx.llm("portal")
         if llm.available() and hits:
             context = "\n\n".join(f"### {h['title']}\n{h['content'][:2500]}" for h in hits)
             try:
