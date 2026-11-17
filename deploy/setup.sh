@@ -97,7 +97,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "MS_MAILBOX="
     echo "MS_CALENDAR_USER="
   } >"$ENV_FILE"
-  echo "Admin-Passwort (jetzt notieren, steht auch in $ENV_FILE): $ADMIN_PASSWORD"
+  echo "Einrichtungspasswort für die Ersteinrichtung unter /admin/login (steht auch in $ENV_FILE): $ADMIN_PASSWORD"
 fi
 chown root:cockpit "$ENV_FILE"
 chmod 640 "$ENV_FILE"

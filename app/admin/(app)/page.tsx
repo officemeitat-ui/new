@@ -2,7 +2,7 @@ import Link from "next/link";
 import { business } from "@/config/business";
 import { funnels, pipelines, resolveSource } from "@/config/site";
 import { Kpi, LeadTable } from "@/components/admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { leadsForPipeline, pipelineForLead } from "@/lib/admin-data";
 import { formatEuro, formatPercent } from "@/lib/format";
 import { listLeads } from "@/lib/leads";
@@ -12,7 +12,7 @@ import { impactStats } from "@/lib/stats";
 const DAYS = 30;
 
 export default async function DashboardPage() {
-  await requireAdmin();
+  await requireOwner();
   const since = new Date(Date.now() - DAYS * 24 * 60 * 60 * 1000);
   const [impact, recent, sections] = await Promise.all([
     impactStats(since, new Date()),

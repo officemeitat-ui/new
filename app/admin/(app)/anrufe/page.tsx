@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { listCalls } from "@/lib/calls";
 import { formatDateTime } from "@/lib/format";
 
@@ -8,7 +8,7 @@ function duration(seconds: number | null) {
 }
 
 export default async function CallsPage() {
-  await requireAdmin();
+  await requireOwner();
   const calls = await listCalls();
 
   return (

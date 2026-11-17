@@ -2,14 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { removeReceipt } from "@/app/admin/beleg-actions";
 import { ReceiptEditForm, ReceiptUpload, type ReceiptFormValues } from "@/components/ReceiptPanels";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { getEmail } from "@/lib/emails";
 import { formatDateTime } from "@/lib/format";
 import { formatCents } from "@/lib/receipts/files";
 import { getReceipt, RECEIPT_STATUS_LABELS } from "@/lib/receipts/store";
 
 export default async function BelegPage({ params }: PageProps<"/admin/belege/[id]">) {
-  await requireAdmin();
+  await requireOwner();
   const { id } = await params;
   const receipt = await getReceipt(id);
   if (!receipt) notFound();

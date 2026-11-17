@@ -7,7 +7,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { business, getService } from "@/config/business";
 import { bookAppointment, cancelAppointment, getAppointment, pushToCalendar } from "@/lib/appointments";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { formatSlot, localDate } from "@/lib/calendar";
 import { calendarProvider, CalendarSyncError } from "@/lib/calendar-sync";
 import { ensureContact, markAppointmentStage } from "@/lib/contacts";
@@ -27,7 +27,7 @@ function refreshCockpit() {
 }
 
 export async function handleEmailDraft(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
+  await requireOwner();
   const email = await getEmail(String(formData.get("emailId")));
   if (!email) return { error: "E-Mail nicht gefunden" };
   const subject = String(formData.get("subject") ?? "").trim();
@@ -61,7 +61,7 @@ export async function handleEmailDraft(_prev: ActionState, formData: FormData): 
 }
 
 export async function retryEmail(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const email = await getEmail(String(formData.get("emailId")));
   if (!email) return;
   const { events } = await analyzeAndRoute(email, new Date(), { mailbox: activeMailbox() });
@@ -78,7 +78,7 @@ const SimulatedEmail = z.object({
 
 /** Spielt eine Test-E-Mail durch den Assistenten – für Vorführungen ohne echtes Postfach. */
 export async function simulateEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireAdmin();
+  await requireOwner();
   const parsed = SimulatedEmail.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const result = await processIncomingEmail({
@@ -95,7 +95,7 @@ export async function simulateEmail(_prev: ActionState, formData: FormData): Pro
 }
 
 export async function bookManually(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const service = getService(String(formData.get("serviceId")));
   const start = new Date(String(formData.get("start")));
   const name = String(formData.get("name") ?? "").trim();
@@ -116,7 +116,7 @@ export async function bookManually(formData: FormData) {
 }
 
 export async function cancelAppointmentAction(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const appointment = await cancelAppointment(String(formData.get("appointmentId")));
   if (appointment?.leadId) {
     await addActivity(
@@ -129,7 +129,7 @@ export async function cancelAppointmentAction(formData: FormData) {
 }
 
 export async function retryCalendarSync(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const appointment = await getAppointment(String(formData.get("appointmentId")));
   if (appointment) await pushToCalendar(appointment);
   refreshCockpit();
@@ -137,7 +137,7 @@ export async function retryCalendarSync(formData: FormData) {
 
 /** Prüft die Verbindung zum externen Kalender, indem die belegten Zeiten der nächsten 7 Tage gelesen werden. */
 export async function testCalendarConnection(): Promise<ActionState> {
-  await requireAdmin();
+  await requireOwner();
   try {
     const calendar = calendarProvider();
     if (!calendar) return { error: "Kein externer Kalender gewählt (CALENDAR_PROVIDER)." };
@@ -155,7 +155,7 @@ export async function testCalendarConnection(): Promise<ActionState> {
 
 /** Erstellt sofort Nachfass-Entwürfe (sonst täglich per Cron). */
 export async function runFollowUps(): Promise<ActionState> {
-  await requireAdmin();
+  await requireOwner();
   const { created, failed } = await createFollowUps();
   refreshCockpit();
   if (created === 0 && failed === 0) return { ok: true, message: "Keine offenen Anfragen zum Nachfassen." };

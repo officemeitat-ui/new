@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const today = localDate(new Date(), workspace.timeZone);
   const [counts, tickets, accounts] = await Promise.all([taskCounts(today), listTickets(), listAccounts(today.slice(0, 7))]);
   return (
@@ -31,6 +31,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
         ticketsWaiting={tickets.filter((t) => t.waitingForUs).length}
         tasksDue={counts.today + counts.overdue}
         hoursLow={accounts.filter((a) => a.status === "knapp" || a.status === "ueberzogen").length}
+        owner={user.role === "inhaber"}
       />
       <ServiceWorkerRegister />
       <main className="mx-auto max-w-5xl px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-32 md:ml-60 md:px-8 md:pt-8 md:pb-10 lg:ml-[max(15rem,calc(50vw-32rem))]">

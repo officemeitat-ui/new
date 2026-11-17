@@ -2,13 +2,13 @@ import { notFound } from "next/navigation";
 import { getPipeline } from "@/config/site";
 import { Kpi } from "@/components/admin";
 import { PipelineBoard } from "@/components/PipelineBoard";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { leadsForPipeline } from "@/lib/admin-data";
 import { formatDate, formatEuro } from "@/lib/format";
 import { itemValue, pipelineStats } from "@/lib/pipeline";
 
 export default async function PipelinePage({ params }: PageProps<"/admin/pipeline/[pipeline]">) {
-  await requireAdmin();
+  await requireOwner();
   const pipeline = getPipeline((await params).pipeline);
   if (!pipeline) notFound();
 

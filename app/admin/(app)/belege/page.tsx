@@ -2,7 +2,7 @@ import Link from "next/link";
 import { business } from "@/config/business";
 import { markExported } from "@/app/admin/beleg-actions";
 import { ReceiptUpload } from "@/components/ReceiptPanels";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { addDays, localDate } from "@/lib/calendar";
 import { activeMailbox } from "@/lib/mail/mailbox";
 import {
@@ -32,7 +32,7 @@ function money(cents: number | null, currency: string | null): string {
 const shortDate = (date: string | null) => (date ? `${date.slice(8, 10)}.${date.slice(5, 7)}.${date.slice(0, 4)}` : "–");
 
 export default async function BelegePage({ searchParams }: PageProps<"/admin/belege">) {
-  await requireAdmin();
+  await requireOwner();
   const { monat } = await searchParams;
   const today = localDate(new Date(), business.timeZone);
   const current = today.slice(0, 7);

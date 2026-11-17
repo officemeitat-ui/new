@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { isOwner } from "@/lib/auth";
 import { AiError } from "@/lib/ai";
 import { captureReceipts, fieldsFromExtraction, sha256 } from "@/lib/receipts/capture";
 import { extractReceipt } from "@/lib/receipts/extract";
@@ -22,7 +22,7 @@ function sameOrigin(request: Request): boolean {
 }
 
 export async function POST(request: Request) {
-  if (!(await isAdmin())) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
+  if (!(await isOwner())) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ error: "Ungültige Herkunft" }, { status: 403 });
 
   const form = await request.formData().catch(() => null);

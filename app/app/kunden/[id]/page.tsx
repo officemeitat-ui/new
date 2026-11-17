@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { workspace } from "@/config/workspace";
+import { unlinkCustomerFolder } from "@/app/app/m365-actions";
+import { FileList, LinkFolderForm } from "@/components/workspace/FilesUI";
 import { CustomerForm, QuickAddTask, TaskCheck } from "@/components/workspace/Forms";
 import { requireAdmin } from "@/lib/auth";
 import { localDate } from "@/lib/calendar";
+import { listFolder, M365Error, type DriveFile } from "@/lib/m365";
+import { microsoftRefreshToken } from "@/lib/users";
 import { getCustomer, listAlerts, listCustomers, listDevices, listTickets, TICKET_STATUS_LABELS } from "@/lib/workspace/customers";
 import { ago, BALANCE_STYLE, dueLabel, formatHours, PRIORITY_DOT, SEVERITY_STYLE } from "@/lib/workspace/format";
 import { getAccount } from "@/lib/workspace/hours";
 import { listTasks } from "@/lib/workspace/tasks";
 
 export default async function KundePage({ params }: PageProps<"/app/kunden/[id]">) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const { id } = await params;
   const customer = await getCustomer(id);
   if (!customer) notFound();
@@ -24,6 +28,18 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
     getAccount(id, today.slice(0, 7)),
   ]);
   const offline = devices.filter((d) => d.online === false).length;
+  // Kundenordner in OneDrive/SharePoint – mit den Rechten der angemeldeten Person
+  const microsoft = Boolean(await microsoftRefreshToken(user.id));
+  let files: DriveFile[] = [];
+  let filesError: string | null = null;
+  if (customer.files && microsoft) {
+    try {
+      files = await listFolder(user.id, customer.files.driveId, customer.files.itemId);
+    } catch (error) {
+      if (!(error instanceof M365Error)) throw error;
+      filesError = error.message;
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -189,6 +205,42 @@ export default async function KundePage({ params }: PageProps<"/app/kunden/[id]"
               );
             })}
           </ul>
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold">Dateien</h2>
+          {customer.files && (
+            <span className="flex gap-3 text-sm">
+              <a href={customer.files.url} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+                In OneDrive/SharePoint öffnen
+              </a>
+              <form action={unlinkCustomerFolder}>
+                <input type="hidden" name="customerId" value={customer.id} />
+                <button type="submit" className="text-slate-400 hover:text-red-700">
+                  Trennen
+                </button>
+              </form>
+            </span>
+          )}
+        </div>
+        {!microsoft ? (
+          <p className="rounded-xl bg-white px-4 py-3 text-sm text-slate-500 ring-1 ring-slate-200">
+            Für den Kundenordner einmal{" "}
+            <a href={`/api/auth/microsoft?weiter=/app/kunden/${customer.id}`} className="text-brand underline">
+              mit Microsoft anmelden
+            </a>
+            .
+          </p>
+        ) : !customer.files ? (
+          <LinkFolderForm customerId={customer.id} />
+        ) : filesError ? (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{filesError}</p>
+        ) : files.length ? (
+          <FileList files={files.slice(0, 15)} timeZone={workspace.timeZone} />
+        ) : (
+          <p className="text-sm text-slate-500">Der Ordner ist leer.</p>
         )}
       </section>
 

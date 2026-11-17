@@ -28,7 +28,8 @@ Website kann auf dem Webspace bleiben; der Arbeitsplatz bekommt eine Subdomain (
 
 3. Das Skript zeigt einen **Deploy-Key** an. Im GitHub-Repository unter **Settings → Deploy keys → Add deploy key**
    eintragen (ohne Schreibrecht), dann im Terminal Enter drücken.
-4. Am Ende steht das **Admin-Passwort** im Terminal (und in `/etc/cockpit.env`). Notieren.
+4. Am Ende steht das **Einrichtungspasswort** (`ADMIN_PASSWORD`) im Terminal (und in `/etc/cockpit.env`). Damit im Browser unter
+   `/admin/login` das eigene Inhaber-Konto anlegen und den Einmalcode einrichten – danach meldet sich jede Person mit eigenem Konto an.
 5. Zugangsdaten eintragen und neu starten:
 
    ```bash
@@ -73,5 +74,6 @@ Nach außen offen sind nur SSH, HTTP (Weiterleitung auf HTTPS) und HTTPS.
 ## Sicherheit
 
 - SSH möglichst nur mit Schlüssel und ohne Passwort-Login betreiben.
-- Das Admin-Passwort ist der einzige Schutz für Cockpit und Arbeitsplatz – lang und nur für hier verwenden.
+- Anmeldung nur mit eigenem Konto: Microsoft (MFA über Conditional Access) oder Passwort + Einmalcode. Das Einrichtungspasswort
+  wirkt nur, solange es noch kein Konto gibt.
 - Am Handy eine Bildschirmsperre verwenden; die Anmeldung gilt 7 Tage.

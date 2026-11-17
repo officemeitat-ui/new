@@ -33,8 +33,9 @@ function Card({ title, href, count, children }: { title: string; href?: string; 
 
 const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-sm text-slate-500">{children}</p>;
 
-export default async function HeutePage() {
-  await requireAdmin();
+export default async function HeutePage({ searchParams }: PageProps<"/app">) {
+  const user = await requireAdmin();
+  const { kein_zugriff: denied } = await searchParams;
   const now = new Date();
   const today = localDate(now, workspace.timeZone);
   const hour = Number(localTime(now, workspace.timeZone).slice(0, 2));
@@ -72,10 +73,15 @@ export default async function HeutePage() {
 
   return (
     <div className="space-y-5">
+      {denied && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
+          Dieser Bereich (Büro, Cockpit, Benutzerverwaltung) ist dem Inhaber-Konto vorbehalten.
+        </p>
+      )}
       <header>
         <p className="text-sm text-slate-500 capitalize">{dateLabel}</p>
         <h1 className="text-2xl font-bold">
-          {greeting}, {workspace.ownerName}
+          {greeting}, {user.name.split(" ")[0]}
         </h1>
         <p className="mt-1 text-sm text-slate-600">
           {tasks.length} {tasks.length === 1 ? "Aufgabe" : "Aufgaben"} für heute · {waiting.length}{" "}

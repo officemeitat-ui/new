@@ -6,33 +6,23 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { resolveSource } from "@/config/site";
 import { AiError, generateBriefing, generateFollowUp } from "@/lib/ai";
-import { passwordMatches, requireAdmin } from "@/lib/auth";
+import { logAction, requireOwner } from "@/lib/auth";
 import { formatEuro } from "@/lib/format";
 import { addActivity, getLead, saveBriefing, saveFollowup, setStage, setValue, type Lead } from "@/lib/leads";
 import { findStage } from "@/lib/pipeline";
-import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
+import { readSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { revokeSessionByToken } from "@/lib/users";
 import { sendWebhook } from "@/lib/webhook";
 
-export async function login(formData: FormData) {
-  if (!passwordMatches(String(formData.get("password") ?? ""))) {
-    // Bremst automatisiertes Durchprobieren von Passwörtern.
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    redirect(`/admin/login?fehler=1${formData.get("weiter") === "/app" ? "&weiter=/app" : ""}`);
-  }
-  const store = await cookies();
-  store.set(SESSION_COOKIE, await createSessionToken(), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
-  // Nur feste Ziele zulassen (keine offenen Weiterleitungen).
-  redirect(formData.get("weiter") === "/app" ? "/app" : "/admin");
-}
-
+/** Abmelden: Sitzung in der Datenbank widerrufen, Cookie löschen. */
 export async function logout() {
-  (await cookies()).delete(SESSION_COOKIE);
+  const store = await cookies();
+  const token = await readSessionToken(store.get(SESSION_COOKIE)?.value);
+  if (token) {
+    await logAction("Abmeldung");
+    await revokeSessionByToken(token.sessionId);
+  }
+  store.delete(SESSION_COOKIE);
   redirect("/admin/login");
 }
 
@@ -49,7 +39,7 @@ function refresh(lead: Lead) {
 }
 
 export async function moveLead(leadId: string, stageId: string) {
-  await requireAdmin();
+  await requireOwner();
   const { lead, pipeline } = await loadLead(leadId);
   const from = findStage(pipeline, lead.stage);
   const to = findStage(pipeline, stageId);
@@ -64,7 +54,7 @@ export async function moveLeadFromForm(formData: FormData) {
 }
 
 export async function updateValue(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const { lead } = await loadLead(String(formData.get("leadId")));
   const raw = String(formData.get("value") ?? "").replace(/[^\d]/g, "");
   const value = raw ? Math.min(Number(raw), 1_000_000_000) : null;
@@ -73,7 +63,7 @@ export async function updateValue(formData: FormData) {
 }
 
 export async function addNote(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const { lead } = await loadLead(String(formData.get("leadId")));
   const text = String(formData.get("note") ?? "")
     .trim()
@@ -86,7 +76,7 @@ export async function addNote(formData: FormData) {
 export type AiState = { error?: string; ok?: boolean };
 
 export async function createBriefing(_prev: AiState, formData: FormData): Promise<AiState> {
-  await requireAdmin();
+  await requireOwner();
   const { lead, funnel, sourceLabel, pipeline } = await loadLead(String(formData.get("leadId")));
   try {
     await saveBriefing(lead.id, await generateBriefing(lead, { label: sourceLabel, funnel }, pipeline));
@@ -99,7 +89,7 @@ export async function createBriefing(_prev: AiState, formData: FormData): Promis
 }
 
 export async function createFollowUp(_prev: AiState, formData: FormData): Promise<AiState> {
-  await requireAdmin();
+  await requireOwner();
   const { lead, funnel, sourceLabel, pipeline } = await loadLead(String(formData.get("leadId")));
   const notes = String(formData.get("notes") ?? "")
     .trim()

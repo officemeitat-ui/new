@@ -89,7 +89,7 @@ export async function createEvent(event: { subject: string; start: Date; end: Da
 }
 
 /** Legt eine neue E-Mail als Entwurf in Outlook an (Ordner „Entwürfe“). Gesendet wird von dir, nicht vom Assistenten. */
-export async function createMailDraft(draft: { to: string[]; cc?: string[]; subject: string; body: string }) {
+export async function createMailDraft(draft: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; body: string }) {
   const g = graph();
   if (!g) throw new Error("Outlook ist nicht verbunden");
   const recipients = (list: string[] = []) => list.map((address) => ({ emailAddress: { address } }));
@@ -100,6 +100,7 @@ export async function createMailDraft(draft: { to: string[]; cc?: string[]; subj
       body: { contentType: "text", content: draft.body },
       toRecipients: recipients(draft.to),
       ccRecipients: recipients(draft.cc),
+      bccRecipients: recipients(draft.bcc),
     }),
   });
   return { id: created.id, webLink: created.webLink ?? null };

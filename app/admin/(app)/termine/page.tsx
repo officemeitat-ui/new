@@ -3,7 +3,7 @@ import { business, getService } from "@/config/business";
 import { bookManually, cancelAppointmentAction, retryCalendarSync } from "@/app/admin/assistant-actions";
 import { CalendarTestButton } from "@/components/CalendarPanels";
 import { busyBetween, listAppointments, type Appointment } from "@/lib/appointments";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { addDays, localDate, localTime, slotsForDay, zonedToUtc, type Busy } from "@/lib/calendar";
 import { calendarProvider, CalendarSyncError } from "@/lib/calendar-sync";
 
@@ -96,7 +96,7 @@ function AppointmentRow({ appointment, synced }: { appointment: Appointment; syn
 }
 
 export default async function AppointmentsPage({ searchParams }: PageProps<"/admin/termine">) {
-  await requireAdmin();
+  await requireOwner();
   const params = await searchParams;
   const now = new Date();
   const today = localDate(now, business.timeZone);

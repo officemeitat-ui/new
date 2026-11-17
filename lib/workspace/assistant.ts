@@ -23,6 +23,7 @@ import { bookstackConfigured, searchBookStack } from "@/lib/bookstack";
 import { searchDocs } from "@/lib/workspace/docs";
 import { loadNetwork } from "@/lib/workspace/network";
 import { checkNetwork } from "@/lib/network/check";
+import { M365Error, searchFiles } from "@/lib/m365";
 
 // Persönlicher KI-Assistent im Arbeitsplatz: „Setz mir morgen um 9 einen Termin bei Huber“, „Schreib Maria, dass …“.
 // Führt sichere Aktionen direkt aus (Aufgabe, eigener Kalendereintrag, E-Mail-Entwurf) – gesendet wird nie etwas.
@@ -37,6 +38,8 @@ export type AssistantAction = {
   href?: string;
 };
 export type AssistantTurn = { role: "user" | "assistant"; text: string };
+/** Wer gerade fragt. Outlook (Kalender, Entwürfe) ist das Postfach der Inhaberin bzw. des Inhabers – nur dafür freigegeben. */
+export type AssistantUser = { id: string; name: string; role: "inhaber" | "technik" };
 export type AssistantReply = { text: string; actions: AssistantAction[] };
 
 const client = claudeClient;
@@ -50,25 +53,26 @@ function describeTask(task: Task): string {
   return `[${task.id}] ${task.title}${task.customerName ? ` (${task.customerName})` : ""}${due}${task.priority === "hoch" ? " · dringend" : ""}`;
 }
 
-async function systemPrompt(now: Date): Promise<string> {
+async function systemPrompt(now: Date, user: AssistantUser | null, outlook: boolean): Promise<string> {
   const today = localDate(now, workspace.timeZone);
   const days = Array.from({ length: 14 }, (_, i) => addDays(today, i)).map((d) => `${weekday(d)} = ${d}`);
   const customers = (await listCustomers()).slice(0, 200).map((c) => c.name);
   return [
-    `Du bist der persönliche Assistent von ${workspace.ownerName} (${workspace.company}, IT-Dienstleister). Du nimmst Arbeit ab: Aufgaben, Termine, E-Mail-Entwürfe, Überblick über Kunden und Tickets.`,
+    `Du bist der persönliche Assistent von ${user?.name.split(" ")[0] ?? workspace.ownerName} (${workspace.company}, IT-Dienstleister). Du nimmst Arbeit ab: Aufgaben, Termine, E-Mail-Entwürfe, Überblick über Kunden und Tickets.`,
     "",
     "## Regeln",
     "- Antworte kurz auf Deutsch, per Du, ohne Überschriften. Bestätige, was du erledigt hast, in einem Satz.",
     "- Wenn der Auftrag klar ist, führe ihn direkt mit den Werkzeugen aus, ohne nachzufragen. Fehlt etwas Wesentliches (z. B. Uhrzeit eines Termins, Empfänger einer E-Mail), frag kurz nach.",
     "- Datumsangaben wie „morgen“, „Donnerstag“ oder „nächste Woche“ rechnest du mit der Tabelle unten um. Ohne Uhrzeit ist eine Aufgabe ganztägig.",
     "- E-Mails legst du nur als Entwurf an. Schreib sie fertig formuliert, freundlich und knapp, per Sie, mit Grußformel und dem Namen " +
-      `${workspace.ownerName}. Du sendest nie selbst.`,
+      `${user?.name ?? workspace.ownerName}. Du sendest nie selbst.`,
     "- Termine trägst du nur in den eigenen Kalender ein, ohne Teilnehmer. Soll der Kunde Bescheid bekommen, biete einen E-Mail-Entwurf an.",
     "- Passwörter und Zugangsdaten verwaltest du nie und fragst nie danach – die liegen in Keeper. Verweise auf den Keeper-Link beim Kunden.",
     "- Erfinde keine Tickets, Kunden, Geräte oder Termine. Nutze die Werkzeuge, um nachzusehen.",
     "- Die Nachrichten können diktiert sein (Spracheingabe) – deute offensichtliche Hörfehler sinnvoll.",
     "- Fragen zu Verkabelung, Dosen, Switchports, Patchschrank, VLANs, Netzwerkgeräten oder zur Kunden-Doku beantwortest du mit doku_suchen – nur mit dem, was dort steht.",
     "- „Passt das Netz bei …?“ oder Fragen nach Fehlern in der Netzwerkkonfiguration beantwortest du mit netzwerk_pruefen.",
+    "- Dateien, Angebote, Verträge, Anleitungen oder Vorlagen suchst du mit dateien_suchen (OneDrive/SharePoint, mit den Rechten der Person). Nenne die Fundstellen mit Link.",
     "- Zeiten buchst du standardmäßig vom vorab bezahlten Stundenpaket des Kunden ab, außer es heißt „extra verrechnen“ oder „intern“. Nenne danach den Reststand.",
     "",
     "## Zeit",
@@ -78,7 +82,7 @@ async function systemPrompt(now: Date): Promise<string> {
     "## Arbeitsplatz",
     `Aufgabenlisten: ${workspace.lists.join(", ")}.`,
     `Kunden: ${customers.length ? customers.join(", ") : "noch keine angelegt"}.`,
-    `Outlook: ${outlookConfigured() ? "verbunden (Kalender und Entwürfe)" : "nicht verbunden – Termine werden als Aufgabe mit Uhrzeit angelegt, E-Mails als Text geliefert"}.`,
+    `Outlook: ${outlook ? "verbunden (Kalender und Entwürfe)" : "nicht verbunden – Termine werden als Aufgabe mit Uhrzeit angelegt, E-Mails als Text geliefert"}.`,
     `Atera: ${ateraConfigured() ? "verbunden" : "nicht verbunden"}.`,
   ].join("\n");
 }
@@ -96,7 +100,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DATETIME = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/;
 
 /** Werkzeuge des Assistenten; Aktionen werden gesammelt, damit die App sie als Karten anzeigen kann. */
-function buildTools(now: Date, actions: AssistantAction[]) {
+function buildTools(now: Date, actions: AssistantAction[], user: AssistantUser | null, outlook: boolean) {
   const today = localDate(now, workspace.timeZone);
   const customerId = async (name?: string) => (name ? ((await findCustomer(name))?.id ?? null) : null);
   const safe = async (task: () => Promise<string>) => {
@@ -214,7 +218,7 @@ function buildTools(now: Date, actions: AssistantAction[]) {
           const end = new Date(start.getTime() + minutes * 60_000);
           const customer = args.kunde ? await findCustomer(args.kunde) : null;
           const when = `${germanDate(match[1])}, ${match[2]}–${localTime(end, workspace.timeZone)}`;
-          if (!outlookConfigured()) {
+          if (!outlook) {
             const task = await createTask(
               { title: args.titel, notes: args.notiz, dueDate: match[1], dueTime: match[2], customerId: customer?.id, source: "assistent" },
               now,
@@ -246,7 +250,7 @@ function buildTools(now: Date, actions: AssistantAction[]) {
       run: (args) =>
         safe(async () => {
           if (!DATE.test(args.von) || !DATE.test(args.bis)) return "Fehler: Datum als JJJJ-MM-TT angeben.";
-          if (!outlookConfigured()) return "Outlook ist nicht verbunden – keine Kalenderdaten.";
+          if (!outlook) return "Outlook ist für dich nicht verbunden – keine Kalenderdaten.";
           const events = await listEvents(
             zonedToUtc(args.von, "00:00", workspace.timeZone),
             zonedToUtc(addDays(args.bis, 1), "00:00", workspace.timeZone),
@@ -280,7 +284,7 @@ function buildTools(now: Date, actions: AssistantAction[]) {
             else return `Für „${args.an}“ ist keine E-Mail-Adresse hinterlegt. Frag nach der Adresse.`;
           }
           const cc = args.cc ? addresses(args.cc) : [];
-          if (!outlookConfigured()) {
+          if (!outlook) {
             const href = `mailto:${to.join(",")}?${new URLSearchParams({ subject: args.betreff, body: args.text }).toString().replace(/\+/g, "%20")}`;
             actions.push({ kind: "entwurf", title: args.betreff, detail: `An ${to.join(", ")} · im Mailprogramm öffnen`, href });
             return "Outlook ist nicht verbunden – der Entwurf steht als Link zum Öffnen im Mailprogramm bereit.";
@@ -496,6 +500,38 @@ function buildTools(now: Date, actions: AssistantAction[]) {
         }),
     }),
     betaZodTool({
+      name: "dateien_suchen",
+      description:
+        "Sucht Dateien in OneDrive und SharePoint (Volltext, mit den Rechten der angemeldeten Person). Mit nur_wissensdatenbank=true nur in der Wissensdatenbank (SharePoint).",
+      inputSchema: z.object({ suchbegriff: z.string(), nur_wissensdatenbank: z.boolean().optional() }),
+      run: (args) =>
+        safe(async () => {
+          if (!user) return "Dateisuche ist nur mit Anmeldung möglich.";
+          const site = workspace.knowledge.sharePointSiteUrl.trim();
+          try {
+            const hits = await searchFiles(user.id, args.suchbegriff, {
+              sitePath: args.nur_wissensdatenbank && site ? site : undefined,
+              size: 8,
+            });
+            if (!hits.length) return "Nichts gefunden.";
+            actions.push({
+              kind: "link",
+              title: `Dateien: ${args.suchbegriff}`,
+              href: `/app/wissen?q=${encodeURIComponent(args.suchbegriff)}`,
+            });
+            return hits
+              .map(
+                (h) =>
+                  `${h.folder ? "[Ordner]" : "[Datei]"} ${h.name}${h.location ? ` (${h.location})` : ""} – ${h.webUrl}${h.summary ? `\n  ${h.summary}` : ""}`,
+              )
+              .join("\n");
+          } catch (error) {
+            if (error instanceof M365Error) return error.message;
+            throw error;
+          }
+        }),
+    }),
+    betaZodTool({
       name: "netzwerk_pruefen",
       description:
         "Prüft die Netzwerkdokumentation eines Kunden (WAN, Netze/VLANs, DHCP, IPs, Verbindungen) und nennt Fehler und Hinweise – wie ein Konfigurations-Check.",
@@ -519,7 +555,9 @@ function buildTools(now: Date, actions: AssistantAction[]) {
   ];
 }
 
-export async function runAssistant(history: AssistantTurn[], now = new Date()): Promise<AssistantReply> {
+export async function runAssistant(history: AssistantTurn[], now = new Date(), user: AssistantUser | null = null): Promise<AssistantReply> {
+  // Ohne Angabe (z. B. in Tests) wie bisher: Postfach der Inhaberin bzw. des Inhabers.
+  const outlook = outlookConfigured() && (user === null || user.role === "inhaber");
   const actions: AssistantAction[] = [];
   const messages = toMessages(history);
   if (messages.length === 0) return { text: "Was kann ich für dich tun?", actions };
@@ -533,9 +571,9 @@ export async function runAssistant(history: AssistantTurn[], now = new Date()): 
       max_iterations: 8,
       output_config: { effort: "low" },
       ...fallbackOptions(MODEL),
-      system: await systemPrompt(now),
+      system: await systemPrompt(now, user, outlook),
       messages,
-      tools: buildTools(now, actions),
+      tools: buildTools(now, actions, user, outlook),
     });
     if (final.stop_reason === "refusal") return { text: "Das kann ich leider nicht übernehmen.", actions };
     const text = final.content

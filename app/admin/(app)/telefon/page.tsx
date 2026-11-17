@@ -1,6 +1,6 @@
 import { business } from "@/config/business";
 import { PlaceholderBadge } from "@/components/ui";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { buildAssistant } from "@/lib/voice/assistant";
 
 function Check({ ok, children }: { ok: boolean; children: React.ReactNode }) {
@@ -13,7 +13,7 @@ function Check({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 export default async function PhoneAssistantPage() {
-  await requireAdmin();
+  await requireOwner();
   const publicUrl = process.env.PUBLIC_URL?.replace(/\/$/, "");
   const webhookUrl = `${publicUrl ?? "https://<ihre-domain>"}/api/voice/vapi`;
   const assistant = buildAssistant({ serverUrl: webhookUrl, secret: "•••", now: new Date(), callerNumber: "+43 664 0000000 (Beispiel)" });

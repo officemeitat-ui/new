@@ -30,6 +30,14 @@ export type WorkspaceProfile = {
     /** Tresor-Adresse für den Knopf „In Keeper öffnen“, wenn beim Kunden kein eigener Link hinterlegt ist. */
     vaultUrl: string;
   };
+  awareness: {
+    /** In welchem Monat der Awareness-Jahresplan beginnt (1 = Jänner) – bestimmt den „Impuls des Monats“. */
+    startMonth: number;
+  };
+  knowledge: {
+    /** SharePoint-Website der Wissensdatenbank, z. B. https://firma.sharepoint.com/sites/wissen – leer = nur allgemeine Dateisuche. */
+    sharePointSiteUrl: string;
+  };
   placeholder: boolean;
 };
 
@@ -52,6 +60,12 @@ export const workspace: WorkspaceProfile = {
   },
   keeper: {
     vaultUrl: "https://keepersecurity.eu/vault/",
+  },
+  awareness: {
+    startMonth: 1,
+  },
+  knowledge: {
+    sharePointSiteUrl: "",
   },
   placeholder: true,
 };

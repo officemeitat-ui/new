@@ -246,6 +246,7 @@ describe("KI-Assistent", () => {
       "stundenkonto",
       "stunden_gutschreiben",
       "doku_suchen",
+      "dateien_suchen",
       "netzwerk_pruefen",
     ]);
     expect(request.output_config).toEqual({ effort: "low" });

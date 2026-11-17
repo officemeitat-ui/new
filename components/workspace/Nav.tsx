@@ -30,9 +30,28 @@ export const ICONS = {
   assistent: icon("M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3"),
   stunden: icon("M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"),
   doku: icon("M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5zM8 7h8M8 11h6"),
+  wissen: icon("M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM11 14h0M15 14h0"),
+  awareness: icon("M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4"),
+  einstellungen: icon(
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
+  ),
+  mehr: icon("M4 6h16M4 12h16M4 18h16"),
 };
 
-export function WorkspaceNav({ ticketsWaiting, tasksDue, hoursLow }: { ticketsWaiting: number; tasksDue: number; hoursLow: number }) {
+/** Bereiche, die am Handy unter „Mehr“ liegen. */
+export const MORE_SECTIONS = ["/app/mehr", "/app/stunden", "/app/doku", "/app/wissen", "/app/awareness", "/app/einstellungen"];
+
+export function WorkspaceNav({
+  ticketsWaiting,
+  tasksDue,
+  hoursLow,
+  owner,
+}: {
+  ticketsWaiting: number;
+  tasksDue: number;
+  hoursLow: number;
+  owner: boolean;
+}) {
   const pathname = usePathname();
   const items: Item[] = [
     { href: "/app", label: "Heute", icon: ICONS.heute },
@@ -42,10 +61,21 @@ export function WorkspaceNav({ ticketsWaiting, tasksDue, hoursLow }: { ticketsWa
     { href: "/app/kunden", label: "Kunden", icon: ICONS.kunden },
     { href: "/app/stunden", label: "Stunden", icon: ICONS.stunden, badge: hoursLow },
     { href: "/app/doku", label: "Doku", icon: ICONS.doku },
+    { href: "/app/wissen", label: "Wissen & Dateien", icon: ICONS.wissen },
+    { href: "/app/awareness", label: "Awareness", icon: ICONS.awareness },
+    { href: "/app/einstellungen", label: "Einstellungen", icon: ICONS.einstellungen },
   ];
-  // Am Handy: fünf Reiter unten, der Assistent als runder Knopf darüber (immer mit dem Daumen erreichbar).
-  const tabs = items.filter((item) => item.href !== "/app/assistent" && item.href !== "/app/doku");
-  const active = (href: string) => (href === "/app" ? pathname === "/app" : pathname.startsWith(href));
+  // Am Handy: fünf Reiter unten (der letzte ist „Mehr“), der Assistent als runder Knopf darüber.
+  const tabs: Item[] = [
+    ...items.filter((item) => ["/app", "/app/aufgaben", "/app/tickets", "/app/kunden"].includes(item.href)),
+    { href: "/app/mehr", label: "Mehr", icon: ICONS.mehr, badge: hoursLow },
+  ];
+  const active = (href: string) =>
+    href === "/app"
+      ? pathname === "/app"
+      : href === "/app/mehr"
+        ? MORE_SECTIONS.some((section) => pathname.startsWith(section))
+        : pathname.startsWith(href);
   const cockpit = [
     { href: "/admin/emails", label: "E-Mails" },
     { href: "/admin/belege", label: "Belege" },
@@ -75,18 +105,22 @@ export function WorkspaceNav({ ticketsWaiting, tasksDue, hoursLow }: { ticketsWa
             </Link>
           ))}
         </nav>
-        <p className="mt-8 px-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">Büro</p>
-        <nav className="mt-2 space-y-1">
-          {cockpit.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        {owner && (
+          <>
+            <p className="mt-8 px-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">Büro</p>
+            <nav className="mt-2 space-y-1">
+              {cockpit.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="block rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </>
+        )}
       </aside>
 
       {/* Handy: Leiste unten */}

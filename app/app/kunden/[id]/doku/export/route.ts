@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, logAction } from "@/lib/auth";
 import { safeNamePart } from "@/lib/receipts/files";
 import { getCustomer } from "@/lib/workspace/customers";
 import { listPorts, portsCsv } from "@/lib/workspace/docs";
@@ -18,6 +18,7 @@ export async function GET(_request: Request, { params }: RouteContext<"/app/kund
     if (error instanceof VaultLockedError) return NextResponse.json({ error: error.message }, { status: 423 });
     throw error;
   }
+  await logAction("Patchliste exportiert", customer.name);
   return new Response(portsCsv(ports), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

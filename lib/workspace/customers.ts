@@ -20,6 +20,8 @@ export type Customer = {
   /** Verknüpftes Buch in BookStack und die dorthin veröffentlichte Verkabelungsseite. */
   bookstackBookId: string | null;
   bookstackPageId: string | null;
+  /** Kundenordner in OneDrive/SharePoint (Laufwerk + Element aus Microsoft Graph, dazu der Link zum Öffnen). */
+  files: { driveId: string; itemId: string; url: string } | null;
 };
 
 export type CustomerOverview = Customer & { openTickets: number; alerts: number; devices: number; offline: number; openTasks: number };
@@ -100,6 +102,10 @@ function toCustomer(row: Row): Customer {
     notes: text(row.notes),
     bookstackBookId: text(row.bookstack_book_id),
     bookstackPageId: text(row.bookstack_page_id),
+    files:
+      row.files_drive_id && row.files_item_id
+        ? { driveId: String(row.files_drive_id), itemId: String(row.files_item_id), url: text(row.files_url) ?? "" }
+        : null,
   };
 }
 
@@ -333,5 +339,14 @@ export async function setSyncState(key: string, value: string | null, now = new 
     sql: `INSERT INTO sync_state (key, value, updated_at) VALUES (?, ?, ?)
           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     args: [key, value, now.toISOString()],
+  });
+}
+
+export async function setCustomerFiles(id: string, files: { driveId: string; itemId: string; url: string } | null): Promise<void> {
+  await (
+    await db()
+  ).execute({
+    sql: "UPDATE customers SET files_drive_id = ?, files_item_id = ?, files_url = ? WHERE id = ?",
+    args: [files?.driveId ?? null, files?.itemId ?? null, files?.url ?? null, id],
   });
 }

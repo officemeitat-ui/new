@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { workspace } from "@/config/workspace";
-import { requireAdmin } from "@/lib/auth";
+import { logAction, requireAdmin } from "@/lib/auth";
 import { encryptExistingDocs } from "@/lib/workspace/docs";
 import {
   changeVaultPassword,
@@ -37,6 +37,7 @@ export async function setupDocVault(_prev: VaultActionState, formData: FormData)
   try {
     const { key, recoveryCode } = await setupVault(password, encryptExistingDocs);
     await rememberUnlock(key);
+    await logAction("Doku-Tresor eingerichtet");
     return { ok: true, recoveryCode };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Einrichten fehlgeschlagen" };
@@ -47,11 +48,13 @@ export async function unlockDocs(_prev: VaultActionState, formData: FormData): P
   await requireAdmin();
   const key = await unlockVault(String(formData.get("secret") ?? "").trim());
   if (!key) {
+    await logAction("Doku entsperren fehlgeschlagen");
     // Bremst Durchprobieren
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return { error: "Passwort oder Wiederherstellungsschlüssel ist falsch" };
   }
   await rememberUnlock(key);
+  await logAction("Doku entsperrt");
   const next = String(formData.get("next") ?? "");
   redirect(next.startsWith("/app/") ? next : "/app/doku");
 }
@@ -59,6 +62,7 @@ export async function unlockDocs(_prev: VaultActionState, formData: FormData): P
 export async function lockDocs() {
   await requireAdmin();
   (await cookies()).delete(VAULT_COOKIE);
+  await logAction("Doku gesperrt");
   redirect("/app/doku");
 }
 
@@ -70,6 +74,7 @@ export async function changeDocPassword(_prev: VaultActionState, formData: FormD
     const key = await docKey();
     if (!key) return { error: "Der Tresor ist noch nicht eingerichtet" };
     await changeVaultPassword(key, password);
+    await logAction("Doku-Passwort geändert");
     return { ok: true, message: "Doku-Passwort geändert" };
   } catch (error) {
     if (error instanceof VaultLockedError) return { error: error.message };

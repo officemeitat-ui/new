@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { isOwner } from "@/lib/auth";
 import { receiptFileKind, receiptFileName } from "@/lib/receipts/files";
 import { getReceiptFile } from "@/lib/receipts/store";
 
 // Belegdatei zum Ansehen im Cockpit (PDF-Vorschau) oder zum Herunterladen.
 export async function GET(request: Request, { params }: RouteContext<"/admin/belege/datei/[id]">) {
-  if (!(await isAdmin())) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
+  if (!(await isOwner())) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
   const { id } = await params;
   const file = await getReceiptFile(id);
   if (!file) return NextResponse.json({ error: "Datei nicht vorhanden" }, { status: 404 });

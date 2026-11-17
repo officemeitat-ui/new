@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { setChatMode } from "@/app/admin/chat-actions";
 import { AutoRefresh, SimulateChatForm, TeamReplyForm } from "@/components/ChatPanels";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { WHATSAPP_WINDOW_MS } from "@/lib/chat/handle";
 import { getConversation, listChatMessages, type ChatAuthor } from "@/lib/conversations";
 import { formatDateTime } from "@/lib/format";
@@ -15,7 +15,7 @@ const bubble: Record<ChatAuthor, string> = {
 const authorLabel: Record<ChatAuthor, string> = { kunde: "Kunde", ki: "KI-Assistent", team: "Team" };
 
 export default async function ChatPage({ params }: PageProps<"/admin/chats/[id]">) {
-  await requireAdmin();
+  await requireOwner();
   const conversation = await getConversation((await params).id);
   if (!conversation) notFound();
   const messages = await listChatMessages(conversation.id, 200);

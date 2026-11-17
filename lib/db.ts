@@ -296,6 +296,102 @@ const SCHEMA = [
     value TEXT,
     updated_at TEXT NOT NULL
   )`,
+  // ── Benutzer, Sitzungen, Protokoll ──
+  `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    password_hash TEXT,
+    totp_secret TEXT,
+    totp_enabled_at TEXT,
+    totp_last_step INTEGER,
+    recovery_codes TEXT,
+    entra_oid TEXT UNIQUE,
+    disabled_at TEXT,
+    last_login_at TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    method TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    ip TEXT,
+    user_agent TEXT,
+    revoked_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS user_tokens (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    refresh_token TEXT NOT NULL,
+    scope TEXT,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS login_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL,
+    ok INTEGER NOT NULL,
+    at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    user_id TEXT,
+    user_name TEXT,
+    action TEXT NOT NULL,
+    detail TEXT,
+    ip TEXT
+  )`,
+  // ── Security Awareness ──
+  `CREATE TABLE IF NOT EXISTS awareness_learners (
+    id TEXT PRIMARY KEY,
+    org TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT,
+    token_hash TEXT NOT NULL UNIQUE,
+    invited_at TEXT,
+    last_seen_at TEXT,
+    disabled_at TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS awareness_progress (
+    learner_id TEXT NOT NULL REFERENCES awareness_learners(id) ON DELETE CASCADE,
+    course_id TEXT NOT NULL,
+    step TEXT NOT NULL,
+    completed_at TEXT NOT NULL,
+    PRIMARY KEY (learner_id, course_id, step)
+  )`,
+  `CREATE TABLE IF NOT EXISTS awareness_attempts (
+    id TEXT PRIMARY KEY,
+    learner_id TEXT NOT NULL REFERENCES awareness_learners(id) ON DELETE CASCADE,
+    course_id TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    total INTEGER NOT NULL,
+    passed INTEGER NOT NULL,
+    answers TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS awareness_orgs (
+    org TEXT PRIMARY KEY,
+    meldestelle TEXT,
+    notfall TEXT,
+    hausbank TEXT,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS awareness_assessments (
+    id TEXT PRIMARY KEY,
+    org TEXT NOT NULL,
+    answers TEXT NOT NULL,
+    score INTEGER NOT NULL,
+    created_by TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_login_attempts ON login_attempts(key, at)`,
+  `CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at)`,
+  `CREATE INDEX IF NOT EXISTS idx_awareness_learners_org ON awareness_learners(org)`,
   `CREATE INDEX IF NOT EXISTS idx_leads_funnel_stage ON leads(funnel, stage)`,
   `CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone)`,
   `CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email)`,
@@ -324,6 +420,9 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: "emails", column: "filed_to", definition: "TEXT" },
   { table: "customers", column: "bookstack_book_id", definition: "TEXT" },
   { table: "customers", column: "bookstack_page_id", definition: "TEXT" },
+  { table: "customers", column: "files_drive_id", definition: "TEXT" },
+  { table: "customers", column: "files_item_id", definition: "TEXT" },
+  { table: "customers", column: "files_url", definition: "TEXT" },
 ];
 
 async function addMissingColumns(client: Client): Promise<void> {

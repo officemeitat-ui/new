@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { handleIncomingChat, sendTeamMessage } from "@/lib/chat/handle";
 import { senderFor } from "@/lib/chat/senders";
 import { getConversation, updateConversation } from "@/lib/conversations";
@@ -19,7 +19,7 @@ function refresh(conversationId?: string) {
 
 /** Test-Chat: schreibt als Kunde an den Assistenten – für Vorführungen ohne WhatsApp. */
 export async function simulateChat(_prev: ChatActionState, formData: FormData): Promise<ChatActionState> {
-  await requireAdmin();
+  await requireOwner();
   const text = String(formData.get("text") ?? "")
     .trim()
     .slice(0, 2000);
@@ -47,7 +47,7 @@ export async function simulateChat(_prev: ChatActionState, formData: FormData): 
 }
 
 export async function sendTeamReply(_prev: ChatActionState, formData: FormData): Promise<ChatActionState> {
-  await requireAdmin();
+  await requireOwner();
   const conversation = await getConversation(String(formData.get("conversationId")));
   if (!conversation) return { error: "Gespräch nicht gefunden" };
   const text = String(formData.get("text") ?? "")
@@ -64,7 +64,7 @@ export async function sendTeamReply(_prev: ChatActionState, formData: FormData):
 }
 
 export async function setChatMode(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const conversationId = String(formData.get("conversationId"));
   const mode = formData.get("mode") === "ki" ? "ki" : "team";
   await updateConversation(conversationId, { mode });

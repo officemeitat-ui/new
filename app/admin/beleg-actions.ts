@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { AiError } from "@/lib/ai";
 import { fieldsFromExtraction } from "@/lib/receipts/capture";
 import { extractReceipt } from "@/lib/receipts/extract";
@@ -32,7 +32,7 @@ function refresh(id?: string) {
 
 /** Korrigierte Angaben eines Belegs speichern. */
 export async function saveReceipt(_prev: ReceiptActionState, formData: FormData): Promise<ReceiptActionState> {
-  await requireAdmin();
+  await requireOwner();
   const id = String(formData.get("id"));
   const receipt = await getReceipt(id);
   if (!receipt) return { error: "Beleg nicht gefunden" };
@@ -71,7 +71,7 @@ export async function saveReceipt(_prev: ReceiptActionState, formData: FormData)
 
 /** Beleg erneut mit der KI auslesen (z. B. nach einem Fehler). */
 export async function rereadReceipt(_prev: ReceiptActionState, formData: FormData): Promise<ReceiptActionState> {
-  await requireAdmin();
+  await requireOwner();
   const id = String(formData.get("id"));
   const file = await getReceiptFile(id);
   if (!file) return { error: "Zu diesem Beleg ist keine Datei vorhanden" };
@@ -99,7 +99,7 @@ export async function rereadReceipt(_prev: ReceiptActionState, formData: FormDat
 }
 
 export async function removeReceipt(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const receipt = await getReceipt(String(formData.get("id")));
   if (receipt) await deleteReceipt(receipt.id);
   refresh();
@@ -108,7 +108,7 @@ export async function removeReceipt(formData: FormData) {
 
 /** Nach dem Hochladen in die Buchhaltung: alle Belege des Monats als übergeben markieren. */
 export async function markExported(formData: FormData) {
-  await requireAdmin();
+  await requireOwner();
   const month = String(formData.get("month"));
   if (!MONTH.test(month)) return;
   await markMonthExported(month);

@@ -10,6 +10,8 @@ Zwei Produkte in einer Installation:
    Tickets, Warnungen und Geräte aus **Atera**, Kundenakte mit **Keeper**-Link und ein **KI-Assistent**, dem man per Sprache oder Text sagt,
    was zu tun ist („Termin Donnerstag 14 Uhr bei Huber“, „schreib Frau Huber, dass wir kommen“). Dazu **verschlüsselte Kunden-Doku**
    mit Doku-Passwort: Netzwerkplan mit Live-Prüfung der Konfiguration, Patchschränke, Verkabelung, Seiten – Umzug aus BookStack per Klick.
+   **Security-Awareness-Plattform** für das eigene Team und Kunden (Schulung KI-Kompetenz nach AI Act Art. 4 mit Nachweis),
+   **Wissen & Dateien** aus OneDrive/SharePoint und Anmeldung mit **Microsoft (SSO)** oder Passwort + Einmalcode, mit Rollen und Protokoll.
 
 Dazu kommt eine Website mit Potentialanalyse-Funnel für das eigene Angebot.
 
@@ -70,6 +72,20 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
   aufbewahrt wird in der Buchhaltung.
 
 **Arbeitsplatz für IT-Dienstleister** (`/app`)
+- **Anmeldung & Sicherheit:** eigene Konten statt eines gemeinsamen Passworts. **Mit Microsoft anmelden** (Entra ID, OpenID Connect
+  mit PKCE; MFA, Gerätebindung und Standortregeln über Conditional Access) oder mit Passwort + **Einmalcode** (Authenticator-App,
+  Pflicht; Wiederherstellungscodes). Rollen **Inhaber/in** (alles) und **Technik** (Arbeitsplatz ohne Büro/Cockpit). Sitzungen
+  serverseitig und widerrufbar („Überall abmelden“, Ablauf nach 24 Stunden ohne Nutzung bzw. 7 Tagen), Bremse nach 5 Fehlversuchen,
+  **Protokoll** (Anmeldungen, Tresor, Exporte, Benutzerverwaltung), Sicherheits-Header (CSP, HSTS, Frame-Schutz).
+- **Wissen & Dateien:** Volltextsuche in OneDrive und SharePoint mit den Rechten der angemeldeten Person, **„Frag die
+  Wissensdatenbank“** (Claude antwortet nur aus den Suchauszügen, mit Quellen), Kundenordner in der Kundenakte, Dateisuche im
+  Assistenten. Vorschlag für den Aufbau: [docs/sharepoint-wissensdatenbank.md](docs/sharepoint-wissensdatenbank.md).
+- **Security Awareness** (`/app/awareness`, Lernbereich `/lernen`): Selbstlernkurs „KI sicher nutzen und KI-Angriffe erkennen“
+  (6 Einheiten, Übung „Echt oder Angriff?“, Quiz mit 10 Fragen, bestanden ab 80 %), **Teilnahmenachweis** zum Drucken (AI Act Art. 4,
+  jährliche Auffrischung), Nachweisliste als CSV, **Impuls des Monats** (12 Texte, als Outlook-Entwurf an alle), Aushang
+  **STOPP · PRÜFEN · BESTÄTIGEN** mit den Kontakten des Kunden und **Selbstbewertung** (96 Punkte, Kernfragen, Verlauf).
+  Teilnehmende brauchen kein Konto – sie bekommen einen persönlichen Link (Einladung als Outlook-Entwurf oder zum Kopieren).
+  Inhalte aus dem eigenen Awareness-Paket (Branch `claude/cybersecurity-ai-attacks-strategy-brtr0l`).
 - **Heute:** Termine aus Outlook, fällige und überfällige Aufgaben, Tickets im Fokus (kritisch, hoch, „wartet auf dich“),
   Warnungen aus Atera, offene E-Mail-Entwürfe und Belege – auf einen Blick, am Handy wie am PC.
 - **Aufgaben** statt Microsoft To Do: Listen, Fälligkeit mit Uhrzeit, Priorität, Kunde, Ticketbezug, Wiederholung
@@ -96,6 +112,7 @@ Hintergrund, Angebot und Vertrieb: [docs/ki-mitarbeiter-angebot.md](docs/ki-mita
     Netz, falsches VLAN am Switchport, VLAN fehlt am Uplink, doppelt belegte Ports, Geräte ohne Weg zur Firewall.
     **Weg testen** zeigt im Plan, wie ein Gerät ins Internet oder zu einem anderen Gerät kommt – und wo es scheitert
     (inkl. Hinweis auf nötige Firewall-Regel zwischen VLANs). Geräte aus Atera lassen sich übernehmen.
+    **VLAN-Übersicht** je Verbindung (U/T wie Port-Profile im Switch), per Klick änderbar – die Prüfung läuft sofort mit.
   - **Patchschrank:** Schränke mit Höheneinheiten und grafischer Ansicht; Geräte mit Art, Modell, IP, Notiz; Überschneidungen werden verhindert.
   - **Verkabelung:** Patchliste (Patchfeld, Port, Dose, Raum, Switch, Switchport, VLAN, Gerät, Kabel, Notiz) mit Sofortsuche,
     **Übernahme bestehender Excel-Listen** (CSV, Spalten werden an den Überschriften erkannt) und Export als CSV.
@@ -225,6 +242,14 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
 7. **Benachrichtigungen:** `TEAM_NOTIFY_EMAIL` für Rückrufwünsche, neue Termine und dringende E-Mails. Optional `WEBHOOK_URL` für CRM oder n8n.
 8. **SMS** (optional): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` und `TWILIO_FROM` setzen. Einstellungen unter `reminders` in `config/business.ts`.
 9. **Arbeitsplatz** (für den eigenen IT-Betrieb):
+   0. **Ersteinrichtung:** `/admin/login` öffnen, mit `ADMIN_PASSWORD` bestätigen, eigenes Inhaber-Konto anlegen, Einmalcode
+      einrichten (QR-Code mit Microsoft Authenticator scannen) und die Wiederherstellungscodes in Keeper ablegen.
+      **Microsoft-Anmeldung** (empfohlen): in Entra ID eine eigene App-Registrierung „Arbeitsplatz-Anmeldung“ (Web, nur dieser Mandant),
+      Redirect-URI `https://<PUBLIC_URL>/api/auth/microsoft/callback`, Client-Secret anlegen, delegierte Berechtigungen `openid`,
+      `profile`, `email`, `offline_access`, `User.Read`, `Files.Read.All`, `Sites.Read.All` (Administratorzustimmung erteilen),
+      `AUTH_MS_CLIENT_ID`, `AUTH_MS_CLIENT_SECRET`, `AUTH_MS_TENANT_ID` setzen. Dann eine **Conditional-Access-Richtlinie** für
+      diese App: MFA (am besten phishing-resistent: Passkey/FIDO2 oder Authenticator mit Nummernabgleich), optional nur konforme Geräte.
+      Mitarbeitende unter Einstellungen → Benutzer mit ihrer Microsoft-365-Adresse anlegen – erst dann kommen sie hinein.
    1. In Atera unter Admin → API einen API-Schlüssel erzeugen und als `ATERA_API_KEY` setzen.
    2. `/api/cron/atera` alle 5 Minuten aufrufen. Der erste Abgleich legt die Kunden an.
    3. Outlook: dieselbe App-Registrierung wie beim E-Mail-Assistenten. Für Termine `Application Calendars.ReadWrite`, für Entwürfe
@@ -237,7 +262,8 @@ Cockpit: http://localhost:3000/admin. Die E-Mail-Simulation braucht nur `ANTHROP
    5. Umzug aus BookStack: im BookStack-Profil einen API-Token anlegen (Rolle mit „Zugriff auf die System-API“) und
       `BOOKSTACK_URL`, `BOOKSTACK_TOKEN_ID`, `BOOKSTACK_TOKEN_SECRET` setzen. Dann unter „Doku“ → „Alles aus BookStack übernehmen“
       (Bücher müssen wie der Kunde heißen) oder je Kunde unter Dokumentation → BookStack das Buch verknüpfen.
-   6. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf.
+   6. `config/workspace.ts` anpassen: Name, Aufgabenlisten, Atera-Ticket-Link, ob der Ticketstatus geändert werden darf,
+      Startmonat des Awareness-Jahresplans, Adresse der SharePoint-Wissensdatenbank.
    7. Pro Kunde im Arbeitsplatz E-Mail, Adresse, E-Mail-Domains und den Keeper-Link (geteilter Ordner) hinterlegen.
    8. Feldnamen der Atera-API sind nach Atera-Doku v3 umgesetzt und gegen eine nachgebaute API getestet –
       beim ersten echten Abgleich kurz prüfen, ob Tickets, Warnungen und Geräte vollständig ankommen.
@@ -275,6 +301,11 @@ Ist `WEBHOOK_URL` gesetzt, wird jedes Ereignis als JSON gesendet (mit `WEBHOOK_S
       am Handy Bildschirmsperre verwenden.
 - [ ] Arbeitsplatz: Ticketverläufe und Kundennotizen gehen für Zusammenfassungen an Anthropic bzw. Azure – Auftragsverarbeitung prüfen,
       in Notizen keine Zugangsdaten ablegen (dafür ist Keeper da).
+- [ ] **GitHub-Repository auf „privat“ stellen** (Settings → General → Danger Zone → Change visibility). Es enthält keine
+      Zugangsdaten, aber Aufbau und Sicherheitsmechanismen des Arbeitsplatzes.
+- [ ] Ersteinrichtung erledigt, Einmalcode und Wiederherstellungscodes gesichert; Microsoft-Anmeldung mit Conditional Access (MFA).
+- [ ] Awareness für Kunden: Namen und E-Mail-Adressen der Teilnehmenden und Lernstände werden im Auftrag des Kunden verarbeitet –
+      Auftragsverarbeitungsvertrag mit dem Kunden; beim eigenen Team ggf. Betriebsrat informieren (Lernstände sind Leistungsdaten).
 - [ ] Doku-Tresor eingerichtet, Wiederherstellungsschlüssel sicher abgelegt (nicht auf demselben Server). Doku-Inhalte gehen nur an
       die KI, wenn der Assistent danach gefragt wird und die Doku entsperrt ist.
 
@@ -295,6 +326,11 @@ lib/mail/                E-Mail-Assistent: Auswertung (Claude), Postfach (Micros
 lib/receipts/            Belege-Ablage: Erkennen, Auslesen (Claude), Speicher, Monatspaket (ZIP + CSV)
 lib/workspace/           Arbeitsplatz: Aufgaben, Kunden, Atera-Abgleich, Outlook (Kalender, Entwürfe, To Do), KI-Assistent
 lib/atera.ts             Atera-API v3
+lib/users.ts, lib/auth.ts  Konten, Rollen, Sitzungen, Einmalcodes (TOTP), Anmeldebremse, Protokoll
+lib/entra.ts             Anmeldung mit Microsoft (OpenID Connect, PKCE) und delegierte Token
+lib/m365.ts              OneDrive/SharePoint mit den Rechten der angemeldeten Person (Suche, Ordner)
+lib/awareness/           Security Awareness: Inhalte (aus dem Awareness-Paket), Lernende, Fortschritt, Quiz, Selbstbewertung
+app/lernen/              Lernbereich für Teilnehmende (persönlicher Link, ohne Konto)
 lib/workspace/vault.ts   Doku-Tresor: Schlüsselableitung (scrypt), Verschlüsselung (AES-256-GCM), Entsperren
 lib/network/             Netzwerkdokumentation: IP-Rechnen, Gerätebibliothek, Prüfung, Wegverfolgung, Plan-Anordnung
 lib/ai-client.ts         Claude-Zugang direkt bei Anthropic oder über Azure (Microsoft Foundry)

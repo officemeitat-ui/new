@@ -718,6 +718,8 @@ function LinksTab({ model, update }: { model: NetworkModel; update: Updater }) {
         </button>
       </section>
 
+      <VlanMatrix model={model} update={update} />
+
       <ul className="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
         {model.links.map((l) => (
           <li key={l.id} className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -751,5 +753,89 @@ function LinksTab({ model, update }: { model: NetworkModel; update: Updater }) {
         <p className="text-sm text-amber-700">Tipp: Eine Firewall oder einen Router anlegen – sie ist das Gateway für die Prüfung.</p>
       )}
     </div>
+  );
+}
+
+/**
+ * VLAN-Übersicht: je Verbindung, welches VLAN untagged (U) bzw. tagged (T) anliegt – wie die Port-Profile im Switch.
+ * Ein Klick schaltet weiter: leer → T → U → leer (je Verbindung gibt es nur ein untagged VLAN). Die Prüfung läuft sofort mit.
+ */
+function VlanMatrix({ model, update }: { model: NetworkModel; update: Updater }) {
+  if (!model.networks.length || !model.links.length) return null;
+  const names = new Map(model.devices.map((d) => [d.id, d.name]));
+  const networks = [...model.networks].sort((a, b) => a.vlan - b.vlan);
+  const members = (networkId: string) => model.devices.filter((d) => d.networkId === networkId).length;
+  const cycle = (linkId: string, networkId: string) =>
+    update((m) => ({
+      ...m,
+      links: m.links.map((l) => {
+        if (l.id !== linkId) return l;
+        const tagged = l.tagged ?? [];
+        if (l.untagged === networkId) return { ...l, untagged: undefined };
+        if (tagged.includes(networkId)) return { ...l, untagged: networkId, tagged: tagged.filter((id) => id !== networkId) };
+        return { ...l, tagged: [...tagged, networkId] };
+      }),
+    }));
+  const end = (device: string, port?: string) => `${names.get(device) ?? "?"}${port ? ` ${port}` : ""}`;
+  return (
+    <section className="space-y-2">
+      <h3 className="font-semibold">VLAN-Übersicht</h3>
+      <p className="text-xs text-slate-500">U = untagged (Zugangsport), T = tagged (Trunk). Antippen zum Ändern.</p>
+      <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-slate-200">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-slate-500">
+              <th className="px-3 py-2 text-left font-medium">Verbindung</th>
+              {networks.map((n) => (
+                <th key={n.id} className="px-2 py-2 text-center font-medium" title={`${n.name} · ${n.subnet}`}>
+                  <span className="block font-semibold text-slate-800">{n.vlan}</span>
+                  <span className="block max-w-20 truncate">{n.name}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {model.links.map((l) => (
+              <tr key={l.id}>
+                <td className="px-3 py-1.5 whitespace-nowrap">
+                  {end(l.from, l.fromPort)} ↔ {end(l.to, l.toPort)}
+                </td>
+                {networks.map((n) => {
+                  const mode = l.untagged === n.id ? "U" : l.tagged?.includes(n.id) ? "T" : "";
+                  return (
+                    <td key={n.id} className="px-1 py-1 text-center">
+                      <button
+                        type="button"
+                        onClick={() => cycle(l.id, n.id)}
+                        aria-label={`VLAN ${n.vlan} auf ${end(l.from, l.fromPort)} ↔ ${end(l.to, l.toPort)}: ${mode || "keins"}`}
+                        className={`h-7 w-9 rounded-md text-xs font-bold ${
+                          mode === "U"
+                            ? "bg-indigo-600 text-white"
+                            : mode === "T"
+                              ? "bg-indigo-100 text-indigo-800"
+                              : "bg-slate-50 text-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        {mode || "·"}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="text-xs text-slate-500">
+              <td className="px-3 py-2">Geräte im Netz</td>
+              {networks.map((n) => (
+                <td key={n.id} className="px-2 py-2 text-center">
+                  {members(n.id)}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   );
 }

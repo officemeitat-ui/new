@@ -2,7 +2,7 @@ import Link from "next/link";
 import { business } from "@/config/business";
 import { site } from "@/config/site";
 import { PrintButton } from "@/components/PrintButton";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { change, currentMonth, hours, isMonth, lastCompletedMonth, monthlyReport, shiftMonth } from "@/lib/report";
 
 function Metric({ label, value, previous, unit = "" }: { label: string; value: number; previous: number; unit?: string }) {
@@ -52,7 +52,7 @@ function Breakdown({ title, rows }: { title: string; rows: { label: string; coun
 }
 
 export default async function ReportPage({ searchParams }: PageProps<"/admin/bericht">) {
-  await requireAdmin();
+  await requireOwner();
   const { monat } = await searchParams;
   const month = isMonth(monat) ? monat : lastCompletedMonth();
   const report = await monthlyReport(month);

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { AutoRefresh, SimulateChatForm } from "@/components/ChatPanels";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { listConversations } from "@/lib/conversations";
 import { formatDateTime } from "@/lib/format";
 import { whatsappConfigured } from "@/lib/whatsapp";
 
 export default async function ChatsPage() {
-  await requireAdmin();
+  await requireOwner();
   const conversations = await listConversations();
 
   return (

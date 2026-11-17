@@ -4,7 +4,7 @@ import { resolveSource } from "@/config/site";
 import { QualifiedBadge, StageBadge } from "@/components/admin";
 import { BriefingForm, CopyButton, FollowUpForm } from "@/components/AiPanels";
 import { addNote, moveLeadFromForm, updateValue } from "@/app/admin/actions";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { describeAnswers, maxScore } from "@/lib/funnel";
 import { formatDateTime, formatEuro } from "@/lib/format";
 import { getLead, listActivities } from "@/lib/leads";
@@ -30,7 +30,7 @@ function List({ items }: { items: string[] }) {
 }
 
 export default async function LeadPage({ params }: PageProps<"/admin/leads/[id]">) {
-  await requireAdmin();
+  await requireOwner();
   const lead = await getLead((await params).id);
   const source = lead && resolveSource(lead.funnel);
   const pipeline = source?.pipeline;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { pipelines, site } from "@/config/site";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { listConversations } from "@/lib/conversations";
 import { listEmails } from "@/lib/emails";
 import { openReceiptCount } from "@/lib/receipts/store";
@@ -10,7 +10,7 @@ import { logout } from "../actions";
 export const metadata: Metadata = { title: "Admin", robots: { index: false } };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin();
+  await requireOwner();
   const openDrafts = (await listEmails(["entwurf", "fehler"])).length;
   const waitingChats = (await listConversations()).filter((c) => c.mode === "team" && c.lastAuthor === "kunde").length;
   const openReceipts = await openReceiptCount();

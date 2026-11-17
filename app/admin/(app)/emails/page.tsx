@@ -2,7 +2,7 @@ import Link from "next/link";
 import { business } from "@/config/business";
 import { EmailDraftForm, FollowUpButton, SimulateEmailForm } from "@/components/EmailPanels";
 import { retryEmail } from "@/app/admin/assistant-actions";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { EMAIL_CATEGORIES, listEmails, type Email, type EmailStatus } from "@/lib/emails";
 import { formatDateTime } from "@/lib/format";
 import { activeMailbox } from "@/lib/mail/mailbox";
@@ -113,7 +113,7 @@ function EmailCard({ email, canSend, receipts }: { email: Email; canSend: boolea
 }
 
 export default async function EmailsPage({ searchParams }: PageProps<"/admin/emails">) {
-  await requireAdmin();
+  await requireOwner();
   const { tab: tabParam } = await searchParams;
   const tab = TABS.find((t) => t.id === tabParam) ?? TABS[0];
   const emails = await listEmails(tab.statuses);
