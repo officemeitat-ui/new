@@ -216,7 +216,7 @@ const views = {};
 
 views.dashboard = async () => {
   setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
-    h("a", { class: "btn primary", href: "#/tickets?neu=1" }, "+ Ticket")]);
+    h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
   const [d, km] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null)]);
   const kpi = (label, value, sub, cls = "", href = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
@@ -804,6 +804,7 @@ views.einstellungen = async () => {
         : "Noch kein Benutzer angelegt – das Cockpit ist offen (Einzelplatz). Sobald du den ersten Benutzer (Admin) anlegst, ist eine Anmeldung Pflicht."),
       table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
+    await brandingCard(),
     state.users.length ? await routingCard() : null,
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "Agenten-Protokoll (Nachvollziehbarkeit / AI Act)"),
       table([
@@ -1280,7 +1281,8 @@ function showLogin() {
   };
   document.body.append(h("div", { id: "login-screen", style: "min-height:100vh;display:grid;place-items:center;padding:16px" },
     h("form", { class: "card", style: "width:min(380px,100%)", onsubmit: submit },
-      h("div", { class: "brand", style: "padding:0 0 1rem" }, h("span", { class: "logo" }, "ME"), h("div", {}, h("div", { style: "font-weight:700" }, "ME-IT Cockpit"), h("div", { class: "small muted" }, "Bitte anmelden"))),
+      h("div", { style: "text-align:center;padding:.2rem 0 1rem" }, h("img", { src: "/brand/logo", alt: "ME-IT", style: "max-width:220px;width:100%;height:auto" }),
+        h("div", { class: "small muted", style: "margin-top:.4rem" }, "Cockpit – bitte anmelden")),
       h("label", {}, "E-Mail"), email, h("label", { style: "margin-top:.7rem" }, "Passwort"), pw,
       h("button", { class: "btn primary", type: "submit", style: "width:100%;justify-content:center;margin-top:1rem" }, "Anmelden"), msg)));
   email.focus();
@@ -1291,7 +1293,7 @@ function renderUserBox() {
   const u = state.auth && state.auth.user;
   if (!u) { box.remove(); return; }
   box.replaceChildren(h("strong", { style: "color:#fff" }, u.name), h("br"), h("span", { class: "small muted" }, (state.auth.roles || {})[u.role] || u.role), " · ",
-    h("a", { href: "#", style: "color:#93c5fd", onclick: async (e) => { e.preventDefault(); await api("/api/auth/logout", { method: "POST" }); location.reload(); } }, "Abmelden"));
+    h("a", { href: "#", style: "color:var(--brand)", onclick: async (e) => { e.preventDefault(); await api("/api/auth/logout", { method: "POST" }); location.reload(); } }, "Abmelden"));
   const ai = document.getElementById("ai-status");
   if (!box.parentNode) ai.parentNode.insertBefore(box, ai);
 }
@@ -1655,6 +1657,33 @@ async function voiceNoteForm() {
   ]);
 }
 
+// ---- Corporate Design
+async function brandingCard() {
+  const b = await api("/api/public/branding");
+  const labels = { brand: "Markenfarbe (Cyan „ME“)", brand_2: "Türkis (Power-Ring)", primary: "Buttons/Links", accent: "Akzent (Orange)", dark: "Dunkel (Seitenleiste)", anthracite: "Anthrazit („-IT“)" };
+  const inputs = Object.fromEntries(Object.keys(labels).map((k) => [k, h("input", { type: "color", value: b[k], style: "width:56px;height:36px;padding:2px" })]));
+  const tagline = h("input", { value: b.tagline || "" }); const website = h("input", { value: b.website || "" });
+  const preview = h("img", { src: `/brand/logo?${Date.now()}`, alt: "Logo", style: "max-height:70px;background:#fff;padding:6px;border-radius:8px;border:1px solid var(--border)" });
+  const file = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", onchange: async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const res = await fetch("/api/branding/logo", { method: "PUT", body: f, headers: { "Content-Type": f.type } });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); return toast(d.detail || "Upload fehlgeschlagen", true); }
+    toast("Logo aktualisiert"); preview.src = `/brand/logo?${Date.now()}`; document.getElementById("brand-logo").src = `/brand/logo?${Date.now()}`;
+  } });
+  return h("div", { class: "card", style: "margin-top:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Corporate Design"), h("a", { class: "btn small", href: b.website, target: "_blank", rel: "noopener" }, "Website")),
+    h("p", { class: "small muted" }, "Gilt für Cockpit, Kundenportal, Anfrageformular, Rechnungen, PDFs und E-Mails. Standard: ME-IT-Logo und Farben von www.meit.at, Schrift Roboto (lokal, ohne Google-Server)."),
+    h("div", { class: "row", style: "align-items:center;gap:1rem;margin-bottom:.8rem" }, preview, h("div", {}, h("label", {}, "Logo ersetzen (PNG/JPG/WebP)"), file)),
+    h("div", { class: "form-grid" }, Object.entries(labels).map(([k, l]) => h("div", {}, h("label", {}, l), h("div", { class: "row" }, inputs[k], h("code", { class: "small" }, b[k])))),
+      h("div", {}, h("label", {}, "Claim"), tagline), h("div", {}, h("label", {}, "Website"), website)),
+    h("div", { class: "row", style: "margin-top:.8rem" }, h("button", { class: "btn small danger", onclick: async () => {
+      if (!confirm("Corporate Design auf ME-IT-Standard zurücksetzen?")) return; await api("/api/branding/reset", { method: "POST" }); location.reload(); } }, "Auf Standard zurücksetzen"),
+      h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const colors = Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value]));
+        await api("/api/branding", { method: "PUT", body: { colors, tagline: tagline.value, website: website.value } }); toast("Corporate Design gespeichert"); await applyBranding();
+      }) }, "Speichern")));
+}
+
 // ---------------------------------------------------------------- Router
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
@@ -1670,7 +1699,22 @@ async function render() {
 
 document.getElementById("menu-btn").addEventListener("click", () => document.getElementById("sidebar").classList.toggle("open"));
 window.addEventListener("hashchange", render);
+async function applyBranding() {
+  try {
+    const b = await api("/api/public/branding");
+    state.branding = b;
+    const root = document.documentElement.style;
+    const map = { brand: "--brand", brand_2: "--brand-2", accent: "--accent", anthracite: "--anthracite", dark: "--dark" };
+    for (const [k, v] of Object.entries(map)) if (b[k]) root.setProperty(v, b[k]);
+    if (b.dark) root.setProperty("--sidebar", b.dark);
+    if (b.primary && !matchMedia("(prefers-color-scheme: dark)").matches) root.setProperty("--primary", b.primary);
+    const claim = document.getElementById("brand-claim");
+    if (claim) claim.textContent = b.tagline || "";
+  } catch { /* Standardfarben aus style.css */ }
+}
+
 (async () => {
+  await applyBranding();
   try { state.auth = await api("/api/auth/status"); } catch { state.auth = { login_required: false, user: null, roles: {} }; }
   if (state.auth.login_required && !state.auth.user) { showLogin(); return; }
   renderUserBox();

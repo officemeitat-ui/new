@@ -11,7 +11,7 @@ portal.deine-firma.at {
 	encode gzip
 
 	# Öffentlich: Formular, Kundenportal und ihre APIs
-	@public path /anfrage /api/public/* /portal /api/portal/*
+	@public path /anfrage /api/public/* /portal /api/portal/* /brand/*
 	handle @public {
 		reverse_proxy 127.0.0.1:8080
 	}

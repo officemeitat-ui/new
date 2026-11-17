@@ -22,6 +22,7 @@ from .agents import (
     AgentContext, create_quote, monthly_report, run_assistant, run_security_check, triage_ticket,
 )
 from .billing import add_time, register as register_billing, unbilled_overview
+from .branding import register as register_branding
 from .config import Settings, get_settings
 from .data_tools import backup_dir, create_backup, import_csv, list_backups, start_backup_scheduler
 from .db import Database, loads, now_iso
@@ -242,6 +243,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_sla(app, db, admin_only)
     register_rmm(app, db, settings, admin_only)
     register_subscriptions(app, db, admin_only)
+    register_branding(app, db, settings.company_name, Path(settings.db_path).resolve().parent, admin_only)
 
     def customer_out(c: dict) -> dict:
         c["booked_services"] = loads(c.get("booked_services"), [])

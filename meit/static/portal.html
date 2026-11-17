@@ -4,13 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kundenportal</title>
+  <link rel="icon" href="/brand/icon.png">
   <style>
-    :root { --bg: #f4f6fa; --card: #fff; --soft: #f8fafc; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --primary: #2563eb; --ok: #15803d; --ok-soft: #dcfce7; --warn: #b45309; --warn-soft: #fef3c7; --bad: #b91c1c; --bad-soft: #fee2e2; color-scheme: light; }
-    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0b1120; --card: #111827; --soft: #0f172a; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #3b82f6; --ok: #4ade80; --ok-soft: #14361f; --warn: #fbbf24; --warn-soft: #3b2a0b; --bad: #f87171; --bad-soft: #3d1414; color-scheme: dark; } }
-    :root[data-theme="dark"] { --bg: #0b1120; --card: #111827; --soft: #0f172a; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #3b82f6; --ok: #4ade80; --ok-soft: #14361f; --warn: #fbbf24; --warn-soft: #3b2a0b; --bad: #f87171; --bad-soft: #3d1414; color-scheme: dark; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Medium.woff2") format("woff2"); font-weight: 500 600; font-display: swap; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+    :root { --bg: #f4f6fa; --card: #fff; --soft: #f8fafc; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --primary: #00838f; --brand: #00bcd4; --accent: #f79007; --ok: #15803d; --ok-soft: #dcfce7; --warn: #b45309; --warn-soft: #fef3c7; --bad: #b91c1c; --bad-soft: #fee2e2; color-scheme: light; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #0b1120; --card: #111827; --soft: #0f172a; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #26c6da; --ok: #4ade80; --ok-soft: #14361f; --warn: #fbbf24; --warn-soft: #3b2a0b; --bad: #f87171; --bad-soft: #3d1414; color-scheme: dark; } }
+    :root[data-theme="dark"] { --bg: #0b1120; --card: #111827; --soft: #0f172a; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #26c6da; --ok: #4ade80; --ok-soft: #14361f; --warn: #fbbf24; --warn-soft: #3b2a0b; --bad: #f87171; --bad-soft: #3d1414; color-scheme: dark; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    header { background: var(--card); border-bottom: 1px solid var(--border); }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: var(--primary); }
+    header { background: var(--card); border-bottom: 1px solid var(--border); border-top: 3px solid var(--brand); }
+    .brandlogo { height: 44px; width: auto; background: #fff; border-radius: 8px; padding: 2px 4px; }
     .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
     .bar { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
     .logo { width: 36px; height: 36px; border-radius: 9px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 800; }
@@ -95,7 +101,7 @@
       root.replaceChildren(h("div", { class: "login" }, h("form", { class: "card", style: "width:min(380px,100%)", onsubmit: async (e) => {
         e.preventDefault();
         try { await api("/api/portal/login", { method: "POST", body: { email: email.value, password: pw.value } }); start(); } catch (x) { err.textContent = x.message; }
-      } }, h("div", { class: "row", style: "margin-bottom:.5rem" }, h("span", { class: "logo" }, "ME"), h("strong", {}, "Kundenportal")),
+      } }, h("div", { style: "text-align:center;margin-bottom:.6rem" }, h("img", { src: "/brand/logo", alt: "Logo", style: "max-width:220px;width:100%;height:auto" }), h("div", { class: "muted small" }, "Kundenportal")),
         h("p", { class: "muted small" }, "Ihre Tickets, Geräte, Angebote und Rechnungen – und schnelle Hilfe."),
         h("label", {}, "E-Mail"), email, h("label", {}, "Passwort"), pw,
         h("button", { class: "btn primary", type: "submit", style: "width:100%;justify-content:center;margin-top:1rem" }, "Anmelden"), err)));
@@ -190,7 +196,7 @@
       try { me = await api("/api/portal/me"); } catch { return; }
       document.title = `Kundenportal – ${me.company}`;
       root.replaceChildren(
-        h("header", {}, h("div", { class: "wrap" }, h("div", { class: "bar" }, h("span", { class: "logo" }, "ME"),
+        h("header", {}, h("div", { class: "wrap" }, h("div", { class: "bar" }, h("img", { class: "brandlogo", src: "/brand/logo", alt: me.company }),
           h("div", {}, h("strong", {}, me.customer), h("div", { class: "muted small" }, `Kundenportal ${me.company}`)), h("span", { class: "spacer" }),
           h("span", { class: "muted small" }, me.user.name || me.user.email),
           h("button", { class: "btn", onclick: async () => { await api("/api/portal/logout", { method: "POST" }); showLogin(); } }, "Abmelden")),

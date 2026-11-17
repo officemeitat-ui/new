@@ -4,16 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Anfrage senden</title>
+  <link rel="icon" href="/brand/icon.png">
   <style>
-    :root { --bg: #f4f6fa; --card: #fff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --primary: #2563eb; --ok: #15803d; --bad: #b91c1c; color-scheme: light; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Medium.woff2") format("woff2"); font-weight: 500 600; font-display: swap; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+    :root { --bg: #f4f6fa; --card: #fff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0; --primary: #00838f; --brand: #00bcd4; --accent: #f79007; --ok: #15803d; --bad: #b91c1c; color-scheme: light; }
     @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) { --bg: #0b1120; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #3b82f6; --ok: #4ade80; --bad: #f87171; color-scheme: dark; }
+      :root:not([data-theme="light"]) { --bg: #0b1120; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #26c6da; --ok: #4ade80; --bad: #f87171; color-scheme: dark; }
     }
-    :root[data-theme="dark"] { --bg: #0b1120; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #3b82f6; --ok: #4ade80; --bad: #f87171; color-scheme: dark; }
+    :root[data-theme="dark"] { --bg: #0b1120; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #26c6da; --ok: #4ade80; --bad: #f87171; color-scheme: dark; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: var(--primary); }
     main { max-width: 560px; margin: 0 auto; padding: 32px 16px 48px; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--brand); border-radius: 14px; padding: 24px; }
+    .brandlogo { display: block; max-width: 200px; width: 60%; height: auto; margin: 0 auto 1rem; }
     h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
     p.lead { color: var(--muted); margin: 0 0 1.2rem; }
     label { display: block; font-weight: 600; font-size: .9rem; margin: .9rem 0 .3rem; }
@@ -35,6 +41,7 @@
 <body>
   <main>
     <div class="card">
+      <img class="brandlogo" src="/brand/logo" alt="Logo">
       <h1 id="title">Wie können wir helfen?</h1>
       <p class="lead">Schreiben Sie uns kurz Ihr Anliegen – wir melden uns innerhalb eines Werktags.</p>
       <form id="form" novalidate>

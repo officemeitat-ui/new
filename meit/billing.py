@@ -176,6 +176,9 @@ def _d(iso: str) -> str:
 
 
 def invoice_html(db: Database, inv: dict[str, Any], profile: dict[str, Any]) -> str:
+    from .branding import get_branding
+
+    b = get_branding(db, profile.get("name", ""))
     e = html.escape
     c = db.get("customers", inv["customer_id"]) if inv["customer_id"] else None
     items = loads(inv["items"], [])
@@ -190,7 +193,12 @@ def invoice_html(db: Database, inv: dict[str, Any], profile: dict[str, Any]) -> 
                 f"<tr><td colspan=4 class=n>zzgl. {str(inv['vat_rate']).rstrip('0').rstrip('.')} % USt</td><td class=n>{_eur(inv['vat'])}</td></tr>")
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Rechnung {e(inv['number'] or 'Entwurf')}</title>
 <style>
-body{{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:0;background:#f4f4f5}}
+@font-face{{font-family:"Roboto";src:url("/brand/fonts/Roboto-Regular.woff2") format("woff2");font-weight:400}}
+@font-face{{font-family:"Roboto";src:url("/brand/fonts/Roboto-Bold.woff2") format("woff2");font-weight:700}}
+body{{font:14px/1.45 "Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;color:{b['dark']};margin:0;background:#f3f7f8}}
+.page{{border-top:6px solid {b['brand']}}} .logo{{height:72px;width:auto}} .claim{{color:{b['anthracite']};font-size:11px;letter-spacing:.06em}}
+h1 .nr{{color:{b['primary']}}} thead th{{border-bottom:2px solid {b['brand']}}} .sum td{{border-top:2px solid {b['brand']} !important}}
+.accent{{display:block;width:48px;height:3px;background:{b['accent']};margin:6px 0 0}}
 .page{{max-width:800px;margin:24px auto;background:#fff;padding:48px 56px;box-shadow:0 2px 12px rgba(0,0,0,.08)}}
 .head{{display:flex;justify-content:space-between;gap:24px}} .from{{text-align:right;font-size:12px;color:#444;white-space:pre-line}}
 h1{{font-size:22px;margin:32px 0 4px}} .meta{{color:#444;font-size:13px}} .to{{white-space:pre-line;margin-top:24px}}
@@ -202,15 +210,16 @@ th{{font-size:12px;text-transform:uppercase;color:#555}} .n{{text-align:right;wh
 </style></head><body>
 <button class="print" onclick="window.print()">Drucken / als PDF speichern</button>
 <div class="page">
-<div class="head"><div><strong style="font-size:20px">{e(profile['name'])}</strong></div>
+<div class="head"><div><img class="logo" src="/brand/logo" alt="{e(profile['name'])}"></div>
 <div class="from">{e(profile['address'])}
 {('UID: ' + e(profile['uid'])) if profile.get('uid') else ''}
-{e(profile.get('email') or '')} {e(profile.get('phone') or '')}</div></div>
+{e(profile.get('email') or '')} {e(profile.get('phone') or '')}
+{e(b.get('website') or '')}</div></div>
 <div class="to"><strong>{e(c['name'] if c else inv['customer_name'])}</strong>
 {e((c or {}).get('contact_name') or '')}
 {e((c or {}).get('address') or '')}
 {('UID: ' + e(uid_customer)) if uid_customer else ''}</div>
-<h1>{'<span class="draft">ENTWURF</span>' if draft else 'Rechnung ' + e(inv['number'])}</h1>
+<h1>{'<span class="draft">ENTWURF</span>' if draft else 'Rechnung <span class="nr">' + e(inv['number']) + '</span>'}<span class="accent"></span></h1>
 <div class="meta">Rechnungsdatum: {_d(inv['date']) if inv['date'] else '–'} · Leistungszeitraum: {(_d(start.isoformat()) + ' – ' + _d(end.isoformat())) if start else '–'}
 {(' · Fällig: ' + _d(inv['due_date'])) if inv['due_date'] else ''}</div>
 <table><thead><tr><th>Pos.</th><th>Leistung</th><th class=n>Menge</th><th class=n>Einzelpreis</th><th class=n>Gesamt</th></tr></thead>
