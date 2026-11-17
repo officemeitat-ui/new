@@ -248,6 +248,57 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
         except MailError as exc:
             raise HTTPException(502, str(exc))
 
+    @app.get("/api/voice/status")
+    def voice_status() -> dict:
+        from . import speech
+
+        return {"available": speech.available(), "model": __import__("os").environ.get("WHISPER_MODEL", "small")}
+
+    @app.post("/api/voice", status_code=201)
+    async def voice_note(request: Request, from_name: str = "", phone: str = "", company: str = "",
+                         from_email: str = "", note: str = "") -> dict:
+        """Sprachnotiz (Audio im Body, z. B. audio/webm) → Text → Posteingang (Kanal Telefon) → KI-Mitarbeiter."""
+        import asyncio
+        import os
+        import tempfile
+
+        from . import speech
+
+        body = await request.body()
+        if not body:
+            raise HTTPException(422, "Keine Audiodaten empfangen.")
+        if len(body) > 25 * 1024 * 1024:
+            raise HTTPException(413, "Audiodatei zu groß (max. 25 MB).")
+        suffix = {"audio/webm": ".webm", "audio/ogg": ".ogg", "audio/mpeg": ".mp3", "audio/wav": ".wav",
+                  "audio/x-wav": ".wav", "audio/mp4": ".m4a"}.get((request.headers.get("content-type") or "").split(";")[0], ".audio")
+        fd, path = tempfile.mkstemp(suffix=suffix, prefix="meit-voice-")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(body)
+            try:
+                text = await asyncio.to_thread(speech.transcribe, path)
+            except speech.SpeechUnavailable as exc:
+                raise HTTPException(501, str(exc))
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(422, f"Audio konnte nicht umgewandelt werden: {exc}")
+        finally:
+            try:
+                os.remove(path)  # Audio nicht aufbewahren
+            except OSError:
+                pass
+        if not text:
+            raise HTTPException(422, "Kein Text erkannt – bitte deutlicher oder länger sprechen.")
+        header = ", ".join(x for x in (from_name, company, phone) if x)
+        body_text = (f"Telefonnotiz{f' – Anrufer: {header}' if header else ''}\n\n{text}" + (f"\n\nNotiz: {note}" if note else ""))
+        words = text.split()
+        mid = insert_incoming(ctx, channel="telefon", from_name=from_name[:200], from_email=from_email[:200],
+                              phone=phone[:60], company=company[:200],
+                              subject="Telefonnotiz: " + " ".join(words[:8]) + (" …" if len(words) > 8 else ""),
+                              body=body_text)
+        result = await asyncio.to_thread(process_message, ctx, mid)
+        result["transcript"] = text
+        return result
+
     @app.post("/api/agents/followups")
     def followups() -> dict:
         created = create_followups(ctx)

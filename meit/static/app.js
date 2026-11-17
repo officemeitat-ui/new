@@ -862,6 +862,7 @@ function manualMessageForm() {
 views.posteingang = async () => {
   const km = await kmOverview();
   setTitle("Posteingang", [
+    h("button", { class: "btn", onclick: () => voiceNoteForm() }, "Sprachnotiz"),
     h("button", { class: "btn", onclick: () => manualMessageForm() }, "+ Nachricht erfassen"),
     h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
       const r = await api("/api/agents/followups", { method: "POST" });
@@ -1616,6 +1617,42 @@ async function routingCard() {
         const pool_roles = poolBoxes.map((l) => l.querySelector("input")).filter((el) => el.checked).map((el) => el.dataset.role);
         await api("/api/team/routing", { method: "PUT", body: { enabled: enabled.checked, rules, pool_roles } }); toast("Zuweisung gespeichert");
       }) }, "Speichern")));
+}
+
+// ---- Sprachnotiz
+async function voiceNoteForm() {
+  const st = await api("/api/voice/status").catch(() => ({ available: false }));
+  const f = form([{ name: "from_name", label: "Anrufer" }, { name: "phone", label: "Telefon" }, { name: "company", label: "Firma" }, { name: "from_email", label: "E-Mail (falls bekannt)", type: "email" }]);
+  let blob = null, rec = null, chunks = [], started = 0, timer = null;
+  const status = h("div", { class: "small muted", style: "margin-top:.6rem" }, st.available ? "Bereit. Aufnahme läuft lokal, das Audio wird nach der Umwandlung gelöscht." : "Hinweis: Spracherkennung ist am Server noch nicht installiert (pip install -r requirements-voice.txt).");
+  const player = h("audio", { controls: true, style: "width:100%;margin-top:.6rem;display:none" });
+  const canRecord = !!(navigator.mediaDevices && window.MediaRecorder && window.isSecureContext);
+  const recBtn = h("button", { class: "btn primary", type: "button", disabled: canRecord ? null : true, onclick: async () => {
+    if (rec && rec.state === "recording") { rec.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = []; rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => chunks.push(e.data);
+      rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); clearInterval(timer); blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+        player.src = URL.createObjectURL(blob); player.style.display = "block"; recBtn.textContent = "Neu aufnehmen"; status.textContent = "Aufnahme fertig – anhören und senden."; };
+      rec.start(); started = Date.now(); recBtn.textContent = "Stopp";
+      timer = setInterval(() => { status.textContent = `Aufnahme läuft … ${Math.round((Date.now() - started) / 1000)} s`; }, 500);
+    } catch (e) { toast(`Mikrofon nicht verfügbar: ${e.message}`, true); }
+  } }, "Aufnahme starten");
+  const file = h("input", { type: "file", accept: "audio/*", onchange: (e) => { blob = e.target.files[0] || null; if (blob) { player.src = URL.createObjectURL(blob); player.style.display = "block"; status.textContent = `Datei: ${blob.name}`; } } });
+  modal("Sprachnotiz → Posteingang", h("div", {}, f,
+    h("div", { class: "row", style: "margin-top:1rem" }, recBtn, h("span", { class: "muted small" }, "oder Sprachnachricht/Voicemail hochladen:"), h("div", { style: "max-width:260px" }, file)),
+    !canRecord ? h("p", { class: "small", style: "color:var(--warn)" }, "Aufnehmen im Browser geht nur über https oder auf localhost – Datei-Upload funktioniert immer.") : null,
+    player, status), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      if (!blob) throw new Error("Bitte zuerst aufnehmen oder eine Datei wählen.");
+      const q = new URLSearchParams(readForm(f));
+      const res = await fetch(`/api/voice?${q}`, { method: "POST", body: blob, headers: { "Content-Type": blob.type || "audio/webm" } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Umwandlung fehlgeschlagen");
+      close(); toast(`Erkannt und eingeordnet als: ${CAT_LABEL[data.category] || data.category}`); await render(); messageDetail(data.id);
+    }) }, "Umwandeln & an KI-Mitarbeiter"),
+  ]);
 }
 
 // ---------------------------------------------------------------- Router

@@ -24,6 +24,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Security- & NIS2-Check** | 15 Fragen nach NIS2 Art. 21 / NISG 2026 → Score, priorisierte Maßnahmen, Bericht für die Geschäftsführung, passendes Angebot |
 | **Monatsbericht-Agent** | Kundenbericht mit Kennzahlen, Erledigtem und Empfehlungen (Kundenbindung) |
 | **KI-Mitarbeiter: Posteingang** | Sortiert E-Mails, Formularanfragen und Telefonnotizen (Support · Anfrage · Termin · Beleg · Info). Daraus entstehen Ticket, Lead oder Beleg, dazu ein Antwortentwurf. Modus je Art: **Entwurf + Freigabe** oder **Autopilot**. IMAP/SMTP-Anbindung. |
+| **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
 | **Belege** | Rechnungen aus dem Posteingang mit Betrag, Nummer und Datum, CSV-Export für den Steuerberater |
 | **Anfrageformular** | `/anfrage` für die Website: öffentlich, mit Spamschutz und Rate-Limit, Anfragen landen direkt im Posteingang |
@@ -152,6 +153,7 @@ meit/
   einvoice.py      E-Rechnung ebInterface 6.1
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
   subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)
+  speech.py        Sprachnotizen lokal in Text (faster-whisper, optional)
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25)

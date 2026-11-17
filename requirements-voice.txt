@@ -1,0 +1,2 @@
+# Optional: Sprachnotizen lokal in Text umwandeln (Whisper). Läuft auf CPU, mit NVIDIA-GPU deutlich schneller.
+faster-whisper
