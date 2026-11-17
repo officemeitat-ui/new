@@ -89,7 +89,7 @@ class PublicInquiryIn(BaseModel):
 
 def is_public_path(path: str) -> bool:
     # Anfrageformular und Kundenportal sind ohne Mitarbeiter-Login erreichbar (Portal prüft selbst).
-    return path in ("/anfrage", "/portal") or path.startswith(("/api/public/", "/api/portal/", "/brand/"))
+    return path in ("/anfrage", "/portal", "/bewertung", "/manifest.webmanifest", "/sw.js") or path.startswith(("/api/public/", "/api/portal/", "/brand/"))
 
 
 class RateLimiter:

@@ -167,6 +167,14 @@ def health_score(db: Database, customer: dict[str, Any], today: date | None = No
         elif db.scalar("SELECT COUNT(*) FROM maintenance_runs WHERE customer_id = ? AND status = 'erledigt' "
                        "AND done_at >= ?", (cid, (today - timedelta(days=45)).isoformat())):
             factor("Wartungsplan eingehalten (mit Nachweis)", +5)
+    from .csat import fmt_avg, stats as csat_stats
+
+    cs = csat_stats(db, cid, days=180, today=today)
+    if cs["count"] >= 2:
+        if cs["avg"] >= 4.5:
+            factor(f"Zufriedenheit sehr hoch (Ø {fmt_avg(cs['avg'])}/5, {cs['count']} Bewertungen)", +5)
+        elif cs["avg"] < 3.5:
+            factor(f"Zufriedenheit niedrig (Ø {fmt_avg(cs['avg'])}/5) – nachfassen", -10)
     contract_end = _parse(customer.get("contract_end"))
     if contract_end and today <= contract_end <= today + timedelta(days=60):
         factor(f"Vertrag endet am {contract_end.strftime('%d.%m.%Y')}", -15)

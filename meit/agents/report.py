@@ -75,6 +75,11 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
              f"- Aufgewendete Zeit: **{str(facts['arbeitszeit_stunden']).replace('.', ',')} h**"]
     if assessment:
         lines.append(f"- Security-Score: **{assessment['score']:.0f}/100** ({assessment['level']})")
+    from ..csat import fmt_avg, stats as csat_stats
+
+    cs = csat_stats(ctx.db, customer_id, since=m_start.isoformat(), until=m_end.isoformat())
+    if cs["count"]:
+        lines.append(f"- Ihre Zufriedenheit: **Ø {fmt_avg(cs['avg'])} von 5** ({cs['count']} Bewertung(en))")
     sla_q = customer_sla_quote(ctx.db, customer, days=31)
     if sla_q["quote"] is not None:
         lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")

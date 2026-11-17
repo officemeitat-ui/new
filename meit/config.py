@@ -100,6 +100,8 @@ class Settings:
     bookstack_token_id: str = ""
     bookstack_token_secret: str = ""
     bookstack_sync_hours: int = 0
+    # Öffentliche Adresse des Cockpits (für Links in Mails, z. B. Zufriedenheits-Umfrage)
+    public_url: str = ""
     graph_calendar: bool = False
     # --- Datensicherung -------------------------------------------------------
     backup_hours: int = 24
@@ -159,6 +161,7 @@ def get_settings() -> Settings:
         bookstack_token_id=os.environ.get("BOOKSTACK_TOKEN_ID", ""),
         bookstack_token_secret=os.environ.get("BOOKSTACK_TOKEN_SECRET", ""),
         bookstack_sync_hours=_int("BOOKSTACK_SYNC_HOURS", 0),
+        public_url=(os.environ.get("PUBLIC_URL") or "").rstrip("/"),
         graph_calendar=_bool("GRAPH_CALENDAR", False),
         backup_hours=_int("BACKUP_HOURS", 24),
         backup_keep=_int("BACKUP_KEEP", 14),

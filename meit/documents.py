@@ -473,11 +473,16 @@ class DocumentService:
         return docs
 
     # -- Versand
-    def mail_html(self, text: str) -> str:
+    def mail_html(self, text: str, extra_html: str = "") -> str:
+        """Mail im Corporate Design. ``extra_html`` (z. B. Bewertungs-Buttons) steht vor der Grußformel."""
         profile, b, _ = self._brand()
         e = html.escape
-        paragraphs = "".join(f'<p style="margin:0 0 14px">{e(p).replace(chr(10), "<br>")}</p>'
-                             for p in text.strip().split("\n\n"))
+        parts = [f'<p style="margin:0 0 14px">{e(p).replace(chr(10), "<br>")}</p>' for p in text.strip().split("\n\n")]
+        if extra_html:
+            closing = len(parts) > 1 and re.match(r"^(freundliche|mit freundlichen|beste|liebe|herzliche) grü",
+                                                   text.strip().split("\n\n")[-1].strip(), re.I)
+            parts.insert(len(parts) - 1 if closing else len(parts), extra_html)
+        paragraphs = "".join(parts)
         contact = " · ".join(e(x) for x in (profile.get("phone"), profile.get("email"), b.get("website")) if x)
         address = e(" · ".join(l.strip() for l in (profile.get("address") or "").splitlines() if l.strip()))
         return f"""<!doctype html><html lang="de"><body style="margin:0;background:#f3f7f8;font-family:Roboto,Segoe UI,Arial,sans-serif;color:{b['dark']}">

@@ -96,6 +96,14 @@ def _totals(items: list[dict[str, Any]], profile: dict[str, Any]) -> dict[str, f
     return {"net": net, "vat_rate": rate, "vat": vat, "gross": round(net + vat, 2)}
 
 
+def effective_mrr(customer: dict[str, Any], period_start: date) -> float:
+    """Pauschale für einen Abrechnungsmonat – geplante Änderungen (z. B. Wertsicherung) ab ihrem Stichtag."""
+    if customer.get("mrr_next") is not None and customer.get("mrr_next_from") and \
+            period_start.isoformat() >= customer["mrr_next_from"][:10]:
+        return float(customer["mrr_next"] or 0)
+    return float(customer.get("mrr") or 0)
+
+
 def billing_run(db: Database, period: str, profile: dict[str, Any]) -> list[dict[str, Any]]:
     """Legt Rechnungsentwürfe für alle Kunden mit offenen Leistungen bis Monatsende an."""
     start, end = period_bounds(period)
@@ -104,11 +112,12 @@ def billing_run(db: Database, period: str, profile: dict[str, Any]) -> list[dict
         items: list[dict[str, Any]] = []
         has_period_invoice = db.scalar(
             "SELECT COUNT(*) FROM invoices WHERE customer_id = ? AND period = ? AND status != 'storniert'", (c["id"], period))
-        if (c["mrr"] or 0) > 0 and not has_period_invoice:
+        mrr = effective_mrr(c, start)
+        if mrr > 0 and not has_period_invoice:
             booked = ", ".join(loads(c.get("booked_services"), [])) or "laut Vertrag"
             items.append({"kind": "recurring", "description": f"IT-Betreuung Paket „{c['package']}“ – "
                           f"{MONTHS[start.month - 1]} {start.year} ({booked})", "quantity": 1, "unit": "Monat",
-                          "price": round(c["mrr"], 2), "total": round(c["mrr"], 2)})
+                          "price": round(mrr, 2), "total": round(mrr, 2)})
         entries = db.query("SELECT * FROM time_entries WHERE customer_id = ? AND billable = 1 AND invoice_id IS NULL "
                            "AND date <= ? ORDER BY date, id", (c["id"], end.isoformat()))
         for e in entries:

@@ -137,7 +137,15 @@
         } }, h("h2", {}, "Neues Ticket"), h("label", {}, "Betreff"), title, h("label", {}, "Beschreibung"), desc, h("div", { class: "row", style: "margin-top:.8rem" }, btn, msg)),
         h("div", { class: "card" }, h("h2", {}, "Ihre Tickets"), rows.length ? rows.map((t) => h("details", { style: "border-bottom:1px solid var(--border);padding:.6rem 0" },
           h("summary", {}, h("strong", {}, `#${t.id} ${t.title}`), " ", h("span", { class: `badge ${t.status === "geloest" ? "ok" : "warn"}` }, t.status_label), h("span", { class: "muted small" }, ` · ${dt(t.created_at)}`)),
-          h("p", { class: "small", style: "white-space:pre-wrap" }, t.description), t.solution ? h("p", { class: "small" }, h("strong", {}, "Lösung: "), t.solution) : null)) : h("p", { class: "muted" }, "Noch keine Tickets.")));
+          h("p", { class: "small", style: "white-space:pre-wrap" }, t.description), t.solution ? h("p", { class: "small" }, h("strong", {}, "Lösung: "), t.solution) : null,
+          t.status === "geloest" ? h("div", { class: "row small", style: "gap:.3rem;align-items:center" },
+            h("span", { class: "muted" }, t.rating ? "Ihre Bewertung:" : "Wie zufrieden waren Sie?"),
+            [[1, "😞"], [2, "🙁"], [3, "😐"], [4, "🙂"], [5, "😀"]].map(([n, face]) => h("button", {
+              class: "btn", title: `${n} von 5`, style: `padding:.2rem .45rem;font-size:1.2rem;${t.rating === n ? "border-color:var(--primary);background:color-mix(in srgb,var(--primary) 12%,transparent)" : ""}`,
+              onclick: async () => {
+                const comment = n <= 3 ? (prompt("Was können wir besser machen? (optional)") || "") : "";
+                try { await api(`/api/portal/tickets/${t.id}/rating`, { method: "POST", body: { rating: n, comment } }); go("tickets"); } catch (x) { alert(x.message); }
+              } }, face))) : null)) : h("p", { class: "muted" }, "Noch keine Tickets.")));
     };
 
     views.hilfe = async () => {

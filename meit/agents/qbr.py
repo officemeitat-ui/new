@@ -103,6 +103,12 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
         lines += [f"- Projekt umgesetzt: **{p['title']}**" for p in projects]
     if sla_q["quote"] is not None:
         lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")
+    from ..csat import fmt_avg, stats as csat_stats
+
+    cs = csat_stats(db, customer_id, days=90, today=today)
+    if cs["count"]:
+        lines.append(f"- Zufriedenheit Ihrer Mitarbeiter mit dem Support: **Ø {fmt_avg(cs['avg'])}/5** "
+                     f"({cs['positive_pct']} % zufrieden, {cs['count']} Bewertungen)")
     if wartung["count"]:
         restore = sum(1 for r in wartung["done"] if "Restore" in r["title"])
         lines.append(f"- Vorbeugende Wartung: **{wartung['count']} Prüfungen** durchgeführt"

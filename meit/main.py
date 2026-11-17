@@ -42,6 +42,10 @@ from .sepa import Sepa, register as register_sepa
 from .atera import register as register_atera
 from .bookstack import register as register_bookstack
 from .secrets_guard import redact_row, scan as scan_secrets
+from .profitability import register as register_profitability
+from .csat import register as register_csat
+from .mobile import register as register_mobile
+from .branding import get_branding
 from .team import (
     SESSION_COOKIE, current_user_id, log_activity, make_admin_dependency, register as register_team, user_from_token,
     users_exist,
@@ -82,11 +86,21 @@ class CustomerIn(BaseModel):
     uid: str = ""
     supplier_no: str = ""  # unsere Lieferantennummer beim Kunden (E-Rechnung an Bund)
     keeper_url: str = ""   # Link auf den Keeper-Ordner des Kunden (Passwörter bleiben in Keeper)
+    index_clause: bool = False      # Wertsicherung (VPI) vereinbart
+    index_base_month: str = ""      # Basismonat JJJJ-MM (letzte Anpassung bzw. Vertragsbeginn)
+    index_base_value: float = 0     # Indexwert im Basismonat (leer = aus der Indexliste)
 
     @field_validator("keeper_url")
     @classmethod
     def _https(cls, v: str) -> str:
         return https_link(v)
+
+    @field_validator("index_base_month")
+    @classmethod
+    def _month(cls, v: str) -> str:
+        if v and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", v):
+            raise ValueError("Basismonat im Format JJJJ-MM")
+        return v
 
 
 class TicketIn(BaseModel):
@@ -499,6 +513,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "LEFT JOIN customers c ON c.id = t.customer_id LEFT JOIN users u ON u.id = t.assigned_to "
             "WHERE t.id = ?", (tid,)), "Ticket")
         row["ai_suggestion"] = loads(row.get("ai_suggestion"), None)
+        row["csat"] = db.query_one("SELECT rating, comment, rated_at, sent_at, followup_ticket_id FROM csat_surveys "
+                                   "WHERE ticket_id = ?", (tid,))
         return row
 
     @app.put("/api/tickets/{tid}")
@@ -526,6 +542,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         elif payload.get("status") and payload["status"] != "geloest":
             payload["resolved_at"] = ""
         db.update("tickets", tid, payload)
+        if payload.get("status") == "geloest" and ticket["status"] != "geloest" and getattr(app.state, "csat", None):
+            try:
+                app.state.csat.on_resolved(tid)  # Zufriedenheits-Umfrage (Mail bzw. Kundenportal)
+            except Exception as exc:  # noqa: BLE001 - Umfrage darf das Lösen nie verhindern
+                db.set_setting("csat_last_error", f"Ticket {tid}: {exc}")
         row = db.get("tickets", tid)
         row["ai_suggestion"] = loads(row.get("ai_suggestion"), None)
         return row
@@ -802,6 +823,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Atera (RMM + Splashtop-Sitzungsprotokolle), BookStack (Doku-Wiki) -----------
     register_atera(app, db, settings, admin_only)
     register_bookstack(app, db, settings, admin_only)
+
+    # --- Rentabilität je Kunde, Wertsicherung (VPI) -----------------------------------
+    register_profitability(app, ctx, admin_only)
+
+    # --- Kundenzufriedenheit nach gelösten Tickets ------------------------------------
+    csat = register_csat(app, ctx, admin_only, STATIC_DIR)
+    app.state.csat = csat
+
+    # --- Unterwegs: Stoppuhr, Cockpit als App (PWA) -----------------------------------
+    register_mobile(app, db, STATIC_DIR, lambda: get_branding(db, settings.company_name))
 
     # --- Passwort-Wächter: Klartext-Zugangsdaten finden und schwärzen (→ Keeper) ------
     @app.get("/api/security/secrets", dependencies=[Depends(admin_only)])

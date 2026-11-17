@@ -267,3 +267,14 @@ label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .25r
 .topbar h1 { color: var(--text); }
 .btn.cta { background: var(--accent); border-color: var(--accent); color: var(--dark); font-weight: 600; }
 .claim { font-size: .7rem; color: var(--sidebar-text); text-align: center; margin: 0 .8rem .6rem; opacity: .75; letter-spacing: .03em; }
+
+/* Stoppuhr (unten rechts, auch am Handy erreichbar) */
+#timer-pill { position: fixed; right: 16px; bottom: 16px; z-index: 45; display: flex; align-items: center; gap: .6rem;
+  background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 999px;
+  padding: .45rem .5rem .45rem .9rem; box-shadow: 0 6px 24px rgba(0,0,0,.15); max-width: calc(100vw - 32px); }
+#timer-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad, #b91c1c); animation: timerblink 1.2s infinite; }
+#timer-pill strong { font-variant-numeric: tabular-nums; }
+#timer-pill .what { color: var(--muted); font-size: .85rem; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes timerblink { 50% { opacity: .25; } }
+@media (max-width: 600px) { #timer-pill .what { max-width: 120px; } }
+body.has-timer #app { padding-bottom: 76px; }

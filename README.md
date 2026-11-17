@@ -12,7 +12,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Outlook/SharePoint/OneDrive: [docs/M365-DOKUMENTENPROZESS.md](docs/M365-DOKUMENTENPROZESS.md) ·
 > Zahlungen & Mahnwesen: [docs/ZAHLUNGEN-MAHNWESEN.md](docs/ZAHLUNGEN-MAHNWESEN.md) ·
 > Wartungsplan: [docs/WARTUNGSPLAN.md](docs/WARTUNGSPLAN.md) ·
-> Atera · Keeper · BookStack: [docs/ATERA-KEEPER-BOOKSTACK.md](docs/ATERA-KEEPER-BOOKSTACK.md)
+> Atera · Keeper · BookStack: [docs/ATERA-KEEPER-BOOKSTACK.md](docs/ATERA-KEEPER-BOOKSTACK.md) ·
+> Rentabilität, Zufriedenheit, App: [docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md](docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md)
 
 ## Funktionen
 
@@ -20,6 +21,9 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 |---|---|
 | **Übersicht** | MRR, offene/dringende Tickets, Geräte ohne Herstellersupport, Umsatzpotenzial, auslaufende Verträge |
 | **Tickets + Triage-Agent** | Jedes neue Ticket wird automatisch eingeordnet: Kategorie, Priorität, Lösungsschritte (aus Wissensdatenbank und ähnlichen gelösten Tickets), Antwortentwurf an den Kunden, Hinweis auf Verkaufschance |
+| **Rentabilität & Preise** | Deckungsbeitrag und **effektiver Stundensatz je Kunde** (Rechnungen − Arbeitszeit × Kostensatz − Lizenz-Einkauf, inkl. ungebuchter Fernwartung) mit Empfehlungen. **Wertsicherung (VPI 2020)**: Schwelle, Vorschlag, Anpassung zum Stichtag (im Rechnungslauf), Ankündigungsschreiben als PDF/Mail. |
+| **Kundenzufriedenheit** | Nach jedem gelösten Ticket 1-Klick-Bewertung (5 Smileys per Mail oder im Portal); schlechte Bewertung → sofort Rückruf-Ticket. Ø-Bewertung in Dashboard, Health Score, Monatsbericht und QBR. |
+| **Stoppuhr & App** | Stoppuhr am Ticket/Kunden (läuft sichtbar mit, Stopp bucht Zeit). Cockpit als **App am Handy** installierbar (PWA, ohne Zwischenspeichern von Kundendaten). |
 | **Wartungsplan** | Wiederkehrende Prüfungen je Kunde (Backup-Restore-Test, Patch-Status, Security, Firewall, USV …), passend zu den gebuchten Leistungen vorgeschlagen. Fällige Prüfungen werden automatisch zu Tickets, Abschluss mit Checkliste und Ergebnis. **Nachweis** im Monatsbericht, QBR, Kundenportal und als Wartungsprotokoll-PDF; fließt in den Health Score ein, zählt nicht in die SLA. |
 | **Kunden & Geräte** | Stammdaten, Pakete, gebuchte Leistungen, Geräte mit automatischer Support-Ende-Erkennung (Windows 10, Server 2012/2016/2019, Exchange, Office) |
 | **Wissensdatenbank (RAG)** | Semantische Suche mit lokalem Embedding-Modell, ohne KI als Stichwortsuche. Gelöste Tickets lassen sich per Klick übernehmen. |
@@ -98,6 +102,7 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `MAIL_POLL_MINUTES` | `0` | Postfach automatisch alle X Minuten abrufen |
 | `BOOKING_URL` | leer | Terminbuchungs-Link für Antworten an Interessenten |
 | `PUBLIC_FORM_ENABLED` / `PUBLIC_FORM_ORIGINS` | `true` / leer | Anfrageformular an/aus, Websites, die es einbinden dürfen |
+| `PUBLIC_URL` | leer | Öffentliche Adresse des Cockpits (Links in Mails, z. B. Zufriedenheits-Umfrage) |
 | `ARCHIVE_DIR` | leer (`data/archiv`) | Dokumentenarchiv (PDFs). Tipp: OneDrive-synchronisierter Ordner. SharePoint/OneDrive-Upload: Einstellungen → Dokumentenablage |
 
 ## Architektur
@@ -170,6 +175,9 @@ meit/
   atera.py         Atera-API (Kunden, Geräte, Alarme) + Splashtop-Sitzungsprotokolle
   bookstack.py     BookStack: Kunden-IT-Doku, Wissen in beide Richtungen
   secrets_guard.py Passwort-Wächter (Keeper statt Klartext, Schutz vor Cloud-KI)
+  profitability.py Rentabilität je Kunde, Wertsicherung (VPI)
+  csat.py          Kundenzufriedenheit nach gelösten Tickets
+  mobile.py        Stoppuhr, Web-App-Manifest, Service Worker
   branding.py      Corporate Design (Logo, Farben, Schrift)
   rmm.py           NinjaOne-Abgleich (Kunden, Geräte, Alarme)
   subscriptions.py Lizenzen & Verträge (Fristen, Marge, Rechnungslauf)

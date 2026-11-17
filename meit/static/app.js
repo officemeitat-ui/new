@@ -217,8 +217,8 @@ const views = {};
 views.dashboard = async () => {
   setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
     h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
-  const [d, km, pay, wt] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
-    api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null)]);
+  const [d, km, pay, wt, cs] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
+    api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null), api("/api/csat").catch(() => null)]);
   const kpi = (label, value, sub, cls = "", href = null, onclick = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, onclick, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
   const nrrVal = d.nrr && d.nrr.nrr !== null ? `${d.nrr.nrr.toLocaleString("de-AT")} %` : "–";
@@ -237,6 +237,7 @@ views.dashboard = async () => {
       kpi("Kunden", d.customers, `${d.managed_customers} mit Managed-Vertrag`),
       kpi("Offene Tickets", d.open_tickets, `${d.critical_tickets} dringend · ${d.sla.breached_open} SLA verletzt`, d.sla.breached_open ? "" : "", "#/sla"),
       kpi("Geräte ohne Support", d.assets_eol, `${d.assets_eol_soon} bald · ${d.warranty_soon} Garantie < 90 Tage`),
+      cs ? kpi("Zufriedenheit", cs.avg === null ? "–" : `${cs.avg.toLocaleString("de-AT")} / 5`, cs.count ? `${cs.positive_pct} % zufrieden · ${cs.count} Bewertungen (90 Tage)` : "noch keine Bewertungen", "", "#/einstellungen") : null,
       wt ? kpi("Wartung", `${wt.open} fällig`, wt.tasks ? `${wt.overdue} überfällig · ${wt.done_this_month} erledigt (Monat)` : `${wt.customers_without_plan} Managed-Kunden ohne Plan`, "", "#/wartung") : null,
       kpi("Umsatz-Potenzial", eur(d.radar_annual), `${d.radar_count} Chancen · +${eur(d.radar_monthly)}/Monat`, "accent")),
     h("div", { class: "grid two" },
@@ -305,6 +306,9 @@ function customerForm(c = null) {
     { name: "uid", label: "UID-Nummer (für Rechnungen)" },
     { name: "supplier_no", label: "Unsere Lieferantennummer beim Kunden (E-Rechnung)" },
     { name: "keeper_url", label: "Keeper: Link zum Kundenordner (Zugangsdaten bleiben in Keeper)", placeholder: "https://keepersecurity.eu/vault/#detail/…", full: true },
+    { name: "index_clause", label: "Wertsicherung (VPI) im Vertrag vereinbart", type: "checkbox" },
+    { name: "index_base_month", label: "Wertsicherung: Basismonat (JJJJ-MM)", placeholder: "z. B. 2025-01" },
+    { name: "index_base_value", label: "Basis-Indexwert (leer = aus der Indexliste)", type: "number", step: "0.1" },
     { name: "booked_services", label: "Gebuchte Leistungen (Codes, kommagetrennt)", placeholder: "MW, SEC, BCK" },
     { name: "notes", label: "Notizen", type: "textarea", full: true },
   ], c ? { ...c, booked_services: (c.booked_services || []).join(", ") } : {});
@@ -344,6 +348,7 @@ views.kunde = async (id) => {
     c.keeper_url ? h("a", { class: "btn small", href: c.keeper_url, target: "_blank", rel: "noopener", title: "Zugangsdaten des Kunden in Keeper" }, "Keeper ↗")
       : h("button", { class: "btn small", title: "Keeper-Ordner-Link hinterlegen", onclick: () => customerForm(c) }, "+ Keeper-Link"),
     c.bookstack_url ? h("a", { class: "btn small", href: c.bookstack_url, target: "_blank", rel: "noopener" }, "IT-Doku in BookStack ↗") : null,
+    h("button", { class: "btn small", title: "Stoppuhr für diesen Kunden starten", onclick: () => timerStart({ customer_id: c.id }) }, "⏱ Stoppuhr"),
     state.bookstack?.configured ? h("button", { class: "btn small", title: "Übersicht, Geräte, Lizenzen und Wartung als Seiten in BookStack aktualisieren", onclick: (e) => withBusy(e.target, async () => {
       const r = await api(`/api/bookstack/customer/${c.id}`, { method: "POST" }); toast(`${r.pages} Seiten in BookStack aktualisiert`); render(); }) }, "Doku → BookStack") : null);
   const health = h("div", { class: "card", style: "margin-bottom:1rem" },
@@ -476,6 +481,10 @@ async function ticketDetail(id) {
     h("pre", { style: "white-space:pre-wrap;font-family:inherit;margin:.4rem 0 0" }, s.reply)) : null;
   modal(`#${t.id} ${t.title}`, h("div", {},
     h("p", { class: "muted small" }, `${t.customer_name || "Kein Kunde"} · erstellt ${dt(t.created_at)}`),
+    t.csat ? h("p", { class: "small" }, t.csat.rating
+      ? h("span", {}, badge(`Bewertung ${["", "😞", "🙁", "😐", "🙂", "😀"][t.csat.rating]} ${t.csat.rating}/5`, t.csat.rating >= 4 ? "ok" : t.csat.rating === 3 ? "warn" : "bad"),
+        t.csat.comment ? ` „${t.csat.comment}“` : "", t.csat.followup_ticket_id ? ` · Rückruf-Ticket #${t.csat.followup_ticket_id}` : "")
+      : h("span", { class: "muted" }, t.csat.sent_at ? `Zufriedenheits-Umfrage gesendet ${dt(t.csat.sent_at)} – noch keine Bewertung` : "Bewertung im Kundenportal möglich")) : null,
     h("p", { style: "white-space:pre-wrap" }, t.description || h("em", { class: "muted" }, "Keine Beschreibung")),
     aiBox, edit), [
     h("button", { class: "btn danger", onclick: async () => {
@@ -486,6 +495,8 @@ async function ticketDetail(id) {
       await api(`/api/tickets/${t.id}/to-kb`, { method: "POST" }); toast("Als Wissensartikel gespeichert");
     }) }, "→ Wissensdatenbank") : null,
     t.customer_id ? (close) => h("button", { class: "btn", onclick: () => { close(); timeForm({ ticket_id: t.id, description: t.title }); } }, "Zeit buchen") : null,
+    t.customer_id && t.status !== "geloest" ? (close) => h("button", { class: "btn", title: "Stoppuhr starten – beim Stoppen wird die Zeit auf dieses Ticket gebucht", onclick: async () => {
+      await timerStart({ ticket_id: t.id }); close(); } }, "⏱ Stoppuhr") : null,
     (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
       await api(`/api/tickets/${t.id}/triage`, { method: "POST" }); close(); ticketDetail(t.id); render();
     }) }, s ? "KI-Triage erneut" : "KI-Triage starten"),
@@ -845,6 +856,7 @@ views.einstellungen = async () => {
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
     await brandingCard(),
     await secretsCard(),
+    await csatCard(),
     await docsSettingsCard(),
     state.users.length ? await routingCard() : null,
     h("div", { class: "card", style: "margin-top:1rem" }, h("h2", {}, "Agenten-Protokoll (Nachvollziehbarkeit / AI Act)"),
@@ -1332,6 +1344,27 @@ function bookstackCard(bs) {
     }) }, "Einstellungen speichern")));
 }
 
+async function csatCard() {
+  const c = await api("/api/csat").catch(() => null);
+  if (!c) return null;
+  const f = form([
+    { name: "enabled", label: "Nach jedem gelösten Kundenticket eine Bewertungsmail senden", type: "checkbox", full: true },
+    { name: "low_threshold", label: "Rückruf-Ticket ab Bewertung ≤", type: "select", options: [[1, "1"], [2, "2"], [3, "3"]] },
+    { name: "subject", label: "Betreff – Platzhalter: {titel} {ticket} {firma}", full: true },
+    { name: "text", label: "Text (die 5 Smileys werden darunter eingefügt)", type: "textarea", rows: 6, full: true },
+  ], c.conf);
+  return h("div", { class: "card", style: "margin-top:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Kundenzufriedenheit"), c.avg === null ? badge("noch keine Bewertungen") : badge(`Ø ${c.avg.toLocaleString("de-AT")} / 5 · ${c.count} (90 Tage)`, c.avg >= 4 ? "ok" : "warn")),
+    h("p", { class: "small muted" }, "Nach dem Lösen bekommt der Ansprechpartner eine kurze Mail mit 5 Smileys (ein Klick, kein Login); im Kundenportal kann jedes erledigte Ticket bewertet werden. Schlechte Bewertungen erzeugen sofort ein Rückruf-Ticket mit Priorität „hoch“. Ergebnisse fließen in Health Score, Monatsbericht und QBR.",
+      c.mail_ready ? "" : " Für Mails in der .env PUBLIC_URL setzen (öffentliche Adresse des Cockpits, z. B. https://cockpit.meit.at) – bis dahin nur Bewertung im Portal."),
+    c.latest.length ? h("details", { style: "margin-bottom:.8rem" }, h("summary", { style: "cursor:pointer" }, `Letzte Bewertungen (${c.latest.length})`), table([
+      { label: "Datum", render: (x) => dt(x.rated_at) }, { label: "Kunde", key: "customer_name" }, { label: "Ticket", render: (x) => `#${x.ticket_id} ${x.title || ""}` },
+      { label: "Bewertung", render: (x) => badge(`${x.rating}/5`, x.rating >= 4 ? "ok" : x.rating === 3 ? "warn" : "bad") }, { label: "Kommentar", render: (x) => h("span", { class: "small" }, x.comment || "–") },
+    ], c.latest.slice(0, 30))) : null,
+    f, h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const d = readForm(f); d.low_threshold = Number(d.low_threshold); await api("/api/csat/settings", { method: "PUT", body: d }); toast("Gespeichert"); }) }, "Speichern")));
+}
+
 async function secretsCard() {
   const r = await api("/api/security/secrets").catch(() => null);
   if (!r) return null;
@@ -1734,6 +1767,92 @@ async function sessionsPanel() {
         x.status === "offen" ? h("button", { class: "btn small", onclick: async () => { await api(`/api/sessions/${x.id}/ignore`, { method: "POST" }); render(); } }, "Ignorieren") : null) },
     ], rows)));
 }
+
+// ---- Rentabilität & Wertsicherung
+let profitTab = "rentabilitaet";
+views.rentabilitaet = async () => {
+  setTitle("Rentabilität & Preise");
+  const tabs = h("div", { class: "tabs" }, [["rentabilitaet", "Rentabilität je Kunde"], ["index", "Wertsicherung (VPI)"]].map(([k, l]) =>
+    h("button", { class: profitTab === k ? "active" : "", onclick: () => { profitTab = k; render(); } }, l)));
+  const kpi = (label, value, sub, cls = "") => h("div", { class: `card kpi ${cls}` }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  if (profitTab === "rentabilitaet") {
+    const r = await api("/api/profitability");
+    const t = r.totals;
+    const conf = form([{ name: "cost_rate", label: "Interner Kostensatz €/h (Gehalt + Nebenkosten + Gemeinkosten)", type: "number", step: "0.5" },
+      { name: "target_rate", label: "Ziel-Stundensatz €/h (0 = Technikerstunde aus dem Katalog)", type: "number", step: "0.5" }], { cost_rate: r.cost_rate, target_rate: r.target_rate });
+    show(tabs,
+      h("div", { class: "grid kpis" },
+        kpi(`Umsatz ${r.months} Monate`, eur(t.revenue), "gestellte Rechnungen (sonst MRR-Schätzung)", "accent"),
+        kpi("Deckungsbeitrag", eur(t.margin), t.margin_pct === null ? "–" : `${t.margin_pct.toLocaleString("de-AT")} % vom Umsatz`),
+        kpi("Effektiver Stundensatz", t.effective_rate === null ? "–" : `${Math.round(t.effective_rate)} €/h`, `Ziel ${Math.round(r.target_rate)} €/h · ${Math.round(t.hours)} h Aufwand`),
+        kpi("Kritische Kunden", t.critical, "geringer Deckungsbeitrag oder Stundensatz")),
+      h("div", { class: "card" }, table([
+        { label: "Kunde", render: (x) => h("a", { href: `#/kunde/${x.customer_id}` }, x.customer) },
+        { label: "Paket", key: "package" },
+        { label: "Umsatz", num: true, render: (x) => h("span", { title: x.estimated ? "Schätzung aus der Monatspauschale" : "" }, eur(x.revenue), x.estimated ? "*" : "") },
+        { label: "Aufwand", num: true, render: (x) => h("span", { title: x.hidden_hours ? `davon ${x.hidden_hours} h Fernwartung ohne Zeitbuchung` : "" }, `${(x.hours + x.hidden_hours).toLocaleString("de-AT")} h`, x.hidden_hours ? "°" : "") },
+        { label: "Lizenz-EK", num: true, render: (x) => eur(x.license_cost) },
+        { label: "DB", num: true, render: (x) => eur(x.margin) },
+        { label: "DB %", num: true, render: (x) => x.margin_pct === null ? "–" : `${x.margin_pct.toLocaleString("de-AT")} %` },
+        { label: "€/h eff.", num: true, render: (x) => x.effective_rate === null ? "–" : Math.round(x.effective_rate) },
+        { label: "Bewertung", render: (x) => h("div", {}, badge(x.rating, { gut: "ok", ok: "info", kritisch: "bad" }[x.rating]), x.advice ? h("div", { class: "small muted", style: "max-width:320px" }, x.advice) : null) },
+      ], r.rows), h("p", { class: "small muted", style: "margin-bottom:0" }, "* Schätzung aus der Monatspauschale (noch keine Rechnungen im Cockpit) · ° inkl. Fernwartung ohne Zeitbuchung (Splashtop-Protokoll). Aufwand × Kostensatz + Lizenz-Einkauf = Kosten; effektiver Stundensatz = (Umsatz − Lizenz-Einkauf) / Stunden.")),
+      h("details", { class: "card", style: "margin-top:1rem" }, h("summary", { style: "cursor:pointer;font-weight:600" }, "Kostensätze"),
+        conf, h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+          await api("/api/profitability/settings", { method: "PUT", body: readForm(conf) }); toast("Gespeichert"); render(); }) }, "Speichern"))));
+    return;
+  }
+  const p = await api("/api/indexation");
+  const c = p.conf;
+  const months = Object.keys(c.values).sort().reverse();
+  const nm = h("input", { type: "month", style: "max-width:170px" }); const nv = h("input", { type: "number", step: "0.1", placeholder: "Indexwert", style: "max-width:140px" });
+  const due = p.rows.filter((r) => r.status === "anpassen");
+  const next = new Date(); next.setMonth(next.getMonth() + 1, 1);
+  const eff = h("input", { type: "date", value: `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`, style: "max-width:170px" });
+  const mail = h("input", { type: "checkbox", style: "width:auto", checked: true });
+  const checks = Object.fromEntries(due.map((r) => [r.customer_id, h("input", { type: "checkbox", checked: true, style: "width:auto" })]));
+  const tconf = form([{ name: "name", label: "Index" }, { name: "threshold", label: "Schwelle %", type: "number", step: "0.1" },
+    { name: "subject", label: "Betreff Ankündigung", full: true },
+    { name: "text", label: "Text – Platzhalter: {anrede} {index} {basis_monat} {basis_wert} {aktuell_monat} {aktuell_wert} {prozent} {schwelle} {ab} {alt} {neu} {firma}", type: "textarea", rows: 9, full: true }], c);
+  const STATUS = { anpassen: "warn", "unter Schwelle": "info", aktuell: "ok", "Basiswert fehlt": "bad", "keine Indexwerte": "bad" };
+  show(tabs,
+    h("div", { class: "grid kpis" },
+      kpi("Fällige Anpassungen", due.length, due.length ? `+${eur(due.reduce((a, r) => a + r.new_mrr - r.mrr, 0))} MRR` : "nichts fällig", due.length ? "accent" : ""),
+      kpi("Kunden mit Wertsicherung", p.rows.length, "im Kunden: „Wertsicherung vereinbart“"),
+      kpi(`Letzter ${c.name}`, p.latest ? String(c.values[p.latest]).replace(".", ",") : "–", p.latest ? `${p.latest.slice(5)}/${p.latest.slice(0, 4)}` : "Indexwerte eintragen"),
+      kpi("Schwelle", `${String(c.threshold).replace(".", ",")} %`, "Änderung unter der Schwelle bleibt unberücksichtigt")),
+    h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Kunden mit Wertsicherung")),
+      table([
+        ...(due.length ? [{ label: "", render: (r) => checks[r.customer_id] || "" }] : []),
+        { label: "Kunde", render: (r) => h("a", { href: `#/kunde/${r.customer_id}` }, r.customer) },
+        { label: "Basis", render: (r) => r.base_value ? `${r.base_month} · ${String(r.base_value).replace(".", ",")}` : (r.base_month || "–") },
+        { label: "Aktuell", render: (r) => r.current_value ? `${r.current_month} · ${String(r.current_value).replace(".", ",")}` : "–" },
+        { label: "Veränderung", num: true, render: (r) => r.change_pct === undefined ? "–" : `${r.change_pct > 0 ? "+" : ""}${r.change_pct.toLocaleString("de-AT")} %` },
+        { label: "Pauschale", num: true, render: (r) => eur2(r.mrr) },
+        { label: "Neu", num: true, render: (r) => r.new_mrr ? eur2(r.new_mrr) : "–" },
+        { label: "Status", render: (r) => h("div", {}, badge(r.status, STATUS[r.status]), r.scheduled ? h("div", { class: "small muted" }, `geplant: ${eur2(r.scheduled.mrr)} ab ${dt(r.scheduled.from)}`) : null) },
+      ], p.rows),
+      due.length ? h("div", { class: "row", style: "margin-top:.8rem;gap:.8rem;flex-wrap:wrap" }, h("label", {}, "Gültig ab"), eff,
+        h("label", { class: "row", style: "gap:.4rem;font-weight:400" }, mail, "Ankündigung per Mail senden (PDF im Corporate Design)"), h("span", { class: "spacer" }),
+        h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+          const ids = due.filter((r) => checks[r.customer_id].checked).map((r) => r.customer_id);
+          if (!ids.length) throw new Error("Bitte Kunden auswählen");
+          if (!confirm(`${ids.length} Pauschale(n) ab ${dt(eff.value)} anpassen${mail.checked ? " und Ankündigung senden" : ""}?`)) return;
+          const res = await api("/api/indexation/apply", { method: "POST", body: { customer_ids: ids, effective: eff.value, send_mail: mail.checked } });
+          toast(`${res.applied.length} angepasst${res.errors.length ? ` · ${res.errors[0].error}` : ""}`, res.errors.length > 0); render();
+        }) }, "Anpassung durchführen")) : null),
+    h("div", { class: "grid two" },
+      h("div", { class: "card" }, h("h2", {}, `Indexwerte ${c.name}`),
+        h("p", { class: "small muted" }, "Monatlich von Statistik Austria (Verbraucherpreisindex) übernehmen. Für jeden Kunden zählt der Wert im Basismonat und der jüngste eingetragene Wert."),
+        h("div", { class: "row" }, nm, nv, h("button", { class: "btn", onclick: async () => {
+          if (!nm.value || !nv.value) return toast("Monat und Wert eingeben", true);
+          await api("/api/indexation/settings", { method: "PUT", body: { values: { [nm.value]: Number(nv.value) } } }); render(); } }, "Hinzufügen")),
+        months.length ? table([{ label: "Monat", render: (m) => `${m.slice(5)}/${m.slice(0, 4)}` }, { label: "Wert", num: true, render: (m) => String(c.values[m]).replace(".", ",") },
+          { label: "", render: (m) => h("button", { class: "btn small danger", onclick: async () => { await api("/api/indexation/settings", { method: "PUT", body: { values: { [m]: null } } }); render(); } }, "×") }], months.slice(0, 24)) : null),
+      h("div", { class: "card" }, h("h2", {}, "Regel & Ankündigung"), tconf,
+        h("div", { class: "row", style: "margin-top:.8rem" }, h("span", { class: "spacer" }), h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+          const d = readForm(tconf); delete d.values; await api("/api/indexation/settings", { method: "PUT", body: d }); toast("Gespeichert"); render(); }) }, "Speichern")))));
+};
 
 views.wartung = async () => {
   await Promise.all([loadCustomers(), loadUsers()]);
@@ -2364,6 +2483,59 @@ async function applyBranding() {
   } catch { /* Standardfarben aus style.css */ }
 }
 
+// ---------------------------------------------------------------- Stoppuhr
+const timerPill = h("div", { id: "timer-pill", hidden: true, role: "status" });
+document.body.append(timerPill);
+let timerState = null;
+const fmtElapsed = (s) => `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+function drawTimer() {
+  document.body.classList.toggle("has-timer", !!timerState);
+  if (!timerState) { timerPill.hidden = true; return; }
+  const secs = timerState.elapsed_s + Math.floor((Date.now() - timerState._loaded) / 1000);
+  timerPill.hidden = false;
+  timerPill.replaceChildren(h("span", { class: "dot" }), h("strong", {}, fmtElapsed(secs)),
+    h("span", { class: "what" }, timerState.ticket_id ? `#${timerState.ticket_id} ${timerState.ticket_title || ""}` : (timerState.customer_name || timerState.note || "ohne Kunde")),
+    h("button", { class: "btn small primary", onclick: timerStop }, "Stopp"));
+}
+async function refreshTimer() {
+  try { const r = await api("/api/timer"); timerState = r.timer ? { ...r.timer, _loaded: Date.now() } : null; } catch { timerState = null; }
+  drawTimer();
+}
+async function timerStart(body) {
+  try {
+    const r = await api("/api/timer/start", { method: "POST", body });
+    timerState = { ...r.timer, _loaded: Date.now() }; drawTimer();
+    toast(r.booked ? `Vorherige Zeit gebucht (${r.booked.minutes} Min.) – Stoppuhr läuft` : "Stoppuhr läuft");
+  } catch (err) { toast(err.message, true); }
+}
+async function timerStop() {
+  if (!timerState) return;
+  const secs = timerState.elapsed_s + Math.floor((Date.now() - timerState._loaded) / 1000);
+  if (!state.customers.length) await loadCustomers();
+  const f = form([
+    ...(timerState.customer_id ? [] : [{ name: "customer_id", label: "Kunde", type: "select", options: customerOptions() }]),
+    { name: "description", label: "Tätigkeit", full: true },
+    { name: "minutes", label: "Minuten", type: "number" },
+    { name: "billable", label: "verrechenbar (leer lassen = laut Vertrag)", type: "select", options: [["", "laut Vertrag"], ["true", "ja"], ["false", "nein (Flatrate/Kulanz)"]] },
+  ], { description: timerState.note || timerState.ticket_title || "", minutes: Math.max(1, Math.ceil(secs / 60)) });
+  modal(`Stoppuhr: ${fmtElapsed(secs)}`, f, [
+    (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Zeit verwerfen?")) return; await api("/api/timer", { method: "DELETE" }); close(); refreshTimer(); } }, "Verwerfen"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const d = readForm(f); const body = { description: d.description, minutes: Number(d.minutes) || null };
+      if (d.billable) body.billable = d.billable === "true";
+      if (d.customer_id) body.customer_id = Number(d.customer_id);
+      const r = await api("/api/timer/stop", { method: "POST", body }); close(); timerState = null; drawTimer();
+      toast(`${r.entry.minutes} Min. gebucht`); render();
+    }) }, "Zeit buchen"),
+  ]);
+}
+setInterval(drawTimer, 1000);
+
+// ---------------------------------------------------------------- App (PWA)
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+
 (async () => {
   await applyBranding();
   try { state.auth = await api("/api/auth/status"); } catch { state.auth = { login_required: false, user: null, roles: {} }; }
@@ -2371,6 +2543,7 @@ async function applyBranding() {
   renderUserBox();
   await loadUsers();
   render();
+  refreshTimer();
 })();
 refreshAiStatus();
 setInterval(refreshAiStatus, 30000);

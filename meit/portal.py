@@ -63,6 +63,11 @@ def _new_password() -> str:
     return secrets.token_urlsafe(12)
 
 
+
+class PortalRateIn(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: str = Field("", max_length=2000)
+
 def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote: Callable) -> None:
     db = ctx.db
     login_limiter = RateLimiter(limit=10, window_s=600)
@@ -136,8 +141,9 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
 
     @app.get("/api/portal/tickets")
     def tickets(u: dict = Depends(portal_user)) -> list[dict]:
-        rows = db.query("SELECT id, title, description, status, priority, category, solution, created_at, resolved_at "
-                        "FROM tickets WHERE customer_id = ? ORDER BY CASE status WHEN 'geloest' THEN 1 ELSE 0 END, id DESC "
+        rows = db.query("SELECT t.id, t.title, t.description, t.status, t.priority, t.category, t.solution, t.created_at, "
+                        "t.resolved_at, s.rating FROM tickets t LEFT JOIN csat_surveys s ON s.ticket_id = t.id "
+                        "WHERE t.customer_id = ? ORDER BY CASE t.status WHEN 'geloest' THEN 1 ELSE 0 END, t.id DESC "
                         "LIMIT 100", (u["customer_id"],))
         for r in rows:
             r["status_label"] = TICKET_STATUS.get(r["status"], r["status"])
@@ -168,6 +174,21 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             r["support"] = ("abgelaufen" if info and info[0] <= today else
                             f"endet {info[0].strftime('%d.%m.%Y')}" if info and info[0] <= today + timedelta(days=548) else "ok")
         return rows
+
+    @app.post("/api/portal/tickets/{tid}/rating")
+    def rate_ticket(tid: int, data: PortalRateIn, u: dict = Depends(portal_user)) -> dict:
+        t = db.get("tickets", tid)
+        if not t or t["customer_id"] != u["customer_id"] or t["status"] != "geloest":
+            raise HTTPException(404, "Ticket nicht gefunden oder noch nicht erledigt")
+        csat = getattr(app.state, "csat", None)
+        survey = csat.survey_for(tid) if csat else None
+        if not survey:
+            raise HTTPException(422, "Für dieses Ticket ist keine Bewertung vorgesehen")
+        try:
+            s = csat.rate(survey, data.rating, data.comment, "portal")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        return {"ok": True, "rating": s["rating"]}
 
     @app.get("/api/portal/maintenance")
     def maintenance(u: dict = Depends(portal_user)) -> dict:

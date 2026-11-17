@@ -450,6 +450,31 @@ CREATE TABLE IF NOT EXISTS remote_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_rsessions_customer ON remote_sessions(customer_id, started_at);
 
+CREATE TABLE IF NOT EXISTS csat_surveys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id INTEGER NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    email TEXT DEFAULT '',
+    token TEXT NOT NULL UNIQUE,
+    sent_at TEXT DEFAULT '',
+    rating INTEGER,
+    comment TEXT DEFAULT '',
+    rated_at TEXT DEFAULT '',
+    channel TEXT DEFAULT '',
+    followup_ticket_id INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS timers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    note TEXT DEFAULT '',
+    started_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -467,7 +492,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "customers": {
         "name", "contact_name", "email", "phone", "address", "industry", "employees",
         "package", "mrr", "contract_end", "booked_services", "notes", "last_qbr_at", "uid", "supplier_no", "keeper_url",
-        "bookstack_url",
+        "bookstack_url", "index_clause", "index_base_month", "index_base_value", "mrr_next", "mrr_next_from",
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
@@ -479,6 +504,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "kb_articles": {"title", "content", "tags", "embedding", "embedding_model", "public", "source", "external_id",
                     "external_url", "synced_at"},
+    "csat_surveys": {"ticket_id", "customer_id", "email", "token", "sent_at", "rating", "comment", "rated_at", "channel",
+                     "followup_ticket_id"},
+    "timers": {"user_id", "ticket_id", "customer_id", "note", "started_at"},
     "remote_sessions": {"source", "started_at", "ended_at", "minutes", "technician", "device", "customer_hint",
                         "customer_id", "asset_id", "maintenance_run_id", "time_entry_id", "status", "note", "dedupe_key"},
     "services": {"code", "name", "description", "unit", "price", "recurring", "keywords", "active"},
@@ -531,13 +559,15 @@ TABLES_WITH_CREATED_AT = {
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
-    "remote_sessions",
+    "remote_sessions", "csat_surveys", "timers",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
 MIGRATIONS = {
     "customers": {"last_qbr_at": "TEXT DEFAULT ''", "uid": "TEXT DEFAULT ''", "supplier_no": "TEXT DEFAULT ''",
-                  "keeper_url": "TEXT DEFAULT ''", "bookstack_url": "TEXT DEFAULT ''"},
+                  "keeper_url": "TEXT DEFAULT ''", "bookstack_url": "TEXT DEFAULT ''",
+                  "index_clause": "INTEGER DEFAULT 0", "index_base_month": "TEXT DEFAULT ''",
+                  "index_base_value": "REAL DEFAULT 0", "mrr_next": "REAL", "mrr_next_from": "TEXT DEFAULT ''"},
     "assets": {"external_id": "TEXT DEFAULT ''", "remote_url": "TEXT DEFAULT ''", "keeper_url": "TEXT DEFAULT ''"},
     "invoices": {"order_ref": "TEXT DEFAULT ''", "sent_at": "TEXT DEFAULT ''", "sent_to": "TEXT DEFAULT ''",
                  "paid_amount": "REAL DEFAULT 0", "dunning_level": "INTEGER DEFAULT 0", "dunned_at": "TEXT DEFAULT ''",
