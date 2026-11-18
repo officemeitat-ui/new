@@ -76,6 +76,8 @@
       for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
       return el;
     }
+    /** Wie replaceChildren, aber leere Werte (null/false/"") werden übersprungen statt als Text „null“ angezeigt. */
+    function fill(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false && x !== "")); }
     async function api(path, opts = {}) {
       const init = { headers: {}, ...opts };
       if (opts.body) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
@@ -117,7 +119,7 @@
       const text = h("textarea", { maxlength: 5000, placeholder: "Nachricht an Ihren IT-Partner (z. B. Rückfrage beantworten, neue Infos) …", style: "min-height:80px" });
       const info = h("span", { class: "small" });
       const send = h("button", { class: "btn primary", type: "submit" }, "Senden");
-      box.replaceChildren(
+      fill(box,
         c.messages.length ? h("div", { class: "thread" }, c.messages.map((m) => h("div", { class: `bubble ${m.mine ? "mine" : "ours"}` }, h("div", { class: "meta" }, `${m.author} · ${dtt(m.at)}`), m.text))) : null,
         c.files.length ? h("div", { class: "files" }, c.files.map((f) => h("a", { href: `/api/portal/attachments/${f.id}`, target: "_blank", rel: "noopener" }, `📎 ${f.name} (${kb(f.size)})`))) : null,
         h("form", { onsubmit: async (e) => {
@@ -214,6 +216,66 @@
               } }, face))) : null); }) : h("p", { class: "muted" }, "Noch keine Tickets.")));
     };
 
+    views.mitarbeiter = async () => {
+      const d = await api("/api/portal/staff");
+      const out = h("div");
+      const sel = (opts, attrs = {}) => h("select", { ...attrs, style: "width:100%;padding:.6rem .7rem;border:1px solid var(--border);border-radius:9px;font:inherit;background:var(--card);color:var(--text)" },
+        opts.map(([v, l]) => h("option", { value: v }, l)));
+      const formFor = (kind) => {
+        const entry = kind === "eintritt";
+        const f = { person: h("input", { maxlength: 120, required: true }), email: h("input", { type: "email", maxlength: 200 }), due: h("input", { type: "date" }),
+          dept: h("input", { maxlength: 120 }), lic: sel([["", "– weiß nicht / später –"], ...d.licenses.map((l) => [l.id, l.name])]),
+          device: sel(entry ? [["neu", "Neues Gerät benötigt"], ["vorhanden", "Vorhandenes Gerät neu einrichten"], ["kein", "Kein Gerät"]] : [["vorhanden", "Gerät wird zurückgegeben"], ["kein", "Kein Gerät"]]),
+          phone: h("input", { type: "checkbox", style: "width:auto" }), mailbox: sel([["freigegeben", "Postfach behalten (Kollege/in hat Zugriff)"], ["weiterleiten", "Mails weiterleiten"], ["loeschen", "Postfach löschen"]]),
+          handover: h("input", { maxlength: 120, placeholder: "z. B. Franz Huber" }), notes: h("textarea", { maxlength: 3000, style: "min-height:70px" }) };
+        const pick = d.m365 && !entry ? sel([["", "– Person aus der Liste wählen –"], ...d.m365.users.filter((u) => u.enabled).map((u) => [u.upn, u.name])], {
+          onchange: (e) => { const u = d.m365.users.find((x) => x.upn === e.target.value); if (u) { f.person.value = u.name; f.email.value = u.upn; } } }) : null;
+        const msg = h("span", { class: "small" });
+        const btn = h("button", { class: "btn primary", type: "submit" }, entry ? "Eintritt melden" : "Austritt melden");
+        return h("form", { class: "card", onsubmit: async (e) => {
+          e.preventDefault(); btn.disabled = true;
+          try {
+            const r = await api("/api/portal/staff", { method: "POST", body: { kind, person: f.person.value, email: f.email.value, due_date: f.due.value,
+              department: entry ? f.dept.value : "", subscription_id: f.lic.value ? Number(f.lic.value) : null, device: f.device.value, phone: entry && f.phone.checked,
+              mailbox: entry ? "" : f.mailbox.value, handover_to: entry ? "" : f.handover.value, notes: f.notes.value } });
+            msg.textContent = `Danke! Wir kümmern uns darum (Ticket #${r.ticket_id}, ${r.steps} Schritte).`; setTimeout(() => go("mitarbeiter"), 1500);
+          } catch (x) { msg.textContent = x.message; } finally { btn.disabled = false; }
+        } }, h("h2", {}, entry ? "Neuer Mitarbeiter" : "Mitarbeiter verlässt uns"),
+          pick ? [h("label", {}, "Person"), pick] : null,
+          h("label", {}, "Name"), f.person, h("label", {}, entry ? "Gewünschte E-Mail-Adresse (optional)" : "E-Mail-Adresse"), f.email,
+          h("label", {}, entry ? "Erster Arbeitstag" : "Letzter Arbeitstag"), f.due,
+          entry ? [h("label", {}, "Abteilung"), f.dept] : null,
+          d.licenses.length ? [h("label", {}, "Microsoft-365-Lizenz"), f.lic] : null,
+          h("label", {}, "Gerät"), f.device,
+          entry ? h("label", { class: "row", style: "font-weight:400" }, f.phone, "Telefon/Teams-Telefonie benötigt") : [h("label", {}, "Postfach"), f.mailbox, h("label", {}, "Daten und Postfach übernimmt"), f.handover],
+          h("label", {}, "Sonstiges (Programme, Ordner, Zugänge …)"), f.notes,
+          h("div", { class: "row", style: "margin-top:.8rem" }, btn, msg));
+      };
+      const tabs = h("div", { class: "row", style: "margin-bottom:.6rem" },
+        h("button", { class: "btn", onclick: () => out.replaceChildren(formFor("eintritt")) }, "+ Neuer Mitarbeiter"),
+        h("button", { class: "btn", onclick: () => out.replaceChildren(formFor("austritt")) }, "– Mitarbeiter verlässt uns"));
+      const label = { offen: "offen", in_arbeit: "in Arbeit", erledigt: "erledigt", storniert: "storniert" };
+      const m = d.m365;
+      const withMfa = m ? m.users.filter((u) => u.enabled && u.mfa === 1).length : 0;
+      const enabled = m ? m.users.filter((u) => u.enabled).length : 0;
+      return h("div", {}, h("div", { class: "card" }, h("h2", {}, "Ein- und Austritte"),
+          h("p", { class: "small muted" }, "Melden Sie neue oder ausscheidende Mitarbeiter rechtzeitig – wir kümmern uns um Konto, Lizenz, Gerät, Zugänge und Datenübergabe."),
+          tabs, out,
+          d.changes.length ? d.changes.map((c) => h("details", { style: "border-bottom:1px solid var(--border);padding:.5rem 0" },
+            h("summary", {}, h("strong", {}, `${c.kind_label}: ${c.person}`), " ", h("span", { class: `badge ${c.status === "erledigt" ? "ok" : "warn"}` }, label[c.status] || c.status),
+              h("span", { class: "muted small" }, ` · ${c.due_date ? dt(c.due_date) : "ohne Datum"} · ${c.done}/${c.total} erledigt`)),
+            h("ul", { class: "small" }, c.steps.map((s) => h("li", { style: s.done ? "color:var(--muted)" : "" }, `${s.done ? "✓" : "○"} ${s.text}`))))) : h("p", { class: "muted small" }, "Noch keine Meldungen.")),
+        m ? h("div", { class: "card" }, h("h2", {}, "Ihre Microsoft-365-Konten"),
+          h("p", { class: "small" }, h("span", { class: `badge ${withMfa === enabled ? "ok" : "warn"}` }, `${withMfa} von ${enabled} mit Zwei-Faktor-Anmeldung`),
+            withMfa < enabled ? h("span", { class: "muted" }, " – Konten ohne zweiten Faktor sind das Haupteinfallstor für Angreifer. Wir helfen gerne beim Einrichten.") : null),
+          table([["Name", (u) => h("div", {}, h("strong", {}, u.name), h("div", { class: "muted small" }, u.upn))],
+            ["Lizenz", (u) => u.licenses.join(", ") || "–"],
+            ["Zwei-Faktor", (u) => u.mfa === null ? "–" : h("span", { class: `badge ${u.mfa ? "ok" : "bad"}` }, u.mfa ? "aktiv" : "fehlt")],
+            ["Letzte Anmeldung", (u) => u.last_sign_in ? dt(u.last_sign_in) : "–"],
+            ["Status", (u) => u.enabled ? "aktiv" : h("span", { class: "badge" }, "gesperrt")]], m.users),
+          h("p", { class: "muted small" }, `Stand: ${dt(m.last_sync)}`)) : null);
+    };
+
     views.pruefen = async () => {
       const out = h("div");
       const VC = { "gefährlich": "bad", "verdächtig": "warn", "unauffällig": "ok" };
@@ -293,7 +355,7 @@
         ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], rows));
     };
 
-    const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["pruefen", "E-Mail prüfen"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen"]];
+    const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["pruefen", "E-Mail prüfen"], ["mitarbeiter", "Mitarbeiter"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen"]];
     async function go(t) {
       tab = t;
       document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));

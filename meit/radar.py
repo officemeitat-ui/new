@@ -71,6 +71,7 @@ def _parse(d: str | None) -> date | None:
 class Radar:
     def __init__(self, db: Database):
         self.db = db
+        self.m365 = None  # meit.m365.M365Service (optional)
 
     def _prices(self) -> dict[str, dict[str, Any]]:
         rows = self.db.query("SELECT code, name, price, unit, recurring FROM services WHERE active = 1")
@@ -240,6 +241,15 @@ class Radar:
                     add(c, "vertrag", f"Unterlizenziert: {sub['name']} ({missing} fehlen)",
                         f"{e['seats']['licensed']} Lizenzen für {employees} Mitarbeiter – Compliance-Risiko.",
                         "STD", monthly=round(monthly_price(sub) * missing, 2), priority=3)
+
+            # --- Microsoft 365 (Lizenzabgleich, Absicherung) ---------------------------------
+            if self.m365 is not None:
+                try:
+                    for o in self.m365.opportunities(c["id"], today):
+                        add(c, o["kind"], o["title"], o["reason"], o["code"],
+                            once=price(o["code"]) * o.get("hours", 0), monthly=o.get("monthly", 0), priority=o["priority"])
+                except Exception:  # noqa: BLE001 - Radar darf an M365-Daten nie scheitern
+                    pass
 
             # --- Ticket-Muster -----------------------------------------------------------
             since = (today - timedelta(days=180)).isoformat()

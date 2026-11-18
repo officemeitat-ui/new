@@ -72,6 +72,22 @@ class PortalRateIn(BaseModel):
 class PortalCommentIn(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
 
+
+class PortalStaffIn(BaseModel):
+    kind: str = Field(..., pattern="^(eintritt|austritt)$")
+    person: str = Field(..., min_length=2, max_length=120)
+    email: str = Field("", max_length=200)
+    due_date: str = Field("", max_length=10)
+    department: str = Field("", max_length=120)
+    job_title: str = Field("", max_length=120)
+    subscription_id: Optional[int] = None
+    device: str = Field("", pattern="^(|neu|vorhanden|kein)$")
+    phone: bool = False
+    mailbox: str = Field("", pattern="^(|freigegeben|weiterleiten|loeschen)$")
+    forward_to: str = Field("", max_length=200)
+    handover_to: str = Field("", max_length=120)
+    notes: str = Field("", max_length=3000)
+
 def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote: Callable) -> None:
     db = ctx.db
     login_limiter = RateLimiter(limit=10, window_s=600)
@@ -303,6 +319,32 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             pass
         return {"ticket_id": tid, "verdict": result["verdict"], "score": result["score"], "reasons": result["reasons"],
                 "advice": result["advice"], "links": result["links"][:10]}
+
+    # ------------------------------------------------ Mitarbeiter: Ein-/Austritte, Microsoft-365-Konten
+    @app.get("/api/portal/staff")
+    def portal_staff(u: dict = Depends(portal_user)) -> dict:
+        staff = getattr(app.state, "staff", None)
+        m365 = getattr(app.state, "m365", None)
+        licenses = db.query("SELECT id, name, quantity FROM subscriptions WHERE customer_id = ? AND per_user = 1 ORDER BY name",
+                            (u["customer_id"],))
+        return {"changes": staff.portal_list(u["customer_id"]) if staff else [], "licenses": licenses,
+                "m365": m365.portal_view(u["customer_id"]) if m365 else None}
+
+    @app.post("/api/portal/staff", status_code=201)
+    def portal_staff_new(data: PortalStaffIn, u: dict = Depends(portal_user)) -> dict:
+        from .staff import StaffIn
+
+        staff = getattr(app.state, "staff", None)
+        if not staff:
+            raise HTTPException(503, "Nicht verfügbar")
+        if not ticket_limiter.allow(f"s{u['id']}"):
+            raise HTTPException(429, "Zu viele Meldungen in kurzer Zeit – bitte rufen Sie uns an.")
+        try:
+            r = staff.create(StaffIn(customer_id=u["customer_id"], **data.model_dump()),
+                             requested_by=f"{u['name'] or u['email']} (Kundenportal)")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        return {"id": r["id"], "ticket_id": r["ticket_id"], "steps": r["total"]}
 
     @app.get("/api/portal/maintenance")
     def maintenance(u: dict = Depends(portal_user)) -> dict:

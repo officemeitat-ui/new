@@ -14,7 +14,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Wartungsplan: [docs/WARTUNGSPLAN.md](docs/WARTUNGSPLAN.md) ·
 > Atera · Keeper · BookStack: [docs/ATERA-KEEPER-BOOKSTACK.md](docs/ATERA-KEEPER-BOOKSTACK.md) ·
 > Rentabilität, Zufriedenheit, App: [docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md](docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md) ·
-> E-Mails, Kundenportal, Phishing-Check, Claude: [docs/EMAIL-PORTAL-CLAUDE.md](docs/EMAIL-PORTAL-CLAUDE.md)
+> E-Mails, Kundenportal, Phishing-Check, Claude: [docs/EMAIL-PORTAL-CLAUDE.md](docs/EMAIL-PORTAL-CLAUDE.md) ·
+> Microsoft 365 der Kunden, Ein-/Austritte: [docs/M365-KUNDEN-MITARBEITER.md](docs/M365-KUNDEN-MITARBEITER.md)
 
 ## Funktionen
 
@@ -36,6 +37,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **KI-Mitarbeiter: Posteingang** | Sortiert E-Mails, Formularanfragen und Telefonnotizen (Support · Anfrage · Termin · Beleg · Info). Daraus entstehen Ticket, Lead oder Beleg, dazu ein Antwortentwurf. Modus je Art: **Entwurf + Freigabe** oder **Autopilot**. IMAP/SMTP-Anbindung. |
 | **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
+| **Microsoft 365 der Kunden** | Einmalige Zustimmung des Kunden-Admins (Link, nur Leserechte, kein GDAP), dann täglicher Check: **externe Weiterleitungen** (→ sofort Ticket), Admins/Benutzer ohne MFA, fehlende MFA-Pflicht, zu viele Admins, gesperrte/ungenutzte Konten mit Lizenz, inaktive Gäste, **Secure Score** mit Verlauf. **Lizenzabgleich**: zugewiesen vs. verrechnet je Produkt, Nachverrechnung mit einem Klick, Einsparungen für den Kunden. Fließt in Radar, Monatsbericht und QBR ein. |
+| **Ein- & Austritte** | Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste mit Ticket (Konto, Lizenz, MFA, Gerät, Keeper, Postfach, Datenübergabe …), Vorlagen anpassbar. Beim Abschluss werden **Lizenzanzahl (→ Rechnung)** und Mitarbeiterzahl angepasst. Kunden melden Ein-/Austritte im Portal und sehen den Fortschritt. |
 | **E-Mails & Anhänge** | Mails aus Outlook (**.msg**) oder Outlook im Web (**.eml**) per Drag & Drop in den Posteingang oder direkt ins Ticket. Anhänge (Screenshots, PDFs) landen am Ticket, Belege in der Buchhaltung. **Antworten des Kunden landen im bestehenden Ticket** (In-Reply-To bzw. „[#123]“ im Betreff) und öffnen es wieder. Ticket-Verlauf mit Antworten per Mail, nur im Portal oder als interne Notiz. Ausführbare Dateien werden abgelehnt. |
 | **Phishing-Check** | Verdächtige Mail hochladen → Bewertung mit Begründung: SPF/DKIM/DMARC, gefälschte Absender und Marken, Links (Kurz-URLs, IP-Adressen, Punycode, Linktext ≠ Ziel), gefährliche Anhänge, Drucktaktiken. Im Cockpit und für Kunden im Portal (dort entsteht automatisch ein Ticket mit Priorität). Gefährliche Mails erzeugen im Posteingang keine Tickets/Leads. Läuft komplett lokal. |
 | **Claude (Cloud-KI)** | Optional zur lokalen KI: je Aufgabe **lokal / auto / Claude** (z. B. Angebote mit Claude, Kundenportal immer lokal), Modell (Opus/Sonnet/Haiku 5.5), Denktiefe je Aufgabe, **Monatsbudget** mit Kostenanzeige, **Pseudonymisierung** von E-Mail-Adressen, Telefonnummern und IBANs vor dem Versand (Antwort wird zurückübersetzt), Passwörter werden immer geschwärzt. **Belege-PDFs mit Claude lesen** (auch Scans) mit strukturierter Ausgabe. |
@@ -52,7 +55,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Automatische Zuweisung** | Tickets gehen nach der KI-Einordnung an die zuständige Person (Regel je Kategorie oder Pool), jeweils an die mit den wenigsten offenen Tickets |
 | **Wochenrhythmus** | Montag Ziele, Freitag Abgleich: Ist-Werte zählt das Cockpit automatisch (Pitches, Angebote, QBRs, gelöste Tickets) plus erfasste Anrufe. Dazu ein Top-10-Deal-Review mit nächstem Schritt und Risiko. |
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
-| **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage und Dateien, **Verlauf mit Antworten und Kommentaren**, Screenshots hochladen, **verdächtige E-Mails prüfen lassen**, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
+| **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage und Dateien, **Verlauf mit Antworten und Kommentaren**, Screenshots hochladen, **verdächtige E-Mails prüfen lassen**, **Ein-/Austritte melden** und Microsoft-365-Konten samt MFA-Status sehen, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
 | **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG als PDF im Corporate Design (Versand per Outlook), Storno, Rechnungsausgangsbuch als CSV, **E-Rechnung ebInterface 6.1** (gegen das offizielle Schema geprüft; mit Auftragsreferenz und Lieferantennummer für den Bund) |
 | **Atera (RMM + Splashtop)** | Kunden und Geräte inkl. Link zur Atera-Geräteseite, Alarme → Tickets. **Splashtop-Sitzungsprotokoll** importieren: Sitzungen werden Gerät → Kunde → Wartung zugeordnet und erscheinen als protokollierter Nachweis im Wartungsprotokoll, Portal und Wiki; Sitzungen ohne Zeitbuchung mit einem Klick buchen. |
 | **Keeper & Passwort-Wächter** | Keeper-Links je Kunde und Gerät statt Passwörtern im Cockpit. Scanner findet Klartext-Zugangsdaten in Tickets, Wissen, Notizen und E-Mails (Schwärzen per Klick); vor BookStack-Export und Cloud-KI wird automatisch geschwärzt. |
@@ -107,6 +110,7 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `MAIL_POLL_MINUTES` | `0` | Postfach automatisch alle X Minuten abrufen |
 | `BOOKING_URL` | leer | Terminbuchungs-Link für Antworten an Interessenten |
 | `PUBLIC_FORM_ENABLED` / `PUBLIC_FORM_ORIGINS` | `true` / leer | Anfrageformular an/aus, Websites, die es einbinden dürfen |
+| `M365_CLIENT_ID` / `M365_CLIENT_SECRET` | leer | Mandantenfähige App für das Microsoft 365 der Kunden (nur lesend), `M365_SYNC_HOURS` (24) |
 | `PUBLIC_URL` | leer | Öffentliche Adresse des Cockpits (Links in Mails, z. B. Zufriedenheits-Umfrage) |
 | `ARCHIVE_DIR` | leer (`data/archiv`) | Dokumentenarchiv (PDFs). Tipp: OneDrive-synchronisierter Ordner. SharePoint/OneDrive-Upload: Einstellungen → Dokumentenablage |
 
@@ -164,6 +168,8 @@ meit/
   ai_control.py    Claude-Steuerung: je Aufgabe lokal/auto/Claude, Budget, Kosten, Belege per Claude
   emails.py        .eml/.msg lesen, Phishing-Prüfung (Regeln + KI-Zweitmeinung)
   attachments.py   Anhänge, Mail-Upload, Ticket-Verlauf, Antworten, Zuordnung von Kundenantworten
+  m365.py          Microsoft 365 der Kunden: Zustimmung, Abruf, Befunde, Lizenzabgleich
+  staff.py         Ein-/Austritte von Mitarbeitern beim Kunden (Checkliste, Ticket, Lizenzanzahl)
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,
                    Posteingang/KI-Mitarbeiter (inbox.py), Quartalsgespräch (qbr.py)
   mitarbeiter_api.py  API für Posteingang, Leads, Belege, Anfrageformular

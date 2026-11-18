@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from ..llm import LLMError
@@ -38,7 +38,11 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
 
     m_start, m_end, _ = month_bounds(month)
     wartung = Maintenance(ctx.db).summary(customer_id, m_start, m_end)
+    from ..m365 import report_lines as m365_lines
+
+    m365_text, m365_facts = m365_lines(ctx.db, customer_id, m_start.isoformat(), (m_end + timedelta(days=1)).isoformat())
     facts = {
+        "microsoft_365": m365_facts,
         "wartung_durchgefuehrt": [f"{r['title']}: {r['result']}" for r in wartung["done"]],
         "monat": month, "tickets_gesamt": len(tickets), "geloest": len(resolved), "offen_gesamt": open_all,
         "arbeitszeit_stunden": round(minutes / 60, 1),
@@ -83,6 +87,7 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
     sla_q = customer_sla_quote(ctx.db, customer, days=31)
     if sla_q["quote"] is not None:
         lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")
+    lines += m365_text
     done_tickets = [t for t in resolved if t["category"] != "Wartung"]
     if done_tickets:
         lines += ["", "## Erledigt"] + [f"- {t['title']}" for t in done_tickets]

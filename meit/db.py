@@ -504,6 +504,66 @@ CREATE TABLE IF NOT EXISTS attachments (
 
 CREATE INDEX IF NOT EXISTS idx_attachments_ref ON attachments(ref_type, ref_id);
 
+CREATE TABLE IF NOT EXISTS m365_tenants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id) ON DELETE CASCADE,
+    tenant_id TEXT DEFAULT '',
+    display_name TEXT DEFAULT '',
+    domain TEXT DEFAULT '',
+    status TEXT DEFAULT 'ausstehend',
+    consent_state TEXT DEFAULT '',
+    consented_at TEXT DEFAULT '',
+    last_sync TEXT DEFAULT '',
+    error TEXT DEFAULT '',
+    snapshot TEXT DEFAULT '',
+    sku_map TEXT DEFAULT '{}',
+    ignored TEXT DEFAULT '[]',
+    tickets TEXT DEFAULT '{}',
+    score_history TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS m365_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    object_id TEXT NOT NULL,
+    upn TEXT DEFAULT '',
+    display_name TEXT DEFAULT '',
+    enabled INTEGER DEFAULT 1,
+    user_type TEXT DEFAULT 'Member',
+    licenses TEXT DEFAULT '[]',
+    last_sign_in TEXT DEFAULT '',
+    mfa INTEGER,
+    mfa_methods TEXT DEFAULT '[]',
+    admin_roles TEXT DEFAULT '[]',
+    rules TEXT DEFAULT '[]',
+    department TEXT DEFAULT '',
+    job_title TEXT DEFAULT '',
+    created_dt TEXT DEFAULT '',
+    synced_at TEXT DEFAULT '',
+    UNIQUE(customer_id, object_id)
+);
+
+CREATE TABLE IF NOT EXISTS staff_changes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    person TEXT NOT NULL,
+    email TEXT DEFAULT '',
+    due_date TEXT DEFAULT '',
+    details TEXT DEFAULT '{}',
+    checklist TEXT DEFAULT '[]',
+    status TEXT DEFAULT 'offen',
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+    subscription_id INTEGER REFERENCES subscriptions(id) ON DELETE SET NULL,
+    license_adjusted INTEGER DEFAULT 0,
+    requested_by TEXT DEFAULT '',
+    completed_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_staff_customer ON staff_changes(customer_id, status);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -583,6 +643,12 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "qbrs": {"customer_id", "period", "health_score", "text", "next_steps"},
     "assessments": {"customer_id", "answers", "score", "level", "report"},
     "agent_log": {"agent", "provider", "input", "output", "ok", "duration_ms"},
+    "m365_tenants": {"customer_id", "tenant_id", "display_name", "domain", "status", "consent_state", "consented_at",
+                     "last_sync", "error", "snapshot", "sku_map", "ignored", "tickets", "score_history"},
+    "m365_users": {"customer_id", "object_id", "upn", "display_name", "enabled", "user_type", "licenses", "last_sign_in",
+                   "mfa", "mfa_methods", "admin_roles", "rules", "department", "job_title", "created_dt", "synced_at"},
+    "staff_changes": {"customer_id", "kind", "person", "email", "due_date", "details", "checklist", "status", "ticket_id",
+                      "subscription_id", "license_adjusted", "requested_by", "completed_at"},
 }
 
 TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
@@ -591,7 +657,7 @@ TABLES_WITH_CREATED_AT = {
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
-    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments",
+    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

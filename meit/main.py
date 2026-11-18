@@ -45,6 +45,8 @@ from .secrets_guard import redact_row, scan as scan_secrets
 from .profitability import register as register_profitability
 from .attachments import register as register_attachments
 from .csat import register as register_csat
+from .m365 import register as register_m365
+from .staff import register as register_staff
 from .mobile import register as register_mobile
 from .ai_control import register as register_ai_control
 from .branding import get_branding
@@ -829,6 +831,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Atera (RMM + Splashtop-Sitzungsprotokolle), BookStack (Doku-Wiki) -----------
     register_atera(app, db, settings, admin_only)
     register_bookstack(app, db, settings, admin_only)
+
+    # --- Microsoft 365 der Kunden (Sicherheit, Lizenzabgleich) + Ein-/Austritte -----------
+    radar.m365 = register_m365(app, db, settings, admin_only, start=settings.db_path != ":memory:")
+    register_staff(app, ctx, admin_only)
 
     # --- Rentabilität je Kunde, Wertsicherung (VPI) -----------------------------------
     register_profitability(app, ctx, admin_only)

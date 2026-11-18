@@ -23,6 +23,8 @@ function h(tag, attrs, ...children) {
   return el;
 }
 
+/** Wie replaceChildren, aber leere Werte (null/false/"") werden übersprungen statt als Text „null“ angezeigt. */
+function fill(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false && x !== "")); }
 async function api(path, opts = {}) {
   const init = { headers: {}, ...opts };
   if (opts.body && typeof opts.body !== "string") {
@@ -217,8 +219,12 @@ const views = {};
 views.dashboard = async () => {
   setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
     h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
-  const [d, km, pay, wt, cs] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
-    api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null), api("/api/csat").catch(() => null)]);
+  const [d, km, pay, wt, cs, ms, staff] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
+    api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null), api("/api/csat").catch(() => null),
+    api("/api/m365").catch(() => null), api("/api/staff").catch(() => [])]);
+  const tenants = ms ? ms.tenants.filter((t) => t.last_sync) : [];
+  const m365crit = tenants.reduce((a, t) => a + t.findings.kritisch, 0);
+  const staffSoon = staff.filter((r) => r.days === null || r.days <= 14);
   const kpi = (label, value, sub, cls = "", href = null, onclick = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, onclick, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
   const nrrVal = d.nrr && d.nrr.nrr !== null ? `${d.nrr.nrr.toLocaleString("de-AT")} %` : "–";
@@ -239,6 +245,7 @@ views.dashboard = async () => {
       kpi("Geräte ohne Support", d.assets_eol, `${d.assets_eol_soon} bald · ${d.warranty_soon} Garantie < 90 Tage`),
       cs ? kpi("Zufriedenheit", cs.avg === null ? "–" : `${cs.avg.toLocaleString("de-AT")} / 5`, cs.count ? `${cs.positive_pct} % zufrieden · ${cs.count} Bewertungen (90 Tage)` : "noch keine Bewertungen", "", "#/einstellungen") : null,
       wt ? kpi("Wartung", `${wt.open} fällig`, wt.tasks ? `${wt.overdue} überfällig · ${wt.done_this_month} erledigt (Monat)` : `${wt.customers_without_plan} Managed-Kunden ohne Plan`, "", "#/wartung") : null,
+      tenants.length ? kpi("Microsoft 365", m365crit ? `${m365crit} kritisch` : "ok", `${tenants.length} Tenants · ${eur2(tenants.reduce((a, t) => a + t.gap_month, 0))} nicht verrechnet`, "", "#/m365") : null,
       kpi("Umsatz-Potenzial", eur(d.radar_annual), `${d.radar_count} Chancen · +${eur(d.radar_monthly)}/Monat`, "accent")),
     h("div", { class: "grid two" },
       h("div", { class: "card" },
@@ -248,6 +255,11 @@ views.dashboard = async () => {
             h("span", { class: "small" }, o.monthly ? `+${eur(o.monthly)}/Mon.` : eur(o.once))),
           h("div", { class: "small muted" }, `${o.customer} · ${o.reason}`)))) : h("div", { class: "empty" }, "Keine offenen Chancen.")),
       h("div", { class: "stack" },
+        staffSoon.length ? h("div", { class: "card" },
+          h("div", { class: "card-head" }, h("h2", {}, "Ein- & Austritte"), h("a", { class: "btn small", href: "#/mitarbeiter" }, "Alle")),
+          h("ul", { class: "list" }, staffSoon.slice(0, 6).map((r) => h("li", { class: "row", style: "cursor:pointer", onclick: () => staffDetail(r.id) },
+            badge(r.kind_label, r.kind === "eintritt" ? "ok" : "warn"), h("span", {}, h("strong", {}, r.person), h("span", { class: "small muted" }, ` · ${r.customer}`)),
+            h("span", { class: "spacer" }), h("span", { class: "small" }, `${r.done}/${r.total}`), r.due_date ? badge(dt(r.due_date), r.overdue ? "bad" : r.days <= 3 ? "warn" : "") : null)))) : null,
         d.renewals && d.renewals.length ? h("div", { class: "card" },
           h("div", { class: "card-head" }, h("h2", {}, "Lizenzen: Verlängerung/Frist"), h("a", { class: "btn small", href: "#/lizenzen" }, "Alle")),
           h("ul", { class: "list" }, d.renewals.map((r) => h("li", { class: "row" }, h("span", {}, h("strong", {}, r.name), h("span", { class: "small muted" }, ` · ${r.customer_name}`)),
@@ -376,6 +388,8 @@ views.kunde = async (id) => {
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Lizenzen & Verträge"),
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
+    await m365Card(c),
+    await staffCard(c),
     await maintenanceCard(c),
     await mandateCard(c),
     await (async () => { const docs = await api(`/api/documents?customer_id=${c.id}&limit=50`).catch(() => []);
@@ -2642,6 +2656,281 @@ async function brandingCard() {
 }
 
 // ---------------------------------------------------------------- Router
+// ---- Microsoft 365 der Kunden (Sicherheit, Lizenzabgleich)
+const SEV_CLS = { kritisch: "bad", hoch: "warn", mittel: "info", niedrig: "" };
+const pct = (v) => v === null || v === undefined ? "–" : `${v} %`;
+
+function m365Kpis(s) {
+  return h("div", { class: "grid kpis", style: "margin:.6rem 0" },
+    h("div", { class: "card kpi" }, h("div", { class: "label" }, "Benutzer aktiv"), h("div", { class: "value" }, s.users), h("div", { class: "sub" }, `${s.licensed} lizenziert · ${s.guests} Gäste`)),
+    h("div", { class: "card kpi" }, h("div", { class: "label" }, "MFA-Abdeckung"), h("div", { class: "value" }, pct(s.mfa_pct)), h("div", { class: "sub" }, s.mfa_pct === 100 ? "alle abgesichert" : "Ziel: 100 %")),
+    h("div", { class: "card kpi" }, h("div", { class: "label" }, "Secure Score"), h("div", { class: "value" }, pct(s.secure_score_pct)), h("div", { class: "sub" }, "Microsoft Defender")),
+    h("div", { class: "card kpi" }, h("div", { class: "label" }, "Befunde"), h("div", { class: "value" }, Object.values(s.findings).reduce((a, b) => a + b, 0)),
+      h("div", { class: "sub" }, `${s.findings.kritisch} kritisch · ${s.findings.hoch} hoch`)),
+    s.gap_month || s.savings_month ? h("div", { class: "card kpi" }, h("div", { class: "label" }, "Lizenzen"), h("div", { class: "value" }, s.gap_month ? `+${eur2(s.gap_month)}` : eur2(s.savings_month)),
+      h("div", { class: "sub" }, s.gap_month ? "nicht verrechnet / Monat" : "Einsparpotenzial / Monat")) : null);
+}
+
+function m365Finding(f, cid, refresh) {
+  const act = (label, fn, cls = "btn small") => h("button", { class: cls, onclick: (e) => withBusy(e.target, async () => { await fn(); refresh(); }) }, label);
+  return h("li", { style: f.ignored ? "opacity:.55" : "" },
+    h("div", { class: "row" }, badge(f.severity, SEV_CLS[f.severity]), h("strong", {}, f.title), h("span", { class: "spacer" }),
+      f.gap_month ? badge(`+${eur2(f.gap_month)}/Mon.`, "ok") : null, f.savings_month ? badge(`spart ${eur2(f.savings_month)}/Mon.`, "info") : null),
+    h("div", { class: "small" }, f.detail),
+    f.users.length ? h("div", { class: "small muted" }, `Betroffen: ${f.users.slice(0, 8).join(", ")}${f.users.length > 8 ? ` … (+${f.users.length - 8})` : ""}`) : null,
+    h("div", { class: "small" }, h("strong", {}, "Empfohlen: "), f.action),
+    h("div", { class: "row", style: "margin-top:.3rem;gap:.3rem" },
+      f.license_action === "quantity" ? act(`Anzahl übernehmen (${f.assigned})`, () => api(`/api/m365/${cid}/licenses`, { method: "POST", body: { sku: f.sku } }), "btn small primary") : null,
+      f.license_action === "create" ? act("Als Lizenz anlegen", () => api(`/api/m365/${cid}/licenses`, { method: "POST", body: { sku: f.sku } }), "btn small primary") : null,
+      f.ticket_id ? h("button", { class: "btn small", onclick: () => ticketDetail(f.ticket_id) }, `Ticket #${f.ticket_id}`)
+        : act("Ticket anlegen", async () => { const r = await api(`/api/m365/${cid}/findings/${encodeURIComponent(f.key)}/ticket`, { method: "POST" }); toast(`Ticket #${r.ticket_id} angelegt`); }),
+      act(f.ignored ? "Wieder anzeigen" : "Ausblenden", () => api(`/api/m365/${cid}/findings/${encodeURIComponent(f.key)}/ignore`, { method: "POST", body: { ignore: !f.ignored } }))));
+}
+
+async function m365Detail(cid, name = "") {
+  let d;
+  try { d = await api(`/api/m365/${cid}`); } catch (e) { return toast(e.message, true); }
+  const body = h("div", {});
+  let close = null;
+  const refresh = async () => { close && close(); m365Detail(cid, name); };
+  const t = d.tenant;
+  const subOptions = [["", "– automatisch –"], ...d.subscriptions.map((s) => [s.id, s.name])];
+  body.append(...[
+    h("p", { class: "small muted" }, `${t.display_name || t.domain || t.tenant_id} · ${t.domain || ""} · Status: ${t.status}${t.last_sync ? ` · abgerufen ${dt(t.last_sync)}` : ""}`),
+    t.error ? h("div", { class: "verdict warn" }, t.error) : null,
+    t.last_sync ? m365Kpis(d.summary) : h("p", {}, "Noch nicht abgerufen. Sobald die Zustimmung erteilt ist: „Jetzt abrufen“."),
+    d.findings.length ? h("div", {}, h("h3", {}, "Befunde"), h("ul", { class: "list" }, d.findings.map((f) => m365Finding(f, cid, refresh)))) : null,
+    (d.snapshot.skus || []).filter((s) => !s.free).length ? h("div", {}, h("h3", {}, "Lizenzen: Microsoft ↔ Rechnung"), table([
+      { label: "Produkt", render: (s) => h("div", {}, h("strong", {}, s.name), h("div", { class: "small muted" }, s.part)) },
+      { label: "Gekauft", num: true, key: "enabled" }, { label: "Zugewiesen", num: true, key: "consumed" },
+      { label: "Verrechnet", num: true, render: (s) => s.subscription ? String(s.subscription.quantity) : "–" },
+      { label: "Zuordnung", render: (s) => { const sel = h("select", { style: "width:auto", onchange: async () => {
+          if (!sel.value) return; await api(`/api/m365/${cid}/licenses`, { method: "POST", body: { sku: s.part, subscription_id: Number(sel.value) } }); toast("Zugeordnet und Anzahl übernommen"); refresh(); } },
+          subOptions.map(([v, l]) => h("option", { value: v, selected: s.subscription && String(s.subscription.id) === String(v) }, l))); return sel; } },
+    ], d.snapshot.skus.filter((s) => !s.free))) : null,
+    d.users.length ? h("details", {}, h("summary", {}, h("strong", {}, `Benutzer (${d.users.length})`)), table([
+      { label: "Name", render: (u) => h("div", {}, h("strong", {}, u.display_name), h("div", { class: "small muted" }, u.upn)) },
+      { label: "Lizenzen", render: (u) => u.licenses.map((l) => l.name).join(", ") || "–" },
+      { label: "Letzte Anmeldung", render: (u) => u.last_sign_in ? dt(u.last_sign_in) : "–" },
+      { label: "MFA", render: (u) => u.mfa === null ? "?" : u.mfa ? badge("ja", "ok") : badge("nein", "bad") },
+      { label: "Hinweise", render: (u) => h("span", {}, !u.enabled ? badge("gesperrt") : null, u.user_type === "Guest" ? badge("Gast") : null,
+        u.admin_roles.length ? badge("Admin", "warn") : null, u.rules.length ? badge("Regel!", "bad") : null) },
+    ], d.users)) : null,
+    (d.snapshot.warnings || []).length ? h("details", { style: "margin-top:.6rem" }, h("summary", { class: "small muted" }, `Hinweise zum Abruf (${d.snapshot.warnings.length})`),
+      h("ul", { class: "small" }, d.snapshot.warnings.map((w) => h("li", {}, w)))) : null].filter(Boolean));
+  close = modal(`Microsoft 365${name ? " – " + name : ""}`, body, [
+    h("button", { class: "btn danger", onclick: async () => {
+      if (!confirm("Verbindung trennen und abgerufene Daten löschen?")) return;
+      const r = await api(`/api/m365/${cid}`, { method: "DELETE" }); toast(r.hint); close(); render(); } }, "Trennen"),
+    h("button", { class: "btn", onclick: () => { close(); m365Connect(cid, name); } }, "Zustimmungs-Link"),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api(`/api/m365/${cid}/sync`, { method: "POST" });
+      toast(`${r.users} Benutzer · ${r.findings} Befunde${r.tickets_created ? ` · ${r.tickets_created} Ticket(s) angelegt` : ""}`); refresh(); render();
+    }) }, "Jetzt abrufen"),
+  ]);
+}
+
+async function m365Connect(cid, name = "") {
+  const st = await api("/api/m365");
+  if (!st.configured) {
+    return modal("Microsoft 365 einrichten", h("div", { class: "md" },
+      h("p", {}, "Einmalig bei ME-IT: App-Registrierung im eigenen Entra ID anlegen (Konten in einem beliebigen Organisationsverzeichnis), Anwendungsberechtigungen hinzufügen und Geheimnis erstellen:"),
+      h("ul", {}, ["Directory.Read.All", "AuditLog.Read.All", "Reports.Read.All", "UserAuthenticationMethod.Read.All", "MailboxSettings.Read", "SecurityEvents.Read.All", "Policy.Read.All"].map((p) => h("li", {}, h("code", {}, p)))),
+      h("p", {}, "Umleitungs-URI (Web): ", h("code", {}, st.redirect_uri)),
+      h("p", {}, "Dann in ", h("code", {}, ".env"), ": ", h("code", {}, "M365_CLIENT_ID"), " und ", h("code", {}, "M365_CLIENT_SECRET"), " setzen und neu starten. Details: docs/M365-KUNDEN-MITARBEITER.md")));
+  }
+  const input = h("input", { placeholder: "kunde.at oder kunde.onmicrosoft.com bzw. Tenant-ID" });
+  const out = h("div", {});
+  modal(`Microsoft 365 verbinden${name ? " – " + name : ""}`, h("div", {},
+    h("p", { class: "small muted" }, "Der globale Administrator des Kunden öffnet den Link und bestätigt einmalig den Lesezugriff. Kein Passwort, keine Schreibrechte."),
+    h("label", {}, "Domain oder Tenant-ID des Kunden"), input,
+    h("div", { class: "row", style: "margin-top:.6rem" }, h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      if (input.value.trim()) await api(`/api/m365/${cid}`, { method: "PUT", body: { tenant_id: input.value.trim() } });
+      const r = await api(`/api/m365/${cid}/consent-link`, { method: "POST", body: { tenant_id: input.value.trim() || null } });
+      const mail = `Guten Tag,\n\ndamit wir die Sicherheit (MFA, verdächtige Weiterleitungen) und die Lizenzen Ihres Microsoft 365 laufend überwachen können, bitten wir Sie um eine einmalige Freigabe – nur lesend, ohne Passwortweitergabe:\n\n${r.url}\n\nBitte als globaler Administrator anmelden und „Akzeptieren“ wählen.\n\nDanke und liebe Grüße`;
+      out.replaceChildren(h("div", { class: "card", style: "background:var(--surface-2);margin-top:.8rem" },
+        h("p", { class: "small", style: "overflow-wrap:anywhere" }, h("a", { href: r.url, target: "_blank", rel: "noopener" }, r.url)),
+        h("div", { class: "row" }, copyButton(() => r.url, "Link kopieren"), copyButton(() => mail, "Mailtext kopieren"),
+          h("a", { class: "btn small", href: r.url, target: "_blank", rel: "noopener" }, "Selbst öffnen ↗"))),
+        h("p", { class: "small muted" }, "Nach der Zustimmung: Kunde → Microsoft 365 → „Jetzt abrufen“ (danach automatisch täglich)."));
+    }) }, "Zustimmungs-Link erzeugen")), out));
+}
+
+async function m365Card(c) {
+  const d = await api(`/api/m365/${c.id}`).catch(() => null);
+  const head = (extra) => h("div", { class: "card-head" }, h("h2", {}, "Microsoft 365"), extra);
+  if (!d) return h("div", { class: "card", style: "margin-bottom:1rem" }, head(h("button", { class: "btn small", onclick: () => m365Connect(c.id, c.name) }, "Verbinden")),
+    h("p", { class: "small muted", style: "margin:0" }, "MFA, verdächtige Weiterleitungen, Admin-Konten, Secure Score und Lizenzabgleich mit der Rechnung – automatisch, nur lesend."));
+  const open = d.findings.filter((f) => !f.ignored);
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    head(h("div", { class: "row", style: "gap:.3rem" }, badge(d.tenant.status, d.tenant.status === "verbunden" ? "ok" : d.tenant.status === "fehler" ? "bad" : "warn"),
+      h("button", { class: "btn small", onclick: () => m365Detail(c.id, c.name) }, "Details"))),
+    d.tenant.last_sync ? m365Kpis(d.summary) : h("p", { class: "small muted" }, d.tenant.error || "Warten auf Zustimmung des Kunden – danach „Details → Jetzt abrufen“."),
+    open.length ? h("ul", { class: "list" }, open.slice(0, 4).map((f) => h("li", {}, h("div", { class: "row" }, badge(f.severity, SEV_CLS[f.severity]), h("span", {}, f.title))))) : null,
+    open.length > 4 ? h("button", { class: "btn small", onclick: () => m365Detail(c.id, c.name) }, `alle ${open.length} Befunde`) : null);
+}
+
+views.m365 = async () => {
+  const st = await api("/api/m365");
+  await loadCustomers();
+  setTitle("Microsoft 365 der Kunden", [
+    h("button", { class: "btn", onclick: () => {
+      const sel = h("select", {}, state.customers.filter((c) => !st.tenants.some((t) => t.customer_id === c.id)).map((c) => h("option", { value: c.id }, c.name)));
+      modal("Kunden verbinden", h("div", {}, h("label", {}, "Kunde"), sel), [(close) => h("button", { class: "btn primary", onclick: () => { close(); m365Connect(Number(sel.value), sel.selectedOptions[0]?.textContent); } }, "Weiter")]);
+    } }, "+ Kunde verbinden"),
+    st.configured ? h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/m365/sync-all", { method: "POST" }); toast(`${r.done} Tenant(s) abgerufen${r.errors.length ? ` · ${r.errors.length} Fehler` : ""}`, !!r.errors.length); render();
+    }) }, "Alle abrufen") : null]);
+  const t = st.tenants;
+  const sum = (k) => t.reduce((a, x) => a + (x[k] || 0), 0);
+  show(
+    !st.configured ? h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, "Noch nicht eingerichtet. "),
+      "Einmalig eine mandantenfähige App-Registrierung anlegen (nur Leserechte) – ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); m365Connect(0); } }, "Anleitung"), ".") : null,
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Verbundene Tenants"), h("div", { class: "value" }, t.filter((x) => x.status === "verbunden").length), h("div", { class: "sub" }, `${t.length} eingerichtet`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Kritische Befunde"), h("div", { class: "value" }, t.reduce((a, x) => a + x.findings.kritisch, 0)), h("div", { class: "sub" }, "Weiterleitungen, Admins ohne MFA")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Nicht verrechnet"), h("div", { class: "value" }, eur2(sum("gap_month"))), h("div", { class: "sub" }, "pro Monat")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Einsparpotenzial Kunden"), h("div", { class: "value" }, eur2(sum("savings_month"))), h("div", { class: "sub" }, "pro Monat"))),
+    h("div", { class: "card" }, t.length ? table([
+      { label: "Kunde", render: (r) => h("div", {}, h("strong", {}, r.customer), h("div", { class: "small muted" }, r.domain || r.tenant || "")) },
+      { label: "Status", render: (r) => badge(r.status, r.status === "verbunden" ? "ok" : r.status === "fehler" ? "bad" : "warn") },
+      { label: "Benutzer", num: true, key: "users" },
+      { label: "MFA", num: true, render: (r) => r.mfa_pct === null ? "–" : badge(`${r.mfa_pct} %`, r.mfa_pct === 100 ? "ok" : r.mfa_pct >= 80 ? "warn" : "bad") },
+      { label: "Secure Score", num: true, render: (r) => pct(r.secure_score_pct) },
+      { label: "Befunde", render: (r) => h("span", {}, r.findings.kritisch ? badge(`${r.findings.kritisch} kritisch`, "bad") : null, " ", r.findings.hoch ? badge(`${r.findings.hoch} hoch`, "warn") : null,
+        h("div", { class: "small muted" }, r.top || (r.last_sync ? "alles in Ordnung" : r.error || "noch nicht abgerufen"))) },
+      { label: "Lizenzen", num: true, render: (r) => r.gap_month ? badge(`+${eur2(r.gap_month)}`, "ok") : r.savings_month ? eur2(-r.savings_month) : "–" },
+      { label: "Abruf", render: (r) => r.last_sync ? dt(r.last_sync) : "–" },
+    ], t, (r) => m365Detail(r.customer_id, r.customer)) : h("div", { class: "empty" }, "Noch kein Kunde verbunden.")));
+};
+
+// ---- Ein- und Austritte von Mitarbeitern beim Kunden
+let staffTab = "offen";
+const STAFF_STATUS = { offen: "offen", in_arbeit: "in Arbeit", erledigt: "erledigt", storniert: "storniert" };
+
+function staffProgress(r) {
+  const p = r.total ? Math.round(100 * r.done / r.total) : 0;
+  return h("div", { style: "min-width:120px" }, h("div", { class: "small" }, `${r.done}/${r.total}`),
+    h("div", { class: "bar", style: "height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden" }, h("div", { style: `width:${p}%;height:100%;background:var(--ok)` })));
+}
+
+function staffTable(rows) {
+  return table([
+    { label: "Art", render: (r) => badge(r.kind_label, r.kind === "eintritt" ? "ok" : "warn") },
+    { label: "Person", render: (r) => h("div", {}, h("strong", {}, r.person), h("div", { class: "small muted" }, r.customer)) },
+    { label: "Stichtag", render: (r) => r.due_date ? h("span", {}, dt(r.due_date), r.overdue ? badge("überfällig", "bad") : r.days !== null && r.days <= 3 && r.status !== "erledigt" ? badge(r.days <= 0 ? "heute" : `in ${r.days} T.`, "warn") : null) : "–" },
+    { label: "Fortschritt", render: staffProgress },
+    { label: "Status", render: (r) => badge(STAFF_STATUS[r.status] || r.status, r.status === "erledigt" ? "ok" : r.status === "storniert" ? "" : "info") },
+    { label: "Gemeldet", render: (r) => h("span", { class: "small" }, r.requested_by || "Team") },
+  ], rows, (r) => staffDetail(r.id));
+}
+
+views.mitarbeiter = async () => {
+  await loadCustomers();
+  setTitle("Ein- & Austritte", [
+    h("button", { class: "btn", onclick: () => staffTemplates() }, "Vorlagen"),
+    h("button", { class: "btn", onclick: () => staffForm("austritt") }, "+ Austritt"),
+    h("button", { class: "btn primary", onclick: () => staffForm("eintritt") }, "+ Eintritt"),
+  ]);
+  const rows = await api(`/api/staff${staffTab === "alle" ? "?all=true" : ""}`);
+  const tabs = h("div", { class: "tabs" }, [["offen", "Offen"], ["alle", "Alle"]].map(([k, l]) => h("button", { class: staffTab === k ? "active" : "", onclick: () => { staffTab = k; render(); } }, l)));
+  show(h("p", { class: "small muted" }, "Neue und ausscheidende Mitarbeiter beim Kunden als Checkliste mit Ticket. Beim Abschluss werden Lizenzanzahl (→ nächste Rechnung) und Mitarbeiterzahl angepasst. Kunden können Ein-/Austritte auch im Kundenportal melden."),
+    tabs, h("div", { class: "card" }, rows.length ? staffTable(rows) : h("div", { class: "empty" }, "Keine offenen Ein- oder Austritte.")));
+};
+
+async function staffForm(kind, customerId = null) {
+  await loadCustomers();
+  const entry = kind === "eintritt";
+  const cust = h("select", { name: "customer_id" }, state.customers.map((c) => h("option", { value: c.id, selected: c.id === customerId }, c.name)));
+  const lic = h("select", { name: "subscription_id" });
+  const m365Sel = h("select", {});
+  const f = form([
+    { name: "person", label: "Name", required: true },
+    { name: "email", label: entry ? "E-Mail (geplant)" : "E-Mail" },
+    { name: "due_date", label: entry ? "Erster Arbeitstag" : "Letzter Arbeitstag / Sperre", type: "date" },
+    ...(entry ? [{ name: "department", label: "Abteilung" }, { name: "job_title", label: "Funktion" },
+      { name: "device", label: "Gerät", type: "select", options: [["neu", "neues Gerät"], ["vorhanden", "vorhandenes Gerät aufsetzen"], ["kein", "kein Gerät"]] },
+      { name: "phone", label: "Telefon/Teams-Telefonie", type: "checkbox" }]
+      : [{ name: "mailbox", label: "Postfach", type: "select", options: [["freigegeben", "in freigegebenes Postfach umwandeln"], ["weiterleiten", "weiterleiten"], ["loeschen", "löschen (nach Sicherung)"]] },
+        { name: "handover_to", label: "Daten/Postfach an" }, { name: "forward_to", label: "Weiterleitung an (E-Mail)" },
+        { name: "device", label: "Gerät", type: "select", options: [["vorhanden", "Gerät zurücknehmen"], ["kein", "kein Gerät"]] }]),
+    { name: "notes", label: "Hinweise", type: "textarea", full: true, rows: 2 },
+    { name: "adjust_license", label: "Lizenzanzahl beim Abschluss anpassen", type: "checkbox", value: true },
+  ]);
+  const loadLic = async () => {
+    const cid = Number(cust.value);
+    const subs = (await api(`/api/subscriptions?customer_id=${cid}`).catch(() => [])).filter((s) => s.per_user);
+    lic.replaceChildren(h("option", { value: "" }, "– keine / später –"), ...subs.map((s) => h("option", { value: s.id }, `${s.name} (${s.quantity}×)`)));
+    if (subs.length === 1) lic.value = subs[0].id;
+    m365Sel.replaceChildren(h("option", { value: "" }, "– aus Microsoft 365 wählen –"));
+    if (!entry) {
+      const d = await api(`/api/m365/${cid}`).catch(() => null);
+      (d ? d.users.filter((u) => u.enabled && u.user_type !== "Guest") : []).forEach((u) => m365Sel.append(h("option", { value: u.object_id, "data-name": u.display_name, "data-upn": u.upn }, `${u.display_name} (${u.upn})`)));
+      m365Sel.parentElement.style.display = m365Sel.options.length > 1 ? "" : "none";
+    }
+  };
+  m365Sel.onchange = () => { const o = m365Sel.selectedOptions[0]; if (o && o.value) { f.querySelector("[name=person]").value = o.dataset.name; f.querySelector("[name=email]").value = o.dataset.upn; } };
+  cust.onchange = loadLic;
+  f.prepend(h("div", {}, h("label", {}, "Kunde"), cust), h("div", {}, h("label", {}, "Lizenz"), lic), entry ? "" : h("div", { class: "full" }, h("label", {}, "Benutzer aus Microsoft 365"), m365Sel));
+  modal(entry ? "Neuer Mitarbeiter beim Kunden" : "Mitarbeiter verlässt den Kunden", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+    const b = readForm(f);
+    const body = { ...b, kind, customer_id: Number(cust.value), subscription_id: lic.value ? Number(lic.value) : null, m365_user: m365Sel.value || "" };
+    delete body[""];
+    const r = await api("/api/staff", { method: "POST", body });
+    close(); toast(`${r.kind_label} angelegt · Ticket #${r.ticket_id} · ${r.total} Schritte`); render(); staffDetail(r.id);
+  }) }, "Anlegen")]);
+  await loadLic();
+}
+
+async function staffDetail(id) {
+  let r = await api(`/api/staff/${id}`);
+  const body = h("div", {});
+  const paint = () => {
+    const d = r.details || {};
+    const closed = ["erledigt", "storniert"].includes(r.status);
+    fill(body,
+      h("p", { class: "small muted" }, `${r.customer} · ${r.kind_label}${r.due_date ? ` · Stichtag ${dt(r.due_date)}` : ""} · ${STAFF_STATUS[r.status]}${r.requested_by ? ` · gemeldet von ${r.requested_by}` : ""}`),
+      h("p", { class: "small" }, [r.email, d.department, d.job_title, r.subscription ? `Lizenz: ${r.subscription} (derzeit ${r.subscription_quantity}×)` : d.license ? `Lizenz: ${d.license}` : ""].filter(Boolean).join(" · ")),
+      d.notes ? h("p", { class: "small", style: "white-space:pre-wrap" }, d.notes) : null,
+      staffProgress(r),
+      h("ul", { class: "list", style: "margin-top:.6rem" }, r.checklist.map((s, i) => h("li", {}, h("label", { class: "row", style: "gap:.5rem;cursor:pointer;font-weight:400" },
+        h("input", { type: "checkbox", checked: s.done, disabled: closed, style: "width:auto", onchange: async (e) => {
+          try { r = await api(`/api/staff/${id}/check`, { method: "POST", body: { index: i, done: e.target.checked } }); if (r.status === "erledigt") { toast(`Abgeschlossen${r.adjustments ? " · " + r.adjustments.join(" · ") : ""}`); render(); } paint(); }
+          catch (x) { toast(x.message, true); e.target.checked = !e.target.checked; }
+        } }), h("span", { style: s.done ? "text-decoration:line-through;color:var(--muted)" : "" }, s.text),
+        s.done && s.by ? h("span", { class: "small muted" }, ` ✓ ${s.by}`) : null)))),
+      closed ? null : h("div", { class: "row", style: "margin-top:.4rem" }, (() => { const inp = h("input", { placeholder: "Weiteren Schritt hinzufügen …" });
+        return [inp, h("button", { class: "btn small", onclick: async () => { if (!inp.value.trim()) return; r = await api(`/api/staff/${id}`, { method: "PUT", body: { add_step: inp.value } }); paint(); } }, "+")]; })()));
+  };
+  paint();
+  modal(`${r.kind_label}: ${r.person}`, body, [
+    r.ticket_id ? h("button", { class: "btn", onclick: () => ticketDetail(r.ticket_id) }, `Ticket #${r.ticket_id}`) : null,
+    !["erledigt", "storniert"].includes(r.status) ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Vorgang stornieren?")) return; await api(`/api/staff/${id}/cancel`, { method: "POST" }); close(); render(); } }, "Stornieren") : null,
+    !["erledigt", "storniert"].includes(r.status) ? (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const x = await api(`/api/staff/${id}/complete`, { method: "POST" }); close(); toast(`Abgeschlossen${x.adjustments && x.adjustments.length ? " · " + x.adjustments.join(" · ") : ""}`); render(); }) }, "Abschließen") : null,
+  ].filter(Boolean));
+}
+
+async function staffTemplates() {
+  const d = await api("/api/staff/templates");
+  const ta = (k) => h("textarea", { rows: 12, style: "font-family:ui-monospace,monospace;font-size:.85rem" }, d.templates[k].join("\n"));
+  const ein = ta("eintritt"), aus = ta("austritt");
+  modal("Checklisten-Vorlagen", h("div", {},
+    h("p", { class: "small muted" }, "Ein Schritt pro Zeile. Platzhalter: {person} {datum} {abteilung} {lizenz} {geraet} {postfach} {uebergabe} {weiterleitung}. „?feld “ am Zeilenanfang = nur wenn das Feld ausgefüllt ist (z. B. ?geraet, ?telefon, ?lizenz, ?postfach)."),
+    h("label", {}, "Eintritt"), ein, h("label", {}, "Austritt"), aus), [
+    h("button", { class: "btn", onclick: () => { ein.value = d.defaults.eintritt.join("\n"); aus.value = d.defaults.austritt.join("\n"); } }, "Standard wiederherstellen"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api("/api/staff/templates", { method: "PUT", body: { eintritt: ein.value.split("\n"), austritt: aus.value.split("\n") } }); close(); toast("Vorlagen gespeichert");
+    }) }, "Speichern")]);
+}
+
+async function staffCard(c) {
+  const rows = await api(`/api/staff?customer_id=${c.id}`).catch(() => []);
+  return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Ein- & Austritte"),
+    h("div", { class: "row", style: "gap:.3rem" }, h("button", { class: "btn small", onclick: () => staffForm("austritt", c.id) }, "+ Austritt"), h("button", { class: "btn small", onclick: () => staffForm("eintritt", c.id) }, "+ Eintritt"))),
+    rows.length ? staffTable(rows) : h("p", { class: "small muted", style: "margin:0" }, "Keine offenen Vorgänge. Neue/ausscheidende Mitarbeiter als Checkliste – Lizenz und Rechnung passen sich beim Abschluss an."));
+}
+
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
   const [path, query] = hash.split("?");
