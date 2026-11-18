@@ -15,7 +15,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Atera · Keeper · BookStack: [docs/ATERA-KEEPER-BOOKSTACK.md](docs/ATERA-KEEPER-BOOKSTACK.md) ·
 > Rentabilität, Zufriedenheit, App: [docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md](docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md) ·
 > E-Mails, Kundenportal, Phishing-Check, Claude: [docs/EMAIL-PORTAL-CLAUDE.md](docs/EMAIL-PORTAL-CLAUDE.md) ·
-> Microsoft 365 der Kunden, Ein-/Austritte: [docs/M365-KUNDEN-MITARBEITER.md](docs/M365-KUNDEN-MITARBEITER.md)
+> Microsoft 365 der Kunden, Ein-/Austritte: [docs/M365-KUNDEN-MITARBEITER.md](docs/M365-KUNDEN-MITARBEITER.md) ·
+> Sichere Anbindungen (Zertifikat, Sites.Selected, To Do, BookStack): [docs/SICHERE-ANBINDUNGEN.md](docs/SICHERE-ANBINDUNGEN.md)
 
 ## Funktionen
 
@@ -37,6 +38,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **KI-Mitarbeiter: Posteingang** | Sortiert E-Mails, Formularanfragen und Telefonnotizen (Support · Anfrage · Termin · Beleg · Info). Daraus entstehen Ticket, Lead oder Beleg, dazu ein Antwortentwurf. Modus je Art: **Entwurf + Freigabe** oder **Autopilot**. IMAP/SMTP-Anbindung. |
 | **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
+| **Verbindungen & Sicherheit** | Alle Anbindungen auf einen Blick mit Live-Test: liest die **tatsächlich erteilten Microsoft-Rechte** aus dem Token und markiert zu weitreichende rot (z. B. Zugriff auf alle SharePoint-Seiten oder alle Postfächer), prüft BookStack-Token auf Admin-Rechte, HTTPS, Cockpit-Login, Datensicherung. **Zertifikat statt Geheimnis** mit einem Klick erzeugen und aktivieren, **SharePoint nur für eine Site** (Sites.Selected) freigeben, Anleitung für Postfach-Beschränkung per Exchange-RBAC. |
+| **Microsoft To Do** | Jeder Mitarbeiter verbindet seine eigenen Aufgaben (delegiert, Anmeldung per Code, Token verschlüsselt). Tickets und Ein-/Austritte landen in der Liste „ME-IT Cockpit“ – am Handy abgehakte Checklisten-Schritte werden im Cockpit übernommen und umgekehrt. |
 | **Microsoft 365 der Kunden** | Einmalige Zustimmung des Kunden-Admins (Link, nur Leserechte, kein GDAP), dann täglicher Check: **externe Weiterleitungen** (→ sofort Ticket), Admins/Benutzer ohne MFA, fehlende MFA-Pflicht, zu viele Admins, gesperrte/ungenutzte Konten mit Lizenz, inaktive Gäste, **Secure Score** mit Verlauf. **Lizenzabgleich**: zugewiesen vs. verrechnet je Produkt, Nachverrechnung mit einem Klick, Einsparungen für den Kunden. Fließt in Radar, Monatsbericht und QBR ein. |
 | **Ein- & Austritte** | Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste mit Ticket (Konto, Lizenz, MFA, Gerät, Keeper, Postfach, Datenübergabe …), Vorlagen anpassbar. Beim Abschluss werden **Lizenzanzahl (→ Rechnung)** und Mitarbeiterzahl angepasst. Kunden melden Ein-/Austritte im Portal und sehen den Fortschritt. |
 | **E-Mails & Anhänge** | Mails aus Outlook (**.msg**) oder Outlook im Web (**.eml**) per Drag & Drop in den Posteingang oder direkt ins Ticket. Anhänge (Screenshots, PDFs) landen am Ticket, Belege in der Buchhaltung. **Antworten des Kunden landen im bestehenden Ticket** (In-Reply-To bzw. „[#123]“ im Betreff) und öffnen es wieder. Ticket-Verlauf mit Antworten per Mail, nur im Portal oder als interne Notiz. Ausführbare Dateien werden abgelehnt. |
@@ -110,6 +113,9 @@ Vorlage: [.env.example](.env.example). Die wichtigsten Werte:
 | `MAIL_POLL_MINUTES` | `0` | Postfach automatisch alle X Minuten abrufen |
 | `BOOKING_URL` | leer | Terminbuchungs-Link für Antworten an Interessenten |
 | `PUBLIC_FORM_ENABLED` / `PUBLIC_FORM_ORIGINS` | `true` / leer | Anfrageformular an/aus, Websites, die es einbinden dürfen |
+| `GRAPH_CERT_FILE` | leer | Zertifikat (PEM) statt `GRAPH_CLIENT_SECRET` – einfacher: im Cockpit unter Verbindungen erzeugen/aktivieren |
+| `TODO_CLIENT_ID`, `TODO_SYNC_MINUTES` | leer, `10` | Microsoft To Do je Benutzer (leer = `GRAPH_CLIENT_ID`) |
+| `MEIT_SECRET_KEY` | leer | Schlüssel für gespeicherte Anmeldungen (leer = Datei `data/tresor.key`) |
 | `M365_CLIENT_ID` / `M365_CLIENT_SECRET` | leer | Mandantenfähige App für das Microsoft 365 der Kunden (nur lesend), `M365_SYNC_HOURS` (24) |
 | `PUBLIC_URL` | leer | Öffentliche Adresse des Cockpits (Links in Mails, z. B. Zufriedenheits-Umfrage) |
 | `ARCHIVE_DIR` | leer (`data/archiv`) | Dokumentenarchiv (PDFs). Tipp: OneDrive-synchronisierter Ordner. SharePoint/OneDrive-Upload: Einstellungen → Dokumentenablage |
@@ -170,6 +176,10 @@ meit/
   attachments.py   Anhänge, Mail-Upload, Ticket-Verlauf, Antworten, Zuordnung von Kundenantworten
   m365.py          Microsoft 365 der Kunden: Zustimmung, Abruf, Befunde, Lizenzabgleich
   staff.py         Ein-/Austritte von Mitarbeitern beim Kunden (Checkliste, Ticket, Lizenzanzahl)
+  msauth.py        Microsoft-Anmeldung: Zertifikat (PS256) bzw. Geheimnis, Gerätecode, Rechte aus dem Token
+  vault.py         Tresor für gespeicherte Anmeldungen (verschlüsselt, Schlüssel außerhalb der DB)
+  todo.py          Microsoft To Do je Benutzer (Tickets, Ein-/Austritte mit Checkliste, beidseitig)
+  connections.py   Verbindungs-Center: Status, Live-Test, Rechte-Prüfung, Zertifikat
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,
                    Posteingang/KI-Mitarbeiter (inbox.py), Quartalsgespräch (qbr.py)
   mitarbeiter_api.py  API für Posteingang, Leads, Belege, Anfrageformular

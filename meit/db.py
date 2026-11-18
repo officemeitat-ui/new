@@ -564,6 +564,34 @@ CREATE TABLE IF NOT EXISTS staff_changes (
 
 CREATE INDEX IF NOT EXISTS idx_staff_customer ON staff_changes(customer_id, status);
 
+CREATE TABLE IF NOT EXISTS ms_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_key INTEGER NOT NULL UNIQUE,
+    upn TEXT DEFAULT '',
+    display_name TEXT DEFAULT '',
+    refresh_token TEXT DEFAULT '',
+    list_id TEXT DEFAULT '',
+    options TEXT DEFAULT '{}',
+    connected_at TEXT DEFAULT '',
+    last_sync TEXT DEFAULT '',
+    error TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS todo_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_key INTEGER NOT NULL,
+    ref TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    list_id TEXT DEFAULT '',
+    title TEXT DEFAULT '',
+    due TEXT DEFAULT '',
+    state TEXT DEFAULT 'offen',
+    meta TEXT DEFAULT '{}',
+    synced_at TEXT DEFAULT '',
+    UNIQUE(user_key, ref)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -649,6 +677,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                    "mfa", "mfa_methods", "admin_roles", "rules", "department", "job_title", "created_dt", "synced_at"},
     "staff_changes": {"customer_id", "kind", "person", "email", "due_date", "details", "checklist", "status", "ticket_id",
                       "subscription_id", "license_adjusted", "requested_by", "completed_at"},
+    "ms_accounts": {"user_key", "upn", "display_name", "refresh_token", "list_id", "options", "connected_at", "last_sync",
+                    "error"},
+    "todo_links": {"user_key", "ref", "task_id", "list_id", "title", "due", "state", "meta", "synced_at"},
 }
 
 TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
@@ -657,7 +688,7 @@ TABLES_WITH_CREATED_AT = {
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
-    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes",
+    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

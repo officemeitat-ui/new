@@ -449,6 +449,7 @@ views.tickets = async (_, params) => {
     { label: "Erstellt", render: (r) => dt(r.created_at) },
   ], rows, (r) => ticketDetail(r.id))));
   if (params.get("neu")) ticketCreate();
+  if (params.get("ticket")) ticketDetail(Number(params.get("ticket")));
 };
 
 function ticketCreate(customerId = null) {
@@ -2825,7 +2826,7 @@ function staffTable(rows) {
   ], rows, (r) => staffDetail(r.id));
 }
 
-views.mitarbeiter = async () => {
+views.mitarbeiter = async (_, params) => {
   await loadCustomers();
   setTitle("Ein- & Austritte", [
     h("button", { class: "btn", onclick: () => staffTemplates() }, "Vorlagen"),
@@ -2836,6 +2837,7 @@ views.mitarbeiter = async () => {
   const tabs = h("div", { class: "tabs" }, [["offen", "Offen"], ["alle", "Alle"]].map(([k, l]) => h("button", { class: staffTab === k ? "active" : "", onclick: () => { staffTab = k; render(); } }, l)));
   show(h("p", { class: "small muted" }, "Neue und ausscheidende Mitarbeiter beim Kunden als Checkliste mit Ticket. Beim Abschluss werden Lizenzanzahl (→ nächste Rechnung) und Mitarbeiterzahl angepasst. Kunden können Ein-/Austritte auch im Kundenportal melden."),
     tabs, h("div", { class: "card" }, rows.length ? staffTable(rows) : h("div", { class: "empty" }, "Keine offenen Ein- oder Austritte.")));
+  if (params && params.get("vorgang")) staffDetail(Number(params.get("vorgang")));
 };
 
 async function staffForm(kind, customerId = null) {
@@ -2930,6 +2932,148 @@ async function staffCard(c) {
     h("div", { class: "row", style: "gap:.3rem" }, h("button", { class: "btn small", onclick: () => staffForm("austritt", c.id) }, "+ Austritt"), h("button", { class: "btn small", onclick: () => staffForm("eintritt", c.id) }, "+ Eintritt"))),
     rows.length ? staffTable(rows) : h("p", { class: "small muted", style: "margin:0" }, "Keine offenen Vorgänge. Neue/ausscheidende Mitarbeiter als Checkliste – Lizenz und Rechnung passen sich beim Abschluss an."));
 }
+
+// ---- Verbindungen & Sicherheit
+const CONN_CLS = { ok: "ok", warn: "warn", bad: "bad", aus: "" };
+const CONN_LABEL = { ok: "sicher", warn: "Hinweise", bad: "Handlungsbedarf", aus: "nicht eingerichtet" };
+const LEVEL_ICON = { ok: "✓", info: "ℹ", warn: "⚠", bad: "✕" };
+const LEVEL_COLOR = { ok: "var(--ok)", info: "var(--muted)", warn: "var(--warn)", bad: "var(--bad)" };
+
+function connChecks(checks) {
+  return h("ul", { class: "list", style: "margin:.3rem 0" }, checks.map((c) => h("li", { class: "row", style: "align-items:flex-start;gap:.5rem;padding:.35rem 0" },
+    h("span", { style: `color:${LEVEL_COLOR[c.level]};font-weight:700;width:1.1rem;flex:none`, "aria-label": c.level }, LEVEL_ICON[c.level] || "•"),
+    h("span", { class: "small", style: "overflow-wrap:anywhere" }, c.text))));
+}
+
+async function certBox(info, refresh) {
+  const steps = (gen) => h("ol", { class: "small", style: "margin:.4rem 0 .6rem" },
+    h("li", {}, h("a", { href: "/api/connections/certificate/cer" }, "ME-IT-Cockpit.cer herunterladen"), ` (nur der öffentliche Teil, Fingerabdruck ${gen.thumbprint.slice(0, 16)}…, gültig bis ${dt(gen.not_after)})`),
+    h("li", {}, "Entra ID → App-Registrierungen → ME-IT Cockpit → Zertifikate & Geheimnisse → Zertifikate → Zertifikat hochladen"),
+    h("li", {}, "Hier „Aktivieren & testen“ – danach kann das Geheimnis gelöscht werden"));
+  const act = (label, fn, cls = "btn small") => h("button", { class: cls, onclick: (e) => withBusy(e.target, async () => { await fn(); refresh(); }) }, label);
+  const a = info.active, g = info.generated;
+  return h("div", { class: "card", style: "background:var(--surface-2);margin:.5rem 0" },
+    h("strong", {}, "Zertifikat statt Geheimnis"),
+    a ? h("p", { class: "small" }, `Aktiv: ${a.thumbprint.slice(0, 16)}… · gültig bis ${dt(a.not_after)} (${a.days_left} Tage)${info.from_env ? " · aus GRAPH_CERT_FILE" : ""}`)
+      : h("p", { class: "small muted" }, "Der private Schlüssel wird hier erzeugt und verlässt den Server nie. Microsoft empfiehlt Zertifikate statt Geheimnissen."),
+    g && !g.active ? steps(g) : null,
+    h("div", { class: "row", style: "gap:.3rem" },
+      act(g ? "Neues Zertifikat erzeugen" : "Zertifikat erzeugen", async () => { await api("/api/connections/certificate", { method: "POST" }); toast("Zertifikat erzeugt – jetzt .cer hochladen"); }),
+      g && !g.active ? act("Aktivieren & testen", async () => { const r = await api("/api/connections/certificate/activate", { method: "POST" }); toast(r.hint); }, "btn small primary") : null,
+      a && !info.from_env ? act("Deaktivieren", async () => { if (confirm("Wieder per Geheimnis anmelden?")) await api("/api/connections/certificate/deactivate", { method: "POST" }); }) : null));
+}
+
+async function sharepointGrant() {
+  const g = await api("/api/connections/sharepoint/grant");
+  const body = JSON.stringify(g.body, null, 2);
+  modal("SharePoint: nur diese eine Site freigeben", h("div", { class: "md" },
+    h("p", {}, "Mit der Berechtigung ", h("code", {}, "Sites.Selected"), " darf das Cockpit ausschließlich in die freigegebene Site schreiben – nicht in alle SharePoint-Seiten und OneDrives des Unternehmens."),
+    h("ol", {},
+      h("li", {}, "App-Registrierung → API-Berechtigungen: ", h("code", {}, "Sites.Selected"), " (Anwendung) hinzufügen, Administratorzustimmung erteilen, ", h("code", {}, "Sites.ReadWrite.All"), " / ", h("code", {}, "Files.ReadWrite.All"), " entfernen."),
+      h("li", {}, "Im Graph-Explorer als SharePoint-Admin anmelden (Berechtigung Sites.FullControl.All) und die Site-ID abfragen:", h("pre", {}, g.site_id_request)),
+      h("li", {}, "Freigabe für die App anlegen:", h("pre", {}, `${g.request}\n\n${body}`), copyButton(() => body, "Body kopieren")),
+      h("li", {}, "Hier „Live testen“ bei SharePoint – Lesen und Schreiben müssen grün sein.")),
+    g.site_id ? h("p", { class: "small muted" }, `Site-ID (bereits ermittelt): ${g.site_id}`) : null));
+}
+
+async function todoConnect(after) {
+  let r;
+  try { r = await api("/api/todo/connect", { method: "POST" }); } catch (e) { return toast(e.message, true); }
+  const status = h("p", { class: "small muted" }, "Warte auf die Anmeldung …");
+  let stop = false;
+  const close = modal("Microsoft To Do verbinden", h("div", { style: "text-align:center" },
+    h("p", {}, "1. Öffnen Sie ", h("a", { href: r.verification_uri, target: "_blank", rel: "noopener" }, r.verification_uri), " (am PC oder Handy)"),
+    h("p", {}, "2. Geben Sie diesen Code ein:"),
+    h("div", { style: "font-size:2rem;font-weight:700;letter-spacing:.15em;margin:.4rem 0;font-family:ui-monospace,monospace" }, r.user_code),
+    copyButton(() => r.user_code, "Code kopieren"),
+    h("p", { class: "small" }, "3. Mit Ihrem Microsoft-365-Konto anmelden und bestätigen. Das Cockpit erhält nur Zugriff auf ", h("strong", {}, "Ihre eigenen Aufgaben"), "."),
+    status));
+  const started = Date.now();
+  const tick = async () => {
+    if (stop || !document.body.contains(status)) return;
+    try {
+      const p = await api("/api/todo/connect/poll", { method: "POST" });
+      if (p.status === "connected") { stop = true; close(); toast(`Verbunden als ${p.upn}${p.sync ? ` · ${p.sync.created} Aufgaben angelegt` : ""}`); after && after(); return; }
+      if (["declined", "expired", "error", "none"].includes(p.status)) { stop = true; status.textContent = p.error || "Abgebrochen."; status.style.color = "var(--bad)"; return; }
+    } catch (e) { status.textContent = e.message; }
+    if (Date.now() - started < r.expires_in * 1000) setTimeout(tick, Math.max(3, r.interval) * 1000);
+  };
+  setTimeout(tick, Math.max(3, r.interval) * 1000);
+}
+
+async function todoCard() {
+  const st = await api("/api/todo").catch(() => null);
+  const box = h("div", { class: "card", style: "margin-bottom:1rem" });
+  if (!st) return box;
+  const refresh = async () => box.replaceWith(await todoCard());
+  const head = h("div", { class: "card-head" }, h("h2", {}, "Meine Aufgaben in Microsoft To Do"), st.connected ? badge("verbunden", "ok") : null);
+  if (!st.configured) {
+    fill(box, head, h("p", { class: "small muted" }, "Noch keine App-Registrierung (GRAPH_CLIENT_ID) eingetragen – siehe docs/SICHERE-ANBINDUNGEN.md."));
+    return box;
+  }
+  if (!st.connected) {
+    fill(box, head, h("p", { class: "small" }, "Tickets und Ein-/Austritte (mit Checkliste) erscheinen in Ihrer To-Do-Liste „ME-IT Cockpit“ – am Handy, in Outlook und Teams. Am Handy abgehakte Schritte werden im Cockpit übernommen."),
+      h("p", { class: "small muted" }, "Sicher: nur Ihre eigenen Aufgaben (delegiert), Anmeldung verschlüsselt gespeichert, jederzeit trennbar."),
+      h("button", { class: "btn primary", onclick: () => todoConnect(refresh) }, "Mit Microsoft verbinden"));
+    return box;
+  }
+  const a = st.account;
+  const sel = (key, opts) => { const s = h("select", { style: "width:auto", onchange: async () => { await api("/api/todo/options", { method: "PUT", body: { [key]: s.value } }); toast("Gespeichert"); } },
+    opts.map(([v, l]) => h("option", { value: v, selected: a.options[key] === v }, l))); return s; };
+  fill(box, head,
+    h("p", { class: "small" }, `${a.display_name} (${a.upn}) · zuletzt abgeglichen ${a.last_sync ? dt(a.last_sync) : "–"} · ${st.tasks.offen || 0} offen, ${st.tasks.erledigt || 0} erledigt`),
+    a.error ? h("p", { class: "small", style: "color:var(--bad)" }, a.error) : null,
+    h("div", { class: "row", style: "gap:.5rem;flex-wrap:wrap" },
+      h("label", { class: "small" }, "Tickets: ", sel("tickets", [["meine", "mir zugewiesene"], ["dringend", "dringende (hoch/kritisch)"], ["alle", "alle offenen"], ["aus", "keine"]])),
+      h("label", { class: "small" }, "Ein-/Austritte: ", sel("staff", [["meine", "meine + unzugewiesene"], ["alle", "alle"], ["aus", "keine"]]))),
+    h("div", { class: "row", style: "margin-top:.6rem;gap:.3rem" },
+      h("button", { class: "btn small primary", onclick: (e) => withBusy(e.target, async () => {
+        const r = await api("/api/todo/sync", { method: "POST" });
+        toast(`${r.created} neu · ${r.updated} aktualisiert · ${r.completed} erledigt · ${r.steps_from_todo} Schritte aus To Do`); refresh();
+      }) }, "Jetzt abgleichen"),
+      h("button", { class: "btn small danger", onclick: async () => { if (!confirm("Verbindung zu Microsoft To Do trennen?")) return; const r = await api("/api/todo", { method: "DELETE" }); toast(r.hint); refresh(); } }, "Trennen")));
+  return box;
+}
+
+views.verbindungen = async () => {
+  setTitle("Verbindungen & Sicherheit", [h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+    for (const k of ["microsoft", "sharepoint", "kunden_m365", "bookstack", "atera"]) { try { await api(`/api/connections/${k}/test`, { method: "POST" }); } catch { /* weiter */ } }
+    render();
+  }) }, "Alle live testen")]);
+  const [d, cert] = await Promise.all([api("/api/connections"), api("/api/connections/certificate")]);
+  const card = (i) => {
+    const res = h("div", {});
+    const show2 = (r) => {
+      const checks = r.tested_at ? r.checks : (r.last_test ? r.last_test.checks : r.checks);
+      fill(res, connChecks(checks), r.tested_at ? h("p", { class: "small muted" }, `Live getestet ${dt(r.tested_at)}`) : r.last_test ? h("p", { class: "small muted" }, `Letzter Live-Test ${dt(r.last_test.at)}`) : null);
+    };
+    show2(i);
+    const status = i.last_test && i.configured ? i.last_test.status : i.status;
+    const live = ["microsoft", "sharepoint", "kunden_m365", "bookstack", "atera"].includes(i.key);
+    return h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, i.name), badge(CONN_LABEL[status], CONN_CLS[status])),
+      res,
+      i.key === "microsoft" && i.configured ? certBoxPlaceholder : null,
+      h("div", { class: "row", style: "gap:.3rem;margin-top:.4rem" },
+        live && i.configured ? h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => { const r = await api(`/api/connections/${i.key}/test`, { method: "POST" }); show2(r); }) }, "Live testen") : null,
+        i.key === "sharepoint" && i.detail && i.detail.target === "sharepoint" ? h("button", { class: "btn small", onclick: () => sharepointGrant() }, "Nur diese Site freigeben (Sites.Selected)") : null,
+        i.key === "bookstack" ? h("a", { class: "btn small", href: "#/einstellungen" }, "BookStack-Einstellungen") : null,
+        i.key === "kunden_m365" ? h("a", { class: "btn small", href: "#/m365" }, "Kunden-Tenants") : null));
+  };
+  const certBoxPlaceholder = h("div", {});
+  const order = { bad: 0, warn: 1, ok: 2, aus: 3 };
+  const items = [...d.items].sort((a, b) => order[a.last_test && a.configured ? a.last_test.status : a.status] - order[b.last_test && b.configured ? b.last_test.status : b.status]);
+  show(
+    h("p", { class: "small muted" }, "Alle Anbindungen mit Sicherheitsprüfung: Anmeldemethode, tatsächlich erteilte Rechte (aus dem Microsoft-Token gelesen), HTTPS, Admin-Rechte bei BookStack. Prinzip: so wenig Rechte wie möglich, Zertifikat statt Passwort, Tokens verschlüsselt."),
+    d.cert_error ? h("div", { class: "verdict bad" }, `Zertifikat konnte nicht geladen werden: ${d.cert_error}`) : null,
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Handlungsbedarf"), h("div", { class: "value" }, d.summary.bad), h("div", { class: "sub" }, "rot markiert")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Hinweise"), h("div", { class: "value" }, d.summary.warn), h("div", { class: "sub" }, "verbesserbar")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Sicher"), h("div", { class: "value" }, d.summary.ok), h("div", { class: "sub" }, `${d.summary.aus} nicht eingerichtet`))),
+    await todoCard(),
+    items.map(card));
+  if (document.body.contains(certBoxPlaceholder)) certBoxPlaceholder.replaceWith(await certBox(cert, () => render()));
+};
 
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";

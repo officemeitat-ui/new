@@ -232,39 +232,31 @@ class GraphMailer:
     GRAPH = "https://graph.microsoft.com/v1.0"
 
     def __init__(self, settings: Settings):
+        from .msauth import TokenSource
+
         self.s = settings
-        self._token: tuple[float, str] | None = None
+        self.auth = TokenSource(settings.graph_tenant_id, settings.graph_client_id, settings.graph_client_secret)
 
     @property
     def configured(self) -> bool:
-        return bool(self.s.graph_tenant_id and self.s.graph_client_id and self.s.graph_client_secret
+        from .msauth import has_credential
+
+        return bool(self.s.graph_tenant_id and self.s.graph_client_id and has_credential(self.s.graph_client_secret)
                     and self.s.graph_mailbox)
 
     imap_configured = property(lambda self: self.configured)
     smtp_configured = property(lambda self: self.configured)
 
     def _headers(self) -> dict[str, str]:
-        import time
-
-        import httpx
+        from .msauth import MsAuthError
 
         if not self.configured:
-            raise MailError("Microsoft 365 ist nicht konfiguriert (GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET/MAILBOX).")
-        if not self._token or self._token[0] < time.time() + 60:
-            try:
-                resp = httpx.post(
-                    f"https://login.microsoftonline.com/{self.s.graph_tenant_id}/oauth2/v2.0/token",
-                    data={"grant_type": "client_credentials", "client_id": self.s.graph_client_id,
-                          "client_secret": self.s.graph_client_secret,
-                          "scope": "https://graph.microsoft.com/.default"},
-                    timeout=30,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-            except httpx.HTTPError as exc:
-                raise MailError(f"Anmeldung bei Microsoft 365 fehlgeschlagen: {exc}") from exc
-            self._token = (time.time() + int(data.get("expires_in", 3600)), data["access_token"])
-        return {"Authorization": f"Bearer {self._token[1]}"}
+            raise MailError("Microsoft 365 ist nicht konfiguriert (GRAPH_TENANT_ID/CLIENT_ID, Zertifikat oder "
+                            "CLIENT_SECRET, GRAPH_MAILBOX).")
+        try:
+            return self.auth.headers()
+        except MsAuthError as exc:
+            raise MailError(str(exc)) from exc
 
     def _url(self, path: str) -> str:
         from urllib.parse import quote

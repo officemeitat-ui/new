@@ -46,6 +46,9 @@ from .profitability import register as register_profitability
 from .attachments import register as register_attachments
 from .csat import register as register_csat
 from .m365 import register as register_m365
+from .connections import register as register_connections
+from .todo import register as register_todo
+from .vault import Vault
 from .staff import register as register_staff
 from .mobile import register as register_mobile
 from .ai_control import register as register_ai_control
@@ -835,6 +838,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Microsoft 365 der Kunden (Sicherheit, Lizenzabgleich) + Ein-/Austritte -----------
     radar.m365 = register_m365(app, db, settings, admin_only, start=settings.db_path != ":memory:")
     register_staff(app, ctx, admin_only)
+
+    # --- Microsoft To Do je Benutzer, Verbindungs-Center (Zertifikat, Rechte-Prüfung) -------
+    vault = Vault(ctx.docs.data_dir)
+    register_todo(app, ctx, settings, vault, start=settings.db_path != ":memory:")
+    register_connections(app, ctx, settings, admin_only, ctx.docs.data_dir)
 
     # --- Rentabilität je Kunde, Wertsicherung (VPI) -----------------------------------
     register_profitability(app, ctx, admin_only)

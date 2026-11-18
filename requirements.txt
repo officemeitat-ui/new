@@ -10,5 +10,7 @@ segno>=1.6
 pypdf>=5.0
 # Outlook-Mails (.msg) lesen: Drag & Drop ins Cockpit und Kundenportal
 olefile>=0.47
+# Sichere Anmeldung bei Microsoft (Zertifikat statt Geheimnis) und Tresor für gespeicherte Anmeldungen
+cryptography>=42
 # optional – nur für Claude als Cloud-Option (LLM_PROVIDER=anthropic oder ALLOW_CLOUD_FALLBACK=true)
 anthropic>=2.4

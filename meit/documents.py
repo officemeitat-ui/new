@@ -135,35 +135,30 @@ class GraphDrive:
     GRAPH = "https://graph.microsoft.com/v1.0"
 
     def __init__(self, settings: Any, conf: dict[str, Any]):
+        from .msauth import TokenSource
+
         self.s, self.conf = settings, conf
-        self._token: tuple[float, str] | None = None
+        self.auth = TokenSource(getattr(settings, "graph_tenant_id", ""), getattr(settings, "graph_client_id", ""),
+                                getattr(settings, "graph_client_secret", "")) if settings else None
         self._base: str | None = None
 
     @property
     def credentials(self) -> bool:
+        from .msauth import has_credential
+
         s = self.s
-        return bool(s and s.graph_tenant_id and s.graph_client_id and s.graph_client_secret)
+        return bool(s and s.graph_tenant_id and s.graph_client_id and has_credential(s.graph_client_secret))
 
     def _headers(self) -> dict[str, str]:
-        import time
-
-        import httpx
+        from .msauth import MsAuthError
 
         if not self.credentials:
-            raise DocumentError("Microsoft 365 ist nicht eingerichtet (GRAPH_TENANT_ID, GRAPH_CLIENT_ID, "
-                                "GRAPH_CLIENT_SECRET in der .env).")
-        if not self._token or self._token[0] < time.time() + 60:
-            try:
-                resp = httpx.post(f"https://login.microsoftonline.com/{self.s.graph_tenant_id}/oauth2/v2.0/token",
-                                  data={"grant_type": "client_credentials", "client_id": self.s.graph_client_id,
-                                        "client_secret": self.s.graph_client_secret,
-                                        "scope": "https://graph.microsoft.com/.default"}, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
-            except httpx.HTTPError as exc:
-                raise DocumentError(f"Anmeldung bei Microsoft 365 fehlgeschlagen: {exc}") from exc
-            self._token = (time.time() + int(data.get("expires_in", 3600)), data["access_token"])
-        return {"Authorization": f"Bearer {self._token[1]}"}
+            raise DocumentError("Microsoft 365 ist nicht eingerichtet (GRAPH_TENANT_ID, GRAPH_CLIENT_ID und Zertifikat "
+                                "oder GRAPH_CLIENT_SECRET in der .env).")
+        try:
+            return self.auth.headers()
+        except MsAuthError as exc:
+            raise DocumentError(str(exc)) from exc
 
     def _call(self, method: str, url: str, **kwargs):
         import httpx
@@ -245,6 +240,19 @@ class GraphDrive:
     def test(self) -> dict[str, Any]:
         root = self._call("GET", f"{self.base()}/root").json()
         return {"ok": True, "url": root.get("webUrl", ""), "name": root.get("name", "")}
+
+    def write_test(self, folder: str = "") -> dict[str, Any]:
+        """Schreibrecht prüfen: kleine Testdatei anlegen und sofort wieder löschen."""
+        name = f"{folder.strip('/') + '/' if folder.strip('/') else ''}_meit-verbindungstest.txt"
+        item = self.upload(name, b"ME-IT Cockpit: Verbindungstest (wird sofort geloescht)", "text/plain")
+        if item.get("id"):
+            self._call("DELETE", f"{self.base()}/items/{item['id']}")
+        return {"ok": True, "path": name, "url": item.get("url", "")}
+
+    def site_id(self) -> str:
+        """ID der SharePoint-Site (für die Freigabe „Sites.Selected“)."""
+        host, path = parse_site(self.conf.get("sharepoint_site", ""))
+        return self._call("GET", f"/sites/{host}:{path}" if path else f"/sites/{host}").json()["id"]
 
 
 # ----------------------------------------------------------------------------- Service

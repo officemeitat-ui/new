@@ -94,31 +94,21 @@ class TenantClient:
     """Client-Credentials gegen den Tenant des Kunden (mandantenfähige App)."""
 
     def __init__(self, client_id: str, client_secret: str, tenant: str):
+        from .msauth import TokenSource
+
         self.client_id, self.client_secret, self.tenant = client_id, client_secret, tenant
-        self._token: tuple[float, str] | None = None
+        self.auth = TokenSource(tenant, client_id, client_secret)
 
     def _auth(self) -> dict[str, str]:
-        import httpx
+        from .msauth import MsAuthError
 
-        if not self._token or self._token[0] < time.time() + 60:
-            try:
-                resp = httpx.post(f"https://login.microsoftonline.com/{self.tenant}/oauth2/v2.0/token", timeout=30, data={
-                    "grant_type": "client_credentials", "client_id": self.client_id, "client_secret": self.client_secret,
-                    "scope": "https://graph.microsoft.com/.default"})
-            except httpx.HTTPError as exc:
-                raise GraphError(f"Microsoft-Anmeldung nicht erreichbar: {exc}") from exc
-            if resp.status_code != 200:
-                try:
-                    detail = resp.json().get("error_description", "")
-                except ValueError:
-                    detail = resp.text
-                if "AADSTS700016" in detail or "AADSTS7000229" in detail or "AADSTS65001" in detail:
-                    raise GraphError("Die Zustimmung des Kunden fehlt noch (Zustimmungs-Link öffnen lassen).", 401)
-                raise GraphError(f"Anmeldung am Tenant fehlgeschlagen: {detail.splitlines()[0] if detail else resp.status_code}",
-                                 resp.status_code)
-            data = resp.json()
-            self._token = (time.time() + int(data.get("expires_in", 3600)), data["access_token"])
-        return {"Authorization": f"Bearer {self._token[1]}"}
+        try:
+            return self.auth.headers()
+        except MsAuthError as exc:
+            text = str(exc)
+            if "Zustimmung" in text or "nicht gefunden" in text:
+                raise GraphError("Die Zustimmung des Kunden fehlt noch (Zustimmungs-Link öffnen lassen). " + text, 401) from exc
+            raise GraphError(text, 401 if "AADSTS" in text or "Geheimnis" in text else 0) from exc
 
     def get(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
         import httpx
@@ -480,7 +470,9 @@ class M365Service:
 
     @property
     def configured(self) -> bool:
-        return bool(self.client_id and (self.settings.m365_client_secret or self.settings.graph_client_secret))
+        from .msauth import has_credential
+
+        return bool(self.client_id and has_credential(self.settings.m365_client_secret or self.settings.graph_client_secret))
 
     def _client(self, tenant: str) -> TenantClient:
         return TenantClient(self.client_id, self.settings.m365_client_secret or self.settings.graph_client_secret, tenant)

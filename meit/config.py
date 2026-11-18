@@ -107,6 +107,11 @@ class Settings:
     m365_client_id: str = ""      # leer = GRAPH_CLIENT_ID
     m365_client_secret: str = ""  # leer = GRAPH_CLIENT_SECRET
     m365_sync_hours: int = 24
+    # --- Sichere Anmeldung bei Microsoft: Zertifikat statt Geheimnis (PEM mit Schlüssel + Zertifikat) ----
+    graph_cert_file: str = ""
+    # --- Microsoft To Do je Benutzer (delegiert, Gerätecode-Anmeldung) ---------
+    todo_client_id: str = ""      # leer = GRAPH_CLIENT_ID (dort „Öffentliche Clientflows zulassen“ = Ja)
+    todo_sync_minutes: int = 10
     # --- Datensicherung -------------------------------------------------------
     backup_hours: int = 24
     backup_keep: int = 14
@@ -169,6 +174,9 @@ def get_settings() -> Settings:
         m365_client_id=os.environ.get("M365_CLIENT_ID", ""),
         m365_client_secret=os.environ.get("M365_CLIENT_SECRET", ""),
         m365_sync_hours=_int("M365_SYNC_HOURS", 24),
+        graph_cert_file=os.environ.get("GRAPH_CERT_FILE", ""),
+        todo_client_id=os.environ.get("TODO_CLIENT_ID", ""),
+        todo_sync_minutes=_int("TODO_SYNC_MINUTES", 10),
         graph_calendar=_bool("GRAPH_CALENDAR", False),
         backup_hours=_int("BACKUP_HOURS", 24),
         backup_keep=_int("BACKUP_KEEP", 14),
