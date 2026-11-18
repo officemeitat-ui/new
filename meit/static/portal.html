@@ -310,9 +310,17 @@
     };
 
     views.wartung = async () => {
-      const m = await api("/api/portal/maintenance");
+      const [m, bk] = await Promise.all([api("/api/portal/maintenance"), api("/api/portal/backups").catch(() => [])]);
       const res = (r, label) => h("span", { class: `badge ${r === "ok" ? "ok" : r === "problem" ? "bad" : r ? "warn" : ""}` }, label || "–");
+      const color = { ok: "var(--ok)", warnung: "var(--warn)", fehler: "var(--bad)", "überfällig": "var(--bad)", fehlt: "var(--bad-soft)" };
+      const lamp = (grid) => h("span", { style: "display:inline-flex;gap:2px" }, grid.map((g) => h("i", { style: `width:10px;height:16px;border-radius:3px;display:inline-block;background:${color[g] || "var(--soft)"};border:1px solid var(--border)` })));
+      const bkLabel = { ok: ["ok", "erfolgreich"], warnung: ["warn", "mit Warnung"], fehler: ["bad", "fehlgeschlagen – wir kümmern uns"], "überfällig": ["bad", "Bericht fehlt – wir prüfen"] };
       return h("div", {},
+        bk.length ? h("div", { class: "card" }, h("h2", {}, "Ihre Datensicherung"),
+          table([["Sicherung", (b) => b.name], ["Letzte 14 Tage", (b) => lamp(b.grid)],
+            ["Status", (b) => { const [c, l] = bkLabel[b.status] || ["", "–"]; return h("span", { class: `badge ${c}` }, l); }],
+            ["Zuletzt erfolgreich", (b) => b.last_success ? dt(b.last_success) : "–"]], bk),
+          h("p", { class: "muted small" }, "Wir werten jeden Sicherungsbericht automatisch aus – bei Fehlern oder ausbleibenden Berichten werden wir sofort tätig.")) : null,
         h("div", { class: "card" }, h("h2", {}, "Was wir für Sie vorbeugend prüfen"),
           m.plan.length ? table([["Prüfung", (r) => r.title], ["Rhythmus", (r) => r.interval_label], ["Zuletzt", (r) => dt(r.last_done_at)],
             ["Ergebnis", (r) => res(r.last_result, r.last_result_label)], ["Nächste", (r) => dt(r.next_due)]], m.plan)

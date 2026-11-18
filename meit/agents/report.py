@@ -41,8 +41,16 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
     from ..m365 import report_lines as m365_lines
 
     m365_text, m365_facts = m365_lines(ctx.db, customer_id, m_start.isoformat(), (m_end + timedelta(days=1)).isoformat())
+    from ..backups import report_lines as backup_lines
+
+    backup_text, backup_facts = backup_lines(ctx.db, customer_id, m_start.isoformat(), (m_end + timedelta(days=1)).isoformat())
+    from ..domaincheck import report_lines as domain_lines
+
+    domain_text, domain_facts = domain_lines(ctx.db, customer_id)
     facts = {
         "microsoft_365": m365_facts,
+        "datensicherung": backup_facts,
+        "email_absicherung": domain_facts,
         "wartung_durchgefuehrt": [f"{r['title']}: {r['result']}" for r in wartung["done"]],
         "monat": month, "tickets_gesamt": len(tickets), "geloest": len(resolved), "offen_gesamt": open_all,
         "arbeitszeit_stunden": round(minutes / 60, 1),
@@ -87,7 +95,7 @@ def monthly_report(ctx: AgentContext, customer_id: int, month: str | None = None
     sla_q = customer_sla_quote(ctx.db, customer, days=31)
     if sla_q["quote"] is not None:
         lines.append(f"- SLA eingehalten: **{sla_q['quote']:.0f} %** ({sla_q['met']} von {sla_q['measured']} Zusagen)")
-    lines += m365_text
+    lines += backup_text + m365_text + domain_text
     done_tickets = [t for t in resolved if t["category"] != "Wartung"]
     if done_tickets:
         lines += ["", "## Erledigt"] + [f"- {t['title']}" for t in done_tickets]

@@ -592,6 +592,48 @@ CREATE TABLE IF NOT EXISTS todo_links (
     UNIQUE(user_key, ref)
 );
 
+CREATE TABLE IF NOT EXISTS backup_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    job_key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    source TEXT DEFAULT 'allgemein',
+    host TEXT DEFAULT '',
+    sender TEXT DEFAULT '',
+    expected_hours INTEGER DEFAULT 24,
+    active INTEGER DEFAULT 1,
+    last_status TEXT DEFAULT '',
+    last_at TEXT DEFAULT '',
+    last_success_at TEXT DEFAULT '',
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS backup_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL REFERENCES backup_jobs(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    at TEXT NOT NULL,
+    subject TEXT DEFAULT '',
+    details TEXT DEFAULT '',
+    message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_runs_job ON backup_runs(job_id, at);
+
+CREATE TABLE IF NOT EXISTS domain_checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    domain TEXT NOT NULL UNIQUE,
+    source TEXT DEFAULT 'manuell',
+    last_check TEXT DEFAULT '',
+    score INTEGER,
+    result TEXT DEFAULT '',
+    ignored TEXT DEFAULT '[]',
+    tickets TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -680,6 +722,10 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "ms_accounts": {"user_key", "upn", "display_name", "refresh_token", "list_id", "options", "connected_at", "last_sync",
                     "error"},
     "todo_links": {"user_key", "ref", "task_id", "list_id", "title", "due", "state", "meta", "synced_at"},
+    "backup_jobs": {"customer_id", "job_key", "name", "source", "host", "sender", "expected_hours", "active", "last_status",
+                    "last_at", "last_success_at", "ticket_id"},
+    "backup_runs": {"job_id", "status", "at", "subject", "details", "message_id"},
+    "domain_checks": {"customer_id", "domain", "source", "last_check", "score", "result", "ignored", "tickets"},
 }
 
 TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
@@ -688,7 +734,8 @@ TABLES_WITH_CREATED_AT = {
     "messages", "leads", "receipts", "mrr_history", "qbrs", "users", "activities", "weekly_goals",
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
-    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts",
+    "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
+    "domain_checks",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

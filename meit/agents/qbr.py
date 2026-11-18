@@ -111,7 +111,13 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
                      f"({cs['positive_pct']} % zufrieden, {cs['count']} Bewertungen)")
     from ..m365 import report_lines as m365_lines
 
+    from ..backups import report_lines as backup_lines
+
+    lines += backup_lines(db, customer_id, (today - timedelta(days=91)).isoformat(), (today + timedelta(days=1)).isoformat())[0]
     lines += m365_lines(db, customer_id, (today - timedelta(days=91)).isoformat(), (today + timedelta(days=1)).isoformat())[0]
+    from ..domaincheck import report_lines as domain_lines
+
+    lines += domain_lines(db, customer_id)[0]
     if wartung["count"]:
         restore = sum(1 for r in wartung["done"] if "Restore" in r["title"])
         lines.append(f"- Vorbeugende Wartung: **{wartung['count']} Prüfungen** durchgeführt"

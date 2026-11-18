@@ -277,6 +277,24 @@ def process_message(ctx: AgentContext, message_id: int) -> dict[str, Any]:
     customer = db.get("customers", m["customer_id"]) if m.get("customer_id") else match_customer(db, m["from_email"])
     full_text = f"{m['subject']}\n{m['body']}\n{m['attachment_text']}"
 
+    # Sicherungsberichte (Veeam, Synology, Acronis …) → Backup-Wächter statt Ticket/Lead
+    backups = getattr(ctx, "backups", None)
+    if backups is not None and m["linked_type"] in ("", None, "backup"):
+        from ..backups import detect_report
+
+        report = detect_report(m["subject"], m["body"], m["from_email"])
+        if report:
+            rec = backups.record(report, sender=m["from_email"], customer_id=customer["id"] if customer else None,
+                                 message_id=message_id, subject=m["subject"], at=m["created_at"])
+            job_customer = rec["customer_id"] or (customer["id"] if customer else None)
+            db.update("messages", message_id, {
+                "category": "info", "status": "erledigt", "linked_type": "backup", "linked_id": rec["job_id"],
+                "customer_id": job_customer, "ai_result": json.dumps({
+                    **ai_prev, "category": "info", "summary": f"Sicherungsbericht „{rec['job']}“: {report['status']}",
+                    "provider": "regeln", "backup": report}, ensure_ascii=False)})
+            ctx.log("posteingang", "regeln", f"{m['subject']} ({m['from_email']})", {"backup": report}, True, started)
+            return message_out(db.get("messages", message_id))
+
     category = rule_classify(m["subject"], m["body"], attachments, m["from_email"], bool(customer))
     phone = m["phone"] or (PHONE_RE.search(m["body"]).group(0).strip() if PHONE_RE.search(m["body"]) else "")
     result: dict[str, Any] = {

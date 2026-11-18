@@ -16,7 +16,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Rentabilität, Zufriedenheit, App: [docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md](docs/RENTABILITAET-ZUFRIEDENHEIT-APP.md) ·
 > E-Mails, Kundenportal, Phishing-Check, Claude: [docs/EMAIL-PORTAL-CLAUDE.md](docs/EMAIL-PORTAL-CLAUDE.md) ·
 > Microsoft 365 der Kunden, Ein-/Austritte: [docs/M365-KUNDEN-MITARBEITER.md](docs/M365-KUNDEN-MITARBEITER.md) ·
-> Sichere Anbindungen (Zertifikat, Sites.Selected, To Do, BookStack): [docs/SICHERE-ANBINDUNGEN.md](docs/SICHERE-ANBINDUNGEN.md)
+> Sichere Anbindungen (Zertifikat, Sites.Selected, To Do, BookStack): [docs/SICHERE-ANBINDUNGEN.md](docs/SICHERE-ANBINDUNGEN.md) ·
+> Backup-Wächter, Domain-/E-Mail-Check: [docs/BACKUP-DOMAINS.md](docs/BACKUP-DOMAINS.md)
 
 ## Funktionen
 
@@ -38,6 +39,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **KI-Mitarbeiter: Posteingang** | Sortiert E-Mails, Formularanfragen und Telefonnotizen (Support · Anfrage · Termin · Beleg · Info). Daraus entstehen Ticket, Lead oder Beleg, dazu ein Antwortentwurf. Modus je Art: **Entwurf + Freigabe** oder **Autopilot**. IMAP/SMTP-Anbindung. |
 | **Sprachnotizen** | Anruf kurz einsprechen oder Voicemail hochladen → lokal mit Whisper in Text (optional `requirements-voice.txt`, Audio wird sofort gelöscht) → Posteingang, KI-Mitarbeiter ordnet ein |
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
+| **Backup-Wächter** | Sicherungsberichte (Veeam, Synology, Acronis, Datto, Windows …) aus dem Postfach automatisch erkannt und dem Kunden zugeordnet: **Ampel der letzten 14 Tage**, Ticket nur bei Fehler, automatisches Schließen nach erfolgreicher Folgesicherung, **„Bericht fehlt“-Alarm**, Quote im Monatsbericht/QBR, Ampel im Kundenportal. |
+| **Domains & E-Mail** | Je Kundendomain SPF, DKIM, DMARC, MX, MTA-STS und Website-Zertifikat – „Kann man im Namen des Kunden Mails fälschen?“. Punkte 0–100, Befunde → Ticket, Chance „E-Mail-Absicherung“ im Radar, Schutzstatus im Monatsbericht, wöchentlich automatisch. |
 | **Verbindungen & Sicherheit** | Alle Anbindungen auf einen Blick mit Live-Test: liest die **tatsächlich erteilten Microsoft-Rechte** aus dem Token und markiert zu weitreichende rot (z. B. Zugriff auf alle SharePoint-Seiten oder alle Postfächer), prüft BookStack-Token auf Admin-Rechte, HTTPS, Cockpit-Login, Datensicherung. **Zertifikat statt Geheimnis** mit einem Klick erzeugen und aktivieren, **SharePoint nur für eine Site** (Sites.Selected) freigeben, Anleitung für Postfach-Beschränkung per Exchange-RBAC. |
 | **Microsoft To Do** | Jeder Mitarbeiter verbindet seine eigenen Aufgaben (delegiert, Anmeldung per Code, Token verschlüsselt). Tickets und Ein-/Austritte landen in der Liste „ME-IT Cockpit“ – am Handy abgehakte Checklisten-Schritte werden im Cockpit übernommen und umgekehrt. |
 | **Microsoft 365 der Kunden** | Einmalige Zustimmung des Kunden-Admins (Link, nur Leserechte, kein GDAP), dann täglicher Check: **externe Weiterleitungen** (→ sofort Ticket), Admins/Benutzer ohne MFA, fehlende MFA-Pflicht, zu viele Admins, gesperrte/ungenutzte Konten mit Lizenz, inaktive Gäste, **Secure Score** mit Verlauf. **Lizenzabgleich**: zugewiesen vs. verrechnet je Produkt, Nachverrechnung mit einem Klick, Einsparungen für den Kunden. Fließt in Radar, Monatsbericht und QBR ein. |
@@ -180,6 +183,8 @@ meit/
   vault.py         Tresor für gespeicherte Anmeldungen (verschlüsselt, Schlüssel außerhalb der DB)
   todo.py          Microsoft To Do je Benutzer (Tickets, Ein-/Austritte mit Checkliste, beidseitig)
   connections.py   Verbindungs-Center: Status, Live-Test, Rechte-Prüfung, Zertifikat
+  backups.py       Backup-Wächter: Sicherungsberichte erkennen, Ampel, Tickets, „Bericht fehlt“
+  domaincheck.py   Domain- & E-Mail-Sicherheit: SPF, DKIM, DMARC, MTA-STS, Zertifikat
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,
                    Posteingang/KI-Mitarbeiter (inbox.py), Quartalsgespräch (qbr.py)
   mitarbeiter_api.py  API für Posteingang, Leads, Belege, Anfrageformular

@@ -346,6 +346,14 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
             raise HTTPException(422, str(exc))
         return {"id": r["id"], "ticket_id": r["ticket_id"], "steps": r["total"]}
 
+    @app.get("/api/portal/backups")
+    def portal_backups(u: dict = Depends(portal_user)) -> list[dict]:
+        svc = getattr(app.state, "backups", None)
+        if not svc:
+            return []
+        return [{"name": j["name"], "status": j["last_status"], "last_success": j["last_success_at"], "last_at": j["last_at"],
+                 "grid": [g["status"] for g in j["grid"]]} for j in svc.jobs(u["customer_id"]) if j["active"]]
+
     @app.get("/api/portal/maintenance")
     def maintenance(u: dict = Depends(portal_user)) -> dict:
         """Wartungsnachweise: was wir vorbeugend prüfen und mit welchem Ergebnis (ohne interne Notizen)."""

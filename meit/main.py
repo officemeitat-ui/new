@@ -44,6 +44,8 @@ from .bookstack import register as register_bookstack
 from .secrets_guard import redact_row, scan as scan_secrets
 from .profitability import register as register_profitability
 from .attachments import register as register_attachments
+from .backups import register as register_backups
+from .domaincheck import register as register_domains
 from .csat import register as register_csat
 from .m365 import register as register_m365
 from .connections import register as register_connections
@@ -821,6 +823,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- E-Mails & Anhänge: .eml/.msg-Upload, Ticket-Verlauf, Antworten, Phishing-Check ----
     ctx.attachments = register_attachments(app, ctx, admin_only)
+
+    # --- Backup-Wächter (Sicherungsberichte aus dem Postfach) -----------------------------------
+    register_backups(app, ctx, admin_only, start=settings.db_path != ":memory:")
+    radar.extra.append(register_domains(app, ctx, admin_only, start=settings.db_path != ":memory:"))
 
     # --- Geldkreislauf: Kontoauszug, Zahlungsabgleich, Mahnwesen -------------------
     register_payments(app, ctx, admin_only, start_scheduler=settings.db_path != ":memory:")

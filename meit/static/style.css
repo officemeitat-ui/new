@@ -297,3 +297,13 @@ body.has-timer #app { padding-bottom: 76px; }
 .verdict.warn { background: var(--warn-soft); color: var(--warn); }
 .verdict.ok { background: var(--ok-soft); color: var(--ok); }
 .verdict strong { font-size: 1.1rem; }
+
+/* Backup-Ampel (letzte 14 Tage) */
+.ampel { display: inline-flex; gap: 2px; vertical-align: middle; }
+.ampel i { width: 11px; height: 18px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--border); display: inline-block; }
+.ampel i.ok { background: var(--ok); border-color: var(--ok); }
+.ampel i.warnung { background: var(--warn); border-color: var(--warn); }
+.ampel i.fehler, .ampel i.überfällig { background: var(--bad); border-color: var(--bad); }
+.ampel i.fehlt { background: repeating-linear-gradient(45deg, var(--bad-soft), var(--bad-soft) 3px, transparent 3px, transparent 6px); border-color: var(--bad-soft); }
+.dscore { display: inline-block; min-width: 2.6rem; text-align: center; font-weight: 700; font-size: .95rem; border-radius: 8px; padding: .15rem .4rem; }
+.dscore.ok { background: var(--ok-soft); color: var(--ok); } .dscore.warn { background: var(--warn-soft); color: var(--warn); } .dscore.bad { background: var(--bad-soft); color: var(--bad); }

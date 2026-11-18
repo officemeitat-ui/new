@@ -219,9 +219,9 @@ const views = {};
 views.dashboard = async () => {
   setTitle("Übersicht", [h("button", { class: "btn", onclick: (e) => withBusy(e.target, showBriefing) }, "Wochenbriefing (KI)"),
     h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
-  const [d, km, pay, wt, cs, ms, staff] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
+  const [d, km, pay, wt, cs, ms, staff, bk] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
     api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null), api("/api/csat").catch(() => null),
-    api("/api/m365").catch(() => null), api("/api/staff").catch(() => [])]);
+    api("/api/m365").catch(() => null), api("/api/staff").catch(() => []), api("/api/backups").catch(() => null)]);
   const tenants = ms ? ms.tenants.filter((t) => t.last_sync) : [];
   const m365crit = tenants.reduce((a, t) => a + t.findings.kritisch, 0);
   const staffSoon = staff.filter((r) => r.days === null || r.days <= 14);
@@ -245,6 +245,8 @@ views.dashboard = async () => {
       kpi("Geräte ohne Support", d.assets_eol, `${d.assets_eol_soon} bald · ${d.warranty_soon} Garantie < 90 Tage`),
       cs ? kpi("Zufriedenheit", cs.avg === null ? "–" : `${cs.avg.toLocaleString("de-AT")} / 5`, cs.count ? `${cs.positive_pct} % zufrieden · ${cs.count} Bewertungen (90 Tage)` : "noch keine Bewertungen", "", "#/einstellungen") : null,
       wt ? kpi("Wartung", `${wt.open} fällig`, wt.tasks ? `${wt.overdue} überfällig · ${wt.done_this_month} erledigt (Monat)` : `${wt.customers_without_plan} Managed-Kunden ohne Plan`, "", "#/wartung") : null,
+      bk && bk.summary.jobs ? kpi("Datensicherung", bk.summary.fehler + bk.summary.ueberfaellig ? `${bk.summary.fehler + bk.summary.ueberfaellig} Problem(e)` : "alles ok",
+        `${bk.summary.jobs} überwacht · ${bk.summary.warnung} Warnung${bk.summary.unassigned ? ` · ${bk.summary.unassigned} ohne Kunde` : ""}`, "", "#/backups") : null,
       tenants.length ? kpi("Microsoft 365", m365crit ? `${m365crit} kritisch` : "ok", `${tenants.length} Tenants · ${eur2(tenants.reduce((a, t) => a + t.gap_month, 0))} nicht verrechnet`, "", "#/m365") : null,
       kpi("Umsatz-Potenzial", eur(d.radar_annual), `${d.radar_count} Chancen · +${eur(d.radar_monthly)}/Monat`, "accent")),
     h("div", { class: "grid two" },
@@ -389,6 +391,8 @@ views.kunde = async (id) => {
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
     await m365Card(c),
+    await backupCard(c),
+    await domainCard(c),
     await staffCard(c),
     await maintenanceCard(c),
     await mandateCard(c),
@@ -1115,6 +1119,7 @@ async function messageDetail(id) {
     if (m.linked_type === "lead") return h("a", { class: "btn small", href: "#/leads" }, `Lead #${m.linked_id}`);
     if (m.linked_type === "receipt") return h("a", { class: "btn small", href: "#/belege" }, `Beleg #${m.linked_id}`);
     if (m.linked_type === "quote") return h("a", { class: "btn small", href: "#/angebote" }, `Angebot #${m.linked_id}`);
+    if (m.linked_type === "backup") return h("a", { class: "btn small", href: "#/backups" }, "Sicherungsbericht → Datensicherung");
     return null;
   })();
   const q = ai.qualification || {};
@@ -3074,6 +3079,162 @@ views.verbindungen = async () => {
     items.map(card));
   if (document.body.contains(certBoxPlaceholder)) certBoxPlaceholder.replaceWith(await certBox(cert, () => render()));
 };
+
+// ---- Backup-Wächter
+const BK_LABEL = { ok: "ok", warnung: "Warnung", fehler: "Fehler", "überfällig": "Bericht fehlt", "": "neu" };
+const BK_CLS = { ok: "ok", warnung: "warn", fehler: "bad", "überfällig": "bad", "": "info" };
+const SOURCE_LABEL = { veeam: "Veeam", synology: "Synology", acronis: "Acronis", windows: "Windows", datto: "Datto", allgemein: "Bericht" };
+const ampel = (grid) => h("span", { class: "ampel", title: grid.map((g) => `${dt(g.date)}: ${g.status}`).join("\n") },
+  grid.map((g) => h("i", { class: g.status === "–" ? "" : g.status })));
+
+function backupTable(jobs, withCustomer = true) {
+  return table([
+    ...(withCustomer ? [{ label: "Kunde", render: (j) => j.customer || badge("zuordnen", "warn") }] : []),
+    { label: "Sicherung", render: (j) => h("div", {}, h("strong", {}, j.name), h("div", { class: "small muted" }, [SOURCE_LABEL[j.source] || j.source, j.host].filter(Boolean).join(" · "))) },
+    { label: "14 Tage", render: (j) => ampel(j.grid) },
+    { label: "Status", render: (j) => h("span", {}, badge(BK_LABEL[j.last_status] ?? j.last_status, BK_CLS[j.last_status] ?? ""), !j.active ? badge("pausiert") : null) },
+    { label: "Zuletzt erfolgreich", render: (j) => j.last_success_at ? dt(j.last_success_at) : "–" },
+    { label: "Ticket", render: (j) => j.ticket_id ? h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); ticketDetail(j.ticket_id); } }, `#${j.ticket_id}`) : "" },
+  ], jobs, (j) => backupJob(j));
+}
+
+async function backupJob(j) {
+  await loadCustomers();
+  const runs = await api(`/api/backups/jobs/${j.id}/runs?limit=30`);
+  const f = form([
+    { name: "customer_id", label: "Kunde", type: "select", options: [["", "– nicht zugeordnet –"], ...state.customers.map((c) => [c.id, c.name])], value: j.customer_id || "" },
+    { name: "expected_hours", label: "Bericht erwartet", type: "select", value: j.expected_hours,
+      options: [[24, "täglich"], [48, "alle 2 Tage"], [168, "wöchentlich"], [744, "monatlich"], [0, "nicht überwachen"]] },
+    { name: "active", label: "Aktiv (Tickets bei Fehlern)", type: "checkbox", value: j.active },
+  ], j);
+  modal(`Sicherung: ${j.name}`, h("div", {},
+    h("p", { class: "small muted" }, `${SOURCE_LABEL[j.source] || j.source}${j.host ? " · " + j.host : ""}${j.sender ? " · Absender " + j.sender : ""}`),
+    h("div", { style: "margin:.4rem 0 .8rem" }, ampel(j.grid)), f,
+    h("h3", {}, "Letzte Berichte"),
+    table([{ label: "Zeit", render: (r) => dt(r.at) + " " + r.at.slice(11, 16) }, { label: "Status", render: (r) => badge(BK_LABEL[r.status], BK_CLS[r.status]) },
+      { label: "Betreff", render: (r) => h("span", { class: "small" }, r.subject) }], runs)), [
+    h("button", { class: "btn danger", onclick: async () => { if (!confirm("Sicherungsjob samt Verlauf löschen?")) return; await api(`/api/backups/jobs/${j.id}`, { method: "DELETE" }); document.querySelector(".modal-backdrop")?.remove(); render(); } }, "Löschen"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const b = readForm(f);
+      await api(`/api/backups/jobs/${j.id}`, { method: "PUT", body: { customer_id: b.customer_id ? Number(b.customer_id) : 0, expected_hours: Number(b.expected_hours), active: b.active } });
+      close(); toast("Gespeichert"); render();
+    }) }, "Speichern")]);
+}
+
+views.backups = async () => {
+  const d = await api("/api/backups");
+  const s = d.summary;
+  setTitle("Datensicherung", [h("button", { class: "btn", onclick: () => {
+    const subj = h("input", { placeholder: "z. B. [Failed] Server-Backup (2 VMs)" });
+    const out = h("div", { class: "small", style: "margin-top:.6rem" });
+    modal("Bericht testen", h("div", {}, h("p", { class: "small muted" }, "Betreff eines Sicherungsberichts einfügen – das Cockpit zeigt, wie es ihn einordnet."), subj,
+      h("button", { class: "btn small", style: "margin-top:.5rem", onclick: async () => { const r = (await api("/api/backups/test", { method: "POST", body: { subject: subj.value } })).report;
+        out.replaceChildren(r ? h("span", {}, badge(BK_LABEL[r.status], BK_CLS[r.status]), ` ${SOURCE_LABEL[r.source] || r.source} · Job „${r.job}“${r.host ? " · " + r.host : ""}`) : "Kein Sicherungsbericht erkannt."); } }, "Prüfen"), out));
+  } }, "Bericht testen")]);
+  const conf = d.conf;
+  const toggle = (key, label) => h("label", { class: "row small", style: "gap:.4rem;font-weight:400" }, h("input", { type: "checkbox", checked: conf[key], style: "width:auto",
+    onchange: async (e) => { await api("/api/backups/settings", { method: "PUT", body: { [key]: e.target.checked } }); toast("Gespeichert"); } }), label);
+  show(
+    h("p", { class: "small muted" }, "Sicherungsberichte (Veeam, Synology, Acronis, Datto, Windows …) an das Cockpit-Postfach senden bzw. weiterleiten – sie werden automatisch erkannt, dem Kunden zugeordnet und erzeugen nur bei Fehlern ein Ticket. Bleibt ein Bericht aus, meldet sich das Cockpit ebenfalls."),
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Überwachte Sicherungen"), h("div", { class: "value" }, s.jobs), h("div", { class: "sub" }, `${s.ok} ok`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Fehler"), h("div", { class: "value", style: s.fehler ? "color:var(--bad)" : "" }, s.fehler), h("div", { class: "sub" }, `${s.warnung} mit Warnung`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Bericht fehlt"), h("div", { class: "value", style: s.ueberfaellig ? "color:var(--bad)" : "" }, s.ueberfaellig), h("div", { class: "sub" }, "länger als erwartet kein Bericht")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Ohne Kunde"), h("div", { class: "value" }, s.unassigned), h("div", { class: "sub" }, "bitte zuordnen"))),
+    s.managed_without.length ? h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, `${s.managed_without.length} Managed-Kunde(n) ohne überwachte Sicherung: `),
+      s.managed_without.map((c, i) => [i ? ", " : "", h("a", { href: `#/kunde/${c.id}` }, c.name)]),
+      h("div", { class: "small muted" }, "Berichte dieser Kunden an das Cockpit-Postfach leiten – oder Backup anbieten (Umsatz-Radar).")) : null,
+    h("div", { class: "card" }, d.jobs.length ? backupTable(d.jobs) : h("div", { class: "empty" }, "Noch keine Sicherungsberichte eingegangen.")),
+    h("div", { class: "card", style: "margin-top:1rem" }, h("h3", { style: "margin-top:0" }, "Einstellungen"),
+      toggle("auto_close", "Ticket automatisch schließen, wenn die Folgesicherung erfolgreich ist"),
+      toggle("ticket_on_warning", "Auch bei Warnungen ein Ticket anlegen")));
+};
+
+async function backupCard(c) {
+  const d = await api(`/api/backups?customer_id=${c.id}`).catch(() => null);
+  if (!d) return null;
+  return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Datensicherung"), h("a", { class: "btn small", href: "#/backups" }, "Alle")),
+    d.jobs.length ? backupTable(d.jobs, false) : h("p", { class: "small muted", style: "margin:0" }, "Keine überwachte Sicherung. Berichte des Kunden (Veeam, Synology …) an das Cockpit-Postfach leiten – sie werden automatisch erkannt."));
+}
+
+// ---- Domains & E-Mail-Sicherheit
+const scoreBadge = (s) => s === null || s === undefined ? h("span", { class: "muted" }, "–") : h("span", { class: `dscore ${s >= 80 ? "ok" : s >= 50 ? "warn" : "bad"}` }, s);
+const SEV_DOM = { kritisch: "bad", hoch: "warn", mittel: "info", niedrig: "", info: "" };
+
+function domainTable(rows, withCustomer = true) {
+  return table([
+    { label: "Domain", render: (d) => h("div", {}, h("strong", {}, d.domain), withCustomer ? h("div", { class: "small muted" }, d.customer || "ohne Kunde") : null) },
+    { label: "Punkte", render: (d) => scoreBadge(d.score) },
+    { label: "Mail", render: (d) => d.result.mail === undefined ? "–" : d.result.mail ? (d.result.provider || "ja") : "kein Mailbetrieb" },
+    { label: "SPF", render: (d) => d.result.spf ? (d.result.spf.record ? badge(d.result.spf.all || "ok", ["-all", "~all"].includes(d.result.spf.all) ? "ok" : "warn") : badge("fehlt", "bad")) : "–" },
+    { label: "DMARC", render: (d) => d.result.dmarc ? badge(d.result.dmarc.policy, { reject: "ok", quarantine: "ok", none: "warn" }[d.result.dmarc.policy] || "bad") : "–" },
+    { label: "DKIM", render: (d) => d.result.dkim ? (d.result.dkim.selectors.length ? badge("ja", "ok") : !d.result.mail ? "–"
+      : ["Microsoft 365", "Google Workspace"].includes(d.result.provider) ? badge("fehlt", "warn") : badge("?", "")) : "–" },
+    { label: "Zertifikat", render: (d) => d.result.web && d.result.web.reachable ? badge(d.result.web.days_left < 0 ? "abgelaufen" : `${d.result.web.days_left} Tage`, d.result.web.days_left < 15 ? "bad" : d.result.web.days_left < 31 ? "warn" : "ok") : "–" },
+    { label: "Befunde", render: (d) => h("span", { class: "small" }, d.counts.kritisch ? badge(`${d.counts.kritisch} kritisch`, "bad") : null, " ", d.counts.hoch ? badge(`${d.counts.hoch} hoch`, "warn") : null, h("div", { class: "muted" }, d.top || (d.last_check ? "alles in Ordnung" : "noch nicht geprüft"))) },
+  ], rows, (d) => domainDetail(d.id));
+}
+
+async function domainDetail(id) {
+  let d = await api(`/api/domains/${id}`);
+  const body = h("div", {});
+  const paint = () => {
+    const r = d.result || {};
+    fill(body,
+      h("p", { class: "small muted" }, `${d.customer || "ohne Kunde"} · geprüft ${d.last_check ? dt(d.last_check) : "–"} · Quelle: ${d.source}`),
+      h("div", { class: "row", style: "gap:.6rem;margin-bottom:.6rem" }, scoreBadge(d.score), h("span", { class: "small" }, r.mail ? `Mail über ${r.provider || "?"} (MX: ${(r.mx || []).join(", ")})` : "Kein Mailbetrieb (kein MX)")),
+      d.findings.length ? h("ul", { class: "list" }, d.findings.map((f) => h("li", { style: f.ignored ? "opacity:.55" : "" },
+        h("div", { class: "row" }, badge(f.severity, SEV_DOM[f.severity]), h("strong", {}, f.title)),
+        h("div", { class: "small" }, f.detail), h("div", { class: "small" }, h("strong", {}, "Empfohlen: "), f.action),
+        f.severity !== "info" ? h("div", { class: "row", style: "gap:.3rem;margin-top:.3rem" },
+          f.ticket_id ? h("button", { class: "btn small", onclick: () => ticketDetail(f.ticket_id) }, `Ticket #${f.ticket_id}`)
+            : h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => { const x = await api(`/api/domains/${id}/findings/${f.key}/ticket`, { method: "POST" }); toast(`Ticket #${x.ticket_id}`); d = await api(`/api/domains/${id}`); paint(); }) }, "Ticket anlegen"),
+          h("button", { class: "btn small", onclick: async () => { await api(`/api/domains/${id}/findings/${f.key}/ignore`, { method: "POST", body: { ignore: !f.ignored } }); d = await api(`/api/domains/${id}`); paint(); } }, f.ignored ? "Wieder anzeigen" : "Ausblenden")) : null))) : h("p", {}, "✓ Keine Befunde – die Domain ist gut abgesichert."),
+      h("details", { style: "margin-top:.6rem" }, h("summary", { class: "small" }, "DNS-Einträge"),
+        h("pre", { style: "white-space:pre-wrap;font-size:.8rem" }, [`SPF:   ${(r.spf || {}).record || "–"}${(r.spf || {}).lookups !== undefined ? `  (${r.spf.lookups} DNS-Abfragen)` : ""}`,
+          `DMARC: ${(r.dmarc || {}).record || "–"}`, `DKIM:  ${((r.dkim || {}).selectors || []).join(", ") || "–"}`, `MTA-STS: ${r.mta_sts ? "ja" : "nein"} · TLS-RPT: ${r.tls_rpt ? "ja" : "nein"}`,
+          r.web && r.web.reachable ? `Zertifikat ${r.web.host}: ${r.web.issuer}, gültig bis ${r.web.not_after}${r.web.verified ? "" : " – " + r.web.error}` : "Zertifikat: –"].join("\n"))));
+  };
+  paint();
+  modal(`Domain ${d.domain}`, body, [
+    h("button", { class: "btn danger", onclick: async () => { if (!confirm("Domain aus der Prüfung entfernen?")) return; await api(`/api/domains/${id}`, { method: "DELETE" }); document.querySelector(".modal-backdrop")?.remove(); render(); } }, "Entfernen"),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => { d = await api(`/api/domains/${id}/check`, { method: "POST" }); paint(); render(); }) }, "Jetzt prüfen")]);
+}
+
+function domainAdd(customerId = null) {
+  const f = form([{ name: "customer_id", label: "Kunde", type: "select", options: [["", "– ohne –"], ...state.customers.map((c) => [c.id, c.name])], value: customerId || "" },
+    { name: "domain", label: "Domain", placeholder: "kunde.at", required: true }]);
+  modal("Domain prüfen", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+    const b = readForm(f); const d = await api("/api/domains", { method: "POST", body: { domain: b.domain, customer_id: b.customer_id ? Number(b.customer_id) : null } });
+    close(); render(); domainDetail(d.id);
+  }) }, "Hinzufügen & prüfen")]);
+}
+
+views.domains = async () => {
+  await loadCustomers();
+  const d = await api("/api/domains");
+  setTitle("Domains & E-Mail-Sicherheit", [
+    h("button", { class: "btn", onclick: () => domainAdd() }, "+ Domain"),
+    h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { const r = await api("/api/domains/discover", { method: "POST" }); toast(`${r.added} Domain(s) gefunden`); render(); }) }, "Domains finden"),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => { const r = await api("/api/domains/check-all", { method: "POST" }); toast(`${r.done} geprüft${r.errors.length ? ` · ${r.errors.length} Fehler` : ""}`, !!r.errors.length); render(); }) }, "Alle prüfen")]);
+  const rows = d.domains;
+  const checked = rows.filter((r) => r.last_check);
+  show(
+    h("p", { class: "small muted" }, "Kann man im Namen Ihrer Kunden Mails fälschen (SPF, DKIM, DMARC)? Läuft ein Website-Zertifikat ab? Geprüft werden nur öffentliche DNS-Einträge – wöchentlich automatisch. Domains kommen aus Kunden-Mailadressen, Microsoft 365 und „Lizenzen & Verträge“."),
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Domains"), h("div", { class: "value" }, rows.length), h("div", { class: "sub" }, `${checked.length} geprüft`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Fälschbar (kein/schwaches DMARC)"), h("div", { class: "value" }, checked.filter((r) => r.result.mail && ["fehlt", "none", "ungültig"].includes((r.result.dmarc || {}).policy)).length), h("div", { class: "sub" }, "Verkaufschance „E-Mail-Absicherung“")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Kritisch / hoch"), h("div", { class: "value" }, checked.reduce((a, r) => a + r.counts.kritisch + r.counts.hoch, 0)), h("div", { class: "sub" }, "Befunde")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Ø Punkte"), h("div", { class: "value" }, checked.length ? Math.round(checked.reduce((a, r) => a + r.score, 0) / checked.length) : "–"), h("div", { class: "sub" }, "von 100"))),
+    h("div", { class: "card" }, rows.length ? domainTable(rows) : h("div", { class: "empty" }, "Noch keine Domains – „Domains finden“ übernimmt sie aus den Kundendaten.")));
+};
+
+async function domainCard(c) {
+  const d = await api(`/api/domains?customer_id=${c.id}`).catch(() => null);
+  if (!d) return null;
+  return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Domains & E-Mail-Sicherheit"), h("button", { class: "btn small", onclick: () => domainAdd(c.id) }, "+ Domain")),
+    d.domains.length ? domainTable(d.domains, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Domain geprüft – SPF/DKIM/DMARC und Zertifikat in Sekunden."));
+}
 
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
