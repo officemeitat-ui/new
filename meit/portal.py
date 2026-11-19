@@ -22,7 +22,7 @@ from .db import loads, now_iso
 from .llm import LLMError
 from .mitarbeiter_api import RateLimiter
 from .radar import eol_info
-from .team import _token_hash, hash_password, verify_password
+from .team import _token_hash, dummy_verify, hash_password, needs_rehash, verify_password
 
 STATIC_DIR = Path(__file__).parent / "static"
 COOKIE = "meit_portal"
@@ -120,8 +120,13 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         if not login_limiter.allow(client):
             raise HTTPException(429, "Zu viele Versuche – bitte später erneut.")
         u = db.query_one("SELECT * FROM portal_users WHERE lower(email) = lower(?) AND active = 1", (data.email.strip(),))
-        if not u or not verify_password(data.password, u["password_hash"]):
+        if not u:
+            dummy_verify(data.password)  # gleiche Antwortzeit – verrät nicht, ob die Adresse einen Zugang hat
             raise HTTPException(401, "E-Mail oder Passwort falsch.")
+        if not verify_password(data.password, u["password_hash"]):
+            raise HTTPException(401, "E-Mail oder Passwort falsch.")
+        if needs_rehash(u["password_hash"]):
+            db.update("portal_users", u["id"], {"password_hash": hash_password(data.password)})
         token = secrets.token_urlsafe(32)
         expires = (datetime.now() + timedelta(days=SESSION_DAYS)).replace(microsecond=0).isoformat(sep=" ")
         with db.connect() as conn:

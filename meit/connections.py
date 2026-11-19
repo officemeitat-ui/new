@@ -148,6 +148,15 @@ class Connections:
         users = users_exist(self.db)
         if users:
             checks.append(check("ok", "Anmeldung mit Benutzern und Rollen aktiv"))
+            admins = self.db.query("SELECT name, totp_enabled FROM users WHERE active = 1 AND role = 'admin'")
+            without = [a["name"] for a in admins if not a["totp_enabled"]]
+            others = self.db.scalar("SELECT COUNT(*) FROM users WHERE active = 1 AND role != 'admin' AND totp_enabled = 0") or 0
+            if without:
+                checks.append(check("warn", f"Admin ohne Zwei-Faktor-Anmeldung: {', '.join(without)} – unter Einstellungen aktivieren"))
+            else:
+                checks.append(check("ok", "Alle Admins mit Zwei-Faktor-Anmeldung"))
+            if others:
+                checks.append(check("info", f"{others} weitere(r) Benutzer ohne Zwei-Faktor-Anmeldung"))
         elif self.s.app_password:
             checks.append(check("warn", "Nur ein gemeinsames Passwort (MEIT_PASSWORD) – besser Benutzer anlegen (Einstellungen)"))
         else:

@@ -15,6 +15,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
+from .hardening import csv_safe
 from .agents.base import AgentContext
 from .agents.inbox import (
     CATEGORIES, create_followups, fetch_and_process, insert_incoming, message_out, overview, process_message,
@@ -398,8 +399,10 @@ def register(app: FastAPI, ctx: AgentContext) -> None:
         writer.writerow(["Belegdatum", "Lieferant", "Rechnungsnummer", "Betrag", "Währung", "Kategorie", "Notiz", "Beleg-ID"])
         for r in rows:
             d = r["invoice_date"]
-            writer.writerow([f"{d[8:10]}.{d[5:7]}.{d[0:4]}" if len(d) == 10 else d, r["vendor"], r["invoice_no"],
-                             f"{r['amount']:.2f}".replace(".", ","), r["currency"], r["category"], r["note"], r["id"]])
+            # Lieferant/Nummer/Notiz stammen aus eingehenden Mails → nie als Excel-Formel ausführbar machen
+            writer.writerow([csv_safe(f"{d[8:10]}.{d[5:7]}.{d[0:4]}" if len(d) == 10 else d), csv_safe(r["vendor"]),
+                             csv_safe(r["invoice_no"]), f"{r['amount']:.2f}".replace(".", ","), csv_safe(r["currency"]),
+                             csv_safe(r["category"]), csv_safe(r["note"]), r["id"]])
         if mark and rows:
             for r in rows:
                 db.update("receipts", r["id"], {"status": "exportiert"})

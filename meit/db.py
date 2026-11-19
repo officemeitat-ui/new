@@ -634,6 +634,36 @@ CREATE TABLE IF NOT EXISTS domain_checks (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS agent_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    key_hash TEXT NOT NULL UNIQUE,
+    hint TEXT DEFAULT '',
+    expires_at TEXT DEFAULT '',
+    uses INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    hostname TEXT NOT NULL,
+    serial TEXT DEFAULT '',
+    token_hash TEXT NOT NULL UNIQUE,
+    agent_version TEXT DEFAULT '',
+    enrolled_at TEXT DEFAULT '',
+    last_seen TEXT DEFAULT '',
+    last_ip TEXT DEFAULT '',
+    data TEXT DEFAULT '',
+    ignored TEXT DEFAULT '[]',
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_devices_customer ON agent_devices(customer_id);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -698,7 +728,8 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "documents": {"kind", "title", "filename", "customer_id", "ref_type", "ref_id", "folder", "local_path", "size",
                   "sha256", "remote", "remote_url", "remote_id", "remote_status", "remote_error"},
     "mrr_history": {"customer_id", "customer_name", "old_mrr", "new_mrr", "reason"},
-    "users": {"name", "email", "role", "password_hash", "active", "last_login_at"},
+    "users": {"name", "email", "role", "password_hash", "active", "last_login_at", "totp_secret", "totp_enabled",
+              "totp_recovery", "totp_last_step"},
     "subscriptions": {"customer_id", "name", "vendor", "kind", "quantity", "unit_cost", "unit_price", "billing_cycle",
                       "renewal_date", "auto_renew", "notice_days", "billable", "per_user", "notes"},
     "portal_users": {"customer_id", "name", "email", "password_hash", "active", "last_login_at"},
@@ -726,6 +757,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                     "last_at", "last_success_at", "ticket_id"},
     "backup_runs": {"job_id", "status", "at", "subject", "details", "message_id"},
     "domain_checks": {"customer_id", "domain", "source", "last_check", "score", "result", "ignored", "tickets"},
+    "agent_keys": {"customer_id", "key_hash", "hint", "expires_at", "uses", "active"},
+    "agent_devices": {"customer_id", "asset_id", "hostname", "serial", "token_hash", "agent_version", "enrolled_at",
+                      "last_seen", "last_ip", "data", "ignored", "active"},
 }
 
 TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
@@ -735,7 +769,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks",
+    "domain_checks", "agent_keys", "agent_devices",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
@@ -750,6 +784,8 @@ MIGRATIONS = {
                  "payment_method": "TEXT DEFAULT 'ueberweisung'", "sepa_mandate_id": "INTEGER", "sepa_status": "TEXT DEFAULT ''",
                  "sepa_due": "TEXT DEFAULT ''", "sepa_batch_id": "INTEGER"},
     "receipts": {"document_id": "INTEGER"},
+    "users": {"totp_secret": "TEXT DEFAULT ''", "totp_enabled": "INTEGER DEFAULT 0", "totp_recovery": "TEXT DEFAULT '[]'",
+              "totp_last_step": "INTEGER DEFAULT 0"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0", "source": "TEXT DEFAULT 'cockpit'", "external_id": "TEXT DEFAULT ''",
                     "external_url": "TEXT DEFAULT ''", "synced_at": "TEXT DEFAULT ''"},

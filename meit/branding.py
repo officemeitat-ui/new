@@ -68,6 +68,10 @@ def register(app: FastAPI, db: Database, company: str, data_dir: Path, admin_onl
     def icon() -> FileResponse:
         return FileResponse(STATIC / "brand" / "icon.png", headers=cache)
 
+    @app.get("/brand/print.js", include_in_schema=False)
+    def print_js() -> FileResponse:
+        return FileResponse(STATIC / "print.js", media_type="text/javascript", headers=cache)
+
     @app.get("/brand/fonts/{name}", include_in_schema=False)
     def font(name: str) -> FileResponse:
         if name not in FONT_FILES:

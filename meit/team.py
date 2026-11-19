@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .db import Database, loads, now_iso
@@ -26,7 +28,7 @@ ACTIVITY_TYPES = {
 GOAL_TYPES = ["anruf", "erstgespraech", "pitch", "angebot", "abschluss", "qbr", "ticket_geloest"]
 SESSION_COOKIE = "meit_session"
 SESSION_DAYS = 14
-PBKDF2_ROUNDS = 260_000
+PBKDF2_ROUNDS = 600_000  # OWASP-Empfehlung für PBKDF2-HMAC-SHA256; ältere Hashes werden beim Anmelden erneuert
 
 
 # ------------------------------------------------------------------------ Passwörter
@@ -43,6 +45,24 @@ def verify_password(password: str, stored: str) -> bool:
         return hmac.compare_digest(calc, digest)
     except (ValueError, TypeError):
         return False
+
+
+def needs_rehash(stored: str) -> bool:
+    try:
+        return int(stored.split("$")[1]) < PBKDF2_ROUNDS
+    except (IndexError, ValueError):
+        return True
+
+
+_DUMMY_HASH = ""
+
+
+def dummy_verify(password: str) -> None:
+    """Gleiche Rechenzeit wie bei einem echten Konto – sonst verrät die Antwortzeit, ob eine E-Mail existiert."""
+    global _DUMMY_HASH
+    if not _DUMMY_HASH:
+        _DUMMY_HASH = hash_password(secrets.token_hex(8))
+    verify_password(password, _DUMMY_HASH)
 
 
 def _token_hash(token: str) -> str:
@@ -65,7 +85,9 @@ def user_from_token(db: Database, token: str | None) -> dict[str, Any] | None:
 
 
 def public_user(u: dict[str, Any]) -> dict[str, Any]:
-    return {k: u[k] for k in ("id", "name", "email", "role", "active", "last_login_at", "created_at") if k in u}
+    out = {k: u[k] for k in ("id", "name", "email", "role", "active", "last_login_at", "created_at") if k in u}
+    out["totp_enabled"] = bool(u.get("totp_enabled"))
+    return out
 
 
 # ------------------------------------------------------------------------ Aktivitäten
@@ -154,6 +176,16 @@ def week_overview(db: Database, week: str) -> dict[str, Any]:
 class LoginIn(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     password: str = Field(min_length=1, max_length=200)
+    code: Optional[str] = Field(None, max_length=20)  # 6-stelliger Code bzw. Wiederherstellungscode
+
+
+class TotpCodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=20)
+
+
+class TotpDisableIn(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+    code: str = Field(min_length=6, max_length=20)
 
 
 class UserIn(BaseModel):
@@ -194,8 +226,30 @@ def make_admin_dependency(db: Database):
     return admin_only
 
 
-def register(app: FastAPI, db: Database, login_limiter) -> None:
+def register(app: FastAPI, db: Database, login_limiter, vault: Any = None, company: str = "ME-IT") -> None:
+    from .hardening import (new_recovery_codes, otpauth_uri, recovery_hash, totp_new_secret, totp_verify)
+    from .mitarbeiter_api import RateLimiter
+
     admin_only = make_admin_dependency(db)
+    code_limiter = RateLimiter(limit=6, window_s=600)
+
+    def second_factor_ok(user: dict[str, Any], code: str) -> bool:
+        """TOTP-Code (mit Wiederholungsschutz) oder einmaliger Wiederherstellungscode."""
+        try:
+            secret = vault.decrypt(user["totp_secret"]) if vault and user["totp_secret"] else ""
+        except Exception:  # noqa: BLE001 - Tresor-Schlüssel geändert
+            secret = ""
+        step = totp_verify(secret, code, int(user.get("totp_last_step") or 0)) if secret else None
+        if step:
+            db.update("users", user["id"], {"totp_last_step": step})
+            return True
+        codes = loads(user.get("totp_recovery"), []) or []
+        h = recovery_hash(code)
+        if len(re.sub(r"[^0-9a-f]", "", (code or "").lower())) == 12 and h in codes:
+            db.update("users", user["id"], {"totp_recovery": [c for c in codes if c != h]})
+            log_activity(db, user["id"], "2fa_wiederherstellung", "", None, "Anmeldung mit Wiederherstellungscode")
+            return True
+        return False
 
     @app.get("/api/auth/status")
     def auth_status(request: Request) -> dict:
@@ -207,8 +261,21 @@ def register(app: FastAPI, db: Database, login_limiter) -> None:
         if not login_limiter.allow(f"login:{client}"):
             raise HTTPException(429, "Zu viele Versuche – bitte in einigen Minuten erneut.")
         user = db.query_one("SELECT * FROM users WHERE lower(email) = lower(?) AND active = 1", (data.email.strip(),))
-        if not user or not verify_password(data.password, user["password_hash"]):
+        if not user:
+            dummy_verify(data.password)
             raise HTTPException(401, "E-Mail oder Passwort falsch.")
+        if not verify_password(data.password, user["password_hash"]):
+            raise HTTPException(401, "E-Mail oder Passwort falsch.")
+        if user.get("totp_enabled"):
+            if not (data.code or "").strip():
+                return JSONResponse({"detail": "Bitte den 6-stelligen Code aus der Authenticator-App eingeben.",
+                                     "totp_required": True}, status_code=401)
+            if not code_limiter.allow(f"totp:{user['id']}"):
+                raise HTTPException(429, "Zu viele Code-Versuche – bitte in einigen Minuten erneut.")
+            if not second_factor_ok(user, data.code):
+                return JSONResponse({"detail": "Code falsch oder abgelaufen.", "totp_required": True}, status_code=401)
+        if needs_rehash(user["password_hash"]):
+            db.update("users", user["id"], {"password_hash": hash_password(data.password)})
         token = secrets.token_urlsafe(32)
         expires = (datetime.now() + timedelta(days=SESSION_DAYS)).replace(microsecond=0).isoformat(sep=" ")
         with db.connect() as conn:
@@ -233,6 +300,78 @@ def register(app: FastAPI, db: Database, login_limiter) -> None:
     @app.get("/api/users")
     def list_users() -> list[dict]:
         return [public_user(u) for u in db.query("SELECT * FROM users ORDER BY active DESC, name")]
+
+    # --- Zwei-Faktor-Anmeldung (TOTP, z. B. Microsoft/Google Authenticator) ---------------
+    def me(request: Request) -> dict[str, Any]:
+        u = getattr(request.state, "user", None)
+        row = db.get("users", u["id"]) if u else None
+        if not row:
+            raise HTTPException(401, "Bitte anmelden (Zwei-Faktor-Anmeldung gibt es je Benutzer).")
+        return row
+
+    @app.get("/api/auth/2fa")
+    def totp_status(request: Request) -> dict:
+        u = getattr(request.state, "user", None)
+        row = db.get("users", u["id"]) if u else None
+        return {"available": bool(row and vault), "enabled": bool(row and row.get("totp_enabled")),
+                "recovery_left": len(loads(row.get("totp_recovery"), []) or []) if row else 0}
+
+    @app.post("/api/auth/2fa/setup")
+    def totp_setup(request: Request) -> dict:
+        u = me(request)
+        if not vault:
+            raise HTTPException(503, "Tresor nicht verfügbar")
+        if u.get("totp_enabled"):
+            raise HTTPException(409, "Zwei-Faktor-Anmeldung ist bereits aktiv.")
+        secret = totp_new_secret()
+        db.update("users", u["id"], {"totp_secret": vault.encrypt(secret), "totp_last_step": 0})
+        uri = otpauth_uri(secret, u["email"], f"{company} Cockpit")
+        qr = ""
+        try:
+            import segno
+
+            qr = segno.make(uri, error="m").svg_data_uri(scale=5, border=2)
+        except Exception:  # noqa: BLE001 - dann eben nur der Schlüssel zum Abtippen
+            pass
+        return {"secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)), "uri": uri, "qr": qr}
+
+    @app.post("/api/auth/2fa/enable")
+    def totp_enable(data: TotpCodeIn, request: Request) -> dict:
+        u = me(request)
+        if u.get("totp_enabled") or not u.get("totp_secret"):
+            raise HTTPException(409, "Bitte zuerst die Einrichtung starten.")
+        step = totp_verify(vault.decrypt(u["totp_secret"]), data.code)
+        if not step:
+            raise HTTPException(422, "Code falsch – bitte den aktuellen Code aus der App eingeben.")
+        codes = new_recovery_codes()
+        db.update("users", u["id"], {"totp_enabled": True, "totp_last_step": step,
+                                     "totp_recovery": [recovery_hash(c) for c in codes]})
+        log_activity(db, u["id"], "2fa_aktiviert", "", None, "Zwei-Faktor-Anmeldung aktiviert")
+        return {"enabled": True, "recovery_codes": codes}
+
+    @app.post("/api/auth/2fa/disable")
+    def totp_disable(data: TotpDisableIn, request: Request) -> dict:
+        u = me(request)
+        if not u.get("totp_enabled"):
+            return {"enabled": False}
+        if not code_limiter.allow(f"totp:{u['id']}"):
+            raise HTTPException(429, "Zu viele Versuche – bitte in einigen Minuten erneut.")
+        if not verify_password(data.password, u["password_hash"]) or not second_factor_ok(u, data.code):
+            raise HTTPException(403, "Passwort oder Code falsch.")
+        db.update("users", u["id"], {"totp_enabled": False, "totp_secret": "", "totp_recovery": [], "totp_last_step": 0})
+        log_activity(db, u["id"], "2fa_deaktiviert", "", None, "Zwei-Faktor-Anmeldung deaktiviert")
+        return {"enabled": False}
+
+    @app.post("/api/users/{uid}/2fa/reset", dependencies=[Depends(admin_only)])
+    def totp_reset(uid: int, request: Request) -> dict:
+        """Admin setzt die Zwei-Faktor-Anmeldung zurück (Handy verloren) – alle Sitzungen des Benutzers enden."""
+        if not db.get("users", uid):
+            raise HTTPException(404, "Benutzer nicht gefunden")
+        db.update("users", uid, {"totp_enabled": False, "totp_secret": "", "totp_recovery": [], "totp_last_step": 0})
+        with db.connect() as conn:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (uid,))
+        log_activity(db, current_user_id(request), "2fa_zurueckgesetzt", "", None, f"Zwei-Faktor-Anmeldung für Benutzer {uid} zurückgesetzt")
+        return {"ok": True}
 
     @app.post("/api/users", status_code=201, dependencies=[Depends(admin_only)])
     def add_user(data: UserIn) -> dict:

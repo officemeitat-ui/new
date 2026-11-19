@@ -41,7 +41,9 @@ async function api(path, opts = {}) {
   if (!res.ok) {
     let msg = data && data.detail ? data.detail : res.statusText;
     if (Array.isArray(msg)) msg = msg.map((d) => `${(d.loc || []).slice(-1)[0]}: ${d.msg}`).join(", ");
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.data = data;
+    throw err;
   }
   return data;
 }
@@ -171,7 +173,7 @@ const customerOptions = (withEmpty = false) =>
 
 function setTitle(title, actions = []) {
   document.getElementById("page-title").textContent = title;
-  document.getElementById("topbar-actions").replaceChildren(...actions);
+  fill(document.getElementById("topbar-actions"), actions);  // leere Einträge (null) überspringen
   document.title = `${title} · ME-IT Cockpit`;
 }
 
@@ -225,11 +227,13 @@ views.dashboard = async () => {
   const tenants = ms ? ms.tenants.filter((t) => t.last_sync) : [];
   const m365crit = tenants.reduce((a, t) => a + t.findings.kritisch, 0);
   const staffSoon = staff.filter((r) => r.days === null || r.days <= 14);
+  const banner = await setupBanner();
   const kpi = (label, value, sub, cls = "", href = null, onclick = null) => h(href ? "a" : "div", { class: `card kpi ${cls}`, href, onclick, style: href ? "text-decoration:none;color:inherit" : null },
     h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
   const nrrVal = d.nrr && d.nrr.nrr !== null ? `${d.nrr.nrr.toLocaleString("de-AT")} %` : "–";
   const share = d.recurring_share && d.recurring_share.share !== null ? `${Math.round(d.recurring_share.share)} %` : "–";
   show(
+    banner,
     h("div", { class: "grid kpis" },
       kpi("Net Revenue Retention", nrrVal, d.nrr && d.nrr.nrr !== null ? "Ziel: über 100 % (Bestand wächst)" : "Verlauf wird aufgezeichnet", "", "#/wachstum"),
       kpi("Anteil wiederkehrend", share, "Ziel: über 60 %", "", "#/wachstum"),
@@ -992,7 +996,9 @@ views.einstellungen = async () => {
         ? "Anmeldung ist aktiv. Admins verwalten Benutzer, Preise, Import und Sicherung; Technik und Vertrieb arbeiten im Tagesgeschäft."
         : "Noch kein Benutzer angelegt – das Cockpit ist offen (Einzelplatz). Sobald du den ersten Benutzer (Admin) anlegst, ist eine Anmeldung Pflicht."),
       table([{ label: "Name", key: "name" }, { label: "E-Mail", key: "email" }, { label: "Rolle", render: (r) => badge((state.auth.roles || {})[r.role] || r.role, r.role === "admin" ? "info" : "") },
+        { label: "2FA", render: (r) => r.totp_enabled ? badge("aktiv", "ok") : badge("aus", r.role === "admin" ? "warn" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
+    await twoFactorCard(),
     await claudeCard(),
     await brandingCard(),
     await secretsCard(),
@@ -1605,6 +1611,9 @@ function userForm(u = null) {
   ], u || {});
   modal(u ? "Benutzer bearbeiten" : (first ? "Ersten Benutzer (Admin) anlegen" : "Neuer Benutzer"), h("div", {},
     first ? h("p", { class: "small", style: "color:var(--warn)" }, "Danach ist eine Anmeldung Pflicht. Passwort gut merken (Passwort-Manager)!") : null, f), [
+    u && u.totp_enabled ? (close) => h("button", { class: "btn danger", title: "Wenn das Handy verloren ging", onclick: async () => {
+      if (!confirm(`Zwei-Faktor-Anmeldung von ${u.name} zurücksetzen? Alle Sitzungen werden beendet.`)) return;
+      await api(`/api/users/${u.id}/2fa/reset`, { method: "POST" }); close(); toast("Zurückgesetzt"); render(); } }, "2FA zurücksetzen") : null,
     (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
       const body = readForm(f); if (!body.password) body.password = null;
       await api(u ? `/api/users/${u.id}` : "/api/users", { method: u ? "PUT" : "POST", body });
@@ -1612,7 +1621,47 @@ function userForm(u = null) {
       if (first) { location.reload(); return; }
       render();
     }) }, "Speichern"),
-  ]);
+  ].filter(Boolean));
+}
+
+// ---- Zwei-Faktor-Anmeldung (eigener Zugang)
+async function twoFactorCard() {
+  const st = await api("/api/auth/2fa").catch(() => null);
+  if (!st || !st.available) return null;
+  const box = h("div", { class: "card", style: "margin-top:1rem" });
+  const refresh = async () => { const n = await twoFactorCard(); if (n) box.replaceWith(n); };
+  if (st.enabled) {
+    fill(box, h("div", { class: "card-head" }, h("h2", {}, "Meine Zwei-Faktor-Anmeldung"), badge("aktiv", "ok")),
+      h("p", { class: "small" }, `Bei jeder Anmeldung wird zusätzlich ein Code aus der Authenticator-App verlangt. Wiederherstellungscodes übrig: ${st.recovery_left}.`),
+      h("button", { class: "btn small danger", onclick: () => {
+        const f = form([{ name: "password", label: "Passwort", type: "password" }, { name: "code", label: "Aktueller Code oder Wiederherstellungscode" }]);
+        modal("Zwei-Faktor-Anmeldung deaktivieren", f, [(close) => h("button", { class: "btn danger", onclick: (e) => withBusy(e.target, async () => {
+          await api("/api/auth/2fa/disable", { method: "POST", body: readForm(f) }); close(); toast("Deaktiviert"); refresh(); }) }, "Deaktivieren")]);
+      } }, "Deaktivieren"));
+    return box;
+  }
+  fill(box, h("div", { class: "card-head" }, h("h2", {}, "Meine Zwei-Faktor-Anmeldung"), badge("aus", "warn")),
+    h("p", { class: "small" }, "Im Cockpit liegen Kundendaten, Rechnungen und Zugänge. Mit einem zweiten Faktor reicht ein gestohlenes Passwort nicht mehr. Funktioniert mit Microsoft Authenticator, Google Authenticator, Keeper u. a."),
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const s = await api("/api/auth/2fa/setup", { method: "POST" });
+      const code = h("input", { inputmode: "numeric", autocomplete: "one-time-code", placeholder: "6-stelliger Code", maxlength: 8, style: "max-width:200px;text-align:center;font-size:1.2rem;letter-spacing:.2em" });
+      const close = modal("Zwei-Faktor-Anmeldung einrichten", h("div", { style: "text-align:center" },
+        h("p", {}, "1. QR-Code mit der Authenticator-App scannen"),
+        s.qr ? h("img", { src: s.qr, alt: "QR-Code", style: "width:200px;height:200px;background:#fff;border-radius:8px;padding:6px" }) : null,
+        h("p", { class: "small muted" }, "oder Schlüssel eintippen: ", h("code", {}, s.secret)),
+        h("p", {}, "2. Den angezeigten Code eingeben"), code), [
+        (c) => h("button", { class: "btn primary", onclick: (ev) => withBusy(ev.target, async () => {
+          const r = await api("/api/auth/2fa/enable", { method: "POST", body: { code: code.value } });
+          c();
+          modal("Wiederherstellungscodes – jetzt sicher ablegen", h("div", {},
+            h("p", {}, "Jeder Code gilt einmal, falls das Handy nicht verfügbar ist. Am besten in Keeper speichern – sie werden nicht noch einmal angezeigt."),
+            h("pre", { style: "font-size:1.05rem;line-height:1.7;text-align:center" }, r.recovery_codes.join("\n")),
+            copyButton(() => r.recovery_codes.join("\n"), "Codes kopieren")));
+          refresh();
+        }) }, "Aktivieren")]);
+      code.focus(); void close;
+    }) }, "Jetzt einrichten"));
+  return box;
 }
 
 function showLogin() {
@@ -1621,16 +1670,22 @@ function showLogin() {
   const email = h("input", { type: "email", placeholder: "E-Mail", autocomplete: "username" });
   const pw = h("input", { type: "password", placeholder: "Passwort", autocomplete: "current-password" });
   const msg = h("div", { class: "small", style: "color:var(--bad);min-height:1.2em;margin-top:.6rem" });
+  const code = h("input", { inputmode: "numeric", autocomplete: "one-time-code", placeholder: "6-stelliger Code", maxlength: 20 });
+  const codeBox = h("div", { style: "display:none" }, h("label", { style: "margin-top:.7rem" }, "Code aus der Authenticator-App"), code,
+    h("div", { class: "small muted" }, "Handy nicht zur Hand? Einen Wiederherstellungscode eingeben."));
   const submit = async (e) => {
     e.preventDefault();
-    try { await api("/api/auth/login", { method: "POST", body: { email: email.value, password: pw.value } }); location.reload(); }
-    catch (err) { msg.textContent = err.message; }
+    try { await api("/api/auth/login", { method: "POST", body: { email: email.value, password: pw.value, code: code.value || null } }); location.reload(); }
+    catch (err) {
+      msg.textContent = err.message;
+      if (err.data && err.data.totp_required) { codeBox.style.display = ""; code.value = ""; code.focus(); }
+    }
   };
   document.body.append(h("div", { id: "login-screen", style: "min-height:100vh;display:grid;place-items:center;padding:16px" },
     h("form", { class: "card", style: "width:min(380px,100%)", onsubmit: submit },
       h("div", { style: "text-align:center;padding:.2rem 0 1rem" }, h("img", { src: "/brand/logo", alt: "ME-IT", style: "max-width:220px;width:100%;height:auto" }),
         h("div", { class: "small muted", style: "margin-top:.4rem" }, "Cockpit – bitte anmelden")),
-      h("label", {}, "E-Mail"), email, h("label", { style: "margin-top:.7rem" }, "Passwort"), pw,
+      h("label", {}, "E-Mail"), email, h("label", { style: "margin-top:.7rem" }, "Passwort"), pw, codeBox,
       h("button", { class: "btn primary", type: "submit", style: "width:100%;justify-content:center;margin-top:1rem" }, "Anmelden"), msg)));
   email.focus();
 }
@@ -3234,6 +3289,71 @@ async function domainCard(c) {
   if (!d) return null;
   return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Domains & E-Mail-Sicherheit"), h("button", { class: "btn small", onclick: () => domainAdd(c.id) }, "+ Domain")),
     d.domains.length ? domainTable(d.domains, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Domain geprüft – SPF/DKIM/DMARC und Zertifikat in Sekunden."));
+}
+
+// ---- Erste Schritte (Inbetriebnahme) und „Wo finde ich was?“
+const WO_WAS = [
+  ["Tagesgeschäft", [["Tickets", "tickets", "Anfragen der Kunden, Verlauf, Antworten, Zeit buchen"], ["Posteingang", "posteingang", "E-Mails und Anfragen – der KI-Mitarbeiter sortiert vor, du gibst frei"],
+    ["Wartung", "wartung", "Wiederkehrende Prüfungen mit Nachweis"], ["Ein- & Austritte", "mitarbeiter", "Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste"]]],
+  ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
+    ["Geräte-Check", "inventar", "Eigener Agent: Verschlüsselung, Virenschutz, Updates, Speicherplatz"], ["Datensicherung", "backups", "Ampel aus den Sicherungsberichten, Alarm bei Fehlern"],
+    ["Domains & E-Mail", "domains", "Schutz gegen gefälschte Absender, Zertifikate"], ["Microsoft 365", "m365", "MFA, Weiterleitungen, Lizenzabgleich je Kunde"]]],
+  ["Geld", [["Abrechnung", "abrechnung", "Zeiten, Rechnungslauf, Zahlungen, Mahnwesen, Firmendaten"], ["Lizenzen & Verträge", "lizenzen", "Verlängerungen, Fristen, Marge"],
+    ["Belege", "belege", "Eingangsrechnungen für den Steuerberater"], ["Angebote", "angebote", "Angebote mit KI erstellen"], ["Umsatz-Radar", "radar", "Verkaufschancen aus den Kundendaten"]]],
+  ["Einrichtung", [["Einstellungen", "einstellungen", "Benutzer, Zwei-Faktor-Anmeldung, Preise, Claude, Logo, Dokumentenablage"], ["Verbindungen & Sicherheit", "verbindungen", "Microsoft, SharePoint, To Do, BookStack – mit Live-Test"],
+    ["Import & Sicherung", "daten", "Kunden/Geräte importieren, Datensicherung"], ["Steuerung", "ki-mitarbeiter", "KI-Mitarbeiter: Freigabe oder Autopilot, Postfach-Status"]]],
+];
+
+function demoRemove(preview, after) {
+  const input = h("input", { placeholder: preview.confirm });
+  modal("Demodaten entfernen", h("div", {},
+    h("p", {}, `Gelöscht werden ${preview.customers} Demokunden (${preview.names.join(", ")}) mit ${preview.tickets} Tickets, ${preview.assets} Geräten, ${preview.invoices} Rechnungen sowie ${preview.messages} Demo-Nachrichten und ${preview.leads} Demo-Leads.`),
+    preview.invoices_final ? h("p", { class: "small", style: "color:var(--warn)" }, `Achtung: ${preview.invoices_final} bereits gestellte Rechnung(en) an Demokunden werden mitgelöscht.`) : null,
+    h("p", { class: "small muted" }, "Eigene Kunden, Wissensartikel, Leistungen und Einstellungen bleiben erhalten. Vorher wird empfohlen: Import & Sicherung → Sicherung erstellen."),
+    h("label", {}, `Zur Bestätigung „${preview.confirm}“ eingeben`), input), [
+    (close) => h("button", { class: "btn danger", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/setup/demo/remove", { method: "POST", body: { confirm: input.value } });
+      close(); toast(`Demodaten entfernt (${Object.values(r.removed).reduce((a, b) => a + b, 0)} Einträge)`); await loadCustomers(true).catch(() => {}); after && after();
+    }) }, "Endgültig löschen")]);
+}
+
+views.start = async () => {
+  const d = await api("/api/setup");
+  setTitle("Erste Schritte", [d.dismissed ? h("button", { class: "btn", onclick: async () => { await api("/api/setup/dismiss", { method: "POST", body: { done: false } }); render(); } }, "Hinweis in der Übersicht wieder zeigen") : null]);
+  const icon = { ok: ["✓", "var(--ok)"], offen: ["○", "var(--warn)"], optional: ["◌", "var(--muted)"] };
+  const groups = [...new Set(d.steps.map((s) => s.group))];
+  show(
+    h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "row" }, h("strong", { style: "font-size:1.1rem" }, `${d.done} von ${d.total} Schritten erledigt`), h("span", { class: "spacer" }), badge(`${d.percent} %`, d.percent === 100 ? "ok" : d.percent >= 50 ? "warn" : "bad")),
+      h("div", { style: "height:10px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:.6rem 0" }, h("div", { style: `width:${d.percent}%;height:100%;background:var(--ok)` })),
+      d.next ? h("p", { style: "margin:0" }, h("strong", {}, "Als Nächstes: "), d.next.title, d.next.route ? [" – ", h("a", { href: `#/${d.next.route}` }, "dorthin →")] : null)
+        : h("p", { style: "margin:0" }, "Alle Pflichtschritte erledigt – das Cockpit ist betriebsbereit.")),
+    groups.map((g) => h("div", { class: "card", style: "margin-bottom:1rem" }, h("h2", {}, g),
+      h("ul", { class: "list" }, d.steps.filter((s) => s.group === g).map((s) => h("li", { class: "row", style: "align-items:flex-start;gap:.7rem" },
+        h("span", { style: `color:${icon[s.status][1]};font-size:1.2rem;font-weight:700;width:1.3rem;flex:none`, title: s.status }, icon[s.status][0]),
+        h("div", { style: "flex:1;min-width:0" },
+          h("div", {}, h("strong", { style: s.status === "ok" ? "color:var(--muted);font-weight:500" : "" }, s.title), s.status === "optional" ? h("span", { class: "small muted" }, " · optional") : null),
+          h("div", { class: "small" }, h("span", { class: "muted" }, "Wo: "), s.where),
+          s.detail ? h("div", { class: "small muted" }, s.detail) : null,
+          s.env.length && s.status !== "ok" ? h("div", { class: "small muted" }, "In .env: ", s.env.map((e, i) => [i ? ", " : "", h("code", {}, e)])) : null),
+        h("div", { class: "row", style: "gap:.3rem;flex:none" },
+          s.action === "demo" ? h("button", { class: "btn small danger", onclick: () => demoRemove(d.demo, render) }, "Demodaten entfernen") : null,
+          s.manual ? h("button", { class: "btn small", onclick: async () => { await api(`/api/setup/steps/${s.key}`, { method: "POST", body: { done: s.status !== "ok" } }); render(); } }, s.status === "ok" ? "Zurücknehmen" : "Abhaken") : null,
+          s.route && s.status !== "ok" ? h("a", { class: "btn small", href: `#/${s.route}` }, "Öffnen") : null))))),
+    ),
+    h("div", { class: "card" }, h("h2", {}, "Wo finde ich was?"),
+      h("div", { class: "grid two" }, WO_WAS.map(([title, rows]) => h("div", {}, h("h3", { style: "margin:.2rem 0 .3rem" }, title),
+        h("ul", { class: "list" }, rows.map(([name, route, text]) => h("li", { style: "padding:.35rem 0" }, h("a", { href: `#/${route}` }, h("strong", {}, name)), h("div", { class: "small muted" }, text)))))))));
+};
+
+async function setupBanner() {
+  const d = await api("/api/setup").catch(() => null);
+  if (!d || d.dismissed || d.percent === 100) return null;
+  return h("div", { class: "card", style: "margin-bottom:1rem;border-color:var(--primary)" },
+    h("div", { class: "row" }, h("strong", {}, `Inbetriebnahme: ${d.done} von ${d.total} Schritten erledigt`), h("span", { class: "spacer" }),
+      h("a", { class: "btn small primary", href: "#/start" }, "Erste Schritte"),
+      h("button", { class: "btn small", title: "Hinweis ausblenden", onclick: async (e) => { await api("/api/setup/dismiss", { method: "POST", body: { done: true } }).catch((x) => toast(x.message, true)); e.target.closest(".card").remove(); } }, "✕")),
+    d.next ? h("div", { class: "small muted" }, `Als Nächstes: ${d.next.title} (${d.next.where})`) : null);
 }
 
 async function render() {

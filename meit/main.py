@@ -47,8 +47,10 @@ from .attachments import register as register_attachments
 from .backups import register as register_backups
 from .domaincheck import register as register_domains
 from .csat import register as register_csat
+from .hardening import BodyLimit, content_security_policy, script_hashes
 from .m365 import register as register_m365
 from .connections import register as register_connections
+from .setup import register as register_setup
 from .todo import register as register_todo
 from .vault import Vault
 from .staff import register as register_staff
@@ -228,7 +230,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     db = Database(settings.db_path)
     db.init_schema()
-    seed_all(db, demo=settings.seed_demo_data)
+    seed_all(db, demo=settings.seed_demo_data and not db.get_setting("demo_removed", False))
     ensure_mrr_baseline(db)
     router = Router(settings)
     kb = KnowledgeBase(db, router)
@@ -284,14 +286,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return JSONResponse({"detail": "Anfrage von fremder Herkunft blockiert."}, status_code=403)
         return await call_next(request)
 
+    # Eingebettete Skripte der ausgelieferten Seiten per Prüfsumme freigeben (alles andere blockt der Browser)
+    page_scripts = {"/portal": script_hashes(STATIC_DIR / "portal.html"), "/anfrage": script_hashes(STATIC_DIR / "anfrage.html"),
+                    "/bewertung": script_hashes(STATIC_DIR / "bewertung.html"), "/": script_hashes(STATIC_DIR / "index.html")}
+    form_frames = " ".join(["'self'", *settings.public_form_origins]) if settings.public_form_origins else ""
+
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
         response = await call_next(request)
+        path = request.url.path
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        if request.url.path != "/anfrage":  # das Formular darf eingebettet werden, alles andere nicht
+        response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)")
+        if path != "/anfrage":  # das Formular darf eingebettet werden, alles andere nicht
             response.headers.setdefault("X-Frame-Options", "DENY")
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers.setdefault("Content-Security-Policy", content_security_policy(
+                page_scripts.get(path), form_frames if path == "/anfrage" else "'none'"))
+        if path.startswith(("/api/auth/", "/api/portal/")):
+            response.headers.setdefault("Cache-Control", "no-store")
         return response
+
+    app.add_middleware(BodyLimit)  # äußerste Schicht: zu große Anfragen gar nicht erst einlesen
 
     def must(row: dict | None, what: str = "Eintrag") -> dict:
         if not row:
@@ -300,7 +316,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     admin_only = make_admin_dependency(db)
     ai_control = register_ai_control(app, ctx, admin_only)  # KI-Routing je Aufgabe, Claude-Budget, Verbrauch
-    register_team(app, db, RateLimiter(limit=10, window_s=600))
+    vault = Vault(data_dir)  # verschlüsselt gespeicherte Anmeldungen (2FA-Schlüssel, To-Do-Verbindungen)
+    register_team(app, db, RateLimiter(limit=10, window_s=600), vault, settings.company_name)
     def invoice_finalized(invoice_id: int) -> None:
         # Kunde mit SEPA-Mandat → Rechnung zur Lastschrift vormerken (Rechnung = Vorabankündigung)
         try:
@@ -846,9 +863,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_staff(app, ctx, admin_only)
 
     # --- Microsoft To Do je Benutzer, Verbindungs-Center (Zertifikat, Rechte-Prüfung) -------
-    vault = Vault(ctx.docs.data_dir)
     register_todo(app, ctx, settings, vault, start=settings.db_path != ":memory:")
     register_connections(app, ctx, settings, admin_only, ctx.docs.data_dir)
+
+    # --- Erste Schritte: Inbetriebnahme mit Live-Status, Demodaten entfernen -----------------
+    register_setup(app, ctx, settings, admin_only)
 
     # --- Rentabilität je Kunde, Wertsicherung (VPI) -----------------------------------
     register_profitability(app, ctx, admin_only)

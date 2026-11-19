@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
+from .hardening import csv_safe
 from .db import Database, loads, now_iso
 
 COMPANY_DEFAULT = {
@@ -219,7 +220,7 @@ th{{font-size:12px;text-transform:uppercase;color:#555}} .n{{text-align:right;wh
 .draft{{color:#b45309;font-weight:700;letter-spacing:.1em}} .print{{position:fixed;right:16px;top:16px}}
 @media print{{body{{background:#fff}} .page{{box-shadow:none;margin:0;padding:24px}} .print{{display:none}}}}
 </style></head><body>
-<button class="print" onclick="window.print()">Drucken / als PDF speichern</button>
+<button class="print" id="print-btn">Drucken / als PDF speichern</button><script src="/brand/print.js"></script>
 <div class="page">
 <div class="head"><div><img class="logo" src="/brand/logo" alt="{e(profile['name'])}"></div>
 <div class="from">{e(profile['address'])}
@@ -256,7 +257,7 @@ def export_csv(db: Database, year: Optional[int] = None) -> str:
                 "Fällig", "Status", "Bezahlt am"])
     num = lambda v: f"{v:.2f}".replace(".", ",")  # noqa: E731
     for r in db.query(sql + " ORDER BY number", params):
-        w.writerow([r["number"], _d(r["date"]), r["customer_name"], r["period"], num(r["net"]), num(r["vat_rate"]),
+        w.writerow([csv_safe(r["number"]), _d(r["date"]), csv_safe(r["customer_name"]), csv_safe(r["period"]), num(r["net"]), num(r["vat_rate"]),
                     num(r["vat"] if r["status"] != "storniert" else 0), num(r["gross"] if r["status"] != "storniert" else 0),
                     _d(r["due_date"]), r["status"], _d(r["paid_at"]) if r["paid_at"] else ""])
     return "﻿" + buf.getvalue()
