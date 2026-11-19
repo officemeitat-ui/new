@@ -304,13 +304,24 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
     @app.get("/api/portal/attachments/{aid}")
     def portal_attachment(aid: int, u: dict = Depends(portal_user)):
         att = db.get("attachments", aid)
-        if not att or att["ref_type"] != "ticket" or not att["customer_visible"]:
+        if not att or not att["customer_visible"]:
             raise HTTPException(404, "Datei nicht gefunden")
-        own_ticket(att["ref_id"], u)
+        if att["ref_type"] == "ticket":
+            own_ticket(att["ref_id"], u)
+        elif not (att["ref_type"] == "customer" and att["ref_id"] == u["customer_id"]):  # freigegebene Kundendokumente
+            raise HTTPException(404, "Datei nicht gefunden")
         try:
             return store().response(att)
         except ValueError:
             raise HTTPException(404, "Datei nicht gefunden")
+
+    @app.get("/api/portal/files")
+    def portal_files(u: dict = Depends(portal_user)) -> list[dict]:
+        """Dokumente, die wir für diesen Kunden ausdrücklich freigegeben haben (Verträge, Protokolle, Berichte)."""
+        rows = db.query("SELECT id, filename, size, created_at, updated_at FROM attachments WHERE ref_type = 'customer' AND ref_id = ? "
+                        "AND customer_visible = 1 AND COALESCE(template, 0) = 0 ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC "
+                        "LIMIT 200", (u["customer_id"],))
+        return [{"id": r["id"], "name": r["filename"], "size": r["size"], "at": r["updated_at"] or r["created_at"]} for r in rows]
 
     @app.post("/api/portal/phishing", status_code=201)
     async def portal_phishing(request: Request, u: dict = Depends(portal_user)) -> dict:

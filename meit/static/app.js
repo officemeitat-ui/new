@@ -403,6 +403,7 @@ views.kunde = async (id) => {
     await backupCard(c),
     await domainCard(c),
     await staffCard(c),
+    await filesCard(c),
     await maintenanceCard(c),
     await mandateCard(c),
     await (async () => { const docs = await api(`/api/documents?customer_id=${c.id}&limit=50`).catch(() => []);
@@ -567,6 +568,7 @@ const OUTLOOK_HINT = "Outlook: Mail auf den Desktop ziehen (.msg) bzw. in Outloo
 
 async function ticketThread(t, box) {
   let conv;
+  await officeStatus();
   try { conv = await api(`/api/tickets/${t.id}/conversation`); } catch (e) { box.replaceChildren(h("p", { class: "small", style: "color:var(--bad)" }, e.message)); return; }
   const reload = () => ticketThread(t, box);
   const km = state.km;
@@ -579,6 +581,8 @@ async function ticketThread(t, box) {
   });
   const files = h("div", { class: "files" }, conv.attachments.map((a) => h("span", { class: "file", title: `${a.source === "kunde" ? "vom Kunden" : a.source === "mail" ? "aus E-Mail" : "vom Team"} · ${dt(a.created_at)}` },
     h("a", { href: `/api/attachments/${a.id}/download`, target: "_blank", rel: "noopener" }, a.filename), h("span", { class: "small muted" }, fileSize(a.size)),
+    officeCan(a.filename) ? h("button", { title: officeCan(a.filename) === "edit" ? "Im Browser bearbeiten" : "Im Browser ansehen",
+      onclick: () => officeOpen(a, { view: officeCan(a.filename) !== "edit", onClose: reload }) }, officeCan(a.filename) === "edit" ? "✎" : "🔍") : null,
     h("button", { title: a.customer_visible ? "Im Kundenportal sichtbar – klicken zum Verbergen" : "Nur intern – klicken, um im Kundenportal freizugeben",
       onclick: async () => { await api(`/api/attachments/${a.id}`, { method: "PUT", body: { customer_visible: !a.customer_visible } }); reload(); } }, a.customer_visible ? "👁" : "🔒"),
     h("button", { title: "Löschen", onclick: async () => { if (!confirm(`${a.filename} löschen?`)) return; await api(`/api/attachments/${a.id}`, { method: "DELETE" }); reload(); } }, "✕"))));
@@ -3104,7 +3108,7 @@ async function todoCard() {
 
 views.verbindungen = async () => {
   setTitle("Verbindungen & Sicherheit", [h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
-    for (const k of ["microsoft", "sharepoint", "kunden_m365", "bookstack", "atera"]) { try { await api(`/api/connections/${k}/test`, { method: "POST" }); } catch { /* weiter */ } }
+    for (const k of ["microsoft", "sharepoint", "kunden_m365", "bookstack", "atera", "office"]) { try { await api(`/api/connections/${k}/test`, { method: "POST" }); } catch { /* weiter */ } }
     render();
   }) }, "Alle live testen")]);
   const [d, cert] = await Promise.all([api("/api/connections"), api("/api/connections/certificate")]);
@@ -3116,7 +3120,7 @@ views.verbindungen = async () => {
     };
     show2(i);
     const status = i.last_test && i.configured ? i.last_test.status : i.status;
-    const live = ["microsoft", "sharepoint", "kunden_m365", "bookstack", "atera"].includes(i.key);
+    const live = ["microsoft", "sharepoint", "kunden_m365", "bookstack", "atera", "office"].includes(i.key);
     return h("div", { class: "card", style: "margin-bottom:1rem" },
       h("div", { class: "card-head" }, h("h2", {}, i.name), badge(CONN_LABEL[status], CONN_CLS[status])),
       res,
@@ -3125,7 +3129,8 @@ views.verbindungen = async () => {
         live && i.configured ? h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => { const r = await api(`/api/connections/${i.key}/test`, { method: "POST" }); show2(r); }) }, "Live testen") : null,
         i.key === "sharepoint" && i.detail && i.detail.target === "sharepoint" ? h("button", { class: "btn small", onclick: () => sharepointGrant() }, "Nur diese Site freigeben (Sites.Selected)") : null,
         i.key === "bookstack" ? h("a", { class: "btn small", href: "#/einstellungen" }, "BookStack-Einstellungen") : null,
-        i.key === "kunden_m365" ? h("a", { class: "btn small", href: "#/m365" }, "Kunden-Tenants") : null));
+        i.key === "kunden_m365" ? h("a", { class: "btn small", href: "#/m365" }, "Kunden-Tenants") : null,
+        i.key === "office" ? h("a", { class: "btn small", href: "#/office" }, "Office & Dateien") : null));
   };
   const certBoxPlaceholder = h("div", {});
   const order = { bad: 0, warn: 1, ok: 2, aus: 3 };
@@ -3302,7 +3307,8 @@ async function domainCard(c) {
 // ---- Erste Schritte (Inbetriebnahme) und „Wo finde ich was?“
 const WO_WAS = [
   ["Tagesgeschäft", [["Tickets", "tickets", "Anfragen der Kunden, Verlauf, Antworten, Zeit buchen"], ["Posteingang", "posteingang", "E-Mails und Anfragen – der KI-Mitarbeiter sortiert vor, du gibst frei"],
-    ["Wartung", "wartung", "Wiederkehrende Prüfungen mit Nachweis"], ["Ein- & Austritte", "mitarbeiter", "Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste"]]],
+    ["Wartung", "wartung", "Wiederkehrende Prüfungen mit Nachweis"], ["Ein- & Austritte", "mitarbeiter", "Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste"],
+    ["Office & Dateien", "office", "Word- und Excel-Dateien im Browser bearbeiten, Vorlagen je Kunde ausfüllen, frühere Stände"]]],
   ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Sicherheitslage", "sicherheitslage", "Eine Note je Kunde aus allen Quellen, Bericht als PDF, Angebot aus den Maßnahmen"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
     ["Geräte-Check", "inventar", "Eigener Agent: Verschlüsselung, Virenschutz, Updates, Speicherplatz"], ["Datensicherung", "backups", "Ampel aus den Sicherungsberichten, Alarm bei Fehlern"],
     ["Domains & E-Mail", "domains", "Schutz gegen gefälschte Absender, Zertifikate"], ["Microsoft 365", "m365", "MFA, Weiterleitungen, Lizenzabgleich je Kunde"]]],
@@ -3610,6 +3616,273 @@ views.sicherheitslage = async () => {
       { label: "Befunde", render: (r) => h("span", {}, r.counts.kritisch ? badge(`${r.counts.kritisch} kritisch`, "bad") : null, " ", r.counts.hoch ? badge(`${r.counts.hoch} hoch`, "warn") : null) },
       { label: "", render: (r) => h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); postureReport(r.customer_id, r.customer); } }, "Bericht") },
     ], d.customers, (r) => { location.hash = `#/kunde/${r.customer_id}`; })));
+};
+
+// ---- Office: Word-/Excel-Dateien im Browser bearbeiten (eigener Collabora- oder ONLYOFFICE-Server)
+const FILE_ICON = { docx: "📝", doc: "📝", odt: "📝", rtf: "📝", txt: "📝", xlsx: "📊", xls: "📊", ods: "📊", csv: "📊", pptx: "📽", ppt: "📽", odp: "📽", pdf: "📕",
+  png: "🖼", jpg: "🖼", jpeg: "🖼", gif: "🖼", webp: "🖼", zip: "🗜", eml: "✉", msg: "✉" };
+const extOf = (name) => (name && name.includes(".") ? name.split(".").pop().toLowerCase() : "");
+const fileIcon = (name) => FILE_ICON[extOf(name)] || "📄";
+async function officeStatus(force = false) {
+  if (force || !state.office) state.office = await api("/api/office/settings").catch(() => ({ enabled: false, editable: [], viewable: [], placeholders: {} }));
+  return state.office;
+}
+/** „edit“, „view“ oder „“ – was der Office-Server mit dieser Datei anfangen kann. */
+function officeCan(name) {
+  const o = state.office, e = extOf(name);
+  if (!o || !o.enabled || !e) return "";
+  return (o.editable || []).includes(e) ? "edit" : (o.viewable || []).includes(e) ? "view" : "";
+}
+
+/** Datei im Editor öffnen: Der Browser schickt das Zugriffstoken per Formular an den Office-Server (nie in der Adresse). */
+async function officeOpen(file, { view = false, onClose = null } = {}) {
+  let o;
+  try { o = await api(`/api/office/open/${file.id}${view ? "?view=true" : ""}`, { method: "POST" }); }
+  catch (e) { toast(e.message, true); return; }
+  const name = `office-${Date.now()}`;
+  const origin = new URL(o.action_url).origin;
+  const frame = h("iframe", { name, title: `Dokument ${o.filename}`, allow: "clipboard-read; clipboard-write; fullscreen", allowfullscreen: true });
+  const info = h("span", { class: "small office-info" }, o.mode === "edit" ? "Änderungen werden automatisch gespeichert" : "Nur lesen");
+  let closed = false, closing = false;
+  // Wurde der Office-Server eingetragen, nachdem diese Seite geladen wurde, kennt die Schutzregel des Browsers ihn noch nicht.
+  const onCsp = (e) => {
+    if (!/^(frame-src|form-action|child-src)/.test(e.effectiveDirective || e.violatedDirective || "")) return;
+    toast("Einen Moment – die Seite wird neu geladen, damit der Office-Server eingebunden werden darf.");
+    setTimeout(() => location.reload(), 1500);
+  };
+  document.addEventListener("securitypolicyviolation", onCsp);
+  const post = (msg) => { try { frame.contentWindow.postMessage(JSON.stringify({ SendTime: Date.now(), Values: {}, ...msg }), origin); } catch { /* Editor noch nicht bereit */ } };
+  const finish = () => {
+    if (closed) return;
+    closed = true;
+    window.removeEventListener("message", onMsg);
+    document.removeEventListener("securitypolicyviolation", onCsp);
+    overlay.remove();
+    document.body.classList.remove("office-open");
+    if (onClose) setTimeout(onClose, 300);
+  };
+  const close = () => {
+    if (closed || closing) return finish();
+    closing = true;
+    if (o.mode !== "edit") return finish();
+    // Collabora speichert auf Zuruf; ONLYOFFICE speichert selbst kurz nach dem Schließen
+    info.textContent = "Speichert …";
+    post({ MessageId: "Action_Save", Values: { DontTerminateEdit: false, DontSaveIfUnmodified: true, Notify: true } });
+    setTimeout(finish, 1500);
+  };
+  const onMsg = (e) => {
+    if (e.origin !== origin || e.source !== frame.contentWindow) return;
+    let m;
+    try { m = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch { return; }
+    if (!m || typeof m.MessageId !== "string") return;
+    const v = m.Values || {};
+    if (m.MessageId === "App_LoadingStatus" && v.Status === "Frame_Ready") post({ MessageId: "Host_PostmessageReady" });
+    else if (m.MessageId === "Doc_ModifiedStatus" && !closing) info.textContent = v.Modified ? "Ungespeicherte Änderungen …" : "Gespeichert";
+    else if (m.MessageId === "Action_Save_Resp") {
+      if (v.success === false) { closing = false; info.textContent = "Speichern fehlgeschlagen – bitte im Editor erneut speichern"; toast("Speichern fehlgeschlagen", true); }
+      else if (closing) finish(); else info.textContent = "Gespeichert";
+    } else if (m.MessageId === "UI_Close" || m.MessageId === "close") finish();
+  };
+  const send = h("form", { method: "post", action: o.action_url, target: name, hidden: true },
+    h("input", { type: "hidden", name: "access_token", value: o.access_token }),
+    h("input", { type: "hidden", name: "access_token_ttl", value: String(o.access_token_ttl) }));
+  const overlay = h("div", { class: "office-overlay", role: "dialog", "aria-modal": "true", "aria-label": `Dokument ${o.filename}` },
+    h("div", { class: "office-bar" },
+      h("strong", { class: "office-name" }, `${fileIcon(o.filename)} ${o.filename}`), badge(o.mode === "edit" ? "Bearbeiten" : "Nur lesen", o.mode === "edit" ? "ok" : "info"), info,
+      h("span", { class: "spacer" }),
+      h("a", { class: "btn small", href: `/api/attachments/${file.id}/download`, title: "Zuletzt gespeicherten Stand herunterladen" }, "Herunterladen"),
+      h("button", { class: "btn small primary", onclick: close }, o.mode === "edit" ? "Speichern & schließen" : "Schließen")),
+    o.warning ? h("div", { class: "verdict warn", style: "margin:0;border-radius:0" }, o.warning) : null,
+    frame, send);
+  document.body.append(overlay);
+  document.body.classList.add("office-open");
+  window.addEventListener("message", onMsg);
+  send.submit();
+}
+
+function fileNew(refType, refId, reload) {
+  const kinds = [["text", "Textdokument (.docx)"], ["table", "Tabelle (.xlsx)"]];
+  if (refType === "customer") kinds.push(["letter", "Brief mit Briefkopf und Anschrift (.docx)"]);
+  const f = form([{ name: "kind", label: "Art", type: "select", options: kinds },
+    { name: "name", label: "Name", placeholder: "z. B. Besprechungsprotokoll", full: true }]);
+  modal("Neues Dokument", h("div", {}, f, officeCan("x.docx") ? null : h("p", { class: "small muted" }, "Ohne Office-Server wird die Datei angelegt und kann heruntergeladen werden.")), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const made = await api("/api/files/new", { method: "POST", body: { ...readForm(f), ref_type: refType, ref_id: refId } });
+      close(); toast(`${made.filename} angelegt`); reload();
+      if (officeCan(made.filename) === "edit") officeOpen(made, { onClose: reload });
+    }) }, "Anlegen")]);
+}
+
+async function fileFromTemplate(customerId, reload, template = null) {
+  await loadCustomers();
+  const lib = template ? null : (await api("/api/files?ref_type=library")).files.filter((x) => x.template);
+  if (lib && !lib.length) {
+    modal("Aus Vorlage", h("div", {}, h("p", {}, "Noch keine Vorlagen vorhanden."),
+      h("p", { class: "small muted" }, "Unter „Office & Dateien“ ein Dokument in die eigene Ablage legen und als Vorlage markieren. Platzhalter wie {{kunde}} oder {{datum}} werden beim Ausfüllen ersetzt.")),
+      [(close) => h("a", { class: "btn primary", href: "#/office", onclick: close }, "Zu Office & Dateien")]);
+    return;
+  }
+  const f = form([
+    template ? null : { name: "template_id", label: "Vorlage", type: "select", options: lib.map((x) => [x.id, x.filename]), full: true },
+    { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: customerId || "", full: true },
+    { name: "name", label: "Name (leer = Vorlage – Kunde)", full: true }].filter(Boolean));
+  modal(template ? `Vorlage ausfüllen: ${template.filename}` : "Dokument aus Vorlage", f, [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(f);
+      const made = await api(`/api/files/${template ? template.id : v.template_id}/from-template`, { method: "POST", body: { customer_id: Number(v.customer_id), name: v.name || "" } });
+      close(); toast(`${made.filename} erstellt – ${made.replaced} Platzhalter ersetzt`);
+      if (reload) reload();
+      if (officeCan(made.filename) === "edit") officeOpen(made, { onClose: reload });
+      else if (!reload) location.hash = `#/office?kunde=${made.ref_id}`;
+    }) }, "Erstellen")]);
+}
+
+async function fileDetail(f, reload) {
+  const versions = await api(`/api/files/${f.id}/versions`).catch(() => []);
+  const can = officeCan(f.filename);
+  let close = () => {};
+  const again = async () => { close(); reload(); };
+  const patch = async (body, msg) => { await api(`/api/files/${f.id}`, { method: "PUT", body }); toast(msg); again(); };
+  const nameInput = h("input", { type: "text", value: f.filename, "aria-label": "Dateiname" });
+  const body = h("div", {},
+    h("p", { class: "small muted", style: "margin-top:0" }, `${fileSize(f.size)} · angelegt ${dt(f.created_at)}`, f.updated_at ? ` · zuletzt geändert ${dt(f.updated_at)}${f.updated_by ? " von " + f.updated_by : ""}` : "",
+      f.locked ? " · gerade im Editor geöffnet" : ""),
+    h("div", { class: "row", style: "margin-bottom:.8rem" },
+      can ? h("button", { class: "btn primary", onclick: () => { close(); officeOpen(f, { view: can !== "edit", onClose: reload }); } }, can === "edit" ? "Im Browser bearbeiten" : "Im Browser ansehen") : null,
+      can === "edit" ? h("button", { class: "btn", onclick: () => { close(); officeOpen(f, { view: true }); } }, "Nur ansehen") : null,
+      h("a", { class: "btn", href: `/api/attachments/${f.id}/download` }, "Herunterladen"),
+      f.template ? h("button", { class: "btn", onclick: () => { close(); fileFromTemplate(null, reload, f); } }, "Für Kunden ausfüllen") : null),
+    h("label", {}, "Name"),
+    h("div", { class: "row", style: "margin-bottom:.8rem" }, h("div", { style: "flex:1 1 240px" }, nameInput),
+      h("button", { class: "btn", onclick: (e) => withBusy(e.target, () => patch({ filename: nameInput.value.trim() }, "Umbenannt")) }, "Umbenennen")),
+    f.ref_type === "library" ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: f.template, style: "width:auto", onchange: (e) => patch({ template: e.target.checked }, e.target.checked ? "Als Vorlage markiert" : "Keine Vorlage mehr") }),
+      " Vorlage – Platzhalter wie {{kunde}} werden beim Ausfüllen für einen Kunden ersetzt") : null,
+    f.ref_type === "customer" ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: f.customer_visible, style: "width:auto", onchange: (e) => patch({ customer_visible: e.target.checked }, e.target.checked ? "Im Kundenportal freigegeben" : "Freigabe entfernt") }),
+      " Im Kundenportal zum Herunterladen freigeben") : null,
+    h("h3", { style: "margin:1rem 0 .4rem" }, `Frühere Stände (${versions.length})`),
+    versions.length ? table([
+      { label: "Stand vom", render: (v) => dt(v.created_at) }, { label: "Bearbeitet von", render: (v) => v.author || "ursprüngliche Fassung" }, { label: "Größe", num: true, render: (v) => fileSize(v.size) },
+      { label: "", render: (v) => h("div", { class: "row", style: "gap:.3rem;justify-content:flex-end" },
+        h("a", { class: "btn small", href: `/api/files/${f.id}/versions/${v.id}/download` }, "Herunterladen"),
+        h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => {
+          if (!confirm("Diesen Stand wiederherstellen? Der aktuelle Stand bleibt als frühere Fassung erhalten.")) return;
+          await api(`/api/files/${f.id}/versions/${v.id}/restore`, { method: "POST" }); toast("Stand wiederhergestellt"); again();
+        }) }, "Wiederherstellen")) },
+    ], versions) : h("p", { class: "small muted" }, "Noch keine – beim Speichern aus dem Editor wird der vorherige Stand aufbewahrt (bis zu 10, höchstens einer pro Stunde)."));
+  close = modal(`${fileIcon(f.filename)} ${f.filename}`, body, [
+    () => h("button", { class: "btn danger", onclick: async () => {
+      if (!confirm(`„${f.filename}“ samt früheren Ständen endgültig löschen?`)) return;
+      try { await api(`/api/attachments/${f.id}`, { method: "DELETE" }); toast("Gelöscht"); again(); } catch (e) { toast(e.message, true); }
+    } }, "Löschen")]);
+}
+
+/** Dateiliste einer Ablage (eigene Ablage oder ein Kunde) mit Hochladen, Bearbeiten und Details. */
+async function filesPanel(box, refType, refId, { compact = false } = {}) {
+  const reload = () => filesPanel(box, refType, refId, { compact });
+  const narrow = compact || matchMedia("(max-width: 700px)").matches;  // am Handy nur die wichtigsten Spalten
+  let d;
+  try { await officeStatus(); d = await api(`/api/files?ref_type=${refType}&ref_id=${refId || 0}`); }
+  catch (e) { fill(box, h("p", { class: "small", style: "color:var(--bad)" }, e.message)); return; }
+  const rows = d.files;
+  const list = rows.length ? table([
+    { label: "Datei", render: (f) => h("div", {}, h("span", { class: "file-name" }, `${fileIcon(f.filename)} ${f.filename}`), " ",
+      f.template ? badge("Vorlage", "info") : null, f.locked ? badge("geöffnet", "warn") : null, f.ref_type === "customer" && f.customer_visible ? badge("im Portal", "ok") : null) },
+    narrow ? null : { label: "Größe", num: true, render: (f) => fileSize(f.size) },
+    { label: "Geändert", render: (f) => h("span", { class: "small" }, dt(f.updated_at || f.created_at), f.updated_by ? h("span", { class: "muted" }, ` · ${f.updated_by}`) : null) },
+    narrow ? null : { label: "Stände", num: true, render: (f) => f.versions || "–" },
+    { label: "", render: (f) => {
+      const can = officeCan(f.filename);
+      return h("div", { class: "row", style: "gap:.3rem;justify-content:flex-end;flex-wrap:nowrap" },
+        can ? h("button", { class: "btn small primary", onclick: (e) => { e.stopPropagation(); officeOpen(f, { view: can !== "edit", onClose: reload }); } }, can === "edit" ? "Bearbeiten" : "Ansehen") : null,
+        f.template ? h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); fileFromTemplate(null, reload, f); } }, "Ausfüllen") : null,
+        h("a", { class: "btn small", href: `/api/attachments/${f.id}/download`, title: "Herunterladen", "aria-label": `${f.filename} herunterladen`, onclick: (e) => e.stopPropagation() }, "⬇"));
+    } },
+  ].filter(Boolean), rows, (f) => fileDetail(f, reload))
+    : h("p", { class: "small muted", style: "margin:.2rem 0 .6rem" }, refType === "library" ? "Noch keine Dateien in der eigenen Ablage – Vorlagen, Checklisten und interne Dokumente gehören hierher."
+      : "Noch keine Dateien zu diesem Kunden – Verträge, Protokolle, Netzwerkpläne, Übergabelisten.");
+  const zone = dropZone("Dateien hierher ziehen oder klicken", async (files) => {
+    for (const file of files) {
+      try { await uploadRaw(`/api/files/upload?ref_type=${refType}&ref_id=${refId || 0}`, file); toast(`${file.name} hochgeladen`); }
+      catch (e) { toast(`${file.name}: ${e.message}`, true); }
+    }
+    reload();
+  }, { hint: "Word, Excel, PowerPoint, OpenDocument, PDF, Bilder · bis 20 MB" });
+  fill(box,
+    h("div", { class: "row", style: "gap:.4rem;margin-bottom:.6rem" },
+      h("button", { class: "btn small primary", onclick: () => fileNew(refType, refId, reload) }, "+ Neues Dokument"),
+      refType === "customer" ? h("button", { class: "btn small", onclick: () => fileFromTemplate(refId, reload) }, "Aus Vorlage") : null,
+      h("span", { class: "spacer" }),
+      h("span", { class: "small muted" }, `${rows.length} Datei(en)`)),
+    list, compact && rows.length > 3 ? null : zone);
+}
+
+async function filesCard(c) {
+  const box = h("div", {});
+  await filesPanel(box, "customer", c.id, { compact: true });
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Dateien"), h("a", { class: "btn small", href: `#/office?kunde=${c.id}` }, "Alle Dateien & Hochladen")),
+    box);
+}
+
+function officeSettings(o) {
+  const f = form([
+    { name: "url", label: "Adresse des Office-Servers", placeholder: "https://office.meine-firma.at", value: o.url, full: true },
+    { name: "cockpit_url", label: "Adresse des Cockpits – so, wie der Office-Server es erreicht (leer = automatisch)", placeholder: "https://cockpit.meine-firma.at", value: o.cockpit_url, full: true },
+    { name: "allowed_ips", label: "Erlaubte Adressen für Dateizugriffe (IP des Office-Servers, mehrere mit Komma)", placeholder: "192.168.10.20", value: (o.allowed_ips || []).join(", "), full: true },
+    { name: "enabled", label: "Office-Anbindung aktiv", type: "checkbox", value: o.enabled || !o.url }]);
+  const out = h("div", {});
+  const read = () => { const v = readForm(f); return { ...v, allowed_ips: v.allowed_ips.split(/[,;\s]+/).filter(Boolean) }; };
+  modal("Office-Server verbinden", h("div", {},
+    h("p", { class: "small muted", style: "margin-top:0" }, "Ein eigener Collabora-Online- oder ONLYOFFICE-Server (beide kostenlos selbst betreibbar). Die Dokumente bleiben im Cockpit – der Office-Server holt sie nur zum Bearbeiten und speichert sie zurück."),
+    f, out), [
+    (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
+      await api("/api/office/settings", { method: "PUT", body: read() });
+      const t = await api("/api/office/test", { method: "POST" });
+      fill(out, h("div", { class: "verdict ok" }, h("strong", {}, `${t.product} erreichbar`), h("div", { class: "small" }, `${t.editable.length} Dateitypen bearbeitbar · Cockpit-Adresse für den Office-Server: ${t.cockpit_url}`)),
+        t.hints.map((x) => h("p", { class: "small" }, `• ${x}`)));
+      await officeStatus(true);
+    }) }, "Speichern & testen"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api("/api/office/settings", { method: "PUT", body: read() });
+      close(); toast("Gespeichert");
+      location.reload();  // neu laden, damit die Schutzregel des Browsers den Office-Server kennt
+    }) }, "Speichern")]);
+}
+
+views.office = async (_, params) => {
+  await loadCustomers();
+  const o = await officeStatus(true);
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  const cid = Number(params.get("kunde") || 0);
+  const customer = cid ? state.customers.find((c) => c.id === cid) : null;
+  setTitle("Office & Dateien", [
+    isAdmin ? h("button", { class: "btn", onclick: () => officeSettings(o) }, "Office-Server") : null,
+    h("button", { class: "btn", onclick: () => fileFromTemplate(cid || null, render) }, "Aus Vorlage"),
+  ]);
+  const scope = h("select", { style: "flex:1 1 220px;min-width:0;max-width:100%;width:auto", "aria-label": "Ablage", onchange: (e) => { location.hash = e.target.value ? `#/office?kunde=${e.target.value}` : "#/office"; } },
+    h("option", { value: "" }, "Eigene Ablage (Vorlagen, interne Dokumente)"),
+    state.customers.map((c) => h("option", { value: c.id, selected: c.id === cid }, c.name)));
+  const banner = o.enabled && !o.error
+    ? h("div", { class: "verdict ok" }, h("strong", {}, `${o.product || "Office-Server"} verbunden`),
+      h("div", { class: "small" }, `Im Browser bearbeitbar: ${(o.editable || []).slice(0, 14).join(", ")}${(o.editable || []).length > 14 ? " …" : ""}`))
+    : o.enabled || o.url
+      ? h("div", { class: "verdict bad" }, h("strong", {}, "Office-Server nicht erreichbar"), h("div", { class: "small" }, o.error || "Die Anbindung ist eingetragen, aber nicht aktiv."))
+      : h("div", { class: "verdict warn" }, h("strong", {}, "Noch kein Office-Server verbunden"),
+        h("div", { class: "small" }, "Dateien ablegen, anlegen, aus Vorlagen ausfüllen und herunterladen funktioniert bereits. Zum Bearbeiten direkt im Browser einen eigenen Collabora- oder ONLYOFFICE-Server eintragen",
+          isAdmin ? " (Schaltfläche „Office-Server“ oben)." : " – das kann ein Admin unter „Office-Server“."));
+  const box = h("div", {});
+  const ph = Object.entries(o.placeholders || {});
+  show(
+    banner,
+    h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head", style: "flex-wrap:wrap" }, h("h2", {}, customer ? `Dateien: ${customer.name}` : "Eigene Ablage"),
+        h("div", { class: "row", style: "gap:.4rem;flex:1 1 260px;justify-content:flex-end;min-width:0" }, customer ? h("a", { class: "btn small", href: `#/kunde/${cid}` }, "Zum Kunden") : null, scope)),
+      box),
+    h("div", { class: "card" }, h("h2", {}, "Vorlagen & Platzhalter"),
+      h("p", { class: "small muted" }, "Ein Dokument in der eigenen Ablage als Vorlage markieren (Datei anklicken). Beim Ausfüllen für einen Kunden entsteht eine Kopie in dessen Ablage, in der diese Platzhalter ersetzt sind:"),
+      h("div", { class: "row", style: "gap:.4rem" }, ph.map(([k, label]) => h("span", { class: "badge info", title: label }, `{{${k}}}`))),
+      h("p", { class: "small muted", style: "margin-bottom:0" }, ph.map(([k, label]) => `{{${k}}} = ${label}`).join(" · "))));
+  await filesPanel(box, customer ? "customer" : "library", customer ? cid : 0);
 };
 
 async function render() {

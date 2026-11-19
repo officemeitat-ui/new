@@ -1,0 +1,23 @@
+# Beispiel: Collabora Online (CODE) als eigener Office-Server für das Cockpit.
+# Start:  docker compose -f deploy/office-collabora.yml up -d
+#
+# Diese Datei ist ein Ausgangspunkt und in dieser Umgebung nicht gegen einen echten Server geprüft.
+# Die Namen der Einstellungen bitte mit der aktuellen Collabora-Dokumentation abgleichen –
+# einzelne Versionen des Abbilds werten die ssl-Einstellungen unterschiedlich aus.
+services:
+  collabora:
+    image: collabora/code
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9980:9980"   # nur lokal; nach außen über den Reverse-Proxy (deploy/Caddyfile)
+    environment:
+      # Adresse des Cockpits, so wie Collabora es erreicht – nur von dort nimmt Collabora Dokumente an.
+      aliasgroup1: "https://cockpit.deine-firma.at:443"
+      # Verschlüsselung übernimmt der Reverse-Proxy davor.
+      extra_params: "--o:ssl.enable=false --o:ssl.termination=true"
+      dictionaries: "de_DE en_US"
+      # Zugang zur Verwaltungsoberfläche von Collabora – eigenes, langes Passwort setzen.
+      username: "admin"
+      password: "BITTE-AENDERN"
+    cap_add:
+      - MKNOD

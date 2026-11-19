@@ -33,7 +33,7 @@ TICKET_REF = re.compile(r"\[#(\d{1,7})\]|\bTicket(?:nummer)?\s*#?(\d{1,7})\b", r
 
 def _safe_name(name: str) -> str:
     name = Path(unquote(name or "datei")).name
-    name = re.sub(r"[^\w.\- äöüÄÖÜß()]+", "_", name).strip(" .") or "datei"
+    name = re.sub(r"[^\w.\- äöüÄÖÜß()&,+–]+", "_", name).strip(" .") or "datei"
     return name[:150]
 
 
@@ -51,7 +51,12 @@ def _sniff(data: bytes, name: str) -> str:
         return "image/webp"
     for ext, ct in ((".eml", "message/rfc822"), (".msg", "application/vnd.ms-outlook"), (".txt", "text/plain"),
                     (".csv", "text/csv"), (".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-                    (".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), (".zip", "application/zip")):
+                    (".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+                    (".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+                    (".odt", "application/vnd.oasis.opendocument.text"), (".ods", "application/vnd.oasis.opendocument.spreadsheet"),
+                    (".odp", "application/vnd.oasis.opendocument.presentation"), (".doc", "application/msword"),
+                    (".xls", "application/vnd.ms-excel"), (".ppt", "application/vnd.ms-powerpoint"), (".rtf", "application/rtf"),
+                    (".zip", "application/zip")):
         if n.endswith(ext):
             return ct
     return "application/octet-stream"
@@ -82,6 +87,60 @@ class Store:
                                              "message_id": message_id})
         return self.db.get("attachments", aid)
 
+    def replace(self, att: dict[str, Any], data: bytes, author: str = "", keep_versions: int = 10,
+                version_gap_min: int = 60) -> dict[str, Any]:
+        """Inhalt einer Datei ersetzen (z. B. Speichern aus dem Office-Editor). Der vorherige Stand wird als Version
+        aufbewahrt – höchstens eine je ``version_gap_min`` Minuten, damit automatisches Speichern die Liste nicht flutet."""
+        if len(data) > MAX_SIZE:
+            raise ValueError("Datei zu groß (max. 20 MB)")
+        digest = hashlib.sha256(data).hexdigest()
+        if digest == att["sha256"]:
+            return att
+        last = self.db.query_one("SELECT created_at FROM file_versions WHERE attachment_id = ? ORDER BY id DESC LIMIT 1", (att["id"],))
+        try:
+            fresh = last and (datetime.now() - datetime.fromisoformat(last["created_at"][:19])).total_seconds() < version_gap_min * 60
+        except ValueError:
+            fresh = False
+        keep_old = not fresh and att["size"] > 0
+        if keep_old:
+            self.db.insert("file_versions", {"attachment_id": att["id"], "path": att["path"], "size": att["size"],
+                                             "sha256": att["sha256"], "author": att.get("updated_by") or ""})
+        rel = Path(datetime.now().strftime("%Y/%m")) / f"{digest[:12]}_{att['filename']}"
+        target = self.root / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        old_path = att["path"]
+        self.db.update("attachments", att["id"], {"path": str(rel), "size": len(data), "sha256": digest,
+                                                  "updated_at": now_iso(), "updated_by": author[:120]})
+        if not keep_old and old_path != str(rel):
+            self._unlink_if_unused(old_path)
+        for v in self.db.query("SELECT id, path FROM file_versions WHERE attachment_id = ? ORDER BY id DESC LIMIT -1 OFFSET ?",
+                               (att["id"], keep_versions)):
+            self.db.delete("file_versions", v["id"])
+            self._unlink_if_unused(v["path"])
+        return self.db.get("attachments", att["id"])
+
+    def _unlink_if_unused(self, rel: str) -> None:
+        used = (self.db.scalar("SELECT COUNT(*) FROM attachments WHERE path = ?", (rel,)) or 0) + \
+               (self.db.scalar("SELECT COUNT(*) FROM file_versions WHERE path = ?", (rel,)) or 0)
+        if not used:
+            try:
+                p = (self.root / rel).resolve()
+                if p.is_relative_to(self.root):
+                    p.unlink()
+            except OSError:
+                pass
+
+    def read(self, att: dict[str, Any]) -> bytes:
+        return self.path(att).read_bytes()
+
+    def remove(self, att: dict[str, Any]) -> None:
+        """Datei samt Versionen löschen."""
+        paths = [att["path"]] + [v["path"] for v in self.db.query("SELECT path FROM file_versions WHERE attachment_id = ?", (att["id"],))]
+        self.db.delete("attachments", att["id"])  # Versionen, Token und Sperren hängen per Fremdschlüssel daran
+        for rel in paths:
+            self._unlink_if_unused(rel)
+
     def path(self, att: dict[str, Any]) -> Path:
         p = (self.root / att["path"]).resolve()
         if not p.is_relative_to(self.root) or not p.is_file():
@@ -98,7 +157,7 @@ class Store:
 
     def list(self, ref_type: str, ref_id: int, visible_only: bool = False) -> list[dict[str, Any]]:
         return self.db.query("SELECT id, ref_type, ref_id, filename, content_type, size, source, customer_visible, message_id, "
-                             "created_at FROM attachments WHERE ref_type = ? AND ref_id = ?"
+                             "created_at, updated_at, updated_by, template FROM attachments WHERE ref_type = ? AND ref_id = ?"
                              + (" AND customer_visible = 1" if visible_only else "") + " ORDER BY id", (ref_type, ref_id))
 
 
@@ -297,11 +356,7 @@ def register(app: FastAPI, ctx: Any, admin_only) -> Store:
         att = db.get("attachments", aid)
         if not att:
             raise HTTPException(404, "Anhang nicht gefunden")
-        try:
-            store.path(att).unlink()
-        except (ValueError, OSError):
-            pass
-        db.delete("attachments", aid)
+        store.remove(att)
         return {"ok": True}
 
     @app.post("/api/tickets/{tid}/reply")

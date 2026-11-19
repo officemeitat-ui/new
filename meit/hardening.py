@@ -14,6 +14,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import re
 import secrets
 import struct
@@ -34,6 +35,8 @@ def limit_for(path: str) -> int:
     """Maximale Größe einer Anfrage je Pfad."""
     if path.startswith("/api/public/agent/"):
         return AGENT_LIMIT
+    if path.startswith("/wopi/"):
+        return UPLOAD_LIMIT  # Speichern aus dem Office-Editor
     if path.startswith("/api/public/") or path in ("/api/portal/login", "/api/auth/login"):
         return PUBLIC_JSON_LIMIT
     if path.startswith("/api/portal/"):
@@ -114,14 +117,17 @@ def script_hashes(html_file: Path) -> list[str]:
             for m in SCRIPT_RE.finditer(text)]
 
 
-def content_security_policy(hashes: list[str] | None = None, frame_ancestors: str = "'none'") -> str:
+def content_security_policy(hashes: list[str] | None = None, frame_ancestors: str = "'none'", office: str = "") -> str:
+    """``office``: Adresse des eigenen Office-Servers – nur dieser darf zusätzlich eingebettet und per Formular
+    angesprochen werden (Editor im Cockpit)."""
+    extra = f" {office}" if office else ""
     parts = [
         "default-src 'self'",
         "script-src 'self'" + ("".join(" " + h for h in hashes) if hashes else ""),
         "style-src 'self' 'unsafe-inline'",  # style-Attribute der Oberfläche; Skripte bleiben gesperrt
         "img-src 'self' data: blob:", "font-src 'self' data:", "media-src 'self' blob:", "connect-src 'self'",
-        "worker-src 'self'", "manifest-src 'self'", "frame-src 'self'", "object-src 'none'", "base-uri 'self'",
-        "form-action 'self'",
+        "worker-src 'self'", "manifest-src 'self'", f"frame-src 'self'{extra}", "object-src 'none'", "base-uri 'self'",
+        f"form-action 'self'{extra}",
     ]
     if frame_ancestors:
         parts.append(f"frame-ancestors {frame_ancestors}")
@@ -180,3 +186,25 @@ def new_recovery_codes(n: int = 10) -> list[str]:
 
 def recovery_hash(code: str) -> str:
     return hashlib.sha256(re.sub(r"[^0-9a-f]", "", (code or "").lower()).encode()).hexdigest()
+
+
+# ----------------------------------------------------------------------------- Protokoll ohne Zugriffstoken
+_TOKEN_IN_URL = re.compile(r"((?:access_token|token)=)[^&\s\"']+", re.I)
+
+
+class RedactTokens(logging.Filter):
+    """Entfernt Zugriffstoken aus Protokollzeilen (der Office-Server schickt sein Token in der Adresse)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_TOKEN_IN_URL.sub(r"\1***", a) if isinstance(a, str) else a for a in record.args)
+        if isinstance(record.msg, str):
+            record.msg = _TOKEN_IN_URL.sub(r"\1***", record.msg)
+        return True
+
+
+def redact_access_log() -> None:
+    """Filter einmalig am Zugriffsprotokoll des Webservers anbringen."""
+    log = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, RedactTokens) for f in log.filters):
+        log.addFilter(RedactTokens())

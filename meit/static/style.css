@@ -272,6 +272,7 @@ label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .25r
 #timer-pill { position: fixed; right: 16px; bottom: 16px; z-index: 45; display: flex; align-items: center; gap: .6rem;
   background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 999px;
   padding: .45rem .5rem .45rem .9rem; box-shadow: 0 6px 24px rgba(0,0,0,.15); max-width: calc(100vw - 32px); }
+#timer-pill[hidden] { display: none; }
 #timer-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad, #b91c1c); animation: timerblink 1.2s infinite; }
 #timer-pill strong { font-variant-numeric: tabular-nums; }
 #timer-pill .what { color: var(--muted); font-size: .85rem; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -327,3 +328,15 @@ body.has-timer #app { padding-bottom: 76px; }
 .big-score { font-size: 2.4rem; font-weight: 800; line-height: 1; }
 .big-score.gut { color: var(--ok); } .big-score.mittel { color: var(--warn); } .big-score.kritisch { color: var(--bad); }
 @media (max-width: 600px) { .area-bar { grid-template-columns: 1fr 3rem; } .area-bar .track { grid-column: 1 / -1; order: 3; } }
+
+/* Office-Editor (Collabora / ONLYOFFICE im iframe) */
+.office-overlay { position: fixed; inset: 0; z-index: 55; display: flex; flex-direction: column; background: var(--surface); }
+.office-overlay iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+.office-bar { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .45rem .8rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.office-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46vw; }
+.office-info { color: var(--muted); }
+body.office-open { overflow: hidden; }
+.file-name { font-weight: 600; overflow-wrap: break-word; }
+td:has(> div > .file-name) { min-width: 11rem; }
+label.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; margin: .3rem 0; cursor: pointer; }
+@media (max-width: 600px) { .office-info { display: none; } .office-name { max-width: 60vw; } }

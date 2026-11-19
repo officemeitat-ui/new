@@ -704,6 +704,33 @@ CREATE TABLE IF NOT EXISTS posture_history (
     UNIQUE(customer_id, month)
 );
 
+CREATE TABLE IF NOT EXISTS office_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_hash TEXT NOT NULL UNIQUE,
+    attachment_id INTEGER NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+    user_id INTEGER,
+    user_name TEXT DEFAULT '',
+    can_write INTEGER DEFAULT 1,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS office_locks (
+    attachment_id INTEGER PRIMARY KEY REFERENCES attachments(id) ON DELETE CASCADE,
+    lock_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS file_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attachment_id INTEGER NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    size INTEGER DEFAULT 0,
+    sha256 TEXT DEFAULT '',
+    author TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -735,7 +762,10 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                     "external_url", "synced_at"},
     "ai_usage": {"task", "model", "input_tokens", "output_tokens", "cache_read", "cache_write", "cost_usd"},
     "attachments": {"ref_type", "ref_id", "filename", "content_type", "size", "sha256", "path", "source",
-                    "customer_visible", "message_id"},
+                    "customer_visible", "message_id", "updated_at", "updated_by", "template"},
+    "office_tokens": {"token_hash", "attachment_id", "user_id", "user_name", "can_write", "expires_at"},
+    "office_locks": {"attachment_id", "lock_id", "expires_at"},
+    "file_versions": {"attachment_id", "path", "size", "sha256", "author"},
     "csat_surveys": {"ticket_id", "customer_id", "email", "token", "sent_at", "rating", "comment", "rated_at", "channel",
                      "followup_ticket_id"},
     "timers": {"user_id", "ticket_id", "customer_id", "note", "started_at"},
@@ -812,7 +842,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks", "agent_keys", "agent_devices", "notifications",
+    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
@@ -830,6 +860,7 @@ MIGRATIONS = {
     "users": {"totp_secret": "TEXT DEFAULT ''", "totp_enabled": "INTEGER DEFAULT 0", "totp_recovery": "TEXT DEFAULT '[]'",
               "totp_last_step": "INTEGER DEFAULT 0"},
     "agent_devices": {"ticket_id": "INTEGER"},
+    "attachments": {"updated_at": "TEXT DEFAULT ''", "updated_by": "TEXT DEFAULT ''", "template": "INTEGER DEFAULT 0"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0", "source": "TEXT DEFAULT 'cockpit'", "external_id": "TEXT DEFAULT ''",
                     "external_url": "TEXT DEFAULT ''", "synced_at": "TEXT DEFAULT ''"},

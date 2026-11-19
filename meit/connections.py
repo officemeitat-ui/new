@@ -281,6 +281,23 @@ class Connections:
                 checks.append(check("bad", str(exc)))
         return {"key": "bookstack", "name": "BookStack (IT-Doku, Wissen)", "configured": client.configured, "checks": checks}
 
+    def _office(self, live: bool) -> dict[str, Any]:
+        svc = getattr(self.app.state, "office", None)
+        conf = svc.conf() if svc else {"enabled": False, "url": "", "allowed_ips": []}
+        checks = url_checks(conf["url"], "Office-Server")
+        if conf["enabled"]:
+            checks.append(check("ok", "Zugriff nur mit Token je Datei und Benutzer (10 Stunden gültig, im Cockpit nur als Prüfsumme)"))
+            checks.append(check("ok", f"Dateizugriffe nur von {', '.join(conf['allowed_ips'])}") if conf["allowed_ips"] else
+                          check("warn", "Keine erlaubten Adressen eingetragen – Dateizugriffe (/wopi/) werden von jeder Adresse "
+                                        "mit gültigem Token angenommen"))
+        if live and conf["url"] and svc:
+            try:
+                d = svc.discovery(force=True)
+                checks.append(check("ok", f"{d['product']} erreichbar – {len(d['editable'])} Dateitypen bearbeitbar"))
+            except Exception as exc:  # noqa: BLE001
+                checks.append(check("bad", str(exc)))
+        return {"key": "office", "name": "Office-Server (Collabora / ONLYOFFICE)", "configured": bool(conf["enabled"]), "checks": checks}
+
     def _atera(self, live: bool) -> dict[str, Any]:
         from .atera import Atera, AteraError
 
@@ -326,7 +343,7 @@ class Connections:
         return {"key": "backup", "name": "Datensicherung", "configured": self.s.backup_hours > 0, "checks": checks}
 
     CHECKS: dict[str, str] = {"login": "_login", "microsoft": "_microsoft", "sharepoint": "_sharepoint",
-                              "kunden_m365": "_customers", "todo": "_todo", "bookstack": "_bookstack", "atera": "_atera",
+                              "kunden_m365": "_customers", "todo": "_todo", "office": "_office", "bookstack": "_bookstack", "atera": "_atera",
                               "claude": "_claude", "backup": "_backup"}
 
     def run(self, key: str, live: bool = False) -> dict[str, Any]:

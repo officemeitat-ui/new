@@ -20,7 +20,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Backup-Wächter, Domain-/E-Mail-Check: [docs/BACKUP-DOMAINS.md](docs/BACKUP-DOMAINS.md) ·
 > Sicherheitslage, Benachrichtigungen, Protokoll: [docs/SICHERHEITSLAGE-BENACHRICHTIGUNGEN.md](docs/SICHERHEITSLAGE-BENACHRICHTIGUNGEN.md) ·
 > Geräte-Check (Inventar-Agent): [docs/GERAETE-CHECK.md](docs/GERAETE-CHECK.md) ·
-> Sicherheitsprüfung, 2FA, Erste Schritte: [docs/SICHERHEIT-INBETRIEBNAHME.md](docs/SICHERHEIT-INBETRIEBNAHME.md)
+> Sicherheitsprüfung, 2FA, Erste Schritte: [docs/SICHERHEIT-INBETRIEBNAHME.md](docs/SICHERHEIT-INBETRIEBNAHME.md) ·
+> Office & Dateien (Collabora / ONLYOFFICE): [docs/OFFICE.md](docs/OFFICE.md)
 
 ## Funktionen
 
@@ -44,6 +45,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Leads & Pipeline** | Lead-Score, Qualifizierung, Phasen Erstgespräch → Pitch → Angebotsbesprechung, automatisches Nachfassen |
 | **Sicherheitslage je Kunde** | Eine Note aus Microsoft 365, Geräte-Check, Datensicherung, E-Mail-Domain und Security-Check mit Verlauf, Abdeckung („was ist bei wem angebunden?“) und Maßnahmenplan. **IT-Sicherheitsbericht als PDF** im ME-IT-Design, **Angebot aus den Maßnahmen** mit einem Klick, Karte „Ihre IT-Sicherheit“ im Kundenportal. |
 | **Benachrichtigungen** | Glocke im Cockpit, E-Mail und Microsoft Teams bei dringenden Tickets (inkl. Backup-Fehler, Weiterleitungen, Phishing), Portal-Nachrichten und Sicherheitsereignissen; täglicher „Tagesstart“ per Mail. |
+| **Office & Dateien** | Word-, Excel- und PowerPoint-Dateien **direkt im Browser bearbeiten** über einen eigenen Collabora- oder ONLYOFFICE-Server (die Dokumente bleiben im Cockpit). Ablage je Kunde, eigene Ablage, neue Dokumente und Briefe mit Briefkopf, **Vorlagen mit Platzhaltern** je Kunde ausfüllen, frühere Stände wiederherstellen, Freigabe im Kundenportal. |
 | **Sicherheitsprotokoll** | Anmeldungen (mit Fehlversuchen), Änderungen, Exporte und Löschungen mit Zeit, Person und Adresse – Suche, CSV, 400 Tage. |
 | **Geräte-Check (eigener Agent)** | Schlanker Inventar-Agent für Windows, **nur lesend** (kein Befehlskanal): BitLocker, Virenschutz, Firewall, Updates, Speicherplatz, Admin-Rechte, Software, Windows-11-Tauglichkeit. Befunde mit Punktzahl, Ticket, Radar-Chance, Schutz-Spalte im Kundenportal. Registrierung je Kunde mit befristetem Schlüssel, eigenes Token je Gerät. |
 | **Erste Schritte** | Inbetriebnahme als Checkliste mit Live-Status und „wo stelle ich das ein“, Übersicht „Wo finde ich was?“, Demodaten sauber entfernen. |
@@ -198,6 +200,7 @@ meit/
   posture.py       Sicherheitslage je Kunde: Gesamtnote, Verlauf, Bericht, Angebot aus Maßnahmen
   notify.py        Benachrichtigungen: Glocke, E-Mail, Teams, Tagesstart
   audit.py         Sicherheitsprotokoll (Anmeldungen, Änderungen, Exporte)
+  office.py        Office-Anbindung (WOPI): Editor-Zugang, Sperren, Speichern, Vorlagen, frühere Stände
   hardening.py     Größenlimits, Content-Security-Policy, CSV-Schutz, TOTP
   setup.py         Erste Schritte (Inbetriebnahme mit Live-Status), Demodaten entfernen
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,

@@ -33,3 +33,29 @@ portal.deine-firma.at {
 	# Formular darf auf der eigenen Website per iframe eingebunden werden:
 	header /anfrage Content-Security-Policy "frame-ancestors 'self' https://www.deine-firma.at"
 }
+
+# --- Optional: eigener Office-Server (Collabora Online / ONLYOFFICE) für „Office & Dateien“ ---
+# Nur aus dem Firmennetz/VPN erreichbar. Der Browser der Mitarbeiter und das Cockpit müssen ihn erreichen.
+# Collabora läuft im Beispiel (deploy/office-collabora.yml) auf 127.0.0.1:9980.
+#
+# office.deine-firma.at {
+# 	@intern remote_ip 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.1/32
+# 	handle @intern {
+# 		reverse_proxy 127.0.0.1:9980
+# 	}
+# 	handle {
+# 		respond "Nicht verfügbar" 404
+# 	}
+# }
+#
+# Der Office-Server holt und speichert Dateien beim Cockpit unter /wopi/*. Läuft er im selben Netz
+# (auch als Docker-Container auf diesem Server), greift oben bereits die Regel „@intern“.
+# Läuft er woanders, im Cockpit-Block NUR seine Adresse freigeben – nie /wopi/* für alle öffnen:
+#
+# 	@office {
+# 		path /wopi/*
+# 		remote_ip 203.0.113.10
+# 	}
+# 	handle @office {
+# 		reverse_proxy 127.0.0.1:8080
+# 	}

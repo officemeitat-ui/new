@@ -371,13 +371,16 @@
     };
 
     views.rechnungen = async () => {
-      const rows = await api("/api/portal/invoices");
-      return h("div", { class: "card" }, h("h2", {}, "Rechnungen"), table([["Nr.", (r) => r.number], ["Datum", (r) => dt(r.date)], ["Zeitraum", (r) => r.period], ["Betrag", (r) => eur(r.gross)],
+      const [rows, files] = await Promise.all([api("/api/portal/invoices"), api("/api/portal/files").catch(() => [])]);
+      return h("div", {}, h("div", { class: "card" }, h("h2", {}, "Rechnungen"), table([["Nr.", (r) => r.number], ["Datum", (r) => dt(r.date)], ["Zeitraum", (r) => r.period], ["Betrag", (r) => eur(r.gross)],
         ["Status", (r) => h("span", { class: `badge ${r.status === "bezahlt" ? "ok" : r.overdue ? "bad" : "warn"}` }, r.status === "bezahlt" ? "bezahlt" : r.overdue ? "überfällig" : `offen bis ${dt(r.due_date)}`)],
-        ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], rows));
+        ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], rows)),
+        files.length ? h("div", { class: "card" }, h("h2", {}, "Dokumente"), h("p", { class: "muted", style: "margin-top:0" }, "Von uns für Sie bereitgestellt – Verträge, Protokolle und Berichte."),
+          table([["Datei", (f) => f.name], ["Größe", (f) => kb(f.size)], ["Stand", (f) => dt(f.at)],
+            ["", (f) => h("a", { class: "btn", href: `/api/portal/attachments/${f.id}`, target: "_blank", rel: "noopener" }, "Herunterladen")]], files)) : null);
     };
 
-    const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["pruefen", "E-Mail prüfen"], ["mitarbeiter", "Mitarbeiter"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen"]];
+    const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["pruefen", "E-Mail prüfen"], ["mitarbeiter", "Mitarbeiter"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen & Dokumente"]];
     async function go(t) {
       tab = t;
       document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));

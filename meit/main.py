@@ -48,10 +48,11 @@ from .audit import register as register_audit
 from .backups import register as register_backups
 from .domaincheck import register as register_domains
 from .csat import register as register_csat
-from .hardening import BodyLimit, content_security_policy, script_hashes
+from .hardening import BodyLimit, content_security_policy, redact_access_log, script_hashes
 from .inventory import register as register_inventory
 from .m365 import register as register_m365
 from .notify import register as register_notify
+from .office import register as register_office
 from .posture import register as register_posture
 from .connections import register as register_connections
 from .setup import register as register_setup
@@ -232,6 +233,7 @@ PRIORITIES = {"niedrig", "normal", "hoch", "kritisch"}
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    redact_access_log()
     db = Database(settings.db_path)
     db.init_schema()
     seed_all(db, demo=settings.seed_demo_data and not db.get_setting("demo_removed", False))
@@ -305,8 +307,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if path != "/anfrage":  # das Formular darf eingebettet werden, alles andere nicht
             response.headers.setdefault("X-Frame-Options", "DENY")
         if response.headers.get("content-type", "").startswith("text/html"):
+            svc = getattr(app.state, "office", None)  # der eigene Office-Server darf im Cockpit eingebettet werden
             response.headers.setdefault("Content-Security-Policy", content_security_policy(
-                page_scripts.get(path), form_frames if path == "/anfrage" else "'none'"))
+                page_scripts.get(path), form_frames if path == "/anfrage" else "'none'",
+                office=svc.origin() if svc and path == "/" else ""))
         if path.startswith(("/api/auth/", "/api/portal/")):
             response.headers.setdefault("Cache-Control", "no-store")
         return response
@@ -844,6 +848,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- E-Mails & Anhänge: .eml/.msg-Upload, Ticket-Verlauf, Antworten, Phishing-Check ----
     ctx.attachments = register_attachments(app, ctx, admin_only)
+
+    # --- Office im Cockpit: eigener Office-Server (Collabora/ONLYOFFICE) bearbeitet Dateien über WOPI --------
+    office = register_office(app, ctx, settings, admin_only)
 
     # --- Backup-Wächter (Sicherungsberichte aus dem Postfach) -----------------------------------
     register_backups(app, ctx, admin_only, start=settings.db_path != ":memory:")
