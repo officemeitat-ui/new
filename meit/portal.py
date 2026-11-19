@@ -120,11 +120,18 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         if not login_limiter.allow(client):
             raise HTTPException(429, "Zu viele Versuche – bitte später erneut.")
         u = db.query_one("SELECT * FROM portal_users WHERE lower(email) = lower(?) AND active = 1", (data.email.strip(),))
+        from .audit import record as audit
+
+        mail = data.email.strip().lower()[:200]
         if not u:
             dummy_verify(data.password)  # gleiche Antwortzeit – verrät nicht, ob die Adresse einen Zugang hat
+            audit(db, "Anmeldung fehlgeschlagen (Portal)", ip=client, target=mail, detail="unbekanntes Konto", ok=False)
             raise HTTPException(401, "E-Mail oder Passwort falsch.")
         if not verify_password(data.password, u["password_hash"]):
+            audit(db, "Anmeldung fehlgeschlagen (Portal)", actor=u["name"] or mail, ip=client, target=mail,
+                  detail="falsches Passwort", ok=False)
             raise HTTPException(401, "E-Mail oder Passwort falsch.")
+        audit(db, "Anmeldung (Portal)", actor=u["name"] or mail, ip=client, target=mail)
         if needs_rehash(u["password_hash"]):
             db.update("portal_users", u["id"], {"password_hash": hash_password(data.password)})
         token = secrets.token_urlsafe(32)
@@ -353,6 +360,12 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         except ValueError as exc:
             raise HTTPException(422, str(exc))
         return {"id": r["id"], "ticket_id": r["ticket_id"], "steps": r["total"]}
+
+    @app.get("/api/portal/posture")
+    def portal_posture(u: dict = Depends(portal_user)) -> dict:
+        """Sicherheitslage des Kunden: Gesamtnote, Bereiche und die wichtigsten Maßnahmen (ohne interne Details)."""
+        svc = getattr(app.state, "posture", None)
+        return {"posture": svc.portal_view(u["customer_id"]) if svc else None}
 
     @app.get("/api/portal/backups")
     def portal_backups(u: dict = Depends(portal_user)) -> list[dict]:

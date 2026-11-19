@@ -167,6 +167,10 @@ def triage_ticket(ctx: AgentContext, ticket_id: int, apply: bool = True) -> dict
             f"Freundliche Grüße\nIhr {ctx.company}-Team"
         )
 
+    # Eine bewusst hoch gesetzte Priorität (Mensch, Backup-Wächter, M365-Check …) wird nie herabgestuft.
+    if ticket["priority"] in ("hoch", "kritisch") and \
+            PRIORITIES.index(ticket["priority"]) > PRIORITIES.index(result["priority"]):
+        result["priority"] = ticket["priority"]
     if apply and ticket["status"] != "geloest":
         ctx.db.update("tickets", ticket_id, {
             "category": result["category"], "priority": result["priority"],

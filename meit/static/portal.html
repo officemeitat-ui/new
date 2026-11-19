@@ -172,7 +172,18 @@
 
     let me = null; let tab = "start";
     const views = {};
-    views.start = async () => h("div", {},
+    views.start = async () => { const pos = (await api("/api/portal/posture").catch(() => ({}))).posture; const col = { gut: "var(--ok)", mittel: "var(--warn)", kritisch: "var(--bad)" }; return h("div", {},
+      pos ? h("div", { class: "card" }, h("h2", {}, "Ihre IT-Sicherheit"),
+        h("div", { class: "row", style: "gap:1.5rem;align-items:flex-start" },
+          h("div", { style: "min-width:110px" }, h("div", { style: `font-size:2.6rem;font-weight:800;line-height:1;color:${col[pos.level] || "inherit"}` }, pos.score),
+            h("div", { class: "muted small" }, `von 100 · ${pos.level}`), pos.trend ? h("div", { class: "small" }, pos.trend > 0 ? `▲ +${pos.trend} seit dem Vormonat` : `▼ ${pos.trend} seit dem Vormonat`) : null),
+          h("div", { style: "flex:1;min-width:240px" }, pos.areas.map((a) => h("div", { style: "display:grid;grid-template-columns:minmax(120px,200px) 1fr 2.6rem;gap:.6rem;align-items:center;padding:.2rem 0" },
+            h("span", { class: "small" }, a.label), h("div", { style: "height:9px;background:var(--soft);border-radius:5px;overflow:hidden;border:1px solid var(--border)" },
+              a.score === null ? null : h("div", { style: `width:${a.score}%;height:100%;background:${col[a.level]}` })),
+            h("strong", { style: "text-align:right" }, a.score === null ? "–" : a.score))))),
+        pos.measures.length ? h("div", { style: "margin-top:.6rem" }, h("strong", {}, "Das sollten wir gemeinsam angehen:"),
+          h("ul", { class: "small" }, pos.measures.map((m) => h("li", {}, h("strong", {}, m.title), " – ", m.action)))) : h("p", { class: "small muted" }, "Aktuell gibt es keinen dringenden Handlungsbedarf."),
+        h("p", { class: "muted small" }, "Automatisch ermittelt aus Microsoft 365, Geräten, Datensicherung und E-Mail-Domain. „–“ = noch nicht erfasst.")) : null,
       h("div", { class: "grid" },
         h("div", { class: "card kpi" }, h("div", { class: "l" }, "Offene Tickets"), h("div", { class: "v" }, me.open_tickets)),
         h("div", { class: "card kpi" }, h("div", { class: "l" }, "Geräte"), h("div", { class: "v" }, me.devices), me.devices_eol ? h("span", { class: "badge bad" }, `${me.devices_eol} ohne Herstellersupport`) : h("span", { class: "badge ok" }, "alle im Support")),
@@ -183,7 +194,7 @@
         h("ol", {}, h("li", {}, "Kurz in der ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("hilfe"); } }, "Hilfe"), " fragen – viele Dinge sind in 2 Minuten gelöst."),
           h("li", {}, "Sonst ein ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("tickets"); } }, "Ticket anlegen"), " – wir melden uns."),
           h("li", {}, "Verdächtige E-Mail? ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("pruefen"); } }, "Hier prüfen lassen"), " – ohne Links anzuklicken."),
-          h("li", {}, "Bei Virus-Verdacht, bereits geklicktem Link oder Ausfall: Gerät vom Netz trennen und sofort anrufen."))));
+          h("li", {}, "Bei Virus-Verdacht, bereits geklicktem Link oder Ausfall: Gerät vom Netz trennen und sofort anrufen.")))) };
 
     views.tickets = async () => {
       const rows = await api("/api/portal/tickets");

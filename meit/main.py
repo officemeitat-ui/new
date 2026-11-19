@@ -44,12 +44,15 @@ from .bookstack import register as register_bookstack
 from .secrets_guard import redact_row, scan as scan_secrets
 from .profitability import register as register_profitability
 from .attachments import register as register_attachments
+from .audit import register as register_audit
 from .backups import register as register_backups
 from .domaincheck import register as register_domains
 from .csat import register as register_csat
 from .hardening import BodyLimit, content_security_policy, script_hashes
 from .inventory import register as register_inventory
 from .m365 import register as register_m365
+from .notify import register as register_notify
+from .posture import register as register_posture
 from .connections import register as register_connections
 from .setup import register as register_setup
 from .todo import register as register_todo
@@ -869,6 +872,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Geräte-Check: eigener Inventar-Agent (nur lesend, kein Befehlskanal) ----------------
     radar.extra.append(register_inventory(app, ctx, settings, admin_only))
+
+    # --- Sicherheitslage je Kunde (Gesamtnote, Bericht, Angebot), Benachrichtigungen, Sicherheitsprotokoll ----
+    register_posture(app, ctx, admin_only, start=settings.db_path != ":memory:")
+    register_notify(app, ctx, settings, admin_only, start=settings.db_path != ":memory:")
+    register_audit(app, db, admin_only)
 
     # --- Erste Schritte: Inbetriebnahme mit Live-Status, Demodaten entfernen -----------------
     register_setup(app, ctx, settings, admin_only)

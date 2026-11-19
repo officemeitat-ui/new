@@ -397,6 +397,7 @@ views.kunde = async (id) => {
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Lizenzen & Verträge"),
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
+    await postureCard(c),
     await m365Card(c),
     await inventoryCard(c),
     await backupCard(c),
@@ -1003,6 +1004,7 @@ views.einstellungen = async () => {
         { label: "2FA", render: (r) => r.totp_enabled ? badge("aktiv", "ok") : badge("aus", r.role === "admin" ? "warn" : "") },
         { label: "Aktiv", render: (r) => (r.active ? "ja" : "nein") }, { label: "Letzte Anmeldung", render: (r) => r.last_login_at || "–" }], state.allUsers || [], (r) => userForm(r))),
     await twoFactorCard(),
+    await notifyCard(),
     await claudeCard(),
     await brandingCard(),
     await secretsCard(),
@@ -3136,7 +3138,8 @@ views.verbindungen = async () => {
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Hinweise"), h("div", { class: "value" }, d.summary.warn), h("div", { class: "sub" }, "verbesserbar")),
       h("div", { class: "card kpi" }, h("div", { class: "label" }, "Sicher"), h("div", { class: "value" }, d.summary.ok), h("div", { class: "sub" }, `${d.summary.aus} nicht eingerichtet`))),
     await todoCard(),
-    items.map(card));
+    items.map(card),
+    await auditCard());
   if (document.body.contains(certBoxPlaceholder)) certBoxPlaceholder.replaceWith(await certBox(cert, () => render()));
 };
 
@@ -3300,7 +3303,7 @@ async function domainCard(c) {
 const WO_WAS = [
   ["Tagesgeschäft", [["Tickets", "tickets", "Anfragen der Kunden, Verlauf, Antworten, Zeit buchen"], ["Posteingang", "posteingang", "E-Mails und Anfragen – der KI-Mitarbeiter sortiert vor, du gibst frei"],
     ["Wartung", "wartung", "Wiederkehrende Prüfungen mit Nachweis"], ["Ein- & Austritte", "mitarbeiter", "Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste"]]],
-  ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
+  ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Sicherheitslage", "sicherheitslage", "Eine Note je Kunde aus allen Quellen, Bericht als PDF, Angebot aus den Maßnahmen"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
     ["Geräte-Check", "inventar", "Eigener Agent: Verschlüsselung, Virenschutz, Updates, Speicherplatz"], ["Datensicherung", "backups", "Ampel aus den Sicherungsberichten, Alarm bei Fehlern"],
     ["Domains & E-Mail", "domains", "Schutz gegen gefälschte Absender, Zertifikate"], ["Microsoft 365", "m365", "MFA, Weiterleitungen, Lizenzabgleich je Kunde"]]],
   ["Geld", [["Abrechnung", "abrechnung", "Zeiten, Rechnungslauf, Zahlungen, Mahnwesen, Firmendaten"], ["Lizenzen & Verträge", "lizenzen", "Verlängerungen, Fristen, Marge"],
@@ -3465,6 +3468,150 @@ async function inventoryCard(c) {
     d.devices.length ? inventoryTable(d.devices, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch kein Gerät mit Agent. Zeigt je Gerät Verschlüsselung, Virenschutz, Updates und Speicherplatz – nur lesend."));
 }
 
+// ---- Benachrichtigungen (Glocke)
+let notifTimer = null;
+async function refreshBell() {
+  const bell = document.getElementById("notif-bell");
+  if (!bell) return;
+  const d = await api("/api/notifications?unread=true&limit=1").catch(() => null);
+  if (!d) return;
+  const c = document.getElementById("notif-count");
+  c.hidden = !d.unread; c.textContent = d.unread > 99 ? "99+" : String(d.unread);
+  bell.title = d.unread ? `${d.unread} ungelesene Benachrichtigung(en)` : "Benachrichtigungen";
+}
+
+async function toggleNotifPanel() {
+  const open = document.getElementById("notif-panel");
+  if (open) { open.remove(); return; }
+  const d = await api("/api/notifications?limit=40").catch(() => ({ unread: 0, items: [] }));
+  const sev = { kritisch: "bad", hoch: "warn" };
+  const panel = h("div", { class: "notif-panel", id: "notif-panel", role: "dialog", "aria-label": "Benachrichtigungen" },
+    h("header", {}, h("strong", {}, "Benachrichtigungen"), h("span", { class: "spacer" }),
+      d.unread ? h("button", { class: "btn small", onclick: async () => { await api("/api/notifications/read", { method: "POST", body: {} }); panel.remove(); refreshBell(); } }, "Alle gelesen") : null,
+      h("a", { class: "btn small", href: "#/einstellungen", onclick: () => panel.remove(), title: "Kanäle einstellen" }, "⚙")),
+    d.items.length ? d.items.map((n) => h("a", { class: `notif-item ${n.read_at ? "" : "unread"}`, href: n.link ? `#/${n.link}` : "#/dashboard", onclick: async () => {
+      panel.remove(); if (!n.read_at) { await api("/api/notifications/read", { method: "POST", body: { ids: [n.id] } }).catch(() => {}); refreshBell(); } } },
+      h("div", { class: "row", style: "gap:.4rem" }, sev[n.severity] ? badge(n.severity, sev[n.severity]) : null, h("span", { class: "small muted" }, `${dt(n.created_at)} ${n.created_at.slice(11, 16)}`)),
+      h("div", { class: "t" }, n.title), n.body ? h("div", { class: "b" }, n.body) : null))
+      : h("div", { class: "empty", style: "padding:1.5rem" }, "Keine Benachrichtigungen."));
+  document.body.append(panel);
+  const closer = (e) => { if (!panel.contains(e.target) && e.target.id !== "notif-bell" && !e.target.closest("#notif-bell")) { panel.remove(); document.removeEventListener("click", closer); } };
+  setTimeout(() => document.addEventListener("click", closer), 0);
+}
+
+async function notifyCard() {
+  const s = await api("/api/notifications/settings").catch(() => null);
+  if (!s) return null;
+  const box = h("div", { class: "card", style: "margin-top:1rem" });
+  const email = h("input", { type: "email", value: s.email_to, placeholder: "technik@ihre-firma.at" });
+  const teams = h("input", { placeholder: s.teams_set ? `eingetragen (${s.teams_hint}) – leer lassen = unverändert, „-“ = entfernen` : "https://… (Teams → Workflows → „Beim Empfang einer Teams-Webhookanforderung“)" });
+  const prio = h("select", { style: "width:auto" }, [["hoch", "hoch und kritisch"], ["kritisch", "nur kritisch"], ["normal", "ab normal"]].map(([v, l]) => h("option", { value: v, selected: s.min_priority === v }, l)));
+  const digestOn = h("input", { type: "checkbox", checked: s.digest.enabled, style: "width:auto" });
+  const digestHour = h("select", { style: "width:auto" }, [6, 7, 8, 9].map((x) => h("option", { value: x, selected: s.digest.hour === x }, `${x}:00 Uhr`)));
+  const boxes = {};
+  const grid = table([{ label: "Ereignis", render: (r) => r.label },
+    ...[["app", "Glocke"], ["email", "E-Mail"], ["teams", "Teams"]].map(([ch, label]) => ({ label, render: (r) => { const cb = h("input", { type: "checkbox", checked: s.events[r.kind][ch], style: "width:auto" }); (boxes[r.kind] = boxes[r.kind] || {})[ch] = cb; return cb; } }))],
+    ["ticket", "portal", "security"].map((k) => ({ kind: k, label: s.kinds[k] })));
+  const save = async () => api("/api/notifications/settings", { method: "PUT", body: { email_to: email.value, teams_webhook: teams.value, min_priority: prio.value,
+    events: Object.fromEntries(Object.entries(boxes).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([c, cb]) => [c, cb.checked]))])),
+    digest: { enabled: digestOn.checked, hour: Number(digestHour.value) } } });
+  fill(box, h("div", { class: "card-head" }, h("h2", {}, "Benachrichtigungen"), h("span", { class: "small muted" }, "Glocke oben rechts · E-Mail · Microsoft Teams")),
+    h("p", { class: "small muted" }, "Dringende Tickets schließen fehlgeschlagene Sicherungen, externe Weiterleitungen in Microsoft 365 und Phishing-Meldungen automatisch ein."),
+    h("div", { class: "form-grid" }, h("div", {}, h("label", {}, "E-Mail an"), email, !s.mail_available ? h("div", { class: "small", style: "color:var(--warn)" }, "Kein Mailversand eingerichtet (Postfach verbinden).") : null),
+      h("div", {}, h("label", {}, "Teams-Webhook"), teams)),
+    grid,
+    h("div", { class: "row", style: "gap:1rem;flex-wrap:wrap;margin-top:.6rem" }, h("label", { class: "small", style: "font-weight:400" }, "Tickets melden: ", prio),
+      h("label", { class: "row small", style: "gap:.4rem;font-weight:400" }, digestOn, "Tagesstart per E-Mail um", digestHour)),
+    s.last_error ? h("p", { class: "small", style: "color:var(--warn)" }, `Letzter Fehler: ${s.last_error}`) : null,
+    h("div", { class: "row", style: "margin-top:.7rem;gap:.4rem" },
+      h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => { await save(); toast("Gespeichert"); box.replaceWith(await notifyCard()); }) }, "Speichern"),
+      h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { await save(); const r = await api("/api/notifications/test", { method: "POST" });
+        toast(Object.entries(r.channels).map(([k, v]) => `${{ app: "Glocke", email: "E-Mail", teams: "Teams" }[k]}: ${v}`).join(" · "), Object.values(r.channels).some((v) => v !== "ok" && v !== "aus")); refreshBell(); }) }, "Speichern & testen"),
+      h("button", { class: "btn", onclick: async () => { const d = await api("/api/notifications/digest"); modal("Tagesstart (Vorschau)", h("pre", { style: "white-space:pre-wrap;font-family:inherit" }, d.text)); } }, "Tagesstart ansehen")));
+  return box;
+}
+
+// ---- Sicherheitsprotokoll
+async function auditCard() {
+  const box = h("div", { class: "card", style: "margin-bottom:1rem" });
+  let q = "", failed = false;
+  const load = async () => {
+    const d = await api(`/api/audit?limit=60&q=${encodeURIComponent(q)}${failed ? "&failed=true" : ""}`).catch(() => null);
+    if (!d) { fill(box, h("h2", {}, "Sicherheitsprotokoll"), h("p", { class: "small muted" }, "Nur für Admins.")); return; }
+    const search = h("input", { value: q, placeholder: "Suchen (Aktion, Person, Adresse) …", style: "max-width:280px", onkeydown: (e) => { if (e.key === "Enter") { q = e.target.value; load(); } } });
+    fill(box, h("div", { class: "card-head" }, h("h2", {}, "Sicherheitsprotokoll"),
+        h("a", { class: "btn small", href: `/api/audit/export.csv?q=${encodeURIComponent(q)}${failed ? "&failed=true" : ""}` }, "CSV")),
+      h("p", { class: "small muted" }, `Anmeldungen, Änderungen, Exporte und Löschungen – ${d.summary.logins_30d} Anmeldungen und ${d.summary.failed_30d} Fehlversuche in 30 Tagen, Aufbewahrung ${d.summary.retention_days} Tage.`),
+      h("div", { class: "row", style: "gap:.5rem;margin-bottom:.5rem" }, search, h("label", { class: "row small", style: "gap:.3rem;font-weight:400" },
+        h("input", { type: "checkbox", checked: failed, style: "width:auto", onchange: (e) => { failed = e.target.checked; load(); } }), "nur Fehlgeschlagene")),
+      d.entries.length ? table([{ label: "Zeit", render: (r) => `${dt(r.at)} ${r.at.slice(11, 16)}` }, { label: "Wer", render: (r) => r.actor || "–" },
+        { label: "Aktion", render: (r) => h("span", {}, r.ok ? null : badge("fehlgeschlagen", "bad"), " ", r.action) },
+        { label: "Ziel", render: (r) => h("span", { class: "small", style: "overflow-wrap:anywhere" }, [r.target, r.detail].filter(Boolean).join(" · ")) },
+        { label: "Adresse", render: (r) => h("span", { class: "small muted" }, r.ip) }], d.entries) : h("div", { class: "empty" }, "Keine Einträge."));
+  };
+  await load();
+  return box;
+}
+
+// ---- Sicherheitslage je Kunde
+const LEVEL_CLS = { gut: "ok", mittel: "warn", kritisch: "bad", unbekannt: "" };
+const trendText = (t) => t === null || t === undefined ? "" : t > 0 ? `▲ +${t}` : t < 0 ? `▼ ${t}` : "● unverändert";
+function areaBars(areas) {
+  return h("div", {}, areas.map((a) => h("div", { class: "area-bar", title: a.hint || a.note },
+    h("div", {}, h("strong", { style: "font-weight:500" }, a.label), h("div", { class: "small muted" }, a.note || "")),
+    h("div", { class: "track" }, a.score === null ? null : h("div", { class: `fill ${a.level}`, style: `width:${a.score}%` })),
+    h("div", { style: "text-align:right;font-weight:700" }, a.score === null ? h("span", { class: "muted", style: "font-weight:400" }, "–") : a.score))));
+}
+
+async function postureReport(cid, name) {
+  const r = await api(`/api/posture/${cid}/report`);
+  modal("IT-Sicherheitsbericht", h("div", {}, md(r.text)), [
+    copyButton(() => r.text),
+    h("a", { class: "btn", href: `/api/posture/${cid}/report.pdf`, target: "_blank", rel: "noopener" }, "PDF ansehen"),
+    archiveButton(r.title, () => r.text, cid, "bericht"),
+    r.measures.length ? (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const q = await api(`/api/posture/${cid}/quote`, { method: "POST" }); close(); toast(`Angebot „${q.title}“ angelegt`); location.hash = "#/angebote"; }) }, "Angebot aus Maßnahmen") : null,
+  ].filter(Boolean));
+}
+
+async function postureCard(c) {
+  const p = await api(`/api/posture/${c.id}`).catch(() => null);
+  if (!p) return null;
+  const urgent = p.measures.filter((m) => ["kritisch", "hoch"].includes(m.severity));
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Sicherheitslage"), h("div", { class: "row", style: "gap:.3rem" },
+      h("button", { class: "btn small primary", onclick: () => postureReport(c.id, c.name) }, "Sicherheitsbericht"))),
+    h("div", { class: "row", style: "gap:1.2rem;align-items:flex-start;flex-wrap:wrap" },
+      h("div", { style: "min-width:120px" }, p.score === null ? h("div", { class: "big-score", style: "color:var(--muted)" }, "–") : h("div", { class: `big-score ${p.level}` }, p.score),
+        h("div", { class: "small muted" }, p.score === null ? "noch keine Daten" : `von 100 · ${p.level}`),
+        p.trend !== null ? h("div", { class: "small" }, trendText(p.trend)) : null, h("div", { class: "small muted" }, `${p.coverage} von 5 Bereichen erfasst`)),
+      h("div", { style: "flex:1;min-width:260px" }, areaBars(p.areas))),
+    urgent.length ? h("ul", { class: "list", style: "margin-top:.5rem" }, urgent.slice(0, 4).map((m) => h("li", { class: "row" }, badge(m.severity, SEV_DOM[m.severity]), h("span", {}, m.title),
+      h("span", { class: "spacer" }), h("span", { class: "small muted" }, m.area_label)))) : null,
+    urgent.length > 4 ? h("div", { class: "small muted" }, `+ ${urgent.length - 4} weitere im Sicherheitsbericht`) : null);
+}
+
+views.sicherheitslage = async () => {
+  const d = await api("/api/posture");
+  setTitle("Sicherheitslage der Kunden");
+  const keys = Object.keys(d.area_labels);
+  const cell = (v) => v === null || v === undefined ? h("span", { class: "muted" }, "–") : h("span", { class: `dscore ${v >= 80 ? "ok" : v >= 60 ? "warn" : "bad"}` }, v);
+  show(
+    h("p", { class: "small muted" }, "Eine Note je Kunde aus Microsoft 365, Geräte-Check, Datensicherung, E-Mail-Domain und Security-Check. „–“ bedeutet: diese Quelle ist beim Kunden noch nicht angebunden – ein blinder Fleck und eine Verkaufschance."),
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Ø Sicherheitslage"), h("div", { class: "value" }, d.summary.avg === null ? "–" : d.summary.avg), h("div", { class: "sub" }, "von 100")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Kritisch"), h("div", { class: "value", style: d.summary.critical ? "color:var(--bad)" : "" }, d.summary.critical), h("div", { class: "sub" }, "Kunden unter 60 Punkten")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Voll erfasst"), h("div", { class: "value" }, d.summary.full), h("div", { class: "sub" }, "alle 5 Bereiche angebunden")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Blind"), h("div", { class: "value" }, d.summary.uncovered), h("div", { class: "sub" }, "Kunden ohne jede Datenquelle"))),
+    h("div", { class: "card" }, table([
+      { label: "Kunde", render: (r) => h("div", {}, h("strong", {}, r.customer), h("div", { class: "small muted" }, r.top || (r.score === null ? "noch nichts angebunden" : "kein Handlungsbedarf"))) },
+      { label: "Gesamt", render: (r) => h("span", {}, cell(r.score), r.trend ? h("span", { class: "small muted" }, ` ${trendText(r.trend)}`) : null) },
+      ...keys.map((k) => ({ label: d.area_labels[k].replace("Identität & ", "").replace(" & Richtlinien", ""), render: (r) => cell(r.areas[k]) })),
+      { label: "Befunde", render: (r) => h("span", {}, r.counts.kritisch ? badge(`${r.counts.kritisch} kritisch`, "bad") : null, " ", r.counts.hoch ? badge(`${r.counts.hoch} hoch`, "warn") : null) },
+      { label: "", render: (r) => h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); postureReport(r.customer_id, r.customer); } }, "Bericht") },
+    ], d.customers, (r) => { location.hash = `#/kunde/${r.customer_id}`; })));
+};
+
 async function render() {
   const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
   const [path, query] = hash.split("?");
@@ -3557,3 +3704,6 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 })();
 refreshAiStatus();
 setInterval(refreshAiStatus, 30000);
+document.getElementById("notif-bell")?.addEventListener("click", toggleNotifPanel);
+refreshBell();
+notifTimer = setInterval(refreshBell, 60000);

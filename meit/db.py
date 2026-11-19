@@ -665,6 +665,45 @@ CREATE TABLE IF NOT EXISTS agent_devices (
 
 CREATE INDEX IF NOT EXISTS idx_agent_devices_customer ON agent_devices(customer_id);
 
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    actor TEXT DEFAULT '',
+    user_id INTEGER,
+    ip TEXT DEFAULT '',
+    action TEXT NOT NULL,
+    target TEXT DEFAULT '',
+    detail TEXT DEFAULT '',
+    ok INTEGER DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    kind TEXT NOT NULL,
+    severity TEXT DEFAULT 'info',
+    title TEXT NOT NULL,
+    body TEXT DEFAULT '',
+    link TEXT DEFAULT '',
+    ref TEXT DEFAULT '',
+    read_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read_at, id);
+
+CREATE TABLE IF NOT EXISTS posture_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    month TEXT NOT NULL,
+    score INTEGER,
+    areas TEXT DEFAULT '{}',
+    updated_at TEXT DEFAULT '',
+    UNIQUE(customer_id, month)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -758,6 +797,9 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                     "last_at", "last_success_at", "ticket_id"},
     "backup_runs": {"job_id", "status", "at", "subject", "details", "message_id"},
     "domain_checks": {"customer_id", "domain", "source", "last_check", "score", "result", "ignored", "tickets"},
+    "audit_log": {"at", "actor", "user_id", "ip", "action", "target", "detail", "ok"},
+    "notifications": {"user_id", "kind", "severity", "title", "body", "link", "ref", "read_at"},
+    "posture_history": {"customer_id", "month", "score", "areas", "updated_at"},
     "agent_keys": {"customer_id", "key_hash", "hint", "expires_at", "uses", "active"},
     "agent_devices": {"customer_id", "asset_id", "hostname", "serial", "token_hash", "agent_version", "enrolled_at",
                       "last_seen", "last_ip", "data", "ignored", "ticket_id", "active"},
@@ -770,7 +812,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks", "agent_keys", "agent_devices",
+    "domain_checks", "agent_keys", "agent_devices", "notifications",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

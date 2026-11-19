@@ -228,6 +228,7 @@ def make_admin_dependency(db: Database):
 
 def register(app: FastAPI, db: Database, login_limiter, vault: Any = None, company: str = "ME-IT") -> None:
     from .hardening import (new_recovery_codes, otpauth_uri, recovery_hash, totp_new_secret, totp_verify)
+    from .audit import record as audit
     from .mitarbeiter_api import RateLimiter
 
     admin_only = make_admin_dependency(db)
@@ -261,10 +262,14 @@ def register(app: FastAPI, db: Database, login_limiter, vault: Any = None, compa
         if not login_limiter.allow(f"login:{client}"):
             raise HTTPException(429, "Zu viele Versuche – bitte in einigen Minuten erneut.")
         user = db.query_one("SELECT * FROM users WHERE lower(email) = lower(?) AND active = 1", (data.email.strip(),))
+        mail = data.email.strip().lower()[:200]
         if not user:
             dummy_verify(data.password)
+            audit(db, "Anmeldung fehlgeschlagen", ip=client, target=mail, detail="unbekanntes Konto", ok=False)
             raise HTTPException(401, "E-Mail oder Passwort falsch.")
         if not verify_password(data.password, user["password_hash"]):
+            audit(db, "Anmeldung fehlgeschlagen", actor=user["name"], user_id=user["id"], ip=client, target=mail,
+                  detail="falsches Passwort", ok=False)
             raise HTTPException(401, "E-Mail oder Passwort falsch.")
         if user.get("totp_enabled"):
             if not (data.code or "").strip():
@@ -273,7 +278,11 @@ def register(app: FastAPI, db: Database, login_limiter, vault: Any = None, compa
             if not code_limiter.allow(f"totp:{user['id']}"):
                 raise HTTPException(429, "Zu viele Code-Versuche – bitte in einigen Minuten erneut.")
             if not second_factor_ok(user, data.code):
+                audit(db, "Anmeldung fehlgeschlagen", actor=user["name"], user_id=user["id"], ip=client, target=mail,
+                      detail="falscher Zwei-Faktor-Code", ok=False)
                 return JSONResponse({"detail": "Code falsch oder abgelaufen.", "totp_required": True}, status_code=401)
+        audit(db, "Anmeldung", actor=user["name"], user_id=user["id"], ip=client, target=mail,
+              detail="mit Zwei-Faktor-Code" if user.get("totp_enabled") else "")
         if needs_rehash(user["password_hash"]):
             db.update("users", user["id"], {"password_hash": hash_password(data.password)})
         token = secrets.token_urlsafe(32)
