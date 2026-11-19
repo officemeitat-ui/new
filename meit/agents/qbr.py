@@ -118,6 +118,9 @@ def create_qbr(ctx: AgentContext, customer_id: int, today: date | None = None) -
     from ..domaincheck import report_lines as domain_lines
 
     lines += domain_lines(db, customer_id)[0]
+    from ..inventory import report_lines as device_lines
+
+    lines += device_lines(db, customer_id)[0]
     if wartung["count"]:
         restore = sum(1 for r in wartung["done"] if "Restore" in r["title"])
         lines.append(f"- Vorbeugende Wartung: **{wartung['count']} Prüfungen** durchgeführt"

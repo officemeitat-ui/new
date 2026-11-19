@@ -334,7 +334,10 @@
     views.geraete = async () => {
       const rows = await api("/api/portal/assets");
       return h("div", { class: "card" }, h("h2", {}, "Ihre Geräte"), table([["Gerät", (r) => r.name], ["Typ", (r) => r.type], ["Betriebssystem", (r) => r.os || "–"],
-        ["Herstellersupport", (r) => h("span", { class: `badge ${r.support === "ok" ? "ok" : r.support === "abgelaufen" ? "bad" : "warn"}` }, r.support)], ["Garantie bis", (r) => dt(r.warranty_end)]], rows),
+        ["Herstellersupport", (r) => h("span", { class: `badge ${r.support === "ok" ? "ok" : r.support === "abgelaufen" ? "bad" : "warn"}` }, r.support)],
+        ...(rows.some((r) => r.health) ? [["Schutz", (r) => r.health ? h("span", {}, [["encrypted", "verschlüsselt", "unverschlüsselt"], ["antivirus", "Virenschutz", "Virenschutz prüfen"], ["updates", "aktuell", "Updates fehlen"]]
+          .filter(([k]) => r.health[k] !== null).map(([k, good, bad]) => h("span", { class: `badge ${r.health[k] ? "ok" : "bad"}`, style: "margin-right:.2rem" }, r.health[k] ? good : bad))) : h("span", { class: "muted" }, "–")]] : []),
+        ["Garantie bis", (r) => dt(r.warranty_end)]], rows),
         h("p", { class: "muted small" }, "Geräte ohne Herstellersupport bekommen keine Sicherheitsupdates mehr – sprechen Sie uns auf einen Tausch an."));
     };
 

@@ -199,11 +199,14 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
     @app.get("/api/portal/assets")
     def assets(u: dict = Depends(portal_user)) -> list[dict]:
         today = date.today()
-        rows = db.query("SELECT name, type, os, warranty_end FROM assets WHERE customer_id = ? ORDER BY name", (u["customer_id"],))
+        rows = db.query("SELECT id, name, type, os, warranty_end FROM assets WHERE customer_id = ? ORDER BY name", (u["customer_id"],))
+        inv = getattr(app.state, "inventory", None)
+        health = inv.portal_health(u["customer_id"]) if inv else {}
         for r in rows:
             info = eol_info(r["os"] or "")
             r["support"] = ("abgelaufen" if info and info[0] <= today else
                             f"endet {info[0].strftime('%d.%m.%Y')}" if info and info[0] <= today + timedelta(days=548) else "ok")
+            r["health"] = health.get(r.pop("id"))  # Verschlüsselung/Virenschutz/Updates laut Geräte-Check
         return rows
 
     @app.post("/api/portal/tickets/{tid}/rating")

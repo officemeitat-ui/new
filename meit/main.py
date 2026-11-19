@@ -48,6 +48,7 @@ from .backups import register as register_backups
 from .domaincheck import register as register_domains
 from .csat import register as register_csat
 from .hardening import BodyLimit, content_security_policy, script_hashes
+from .inventory import register as register_inventory
 from .m365 import register as register_m365
 from .connections import register as register_connections
 from .setup import register as register_setup
@@ -865,6 +866,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # --- Microsoft To Do je Benutzer, Verbindungs-Center (Zertifikat, Rechte-Prüfung) -------
     register_todo(app, ctx, settings, vault, start=settings.db_path != ":memory:")
     register_connections(app, ctx, settings, admin_only, ctx.docs.data_dir)
+
+    # --- Geräte-Check: eigener Inventar-Agent (nur lesend, kein Befehlskanal) ----------------
+    radar.extra.append(register_inventory(app, ctx, settings, admin_only))
 
     # --- Erste Schritte: Inbetriebnahme mit Live-Status, Demodaten entfernen -----------------
     register_setup(app, ctx, settings, admin_only)

@@ -224,6 +224,7 @@ views.dashboard = async () => {
   const [d, km, pay, wt, cs, ms, staff, bk] = await Promise.all([api("/api/dashboard"), api("/api/ki-mitarbeiter/overview").catch(() => null),
     api("/api/payments/summary").catch(() => null), api("/api/maintenance").catch(() => null), api("/api/csat").catch(() => null),
     api("/api/m365").catch(() => null), api("/api/staff").catch(() => []), api("/api/backups").catch(() => null)]);
+  const inv = await api("/api/inventory").catch(() => null);
   const tenants = ms ? ms.tenants.filter((t) => t.last_sync) : [];
   const m365crit = tenants.reduce((a, t) => a + t.findings.kritisch, 0);
   const staffSoon = staff.filter((r) => r.days === null || r.days <= 14);
@@ -251,6 +252,8 @@ views.dashboard = async () => {
       wt ? kpi("Wartung", `${wt.open} fällig`, wt.tasks ? `${wt.overdue} überfällig · ${wt.done_this_month} erledigt (Monat)` : `${wt.customers_without_plan} Managed-Kunden ohne Plan`, "", "#/wartung") : null,
       bk && bk.summary.jobs ? kpi("Datensicherung", bk.summary.fehler + bk.summary.ueberfaellig ? `${bk.summary.fehler + bk.summary.ueberfaellig} Problem(e)` : "alles ok",
         `${bk.summary.jobs} überwacht · ${bk.summary.warnung} Warnung${bk.summary.unassigned ? ` · ${bk.summary.unassigned} ohne Kunde` : ""}`, "", "#/backups") : null,
+      inv && inv.summary.reported ? kpi("Geräte-Check", inv.summary.critical + inv.summary.high ? `${inv.summary.critical + inv.summary.high} Befunde` : "alles ok",
+        `${inv.summary.reported} Geräte · ${inv.summary.unencrypted} unverschlüsselt`, "", "#/inventar") : null,
       tenants.length ? kpi("Microsoft 365", m365crit ? `${m365crit} kritisch` : "ok", `${tenants.length} Tenants · ${eur2(tenants.reduce((a, t) => a + t.gap_month, 0))} nicht verrechnet`, "", "#/m365") : null,
       kpi("Umsatz-Potenzial", eur(d.radar_annual), `${d.radar_count} Chancen · +${eur(d.radar_monthly)}/Monat`, "accent")),
     h("div", { class: "grid two" },
@@ -395,6 +398,7 @@ views.kunde = async (id) => {
         h("button", { class: "btn small", onclick: () => subscriptionForm(null, c.id) }, "+ Lizenz/Vertrag")),
         subs.length ? subscriptionTable(subs, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Lizenzen erfasst (M365, Virenschutz, Domains, Zertifikate, Wartung …).")); })(),
     await m365Card(c),
+    await inventoryCard(c),
     await backupCard(c),
     await domainCard(c),
     await staffCard(c),
@@ -2818,7 +2822,8 @@ async function m365Connect(cid, name = "") {
 }
 
 async function m365Card(c) {
-  const d = await api(`/api/m365/${c.id}`).catch(() => null);
+  const st = await api("/api/m365").catch(() => null);  // erst prüfen, ob der Kunde verbunden ist (vermeidet 404 im Protokoll)
+  const d = st && st.tenants.some((t) => t.customer_id === c.id) ? await api(`/api/m365/${c.id}`).catch(() => null) : null;
   const head = (extra) => h("div", { class: "card-head" }, h("h2", {}, "Microsoft 365"), extra);
   if (!d) return h("div", { class: "card", style: "margin-bottom:1rem" }, head(h("button", { class: "btn small", onclick: () => m365Connect(c.id, c.name) }, "Verbinden")),
     h("p", { class: "small muted", style: "margin:0" }, "MFA, verdächtige Weiterleitungen, Admin-Konten, Secure Score und Lizenzabgleich mit der Rechnung – automatisch, nur lesend."));
@@ -3354,6 +3359,110 @@ async function setupBanner() {
       h("a", { class: "btn small primary", href: "#/start" }, "Erste Schritte"),
       h("button", { class: "btn small", title: "Hinweis ausblenden", onclick: async (e) => { await api("/api/setup/dismiss", { method: "POST", body: { done: true } }).catch((x) => toast(x.message, true)); e.target.closest(".card").remove(); } }, "✕")),
     d.next ? h("div", { class: "small muted" }, `Als Nächstes: ${d.next.title} (${d.next.where})`) : null);
+}
+
+// ---- Geräte-Check (eigener Inventar-Agent, nur lesend)
+const lock = (v) => v === "on" ? badge("verschlüsselt", "ok") : v === "off" ? badge("unverschlüsselt", "bad") : h("span", { class: "muted" }, "–");
+
+function inventoryTable(devices, withCustomer = true) {
+  return table([
+    { label: "Gerät", render: (d) => h("div", {}, h("strong", {}, d.hostname), h("div", { class: "small muted" }, [withCustomer ? d.customer : "", d.model].filter(Boolean).join(" · "))) },
+    { label: "Punkte", render: (d) => d.active ? scoreBadge(d.score) : badge("gesperrt") },
+    { label: "Windows", render: (d) => d.os || "–" },
+    { label: "Benutzer", render: (d) => h("span", { class: "small" }, d.user || "–") },
+    { label: "Platte", render: (d) => lock(d.bitlocker) },
+    { label: "Frei C:", num: true, render: (d) => d.disk_free_gb === null ? "–" : `${Math.round(d.disk_free_gb)} GB` },
+    { label: "Befunde", render: (d) => h("span", { class: "small" }, d.counts.kritisch ? badge(`${d.counts.kritisch} kritisch`, "bad") : null, " ", d.counts.hoch ? badge(`${d.counts.hoch} hoch`, "warn") : null,
+      h("div", { class: "muted" }, d.top || (d.reported ? "alles in Ordnung" : "wartet auf erste Meldung"))) },
+    { label: "Gemeldet", render: (d) => d.last_seen ? dt(d.last_seen) : "–" },
+  ], devices, (d) => inventoryDetail(d.id));
+}
+
+async function inventoryDetail(id) {
+  let d = await api(`/api/inventory/${id}`);
+  const body = h("div", {});
+  const reload = async () => { d = await api(`/api/inventory/${id}`); paint(); };
+  const paint = () => {
+    const x = d.data || {}, os = x.os || {};
+    const row = (k, v) => v === null || v === undefined || v === "" ? null : h("tr", {}, h("td", { class: "muted", style: "white-space:nowrap;padding-right:1rem" }, k), h("td", {}, v));
+    const yes = (v) => v === true ? "ja" : v === false ? "nein" : null;
+    fill(body,
+      h("p", { class: "small muted" }, `${d.customer} · gemeldet ${d.last_seen ? dt(d.last_seen) + " " + d.last_seen.slice(11, 16) : "noch nie"} · Agent ${d.agent_version || "–"}${d.active ? "" : " · GESPERRT"}`),
+      h("div", { class: "row", style: "gap:.6rem;margin-bottom:.4rem" }, scoreBadge(d.score), lock(d.bitlocker), h("span", { class: "small" }, [x.manufacturer, x.model].filter(Boolean).join(" "))),
+      d.findings.length ? h("ul", { class: "list" }, d.findings.map((f) => h("li", { style: f.ignored ? "opacity:.55" : "" },
+        h("div", { class: "row" }, badge(f.severity, SEV_DOM[f.severity]), h("strong", {}, f.title), h("span", { class: "spacer" }),
+          f.severity !== "info" ? h("button", { class: "btn small", onclick: async () => { await api(`/api/inventory/${id}/findings/${f.key}/ignore`, { method: "POST", body: { ignore: !f.ignored } }); reload(); } }, f.ignored ? "Wieder anzeigen" : "Ausblenden") : null),
+        h("div", { class: "small" }, f.detail), h("div", { class: "small" }, h("strong", {}, "Empfohlen: "), f.action))))
+        : h("p", {}, d.reported ? "✓ Keine Befunde." : "Das Gerät hat sich registriert, aber noch nichts gemeldet."),
+      d.reported ? h("details", { style: "margin-top:.6rem" }, h("summary", {}, h("strong", {}, "Technische Daten")),
+        h("table", { style: "font-size:.88rem;margin-top:.4rem" }, [
+          row("Windows", `${os.caption || ""} ${os.version || ""}`.trim()), row("Installiert", os.install_date ? dt(os.install_date) : ""), row("Letzter Start", os.last_boot ? dt(os.last_boot) : ""),
+          row("Seriennummer", x.serial), row("Prozessor", x.cpu), row("Arbeitsspeicher", x.ram_gb ? `${x.ram_gb} GB` : ""), row("Domäne", x.domain), row("Angemeldet", x.user),
+          row("Laufwerke", (x.disks || []).map((k) => `${k.drive} ${Math.round(k.free_gb)} von ${Math.round(k.size_gb)} GB frei`).join(" · ")),
+          row("TPM", x.tpm && x.tpm.present !== null ? (x.tpm.present ? `ja (${x.tpm.version || "?"})` : "nein") : ""), row("Secure Boot", yes(x.secure_boot)),
+          row("Virenschutz", (x.antivirus || []).map((a) => `${a.name}${a.enabled ? "" : " (aus)"}`).join(", ")), row("Defender-Echtzeitschutz", yes((x.defender || {}).realtime)),
+          row("Firewall", x.firewall ? ["domain", "private", "public"].map((k) => `${k}: ${yes(x.firewall[k]) || "?"}`).join(" · ") : ""),
+          row("Letztes Update", (x.updates || {}).last_installed ? dt(x.updates.last_installed) : ""), row("Neustart ausständig", yes((x.updates || {}).pending_reboot)),
+          row("Lokale Admins", (x.local_admins || []).join(", ")), row("RDP aktiv", yes(x.rdp_enabled))])) : null,
+      d.reported && (x.software || []).length ? h("details", { style: "margin-top:.4rem" }, h("summary", {}, h("strong", {}, `Software (${x.software.length})`)),
+        table([{ label: "Name", key: "name" }, { label: "Version", key: "version" }, { label: "Hersteller", key: "publisher" }], x.software)) : null);
+  };
+  paint();
+  modal(`Gerät ${d.hostname}`, body, [
+    h("button", { class: "btn danger", title: "Gerät aus dem Geräte-Check entfernen", onclick: async () => { if (!confirm("Gerät entfernen? Es kann danach nichts mehr melden (neu registrieren möglich).")) return; await api(`/api/inventory/${id}`, { method: "DELETE" }); document.querySelector(".modal-backdrop")?.remove(); render(); } }, "Entfernen"),
+    h("button", { class: "btn", onclick: async () => { await api(`/api/inventory/${id}/active`, { method: "PUT", body: { ignore: d.active } }); toast(d.active ? "Gesperrt – Meldungen werden abgelehnt" : "Wieder zugelassen"); reload(); render(); } }, d.active ? "Sperren" : "Zulassen"),
+    d.ticket_id ? h("button", { class: "btn", onclick: () => ticketDetail(d.ticket_id) }, `Ticket #${d.ticket_id}`) : null,
+    h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => { const r = await api(`/api/inventory/${id}/ticket`, { method: "POST" }); toast(`Ticket #${r.ticket_id}`); reload(); }) }, "Ticket mit Befunden"),
+  ].filter(Boolean));
+}
+
+async function agentInstall(customerId = null) {
+  await loadCustomers();
+  const cust = h("select", {}, state.customers.map((c) => h("option", { value: c.id, selected: c.id === customerId }, c.name)));
+  const out = h("div", {});
+  modal("Inventar-Agent installieren", h("div", {},
+    h("p", { class: "small" }, "Der Agent ist ein kleines PowerShell-Skript, das als geplanter Task läuft und alle 6 Stunden den Gerätezustand meldet. ",
+      h("strong", {}, "Er liest nur"), " – das Cockpit kann darüber keine Befehle ausführen und keine Software verteilen."),
+    h("ol", { class: "small" }, h("li", {}, h("a", { href: "/api/inventory/agent.ps1" }, "meit-agent.ps1 herunterladen"), " (für alle Kunden gleich, enthält keine Zugangsdaten)"),
+      h("li", {}, "Kunde wählen und Registrierungsschlüssel erzeugen (30 Tage gültig, widerrufbar)"),
+      h("li", {}, "Skript mit dem angezeigten Befehl als Administrator ausführen – einzeln oder verteilt über Atera, Intune oder GPO")),
+    h("label", {}, "Kunde"), cust,
+    h("div", { class: "row", style: "margin-top:.6rem" }, h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const k = await api("/api/inventory/keys", { method: "POST", body: { customer_id: Number(cust.value), days: 30 } });
+      fill(out, h("div", { class: "card", style: "background:var(--surface-2);margin-top:.8rem" },
+        !k.https ? h("p", { class: "small", style: "color:var(--warn)" }, `Achtung: Die Cockpit-Adresse ${k.server} ist nicht per HTTPS erreichbar. Für echte Kundengeräte PUBLIC_URL (https://…) setzen; für Tests im eigenen Netz an den Befehl -AllowHttp anhängen.`) : null,
+        h("div", { class: "small muted" }, "Befehl (der Schlüssel wird nur jetzt angezeigt):"),
+        h("pre", { style: "white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem" }, k.command),
+        h("div", { class: "row" }, copyButton(() => k.command, "Befehl kopieren"), copyButton(() => k.key, "Nur Schlüssel kopieren")),
+        h("p", { class: "small muted" }, `Gültig bis ${dt(k.expires_at)}. Vorher ansehen, was gesendet wird: meit-agent.ps1 -ShowOnly`)));
+    }) }, "Registrierungsschlüssel erzeugen")), out));
+}
+
+views.inventar = async () => {
+  const d = await api("/api/inventory");
+  const s = d.summary;
+  setTitle("Geräte-Check", [h("button", { class: "btn primary", onclick: () => agentInstall() }, "Agent installieren")]);
+  const keys = d.keys.filter((k) => k.valid);
+  show(
+    h("p", { class: "small muted" }, "Eigener Inventar-Agent: Verschlüsselung, Virenschutz, Firewall, Updates, Speicherplatz, Admin-Rechte und Software je Gerät – nur lesend, ohne Fernsteuerung. Geräte erscheinen automatisch auch unter „Geräte“."),
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Geräte"), h("div", { class: "value" }, s.devices), h("div", { class: "sub" }, `${s.healthy} ohne Befund`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Kritisch / hoch"), h("div", { class: "value", style: s.critical ? "color:var(--bad)" : "" }, `${s.critical} / ${s.high}`), h("div", { class: "sub" }, "Befunde")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Unverschlüsselt"), h("div", { class: "value" }, s.unencrypted), h("div", { class: "sub" }, "BitLocker aus")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Still"), h("div", { class: "value" }, s.offline), h("div", { class: "sub" }, "seit über 14 Tagen keine Meldung"))),
+    h("div", { class: "card" }, d.devices.length ? inventoryTable(d.devices) : h("div", { class: "empty" }, "Noch kein Gerät registriert – „Agent installieren“ zeigt die drei Schritte.")),
+    keys.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("h3", { style: "margin-top:0" }, "Gültige Registrierungsschlüssel"),
+      table([{ label: "Kunde", key: "customer" }, { label: "Schlüssel", render: (k) => h("code", {}, `meit-…${k.hint}`) }, { label: "Gültig bis", render: (k) => k.expires_at ? dt(k.expires_at) : "unbegrenzt" },
+        { label: "Geräte registriert", num: true, key: "uses" },
+        { label: "", render: (k) => h("button", { class: "btn small danger", onclick: async () => { await api(`/api/inventory/keys/${k.id}`, { method: "DELETE" }); toast("Widerrufen"); render(); } }, "Widerrufen") }], keys)) : null);
+};
+
+async function inventoryCard(c) {
+  const d = await api(`/api/inventory?customer_id=${c.id}`).catch(() => null);
+  if (!d) return null;
+  return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Geräte-Check"),
+    h("button", { class: "btn small", onclick: () => agentInstall(c.id) }, "Agent installieren")),
+    d.devices.length ? inventoryTable(d.devices, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch kein Gerät mit Agent. Zeigt je Gerät Verschlüsselung, Virenschutz, Updates und Speicherplatz – nur lesend."));
 }
 
 async function render() {

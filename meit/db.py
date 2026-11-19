@@ -658,6 +658,7 @@ CREATE TABLE IF NOT EXISTS agent_devices (
     last_ip TEXT DEFAULT '',
     data TEXT DEFAULT '',
     ignored TEXT DEFAULT '[]',
+    ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
     active INTEGER DEFAULT 1,
     created_at TEXT NOT NULL
 );
@@ -759,7 +760,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "domain_checks": {"customer_id", "domain", "source", "last_check", "score", "result", "ignored", "tickets"},
     "agent_keys": {"customer_id", "key_hash", "hint", "expires_at", "uses", "active"},
     "agent_devices": {"customer_id", "asset_id", "hostname", "serial", "token_hash", "agent_version", "enrolled_at",
-                      "last_seen", "last_ip", "data", "ignored", "active"},
+                      "last_seen", "last_ip", "data", "ignored", "ticket_id", "active"},
 }
 
 TABLES_WITH_UPDATED_AT = {"tickets", "kb_articles", "messages", "leads"}
@@ -786,6 +787,7 @@ MIGRATIONS = {
     "receipts": {"document_id": "INTEGER"},
     "users": {"totp_secret": "TEXT DEFAULT ''", "totp_enabled": "INTEGER DEFAULT 0", "totp_recovery": "TEXT DEFAULT '[]'",
               "totp_last_step": "INTEGER DEFAULT 0"},
+    "agent_devices": {"ticket_id": "INTEGER"},
     "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''"},
     "kb_articles": {"public": "INTEGER DEFAULT 0", "source": "TEXT DEFAULT 'cockpit'", "external_id": "TEXT DEFAULT ''",
                     "external_url": "TEXT DEFAULT ''", "synced_at": "TEXT DEFAULT ''"},
