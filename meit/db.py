@@ -820,6 +820,79 @@ CREATE TABLE IF NOT EXISTS work_reports (
     created_at TEXT NOT NULL
 );
 
+-- Artikel (kleiner Katalog) und Einmalpositionen für die nächste Rechnung (Material, Hardware, Pauschalen)
+CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT DEFAULT '',
+    name TEXT NOT NULL,
+    unit TEXT DEFAULT 'Stk.',
+    price REAL DEFAULT 0,
+    cost REAL,
+    vendor TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS billing_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    quantity REAL DEFAULT 1,
+    unit TEXT DEFAULT 'Stk.',
+    price REAL,
+    cost REAL,
+    kind TEXT DEFAULT 'material',
+    article_id INTEGER,
+    ticket_id INTEGER,
+    work_report_id INTEGER,
+    invoice_id INTEGER,
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_items_open ON billing_items(customer_id, invoice_id);
+
+-- Überwachung: Erreichbarkeit von Websites und Diensten der Kunden, Ereignisse und Tageszähler
+CREATE TABLE IF NOT EXISTS monitors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT DEFAULT 'http',
+    target TEXT NOT NULL,
+    keyword TEXT DEFAULT '',
+    interval_min INTEGER DEFAULT 5,
+    active INTEGER DEFAULT 1,
+    portal_visible INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'neu',
+    since TEXT DEFAULT '',
+    last_check TEXT DEFAULT '',
+    last_ms INTEGER DEFAULT 0,
+    last_error TEXT DEFAULT '',
+    fails INTEGER DEFAULT 0,
+    ticket_id INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS monitor_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    monitor_id INTEGER NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
+    at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT DEFAULT '',
+    duration_s INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS monitor_days (
+    monitor_id INTEGER NOT NULL REFERENCES monitors(id) ON DELETE CASCADE,
+    day TEXT NOT NULL,
+    checks INTEGER DEFAULT 0,
+    fails INTEGER DEFAULT 0,
+    ms_sum INTEGER DEFAULT 0,
+    PRIMARY KEY (monitor_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS calendar_feeds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER DEFAULT 0,
@@ -867,6 +940,12 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "appointments": {"uid", "customer_id", "ticket_id", "user_id", "title", "kind", "start_at", "end_at", "location", "notes",
                      "customer_note", "status", "sequence", "notified_at", "notified_to", "time_entry_id", "created_by"},
     "calendar_feeds": {"user_id", "scope", "token_hash", "last_used_at"},
+    "monitors": {"customer_id", "name", "kind", "target", "keyword", "interval_min", "active", "portal_visible", "status", "since",
+                 "last_check", "last_ms", "last_error", "fails", "ticket_id"},
+    "monitor_events": {"monitor_id", "at", "status", "detail", "duration_s"},
+    "articles": {"sku", "name", "unit", "price", "cost", "vendor", "notes", "active"},
+    "billing_items": {"customer_id", "date", "description", "quantity", "unit", "price", "cost", "kind", "article_id", "ticket_id",
+                      "work_report_id", "invoice_id", "created_by"},
     "work_reports": {"number", "customer_id", "appointment_id", "ticket_id", "user_id", "technician", "date", "start_time", "end_time",
                      "minutes", "kind", "location", "travel_km", "work", "materials", "remark", "status", "signer_name", "signature",
                      "signed_at", "no_signature_reason", "document_id", "time_entry_id", "sent_to", "sent_at"},
@@ -948,7 +1027,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports",
+    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports", "articles", "billing_items", "monitors",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

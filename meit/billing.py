@@ -85,9 +85,12 @@ def unbilled_overview(db: Database) -> dict[str, Any]:
     projects = db.query("SELECT q.id, q.title, q.total_once, c.name AS customer FROM quotes q "
                         "LEFT JOIN customers c ON c.id = q.customer_id WHERE q.status = 'angenommen' AND q.total_once > 0 "
                         "AND q.invoice_id IS NULL")
+    from .items import unbilled as unbilled_items
+
+    extras = unbilled_items(db)  # Material, Hardware, Pauschalen
     return {"hours": [{**r, "hours": round(r["minutes"] / 60, 2), "value": round(r["value"] or 0, 2)} for r in rows],
-            "projects": projects,
-            "total_value": round(sum(r["value"] or 0 for r in rows) + sum(p["total_once"] for p in projects), 2)}
+            "projects": projects, "items": extras,
+            "total_value": round(sum(r["value"] or 0 for r in rows) + sum(p["total_once"] for p in projects) + extras["value"], 2)}
 
 
 def _totals(items: list[dict[str, Any]], profile: dict[str, Any]) -> dict[str, float]:
@@ -131,6 +134,10 @@ def billing_run(db: Database, period: str, profile: dict[str, Any]) -> list[dict
 
         subs = billable_items(db, c["id"], period)
         items += subs
+        from .items import invoice_line, open_for_invoice
+
+        extras = open_for_invoice(db, c["id"], end.isoformat())  # Material, Hardware, Pauschalen – nur mit Preis
+        items += [invoice_line(x) for x in extras]
         quotes = db.query("SELECT * FROM quotes WHERE customer_id = ? AND status = 'angenommen' AND total_once > 0 "
                           "AND invoice_id IS NULL", (c["id"],))
         for q in quotes:
@@ -145,6 +152,9 @@ def billing_run(db: Database, period: str, profile: dict[str, Any]) -> list[dict
                      [inv_id, *[e["id"] for e in entries]])
         for q in quotes:
             db.update("quotes", q["id"], {"invoice_id": inv_id})
+        if extras:
+            db.query(f"UPDATE billing_items SET invoice_id = ? WHERE id IN ({','.join('?' for _ in extras)})",
+                     [inv_id, *[x["id"] for x in extras]])
         for it in subs:
             db.query("INSERT INTO subscription_billing (subscription_id, period, invoice_id) VALUES (?, ?, ?)",
                      (it["ref"], period, inv_id))
@@ -176,6 +186,7 @@ def release(db: Database, invoice_id: int) -> None:
     """Entwurf löschen oder Rechnung stornieren: Leistungen werden wieder abrechenbar."""
     db.query("UPDATE time_entries SET invoice_id = NULL WHERE invoice_id = ?", (invoice_id,))
     db.query("UPDATE quotes SET invoice_id = NULL WHERE invoice_id = ?", (invoice_id,))
+    db.query("UPDATE billing_items SET invoice_id = NULL WHERE invoice_id = ?", (invoice_id,))
     db.query("DELETE FROM subscription_billing WHERE invoice_id = ?", (invoice_id,))
 
 

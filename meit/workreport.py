@@ -169,6 +169,8 @@ class MaterialIn(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     qty: float = Field(1, gt=0, le=100000)
     unit: str = Field("", max_length=20)
+    price: Optional[float] = Field(None, ge=0, le=1_000_000)  # netto je Einheit; leer = Preis aus dem Artikel oder „Preis fehlt“
+    article_id: Optional[int] = None
 
 
 class ReportIn(BaseModel):
@@ -192,6 +194,7 @@ class SignIn(BaseModel):
     signature: str = Field("", max_length=900_000)
     no_signature_reason: str = Field("", max_length=300)
     book_time: bool = True
+    bill_materials: bool = True
     billable: Optional[bool] = None
     send_to: str = Field("", max_length=200)
 
@@ -249,7 +252,7 @@ class WorkReports:
             d["minutes"] = minutes_between(d["start_time"], d["end_time"])
         if d["kind"] == "vor_ort" and not d["location"]:
             d["location"] = (customer["address"] or "").replace("\n", ", ")
-        d["materials"] = json.dumps(d["materials"], ensure_ascii=False)
+        d["materials"] = json.dumps([{k: v for k, v in m.items() if v is not None} for m in d["materials"]], ensure_ascii=False)
         tech_id = (appt or {}).get("user_id") or (user or {}).get("id")
         tech = self.db.get("users", tech_id) if tech_id else None
         d.update({"user_id": tech_id, "technician": (tech or {}).get("name") or (user or {}).get("name") or ""})
@@ -310,6 +313,10 @@ class WorkReports:
         if appt and appt["status"] != "abgesagt":
             self.db.update("appointments", appt["id"], {"status": "erledigt", "time_entry_id": entry or appt["time_entry_id"]})
         fresh = self.get(rid)
+        if data.bill_materials:
+            from .items import from_report
+
+            from_report(self.db, fresh)  # Material → Einmalpositionen für die nächste Rechnung
         doc = self.docs.store("bericht", f"{fresh['date']}_Arbeitsbericht_{fresh['number']}.pdf", self.pdf(fresh),
                               title=f"Arbeitsbericht {fresh['number']}", customer_id=fresh["customer_id"], ref_type="work_report", ref_id=rid,
                               day=date.fromisoformat(fresh["date"]), nummer=fresh["number"], folder_keys=("bericht",))

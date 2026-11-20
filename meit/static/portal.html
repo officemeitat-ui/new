@@ -173,7 +173,15 @@
     let me = null; let tab = "start";
     const views = {};
     views.start = async () => { const pos = (await api("/api/portal/posture").catch(() => ({}))).posture; const col = { gut: "var(--ok)", mittel: "var(--warn)", kritisch: "var(--bad)" };
-      const appts = await api("/api/portal/appointments").catch(() => []); return h("div", {},
+      const appts = await api("/api/portal/appointments").catch(() => []);
+      const mons = await api("/api/portal/monitors").catch(() => []); return h("div", {},
+      mons.length ? h("div", { class: "card" }, h("h2", {}, "Status Ihrer Dienste"),
+        mons.map((m) => h("div", { class: "row", style: "padding:.45rem 0;border-top:1px solid var(--border)" },
+          h("span", { class: `badge ${m.status === "ok" ? "ok" : m.status === "down" ? "bad" : "warn"}` }, m.status_label),
+          h("strong", { style: "flex:1;min-width:140px" }, m.name),
+          h("span", { style: "display:inline-flex;gap:1px", title: "Verlauf der letzten 30 Tage" }, m.days.map((d) => h("i", { style: `width:4px;height:14px;border-radius:1px;background:${d === "ok" ? "var(--ok)" : d === "warn" ? "var(--warn)" : d === "bad" ? "var(--bad)" : "var(--border)"}` }))),
+          h("span", { class: "muted small", style: "min-width:6.5rem;text-align:right" }, m.uptime === null ? "" : `${String(m.uptime).replace(".", ",")} % in 30 Tagen`))),
+        h("p", { class: "muted small", style: "margin-bottom:0" }, mons.some((m) => m.status === "down") ? "Wir wissen von der Störung und arbeiten bereits daran." : "Wir prüfen laufend, ob alles erreichbar ist – bei einer Störung werden wir automatisch verständigt.")) : null,
       appts.length ? h("div", { class: "card" }, h("h2", {}, appts.length === 1 ? "Ihr nächster Termin" : "Ihre nächsten Termine"),
         appts.map((a) => h("div", { class: "row", style: "align-items:flex-start;padding:.5rem 0;border-top:1px solid var(--border)" },
           h("div", { style: "flex:1;min-width:220px" }, h("strong", {}, a.when), h("div", {}, `${a.title} · ${a.kind}${a.technician ? ` · mit ${a.technician}` : ""}`),

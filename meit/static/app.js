@@ -401,6 +401,7 @@ views.kunde = async (id) => {
     await m365Card(c),
     await inventoryCard(c),
     await backupCard(c),
+    await monitorCard(c),
     await domainCard(c),
     await appointmentsCard(c),
     await staffCard(c),
@@ -1825,14 +1826,15 @@ views.abrechnung = async () => {
   if (billingTab === "offen") {
     const u = await api("/api/billing/unbilled");
     content = h("div", {},
-      h("div", { class: "grid kpis" }, h("div", { class: "card kpi accent" }, h("div", { class: "label" }, "Noch nicht verrechnet"), h("div", { class: "value" }, eur(u.total_value)), h("div", { class: "sub" }, "Stunden + angenommene Projekte"))),
+      h("div", { class: "grid kpis" }, h("div", { class: "card kpi accent" }, h("div", { class: "label" }, "Noch nicht verrechnet"), h("div", { class: "value" }, eur(u.total_value)), h("div", { class: "sub" }, "Stunden + Projekte + Einmalpositionen"))),
       h("div", { class: "grid two" },
         h("div", { class: "card" }, h("h2", {}, "Verrechenbare Stunden"), table([
           { label: "Kunde", key: "customer" }, { label: "Stunden", num: true, render: (r) => r.hours.toLocaleString("de-AT") },
           { label: "Wert", num: true, render: (r) => eur(r.value) }, { label: "seit", render: (r) => dt(r.since) }], u.hours)),
         h("div", { class: "card" }, h("h2", {}, "Angenommene Projekte"), table([
           { label: "Kunde", key: "customer" }, { label: "Projekt", key: "title" }, { label: "Betrag", num: true, render: (r) => eur(r.total_once) }], u.projects))),
-      h("p", { class: "small muted" }, "Der Rechnungslauf erstellt Entwürfe: Betreuungspauschale (MRR) des Monats, verrechenbare Stunden (Viertelstundentakt) und angenommene Projekte. Nummern werden erst beim Stellen vergeben – fortlaufend und lückenlos."));
+      await itemsCard(),
+      h("p", { class: "small muted" }, "Der Rechnungslauf erstellt Entwürfe: Betreuungspauschale (MRR) des Monats, verrechenbare Stunden (Viertelstundentakt), Einmalpositionen (Material, Hardware) und angenommene Projekte. Nummern werden erst beim Stellen vergeben – fortlaufend und lückenlos."));
   } else if (billingTab === "rechnungen") {
     const [inv, invDocs] = await Promise.all([api("/api/invoices"), api("/api/documents?ref_type=invoice&limit=1000").catch(() => [])]);
     const docOf = Object.fromEntries(invDocs.map((d) => [d.ref_id, d]));
@@ -3319,6 +3321,7 @@ const WO_WAS = [
     ["Suche", "dashboard", "Strg+K oder „/“: alles durchsuchen – Kunden, Tickets, Geräte, auch den Inhalt von Dateien"]]],
   ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Sicherheitslage", "sicherheitslage", "Eine Note je Kunde aus allen Quellen, Bericht als PDF, Angebot aus den Maßnahmen"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
     ["Geräte-Check", "inventar", "Eigener Agent: Verschlüsselung, Virenschutz, Updates, Speicherplatz"], ["Datensicherung", "backups", "Ampel aus den Sicherungsberichten, Alarm bei Fehlern"],
+    ["Überwachung", "ueberwachung", "Erreichbarkeit von Websites, Mailservern und Fernzugängen – Störung wird zum Ticket"],
     ["Domains & E-Mail", "domains", "Schutz gegen gefälschte Absender, Zertifikate"], ["Microsoft 365", "m365", "MFA, Weiterleitungen, Lizenzabgleich je Kunde"]]],
   ["Geld", [["Abrechnung", "abrechnung", "Zeiten, Rechnungslauf, Zahlungen, Mahnwesen, Firmendaten"], ["Lizenzen & Verträge", "lizenzen", "Verlängerungen, Fristen, Marge"],
     ["Belege", "belege", "Eingangsrechnungen für den Steuerberater"], ["Angebote", "angebote", "Angebote mit KI erstellen"], ["Umsatz-Radar", "radar", "Verkaufschancen aus den Kundendaten"]]],
@@ -4139,6 +4142,184 @@ async function appointmentsCard(c) {
     reports.length ? h("div", { style: "margin-top:.8rem" }, h("h3", { style: "margin:0 0 .3rem" }, "Arbeitsberichte"), workReportTable(reports, false)) : null);
 }
 
+// ---- Überwachung: Erreichbarkeit von Websites und Diensten der Kunden
+const MON_CLS = { ok: "ok", down: "bad", neu: "info" };
+const uptimeText = (v) => v === null || v === undefined ? "–" : `${v.toLocaleString("de-AT", { minimumFractionDigits: v >= 99.95 || v === 0 ? 0 : 2, maximumFractionDigits: 2 })} %`;
+const uptimeStrip = (days) => h("span", { class: "uptime-strip", role: "img", "aria-label": "Verlauf der letzten 30 Tage" },
+  days.map((d) => h("i", { class: d.state || "none", title: `${dt(d.day)}: ${d.uptime === null ? "keine Prüfung" : uptimeText(d.uptime)}` })));
+
+async function monitorForm(m = null, customerId = null) {
+  await loadCustomers();
+  const f = form([
+    { name: "name", label: "Bezeichnung", required: true, placeholder: "z. B. Webshop, Mailserver, VPN" },
+    { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(true) },
+    { name: "kind", label: "Art", type: "select", options: [["http", "Website / Web-Dienst"], ["tcp", "Anschluss (TCP), z. B. Mailserver"]] },
+    { name: "interval_min", label: "Prüfen alle", type: "select", options: [[1, "1 Minute"], [5, "5 Minuten"], [15, "15 Minuten"], [60, "60 Minuten"]] },
+    { name: "target", label: "Adresse – Website: https://www.kunde.at · Anschluss: mail.kunde.at:587", full: true, required: true },
+    { name: "keyword", label: "Suchtext auf der Seite (optional – erkennt auch „Seite lädt, zeigt aber Fehler“)", full: true },
+    { name: "portal_visible", label: "Im Kundenportal anzeigen", type: "checkbox" },
+    { name: "active", label: "Aktiv", type: "checkbox" },
+  ], m ? { ...m, customer_id: m.customer_id || "" } : { kind: "http", interval_min: 5, portal_visible: true, active: true, customer_id: customerId || "" });
+  modal(m ? "Überwachung bearbeiten" : "Dienst überwachen", f, [
+    m ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm(`„${m.name}“ nicht mehr überwachen? Der Verlauf wird gelöscht.`)) return;
+      await api(`/api/monitors/${m.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(f);
+      const body = { ...v, customer_id: v.customer_id ? Number(v.customer_id) : null, interval_min: Number(v.interval_min) };
+      const r = m ? await api(`/api/monitors/${m.id}`, { method: "PUT", body }) : await api("/api/monitors", { method: "POST", body });
+      if (!m) await api(`/api/monitors/${r.id}/check`, { method: "POST" }).catch(() => {});  // gleich einmal prüfen
+      close(); toast("Gespeichert"); render();
+    }) }, "Speichern")].filter(Boolean));
+}
+
+async function monitorDetail(id) {
+  let m;
+  try { m = await api(`/api/monitors/${id}`); } catch (e) { return toast(e.message, true); }
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  const row = (label, value) => value ? h("div", { class: "kv" }, h("span", { class: "muted" }, label), h("span", {}, value)) : null;
+  modal(m.name, h("div", {},
+    h("div", { class: "row", style: "margin-bottom:.6rem" }, badge(m.status_label, m.active ? MON_CLS[m.status] : ""), m.since && m.active ? h("span", { class: "small muted" }, `seit ${dt(m.since)} ${m.since.slice(11, 16)}`) : null),
+    row("Kunde", m.customer), row("Ziel", `${m.target}${m.keyword ? ` · Suchtext „${m.keyword}“` : ""}`), row("Geprüft", m.last_check ? `${dt(m.last_check)} ${m.last_check.slice(11, 16)} · alle ${m.interval_min} Min.` : "noch nie"),
+    row("Antwortzeit", m.last_ms && m.status === "ok" ? `${m.last_ms} ms (Ø ${m.avg_ms ?? "–"} ms)` : ""), row("Letzter Befund", m.last_error),
+    row("Verfügbarkeit", h("span", {}, `${uptimeText(m.uptime)} in 30 Tagen `, uptimeStrip(m.days))),
+    row("Ticket", m.ticket_id ? h("a", { href: "#", onclick: (e) => { e.preventDefault(); document.querySelector(".modal-backdrop")?.remove(); ticketDetail(m.ticket_id); } }, `#${m.ticket_id}`) : ""),
+    h("h3", { style: "margin:1rem 0 .4rem" }, "Ereignisse"),
+    m.events.length ? table([{ label: "Zeit", render: (e) => `${dt(e.at)} ${e.at.slice(11, 16)}` },
+      { label: "", render: (e) => e.status === "down" ? badge("Störung", "bad") : badge("wieder da", "ok") },
+      { label: "Befund", render: (e) => e.status === "up" && e.duration ? `Ausfall ${e.duration}` : e.detail }], m.events)
+      : h("p", { class: "small muted" }, "Noch keine Störung aufgezeichnet.")), [
+    isAdmin ? (close) => h("button", { class: "btn", onclick: () => { close(); monitorForm(m); } }, "Bearbeiten") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => { await api(`/api/monitors/${m.id}/check`, { method: "POST" }); close(); monitorDetail(m.id); render(); }) }, "Jetzt prüfen")].filter(Boolean));
+}
+
+function monitorTable(rows, withCustomer = true) {
+  return table([
+    withCustomer ? { label: "Kunde", render: (m) => m.customer || h("span", { class: "muted" }, "intern") } : null,
+    { label: "Dienst", render: (m) => h("div", {}, h("strong", {}, m.name), h("div", { class: "small muted", style: "overflow-wrap:anywhere" }, m.target)) },
+    { label: "Status", render: (m) => h("div", {}, badge(m.status_label, !m.active ? "" : m.last_error && m.status !== "down" ? "warn" : MON_CLS[m.status]),
+      m.last_error && m.active ? h("div", { class: "small", style: "color:var(--bad)" }, m.last_error) : null) },
+    { label: "Antwort", num: true, render: (m) => m.status === "ok" && !m.last_error && m.last_ms ? `${m.last_ms} ms` : "–" },
+    { label: "30 Tage", render: (m) => h("div", {}, h("strong", {}, uptimeText(m.uptime)), h("div", {}, uptimeStrip(m.days))) },
+  ].filter(Boolean), rows, (m) => monitorDetail(m.id));
+}
+
+views.ueberwachung = async () => {
+  const d = await api("/api/monitors");
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  setTitle("Überwachung", [isAdmin ? h("button", { class: "btn primary", onclick: () => monitorForm() }, "+ Dienst überwachen") : null]);
+  const s = d.summary;
+  show(
+    h("p", { class: "small muted" }, "Sind Websites, Mailserver und Fernzugänge der Kunden erreichbar? Geprüft wird alle paar Minuten vom Cockpit-Server aus. Nach zwei Fehlversuchen in Folge entsteht ein dringendes Ticket; die Ausfalldauer steht danach als Notiz darin."),
+    d.paused ? h("div", { class: "verdict warn" }, h("strong", {}, "Überwachung pausiert"), h("div", { class: "small" }, `${d.paused.reason} (seit ${dt(d.paused.at)} ${d.paused.at.slice(11, 16)})`)) : null,
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Überwacht"), h("div", { class: "value" }, s.total), h("div", { class: "sub" }, "aktive Dienste")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Gestört"), h("div", { class: "value", style: s.down ? "color:var(--bad)" : "" }, s.down), h("div", { class: "sub" }, s.down ? "Ticket ist angelegt" : "alles erreichbar")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Erreichbar"), h("div", { class: "value" }, s.ok), h("div", { class: "sub" }, "antworten gerade")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Ø Verfügbarkeit"), h("div", { class: "value" }, uptimeText(s.uptime)), h("div", { class: "sub" }, "letzte 30 Tage"))),
+    h("div", { class: "card" }, d.items.length ? monitorTable(d.items)
+      : h("div", { class: "empty" }, "Noch nichts überwacht. Guter Anfang: die Website und der Mailserver jedes Wartungskunden – so erfährst du von einer Störung vor dem Kunden.")));
+};
+
+async function monitorCard(c) {
+  const d = await api(`/api/monitors?customer_id=${c.id}`).catch(() => null);
+  if (!d) return null;
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, `Überwachung (${d.items.length})`), h("div", { class: "row", style: "gap:.4rem" },
+      d.summary.down ? badge(`${d.summary.down} gestört`, "bad") : null,
+      isAdmin ? h("button", { class: "btn small", onclick: () => monitorForm(null, c.id) }, "+ Dienst") : null)),
+    d.items.length ? monitorTable(d.items, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Website und kein Dienst dieses Kunden wird überwacht."));
+}
+
+// ---- Artikel und Einmalpositionen (Material, Hardware, Pauschalen)
+async function loadArticles(force = false) {
+  if (force || !state.articles) state.articles = await api("/api/articles").catch(() => []);
+  return state.articles;
+}
+
+async function itemForm(item = null, defaults = {}) {
+  await loadCustomers();
+  const articles = await loadArticles();
+  const base = item || { quantity: 1, unit: "Stk.", kind: "material", date: isoDay(new Date()), ...defaults };
+  const f = form([
+    { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(true) },
+    { name: "kind", label: "Art", type: "select", options: [["material", "Material"], ["hardware", "Hardware"], ["lizenz", "Lizenz"], ["pauschale", "Pauschale"], ["sonstiges", "Sonstiges"]] },
+    { name: "description", label: "Bezeichnung (steht so auf der Rechnung)", full: true, required: true },
+    { name: "quantity", label: "Menge", type: "number", step: "0.01" },
+    { name: "unit", label: "Einheit" },
+    { name: "price", label: "Preis netto je Einheit (leer = noch offen)", type: "text", placeholder: "z. B. 189,50" },
+    { name: "cost", label: "Einkaufspreis (optional, für die Marge)", type: "text" },
+    { name: "date", label: "Datum", type: "date" },
+  ], { ...base, customer_id: base.customer_id || "", price: base.price ?? "", cost: base.cost ?? "" });
+  const desc = f.querySelector("[name=description]");
+  desc.setAttribute("list", "article-list-2");
+  desc.addEventListener("change", () => { const a = articles.find((x) => foldText(x.name) === foldText(desc.value.trim())); if (!a) return;
+    f.querySelector("[name=unit]").value = a.unit || "Stk."; if (!f.querySelector("[name=price]").value) f.querySelector("[name=price]").value = String(a.price).replace(".", ",");
+    if (!f.querySelector("[name=cost]").value && a.cost !== null) f.querySelector("[name=cost]").value = String(a.cost).replace(".", ","); });
+  if (item) f.querySelector("[name=customer_id]").disabled = true;
+  const num = (v) => v === "" || v === null || v === undefined ? null : Number(String(v).replace(",", "."));
+  modal(item ? "Position bearbeiten" : "Einmalposition", h("div", {}, h("datalist", { id: "article-list-2" }, articles.map((a) => h("option", { value: a.name }, `${eur2(a.price)} / ${a.unit || "Stk."}`))), f,
+    item && item.report ? h("p", { class: "small muted" }, `Aus Arbeitsbericht ${item.report}`) : null), [
+    item ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Position löschen? Sie wird dann nicht verrechnet.")) return;
+      try { await api(`/api/billing/items/${item.id}`, { method: "DELETE" }); close(); render(); } catch (e) { toast(e.message, true); } } }, "Nicht verrechnen (löschen)") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(f), price = num(v.price), cost = num(v.cost);
+      if ((price !== null && isNaN(price)) || (cost !== null && isNaN(cost))) return toast("Preis bitte als Zahl eingeben", true);
+      const body = { description: v.description.trim(), quantity: Number(v.quantity) || 1, unit: v.unit, price, cost, date: v.date || null, kind: v.kind };
+      if (item) await api(`/api/billing/items/${item.id}`, { method: "PUT", body });
+      else { if (!v.customer_id) return toast("Bitte den Kunden wählen", true); await api("/api/billing/items", { method: "POST", body: { ...body, customer_id: Number(v.customer_id) } }); }
+      close(); toast("Gespeichert"); render();
+    }) }, "Speichern")].filter(Boolean));
+}
+
+async function articlesModal() {
+  const box = h("div", {});
+  const draw = async () => {
+    const rows = await api("/api/articles?all=true");
+    state.articles = rows.filter((a) => a.active);
+    const edit = (a = null) => {
+      const f = form([{ name: "name", label: "Bezeichnung", full: true, required: true }, { name: "unit", label: "Einheit", value: "Stk." },
+        { name: "price", label: "Verkaufspreis netto", type: "number", step: "0.01" }, { name: "cost", label: "Einkaufspreis (optional)", type: "text" }, { name: "vendor", label: "Lieferant" }],
+        a ? { ...a, cost: a.cost ?? "" } : {});
+      modal(a ? "Artikel bearbeiten" : "Neuer Artikel", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+        const v = readForm(f); const cost = v.cost === "" ? null : Number(String(v.cost).replace(",", "."));
+        const body = { name: v.name.trim(), unit: v.unit || "Stk.", price: Number(v.price) || 0, cost: isNaN(cost) ? null : cost, vendor: v.vendor, active: true };
+        if (a) await api(`/api/articles/${a.id}`, { method: "PUT", body }); else await api("/api/articles", { method: "POST", body });
+        close(); draw();
+      }) }, "Speichern")]);
+    };
+    fill(box, h("div", { class: "row", style: "margin-bottom:.6rem" }, h("button", { class: "btn small primary", onclick: () => edit() }, "+ Artikel"),
+      h("span", { class: "small muted" }, "Artikel erscheinen als Vorschlag im Arbeitsbericht und bei Einmalpositionen – mit Einheit und Preis.")),
+      rows.length ? table([{ label: "Bezeichnung", render: (a) => h("span", { class: a.active ? "" : "muted" }, a.name, a.active ? "" : " (ausgeblendet)") }, { label: "Einheit", key: "unit" },
+        { label: "Verkauf", num: true, render: (a) => eur2(a.price) }, { label: "Einkauf", num: true, render: (a) => a.cost === null ? "–" : eur2(a.cost) },
+        { label: "", render: (a) => h("button", { class: "btn small", onclick: async (e) => { e.stopPropagation(); if (!confirm(`Artikel „${a.name}“ entfernen?`)) return;
+          const r = await api(`/api/articles/${a.id}`, { method: "DELETE" }); toast(r.archived ? "Ausgeblendet (wird in Positionen verwendet)" : "Gelöscht"); draw(); } }, "✕") }], rows, (a) => edit(a))
+        : h("p", { class: "small muted" }, "Noch keine Artikel – z. B. Patchkabel, Arbeitsspeicher, Anfahrtspauschale."));
+  };
+  modal("Artikel", box);
+  await draw();
+}
+
+async function itemsCard() {
+  const d = await api("/api/billing/items").catch(() => null);
+  if (!d) return null;
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  return h("div", { class: "card", style: "margin-top:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, `Einmalpositionen (${d.items.length})`), h("div", { class: "row", style: "gap:.4rem" },
+      d.summary.unpriced ? badge(`${d.summary.unpriced} ohne Preis`, "warn") : null,
+      isAdmin ? h("button", { class: "btn small", onclick: () => articlesModal() }, "Artikel") : null,
+      isAdmin ? h("button", { class: "btn small primary", onclick: () => itemForm() }, "+ Position") : null)),
+    d.items.length ? table([
+      { label: "Datum", render: (r) => dt(r.date) }, { label: "Kunde", key: "customer" },
+      { label: "Bezeichnung", render: (r) => h("div", {}, r.description, h("div", { class: "small muted" }, [r.kind_label, r.report ? `aus ${r.report}` : ""].filter(Boolean).join(" · "))) },
+      { label: "Menge", num: true, render: (r) => `${String(r.quantity).replace(".", ",")} ${r.unit}` },
+      { label: "Preis", num: true, render: (r) => r.price === null ? badge("Preis fehlt", "warn") : eur2(r.price) },
+      { label: "Summe", num: true, render: (r) => r.total === null ? "–" : eur2(r.total) },
+    ], d.items, isAdmin ? (r) => itemForm(r) : null)
+      : h("p", { class: "small muted", style: "margin:0" }, "Keine offenen Positionen. Material aus Arbeitsberichten erscheint hier automatisch; Hardware und Pauschalen lassen sich mit „+ Position“ eintragen."),
+    h("p", { class: "small muted", style: "margin-bottom:0" }, "Der Rechnungslauf nimmt alle Positionen mit Preis mit. Positionen ohne Preis bleiben stehen, bis der Preis eingetragen ist – nichts wird zu 0 € verrechnet."));
+}
+
 // ---- Arbeitsbericht mit Unterschrift des Kunden (Leistungsnachweis)
 const WR_CLS = { entwurf: "warn", unterschrieben: "ok", ohne_unterschrift: "info" };
 
@@ -4167,18 +4348,30 @@ async function workReportForm({ appointment = null, ticket = null, customerId = 
     { name: "location", label: "Ort (leer = Adresse des Kunden)", full: true },
     { name: "work", label: "Durchgeführte Arbeiten", type: "textarea", rows: 6, full: true, placeholder: "Was wurde gemacht? Eine Zeile je Schritt." },
   ], base);
+  const articles = await loadArticles();
   const matBox = h("div", { class: "mat-rows" });
-  const matRow = (m = {}) => h("div", { class: "mat-row" },
-    h("input", { type: "text", placeholder: "Material, z. B. Patchkabel Cat6 2 m", value: m.name || "", "aria-label": "Material", "data-k": "name" }),
-    h("input", { type: "number", min: "0", step: "0.01", value: m.qty || 1, "aria-label": "Menge", "data-k": "qty" }),
-    h("input", { type: "text", placeholder: "Stk.", value: m.unit || "", "aria-label": "Einheit", "data-k": "unit" }),
-    h("button", { class: "btn small", type: "button", "aria-label": "Zeile entfernen", onclick: (e) => e.target.closest(".mat-row").remove() }, "✕"));
+  const matRow = (m = {}) => {
+    const row = h("div", { class: "mat-row" },
+      h("input", { type: "text", list: "article-list", placeholder: "Material, z. B. Patchkabel Cat6 2 m", value: m.name || "", "aria-label": "Material", "data-k": "name", onchange: (e) => {
+        const a = articles.find((x) => foldText(x.name) === foldText(e.target.value.trim()));  // Artikel gewählt → Einheit und Preis übernehmen
+        if (!a) return;
+        e.target.value = a.name;
+        const unit = row.querySelector("[data-k=unit]"), price = row.querySelector("[data-k=price]");
+        if (!unit.value) unit.value = a.unit || ""; if (!price.value) price.value = a.price;
+      } }),
+      h("input", { type: "number", min: "0", step: "0.01", value: m.qty || 1, "aria-label": "Menge", "data-k": "qty" }),
+      h("input", { type: "text", placeholder: "Stk.", value: m.unit || "", "aria-label": "Einheit", "data-k": "unit" }),
+      h("input", { type: "number", min: "0", step: "0.01", placeholder: "€ netto", value: m.price ?? "", "aria-label": "Preis netto je Einheit (leer = wird später nachgetragen)", title: "Preis netto je Einheit – leer lassen, wenn unbekannt", "data-k": "price" }),
+      h("button", { class: "btn small", type: "button", "aria-label": "Zeile entfernen", onclick: (e) => e.target.closest(".mat-row").remove() }, "✕"));
+    return row;
+  };
   (src.materials || []).forEach((m) => matBox.append(matRow(m)));
   const remark = h("textarea", { rows: 2, placeholder: "Anmerkungen (optional) – z. B. offene Punkte, Empfehlungen" }, base.remark);
   const collect = () => {
     const v = readForm(f);
-    const materials = [...matBox.querySelectorAll(".mat-row")].map((row) => ({ name: row.querySelector("[data-k=name]").value.trim(),
-      qty: Number(row.querySelector("[data-k=qty]").value) || 1, unit: row.querySelector("[data-k=unit]").value.trim() })).filter((m) => m.name);
+    const materials = [...matBox.querySelectorAll(".mat-row")].map((row) => { const price = row.querySelector("[data-k=price]").value;
+      return { name: row.querySelector("[data-k=name]").value.trim(), qty: Number(row.querySelector("[data-k=qty]").value) || 1,
+        unit: row.querySelector("[data-k=unit]").value.trim(), price: price === "" ? null : Number(price) }; }).filter((m) => m.name);
     return { customer_id: v.customer_id ? Number(v.customer_id) : null, appointment_id: (appointment && appointment.id) || src.appointment_id || null,
       ticket_id: (ticket && ticket.id) || src.ticket_id || null, date: v.date || null, start_time: v.start_time || "", end_time: v.end_time || "",
       kind: v.kind, location: v.location, travel_km: Number(v.travel_km) || 0, work: v.work.trim(), materials, remark: remark.value.trim() };
@@ -4186,7 +4379,8 @@ async function workReportForm({ appointment = null, ticket = null, customerId = 
   const save = async () => report ? api(`/api/work-reports/${report.id}`, { method: "PUT", body: collect() }) : api("/api/work-reports", { method: "POST", body: collect() });
   modal(report ? `Arbeitsbericht ${report.number}` : "Arbeitsbericht", h("div", {},
     appointment || ticket ? h("p", { class: "small muted", style: "margin-top:0" }, appointment ? `Zum Termin „${appointment.title}“ (${appointment.when})` : `Zu Ticket #${ticket.id} – ${ticket.title}`) : null,
-    f, h("label", { style: "margin-top:.8rem" }, "Material"), matBox,
+    f, h("label", { style: "margin-top:.8rem" }, "Material (kommt auf die nächste Rechnung – Preis leer lassen, wenn unbekannt)"),
+    h("datalist", { id: "article-list" }, articles.map((a) => h("option", { value: a.name }, `${eur2(a.price)} / ${a.unit || "Stk."}`))), matBox,
     h("button", { class: "btn small", type: "button", onclick: () => { const row = matRow(); matBox.append(row); row.querySelector("input").focus(); } }, "+ Material"),
     h("label", { style: "margin-top:.8rem" }, "Anmerkungen"), remark), [
     (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { await save(); close(); toast("Entwurf gespeichert"); render(); }) }, "Als Entwurf speichern"),
@@ -4205,6 +4399,7 @@ function workReportSign(r) {
   const name = h("input", { type: "text", value: customer.contact_name || "", placeholder: "Name in Blockbuchstaben", "aria-label": "Name der unterschreibenden Person", autocomplete: "off" });
   const book = h("input", { type: "checkbox", checked: true, style: "width:auto" });
   const mail = h("input", { type: "checkbox", checked: !!customer.email, style: "width:auto" });
+  const billMat = h("input", { type: "checkbox", checked: true, style: "width:auto" });
   // Feste innere Auflösung: Die Zeichnung bleibt erhalten, auch wenn sich das Fenster ändert (Tastatur am Handy, Drehen des Geräts).
   canvas.width = 1200; canvas.height = 400;
   const ctx = canvas.getContext("2d");
@@ -4218,7 +4413,7 @@ function workReportSign(r) {
   canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
   const close = () => { overlay.remove(); document.body.classList.remove("office-open"); };
   const finish = async (body, btn) => withBusy(btn, async () => {
-    const done = await api(`/api/work-reports/${r.id}/sign`, { method: "POST", body: { ...body, book_time: book.checked, send_to: mail.checked ? "kunde" : "" } });
+    const done = await api(`/api/work-reports/${r.id}/sign`, { method: "POST", body: { ...body, book_time: book.checked, bill_materials: billMat.checked, send_to: mail.checked ? "kunde" : "" } });
     close(); render();
     modal(`Arbeitsbericht ${done.number} abgeschlossen`, h("div", {},
       h("div", { class: "verdict ok" }, h("strong", {}, done.status === "unterschrieben" ? `Unterschrieben von ${done.signer_name}` : "Ohne Unterschrift abgeschlossen"),
@@ -4243,6 +4438,7 @@ function workReportSign(r) {
         h("div", { class: "row", style: "margin:.5rem 0" }, h("div", { style: "flex:1 1 220px" }, name),
           h("button", { class: "btn", onclick: () => { ctx.clearRect(0, 0, canvas.width, canvas.height); drawn = 0; } }, "Neu zeichnen")),
         h("label", { class: "check" }, book, " Zeit auf den Kunden buchen"),
+        (r.materials || []).length ? h("label", { class: "check" }, billMat, " Material auf die nächste Rechnung setzen") : null,
         h("label", { class: "check" }, mail, customer.email ? ` Bericht gleich an ${customer.email} senden` : " Bericht per E-Mail senden (beim Kunden ist keine Adresse hinterlegt)"),
         h("div", { class: "row", style: "margin-top:.8rem" },
           h("button", { class: "btn primary", onclick: (e) => {
@@ -4374,7 +4570,7 @@ views.teilen = async () => {
 
 // ---- Globale Suche / Befehlspalette (Strg+K)
 const SEARCH_ICON = { customer: "🏢", ticket: "🎫", message: "✉", asset: "🖥", device: "🛡", article: "📚", file: "📄", document: "🗂", invoice: "🧾", quote: "📑",
-  lead: "🎯", appointment: "📅", workreport: "✍", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
+  lead: "🎯", appointment: "📅", workreport: "✍", monitor: "📡", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
 const foldText = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss");
 const QUICK_ACTIONS = [
   ["Neues Ticket", "ticket anlegen stoerung", () => ticketCreate()],
@@ -4382,6 +4578,7 @@ const QUICK_ACTIONS = [
   ["Passwort oder Zugangsdaten sicher senden", "teilen einmal link geheimnis passwort", () => { location.hash = "#/teilen"; }],
   ["Termin planen", "einsatz kalender termin vor ort", async () => { await Promise.all([loadCustomers(), loadUsers()]); appointmentForm(); }],
   ["Arbeitsbericht schreiben", "leistungsnachweis unterschrift einsatz bericht", () => workReportForm()],
+  ["Material oder Hardware verrechnen", "einmalposition artikel rechnung position", () => itemForm()],
   ["Neues Dokument (Word/Excel)", "office datei brief tabelle", () => { location.hash = "#/office"; }],
   ["Zeit buchen", "zeiterfassung stunden", () => { location.hash = "#/abrechnung"; }],
   ["Verdächtige E-Mail prüfen", "phishing mail", () => phishingCheck()],
@@ -4398,6 +4595,7 @@ async function searchOpenItem(it) {
     case "domain": return domainDetail(it.id);
     case "staff": return staffDetail(it.id);
     case "appointment": return appointmentDetail(it.id);
+    case "monitor": return monitorDetail(it.id);
     case "workreport": return window.open(`/api/work-reports/${it.id}/pdf`, "_blank", "noopener");
     case "m365user": return it.customer_id ? m365Detail(it.customer_id) : go("#/m365");
     case "file": { await officeStatus(); const f = await api(`/api/files/${it.id}`); return fileDetail(f, () => {}); }

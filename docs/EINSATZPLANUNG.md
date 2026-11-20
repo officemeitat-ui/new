@@ -52,10 +52,28 @@ Gut zu wissen:
 - **Unveränderlich:** Ein abgeschlossener Bericht lässt sich weder ändern noch löschen. Entwürfe schon.
 - **Nummern** laufen je Jahr fortlaufend (`AB-2026-0001`).
 - **Zeit** wird genau einmal gebucht – auch wenn der Termin zusätzlich auf „Erledigt“ gesetzt wird.
-- **Material** steht als Nachweis im Bericht; verrechnet wird es wie bisher über die Rechnung.
+- **Material** wird beim Abschluss zur Einmalposition für die nächste Rechnung (siehe unten).
 - Der Kunde findet seine Berichte im Portal unter **Rechnungen & Dokumente**.
 - Rechtlich ist die Unterschrift am Bildschirm eine *einfache elektronische Signatur*: als Leistungsnachweis
   üblich, aber keine qualifizierte Signatur. Für Verträge mit Formvorschrift reicht sie nicht.
+
+## Material und Hardware verrechnen
+
+Material aus dem Arbeitsbericht landet automatisch auf der nächsten Rechnung:
+
+1. Im Arbeitsbericht das Material eintragen. Tippst du einen **Artikel** aus dem Katalog an, kommen Einheit
+   und Preis von selbst. Kennst du den Preis nicht, bleibt das Feld leer.
+2. Beim Abschluss wird jedes Material zu einer **Einmalposition** (abwählbar mit „Material auf die nächste
+   Rechnung setzen“, zum Beispiel bei Kulanz).
+3. Unter **Abrechnung → Unverrechnet → Einmalpositionen** steht alles, was noch offen ist. Positionen
+   ohne Preis sind mit „Preis fehlt“ markiert – anklicken, Preis eintragen.
+4. Der **Rechnungslauf** nimmt alle Positionen mit Preis mit. Positionen ohne Preis bleiben stehen:
+   Es geht kein Material verloren, und nichts wird zu 0 € verrechnet.
+
+Dort lassen sich auch Hardware, Lizenzen und Pauschalen direkt eintragen („+ Position“) und die
+**Artikel** pflegen (Bezeichnung, Einheit, Verkaufs- und Einkaufspreis). Wird ein Rechnungsentwurf
+gelöscht oder eine Rechnung storniert, sind ihre Positionen wieder offen. Preise stehen nur auf der
+Rechnung – im Arbeitsbericht und im Kundenportal erscheinen nur die Mengen.
 
 ## Kunden informieren
 

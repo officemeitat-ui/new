@@ -151,6 +151,8 @@ SOURCES: tuple[Source, ...] = (
            "coalesce(c.name,'') || ' · ' || t.status", order="t.start_at DESC"),
     Source("workreport", "Arbeitsberichte", "work_reports t" + _C, ("t.number", "t.work", "t.remark", "t.materials", "t.signer_name", "c.name"),
            "'Arbeitsbericht ' || t.number", "coalesce(c.name,'') || ' · ' || t.date", where="t.status != 'entwurf'"),
+    Source("monitor", "Überwachung", "monitors t" + _C, ("t.name", "t.target", "c.name"), "t.name",
+           "coalesce(c.name,'') || ' · ' || t.target"),
     Source("receipt", "Belege", "receipts t", ("t.vendor", "t.invoice_no", "t.note"),
            "coalesce(nullif(t.vendor,''), 'Beleg') || ' ' || coalesce(t.invoice_no,'')", "coalesce(t.invoice_date,'') || ' · ' || t.status", "NULL"),
 )

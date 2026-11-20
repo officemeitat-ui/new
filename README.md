@@ -23,7 +23,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Sicherheitsprüfung, 2FA, Erste Schritte: [docs/SICHERHEIT-INBETRIEBNAHME.md](docs/SICHERHEIT-INBETRIEBNAHME.md) ·
 > Office & Dateien (Collabora / ONLYOFFICE): [docs/OFFICE.md](docs/OFFICE.md) ·
 > Suche, Sicher teilen: [docs/SUCHE-SICHER-TEILEN.md](docs/SUCHE-SICHER-TEILEN.md) ·
-> Einsatzplanung, Arbeitsbericht mit Unterschrift: [docs/EINSATZPLANUNG.md](docs/EINSATZPLANUNG.md)
+> Einsatzplanung, Arbeitsbericht mit Unterschrift: [docs/EINSATZPLANUNG.md](docs/EINSATZPLANUNG.md) ·
+> Überwachung von Websites und Diensten: [docs/UEBERWACHUNG.md](docs/UEBERWACHUNG.md)
 
 ## Funktionen
 
@@ -50,6 +51,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Office & Dateien** | Word-, Excel- und PowerPoint-Dateien **direkt im Browser bearbeiten** über einen eigenen Collabora- oder ONLYOFFICE-Server (die Dokumente bleiben im Cockpit). Ablage je Kunde, eigene Ablage, neue Dokumente und Briefe mit Briefkopf, **Vorlagen mit Platzhaltern** je Kunde ausfüllen, frühere Stände wiederherstellen, Freigabe im Kundenportal. |
 | **Globale Suche (Strg+K)** | Eine Eingabe durchsucht alles: Kunden, Tickets, Geräte, Wissen, Rechnungen – und den **Inhalt abgelegter Dateien** (Word, Excel, PowerPoint, PDF). Umlaute und Groß-/Kleinschreibung egal, Seiten und Aktionen per Tastatur. |
 | **Sicher teilen** | Passwörter und Zugangsdaten als **Einmal-Link**, der sich nach dem Öffnen löscht (verschlüsselt, Schlüssel nur im Link). Dateien als Freigabe-Link mit Ablauf, Abruflimit und optionalem Kennwort. Jeder Abruf wird gemeldet und protokolliert. |
+| **Material & Einmalpositionen** | Material aus dem Arbeitsbericht landet automatisch auf der nächsten Rechnung; Hardware, Lizenzen und Pauschalen direkt eintragen. Kleiner **Artikelkatalog** mit Verkaufs- und Einkaufspreis. Positionen ohne Preis bleiben als „Preis fehlt“ offen – nichts geht verloren, nichts wird zu 0 € verrechnet. |
+| **Überwachung** | Prüft alle paar Minuten, ob Websites, Mailserver und Fernzugänge der Kunden erreichbar sind. Nach zwei Fehlversuchen entsteht ein dringendes Ticket, die Ausfalldauer steht danach als Notiz darin. Verfügbarkeit und 30-Tage-Verlauf je Dienst, Status im Kundenportal. |
 | **Mein Tag** | Persönliche Startseite je Techniker: nächster Einsatz mit Route, Termine heute und morgen, eigene Tickets nach Dringlichkeit, Arbeitsberichte, die auf die Unterschrift warten, fällige Wartungen, geplante und gebuchte Zeit. |
 | **Einsatzplanung** | Wochenansicht aller Techniker, Termine aus dem Ticket heraus, Warnung bei Überschneidungen. **Terminbestätigung an den Kunden** mit Kalenderdatei, **Kalender-Abo** für Outlook/iPhone/Android, „Erledigt“ bucht die Zeit zur Abrechnung, nächste Termine im Kundenportal. |
 | **Arbeitsbericht mit Unterschrift** | Leistungsnachweis direkt am Handy: Tätigkeiten und Material eintragen, der Kunde **unterschreibt am Bildschirm**. Daraus entstehen PDF im Firmendesign (im Kundenordner abgelegt), Zeitbuchung und E-Mail an den Kunden – danach unveränderlich. |
@@ -213,6 +216,8 @@ meit/
   planner.py       Einsatzplanung: Termine, Überschneidungen, Kalender-Abo (iCalendar), Terminbestätigung
   workreport.py    Arbeitsbericht mit Kundenunterschrift: PDF, Zeitbuchung, Versand
   myday.py         „Mein Tag“: persönliche Startseite
+  items.py         Artikel und Einmalpositionen (Material, Hardware) für den Rechnungslauf
+  monitoring.py    Überwachung: Erreichbarkeit von Websites/Diensten, Störungsticket, Verfügbarkeit
   hardening.py     Größenlimits, Content-Security-Policy, CSV-Schutz, TOTP
   setup.py         Erste Schritte (Inbetriebnahme mit Live-Status), Demodaten entfernen
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,

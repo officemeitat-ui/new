@@ -396,14 +396,21 @@ label.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; 
 }
 
 /* Arbeitsbericht: Materialzeilen und Unterschriftsfeld */
-.mat-row { display: grid; grid-template-columns: minmax(0, 1fr) 5rem 5rem auto; gap: .4rem; margin-bottom: .4rem; align-items: center; }
+.mat-row { display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem 4.5rem 6rem auto; gap: .4rem; margin-bottom: .4rem; align-items: center; }
 .sign-overlay { background: var(--bg); overflow-y: auto; }
 .sign-body { width: min(760px, 100%); margin: 0 auto; padding: 1rem 16px 2rem; display: flex; flex-direction: column; gap: 1rem; }
 .sign-pad { display: block; width: 100%; aspect-ratio: 3 / 1; height: auto; background: #fff; border: 2px dashed var(--border); border-radius: 10px; touch-action: none; cursor: crosshair; }
 .sign-pad:focus { outline: 2px solid var(--primary); outline-offset: 2px; }
-@media (max-width: 600px) { .mat-row { grid-template-columns: minmax(0, 1fr) 4rem 3.5rem auto; } }
+@media (max-width: 600px) { .mat-row { grid-template-columns: 1fr 1fr 1.3fr auto; padding-bottom: .4rem; border-bottom: 1px solid var(--border); } .mat-row > input:first-child { grid-column: 1 / -1; } }
 
 /* Mein Tag */
 .next-up { border-left: 5px solid var(--primary); }
 .big-time { font-size: 2.2rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--primary); display: flex; flex-direction: column; min-width: 5.5rem; }
 .big-time span { font-size: .8rem; font-weight: 400; color: var(--muted); margin-top: .2rem; }
+
+/* Überwachung: Verlauf der letzten 30 Tage */
+.uptime-strip { display: inline-flex; gap: 1px; vertical-align: middle; }
+.uptime-strip i { width: 4px; height: 14px; border-radius: 1px; background: var(--border); }
+.uptime-strip i.ok { background: var(--ok); }
+.uptime-strip i.warn { background: var(--warn); }
+.uptime-strip i.bad { background: var(--bad); }

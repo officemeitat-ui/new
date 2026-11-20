@@ -50,6 +50,7 @@ from .domaincheck import register as register_domains
 from .csat import register as register_csat
 from .hardening import BodyLimit, content_security_policy, redact_access_log, script_hashes
 from .inventory import register as register_inventory
+from .items import register as register_items
 from .m365 import register as register_m365
 from .notify import register as register_notify
 from .office import register as register_office
@@ -64,6 +65,7 @@ from .vault import Vault
 from .workreport import register as register_workreport
 from .staff import register as register_staff
 from .mobile import register as register_mobile
+from .monitoring import register as register_monitoring
 from .myday import register as register_myday
 from .ai_control import register as register_ai_control
 from .branding import get_branding
@@ -862,6 +864,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_planner(app, ctx, settings)  # Einsatzplanung: Termine, Kalender-Abo, Terminbestätigung
     register_workreport(app, ctx, settings)  # Arbeitsbericht mit Unterschrift des Kunden (Leistungsnachweis)
     register_myday(app, ctx)  # „Mein Tag“: persönliche Startseite
+    register_items(app, ctx, admin_only)  # Artikel und Einmalpositionen (Material, Hardware) für die Rechnung
+    register_monitoring(app, ctx, admin_only, start=settings.db_path != ":memory:")  # Erreichbarkeit von Websites/Diensten der Kunden
 
     # --- Backup-Wächter (Sicherungsberichte aus dem Postfach) -----------------------------------
     register_backups(app, ctx, admin_only, start=settings.db_path != ":memory:")

@@ -334,6 +334,16 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         return Response(ics_calendar([a], f"Termin {ctx.company}", "cockpit", public=True), media_type="text/calendar; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="Termin-{aid}.ics"'})
 
+    @app.get("/api/portal/monitors")
+    def portal_monitors(u: dict = Depends(portal_user)) -> list[dict]:
+        """Status der überwachten Dienste des eigenen Unternehmens (ohne interne Adressen)."""
+        svc = getattr(app.state, "monitoring", None)
+        if not svc:
+            return []
+        return [{"name": m["name"], "status": m["status"], "status_label": m["status_label"], "since": m["since"], "uptime": m["uptime"],
+                 "days": [d["state"] for d in m["days"]]}
+                for m in svc.list(u["customer_id"]) if m["active"] and m["portal_visible"]]
+
     @app.get("/api/portal/work-reports")
     def portal_work_reports(u: dict = Depends(portal_user)) -> list[dict]:
         """Abgeschlossene Arbeitsberichte (Leistungsnachweise) des eigenen Unternehmens."""
