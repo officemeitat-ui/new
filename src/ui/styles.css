@@ -498,6 +498,7 @@ table.sheet { border-collapse: collapse; width: 100%; min-width: 760px; font-siz
 .pill.warning { background: var(--warn-soft); color: var(--warn); }
 .pill.info { background: var(--info-soft); color: var(--info); }
 .pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.wait { background: transparent; border: 1px dashed var(--line); color: var(--muted); font-weight: 500; white-space: nowrap; }
 .pill.name { text-transform: none; letter-spacing: 0; font-size: 0.82rem; }
 .empty { padding: 24px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
 

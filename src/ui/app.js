@@ -12,7 +12,7 @@ import { SharePointDocStore } from '../storage/docstore-sharepoint.js'
 import { DataService, dataRights, FOLDERS } from '../storage/data-service.js'
 import { adoptLegacyCache, CachedDocStore, createOfflineCache } from '../storage/offline.js'
 import { applyBrand, loadConfig } from './config.js'
-import { ACTIONS, app, canEdit, clearUndo, closeModal, hashKey, hashOfView, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, runAction, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, clearUndo, closeModal, countsPending, hashKey, hashOfView, labelTables, moduleOf, navSections, preloadLazy, render, renderNow, runAction, saveStatusText, sectionLabel, sectionOf, setFrame, toast, undo, viewFromHash, visibleViews } from './context.js'
 import { loadTopics } from '../help/lazy.js'
 import { bellButton, refreshBell, showTodoIfNew } from './modals/todo.js'
 import { flowBar } from './flow.js'
@@ -571,7 +571,9 @@ async function boot() {
  */
 async function loadInBackground() {
   loadTopics().then(renderHelp, () => {})
-  if ((await preloadLazy()) && !app.ui.modal) renderNow()
+  // auch neu zeichnen, wenn nichts geladen werden konnte (ohne Netz): „wird gezählt“ soll nicht stehen bleiben
+  const pending = countsPending()
+  if (((await preloadLazy()) || pending) && !app.ui.modal) renderNow()
 }
 
 /** Installierbare App: nur im fertigen Build (dort gibt es das Manifest). */

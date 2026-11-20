@@ -414,9 +414,23 @@ export async function ensureAction(name) {
  */
 export async function preloadLazy() {
   const list = LAZY.filter((l) => !l.loaded && l.visible())
-  await Promise.all(list.map((l) => l.load().catch(() => {})))
+  preloading++
+  try {
+    await Promise.all(list.map((l) => l.load().catch(() => {})))
+  } finally {
+    preloading--
+    preloaded = true
+  }
   return list.some((l) => l.loaded)
 }
+let preloading = 0
+let preloaded = false
+/**
+ * Zähler noch unvollständig: Module der eigenen Bereiche werden gerade (oder gleich) im Hintergrund geladen, ihre
+ * offenen Punkte fehlen noch. Die Übersicht schreibt so lange „wird gezählt“ statt „alles erledigt“. Nach dem Laden
+ * (auch wenn es ohne Netz scheitert) ist es vorbei.
+ */
+export const countsPending = () => (preloading > 0 || !preloaded) && LAZY.some((l) => !l.loaded && l.visible())
 
 // ---------------------------------------------------------------- Berechnung
 

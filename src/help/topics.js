@@ -33,7 +33,7 @@ export const TOPICS = [
     q: ['startseite', 'übersicht', 'start', 'home', 'was steht heute an', 'begrüßung', 'uebersicht'],
     answer: 'Die Übersicht zeigt oben die wichtigsten Zahlen: Punkte zu erledigen, offene Einsätze, Termine heute und Vorschläge der digitalen Mitarbeiter. Darunter hat jeder Bereich deiner Rolle eine Karte mit dem, was offen ist, bei der Planung mit dem nächsten Schritt der Woche.',
     steps: ['In der Seitenleiste ganz oben „Übersicht“ wählen.', 'Eine Zahl oben antippen öffnet den passenden Bereich.', 'In einer Karte auf eine Zeile mit roter Zahl klicken, um direkt dorthin zu springen.'],
-    tips: ['Steht „alles erledigt“ an einer Karte, gibt es dort gerade nichts zu tun.', 'Termine von heute und morgen stehen in einer eigenen Karte.', 'Cleo in der Begrüßung oder „Frag Cleo“ öffnet die Hilfe.'],
+    tips: ['Steht „alles erledigt“ an einer Karte, gibt es dort gerade nichts zu tun.', 'Kurz nach dem Start steht „wird gezählt …“, bis alle Bereiche geladen sind; erst danach stimmen die Zahlen.', 'Termine von heute und morgen stehen in einer eigenen Karte.', 'Cleo in der Begrüßung oder „Frag Cleo“ öffnet die Hilfe.'],
     related: ['zu-erledigen', 'digitale-mitarbeiter', 'kennzahlen', 'wochenablauf', 'cleo'],
   },
   {

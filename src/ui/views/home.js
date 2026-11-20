@@ -4,9 +4,9 @@
 // ein Werkzeug darf, sieht nur dessen Karte.
 
 import { addDays, formatDate, isoWeek, todayISO } from '../../core/dates.js'
-import { app, navSections, openModal, registerActions, registerModal, registerView, visibleViews } from '../context.js'
+import { app, countsPending, navSections, openModal, registerActions, registerModal, registerView, visibleViews } from '../context.js'
 import { weekSteps } from '../flow.js'
-import { todoOrLast } from '../modals/todo.js'
+import { todoOrLast, todoPending } from '../modals/todo.js'
 import { esc, ICON, modalFrame } from '../shared.js'
 import { isMobile } from '../mobile.js'
 import { navIcon } from '../sidebar.js'
@@ -48,13 +48,19 @@ function planCard(c) {
     <ol class="home-steps">${steps.map((s) => `<li class="${s.done ? 'done' : s === next ? 'next' : ''}" title="${esc(s.info)}">${s.done ? '✓' : ''}<span>${esc(s.label)}</span></li>`).join('')}</ol>`
 }
 
+/** „wird gezählt …“: kurz nach dem Start fehlen die Zähler der später geladenen Module noch (context.js countsPending). */
+const COUNTING = '<span class="pill wait">wird gezählt …</span>'
+
 function card(c, { id: group, label, views: items }) {
   if (!items.length) return ''
   const open = items.map((v) => ({ v, n: Number(v.badge?.(c)) || 0 })).filter((x) => x.n > 0)
   const main = items[0]
   const total = open.reduce((n, x) => n + x.n, 0)
+  // „alles erledigt“ erst, wenn alle Ansichten des Bereichs geladen sind: vorher weiß die Karte es nicht
+  const unknown = items.some((v) => v.lazy && !v.lazy.loaded)
+  const state = open.length ? `<span class="home-count" title="offen">${total}</span>` : unknown ? (countsPending() ? COUNTING : '') : '<span class="pill ok">alles erledigt</span>'
   return `<article class="home-card" data-section="${esc(group)}">
-    <header><span class="home-icon">${navIcon(main)}</span><h3>${esc(label)}</h3>${open.length ? `<span class="home-count" title="offen">${total}</span>` : '<span class="pill ok">alles erledigt</span>'}</header>
+    <header><span class="home-icon">${navIcon(main)}</span><h3>${esc(label)}</h3>${state}</header>
     ${group === 'planung' && items.some((v) => v.id === 'week') ? planCard(c) : ''}
     ${open.length ? `<ul class="home-open">${open.map(({ v, n }) => `<li><button class="link-row" data-action="view" data-view="${v.id}"><span class="flag error">${n}</span><span>${esc(v.label)}</span>${ICON.right}</button></li>`).join('')}</ul>` : ''}
     <div class="home-links">${items.map((v) => `<button class="btn small" data-action="view" data-view="${v.id}">${esc(v.label)}</button>`).join('')}</div>
@@ -67,13 +73,13 @@ function openSlots(c) {
 }
 
 /** Kopf der Übersicht: Begrüßung, Datum, die wichtigsten Zahlen als Knöpfe. */
-function hero(c, views, { name, todoCount, staffTotal }) {
+function hero(c, views, { name, todoCount, staffTotal, pending = false }) {
   const has = (id) => views.some((v) => v.id === id)
   const today = todayISO()
   const { week } = isoWeek(today)
   const stat = (n, label, action, data = '', tone = '') => `<button class="home-hero-stat ${tone}" data-action="${action}" ${data}><b>${n}</b><span>${label}</span></button>`
   const stats = [
-    stat(todoCount, todoCount === 1 ? 'Punkt zu erledigen' : 'zu erledigen', 'open-todo', '', todoCount ? 'hot' : ''),
+    stat(pending ? '…' : todoCount, !pending && todoCount === 1 ? 'Punkt zu erledigen' : 'zu erledigen', 'open-todo', '', todoCount && !pending ? 'hot' : ''),
     has('week') && c?.week ? (() => { const n = openSlots(c); return stat(n, n === 1 ? 'offener Einsatz' : 'offene Einsätze', 'view', 'data-view="week"', n ? 'hot' : '') })() : '',
     has('termine') ? (() => { const n = appointmentsOfDay(today).length; return stat(n, n === 1 ? 'Termin heute' : 'Termine heute', 'view', 'data-view="termine"') })() : '',
     has('assistenz') ? stat(staffTotal, staffTotal === 1 ? 'Vorschlag' : 'Vorschläge', 'view', 'data-view="assistenz"') : '',
@@ -82,7 +88,7 @@ function hero(c, views, { name, todoCount, staffTotal }) {
   const season = seasonInfo(activeSeason())
   return `<section class="home-hero${season ? ' season-host' : ''}" aria-label="Begrüßung">${season ? seasonDeco(season.id, 'hero') : ''}
     <button class="home-hero-cleo" data-action="help-open" title="Cleo fragen: Hilfe zu jeder Funktion" aria-label="Cleo fragen">${cleo({ mood: moodFor({ open: todoCount, season: season?.mood }), outfit: season?.outfit, size: 124, label: season ? `Cleo, der Sauberheld – ${season.label}` : 'Cleo, der Sauberheld' })}</button>
-    <div class="home-hero-text"><p class="home-hero-date">${esc(formatDate(today, { year: true }))} · KW ${week}${role}</p><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="home-hero-sub">${todoCount ? `${todoCount} ${todoCount === 1 ? 'Punkt wartet' : 'Punkte warten'} in deinen Bereichen.` : 'Alles erledigt – schönen Tag!'} <button class="link-btn" data-action="help-open">Frag Cleo</button>, wenn du etwas suchst.</p></div>
+    <div class="home-hero-text"><p class="home-hero-date">${esc(formatDate(today, { year: true }))} · KW ${week}${role}</p><h2>${greeting()}${name ? `, ${esc(name)}` : ''}</h2><p class="home-hero-sub">${pending ? 'Einen Moment, die offenen Punkte deiner Bereiche werden noch gezählt.' : todoCount ? `${todoCount} ${todoCount === 1 ? 'Punkt wartet' : 'Punkte warten'} in deinen Bereichen.` : 'Alles erledigt – schönen Tag!'} <button class="link-btn" data-action="help-open">Frag Cleo</button>, wenn du etwas suchst.</p></div>
     ${stats.length ? `<div class="home-hero-stats">${stats.join('')}</div>` : ''}
   </section>`
 }
@@ -98,7 +104,7 @@ const badgeOf = (c, v) => Number(v.badge?.(c)) || 0
  * (offene Einsätze heute/morgen → Vertretung, Zu erledigen, nächster Termin, sonst Saison-Gruß).
  * Darunter das Fragefeld: Cleo kennt auch Plan, Abwesenheiten und Objekte („Wer arbeitet morgen?“).
  */
-export function cleoTip(c, views, { todoCount = 0, nextAppts = [], season = null, now = new Date() } = {}) {
+export function cleoTip(c, views, { todoCount = 0, nextAppts = [], season = null, now = new Date(), pending = false } = {}) {
   const has = (id) => views.some((v) => v.id === id)
   const today = todayISO()
   const tomorrow = addDays(today, 1)
@@ -111,6 +117,8 @@ export function cleoTip(c, views, { todoCount = 0, nextAppts = [], season = null
     if (m) return { mood: 'liste', text: `Morgen ${m === 1 ? 'ist noch ein Einsatz' : `sind noch ${m} Einsätze`} offen. Jetzt ist noch Zeit zum Umplanen.`, label: 'Vertretung finden', action: 'view', data: 'data-view="coverage"' }
   }
   const next = nextAppts.find(({ d, a, allDay }) => d === today && (allDay || a.start.slice(11, 16) >= now.toTimeString().slice(0, 5)))
+  // kurz nach dem Start: noch nicht „alles erledigt“ sagen und keine halbe Zahl nennen
+  if (pending) return { mood: 'liste', text: 'Einen Moment, ich zähle noch, was heute auf dich wartet …', label: '', action: '', data: '' }
   if (todoCount) return { mood: 'liste', text: `${todoCount === 1 ? 'Ein Punkt wartet' : `${todoCount} Punkte warten`} auf dich.${next ? ` Und um ${next.allDay ? 'heute' : esc(next.a.start.slice(11, 16))} kommt „${esc(next.a.title)}“.` : ''}`, label: 'Zeig sie mir', action: 'open-todo', data: '' }
   if (next) return { mood: 'handy', text: `${next.allDay ? 'Heute' : `Um ${esc(next.a.start.slice(11, 16))}`} steht „${esc(next.a.title)}“ an.`, label: 'Termin öffnen', action: 'appt-open', data: `data-id="${esc(next.a.id)}" data-occ="${esc(next.a.occ || '')}"` }
   if (season?.hello) return { mood: season.mood || 'froh', text: esc(season.hello), label: '', action: '', data: '' }
@@ -127,13 +135,13 @@ function cleoSays(c, views, opts) {
   </section>`
 }
 
-function phoneHome(c, views, { name, todoCount, staffTotal, nextAppts }) {
+function phoneHome(c, views, { name, todoCount, staffTotal, nextAppts, pending = false }) {
   const has = (id) => views.some((v) => v.id === id)
   const today = todayISO()
   const season = seasonInfo(activeSeason())
   const stat = (n, label, action, data = '', hot = false) => `<button class="m-stat ${hot && n ? 'hot' : ''}" data-action="${action}" ${data}><b>${n}</b><span>${label}</span></button>`
   const stats = [
-    stat(todoCount, 'zu erledigen', 'open-todo', '', true),
+    stat(pending ? '…' : todoCount, 'zu erledigen', 'open-todo', '', !pending),
     has('week') && c?.week ? (() => { const n = openSlots(c); return stat(n, n === 1 ? 'offener Einsatz' : 'offene Einsätze', 'view', 'data-view="week"', true) })() : '',
     has('termine') ? (() => { const n = appointmentsOfDay(today).length; return stat(n, n === 1 ? 'Termin heute' : 'Termine heute', 'view', 'data-view="termine"') })() : '',
   ].filter(Boolean)
@@ -153,7 +161,7 @@ function phoneHome(c, views, { name, todoCount, staffTotal, nextAppts }) {
     })
     .join('')
   return `<div class="m-home">
-    ${cleoSays(c, views, { todoCount, nextAppts, season, hello: `${greeting()}${name ? `, ${esc(name)}` : ''}!` })}
+    ${cleoSays(c, views, { todoCount, nextAppts, season, pending, hello: `${greeting()}${name ? `, ${esc(name)}` : ''}!` })}
     ${stats.length ? `<div class="m-stats">${stats.join('')}</div>` : ''}
     ${moduleCards(c)}
     ${rows.length ? `<section class="m-sec"><h3>Als Nächstes</h3><div class="m-list">${rows.join('')}</div></section>` : '<p class="m-done"><span class="pill ok">Alles erledigt</span> Schönen Tag!</p>'}
@@ -192,8 +200,10 @@ function homeView(c) {
         .map((a) => `<button class="btn small ${a.urgent ? 'primary' : ''}" data-action="view" data-view="assistenz">${esc(a.name)} <span class="flag ${a.urgent ? 'error' : 'info'}">${a.count}</span></button>`)
         .join('')}</div></section>`
     : ''
-  if (isMobile()) return phoneHome(c, views, { name, todoCount: t.count, staffTotal, nextAppts })
-  return `${hero(c, views, { name, todoCount: t.count, staffTotal })}
+  // kurz nach dem Start: Module der Bereiche und die erste Rechnung von „Zu erledigen“ kommen im Hintergrund
+  const pending = countsPending() || todoPending()
+  if (isMobile()) return phoneHome(c, views, { name, todoCount: t.count, staffTotal, nextAppts, pending })
+  return `${hero(c, views, { name, todoCount: t.count, staffTotal, pending })}
   ${staffCard}${apptCard}${moduleCards(c)}
   <section class="home-grid" aria-label="Bereiche">${cards}</section>`
 }

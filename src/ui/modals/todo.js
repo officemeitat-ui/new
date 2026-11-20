@@ -22,6 +22,8 @@ const AHEAD_DAYS = 35
 export const todoWindow = (today = todayISO()) => ({ from: addDays(today, -BACK_DAYS), to: addDays(today, AHEAD_DAYS) })
 
 export const SOURCES = []
+// zählt jede An- und Ummeldung einer Quelle: Eine laufende Rechnung merkt daran, dass inzwischen ein Modul nachgeladen wurde
+let sourcesVersion = 0
 /**
  * Weitere Quelle für „Zu erledigen“: { id, module, title, compute(today) → [{ id, … }], render(items, c) → HTML }
  * Die id jedes Punkts ändert sich, wenn er wieder neu gemeldet werden soll.
@@ -32,6 +34,7 @@ export function registerTodo(source) {
   if (idx >= 0 && SOURCES[idx].lazy) queueMicrotask(refreshSources)
   if (idx >= 0) SOURCES.splice(idx, 1, source)
   else SOURCES.push(source)
+  sourcesVersion++
 }
 
 /** Punkte eines Moduls nur für Rollen, die dort ändern dürfen; ohne Modul (betrifft nur dieses Gerät, z. B. nicht hochgeladene Dateien) für alle. */
@@ -106,6 +109,7 @@ export function todo() {
   if (cache.key !== key || cache.access !== app.access) {
     job = null
     cache = { key, todo: drawing(() => computeTodo()), access: app.access }
+    redrawSoon()
   }
   return cache.todo
 }
@@ -116,15 +120,43 @@ export function todo() {
 const EMPTY = { today: '', lead: 0, absences: [], periodic: [], weeks: [], extra: [], count: 0, ids: [] }
 let job = null
 let staleDrawn = false
+/** Für diese Rolle ist noch gar nichts gezählt (Start, Rollenwechsel): Die erste Rechnung läuft im Hintergrund. */
+export const todoPending = () => !!app.data && !lastForAccess()
 /** Ergebnis zum aktuellen Datenstand oder null (rechnet nicht). */
 export const todoReady = () => (app.data && cache.key === keyNow() ? lastForAccess() : null)
 /** Ergebnis zum aktuellen Datenstand, sonst der letzte Stand (und im Hintergrund neu rechnen). Für Zähler und Übersichten. */
 export function todoOrLast() {
   const ready = todoReady()
-  if (ready) return ready
+  if (ready) return ((drawnCount = ready.count), ready)
   staleDrawn = true
   todoSoon()
-  return lastForAccess() || EMPTY
+  const last = lastForAccess() || EMPTY
+  drawnCount = last.count
+  return last
+}
+
+// Zahl, mit der Übersicht und Zähler zuletzt gezeichnet wurden. Entsteht danach ein Ergebnis mit anderer Zahl, ohne dass
+// ohnehin neu gezeichnet wird (z. B. rechnet der Dialog „Zu erledigen“ beim Start mit weiteren Wochen neu), zeigte die
+// Begrüßung sonst eine andere Zahl als Glocke und Dialog.
+let drawnCount = null
+let redrawTimer = null
+function redrawSoon() {
+  if (typeof document === 'undefined') return
+  clearTimeout(redrawTimer)
+  let tries = 0
+  // der Zeitgeber hält nichts am Laufen (Tests in Node)
+  const later = (ms) => void (redrawTimer = setTimeout(check, ms))?.unref?.()
+  const check = () => {
+    const t = lastForAccess()
+    if (!t || drawnCount == null || drawnCount === t.count) return
+    // offener Dialog oder laufende Eingabe: nicht stören, danach nachholen (höchstens zwei Minuten lang nachsehen;
+    // das nächste Zeichnen nimmt ohnehin den neuen Stand)
+    if (app.ui.modal || document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]')) return tries++ < 200 ? later(600) : undefined
+    drawnCount = t.count
+    setBell(t.count)
+    render()
+  }
+  later(80)
 }
 const idle = () => new Promise((resolve) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(), { timeout: 300 }) : setTimeout(resolve, 0)))
 /** „Zu erledigen“ im Hintergrund neu rechnen (Quelle für Quelle); fertig: Glocke anpassen, bei Bedarf neu zeichnen. */
@@ -136,7 +168,8 @@ export function todoSoon() {
   const alive = () => job === my && keyNow() === key && app.access === my.access
   ;(async () => {
     const today = todayISO()
-    const extra = []
+    const version = sourcesVersion
+    let extra = []
     for (const source of SOURCES.filter((src) => mayDo(src.module))) {
       await idle()
       if (!alive()) return
@@ -145,7 +178,10 @@ export function todoSoon() {
     }
     await idle()
     if (!alive()) return
-    const extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
+    // Während der Pausen wurde ein Modul nachgeladen (seine Quelle hat den Platzhalter ersetzt): Die Liste oben kennt
+    // noch den Platzhalter ohne Punkte. Dann die Punkte der Module in einem Zug neu holen, sonst fehlten sie dauerhaft.
+    let extraIds = extra.flatMap((x) => x.items.map((i) => `${x.source.id}:${i.id}`))
+    if (version !== sourcesVersion) ({ extra, extraIds } = drawing(() => sourceItems(today)))
     const t = drawing(() => planItems(today, { extra, extraIds }))
     job = null
     if (cache.key === key && cache.access === app.access) return
@@ -156,7 +192,7 @@ export function todoSoon() {
     if (staleDrawn && !app.ui.modal && !document.activeElement?.closest?.('input, textarea, select, [contenteditable="true"]')) {
       staleDrawn = false
       render()
-    }
+    } else redrawSoon()
   })().catch((err) => {
     if (job === my) job = null
     console.warn('Zu erledigen:', err)
@@ -178,6 +214,7 @@ function refreshSources() {
   const { extra, extraIds } = drawing(() => sourceItems(t.today))
   const ids = [...planIds, ...extraIds]
   cache.todo = { ...t, extra, count: ids.length, ids }
+  redrawSoon()
 }
 
 function readSeen() {

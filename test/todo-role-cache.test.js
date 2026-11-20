@@ -6,7 +6,7 @@ globalThis.addEventListener = () => {}
 globalThis.document = { getElementById: () => null, activeElement: null }
 globalThis.requestIdleCallback = (fn) => queueMicrotask(fn)
 const { app } = await import('../src/ui/context.js')
-const { SOURCES, registerTodo, todo, todoOrLast, todoReady, bellButton } = await import('../src/ui/modals/todo.js')
+const { SOURCES, registerTodo, todo, todoOrLast, todoPending, todoReady, bellButton } = await import('../src/ui/modals/todo.js')
 
 test('Aufgabenzähler: beim Rollenwechsel keine Aufgaben der vorherigen Rolle zeigen', async () => {
   app.data = { assignments: {}, absences: [], published: {} }
@@ -35,4 +35,27 @@ test('Aufgabenzähler: bei Datenänderungen innerhalb derselben Rolle bleibt der
   const previous = todo()
   app.dataVersion = (app.dataVersion || 0) + 1
   assert.equal(todoOrLast(), previous)
+})
+
+test('Aufgabenzähler: wird während der Rechnung ein Modul nachgeladen, gehören seine Punkte zum Ergebnis', async () => {
+  app.ui.modal = { type: 'test' }
+  const access = (id, module) => ({ roles: [id], canEdit: (m) => m === module })
+  app.access = access('buero2', 'buero')
+  SOURCES.length = 0
+  registerTodo({ id: 'fristen', module: 'buero', compute: () => [{ id: 'f1' }] })
+  // Platzhalter eines später geladenen Moduls (views/lazy.js): noch ohne Punkte
+  registerTodo({ id: 'lager', module: 'buero', lazy: {}, compute: () => [], render: () => '' })
+  assert.equal(todoPending(), true, 'für diese Rolle ist noch nichts gezählt')
+  assert.equal(todoOrLast().count, 0)
+  // die Rechnung läuft (Quelle für Quelle mit Pausen); jetzt meldet sich das nachgeladene Modul an
+  registerTodo({ id: 'lager', module: 'buero', compute: () => [{ id: 'leer1' }, { id: 'leer2' }] })
+  await new Promise(setImmediate)
+  assert.deepEqual(todoReady().ids, ['fristen:f1', 'lager:leer1', 'lager:leer2'])
+  assert.equal(todoPending(), false)
+  // Modul kommt erst nach der Rechnung: der gemerkte Stand wird um seine Punkte ergänzt
+  registerTodo({ id: 'matten', module: 'buero', lazy: {}, compute: () => [], render: () => '' })
+  await new Promise(setImmediate)
+  registerTodo({ id: 'matten', module: 'buero', compute: () => [{ id: 'm1' }] })
+  await new Promise(setImmediate)
+  assert.deepEqual(todoOrLast().ids, ['fristen:f1', 'lager:leer1', 'lager:leer2', 'matten:m1'])
 })

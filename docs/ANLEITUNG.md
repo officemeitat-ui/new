@@ -41,6 +41,7 @@ Die Übersicht zeigt oben die wichtigsten Zahlen: Punkte zu erledigen, offene Ei
 3. In einer Karte auf eine Zeile mit roter Zahl klicken, um direkt dorthin zu springen.
 
 > Tipp: Steht „alles erledigt“ an einer Karte, gibt es dort gerade nichts zu tun.
+> Tipp: Kurz nach dem Start steht „wird gezählt …“, bis alle Bereiche geladen sind; erst danach stimmen die Zahlen.
 > Tipp: Termine von heute und morgen stehen in einer eigenen Karte.
 > Tipp: Cleo in der Begrüßung oder „Frag Cleo“ öffnet die Hilfe.
 
