@@ -17,7 +17,9 @@ export const PLACEMENT_TEMPLATE = ['Gebiet', 'Kunde', 'Straße', 'PLZ', 'Ort', '
 const ALIASES = {
   gebiet: ['gebiet', 'tour', 'tourrunde', 'runde', 'revier', 'region', 'tourgebiet'],
   kunde: ['kunde', 'kundenname', 'firma', 'auftraggeber', 'kundenfirma'],
-  strasse: ['strasse', 'adresse', 'anschrift', 'objekt', 'liegenschaft', 'strassehausnummer', 'objektadresse'],
+  strasse: ['strasse', 'adresse', 'anschrift', 'strassehausnummer', 'objektadresse'],
+  // „Objekt“ gilt als Adresse, wenn es keine Spalte „Straße“ gibt (sonst bleibt es ungenutzt: Objekte entstehen je Adresse)
+  objekt: ['objekt', 'liegenschaft', 'objektname'],
   plz: ['plz', 'postleitzahl'],
   ort: ['ort', 'stadt', 'gemeinde'],
   position: ['liegeplatz', 'position', 'platz', 'eingang', 'stiege', 'lage', 'bezeichnung', 'standort'],
@@ -110,7 +112,7 @@ export function parsePlacementTable(raw) {
   let fields = []
   for (let i = 0; i < Math.min(lines.length, 10); i++) {
     const f = cells(lines[i]).map(fieldOf)
-    if (f.filter(Boolean).length >= 2 && (f.includes('kunde') || f.includes('strasse'))) {
+    if (f.filter(Boolean).length >= 2 && (f.includes('kunde') || f.includes('strasse') || f.includes('objekt'))) {
       headAt = i
       fields = f
       break
@@ -121,6 +123,8 @@ export function parsePlacementTable(raw) {
     return out
   }
   const heads = cells(lines[headAt])
+  if (!fields.includes('strasse')) fields = fields.map((f) => (f === 'objekt' ? 'strasse' : f))
+  else fields = fields.map((f) => (f === 'objekt' ? '' : f))
   out.columns = [...new Set(fields.filter(Boolean))]
   out.unknown = heads.filter((h, i) => h && !fields[i])
   if (!fields.includes('kunde') || !fields.includes('strasse')) {
@@ -146,10 +150,9 @@ export function parsePlacementTable(raw) {
       out.notes.mats++
       continue
     }
-    const gebiet = row.gebiet || carry.gebiet
+    // leere Zellen bei Gebiet und Kunde gelten wie die Zeile darüber
     const kunde = row.kunde || carry.kunde
-    // neuer Kunde ohne Gebiet: das Gebiet des vorigen Blocks gilt nur innerhalb desselben Kunden weiter
-    carry = { gebiet: row.kunde && !row.gebiet && row.kunde !== carry.kunde ? '' : gebiet, kunde }
+    carry = { gebiet: row.gebiet || carry.gebiet, kunde }
     const addr = row.strasse ? splitListAddress(row.strasse) : prev && kunde === prev.kunde ? { strasse: prev.strasse, plz: prev.plz, ort: prev.ort } : { strasse: '', plz: '', ort: '' }
     const s = {
       gebiet: carry.gebiet,

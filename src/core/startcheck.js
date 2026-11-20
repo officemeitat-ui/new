@@ -76,7 +76,8 @@ export function startCheck(data = {}, { today = '' } = {}) {
   const missing = [!text(sender.name) && 'Firmenname', !text(sender.address) && 'Anschrift', !text(sender.uid) && 'UID-Nummer'].filter(Boolean)
   if (!used && missing.length === 3) add(F, 'Fakturierung', 'info', 'noch nicht in Verwendung', '', 'fakturierung')
   else {
-    add(F, 'Absender auf Rechnungen', missing.length ? 'error' : 'ok', missing.length ? `fehlt: ${missing.join(', ')}` : text(sender.name), 'Ohne Firmenname, Anschrift und UID-Nummer ist eine Rechnung nicht gültig. „Fakturierung“ → „Einstellungen“.', 'fakturierung')
+    // rot erst, wenn die Fakturierung in Verwendung ist (Kunden oder Belege); davor ist es eine Lücke
+    add(F, 'Absender auf Rechnungen', missing.length ? (used ? 'error' : 'warn') : 'ok', missing.length ? `fehlt: ${missing.join(', ')}` : text(sender.name), 'Ohne Firmenname, Anschrift und UID-Nummer ist eine Rechnung nicht gültig. „Fakturierung“ → „Einstellungen“.', 'fakturierung')
     add(F, 'Bankverbindung', text(fak.settings?.bank?.iban) ? 'ok' : 'warn', text(fak.settings?.bank?.iban) ? 'IBAN eingetragen' : 'IBAN fehlt', 'Die IBAN steht auf jeder Rechnung und im Zahlschein-Code. „Fakturierung“ → „Einstellungen“.', 'fakturierung')
     if (!customers.length) add(F, 'Kunden angelegt', 'warn', 'noch keine', '„Fakturierung“ → „Kunden“, einzeln oder über den Import.', 'fakturierung')
     else {

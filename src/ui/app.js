@@ -214,7 +214,14 @@ function summary(c) {
 }
 
 function welcome() {
-  if (app.data.employees.length || app.readOnly || !canEdit('stammdaten')) return ''
+  if (app.readOnly || !canEdit('stammdaten')) return ''
+  if (app.data.employees.length) {
+    // Mitarbeitende sind da, aber ohne Objekte und Leistungen bleibt der Plan leer: der nächste Schritt, bis beides da ist
+    const noObjects = !(app.data.objects || []).some((o) => !o.inactive)
+    if (!noObjects && (app.data.tasks || []).length) return ''
+    return `<div class="banner welcome"><div><p><strong>Fast startklar.</strong> Mitarbeitende sind angelegt, es ${noObjects ? 'fehlen noch Objekte und Leistungen' : 'fehlen noch die Leistungen der Objekte'}: Ohne sie bleibt der Dienstplan leer.</p></div>
+    <div class="actions"><button class="btn primary" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button>${!app.access || app.access.all ? '<button class="btn" data-action="system-data">Daten-Startcheck</button>' : ''}</div></div>`
+  }
   return `<div class="banner welcome"><div><h2>Willkommen</h2><p>Noch keine Daten in der Ablage. Am schnellsten geht es mit den bestehenden Excel-Listen: Mitarbeitende einfügen, dann Objekte und Leistungen mit Stammkraft.</p></div>
     <div class="actions"><button class="btn primary" data-action="import-open" data-kind="employees">${ICON.upload} Mitarbeitende einfügen</button><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button><button class="btn" data-action="open-data">Beispieldaten laden</button></div></div>`
 }

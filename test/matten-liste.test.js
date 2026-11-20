@@ -75,6 +75,17 @@ test('Liste: Spalte „Kennung“ geht vor (passt zu schon übernommenen Liegepl
   assert.deepEqual(p.standorte.map((s) => [s.pruefen, s.pruefGrund]), [[true, 'Stückzahl unklar'], [undefined, undefined]])
 })
 
+test('Liste: Gebiet gilt nach unten auch für den nächsten Kunden; „Objekt“ ist nur ohne „Straße“ die Adresse', () => {
+  const r = parsePlacementTable(T([['Gebiet', 'Kunde', 'Straße', 'Größe'], ['Nord', 'Kunde A', 'Weg 1', '85x150'], ['', 'Kunde B', 'Weg 2', '85x150'], ['Süd', 'Kunde C', 'Weg 3', '85x150'], ['', '', 'Weg 4', '85x150']]))
+  assert.deepEqual(r.standorte.map((s) => [s.gebiet, s.kunde]), [['Nord', 'Kunde A'], ['Nord', 'Kunde B'], ['Süd', 'Kunde C'], ['Süd', 'Kunde C']])
+  // Objektname neben der Straße: die Straße zählt, „Objekt“ steht bei den nicht verwendeten Spalten
+  const both = parsePlacementTable(T([['Kunde', 'Objekt', 'Straße', 'Größe'], ['Kunde A', 'Wohnanlage Muster', 'Weg 1, 5020 Salzburg', '85x150']]))
+  assert.deepEqual([both.standorte[0].strasse, both.columns.join(), both.unknown.join()], ['Weg 1', 'kunde,strasse,groesse', 'Objekt'])
+  // nur „Objekt“: gilt als Adresse
+  const only = parsePlacementTable(T([['Kunde', 'Objekt', 'Größe'], ['Kunde A', 'Weg 1, 5020 Salzburg', '85x150']]))
+  assert.deepEqual([only.problem, only.standorte[0].strasse, only.standorte[0].ort, only.columns.join()], ['', 'Weg 1', 'Salzburg', 'kunde,strasse,groesse'])
+})
+
 test('Liste: Fehler mit Zeilennummer und verständliche Meldungen', () => {
   assert.match(parsePlacementTable('').problem, /Liste aus Excel einfügen/)
   assert.match(parsePlacementTable('irgendwas\tnoch was\n1\t2').problem, /Keine Überschrift erkannt/)

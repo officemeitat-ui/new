@@ -87,6 +87,12 @@ test('Startcheck Fakturierung: in Verwendung ohne Absender → fehlt; IBAN und A
   assert.deepEqual([of(list, 'Fakturierung', 'E-Mail je Kunde').status, of(list, 'Fakturierung', 'E-Mail je Kunde').detail], ['info', 'fehlt bei 1: Kunde A'])
 })
 
+test('Startcheck Fakturierung: Absender unvollständig, aber noch keine Kunden und Belege → Lücke statt rot', () => {
+  const list = run({ fakturierung: { settings: { sender: { name: 'Firma' } }, customers: [], documents: [] } })
+  assert.deepEqual([of(list, 'Fakturierung', 'Absender auf Rechnungen').status, of(list, 'Fakturierung', 'Kunden angelegt').status], ['warn', 'warn'])
+  assert.equal(list.filter((x) => x.group === 'Fakturierung' && x.status === 'error').length, 0)
+})
+
 test('Startcheck Mattenwechsel: Koordinaten, Rhythmus, Mattentyp, Preis, Betriebshof, Fahrer, Planung', () => {
   const data = {
     fakturierung: { articles: [{ id: 'a1', name: '85 × 150 cm, grau', price: 4.9 }, { id: 'a2', name: '115 × 180 cm, Navy', price: 0 }] },
