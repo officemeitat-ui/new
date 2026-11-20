@@ -4,9 +4,13 @@
 // und Erweiterungen (system.php), Webspace erreicht das Internet, Schnee-Alarm, Plan am Handy und
 // Kundenbereich (Datei, Schlüssel, Cronjob), Routing (optional: OpenRouteService und Google je eingerichtet, privat/ beschreibbar),
 // Microsoft-Anmeldung und SharePoint. Je Punkt ein Hinweis, was zu tun ist.
+// Reiter „Daten“: der Daten-Startcheck (core/startcheck.js) – sind Mitarbeitende, Objekte, Leistungen, Fakturierung und
+// Mattenwechsel so weit, dass die Module arbeiten können? Rechnet sofort aus den geladenen Daten, mit Sprung in die Ansicht.
 
-import { app, registerActions, registerView, renderNow, toast } from '../context.js'
-import { esc, ICON } from '../shared.js'
+import { todayISO } from '../../core/dates.js'
+import { startCheck, startReport, startSummary } from '../../core/startcheck.js'
+import { app, registerActions, registerView, render, renderNow, toast, visibleViews } from '../context.js'
+import { esc, ICON, tabBar } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
 import { alarmSettings } from './weather-alarm.js'
 
@@ -265,8 +269,28 @@ export async function runChecks() {
   return out
 }
 
+/** Reiter „Daten“: Punkte des Daten-Startchecks je Bereich, mit „Öffnen“ in die passende Ansicht. */
+function dataBlock(items) {
+  const sum = startSummary(items)
+  const can = new Set(visibleViews().map((v) => v.id))
+  const groups = [...new Set(items.map((x) => x.group))]
+  const banner = `<div class="banner ${sum.error ? 'warn-banner' : ''}"><p><strong>${esc(sum.text)}</strong>${sum.info ? ` ${sum.info} ${sum.info === 1 ? 'Hinweis' : 'Hinweise'} zu Bereichen, die noch nicht in Verwendung oder freiwillig sind.` : ''}</p></div>`
+  const list = groups
+    .map((g) => `<section><h3>${esc(g)}</h3><ul class="sys-list sys-data">${items
+      .filter((x) => x.group === g)
+      .map((x) => {
+        const todo = x.status === 'error' || x.status === 'warn'
+        const open = x.status !== 'ok' && can.has(x.view) ? `<button class="btn small" data-action="view" data-view="${esc(x.view)}" aria-label="${esc(x.label)}: Ansicht öffnen">Öffnen</button>` : ''
+        return `<li class="sys-${x.status}"><span class="flag ${MARK[x.status][1]}">${MARK[x.status][0]}</span><div><strong>${esc(x.label)}</strong> <span class="muted">${esc(x.detail)}</span>${(todo || x.status === 'info') && x.fix ? `<br><small>${esc(x.fix)}</small>` : ''}</div>${open}</li>`
+      })
+      .join('')}</ul></section>`)
+    .join('')
+  return `${banner}${list}<p class="note">Gerechnet aus den Daten, die jetzt geladen sind. Rot fehlt für den Start, gelb ist eine Lücke, blau ein Hinweis.</p>`
+}
+
 function systemView() {
   const res = app.ui.systemCheck
+  const tab = app.ui.systemTab === 'daten' ? 'daten' : 'technik'
   if (!res && !app.ui.systemRunning) {
     app.ui.systemRunning = true
     runChecks().then((r) => {
@@ -285,9 +309,20 @@ function systemView() {
       .map((x) => `<li class="sys-${x.status}"><span class="flag ${MARK[x.status][1]}">${MARK[x.status][0]}</span><div><strong>${esc(x.label)}</strong> <span class="muted">${esc(x.detail)}</span>${x.status === 'error' || x.status === 'warn' ? `<br><small>${esc(x.fix)}</small>` : ''}</div></li>`)
       .join('')}</ul></section>`)
     .join('')
-  return `<div class="section-head"><div><h2>Systemcheck</h2><p>Prüft für die Inbetriebnahme, ob Webspace, Einrichtung und Microsoft 365 zusammenpassen. Nur lesend; es wird nichts verändert.</p></div>
-      <div class="actions"><button class="btn" data-action="system-copy" ${res ? '' : 'disabled'}>${ICON.copy} Bericht kopieren</button><button class="btn primary" data-action="system-run">${ICON.refresh} Erneut prüfen</button></div></div>
-    ${summary}${list}${res ? `<p class="note">Stand ${esc(res.at.toLocaleString('de-AT'))}</p>` : ''}`
+  const data = startCheck(app.data || {}, { today: todayISO() })
+  const ds = startSummary(data)
+  const tabs = tabBar({
+    action: 'system-tab',
+    current: tab,
+    tabs: [
+      { id: 'technik', label: 'Technik', flag: count('error') + count('warn') },
+      { id: 'daten', label: 'Daten', flag: ds.error + ds.warn },
+    ],
+  })
+  const body = tab === 'daten' ? dataBlock(data) : `${summary}${list}${res ? `<p class="note">Stand ${esc(res.at.toLocaleString('de-AT'))}</p>` : ''}`
+  return `<div class="section-head"><div><h2>Systemcheck</h2><p>Prüft für die Inbetriebnahme, ob Webspace, Einrichtung und Microsoft 365 zusammenpassen, und unter „Daten“, ob die Stammdaten für den Start reichen. Nur lesend; es wird nichts verändert.</p></div>
+      <div class="actions"><button class="btn" data-action="system-copy" ${res || tab === 'daten' ? '' : 'disabled'}>${ICON.copy} Bericht kopieren</button>${tab === 'daten' ? '' : `<button class="btn primary" data-action="system-run">${ICON.refresh} Erneut prüfen</button>`}</div></div>
+    ${tabs}${body}`
 }
 
 registerView({ id: 'system', order: 130, label: 'Systemcheck', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Inbetriebnahme prüfen', render: systemView })
@@ -298,8 +333,29 @@ registerActions({
     app.ui.systemRunning = false
     renderNow()
   },
+  'system-tab': (el) => {
+    app.ui.systemTab = el.dataset.v === 'daten' ? 'daten' : 'technik'
+    renderNow()
+  },
+  // aus der Hilfe und von der Startseite: gleich den Reiter „Daten“ zeigen
+  'system-data': async () => {
+    app.ui.systemTab = 'daten'
+    app.ui.modal = null
+    app.ui.view = 'system'
+    await render()
+  },
   'system-copy': async () => {
     const res = app.ui.systemCheck
+    if (app.ui.systemTab === 'daten') {
+      const report = `Daten-Startcheck ${location.origin}, ${new Date().toLocaleString('de-AT')}\n${startReport(startCheck(app.data || {}, { today: todayISO() }))}`
+      try {
+        await navigator.clipboard.writeText(report)
+        toast('Bericht kopiert.')
+      } catch {
+        toast('Kopieren nicht möglich.')
+      }
+      return
+    }
     if (!res) return
     const text = [`Systemcheck ${location.origin}, ${res.at.toLocaleString('de-AT')}`, ...res.items.map((x) => `[${x.status.toUpperCase()}] ${x.group} · ${x.label}: ${x.detail}`)].join('\n')
     try {

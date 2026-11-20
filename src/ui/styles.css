@@ -978,6 +978,8 @@ body.readonly :is(.layout-main, main, .bottom-nav, .topbar) .edit-only,
 .sys-list li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .sys-list li:last-child { border-bottom: 0; }
 .sys-list .flag { margin-top: 3px; }
+.sys-data li { grid-template-columns: auto minmax(0, 1fr) auto; }
+.sys-data li > div { overflow-wrap: anywhere; }
 /* Datensicherung (views/sicherung.js) */
 .sich-list { list-style: none; padding: 0; margin: 8px 0; }
 .sich-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); }

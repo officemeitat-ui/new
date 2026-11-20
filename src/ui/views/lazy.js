@@ -216,7 +216,7 @@ lazy(BUERO, {
 // system.js
 lazy(BUERO, {
   views: [{ id: 'system', order: 130, label: 'Systemcheck', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Inbetriebnahme prüfen' }],
-  actions: 'system-run system-copy',
+  actions: 'system-run system-copy system-tab system-data',
 })
 
 // sicherung.js: Datensicherung (nur Vollzugriff; ZIP mit manifest.json, prüfen, einzeln zurückspielen, Erinnerung in

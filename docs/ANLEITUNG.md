@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 418 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 419 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (106)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (68)
+- [Verwaltung](#verwaltung) (69)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -5035,6 +5035,22 @@ Der Systemcheck prüft vom Browser aus Webspace (HTTPS, Sicherheitsregeln, gespe
 2. Rote und gelbe Punkte lesen und abarbeiten.
 3. „Erneut prüfen“ klicken.
 4. „Bericht kopieren“ für IT oder Support.
+
+*Nur Vollzugriff*
+
+### Daten-Startcheck: Reichen die Stammdaten für den Start?
+
+*In der App: Systemcheck*
+
+Der Reiter „Daten“ im Systemcheck zeigt je Bereich, was an Stammdaten fehlt: Mitarbeitende ohne Wochenstunden oder Handynummer, Objekte ohne Adresse oder Leistung, Absender und IBAN der Fakturierung, im Mattenwechsel Koordinaten, Preise, Betriebshof, Fahrer und geplante Einsätze. „Öffnen“ führt in die passende Ansicht.
+
+1. „Systemcheck“ unter „Verwaltung“ öffnen.
+2. Den Reiter „Daten“ wählen.
+3. Rote Punkte zuerst erledigen, dann die gelben Lücken; „Öffnen“ führt hin.
+4. „Bericht kopieren“ für die Übergabe.
+
+> Tipp: Rot fehlt für den Start, gelb ist eine Lücke, blau ein Hinweis zu Bereichen, die freiwillig oder noch nicht in Verwendung sind.
+> Tipp: Der Check rechnet sofort aus den geladenen Daten und ändert nichts.
 
 *Nur Vollzugriff*
 
