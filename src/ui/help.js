@@ -400,26 +400,38 @@ function ask(text) {
 /** Knopf der Aktion in der Ansicht kurz hervorheben (Cleo „zeigt“ darauf). */
 function spotlight(t) {
   const sel = t.action?.action ? `[data-action="${t.action.action}"]` : ''
-  // Die Ansicht kann noch laden (Bereiche werden erst bei Bedarf geholt): bis zu 3 s nach der Stelle suchen
-  let tries = 0
-  const find = () => {
-    // der Knopf selbst oder, steckt er in einem zugeklappten Menü, der Knopf dieses Menüs
+  // der Knopf selbst oder, steckt er in einem zugeklappten Menü, der Knopf dieses Menüs
+  const pick = () => {
     const all = sel ? [...document.querySelectorAll(`#app ${sel}`)] : []
-    const el = all.find((x) => x.offsetParent) || all.map((x) => x.closest('details')?.querySelector(':scope > summary')).find((x) => x?.offsetParent)
-    const target = el || document.querySelector('#app main h2, #app main .section-head')
-    if (!target || (sel && !el && tries < 2)) {
-      if (tries++ < 25) setTimeout(find, 120)
-      else if (target) mark(target)
-      return
+    return all.find((x) => x.offsetParent) || all.map((x) => x.closest('details')?.querySelector(':scope > summary')).find((x) => x?.offsetParent) || null
+  }
+  // Die Ansicht kann noch laden (Bereiche werden erst bei Bedarf geholt) und zeichnet danach neu: bis zu 3 s nach
+  // der Stelle suchen und die Markierung 2,6 s halten – auch über ein Neuzeichnen hinweg (sonst zeigte Cleo auf
+  // nichts mehr, sobald die Ansicht kurz nach dem Sprung noch einmal zeichnet).
+  let tries = 0
+  let since = 0
+  let marked = null
+  let exact = false
+  const tick = () => {
+    const el = pick()
+    // ohne Knopf nach zwei Versuchen die Überschrift der Ansicht; taucht der Knopf später auf, wandert die Markierung
+    const target = el || (!exact && (!sel || tries >= 2) ? document.querySelector('#app main h2, #app main .section-head') : null)
+    tries++
+    // Neuzeichnen ersetzt den Knopf oder lässt ihn stehen und setzt nur seine Klassen zurück: beides auffangen
+    if (target && (target !== marked || !target.classList.contains('cleo-spot'))) {
+      if (marked !== target) marked?.classList.remove('cleo-spot')
+      if (!since || (el && !exact)) {
+        since = Date.now()
+        target.scrollIntoView?.({ block: 'center', behavior: calm() ? 'auto' : 'smooth' })
+      }
+      target.classList.add('cleo-spot')
+      marked = target
+      exact = !!el
     }
-    mark(target)
+    if (since ? Date.now() - since < 2600 : tries <= 25) return setTimeout(tick, 120)
+    marked?.classList.remove('cleo-spot')
   }
-  const mark = (target) => {
-    target.scrollIntoView?.({ block: 'center', behavior: calm() ? 'auto' : 'smooth' })
-    target.classList.add('cleo-spot')
-    setTimeout(() => target.classList.remove('cleo-spot'), 2600)
-  }
-  setTimeout(find, 120)
+  setTimeout(tick, 120)
 }
 
 const go = (view) => {
