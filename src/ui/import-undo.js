@@ -1,5 +1,5 @@
 // „Einfügen zurücknehmen“: Sicherheitsnetz für das Einfügen ganzer Listen (Mitarbeitende, Objekte und Leistungen,
-// Unterweisungen, Schlüssel, Liegeplätze des Mattenwechsels). Vor dem Einfügen merkt sich die App die betroffenen
+// Abwesenheiten, Unterweisungen, Schlüssel, Liegeplätze des Mattenwechsels). Vor dem Einfügen merkt sich die App die betroffenen
 // Bereiche; in der passenden Ansicht steht danach 30 Minuten lang ein Hinweis mit „Einfügen zurücknehmen“ (zwei
 // Klicks). Gemerkt wird ein Schritt, nur in dieser Sitzung: nach dem Neuladen der Seite ist er weg.
 // Zurückgenommen wird der ganze Bereich auf den Stand davor – was seither dort geändert wurde, geht mit verloren
@@ -23,8 +23,8 @@ function write(path, value) {
 }
 
 /**
- * Stand vor dem Einfügen merken. kind: Ansicht, in der der Hinweis erscheint ('employees' | 'tasks' | 'trainings' |
- * 'keys' | 'matten'); fields: Bereiche von app.data, die das Einfügen ändert (auch 'bereich.liste'); label: was
+ * Stand vor dem Einfügen merken. kind: Ansicht, in der der Hinweis erscheint ('employees' | 'tasks' | 'absences' |
+ * 'trainings' | 'keys' | 'matten'); fields: Bereiche von app.data, die das Einfügen ändert (auch 'bereich.liste'); label: was
  * eingefügt wird (für den Hinweis, z. B. „26 Mitarbeitende“; steht es erst danach fest: setImportUndoLabel);
  * after: läuft nach dem Zurücknehmen (z. B. den Stand eines Dialogs leeren).
  */

@@ -168,8 +168,7 @@ lazy(BUERO, {
 lazy(BUERO, {
   views: [{ id: 'staff', order: 80, label: 'Mitarbeitende', group: 'stamm' }],
   modals: 'employee import',
-  // import-undo („Einfügen zurücknehmen“, ui/import-undo.js) registriert das erste Modul, das eine Liste einfügt
-  actions: 'import-template emp-edit emp-save emp-delete import-open import-preview import-run import-undo',
+  actions: 'import-template emp-edit emp-save emp-delete import-open import-preview import-run',
 })
 
 // sites.js

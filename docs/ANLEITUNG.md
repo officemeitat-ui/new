@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 421 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 422 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (107)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (70)
+- [Verwaltung](#verwaltung) (71)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -5056,11 +5056,29 @@ Der Systemcheck prüft vom Browser aus Webspace (HTTPS, Sicherheitsregeln, gespe
 
 *Nur Vollzugriff*
 
+### Abwesenheiten aus Excel einfügen (Urlaubsplan)
+
+*In der App: Abwesenheiten*
+
+„Aus Excel einfügen“ in den Abwesenheiten liest eine Liste mit Name, Art, Von und Bis (oder einer Spalte „Zeitraum“) und trägt alles auf einmal ein. Ohne Art gilt Urlaub. Namen passen auch als „Nachname Vorname“; Unbekannte werden gemeldet. Was es genau so schon gibt, wird übersprungen.
+
+1. „Abwesenheiten“ öffnen und „Aus Excel einfügen“ klicken.
+2. Die Liste mit Überschrift aus Excel kopieren und einfügen („Vorlage kopieren“ zeigt die Spalten).
+3. „Prüfen“ klicken und die Vorschau ansehen.
+4. „Abwesenheiten eintragen“ klicken.
+
+> Tipp: Ein Datum ohne Jahr („07.01.“) meint den nächsten solchen Tag.
+> Tipp: Eine leere Namenszelle gilt wie die Zeile darüber.
+> Tipp: „Zu erledigen“ zeigt danach je Abwesenheit, wo eine Vertretung zu planen ist.
+> Tipp: Passt etwas nicht: „Einfügen zurücknehmen“ steht 30 Minuten in der Ansicht.
+
+*Bearbeiten: Planung, Stammdaten*
+
 ### Einfügen zurücknehmen (falsche Liste eingefügt)
 
 *In der App: Mitarbeitende*
 
-Nach dem Einfügen einer Liste steht in der Ansicht 30 Minuten lang ein Hinweis mit „Einfügen zurücknehmen“. Zwei Klicks stellen den Bereich auf den Stand davor. Das gilt für Mitarbeitende, Objekte & Leistungen, Unterweisungen, Schlüsselbuch und Matten-Liegeplätze. Wochenpläne und Einteilungen bleiben unberührt.
+Nach dem Einfügen einer Liste steht in der Ansicht 30 Minuten lang ein Hinweis mit „Einfügen zurücknehmen“. Zwei Klicks stellen den Bereich auf den Stand davor. Das gilt für Mitarbeitende, Objekte & Leistungen, Abwesenheiten, Unterweisungen, Schlüsselbuch und Matten-Liegeplätze. Wochenpläne und Einteilungen bleiben unberührt.
 
 1. In der Ansicht bleiben, in der eingefügt wurde.
 2. Im Hinweis „Eingefügt …“ auf „Einfügen zurücknehmen“ klicken.
