@@ -6,14 +6,17 @@
 //      anlegen), Objekte (je Kunde und Adresse; vorhandenes App-Objekt oder neu), Mattentypen (Größe/Farbe → Artikel).
 //   3. Übernehmen: Liegeplätze mit legacyId, letzter Wechsel aus allen Touren; ein zweiter Lauf ändert nichts.
 // Im Browser-Modus (ohne SharePoint) lassen sich die Dateien des Werkzeugs bzw. seine Sicherung „Alles sichern“ wählen.
+// Statt des Werkzeugs geht auch eine Liste aus Excel („Liste aus Excel einfügen“, core/matten-liste.js): dieselbe Vorschau.
 // Die Dateien des Werkzeugs werden nie geschrieben. Rechenkern: core/matten-import.js.
 
 import { formatDate, todayISO } from '../../core/dates.js'
 import { matLabel, matTypes } from '../../core/invoicing.js'
 import { applyImport, backupFolder, isTourFile, planImport, TOOL_PATHS, toolDataFromFiles, toolList, typesFromMissing } from '../../core/matten-import.js'
+import { listSummary, parsePlacementTable, PLACEMENT_TEMPLATE } from '../../core/matten-liste.js'
 import { customerName, emptyMatten, intervalText, upgradeMatten } from '../../core/matten.js'
-import { app, confirmStep, persist, registerActions, renderNow, toast } from '../context.js'
-import { esc, ICON, options, uid } from '../shared.js'
+import { app, closeModal, confirmStep, openModal, persist, registerActions, registerModal, render, renderModal, renderNow, toast } from '../context.js'
+import { esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { copyText } from './sheet.js'
 
 const S = () => (app.ui.mwImp ||= { choices: { customers: {}, objects: {}, mats: {} } })
 /** Übernahme: nur Vollzugriff (schreibt Liegeplätze, Objekte und Kunden der Fakturierung). */
@@ -81,12 +84,13 @@ function intro() {
   const store = sp()
   const st = S()
   const pick = (label) => `<label class="btn"><input type="file" accept="application/json,.json" multiple hidden data-change="mw-imp-files">${ICON.upload} ${label}</label>`
+  const paste = `<button class="btn" data-action="mw-imp-paste-open">${ICON.copy} Liste aus Excel einfügen</button>`
   const how = store
     ? `<p><button class="btn primary" data-action="mw-imp-read" ${st.busy ? 'disabled' : ''}>${ICON.download} Sichern und Daten des Werkzeugs lesen</button>${st.busy ? ` <span class="muted">${esc(st.busy)}</span>` : ''}</p>
-       <p class="muted">Oder eine vorbereitete Datei mit Liegeplätzen wählen (z. B. aus euren bisherigen Listen umgewandelt, Format wie Standorte.json). Sie wird nur gelesen; danach dieselbe Vorschau.</p>
-       ${pick('Datei mit Liegeplätzen wählen')}`
-    : `<p class="muted">Ohne SharePoint (Browser-Modus): die Dateien des Werkzeugs wählen – Standorte.json, Kunden.json und Tour-Dateien – oder die Sicherung aus dem Werkzeug („Alles sichern“).</p>
-       ${pick('Dateien des Werkzeugs wählen')}`
+       <p class="muted">Ohne Werkzeug: eine Liste aus Excel einfügen (Kunde, Straße, Liegeplatz, Matten) oder eine vorbereitete Datei mit Liegeplätzen wählen. Beides wird nur gelesen; danach dieselbe Vorschau.</p>
+       ${pick('Datei mit Liegeplätzen wählen')} ${paste}`
+    : `<p class="muted">Ohne SharePoint (Browser-Modus): die Dateien des Werkzeugs wählen – Standorte.json, Kunden.json und Tour-Dateien – oder die Sicherung aus dem Werkzeug („Alles sichern“). Ohne Werkzeug: eine Liste aus Excel einfügen.</p>
+       ${pick('Dateien des Werkzeugs wählen')} ${paste}`
   return `<section class="mw-imp">
     <h3>Übernahme aus dem Werkzeug Mattenwechsel</h3>
     <p>Übernimmt die Liegeplätze des Werkzeugs (Datei Standorte.json) einmalig in dieses Modul: Kunden der Fakturierung zuordnen, Liegeplätze je Kunde und Adresse zu Objekten zusammenfassen, Matten den Mattentypen zuordnen und den letzten Wechsel aus allen Touren in SharePoint holen.</p>
@@ -108,11 +112,12 @@ export function importTab() {
   const dates = tours.map((t) => t.datum).filter(Boolean).sort()
   const b = st.backup
   const fromList = !b && st.files?.names?.length && !tours.length && !toolList(st.tool.kunden, 'kunden').length
+  const withLast = fromList ? toolList(st.tool.standorte, 'standorte').filter((x) => x?.letzterWechsel).length : 0
   const read = fromList
-    ? `${plural(plan.counts.standorte, 'Liegeplatz', 'Liegeplätze')} aus der Datei, ohne Touren (noch kein Wechsel bekannt: fällig ab heute).`
+    ? `${plural(plan.counts.standorte, 'Liegeplatz', 'Liegeplätze')} aus der ${st.files.pasted ? 'eingefügten Liste' : 'Datei'}, ohne Touren (${withLast ? `${withLast} mit letztem Wechsel aus der Liste; die übrigen` : 'noch kein Wechsel bekannt:'} fällig ab heute).`
     : `${plural(plan.counts.standorte, 'Liegeplatz', 'Liegeplätze')} (Standorte.json), ${plural(toolList(st.tool.kunden, 'kunden').length, 'Kunde', 'Kunden')} (Kunden.json), ${plural(tours.length, 'Tour', 'Touren')}${dates.length ? ` vom ${short(dates[0])} bis ${short(dates.at(-1))}` : ''} mit ${plural(plan.counts.wechsel, 'gewechseltem Liegeplatz', 'gewechselten Liegeplätzen')}.`
   const source = `<div class="banner"><p><strong>Gelesen:</strong> ${read}${st.files?.broken?.length ? ` ${plural(st.files.broken.length, 'Tour-Datei', 'Tour-Dateien')} nicht lesbar.` : ''}<br>
-      ${b ? `<strong>Sicherung:</strong> <code>${esc(b.folder)}/</code>${b.written.length ? ` – neu: ${esc(b.written.join(', '))}` : ''}${b.existed.length ? ` – von heute schon vorhanden: ${esc(b.existed.join(', '))}` : ''}${b.missing.length ? ` – nicht gefunden: ${esc(b.missing.join(', '))}` : ''}` : st.files?.names?.length ? `<strong>Aus Datei:</strong> ${esc(st.files.names.join(', '))} – wird nur gelesen, keine Sicherung nötig.` : '<strong>Browser-Modus:</strong> keine Sicherung nötig, die gewählten Dateien bleiben unverändert.'}</p>
+      ${b ? `<strong>Sicherung:</strong> <code>${esc(b.folder)}/</code>${b.written.length ? ` – neu: ${esc(b.written.join(', '))}` : ''}${b.existed.length ? ` – von heute schon vorhanden: ${esc(b.existed.join(', '))}` : ''}${b.missing.length ? ` – nicht gefunden: ${esc(b.missing.join(', '))}` : ''}` : st.files?.pasted ? '<strong>Aus der eingefügten Liste:</strong> nichts wird gespeichert, bevor „Übernehmen“ geklickt ist.' : st.files?.names?.length ? `<strong>Aus Datei:</strong> ${esc(st.files.names.join(', '))} – wird nur gelesen, keine Sicherung nötig.` : '<strong>Browser-Modus:</strong> keine Sicherung nötig, die gewählten Dateien bleiben unverändert.'}</p>
       <button class="btn small" data-action="mw-imp-reset">Neu lesen</button></div>`
   const result = st.result ? `<div class="banner welcome"><p><strong>Übernommen:</strong> ${plural(st.result.placements, 'Liegeplatz', 'Liegeplätze')} neu, ${plural(st.result.updated, 'Liegeplatz', 'Liegeplätze')} aktualisiert, ${plural(st.result.customers, 'Kunde', 'Kunden')} und ${plural(st.result.objects, 'Objekt', 'Objekte')} angelegt, ${plural(st.result.areas, 'Gebiet', 'Gebiete')}.</p>${st.result.placements ? `<p><strong>So geht es weiter:</strong> Mit „Rhythmus je Gebiet“ den nächsten Wechsel je Gebiet festlegen${fromList ? ' (sonst sind alle Wechsel am selben Tag fällig)' : ''}, dann im Matten-Kalender „Einsätze planen“. Koordinaten für die Route: „Matten-Liegeplätze“ → „Mehr“.</p><div class="actions"><button class="btn" data-action="mw-rhythm-open">Rhythmus je Gebiet</button><button class="btn" data-action="view" data-view="mw-kalender">Zum Matten-Kalender</button></div>` : ''}</div>` : ''
   const c = plan.counts
@@ -179,6 +184,51 @@ export function importTab() {
   return `<section class="mw-imp">${source}${result}${tiles}${custSection}${objSection}${matSection}${detailSection}${run}</section>`
 }
 
+// ---------------------------------------------------------------- Liste aus Excel einfügen
+
+const PASTE_EXAMPLE = ['Nord', 'Hausverwaltung Muster GmbH', 'Musterweg 1', '5020', 'Salzburg', 'Haupteingang', '2', '85 x 150 cm', 'grau', '4', '06.11.2026', '', '']
+const FIELD_LABEL = { gebiet: 'Gebiet', kunde: 'Kunde', strasse: 'Straße', plz: 'PLZ', ort: 'Ort', position: 'Liegeplatz', anzahl: 'Anzahl', groesse: 'Größe', farbe: 'Farbe', intervall: 'Intervall', letzter: 'Letzter Wechsel', eigentum: 'Eigentum', hinweis: 'Hinweis' }
+
+registerModal(
+  'mw-imp-paste',
+  (c, m) => {
+    const r = m.result
+    const errors = r?.errors || []
+    const check = r
+      ? `<section class="mw-plan-result" aria-live="polite"><h3>Gelesen</h3>${
+          r.problem
+            ? `<p><strong>${esc(r.problem)}</strong></p>`
+            : `<p><strong>${esc(listSummary(r))}</strong></p>
+               <p class="muted">Erkannte Spalten: ${esc(r.columns.map((f) => FIELD_LABEL[f] || f).join(', '))}${r.unknown.length ? ` · nicht verwendet: ${esc(r.unknown.join(', '))}` : ''}</p>`
+        }${
+          errors.length
+            ? `<ul class="mw-review">${errors
+                .slice(0, 8)
+                .map((e) => `<li>Zeile ${e.line}: ${esc(e.text)}</li>`)
+                .join('')}${errors.length > 8 ? `<li class="muted">… und ${errors.length - 8} weitere</li>` : ''}</ul>`
+            : ''
+        }</section>`
+      : ''
+    return modalFrame({
+      title: 'Liegeplätze aus Excel einfügen',
+      body: `<p>In Excel die Liste mit der Überschrift markieren, kopieren und hier einfügen. Pflicht sind „Kunde“ und „Straße“; alles andere ist freiwillig. Danach kommt dieselbe Vorschau wie bei der Übernahme aus dem Werkzeug: Kunden zuordnen, Objekte je Adresse, Mattentypen.</p>
+        <textarea id="mw-imp-text" rows="9" aria-label="Liste aus Excel" placeholder="${esc(`${PLACEMENT_TEMPLATE.join('\t')}\n${PASTE_EXAMPLE.join('\t')}`)}">${esc(m.text || '')}</textarea>
+        <p class="muted">Leere Zellen bei Gebiet und Kunde gelten wie die Zeile darüber. Eine Zeile nur mit Anzahl, Größe und Farbe ist eine weitere Matte desselben Liegeplatzes. Dieselbe Liste noch einmal einzufügen legt nichts doppelt an.</p>
+        ${check}`,
+      foot: `<div class="actions"><button class="btn" data-action="mw-imp-paste-template">${ICON.copy} Vorlage kopieren</button></div><div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn ${r && !r.problem ? '' : 'primary'}" data-action="mw-imp-paste-check">Prüfen</button>${r && !r.problem ? '<button class="btn primary" data-action="mw-imp-paste-use">In die Vorschau</button>' : ''}</div>`,
+    })
+  },
+  { module: 'matten' },
+)
+
+/** Text aus dem Dialog lesen und prüfen (merkt Text und Ergebnis am Dialog). */
+function readPaste() {
+  const m = app.ui.modal
+  if (document.getElementById('mw-imp-text')) m.text = val('mw-imp-text')
+  m.result = parsePlacementTable(m.text || '')
+  return m
+}
+
 // ---------------------------------------------------------------- Aktionen
 
 registerActions(
@@ -219,6 +269,30 @@ registerActions(
       if (!tool.standorte.length) return toast('Keine Liegeplätze gefunden: bitte Standorte.json oder die Sicherung des Werkzeugs („Alles sichern“) wählen.')
       Object.assign(S(), { tool, files: { tours: tool.touren.length, broken: [], names: files.map((f) => f.name) }, backup: null, result: null })
       renderNow()
+    },
+    'mw-imp-paste-open': () => {
+      if (!mayImport()) return toast('Die Übernahme darf nur der Vollzugriff ausführen.')
+      openModal({ type: 'mw-imp-paste', text: '', result: null })
+    },
+    'mw-imp-paste-template': () => copyText(PLACEMENT_TEMPLATE.join('\t')),
+    'mw-imp-paste-check': () => {
+      readPaste()
+      renderModal()
+    },
+    'mw-imp-paste-use': async () => {
+      const m = readPaste()
+      if (m.result.problem) return renderModal()
+      const st = S()
+      Object.assign(st, { tool: { standorte: m.result.standorte, kunden: [], touren: [] }, files: { tours: 0, broken: [], names: ['Liste aus Excel'], pasted: true }, backup: null, result: null })
+      st.choices = { customers: {}, objects: {}, mats: {} }
+      // die Vorschau steht im Reiter „Übernahme“ der Liegeplätze (auch wenn der Dialog von woanders geöffnet wurde)
+      app.ui.mwTab = 'uebernahme'
+      closeModal()
+      if (app.ui.view !== 'mw-liegeplaetze') {
+        app.ui.view = 'mw-liegeplaetze'
+        await render()
+      } else renderNow()
+      toast(`Gelesen: ${listSummary(m.result)}. Jetzt Kunden, Objekte und Mattentypen prüfen.`)
     },
     'mw-imp-reset': () => {
       const st = S()

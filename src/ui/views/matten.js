@@ -120,6 +120,7 @@ function mattenView() {
         ed && geoMissing() && { label: `Koordinaten für alle fehlenden suchen (${geoMissing()})`, icon: ICON.search, action: 'mw-geo-all', hint: `für Route und Karte, über ${chosenProvider()?.short || 'OpenStreetMap'}` },
         sees('fakturierung') && { label: 'Mattentypen und Preise', icon: ICON.gear, action: 'mw-types-goto', hint: 'in der Fakturierung' },
         mayImport() && { label: 'Übernahme aus dem Werkzeug', icon: ICON.download, action: 'mw-tab', data: { v: 'uebernahme' }, hint: 'einmalig, mit Sicherung' },
+        mayImport() && { label: 'Liegeplätze aus Excel einfügen', icon: ICON.copy, action: 'mw-imp-paste-open', hint: 'viele auf einmal, mit Vorschau' },
         sees('matten') && app.config?.tools !== false && { label: cutover() ? 'Mattenwechsel (alt) ansehen' : 'Werkzeug öffnen', action: 'view', data: { view: 'matten' }, hint: cutover() ? 'nur lesend' : 'Mattenwechsel (Werkzeug)' },
         (!app.access || app.access.all) && { label: 'Umstellung auf das Modul', icon: ICON.gear, action: 'mwc-open', hint: cutover() ? 'umgestellt – zurücknehmen' : 'Werkzeug nur noch lesend' },
       ],

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 419 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 420 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
-- [Objekte & Kunden](#objekte-kunden) (106)
+- [Objekte & Kunden](#objekte-kunden) (107)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (69)
@@ -2298,11 +2298,29 @@ Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werk
 3. Kunden, Objekte und Mattentypen prüfen; fehlende Kunden nur bei Bedarf „neu anlegen“.
 4. „Übernehmen“ klicken und noch einmal bestätigen.
 
-> Tipp: Statt des Werkzeugs geht auch eine vorbereitete Datei mit Liegeplätzen (z. B. aus euren bisherigen Listen umgewandelt): „Datei mit Liegeplätzen wählen“, dann dieselbe Vorschau.
+> Tipp: Statt des Werkzeugs geht auch eine Liste aus Excel („Liste aus Excel einfügen“) oder eine vorbereitete Datei mit Liegeplätzen: dann dieselbe Vorschau.
 > Tipp: Ein zweiter Lauf ändert nichts; er trägt nur nach, was neu ist (jüngere Touren, inzwischen angelegte Mattentypen, neue Liegeplätze).
 > Tipp: Die Dateien des Werkzeugs werden nie geändert; alte Touren und Lieferscheine werden nicht verrechnet.
 > Tipp: Übernommene Liegeplätze nicht löschen, sondern auf inaktiv setzen.
 > Tipp: Fehlen Mattentypen, legt „fehlende Mattentypen anlegen“ sie aus Größe und Farbe der Liste an, ohne Preis. Die Preise trägst du später in der Fakturierung nach.
+
+*nur Vollzugriff*
+
+### Liegeplätze aus Excel einfügen (Mattenwechsel)
+
+*In der App: Matten-Liegeplätze*
+
+„Liegeplätze aus Excel einfügen“ liest eine Liste mit Kunde, Straße, Liegeplatz und Matten und zeigt dieselbe Vorschau wie die Übernahme aus dem Werkzeug: Kunden zuordnen, Objekte je Adresse, Mattentypen. Pflicht sind nur „Kunde“ und „Straße“. Dieselbe Liste noch einmal einzufügen legt nichts doppelt an.
+
+1. In „Matten-Liegeplätze“ „Mehr“ → „Liegeplätze aus Excel einfügen“ öffnen.
+2. In Excel die Liste mit Überschrift kopieren und einfügen („Vorlage kopieren“ zeigt alle Spalten).
+3. „Prüfen“ klicken, dann „In die Vorschau“.
+4. Kunden, Objekte und Mattentypen prüfen und „Übernehmen“ klicken.
+
+> Tipp: Leere Zellen bei Gebiet und Kunde gelten wie die Zeile darüber.
+> Tipp: Eine Zeile nur mit Anzahl, Größe und Farbe ist eine weitere Matte desselben Liegeplatzes.
+> Tipp: Mit der Spalte „Letzter Wechsel“ rechnet die App den nächsten Wechsel; ohne sie hilft danach „Rhythmus je Gebiet“.
+> Tipp: Ohne Intervall nimmt die App vier Wochen an.
 
 *nur Vollzugriff*
 
