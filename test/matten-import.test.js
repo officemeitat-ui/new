@@ -249,3 +249,23 @@ test('Vorbereitete Liste (ohne Touren): letzter Wechsel aus dem Feld letzterWech
   assert.equal(B.lastExchange, undefined)
   assert.equal(B.intervalDays, 14)
 })
+
+test('Fehlende Mattentypen aus der Liste: je Größe und Farbe ein Artikel ohne Preis, ohne Größe bleibt aus', async () => {
+  const { planImport, typesFromMissing } = await import('../src/core/matten-import.js')
+  const { matTypes } = await import('../src/core/invoicing.js')
+  let n = 0
+  const missing = [{ groesse: '0,85x 1,20 cm', farbe: 'Navy' }, { groesse: '0,85x 120 cm', farbe: 'navy' }, { groesse: '115x 180 cm', farbe: 'Grau/schwarz' }, { groesse: 'Sonderfarben', farbe: '' }, { groesse: '', farbe: 'Rot' }]
+  const r = typesFromMissing(missing, { newId: () => `a${++n}`, vat: 20 })
+  assert.deepEqual(r.articles.map((a) => [a.id, a.name, a.size, a.color, a.group, a.price, a.vat, a.matKind, a.unit, a.active]), [
+    ['a1', 'Schmutzfangmatte 85 × 120 cm Navy', '85 × 120 cm', 'Navy', 'Matten', 0, 20, 'Standard', 'Stk', true],
+    ['a2', 'Schmutzfangmatte 115 × 180 cm Grau/schwarz', '115 × 180 cm', 'Grau/schwarz', 'Matten', 0, 20, 'Standard', 'Stk', true],
+  ])
+  assert.deepEqual(r.skipped, ['Sonderfarben', 'Rot'])
+  assert.equal(matTypes(r.articles).length, 2)
+  // danach findet die Übernahme die Typen selbst (Größe und Farbe)
+  const tool = { standorte: [{ id: 'L1', kunde: 'Kunde A', strasse: 'Probeweg 1', plz: '5400', ort: 'Hallein', matten: [{ anzahl: 1, groesse: '0,85x 120 cm', farbe: 'Navy' }], aktiv: true }], kunden: [], touren: [] }
+  const before = planImport({ tool, doc: { placements: [] }, customers: [], objects: [], articles: [] })
+  const after = planImport({ tool, doc: { placements: [] }, customers: [], objects: [], articles: r.articles })
+  assert.equal(before.missingTypes.length, 1)
+  assert.equal(after.missingTypes.length, 0)
+})

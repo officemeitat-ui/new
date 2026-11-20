@@ -2302,6 +2302,7 @@ Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werk
 > Tipp: Ein zweiter Lauf ändert nichts; er trägt nur nach, was neu ist (jüngere Touren, inzwischen angelegte Mattentypen, neue Liegeplätze).
 > Tipp: Die Dateien des Werkzeugs werden nie geändert; alte Touren und Lieferscheine werden nicht verrechnet.
 > Tipp: Übernommene Liegeplätze nicht löschen, sondern auf inaktiv setzen.
+> Tipp: Fehlen Mattentypen, legt „fehlende Mattentypen anlegen“ sie aus Größe und Farbe der Liste an, ohne Preis. Die Preise trägst du später in der Fakturierung nach.
 
 *nur Vollzugriff*
 

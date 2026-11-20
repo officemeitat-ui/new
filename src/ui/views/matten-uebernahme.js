@@ -10,7 +10,7 @@
 
 import { formatDate, todayISO } from '../../core/dates.js'
 import { matLabel, matTypes } from '../../core/invoicing.js'
-import { applyImport, backupFolder, isTourFile, planImport, TOOL_PATHS, toolDataFromFiles, toolList } from '../../core/matten-import.js'
+import { applyImport, backupFolder, isTourFile, planImport, TOOL_PATHS, toolDataFromFiles, toolList, typesFromMissing } from '../../core/matten-import.js'
 import { customerName, emptyMatten, intervalText, upgradeMatten } from '../../core/matten.js'
 import { app, confirmStep, persist, registerActions, renderNow, toast } from '../context.js'
 import { esc, ICON, options, uid } from '../shared.js'
@@ -151,7 +151,7 @@ export function importTab() {
       <td>${r.choice ? `<span class="pill ok">${esc(r.suggestion && r.suggestion.id === r.choice ? r.suggestion.how : 'von Hand')}</span>` : '<span class="pill warning">fehlt</span>'}</td></tr>`)
     .join('')
   const missingTypes = plan.missingTypes.length
-    ? `<div class="banner warn-banner"><p><strong>${plural(plan.missingTypes.length, 'Mattentyp fehlt', 'Mattentypen fehlen')}:</strong> ${esc(plan.missingTypes.map((r) => [r.groesse, r.farbe].filter(Boolean).join(' ')).join(' · '))}. Diese Matten kommen mit Größe und Farbe herüber und stehen als „Mattentyp fehlt“ in der Liste. Nach dem Anlegen in der Fakturierung (Stammdaten → Matten) die Übernahme noch einmal ausführen: sie trägt die Typen nach.</p>${app.access?.sees?.('fakturierung') !== false ? '<button class="btn small" data-action="mw-types-goto">Mattentypen in der Fakturierung</button>' : ''}</div>`
+    ? `<div class="banner warn-banner"><p><strong>${plural(plan.missingTypes.length, 'Mattentyp fehlt', 'Mattentypen fehlen')}:</strong> ${esc(plan.missingTypes.map((r) => [r.groesse, r.farbe].filter(Boolean).join(' ')).join(' · '))}. Diese Matten kommen mit Größe und Farbe herüber und stehen als „Mattentyp fehlt“ in der Liste. Nach dem Anlegen in der Fakturierung (Stammdaten → Matten) die Übernahme noch einmal ausführen: sie trägt die Typen nach.</p>${app.access?.sees?.('fakturierung') !== false ? '<button class="btn small" data-action="mw-types-goto">Mattentypen in der Fakturierung</button>' : ''}<p><button class="btn small" data-action="mw-imp-new-types">${ICON.plus} ${plural(plan.missingTypes.length, 'fehlenden Mattentyp', 'fehlende Mattentypen')} anlegen (ohne Preis)</button></p></div>`
     : ''
   const matSection = `<section class="mw-block"><h3>3. Mattentypen</h3>${missingTypes}
     <div class="table-wrap"><table class="data mw-imp-table"><thead><tr><th>Größe</th><th>Farbe</th><th class="num">Stück</th><th class="num">Liegeplätze</th><th>Mattentyp</th><th>Zuordnung</th></tr></thead><tbody>${matRows}</tbody></table></div></section>`
@@ -237,6 +237,17 @@ registerActions(
       const st = S()
       for (const r of currentPlan().customers) if (!r.choice && !r.suggestion) st.choices.customers[r.key] = 'neu'
       renderNow()
+    },
+    // fehlende Mattentypen (Größe und Farbe aus der Liste) auf einmal anlegen, ohne Preis
+    'mw-imp-new-types': () => {
+      const fak = fakData()
+      if (!fak) return toast('Die Fakturierung ist nicht geladen (Mattentypen). Bitte später noch einmal.')
+      const res = typesFromMissing(currentPlan().missingTypes, { newId: () => uid('a'), vat: fak.settings?.vat ?? 20 })
+      if (!res.articles.length) return toast('Kein Mattentyp mit erkennbarer Größe: bitte von Hand anlegen.')
+      fak.articles = [...(fak.articles || []), ...res.articles]
+      persist()
+      renderNow()
+      toast(`${plural(res.articles.length, 'Mattentyp', 'Mattentypen')} angelegt (ohne Preis)${res.skipped.length ? `; ohne Größe nicht angelegt: ${res.skipped.join(', ')}` : ''}. Preise unter „Fakturierung“ → „Mattentypen“.`)
     },
     'mw-imp-run': () => {
       const st = S()

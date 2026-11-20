@@ -27,7 +27,7 @@
 // Ein späterer Lauf trägt nur nach: neue Liegeplätze des Werkzeugs, einen jüngeren letzten Wechsel und Mattentypen,
 // die inzwischen angelegt sind. Alte Touren und PDFs werden nicht zu Belegen und nicht verrechnet.
 
-import { matTypes, nextCustomerNo } from './invoicing.js'
+import { MAT_GROUP, matName, matTypes, nextCustomerNo } from './invoicing.js'
 import { areaByName, customerCopy, customerName, matFromType } from './matten.js'
 
 export const TOOL_PATHS = {
@@ -164,6 +164,31 @@ export function matchArticle(articles = [], mat = {}) {
   const plain = same.filter((x) => !x.color)
   if (plain.length === 1) return { id: plain[0].a.id, how: 'Größe' }
   return null
+}
+
+/**
+ * Fehlende Mattentypen aus der Liste als Artikel der Gruppe „Matten“ (ohne Preis), damit die Matten gleich einen Typ
+ * bekommen: je Größe und Farbe einer. Zeilen ohne erkennbare Größe (z. B. „Sonderfarben“) bleiben aus.
+ * missing: plan.missingTypes [{ groesse, farbe }] → { articles, skipped: [Text] }
+ */
+export function typesFromMissing(missing = [], { newId, vat = 20 } = {}) {
+  const articles = []
+  const skipped = []
+  const seen = new Set()
+  for (const r of missing) {
+    const key = sizeKey(r.groesse)
+    if (!key) {
+      skipped.push([r.groesse, r.farbe].filter(Boolean).join(' ') || 'ohne Größe')
+      continue
+    }
+    const size = `${key.split('x')[0]} × ${key.split('x')[1]} cm`
+    const color = text(r.farbe)
+    const id = `${key}|${colorKey(color)}`
+    if (seen.has(id)) continue
+    seen.add(id)
+    articles.push({ id: newId(), name: matName({ size, color }), group: MAT_GROUP, size, color, matKind: 'Standard', unit: 'Stk', price: 0, vat, active: true })
+  }
+  return { articles, skipped }
 }
 
 /** Letzter bestätigter Wechsel je Liegeplatz aus allen Touren: { 'L-0001': { date, tourId } }. */
