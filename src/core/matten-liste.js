@@ -9,6 +9,8 @@
 //   - Eine Zeile ohne Straße und ohne Liegeplatz ist eine weitere Matte des Liegeplatzes darüber.
 //   - „Straße 1, 5020 Salzburg“ in der Spalte Straße wird in Straße, PLZ und Ort zerlegt.
 //   - Dieselbe Liste noch einmal einzufügen legt nichts doppelt an: die Kennung entsteht aus Kunde, Adresse und Liegeplatz.
+//   - Eine Spalte „Kennung“ (z. B. aus einer von der App vorbereiteten Liste) geht vor: so passt die Liste zu schon
+//     übernommenen Liegeplätzen, auch wenn sich Schreibweisen geändert haben.
 
 export const PLACEMENT_TEMPLATE = ['Gebiet', 'Kunde', 'Straße', 'PLZ', 'Ort', 'Liegeplatz', 'Anzahl', 'Größe', 'Farbe', 'Intervall (Wochen)', 'Letzter Wechsel', 'Eigentum', 'Hinweis']
 
@@ -26,6 +28,8 @@ const ALIASES = {
   letzter: ['letzterwechsel', 'letzter', 'zuletztgewechselt', 'zuletzt', 'letztertausch'],
   eigentum: ['eigentum', 'eigentuemer', 'besitz', 'eigentumder'],
   hinweis: ['hinweis', 'notiz', 'bemerkung', 'anmerkung', 'zugang'],
+  kennung: ['kennung', 'liegeplatzkennung', 'liegeplatzid', 'lid'],
+  pruefen: ['pruefen', 'zupruefen', 'bittepruefen', 'pruefgrund'],
 }
 
 const text = (v) => String(v ?? '').trim()
@@ -160,7 +164,7 @@ export function parsePlacementTable(raw) {
       prev = null
       continue
     }
-    const id = `L-x${hash([normKey(s.kunde), normKey(s.strasse), s.plz, normKey(s.ort), normKey(s.position)].join('|'))}`
+    const id = row.kennung || `L-x${hash([normKey(s.kunde), normKey(s.strasse), s.plz, normKey(s.ort), normKey(s.position)].join('|'))}`
     let rec = byId.get(id)
     if (rec) out.notes.merged++
     else {
@@ -177,6 +181,8 @@ export function parsePlacementTable(raw) {
         }
       }
       if (row.hinweis) rec.hinweis = row.hinweis
+      // Spalte „Prüfen“: der Liegeplatz kommt als „zu prüfen“ markiert herüber, mit dem Text als Grund
+      if (row.pruefen) Object.assign(rec, { pruefen: true, pruefGrund: row.pruefen })
       byId.set(id, rec)
       out.standorte.push(rec)
     }

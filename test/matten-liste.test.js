@@ -65,6 +65,16 @@ test('Liste: andere Überschriften, Strichpunkt, Vorspann; dieselbe Zeile zweima
   assert.equal(again.standorte[0].id, r.standorte[0].id)
 })
 
+test('Liste: Spalte „Kennung“ geht vor (passt zu schon übernommenen Liegeplätzen), weitere Matte bleibt beim Liegeplatz', () => {
+  const r = parsePlacementTable(T([['Kennung', 'Kunde', 'Straße', 'Liegeplatz', 'Anzahl', 'Größe', 'Letzter Wechsel'], ['L-0007', 'Kunde A', 'Weg 1, 5020 Salzburg', 'Eingang', '1', '85x150', '2.11.2026'], ['', '', '', '', '2', '115x180', ''], ['', 'Kunde A', 'Weg 2, 5020 Salzburg', 'Eingang', '1', '85x150', '']]))
+  assert.deepEqual(r.columns, ['kennung', 'kunde', 'strasse', 'position', 'anzahl', 'groesse', 'letzter'])
+  assert.deepEqual([r.standorte[0].id, r.standorte[0].matten.length, r.standorte[0].letzterWechsel], ['L-0007', 2, '2026-11-02'])
+  assert.match(r.standorte[1].id, /^L-x[0-9a-z]{7}$/)
+  // Spalte „Prüfen“: als „zu prüfen“ markiert, mit Grund
+  const p = parsePlacementTable(T([['Kunde', 'Straße', 'Prüfen'], ['Kunde A', 'Weg 1', 'Stückzahl unklar'], ['Kunde A', 'Weg 2', '']]))
+  assert.deepEqual(p.standorte.map((s) => [s.pruefen, s.pruefGrund]), [[true, 'Stückzahl unklar'], [undefined, undefined]])
+})
+
 test('Liste: Fehler mit Zeilennummer und verständliche Meldungen', () => {
   assert.match(parsePlacementTable('').problem, /Liste aus Excel einfügen/)
   assert.match(parsePlacementTable('irgendwas\tnoch was\n1\t2').problem, /Keine Überschrift erkannt/)

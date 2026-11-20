@@ -187,7 +187,7 @@ export function importTab() {
 // ---------------------------------------------------------------- Liste aus Excel einfügen
 
 const PASTE_EXAMPLE = ['Nord', 'Hausverwaltung Muster GmbH', 'Musterweg 1', '5020', 'Salzburg', 'Haupteingang', '2', '85 x 150 cm', 'grau', '4', '06.11.2026', '', '']
-const FIELD_LABEL = { gebiet: 'Gebiet', kunde: 'Kunde', strasse: 'Straße', plz: 'PLZ', ort: 'Ort', position: 'Liegeplatz', anzahl: 'Anzahl', groesse: 'Größe', farbe: 'Farbe', intervall: 'Intervall', letzter: 'Letzter Wechsel', eigentum: 'Eigentum', hinweis: 'Hinweis' }
+const FIELD_LABEL = { gebiet: 'Gebiet', kunde: 'Kunde', strasse: 'Straße', plz: 'PLZ', ort: 'Ort', position: 'Liegeplatz', anzahl: 'Anzahl', groesse: 'Größe', farbe: 'Farbe', intervall: 'Intervall', letzter: 'Letzter Wechsel', eigentum: 'Eigentum', hinweis: 'Hinweis', kennung: 'Kennung', pruefen: 'Prüfen' }
 
 registerModal(
   'mw-imp-paste',
