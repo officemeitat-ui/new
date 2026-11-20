@@ -116,6 +116,7 @@ function mattenView() {
       items: [
         { label: 'Kalender', icon: ICON.calendar, action: 'view', data: { view: 'mw-kalender' }, hint: 'Einsätze planen, verschieben' },
         ed && { label: 'Gebiete (Tourrunden)', icon: ICON.gear, action: 'mw-areas-open', hint: 'anlegen, umbenennen' },
+        ed && { label: 'Rhythmus je Gebiet', icon: ICON.calendar, action: 'mw-rhythm-open', hint: 'nächster Wechsel und Intervall für ein ganzes Gebiet' },
         ed && geoMissing() && { label: `Koordinaten für alle fehlenden suchen (${geoMissing()})`, icon: ICON.search, action: 'mw-geo-all', hint: `für Route und Karte, über ${chosenProvider()?.short || 'OpenStreetMap'}` },
         sees('fakturierung') && { label: 'Mattentypen und Preise', icon: ICON.gear, action: 'mw-types-goto', hint: 'in der Fakturierung' },
         mayImport() && { label: 'Übernahme aus dem Werkzeug', icon: ICON.download, action: 'mw-tab', data: { v: 'uebernahme' }, hint: 'einmalig, mit Sicherung' },

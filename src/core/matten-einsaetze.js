@@ -28,6 +28,7 @@ import {
   isOpen,
   jobDate,
   jobsFor,
+  lastDone,
   nextDue,
   pauseEffect,
   plannable,
@@ -490,4 +491,143 @@ export function attention({ doc, jobs = [], done = [], today, ahead = AHEAD_DAYS
   const until = addDays(today, Math.max(1, ahead) - 1)
   const missing = jobsFor({ placements, done, jobs, closures, skip, von: today, bis: until, now: '', by: '' }).added.filter(isOpen)
   return { overdue: overdue.sort((a, b) => a.next.date.localeCompare(b.next.date) || byName(a.placement.name, b.placement.name)), missing, until }
+}
+
+// ---------------------------------------------------------------- Rhythmus je Gebiet
+
+const stepOf = (p) => {
+  const n = Number(p?.intervalDays)
+  return Number.isInteger(n) && n >= 1 ? n : 0
+}
+const dayNo = (d) => Math.round(Date.parse(`${d}T00:00:00Z`) / 86400000)
+/** Nur diese Einsätze fasst „Rhythmus je Gebiet“ an: geplant, noch in keiner Tour. */
+const movable = (j) => j?.status === 'geplant' && !j.tourId
+
+/**
+ * Überblick für „Rhythmus je Gebiet“: je Gebiet ('' = ohne Gebiet) die aktiven Liegeplätze mit ihren Intervallen und
+ * dem nächsten offenen Einsatz. Liefert [{ areaId, name, count, intervals: [Tage, aufsteigend], next: [Tage, höchstens 3],
+ * nextCount (verschiedene Tage) }], Gebiete nach Name, „ohne Gebiet“ zuletzt; Gebiete ohne Liegeplatz fehlen.
+ */
+export function areaRhythm({ doc, jobs = [] } = {}) {
+  const placements = (doc?.placements || []).filter((p) => p?.active !== false)
+  const areas = new Map((doc?.areas || []).map((a) => [a.id, a]))
+  const open = new Map()
+  for (const j of jobs || []) {
+    if (!isOpen(j)) continue
+    const d = jobDate(j)
+    if (!open.has(j.placementId) || d < open.get(j.placementId)) open.set(j.placementId, d)
+  }
+  const groups = new Map()
+  for (const p of placements) {
+    const id = areas.has(p.areaId) ? p.areaId : ''
+    const g = groups.get(id) || { areaId: id, name: id ? areas.get(id).name : 'ohne Gebiet', count: 0, steps: new Set(), days: new Set() }
+    g.count++
+    if (stepOf(p)) g.steps.add(stepOf(p))
+    const next = open.get(p.id) || (isIso(p.startDate) && !lastDone(p.id, { jobs }) ? p.startDate : '')
+    if (next) g.days.add(next)
+    groups.set(id, g)
+  }
+  return [...groups.values()]
+    .sort((a, b) => (a.areaId ? 0 : 1) - (b.areaId ? 0 : 1) || a.name.localeCompare(b.name, 'de'))
+    .map((g) => ({ areaId: g.areaId, name: g.name, count: g.count, intervals: [...g.steps].sort((a, b) => a - b), next: [...g.days].sort().slice(0, 3), nextCount: g.days.size }))
+}
+
+/** Eingaben prüfen: Text des ersten Problems oder ''. */
+export function areaRhythmProblem(rows = [], { today = '' } = {}) {
+  const set = rows.filter((r) => text(r?.date) || text(r?.intervalDays))
+  if (!set.length) return 'Bitte bei mindestens einem Gebiet den nächsten Wechsel oder das Intervall eintragen.'
+  for (const r of set) {
+    if (text(r.date) && !isIso(r.date)) return 'Bitte den nächsten Wechsel als Datum eintragen.'
+    if (text(r.date) && today && r.date < today) return 'Der nächste Wechsel darf nicht in der Vergangenheit liegen.'
+    const n = Number(r.intervalDays)
+    if (text(r.intervalDays) && !(Number.isInteger(n) && n >= 1 && n <= 365)) return 'Das Intervall braucht 1 bis 365 Tage.'
+  }
+  return ''
+}
+
+/** Grund an Einsätzen, die „Rhythmus je Gebiet“ verworfen hat (nur diese holt ein späterer Lauf wieder zurück). */
+export const RHYTHM_REASON = 'Rhythmus je Gebiet geändert'
+
+/**
+ * Nächsten Wechsel und Intervall für alle aktiven Liegeplätze eines Gebiets setzen (z. B. nach der Übernahme, wenn alle
+ * Liegeplätze am selben Tag fällig wären). rows: [{ areaId ('' = ohne Gebiet), date?, intervalDays? }]; leere Angaben
+ * bleiben, wie sie sind. Der Liegeplatz bekommt den Tag als Starttermin und das Intervall. Offene Einsätze (geplant, in
+ * keiner Tour) passen sich an:
+ *   „ab letztem Wechsel“, schon einmal gewechselt: der offene Einsatz wandert auf den Tag (ohne Tag: auf letzter
+ *     Wechsel + neues Intervall), das Intervall rechnet ab dem tatsächlichen Wechsel weiter;
+ *   „ab letztem Wechsel“, noch nie gewechselt, und fester Rhythmus: Einsätze, die nicht mehr passen, werden verworfen
+ *     (Grund RHYTHM_REASON); „Einsätze planen“ legt die neuen an. Ein früher so verworfener Einsatz, der wieder passt,
+ *     kommt zurück – sonst bliebe sein Termin für immer gesperrt.
+ * Einsätze in einer Tour, erledigte und von Hand ausgesetzte bleiben unberührt.
+ * Liefert { placements (geänderte, neue Objekte), jobs (geänderte Einsätze), counts: { placements, moved, discarded, revived } }.
+ */
+export function setAreaRhythm({ doc, jobs = [], rows = [], today = '', now = new Date().toISOString(), by = '' } = {}) {
+  const areas = new Set((doc?.areas || []).map((a) => a.id))
+  const want = new Map(rows.filter((r) => text(r?.date) || text(r?.intervalDays)).map((r) => [r.areaId || '', { date: isIso(r.date) ? r.date : '', step: Number(r.intervalDays) || 0 }]))
+  const outP = []
+  const outJ = []
+  const counts = { placements: 0, moved: 0, discarded: 0, revived: 0 }
+  const opts = { now, by }
+  const drop = (j) => {
+    outJ.push(discardJob(j, { ...opts, reason: RHYTHM_REASON }))
+    counts.discarded++
+  }
+  const revive = (j) => {
+    const { reason, planned, ...rest } = j
+    outJ.push({ ...rest, status: 'geplant', updatedAt: now, updatedBy: by })
+    counts.revived++
+  }
+  const mineWas = (j) => j.status === 'verworfen' && j.reason === RHYTHM_REASON
+  for (const p of doc?.placements || []) {
+    if (p?.active === false) continue
+    const w = want.get(areas.has(p.areaId) ? p.areaId : '')
+    if (!w) continue
+    const step = w.step || stepOf(p)
+    const start = w.date || p.startDate
+    const mine = (jobs || []).filter((j) => j?.placementId === p.id)
+    if (start !== p.startDate || step !== stepOf(p)) outP.push({ ...p, startDate: start, intervalDays: step, updatedAt: now, updatedBy: by })
+    if (p.rule === 'ab-ist') {
+      const last = lastDone(p.id, { jobs: mine })
+      if (last) {
+        const target = w.date || (step ? addDays(last, step) : '')
+        if (!target || (today && target < today)) continue
+        for (const j of mine) {
+          if (!movable(j) || jobDate(j) === target) continue
+          outJ.push(shiftJob(j, target, { ...opts, reason: 'Rhythmus je Gebiet' }))
+          counts.moved++
+        }
+        continue
+      }
+      if (!w.date) continue
+      for (const j of mine) {
+        if (movable(j) && j.due !== w.date) drop(j)
+        else if (movable(j) && j.planned) {
+          outJ.push(shiftJob(j, j.due, opts))
+          counts.moved++
+        } else if (mineWas(j) && j.due === w.date) revive(j)
+      }
+      continue
+    }
+    if (!step || !isIso(start)) continue
+    for (const j of mine) {
+      if (today && j.due < today) continue
+      const off = dayNo(j.due) - dayNo(start)
+      const fits = off >= 0 && off % step === 0
+      if (movable(j) && !fits) drop(j)
+      else if (mineWas(j) && fits) revive(j)
+    }
+  }
+  counts.placements = outP.length
+  return { placements: outP, jobs: outJ.map(withId), counts }
+}
+
+/** Vorschlag „wochenweise verteilen“: das erste Gebiet am Tag first, jedes weitere eine Woche später. */
+export const spreadWeekly = (count, first) => Array.from({ length: Math.max(0, count) }, (_, i) => addDays(first, i * 7))
+
+/** Liegen auffällig viele neue Einsätze auf einem Tag (Übernahme ohne bekannte Wechsel)? Liefert { date, count } oder null. */
+export function crowdedDay(added = [], { min = 20, share = 0.6 } = {}) {
+  const by = new Map()
+  for (const j of added || []) by.set(jobDate(j), (by.get(jobDate(j)) || 0) + 1)
+  const top = [...by.entries()].sort((a, b) => b[1] - a[1])[0]
+  return top && top[1] >= min && top[1] >= added.length * share ? { date: top[0], count: top[1] } : null
 }

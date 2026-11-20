@@ -2573,6 +2573,10 @@ tr.muted td { color: var(--muted); }
 .mw-job-tabs { margin: 10px 0 6px; }
 .mw-plan-result { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: var(--radius); }
 .mw-plan-result h3 { margin: 0 0 4px; font-size: 1rem; }
+.mw-rh-row { padding: 10px 0; border-top: 1px solid var(--line); }
+.mw-rh-row:first-child { border-top: 0; }
+.mw-rh-head { margin: 0 0 6px; }
+.mw-rh-tools { margin: 10px 0 0; }
 .mw-pause-row.mw-cl-row { grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(10rem, 2fr) minmax(9rem, 1.3fr) auto; }
 .mw-cl-row .field select { width: 100%; min-width: 0; }
 @media (max-width: 700px) {

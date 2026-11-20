@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 417 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 418 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
-- [Objekte & Kunden](#objekte-kunden) (105)
+- [Objekte & Kunden](#objekte-kunden) (106)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (68)
@@ -2414,6 +2414,23 @@ Verschieben legt einen Einsatz auf einen anderen Tag; der Rhythmus und die folge
 > Tipp: „alle“ im Kopf eines Tages markiert alle Einsätze des Tages.
 > Tipp: Verschoben lässt sich mit „Zurück auf den Solltermin“ wieder rückgängig machen.
 > Tipp: Erledigte Einsätze und Einsätze in einer Tour ändert der Kalender nicht.
+
+*Bearbeiten: Mattenwechsel Büro, Vollzugriff*
+
+### Rhythmus je Gebiet: nächsten Wechsel und Intervall für ein ganzes Gebiet setzen
+
+*In der App: Matten-Kalender*
+
+„Rhythmus je Gebiet“ setzt für alle aktiven Liegeplätze eines Gebiets den nächsten Wechsel und das Intervall. Das hilft nach der Übernahme, wenn sonst alle Wechsel am selben Tag fällig wären. Geplante Einsätze ziehen mit; Einsätze in einer Tour und erledigte Wechsel bleiben.
+
+1. Im „Matten-Kalender“ „Mehr“ → „Rhythmus je Gebiet“ öffnen.
+2. Je Gebiet den nächsten Wechsel eintragen, bei Bedarf das Intervall wählen.
+3. Oder „Wochenweise verteilen“: jedes Gebiet eine Woche später.
+4. „Übernehmen“ klicken.
+
+> Tipp: Leere Felder bleiben, wie sie sind.
+> Tipp: Liegeplätze ohne Gebiet stehen als „ohne Gebiet“ in der Liste; Gebiete legt „Matten-Liegeplätze“ → „Mehr“ → „Gebiete“ an.
+> Tipp: Wurde noch nie geplant, danach „Einsätze planen“ klicken.
 
 *Bearbeiten: Mattenwechsel Büro, Vollzugriff*
 

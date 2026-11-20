@@ -9,11 +9,14 @@ import {
   actionProblem,
   applyJobAction,
   applyPauses,
+  areaRhythm,
+  areaRhythmProblem,
   attention,
   calendarView,
   canApply,
   closuresProblem,
   confirmedExchanges,
+  crowdedDay,
   dayGroups,
   displayStatus,
   hintList,
@@ -26,6 +29,9 @@ import {
   planSettings,
   rangeProblem,
   resolveReview,
+  RHYTHM_REASON,
+  setAreaRhythm,
+  spreadWeekly,
   withId,
   yearsFor,
 } from '../src/core/matten-einsaetze.js'
@@ -410,4 +416,122 @@ test('Rechte: Einsätze liegen im Ordner matten/ (nur Büro), Fahrer lesen sie n
   assert.ok(!dataRights(role('lager')).read(path))
   // Entscheidungen beim digitalen Mitarbeiter („Später“, „Ablehnen“): auch das Büro des Mattenwechsels
   assert.ok(dataRights(role('mattenwechsel')).write('assistenz/entscheidungen.json'))
+})
+
+// ---------------------------------------------------------------- Rhythmus je Gebiet
+
+const RH = () => ({
+  areas: [{ id: 'a', name: 'Nord' }, { id: 'b', name: 'Süd' }],
+  placements: [
+    { id: 'p1', areaId: 'a', rule: 'ab-ist', intervalDays: 28, startDate: '2026-11-20', active: true },
+    { id: 'p2', areaId: 'a', rule: 'ab-ist', intervalDays: 28, startDate: '2026-11-20', active: true },
+    { id: 'p3', areaId: 'b', rule: 'ab-ist', intervalDays: 28, startDate: '2026-11-20', active: true },
+    { id: 'p4', areaId: '', rule: 'rhythmus', intervalDays: 14, startDate: '2026-11-20', active: true },
+    { id: 'p5', areaId: 'a', rule: 'ab-ist', intervalDays: 28, startDate: '2026-11-20', active: false },
+  ],
+})
+const applyRh = (doc, jobs, rows, today = '2026-11-20') => {
+  const r = setAreaRhythm({ doc, jobs, rows, today, now: 'jetzt', by: 'Büro' })
+  const next = { ...doc, placements: doc.placements.map((p) => r.placements.find((q) => q.id === p.id) || p) }
+  return { r, doc: next, jobs: mergeJobs(jobs, r.jobs) }
+}
+const openKeys = (jobs) => jobs.filter((j) => j.status === 'geplant').map((j) => `${j.key}${j.planned ? `→${j.planned}` : ''}`).sort()
+
+test('Rhythmus je Gebiet: Überblick je Gebiet mit Intervall und nächstem Wechsel, „ohne Gebiet“ zuletzt', () => {
+  const doc = RH()
+  const plan = planJobs({ doc, jobs: [], von: '2026-11-20', bis: '2027-01-14' })
+  const list = areaRhythm({ doc, jobs: plan.jobs })
+  assert.deepEqual(list.map((g) => [g.name, g.count, g.intervals.join(), g.next.join(), g.nextCount]), [
+    ['Nord', 2, '28', '2026-11-20', 1],
+    ['Süd', 1, '28', '2026-11-20', 1],
+    ['ohne Gebiet', 1, '14', '2026-11-20', 1],
+  ])
+  // ohne gespeicherte Einsätze: der Starttermin
+  assert.equal(areaRhythm({ doc, jobs: [] })[0].next[0], '2026-11-20')
+  assert.deepEqual(areaRhythm({ doc: { placements: [], areas: [] } }), [])
+})
+
+test('Rhythmus je Gebiet: Eingaben prüfen (nichts eingetragen, Vergangenheit, Intervall)', () => {
+  assert.match(areaRhythmProblem([{ areaId: 'a', date: '', intervalDays: '' }], { today: '2026-11-20' }), /mindestens einem Gebiet/)
+  assert.match(areaRhythmProblem([{ areaId: 'a', date: '2026-11-19' }], { today: '2026-11-20' }), /Vergangenheit/)
+  assert.match(areaRhythmProblem([{ areaId: 'a', intervalDays: '0' }], { today: '2026-11-20' }), /1 bis 365/)
+  assert.match(areaRhythmProblem([{ areaId: 'a', date: '20.11.' }], { today: '2026-11-20' }), /Datum/)
+  assert.equal(areaRhythmProblem([{ areaId: 'a', date: '2026-11-20', intervalDays: '14' }, { areaId: 'b' }], { today: '2026-11-20' }), '')
+})
+
+test('Rhythmus je Gebiet: noch nie gewechselt → alter Einsatz verworfen, neues Planen legt ihn am neuen Tag an', () => {
+  const doc0 = RH()
+  const plan = planJobs({ doc: doc0, jobs: [], von: '2026-11-20', bis: '2027-01-14' })
+  const { r, doc, jobs } = applyRh(doc0, plan.jobs, [{ areaId: 'a', date: '2026-11-27' }, { areaId: 'b', date: '', intervalDays: '' }])
+  assert.deepEqual(r.counts, { placements: 2, moved: 0, discarded: 2, revived: 0 })
+  assert.deepEqual(doc.placements.map((p) => p.startDate), ['2026-11-27', '2026-11-27', '2026-11-20', '2026-11-20', '2026-11-20'])
+  assert.ok(doc.placements[0].updatedAt === 'jetzt' && doc.placements[0].updatedBy === 'Büro' && !doc.placements[4].updatedAt)
+  assert.ok(r.jobs.every((j) => j.status === 'verworfen' && j.reason === RHYTHM_REASON && j.id === j.key))
+  const again = planJobs({ doc, jobs, von: '2026-11-20', bis: '2027-01-14' })
+  assert.equal(again.counts.neu, 2)
+  assert.deepEqual(openKeys(again.jobs).filter((k) => /^p[123]:/.test(k)), ['p1:2026-11-27', 'p2:2026-11-27', 'p3:2026-11-20'])
+  // das Gebiet Süd und der inaktive Liegeplatz bleiben unberührt
+  assert.ok(!again.jobs.some((j) => j.placementId === 'p5'))
+})
+
+test('Rhythmus je Gebiet: zurück auf den früheren Tag holt den verworfenen Einsatz zurück (kein gesperrter Termin)', () => {
+  const doc0 = RH()
+  const plan = planJobs({ doc: doc0, jobs: [], von: '2026-11-20', bis: '2027-01-14' })
+  const one = applyRh(doc0, plan.jobs, [{ areaId: 'a', date: '2026-11-27' }])
+  const planned = planJobs({ doc: one.doc, jobs: one.jobs, von: '2026-11-20', bis: '2027-01-14' })
+  const two = applyRh(one.doc, planned.jobs, [{ areaId: 'a', date: '2026-11-20' }])
+  assert.deepEqual(two.r.counts, { placements: 2, moved: 0, discarded: 2, revived: 2 })
+  assert.deepEqual(openKeys(two.jobs).filter((k) => /^p[12]:/.test(k)), ['p1:2026-11-20', 'p2:2026-11-20'])
+  const back = two.jobs.find((j) => j.key === 'p1:2026-11-20')
+  assert.ok(back.status === 'geplant' && !('reason' in back))
+  // erneutes Planen erzeugt nichts Doppeltes
+  assert.equal(planJobs({ doc: two.doc, jobs: two.jobs, von: '2026-11-20', bis: '2027-01-14' }).counts.neu, 0)
+  // ein von Hand verworfener Einsatz kommt nicht zurück
+  const manual = planned.jobs.map((j) => (j.key === 'p3:2026-11-20' ? { ...j, status: 'verworfen', reason: 'Kunde gekündigt' } : j))
+  assert.equal(setAreaRhythm({ doc: one.doc, jobs: manual, rows: [{ areaId: 'b', date: '2026-11-20' }], today: '2026-11-20' }).counts.revived, 0)
+})
+
+test('Rhythmus je Gebiet: schon gewechselt → offener Einsatz wandert, ohne Tag auf letzter Wechsel + neues Intervall', () => {
+  const doc0 = RH()
+  const jobs0 = [
+    { id: 'p3:2026-10-23', key: 'p3:2026-10-23', placementId: 'p3', due: '2026-10-23', status: 'erledigt', doneOn: '2026-10-26' },
+    { id: 'p3:2026-11-23', key: 'p3:2026-11-23', placementId: 'p3', due: '2026-11-23', status: 'geplant' },
+  ]
+  const day = applyRh(doc0, jobs0, [{ areaId: 'b', date: '2026-12-01' }])
+  assert.deepEqual(day.r.counts, { placements: 1, moved: 1, discarded: 0, revived: 0 })
+  assert.deepEqual(openKeys(day.jobs), ['p3:2026-11-23→2026-12-01'])
+  // nur das Intervall: 26.10. + 14 Tage liegt vor heute → der Einsatz bleibt (überfällig), das Intervall gilt trotzdem
+  const short = applyRh(doc0, jobs0, [{ areaId: 'b', intervalDays: '14' }])
+  assert.deepEqual([short.r.counts.placements, short.r.counts.moved, short.doc.placements[2].intervalDays], [1, 0, 14])
+  const long = applyRh(doc0, jobs0, [{ areaId: 'b', intervalDays: '42' }])
+  assert.deepEqual(openKeys(long.jobs), ['p3:2026-11-23→2026-12-07'])
+  // Einsätze in einer Tour bleiben stehen
+  const inTour = jobs0.map((j) => (j.status === 'geplant' ? { ...j, status: 'in-tour', tourId: 't1' } : j))
+  assert.equal(setAreaRhythm({ doc: doc0, jobs: inTour, rows: [{ areaId: 'b', date: '2026-12-01' }], today: '2026-11-20' }).jobs.length, 0)
+})
+
+test('Rhythmus je Gebiet: fester Rhythmus → was nicht mehr ins Raster passt, wird verworfen und neu geplant', () => {
+  const doc0 = RH()
+  const plan = planJobs({ doc: doc0, jobs: [], von: '2026-11-20', bis: '2027-01-14' })
+  assert.deepEqual(openKeys(plan.jobs).filter((k) => k.startsWith('p4')), ['p4:2026-11-20', 'p4:2026-12-04', 'p4:2026-12-18', 'p4:2027-01-01'])
+  const { r, doc, jobs } = applyRh(doc0, plan.jobs, [{ areaId: '', date: '2026-11-25', intervalDays: '28' }])
+  assert.deepEqual(r.counts, { placements: 1, moved: 0, discarded: 4, revived: 0 })
+  const again = planJobs({ doc, jobs, von: '2026-11-20', bis: '2027-01-14' })
+  assert.deepEqual(openKeys(again.jobs).filter((k) => k.startsWith('p4')), ['p4:2026-11-25', 'p4:2026-12-23'])
+  // nur das Intervall verdoppelt: jeder zweite Termin bleibt
+  const half = applyRh(doc0, plan.jobs, [{ areaId: '', intervalDays: '28' }])
+  assert.deepEqual(openKeys(half.jobs).filter((k) => k.startsWith('p4')), ['p4:2026-11-20', 'p4:2026-12-18'])
+  // nichts eingetragen → nichts geändert
+  assert.deepEqual(setAreaRhythm({ doc: doc0, jobs: plan.jobs, rows: [{ areaId: 'a' }], today: '2026-11-20' }).counts, { placements: 0, moved: 0, discarded: 0, revived: 0 })
+})
+
+test('Rhythmus je Gebiet: wochenweise verteilen und Hinweis auf einen überfüllten Tag', () => {
+  assert.deepEqual(spreadWeekly(4, '2026-11-23'), ['2026-11-23', '2026-11-30', '2026-12-07', '2026-12-14'])
+  assert.deepEqual(spreadWeekly(0, '2026-11-23'), [])
+  const many = Array.from({ length: 30 }, (_, i) => ({ key: `p${i}:2026-11-20`, due: '2026-11-20', status: 'geplant' }))
+  assert.deepEqual(crowdedDay(many), { date: '2026-11-20', count: 30 })
+  assert.equal(crowdedDay(many.slice(0, 19)), null)
+  // verteilt über viele Tage: kein Hinweis
+  assert.equal(crowdedDay(Array.from({ length: 60 }, (_, i) => ({ key: `p${i}`, due: `2026-11-${String(10 + (i % 6)).padStart(2, '0')}`, status: 'geplant' }))), null)
+  assert.equal(crowdedDay([]), null)
 })

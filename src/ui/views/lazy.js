@@ -515,10 +515,10 @@ lazy(BUERO, {
       text: 'Mattenwechsel: Mattenbestand je Typ (Lager sauber, beim Kunden, Fahrzeug, Wäscherei), Inventur, Wäscherei',
     },
   ],
-  modals: 'mw-edit mw-areas mw-job mw-plan mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwg-routing mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
+  modals: 'mw-edit mw-areas mw-job mw-plan mw-rhythm mw-closures mw-tp-edit mw-tp-new mw-tp-depot mw-tp-drivers mw-ls-doc mw-ls-run mw-ls-settings mww-web mwg-routing mwc-cutover mwu-settings mwb-inventory mwb-book mwb-booking mwb-settings',
   actions: `mw-tab mw-filter mw-reset mw-edit-open mw-redraw mw-types-goto mw-mat-add mw-mat-del mw-pause-add mw-pause-del mw-coords-object mw-geocode mw-geo-all
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-new-types mw-imp-run
-    mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show
+    mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show mw-rhythm-open mw-rhythm-spread mw-rhythm-save
     mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save
     mw-tp-goto mw-tp-day mw-tp-date mw-tp-reload mw-tp-depot-open mw-tp-drivers-open mw-tp-drv mw-tp-propose mw-tp-move mw-tp-transfer
     mw-tp-remove mw-tp-add mw-tp-release mw-tp-withdraw mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save

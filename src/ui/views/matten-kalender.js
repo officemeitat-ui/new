@@ -12,16 +12,20 @@ import {
   actionProblem,
   applyJobAction,
   applyPauses,
+  areaRhythm,
+  areaRhythmProblem,
   attention,
   calendarView,
   canApply,
   closuresProblem,
   confirmedExchanges,
+  crowdedDay,
   DISPLAY,
   displayStatus,
   hintList,
   JOB_ACTIONS,
   mergeJobs,
+  nextWorkday,
   normalizeClosures,
   PLAN_WEEKS,
   planJobs,
@@ -29,6 +33,8 @@ import {
   planSettings,
   rangeProblem,
   resolveReview,
+  setAreaRhythm,
+  spreadWeekly,
   untouredSoon,
   yearsFor,
 } from '../../core/matten-einsaetze.js'
@@ -125,6 +131,7 @@ function kalenderView() {
       label: 'Mehr',
       single: false,
       items: [
+        ed && { label: 'Rhythmus je Gebiet', icon: ICON.calendar, action: 'mw-rhythm-open', hint: 'nächster Wechsel und Intervall für ein ganzes Gebiet' },
         ed && { label: 'Betriebsurlaub und Schließtage', icon: ICON.gear, action: 'mw-closures-open', hint: settings.closures.length ? plural(settings.closures.length, 'Eintrag', 'Einträge') : 'für alle Liegeplätze' },
         { label: 'Liegeplätze', icon: ICON.list, action: 'view', data: { view: 'mw-liegeplaetze' }, hint: 'Intervall, Pausen, Starttermin' },
       ],
@@ -385,9 +392,11 @@ function planModal(c, m) {
         .map((x) => `<li>${esc(placementLabel(x.placement))} <span class="muted">${esc(x.placement ? objName(x.placement.objectId) : '')} · ${esc(short(jobDate(x.job || { due: x.key.split(':').pop() })))}</span>: ${esc(x.text)}</li>`)
         .join('')}${r.review.length > 20 ? `<li class="muted">… und ${r.review.length - 20} weitere</li>` : ''}</ul>`
     : ''
+  const crowd = r?.added?.length ? crowdedDay(r.added) : null
   const result = r
     ? `<section class="mw-plan-result" aria-live="polite"><h3>Ergebnis</h3><p><strong>${r.counts.neu} neu</strong>, ${r.counts.unveraendert} unverändert, ${r.counts.pruefen} zur Prüfung${r.resolved ? ` (${r.resolved} angepasst)` : ''}</p>
         ${r.added?.length ? `<p class="muted">Neu: ${[['geplant', 'geplant'], ['nachzuholen', 'nachzuholen (Pause)'], ['ausgesetzt', 'ausgesetzt (Pause oder Betriebsurlaub)']].map(([k, t]) => [r.added.filter((j) => j.status === k).length, t]).filter(([n]) => n).map(([n, t]) => `${n} ${t}`).join(', ')}.</p>` : ''}
+        ${crowd && ed ? `<p class="note"><strong>${crowd.count} Einsätze an einem Tag (${esc(short(crowd.date))})</strong> sind viel für eine Tour. „Rhythmus je Gebiet“ verteilt die Gebiete auf verschiedene Tage oder Wochen. <button class="btn small" data-action="mw-rhythm-open">Rhythmus je Gebiet</button></p>` : ''}
         ${reviewRows ? `<p>Diese geplanten Einsätze passen nicht mehr (Liegeplatz inaktiv oder gelöscht, Pause oder Betriebsurlaub am Termin):</p>${reviewRows}${ed && !r.resolved ? '<button class="btn" data-action="mw-plan-review">Anpassen: aussetzen bzw. nachholen, inaktive verwerfen</button>' : ''}` : ''}</section>`
     : ''
   return modalFrame({
@@ -443,6 +452,107 @@ async function runPlan(el) {
   app.ui.mwCalDate = m.von
   renderNow()
   toast(`Einsätze geplant: ${r.counts.neu} neu, ${r.counts.unveraendert} unverändert, ${r.counts.pruefen} zur Prüfung.`)
+}
+
+// ---------------------------------------------------------------- Dialog Rhythmus je Gebiet
+
+const RHYTHM_DAYS = [7, 14, 21, 28, 42, 56]
+
+function rhythmDraft(m) {
+  if (!m.rows) m.rows = areaRhythm({ doc: doc(), jobs: jobsAll() }).map((g) => ({ ...g, date: '', intervalDays: '' }))
+  return m
+}
+function readRhythm() {
+  const m = rhythmDraft(app.ui.modal)
+  m.rows.forEach((r, i) => {
+    if (!document.getElementById(`mwr-date-${i}`)) return
+    r.date = val(`mwr-date-${i}`)
+    r.intervalDays = val(`mwr-int-${i}`)
+  })
+  return m
+}
+/** „alle 4 Wochen (28 Tage) · nächster Wechsel 20.11.“ bzw. „verschiedene Intervalle“, „an 3 verschiedenen Tagen“. */
+function rhythmNow(g) {
+  const iv = g.intervals.length === 1 ? intervalText(g.intervals[0]) : g.intervals.length ? `verschiedene Intervalle (${g.intervals.join(', ')} Tage)` : 'ohne Intervall'
+  const next = !g.nextCount ? 'noch kein Wechsel geplant' : g.nextCount === 1 ? `nächster Wechsel ${short(g.next[0])}` : `nächste Wechsel an ${g.nextCount} verschiedenen Tagen, ab ${short(g.next[0])}`
+  return `${plural(g.count, 'Liegeplatz', 'Liegeplätze')} · ${iv} · ${next}`
+}
+
+registerModal(
+  'mw-rhythm',
+  (c, m) => {
+    const { rows } = rhythmDraft(m)
+    const ed = editable()
+    const dis = ed ? '' : 'disabled'
+    const today = todayISO()
+    const list = rows
+      .map(
+        (g, i) => `<section class="mw-rh-row"><p class="mw-rh-head"><strong>${esc(g.name)}</strong> <span class="muted">${esc(rhythmNow(g))}</span></p>
+          <div class="form-grid">
+            <label class="field"><span>Nächster Wechsel am</span><input type="date" id="mwr-date-${i}" min="${today}" value="${esc(g.date || '')}" ${dis}></label>
+            <label class="field"><span>Intervall</span><select id="mwr-int-${i}" ${dis}>${options(
+              RHYTHM_DAYS.map((n) => [String(n), intervalText(n)]),
+              g.intervalDays || '',
+              { empty: 'unverändert' },
+            )}</select></label>
+          </div></section>`,
+      )
+      .join('')
+    const body = rows.length
+      ? `<p>Setzt für alle aktiven Liegeplätze eines Gebiets den nächsten Wechsel und das Intervall, zum Beispiel nach der Übernahme, damit nicht alle Wechsel am selben Tag fällig sind.</p>
+        ${rows.length === 1 && !rows[0].areaId ? '<p class="note">Die Liegeplätze haben noch kein Gebiet. Gebiete legt „Matten-Liegeplätze“ → „Mehr“ → „Gebiete (Tourrunden)“ an; danach lässt sich jedes Gebiet auf einen eigenen Tag legen.</p>' : ''}
+        <div class="mw-rh">${list}</div>
+        <p class="muted">Leere Felder bleiben, wie sie sind. Geplante Einsätze ziehen mit; Einsätze in einer Tour und erledigte Wechsel bleiben.</p>
+        ${ed && rows.length > 1 ? `<p class="mw-rh-tools"><button class="btn small" data-action="mw-rhythm-spread">Wochenweise verteilen</button> <span class="muted">das erste Gebiet am eingetragenen Tag (sonst am nächsten Arbeitstag), jedes weitere eine Woche später</span></p>` : ''}`
+      : '<p class="muted">Noch keine aktiven Liegeplätze.</p>'
+    return modalFrame({
+      title: 'Rhythmus je Gebiet',
+      body,
+      foot: `<div class="actions"></div><div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed && rows.length ? '<button class="btn primary" data-action="mw-rhythm-save">Übernehmen</button>' : ''}</div>`,
+    })
+  },
+  { module: MODULE },
+)
+
+async function saveRhythm(el) {
+  const m = readRhythm()
+  const today = todayISO()
+  const problem = areaRhythmProblem(m.rows, { today })
+  if (problem) return toast(problem)
+  const s = (doc().settings ||= {})
+  const dates = m.rows.map((r) => r.date).filter(Boolean).sort()
+  const last = dates.at(-1) || today
+  // wurde schon geplant, legt derselbe Lauf die neuen Einsätze gleich an (bis zum bisher geplanten Tag, mindestens bis zum neuen Termin)
+  const bis = s.planning?.bis ? (s.planning.bis > last ? s.planning.bis : last) : ''
+  if (el) el.disabled = true
+  try {
+    await loadYears(today, bis || last)
+  } catch (err) {
+    return toast(`Einsätze konnten nicht geladen werden: ${err.message}`)
+  } finally {
+    if (el) el.disabled = false
+  }
+  const now = nowIso()
+  const r = setAreaRhythm({ doc: doc(), jobs: jobsAll(), rows: m.rows, today, now, by: user() })
+  if (!r.placements.length && !r.jobs.length) return toast('Nichts zu ändern: Die Liegeplätze stehen schon so.')
+  const byId = new Map(r.placements.map((p) => [p.id, p]))
+  doc().placements = doc().placements.map((p) => byId.get(p.id) || p)
+  if (r.jobs.length) app.data[KEY] = mergeJobs(jobsAll(), r.jobs)
+  let added = 0
+  if (bis) {
+    const pr = planJobs({ doc: doc(), jobs: jobsAll(), done: done(), von: today, bis, now, by: user() })
+    if (pr.added.length) app.data[KEY] = pr.jobs
+    added = pr.added.length
+    if (bis > s.planning.bis) s.planning = { ...s.planning, bis, at: now, by: user() }
+  }
+  persist()
+  closeModal()
+  if (dates.length) app.ui.mwCalDate = dates[0]
+  renderNow()
+  const moved = r.counts.moved + r.counts.revived + added
+  toast(
+    `Rhythmus übernommen: ${plural(r.counts.placements, 'Liegeplatz', 'Liegeplätze')} geändert${moved ? `, ${plural(moved, 'Einsatz', 'Einsätze')} neu terminiert` : ''}.${bis ? '' : ' Jetzt „Einsätze planen“, damit die Wechsel im Kalender stehen.'}`,
+  )
 }
 
 // ---------------------------------------------------------------- Dialog Betriebsurlaub
@@ -573,6 +683,7 @@ registerActions({
     renderModal()
   },
   'mw-plan-open': () => openModal({ type: 'mw-plan' }),
+  'mw-rhythm-open': () => openModal({ type: 'mw-rhythm' }),
   'mw-plan-weeks': () => {
     const m = readPlan()
     const w = Number(val('mw-plan-weeks'))
@@ -601,6 +712,13 @@ registerActions(
       toast(`Zurück auf den Solltermin ${short(j.due)}.`)
     },
     'mw-plan-run': (el) => runPlan(el),
+    'mw-rhythm-spread': () => {
+      const m = readRhythm()
+      const first = m.rows[0]?.date || nextWorkday(todayISO())
+      spreadWeekly(m.rows.length, first).forEach((d, i) => (m.rows[i].date = d))
+      renderModal()
+    },
+    'mw-rhythm-save': (el) => saveRhythm(el),
     'mw-plan-review': () => {
       const m = app.ui.modal
       const review = m?.result?.review || []

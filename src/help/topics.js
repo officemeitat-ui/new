@@ -1943,7 +1943,7 @@ export const TOPICS = [
     answer: 'Der Reiter „Übernahme aus dem Werkzeug“ sichert zuerst die Dateien des Werkzeugs nach Mattenwechsel/_Sicherung/<Datum>/ und zeigt dann die Vorschau: Kunden zuordnen, Objekte je Adresse, Mattentypen. „Übernehmen“ legt die Liegeplätze an, mit dem letzten Wechsel aus allen Touren.',
     steps: ['In „Matten-Liegeplätze“ den Reiter „Übernahme aus dem Werkzeug“ öffnen.', '„Sichern und Daten des Werkzeugs lesen“ klicken.', 'Kunden, Objekte und Mattentypen prüfen; fehlende Kunden nur bei Bedarf „neu anlegen“.', '„Übernehmen“ klicken und noch einmal bestätigen.'],
     tips: ['Statt des Werkzeugs geht auch eine vorbereitete Datei mit Liegeplätzen (z. B. aus euren bisherigen Listen umgewandelt): „Datei mit Liegeplätzen wählen“, dann dieselbe Vorschau.', 'Ein zweiter Lauf ändert nichts; er trägt nur nach, was neu ist (jüngere Touren, inzwischen angelegte Mattentypen, neue Liegeplätze).', 'Die Dateien des Werkzeugs werden nie geändert; alte Touren und Lieferscheine werden nicht verrechnet.', 'Übernommene Liegeplätze nicht löschen, sondern auf inaktiv setzen.', 'Fehlen Mattentypen, legt „fehlende Mattentypen anlegen“ sie aus Größe und Farbe der Liste an, ohne Preis. Die Preise trägst du später in der Fakturierung nach.'],
-    related: ['mw-liegeplaetze', 'mattenwechsel'],
+    related: ['mw-liegeplaetze', 'mw-rhythmus-gebiet', 'mattenwechsel'],
     roles: 'nur Vollzugriff',
   },
   {
@@ -2015,7 +2015,7 @@ export const TOPICS = [
     steps: ['Im „Matten-Kalender“ auf „Einsätze planen“ klicken.', 'Zeitraum prüfen oder eine Dauer wählen (4, 8, 12 oder 26 Wochen).', '„Einsätze planen“ klicken.', 'Steht etwas „zur Prüfung“ (Liegeplatz inaktiv, Pause am Termin): „Anpassen“ klicken.'],
     tips: ['Gespeichert wird je Jahr eine Datei matten/einsaetze-<Jahr>.json; ein in den Jänner verschobener Einsatz bleibt im Jahr seines Solltermins.', '„Zu erledigen“ erinnert, wenn Einsätze für die nächsten zwei Wochen fehlen.'],
     action: { action: 'mw-plan-open', label: 'Einsätze planen' },
-    related: ['mw-kalender', 'mw-einsatz-aendern', 'mw-betriebsurlaub'],
+    related: ['mw-kalender', 'mw-einsatz-aendern', 'mw-betriebsurlaub', 'mw-rhythmus-gebiet'],
     roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
   },
   {
@@ -2028,6 +2028,19 @@ export const TOPICS = [
     steps: ['Im „Matten-Kalender“ den Einsatz antippen oder mehrere mit dem Kästchen markieren.', 'Oben „Verschieben“, „Aussetzen“, „Nachholen“ oder „Verwerfen“ wählen.', 'Tag bzw. Grund eintragen und bestätigen.'],
     tips: ['„alle“ im Kopf eines Tages markiert alle Einsätze des Tages.', 'Verschoben lässt sich mit „Zurück auf den Solltermin“ wieder rückgängig machen.', 'Erledigte Einsätze und Einsätze in einer Tour ändert der Kalender nicht.'],
     related: ['mw-kalender', 'mw-einsaetze-planen', 'mw-betriebsurlaub'],
+    roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
+  },
+  {
+    id: 'mw-rhythmus-gebiet',
+    section: 'objekte',
+    view: 'mw-kalender',
+    title: 'Rhythmus je Gebiet: nächsten Wechsel und Intervall für ein ganzes Gebiet setzen',
+    q: ['rhythmus je gebiet', 'alle wechsel am selben tag', 'starttermin für alle liegeplätze', 'gebiete auf wochen verteilen', 'intervall für ein gebiet ändern', 'nach der übernahme alles heute fällig', 'erster wechsel je gebiet'],
+    answer: '„Rhythmus je Gebiet“ setzt für alle aktiven Liegeplätze eines Gebiets den nächsten Wechsel und das Intervall. Das hilft nach der Übernahme, wenn sonst alle Wechsel am selben Tag fällig wären. Geplante Einsätze ziehen mit; Einsätze in einer Tour und erledigte Wechsel bleiben.',
+    steps: ['Im „Matten-Kalender“ „Mehr“ → „Rhythmus je Gebiet“ öffnen.', 'Je Gebiet den nächsten Wechsel eintragen, bei Bedarf das Intervall wählen.', 'Oder „Wochenweise verteilen“: jedes Gebiet eine Woche später.', '„Übernehmen“ klicken.'],
+    tips: ['Leere Felder bleiben, wie sie sind.', 'Liegeplätze ohne Gebiet stehen als „ohne Gebiet“ in der Liste; Gebiete legt „Matten-Liegeplätze“ → „Mehr“ → „Gebiete“ an.', 'Wurde noch nie geplant, danach „Einsätze planen“ klicken.'],
+    action: { action: 'mw-rhythm-open', label: 'Rhythmus je Gebiet' },
+    related: ['mw-einsaetze-planen', 'mw-gebiete', 'mw-uebernahme'],
     roles: 'Bearbeiten: Mattenwechsel Büro, Vollzugriff',
   },
   {
