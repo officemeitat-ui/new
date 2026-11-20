@@ -2,13 +2,13 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 422 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 423 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (45)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (30)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (31)
 - [Objekte & Kunden](#objekte-kunden) (107)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
@@ -1062,6 +1062,20 @@ Abfuhrtage trägst du beim Objekt ein: als Rhythmus (wöchentlich, 14-tägig, al
 5. „Speichern“ klicken.
 
 > Tipp: Abfuhrkalender gelten meist ein Jahr: im Dezember den neuen einlesen.
+
+### Müllplan von einem anderen Objekt übernehmen
+
+*In der App: Müllplan*
+
+Häuser derselben Straße haben meist dieselben Abfuhrtage. Im Objekt-Dialog wählst du unter den Abfuhren bei „Wie bei“ ein Objekt mit Müllplan und klickst „Müllplan übernehmen“: Tonnen, Rhythmus, Termine, Rausstellen und Minuten kommen herüber. Hinweis und zuständige Person bleiben, wie sie beim Objekt stehen.
+
+1. Im Müllplan „Müllplan bearbeiten“ klicken (oder Objekte & Leistungen → „Objekt bearbeiten“).
+2. Bei „Wie bei“ das Objekt wählen, dessen Abfuhrtage gelten.
+3. „Müllplan übernehmen“ klicken; sind schon Abfuhren eingetragen, ersetzt sie der zweite Klick.
+4. Bei Bedarf einzelne Tonnen anpassen, dann „Speichern“.
+
+> Tipp: Gilt erst mit „Speichern“: „Abbrechen“ lässt den alten Plan stehen.
+> Tipp: Im Dezember genügt es, den neuen Abfuhrkalender bei einem Objekt einzulesen und für die Nachbarn zu übernehmen.
 
 ### Wetter & Winterdienst: Überblick
 

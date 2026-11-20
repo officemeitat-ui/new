@@ -6,7 +6,7 @@ import { buildInstances, PlanState } from '../src/core/plan.js'
 import { createContext } from '../src/core/rules.js'
 import { autoPlan } from '../src/core/scheduler.js'
 import { buildTimesheet } from '../src/core/timesheet.js'
-import { collectionDays, datesIn, parseDateList, parseIcs, rhythmOf, streamsFromEntries, streamText, wasteDuties, wasteRecurrence } from '../src/core/waste.js'
+import { collectionDays, copyWaste, datesIn, parseDateList, parseIcs, rhythmOf, streamsFromEntries, streamText, wasteDuties, wasteRecurrence, wasteSources } from '../src/core/waste.js'
 
 const allDays = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((d) => [d, { from: '00:00', to: '24:00' }]))
 const emp = (id, extra = {}) => ({ id, name: id, type: 'Teilzeit', weeklyHours: 30, skills: [], trained: [], availability: allDays, ...extra })
@@ -156,4 +156,54 @@ test('Müll: .ics mit UTC-Zeiten, Wiederholung, Ausnahmen, verschobenen und abge
 test('Müll: eingefügte Termine mit zweistelligem Jahr, ungültige Daten werden nicht übernommen', () => {
   const list = parseDateList('03.11.26 Restmüll\n17.11.26 Restmüll\n31.11.2026 Restmüll\n2026-02-30 Papier\n1.12.2026 Bio')
   assert.deepEqual(list.map((e) => [e.date, e.type]), [['2026-11-03', 'Restmüll'], ['2026-11-17', 'Restmüll'], ['2026-12-01', 'Biomüll']])
+})
+
+test('Müll: Objekte, deren Müllplan sich übernehmen lässt (ohne das Objekt selbst, ohne leere und stillgelegte)', () => {
+  const stream = (id, type) => ({ id, type, recurrence: weekly(2, 2) })
+  const objects = [
+    { id: 'a', name: 'Zaunergasse 3', waste: { streams: [stream('w1', 'Restmüll'), stream('w2', 'Altpapier'), stream('w3', 'Restmüll')] } },
+    { id: 'b', name: 'Auerspergstraße 10', waste: { streams: [stream('w4', 'Biomüll')] } },
+    { id: 'c', name: 'Ohne Plan' },
+    { id: 'd', name: 'Leerer Plan', waste: { streams: [] } },
+    { id: 'e', name: 'Stillgelegt', inactive: true, waste: { streams: [stream('w5', 'Restmüll')] } },
+  ]
+  assert.deepEqual(wasteSources(objects, 'x'), [
+    { id: 'b', name: 'Auerspergstraße 10', count: 1, types: 'Biomüll' },
+    { id: 'a', name: 'Zaunergasse 3', count: 3, types: 'Restmüll, Altpapier' },
+  ])
+  assert.deepEqual(wasteSources(objects, 'a').map((x) => x.id), ['b'])
+  assert.deepEqual(wasteSources([], 'a'), [])
+  assert.deepEqual(wasteSources(undefined), [])
+})
+
+test('Müll: Müllplan übernehmen kopiert Abfuhren mit neuen Kennungen; Hinweis und Zuständige bleiben beim Ziel', () => {
+  const source = {
+    streams: [
+      { id: 'w1', type: 'Restmüll', recurrence: weekly(2, 2) },
+      { id: 'w2', type: 'Altpapier', recurrence: { type: 'dates', dates: ['2026-11-05', '2026-12-03'] } },
+    ],
+    outWhen: 'abholtag',
+    bringBack: false,
+    minutes: 15,
+    responsible: 'e9',
+    note: 'Müllraum im Hof der Quelle',
+  }
+  let n = 0
+  const copy = copyWaste(source, { newId: (p) => `${p}-neu${++n}`, keep: { responsible: 'e1', note: 'Tonnen an den Gehsteig', streams: [{ id: 'alt' }] } })
+  assert.deepEqual(copy.streams.map((x) => [x.id, x.type]), [['w-neu1', 'Restmüll'], ['w-neu2', 'Altpapier']])
+  assert.deepEqual(copy.streams[1].recurrence, source.streams[1].recurrence)
+  // echte Kopie: Ändern der Kopie lässt die Quelle unberührt
+  copy.streams[1].recurrence.dates.push('2026-12-31')
+  assert.equal(source.streams[1].recurrence.dates.length, 2)
+  assert.equal(copy.outWhen, 'abholtag')
+  assert.equal(copy.bringBack, false)
+  assert.equal(copy.minutes, 15)
+  assert.equal(copy.responsible, 'e1')
+  assert.equal(copy.note, 'Tonnen an den Gehsteig')
+  // ohne Angaben am Ziel kommt von der Quelle weder Hinweis noch zuständige Person mit
+  const plain = copyWaste(source, { newId: (p) => `${p}-x` })
+  assert.equal('responsible' in plain, false)
+  assert.equal('note' in plain, false)
+  // unvollständige Quelle: Standardwerte
+  assert.deepEqual(copyWaste({ streams: [] }, { newId: () => 'w' }), { streams: [], outWhen: 'vortag', bringBack: true, minutes: 10 })
 })

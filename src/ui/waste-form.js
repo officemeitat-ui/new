@@ -1,8 +1,8 @@
 // Müllplan im Objekt-Dialog: Tonnen mit Rhythmus oder Terminen, Abfuhrkalender
 // einlesen (.ics oder eingefügte Termine) und wie die Gänge eingeplant werden.
 
-import { datesIn, parseDateList, parseIcs, rhythmOf, streamsFromEntries, WASTE_DEFAULTS, WASTE_RHYTHMS, WASTE_TYPES, wasteRecurrence } from '../core/waste.js'
-import { app, registerActions, renderModalKeepingInput, toast } from './context.js'
+import { copyWaste, datesIn, parseDateList, parseIcs, rhythmOf, streamsFromEntries, WASTE_DEFAULTS, WASTE_RHYTHMS, WASTE_TYPES, wasteRecurrence, wasteSources } from '../core/waste.js'
+import { app, confirmStep, registerActions, renderModalKeepingInput, toast } from './context.js'
 import { checked, esc, ICON, num, options, uid, val } from './shared.js'
 
 const ROW = /^wsr-/
@@ -10,6 +10,18 @@ const deDate = (iso) => iso.split('-').reverse().join('.')
 
 const objectWaste = () => app.data.objects.find((o) => o.id === app.ui.modal?.id)?.waste || {}
 const current = () => app.ui.modal?.waste ?? objectWaste()
+
+/** „Müllplan von einem anderen Objekt übernehmen“: Häuser derselben Straße haben meist dieselben Abfuhrtage. */
+function copyRow(object, have) {
+  const sources = wasteSources(app.data.objects, object.id)
+  if (!sources.length) return ''
+  const ask = app.ui.confirm === 'waste-copy'
+  return `<div class="inline-row waste-copy"><label class="field inline"><span>Wie bei</span><select id="ws-copy-from" aria-label="Müllplan übernehmen von">${options(
+    sources.map((x) => [x.id, `${x.name} (${x.types})`]),
+    app.ui.modal.wasteCopyFrom || '',
+    { empty: 'Objekt wählen …' },
+  )}</select></label><button class="btn small ${ask ? 'danger confirm' : ''}" data-action="waste-copy">${ask ? `Die ${have === 1 ? 'eingetragene Abfuhr' : `${have} eingetragenen Abfuhren`} ersetzen?` : 'Müllplan übernehmen'}</button></div>`
+}
 
 export function wasteSection(object) {
   const w = app.ui.modal.waste ?? object.waste ?? {}
@@ -34,6 +46,7 @@ export function wasteSection(object) {
     <p class="note">Abfuhrtage der Tonnen eintragen. Die Automatik plant das Raus- und Reinstellen beim Personal mit: Passt ein Einsatz im Objekt zeitlich, erledigt die eingeteilte Person es mit (Minuten werden angerechnet). Sonst entsteht ein kurzer eigener Gang, den „Woche planen“ besetzt.</p>
     ${rows || '<p class="muted">Noch keine Abfuhrtage.</p>'}
     <div class="inline-row"><button class="btn small" data-action="waste-add">${ICON.plus} Abfuhr</button></div>
+    ${copyRow(object, streams.length)}
     <details class="waste-import" ${app.ui.modal.wasteImport ? 'open' : ''}><summary>Abfuhrkalender einlesen</summary>
       <p class="note">Gemeinden und Entsorger bieten den Abfuhrkalender meist als Kalenderdatei (.ics) an. Datei wählen oder Termine einfügen, eine Zeile je Termin, z. B. „03.11.2026 Restmüll“. Die Art der Tonne wird aus dem Text erkannt.</p>
       <div class="form-grid">
@@ -108,6 +121,20 @@ registerActions(
     'waste-redraw': () => {
       app.ui.modal.waste = readWaste()
       renderModalKeepingInput(ROW)
+    },
+    'waste-copy': () => {
+      const from = val('ws-copy-from')
+      const source = app.data.objects.find((o) => o.id === from)
+      if (!source?.waste?.streams?.length) return toast('Bitte zuerst das Objekt wählen, dessen Müllplan gelten soll.')
+      const waste = readWaste()
+      app.ui.modal.waste = waste
+      app.ui.modal.wasteCopyFrom = from
+      // schon Abfuhren eingetragen: zweiter Klick ersetzt sie
+      if (waste.streams.length && !confirmStep('waste-copy', () => renderModalKeepingInput(ROW))) return
+      app.ui.modal.waste = copyWaste(source.waste, { newId: uid, keep: waste })
+      app.ui.modal.wasteCopyFrom = ''
+      renderModalKeepingInput(/^wsr-|^ws-(out|min|back|copy-from)$/)
+      toast(`Müllplan von „${source.name}“ übernommen: ${source.waste.streams.length === 1 ? '1 Abfuhr' : `${source.waste.streams.length} Abfuhren`}. Mit „Speichern“ sichern.`)
     },
     'waste-import': () => {
       app.ui.modal.wasteImport = true

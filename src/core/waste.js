@@ -331,3 +331,33 @@ export function streamsFromEntries(entries, existing = []) {
   for (const s of streams) if (s.recurrence?.type === 'dates') s.recurrence.dates.sort()
   return streams
 }
+
+// ---------------------------------------------------------------- Müllplan eines anderen Objekts übernehmen
+
+/**
+ * Objekte, deren Müllplan sich übernehmen lässt (mit mindestens einer Abfuhr), ohne das Objekt selbst; nach Name.
+ * Liefert [{ id, name, count, types: 'Restmüll, Altpapier' }].
+ */
+export function wasteSources(objects = [], exceptId = '') {
+  return (objects || [])
+    .filter((o) => o && o.id !== exceptId && !o.inactive && (o.waste?.streams || []).length)
+    .map((o) => ({ id: o.id, name: o.name, count: o.waste.streams.length, types: [...new Set(o.waste.streams.map((x) => x.type))].join(', ') }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+}
+
+/**
+ * Müllplan zum Übernehmen in ein anderes Objekt: Abfuhren (mit neuen Kennungen), Rausstellen, Reinstellen und Minuten.
+ * Hinweis und zuständige Person gehören zum Objekt und kommen nicht mit; keep: der bisherige Plan des Zielobjekts
+ * (dessen Hinweis und zuständige Person bleiben).
+ */
+export function copyWaste(source = {}, { newId, keep = {} } = {}) {
+  const out = {
+    streams: (source.streams || []).map((x) => ({ ...structuredClone(x), id: newId('w') })),
+    outWhen: source.outWhen || WASTE_DEFAULTS.outWhen,
+    bringBack: source.bringBack ?? WASTE_DEFAULTS.bringBack,
+    minutes: source.minutes || WASTE_DEFAULTS.minutes,
+  }
+  if (keep.responsible) out.responsible = keep.responsible
+  if (keep.note) out.note = keep.note
+  return out
+}
