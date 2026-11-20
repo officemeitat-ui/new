@@ -2575,6 +2575,9 @@ tr.muted td { color: var(--muted); }
 .mw-job-tabs { margin: 10px 0 6px; }
 .mw-plan-result { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: var(--radius); }
 .mw-plan-result h3 { margin: 0 0 4px; font-size: 1rem; }
+/* Einfügen zurücknehmen: Hinweis mit Knopf rechts, am Handy untereinander */
+.banner.import-undo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.banner.import-undo p { margin: 0; flex: 1 1 18rem; }
 .mw-rh-row { padding: 10px 0; border-top: 1px solid var(--line); }
 .mw-rh-row:first-child { border-top: 0; }
 .mw-rh-head { margin: 0 0 6px; }

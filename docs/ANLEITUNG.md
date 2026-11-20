@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 420 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 421 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (107)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (69)
+- [Verwaltung](#verwaltung) (70)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -5055,6 +5055,22 @@ Der Systemcheck prüft vom Browser aus Webspace (HTTPS, Sicherheitsregeln, gespe
 4. „Bericht kopieren“ für IT oder Support.
 
 *Nur Vollzugriff*
+
+### Einfügen zurücknehmen (falsche Liste eingefügt)
+
+*In der App: Mitarbeitende*
+
+Nach dem Einfügen einer Liste steht in der Ansicht 30 Minuten lang ein Hinweis mit „Einfügen zurücknehmen“. Zwei Klicks stellen den Bereich auf den Stand davor. Das gilt für Mitarbeitende, Objekte & Leistungen, Unterweisungen, Schlüsselbuch und Matten-Liegeplätze. Wochenpläne und Einteilungen bleiben unberührt.
+
+1. In der Ansicht bleiben, in der eingefügt wurde.
+2. Im Hinweis „Eingefügt …“ auf „Einfügen zurücknehmen“ klicken.
+3. Mit „Wirklich zurücknehmen?“ bestätigen.
+
+> Tipp: Zurückgenommen wird der ganze Bereich: Was seither dort von Hand geändert wurde, geht mit verloren.
+> Tipp: Gemerkt ist nur das letzte Einfügen, bis die Seite neu geladen wird.
+> Tipp: Später hilft die Datensicherung oder der Versionsverlauf in SharePoint.
+
+*Wer einfügen darf*
 
 ### Daten-Startcheck: Reichen die Stammdaten für den Start?
 

@@ -9,6 +9,7 @@ import { toCSV } from '../../core/reports.js'
 import { addImported, dueList, emptyTrainings, openRequest, requestText, isRequired, KINDS, matrix, parseRecordTable, sessionRecords, STATE_TEXT, statusOf, TRAINING_DEFAULTS, typesOf, untilOf, addMonths } from '../../core/trainings.js'
 import { sessionDocument, sessionPdfName } from '../../export/training-pdf.js'
 import { app, canEdit, closeModal, confirmStep, empName, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { clearImportUndo, importUndoBanner, recordImportUndo, setImportUndoLabel } from '../import-undo.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
@@ -92,7 +93,7 @@ function trainingsView() {
           { label: 'Übersicht (CSV)', icon: ICON.download, action: 'tr-csv', mail: true },
         ],
       })}</div></div>
-    <div class="impact-stats tc-stats">${tile('abgelaufen', n('abgelaufen'), n('abgelaufen') ? 'err' : '')}${tile('fehlt (Pflicht)', n('fehlt'), n('fehlt') ? 'err' : '')}${tile('läuft in 30 Tagen ab', n('bald'))}${tile('Personen', all.length)}</div>
+    ${importUndoBanner('trainings')}<div class="impact-stats tc-stats">${tile('abgelaufen', n('abgelaufen'), n('abgelaufen') ? 'err' : '')}${tile('fehlt (Pflicht)', n('fehlt'), n('fehlt') ? 'err' : '')}${tile('läuft in 30 Tagen ab', n('bald'))}${tile('Personen', all.length)}</div>
     <div class="filters">${teams.length > 1 ? `<label class="field inline"><span>Team</span><select id="tr-team" data-change="tr-team">${options(teams.map((x) => [x, x]), team, { empty: 'alle' })}</select></label>` : ''}
       <label class="field inline"><span>Suche</span><input type="search" id="tr-search" value="${esc(app.ui.trSearch || '')}" data-input="tr-search" placeholder="Name"></label>
       <label class="check"><input type="checkbox" id="tr-only" ${app.ui.trOnly ? 'checked' : ''} data-change="tr-only"><span>nur mit Handlungsbedarf</span></label></div>
@@ -494,8 +495,11 @@ registerActions(
       const r = (m.result ||= parseRecordTable(m.text, { employees: active() }))
       if (!r.items.length) return toast('Nichts zu übernehmen – bitte zuerst „Prüfen“.')
       const d = doc()
+      recordImportUndo('trainings', ['unterweisungen'])
       const res = addImported(d.records, r.items, type.id, { newId: () => uid('u'), at: nowIso(), by: by() })
       d.records = res.records
+      if (res.added) setImportUndoLabel(`${type.name}: ${plural(res.added, 'Eintrag', 'Einträge')}`)
+      else clearImportUndo()
       persist()
       closeModal()
       renderNow()

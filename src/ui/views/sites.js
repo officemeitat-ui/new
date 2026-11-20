@@ -13,6 +13,7 @@ import { objectKeys } from '../../core/keys.js'
 import { FOREIGN_LANGUAGES, langInfo, staleLanguages, translationRows, updateTranslations } from '../../core/sprachen.js'
 import { locationFor } from '../../core/weather.js'
 import { app, closeModal, empName, onModalRender, openModal, persist, registerActions, registerModal, registerView, renderModal, renderModalKeepingInput, renderNow, toast } from '../context.js'
+import { importUndoBanner } from '../import-undo.js'
 import { CATEGORY_LABEL, checkboxes, checked, checkedValues, COLOR_NAMES, dayAt, esc, ICON, modalFrame, num, options, rhythmText, uid, val } from '../shared.js'
 import { geocode } from '../geocode.js'
 import { readWaste, wasteSection } from '../waste-form.js'
@@ -60,7 +61,7 @@ function sitesView() {
     .join('')
   return `<div class="section-head"><div><h2>Objekte & Leistungen <span class="muted">(${app.data.objects.length} Objekte, ${app.data.tasks.length} Leistungen)</span></h2><p>Der Stammplan: welche Leistung in welchem Rhythmus, zu welcher Zeit, mit wem als Stammkraft, und was an Feiertagen passiert. Dazu Objektinfo, Schlüssel und Budget.</p></div>
     <div class="actions edit-only"><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="obj-edit" data-id="new">${ICON.plus} Objekt anlegen</button></div></div>
-    ${regionFilter()}
+    ${importUndoBanner('tasks')}${regionFilter()}
     ${app.data.objects.length > 8 ? `<div class="filters"><label class="field inline"><span>Suche</span><input type="search" id="sites-q" value="${esc(app.ui.sitesSearch || '')}" data-input="sites-search" placeholder="Objekt, Adresse, Leistung oder Stammkraft"></label>${q ? `<span class="muted">${shown.length} von ${app.data.objects.length} Objekten</span>` : ''}</div>` : ''}
     <div class="objects">${cards || (q ? '<p class="empty">Kein Objekt passt zur Suche.</p>' : '')}</div>`
 }

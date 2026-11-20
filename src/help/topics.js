@@ -4278,6 +4278,18 @@ export const TOPICS = [
     related: ['daten-startcheck', 'schnee-alarm', 'plan-am-handy', 'ki-einrichten', 'app-ordner-homepage'],
   },
   {
+    id: 'einfuegen-zuruecknehmen',
+    section: 'verwaltung',
+    view: 'staff',
+    title: 'Einfügen zurücknehmen (falsche Liste eingefügt)',
+    q: ['einfügen zurücknehmen', 'import rückgängig', 'falsche liste eingefügt', 'liste doppelt eingefügt', 'einfügen rückgängig machen', 'falsche spalten eingefügt', 'import löschen'],
+    answer: 'Nach dem Einfügen einer Liste steht in der Ansicht 30 Minuten lang ein Hinweis mit „Einfügen zurücknehmen“. Zwei Klicks stellen den Bereich auf den Stand davor. Das gilt für Mitarbeitende, Objekte & Leistungen, Unterweisungen, Schlüsselbuch und Matten-Liegeplätze. Wochenpläne und Einteilungen bleiben unberührt.',
+    steps: ['In der Ansicht bleiben, in der eingefügt wurde.', 'Im Hinweis „Eingefügt …“ auf „Einfügen zurücknehmen“ klicken.', 'Mit „Wirklich zurücknehmen?“ bestätigen.'],
+    tips: ['Zurückgenommen wird der ganze Bereich: Was seither dort von Hand geändert wurde, geht mit verloren.', 'Gemerkt ist nur das letzte Einfügen, bis die Seite neu geladen wird.', 'Später hilft die Datensicherung oder der Versionsverlauf in SharePoint.'],
+    related: ['daten-startcheck', 'mw-liste-einfuegen'],
+    roles: 'Wer einfügen darf',
+  },
+  {
     id: 'daten-startcheck',
     section: 'verwaltung',
     view: 'system',

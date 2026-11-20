@@ -11,13 +11,25 @@ import { esc } from './shared.js'
 const MINUTES = 30
 let last = null
 
+// Bereich lesen und schreiben; 'fakturierung.customers' meint nur die Kundenliste (der Rest der Fakturierung bleibt).
+const read = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), app.data)
+function write(path, value) {
+  const keys = path.split('.')
+  const leaf = keys.pop()
+  const parent = keys.reduce((o, k) => (o == null ? undefined : o[k]), app.data)
+  if (!parent) return
+  if (value === undefined) delete parent[leaf]
+  else parent[leaf] = value
+}
+
 /**
  * Stand vor dem Einfügen merken. kind: Ansicht, in der der Hinweis erscheint ('employees' | 'tasks' | 'trainings' |
- * 'keys' | 'matten'); label: was eingefügt wird (für den Hinweis, z. B. „26 Mitarbeitende“); fields: Bereiche von
- * app.data, die das Einfügen ändert. Nach dem Einfügen setLabel() mit dem Ergebnis aufrufen.
+ * 'keys' | 'matten'); fields: Bereiche von app.data, die das Einfügen ändert (auch 'bereich.liste'); label: was
+ * eingefügt wird (für den Hinweis, z. B. „26 Mitarbeitende“; steht es erst danach fest: setImportUndoLabel);
+ * after: läuft nach dem Zurücknehmen (z. B. den Stand eines Dialogs leeren).
  */
-export function recordImportUndo(kind, fields, label = '') {
-  last = { kind, label, fields, at: Date.now(), data: Object.fromEntries(fields.map((f) => [f, app.data[f] === undefined ? undefined : structuredClone(app.data[f])])) }
+export function recordImportUndo(kind, fields, label = '', { after = null } = {}) {
+  last = { kind, label, fields, after, at: Date.now(), data: Object.fromEntries(fields.map((f) => [f, read(f) === undefined ? undefined : structuredClone(read(f))])) }
 }
 /** Text des Hinweises nach dem Einfügen setzen (das Ergebnis steht erst danach fest). */
 export function setImportUndoLabel(label) {
@@ -55,11 +67,9 @@ registerActions({
       return toast('Nichts zum Zurücknehmen.')
     }
     if (!confirmStep('import-undo', renderNow)) return
-    for (const f of u.fields) {
-      if (u.data[f] === undefined) delete app.data[f]
-      else app.data[f] = u.data[f]
-    }
+    for (const f of u.fields) write(f, u.data[f])
     last = null
+    u.after?.()
     persist()
     renderNow()
     toast(`Zurückgenommen: ${u.label || 'Einfügen'}.`)

@@ -9,6 +9,7 @@ import { effectiveKeys, emptyKeys, giveBack, handOver, handoversNeeded, historyT
 import { toCSV } from '../../core/reports.js'
 import { lossDocument, personListDocument, receiptDocument, receiptPdfName } from '../../export/key-pdf.js'
 import { app, canEdit, closeModal, computeRange, confirmStep, empName, ensureRange, openModal, persist, registerActions, registerModal, registerObjectHint, registerView, renderModal, renderNow, toast } from '../context.js'
+import { importUndoBanner, recordImportUndo } from '../import-undo.js'
 import { registerTodo } from '../modals/todo.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checked, checkedValues, download, esc, ICON, menu, modalFrame, options, uid, val } from '../shared.js'
@@ -91,7 +92,7 @@ function keysView() {
           { label: 'Schlüsselliste (CSV)', icon: ICON.download, action: 'keys-csv', mail: true },
         ],
       })}</div></div>
-    ${banner}${empty}
+    ${importUndoBanner('keys')}${banner}${empty}
     ${d.keys.length ? `<div class="impact-stats tc-stats">${tile('Schlüssel', active.length)}${tile('ausgegeben', out.length)}${tile('im Büro', active.length - out.length)}${tile('Hinweise', warn.filter((w) => w.severity !== 'info').length, warn.some((w) => w.severity === 'error') ? 'err' : '')}</div>` : ''}
     ${warnHtml}${hoHtml}
     ${d.keys.length ? `<div class="filters"><div class="seg">${[['objekt', 'je Objekt'], ['person', 'je Person']].map(([k, l]) => `<button class="btn small ${mode === k ? 'primary' : ''}" data-action="keys-mode" data-v="${k}">${l}</button>`).join('')}</div>
@@ -424,6 +425,8 @@ registerActions(
       const r = (m.result ||= parsePaste(m.text))
       if (!r.items.length) return toast('Nichts zu übernehmen – bitte zuerst „Prüfen“.')
       const list = keysFromImport(r.items, { newId: () => uid('k'), at: nowIso(), date: todayISO(), by: by() })
+      book()
+      recordImportUndo('keys', ['schluessel'], plural(list.length, 'Schlüssel', 'Schlüssel'))
       book().keys.push(...list)
       persist()
       closeModal()

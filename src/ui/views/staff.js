@@ -10,6 +10,7 @@ import { mergeRules } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
 import { dataRights, DOC } from '../../storage/data-service.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { clearImportUndo, importUndoBanner, recordImportUndo, setImportUndoLabel } from '../import-undo.js'
 import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, euro, ICON, menu, modalFrame, num, options, uid, val } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
 import { copyText } from './sheet.js'
@@ -39,7 +40,7 @@ function staffView(c) {
         { label: 'Aus Excel einfügen', icon: ICON.upload, action: 'import-open', data: { kind: 'employees' } },
       ],
     })}<button class="btn primary" data-action="emp-edit" data-id="new">${ICON.plus} Mitarbeiter:in anlegen</button></div></div>
-    ${filterBar(c, { problems: false })}
+    ${importUndoBanner('employees')}${filterBar(c, { problems: false })}
     ${rows ? `<div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Revier</th><th>Beschäftigung</th><th>Soll</th><th>Qualifikationen</th><th>Eingeschult</th><th>Verfügbar</th><th class="edit-only"></th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="empty">${app.data.employees.length ? 'Niemand in dieser Auswahl (Suche oder Revier).' : 'Noch keine Mitarbeitenden angelegt.'}</p>`}`
 }
 
@@ -187,7 +188,7 @@ function runImport(kind, text, apply) {
     }
     const known = items.filter((item) => data.employees.some((e) => e.name.toLowerCase() === item.name.toLowerCase())).length
     const langs = languageSummary(items)
-    return { count: items.length, errors, summary: `${items.length} Mitarbeitende erkannt${!apply && known ? ` – ${items.length - known} neu, ${known} schon vorhanden (nur die eingefügten Angaben werden geändert)` : ''}${langs ? `, Sprache am Handy: ${langs}` : ''}` }
+    return { count: items.length, errors, summary: `${items.length} ${items.length === 1 ? 'Person' : 'Mitarbeitende'} erkannt${!apply && known ? ` – ${items.length - known} neu, ${known} schon vorhanden (nur die eingefügten Angaben werden geändert)` : ''}${langs ? `, Sprache am Handy: ${langs}` : ''}` }
   }
   const { items, errors } = importTasks(text, data.employees, { anchor: app.cur.monday })
   const objectNames = new Set(items.map((i) => i.object))
@@ -222,7 +223,7 @@ function runImport(kind, text, apply) {
         if (emp && !(emp.trained || []).includes(obj.id)) emp.trained = [...(emp.trained || []), obj.id]
       }
   }
-  return { count: items.length, errors, summary: `${items.length} Leistungen in ${objectNames.size} Objekten erkannt${updated ? ` – ${added} neu, ${updated} schon vorhanden (${apply ? 'aktualisiert' : 'werden aktualisiert, nicht doppelt angelegt'})` : ''}` }
+  return { count: items.length, errors, summary: `${items.length} ${items.length === 1 ? 'Leistung' : 'Leistungen'} in ${objectNames.size} ${objectNames.size === 1 ? 'Objekt' : 'Objekten'} erkannt${updated ? ` – ${added} neu, ${updated} schon vorhanden (${apply ? 'aktualisiert' : 'werden aktualisiert, nicht doppelt angelegt'})` : ''}` }
 }
 
 registerView({ id: 'staff', order: 80, label: 'Mitarbeitende', group: 'stamm', render: staffView })
@@ -275,8 +276,15 @@ registerActions(
       renderModal()
     },
     'import-run': (el) => {
+      // Stand davor merken: „Einfügen zurücknehmen“ in der Ansicht (30 Minuten, ui/import-undo.js)
+      const employees = el.dataset.kind === 'employees'
+      recordImportUndo(employees ? 'employees' : 'tasks', employees ? ['employees'] : ['objects', 'tasks'])
       const res = runImport(el.dataset.kind, val('import-text'), true)
-      if (!res.count) return toast('Nichts erkannt. Bitte die Zeilen mit Überschrift einfügen.')
+      if (!res.count) {
+        clearImportUndo()
+        return toast('Nichts erkannt. Bitte die Zeilen mit Überschrift einfügen.')
+      }
+      setImportUndoLabel(res.summary.replace(' erkannt', ''))
       persist()
       closeModal()
       renderNow()

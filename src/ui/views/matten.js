@@ -41,6 +41,7 @@ import {
   upgradeMatten,
 } from '../../core/matten.js'
 import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { importUndoBanner } from '../import-undo.js'
 import { geocode } from '../geocode.js'
 import { chosenProvider, findCoords } from '../matten-routing.js'
 import { checked, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
@@ -135,12 +136,12 @@ function mattenView() {
         ],
       })
     : ''
-  if (tab === 'uebernahme') return `${head}${tabs}${importTab()}`
+  if (tab === 'uebernahme') return `${head}${importUndoBanner('matten')}${tabs}${importTab()}`
   if (!all.length)
-    return `${head}${tabs}${typesBanner()}<div class="banner welcome"><p><strong>Noch keine Liegeplätze.</strong> Ein Liegeplatz ist die Stelle beim Kunden, an der eine oder mehrere Matten liegen, z. B. „Haupteingang“ oder „Stiege 2“. Je Liegeplatz: Matten, Stückzahl, Intervall (14 oder 28 Tage) und Starttermin.</p>${ed ? `<button class="btn primary" data-action="mw-edit-open">${ICON.plus} Liegeplatz anlegen</button>` : ''}${mayImport() ? ` <button class="btn" data-action="mw-tab" data-v="uebernahme">Aus dem Werkzeug übernehmen</button>` : ''}</div>`
+    return `${head}${importUndoBanner('matten')}${tabs}${typesBanner()}<div class="banner welcome"><p><strong>Noch keine Liegeplätze.</strong> Ein Liegeplatz ist die Stelle beim Kunden, an der eine oder mehrere Matten liegen, z. B. „Haupteingang“ oder „Stiege 2“. Je Liegeplatz: Matten, Stückzahl, Intervall (14 oder 28 Tage) und Starttermin.</p>${ed ? `<button class="btn primary" data-action="mw-edit-open">${ICON.plus} Liegeplatz anlegen</button>` : ''}${mayImport() ? ` <button class="btn" data-action="mw-tab" data-v="uebernahme">Aus dem Werkzeug übernehmen</button>` : ''}</div>`
   const n = counts(all)
   const tile = (label, value, cls = '') => `<div class="stat ${cls}"><div class="label">${label}</div><div class="value">${value}</div></div>`
-  return `${head}${tabs}${typesBanner()}
+  return `${head}${importUndoBanner('matten')}${tabs}${typesBanner()}
     <div class="impact-stats tc-stats">${tile('Liegeplätze', n.aktiv)}${tile('Matten', n.matten)}${tile('Kunden', n.kunden)}${tile('zu prüfen', n.pruefen + n.typ, n.pruefen + n.typ ? 'err' : '')}</div>
     ${listTab(all)}`
 }

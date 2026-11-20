@@ -16,6 +16,7 @@ import { listSummary, parsePlacementTable, PLACEMENT_TEMPLATE } from '../../core
 import { customerName, emptyMatten, intervalText, upgradeMatten } from '../../core/matten.js'
 import { app, closeModal, confirmStep, openModal, persist, registerActions, registerModal, render, renderModal, renderNow, toast } from '../context.js'
 import { esc, ICON, modalFrame, options, uid, val } from '../shared.js'
+import { recordImportUndo, setImportUndoLabel } from '../import-undo.js'
 import { copyText } from './sheet.js'
 
 const S = () => (app.ui.mwImp ||= { choices: { customers: {}, objects: {}, mats: {} } })
@@ -330,11 +331,14 @@ registerActions(
       if (!confirmStep('mw-imp-run')) return
       const fak = fakData()
       if (!fak) return toast('Die Fakturierung ist nicht geladen (Kunden). Bitte später noch einmal.')
+      // Stand davor merken: „Einfügen zurücknehmen“ bei den Liegeplätzen (30 Minuten, ui/import-undo.js)
+      recordImportUndo('matten', ['matten', 'objects', 'fakturierung.customers'], '', { after: () => Object.assign(S(), { result: null }) })
       const res = applyImport(plan, { doc: doc(), customers: fak.customers || [], objects: app.data.objects || [], articles: fak.articles || [], newId: uid, now: new Date().toISOString(), today: todayISO(), user: app.user?.name || 'Browser' })
       app.data.matten = res.doc
       if (res.summary.objects) app.data.objects = res.objects
       if (res.summary.customers || res.summary.links) fak.customers = res.customers
       st.result = res.summary
+      setImportUndoLabel(`${plural(res.summary.placements, 'Liegeplatz', 'Liegeplätze')} neu, ${res.summary.updated} aktualisiert${res.summary.customers ? `, ${plural(res.summary.customers, 'Kunde', 'Kunden')} angelegt` : ''}`)
       persist()
       renderNow()
       toast(`Übernommen: ${plural(res.summary.placements, 'Liegeplatz', 'Liegeplätze')} neu, ${res.summary.updated} aktualisiert.`)
