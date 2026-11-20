@@ -1,5 +1,6 @@
 // Automatische Einteilung:
-//   1. Stammkräfte bekommen ihre Einsätze, sofern keine Regel verletzt wird.
+//   1. Stammkräfte bekommen ihre Einsätze, sofern keine Regel verletzt wird. Ist nur die Ruhezeit zu kurz,
+//      bleiben sie trotzdem eingeteilt (rules.keepRegularsOnRest) und der Verstoß bleibt markiert.
 //   2. Offene Einsätze (Urlaub, Krankenstand, ohne Stammkraft) werden nach
 //      Engpass sortiert vergeben: wer die wenigsten passenden Leute hat, zuerst.
 //   3. Reparatur: bleibt ein Einsatz offen, wird versucht, eine Person von
@@ -197,6 +198,25 @@ export function autoPlan(ctx, instances, assignments, { from, to, replan = false
       if (evaluateCandidate(ctx, state, emp, inst, { asRegular: true }).allowed) {
         state.assign(id, inst.key)
         stats.regular++
+      }
+    }
+  }
+
+  // Der Stammplan selbst hat zu wenig Ruhezeit (z. B. Abenddienst bis 21 Uhr, Frühdienst ab 7:30): Die Stammkraft
+  // behält ihren Einsatz, der Verstoß bleibt im Prüfbericht rot – das Büro entscheidet. Sonst bekäme ihn jemand
+  // anderer, oft ohne Einschulung. Abschaltbar unter Regeln → Automatik.
+  if (ctx.rules.keepRegularsOnRest !== false) {
+    for (const inst of [...inRange].sort((a, b) => a.start - b.start)) {
+      for (const id of inst.regulars) {
+        if (state.count(inst.key) >= inst.staff) break
+        const emp = ctx.employeesById.get(id)
+        if (!emp || state.has(id, inst.key)) continue
+        const ev = evaluateCandidate(ctx, state, emp, inst, { asRegular: true })
+        if (ev.blocking.length && ev.blocking.every((b) => b.code === 'REST')) {
+          state.assign(id, inst.key)
+          stats.regular++
+          stats.regularRest = (stats.regularRest || 0) + 1 // nur wenn es vorkommt
+        }
       }
     }
   }

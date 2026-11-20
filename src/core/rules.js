@@ -33,6 +33,7 @@ export const DEFAULT_RULES = {
   holidayBonusPct: 100,
   creditSpecialTasks: false, // Sonderleistungen in Feiertags-/Urlaubsgutschrift einrechnen
   autoExtraHoursPerWeek: 6, // Automatik darf für Vertretungen so viele Stunden über Vertrag planen
+  keepRegularsOnRest: true, // Stammkraft bleibt eingeteilt, wenn nur die Ruhezeit zu kurz ist (Verstoß bleibt markiert)
   dueLeadDays: 7, // periodische Leistungen spätestens so viele Tage vorher zuteilen
   sundayBasis: '', // Grundlage der Sonntagsarbeit (ARG-Ausnahme, KV, Betriebsvereinbarung); je Objekt ergänzbar
   disabledRules: [], // ids aus RULES, die nicht geprüft werden

@@ -1,6 +1,6 @@
 // Gemeinsame Bausteine für Ansichten und Dialoge.
 
-import { formatDate, formatHours, isoWeekday, MONTH_LONG, viennaDate, WEEKDAY_LONG, WEEKDAY_SHORT } from '../core/dates.js'
+import { addDays, formatDate, formatHours, isoWeek, isoWeekday, mondayOf, MONTH_LONG, todayISO, viennaDate, WEEKDAY_LONG, WEEKDAY_SHORT, weeksBetween } from '../core/dates.js'
 import { rhythmCategory } from '../core/attention.js'
 import { NTH_LABEL } from '../core/plan.js'
 import { explain } from '../core/scheduler.js'
@@ -199,7 +199,7 @@ export const reasonsText = (factors) => {
   return [...pro.map((t) => `✓ ${t}`), ...contra.map((t) => `✗ ${t}`)].join('\n')
 }
 
-export function rhythmText(task) {
+export function rhythmText(task, today = todayISO()) {
   const r = task.recurrence
   if (r.type === 'once') return `einmalig ${formatDate(r.date)}`
   if (r.type === 'monthly') {
@@ -208,7 +208,17 @@ export function rhythmText(task) {
     return `${when}, ${rhythmCategory(task)}${from}`
   }
   const days = r.weekdays.length === 7 ? 'täglich' : r.weekdays.map((d) => WEEKDAY_SHORT[d - 1]).join(', ')
-  return `${days}${r.everyWeeks > 1 ? `, alle ${r.everyWeeks} Wochen` : ''}`
+  return `${days}${r.everyWeeks > 1 ? `, alle ${r.everyWeeks} Wochen${nextWeekText(r, today)}` : ''}`
+}
+
+/** Bei mehrwöchigem Rhythmus: in welcher Kalenderwoche der Einsatz (wieder) dran ist, z. B. „ (wieder KW 48)“. */
+function nextWeekText(r, today) {
+  if (!r.anchor || !(r.everyWeeks > 1) || !today) return ''
+  const now = mondayOf(today)
+  const since = weeksBetween(r.anchor, now)
+  const wait = since <= 0 ? -since : (r.everyWeeks - (since % r.everyWeeks)) % r.everyWeeks
+  const week = isoWeek(addDays(now, wait * 7)).week
+  return wait === 0 ? ` (diese Woche, KW ${week})` : ` (wieder KW ${week})`
 }
 
 export function availabilitySummary(emp) {

@@ -175,7 +175,7 @@ lazy(BUERO, {
 lazy(BUERO, {
   views: [{ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm' }],
   modals: 'object task',
-  actions: 'waste-add waste-remove waste-redraw waste-import waste-file obj-edit key-add key-remove obj-geocode obj-save spr-passt spr-ki spr-ki-ok spr-ki-weg obj-delete task-edit task-save task-delete',
+  actions: 'sites-search waste-add waste-remove waste-redraw waste-import waste-file obj-edit key-add key-remove obj-geocode obj-save spr-passt spr-ki spr-ki-ok spr-ki-weg obj-delete task-edit task-save task-delete',
 })
 
 // checkliste.js: Checkliste am Handy – Abruf mit den Stempelungen, Stand im Einsatz-Dialog, „Zu erledigen“, Punkte im

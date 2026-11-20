@@ -2,12 +2,12 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 416 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 417 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
-- [Planung](#planung) (44)
+- [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (30)
 - [Objekte & Kunden](#objekte-kunden) (105)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
@@ -277,6 +277,19 @@ Findet Cleo in der Hilfe nichts Sicheres, fragt sie die KI – wenn der KI-Assis
 > Tipp: Die Automatik bevorzugt Stammkräfte, freie Vertragsstunden, Minusstunden im Zeitkonto, das eigene Revier und wer das Objekt kennt.
 
 *Wer die Einsatzplanung bearbeiten darf (Vollzugriff)*
+
+### Stammkraft trotz zu kurzer Ruhezeit eingeteilt
+
+*In der App: Wochenübersicht*
+
+Liegen im Stammplan einer Person zwei Einsätze zu knapp hintereinander, etwa Abenddienst bis 21 Uhr und Frühdienst ab 7:30, behält sie beide. Die Meldung nach „Woche planen“ nennt die Zahl, im Prüfbericht steht der Verstoß rot. So entscheidet das Büro, statt dass die Automatik den Einsatz jemand anderem gibt.
+
+1. „Woche planen“ klicken und die Meldung lesen.
+2. Im „Prüfbericht“ die Verstöße „Ruhezeit“ ansehen.
+3. Zeiten ändern, den Einsatz jemand anderem geben oder bewusst so lassen.
+
+> Tipp: Anders gewünscht: „Regeln & Feiertage“ → Automatik → „Stammkraft bleibt eingeteilt …“ abschalten. Dann gibt die Automatik den Einsatz weiter.
+> Tipp: Die Ruhezeit selbst (11 Stunden) steht ebenfalls unter „Regeln & Feiertage“.
 
 ### Ablauf der Woche: Einteilen bis Versenden
 
@@ -4486,6 +4499,7 @@ Unter „Objekte & Leistungen“ steht der Stammplan: je Objekt Name, Kurzname, 
 4. „Speichern“ klicken.
 
 > Tipp: „Nur eingeschultes Personal“ anhaken, wenn Schlüssel, Alarm oder Hygiene es verlangen.
+> Tipp: Bei vielen Objekten hilft die Suche oben: nach Objekt, Adresse, Leistung oder Stammkraft.
 
 *Vollzugriff (Stammdaten)*
 
@@ -4526,6 +4540,7 @@ Bei „Rhythmus“ wählst du „wöchentlich / 14-tägig“ (Wochentage, bis al
 
 > Tipp: Tag 31 heißt immer Monatsletzter.
 > Tipp: Liegt „Erstmals …“ in der Zukunft, beginnt die Leistung erst dann.
+> Tipp: Bei 14-tägig steht in der Liste, wann sie wieder dran ist („wieder KW 48“). Beim Einfügen aus Excel legt „14-tägig gerade“ oder „14-tägig ungerade“ die Woche fest, z. B. für zwei Einsätze, die sich abwechseln.
 
 ### Objekte und Leistungen aus Excel einfügen
 

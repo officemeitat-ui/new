@@ -320,3 +320,25 @@ test('Korrekturen im Monat: Wochen über den Monatswechsel zählen in beiden Mon
   assert.deepEqual(correctionsInMonth(published, '2026-10').map((c) => c.empId), ['z', 'b', 'a'])
   assert.deepEqual(correctionsInMonth(published, '2026-12').map((c) => c.empId), ['c'])
 })
+
+test('Automatik: Stammkraft bleibt eingeteilt, wenn nur die Ruhezeit zu kurz ist (abschaltbar)', () => {
+  // Montag bis 21:00, Dienstag ab 07:30: nur 10,5 Stunden Ruhe im Stammplan selbst
+  const tasks = [task('abend', 'o1', [1], '18:00', '21:00', { regulars: ['stamm'] }), task('frueh', 'o2', [2], '07:30', '09:00', { regulars: ['stamm'] })]
+  const run = (rules) => {
+    const { ctx, instances } = setup({ employees: [emp('stamm'), emp('andere')], tasks, rules })
+    const res = autoPlan(ctx, instances, {}, WEEK)
+    const state = new PlanState(instances, res.assignments)
+    const frueh = instances.find((i) => i.taskId === 'frueh')
+    const rest = evaluateEmployee(ctx.employeesById.get('stamm'), state.instancesOf('stamm'), ctx).filter((i) => i.code === 'REST').map((i) => i.severity)
+    return { who: state.assigned(frueh.key).map((a) => a.employeeId), stats: res.stats, rest }
+  }
+  const keep = run({})
+  assert.deepEqual(keep.who, ['stamm'], 'Stammkraft behält den Frühdienst')
+  assert.equal(keep.stats.regularRest, 1)
+  assert.equal(keep.stats.regular, 2)
+  assert.deepEqual(keep.rest, ['error'], 'der Verstoß bleibt rot markiert')
+  const off = run({ keepRegularsOnRest: false })
+  assert.deepEqual(off.who, ['andere'], 'abgeschaltet: jemand anderer bekommt den Einsatz')
+  assert.equal(off.stats.regularRest, undefined)
+  assert.deepEqual(off.rest, [])
+})

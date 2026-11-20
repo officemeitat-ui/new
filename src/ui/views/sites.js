@@ -24,8 +24,15 @@ function sitesView() {
   const region = app.ui.region
   const today = todayISO()
   const holidays = holidayCalendar(today, addDays(today, 70), app.data.extraFreeDays)
-  const cards = app.data.objects
-    .filter((o) => !region || o.region === region)
+  // Suche: Objekt (Name, Kurzname, Adresse), Leistung oder Stammkraft
+  const q = String(app.ui.sitesSearch || '').trim().toLowerCase()
+  const hit = (o) => {
+    if (!q) return true
+    if ([o.name, o.short, o.address].some((x) => String(x || '').toLowerCase().includes(q))) return true
+    return app.data.tasks.some((t) => t.objectId === o.id && (String(t.label || '').toLowerCase().includes(q) || (t.regulars || []).some((id) => empName(id).toLowerCase().includes(q))))
+  }
+  const shown = app.data.objects.filter((o) => (!region || o.region === region) && hit(o))
+  const cards = shown
     .map((obj) => {
       const tasks = app.data.tasks.filter((t) => t.objectId === obj.id)
       const rows = tasks
@@ -54,7 +61,8 @@ function sitesView() {
   return `<div class="section-head"><div><h2>Objekte & Leistungen <span class="muted">(${app.data.objects.length} Objekte, ${app.data.tasks.length} Leistungen)</span></h2><p>Der Stammplan: welche Leistung in welchem Rhythmus, zu welcher Zeit, mit wem als Stammkraft, und was an Feiertagen passiert. Dazu Objektinfo, Schlüssel und Budget.</p></div>
     <div class="actions edit-only"><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Aus Excel einfügen</button><button class="btn primary" data-action="obj-edit" data-id="new">${ICON.plus} Objekt anlegen</button></div></div>
     ${regionFilter()}
-    <div class="objects">${cards}</div>`
+    ${app.data.objects.length > 8 ? `<div class="filters"><label class="field inline"><span>Suche</span><input type="search" id="sites-q" value="${esc(app.ui.sitesSearch || '')}" data-input="sites-search" placeholder="Objekt, Adresse, Leistung oder Stammkraft"></label>${q ? `<span class="muted">${shown.length} von ${app.data.objects.length} Objekten</span>` : ''}</div>` : ''}
+    <div class="objects">${cards || (q ? '<p class="empty">Kein Objekt passt zur Suche.</p>' : '')}</div>`
 }
 
 /** Stand der Übersetzungen auf der Objektkarte: veraltet (Warnung) oder wie viele Sprachen. */
@@ -339,6 +347,16 @@ function removeTaskEverywhere(id) {
 registerView({ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm', render: sitesView })
 registerModal('object', objectModal, { module: 'stammdaten' })
 registerModal('task', taskModal, { module: 'stammdaten' })
+
+registerActions({
+  'sites-search': () => {
+    app.ui.sitesSearch = val('sites-q')
+    renderNow()
+    const el = document.getElementById('sites-q')
+    el?.focus()
+    el?.setSelectionRange(el.value.length, el.value.length)
+  },
+})
 
 registerActions(
   {

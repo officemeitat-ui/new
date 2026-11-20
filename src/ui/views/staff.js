@@ -205,7 +205,8 @@ function runImport(kind, text, apply) {
       if (!obj.address && item.address) obj.address = item.address
       if (!obj.region && item.region) obj.region = item.region
     }
-    const task = { objectId: obj.id, ...item.task, recurrence: { ...item.task.recurrence, anchor: app.cur.monday } }
+    // Starttermin: die angezeigte Woche; bei „14-tägig gerade/ungerade“ die passende Woche aus der Liste
+    const task = { objectId: obj.id, ...item.task, recurrence: { ...item.task.recurrence, anchor: item.task.recurrence.anchor || app.cur.monday } }
     const existing = tasks.find((t) => sameTask(t, task))
     if (existing) {
       updated++

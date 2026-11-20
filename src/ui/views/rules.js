@@ -70,6 +70,7 @@ export const RULE_FIELDS = [
   ]],
   ['Automatik', [
     ['autoExtraHoursPerWeek', 'Max. Mehrstunden für Vertretungen (h/Woche)', 'Darüber plant die Automatik niemanden ein; manuell bleibt es möglich.'],
+    ['keepRegularsOnRest', 'Stammkraft bleibt eingeteilt, auch wenn die Ruhezeit zu kurz ist', 'Der Verstoß steht rot im Prüfbericht und das Büro entscheidet. Aus: Die Automatik gibt den Einsatz jemand anderem.', 'checkbox'],
     ['dueLeadDays', 'Periodische Leistungen zuteilen (Tage vorher)', '14-tägige, monatliche, quartalsweise Leistungen ohne Besetzung erscheinen ab dann unter „Zu erledigen“'],
   ]],
   ['Jugendliche (KJBG)', [

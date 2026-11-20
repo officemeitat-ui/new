@@ -17,7 +17,9 @@ export function planWeek(replan = false, { silent = false } = {}) {
   if (!silent) recordUndo(replan ? 'Neu planen' : 'Woche planen')
   const res = autoPlan(c.ctx, c.instances, app.data.assignments, { from: c.monday, to: c.sunday, replan })
   app.data.assignments = res.assignments
-  const parts = [`${res.stats.regular} ${res.stats.regular === 1 ? 'Stammeinsatz' : 'Stammeinsätze'}`, `${res.stats.substitute} ${res.stats.substitute === 1 ? 'Vertretung' : 'Vertretungen'}`]
+  // „… (4 trotz zu kurzer Ruhezeit, im Prüfbericht rot)“: die Stammkraft behält den Einsatz, das Büro entscheidet
+  const rest = res.stats.regularRest ? ` (${res.stats.regularRest} trotz zu kurzer Ruhezeit, im Prüfbericht rot)` : ''
+  const parts = [`${res.stats.regular} ${res.stats.regular === 1 ? 'Stammeinsatz' : 'Stammeinsätze'}${rest}`, `${res.stats.substitute} ${res.stats.substitute === 1 ? 'Vertretung' : 'Vertretungen'}`]
   if (res.stats.other) parts.push(`${res.stats.other} weitere`)
   if (res.stats.released) parts.push(`${res.stats.released} wegen Abwesenheit neu vergeben`)
   addLog(c.monday, `${replan ? 'Neu geplant' : 'Automatisch geplant'}: ${parts.join(', ')}, ${res.open.length} offen`)

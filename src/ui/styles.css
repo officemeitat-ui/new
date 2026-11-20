@@ -731,6 +731,11 @@ code.wrap { word-break: break-all; white-space: normal; }
 .wx-log .toolbar { align-items: flex-end; flex-wrap: wrap; }
 .field.inline { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .field.inline span { font-size: 0.85rem; color: var(--muted); }
+/* Auswahlfelder mit sehr langen Einträgen (lange Objektnamen) dürfen die Seite am Handy nicht breiter machen */
+select { max-width: 100%; text-overflow: ellipsis; }
+.field.inline { max-width: 100%; min-width: 0; }
+.field.inline select, .field.inline input { min-width: 0; }
+.filters > * { max-width: 100%; }
 .wl-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .wl-photos figure { margin: 0; }
 .wl-photos img { width: 100%; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); min-height: 120px; object-fit: cover; }
@@ -2147,7 +2152,8 @@ tr.muted td { color: var(--muted); }
 @media print { #help-root { display: none !important; } }
 
 /* Anleitung */
-.guide { display: grid; gap: 16px; max-width: 980px; }
+/* minmax(0, 1fr) und overflow-wrap: lange Wörter ohne Leerzeichen (Ordnerpfade) umbrechen statt die Seite zu verbreitern */
+.guide { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 980px; overflow-wrap: anywhere; }
 .guide-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 .guide-head > div:not(.actions) { flex: 1 1 22rem; }
 .guide-head h2 { font-size: 1.6rem; }

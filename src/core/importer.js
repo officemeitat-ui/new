@@ -2,7 +2,7 @@
 // (Tabulator-getrennt) oder CSV mit Semikolon. Spalten werden über die
 // Überschriften erkannt, die Reihenfolge ist egal.
 
-import { WEEKDAY_SHORT } from './dates.js'
+import { addDays, isoWeek, WEEKDAY_SHORT } from './dates.js'
 import { DEFAULT_HOLIDAY_RULE } from './plan.js'
 import { langInfo, LANGUAGES } from './sprachen.js'
 
@@ -115,6 +115,18 @@ export function parseInterval(text) {
   return n >= 1 && n <= 4 ? n : 1
 }
 
+/** „gerade“ / „ungerade“ im Intervall-Text → 'even' | 'odd' | null */
+export function weekPhase(text) {
+  const t = norm(text)
+  return t.includes('ungerade') ? 'odd' : t.includes('gerade') ? 'even' : null
+}
+
+/** Montag der ersten Woche ab `monday`, deren Kalenderwoche gerade bzw. ungerade ist. */
+export function phaseAnchor(monday, phase) {
+  const odd = isoWeek(monday).week % 2 === 1
+  return (phase === 'odd') === odd ? monday : addDays(monday, 7)
+}
+
 /** "monatlich", "quartalsweise", "halbjährlich", "jährlich", "alle 2 Monate" → Monatsintervall, sonst null */
 export function parseMonthInterval(text) {
   const t = norm(text)
@@ -201,7 +213,8 @@ export function importEmployees(text, { today = '' } = {}) {
       givenTimes: has('from') || has('to'),
       name,
       personnelNo: pick(row, 'personnelNo') || undefined,
-      type: normalizeType(pick(row, 'type')),
+      // ohne Spalte „Beschäftigung“: ab 38 Wochenstunden Vollzeit, sonst Teilzeit (wichtig für Mehr- und Überstunden)
+      type: has('type') ? normalizeType(pick(row, 'type')) : (toNumber(pick(row, 'weeklyHours')) ?? 0) >= 38 ? 'Vollzeit' : 'Teilzeit',
       weeklyHours: toNumber(pick(row, 'weeklyHours')) ?? 0,
       email: pick(row, 'email') || undefined,
       phone: pick(row, 'phone') || undefined,
@@ -268,10 +281,13 @@ export function importTasks(text, employees, { anchor } = {}) {
       else errors.push(`Zeile ${line}: Stammkraft „${n}“ nicht gefunden`)
     }
     const every = parseInterval(pick(row, 'every'))
+    // „14-tägig gerade“ / „14-tägig ungerade“: in geraden bzw. ungeraden Kalenderwochen (für Einsätze, die sich abwechseln)
+    const phase = every === 2 ? weekPhase(pick(row, 'every')) : null
+    const firstWeek = phase && anchor ? phaseAnchor(anchor, phase) : anchor
     const months = parseMonthInterval(pick(row, 'every'))
     const recurrence = months
       ? { type: 'monthly', mode: 'nth', nth: 1, weekday: weekdays[0], everyMonths: months, ...(anchor ? { anchor: `${anchor.slice(0, 7)}-01` } : {}) }
-      : { type: 'weekly', weekdays, everyWeeks: every, ...(anchor && every > 1 ? { anchor } : {}) }
+      : { type: 'weekly', weekdays, everyWeeks: every, ...(firstWeek && every > 1 ? { anchor: firstWeek } : {}) }
     const category = /sonder|blume|garten/i.test(pick(row, 'category') + pick(row, 'label')) ? 'sonder' : 'reinigung'
     // Welche Angaben stehen wirklich in der Zeile? Beim Aktualisieren einer vorhandenen Leistung zählen nur diese.
     const has = (k) => String(pick(row, k) ?? '').trim() !== ''
@@ -308,33 +324,50 @@ const GENERIC = new Set(['objekt', 'dr', 'fa', 'firma', 'stiegenhaus', 'privatha
  * Kurzname eines Objekts für den Plan: so viele Wörter vom Namen, bis er aussagt, was es ist, noch frei ist und kein
  * anderes Objekt genauso beginnt („Leikermoser Tankstelle Wals“ und „Leikermoser Tankstelle Anif“ bleiben unterscheidbar).
  * taken: schon vergebene Kurznamen; others: Namen der anderen Objekte (bestehende und mit eingefügte). Höchstens
- * 30 Zeichen; zur Not mit Nummer.
+ * 32 Zeichen, bei Bedarf mit üblichen Abkürzungen; zur Not mit Nummer.
  */
 export function uniqueShort(name, taken = [], others = []) {
-  const MAX = 30
+  const MAX = 32
   const low = (x) => String(x || '').trim().toLowerCase()
   const used = new Set([...taken].map(low).filter(Boolean))
-  const clean = (x) => String(x || '').replace(/[,;(/].*$/, '').replace(/\s+-\s*.*$/, '').replace(/\s+/g, ' ').trim()
-  const words = clean(name).split(' ').filter(Boolean)
-  if (!words.length) return ''
+  // Unterstriche wie Leerzeichen („Firma_Strabag_…“); Zusätze nach Komma, Klammer, Schrägstrich oder „ - “ weglassen
+  const strict = (x) => String(x || '').replace(/_/g, ' ').replace(/[,;(/].*$/, '').replace(/\s+-\s*.*$/, '').replace(/-\s+.*$/, '').replace(/\s+/g, ' ').trim()
+  // Unterscheiden sich zwei Objekte erst im Zusatz („Tankstelle Anif / Büro“ und „… / Shop“), zählt der Zusatz mit
+  const loose = (x) => String(x || '').replace(/[_/,;()+]/g, ' ').replace(/\s-\s*|-\s/g, ' ').replace(/\s+/g, ' ').trim()
+  const twin = [...others].some((o) => low(loose(o)) !== low(loose(name)) && low(strict(o)) === low(strict(name)))
+  const clean = twin ? loose : strict
+  const short = (w) => w.replace(/stra(ß|ss)e$/i, 'str.').replace(/^Tankstelle$/i, 'Tankst.').replace(/^Stiegenhaus$/i, 'Stgh.')
   const full = low(clean(name))
-  const rivals = [...others].map((o) => low(clean(o))).filter((o) => o && o !== full)
+  if (!full) return ''
+  const rivalNames = [...others].map(clean).filter((o) => o && low(o) !== full)
   const weak = (w) => GENERIC.has(norm(w)) || /^\d+[.)]?$/.test(w) || w.length < 3
-  const shared = (p) => rivals.some((o) => o === p || o.startsWith(`${p} `))
-  let short = ''
-  let free = ''
-  for (let n = 1; n <= words.length; n++) {
-    const next = words.slice(0, n).join(' ')
-    if (next.length > MAX && short) break
-    short = next.slice(0, MAX).trim()
-    if (words.slice(0, n).every(weak) || used.has(low(short))) continue
-    free ||= short // sagt etwas aus und ist frei – aber vielleicht beginnt ein anderes Objekt genauso
-    if (!shared(low(short))) return short
+  // kürzester Anfang, der etwas aussagt, frei ist und mit dem kein anderes Objekt beginnt
+  const attempt = (map) => {
+    const words = clean(name).split(' ').filter(Boolean)
+    const rivals = rivalNames.map((o) => low(o.split(' ').map(map).join(' ')))
+    const shared = (p) => rivals.some((o) => o === p || o.startsWith(`${p} `))
+    let last = ''
+    let free = ''
+    for (let n = 1; n <= words.length; n++) {
+      const next = words.slice(0, n).map(map).join(' ')
+      if (next.length > MAX && last) break
+      last = next.slice(0, MAX).trim()
+      if (words.slice(0, n).every(weak) || used.has(low(last))) continue
+      free ||= last
+      if (!shared(low(last))) return { unique: last, last, free }
+    }
+    return { unique: '', last, free }
   }
-  if (!used.has(low(short))) return short // ganzer (gekürzter) Name: so genau wie möglich
-  if (free) return free
+  const plain = attempt((w) => w)
+  if (plain.unique) return plain.unique
+  // zu lang für eine eindeutige Fassung: mit üblichen Abkürzungen noch einmal („Leikermoser Tankst. Sterneckstr.“)
+  const abbr = attempt(short)
+  if (abbr.unique) return abbr.unique
+  if (!used.has(low(plain.last))) return plain.last // ganzer (gekürzter) Name: so genau wie möglich
+  if (plain.free) return plain.free
+  if (abbr.last && !used.has(low(abbr.last))) return abbr.last
   for (let i = 2; ; i++) {
-    const numbered = `${short.slice(0, MAX - 3).trim()} ${i}`
+    const numbered = `${plain.last.slice(0, MAX - 3).trim()} ${i}`
     if (!used.has(low(numbered))) return numbered
   }
 }

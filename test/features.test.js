@@ -302,7 +302,17 @@ test('Leistungen einfügen: eindeutige Kurznamen, dieselbe Leistung wird erkannt
   const shorts = names.map((n) => { const s = uniqueShort(n, taken, names); taken.push(s); return s })
   assert.deepEqual(shorts, ['Leikermoser Tankstelle Wals', 'Leikermoser Tankstelle Anif', 'Leikermoser Energiehandl', 'Leikermoser Wals', 'Stiegenhaus Davisstraße 9', 'Stiegenhaus Davisstraße 7.1', 'Dr. Fischer', '1 Stiegenhaus Abtenau', 'Carrera Toys', 'Carrera Küche', 'Sonova', 'Seniorenheim'])
   assert.equal(new Set(shorts.map((s) => s.toLowerCase())).size, shorts.length, 'alle verschieden')
-  assert.ok(shorts.every((s) => s.length <= 30))
+  assert.ok(shorts.every((s) => s.length <= 32))
+  // sehr ähnliche lange Namen: mit Abkürzungen eindeutig statt „… 2“; Unterstriche zählen als Leerzeichen
+  const lang = ['Leikermoser Tankstelle Sterneckstraße', 'Leikermoser Tankstelle Stiegenhaus Polizei', 'Leikermoser Tankstelle Wals', 'Leikermoser Energiehandl Sterneckstraße', 'Firma_Strabag_Containerreinigung- Schneizelreuth 4- 83458 Schneizelreuth', 'Strabag Container Golling']
+  const used2 = []
+  const kurz = lang.map((n) => { const s = uniqueShort(n, used2, lang); used2.push(s); return s })
+  assert.deepEqual(kurz, ['Leikermoser Tankst. Sterneckstr.', 'Leikermoser Tankst. Stgh.', 'Leikermoser Tankstelle Wals', 'Leikermoser Energiehandl', 'Firma Strabag', 'Strabag'])
+  assert.ok(kurz.every((s) => s.length <= 32))
+  // gleicher Anfang, Unterschied erst nach dem Schrägstrich: der Zusatz zählt mit
+  const anif = ['Leikermoser Tankstelle Anif / Büro', 'Leikermoser Tankstelle Anif / Shop + WC', 'Leikermoser Tankstelle Wals']
+  const used3 = []
+  assert.deepEqual(anif.map((n) => { const s = uniqueShort(n, used3, anif); used3.push(s); return s }), ['Leikermoser Tankstelle Anif Büro', 'Leikermoser Tankstelle Anif Shop', 'Leikermoser Tankstelle Wals'])
   // ohne andere Namen genügt das erste aussagekräftige Wort; gleicher Name zweimal bekommt eine Nummer
   assert.equal(uniqueShort('Leikermoser Tankstelle Wals'), 'Leikermoser')
   assert.equal(uniqueShort('Sonova', ['sonova']), 'Sonova 2')
@@ -393,4 +403,24 @@ test('Leistungen einfügen: vorhandene Leistung bekommt nur die eingefügten Ang
   // Personen ausdrücklich genannt
   const staff = importTasks('Objekt\tTage\tVon\tBis\tPersonen\nHeim\tMo\t07:30\t16:30\t1', employees).items[0]
   assert.deepEqual([mergeTask(existing, staff).staff, mergeTask(existing, staff).regulars], [1, ['e1', 'e2']])
+})
+
+test('Leistungen einfügen: „14-tägig gerade/ungerade“ legt die Startwoche fest', async () => {
+  const { importTasks, phaseAnchor, weekPhase } = await import('../src/core/importer.js')
+  assert.deepEqual(['14-tägig gerade', '14-tägig (ungerade KW)', '14-tägig', 'ungerade'].map(weekPhase), ['even', 'odd', null, 'odd'])
+  // 16.11.2026 ist KW 47 (ungerade)
+  assert.equal(phaseAnchor('2026-11-16', 'odd'), '2026-11-16')
+  assert.equal(phaseAnchor('2026-11-16', 'even'), '2026-11-23')
+  const text = ['Objekt\tTage\tVon\tBis\tIntervall', 'A\tDi\t07:00\t12:00\t14-tägig ungerade', 'B\tDi\t08:00\t09:00\t14-tägig gerade', 'C\tDi\t08:00\t09:00\t14-tägig', 'D\tDi\t08:00\t09:00\twöchentlich gerade'].join('\n')
+  const r = importTasks(text, [], { anchor: '2026-11-16' })
+  assert.deepEqual(r.errors, [])
+  assert.deepEqual(r.items.map((x) => [x.task.recurrence.everyWeeks, x.task.recurrence.anchor]), [[2, '2026-11-16'], [2, '2026-11-23'], [2, '2026-11-16'], [1, undefined]])
+})
+
+test('Mitarbeitende einfügen: ohne Spalte „Beschäftigung“ entscheidet die Wochenstundenzahl', async () => {
+  const { importEmployees } = await import('../src/core/importer.js')
+  const r = importEmployees('Name\tWochenstunden\nA\t40\nB\t38,5\nC\t30\nD\t')
+  assert.deepEqual(r.items.map((x) => x.type), ['Vollzeit', 'Vollzeit', 'Teilzeit', 'Teilzeit'])
+  const t = importEmployees('Name\tWochenstunden\tBeschäftigung\nA\t40\tTeilzeit\nB\t8\tgeringfügig')
+  assert.deepEqual(t.items.map((x) => x.type), ['Teilzeit', 'Geringfügig'])
 })
