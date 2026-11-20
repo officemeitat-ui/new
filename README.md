@@ -21,7 +21,9 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Sicherheitslage, Benachrichtigungen, Protokoll: [docs/SICHERHEITSLAGE-BENACHRICHTIGUNGEN.md](docs/SICHERHEITSLAGE-BENACHRICHTIGUNGEN.md) ·
 > Geräte-Check (Inventar-Agent): [docs/GERAETE-CHECK.md](docs/GERAETE-CHECK.md) ·
 > Sicherheitsprüfung, 2FA, Erste Schritte: [docs/SICHERHEIT-INBETRIEBNAHME.md](docs/SICHERHEIT-INBETRIEBNAHME.md) ·
-> Office & Dateien (Collabora / ONLYOFFICE): [docs/OFFICE.md](docs/OFFICE.md)
+> Office & Dateien (Collabora / ONLYOFFICE): [docs/OFFICE.md](docs/OFFICE.md) ·
+> Suche, Sicher teilen: [docs/SUCHE-SICHER-TEILEN.md](docs/SUCHE-SICHER-TEILEN.md) ·
+> Einsatzplanung, Arbeitsbericht mit Unterschrift: [docs/EINSATZPLANUNG.md](docs/EINSATZPLANUNG.md)
 
 ## Funktionen
 
@@ -46,6 +48,11 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Sicherheitslage je Kunde** | Eine Note aus Microsoft 365, Geräte-Check, Datensicherung, E-Mail-Domain und Security-Check mit Verlauf, Abdeckung („was ist bei wem angebunden?“) und Maßnahmenplan. **IT-Sicherheitsbericht als PDF** im ME-IT-Design, **Angebot aus den Maßnahmen** mit einem Klick, Karte „Ihre IT-Sicherheit“ im Kundenportal. |
 | **Benachrichtigungen** | Glocke im Cockpit, E-Mail und Microsoft Teams bei dringenden Tickets (inkl. Backup-Fehler, Weiterleitungen, Phishing), Portal-Nachrichten und Sicherheitsereignissen; täglicher „Tagesstart“ per Mail. |
 | **Office & Dateien** | Word-, Excel- und PowerPoint-Dateien **direkt im Browser bearbeiten** über einen eigenen Collabora- oder ONLYOFFICE-Server (die Dokumente bleiben im Cockpit). Ablage je Kunde, eigene Ablage, neue Dokumente und Briefe mit Briefkopf, **Vorlagen mit Platzhaltern** je Kunde ausfüllen, frühere Stände wiederherstellen, Freigabe im Kundenportal. |
+| **Globale Suche (Strg+K)** | Eine Eingabe durchsucht alles: Kunden, Tickets, Geräte, Wissen, Rechnungen – und den **Inhalt abgelegter Dateien** (Word, Excel, PowerPoint, PDF). Umlaute und Groß-/Kleinschreibung egal, Seiten und Aktionen per Tastatur. |
+| **Sicher teilen** | Passwörter und Zugangsdaten als **Einmal-Link**, der sich nach dem Öffnen löscht (verschlüsselt, Schlüssel nur im Link). Dateien als Freigabe-Link mit Ablauf, Abruflimit und optionalem Kennwort. Jeder Abruf wird gemeldet und protokolliert. |
+| **Mein Tag** | Persönliche Startseite je Techniker: nächster Einsatz mit Route, Termine heute und morgen, eigene Tickets nach Dringlichkeit, Arbeitsberichte, die auf die Unterschrift warten, fällige Wartungen, geplante und gebuchte Zeit. |
+| **Einsatzplanung** | Wochenansicht aller Techniker, Termine aus dem Ticket heraus, Warnung bei Überschneidungen. **Terminbestätigung an den Kunden** mit Kalenderdatei, **Kalender-Abo** für Outlook/iPhone/Android, „Erledigt“ bucht die Zeit zur Abrechnung, nächste Termine im Kundenportal. |
+| **Arbeitsbericht mit Unterschrift** | Leistungsnachweis direkt am Handy: Tätigkeiten und Material eintragen, der Kunde **unterschreibt am Bildschirm**. Daraus entstehen PDF im Firmendesign (im Kundenordner abgelegt), Zeitbuchung und E-Mail an den Kunden – danach unveränderlich. |
 | **Sicherheitsprotokoll** | Anmeldungen (mit Fehlversuchen), Änderungen, Exporte und Löschungen mit Zeit, Person und Adresse – Suche, CSV, 400 Tage. |
 | **Geräte-Check (eigener Agent)** | Schlanker Inventar-Agent für Windows, **nur lesend** (kein Befehlskanal): BitLocker, Virenschutz, Firewall, Updates, Speicherplatz, Admin-Rechte, Software, Windows-11-Tauglichkeit. Befunde mit Punktzahl, Ticket, Radar-Chance, Schutz-Spalte im Kundenportal. Registrierung je Kunde mit befristetem Schlüssel, eigenes Token je Gerät. |
 | **Erste Schritte** | Inbetriebnahme als Checkliste mit Live-Status und „wo stelle ich das ein“, Übersicht „Wo finde ich was?“, Demodaten sauber entfernen. |
@@ -201,6 +208,11 @@ meit/
   notify.py        Benachrichtigungen: Glocke, E-Mail, Teams, Tagesstart
   audit.py         Sicherheitsprotokoll (Anmeldungen, Änderungen, Exporte)
   office.py        Office-Anbindung (WOPI): Editor-Zugang, Sperren, Speichern, Vorlagen, frühere Stände
+  search.py        Globale Suche über alle Bereiche, Textauszug aus Dateien
+  share.py         Sicher teilen: Einmal-Links für Geheimnisse, Datei-Freigaben
+  planner.py       Einsatzplanung: Termine, Überschneidungen, Kalender-Abo (iCalendar), Terminbestätigung
+  workreport.py    Arbeitsbericht mit Kundenunterschrift: PDF, Zeitbuchung, Versand
+  myday.py         „Mein Tag“: persönliche Startseite
   hardening.py     Größenlimits, Content-Security-Policy, CSV-Schutz, TOTP
   setup.py         Erste Schritte (Inbetriebnahme mit Live-Status), Demodaten entfernen
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,

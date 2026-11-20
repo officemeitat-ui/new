@@ -22,8 +22,10 @@
         <div class="brand-sub">Cockpit</div>
       </div>
       <nav id="nav">
+        <a href="#/heute" data-route="heute">Mein Tag</a>
         <a href="#/dashboard" data-route="dashboard">Übersicht</a>
         <a href="#/tickets" data-route="tickets">Tickets</a>
+        <a href="#/termine" data-route="termine">Einsatzplanung</a>
         <a href="#/wartung" data-route="wartung">Wartung</a>
         <a href="#/backups" data-route="backups">Datensicherung</a>
         <a href="#/domains" data-route="domains">Domains &amp; E-Mail</a>
@@ -38,6 +40,7 @@
         <a href="#/mitarbeiter" data-route="mitarbeiter">Ein- &amp; Austritte</a>
         <a href="#/dokumente" data-route="dokumente">Dokumente</a>
         <a href="#/office" data-route="office">Office &amp; Dateien</a>
+        <a href="#/teilen" data-route="teilen">Sicher teilen</a>
         <div class="nav-section">KI-Mitarbeiter</div>
         <a href="#/posteingang" data-route="posteingang">Posteingang <span class="nav-badge" id="inbox-badge" hidden></span></a>
         <a href="#/leads" data-route="leads">Leads &amp; Pipeline</a>
@@ -68,6 +71,7 @@
         <button class="menu-btn" id="menu-btn" aria-label="Menü">☰</button>
         <h1 id="page-title">Übersicht</h1>
         <div class="topbar-actions" id="topbar-actions"></div>
+        <button class="search-btn" id="search-btn" aria-label="Suchen (Strg+K)" title="Alles durchsuchen – Strg+K oder /">🔍<span class="lbl">Suchen</span><kbd>Strg K</kbd></button>
         <button class="bell" id="notif-bell" aria-label="Benachrichtigungen" title="Benachrichtigungen">🔔<span class="count" id="notif-count" hidden></span></button>
       </header>
       <main id="app" class="content" aria-live="polite"></main>

@@ -531,6 +531,10 @@ def register(app: FastAPI, ctx: Any, settings: Any, admin_only) -> Office:
         a = store.save("customer", customer["id"], name, content, source="team", visible=False)
         return {**svc.file_view(a), "replaced": replaced}
 
+    @app.get("/api/files/{aid}")
+    def one_file(aid: int) -> dict:
+        return svc.file_view(need_file(aid))
+
     @app.put("/api/files/{aid}")
     def patch_file(aid: int, data: FilePatchIn) -> dict:
         a = need_file(aid)

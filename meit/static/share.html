@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Sichere Nachricht</title>
+  <link rel="icon" href="/brand/icon.png">
+  <style>
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+    @font-face { font-family: "Roboto"; src: url("/brand/fonts/Roboto-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+    :root { --bg: #f3f7f8; --card: #fff; --text: #17252a; --muted: #5a5656; --border: #d6e4e7; --primary: #00838f; --brand: #00bcd4; --accent: #f79007; --soft: #e6f6f8; --bad: #b42318; color-scheme: light; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { --bg: #0b1120; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #26c6da; --soft: #12283a; --bad: #f97066; color-scheme: dark; }
+    }
+    :root[data-theme="dark"] { --bg: #0b1120; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --border: #1f2a3c; --primary: #26c6da; --soft: #12283a; --bad: #f97066; color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 600px; margin: 0 auto; padding: 32px 16px 48px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--brand); border-radius: 14px; padding: 24px; }
+    .logo { display: block; max-width: 180px; width: 55%; height: auto; margin: 0 auto 1rem; }
+    h1 { font-size: 1.3rem; margin: 0 0 .3rem; text-align: center; text-wrap: balance; }
+    .accent { display: block; width: 44px; height: 3px; background: var(--accent); margin: .5rem auto 1rem; }
+    p { margin: 0 0 .8rem; }
+    .lead { text-align: center; }
+    .muted { color: var(--muted); font-size: .9rem; }
+    label { display: block; font-weight: 700; font-size: .9rem; margin: 1rem 0 .3rem; }
+    input { width: 100%; padding: .7rem; border: 1px solid var(--border); border-radius: 9px; font: inherit; background: var(--card); color: var(--text); }
+    button { font: inherit; cursor: pointer; }
+    .go { margin-top: 1rem; width: 100%; padding: .8rem; border: 0; border-radius: 10px; background: var(--primary); color: #fff; font-weight: 700; }
+    .go:disabled { opacity: .6; cursor: progress; }
+    .secret { margin: 1rem 0 .6rem; padding: 1rem; border: 1px solid var(--border); border-radius: 10px; background: var(--soft); font: 1rem/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }
+    .row { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .btn { padding: .5rem .9rem; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--text); }
+    .msg { min-height: 1.5em; margin-top: .8rem; text-align: center; }
+    .msg.bad { color: var(--bad); }
+    .note { margin-top: 1rem; padding: .7rem .9rem; border-radius: 9px; background: var(--soft); font-size: .9rem; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <img class="logo" src="/brand/logo" alt="Logo">
+      <h1 id="title">Sichere Nachricht</h1>
+      <span class="accent"></span>
+      <p class="lead" id="lead">Einen Moment …</p>
+      <div id="ask" hidden>
+        <p class="muted" id="hint"></p>
+        <div id="pw-box" hidden>
+          <label for="pw">Kennwort</label>
+          <input id="pw" type="password" autocomplete="off" placeholder="Das Kennwort haben Sie getrennt erhalten">
+        </div>
+        <button class="go" id="go">Nachricht anzeigen</button>
+      </div>
+      <div id="shown" hidden>
+        <div class="secret" id="secret" tabindex="0" aria-label="Vertrauliche Nachricht"></div>
+        <div class="row"><button class="btn" id="copy">In die Zwischenablage kopieren</button></div>
+        <div class="note" id="after"></div>
+      </div>
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </div>
+    <p class="muted" style="text-align:center;margin-top:1rem" id="foot"></p>
+  </main>
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    const token = decodeURIComponent(location.hash.slice(1));
+    const GONE = "Dieser Link ist nicht mehr gültig – er ist abgelaufen, wurde widerrufen oder bereits geöffnet.";
+    let info = null;
+    const size = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+    const when = (s) => new Date(s.replace(" ", "T")).toLocaleString("de-AT", { dateStyle: "medium", timeStyle: "short" });
+    const say = (text, bad = false) => { $("msg").textContent = text; $("msg").className = bad ? "msg bad" : "msg"; };
+    async function post(path, raw = false) {
+      const res = await fetch(`/api/public/share/${path}`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password: $("pw").value }) });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const err = new Error(typeof d.detail === "string" ? d.detail : "Das hat nicht geklappt – bitte später erneut versuchen.");
+        err.status = res.status;
+        throw err;
+      }
+      return raw ? res : res.json();
+    }
+    function gone(text = GONE) { $("ask").hidden = true; $("lead").textContent = text; say(""); }
+    function left(n) { return n > 0 ? `Der Link kann noch ${n}-mal geöffnet werden.` : "Der Link ist jetzt verbraucht und kann nicht mehr geöffnet werden."; }
+    async function open() {
+      $("go").disabled = true; say("");
+      try {
+        if (info.kind === "secret") {
+          const r = await post("open");
+          $("secret").textContent = r.secret;
+          $("ask").hidden = true; $("shown").hidden = false;
+          $("lead").textContent = "Hier ist Ihre Nachricht:";
+          $("after").textContent = (r.views_left > 0 ? left(r.views_left) : "Diese Nachricht wurde bei uns jetzt gelöscht und kann nicht noch einmal geöffnet werden.")
+            + " Bitte übernehmen Sie sie gleich, am besten in einen Passwort-Manager, und schließen Sie danach dieses Fenster.";
+        } else {
+          const res = await post("download", true);
+          const url = URL.createObjectURL(await res.blob());
+          const a = document.createElement("a");
+          a.href = url; a.download = info.filename; document.body.append(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 30000);
+          const n = Number(res.headers.get("X-Views-Left") || 0);
+          say(`„${info.filename}“ wurde heruntergeladen. ${left(n)}`);
+          if (n <= 0) $("ask").hidden = true;
+        }
+        history.replaceState(null, "", location.pathname);  // den Link nicht im Verlauf des Browsers stehen lassen
+      } catch (e) {
+        if (e.status === 404) gone(); else say(e.message, true);
+      } finally { $("go").disabled = false; }
+    }
+    $("go").onclick = open;
+    $("pw").onkeydown = (e) => { if (e.key === "Enter") open(); };
+    $("copy").onclick = async () => {
+      try { await navigator.clipboard.writeText($("secret").textContent); say("Kopiert."); }
+      catch { say("Kopieren nicht möglich – bitte den Text markieren und manuell kopieren.", true); }
+    };
+    (async () => {
+      if (token.length < 20) return gone("Dieser Link ist unvollständig. Bitte kopieren Sie die ganze Adresse aus der Nachricht.");
+      try { info = await post("info"); } catch (e) { return gone(e.status === 429 ? e.message : GONE); }
+      document.title = `Sichere Nachricht · ${info.company}`;
+      $("foot").textContent = `Bereitgestellt über das Cockpit von ${info.company}.`;
+      const file = info.kind === "file";
+      $("title").textContent = file ? "Datei für Sie" : "Vertrauliche Nachricht für Sie";
+      const who = info.from && info.from !== "Cockpit" ? `${info.from} von ${info.company}` : info.company;
+      $("lead").textContent = file ? `${who} hat eine Datei für Sie bereitgestellt: ${info.filename} (${size(info.size)}).`
+        : `${who} hat eine vertrauliche Nachricht für Sie hinterlegt.`;
+      $("hint").textContent = `Gültig bis ${when(info.expires_at)}. ` + (info.views_left === 1
+        ? (file ? "Der Link funktioniert genau einmal." : "Die Nachricht wird beim Anzeigen gelöscht – öffnen Sie sie erst, wenn Sie sie gleich übernehmen können.")
+        : `Der Link kann noch ${info.views_left}-mal geöffnet werden.`);
+      $("go").textContent = file ? "Datei herunterladen" : "Nachricht anzeigen";
+      $("pw-box").hidden = !info.needs_password;
+      $("ask").hidden = false;
+      if (info.needs_password) $("pw").focus();
+    })();
+  </script>
+</body>
+</html>

@@ -53,13 +53,18 @@ from .inventory import register as register_inventory
 from .m365 import register as register_m365
 from .notify import register as register_notify
 from .office import register as register_office
+from .planner import register as register_planner
+from .search import register as register_search
+from .share import register as register_share
 from .posture import register as register_posture
 from .connections import register as register_connections
 from .setup import register as register_setup
 from .todo import register as register_todo
 from .vault import Vault
+from .workreport import register as register_workreport
 from .staff import register as register_staff
 from .mobile import register as register_mobile
+from .myday import register as register_myday
 from .ai_control import register as register_ai_control
 from .branding import get_branding
 from .team import (
@@ -294,7 +299,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Eingebettete Skripte der ausgelieferten Seiten per Prüfsumme freigeben (alles andere blockt der Browser)
     page_scripts = {"/portal": script_hashes(STATIC_DIR / "portal.html"), "/anfrage": script_hashes(STATIC_DIR / "anfrage.html"),
-                    "/bewertung": script_hashes(STATIC_DIR / "bewertung.html"), "/": script_hashes(STATIC_DIR / "index.html")}
+                    "/bewertung": script_hashes(STATIC_DIR / "bewertung.html"), "/": script_hashes(STATIC_DIR / "index.html"),
+                    "/s": script_hashes(STATIC_DIR / "share.html")}
     form_frames = " ".join(["'self'", *settings.public_form_origins]) if settings.public_form_origins else ""
 
     @app.middleware("http")
@@ -311,7 +317,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response.headers.setdefault("Content-Security-Policy", content_security_policy(
                 page_scripts.get(path), form_frames if path == "/anfrage" else "'none'",
                 office=svc.origin() if svc and path == "/" else ""))
-        if path.startswith(("/api/auth/", "/api/portal/")):
+        if path.startswith(("/api/auth/", "/api/portal/", "/api/public/share/")):
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
@@ -851,6 +857,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Office im Cockpit: eigener Office-Server (Collabora/ONLYOFFICE) bearbeitet Dateien über WOPI --------
     office = register_office(app, ctx, settings, admin_only)
+    register_search(app, ctx, admin_only, start=settings.db_path != ":memory:")  # eine Suche über alles, auch Dateiinhalte
+    register_share(app, ctx, settings, STATIC_DIR)  # Passwörter als Einmal-Link, Dateien als Freigabe-Link
+    register_planner(app, ctx, settings)  # Einsatzplanung: Termine, Kalender-Abo, Terminbestätigung
+    register_workreport(app, ctx, settings)  # Arbeitsbericht mit Unterschrift des Kunden (Leistungsnachweis)
+    register_myday(app, ctx)  # „Mein Tag“: persönliche Startseite
 
     # --- Backup-Wächter (Sicherungsberichte aus dem Postfach) -----------------------------------
     register_backups(app, ctx, admin_only, start=settings.db_path != ":memory:")

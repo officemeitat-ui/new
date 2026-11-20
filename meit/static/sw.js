@@ -18,10 +18,11 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== location.origin) return;
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/portal") || url.pathname === "/sw.js") return;
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/portal") || url.pathname.startsWith("/wopi/") ||
+      ["/sw.js", "/s", "/anfrage", "/bewertung"].includes(url.pathname)) return;  // öffentliche Seiten nie zwischenspeichern
   // Netz zuerst (immer aktuelle Version), bei Ausfall die gespeicherte Oberfläche
   event.respondWith(fetch(req).then((res) => {
-    if (res.ok && (req.mode === "navigate" || SHELL.includes(url.pathname))) {
+    if (res.ok && ((req.mode === "navigate" && url.pathname === "/") || SHELL.includes(url.pathname))) {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(req.mode === "navigate" ? "/" : req, copy));
     }

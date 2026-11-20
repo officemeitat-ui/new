@@ -402,6 +402,7 @@ views.kunde = async (id) => {
     await inventoryCard(c),
     await backupCard(c),
     await domainCard(c),
+    await appointmentsCard(c),
     await staffCard(c),
     await filesCard(c),
     await maintenanceCard(c),
@@ -526,6 +527,9 @@ async function ticketDetail(id) {
       await api(`/api/tickets/${t.id}/to-kb`, { method: "POST" }); toast("Als Wissensartikel gespeichert");
     }) }, "→ Wissensdatenbank") : null,
     t.customer_id ? (close) => h("button", { class: "btn", onclick: () => { close(); timeForm({ ticket_id: t.id, description: t.title }); } }, "Zeit buchen") : null,
+    t.customer_id ? (close) => h("button", { class: "btn", title: "Leistungsnachweis mit Unterschrift des Kunden", onclick: () => { close(); workReportForm({ ticket: t }); } }, "Arbeitsbericht") : null,
+    t.status !== "geloest" ? (close) => h("button", { class: "btn", title: "Einsatz zu diesem Ticket in die Einsatzplanung eintragen", onclick: async () => { close(); await loadCustomers();
+      appointmentForm(null, { ticket_id: t.id, ticket_title: t.title, customer_id: t.customer_id, title: t.title, user_id: t.assigned_to || null }); } }, "Termin planen") : null,
     t.customer_id && t.status !== "geloest" ? (close) => h("button", { class: "btn", title: "Stoppuhr starten – beim Stoppen wird die Zeit auf dieses Ticket gebucht", onclick: async () => {
       await timerStart({ ticket_id: t.id }); close(); } }, "⏱ Stoppuhr") : null,
     (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
@@ -3308,7 +3312,11 @@ async function domainCard(c) {
 const WO_WAS = [
   ["Tagesgeschäft", [["Tickets", "tickets", "Anfragen der Kunden, Verlauf, Antworten, Zeit buchen"], ["Posteingang", "posteingang", "E-Mails und Anfragen – der KI-Mitarbeiter sortiert vor, du gibst frei"],
     ["Wartung", "wartung", "Wiederkehrende Prüfungen mit Nachweis"], ["Ein- & Austritte", "mitarbeiter", "Neue/ausscheidende Mitarbeiter beim Kunden als Checkliste"],
-    ["Office & Dateien", "office", "Word- und Excel-Dateien im Browser bearbeiten, Vorlagen je Kunde ausfüllen, frühere Stände"]]],
+    ["Office & Dateien", "office", "Word- und Excel-Dateien im Browser bearbeiten, Vorlagen je Kunde ausfüllen, frühere Stände"],
+    ["Mein Tag", "heute", "Persönliche Startseite: heutige Termine, eigene Tickets, offene Arbeitsberichte"],
+    ["Einsatzplanung", "termine", "Termine je Techniker, Arbeitsbericht mit Unterschrift, Kalender-Abo fürs Handy"],
+    ["Sicher teilen", "teilen", "Passwörter als Einmal-Link, Dateien als Freigabe-Link mit Ablaufdatum"],
+    ["Suche", "dashboard", "Strg+K oder „/“: alles durchsuchen – Kunden, Tickets, Geräte, auch den Inhalt von Dateien"]]],
   ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Sicherheitslage", "sicherheitslage", "Eine Note je Kunde aus allen Quellen, Bericht als PDF, Angebot aus den Maßnahmen"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
     ["Geräte-Check", "inventar", "Eigener Agent: Verschlüsselung, Virenschutz, Updates, Speicherplatz"], ["Datensicherung", "backups", "Ampel aus den Sicherungsberichten, Alarm bei Fehlern"],
     ["Domains & E-Mail", "domains", "Schutz gegen gefälschte Absender, Zertifikate"], ["Microsoft 365", "m365", "MFA, Weiterleitungen, Lizenzabgleich je Kunde"]]],
@@ -3751,7 +3759,8 @@ async function fileDetail(f, reload) {
       can ? h("button", { class: "btn primary", onclick: () => { close(); officeOpen(f, { view: can !== "edit", onClose: reload }); } }, can === "edit" ? "Im Browser bearbeiten" : "Im Browser ansehen") : null,
       can === "edit" ? h("button", { class: "btn", onclick: () => { close(); officeOpen(f, { view: true }); } }, "Nur ansehen") : null,
       h("a", { class: "btn", href: `/api/attachments/${f.id}/download` }, "Herunterladen"),
-      f.template ? h("button", { class: "btn", onclick: () => { close(); fileFromTemplate(null, reload, f); } }, "Für Kunden ausfüllen") : null),
+      f.template ? h("button", { class: "btn", onclick: () => { close(); fileFromTemplate(null, reload, f); } }, "Für Kunden ausfüllen") : null,
+      h("button", { class: "btn", title: "Freigabe-Link mit Ablaufdatum – der Empfänger braucht kein Konto", onclick: () => { close(); shareFile(f); } }, "Link teilen")),
     h("label", {}, "Name"),
     h("div", { class: "row", style: "margin-bottom:.8rem" }, h("div", { style: "flex:1 1 240px" }, nameInput),
       h("button", { class: "btn", onclick: (e) => withBusy(e.target, () => patch({ filename: nameInput.value.trim() }, "Umbenannt")) }, "Umbenennen")),
@@ -3885,8 +3894,596 @@ views.office = async (_, params) => {
   await filesPanel(box, customer ? "customer" : "library", customer ? cid : 0);
 };
 
+// ---- Mein Tag: persönliche Startseite
+const hoursText = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
+views.heute = async () => {
+  await Promise.all([loadCustomers(), loadUsers()]);
+  const d = await api("/api/my-day");
+  setTitle("Mein Tag", [
+    h("button", { class: "btn", onclick: () => appointmentForm(null, { date: d.date }) }, "+ Termin"),
+    h("button", { class: "btn", onclick: () => workReportForm() }, "+ Arbeitsbericht"),
+    h("a", { class: "btn cta", href: "#/tickets?neu=1" }, "+ Ticket")]);
+  const kpi = (label, value, sub, href = null) => h(href ? "a" : "div", { class: "card kpi", href, style: href ? "text-decoration:none;color:inherit" : null },
+    h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  const n = d.next;
+  const nextCard = n ? h("div", { class: "card next-up", style: "margin-bottom:1rem" },
+    h("div", { class: "row", style: "align-items:flex-start" },
+      h("div", { class: "big-time" }, hhmm(n.start_at), h("span", {}, n.start_at.slice(0, 10) === d.date ? "heute" : "morgen")),
+      h("div", { style: "flex:1;min-width:200px" }, h("div", { class: "small muted" }, new Date(n.start_at.replace(" ", "T")) <= new Date() ? "Läuft gerade" : "Als Nächstes"),
+        h("strong", { style: "font-size:1.15rem" }, `${APPT_ICON[n.kind] || ""} ${n.title}`),
+        h("div", {}, [n.customer, `${n.kind_label}, ${hoursText(n.duration_min)} Std.`].filter(Boolean).join(" · ")),
+        n.location ? h("a", { class: "small", href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(n.location)}`, target: "_blank", rel: "noopener noreferrer" }, `📍 ${n.location}`) : null,
+        n.customer_note ? h("div", { class: "small muted" }, `Hinweis an den Kunden: ${n.customer_note}`) : null,
+        n.notes ? h("div", { class: "small" }, `Intern: ${n.notes}`) : null),
+      h("div", { class: "row", style: "gap:.4rem" },
+        h("button", { class: "btn", onclick: () => appointmentDetail(n.id) }, "Details"),
+        n.customer_id ? h("button", { class: "btn primary", onclick: () => workReportForm({ appointment: n }) }, "Arbeitsbericht") : null)))
+    : h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, "Kein weiterer Termin heute oder morgen."),
+      h("div", { class: "small muted" }, "Zeit für Tickets, Wartungen oder Dokumentation."));
+  const dayList = (label, items) => h("div", { style: "margin-bottom:.8rem" }, h("h3", { style: "margin:0 0 .4rem" }, `${label} (${items.length})`),
+    items.length ? h("div", { class: "appt-list" }, items.map((a) => appointmentChip(a))) : h("p", { class: "small muted", style: "margin:0" }, "nichts geplant"));
+  show(
+    h("p", { class: "muted", style: "margin-top:0" }, `${d.greeting} · ${d.weekday}, ${dt(d.date)}${d.personal ? "" : " · Ansicht für alle (keine Benutzerkonten eingerichtet)"}`),
+    h("div", { class: "grid kpis" },
+      kpi("Heute geplant", hoursText(d.planned_today), `${d.today.length} Termin(e)`, "#/termine"),
+      kpi("Heute gebucht", hoursText(d.minutes_today), `diese Woche ${hoursText(d.minutes_week)} Std.`, "#/abrechnung"),
+      kpi(d.personal ? "Meine offenen Tickets" : "Offene Tickets", d.open_tickets, d.tickets.filter((t) => t.priority === "kritisch" || t.priority === "hoch").length + " dringend", "#/tickets"),
+      d.personal ? kpi("Ohne Zuständigen", d.unassigned, "Tickets, die noch niemand hat", "#/tickets") : kpi("Wartet auf Unterschrift", d.drafts.length, "Arbeitsberichte im Entwurf")),
+    nextCard,
+    h("div", { class: "grid two" },
+      h("div", { class: "card" }, dayList("Heute", d.today), dayList("Morgen", d.tomorrow),
+        h("a", { class: "btn small", href: "#/termine" }, "Ganze Woche")),
+      h("div", { class: "card" }, h("h3", { style: "margin:0 0 .4rem" }, d.personal ? "Meine Tickets" : "Offene Tickets"),
+        d.tickets.length ? h("ul", { class: "list" }, d.tickets.map((t) => h("li", { class: "clickable", style: "cursor:pointer", onclick: () => ticketDetail(t.id) },
+          h("div", { class: "row" }, badge(t.priority), h("strong", { style: "flex:1;min-width:0" }, `#${t.id} ${t.title}`)),
+          h("div", { class: "small muted" }, [t.customer, STATUS_LABEL[t.status] || t.status, t.age_days ? `seit ${t.age_days} Tag(en)` : "heute"].filter(Boolean).join(" · ")))))
+          : h("p", { class: "small muted", style: "margin:0" }, "Keine offenen Tickets – sauber."))),
+    d.drafts.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("h3", { style: "margin:0 0 .4rem" }, "Wartet auf Unterschrift"),
+      h("ul", { class: "list" }, d.drafts.map((r) => h("li", {}, h("div", { class: "row" }, h("strong", {}, r.number), h("span", { style: "flex:1;min-width:0" }, `${r.customer} · ${r.work || "ohne Text"}`),
+        h("button", { class: "btn small primary", onclick: async () => { const full = await api(`/api/work-reports/${r.id}`); workReportSign(full); } }, "Unterschrift")))))) : null,
+    d.maintenance.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "Wartung fällig (7 Tage)"), h("a", { class: "btn small", href: "#/wartung" }, "Zur Wartung")),
+      h("ul", { class: "list" }, d.maintenance.map((m) => h("li", {}, h("div", { class: "row" }, m.overdue ? badge("überfällig", "bad") : badge(dt(m.due_date), "info"), h("span", {}, `${m.title} · ${m.customer || ""}`)))))) : null);
+};
+
+// ---- Einsatzplanung: Termine je Techniker, Kalender-Abo, Terminbestätigung
+const APPT_ICON = { vor_ort: "🚗", remote: "🖥", telefon: "📞", intern: "🏠" };
+const APPT_CLS = { geplant: "info", bestaetigt: "ok", erledigt: "", abgesagt: "bad" };
+const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const mondayOf = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const hhmm = (s) => (s || "").slice(11, 16);
+
+function appointmentForm(a = null, defaults = {}) {
+  const base = a || { kind: "vor_ort", duration_min: 60, ...defaults };
+  const start = a ? a.start_at : `${defaults.date || isoDay(new Date())} ${defaults.time || "09:00"}`;
+  const f = form([
+    { name: "title", label: "Was wird gemacht?", required: true, full: true, placeholder: "z. B. Neuen Arbeitsplatz aufstellen" },
+    { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(true) },
+    ...(state.users.length ? [{ name: "user_id", label: "Techniker", type: "select", options: userOptions(), value: base.user_id || 0 }] : []),
+    { name: "kind", label: "Art", type: "select", options: [["vor_ort", "Vor Ort"], ["remote", "Fernwartung"], ["telefon", "Telefon"], ["intern", "Intern"]] },
+    { name: "date", label: "Datum", type: "date", value: start.slice(0, 10) },
+    { name: "time", label: "Beginn", type: "time", value: start.slice(11, 16), step: 300 },
+    { name: "duration_min", label: "Dauer", type: "select", options: [[15, "15 Minuten"], [30, "30 Minuten"], [45, "45 Minuten"], [60, "1 Stunde"], [90, "1,5 Stunden"], [120, "2 Stunden"], [180, "3 Stunden"], [240, "4 Stunden"], [480, "ganzer Tag (8 Std.)"]]
+      .concat([15, 30, 45, 60, 90, 120, 180, 240, 480].includes(base.duration_min) ? [] : [[base.duration_min, `${base.duration_min} Minuten`]]) },
+    { name: "location", label: "Ort (leer = Adresse des Kunden bei „Vor Ort“)", full: true },
+    { name: "customer_note", label: "Hinweis für den Kunden (steht in Bestätigung und Portal)", type: "textarea", rows: 2, full: true, placeholder: "z. B. Der Server ist ca. 30 Minuten nicht erreichbar." },
+    { name: "notes", label: "Interne Notiz (sieht der Kunde nie)", type: "textarea", rows: 2, full: true },
+  ], { ...base, customer_id: base.customer_id || "" });
+  modal(a ? "Termin bearbeiten" : "Termin planen", h("div", {},
+    base.ticket_id ? h("p", { class: "small muted", style: "margin-top:0" }, `Zu Ticket #${base.ticket_id}${base.ticket_title ? ` – ${base.ticket_title}` : ""}`) : null, f), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(f);
+      if (!v.title.trim() || !v.date || !v.time) return toast("Bitte Titel, Datum und Beginn angeben", true);
+      const body = { title: v.title.trim(), customer_id: v.customer_id ? Number(v.customer_id) : null, kind: v.kind, start_at: `${v.date} ${v.time}`,
+        duration_min: Number(v.duration_min), location: v.location, customer_note: v.customer_note, notes: v.notes, ticket_id: base.ticket_id || null };
+      if ("user_id" in v) body.user_id = Number(v.user_id) || null;
+      const r = a ? await api(`/api/appointments/${a.id}`, { method: "PUT", body }) : await api("/api/appointments", { method: "POST", body });
+      close();
+      toast(r.conflicts.length ? `Gespeichert – Achtung: überschneidet sich mit „${r.conflicts[0].title}“ (${hhmm(r.conflicts[0].start_at)}–${hhmm(r.conflicts[0].end_at)})` : "Termin gespeichert", r.conflicts.length > 0);
+      if (r.customer_needs_update && confirm("Der Kunde hat für diesen Termin schon eine Bestätigung bekommen.\nJetzt über die Änderung informieren?")) await appointmentNotify(r);
+      render();
+    }) }, "Speichern")]);
+}
+
+async function appointmentNotify(a) {
+  try { const r = await api(`/api/appointments/${a.id}/notify`, { method: "POST", body: {} }); toast(`„${r.subject}“ gesendet an ${r.sent_to}`); return true; }
+  catch (e) {
+    if (!/E-Mail-Adresse/.test(e.message)) { toast(e.message, true); return false; }
+    const to = prompt("Beim Kunden ist keine E-Mail-Adresse hinterlegt. An welche Adresse soll die Terminbestätigung gehen?");
+    if (!to) return false;
+    try { const r = await api(`/api/appointments/${a.id}/notify`, { method: "POST", body: { to } }); toast(`Gesendet an ${r.sent_to}`); return true; }
+    catch (e2) { toast(e2.message, true); return false; }
+  }
+}
+
+async function appointmentDetail(id) {
+  let a;
+  try { a = await api(`/api/appointments/${id}`); } catch (e) { return toast(e.message, true); }
+  await loadCustomers();
+  const open = a.status !== "erledigt" && a.status !== "abgesagt";
+  const row = (label, value) => value ? h("div", { class: "kv" }, h("span", { class: "muted" }, label), h("span", {}, value)) : null;
+  const body = h("div", {},
+    h("div", { class: "row", style: "margin-bottom:.6rem" }, badge(a.status_label, APPT_CLS[a.status]), h("strong", {}, a.when)),
+    a.conflicts.length ? h("div", { class: "verdict warn" }, h("strong", {}, "Überschneidung"), a.conflicts.map((c) =>
+      h("div", { class: "small" }, `${hhmm(c.start_at)}–${hhmm(c.end_at)} ${c.title}${c.customer ? ` (${c.customer})` : ""}`))) : null,
+    row("Art", `${APPT_ICON[a.kind] || ""} ${a.kind_label}`),
+    row("Kunde", a.customer ? h("a", { href: `#/kunde/${a.customer_id}`, onclick: () => document.querySelector(".modal-backdrop")?.remove() }, a.customer) : ""),
+    row("Techniker", a.user_name || (state.users.length ? "noch niemand zugeteilt" : "")),
+    row("Ort", a.location ? h("a", { href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.location)}`, target: "_blank", rel: "noopener noreferrer", title: "Route in Google Maps" }, a.location) : ""),
+    row("Ticket", a.ticket_id ? h("a", { href: "#", onclick: (e) => { e.preventDefault(); document.querySelector(".modal-backdrop")?.remove(); ticketDetail(a.ticket_id); } }, `#${a.ticket_id} ${a.ticket_title}`) : ""),
+    row("Für den Kunden", a.customer_note),
+    row("Intern", a.notes),
+    row("Kunde informiert", a.notified_at ? `${dt(a.notified_at)} ${hhmm(a.notified_at)} an ${a.notified_to}` : ""),
+    row("Zeit gebucht", a.time_entry_id ? "ja" : ""));
+  modal(a.title, body, [
+    (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Termin endgültig löschen? (Zum Absagen stattdessen „Absagen“ wählen.)")) return;
+      await api(`/api/appointments/${a.id}`, { method: "DELETE" }); close(); toast("Gelöscht"); render(); } }, "Löschen"),
+    h("a", { class: "btn", href: `/api/appointments/${a.id}/ics`, title: "Als Kalenderdatei (.ics) herunterladen" }, "📅 .ics"),
+    open ? (close) => h("button", { class: "btn", onclick: async () => {
+      if (!confirm("Termin absagen?")) return;
+      const r = await api(`/api/appointments/${a.id}`, { method: "PUT", body: { status: "abgesagt" } });
+      if (r.customer_needs_update && confirm("Den Kunden über die Absage informieren?")) await appointmentNotify(r);
+      close(); render(); } }, "Absagen") : null,
+    (close) => h("button", { class: "btn", onclick: () => { close(); appointmentForm(a); } }, "Bearbeiten"),
+    open && a.customer_id ? (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { if (await appointmentNotify(a)) { close(); render(); } }) },
+      a.notified_at ? "Kunden erneut informieren" : "Kunden informieren") : null,
+    open ? (close) => h("button", { class: a.customer_id ? "btn" : "btn primary", onclick: () => { close(); appointmentComplete(a); } }, "Erledigt") : null,
+    a.customer_id && a.status !== "abgesagt" ? (close) => h("button", { class: "btn primary", title: "Tätigkeiten eintragen, Kunde unterschreibt am Bildschirm – PDF und Zeitbuchung entstehen automatisch",
+      onclick: () => { close(); workReportForm({ appointment: a }); } }, "Arbeitsbericht") : null,
+  ].filter(Boolean));
+}
+
+function appointmentComplete(a) {
+  const f = form([
+    { name: "book_time", label: a.customer_id ? "Zeit auf den Kunden buchen" : "Zeit buchen (nur mit Kunde möglich)", type: "checkbox", value: !!a.customer_id, full: true },
+    { name: "minutes", label: "Tatsächliche Dauer (Minuten)", type: "number", value: a.duration_min },
+    { name: "description", label: "Text für die Abrechnung", value: `${a.kind_label}: ${a.title}`, full: true }]);
+  modal(`Erledigt: ${a.title}`, f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+    const v = readForm(f);
+    const r = await api(`/api/appointments/${a.id}/complete`, { method: "POST", body: { book_time: v.book_time && !!a.customer_id, minutes: v.minutes || null, description: v.description } });
+    close(); toast(r.time_entry_id ? "Erledigt – Zeit gebucht" : "Erledigt"); render();
+  }) }, "Abschließen")]);
+}
+
+async function calendarSubscribe() {
+  const info = await api("/api/calendar/feeds").catch(() => ({ feeds: [], has_users: false }));
+  const out = h("div", {});
+  const make = (scope) => (e) => withBusy(e.target, async () => {
+    const have = info.feeds.some((x) => x.scope === scope || !info.has_users);
+    if (have && !confirm("Es gibt schon einen Abo-Link. Ein neuer Link macht den alten ungültig – abonnierte Kalender müssen dann neu verbunden werden. Fortfahren?")) return;
+    const r = await api("/api/calendar/feeds", { method: "POST", body: { scope } });
+    const link = h("input", { type: "text", readonly: true, value: r.url, "aria-label": "Abo-Link", onfocus: (ev) => ev.target.select() });
+    fill(out, h("div", { class: "verdict ok", style: "margin-top:.8rem" }, h("strong", {}, r.scope === "own" ? "Dein persönlicher Kalender" : "Team-Kalender (alle Einsätze)"),
+      h("div", { class: "row", style: "margin-top:.5rem;flex-wrap:nowrap" }, h("div", { style: "flex:1;min-width:0" }, link), copyButton(() => r.url, "Kopieren")),
+      h("div", { class: "row", style: "margin-top:.5rem" }, h("a", { class: "btn small", href: r.webcal }, "In Kalender-App öffnen")),
+      h("div", { class: "small", style: "margin-top:.4rem" }, "Der Link wird nur jetzt angezeigt. Er ist geheim: Wer ihn kennt, sieht Titel, Kunde und Ort der Termine.")));
+  });
+  modal("Kalender abonnieren", h("div", {},
+    h("p", { style: "margin-top:0" }, "Die Einsätze erscheinen in Outlook, am iPhone oder in Android – als abonnierter Kalender, der sich selbst aktualisiert (je nach Programm alle 30 Minuten bis einige Stunden)."),
+    h("ul", { class: "small" }, h("li", {}, h("strong", {}, "Outlook: "), "Kalender → Kalender hinzufügen → Aus dem Internet abonnieren → Link einfügen."),
+      h("li", {}, h("strong", {}, "iPhone: "), "Einstellungen → Apps → Kalender → Kalenderaccounts → Account hinzufügen → Andere → Kalenderabo hinzufügen."),
+      h("li", {}, h("strong", {}, "Android/Google: "), "calendar.google.com → Weitere Kalender → Per URL.")),
+    h("p", { class: "small muted" }, "Hinweis: Abonnierst du über Google oder Apple, liegen Titel, Kunde und Ort der Termine auch dort. Interne Notizen werden nie übertragen. Dafür muss das Cockpit unter einer festen Adresse erreichbar sein (PUBLIC_URL)."),
+    info.feeds.length ? h("p", { class: "small" }, "Vorhandene Abos: ", info.feeds.map((x) => `${x.scope === "own" ? "persönlich" : "Team"}${x.last_used_at ? ` (zuletzt abgerufen ${dt(x.last_used_at)})` : " (noch nie abgerufen)"}`).join(" · ")) : null,
+    out), [
+    info.has_users ? h("button", { class: "btn primary", onclick: make("own") }, "Meine Termine") : null,
+    h("button", { class: info.has_users ? "btn" : "btn primary", onclick: make("team") }, "Alle Einsätze (Team)")].filter(Boolean));
+}
+
+function appointmentChip(a, showDay = false) {
+  return h("button", { class: `appt ${a.kind} ${a.status}`, title: `${a.when}\n${a.kind_label}${a.location ? ` · ${a.location}` : ""}`, onclick: () => appointmentDetail(a.id) },
+    h("span", { class: "time" }, showDay ? `${dt(a.start_at)} ` : "", `${hhmm(a.start_at)}–${hhmm(a.end_at)}`, a.conflicts && a.conflicts.length ? h("span", { class: "clash", title: "Überschneidung" }, " ⚠") : null),
+    h("span", { class: "what" }, `${APPT_ICON[a.kind] || ""} ${a.title}`),
+    a.customer ? h("span", { class: "who" }, a.customer) : null,
+    h("span", { class: "who" }, [a.user_name || (state.users.length ? "ohne Techniker" : ""), a.status === "geplant" ? "" : a.status_label].filter(Boolean).join(" · ")));
+}
+
+views.termine = async (_, params) => {
+  await Promise.all([loadCustomers(), loadUsers()]);
+  const given = params.get("datum");
+  const monday = mondayOf(given && /^\d{4}-\d{2}-\d{2}$/.test(given) ? new Date(`${given}T12:00:00`) : new Date());
+  const days = [...Array(7)].map((_x, i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d; });
+  const tech = params.get("techniker") || "";
+  const q = `start=${isoDay(days[0])}&end=${isoDay(days[6])}` + (tech === "ohne" ? "&unassigned=true" : tech ? `&user_id=${tech}` : "");
+  const d = await api(`/api/appointments?${q}`);
+  const go = (date, t = tech) => { location.hash = `#/termine?datum=${isoDay(date)}${t ? `&techniker=${t}` : ""}`; };
+  const shift = (n) => { const x = new Date(monday); x.setDate(x.getDate() + n); go(x); };
+  const reports = await api("/api/work-reports?limit=12").catch(() => []);
+  setTitle("Einsatzplanung", [
+    h("button", { class: "btn", onclick: () => calendarSubscribe() }, "Kalender abonnieren"),
+    h("button", { class: "btn", onclick: () => workReportForm() }, "+ Arbeitsbericht"),
+    h("button", { class: "btn primary", onclick: () => appointmentForm(null, { date: isoDay(new Date()) < isoDay(days[0]) || isoDay(new Date()) > isoDay(days[6]) ? isoDay(days[0]) : isoDay(new Date()) }) }, "+ Termin")]);
+  const today = isoDay(new Date());
+  const active = d.items.filter((a) => a.status !== "abgesagt");
+  const minutes = active.reduce((sum, a) => sum + a.duration_min, 0);
+  const techSel = h("select", { style: "width:auto", "aria-label": "Techniker", onchange: (e) => go(monday, e.target.value) },
+    h("option", { value: "" }, "Alle Techniker"), d.users.map((u) => h("option", { value: u.id, selected: String(u.id) === tech }, u.name)),
+    d.users.length ? h("option", { value: "ohne", selected: tech === "ohne" }, "Ohne Techniker") : null);
+  const kw = (() => { const t = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate() + 3)); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return 1 + Math.round(((t - y) / 864e5 - 3 + ((y.getUTCDay() + 6) % 7)) / 7); })();
+  show(
+    h("div", { class: "row", style: "margin-bottom:.8rem" },
+      h("button", { class: "btn small", onclick: () => shift(-7), "aria-label": "Vorige Woche" }, "◀"),
+      h("button", { class: "btn small", onclick: () => go(new Date()) }, "Heute"),
+      h("button", { class: "btn small", onclick: () => shift(7), "aria-label": "Nächste Woche" }, "▶"),
+      h("strong", {}, `KW ${kw} · ${days[0].toLocaleDateString("de-AT", { day: "numeric", month: "numeric" })}–${days[6].toLocaleDateString("de-AT")}`),
+      h("span", { class: "spacer" }),
+      h("span", { class: "small muted" }, `${active.length} Termine · ${(minutes / 60).toFixed(1).replace(".", ",")} Std. verplant`),
+      d.users.length ? techSel : null),
+    h("div", { class: "week" }, days.map((day) => {
+      const key = isoDay(day);
+      const items = d.items.filter((a) => a.start_at.slice(0, 10) <= key && a.end_at.slice(0, 10) >= key);
+      return h("div", { class: `day${key === today ? " today" : ""}${day.getDay() === 0 || day.getDay() === 6 ? " weekend" : ""}${items.length ? "" : " none"}` },
+        h("div", { class: "day-head" }, h("span", {}, h("strong", {}, day.toLocaleDateString("de-AT", { weekday: "short" })), ` ${day.toLocaleDateString("de-AT", { day: "numeric", month: "numeric" })}`),
+          h("button", { class: "add", title: "Termin an diesem Tag", "aria-label": `Termin am ${day.toLocaleDateString("de-AT")}`, onclick: () => appointmentForm(null, { date: key, user_id: Number(tech) || null }) }, "+")),
+        items.length ? items.map((a) => appointmentChip(a)) : h("div", { class: "small muted empty-day" }, "frei"));
+    })),
+    h("p", { class: "small muted", style: "margin-top:.8rem" }, "🚗 vor Ort · 🖥 Fernwartung · 📞 Telefon · 🏠 intern · gestrichelt = noch nicht bestätigt · ⚠ = Überschneidung beim selben Techniker. Termine entstehen auch direkt aus einem Ticket („Termin planen“)."),
+    h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Arbeitsberichte"),
+      h("span", { class: "small muted" }, "Leistungsnachweis mit Unterschrift des Kunden – direkt am Handy")),
+      reports.length ? workReportTable(reports) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Arbeitsberichte. Im Termin auf „Arbeitsbericht“ tippen: Tätigkeiten eintragen, Kunde unterschreibt am Bildschirm, PDF und Zeitbuchung entstehen automatisch.")));
+};
+
+async function appointmentsCard(c) {
+  const from = isoDay(new Date(Date.now() - 14 * 864e5)), to = isoDay(new Date(Date.now() + 120 * 864e5));
+  const d = await api(`/api/appointments?start=${from}&end=${to}&customer_id=${c.id}`).catch(() => null);
+  if (!d) return null;
+  await loadUsers();
+  const now = new Date().toISOString().slice(0, 10);
+  const rows = d.items.filter((a) => a.status !== "abgesagt" && (a.end_at.slice(0, 10) >= now || a.status !== "erledigt")).slice(0, 6);
+  const reports = await api(`/api/work-reports?customer_id=${c.id}&limit=5`).catch(() => []);
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, "Termine & Arbeitsberichte"), h("div", { class: "row", style: "gap:.4rem" },
+      h("a", { class: "btn small", href: "#/termine" }, "Einsatzplanung"),
+      h("button", { class: "btn small", onclick: () => workReportForm({ customerId: c.id }) }, "+ Arbeitsbericht"),
+      h("button", { class: "btn small primary", onclick: () => appointmentForm(null, { customer_id: c.id }) }, "+ Termin"))),
+    rows.length ? h("div", { class: "appt-list" }, rows.map((a) => appointmentChip(a, true))) : h("p", { class: "small muted", style: "margin:0" }, "Keine anstehenden Termine."),
+    reports.length ? h("div", { style: "margin-top:.8rem" }, h("h3", { style: "margin:0 0 .3rem" }, "Arbeitsberichte"), workReportTable(reports, false)) : null);
+}
+
+// ---- Arbeitsbericht mit Unterschrift des Kunden (Leistungsnachweis)
+const WR_CLS = { entwurf: "warn", unterschrieben: "ok", ohne_unterschrift: "info" };
+
+async function workReportForm({ appointment = null, ticket = null, customerId = null, report = null } = {}) {
+  await loadCustomers();
+  const src = report || {};
+  const now = new Date();
+  const base = {
+    customer_id: src.customer_id || (appointment && appointment.customer_id) || (ticket && ticket.customer_id) || customerId || "",
+    date: src.date || (appointment ? appointment.start_at.slice(0, 10) : isoDay(now)),
+    start_time: src.start_time || (appointment ? hhmm(appointment.start_at) : ""),
+    end_time: src.end_time || (appointment ? hhmm(appointment.end_at) : `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`),
+    kind: src.kind || (appointment ? appointment.kind : "vor_ort"),
+    location: src.location || (appointment ? appointment.location : ""),
+    travel_km: src.travel_km || "",
+    work: src.work || (appointment ? `${appointment.title}\n` : ticket ? `${ticket.title}\n` : ""),
+    remark: src.remark || "",
+  };
+  const f = form([
+    { name: "customer_id", label: "Kunde", type: "select", options: customerOptions(true) },
+    { name: "kind", label: "Art", type: "select", options: [["vor_ort", "Vor Ort"], ["remote", "Fernwartung"], ["telefon", "Telefon"]] },
+    { name: "date", label: "Datum", type: "date" },
+    { name: "start_time", label: "Beginn", type: "time" },
+    { name: "end_time", label: "Ende", type: "time" },
+    { name: "travel_km", label: "Anfahrt (km, optional)", type: "number", step: "0.1" },
+    { name: "location", label: "Ort (leer = Adresse des Kunden)", full: true },
+    { name: "work", label: "Durchgeführte Arbeiten", type: "textarea", rows: 6, full: true, placeholder: "Was wurde gemacht? Eine Zeile je Schritt." },
+  ], base);
+  const matBox = h("div", { class: "mat-rows" });
+  const matRow = (m = {}) => h("div", { class: "mat-row" },
+    h("input", { type: "text", placeholder: "Material, z. B. Patchkabel Cat6 2 m", value: m.name || "", "aria-label": "Material", "data-k": "name" }),
+    h("input", { type: "number", min: "0", step: "0.01", value: m.qty || 1, "aria-label": "Menge", "data-k": "qty" }),
+    h("input", { type: "text", placeholder: "Stk.", value: m.unit || "", "aria-label": "Einheit", "data-k": "unit" }),
+    h("button", { class: "btn small", type: "button", "aria-label": "Zeile entfernen", onclick: (e) => e.target.closest(".mat-row").remove() }, "✕"));
+  (src.materials || []).forEach((m) => matBox.append(matRow(m)));
+  const remark = h("textarea", { rows: 2, placeholder: "Anmerkungen (optional) – z. B. offene Punkte, Empfehlungen" }, base.remark);
+  const collect = () => {
+    const v = readForm(f);
+    const materials = [...matBox.querySelectorAll(".mat-row")].map((row) => ({ name: row.querySelector("[data-k=name]").value.trim(),
+      qty: Number(row.querySelector("[data-k=qty]").value) || 1, unit: row.querySelector("[data-k=unit]").value.trim() })).filter((m) => m.name);
+    return { customer_id: v.customer_id ? Number(v.customer_id) : null, appointment_id: (appointment && appointment.id) || src.appointment_id || null,
+      ticket_id: (ticket && ticket.id) || src.ticket_id || null, date: v.date || null, start_time: v.start_time || "", end_time: v.end_time || "",
+      kind: v.kind, location: v.location, travel_km: Number(v.travel_km) || 0, work: v.work.trim(), materials, remark: remark.value.trim() };
+  };
+  const save = async () => report ? api(`/api/work-reports/${report.id}`, { method: "PUT", body: collect() }) : api("/api/work-reports", { method: "POST", body: collect() });
+  modal(report ? `Arbeitsbericht ${report.number}` : "Arbeitsbericht", h("div", {},
+    appointment || ticket ? h("p", { class: "small muted", style: "margin-top:0" }, appointment ? `Zum Termin „${appointment.title}“ (${appointment.when})` : `Zu Ticket #${ticket.id} – ${ticket.title}`) : null,
+    f, h("label", { style: "margin-top:.8rem" }, "Material"), matBox,
+    h("button", { class: "btn small", type: "button", onclick: () => { const row = matRow(); matBox.append(row); row.querySelector("input").focus(); } }, "+ Material"),
+    h("label", { style: "margin-top:.8rem" }, "Anmerkungen"), remark), [
+    (close) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { await save(); close(); toast("Entwurf gespeichert"); render(); }) }, "Als Entwurf speichern"),
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const b = collect();
+      if (!b.customer_id) return toast("Bitte den Kunden wählen", true);
+      if (!b.work) return toast("Bitte die durchgeführten Arbeiten eintragen", true);
+      const r = await save(); close(); workReportSign(r);
+    }) }, "Weiter zur Unterschrift")]);
+}
+
+/** Unterschrift am Bildschirm: Der Kunde sieht den Bericht und unterschreibt mit Finger, Stift oder Maus. */
+function workReportSign(r) {
+  const customer = state.customers.find((c) => c.id === r.customer_id) || {};
+  const canvas = h("canvas", { class: "sign-pad", "aria-label": "Unterschriftsfeld", tabindex: "0" });
+  const name = h("input", { type: "text", value: customer.contact_name || "", placeholder: "Name in Blockbuchstaben", "aria-label": "Name der unterschreibenden Person", autocomplete: "off" });
+  const book = h("input", { type: "checkbox", checked: true, style: "width:auto" });
+  const mail = h("input", { type: "checkbox", checked: !!customer.email, style: "width:auto" });
+  // Feste innere Auflösung: Die Zeichnung bleibt erhalten, auch wenn sich das Fenster ändert (Tastatur am Handy, Drehen des Geräts).
+  canvas.width = 1200; canvas.height = 400;
+  const ctx = canvas.getContext("2d");
+  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#111827"; ctx.fillStyle = "#111827";
+  let drawn = 0, last = null;
+  const pos = (e) => { const b = canvas.getBoundingClientRect(), k = canvas.width / b.width; return [(e.clientX - b.left) * k, (e.clientY - b.top) * (canvas.height / b.height), k]; };
+  canvas.addEventListener("pointerdown", (e) => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); last = pos(e); ctx.beginPath(); ctx.arc(last[0], last[1], 1.2 * last[2], 0, 6.3); ctx.fill(); });
+  canvas.addEventListener("pointermove", (e) => { if (!last) return; const p = pos(e); ctx.lineWidth = 2.4 * p[2]; ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+    drawn += Math.hypot(p[0] - last[0], p[1] - last[1]) / p[2]; last = p; });
+  const up = () => { last = null; };
+  canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
+  const close = () => { overlay.remove(); document.body.classList.remove("office-open"); };
+  const finish = async (body, btn) => withBusy(btn, async () => {
+    const done = await api(`/api/work-reports/${r.id}/sign`, { method: "POST", body: { ...body, book_time: book.checked, send_to: mail.checked ? "kunde" : "" } });
+    close(); render();
+    modal(`Arbeitsbericht ${done.number} abgeschlossen`, h("div", {},
+      h("div", { class: "verdict ok" }, h("strong", {}, done.status === "unterschrieben" ? `Unterschrieben von ${done.signer_name}` : "Ohne Unterschrift abgeschlossen"),
+        h("div", { class: "small" }, [`${done.customer} · ${done.duration}`, done.time_entry_id ? "Zeit gebucht" : "keine Zeit gebucht", "PDF im Kundenordner abgelegt", done.mail ? `E-Mail ${done.mail}` : ""].filter(Boolean).join(" · ")))), [
+      h("a", { class: "btn primary", href: `/api/work-reports/${done.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF öffnen"),
+      !done.sent_to ? (c2) => h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => { const s2 = await workReportSend(done); if (s2) c2(); }) }, "Per E-Mail senden") : null].filter(Boolean));
+  });
+  const mats = r.materials || [];
+  const overlay = h("div", { class: "office-overlay sign-overlay", role: "dialog", "aria-modal": "true", "aria-label": `Arbeitsbericht ${r.number} unterschreiben` },
+    h("div", { class: "office-bar" }, h("strong", {}, `Arbeitsbericht ${r.number}`), h("span", { class: "small muted" }, r.customer), h("span", { class: "spacer" }),
+      h("button", { class: "btn small", onclick: () => { close(); toast("Als Entwurf gespeichert – Unterschrift später möglich"); render(); } }, "Später")),
+    h("div", { class: "sign-body" },
+      h("div", { class: "card" },
+        h("div", { class: "kv" }, h("span", { class: "muted" }, "Datum"), h("span", {}, `${dt(r.date)}${r.start_time ? ` · ${r.start_time}–${r.end_time} Uhr` : ""} · ${r.duration}`)),
+        r.technician ? h("div", { class: "kv" }, h("span", { class: "muted" }, "Techniker"), h("span", {}, r.technician)) : null,
+        h("div", { class: "kv" }, h("span", { class: "muted" }, "Arbeiten"), h("span", {}, r.work)),
+        mats.length ? h("div", { class: "kv" }, h("span", { class: "muted" }, "Material"), h("span", {}, mats.map((m) => `${String(m.qty).replace(".", ",")}${m.unit ? ` ${m.unit}` : " ×"} ${m.name}`).join("\n"))) : null,
+        r.remark ? h("div", { class: "kv" }, h("span", { class: "muted" }, "Anmerkungen"), h("span", {}, r.remark)) : null),
+      h("div", { class: "card" },
+        h("p", { style: "margin-top:0" }, "Mit der Unterschrift bestätigen Sie, dass die angeführten Arbeiten durchgeführt wurden."),
+        canvas,
+        h("div", { class: "row", style: "margin:.5rem 0" }, h("div", { style: "flex:1 1 220px" }, name),
+          h("button", { class: "btn", onclick: () => { ctx.clearRect(0, 0, canvas.width, canvas.height); drawn = 0; } }, "Neu zeichnen")),
+        h("label", { class: "check" }, book, " Zeit auf den Kunden buchen"),
+        h("label", { class: "check" }, mail, customer.email ? ` Bericht gleich an ${customer.email} senden` : " Bericht per E-Mail senden (beim Kunden ist keine Adresse hinterlegt)"),
+        h("div", { class: "row", style: "margin-top:.8rem" },
+          h("button", { class: "btn primary", onclick: (e) => {
+            if (drawn < 40) return toast("Bitte im Feld unterschreiben", true);
+            if (!name.value.trim()) { name.focus(); return toast("Bitte den Namen eintragen", true); }
+            const out = document.createElement("canvas"); out.width = canvas.width; out.height = canvas.height;
+            const o = out.getContext("2d"); o.fillStyle = "#fff"; o.fillRect(0, 0, out.width, out.height); o.drawImage(canvas, 0, 0);
+            finish({ signature: out.toDataURL("image/png"), signer_name: name.value.trim() }, e.target);
+          } }, "Unterschreiben & abschließen"),
+          h("button", { class: "btn", onclick: (e) => {
+            const reason = prompt("Warum ist keine Unterschrift möglich? (z. B. „Kunde nicht anwesend“, „Fernwartung“)");
+            if (reason && reason.trim()) finish({ no_signature_reason: reason.trim() }, e.target);
+          } }, "Ohne Unterschrift abschließen")))));
+  document.body.append(overlay);
+  document.body.classList.add("office-open");
+}
+
+async function workReportSend(r) {
+  try { const s2 = await api(`/api/work-reports/${r.id}/send`, { method: "POST", body: {} }); toast(`Gesendet an ${s2.sent_to}`); return true; }
+  catch (e) {
+    if (!/Empfängeradresse/.test(e.message)) { toast(e.message, true); return false; }
+    const to = prompt("An welche E-Mail-Adresse soll der Arbeitsbericht gehen?");
+    if (!to) return false;
+    try { const s2 = await api(`/api/work-reports/${r.id}/send`, { method: "POST", body: { to } }); toast(`Gesendet an ${s2.sent_to}`); return true; }
+    catch (e2) { toast(e2.message, true); return false; }
+  }
+}
+
+function workReportTable(rows, withCustomer = true) {
+  return table([
+    { label: "Nr.", render: (r) => h("strong", {}, r.number) },
+    { label: "Datum", render: (r) => dt(r.date) },
+    withCustomer ? { label: "Kunde", key: "customer" } : null,
+    { label: "Arbeiten", render: (r) => h("span", { class: "small" }, (r.work || "").split("\n")[0].slice(0, 70)) },
+    { label: "Dauer", num: true, key: "duration" },
+    { label: "Status", render: (r) => h("span", {}, badge(r.status_label, WR_CLS[r.status]), r.sent_to ? h("span", { class: "small muted", title: `gesendet an ${r.sent_to}` }, " ✉") : null) },
+    { label: "", render: (r) => h("div", { class: "row", style: "gap:.3rem;justify-content:flex-end;flex-wrap:nowrap" }, r.status === "entwurf"
+      ? [h("button", { class: "btn small", onclick: () => workReportForm({ report: r }) }, "Bearbeiten"), h("button", { class: "btn small primary", onclick: async () => { await loadCustomers(); workReportSign(r); } }, "Unterschrift")]
+      : [h("a", { class: "btn small", href: `/api/work-reports/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF"),
+        h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => { if (await workReportSend(r)) render(); }) }, r.sent_to ? "Erneut senden" : "Senden")]) },
+  ].filter(Boolean), rows);
+}
+
+// ---- Sicher teilen: Passwörter als Einmal-Link, Dateien als Freigabe-Link
+const SHARE_CLS = { offen: "info", abgerufen: "ok", abgelaufen: "", widerrufen: "warn", gesperrt: "bad" };
+const SHARE_EXPIRY = [[1, "1 Stunde"], [24, "24 Stunden"], [72, "3 Tage"], [168, "7 Tage"], [720, "30 Tage"]];
+/** Zufälliges Passwort ohne verwechselbare Zeichen (0/O, 1/l/I) – aus dem Zufallsgenerator des Browsers. */
+function genPassword(length = 16) {
+  const sets = ["abcdefghijkmnpqrstuvwxyz", "ABCDEFGHJKLMNPQRSTUVWXYZ", "23456789", "!#%+-=?@"];
+  const all = sets.join("");
+  const pick = (chars) => { const max = 256 - (256 % chars.length); const b = new Uint8Array(1); do { crypto.getRandomValues(b); } while (b[0] >= max); return chars[b[0] % chars.length]; };
+  const out = sets.map(pick);
+  while (out.length < length) out.push(pick(all));
+  for (let i = out.length - 1; i > 0; i--) { const b = new Uint8Array(1); crypto.getRandomValues(b); const j = b[0] % (i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+  return out.join("");
+}
+
+function shareResult(r) {
+  const link = h("input", { type: "text", readonly: true, value: r.url, "aria-label": "Link", onfocus: (e) => e.target.select() });
+  return h("div", { class: "verdict ok", style: "margin-top:.8rem" },
+    h("strong", {}, "Link erstellt"), h("div", { class: "small" }, `${r.kind === "file" ? "Datei" : "Nachricht"} „${r.label}“ · gültig bis ${dt(r.expires_at)} ${r.expires_at.slice(11, 16)} · ${r.max_views === 1 ? "einmal abrufbar" : `${r.max_views}-mal abrufbar`}`),
+    h("div", { class: "row", style: "margin-top:.5rem;flex-wrap:nowrap" }, h("div", { style: "flex:1;min-width:0" }, link), copyButton(() => r.url, "Link kopieren")),
+    h("div", { class: "small", style: "margin-top:.4rem" }, "Der Link wird nur jetzt angezeigt – das Cockpit speichert ihn nicht.",
+      r.has_password ? " Das Kennwort bitte getrennt mitteilen (Telefon oder SMS), nicht in derselben E-Mail." : "",
+      r.mail ? ` E-Mail: ${r.mail}.` : ""));
+}
+
+function shareFile(f) {
+  const form2 = form([
+    { name: "expires_hours", label: "Gültig für", type: "select", options: SHARE_EXPIRY, value: 168 },
+    { name: "max_views", label: "Abrufe", type: "select", options: [[1, "1"], [3, "3"], [5, "5"], [10, "10"], [20, "20"]], value: 3 },
+    { name: "password", label: "Kennwort (optional)", placeholder: "getrennt mitteilen" },
+    { name: "email", label: "Link per E-Mail senden an (optional)", type: "email" }]);
+  const out = h("div", {});
+  modal(`Datei teilen: ${f.filename}`, h("div", {}, h("p", { class: "small muted", style: "margin-top:0" }, "Der Empfänger braucht kein Konto. Der Link läuft ab und lässt sich jederzeit unter „Sicher teilen“ widerrufen."), form2, out), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(form2);
+      const r = await api("/api/shares", { method: "POST", body: { kind: "file", attachment_id: f.id, expires_hours: Number(v.expires_hours), max_views: Number(v.max_views), password: v.password, email: v.email } });
+      fill(out, shareResult(r));
+    }) }, "Link erstellen")]);
+}
+
+views.teilen = async () => {
+  await loadCustomers();
+  setTitle("Sicher teilen");
+  const text = h("textarea", { rows: 4, placeholder: "z. B.\nBenutzer: f.huber\nStartpasswort: …", "aria-label": "Vertraulicher Text", spellcheck: "false", autocomplete: "off" });
+  const f = form([
+    { name: "label", label: "Bezeichnung (nur intern sichtbar)", placeholder: "z. B. Startpasswort Franz Huber" },
+    { name: "customer_id", label: "Kunde (optional)", type: "select", options: customerOptions(true) },
+    { name: "expires_hours", label: "Gültig für", type: "select", options: SHARE_EXPIRY, value: 72 },
+    { name: "max_views", label: "Wie oft abrufbar", type: "select", options: [[1, "einmal (empfohlen)"], [2, "2-mal"], [3, "3-mal"], [5, "5-mal"]] },
+    { name: "password", label: "Zusätzliches Kennwort (optional)", placeholder: "getrennt mitteilen, z. B. telefonisch" },
+    { name: "email", label: "Link per E-Mail senden an (optional)", type: "email" }]);
+  const out = h("div", {});
+  const listBox = h("div", {});
+  const drawList = async () => {
+    const rows = await api("/api/shares");
+    fill(listBox, rows.length ? table([
+      { label: "Bezeichnung", render: (r) => h("div", {}, h("strong", {}, r.label), h("div", { class: "small muted" }, [r.kind === "file" ? "Datei" : "Nachricht", r.customer, r.has_password ? "mit Kennwort" : "", r.sent_to ? `an ${r.sent_to}` : ""].filter(Boolean).join(" · "))) },
+      { label: "Status", render: (r) => badge(r.status, SHARE_CLS[r.status]) },
+      { label: "Abrufe", num: true, render: (r) => `${r.views} / ${r.max_views}` },
+      { label: "Gültig bis", render: (r) => h("span", { class: "small" }, `${dt(r.expires_at)} ${r.expires_at.slice(11, 16)}`) },
+      { label: "Letzter Abruf", render: (r) => r.last_view_at ? h("span", { class: "small" }, `${dt(r.last_view_at)} ${r.last_view_at.slice(11, 16)}`, h("span", { class: "muted" }, ` · ${r.last_view_ip}`)) : h("span", { class: "muted" }, "–") },
+      { label: "Von", render: (r) => h("span", { class: "small" }, r.created_name) },
+      { label: "", render: (r) => r.status === "offen" ? h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => {
+        if (!confirm(`Link „${r.label}“ widerrufen? Er funktioniert danach nicht mehr.`)) return;
+        await api(`/api/shares/${r.id}`, { method: "DELETE" }); toast("Widerrufen"); drawList(); }) }, "Widerrufen") : null },
+    ], rows) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Links erstellt."));
+  };
+  show(
+    h("p", { class: "small muted" }, "Startpasswörter, WLAN-Schlüssel und Zugangsdaten nie im Klartext mailen. Hier entsteht ein Link, der sich nach dem Öffnen selbst zerstört. Der Text liegt verschlüsselt im Cockpit – den Schlüssel enthält nur der Link."),
+    h("div", { class: "card", style: "margin-bottom:1rem" },
+      h("div", { class: "card-head" }, h("h2", {}, "Passwort oder Zugangsdaten senden"),
+        h("button", { class: "btn small", title: "Zufälliges Passwort mit 16 Zeichen einfügen", onclick: () => { text.value = (text.value ? text.value.replace(/\s*$/, "\n") : "") + genPassword(); text.focus(); } }, "Passwort erzeugen")),
+      text, h("div", { style: "margin-top:.7rem" }, f),
+      h("div", { class: "row", style: "margin-top:.7rem" },
+        h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+          const v = readForm(f);
+          const r = await api("/api/shares", { method: "POST", body: { kind: "secret", text: text.value, label: v.label, customer_id: v.customer_id ? Number(v.customer_id) : null,
+            expires_hours: Number(v.expires_hours), max_views: Number(v.max_views), password: v.password, email: v.email } });
+          text.value = ""; f.querySelector("[name=password]").value = ""; f.querySelector("[name=email]").value = "";
+          fill(out, shareResult(r)); drawList();
+        }) }, "Link erstellen"),
+        h("span", { class: "small muted" }, "Dateien teilen: unter „Office & Dateien“ die Datei anklicken → „Link teilen“.")),
+      out),
+    h("div", { class: "card" }, h("h2", {}, "Erstellte Links"), listBox));
+  await drawList();
+};
+
+// ---- Globale Suche / Befehlspalette (Strg+K)
+const SEARCH_ICON = { customer: "🏢", ticket: "🎫", message: "✉", asset: "🖥", device: "🛡", article: "📚", file: "📄", document: "🗂", invoice: "🧾", quote: "📑",
+  lead: "🎯", appointment: "📅", workreport: "✍", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
+const foldText = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss");
+const QUICK_ACTIONS = [
+  ["Neues Ticket", "ticket anlegen stoerung", () => ticketCreate()],
+  ["Neuer Kunde", "kunde anlegen", () => customerForm()],
+  ["Passwort oder Zugangsdaten sicher senden", "teilen einmal link geheimnis passwort", () => { location.hash = "#/teilen"; }],
+  ["Termin planen", "einsatz kalender termin vor ort", async () => { await Promise.all([loadCustomers(), loadUsers()]); appointmentForm(); }],
+  ["Arbeitsbericht schreiben", "leistungsnachweis unterschrift einsatz bericht", () => workReportForm()],
+  ["Neues Dokument (Word/Excel)", "office datei brief tabelle", () => { location.hash = "#/office"; }],
+  ["Zeit buchen", "zeiterfassung stunden", () => { location.hash = "#/abrechnung"; }],
+  ["Verdächtige E-Mail prüfen", "phishing mail", () => phishingCheck()],
+];
+
+async function searchOpenItem(it) {
+  const go = (hash) => { location.hash = hash; };
+  switch (it.type) {
+    case "customer": return go(`#/kunde/${it.id}`);
+    case "ticket": return ticketDetail(it.id);
+    case "message": return messageDetail(it.id);
+    case "device": return inventoryDetail(it.id);
+    case "lead": return leadDetail(it.id);
+    case "domain": return domainDetail(it.id);
+    case "staff": return staffDetail(it.id);
+    case "appointment": return appointmentDetail(it.id);
+    case "workreport": return window.open(`/api/work-reports/${it.id}/pdf`, "_blank", "noopener");
+    case "m365user": return it.customer_id ? m365Detail(it.customer_id) : go("#/m365");
+    case "file": { await officeStatus(); const f = await api(`/api/files/${it.id}`); return fileDetail(f, () => {}); }
+    case "document": return window.open(`/api/documents/${it.id}/download`, "_blank", "noopener");
+    case "article": {
+      const a = (await api("/api/kb")).find((x) => x.id === it.id);
+      if (!a) return go("#/wissen");
+      return modal(a.title, md(a.content), [a.source === "bookstack" ? null : (close) => h("button", { class: "btn", onclick: () => { close(); articleForm(a); } }, "Bearbeiten")].filter(Boolean));
+    }
+    case "invoice": return go("#/abrechnung");
+    case "quote": return go("#/angebote");
+    case "receipt": return go("#/belege");
+    case "subscription": return it.customer_id ? go(`#/kunde/${it.customer_id}`) : go("#/lizenzen");
+    default: return it.customer_id ? go(`#/kunde/${it.customer_id}`) : null;
+  }
+}
+
+function openSearch(initial = "") {
+  if (document.getElementById("palette")) return;
+  const input = h("input", { type: "search", placeholder: "Suchen: Kunde, Ticket, Gerät, Datei-Inhalt, Seite …", "aria-label": "Suche", autocomplete: "off", spellcheck: "false", value: initial });
+  const list = h("div", { class: "palette-list", role: "listbox" });
+  const foot = h("div", { class: "palette-foot" }, h("span", {}, "↑↓ wählen · Enter öffnen · Esc schließen"), h("span", { class: "spacer" }), h("span", { id: "palette-info" }));
+  const backdrop = h("div", { class: "palette-backdrop", id: "palette", onclick: (e) => { if (e.target === backdrop) close(); } },
+    h("div", { class: "palette", role: "dialog", "aria-modal": "true", "aria-label": "Suche" }, h("div", { class: "palette-input" }, h("span", { "aria-hidden": "true" }, "🔍"), input), list, foot));
+  let flat = [], active = 0, seq = 0, timer = null, server = { groups: [] }, expanded = "";
+  const close = () => { backdrop.remove(); document.removeEventListener("keydown", onKey, true); clearTimeout(timer); };
+  const run = (entry) => { close(); try { const r = entry.run(); if (r && r.catch) r.catch((e) => toast(e.message, true)); } catch (e) { toast(e.message, true); } };
+  const mark = () => { list.querySelectorAll(".palette-item").forEach((el, i) => { el.classList.toggle("on", i === active); if (i === active) el.scrollIntoView({ block: "nearest" }); }); };
+  const draw = () => {
+    const q = foldText(input.value.trim());
+    const words = q.split(/\s+/).filter(Boolean);
+    const match = (text) => words.every((w) => foldText(text).includes(w));
+    const pages = [...document.querySelectorAll("#nav a")].map((a) => ({ type: "nav", title: a.childNodes[0].textContent.trim(), subtitle: "Seite öffnen", run: () => { location.hash = a.getAttribute("href"); } }));
+    const actions = QUICK_ACTIONS.map(([title, keys, fn]) => ({ type: "action", title, keys, subtitle: "Aktion", run: fn }));
+    const groups = [];
+    if (!q) groups.push({ label: "Schnellzugriff", items: actions });
+    for (const g of server.groups) groups.push({ label: g.label, more: g.more && expanded !== g.type, gtype: g.type,
+      items: g.items.map((it) => ({ ...it, run: () => searchOpenItem(it) })) });
+    if (q) {
+      const a = actions.filter((x) => match(`${x.title} ${x.keys}`)), n = pages.filter((x) => match(x.title));
+      if (a.length) groups.push({ label: "Aktionen", items: a });
+      if (n.length) groups.push({ label: "Seiten", items: n });
+    } else groups.push({ label: "Seiten", items: pages });
+    flat = groups.flatMap((g) => g.items);
+    active = Math.min(active, Math.max(0, flat.length - 1));
+    let i = 0;
+    fill(list, groups.length ? groups.map((g) => h("div", { class: "palette-group" }, h("div", { class: "palette-label" }, g.label),
+      g.items.map((it) => { const idx = i++; return h("div", { class: "palette-item", role: "option", onclick: () => run(it), onmousemove: () => { if (active !== idx) { active = idx; mark(); } } },
+        h("span", { class: "ico", "aria-hidden": "true" }, SEARCH_ICON[it.type] || "•"),
+        h("div", { class: "txt" }, h("div", { class: "t" }, it.title), it.subtitle ? h("div", { class: "s" }, it.subtitle) : null, it.snippet ? h("div", { class: "sn" }, it.snippet) : null)); }),
+      g.more ? h("button", { class: "palette-more", onclick: () => { expanded = g.gtype; query(); } }, `Alle Treffer in „${g.label}“ zeigen`) : null))
+      : h("div", { class: "empty" }, q.length < 2 ? "Mindestens zwei Zeichen eingeben." : "Nichts gefunden."));
+    mark();
+  };
+  const query = async () => {
+    const q = input.value.trim(), mine = ++seq;
+    if (q.length < 2) { server = { groups: [] }; document.getElementById("palette-info").textContent = ""; return draw(); }
+    try {
+      const r = await api(`/api/search?q=${encodeURIComponent(q)}${expanded ? `&type=${expanded}&limit=40` : ""}`);
+      if (mine !== seq) return;  // inzwischen wurde weitergetippt
+      server = r;
+      document.getElementById("palette-info").textContent = `${r.total} Treffer · ${r.took_ms} ms${r.pending ? ` · ${r.pending} Dateien werden noch eingelesen` : ""}`;
+    } catch (e) { if (mine === seq) { server = { groups: [] }; document.getElementById("palette-info").textContent = e.message; } }
+    draw();
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(flat.length - 1, active + 1); mark(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); mark(); }
+    else if (e.key === "Enter" && flat[active]) { e.preventDefault(); run(flat[active]); }
+  };
+  input.addEventListener("input", () => { expanded = ""; active = 0; clearTimeout(timer); draw(); timer = setTimeout(query, 180); });
+  document.addEventListener("keydown", onKey, true);
+  document.body.append(backdrop);
+  draw(); input.focus();
+  if (initial) query();
+}
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") { e.preventDefault(); openSearch(); }
+  else if (e.key === "/" && !e.ctrlKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "") && !document.activeElement?.isContentEditable
+    && !document.querySelector(".office-overlay")) { e.preventDefault(); openSearch(); }
+});
+document.getElementById("search-btn")?.addEventListener("click", () => openSearch());
+
 async function render() {
-  const hash = location.hash.replace(/^#\/?/, "") || "dashboard";
+  const hash = location.hash.replace(/^#\/?/, "") || (state.auth?.user?.role === "technik" ? "heute" : "dashboard");  // Techniker starten mit „Mein Tag“
   const [path, query] = hash.split("?");
   const [route, id] = path.split("/");
   const params = new URLSearchParams(query || "");

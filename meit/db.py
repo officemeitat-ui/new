@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -731,6 +732,103 @@ CREATE TABLE IF NOT EXISTS file_versions (
     created_at TEXT NOT NULL
 );
 
+-- Suchindex: ausgelesener Text abgelegter Dateien (content = lesbar für Ausschnitte, folded = zum Suchen)
+CREATE TABLE IF NOT EXISTS file_texts (
+    attachment_id INTEGER PRIMARY KEY REFERENCES attachments(id) ON DELETE CASCADE,
+    sha256 TEXT DEFAULT '',
+    chars INTEGER DEFAULT 0,
+    content TEXT DEFAULT '',
+    folded TEXT DEFAULT ''
+);
+
+-- Sicher teilen: Einmal-Links für Geheimnisse (verschlüsselt, Schlüssel steckt nur im Link) und Datei-Freigaben
+CREATE TABLE IF NOT EXISTS shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_hash TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'secret',
+    label TEXT DEFAULT '',
+    payload TEXT DEFAULT '',
+    attachment_id INTEGER REFERENCES attachments(id) ON DELETE CASCADE,
+    customer_id INTEGER,
+    pass_hash TEXT DEFAULT '',
+    max_views INTEGER DEFAULT 1,
+    views INTEGER DEFAULT 0,
+    failed INTEGER DEFAULT 0,
+    expires_at TEXT NOT NULL,
+    created_by INTEGER,
+    created_name TEXT DEFAULT '',
+    sent_to TEXT DEFAULT '',
+    last_view_at TEXT DEFAULT '',
+    last_view_ip TEXT DEFAULT '',
+    revoked_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+-- Einsatzplanung: Termine je Techniker/Kunde/Ticket und geheime Abo-Links für Kalenderprogramme
+CREATE TABLE IF NOT EXISTS appointments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid TEXT NOT NULL,
+    customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+    ticket_id INTEGER,
+    user_id INTEGER,
+    title TEXT NOT NULL,
+    kind TEXT DEFAULT 'vor_ort',
+    start_at TEXT NOT NULL,
+    end_at TEXT NOT NULL,
+    location TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    customer_note TEXT DEFAULT '',
+    status TEXT DEFAULT 'geplant',
+    sequence INTEGER DEFAULT 0,
+    notified_at TEXT DEFAULT '',
+    notified_to TEXT DEFAULT '',
+    time_entry_id INTEGER,
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_appointments_start ON appointments(start_at);
+
+-- Arbeitsberichte: Leistungsnachweis mit Unterschrift des Kunden (nach dem Abschluss unveränderlich)
+CREATE TABLE IF NOT EXISTS work_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    number TEXT NOT NULL UNIQUE,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    appointment_id INTEGER,
+    ticket_id INTEGER,
+    user_id INTEGER,
+    technician TEXT DEFAULT '',
+    date TEXT NOT NULL,
+    start_time TEXT DEFAULT '',
+    end_time TEXT DEFAULT '',
+    minutes INTEGER NOT NULL,
+    kind TEXT DEFAULT 'vor_ort',
+    location TEXT DEFAULT '',
+    travel_km REAL DEFAULT 0,
+    work TEXT DEFAULT '',
+    materials TEXT DEFAULT '[]',
+    remark TEXT DEFAULT '',
+    status TEXT DEFAULT 'entwurf',
+    signer_name TEXT DEFAULT '',
+    signature TEXT DEFAULT '',
+    signed_at TEXT DEFAULT '',
+    no_signature_reason TEXT DEFAULT '',
+    document_id INTEGER,
+    time_entry_id INTEGER,
+    sent_to TEXT DEFAULT '',
+    sent_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS calendar_feeds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER DEFAULT 0,
+    scope TEXT DEFAULT 'own',
+    token_hash TEXT NOT NULL UNIQUE,
+    last_used_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
@@ -766,6 +864,14 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "office_tokens": {"token_hash", "attachment_id", "user_id", "user_name", "can_write", "expires_at"},
     "office_locks": {"attachment_id", "lock_id", "expires_at"},
     "file_versions": {"attachment_id", "path", "size", "sha256", "author"},
+    "appointments": {"uid", "customer_id", "ticket_id", "user_id", "title", "kind", "start_at", "end_at", "location", "notes",
+                     "customer_note", "status", "sequence", "notified_at", "notified_to", "time_entry_id", "created_by"},
+    "calendar_feeds": {"user_id", "scope", "token_hash", "last_used_at"},
+    "work_reports": {"number", "customer_id", "appointment_id", "ticket_id", "user_id", "technician", "date", "start_time", "end_time",
+                     "minutes", "kind", "location", "travel_km", "work", "materials", "remark", "status", "signer_name", "signature",
+                     "signed_at", "no_signature_reason", "document_id", "time_entry_id", "sent_to", "sent_at"},
+    "shares": {"token_hash", "kind", "label", "payload", "attachment_id", "customer_id", "pass_hash", "max_views", "views", "failed",
+               "expires_at", "created_by", "created_name", "sent_to", "last_view_at", "last_view_ip", "revoked_at"},
     "csat_surveys": {"ticket_id", "customer_id", "email", "token", "sent_at", "rating", "comment", "rated_at", "channel",
                      "followup_ticket_id"},
     "timers": {"user_id", "ticket_id", "customer_id", "note", "started_at"},
@@ -842,7 +948,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions",
+    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
@@ -871,6 +977,17 @@ MIGRATIONS = {
 }
 
 
+def fold(value: Any) -> str:
+    """Für die Suche: Kleinbuchstaben, Umlaute und Akzente entfernt („Müller“ → „muller“, „Straße“ → „strasse“)."""
+    if value is None:
+        return ""
+    text = str(value)
+    if text.isascii():
+        return text.lower()
+    text = unicodedata.normalize("NFKD", text.casefold())
+    return "".join(ch for ch in text if not unicodedata.combining(ch))
+
+
 def now_iso() -> str:
     return datetime.now().replace(microsecond=0).isoformat(sep=" ")
 
@@ -886,6 +1003,7 @@ class Database:
         conn = sqlite3.connect(self.path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.create_function("fold", 1, fold, deterministic=True)  # Suche ohne Rücksicht auf Groß-/Kleinschreibung und Umlaute
         try:
             yield conn
             conn.commit()

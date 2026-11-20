@@ -91,7 +91,7 @@ class PublicInquiryIn(BaseModel):
 def is_public_path(path: str) -> bool:
     # Anfrageformular und Kundenportal sind ohne Mitarbeiter-Login erreichbar (Portal prüft selbst).
     # /wopi/ ruft der Office-Server auf – dort gilt ausschließlich das Zugriffstoken der jeweiligen Datei.
-    return path in ("/anfrage", "/portal", "/bewertung", "/manifest.webmanifest", "/sw.js") or path.startswith(("/api/public/", "/api/portal/", "/brand/", "/wopi/"))
+    return path in ("/anfrage", "/portal", "/bewertung", "/s", "/manifest.webmanifest", "/sw.js") or path.startswith(("/api/public/", "/api/portal/", "/brand/", "/wopi/"))
 
 
 class RateLimiter:

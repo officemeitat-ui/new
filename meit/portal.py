@@ -315,6 +315,48 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         except ValueError:
             raise HTTPException(404, "Datei nicht gefunden")
 
+    @app.get("/api/portal/appointments")
+    def portal_appointments(u: dict = Depends(portal_user)) -> list[dict]:
+        """Die nächsten Termine des eigenen Unternehmens (ohne interne Notizen)."""
+        planner = getattr(app.state, "planner", None)
+        return [planner.portal_view(a) for a in planner.portal_rows(u["customer_id"])] if planner else []
+
+    @app.get("/api/portal/appointments/{aid}/ics")
+    def portal_appointment_ics(aid: int, u: dict = Depends(portal_user)):
+        from fastapi.responses import Response
+
+        from .planner import ics_calendar
+
+        planner = getattr(app.state, "planner", None)
+        a = next((x for x in planner.portal_rows(u["customer_id"]) if x["id"] == aid), None) if planner else None
+        if not a:
+            raise HTTPException(404, "Termin nicht gefunden")
+        return Response(ics_calendar([a], f"Termin {ctx.company}", "cockpit", public=True), media_type="text/calendar; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="Termin-{aid}.ics"'})
+
+    @app.get("/api/portal/work-reports")
+    def portal_work_reports(u: dict = Depends(portal_user)) -> list[dict]:
+        """Abgeschlossene Arbeitsberichte (Leistungsnachweise) des eigenen Unternehmens."""
+        rows = db.query("SELECT id, number, date, minutes, work, status, signer_name FROM work_reports WHERE customer_id = ? "
+                        "AND status != 'entwurf' ORDER BY date DESC, id DESC LIMIT 100", (u["customer_id"],))
+        return [{"id": r["id"], "number": r["number"], "date": r["date"], "minutes": r["minutes"], "signed_by": r["signer_name"],
+                 "summary": (r["work"] or "").splitlines()[0][:140] if r["work"] else ""} for r in rows]
+
+    @app.get("/api/portal/work-reports/{rid}/pdf")
+    def portal_work_report_pdf(rid: int, u: dict = Depends(portal_user)):
+        from .documents import pdf_response
+
+        svc = getattr(app.state, "work_reports", None)
+        r = svc.get(rid) if svc else None
+        if not r or r["customer_id"] != u["customer_id"] or r["status"] == "entwurf":
+            raise HTTPException(404, "Arbeitsbericht nicht gefunden")
+        doc = db.get("documents", r["document_id"]) if r["document_id"] else None
+        try:
+            data = svc.docs.local_file(doc).read_bytes() if doc else svc.pdf(r)
+        except OSError:
+            data = svc.pdf(r)
+        return pdf_response(data, f"Arbeitsbericht_{r['number']}.pdf")
+
     @app.get("/api/portal/files")
     def portal_files(u: dict = Depends(portal_user)) -> list[dict]:
         """Dokumente, die wir für diesen Kunden ausdrücklich freigegeben haben (Verträge, Protokolle, Berichte)."""

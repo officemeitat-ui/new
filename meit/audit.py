@@ -26,6 +26,12 @@ RETENTION_DAYS = 400
 # (Methode, Muster, Bezeichnung) – erste passende Regel gewinnt
 RULES: list[tuple[str, re.Pattern, str]] = [(m, re.compile(p), label) for m, p, label in [
     ("POST", r"^/api/auth/logout$", "Abmeldung"),
+    ("POST", r"^/api/shares$", "Freigabe-Link erstellt"),
+    ("POST", r"^/api/calendar/feeds$", "Kalender-Abo erzeugt"),
+    ("POST", r"^/api/work-reports/\d+/sign$", "Arbeitsbericht abgeschlossen"),
+    ("POST", r"^/api/work-reports/\d+/send$", "Arbeitsbericht versendet"),
+    ("DELETE", r"^/api/appointments/\d+$", "Termin gelöscht"),
+    ("DELETE", r"^/api/shares/\d+$", "Freigabe-Link widerrufen"),
     ("POST", r"^/api/auth/2fa/enable$", "Zwei-Faktor-Anmeldung aktiviert"),
     ("POST", r"^/api/auth/2fa/disable$", "Zwei-Faktor-Anmeldung deaktiviert"),
     ("POST", r"^/api/users/\d+/2fa/reset$", "Zwei-Faktor-Anmeldung zurückgesetzt"),

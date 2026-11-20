@@ -172,7 +172,15 @@
 
     let me = null; let tab = "start";
     const views = {};
-    views.start = async () => { const pos = (await api("/api/portal/posture").catch(() => ({}))).posture; const col = { gut: "var(--ok)", mittel: "var(--warn)", kritisch: "var(--bad)" }; return h("div", {},
+    views.start = async () => { const pos = (await api("/api/portal/posture").catch(() => ({}))).posture; const col = { gut: "var(--ok)", mittel: "var(--warn)", kritisch: "var(--bad)" };
+      const appts = await api("/api/portal/appointments").catch(() => []); return h("div", {},
+      appts.length ? h("div", { class: "card" }, h("h2", {}, appts.length === 1 ? "Ihr nächster Termin" : "Ihre nächsten Termine"),
+        appts.map((a) => h("div", { class: "row", style: "align-items:flex-start;padding:.5rem 0;border-top:1px solid var(--border)" },
+          h("div", { style: "flex:1;min-width:220px" }, h("strong", {}, a.when), h("div", {}, `${a.title} · ${a.kind}${a.technician ? ` · mit ${a.technician}` : ""}`),
+            a.location ? h("div", { class: "muted small" }, a.location) : null, a.note ? h("div", { class: "small" }, a.note) : null),
+          h("span", { class: `badge ${a.status === "bestätigt" ? "ok" : "warn"}` }, a.status),
+          h("a", { class: "btn", href: `/api/portal/appointments/${a.id}/ics` }, "In meinen Kalender"))),
+        h("p", { class: "muted small", style: "margin-bottom:0" }, "Passt ein Termin nicht? Schreiben Sie uns einfach über „Tickets“ oder rufen Sie an.")) : null,
       pos ? h("div", { class: "card" }, h("h2", {}, "Ihre IT-Sicherheit"),
         h("div", { class: "row", style: "gap:1.5rem;align-items:flex-start" },
           h("div", { style: "min-width:110px" }, h("div", { style: `font-size:2.6rem;font-weight:800;line-height:1;color:${col[pos.level] || "inherit"}` }, pos.score),
@@ -371,13 +379,16 @@
     };
 
     views.rechnungen = async () => {
-      const [rows, files] = await Promise.all([api("/api/portal/invoices"), api("/api/portal/files").catch(() => [])]);
+      const [rows, files, reports] = await Promise.all([api("/api/portal/invoices"), api("/api/portal/files").catch(() => []), api("/api/portal/work-reports").catch(() => [])]);
       return h("div", {}, h("div", { class: "card" }, h("h2", {}, "Rechnungen"), table([["Nr.", (r) => r.number], ["Datum", (r) => dt(r.date)], ["Zeitraum", (r) => r.period], ["Betrag", (r) => eur(r.gross)],
         ["Status", (r) => h("span", { class: `badge ${r.status === "bezahlt" ? "ok" : r.overdue ? "bad" : "warn"}` }, r.status === "bezahlt" ? "bezahlt" : r.overdue ? "überfällig" : `offen bis ${dt(r.due_date)}`)],
         ["", (r) => h("a", { class: "btn", href: `/api/portal/invoices/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], rows)),
         files.length ? h("div", { class: "card" }, h("h2", {}, "Dokumente"), h("p", { class: "muted", style: "margin-top:0" }, "Von uns für Sie bereitgestellt – Verträge, Protokolle und Berichte."),
           table([["Datei", (f) => f.name], ["Größe", (f) => kb(f.size)], ["Stand", (f) => dt(f.at)],
-            ["", (f) => h("a", { class: "btn", href: `/api/portal/attachments/${f.id}`, target: "_blank", rel: "noopener" }, "Herunterladen")]], files)) : null);
+            ["", (f) => h("a", { class: "btn", href: `/api/portal/attachments/${f.id}`, target: "_blank", rel: "noopener" }, "Herunterladen")]], files)) : null,
+        reports.length ? h("div", { class: "card" }, h("h2", {}, "Arbeitsberichte"), h("p", { class: "muted", style: "margin-top:0" }, "Was wir für Sie erledigt haben – mit Datum, Dauer und Ihrer Unterschrift."),
+          table([["Nr.", (r) => r.number], ["Datum", (r) => dt(r.date)], ["Arbeiten", (r) => r.summary], ["Dauer", (r) => `${Math.floor(r.minutes / 60)}:${String(r.minutes % 60).padStart(2, "0")} Std.`],
+            ["", (r) => h("a", { class: "btn", href: `/api/portal/work-reports/${r.id}/pdf`, target: "_blank", rel: "noopener" }, "PDF")]], reports)) : null);
     };
 
     const TABS = [["start", "Übersicht"], ["tickets", "Tickets"], ["hilfe", "Hilfe"], ["pruefen", "E-Mail prüfen"], ["mitarbeiter", "Mitarbeiter"], ["geraete", "Geräte"], ["wartung", "Wartung"], ["angebote", "Angebote"], ["rechnungen", "Rechnungen & Dokumente"]];
