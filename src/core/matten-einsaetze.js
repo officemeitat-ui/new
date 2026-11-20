@@ -27,6 +27,7 @@ import {
   discardJob,
   isOpen,
   jobDate,
+  jobKey,
   jobsFor,
   lastDone,
   nextDue,
@@ -504,15 +505,38 @@ const dayNo = (d) => Math.round(Date.parse(`${d}T00:00:00Z`) / 86400000)
 const movable = (j) => j?.status === 'geplant' && !j.tourId
 
 /**
- * Überblick für „Rhythmus je Gebiet“: je Gebiet ('' = ohne Gebiet) die aktiven Liegeplätze mit ihren Intervallen und
- * dem nächsten offenen Einsatz. Liefert [{ areaId, name, count, intervals: [Tage, aufsteigend], next: [Tage, höchstens 3],
- * nextCount (verschiedene Tage) }], Gebiete nach Name, „ohne Gebiet“ zuletzt; Gebiete ohne Liegeplatz fehlen.
+ * Nächster Wechsel eines Liegeplatzes ohne offenen Einsatz, wie ihn „Einsätze planen“ anlegen würde: „ab letztem Wechsel“
+ * letzter Wechsel + Intervall (nicht vor dem Starttermin), fester Rhythmus der nächste Rastertermin ab heute.
  */
-export function areaRhythm({ doc, jobs = [] } = {}) {
+function nextWithoutJob(p, last, today) {
+  const step = stepOf(p)
+  if (!isIso(p.startDate)) return ''
+  if (p.rule === 'ab-ist') {
+    const due = last && step ? addDays(last, step) : ''
+    return due > p.startDate ? due : p.startDate
+  }
+  if (!step || !today || p.startDate >= today) return p.startDate
+  return addDays(p.startDate, Math.ceil((dayNo(today) - dayNo(p.startDate)) / step) * step)
+}
+
+/**
+ * Überblick für „Rhythmus je Gebiet“: je Gebiet ('' = ohne Gebiet) die aktiven Liegeplätze mit ihren Intervallen und
+ * dem nächsten Wechsel (offener Einsatz, sonst wie „Einsätze planen“ ihn anlegen würde). done: bestätigte Wechsel
+ * (confirmedExchanges, auch der letzte Wechsel aus der Übernahme). Liefert [{ areaId, name, count, intervals: [Tage,
+ * aufsteigend], next: [Tage, höchstens 3], nextCount (verschiedene Tage) }], Gebiete nach Name, „ohne Gebiet“ zuletzt;
+ * Gebiete ohne Liegeplatz fehlen.
+ */
+export function areaRhythm({ doc, jobs = [], done = [], today = '' } = {}) {
   const placements = (doc?.placements || []).filter((p) => p?.active !== false)
   const areas = new Map((doc?.areas || []).map((a) => [a.id, a]))
   const open = new Map()
+  const last = new Map()
+  const seen = (id, d) => {
+    if (isIso(d) && d > (last.get(id) || '')) last.set(id, d)
+  }
+  for (const x of done || []) seen(x?.placementId, x?.date)
   for (const j of jobs || []) {
+    if (DONE_STATUS.includes(j?.status)) seen(j.placementId, j.doneOn || jobDate(j))
     if (!isOpen(j)) continue
     const d = jobDate(j)
     if (!open.has(j.placementId) || d < open.get(j.placementId)) open.set(j.placementId, d)
@@ -523,7 +547,7 @@ export function areaRhythm({ doc, jobs = [] } = {}) {
     const g = groups.get(id) || { areaId: id, name: id ? areas.get(id).name : 'ohne Gebiet', count: 0, steps: new Set(), days: new Set() }
     g.count++
     if (stepOf(p)) g.steps.add(stepOf(p))
-    const next = open.get(p.id) || (isIso(p.startDate) && !lastDone(p.id, { jobs }) ? p.startDate : '')
+    const next = open.get(p.id) || nextWithoutJob(p, last.get(p.id) || '', today)
     if (next) g.days.add(next)
     groups.set(id, g)
   }
@@ -553,20 +577,24 @@ export const RHYTHM_REASON = 'Rhythmus je Gebiet geändert'
  * Liegeplätze am selben Tag fällig wären). rows: [{ areaId ('' = ohne Gebiet), date?, intervalDays? }]; leere Angaben
  * bleiben, wie sie sind. Der Liegeplatz bekommt den Tag als Starttermin und das Intervall. Offene Einsätze (geplant, in
  * keiner Tour) passen sich an:
- *   „ab letztem Wechsel“, schon einmal gewechselt: der offene Einsatz wandert auf den Tag (ohne Tag: auf letzter
- *     Wechsel + neues Intervall), das Intervall rechnet ab dem tatsächlichen Wechsel weiter;
+ *   „ab letztem Wechsel“, schon einmal gewechselt (done: bestätigte Wechsel, auch der letzte Wechsel aus der Übernahme;
+ *     erledigte Einsätze): der offene Einsatz wandert auf den Tag (ohne Tag: auf letzter Wechsel + neues Intervall), das
+ *     Intervall rechnet ab dem tatsächlichen Wechsel weiter. Gibt es noch keinen offenen Einsatz und liegt der Tag vor
+ *     dem errechneten Solltermin, entsteht der Einsatz gleich hier (Solltermin errechnet, auf den Tag gelegt) – sonst
+ *     würde „Einsätze planen“ ihn erst am errechneten Termin anlegen;
  *   „ab letztem Wechsel“, noch nie gewechselt, und fester Rhythmus: Einsätze, die nicht mehr passen, werden verworfen
  *     (Grund RHYTHM_REASON); „Einsätze planen“ legt die neuen an. Ein früher so verworfener Einsatz, der wieder passt,
  *     kommt zurück – sonst bliebe sein Termin für immer gesperrt.
  * Einsätze in einer Tour, erledigte und von Hand ausgesetzte bleiben unberührt.
- * Liefert { placements (geänderte, neue Objekte), jobs (geänderte Einsätze), counts: { placements, moved, discarded, revived } }.
+ * Liefert { placements (geänderte, neue Objekte), jobs (geänderte und neue Einsätze), counts: { placements, moved,
+ * discarded, revived, added } }.
  */
-export function setAreaRhythm({ doc, jobs = [], rows = [], today = '', now = new Date().toISOString(), by = '' } = {}) {
+export function setAreaRhythm({ doc, jobs = [], done = [], rows = [], today = '', now = new Date().toISOString(), by = '' } = {}) {
   const areas = new Set((doc?.areas || []).map((a) => a.id))
   const want = new Map(rows.filter((r) => text(r?.date) || text(r?.intervalDays)).map((r) => [r.areaId || '', { date: isIso(r.date) ? r.date : '', step: Number(r.intervalDays) || 0 }]))
   const outP = []
   const outJ = []
-  const counts = { placements: 0, moved: 0, discarded: 0, revived: 0 }
+  const counts = { placements: 0, moved: 0, discarded: 0, revived: 0, added: 0 }
   const opts = { now, by }
   const drop = (j) => {
     outJ.push(discardJob(j, { ...opts, reason: RHYTHM_REASON }))
@@ -585,16 +613,28 @@ export function setAreaRhythm({ doc, jobs = [], rows = [], today = '', now = new
     const step = w.step || stepOf(p)
     const start = w.date || p.startDate
     const mine = (jobs || []).filter((j) => j?.placementId === p.id)
-    if (start !== p.startDate || step !== stepOf(p)) outP.push({ ...p, startDate: start, intervalDays: step, updatedAt: now, updatedBy: by })
+    if (start !== p.startDate || step !== stepOf(p)) outP.push({ ...p, startDate: start, ...(step ? { intervalDays: step } : {}), updatedAt: now, updatedBy: by })
     if (p.rule === 'ab-ist') {
-      const last = lastDone(p.id, { jobs: mine })
+      const last = lastDone(p.id, { done, jobs: mine })
       if (last) {
-        const target = w.date || (step ? addDays(last, step) : '')
+        const due = step ? addDays(last, step) : ''
+        const target = w.date || due
         if (!target || (today && target < today)) continue
         for (const j of mine) {
           if (!movable(j) || jobDate(j) === target) continue
           outJ.push(shiftJob(j, target, { ...opts, reason: 'Rhythmus je Gebiet' }))
           counts.moved++
+        }
+        // noch kein offener Einsatz, der Tag liegt vor dem errechneten Solltermin: Einsatz am Solltermin, auf den Tag gelegt
+        if (w.date && due && w.date < due && !mine.some(isOpen)) {
+          const old = mine.find((j) => j.key === jobKey(p.id, due))
+          if (!old) {
+            outJ.push({ key: jobKey(p.id, due), placementId: p.id, due, planned: w.date, status: 'geplant', reason: 'Rhythmus je Gebiet', createdAt: now, createdBy: by })
+            counts.added++
+          } else if (mineWas(old)) {
+            outJ.push({ ...old, status: 'geplant', planned: w.date, reason: 'Rhythmus je Gebiet', updatedAt: now, updatedBy: by })
+            counts.revived++
+          }
         }
         continue
       }

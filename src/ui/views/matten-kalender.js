@@ -459,7 +459,7 @@ async function runPlan(el) {
 const RHYTHM_DAYS = [7, 14, 21, 28, 42, 56]
 
 function rhythmDraft(m) {
-  if (!m.rows) m.rows = areaRhythm({ doc: doc(), jobs: jobsAll() }).map((g) => ({ ...g, date: '', intervalDays: '' }))
+  if (!m.rows) m.rows = areaRhythm({ doc: doc(), jobs: jobsAll(), done: done(), today: todayISO() }).map((g) => ({ ...g, date: '', intervalDays: '' }))
   return m
 }
 function readRhythm() {
@@ -533,7 +533,7 @@ async function saveRhythm(el) {
     if (el) el.disabled = false
   }
   const now = nowIso()
-  const r = setAreaRhythm({ doc: doc(), jobs: jobsAll(), rows: m.rows, today, now, by: user() })
+  const r = setAreaRhythm({ doc: doc(), jobs: jobsAll(), done: done(), rows: m.rows, today, now, by: user() })
   if (!r.placements.length && !r.jobs.length) return toast('Nichts zu ändern: Die Liegeplätze stehen schon so.')
   const byId = new Map(r.placements.map((p) => [p.id, p]))
   doc().placements = doc().placements.map((p) => byId.get(p.id) || p)
@@ -549,7 +549,7 @@ async function saveRhythm(el) {
   closeModal()
   if (dates.length) app.ui.mwCalDate = dates[0]
   renderNow()
-  const moved = r.counts.moved + r.counts.revived + added
+  const moved = r.counts.moved + r.counts.revived + r.counts.added + added
   toast(
     `Rhythmus übernommen: ${plural(r.counts.placements, 'Liegeplatz', 'Liegeplätze')} geändert${moved ? `, ${plural(moved, 'Einsatz', 'Einsätze')} neu terminiert` : ''}.${bis ? '' : ' Jetzt „Einsätze planen“, damit die Wechsel im Kalender stehen.'}`,
   )
