@@ -4375,6 +4375,7 @@ Je neuer Person eine Checkliste mit Frist: Daten für die Lohnverrechnung, Anmel
 
 > Tipp: Unterweisungen und Schlüssel sind verknüpft: sind sie eingetragen bzw. ausgegeben, gilt die Aufgabe von selbst als erledigt. Nach „Eintragen“ einer Unterweisung geht es gleich zurück zur Checkliste.
 > Tipp: Die Einschulung wird ein Termin mit Objekt und beiden Personen; so sieht ihn auch die Objektleitung.
+> Tipp: Als letzte Aufgabe erinnert die Liste drei Wochen nach dem Eintritt an das Ende der Probezeit (in der Regel die ersten vier Wochen, Dienstvertrag und Kollektivvertrag nachsehen): rechtzeitig entscheiden, ob es passt. Die Frist lässt sich in den Vorlagen ändern.
 
 *Personalverwaltung, Lohnverrechnung und Vollzugriff*
 

@@ -2666,7 +2666,10 @@ th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
 .mw-tp-openrow:first-child { border-top: 0; }
 .mw-tp-openrow > div { min-width: 0; flex: 1 1 16rem; overflow-wrap: break-word; }
 .mw-tp-dayload { margin: 0 0 12px; }
-.mw-dr-row { display: grid; grid-template-columns: minmax(9rem, 1.3fr) minmax(11rem, 1.6fr) repeat(2, minmax(6rem, 0.7fr)) minmax(8rem, 1.1fr) minmax(6rem, 0.7fr) minmax(7rem, 0.9fr) auto auto; gap: 6px 10px; align-items: end; padding: 8px 0; border-bottom: 1px solid var(--line); }
+/* Fahrer-Zeile: zwei ruhige Zeilen in sechs Spalten (Name, E-Mail doppelt, Handy, von, bis / Fahrzeug doppelt, Platz, Gebiet, Haken, Löschen) */
+.mw-dr-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px 10px; align-items: end; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.mw-dr-row > .field:nth-of-type(2), .mw-dr-row > .field:nth-of-type(6) { grid-column: span 2; }
+.mw-dr-row > .btn { grid-column: -2; justify-self: end; }
 .mw-dr-row .field { margin: 0; min-width: 0; }
 .mw-dr-row .field input, .mw-dr-row .field select { width: 100%; min-width: 0; }
 .mw-dr-row .check { min-height: 36px; }
@@ -2702,7 +2705,7 @@ th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
   .mw-tp-drv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mw-tp-drv-name { grid-column: 1 / -1; }
   .mw-dr-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .mw-dr-row .field:nth-of-type(1), .mw-dr-row .field:nth-of-type(2) { grid-column: 1 / -1; }
+  .mw-dr-row > .field:nth-of-type(1), .mw-dr-row > .field:nth-of-type(2), .mw-dr-row > .field:nth-of-type(3), .mw-dr-row > .field:nth-of-type(6) { grid-column: 1 / -1; }
 }
 @media (max-width: 700px) {
   .mw-tp-head .actions { justify-content: flex-start; }

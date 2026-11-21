@@ -188,6 +188,9 @@ test('Vorlagen: Eintritt mit Anmeldung ÖGK vor Arbeitsbeginn, Austritt mit Abme
   for (const t of ['schluessel-rueck', 'kleidung-rueck', 'oegk-ab', 'zeitkonto', 'handy-aus', 'einsaetze', 'zeugnis']) assert.ok(ids(AUSTRITT_DEFAULTS).includes(t), t)
   for (const t of [...EINTRITT_DEFAULTS, ...AUSTRITT_DEFAULTS]) assert.ok(TASK_TYPES[t.type] && t.title && Number.isInteger(t.offset), t.id)
   assert.equal(EINTRITT_DEFAULTS.find((t) => t.type === 'oegk').offset, -1, 'vor dem ersten Arbeitstag')
+  // Probezeit: eine Woche vor dem Ende der vier Wochen erinnern, als letzte Aufgabe der Liste
+  assert.deepEqual([EINTRITT_DEFAULTS.at(-1).type, EINTRITT_DEFAULTS.at(-1).offset], ['probezeit', 21])
+  assert.equal(startList({ kind: 'eintritt', empId: 'e1', date: '2026-11-02', template: EINTRITT_DEFAULTS, newId: () => 'x' }).tasks.at(-1).due, '2026-11-23')
   assert.equal(AUSTRITT_DEFAULTS.find((t) => t.type === 'oegk-ab').offset, 7)
   assert.equal(new Set([...EINTRITT_DEFAULTS, ...AUSTRITT_DEFAULTS].map((t) => t.id)).size, EINTRITT_DEFAULTS.length + AUSTRITT_DEFAULTS.length)
   assert.equal(templateOf(null, 'eintritt'), EINTRITT_DEFAULTS)

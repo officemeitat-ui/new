@@ -218,6 +218,7 @@ export const TASK_TYPES = {
   schluessel: { label: 'Schlüssel ausgeben', kind: 'eintritt', linked: true },
   kleidung: { label: 'Dienstkleidung', kind: 'eintritt' },
   einschulung: { label: 'Einschulung im Objekt', kind: 'eintritt' },
+  probezeit: { label: 'Probezeit: Entscheidung', kind: 'eintritt' },
   handy: { label: 'Plan am Handy', kind: 'eintritt' },
   sprache: { label: 'Sprache am Handy', kind: 'eintritt' },
   'schluessel-rueck': { label: 'Schlüssel zurück', kind: 'austritt', linked: true },
@@ -241,6 +242,8 @@ export const EINTRITT_DEFAULTS = [
   { id: 'e-arbeitsschutz', type: 'arbeitsschutz', title: 'Betriebsanweisungen zu den Arbeitsstoffen besprechen', offset: 0, note: '' },
   { id: 'e-schluessel', type: 'schluessel', title: 'Schlüssel ausgeben (mit Quittung)', offset: 0, note: '' },
   { id: 'e-einschulung', type: 'einschulung', title: 'Einschulung im Objekt', offset: 0, note: 'Objekt, Termin und wer einschult' },
+  // eine Woche vor dem Ende der Probezeit (laut Kollektivvertrag in der Regel die ersten vier Wochen): rechtzeitig entscheiden
+  { id: 'e-probezeit', type: 'probezeit', title: 'Probezeit endet bald: passt es, weiter beschäftigen?', offset: 21, note: 'in der Regel die ersten vier Wochen (Dienstvertrag und Kollektivvertrag nachsehen); bis dahin von beiden Seiten jederzeit lösbar' },
 ]
 
 export const AUSTRITT_DEFAULTS = [
