@@ -68,6 +68,7 @@ const KEYS = [
   ['H', 'heute (diese Woche)'],
   ['Strg + Z', 'Rückgängig (Planung)'],
   ['Esc', 'Dialog oder Menü schließen'],
+  ['Enter', 'im Dialog speichern (aus einem Eingabefeld; Strg+Enter aus einem Textfeld)'],
   ['?', 'diese Übersicht'],
 ]
 

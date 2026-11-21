@@ -351,6 +351,32 @@ Object.assign(ACTIONS, {
 })
 
 /** Tab bleibt im offenen Dialog (aria-modal): vom letzten Feld weiter zum ersten und umgekehrt. */
+/**
+ * Enter in einem Eingabefeld eines Dialogs drückt den Hauptknopf – aber nur, wenn der bloß speichert
+ * („Speichern“, „Eintragen“, „Übernehmen“, „Weiter …“): das lässt sich zurücknehmen. Buchen, Senden,
+ * Festschreiben, Abschließen und alles Rote bleiben ein bewusster Klick. Felder mit eigener Bedeutung der
+ * Enter-Taste bleiben aus (Vorschlagsliste, Suchen beim Tippen, Feld mit data-change). Strg+Enter geht
+ * auch aus einem mehrzeiligen Textfeld oder einer Auswahl.
+ */
+const ENTER_SAVES = /^(speichern|eintragen|übernehmen|anlegen|hinzufügen|prüfen|fertig|ok|weiter\b.*|.+ (speichern|eintragen|anlegen))$/i
+const ENTER_FIELD = /^(text|number|date|time|email|tel|url|month|week|datetime-local|password)$/
+function enterButton(modal) {
+  const btn = [...(modal?.querySelectorAll('.modal-foot .btn.primary') || [])].filter((x) => !x.disabled && x.offsetParent).at(-1)
+  return btn && !btn.classList.contains('danger') && ENTER_SAVES.test(btn.textContent.trim()) ? btn : null
+}
+function enterInModal(e) {
+  if (e.defaultPrevented || e.isComposing || e.shiftKey || e.altKey || e.repeat) return
+  const t = e.target
+  const modal = t.closest?.('#modal-root .modal')
+  if (!modal || t.dataset?.enter === 'off') return
+  const withCtrl = e.ctrlKey || e.metaKey
+  const plain = t.tagName === 'INPUT' && ENTER_FIELD.test(t.type) && !t.list && !t.readOnly && !t.dataset.input && !t.dataset.change
+  if (!(withCtrl ? /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) : plain) || !enterButton(modal)) return
+  e.preventDefault()
+  t.blur() // übernimmt die Eingabe (löst „change“ aus), bevor gespeichert wird
+  setTimeout(() => enterButton(document.querySelector('#modal-root .modal'))?.click(), 0)
+}
+
 function keepFocusInModal(e) {
   const modal = document.querySelector('#modal-root .modal')
   if (!modal) return
@@ -408,6 +434,7 @@ function bindEvents() {
     if (e.key === 'Escape' && closeMenus()) return // erst das Menü, beim nächsten Esc der Dialog
     if (e.key === 'Escape' && app.ui.modal) closeModal()
     if (e.key === 'Tab' && app.ui.modal) keepFocusInModal(e)
+    if (e.key === 'Enter' && app.ui.modal) enterInModal(e)
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !app.readOnly) {
       e.preventDefault()

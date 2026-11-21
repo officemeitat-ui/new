@@ -5402,6 +5402,7 @@ Damit die Kopfzeilen übersichtlich bleiben, ist nur das Wichtigste direkt sicht
 N öffnet „+ Neu“, T Termin, A Abwesenheit, Z Zeit nachtragen, R Reklamation, M Material, F Rechnung, K KI-Assistent. Strg+K oder / sucht, Strg+J öffnet den Assistenten, F1 öffnet Cleo, ← → blättert die Woche, H springt zu heute, Strg+Z macht rückgängig, Esc schließt, ? zeigt alle.
 
 > Tipp: Beim Tippen in einem Feld lösen die Tasten nichts aus.
+> Tipp: In einem Dialog speichert Enter aus einem Eingabefeld, wenn der Hauptknopf nur speichert („Speichern“, „Eintragen“, „Übernehmen“, „Weiter“). Buchen, Senden und Festschreiben bleiben ein bewusster Klick. Aus einem mehrzeiligen Textfeld geht es mit Strg+Enter.
 
 ### Darstellung: Farbschema und Stil
 
