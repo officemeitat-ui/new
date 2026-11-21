@@ -268,7 +268,7 @@ function closeMonthModal(c, m) {
     body: `<dl class="ek-dl"><dt>Anfangsbestand</dt><dd>${money(r.opening)}</dd><dt>Einnahmen</dt><dd>${money(r.sumIn)}</dd><dt>Ausgaben</dt><dd>${money(r.sumOut)}</dd><dt>Endbestand</dt><dd><strong>${money(r.closing)}</strong></dd><dt>Kassenstürze</dt><dd>${r.counts.length || 'keiner'}</dd></dl>
       ${ok ? '' : '<p class="warn-text">Abschließen geht erst nach dem Monatsende.</p>'}
       <p class="muted">Nach dem Abschluss ist der Monat gesperrt: keine Buchung und kein Storno mehr mit einem Datum in diesem Monat (Korrekturen im offenen Monat). Das PDF wird erstellt${app.store?.kind === 'sharepoint' ? ' und unter einkauf/kassenbuch/ abgelegt' : ''}.</p>`,
-    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="kasse-close" data-month="${ym}" ${ok ? '' : 'disabled'}>Abschließen</button></div>`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary ${app.ui.confirm === `kasse-close:${ym}` ? 'danger confirm' : ''}" data-action="kasse-close" data-month="${ym}" ${ok ? '' : 'disabled'}>${app.ui.confirm === `kasse-close:${ym}` ? 'Wirklich abschließen?' : 'Abschließen'}</button></div>`,
   })
 }
 registerModal('kasse-close', closeMonthModal, { module: MODULE })

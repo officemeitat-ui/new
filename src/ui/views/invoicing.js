@@ -1012,7 +1012,7 @@ function viewModal(c, m) {
     .filter((p) => p.kind !== 'skonto' || !(x.payments || []).some((q) => q.id === p.ref))
     .map((p) => {
       const sk = (x.payments || []).find((q) => q.kind === 'skonto' && q.ref === p.id)
-      return `<li>${formatDate(p.date, { year: true })}: ${p.kind === 'skonto' ? 'Skontoabzug ' : ''}${money(p.amount)}${p.note ? ` · ${esc(p.note)}` : ''}${sk ? ` · <span class="pill info">Skonto ${money(sk.amount)}</span>` : ''}${ed ? ` <button class="link-btn" data-action="fak-pay-del" data-id="${esc(x.id)}" data-pay="${esc(p.id)}">entfernen</button>` : ''}</li>`
+      return `<li>${formatDate(p.date, { year: true })}: ${p.kind === 'skonto' ? 'Skontoabzug ' : ''}${money(p.amount)}${p.note ? ` · ${esc(p.note)}` : ''}${sk ? ` · <span class="pill info">Skonto ${money(sk.amount)}</span>` : ''}${ed ? ` <button class="link-btn" data-action="fak-pay-del" data-id="${esc(x.id)}" data-pay="${esc(p.id)}">${app.ui.confirm === `fak-pdel:${p.id}` ? 'wirklich entfernen?' : 'entfernen'}</button>` : ''}</li>`
     })
     .join('')
   const head = [
