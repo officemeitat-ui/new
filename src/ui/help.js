@@ -426,12 +426,52 @@ export function spotTarget(t, root = document) {
     const menu = all.map((x) => closedMenu(x)?.querySelector(':scope > summary')).find((x) => x?.offsetParent)
     if (menu) return { el: menu, level: 1 }
   }
+  return labelTarget(t, root)
+}
+
+const spotNorm = (s) => s.replace(/[▾▼…+]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+
+/** Beschriftungen in „…“ aus den ersten zwei Schritten eines Themas: dort steht, womit man beginnt. */
+export const stepLabels = (t) => [...new Set((t.steps || []).slice(0, 2).flatMap((s) => [...s.matchAll(/„([^“]{2,40})“/g)].map((m) => spotNorm(m[1]))))].filter((l) => l.length >= 2)
+
+/** Beschriftung eines Knopfs ohne Zähler, Zusatzzeile, Tastenkürzel und Pfeil. */
+function buttonLabel(x) {
+  let s = ''
+  const walk = (n) => {
+    for (const c of n.childNodes) {
+      if (c.nodeType === 3) s += c.nodeValue
+      else if (c.nodeType === 1 && !c.matches('small, kbd, svg, .flag, .caret, .pill, .badge')) walk(c)
+    }
+  }
+  walk(x)
+  return spotNorm(s)
+}
+
+/**
+ * Themen ohne eigenen Knopf: das erste Bedienelement der Ansicht, das so heißt wie in den Schritten genannt
+ * („Sperrzeit hinzufügen“, „Belege ▾“). Ist es ein Menü und nennen die Schritte danach einen Eintrag darin,
+ * zeigt Cleo erst auf das Menü (Stufe 1) und nach dem Aufklappen auf den Eintrag.
+ */
+function labelTarget(t, root = document) {
+  const labels = stepLabels(t)
+  if (!labels.length) return null
+  const named = (scope, label) => [...scope.querySelectorAll('button, summary, a.btn')].filter((x) => x.textContent.toLowerCase().includes(label) && buttonLabel(x) === label)
+  const main = root.querySelector('#app main')
+  if (!main) return null
+  for (let i = 0; i < labels.length; i++) {
+    const el = named(main, labels[i]).find((x) => x.offsetParent && !closedMenu(x))
+    if (!el) continue
+    const menu = el.tagName === 'SUMMARY' ? el.parentElement : null
+    const inner = menu && labels.slice(i + 1).map((l) => named(menu, l).find((x) => x !== el)).find(Boolean)
+    if (!inner) return { el, level: 2 }
+    return menu.open && inner.offsetParent ? { el: inner, level: 2 } : { el, level: 1 }
+  }
   return null
 }
 
 /** Knopf der Aktion in der Ansicht kurz hervorheben (Cleo „zeigt“ darauf). */
 function spotlight(t) {
-  const wanted = !!(t.action?.action || t.spot)
+  const wanted = !!(t.action?.action || t.spot || stepLabels(t).length)
   // Die Ansicht kann noch laden (Bereiche werden erst bei Bedarf geholt) und zeichnet danach neu: bis zu 3 s nach
   // der Stelle suchen und die Markierung halten – auch über ein Neuzeichnen hinweg (sonst zeigte Cleo auf nichts
   // mehr, sobald die Ansicht kurz nach dem Sprung noch einmal zeichnet). Steckt der Knopf in einem zugeklappten

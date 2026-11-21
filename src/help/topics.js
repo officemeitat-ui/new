@@ -11,6 +11,8 @@
 //   action   { action, label, data? }: registrierte Aktion, öffnet nur Dialog oder Ansicht, optional
 //   spot     worauf „Zeig es mir“ zeigt, wenn die Aktion in der Ansicht keinen Knopf hat: Aktionsname oder
 //            CSS-Selektor (beginnt mit . # oder [), optional
+//            Ohne Aktion und spot nimmt Cleo den ersten Knopf der Ansicht, der so heißt wie eine Beschriftung
+//            in „…“ aus den ersten zwei Schritten: dort also die Namen aus der App verwenden.
 //   related  ids verwandter Themen, optional
 //   roles    wer das sieht oder darf, optional
 // Geprüft in test/help-topics.test.js (Ansichten und Aktionen gegen den Quelltext).
