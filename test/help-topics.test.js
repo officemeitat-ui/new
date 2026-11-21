@@ -215,7 +215,7 @@ test('Themen: Schritte 2 bis 7, Tipps als Text, Rollen als Text', () => {
       for (const s of t.tips) assert.ok(typeof s === 'string' && s.trim().length >= 5, `${t.id}: Tipp`)
     }
     if (t.roles !== undefined) assert.ok(typeof t.roles === 'string' && t.roles.trim(), `${t.id}: Rollen`)
-    const known = new Set(['id', 'section', 'view', 'title', 'q', 'answer', 'steps', 'tips', 'action', 'related', 'roles'])
+    const known = new Set(['id', 'section', 'view', 'title', 'q', 'answer', 'steps', 'tips', 'action', 'spot', 'related', 'roles'])
     for (const k of Object.keys(t)) assert.ok(known.has(k), `${t.id}: unbekanntes Feld ${k}`)
   }
 })
@@ -261,6 +261,24 @@ test('Themen: Aktionen öffnen nur, nichts wird gelöscht oder gesendet', () => 
   for (const a of SAFE) assert.ok(ACTIONS.has(a), `sichere Aktion ${a} gibt es nicht mehr`)
   // neue Datensätze öffnen nur den leeren Dialog
   for (const t of TOPICS) if (['emp-edit', 'obj-edit', 'task-edit'].includes(t.action?.action)) assert.equal(t.action.data?.id, 'new', t.id)
+})
+
+test('Themen: Zielangabe „spot“ nur mit Ansicht, als Aktionsname oder Selektor mit bekannten Aktionen', () => {
+  const withSpot = TOPICS.filter((t) => t.spot !== undefined)
+  assert.ok(withSpot.length >= 6, 'die Themen ohne Knopf in ihrer Ansicht haben eine Zielangabe')
+  for (const t of withSpot) {
+    assert.ok(typeof t.spot === 'string' && t.spot.trim() === t.spot && t.spot, `${t.id}: spot ist kein Text`)
+    assert.ok(t.view, `${t.id}: spot ohne Ansicht zeigt nirgends hin`)
+    assert.notEqual(t.spot, t.action?.action, `${t.id}: spot wiederholt nur die Aktion`)
+    if (/^[.#[]/.test(t.spot)) {
+      assert.ok(!/[<>{};]/.test(t.spot), `${t.id}: spot ist kein schlichter Selektor`)
+      for (const m of t.spot.matchAll(/data-action="([^"]+)"/g)) assert.ok(ACTIONS.has(m[1]), `${t.id}: Aktion ${m[1]} im Selektor gibt es nicht`)
+    } else {
+      assert.match(t.spot, /^[a-z0-9]+(?:-[a-z0-9]+)*$/, `${t.id}: spot ist weder Aktionsname noch Selektor`)
+      assert.ok(ACTIONS.has(t.spot), `${t.id}: Aktion ${t.spot} gibt es nicht`)
+      assert.ok(FILES.some(([, src]) => src.includes(`data-action="${t.spot}"`)), `${t.id}: kein Knopf mit der Aktion ${t.spot} im Quelltext`)
+    }
+  }
 })
 
 test('Themen: verwandte Themen existieren, nicht doppelt, nicht sich selbst', () => {

@@ -2146,6 +2146,8 @@ tr.muted td { color: var(--muted); }
 @keyframes cleo-dot { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
 .cleo-spot { outline: 3px solid var(--brand-accent, #9cc654) !important; outline-offset: 3px; border-radius: 8px; animation: cleo-spot 0.9s ease-in-out 3; }
 @keyframes cleo-spot { 50% { outline-color: var(--accent); } }
+/* Tabellenzellen: der Rahmen nach innen, sonst schneidet ihn der Rollbereich der Tabelle ab */
+th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
 @media (max-width: 700px) {
   #help-root { right: 10px; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
   /* Cleo sitzt oben in der Kopfzeile (.m-cleo), schwebt nicht über dem Inhalt */

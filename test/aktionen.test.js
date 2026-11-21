@@ -486,7 +486,7 @@ const DYNAMISCH = [
   { file: 'src/ui/context.js', kind: 'ACTIONS[…]', expr: 'name', why: 'ensureAction(name): Modul laden, dann aufrufen', helper: { fn: 'ensureAction', arg: 0, in: ALL, props: ['name', 'a.action'] } },
   { file: 'src/ui/context.js', kind: 'ACTIONS[…]', expr: 'name', why: 'Posteingang: run(name, …) über ensureAction', helper: { fn: 'run', arg: 0, in: ['src/ui/views/posteingang.js'] } },
   { file: 'src/ui/help.js', kind: 'ACTIONS[…]', expr: 't.action.action', why: 'Knopf eines Hilfe-Themas: action: { action: … } in help/topics.js', props: true },
-  { file: 'src/ui/help.js', kind: 'data-action', expr: '${t.action.action}', why: 'Auswahl [data-action="…"] zum Hervorheben, Name aus dem Hilfe-Thema', props: true },
+  { file: 'src/ui/help.js', kind: 'data-action', expr: '${spot}', why: 'Auswahl [data-action="…"] zum Hervorheben, Name aus dem Hilfe-Thema (action oder spot, geprüft in help-topics.test.js)', props: true },
   { file: 'src/ui/help.js', kind: 'ACTIONS[…]', expr: 'run', why: 'Cleo-Antwort: data-run aus help/brain.js; goto-day erledigt help-run selbst', helper: { fn: 'btn', arg: 1, in: ['src/help/brain.js'], skip: ['goto-day'] } },
   { file: 'src/ui/help.js', kind: 'ACTIONS[…]', expr: 'run', why: 'Cleo-Antwort: Zeile mit data-run aus help/brain.js; leer: Zeile ohne Knopf', helper: { fn: 'row', arg: 1, in: ['src/help/brain.js'], skip: [''] } },
   { file: 'src/ui/kix.js', kind: 'ACTIONS[…]', expr: 's.retry.action', why: 'Erneut versuchen: retry: { action: … }', props: true },

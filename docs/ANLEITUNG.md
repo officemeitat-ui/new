@@ -68,6 +68,7 @@ Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI
 4. „In der Anleitung“ öffnet das Thema zum Nachlesen.
 
 > Tipp: Cleo zeigt nur, was deine Rolle sehen darf.
+> Tipp: Steckt der Knopf in einem Menü, markiert „Zeig es mir“ das Menü; klappst du es auf, wandert die Markierung auf den Knopf. Verdeckt Cleos Fenster die Stelle (am Handy fast immer), klappt es zu.
 > Tipp: Cleo kennt auch Begriffe, z. B. „Was ist eine Stammkraft?“.
 > Tipp: Cleo kennt auch euren Plan: „Wer arbeitet morgen?“, „Wo ist Anna am Freitag?“ (siehe „Cleo nach dem Plan fragen“).
 > Tipp: Findet Cleo nichts, gibt es „KI-Assistent fragen“ (falls eingerichtet): Der Assistent beantwortet die Frage gleich.

@@ -9,6 +9,8 @@
 //   steps    Schritte mit den Beschriftungen aus der App, optional
 //   tips     Hinweise, optional
 //   action   { action, label, data? }: registrierte Aktion, öffnet nur Dialog oder Ansicht, optional
+//   spot     worauf „Zeig es mir“ zeigt, wenn die Aktion in der Ansicht keinen Knopf hat: Aktionsname oder
+//            CSS-Selektor (beginnt mit . # oder [), optional
 //   related  ids verwandter Themen, optional
 //   roles    wer das sieht oder darf, optional
 // Geprüft in test/help-topics.test.js (Ansichten und Aktionen gegen den Quelltext).
@@ -55,7 +57,7 @@ export const TOPICS = [
     q: ['hilfe zur app', 'hilfe', 'maskottchen', 'sauberheld', 'wie funktioniert die app', 'hilfe chat', 'wassertropfen', 'f1 hilfe'],
     answer: 'Cleo, der Sauberheld, beantwortet Fragen zu jeder Funktion der App, ganz ohne KI und ohne Internet. Du öffnest Cleo mit dem runden Knopf unten rechts (am Handy oben in der Kopfzeile neben der Glocke) oder mit F1 und fragst in deinen eigenen Worten.',
     steps: ['Unten rechts auf Cleo klicken oder F1 drücken.', 'Frage tippen, z. B. „Urlaub eintragen“, und Enter drücken, oder ein vorgeschlagenes Thema antippen.', '„Zeig es mir“ springt in die richtige Ansicht und markiert den Knopf; der zweite Knopf startet die Aktion gleich.', '„In der Anleitung“ öffnet das Thema zum Nachlesen.'],
-    tips: ['Cleo zeigt nur, was deine Rolle sehen darf.', 'Cleo kennt auch Begriffe, z. B. „Was ist eine Stammkraft?“.', 'Cleo kennt auch euren Plan: „Wer arbeitet morgen?“, „Wo ist Anna am Freitag?“ (siehe „Cleo nach dem Plan fragen“).', 'Findet Cleo nichts, gibt es „KI-Assistent fragen“ (falls eingerichtet): Der Assistent beantwortet die Frage gleich.'],
+    tips: ['Cleo zeigt nur, was deine Rolle sehen darf.', 'Steckt der Knopf in einem Menü, markiert „Zeig es mir“ das Menü; klappst du es auf, wandert die Markierung auf den Knopf. Verdeckt Cleos Fenster die Stelle (am Handy fast immer), klappt es zu.', 'Cleo kennt auch Begriffe, z. B. „Was ist eine Stammkraft?“.', 'Cleo kennt auch euren Plan: „Wer arbeitet morgen?“, „Wo ist Anna am Freitag?“ (siehe „Cleo nach dem Plan fragen“).', 'Findet Cleo nichts, gibt es „KI-Assistent fragen“ (falls eingerichtet): Der Assistent beantwortet die Frage gleich.'],
     action: { action: 'help-open', label: 'Cleo fragen' },
     related: ['cleo-plan-fragen', 'anleitung', 'cleo-oder-assistent', 'springen-zu'],
   },
@@ -425,6 +427,7 @@ export const TOPICS = [
     steps: ['„+ Neu“ → „Abwesenheit (Urlaub, Krankenstand)“ wählen, Taste A, oder im Einsatz „Abwesend“.', 'Person, Art, Von und Bis wählen, optional eine Notiz (keine Diagnose).', '„Eintragen und Vertretung planen“ klicken.', 'Im Assistenten die Einsätze neu vergeben.'],
     tips: ['Am Handy unten der Knopf „Abwesend“.', 'Die abwesende Person bekommt ihre Stammeinsätze angerechnet (Ausfallprinzip).', 'Objektmanagement und Objektleitung sehen nur „abwesend von–bis“, ohne Grund – Krankenstände sind Gesundheitsdaten und bleiben beim Büro.'],
     action: { action: 'open-absence-new', label: 'Abwesenheit eintragen' },
+    spot: 'abs-add',
     related: ['abwesenheits-assistent', 'abwesenheit-rueckwirkend', 'urlaubskalender'],
     roles: 'Vollzugriff (Einsatzplanung und Stammdaten)',
   },
@@ -480,6 +483,7 @@ export const TOPICS = [
     steps: ['„Mitarbeitende“ öffnen und die Person bearbeiten.', 'Bei „Resturlaub am Stichtag (Tage)“ die offenen Tage eintragen, Stichtag leer = heute.', '„Speichern“ klicken.', 'Unter „Abwesenheiten“ steht in der Spalte Resturlaub „Rest / Stand“.'],
     tips: ['Für alle auf einmal: „Aus Excel einfügen“ mit den Spalten „Name“ und „Resturlaub“; der Stichtag ist der Tag des Einfügens.', 'Den Stand der Lohnverrechnung nehmen: die App zahlt nichts aus und rechnet keine Aliquotierung.', 'Ein Minus (Vorgriff) wird ins nächste Jahr mitgenommen.'],
     action: { action: 'import-open', label: 'Resturlaub für alle einfügen', data: { kind: 'employees' } },
+    spot: '.grid.cal th.sum-col',
     related: ['urlaubskalender', 'mitarbeitende-import'],
   },
   {
@@ -2753,6 +2757,7 @@ export const TOPICS = [
     steps: ['Fakturierung → „Belege ▾“ → „Verträge“ → „Vertrag“ (oder im Kundenblatt, Reiter „Verträge“).', 'Kunde, Beginn, Mindestlaufzeit, Ende (leer = unbefristet), Verlängerung und Kündigungsfrist eintragen.', 'Unter „Abrechnung“ die Daueraufträge des Vertrags anhaken.', 'Vertrag als PDF ablegen und „Speichern“.'],
     tips: ['„kündbar in den nächsten 90 Tagen“ filtert die Liste.', '30 Tage vor dem letzten Kündigungstag erinnern „Zu erledigen“ und der digitale Mitarbeiter Buchhaltung (Vorlauf änderbar).', 'Die Kündigung muss am angezeigten Tag beim Vertragspartner sein: 3 Monate zum 31.12. heißt bis 30.9.'],
     action: { action: 'fvt-open', label: 'Vertrag anlegen' },
+    spot: '[data-action="fak-tab"][data-v="vertraege"]',
     related: ['vertrag-kuendigen', 'dauerauftrag', 'preisanpassung-kv-lohn'],
     roles: 'Buchhaltung, Vollzugriff',
   },
@@ -2766,6 +2771,7 @@ export const TOPICS = [
     steps: ['Den Vertrag in „Verträge“ öffnen.', '„Kündigung erfassen“ klicken, Eingang, von und Grund eintragen; „zum“ prüfen.', '„Speichern“: die Daueraufträge enden mit dem letzten Monat.', 'Nach der Übergabe „Erledigt: Dauerauftrag beendet, Objekt freigegeben“.'],
     tips: ['Ein früheres Ende als vorgeschlagen ist nicht fristgerecht; die App warnt, speichert aber (einvernehmliche Auflösung).', 'Das Objekt gibt frei, wer die Objekte und Leistungen pflegt.'],
     action: { action: 'fvt-open', label: 'Verträge öffnen' },
+    spot: '[data-action="fak-tab"][data-v="vertraege"]',
     related: ['kundenvertrag', 'dauerauftrag'],
     roles: 'Buchhaltung, Vollzugriff',
   },
@@ -3093,6 +3099,7 @@ export const TOPICS = [
     steps: ['In „Zu erledigen“ oder bei den digitalen Mitarbeitern „Prüfen und senden“ wählen.', 'Liste prüfen, einzelne Rechnungen abwählen oder sperren.', '„Erinnerungen senden“.'],
     tips: ['Wann erinnert wird, steht in den Einstellungen unter Mahnwesen (Tage nach Fälligkeit).', 'Ohne E-Mail-Adresse kommt die Erinnerung über den Mahnlauf per Post.', 'Die nächste Stufe (1. Mahnung) läuft wie bisher über den Mahnlauf.'],
     action: { action: 'fak-erinnern-open', label: 'Zahlungserinnerungen prüfen' },
+    spot: 'fak-dunning-open',
     related: ['mahnlauf', 'mahnung'],
   },
   {
@@ -3684,6 +3691,7 @@ export const TOPICS = [
     steps: ['Reiter „Austritt“, „+ Austritt anlegen“.', 'Person und letzten Arbeitstag wählen (auf Wunsch gleich im Stammblatt).', 'Aufgaben abarbeiten; „Rückgabe eintragen“ und „Woche öffnen“ führen in Schlüsselbuch und Plan.'],
     tips: ['Nach dem Austritt meldet der Prüfbericht jeden Einsatz der Person als Fehler.'],
     action: { action: 'bew-start-open', label: 'Austritt anlegen', data: { kind: 'austritt' } },
+    spot: '[data-action="bew-kind"][data-v="austritt"]',
     related: ['eintritt-checkliste', 'austritt', 'schluessel-rueckgabe', 'checklisten-vorlagen'],
   },
   {
@@ -4323,6 +4331,7 @@ export const TOPICS = [
     steps: ['„Systemcheck“ unter „Verwaltung“ öffnen.', 'Den Reiter „Daten“ wählen.', 'Rote Punkte zuerst erledigen, dann die gelben Lücken; „Öffnen“ führt hin.', '„Bericht kopieren“ für die Übergabe.'],
     tips: ['Rot fehlt für den Start, gelb ist eine Lücke, blau ein Hinweis zu Bereichen, die freiwillig oder noch nicht in Verwendung sind.', 'Der Check rechnet sofort aus den geladenen Daten und ändert nichts.'],
     action: { action: 'system-data', label: 'Daten-Startcheck öffnen' },
+    spot: '[data-action="system-tab"][data-v="daten"]',
     roles: 'Nur Vollzugriff',
     related: ['systemcheck', 'mw-rhythmus-gebiet'],
   },

@@ -15,7 +15,7 @@ import { allRoles } from '../core/access.js'
 import { mondayOf, todayISO } from '../core/dates.js'
 import { holidaysInRange } from '../core/holidays.js'
 import { findAbsence } from '../core/rules.js'
-import { ACTIONS, app, canEdit, computeRange, ensureRange, plannedWeeks, registerActions, renderModal, sectionLabel, VIEWS, visibleViews } from './context.js'
+import { ACTIONS, app, canEdit, computeRange, ensureRange, plannedWeeks, registerActions, renderModal, sectionLabel, toast, VIEWS, visibleViews } from './context.js'
 import { todo } from './modals/todo.js'
 import { seesReasons } from './views/absences.js'
 import { appointmentsOfDay } from './views/appointments.js'
@@ -397,41 +397,94 @@ function ask(text) {
     ))
 }
 
+/** Selektor einer Zielangabe: ein Aktionsname (Knopf mit dieser Aktion) oder ein eigener CSS-Selektor. */
+export const spotSelector = (spot) => (!spot ? '' : /^[.#[]/.test(spot) ? spot : `[data-action="${spot}"]`)
+
+/** Das äußerste zugeklappte Menü, in dem ein Element steckt (sein Inhalt ist dann nicht zu sehen), sonst null. */
+function closedMenu(x) {
+  let found = null
+  for (let d = x.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) if (!d.open && !d.querySelector(':scope > summary')?.contains(x)) found = d
+  return found
+}
+
+/**
+ * Wohin Cleo für ein Thema zeigt: { el, level }. Stufe 2 ist der Knopf selbst, Stufe 1 der Knopf des zugeklappten
+ * Menüs, in dem er steckt. Zuerst der Knopf der Aktion des Themas, sonst seine eigene Zielangabe „spot“ (für Themen,
+ * deren Aktion in der Ansicht keinen Knopf hat, z. B. ein Reiter oder eine Spalte). Gibt das Thema der Aktion Daten
+ * mit (Art, Modus), zählt nur der Knopf mit genau diesen, dann einer ohne Angabe – nie einer mit anderen: sonst
+ * zeigte Cleo beim Thema „Angebot“ auf den Knopf „Rechnung“.
+ */
+export function spotTarget(t, root = document) {
+  const find = (sel) => (sel ? [...root.querySelectorAll(`#app ${sel}`)] : [])
+  const data = Object.entries(t.action?.data || {})
+  const own = find(spotSelector(t.action?.action))
+  const exact = (x) => data.every(([k, v]) => x.dataset[k] === String(v))
+  const groups = data.length ? [own.filter(exact), own.filter((x) => !exact(x) && data.every(([k, v]) => x.dataset[k] === undefined || x.dataset[k] === String(v)))] : [own]
+  for (const all of [...groups, find(spotSelector(t.spot))]) {
+    const open = all.find((x) => x.offsetParent && !closedMenu(x))
+    if (open) return { el: open, level: 2 }
+    const menu = all.map((x) => closedMenu(x)?.querySelector(':scope > summary')).find((x) => x?.offsetParent)
+    if (menu) return { el: menu, level: 1 }
+  }
+  return null
+}
+
 /** Knopf der Aktion in der Ansicht kurz hervorheben (Cleo „zeigt“ darauf). */
 function spotlight(t) {
-  const sel = t.action?.action ? `[data-action="${t.action.action}"]` : ''
-  // der Knopf selbst oder, steckt er in einem zugeklappten Menü, der Knopf dieses Menüs
-  const pick = () => {
-    const all = sel ? [...document.querySelectorAll(`#app ${sel}`)] : []
-    return all.find((x) => x.offsetParent) || all.map((x) => x.closest('details')?.querySelector(':scope > summary')).find((x) => x?.offsetParent) || null
-  }
+  const wanted = !!(t.action?.action || t.spot)
   // Die Ansicht kann noch laden (Bereiche werden erst bei Bedarf geholt) und zeichnet danach neu: bis zu 3 s nach
-  // der Stelle suchen und die Markierung 2,6 s halten – auch über ein Neuzeichnen hinweg (sonst zeigte Cleo auf
-  // nichts mehr, sobald die Ansicht kurz nach dem Sprung noch einmal zeichnet).
+  // der Stelle suchen und die Markierung halten – auch über ein Neuzeichnen hinweg (sonst zeigte Cleo auf nichts
+  // mehr, sobald die Ansicht kurz nach dem Sprung noch einmal zeichnet). Steckt der Knopf in einem zugeklappten
+  // Menü, zeigt Cleo auf das Menü und bleibt länger dort; klappt man es auf, wandert die Markierung auf den Knopf.
   let tries = 0
   let since = 0
   let marked = null
-  let exact = false
+  let level = -1
+  let moved = false
+  // ein neues „Zeig es mir“ löst das vorige ab, sonst blieben zwei Stellen markiert
+  const run = ++spotRun
   const tick = () => {
-    const el = pick()
+    if (run !== spotRun) return void marked?.classList.remove('cleo-spot')
+    const hit = spotTarget(t)
     // ohne Knopf nach zwei Versuchen die Überschrift der Ansicht; taucht der Knopf später auf, wandert die Markierung
-    const target = el || (!exact && (!sel || tries >= 2) ? document.querySelector('#app main h2, #app main .section-head') : null)
+    const target = hit?.el || (level < 1 && (!wanted || tries >= 2) ? document.querySelector('#app main h2, #app main .section-head') : null)
+    const now = hit?.level || 0
     tries++
     // Neuzeichnen ersetzt den Knopf oder lässt ihn stehen und setzt nur seine Klassen zurück: beides auffangen
     if (target && (target !== marked || !target.classList.contains('cleo-spot'))) {
       if (marked !== target) marked?.classList.remove('cleo-spot')
-      if (!since || (el && !exact)) {
+      if (!since || now > level) {
         since = Date.now()
         target.scrollIntoView?.({ block: 'center', behavior: calm() ? 'auto' : 'smooth' })
       }
       target.classList.add('cleo-spot')
       marked = target
-      exact = !!el
+      level = Math.max(level, now)
     }
-    if (since ? Date.now() - since < 2600 : tries <= 25) return setTimeout(tick, 120)
+    // Liegt Cleos Fenster über der Stelle (am Handy fast immer), klappt es zu; der erste Schritt bleibt als Hinweis stehen
+    if (marked && !moved && Date.now() - since > 420 && H().open && hiddenByPanel(marked)) {
+      moved = true
+      since = Date.now()
+      H().open = false
+      renderHelp()
+      toast(`${viewLabel(t.view) ? `${viewLabel(t.view)}: ` : ''}${t.steps?.[0] || t.title}`)
+    }
+    if (since ? Date.now() - since < (level === 1 ? 7000 : 2600) : tries <= 25) return setTimeout(tick, 120)
     marked?.classList.remove('cleo-spot')
   }
   setTimeout(tick, 120)
+}
+let spotRun = 0
+
+/** Verdeckt Cleos Fenster die Mitte dieses Elements? */
+function hiddenByPanel(el) {
+  const panel = document.querySelector('#help-root .cleo-panel')
+  if (!panel) return false
+  const r = el.getBoundingClientRect()
+  const p = panel.getBoundingClientRect()
+  const x = r.left + r.width / 2
+  const y = r.top + r.height / 2
+  return x > p.left && x < p.right && y > p.top && y < p.bottom
 }
 
 const go = (view) => {
