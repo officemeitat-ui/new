@@ -24,7 +24,9 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Office & Dateien (Collabora / ONLYOFFICE): [docs/OFFICE.md](docs/OFFICE.md) ·
 > Suche, Sicher teilen: [docs/SUCHE-SICHER-TEILEN.md](docs/SUCHE-SICHER-TEILEN.md) ·
 > Einsatzplanung, Arbeitsbericht mit Unterschrift: [docs/EINSATZPLANUNG.md](docs/EINSATZPLANUNG.md) ·
-> Überwachung von Websites und Diensten: [docs/UEBERWACHUNG.md](docs/UEBERWACHUNG.md)
+> Überwachung von Websites und Diensten: [docs/UEBERWACHUNG.md](docs/UEBERWACHUNG.md) ·
+> Projekte: [docs/PROJEKTE.md](docs/PROJEKTE.md) ·
+> Auswertungen: [docs/AUSWERTUNGEN.md](docs/AUSWERTUNGEN.md)
 
 ## Funktionen
 
@@ -53,6 +55,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Sicher teilen** | Passwörter und Zugangsdaten als **Einmal-Link**, der sich nach dem Öffnen löscht (verschlüsselt, Schlüssel nur im Link). Dateien als Freigabe-Link mit Ablauf, Abruflimit und optionalem Kennwort. Jeder Abruf wird gemeldet und protokolliert. |
 | **Material & Einmalpositionen** | Material aus dem Arbeitsbericht landet automatisch auf der nächsten Rechnung; Hardware, Lizenzen und Pauschalen direkt eintragen. Kleiner **Artikelkatalog** mit Verkaufs- und Einkaufspreis. Positionen ohne Preis bleiben als „Preis fehlt“ offen – nichts geht verloren, nichts wird zu 0 € verrechnet. |
 | **Überwachung** | Prüft alle paar Minuten, ob Websites, Mailserver und Fernzugänge der Kunden erreichbar sind. Nach zwei Fehlversuchen entsteht ein dringendes Ticket, die Ausfalldauer steht danach als Notiz darin. Verfügbarkeit und 30-Tage-Verlauf je Dienst, Status im Kundenportal. |
+| **Projekte** | Größere Vorhaben mit **Vorlagen** (Server-Tausch, Microsoft-365-Umstieg, Büro-Umzug, Rollout), Aufgaben je Phase, Stundenbudget mit Warnung, Ampel und Fortschritt. Zeiten zählen direkt oder über verknüpfte Tickets, Termine und Arbeitsberichte. Abrechnung nach Aufwand oder Fixpreis, Fortschritt im Kundenportal. |
+| **Auswertungen** | Monatsverlauf von gebuchten und verrechenbaren Stunden, gestelltem Umsatz und Tickets; **Auslastung je Person** gegen die verfügbare Arbeitszeit; Kunden nach gebundener Zeit. Diagramme mit Wertanzeige per Maus und Tastatur, jeweils auch als Tabelle. |
 | **Mein Tag** | Persönliche Startseite je Techniker: nächster Einsatz mit Route, Termine heute und morgen, eigene Tickets nach Dringlichkeit, Arbeitsberichte, die auf die Unterschrift warten, fällige Wartungen, geplante und gebuchte Zeit. |
 | **Einsatzplanung** | Wochenansicht aller Techniker, Termine aus dem Ticket heraus, Warnung bei Überschneidungen. **Terminbestätigung an den Kunden** mit Kalenderdatei, **Kalender-Abo** für Outlook/iPhone/Android, „Erledigt“ bucht die Zeit zur Abrechnung, nächste Termine im Kundenportal. |
 | **Arbeitsbericht mit Unterschrift** | Leistungsnachweis direkt am Handy: Tätigkeiten und Material eintragen, der Kunde **unterschreibt am Bildschirm**. Daraus entstehen PDF im Firmendesign (im Kundenordner abgelegt), Zeitbuchung und E-Mail an den Kunden – danach unveränderlich. |
@@ -218,6 +222,8 @@ meit/
   myday.py         „Mein Tag“: persönliche Startseite
   items.py         Artikel und Einmalpositionen (Material, Hardware) für den Rechnungslauf
   monitoring.py    Überwachung: Erreichbarkeit von Websites/Diensten, Störungsticket, Verfügbarkeit
+  projects.py      Projekte: Vorlagen, Aufgaben, Stundenbudget, Ampel, Portal-Fortschritt
+  reports.py       Auswertungen: Auslastung, verrechenbare Stunden, Umsatz, Tickets im Monatsverlauf
   hardening.py     Größenlimits, Content-Security-Policy, CSV-Schutz, TOTP
   setup.py         Erste Schritte (Inbetriebnahme mit Live-Status), Demodaten entfernen
   agents/          Triage, Assistent (Werkzeuge), Angebot, Monatsbericht, Security,

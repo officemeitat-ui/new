@@ -334,6 +334,26 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         return Response(ics_calendar([a], f"Termin {ctx.company}", "cockpit", public=True), media_type="text/calendar; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="Termin-{aid}.ics"'})
 
+    @app.get("/api/portal/projects")
+    def portal_projects(u: dict = Depends(portal_user)) -> list[dict]:
+        """Freigegebene Projekte des eigenen Unternehmens: Fortschritt und Aufgaben – ohne interne Notizen, Stunden und Beträge."""
+        svc = getattr(app.state, "projects", None)
+        if not svc:
+            return []
+        out = []
+        for p in svc.list("alle", u["customer_id"]):
+            if not p["portal_visible"] or p["status"] == "abgebrochen":
+                continue
+            phases: list[dict] = []
+            for t in svc.tasks(p["id"]):
+                name = t["phase"] or "Aufgaben"
+                if not phases or phases[-1]["name"] != name:
+                    phases.append({"name": name, "tasks": []})
+                phases[-1]["tasks"].append({"title": t["title"], "done": t["status"] == "erledigt"})
+            out.append({"id": p["id"], "title": p["title"], "status": p["status_label"], "progress": p["progress"], "due_date": p["due_date"],
+                        "tasks_done": p["tasks_done"], "tasks_total": p["tasks_total"], "phases": phases})
+        return out
+
     @app.get("/api/portal/monitors")
     def portal_monitors(u: dict = Depends(portal_user)) -> list[dict]:
         """Status der überwachten Dienste des eigenen Unternehmens (ohne interne Adressen)."""

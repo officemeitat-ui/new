@@ -174,7 +174,17 @@
     const views = {};
     views.start = async () => { const pos = (await api("/api/portal/posture").catch(() => ({}))).posture; const col = { gut: "var(--ok)", mittel: "var(--warn)", kritisch: "var(--bad)" };
       const appts = await api("/api/portal/appointments").catch(() => []);
-      const mons = await api("/api/portal/monitors").catch(() => []); return h("div", {},
+      const mons = await api("/api/portal/monitors").catch(() => []);
+      const projs = await api("/api/portal/projects").catch(() => []); return h("div", {},
+      projs.length ? h("div", { class: "card" }, h("h2", {}, projs.length === 1 ? "Ihr Projekt" : "Ihre Projekte"),
+        projs.map((p) => h("div", { style: "padding:.6rem 0;border-top:1px solid var(--border)" },
+          h("div", { class: "row" }, h("strong", { style: "flex:1;min-width:160px" }, p.title), h("span", { class: `badge ${p.status === "abgeschlossen" ? "ok" : "warn"}` }, p.status),
+            p.due_date ? h("span", { class: "muted small" }, `geplant bis ${dt(p.due_date)}`) : null),
+          h("div", { style: "height:10px;background:var(--soft);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin:.4rem 0" }, h("div", { style: `width:${p.progress}%;height:100%;background:var(--primary)` })),
+          h("details", {}, h("summary", { class: "small" }, `${p.progress} % – ${p.tasks_done} von ${p.tasks_total} Schritten erledigt`),
+            p.phases.map((ph) => h("div", { style: "margin-top:.4rem" }, h("strong", { class: "small" }, ph.name),
+              h("ul", { class: "small", style: "margin:.2rem 0;padding-left:1.2rem;list-style:none" }, ph.tasks.map((t) => h("li", { class: t.done ? "muted" : "" }, `${t.done ? "✓" : "○"} ${t.title}`)))))))))
+        : null,
       mons.length ? h("div", { class: "card" }, h("h2", {}, "Status Ihrer Dienste"),
         mons.map((m) => h("div", { class: "row", style: "padding:.45rem 0;border-top:1px solid var(--border)" },
           h("span", { class: `badge ${m.status === "ok" ? "ok" : m.status === "down" ? "bad" : "warn"}` }, m.status_label),

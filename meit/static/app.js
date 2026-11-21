@@ -404,6 +404,7 @@ views.kunde = async (id) => {
     await monitorCard(c),
     await domainCard(c),
     await appointmentsCard(c),
+    await projectsCard(c),
     await staffCard(c),
     await filesCard(c),
     await maintenanceCard(c),
@@ -1794,15 +1795,15 @@ let billingTab = "offen";
 const INV_STATUS = { entwurf: "Entwurf", gestellt: "gestellt", bezahlt: "bezahlt", storniert: "storniert" };
 function timeForm(defaults = {}) {
   const f = form([
-    ...(defaults.ticket_id ? [] : [{ name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: defaults.customer_id || "" }]),
+    ...(defaults.ticket_id || (defaults.project_id && defaults.customer_id) ? [] : [{ name: "customer_id", label: "Kunde", type: "select", options: customerOptions(), value: defaults.customer_id || "" }]),
     { name: "minutes", label: "Minuten", type: "number", value: defaults.minutes || 30 },
     { name: "date", label: "Datum", type: "date", value: new Date().toISOString().slice(0, 10) },
     { name: "billable", label: "Abrechnung", type: "select", options: [["auto", "automatisch (nach Vertrag)"], ["ja", "verrechenbar"], ["nein", "nicht verrechenbar (Flatrate/Kulanz)"]] },
     { name: "description", label: "Tätigkeit (steht so auf der Rechnung)", full: true, value: defaults.description || "" },
   ]);
-  modal("Zeit buchen", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+  modal(defaults.project_id ? "Zeit aufs Projekt buchen" : "Zeit buchen", f, [(close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
     const d = readForm(f);
-    const body = { minutes: Number(d.minutes), date: d.date, description: d.description, ticket_id: defaults.ticket_id || null,
+    const body = { minutes: Number(d.minutes), date: d.date, description: d.description, ticket_id: defaults.ticket_id || null, project_id: defaults.project_id || null,
       customer_id: d.customer_id ? Number(d.customer_id) : (defaults.customer_id || null), billable: d.billable === "auto" ? null : d.billable === "ja" };
     await api("/api/time", { method: "POST", body }); close(); toast("Zeit gebucht"); render();
   }) }, "Buchen")]);
@@ -3317,6 +3318,8 @@ const WO_WAS = [
     ["Office & Dateien", "office", "Word- und Excel-Dateien im Browser bearbeiten, Vorlagen je Kunde ausfüllen, frühere Stände"],
     ["Mein Tag", "heute", "Persönliche Startseite: heutige Termine, eigene Tickets, offene Arbeitsberichte"],
     ["Einsatzplanung", "termine", "Termine je Techniker, Arbeitsbericht mit Unterschrift, Kalender-Abo fürs Handy"],
+    ["Projekte", "projekte", "Größere Vorhaben mit Vorlagen, Aufgaben, Stundenbudget und Fortschritt"],
+    ["Auswertungen", "auswertungen", "Auslastung je Person, verrechenbare Stunden, Umsatz und Tickets im Monatsverlauf"],
     ["Sicher teilen", "teilen", "Passwörter als Einmal-Link, Dateien als Freigabe-Link mit Ablaufdatum"],
     ["Suche", "dashboard", "Strg+K oder „/“: alles durchsuchen – Kunden, Tickets, Geräte, auch den Inhalt von Dateien"]]],
   ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Sicherheitslage", "sicherheitslage", "Eine Note je Kunde aus allen Quellen, Bericht als PDF, Angebot aus den Maßnahmen"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
@@ -3902,6 +3905,7 @@ const hoursText = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(
 views.heute = async () => {
   await Promise.all([loadCustomers(), loadUsers()]);
   const d = await api("/api/my-day");
+  const ptasks = await api("/api/my-project-tasks").catch(() => []);
   setTitle("Mein Tag", [
     h("button", { class: "btn", onclick: () => appointmentForm(null, { date: d.date }) }, "+ Termin"),
     h("button", { class: "btn", onclick: () => workReportForm() }, "+ Arbeitsbericht"),
@@ -3944,6 +3948,11 @@ views.heute = async () => {
     d.drafts.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("h3", { style: "margin:0 0 .4rem" }, "Wartet auf Unterschrift"),
       h("ul", { class: "list" }, d.drafts.map((r) => h("li", {}, h("div", { class: "row" }, h("strong", {}, r.number), h("span", { style: "flex:1;min-width:0" }, `${r.customer} · ${r.work || "ohne Text"}`),
         h("button", { class: "btn small primary", onclick: async () => { const full = await api(`/api/work-reports/${r.id}`); workReportSign(full); } }, "Unterschrift")))))) : null,
+    ptasks.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, d.personal ? "Meine Projektaufgaben" : "Projektaufgaben mit Termin"), h("a", { class: "btn small", href: "#/projekte" }, "Projekte")),
+      h("ul", { class: "list" }, ptasks.map((t) => h("li", {}, h("div", { class: "row" },
+        h("input", { type: "checkbox", style: "width:auto", "aria-label": `${t.title} erledigt`, onchange: async () => { await api(`/api/project-tasks/${t.id}`, { method: "PUT", body: { status: "erledigt" } }); toast("Erledigt"); render(); } }),
+        t.late ? badge("überfällig", "bad") : t.due_date ? badge(dt(t.due_date), "info") : null,
+        h("a", { href: `#/projekt/${t.project_id}`, style: "flex:1;min-width:0" }, t.title), h("span", { class: "small muted" }, [t.project, t.customer].filter(Boolean).join(" · "))))))) : null,
     d.maintenance.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "Wartung fällig (7 Tage)"), h("a", { class: "btn small", href: "#/wartung" }, "Zur Wartung")),
       h("ul", { class: "list" }, d.maintenance.map((m) => h("li", {}, h("div", { class: "row" }, m.overdue ? badge("überfällig", "bad") : badge(dt(m.due_date), "info"), h("span", {}, `${m.title} · ${m.customer || ""}`)))))) : null);
 };
@@ -4140,6 +4149,281 @@ async function appointmentsCard(c) {
       h("button", { class: "btn small primary", onclick: () => appointmentForm(null, { customer_id: c.id }) }, "+ Termin"))),
     rows.length ? h("div", { class: "appt-list" }, rows.map((a) => appointmentChip(a, true))) : h("p", { class: "small muted", style: "margin:0" }, "Keine anstehenden Termine."),
     reports.length ? h("div", { style: "margin-top:.8rem" }, h("h3", { style: "margin:0 0 .3rem" }, "Arbeitsberichte"), workReportTable(reports, false)) : null);
+}
+
+// ---- Auswertungen: Auslastung, verrechenbare Stunden, Umsatz, Tickets
+const num1 = (v) => Number(v).toLocaleString("de-AT", { maximumFractionDigits: 1 });
+
+/** Schwebende Wertanzeige: eine für alle Reihen an dieser Stelle; Werte führen, Namen folgen. */
+function chartTip(host, anchor, heading, rows) {
+  host.querySelector(".chart-tip")?.remove();
+  if (!rows) return;
+  const tip = h("div", { class: "chart-tip", role: "status" }, h("div", { class: "h" }, heading),
+    rows.map((r) => h("div", { class: "r" }, r.color ? h("i", { style: `background:${r.color}` }) : null, h("span", {}, r.label), h("strong", {}, r.value))));
+  host.append(tip);
+  const hb = host.getBoundingClientRect(), ab = anchor.getBoundingClientRect();
+  const left = Math.min(Math.max(0, ab.left - hb.left + ab.width / 2 - tip.offsetWidth / 2), Math.max(0, hb.width - tip.offsetWidth));
+  tip.style.left = `${left}px`;
+  tip.style.top = `${Math.max(0, ab.top - hb.top - tip.offsetHeight - 6)}px`;
+}
+
+/** Säulen je Monat: gestapelt (Teile eines Ganzen) oder nebeneinander. Legende ab zwei Reihen, Wert nur am letzten Monat, Tabelle darunter. */
+function monthChart({ rows, series, stacked = true, fmt = num1, unit = "", total = null }) {
+  const sum = (r) => series.reduce((a, s) => a + (r[s.key] || 0), 0);
+  const top = Math.max(1, ...rows.map((r) => stacked ? sum(r) : Math.max(...series.map((s) => r[s.key] || 0))));
+  const max = top <= 10 ? Math.ceil(top) : Math.ceil(top / 10) * 10;
+  const host = h("div", { class: "chart" });
+  const seg = (r, s, isTop, of) => h("div", { class: `chart-seg${isTop ? " top" : ""}`, style: `height:${100 * (r[s.key] || 0) / of}%;background:${s.color}` });
+  const cols = rows.map((r, i) => {
+    const present = series.filter((s) => (r[s.key] || 0) > 0);
+    const tipRows = [...series.map((s) => ({ color: s.color, label: s.label, value: `${fmt(r[s.key] || 0)}${unit}` })),
+      ...(total && series.length > 1 ? [{ label: total, value: `${fmt(sum(r))}${unit}` }] : [])];
+    const stacks = stacked ? [h("div", { class: "chart-stack" }, present.map((s, k) => seg(r, s, k === present.length - 1, max)))]
+      : series.map((s) => h("div", { class: "chart-stack" }, (r[s.key] || 0) > 0 ? seg(r, s, true, max) : null));
+    const height = stacked ? sum(r) : Math.max(...series.map((s) => r[s.key] || 0));
+    const col = h("div", { class: `chart-col${stacked ? "" : " grouped"}`, tabindex: "0", role: "img",
+      "aria-label": `${r.label}: ${tipRows.map((t) => `${t.label} ${t.value}`).join(", ")}` }, stacks,
+      i === rows.length - 1 && height > 0 ? h("span", { class: "val", style: `bottom:calc(${100 * height / max}% + 3px)` }, `${fmt(height)}${unit}`) : null);
+    const showTip = () => chartTip(host, col, r.label, tipRows);
+    col.addEventListener("pointerenter", showTip); col.addEventListener("focus", showTip);
+    col.addEventListener("pointerleave", () => chartTip(host)); col.addEventListener("blur", () => chartTip(host));
+    return col;
+  });
+  fill(host,
+    series.length > 1 ? h("div", { class: "chart-legend" }, series.map((s) => h("span", {}, h("i", { style: `background:${s.color}` }), s.label))) : null,
+    h("div", { class: "chart-body" },
+      h("div", { class: "chart-y", "aria-hidden": "true" }, h("span", {}, `${fmt(max)}${unit}`), h("span", {}, `${fmt(max / 2)}${unit}`), h("span", {}, "0")),
+      h("div", {}, h("div", { class: "chart-plot" }, cols),
+        h("div", { class: "chart-x" }, rows.map((r, i) => h("span", {}, rows.length > 12 && i % 2 ? "" : r.label))))),
+    h("details", {}, h("summary", {}, "Als Tabelle"), table([{ label: "Monat", key: "label" },
+      ...series.map((s) => ({ label: s.label, num: true, render: (r) => `${fmt(r[s.key] || 0)}${unit}` })),
+      ...(total && series.length > 1 ? [{ label: total, num: true, render: (r) => `${fmt(sum(r))}${unit}` }] : [])], rows)));
+  return host;
+}
+
+views.auswertungen = async (_, params) => {
+  const span = Number(params.get("monate")) || 6;
+  let d;
+  try { d = await api(`/api/reports/overview?months=${span}`); } catch (e) { show(h("div", { class: "card empty" }, e.message)); return; }
+  const S1 = "var(--series-1)", S2 = "var(--series-2)";
+  setTitle("Auswertungen", [h("select", { style: "width:auto", "aria-label": "Zeitraum", onchange: (e) => { location.hash = `#/auswertungen?monate=${e.target.value}`; } },
+    [[6, "6 Monate"], [12, "12 Monate"], [24, "24 Monate"]].map(([v, l]) => h("option", { value: v, selected: v === span }, l)))]);
+  const s = d.summary;
+  const delta = (now, before, unit = "") => before ? `${now >= before ? "▲" : "▼"} ${num1(Math.abs(now - before))}${unit} zum Vormonat` : "kein Vormonat";
+  const kpi = (label, value, sub) => h("div", { class: "card kpi" }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), h("div", { class: "sub" }, sub));
+  const util = (t) => {
+    const host = h("div", { class: "chart" });
+    fill(host, t.people.length ? t.people.map((p) => {
+      const scale = Math.max(t.available_hours, p.hours, 1), other = Math.max(0, p.hours - p.hours_billable);
+      const rows = [{ color: S1, label: "verrechenbar", value: `${num1(p.hours_billable)} Std.` }, { color: S2, label: "nicht verrechenbar", value: `${num1(other)} Std.` },
+        { label: "gebucht", value: `${num1(p.hours)} Std.` }, { label: "verfügbar", value: `${num1(t.available_hours)} Std.` }];
+      const row = h("div", { class: "util-row", tabindex: "0", role: "img", "aria-label": `${p.name}: ${rows.map((r) => `${r.label} ${r.value}`).join(", ")}` },
+        h("strong", {}, p.name),
+        h("div", { class: "util-track", title: "" },
+          p.hours_billable > 0 ? h("div", { class: `chart-seg${other > 0 ? "" : " end"}`, style: `width:${100 * p.hours_billable / scale}%;background:${S1}` }) : null,
+          other > 0 ? h("div", { class: "chart-seg end", style: `width:${100 * other / scale}%;background:${S2}` }) : null),
+        h("div", { class: "util-note" }, p.booked_share === null ? `${num1(p.hours)} Std. gebucht` : `${num1(p.hours)} von ${num1(t.available_hours)} Std. gebucht (${p.booked_share} %) · ${p.billable_share} % der Zeit verrechenbar`));
+      const showTip = () => chartTip(host, row.querySelector(".util-track"), p.name, rows);
+      row.addEventListener("pointerenter", showTip); row.addEventListener("focus", showTip);
+      row.addEventListener("pointerleave", () => chartTip(host)); row.addEventListener("blur", () => chartTip(host));
+      return row;
+    }) : h("p", { class: "small muted" }, "Keine Benutzer angelegt – die Auslastung je Person braucht Benutzerkonten."));
+    return host;
+  };
+  show(
+    h("p", { class: "small muted" }, "Aus den Daten, die ohnehin entstehen: gebuchte Zeiten, gestellte Rechnungen, Tickets. „Verfügbar“ ist eine Näherung (Werktage × Wochenstunden, ohne Urlaub und Feiertage)."),
+    h("div", { class: "grid kpis" },
+      kpi(`Stunden ${s.month}`, num1(s.hours), delta(s.hours, s.hours_prev, " Std.")),
+      kpi("Davon verrechenbar", s.billable_share === null ? "–" : `${s.billable_share} %`, "Anteil der gebuchten Zeit"),
+      kpi(`Umsatz ${s.month}`, eur(s.revenue), s.revenue_prev ? `${s.revenue >= s.revenue_prev ? "▲" : "▼"} ${eur(Math.abs(s.revenue - s.revenue_prev))} zum Vormonat` : "gestellte Rechnungen, netto"),
+      kpi("Tickets", `${s.tickets_new} neu`, `${s.tickets_resolved} gelöst${s.resolution_hours === null ? "" : ` · Ø ${num1(s.resolution_hours)} Std. bis zur Lösung`}`)),
+    h("div", { class: "grid two" },
+      h("div", { class: "card" }, h("h2", {}, "Gebuchte Stunden je Monat"),
+        monthChart({ rows: d.months, series: [{ key: "hours_billable", label: "verrechenbar", color: S1 }, { key: "hours_other", label: "nicht verrechenbar", color: S2 }], unit: " Std.", total: "gesamt" })),
+      h("div", { class: "card" }, h("h2", {}, "Gestellter Umsatz je Monat (netto)"),
+        monthChart({ rows: d.months, series: [{ key: "revenue", label: "Umsatz", color: S1 }], fmt: (v) => eur(v) }))),
+    h("div", { class: "grid two", style: "margin-top:1rem" },
+      h("div", { class: "card" }, h("h2", {}, "Tickets je Monat"),
+        monthChart({ rows: d.months, series: [{ key: "tickets_new", label: "neu", color: S1 }, { key: "tickets_resolved", label: "gelöst", color: S2 }], stacked: false, fmt: (v) => String(Math.round(v)) })),
+      h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", {}, "Auslastung je Person"),
+        h("button", { class: "btn small", title: "Wochenstunden für die verfügbare Zeit", onclick: async () => { const v = prompt("Wochenstunden einer Vollzeitkraft:", String(d.week_hours).replace(".", ","));
+          if (!v) return; try { await api("/api/reports/settings", { method: "PUT", body: { week_hours: Number(v.replace(",", ".")) } }); render(); } catch (e) { toast(e.message, true); } } }, `${num1(d.week_hours)} Std./Woche`)),
+        h("div", { class: "chart-legend" }, h("span", {}, h("i", { style: `background:${S1}` }), "verrechenbar"), h("span", {}, h("i", { style: `background:${S2}` }), "nicht verrechenbar")),
+        d.technicians.map((t) => h("div", { style: "margin-bottom:.8rem" }, h("h3", { style: "margin:.4rem 0 .1rem" }, `${t.label}${t.current ? " (bis heute)" : ""}`),
+          h("div", { class: "small muted" }, `${t.workdays} Werktage · ${num1(t.available_hours)} Std. verfügbar je Person`), util(t))))),
+    h("div", { class: "grid two", style: "margin-top:1rem" },
+      h("div", { class: "card" }, h("h2", {}, "Kunden nach Zeit (90 Tage)"), d.customers.length ? table([
+        { label: "Kunde", render: (c) => h("a", { href: `#/kunde/${c.id}` }, c.name) }, { label: "Stunden", num: true, render: (c) => num1(c.hours) },
+        { label: "verrechenbar", num: true, render: (c) => c.billable_share === null ? "–" : `${c.billable_share} %` }, { label: "Pauschale", num: true, render: (c) => c.mrr ? eur(c.mrr) : "–" }], d.customers)
+        : h("p", { class: "small muted" }, "Noch keine Zeiten gebucht.")),
+      h("div", { class: "card" }, h("h2", {}, "Tickets nach Kategorie (90 Tage)"), d.categories.length ? table([
+        { label: "Kategorie", key: "category" }, { label: "Tickets", num: true, key: "n" }, { label: "davon offen", num: true, key: "open" }], d.categories)
+        : h("p", { class: "small muted" }, "Keine Tickets im Zeitraum."))));
+};
+
+// ---- Projekte: Aufgaben, Vorlagen, Stundenbudget, Fortschritt
+const PROJ_CLS = { geplant: "info", laufend: "ok", pausiert: "warn", abgeschlossen: "", abgebrochen: "" };
+const LIGHT = { gruen: ["im Plan", "ok"], gelb: ["Achtung", "warn"], rot: ["kritisch", "bad"], aus: ["", ""] };
+const lightBadge = (p) => LIGHT[p.light] && LIGHT[p.light][0] ? badge(LIGHT[p.light][0], LIGHT[p.light][1]) : null;
+const miniBar = (pct, cls = "") => h("div", { class: `bar mini ${cls}`, title: `${pct} %` }, h("span", { style: `width:${Math.max(0, Math.min(100, pct))}%` }));
+const hrs = (v) => `${Number(v).toLocaleString("de-AT", { maximumFractionDigits: 1 })} Std.`;
+
+async function projectForm(p = null, defaults = {}) {
+  await Promise.all([loadCustomers(), loadUsers()]);
+  const meta = await api("/api/projects/templates");
+  const quotes = p ? [] : (await api("/api/quotes").catch(() => [])).filter((q) => q.status === "angenommen");
+  const base = p || { status: "geplant", billing: "aufwand", start_date: isoDay(new Date()), ...defaults };
+  const f = form([
+    { name: "title", label: "Projekt", required: true, full: true, placeholder: "z. B. Server-Tausch 2027" },
+    { name: "customer_id", label: "Kunde (leer = internes Projekt)", type: "select", options: customerOptions(true) },
+    ...(state.users.length ? [{ name: "manager_id", label: "Verantwortlich", type: "select", options: userOptions(), value: base.manager_id || 0 }] : []),
+    ...(p ? [{ name: "status", label: "Status", type: "select", options: Object.entries(meta.status) }]
+      : [{ name: "template", label: "Vorlage (legt Phasen und Aufgaben an)", type: "select", options: [["", "– ohne Vorlage –"], ...meta.templates.map((t) => [t.key, `${t.label} (${t.tasks} Aufgaben)`])] }]),
+    { name: "billing", label: "Abrechnung", type: "select", options: Object.entries(meta.billing) },
+    { name: "start_date", label: "Beginn", type: "date" },
+    { name: "due_date", label: "Fertig bis", type: "date" },
+    { name: "budget_hours", label: "Stundenbudget (0 = keines)", type: "number", step: "0.5" },
+    { name: "budget_amount", label: "Fixpreis / Auftragswert netto", type: "number", step: "0.01" },
+    ...(quotes.length ? [{ name: "quote_id", label: "Aus angenommenem Angebot (optional)", type: "select", full: true, options: [["", "– keines –"], ...quotes.map((q) => [q.id, `${q.title} · ${eur(q.total_once)}`])] }] : []),
+    { name: "description", label: "Ziel und Umfang", type: "textarea", rows: 3, full: true },
+    { name: "portal_visible", label: "Fortschritt im Kundenportal zeigen (Aufgaben ohne Notizen, keine Stunden)", type: "checkbox", full: true },
+  ], { ...base, customer_id: base.customer_id || "", budget_hours: base.budget_hours || "", budget_amount: base.budget_amount || "" });
+  const qs = f.querySelector("[name=quote_id]");
+  if (qs) qs.addEventListener("change", () => { const q = quotes.find((x) => String(x.id) === qs.value); if (!q) return;
+    if (!f.querySelector("[name=title]").value) f.querySelector("[name=title]").value = q.title.replace(/^Angebot:?\s*/i, "");
+    f.querySelector("[name=customer_id]").value = q.customer_id || ""; f.querySelector("[name=billing]").value = "fixpreis"; f.querySelector("[name=budget_amount]").value = q.total_once || ""; });
+  modal(p ? "Projekt bearbeiten" : "Neues Projekt", f, [
+    p ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm(`Projekt „${p.title}“ löschen?`)) return;
+      try { await api(`/api/projects/${p.id}`, { method: "DELETE" }); close(); location.hash = "#/projekte"; } catch (e) { toast(e.message, true); } } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(f);
+      if (!v.title.trim()) return toast("Bitte einen Titel angeben", true);
+      const body = { ...v, title: v.title.trim(), customer_id: v.customer_id ? Number(v.customer_id) : null, manager_id: Number(v.manager_id) || null,
+        budget_hours: Number(v.budget_hours) || 0, budget_amount: Number(v.budget_amount) || 0, quote_id: Number(v.quote_id) || (p ? p.quote_id : null), status: v.status || base.status };
+      const r = p ? await api(`/api/projects/${p.id}`, { method: "PUT", body }) : await api("/api/projects", { method: "POST", body });
+      close(); toast("Gespeichert"); if (p) render(); else location.hash = `#/projekt/${r.id}`;
+    }) }, "Speichern")].filter(Boolean));
+}
+
+function projectTaskForm(project, task = null, phase = "") {
+  const phases = [...new Set(project.phases.map((x) => x.name))];
+  const f = form([
+    { name: "title", label: "Aufgabe", required: true, full: true },
+    { name: "phase", label: "Phase", value: task ? task.phase : phase },
+    ...(state.users.length ? [{ name: "assignee_id", label: "Zuständig", type: "select", options: userOptions(), value: task ? task.assignee_id || 0 : 0 }] : []),
+    { name: "due_date", label: "Fällig", type: "date" },
+    { name: "estimate_min", label: "Schätzung (Minuten)", type: "number" },
+    { name: "notes", label: "Notiz (intern)", type: "textarea", rows: 3, full: true },
+  ], task || {});
+  f.querySelector("[name=phase]").setAttribute("list", "phase-list");
+  modal(task ? "Aufgabe bearbeiten" : "Neue Aufgabe", h("div", {}, h("datalist", { id: "phase-list" }, phases.map((x) => h("option", { value: x }))), f), [
+    task ? (close) => h("button", { class: "btn danger", onclick: async () => { await api(`/api/project-tasks/${task.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const v = readForm(f);
+      const body = { title: v.title.trim(), phase: v.phase.trim(), due_date: v.due_date || "", estimate_min: Number(v.estimate_min) || 0, notes: v.notes, assignee_id: Number(v.assignee_id) || null };
+      if (task) await api(`/api/project-tasks/${task.id}`, { method: "PUT", body }); else await api(`/api/projects/${project.id}/tasks`, { method: "POST", body });
+      close(); render();
+    }) }, "Speichern")].filter(Boolean));
+}
+
+function projectTable(rows, withCustomer = true) {
+  return table([
+    { label: "Projekt", render: (p) => h("div", {}, h("strong", {}, p.title), h("div", { class: "small muted" }, [withCustomer ? (p.customer || "intern") : "", p.manager, p.billing_label].filter(Boolean).join(" · "))) },
+    { label: "Status", render: (p) => h("div", { class: "row", style: "gap:.3rem" }, badge(p.status_label, PROJ_CLS[p.status]), lightBadge(p)) },
+    { label: "Fortschritt", render: (p) => h("div", { style: "min-width:120px" }, miniBar(p.progress), h("div", { class: "small muted" }, `${p.tasks_done}/${p.tasks_total} Aufgaben${p.tasks_late ? ` · ${p.tasks_late} überfällig` : ""}`)) },
+    { label: "Stunden", render: (p) => h("div", { style: "min-width:110px" }, p.budget_used === null ? hrs(p.hours) : [miniBar(p.budget_used, p.budget_used > 100 ? "bad" : p.budget_used >= 80 ? "warn" : ""),
+      h("div", { class: "small muted" }, `${hrs(p.hours)} von ${hrs(p.budget_hours)}`)]) },
+    { label: "Fertig bis", render: (p) => p.due_date ? h("span", { style: p.overdue ? "color:var(--bad);font-weight:600" : "" }, dt(p.due_date)) : h("span", { class: "muted" }, "–") },
+  ], rows, (p) => { location.hash = `#/projekt/${p.id}`; });
+}
+
+let projectFilter = "offen";
+views.projekte = async () => {
+  const d = await api(`/api/projects?status=${projectFilter}`);
+  setTitle("Projekte", [h("button", { class: "btn primary", onclick: () => projectForm() }, "+ Projekt")]);
+  const s = d.summary;
+  show(
+    h("p", { class: "small muted" }, "Größere Vorhaben mit Aufgaben, Stundenbudget und Termin. Zeiten zählen aufs Projekt – direkt gebucht oder über ein verknüpftes Ticket, einen Termin oder Arbeitsbericht."),
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Offene Projekte"), h("div", { class: "value" }, s.open), h("div", { class: "sub" }, `${hrs(s.hours)} gebucht`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Kritisch"), h("div", { class: "value", style: s.red ? "color:var(--bad)" : "" }, s.red), h("div", { class: "sub" }, "Budget überzogen oder Termin vorbei")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Achtung"), h("div", { class: "value" }, s.yellow), h("div", { class: "sub" }, "Budget knapp oder Aufgaben überfällig")),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Überfällige Aufgaben"), h("div", { class: "value" }, s.late_tasks), h("div", { class: "sub" }, "über alle offenen Projekte"))),
+    h("div", { class: "tabs" }, [["offen", "Offen"], ["abgeschlossen", "Abgeschlossen"], ["alle", "Alle"]].map(([k, l]) =>
+      h("button", { class: projectFilter === k ? "active" : "", onclick: () => { projectFilter = k; render(); } }, l))),
+    h("div", { class: "card" }, d.items.length ? projectTable(d.items)
+      : h("div", { class: "empty" }, projectFilter === "offen" ? "Keine offenen Projekte. Mit „+ Projekt“ und einer Vorlage (Server-Tausch, Microsoft-365-Umstieg, Büro-Umzug, neue Arbeitsplätze) steht der Plan in einer Minute." : "Keine Projekte.")));
+};
+
+views.projekt = async (id) => {
+  await loadUsers();
+  let p;
+  try { p = await api(`/api/projects/${id}`); } catch (e) { show(h("div", { class: "card empty" }, e.message)); return; }
+  const open = ["geplant", "laufend", "pausiert"].includes(p.status);
+  const setStatus = async (status) => { await api(`/api/projects/${p.id}`, { method: "PUT", body: { ...p, status, template: "" } }); render(); };
+  setTitle(p.title, [
+    h("a", { class: "btn", href: "#/projekte" }, "← Projekte"),
+    h("button", { class: "btn", onclick: () => projectForm(p) }, "Bearbeiten"),
+    open ? h("button", { class: "btn", onclick: () => timeForm({ project_id: p.id, customer_id: p.customer_id, description: p.title }) }, "+ Zeit") : null,
+    open ? h("button", { class: "btn", onclick: async () => { await loadCustomers(); appointmentForm(null, { customer_id: p.customer_id, title: p.title }); } }, "+ Termin") : null,
+    open ? h("button", { class: "btn primary", onclick: () => projectTaskForm(p) }, "+ Aufgabe") : null]);
+  const toggle = (t) => h("input", { type: "checkbox", checked: t.status === "erledigt", style: "width:auto", "aria-label": `${t.title} erledigt`, onclick: (e) => e.stopPropagation(),
+    onchange: async (e) => { await api(`/api/project-tasks/${t.id}`, { method: "PUT", body: { status: e.target.checked ? "erledigt" : "offen" } }); render(); } });
+  const tickets = await api(`/api/tickets?customer_id=${p.customer_id || 0}`).catch(() => []);
+  const linkable = p.customer_id ? tickets.filter((t) => t.customer_id === p.customer_id && t.status !== "geloest" && !p.tickets.some((x) => x.id === t.id)) : [];
+  const linkSel = h("select", { style: "width:auto;max-width:100%", "aria-label": "Ticket verknüpfen", onchange: async (e) => { if (!e.target.value) return;
+    await api(`/api/projects/${p.id}/tickets`, { method: "POST", body: { ticket_id: Number(e.target.value) } }); toast("Ticket verknüpft – seine Zeiten zählen jetzt aufs Projekt"); render(); } },
+    h("option", { value: "" }, "Ticket verknüpfen …"), linkable.map((t) => h("option", { value: t.id }, `#${t.id} ${t.title}`)));
+  show(
+    h("div", { class: "row", style: "margin:-.2rem 0 .8rem" }, badge(p.status_label, PROJ_CLS[p.status]), lightBadge(p),
+      h("span", { class: "small muted" }, [p.customer ? h("a", { href: `#/kunde/${p.customer_id}` }, p.customer) : "internes Projekt", p.manager ? ` · verantwortlich: ${p.manager}` : "", ` · ${p.billing_label}`,
+        p.quote ? ` · Angebot „${p.quote.title}“` : ""]),
+      h("span", { class: "spacer" }),
+      p.status === "geplant" ? h("button", { class: "btn small", onclick: () => setStatus("laufend") }, "Starten") : null,
+      p.status === "laufend" ? h("button", { class: "btn small", onclick: () => setStatus("pausiert") }, "Pausieren") : null,
+      p.status === "pausiert" ? h("button", { class: "btn small", onclick: () => setStatus("laufend") }, "Fortsetzen") : null,
+      open ? h("button", { class: "btn small", onclick: () => { if (p.tasks_done < p.tasks_total && !confirm(`${p.tasks_total - p.tasks_done} Aufgabe(n) sind noch offen. Trotzdem abschließen?`)) return; setStatus("abgeschlossen"); } }, "Abschließen")
+        : h("button", { class: "btn small", onclick: () => setStatus("laufend") }, "Wieder öffnen")),
+    p.description ? h("div", { class: "card", style: "margin-bottom:1rem;white-space:pre-wrap" }, p.description) : null,
+    h("div", { class: "grid kpis" },
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Fortschritt"), h("div", { class: "value" }, `${p.progress} %`), miniBar(p.progress), h("div", { class: "sub" }, `${p.tasks_done} von ${p.tasks_total} Aufgaben`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Stunden"), h("div", { class: "value", style: p.budget_used > 100 ? "color:var(--bad)" : "" }, hrs(p.hours).replace(" Std.", "")),
+        p.budget_used === null ? null : miniBar(p.budget_used, p.budget_used > 100 ? "bad" : p.budget_used >= 80 ? "warn" : ""),
+        h("div", { class: "sub" }, p.budget_hours ? `von ${hrs(p.budget_hours)} Budget (${p.budget_used} %)` : `geschätzt ${hrs(p.estimate_hours)}`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, p.billing === "fixpreis" ? "Fixpreis" : "Wert der Stunden"), h("div", { class: "value" }, eur(p.billing === "fixpreis" ? p.budget_amount : p.value)),
+        h("div", { class: "sub" }, p.billing === "fixpreis" ? `Aufwand bisher ${eur(p.value)}` : p.billing === "intern" ? "wird nicht verrechnet" : `davon verrechenbar ${eur(p.billable_value)}`)),
+      h("div", { class: "card kpi" }, h("div", { class: "label" }, "Fertig bis"), h("div", { class: "value", style: p.overdue ? "color:var(--bad)" : "" }, p.due_date ? dt(p.due_date) : "–"),
+        h("div", { class: "sub" }, p.overdue ? "Termin überschritten" : p.tasks_late ? `${p.tasks_late} Aufgabe(n) überfällig` : p.next_due ? `nächste Aufgabe ${dt(p.next_due)}` : ""))),
+    h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Aufgaben"),
+      open && !p.phases.length ? h("span", { class: "small muted" }, "Tipp: „Bearbeiten“ ist nicht nötig – Vorlagen lassen sich beim Anlegen wählen.") : null),
+      p.phases.length ? p.phases.map((ph) => h("div", { class: "phase" },
+        h("div", { class: "phase-head" }, h("strong", {}, ph.name), h("span", { class: "small muted" }, `${ph.done}/${ph.tasks.length}`), h("span", { class: "spacer" }),
+          open ? h("button", { class: "btn small", onclick: () => projectTaskForm(p, null, ph.name === "Aufgaben" ? "" : ph.name) }, "+") : null),
+        ph.tasks.map((t) => h("div", { class: `ptask ${t.status}${t.late ? " late" : ""}`, onclick: () => projectTaskForm(p, t) }, toggle(t),
+          h("div", { class: "t" }, h("span", { class: "title" }, t.title), t.notes ? h("div", { class: "small muted" }, t.notes) : null),
+          h("span", { class: "small muted meta" }, [t.assignee, t.due_date ? dt(t.due_date) : "", t.estimate_min ? `${hoursText(t.estimate_min)} Std.` : ""].filter(Boolean).join(" · "))))))
+        : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Aufgaben. „+ Aufgabe“ legt die erste an.")),
+    h("div", { class: "grid two" },
+      h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", {}, `Tickets (${p.tickets.length})`), open && linkable.length ? linkSel : null),
+        p.tickets.length ? h("ul", { class: "list" }, p.tickets.map((t) => h("li", {}, h("div", { class: "row" }, badge(STATUS_LABEL[t.status] || t.status, t.status),
+          h("a", { href: "#", style: "flex:1;min-width:0", onclick: (e) => { e.preventDefault(); ticketDetail(t.id); } }, `#${t.id} ${t.title}`),
+          open ? h("button", { class: "btn small", title: "Verknüpfung lösen", onclick: async () => { await api(`/api/projects/${p.id}/tickets/${t.id}`, { method: "DELETE" }); render(); } }, "✕") : null))))
+          : h("p", { class: "small muted", style: "margin:0" }, "Keine Tickets verknüpft. Zeiten, Termine und Arbeitsberichte eines verknüpften Tickets zählen automatisch aufs Projekt.")),
+      h("div", { class: "card" }, h("h2", {}, "Gebuchte Zeit"),
+        p.time_by_user.length ? h("div", { class: "row", style: "margin-bottom:.5rem" }, p.time_by_user.map((u) => badge(`${u.name}: ${hoursText(u.minutes)} Std.`, "info"))) : null,
+        p.time_entries.length ? table([{ label: "Datum", render: (e) => dt(e.date) }, { label: "Tätigkeit", render: (e) => h("span", { class: "small" }, e.description || "–") },
+          { label: "Wer", render: (e) => h("span", { class: "small" }, e.user_name || "") }, { label: "Std.", num: true, render: (e) => hoursText(e.minutes) },
+          { label: "", render: (e) => e.billable ? "" : h("span", { class: "small muted", title: "nicht verrechenbar" }, "n. v.") }], p.time_entries)
+          : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Zeit gebucht."))));
+};
+
+async function projectsCard(c) {
+  const d = await api(`/api/projects?status=alle&customer_id=${c.id}`).catch(() => null);
+  if (!d) return null;
+  const rows = d.items.filter((p) => p.status !== "abgebrochen").slice(0, 6);
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, `Projekte (${rows.length})`), h("button", { class: "btn small", onclick: () => projectForm(null, { customer_id: c.id }) }, "+ Projekt")),
+    rows.length ? projectTable(rows, false) : h("p", { class: "small muted", style: "margin:0" }, "Keine Projekte bei diesem Kunden."));
 }
 
 // ---- Überwachung: Erreichbarkeit von Websites und Diensten der Kunden
@@ -4570,13 +4854,14 @@ views.teilen = async () => {
 
 // ---- Globale Suche / Befehlspalette (Strg+K)
 const SEARCH_ICON = { customer: "🏢", ticket: "🎫", message: "✉", asset: "🖥", device: "🛡", article: "📚", file: "📄", document: "🗂", invoice: "🧾", quote: "📑",
-  lead: "🎯", appointment: "📅", workreport: "✍", monitor: "📡", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
+  lead: "🎯", appointment: "📅", workreport: "✍", monitor: "📡", project: "📋", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
 const foldText = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss");
 const QUICK_ACTIONS = [
   ["Neues Ticket", "ticket anlegen stoerung", () => ticketCreate()],
   ["Neuer Kunde", "kunde anlegen", () => customerForm()],
   ["Passwort oder Zugangsdaten sicher senden", "teilen einmal link geheimnis passwort", () => { location.hash = "#/teilen"; }],
   ["Termin planen", "einsatz kalender termin vor ort", async () => { await Promise.all([loadCustomers(), loadUsers()]); appointmentForm(); }],
+  ["Neues Projekt", "projekt vorlage server umzug migration", () => projectForm()],
   ["Arbeitsbericht schreiben", "leistungsnachweis unterschrift einsatz bericht", () => workReportForm()],
   ["Material oder Hardware verrechnen", "einmalposition artikel rechnung position", () => itemForm()],
   ["Neues Dokument (Word/Excel)", "office datei brief tabelle", () => { location.hash = "#/office"; }],
@@ -4596,6 +4881,7 @@ async function searchOpenItem(it) {
     case "staff": return staffDetail(it.id);
     case "appointment": return appointmentDetail(it.id);
     case "monitor": return monitorDetail(it.id);
+    case "project": return go(`#/projekt/${it.id}`);
     case "workreport": return window.open(`/api/work-reports/${it.id}/pdf`, "_blank", "noopener");
     case "m365user": return it.customer_id ? m365Detail(it.customer_id) : go("#/m365");
     case "file": { await officeStatus(); const f = await api(`/api/files/${it.id}`); return fileDetail(f, () => {}); }
@@ -4685,7 +4971,7 @@ async function render() {
   const [path, query] = hash.split("?");
   const [route, id] = path.split("/");
   const params = new URLSearchParams(query || "");
-  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.route === route || (route === "kunde" && a.dataset.route === "kunden")));
+  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.route === route || (route === "kunde" && a.dataset.route === "kunden") || (route === "projekt" && a.dataset.route === "projekte")));
   document.getElementById("sidebar").classList.remove("open");
   const view = views[route] || views.dashboard;
   try { await view(id, params); }

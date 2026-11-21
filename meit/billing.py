@@ -52,13 +52,17 @@ def default_billable(db: Database, customer_id: int | None) -> bool:
 
 def add_time(db: Database, *, customer_id: int, minutes: int, description: str = "", ticket_id: int | None = None,
              user_id: int | None = None, day: str | None = None, billable: bool | None = None,
-             rate: float | None = None, touch_ticket: bool = True) -> int:
+             rate: float | None = None, touch_ticket: bool = True, project_id: int | None = None) -> int:
     if minutes <= 0:
         raise ValueError("Minuten müssen größer als 0 sein")
+    if not project_id and ticket_id:  # Ticket gehört zu einem Projekt → die Zeit zählt dort mit
+        project_id = db.scalar("SELECT project_id FROM tickets WHERE id = ?", (ticket_id,))
     if billable is None:
-        billable = default_billable(db, customer_id)
+        mode = db.scalar("SELECT billing FROM projects WHERE id = ?", (project_id,)) if project_id else None
+        # Fixpreis- und interne Projekte: Stunden werden nicht einzeln verrechnet (der Fixpreis kommt über das Angebot)
+        billable = False if mode in ("fixpreis", "intern") else default_billable(db, customer_id)
     tid = db.insert("time_entries", {
-        "customer_id": customer_id, "ticket_id": ticket_id, "user_id": user_id, "date": day or date.today().isoformat(),
+        "customer_id": customer_id, "ticket_id": ticket_id, "project_id": project_id or None, "user_id": user_id, "date": day or date.today().isoformat(),
         "minutes": int(minutes), "description": description[:500], "billable": billable,
         "rate": rate if rate is not None else hourly_rate(db)})
     if ticket_id and touch_ticket:
@@ -278,6 +282,7 @@ def export_csv(db: Database, year: Optional[int] = None) -> str:
 class TimeIn(BaseModel):
     customer_id: Optional[int] = None
     ticket_id: Optional[int] = None
+    project_id: Optional[int] = None
     minutes: int = Field(gt=0, le=24 * 60)
     description: str = Field("", max_length=500)
     date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -353,10 +358,15 @@ def register(app: FastAPI, db: Database, company_name: str, admin_only, on_final
             if not ticket:
                 raise HTTPException(404, "Ticket nicht gefunden")
             customer_id = customer_id or ticket["customer_id"]
+        if data.project_id:
+            project = db.get("projects", data.project_id)
+            if not project:
+                raise HTTPException(404, "Projekt nicht gefunden")
+            customer_id = customer_id or project["customer_id"]
         if not customer_id or not db.get("customers", customer_id):
             raise HTTPException(422, "Kunde angeben (oder Ticket mit Kunde)")
         desc = data.description or (db.get("tickets", data.ticket_id)["title"] if data.ticket_id else "")
-        tid = add_time(db, customer_id=customer_id, minutes=data.minutes, description=desc, ticket_id=data.ticket_id,
+        tid = add_time(db, customer_id=customer_id, minutes=data.minutes, description=desc, ticket_id=data.ticket_id, project_id=data.project_id,
                        user_id=user_id(request), day=data.date, billable=data.billable, rate=data.rate)
         return db.get("time_entries", tid)
 

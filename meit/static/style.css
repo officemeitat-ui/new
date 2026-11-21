@@ -414,3 +414,56 @@ label.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; 
 .uptime-strip i.ok { background: var(--ok); }
 .uptime-strip i.warn { background: var(--warn); }
 .uptime-strip i.bad { background: var(--bad); }
+
+/* Projekte */
+.bar.mini { height: 7px; margin: .15rem 0; }
+.bar.mini.warn span { background: var(--warn); }
+.bar.mini.bad span { background: var(--bad); }
+.phase { margin-bottom: .9rem; }
+.phase-head { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; border-bottom: 2px solid var(--border); }
+.ptask { display: flex; align-items: flex-start; gap: .6rem; padding: .45rem .2rem; border-bottom: 1px solid var(--border); cursor: pointer; }
+.ptask:hover { background: var(--surface-2); }
+.ptask .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ptask.erledigt .title { text-decoration: line-through; color: var(--muted); }
+.ptask.late .meta { color: var(--bad); font-weight: 600; }
+.ptask input { margin-top: .25rem; }
+@media (max-width: 600px) { .ptask { flex-wrap: wrap; } .ptask .meta { flex-basis: 100%; padding-left: 1.7rem; } }
+
+/* Auswertungen: Diagramme. Farben sind mit dem Paletten-Prüfer gegen die helle und dunkle Fläche geprüft
+   (Helligkeit, Buntheit, Unterscheidbarkeit bei Farbfehlsichtigkeit, Kontrast). */
+:root { --series-1: #0090a3; --series-2: #eb6834; --grid: #e6eef0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --series-1: #17a2b8; --series-2: #d95926; --grid: #22363c; } }
+:root[data-theme="dark"] { --series-1: #17a2b8; --series-2: #d95926; --grid: #22363c; }
+.chart { position: relative; }
+.chart-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .82rem; color: var(--muted); margin: .2rem 0 .6rem; }
+.chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+.chart-plot { position: relative; display: flex; align-items: stretch; height: 190px; border-bottom: 1px solid var(--grid); background:
+  linear-gradient(var(--grid), var(--grid)) 0 0 / 100% 1px no-repeat, linear-gradient(var(--grid), var(--grid)) 0 50% / 100% 1px no-repeat; }
+.chart-body { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .4rem; }
+.chart-y { display: flex; flex-direction: column; justify-content: space-between; height: 190px; font-size: .7rem; color: var(--muted); text-align: right; line-height: 1; white-space: nowrap; }
+.chart-y span:first-child { transform: translateY(-40%); } .chart-y span:last-child { transform: translateY(40%); }
+.chart-col { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; justify-content: center; gap: 2px; position: relative; cursor: default; outline: 0; }
+.chart-col:hover, .chart-col:focus-visible { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.chart-col:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+.chart-stack { display: flex; flex-direction: column-reverse; gap: 2px; width: min(24px, 60%); height: 100%; justify-content: flex-start; }
+.chart-col.grouped .chart-stack { width: min(14px, 34%); }
+.chart-seg { width: 100%; min-height: 0; }
+.chart-seg.top { border-radius: 4px 4px 0 0; }
+.chart-col .val { position: absolute; right: 0; font-size: .72rem; font-weight: 700; color: var(--text); white-space: nowrap; pointer-events: none; }
+.chart-x { display: flex; }
+.chart-x span { flex: 1 1 0; min-width: 0; text-align: center; font-size: .72rem; color: var(--muted); padding-top: .3rem; overflow: hidden; white-space: nowrap; }
+.chart-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, .15); padding: .45rem .6rem; font-size: .8rem; min-width: 9rem; }
+.chart-tip .h { color: var(--muted); margin-bottom: .2rem; }
+.chart-tip .r { display: flex; align-items: center; gap: .4rem; }
+.chart-tip .r i { width: 12px; height: 2px; border-radius: 1px; flex: none; }
+.chart-tip .r strong { margin-left: auto; padding-left: .8rem; font-variant-numeric: tabular-nums; }
+.chart-tip .r span { color: var(--muted); }
+.chart details { margin-top: .5rem; font-size: .85rem; }
+.chart details summary { cursor: pointer; color: var(--muted); }
+.util-row { display: grid; grid-template-columns: minmax(7rem, 11rem) 1fr; gap: .2rem .8rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--border); position: relative; outline: 0; }
+.util-row:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+.util-track { position: relative; height: 16px; background: var(--surface-2); border-radius: 0 4px 4px 0; display: flex; gap: 2px; overflow: hidden; }
+.util-track .chart-seg { height: 100%; width: auto; }
+.util-track .chart-seg.end { border-radius: 0 4px 4px 0; }
+.util-note { grid-column: 2; font-size: .78rem; color: var(--muted); }
+@media (max-width: 600px) { .util-row { grid-template-columns: 1fr; } .util-note { grid-column: 1; } .chart-plot, .chart-y { height: 160px; } }
