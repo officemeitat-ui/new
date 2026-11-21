@@ -171,6 +171,7 @@ Browser (Vanilla JS, kein Build)  ──►  FastAPI (meit/main.py)  ──►  
 
 | Aufgabe | Vorlage |
 |---|---|
+| **Schritt für Schritt: Windows-Rechner im Büro, feste IP, HTTPS** | [docs/INBETRIEBNAHME-WINDOWS.md](docs/INBETRIEBNAHME-WINDOWS.md) |
 | **Windows-Dienst** (startet mit Windows) | `deploy/install-windows-service.ps1` (mit NSSM) |
 | **Linux-Dienst** (systemd, gehärtet) | `deploy/meit.service` |
 | **Von außen erreichbar** (nur Formular + Portal, HTTPS) | `deploy/Caddyfile`. Das Cockpit selbst bleibt im LAN/VPN. |
