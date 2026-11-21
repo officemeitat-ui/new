@@ -58,12 +58,14 @@ function card(c, { id: group, label, views: items }) {
   const total = open.reduce((n, x) => n + x.n, 0)
   // „alles erledigt“ erst, wenn alle Ansichten des Bereichs geladen sind: vorher weiß die Karte es nicht
   const unknown = items.some((v) => v.lazy && !v.lazy.loaded)
+  // was oben schon mit seiner Zahl steht, wird unten nicht wiederholt
+  const rest = items.filter((v) => !open.some((x) => x.v === v))
   const state = open.length ? `<span class="home-count" title="offen">${total}</span>` : unknown ? (countsPending() ? COUNTING : '') : '<span class="pill ok">alles erledigt</span>'
   return `<article class="home-card" data-section="${esc(group)}">
     <header><span class="home-icon">${navIcon(main)}</span><h3>${esc(label)}</h3>${state}</header>
     ${group === 'planung' && items.some((v) => v.id === 'week') ? planCard(c) : ''}
     ${open.length ? `<ul class="home-open">${open.map(({ v, n }) => `<li><button class="link-row" data-action="view" data-view="${v.id}"><span class="flag error">${n}</span><span>${esc(v.label)}</span>${ICON.right}</button></li>`).join('')}</ul>` : ''}
-    <div class="home-links">${items.map((v) => `<button class="btn small" data-action="view" data-view="${v.id}">${esc(v.label)}</button>`).join('')}</div>
+    ${rest.length ? `<div class="home-links">${rest.map((v) => `<button class="btn small" data-action="view" data-view="${v.id}">${esc(v.label)}</button>`).join('')}</div>` : ''}
   </article>`
 }
 

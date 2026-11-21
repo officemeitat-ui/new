@@ -634,6 +634,9 @@ export function renderNow() {
   const view = `${app.ui.view}|${isMobileLayout()}`
   drawing(() => patch($app, renderHooks.frame(app.cur), { replace: view !== lastView }))
   lastView = view
+  // aufgeklappte Einleitung (Handy) bleibt über ein Neuzeichnen hinweg offen
+  if (app.ui.introOpen && app.ui.introOpen !== app.ui.view) app.ui.introOpen = ''
+  if (app.ui.introOpen) document.querySelector('#app main .section-head:not(.small) p')?.classList.add('open')
   const next = document.querySelector('.grid-wrap, .sheet-wrap')
   if (next && next.scrollLeft !== scrollLeft) next.scrollLeft = scrollLeft
   renderModal()

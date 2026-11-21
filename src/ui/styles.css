@@ -260,6 +260,11 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 .layout .actions > :is([data-action='open-search'], .bell) { border-color: transparent; background: transparent; }
 .layout .actions > :is([data-action='open-search'], .bell):hover { background: var(--surface-2); }
 .page-head { display: flex; align-items: center; gap: 6px 14px; min-width: 0; flex-wrap: wrap; }
+/* Titel und Wochenwahl bleiben links zweizeilig, solange jede Zeile neben die Knöpfe passt; sonst rutschen die
+   Knöpfe in eine eigene Zeile, statt Titel oder Wochenstatus zu überdecken (Laptop-Breiten um 1000–1300 px) */
+.layout .topbar-inner { flex-wrap: wrap; }
+.layout .page-head { flex: 1 1 0; min-width: min-content; }
+.layout .topbar-inner > .actions { margin-left: auto; }
 .page-title { font-size: 1.3rem; font-weight: 700; white-space: nowrap; }
 .layout .weeknav { gap: 4px; }
 .layout .weeknav .kw { min-width: 0; padding: 0 6px; font-family: var(--font-body); font-size: 1rem; font-weight: 700; text-align: left; white-space: nowrap; }
@@ -1171,7 +1176,11 @@ body.dragging td.drop-hover { box-shadow: inset 0 0 0 3px var(--accent); }
   .m-topbar .brand-logo { height: 42px !important; }
   .m-topbar .weeknav { flex: 1; justify-content: center; gap: 2px; min-width: 0; }
   .m-topbar .kw { font-family: var(--font-display); font-size: 1.05rem; font-weight: 700; text-align: center; min-width: 0; color: inherit; }
-  .m-topbar .kw small { display: block; font-size: 0.72rem; font-weight: 400; color: var(--muted); white-space: nowrap; }
+  .m-topbar .kw { line-height: 1.15; }
+  .m-topbar .kw small { display: block; font-size: 0.7rem; line-height: 1.25; font-weight: 400; color: var(--muted); white-space: nowrap; }
+  .m-topbar .kw small.kw-status { font-weight: 600; }
+  .m-topbar .kw small.kw-status.ok { color: var(--ok); }
+  .m-topbar .kw small.kw-status.warning { color: var(--warn); }
   .m-topbar .bell { padding: 6px 8px; }
   .m-topbar .bell-label { display: none; }
   .bottom-nav { display: grid; position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 4px max(6px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); box-shadow: 0 -2px 12px rgb(0 0 0 / 0.07); }
@@ -1427,11 +1436,13 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
 /* Übersicht (Startseite) */
 .home-head h2 { font-size: 1.5rem; }
 .home-head p { margin: 2px 0 0; }
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; align-items: start; }
-.home-card { display: grid; gap: 12px; padding: 16px; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); }
+/* Karten in Spalten untereinander (wie Zeitungsspalten): kurze Karten lassen keine Lücke neben langen */
+.home-grid { columns: 3 300px; column-gap: 16px; }
+.home-card { display: grid; gap: 12px; padding: 16px; margin-bottom: 16px; break-inside: avoid; background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius-card); box-shadow: var(--card-shadow); }
 .home-card > header { display: flex; align-items: center; gap: 10px; }
 .home-card > header svg { width: 22px; height: 22px; flex: none; color: var(--accent); }
 .home-card > header h3 { font-size: 1.1rem; margin-right: auto; }
+.home-card > header :is(.pill, .home-count) { flex: none; white-space: nowrap; }
 .home-week { line-height: 1.4; }
 .home-steps { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .home-steps li { flex: 1; display: grid; justify-items: center; gap: 2px; padding-top: 6px; border-top: 3px solid var(--line); font-size: 0.72rem; color: var(--muted); text-align: center; }
@@ -1444,7 +1455,8 @@ ul.plain { list-style: none; padding: 0; margin: 0; display: grid; gap: 3px; fon
 .link-row svg { width: 14px; height: 14px; color: var(--muted); }
 .home-links { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (max-width: 700px) {
-  .home-grid { grid-template-columns: 1fr; gap: 12px; }
+  .home-grid { columns: 1; }
+  .home-card { margin-bottom: 12px; }
   .home-head h2 { font-size: 1.3rem; }
 }
 
@@ -2390,7 +2402,8 @@ th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
 /* Vertrieb (views/vertrieb.js): Pipeline in Spalten (am PC), Liste am Handy, Fall mit Besichtigung, Assistent */
 .vt-stats { margin-bottom: 12px; }
 .vt-filters input[type='search'] { min-width: 14rem; }
-.vt-board { display: grid; grid-template-columns: repeat(6, minmax(10.5rem, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
+.vt-root { min-width: 0; }
+.vt-board { display: grid; grid-template-columns: repeat(6, minmax(9rem, 1fr)); gap: 10px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
 .vt-col, .vt-done { background: var(--surface-2); border-radius: var(--radius-card); padding: 8px; min-width: 0; }
 .vt-col-done { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .vt-col-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 2px 4px 8px; }
@@ -3249,3 +3262,14 @@ input.mwb-qty { width: 6rem; max-width: 100%; text-align: right; }
 /* Einkauf: Abgleich der Eingangsrechnung mit der Bestellung */
 .ek-order-check { margin: 8px 0; }
 .ek-order-check ul { margin: 4px 0; padding-left: 1.1rem; }
+
+/* Tippflächen am Handy: Monats-Pfeile und Aufklapp-Zeilen groß genug für den Daumen */
+@media (max-width: 700px) {
+  .btn.small[data-action='month-step'] { min-width: 40px; justify-content: center; text-align: center; }
+  main details:not(.menu-wrap):not(.m-filter):not(.folder) > summary:not(.btn) { padding-block: 9px; }
+  main details[open]:not(.menu-wrap):not(.m-filter):not(.folder) > summary:not(.btn) { margin-bottom: 2px; }
+}
+
+/* Handy: die Einleitung einer Ansicht ist auf zwei Zeilen gekürzt, damit der Inhalt gleich zu sehen ist; Antippen zeigt sie ganz */
+body.mobile main .section-head:not(.small) p { cursor: pointer; }
+body.mobile main .section-head:not(.small) p:not(.open) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }

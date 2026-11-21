@@ -5499,6 +5499,9 @@ Am Handy gibt es eine Tagesliste statt der Wochentabelle: offene Einsätze oben,
 2. Einen offenen Einsatz antippen: wer kann einspringen?
 3. Statt Ziehen im Einsatz „Statt …“ wählen.
 
+> Tipp: Oben in der Mitte steht die Woche mit ihrem Stand: Entwurf, veröffentlicht oder wie viele Pläne seither geändert sind.
+> Tipp: Der Einleitungstext einer Ansicht ist auf zwei Zeilen gekürzt; antippen zeigt ihn ganz.
+
 ### Neue Version der App
 
 Gibt es eine neue Fassung, zeigt die App unten „Neue Version der App verfügbar.“ Mit „Neu laden“ holst du sie. Sonst holen Handys, Tablets und PCs sie beim nächsten Öffnen von selbst.

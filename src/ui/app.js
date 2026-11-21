@@ -149,20 +149,20 @@ function topbar(c) {
   const title = view?.noWeek ? { label: view.label, sub: formatDate(todayISO(), { year: true }) } : null
   if (isMobile()) {
     const short = published ? (changed ? `${changed} geändert` : 'veröffentlicht') : 'Entwurf'
-    return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short, title })
+    return mobileTopbar(c, { brand: brandBlock(), week, year, range: `${formatDate(c.monday, { weekday: false })}–${formatDate(c.sunday, { weekday: false })}`, status: short, statusTone: published ? (changed ? 'warning' : 'ok') : '', title })
   }
-  const status = published ? (changed ? `<span class="pill warning">veröffentlicht · ${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info">Entwurf</span>'
+  // kurz gehalten: neben dem Titel ist bei schmalen Fenstern wenig Platz
+  const status = published ? (changed ? `<span class="pill warning" title="veröffentlicht, seither bei ${changed} ${changed === 1 ? 'Person' : 'Personen'} geändert">${changed} geändert</span>` : '<span class="pill ok">veröffentlicht</span>') : '<span class="pill info" title="noch nicht veröffentlicht">Entwurf</span>'
   const crumb = view ? sectionSwitch(c, view) : ''
   const head = !view
     ? ''
     : title
       ? `<nav class="crumbs" aria-label="Pfad">${crumb ? `${crumb}<span class="sep" aria-hidden="true">/</span>` : ''}<b>${esc(view.label)}</b></nav>`
-      : `<div class="crumbs page-crumbs">${crumb ? `${crumb}<span class="sep" aria-hidden="true">/</span>` : ''}<h1 class="page-title">${esc(view.label)}</h1></div><div class="weeknav">
+      : `<div class="crumbs page-crumbs">${crumb ? `${crumb}<span class="sep" aria-hidden="true">/</span>` : ''}<h1 class="page-title">${esc(view.label)}</h1>${status}</div><div class="weeknav">
       <button class="btn icon ghost" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
-      <div class="kw">KW ${week} / ${year}<small>${formatDate(c.monday, { weekday: false })} – ${formatDate(c.sunday, { weekday: false, year: true })}</small></div>
+      <div class="kw">KW ${week} / ${year}<small>${formatDate(c.monday, { weekday: false })} – ${formatDate(c.sunday, { weekday: false })}</small></div>
       <button class="btn icon ghost" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
       <button class="btn small" data-action="nav-today">Heute</button>
-      ${status}
     </div>`
   // Planen nur in der Einsatzplanung; Veröffentlichen, Neu planen, Daten im Menü „⋯“
   const plan = canEdit('planung') && view?.group === 'plan'
@@ -369,7 +369,15 @@ function bindEvents() {
     // Aufklappmenüs: Klick daneben oder auf einen Eintrag schließt sie (menus.js)
     for (const menu of document.querySelectorAll('details.menu-wrap[open]')) if (!menu.contains(e.target) || e.target.closest('.menu [data-action]')) menu.open = false
     const el = e.target.closest('[data-action]')
-    if (!el || el.disabled) return
+    if (!el || el.disabled) {
+      // Handy: gekürzte Einleitung der Ansicht antippen zeigt sie ganz (und wieder gekürzt)
+      const intro = !el && e.target.closest('body.mobile main .section-head:not(.small) p')
+      if (intro && !e.target.closest('a')) {
+        app.ui.introOpen = app.ui.introOpen === app.ui.view ? '' : app.ui.view
+        intro.classList.toggle('open', !!app.ui.introOpen)
+      }
+      return
+    }
     const handler = ACTIONS[el.dataset.action]
     if (handler) runAction(handler, el, e)
   })

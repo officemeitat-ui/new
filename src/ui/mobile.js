@@ -299,12 +299,12 @@ export function roleSwitch() {
 }
 
 /** Kopfzeile fürs Handy: Logo, Woche, Cleo, Glocke (den KI-Assistenten gibt es im Menü und bei Cleo). */
-export function mobileTopbar(c, { brand, week, year, range, status, title = null }) {
+export function mobileTopbar(c, { brand, week, year, range, status, statusTone = '', title = null }) {
   return `<header class="topbar m-topbar"><div class="topbar-inner wrap">
     ${brand}
     ${title ? `<div class="weeknav"><span class="kw">${esc(title.label)}<small>${title.sub}</small></span></div>` : `<div class="weeknav">
       <button class="btn icon" data-action="nav" data-delta="-7" aria-label="Vorige Woche">${ICON.left}</button>
-      <button class="kw link-btn" data-action="nav-today" title="Zur aktuellen Woche">KW ${week}<small>${range} · ${status}</small></button>
+      <button class="kw link-btn" data-action="nav-today" title="Zur aktuellen Woche">KW ${week}<small>${range}</small><small class="kw-status ${statusTone}">${status}</small></button>
       <button class="btn icon" data-action="nav" data-delta="7" aria-label="Nächste Woche">${ICON.right}</button>
     </div>`}
     <button class="m-cleo" data-action="help-toggle" aria-label="Cleo fragen" title="Cleo fragen">${cleo({ mood: 'hallo', size: 34, anim: false, outfit: seasonOutfit() })}</button>

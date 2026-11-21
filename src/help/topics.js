@@ -4712,6 +4712,7 @@ export const TOPICS = [
     q: ['handy', 'smartphone', 'mobile ansicht', 'tagesliste', 'leiste unten', 'wischen tag', 'am handy planen'],
     answer: 'Am Handy gibt es eine Tagesliste statt der Wochentabelle: offene Einsätze oben, darunter je Person eine Karte; Wischen wechselt den Tag. Unten die Leiste mit „Woche“, „Vertretung“, „Abwesend“, „Zettel“ und „Mehr“. Dialoge gehen als Blatt von unten auf.',
     steps: ['Oben den Tag antippen oder wischen.', 'Einen offenen Einsatz antippen: wer kann einspringen?', 'Statt Ziehen im Einsatz „Statt …“ wählen.'],
+    tips: ['Oben in der Mitte steht die Woche mit ihrem Stand: Entwurf, veröffentlicht oder wie viele Pläne seither geändert sind.', 'Der Einleitungstext einer Ansicht ist auf zwei Zeilen gekürzt; antippen zeigt ihn ganz.'],
     related: ['app-installieren', 'einsatz-ziehen'],
   },
   {
