@@ -16,7 +16,7 @@ import { kixBox, kixButton, kixCheck, kixConsent, kixFailed, kixFile, kixSet } f
 import { hoursByObject, rentSpan } from '../../core/rentabilitaet.js'
 import { lastOfMonth, todayISO } from '../../core/dates.js'
 import { objectControlling } from '../../core/reports.js'
-import { mergeRules } from '../../core/rules.js'
+import { mergeRules, wageGroups } from '../../core/rules.js'
 import { calcDocument, calcPdfName, offerDocument } from '../../export/calc-pdf.js'
 import { app, canEdit, closeModal, computeRange, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast, visibleViews } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
@@ -221,7 +221,7 @@ function settingsModal() {
       <div class="form-grid">${Object.entries(AREA_TYPES).map(([k, [l]]) => `<label class="field"><span>${esc(l)}</span><input type="number" id="cs-perf-${k}" min="1" step="5" value="${esc(s.performance[k])}" ${dis}></label>`).join('')}</div>
       <h3>Stundenlohn und Zuschläge</h3>
       <div class="form-grid">
-        <label class="field"><span>KV-Lohngruppe</span><select id="cs-wageGroup" ${dis}>${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${w.toLocaleString('de-AT', { minimumFractionDigits: 2 })} €`]), s.wageGroup, { empty: 'eigener Stundenlohn' })}</select></label>
+        <label class="field"><span>KV-Lohngruppe</span><select id="cs-wageGroup" ${dis}>${options(wageGroups(wages).map((g) => [g, `Lohngruppe ${g} · ${Number(wages[g]).toLocaleString('de-AT', { minimumFractionDigits: 2 })} €`]), s.wageGroup, { empty: 'eigener Stundenlohn' })}</select></label>
         <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="cs-wage" step="0.01" min="0" value="${esc(s.wage ?? '')}" placeholder="leer = Lohngruppe" ${dis}></label>
         ${field('lnkPct', 'Lohnnebenkosten (%)', 'Sonderzahlungen, Urlaub, Feiertage, Krankenstand, Dienstgeberabgaben; Wert aus dem WKO-Merkblatt „Lohnnebenkosten Gebäudereiniger“ oder von der Steuerberatung')}
         ${field('setupPct', 'Rüst- und Nebenzeiten (%)', 'Material holen, Wege im Objekt')}

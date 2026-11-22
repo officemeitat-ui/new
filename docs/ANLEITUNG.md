@@ -4993,6 +4993,8 @@ Unter „Regeln & Feiertage“ bei „KV-Stundenlöhne (€)“ stehen die Stund
 3. „Regeln speichern“ klicken.
 
 > Tipp: Neue KV-Löhne gelten meist ab 1. Jänner: dann gleich nachtragen.
+> Tipp: Ändert der Kollektivvertrag die Lohngruppen: Mit „Lohngruppe anlegen“ kommt eine neue dazu (z. B. „3b“), der Papierkorb entfernt eine, die bei niemandem mehr eingetragen ist.
+> Tipp: Ab 1. Dezember erinnert „Zu erledigen“ daran, Löhne und steuerfreie Überstunden für das neue Jahr zu prüfen; „Für … geprüft“ vermerkt es bis zum nächsten Dezember.
 
 ### Berechtigungen ansehen
 

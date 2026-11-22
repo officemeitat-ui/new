@@ -6,7 +6,7 @@ import { changeWeeklyHours, MAX_WEEKLY_HOURS } from '../../core/contract.js'
 import { formatDate, formatHours, mondayOf, todayISO, WEEKDAY_LONG } from '../../core/dates.js'
 import { EMPLOYEE_TEMPLATE, importEmployees, importTasks, languageSummary, mergeEmployee, mergeTask, sameTask, TASK_TEMPLATE, uniqueShort } from '../../core/importer.js'
 import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
-import { mergeRules } from '../../core/rules.js'
+import { mergeRules, wageGroups } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
 import { dataRights, DOC } from '../../storage/data-service.js'
 import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
@@ -84,7 +84,7 @@ function employeeModal(c, { id, prefill = null, from = '' }) {
         <label class="field"><span>Resturlaub am Stichtag (Tage)</span><input type="number" id="emp-vac-days" step="0.5" value="${esc(e.vacationBase?.days ?? '')}" placeholder="leer = voller Jahresanspruch"><small class="muted">z. B. beim Start mit der App oder laut Lohnverrechnung; ab dem Stichtag zählt die App weiter, der Rest geht ins nächste Jahr</small></label>
         <label class="field"><span>Stichtag Resturlaub</span><input type="date" id="emp-vac-date" value="${esc(e.vacationBase?.date || '')}"><small class="muted">leer = heute</small></label>
         <label class="field"><span>Zeitkonto Startsaldo (h)</span><input type="number" id="emp-start" step="0.25" value="${esc(e.startBalanceHours ?? 0)}"></label>
-        ${editsPay() ? `<label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(Object.entries(wages).map(([g, w]) => [g, `Lohngruppe ${g} · ${euro(w)}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
+        ${editsPay() ? `<label class="field"><span>Lohngruppe (KV)</span><select id="emp-wagegroup">${options(wageGroups(wages).map((g) => [g, `Lohngruppe ${g} · ${euro(wages[g])}`]), String(e.wageGroup || ''), { empty: 'keine' })}</select></label>
         <label class="field"><span>Eigener Stundenlohn (€)</span><input type="number" id="emp-wage" step="0.01" min="0" value="${esc(e.hourlyWage ?? '')}" placeholder="leer = KV-Lohn der Lohngruppe"></label>` : '<p class="note">Lohngruppe und Stundenlohn trägt die Lohnverrechnung ein (Zeitkonto).</p>'}
         <label class="field"><span>Überstunden</span><select id="emp-uemode">${options(Object.entries(UE_MODES), e.ueMode || '', { empty: `wie unter „Regeln“ (${UE_MODES[pay.ueMode]})` })}</select></label>
         <label class="field"><span>Mehrarbeit (Teilzeit)</span><select id="emp-mehrmode">${options(Object.entries(MEHR_MODES), e.mehrMode || '', { empty: `wie unter „Regeln“` })}</select></label>
@@ -120,7 +120,7 @@ function readEmployeeForm(existing) {
     vacationDaysYear: num('emp-vacation') ?? 25,
     vacationBase: val('emp-vac-days').trim() === '' || !Number.isFinite(num('emp-vac-days')) ? undefined : { date: val('emp-vac-date') || todayISO(), days: num('emp-vac-days') },
     startBalanceHours: num('emp-start') || undefined,
-    wageGroup: document.getElementById('emp-wagegroup') ? Number(val('emp-wagegroup')) || undefined : existing.wageGroup,
+    wageGroup: document.getElementById('emp-wagegroup') ? wageGroupValue(val('emp-wagegroup')) : existing.wageGroup,
     hourlyWage: document.getElementById('emp-wage') ? num('emp-wage') || undefined : existing.hourlyWage,
     ueMode: val('emp-uemode') || undefined,
     mehrMode: val('emp-mehrmode') || undefined,
@@ -225,6 +225,9 @@ function runImport(kind, text, apply) {
   }
   return { count: items.length, errors, summary: `${items.length} ${items.length === 1 ? 'Leistung' : 'Leistungen'} in ${objectNames.size} ${objectNames.size === 1 ? 'Objekt' : 'Objekten'} erkannt${updated ? ` – ${added} neu, ${updated} schon vorhanden (${apply ? 'aktualisiert' : 'werden aktualisiert, nicht doppelt angelegt'})` : ''}` }
 }
+
+/** Lohngruppe aus der Auswahl: reine Zahl bleibt Zahl (wie bisher gespeichert), ein Name wie „3b“ bleibt Text. */
+const wageGroupValue = (v) => (!v ? undefined : /^\d+$/.test(v) ? Number(v) : v)
 
 registerView({ id: 'staff', order: 80, label: 'Mitarbeitende', group: 'stamm', render: staffView })
 registerModal('employee', employeeModal, { module: 'stammdaten' })

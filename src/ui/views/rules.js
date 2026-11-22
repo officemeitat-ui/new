@@ -1,14 +1,15 @@
 // Regeln & Feiertage: Grenzwerte, Regelkatalog (an/aus), Fahrzeit-Matrix,
 // betriebsfreie Tage, Qualifikationen.
 
-import { formatDate } from '../../core/dates.js'
+import { formatDate, todayISO } from '../../core/dates.js'
 import { austrianHolidays } from '../../core/holidays.js'
 import { estimateTravel, hasCoords } from '../../core/geo.js'
 import { DEFAULT_HOLIDAY_RULE } from '../../core/plan.js'
-import { mergeRules, resetRules, RULES, travelKey } from '../../core/rules.js'
+import { cleanWageGroup, mergeRules, resetRules, RULES, rulesYearCheck, travelKey, wageGroups } from '../../core/rules.js'
 import { makeBlackout, vacationSettings } from '../../core/urlaub.js'
 import { findPlace } from '../../core/weather.js'
-import { app, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
+import { app, canEdit, confirmStep, persist, registerActions, registerView, renderNow, toast } from '../context.js'
+import { registerTodo } from '../modals/todo.js'
 import { geocode } from '../geocode.js'
 import { checked, esc, ICON, num, options, uid, val } from '../shared.js'
 
@@ -88,12 +89,54 @@ function ruleValue(path) {
   return b ? rules[a]?.[b] : rules[a]
 }
 
+/** Wie viele Personen eine Lohngruppe haben (dann lässt sie sich nicht entfernen). */
+const wageGroupUsers = (g) => (app.data.employees || []).filter((e) => String(e.wageGroup ?? '') === g).length
+
 function wagesFieldset() {
-  const wages = mergeRules(app.data.rules).wages
-  return `<fieldset><legend>KV-Stundenlöhne (€)</legend>
-    ${Object.keys(wages).map((g) => `<div class="rule"><label for="rule-wages-${g}">Lohngruppe ${esc(g)}</label><input id="rule-wages-${g}" type="number" step="0.01" min="0" value="${esc(wages[g])}"><small></small></div>`).join('')}
-    <p class="note">Lohnordnung Denkmal-, Fassaden- und Gebäudereinigung ab 1.1.2026. Die Lohngruppe steht bei der Person, ein eigener Stundenlohn (Überzahlung) geht vor.</p></fieldset>`
+  const r = mergeRules(app.data.rules)
+  const wages = r.wages
+  const row = (g) => {
+    const used = wageGroupUsers(g)
+    return `<div class="rule"><label for="rule-wages-${esc(g)}">Lohngruppe ${esc(g)}</label><input id="rule-wages-${esc(g)}" type="number" step="0.01" min="0" value="${esc(wages[g])}"><button type="button" class="btn small ghost edit-only" data-action="wage-del" data-g="${esc(g)}" ${used ? `disabled title="In Verwendung bei ${used === 1 ? 'einer Person' : `${used} Personen`}: zuerst im Stammblatt umstellen"` : 'title="Lohngruppe entfernen"'} aria-label="Lohngruppe ${esc(g)} entfernen">${ICON.trash}</button></div>`
+  }
+  return `<fieldset class="wage-fs"><legend>KV-Stundenlöhne (€)</legend>
+    ${wageGroups(wages).map(row).join('')}
+    <div class="inline-form wage-add edit-only"><label class="field"><span>Neue Lohngruppe</span><input type="text" id="wage-new-name" maxlength="6" placeholder="z. B. 3b"></label><label class="field"><span>Stundenlohn (€)</span><input type="number" id="wage-new-value" step="0.01" min="0"></label><button type="button" class="btn" data-action="wage-add">${ICON.plus} Lohngruppe anlegen</button></div>
+    <p class="note">Mitgeliefert ist die Lohnordnung Denkmal-, Fassaden- und Gebäudereinigung ab 1.1.2026; zuletzt geprüft für ${esc(String(r.yearChecked))}. Ändert der Kollektivvertrag die Gruppen, hier neue anlegen und nicht mehr gebrauchte entfernen. Die Lohngruppe steht bei der Person, ein eigener Stundenlohn (Überzahlung) geht vor.</p></fieldset>`
 }
+
+// ---------------------------------------------------------------- Jahresprüfung (KV-Löhne, steuerfreie Überstunden)
+
+/** Was zum Jahreswechsel zu prüfen ist: Zeilen für den Hinweis in der Ansicht und in „Zu erledigen“. */
+function yearCheckLines(check) {
+  const pay = mergeRules(app.data.rules).pay
+  const lines = [
+    `KV-Stundenlöhne je Lohngruppe: gilt ab 1.1.${check.year} eine neue Lohnordnung, gibt es neue oder zusammengelegte Lohngruppen?`,
+    `Steuerfreie Überstunden (derzeit ${pay.taxFreeHours} Stunden, höchstens ${pay.taxFreeMax} € im Monat): stimmen die Werte für ${check.year}?${check.year === 2027 && Number(pay.taxFreeHours) === 15 ? ' 15 Stunden und 170 € galten nur für 2026; ab 2027 sind es nach heutigem Stand wieder 10 Stunden und 120 € (§ 68 Abs. 2 EStG). Im Zweifel die Lohnverrechnung fragen.' : ''}`,
+    `Zusätzliche freie Tage und Urlaubs-Sperrzeiten für ${check.year} eintragen.`,
+  ]
+  return lines
+}
+
+function yearCheckBanner() {
+  const check = rulesYearCheck(app.data.rules, todayISO())
+  if (!check) return ''
+  return `<div class="banner warn-banner rules-year"><p><strong>Regeln für ${check.year} prüfen</strong> (zuletzt geprüft für ${check.checked}). Löhne und Steuerwerte gelten je Kalenderjahr; die App kennt die neuen Werte nicht.</p><ul>${yearCheckLines(check).map((l) => `<li>${esc(l)}</li>`).join('')}</ul><div class="actions edit-only"><button class="btn primary" data-action="rules-year-checked" data-year="${check.year}">Für ${check.year} geprüft</button></div></div>`
+}
+
+registerTodo({
+  id: 'regeln-jahr',
+  module: 'stammdaten',
+  title: 'Regeln & Feiertage',
+  compute: (today) => {
+    const check = rulesYearCheck(app.data.rules, today)
+    return check ? [{ id: `jahr:${check.year}`, check }] : []
+  },
+  render: (items) =>
+    items
+      .map(({ check }) => `<div class="todo-item"><span class="flag warning">!</span><div class="todo-text"><strong>Regeln für ${check.year} prüfen:</strong> KV-Stundenlöhne je Lohngruppe und steuerfreie Überstunden gelten je Kalenderjahr<br><span class="muted">zuletzt geprüft für ${check.checked}; die App kennt die neuen Werte nicht</span></div><button class="btn small primary" data-action="view" data-view="rules">Regeln</button></div>`)
+      .join(''),
+})
 
 export const WEATHER_FIELDS = [
   ['weather.winterUntil', 'Winterdienst fertig bis', '§ 93 StVO: Gehsteige von 6 bis 22 Uhr geräumt und bei Glätte gestreut; je Objekt änderbar', 'time'],
@@ -178,6 +221,7 @@ function rulesView(c) {
   const closedTasks = app.data.tasks.filter((t) => t.holidayRule === 'entfaellt').length
   return `<div class="section-head"><div><h2>Regeln & Feiertage</h2><p>Grundlage sind AZG, ARG und KJBG. Werte aus eurem Kollektivvertrag oder Betriebsvereinbarungen hier anpassen. Alle Markierungen und die Automatik richten sich danach.</p></div>
       <div class="actions edit-only"><button class="btn ${app.ui.confirm === 'rules-reset' ? 'danger confirm' : ''}" data-action="rules-reset">${app.ui.confirm === 'rules-reset' ? 'Wirklich zurücksetzen?' : 'Standardwerte'}</button><button class="btn primary" data-action="rules-save">Regeln speichern</button></div></div>
+    ${yearCheckBanner()}
     <div class="rules">${fieldsets}${weatherFieldset()}${wagesFieldset()}</div>
     ${catalog}
     <div class="rules">
@@ -215,6 +259,8 @@ registerActions(
         const wage = num(`rule-wages-${g}`)
         if (wage !== null) rules.wages[g] = wage
       }
+      // entfernte Lohngruppen bleiben entfernt (mergeRules lässt sie weg, die Vorgabe brächte sie sonst zurück)
+      for (const [g, w] of Object.entries(app.data.rules?.wages || {})) if (w === null) rules.wages[g] = null
       for (const [, fields] of RULE_FIELDS) {
         for (const [key, , , type = 'number'] of fields) {
           const id = `rule-${key.replace('.', '-')}`
@@ -242,6 +288,37 @@ registerActions(
       persist()
       renderNow()
       toast('Regeln gespeichert. Alle Markierungen wurden neu berechnet.')
+    },
+    'wage-add': () => {
+      const raw = val('wage-new-name')
+      const g = cleanWageGroup(raw)
+      if (!g) return toast(raw.trim() ? 'Name der Lohngruppe: höchstens sechs Zeichen, nur Ziffern und Buchstaben (z. B. „3b“).' : 'Bitte einen Namen für die Lohngruppe eingeben, z. B. „3b“.')
+      if (g in mergeRules(app.data.rules).wages) return toast(`Die Lohngruppe ${g} gibt es schon.`)
+      const wage = num('wage-new-value')
+      if (!(wage > 0)) return toast('Bitte den Stundenlohn der neuen Lohngruppe eintragen.')
+      app.data.rules = { ...(app.data.rules || {}), wages: { ...(app.data.rules?.wages || {}), [g]: wage } }
+      persist()
+      renderNow()
+      toast(`Lohngruppe ${g} angelegt. Im Stammblatt lässt sie sich jetzt wählen.`)
+    },
+    'wage-del': (el) => {
+      const g = el.dataset.g
+      const used = wageGroupUsers(g)
+      if (used) return toast(`Die Lohngruppe ${g} ist bei ${used === 1 ? 'einer Person' : `${used} Personen`} eingetragen: zuerst im Stammblatt umstellen.`)
+      if (wageGroups(mergeRules(app.data.rules).wages).length <= 1) return toast('Eine Lohngruppe muss bleiben.')
+      if (!confirmStep(`wage-del:${g}`)) return toast(`Lohngruppe ${g} entfernen? Zum Bestätigen noch einmal klicken.`)
+      app.data.rules = { ...(app.data.rules || {}), wages: { ...(app.data.rules?.wages || {}), [g]: null } }
+      persist()
+      renderNow()
+      toast(`Lohngruppe ${g} entfernt.`)
+    },
+    'rules-year-checked': (el) => {
+      if (!canEdit('stammdaten')) return toast('Nur Leserechte: Regeln ändert die Verwaltung.')
+      const year = Number(el.dataset.year)
+      app.data.rules = { ...(app.data.rules || {}), yearChecked: year }
+      persist()
+      renderNow()
+      toast(`Regeln für ${year} als geprüft vermerkt. Die nächste Erinnerung kommt im Dezember ${year}.`)
     },
     'holiday-all-work': () => {
       if (!confirmStep('holiday-all-work')) return

@@ -71,6 +71,8 @@ export const DEFAULT_RULES = {
     taxFreeMax: 170,
   },
   wages: { 1: 15.12, 2: 13.3, 3: 12.99, 4: 13.03, 5: 12.73, 6: 12.37 }, // KV-Stundenlöhne je Lohngruppe ab 1.1.2026
+  // Jahr, für das die Werte mit Jahresbezug (KV-Löhne, steuerfreie Überstunden) zuletzt geprüft wurden (rulesYearCheck)
+  yearChecked: 2026,
   // Wetter (GeoSphere Austria): Orte je Revier, Schwellen für Winterdienst, Hitze und Sturm (weather.js)
   weather: { ...WEATHER_DEFAULTS, locations: WEATHER_DEFAULTS.locations.map((l) => ({ ...l })) },
 }
@@ -85,9 +87,33 @@ export function mergeRules(rules = {}) {
     disabledRules: rules.disabledRules || [],
     minor: { ...DEFAULT_RULES.minor, ...(rules.minor || {}) },
     pay: { ...DEFAULT_RULES.pay, ...(rules.pay || {}) },
-    wages: { ...DEFAULT_RULES.wages, ...(rules.wages || {}) },
+    // null = Lohngruppe entfernt (auch eine der Vorgabe): so kommt sie beim Mischen nicht wieder
+    wages: Object.fromEntries(Object.entries({ ...DEFAULT_RULES.wages, ...(rules.wages || {}) }).filter(([, w]) => w !== null && w !== undefined)),
     weather: { ...DEFAULT_RULES.weather, ...(rules.weather || {}) },
   }
+}
+
+/** Lohngruppen in lesbarer Reihenfolge: 1, 2, 3, 3b, 4 … */
+export const wageGroups = (wages = {}) => Object.keys(wages || {}).sort((a, b) => a.localeCompare(b, 'de', { numeric: true }))
+
+/** Name einer neuen Lohngruppe: kurz, Ziffern und Buchstaben (z. B. „3b“); sonst ''. */
+export function cleanWageGroup(name) {
+  const g = String(name ?? '').replace(/^lohngruppe/i, '').trim()
+  return /^[0-9A-Za-zÄÖÜäöü]{1,6}$/.test(g) ? g : ''
+}
+
+/** Jahr, für das die Regeln jetzt stimmen müssen: ab 1. Dezember schon das kommende. */
+export const rulesTargetYear = (today) => Number(String(today).slice(0, 4)) + (String(today).slice(5) >= '12-01' ? 1 : 0)
+
+/**
+ * Jahresprüfung der Regeln: KV-Löhne und steuerfreie Überstunden gelten je Kalenderjahr, die App kennt die neuen
+ * Werte nicht. Offen, solange das geprüfte Jahr (rules.yearChecked, Vorgabe: Stand der mitgelieferten Werte) hinter
+ * dem Zieljahr liegt: { year, checked }, sonst null.
+ */
+export function rulesYearCheck(rules, today) {
+  const checked = Number(rules?.yearChecked) || DEFAULT_RULES.yearChecked
+  const year = rulesTargetYear(today)
+  return year > checked ? { year, checked } : null
 }
 
 /**

@@ -4235,10 +4235,10 @@ export const TOPICS = [
     section: 'verwaltung',
     view: 'rules',
     title: 'KV-Stundenlöhne und Zuschläge',
-    q: ['kv löhne', 'stundenlohn lohngruppe', 'lohnordnung', 'neue kv löhne jänner', 'zuschlag prozent', 'kollektivvertrag lohn'],
+    q: ['kv löhne', 'stundenlohn lohngruppe', 'lohnordnung', 'neue kv löhne jänner', 'zuschlag prozent', 'kollektivvertrag lohn', 'lohngruppe anlegen', 'neue lohngruppe', 'jahreswechsel regeln', 'steuerfreie überstunden'],
     answer: 'Unter „Regeln & Feiertage“ bei „KV-Stundenlöhne (€)“ stehen die Stundenlöhne je Lohngruppe (Lohnordnung Gebäudereinigung). Ein eigener Stundenlohn bei der Person geht vor. Daneben stehen die Zuschläge in Prozent laut KV.',
     steps: ['„Regeln & Feiertage“ öffnen.', 'Bei „KV-Stundenlöhne (€)“ die Werte je Lohngruppe eintragen.', '„Regeln speichern“ klicken.'],
-    tips: ['Neue KV-Löhne gelten meist ab 1. Jänner: dann gleich nachtragen.'],
+    tips: ['Neue KV-Löhne gelten meist ab 1. Jänner: dann gleich nachtragen.', 'Ändert der Kollektivvertrag die Lohngruppen: Mit „Lohngruppe anlegen“ kommt eine neue dazu (z. B. „3b“), der Papierkorb entfernt eine, die bei niemandem mehr eingetragen ist.', 'Ab 1. Dezember erinnert „Zu erledigen“ daran, Löhne und steuerfreie Überstunden für das neue Jahr zu prüfen; „Für … geprüft“ vermerkt es bis zum nächsten Dezember.'],
     related: ['mitarbeiter-lohn', 'regeln'],
   },
   {

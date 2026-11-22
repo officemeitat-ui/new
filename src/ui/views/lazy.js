@@ -210,7 +210,9 @@ lazy(BUERO, {
 // rules.js
 lazy(BUERO, {
   views: [{ id: 'rules', order: 110, label: 'Regeln & Feiertage', group: 'stamm' }],
-  actions: 'rules-save holiday-all-work rules-reset travel-estimate geo-all travel-add travel-delete freeday-add freeday-delete skills-save vac-add vac-delete vac-max-save',
+  actions: `rules-save holiday-all-work rules-reset travel-estimate geo-all travel-add travel-delete freeday-add freeday-delete skills-save vac-add vac-delete vac-max-save
+    wage-add wage-del rules-year-checked`,
+  todo: ['regeln-jahr'],
 })
 
 // system.js
