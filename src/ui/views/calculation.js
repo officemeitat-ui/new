@@ -18,7 +18,7 @@ import { lastOfMonth, todayISO } from '../../core/dates.js'
 import { objectControlling } from '../../core/reports.js'
 import { mergeRules } from '../../core/rules.js'
 import { calcDocument, calcPdfName, offerDocument } from '../../export/calc-pdf.js'
-import { app, canEdit, closeModal, computeRange, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, computeRange, memo, openModal, persist, registerActions, registerModal, registerView, render, renderModal, renderNow, toast, visibleViews } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { checkedValues, download, esc, ICON, menu, modalFrame, options, tabBar, uid, val } from '../shared.js'
 
@@ -110,7 +110,11 @@ function askKi() {
 function objectView() {
   askKi()
   const id = current()
-  if (!id) return '<p class="empty">Noch keine Objekte.</p>'
+  if (!id) {
+    // Erstinstallation: sagen, womit es losgeht (wie in den anderen Bereichen)
+    const go = (view, label) => (visibleViews().some((v) => v.id === view) ? `<button class="btn" data-action="view" data-view="${view}">${label}</button>` : '')
+    return `<div class="banner welcome"><p><strong>Noch keine Objekte.</strong> Die Kalkulation rechnet je Objekt aus Flächen und Leistungswerten den Zeitbedarf und den Preis. Zuerst ein Objekt anlegen, oder im Vertrieb eine Anfrage mit Besichtigung: ihre Räume kommen als Kalkulation hierher.</p><div class="actions">${go('sites', 'Objekte &amp; Leistungen')}${go('vertrieb', 'Vertrieb')}</div></div>`
+  }
   const obj = objOf(id)
   const s = settings()
   const ed = editable()
