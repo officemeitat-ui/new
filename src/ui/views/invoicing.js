@@ -1280,7 +1280,7 @@ function mailModal(c, m) {
         <div class="field wide">${textFieldHead('Text', 'fm-text', textMenu({ target: 'fm-text', kind: x.kind, place: 'mail', fill: true }))}<textarea id="fm-text" rows="9">${esc(m.text)}</textarea></div>
         ${einv ? `<label class="check wide"><input type="checkbox" id="fm-xml" ${m.xml ? 'checked' : ''}><span>E-Rechnung anhängen: factur-x.xml (ZUGFeRD/Factur-X, EN 16931) – für Buchhaltungsprogramme, die E-Rechnungen einlesen</span></label>` : ''}${beilageOption(x)}</div>
       <p class="note">${canMail() ? 'Geht aus deinem Postfach, das PDF hängt an und liegt danach auch in SharePoint (fakturierung/belege/).' : 'Öffnet dein E-Mail-Programm; das PDF (und die E-Rechnung) werden heruntergeladen und müssen angehängt werden.'}</p>`,
-    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-mail-send" data-id="${esc(x.id)}" ${x.number ? '' : 'disabled'}>${ICON.send} ${canMail() ? 'Senden' : 'Im E-Mail-Programm öffnen'}</button></div>`,
+    foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="fak-mail-send" data-id="${esc(x.id)}" ${x.number ? '' : 'disabled title="Erst festschreiben: ein Entwurf hat noch keine Nummer"'}>${ICON.send} ${canMail() ? 'Senden' : 'Im E-Mail-Programm öffnen'}</button></div>`,
   })
 }
 registerModal('fak-mail', mailModal, { module: MODULE })

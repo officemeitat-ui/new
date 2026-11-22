@@ -2,7 +2,7 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 423 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 424 Themen, 45 Begriffe.*
 
 ## Inhalt
 
@@ -12,7 +12,7 @@ Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselb
 - [Objekte & Kunden](#objekte-kunden) (107)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
-- [Verwaltung](#verwaltung) (71)
+- [Verwaltung](#verwaltung) (72)
 - [Bedienung & Allgemeines](#bedienung-allgemeines) (41)
 - [Begriffe](#begriffe)
 
@@ -4376,6 +4376,20 @@ Je neuer Person eine Checkliste mit Frist: Daten für die Lohnverrechnung, Anmel
 > Tipp: Unterweisungen und Schlüssel sind verknüpft: sind sie eingetragen bzw. ausgegeben, gilt die Aufgabe von selbst als erledigt. Nach „Eintragen“ einer Unterweisung geht es gleich zurück zur Checkliste.
 > Tipp: Die Einschulung wird ein Termin mit Objekt und beiden Personen; so sieht ihn auch die Objektleitung.
 > Tipp: Als letzte Aufgabe erinnert die Liste drei Wochen nach dem Eintritt an das Ende der Probezeit (in der Regel die ersten vier Wochen, Dienstvertrag und Kollektivvertrag nachsehen): rechtzeitig entscheiden, ob es passt. Die Frist lässt sich in den Vorlagen ändern.
+
+*Personalverwaltung, Lohnverrechnung und Vollzugriff*
+
+### Dienstjubiläen und sechste Urlaubswoche
+
+*In der App: Eintritt & Austritt*
+
+Aus dem Eintrittsdatum im Stammblatt meldet „Zu erledigen“ runde Dienstjahre (1, 5, 10, 15, 20, 25 …) zwei Wochen vorher: zum Gratulieren. Ab 25 Dienstjahren kommt der Hinweis, den Urlaubsanspruch zu prüfen (sechs statt fünf Wochen, Urlaubsgesetz § 2). Die App ändert den Anspruch nicht; er steht im Stammblatt.
+
+1. Oben „Zu erledigen“ öffnen, Abschnitt „Dienstjubiläen“.
+2. Mit „Stammblatt“ die Person öffnen und bei Bedarf die Urlaubstage im Jahr anpassen.
+
+> Tipp: Angerechnete Vordienstzeiten zählen für die sechste Urlaubswoche mit und stehen nicht in der App: im Zweifel die Lohnverrechnung fragen.
+> Tipp: Ohne Eintrittsdatum im Stammblatt gibt es keinen Hinweis. Geburtstage kennt die App bewusst nicht.
 
 *Personalverwaltung, Lohnverrechnung und Vollzugriff*
 

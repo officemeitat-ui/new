@@ -316,7 +316,7 @@ function tourCard(t, { ed, today, others }) {
   const confirmDel = app.ui.confirm === `mw-tp-del:${t.id}`
   const actions = ed
     ? draft
-      ? `<button class="btn small" data-action="mw-tp-edit-open" data-tour="${esc(t.id)}">Fahrer und Fahrzeug</button><button class="btn small primary" data-action="mw-tp-release" data-tour="${esc(t.id)}" ${t.date < today ? 'disabled' : ''}>Tour freigeben</button><button class="btn small ${confirmDel ? 'danger confirm' : 'ghost'}" data-action="mw-tp-delete" data-tour="${esc(t.id)}">${confirmDel ? 'Wirklich löschen?' : 'Entwurf löschen'}</button>`
+      ? `<button class="btn small" data-action="mw-tp-edit-open" data-tour="${esc(t.id)}">Fahrer und Fahrzeug</button><button class="btn small primary" data-action="mw-tp-release" data-tour="${esc(t.id)}" ${t.date < today ? 'disabled title="Der Tag liegt in der Vergangenheit"' : ''}>Tour freigeben</button><button class="btn small ${confirmDel ? 'danger confirm' : 'ghost'}" data-action="mw-tp-delete" data-tour="${esc(t.id)}">${confirmDel ? 'Wirklich löschen?' : 'Entwurf löschen'}</button>`
       : t.status === 'freigegeben'
         ? '<button class="btn small" data-action="mw-tp-withdraw" data-tour="' + esc(t.id) + '">Freigabe zurücknehmen</button>' + tourWa(t)
         : ''

@@ -359,10 +359,12 @@ Object.assign(ACTIONS, {
  * auch aus einem mehrzeiligen Textfeld oder einer Auswahl.
  */
 const ENTER_SAVES = /^(speichern|eintragen|übernehmen|anlegen|hinzufügen|prüfen|fertig|ok|weiter\b.*|.+ (speichern|eintragen|anlegen))$/i
+const ENTER_NEVER = /senden|buchen|festschreiben|löschen|abschließen|übertragen|veröffentlichen|stornieren|bezahl|informieren/i
 const ENTER_FIELD = /^(text|number|date|time|email|tel|url|month|week|datetime-local|password)$/
 function enterButton(modal) {
   const btn = [...(modal?.querySelectorAll('.modal-foot .btn.primary') || [])].filter((x) => !x.disabled && x.offsetParent).at(-1)
-  return btn && !btn.classList.contains('danger') && ENTER_SAVES.test(btn.textContent.trim()) ? btn : null
+  const label = btn?.textContent.trim() || ''
+  return btn && !btn.classList.contains('danger') && ENTER_SAVES.test(label) && !ENTER_NEVER.test(label) ? btn : null
 }
 function enterInModal(e) {
   if (e.defaultPrevented || e.isComposing || e.shiftKey || e.altKey || e.repeat) return

@@ -642,7 +642,7 @@ lazy(BUERO, {
   actions: `bew-kind bew-closed bew-list-open bew-goto bew-start-redraw bew-copy bew-week bew-overtime bew-start-open bew-start-save bew-task-done
     bew-task-undo bew-task-note bew-task-add bew-list-date bew-list-close bew-list-reopen bew-list-delete bew-payroll-mail bew-size bew-ein-set bew-lang
     bew-handy-code bew-handy-off bew-tpl-open bew-tpl-add bew-tpl-del bew-tpl-reset bew-tpl-save bew-handy-send bew-ein-appt`,
-  todo: ['eintritt'],
+  todo: ['jubilaeum', 'eintritt'],
 })
 
 // mitteilungen.js: Mitteilungen an Mitarbeitende mit Lesebestätigung (verfassen, mit KI übersetzen, über „Mein Plan“ und

@@ -10,6 +10,7 @@
 
 import { AUSTRITT_DEFAULTS, addTask, checklistAttention, EINTRITT_DEFAULTS, emptyEintritt, futureWork, keyCheck, linkedOf, markDone, markOpen, moveList, nextTask, payrollGaps, payrollText, progress, startList, TASK_TYPES, taskState, templateOf, trainingCheck } from '../../core/bewerber.js'
 import { addDays, formatDate, formatHours, mondayOf, todayISO } from '../../core/dates.js'
+import { daysText, jubilees } from '../../core/jubilaeum.js'
 import { mergeRules } from '../../core/rules.js'
 import { timeAccount, vacationSummary, vacationText } from '../../core/reports.js'
 import { LANGUAGES, langLabel, langOf, linkMessage } from '../../core/sprachen.js'
@@ -685,6 +686,22 @@ onAppointmentSaved((a) => {
 })
 
 // ---------------------------------------------------------------- Zu erledigen
+
+// Dienstjubiläen: runde Dienstjahre aus dem Eintrittsdatum, zwei Wochen vorher (core/jubilaeum.js)
+registerTodo({
+  id: 'jubilaeum',
+  module: MODULE,
+  title: 'Dienstjubiläen',
+  compute: (today) => jubilees(app.data.employees, today).map((j) => ({ ...j, id: `${j.emp.id}:${j.years}` })),
+  render: (list) =>
+    list
+      .map((j) => {
+        const sixth = j.sixthWeek ? `<br><span class="muted">Ab 25 Dienstjahren gebühren sechs Wochen Urlaub (Urlaubsgesetz § 2). Im Stammblatt stehen ${esc(String(j.emp.vacationDaysYear ?? 25))} Urlaubstage im Jahr: bitte prüfen.</span>` : ''
+        const open = canEdit('stammdaten') && !app.readOnly ? `<button class="btn small" data-action="emp-edit" data-id="${esc(j.emp.id)}">Stammblatt</button>` : ''
+        return `<div class="todo-item"><span class="flag info">${j.years}</span><div class="todo-text"><strong>${esc(j.emp.name)}</strong> ${j.years === 1 ? 'ein Jahr' : `${j.years} Jahre`} im Betrieb <span class="muted">(${esc(short(j.date))}, ${daysText(j.days)})</span>${sixth}</div>${open}</div>`
+      })
+      .join(''),
+})
 
 registerTodo({
   id: 'eintritt',
