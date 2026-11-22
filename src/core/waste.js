@@ -113,6 +113,30 @@ export function collectionDays(object, from, to, holidays) {
   return [...byDate].sort((a, b) => a[0].localeCompare(b[0])).map(([date, types]) => ({ date, types: WASTE_TYPES.filter((t) => types.has(t)).concat([...types].filter((t) => !WASTE_TYPES.includes(t))) }))
 }
 
+/**
+ * Abfuhrkalender, die auslaufen: Abfuhrarten mit einzelnen Terminen (aus dem Kalender der Gemeinde) enden mit dem
+ * letzten Termin – danach entstehen keine Gänge mehr, ohne dass es jemand merkt. Gemeldet wird je Objekt, sobald der
+ * letzte Termin einer solchen Art höchstens `lead` Tage entfernt oder (bis `back` Tage) vorbei ist:
+ * [{ object, last (frühester letzter Termin), types, past }], zuerst die abgelaufenen. Arten mit Rhythmus laufen nie
+ * aus; einzelne Termine (weniger als `minDates`, z. B. Sperrmüll) sind kein Kalender; stillgelegte Objekte zählen nicht.
+ */
+export function expiringCalendars(objects = [], today, { lead = 42, back = 180, minDates = 4 } = {}) {
+  const until = addDays(today, lead)
+  const since = addDays(today, -back)
+  const out = []
+  for (const object of objects || []) {
+    if (!object || object.inactive) continue
+    const ending = (object.waste?.streams || [])
+      .filter((s) => s.recurrence?.type === 'dates' && (s.recurrence.dates || []).length >= minDates)
+      .map((s) => ({ type: s.type || 'Sonstiges', last: [...s.recurrence.dates].sort().at(-1) }))
+      .filter((x) => x.last <= until && x.last >= since)
+    if (!ending.length) continue
+    const last = ending.map((x) => x.last).sort()[0]
+    out.push({ object, last, types: [...new Set(ending.map((x) => x.type))], past: last < today })
+  }
+  return out.sort((a, b) => a.last.localeCompare(b.last) || String(a.object.name || '').localeCompare(String(b.object.name || ''), 'de'))
+}
+
 /** Gänge (raus/rein) aller Objekte, deren Tag im Zeitraum liegt. */
 export function wasteDuties(objects, from, to, holidays) {
   const duties = []

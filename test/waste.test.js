@@ -6,7 +6,7 @@ import { buildInstances, PlanState } from '../src/core/plan.js'
 import { createContext } from '../src/core/rules.js'
 import { autoPlan } from '../src/core/scheduler.js'
 import { buildTimesheet } from '../src/core/timesheet.js'
-import { collectionDays, copyWaste, datesIn, parseDateList, parseIcs, rhythmOf, streamsFromEntries, streamText, wasteDuties, wasteRecurrence, wasteSources } from '../src/core/waste.js'
+import { collectionDays, copyWaste, datesIn, expiringCalendars, parseDateList, parseIcs, rhythmOf, streamsFromEntries, streamText, wasteDuties, wasteRecurrence, wasteSources } from '../src/core/waste.js'
 
 const allDays = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((d) => [d, { from: '00:00', to: '24:00' }]))
 const emp = (id, extra = {}) => ({ id, name: id, type: 'Teilzeit', weeklyHours: 30, skills: [], trained: [], availability: allDays, ...extra })
@@ -206,4 +206,36 @@ test('Müll: Müllplan übernehmen kopiert Abfuhren mit neuen Kennungen; Hinweis
   assert.equal('note' in plain, false)
   // unvollständige Quelle: Standardwerte
   assert.deepEqual(copyWaste({ streams: [] }, { newId: () => 'w' }), { streams: [], outWhen: 'vortag', bringBack: true, minutes: 10 })
+})
+
+test('Müll: Abfuhrkalender läuft aus – nur Arten mit Terminen, rechtzeitig vorher und einige Zeit danach', () => {
+  const dates = (from, n, step = 14) => Array.from({ length: n }, (_, i) => { const d = new Date(`${from}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + i * step); return d.toISOString().slice(0, 10) })
+  const obj = (id, streams, more = {}) => ({ id, name: `Objekt ${id}`, waste: { streams }, ...more })
+  const cal = (type, list) => ({ id: type, type, recurrence: { type: 'dates', dates: list } })
+  const rhythm = { id: 'r', type: 'Altpapier', recurrence: { type: 'weekly', weekdays: [2], everyWeeks: 2, anchor: '2026-01-06' } }
+  const y2026 = dates('2026-01-08', 26) // letzter Termin 24.12.2026
+  assert.equal(y2026.at(-1), '2026-12-24')
+  const objects = [
+    obj('a', [cal('Restmüll', y2026), rhythm]), // Kalender endet am 24.12.
+    obj('b', [rhythm]), // nur Rhythmus: läuft nie aus
+    obj('c', [cal('Restmüll', [...y2026, ...dates('2027-01-07', 26)])]), // schon für 2027 eingelesen
+    obj('d', [cal('Sperrmüll', ['2026-12-01', '2026-12-15'])]), // einzelne Termine sind kein Kalender
+    obj('e', [cal('Biomüll', y2026)], { inactive: true }), // stillgelegt
+    obj('f', [cal('Restmüll', dates('2026-01-05', 26)), cal('Biomüll', y2026)]), // zwei Arten, die frühere zählt (21.12.)
+    {}, // ohne Müllplan
+  ]
+  // sechs Wochen vorher gemeldet, davor nicht
+  assert.deepEqual(expiringCalendars(objects, '2026-11-08'), [], 'mehr als 42 Tage vor dem letzten Termin')
+  const soon = expiringCalendars(objects, '2026-11-22')
+  assert.deepEqual(soon.map((x) => [x.object.id, x.last, x.types, x.past]), [['f', '2026-12-21', ['Restmüll', 'Biomüll'], false], ['a', '2026-12-24', ['Restmüll'], false]])
+  // nach dem letzten Termin: abgelaufen
+  assert.deepEqual(expiringCalendars(objects, '2027-01-10').map((x) => [x.object.id, x.past]), [['f', true], ['a', true]])
+  // am letzten Tag selbst noch nicht abgelaufen
+  assert.equal(expiringCalendars(objects, '2026-12-24').find((x) => x.object.id === 'a').past, false)
+  // lange vorbei (aufgegebener Kalender): nicht mehr melden
+  assert.deepEqual(expiringCalendars(objects, '2027-08-01'), [])
+  // eigene Fristen
+  assert.equal(expiringCalendars(objects, '2026-11-08', { lead: 60 }).length, 2)
+  assert.equal(expiringCalendars(objects, '2026-11-22', { minDates: 2 }).some((x) => x.object.id === 'd'), true)
+  assert.deepEqual(expiringCalendars(null, '2026-11-22'), [])
 })

@@ -1063,7 +1063,7 @@ Abfuhrtage trägst du beim Objekt ein: als Rhythmus (wöchentlich, 14-tägig, al
 4. „Rausstellen“ und „Nach der Abholung wieder reinstellen“ einstellen.
 5. „Speichern“ klicken.
 
-> Tipp: Abfuhrkalender gelten meist ein Jahr: im Dezember den neuen einlesen.
+> Tipp: Abfuhrkalender gelten meist ein Jahr. Sechs Wochen vor dem letzten Termin warnt der Müllplan oben und beim Objekt, und „Zu erledigen“ meldet es: dann den neuen einlesen. Sonst entstehen nach dem letzten Termin keine Müll-Gänge mehr.
 
 ### Müllplan von einem anderen Objekt übernehmen
 

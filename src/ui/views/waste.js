@@ -1,16 +1,17 @@
 // Müllplan: Abfuhrtage der Woche je Objekt und wer die Tonnen raus- und
 // reinstellt (mit einem Einsatz im Objekt oder als eigener Gang).
 
-import { formatDate } from '../../core/dates.js'
+import { formatDate, todayISO } from '../../core/dates.js'
 import { personWastePlan } from '../../core/muellplan.js'
 import { autoPlan } from '../../core/scheduler.js'
-import { streamText, wasteSettings } from '../../core/waste.js'
+import { expiringCalendars, streamText, wasteSettings } from '../../core/waste.js'
 import { wastePlanDocument, wastePlanPdfName } from '../../export/muellplan-pdf.js'
 import { addLog, app, empName, openModal, persist, recordUndo, registerActions, registerModal, registerView, renderNow, toast } from '../context.js'
 import { loadLogo, pdfBlob } from '../pdf.js'
 import { download, esc, ICON, modalFrame } from '../shared.js'
 import { waNumber } from '../../core/whatsapp.js'
 import { sendFileWhatsApp } from '../whatsapp.js'
+import { registerTodo } from '../modals/todo.js'
 import { regionFilter } from './objects.js'
 
 /** Alle Gänge der Woche: { duty, inst, attached } */
@@ -62,6 +63,9 @@ function wasteView(c) {
   const objects = app.data.objects.filter((o) => !region || o.region === region)
   const withPlan = objects.filter((o) => o.waste?.streams?.length)
   const without = objects.filter((o) => !o.waste?.streams?.length)
+  // Abfuhrkalender, die auslaufen: Warnung oben und beim Objekt
+  const expiring = expiringCalendars(objects, todayISO())
+  const endOf = new Map(expiring.map((x) => [x.object.id, x]))
   const all = weekDuties(c)
   const open = openDuties(c, all)
   const cards = withPlan
@@ -72,6 +76,7 @@ function wasteView(c) {
         <header><h3>${esc(obj.name)}</h3><span class="addr">${esc(obj.waste.streams.map(streamText).join(' · '))} · raus ${s.outWhen === 'abholtag' ? 'in der Früh' : 'am Vorabend'}${s.bringBack ? ', rein am Abholtag' : ''}</span>
           <span class="edit-only"><button class="btn small" data-action="obj-edit" data-id="${esc(obj.id)}" data-focus="waste-form">Müllplan bearbeiten</button></span></header>
         ${obj.waste.note ? `<div class="folder-line"><span>${esc(obj.waste.note)}</span></div>` : ''}
+        ${endOf.has(obj.id) ? `<p class="check ${endOf.get(obj.id).past ? 'error' : 'warning'} waste-end">${esc(endText(endOf.get(obj.id)))}</p>` : ''}
         ${list.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Tag</th><th>Gang</th><th>Wie</th><th>Wer</th><th></th></tr></thead><tbody>${list.map((d) => dutyRow(c, d)).join('')}</tbody></table></div>` : '<p class="note" style="padding:10px 14px;margin:0">Diese Woche keine Abfuhr.</p>'}
       </article>`
     })
@@ -79,10 +84,31 @@ function wasteView(c) {
   const attached = all.filter((d) => d.attached).length
   return `<div class="section-head"><div><h2>${ICON.trash} Müllplan <span class="muted">(${all.length} Gänge diese Woche)</span></h2><p>Abfuhrtage je Objekt und wer die Tonnen raus- und reinstellt. ${attached} Gänge laufen mit einem Einsatz mit, ${all.length - attached} als eigener Gang.${open.length ? ` <span class="err-text">${open.length} noch offen.</span>` : ''}</p></div>
     <div class="actions"><button class="btn" data-action="waste-sheets-open" ${all.length ? '' : 'disabled'} title="Eine Seite je Person: Tage, Orte, was raus und was zurück kommt – als PDF oder per WhatsApp">${ICON.download || ''} Müllpläne je Person</button><span class="edit-only"><button class="btn primary" data-action="waste-plan" ${open.length ? '' : 'disabled'}>Müll-Gänge einteilen</button></span></div></div>
+    ${expiring.length ? `<div class="banner warn-banner waste-end-banner"><p><strong>${esc(endTitle(expiring))}:</strong> ${esc(endNames(expiring))}. Den neuen Abfuhrkalender der Gemeinde beim Objekt einlesen („Müllplan bearbeiten“), sonst entstehen nach dem letzten Termin keine Müll-Gänge mehr.</p></div>` : ''}
     ${regionFilter()}
     ${withPlan.length ? `<div class="objects">${cards}</div>` : '<p class="note">Noch kein Objekt mit Müllplan. Unter „Objekte & Leistungen“ beim Objekt die Abfuhrtage eintragen oder den Abfuhrkalender einlesen.</p>'}
     ${without.length ? `<details class="waste-without-box"><summary>${without.length} ${without.length === 1 ? 'Objekt' : 'Objekte'} ohne Müllplan</summary><div class="waste-without">${without.map((o) => `<button class="btn small" data-action="obj-edit" data-id="${esc(o.id)}" data-focus="waste-form" ${app.readOnly ? 'disabled' : ''}>${esc(o.short || o.name)}</button>`).join('')}</div></details>` : ''}`
 }
+
+// ---------------------------------------------------------------- Abfuhrkalender läuft aus
+
+const endTitle = (list) => (list.some((x) => x.past) ? 'Abfuhrkalender abgelaufen' : 'Abfuhrkalender läuft aus')
+const endText = (x) => `${x.types.join(', ')}: ${x.past ? 'letzter Abfuhrtermin war am' : 'letzter Abfuhrtermin am'} ${formatDate(x.last, { year: true })}. Neuen Abfuhrkalender einlesen.`
+const endNames = (list, max = 6) => `${list.slice(0, max).map((x) => `${x.object.short || x.object.name} (bis ${formatDate(x.last, { weekday: false, year: true })})`).join(', ')}${list.length > max ? ` und ${list.length - max} weitere` : ''}`
+
+registerTodo({
+  id: 'abfuhrkalender',
+  module: 'planung',
+  title: 'Müllplan',
+  compute: (today) => {
+    const list = expiringCalendars(app.data.objects, today)
+    return list.length ? [{ id: `${list.length}:${list[0].last}:${list.filter((x) => x.past).length}`, list }] : []
+  },
+  render: (items) =>
+    items
+      .map(({ list }) => `<div class="todo-item"><span class="flag ${list.some((x) => x.past) ? 'error' : 'warning'}">${list.length}</span><div class="todo-text"><strong>${esc(endTitle(list))}:</strong> ${esc(endNames(list))}<br><span class="muted">Nach dem letzten Termin entstehen keine Müll-Gänge mehr. Den neuen Abfuhrkalender der Gemeinde beim Objekt einlesen.</span></div><button class="btn small primary" data-action="view" data-view="waste">Müllplan</button></div>`)
+      .join(''),
+})
 
 registerView({ id: 'waste', order: 47, label: 'Müllplan', group: 'plan', render: wasteView })
 

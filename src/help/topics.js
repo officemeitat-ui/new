@@ -808,7 +808,7 @@ export const TOPICS = [
     q: ['abfuhrkalender', 'müllplan anlegen', 'ics müll', 'abfuhrtermine einlesen', 'tonnen eintragen', 'müllkalender gemeinde'],
     answer: 'Abfuhrtage trägst du beim Objekt ein: als Rhythmus (wöchentlich, 14-tägig, alle 3 Wochen, 4-wöchentlich, monatlich) oder als Termine aus dem Abfuhrkalender der Gemeinde, als .ics-Datei oder eingefügte Liste.',
     steps: ['Im Müllplan „Müllplan bearbeiten“ klicken (oder Objekte & Leistungen → „Objekt bearbeiten“).', '„+ Abfuhr“: Tonne, Rhythmus und einen bekannten Termin wählen.', 'Oder „Abfuhrkalender einlesen“: .ics wählen oder Termine einfügen, dann „Termine übernehmen“.', '„Rausstellen“ und „Nach der Abholung wieder reinstellen“ einstellen.', '„Speichern“ klicken.'],
-    tips: ['Abfuhrkalender gelten meist ein Jahr: im Dezember den neuen einlesen.'],
+    tips: ['Abfuhrkalender gelten meist ein Jahr. Sechs Wochen vor dem letzten Termin warnt der Müllplan oben und beim Objekt, und „Zu erledigen“ meldet es: dann den neuen einlesen. Sonst entstehen nach dem letzten Termin keine Müll-Gänge mehr.'],
     related: ['muellplan', 'muellplan-uebernehmen', 'objekte-leistungen'],
   },
   {
