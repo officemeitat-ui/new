@@ -115,6 +115,9 @@ function yearCheckLines(check) {
     `Steuerfreie Überstunden (derzeit ${pay.taxFreeHours} Stunden, höchstens ${pay.taxFreeMax} € im Monat): stimmen die Werte für ${check.year}?${check.year === 2027 && Number(pay.taxFreeHours) === 15 ? ' 15 Stunden und 170 € galten nur für 2026; ab 2027 sind es nach heutigem Stand wieder 10 Stunden und 120 € (§ 68 Abs. 2 EStG). Im Zweifel die Lohnverrechnung fragen.' : ''}`,
     `Zusätzliche freie Tage und Urlaubs-Sperrzeiten für ${check.year} eintragen.`,
   ]
+  // Neue Löhne gelten sofort für jeden noch offenen Monat: der Dezember gehört vorher abgeschlossen
+  const december = `${check.year - 1}-12`
+  if (!app.data.payroll?.[december]?.closedAt) lines.splice(1, 0, `Reihenfolge: zuerst den Dezember ${check.year - 1} unter „Überstunden & Auszahlung“ abschließen, dann die neuen Löhne eintragen. Ein abgeschlossener Monat behält seine Beträge, ein offener rechnet mit den neuen Löhnen.`)
   return lines
 }
 
