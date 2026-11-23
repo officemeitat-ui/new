@@ -1,9 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { BodyMap } from '../BodyMap';
 import { EQUIPMENT, EQUIPMENT_GROUPS, MACHINES, equipmentName } from '../engine/equipment';
 import { exercise } from '../engine/exercises';
 import { generatePlan, upgrades } from '../engine/plan';
+import { defaultTrainDays } from '../engine/progression';
 import { benchEstimate, oneRmFrom } from '../engine/startweights';
 import type { BenchmarkLift, Challenge, EquipmentId, FocusArea, Goal, Level, Limitation, Profile } from '../engine/types';
 import { colors as c } from '../theme';
@@ -67,6 +68,7 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
   const [useLift, setUseLift] = useState(!!initial?.benchmark);
   const [daysPerWeek, setDays] = useState(initial?.daysPerWeek ?? 3);
   const [minutes, setMinutes] = useState(initial?.minutes ?? 45);
+  const [trainDays, setTrainDays] = useState<number[]>(initial?.trainDays?.length ? initial.trainDays : defaultTrainDays(initial?.daysPerWeek ?? 3));
   const [equipment, setEquipment] = useState<EquipmentId[]>(initial?.equipment ?? ['dumbbells', 'bands', 'pullup_bar']);
   const [challenge, setChallenge] = useState<Challenge | null>(initial?.challenge ?? null);
   const [limitations, setLimitations] = useState<Limitation[]>(initial?.limitations ?? []);
@@ -74,10 +76,10 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
 
   const oneRm = oneRmFrom(liftKg, liftReps);
   const profile: Profile = useMemo(() => ({
-    name: name.trim(), goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, gentle,
+    name: name.trim(), goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, gentle, trainDays,
     heightCm: useBody ? heightCm : null, weightKg: useBody ? weightKg : null, targetKg: useBody ? targetKg : null,
     benchmark: useLift && oneRm > 0 ? { lift, oneRm } : null,
-  }), [gentle, name, goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, useBody, heightCm, weightKg, targetKg, useLift, lift, oneRm]);
+  }), [trainDays, gentle, name, goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, useBody, heightCm, weightKg, targetKg, useLift, lift, oneRm]);
   const plan = useMemo(() => generatePlan(profile), [profile]);
   const up = useMemo(() => upgrades(profile), [profile]);
   const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
@@ -209,7 +211,20 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
           <Text style={s.hero}>Wie oft und wie lange?</Text>
           <Text style={s.muted}>Lieber realistisch als ehrgeizig: Ein Plan, den du jede Woche schaffst, bringt mehr als einer, der ausfällt.</Text>
           <H>Trainingstage pro Woche</H>
-          <View style={s.wrap}>{[2, 3, 4, 5, 6].map((d) => <Chip key={d} text={`${d} Tage`} active={daysPerWeek === d} onPress={() => setDays(d)} />)}</View>
+          <View style={s.wrap}>{[2, 3, 4, 5, 6].map((d) => <Chip key={d} text={`${d} Tage`} active={daysPerWeek === d} onPress={() => { setDays(d); setTrainDays(defaultTrainDays(d)); }} />)}</View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d, i) => {
+              const on = trainDays.includes(i);
+              return (
+                <Pressable key={d} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={`Trainingstag ${d}`}
+                  onPress={() => { const next = on ? trainDays.filter((x) => x !== i) : [...trainDays, i].sort(); if (next.length >= 2 && next.length <= 6) { setTrainDays(next); setDays(next.length); } }}
+                  style={{ flex: 1, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.lime : c.surface, borderWidth: 1, borderColor: on ? c.lime : c.border }}>
+                  <Text style={{ color: on ? c.background : c.text, fontWeight: '700', fontSize: 13 }}>{d}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={s.small}>Tippe die Tage an, die bei dir passen (2 bis 6). Zwischen zwei Einheiten ist ein freier Tag ideal.</Text>
           <Text style={s.small}>Ergibt: {plan.split}</Text>
           <H>Zeit pro Einheit</H>
           <View style={s.wrap}>{[20, 30, 45, 60, 75, 90].map((m) => <Chip key={m} text={`${m} Min.`} active={minutes === m} onPress={() => setMinutes(m)} />)}</View>

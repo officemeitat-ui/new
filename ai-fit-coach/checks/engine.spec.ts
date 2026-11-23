@@ -204,3 +204,14 @@ test('Sanfter Abnehm-Modus: gültige Pläne ohne Sprünge, Boden- und Hängeübu
   const ids = none.days.flatMap((d) => d.items.map((i) => i.exerciseId));
   for (const id of ['chair_squat', 'incline_pushup', 'march']) assert.ok(ids.includes(id), id);
 });
+
+test('Wochenplanung: Standardtage, erledigte Wochentage, Geh-Minuten der Woche', async () => {
+  const { defaultTrainDays, doneWeekdays, weekMinutes, weekdayIndex } = await import('../src/engine/progression');
+  for (const n of [2, 3, 4, 5, 6]) assert.equal(defaultTrainDays(n).length, n);
+  assert.equal(weekdayIndex(new Date('2026-11-23T10:00:00')), 0);
+  assert.equal(weekdayIndex(new Date('2026-11-29T10:00:00')), 6);
+  const now = new Date('2026-11-26T12:00:00');
+  const hist = [session('2026-11-25T18:00:00', [log('db_bench', [[20, 8]])]), session('2026-11-23T18:00:00', [log('db_bench', [[20, 8]])]), session('2026-11-20T18:00:00', [log('db_bench', [[20, 8]])])];
+  assert.deepEqual(doneWeekdays(hist, now).sort(), [0, 2]);
+  assert.equal(weekMinutes([{ date: '2026-11-24T08:00:00', minutes: 20 }, { date: '2026-11-26T08:00:00', minutes: 15 }, { date: '2026-11-21T08:00:00', minutes: 60 }], now), 35);
+});

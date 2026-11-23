@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EQUIPMENT, MACHINES } from './engine/equipment';
 import { hasExercise } from './engine/exercises';
 import { generatePlan } from './engine/plan';
-import type { Plan, Profile, Session, WeightEntry } from './engine/types';
+import type { Plan, Profile, Session, Walk, WeightEntry } from './engine/types';
 
 const KEY = 'aifitcoach.v2';
 const OLD_KEY = 'aifitcoach.mvp.v1';
@@ -15,13 +15,15 @@ export type AppState = {
   weights: WeightEntry[];
   /** Index des nächsten Trainingstags im Plan. */
   nextDay: number;
+  /** Eingetragenes Gehen und andere Alltagsbewegung. */
+  walks: Walk[];
   /** Eigene Notizen je Übung. */
   notes: Record<string, string>;
   /** Name aus einer älteren App-Version, als Vorschlag fürs Onboarding. */
   draftName?: string;
 };
 
-export const EMPTY: AppState = { profile: null, plan: null, history: [], weights: [], nextDay: 0, notes: {} };
+export const EMPTY: AppState = { profile: null, plan: null, history: [], weights: [], nextDay: 0, notes: {}, walks: [] };
 
 const known = new Set<string>(EQUIPMENT.map((e) => e.id));
 
@@ -38,7 +40,8 @@ function clean(raw: unknown): AppState {
   const nextDay = plan && Number.isInteger(data.nextDay) ? (data.nextDay as number) % plan.days.length : 0;
   const weights = Array.isArray(data.weights) ? data.weights.filter((w) => w && typeof w.kg === 'number' && typeof w.date === 'string') : [];
   const notes = data.notes && typeof data.notes === 'object' ? data.notes : {};
-  return { profile, plan, history, weights, nextDay, notes };
+  const walks = Array.isArray(data.walks) ? data.walks.filter((w) => w && typeof w.minutes === 'number' && typeof w.date === 'string') : [];
+  return { profile, plan, history, weights, nextDay, notes, walks };
 }
 
 export async function loadState(): Promise<AppState> {
@@ -52,5 +55,5 @@ export async function loadState(): Promise<AppState> {
   return EMPTY;
 }
 
-export const saveState = ({ profile, plan, history, weights, nextDay, notes }: AppState) =>
-  AsyncStorage.setItem(KEY, JSON.stringify({ profile, plan, history, weights, nextDay, notes }));
+export const saveState = ({ profile, plan, history, weights, nextDay, notes, walks }: AppState) =>
+  AsyncStorage.setItem(KEY, JSON.stringify({ profile, plan, history, weights, nextDay, notes, walks }));

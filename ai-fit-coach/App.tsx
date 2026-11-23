@@ -27,7 +27,7 @@ function AppContent() {
   const [saveFailed, setSaveFailed] = useState(false);
   const [tab, setTab] = useState<Tab>('Home');
   const [editing, setEditing] = useState(false);
-  const [workoutDay, setWorkoutDay] = useState<number | null>(null);
+  const [workoutDay, setWorkoutDay] = useState<number | 'free' | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => { loadState().then(setState).catch(() => setSaveFailed(true)).finally(() => setLoaded(true)); }, []);
@@ -52,14 +52,15 @@ function AppContent() {
 
   const setNote = (exerciseId: string, text: string) => setState((old) => ({ ...old, notes: { ...old.notes, [exerciseId]: text } }));
   if (workoutDay !== null) {
-    const day = plan.days[workoutDay];
+    const free = workoutDay === 'free';
+    const day = free ? { id: 'frei', name: 'Freies Training', focus: '', items: [], minutes: 0 } : plan.days[workoutDay];
     return (
       <Workout day={day} profile={profile} history={history}
         notes={state.notes} setNote={setNote}
         onCancel={() => setWorkoutDay(null)}
         onSwap={(index, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: swapExercise(old.plan, old.profile, day.id, index, exerciseId) } : old))}
         onFinish={(session: Session) => {
-          setState((old) => ({ ...old, history: [session, ...old.history], nextDay: old.plan ? (workoutDay + 1) % old.plan.days.length : 0 }));
+          setState((old) => ({ ...old, history: [session, ...old.history], nextDay: free || !old.plan ? old.nextDay : ((workoutDay as number) + 1) % old.plan.days.length }));
           setWorkoutDay(null);
           setTab('Fortschritt');
         }} />
@@ -69,6 +70,7 @@ function AppContent() {
   const shared: Shared = {
     profile, plan, history, nextDay,
     start: setWorkoutDay,
+    startFree: () => setWorkoutDay('free'),
     swap: (dayId, index, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: swapExercise(old.plan, old.profile, dayId, index, exerciseId) } : old)),    notes: state.notes, setNote,
     add: (dayId, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: addExercise(old.plan, old.profile, dayId, exerciseId) } : old)),
     remove: (dayId, index) => setState((old) => (old.plan ? { ...old, plan: removeExercise(old.plan, dayId, index) } : old)),
@@ -82,11 +84,11 @@ function AppContent() {
             <Text style={s.brand}>AI FIT COACH</Text>
             {saveFailed ? <Text style={[s.small, { color: c.danger }]}>Speichern fehlgeschlagen</Text> : null}
           </View>
-          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} />}
+          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} walks={state.walks} addWalk={(minutes) => setState((old) => ({ ...old, walks: [...old.walks, { date: new Date().toISOString(), minutes }] }))} />}
           {tab === 'Training' && <Training {...shared} regenerate={() => setState((old) => (old.profile ? { ...old, plan: generatePlan(old.profile), nextDay: 0 } : old))} />}
           {tab === 'Coach' && <Coach {...shared} messages={messages} setMessages={setMessages} />}
           {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} weights={state.weights} addWeight={(kg) => setState((old) => ({ ...old, weights: [...old.weights, { date: new Date().toISOString(), kg }] }))} />}
-          {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} />}
+          {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], walks: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} />}
         </ScrollView>
       </KeyboardAvoidingView>
       <View accessibilityRole="tablist" style={st.tabBar}>

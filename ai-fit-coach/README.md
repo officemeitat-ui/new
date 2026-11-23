@@ -29,6 +29,9 @@ Voraussetzung: Node.js 20.19 oder neuer. Bei SDK-Konflikten: `npx expo install -
 - **Equipment-Abdeckung:** Wert von 0 bis 100, wie gut das Equipment die Bewegungsmuster des Plans trägt, und welche Anschaffung am meisten bringen würde.
 - **Plan-Generator:** Split nach Trainingstagen (Ganzkörper, Ober-/Unterkörper, Push/Pull/Beine). Sätze, Wiederholungen und Pausen nach Ziel und Erfahrung. Passt die Einheit nicht in die Zeit, fallen zuerst die kleinen Übungen weg.
 - **Übungsbibliothek:** rund 110 Übungen mit Ausführungshinweis, Zielmuskeln, Schwierigkeit und benötigtem Equipment. Jede Übung lässt sich gegen eine passende Alternative tauschen.
+- **Freies Training:** ohne Plan starten, Übungen aus dem Katalog wählen und im Training mit dem Plus weitere hinzufügen. Gewichte und Bestwerte zählen wie im Plan.
+- **Wochenplanung:** Trainingstage Montag bis Sonntag wählbar. Home zeigt die Woche mit geplanten und erledigten Tagen und ob heute Training oder Pause ist.
+- **Gehen eintragen (Abnehm-Modus):** Minuten pro Woche gegen das Ziel von 150 Minuten.
 - **Workout-Player:** Gewicht und Wiederholungen je Satz, Pausen-Timer, Halte-Timer für Zeitübungen, Sätze hinzufügen oder entfernen, Zusammenfassung mit neuen Bestwerten.
 - **Progression:** Doppelte Progression. Erst im Wiederholungsbereich nach oben, dann mehr Gewicht. Zweimal unter dem Ziel: 10 % zurück. Ohne Gewicht: Vorschlag für die schwerere Variante.
 - **Fortschritt:** Einheiten pro Woche, Bestwerte mit Verlauf, Sätze pro Muskel, Trainingstagebuch.

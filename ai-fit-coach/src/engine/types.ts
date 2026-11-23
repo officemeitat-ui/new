@@ -59,7 +59,11 @@ export type Profile = {
   challenge?: Challenge | null;
   /** Sanfter Abnehm-Modus: gelenkschonend, ohne Sprünge und ohne Übungen am Boden. */
   gentle?: boolean;
+  /** Geplante Trainingstage, 0 = Montag … 6 = Sonntag. */
+  trainDays?: number[];
 };
+
+export type Walk = { date: string; minutes: number };
 
 export type FocusArea = 'Rücken' | 'Schultern' | 'Arme' | 'Brust' | 'Bauch' | 'Gesäß' | 'Beine';
 export type BenchmarkLift = 'bench' | 'squat' | 'deadlift';

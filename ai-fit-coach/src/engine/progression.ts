@@ -153,3 +153,15 @@ export function muscleSets(sessions: Session[]): Partial<Record<Muscle, number>>
   }
   return out;
 }
+
+const DEFAULT_DAYS: Record<number, number[]> = { 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 4, 5], 6: [0, 1, 2, 3, 4, 5] };
+/** Sinnvolle Verteilung der Trainingstage über die Woche (0 = Montag). */
+export const defaultTrainDays = (n: number) => DEFAULT_DAYS[Math.min(6, Math.max(2, n))];
+export const weekdayIndex = (date: Date) => (date.getDay() + 6) % 7;
+/** Wochentage (0 = Montag), an denen in der laufenden Woche trainiert wurde. */
+export const doneWeekdays = (history: Session[], now = new Date()) => [...new Set(sessionsThisWeek(history, now).map((sn) => weekdayIndex(new Date(sn.date))))];
+/** Minuten in der laufenden Woche. */
+export const weekMinutes = (entries: { date: string; minutes: number }[], now = new Date()) => {
+  const start = weekStart(now).getTime();
+  return entries.filter((e) => { const t = new Date(e.date).getTime(); return t >= start && t < start + 7 * 86400000; }).reduce((n, e) => n + e.minutes, 0);
+};

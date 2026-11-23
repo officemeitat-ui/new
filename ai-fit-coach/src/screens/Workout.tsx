@@ -3,7 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { ExerciseGuide } from '../ExerciseGuide';
+import { ExerciseGuide, Library } from '../ExerciseGuide';
 import { Figure } from '../figure/Figure';
 import { equipmentName } from '../engine/equipment';
 import { exercise } from '../engine/exercises';
@@ -30,13 +30,39 @@ function startLog(item: PlanItem, history: Session[], profile: Profile): Exercis
   };
 }
 
-export function Workout({ day, profile, history, onFinish, onCancel, onSwap, notes, setNote }: {
+type Props = {
   notes: Record<string, string>; setNote: (exerciseId: string, text: string) => void;
   day: PlanDay; profile: Profile; history: Session[];
   onFinish: (session: Session) => void; onCancel: () => void;
   /** Tausch dauerhaft im Plan übernehmen. */
   onSwap: (index: number, exerciseId: string) => void;
-}) {
+};
+
+const itemFor = (profile: Profile, exerciseId: string): PlanItem => {
+  const ex = exercise(exerciseId);
+  return { exerciseId, slot: ex.pattern, ...prescribe(profile, ex, false) };
+};
+
+/** Workout nach Plan oder freies Training: Ohne Übungen wählt man zuerst eine aus dem Katalog. */
+export function Workout(props: Props) {
+  const [first, setFirst] = useState<PlanItem[] | null>(props.day.items.length ? props.day.items : null);
+  if (first) return <Session_ {...props} day={{ ...props.day, items: first }} />;
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={[s.rowBetween, { paddingHorizontal: 24, paddingTop: 16 }]}>
+        <Text style={s.eyebrow}>{props.day.name}</Text>
+        <Pressable accessibilityRole="button" hitSlop={10} onPress={props.onCancel}><Text style={{ color: c.danger, fontWeight: '700', fontSize: 13 }}>Abbrechen</Text></Pressable>
+      </View>
+      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+        <Text style={s.hero}>Womit fängst du an?</Text>
+        <Text style={s.muted}>Wähle die erste Übung. Weitere fügst du im Training mit dem Plus hinzu. Gewichte und Bestwerte zählen wie im Plan.</Text>
+        <Library profile={props.profile} history={props.history} notes={props.notes} setNote={props.setNote} addLabel="Damit starten" onAdd={(id) => setFirst([itemFor(props.profile, id)])} />
+      </ScrollView>
+    </View>
+  );
+}
+
+function Session_({ day, profile, history, onFinish, onCancel, onSwap, notes, setNote }: Props) {
   const confirm = useConfirm();
   const [items, setItems] = useState<PlanItem[]>(day.items);
   const [logs, setLogs] = useState<ExerciseLog[]>(() => day.items.map((i) => startLog(i, history, profile)));
@@ -47,6 +73,7 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap, not
   const [showCue, setShowCue] = useState(guided);
   const [swapOpen, setSwapOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
   const [summary, setSummary] = useState<Session | null>(null);
   const started = useRef(Date.now());
   const scroll = useRef<ScrollView>(null);
@@ -112,6 +139,15 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap, not
     setTimer(null);
   };
 
+  const addItem = (exerciseId: string) => {
+    const fresh = itemFor(profile, exerciseId);
+    setItems((old) => [...old, fresh]);
+    setLogs((old) => [...old, startLog(fresh, history, profile)]);
+    setIdx(items.length);
+    setLibOpen(false);
+    setTimer(null);
+  };
+
   if (summary) {
     const prs = newRecords(summary, history);
     return (
@@ -170,6 +206,10 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap, not
               </Pressable>
             );
           })}
+          <Pressable accessibilityRole="button" accessibilityLabel="Übung hinzufügen" onPress={() => setLibOpen(true)}
+            style={{ width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.limeLine, borderStyle: 'dashed' }}>
+            <Ionicons name="add" size={20} color={c.lime} />
+          </Pressable>
         </ScrollView>
       </View>
 
@@ -249,7 +289,7 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap, not
         {idx > 0 ? <View style={{ flex: 1 }}><Button variant="secondary" title="Zurück" onPress={() => go(idx - 1)} /></View> : null}
         <View style={{ flex: 2 }}>
           {lastExercise
-            ? <Button title="Workout abschließen" icon="flag" onPress={finish} />
+            ? <Button title={idx > 0 ? "Abschließen" : "Workout abschließen"} icon="flag" onPress={finish} />
             : <Button variant={exDone ? 'primary' : 'secondary'} title="Nächste Übung" icon="arrow-forward" onPress={() => go(idx + 1)} />}
         </View>
       </View>
@@ -257,6 +297,10 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap, not
 
       <Sheet visible={guideOpen} onClose={() => setGuideOpen(false)} title={ex.name}>
         <ExerciseGuide ex={ex} history={history} note={notes[ex.id] ?? ''} setNote={(t) => setNote(ex.id, t)} />
+      </Sheet>
+      <Sheet visible={libOpen} onClose={() => setLibOpen(false)} title="Übung hinzufügen">
+        <Text style={s.small}>Gilt nur für diese Einheit. Dauerhaft änderst du den Plan im Tab „Training“.</Text>
+        <Library profile={profile} history={history} notes={notes} setNote={setNote} taken={items.map((i) => i.exerciseId)} addLabel="Zur Einheit hinzufügen" onAdd={addItem} />
       </Sheet>
       <Sheet visible={swapOpen} onClose={() => setSwapOpen(false)} title="Übung tauschen">
         <Text style={s.muted}>Passend zu deinem Equipment, beste Wahl zuerst. Der Tausch gilt auch für die nächsten Wochen.</Text>

@@ -6,9 +6,10 @@ import { QUICK_QUESTIONS, coachContext, localCoach } from '../coach';
 import { equipmentName } from '../engine/equipment';
 import { PATTERN_NAME, exercise } from '../engine/exercises';
 import { MUSCLE_ORDER, alternatives, upgrades, weeklyVolume } from '../engine/plan';
+import { defaultTrainDays, doneWeekdays, weekMinutes, weekdayIndex } from '../engine/progression';
 import { activeWeeks, logsFor, muscleSets, records, sessionSets, sessionVolume, sessionsThisWeek, suggest, weeklyCounts } from '../engine/progression';
 import { startWeight } from '../engine/startweights';
-import type { Plan, PlanDay, Profile, Session, WeightEntry } from '../engine/types';
+import type { Plan, PlanDay, Profile, Session, Walk, WeightEntry } from '../engine/types';
 import { askCoach, supabase } from '../services/supabase';
 import { colors as c } from '../theme';
 import { Bars, Bolt, Button, Card, Chip, Entrance, Eyebrow, H, Meter, Sheet, Sparkline, Stepper, Tile, fmt, fmtLoad, s, useConfirm } from '../ui';
@@ -16,6 +17,7 @@ import { Bars, Bolt, Button, Card, Chip, Entrance, Eyebrow, H, Meter, Sheet, Spa
 export type Shared = {
   profile: Profile; plan: Plan; history: Session[]; nextDay: number;
   start: (dayIndex: number) => void;
+  startFree: () => void;
   swap: (dayId: string, index: number, exerciseId: string) => void;
   notes: Record<string, string>;
   setNote: (exerciseId: string, text: string) => void;
@@ -27,7 +29,12 @@ const LEVEL = ['', 'Einsteiger', 'Fortgeschritten', 'Erfahren'];
 const range = (lo: number, hi: number) => (lo === hi ? `${hi}` : `${lo}–${hi}`);
 const day = (iso: string) => new Date(iso).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'short' });
 
-export function Home({ profile, plan, history, nextDay, start, goTo, weights }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[] }) {
+export function Home({ profile, plan, history, nextDay, start, startFree, goTo, weights, walks, addWalk }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[]; walks: Walk[]; addWalk: (minutes: number) => void }) {
+  const [walkMin, setWalkMin] = useState(20);
+  const planned = profile.trainDays?.length ? profile.trainDays : defaultTrainDays(profile.daysPerWeek);
+  const doneDays = doneWeekdays(history);
+  const todayIdx = weekdayIndex(new Date());
+  const walked = weekMinutes(walks);
   const today = plan.days[nextDay];
   const week = sessionsThisWeek(history).length;
   const up = useMemo(() => upgrades(profile), [profile]);
@@ -47,15 +54,30 @@ export function Home({ profile, plan, history, nextDay, start, goTo, weights }: 
           {today.items.length > 4 ? <Text style={s.small}>+ {today.items.length - 4} weitere</Text> : null}
         </View>
         <Button title="Workout starten" icon="flash" onPress={() => start(nextDay)} />
+        <Button small variant="ghost" icon="create-outline" title="Freies Training ohne Plan" onPress={startFree} />
       </Card>
     </Entrance>
     <Entrance delay={80}>
       <Card>
         <View style={s.rowBetween}><H>Diese Woche</H><Text style={s.strong}>{week} / {profile.daysPerWeek}</Text></View>
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          {Array.from({ length: Math.max(profile.daysPerWeek, week) }, (_, i) => <View key={i} style={{ flex: 1, height: 10, borderRadius: 6, backgroundColor: i < week ? c.lime : c.surface3 }} />)}
+          {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d, i) => {
+            const done = doneDays.includes(i);
+            const plan_ = planned.includes(i);
+            return (
+              <View key={d} accessibilityLabel={`${d}: ${done ? 'trainiert' : plan_ ? 'Trainingstag' : 'frei'}`} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                <View style={{ width: '100%', height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: done ? c.lime : plan_ ? c.limeSoft : c.surface2, borderWidth: i === todayIdx ? 2 : 1, borderColor: i === todayIdx ? c.text : done ? c.lime : plan_ ? c.limeLine : c.border }}>
+                  {done ? <Ionicons name="checkmark" size={18} color={c.background} /> : plan_ ? <Ionicons name="barbell-outline" size={15} color={c.lime} /> : null}
+                </View>
+                <Text style={[s.tiny, i === todayIdx && { color: c.text, fontWeight: '800' }]}>{d}</Text>
+              </View>
+            );
+          })}
         </View>
-        <Text style={s.small}>{week >= profile.daysPerWeek ? 'Wochenziel erreicht. Erholung gehört zum Plan.' : `Noch ${profile.daysPerWeek - week} ${profile.daysPerWeek - week === 1 ? 'Einheit' : 'Einheiten'} bis zum Wochenziel.`}</Text>
+        <Text style={s.small}>{week >= profile.daysPerWeek ? 'Wochenziel erreicht. Erholung gehört zum Plan.'
+          : doneDays.includes(todayIdx) ? 'Heute schon trainiert. Stark.'
+          : planned.includes(todayIdx) ? `Heute ist Trainingstag: ${plan.days[nextDay].name}.`
+          : `Heute ist frei. Nächste Einheit: ${plan.days[nextDay].name}. Vorziehen geht jederzeit.`}</Text>
       </Card>
     </Entrance>
     {profile.gentle ? (() => {
@@ -73,6 +95,14 @@ export function Home({ profile, plan, history, nextDay, start, goTo, weights }: 
             {current !== null && profile.targetKg && first !== null && first > profile.targetKg ? <Meter value={Math.max(0, first - current)} max={first - profile.targetKg} /> : null}
             <Text style={s.text}>{current !== null ? `Gut haltbar sind ${fmt(Math.round(current * 0.005 * 10) / 10)}–${fmt(Math.round(current * 0.01 * 10) / 10)} kg pro Woche. Schneller muss es nicht sein.` : 'Gut haltbar sind 0,5–1 % des Körpergewichts pro Woche.'}</Text>
             <Text style={s.muted}>An Tagen ohne Training: 20–30 Minuten zügig gehen, gern in zwei oder drei Etappen. Jeder Schritt zählt mehr als die perfekte Einheit.</Text>
+            <View style={s.divider} />
+            <View style={s.rowBetween}><Text style={s.strong}>Gehen diese Woche</Text><Text style={s.strong}>{walked} / 150 Min.</Text></View>
+            <Meter value={walked} max={150} />
+            <View style={s.rowBetween}>
+              <View style={s.row}><Stepper label="Minuten gegangen" value={walkMin} step={5} min={5} max={240} onChange={(v) => setWalkMin(Math.round(v))} /><Text style={s.small}>Min.</Text></View>
+              <Button small variant="secondary" icon="walk-outline" title="Gehen eintragen" onPress={() => addWalk(walkMin)} />
+            </View>
+            <Text style={s.small}>150 Minuten zügige Bewegung pro Woche sind die gängige Empfehlung. Jede Etappe ab ein paar Minuten zählt.</Text>
             <Button small variant="secondary" icon="scale-outline" title="Gewicht eintragen" onPress={() => goTo('Fortschritt')} />
           </Card>
         </Entrance>
@@ -100,7 +130,7 @@ export function Home({ profile, plan, history, nextDay, start, goTo, weights }: 
   </>;
 }
 
-export function Training({ profile, plan, history, nextDay, start, swap, regenerate, notes, setNote, add, remove }: Shared & { regenerate: () => void }) {
+export function Training({ profile, plan, history, nextDay, start, startFree, swap, regenerate, notes, setNote, add, remove }: Shared & { regenerate: () => void }) {
   const confirm = useConfirm();
   const [library, setLibrary] = useState<{ dayId: string | null } | null>(null);
   const libDay = library?.dayId ? plan.days.find((d) => d.id === library.dayId) : null;
@@ -142,6 +172,7 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
         <Button small variant="ghost" icon="add" title="Übung hinzufügen" onPress={() => setLibrary({ dayId: d.id })} />
       </Card>
     ))}
+    <Button variant="secondary" icon="create-outline" title="Freies Training starten" onPress={startFree} />
     <Button variant="secondary" icon="library-outline" title="Übungskatalog" onPress={() => setLibrary({ dayId: null })} />
     <Card>
       <H>Sätze pro Muskel und Woche</H>
