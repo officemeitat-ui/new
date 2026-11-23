@@ -119,3 +119,39 @@ test('Bestwerte und Wochen in Folge', () => {
   assert.equal(activeWeeks([newer, older], new Date('2026-11-18T12:00:00')), 2);
   assert.equal(activeWeeks([newer, older], new Date('2026-11-25T12:00:00')), 0);
 });
+
+test('Schwerpunkte: gewählte Muskelgruppen bekommen mehr Wochenvolumen und werden zuletzt gekürzt', async () => {
+  const p = { ...base, equipment: gym };
+  const plain = weeklyVolume(generatePlan(p));
+  for (const [focus, muscle] of [['Brust', 'Brust'], ['Arme', 'Bizeps'], ['Gesäß', 'Gesäß'], ['Schultern', 'Schultern']] as const) {
+    const v = weeklyVolume(generatePlan({ ...p, focus: [focus] }));
+    assert.ok(v[muscle] > plain[muscle], `${focus}: ${v[muscle]} > ${plain[muscle]}`);
+  }
+  const short = generatePlan({ ...p, minutes: 30, focus: ['Arme'] });
+  assert.ok(short.days.some((d) => d.items.some((i) => ['biceps', 'triceps'].includes(exercise(i.exerciseId).pattern))));
+  for (const d of short.days) assert.ok(d.minutes <= 36);
+});
+
+test('Startgewichte: aus Kraftwert oder Körpergewicht, vorsichtig und im Raster der Übung', async () => {
+  const { startWeight, benchEstimate, oneRmFrom } = await import('../src/engine/startweights');
+  assert.equal(oneRmFrom(30, 5), 35);
+  const p: Profile = { ...base, equipment: gym, benchmark: { lift: 'bench', oneRm: 100 } };
+  const bench = startWeight(exercise('bb_bench'), { hi: 10 }, p)!;
+  assert.ok(bench >= 55 && bench <= 70 && bench % 2.5 === 0, String(bench));
+  assert.ok(startWeight(exercise('back_squat'), { hi: 10 }, p)! > bench);
+  assert.ok(startWeight(exercise('db_lateral'), { hi: 15 }, p)! <= 8);
+  assert.equal(startWeight(exercise('pushup'), { hi: 15 }, p), null);
+  assert.equal(startWeight(exercise('bb_bench'), { hi: 10 }, base), null);
+  assert.equal(Math.round(benchEstimate({ ...base, benchmark: { lift: 'squat', oneRm: 130 } })!), 100);
+  const byBody = benchEstimate({ ...base, level: 1, sex: 'f', weightKg: 60 })!;
+  assert.equal(byBody, 15);
+  const sg = suggest(exercise('bb_bench'), { sets: 3, lo: 6, hi: 10 }, [], bench);
+  assert.deepEqual([sg.kind, sg.weight, sg.reps], ['start', bench, 6]);
+  assert.equal(suggest(exercise('bb_bench'), { sets: 3, lo: 6, hi: 10 }, [log('bb_bench', [[80, 8], [80, 8], [80, 7]])], bench).weight, 80);
+});
+
+test('Abwechslung: bei „schnell gelangweilt“ wiederholen sich weniger Übungen in der Woche', () => {
+  const count = (p: Profile) => { const ids = generatePlan(p).days.flatMap((d) => d.items.map((i) => i.exerciseId)); return ids.length - new Set(ids).size; };
+  const p = { ...base, daysPerWeek: 6, equipment: gym };
+  assert.ok(count({ ...p, challenge: 'variety' }) <= count(p));
+});

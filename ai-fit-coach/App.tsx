@@ -39,7 +39,14 @@ function AppContent() {
   if (!profile || !plan || editing) {
     return (
       <Onboarding initial={editing ? profile : null} draftName={state.draftName} onCancel={editing ? () => setEditing(false) : undefined}
-        onDone={(p: Profile) => { setState((old) => ({ ...old, profile: p, plan: generatePlan(p), nextDay: 0, draftName: undefined })); setEditing(false); setTab('Home'); }} />
+        onDone={(p: Profile) => {
+          setState((old) => {
+            const last = old.weights[old.weights.length - 1];
+            const weights = p.weightKg && (!last || Math.abs(last.kg - p.weightKg) > 0.05) ? [...old.weights, { date: new Date().toISOString(), kg: p.weightKg }] : old.weights;
+            return { ...old, profile: p, plan: generatePlan(p), nextDay: 0, weights, draftName: undefined };
+          });
+          setEditing(false); setTab('Home');
+        }} />
     );
   }
 
@@ -74,8 +81,8 @@ function AppContent() {
           {tab === 'Home' && <Home {...shared} goTo={setTab} />}
           {tab === 'Training' && <Training {...shared} regenerate={() => setState((old) => (old.profile ? { ...old, plan: generatePlan(old.profile), nextDay: 0 } : old))} />}
           {tab === 'Coach' && <Coach {...shared} messages={messages} setMessages={setMessages} />}
-          {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} />}
-          {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} />}
+          {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} weights={state.weights} addWeight={(kg) => setState((old) => ({ ...old, weights: [...old.weights, { date: new Date().toISOString(), kg }] }))} />}
+          {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} />}
         </ScrollView>
       </KeyboardAvoidingView>
       <View accessibilityRole="tablist" style={st.tabBar}>

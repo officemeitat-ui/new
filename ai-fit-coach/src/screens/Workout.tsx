@@ -6,6 +6,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { equipmentName } from '../engine/equipment';
 import { exercise } from '../engine/exercises';
 import { alternatives, prescribe } from '../engine/plan';
+import { startWeight } from '../engine/startweights';
 import { logsFor, newRecords, sessionSets, sessionVolume, suggest } from '../engine/progression';
 import type { ExerciseLog, PlanDay, PlanItem, Profile, Session } from '../engine/types';
 import { colors as c } from '../theme';
@@ -18,9 +19,9 @@ const buzz = (strong = false) => {
   run.catch(() => undefined);
 };
 
-function startLog(item: PlanItem, history: Session[]): ExerciseLog {
+function startLog(item: PlanItem, history: Session[], profile: Profile): ExerciseLog {
   const ex = exercise(item.exerciseId);
-  const sg = suggest(ex, item, logsFor(history, item.exerciseId));
+  const sg = suggest(ex, item, logsFor(history, item.exerciseId), startWeight(ex, item, profile));
   return {
     exerciseId: item.exerciseId, lo: item.lo, hi: item.hi, targetSets: item.sets,
     sets: Array.from({ length: item.sets }, () => ({ weight: sg.weight ?? 0, reps: sg.reps, done: false })),
@@ -35,11 +36,12 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
 }) {
   const confirm = useConfirm();
   const [items, setItems] = useState<PlanItem[]>(day.items);
-  const [logs, setLogs] = useState<ExerciseLog[]>(() => day.items.map((i) => startLog(i, history)));
+  const [logs, setLogs] = useState<ExerciseLog[]>(() => day.items.map((i) => startLog(i, history, profile)));
   const [idx, setIdx] = useState(0);
   const [timer, setTimer] = useState<Timer | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [showCue, setShowCue] = useState(false);
+  const guided = profile.challenge === 'guidance';
+  const [showCue, setShowCue] = useState(guided);
   const [swapOpen, setSwapOpen] = useState(false);
   const [summary, setSummary] = useState<Session | null>(null);
   const started = useRef(Date.now());
@@ -55,7 +57,7 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
   const log = logs[idx];
   const ex = exercise(item.exerciseId);
   const unit = ex.mode === 'time' ? 'Sek.' : 'Wdh.';
-  const sg = useMemo(() => suggest(ex, item, logsFor(history, item.exerciseId)), [ex, item, history]);
+  const sg = useMemo(() => suggest(ex, item, logsFor(history, item.exerciseId), startWeight(ex, item, profile)), [ex, item, history, profile]);
   const doneSets = logs.reduce((n, l) => n + l.sets.filter((x) => x.done).length, 0);
   const allSets = logs.reduce((n, l) => n + l.sets.length, 0);
   const remaining = timer ? Math.max(0, Math.ceil((timer.until - now) / 1000)) : 0;
@@ -83,7 +85,7 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, timer]);
 
-  const go = (i: number) => { setIdx(i); setShowCue(false); scroll.current?.scrollTo({ y: 0, animated: true }); };
+  const go = (i: number) => { setIdx(i); setShowCue(guided); scroll.current?.scrollTo({ y: 0, animated: true }); };
 
   const finish = async () => {
     const exercises = logs.filter((l) => l.sets.some((x) => x.done));
@@ -100,7 +102,7 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
     const next = exercise(exerciseId);
     const fresh: PlanItem = { ...item, exerciseId, ...prescribe(profile, next, idx < 2 && next.kind === 'compound'), fallback: next.pattern !== item.slot || undefined };
     setItems((old) => old.map((x, i) => (i === idx ? fresh : x)));
-    setLogs((old) => old.map((l, i) => (i === idx ? startLog(fresh, history) : l)));
+    setLogs((old) => old.map((l, i) => (i === idx ? startLog(fresh, history, profile) : l)));
     onSwap(idx, exerciseId);
     setSwapOpen(false);
     setTimer(null);

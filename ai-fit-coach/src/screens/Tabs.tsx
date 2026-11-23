@@ -6,10 +6,11 @@ import { equipmentName } from '../engine/equipment';
 import { PATTERN_NAME, exercise } from '../engine/exercises';
 import { MUSCLE_ORDER, alternatives, upgrades, weeklyVolume } from '../engine/plan';
 import { activeWeeks, logsFor, muscleSets, records, sessionSets, sessionVolume, sessionsThisWeek, suggest, weeklyCounts } from '../engine/progression';
-import type { Plan, PlanDay, Profile, Session } from '../engine/types';
+import { startWeight } from '../engine/startweights';
+import type { Plan, PlanDay, Profile, Session, WeightEntry } from '../engine/types';
 import { askCoach, supabase } from '../services/supabase';
 import { colors as c } from '../theme';
-import { Bars, Bolt, Button, Card, Chip, Entrance, Eyebrow, H, Meter, Sheet, Sparkline, Tile, fmt, fmtLoad, s, useConfirm } from '../ui';
+import { Bars, Bolt, Button, Card, Chip, Entrance, Eyebrow, H, Meter, Sheet, Sparkline, Stepper, Tile, fmt, fmtLoad, s, useConfirm } from '../ui';
 
 export type Shared = {
   profile: Profile; plan: Plan; history: Session[]; nextDay: number;
@@ -69,6 +70,7 @@ export function Home({ profile, plan, history, nextDay, start, goTo }: Shared & 
         </Card>
       </Entrance>
     ) : null}
+    {profile.challenge === 'motivation' && week < profile.daysPerWeek ? <Card><Eyebrow>Dranbleiben</Eyebrow><Text style={s.text}>{history.length ? `Du hast schon ${history.length} ${history.length === 1 ? 'Einheit' : 'Einheiten'} geschafft. Heute zählt nur: anfangen. Die ersten zwei Übungen reichen, der Rest kommt meist von selbst.` : 'Der schwerste Teil ist der Anfang. Nimm dir heute nur die ersten zwei Übungen vor, der Rest kommt meist von selbst.'}</Text></Card> : null}
     {weeks >= 6 ? <Card><Eyebrow>Hinweis vom Coach</Eyebrow><Text style={s.text}>Du trainierst seit {weeks} Wochen durchgehend. Eine leichtere Woche mit halber Satzzahl bei gleichem Gewicht hilft, danach wieder zuzulegen.</Text></Card> : null}
   </>;
 }
@@ -103,7 +105,7 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
               style={[s.rowBetween, { paddingTop: 10, borderTopWidth: 1, borderTopColor: c.border, minHeight: 48 }]}>
               <View style={{ flex: 1 }}>
                 <Text style={s.strong}>{e.name}</Text>
-                <Text style={s.small}>{i.sets} × {range(i.lo, i.hi)} {e.mode === 'time' ? 'Sek.' : 'Wdh.'}{e.perSide ? ' je Seite' : ''} · {i.rest} Sek. Pause{i.fallback ? ' · Ersatzübung' : ''}</Text>
+                <Text style={s.small}>{i.sets} × {range(i.lo, i.hi)} {e.mode === 'time' ? 'Sek.' : 'Wdh.'}{e.perSide ? ' je Seite' : ''} · {i.rest} Sek. Pause{i.fallback ? ' · Ersatzübung' : ''}{i.focus ? ' · Schwerpunkt' : ''}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={c.faint} />
             </Pressable>
@@ -134,7 +136,7 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
         <Text style={s.small}>Zielmuskeln: {[...ex.primary, ...ex.secondary].join(', ') || 'Ganzkörper, Kondition'}</Text>
         <Card accent>
           <Eyebrow>Nächstes Mal</Eyebrow>
-          <Text style={s.text}>{suggest(ex, item, logsFor(history, ex.id)).note}</Text>
+          <Text style={s.text}>{suggest(ex, item, logsFor(history, ex.id), startWeight(ex, item, profile)).note}</Text>
         </Card>
         <H>Tauschen gegen</H>
         {alts.length ? alts.map((a) => (
@@ -192,7 +194,31 @@ export function Coach({ profile, plan, history, messages, setMessages }: Shared 
   </>;
 }
 
-export function Progress({ profile, history, removeSession }: Shared & { removeSession: (id: string) => void }) {
+function WeightCard({ profile, weights, addWeight }: { profile: Profile; weights: WeightEntry[]; addWeight: (kg: number) => void }) {
+  const current = weights.length ? weights[weights.length - 1].kg : profile.weightKg ?? null;
+  const [value, setValue] = useState(current ?? 75);
+  if (current === null) return null;
+  const first = weights.length ? weights[0].kg : current;
+  const target = profile.targetKg ?? null;
+  const done = target !== null && first !== target ? Math.max(0, Math.min(1, (first - current) / (first - target))) : 0;
+  return (
+    <Card>
+      <View style={s.rowBetween}><H>Körpergewicht</H><Sparkline values={weights.slice(-12).map((w) => w.kg)} /></View>
+      <View style={s.rowBetween}>
+        <Text style={s.tileValue}>{fmt(current)} kg</Text>
+        {target !== null ? <Text style={s.small}>Ziel {fmt(target)} kg · {Math.abs(current - target) < 0.05 ? 'erreicht' : `noch ${fmt(Math.abs(Math.round((current - target) * 10) / 10))} kg`}</Text> : null}
+      </View>
+      {target !== null && first !== target ? <Meter value={done} max={1} /> : null}
+      <View style={s.rowBetween}>
+        <Stepper label="Gewicht in kg" value={value} step={0.5} min={30} max={300} onChange={setValue} />
+        <Button small variant="secondary" icon="add" title="Heute eintragen" onPress={() => addWeight(value)} />
+      </View>
+      <Text style={s.small}>Am besten immer zur gleichen Tageszeit wiegen. Einzelne Tage schwanken, der Verlauf über Wochen zählt.</Text>
+    </Card>
+  );
+}
+
+export function Progress({ profile, history, removeSession, weights, addWeight }: Shared & { removeSession: (id: string) => void; weights: WeightEntry[]; addWeight: (kg: number) => void }) {
   const confirm = useConfirm();
   const [openId, setOpenId] = useState<string | null>(null);
   const recs = useMemo(() => records(history), [history]);
@@ -205,6 +231,7 @@ export function Progress({ profile, history, removeSession }: Shared & { removeS
     return <>
       <Text style={s.hero}>Dein Fortschritt</Text>
       <Card><View style={{ alignItems: 'center' }}><Bolt size={120} /></View><Text style={[s.strong, { textAlign: 'center' }]}>Noch keine Einheit gespeichert</Text><Text style={[s.muted, { textAlign: 'center' }]}>Nach deinem ersten Workout siehst du hier Wochenverlauf, Bestwerte und wie viel du bewegt hast.</Text></Card>
+      <WeightCard profile={profile} weights={weights} addWeight={addWeight} />
     </>;
   }
   return <>
@@ -249,13 +276,14 @@ export function Progress({ profile, history, removeSession }: Shared & { removeS
         <Text style={s.small}>Erledigte Sätze, Hilfsmuskeln zählen halb.</Text>
       </Card>
     ) : null}
+    <WeightCard profile={profile} weights={weights} addWeight={addWeight} />
     <H>Trainingstagebuch</H>
     {history.slice(0, 30).map((sn) => (
       <Card key={sn.id}>
         <Pressable accessibilityRole="button" onPress={() => setOpenId(openId === sn.id ? null : sn.id)} style={s.rowBetween}>
           <View style={{ flex: 1 }}>
             <Text style={s.strong}>{sn.dayName}</Text>
-            <Text style={s.small}>{day(sn.date)} · {Math.max(1, Math.round(sn.durationSeconds / 60))} Min. · {sessionSets(sn)} Sätze · {Math.round(sessionVolume(sn))} kg</Text>
+            <Text style={s.small}>{day(sn.date)} · {Math.max(1, Math.round(sn.durationSeconds / 60))} Min. · {sessionSets(sn)} {sessionSets(sn) === 1 ? 'Satz' : 'Sätze'} · {Math.round(sessionVolume(sn))} kg</Text>
           </View>
           <Ionicons name={openId === sn.id ? 'chevron-up' : 'chevron-down'} size={20} color={c.muted} />
         </Pressable>
@@ -282,6 +310,9 @@ export function ProfileTab({ profile, plan, history, edit, clearHistory, resetAl
         ['Ziel', profile.goal], ['Erfahrung', LEVEL[profile.level]],
         ['Training', `${profile.daysPerWeek}× pro Woche, ${profile.minutes} Min.`], ['Plan', plan.split],
         ['Problemzonen', profile.limitations.map((l) => limits[l]).join(', ') || 'keine'],
+        ['Schwerpunkte', (profile.focus ?? []).join(', ') || 'ganzer Körper'],
+        ...(profile.heightCm && profile.weightKg ? [['Körper', `${profile.heightCm} cm, ${fmt(profile.weightKg)} kg${profile.targetKg ? `, Ziel ${fmt(profile.targetKg)} kg` : ''}`]] : []),
+        ...(profile.benchmark ? [['Kraftwert', `${{ bench: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' }[profile.benchmark.lift]} ca. ${profile.benchmark.oneRm} kg`]] : []),
       ].map(([k, v]) => <View key={k} style={s.rowBetween}><Text style={s.muted}>{k}</Text><Text style={[s.text, { flex: 1, textAlign: 'right' }]}>{v}</Text></View>)}
     </Card>
     <Card>
@@ -297,7 +328,7 @@ export function ProfileTab({ profile, plan, history, edit, clearHistory, resetAl
     <View style={s.divider} />
     <H>Daten</H>
     <Text style={s.small}>Profil, Plan und Trainingsdaten liegen nur auf diesem Gerät. {history.length} {history.length === 1 ? 'Einheit' : 'Einheiten'} gespeichert.</Text>
-    <Button variant="secondary" icon="trash-outline" title="Trainingsdaten löschen" disabled={!history.length} onPress={async () => { if (await confirm({ title: 'Trainingsdaten löschen?', text: 'Alle gespeicherten Einheiten und Bestwerte werden unwiderruflich gelöscht. Profil und Plan bleiben.', yes: 'Löschen', danger: true })) clearHistory(); }} />
+    <Button variant="secondary" icon="trash-outline" title="Trainingsdaten löschen" disabled={!history.length} onPress={async () => { if (await confirm({ title: 'Trainingsdaten löschen?', text: 'Alle gespeicherten Einheiten, Bestwerte und Gewichtseinträge werden unwiderruflich gelöscht. Profil und Plan bleiben.', yes: 'Löschen', danger: true })) clearHistory(); }} />
     <Button variant="danger" icon="warning-outline" title="App zurücksetzen" onPress={async () => { if (await confirm({ title: 'Alles zurücksetzen?', text: 'Profil, Plan und alle Trainingsdaten werden gelöscht. Du startest wieder beim Einrichten.', yes: 'Alles löschen', danger: true })) resetAll(); }} />
     <Text style={s.small}>AI FIT COACH 0.4 · Trainingsempfehlungen sind allgemeine Hinweise und ersetzen keine ärztliche oder therapeutische Beratung.</Text>
   </>;

@@ -47,7 +47,21 @@ export type Profile = {
   minutes: number;
   equipment: EquipmentId[];
   limitations: Limitation[];
+  /** Muskelgruppen, die mehr Volumen bekommen. Leer = ganzer Körper gleichmäßig. */
+  focus?: FocusArea[];
+  sex?: 'm' | 'f' | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  targetKg?: number | null;
+  /** Geschätztes Maximum für eine Wiederholung in einer Grundübung. */
+  benchmark?: { lift: BenchmarkLift; oneRm: number } | null;
+  challenge?: Challenge | null;
 };
+
+export type FocusArea = 'Rücken' | 'Schultern' | 'Arme' | 'Brust' | 'Bauch' | 'Gesäß' | 'Beine';
+export type BenchmarkLift = 'bench' | 'squat' | 'deadlift';
+export type Challenge = 'motivation' | 'guidance' | 'variety';
+export type WeightEntry = { date: string; kg: number };
 
 export type PlanItem = {
   exerciseId: string;
@@ -59,6 +73,8 @@ export type PlanItem = {
   rest: number;
   /** true, wenn für das eigentliche Muster keine Übung möglich war. */
   fallback?: boolean;
+  /** Trifft einen gewählten Schwerpunkt: ein Satz mehr, wird zuletzt gekürzt. */
+  focus?: boolean;
 };
 
 export type PlanDay = { id: string; name: string; focus: string; items: PlanItem[]; minutes: number };

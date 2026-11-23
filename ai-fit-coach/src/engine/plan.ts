@@ -1,6 +1,16 @@
 import { EQUIPMENT } from './equipment';
 import { COMPOUND, EXERCISES, PATTERN_NAME, exercise } from './exercises';
-import type { EquipmentId, Exercise, Muscle, Pattern, Plan, PlanDay, PlanItem, Profile } from './types';
+import type { EquipmentId, Exercise, FocusArea, Muscle, Pattern, Plan, PlanDay, PlanItem, Profile } from './types';
+
+export const FOCUS_MUSCLES: Record<FocusArea, Muscle[]> = {
+  Rücken: ['Rücken'], Schultern: ['Schultern'], Arme: ['Bizeps', 'Trizeps'], Brust: ['Brust'],
+  Bauch: ['Rumpf'], Gesäß: ['Gesäß'], Beine: ['Quadrizeps', 'Beinbeuger', 'Waden'],
+};
+const FOCUS_EXTRA: Record<FocusArea, Pattern[]> = {
+  Rücken: ['pull_h'], Schultern: ['delts_side'], Arme: ['biceps', 'triceps'], Brust: ['chest_iso'],
+  Bauch: ['core'], Gesäß: ['glutes'], Beine: ['quad_iso', 'hamstring_iso'],
+};
+const focusMuscles = (profile: Pick<Profile, 'focus'>) => new Set((profile.focus ?? []).flatMap((f) => FOCUS_MUSCLES[f]));
 
 type Slot = { p: Pattern; prio: 1 | 2 | 3 };
 type Template = { id: string; name: string; focus: string; slots: Slot[] };
@@ -49,7 +59,7 @@ export function available(profile: Pick<Profile, 'equipment' | 'limitations'>, p
 
 function rate(e: Exercise, profile: Profile, used: Map<string, number>): number {
   const above = Math.max(0, e.level - profile.level);
-  const repeat = (used.get(e.id) ?? 0) * (profile.goal === 'Kraft' ? 6 : 12);
+  const repeat = (used.get(e.id) ?? 0) * (profile.challenge === 'variety' ? 22 : profile.goal === 'Kraft' ? 6 : 12);
   const barbell = profile.goal === 'Kraft' && e.needs.includes('barbell') ? 6 : 0;
   return e.quality * 10 - above * 25 - repeat + barbell;
 }
@@ -116,7 +126,9 @@ function fit(items: (PlanItem & { prio: number })[], minutes: number, level: num
     }
   }
   while (over()) {
-    const most = list.reduce((a, b) => (b.sets > a.sets ? b : a), list[0]);
+    // Schwerpunkt-Übungen behalten ihre Sätze am längsten.
+    const pool = list.some((i) => !i.focus && i.sets > 2) ? list.filter((i) => !i.focus) : list;
+    const most = pool.reduce((a, b) => (b.sets > a.sets ? b : a), pool[0]);
     if (!most || most.sets <= 2) break;
     most.sets -= 1;
   }
@@ -130,9 +142,9 @@ function fit(items: (PlanItem & { prio: number })[], minutes: number, level: num
   // Bleibt Zeit übrig, bekommen die Hauptübungen einen vierten Satz.
   if (level >= 2) {
     for (const item of list) {
-      if (item.prio !== 1 || item.sets !== 3 || exercise(item.exerciseId).kind !== 'compound') continue;
-      item.sets = 4;
-      if (over()) { item.sets = 3; break; }
+      if (item.prio !== 1 || item.sets !== (item.focus ? 4 : 3) || exercise(item.exerciseId).kind !== 'compound') continue;
+      item.sets += 1;
+      if (over()) { item.sets -= 1; break; }
     }
   }
   return list.map(({ prio: _prio, ...rest }) => rest);
@@ -143,12 +155,20 @@ type Draft = { tpl: Template; items: (PlanItem & { prio: number })[]; missing: P
 function draft(profile: Profile): { split: string; drafts: Draft[] } {
   const split = SPLITS[Math.min(6, Math.max(2, Math.round(profile.daysPerWeek)))];
   const used = new Map<string, number>();
+  const focus = focusMuscles(profile);
   const drafts = split.days.map((key) => {
     const tpl = T[key];
     const taken = new Set<string>();
     const d: Draft = { tpl, items: [], missing: [], replaced: [] };
     let heavyLeft = 2;
-    for (const slot of tpl.slots) {
+    // Schwerpunkt: an passenden Tagen kommt eine gezielte Zusatzübung dazu.
+    const slots = [...tpl.slots];
+    for (const area of profile.focus ?? []) {
+      const dayHits = tpl.slots.some((sl) => sl.prio === 1 && EXERCISES.some((e) => e.pattern === sl.p && e.primary.some((m) => FOCUS_MUSCLES[area].includes(m))));
+      if (!dayHits) continue;
+      for (const p of FOCUS_EXTRA[area]) if (!slots.some((sl) => sl.p === p)) slots.push({ p, prio: 1 });
+    }
+    for (const slot of slots) {
       const pick = choose(profile, slot.p, used, taken);
       if (!pick) { d.missing.push(slot.p); continue; }
       if (pick.fallback) d.replaced.push(slot.p);
@@ -156,7 +176,9 @@ function draft(profile: Profile): { split: string; drafts: Draft[] } {
       used.set(pick.ex.id, (used.get(pick.ex.id) ?? 0) + 1);
       const heavy = COMPOUND.includes(pick.ex.pattern) && heavyLeft > 0;
       if (heavy) heavyLeft -= 1;
-      d.items.push({ exerciseId: pick.ex.id, slot: slot.p, prio: slot.prio, fallback: pick.fallback || undefined, ...prescribe(profile, pick.ex, heavy) });
+      const rx = prescribe(profile, pick.ex, heavy);
+      const focused = pick.ex.mode === 'reps' && pick.ex.primary.some((m) => focus.has(m));
+      d.items.push({ exerciseId: pick.ex.id, slot: slot.p, prio: focused ? 1 : slot.prio, fallback: pick.fallback || undefined, focus: focused || undefined, ...rx, sets: rx.sets + (focused ? 1 : 0) });
     }
     // Reicht das Equipment für den Schwerpunkt nicht, wird der Tag mit Grundübungen aufgefüllt.
     for (const p of FILLER) {
@@ -257,7 +279,9 @@ export function swapExercise(plan: Plan, profile: Profile, dayId: string, index:
         if (i !== index) return item;
         const ex = exercise(exerciseId);
         const heavy = COMPOUND.includes(ex.pattern) && i < 2;
-        return { ...item, exerciseId, ...prescribe(profile, ex, heavy), fallback: ex.pattern !== item.slot || undefined };
+        const rx = prescribe(profile, ex, heavy);
+        const focused = ex.mode === 'reps' && ex.primary.some((m) => focusMuscles(profile).has(m));
+        return { ...item, exerciseId, ...rx, sets: rx.sets + (focused ? 1 : 0), focus: focused || undefined, fallback: ex.pattern !== item.slot || undefined };
       });
       return { ...d, items, minutes: dayMinutes(items) };
     }),

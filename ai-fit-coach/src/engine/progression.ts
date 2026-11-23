@@ -22,11 +22,14 @@ export function logsFor(history: Session[], exerciseId: string): ExerciseLog[] {
  * Doppelte Progression: erst im Wiederholungsbereich nach oben arbeiten,
  * dann das Gewicht erhöhen und wieder unten im Bereich beginnen.
  */
-export function suggest(ex: Exercise, item: Pick<PlanItem, 'sets' | 'lo' | 'hi'>, logs: ExerciseLog[]): Suggestion {
+export function suggest(ex: Exercise, item: Pick<PlanItem, 'sets' | 'lo' | 'hi'>, logs: ExerciseLog[], start: number | null = null): Suggestion {
   const unit = ex.mode === 'time' ? 'Sek.' : 'Wdh.';
   const last = logs[0] ? done(logs[0]) : [];
   const weight = last.length ? Math.max(...last.map((x) => x.weight)) : 0;
   const external = ex.load === 'external';
+  if ((!last.length || (external && weight <= 0)) && external && start) {
+    return { weight: start, reps: item.lo, kind: 'start', note: `Erstes Mal: Starte mit etwa ${kg(start)} (aus deinen Angaben geschätzt). Zu leicht oder zu schwer? Einfach anpassen, ab dann rechne ich mit deinen echten Werten.` };
+  }
   if (!last.length || (external && weight <= 0)) {
     return {
       weight: null, reps: ex.mode === 'time' ? item.lo : Math.round((item.lo + item.hi) / 2), kind: 'start',

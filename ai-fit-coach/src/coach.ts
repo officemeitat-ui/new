@@ -22,6 +22,7 @@ export function coachContext({ profile, plan, history }: CoachContext): string {
   const recs = records(history).slice(0, 5).map((r) => `${exercise(r.exerciseId).name}: ${Math.round(r.best)}`).join('; ');
   return [
     `Ziel: ${profile.goal}; Level: ${LEVEL[profile.level]}; ${profile.daysPerWeek} Tage/Woche, ${profile.minutes} Min.`,
+    (profile.focus ?? []).length ? `Schwerpunkte: ${(profile.focus ?? []).join(', ')}` : '',
     `Equipment: ${profile.equipment.map(equipmentName).join(', ') || 'nur Körpergewicht'}`,
     `Split: ${plan.split}; Tage: ${plan.days.map((d) => `${d.name} (${d.items.map((i) => exercise(i.exerciseId).name).join(', ')})`).join(' | ')}`,
     `Einheiten gesamt: ${history.length}; diese Woche: ${sessionsThisWeek(history).length}`,
@@ -60,7 +61,7 @@ export function localCoach(question: string, ctx: CoachContext): string {
   if (has(/eiweiß|protein|ernähr|essen|kalorien|diät|abnehm/)) {
     const fat = profile.goal === 'Fettabbau';
     return [
-      'Als Richtwert für Krafttraining gelten etwa 1,6–2,2 g Eiweiß pro kg Körpergewicht am Tag, verteilt auf mehrere Mahlzeiten.',
+      `Als Richtwert für Krafttraining gelten etwa 1,6–2,2 g Eiweiß pro kg Körpergewicht am Tag, verteilt auf mehrere Mahlzeiten.${profile.weightKg ? ` Bei deinen ${Math.round(profile.weightKg)} kg sind das rund ${Math.round(profile.weightKg * 1.6 / 5) * 5}–${Math.round(profile.weightKg * 2.2 / 5) * 5} g.` : ''}`,
       fat ? 'Für Fettabbau zählt ein moderates Kaloriendefizit. Zu schnelles Abnehmen kostet Kraft und Muskeln. Das Krafttraining bleibt dabei gleich schwer, damit die Muskulatur erhalten bleibt.'
         : profile.goal === 'Muskelaufbau' ? 'Für Muskelaufbau hilft ein kleiner Kalorienüberschuss. Ohne genug Energie wächst wenig, egal wie gut der Plan ist.'
         : 'Iss ausreichend und regelmäßig. Ohne Energie leidet die Trainingsqualität.',

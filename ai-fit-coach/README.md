@@ -17,7 +17,11 @@ Voraussetzung: Node.js 20.19 oder neuer. Bei SDK-Konflikten: `npx expo install -
 
 ## Was die App kann
 
-- **Einrichtung in fünf Schritten:** Name, Ziel (Muskelaufbau, Kraft, Fettabbau, Allgemeine Fitness), Erfahrung, Tage pro Woche (2–6), Zeit pro Einheit (20–90 Min.), Equipment, Problemzonen.
+- **Einrichtung in zwölf kurzen Schritten**, eine Frage pro Bildschirm: Name, Geschlecht (optional), Hauptziel, Schwerpunkte, Körperdaten, Erfahrung, Kraftwert, Tage und Zeit, Trainingsort, Equipment, größte Hürde und Problemzonen, Planvorschau.
+- **Schwerpunkte:** Gewählte Muskelgruppen (Figur zum Antippen) bekommen mehr Sätze und eine Zusatzübung und werden bei Zeitmangel zuletzt gekürzt.
+- **Körperdaten:** Größe, Gewicht, BMI mit Einordnung, optionales Zielgewicht mit realistischem Zeitrahmen. Gewichtsverlauf im Tab Fortschritt.
+- **Startgewichte:** Aus einem bekannten Satz (Bankdrücken, Kniebeuge oder Kreuzheben) wird das Maximum geschätzt und daraus ein Startgewicht für jede Übung. Ohne Kraftwert vorsichtig aus Körpergewicht und Erfahrung. Grobe Richtwerte, im Workout änderbar.
+- **Größte Hürde:** „Klare Anweisungen" klappt die Ausführung im Workout auf, „Langeweile" bringt mehr verschiedene Übungen, „Motivation" einen Hinweis auf Home.
 - **Equipment-Auswahl:** 12 Geräte einzeln wählbar, dazu vier Vorlagen (Ohne Geräte, Zuhause, Home-Gym, Fitnessstudio). Der Plan enthält nur Übungen, die mit der Auswahl möglich sind.
 - **Equipment-Abdeckung:** Wert von 0 bis 100, wie gut das Equipment die Bewegungsmuster des Plans trägt, und welche Anschaffung am meisten bringen würde.
 - **Plan-Generator:** Split nach Trainingstagen (Ganzkörper, Ober-/Unterkörper, Push/Pull/Beine). Sätze, Wiederholungen und Pausen nach Ziel und Erfahrung. Passt die Einheit nicht in die Zeit, fallen zuerst die kleinen Übungen weg.
@@ -44,8 +48,9 @@ Die Trainingsempfehlungen sind allgemeine Hinweise und ersetzen keine ärztliche
   - `equipment.ts` Geräte und Vorlagen, `exercises.ts` Übungsbibliothek
   - `plan.ts` Plan-Generator, Equipment-Abdeckung, Upgrade-Empfehlung, Tauschen
   - `progression.ts` Steigerung, Bestwerte, Wochenstatistik
+  - `startweights.ts` Schätzung der Startgewichte
 - `src/screens/`: `Onboarding`, `Tabs` (Home, Training, Coach, Fortschritt, Profil), `Workout`
-- `src/coach.ts`: regelbasierter Coach, `src/store.ts`: Speichern und Laden, `src/ui.tsx`: Bausteine
+- `src/BodyMap.tsx`: Figur für die Schwerpunkte, `src/coach.ts`: regelbasierter Coach, `src/store.ts`: Speichern und Laden, `src/ui.tsx`: Bausteine
 - `checks/engine.spec.ts`: Tests (alle Kombinationen aus Ziel, Level, Tagen, Zeit und Equipment)
 - `supabase/`: Datenbankschema und Edge Function für den KI-Coach
 
