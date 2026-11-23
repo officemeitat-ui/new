@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 426 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 427 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (31)
-- [Objekte & Kunden](#objekte-kunden) (109)
+- [Objekte & Kunden](#objekte-kunden) (110)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (72)
@@ -2615,6 +2615,23 @@ Beim Erstellen legt die App das PDF in SharePoint ab: Mattenwechsel/Kunden/<Kund
 > Tipp: Für die Ablage braucht das Konto „Bearbeiten“ auf den Ordner Mattenwechsel in der Bibliothek (siehe Berechtigungen).
 
 *Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten*
+
+### Karte der Touren eines Tages
+
+*In der App: Matten-Tourenplanung*
+
+In der Matten-Tourenplanung zeigt „Karte zeigen“ den Tag auf einer Karte: den Betriebshof, die Stopps jeder Tour mit ihrer Nummer in Fahrreihenfolge und je Tour eine Farbe mit Linie. So siehst du auf einen Blick, ob eine Tour kreuz und quer fährt oder ein Stopp besser in die andere Tour passt. Erledigte Stopps haben einen grünen Ring.
+
+1. „Matten-Tourenplanung“ öffnen und den Tag wählen.
+2. Unter dem Datum auf „Karte zeigen“ klicken.
+3. Mit dem Mausrad oder „+“ und „−“ zoomen, mit gedrückter Maustaste verschieben.
+4. Reihenfolge an der Tour ändern oder einen Stopp verschieben – die Karte zeichnet sich neu.
+
+> Tipp: Die Linie verbindet die Stopps in Luftlinie; die echte Fahrstrecke zeigt „Route in Google Maps ansehen“ an der Tour.
+> Tipp: Stopps ohne Koordinaten stehen unter der Karte. Koordinaten ergänzt du unter „Matten-Liegeplätze“ → „Mehr“ → „Koordinaten für alle fehlenden suchen“.
+> Tipp: Die Karte ist die Verwaltungsgrundkarte Österreich (basemap.at).
+
+*Vollzugriff bzw. Mattenwechsel Büro*
 
 ### Fotos des Fahrers: Fotopflicht und Fotonachweis
 

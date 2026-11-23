@@ -2196,6 +2196,18 @@ export const TOPICS = [
     roles: 'Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten',
   },
   {
+    id: 'mw-touren-karte',
+    section: 'objekte',
+    view: 'mw-planung',
+    title: 'Karte der Touren eines Tages',
+    q: ['karte touren', 'tour auf der karte', 'stopps auf der karte', 'landkarte mattenwechsel', 'strecke ansehen', 'streckenplanung karte', 'wo fährt der fahrer', 'karte zeigen'],
+    answer: 'In der Matten-Tourenplanung zeigt „Karte zeigen“ den Tag auf einer Karte: den Betriebshof, die Stopps jeder Tour mit ihrer Nummer in Fahrreihenfolge und je Tour eine Farbe mit Linie. So siehst du auf einen Blick, ob eine Tour kreuz und quer fährt oder ein Stopp besser in die andere Tour passt. Erledigte Stopps haben einen grünen Ring.',
+    steps: ['„Matten-Tourenplanung“ öffnen und den Tag wählen.', 'Unter dem Datum auf „Karte zeigen“ klicken.', 'Mit dem Mausrad oder „+“ und „−“ zoomen, mit gedrückter Maustaste verschieben.', 'Reihenfolge an der Tour ändern oder einen Stopp verschieben – die Karte zeichnet sich neu.'],
+    tips: ['Die Linie verbindet die Stopps in Luftlinie; die echte Fahrstrecke zeigt „Route in Google Maps ansehen“ an der Tour.', 'Stopps ohne Koordinaten stehen unter der Karte. Koordinaten ergänzt du unter „Matten-Liegeplätze“ → „Mehr“ → „Koordinaten für alle fehlenden suchen“.', 'Die Karte ist die Verwaltungsgrundkarte Österreich (basemap.at).'],
+    related: ['mw-touren-planen', 'mw-tour-freigeben', 'mw-liegeplatz-anlegen'],
+    roles: 'Vollzugriff bzw. Mattenwechsel Büro',
+  },
+  {
     id: 'mw-fotos',
     section: 'objekte',
     view: 'mw-lieferscheine',

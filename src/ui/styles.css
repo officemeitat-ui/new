@@ -2630,6 +2630,20 @@ th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
 .mw-tp-link { margin-left: auto; }
 .mw-tp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 12px; }
 .mw-tp-bar .field.inline input { min-width: 0; }
+.mw-tp-mapbox { margin: 0 0 14px; }
+.mw-tp-map { min-height: 420px; }
+.mw-tp-map-root.wx-map { height: 420px; }
+.mw-tp-legend { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.9rem; }
+.mw-tp-legend li { display: flex; align-items: center; gap: 6px; }
+.mw-tp-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.mw-tp-legend i.depot { border-radius: 3px; background: #13232f; }
+.wx-mark.stopp i, .wx-mark.depot i { width: 22px; height: 22px; margin: -11px 0 0 -11px; color: #fff; font-style: normal; font-size: 0.72rem; font-weight: 700; line-height: 18px; text-align: center; }
+.wx-mark.stopp.done i { box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35), 0 0 0 4px rgb(19 132 74 / 0.55); }
+.wx-mark.depot i { border-radius: 4px; background: #13232f; }
+@media (max-width: 720px) {
+  .mw-tp-map { min-height: 300px; }
+  .mw-tp-map-root.wx-map { height: 300px; }
+}
 .mw-tp-sum { margin: 0; flex-basis: 100%; }
 .mw-tp-drivers { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 10px 12px; margin: 0 0 12px; }
 .mw-tp-drivers h3, .mw-tp-open h3 { margin: 0 0 6px; font-size: 1rem; }

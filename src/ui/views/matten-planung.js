@@ -63,6 +63,7 @@ import { app, canEdit, closeModal, confirmStep, openModal, persist, registerActi
 import { chosenName, chosenProvider, findCoords, providerStatus, providerText, routingLine, routingStatus, watchRoutingStatus } from '../matten-routing.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { completeWebDrivers, publishWebTour, pushWebDrivers, startWebPolling, syncWebspace, webIdentityFor, webLinkOf, webReady, webTourNote, withdrawWebTour } from '../matten-webspace.js'
+import { tourMapHtml } from '../matten-karte.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
 import { waLink } from '../whatsapp.js'
 import { tourStockHint } from './matten-bestand.js'
@@ -217,6 +218,7 @@ function planungView() {
         <button class="btn small" data-action="mw-tp-day" data-step="0">Nächster Arbeitstag</button></div>
       <h3 class="mw-cal-title">${esc(dayTitle(date))}${date < today ? ' <span class="pill na">vorbei</span>' : ''}</h3>
       <p class="muted mw-tp-sum">${esc([plural(dayTours.length, 'Tour', 'Touren'), released ? `${released} freigegeben` : '', plural(open.length, 'Stopp', 'Stopps') + ' nicht eingeplant'].filter(Boolean).join(' · '))}</p>
+      ${dayTours.length ? `<button class="btn small mw-tp-map-btn" data-action="mw-tp-map" aria-pressed="${app.ui.mwTpMap ? 'true' : 'false'}">${app.ui.mwTpMap ? 'Karte ausblenden' : 'Karte zeigen'}</button>` : ''}
     </div>`
   const tourBlocks = dayTours.map((t) => tourCard(t, { ed, today, others: drafts.filter((x) => x.id !== t.id) })).join('')
   const empty = !dayTours.length ? `<p class="empty">Noch keine Tour für diesen Tag.${ed && list.length ? ' „Vorschlag erzeugen“ verteilt die offenen Stopps auf die gewählten Fahrer.' : ''}</p>` : ''
@@ -229,7 +231,8 @@ function planungView() {
   // ist OpenRouteService bzw. Google gewählt, aber nicht bereit, sagt das schon die Zeile darüber (routingLine)
   const cp = chosenProvider()
   const noticeHtml = !notice || (cp && !cp.ready()) ? '' : cp ? `<div class="banner warn-banner mwg-line" role="status"><p>${esc(notice)}</p></div>` : `<p class="note">${esc(notice)}</p>`
-  return `${head}${banners}${bar}${status}${routingLine({ ed })}${driversBlock(date, list, ed)}${noticeHtml}
+  const mapHtml = app.ui.mwTpMap && dayTours.length ? tourMapHtml(dayTours, { depot, date }) : ''
+  return `${head}${banners}${bar}${status}${routingLine({ ed })}${driversBlock(date, list, ed)}${noticeHtml}${mapHtml}
     <div class="mw-tp-tours">${tourBlocks}${empty}</div>
     ${openBlock(date, open, drafts, ed)}
     ${dayLoad.length && dayTours.length > 1 ? `<aside class="mw-load mw-tp-dayload" aria-label="Ladeliste des Tages"><h4>Ladeliste des Tages (alle Touren)</h4><ul>${dayLoad.map((r) => `<li><b>${r.qty}</b> × ${esc(loadLabel(r))}</li>`).join('')}</ul></aside>` : ''}`
@@ -909,6 +912,11 @@ const goto = async (date) => {
 registerActions({
   // aus dem Kalender, „Zu erledigen“ und dem digitalen Mitarbeiter: Tag in der Tourenplanung öffnen
   'mw-tp-goto': (el) => goto(el.dataset.date),
+  // Karte der Touren des Tages ein- und ausblenden (gilt für diese Sitzung)
+  'mw-tp-map': () => {
+    app.ui.mwTpMap = !app.ui.mwTpMap
+    renderNow()
+  },
   'mw-tp-day': (el) => {
     const step = Number(el.dataset.step) || 0
     app.ui.confirm = null

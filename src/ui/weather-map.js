@@ -41,6 +41,7 @@ export class RadarMap {
     this.cy = 0
     this.frame = null
     this.marks = []
+    this.paths = []
     this.#bind()
     this.resizer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => this.draw()) : null
     this.resizer?.observe(root)
@@ -66,10 +67,19 @@ export class RadarMap {
     this.draw()
   }
 
-  /** Punkte: [{ lat, lon, label, kind: 'ort'|'objekt', title }] */
+  /**
+   * Punkte: [{ lat, lon, label, kind: 'ort'|'objekt'|'stopp'|'depot', title, text?, color?, done? }] – text steht im
+   * Punkt (z. B. die Nummer des Stopps), color färbt ihn (Touren im Mattenwechsel, ui/matten-karte.js).
+   */
   setMarks(marks) {
-    this.marks = marks
+    this.marks = marks || []
     this.#drawMarks()
+  }
+
+  /** Linien über den Kacheln: [{ color, points: [{ lat, lon }] }] (z. B. die Reihenfolge einer Tour). */
+  setPaths(paths) {
+    this.paths = paths || []
+    this.#drawRadar()
   }
 
   /** Radarbild zeigen (oder null). Das Bild wird einmal je Zeitpunkt in Rastergröße gemalt. */
@@ -168,18 +178,33 @@ export class RadarMap {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, w, h)
     const f = this.frame
-    if (!f?.bitmap) return
-    const b = f.raster.bbox
-    const [x1, y1] = this.#screen(b.n, b.w)
-    const [x2, y2] = this.#screen(b.s, b.e)
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(f.bitmap, x1, y1, x2 - x1, y2 - y1)
-    // Rand des Ausschnitts (außerhalb gibt es keine Daten)
-    ctx.strokeStyle = 'rgba(90, 100, 120, 0.45)'
-    ctx.setLineDash([4, 4])
-    ctx.strokeRect(x1 + 0.5, y1 + 0.5, x2 - x1 - 1, y2 - y1 - 1)
-    ctx.setLineDash([])
+    if (f?.bitmap) {
+      const b = f.raster.bbox
+      const [x1, y1] = this.#screen(b.n, b.w)
+      const [x2, y2] = this.#screen(b.s, b.e)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(f.bitmap, x1, y1, x2 - x1, y2 - y1)
+      // Rand des Ausschnitts (außerhalb gibt es keine Daten)
+      ctx.strokeStyle = 'rgba(90, 100, 120, 0.45)'
+      ctx.setLineDash([4, 4])
+      ctx.strokeRect(x1 + 0.5, y1 + 0.5, x2 - x1 - 1, y2 - y1 - 1)
+      ctx.setLineDash([])
+    }
+    // Linien (weiß unterlegt, damit sie auf jeder Karte lesbar bleiben)
+    for (const path of this.paths) {
+      const pts = (path.points || []).map((p) => this.#screen(p.lat, p.lon))
+      if (pts.length < 2) continue
+      ctx.lineJoin = 'round'
+      ctx.lineCap = 'round'
+      for (const [width, style] of [[6, 'rgba(255, 255, 255, 0.85)'], [3, path.color || '#1d5fd0']]) {
+        ctx.beginPath()
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)))
+        ctx.lineWidth = width
+        ctx.strokeStyle = style
+        ctx.stroke()
+      }
+    }
   }
 
   #drawMarks() {
@@ -189,7 +214,8 @@ export class RadarMap {
         const [x, y] = this.#screen(m.lat, m.lon)
         if (x < -40 || y < -20 || x > w + 40 || y > h + 20) return ''
         const label = m.kind === 'ort' ? `<span class="wx-mark-label">${escape(m.label)}</span>` : ''
-        return `<span class="wx-mark ${m.kind}" style="transform:translate(${Math.round(x)}px, ${Math.round(y)}px)" title="${escape(m.title || m.label)}"><i></i>${label}</span>`
+        const dot = `<i${/^#[0-9a-f]{3,8}$/i.test(m.color || '') ? ` style="background:${m.color}"` : ''}>${m.text ? escape(m.text) : ''}</i>`
+        return `<span class="wx-mark ${escape(m.kind)}${m.done ? ' done' : ''}" style="transform:translate(${Math.round(x)}px, ${Math.round(y)}px)" title="${escape(m.title || m.label)}">${dot}${label}</span>`
       })
       .join('')
   }

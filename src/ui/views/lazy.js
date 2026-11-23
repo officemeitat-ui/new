@@ -522,7 +522,7 @@ lazy(BUERO, {
     mw-save mw-delete mw-areas-open mw-area-add mw-area-del mw-areas-save mw-imp-read mw-imp-files mw-imp-paste-open mw-imp-paste-template mw-imp-paste-check mw-imp-paste-use mw-imp-reset mw-imp-choice mw-imp-new-customers mw-imp-new-types mw-imp-run
     mw-cal-goto mw-cal-mode mw-cal-nav mw-cal-area mw-cal-day mw-sel mw-sel-day mw-sel-clear mw-job-open mw-job-act mw-plan-open mw-plan-weeks mw-plan-show mw-rhythm-open mw-rhythm-spread mw-rhythm-save
     mw-closures-open mw-job-save mw-job-reset mw-plan-run mw-plan-review mw-closures-add mw-closures-del mw-closures-save
-    mw-tp-goto mw-tp-day mw-tp-date mw-tp-reload mw-tp-depot-open mw-tp-drivers-open mw-tp-drv mw-tp-propose mw-tp-move mw-tp-transfer
+    mw-tp-goto mw-tp-day mw-tp-map mw-tp-date mw-tp-reload mw-tp-depot-open mw-tp-drivers-open mw-tp-drv mw-tp-propose mw-tp-move mw-tp-transfer
     mw-tp-remove mw-tp-add mw-tp-release mw-tp-withdraw mw-tp-delete mw-tp-edit-open mw-tp-edit-save mw-tp-new-open mw-tp-new-save
     mw-tp-depot-geo mw-tp-depot-save mw-tp-drv-add mw-tp-drv-del mw-tp-drivers-save mww-dr-web mww-dr-newlink
     mww-web-open mww-copy mww-web-save mww-web-file mww-web-sync mww-web-publish
