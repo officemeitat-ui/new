@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { EQUIPMENT } from './engine/equipment';
+import { EQUIPMENT, MACHINES } from './engine/equipment';
 import { hasExercise } from './engine/exercises';
 import { generatePlan } from './engine/plan';
 import type { Plan, Profile, Session, WeightEntry } from './engine/types';
@@ -15,11 +15,13 @@ export type AppState = {
   weights: WeightEntry[];
   /** Index des nächsten Trainingstags im Plan. */
   nextDay: number;
+  /** Eigene Notizen je Übung. */
+  notes: Record<string, string>;
   /** Name aus einer älteren App-Version, als Vorschlag fürs Onboarding. */
   draftName?: string;
 };
 
-export const EMPTY: AppState = { profile: null, plan: null, history: [], weights: [], nextDay: 0 };
+export const EMPTY: AppState = { profile: null, plan: null, history: [], weights: [], nextDay: 0, notes: {} };
 
 const known = new Set<string>(EQUIPMENT.map((e) => e.id));
 
@@ -27,7 +29,7 @@ function clean(raw: unknown): AppState {
   const data = (raw ?? {}) as Partial<AppState>;
   const p = data.profile;
   const profile: Profile | null = p && typeof p.name === 'string' && Array.isArray(p.equipment)
-    ? { ...p, equipment: p.equipment.filter((e) => known.has(e)), limitations: Array.isArray(p.limitations) ? p.limitations : [], focus: Array.isArray(p.focus) ? p.focus : [] }
+    ? { ...p, equipment: [...new Set(p.equipment.flatMap((e) => ((e as string) === 'machines' ? MACHINES : [e])))].filter((e) => known.has(e)), limitations: Array.isArray(p.limitations) ? p.limitations : [], focus: Array.isArray(p.focus) ? p.focus : [] }
     : null;
   const history = Array.isArray(data.history) ? data.history.filter((sn) => sn && Array.isArray(sn.exercises)) : [];
   let plan = profile && data.plan && Array.isArray(data.plan.days) ? data.plan : null;
@@ -35,7 +37,8 @@ function clean(raw: unknown): AppState {
   if (profile && (!plan || !plan.days.length || plan.days.some((d) => d.items.some((i) => !hasExercise(i.exerciseId))))) plan = generatePlan(profile);
   const nextDay = plan && Number.isInteger(data.nextDay) ? (data.nextDay as number) % plan.days.length : 0;
   const weights = Array.isArray(data.weights) ? data.weights.filter((w) => w && typeof w.kg === 'number' && typeof w.date === 'string') : [];
-  return { profile, plan, history, weights, nextDay };
+  const notes = data.notes && typeof data.notes === 'object' ? data.notes : {};
+  return { profile, plan, history, weights, nextDay, notes };
 }
 
 export async function loadState(): Promise<AppState> {
@@ -49,5 +52,5 @@ export async function loadState(): Promise<AppState> {
   return EMPTY;
 }
 
-export const saveState = ({ profile, plan, history, weights, nextDay }: AppState) =>
-  AsyncStorage.setItem(KEY, JSON.stringify({ profile, plan, history, weights, nextDay }));
+export const saveState = ({ profile, plan, history, weights, nextDay, notes }: AppState) =>
+  AsyncStorage.setItem(KEY, JSON.stringify({ profile, plan, history, weights, nextDay, notes }));

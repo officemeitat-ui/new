@@ -155,3 +155,28 @@ test('Abwechslung: bei „schnell gelangweilt“ wiederholen sich weniger Übung
   const p = { ...base, daysPerWeek: 6, equipment: gym };
   assert.ok(count({ ...p, challenge: 'variety' }) <= count(p));
 });
+
+test('Jede Übung hat Anleitung und Bewegungsbild', async () => {
+  const { guide, hasGuide } = await import('../src/engine/guides');
+  const { ANIMS, ANIM_OF } = await import('../src/figure/poses');
+  for (const e of EXERCISES) {
+    assert.ok(hasGuide(e.id), `Anleitung fehlt: ${e.id}`);
+    const g = guide(e);
+    assert.ok(g.setup.length > 15 && g.steps.length >= 2 && g.tips.length >= 3, e.id);
+    assert.ok(ANIMS[ANIM_OF[e.id]], `Bewegungsbild fehlt: ${e.id}`);
+  }
+});
+
+test('Plan von Hand ändern: hinzufügen, nicht doppelt, entfernen', async () => {
+  const { addExercise, removeExercise } = await import('../src/engine/plan');
+  const p = { ...base, equipment: gym };
+  const plan = generatePlan(p);
+  const day = plan.days[0];
+  const added = addExercise(plan, p, day.id, 'cable_crunch');
+  assert.equal(added.days[0].items.length, day.items.length + 1);
+  assert.ok(added.days[0].minutes > day.minutes);
+  assert.equal(addExercise(added, p, day.id, 'cable_crunch').days[0].items.length, day.items.length + 1);
+  const removed = removeExercise(added, day.id, 0);
+  assert.equal(removed.days[0].items.length, day.items.length);
+  assert.notEqual(removed.days[0].items[0].exerciseId, day.items[0].exerciseId);
+});

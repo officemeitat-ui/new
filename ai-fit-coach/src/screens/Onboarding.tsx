@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { BodyMap } from '../BodyMap';
-import { EQUIPMENT, equipmentName } from '../engine/equipment';
+import { EQUIPMENT, EQUIPMENT_GROUPS, MACHINES, equipmentName } from '../engine/equipment';
 import { exercise } from '../engine/exercises';
 import { generatePlan, upgrades } from '../engine/plan';
 import { benchEstimate, oneRmFrom } from '../engine/startweights';
@@ -24,7 +24,7 @@ const FOCUS: FocusArea[] = ['Brust', 'Rücken', 'Schultern', 'Arme', 'Bauch', 'G
 const LIFTS: { id: BenchmarkLift; name: string }[] = [{ id: 'bench', name: 'Bankdrücken' }, { id: 'squat', name: 'Kniebeuge' }, { id: 'deadlift', name: 'Kreuzheben' }];
 const PLACES: { id: string; name: string; hint: string; icon: IconName; items: EquipmentId[] }[] = [
   { id: 'gym', name: 'Großes Fitnessstudio', hint: 'Freie Gewichte, Maschinen, Kabelzüge, Cardio', icon: 'business-outline', items: EQUIPMENT.map((e) => e.id) },
-  { id: 'small', name: 'Kleines Studio', hint: 'Kurzhanteln, Bank, Kabelzug, ein paar Maschinen', icon: 'storefront-outline', items: ['dumbbells', 'bench', 'cable', 'machines', 'pullup_bar', 'cardio'] },
+  { id: 'small', name: 'Kleines Studio', hint: 'Kurzhanteln, Bank, Kabelzug, Latzug, Beinpresse, Brustpresse', icon: 'storefront-outline', items: ['dumbbells', 'bench', 'cable', 'lat_machine', 'leg_press', 'chest_press_m', 'pullup_bar', 'cardio'] },
   { id: 'garage', name: 'Home-Gym', hint: 'Langhantel, Rack, Bank, Klimmzugstange', icon: 'home-outline', items: ['dumbbells', 'barbell', 'rack', 'bench', 'pullup_bar', 'bands'] },
   { id: 'home', name: 'Zu Hause', hint: 'Kurzhanteln, Bänder, Klimmzugstange', icon: 'bed-outline', items: ['dumbbells', 'bands', 'pullup_bar'] },
   { id: 'none', name: 'Überall, ohne Geräte', hint: 'Nur das eigene Körpergewicht', icon: 'walk-outline', items: [] },
@@ -215,7 +215,15 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
             <Meter value={plan.score} />
             <Text style={s.small}>{up.length ? `Größter Gewinn: ${up[0].items.map(equipmentName).join(' + ')} (+${up[0].gain} Punkte)` : 'Damit lässt sich jedes Bewegungsmuster optimal trainieren.'}</Text>
           </Card>
-          {EQUIPMENT.map((e) => <Option key={e.id} multi title={e.name} hint={e.hint} icon={e.icon as IconName} active={equipment.includes(e.id)} onPress={() => setEquipment(toggle(equipment, e.id))} />)}
+          {EQUIPMENT_GROUPS.map((g) => (
+            <React.Fragment key={g}>
+              <View style={s.rowBetween}>
+                <H>{g}</H>
+                {g === 'Kabel und Maschinen' ? <Button small variant="ghost" title={MACHINES.every((m) => equipment.includes(m)) ? 'Keine Maschinen' : 'Alle Maschinen'} onPress={() => setEquipment(MACHINES.every((m) => equipment.includes(m)) ? equipment.filter((e) => !MACHINES.includes(e)) : [...new Set([...equipment, ...MACHINES])])} /> : null}
+              </View>
+              {EQUIPMENT.filter((e) => e.group === g).map((e) => <Option key={e.id} multi title={e.name} hint={e.hint} icon={e.icon as IconName} active={equipment.includes(e.id)} onPress={() => setEquipment(toggle(equipment, e.id))} />)}
+            </React.Fragment>
+          ))}
         </>}
 
         {step === 10 && <>

@@ -1,6 +1,7 @@
 export type EquipmentId =
   | 'dumbbells' | 'barbell' | 'rack' | 'bench' | 'pullup_bar' | 'dip_bars'
-  | 'kettlebell' | 'bands' | 'trx' | 'cable' | 'machines' | 'cardio';
+  | 'kettlebell' | 'bands' | 'trx' | 'cable' | 'cardio'
+  | 'leg_press' | 'lat_machine' | 'row_m' | 'chest_press_m' | 'fly_m' | 'shoulder_press_m' | 'leg_curl_m' | 'leg_ext_m' | 'back_ext_m';
 
 export type Goal = 'Muskelaufbau' | 'Fettabbau' | 'Kraft' | 'Allgemeine Fitness';
 export type Level = 1 | 2 | 3;

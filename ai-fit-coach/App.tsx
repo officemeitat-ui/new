@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { generatePlan, swapExercise } from './src/engine/plan';
+import { addExercise, generatePlan, removeExercise, swapExercise } from './src/engine/plan';
 import type { Profile, Session } from './src/engine/types';
 import { Onboarding } from './src/screens/Onboarding';
 import { Coach, Home, Message, ProfileTab, Progress, Shared, Training } from './src/screens/Tabs';
@@ -50,10 +50,12 @@ function AppContent() {
     );
   }
 
+  const setNote = (exerciseId: string, text: string) => setState((old) => ({ ...old, notes: { ...old.notes, [exerciseId]: text } }));
   if (workoutDay !== null) {
     const day = plan.days[workoutDay];
     return (
       <Workout day={day} profile={profile} history={history}
+        notes={state.notes} setNote={setNote}
         onCancel={() => setWorkoutDay(null)}
         onSwap={(index, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: swapExercise(old.plan, old.profile, day.id, index, exerciseId) } : old))}
         onFinish={(session: Session) => {
@@ -67,7 +69,9 @@ function AppContent() {
   const shared: Shared = {
     profile, plan, history, nextDay,
     start: setWorkoutDay,
-    swap: (dayId, index, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: swapExercise(old.plan, old.profile, dayId, index, exerciseId) } : old)),
+    swap: (dayId, index, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: swapExercise(old.plan, old.profile, dayId, index, exerciseId) } : old)),    notes: state.notes, setNote,
+    add: (dayId, exerciseId) => setState((old) => (old.plan && old.profile ? { ...old, plan: addExercise(old.plan, old.profile, dayId, exerciseId) } : old)),
+    remove: (dayId, index) => setState((old) => (old.plan ? { ...old, plan: removeExercise(old.plan, dayId, index) } : old)),
   };
 
   return (

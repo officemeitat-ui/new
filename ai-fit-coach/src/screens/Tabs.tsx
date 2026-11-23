@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ExerciseGuide, Library, Thumb } from '../ExerciseGuide';
 import { QUICK_QUESTIONS, coachContext, localCoach } from '../coach';
 import { equipmentName } from '../engine/equipment';
 import { PATTERN_NAME, exercise } from '../engine/exercises';
@@ -16,6 +17,10 @@ export type Shared = {
   profile: Profile; plan: Plan; history: Session[]; nextDay: number;
   start: (dayIndex: number) => void;
   swap: (dayId: string, index: number, exerciseId: string) => void;
+  notes: Record<string, string>;
+  setNote: (exerciseId: string, text: string) => void;
+  add: (dayId: string, exerciseId: string) => void;
+  remove: (dayId: string, index: number) => void;
 };
 
 const LEVEL = ['', 'Einsteiger', 'Fortgeschritten', 'Erfahren'];
@@ -75,8 +80,10 @@ export function Home({ profile, plan, history, nextDay, start, goTo }: Shared & 
   </>;
 }
 
-export function Training({ profile, plan, history, nextDay, start, swap, regenerate }: Shared & { regenerate: () => void }) {
+export function Training({ profile, plan, history, nextDay, start, swap, regenerate, notes, setNote, add, remove }: Shared & { regenerate: () => void }) {
   const confirm = useConfirm();
+  const [library, setLibrary] = useState<{ dayId: string | null } | null>(null);
+  const libDay = library?.dayId ? plan.days.find((d) => d.id === library.dayId) : null;
   const [open, setOpen] = useState<{ day: PlanDay; index: number } | null>(null);
   const volume = useMemo(() => weeklyVolume(plan), [plan]);
   const maxVol = Math.max(20, ...Object.values(volume));
@@ -103,6 +110,7 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
           return (
             <Pressable key={`${i.exerciseId}-${k}`} accessibilityRole="button" accessibilityLabel={`${e.name}, Details und Tauschen`} onPress={() => setOpen({ day: d, index: k })}
               style={[s.rowBetween, { paddingTop: 10, borderTopWidth: 1, borderTopColor: c.border, minHeight: 48 }]}>
+              <Thumb ex={e} />
               <View style={{ flex: 1 }}>
                 <Text style={s.strong}>{e.name}</Text>
                 <Text style={s.small}>{i.sets} × {range(i.lo, i.hi)} {e.mode === 'time' ? 'Sek.' : 'Wdh.'}{e.perSide ? ' je Seite' : ''} · {i.rest} Sek. Pause{i.fallback ? ' · Ersatzübung' : ''}{i.focus ? ' · Schwerpunkt' : ''}</Text>
@@ -111,8 +119,10 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
             </Pressable>
           );
         })}
+        <Button small variant="ghost" icon="add" title="Übung hinzufügen" onPress={() => setLibrary({ dayId: d.id })} />
       </Card>
     ))}
+    <Button variant="secondary" icon="library-outline" title="Übungskatalog" onPress={() => setLibrary({ dayId: null })} />
     <Card>
       <H>Sätze pro Muskel und Woche</H>
       <Text style={s.small}>{profile.goal === 'Muskelaufbau' ? 'Richtwert für Muskelaufbau: etwa 10–20 Sätze pro Muskel und Woche. Hilfsmuskeln zählen halb.' : 'So verteilt sich dein Wochenvolumen. Hilfsmuskeln zählen halb.'}</Text>
@@ -127,15 +137,9 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
     <Button variant="secondary" icon="refresh" title="Plan neu erstellen" onPress={async () => { if (await confirm({ title: 'Plan neu erstellen?', text: 'Getauschte Übungen werden zurückgesetzt. Deine Trainingsdaten bleiben erhalten.', yes: 'Neu erstellen' })) regenerate(); }} />
 
     <Sheet visible={!!open && !!ex} onClose={() => setOpen(null)} title={ex?.name ?? ''}>
-      {ex && item && sel ? <>
-        <View style={s.wrap}>
-          <View style={s.badge}><Text style={s.badgeText}>{PATTERN_NAME[item.slot]}</Text></View>
-          <View style={s.badge}><Text style={s.badgeText}>{ex.needs.length ? ex.needs.map(equipmentName).join(' + ') : 'Körpergewicht'}</Text></View>
-        </View>
-        <Text style={s.text}>{ex.cue}</Text>
-        <Text style={s.small}>Zielmuskeln: {[...ex.primary, ...ex.secondary].join(', ') || 'Ganzkörper, Kondition'}</Text>
+      {ex && item && sel ? <ExerciseGuide ex={ex} history={history} note={notes[ex.id] ?? ''} setNote={(t) => setNote(ex.id, t)}>
         <Card accent>
-          <Eyebrow>Nächstes Mal</Eyebrow>
+          <Eyebrow>Nächstes Mal · {item.sets} × {range(item.lo, item.hi)} {ex.mode === 'time' ? 'Sek.' : 'Wdh.'}</Eyebrow>
           <Text style={s.text}>{suggest(ex, item, logsFor(history, ex.id), startWeight(ex, item, profile)).note}</Text>
         </Card>
         <H>Tauschen gegen</H>
@@ -148,7 +152,14 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
             <Ionicons name="swap-horizontal" size={20} color={c.lime} />
           </Pressable>
         )) : <Text style={s.muted}>Mit deinem Equipment gibt es für diesen Platz keine weitere Übung.</Text>}
-      </> : null}
+        {sel.items.length > 1 ? <Button small variant="danger" icon="trash-outline" title="Aus diesem Tag entfernen" onPress={() => { remove(sel.id, open!.index); setOpen(null); }} /> : null}
+      </ExerciseGuide> : null}
+    </Sheet>
+    <Sheet visible={!!library} onClose={() => setLibrary(null)} title={libDay ? `Übung hinzufügen: ${libDay.name}` : 'Übungskatalog'}>
+      {library ? <Library profile={profile} history={history} notes={notes} setNote={setNote}
+        taken={libDay ? libDay.items.map((i) => i.exerciseId) : []}
+        addLabel={libDay ? `Zu ${libDay.name} hinzufügen` : undefined}
+        onAdd={libDay ? (id) => { add(libDay.id, id); setLibrary(null); } : undefined} /> : null}
     </Sheet>
   </>;
 }

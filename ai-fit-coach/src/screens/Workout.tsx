@@ -3,6 +3,8 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { ExerciseGuide } from '../ExerciseGuide';
+import { Figure } from '../figure/Figure';
 import { equipmentName } from '../engine/equipment';
 import { exercise } from '../engine/exercises';
 import { alternatives, prescribe } from '../engine/plan';
@@ -28,7 +30,8 @@ function startLog(item: PlanItem, history: Session[], profile: Profile): Exercis
   };
 }
 
-export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
+export function Workout({ day, profile, history, onFinish, onCancel, onSwap, notes, setNote }: {
+  notes: Record<string, string>; setNote: (exerciseId: string, text: string) => void;
   day: PlanDay; profile: Profile; history: Session[];
   onFinish: (session: Session) => void; onCancel: () => void;
   /** Tausch dauerhaft im Plan übernehmen. */
@@ -43,6 +46,7 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
   const guided = profile.challenge === 'guidance';
   const [showCue, setShowCue] = useState(guided);
   const [swapOpen, setSwapOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [summary, setSummary] = useState<Session | null>(null);
   const started = useRef(Date.now());
   const scroll = useRef<ScrollView>(null);
@@ -215,11 +219,16 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
           </View>
         </Card>
 
-        <Pressable accessibilityRole="button" onPress={() => setShowCue(!showCue)} style={s.rowBetween}>
-          <Text style={[s.strong, { color: c.lime }]}>So geht die Übung</Text>
-          <Ionicons name={showCue ? 'chevron-up' : 'chevron-down'} size={20} color={c.lime} />
-        </Pressable>
-        {showCue ? <Card><Text style={s.text}>{ex.cue}</Text><Text style={s.small}>Zielmuskeln: {[...ex.primary, ...ex.secondary].join(', ') || 'Ganzkörper, Kondition'}</Text></Card> : null}
+        <Card>
+          <View style={s.row}>
+            <Figure ex={ex} size={showCue ? 150 : 96} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={s.text}>{ex.cue}</Text>
+              {notes[ex.id] ? <Text style={[s.small, { color: c.lime }]}>Notiz: {notes[ex.id]}</Text> : null}
+            </View>
+          </View>
+          <Button small variant="secondary" icon="book-outline" title="Anleitung und Verlauf" onPress={() => setGuideOpen(true)} />
+        </Card>
       </ScrollView>
 
       {timer ? (
@@ -246,6 +255,9 @@ export function Workout({ day, profile, history, onFinish, onCancel, onSwap }: {
       </View>
       {!lastExercise && doneSets > 0 ? <Pressable accessibilityRole="button" onPress={finish} style={{ paddingBottom: 12, alignItems: 'center' }}><Text style={[s.small, { color: c.muted, fontWeight: '700' }]}>Vorzeitig abschließen</Text></Pressable> : null}
 
+      <Sheet visible={guideOpen} onClose={() => setGuideOpen(false)} title={ex.name}>
+        <ExerciseGuide ex={ex} history={history} note={notes[ex.id] ?? ''} setNote={(t) => setNote(ex.id, t)} />
+      </Sheet>
       <Sheet visible={swapOpen} onClose={() => setSwapOpen(false)} title="Übung tauschen">
         <Text style={s.muted}>Passend zu deinem Equipment, beste Wahl zuerst. Der Tausch gilt auch für die nächsten Wochen.</Text>
         {alts.length ? alts.map((a) => (

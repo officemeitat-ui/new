@@ -300,3 +300,30 @@ export function weeklyVolume(plan: Plan): Record<Muscle, number> {
   }
   return out;
 }
+
+/** Übung von Hand zu einem Tag hinzufügen (ans Ende, vor einem Konditions-Finish). */
+export function addExercise(plan: Plan, profile: Profile, dayId: string, exerciseId: string): Plan {
+  return {
+    ...plan,
+    days: plan.days.map((d) => {
+      if (d.id !== dayId || d.items.some((i) => i.exerciseId === exerciseId)) return d;
+      const ex = exercise(exerciseId);
+      const item: PlanItem = { exerciseId, slot: ex.pattern, ...prescribe(profile, ex, false) };
+      const at = ex.pattern === 'conditioning' ? d.items.length : d.items.findIndex((i) => i.slot === 'conditioning');
+      const items = at < 0 ? [...d.items, item] : [...d.items.slice(0, at), item, ...d.items.slice(at)];
+      return { ...d, items, minutes: dayMinutes(items) };
+    }),
+  };
+}
+
+/** Übung aus einem Tag entfernen; mindestens eine bleibt. */
+export function removeExercise(plan: Plan, dayId: string, index: number): Plan {
+  return {
+    ...plan,
+    days: plan.days.map((d) => {
+      if (d.id !== dayId || d.items.length <= 1) return d;
+      const items = d.items.filter((_, i) => i !== index);
+      return { ...d, items, minutes: dayMinutes(items) };
+    }),
+  };
+}

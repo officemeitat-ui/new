@@ -23,7 +23,7 @@ const MUSCLES: Record<Pattern, { primary: Muscle[]; secondary: Muscle[] }> = {
 
 export const COMPOUND: Pattern[] = ['squat', 'hinge', 'lunge', 'push_h', 'push_v', 'pull_h', 'pull_v'];
 const LOWER: Pattern[] = ['squat', 'hinge', 'lunge', 'glutes', 'calves', 'hamstring_iso', 'quad_iso'];
-const LOADABLE: EquipmentId[] = ['dumbbells', 'barbell', 'kettlebell', 'cable', 'machines'];
+const LOADABLE: EquipmentId[] = ['dumbbells', 'barbell', 'kettlebell', 'cable', 'leg_press', 'lat_machine', 'row_m', 'chest_press_m', 'fly_m', 'shoulder_press_m', 'leg_curl_m', 'leg_ext_m', 'back_ext_m'];
 
 export const PATTERN_NAME: Record<Pattern, string> = {
   squat: 'Kniebeuge', hinge: 'Hüftstreckung', lunge: 'Einbeinig', push_h: 'Drücken horizontal',
@@ -63,7 +63,7 @@ export const EXERCISES: Exercise[] = [
   x('kb_goblet_squat', 'Goblet-Kniebeuge mit Kettlebell', 'squat', ['kettlebell'], 1, 3, 'Kettlebell an den Hörnern vor der Brust. Tief gehen, Fersen bleiben am Boden.'),
   x('back_squat', 'Langhantel-Kniebeuge', 'squat', ['barbell', 'rack'], 2, 5, 'Stange auf dem oberen Rücken, Rumpf fest. Hüfte und Knie gleichzeitig beugen, mindestens bis parallel.', { stress: back }),
   x('front_squat', 'Frontkniebeuge', 'squat', ['barbell', 'rack'], 3, 4, 'Stange auf den vorderen Schultern, Ellbogen hoch. Oberkörper bleibt aufrecht.'),
-  x('leg_press', 'Beinpresse', 'squat', ['machines'], 1, 4, 'Füße schulterbreit, Rücken fest im Polster. Tief absenken, Knie nicht ganz durchstrecken.'),
+  x('leg_press', 'Beinpresse', 'squat', ['leg_press'], 1, 4, 'Füße schulterbreit, Rücken fest im Polster. Tief absenken, Knie nicht ganz durchstrecken.'),
 
   // Hüftstreckung
   x('good_morning_bw', 'Good Morning ohne Gewicht', 'hinge', [], 1, 1, 'Hände an den Hinterkopf, Hüfte weit nach hinten schieben, Rücken gerade. Dehnung in den Beinbeugern spüren.', { harder: 'single_leg_rdl_bw' }),
@@ -75,7 +75,7 @@ export const EXERCISES: Exercise[] = [
   x('kb_swing', 'Kettlebell-Swing', 'hinge', ['kettlebell'], 2, 3, 'Der Schwung kommt aus der Hüfte, nicht aus den Armen. Oben Gesäß fest anspannen.', { stress: back }),
   x('band_good_morning', 'Good Morning mit Band', 'hinge', ['bands'], 1, 2, 'Band unter den Füßen und über den Nacken. Hüfte nach hinten, Rücken gerade.'),
   x('cable_pullthrough', 'Pull-through am Kabelzug', 'hinge', ['cable'], 1, 3, 'Rücken zum Kabel, Seil zwischen den Beinen. Hüfte nach hinten und kraftvoll strecken.'),
-  x('back_extension', 'Rückenstrecken', 'hinge', ['machines'], 1, 3, 'Polster unter der Hüfte, aus der Hüfte beugen und bis zur geraden Linie aufrichten.'),
+  x('back_extension', 'Rückenstrecken', 'hinge', ['back_ext_m'], 1, 3, 'Polster unter der Hüfte, aus der Hüfte beugen und bis zur geraden Linie aufrichten.', { load: 'bodyweight' }),
 
   // Einbeinig
   x('reverse_lunge_bw', 'Ausfallschritt rückwärts', 'lunge', [], 1, 2, 'Großen Schritt nach hinten, vorderes Knie über dem Fuß. Über die vordere Ferse hochdrücken.', { perSide: true, harder: 'bulgarian_bw' }),
@@ -95,7 +95,7 @@ export const EXERCISES: Exercise[] = [
   x('db_bench', 'Kurzhantel-Bankdrücken', 'push_h', ['dumbbells', 'bench'], 1, 5, 'Schulterblätter zusammen, Hanteln bis auf Brusthöhe absenken, kontrolliert hochdrücken.'),
   x('incline_db', 'Schrägbankdrücken mit Kurzhanteln', 'push_h', ['dumbbells', 'bench'], 2, 5, 'Bank etwa 30° schräg. Hanteln über der oberen Brust führen.'),
   x('bb_bench', 'Bankdrücken', 'push_h', ['barbell', 'bench', 'rack'], 2, 5, 'Schulterblätter fest, Füße am Boden. Stange zur unteren Brust, Ellbogen unter der Stange.', { stress: shoulder }),
-  x('machine_chest_press', 'Brustpresse', 'push_h', ['machines'], 1, 4, 'Griffe auf Brusthöhe, Schulterblätter am Polster, gleichmäßig drücken.'),
+  x('machine_chest_press', 'Brustpresse', 'push_h', ['chest_press_m'], 1, 4, 'Griffe auf Brusthöhe, Schulterblätter am Polster, gleichmäßig drücken.'),
   x('dips', 'Dips', 'push_h', ['dip_bars'], 2, 4, 'Leicht vorlehnen, bis etwa 90° im Ellbogen absenken, Schultern weg von den Ohren.', { stress: shoulder, primary: ['Brust', 'Trizeps'], secondary: ['Schultern'] }),
 
   // Drücken über Kopf
@@ -103,7 +103,7 @@ export const EXERCISES: Exercise[] = [
   x('db_ohp', 'Schulterdrücken mit Kurzhanteln', 'push_v', ['dumbbells'], 1, 5, 'Hanteln auf Schulterhöhe, gerade nach oben drücken, Rippen unten halten.'),
   x('bb_ohp', 'Schulterdrücken mit Langhantel', 'push_v', ['barbell'], 2, 5, 'Stange vor den Schultern, Gesäß und Bauch fest, Stange in gerader Linie über den Kopf.', { stress: shoulder }),
   x('kb_press', 'Kettlebell-Drücken einarmig', 'push_v', ['kettlebell'], 2, 3, 'Kettlebell liegt am Unterarm, Handgelenk gerade. Senkrecht nach oben drücken.', { perSide: true }),
-  x('machine_shoulder_press', 'Schulterpresse', 'push_v', ['machines'], 1, 4, 'Sitz so einstellen, dass die Griffe auf Schulterhöhe starten. Nicht ins Hohlkreuz fallen.'),
+  x('machine_shoulder_press', 'Schulterpresse', 'push_v', ['shoulder_press_m'], 1, 4, 'Sitz so einstellen, dass die Griffe auf Schulterhöhe starten. Nicht ins Hohlkreuz fallen.'),
   x('band_ohp', 'Schulterdrücken mit Band', 'push_v', ['bands'], 1, 2, 'Auf dem Band stehen, Enden auf Schulterhöhe, gerade nach oben drücken.'),
 
   // Rudern
@@ -116,14 +116,14 @@ export const EXERCISES: Exercise[] = [
   x('trx_row', 'Rudern am Schlingentrainer', 'pull_h', ['trx'], 1, 4, 'Je flacher der Körper, desto schwerer. Schulterblätter zusammenziehen.'),
   x('band_row', 'Rudern mit Band', 'pull_h', ['bands'], 1, 3, 'Band um einen festen Punkt oder die Füße. Ellbogen eng am Körper nach hinten.'),
   x('cable_row', 'Rudern am Kabelzug', 'pull_h', ['cable'], 1, 5, 'Aufrecht sitzen, Griff zum Bauch ziehen, Schulterblätter aktiv zurück.'),
-  x('machine_row', 'Rudermaschine', 'pull_h', ['machines'], 1, 4, 'Brust am Polster, Ellbogen nach hinten ziehen, kurz halten.'),
+  x('machine_row', 'Rudermaschine', 'pull_h', ['row_m'], 1, 4, 'Brust am Polster, Ellbogen nach hinten ziehen, kurz halten.'),
 
   // Ziehen von oben
   x('negative_pullup', 'Negative Klimmzüge', 'pull_v', ['pullup_bar'], 1, 3, 'Hochspringen oder hochsteigen, dann 3–5 Sekunden kontrolliert ablassen.', { harder: 'pullup' }),
   x('band_pullup', 'Klimmzug mit Bandunterstützung', 'pull_v', ['pullup_bar', 'bands'], 1, 4, 'Band an die Stange, Fuß oder Knie hinein. Brust zur Stange, voll aushängen.', { harder: 'pullup' }),
   x('pullup', 'Klimmzug', 'pull_v', ['pullup_bar'], 2, 5, 'Aus dem vollen Hang, Schulterblätter nach unten, Kinn über die Stange.'),
   x('chinup', 'Klimmzug im Untergriff', 'pull_v', ['pullup_bar'], 2, 5, 'Handflächen zu dir, schulterbreit. Voll aushängen, Brust zur Stange.'),
-  x('lat_pulldown', 'Latzug', 'pull_v', ['machines'], 1, 5, 'Leicht zurücklehnen, Stange zur oberen Brust ziehen, Ellbogen nach unten.'),
+  x('lat_pulldown', 'Latzug', 'pull_v', ['lat_machine'], 1, 5, 'Leicht zurücklehnen, Stange zur oberen Brust ziehen, Ellbogen nach unten.'),
   x('cable_pulldown', 'Latzug am Kabel', 'pull_v', ['cable'], 1, 4, 'Kniend oder sitzend, Griff von oben zur Brust ziehen.'),
   x('band_pulldown', 'Latzug mit Band', 'pull_v', ['bands'], 1, 2, 'Band oben befestigen (Tür, Stange), kniend zur Brust ziehen.'),
   x('db_pullover', 'Überzug mit Kurzhantel', 'pull_v', ['dumbbells', 'bench'], 2, 2, 'Quer oder längs auf der Bank, Hantel mit fast gestreckten Armen hinter den Kopf führen.'),
@@ -168,7 +168,7 @@ export const EXERCISES: Exercise[] = [
   // Beine isoliert
   x('calf_raise_bw', 'Wadenheben einbeinig', 'calves', [], 1, 3, 'Fußballen auf einer Stufe, tief absenken, oben kurz halten.', { perSide: true }),
   x('db_calf_raise', 'Wadenheben mit Kurzhantel', 'calves', ['dumbbells'], 1, 4, 'Einbeinig auf der Stufe, Hantel auf der Seite des Standbeins.', { perSide: true }),
-  x('machine_calf_raise', 'Wadenheben an der Beinpresse', 'calves', ['machines'], 1, 5, 'Fußballen an der Plattenkante, volle Dehnung unten.'),
+  x('machine_calf_raise', 'Wadenheben an der Beinpresse', 'calves', ['leg_press'], 1, 5, 'Fußballen an der Plattenkante, volle Dehnung unten.'),
   x('glute_bridge_single', 'Einbeinige Glute Bridge', 'glutes', [], 1, 2, 'Schultern am Boden, über die Ferse hochdrücken, Hüfte oben voll strecken.', { perSide: true }),
   x('band_glute_bridge', 'Glute Bridge mit Band', 'glutes', ['bands'], 1, 3, 'Band über die Hüfte, Enden unter den Händen fixieren. Oben Gesäß fest anspannen.'),
   x('db_hip_thrust', 'Hip Thrust mit Kurzhantel', 'glutes', ['dumbbells', 'bench'], 1, 4, 'Schulterblätter an der Bankkante, Hantel auf der Hüfte, Kinn zur Brust.'),
@@ -176,15 +176,15 @@ export const EXERCISES: Exercise[] = [
   x('slider_curl', 'Beinbeuger-Curl mit Handtuch', 'hamstring_iso', [], 2, 3, 'Fersen auf einem Handtuch auf glattem Boden, Hüfte oben halten, Fersen heranziehen.'),
   x('nordic_curl', 'Nordic Curl', 'hamstring_iso', [], 3, 4, 'Füße fixieren, Körper gerade nach vorn ablassen, so langsam wie möglich.', { stress: knee }),
   x('band_leg_curl', 'Beinbeuger-Curl mit Band', 'hamstring_iso', ['bands'], 1, 3, 'In Bauchlage, Band am Fuß und an einem festen Punkt, Ferse zum Gesäß.', { perSide: true }),
-  x('leg_curl', 'Beinbeuger-Maschine', 'hamstring_iso', ['machines'], 1, 5, 'Hüfte bleibt am Polster, langsam zurückführen.'),
+  x('leg_curl', 'Beinbeuger-Maschine', 'hamstring_iso', ['leg_curl_m'], 1, 5, 'Hüfte bleibt am Polster, langsam zurückführen.'),
   x('wall_sit', 'Wandsitz', 'quad_iso', [], 1, 2, 'Rücken an der Wand, Knie im rechten Winkel, halten.', { mode: 'time' }),
   x('heel_goblet_squat', 'Goblet-Kniebeuge mit erhöhten Fersen', 'quad_iso', ['dumbbells'], 1, 4, 'Fersen auf einer Scheibe oder einem Buch, Oberkörper aufrecht, Knie weit nach vorn.', { stress: knee }),
-  x('leg_ext', 'Beinstrecker', 'quad_iso', ['machines'], 1, 5, 'Oben kurz halten, langsam absenken.', { stress: knee }),
+  x('leg_ext', 'Beinstrecker', 'quad_iso', ['leg_ext_m'], 1, 5, 'Oben kurz halten, langsam absenken.', { stress: knee }),
 
   // Brust isoliert
   x('db_fly', 'Fliegende mit Kurzhanteln', 'chest_iso', ['dumbbells', 'bench'], 1, 4, 'Arme leicht gebeugt, weit öffnen bis zur Dehnung, über der Brust zusammenführen.', { stress: shoulder }),
   x('cable_fly', 'Cable Fly', 'chest_iso', ['cable'], 1, 5, 'Schritt nach vorn, Arme in einem Bogen vor der Brust zusammenführen.'),
-  x('machine_fly', 'Butterfly', 'chest_iso', ['machines'], 1, 5, 'Ellbogen leicht gebeugt, Griffe vor der Brust zusammen, langsam öffnen.'),
+  x('machine_fly', 'Butterfly', 'chest_iso', ['fly_m'], 1, 5, 'Ellbogen leicht gebeugt, Griffe vor der Brust zusammen, langsam öffnen.'),
   x('band_fly', 'Fliegende mit Band', 'chest_iso', ['bands'], 1, 3, 'Band hinter dem Rücken oder an der Tür, Arme vor der Brust zusammenführen.'),
 
   // Kondition
