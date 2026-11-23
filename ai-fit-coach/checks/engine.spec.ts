@@ -215,3 +215,17 @@ test('Wochenplanung: Standardtage, erledigte Wochentage, Geh-Minuten der Woche',
   assert.deepEqual(doneWeekdays(hist, now).sort(), [0, 2]);
   assert.equal(weekMinutes([{ date: '2026-11-24T08:00:00', minutes: 20 }, { date: '2026-11-26T08:00:00', minutes: 15 }, { date: '2026-11-21T08:00:00', minutes: 60 }], now), 35);
 });
+
+test('Sicherung: Export und Import ergeben denselben Stand, Fremdtext wird abgelehnt', async () => {
+  const { exportState, importState, EMPTY } = await import('../src/state');
+  const profile: Profile = { ...base, equipment: gym, focus: ['Brust'], trainDays: [0, 2, 4, 5] };
+  const state = { ...EMPTY, profile, plan: generatePlan(profile), history: [session('2026-11-23T18:00:00', [log('db_bench', [[20, 8]])])], weights: [{ date: '2026-11-23T08:00:00', kg: 80 }], notes: { db_bench: 'Bank Stufe 3' }, nextDay: 1, reminder: { on: true, hour: 7, minute: 30 } };
+  const back = importState(exportState(state));
+  assert.ok(back);
+  assert.deepEqual(back!.profile, profile);
+  assert.deepEqual(back!.history, state.history);
+  assert.deepEqual([back!.nextDay, back!.notes.db_bench, back!.reminder.hour, back!.weights[0].kg], [1, 'Bank Stufe 3', 7, 80]);
+  assert.equal(importState('kein json'), null);
+  assert.equal(importState('{"profile":{"name":"x","equipment":[]}}'), null);
+  assert.equal(importState(exportState(EMPTY)), null);
+});

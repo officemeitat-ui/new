@@ -32,7 +32,7 @@ function Limb({ a, b, color, wa, wm, wb, at = 0.4 }: { a: Pt; b: Pt; color: stri
   const pt = (o: Pt, w: number, sign: number) => `${(o[0] + nx * (w / 2) * sign).toFixed(2)},${(o[1] + ny * (w / 2) * sign).toFixed(2)}`;
   const d = `M${pt(a, wa, 1)} Q${pt(m, wm * 1.25, 1)} ${pt(b, wb, 1)} L${pt(b, wb, -1)} Q${pt(m, wm * 1.25, -1)} ${pt(a, wa, -1)} Z`;
   return <>
-    <Path d={d} fill={color} stroke={OUT} strokeWidth={0.7} strokeLinejoin="round" />
+    <Path d={d} fill={color} stroke={OUT} strokeWidth={0.9} strokeLinejoin="round" />
     <Circle cx={a[0]} cy={a[1]} r={wa / 2} fill={color} />
     <Circle cx={b[0]} cy={b[1]} r={wb / 2} fill={color} />
   </>;
@@ -90,7 +90,8 @@ export function Figure({ ex, size = 160, animate = true, phase = 1 }: { ex: Exer
   const pose = blend(anim.a, anim.b, t);
   const legs = ex.primary.some((m) => LEGS.includes(m)) ? c.lime : BODY;
   const arms = ex.primary.some((m) => ARMS.includes(m)) ? c.lime : BODY;
-  const torso = ex.primary.some((m) => TORSO.includes(m)) ? c.lime : BODY;
+  // Rumpf eine Stufe dunkler als Arme und Beine, damit sich die Glieder in der Seitenansicht abheben.
+  const torso = ex.primary.some((m) => TORSO.includes(m)) ? '#9FD63A' : '#A9B3AD';
   const weight = ex.needs.includes('barbell') ? 'bb' : ex.needs.includes('dumbbells') ? 'db' : ex.needs.includes('kettlebell') ? 'kb' : null;
   const cable = anim.scene === 'cable_high' ? ([70, 4] as Pt) : anim.scene === 'cable_mid' ? ([94, pose.ha[1]] as Pt) : null;
 
@@ -129,7 +130,8 @@ export function Figure({ ex, size = 160, animate = true, phase = 1 }: { ex: Exer
       {cable ? <Line x1={pose.ha[0]} y1={pose.ha[1]} x2={cable[0]} y2={cable[1]} stroke={GEAR} strokeWidth={1.4} /> : null}
       <Leg hip={pose.hip} kn={pose.kn} ft={pose.ft} color={legs} />
       <Circle cx={pose.hip[0]} cy={pose.hip[1]} r={7.2} fill={legs} stroke={OUT} strokeWidth={0.7} />
-      <Limb a={pose.sh} b={pose.hip} color={torso} wa={16.5} wm={18} wb={11} at={0.28} />
+      <Limb a={pose.sh} b={pose.hip} color={torso} wa={15} wm={17} wb={10.5} at={0.28} />
+      <Circle cx={pose.sh[0] - ux * 5 - uy * 4.5 * (anim.prone ? -1 : 1)} cy={pose.sh[1] - uy * 5 + ux * 4.5 * (anim.prone ? -1 : 1)} r={4.6} fill={torso} stroke={OUT} strokeWidth={0.6} />
       <Limb a={pose.sh} b={neck} color={BODY} wa={6.5} wm={6} wb={5} />
       <Circle cx={head[0]} cy={head[1]} r={5.8} fill={BODY} />
       <Arm sh={pose.sh} el={pose.el} ha={pose.ha} color={arms} />

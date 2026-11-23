@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ExerciseGuide, Library, Thumb } from '../ExerciseGuide';
 import { QUICK_QUESTIONS, coachContext, localCoach } from '../coach';
@@ -10,6 +10,8 @@ import { defaultTrainDays, doneWeekdays, weekMinutes, weekdayIndex } from '../en
 import { activeWeeks, logsFor, muscleSets, records, sessionSets, sessionVolume, sessionsThisWeek, suggest, weeklyCounts } from '../engine/progression';
 import { startWeight } from '../engine/startweights';
 import type { Plan, PlanDay, Profile, Session, Walk, WeightEntry } from '../engine/types';
+import { remindersSupported } from '../services/reminders';
+import type { Reminder } from '../state';
 import { askCoach, supabase } from '../services/supabase';
 import { colors as c } from '../theme';
 import { Bars, Bolt, Button, Card, Chip, Entrance, Eyebrow, H, Meter, Sheet, Sparkline, Stepper, Tile, fmt, fmtLoad, s, useConfirm } from '../ui';
@@ -361,8 +363,28 @@ export function Progress({ profile, history, removeSession, weights, addWeight }
   </>;
 }
 
-export function ProfileTab({ profile, plan, history, edit, clearHistory, resetAll }: Shared & { edit: () => void; clearHistory: () => void; resetAll: () => void }) {
+export function ProfileTab({ profile, plan, history, edit, clearHistory, resetAll, reminder, setReminder, reminderStatus, backup, restore }: Shared & {
+  edit: () => void; clearHistory: () => void; resetAll: () => void;
+  reminder: Reminder; setReminder: (r: Reminder) => void; reminderStatus: string; backup: () => string; restore: (text: string) => boolean;
+}) {
   const confirm = useConfirm();
+  const [sheet, setSheet] = useState<'export' | 'import' | null>(null);
+  const [text, setText] = useState('');
+  const [msg, setMsg] = useState('');
+  const [armed, setArmed] = useState(false);
+  const days = (profile.trainDays?.length ? profile.trainDays : defaultTrainDays(profile.daysPerWeek)).map((d) => ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][d]).join(', ');
+  const share = async () => {
+    const data = backup();
+    if (Platform.OS === 'web') {
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = `ai-fit-coach-sicherung-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+      URL.revokeObjectURL(url);
+      setMsg('Sicherung als Datei heruntergeladen.');
+    } else {
+      try { await Share.share({ message: data, title: 'AI FIT COACH Sicherung' }); } catch { setMsg('Teilen nicht möglich. Markiere den Text unten und kopiere ihn.'); }
+    }
+  };
   const limits = { knee: 'Knie', shoulder: 'Schulter', back: 'Unterer Rücken' } as const;
   return <>
     <Text style={s.hero}>Dein Profil</Text>
@@ -387,11 +409,46 @@ export function ProfileTab({ profile, plan, history, edit, clearHistory, resetAl
     </Card>
     <Button icon="create-outline" title="Ziel, Zeit und Equipment ändern" onPress={edit} />
     <Text style={s.small}>Nach einer Änderung wird dein Plan neu erstellt. Trainingsdaten und Bestwerte bleiben erhalten.</Text>
+    <Card>
+      <View style={s.rowBetween}>
+        <View style={{ flex: 1 }}><H>Erinnerung</H><Text style={s.small}>An deinen Trainingstagen ({days})</Text></View>
+        <Switch accessibilityLabel="Erinnerung an Trainingstagen" disabled={!remindersSupported} value={reminder.on} onValueChange={(on) => setReminder({ ...reminder, on })} trackColor={{ true: c.limeDeep, false: c.surface3 }} thumbColor={reminder.on ? c.lime : c.muted} />
+      </View>
+      {remindersSupported ? <>
+        <View style={s.rowBetween}>
+          <Text style={s.muted}>Uhrzeit</Text>
+          <View style={s.row}>
+            <Stepper label="Stunde" value={reminder.hour} step={1} min={0} max={23} onChange={(v) => setReminder({ ...reminder, hour: Math.round(v) })} />
+            <Text style={s.strong}>:</Text>
+            <Stepper label="Minute" value={reminder.minute} step={5} min={0} max={55} onChange={(v) => setReminder({ ...reminder, minute: Math.round(v) })} />
+          </View>
+        </View>
+        {reminderStatus === 'denied' ? <Text style={[s.small, { color: c.warn }]}>Mitteilungen sind für die App nicht erlaubt. Erlaube sie in den Einstellungen des Handys und schalte die Erinnerung wieder ein.</Text> : null}
+        {reminderStatus === 'error' ? <Text style={[s.small, { color: c.warn }]}>Die Erinnerung konnte nicht geplant werden.</Text> : null}
+        {reminderStatus === 'ok' ? <Text style={s.small}>Geplant für {String(reminder.hour).padStart(2, '0')}:{String(reminder.minute).padStart(2, '0')} Uhr.</Text> : null}
+      </> : <Text style={s.small}>Erinnerungen gibt es in der App am Handy, nicht im Browser.</Text>}
+    </Card>
     <View style={s.divider} />
     <H>Daten</H>
     <Text style={s.small}>Profil, Plan und Trainingsdaten liegen nur auf diesem Gerät. {history.length} {history.length === 1 ? 'Einheit' : 'Einheiten'} gespeichert.</Text>
+    <Button variant="secondary" icon="download-outline" title="Sicherung erstellen" onPress={() => { setMsg(''); setSheet('export'); }} />
+    <Button variant="secondary" icon="push-outline" title="Sicherung einspielen" onPress={() => { setMsg(''); setText(''); setArmed(false); setSheet('import'); }} />
     <Button variant="secondary" icon="trash-outline" title="Trainingsdaten löschen" disabled={!history.length} onPress={async () => { if (await confirm({ title: 'Trainingsdaten löschen?', text: 'Alle gespeicherten Einheiten, Bestwerte und Gewichtseinträge werden unwiderruflich gelöscht. Profil und Plan bleiben.', yes: 'Löschen', danger: true })) clearHistory(); }} />
     <Button variant="danger" icon="warning-outline" title="App zurücksetzen" onPress={async () => { if (await confirm({ title: 'Alles zurücksetzen?', text: 'Profil, Plan und alle Trainingsdaten werden gelöscht. Du startest wieder beim Einrichten.', yes: 'Alles löschen', danger: true })) resetAll(); }} />
-    <Text style={s.small}>AI FIT COACH 0.4 · Trainingsempfehlungen sind allgemeine Hinweise und ersetzen keine ärztliche oder therapeutische Beratung.</Text>
+    <Sheet visible={sheet === 'export'} onClose={() => setSheet(null)} title="Sicherung erstellen">
+      <Text style={s.muted}>Die Sicherung enthält Profil, Plan, alle Einheiten, Gewichte und Notizen. Bewahre sie selbst auf, zum Beispiel in deinen Notizen oder per E-Mail an dich.</Text>
+      <Button icon="share-outline" title={Platform.OS === 'web' ? 'Als Datei herunterladen' : 'Teilen oder speichern'} onPress={share} />
+      {msg ? <Text style={s.small}>{msg}</Text> : null}
+      <TextInput accessibilityLabel="Sicherung als Text" value={sheet === 'export' ? backup() : ''} editable={false} multiline selectTextOnFocus style={[s.input, { height: 140, fontSize: 11 }]} />
+    </Sheet>
+    <Sheet visible={sheet === 'import'} onClose={() => setSheet(null)} title="Sicherung einspielen">
+      <Text style={s.muted}>Füge den Text einer Sicherung ein. Die Daten auf diesem Gerät werden dadurch vollständig ersetzt.</Text>
+      <TextInput accessibilityLabel="Sicherung einfügen" placeholder="Sicherung hier einfügen" placeholderTextColor={c.faint} value={text} onChangeText={(t) => { setText(t); setArmed(false); }} multiline style={[s.input, { height: 140, fontSize: 11 }]} />
+      {msg ? <Text style={[s.small, { color: c.warn }]}>{msg}</Text> : null}
+      {armed
+        ? <Button variant="danger" icon="warning-outline" title="Ja, Daten auf diesem Gerät ersetzen" onPress={() => { setArmed(false); if (restore(text.trim())) setSheet(null); else setMsg('Das ist keine gültige Sicherung von AI FIT COACH.'); }} />
+        : <Button icon="push-outline" title="Einspielen" disabled={!text.trim()} onPress={() => { setMsg(''); setArmed(true); }} />}
+    </Sheet>
+    <Text style={s.small}>AI FIT COACH 0.5 · Trainingsempfehlungen sind allgemeine Hinweise und ersetzen keine ärztliche oder therapeutische Beratung.</Text>
   </>;
 }

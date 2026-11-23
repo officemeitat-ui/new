@@ -1,4 +1,4 @@
-# AI FIT COACH — v0.4
+# AI FIT COACH — v0.5
 
 Deutschsprachige Trainings-App (Expo / React Native, iOS, Android, Web). Sie baut aus Ziel, Erfahrung, Zeit und dem vorhandenen Equipment einen Trainingsplan, führt durchs Workout und steigert die Belastung von Einheit zu Einheit.
 
@@ -32,6 +32,8 @@ Voraussetzung: Node.js 20.19 oder neuer. Bei SDK-Konflikten: `npx expo install -
 - **Freies Training:** ohne Plan starten, Übungen aus dem Katalog wählen und im Training mit dem Plus weitere hinzufügen. Gewichte und Bestwerte zählen wie im Plan.
 - **Wochenplanung:** Trainingstage Montag bis Sonntag wählbar. Home zeigt die Woche mit geplanten und erledigten Tagen und ob heute Training oder Pause ist.
 - **Gehen eintragen (Abnehm-Modus):** Minuten pro Woche gegen das Ziel von 150 Minuten.
+- **Erinnerungen:** lokale Mitteilung an den gewählten Trainingstagen zur eingestellten Uhrzeit (nur in der App am Handy, nicht im Browser; auf einem echten Gerät noch nicht getestet).
+- **Sicherung:** Profil, Plan, Einheiten, Gewichte und Notizen als Text oder Datei exportieren und wieder einspielen.
 - **Workout-Player:** Gewicht und Wiederholungen je Satz, Pausen-Timer, Halte-Timer für Zeitübungen, Sätze hinzufügen oder entfernen, Zusammenfassung mit neuen Bestwerten.
 - **Progression:** Doppelte Progression. Erst im Wiederholungsbereich nach oben, dann mehr Gewicht. Zweimal unter dem Ziel: 10 % zurück. Ohne Gewicht: Vorschlag für die schwerere Variante.
 - **Fortschritt:** Einheiten pro Woche, Bestwerte mit Verlauf, Sätze pro Muskel, Trainingstagebuch.

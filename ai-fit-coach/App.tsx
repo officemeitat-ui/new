@@ -8,7 +8,9 @@ import type { Profile, Session } from './src/engine/types';
 import { Onboarding } from './src/screens/Onboarding';
 import { Coach, Home, Message, ProfileTab, Progress, Shared, Training } from './src/screens/Tabs';
 import { Workout } from './src/screens/Workout';
-import { AppState, EMPTY, loadState, saveState } from './src/store';
+import { defaultTrainDays } from './src/engine/progression';
+import { syncReminders } from './src/services/reminders';
+import { AppState, EMPTY, exportState, importState, loadState, saveState } from './src/store';
 import { colors as c } from './src/theme';
 import { Bolt, ConfirmProvider, IconName, s } from './src/ui';
 
@@ -31,6 +33,17 @@ function AppContent() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   useEffect(() => { loadState().then(setState).catch(() => setSaveFailed(true)).finally(() => setLoaded(true)); }, []);
+  const [reminderStatus, setReminderStatus] = useState<string>('');
+  const remindDays = state.profile ? (state.profile.trainDays?.length ? state.profile.trainDays : defaultTrainDays(state.profile.daysPerWeek)) : [];
+  const remindKey = `${state.reminder.on}-${state.reminder.hour}-${state.reminder.minute}-${remindDays.join('')}-${state.profile?.name ?? ''}`;
+  useEffect(() => {
+    if (!loaded || !state.profile) return;
+    syncReminders(state.reminder, remindDays, state.profile.name).then((r) => {
+      setReminderStatus(r);
+      if (r === 'denied' || r === 'error') setState((old) => (old.reminder.on ? { ...old, reminder: { ...old.reminder, on: false } } : old));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, remindKey]);
   useEffect(() => { if (loaded) saveState(state).then(() => setSaveFailed(false)).catch(() => setSaveFailed(true)); }, [state, loaded]);
 
   if (!loaded) return <View style={st.center}><Bolt size={140} /><Text style={s.muted}>AI FIT COACH lädt …</Text></View>;
@@ -88,7 +101,7 @@ function AppContent() {
           {tab === 'Training' && <Training {...shared} regenerate={() => setState((old) => (old.profile ? { ...old, plan: generatePlan(old.profile), nextDay: 0 } : old))} />}
           {tab === 'Coach' && <Coach {...shared} messages={messages} setMessages={setMessages} />}
           {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} weights={state.weights} addWeight={(kg) => setState((old) => ({ ...old, weights: [...old.weights, { date: new Date().toISOString(), kg }] }))} />}
-          {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], walks: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} />}
+          {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], walks: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} reminder={state.reminder} setReminder={(reminder) => setState((old) => ({ ...old, reminder }))} reminderStatus={reminderStatus} backup={() => exportState(state)} restore={(text) => { const next = importState(text); if (next) setState(next); return !!next; }} />}
         </ScrollView>
       </KeyboardAvoidingView>
       <View accessibilityRole="tablist" style={st.tabBar}>
