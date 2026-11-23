@@ -65,6 +65,17 @@ export function eachDay(from, to) {
 
 export const firstOfMonth = (date) => `${date.slice(0, 7)}-01`
 
+/**
+ * Wie viele Wochen vor dem Montag `monday` mindestens geplant sein müssen, damit die letzte volle Woche des Vormonats
+ * (von `today` aus) dabei ist – mindestens `min`. Für die Beispieldaten: Auswertungen über den Vormonat (Rentabilität,
+ * Nachkalkulation, Abrechnung nach Ist-Zeiten) wären sonst in den letzten Tagen eines Monats leer.
+ */
+export function weeksBackToPrevMonth(monday, today, min = 4) {
+  const lastPrev = addDays(firstOfMonth(today), -1)
+  const need = mondayOf(addDays(lastPrev, -6))
+  return Math.max(min, Math.ceil((dayIndex(monday) - dayIndex(need)) / 7))
+}
+
 export function lastOfMonth(date) {
   const [y, m] = date.split('-').map(Number)
   return fromDayIndex(Math.round(Date.UTC(y, m, 0) / DAY_MS))

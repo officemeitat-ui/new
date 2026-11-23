@@ -1,6 +1,6 @@
 // Automatisch planen und Woche veröffentlichen.
 
-import { addDays, formatDate, isoWeek, mondayOf } from '../core/dates.js'
+import { addDays, formatDate, isoWeek, mondayOf, todayISO, weeksBackToPrevMonth } from '../core/dates.js'
 import { saldoCorrections } from '../core/attention.js'
 import { mondaysBetween } from '../core/reports.js'
 import { autoPlan } from '../core/scheduler.js'
@@ -89,7 +89,7 @@ export function snapshotWeek(c, extra = {}) {
  * Beispieldaten mit Vorgeschichte: die Wochen davor werden eingeteilt und
  * veröffentlicht (Zeitkonto, Monatsauswertung), die aktuelle Woche eingeteilt.
  */
-export async function seedDemoHistory(weeksBefore = 4) {
+export async function seedDemoHistory(weeksBefore = weeksBackToPrevMonth(app.ui.monday, todayISO())) {
   const start = app.ui.monday
   // Nachgereichte Krankmeldungen erst nach dem Veröffentlichen eintragen
   const late = app.data.absences.filter((a) => a.reportedAfterPublish)
