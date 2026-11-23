@@ -19,7 +19,7 @@
 // Einsatz in einer Tour: status 'in-tour', tourId, beforeTour (Status davor: geplant, nachzuholen, nicht-durchgefuehrt).
 
 import { hasCoords } from './geo.js'
-import { isFinal } from './matten-fahrt.js'
+import { isFinal, photoRule } from './matten-fahrt.js'
 import { TOUR_JOB_STATUS, TOUR_SCHEMA, tourFileName, tourId as newTourId } from './matten-tour.js'
 import { DEFAULT_SHIFT } from './routing.js'
 
@@ -302,11 +302,16 @@ export function releaseProblems({ tour, tours = [], jobs = [], today = '' } = {}
   return out
 }
 
-/** Tour freigeben (Kopie): Status 'freigegeben', wer und wann; driver (aus den Einstellungen) ergänzt die E-Mail-Kopie. */
-export function releaseTour(tour, { now = new Date().toISOString(), by = '', driver = null } = {}) {
+/**
+ * Tour freigeben (Kopie): Status 'freigegeben', wer und wann; driver (aus den Einstellungen) ergänzt die E-Mail-Kopie;
+ * photoRule (Einstellung „Fotos des Fahrers“) kommt als Kopie an die Tour – Fahrer lesen die Einstellungen nicht.
+ */
+export function releaseTour(tour, { now = new Date().toISOString(), by = '', driver = null, photoRule: rule = '' } = {}) {
   const next = touch(tour, { status: 'freigegeben', releasedAt: now, releasedBy: by }, { now, by })
   const mail = text(driver?.email || tour.driverEmail).toLowerCase()
   if (mail) next.driverEmail = mail
+  if (photoRule(rule) !== 'nie') next.photoRule = photoRule(rule)
+  else delete next.photoRule
   return next
 }
 

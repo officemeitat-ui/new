@@ -210,7 +210,7 @@ export function placementsOf(stop) {
   const map = new Map()
   ;(stop?.items || []).forEach((it, i) => {
     const k = it.placementId || `#${i}`
-    if (!map.has(k)) map.set(k, { placementId: it.placementId || '', placementName: it.placementName || '', floor: it.floor || '', access: it.access || '', hint: it.hint || '', lead: i, indexes: [], items: [] })
+    if (!map.has(k)) map.set(k, { placementId: it.placementId || '', placementName: it.placementName || '', floor: it.floor || '', access: it.access || '', hint: it.hint || '', refPhoto: it.refPhoto || '', lead: i, indexes: [], items: [] })
     const p = map.get(k)
     p.indexes.push(i)
     p.items.push(it)
@@ -496,14 +496,44 @@ export function photoPath({ tour, placementId, date, n, ext = 'jpg' }) {
   return `matten/fotos/${d.slice(0, 4)}/${safe(placementId)}/${d}_${safe(tour.id)}_${pad2(Math.max(1, Number(n) || 1))}.${safe(ext) || 'jpg'}`
 }
 
+// ---------------------------------------------------------------- Fotopflicht
+
+// Einstellung settings.photoRule in matten/matten.json; bei der Freigabe als Kopie an die Tour (tour.photoRule), weil
+// Fahrer die Einstellungen nicht lesen.
+export const PHOTO_RULES = {
+  nie: 'Fotos freiwillig',
+  ausnahme: 'Foto Pflicht, wenn ein Wechsel nicht möglich war',
+  immer: 'Foto Pflicht an jedem Stopp',
+}
+/** Gültige Regel ('nie' als Vorgabe). */
+export const photoRule = (v) => (Object.hasOwn(PHOTO_RULES, text(v)) ? text(v) : 'nie')
+
+/**
+ * Fehlt ein Pflichtfoto? '' = in Ordnung, sonst der Hinweis für den Fahrer. rule wie PHOTO_RULES; outcome ist die
+ * beim Abschluss gewählte Ausnahme (z. B. 'nicht-angetroffen').
+ */
+export function photoProblem(stop, rule = 'nie', { outcome = '' } = {}) {
+  const r = photoRule(rule)
+  if (r === 'nie' || !stop) return ''
+  const pls = placementsOf(stop)
+  const total = pls.reduce((n, p) => n + (p.photos || []).length, 0)
+  if (r === 'immer') return total ? '' : 'Foto fehlt: an jedem Stopp bitte mindestens ein Foto aufnehmen (zum Beispiel die frische Matte am Liegeplatz).'
+  const missing = pls.filter((p) => (p.status === 'nicht-moeglich' || (p.status === 'teilweise' && p.reason)) && !(p.photos || []).length)
+  if (missing.length) return `Foto fehlt bei „${missing[0].placementName || 'Liegeplatz'}“: Wenn ein Wechsel nicht möglich ist, bitte ein Foto aufnehmen (zum Beispiel die versperrte Tür).`
+  // offene Liegeplätze werden beim Abschluss mit einer Ausnahme zu „nicht möglich“: dann genügt ein Foto am Stopp
+  const open = pls.some((p) => p.items.some((it) => (it.status || 'geplant') === 'geplant'))
+  if (open && outcome && !total) return 'Foto fehlt: Wenn der Stopp nicht wie geplant erledigt wird, bitte ein Foto aufnehmen (zum Beispiel den Eingang).'
+  return ''
+}
+
 // ---------------------------------------------------------------- Abschluss des Stopps (P11)
 
 /**
  * Prüfung vor dem Abschluss ('' = in Ordnung): alle Liegeplätze bestätigt oder eine Ausnahme gewählt; „Teilweise
  * erledigt“ braucht mindestens einen gewechselten; Unterschrift mit Name und Strich oder „ohne Unterschrift“ mit Grund
- * (bei „Kunde nicht angetroffen“ ist der Grund vorbelegt).
+ * (bei „Kunde nicht angetroffen“ ist der Grund vorbelegt); zuletzt die Fotopflicht (photoRule, Kopie an der Tour).
  */
-export function finishProblem(stop, { signature = null, reason = '', outcome = '' } = {}) {
+export function finishProblem(stop, { signature = null, reason = '', outcome = '', photoRule: rule = 'nie' } = {}) {
   if (!stop) return 'Stopp nicht gefunden.'
   if (isFinal(stop)) return 'Der Stopp ist schon abgeschlossen.'
   if (outcome && !OUTCOMES[outcome]) return 'Unbekannte Ausnahme.'
@@ -515,10 +545,8 @@ export function finishProblem(stop, { signature = null, reason = '', outcome = '
   if (signature) {
     if (!text(signature.name)) return 'Bitte den Namen der Person eintragen, die unterschreibt.'
     if (!signature.svg) return 'Bitte im Feld „Unterschrift“ unterschreiben lassen.'
-    return ''
-  }
-  if (!text(reason) && !defaultUnsigned(stop, oc)) return 'Bitte angeben, warum ohne Unterschrift abgeschlossen wird.'
-  return ''
+  } else if (!text(reason) && !defaultUnsigned(stop, oc)) return 'Bitte angeben, warum ohne Unterschrift abgeschlossen wird.'
+  return photoProblem(stop, rule, { outcome: oc })
 }
 
 /** Grund ohne Unterschrift, wenn keiner eingetragen ist: bei „Kunde nicht angetroffen“ dieser, sonst ''. */
@@ -537,7 +565,7 @@ function defaultUnsigned(stop, outcome) {
  */
 export function finishStop(tour, stopId, { signature = null, reason = '', outcome = '', note, now = new Date().toISOString(), by = '', driverId = '' } = {}) {
   const stop = stopOf(tour, stopId)
-  const problem = finishProblem(stop, { signature, reason, outcome })
+  const problem = finishProblem(stop, { signature, reason, outcome, photoRule: tour?.photoRule })
   if (problem) throw new Error(problem)
   const oc = (stop.items || []).some((it) => (it.status || 'geplant') === 'geplant') ? outcome : ''
   return updateStop(tour, stopId, (s) => {

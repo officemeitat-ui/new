@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 424 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 426 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (31)
-- [Objekte & Kunden](#objekte-kunden) (107)
+- [Objekte & Kunden](#objekte-kunden) (109)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (72)
@@ -2615,6 +2615,38 @@ Beim Erstellen legt die App das PDF in SharePoint ab: Mattenwechsel/Kunden/<Kund
 > Tipp: Für die Ablage braucht das Konto „Bearbeiten“ auf den Ordner Mattenwechsel in der Bibliothek (siehe Berechtigungen).
 
 *Vollzugriff bzw. Mattenwechsel und Fakturierung bearbeiten*
+
+### Fotos des Fahrers: Fotopflicht und Fotonachweis
+
+*In der App: Matten-Lieferscheine*
+
+Fotos, die der Fahrer am Liegeplatz aufnimmt, stehen im Büro am Lieferschein („Fotos des Fahrers“) und lassen sich als „Fotonachweis (PDF)“ speichern. In den Einstellungen der Lieferscheine legst du fest, ob Fotos freiwillig sind, Pflicht bei „Nicht möglich“ oder Pflicht an jedem Stopp, und ob der Fotonachweis der E-Mail mit dem Lieferschein beiliegt.
+
+1. „Matten-Lieferscheine“ → „Mehr“ → „Einstellungen“.
+2. Bei „Fotos des Fahrers“ die Stufe wählen und bei Bedarf „Fotonachweis beilegen“ ankreuzen, „Speichern“.
+3. Am Lieferschein die Zeile öffnen: Fotos ansehen oder „Fotonachweis (PDF)“ klicken.
+
+> Tipp: Die Fotopflicht gilt für Touren, die danach freigegeben werden. Der Fahrer sieht den Hinweis am Stopp; ohne das Foto lässt sich der Stopp nicht abschließen.
+> Tipp: Der Fotonachweis enthält höchstens acht Fotos, damit die E-Mail klein bleibt; weitere nennt das PDF als „in unserer Ablage“.
+> Tipp: Die Fotos liegen in SharePoint unter matten/fotos und werden nie automatisch gelöscht.
+
+*Vollzugriff bzw. Mattenwechsel Büro; Fotonachweis senden: zusätzlich Fakturierung bearbeiten*
+
+### Liegeplatz-Foto: so liegt die Matte
+
+*In der App: Matten-Liegeplätze*
+
+Am Liegeplatz kannst du ein Foto hinterlegen, das dem Fahrer am Stopp zeigt, wo und wie die Matte liegt („So liegt die Matte“). Darunter stehen die Fotos der letzten Wechsel; eines davon lässt sich mit einem Klick als Liegeplatz-Foto übernehmen.
+
+1. „Matten-Liegeplätze“ öffnen und den Liegeplatz anklicken.
+2. Im Abschnitt „Fotos“ auf „Foto hochladen“ klicken und das Bild wählen – es wird sofort gespeichert.
+3. Oder bei einem Foto der letzten Wechsel „als Liegeplatz-Foto“ wählen.
+
+> Tipp: Das Foto gilt für Touren, die danach vorgeschlagen werden; schon geplante Touren behalten ihren Stand.
+> Tipp: Fahrer ohne Microsoft-Konto (Fahrerseite am Webspace) sehen das Liegeplatz-Foto noch nicht.
+> Tipp: „Entfernen“ nimmt nur den Vermerk weg, die Datei bleibt in der Ablage.
+
+*Vollzugriff bzw. Mattenwechsel Büro*
 
 ### Fahrer ohne Microsoft-Konto: Fahrerseite am Webspace
 

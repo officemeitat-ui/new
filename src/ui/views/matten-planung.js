@@ -598,7 +598,7 @@ async function release(id) {
   const { now, by } = opts()
   let saved
   try {
-    saved = await s.save(withWebspace(releaseTour(tour, { now, by, driver }), identity), { online: true })
+    saved = await s.save(withWebspace(releaseTour(tour, { now, by, driver, photoRule: settings().photoRule }), identity), { online: true })
   } catch (err) {
     failed(err)
     return renderNow()

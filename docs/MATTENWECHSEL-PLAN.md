@@ -413,6 +413,14 @@ Annahmen der Prüfrunde (bis zur Entscheidung): Die Pauschale eines Monats, in d
 
 ---
 
+**Ausbau ab 23.11.2026 (Auslieferung, Fotos, Streckenplanung)** – nach dem Vergleich mit Touren- und Mattenservice-Programmen (Track-POD, OptimoRoute, Spoke, SoCom TIKOS, AdvanTex):
+
+- **Fotos – fertig** (Rechenkern `src/core/matten-fotos.js`, Oberfläche `src/ui/matten-fotos.js`, PDF `src/export/matten-foto-pdf.js`; Tests `test/matten-fotos.test.js`, Browser-Test `.pruefung/matten_fotos_app.mjs`):
+  - **Fotos im Büro**: am Lieferschein-Dialog „Fotos des Fahrers“ (Liegeplatz, Zeit, wer, bei „nicht möglich“ der Grund), in der Liste die Zahl der Fotos; ansehen über die Anmeldung der App.
+  - **Fotonachweis (PDF)** je Stopp: Kopf wie die anderen Nachweise, Kunde, Objekt, Tag, Lieferschein, Fahrer, höchstens acht Fotos (verkleinert, damit das PDF unter der Grenze für E-Mails aus der App bleibt), ohne Preise. Mit der Einstellung `settings.photoProof` liegt er der E-Mail mit dem Lieferschein bei (einzeln, Sammelversand, automatisch).
+  - **Fotopflicht** `settings.photoRule`: `nie` (freiwillig, Vorgabe) | `ausnahme` (Foto, wenn ein Wechsel nicht möglich war bzw. der Stopp mit einer Ausnahme endet) | `immer` (mindestens ein Foto je Stopp). Bei der Freigabe kommt die Regel als Kopie an die Tour (`tour.photoRule`, Fahrer lesen die Einstellungen nicht); `finishProblem` sperrt den Abschluss mit einem klaren Hinweis. Die Fahrerseite am Webspace (P10b) prüft die Regel noch nicht.
+  - **Liegeplatz-Foto** „so liegt die Matte“: `placements[].photo { path, name, at, by }` unter `matten/fotos/liegeplatz/<Liegeplatz>/`, hochgeladen im Liegeplatz-Dialog oder aus einem Foto des Fahrers übernommen; der Tourvorschlag kopiert den Pfad an den Stopp (`items[].refPhoto`), der Fahrer öffnet es am Liegeplatz. Dazu im Dialog der **Verlauf** der Fotos der letzten Wechsel.
+
 ## 8. Sicherung, Rückweg, Tests
 
 - **Vor jeder Umstellung**: Sicherung der betroffenen Dateien in `_Sicherung/<Datum>/`, Versionsverlauf in SharePoint eingeschaltet (Prüfung im Systemcheck).

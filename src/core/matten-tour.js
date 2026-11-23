@@ -126,6 +126,8 @@ function buildStop({ objectId, entries }, { byObject, byCustomer, date, workMinu
         floor: text(p.floor),
         access: text(p.access),
         hint: text(p.hint),
+        // Liegeplatz-Foto „so liegt die Matte“ (core/matten-fotos.js): Kopie des Pfads für den Fahrer
+        ...(text(p.photo?.path) ? { refPhoto: text(p.photo.path) } : {}),
         mat: matCopy(m),
         planned: m ? Math.max(0, Math.round(Number(m.qty) || 0)) : 0,
         actual: null,

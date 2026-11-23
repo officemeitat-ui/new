@@ -42,10 +42,12 @@ import {
   stopNote,
   totalsText,
 } from '../../core/matten-lieferschein.js'
+import { PHOTO_RULES, photoRule, proofRows, stopPhotos } from '../../core/matten-fotos.js'
 import { emptyMatten, upgradeMatten } from '../../core/matten.js'
 import { tourYears } from '../../core/matten-touren.js'
 import { ACTIONS, app, canEdit, closeModal, memo, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { deliver, openCompose } from '../mailer.js'
+import { openPhotoPath, photoProofPdf, PROOF_MAX } from '../matten-fotos.js'
 import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { canMail } from '../modals/send.js'
 import { invalidateTodo, registerTodo } from '../modals/todo.js'
@@ -117,6 +119,37 @@ onToursChanged(() => {
   if (app.ui.view === VIEW && !app.ui.modal) renderNow()
   autoLater()
 })
+
+// ---------------------------------------------------------------- Fotos des Fahrers (core/matten-fotos.js)
+
+/** Tour und Stopp zum Lieferschein aus den gelesenen Touren (stop null, solange die Tour nicht geladen ist). */
+function stopOfDoc(doc) {
+  const tour = (tourStore()?.tours() || []).find((t) => t.id === doc?.source?.tourId) || null
+  return { tour, stop: tour?.stops?.find((x) => x.id === doc?.source?.stopId) || null }
+}
+
+/** Kopf des Fotonachweises aus Tour und Stopp, mit dem Lieferschein (wenn es einen gibt). */
+const proofInfo = (tour, stop, doc = null) => ({
+  customerName: doc?.recipient?.name || stop?.customer?.name || '',
+  customerNo: doc?.recipient?.customerNo || stop?.customer?.no || '',
+  objectName: doc?.objectName || stop?.objectName || '',
+  address: doc?.deliveryAddress || stop?.address || '',
+  date: doc?.date || tour?.date || '',
+  number: doc?.number || '',
+  driver: doc?.source?.driverName || tour?.driverName || '',
+})
+
+/**
+ * Fotonachweis als Anhang zur E-Mail des Lieferscheins ({ name, blob, type }) – nur mit der Einstellung „Fotonachweis
+ * beilegen“ und wenn der Fahrer Fotos gemacht hat; sonst null (auch, wenn kein Foto ladbar ist).
+ */
+async function proofAttachment(doc) {
+  if (!msettings().photoProof) return null
+  const { tour, stop } = stopOfDoc(doc)
+  if (!stop || !stopPhotos(stop).length) return null
+  const pdf = await photoProofPdf(stop, proofInfo(tour, stop, doc)).catch(() => null)
+  return pdf ? { name: pdf.name, blob: pdf.blob, type: 'application/pdf' } : null
+}
 
 // ---------------------------------------------------------------- PDF, Ablage, Stopp
 
@@ -316,7 +349,8 @@ async function openSend(id, mode) {
   } catch (err) {
     return toast(`PDF nicht erstellt: ${err.message}`)
   }
-  openCompose({ to: r.to.join('; '), cc: r.cc.join('; '), subject: m.subject, text: m.text, files: [{ name: noteFileName(doc), blob, type: 'application/pdf' }], origin: `Lieferschein ${doc.number} (${MAIL_MODES[mode] || ''})`, onSent: ({ via, to, cc }) => afterSent(id, { to, cc, via, mode }) })
+  const proof = await proofAttachment(doc)
+  openCompose({ to: r.to.join('; '), cc: r.cc.join('; '), subject: m.subject, text: m.text, files: [{ name: noteFileName(doc), blob, type: 'application/pdf' }, ...(proof ? [proof] : [])], origin: `Lieferschein ${doc.number} (${MAIL_MODES[mode] || ''})`, onSent: ({ via, to, cc }) => afterSent(id, { to, cc, via, mode }) })
 }
 
 /**
@@ -333,7 +367,8 @@ async function sendMany(ids, mode, { auto = false, run = null } = {}) {
     try {
       if (!r.to.length) throw new Error(missingText(r.missing) || 'keine E-Mail-Adresse')
       const m = mailFor(doc)
-      const via = await deliver({ to: r.to, cc: r.cc, subject: m.subject, text: m.text, attachments: [{ name: noteFileName(doc), blob: await pdfOf(doc), type: 'application/pdf' }] })
+      const proof = await proofAttachment(doc)
+      const via = await deliver({ to: r.to, cc: r.cc, subject: m.subject, text: m.text, attachments: [{ name: noteFileName(doc), blob: await pdfOf(doc), type: 'application/pdf' }, ...(proof ? [proof] : [])] })
       afterSent(doc.id, { to: r.to, cc: r.cc, via, mode, auto })
       out.sent++
     } catch (err) {
@@ -442,7 +477,7 @@ function lieferscheineView() {
         <td class="clickable" data-action="mw-ls-open" data-tour="${esc(r.tour.id)}" data-stop="${esc(r.stop.id)}"><span class="mwl-cell"><strong>${esc(day(r.date))}</strong>${r.time ? `<br><span class="muted">${esc(r.time)} Uhr</span>` : ''}</span></td>
         <td><span class="mwl-cell"><strong>${esc(r.customerName || 'Kunde')}</strong>${r.customerNo ? ` <span class="muted">(${esc(r.customerNo)})</span>` : ''}${r.objectName ? `<br>${esc(r.objectName)}` : ''}</span></td>
         <td>${esc(r.driver || '–')}</td>
-        <td><span class="mwl-cell">${esc(totalsText(r))}<br><span class="muted">${esc(STOP_STATUS[r.stop.status] || r.stop.status)}</span></span></td>
+        <td><span class="mwl-cell">${esc(totalsText(r))}<br><span class="muted">${esc(STOP_STATUS[r.stop.status] || r.stop.status)}${stopPhotos(r.stop).length ? ` · ${plural(stopPhotos(r.stop).length, 'Foto', 'Fotos')}` : ''}</span></span></td>
         <td><span class="mwl-cell">${r.number ? `<strong>${esc(r.number)}</strong><br>` : ''}${statePills(r)}</span></td>
         <td class="actions-cell">${rowActions(r, act)}</td></tr>`
     })
@@ -498,6 +533,13 @@ function docModal(c, m) {
         .map((p) => `<tr><td>${esc(p.placementName || 'Liegeplatz')}</td><td class="num">${p.actual} von ${p.planned}</td></tr>`)
         .join('')
   const receipt = stop.signature ? `<div class="mwl-receipt">${sigImg(stop.signature.svg)}<p><strong>${esc(stop.signature.name)}</strong>${stop.signature.role ? `, ${esc(stop.signature.role)}` : ''}<br><span class="muted">unterschrieben am ${esc(atText(stop.signature.at))}</span></p></div>` : `<p><strong>Ohne Unterschrift:</strong> ${esc(stop.unsigned?.reason || '')}</p>`
+  const photos = proofRows(stop)
+  const photosHtml = photos.length
+    ? `<h3>Fotos des Fahrers (${photos.length})</h3><ul class="mwl-photos">${photos
+        .map((p) => `<li><button type="button" class="btn small" data-action="mw-ls-photo" data-tour="${esc(m.tour)}" data-stop="${esc(m.stop)}" data-path="${esc(p.path)}">${ICON.camera} ${esc(p.title)}</button> <span class="muted">${esc(p.sub)}${p.queued ? ' · wartet noch im Gerät des Fahrers' : ''}</span></li>`)
+        .join('')}</ul>${msettings().photoProof ? `<p class="note">Der Fotonachweis (PDF${photos.length > PROOF_MAX ? `, die ersten ${PROOF_MAX} Fotos` : ''}) geht mit dem Lieferschein an den Kunden.</p>` : ''}`
+    : ''
+  const proofBtn = photos.length ? `<button class="btn" data-action="mw-ls-proof" data-tour="${esc(m.tour)}" data-stop="${esc(m.stop)}">${ICON.camera} Fotonachweis (PDF)</button>` : ''
   const archive = d?.number
     ? d.archive?.webUrl
       ? `<p>Abgelegt in SharePoint: <a href="${esc(d.archive.webUrl)}" target="_blank" rel="noopener">${esc(d.archive.path.split('/').pop())}</a> <span class="muted">(${esc(atText(d.archive.uploadedAt))})</span></p>`
@@ -517,7 +559,7 @@ function docModal(c, m) {
   const remarks = d?.outro || stop.note ? `<p class="mwl-remarks">${esc(d?.outro || `Bemerkung: ${stop.note}`).replace(/\n/g, '<br>')}</p>` : ''
   const body = `${head}${state}
     <div class="table-wrap"><table class="data mwl-lines"><thead><tr><th>${d ? 'Position' : 'Liegeplatz'}</th><th class="num">Menge</th>${prices ? '<th class="num">Preis (eingefroren)</th><th class="num">netto</th>' : ''}</tr></thead><tbody>${linesHtml}</tbody></table></div>
-    ${remarks}${receipt}${archive}${mailErr}${sent ? `<h3>Versendet</h3><ul>${sent}</ul>` : ''}
+    ${remarks}${receipt}${photosHtml}${archive}${mailErr}${sent ? `<h3>Versendet</h3><ul>${sent}</ul>` : ''}
     ${r.state === 'offen' && !act ? `<p class="note">${esc(rights().hint || 'Lieferscheine erstellt, wer den Mattenwechsel und die Fakturierung bearbeitet.')}</p>` : ''}
     ${r.state === 'keiner' ? `<p class="note">Kein Lieferschein: ${esc(r.need.reason)}.</p>` : ''}`
   const buttons = d?.number && act
@@ -530,7 +572,7 @@ function docModal(c, m) {
     : r.state === 'offen' && act
       ? `<button class="btn primary" data-action="mw-ls-create" data-key="${esc(r.key)}">Lieferschein erstellen</button>`
       : ''
-  return modalFrame({ title: d?.number ? `Lieferschein ${d.number}` : 'Lieferschein', subtitle: `${esc(r.customerName || '')} · ${esc(day(r.date))}`, wide: true, body, foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${buttons}</div>` })
+  return modalFrame({ title: d?.number ? `Lieferschein ${d.number}` : 'Lieferschein', subtitle: `${esc(r.customerName || '')} · ${esc(day(r.date))}`, wide: true, body, foot: `<button class="btn" data-action="close-modal">Schließen</button><div class="actions">${proofBtn}${buttons}</div>` })
 }
 registerModal('mw-ls-doc', docModal, { module: MODULE })
 
@@ -571,6 +613,8 @@ function settingsModal() {
         <label class="field wide"><span>E-Mail des Büros (für „An Büro“ und „An beide“)</span><input type="email" id="mw-ls-office" value="${esc(officeEmailOf(s))}" placeholder="buero@firma.at" autocomplete="email" inputmode="email"></label>
         <label class="check wide"><input type="checkbox" id="mw-ls-auto" ${s.autoDeliveryNotes ? 'checked' : ''}><span>Lieferscheine automatisch erstellen, sobald das Büro die App öffnet (alle abgeschlossenen Stopps)</span></label>
         ${mayBill() ? `<label class="check wide"><input type="checkbox" id="mw-ls-suggest" ${F().settings?.mattenRun?.suggest === true ? 'checked' : ''}><span>Rechnungsentwürfe am Monatsersten vorschlagen („Zu erledigen“ und digitaler Mitarbeiter Buchhaltung; erstellt wird erst nach Prüfung, nie gesendet)</span></label>` : ''}
+        <label class="field wide"><span>Fotos des Fahrers</span><select id="mw-ls-photo-rule">${options(Object.entries(PHOTO_RULES), photoRule(s.photoRule))}</select><small class="muted">gilt für Touren, die ab jetzt freigegeben werden; der Fahrer sieht den Hinweis am Stopp und kann ohne das Foto nicht abschließen</small></label>
+        <label class="check wide"><input type="checkbox" id="mw-ls-photo-proof" ${s.photoProof ? 'checked' : ''}><span>Fotonachweis (PDF mit den Fotos des Fahrers) der E-Mail mit dem Lieferschein beilegen</span></label>
       </div>
       <p class="note">Ob ein Lieferschein ohne Prüfung gleich an den Kunden geht, steht je Kunde in der Fakturierung (Kundenblatt → Mattenwechsel → „Lieferschein automatisch senden“). Gesendet wird immer aus dem Postfach der angemeldeten Person, nie ohne geöffnete App.</p>`,
     foot: `<button class="btn" data-action="close-modal">Abbrechen</button><div class="actions"><button class="btn primary" data-action="mw-ls-settings-save">Speichern</button></div>`,
@@ -640,6 +684,28 @@ registerActions(
       const keys = open.some((r) => sel.includes(r.key)) ? open.filter((r) => sel.includes(r.key)).map((r) => r.key) : open.map((r) => r.key)
       app.ui.mwLsSel = []
       await createNotes(keys)
+    },
+    // Foto des Fahrers ansehen (aus dieser Sitzung, sonst aus SharePoint)
+    'mw-ls-photo': async (el) => {
+      const r = rowOf(el.dataset.tour, el.dataset.stop)
+      const meta = r ? stopPhotos(r.stop).find((p) => p.path === el.dataset.path) : null
+      await openPhotoPath(el.dataset.path, meta || {})
+    },
+    // Fotonachweis: alle Fotos des Stopps als PDF (auch ohne Lieferschein)
+    'mw-ls-proof': async (el) => {
+      const r = rowOf(el.dataset.tour, el.dataset.stop)
+      if (!r) return
+      el.disabled = true
+      try {
+        const pdf = await photoProofPdf(r.stop, proofInfo(r.tour, r.stop, r.doc))
+        if (!pdf) return toast('Kein Foto ladbar (im Browser-Modus bleiben Fotos nur im Fenster des Fahrers; im Betrieb liegen sie in SharePoint).')
+        download(pdf.name, pdf.blob)
+        if (pdf.shown < pdf.count) toast(`Fotonachweis mit ${pdf.shown} von ${pdf.count} Fotos (die übrigen nennt das PDF als „in unserer Ablage“).`)
+      } catch (err) {
+        toast(`Fotonachweis nicht erstellt: ${err.message}`)
+      } finally {
+        el.disabled = false
+      }
     },
     'mw-ls-pdf': async (el) => {
       const doc = docOf(el.dataset.id)
@@ -714,6 +780,11 @@ registerActions(
       else delete s.officeEmail
       if (checked('mw-ls-auto')) s.autoDeliveryNotes = true
       else delete s.autoDeliveryNotes
+      const rule = photoRule(val('mw-ls-photo-rule'))
+      if (rule !== 'nie') s.photoRule = rule
+      else delete s.photoRule
+      if (checked('mw-ls-photo-proof')) s.photoProof = true
+      else delete s.photoProof
       // Vorschlag am Monatsersten: Einstellung der Fakturierung (die Buchhaltung liest den Mattenwechsel nicht)
       if (document.getElementById('mw-ls-suggest') && mayBill()) {
         const fs = (F().settings ||= {})

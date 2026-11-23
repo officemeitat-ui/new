@@ -47,6 +47,8 @@ import {
 import { loadList } from '../../core/matten-tour.js'
 import { navigationUrl } from '../../core/routing.js'
 import { app, canEdit, closeModal, openModal, registerActions, registerModal, registerUploadHook, registerView, renderModal, renderNow, toast } from '../context.js'
+import { openPhotoPath, rememberPhoto, shrinkPhoto } from '../matten-fotos.js'
+import { photoProblem, photoRuleHint } from '../../core/matten-fotos.js'
 import { onToursChanged, tourStore as sharedTourStore } from '../matten-tourablage.js'
 import { clearSignatures, signatureField, signatureSvg } from '../signature.js'
 import { esc, ICON, modalFrame } from '../shared.js'
@@ -359,6 +361,7 @@ function stopView(tour, stop) {
       ${info ? `<p>${info}</p>` : ''}
       ${when ? `<p class="muted">${when}</p>` : ''}
       <div class="mwf-go">${isFinal(stop) ? '' : navLink(stop, { tour, cls: 'btn primary mwf-big' })}${arrive}</div>
+      ${work && photoRuleHint(tour.photoRule) ? `<p class="mwf-photo-rule">${ICON.camera} ${esc(photoRuleHint(tour.photoRule))}</p>` : ''}
     </section>
     ${blocks}
     ${foot}`
@@ -400,6 +403,7 @@ function placementBlock(tour, stop, p, i, work) {
     <div class="mwf-card-top"><h3>${esc(p.placementName || 'Liegeplatz')}</h3>${pill}</div>
     ${meta ? `<p class="mwf-meta">${meta}</p>` : ''}
     ${p.hint ? `<p class="mwf-hint">${esc(p.hint)}</p>` : ''}
+    ${p.refPhoto ? `<p class="mwf-ref"><button type="button" class="btn small" data-action="mwf-ref-open" data-path="${esc(p.refPhoto)}">${ICON.camera} So liegt die Matte (Foto vom Büro)</button></p>` : ''}
     <ul class="mwf-mats">${mats}</ul>
     ${st === 'nicht-moeglich' || (st === 'teilweise' && p.reason) ? `<p class="mwf-reason">Nicht möglich: ${esc(p.reason)}</p>` : ''}
     ${buttons}
@@ -454,39 +458,17 @@ registerView({
 
 // ---------------------------------------------------------------- Fotos (verkleinert wie beim Regiebericht)
 
-const LOCAL = new Map() // Browser-Modus: Fotos nur in diesem Fenster
-const BLOBS = new Map() // in dieser Sitzung aufgenommen (auch ohne Netz sofort ansehen)
-
-async function shrink(file, max = 2000, quality = 0.82, minSize = 600e3) {
-  if (!/^image\//.test(file.type) || file.size < minSize || typeof createImageBitmap !== 'function') return file
-  try {
-    const bmp = await createImageBitmap(file)
-    const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bmp.width * scale)
-    canvas.height = Math.round(bmp.height * scale)
-    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height)
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality))
-    return blob && blob.size < file.size ? new File([blob], `${String(file.name || 'foto').replace(/\.\w+$/, '')}.jpg`, { type: 'image/jpeg' }) : file
-  } catch {
-    return file
-  }
-}
-
 async function storePhoto(file, tour, placementId) {
   if (file.size > 15e6) {
     toast(`${file.name}: zu groß (höchstens 15 MB).`)
     return null
   }
-  const f = await shrink(file)
+  const f = await shrinkPhoto(file)
   const ext = /png$/i.test(f.type) ? 'png' : 'jpg'
   const path = photoPath({ tour, placementId, date: todayISO(), n: nextPhotoNumber(tour, placementId), ext })
   const meta = { name: path.split('/').pop(), path, at: nowIso(), by: user(), size: f.size }
-  BLOBS.set(path, f)
-  if (app.store?.kind !== 'sharepoint') {
-    LOCAL.set(path, f)
-    return { ...meta, local: true }
-  }
+  rememberPhoto(path, f) // in dieser Sitzung sofort ansehen (auch ohne Netz und im Browser-Modus)
+  if (app.store?.kind !== 'sharepoint') return { ...meta, local: true }
   try {
     const up = await app.store.upload(path, f, f.type || 'image/jpeg')
     return { ...meta, ...(up?.webUrl ? { url: up.webUrl } : {}), ...(up?.queued ? { queued: true } : {}) }
@@ -496,17 +478,10 @@ async function storePhoto(file, tour, placementId) {
   }
 }
 
+/** Foto ansehen: aus dieser Sitzung, aus der Warteschlange des Geräts oder aus SharePoint (ui/matten-fotos.js). */
 async function openPhoto(path) {
-  const mem = BLOBS.get(path) || LOCAL.get(path)
-  if (mem) return void window.open(URL.createObjectURL(mem), '_blank', 'noopener')
-  const queued = await app.offline?.get?.('blobs', path)
-  if (queued?.blob) return void window.open(URL.createObjectURL(queued.blob), '_blank', 'noopener')
   const photo = S.store?.tours().flatMap((t) => t.stops.flatMap((s) => (s.items || []).flatMap((it) => it.photos || []))).find((p) => p.path === path)
-  if (photo?.local) return toast('Im Browser-Modus werden Fotos nicht gespeichert (nur im Betrieb mit SharePoint).')
-  if (photo?.url) return void window.open(photo.url, '_blank', 'noopener')
-  const blob = await app.store?.readBlob?.(path).catch(() => null)
-  if (!blob) return toast(photo?.queued ? 'Das Foto wartet noch im Gerät aufs Hochladen.' : 'Foto nicht gefunden.')
-  window.open(URL.createObjectURL(blob), '_blank', 'noopener')
+  await openPhotoPath(path, photo || {})
 }
 
 // ---------------------------------------------------------------- Dialog „Nicht möglich“
@@ -574,6 +549,7 @@ function finishModal(c, m) {
     subtitle: `${esc(stopTitle(stop))}${stop.objectName ? ` · ${esc(stop.objectName)}` : ''}`,
     body: `<div class="mwf-modal"></div><ul class="mwf-sum">${rows}</ul>
       ${outcomes}
+      ${photoProblem(stop, tour.photoRule, { outcome: open.length ? m.outcome || '' : '' }) ? `<p class="banner warn-banner mwf-photo-miss" role="alert">${ICON.camera} ${esc(photoProblem(stop, tour.photoRule, { outcome: open.length ? m.outcome || '' : '' }))} Dazu „Abbrechen“ und beim Liegeplatz auf „Foto“ tippen.</p>` : ''}
       <label class="field"><span>Bemerkung zum Stopp (optional)</span><textarea id="mwf-f-note" rows="2" placeholder="z. B. Hausbetreuung informiert">${esc(m.note ?? stop.note ?? '')}</textarea></label>
       <section class="mwf-signbox"><h3>${m.noSig ? 'Ohne Unterschrift abschließen' : 'Bestätigung durch Kunde oder Hausbetreuung (optional)'}</h3>${sign}</section>
       <p class="note">Nach dem Abschließen ist der Stopp fest; danach kommt der nächste offene Stopp. Ohne Netz bleibt alles im Gerät und wird nachgeholt.</p>`,
@@ -655,6 +631,8 @@ registerActions({
     change(tour.id, (t, o) => setStopStatus(t, stop.id, 'unterwegs', o))
   },
   'mwf-photo-open': (el) => openPhoto(el.dataset.path),
+  // Liegeplatz-Foto vom Büro („so liegt die Matte“): aus SharePoint lesen
+  'mwf-ref-open': (el) => openPhotoPath(el.dataset.path, {}),
 })
 
 registerActions(
@@ -735,7 +713,7 @@ registerActions(
       const stop = stopOf(tour, m.stop)
       if (!stop) return closeModal()
       const signature = m.noSig ? null : { name: m.signer || '', role: m.role || '', svg: signatureSvg('mwf-sig') }
-      const problem = finishProblem(stop, { signature, reason: m.reason, outcome: m.outcome || '' })
+      const problem = finishProblem(stop, { signature, reason: m.reason, outcome: m.outcome || '', photoRule: tour.photoRule })
       if (problem) return toast(problem)
       el.disabled = true
       const next = await change(tour.id, (t, o) => finishStop(t, stop.id, { signature, reason: m.reason, outcome: m.outcome || '', note: m.note, now: o.now, by: o.by, driverId: t.driverId }))

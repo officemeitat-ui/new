@@ -40,7 +40,11 @@ import {
   updatePlacement,
   upgradeMatten,
 } from '../../core/matten.js'
+import { placementPhotos, refPhotoPath } from '../../core/matten-fotos.js'
+import { tourYears } from '../../core/matten-touren.js'
 import { app, canEdit, closeModal, confirmStep, memo, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { openPhotoPath, rememberPhoto, shrinkPhoto } from '../matten-fotos.js'
+import { onToursChanged, tourStore } from '../matten-tourablage.js'
 import { importUndoBanner } from '../import-undo.js'
 import { geocode } from '../geocode.js'
 import { chosenProvider, findCoords } from '../matten-routing.js'
@@ -336,6 +340,7 @@ function editModal(c, m) {
       </div>
       ${lastEx ? `<p class="muted">Letzter Wechsel: ${esc(short(lastEx.date))}${lastEx.source === 'werkzeug' ? ' (aus den Touren des Werkzeugs)' : ''}</p>` : ''}
       <h4>Pausen (z. B. Betriebsurlaub)</h4>${pauseRows || '<p class="muted">Keine Pause eingetragen.</p>'}${ed ? `<button class="btn small" data-action="mw-pause-add">${ICON.plus} Pause</button>` : ''}</section>
+      ${photoBlock(existing, ed)}
       <section class="mw-block"><h3>Gebiet und Lage</h3><div class="form-grid">
         <label class="field"><span>Gebiet (Tourrunde)</span><select id="mw-area" data-change="mw-redraw" ${dis}>${options(areas.map((a) => [a.id, a.name]), d.areaId, { empty: '– kein Gebiet –' })}${ed ? `<option value="+" ${d.areaId === '+' ? 'selected' : ''}>+ neues Gebiet …</option>` : ''}</select></label>
         ${d.areaId === '+' ? `<label class="field"><span>Name des neuen Gebiets</span><input type="text" id="mw-area-new" value="${esc(d.areaNew || '')}" placeholder="z. B. Salzburg Nord" ${dis}></label>` : ''}
@@ -346,6 +351,53 @@ function editModal(c, m) {
       <div class="actions"><button class="btn" data-action="close-modal">${ed ? 'Abbrechen' : 'Schließen'}</button>${ed ? '<button class="btn primary" data-action="mw-save">Speichern</button>' : ''}</div>`,
   })
 }
+// ---------------------------------------------------------------- Fotos am Liegeplatz (core/matten-fotos.js)
+
+/** Touren dieses und des letzten Jahres im Hintergrund lesen (für „Fotos der letzten Wechsel“); danach zeichnet der Dialog neu. */
+function ensurePhotoTours() {
+  const st = tourStore()
+  if (!st) return
+  const today = todayISO()
+  const years = tourYears(`${Number(today.slice(0, 4)) - 1}-01-01`, today).filter((y) => !st.yearLoaded(y) && !st.yearLoading(y))
+  if (years.length) st.load({ years }).catch(() => {})
+}
+onToursChanged(() => {
+  if (app.ui.modal?.type === 'mw-edit' && app.ui.modal.id) renderModal()
+})
+
+/**
+ * Liegeplatz-Foto („so liegt die Matte“ – der Fahrer sieht es am Stopp) und die Fotos der letzten Wechsel. Erst am
+ * gespeicherten Liegeplatz; das Foto wird sofort gespeichert, unabhängig von „Speichern“ im Dialog.
+ */
+function photoBlock(p, ed) {
+  if (!p) return ''
+  const ref = p.photo?.path ? p.photo : null
+  const history = placementPhotos(tourStore()?.tours() || [], p.id, { limit: 6 })
+  const refHtml = ref
+    ? `<p class="mw-photo-ref"><button type="button" class="btn small" data-action="mw-photo-open" data-path="${esc(ref.path)}"${ref.local ? ' data-local="1"' : ''}>${ICON.camera} Liegeplatz-Foto ansehen</button> <span class="muted">${ref.at ? `vom ${esc(short(String(ref.at).slice(0, 10)))}` : ''}${ref.by ? `, ${esc(ref.by)}` : ''}</span>${ed ? ` <button type="button" class="btn small ghost" data-action="mw-photo-del" data-id="${esc(p.id)}">Entfernen</button>` : ''}</p>`
+    : '<p class="muted">Noch kein Liegeplatz-Foto.</p>'
+  const add = ed ? `<label class="btn small mw-photo-add">${ICON.camera} ${ref ? 'Foto ersetzen' : 'Foto hochladen'}<input type="file" accept="image/*" data-change="mw-photo-add" data-id="${esc(p.id)}" hidden></label>` : ''
+  const rows = history
+    .map((h) => `<li><button type="button" class="btn small" data-action="mw-photo-open" data-path="${esc(h.path)}"${h.local ? ' data-local="1"' : ''}${h.queued ? ' data-queued="1"' : ''}>${ICON.camera} ${esc(short(h.date))}</button> <span class="muted">${esc([h.driverName, h.status === 'nicht-moeglich' ? `nicht möglich${h.reason ? `: ${h.reason}` : ''}` : ''].filter(Boolean).join(' · '))}</span>${ed && ref?.path !== h.path && !h.local && !h.queued ? ` <button type="button" class="btn small ghost" data-action="mw-photo-use" data-id="${esc(p.id)}" data-path="${esc(h.path)}">als Liegeplatz-Foto</button>` : ''}</li>`)
+    .join('')
+  return `<section class="mw-block mw-photos"><h3>Fotos</h3>
+      <p class="muted">Das Liegeplatz-Foto zeigt dem Fahrer am Stopp, wo und wie die Matte liegt (gilt für Touren, die danach vorgeschlagen werden).</p>
+      ${refHtml}${add}
+      <h4>Fotos der letzten Wechsel</h4>${rows ? `<ul class="mw-photo-list">${rows}</ul>` : '<p class="muted">Noch keine Fotos der Fahrer zu diesem Liegeplatz.</p>'}</section>`
+}
+
+/** Liegeplatz-Foto am gespeicherten Liegeplatz setzen bzw. entfernen (sofort gespeichert). */
+function setPlacementPhoto(id, photo) {
+  const p = placementOf(id)
+  if (!p) return false
+  if (photo) p.photo = photo
+  else delete p.photo
+  p.updatedAt = nowIso()
+  p.updatedBy = user()
+  persist()
+  return true
+}
+
 registerModal('mw-edit', editModal, { module: MODULE })
 
 /** Matte am Liegeplatz mit Kopie von Name, Größe, Farbe (aus der Fakturierung bzw. einer vorhandenen Kopie). */
@@ -460,7 +512,11 @@ registerActions({
     Object.assign(app.ui, { mwCust: '', mwArea: '', mwStatus: '', mwQ: '' })
     renderNow()
   },
-  'mw-edit-open': (el) => openModal({ type: 'mw-edit', id: el.dataset.id || '', objectId: el.dataset.obj || '', customerId: el.dataset.cust || '' }),
+  'mw-edit-open': (el) => {
+    if (el.dataset.id) ensurePhotoTours()
+    openModal({ type: 'mw-edit', id: el.dataset.id || '', objectId: el.dataset.obj || '', customerId: el.dataset.cust || '' })
+  },
+  'mw-photo-open': (el) => openPhotoPath(el.dataset.path, { local: el.dataset.local === '1', queued: el.dataset.queued === '1' }),
   'mw-redraw': () => {
     readDraft()
     renderModal()
@@ -568,6 +624,43 @@ registerActions(
       }
     },
     'mw-save': () => savePlacement(),
+    // Liegeplatz-Foto hochladen (verkleinert, matten/fotos/liegeplatz/<Liegeplatz>/…) und sofort speichern
+    'mw-photo-add': async (el) => {
+      const file = el.files?.[0]
+      const id = el.dataset.id
+      el.value = ''
+      if (!file || !placementOf(id)) return
+      if (file.size > 15e6) return toast(`${file.name}: zu groß (höchstens 15 MB).`)
+      readDraft() // Eingaben im Dialog behalten
+      const f = await shrinkPhoto(file)
+      const path = refPhotoPath(id, { now: nowIso(), ext: /png$/i.test(f.type) ? 'png' : 'jpg' })
+      const meta = { path, name: path.split('/').pop(), at: nowIso(), by: user(), size: f.size }
+      rememberPhoto(path, f)
+      if (app.store?.kind === 'sharepoint') {
+        try {
+          const up = await app.store.upload(path, f, f.type || 'image/jpeg')
+          if (up?.queued) meta.queued = true
+        } catch (err) {
+          return toast(`Foto nicht gespeichert: ${err.message}`)
+        }
+      } else meta.local = true
+      setPlacementPhoto(id, meta)
+      renderModal()
+      toast('Liegeplatz-Foto gespeichert. Der Fahrer sieht es am Stopp (bei Touren, die ab jetzt vorgeschlagen werden).')
+    },
+    // ein Foto des Fahrers als Liegeplatz-Foto übernehmen
+    'mw-photo-use': (el) => {
+      readDraft()
+      if (!setPlacementPhoto(el.dataset.id, { path: el.dataset.path, name: el.dataset.path.split('/').pop(), at: nowIso(), by: user(), from: 'fahrer' })) return
+      renderModal()
+      toast('Als Liegeplatz-Foto übernommen.')
+    },
+    'mw-photo-del': (el) => {
+      readDraft()
+      if (!setPlacementPhoto(el.dataset.id, null)) return
+      renderModal()
+      toast('Liegeplatz-Foto entfernt (die Datei bleibt in der Ablage).')
+    },
     'mw-delete': (el) => {
       const p = placementOf(el.dataset.id)
       if (!p) return
