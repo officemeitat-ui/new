@@ -2631,6 +2631,15 @@ th.cleo-spot, td.cleo-spot { outline-offset: -3px; border-radius: 0; }
 .mw-tp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 12px; }
 .mw-tp-bar .field.inline input { min-width: 0; }
 .mw-tp-mapbox { margin: 0 0 14px; }
+.mw-tp-ist { font-size: 0.85rem; font-weight: 600; }
+.mw-tp-ist.ok { color: var(--ok); }
+.mw-tp-ist.late { color: var(--err); }
+.mw-tp-ist.early { color: var(--muted); }
+.mw-tp-sollist { margin: 6px 0 0; }
+.mw-tp-avis td { vertical-align: top; overflow-wrap: anywhere; }
+.mw-tp-avis-preview { margin: 10px 0; }
+.mw-tp-avis-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: var(--surface-2); border-radius: var(--radius); padding: 10px 12px; margin: 6px 0 0; }
+.mw-tp-avis-err { color: var(--err); margin: 4px 0 10px; padding-left: 18px; }
 .mw-tp-map { min-height: 420px; }
 .mw-tp-map-root.wx-map { height: 420px; }
 .mw-tp-legend { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.9rem; }

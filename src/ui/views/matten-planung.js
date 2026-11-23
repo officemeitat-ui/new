@@ -67,6 +67,11 @@ import { tourMapHtml } from '../matten-karte.js'
 import { checked, esc, ICON, menu, modalFrame, options, rowMenu, uid, val } from '../shared.js'
 import { waLink } from '../whatsapp.js'
 import { tourStockHint } from './matten-bestand.js'
+import { MAIL_PAUSE_MS } from '../../core/fak-laeufe.js'
+import { markNotice, nextNoticeOff, noticeMail, noticeProblem, noticeRows, noticeSummary } from '../../core/matten-avis.js'
+import { diffText, sollIstText, stopSollIst, tourSollIst } from '../../core/matten-sollist.js'
+import { deliver } from '../mailer.js'
+import { canMail } from '../modals/send.js'
 
 const MODULE = 'matten'
 const KEY = 'mattenJobs'
@@ -278,6 +283,13 @@ const timeText = (s) => {
   return `<strong>${esc(t.arrival)}</strong>${extra ? `<small>${esc(extra)}</small>` : ''}`
 }
 
+/** Soll-Ist am abgeschlossenen Stopp: „fertig 07:42“ und die Abweichung zur geplanten Abfahrt (core/matten-sollist.js). */
+function sollIstHtml(s, date) {
+  const x = stopSollIst(s, date)
+  if (!x) return ''
+  return `<br><span class="mw-tp-ist ${x.onTime ? 'ok' : x.diff > 0 ? 'late' : 'early'}" title="geplante Abfahrt ${esc(x.planned)} Uhr, abgeschlossen ${esc(x.actual)} Uhr">fertig ${esc(x.actual)} · ${esc(diffText(x.diff))}</span>`
+}
+
 function stopRow(t, s, i, { ed, others }) {
   const canEdit = ed && editableByOffice(t)
   const items = (s.items || [])
@@ -293,7 +305,7 @@ function stopRow(t, s, i, { ed, others }) {
     : ''
   return `<li class="mw-tp-stop" data-stop="${esc(s.id)}" ${canEdit ? 'draggable="true"' : ''}>
     <span class="mw-tp-no" aria-label="Stopp ${i + 1}">${i + 1}</span>
-    <div class="mw-tp-time">${timeText(s)}</div>
+    <div class="mw-tp-time">${timeText(s)}${sollIstHtml(s, t.date)}</div>
     <div class="mw-tp-where"><strong>${esc(s.customer?.name || 'Kunde')}</strong>${s.objectName ? ` · ${esc(s.objectName)}` : ''}${s.address ? `<br><span class="muted">${esc(s.address)}</span>` : ''}${win ? `<br><span class="mw-tp-win">${esc(win)}</span>` : ''}</div>
     <ul class="mw-tp-items">${items}</ul>
     ${ctl}
@@ -321,7 +333,7 @@ function tourCard(t, { ed, today, others }) {
     ? draft
       ? `<button class="btn small" data-action="mw-tp-edit-open" data-tour="${esc(t.id)}">Fahrer und Fahrzeug</button><button class="btn small primary" data-action="mw-tp-release" data-tour="${esc(t.id)}" ${t.date < today ? 'disabled title="Der Tag liegt in der Vergangenheit"' : ''}>Tour freigeben</button><button class="btn small ${confirmDel ? 'danger confirm' : 'ghost'}" data-action="mw-tp-delete" data-tour="${esc(t.id)}">${confirmDel ? 'Wirklich löschen?' : 'Entwurf löschen'}</button>`
       : t.status === 'freigegeben'
-        ? '<button class="btn small" data-action="mw-tp-withdraw" data-tour="' + esc(t.id) + '">Freigabe zurücknehmen</button>' + tourWa(t)
+        ? '<button class="btn small" data-action="mw-tp-withdraw" data-tour="' + esc(t.id) + '">Freigabe zurücknehmen</button>' + avisButton(t, today) + tourWa(t)
         : ''
     : ''
   // ohne E-Mail erkennt die Fahreransicht die Tour nicht als die des Fahrers
@@ -340,6 +352,7 @@ function tourCard(t, { ed, today, others }) {
     <header class="mw-tp-head"><div class="mw-tp-title"><h3>${esc(t.driverName || 'ohne Fahrer')} <span class="mw-st st-${esc(t.status)}">${esc(STATUS_TEXT[t.status] || t.status)}</span></h3>
       <p class="muted">${esc(facts.join(' · '))}</p>${providerHtml}${t.notice ? `<p class="muted">${esc(t.notice)}</p>` : ''}</div>
       <div class="actions">${mapsHtml}${actions}</div></header>
+      ${sollIstText(tourSollIst(t)) ? `<p class="mw-tp-sollist"><strong>Soll-Ist:</strong> ${esc(sollIstText(tourSollIst(t)))}</p>` : ''}
     ${relHtml}${warn}${stockHtml}${lockHtml}${webTourNote(t, { ed })}
     ${stops ? `<ol class="mw-tp-stops" data-tour="${esc(t.id)}" ${ed && draft ? 'data-drop="1"' : ''}>${stops}</ol>` : `<p class="muted mw-tp-nostop">Noch kein Stopp. Unten unter „Nicht eingeplant“ Stopps zu dieser Tour hinzufügen.</p>`}
     ${load.length ? `<aside class="mw-load" aria-label="Ladeliste ${esc(t.driverName || '')}"><h4>Ladeliste</h4><ul>${load.map((x) => `<li><b>${x.qty}</b> × ${esc(loadLabel(x))} <span class="muted">(${plural(x.stops, 'Stopp', 'Stopps')})</span></li>`).join('')}</ul><p class="muted">zusammen ${plural(load.reduce((a, x) => a + x.qty, 0), 'Matte', 'Matten')}</p></aside>` : ''}
@@ -699,6 +712,100 @@ function tourModal(c, m) {
 }
 registerModal('mw-tp-edit', tourModal, { module: MODULE })
 
+// ---------------------------------------------------------------- Ankündigung an die Kunden (core/matten-avis.js)
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const atText = (iso) => (iso ? new Date(iso).toLocaleString('de-AT', { timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
+
+/** Knopf an der freigegebenen Tour: „Kunden ankündigen“ bzw. der Stand („angekündigt 2 von 5“). */
+function avisButton(t, today) {
+  if (t.status !== 'freigegeben' || t.date < today) return ''
+  const sum = noticeSummary(t)
+  if (!sum.open) return ''
+  return `<button class="btn small" data-action="mw-tp-avis-open" data-tour="${esc(t.id)}">${sum.sent ? `Kunden angekündigt (${sum.sent} von ${sum.open})` : 'Kunden ankündigen'}</button>`
+}
+
+const avisRows = (t) => noticeRows({ tour: t, customers: fakCustomers() || [], off: settings().noticeOff || [] })
+
+/**
+ * Dialog „Kunden ankündigen“: je offenem Stopp der freigegebenen Tour eine E-Mail mit Tag, Zeitfenster und
+ * Liegeplätzen. Vorgewählt, wer eine E-Mail hat und noch nicht angekündigt ist; abgewählte Kunden merkt sich die App
+ * („wünscht keine Ankündigung“). Gesendet wird erst nach Klick, aus dem Postfach der angemeldeten Person.
+ */
+function avisModal(c, m) {
+  const t = tourOf(m.tour)
+  const close = '<div class="actions"><button class="btn" data-action="close-modal">Schließen</button></div>'
+  const problem = noticeProblem(t, todayISO())
+  if (problem) return modalFrame({ title: 'Kunden ankündigen', body: `<p>${esc(problem)}</p>`, foot: close })
+  const rows = avisRows(t)
+  m.pick ||= Object.fromEntries(rows.map((r) => [r.stopId, r.selected]))
+  const chosen = rows.filter((r) => m.pick[r.stopId] && r.email)
+  const run = m.run || null
+  const body = rows
+    .map((r) => {
+      const state = r.sent ? `angekündigt am ${esc(atText(r.sent.at))}${r.sent.by ? `, ${esc(r.sent.by)}` : ''}` : !r.email ? 'keine E-Mail beim Kunden' : r.off ? 'wünscht keine Ankündigung' : ''
+      return `<tr><td><input type="checkbox" data-change="mw-tp-avis-pick" data-stop="${esc(r.stopId)}" ${m.pick[r.stopId] && r.email ? 'checked' : ''} ${r.email && !run?.running ? '' : 'disabled'} aria-label="${esc(r.customerName)} ankündigen"></td>
+        <td><strong>${esc(r.customerName)}</strong>${r.objectName ? `<br><span class="muted">${esc(r.objectName)}</span>` : ''}</td>
+        <td>${r.email ? esc(r.email) : '<span class="muted">–</span>'}</td>
+        <td>${r.window ? `${esc(r.window.from)}–${esc(r.window.to)} Uhr` : '<span class="muted">im Laufe des Tages</span>'}</td>
+        <td>${state ? `<span class="pill ${r.sent ? 'ok' : 'na'}">${state}</span>` : ''}</td></tr>`
+    })
+    .join('')
+  const first = chosen[0] || rows.find((r) => r.email) || null
+  const preview = first ? noticeMail({ tour: t, row: first, sender: user(), company: app.config.brand?.name || '' }) : null
+  const progress = run ? `<p class="note" role="status">${run.running ? `Sende … ${run.sent} von ${run.total}` : `${run.sent} ${run.sent === 1 ? 'Ankündigung' : 'Ankündigungen'} gesendet${run.failed.length ? `, ${run.failed.length} fehlgeschlagen` : ''}.`}</p>${run.failed.length ? `<ul class="mw-tp-avis-err">${run.failed.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}` : ''
+  return modalFrame({
+    title: 'Kunden ankündigen',
+    subtitle: `${esc(t.driverName || 'ohne Fahrer')} · ${esc(dayTitle(t.date))}`,
+    wide: true,
+    body: `<p>Jeder gewählte Kunde bekommt eine E-Mail mit dem Tag, dem voraussichtlichen Zeitfenster (aus der geplanten Ankunft) und seinen Liegeplätzen. So ist der Liegeplatz zugänglich, wenn der Fahrer kommt.</p>
+      ${progress}
+      <div class="table-wrap"><table class="data mw-tp-avis"><thead><tr><th><span class="visually-hidden">wählen</span></th><th>Kunde und Objekt</th><th>E-Mail</th><th>Zeitfenster</th><th>Stand</th></tr></thead><tbody>${body}</tbody></table></div>
+      ${preview ? `<details class="mw-tp-avis-preview"><summary>Vorschau der E-Mail${first ? ` (${esc(first.customerName)})` : ''}</summary><p><strong>${esc(preview.subject)}</strong></p><pre>${esc(preview.text)}</pre></details>` : ''}
+      <p class="note">Gesendet wird aus dem Postfach der angemeldeten Person; Antworten der Kunden landen dort. Wer hier abgewählt wird, ist beim nächsten Mal nicht vorgewählt („wünscht keine Ankündigung“). Die E-Mail steht beim Kunden in der Fakturierung (Lieferschein-E-Mail, sonst E-Mail).${canMail() ? '' : ' <strong>Senden geht nur im Betrieb mit Microsoft 365.</strong>'}</p>`,
+    foot: `<button class="btn" data-action="close-modal" ${run?.running ? 'disabled' : ''}>Schließen</button><div class="actions"><button class="btn primary" data-action="mw-tp-avis-send" ${chosen.length && canMail() && !run?.running ? '' : 'disabled'}>${ICON.send} Ankündigung senden (${chosen.length})</button></div>`,
+  })
+}
+registerModal('mw-tp-avis', avisModal, { module: MODULE })
+
+/** Ankündigungen senden: je Kunde eine E-Mail, mit Pause dazwischen; am Stopp vermerken; Abgewählte merken. */
+async function sendAvis() {
+  const m = app.ui.modal
+  if (m?.type !== 'mw-tp-avis' || m.run?.running) return
+  const t = tourOf(m.tour)
+  if (noticeProblem(t, todayISO())) return renderModal()
+  if (!canMail()) return toast('Senden geht nur im Betrieb mit Microsoft 365.')
+  const rows = avisRows(t)
+  const chosen = rows.filter((r) => m.pick?.[r.stopId] && r.email)
+  if (!chosen.length) return toast('Bitte mindestens einen Kunden mit E-Mail wählen.')
+  const same = () => app.ui.modal === m
+  m.run = { running: true, sent: 0, total: chosen.length, failed: [] }
+  renderModal()
+  for (const [i, r] of chosen.entries()) {
+    const mail = noticeMail({ tour: t, row: r, sender: user(), company: app.config.brand?.name || '' })
+    try {
+      const via = await deliver({ to: [r.email], subject: mail.subject, text: mail.text })
+      await tourStore().update(t.id, (x) => markNotice(x, r.stopId, { to: [r.email], window: r.window, at: nowIso(), by: user(), via }))
+      m.run.sent++
+    } catch (err) {
+      m.run.failed.push(`${r.customerName}: ${err.message}`)
+    }
+    if (same()) renderModal()
+    if (i < chosen.length - 1) await sleep(MAIL_PAUSE_MS)
+  }
+  // abgewählte Kunden merken, gewählte wieder herausnehmen
+  const off = nextNoticeOff(settings().noticeOff || [], rows, chosen.map((r) => r.stopId))
+  if (off.length) settings().noticeOff = off
+  else delete settings().noticeOff
+  persist()
+  m.run.running = false
+  m.pick = null
+  // die Ansicht dahinter zeigt den neuen Stand am Knopf der Tour („Kunden angekündigt (1 von 3)“)
+  renderNow()
+  if (same()) renderModal()
+  toast(`${m.run.sent} ${m.run.sent === 1 ? 'Ankündigung' : 'Ankündigungen'} gesendet${m.run.failed.length ? `, ${m.run.failed.length} fehlgeschlagen (siehe Dialog)` : ''}.`)
+}
+
 function newModal(c, m) {
   const list = drivers().filter((d) => d.active)
   const vs = vehicles().map((v) => [v.id, vehicleLabel(v)])
@@ -980,6 +1087,15 @@ registerActions(
       }),
     'mw-tp-release': (el) => run(() => release(el.dataset.tour)),
     'mw-tp-withdraw': (el) => run(() => withdraw(el.dataset.tour)),
+    // Ankündigung an die Kunden der freigegebenen Tour (E-Mail mit Tag und Zeitfenster)
+    'mw-tp-avis-open': (el) => openModal({ type: 'mw-tp-avis', tour: el.dataset.tour }),
+    'mw-tp-avis-pick': (el) => {
+      const m = app.ui.modal
+      if (m?.type !== 'mw-tp-avis' || !m.pick) return
+      m.pick[el.dataset.stop] = el.checked
+      renderModal()
+    },
+    'mw-tp-avis-send': () => sendAvis(),
     'mw-tp-delete': (el) => run(() => deleteDraft(el.dataset.tour)),
     'mw-tp-edit-open': (el) => {
       if (draftOf(el.dataset.tour)) openModal({ type: 'mw-tp-edit', tour: el.dataset.tour })

@@ -2,14 +2,14 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 427 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 429 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (18)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (31)
-- [Objekte & Kunden](#objekte-kunden) (110)
+- [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
 - [Verwaltung](#verwaltung) (72)
@@ -2630,6 +2630,39 @@ In der Matten-Tourenplanung zeigt „Karte zeigen“ den Tag auf einer Karte: de
 > Tipp: Die Linie verbindet die Stopps in Luftlinie; die echte Fahrstrecke zeigt „Route in Google Maps ansehen“ an der Tour.
 > Tipp: Stopps ohne Koordinaten stehen unter der Karte. Koordinaten ergänzt du unter „Matten-Liegeplätze“ → „Mehr“ → „Koordinaten für alle fehlenden suchen“.
 > Tipp: Die Karte ist die Verwaltungsgrundkarte Österreich (basemap.at).
+
+*Vollzugriff bzw. Mattenwechsel Büro*
+
+### Kunden vor dem Mattenwechsel ankündigen
+
+*In der App: Matten-Tourenplanung*
+
+An einer freigegebenen Tour schickt „Kunden ankündigen“ jedem gewählten Kunden eine E-Mail: Tag, voraussichtliches Zeitfenster (aus der geplanten Ankunft, 30 Minuten davor bis 90 Minuten danach) und seine Liegeplätze. Vorgewählt ist, wer eine E-Mail hat und noch nicht angekündigt wurde. Gesendet wird erst nach deinem Klick, aus deinem Postfach.
+
+1. In der „Matten-Tourenplanung“ die Tour freigeben.
+2. An der Tour auf „Kunden ankündigen“ klicken.
+3. Kunden prüfen, bei Bedarf abwählen, die Vorschau ansehen.
+4. „Ankündigung senden“ klicken.
+
+> Tipp: Wer abgewählt wird, ist beim nächsten Mal nicht vorgewählt („wünscht keine Ankündigung“); wieder anhaken hebt das auf.
+> Tipp: Hat der Kunde ein eigenes Zeitfenster am Liegeplatz, bleibt die Ankündigung innerhalb davon.
+> Tipp: Am Stopp steht danach, wann und an wen angekündigt wurde. Die E-Mail nennt keinen Fahrernamen und keine Preise.
+> Tipp: Die Adresse kommt aus der Fakturierung: Lieferschein-E-Mail des Kunden, sonst seine E-Mail.
+
+*Vollzugriff bzw. Mattenwechsel Büro (Senden mit Microsoft 365)*
+
+### Soll-Ist der Tour: geplant gegen tatsächlich
+
+*In der App: Matten-Tourenplanung*
+
+Sobald der Fahrer Stopps abschließt, zeigt die Tourenplanung an jedem Stopp „fertig 08:40“ mit der Abweichung zur geplanten Abfahrt und an der Tour eine Zeile „Soll-Ist“: wie viele Stopps pünktlich waren (bis 15 Minuten), die mittlere Abweichung und das Ende gegen den Plan. So merkst du, ob die Arbeitszeit je Liegeplatz oder die Fahrzeiten zu knapp angesetzt sind.
+
+1. „Matten-Tourenplanung“ öffnen und den Tag der gefahrenen Tour wählen.
+2. An der Tour die Zeile „Soll-Ist“ lesen, an den Stopps die einzelnen Abweichungen.
+3. Bei wiederkehrender Verspätung die Arbeitszeit am Liegeplatz erhöhen oder echte Fahrzeiten einschalten („Mehr“ → „Routing“).
+
+> Tipp: Verglichen wird nur, was der Fahrer am Handy bestätigt – es werden keine Standorte aufgezeichnet.
+> Tipp: Ein Stopp, den das Büro an einem anderen Tag korrigiert hat, zählt nicht mit.
 
 *Vollzugriff bzw. Mattenwechsel Büro*
 
