@@ -229,3 +229,35 @@ test('Sicherung: Export und Import ergeben denselben Stand, Fremdtext wird abgel
   assert.equal(importState('{"profile":{"name":"x","equipment":[]}}'), null);
   assert.equal(importState(exportState(EMPTY)), null);
 });
+
+test('Ernährung: Bedarf, Ziel-Anpassung, Untergrenzen und Schutzregeln', async () => {
+  const { energy, dayPlan, walkKcal } = await import('../src/engine/nutrition');
+  const p: Profile = { ...base, sex: 'm', age: 30, heightCm: 180, weightKg: 80, activity: 'sitting', daysPerWeek: 3 };
+  assert.equal(energy({ ...p, age: null }), null);
+  assert.equal(energy({ ...p, age: 16 }), null);
+  const build = energy(p)!;
+  assert.equal(build.bmr, 1780);
+  assert.ok(build.tdee > 2400 && build.tdee < 2700, String(build.tdee));
+  assert.ok(build.target > build.tdee && build.delta === 8);
+  assert.equal(build.protein, 145);
+  const cut = energy({ ...p, goal: 'Fettabbau' })!;
+  assert.ok(cut.target < cut.tdee && cut.delta === -18 && cut.protein === 160);
+  assert.ok(Math.abs(cut.protein * 4 + cut.fat * 9 + cut.carbs * 4 - cut.target) < 40);
+  // Hohes Gewicht: Eiweiß nach Bezugsgewicht, nicht nach Gesamtgewicht.
+  const heavy = energy({ ...p, goal: 'Fettabbau', gentle: true, weightKg: 130 })!;
+  assert.ok(heavy.protein < 130 * 2 && heavy.protein >= 160 && heavy.delta === -15);
+  // Untergewicht: kein Defizit. Sehr kleine Person: nie unter Grundumsatz.
+  const thin = energy({ ...p, goal: 'Fettabbau', weightKg: 55 })!;
+  assert.equal(thin.delta, 0);
+  assert.ok(thin.notes.length > 0);
+  const small = energy({ ...p, goal: 'Fettabbau', sex: 'f', heightCm: 150, weightKg: 50, age: 70, daysPerWeek: 2 })!;
+  assert.ok(small.target >= small.bmr && small.target >= 1200);
+  for (const target of [1500, 1900, 2400, 3000]) for (const veg of [false, true]) for (const d of [0, 1, 2]) {
+    const plan = dayPlan(target, d, veg);
+    assert.equal(plan.meals.length, 4);
+    assert.ok(Math.abs(plan.kcal - target) / target < 0.08, `${target}/${veg}/${d}: ${plan.kcal}`);
+    assert.ok(plan.protein >= target * 0.045, `${target}/${veg}/${d}: ${plan.protein} g Eiweiß`);
+  }
+  assert.notEqual(dayPlan(2000, 0).meals[1].title, dayPlan(2000, 1).meals[1].title);
+  assert.ok(walkKcal(80, 60, 4) > walkKcal(80, 60, 3) && walkKcal(80, 30, 4) === 120);
+});

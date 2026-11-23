@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Defs, Ellipse, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { Exercise } from '../engine/types';
 import { colors as c } from '../theme';
 import { ANIMS, ANIM_OF, Pose, Pt, Scene } from './poses';
@@ -7,6 +7,7 @@ import { ANIMS, ANIM_OF, Pose, Pt, Scene } from './poses';
 const BODY = '#C5CEC8';
 const BACK = '#4A544E';
 const GEAR = '#7C8781';
+const SHOE = '#E9EEEA';
 const LEGS = ['Quadrizeps', 'Beinbeuger', 'Gesäß', 'Waden'];
 const ARMS = ['Bizeps', 'Trizeps', 'Schultern'];
 const TORSO = ['Brust', 'Rücken', 'Rumpf'];
@@ -21,6 +22,24 @@ const mirror = (pt: Pt): Pt => [100 - pt[0], pt[1]];
 
 const OUT = '#0B0D0C';
 
+const tone = (hex: string, f: number) => `#${[1, 3, 5].map((i) => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * f))).toString(16).padStart(2, '0')).join('')}`;
+const gid = (hex: string) => `fg${hex.slice(1)}`;
+const fillOf = (hex: string) => `url(#${gid(hex)})`;
+/** Farbverlauf je Körperfarbe: oben hell, unten dunkel, für plastische Muskeln. */
+function Gradients({ colors }: { colors: string[] }) {
+  return (
+    <Defs>
+      {[...new Set(colors)].map((hex) => (
+        <LinearGradient key={hex} id={gid(hex)} x1="0" y1="0" x2="0.6" y2="1">
+          <Stop offset="0" stopColor={tone(hex, 1.18)} />
+          <Stop offset="0.55" stopColor={hex} />
+          <Stop offset="1" stopColor={tone(hex, 0.62)} />
+        </LinearGradient>
+      ))}
+    </Defs>
+  );
+}
+
 /** Muskel-Segment: läuft von Breite wa über einen Bauch (wm) zu wb aus, mit runden Gelenken. */
 function Limb({ a, b, color, wa, wm, wb, at = 0.4 }: { a: Pt; b: Pt; color: string; wa: number; wm: number; wb: number; at?: number }) {
   const dx = b[0] - a[0];
@@ -31,24 +50,30 @@ function Limb({ a, b, color, wa, wm, wb, at = 0.4 }: { a: Pt; b: Pt; color: stri
   const m: Pt = [a[0] + dx * at, a[1] + dy * at];
   const pt = (o: Pt, w: number, sign: number) => `${(o[0] + nx * (w / 2) * sign).toFixed(2)},${(o[1] + ny * (w / 2) * sign).toFixed(2)}`;
   const d = `M${pt(a, wa, 1)} Q${pt(m, wm * 1.25, 1)} ${pt(b, wb, 1)} L${pt(b, wb, -1)} Q${pt(m, wm * 1.25, -1)} ${pt(a, wa, -1)} Z`;
+  const hx = nx * wm * 0.2;
+  const hy = ny * wm * 0.2;
+  const up = hy < 0 || (hy === 0 && hx < 0) ? 1 : -1;
   return <>
-    <Path d={d} fill={color} stroke={OUT} strokeWidth={0.9} strokeLinejoin="round" />
-    <Circle cx={a[0]} cy={a[1]} r={wa / 2} fill={color} />
-    <Circle cx={b[0]} cy={b[1]} r={wb / 2} fill={color} />
+    <Path d={d} fill={fillOf(color)} stroke={OUT} strokeWidth={0.9} strokeLinejoin="round" />
+    <Circle cx={a[0]} cy={a[1]} r={wa / 2} fill={fillOf(color)} />
+    <Circle cx={b[0]} cy={b[1]} r={wb / 2} fill={fillOf(color)} />
+    <Line x1={a[0] + dx * 0.18 + hx * up} y1={a[1] + dy * 0.18 + hy * up} x2={a[0] + dx * 0.62 + hx * up} y2={a[1] + dy * 0.62 + hy * up} stroke="#FFFFFF" strokeOpacity={0.22} strokeWidth={wm * 0.2} strokeLinecap="round" />
   </>;
 }
 
 const Arm = ({ sh, el, ha, color }: { sh: Pt; el: Pt; ha: Pt; color: string }) => <>
   <Limb a={el} b={ha} color={color} wa={6.6} wm={7.6} wb={4} at={0.3} />
   <Limb a={sh} b={el} color={color} wa={8.4} wm={10.6} wb={6.4} at={0.45} />
-  <Circle cx={sh[0]} cy={sh[1]} r={5.3} fill={color} stroke={OUT} strokeWidth={0.7} />
-  <Circle cx={ha[0]} cy={ha[1]} r={2.3} fill={color} />
+  <Circle cx={sh[0]} cy={sh[1]} r={5.3} fill={fillOf(color)} stroke={OUT} strokeWidth={0.7} />
+  <Circle cx={ha[0]} cy={ha[1]} r={2.3} fill={fillOf(color)} />
 </>;
 
 const Leg = ({ hip, kn, ft, color }: { hip: Pt; kn: Pt; ft: Pt; color: string }) => <>
   <Limb a={kn} b={ft} color={color} wa={7.4} wm={9.6} wb={4.2} at={0.3} />
   <Limb a={hip} b={kn} color={color} wa={12.5} wm={14} wb={7.6} at={0.38} />
-  <Circle cx={ft[0]} cy={ft[1]} r={2.7} fill={color} />
+  {ft[1] > 84 && kn[1] < ft[1] - 8
+    ? <Rect x={ft[0] - 3} y={ft[1] - 1.6} width={9.5} height={4.6} rx={2.2} fill={SHOE} stroke={OUT} strokeWidth={0.6} />
+    : <Circle cx={ft[0]} cy={ft[1]} r={2.9} fill={SHOE} />}
 </>;
 
 function SceneProps({ scene }: { scene?: Scene }) {
@@ -107,12 +132,12 @@ export function Figure({ ex, size = 160, animate = true, phase = 1 }: { ex: Exer
       {weight === 'bb' || anim === ANIMS.pulldown ? <Line x1={L.ha[0] - 8} y1={L.ha[1]} x2={pose.ha[0] + 8} y2={pose.ha[1]} stroke={weight === 'bb' ? c.lime : GEAR} strokeWidth={2.4} strokeLinecap="round" /> : null}
       <Leg hip={pose.hip} kn={pose.kn} ft={pose.ft} color={legs} /><Leg hip={L.hip} kn={L.kn} ft={L.ft} color={legs} />
       <Path d={`M44,${sy - 3} L50,${sy - 9} L56,${sy - 3} Z`} fill={torso} />
-      <Path d={torsoPath} fill={torso} stroke={OUT} strokeWidth={0.7} strokeLinejoin="round" />
+      <Path d={torsoPath} fill={fillOf(torso)} stroke={OUT} strokeWidth={0.7} strokeLinejoin="round" />
       <Path d={`M${50 - sw + 1},${sy + 5} Q${50 - sw / 2},${sy + 9} 50,${sy + 5.5} Q${50 + sw / 2},${sy + 9} ${50 + sw - 1},${sy + 5}`} fill="none" stroke={OUT} strokeWidth={0.8} />
       <Line x1={50} y1={sy - 1} x2={50} y2={hy - 2} stroke={OUT} strokeWidth={0.7} />
       {[0.42, 0.6, 0.78].map((f) => <Line key={f} x1={45.5} y1={sy + (hy - sy) * f} x2={54.5} y2={sy + (hy - sy) * f} stroke={OUT} strokeWidth={0.6} />)}
       <Rect x={47.5} y={sy - 9} width={5} height={6} rx={2} fill={BODY} />
-      <Circle cx={50} cy={sy - 12} r={5.8} fill={BODY} />
+      <Circle cx={50} cy={sy - 12} r={5.8} fill={fillOf(BODY)} />
       <Arm sh={pose.sh} el={pose.el} ha={pose.ha} color={arms} /><Arm sh={L.sh} el={L.el} ha={L.ha} color={arms} />
       {weight && weight !== 'bb' ? <><Weight at={pose.ha} kind={weight} /><Weight at={L.ha} kind={weight} /></> : null}
     </>;
@@ -129,11 +154,11 @@ export function Figure({ ex, size = 160, animate = true, phase = 1 }: { ex: Exer
       {pose.el2 && pose.ha2 ? <Arm sh={pose.sh} el={pose.el2} ha={pose.ha2} color={BACK} /> : null}
       {cable ? <Line x1={pose.ha[0]} y1={pose.ha[1]} x2={cable[0]} y2={cable[1]} stroke={GEAR} strokeWidth={1.4} /> : null}
       <Leg hip={pose.hip} kn={pose.kn} ft={pose.ft} color={legs} />
-      <Circle cx={pose.hip[0]} cy={pose.hip[1]} r={7.2} fill={legs} stroke={OUT} strokeWidth={0.7} />
+      <Circle cx={pose.hip[0]} cy={pose.hip[1]} r={7.2} fill={fillOf(legs)} stroke={OUT} strokeWidth={0.7} />
       <Limb a={pose.sh} b={pose.hip} color={torso} wa={15} wm={17} wb={10.5} at={0.28} />
-      <Circle cx={pose.sh[0] - ux * 5 - uy * 4.5 * (anim.prone ? -1 : 1)} cy={pose.sh[1] - uy * 5 + ux * 4.5 * (anim.prone ? -1 : 1)} r={4.6} fill={torso} stroke={OUT} strokeWidth={0.6} />
+      <Circle cx={pose.sh[0] - ux * 5 - uy * 4.5 * (anim.prone ? -1 : 1)} cy={pose.sh[1] - uy * 5 + ux * 4.5 * (anim.prone ? -1 : 1)} r={4.6} fill={fillOf(torso)} stroke={OUT} strokeWidth={0.6} />
       <Limb a={pose.sh} b={neck} color={BODY} wa={6.5} wm={6} wb={5} />
-      <Circle cx={head[0]} cy={head[1]} r={5.8} fill={BODY} />
+      <Circle cx={head[0]} cy={head[1]} r={5.8} fill={fillOf(BODY)} />
       <Arm sh={pose.sh} el={pose.el} ha={pose.ha} color={arms} />
       {weight ? <Weight at={anim.barOnBack ? [pose.sh[0] - 3, pose.sh[1] - 1] : pose.ha} kind={anim.barOnBack ? 'bb' : weight} /> : null}
     </>;
@@ -141,7 +166,9 @@ export function Figure({ ex, size = 160, animate = true, phase = 1 }: { ex: Exer
 
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityLabel={`Bewegungsbild: ${ex.name}`}>
+      <Gradients colors={[BODY, BACK, legs, arms, torso]} />
       <Line x1={6} y1={93.5} x2={94} y2={93.5} stroke={c.border} strokeWidth={1.5} strokeLinecap="round" />
+      <Ellipse cx={anim.front ? 50 : (pose.hip[0] + pose.ft[0] + pose.sh[0]) / 3} cy={93.5} rx={anim.front ? 16 : Math.min(40, 12 + Math.abs(pose.sh[0] - pose.ft[0]) / 1.6)} ry={2.2} fill="#000000" opacity={0.55} />
       <SceneProps scene={anim.scene} />
       {body}
     </Svg>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { EQUIPMENT, equipmentName } from './engine/equipment';
 import { EXERCISES } from './engine/exercises';
@@ -56,6 +56,8 @@ export function ExerciseGuide({ ex, history, note, setNote, children }: { ex: Ex
         <Numbered items={g.steps} />
         <Eyebrow>Wichtige Tipps</Eyebrow>
         <Numbered items={g.tips} />
+        <Button small variant="secondary" icon="logo-youtube" title="Videos zur Übung auf YouTube suchen" onPress={() => { Linking.openURL(`https://www.youtube.com/results?search_query=${encodeURIComponent(`${ex.name} richtige Ausführung`)}`).catch(() => undefined); }} />
+        <Text style={s.tiny}>Öffnet die YouTube-Suche. Die Videos stammen von Dritten und sind nicht von der App geprüft.</Text>
         {children}
       </> : <>
         {logs.length ? <>

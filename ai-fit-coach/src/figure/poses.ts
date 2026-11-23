@@ -96,7 +96,7 @@ export const ANIMS: Record<string, Anim> = {
 
 /** Übung → Bewegungsbild. */
 export const ANIM_OF: Record<string, keyof typeof ANIMS> = {
-  chair_squat: 'chair_squat', step_up_bw: 'step_up', incline_pushup: 'incline_pushup', door_row: 'pull_front', standing_knee_raise: 'run', wall_plank: 'incline_pushup', suitcase_hold: 'hold', march: 'run',
+  chair_squat: 'chair_squat', step_up_bw: 'step_up', incline_pushup: 'incline_pushup', door_row: 'pull_front', standing_knee_raise: 'run', wall_plank: 'incline_pushup', suitcase_hold: 'hold', march: 'run', walkpad_walk: 'run',
   bw_squat: 'squat', pistol_box: 'squat', goblet_squat: 'squat', kb_goblet_squat: 'squat', back_squat: 'squat_bar', front_squat: 'squat_bar', leg_press: 'leg_press',
   good_morning_bw: 'goodmorning', single_leg_rdl_bw: 'hinge', db_rdl: 'hinge', bb_rdl: 'hinge', deadlift: 'hinge', kb_deadlift: 'hinge', kb_swing: 'swing',
   band_good_morning: 'goodmorning', cable_pullthrough: 'hinge', back_extension: 'goodmorning',

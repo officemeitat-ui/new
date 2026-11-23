@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { addExercise, generatePlan, removeExercise, swapExercise } from './src/engine/plan';
 import type { Profile, Session } from './src/engine/types';
+import { Nutrition } from './src/screens/Nutrition';
 import { Onboarding } from './src/screens/Onboarding';
 import { Coach, Home, Message, ProfileTab, Progress, Shared, Training } from './src/screens/Tabs';
 import { Workout } from './src/screens/Workout';
@@ -14,10 +15,11 @@ import { AppState, EMPTY, exportState, importState, loadState, saveState } from 
 import { colors as c } from './src/theme';
 import { Bolt, ConfirmProvider, IconName, s } from './src/ui';
 
-type Tab = 'Home' | 'Training' | 'Coach' | 'Fortschritt' | 'Profil';
+type Tab = 'Home' | 'Training' | 'Essen' | 'Coach' | 'Fortschritt' | 'Profil';
 const TABS: { name: Tab; icon: IconName; active: IconName }[] = [
   { name: 'Home', icon: 'home-outline', active: 'home' },
   { name: 'Training', icon: 'barbell-outline', active: 'barbell' },
+  { name: 'Essen', icon: 'restaurant-outline', active: 'restaurant' },
   { name: 'Coach', icon: 'sparkles-outline', active: 'sparkles' },
   { name: 'Fortschritt', icon: 'stats-chart-outline', active: 'stats-chart' },
   { name: 'Profil', icon: 'person-outline', active: 'person' },
@@ -97,8 +99,9 @@ function AppContent() {
             <Text style={s.brand}>AI FIT COACH</Text>
             {saveFailed ? <Text style={[s.small, { color: c.danger }]}>Speichern fehlgeschlagen</Text> : null}
           </View>
-          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} walks={state.walks} addWalk={(minutes) => setState((old) => ({ ...old, walks: [...old.walks, { date: new Date().toISOString(), minutes }] }))} />}
+          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} walks={state.walks} addWalk={(minutes, kmh) => setState((old) => ({ ...old, walks: [...old.walks, { date: new Date().toISOString(), minutes, kmh }] }))} />}
           {tab === 'Training' && <Training {...shared} regenerate={() => setState((old) => (old.profile ? { ...old, plan: generatePlan(old.profile), nextDay: 0 } : old))} />}
+          {tab === 'Essen' && <Nutrition profile={profile} edit={() => setEditing(true)} setVegetarian={(v) => setState((old) => (old.profile ? { ...old, profile: { ...old.profile, vegetarian: v } } : old))} />}
           {tab === 'Coach' && <Coach {...shared} messages={messages} setMessages={setMessages} />}
           {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} weights={state.weights} addWeight={(kg) => setState((old) => ({ ...old, weights: [...old.weights, { date: new Date().toISOString(), kg }] }))} />}
           {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], walks: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} reminder={state.reminder} setReminder={(reminder) => setState((old) => ({ ...old, reminder }))} reminderStatus={reminderStatus} backup={() => exportState(state)} restore={(text) => { const next = importState(text); if (next) setState(next); return !!next; }} />}
@@ -139,6 +142,6 @@ const st = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   tabBar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.surface, paddingTop: 8, paddingBottom: 8 },
   tab: { flex: 1, alignItems: 'center', gap: 3, minHeight: 48 },
-  tabIcon: { paddingHorizontal: 14, paddingVertical: 4, borderRadius: 14 },
-  tabLabel: { color: c.muted, fontSize: 10.5, fontWeight: '700' },
+  tabIcon: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14 },
+  tabLabel: { color: c.muted, fontSize: 10, fontWeight: '700' },
 });

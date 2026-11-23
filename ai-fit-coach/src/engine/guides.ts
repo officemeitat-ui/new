@@ -9,6 +9,7 @@ const G: Record<string, string[]> = {
   standing_knee_raise: ['Aufrecht neben Wand oder Stuhl stehen, eine Hand stützt leicht.', 'Ein Knie bis etwa Hüfthöhe heben, Bauch anspannen, nicht zurücklehnen.', 'Absetzen und die Seite wechseln.'],
   wall_plank: ['Unterarme auf Tisch oder Arbeitsplatte legen, Füße zurückstellen.', 'Gesäß und Bauch anspannen, Körper bildet eine gerade Linie.', 'Halten und ruhig weiteratmen.'],
   suitcase_hold: ['Eine Hantel seitlich neben dem Körper halten, Füße hüftbreit.', 'Aufrecht stehen, Schultern auf gleicher Höhe, nicht zur Hantel kippen.', 'Halten, dann die Seite wechseln.'],
+  walkpad_walk: ['Gehpad einschalten und mit 2–3 km/h starten. Hände frei, nicht am Tisch abstützen.', 'Tempo auf 4–5,5 km/h steigern, aufrecht gehen, über die Ferse abrollen.', 'Zum Ende eine Minute langsamer auslaufen, dann erst absteigen.'],
   march: ['Aufrecht stehen, Platz nach vorn und zur Seite.', 'Knie abwechselnd zügig heben, Arme schwingen gegengleich mit.', 'Tempo halten, bei dem du noch in ganzen Sätzen sprechen kannst.'],
   bw_squat: ['Füße etwa schulterbreit, Zehen leicht nach außen, Arme vor dem Körper.', 'Hüfte nach hinten und unten führen, bis die Oberschenkel mindestens waagrecht sind.', 'Über den ganzen Fuß hochdrücken und oben die Hüfte strecken.'],
   pistol_box: ['Mit dem Rücken vor einen stabilen Stuhl stellen, ein Bein gestreckt nach vorn anheben.', 'Auf dem Standbein langsam absenken, bis du den Stuhl berührst.', 'Ohne Schwung einbeinig wieder aufstehen.'],

@@ -1,6 +1,6 @@
 export type EquipmentId =
   | 'dumbbells' | 'barbell' | 'rack' | 'bench' | 'pullup_bar' | 'dip_bars'
-  | 'kettlebell' | 'bands' | 'trx' | 'cable' | 'cardio'
+  | 'kettlebell' | 'bands' | 'trx' | 'cable' | 'cardio' | 'walkpad'
   | 'leg_press' | 'lat_machine' | 'row_m' | 'chest_press_m' | 'fly_m' | 'shoulder_press_m' | 'leg_curl_m' | 'leg_ext_m' | 'back_ext_m';
 
 export type Goal = 'Muskelaufbau' | 'Fettabbau' | 'Kraft' | 'Allgemeine Fitness';
@@ -61,9 +61,13 @@ export type Profile = {
   gentle?: boolean;
   /** Geplante Trainingstage, 0 = Montag … 6 = Sonntag. */
   trainDays?: number[];
+  age?: number | null;
+  /** Alltag neben dem Training. */
+  activity?: 'sitting' | 'mixed' | 'active';
+  vegetarian?: boolean;
 };
 
-export type Walk = { date: string; minutes: number };
+export type Walk = { date: string; minutes: number; kmh?: number };
 
 export type FocusArea = 'Rücken' | 'Schultern' | 'Arme' | 'Brust' | 'Bauch' | 'Gesäß' | 'Beine';
 export type BenchmarkLift = 'bench' | 'squat' | 'deadlift';

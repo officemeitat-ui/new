@@ -59,6 +59,8 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
   const [focus, setFocus] = useState<FocusArea[]>(initial?.focus ?? []);
   const [heightCm, setHeight] = useState(initial?.heightCm ?? 175);
   const [weightKg, setWeight] = useState(initial?.weightKg ?? 75);
+  const [age, setAge] = useState(initial?.age ?? 30);
+  const [activity, setActivity] = useState<'sitting' | 'mixed' | 'active'>(initial?.activity ?? 'sitting');
   const [useBody, setUseBody] = useState(initial ? !!initial.weightKg : true);
   const [targetKg, setTarget] = useState<number | null>(initial?.targetKg ?? null);
   const [level, setLevel] = useState<Level>(initial?.level ?? 1);
@@ -76,10 +78,10 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
 
   const oneRm = oneRmFrom(liftKg, liftReps);
   const profile: Profile = useMemo(() => ({
-    name: name.trim(), goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, gentle, trainDays,
+    name: name.trim(), goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, gentle, trainDays, activity, vegetarian: initial?.vegetarian, age: useBody ? age : null,
     heightCm: useBody ? heightCm : null, weightKg: useBody ? weightKg : null, targetKg: useBody ? targetKg : null,
     benchmark: useLift && oneRm > 0 ? { lift, oneRm } : null,
-  }), [trainDays, gentle, name, goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, useBody, heightCm, weightKg, targetKg, useLift, lift, oneRm]);
+  }), [age, activity, initial?.vegetarian, trainDays, gentle, name, goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, useBody, heightCm, weightKg, targetKg, useLift, lift, oneRm]);
   const plan = useMemo(() => generatePlan(profile), [profile]);
   const up = useMemo(() => upgrades(profile), [profile]);
   const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
@@ -135,9 +137,10 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
 
         {step === 4 && <>
           <Text style={s.hero}>Dein Körper</Text>
-          <Text style={s.muted}>Für Startgewichte, Eiweiß-Richtwert und deinen Gewichtsverlauf. Die Angaben bleiben auf diesem Gerät.</Text>
+          <Text style={s.muted}>Für Startgewichte, Kalorien- und Eiweißziel und deinen Gewichtsverlauf. Die Angaben bleiben auf diesem Gerät.</Text>
           {useBody ? <>
             <Card>
+              <View style={s.rowBetween}><Text style={s.strong}>Alter</Text><View style={s.row}><Stepper label="Alter in Jahren" value={age} step={1} min={14} max={95} onChange={(v) => setAge(Math.round(v))} /><Text style={[s.small, { width: 22 }]}>J.</Text></View></View>
               <View style={s.rowBetween}><Text style={s.strong}>Größe</Text><View style={s.row}><Stepper label="Größe in cm" value={heightCm} step={1} min={120} max={230} onChange={(v) => setHeight(Math.round(v))} /><Text style={[s.small, { width: 22 }]}>cm</Text></View></View>
               <View style={s.rowBetween}><Text style={s.strong}>Gewicht</Text><View style={s.row}><Stepper label="Gewicht in kg" value={weightKg} step={0.5} min={30} max={300} onChange={setWeight} /><Text style={[s.small, { width: 22 }]}>kg</Text></View></View>
               <View style={s.divider} />
@@ -228,6 +231,10 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
           <Text style={s.small}>Ergibt: {plan.split}</Text>
           <H>Zeit pro Einheit</H>
           <View style={s.wrap}>{[20, 30, 45, 60, 75, 90].map((m) => <Chip key={m} text={`${m} Min.`} active={minutes === m} onPress={() => setMinutes(m)} />)}</View>
+          <H>Dein Alltag</H>
+          <Option title="Überwiegend sitzend" hint="Büro, Homeoffice, viel Autofahren" icon="desktop-outline" active={activity === 'sitting'} onPress={() => setActivity('sitting')} />
+          <Option title="Teils in Bewegung" hint="Stehen, Gehen, leichte Arbeit" icon="walk-outline" active={activity === 'mixed'} onPress={() => setActivity('mixed')} />
+          <Option title="Körperlich aktiv" hint="Handwerk, Pflege, Lager, viel zu Fuß" icon="construct-outline" active={activity === 'active'} onPress={() => setActivity('active')} />
         </>}
 
         {step === 8 && <>

@@ -13,6 +13,7 @@ export const EQUIPMENT: EquipmentInfo[] = [
   { id: 'dip_bars', name: 'Dip-Barren', hint: 'oder Dip-Station', icon: 'pause-outline', group: 'Zuhause und unterwegs' },
   { id: 'bands', name: 'Widerstandsbänder', hint: 'Loop- oder Tube-Bänder', icon: 'infinite-outline', group: 'Zuhause und unterwegs' },
   { id: 'trx', name: 'Schlingentrainer', hint: 'TRX oder Turnringe', icon: 'git-merge-outline', group: 'Zuhause und unterwegs' },
+  { id: 'walkpad', name: 'Gehpad', hint: 'Laufband für unter den Schreibtisch', icon: 'walk-outline', group: 'Zuhause und unterwegs' },
   { id: 'cable', name: 'Kabelzug', hint: 'einzeln oder Turm', icon: 'swap-vertical-outline', group: 'Kabel und Maschinen' },
   { id: 'lat_machine', name: 'Latzug', hint: 'Zugmaschine von oben', icon: 'arrow-down-outline', group: 'Kabel und Maschinen' },
   { id: 'row_m', name: 'Rudermaschine', hint: 'sitzend, mit Brustpolster', icon: 'arrow-back-outline', group: 'Kabel und Maschinen' },

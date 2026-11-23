@@ -83,6 +83,8 @@ function choose(profile: Profile, pattern: Pattern, used: Map<string, number>, t
 
 export function prescribe(profile: Pick<Profile, 'goal' | 'level' | 'gentle'>, ex: Exercise, heavy: boolean): Pick<PlanItem, 'sets' | 'lo' | 'hi' | 'rest'> {
   const { goal, level } = profile;
+  // Gehen ist gleichmäßige Ausdauer, keine kurzen Intervalle.
+  if (ex.id === 'walkpad_walk' || ex.id === 'march') return { sets: 3, lo: 120, hi: 120, rest: 20 };
   if (profile.gentle) {
     // Sanfter Einstieg: mittlere Wiederholungen, genug Pause, ruhige Ausdauer statt harter Intervalle.
     if (ex.pattern === 'conditioning') return { sets: level === 1 ? 4 : 6, lo: 60, hi: 60, rest: 30 };
@@ -253,7 +255,7 @@ export function upgrades(profile: Profile): Upgrade[] {
   const base = equipmentScore(profile);
   const owned = new Set(profile.equipment);
   const bundles: EquipmentId[][] = [
-    ...ALL.filter((e) => e !== 'cardio').map((e) => [e]),
+    ...ALL.filter((e) => e !== 'cardio' && e !== 'walkpad').map((e) => [e]),
     ['dumbbells', 'bench'], ['barbell', 'rack'], ['barbell', 'rack', 'bench'], ['pullup_bar', 'bands'],
   ];
   const seen = new Set<string>();

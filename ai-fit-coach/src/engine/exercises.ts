@@ -199,6 +199,7 @@ export const EXERCISES: Exercise[] = [
 
   // Kondition
   x('march', 'Marschieren auf der Stelle', 'conditioning', [], 1, 2, 'Knie zügig abwechselnd heben, Arme schwingen mit. Tempo so, dass du noch sprechen kannst.', { mode: 'time' }),
+  x('walkpad_walk', 'Zügiges Gehen auf dem Gehpad', 'conditioning', ['walkpad'], 1, 4, 'Aufrecht gehen, Blick nach vorn, Arme schwingen mit. Tempo so, dass du noch sprechen kannst.', { mode: 'time' }),
   x('mountain_climber', 'Mountain Climbers', 'conditioning', [], 1, 3, 'Im Stütz die Knie abwechselnd zügig zur Brust, Hüfte bleibt tief.', { mode: 'time' }),
   x('shadow_boxing', 'Schattenboxen', 'conditioning', [], 1, 2, 'Locker auf den Fußballen, gerade Schläge im Wechsel, Tempo hoch halten.', { mode: 'time' }),
   x('burpee', 'Burpees', 'conditioning', [], 2, 4, 'In den Stütz springen, Brust zum Boden, aufspringen. Gleichmäßiges Tempo.', { mode: 'time', stress: knee }),
@@ -220,5 +221,5 @@ export const NOT_GENTLE = new Set([
   'db_reverse_lunge', 'kb_reverse_lunge', 'back_squat', 'front_squat', 'deadlift', 'bb_row', 'bb_ohp', 'calf_raise_bw', 'db_calf_raise',
 ]);
 /** Im sanften Modus bevorzugt, weil geführt, gestützt oder im Sitzen. */
-export const GENTLE_FIRST = new Set(['chair_squat', 'step_up_bw', 'incline_pushup', 'door_row', 'standing_knee_raise', 'wall_plank', 'march', 'cardio_intervals',
+export const GENTLE_FIRST = new Set(['chair_squat', 'step_up_bw', 'incline_pushup', 'door_row', 'standing_knee_raise', 'wall_plank', 'march', 'cardio_intervals', 'walkpad_walk',
   'leg_press', 'machine_chest_press', 'machine_row', 'lat_pulldown', 'machine_shoulder_press', 'leg_curl', 'leg_ext', 'cable_row', 'goblet_squat']);

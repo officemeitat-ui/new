@@ -34,6 +34,10 @@ Voraussetzung: Node.js 20.19 oder neuer. Bei SDK-Konflikten: `npx expo install -
 - **Gehen eintragen (Abnehm-Modus):** Minuten pro Woche gegen das Ziel von 150 Minuten.
 - **Erinnerungen:** lokale Mitteilung an den gewählten Trainingstagen zur eingestellten Uhrzeit (nur in der App am Handy, nicht im Browser; auf einem echten Gerät noch nicht getestet).
 - **Sicherung:** Profil, Plan, Einheiten, Gewichte und Notizen als Text oder Datei exportieren und wieder einspielen.
+- **Ernährung (Tab „Essen“):** Kalorien- und Makroziel aus Größe, Gewicht, Alter, Alltag und Ziel (Mifflin-St Jeor, Defizit bzw. Überschuss nach Ziel). Drei Beispieltage mit vier alltagstauglichen Mahlzeiten, Mengen auf das Kalorienziel skaliert, auch vegetarisch. Schutzregeln: nie unter dem Grundumsatz, kein Defizit bei Untergewicht, keine Kalorienziele unter 18, Eiweiß bei hohem Gewicht nach Bezugsgewicht. Richtwerte nach gängigen Empfehlungen, keine Pläne namentlicher Experten und kein Ersatz für Ernährungsberatung.
+- **Büro-Ausgleich und Gehpad:** Gehpad als Equipment, Geh-Minuten mit Tempo und geschätztem Verbrauch eintragen, Wochenziel 150 Minuten, Empfehlungen fürs Gehen am Schreibtisch und eine 5-Minuten-Routine gegen langes Sitzen.
+- **Video-Suche:** Jede Übung öffnet die YouTube-Suche zur richtigen Ausführung (Videos von Dritten, nicht geprüft).
+- **Steigerungsplan:** Je Übung die nächsten Gewichtsstufen, dazu eine Begründung, warum der Split zu den Trainingstagen passt.
 - **Workout-Player:** Gewicht und Wiederholungen je Satz, Pausen-Timer, Halte-Timer für Zeitübungen, Sätze hinzufügen oder entfernen, Zusammenfassung mit neuen Bestwerten.
 - **Progression:** Doppelte Progression. Erst im Wiederholungsbereich nach oben, dann mehr Gewicht. Zweimal unter dem Ziel: 10 % zurück. Ohne Gewicht: Vorschlag für die schwerere Variante.
 - **Fortschritt:** Einheiten pro Woche, Bestwerte mit Verlauf, Sätze pro Muskel, Trainingstagebuch.

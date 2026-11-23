@@ -8,6 +8,7 @@ import { PATTERN_NAME, exercise } from '../engine/exercises';
 import { MUSCLE_ORDER, alternatives, upgrades, weeklyVolume } from '../engine/plan';
 import { defaultTrainDays, doneWeekdays, weekMinutes, weekdayIndex } from '../engine/progression';
 import { activeWeeks, logsFor, muscleSets, records, sessionSets, sessionVolume, sessionsThisWeek, suggest, weeklyCounts } from '../engine/progression';
+import { walkKcal } from '../engine/nutrition';
 import { startWeight } from '../engine/startweights';
 import type { Plan, PlanDay, Profile, Session, Walk, WeightEntry } from '../engine/types';
 import { remindersSupported } from '../services/reminders';
@@ -31,12 +32,17 @@ const LEVEL = ['', 'Einsteiger', 'Fortgeschritten', 'Erfahren'];
 const range = (lo: number, hi: number) => (lo === hi ? `${hi}` : `${lo}–${hi}`);
 const day = (iso: string) => new Date(iso).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'short' });
 
-export function Home({ profile, plan, history, nextDay, start, startFree, goTo, weights, walks, addWalk }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[]; walks: Walk[]; addWalk: (minutes: number) => void }) {
+export function Home({ profile, plan, history, nextDay, start, startFree, goTo, weights, walks, addWalk }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[]; walks: Walk[]; addWalk: (minutes: number, kmh?: number) => void }) {
   const [walkMin, setWalkMin] = useState(20);
   const planned = profile.trainDays?.length ? profile.trainDays : defaultTrainDays(profile.daysPerWeek);
   const doneDays = doneWeekdays(history);
   const todayIdx = weekdayIndex(new Date());
   const walked = weekMinutes(walks);
+  const hasPad = profile.equipment.includes('walkpad');
+  const [walkKmh, setWalkKmh] = useState(3);
+  const [breakOpen, setBreakOpen] = useState(false);
+  const weekStartMs = new Date().getTime() - weekdayIndex(new Date()) * 86400000 - (new Date().getHours() * 3600 + new Date().getMinutes() * 60) * 1000;
+  const kcalWeek = profile.weightKg ? walks.filter((w) => new Date(w.date).getTime() >= weekStartMs).reduce((n, w) => n + walkKcal(profile.weightKg as number, w.minutes, w.kmh ?? 4.5), 0) : 0;
   const today = plan.days[nextDay];
   const week = sessionsThisWeek(history).length;
   const up = useMemo(() => upgrades(profile), [profile]);
@@ -96,20 +102,41 @@ export function Home({ profile, plan, history, nextDay, start, startFree, goTo, 
             </View> : null}
             {current !== null && profile.targetKg && first !== null && first > profile.targetKg ? <Meter value={Math.max(0, first - current)} max={first - profile.targetKg} /> : null}
             <Text style={s.text}>{current !== null ? `Gut haltbar sind ${fmt(Math.round(current * 0.005 * 10) / 10)}–${fmt(Math.round(current * 0.01 * 10) / 10)} kg pro Woche. Schneller muss es nicht sein.` : 'Gut haltbar sind 0,5–1 % des Körpergewichts pro Woche.'}</Text>
-            <Text style={s.muted}>An Tagen ohne Training: 20–30 Minuten zügig gehen, gern in zwei oder drei Etappen. Jeder Schritt zählt mehr als die perfekte Einheit.</Text>
-            <View style={s.divider} />
-            <View style={s.rowBetween}><Text style={s.strong}>Gehen diese Woche</Text><Text style={s.strong}>{walked} / 150 Min.</Text></View>
-            <Meter value={walked} max={150} />
-            <View style={s.rowBetween}>
-              <View style={s.row}><Stepper label="Minuten gegangen" value={walkMin} step={5} min={5} max={240} onChange={(v) => setWalkMin(Math.round(v))} /><Text style={s.small}>Min.</Text></View>
-              <Button small variant="secondary" icon="walk-outline" title="Gehen eintragen" onPress={() => addWalk(walkMin)} />
-            </View>
-            <Text style={s.small}>150 Minuten zügige Bewegung pro Woche sind die gängige Empfehlung. Jede Etappe ab ein paar Minuten zählt.</Text>
             <Button small variant="secondary" icon="scale-outline" title="Gewicht eintragen" onPress={() => goTo('Fortschritt')} />
           </Card>
         </Entrance>
       );
     })() : null}
+    {profile.gentle || (profile.activity ?? 'sitting') === 'sitting' || hasPad ? (
+      <Entrance delay={140}>
+        <Card>
+          <Eyebrow>{hasPad ? 'Gehpad und Alltagsbewegung' : 'Bewegung im Alltag'}</Eyebrow>
+          <View style={s.rowBetween}><Text style={s.strong}>Gehen diese Woche</Text><Text style={s.strong}>{walked} / 150 Min.</Text></View>
+          <Meter value={walked} max={150} />
+          <View style={s.rowBetween}>
+            <View style={s.row}><Stepper label="Minuten gegangen" value={walkMin} step={5} min={5} max={240} onChange={(v) => setWalkMin(Math.round(v))} /><Text style={s.small}>Min.</Text></View>
+            {hasPad ? <View style={s.row}><Stepper label="Tempo in km/h" value={walkKmh} step={0.5} min={2} max={6.5} onChange={setWalkKmh} /><Text style={s.small}>km/h</Text></View> : null}
+          </View>
+          <Button small variant="secondary" icon="walk-outline" title={profile.weightKg ? `Gehen eintragen (ca. ${walkKcal(profile.weightKg, walkMin, hasPad ? walkKmh : 4.5)} kcal)` : 'Gehen eintragen'} onPress={() => addWalk(walkMin, hasPad ? walkKmh : undefined)} />
+          <Text style={s.small}>{hasPad
+            ? 'Im Büro: 2–3 km/h bei Telefonaten und Lesen, 20–30 Minuten am Stück, mehrmals am Tag. Für Fettverbrennung zusätzlich 4–5,5 km/h nach der Arbeit. Tippen geht bei bis zu 3 km/h noch gut.'
+            : '150 Minuten zügige Bewegung pro Woche sind die gängige Empfehlung. Jede Etappe ab ein paar Minuten zählt.'}</Text>
+          {kcalWeek ? <Text style={s.small}>Diese Woche durch Gehen: ca. {kcalWeek} kcal (Schätzung).</Text> : null}
+          <Button small variant="ghost" icon="body-outline" title="5-Minuten-Ausgleich fürs Büro" onPress={() => setBreakOpen(true)} />
+        </Card>
+      </Entrance>
+    ) : null}
+    <Sheet visible={breakOpen} onClose={() => setBreakOpen(false)} title="5-Minuten-Ausgleich">
+      <Text style={s.muted}>Nach jeder Stunde Sitzen einmal durch. Alles im Stehen, ohne Geräte, in Bürokleidung machbar.</Text>
+      {[
+        ['Aufstehen vom Stuhl', '10–15 Mal ohne Schwung aufstehen und langsam hinsetzen.'],
+        ['Brust öffnen', 'Hände hinter dem Rücken verschränken, Schultern zurück, 30 Sekunden halten.'],
+        ['Hüftbeuger dehnen', 'Großer Schritt nach vorn, hinteres Bein lang, Becken nach vorn schieben, je Seite 30 Sekunden.'],
+        ['Rudern am Türrahmen', '10–15 Mal: Rahmen fassen, zurücklehnen, heranziehen.'],
+        ['Wadenheben', '15–20 Mal auf die Zehenspitzen, oben kurz halten.'],
+        ['Nacken lösen', 'Kopf langsam zur Seite neigen, je Seite 20 Sekunden, Schultern bleiben unten.'],
+      ].map(([t, d], i) => <View key={t} style={{ flexDirection: 'row', gap: 12 }}><Text style={[s.strong, { color: c.lime, width: 16 }]}>{i + 1}</Text><View style={{ flex: 1 }}><Text style={s.strong}>{t}</Text><Text style={s.small}>{d}</Text></View></View>)}
+    </Sheet>
     <Entrance delay={160}>
       <View style={s.row}>
         <Tile icon="flame-outline" value={String(weeks)} label={weeks === 1 ? 'Woche in Folge' : 'Wochen in Folge'} />
@@ -146,6 +173,16 @@ export function Training({ profile, plan, history, nextDay, start, startFree, sw
   return <>
     <Text style={s.hero}>Dein Plan</Text>
     <Text style={s.muted}>{plan.split} · {profile.daysPerWeek}× pro Woche · Ziel {profile.gentle ? 'Abnehmen, sanfter Einstieg' : profile.goal}</Text>
+    <Card>
+      <Eyebrow>Warum dieser Plan</Eyebrow>
+      <Text style={s.text}>{profile.gentle ? 'Im sanften Abnehm-Modus trainierst du immer den ganzen Körper. Jede Einheit ist in sich rund, ein verpasster Tag bringt nichts durcheinander.'
+        : profile.daysPerWeek <= 3 ? 'Bei 2–3 Tagen ist Ganzkörpertraining die beste Wahl: Jeder Muskel wird mehrmals pro Woche gefordert, und ein verpasster Tag fällt kaum ins Gewicht.'
+        : profile.daysPerWeek === 4 ? 'Bei 4 Tagen passt der Wechsel aus Ober- und Unterkörper: jede Muskelgruppe zweimal pro Woche, mit genug Erholung dazwischen.'
+        : 'Bei 5–6 Tagen ist der Plan nach Drücken, Ziehen und Beinen geteilt: kurze Einheiten, hohes Wochenvolumen.'}</Text>
+      <Text style={s.small}>{profile.level === 1 && profile.daysPerWeek > 4 ? 'Empfehlung für Einsteiger: 3 Tage Ganzkörper bringen am Anfang meist mehr als 5–6 Tage. Du kannst das im Profil umstellen.'
+        : profile.daysPerWeek === 2 ? 'Wenn es die Zeit erlaubt, bringt ein dritter Tag den größten Zusatznutzen.'
+        : 'Bleib mindestens 8–12 Wochen bei einem Plan. Fortschritt kommt aus der Steigerung, nicht aus dem Wechsel.'}</Text>
+    </Card>
     {plan.notes.map((n) => <Card key={n}><View style={s.row}><Ionicons name="information-circle-outline" size={20} color={c.warn} /><Text style={[s.small, { flex: 1 }]}>{n}</Text></View></Card>)}
     {plan.days.map((d, di) => (
       <Card key={d.id} accent={di === nextDay}>
@@ -195,6 +232,22 @@ export function Training({ profile, plan, history, nextDay, start, startFree, sw
           <Eyebrow>Nächstes Mal · {item.sets} × {range(item.lo, item.hi)} {ex.mode === 'time' ? 'Sek.' : 'Wdh.'}</Eyebrow>
           <Text style={s.text}>{suggest(ex, item, logsFor(history, ex.id), startWeight(ex, item, profile)).note}</Text>
         </Card>
+        {ex.load === 'external' && ex.mode === 'reps' ? (() => {
+          const sg = suggest(ex, item, logsFor(history, ex.id), startWeight(ex, item, profile));
+          const w0 = sg.weight;
+          return w0 ? (
+            <Card>
+              <Eyebrow>Steigerungsplan</Eyebrow>
+              {[0, 1, 2, 3].map((k) => (
+                <View key={k} style={s.rowBetween}>
+                  <Text style={[s.text, k === 0 && { color: c.lime, fontWeight: '700' }]}>{k === 0 ? 'Jetzt' : `Stufe ${k + 1}`}</Text>
+                  <Text style={s.text}>{fmt(w0 + k * ex.step)} kg × {item.lo}–{item.hi}</Text>
+                </View>
+              ))}
+              <Text style={s.small}>Bleib bei einem Gewicht, bis alle {item.sets} Sätze {item.hi} Wiederholungen schaffen. Dann die nächste Stufe und wieder bei {item.lo} beginnen. Realistisch ist am Anfang eine Stufe alle 1–3 Wochen.</Text>
+            </Card>
+          ) : null;
+        })() : null}
         <H>Tauschen gegen</H>
         {alts.length ? alts.map((a) => (
           <Pressable key={a.id} accessibilityRole="button" onPress={() => swap(sel.id, open!.index, a.id)} style={s.option}>
