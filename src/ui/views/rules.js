@@ -129,7 +129,7 @@ function yearCheckBanner() {
 
 registerTodo({
   id: 'regeln-jahr',
-  module: 'stammdaten',
+  module: 'verwaltung',
   title: 'Regeln & Feiertage',
   compute: (today) => {
     const check = rulesYearCheck(app.data.rules, today)
@@ -252,7 +252,7 @@ function rulesView(c) {
     </div>`
 }
 
-registerView({ id: 'rules', order: 110, label: 'Regeln & Feiertage', group: 'stamm', render: rulesView })
+registerView({ id: 'rules', order: 110, label: 'Regeln & Feiertage', group: 'stamm', module: 'verwaltung', render: rulesView })
 
 registerActions(
   {
@@ -316,7 +316,7 @@ registerActions(
       toast(`Lohngruppe ${g} entfernt.`)
     },
     'rules-year-checked': (el) => {
-      if (!canEdit('stammdaten')) return toast('Nur Leserechte: Regeln ändert die Verwaltung.')
+      if (!canEdit('verwaltung')) return toast('Nur Leserechte: Regeln ändert die Verwaltung.')
       const year = Number(el.dataset.year)
       app.data.rules = { ...(app.data.rules || {}), yearChecked: year }
       persist()
@@ -428,5 +428,5 @@ registerActions(
       toast('Qualifikationen gespeichert.')
     },
   },
-  { edit: 'stammdaten' },
+  { edit: 'verwaltung' },
 )

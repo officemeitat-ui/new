@@ -392,7 +392,7 @@ function sicherungView() {
     <section class="sich-teil"><h3>Sicherung prüfen</h3>${pruefBlock()}</section>`
 }
 
-registerView({ id: 'sicherung', order: 131, label: 'Datensicherung', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Alle Daten als ZIP sichern und prüfen', render: sicherungView })
+registerView({ id: 'sicherung', order: 131, label: 'Datensicherung', group: 'stamm', module: 'verwaltung', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Alle Daten als ZIP sichern und prüfen', render: sicherungView })
 
 registerActions(
   {
@@ -441,7 +441,7 @@ registerActions(
 
 registerTodo({
   id: 'sicherung',
-  module: 'stammdaten',
+  module: 'verwaltung',
   title: 'Datensicherung',
   // nur Vollzugriff und nur im Betrieb mit SharePoint (im Browser-Modus liegen die Daten ohnehin nur hier)
   compute: (today) => {

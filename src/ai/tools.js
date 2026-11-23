@@ -120,7 +120,7 @@ registerAgentTool({
 
 registerAgentTool({
   name: 'objekte_suchen',
-  modules: ['planung', 'stammdaten', 'reklamationen', 'schluessel', 'material'],
+  modules: ['planung', 'verwaltung', 'reklamationen', 'schluessel', 'material'],
   description: 'Objekte (Kunden-Standorte) suchen nach Name oder Adresse (leer = alle). Liefert Name, Adresse, Revier, Ansprechperson, Anweisungen fürs Personal, wer welchen Schlüssel hat, offene Reklamationen.',
   input_schema: { type: 'object', properties: { suche: { type: 'string', description: 'Teil des Namens oder der Adresse (optional)' } } },
   run({ suche }) {

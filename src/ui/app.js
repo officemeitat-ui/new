@@ -214,8 +214,12 @@ function summary(c) {
 }
 
 function welcome() {
-  if (app.readOnly || !canEdit('stammdaten')) return ''
+  // Mitarbeitende: Stammdaten; Objekte, Leistungen und Beispieldaten: Verwaltung (core/access.js)
+  const staffOk = canEdit('stammdaten')
+  const objOk = canEdit('verwaltung')
+  if (app.readOnly || (!staffOk && !objOk)) return ''
   if (app.data.employees.length) {
+    if (!objOk) return ''
     // Mitarbeitende sind da, aber ohne Objekte und Leistungen bleibt der Plan leer: der nächste Schritt, bis beides da ist
     const noObjects = !(app.data.objects || []).some((o) => !o.inactive)
     if (!noObjects && (app.data.tasks || []).length) return ''
@@ -223,7 +227,7 @@ function welcome() {
     <div class="actions"><button class="btn primary" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button>${!app.access || app.access.all ? '<button class="btn" data-action="system-data">Daten-Startcheck</button>' : ''}</div></div>`
   }
   return `<div class="banner welcome"><div><h2>Willkommen</h2><p>Noch keine Daten in der Ablage. Am schnellsten geht es mit den bestehenden Excel-Listen: Mitarbeitende einfügen, dann Objekte und Leistungen mit Stammkraft.</p></div>
-    <div class="actions"><button class="btn primary" data-action="import-open" data-kind="employees">${ICON.upload} Mitarbeitende einfügen</button><button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button><button class="btn" data-action="open-data">Beispieldaten laden</button></div></div>`
+    <div class="actions">${staffOk ? `<button class="btn primary" data-action="import-open" data-kind="employees">${ICON.upload} Mitarbeitende einfügen</button>` : ''}${objOk ? `<button class="btn" data-action="import-open" data-kind="tasks">${ICON.upload} Objekte & Leistungen einfügen</button><button class="btn" data-action="open-data">Beispieldaten laden</button>` : ''}</div></div>`
 }
 
 /** Veröffentlichte Woche, die schon begonnen hat und danach geändert wurde: Korrektur buchen. */

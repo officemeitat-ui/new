@@ -18,7 +18,12 @@
 export const MODULES = {
   planung: 'Einsatzplanung',
   auswertung: 'Auswertung & Lohn',
-  stammdaten: 'Stammdaten',
+  // Stammdaten = Mitarbeitende (Stammblatt, Einfügen aus Excel). Objekte, Leistungen, Zuweisung, Regeln und
+  // Berechtigungen sind ein eigener Bereich (verwaltung): Wer Personal verwaltet, ändert damit nicht den Reinigungsplan,
+  // die Arbeitszeit-Regeln oder die Rechte. Beides liegt in derselben Datei (daten/stammdaten.json): Die Trennung wirkt
+  // in der App (Ansichten, Aktionen), SharePoint trennt nur nach Ordnern.
+  stammdaten: 'Mitarbeitende (Stammdaten)',
+  verwaltung: 'Objekte, Regeln & Berechtigungen',
   zaehler: 'Wasserzähler-Ablesung',
   kontrolle: 'Objektkontrolle',
   objektmappe: 'Objektdoku',

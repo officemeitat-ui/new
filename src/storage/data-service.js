@@ -208,10 +208,10 @@ export function dataRights(access) {
   // Ordner der App und bekommen Mitteilungen über „Mein Plan“)
   const appRole = () => Object.keys(MODULES).some((m) => !TOOL_MODULES.includes(m) && access.sees(m))
   const rules = [
-    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten', 'vertrieb'), () => edits('stammdaten', 'planung')],
+    [DOC.objects, () => sees('planung', 'auswertung', 'stammdaten', 'verwaltung', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'fakturierung', 'einkauf', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'bewerber', 'zufriedenheit', 'eintritt', 'matten', 'vertrieb'), () => edits('verwaltung', 'planung')],
     // Stammdaten: auch der Arbeitsschutz (wer in welchem Objekt arbeitet, für „noch nicht unterwiesen“) und die Geräte
     // (Ausgabe an eine Person, verantwortliche Person)
-    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt', 'geraete'), () => edits('stammdaten', 'planung')],
+    [DOC.master, () => sees('planung', 'auswertung', 'stammdaten', 'verwaltung', 'fahrzeuge', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'arbeitsschutz', 'bewerber', 'eintritt', 'geraete'), () => edits('stammdaten', 'verwaltung', 'planung')],
     ['plaene/', () => sees('planung', 'auswertung'), () => edits('planung')],
     [DOC.absences, () => edits('planung') || sees('stammdaten', 'auswertung'), () => edits('planung', 'stammdaten')],
     // „abwesend von–bis“ ohne Grund: geschrieben, wo die Abwesenheiten gepflegt werden
@@ -555,6 +555,7 @@ export class DataService {
     this.session = session
     this.moved = new Map() // neuer Pfad → alter Pfad (Umzug in die eigenen Ordner)
     this.mustWrite = new Set() // neu anzulegen, auch wenn der Inhalt der Basis entspricht (Umzug)
+    this.objectsInMaster = false // alte Ablage: Objekte stehen noch in den Stammdaten und diese Rolle darf sie nicht umziehen
     this.onStatus = onStatus
     this.onRemoteChange = onRemoteChange
     this.debounceMs = debounceMs
@@ -801,6 +802,10 @@ export class DataService {
       this.base.set(DOC.objects, { objects: clone(data.objects) })
       this.mustWrite.add(DOC.objects)
     }
+    // Dieselbe alte Ablage, aber die Rolle darf die Objekte nicht schreiben (z. B. Personalverwaltung: nur Mitarbeitende):
+    // Die Stammdaten dürfen dann nicht ohne die Objekte gespeichert werden, sonst gingen diese verloren. Erst wenn der
+    // Vollzugriff die App einmal geöffnet hat (er legt objekte/objekte.json an), speichert auch diese Rolle wieder.
+    this.objectsInMaster = !fresh && !this.base.has(DOC.objects) && data.objects.length > 0 && !this.writable(DOC.objects)
     const migrate = this.mustWrite.size > 0
     if (!migrate && !docs.includes(undefined)) await this.local?.put('meta', 'ablage', 2)
     await this.#restorePending(data)
@@ -1195,7 +1200,7 @@ export class DataService {
     const saved = []
     const saveOne = async ([path, doc]) => {
       // Stammdaten ohne Objekte erst, wenn objekte/objekte.json sicher liegt
-      if (offline || (path === DOC.master && this.mustWrite.has(DOC.objects))) return
+      if (offline || (path === DOC.master && ((this.mustWrite.has(DOC.objects) && this.writable(DOC.objects)) || this.objectsInMaster))) return
       try {
         merged = (await this.#save(path, doc)) || merged
         await this.#dropPending(path)

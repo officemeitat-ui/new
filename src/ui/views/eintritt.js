@@ -238,7 +238,7 @@ function taskPanel(t, l, ctx, ed) {
       const inst = range?.state.instByKey.get(s.key)
       return `<li>${esc(day(s.date))}${inst ? ` ${esc(inst.startTime)}–${esc(inst.endTime)} ${esc(objOf(inst.objectId)?.name || '')}${inst.label ? ` · ${esc(inst.label)}` : ''}` : ''} <button class="btn small" data-action="bew-week" data-date="${esc(s.date)}">Woche öffnen</button></li>`
     }
-    const reg = r.regular.map((x) => `<li>${esc(objOf(x.objectId)?.name || 'Objekt')}: ${esc(x.label || '')} ${canEdit('stammdaten') && !app.readOnly ? `<button class="btn small" data-action="task-edit" data-id="${esc(x.id)}">Leistung öffnen</button>` : ''}</li>`)
+    const reg = r.regular.map((x) => `<li>${esc(objOf(x.objectId)?.name || 'Objekt')}: ${esc(x.label || '')} ${canEdit('verwaltung') && !app.readOnly ? `<button class="btn small" data-action="task-edit" data-id="${esc(x.id)}">Leistung öffnen</button>` : ''}</li>`)
     return `${r.shifts.length ? `<p><strong>Eingeteilt nach dem Austritt</strong> (geladene Wochen bis ${esc(short(addDays(l.date, 42)))}):</p><ul class="bew-sub">${r.shifts.slice(0, 20).map(shift).join('')}</ul>${r.shifts.length > 20 ? `<p class="muted">… und ${r.shifts.length - 20} weitere</p>` : ''}` : '<p>Keine Einsätze nach dem Austritt in den geladenen Wochen.</p>'}
       ${reg.length ? `<p><strong>Stammkraft in</strong> (für die Zeit nach dem Austritt neu besetzen):</p><ul class="bew-sub">${reg.join('')}</ul>` : ''}
       <p class="muted">Nur ein Hinweis: Die Planung entscheidet, wer übernimmt. Nach dem Austritt meldet der Prüfbericht jeden Einsatz der Person als Fehler.</p>`

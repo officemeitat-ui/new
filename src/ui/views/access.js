@@ -412,7 +412,7 @@ function migModal() {
     foot: `<div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="acc-mig-run">Jetzt verschieben</button></div>`,
   })
 }
-registerModal('acc-mig', migModal, { module: 'stammdaten' })
+registerModal('acc-mig', migModal, { module: 'verwaltung' })
 
 // ------------------------------------------------ Dialoge
 
@@ -435,7 +435,7 @@ function fixModal() {
     foot: `<div class="actions"><button class="btn" data-action="close-modal">Abbrechen</button><button class="btn primary" data-action="acc-fix-run">Jetzt ändern</button></div>`,
   })
 }
-registerModal('acc-fix', fixModal, { module: 'stammdaten' })
+registerModal('acc-fix', fixModal, { module: 'verwaltung' })
 
 function snippet() {
   const groups = Object.fromEntries(Object.keys(allRoles()).map((id) => [id, groupsOf(id)]))
@@ -451,7 +451,7 @@ function snippetModal() {
     foot: `<div class="actions"><button class="btn" data-action="close-modal">Schließen</button><button class="btn primary" data-action="acc-copy">${ICON.copy || ''} Kopieren</button></div>`,
   })
 }
-registerModal('acc-snippet', snippetModal, { module: 'stammdaten' })
+registerModal('acc-snippet', snippetModal, { module: 'verwaltung' })
 
 // ------------------------------------------------ Aktionen
 
@@ -529,4 +529,4 @@ registerActions({
   },
 }, { edit: '*' })
 
-registerView({ id: 'berechtigungen', order: 120, label: 'Berechtigungen', group: 'stamm', module: 'stammdaten', noWeek: true, render: accessView })
+registerView({ id: 'berechtigungen', order: 120, label: 'Berechtigungen', group: 'stamm', module: 'verwaltung', noWeek: true, render: accessView })

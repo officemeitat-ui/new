@@ -151,7 +151,7 @@ function mailModal(c, m) {
   const brand = app.config.brand || {}
   m.text ??= proofMailText({ objectName: p.object.name, monthLabel: monthName(month()), totals: p.proof.totals, company: brand.name || '', sender: app.user?.name || '' })
   const sent = doc().sent[sentKey(month(), p.object.id)] || []
-  const mayRemember = canEdit('stammdaten') && !app.readOnly
+  const mayRemember = canEdit('verwaltung') && !app.readOnly
   return modalFrame({
     title: `Nachweis senden: ${p.object.name}`,
     subtitle: monthName(month()),
@@ -175,7 +175,7 @@ function noteSent(objectId, to, via) {
 }
 
 function rememberEmail(objectId, to) {
-  if (!canEdit('stammdaten') || app.readOnly) return
+  if (!canEdit('verwaltung') || app.readOnly) return
   app.data.objects = app.data.objects.map((o) => (o.id === objectId ? { ...o, proofEmail: to } : o))
 }
 

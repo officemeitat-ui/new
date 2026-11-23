@@ -375,5 +375,5 @@ registerActions(
       }
     },
   },
-  { edit: 'stammdaten' },
+  { edit: 'verwaltung' },
 )

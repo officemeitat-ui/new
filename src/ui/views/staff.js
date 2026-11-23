@@ -9,7 +9,7 @@ import { MEHR_MODES, UE_MODES } from '../../core/overtime.js'
 import { mergeRules, wageGroups } from '../../core/rules.js'
 import { LANGUAGES, langInfo, langLabel, langOf } from '../../core/sprachen.js'
 import { dataRights, DOC } from '../../storage/data-service.js'
-import { app, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
+import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, registerView, renderModal, renderNow, toast } from '../context.js'
 import { clearImportUndo, importUndoBanner, recordImportUndo, setImportUndoLabel } from '../import-undo.js'
 import { availabilitySummary, checkboxes, checked, checkedValues, EMPLOYMENT_TYPES, esc, euro, ICON, menu, modalFrame, num, options, uid, val } from '../shared.js'
 import { portalSettings } from '../staffplan.js'
@@ -226,6 +226,13 @@ function runImport(kind, text, apply) {
   return { count: items.length, errors, summary: `${items.length} ${items.length === 1 ? 'Leistung' : 'Leistungen'} in ${objectNames.size} ${objectNames.size === 1 ? 'Objekt' : 'Objekten'} erkannt${updated ? ` – ${added} neu, ${updated} schon vorhanden (${apply ? 'aktualisiert' : 'werden aktualisiert, nicht doppelt angelegt'})` : ''}` }
 }
 
+/** Mitarbeitende fügt ein, wer die Stammdaten bearbeitet; Objekte und Leistungen nur mit dem Recht auf „Objekte & Leistungen“. */
+function importAllowed(kind) {
+  if (kind === 'employees' || canEdit('verwaltung')) return true
+  toast('Objekte und Leistungen fügt ein, wer „Objekte & Leistungen“ bearbeitet.')
+  return false
+}
+
 /** Lohngruppe aus der Auswahl: reine Zahl bleibt Zahl (wie bisher gespeichert), ein Name wie „3b“ bleibt Text. */
 const wageGroupValue = (v) => (!v ? undefined : /^\d+$/.test(v) ? Number(v) : v)
 
@@ -271,14 +278,16 @@ registerActions(
       closeModal()
       renderNow()
     },
-    'import-open': (el) => openModal({ type: 'import', kind: el.dataset.kind }),
+    'import-open': (el) => (importAllowed(el.dataset.kind) ? openModal({ type: 'import', kind: el.dataset.kind }) : undefined),
     'import-preview': (el) => {
+      if (!importAllowed(el.dataset.kind)) return
       const text = val('import-text')
       const res = runImport(el.dataset.kind, text, false)
       app.ui.modal = { type: 'import', kind: el.dataset.kind, text, preview: `<p><span class="pill ${res.errors.length ? 'warning' : 'ok'}">${esc(res.summary)}</span></p>${res.errors.length ? `<ul class="issue-list">${res.errors.slice(0, 15).map((e) => `<li class="warning">${esc(e)}</li>`).join('')}</ul>` : ''}` }
       renderModal()
     },
     'import-run': (el) => {
+      if (!importAllowed(el.dataset.kind)) return
       // Stand davor merken: „Einfügen zurücknehmen“ in der Ansicht (30 Minuten, ui/import-undo.js)
       const employees = el.dataset.kind === 'employees'
       recordImportUndo(employees ? 'employees' : 'tasks', employees ? ['employees'] : ['objects', 'tasks'])

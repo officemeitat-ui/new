@@ -345,9 +345,9 @@ function removeTaskEverywhere(id) {
   for (const key of Object.keys(data.overrides)) if (key.endsWith(`|${id}`)) delete data.overrides[key]
 }
 
-registerView({ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm', render: sitesView })
-registerModal('object', objectModal, { module: 'stammdaten' })
-registerModal('task', taskModal, { module: 'stammdaten' })
+registerView({ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm', module: 'verwaltung', render: sitesView })
+registerModal('object', objectModal, { module: 'verwaltung' })
+registerModal('task', taskModal, { module: 'verwaltung' })
 
 registerActions({
   'sites-search': () => {
@@ -535,5 +535,5 @@ registerActions(
       renderNow()
     },
   },
-  { edit: 'stammdaten' },
+  { edit: 'verwaltung' },
 )

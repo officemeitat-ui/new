@@ -325,7 +325,7 @@ function systemView() {
     ${tabs}${body}`
 }
 
-registerView({ id: 'system', order: 130, label: 'Systemcheck', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Inbetriebnahme prüfen', render: systemView })
+registerView({ id: 'system', order: 130, label: 'Systemcheck', group: 'stamm', module: 'verwaltung', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Inbetriebnahme prüfen', render: systemView })
 
 registerActions({
   'system-run': () => {

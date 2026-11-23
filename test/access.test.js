@@ -50,6 +50,26 @@ test('Rollen: Einkauf & Kasse für Buchhaltung und Vollzugriff, nicht für Lager
   for (const role of ['lager', 'objektleitung', 'objektmanagement', 'objektservice', 'lohnverrechnung', 'lesen', 'vorarbeiter']) assert.ok(!resolveAccess({ roleClaims: [role] }).sees('einkauf'), role)
 })
 
+test('Rollen: Personalverwaltung bearbeitet Mitarbeitende, nicht Objekte, Leistungen, Regeln oder Berechtigungen', async () => {
+  const { MODULES } = await import('../src/core/access.js')
+  const { dataRights, DOC } = await import('../src/storage/data-service.js')
+  assert.ok(MODULES.verwaltung && MODULES.stammdaten, 'zwei Bereiche: Mitarbeitende und Objekte/Regeln/Berechtigungen')
+  const pv = resolveAccess({ roleClaims: ['personalverwaltung'], strict: true })
+  assert.ok(pv.sees('stammdaten') && pv.canEdit('stammdaten'), 'Mitarbeitende anlegen und ändern')
+  assert.ok(!pv.sees('verwaltung') && !pv.canEdit('verwaltung'), 'kein Zugriff auf Objekte & Leistungen, Zuweisung, Regeln, Berechtigungen')
+  const r = dataRights(pv)
+  assert.ok(r.read(DOC.master) && r.write(DOC.master), 'Stammdaten-Datei (Mitarbeitende) lesen und schreiben')
+  assert.ok(r.read(DOC.objects) && !r.write(DOC.objects), 'Objekte nur lesen (Einschulung im Objekt)')
+  // keine der eingebauten Rollen außer dem Vollzugriff hat den Bereich
+  for (const role of ['objektmanagement', 'objektleitung', 'objektservice', 'lager', 'lohnverrechnung', 'buchhaltung', 'fuhrpark', 'mattenwechsel', 'mattenfahrer', 'vorarbeiter', 'ableser', 'pruefer', 'lesen']) assert.ok(!resolveAccess({ roleClaims: [role], strict: true }).sees('verwaltung'), role)
+  const all = resolveAccess({ email: 'x@firma.at' })
+  assert.ok(all.canEdit('verwaltung') && all.canEdit('stammdaten'), 'Vollzugriff')
+  // eigene Rolle über config.json: Objekte und Regeln ohne Personal
+  const own = resolveAccess({ roleClaims: ['objektpflege'], access: { roles: { objektpflege: { label: 'Objektpflege', modules: ['verwaltung'], edit: ['verwaltung'] } } }, strict: true })
+  const ro = dataRights(own)
+  assert.ok(own.canEdit('verwaltung') && !own.sees('stammdaten') && ro.write(DOC.objects) && ro.write(DOC.master))
+})
+
 test('Ausschnitt für config.json: behält planners, members und eigene Rollen, nimmt groups und reviere aus dem Entwurf', () => {
   const access = {
     planners: ['office@cleanos.at'],

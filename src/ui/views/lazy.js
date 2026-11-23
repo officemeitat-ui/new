@@ -173,7 +173,7 @@ lazy(BUERO, {
 
 // sites.js
 lazy(BUERO, {
-  views: [{ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm' }],
+  views: [{ id: 'sites', order: 90, label: 'Objekte & Leistungen', group: 'stamm', module: 'verwaltung' }],
   modals: 'object task',
   actions: 'sites-search waste-add waste-remove waste-redraw waste-copy waste-import waste-file obj-edit key-add key-remove obj-geocode obj-save spr-passt spr-ki spr-ki-ok spr-ki-weg obj-delete task-edit task-save task-delete',
 })
@@ -209,7 +209,7 @@ lazy(BUERO, {
 
 // rules.js
 lazy(BUERO, {
-  views: [{ id: 'rules', order: 110, label: 'Regeln & Feiertage', group: 'stamm' }],
+  views: [{ id: 'rules', order: 110, label: 'Regeln & Feiertage', group: 'stamm', module: 'verwaltung' }],
   actions: `rules-save holiday-all-work rules-reset travel-estimate geo-all travel-add travel-delete freeday-add freeday-delete skills-save vac-add vac-delete vac-max-save
     wage-add wage-del rules-year-checked`,
   todo: ['regeln-jahr'],
@@ -217,14 +217,14 @@ lazy(BUERO, {
 
 // system.js
 lazy(BUERO, {
-  views: [{ id: 'system', order: 130, label: 'Systemcheck', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Inbetriebnahme prüfen' }],
+  views: [{ id: 'system', order: 130, label: 'Systemcheck', group: 'stamm', module: 'verwaltung', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Inbetriebnahme prüfen' }],
   actions: 'system-run system-copy system-tab system-data',
 })
 
 // sicherung.js: Datensicherung (nur Vollzugriff; ZIP mit manifest.json, prüfen, einzeln zurückspielen, Erinnerung in
 // „Zu erledigen“). Im Paket des Büros (ein eigenes Paket würde den Start in mehr Teile zerlegen). Kürzel sich-
 lazy(BUERO, {
-  views: [{ id: 'sicherung', order: 131, label: 'Datensicherung', group: 'stamm', module: 'stammdaten', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Alle Daten als ZIP sichern und prüfen' }],
+  views: [{ id: 'sicherung', order: 131, label: 'Datensicherung', group: 'stamm', module: 'verwaltung', noWeek: true, available: () => !app.access || !!app.access.all, text: 'Alle Daten als ZIP sichern und prüfen' }],
   actions: 'sich-liste sich-anhaenge sich-start sich-stop sich-every sich-pruefen sich-wahl sich-restore sich-restore-no',
   todo: ['sicherung'],
 })

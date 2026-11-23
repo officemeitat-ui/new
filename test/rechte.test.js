@@ -458,6 +458,58 @@ test('Rechte: Vorarbeiter fragt keine Datei der App an (nur das Werkzeug Wasserz
   assert.equal(va.writable(DOC.master), false)
 })
 
+test('Rechte: Personalverwaltung speichert Mitarbeitende, aber nie die Objekte – auch nicht in der alten Ablage', async () => {
+  const pvRights = () => dataRights(resolveAccess({ roleClaims: ['personalverwaltung'], access, strict: true }))
+  // heutige Ablage: Objekte in objekte/objekte.json
+  {
+    const { store, log } = spyStore()
+    const admin = new DataService(store, { debounceMs: 0 })
+    await admin.load(() => ({ ...blank(), employees: [{ id: 'e1', name: 'Ana' }], objects: [{ id: 'o1', name: 'Kanzlei' }] }))
+    await admin.flush()
+    log.write.length = 0
+    const pv = new DataService(store, { debounceMs: 0, rights: pvRights(), blank })
+    const data = await pv.load(() => assert.fail('legt nichts an'))
+    assert.equal(pv.writable(DOC.master), true)
+    assert.equal(pv.writable(DOC.objects), false)
+    assert.equal(pv.objectsInMaster, false)
+    data.employees[0].phone = '0664 1'
+    data.objects[0].name = 'umbenannt' // dürfte die Rolle nicht: bleibt ungespeichert
+    pv.schedule()
+    await pv.flush()
+    assert.ok(log.write.includes(DOC.master), 'Mitarbeitende gespeichert')
+    assert.ok(!log.write.includes(DOC.objects), 'Objekte nicht geschrieben')
+    assert.equal((await store.read(DOC.master)).data.employees[0].phone, '0664 1')
+    assert.equal((await store.read(DOC.objects)).data.objects[0].name, 'Kanzlei')
+  }
+  // alte Ablage: Objekte stehen noch in den Stammdaten. Die Stammdaten ohne Objekte zu speichern, verlöre sie.
+  {
+    const { store, log } = spyStore()
+    await store.write(DOC.master, { version: 1, employees: [{ id: 'e1', name: 'Ana' }], objects: [{ id: 'o1', name: 'Kanzlei' }], tasks: [], skills: [], rules: {} })
+    log.write.length = 0
+    const pv = new DataService(store, { debounceMs: 0, rights: pvRights(), blank })
+    const data = await pv.load(() => assert.fail('legt nichts an'))
+    assert.equal(pv.objectsInMaster, true, 'Objekte nur in den Stammdaten, Rolle darf sie nicht umziehen')
+    data.employees[0].phone = '0664 2'
+    pv.schedule()
+    await pv.flush()
+    assert.deepEqual(log.write.filter((x) => x === DOC.master || x === DOC.objects), [], 'nichts geschrieben, solange die Objekte nicht umgezogen sind')
+    assert.equal((await store.read(DOC.master)).data.objects.length, 1, 'Objekte unversehrt')
+    // der Vollzugriff öffnet die App: zieht die Objekte um; danach speichert auch die Personalverwaltung
+    const admin = new DataService(store, { debounceMs: 0 })
+    await admin.load(() => assert.fail('legt nichts an'))
+    await admin.flush()
+    assert.equal((await store.read(DOC.objects)).data.objects[0].name, 'Kanzlei')
+    const pv2 = new DataService(store, { debounceMs: 0, rights: pvRights(), blank })
+    const d2 = await pv2.load(() => assert.fail('legt nichts an'))
+    assert.equal(pv2.objectsInMaster, false)
+    d2.employees[0].phone = '0664 3'
+    pv2.schedule()
+    await pv2.flush()
+    assert.equal((await store.read(DOC.master)).data.employees[0].phone, '0664 3')
+    assert.equal((await store.read(DOC.objects)).data.objects.length, 1)
+  }
+})
+
 test('Rechte: ältere Ablage wird in die eigenen Ordner verschoben', async () => {
   const { store, log } = spyStore()
   await store.write(DOC.master, { version: 1, employees: [{ id: 'e1', name: 'Ana' }], objects: [{ id: 'o1', name: 'Kanzlei' }], tasks: [], skills: [], rules: {} })

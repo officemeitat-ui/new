@@ -107,7 +107,7 @@ function assignView(c) {
     <p class="note">Durchschnitt pro Woche: 14-tägige Leistungen zählen halb, monatliche mit rund einem Viertel. Einmalige Leistungen sind nicht dabei, sie werden in der jeweiligen Woche eingeteilt. ⚠ an einer Stammkraft: Zeiten passen nicht mehr (Verfügbarkeit, Überschneidung).</p>`
 }
 
-registerView({ id: 'assign', order: 92, label: 'Zuweisung', group: 'stamm', render: assignView })
+registerView({ id: 'assign', order: 92, label: 'Zuweisung', group: 'stamm', module: 'verwaltung', render: assignView })
 
 /** Schon eingeteilte Wochen ab heute, in denen die Leistung andere hat: dort bleibt es bis „Neu planen“ (wie beim Entfernen). */
 function plannedNote(task, empId) {
@@ -193,6 +193,6 @@ registerActions(
       toast(`${list.length} Stammkräfte zugewiesen.${left ? ` ${left} Leistungen bleiben offen: dafür ist niemand frei.` : ''}`)
     },
   },
-  { edit: 'stammdaten' },
+  { edit: 'verwaltung' },
 )
 

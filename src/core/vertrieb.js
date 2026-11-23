@@ -416,7 +416,7 @@ export function salesRights(access) {
     offer: fak,
     recurring: fak,
     contract: fak,
-    object: edits('stammdaten') || edits('planung'),
+    object: edits('verwaltung') || edits('planung'),
     termin: edits('termine'),
   }
 }

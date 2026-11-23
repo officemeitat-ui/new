@@ -55,7 +55,7 @@ export function addressBook() {
   }
   if (sees('planung') || sees('stammdaten') || sees('auswertung')) add('Mitarbeitende', (app.data.employees || []).filter((e) => !e.exitDate || e.exitDate >= today))
   if (sees('fakturierung')) add('Kundschaft', app.data.fakturierung?.customers || [])
-  if (sees('stammdaten') || sees('objektmappe') || sees('kontrolle')) add('Objekte (Leistungsnachweis)', (app.data.objects || []).filter((o) => o.active !== false).map((o) => ({ name: o.name, email: o.proofEmail })))
+  if (sees('verwaltung') || sees('objektmappe') || sees('kontrolle')) add('Objekte (Leistungsnachweis)', (app.data.objects || []).filter((o) => o.active !== false).map((o) => ({ name: o.name, email: o.proofEmail })))
   if (sees('material')) add('Lieferanten', app.data.material?.suppliers || [])
   if (sees('fahrzeuge')) add('Werkstätten', app.data.fahrzeuge?.workshops || [])
   return groups

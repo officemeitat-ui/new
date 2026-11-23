@@ -68,7 +68,7 @@ function results(q) {
   for (const v of visibleViews()) if (hit(v.label, v.text, KEYWORDS[v.id], sectionLabel(sectionOf(v)))) out.push({ group: 'Ansicht', label: v.label, sub: sectionLabel(sectionOf(v)), action: 'view', data: { view: v.id } })
   if (sees('planung') || sees('stammdaten'))
     for (const e of app.data.employees) if (hit(e.name, e.personnelNo, e.team)) out.push({ group: 'Mitarbeitende', label: e.name, sub: [e.personnelNo, e.team].filter(Boolean).join(' · '), action: sees('planung') ? 'open-person' : 'emp-edit', data: sees('planung') ? { emp: e.id } : { id: e.id } })
-  if (sees('stammdaten')) for (const o of app.data.objects) if (hit(o.name, o.short, o.address)) out.push({ group: 'Objekte', label: o.name, sub: o.address || '', action: 'search-goto-sites', data: { id: o.id } })
+  if (sees('verwaltung')) for (const o of app.data.objects) if (hit(o.name, o.short, o.address)) out.push({ group: 'Objekte', label: o.name, sub: o.address || '', action: 'search-goto-sites', data: { id: o.id } })
   // Einkauf: Lieferanten und Eingangsrechnungen (Eingangsnummer, Rechnungsnummer)
   if (sees('einkauf')) {
     for (const x of app.data.einkauf?.suppliers || []) if (hit(x.name, x.supplierNo, x.city, x.uid, x.customerNo)) out.push({ group: 'Lieferanten', label: x.name || x.supplierNo, sub: [x.supplierNo, x.city].filter(Boolean).join(' · '), action: 'ek-sup-open', data: { id: x.id } })

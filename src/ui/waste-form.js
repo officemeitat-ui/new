@@ -147,5 +147,5 @@ registerActions(
       importEntries(parseAny(await file.text()))
     },
   },
-  { edit: ['stammdaten', 'planung'] },
+  { edit: ['verwaltung', 'planung'] },
 )

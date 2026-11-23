@@ -24,7 +24,7 @@ export const QUICK = [
   { id: 'angebot', label: 'Angebot', module: 'fakturierung', action: 'fak-new', data: { kind: 'angebot' }, words: 'offert kostenvoranschlag' },
   { id: 'anfrage', label: 'Anfrage (Vertrieb)', module: 'vertrieb', action: 'vt-new', words: 'vertrieb anfrage interessent neukunde besichtigung akquise' },
   { id: 'aufgabe', label: 'Aufgabe per E-Mail', key: 'e', module: '*', action: 'mail-task-new', words: 'aufgabe auftrag mail email senden erinnerung weiterleiten delegieren' },
-  { id: 'leistung', label: 'Leistung im Reinigungsplan', module: 'stammdaten', action: 'task-edit', data: { id: 'new' }, words: 'reinigungsplan objekt leistung' },
+  { id: 'leistung', label: 'Leistung im Reinigungsplan', module: 'verwaltung', action: 'task-edit', data: { id: 'new' }, words: 'reinigungsplan objekt leistung' },
   { id: 'assistent', label: 'KI-Assistent fragen', key: 'k', module: '*', action: 'ai-open', words: 'ki assistent frage hilfe' },
 ]
 
