@@ -65,6 +65,7 @@ export const EXERCISES: Exercise[] = [
   x('front_squat', 'Frontkniebeuge', 'squat', ['barbell', 'rack'], 3, 4, 'Stange auf den vorderen Schultern, Ellbogen hoch. Oberkörper bleibt aufrecht.'),
   x('leg_press', 'Beinpresse', 'squat', ['leg_press'], 1, 4, 'Füße schulterbreit, Rücken fest im Polster. Tief absenken, Knie nicht ganz durchstrecken.'),
 
+  x('chair_squat', 'Aufstehen vom Stuhl', 'squat', [], 1, 2, 'Vorn auf einem stabilen Stuhl sitzen, Füße hüftbreit. Ohne Schwung aufstehen und langsam wieder hinsetzen.', { harder: 'bw_squat' }),
   // Hüftstreckung
   x('good_morning_bw', 'Good Morning ohne Gewicht', 'hinge', [], 1, 1, 'Hände an den Hinterkopf, Hüfte weit nach hinten schieben, Rücken gerade. Dehnung in den Beinbeugern spüren.', { harder: 'single_leg_rdl_bw' }),
   x('single_leg_rdl_bw', 'Einbeiniges Kreuzheben ohne Gewicht', 'hinge', [], 1, 2, 'Standbein leicht gebeugt, Oberkörper und freies Bein bilden eine Linie. Langsam absenken.', { perSide: true }),
@@ -86,7 +87,10 @@ export const EXERCISES: Exercise[] = [
   x('kb_reverse_lunge', 'Goblet-Ausfallschritt mit Kettlebell', 'lunge', ['kettlebell'], 1, 3, 'Kettlebell vor der Brust, Schritt nach hinten, Oberkörper aufrecht.', { perSide: true }),
   x('walking_lunge', 'Ausfallschritte im Gehen', 'lunge', ['dumbbells'], 2, 4, 'Lange Schritte, hinteres Knie knapp über dem Boden, Tempo ruhig.', { perSide: true, stress: knee }),
 
+  x('step_up_bw', 'Step-up auf niedrige Stufe', 'lunge', [], 1, 2, 'Ganzen Fuß auf die unterste Treppenstufe, am Geländer festhalten, hochsteigen und langsam zurück.', { perSide: true, harder: 'reverse_lunge_bw' }),
+
   // Drücken horizontal
+  x('incline_pushup', 'Liegestütz an Tisch oder Arbeitsplatte', 'push_h', [], 1, 2, 'Hände an die Kante, Körper gerade. Brust zur Kante absenken und wegdrücken. Je tiefer die Kante, desto schwerer.', { harder: 'knee_pushup' }),
   x('knee_pushup', 'Liegestütz auf Knien', 'push_h', [], 1, 2, 'Körper von Knie bis Schulter gerade. Brust bis knapp über den Boden.', { harder: 'pushup' }),
   x('pushup', 'Liegestütz', 'push_h', [], 1, 3, 'Hände etwas breiter als die Schultern, Ellbogen etwa 45° zum Körper, Rumpf fest.', { harder: 'decline_pushup' }),
   x('decline_pushup', 'Liegestütz mit erhöhten Füßen', 'push_h', [], 2, 3, 'Füße auf Stuhl oder Stufe. Körper bleibt eine gerade Linie.'),
@@ -118,6 +122,8 @@ export const EXERCISES: Exercise[] = [
   x('cable_row', 'Rudern am Kabelzug', 'pull_h', ['cable'], 1, 5, 'Aufrecht sitzen, Griff zum Bauch ziehen, Schulterblätter aktiv zurück.'),
   x('machine_row', 'Rudermaschine', 'pull_h', ['row_m'], 1, 4, 'Brust am Polster, Ellbogen nach hinten ziehen, kurz halten.'),
 
+  x('door_row', 'Rudern am Türrahmen', 'pull_h', [], 1, 1, 'Mit beiden Händen den Türrahmen auf Brusthöhe fassen, Füße nah heran, zurücklehnen und heranziehen.', { harder: 'table_row' }),
+
   // Ziehen von oben
   x('negative_pullup', 'Negative Klimmzüge', 'pull_v', ['pullup_bar'], 1, 3, 'Hochspringen oder hochsteigen, dann 3–5 Sekunden kontrolliert ablassen.', { harder: 'pullup' }),
   x('band_pullup', 'Klimmzug mit Bandunterstützung', 'pull_v', ['pullup_bar', 'bands'], 1, 4, 'Band an die Stange, Fuß oder Knie hinein. Brust zur Stange, voll aushängen.', { harder: 'pullup' }),
@@ -138,6 +144,10 @@ export const EXERCISES: Exercise[] = [
   x('hanging_knee_raise', 'Knieheben im Hang', 'core', ['pullup_bar'], 2, 4, 'Ohne Schwung die Knie zur Brust ziehen, langsam ablassen.'),
   x('pallof_press', 'Pallof Press mit Band', 'core', ['bands'], 1, 3, 'Seitlich zum Band stehen, Hände vor der Brust nach vorn strecken, nicht verdrehen lassen.', { perSide: true }),
   x('cable_crunch', 'Crunch am Kabelzug', 'core', ['cable'], 1, 4, 'Kniend, Seil am Kopf. Wirbelsäule einrollen, Hüfte bleibt ruhig.'),
+
+  x('standing_knee_raise', 'Knieheben im Stand', 'core', [], 1, 2, 'Aufrecht stehen, eine Hand an Wand oder Stuhl. Knie abwechselnd bis Hüfthöhe heben, Bauch fest.'),
+  x('wall_plank', 'Stütz an der Arbeitsplatte', 'core', [], 1, 2, 'Unterarme auf Tisch oder Arbeitsplatte, Füße zurück, Körper gerade halten.', { mode: 'time', harder: 'plank' }),
+  x('suitcase_hold', 'Koffer-Halten einseitig', 'core', ['dumbbells'], 1, 3, 'Eine Hantel seitlich halten und aufrecht stehen, ohne zur Seite zu kippen.', { mode: 'time', perSide: true, load: 'bodyweight' }),
 
   // Arme
   x('db_curl', 'Kurzhantel-Curl', 'biceps', ['dumbbells'], 1, 4, 'Ellbogen bleiben am Körper, kein Schwung, langsam absenken.'),
@@ -188,6 +198,7 @@ export const EXERCISES: Exercise[] = [
   x('band_fly', 'Fliegende mit Band', 'chest_iso', ['bands'], 1, 3, 'Band hinter dem Rücken oder an der Tür, Arme vor der Brust zusammenführen.'),
 
   // Kondition
+  x('march', 'Marschieren auf der Stelle', 'conditioning', [], 1, 2, 'Knie zügig abwechselnd heben, Arme schwingen mit. Tempo so, dass du noch sprechen kannst.', { mode: 'time' }),
   x('mountain_climber', 'Mountain Climbers', 'conditioning', [], 1, 3, 'Im Stütz die Knie abwechselnd zügig zur Brust, Hüfte bleibt tief.', { mode: 'time' }),
   x('shadow_boxing', 'Schattenboxen', 'conditioning', [], 1, 2, 'Locker auf den Fußballen, gerade Schläge im Wechsel, Tempo hoch halten.', { mode: 'time' }),
   x('burpee', 'Burpees', 'conditioning', [], 2, 4, 'In den Stütz springen, Brust zum Boden, aufspringen. Gleichmäßiges Tempo.', { mode: 'time', stress: knee }),
@@ -198,3 +209,16 @@ export const EXERCISES: Exercise[] = [
 const BY_ID = new Map(EXERCISES.map((e) => [e.id, e]));
 export const exercise = (id: string): Exercise => BY_ID.get(id) ?? EXERCISES[0];
 export const hasExercise = (id: string) => BY_ID.has(id);
+
+/** Im sanften Abnehm-Modus ausgeschlossen: Sprünge, Übungen am Boden, Hängen und Stützen mit dem ganzen Körpergewicht, wackelige Einbeinstände. */
+export const NOT_GENTLE = new Set([
+  'burpee', 'mountain_climber', 'kb_swing', 'kb_swing_hiit', 'pistol_box', 'walking_lunge', 'bulgarian_bw', 'db_bulgarian', 'reverse_lunge_bw', 'single_leg_rdl_bw',
+  'pullup', 'chinup', 'negative_pullup', 'band_pullup', 'dips', 'bench_dip', 'hanging_knee_raise', 'table_row', 'inverted_row', 'trx_row',
+  'knee_pushup', 'pushup', 'decline_pushup', 'band_pushup', 'close_pushup', 'pike_pushup', 'db_floor_press',
+  'plank', 'side_plank', 'dead_bug', 'bird_dog', 'leg_raise', 'hollow_hold', 'cable_crunch', 'prone_y_raise',
+  'glute_bridge_single', 'band_glute_bridge', 'db_hip_thrust', 'bb_hip_thrust', 'slider_curl', 'nordic_curl', 'band_leg_curl',
+  'db_reverse_lunge', 'kb_reverse_lunge', 'back_squat', 'front_squat', 'deadlift', 'bb_row', 'bb_ohp', 'calf_raise_bw', 'db_calf_raise',
+]);
+/** Im sanften Modus bevorzugt, weil geführt, gestützt oder im Sitzen. */
+export const GENTLE_FIRST = new Set(['chair_squat', 'step_up_bw', 'incline_pushup', 'door_row', 'standing_knee_raise', 'wall_plank', 'march', 'cardio_intervals',
+  'leg_press', 'machine_chest_press', 'machine_row', 'lat_pulldown', 'machine_shoulder_press', 'leg_curl', 'leg_ext', 'cable_row', 'goblet_squat']);

@@ -4,7 +4,7 @@
  */
 export type Pt = [number, number];
 export type Pose = { sh: Pt; el: Pt; ha: Pt; hip: Pt; kn: Pt; ft: Pt; el2?: Pt; ha2?: Pt; kn2?: Pt; ft2?: Pt };
-export type Scene = 'bench' | 'box' | 'bar' | 'chair' | 'wall' | 'lowbar' | 'bars' | 'cable_high' | 'cable_mid' | 'seat';
+export type Scene = 'table' | 'bench' | 'box' | 'bar' | 'chair' | 'wall' | 'lowbar' | 'bars' | 'cable_high' | 'cable_mid' | 'seat';
 export type Anim = { a: Pose; b: Pose; front?: boolean; scene?: Scene; /** Stange liegt auf den Schultern statt in den Händen. */ barOnBack?: boolean };
 
 const p = (sh: Pt, el: Pt, ha: Pt, hip: Pt, kn: Pt, ft: Pt, extra: Partial<Pose> = {}): Pose => ({ sh, el, ha, hip, kn, ft, ...extra });
@@ -14,7 +14,10 @@ const hingeDown = p([60, 48], [60, 60], [60, 72], [38, 52], [48, 70], [48, 90]);
 const stand = p([48, 25], [48, 38], [49, 50], [48, 50], [49, 70], [49, 90]);
 
 export const ANIMS: Record<string, Anim> = {
+  incline_pushup: { scene: 'table', a: p([40, 38], [49, 49], [58, 60], [34, 60], [28, 76], [22, 90]), b: p([50, 50], [46, 60], [58, 60], [40, 68], [31, 80], [22, 90]) },
+  hold: { a: stand, b: p([48, 26], [48, 39], [49, 51], [48, 51], [49, 70], [49, 90]) },
   squat: { a: p([48, 25], [53, 37], [58, 30], [48, 50], [50, 70], [50, 90]), b: p([46, 44], [52, 55], [58, 48], [38, 66], [56, 70], [50, 90]) },
+  chair_squat: { scene: 'chair', a: p([46, 26], [54, 34], [64, 34], [46, 51], [56, 68], [58, 90]), b: p([42, 38], [50, 47], [60, 48], [42, 62], [58, 64], [58, 90]) },
   squat_bar: { a: p([48, 25], [52, 33], [47, 26], [48, 50], [50, 70], [50, 90]), b: p([48, 45], [52, 53], [47, 46], [38, 66], [56, 70], [50, 90]), barOnBack: true },
   lunge: {
     a: p([50, 25], [50, 38], [50, 50], [50, 50], [50, 70], [50, 90], { kn2: [50, 70], ft2: [50, 90] }),
@@ -93,6 +96,7 @@ export const ANIMS: Record<string, Anim> = {
 
 /** Übung → Bewegungsbild. */
 export const ANIM_OF: Record<string, keyof typeof ANIMS> = {
+  chair_squat: 'chair_squat', step_up_bw: 'step_up', incline_pushup: 'incline_pushup', door_row: 'pull_front', standing_knee_raise: 'run', wall_plank: 'incline_pushup', suitcase_hold: 'hold', march: 'run',
   bw_squat: 'squat', pistol_box: 'squat', goblet_squat: 'squat', kb_goblet_squat: 'squat', back_squat: 'squat_bar', front_squat: 'squat_bar', leg_press: 'leg_press',
   good_morning_bw: 'goodmorning', single_leg_rdl_bw: 'hinge', db_rdl: 'hinge', bb_rdl: 'hinge', deadlift: 'hinge', kb_deadlift: 'hinge', kb_swing: 'swing',
   band_good_morning: 'goodmorning', cable_pullthrough: 'hinge', back_extension: 'goodmorning',

@@ -9,7 +9,8 @@ import type { BenchmarkLift, Challenge, EquipmentId, FocusArea, Goal, Level, Lim
 import { colors as c } from '../theme';
 import { Bolt, Button, Card, Chip, Eyebrow, H, IconName, Meter, Option, Stepper, fmt, s } from '../ui';
 
-const GOALS: { id: Goal; title: string; hint: string; icon: IconName }[] = [
+const GOALS: { id: Goal; title: string; hint: string; icon: IconName; gentle?: boolean }[] = [
+  { id: 'Fettabbau', gentle: true, title: 'Abnehmen mit sanftem Einstieg', hint: 'Für den Start mit mehr Körpergewicht: gelenkschonend, ohne Sprünge, ohne Übungen am Boden', icon: 'leaf-outline' },
   { id: 'Kraft', title: 'Stärker werden', hint: 'Schwere Grundübungen, wenige Wiederholungen, lange Pausen', icon: 'flash-outline' },
   { id: 'Muskelaufbau', title: 'Muskeln aufbauen', hint: 'Mittlere Wiederholungen, viel Volumen', icon: 'body-outline' },
   { id: 'Fettabbau', title: 'Schlank und definiert werden', hint: 'Muskeln halten, Verbrauch erhöhen: Kraft plus kurzes Finish', icon: 'flame-outline' },
@@ -53,6 +54,7 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
   const [name, setName] = useState(initial?.name ?? draftName ?? '');
   const [sex, setSex] = useState<'m' | 'f' | null>(initial?.sex ?? null);
   const [goal, setGoal] = useState<Goal>(initial?.goal ?? 'Muskelaufbau');
+  const [gentle, setGentle] = useState(!!initial?.gentle);
   const [focus, setFocus] = useState<FocusArea[]>(initial?.focus ?? []);
   const [heightCm, setHeight] = useState(initial?.heightCm ?? 175);
   const [weightKg, setWeight] = useState(initial?.weightKg ?? 75);
@@ -72,10 +74,10 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
 
   const oneRm = oneRmFrom(liftKg, liftReps);
   const profile: Profile = useMemo(() => ({
-    name: name.trim(), goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge,
+    name: name.trim(), goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, gentle,
     heightCm: useBody ? heightCm : null, weightKg: useBody ? weightKg : null, targetKg: useBody ? targetKg : null,
     benchmark: useLift && oneRm > 0 ? { lift, oneRm } : null,
-  }), [name, goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, useBody, heightCm, weightKg, targetKg, useLift, lift, oneRm]);
+  }), [gentle, name, goal, level, daysPerWeek, minutes, equipment, limitations, focus, sex, challenge, useBody, heightCm, weightKg, targetKg, useLift, lift, oneRm]);
   const plan = useMemo(() => generatePlan(profile), [profile]);
   const up = useMemo(() => upgrades(profile), [profile]);
   const toggle = <T,>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
@@ -115,7 +117,7 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
         {step === 2 && <>
           <Text style={s.hero}>Was ist dein Hauptziel?</Text>
           <Text style={s.muted}>Das Ziel bestimmt Wiederholungen, Pausen und Satzzahl.</Text>
-          {GOALS.map((g) => <Option key={g.id} title={g.title} hint={g.hint} icon={g.icon} active={goal === g.id} onPress={() => setGoal(g.id)} />)}
+          {GOALS.map((g) => <Option key={g.title} title={g.title} hint={g.hint} icon={g.icon} active={g.gentle ? gentle : !gentle && goal === g.id} onPress={() => { setGoal(g.id); setGentle(!!g.gentle); }} />)}
         </>}
 
         {step === 3 && <>
@@ -140,6 +142,18 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
               <View style={s.rowBetween}><Eyebrow>BMI</Eyebrow><Text style={s.strong}>{fmt(Math.round(body.bmi * 10) / 10)} · {body.label}</Text></View>
               <Text style={s.small}>Normalbereich 18,5–25. Der BMI unterscheidet nicht zwischen Muskeln und Fett und sagt bei trainierten Menschen wenig aus.</Text>
             </Card>
+            {gentle ? (
+              <Card accent>
+                <Eyebrow>Sanfter Abnehm-Modus</Eyebrow>
+                <Text style={s.text}>Bitte kläre den Trainingsstart vorher ärztlich ab, wenn du starkes Übergewicht, Herz-Kreislauf-Beschwerden, Diabetes oder Gelenkprobleme hast.</Text>
+              </Card>
+            ) : body.bmi >= 30 ? (
+              <Card accent>
+                <Eyebrow>Vorschlag</Eyebrow>
+                <Text style={s.text}>Für den Einstieg mit mehr Körpergewicht gibt es einen sanften Abnehm-Modus: gelenkschonende Übungen ohne Sprünge und ohne Bodenübungen, dazu ruhige Ausdauer.</Text>
+                <Button small variant="secondary" icon="leaf-outline" title="Sanften Abnehm-Modus nutzen" onPress={() => { setGoal('Fettabbau'); setGentle(true); }} />
+              </Card>
+            ) : null}
             <Card>
               <View style={s.rowBetween}>
                 <Text style={s.strong}>Zielgewicht</Text>
@@ -238,7 +252,7 @@ export function Onboarding({ initial, draftName, onDone, onCancel }: { initial?:
         {step === 11 && <>
           <Text style={s.hero}>Dein Plan steht{name.trim() ? `, ${name.trim()}` : ''}</Text>
           <Card accent>
-            <Eyebrow>{GOALS.find((g) => g.id === goal)?.title}</Eyebrow>
+            <Eyebrow>{GOALS.find((g) => (gentle ? g.gentle : !g.gentle && g.id === goal))?.title}</Eyebrow>
             <Text style={s.heading}>{plan.split}</Text>
             <Text style={s.muted}>{daysPerWeek} Einheiten pro Woche zu je ca. {minutes} Min. · Equipment-Abdeckung {plan.score} %{focus.length ? ` · Schwerpunkt ${focus.join(', ')}` : ''}</Text>
             {plan.days.map((d) => (

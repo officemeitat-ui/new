@@ -82,7 +82,7 @@ function AppContent() {
             <Text style={s.brand}>AI FIT COACH</Text>
             {saveFailed ? <Text style={[s.small, { color: c.danger }]}>Speichern fehlgeschlagen</Text> : null}
           </View>
-          {tab === 'Home' && <Home {...shared} goTo={setTab} />}
+          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} />}
           {tab === 'Training' && <Training {...shared} regenerate={() => setState((old) => (old.profile ? { ...old, plan: generatePlan(old.profile), nextDay: 0 } : old))} />}
           {tab === 'Coach' && <Coach {...shared} messages={messages} setMessages={setMessages} />}
           {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} weights={state.weights} addWeight={(kg) => setState((old) => ({ ...old, weights: [...old.weights, { date: new Date().toISOString(), kg }] }))} />}

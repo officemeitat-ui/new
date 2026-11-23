@@ -2,6 +2,14 @@ import type { Exercise, Pattern } from './types';
 
 /** Je Übung: [Vorbereitung, Schritt 1, Schritt 2, (Schritt 3)]. */
 const G: Record<string, string[]> = {
+  chair_squat: ['Vorn auf die Kante eines stabilen Stuhls setzen, Füße hüftbreit unter den Knien, Arme nach vorn.', 'Oberkörper leicht vorlehnen und ohne Schwung aufstehen, bis du gerade stehst.', 'Langsam zurücksetzen, den Stuhl nur kurz berühren.'],
+  step_up_bw: ['Vor die unterste Treppenstufe stellen, eine Hand ans Geländer, einen Fuß ganz auf die Stufe.', 'Über das obere Bein hochsteigen, bis du oben gerade stehst.', 'Langsam mit demselben Bein zurück nach unten.'],
+  incline_pushup: ['Hände schulterbreit an die Kante von Tisch oder Arbeitsplatte, Füße so weit zurück, dass der Körper eine gerade Linie bildet.', 'Ellbogen beugen und die Brust zur Kante führen.', 'Wegdrücken, bis die Arme gestreckt sind.'],
+  door_row: ['In eine offene Tür stellen, mit beiden Händen den Rahmen auf Brusthöhe fassen, Füße nah an die Schwelle.', 'Mit geradem Körper zurücklehnen, bis die Arme gestreckt sind.', 'Brust zum Rahmen ziehen, Schulterblätter zusammen.'],
+  standing_knee_raise: ['Aufrecht neben Wand oder Stuhl stehen, eine Hand stützt leicht.', 'Ein Knie bis etwa Hüfthöhe heben, Bauch anspannen, nicht zurücklehnen.', 'Absetzen und die Seite wechseln.'],
+  wall_plank: ['Unterarme auf Tisch oder Arbeitsplatte legen, Füße zurückstellen.', 'Gesäß und Bauch anspannen, Körper bildet eine gerade Linie.', 'Halten und ruhig weiteratmen.'],
+  suitcase_hold: ['Eine Hantel seitlich neben dem Körper halten, Füße hüftbreit.', 'Aufrecht stehen, Schultern auf gleicher Höhe, nicht zur Hantel kippen.', 'Halten, dann die Seite wechseln.'],
+  march: ['Aufrecht stehen, Platz nach vorn und zur Seite.', 'Knie abwechselnd zügig heben, Arme schwingen gegengleich mit.', 'Tempo halten, bei dem du noch in ganzen Sätzen sprechen kannst.'],
   bw_squat: ['Füße etwa schulterbreit, Zehen leicht nach außen, Arme vor dem Körper.', 'Hüfte nach hinten und unten führen, bis die Oberschenkel mindestens waagrecht sind.', 'Über den ganzen Fuß hochdrücken und oben die Hüfte strecken.'],
   pistol_box: ['Mit dem Rücken vor einen stabilen Stuhl stellen, ein Bein gestreckt nach vorn anheben.', 'Auf dem Standbein langsam absenken, bis du den Stuhl berührst.', 'Ohne Schwung einbeinig wieder aufstehen.'],
   goblet_squat: ['Eine Kurzhantel senkrecht vor der Brust halten, Ellbogen zeigen nach unten, Füße schulterbreit.', 'Zwischen die Knie absenken, Brust bleibt aufrecht, Ellbogen innen an den Knien.', 'Über den ganzen Fuß hochdrücken, Hantel bleibt an der Brust.'],

@@ -180,3 +180,27 @@ test('Plan von Hand ändern: hinzufügen, nicht doppelt, entfernen', async () =>
   assert.equal(removed.days[0].items.length, day.items.length);
   assert.notEqual(removed.days[0].items[0].exerciseId, day.items[0].exerciseId);
 });
+
+test('Sanfter Abnehm-Modus: gültige Pläne ohne Sprünge, Boden- und Hängeübungen, mit ruhiger Ausdauer', async () => {
+  const { NOT_GENTLE } = await import('../src/engine/exercises');
+  for (const preset of PRESETS) for (const daysPerWeek of [2, 3, 4, 5]) for (const minutes of [20, 30, 45]) for (const level of [1, 2] as Level[]) {
+    const p: Profile = { ...base, goal: 'Fettabbau', gentle: true, level, daysPerWeek, minutes, equipment: preset.items };
+    const plan = generatePlan(p);
+    assert.equal(plan.days.length, daysPerWeek);
+    assert.equal(new Set(plan.days.map((d) => d.id)).size, daysPerWeek);
+    assert.match(plan.split, /Ganzkörper/);
+    for (const day of plan.days) {
+      const label = `${preset.id}/${daysPerWeek}/${minutes}/${day.id}`;
+      assert.ok(day.items.length >= 3, `${label}: zu wenige Übungen`);
+      assert.ok(day.minutes <= minutes + 8, `${label}: ${day.minutes} Min.`);
+      assert.equal(exercise(day.items[day.items.length - 1].exerciseId).pattern, 'conditioning', `${label}: Ausdauer fehlt`);
+      for (const item of day.items) {
+        assert.ok(!NOT_GENTLE.has(item.exerciseId), `${label}: ${item.exerciseId}`);
+        assert.ok(item.sets <= 6 && item.rest <= 75);
+      }
+    }
+  }
+  const none = generatePlan({ ...base, goal: 'Fettabbau', gentle: true, level: 1, daysPerWeek: 3, minutes: 30 });
+  const ids = none.days.flatMap((d) => d.items.map((i) => i.exerciseId));
+  for (const id of ['chair_squat', 'incline_pushup', 'march']) assert.ok(ids.includes(id), id);
+});

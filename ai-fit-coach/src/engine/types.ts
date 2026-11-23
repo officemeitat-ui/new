@@ -57,6 +57,8 @@ export type Profile = {
   /** Geschätztes Maximum für eine Wiederholung in einer Grundübung. */
   benchmark?: { lift: BenchmarkLift; oneRm: number } | null;
   challenge?: Challenge | null;
+  /** Sanfter Abnehm-Modus: gelenkschonend, ohne Sprünge und ohne Übungen am Boden. */
+  gentle?: boolean;
 };
 
 export type FocusArea = 'Rücken' | 'Schultern' | 'Arme' | 'Brust' | 'Bauch' | 'Gesäß' | 'Beine';

@@ -27,7 +27,7 @@ const LEVEL = ['', 'Einsteiger', 'Fortgeschritten', 'Erfahren'];
 const range = (lo: number, hi: number) => (lo === hi ? `${hi}` : `${lo}–${hi}`);
 const day = (iso: string) => new Date(iso).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'short' });
 
-export function Home({ profile, plan, history, nextDay, start, goTo }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil') => void }) {
+export function Home({ profile, plan, history, nextDay, start, goTo, weights }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[] }) {
   const today = plan.days[nextDay];
   const week = sessionsThisWeek(history).length;
   const up = useMemo(() => upgrades(profile), [profile]);
@@ -58,6 +58,26 @@ export function Home({ profile, plan, history, nextDay, start, goTo }: Shared & 
         <Text style={s.small}>{week >= profile.daysPerWeek ? 'Wochenziel erreicht. Erholung gehört zum Plan.' : `Noch ${profile.daysPerWeek - week} ${profile.daysPerWeek - week === 1 ? 'Einheit' : 'Einheiten'} bis zum Wochenziel.`}</Text>
       </Card>
     </Entrance>
+    {profile.gentle ? (() => {
+      const current = weights.length ? weights[weights.length - 1].kg : profile.weightKg ?? null;
+      const first = weights.length ? weights[0].kg : current;
+      const lost = current !== null && first !== null ? Math.round((first - current) * 10) / 10 : 0;
+      return (
+        <Entrance delay={120}>
+          <Card accent>
+            <Eyebrow>Dein Abnehm-Plan</Eyebrow>
+            {current !== null ? <View style={s.rowBetween}>
+              <Text style={s.tileValue}>{fmt(current)} kg</Text>
+              <Text style={s.small}>{lost > 0 ? `${fmt(lost)} kg geschafft` : 'Startgewicht'}{profile.targetKg ? ` · Ziel ${fmt(profile.targetKg)} kg` : ''}</Text>
+            </View> : null}
+            {current !== null && profile.targetKg && first !== null && first > profile.targetKg ? <Meter value={Math.max(0, first - current)} max={first - profile.targetKg} /> : null}
+            <Text style={s.text}>{current !== null ? `Gut haltbar sind ${fmt(Math.round(current * 0.005 * 10) / 10)}–${fmt(Math.round(current * 0.01 * 10) / 10)} kg pro Woche. Schneller muss es nicht sein.` : 'Gut haltbar sind 0,5–1 % des Körpergewichts pro Woche.'}</Text>
+            <Text style={s.muted}>An Tagen ohne Training: 20–30 Minuten zügig gehen, gern in zwei oder drei Etappen. Jeder Schritt zählt mehr als die perfekte Einheit.</Text>
+            <Button small variant="secondary" icon="scale-outline" title="Gewicht eintragen" onPress={() => goTo('Fortschritt')} />
+          </Card>
+        </Entrance>
+      );
+    })() : null}
     <Entrance delay={160}>
       <View style={s.row}>
         <Tile icon="flame-outline" value={String(weeks)} label={weeks === 1 ? 'Woche in Folge' : 'Wochen in Folge'} />
@@ -93,7 +113,7 @@ export function Training({ profile, plan, history, nextDay, start, swap, regener
   const alts = sel && item ? alternatives(profile, item, sel) : [];
   return <>
     <Text style={s.hero}>Dein Plan</Text>
-    <Text style={s.muted}>{plan.split} · {profile.daysPerWeek}× pro Woche · Ziel {profile.goal}</Text>
+    <Text style={s.muted}>{plan.split} · {profile.daysPerWeek}× pro Woche · Ziel {profile.gentle ? 'Abnehmen, sanfter Einstieg' : profile.goal}</Text>
     {plan.notes.map((n) => <Card key={n}><View style={s.row}><Ionicons name="information-circle-outline" size={20} color={c.warn} /><Text style={[s.small, { flex: 1 }]}>{n}</Text></View></Card>)}
     {plan.days.map((d, di) => (
       <Card key={d.id} accent={di === nextDay}>
@@ -318,7 +338,7 @@ export function ProfileTab({ profile, plan, history, edit, clearHistory, resetAl
     <Card>
       <Text style={s.heading}>{profile.name}</Text>
       {[
-        ['Ziel', profile.goal], ['Erfahrung', LEVEL[profile.level]],
+        ['Ziel', profile.gentle ? 'Abnehmen, sanfter Einstieg' : profile.goal], ['Erfahrung', LEVEL[profile.level]],
         ['Training', `${profile.daysPerWeek}× pro Woche, ${profile.minutes} Min.`], ['Plan', plan.split],
         ['Problemzonen', profile.limitations.map((l) => limits[l]).join(', ') || 'keine'],
         ['Schwerpunkte', (profile.focus ?? []).join(', ') || 'ganzer Körper'],

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Svg, { Circle, Line, Rect } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import type { Exercise } from '../engine/types';
 import { colors as c } from '../theme';
 import { ANIMS, ANIM_OF, Pose, Pt, Scene } from './poses';
@@ -19,12 +19,41 @@ const blend = (a: Pose, b: Pose, t: number): Pose => ({
 });
 const mirror = (pt: Pt): Pt => [100 - pt[0], pt[1]];
 
-function Bone({ a, b, color, w = 6 }: { a: Pt; b: Pt; color: string; w?: number }) {
-  return <Line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={color} strokeWidth={w} strokeLinecap="round" />;
+const OUT = '#0B0D0C';
+
+/** Muskel-Segment: läuft von Breite wa über einen Bauch (wm) zu wb aus, mit runden Gelenken. */
+function Limb({ a, b, color, wa, wm, wb, at = 0.4 }: { a: Pt; b: Pt; color: string; wa: number; wm: number; wb: number; at?: number }) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const m: Pt = [a[0] + dx * at, a[1] + dy * at];
+  const pt = (o: Pt, w: number, sign: number) => `${(o[0] + nx * (w / 2) * sign).toFixed(2)},${(o[1] + ny * (w / 2) * sign).toFixed(2)}`;
+  const d = `M${pt(a, wa, 1)} Q${pt(m, wm * 1.25, 1)} ${pt(b, wb, 1)} L${pt(b, wb, -1)} Q${pt(m, wm * 1.25, -1)} ${pt(a, wa, -1)} Z`;
+  return <>
+    <Path d={d} fill={color} stroke={OUT} strokeWidth={0.7} strokeLinejoin="round" />
+    <Circle cx={a[0]} cy={a[1]} r={wa / 2} fill={color} />
+    <Circle cx={b[0]} cy={b[1]} r={wb / 2} fill={color} />
+  </>;
 }
+
+const Arm = ({ sh, el, ha, color }: { sh: Pt; el: Pt; ha: Pt; color: string }) => <>
+  <Limb a={el} b={ha} color={color} wa={6.6} wm={7.6} wb={4} at={0.3} />
+  <Limb a={sh} b={el} color={color} wa={8.4} wm={10.6} wb={6.4} at={0.45} />
+  <Circle cx={sh[0]} cy={sh[1]} r={5.3} fill={color} stroke={OUT} strokeWidth={0.7} />
+  <Circle cx={ha[0]} cy={ha[1]} r={2.3} fill={color} />
+</>;
+
+const Leg = ({ hip, kn, ft, color }: { hip: Pt; kn: Pt; ft: Pt; color: string }) => <>
+  <Limb a={kn} b={ft} color={color} wa={7.4} wm={9.6} wb={4.2} at={0.3} />
+  <Limb a={hip} b={kn} color={color} wa={12.5} wm={14} wb={7.6} at={0.38} />
+  <Circle cx={ft[0]} cy={ft[1]} r={2.7} fill={color} />
+</>;
 
 function SceneProps({ scene }: { scene?: Scene }) {
   if (scene === 'bench') return <><Rect x={18} y={67} width={44} height={4} rx={2} fill={GEAR} /><Rect x={24} y={71} width={3} height={19} fill={GEAR} /><Rect x={53} y={71} width={3} height={19} fill={GEAR} /></>;
+  if (scene === 'table') return <><Rect x={56} y={60} width={30} height={3.5} rx={1.5} fill={GEAR} /><Rect x={78} y={63} width={3} height={27} fill={GEAR} /></>;
   if (scene === 'box') return <Rect x={52} y={77} width={24} height={13} rx={2} fill={GEAR} />;
   if (scene === 'chair') return <><Rect x={30} y={65} width={30} height={4} rx={2} fill={GEAR} /><Rect x={32} y={69} width={3} height={21} fill={GEAR} /><Rect x={55} y={69} width={3} height={21} fill={GEAR} /></>;
   if (scene === 'seat') return <Rect x={34} y={80} width={32} height={4} rx={2} fill={GEAR} />;
@@ -68,31 +97,42 @@ export function Figure({ ex, size = 160, animate = true, phase = 1 }: { ex: Exer
   let body: React.ReactNode;
   if (anim.front) {
     const L = { sh: mirror(pose.sh), el: mirror(pose.el), ha: mirror(pose.ha), hip: mirror(pose.hip), kn: mirror(pose.kn), ft: mirror(pose.ft) };
+    const sy = pose.sh[1];
+    const hy = pose.hip[1];
+    const sw = pose.sh[0] - 50 + 1.5;
+    // V-Form: breite Schultern, schmale Taille, Becken wieder etwas breiter.
+    const torsoPath = `M${50 - sw},${sy - 3} L${50 + sw},${sy - 3} Q${50 + sw + 1},${sy + 8} ${50 + 6.5},${hy - 7} L${50 + 8},${hy + 3} L${50 - 8},${hy + 3} L${50 - 6.5},${hy - 7} Q${50 - sw - 1},${sy + 8} ${50 - sw},${sy - 3} Z`;
     body = <>
       {weight === 'bb' || anim === ANIMS.pulldown ? <Line x1={L.ha[0] - 8} y1={L.ha[1]} x2={pose.ha[0] + 8} y2={pose.ha[1]} stroke={weight === 'bb' ? c.lime : GEAR} strokeWidth={2.4} strokeLinecap="round" /> : null}
-      <Bone a={pose.hip} b={pose.kn} color={legs} /><Bone a={pose.kn} b={pose.ft} color={legs} />
-      <Bone a={L.hip} b={L.kn} color={legs} /><Bone a={L.kn} b={L.ft} color={legs} />
-      <Bone a={pose.sh} b={pose.hip} color={torso} w={7} /><Bone a={L.sh} b={L.hip} color={torso} w={7} />
-      <Bone a={L.sh} b={pose.sh} color={torso} w={7} /><Bone a={L.hip} b={pose.hip} color={torso} w={7} />
-      <Bone a={[50, pose.sh[1] + 2]} b={[50, pose.hip[1] - 2]} color={torso} w={9} />
-      <Bone a={pose.sh} b={pose.el} color={arms} /><Bone a={pose.el} b={pose.ha} color={arms} />
-      <Bone a={L.sh} b={L.el} color={arms} /><Bone a={L.el} b={L.ha} color={arms} />
-      <Circle cx={50} cy={pose.sh[1] - 10} r={6.5} fill={BODY} />
+      <Leg hip={pose.hip} kn={pose.kn} ft={pose.ft} color={legs} /><Leg hip={L.hip} kn={L.kn} ft={L.ft} color={legs} />
+      <Path d={`M44,${sy - 3} L50,${sy - 9} L56,${sy - 3} Z`} fill={torso} />
+      <Path d={torsoPath} fill={torso} stroke={OUT} strokeWidth={0.7} strokeLinejoin="round" />
+      <Path d={`M${50 - sw + 1},${sy + 5} Q${50 - sw / 2},${sy + 9} 50,${sy + 5.5} Q${50 + sw / 2},${sy + 9} ${50 + sw - 1},${sy + 5}`} fill="none" stroke={OUT} strokeWidth={0.8} />
+      <Line x1={50} y1={sy - 1} x2={50} y2={hy - 2} stroke={OUT} strokeWidth={0.7} />
+      {[0.42, 0.6, 0.78].map((f) => <Line key={f} x1={45.5} y1={sy + (hy - sy) * f} x2={54.5} y2={sy + (hy - sy) * f} stroke={OUT} strokeWidth={0.6} />)}
+      <Rect x={47.5} y={sy - 9} width={5} height={6} rx={2} fill={BODY} />
+      <Circle cx={50} cy={sy - 12} r={5.8} fill={BODY} />
+      <Arm sh={pose.sh} el={pose.el} ha={pose.ha} color={arms} /><Arm sh={L.sh} el={L.el} ha={L.ha} color={arms} />
       {weight && weight !== 'bb' ? <><Weight at={pose.ha} kind={weight} /><Weight at={L.ha} kind={weight} /></> : null}
     </>;
   } else {
     const dx = pose.sh[0] - pose.hip[0];
     const dy = pose.sh[1] - pose.hip[1];
     const len = Math.hypot(dx, dy) || 1;
-    const head: Pt = [pose.sh[0] + (dx / len) * 10.5, pose.sh[1] + (dy / len) * 10.5];
+    const ux = dx / len;
+    const uy = dy / len;
+    const neck: Pt = [pose.sh[0] + ux * 4, pose.sh[1] + uy * 4];
+    const head: Pt = [pose.sh[0] + ux * 11.5, pose.sh[1] + uy * 11.5];
     body = <>
-      {pose.kn2 && pose.ft2 ? <><Bone a={pose.hip} b={pose.kn2} color={BACK} /><Bone a={pose.kn2} b={pose.ft2} color={BACK} /></> : null}
-      {pose.el2 && pose.ha2 ? <><Bone a={pose.sh} b={pose.el2} color={BACK} /><Bone a={pose.el2} b={pose.ha2} color={BACK} /></> : null}
+      {pose.kn2 && pose.ft2 ? <Leg hip={pose.hip} kn={pose.kn2} ft={pose.ft2} color={BACK} /> : null}
+      {pose.el2 && pose.ha2 ? <Arm sh={pose.sh} el={pose.el2} ha={pose.ha2} color={BACK} /> : null}
       {cable ? <Line x1={pose.ha[0]} y1={pose.ha[1]} x2={cable[0]} y2={cable[1]} stroke={GEAR} strokeWidth={1.4} /> : null}
-      <Bone a={pose.hip} b={pose.kn} color={legs} /><Bone a={pose.kn} b={pose.ft} color={legs} />
-      <Bone a={pose.sh} b={pose.hip} color={torso} w={8} />
-      <Circle cx={head[0]} cy={head[1]} r={6.5} fill={BODY} />
-      <Bone a={pose.sh} b={pose.el} color={arms} /><Bone a={pose.el} b={pose.ha} color={arms} />
+      <Leg hip={pose.hip} kn={pose.kn} ft={pose.ft} color={legs} />
+      <Circle cx={pose.hip[0]} cy={pose.hip[1]} r={7.2} fill={legs} stroke={OUT} strokeWidth={0.7} />
+      <Limb a={pose.sh} b={pose.hip} color={torso} wa={16.5} wm={18} wb={11} at={0.28} />
+      <Limb a={pose.sh} b={neck} color={BODY} wa={6.5} wm={6} wb={5} />
+      <Circle cx={head[0]} cy={head[1]} r={5.8} fill={BODY} />
+      <Arm sh={pose.sh} el={pose.el} ha={pose.ha} color={arms} />
       {weight ? <Weight at={anim.barOnBack ? [pose.sh[0] - 3, pose.sh[1] - 1] : pose.ha} kind={anim.barOnBack ? 'bb' : weight} /> : null}
     </>;
   }

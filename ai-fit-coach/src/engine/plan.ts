@@ -1,5 +1,5 @@
 import { EQUIPMENT } from './equipment';
-import { COMPOUND, EXERCISES, PATTERN_NAME, exercise } from './exercises';
+import { COMPOUND, EXERCISES, GENTLE_FIRST, NOT_GENTLE, PATTERN_NAME, exercise } from './exercises';
 import type { EquipmentId, Exercise, FocusArea, Muscle, Pattern, Plan, PlanDay, PlanItem, Profile } from './types';
 
 export const FOCUS_MUSCLES: Record<FocusArea, Muscle[]> = {
@@ -51,8 +51,9 @@ const FALLBACK: Partial<Record<Pattern, Pattern[]>> = {
 const FILLER: Pattern[] = ['core', 'hinge', 'squat', 'push_h', 'lunge', 'glutes', 'calves'];
 const WARMUP_SECONDS = 240;
 
-export function available(profile: Pick<Profile, 'equipment' | 'limitations'>, pattern: Pattern): Exercise[] {
+export function available(profile: Pick<Profile, 'equipment' | 'limitations' | 'gentle'>, pattern: Pattern): Exercise[] {
   return EXERCISES.filter((e) => e.pattern === pattern
+    && !(profile.gentle && NOT_GENTLE.has(e.id))
     && e.needs.every((n) => profile.equipment.includes(n))
     && !(e.stress ?? []).some((l) => profile.limitations.includes(l)));
 }
@@ -61,7 +62,8 @@ function rate(e: Exercise, profile: Profile, used: Map<string, number>): number 
   const above = Math.max(0, e.level - profile.level);
   const repeat = (used.get(e.id) ?? 0) * (profile.challenge === 'variety' ? 22 : profile.goal === 'Kraft' ? 6 : 12);
   const barbell = profile.goal === 'Kraft' && e.needs.includes('barbell') ? 6 : 0;
-  return e.quality * 10 - above * 25 - repeat + barbell;
+  const gentle = profile.gentle ? (GENTLE_FIRST.has(e.id) ? 30 : 0) - (e.needs.includes('barbell') ? 20 : 0) : 0;
+  return e.quality * 10 - above * 25 - repeat + barbell + gentle;
 }
 
 function choose(profile: Profile, pattern: Pattern, used: Map<string, number>, taken: Set<string>): { ex: Exercise; fallback: boolean } | null {
@@ -79,8 +81,14 @@ function choose(profile: Profile, pattern: Pattern, used: Map<string, number>, t
   return null;
 }
 
-export function prescribe(profile: Pick<Profile, 'goal' | 'level'>, ex: Exercise, heavy: boolean): Pick<PlanItem, 'sets' | 'lo' | 'hi' | 'rest'> {
+export function prescribe(profile: Pick<Profile, 'goal' | 'level' | 'gentle'>, ex: Exercise, heavy: boolean): Pick<PlanItem, 'sets' | 'lo' | 'hi' | 'rest'> {
   const { goal, level } = profile;
+  if (profile.gentle) {
+    // Sanfter Einstieg: mittlere Wiederholungen, genug Pause, ruhige Ausdauer statt harter Intervalle.
+    if (ex.pattern === 'conditioning') return { sets: level === 1 ? 4 : 6, lo: 60, hi: 60, rest: 30 };
+    if (ex.mode === 'time') return { sets: 2, lo: 15, hi: 30, rest: 45 };
+    return ex.kind === 'compound' ? { sets: level === 1 ? 2 : 3, lo: 10, hi: 15, rest: 75 } : { sets: 2, lo: 12, hi: 15, rest: 60 };
+  }
   if (ex.pattern === 'conditioning') return { sets: level === 1 ? 4 : 6, lo: 30, hi: 30, rest: 30 };
   if (ex.mode === 'time') return { sets: level === 1 ? 2 : 3, lo: 20, hi: 45, rest: 45 };
   let r: Pick<PlanItem, 'sets' | 'lo' | 'hi' | 'rest'>;
@@ -153,7 +161,9 @@ function fit(items: (PlanItem & { prio: number })[], minutes: number, level: num
 type Draft = { tpl: Template; items: (PlanItem & { prio: number })[]; missing: Pattern[]; replaced: Pattern[] };
 
 function draft(profile: Profile): { split: string; drafts: Draft[] } {
-  const split = SPLITS[Math.min(6, Math.max(2, Math.round(profile.daysPerWeek)))];
+  const days = Math.min(6, Math.max(2, Math.round(profile.daysPerWeek)));
+  // Sanfter Modus: immer Ganzkörper, damit jede Einheit rund ist und ein verpasster Tag nichts aus dem Gleichgewicht bringt.
+  const split = profile.gentle && days > 3 ? { name: `Ganzkörper ${days}×`, days: Array.from({ length: days }, (_, i) => ['gkA', 'gkB', 'gkC'][i % 3]) } : SPLITS[days];
   const used = new Map<string, number>();
   const focus = focusMuscles(profile);
   const drafts = split.days.map((key) => {
@@ -218,7 +228,7 @@ export const equipmentScore = (profile: Profile) => scoreOf(draft(profile).draft
 
 export function generatePlan(profile: Profile, now = new Date()): Plan {
   const { split, drafts } = draft(profile);
-  const finisher = profile.goal === 'Fettabbau' && profile.minutes >= 30;
+  const finisher = profile.gentle || (profile.goal === 'Fettabbau' && profile.minutes >= 30);
   const days: PlanDay[] = drafts.map((d) => {
     const items = fit(d.items, profile.minutes - (finisher ? 6 : 0), profile.level);
     if (finisher || (profile.goal === 'Allgemeine Fitness' && profile.minutes - dayMinutes(items) >= 6)) {
@@ -226,11 +236,12 @@ export function generatePlan(profile: Profile, now = new Date()): Plan {
       if (c) items.push({ exerciseId: c.ex.id, slot: 'conditioning', ...prescribe(profile, c.ex, false) });
     }
     return { id: d.tpl.id, name: d.tpl.name, focus: d.tpl.focus, items, minutes: dayMinutes(items) };
-  });
+  }).map((d, i, all) => (all.findIndex((o) => o.id === d.id) === i ? d : { ...d, id: `${d.id}-${i}`, name: `${d.name} (${Math.floor(i / 3) + 1})` }));
   const gaps = new Set<Pattern>();
   drafts.forEach((d) => [...d.missing, ...d.replaced].forEach((p) => gaps.add(p)));
   const notes: string[] = [];
   if (gaps.size) notes.push(`Mit deinem Equipment nicht direkt trainierbar: ${[...gaps].map((p) => PATTERN_NAME[p]).join(', ')}. Der Plan nutzt die nächstbeste Übung.`);
+  if (profile.gentle) notes.push('Sanfter Abnehm-Modus: keine Sprünge, keine Übungen am Boden, kein Hängen oder Stützen mit dem ganzen Körpergewicht. Jede Einheit endet mit ruhiger Ausdauer.');
   if (profile.limitations.length) notes.push('Übungen, die deine angegebenen Problemzonen stark belasten, sind ausgelassen.');
   return { createdAt: now.toISOString(), split, days, score: scoreOf(drafts), notes };
 }

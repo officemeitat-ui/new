@@ -21,7 +21,7 @@ const LEVEL = ['', 'Einsteiger', 'Fortgeschritten', 'Erfahren'];
 export function coachContext({ profile, plan, history }: CoachContext): string {
   const recs = records(history).slice(0, 5).map((r) => `${exercise(r.exerciseId).name}: ${Math.round(r.best)}`).join('; ');
   return [
-    `Ziel: ${profile.goal}; Level: ${LEVEL[profile.level]}; ${profile.daysPerWeek} Tage/Woche, ${profile.minutes} Min.`,
+    `Ziel: ${profile.gentle ? 'Abnehmen, sanfter Einstieg (gelenkschonend, keine Sprünge, keine Bodenübungen)' : profile.goal}; Level: ${LEVEL[profile.level]}; ${profile.daysPerWeek} Tage/Woche, ${profile.minutes} Min.`,
     (profile.focus ?? []).length ? `Schwerpunkte: ${(profile.focus ?? []).join(', ')}` : '',
     `Equipment: ${profile.equipment.map(equipmentName).join(', ') || 'nur Körpergewicht'}`,
     `Split: ${plan.split}; Tage: ${plan.days.map((d) => `${d.name} (${d.items.map((i) => exercise(i.exerciseId).name).join(', ')})`).join(' | ')}`,
@@ -38,6 +38,15 @@ export function localCoach(question: string, ctx: CoachContext): string {
 
   if (has(/schmerz|verletz|schwindel|brust.*(druck|stech)|ohnmacht|taub|atemnot/)) {
     return 'Bitte brich das Training ab. Schmerzen, Schwindel oder Druck auf der Brust gehören ärztlich abgeklärt, bevor du weitertrainierst. Ich kann keine Diagnose stellen. Wenn es nur eine bestimmte Übung betrifft, tausche sie im Plan und trag die Problemzone im Profil ein, dann lasse ich belastende Übungen weg.';
+  }
+  if (profile.gentle && has(/abnehm|kilo|übergewicht|diät|kalorien|dick|schwer|gelenk|knie tun|puste|außer atem/)) {
+    return [
+      'Dein Plan ist auf einen sanften Einstieg ausgelegt: Übungen im Stehen, Sitzen oder an Geräten, keine Sprünge, nichts am Boden. So werden Knie, Hüfte und Rücken belastbar, ohne überfordert zu werden.',
+      `Beim Abnehmen zählt vor allem ein moderates Kaloriendefizit über viele Wochen. Gut haltbar sind 0,5–1 % des Körpergewichts pro Woche${profile.weightKg ? ` (bei dir etwa ${Math.round(profile.weightKg * 0.005 * 10) / 10}–${Math.round(profile.weightKg * 0.01 * 10) / 10} kg)` : ''}. Crash-Diäten kosten Muskeln und halten selten.`,
+      'Das Krafttraining sorgt dafür, dass du Fett verlierst und Muskeln behältst. Die Ausdauer am Ende und das tägliche Gehen erhöhen den Verbrauch.',
+      'Außer Atem zu kommen ist in Ordnung, solange du noch in kurzen Sätzen sprechen kannst. Bei Schmerzen in Gelenken, Druck auf der Brust oder Schwindel: abbrechen und ärztlich abklären.',
+      'Wiege dich ein- bis zweimal pro Woche zur gleichen Tageszeit und trag es im Tab „Fortschritt“ ein. Einzelne Tage schwanken, der Verlauf zählt.',
+    ].join('\n');
   }
   if (has(/equipment|gerät|anschaff|kaufen|hantel|lohnt|ausstattung/)) {
     const up = upgrades(profile);
