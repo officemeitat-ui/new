@@ -1,0 +1,121 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { EQUIPMENT, PRESETS } from '../src/engine/equipment';
+import { EXERCISES, exercise, hasExercise } from '../src/engine/exercises';
+import { alternatives, dayMinutes, equipmentScore, generatePlan, swapExercise, upgrades, weeklyVolume } from '../src/engine/plan';
+import { activeWeeks, e1rm, newRecords, records, suggest, weekStart } from '../src/engine/progression';
+import type { EquipmentId, ExerciseLog, Goal, Level, Profile, Session } from '../src/engine/types';
+
+const base: Profile = { name: 'Test', goal: 'Muskelaufbau', level: 2, daysPerWeek: 4, minutes: 60, equipment: [], limitations: [] };
+const gym = EQUIPMENT.map((e) => e.id);
+const log = (exerciseId: string, sets: [number, number][], lo = 6, hi = 10): ExerciseLog => ({ exerciseId, lo, hi, targetSets: 3, sets: sets.map(([weight, reps]) => ({ weight, reps, done: true })) });
+const session = (date: string, exercises: ExerciseLog[]): Session => ({ id: date, date, dayId: 'okA', dayName: 'Oberkörper A', durationSeconds: 3000, exercises });
+
+test('Übungsbibliothek: eindeutige IDs, gültige Verweise', () => {
+  assert.equal(new Set(EXERCISES.map((e) => e.id)).size, EXERCISES.length);
+  for (const e of EXERCISES) {
+    if (e.harder) assert.ok(hasExercise(e.harder), `${e.id} → ${e.harder}`);
+    assert.ok(e.quality >= 1 && e.quality <= 5);
+    assert.ok(e.cue.length > 10);
+  }
+});
+
+test('Jede Kombination aus Ziel, Level, Tagen, Zeit und Equipment ergibt einen gültigen Plan', () => {
+  const goals: Goal[] = ['Muskelaufbau', 'Fettabbau', 'Kraft', 'Allgemeine Fitness'];
+  for (const goal of goals) for (const level of [1, 2, 3] as Level[]) for (const daysPerWeek of [2, 3, 4, 5, 6]) for (const minutes of [20, 30, 45, 60, 90]) for (const preset of PRESETS) {
+    const profile = { ...base, goal, level, daysPerWeek, minutes, equipment: preset.items };
+    const plan = generatePlan(profile);
+    assert.equal(plan.days.length, daysPerWeek);
+    for (const day of plan.days) {
+      const label = `${goal}/${level}/${daysPerWeek}/${minutes}/${preset.id}/${day.id}`;
+      assert.ok(day.items.length >= 3, `${label}: zu wenige Übungen`);
+      assert.equal(new Set(day.items.map((i) => i.exerciseId)).size, day.items.length, `${label}: doppelte Übung`);
+      assert.ok(day.minutes <= minutes + 6, `${label}: ${day.minutes} Min. bei ${minutes}`);
+      assert.equal(day.minutes, dayMinutes(day.items));
+      for (const item of day.items) {
+        const ex = exercise(item.exerciseId);
+        assert.ok(ex.needs.every((n) => preset.items.includes(n)), `${label}: ${ex.name} braucht fehlendes Equipment`);
+        assert.ok(item.sets >= 2 && item.lo <= item.hi);
+      }
+    }
+  }
+});
+
+test('Problemzonen schließen belastende Übungen aus', () => {
+  const plan = generatePlan({ ...base, equipment: gym, limitations: ['knee', 'shoulder', 'back'] });
+  for (const day of plan.days) for (const item of day.items) assert.deepEqual(exercise(item.exerciseId).stress ?? [], []);
+});
+
+test('Mehr Equipment ergibt einen besseren Score, Studio ist das Maximum', () => {
+  const none = equipmentScore(base);
+  const home = equipmentScore({ ...base, equipment: PRESETS[1].items });
+  const full = equipmentScore({ ...base, equipment: gym });
+  assert.ok(none < home && home < full, `${none} < ${home} < ${full}`);
+  assert.ok(full >= 95);
+});
+
+test('Kraft bevorzugt die Langhantel, Einsteiger bekommen keine Technikübungen', () => {
+  const kraft = generatePlan({ ...base, goal: 'Kraft', equipment: gym });
+  const ids = kraft.days.flatMap((d) => d.items.map((i) => i.exerciseId));
+  for (const id of ['back_squat', 'bb_bench', 'deadlift']) assert.ok(ids.includes(id), id);
+  const first = kraft.days[0].items[0];
+  assert.deepEqual([first.sets, first.lo, first.hi, first.rest], [4, 3, 6, 180]);
+  const beginner = generatePlan({ ...base, level: 1, equipment: gym });
+  for (const day of beginner.days) for (const item of day.items) assert.equal(exercise(item.exerciseId).level, 1);
+});
+
+test('Upgrade-Empfehlung: ohne Geräte lohnt sich eine Anschaffung, im Studio keine', () => {
+  const up = upgrades(base);
+  assert.ok(up.length > 0 && up[0].gain > 0);
+  assert.ok(up.every((u) => u.items.every((i: EquipmentId) => !base.equipment.includes(i))));
+  assert.deepEqual(upgrades({ ...base, equipment: gym }), []);
+});
+
+test('Tauschen: Alternativen passen zum Equipment und der Tausch hält den Plan gültig', () => {
+  const profile = { ...base, equipment: PRESETS[2].items };
+  const plan = generatePlan(profile);
+  const day = plan.days[0];
+  const alts = alternatives(profile, day.items[0], day);
+  assert.ok(alts.length > 0);
+  assert.ok(alts.every((a) => a.needs.every((n) => profile.equipment.includes(n)) && !day.items.some((i) => i.exerciseId === a.id)));
+  const swapped = swapExercise(plan, profile, day.id, 0, alts[0].id);
+  assert.equal(swapped.days[0].items[0].exerciseId, alts[0].id);
+  assert.equal(swapped.days[1], plan.days[1]);
+});
+
+test('Wochenvolumen: große Muskelgruppen bekommen im Studio genug Sätze', () => {
+  const v = weeklyVolume(generatePlan({ ...base, equipment: gym }));
+  for (const m of ['Brust', 'Rücken', 'Quadrizeps', 'Beinbeuger', 'Schultern'] as const) assert.ok(v[m] >= 7, `${m}: ${v[m]}`);
+});
+
+test('Progression: Start, halten, steigern, zurücknehmen, schwerere Variante', () => {
+  const bench = exercise('db_bench');
+  const item = { sets: 3, lo: 6, hi: 10 };
+  assert.equal(suggest(bench, item, []).kind, 'start');
+  const hold = suggest(bench, item, [log('db_bench', [[20, 9], [20, 8], [20, 7]])]);
+  assert.deepEqual([hold.kind, hold.weight, hold.reps], ['hold', 20, 8]);
+  const up = suggest(bench, item, [log('db_bench', [[20, 10], [20, 10], [20, 10]])]);
+  assert.deepEqual([up.kind, up.weight, up.reps], ['up', 22, 6]);
+  const notAllSets = suggest(bench, item, [log('db_bench', [[20, 10], [20, 10]])]);
+  assert.equal(notAllSets.kind, 'hold');
+  const down = suggest(bench, item, [log('db_bench', [[30, 5], [30, 4], [30, 4]]), log('db_bench', [[30, 5], [30, 5], [30, 4]])]);
+  assert.deepEqual([down.kind, down.weight], ['down', 28]);
+  const once = suggest(bench, item, [log('db_bench', [[30, 5], [30, 4], [30, 4]])]);
+  assert.equal(once.kind, 'hold');
+  const pushup = suggest(exercise('pushup'), { sets: 3, lo: 8, hi: 15 }, [log('pushup', [[0, 15], [0, 15], [0, 16]], 8, 15)]);
+  assert.equal(pushup.kind, 'harder');
+  assert.match(pushup.note, /erhöhten Füßen/);
+});
+
+test('Bestwerte und Wochen in Folge', () => {
+  assert.equal(e1rm(100, 1), 100);
+  assert.equal(Math.round(e1rm(100, 6)), 120);
+  const older = session('2026-11-02T18:00:00', [log('db_bench', [[20, 8]])]);
+  const newer = session('2026-11-10T18:00:00', [log('db_bench', [[22, 8]]), log('db_row', [[24, 10]])]);
+  assert.deepEqual(newRecords(newer, [older]), ['db_bench']);
+  const rec = records([newer, older]).find((r) => r.exerciseId === 'db_bench');
+  assert.deepEqual(rec?.series.map(Math.round), [25, 28]);
+  assert.equal(weekStart(new Date('2026-11-15T12:00:00')).getDate(), 9);
+  assert.equal(activeWeeks([newer, older], new Date('2026-11-18T12:00:00')), 2);
+  assert.equal(activeWeeks([newer, older], new Date('2026-11-25T12:00:00')), 0);
+});
