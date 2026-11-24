@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ExerciseGuide, Library, Thumb } from '../ExerciseGuide';
@@ -6,7 +6,7 @@ import { QUICK_QUESTIONS, coachContext, localCoach } from '../coach';
 import { equipmentName } from '../engine/equipment';
 import { PATTERN_NAME, exercise } from '../engine/exercises';
 import { MUSCLE_ORDER, alternatives, upgrades, weeklyVolume } from '../engine/plan';
-import { defaultTrainDays, doneWeekdays, weekMinutes, weekdayIndex } from '../engine/progression';
+import { defaultTrainDays, doneWeekdays, weekMinutes, weekReview, weekdayIndex } from '../engine/progression';
 import { activeWeeks, logsFor, muscleSets, records, sessionSets, sessionVolume, sessionsThisWeek, suggest, weeklyCounts } from '../engine/progression';
 import { walkKcal } from '../engine/nutrition';
 import { startWeight } from '../engine/startweights';
@@ -32,7 +32,7 @@ const LEVEL = ['', 'Einsteiger', 'Fortgeschritten', 'Erfahren'];
 const range = (lo: number, hi: number) => (lo === hi ? `${hi}` : `${lo}–${hi}`);
 const day = (iso: string) => new Date(iso).toLocaleDateString('de-AT', { weekday: 'short', day: 'numeric', month: 'short' });
 
-export function Home({ profile, plan, history, nextDay, start, startFree, goTo, weights, walks, addWalk }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[]; walks: Walk[]; addWalk: (minutes: number, kmh?: number) => void }) {
+export function Home({ profile, plan, history, nextDay, start, startFree, goTo, weights, walks, addWalk, walkStart, setWalkStart }: Shared & { goTo: (tab: 'Training' | 'Coach' | 'Profil' | 'Fortschritt') => void; weights: WeightEntry[]; walks: Walk[]; addWalk: (minutes: number, kmh?: number) => void; walkStart: number | null; setWalkStart: (t: number | null) => void }) {
   const [walkMin, setWalkMin] = useState(20);
   const planned = profile.trainDays?.length ? profile.trainDays : defaultTrainDays(profile.daysPerWeek);
   const doneDays = doneWeekdays(history);
@@ -41,6 +41,9 @@ export function Home({ profile, plan, history, nextDay, start, startFree, goTo, 
   const hasPad = profile.equipment.includes('walkpad');
   const [walkKmh, setWalkKmh] = useState(3);
   const [breakOpen, setBreakOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(false);
+  const [tick, setTick] = useState(Date.now());
+  useEffect(() => { if (!walkStart) return; setTick(Date.now()); const id = setInterval(() => setTick(Date.now()), 1000); return () => clearInterval(id); }, [walkStart]);
   const weekStartMs = new Date().getTime() - weekdayIndex(new Date()) * 86400000 - (new Date().getHours() * 3600 + new Date().getMinutes() * 60) * 1000;
   const kcalWeek = profile.weightKg ? walks.filter((w) => new Date(w.date).getTime() >= weekStartMs).reduce((n, w) => n + walkKcal(profile.weightKg as number, w.minutes, w.kmh ?? 4.5), 0) : 0;
   const today = plan.days[nextDay];
@@ -122,10 +125,25 @@ export function Home({ profile, plan, history, nextDay, start, startFree, goTo, 
             ? 'Im Büro: 2–3 km/h bei Telefonaten und Lesen, 20–30 Minuten am Stück, mehrmals am Tag. Für Fettverbrennung zusätzlich 4–5,5 km/h nach der Arbeit. Tippen geht bei bis zu 3 km/h noch gut.'
             : '150 Minuten zügige Bewegung pro Woche sind die gängige Empfehlung. Jede Etappe ab ein paar Minuten zählt.'}</Text>
           {kcalWeek ? <Text style={s.small}>Diese Woche durch Gehen: ca. {kcalWeek} kcal (Schätzung).</Text> : null}
+          <Button small variant={walkStart ? 'primary' : 'secondary'} icon="timer-outline" title={walkStart ? `Geh-Timer läuft · ${Math.floor((tick - walkStart) / 60000)} Min.` : 'Geh-Timer starten'} onPress={() => { if (!walkStart) setWalkStart(Date.now()); setTimerOpen(true); }} />
           <Button small variant="ghost" icon="body-outline" title="5-Minuten-Ausgleich fürs Büro" onPress={() => setBreakOpen(true)} />
         </Card>
       </Entrance>
     ) : null}
+    <Sheet visible={timerOpen} onClose={() => setTimerOpen(false)} title="Geh-Timer">
+      {walkStart ? (() => {
+        const sec = Math.max(0, Math.floor((tick - walkStart) / 1000));
+        const min = Math.max(1, Math.round(sec / 60));
+        return <>
+          <Text style={[s.hero, { fontSize: 56, lineHeight: 64, textAlign: 'center', fontVariant: ['tabular-nums'] }]}>{Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}</Text>
+          {hasPad ? <View style={[s.row, { justifyContent: 'center' }]}><Stepper label="Tempo in km/h" value={walkKmh} step={0.5} min={2} max={6.5} onChange={setWalkKmh} /><Text style={s.small}>km/h</Text></View> : null}
+          <Text style={[s.muted, { textAlign: 'center' }]}>{profile.weightKg ? `ca. ${walkKcal(profile.weightKg, sec / 60, hasPad ? walkKmh : 4.5)} kcal · ` : ''}{hasPad ? `${fmt(Math.round((walkKmh * sec) / 36) / 100)} km` : 'zügiges Gehen'}</Text>
+          <Text style={[s.small, { textAlign: 'center' }]}>Du kannst dieses Fenster schließen, der Timer läuft weiter, solange die App offen ist.</Text>
+          <Button icon="checkmark" title={`Stoppen und ${min} Min. eintragen`} onPress={() => { addWalk(min, hasPad ? walkKmh : undefined); setWalkStart(null); setTimerOpen(false); }} />
+          <Button variant="ghost" title="Verwerfen" onPress={() => { setWalkStart(null); setTimerOpen(false); }} />
+        </>;
+      })() : null}
+    </Sheet>
     <Sheet visible={breakOpen} onClose={() => setBreakOpen(false)} title="5-Minuten-Ausgleich">
       <Text style={s.muted}>Nach jeder Stunde Sitzen einmal durch. Alles im Stehen, ohne Geräte, in Bürokleidung machbar.</Text>
       {[
@@ -353,6 +371,25 @@ export function Progress({ profile, history, removeSession, weights, addWeight }
   }
   return <>
     <Text style={s.hero}>Dein Fortschritt</Text>
+    {(() => {
+      const r = weekReview(history);
+      const diff = r.prevVolume ? Math.round((r.volume / r.prevVolume - 1) * 100) : null;
+      const weeks = activeWeeks(history);
+      return (
+        <Card accent>
+          <Eyebrow>Wochenrückblick</Eyebrow>
+          <Text style={s.heading}>{r.sessions >= profile.daysPerWeek ? 'Wochenziel erreicht' : r.sessions ? `${r.sessions} von ${profile.daysPerWeek} Einheiten` : 'Diese Woche noch keine Einheit'}</Text>
+          <View style={s.rowBetween}><Text style={s.muted}>Einheiten</Text><Text style={s.text}>{r.sessions} (Vorwoche {r.prevSessions})</Text></View>
+          <View style={s.rowBetween}><Text style={s.muted}>Sätze</Text><Text style={s.text}>{r.sets}</Text></View>
+          <View style={s.rowBetween}><Text style={s.muted}>Bewegtes Gewicht</Text><Text style={s.text}>{fmtLoad(r.volume)}{diff !== null ? ` (${diff >= 0 ? '+' : ''}${diff} % zur Vorwoche)` : ''}</Text></View>
+          {r.records.length ? <View style={s.row}><Ionicons name="trophy" size={18} color={c.lime} /><Text style={[s.text, { flex: 1 }]}>Neue Bestwerte: {r.records.map((id) => exercise(id).name).join(', ')}</Text></View> : null}
+          <Text style={s.small}>{weeks >= 6 ? `Seit ${weeks} Wochen ohne Pause: Plane die nächste Woche leichter (halbe Satzzahl, gleiches Gewicht), danach geht es wieder aufwärts.`
+            : r.sessions === 0 ? 'Die erste Einheit der Woche ist die wichtigste. Zwei Übungen reichen für den Anfang.'
+            : r.sessions < profile.daysPerWeek ? 'Vergleich mit der Vorwoche erst am Wochenende aussagekräftig, die Woche läuft noch.'
+            : 'Stark. Halte das Tempo, die Steigerung kommt über die Wochen.'}</Text>
+        </Card>
+      );
+    })()}
     <View style={s.row}>
       <Tile icon="barbell-outline" value={String(history.length)} label="Einheiten" />
       <Tile icon="time-outline" value={minutes >= 600 ? `${Math.round(minutes / 60)} Std.` : `${minutes} Min.`} label="Trainingszeit" />

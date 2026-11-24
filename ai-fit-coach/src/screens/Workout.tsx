@@ -9,6 +9,7 @@ import { equipmentName } from '../engine/equipment';
 import { exercise } from '../engine/exercises';
 import { alternatives, prescribe } from '../engine/plan';
 import { startWeight } from '../engine/startweights';
+import { plates, warmupSets } from '../engine/progression';
 import { logsFor, newRecords, sessionSets, sessionVolume, suggest } from '../engine/progression';
 import type { ExerciseLog, PlanDay, PlanItem, Profile, Session } from '../engine/types';
 import { colors as c } from '../theme';
@@ -226,6 +227,26 @@ function Session_({ day, profile, history, onFinish, onCancel, onSwap, notes, se
           <Text style={s.text}>{sg.note}</Text>
         </Card>
 
+        {(() => {
+          const work = (log.sets.find((x) => !x.done) ?? log.sets[0]).weight;
+          const warm = ex.load === 'external' && ex.kind === 'compound' && !log.sets.some((x) => x.done) ? warmupSets(work, ex.step) : [];
+          const bar = ex.needs.includes('barbell') && work > 0 ? plates(work) : null;
+          if (!warm.length && !bar) return null;
+          return (
+            <Card>
+              {warm.length ? <>
+                <Eyebrow>Aufwärmsätze</Eyebrow>
+                <Text style={s.text}>{warm.map((x) => `${fmt(x.weight)} kg × ${x.reps}`).join('   ·   ')}</Text>
+                <Text style={s.small}>Zügig und ohne Anstrengung, dazwischen 30–60 Sekunden. Sie zählen nicht als Sätze.</Text>
+              </> : null}
+              {bar ? <>
+                <Eyebrow>Scheiben je Seite · {fmt(work)} kg</Eyebrow>
+                <Text style={s.text}>{work < 20 ? 'Leichter als die 20-kg-Stange: leichtere Stange oder Kurzhanteln nehmen.' : bar.perSide.length ? bar.perSide.map((x) => fmt(x)).join(' + ') + ' kg' : 'Nur die Stange (20 kg)'}</Text>
+                {bar.rest > 0 && work >= 20 ? <Text style={[s.small, { color: c.warn }]}>{fmt(bar.rest)} kg lassen sich mit Standardscheiben nicht legen.</Text> : null}
+              </> : null}
+            </Card>
+          );
+        })()}
         <Card>
           {log.sets.map((set, j) => (
             <View key={j} style={[s.rowBetween, { opacity: set.done ? 0.6 : 1 }]}>

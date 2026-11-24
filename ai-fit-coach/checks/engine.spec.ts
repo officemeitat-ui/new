@@ -261,3 +261,31 @@ test('Ernährung: Bedarf, Ziel-Anpassung, Untergrenzen und Schutzregeln', async 
   assert.notEqual(dayPlan(2000, 0).meals[1].title, dayPlan(2000, 1).meals[1].title);
   assert.ok(walkKcal(80, 60, 4) > walkKcal(80, 60, 3) && walkKcal(80, 30, 4) === 120);
 });
+
+test('Einkaufsliste, Aufwärmsätze, Scheibenrechner, Wochenrückblick', async () => {
+  const { shoppingList, dayPlan } = await import('../src/engine/nutrition');
+  const { warmupSets, plates, weekReview } = await import('../src/engine/progression');
+  const list = shoppingList(2000, [0, 1, 2]);
+  assert.equal(new Set(list.map((i) => i.key)).size, list.length);
+  const veg = list.find((i) => i.key === 'veg')!;
+  const grams = [0, 1, 2].flatMap((d) => dayPlan(2000, d).meals.flatMap((m) => m.items)).filter((i) => i.key === 'veg').reduce((n, i) => n + i.grams, 0);
+  assert.equal(veg.text, grams >= 1000 ? `${String(Math.round(grams / 100) / 10).replace('.', ',')} kg` : `${grams} g`);
+  assert.ok(!shoppingList(2000, [0, 1, 2], true).some((i) => ['chicken', 'beef', 'salmon', 'tuna', 'turkey'].includes(i.key)));
+  assert.deepEqual(warmupSets(100, 2.5), [{ weight: 50, reps: 8 }, { weight: 70, reps: 5 }, { weight: 85, reps: 2 }]);
+  assert.deepEqual(warmupSets(6, 2), []);
+  assert.ok(warmupSets(12, 2).every((x) => x.weight < 12));
+  assert.deepEqual(plates(100), { perSide: [20, 20], rest: 0 });
+  assert.deepEqual(plates(62.5), { perSide: [20, 1.25], rest: 0 });
+  assert.deepEqual(plates(20), { perSide: [], rest: 0 });
+  assert.equal(plates(61).rest, 1);
+  const now = new Date('2026-11-26T12:00:00');
+  const hist = [
+    session('2026-11-25T18:00:00', [log('db_bench', [[24, 8], [24, 8]])]),
+    session('2026-11-23T18:00:00', [log('db_bench', [[22, 8]])]),
+    session('2026-11-18T18:00:00', [log('db_bench', [[20, 8]])]),
+  ];
+  const r = weekReview(hist, now);
+  assert.deepEqual([r.sessions, r.prevSessions, r.sets, r.prevVolume], [2, 1, 3, 160]);
+  assert.equal(r.volume, 24 * 16 + 22 * 8);
+  assert.deepEqual(r.records, ['db_bench']);
+});

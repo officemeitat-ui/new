@@ -17,5 +17,5 @@ export async function loadState(): Promise<AppState> {
   return EMPTY;
 }
 
-export const saveState = ({ profile, plan, history, weights, nextDay, notes, walks, reminder }: AppState) =>
-  AsyncStorage.setItem(KEY, JSON.stringify({ profile, plan, history, weights, nextDay, notes, walks, reminder }));
+export const saveState = ({ profile, plan, history, weights, nextDay, notes, walks, reminder, mealLog }: AppState) =>
+  AsyncStorage.setItem(KEY, JSON.stringify({ profile, plan, history, weights, nextDay, notes, walks, reminder, mealLog }));

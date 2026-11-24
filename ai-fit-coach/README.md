@@ -35,6 +35,10 @@ Voraussetzung: Node.js 20.19 oder neuer. Bei SDK-Konflikten: `npx expo install -
 - **Erinnerungen:** lokale Mitteilung an den gewählten Trainingstagen zur eingestellten Uhrzeit (nur in der App am Handy, nicht im Browser; auf einem echten Gerät noch nicht getestet).
 - **Sicherung:** Profil, Plan, Einheiten, Gewichte und Notizen als Text oder Datei exportieren und wieder einspielen.
 - **Ernährung (Tab „Essen“):** Kalorien- und Makroziel aus Größe, Gewicht, Alter, Alltag und Ziel (Mifflin-St Jeor, Defizit bzw. Überschuss nach Ziel). Drei Beispieltage mit vier alltagstauglichen Mahlzeiten, Mengen auf das Kalorienziel skaliert, auch vegetarisch. Schutzregeln: nie unter dem Grundumsatz, kein Defizit bei Untergewicht, keine Kalorienziele unter 18, Eiweiß bei hohem Gewicht nach Bezugsgewicht. Richtwerte nach gängigen Empfehlungen, keine Pläne namentlicher Experten und kein Ersatz für Ernährungsberatung.
+- **Mahlzeiten abhaken und Einkaufsliste:** Gegessene Mahlzeiten des Beispieltags abhaken und Kalorien und Eiweiß des Tages sehen. Einkaufsliste für 3 oder 6 Tage mit zusammengezählten Mengen.
+- **Aufwärmsätze und Scheibenrechner:** Vor dem ersten Satz einer Grundübung drei Aufwärmsätze (50, 70, 85 %), bei Langhantel-Übungen die Scheiben je Seite.
+- **Wochenrückblick:** Einheiten, Sätze und bewegtes Gewicht gegen die Vorwoche, neue Bestwerte, Hinweis auf eine leichtere Woche nach sechs Wochen am Stück.
+- **Geh-Timer:** Zeit, Strecke und geschätzter Verbrauch live, am Ende mit einem Tipp eintragen.
 - **Büro-Ausgleich und Gehpad:** Gehpad als Equipment, Geh-Minuten mit Tempo und geschätztem Verbrauch eintragen, Wochenziel 150 Minuten, Empfehlungen fürs Gehen am Schreibtisch und eine 5-Minuten-Routine gegen langes Sitzen.
 - **Video-Suche:** Jede Übung öffnet die YouTube-Suche zur richtigen Ausführung (Videos von Dritten, nicht geprüft).
 - **Steigerungsplan:** Je Übung die nächsten Gewichtsstufen, dazu eine Begründung, warum der Split zu den Trainingstagen passt.

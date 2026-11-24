@@ -76,7 +76,7 @@ const MEALS: { id: string; name: string; share: number; options: Recipe[] }[] = 
   ] },
 ];
 
-export type MealItem = { name: string; grams: number; text: string };
+export type MealItem = { key: string; name: string; grams: number; text: string };
 export type Meal = { id: string; name: string; title: string; how: string; kcal: number; protein: number; items: MealItem[] };
 export type DayPlan = { meals: Meal[]; kcal: number; protein: number };
 
@@ -102,7 +102,7 @@ export function dayPlan(target: number, day = 0, vegetarian = false): DayPlan {
       id: m.id, name: m.name, title: recipe.name, how: recipe.how,
       kcal: Math.round(items.reduce((n, i) => n + (FOOD[i.k].kcal * i.grams) / 100, 0)),
       protein: Math.round(items.reduce((n, i) => n + (FOOD[i.k].p * i.grams) / 100, 0)),
-      items: items.map(({ name, grams, text }) => ({ name, grams, text })),
+      items: items.map(({ name, grams, text, k }) => ({ key: k, name, grams, text })),
     };
   });
   return { meals, kcal: meals.reduce((n, m) => n + m.kcal, 0), protein: meals.reduce((n, m) => n + m.protein, 0) };
@@ -121,4 +121,16 @@ export const RULES = [
 export function walkKcal(weightKg: number, minutes: number, kmh: number): number {
   const met = kmh < 2.5 ? 2.0 : kmh < 3.5 ? 2.5 : kmh < 4.5 ? 3.0 : kmh < 5.5 ? 3.6 : 4.3;
   return Math.round((met * weightKg * minutes) / 60);
+}
+
+/** Einkaufsliste für mehrere Beispieltage: gleiche Zutaten zusammengezählt, nach Name sortiert. */
+export function shoppingList(target: number, days: number[], vegetarian = false): { key: string; name: string; text: string }[] {
+  const sum = new Map<string, number>();
+  for (const d of days) for (const m of dayPlan(target, d, vegetarian).meals) for (const i of m.items) sum.set(i.key, (sum.get(i.key) ?? 0) + i.grams);
+  return [...sum.entries()].map(([key, grams]) => {
+    const f = FOOD[key];
+    const n = f.piece ? Math.round(grams / f.piece.g) : 0;
+    const text = f.piece ? `${n} ${n === 1 ? f.piece.one : f.piece.many}` : grams >= 1000 ? `${String(Math.round(grams / 100) / 10).replace('.', ',')} kg` : `${grams} g`;
+    return { key, name: f.name, text };
+  }).sort((a, b) => a.name.localeCompare(b.name, 'de'));
 }

@@ -165,3 +165,34 @@ export const weekMinutes = (entries: { date: string; minutes: number }[], now = 
   const start = weekStart(now).getTime();
   return entries.filter((e) => { const t = new Date(e.date).getTime(); return t >= start && t < start + 7 * 86400000; }).reduce((n, e) => n + e.minutes, 0);
 };
+
+/** Aufwärmsätze vor dem ersten Arbeitssatz: 50 %, 70 % und 85 % des Arbeitsgewichts. */
+export function warmupSets(weight: number, step: number): { weight: number; reps: number }[] {
+  if (weight < step * 4) return [];
+  const sets = [[0.5, 8], [0.7, 5], [0.85, 2]].map(([f, reps]) => ({ weight: Math.max(step, Math.round((weight * f) / step) * step), reps }));
+  return sets.filter((x, i) => x.weight < weight && (i === 0 || x.weight > sets[i - 1].weight));
+}
+
+/** Scheiben je Seite für eine Langhantel; rest ist der Anteil, der sich mit den Scheiben nicht legen lässt. */
+export function plates(total: number, bar = 20): { perSide: number[]; rest: number } {
+  let left = Math.max(0, (total - bar) / 2);
+  const perSide: number[] = [];
+  for (const p of [20, 15, 10, 5, 2.5, 1.25]) while (left >= p - 1e-9) { perSide.push(p); left -= p; }
+  return { perSide, rest: Math.round(left * 2 * 100) / 100 };
+}
+
+export type WeekReview = { sessions: number; prevSessions: number; volume: number; prevVolume: number; sets: number; records: string[] };
+
+/** Laufende Woche gegen die Vorwoche. */
+export function weekReview(history: Session[], now = new Date()): WeekReview {
+  const start = weekStart(now);
+  const prev = new Date(start);
+  prev.setDate(prev.getDate() - 7);
+  const cur = history.filter((sn) => inWeek(sn, start));
+  const before = history.filter((sn) => inWeek(sn, prev));
+  const records = new Set<string>();
+  // Älteste zuerst, damit jede Einheit nur gegen frühere verglichen wird.
+  for (const sn of [...cur].reverse()) newRecords(sn, history.filter((o) => new Date(o.date).getTime() < new Date(sn.date).getTime())).forEach((id) => records.add(id));
+  const vol = (list: Session[]) => Math.round(list.reduce((n, sn) => n + sessionVolume(sn), 0));
+  return { sessions: cur.length, prevSessions: before.length, volume: vol(cur), prevVolume: vol(before), sets: cur.reduce((n, sn) => n + sessionSets(sn), 0), records: [...records] };
+}

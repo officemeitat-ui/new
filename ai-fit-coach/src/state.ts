@@ -17,13 +17,15 @@ export type AppState = {
   /** Eingetragenes Gehen und andere Alltagsbewegung. */
   walks: Walk[];
   reminder: Reminder;
+  /** Heute abgehakte Mahlzeiten aus dem Beispieltag. */
+  mealLog: { date: string; day: number; ids: string[] } | null;
   /** Eigene Notizen je Übung. */
   notes: Record<string, string>;
   /** Name aus einer älteren App-Version, als Vorschlag fürs Onboarding. */
   draftName?: string;
 };
 
-export const EMPTY: AppState = { profile: null, plan: null, history: [], weights: [], nextDay: 0, notes: {}, walks: [], reminder: DEFAULT_REMINDER };
+export const EMPTY: AppState = { profile: null, plan: null, history: [], weights: [], nextDay: 0, notes: {}, walks: [], reminder: DEFAULT_REMINDER, mealLog: null };
 
 const known = new Set<string>(EQUIPMENT.map((e) => e.id));
 
@@ -44,12 +46,14 @@ export function clean(raw: unknown): AppState {
   const walks = Array.isArray(data.walks) ? data.walks.filter((w) => w && typeof w.minutes === 'number' && typeof w.date === 'string') : [];
   const r = data.reminder;
   const reminder = r && typeof r.hour === 'number' && typeof r.minute === 'number' ? { on: !!r.on, hour: r.hour, minute: r.minute } : DEFAULT_REMINDER;
-  return { profile, plan, history, weights, nextDay, notes, walks, reminder };
+  const ml = data.mealLog;
+  const mealLog = ml && typeof ml.date === 'string' && Array.isArray(ml.ids) ? { date: ml.date, day: Number(ml.day) || 0, ids: ml.ids.filter((x) => typeof x === 'string') } : null;
+  return { profile, plan, history, weights, nextDay, notes, walks, reminder, mealLog };
 }
 
 /** Sicherung als Text (JSON). */
-export const exportState = ({ profile, plan, history, weights, nextDay, notes, walks, reminder }: AppState) =>
-  JSON.stringify({ app: 'ai-fit-coach', version: 1, exportedAt: new Date().toISOString(), profile, plan, history, weights, nextDay, notes, walks, reminder });
+export const exportState = ({ profile, plan, history, weights, nextDay, notes, walks, reminder, mealLog }: AppState) =>
+  JSON.stringify({ app: 'ai-fit-coach', version: 1, exportedAt: new Date().toISOString(), profile, plan, history, weights, nextDay, notes, walks, reminder, mealLog });
 
 /** Liest eine Sicherung; null, wenn der Text keine gültige Sicherung mit Profil ist. */
 export function importState(text: string): AppState | null {

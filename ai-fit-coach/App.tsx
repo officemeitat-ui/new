@@ -33,6 +33,7 @@ function AppContent() {
   const [editing, setEditing] = useState(false);
   const [workoutDay, setWorkoutDay] = useState<number | 'free' | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [walkStart, setWalkStart] = useState<number | null>(null);
 
   useEffect(() => { loadState().then(setState).catch(() => setSaveFailed(true)).finally(() => setLoaded(true)); }, []);
   const [reminderStatus, setReminderStatus] = useState<string>('');
@@ -99,9 +100,9 @@ function AppContent() {
             <Text style={s.brand}>AI FIT COACH</Text>
             {saveFailed ? <Text style={[s.small, { color: c.danger }]}>Speichern fehlgeschlagen</Text> : null}
           </View>
-          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} walks={state.walks} addWalk={(minutes, kmh) => setState((old) => ({ ...old, walks: [...old.walks, { date: new Date().toISOString(), minutes, kmh }] }))} />}
+          {tab === 'Home' && <Home {...shared} goTo={setTab} weights={state.weights} walks={state.walks} walkStart={walkStart} setWalkStart={setWalkStart} addWalk={(minutes, kmh) => setState((old) => ({ ...old, walks: [...old.walks, { date: new Date().toISOString(), minutes, kmh }] }))} />}
           {tab === 'Training' && <Training {...shared} regenerate={() => setState((old) => (old.profile ? { ...old, plan: generatePlan(old.profile), nextDay: 0 } : old))} />}
-          {tab === 'Essen' && <Nutrition profile={profile} edit={() => setEditing(true)} setVegetarian={(v) => setState((old) => (old.profile ? { ...old, profile: { ...old.profile, vegetarian: v } } : old))} />}
+          {tab === 'Essen' && <Nutrition profile={profile} edit={() => setEditing(true)} setVegetarian={(v) => setState((old) => (old.profile ? { ...old, profile: { ...old.profile, vegetarian: v } } : old))} mealLog={state.mealLog} setMealLog={(mealLog) => setState((old) => ({ ...old, mealLog }))} />}
           {tab === 'Coach' && <Coach {...shared} messages={messages} setMessages={setMessages} />}
           {tab === 'Fortschritt' && <Progress {...shared} removeSession={(id) => setState((old) => ({ ...old, history: old.history.filter((sn) => sn.id !== id) }))} weights={state.weights} addWeight={(kg) => setState((old) => ({ ...old, weights: [...old.weights, { date: new Date().toISOString(), kg }] }))} />}
           {tab === 'Profil' && <ProfileTab {...shared} edit={() => setEditing(true)} clearHistory={() => setState((old) => ({ ...old, history: [], weights: [], walks: [], nextDay: 0 }))} resetAll={() => { setState(EMPTY); setMessages([]); setTab('Home'); }} reminder={state.reminder} setReminder={(reminder) => setState((old) => ({ ...old, reminder }))} reminderStatus={reminderStatus} backup={() => exportState(state)} restore={(text) => { const next = importState(text); if (next) setState(next); return !!next; }} />}
