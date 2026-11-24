@@ -11,7 +11,8 @@
     "hochladen": "node scripts/build.js && node scripts/hochladen.js",
     "test": "node --test",
     "theme": "node scripts/theme-from-site.js",
-    "anleitung": "node scripts/anleitung.js"
+    "anleitung": "node scripts/anleitung.js",
+    "pruefung": "node pruefung/alle.mjs"
   },
   "engines": {
     "node": ">=20"

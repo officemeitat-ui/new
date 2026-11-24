@@ -403,7 +403,7 @@ function placementBlock(tour, stop, p, i, work) {
     <div class="mwf-card-top"><h3>${esc(p.placementName || 'Liegeplatz')}</h3>${pill}</div>
     ${meta ? `<p class="mwf-meta">${meta}</p>` : ''}
     ${p.hint ? `<p class="mwf-hint">${esc(p.hint)}</p>` : ''}
-    ${p.refPhoto ? `<p class="mwf-ref"><button type="button" class="btn small" data-action="mwf-ref-open" data-path="${esc(p.refPhoto)}">${ICON.camera} So liegt die Matte (Foto vom Büro)</button></p>` : ''}
+    ${p.refPhoto ? `<p class="mwf-ref"><button type="button" class="btn mwf-tap" data-action="mwf-ref-open" data-path="${esc(p.refPhoto)}">${ICON.camera} So liegt die Matte (Foto vom Büro)</button></p>` : ''}
     <ul class="mwf-mats">${mats}</ul>
     ${st === 'nicht-moeglich' || (st === 'teilweise' && p.reason) ? `<p class="mwf-reason">Nicht möglich: ${esc(p.reason)}</p>` : ''}
     ${buttons}
