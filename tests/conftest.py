@@ -40,6 +40,7 @@ def settings(tmp_path):
     return dataclasses.replace(
         get_settings(), db_path=str(tmp_path / "test.db"), llm_provider="none",
         allow_cloud_fallback=False, seed_demo_data=True, app_password="",
+        kb_library=False,  # die große Hilfe-Bibliothek nur in ihrem eigenen Test einlesen (hält die übrigen Tests schnell und stabil)
     )
 
 

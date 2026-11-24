@@ -57,15 +57,48 @@ class Atera:
         except httpx.HTTPError as exc:
             raise AteraError(f"Atera-API nicht erreichbar: {exc}") from exc
 
-    def paged(self, path: str, max_pages: int = 200) -> list[dict[str, Any]]:
+    def paged(self, path: str, max_pages: int = 200, extra: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         items, page = [], 1
         while page <= max_pages:
-            data = self.get(path, {"page": page, "itemsInPage": 50})
+            data = self.get(path, {"page": page, "itemsInPage": 50, **(extra or {})})
             items += data.get("items") or []
             if page >= int(data.get("totalPages") or 1):
                 break
             page += 1
         return items
+
+    def contacts(self) -> list[dict[str, Any]]:
+        return self.paged("/contacts")
+
+    def tickets(self, statuses: tuple[str, ...] = ("Open", "Pending")) -> list[dict[str, Any]]:
+        """Tickets in den gewünschten Zuständen. Der Filter wird zusätzlich hier geprüft – falls Atera ihn nicht beachtet."""
+        wanted, seen, out = {x.lower() for x in statuses}, set(), []
+        for status in statuses:
+            for t in self.paged("/tickets", max_pages=100, extra={"ticketStatus": status}):
+                i = ci(t)
+                tid = str(pick(i, "TicketID", "Id"))
+                if tid and tid not in seen and str(pick(i, "TicketStatus", "Status")).lower() in wanted:
+                    seen.add(tid)
+                    out.append(t)
+        return out
+
+    def ticket(self, ticket_id: str) -> dict[str, Any] | None:
+        try:
+            data = self.get(f"/tickets/{ticket_id}")
+        except AteraError:
+            return None
+        return data if isinstance(data, dict) and data else None
+
+    def probe(self, path: str) -> dict[str, Any]:
+        """Für die Diagnose: Anzahl und Feldnamen des ersten Eintrags – ohne Inhalte."""
+        try:
+            data = self.get(path, {"page": 1, "itemsInPage": 1})
+        except AteraError as exc:
+            return {"ok": False, "error": str(exc)}
+        items = data.get("items") if isinstance(data, dict) else None
+        first = items[0] if items else {}
+        return {"ok": True, "total": (data.get("totalItemCount") if isinstance(data, dict) else None),
+                "fields": sorted(str(k) for k in first) if isinstance(first, dict) else []}
 
     def customers(self) -> list[dict[str, Any]]:
         return self.paged("/customers")
@@ -77,72 +110,233 @@ class Atera:
         return [a for a in self.paged("/alerts") if not a.get("Archived")]
 
 
+def ci(item: dict[str, Any]) -> dict[str, Any]:
+    """Feldnamen ohne Rücksicht auf Groß-/Kleinschreibung (Atera schreibt sie nicht überall gleich)."""
+    return {str(k).lower(): v for k, v in (item or {}).items()}
+
+
+def pick(item_ci: dict[str, Any], *names: str, default: Any = "") -> Any:
+    for n in names:
+        v = item_ci.get(n.lower())
+        if v not in (None, ""):
+            return v
+    return default
+
+
+STATUS_MAP = {"open": "neu", "pending": "wartet", "resolved": "geloest", "closed": "geloest"}
+PRIORITY_MAP = {"low": "niedrig", "medium": "normal", "high": "hoch", "critical": "kritisch"}
+DEFAULT_OPTIONS = {"contacts": True, "tickets": False, "alert_tickets": False}
+
+
+def local_time(value: Any) -> str:
+    """Zeitangabe aus Atera (meist UTC) als Ortszeit „JJJJ-MM-TT HH:MM:SS“; „“ wenn nicht lesbar."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        dt = datetime.fromisoformat(re.sub(r"(\.\d{1,6})\d*", r"\1", text.replace("Z", "+00:00")))
+    except ValueError:
+        return ""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone().replace(tzinfo=None)
+    return dt.replace(microsecond=0).isoformat(sep=" ")
+
+
 def _device_type(agent: dict[str, Any]) -> str:
     kind = f"{agent.get('OSType') or ''} {agent.get('OS') or ''}".lower()
     return "server" if "server" in kind or "domain controller" in kind else "pc"
 
 
-def sync(db: Database, client: Atera, create_customers: bool = True, alert_tickets: bool = False) -> dict[str, Any]:
+def sync_contacts(db: Database, client: Atera, mapping: dict[str, int], dry_run: bool = False) -> dict[str, int]:
+    """Ansprechpartner übernehmen. Beim Kunden werden nur leere Felder (Name, E-Mail, Telefon) ergänzt – nie überschrieben."""
+    created = updated = unmapped = filled = 0
+    best: dict[int, tuple[int, dict[str, str]]] = {}
+    for raw in client.contacts():
+        c = ci(raw)
+        cid = mapping.get(str(pick(c, "CustomerID")))
+        name = f"{pick(c, 'Firstname', 'FirstName')} {pick(c, 'Lastname', 'LastName')}".strip()
+        email, phone = str(pick(c, "Email")).strip(), str(pick(c, "Phone", "MobilePhone")).strip()
+        if not cid:
+            unmapped += 1
+            continue
+        if not name and not email:
+            continue
+        primary = bool(pick(c, "IsContactPerson", default=False))
+        data = {"name": name or email, "email": email, "phone": phone, "job_title": str(pick(c, "JobTitle")).strip()[:120],
+                "is_primary": primary, "source": "atera", "external_id": f"atera:{pick(c, 'EndUserID', 'ContactID')}"}
+        rank = (0 if primary else 1) if email else 2
+        if cid not in best or rank < best[cid][0]:
+            best[cid] = (rank, data)
+        if cid < 0:  # Vorschau: Kunde würde erst angelegt
+            created += 1
+            continue
+        existing = db.query_one("SELECT id FROM contacts WHERE external_id = ?", (data["external_id"],)) or \
+            (db.query_one("SELECT id FROM contacts WHERE customer_id = ? AND lower(email) = lower(?)", (cid, email)) if email else None)
+        if existing:
+            updated += 1
+            if not dry_run:
+                db.update("contacts", existing["id"], data)
+        else:
+            created += 1
+            if not dry_run:
+                db.insert("contacts", {**data, "customer_id": cid})
+    for cid, (_, data) in best.items():
+        cust = db.get("customers", cid) if cid > 0 else None
+        if not cust:
+            continue
+        patch = {k: v for k, v in (("contact_name", data["name"]), ("email", data["email"]), ("phone", data["phone"])) if v and not cust[k]}
+        if patch:
+            filled += 1
+            if not dry_run:
+                db.update("customers", cid, patch)
+    return {"created": created, "updated": updated, "unmapped": unmapped, "customers_filled": filled}
+
+
+def sync_tickets(db: Database, client: Atera, mapping: dict[str, int], dry_run: bool = False) -> dict[str, int]:
+    """Offene Atera-Tickets spiegeln (nur lesend). Atera bleibt führend: Titel, Zustand und Priorität kommen von dort."""
+    users = {str(u["email"]).lower(): u["id"] for u in db.query("SELECT id, email FROM users WHERE active = 1")}
+    created = updated = closed = unmapped = 0
+    seen: set[str] = set()
+
+    def upsert(raw: dict[str, Any]) -> None:
+        nonlocal created, updated, closed, unmapped
+        t = ci(raw)
+        tid = str(pick(t, "TicketID", "Id"))
+        if not tid:
+            return
+        ext = f"atera:{tid}"
+        seen.add(ext)
+        cid = mapping.get(str(pick(t, "CustomerID")))
+        if not cid:
+            unmapped += 1
+            return
+        status = STATUS_MAP.get(str(pick(t, "TicketStatus", "Status")).lower(), "neu")
+        data = {"title": str(pick(t, "TicketTitle", "Title", default=f"Atera-Ticket {tid}")).strip()[:200], "status": status,
+                "priority": PRIORITY_MAP.get(str(pick(t, "TicketPriority", "Priority")).lower(), "normal"), "source": "atera", "external_id": ext}
+        tech = users.get(str(pick(t, "TechnicianEmail")).lower())
+        if tech:
+            data["assigned_to"] = tech
+        existing = db.query_one("SELECT id, status FROM tickets WHERE external_id = ?", (ext,)) if cid > 0 else None
+        resolved = local_time(pick(t, "TicketResolvedDate")) or now_iso()
+        if existing:
+            updated += 1
+            if status == "geloest" and existing["status"] != "geloest":
+                closed += 1
+                data["resolved_at"] = resolved
+            if not dry_run:
+                db.update("tickets", existing["id"], {**data, "customer_id": cid})
+            return
+        created += 1
+        if dry_run or cid < 0:
+            return
+        who = f"{pick(t, 'EndUserFirstName')} {pick(t, 'EndUserLastName')}".strip() or str(pick(t, "EndUserEmail"))
+        desc = str(pick(t, "FirstComment", "Description")).strip()
+        new_id = db.insert("tickets", {**data, "customer_id": cid, "category": str(pick(t, "TicketType"))[:60],
+                                       "description": (f"Gemeldet von {who}\n\n" if who else "") + desc,
+                                       **({"resolved_at": resolved} if status == "geloest" else {})})
+        when = local_time(pick(t, "TicketCreatedDate", "CreatedDate"))
+        if when:  # das Anlagedatum aus Atera behalten (für Reaktionszeiten und Auswertungen)
+            db.query("UPDATE tickets SET created_at = ? WHERE id = ?", (when, new_id))
+
+    for raw in client.tickets():
+        upsert(raw)
+    # Was bei uns noch offen ist, in Atera aber nicht mehr in der offenen Liste steht: einzeln nachsehen (gelöst?)
+    for row in db.query("SELECT external_id FROM tickets WHERE source = 'atera' AND status != 'geloest' LIMIT 500"):
+        if row["external_id"] in seen:
+            continue
+        raw = client.ticket(row["external_id"].split(":", 1)[1])
+        if raw:
+            upsert(raw)
+    return {"created": created, "updated": updated, "closed": closed, "unmapped": unmapped}
+
+
+def sync(db: Database, client: Atera, create_customers: bool = True, alert_tickets: bool = False, contacts: bool = False,
+         tickets: bool = False, dry_run: bool = False) -> dict[str, Any]:
+    """Abgleich mit Atera. ``dry_run`` = Vorschau: alles wird gelesen und gezählt, aber nichts gespeichert."""
     mapping: dict[str, int] = {str(k): v for k, v in (db.get_setting("atera_customer_map", {}) or {}).items()}
     by_name = {c["name"].strip().lower(): c["id"] for c in db.query("SELECT id, name FROM customers")}
-    created_customers = []
-    for c in client.customers():
-        aid = str(c.get("CustomerID"))
+    created_customers, matched, placeholder = [], 0, 0
+    for raw in client.customers():
+        c = ci(raw)
+        aid = str(pick(c, "CustomerID"))
         if aid in mapping and db.get("customers", mapping[aid]):
+            matched += 1
             continue
-        name = (c.get("CustomerName") or "").strip()
+        name = str(pick(c, "CustomerName", "Name")).strip()
         cid = by_name.get(name.lower())
-        if cid is None and create_customers and name:
-            address = ", ".join(x for x in (c.get("Address"), f"{c.get('ZipCodeStr') or ''} {c.get('City') or ''}".strip()) if x)
-            cid = db.insert("customers", {"name": name, "phone": c.get("Phone") or "", "address": address,
-                                          "booked_services": [], "notes": "Aus Atera übernommen"})
-            by_name[name.lower()] = cid
+        if cid is not None:
+            matched += 1
+        elif create_customers and name:
             created_customers.append(name)
+            if dry_run:
+                placeholder -= 1
+                cid = placeholder  # Platzhalter, damit Geräte und Kontakte in der Vorschau mitgezählt werden
+            else:
+                address = ", ".join(x for x in (str(pick(c, "Address")), f"{pick(c, 'ZipCodeStr', 'ZipCode')} {pick(c, 'City')}".strip()) if x)
+                cid = db.insert("customers", {"name": name, "phone": str(pick(c, "Phone")), "address": address,
+                                              "booked_services": [], "notes": "Aus Atera übernommen"})
+                by_name[name.lower()] = cid
         if cid:
             mapping[aid] = cid
-    db.set_setting("atera_customer_map", mapping)
+    if not dry_run:
+        db.set_setting("atera_customer_map", mapping)
 
     created = updated = skipped = 0
-    for a in client.agents():
-        cid = mapping.get(str(a.get("CustomerID")))
+    for raw in client.agents():
+        a = ci(raw)
+        cid = mapping.get(str(pick(a, "CustomerID")))
         if not cid:
             skipped += 1
             continue
-        name = (a.get("AgentName") or a.get("MachineName") or f"Atera-Gerät {a.get('AgentID')}").strip()
-        ext = f"atera:{a.get('AgentID')}"
-        data = {"name": name, "type": _device_type(a), "os": (a.get("OS") or "").strip(),
-                "serial": (a.get("VendorSerialNumber") or "").strip(), "last_seen": str(a.get("LastSeen") or "")[:10],
-                "external_id": ext, "remote_url": a.get("AppViewUrl") if str(a.get("AppViewUrl") or "").startswith("https://") else ""}
-        existing = db.query_one("SELECT id FROM assets WHERE external_id = ?", (ext,)) or \
-            db.query_one("SELECT id FROM assets WHERE customer_id = ? AND lower(name) = lower(?)", (cid, name))
+        name = str(pick(a, "AgentName", "MachineName", default=f"Atera-Gerät {pick(a, 'AgentID')}")).strip()
+        ext = f"atera:{pick(a, 'AgentID')}"
+        url = str(pick(a, "AppViewUrl"))
+        data = {"name": name, "type": _device_type(raw), "os": str(pick(a, "OS")).strip(),
+                "serial": str(pick(a, "VendorSerialNumber")).strip(), "last_seen": str(pick(a, "LastSeen"))[:10],
+                "external_id": ext, "remote_url": url if url.startswith("https://") else ""}
+        existing = None
+        if cid > 0:
+            existing = db.query_one("SELECT id FROM assets WHERE external_id = ?", (ext,)) or \
+                db.query_one("SELECT id FROM assets WHERE customer_id = ? AND lower(name) = lower(?)", (cid, name))
         if existing:
-            db.update("assets", existing["id"], {k: v for k, v in data.items() if v})
             updated += 1
+            if not dry_run:
+                db.update("assets", existing["id"], {k: v for k, v in data.items() if v})
         else:
-            db.insert("assets", {**data, "customer_id": cid})
             created += 1
+            if not dry_run:
+                db.insert("assets", {**data, "customer_id": cid})
 
-    tickets = 0
+    contact_result = sync_contacts(db, client, mapping, dry_run) if contacts else None
+    ticket_result = sync_tickets(db, client, mapping, dry_run) if tickets else None
+
+    alarm_tickets = 0
     if alert_tickets:
         seen = set(db.get_setting("atera_alerts_seen", []) or [])
-        for al in client.alerts():
-            uid = str(al.get("AlertID") or "")
-            cid = mapping.get(str(al.get("CustomerID")))
+        for raw in client.alerts():
+            al = ci(raw)
+            uid = str(pick(al, "AlertID"))
+            cid = mapping.get(str(pick(al, "CustomerID")))
             if not uid or uid in seen or not cid:
                 continue
-            title = (al.get("Title") or al.get("AlertMessage") or "Atera-Alarm").strip()
+            alarm_tickets += 1
+            if dry_run or cid < 0:
+                continue
+            title = str(pick(al, "Title", "AlertMessage", default="Atera-Alarm")).strip()
             db.insert("tickets", {
                 "customer_id": cid, "title": f"RMM: {title[:150]}", "status": "neu",
-                "priority": "hoch" if str(al.get("Severity")).lower() == "critical" else "normal",
+                "priority": "hoch" if str(pick(al, "Severity")).lower() == "critical" else "normal",
                 "category": "Server/Backup" if "backup" in title.lower() else "",
-                "description": f"Automatisch aus Atera-Alarm ({al.get('DeviceName') or ''}, {al.get('Severity') or ''}):\n"
-                               f"{al.get('AlertMessage') or title}"})
+                "description": f"Automatisch aus Atera-Alarm ({pick(al, 'DeviceName')}, {pick(al, 'Severity')}):\n"
+                               f"{pick(al, 'AlertMessage', default=title)}"})
             seen.add(uid)
-            tickets += 1
-        db.set_setting("atera_alerts_seen", sorted(seen)[-5000:])
-    result = {"customers_created": created_customers, "assets_created": created, "assets_updated": updated,
-              "agents_unmapped": skipped, "alert_tickets": tickets, "at": now_iso()}
-    db.set_setting("atera_last_sync", result)
+        if not dry_run:
+            db.set_setting("atera_alerts_seen", sorted(seen)[-5000:])
+    result = {"customers_created": created_customers, "customers_matched": matched, "assets_created": created, "assets_updated": updated,
+              "agents_unmapped": skipped, "alert_tickets": alarm_tickets, "contacts": contact_result, "tickets": ticket_result,
+              "dry_run": dry_run, "at": now_iso()}
+    if not dry_run:
+        db.set_setting("atera_last_sync", result)
     return result
 
 
@@ -360,6 +554,12 @@ class AssignIn(BaseModel):
     maintenance_run_id: Optional[int] = None
 
 
+class OptionsIn(BaseModel):
+    contacts: Optional[bool] = None
+    tickets: Optional[bool] = None
+    alert_tickets: Optional[bool] = None
+
+
 def register(app: FastAPI, db: Database, settings: Any, admin_only) -> tuple[Atera, Sessions]:
     client = Atera(getattr(settings, "atera_api_key", ""))
     sessions = Sessions(db)
@@ -370,25 +570,55 @@ def register(app: FastAPI, db: Database, settings: Any, admin_only) -> tuple[Ate
         except ValueError as exc:
             raise HTTPException(422, str(exc))
 
-    @app.get("/api/atera/status")
-    def status() -> dict:
-        return {"configured": client.configured, "sync_hours": getattr(settings, "atera_sync_hours", 0),
-                "alert_tickets": getattr(settings, "atera_alert_tickets", False),
-                "last": db.get_setting("atera_last_sync", None), "error": db.get_setting("atera_error", ""),
-                "sessions": sessions.summary()}
+    def options() -> dict[str, bool]:
+        """Was übernommen wird. Voreinstellung für Alarme kommt aus der .env, der Rest ist im Cockpit einstellbar."""
+        stored = db.get_setting("atera_options", None) or {}
+        base = {**DEFAULT_OPTIONS, "alert_tickets": bool(getattr(settings, "atera_alert_tickets", False))}
+        return {k: bool(stored.get(k, v)) for k, v in base.items()}
 
-    @app.post("/api/atera/sync", dependencies=[Depends(admin_only)])
-    def run_sync() -> dict:
+    def run(dry_run: bool = False) -> dict[str, Any]:
+        o = options()
+        return sync(db, client, alert_tickets=o["alert_tickets"], contacts=o["contacts"], tickets=o["tickets"], dry_run=dry_run)
+
+    def need_key() -> None:
         if not client.configured:
             raise HTTPException(409, "Atera nicht eingerichtet: ATERA_API_KEY in .env (Atera → Admin → API).")
+
+    @app.get("/api/atera/status")
+    def status() -> dict:
+        o = options()
+        return {"configured": client.configured, "sync_hours": getattr(settings, "atera_sync_hours", 0),
+                "alert_tickets": o["alert_tickets"], "options": o,
+                "last": db.get_setting("atera_last_sync", None), "error": db.get_setting("atera_error", ""),
+                "mirrored_tickets": db.scalar("SELECT COUNT(*) FROM tickets WHERE source = 'atera' AND status != 'geloest'") or 0,
+                "sessions": sessions.summary()}
+
+    @app.put("/api/atera/options", dependencies=[Depends(admin_only)])
+    def save_options(data: OptionsIn) -> dict:
+        db.set_setting("atera_options", {**options(), **data.model_dump(exclude_none=True)})
+        return options()
+
+    @app.post("/api/atera/sync", dependencies=[Depends(admin_only)])
+    def run_sync(dry_run: bool = False) -> dict:
+        """Abgleich – mit ``dry_run=true`` als Vorschau: nur lesen und zählen, nichts speichern."""
+        need_key()
         try:
-            result = sync(db, client, alert_tickets=getattr(settings, "atera_alert_tickets", False))
-            db.set_setting("atera_error", "")
-            sessions.match()
+            result = run(dry_run)
+            if not dry_run:
+                db.set_setting("atera_error", "")
+                sessions.match()
             return result
         except AteraError as exc:
-            db.set_setting("atera_error", str(exc))
+            if not dry_run:
+                db.set_setting("atera_error", str(exc))
             raise HTTPException(502, str(exc))
+
+    @app.get("/api/atera/diagnose", dependencies=[Depends(admin_only)])
+    def diagnose() -> dict:
+        """Was liefert Atera wirklich? Anzahl und Feldnamen je Bereich – ohne Inhalte, gefahrlos weiterzugeben."""
+        need_key()
+        return {name: client.probe(path) for name, path in (("Kunden", "/customers"), ("Geräte", "/agents"), ("Kontakte", "/contacts"),
+                                                            ("Tickets", "/tickets"), ("Alarme", "/alerts"))}
 
     @app.post("/api/sessions/import")
     async def import_sessions(request: Request) -> dict:
@@ -458,7 +688,7 @@ def register(app: FastAPI, db: Database, settings: Any, admin_only) -> tuple[Ate
             time.sleep(120)
             while True:
                 try:
-                    sync(db, client, alert_tickets=getattr(settings, "atera_alert_tickets", False))
+                    run()
                     sessions.match()
                     db.set_setting("atera_error", "")
                 except Exception as exc:  # noqa: BLE001

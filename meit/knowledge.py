@@ -39,27 +39,63 @@ def tokenize(text: str) -> list[str]:
     return [t.strip(".-") for t in tokens if t not in STOPWORDS and len(t.strip(".-")) > 1]
 
 
+SYNONYM_GROUPS = [
+    "passwort kennwort password", "mail e-mail email", "pc computer rechner", "laptop notebook", "handy smartphone mobiltelefon",
+    "bildschirm monitor display", "wlan wifi wi-fi", "drucker printer", "langsam traege lahm", "kaputt defekt", "loeschen entfernen",
+    "anmelden einloggen login anmeldung", "sicherung backup datensicherung", "virus schadsoftware malware trojaner",
+    "mfa 2fa zwei-faktor authenticator", "besprechung meeting konferenz", "ordner verzeichnis", "gesperrt blockiert",
+    "abwesenheitsnotiz abwesenheit urlaubsnotiz", "update aktualisierung", "absturz crash",
+    "kamera webcam", "ton sound audio", "internet online", "telefon telefonie", "papierkorb geloescht",
+]
+SYNONYMS: dict[str, set[str]] = {}
+for _group in SYNONYM_GROUPS:
+    _words = _group.split()
+    for _w in _words:
+        SYNONYMS.setdefault(_w, set()).update(x for x in _words if x != _w)
+
+
+def related(a: str, b: str) -> bool:
+    """Wortformen erkennen: „drucker“ ~ „druckertreiber“ (Präfix) und „sendet“ ~ „senden“ (gleicher Wortstamm)."""
+    if len(a) < 4 or len(b) < 4 or a[:4] != b[:4]:
+        return False
+    if a.startswith(b) or b.startswith(a):
+        return True
+    shorter = min(len(a), len(b))
+    common = 4
+    while common < shorter and a[common] == b[common]:
+        common += 1
+    return common >= max(5, shorter - 1)
+
+
 def keyword_scores(query: str, docs: list[str]) -> list[float]:
-    """Einfaches BM25 mit Präfix-Treffern (deutsche Komposita: "drucker" ~ "druckertreiber")."""
-    q_tokens = tokenize(query)
-    if not q_tokens or not docs:
+    """Einfaches BM25 mit Wortformen und Synonymen („Kennwort“ findet auch „Passwort“)."""
+    base = set(tokenize(query))
+    if not base or not docs:
         return [0.0] * len(docs)
-    doc_tokens = [tokenize(d) for d in docs]
-    avg_len = sum(len(t) for t in doc_tokens) / max(len(doc_tokens), 1) or 1.0
+    weights = {q: 1.0 for q in base}
+    for q in base:
+        for syn in SYNONYMS.get(q, ()):
+            weights.setdefault(syn, 0.6)
+    counts = [Counter(tokenize(d)) for d in docs]
+    lengths = [sum(c.values()) for c in counts]
+    avg_len = sum(lengths) / len(docs) or 1.0
     n_docs = len(docs)
     k1, b = 1.4, 0.75
-    scores = []
-    for tokens in doc_tokens:
-        counts = Counter(tokens)
-        score = 0.0
-        for q in set(q_tokens):
-            tf = counts.get(q, 0) + 0.5 * sum(c for t, c in counts.items() if t != q and (t.startswith(q) or q.startswith(t)) and min(len(t), len(q)) >= 4)
-            if tf == 0:
-                continue
-            df = sum(1 for toks in doc_tokens if any(t == q or ((t.startswith(q) or q.startswith(t)) and min(len(t), len(q)) >= 4) for t in toks))
-            idf = math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
-            score += idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * len(tokens) / avg_len))
-        scores.append(score)
+    scores = [0.0] * n_docs
+    for q, weight in weights.items():  # je Suchwort einmal über alle Artikel – bleibt auch bei einigen hundert Artikeln schnell
+        tfs = []
+        for c in counts:
+            tf = float(c.get(q, 0))
+            if len(q) >= 4:
+                tf += 0.5 * sum(n for t, n in c.items() if t != q and related(t, q))
+            tfs.append(tf)
+        df = sum(1 for tf in tfs if tf)
+        if not df:
+            continue
+        idf = math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
+        for i, tf in enumerate(tfs):
+            if tf:
+                scores[i] += weight * idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * lengths[i] / avg_len))
     return scores
 
 
@@ -73,7 +109,7 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 
 def article_text(article: dict[str, Any]) -> str:
-    return f"{article.get('title', '')}\n{article.get('tags', '')}\n{article.get('content', '')}"
+    return f"{article.get('title', '')}\n{article.get('area') or ''} {article.get('tags', '')}\n{article.get('content', '')}"
 
 
 class KnowledgeBase:
@@ -81,31 +117,35 @@ class KnowledgeBase:
         self.db = db
         self.router = router
 
-    def ensure_embeddings(self) -> int:
-        """Berechnet fehlende/veraltete Embeddings. Gibt Anzahl neu berechneter zurück."""
+    def ensure_embeddings(self, limit: int = 0) -> int:
+        """Berechnet fehlende/veraltete Embeddings (höchstens ``limit``, 0 = alle). Gibt Anzahl neu berechneter zurück."""
         model = self.router.settings.embed_model
         rows = self.db.query(
-            "SELECT id, title, tags, content FROM kb_articles WHERE embedding = '' OR embedding_model != ?",
-            (model,),
-        )
-        if not rows:
-            return 0
-        vectors = self.router.embed([article_text(r)[:4000] for r in rows])
-        if not vectors:
-            return 0
-        for row, vec in zip(rows, vectors):
-            self.db.update("kb_articles", row["id"], {"embedding": json.dumps(vec), "embedding_model": model})
-        return len(rows)
+            "SELECT id, title, area, tags, content FROM kb_articles WHERE embedding = '' OR embedding_model != ?"
+            + (" LIMIT ?" if limit else ""), (model, limit) if limit else (model,))
+        done = 0
+        for start in range(0, len(rows), 24):  # in Päckchen: eine große Bibliothek überfordert sonst die lokale KI
+            batch = rows[start:start + 24]
+            vectors = self.router.embed([article_text(r)[:4000] for r in batch])
+            if not vectors:
+                break
+            for row, vec in zip(batch, vectors):
+                self.db.query("UPDATE kb_articles SET embedding = ?, embedding_model = ? WHERE id = ?", (json.dumps(vec), model, row["id"]))
+            done += len(batch)
+        return done
 
     def search(self, query: str, limit: int = 5, public_only: bool = False) -> list[dict[str, Any]]:
         articles = self.db.query("SELECT * FROM kb_articles" + (" WHERE public = 1" if public_only else ""))
         if not articles or not query.strip():
             return []
         kw = keyword_scores(query, [article_text(a) for a in articles])
+        # Treffer in Titel und Schlagworten zählen deutlich mehr als ein beiläufiges Wort im Text
+        head = keyword_scores(query, [f"{a.get('title', '')} {a.get('tags') or ''}" for a in articles])
+        kw = [k + 1.5 * h for k, h in zip(kw, head)]
         max_kw = max(kw) or 1.0
         semantic: list[float] | None = None
         try:
-            self.ensure_embeddings()
+            self.ensure_embeddings(limit=24)  # bei einer Suche nur ein Päckchen nachziehen; alles auf einmal: „Neu indexieren“
             q_vec = self.router.embed([query])
         except Exception:  # noqa: BLE001 - Suche darf nie an der KI scheitern
             q_vec = None

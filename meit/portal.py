@@ -540,6 +540,8 @@ def register(app: FastAPI, ctx: AgentContext, admin_only: Callable, accept_quote
         if not ask_limiter.allow(f"a{u['id']}"):
             raise HTTPException(429, "Zu viele Fragen in kurzer Zeit – bitte später erneut.")
         hits = ctx.kb.search(data.question, limit=3, public_only=True)
+        # Bei vielen Anleitungen nur zeigen, was wirklich passt: Treffer, die deutlich schwächer sind als der beste, weglassen
+        hits = [h for h in hits if h["score"] >= 0.55 * hits[0]["score"]]
         sources = [{"title": h["title"]} for h in hits]
         llm = ctx.llm("portal")
         if llm.available() and hits:

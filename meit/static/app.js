@@ -392,6 +392,7 @@ views.kunde = async (id) => {
         c.booked_services.length ? c.booked_services.map((s) => badge(s, "info")) : h("span", { class: "muted" }, "keine")))),
     health,
     c.notes ? h("div", { class: "card", style: "margin-bottom:1rem" }, h("strong", {}, "Notizen: "), c.notes) : null,
+    await contactsCard(c),
     await portalCard(c),
     await (async () => { const subs = await api(`/api/subscriptions?customer_id=${c.id}`).catch(() => []);
       return h("div", { class: "card", style: "margin-bottom:1rem" }, h("div", { class: "card-head" }, h("h2", {}, "Lizenzen & Verträge"),
@@ -455,7 +456,7 @@ views.tickets = async (_, params) => {
     h("button", { class: ticketFilter === k ? "active" : "", onclick: () => { ticketFilter = k; render(); } }, l)));
   show(tabs, h("div", { class: "card" }, table([
     { label: "#", key: "id" },
-    { label: "Titel", render: (r) => h("div", {}, h("strong", {}, r.title), r.ai_suggestion?.summary && r.ai_suggestion.summary !== r.title
+    { label: "Titel", render: (r) => h("div", {}, h("strong", {}, r.title), r.source === "atera" ? h("span", {}, " ", badge("Atera", "info")) : null, r.ai_suggestion?.summary && r.ai_suggestion.summary !== r.title
       ? h("div", { class: "small muted" }, r.ai_suggestion.summary) : null) },
     { label: "Kunde", render: (r) => r.customer_name || "–" },
     { label: "Kategorie", render: (r) => r.category || "–" },
@@ -515,6 +516,8 @@ async function ticketDetail(id) {
   ticketThread(t, thread);
   modal(`#${t.id} ${t.title}`, h("div", {},
     h("p", { class: "muted small" }, `${t.customer_name || "Kein Kunde"} · erstellt ${dt(t.created_at)}`),
+    t.source === "atera" ? h("div", { class: "verdict warn", style: "padding:.5rem .8rem" }, h("span", { class: "small" },
+      `Dieses Ticket kommt aus Atera (Nr. ${String(t.external_id || "").split(":")[1] || "?"}). Titel, Zustand und Priorität werden bei jedem Abgleich von dort übernommen – bitte in Atera bearbeiten. Zeiten, Termine und Arbeitsberichte lassen sich hier ganz normal dazu anlegen.`)) : null,
     t.csat ? h("p", { class: "small" }, t.csat.rating
       ? h("span", {}, badge(`Bewertung ${["", "😞", "🙁", "😐", "🙂", "😀"][t.csat.rating]} ${t.csat.rating}/5`, t.csat.rating >= 4 ? "ok" : t.csat.rating === 3 ? "warn" : "bad"),
         t.csat.comment ? ` „${t.csat.comment}“` : "", t.csat.followup_ticket_id ? ` · Rückruf-Ticket #${t.csat.followup_ticket_id}` : "")
@@ -724,52 +727,95 @@ function assetForm(a = null, customerId = null) {
 }
 
 // ---- Wissen
+const kbFilter = { area: "", audience: "", q: "" };
+const KB_SOURCE = { bibliothek: "Bibliothek", bookstack: "BookStack", cockpit: "eigener Artikel" };
+
+/** Artikel lesen: breit, mit Freigabe fürs Portal, Kopieren und Bearbeiten. */
+async function kbReader(id, after = null) {
+  let a;
+  try { a = await api(`/api/kb/${id}`); } catch (e) { return toast(e.message, true); }
+  const plain = `${a.title}\n\n${a.content}`;
+  modal(a.title, h("div", {},
+    h("div", { class: "row", style: "margin-bottom:.7rem;gap:.4rem" }, a.area ? badge(a.area, "info") : null,
+      a.public ? badge("für Anwender – im Kundenportal", "ok") : badge("nur Technik", ""), h("span", { class: "small muted" }, KB_SOURCE[a.source] || a.source),
+      a.tags ? h("span", { class: "small muted" }, `· ${a.tags}`) : null),
+    md(a.content)), [
+    a.source === "bookstack" ? null : (close) => h("button", { class: "btn", onclick: () => { close(); articleForm(a, after); } }, "Bearbeiten"),
+    a.external_url ? h("a", { class: "btn", href: a.external_url, target: "_blank", rel: "noopener" }, "In BookStack ↗") : null,
+    (close) => h("button", { class: "btn", title: a.public ? "Nicht mehr für die Hilfe im Kundenportal verwenden" : "Für die Hilfe im Kundenportal freigeben – nur Anleitungen ohne Admin-Schritte",
+      onclick: async () => { await api(`/api/kb/${a.id}`, { method: "PUT", body: { title: a.title, content: a.content, tags: a.tags || "", public: !a.public } });
+        toast(a.public ? "Nicht mehr im Portal" : "Im Kundenportal freigegeben"); close(); if (after) after(); } }, a.public ? "Portal-Freigabe entfernen" : "Fürs Portal freigeben"),
+    copyButton(() => plain, "Text kopieren")].filter(Boolean));
+}
+
 views.wissen = async () => {
-  setTitle("Wissensdatenbank", [
-    h("button", { class: "btn", onclick: (e) => withBusy(e.target, async () => {
-      const r = await api("/api/kb/reindex", { method: "POST" });
-      toast(r.indexed ? `${r.indexed} Artikel semantisch indexiert` : "Kein Embedding-Modell erreichbar – Stichwortsuche aktiv");
-    }) }, "Neu indexieren"),
-    h("button", { class: "btn primary", onclick: () => articleForm() }, "+ Artikel"),
-  ]);
-  const articles = await api("/api/kb");
-  const results = h("div");
-  const showList = (items, scored = false) => results.replaceChildren(items.length ? h("div", { class: "stack" }, items.map((a) =>
-    h("details", { class: "card" },
-      h("summary", { style: "cursor:pointer" }, h("strong", {}, a.title), " ", a.public ? badge("Portal", "ok") : null, " ", a.source === "bookstack" ? badge("BookStack", "info") : null, " ", a.tags ? h("span", { class: "small muted" }, `· ${a.tags}`) : null,
-        scored ? h("span", { class: "small muted" }, ` · Treffer ${Math.round(a.score * 100)} % (${a.mode})`) : null),
-      h("div", { style: "margin-top:.6rem" }, md(a.content)),
-      h("div", { class: "row" }, h("span", { class: "spacer" }),
-        a.external_url ? h("a", { class: "btn small", href: a.external_url, target: "_blank", rel: "noopener" }, a.source === "bookstack" ? "In BookStack bearbeiten ↗" : "In BookStack ↗") : null,
-        a.source === "bookstack" ? h("button", { class: "btn small", onclick: async () => {
-          await api(`/api/kb/${a.id}`, { method: "PUT", body: { title: a.title, content: a.content, tags: a.tags || "", public: !a.public } });
-          toast(a.public ? "Nicht mehr im Portal" : "Im Kundenportal freigegeben"); render(); } }, a.public ? "Portal-Freigabe entfernen" : "Fürs Portal freigeben")
-          : h("button", { class: "btn small", onclick: () => articleForm(a) }, "Bearbeiten"))))) :
-    h("div", { class: "empty" }, "Nichts gefunden."));
+  const o = await api("/api/kb/overview");
+  const isAdmin = !state.auth?.login_required || state.auth?.user?.role === "admin";
+  setTitle("Wissen", [
+    isAdmin ? h("button", { class: "btn", title: "Mitgelieferte Hilfe-Bibliothek einlesen bzw. auf den neuesten Stand bringen. Selbst geänderte und gelöschte Artikel bleiben, wie sie sind.", onclick: (e) => withBusy(e.target, async () => {
+      const r = await api("/api/kb/library/import", { method: "POST" });
+      toast(`Bibliothek: ${r.created} neu, ${r.updated} aktualisiert, ${r.kept_modified} eigene Fassungen behalten`); render(); }) }, "Bibliothek aktualisieren") : null,
+    h("button", { class: "btn", title: "Für die sinngemäße Suche mit lokaler KI", onclick: (e) => withBusy(e.target, async () => { const r = await api("/api/kb/reindex", { method: "POST" }); toast(`${r.indexed} Artikel indexiert`); }) }, "Neu indexieren"),
+    h("button", { class: "btn primary", onclick: () => articleForm(null, () => render()) }, "+ Artikel")]);
+  const results = h("div", {});
+  const info = h("span", { class: "small muted" });
+  let shown = 0, seq = 0;
+  const load = async (more = false) => {
+    const mine = ++seq;
+    if (!more) shown = 0;
+    const d = await api(`/api/kb/list?area=${encodeURIComponent(kbFilter.area)}&audience=${kbFilter.audience}&q=${encodeURIComponent(kbFilter.q)}&limit=40&offset=${shown}`);
+    if (mine !== seq) return;
+    const rows = d.items.map((a) => h("button", { class: "kb-item", onclick: () => kbReader(a.id, () => load()) },
+      h("span", { class: "t" }, a.title),
+      h("span", { class: "m" }, kbFilter.area ? null : h("span", { class: "badge info" }, a.area || "Eigene Artikel"), a.public ? h("span", { class: "badge ok" }, "Anwender") : h("span", { class: "badge" }, "Technik"),
+        a.source === "bookstack" ? h("span", { class: "badge" }, "BookStack") : null),
+      h("span", { class: "s" }, a.snippet)));
+    if (more) results.querySelector(".kb-more")?.remove(); else fill(results);
+    results.append(...rows);
+    shown += d.items.length;
+    if (!shown) results.append(h("div", { class: "empty" }, kbFilter.q ? "Nichts gefunden – anders formulieren oder den Bereich abwählen." : "Keine Artikel in dieser Auswahl."));
+    if (shown < d.total) results.append(h("button", { class: "btn kb-more", onclick: () => load(true) }, `Weitere anzeigen (${d.total - shown})`));
+    info.textContent = `${d.total} Artikel${d.mode ? ` · Suche: ${d.mode}` : ""}`;
+  };
   let timer;
-  const search = h("input", { type: "search", placeholder: "Suchen … (z. B. „Drucker druckt nicht“ – mit KI auch sinngemäß)", oninput: (e) => {
-    clearTimeout(timer);
-    const q = e.target.value.trim();
-    timer = setTimeout(async () => { if (!q) return showList(articles); showList(await api(`/api/kb/search?q=${encodeURIComponent(q)}&limit=10`), true); }, 350);
-  } });
-  showList(articles);
-  show(h("div", { class: "card", style: "margin-bottom:1rem" }, search), results);
+  const search = h("input", { type: "search", value: kbFilter.q, placeholder: "Problem beschreiben, z. B. „Drucker offline“, „Outlook sendet nicht“, „VPN verbindet nicht“ …", "aria-label": "Wissen durchsuchen",
+    oninput: (e) => { clearTimeout(timer); kbFilter.q = e.target.value.trim(); timer = setTimeout(() => load(), 280); } });
+  const chip = (label, active, onclick, count = null) => h("button", { class: `kb-chip${active ? " on" : ""}`, onclick }, label, count === null ? null : h("span", { class: "n" }, count));
+  const areas = h("div", { class: "kb-areas" });
+  const drawAreas = () => fill(areas, chip("Alle Bereiche", !kbFilter.area, () => { kbFilter.area = ""; drawAreas(); load(); }, o.total),
+    o.areas.map((a) => chip(a.area, kbFilter.area === a.area, () => { kbFilter.area = a.area; drawAreas(); load(); }, a.n)));
+  const aud = h("div", { class: "row", style: "gap:.3rem" });
+  const drawAud = () => fill(aud, [["", "Alle"], ["kunde", `Für Anwender (${o.public})`], ["technik", `Nur Technik (${o.total - o.public})`]].map(([k, l]) =>
+    chip(l, kbFilter.audience === k, () => { kbFilter.audience = k; drawAud(); load(); })));
+  drawAreas(); drawAud();
+  show(
+    !o.library && isAdmin ? h("div", { class: "verdict warn" }, h("strong", {}, "Die Hilfe-Bibliothek ist noch nicht geladen"),
+      h("div", { class: "small" }, "Sie enthält einige hundert fertige Anleitungen für den IT-Alltag. Oben auf „Bibliothek aktualisieren“ klicken.")) : null,
+    h("div", { class: "card", style: "margin-bottom:1rem" }, search,
+      h("div", { class: "row", style: "margin-top:.6rem;justify-content:space-between" }, aud, info)),
+    h("div", { class: "kb-layout" }, areas, h("div", { class: "card kb-results" }, results)),
+    h("p", { class: "small muted", style: "margin-top:.8rem" }, "„Für Anwender“ sind Anleitungen ohne Admin-Schritte; nur diese nutzt die Hilfe im Kundenportal. Die Bibliothek ist ein Ausgangspunkt: Artikel anpassen, ergänzen oder löschen – eigene Fassungen bleiben bei Aktualisierungen erhalten."));
+  await load();
+  if (!kbFilter.q && matchMedia("(min-width: 861px)").matches) search.focus();
 };
 
-function articleForm(a = null) {
+function articleForm(a = null, after = null) {
+  const done = after || (() => render());
   const f = form([
-    { name: "title", label: "Titel", required: true, full: true },
-    { name: "tags", label: "Schlagworte", full: true, placeholder: "drucker, windows" },
-    { name: "content", label: "Inhalt (Markdown)", type: "textarea", rows: 14, full: true },
-    { name: "public", label: "Im Kundenportal für die KI-Hilfe freigeben (nur Anleitungen ohne Admin-Schritte/Interna)", type: "checkbox", full: true },
-  ], a ? { ...a, public: !!a.public } : {});
+    { name: "title", label: "Titel – so, wie jemand das Problem beschreiben würde", required: true, full: true },
+    { name: "area", label: "Bereich", placeholder: "z. B. Drucker & Scanner" },
+    { name: "tags", label: "Schlagworte", placeholder: "drucker, offline, geht nicht" },
+    { name: "content", label: "Inhalt (Markdown: ## Überschrift, 1. Schritte, **fett**)", type: "textarea", rows: 16, full: true },
+    { name: "public", label: "Für Anwender – in der Hilfe im Kundenportal verwenden (nur Anleitungen ohne Admin-Schritte/Interna)", type: "checkbox", full: true },
+  ], a ? { ...a, public: !!a.public } : { area: kbFilter.area && kbFilter.area !== "Eigene Artikel" ? kbFilter.area : "",
+    content: "**Symptom:** \n\n**Häufige Ursachen:** \n\n## Lösung\n1. \n2. \n\n## Wenn das nicht hilft\n- " });
   modal(a ? "Artikel bearbeiten" : "Neuer Artikel", f, [
     a ? (close) => h("button", { class: "btn danger", onclick: async () => {
-      if (!confirm("Artikel löschen?")) return;
-      await api(`/api/kb/${a.id}`, { method: "DELETE" }); close(); render();
+      if (!confirm("Artikel löschen? Aus der Bibliothek gelöschte Artikel kommen bei Aktualisierungen nicht wieder.")) return;
+      await api(`/api/kb/${a.id}`, { method: "DELETE" }); close(); done();
     } }, "Löschen") : null,
     (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
-      await api(a ? `/api/kb/${a.id}` : "/api/kb", { method: a ? "PUT" : "POST", body: readForm(f) }); close(); toast("Gespeichert"); render();
+      await api(a ? `/api/kb/${a.id}` : "/api/kb", { method: a ? "PUT" : "POST", body: readForm(f) }); close(); toast("Gespeichert"); done();
     }) }, "Speichern"),
   ].filter(Boolean));
 }
@@ -1492,20 +1538,77 @@ views.daten = async () => {
 };
 
 // ---- Atera & BookStack
+function ateraResult(r) {
+  const line = (label, text) => h("div", { class: "kv" }, h("span", { class: "muted" }, label), h("span", {}, text));
+  return h("div", {},
+    h("div", { class: `verdict ${r.dry_run ? "warn" : "ok"}` }, h("strong", {}, r.dry_run ? "Vorschau – es wurde nichts gespeichert" : "Abgleich abgeschlossen")),
+    line("Kunden", `${r.customers_matched} zugeordnet · ${r.customers_created.length} ${r.dry_run ? "würden neu angelegt" : "neu angelegt"}`),
+    r.customers_created.length ? h("div", { class: "small muted", style: "margin:.2rem 0 .4rem" }, r.customers_created.slice(0, 40).join(", "), r.customers_created.length > 40 ? " …" : "") : null,
+    line("Geräte", `${r.assets_created} neu · ${r.assets_updated} aktualisiert${r.agents_unmapped ? ` · ${r.agents_unmapped} ohne zugeordneten Kunden` : ""}`),
+    r.contacts ? line("Ansprechpartner", `${r.contacts.created} neu · ${r.contacts.updated} aktualisiert · bei ${r.contacts.customers_filled} Kunden Hauptkontakt ergänzt`) : null,
+    r.tickets ? line("Tickets aus Atera", `${r.tickets.created} neu · ${r.tickets.updated} aktualisiert · ${r.tickets.closed} gelöst${r.tickets.unmapped ? ` · ${r.tickets.unmapped} ohne zugeordneten Kunden` : ""}`) : null,
+    r.alert_tickets ? line("Alarme", `${r.alert_tickets} ${r.dry_run ? "würden zu Tickets" : "als Tickets angelegt"}`) : null);
+}
+
 function ateraCard(a) {
-  const s = a.sessions;
+  const s = a.sessions, o = a.options || {};
+  const opt = (key, label, hint) => h("label", { class: "check", title: hint }, h("input", { type: "checkbox", checked: !!o[key], style: "width:auto",
+    onchange: async (e) => { try { await api("/api/atera/options", { method: "PUT", body: { [key]: e.target.checked } }); toast("Gespeichert"); } catch (err) { toast(err.message, true); e.target.checked = !e.target.checked; } } }), ` ${label}`);
+  const run = (dry) => (e) => withBusy(e.target, async () => {
+    const r = await api(`/api/atera/sync${dry ? "?dry_run=true" : ""}`, { method: "POST" });
+    modal(dry ? "Atera: Vorschau" : "Atera: Abgleich", ateraResult(r), dry ? [(close) => h("button", { class: "btn primary", onclick: (ev) => { close(); run(false)(ev); } }, "Jetzt wirklich abgleichen")] : []);
+    if (!dry) render();
+  });
   return h("div", { class: "card", style: "margin-top:1rem" },
     h("div", { class: "card-head" }, h("h2", {}, "RMM: Atera (mit Splashtop)"),
-      a.configured ? h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
-        const r = await api("/api/atera/sync", { method: "POST" });
-        toast(`${r.assets_created} Geräte neu, ${r.assets_updated} aktualisiert${r.customers_created.length ? `, ${r.customers_created.length} Kunden neu` : ""}${r.alert_tickets ? `, ${r.alert_tickets} Alarm-Tickets` : ""}`); render();
-      }) }, "Jetzt abgleichen") : badge("nicht eingerichtet", "warn")),
-    a.configured ? h("p", { class: "small" }, `${a.sync_hours ? `Automatisch alle ${a.sync_hours} h` : "Abgleich per Knopf"} · Alarme → Tickets: ${a.alert_tickets ? "ja" : "nein"}`,
-      a.last ? h("span", { class: "muted" }, ` · letzter Abgleich ${a.last.at}: ${a.last.assets_created} neu / ${a.last.assets_updated} aktualisiert`) : null,
-      a.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${a.error}`) : null)
-      : md(["Kunden und Geräte (inkl. **Link zur Atera-Geräteseite** – von dort Splashtop starten) werden übernommen, optional offene Alarme als Tickets. In Atera: „Admin → API“ → API-Schlüssel kopieren. Dann in `.env`:", "```", "ATERA_API_KEY=…", "ATERA_SYNC_HOURS=6", "ATERA_ALERT_TICKETS=true", "```"].join("\n")),
+      a.configured ? h("div", { class: "row", style: "gap:.4rem" },
+        h("button", { class: "btn", title: "Zeigt, was übernommen würde – ohne etwas zu speichern", onclick: run(true) }, "Vorschau"),
+        h("button", { class: "btn primary", onclick: run(false) }, "Jetzt abgleichen")) : badge("nicht eingerichtet", "warn")),
+    a.configured ? h("div", {},
+      h("p", { class: "small" }, `${a.sync_hours ? `Automatisch alle ${a.sync_hours} h` : "Abgleich per Knopf"} · nur lesend: das Cockpit schreibt nichts nach Atera`,
+        a.last ? h("span", { class: "muted" }, ` · letzter Abgleich ${dt(a.last.at)} ${String(a.last.at).slice(11, 16)}`) : h("span", { class: "muted" }, " · noch nie abgeglichen – zuerst die Vorschau ansehen"),
+        a.error ? h("span", { style: "color:var(--bad)" }, ` · Fehler: ${a.error}`) : null),
+      h("div", { class: "row", style: "gap:1.2rem" },
+        opt("contacts", "Ansprechpartner übernehmen", "Kontakte aus Atera je Kunde; beim Kunden werden nur leere Felder ergänzt"),
+        opt("tickets", `Offene Tickets aus Atera anzeigen${a.mirrored_tickets ? ` (${a.mirrored_tickets})` : ""}`, "Nur lesend: Titel, Zustand und Priorität kommen aus Atera und werden bei jedem Abgleich aktualisiert"),
+        opt("alert_tickets", "Alarme als Tickets anlegen", "Jeder offene Alarm wird einmal zu einem Ticket im Cockpit")),
+      h("p", { class: "small muted" }, "Stimmt nach dem Abgleich etwas nicht? ",
+        h("a", { href: "#", onclick: async (e) => { e.preventDefault(); try { const d = await api("/api/atera/diagnose");
+          const text = Object.entries(d).map(([k, v]) => v.ok ? `${k}: ${v.total ?? "?"} Einträge\n  Felder: ${v.fields.join(", ") || "–"}` : `${k}: FEHLER – ${v.error}`).join("\n\n");
+          modal("Atera: Diagnose", h("div", {}, h("p", { class: "small muted", style: "margin-top:0" }, "Anzahl und Feldnamen je Bereich – ohne Inhalte. Diesen Text kannst du gefahrlos weitergeben."),
+            h("pre", { style: "white-space:pre-wrap;font-size:.8rem" }, text)), [copyButton(() => text, "Text kopieren")]); } catch (err) { toast(err.message, true); } } }, "Diagnose anzeigen"),
+        " – sie zeigt, welche Felder Atera wirklich liefert."))
+      : md(["Kunden, Geräte (inkl. **Link zur Atera-Geräteseite** – von dort Splashtop starten), Ansprechpartner und auf Wunsch offene Tickets werden übernommen – **nur lesend**. In Atera: „Admin → API“ → API-Schlüssel kopieren. Dann in `.env`:", "```", "ATERA_API_KEY=…", "```", "Cockpit neu starten und hier zuerst die **Vorschau** ansehen."].join("\n")),
     h("p", { class: "small muted", style: "margin-bottom:0" }, `Fernwartungs-Sitzungen (Splashtop-Protokoll): ${s.maintenance_linked} als Wartungsnachweis zugeordnet · ${s.unbooked} ohne Zeitbuchung`,
       s.last_import ? ` · letzter Import ${s.last_import}` : "", " → ", h("a", { href: "#/wartung", onclick: () => { maintTab = "fernwartung"; } }, "Wartung → Fernwartung")));
+}
+
+// ---- Ansprechpartner je Kunde
+function contactForm(customerId, c = null, after = () => render()) {
+  const f = form([{ name: "name", label: "Name", required: true }, { name: "job_title", label: "Funktion", placeholder: "z. B. Geschäftsführung, Büro" },
+    { name: "email", label: "E-Mail", type: "email" }, { name: "phone", label: "Telefon" },
+    { name: "notes", label: "Notiz", full: true }, { name: "is_primary", label: "Hauptkontakt", type: "checkbox" }], c || {});
+  modal(c ? "Ansprechpartner bearbeiten" : "Ansprechpartner", f, [
+    c ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm(`${c.name} entfernen?`)) return; await api(`/api/contacts/${c.id}`, { method: "DELETE" }); close(); after(); } }, "Entfernen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const body = readForm(f);
+      if (c) await api(`/api/contacts/${c.id}`, { method: "PUT", body }); else await api(`/api/customers/${customerId}/contacts`, { method: "POST", body });
+      close(); after();
+    }) }, "Speichern")].filter(Boolean));
+}
+
+async function contactsCard(c) {
+  const rows = await api(`/api/customers/${c.id}/contacts`).catch(() => null);
+  if (!rows) return null;
+  return h("div", { class: "card", style: "margin-bottom:1rem" },
+    h("div", { class: "card-head" }, h("h2", {}, `Ansprechpartner (${rows.length})`), h("button", { class: "btn small", onclick: () => contactForm(c.id) }, "+ Ansprechpartner")),
+    rows.length ? table([
+      { label: "Name", render: (r) => h("div", {}, h("strong", {}, r.name), r.is_primary ? h("span", {}, " ", badge("Hauptkontakt", "info")) : null, r.job_title ? h("div", { class: "small muted" }, r.job_title) : null) },
+      { label: "E-Mail", render: (r) => r.email ? h("a", { href: `mailto:${r.email}`, onclick: (e) => e.stopPropagation() }, r.email) : "–" },
+      { label: "Telefon", render: (r) => r.phone ? h("a", { href: `tel:${r.phone.replace(/[^\d+]/g, "")}`, onclick: (e) => e.stopPropagation() }, r.phone) : "–" },
+      { label: "", render: (r) => r.source === "atera" ? h("span", { class: "small muted" }, "aus Atera") : "" },
+    ], rows, (r) => contactForm(c.id, r))
+      : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Ansprechpartner. Sie kommen mit dem Atera-Abgleich oder lassen sich hier anlegen."));
 }
 
 function bookstackCard(bs) {
@@ -4854,7 +4957,7 @@ views.teilen = async () => {
 
 // ---- Globale Suche / Befehlspalette (Strg+K)
 const SEARCH_ICON = { customer: "🏢", ticket: "🎫", message: "✉", asset: "🖥", device: "🛡", article: "📚", file: "📄", document: "🗂", invoice: "🧾", quote: "📑",
-  lead: "🎯", appointment: "📅", workreport: "✍", monitor: "📡", project: "📋", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
+  lead: "🎯", appointment: "📅", workreport: "✍", monitor: "📡", project: "📋", person: "🧑", subscription: "🔑", contact: "👤", m365user: "👥", domain: "🌐", staff: "🚪", receipt: "🧮", nav: "➜", action: "⚡" };
 const foldText = (s) => String(s || "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss");
 const QUICK_ACTIONS = [
   ["Neues Ticket", "ticket anlegen stoerung", () => ticketCreate()],
@@ -4882,14 +4985,13 @@ async function searchOpenItem(it) {
     case "appointment": return appointmentDetail(it.id);
     case "monitor": return monitorDetail(it.id);
     case "project": return go(`#/projekt/${it.id}`);
+    case "person": return it.customer_id ? go(`#/kunde/${it.customer_id}`) : null;
     case "workreport": return window.open(`/api/work-reports/${it.id}/pdf`, "_blank", "noopener");
     case "m365user": return it.customer_id ? m365Detail(it.customer_id) : go("#/m365");
     case "file": { await officeStatus(); const f = await api(`/api/files/${it.id}`); return fileDetail(f, () => {}); }
     case "document": return window.open(`/api/documents/${it.id}/download`, "_blank", "noopener");
     case "article": {
-      const a = (await api("/api/kb")).find((x) => x.id === it.id);
-      if (!a) return go("#/wissen");
-      return modal(a.title, md(a.content), [a.source === "bookstack" ? null : (close) => h("button", { class: "btn", onclick: () => { close(); articleForm(a); } }, "Bearbeiten")].filter(Boolean));
+      return kbReader(it.id);
     }
     case "invoice": return go("#/abrechnung");
     case "quote": return go("#/angebote");

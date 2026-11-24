@@ -49,7 +49,7 @@ def atera_app(settings, monkeypatch):
 
     def fake_get(url, params=None, headers=None, timeout=None):
         calls.append((url, headers))
-        data = {"/customers": AT_CUSTOMERS, "/agents": AT_AGENTS, "/alerts": AT_ALERTS}[url.split("/v3")[1]]
+        data = {"/customers": AT_CUSTOMERS, "/agents": AT_AGENTS, "/alerts": AT_ALERTS}.get(url.split("/v3")[1], [])  # Kontakte: keine
         page, size = params["page"], params["itemsInPage"]
         return Resp({"items": data[(page - 1) * size: page * size], "totalPages": 1, "page": page})
 

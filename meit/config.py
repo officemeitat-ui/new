@@ -102,6 +102,7 @@ class Settings:
     bookstack_sync_hours: int = 0
     # Öffentliche Adresse des Cockpits (für Links in Mails, z. B. Zufriedenheits-Umfrage)
     public_url: str = ""
+    kb_library: bool = True  # mitgelieferte Hilfe-Bibliothek beim Start einlesen bzw. aktualisieren
     graph_calendar: bool = False
     # --- Microsoft 365 der Kunden (mandantenfähige App, nur Leserechte) ---------
     m365_client_id: str = ""      # leer = GRAPH_CLIENT_ID
@@ -171,6 +172,7 @@ def get_settings() -> Settings:
         bookstack_token_secret=os.environ.get("BOOKSTACK_TOKEN_SECRET", ""),
         bookstack_sync_hours=_int("BOOKSTACK_SYNC_HOURS", 0),
         public_url=(os.environ.get("PUBLIC_URL") or "").rstrip("/"),
+        kb_library=_bool("MEIT_KB_LIBRARY", True),
         m365_client_id=os.environ.get("M365_CLIENT_ID", ""),
         m365_client_secret=os.environ.get("M365_CLIENT_SECRET", ""),
         m365_sync_hours=_int("M365_SYNC_HOURS", 24),

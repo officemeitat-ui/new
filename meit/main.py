@@ -31,6 +31,7 @@ from .agents.briefing import weekly_briefing
 from .agents.qbr import create_qbr
 from .growth import ensure_mrr_baseline, health_overview, health_score, log_mrr, nrr, pipeline, recurring_share
 from .knowledge import KnowledgeBase
+from .kb_library import register as register_kb_library
 from .llm import Router
 from .mail import make_mailer
 from .mitarbeiter_api import RateLimiter, is_public_path, register as register_mitarbeiter, start_mail_poller
@@ -61,6 +62,7 @@ from .search import register as register_search
 from .share import register as register_share
 from .posture import register as register_posture
 from .connections import register as register_connections
+from .contacts import register as register_contacts
 from .setup import register as register_setup
 from .todo import register as register_todo
 from .vault import Vault
@@ -182,6 +184,7 @@ class ArticleIn(BaseModel):
     content: str = ""
     tags: str = ""
     public: bool = False  # im Kundenportal für die KI-Hilfe freigegeben
+    area: Optional[str] = Field(None, max_length=80)  # Bereich in der Wissens-Ansicht; None = unverändert lassen
 
 
 class ServiceIn(BaseModel):
@@ -653,7 +656,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/kb", status_code=201)
     def add_article(data: ArticleIn) -> dict:
-        return db.get("kb_articles", db.insert("kb_articles", data.model_dump()))
+        return db.get("kb_articles", db.insert("kb_articles", data.model_dump(exclude_none=True)))
 
     @app.put("/api/kb/{aid}")
     def update_article(aid: int, data: ArticleIn) -> dict:
@@ -663,7 +666,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 db.update("kb_articles", aid, {"public": data.public})  # Freigabe fürs Portal darf hier gesetzt werden
                 return db.get("kb_articles", aid)
             raise HTTPException(409, "Dieser Artikel kommt aus BookStack – bitte dort bearbeiten (wird automatisch übernommen).")
-        db.update("kb_articles", aid, {**data.model_dump(), "embedding": "", "embedding_model": ""})
+        db.update("kb_articles", aid, {**data.model_dump(exclude_none=True), "embedding": "", "embedding_model": ""})
         return db.get("kb_articles", aid)
 
     @app.delete("/api/kb/{aid}")
@@ -671,6 +674,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not db.delete("kb_articles", aid):
             raise HTTPException(404, "Artikel nicht gefunden")
         return {"ok": True}
+
+    register_kb_library(app, ctx, admin_only, auto_import=settings.kb_library)  # mitgelieferte Hilfe-Bibliothek, Übersicht, Liste
 
     @app.post("/api/kb/reindex")
     def reindex() -> dict:
@@ -886,6 +891,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Atera (RMM + Splashtop-Sitzungsprotokolle), BookStack (Doku-Wiki) -----------
     register_atera(app, db, settings, admin_only)
+    register_contacts(app, ctx)  # Ansprechpartner je Kunde (aus Atera oder von Hand)
     register_bookstack(app, db, settings, admin_only)
 
     # --- Microsoft 365 der Kunden (Sicherheit, Lizenzabgleich) + Ein-/Austritte -----------

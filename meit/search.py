@@ -155,6 +155,8 @@ SOURCES: tuple[Source, ...] = (
            "coalesce(c.name,'') || ' · ' || t.target"),
     Source("project", "Projekte", "projects t" + _C, ("t.title", "t.description", "c.name"), "t.title",
            "coalesce(c.name,'') || ' · ' || t.status"),
+    Source("person", "Ansprechpartner", "contacts t" + _C, ("t.name", "t.email", "t.phone", "t.job_title", "c.name"), "t.name",
+           "coalesce(c.name,'') || ' · ' || trim(coalesce(t.job_title,'') || ' ' || coalesce(t.email,'') || ' ' || coalesce(t.phone,''))"),
     Source("receipt", "Belege", "receipts t", ("t.vendor", "t.invoice_no", "t.note"),
            "coalesce(nullif(t.vendor,''), 'Beleg') || ' ' || coalesce(t.invoice_no,'')", "coalesce(t.invoice_date,'') || ' · ' || t.status", "NULL"),
 )

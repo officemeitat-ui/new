@@ -929,6 +929,23 @@ CREATE TABLE IF NOT EXISTS project_tasks (
 
 CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project_id, position);
 
+-- Ansprechpartner je Kunde (aus Atera übernommen oder von Hand angelegt)
+CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    email TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    job_title TEXT DEFAULT '',
+    is_primary INTEGER DEFAULT 0,
+    notes TEXT DEFAULT '',
+    source TEXT DEFAULT 'cockpit',
+    external_id TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_contacts_customer ON contacts(customer_id);
+
 CREATE TABLE IF NOT EXISTS calendar_feeds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER DEFAULT 0,
@@ -959,14 +976,14 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     },
     "tickets": {
         "customer_id", "title", "description", "status", "priority", "category",
-        "solution", "ai_suggestion", "time_spent_min", "resolved_at", "assigned_to", "first_response_at", "project_id",
+        "solution", "ai_suggestion", "time_spent_min", "resolved_at", "assigned_to", "first_response_at", "project_id", "source", "external_id",
     },
     "assets": {
         "customer_id", "name", "type", "os", "serial", "purchase_date", "warranty_end",
         "last_seen", "notes", "external_id", "remote_url", "keeper_url",
     },
     "kb_articles": {"title", "content", "tags", "embedding", "embedding_model", "public", "source", "external_id",
-                    "external_url", "synced_at"},
+                    "external_url", "synced_at", "area"},
     "ai_usage": {"task", "model", "input_tokens", "output_tokens", "cache_read", "cache_write", "cost_usd"},
     "attachments": {"ref_type", "ref_id", "filename", "content_type", "size", "sha256", "path", "source",
                     "customer_visible", "message_id", "updated_at", "updated_by", "template"},
@@ -976,6 +993,7 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
     "appointments": {"uid", "customer_id", "ticket_id", "user_id", "title", "kind", "start_at", "end_at", "location", "notes",
                      "customer_note", "status", "sequence", "notified_at", "notified_to", "time_entry_id", "created_by"},
     "calendar_feeds": {"user_id", "scope", "token_hash", "last_used_at"},
+    "contacts": {"customer_id", "name", "email", "phone", "job_title", "is_primary", "notes", "source", "external_id"},
     "projects": {"customer_id", "title", "description", "status", "billing", "manager_id", "start_date", "due_date", "budget_hours",
                  "budget_amount", "quote_id", "portal_visible", "closed_at"},
     "project_tasks": {"project_id", "phase", "title", "notes", "status", "assignee_id", "due_date", "estimate_min", "position", "done_at"},
@@ -1066,7 +1084,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports", "articles", "billing_items", "monitors", "projects", "project_tasks",
+    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports", "articles", "billing_items", "monitors", "projects", "project_tasks", "contacts",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).
@@ -1085,9 +1103,10 @@ MIGRATIONS = {
               "totp_last_step": "INTEGER DEFAULT 0"},
     "agent_devices": {"ticket_id": "INTEGER"},
     "attachments": {"updated_at": "TEXT DEFAULT ''", "updated_by": "TEXT DEFAULT ''", "template": "INTEGER DEFAULT 0"},
-    "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''", "project_id": "INTEGER"},
+    "tickets": {"assigned_to": "INTEGER", "first_response_at": "TEXT DEFAULT ''", "project_id": "INTEGER",
+                "source": "TEXT DEFAULT ''", "external_id": "TEXT DEFAULT ''"},
     "time_entries": {"project_id": "INTEGER"},
-    "kb_articles": {"public": "INTEGER DEFAULT 0", "source": "TEXT DEFAULT 'cockpit'", "external_id": "TEXT DEFAULT ''",
+    "kb_articles": {"area": "TEXT DEFAULT ''", "public": "INTEGER DEFAULT 0", "source": "TEXT DEFAULT 'cockpit'", "external_id": "TEXT DEFAULT ''",
                     "external_url": "TEXT DEFAULT ''", "synced_at": "TEXT DEFAULT ''"},
     "leads": {"owner_id": "INTEGER", "next_step": "TEXT DEFAULT ''", "risk": "TEXT DEFAULT ''"},
     "quotes": {"sent_at": "TEXT DEFAULT ''", "followup_count": "INTEGER DEFAULT 0",

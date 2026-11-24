@@ -26,7 +26,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Einsatzplanung, Arbeitsbericht mit Unterschrift: [docs/EINSATZPLANUNG.md](docs/EINSATZPLANUNG.md) ·
 > Überwachung von Websites und Diensten: [docs/UEBERWACHUNG.md](docs/UEBERWACHUNG.md) ·
 > Projekte: [docs/PROJEKTE.md](docs/PROJEKTE.md) ·
-> Auswertungen: [docs/AUSWERTUNGEN.md](docs/AUSWERTUNGEN.md)
+> Auswertungen: [docs/AUSWERTUNGEN.md](docs/AUSWERTUNGEN.md) ·
+> Wissen – Hilfe-Bibliothek mit 300 Anleitungen: [docs/WISSEN.md](docs/WISSEN.md)
 
 ## Funktionen
 
@@ -39,7 +40,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Stoppuhr & App** | Stoppuhr am Ticket/Kunden (läuft sichtbar mit, Stopp bucht Zeit). Cockpit als **App am Handy** installierbar (PWA, ohne Zwischenspeichern von Kundendaten). |
 | **Wartungsplan** | Wiederkehrende Prüfungen je Kunde (Backup-Restore-Test, Patch-Status, Security, Firewall, USV …), passend zu den gebuchten Leistungen vorgeschlagen. Fällige Prüfungen werden automatisch zu Tickets, Abschluss mit Checkliste und Ergebnis. **Nachweis** im Monatsbericht, QBR, Kundenportal und als Wartungsprotokoll-PDF; fließt in den Health Score ein, zählt nicht in die SLA. |
 | **Kunden & Geräte** | Stammdaten, Pakete, gebuchte Leistungen, Geräte mit automatischer Support-Ende-Erkennung (Windows 10, Server 2012/2016/2019, Exchange, Office) |
-| **Wissensdatenbank (RAG)** | Semantische Suche mit lokalem Embedding-Modell, ohne KI als Stichwortsuche. Gelöste Tickets lassen sich per Klick übernehmen. |
+| **Wissen – Hilfe-Bibliothek** | **300 fertige Anleitungen** in 10 Bereichen (Windows, Outlook, Teams/OneDrive, Drucker, Netzwerk/VPN, Sicherheit, Microsoft 365, Server/AD, Datensicherung, Mobil/Homeoffice): 131 für Anwender (auch als Hilfe im Kundenportal), 169 nur für Techniker. Suche mit Wortformen und Synonymen, mit lokaler KI zusätzlich sinngemäß. Eigene Artikel und Anpassungen bleiben bei Aktualisierungen erhalten. Gelöste Tickets per Klick übernehmen. |
 | **KI-Assistent** | Chat mit Werkzeugen auf deine echten Daten: „Welche Kunden haben noch Windows 10?“, „Leg für Huber ein Ticket an …“ |
 | **Umsatz-Radar** | Findet regelbasiert Chancen mit €-Wert: Managed-Vertrag, Security, Backup, NIS2, Lifecycle, KI, Vertragsverlängerungen, wiederkehrende Probleme |
 | **Angebots-Agent** | Aus Gesprächsnotizen ein fertiges Angebot. Die KI wählt Leistungen aus dem Katalog, **gerechnet wird im Code**. Angenommene Angebote erhöhen automatisch den MRR. |
@@ -88,7 +89,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Wochenbriefing-Agent** | Die Woche auf einer Seite für die Geschäftsführung: Zahlen, Risiken, 3 Prioritäten, optional per Mail |
 | **Kundenportal** | `/portal`: Kunden sehen Tickets, Geräte (inkl. Support-Ende), Security-Score, Angebote (online annehmen, auch Paketwahl) und Rechnungen. Tickets anlegen mit Triage und Dateien, **Verlauf mit Antworten und Kommentaren**, Screenshots hochladen, **verdächtige E-Mails prüfen lassen**, **Ein-/Austritte melden** und Microsoft-365-Konten samt MFA-Status sehen, KI-Hilfe nur aus freigegebenen Anleitungen. Eigene Zugänge, strikt pro Kunde getrennt. |
 | **Abrechnung** | Zeiterfassung pro Ticket/Kunde (Managed = Flatrate, sonst verrechenbar), monatlicher Rechnungslauf (Pauschale + Stunden im Viertelstundentakt + Projekte), lückenlose Nummern beim Stellen, Rechnung nach § 11 UStG als PDF im Corporate Design (Versand per Outlook), Storno, Rechnungsausgangsbuch als CSV, **E-Rechnung ebInterface 6.1** (gegen das offizielle Schema geprüft; mit Auftragsreferenz und Lieferantennummer für den Bund) |
-| **Atera (RMM + Splashtop)** | Kunden und Geräte inkl. Link zur Atera-Geräteseite, Alarme → Tickets. **Splashtop-Sitzungsprotokoll** importieren: Sitzungen werden Gerät → Kunde → Wartung zugeordnet und erscheinen als protokollierter Nachweis im Wartungsprotokoll, Portal und Wiki; Sitzungen ohne Zeitbuchung mit einem Klick buchen. |
+| **Atera (RMM + Splashtop)** | Kunden und Geräte inkl. Link zur Atera-Geräteseite, **Ansprechpartner**, auf Wunsch **offene Atera-Tickets** (nur lesend gespiegelt), Alarme → Tickets. **Vorschau** vor dem ersten Abgleich (schreibt nichts) und **Diagnose** der gelieferten Felder. **Splashtop-Sitzungsprotokoll** importieren: Sitzungen werden Gerät → Kunde → Wartung zugeordnet und erscheinen als protokollierter Nachweis im Wartungsprotokoll, Portal und Wiki; Sitzungen ohne Zeitbuchung mit einem Klick buchen. |
 | **Keeper & Passwort-Wächter** | Keeper-Links je Kunde und Gerät statt Passwörtern im Cockpit. Scanner findet Klartext-Zugangsdaten in Tickets, Wissen, Notizen und E-Mails (Schwärzen per Klick); vor BookStack-Export und Cloud-KI wird automatisch geschwärzt. |
 | **BookStack** | Je Kunde ein automatisch aktuelles IT-Doku-Buch (Übersicht, Geräte mit Atera-/Keeper-Links, Lizenzen, Wartungsnachweise), Wissensartikel im Wiki, Wiki-Anleitungen als Wissen für KI-Triage, Assistent und Kundenportal. |
 | **NinjaOne (RMM)** | Organisationen → Kunden, Geräte inkl. Betriebssystem/Seriennummer/zuletzt gesehen (automatisch oder per Knopf), Alarme optional als Tickets |
@@ -243,7 +244,8 @@ meit/
   payments.py      Kontoauszug-Import, Zahlungsabgleich, Belegabgleich, Mahnwesen
   maintenance.py   Wartungsplan: Vorlagen, Fälligkeit → Ticket, Nachweise
   sepa.py          SEPA-Lastschrift: Mandate, pain.008-Einzugsdatei, Bankarbeitstage
-  atera.py         Atera-API (Kunden, Geräte, Alarme) + Splashtop-Sitzungsprotokolle
+  atera.py         Atera-API (Kunden, Geräte, Kontakte, Tickets, Alarme; Vorschau, Diagnose) + Splashtop-Sitzungsprotokolle
+  contacts.py      Ansprechpartner je Kunde
   bookstack.py     BookStack: Kunden-IT-Doku, Wissen in beide Richtungen
   secrets_guard.py Passwort-Wächter (Keeper statt Klartext, Schutz vor Cloud-KI)
   profitability.py Rentabilität je Kunde, Wertsicherung (VPI)
@@ -255,7 +257,9 @@ meit/
   speech.py        Sprachnotizen lokal in Text (faster-whisper, optional)
   radar.py         Umsatz-Radar (Lifecycle, Security, NIS2, KI, Verträge)
   security.py      NIS2-/Security-Fragebogen und Bewertung
-  knowledge.py     Wissenssuche (Embeddings + BM25)
+  knowledge.py     Wissenssuche (Embeddings + BM25 mit Wortformen und Synonymen)
+  kb_library.py    Hilfe-Bibliothek einlesen/aktualisieren, Übersicht und Liste für die Wissen-Ansicht
+  kb/              300 Anleitungen als Textdateien (Format: kb/FORMAT.md)
   training.py      Export pseudonymisierter Trainingsdaten
   seed.py          Leistungskatalog (Beispielpreise) + Demodaten
   static/          Weboberfläche

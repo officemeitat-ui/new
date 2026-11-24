@@ -467,3 +467,20 @@ label.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; 
 .util-track .chart-seg.end { border-radius: 0 4px 4px 0; }
 .util-note { grid-column: 2; font-size: .78rem; color: var(--muted); }
 @media (max-width: 600px) { .util-row { grid-template-columns: 1fr; } .util-note { grid-column: 1; } .chart-plot, .chart-y { height: 160px; } }
+
+/* Wissen: Bereiche links, Trefferliste rechts */
+.kb-layout { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.kb-areas { display: flex; flex-direction: column; gap: .25rem; }
+.kb-chip { display: flex; align-items: center; justify-content: space-between; gap: .5rem; text-align: left; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 9px; padding: .4rem .7rem; cursor: pointer; font: inherit; font-size: .88rem; }
+.kb-chip:hover { border-color: var(--primary); }
+.kb-chip.on { background: var(--primary); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
+.kb-chip .n { font-size: .75rem; opacity: .8; font-variant-numeric: tabular-nums; }
+.kb-results { padding: .3rem .6rem; }
+.kb-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem .6rem; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); padding: .6rem .4rem; cursor: pointer; font: inherit; }
+.kb-item:hover { background: var(--surface-2); }
+.kb-item .t { font-weight: 600; overflow-wrap: anywhere; }
+.kb-item .m { display: flex; gap: .3rem; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+.kb-item .s { grid-column: 1 / -1; font-size: .84rem; color: var(--muted); }
+.kb-more { margin: .7rem auto; display: block; }
+@media (max-width: 860px) { .kb-layout { grid-template-columns: 1fr; } .kb-areas { flex-direction: row; overflow-x: auto; padding-bottom: .3rem; } .kb-chip { white-space: nowrap; flex: none; }
+  .kb-item { grid-template-columns: 1fr; } .kb-item .m { justify-content: flex-start; } }
