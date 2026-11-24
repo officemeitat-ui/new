@@ -27,7 +27,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Überwachung von Websites und Diensten: [docs/UEBERWACHUNG.md](docs/UEBERWACHUNG.md) ·
 > Projekte: [docs/PROJEKTE.md](docs/PROJEKTE.md) ·
 > Auswertungen: [docs/AUSWERTUNGEN.md](docs/AUSWERTUNGEN.md) ·
-> Wissen – Hilfe-Bibliothek mit 300 Anleitungen: [docs/WISSEN.md](docs/WISSEN.md)
+> Wissen – Hilfe-Bibliothek mit 600 Anleitungen: [docs/WISSEN.md](docs/WISSEN.md)
 
 ## Funktionen
 
@@ -40,7 +40,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Stoppuhr & App** | Stoppuhr am Ticket/Kunden (läuft sichtbar mit, Stopp bucht Zeit). Cockpit als **App am Handy** installierbar (PWA, ohne Zwischenspeichern von Kundendaten). |
 | **Wartungsplan** | Wiederkehrende Prüfungen je Kunde (Backup-Restore-Test, Patch-Status, Security, Firewall, USV …), passend zu den gebuchten Leistungen vorgeschlagen. Fällige Prüfungen werden automatisch zu Tickets, Abschluss mit Checkliste und Ergebnis. **Nachweis** im Monatsbericht, QBR, Kundenportal und als Wartungsprotokoll-PDF; fließt in den Health Score ein, zählt nicht in die SLA. |
 | **Kunden & Geräte** | Stammdaten, Pakete, gebuchte Leistungen, Geräte mit automatischer Support-Ende-Erkennung (Windows 10, Server 2012/2016/2019, Exchange, Office) |
-| **Wissen – Hilfe-Bibliothek** | **300 fertige Anleitungen** in 10 Bereichen (Windows, Outlook, Teams/OneDrive, Drucker, Netzwerk/VPN, Sicherheit, Microsoft 365, Server/AD, Datensicherung, Mobil/Homeoffice): 131 für Anwender (auch als Hilfe im Kundenportal), 169 nur für Techniker. Suche mit Wortformen und Synonymen, mit lokaler KI zusätzlich sinngemäß. Eigene Artikel und Anpassungen bleiben bei Aktualisierungen erhalten. Gelöste Tickets per Klick übernehmen. |
+| **Wissen – Hilfe-Bibliothek** | **600 fertige Anleitungen** in 20 Bereichen – von Windows, Outlook, Office, Drucker und Netzwerk über Microsoft 365, Server, Azure, Firewall, Datenschutz/NIS2 und Branchensoftware bis zu Standards für die eigene Kundenbetreuung. 227 für Anwender (auch als Hilfe im Kundenportal), 373 nur für Techniker. Suche mit Wortformen und Synonymen, mit lokaler KI zusätzlich sinngemäß. **Passende Anleitungen erscheinen direkt im Ticket.** Eigene Artikel und Anpassungen bleiben bei Aktualisierungen erhalten. |
 | **KI-Assistent** | Chat mit Werkzeugen auf deine echten Daten: „Welche Kunden haben noch Windows 10?“, „Leg für Huber ein Ticket an …“ |
 | **Umsatz-Radar** | Findet regelbasiert Chancen mit €-Wert: Managed-Vertrag, Security, Backup, NIS2, Lifecycle, KI, Vertragsverlängerungen, wiederkehrende Probleme |
 | **Angebots-Agent** | Aus Gesprächsnotizen ein fertiges Angebot. Die KI wählt Leistungen aus dem Katalog, **gerechnet wird im Code**. Angenommene Angebote erhöhen automatisch den MRR. |
@@ -259,7 +259,7 @@ meit/
   security.py      NIS2-/Security-Fragebogen und Bewertung
   knowledge.py     Wissenssuche (Embeddings + BM25 mit Wortformen und Synonymen)
   kb_library.py    Hilfe-Bibliothek einlesen/aktualisieren, Übersicht und Liste für die Wissen-Ansicht
-  kb/              300 Anleitungen als Textdateien (Format: kb/FORMAT.md)
+  kb/              600 Anleitungen als Textdateien (Format: kb/FORMAT.md)
   training.py      Export pseudonymisierter Trainingsdaten
   seed.py          Leistungskatalog (Beispielpreise) + Demodaten
   static/          Weboberfläche

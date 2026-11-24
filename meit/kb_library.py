@@ -180,6 +180,15 @@ def register(app: FastAPI, ctx: Any, admin_only, auto_import: bool = False) -> N
                         "LIMIT ? OFFSET ?", [*params, limit, offset])
         return {"total": total, "items": [row_view(r) for r in rows], "mode": ""}
 
+    @app.get("/api/tickets/{tid}/knowledge")
+    def for_ticket(tid: int, limit: int = 4) -> dict:
+        """Passende Anleitungen zu einem Ticket – aus Titel und Beschreibung, auch ohne KI und für gespiegelte Tickets."""
+        t = db.get("tickets", tid)
+        if not t:
+            raise HTTPException(404, "Ticket nicht gefunden")
+        hits = ctx.kb.suggest(t["title"], t.get("description") or "", limit=max(1, min(limit, 8)))
+        return {"items": [row_view(h) for h in hits]}
+
     @app.post("/api/kb/library/import", dependencies=[Depends(admin_only)])
     def run_import() -> dict:
         return import_library(db)

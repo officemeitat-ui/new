@@ -514,6 +514,11 @@ async function ticketDetail(id) {
     h("pre", { style: "white-space:pre-wrap;font-family:inherit;margin:.4rem 0 0" }, s.reply)) : null;
   const thread = h("div", {}, h("p", { class: "small muted" }, "Verlauf wird geladen …"));
   ticketThread(t, thread);
+  const guides = h("div", {});
+  api(`/api/tickets/${t.id}/knowledge`).then((k) => { if (!k.items.length) return;
+    fill(guides, h("div", { class: "kb-guides" }, h("strong", { class: "small" }, "Passende Anleitungen aus dem Wissen"),
+      k.items.map((a) => h("button", { class: "kb-guide", title: a.snippet, onclick: () => kbReader(a.id) }, h("span", { class: "t" }, a.title),
+        a.public ? h("span", { class: "badge ok" }, "Anwender") : h("span", { class: "badge" }, "Technik"))))); }).catch(() => {});
   modal(`#${t.id} ${t.title}`, h("div", {},
     h("p", { class: "muted small" }, `${t.customer_name || "Kein Kunde"} · erstellt ${dt(t.created_at)}`),
     t.source === "atera" ? h("div", { class: "verdict warn", style: "padding:.5rem .8rem" }, h("span", { class: "small" },
@@ -523,7 +528,7 @@ async function ticketDetail(id) {
         t.csat.comment ? ` „${t.csat.comment}“` : "", t.csat.followup_ticket_id ? ` · Rückruf-Ticket #${t.csat.followup_ticket_id}` : "")
       : h("span", { class: "muted" }, t.csat.sent_at ? `Zufriedenheits-Umfrage gesendet ${dt(t.csat.sent_at)} – noch keine Bewertung` : "Bewertung im Kundenportal möglich")) : null,
     h("p", { style: "white-space:pre-wrap" }, t.description || h("em", { class: "muted" }, "Keine Beschreibung")),
-    aiBox, thread, edit), [
+    guides, aiBox, thread, edit), [
     h("button", { class: "btn danger", onclick: async () => {
       if (!confirm("Ticket löschen?")) return;
       await api(`/api/tickets/${t.id}`, { method: "DELETE" }); document.querySelector(".modal-backdrop")?.remove(); toast("Gelöscht"); render();
@@ -787,13 +792,15 @@ views.wissen = async () => {
   const aud = h("div", { class: "row", style: "gap:.3rem" });
   const drawAud = () => fill(aud, [["", "Alle"], ["kunde", `Für Anwender (${o.public})`], ["technik", `Nur Technik (${o.total - o.public})`]].map(([k, l]) =>
     chip(l, kbFilter.audience === k, () => { kbFilter.audience = k; drawAud(); load(); })));
+  const areaSelect = h("select", { class: "kb-area-select", "aria-label": "Bereich", onchange: (e) => { kbFilter.area = e.target.value; drawAreas(); load(); } },
+    h("option", { value: "" }, `Alle Bereiche (${o.total})`), o.areas.map((a) => h("option", { value: a.area, selected: kbFilter.area === a.area }, `${a.area} (${a.n})`)));
   drawAreas(); drawAud();
   show(
     !o.library && isAdmin ? h("div", { class: "verdict warn" }, h("strong", {}, "Die Hilfe-Bibliothek ist noch nicht geladen"),
       h("div", { class: "small" }, "Sie enthält einige hundert fertige Anleitungen für den IT-Alltag. Oben auf „Bibliothek aktualisieren“ klicken.")) : null,
     h("div", { class: "card", style: "margin-bottom:1rem" }, search,
       h("div", { class: "row", style: "margin-top:.6rem;justify-content:space-between" }, aud, info)),
-    h("div", { class: "kb-layout" }, areas, h("div", { class: "card kb-results" }, results)),
+    h("div", { class: "kb-layout" }, h("div", {}, areaSelect, areas), h("div", { class: "card kb-results" }, results)),
     h("p", { class: "small muted", style: "margin-top:.8rem" }, "„Für Anwender“ sind Anleitungen ohne Admin-Schritte; nur diese nutzt die Hilfe im Kundenportal. Die Bibliothek ist ein Ausgangspunkt: Artikel anpassen, ergänzen oder löschen – eigene Fassungen bleiben bei Aktualisierungen erhalten."));
   await load();
   if (!kbFilter.q && matchMedia("(min-width: 861px)").matches) search.focus();

@@ -70,9 +70,9 @@ def test_shipped_library_is_large_and_well_formed():
     """Die mitgelieferten Dateien: viele Artikel, keine Formatfehler, einheitlicher Aufbau, nichts Riskantes für Anwender."""
     found, problems = lib.load()
     assert problems == []
-    assert len(found) >= 280
+    assert len(found) >= 580
     areas = {a["area"] for a in found}
-    assert len(areas) == 10
+    assert len(areas) == 20
     assert len({a["external_id"] for a in found}) == len(found)
     for a in found:
         words = len(a["content"].split())
@@ -83,7 +83,7 @@ def test_shipped_library_is_large_and_well_formed():
         assert len([t for t in a["tags"].split(",") if t.strip()]) >= 3, a["title"]
         assert not re.search(r"<(script|img|a|iframe)\b", a["content"], re.I), a["title"]
     users = [a for a in found if a["audience"] == "kunde"]
-    assert len(users) >= 100 and len(found) - len(users) >= 100
+    assert len(users) >= 200 and len(found) - len(users) >= 300
     # Anleitungen für Anwender landen im Kundenportal: keine Admin-Werkzeuge, keine Befehle mit Löschwirkung
     forbidden = re.compile(r"regedit|netsh |diskpart|\bdel /|format [a-z]:|Remove-|Set-Mailbox|als Administrator ausführen|net stop", re.I)
     for a in users:
@@ -164,9 +164,9 @@ def test_overview_list_and_article_endpoints(client, app):
 def test_import_endpoint_reads_the_shipped_library_and_is_admin_only(client, app):
     db = app.state.ctx.db
     r = client.post("/api/kb/library/import").json()
-    assert r["created"] >= 280 and r["problems"] == []
+    assert r["created"] >= 580 and r["problems"] == []
     o = client.get("/api/kb/overview").json()
-    assert o["library"] == r["created"] and o["public"] >= 100 and len(o["areas"]) >= 10
+    assert o["library"] == r["created"] and o["public"] >= 200 and len(o["areas"]) >= 20
     assert client.post("/api/kb/library/import").json()["unchanged"] == r["created"]
 
     # Suche über die ganze Bibliothek: das naheliegende Thema steht oben
@@ -199,3 +199,17 @@ def test_search_understands_word_forms_and_synonyms():
     scores = keyword_scores("passwort wifi", docs)
     assert scores[1] > 0 and scores[0] == 0  # „Passwort“ findet „Kennwort“, „wifi“ findet „WLAN“
     assert keyword_scores("", docs) == [0.0, 0.0, 0.0]
+
+
+def test_ticket_gets_matching_guides_without_ai(client, app):
+    client.post("/api/kb/library/import")
+    ticket = client.post("/api/tickets", json={"title": "Drucker im Empfang zeigt offline", "customer_id": 1,
+                                               "description": "Seit heute früh druckt niemand mehr, die Warteschlange ist voll."}).json()
+    k = client.get(f"/api/tickets/{ticket['id']}/knowledge").json()
+    assert 1 <= len(k["items"]) <= 4
+    assert "drucker" in k["items"][0]["title"].lower() and "content" not in k["items"][0]
+    # Kein Treffer ist besser als ein zufälliger: Allerweltswörter in der Beschreibung reichen nicht für eine Empfehlung
+    quiet = client.post("/api/tickets", json={"title": "Frage zu KI für Arztbriefe", "customer_id": 1,
+                                              "description": "Gibt es eine Möglichkeit, das ohne Cloud zu machen? Bitte um Rückruf."}).json()
+    assert client.get(f"/api/tickets/{quiet['id']}/knowledge").json()["items"] == []
+    assert client.get("/api/tickets/999999/knowledge").status_code == 404

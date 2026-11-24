@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+from functools import lru_cache
 import re
 from collections import Counter
 from typing import Any
@@ -22,6 +23,10 @@ STOPWORDS = set(
     für fuer über ueber unter nach vor seit bis als wie was wer wo wann warum dass da so auch noch nur
     schon sehr mehr mal bitte danke hallo kann können koennen geht gehen funktioniert seit heute mein
     meine unser unsere man sich wenn dann denn doch ja nein alle alles immer wieder
+    niemand jemand gibt macht machen muss muessen soll sollte will wollen moechte
+    beim vom ins ohne sowie dabei damit daher dazu hier dort jetzt gerade leider gestern frueh ganz etwas
+    viel viele wenig keinen keiner dringend danke gruss gruesse liebe sehr geehrte herr frau
+    hilfe frage fragen anfrage problem probleme
     the a an and or is are to of for on in with it this that not
     """.split()
 )
@@ -67,28 +72,42 @@ def related(a: str, b: str) -> bool:
     return common >= max(5, shorter - 1)
 
 
+@lru_cache(maxsize=8192)
+def _counts(text: str) -> tuple[dict[str, int], int]:
+    """Wörter eines Artikels zählen – je Text nur einmal, danach aus dem Zwischenspeicher."""
+    counts = Counter(tokenize(text))
+    return dict(counts), sum(counts.values())
+
+
 def keyword_scores(query: str, docs: list[str]) -> list[float]:
     """Einfaches BM25 mit Wortformen und Synonymen („Kennwort“ findet auch „Passwort“)."""
+    return _score(query, docs)[0]
+
+
+def _score(query: str, docs: list[str]) -> tuple[list[float], list[set[str]]]:
+    """Punkte je Text – und welche Wörter der Anfrage darin vorkommen (Synonyme zählen als das gesuchte Wort)."""
     base = set(tokenize(query))
     if not base or not docs:
-        return [0.0] * len(docs)
-    weights = {q: 1.0 for q in base}
+        return [0.0] * len(docs), [set() for _ in docs]
+    weights: dict[str, tuple[float, str]] = {q: (1.0, q) for q in base}
     for q in base:
         for syn in SYNONYMS.get(q, ()):
-            weights.setdefault(syn, 0.6)
-    counts = [Counter(tokenize(d)) for d in docs]
-    lengths = [sum(c.values()) for c in counts]
+            weights.setdefault(syn, (0.6, q))
+    counted = [_counts(d) for d in docs]
+    counts, lengths = [c for c, _ in counted], [n for _, n in counted]
     avg_len = sum(lengths) / len(docs) or 1.0
     n_docs = len(docs)
+    vocabulary: dict[str, set[str]] = {}  # alle Wörter der Texte, nach den ersten vier Buchstaben abgelegt
+    for c in counts:
+        for token in c:
+            if len(token) >= 4:
+                vocabulary.setdefault(token[:4], set()).add(token)
     k1, b = 1.4, 0.75
     scores = [0.0] * n_docs
-    for q, weight in weights.items():  # je Suchwort einmal über alle Artikel – bleibt auch bei einigen hundert Artikeln schnell
-        tfs = []
-        for c in counts:
-            tf = float(c.get(q, 0))
-            if len(q) >= 4:
-                tf += 0.5 * sum(n for t, n in c.items() if t != q and related(t, q))
-            tfs.append(tf)
+    matched: list[set[str]] = [set() for _ in docs]
+    for q, (weight, origin) in weights.items():  # auch bei langen Ticket-Texten und einigen hundert Artikeln schnell
+        forms = [t for t in vocabulary.get(q[:4], ()) if t != q and related(t, q)] if len(q) >= 4 else []
+        tfs = [c.get(q, 0) + 0.5 * sum(c.get(t, 0) for t in forms) if forms else float(c.get(q, 0)) for c in counts]
         df = sum(1 for tf in tfs if tf)
         if not df:
             continue
@@ -96,7 +115,8 @@ def keyword_scores(query: str, docs: list[str]) -> list[float]:
         for i, tf in enumerate(tfs):
             if tf:
                 scores[i] += weight * idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * lengths[i] / avg_len))
-    return scores
+                matched[i].add(origin)
+    return scores, matched
 
 
 def cosine(a: list[float], b: list[float]) -> float:
@@ -133,6 +153,34 @@ class KnowledgeBase:
                 self.db.query("UPDATE kb_articles SET embedding = ?, embedding_model = ? WHERE id = ?", (json.dumps(vec), model, row["id"]))
             done += len(batch)
         return done
+
+    def suggest(self, title: str, text: str = "", limit: int = 4) -> list[dict[str, Any]]:
+        """Passende Anleitungen zu einem Vorgang: Der Titel entscheidet, die Beschreibung verfeinert nur.
+
+        Bewusst streng – lieber keine Empfehlung als eine, die nur wegen eines Allerweltsworts auftaucht. Eine Anleitung
+        zählt, wenn ihre Überschrift oder ihre Schlagworte zwei Wörter des Titels enthalten – oder eines, das in der
+        Bibliothek selten und damit aussagekräftig ist („BitLocker“, „NAS“, „Kassa“). Nennt der Titel überhaupt nur ein
+        Thema, genügt dieses."""
+        articles = self.db.query("SELECT id, title, area, tags, content, public, source, updated_at FROM kb_articles")
+        if not articles or not title.strip():
+            return []
+        body = [f"{a.get('title', '')}\n{a.get('tags') or ''}\n{a.get('content', '')}" for a in articles]
+        head = [f"{a.get('title', '')} {a.get('tags') or ''}" for a in articles]
+        body_score, in_body = _score(title, body)
+        head_score, in_head = _score(title, head)
+        spread = Counter(word for words in in_body for word in words)
+        rare = {word for word, n in spread.items() if n <= max(3, 0.06 * len(articles))}
+        extra = keyword_scores(f"{title} {text[:800]}", body) if text.strip() else [0.0] * len(articles)
+        need = 2 if len(spread) >= 2 else 1  # nennt der Titel nur ein Thema („Internet geht nicht“), genügt dieses eine Wort
+        scored = [(body_score[i] + 1.5 * head_score[i] + 0.35 * extra[i], len(in_head[i]) >= need, a) for i, a in enumerate(articles)
+                  if len(in_head[i]) >= need or in_head[i] & rare]
+        if not scored:
+            return []
+        if not any(strong for _, strong, _ in scored):
+            limit = min(limit, 2)  # nur ein einzelnes seltenes Wort trägt die Empfehlung – dann zurückhaltend bleiben
+        best = max(s for s, _, _ in scored)
+        scored = sorted((x for x in scored if x[0] >= 0.5 * best), key=lambda x: -x[0])[:limit]
+        return [{**a, "score": round(s, 1)} for s, _, a in scored]
 
     def search(self, query: str, limit: int = 5, public_only: bool = False) -> list[dict[str, Any]]:
         articles = self.db.query("SELECT * FROM kb_articles" + (" WHERE public = 1" if public_only else ""))

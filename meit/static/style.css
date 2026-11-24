@@ -482,5 +482,11 @@ label.check { display: flex; align-items: center; gap: .5rem; font-weight: 400; 
 .kb-item .m { display: flex; gap: .3rem; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
 .kb-item .s { grid-column: 1 / -1; font-size: .84rem; color: var(--muted); }
 .kb-more { margin: .7rem auto; display: block; }
-@media (max-width: 860px) { .kb-layout { grid-template-columns: 1fr; } .kb-areas { flex-direction: row; overflow-x: auto; padding-bottom: .3rem; } .kb-chip { white-space: nowrap; flex: none; }
+.kb-area-select { display: none; width: 100%; }
+@media (max-width: 860px) { .kb-layout { grid-template-columns: 1fr; } .kb-areas { display: none; } .kb-area-select { display: block; }
   .kb-item { grid-template-columns: 1fr; } .kb-item .m { justify-content: flex-start; } }
+/* Passende Anleitungen im Ticket */
+.kb-guides { display: flex; flex-direction: column; gap: .3rem; margin: .8rem 0; padding: .6rem .7rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.kb-guide { display: flex; align-items: center; justify-content: space-between; gap: .6rem; text-align: left; border: 0; background: none; color: var(--primary); padding: .2rem 0; cursor: pointer; font: inherit; }
+.kb-guide .t { overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 2px; }
+.kb-guide:hover .t { text-decoration-thickness: 2px; }
