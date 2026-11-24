@@ -583,6 +583,25 @@ lazy(BUERO, {
   todo: ['arbeitsschutz', 'arbeitsstoffe'],
 })
 
+// aufgaben.js: interne Aufgaben (wer macht was bis wann), alle Büro-Rollen
+lazy(BUERO, {
+  views: [
+    {
+      id: 'aufgaben',
+      order: 0.5,
+      label: 'Aufgaben',
+      group: 'start',
+      module: 'aufgaben',
+      icon: '<rect x="4" y="4.5" width="16" height="16" rx="2.5"/><path d="M8 3v3M16 3v3"/><path d="m8.5 13 2.4 2.4 4.6-5"/>',
+      noWeek: true,
+      text: 'Interne Aufgaben: wer macht was bis wann, zuweisen, abhaken',
+    },
+  ],
+  modals: 'aufgabe',
+  actions: 'aufg-goto aufg-filter aufg-query aufg-open aufg-mail aufg-new aufg-save aufg-status aufg-delete',
+  todo: ['aufgaben'],
+})
+
 // zufriedenheit.js: Kundenzufriedenheit (Umfrage im Kundenbereich je Quartal, Auswertung, NPS, Hinweise)
 lazy(BUERO, {
   views: [

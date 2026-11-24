@@ -26,6 +26,7 @@ Microsoft Graph ──► SharePoint cleanconcept1 → Bibliothek Cleanos_Daten 
                          ├─ qualitaet/                    Qualitätsmessung je Objekt (Fotos der Mängel, Berichte)
                          ├─ arbeitsschutz/                Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter unter dokumente/)
                          ├─ zufriedenheit/                Kundenzufriedenheit (Umfrage-Runden, Antworten)
+                         ├─ aufgaben/                     Interne Aufgaben (wer macht was bis wann, alle Büro-Rollen)
                          ├─ bewerbung/                    Bewerbungen mit Lebenslauf (nur Personalverwaltung, Vollzugriff)
                          ├─ eintritt/                     Eintritts- und Austritts-Checklisten (auch Lohnverrechnung)
                          ├─ matten/matten.json            Mattenwechsel-Modul: Liegeplätze, Gebiete, Einstellungen (Mattenwechsel Büro)

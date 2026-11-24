@@ -10,6 +10,7 @@ export const QUICK = [
   { id: 'termin', label: 'Termin', key: 't', module: 'termine', action: 'appt-new', words: 'kalender outlook besprechung begehung meeting einladen' },
   { id: 'abwesenheit', label: 'Abwesenheit (Urlaub, Krankenstand)', key: 'a', module: 'planung', action: 'open-absence-new', words: 'urlaub krank krankenstand zeitausgleich' },
   { id: 'zeit', label: 'Zeit nachtragen', key: 'z', module: 'planung', action: 'tc-edit-open', words: 'zeiterfassung stempeln vergessen kommen gehen' },
+  { id: 'aufgabe', label: 'Aufgabe', module: 'aufgaben', action: 'aufg-new', words: 'aufgabe todo to do erledigen zuweisen ticket erinnerung kollege' },
   { id: 'reklamation', label: 'Reklamation', key: 'r', module: 'reklamationen', action: 'complaint-new', words: 'beschwerde mangel kunde' },
   { id: 'qualitaet', label: 'Qualitätsmessung', module: 'qualitaet', action: 'qm-measure-open', words: 'qualität messung stichprobe en 13549 aql kennzahl nachkontrolle raumgruppe' },
   { id: 'umfrage', label: 'Umfrage-Runde öffnen (Kundenzufriedenheit)', module: 'zufriedenheit', action: 'kz-round-open', words: 'umfrage kundenzufriedenheit zufriedenheit nps weiterempfehlung bewertung feedback runde' },

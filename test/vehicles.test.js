@@ -156,7 +156,7 @@ test('Reifen: Liste für Excel, Fahrzeugliste übernehmen, Erledigt nachtragen',
 
 test('Reifen: eigene Datei, Rolle Fuhrpark, Beispieldaten', () => {
   assert.equal(MODULE_DOCS.fahrzeuge.path, 'fahrzeuge/fahrzeuge.json')
-  assert.deepEqual(DEFAULT_ROLES.fuhrpark, { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] })
+  assert.deepEqual(DEFAULT_ROLES.fuhrpark, { label: 'Fuhrpark', modules: ['fahrzeuge', 'aufgaben'], edit: ['fahrzeuge', 'aufgaben'] })
   const fz = createModuleDemo('2026-10-26').fahrzeuge
   const { counts, total } = campaignSummary(fz, '2026-10-25')
   assert.deepEqual([total, counts.geplant, counts.offen, counts.erledigt, counts.ganzjahr], [7, 3, 2, 1, 1])

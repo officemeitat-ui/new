@@ -2,11 +2,11 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 429 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 431 Themen, 45 Begriffe.*
 
 ## Inhalt
 
-- [Start & Übersicht](#start-uebersicht) (18)
+- [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
 - [Einsätze & Zeiten](#einsaetze-zeiten) (31)
 - [Objekte & Kunden](#objekte-kunden) (112)
@@ -164,6 +164,40 @@ Ist die Ablage noch leer, zeigt die App „Willkommen“. Am schnellsten geht es
 > Tipp: Auch per Liste: Handynummern, Resturlaub und Zeitkonto (Spalten bei den Mitarbeitenden), die Unterweisungen und die Schlüsselliste.
 
 *Vollzugriff*
+
+### Aufgaben: wer macht was bis wann
+
+*In der App: Aufgaben*
+
+Unter „Aufgaben“ hältst du fest, wer im Büro was bis wann erledigt: Aufgabe anlegen, jemandem zuweisen, Fälligkeit setzen, abhaken. Die Reiter zeigen „Meine“, alle offenen, Überfälliges und Erledigtes. Wer zuständig ist, sieht überfällige, bald fällige und neue Aufgaben beim Öffnen der App unter „Zu erledigen“.
+
+1. „Aufgaben“ im Menü oben öffnen.
+2. „Neue Aufgabe“ klicken, kurz beschreiben, zuständige Person und „fällig am“ eintragen.
+3. „Speichern“. Erledigtes mit „Erledigt“ in der Liste abhaken.
+
+> Tipp: Der Reiter „Meine“ zeigt, was dir zugewiesen ist – erkannt am Namen bzw. an der E-Mail deiner Anmeldung.
+> Tipp: Im Dialog stehen Kommentare und der Verlauf: wer hat wann zugewiesen, verschoben, erledigt.
+> Tipp: „Per E-Mail senden“ schickt die Aufgabe an die zuständige Person.
+> Tipp: Aufgaben sehen alle Büro-Rollen. Bitte nichts Vertrauliches hineinschreiben (Lohn, Krankheit).
+
+*alle Büro-Rollen (nicht Vorarbeiter, Ableser, Prüfer, Fahrer)*
+
+### Aufgabe jemandem zuweisen und nachverfolgen
+
+*In der App: Aufgaben*
+
+Im Dialog der Aufgabe trägst du unter „Zuständig“ den Namen ein (die App schlägt Mitarbeitende und bisherige Zuständige vor). Mit „fällig am“ und „dringend“ steuerst du die Reihenfolge: Überfälliges steht oben. Jede Änderung an Zuständigkeit, Fälligkeit und Status steht mit Zeit und Person im Verlauf.
+
+1. Aufgabe in der Liste anklicken.
+2. Bei „Zuständig“ den Namen ändern, bei Bedarf das Datum.
+3. Optional einen Kommentar dazuschreiben, dann „Speichern“.
+4. Im Reiter „Überfällig“ nachsehen, was liegen geblieben ist.
+
+> Tipp: Ohne Zuständige steht die Aufgabe unter „Alle offenen“ mit einem Hinweis oben.
+> Tipp: Erledigtes lässt sich mit „Wieder öffnen“ zurückholen.
+> Tipp: Für Mängel beim Kunden gibt es weiter die Reklamationen, für Fristen der Anlagen die Prüffristen – Aufgaben sind für alles Übrige im Büro.
+
+*alle Büro-Rollen*
 
 ### Posteingang: E-Mails und Belege erkennen
 

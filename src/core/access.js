@@ -58,6 +58,9 @@ export const MODULES = {
   // Posteingang: E-Mails und Belege erkennen und als Entwurf übergeben. Nur Vollzugriff (Büro): Im Postfach landet
   // alles (Krankmeldungen, Bewerbungen, Rechnungen, Kündigungen); eigene Rollen über config.json → access.roles
   posteingang: 'Posteingang',
+  // Interne Aufgaben (wer macht was bis wann): alle Büro-Rollen, damit man einander Aufgaben geben kann. Die Datei ist
+  // für die Zusammenarbeit gedacht, nicht für Vertrauliches.
+  aufgaben: 'Aufgaben',
 }
 
 // Zusatzleistungen, die Kunden im Kundenbereich anfragen (core/zusatzleistungen.js), sind kein eigenes Modul: abholen,
@@ -78,34 +81,34 @@ export const DEFAULT_ROLES = {
   // bearbeiten nur der Vollzugriff; die Angaben am Artikel (Gefahren, Sicherheitsdatenblatt) pflegt das Lager
   // Kundenzufriedenheit: Objektmanagement und Objektleitung lesen die Auswertung ihrer Objekte; Fragen, Rhythmus und
   // Einladungen nur Vollzugriff (bzw. eine eigene Rolle mit Bearbeiten, die auch den Kundenbereich bearbeitet)
-  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet'] },
+  objektmanagement: { label: 'Objektmanagement', modules: ['planung', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit', 'aufgaben'], edit: ['kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'termine', 'anlagen', 'regie', 'qualitaet', 'aufgaben'] },
   vorarbeiter: { label: 'Vorarbeiter/in', modules: ['zaehler'], edit: ['zaehler'] },
   // Mattenwechsel Büro (Rollen-ID bleibt „mattenwechsel“, damit die Gruppe in config.json weiter gilt): Werkzeug,
   // Liegeplätze, Kalender, Touren planen und freigeben; Rechnungsentwürfe nur mit Recht auf die Fakturierung
-  mattenwechsel: { label: 'Mattenwechsel Büro', modules: ['matten', 'mattentour'], edit: ['matten', 'mattentour'] },
+  mattenwechsel: { label: 'Mattenwechsel Büro', modules: ['matten', 'mattentour', 'aufgaben'], edit: ['matten', 'mattentour', 'aufgaben'] },
   // Fahrer Mattenwechsel: nur die eigenen Touren (matten/touren/), keine Preise, kein Kundenstamm
   mattenfahrer: { label: 'Fahrer Mattenwechsel', modules: ['mattentour'], edit: ['mattentour'] },
   // Eintritt & Austritt: Checklisten (Anmeldung, Abmeldung, Zeitkonto); Bewerbungsunterlagen sieht sie nicht
-  lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung', 'eintritt'], edit: ['auswertung', 'eintritt'] },
+  lohnverrechnung: { label: 'Lohnverrechnung', modules: ['auswertung', 'eintritt', 'aufgaben'], edit: ['auswertung', 'eintritt', 'aufgaben'] },
   // Bewerbungen bis zur Zusage, Mitarbeitende anlegen (Stammdaten), Unterweisungen und Gesprächstermine; das
   // Schlüsselbuch nur lesen (Ausgabe und Rückgabe in der Checkliste sehen, Quittung drucken)
   // Mitteilungen an Mitarbeitende: verfassen, übersetzen, Lesebestätigungen und Nachweis
-  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel', 'mitteilungen'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'mitteilungen'] },
+  personalverwaltung: { label: 'Personalverwaltung', modules: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'schluessel', 'mitteilungen', 'aufgaben'], edit: ['bewerber', 'eintritt', 'stammdaten', 'unterweisungen', 'termine', 'mitteilungen', 'aufgaben'] },
   // Geräte & Maschinen: Objektleitung und Lager & Einkauf pflegen die Geräte (Prüfungen, Reparaturen, Ausgabe)
   // Vertrieb: Objektleitung nimmt Anfragen auf und besichtigt; Kalkulation, Angebote und Kunden bleiben beim Büro bzw.
   // bei der Fakturierung (Übergabe im Fall)
-  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit', 'vertrieb'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'vertrieb'] },
+  objektleitung: { label: 'Objektleitung', modules: ['planung', 'zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'arbeitsschutz', 'zufriedenheit', 'vertrieb', 'aufgaben'], edit: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'unterweisungen', 'termine', 'anlagen', 'geraete', 'regie', 'qualitaet', 'vertrieb', 'aufgaben'] },
   // Anlagen & Prüffristen: Objektservice (Hausbetreuung) prüft vor Ort und trägt die Prüfungen ein;
   // Regieberichte: erfasst Sonderleistungen vor Ort und lässt sie am Handy unterschreiben
-  objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'anlagen', 'regie'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material', 'anlagen', 'regie'] },
+  objektservice: { label: 'Objektservice', modules: ['zaehler', 'kontrolle', 'objektmappe', 'reklamationen', 'material', 'schluessel', 'anlagen', 'regie', 'aufgaben'], edit: ['zaehler', 'kontrolle', 'reklamationen', 'material', 'anlagen', 'regie', 'aufgaben'] },
   // Lager und Einkauf: Bestand, Bestellungen, Ausgabe an die Objekte; im Arbeitsschutz die Angaben am Artikel
   // (Arbeitsstoffe: Gefahren, Sicherheitsdatenblatt), Evaluierung und Betriebsanweisungen nur lesen; Geräte & Maschinen
-  lager: { label: 'Lager & Einkauf', modules: ['material', 'arbeitsschutz', 'arbeitsstoffe', 'geraete'], edit: ['material', 'arbeitsstoffe', 'geraete'] },
+  lager: { label: 'Lager & Einkauf', modules: ['material', 'arbeitsschutz', 'arbeitsstoffe', 'geraete', 'aufgaben'], edit: ['material', 'arbeitsstoffe', 'geraete', 'aufgaben'] },
   ableser: { label: 'Ableser', modules: ['zaehler'], edit: ['zaehler'] },
   pruefer: { label: 'Prüfer/in', modules: ['kontrolle', 'objektmappe'], edit: ['kontrolle'] },
-  fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge'], edit: ['fahrzeuge'] },
+  fuhrpark: { label: 'Fuhrpark', modules: ['fahrzeuge', 'aufgaben'], edit: ['fahrzeuge', 'aufgaben'] },
   // Angebote, Rechnungen, Zahlungseingänge, Mahnungen (Fakturierung); Lieferanten, Eingangsrechnungen, Kassenbuch (Einkauf & Kasse)
-  buchhaltung: { label: 'Buchhaltung', modules: ['fakturierung', 'einkauf'], edit: ['fakturierung', 'einkauf'] },
+  buchhaltung: { label: 'Buchhaltung', modules: ['fakturierung', 'einkauf', 'aufgaben'], edit: ['fakturierung', 'einkauf', 'aufgaben'] },
   lesen: { label: 'Nur lesen', modules: ['planung'], edit: [] },
 }
 

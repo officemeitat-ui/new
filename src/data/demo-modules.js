@@ -263,6 +263,24 @@ function demoContracts(today, prev2First) {
   ]
 }
 
+/** Interne Aufgaben (erfunden): eine überfällig, eine bald fällig, eine ohne Zuständige, eine erledigt. */
+function demoAufgaben(today) {
+  const at = (n) => `${addDays(today, n)}T08:00:00.000Z`
+  const log = (n, by, text) => [{ at: at(n), by, text }]
+  const task = (id, title, extra = {}) => ({ id, title, note: '', objectId: '', assignee: null, due: '', priority: 'normal', status: 'offen', createdAt: at(-5), createdBy: 'Beispieldaten', updatedAt: at(-5), updatedBy: 'Beispieldaten', log: log(-5, 'Beispieldaten', 'angelegt'), ...extra })
+  return {
+    schema: 1,
+    settings: {},
+    items: [
+      task('au-demo1', 'Angebot Autohaus Maxglan nachfassen', { objectId: 'o2', assignee: { name: 'Browser' }, due: addDays(today, -2), note: 'Herr Beispiel wollte bis Monatsende entscheiden.' }),
+      task('au-demo2', 'Schlüssel für Wohnanlage Lehen nachmachen lassen', { objectId: 'o5', assignee: { name: 'Browser' }, due: addDays(today, 1), priority: 'hoch' }),
+      task('au-demo3', 'Neue Lieferanten für Müllsäcke vergleichen', { note: 'Drei Angebote einholen.' }),
+      task('au-demo4', 'Feuerlöscher im Lager prüfen lassen', { assignee: { name: 'Markus Huber' }, due: addDays(today, 9) }),
+      task('au-demo5', 'Winterreifen-Termine an die Fahrer schicken', { assignee: { name: 'Browser' }, status: 'erledigt', doneAt: at(-1), doneBy: 'Browser', log: [...log(-5, 'Beispieldaten', 'angelegt'), ...log(-1, 'Browser', 'Status: erledigt')] }),
+    ],
+  }
+}
+
 export function createModuleDemo(monday, employees = []) {
   const material = demoMaterial()
   const matten = createMattenDemo()
@@ -281,6 +299,7 @@ export function createModuleDemo(monday, employees = []) {
     mattenBestand: createMattenBestandDemo(todayISO()),
     qualitaet: createQualitaetDemo(),
     zufriedenheit: createZufriedenheitDemo(),
+    aufgaben: demoAufgaben(todayISO()),
     ...createBewerberDemo(),
     termine: demoAppointments(monday, employees),
     material,

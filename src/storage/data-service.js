@@ -24,6 +24,7 @@
 //   arbeitsschutz/arbeitsschutz.json  Arbeitsschutz: Betriebsanweisungen, Evaluierung (PDFs und Sicherheitsdatenblätter
 //                                     unter arbeitsschutz/dokumente/; die Angaben zu Arbeitsstoffen stehen am Artikel)
 //   zufriedenheit/zufriedenheit.json  Kundenzufriedenheit: Umfrage-Runden, Antworten aus dem Kundenbereich, Einstellungen
+//   aufgaben/aufgaben.json            Interne Aufgaben: wer macht was bis wann (alle Büro-Rollen)
 //   termine/termine.json              Termine (mit Outlook-Termin der anlegenden Person)
 //   assistenz/entscheidungen.json     Digitale Mitarbeiter: Vorschläge später/abgelehnt/erledigt
 //   fakturierung/fakturierung.json    Fakturierung (Kunden, Artikel, Angebote, Rechnungen, Daueraufträge)
@@ -145,6 +146,8 @@ export const MODULE_DOCS = {
   // Mitteilungen an Mitarbeitende: leere Inhalte wie emptyMitteilungen, emptyPostfach, emptyBestaetigt
   // (core/mitteilungen.js; test/mitteilungen.test.js vergleicht), hier ausgeschrieben wegen des Starts der App
   mitteilungen: { path: 'mitteilungen/mitteilungen.json', empty: () => ({ items: [], receipts: {}, settings: {} }) },
+  // Interne Aufgaben: leerer Inhalt wie emptyAufgaben (core/aufgaben.js; test/aufgaben.test.js vergleicht)
+  aufgaben: { path: 'aufgaben/aufgaben.json', empty: () => ({ schema: 1, items: [], settings: {} }) },
   mitPostfach: { path: 'mitteilungen/konten/postfach.json', empty: () => ({ items: [] }) },
   mitBestaetigt: { path: 'mitteilungen/bestaetigungen/bestaetigungen.json', empty: () => ({ receipts: {} }) },
   // Posteingang: leerer Inhalt wie emptyPosteingang (core/posteingang.js; test/posteingang.test.js vergleicht)
@@ -283,6 +286,8 @@ export function dataRights(access) {
     ['mitteilungen/konten/', () => appRole(), () => edits('mitteilungen')],
     ['mitteilungen/bestaetigungen/', () => appRole(), () => appRole()],
     ['mitteilungen/', () => sees('mitteilungen'), () => edits('mitteilungen')],
+    // Interne Aufgaben: alle Rollen mit dem Bereich „Aufgaben“ lesen und schreiben dieselbe Datei
+    ['aufgaben/', () => sees('aufgaben'), () => edits('aufgaben')],
     // Posteingang: nur Kennung, Absender, Betreff, Datum, Art, Status und Verweis (kein Mailtext); nur wer den
     // Posteingang hat (Vollzugriff, eigene Rollen)
     ['posteingang/', () => sees('posteingang'), () => edits('posteingang')],
@@ -326,6 +331,7 @@ export const FOLDERS = [
   ['matten/touren', 'Mattenwechsel: Touren je Datei (Büro plant und gibt frei; Fahrer: Bestätigung je Liegeplatz, Unterschrift je Stopp)', 'matten/touren/2026/tour.json'],
   ['matten/fotos', 'Mattenwechsel: Fotos der Fahrer je Liegeplatz', 'matten/fotos/2026/liegeplatz/foto.jpg'],
   ['mitteilungen', 'Mitteilungen an Mitarbeitende: Texte, Übersetzungen, Empfänger, Lesebestätigungen (Büro)', MODULE_DOCS.mitteilungen.path],
+  ['aufgaben', 'Interne Aufgaben: wer macht was bis wann (alle Büro-Rollen)', MODULE_DOCS.aufgaben.path],
   ['mitteilungen/konten', 'Mitteilungen an Personen mit Konto und Anhänge (alle Rollen mit App-Ordner lesen)', MODULE_DOCS.mitPostfach.path],
   ['mitteilungen/bestaetigungen', '„Gelesen“ und „Verstanden“ aus der App (jede Person schreibt die eigene)', MODULE_DOCS.mitBestaetigt.path],
   ['posteingang', 'Posteingang: erkannte E-Mails und Belege (Kennung, Absender, Betreff, Datum, Art, Status, Verweis; kein Mailtext, keine Anhänge)', MODULE_DOCS.posteingang.path],
