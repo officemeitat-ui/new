@@ -1876,7 +1876,7 @@ if (isset($_GET['tablet'])) {
         . '<p class="leise" style="margin-top:1.2rem;font-size:.9rem">' . th('tb_hinweis') . '</p>', 200, 0);
 }
 
-$code = (string) ($_GET['p'] ?? $_POST['p'] ?? $_COOKIE[COOKIE] ?? '');
+$code = array_values(array_filter([$_GET['p'] ?? null, $_POST['p'] ?? null, $_COOKIE[COOKIE] ?? null], 'is_string'))[0] ?? '';
 if ($aktion === 'vergessen') {
     sprache_waehlen([], true);
     setcookie(COOKIE, '', ['expires' => 1, 'path' => '/', 'secure' => !empty($_SERVER['HTTPS']), 'httponly' => true, 'samesite' => 'Lax']);
@@ -1885,7 +1885,7 @@ if ($aktion === 'vergessen') {
 }
 $hash = preg_match('/^[A-Za-z0-9]{16,40}$/', $code) ? hash('sha256', $code) : '';
 $person = $hash ? json_lesen(person_datei($hash)) : [];
-$token = (string) ($_GET['o'] ?? '');
+$token = is_string($_GET['o'] ?? null) ? $_GET['o'] : '';
 // Sprache der Seite: Wahl auf der Seite, Gerät, Person (Stammblatt); ohne Person der Browser
 sprache_waehlen($person, true);
 if (!$person && $token !== '') {

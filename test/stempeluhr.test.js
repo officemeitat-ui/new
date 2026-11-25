@@ -140,7 +140,7 @@ test('mein-plan.php: Regeln der Stempeluhr am Quelltext', () => {
   assert.ok(num('TABLET_TICKET') > 0 && num('TABLET_TICKET') < 60, 'Ticket kürzer als die Minute, in der zweimal Tippen einmal zählt')
   assert.equal(num('TABLET_FEHLER'), 5)
   assert.equal(num('TABLET_SPERRE'), 300)
-  const part = php.slice(php.indexOf("if (isset($_GET['tablet'])) {"), php.indexOf("$code = (string) ($_GET['p']"))
+  const part = php.slice(php.indexOf("if (isset($_GET['tablet'])) {"), php.indexOf("$code = array_values(array_filter([$_GET['p']"))
   assert.ok(part.length > 2000)
   assert.equal(part.split('fremde_herkunft()').length - 1, 2, 'PIN und Stempeln: nur vom eigenen Formular')
   assert.match(part, /hash_equals|tablet_siegel_lesen/)

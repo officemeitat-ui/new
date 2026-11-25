@@ -752,7 +752,7 @@ if ($aktion === 'wach') {
         header('Location: ' . adresse($e) . '#wetter', true, 302);
         exit;
     }
-    $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
+    $token = preg_replace('/[^a-f0-9]/', '', is_string($_GET['t'] ?? null) ? $_GET['t'] : '');
     if (strlen($token) !== 24) {
         sprache_waehlen([], true);
         html_seite('<p>' . th('w_ungueltig') . '</p>', 400, '', t('w_titel'));
@@ -814,7 +814,7 @@ if ($aktion === 'wach') {
 
 // „Winterdienst auf einen Blick“ fürs Haupt-Gerät: alles Wichtige ohne Anmeldung, mit dem Code aus der Alarm-Datei
 if ($aktion === 'blick') {
-    $k = (string) ($_GET['k'] ?? '');
+    $k = is_string($_GET['k'] ?? null) ? $_GET['k'] : '';
     sprache('de');
     header('X-Robots-Tag: noindex, nofollow');
     header('Referrer-Policy: no-referrer');
@@ -886,7 +886,7 @@ if ($aktion === 'blick') {
 // „Handy einrichten“ (Link aus der Einladung bzw. QR-Code vom Blatt): App ntfy, Thema mit einem Tipp abonnieren, Einstellungen
 // für die Nacht, Probe an das eigene Handy. Ohne Anmeldung; das Thema im Link wirkt wie ein Passwort (wie in ntfy selbst).
 if ($aktion === 'handy') {
-    $thema = (string) ($_GET['t'] ?? '');
+    $thema = is_string($_GET['t'] ?? null) ? $_GET['t'] : '';
     $person = person_zum_thema($e, $thema);
     sprache_waehlen((array) ($person ?? []), true);
     header('X-Robots-Tag: noindex, nofollow');
@@ -930,9 +930,9 @@ if ($aktion === 'handy') {
 
 // Winterdienst-Protokoll am Handy: mit dem Code aus dem Alarm, ohne Anmeldung. GET: Formular, POST: speichern.
 if ($aktion === 'protokoll') {
-    $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
+    $token = preg_replace('/[^a-f0-9]/', '', is_string($_GET['t'] ?? null) ? $_GET['t'] : '');
     // dauerhafter Link eines Fahrers (f=…): ohne Alarm, alle Objekte mit Winterdienst oder eine freie Adresse
-    $code = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['f'] ?? ''));
+    $code = preg_replace('/[^a-f0-9]/', '', is_string($_GET['f'] ?? null) ? $_GET['f'] : '');
     $zu = $e ? alarm_zum_code($token) : null;
     $fahrer = $zu ? null : fahrer_zum_code($e, $code);
     sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : (array) ($fahrer ?? []), true);
@@ -1104,7 +1104,7 @@ if (!$e) {
 }
 // Schlüssel: aus der App im Kopf X-Schluessel; der Cron-Dienst darf mit dem Prüfschlüssel nur prüfen
 $gegeben = (string) ($_SERVER['HTTP_X_SCHLUESSEL'] ?? '');
-$pruef = (string) ($_GET['schluessel'] ?? '');
+$pruef = is_string($_GET['schluessel'] ?? null) ? $_GET['schluessel'] : '';
 $istApp = $gegeben !== '' && hash_equals((string) $e['schluessel'], $gegeben);
 $istCron = $pruef !== '' && is_string($e['pruefschluessel'] ?? null) && strlen($e['pruefschluessel']) >= 16 && hash_equals($e['pruefschluessel'], $pruef);
 if (!$cli && !$istApp && !($aktion === 'pruefen' && $istCron)) {
