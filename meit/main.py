@@ -46,6 +46,7 @@ from .secrets_guard import redact_row, scan as scan_secrets
 from .profitability import register as register_profitability
 from .projects import register as register_projects
 from .reports import register as register_reports
+from .company import register as register_company
 from .attachments import register as register_attachments
 from .audit import register as register_audit
 from .backups import register as register_backups
@@ -873,6 +874,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_myday(app, ctx)  # „Mein Tag“: persönliche Startseite
     register_projects(app, ctx)  # Projekte: Aufgaben, Vorlagen, Stundenbudget, Fortschritt
     register_reports(app, ctx, admin_only)  # Auswertungen: Auslastung, verrechenbare Stunden, Umsatz, Tickets
+    register_company(app, ctx, admin_only)  # Unternehmen: SWOT, Ziele, Maßnahmen, Quartalsrückblick
     register_items(app, ctx, admin_only)  # Artikel und Einmalpositionen (Material, Hardware) für die Rechnung
     register_monitoring(app, ctx, admin_only, start=settings.db_path != ":memory:")  # Erreichbarkeit von Websites/Diensten der Kunden
 

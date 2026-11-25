@@ -946,6 +946,55 @@ CREATE TABLE IF NOT EXISTS contacts (
 
 CREATE INDEX IF NOT EXISTS idx_contacts_customer ON contacts(customer_id);
 
+-- Unternehmen: SWOT, Ziele, Maßnahmen, Quartalsrückblick (Arbeit am eigenen Betrieb)
+CREATE TABLE IF NOT EXISTS swot_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quadrant TEXT NOT NULL,
+    text TEXT NOT NULL,
+    note TEXT DEFAULT '',
+    source TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS company_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    metric TEXT DEFAULT 'manuell',
+    unit TEXT DEFAULT '',
+    start_value REAL DEFAULT 0,
+    target_value REAL DEFAULT 0,
+    current_value REAL DEFAULT 0,
+    due_date TEXT DEFAULT '',
+    owner_id INTEGER,
+    status TEXT DEFAULT 'aktiv',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS company_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    owner_id INTEGER,
+    due_date TEXT DEFAULT '',
+    status TEXT DEFAULT 'offen',
+    goal_id INTEGER,
+    swot_id INTEGER,
+    done_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS company_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    period TEXT NOT NULL,
+    good TEXT DEFAULT '',
+    bad TEXT DEFAULT '',
+    change TEXT DEFAULT '',
+    numbers TEXT DEFAULT '{}',
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS calendar_feeds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER DEFAULT 0,
@@ -994,6 +1043,10 @@ WRITABLE_FIELDS: dict[str, set[str]] = {
                      "customer_note", "status", "sequence", "notified_at", "notified_to", "time_entry_id", "created_by"},
     "calendar_feeds": {"user_id", "scope", "token_hash", "last_used_at"},
     "contacts": {"customer_id", "name", "email", "phone", "job_title", "is_primary", "notes", "source", "external_id"},
+    "swot_items": {"quadrant", "text", "note", "source"},
+    "company_goals": {"title", "metric", "unit", "start_value", "target_value", "current_value", "due_date", "owner_id", "status", "notes"},
+    "company_actions": {"title", "description", "owner_id", "due_date", "status", "goal_id", "swot_id", "done_at"},
+    "company_reviews": {"period", "good", "bad", "change", "numbers", "created_by"},
     "projects": {"customer_id", "title", "description", "status", "billing", "manager_id", "start_date", "due_date", "budget_hours",
                  "budget_amount", "quote_id", "portal_visible", "closed_at"},
     "project_tasks": {"project_id", "phase", "title", "notes", "status", "assignee_id", "due_date", "estimate_min", "position", "done_at"},
@@ -1084,7 +1137,7 @@ TABLES_WITH_CREATED_AT = {
     "time_entries", "invoices", "portal_users", "subscriptions", "documents",
     "bank_transactions", "payments", "maintenance_tasks", "maintenance_runs", "sepa_mandates", "sepa_batches",
     "remote_sessions", "csat_surveys", "timers", "ai_usage", "attachments", "m365_tenants", "staff_changes", "ms_accounts", "backup_jobs",
-    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports", "articles", "billing_items", "monitors", "projects", "project_tasks", "contacts",
+    "domain_checks", "agent_keys", "agent_devices", "notifications", "office_tokens", "file_versions", "shares", "appointments", "calendar_feeds", "work_reports", "articles", "billing_items", "monitors", "projects", "project_tasks", "contacts", "swot_items", "company_goals", "company_actions", "company_reviews",
 }
 
 # Spalten, die nach Version 0.1 dazugekommen sind (bestehende Datenbanken werden ergänzt).

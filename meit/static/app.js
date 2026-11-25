@@ -3421,6 +3421,174 @@ async function domainCard(c) {
     d.domains.length ? domainTable(d.domains, false) : h("p", { class: "small muted", style: "margin:0" }, "Noch keine Domain geprüft – SPF/DKIM/DMARC und Zertifikat in Sekunden."));
 }
 
+// ---- Unternehmen: am eigenen Betrieb arbeiten (SWOT, Ziele, Maßnahmen, Quartalsrückblick)
+const SWOT = { staerke: ["Stärken", "ok", "innen · darauf bauen", "Was können wir besser als andere?"],
+  schwaeche: ["Schwächen", "warn", "innen · daran arbeiten", "Wo verlieren wir Zeit, Geld oder Kunden?"],
+  chance: ["Chancen", "info", "außen · nutzen", "Was ändert sich draußen zu unseren Gunsten?"],
+  risiko: ["Risiken", "bad", "außen · absichern", "Was kann uns von außen treffen?"] };
+const ACTION_LABEL = { offen: "offen", laeuft: "läuft", erledigt: "erledigt", verworfen: "verworfen" };
+const GOAL_BADGE = { "im Plan": "ok", erreicht: "ok", "hinter Plan": "warn", "überfällig": "bad", verworfen: "" };
+const metricText = (unit, v) => v === null || v === undefined ? "–" : unit === "€" ? eur(v) : `${num1(v)}${unit === "%" || unit === "h" ? " " : ""}${unit || ""}`;
+let companyShowDone = false;
+
+function swotForm(item = null, quadrant = "staerke") {
+  const f = form([
+    { name: "quadrant", label: "Feld", type: "select", options: Object.entries(SWOT).map(([k, v]) => [k, `${v[0]} (${v[2]})`]) },
+    { name: "text", label: "Aussage – ein Satz, so konkret wie möglich", required: true, full: true, placeholder: SWOT[item?.quadrant || quadrant][3] },
+    { name: "note", label: "Notiz: Woran merken wir das? Beleg, Beispiel, Zahl", type: "textarea", rows: 3, full: true },
+  ], item || { quadrant });
+  modal(item ? "SWOT-Eintrag bearbeiten" : "Neuer SWOT-Eintrag", f, [
+    item ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Eintrag löschen? Verknüpfte Maßnahmen bleiben erhalten.")) return;
+      await api(`/api/company/swot/${item.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api(item ? `/api/company/swot/${item.id}` : "/api/company/swot", { method: item ? "PUT" : "POST", body: readForm(f) }); close(); render(); }) }, "Speichern")].filter(Boolean));
+}
+
+function companyGoalForm(d, g = null) {
+  const live = d.metrics.filter((m) => !["unbilled_hours"].includes(m.key));
+  const f = form([
+    { name: "title", label: "Ziel – was soll bis wann erreicht sein?", required: true, full: true, placeholder: "z. B. Zehn Kunden mit Betreuungsvertrag" },
+    { name: "metric", label: "Gemessen an", type: "select", options: [...live.map((m) => [m.key, `${m.label} – aktuell ${metricText(m.unit, m.value)}`]), ["manuell", "eigene Zahl (Stand selbst nachtragen)"]] },
+    { name: "target_value", label: "Zielwert", type: "number", step: "any" },
+    { name: "due_date", label: "Bis wann", type: "date" },
+    { name: "owner_id", label: "Verantwortlich", type: "select", options: [["", "– niemand –"], ...state.users.map((u) => [u.id, u.name])] },
+    { name: "unit", label: "Einheit", placeholder: "z. B. Stück, h, %" },
+    { name: "start_value", label: "Ausgangswert", type: "number", step: "any" },
+    { name: "current_value", label: "Aktueller Stand", type: "number", step: "any" },
+    ...(g ? [{ name: "status", label: "Zustand", type: "select", options: [["aktiv", "aktiv"], ["erreicht", "erreicht – abgeschlossen"], ["verworfen", "verworfen"]] }] : []),
+    { name: "notes", label: "Warum dieses Ziel? Was ändert sich, wenn es erreicht ist?", type: "textarea", rows: 3, full: true },
+  ], g ? { ...g, owner_id: g.owner_id || "" } : { metric: "mrr", target_value: "" });
+  const manualOnly = ["unit", "start_value", "current_value"].map((n) => f.querySelector(`[name=${n}]`).parentElement);
+  const sync = () => { const manual = f.querySelector("[name=metric]").value === "manuell"; manualOnly.forEach((el) => { el.hidden = !manual; }); };
+  f.querySelector("[name=metric]").addEventListener("change", sync); sync();
+  modal(g ? "Ziel bearbeiten" : "Neues Ziel", h("div", {}, f, h("p", { class: "small muted" },
+    "Bei einer Kennzahl aus dem Cockpit kommt der Stand von selbst – der Ausgangswert ist der Wert von heute. Soll eine Zahl sinken (z. B. offene Rechnungen), einfach einen niedrigeren Zielwert eintragen.")), [
+    g ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Ziel löschen? Verknüpfte Maßnahmen bleiben erhalten.")) return;
+      await api(`/api/company/goals/${g.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const b = readForm(f), manual = b.metric === "manuell";
+      if (f.querySelector("[name=target_value]").value === "") throw new Error("Bitte einen Zielwert eintragen");
+      const body = { title: b.title, metric: b.metric, target_value: b.target_value, due_date: b.due_date, owner_id: b.owner_id ? Number(b.owner_id) : null, notes: b.notes, status: b.status || "aktiv",
+        ...(manual ? { unit: b.unit, start_value: b.start_value, current_value: b.current_value } : {}) };
+      await api(g ? `/api/company/goals/${g.id}` : "/api/company/goals", { method: g ? "PUT" : "POST", body }); close(); render(); }) }, "Speichern")].filter(Boolean));
+}
+
+function companyActionForm(d, a = null, preset = {}) {
+  const swotOptions = Object.entries(d.swot).flatMap(([q, items]) => items.map((i) => [i.id, `${SWOT[q][0]}: ${i.text.slice(0, 70)}`]));
+  const f = form([
+    { name: "title", label: "Maßnahme – was wird konkret getan?", required: true, full: true, placeholder: "z. B. Drei Kunden ohne Vertrag anrufen" },
+    { name: "owner_id", label: "Wer", type: "select", options: [["", "– offen –"], ...state.users.map((u) => [u.id, u.name])] },
+    { name: "due_date", label: "Bis wann", type: "date" },
+    { name: "status", label: "Zustand", type: "select", options: Object.entries(ACTION_LABEL) },
+    { name: "goal_id", label: "Zahlt ein auf Ziel", type: "select", options: [["", "– keines –"], ...d.goals.filter((g) => g.status === "aktiv" || g.id === a?.goal_id).map((g) => [g.id, g.title])] },
+    { name: "swot_id", label: "Kommt aus SWOT-Eintrag", type: "select", options: [["", "– keiner –"], ...swotOptions], full: true },
+    { name: "description", label: "Details", type: "textarea", rows: 3, full: true },
+  ], a ? { ...a, owner_id: a.owner_id || "", goal_id: a.goal_id || "", swot_id: a.swot_id || "" } : { status: "offen", owner_id: state.auth?.user?.id || "", ...preset });
+  modal(a ? "Maßnahme bearbeiten" : "Neue Maßnahme", f, [
+    a ? (close) => h("button", { class: "btn danger", onclick: async () => { if (!confirm("Maßnahme löschen?")) return;
+      await api(`/api/company/actions/${a.id}`, { method: "DELETE" }); close(); render(); } }, "Löschen") : null,
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      const b = readForm(f);
+      for (const k of ["owner_id", "goal_id", "swot_id"]) b[k] = b[k] ? Number(b[k]) : null;
+      await api(a ? `/api/company/actions/${a.id}` : "/api/company/actions", { method: a ? "PUT" : "POST", body: b }); close(); render(); }) }, "Speichern")].filter(Boolean));
+}
+
+function companyReviewForm(d) {
+  const f = form([
+    { name: "good", label: "Was lief gut?", type: "textarea", rows: 3, full: true },
+    { name: "bad", label: "Was lief nicht gut?", type: "textarea", rows: 3, full: true },
+    { name: "change", label: "Was ändern wir im nächsten Quartal?", type: "textarea", rows: 3, full: true },
+  ]);
+  modal(`Rückblick ${d.quarter.replace("-", " ")}`, h("div", {}, f, h("p", { class: "small muted" }, "Die aktuellen Kennzahlen werden mitgespeichert – so sieht man beim nächsten Rückblick, was sich bewegt hat.")), [
+    (close) => h("button", { class: "btn primary", onclick: (e) => withBusy(e.target, async () => {
+      await api("/api/company/reviews", { method: "POST", body: readForm(f) }); close(); toast("Rückblick festgehalten"); render(); }) }, "Festhalten")]);
+}
+
+views.unternehmen = async () => {
+  let d;
+  try { d = await api("/api/company"); } catch (e) { setTitle("Unternehmen"); show(h("div", { class: "card empty" }, e.message)); return; }
+  await loadUsers();
+  setTitle("Unternehmen", [
+    h("button", { class: "btn", title: "SWOT, Ziele und Maßnahmen als Text – z. B. für Partner oder Steuerberatung", onclick: (e) => withBusy(e.target, async () => { const p = await api("/api/company/plan");
+      modal("Unternehmensplan als Text", h("pre", { style: "white-space:pre-wrap;font-size:.82rem" }, p.text), [copyButton(() => p.text, "Text kopieren")]); }) }, "Plan als Text"),
+    h("button", { class: "btn", onclick: () => companyActionForm(d) }, "+ Maßnahme"),
+    h("button", { class: "btn primary", onclick: () => companyGoalForm(d) }, "+ Ziel")]);
+  const M = Object.fromEntries(d.metrics.map((m) => [m.key, m]));
+  const kpi = (key, href) => { const m = M[key]; return h("a", { class: "card kpi", href, style: "text-decoration:none;color:inherit" },
+    h("div", { class: "label" }, m.label), h("div", { class: "value" }, metricText(m.unit, m.value)), h("div", { class: "sub" }, m.hint)); };
+
+  const box = (q) => { const [label, cls, sub, ask] = SWOT[q], items = d.swot[q];
+    return h("div", { class: `card swot-box ${cls}` },
+      h("div", { class: "card-head" }, h("div", {}, h("h3", { style: "margin:0" }, label), h("span", { class: "small muted" }, sub)),
+        h("button", { class: "btn small", "aria-label": `${label}: Eintrag hinzufügen`, onclick: () => swotForm(null, q) }, "+")),
+      items.length ? h("ul", { class: "list" }, items.map((i) => h("li", {}, h("div", { class: "row", style: "align-items:flex-start" },
+        h("button", { class: "linklike", style: "flex:1;min-width:0;text-align:left", title: i.note || "Bearbeiten", onclick: () => swotForm(i) }, i.text),
+        i.open_actions ? badge(`${i.open_actions} Maßn.`, "info") : null,
+        h("button", { class: "btn small", title: "Was tun wir deswegen? Maßnahme anlegen", onclick: () => companyActionForm(d, null, { swot_id: i.id }) }, "→ Maßnahme")))))
+        : h("p", { class: "small muted", style: "margin:.4rem 0 0" }, ask));
+  };
+  const suggest = (s) => h("li", {}, h("div", { class: "row", style: "align-items:flex-start" },
+    badge({ staerke: "Stärke", schwaeche: "Schwäche", chance: "Chance", risiko: "Risiko" }[s.quadrant], SWOT[s.quadrant][1]),
+    h("span", { style: "flex:1;min-width:200px" }, s.text, s.route ? h("a", { class: "small", href: `#/${s.route}`, style: "margin-left:.4rem" }, "ansehen") : null),
+    h("button", { class: "btn small primary", onclick: (e) => withBusy(e.target, async () => { await api(`/api/company/suggestions/${s.key}/accept`, { method: "POST" }); render(); }) }, "Übernehmen"),
+    h("button", { class: "btn small", onclick: (e) => withBusy(e.target, async () => { await api(`/api/company/suggestions/${s.key}/dismiss`, { method: "POST" }); render(); }) }, "Nicht relevant")));
+  const fromNumbers = d.suggestions.filter((s) => s.kind === "zahl"), thoughts = d.suggestions.filter((s) => s.kind !== "zahl");
+
+  const goalCard = (g) => h("button", { class: "card goal", onclick: () => companyGoalForm(d, g) },
+    h("div", { class: "row", style: "align-items:flex-start" }, h("strong", { style: "flex:1;min-width:0;text-align:left" }, g.title), badge(g.state, GOAL_BADGE[g.state] ?? "")),
+    h("div", { class: "bar", role: "progressbar", "aria-valuenow": g.progress, "aria-valuemin": 0, "aria-valuemax": 100, "aria-label": `${g.title}: ${g.progress} %` }, h("span", { style: `width:${g.progress}%` })),
+    h("div", { class: "row small", style: "justify-content:space-between" },
+      h("span", {}, h("strong", {}, metricText(g.unit, g.current)), ` von ${metricText(g.unit, g.target_value)} · Start ${metricText(g.unit, g.start_value)}`),
+      h("span", { class: "muted" }, `${g.progress} %`)),
+    h("div", { class: "small muted", style: "text-align:left" }, [g.live ? `${g.metric_label} – Stand kommt aus dem Cockpit` : "eigene Zahl – Stand hier nachtragen",
+      g.due_date ? `bis ${dt(g.due_date)}` : "", g.owner_name].filter(Boolean).join(" · ")));
+  const active = d.goals.filter((g) => g.status === "aktiv"), closed = d.goals.filter((g) => g.status !== "aktiv");
+
+  const open = d.actions.filter((a) => a.status === "offen" || a.status === "laeuft"), done = d.actions.filter((a) => a.status === "erledigt" || a.status === "verworfen");
+  const actionTable = (rows) => table([
+    { label: "", render: (a) => a.status === "erledigt" || a.status === "verworfen" ? "✓" : h("input", { type: "checkbox", style: "width:auto", "aria-label": `${a.title} erledigt`,
+      onclick: (e) => e.stopPropagation(), onchange: async () => { await api(`/api/company/actions/${a.id}/done`, { method: "POST" }); toast("Erledigt"); render(); } }) },
+    { label: "Maßnahme", render: (a) => h("div", {}, h("strong", {}, a.title), a.goal_title || a.swot_text ? h("div", { class: "small muted" },
+      [a.goal_title ? `Ziel: ${a.goal_title}` : "", a.swot_text ? `${SWOT[a.swot_quadrant]?.[0] || "SWOT"}: ${a.swot_text.slice(0, 80)}` : ""].filter(Boolean).join(" · ")) : null) },
+    { label: "Wer", render: (a) => a.owner_name || h("span", { class: "muted" }, "offen") },
+    { label: "Bis", render: (a) => a.overdue ? badge(`überfällig seit ${dt(a.due_date)}`, "bad") : a.due_date ? dt(a.due_date) : "–" },
+    { label: "Zustand", render: (a) => badge(ACTION_LABEL[a.status], a.status === "laeuft" ? "info" : a.status === "erledigt" ? "ok" : "") },
+  ], rows, (a) => companyActionForm(d, a));
+
+  const delta = (n) => { if (n.value === null || n.value === undefined || n.before === null || n.before === undefined || n.value === n.before) return null;
+    const up = n.value > n.before, good = up === (n.better === "hoch");
+    return h("span", { class: "small", style: `color:var(--${good ? "ok" : "bad"})` }, ` ${up ? "▲" : "▼"} ${metricText(n.unit, Math.abs(n.value - n.before))}`); };
+  const review = (r) => h("li", {}, h("div", { class: "row" }, h("strong", {}, r.period.replace("-", " ")), h("span", { class: "small muted", style: "flex:1" }, `${dt(r.created_at)}${r.author ? ` · ${r.author}` : ""}`),
+      h("button", { class: "btn small", "aria-label": `Rückblick ${r.period} löschen`, onclick: async () => { if (!confirm("Diesen Rückblick löschen?")) return; await api(`/api/company/reviews/${r.id}`, { method: "DELETE" }); render(); } }, "Löschen")),
+    [["Gut", r.good], ["Nicht gut", r.bad], ["Wir ändern", r.change]].filter(([, t]) => t).map(([l, t]) => h("p", { style: "margin:.3rem 0;white-space:pre-wrap" }, h("strong", {}, `${l}: `), t)),
+    h("div", { class: "review-numbers" }, r.numbers.filter((n) => n.value !== null && n.value !== undefined).map((n) => h("span", {}, h("span", { class: "muted" }, `${n.label}: `), metricText(n.unit, n.value), delta(n)))));
+
+  show(
+    d.demo ? h("div", { class: "verdict warn", style: "padding:.5rem .8rem" }, h("span", { class: "small" }, "Die Zahlen und Vorschläge stammen noch aus den Demo-Daten – mit echten Kunden, Zeiten und Rechnungen werden sie aussagekräftig.")) : null,
+    h("div", { class: "grid kpis kpis-3" }, kpi("mrr", "#/wachstum"), kpi("contract_customers", "#/kunden"), kpi("recurring_share", "#/wachstum"), kpi("billable_share", "#/auswertungen"), kpi("csat", "#/dashboard"), kpi("open_receivables", "#/abrechnung")),
+    h("div", { class: "card-head", style: "margin-top:1.2rem;flex-wrap:wrap" }, h("h2", { style: "margin:0" }, "SWOT"), h("span", { class: "small muted" }, "Vier Felder – und zu jedem Eintrag die Frage: Was tun wir deswegen?")),
+    h("div", { class: "swot" }, box("staerke"), box("schwaeche"), box("chance"), box("risiko")),
+    fromNumbers.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head", style: "flex-wrap:wrap" }, h("h3", { style: "margin:0" }, "Vorschläge aus euren Zahlen"),
+      h("span", { class: "small muted" }, "Das Cockpit liest sie aus Kunden, Zeiten, Rechnungen und Bewertungen")), h("ul", { class: "list" }, fromNumbers.map(suggest))) : null,
+    thoughts.length ? h("details", { class: "card", style: "margin-top:1rem" }, h("summary", {}, h("strong", {}, `Denkanstöße für die Außensicht (${thoughts.length})`),
+      h("span", { class: "small muted" }, " – Markt, Hersteller, Gesetze: Das kann keine Zahl im Cockpit zeigen")), h("ul", { class: "list" }, thoughts.map(suggest))) : null,
+    h("p", { class: "small muted" }, h("a", { href: "#", onclick: async (e) => { e.preventDefault(); await api("/api/company/suggestions/reset", { method: "POST" }); render(); } }, "Verworfene Vorschläge wieder anzeigen")),
+
+    h("div", { class: "card-head", style: "margin-top:1.2rem;flex-wrap:wrap" }, h("h2", { style: "margin:0" }, "Ziele"), h("span", { class: "small muted" }, "Messbar, mit Termin – der Stand kommt möglichst von selbst")),
+    active.length ? h("div", { class: "goals" }, active.map(goalCard)) : h("div", { class: "card empty" }, "Noch kein Ziel. Ein gutes erstes Ziel: wiederkehrender Umsatz oder Zahl der Vertragskunden in zwölf Monaten."),
+    closed.length ? h("details", { style: "margin-top:.6rem" }, h("summary", { class: "small muted" }, `Abgeschlossene und verworfene Ziele (${closed.length})`), h("div", { class: "goals", style: "margin-top:.6rem" }, closed.map(goalCard))) : null,
+
+    h("div", { class: "card", style: "margin-top:1.2rem" }, h("div", { class: "card-head", style: "flex-wrap:wrap" }, h("h2", { style: "margin:0" }, `Maßnahmen (${open.length} offen)`),
+      done.length ? h("button", { class: "btn small", onclick: () => { companyShowDone = !companyShowDone; render(); } }, companyShowDone ? "Erledigte ausblenden" : `Erledigte anzeigen (${done.length})`) : null),
+      open.length || (companyShowDone && done.length) ? actionTable(companyShowDone ? [...open, ...done] : open)
+        : h("div", { class: "empty" }, "Noch keine Maßnahme. Am einfachsten: bei einem SWOT-Eintrag auf „→ Maßnahme“ klicken.")),
+
+    h("div", { class: "card", style: "margin-top:1.2rem" }, h("div", { class: "card-head", style: "flex-wrap:wrap" }, h("h2", { style: "margin:0" }, "Quartalsrückblick"),
+      h("button", { class: `btn ${d.review_due ? "primary" : ""}`, onclick: () => companyReviewForm(d) }, `Rückblick ${d.quarter.replace("-", " ")} festhalten`)),
+      d.review_due ? h("p", { class: "small" }, `Für ${d.quarter.replace("-", " ")} gibt es noch keinen Rückblick. Eine halbe Stunde reicht: Was lief gut, was nicht, was ändern wir?`) : null,
+      d.reviews.length ? h("ul", { class: "list" }, d.reviews.map(review)) : h("p", { class: "small muted" }, "Mit dem ersten Rückblick beginnt der Vergleich: Jeder weitere zeigt, wie sich die Kennzahlen seit dem letzten bewegt haben.")));
+};
+
 // ---- Erste Schritte (Inbetriebnahme) und „Wo finde ich was?“
 const WO_WAS = [
   ["Tagesgeschäft", [["Tickets", "tickets", "Anfragen der Kunden, Verlauf, Antworten, Zeit buchen"], ["Posteingang", "posteingang", "E-Mails und Anfragen – der KI-Mitarbeiter sortiert vor, du gibst frei"],
@@ -3430,6 +3598,7 @@ const WO_WAS = [
     ["Einsatzplanung", "termine", "Termine je Techniker, Arbeitsbericht mit Unterschrift, Kalender-Abo fürs Handy"],
     ["Projekte", "projekte", "Größere Vorhaben mit Vorlagen, Aufgaben, Stundenbudget und Fortschritt"],
     ["Auswertungen", "auswertungen", "Auslastung je Person, verrechenbare Stunden, Umsatz und Tickets im Monatsverlauf"],
+    ["Unternehmen", "unternehmen", "Am eigenen Betrieb arbeiten: SWOT mit Vorschlägen aus den Zahlen, Ziele, Maßnahmen, Quartalsrückblick"],
     ["Sicher teilen", "teilen", "Passwörter als Einmal-Link, Dateien als Freigabe-Link mit Ablaufdatum"],
     ["Suche", "dashboard", "Strg+K oder „/“: alles durchsuchen – Kunden, Tickets, Geräte, auch den Inhalt von Dateien"]]],
   ["Kunden & Technik", [["Kunden", "kunden", "Alles zu einem Kunden auf einer Seite (Geräte, Lizenzen, Microsoft 365, Sicherung, Portal)"], ["Sicherheitslage", "sicherheitslage", "Eine Note je Kunde aus allen Quellen, Bericht als PDF, Angebot aus den Maßnahmen"], ["Geräte", "assets", "Inventar mit Support-Ende und Garantie"],
@@ -4016,6 +4185,7 @@ views.heute = async () => {
   await Promise.all([loadCustomers(), loadUsers()]);
   const d = await api("/api/my-day");
   const ptasks = await api("/api/my-project-tasks").catch(() => []);
+  const cactions = await api("/api/my-company-actions").catch(() => []);
   setTitle("Mein Tag", [
     h("button", { class: "btn", onclick: () => appointmentForm(null, { date: d.date }) }, "+ Termin"),
     h("button", { class: "btn", onclick: () => workReportForm() }, "+ Arbeitsbericht"),
@@ -4063,6 +4233,12 @@ views.heute = async () => {
         h("input", { type: "checkbox", style: "width:auto", "aria-label": `${t.title} erledigt`, onchange: async () => { await api(`/api/project-tasks/${t.id}`, { method: "PUT", body: { status: "erledigt" } }); toast("Erledigt"); render(); } }),
         t.late ? badge("überfällig", "bad") : t.due_date ? badge(dt(t.due_date), "info") : null,
         h("a", { href: `#/projekt/${t.project_id}`, style: "flex:1;min-width:0" }, t.title), h("span", { class: "small muted" }, [t.project, t.customer].filter(Boolean).join(" · "))))))) : null,
+    cactions.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "Meine Maßnahmen fürs Unternehmen"),
+      state.auth?.user?.role === "admin" || !state.auth?.login_required ? h("a", { class: "btn small", href: "#/unternehmen" }, "Unternehmen") : null),
+      h("ul", { class: "list" }, cactions.map((a) => h("li", {}, h("div", { class: "row" },
+        h("input", { type: "checkbox", style: "width:auto", "aria-label": `${a.title} erledigt`, onchange: async () => { await api(`/api/company/actions/${a.id}/done`, { method: "POST" }); toast("Erledigt"); render(); } }),
+        a.overdue ? badge("überfällig", "bad") : a.due_date ? badge(dt(a.due_date), "info") : null,
+        h("span", { style: "flex:1;min-width:0" }, a.title), a.goal_title ? h("span", { class: "small muted" }, `Ziel: ${a.goal_title}`) : null))))) : null,
     d.maintenance.length ? h("div", { class: "card", style: "margin-top:1rem" }, h("div", { class: "card-head" }, h("h3", { style: "margin:0" }, "Wartung fällig (7 Tage)"), h("a", { class: "btn small", href: "#/wartung" }, "Zur Wartung")),
       h("ul", { class: "list" }, d.maintenance.map((m) => h("li", {}, h("div", { class: "row" }, m.overdue ? badge("überfällig", "bad") : badge(dt(m.due_date), "info"), h("span", {}, `${m.title} · ${m.customer || ""}`)))))) : null);
 };

@@ -27,7 +27,8 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 > Überwachung von Websites und Diensten: [docs/UEBERWACHUNG.md](docs/UEBERWACHUNG.md) ·
 > Projekte: [docs/PROJEKTE.md](docs/PROJEKTE.md) ·
 > Auswertungen: [docs/AUSWERTUNGEN.md](docs/AUSWERTUNGEN.md) ·
-> Wissen – Hilfe-Bibliothek mit 600 Anleitungen: [docs/WISSEN.md](docs/WISSEN.md)
+> Wissen – Hilfe-Bibliothek mit 600 Anleitungen: [docs/WISSEN.md](docs/WISSEN.md) ·
+> Unternehmen – SWOT, Ziele, Maßnahmen, Rückblick: [docs/UNTERNEHMEN.md](docs/UNTERNEHMEN.md)
 
 ## Funktionen
 
@@ -41,6 +42,7 @@ läuft auf deinem eigenen PC (Ollama), Kundendaten verlassen das Haus nicht.
 | **Wartungsplan** | Wiederkehrende Prüfungen je Kunde (Backup-Restore-Test, Patch-Status, Security, Firewall, USV …), passend zu den gebuchten Leistungen vorgeschlagen. Fällige Prüfungen werden automatisch zu Tickets, Abschluss mit Checkliste und Ergebnis. **Nachweis** im Monatsbericht, QBR, Kundenportal und als Wartungsprotokoll-PDF; fließt in den Health Score ein, zählt nicht in die SLA. |
 | **Kunden & Geräte** | Stammdaten, Pakete, gebuchte Leistungen, Geräte mit automatischer Support-Ende-Erkennung (Windows 10, Server 2012/2016/2019, Exchange, Office) |
 | **Wissen – Hilfe-Bibliothek** | **600 fertige Anleitungen** in 20 Bereichen – von Windows, Outlook, Office, Drucker und Netzwerk über Microsoft 365, Server, Azure, Firewall, Datenschutz/NIS2 und Branchensoftware bis zu Standards für die eigene Kundenbetreuung. 227 für Anwender (auch als Hilfe im Kundenportal), 373 nur für Techniker. Suche mit Wortformen und Synonymen, mit lokaler KI zusätzlich sinngemäß. **Passende Anleitungen erscheinen direkt im Ticket.** Eigene Artikel und Anpassungen bleiben bei Aktualisierungen erhalten. |
+| **Unternehmen** | Am eigenen Betrieb arbeiten: **SWOT** mit Vorschlägen aus den eigenen Zahlen (Klumpenrisiko, verrechenbare Quote, überfällige Rechnungen, Kunden ohne Vertrag …), **messbare Ziele**, deren Stand das Cockpit selbst fortschreibt, **Maßnahmen** mit Verantwortlichem und Termin (auch in „Mein Tag“) und ein **Quartalsrückblick** mit Kennzahlen-Schnappschuss. |
 | **KI-Assistent** | Chat mit Werkzeugen auf deine echten Daten: „Welche Kunden haben noch Windows 10?“, „Leg für Huber ein Ticket an …“ |
 | **Umsatz-Radar** | Findet regelbasiert Chancen mit €-Wert: Managed-Vertrag, Security, Backup, NIS2, Lifecycle, KI, Vertragsverlängerungen, wiederkehrende Probleme |
 | **Angebots-Agent** | Aus Gesprächsnotizen ein fertiges Angebot. Die KI wählt Leistungen aus dem Katalog, **gerechnet wird im Code**. Angenommene Angebote erhöhen automatisch den MRR. |
@@ -246,6 +248,7 @@ meit/
   sepa.py          SEPA-Lastschrift: Mandate, pain.008-Einzugsdatei, Bankarbeitstage
   atera.py         Atera-API (Kunden, Geräte, Kontakte, Tickets, Alarme; Vorschau, Diagnose) + Splashtop-Sitzungsprotokolle
   contacts.py      Ansprechpartner je Kunde
+  company.py       Unternehmen: Kennzahlen, SWOT-Vorschläge, Ziele, Maßnahmen, Quartalsrückblick
   bookstack.py     BookStack: Kunden-IT-Doku, Wissen in beide Richtungen
   secrets_guard.py Passwort-Wächter (Keeper statt Klartext, Schutz vor Cloud-KI)
   profitability.py Rentabilität je Kunde, Wertsicherung (VPI)
