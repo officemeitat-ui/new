@@ -1231,11 +1231,12 @@ Der Schnee-Alarm prüft am Webspace alle 10 Minuten je Ort Vorhersage und Warnun
 Der Server kann den Schnee-Alarm zusätzlich als SMS schicken: kurzer Text mit der Lage und einem Link zum Bestätigen. Das geht auf jedem Handy ohne eigene App, braucht aber einen SMS-Dienst, denn ein Webspace kann selbst keine SMS senden. Eingebaut ist seven.io: Guthaben aufladen, Schlüssel eintragen, fertig.
 
 1. Beim SMS-Dienst seven.io ein Konto anlegen, Guthaben aufladen und einen API-Schlüssel erzeugen.
-2. Im Alarm-Dialog unter „SMS von selbst“ Schlüssel und Absender eintragen und „Am Webspace speichern“ klicken.
+2. Im Alarm-Dialog unter „SMS von selbst“ den Schlüssel eintragen (Absender leer lassen) und „Am Webspace speichern“ klicken.
 3. Mit „Probe senden“ eine SMS ans eigene Handy schicken.
 4. Bei den Personen „SMS“ anhaken (Handynummer im Stammblatt), dann „Speichern und übertragen“.
 5. Mit „Testalarm senden“ alle Wege prüfen.
 
+> Tipp: Ein Name als Absender muss in Österreich seit 1.10.2026 registriert sein, sonst kommt die SMS nicht an. Ohne Registrierung den Absender leer lassen.
 > Tipp: Der Schlüssel liegt nur am Webspace und wird nie wieder angezeigt.
 > Tipp: Eine SMS piept nur kurz: am Handy den Absender als Kontakt speichern, einen lauten Ton wählen und ihn von „Nicht stören“ ausnehmen.
 > Tipp: Ist das Guthaben aufgebraucht, steht das im Protokoll des Alarms; der Dialog zeigt das Guthaben nach jeder SMS.

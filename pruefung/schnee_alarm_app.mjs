@@ -163,6 +163,7 @@ try {
   await O.page.click('.modal [data-action="wx-sms-save"]')
   check('„Am Webspace speichern“ (SMS): gespeichert', !!(await O.toastWait(/SMS am Webspace gespeichert/, 15000)), await O.text('#toast'))
   check('Stand „eingerichtet“ mit Dienst, Absender und den letzten vier Zeichen; das Schlüssel-Feld ist wieder leer', !!(await O.waitFor(async () => /eingerichtet seven\.io, Absender Cleanos, Schlüssel endet auf …4321/.test(await smsState()), 10000)) && (await O.page.inputValue('#al-sms-key')) === '' && (await O.page.getAttribute('#al-sms-key', 'type')) === 'password', await smsState())
+  check('Absender als Name: Hinweis auf die Registrierung in Österreich und Warnung beim gespeicherten Namen', /seit 1\.10\.2026 nur an, wenn der Name registriert ist/.test(await modal()) && /Der gespeicherte Absender ist ein Name/.test(await modal()))
   await wait(1500)
   const smsInSharePoint = [...SP.drive.items.entries()].filter(([, it]) => Buffer.from(it.content).includes(SMS_KEY)).map(([p]) => p)
   const smsInBrowser = await O.page.evaluate((k) => JSON.stringify({ ...localStorage }).includes(k) || JSON.stringify({ ...sessionStorage }).includes(k) || document.body.innerHTML.includes(k), SMS_KEY)
