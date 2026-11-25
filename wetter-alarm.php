@@ -7,6 +7,8 @@
 // oder Glatteiswarnung gilt:
 //
 //  - Push aufs Handy über ntfy (höchste Priorität, Knopf „Bin wach“) und E-Mail;
+//  - dazu SMS von selbst, wenn ein SMS-Dienst eingerichtet ist (privat/sms.json; kurzer Text mit Link „Bin wach“,
+//    wetter-alarm.php?w=…) und die Person in der App „SMS“ angehakt hat (stufe1[].sms);
 //  - dazu WhatsApp von selbst, wenn die Schnittstelle von Meta eingerichtet ist (privat/whatsapp.json, Vorlage mit
 //    Knopf „Bin wach“; webspace-lib.php) und die Person in der App „WhatsApp“ angehakt hat (stufe1[].whatsapp);
 //  - bestätigt in Stufe 1 niemand binnen 15 Minuten, geht der Alarm an Stufe 2 (z. B. Büro);
@@ -25,6 +27,8 @@
 //   wetter-alarm.php?aktion=whatsapp        GET: Stand (ohne Token), POST: { token?, nummerId?, vorlage?, sprache?, version?,
 //                                           entfernen? } speichert die Zugangsdaten für WhatsApp am Webspace
 //   wetter-alarm.php?aktion=whatsapp-test   POST { an }: Probe-Nachricht an eine Nummer (höchstens 10 je Stunde)
+//   wetter-alarm.php?aktion=sms             GET: Stand (ohne Schlüssel), POST: { anbieter?, schluessel?, absender?, entfernen? }
+//   wetter-alarm.php?aktion=sms-test        POST { an }: Probe-SMS an eine Nummer (höchstens 10 je Stunde)
 //
 // Einstellungen: privat/wetter-alarm.json (erstellt die App unter Wetter & Winterdienst →
 // Alarm einrichten). Protokolle und Fotos: privat/winterdienst/ (die App übernimmt sie nach
@@ -43,6 +47,7 @@ require __DIR__ . '/webspace-lib.php';
 const ALARM_STANDARD = ['vorlaufStunden' => 3, 'schneeCm' => 0.3, 'glaetteC' => 1, 'pauseStunden' => 8, 'eskalationMinuten' => 15, 'ruheVon' => '', 'ruheBis' => '', 'ruheAusnahmeStufe' => 2, 'ohneDatenStunden' => 2];
 const STUFE_TEXT = [1 => 'gelb', 2 => 'orange', 3 => 'rot'];
 const WHATSAPP_TAG = 150; // höchstens so viele WhatsApp-Nachrichten am Tag (Schutz vor Kosten, falls etwas schiefläuft)
+const SMS_TAG = 100;      // höchstens so viele SMS am Tag (bei rund 8 Cent je SMS höchstens rund 8 Euro, eine lange SMS zählt doppelt)
 
 $cli = PHP_SAPI === 'cli';
 
@@ -381,6 +386,50 @@ function whatsapp_an(array $w, string $an, string $titel, string $text, string $
     return $f;
 }
 
+/** SMS-Einstellungen dieses Aufrufs (einmal gelesen); null: nicht eingerichtet. */
+function sms(): ?array
+{
+    static $s = false;
+    if ($s === false) {
+        $s = sms_einstellungen(ordner());
+    }
+    return $s;
+}
+
+/** SMS an eine Nummer, mit der Grenze je Tag (SMS_TAG); merkt sich das Guthaben, das der Dienst meldet. Liefert '' oder den Fehler. */
+function sms_an(array $s, string $an, string $text): string
+{
+    $datei = ordner() . '/sms-zaehler.json';
+    $tag = uhrzeit(jetzt(), 'Y-m-d');
+    $z = json_decode((string) @file_get_contents($datei), true);
+    $z = is_array($z) ? $z : [];
+    $n = ($z['tag'] ?? '') === $tag ? (int) ($z['anzahl'] ?? 0) : 0;
+    if ($n >= SMS_TAG) {
+        return 'Grenze von ' . SMS_TAG . ' SMS am Tag erreicht';
+    }
+    [$f, $guthaben] = sms_senden($s, $an, $text);
+    if ($f === '' || $guthaben !== null) {
+        @file_put_contents($datei, json_encode(['tag' => $tag, 'anzahl' => $n + ($f === '' ? 1 : 0), 'guthaben' => $guthaben ?? ($z['guthaben'] ?? null), 'stand' => $guthaben !== null ? jetzt() : ($z['stand'] ?? null)]), LOCK_EX);
+    }
+    return $f;
+}
+
+/**
+ * SMS an eine Person: Überschrift, Lage (gekürzt, damit es zwei SMS nicht übersteigt) und der Link zum Bestätigen
+ * (kurz: wetter-alarm.php?w=Code; ohne Code der Link zur App). Nur wer eine Nummer für SMS in der Alarm-Datei hat.
+ */
+function sms_person(array $e, array $person, string $titel, string $text, ?string $token): array
+{
+    $s = sms();
+    if (!$s || !is_string($person['sms'] ?? null) || $person['sms'] === '') {
+        return [];
+    }
+    $ende = $token ? t('w_bin_wach', [], sprache_von($person)) . ': ' . adresse($e) . 'wetter-alarm.php?w=' . $token : adresse($e) . '#wetter';
+    $kurz = (string) preg_replace('/ Bitte mit „Bin wach“ bestätigen\.$/u', '', $text);
+    $f = sms_an($s, $person['sms'], sms_kuerzen($titel . ':', $kurz, $ende));
+    return $f !== '' ? [sprintf('SMS an %s: %s', $person['name'] ?? '?', $f)] : [];
+}
+
 /**
  * WhatsApp an eine Person über die Schnittstelle von Meta: Vorlage mit Überschrift, Text und Knopf (mit Code: „Bin wach“,
  * ohne Code führt er zur App). Nur wer eine Nummer in der Alarm-Datei hat und nur, wenn WhatsApp eingerichtet ist.
@@ -396,11 +445,11 @@ function whatsapp_person(array $person, string $titel, string $text, ?string $to
 }
 
 /**
- * An eine Person: ntfy (Push, höchste Priorität, Knopf „Bin wach“) und/oder E-Mail; mit $whatsapp danach auch WhatsApp.
- * Liefert Fehlertexte. Mehrere Personen: alarm_senden schickt zuerst allen Push und E-Mail, dann WhatsApp (antwortet
- * Meta langsam, wartet darauf kein Push).
+ * An eine Person: ntfy (Push, höchste Priorität, Knopf „Bin wach“) und/oder E-Mail; mit $handy danach auch SMS und
+ * WhatsApp. Liefert Fehlertexte. Mehrere Personen: alarm_senden schickt zuerst allen Push und E-Mail, dann SMS, dann
+ * WhatsApp (antwortet ein Dienst langsam, wartet darauf kein Push).
  */
-function benachrichtigen(array $e, array $person, string $titel, string $text, ?string $token, bool $whatsapp = true): array
+function benachrichtigen(array $e, array $person, string $titel, string $text, ?string $token, bool $handy = true): array
 {
     $fehler = [];
     $app = adresse($e) . '#wetter';
@@ -439,7 +488,7 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
             $fehler[] = sprintf('E-Mail an %s nicht versendet', $person['name'] ?? $person['email']);
         }
     }
-    return $whatsapp ? array_merge($fehler, whatsapp_person($person, $titel, $text, $token)) : $fehler;
+    return $handy ? array_merge($fehler, sms_person($e, $person, $titel, $text, $token), whatsapp_person($person, $titel, $text, $token)) : $fehler;
 }
 
 /** Alarm an eine Liste von Personen senden, je Person ein eigener Bestätigungs-Code. */
@@ -453,7 +502,10 @@ function alarm_senden(array $e, array &$alarm, array $personen, string $titel, s
         $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []);
         $fehler = array_merge($fehler, benachrichtigen($e, $p, $titel, $text, $token, false));
     }
-    // WhatsApp erst, wenn alle ihren Push haben
+    // SMS und WhatsApp erst, wenn alle ihren Push haben
+    foreach ($personen as $i => $p) {
+        $fehler = array_merge($fehler, sms_person($e, $p, $titel, $text, $codes[$i]));
+    }
     foreach ($personen as $i => $p) {
         $fehler = array_merge($fehler, whatsapp_person($p, $titel, $text, $codes[$i]));
     }
@@ -546,6 +598,11 @@ function pruefen(array $e): array
 // ---------------------------------------------------------------- Aufruf
 
 $aktion = $cli ? (($argv[1] ?? '') === 'test' ? 'test' : 'pruefen') : (string) ($_GET['aktion'] ?? '');
+// kurzer Link aus der SMS: wetter-alarm.php?w=Code ist „Bin wach“ mit diesem Code
+if (!$cli && $aktion === '' && is_string($_GET['w'] ?? null)) {
+    $aktion = 'wach';
+    $_GET['t'] = $_GET['w'];
+}
 $e = einstellungen();
 $methode = $cli ? 'CLI' : ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
@@ -789,7 +846,7 @@ if ($aktion === 'status') {
             'alarm' => $a ? ['gesendet' => $a['gesendet'], 'text' => $a['text'], 'test' => !empty($a['test']), 'eskaliert' => $a['eskaliert'], 'wach' => array_values(array_map(fn ($t) => ['name' => $a['empfaenger'][$t]['name'] ?? '?', 'zeit' => $a['wach'][$t]], array_keys($a['wach'])))] : null,
         ];
     }
-    ausgabe(200, ['jetzt' => jetzt(), 'letztePruefung' => $stand['letztePruefung'] ?? null, 'orte' => $orte, 'protokoll' => array_slice($stand['protokoll'] ?? [], 0, 20), 'whatsapp' => whatsapp() !== null]);
+    ausgabe(200, ['jetzt' => jetzt(), 'letztePruefung' => $stand['letztePruefung'] ?? null, 'orte' => $orte, 'protokoll' => array_slice($stand['protokoll'] ?? [], 0, 20), 'whatsapp' => whatsapp() !== null, 'sms' => sms() !== null]);
 }
 if ($aktion === 'test' && ($cli || $methode === 'POST')) {
     $nur = $cli ? ($argv[2] ?? '') : (string) ($_GET['ort'] ?? '');
@@ -808,6 +865,83 @@ if ($aktion === 'test' && ($cli || $methode === 'POST')) {
         return $aus;
     });
     ausgabe($bericht ? 200 : 404, $bericht ?: ['fehler' => 'Ort nicht gefunden']);
+}
+// SMS: Zugang zum SMS-Dienst (nur am Webspace, der Schlüssel kommt nie zurück)
+if ($aktion === 'sms' || $aktion === 'sms-test') {
+    $datei = ordner() . '/sms.json';
+    $stand_sms = function () use ($datei): array {
+        $s = sms_einstellungen(ordner());
+        $z = json_decode((string) @file_get_contents(ordner() . '/sms-zaehler.json'), true);
+        return $s
+            ? ['eingerichtet' => true, 'anbieter' => $s['anbieter'], 'anbieterName' => SMS_ANBIETER[$s['anbieter']], 'absender' => $s['absender'], 'schluesselEnde' => substr($s['schluessel'], -4), 'gespeichert' => (int) ($s['gespeichert'] ?? 0), 'guthaben' => is_array($z) && is_numeric($z['guthaben'] ?? null) ? (float) $z['guthaben'] : null, 'guthabenStand' => is_array($z) ? ($z['stand'] ?? null) : null]
+            : ['eingerichtet' => false, 'anbieter' => 'seven', 'anbieterName' => SMS_ANBIETER['seven'], 'anbieterListe' => SMS_ANBIETER];
+    };
+    if ($aktion === 'sms-test') {
+        if ($methode !== 'POST') {
+            ausgabe(405, ['fehler' => 'POST erwartet']);
+        }
+        $s = sms_einstellungen(ordner());
+        if (!$s) {
+            ausgabe(409, ['fehler' => 'SMS ist am Webspace noch nicht eingerichtet (Schlüssel des SMS-Dienstes speichern).']);
+        }
+        $daten = json_decode((string) file_get_contents('php://input'), true);
+        $an = is_string($daten['an'] ?? null) ? (string) preg_replace('/\D/', '', $daten['an']) : '';
+        $darf = mit_stand(function (array &$stand) {
+            $stand['smsProben'] = array_values(array_filter((array) ($stand['smsProben'] ?? []), fn ($t) => (int) $t > jetzt() - 3600));
+            if (count($stand['smsProben']) >= 10) {
+                return false;
+            }
+            $stand['smsProben'][] = jetzt();
+            return true;
+        });
+        if (!$darf) {
+            ausgabe(429, ['fehler' => 'Zu viele Proben in dieser Stunde (höchstens 10).']);
+        }
+        $f = sms_an($s, $an, sms_kuerzen('Probe ' . marke()['app'] . ':', 'So kommt der Schnee-Alarm als SMS. Im Alarm steht hier der Link zum Bestätigen.', adresse($e) . '#wetter'));
+        ausgabe($f === '' ? 200 : 502, $f === '' ? ['gesendet' => true] + $stand_sms() : ['fehler' => $f]);
+    }
+    if ($methode === 'POST') {
+        $neu = json_decode((string) file_get_contents('php://input'), true);
+        if (!is_array($neu)) {
+            ausgabe(400, ['fehler' => 'POST mit JSON erwartet']);
+        }
+        if (!empty($neu['entfernen'])) {
+            @unlink($datei);
+            @unlink(ordner() . '/sms-zaehler.json');
+            ausgabe(200, $stand_sms());
+        }
+        $alt = json_decode((string) @file_get_contents($datei), true);
+        $s = is_array($alt) ? $alt : [];
+        if (isset($neu['anbieter']) && $neu['anbieter'] !== '') {
+            if (!is_string($neu['anbieter']) || !isset(SMS_ANBIETER[$neu['anbieter']])) {
+                ausgabe(400, ['fehler' => 'Diesen SMS-Dienst kennt die App nicht.']);
+            }
+            $s['anbieter'] = $neu['anbieter'];
+        }
+        if (isset($neu['schluessel']) && $neu['schluessel'] !== '') {
+            if (!is_string($neu['schluessel']) || !preg_match('/^[A-Za-z0-9_\-]{20,200}$/', $neu['schluessel'])) {
+                ausgabe(400, ['fehler' => 'Der Schlüssel sieht nicht richtig aus (20 bis 200 Zeichen, ohne Leerzeichen).']);
+            }
+            $s['schluessel'] = $neu['schluessel'];
+        }
+        if (isset($neu['absender'])) {
+            if (!is_string($neu['absender']) || mb_strlen($neu['absender']) > 40) {
+                ausgabe(400, ['fehler' => 'Absender: ein Name mit höchstens 11 Buchstaben und Ziffern oder eine Nummer mit Ländervorwahl.']);
+            }
+            $s['absender'] = sms_absender($neu['absender']);
+        }
+        $s['anbieter'] = $s['anbieter'] ?? 'seven';
+        if (empty($s['schluessel'])) {
+            ausgabe(400, ['fehler' => 'Den Schlüssel des SMS-Dienstes angeben.']);
+        }
+        $s['gespeichert'] = jetzt();
+        $s = array_intersect_key($s, array_flip(['anbieter', 'schluessel', 'absender', 'gespeichert']));
+        if (@file_put_contents($datei . '.neu', json_encode($s, JSON_PRETTY_PRINT), LOCK_EX) === false || !@rename($datei . '.neu', $datei)) {
+            ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        @chmod($datei, 0600);
+    }
+    ausgabe(200, $stand_sms());
 }
 // WhatsApp: Zugangsdaten für die Schnittstelle von Meta (nur am Webspace, das Token kommt nie zurück)
 if ($aktion === 'whatsapp' || $aktion === 'whatsapp-test') {

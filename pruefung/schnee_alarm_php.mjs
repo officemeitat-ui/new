@@ -11,7 +11,10 @@
 //  6. Ruhezeit: erst am Ende wecken, orange sofort. Ausfall der Wetterdaten: Stufe 2 einmal informiert.
 //  7. Testalarm aus der App; Fehler eines Weges (Push-Dienst antwortet nicht, WhatsApp lehnt ab) stehen im Protokoll,
 //     die anderen Wege gehen trotzdem. Grenze je Tag; WhatsApp entfernt = nur noch Push und E-Mail.
-// Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP).
+//  8. SMS von selbst (SMS-Dienst seven.io nachgestellt): Zugang speichern (Schlüssel kommt nie zurück), Probe, Guthaben;
+//     Alarm als kurze SMS mit Link „Bin wach“ (nur SMS-taugliche Zeichen, höchstens zwei SMS lang), Bestätigen über den
+//     kurzen Link; Guthaben aufgebraucht, Grenze je Tag, Entfernen.
+// Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP), 19835 (SMS-Dienst).
 import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -23,6 +26,9 @@ const WX = 19831
 const NTFY = 19832
 const WA = 19833
 const HTTP = 19834
+const SMS = 19835
+const SMS_KEY = 'smsKey0123456789abcdefABCDEF4321'
+const SMS_KEY_BAD = 'falscherSchluessel0123456789xyz'
 const dir = join(P, 'schnee-alarm')
 rmSync(dir, { recursive: true, force: true })
 mkdirSync(join(dir, 'post'), { recursive: true })
@@ -54,6 +60,7 @@ const SZENEN = {
   nachbarn: { Salzburg: { wert: snowAt([5, 6, 7, 8]), warn: [orange] }, Hallein: { wert: snowAt([4, 5]) }, Obertrum: { wert: (at) => (at === hour(5) ? { t: -1, tp: 0.4, sf: 0 } : still()) } },
   ruhe: { Salzburg: { wert: snowAt([5, 6, 7, 8]), warn: [orange] }, Seekirchen: { wert: snowAt([6, 7]) }, Anif: { warn: [{ ...orange, warntypid: 4, rawinfo: { start: hour(3), end: hour(9) } }] } },
   aus: { Salzburg: 'aus', Seekirchen: { wert: snowAt([6, 7]) } },
+  mittag: { Obertrum: { wert: (at) => (at === hour(13) ? { t: -1, tp: 0.4, sf: 0 } : still()) } },
 }
 const wetterAnfragen = []
 const wetter = createServer((req, res) => {
@@ -96,6 +103,19 @@ const meta = createServer(async (req, res) => {
   json(200, { messaging_product: 'whatsapp', contacts: [{ input: m.to, wa_id: m.to }], messages: [{ id: `wamid.${whatsapps.length}` }] })
 }).listen(WA, '127.0.0.1')
 
+// SMS-Dienst (seven.io): Formularfelder to, from, text; Schlüssel im Kopf X-Api-Key; Antwort als JSON mit Guthaben
+const smsListe = []
+const smsOhneGuthaben = new Set()
+const seven = createServer(async (req, res) => {
+  const f = Object.fromEntries(new URLSearchParams(await body(req)))
+  const json = (b) => res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(b))
+  if (req.url !== '/api/sms' || req.method !== 'POST') return res.writeHead(404).end('')
+  if (req.headers['x-api-key'] !== SMS_KEY) return json({ success: '900', total_price: null, balance: null, messages: [] })
+  if (smsOhneGuthaben.has(f.to)) return json({ success: '500', total_price: 0, balance: 0.03, messages: [{ id: null, recipient: f.to, success: false, error: '500', error_text: 'Zu wenig Guthaben' }] })
+  smsListe.push({ ...f, typ: req.headers['content-type'] })
+  json({ success: '100', total_price: 0.15, balance: 12.34, debug: 'false', sms_type: 'direct', messages: [{ id: `77${smsListe.length}`, sender: f.from, recipient: f.to, text: f.text, encoding: 'gsm', parts: 2, price: 0.15, success: true, error: null, error_text: null }] })
+}).listen(SMS, '127.0.0.1')
+
 const env = (jetzt, szene) => ({
   ...process.env,
   WETTER_ALARM_ORDNER: dir,
@@ -103,6 +123,7 @@ const env = (jetzt, szene) => ({
   WETTER_VORHERSAGE: `http://127.0.0.1:${WX}/${szene}/forecast`,
   WETTER_WARNUNGEN: `http://127.0.0.1:${WX}/${szene}/warnings`,
   WHATSAPP_API: `http://127.0.0.1:${WA}`,
+  SMS_API: `http://127.0.0.1:${SMS}`,
   TMPDIR: join(dir, 'tmp'),
   NO_PROXY: '127.0.0.1,localhost',
   no_proxy: '127.0.0.1,localhost',
@@ -152,11 +173,13 @@ function mails() {
 /** Was seit dem letzten Aufruf gesendet wurde. */
 let pN = 0
 let wN = 0
+let sN = 0
 const neu = async () => {
   await wait(150)
-  const out = { push: pushes.slice(pN), wa: whatsapps.slice(wN), mail: mails() }
+  const out = { push: pushes.slice(pN), wa: whatsapps.slice(wN), sms: smsListe.slice(sN), mail: mails() }
   pN = pushes.length
   wN = whatsapps.length
+  sN = smsListe.length
   return out
 }
 const waText = (m) => m.template.components.find((c) => c.type === 'body').parameters.map((p) => p.text)
@@ -338,6 +361,69 @@ try {
   n = await neu()
   check('Ohne WhatsApp-Zugang: Alarm nur per Push und E-Mail, kein Fehler', !n.wa.length && n.push.length === 2 && n.mail.length === 1 && !(await api('status')).json.protokoll[0].text.includes('WhatsApp'))
   check('Am Webspace liegt das Token nirgends mehr', !readdirSync(dir).some((f) => statSync(join(dir, f)).isFile() && readFileSync(join(dir, f), 'utf8').includes(TOKEN)))
+
+  // ---------------------------------------------------------------- 8. SMS von selbst
+  r = await api('sms')
+  check('SMS: Stand „nicht eingerichtet“, bekannter Dienst seven.io', r.status === 200 && r.json.eingerichtet === false && r.json.anbieterListe.seven === 'seven.io' && (await api('status')).json.sms === false, JSON.stringify(r.json))
+  check('SMS-Zugang nur mit dem Schlüssel der App (nicht mit dem Prüfschlüssel, nicht ohne)', (await api('sms', { key: '' })).status === 403 && (await api('sms', { key: '', extra: `&schluessel=${CRON}` })).status === 403)
+  check('Probe-SMS ohne Zugang: verständliche Absage', (r = await api('sms-test', { method: 'POST', json: { an: '436641234567' } })).status === 409 && /noch nicht eingerichtet/.test(r.json.fehler))
+  check('SMS speichern: zu kurzer Schlüssel, unbekannter Dienst, kein Schlüssel werden abgelehnt', (await api('sms', { method: 'POST', json: { schluessel: 'kurz' } })).status === 400 && (await api('sms', { method: 'POST', json: { anbieter: 'irgendwer', schluessel: SMS_KEY } })).status === 400 && (await api('sms', { method: 'POST', json: { absender: 'Cleanos' } })).status === 400 && !existsSync(join(dir, 'sms.json')))
+  r = await api('sms', { method: 'POST', json: { anbieter: 'seven', schluessel: SMS_KEY_BAD, absender: 'Cleanos Gebäudereinigung' } })
+  check('SMS gespeichert: Stand ohne Schlüssel (nur die letzten vier Zeichen), Absender auf elf Zeichen gekürzt', r.status === 200 && r.json.eingerichtet === true && r.json.anbieterName === 'seven.io' && r.json.absender === 'CleanosGeba' && r.json.schluesselEnde === SMS_KEY_BAD.slice(-4) && !r.text.includes(SMS_KEY_BAD) && !('schluessel' in r.json), r.text.slice(0, 220))
+  check('Zugang liegt nur am Webspace (privat/sms.json, nur für den Besitzer lesbar)', JSON.parse(readFileSync(join(dir, 'sms.json'), 'utf8')).schluessel === SMS_KEY_BAD && (statSync(join(dir, 'sms.json')).mode & 0o077) === 0)
+  r = await api('sms-test', { method: 'POST', json: { an: '+43 664 1234567' } })
+  check('Probe mit einem Schlüssel, den der Dienst nicht kennt: klarer Grund', r.status === 502 && r.json.fehler === 'Schlüssel falsch (Code 900)', JSON.stringify(r.json))
+  r = await api('sms', { method: 'POST', json: { schluessel: SMS_KEY } })
+  check('Nur den Schlüssel tauschen: Dienst und Absender bleiben', r.status === 200 && r.json.schluesselEnde === '4321' && r.json.absender === 'CleanosGeba')
+  r = await api('sms-test', { method: 'POST', json: { an: '0664 1234567' } })
+  check('Probe an eine Nummer ohne Ländervorwahl: abgelehnt, bevor etwas an den Dienst geht', r.status === 502 && /Nummer ungültig/.test(r.json.fehler) && smsListe.length === 0)
+  r = await api('sms-test', { method: 'POST', json: { an: '+43 664 1234567' } })
+  n = await neu()
+  const gsm = /^[A-Za-z0-9 !"#%&'()*+,\-./:;<=>?@_äöüÄÖÜßéèàùìòÉñÑ]+$/
+  check('Probe-SMS: Formularfelder an den Dienst (Nummer mit Ländervorwahl, Absender, Text), Schlüssel im Kopf', r.status === 200 && r.json.gesendet === true && n.sms.length === 1 && n.sms[0].to === '436641234567' && n.sms[0].from === 'CleanosGeba' && /^Probe Cleanos App: So kommt der Schnee-Alarm als SMS\./.test(n.sms[0].text) && /x-www-form-urlencoded/.test(n.sms[0].typ) && gsm.test(n.sms[0].text), JSON.stringify(n.sms[0]))
+  check('Das Guthaben beim Dienst steht danach im Stand (für die App)', r.json.guthaben === 12.34 && (await api('sms')).json.guthaben === 12.34 && (await api('status')).json.sms === true)
+
+  const mitSms = einstellungen()
+  mitSms.orte[0].stufe1 = [{ ...person.dragan, sms: '436641111111' }, { ...person.ana, sms: '436642222222' }, { ...person.mehmet, sms: '436643333333' }]
+  mitSms.orte[0].stufe2 = [...buero, { name: 'Büro', sms: '436649999999' }]
+  mitSms.orte[2].stufe1 = [{ name: 'Jelena Marković', ntfy: 'wd-jelena', sms: '436645555555' }]
+  await api('speichern', { method: 'POST', json: mitSms })
+  r = await api('test', { method: 'POST', extra: '&ort=Salzburg' })
+  n = await neu()
+  const smsD = n.sms.find((m) => m.to === '436641111111')
+  const tS = tokenOf(n.push.find((p) => p.topic === 'wd-dragan') || { actions: [] })
+  check('Testalarm: SMS an alle drei aus Stufe 1, zusätzlich zu Push und E-Mail, ohne Fehler', r.json.Salzburg.fehler.length === 0 && n.sms.length === 3 && n.push.length === 2 && n.mail.length === 1 && !n.wa.length, `${JSON.stringify(r.json)} · ${n.sms.length}`)
+  check('SMS: Überschrift, Text und kurzer Link „Bin wach“ in der Sprache der Person, mit demselben Code wie im Push', !!smsD && smsD.text === `Testalarm Winterdienst Salzburg: Probe: So kommt der Schnee-Alarm. Budan/na sam: http://127.0.0.1:${HTTP}/wetter-alarm.php?w=${tS}` && tS.length === 24, smsD?.text)
+  check('SMS: nur Zeichen einer gewöhnlichen SMS (keine „“, kein –), höchstens zwei SMS lang', n.sms.every((m) => gsm.test(m.text) && m.text.length <= 306), n.sms.map((m) => m.text.length).join(','))
+  r = await api('', { key: '', extra: `&w=${tS}` })
+  check('Kurzer Link aus der SMS: Seite mit Knopf (bestätigt noch nichts)', r.status === 200 && /<form method="post">/.test(r.text) && /<html lang="hr">/.test(r.text) && (await api('status')).json.orte[0].alarm.wach.length === 0, `${r.status}`)
+  r = await api('', { method: 'POST', key: '', extra: `&w=${tS}` })
+  check('Knopf auf dieser Seite: bestätigt mit Namen', r.status === 200 && /Dragan Jović/.test(flat(r.text)) && (await api('status')).json.orte[0].alarm.wach[0]?.name === 'Dragan Jović', flat(r.text).slice(0, 120))
+
+  b = await cron(hour(12), 'mittag')
+  n = await neu()
+  check('12:00 Uhr, Glätte in Obertrum (neuer Alarm nach der Pause): Push und SMS', !!b.orte?.Obertrum?.alarm && n.push.length === 1 && n.push[0].topic === 'wd-jelena' && n.sms.length === 1 && n.sms[0].to === '436645555555', `${JSON.stringify(b.orte?.Obertrum)} · ${n.push.length}/${n.sms.length}`)
+  check('SMS zum echten Alarm: Lage ohne Sonderzeichen (Grad statt °C), Link zum Bestätigen', new RegExp(`^Winterdienst Obertrum: Glätte möglich ab 12:00 Uhr \\(-1 Grad mit Niederschlag\\)\\. Bin wach: http://127\\.0\\.0\\.1:${HTTP}/wetter-alarm\\.php\\?w=[a-f0-9]{24}$`).test(n.sms[0]?.text || ''), n.sms[0]?.text)
+  await cron(hour(12) + 960, 'mittag')
+  n = await neu()
+  check('12:16 Uhr, niemand bestätigt, Obertrum hat keine Stufe 2: nichts weiter; Salzburg bleibt ruhig', !n.sms.length && !n.push.length)
+
+  smsOhneGuthaben.add('436643333333')
+  r = await api('test', { method: 'POST', extra: '&ort=Salzburg' })
+  n = await neu()
+  check('Guthaben beim Dienst aufgebraucht: klarer Grund im Bericht, Push und E-Mail gehen trotzdem', r.json.Salzburg.fehler.length === 1 && r.json.Salzburg.fehler[0] === 'SMS an Mehmet Yılmaz: Guthaben beim SMS-Dienst aufgebraucht (Code 500)' && n.sms.length === 2 && n.push.length === 2 && n.mail.length === 1, JSON.stringify(r.json))
+  check('Die App sieht das niedrige Guthaben', (await api('sms')).json.guthaben === 0.03)
+  smsOhneGuthaben.clear()
+  writeFileSync(join(dir, 'sms-zaehler.json'), JSON.stringify({ tag: '2026-12-10', anzahl: 100, guthaben: 5 }))
+  r = await api('test', { method: 'POST', extra: '&ort=Salzburg' })
+  n = await neu()
+  check('Grenze je Tag (100 SMS): SMS hält an, Push und E-Mail gehen weiter', r.json.Salzburg.fehler.length === 3 && r.json.Salzburg.fehler.every((f) => /^SMS an .*: Grenze von 100 SMS am Tag erreicht$/.test(f)) && !n.sms.length && n.push.length === 2, JSON.stringify(r.json))
+  r = await api('sms', { method: 'POST', json: { entfernen: true } })
+  check('SMS entfernen: Zugang am Webspace gelöscht', r.status === 200 && r.json.eingerichtet === false && !existsSync(join(dir, 'sms.json')) && (await api('status')).json.sms === false)
+  r = await api('test', { method: 'POST', extra: '&ort=Salzburg' })
+  n = await neu()
+  check('Ohne SMS-Zugang: keine SMS, kein Fehler', !n.sms.length && r.json.Salzburg.fehler.length === 0 && n.push.length === 2)
+  check('Am Webspace liegt der Schlüssel des SMS-Dienstes nirgends mehr', !readdirSync(dir).some((f) => statSync(join(dir, f)).isFile() && readFileSync(join(dir, f), 'utf8').includes(SMS_KEY)))
 } catch (err) {
   check('Ablauf ohne Ausnahme', false, String(err?.stack || err).slice(0, 900))
 }
@@ -345,4 +431,5 @@ php.kill()
 wetter.close()
 ntfy.close()
 meta.close()
+seven.close()
 await finish(null, [], [])

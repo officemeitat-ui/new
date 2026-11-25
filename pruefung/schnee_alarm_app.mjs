@@ -1,12 +1,14 @@
-// Schnee-Alarm in der App mit WhatsApp von selbst: App im SharePoint-Betrieb (Attrappe), wetter-alarm.php als echtes
-// PHP (Aufrufe der App werden durchgereicht), Push (ntfy) und WhatsApp (Schnittstelle von Meta) werden mitgelesen.
+// Schnee-Alarm in der App mit SMS und WhatsApp von selbst: App im SharePoint-Betrieb (Attrappe), wetter-alarm.php als echtes
+// PHP (Aufrufe der App werden durchgereicht); Push (ntfy), SMS (seven.io) und WhatsApp (Meta) werden mitgelesen.
 //  1. „Alarm einrichten“: Stufe 1 aus dem Winterteam, Spalte „WhatsApp von selbst“ (nur mit Handynummer im Stammblatt),
 //     Büro-Nummern für Stufe 2; die Alarm-Datei enthält die Nummern der Angehakten, sonst nichts Neues.
 //  2. „Speichern und übertragen“; WhatsApp-Zugang eintragen: geht nur an den Webspace, steht danach weder in
 //     SharePoint noch im Browser; Stand „eingerichtet“ ohne Token. Probe-Nachricht.
 //  3. „Testalarm senden“: Push an alle aus Stufe 1, WhatsApp an die Angehakten; „Bin wach“ erscheint in der App.
 //  4. „WhatsApp entfernen“; Handy 390 px ohne Querscrollen.
-// Ports 19836 (App), 19837 (PHP), 19838 (ntfy), 19839 (WhatsApp).
+//  5. SMS: Häkchen je Person und Büro-Nummer in der Alarm-Datei, Zugang zum SMS-Dienst nur am Webspace, Probe mit
+//     Guthaben, Testalarm als SMS, Entfernen.
+// Ports 19836 (App), 19837 (PHP), 19838 (ntfy), 19839 (WhatsApp), 19840 (SMS-Dienst).
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -17,6 +19,8 @@ const PORT = 19836
 const PHP = 19837
 const NTFY = 19838
 const WA = 19839
+const SMS = 19840
+const SMS_KEY = 'smsKey0123456789abcdefABCDEF4321'
 const TOKEN = `EAAG${'t0k3n'.repeat(30)}XYZ9`
 const NUMBER_ID = '123456789012345'
 const dir = join(P, 'schnee-app')
@@ -36,8 +40,15 @@ const meta = createServer(async (req, res) => {
   whatsapps.push({ pfad: req.url, ...m })
   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ messaging_product: 'whatsapp', contacts: [{ input: m.to, wa_id: m.to }], messages: [{ id: `wamid.${whatsapps.length}` }] }))
 }).listen(WA, '127.0.0.1')
+const smsListe = []
+const seven = createServer(async (req, res) => {
+  const f = Object.fromEntries(new URLSearchParams(await body(req)))
+  const ok = req.headers['x-api-key'] === SMS_KEY
+  if (ok) smsListe.push(f)
+  res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(ok ? { success: '100', balance: 12.34, messages: [{ id: '771', recipient: f.to, success: true }] } : { success: '900', messages: [] }))
+}).listen(SMS, '127.0.0.1')
 const server = startServer(PORT)
-const php = spawn('php', ['-S', `127.0.0.1:${PHP}`, '-t', R], { env: { ...process.env, WETTER_ALARM_ORDNER: dir, WHATSAPP_API: `http://127.0.0.1:${WA}`, TMPDIR: dir, NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' }, stdio: 'ignore' })
+const php = spawn('php', ['-S', `127.0.0.1:${PHP}`, '-t', R], { env: { ...process.env, WETTER_ALARM_ORDNER: dir, WHATSAPP_API: `http://127.0.0.1:${WA}`, SMS_API: `http://127.0.0.1:${SMS}`, TMPDIR: dir, NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' }, stdio: 'ignore' })
 await wait(1200)
 const browser = await chromium.launch()
 const errors = []
@@ -64,6 +75,7 @@ try {
   const alarm = () => SP.json('daten/stammdaten.json')?.rules?.weather?.alarm || {}
   const modal = () => O.text('.modal')
   const waState = () => O.text('#al-wa-state')
+  const smsState = () => O.text('#al-sms-state')
   const openDialog = async () => {
     await O.act('wx-alarm-open')
     await O.page.waitForSelector('.modal #al-enabled')
@@ -80,23 +92,26 @@ try {
   const rows = () =>
     O.page.evaluate(() =>
       [...document.querySelectorAll('.modal table.data')]
-        .find((tb) => /WhatsApp von selbst/.test(tb.tHead?.innerText || ''))
+        .find((tb) => /Von selbst an die Handynummer/.test(tb.tHead?.innerText || ''))
         ?.tBodies[0].querySelectorAll('tr')
         .values()
         .toArray()
-        .map((tr) => ({ name: tr.cells[0].innerText.trim(), wa: tr.cells[3].innerText.trim(), box: !!tr.querySelector('input[name="al-wa"]'), checked: !!tr.querySelector('input[name="al-wa"]:checked') })),
+        .map((tr) => ({ name: tr.cells[0].innerText.trim(), wa: (tr.cells[3].querySelector('span')?.innerText || tr.cells[3].innerText).trim(), box: !!tr.querySelector('input[name="al-wa"]') && !!tr.querySelector('input[name="al-sms"]'), checked: !!tr.querySelector('input[name="al-wa"]:checked'), sms: !!tr.querySelector('input[name="al-sms"]:checked') })),
     )
   let people = await rows()
   const by = (name) => people.find((p) => p.name === name)
-  check('Handys: je Person aus Stufe 1 die Nummer für WhatsApp (mit Ländervorwahl), ohne Nummer kein Häkchen', people.length === 4 && by('Dragan Jović').wa === '+436641111111' && by('Gül Arslan').wa === '+436642222222' && by('Irina Bogdan').wa === '+436503333333' && by('Elif Kaya').wa === 'keine Nummer' && !by('Elif Kaya').box && people.every((p) => !p.checked), JSON.stringify(people))
+  check('Handys: je Person aus Stufe 1 die Nummer (mit Ländervorwahl) mit Häkchen für SMS und WhatsApp, ohne Nummer keines', people.length === 4 && by('Dragan Jović').wa === '+436641111111' && by('Gül Arslan').wa === '+436642222222' && by('Irina Bogdan').wa === '+436503333333' && by('Elif Kaya').wa === 'keine Nummer' && !by('Elif Kaya').box && people.every((p) => !p.checked), JSON.stringify(people))
   await O.page.check(`.modal input[name="al-wa"][value="${idOf('Dragan Jović')}"]`)
   await O.page.check(`.modal input[name="al-wa"][value="${idOf('Irina Bogdan')}"]`)
+  await O.page.check(`.modal input[name="al-sms"][value="${idOf('Dragan Jović')}"]`)
+  await O.page.check(`.modal input[name="al-sms"][value="${idOf('Gül Arslan')}"]`)
+  await O.page.fill('#al-officesms', '0664 8888888')
   await O.page.fill('#al-officewa', '0664 9999999, kaputt')
   await O.page.fill('#al-ntfy', `http://127.0.0.1:${NTFY}`)
   await O.page.check('.modal #al-p0-rotate') // zeichnet den Dialog neu: Eingaben müssen bleiben
   await O.page.waitForSelector('.modal #al-p0-rotate:checked')
   people = await rows()
-  check('Nach dem Neuzeichnen bleiben die Häkchen; eine unbrauchbare Büro-Nummer wird gemeldet', by('Dragan Jović').checked && by('Irina Bogdan').checked && !by('Gül Arslan').checked && /Eine Nummer ist nicht brauchbar/.test(await modal()))
+  check('Nach dem Neuzeichnen bleiben die Häkchen; eine unbrauchbare Büro-Nummer wird gemeldet', by('Dragan Jović').checked && by('Irina Bogdan').checked && !by('Gül Arslan').checked && by('Dragan Jović').sms && by('Gül Arslan').sms && !by('Irina Bogdan').sms && /Eine Nummer ist nicht brauchbar/.test(await modal()) && (await O.page.inputValue('#al-officesms')) === '0664 8888888')
   await O.page.uncheck('.modal #al-p0-rotate')
   await O.page.fill('#al-officewa', '0664 9999999')
   const [dl] = await Promise.all([O.page.waitForEvent('download'), O.page.click('.modal [data-action="wx-alarm-download"]')])
@@ -105,11 +120,12 @@ try {
   const ort = file.orte.find((o) => o.stufe1.length)
   const s1 = (name) => ort.stufe1.find((p) => p.name === name)
   check('Alarm-Datei: WhatsApp-Nummer nur bei den Angehakten, Büro-Nummer in Stufe 2, Thema für Push bei allen', dl.suggestedFilename() === 'wetter-alarm.json' && ort.stufe1.length === 4 && s1('Dragan Jović').whatsapp === '436641111111' && s1('Irina Bogdan').whatsapp === '436503333333' && !('whatsapp' in s1('Gül Arslan')) && !('whatsapp' in s1('Elif Kaya')) && ort.stufe1.every((p) => /^wd-[a-f0-9]{16}$/.test(p.ntfy)) && ort.stufe2.some((p) => p.name === 'Büro' && p.whatsapp === '436649999999') && file.ntfy === `http://127.0.0.1:${NTFY}`, JSON.stringify(ort.stufe1))
-  check('In der Alarm-Datei steht kein Zugang zu WhatsApp', !/token|EAAG/i.test(fileText))
+  check('Alarm-Datei: SMS-Nummer nur bei den für SMS Angehakten, Büro-Nummer für SMS in Stufe 2', s1('Dragan Jović').sms === '436641111111' && s1('Gül Arslan').sms === '436642222222' && !('sms' in s1('Irina Bogdan')) && !('sms' in s1('Elif Kaya')) && ort.stufe2.some((p) => p.name === 'Büro' && p.sms === '436648888888'), JSON.stringify(ort.stufe2))
+  check('In der Alarm-Datei steht kein Zugang zu WhatsApp oder zum SMS-Dienst', !/token|EAAG|schluessel":\s*"sms|smsKey/i.test(fileText))
   writeFileSync(join(dir, 'wetter-alarm.json'), fileText) // einmalig per FTP nach privat/
   await O.page.click('.modal [data-action="wx-alarm-save"][data-send="1"]')
   check('„Speichern und übertragen“: am Webspace angekommen', !!(await O.toastWait(/Übertragen: \d+ Ort/, 20000)), await O.text('#toast'))
-  check('Einstellungen in den Stammdaten: wer per WhatsApp geweckt wird und die Büro-Nummer, sonst nichts zu WhatsApp', !!(await O.waitFor(() => alarm().transferred === true && alarm().whatsapp?.[idOf('Dragan Jović')] === true && alarm().whatsapp?.[idOf('Irina Bogdan')] === true && Object.keys(alarm().whatsapp).length === 2 && alarm().officeWhatsapp === '0664 9999999', 15000)), JSON.stringify(alarm().whatsapp))
+  check('Einstellungen in den Stammdaten: wer per WhatsApp geweckt wird und die Büro-Nummer, sonst nichts zu WhatsApp', !!(await O.waitFor(() => alarm().transferred === true && alarm().whatsapp?.[idOf('Dragan Jović')] === true && alarm().whatsapp?.[idOf('Irina Bogdan')] === true && Object.keys(alarm().whatsapp).length === 2 && alarm().officeWhatsapp === '0664 9999999' && alarm().sms?.[idOf('Dragan Jović')] === true && alarm().sms?.[idOf('Gül Arslan')] === true && Object.keys(alarm().sms).length === 2 && alarm().officeSms === '0664 8888888', 15000)), `${JSON.stringify(alarm().whatsapp)} ${JSON.stringify(alarm().sms)}`)
 
   // ------------------------------------------------ 2. WhatsApp-Zugang
   await openDialog()
@@ -137,6 +153,23 @@ try {
   await O.page.fill('#al-wa-test', '0664 5555555')
   await O.page.click('.modal [data-action="wx-wa-test"]')
   check('„Probe senden“: Nachricht geht mit Ländervorwahl an Meta', !!(await O.toastWait(/Probe an \+436645555555 gesendet/, 15000)) && whatsapps.length === 1 && whatsapps[0].to === '436645555555' && whatsapps[0].pfad === `/v25.0/${NUMBER_ID}/messages` && whatsapps[0].template.name === 'winterdienst_alarm', JSON.stringify(whatsapps[0] || {}).slice(0, 200))
+
+  // ------------------------------------------------ 5. SMS-Zugang (im selben Dialog)
+  check('Abschnitt „SMS von selbst“: erklärt SMS-Dienst, Kosten und das Wecken; Stand „noch nicht eingerichtet“', /SMS von selbst/.test(await modal()) && /SMS-Dienst/.test(await modal()) && /seven\.io/.test(await modal()) && /einige Cent/.test(await modal()) && /Ausnahme von „Nicht stören“/.test(await modal()) && /noch nicht eingerichtet/.test(await smsState()), await smsState())
+  await O.page.click('.modal [data-action="wx-sms-save"]')
+  check('Ohne Schlüssel: Hinweis, nichts gesendet', !!(await O.toastWait(/Bitte den Schlüssel des SMS-Dienstes eintragen/)) && !calls.includes('POST sms'))
+  await O.page.fill('#al-sms-key', SMS_KEY)
+  await O.page.fill('#al-sms-sender', 'Cleanos')
+  await O.page.click('.modal [data-action="wx-sms-save"]')
+  check('„Am Webspace speichern“ (SMS): gespeichert', !!(await O.toastWait(/SMS am Webspace gespeichert/, 15000)), await O.text('#toast'))
+  check('Stand „eingerichtet“ mit Dienst, Absender und den letzten vier Zeichen; das Schlüssel-Feld ist wieder leer', !!(await O.waitFor(async () => /eingerichtet seven\.io, Absender Cleanos, Schlüssel endet auf …4321/.test(await smsState()), 10000)) && (await O.page.inputValue('#al-sms-key')) === '' && (await O.page.getAttribute('#al-sms-key', 'type')) === 'password', await smsState())
+  await wait(1500)
+  const smsInSharePoint = [...SP.drive.items.entries()].filter(([, it]) => Buffer.from(it.content).includes(SMS_KEY)).map(([p]) => p)
+  const smsInBrowser = await O.page.evaluate((k) => JSON.stringify({ ...localStorage }).includes(k) || JSON.stringify({ ...sessionStorage }).includes(k) || document.body.innerHTML.includes(k), SMS_KEY)
+  check('Der Schlüssel des SMS-Dienstes liegt am Webspace, nicht in SharePoint und nicht im Browser', JSON.parse(readFileSync(join(dir, 'sms.json'), 'utf8')).schluessel === SMS_KEY && smsInSharePoint.length === 0 && smsInBrowser === false, smsInSharePoint.join(', '))
+  await O.page.fill('#al-sms-test', '0664 5555555')
+  await O.page.click('.modal [data-action="wx-sms-test"]')
+  check('„Probe senden“ (SMS): geht mit Ländervorwahl und Absender an den Dienst; danach steht das Guthaben da', !!(await O.toastWait(/Probe-SMS an \+436645555555 gesendet/, 15000)) && smsListe.length === 1 && smsListe[0].to === '436645555555' && smsListe[0].from === 'Cleanos' && !!(await O.waitFor(async () => /Guthaben zuletzt 12,34 €/.test(await smsState()), 10000)), `${JSON.stringify(smsListe[0] || {})} · ${await smsState()}`)
   await O.closeModals()
 
   // ------------------------------------------------ 3. Testalarm
@@ -145,13 +178,15 @@ try {
   check('„Testalarm senden“: an vier Personen', !!(await O.toastWait(/Testalarm an 4 Personen gesendet\. Auf den Handys „Bin wach“ tippen\./, 20000)), await O.text('#toast'))
   await wait(300)
   const test = whatsapps.slice(1)
+  const testSms = smsListe.slice(1)
+  check('SMS an die zwei für SMS Angehakten: kurzer Text mit Link „Bin wach“', testSms.map((m) => m.to).sort().join() === '436641111111,436642222222' && testSms.every((m) => new RegExp(`^Testalarm Winterdienst .*: Probe: So kommt der Schnee-Alarm\\. .+: http://localhost:${PORT}/wetter-alarm\\.php\\?w=[a-f0-9]{24}$`).test(m.text) && m.text.length <= 306), testSms.map((m) => m.text).join(' | '))
   check('Push an alle vier aus Stufe 1, WhatsApp nur an die zwei Angehakten', pushes.length === 4 && pushes.every((p) => /^Testalarm Winterdienst /.test(p.title) && p.priority === 5) && test.map((m) => m.to).sort().join() === '436503333333,436641111111', `${pushes.length} Push · ${test.map((m) => m.to)}`)
   const param = (m, type) => m.template.components.find((c) => c.type === type).parameters.map((p) => p.text)
   const dragan = test.find((m) => m.to === '436641111111')
   check('WhatsApp: Überschrift und Text des Testalarms, Knopf mit Bestätigungs-Code', !!dragan && /^Testalarm Winterdienst /.test(param(dragan, 'body')[0]) && /Probe: So kommt der Schnee-Alarm/.test(param(dragan, 'body')[1]) && /^[a-f0-9]{24}$/.test(param(dragan, 'button')[0]), JSON.stringify(dragan || {}).slice(0, 300))
   await O.waitFor(async () => /Testalarm/.test(await O.text('main .wx-alarm')), 15000)
   t = await O.text('main .wx-alarm')
-  check('Karte in der App: Testalarm noch unbestätigt, Hinweis „WhatsApp von selbst ist eingerichtet“', /Testalarm .*noch niemand bestätigt/.test(t) && /WhatsApp von selbst ist eingerichtet/.test(t), t.slice(0, 300))
+  check('Karte in der App: Testalarm noch unbestätigt, Hinweis „SMS und WhatsApp von selbst sind eingerichtet“', /Testalarm .*noch niemand bestätigt/.test(t) && /SMS und WhatsApp von selbst sind eingerichtet/.test(t), t.slice(0, 300))
   const wach = await fetch(`http://127.0.0.1:${PHP}/wetter-alarm.php?aktion=wach&t=${param(dragan, 'button')[0]}`, { method: 'POST' })
   await O.page.click('main [data-action="wx-alarm-status"]')
   check('„Bin wach“ über den Knopf der WhatsApp-Nachricht: die App zeigt, wer wach ist', wach.status === 200 && !!(await O.waitFor(async () => /wach: Dragan Jović/.test(await O.text('main .wx-alarm')), 15000)), (await O.text('main .wx-alarm')).slice(0, 300))
@@ -162,6 +197,9 @@ try {
   check('Dialog erneut: Zugang weiter „eingerichtet“, Häkchen wie gespeichert, Token-Feld leer mit Hinweis', (await O.page.inputValue('#al-wa-token')) === '' && /gespeichert, endet auf …XYZ9/.test(await O.page.getAttribute('#al-wa-token', 'placeholder')) && (await rows()).filter((p) => p.checked).map((p) => p.name).sort().join() === 'Dragan Jović,Irina Bogdan')
   await O.page.click('.modal [data-action="wx-wa-remove"]')
   check('„WhatsApp entfernen“: Zugang am Webspace gelöscht, Stand „noch nicht eingerichtet“', !!(await O.toastWait(/WhatsApp entfernt/, 15000)) && !!(await O.waitFor(async () => /noch nicht eingerichtet/.test(await waState()), 10000)) && !existsSync(join(dir, 'whatsapp.json')))
+  check('SMS ist davon unberührt: weiter „eingerichtet“, Häkchen wie gespeichert', /eingerichtet seven\.io/.test(await smsState()) && (await rows()).filter((p) => p.sms).map((p) => p.name).sort().join() === 'Dragan Jović,Gül Arslan')
+  await O.page.click('.modal [data-action="wx-sms-remove"]')
+  check('„SMS entfernen“: Zugang am Webspace gelöscht, Stand „noch nicht eingerichtet“', !!(await O.toastWait(/SMS entfernt/, 15000)) && !!(await O.waitFor(async () => /noch nicht eingerichtet/.test(await smsState()), 10000)) && !existsSync(join(dir, 'sms.json')))
   await O.ctx.close()
 
   const M = await SP.open(browser, PORT, { email: 'office@cleanos.at', name: 'Petra Leitner', errors, mobile: true, hash: '#wetter' })
@@ -181,4 +219,5 @@ try {
 php.kill()
 ntfy.close()
 meta.close()
+seven.close()
 await finish(browser, [server], errors)

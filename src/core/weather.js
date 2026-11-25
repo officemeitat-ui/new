@@ -424,7 +424,12 @@ export const ALARM_DEFAULTS = {
   topics: {}, // je Person und fürs Büro („office“): ntfy-Thema
   whatsapp: {}, // je Person: true = zusätzlich per WhatsApp (Nummer aus dem Stammblatt; braucht die Schnittstelle von Meta am Webspace)
   officeWhatsapp: '', // Stufe 2: weitere Nummern für WhatsApp, mit Komma getrennt
+  sms: {}, // je Person: true = zusätzlich per SMS (Nummer aus dem Stammblatt; braucht einen SMS-Dienst am Webspace)
+  officeSms: '', // Stufe 2: weitere Nummern für SMS, mit Komma getrennt
 }
+
+/** SMS-Dienste, die der Webspace kennt (webspace-lib.php SMS_ANBIETER). */
+export const SMS_PROVIDERS = { seven: 'seven.io' }
 
 /**
  * Vorlage für den automatischen WhatsApp-Versand, so legt man sie bei Meta an (WhatsApp-Manager → Nachrichtenvorlagen):
@@ -443,7 +448,7 @@ export const WHATSAPP_TEMPLATE = {
 /** Adresse des Knopfs der Vorlage (endet mit der Variable {{1}}, dort setzt der Server den Bestätigungs-Code ein). */
 export const whatsappButtonUrl = (address) => `${String(address).replace(/\/?$/, '/')}wetter-alarm.php?aktion=wach&t={{1}}`
 
-/** Nummern aus einem Feld (Komma, Strichpunkt oder Zeilen) für WhatsApp: nur brauchbare, jede einmal. */
+/** Nummern aus einem Feld (Komma, Strichpunkt oder Zeilen) für WhatsApp bzw. SMS: nur brauchbare, jede einmal. */
 export const whatsappNumbers = (text) => [...new Set(String(text || '').split(/[,;\n]+/).map((x) => waNumber(x)).filter(Boolean))]
 
 /** Personen, die an einem Ort Winterdienst haben (Teams der Objekte), und die Objekte selbst. */
@@ -488,17 +493,19 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     const out = { name: e.name }
     if (a.topics?.[id]) out.ntfy = a.topics[id]
     if (withEmail && e.email) out.email = e.email
-    // WhatsApp von selbst (Schnittstelle von Meta am Webspace): nur wer angehakt ist, Nummer aus dem Stammblatt
+    // SMS und WhatsApp von selbst (SMS-Dienst bzw. Schnittstelle von Meta am Webspace): nur wer angehakt ist, Nummer aus dem Stammblatt
+    if (a.sms?.[id] && waNumber(e.phone)) out.sms = waNumber(e.phone)
     if (a.whatsapp?.[id] && waNumber(e.phone)) out.whatsapp = waNumber(e.phone)
     // Sprache aus dem Stammblatt: Knöpfe der Push-Nachricht, Seiten „Bin wach“ und Protokoll (wetter-alarm.php)
     if (e.lang && e.lang !== 'de') out.sprache = e.lang
     const off = away(id)
     if (off.length) out.abwesend = off
-    return out.ntfy || out.email || out.whatsapp ? out : null
+    return out.ntfy || out.email || out.sms || out.whatsapp ? out : null
   }
   const office = [
     ...(a.topics?.office ? [{ name: 'Büro', ntfy: a.topics.office }] : []),
     ...String(a.officeEmails || '').split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)).map((email) => ({ name: 'Büro', email })),
+    ...whatsappNumbers(a.officeSms).map((sms) => ({ name: 'Büro', sms })),
     ...whatsappNumbers(a.officeWhatsapp).map((whatsapp) => ({ name: 'Büro', whatsapp })),
   ]
   const orte = (locations || [])
@@ -564,7 +571,7 @@ export function alarmProblems(file) {
   const out = []
   for (const o of file.orte) {
     if (!o.stufe1.length) out.push(`${o.name}: niemand in Stufe 1`)
-    else if (!o.stufe1.some((p) => p.ntfy || p.whatsapp)) out.push(`${o.name}: Stufe 1 ohne Handy (ntfy oder WhatsApp)`)
+    else if (!o.stufe1.some((p) => p.ntfy || p.sms || p.whatsapp)) out.push(`${o.name}: Stufe 1 ohne Handy (ntfy, SMS oder WhatsApp)`)
   }
   if (!file.orte.length) out.push('kein Ort eingeschaltet')
   return out

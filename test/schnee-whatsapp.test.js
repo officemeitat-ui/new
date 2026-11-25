@@ -49,7 +49,7 @@ test('Büro (Stufe 2): Nummern aus dem Feld, jede einmal, unbrauchbare fallen we
 
 test('Hinweise: Stufe 1 ohne Handy nur, wenn weder Push noch WhatsApp da ist', () => {
   const only = (alarm) => alarmProblems(alarmFile({ alarm: { ...base, places: { Salzburg: { active: true, level1: ['e4'], level2: [] } }, emailLevel1: true, ...alarm }, locations: [loc], objects: [], employees: [...employees.slice(0, 3), { ...employees[3], email: 'nur@cleanos.example' }], address: 'https://app.example/', today: '2026-11-25' }))
-  assert.deepEqual(only({}), ['Salzburg: Stufe 1 ohne Handy (ntfy oder WhatsApp)'], 'nur E-Mail weckt nachts nicht')
+  assert.deepEqual(only({}), ['Salzburg: Stufe 1 ohne Handy (ntfy, SMS oder WhatsApp)'], 'nur E-Mail weckt nachts nicht')
   assert.deepEqual(only({ whatsapp: { e4: true } }), [])
 })
 

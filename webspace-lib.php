@@ -142,6 +142,99 @@ function whatsapp_senden(array $w, string $an, array $werte, string $knopf): str
     return 'Antwort ' . $status . (isset($f['code']) ? ' (Code ' . (int) $f['code'] . ')' : '') . ($text !== '' ? ': ' . $text : '');
 }
 
+// ---------------------------------------------------------------- SMS (automatisch, über einen SMS-Dienst)
+//
+// SMS kann der Server nur über einen bezahlten SMS-Dienst schicken. Eingebaut ist seven.io (Guthaben im Voraus, ohne
+// Grundgebühr): POST https://gateway.seven.io/api/sms mit dem Schlüssel im Kopf X-Api-Key und den Feldern to, from, text.
+// Einstellungen: privat/sms.json (Schlüssel nur dort, nie in SharePoint), gespeichert über wetter-alarm.php?aktion=sms.
+// Für Tests: SMS_API ersetzt https://gateway.seven.io.
+
+const SMS_ANBIETER = ['seven' => 'seven.io'];
+const SMS_LAENGE = 306; // zwei verkettete SMS zu je 153 Zeichen
+
+/** Einstellungen für den SMS-Versand oder null (nicht eingerichtet bzw. unvollständig). */
+function sms_einstellungen(string $ordner): ?array
+{
+    $s = json_decode((string) @file_get_contents($ordner . '/sms.json'), true);
+    if (!is_array($s) || !isset(SMS_ANBIETER[(string) ($s['anbieter'] ?? '')]) || !is_string($s['schluessel'] ?? null) || !preg_match('/^[A-Za-z0-9_\-]{20,200}$/', $s['schluessel'])) {
+        return null;
+    }
+    $s['absender'] = sms_absender((string) ($s['absender'] ?? ''));
+    return $s;
+}
+
+/** Absender einer SMS: Name mit höchstens 11 Buchstaben und Ziffern oder eine Nummer mit Ländervorwahl; sonst leer (der Dienst nimmt seinen). */
+function sms_absender(string $a): string
+{
+    $a = trim($a);
+    // eine Nummer (auch mit Leerzeichen, Schrägstrich, 00 oder 0 vorne): ganz oder gar nicht, nie auf 11 Zeichen gekürzt
+    $n = (string) preg_replace('/[\s\/().\-]/', '', $a);
+    if (preg_match('/^\+?\d+$/', $n)) {
+        $n = str_starts_with($n, '+') ? substr($n, 1) : (str_starts_with($n, '00') ? substr($n, 2) : (str_starts_with($n, '0') ? '43' . substr($n, 1) : $n));
+        return preg_match('/^[1-9]\d{7,14}$/', $n) ? $n : '';
+    }
+    $a = (string) preg_replace('/[^A-Za-z0-9]/', '', strtr($a, ['ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue', 'ß' => 'ss']));
+    return substr($a, 0, 11);
+}
+
+/**
+ * Text für eine SMS: nur Zeichen, die in eine gewöhnliche SMS passen (sonst zählt sie mit 70 statt 160 Zeichen).
+ * Anführungszeichen, Striche und Auslassungspunkte werden einfache Zeichen, Buchstaben mit Akzent verlieren ihn
+ * (Umlaute und ß bleiben), alles andere wird „?“; eine Zeile.
+ */
+function sms_text(string $t): string
+{
+    $t = strtr($t, [
+        '„' => '"', '“' => '"', '”' => '"', '«' => '"', '»' => '"', '‚' => "'", '‘' => "'", '’' => "'", '–' => '-', '—' => '-', '…' => '...', '→' => '->', "\u{00A0}" => ' ', "\u{202F}" => ' ', '°C' => 'Grad', '°' => ' Grad',
+        'č' => 'c', 'ć' => 'c', 'ž' => 'z', 'š' => 's', 'đ' => 'd', 'Č' => 'C', 'Ć' => 'C', 'Ž' => 'Z', 'Š' => 'S', 'Đ' => 'D', 'ı' => 'i', 'İ' => 'I', 'ş' => 's', 'Ş' => 'S', 'ğ' => 'g', 'Ğ' => 'G', 'ç' => 'c',
+        'ș' => 's', 'ț' => 't', 'Ș' => 'S', 'Ț' => 'T', 'ă' => 'a', 'â' => 'a', 'î' => 'i', 'Ă' => 'A', 'Â' => 'A', 'Î' => 'I', 'ő' => 'ö', 'ű' => 'ü', 'Ő' => 'Ö', 'Ű' => 'Ü', 'á' => 'a', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ý' => 'y',
+        'Á' => 'A', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'ë' => 'e', 'ï' => 'i', 'ê' => 'e', 'ô' => 'o', 'û' => 'u', 'ł' => 'l', 'Ł' => 'L', 'ń' => 'n', 'ś' => 's', 'ź' => 'z', 'ż' => 'z', 'ę' => 'e', 'ą' => 'a',
+    ]);
+    $t = trim((string) preg_replace('/\s+/u', ' ', $t));
+    return (string) preg_replace('/[^A-Za-z0-9 !"#%&\'()*+,\-.\/:;<=>?@_äöüÄÖÜßéèàùìòÉñÑ]/u', '?', $t);
+}
+
+/** SMS aus Anfang, Text und Ende: passt alles nicht in $max Zeichen, wird der Text gekürzt (Anfang und Ende bleiben ganz). */
+function sms_kuerzen(string $kopf, string $text, string $ende, int $max = SMS_LAENGE): string
+{
+    $kopf = sms_text($kopf);
+    $ende = sms_text($ende);
+    $text = sms_text($text);
+    $platz = $max - mb_strlen($kopf) - mb_strlen($ende) - 2;
+    if (mb_strlen($text) > $platz) {
+        $text = rtrim(mb_substr($text, 0, max(0, $platz - 3)), ' ,.;:') . '...';
+    }
+    return trim($kopf . ' ' . $text . ' ' . $ende);
+}
+
+/**
+ * SMS an eine Nummer (nur Ziffern mit Ländervorwahl). Liefert [Fehler oder '', Guthaben beim Dienst oder null]; der
+ * Fehler ist ein kurzer Text ohne den Schlüssel.
+ */
+function sms_senden(array $s, string $an, string $text): array
+{
+    if (!preg_match('/^[1-9]\d{7,14}$/', $an)) {
+        return ['Nummer ungültig (mit Ländervorwahl, nur Ziffern)', null];
+    }
+    $basis = rtrim(getenv('SMS_API') ?: 'https://gateway.seven.io', '/');
+    $felder = ['to' => $an, 'text' => $text, 'json' => '1'] + ($s['absender'] !== '' ? ['from' => $s['absender']] : []);
+    [$status, $inhalt] = holen($basis . '/api/sms', http_build_query($felder), 8, ['X-Api-Key: ' . $s['schluessel'], 'Content-Type: application/x-www-form-urlencoded']);
+    if ($status === 0) {
+        return ['SMS-Dienst nicht erreichbar', null];
+    }
+    $antwort = json_decode($inhalt, true);
+    $code = is_array($antwort) ? (string) ($antwort['success'] ?? '') : trim($inhalt);
+    $guthaben = is_array($antwort) && is_numeric($antwort['balance'] ?? null) ? round((float) $antwort['balance'], 2) : null;
+    $einzeln = is_array($antwort) && is_array($antwort['messages'][0] ?? null) ? $antwort['messages'][0] : [];
+    if ($status >= 200 && $status < 300 && $code === '100' && ($einzeln['success'] ?? true) !== false) {
+        return ['', $guthaben];
+    }
+    $gruende = ['101' => 'an diese Nummer nicht zustellbar', '201' => 'Absender ungültig', '202' => 'Nummer ungültig', '401' => 'Text zu lang', '402' => 'dieselbe SMS wurde eben schon gesendet', '500' => 'Guthaben beim SMS-Dienst aufgebraucht', '600' => 'Fehler beim Netzbetreiber', '900' => 'Schlüssel falsch', '901' => 'Schlüssel falsch', '902' => 'Schlüssel ohne Recht für SMS', '903' => 'Aufruf von dieser Adresse nicht erlaubt'];
+    $text = $gruende[$code] ?? mb_substr((string) preg_replace('/\s+/u', ' ', (string) ($einzeln['error_text'] ?? '')), 0, 120);
+    $text = str_replace((string) $s['schluessel'], '…', $text);
+    return [trim(($text !== '' ? $text : 'vom SMS-Dienst abgelehnt') . ' (' . (preg_match('/^\d{3}$/', $code) ? 'Code ' . $code : 'Antwort ' . $status) . ')'), $guthaben];
+}
+
 /**
  * Adresse des Aufrufs für Grenzen je Adresse (kunden.php, mattentour.php): IPv4 wie sie ist, IPv6 nur das /64-Netz. Ein
  * Anschluss bekommt mit IPv6 meist ein ganzes /64 und könnte sonst mit jeder Anfrage eine neue Adresse nehmen (Grenze

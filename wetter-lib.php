@@ -90,19 +90,18 @@ function wetter_warnungen_url(float $lat, float $lon): string
 
 /**
  * HTTP mit Zeitlimit, ohne Weiterleitungen; liefert [Status, Inhalt] (Status 0 = nicht erreichbar).
- * $zusatz: weitere Kopfzeilen (z. B. „Authorization: Bearer …“ für den WhatsApp-Versand).
+ * $zusatz: weitere Kopfzeilen (z. B. „Authorization: Bearer …“ für den WhatsApp-Versand); $json ist der Inhalt eines
+ * POST, als JSON gekennzeichnet, außer $zusatz nennt einen anderen Content-Type.
  */
 function holen(string $url, ?string $json = null, int $zeit = 12, array $zusatz = []): array
 {
     $kopf = ['Accept: application/json'];
-    if ($json !== null) {
+    $zusatz = array_values(array_filter($zusatz, fn ($zeile) => is_string($zeile) && !preg_match('/[\r\n]/', $zeile)));
+    // der Inhalt ist JSON, außer der Aufrufer nennt selbst einen Typ (z. B. Formularfelder für den SMS-Dienst)
+    if ($json !== null && !array_filter($zusatz, fn ($zeile) => stripos($zeile, 'Content-Type:') === 0)) {
         $kopf[] = 'Content-Type: application/json';
     }
-    foreach ($zusatz as $zeile) {
-        if (is_string($zeile) && !preg_match('/[\r\n]/', $zeile)) {
-            $kopf[] = $zeile;
-        }
-    }
+    $kopf = array_merge($kopf, $zusatz);
     if (function_exists('curl_init')) {
         $c = curl_init($url);
         curl_setopt_array($c, [

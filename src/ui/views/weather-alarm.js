@@ -6,12 +6,15 @@
 // bekommt nur, was er zum Wecken braucht: Orte, Namen, ntfy-Themen, E-Mail
 // (privat/wetter-alarm.json, gesperrt).
 //
+// SMS von selbst (zusätzlich zu Push und E-Mail): geht nur über einen SMS-Dienst (seven.io). Der Schlüssel geht aus
+// dem Dialog direkt an den Webspace (privat/sms.json) und steht nie in den Daten der App; hier liegt nur, wer eine
+// SMS bekommt (alarm.sms, alarm.officeSms).
 // WhatsApp von selbst (zusätzlich zu Push und E-Mail): geht nur über die Schnittstelle von Meta. Zugriffstoken,
 // Telefonnummer-ID und Name der Vorlage gehen aus dem Dialog direkt an den Webspace (privat/whatsapp.json) und stehen
 // nie in den Daten der App; hier liegt nur, wer per WhatsApp geweckt wird (alarm.whatsapp, alarm.officeWhatsapp).
 
 import { addDays, todayISO } from '../../core/dates.js'
-import { ALARM_DEFAULTS, alarmDrivers, alarmFile, alarmPlace, alarmProblems, driverLink, findPlace, onCallIndex, PLACES, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
+import { ALARM_DEFAULTS, alarmDrivers, alarmFile, alarmPlace, alarmProblems, driverLink, findPlace, onCallIndex, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
 import { waNumber } from '../../core/whatsapp.js'
 import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { checked, download, esc, ICON, modalFrame, num, options, val } from '../shared.js'
@@ -182,7 +185,7 @@ export function alarmCard() {
         : `<p class="${stale ? '' : 'note'}">${stale ? `<span class="pill error">Letzte Prüfung ${ago(last)}: läuft der Cronjob?</span>` : `Webspace prüfte zuletzt ${time(last)} Uhr (${ago(last)}).`}</p>`
   return `<section class="wx-loc wx-alarm"><h3>${ICON.bell} Schnee-Alarm <span class="muted">(ein)</span></h3>
     <ul class="wx-alarm-list">${rows}</ul>${server}
-    ${st?.whatsapp ? '<p class="note">WhatsApp von selbst ist eingerichtet: wer in den Einstellungen angehakt ist, bekommt den Alarm auch dort.</p>' : ''}
+    ${st?.sms || st?.whatsapp ? `<p class="note">${[st.sms ? 'SMS' : '', st.whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' und ')} von selbst ${st.sms && st.whatsapp ? 'sind' : 'ist'} eingerichtet: wer in den Einstellungen angehakt ist, bekommt den Alarm auch dort.</p>` : ''}
     ${editable ? `<div class="toolbar"><button class="btn" data-action="wx-alarm-open">Einstellungen</button><button class="btn" data-action="wx-alarm-test">Testalarm senden</button><button class="btn" data-action="wx-alarm-status">${ICON.refresh} Stand</button></div>` : ''}
     ${st?.protokoll?.length ? `<details><summary>Protokoll</summary><ul class="wx-log">${st.protokoll.map((p) => `<li><span class="muted">${dateTime(p.zeit)}</span> ${esc(p.ort)}: ${esc(p.text)}</li>`).join('')}</ul></details>` : ''}
   </section>`
@@ -197,7 +200,7 @@ function draft() {
     const a = alarmSettings()
     const places = {}
     for (const loc of locations) places[loc.name] = alarmPlace(a, loc, app.data.objects, locations)
-    m.draft = { ...a, places, topics: { ...(a.topics || {}) }, whatsapp: { ...(a.whatsapp || {}) }, locations, enabled: a.enabled || !a.key }
+    m.draft = { ...a, places, topics: { ...(a.topics || {}) }, whatsapp: { ...(a.whatsapp || {}) }, sms: { ...(a.sms || {}) }, locations, enabled: a.enabled || !a.key }
   }
   return m.draft
 }
@@ -222,6 +225,7 @@ function readForm() {
     sender: val('al-sender').trim(),
     officeEmails: val('al-officeemails').trim(),
     officeWhatsapp: val('al-officewa').trim(),
+    officeSms: val('al-officesms').trim(),
     emailLevel1: checked('al-emaill1'),
     ntfy: val('al-ntfy').trim().replace(/\/+$/, '') || ALARM_DEFAULTS.ntfy,
   })
@@ -229,9 +233,70 @@ function readForm() {
   else delete d.topics.office
   // wer per WhatsApp geweckt wird (nur die Personen der Liste; ohne Liste bleibt es, wie es war)
   if (document.querySelector('input[name="al-wa"]')) d.whatsapp = Object.fromEntries([...document.querySelectorAll('input[name="al-wa"]:checked')].map((el) => [el.value, true]))
+  if (document.querySelector('input[name="al-sms"]')) d.sms = Object.fromEntries([...document.querySelectorAll('input[name="al-sms"]:checked')].map((el) => [el.value, true]))
+  // Zugang zum SMS-Dienst: wie bei WhatsApp nur im Speicher dieses Dialogs
+  for (const [key, id] of [['key', 'al-sms-key'], ['sender', 'al-sms-sender'], ['provider', 'al-sms-provider'], ['test', 'al-sms-test']]) if (document.getElementById(id)) smsForm[key] = val(id).trim()
   // Zugangsdaten für WhatsApp: nur im Speicher dieses Dialogs, nie im Entwurf und nie in den Daten der App
   for (const [key, id] of [['token', 'al-wa-token'], ['numberId', 'al-wa-id'], ['template', 'al-wa-template'], ['language', 'al-wa-lang'], ['version', 'al-wa-version'], ['test', 'al-wa-test']]) if (document.getElementById(id)) waForm[key] = val(id).trim()
   return d
+}
+
+// ---------------------------------------------------------------- SMS von selbst (SMS-Dienst)
+
+/** Stand am Webspace (ohne Schlüssel) und die Eingaben des Dialogs; beides nur im Speicher. */
+const sms = { data: null, error: '', loading: false, at: 0 }
+const smsForm = { key: '', sender: '', provider: '', test: '' }
+
+/** Stand eines Dienstes (aktion: „sms“ oder „whatsapp“) vom Webspace holen; zeichnet den Dialog neu, sobald er da ist. */
+async function loadChannel(aktion, store, force = false) {
+  const a = alarmSettings()
+  if (!a.key || store.loading || (!force && Date.now() - store.at < 60e3)) return
+  store.loading = true
+  store.at = Date.now()
+  try {
+    const res = await fetch(`wetter-alarm.php?aktion=${aktion}`, { headers: { 'X-Schluessel': a.key }, cache: 'no-store' })
+    const json = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null
+    if (!json) throw new Error('wetter-alarm.php fehlt am Webspace (oder PHP ist aus).')
+    if (res.status === 503) throw new Error('Zuerst den Schnee-Alarm am Webspace einrichten (Alarm-Datei nach privat/ laden).')
+    if (res.status === 403) throw new Error('Der Webspace kennt einen anderen Schlüssel: Alarm-Datei neu herunterladen und nach privat/ hochladen.')
+    if (!res.ok) throw new Error(json.fehler || `Antwort ${res.status}`)
+    Object.assign(store, { data: json, error: '' })
+  } catch (err) {
+    Object.assign(store, { data: null, error: err.message || String(err) })
+  }
+  store.loading = false
+  if (app.ui.modal?.type === 'wx-alarm') rerender()
+}
+
+const euro = (n) => `${Number(n).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+
+/** Abschnitt „SMS“ im Dialog: Stand, Erklärung, Zugang, Probe. */
+function smsSection(d) {
+  const ready = !!alarmSettings().key
+  if (ready && !sms.data && !sms.error) loadChannel('sms', sms)
+  const st = sms.data
+  const state = !ready
+    ? '<span class="muted">Zuerst den Schnee-Alarm speichern und am Webspace einrichten (Alarm-Datei), dann geht es hier weiter.</span>'
+    : sms.error
+      ? `<span class="pill warning">${esc(sms.error)}</span>`
+      : !st
+        ? '<span class="muted">Frage den Webspace …</span>'
+        : st.eingerichtet
+          ? `<span class="pill ok">eingerichtet</span> <span class="muted">${esc(st.anbieterName)}, Absender ${esc(st.absender || 'vom Dienst')}, Schlüssel endet auf …${esc(st.schluesselEnde)}${st.guthaben !== null && st.guthaben !== undefined ? `, Guthaben zuletzt ${esc(euro(st.guthaben))}` : ''}</span>${st.guthaben !== null && st.guthaben !== undefined && st.guthaben < 2 ? ' <span class="pill error">Guthaben fast aufgebraucht</span>' : ''}`
+          : '<span class="pill info">noch nicht eingerichtet</span>'
+  const bad = (text) => text && whatsappNumbers(text).length !== String(text).split(/[,;\n]+/).filter((x) => x.trim()).length
+  return `<h3>SMS von selbst</h3>
+    <p class="note">Der Server kann den Alarm zusätzlich als SMS schicken: kurzer Text mit der Lage und einem Link zum Bestätigen. Das geht auf jedem Handy ohne eigene App, braucht aber einen <strong>SMS-Dienst</strong>, denn ein Webspace kann selbst keine SMS senden. Eingebaut ist <strong>seven.io</strong>: Konto anlegen, Guthaben aufladen, einen Schlüssel für die Schnittstelle erzeugen und hier eintragen. Je SMS verrechnet der Dienst einige Cent; ein Alarm braucht je nach Länge eine oder zwei SMS. Eine SMS piept nur kurz: zum Wecken den Absender am Handy als Kontakt speichern und ihm einen lauten Ton und die Ausnahme von „Nicht stören“ geben.</p>
+    <p id="al-sms-state">${state}</p>
+    <div class="form-grid">
+      <label class="field"><span>SMS-Dienst</span><select id="al-sms-provider">${options(Object.entries(SMS_PROVIDERS), smsForm.provider || st?.anbieter || 'seven')}</select></label>
+      <label class="field wide"><span>Schlüssel der Schnittstelle${st?.eingerichtet ? ' (leer lassen: bleibt, wie er ist)' : ''}</span><input type="password" id="al-sms-key" autocomplete="off" value="${esc(smsForm.key)}" placeholder="${st?.eingerichtet ? `gespeichert, endet auf …${esc(st.schluesselEnde)}` : 'vom SMS-Dienst (API-Schlüssel)'}"></label>
+      <label class="field"><span>Absender (höchstens 11 Zeichen oder eine Nummer)</span><input type="text" id="al-sms-sender" maxlength="20" value="${esc(smsForm.sender || st?.absender || (app.config.brand?.name || 'Winterdienst').replace(/[^A-Za-z0-9]/g, '').slice(0, 11))}"></label>
+    </div>
+    <p class="note">Der Schlüssel geht nur an den Webspace (Ordner <code>privat/</code>) und wird hier nicht gespeichert und nie wieder angezeigt.</p>
+    <div class="toolbar"><button class="btn" data-action="wx-sms-save">Am Webspace speichern</button>${st?.eingerichtet ? '<button class="btn" data-action="wx-sms-remove">SMS entfernen</button>' : ''}</div>
+    ${st?.eingerichtet ? `<div class="inline-form" style="border:0;padding:0"><label class="field"><span>Probe-SMS an (Handynummer)</span><input type="tel" id="al-sms-test" value="${esc(smsForm.test)}" placeholder="z. B. 0664 1234567"></label><button class="btn" data-action="wx-sms-test">Probe senden</button></div>` : ''}
+    <div class="form-grid"><label class="field wide"><span>Stufe 2 zusätzlich per SMS an (Handynummern)</span><input type="text" id="al-officesms" value="${esc(d.officeSms || '')}" placeholder="z. B. 0664 1234567, mehrere mit Komma">${bad(d.officeSms) ? '<small class="muted">Eine Nummer ist nicht brauchbar (mit Vorwahl, nur Ziffern).</small>' : ''}</label></div>`
 }
 
 // ---------------------------------------------------------------- WhatsApp von selbst (Schnittstelle von Meta)
@@ -240,25 +305,7 @@ function readForm() {
 const wa = { data: null, error: '', loading: false, at: 0 }
 const waForm = { token: '', numberId: '', template: '', language: '', version: '', test: '' }
 
-async function loadWhatsapp(force = false) {
-  const a = alarmSettings()
-  if (!a.key || wa.loading || (!force && Date.now() - wa.at < 60e3)) return
-  wa.loading = true
-  wa.at = Date.now()
-  try {
-    const res = await fetch('wetter-alarm.php?aktion=whatsapp', { headers: { 'X-Schluessel': a.key }, cache: 'no-store' })
-    const json = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null
-    if (!json) throw new Error('wetter-alarm.php fehlt am Webspace (oder PHP ist aus).')
-    if (res.status === 503) throw new Error('Zuerst den Schnee-Alarm am Webspace einrichten (Alarm-Datei nach privat/ laden).')
-    if (res.status === 403) throw new Error('Der Webspace kennt einen anderen Schlüssel: Alarm-Datei neu herunterladen und nach privat/ hochladen.')
-    if (!res.ok) throw new Error(json.fehler || `Antwort ${res.status}`)
-    Object.assign(wa, { data: json, error: '' })
-  } catch (err) {
-    Object.assign(wa, { data: null, error: err.message || String(err) })
-  }
-  wa.loading = false
-  if (app.ui.modal?.type === 'wx-alarm') rerender()
-}
+const loadWhatsapp = (force = false) => loadChannel('whatsapp', wa, force)
 
 /** Abschnitt „WhatsApp“ im Dialog: Stand, Anleitung für Meta, Zugangsdaten, Probe. */
 function whatsappSection(d) {
@@ -295,7 +342,7 @@ function whatsappSection(d) {
         <tr><th>Beispiel für {{2}}</th><td>${esc(WHATSAPP_TEMPLATE.samples[1])}</td><td></td></tr>
         <tr><th>Knopf</th><td>„Website besuchen“, Text <code>${esc(WHATSAPP_TEMPLATE.button)}</code>, Adresse dynamisch:<br><code class="wrap">${esc(url)}</code><br>Beispiel für die Variable: <code>${esc(WHATSAPP_TEMPLATE.samples[2])}</code></td><td>${copy(url)}</td></tr>
       </tbody></table></div>
-      <p class="note">Der feste Text der Vorlage lässt sich ändern, solange die zwei Variablen und der Knopf mit der Adresse bleiben. Die Personen müssen dem Empfang zustimmen (im Stammblatt die Handynummer, unten das Häkchen „WhatsApp“).</p>
+      <p class="note">Der feste Text der Vorlage lässt sich ändern, solange die zwei Variablen und der Knopf mit der Adresse bleiben. Die Personen müssen dem Empfang zustimmen (im Stammblatt die Handynummer, oben das Häkchen „WhatsApp“).</p>
     </details>
     <div class="form-grid">
       <label class="field wide"><span>Zugriffstoken${st?.eingerichtet ? ' (leer lassen: bleibt, wie es ist)' : ''}</span><input type="password" id="al-wa-token" autocomplete="off" value="${esc(waForm.token)}" placeholder="${st?.eingerichtet ? `gespeichert, endet auf …${esc(st.tokenEnde)}` : 'von Meta, beginnt meist mit EAA…'}"></label>
@@ -347,7 +394,7 @@ function alarmModal() {
       const invite = t && e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent('Winterdienst: Schnee-Alarm aufs Handy')}&body=${encodeURIComponent(inviteText)}` : ''
       const number = waNumber(e.phone)
       return `<tr><td>${esc(e.name)}</td><td>${t ? `<code>${esc(t)}</code>` : '<span class="muted">wird beim Speichern angelegt</span>'}</td><td>${esc(e.email || '–')}</td>
-        <td>${number ? `<label class="check"><input type="checkbox" name="al-wa" value="${esc(id)}" ${d.whatsapp?.[id] ? 'checked' : ''}><span>+${esc(number)}</span></label>` : '<span class="muted" title="Handynummer im Stammblatt eintragen">keine Nummer</span>'}</td>
+        <td class="al-handy">${number ? `<span>+${esc(number)}</span> <label class="check"><input type="checkbox" name="al-sms" value="${esc(id)}" ${d.sms?.[id] ? 'checked' : ''}><span>SMS</span></label> <label class="check"><input type="checkbox" name="al-wa" value="${esc(id)}" ${d.whatsapp?.[id] ? 'checked' : ''}><span>WhatsApp</span></label>` : '<span class="muted" title="Handynummer im Stammblatt eintragen">keine Nummer</span>'}</td>
         <td class="actions">${invite ? `<a class="btn small" href="${esc(invite)}">Einladung per E-Mail</a>` : ''}${t ? waLink({ kind: 'schnee-alarm', phone: e.phone, text: inviteText, label: 'Einladung per WhatsApp' }) : ''}${t ? `<button class="btn small" data-action="wx-alarm-copy" data-text="${esc(t)}">Thema kopieren</button><button class="btn small" data-action="wx-alarm-newtopic" data-emp="${esc(id)}" title="Wenn jemand das Thema nicht mehr bekommen soll (z. B. Handy verloren)">Neues Thema</button>` : ''}</td></tr>`
     })
     .join('')
@@ -363,14 +410,15 @@ function alarmModal() {
       <h3>Orte</h3>${places}
       <div class="inline-form" style="border:0;padding:0"><label class="field"><span>Ort hinzufügen (z. B. Hallein, Obertrum)</span><input type="text" id="al-newplace" list="al-places" placeholder="Name oder „Name = Breite, Länge“"><datalist id="al-places">${known}</datalist></label><button class="btn" data-action="wx-alarm-place">${ICON.plus} Ort hinzufügen</button></div>
       <p class="note">Orte entfernen oder umbenennen: unter <em>Regeln & Feiertage → Wetter & Winterdienst</em>.</p>
-      <h3>Handys (ntfy) und WhatsApp</h3>
+      <h3>Handys (ntfy), SMS und WhatsApp</h3>
       <p class="note">Jede Person installiert die kostenlose App <strong>ntfy</strong> (Android, iPhone) und abonniert ihr Thema. Beim Thema die höchste Priorität erlauben und „Nicht stören“ übergehen lassen (Android: Benachrichtigungskategorie „Höchste Priorität“ → „Nicht stören ignorieren“; iPhone: Fokus → Apps → ntfy erlauben). Das Thema wirkt wie ein Passwort: nicht weitergeben.</p>
-      ${phones ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>ntfy-Thema</th><th>E-Mail</th><th>WhatsApp von selbst</th><th></th></tr></thead><tbody>${phones}</tbody></table></div>` : '<p class="muted">Noch niemand ausgewählt.</p>'}
+      ${phones ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>ntfy-Thema</th><th>E-Mail</th><th>Von selbst an die Handynummer</th><th></th></tr></thead><tbody>${phones}</tbody></table></div>` : '<p class="muted">Noch niemand ausgewählt.</p>'}
       <label class="check"><input type="checkbox" id="al-office" ${d.topics.office ? 'checked' : ''}><span>Büro-Handy in Stufe 2${d.topics.office ? `: Thema <code>${esc(d.topics.office)}</code> <button class="btn small" data-action="wx-alarm-copy" data-text="${esc(d.topics.office)}">kopieren</button>` : ''}</span></label>
       <div class="form-grid">
         <label class="field wide"><span>Stufe 2 zusätzlich per E-Mail an</span><input type="text" id="al-officeemails" value="${esc(d.officeEmails || '')}" placeholder="z. B. office@…, mehrere mit Komma"></label>
         <label class="check wide"><input type="checkbox" id="al-emaill1" ${d.emailLevel1 ? 'checked' : ''}><span>Stufe 1 zusätzlich per E-Mail (weckt nachts nicht, gut als Nachweis)</span></label>
       </div>
+      ${smsSection(d)}
       ${whatsappSection(d)}
       <h3>Wann wecken</h3>
       <div class="form-grid">
@@ -403,9 +451,11 @@ function rerender() {
 registerActions({
   'wx-alarm-open': () => {
     openModal({ type: 'wx-alarm' })
-    // Stand von WhatsApp am Webspace frisch holen (zeichnet den Dialog neu, sobald er da ist)
+    // Stand von SMS und WhatsApp am Webspace frisch holen (zeichnet den Dialog neu, sobald er da ist)
     wa.error = ''
+    sms.error = ''
     loadWhatsapp(true)
+    loadChannel('sms', sms, true)
   },
   // Häkchen „wechselt wöchentlich“: gleich anzeigen, wer dran ist
   'wx-alarm-redraw': () => rerender(),
@@ -493,6 +543,45 @@ registerActions({
 
 registerActions(
   {
+    'wx-sms-save': async () => {
+      readForm()
+      if (!smsForm.key && !sms.data?.eingerichtet) return toast('Bitte den Schlüssel des SMS-Dienstes eintragen.')
+      try {
+        const r = await post('sms', { anbieter: smsForm.provider || 'seven', schluessel: smsForm.key, absender: smsForm.sender })
+        Object.assign(sms, { data: r, error: '', at: Date.now() })
+        smsForm.key = ''
+        smsForm.sender = ''
+        if (app.ui.modal?.type === 'wx-alarm') renderModal()
+        toast('SMS am Webspace gespeichert. Jetzt eine Probe senden und oben anhaken, wer eine SMS bekommt.')
+      } catch (err) {
+        toast(`Nicht gespeichert: ${err.message}`)
+      }
+    },
+    'wx-sms-remove': async () => {
+      readForm()
+      try {
+        const r = await post('sms', { entfernen: true })
+        Object.assign(sms, { data: r, error: '', at: Date.now() })
+        Object.assign(smsForm, { key: '', sender: '', provider: '', test: '' })
+        if (app.ui.modal?.type === 'wx-alarm') renderModal()
+        toast('SMS entfernt: der Server schickt keine SMS mehr.')
+      } catch (err) {
+        toast(`Nicht entfernt: ${err.message}`)
+      }
+    },
+    'wx-sms-test': async () => {
+      readForm()
+      const an = waNumber(smsForm.test)
+      if (!an) return toast('Bitte eine Handynummer mit Vorwahl eintragen, z. B. 0664 1234567.')
+      try {
+        const r = await post('sms-test', { an })
+        Object.assign(sms, { data: { ...r, gesendet: undefined }, error: '', at: Date.now() })
+        if (app.ui.modal?.type === 'wx-alarm') renderModal()
+        toast(`Probe-SMS an +${an} gesendet.`)
+      } catch (err) {
+        toast(`Probe nicht gesendet: ${err.message}`)
+      }
+    },
     'wx-wa-save': async () => {
       readForm()
       const body = { token: waForm.token, nummerId: waForm.numberId, vorlage: waForm.template, sprache: waForm.language, version: waForm.version }
@@ -503,7 +592,7 @@ registerActions(
         Object.assign(wa, { data: r, error: '', at: Date.now() })
         waForm.token = ''
         if (app.ui.modal?.type === 'wx-alarm') renderModal()
-        toast('WhatsApp am Webspace gespeichert. Jetzt eine Probe senden und unten anhaken, wer per WhatsApp geweckt wird.')
+        toast('WhatsApp am Webspace gespeichert. Jetzt eine Probe senden und oben anhaken, wer per WhatsApp geweckt wird.')
       } catch (err) {
         toast(`Nicht gespeichert: ${err.message}`)
       }

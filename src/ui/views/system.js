@@ -54,7 +54,7 @@ export async function runChecks() {
   // Einrichtungsdateien mit Schlüsseln (KI, Routing, Fahrerseite …): ein Abruf von außen muss 403 oder 404 liefern
   const open = []
   const unclear = []
-  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/ki.json', 'privat/routing.json', 'privat/mattentour.json', 'privat/whatsapp.json', 'privat/.htaccess']) {
+  for (const f of ['privat/wetter-alarm.json', 'privat/mitarbeiter.json', 'privat/kundenbereich.json', 'privat/ki.json', 'privat/routing.json', 'privat/mattentour.json', 'privat/whatsapp.json', 'privat/sms.json', 'privat/.htaccess']) {
     try {
       const st = (await fetch(f, { cache: 'no-store' })).status
       if (st === 200) open.push(f)
