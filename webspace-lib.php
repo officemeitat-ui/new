@@ -142,24 +142,57 @@ function whatsapp_senden(array $w, string $an, array $werte, string $knopf): str
     return 'Antwort ' . $status . (isset($f['code']) ? ' (Code ' . (int) $f['code'] . ')' : '') . ($text !== '' ? ': ' . $text : '');
 }
 
-// ---------------------------------------------------------------- SMS (automatisch, über einen SMS-Dienst)
+// ---------------------------------------------------------------- SMS (automatisch, über ein Handy oder einen SMS-Dienst)
 //
-// SMS kann der Server nur über einen bezahlten SMS-Dienst schicken. Eingebaut ist seven.io (Guthaben im Voraus, ohne
-// Grundgebühr): POST https://gateway.seven.io/api/sms mit dem Schlüssel im Kopf X-Api-Key und den Feldern to, from, text.
-// Einstellungen: privat/sms.json (Schlüssel nur dort, nie in SharePoint), gespeichert über wetter-alarm.php?aktion=sms.
-// Für Tests: SMS_API ersetzt https://gateway.seven.io.
+// Ein Webspace kann selbst keine SMS senden. Zwei Wege sind eingebaut:
+//  - handy: ein eigenes Android-Handy mit SIM-Karte und der App „SMS Gateway for Android“ (quelloffen, sms-gate.app) im
+//    Modus „Cloud Server“: POST https://api.sms-gate.app/3rdparty/v1/message mit Benutzername und Passwort aus der App
+//    (Basic) und { textMessage: { text }, phoneNumbers: ["+43…"] }. Die SMS geht von der Nummer dieses Handys, kostet nur
+//    den eigenen Tarif und braucht keine Registrierung. Statt des öffentlichen Servers geht ein eigener (server).
+//  - seven: der SMS-Dienst seven.io (Guthaben im Voraus): POST https://gateway.seven.io/api/sms mit dem Schlüssel im Kopf
+//    X-Api-Key und den Feldern to, from, text.
+// Einstellungen: privat/sms.json (Zugangsdaten nur dort, nie in SharePoint), gespeichert über wetter-alarm.php?aktion=sms.
+// Für Tests: SMS_API ersetzt https://gateway.seven.io, SMS_GATE_API die Adresse des SMS-Gateways.
 
-const SMS_ANBIETER = ['seven' => 'seven.io'];
+const SMS_ANBIETER = ['handy' => 'eigenes Android-Handy (SMS Gateway)', 'seven' => 'seven.io (SMS-Dienst)'];
+const SMS_GATE_STANDARD = 'https://api.sms-gate.app/3rdparty/v1';
 const SMS_LAENGE = 306; // zwei verkettete SMS zu je 153 Zeichen
+
+/** Zugangsdaten je Weg prüfen: Benutzername (ohne Doppelpunkt), Passwort, eigener Server (nur https), Schlüssel. */
+function sms_feld_gueltig(string $feld, $wert): bool
+{
+    if (!is_string($wert)) {
+        return false;
+    }
+    return match ($feld) {
+        'schluessel' => (bool) preg_match('/^[A-Za-z0-9_\-]{20,200}$/', $wert),
+        'benutzer' => (bool) preg_match('/^[A-Za-z0-9_.@+\-]{2,100}$/', $wert),
+        'passwort' => (bool) preg_match('/^[\x21-\x7e]{4,200}$/', $wert),
+        'server' => $wert === '' || (bool) preg_match('#^https://[A-Za-z0-9.\-]+(:\d{2,5})?(/[A-Za-z0-9._~/\-]*)?$#', $wert),
+        default => false,
+    };
+}
 
 /** Einstellungen für den SMS-Versand oder null (nicht eingerichtet bzw. unvollständig). */
 function sms_einstellungen(string $ordner): ?array
 {
     $s = json_decode((string) @file_get_contents($ordner . '/sms.json'), true);
-    if (!is_array($s) || !isset(SMS_ANBIETER[(string) ($s['anbieter'] ?? '')]) || !is_string($s['schluessel'] ?? null) || !preg_match('/^[A-Za-z0-9_\-]{20,200}$/', $s['schluessel'])) {
+    $anbieter = is_array($s) ? (string) ($s['anbieter'] ?? '') : '';
+    if (!isset(SMS_ANBIETER[$anbieter])) {
         return null;
     }
-    $s['absender'] = sms_absender((string) ($s['absender'] ?? ''));
+    if ($anbieter === 'seven') {
+        if (!sms_feld_gueltig('schluessel', $s['schluessel'] ?? null)) {
+            return null;
+        }
+        $s['absender'] = sms_absender((string) ($s['absender'] ?? ''));
+        return $s;
+    }
+    if (!sms_feld_gueltig('benutzer', $s['benutzer'] ?? null) || !sms_feld_gueltig('passwort', $s['passwort'] ?? null)) {
+        return null;
+    }
+    $s['server'] = sms_feld_gueltig('server', $s['server'] ?? '') ? (string) ($s['server'] ?? '') : '';
+    $s['absender'] = '';
     return $s;
 }
 
@@ -216,6 +249,9 @@ function sms_senden(array $s, string $an, string $text): array
     if (!preg_match('/^[1-9]\d{7,14}$/', $an)) {
         return ['Nummer ungültig (mit Ländervorwahl, nur Ziffern)', null];
     }
+    if (($s['anbieter'] ?? '') === 'handy') {
+        return [sms_senden_handy($s, $an, $text), null];
+    }
     $basis = rtrim(getenv('SMS_API') ?: 'https://gateway.seven.io', '/');
     $felder = ['to' => $an, 'text' => $text, 'json' => '1'] + ($s['absender'] !== '' ? ['from' => $s['absender']] : []);
     [$status, $inhalt] = holen($basis . '/api/sms', http_build_query($felder), 8, ['X-Api-Key: ' . $s['schluessel'], 'Content-Type: application/x-www-form-urlencoded']);
@@ -233,6 +269,33 @@ function sms_senden(array $s, string $an, string $text): array
     $text = $gruende[$code] ?? mb_substr((string) preg_replace('/\s+/u', ' ', (string) ($einzeln['error_text'] ?? '')), 0, 120);
     $text = str_replace((string) $s['schluessel'], '…', $text);
     return [trim(($text !== '' ? $text : 'vom SMS-Dienst abgelehnt') . ' (' . (preg_match('/^\d{3}$/', $code) ? 'Code ' . $code : 'Antwort ' . $status) . ')'), $guthaben];
+}
+
+/**
+ * SMS über das eigene Android-Handy (App „SMS Gateway for Android“, Server in der Cloud oder ein eigener): Der Server
+ * nimmt die Nachricht an und gibt sie an das Handy weiter, das Handy schickt sie über seine SIM-Karte. Liefert '' (vom
+ * Server angenommen) oder den Fehler als kurzen Text ohne das Passwort.
+ */
+function sms_senden_handy(array $s, string $an, string $text): string
+{
+    $basis = rtrim(getenv('SMS_GATE_API') ?: (($s['server'] ?? '') !== '' ? (string) $s['server'] : SMS_GATE_STANDARD), '/');
+    $nachricht = ['textMessage' => ['text' => $text], 'phoneNumbers' => ['+' . $an]];
+    [$status, $inhalt] = holen($basis . '/message', json_encode($nachricht, JSON_UNESCAPED_UNICODE), 10, ['Authorization: Basic ' . base64_encode($s['benutzer'] . ':' . $s['passwort'])]);
+    if ($status === 0) {
+        return 'Server des SMS-Gateways nicht erreichbar';
+    }
+    $antwort = json_decode($inhalt, true);
+    $antwort = is_array($antwort) ? $antwort : [];
+    if ($status >= 200 && $status < 300) {
+        // angenommen; „Failed“ meldet das Handy, wenn es die SMS gar nicht schicken konnte
+        return strcasecmp((string) ($antwort['state'] ?? ''), 'Failed') === 0 ? 'vom Handy nicht gesendet (Failed)' : '';
+    }
+    if ($status === 401 || $status === 403) {
+        return 'Benutzername oder Passwort falsch (Antwort ' . $status . ')';
+    }
+    $text = trim((string) ($antwort['message'] ?? $antwort['error'] ?? ''));
+    $text = str_replace([(string) $s['passwort'], base64_encode($s['benutzer'] . ':' . $s['passwort'])], '…', mb_substr((string) preg_replace('/\s+/u', ' ', $text), 0, 160));
+    return 'Antwort ' . $status . ($text !== '' ? ': ' . $text : '');
 }
 
 /**

@@ -14,8 +14,11 @@
 // nie in den Daten der App; hier liegt nur, wer per WhatsApp geweckt wird (alarm.whatsapp, alarm.officeWhatsapp).
 
 import { addDays, todayISO } from '../../core/dates.js'
-import { ALARM_DEFAULTS, alarmDrivers, alarmFile, alarmPlace, alarmProblems, driverLink, findPlace, onCallIndex, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
+import { ALARM_DEFAULTS, alarmDrivers, alarmFile, alarmInvite, alarmPlace, alarmProblems, alarmSetupLink, driverLink, findPlace, onCallIndex, phoneState, PLACES, SMS_PROVIDERS, WHATSAPP_TEMPLATE, whatsappButtonUrl, whatsappNumbers, winterAt } from '../../core/weather.js'
 import { waNumber } from '../../core/whatsapp.js'
+import { langOf } from '../../core/sprachen.js'
+import { alarmSetupDocument } from '../../export/qr-pdf.js'
+import { loadLogo, pdfBlob } from '../pdf.js'
 import { app, canEdit, closeModal, openModal, persist, registerActions, registerModal, renderModal, renderNow, toast } from '../context.js'
 import { checked, download, esc, ICON, modalFrame, num, options, val } from '../shared.js'
 import { weatherLocations } from '../weather.js'
@@ -185,10 +188,25 @@ export function alarmCard() {
         : `<p class="${stale ? '' : 'note'}">${stale ? `<span class="pill error">Letzte Prüfung ${ago(last)}: läuft der Cronjob?</span>` : `Webspace prüfte zuletzt ${time(last)} Uhr (${ago(last)}).`}</p>`
   return `<section class="wx-loc wx-alarm"><h3>${ICON.bell} Schnee-Alarm <span class="muted">(ein)</span></h3>
     <ul class="wx-alarm-list">${rows}</ul>${server}
+    ${readiness(a, locations, st)}
     ${st?.sms || st?.whatsapp ? `<p class="note">${[st.sms ? 'SMS' : '', st.whatsapp ? 'WhatsApp' : ''].filter(Boolean).join(' und ')} von selbst ${st.sms && st.whatsapp ? 'sind' : 'ist'} eingerichtet: wer in den Einstellungen angehakt ist, bekommt den Alarm auch dort.</p>` : ''}
     ${editable ? `<div class="toolbar"><button class="btn" data-action="wx-alarm-open">Einstellungen</button><button class="btn" data-action="wx-alarm-test">Testalarm senden</button><button class="btn" data-action="wx-alarm-status">${ICON.refresh} Stand</button></div>` : ''}
     ${st?.protokoll?.length ? `<details><summary>Protokoll</summary><ul class="wx-log">${st.protokoll.map((p) => `<li><span class="muted">${dateTime(p.zeit)}</span> ${esc(p.ort)}: ${esc(p.text)}</li>`).join('')}</ul></details>` : ''}
   </section>`
+}
+
+/** Wie viele Handys aus Stufe 1 (aktive Orte) eine Probe oder einen Alarm bestätigt haben; wer fehlt. */
+function readiness(a, locations, st) {
+  if (!st?.handys || !a.transferred) return ''
+  const ids = [...new Set(locations.flatMap((loc) => {
+    const set = alarmPlace(a, loc, app.data.objects, locations)
+    return set.active ? set.level1 : []
+  }))].filter((id) => empById(id) && a.topics?.[id])
+  if (!ids.length) return ''
+  const missing = ids.filter((id) => phoneState(st.handys, a.topics[id]).state !== 'ready')
+  return missing.length
+    ? `<p><span class="pill warning">Handys geprüft: ${ids.length - missing.length} von ${ids.length}</span> <span class="muted">noch nicht bestätigt: ${esc(missing.map((id) => empById(id).name).join(', '))} (Einstellungen → „Probe senden“)</span></p>`
+    : `<p><span class="pill ok">Alle ${ids.length} Handys aus Stufe 1 geprüft</span></p>`
 }
 
 // ---------------------------------------------------------------- Einstellungen (Dialog)
@@ -235,7 +253,7 @@ function readForm() {
   if (document.querySelector('input[name="al-wa"]')) d.whatsapp = Object.fromEntries([...document.querySelectorAll('input[name="al-wa"]:checked')].map((el) => [el.value, true]))
   if (document.querySelector('input[name="al-sms"]')) d.sms = Object.fromEntries([...document.querySelectorAll('input[name="al-sms"]:checked')].map((el) => [el.value, true]))
   // Zugang zum SMS-Dienst: wie bei WhatsApp nur im Speicher dieses Dialogs
-  for (const [key, id] of [['key', 'al-sms-key'], ['sender', 'al-sms-sender'], ['provider', 'al-sms-provider'], ['test', 'al-sms-test']]) if (document.getElementById(id)) smsForm[key] = val(id).trim()
+  for (const [key, id] of [['key', 'al-sms-key'], ['sender', 'al-sms-sender'], ['provider', 'al-sms-provider'], ['test', 'al-sms-test'], ['user', 'al-sms-user'], ['pass', 'al-sms-pass'], ['server', 'al-sms-server']]) if (document.getElementById(id)) smsForm[key] = val(id).trim()
   // Zugangsdaten für WhatsApp: nur im Speicher dieses Dialogs, nie im Entwurf und nie in den Daten der App
   for (const [key, id] of [['token', 'al-wa-token'], ['numberId', 'al-wa-id'], ['template', 'al-wa-template'], ['language', 'al-wa-lang'], ['version', 'al-wa-version'], ['test', 'al-wa-test']]) if (document.getElementById(id)) waForm[key] = val(id).trim()
   return d
@@ -245,7 +263,7 @@ function readForm() {
 
 /** Stand am Webspace (ohne Schlüssel) und die Eingaben des Dialogs; beides nur im Speicher. */
 const sms = { data: null, error: '', loading: false, at: 0 }
-const smsForm = { key: '', sender: '', provider: '', test: '' }
+const smsForm = { key: '', sender: '', provider: '', test: '', user: '', pass: '', server: undefined }
 
 /** Stand eines Dienstes (aktion: „sms“ oder „whatsapp“) vom Webspace holen; zeichnet den Dialog neu, sobald er da ist. */
 async function loadChannel(aktion, store, force = false) {
@@ -270,31 +288,53 @@ async function loadChannel(aktion, store, force = false) {
 
 const euro = (n) => `${Number(n).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
-/** Abschnitt „SMS“ im Dialog: Stand, Erklärung, Zugang, Probe. */
+/** Abschnitt „SMS“ im Dialog: Stand, Weg (eigenes Handy oder SMS-Dienst), Zugang, Probe. */
 function smsSection(d) {
   const ready = !!alarmSettings().key
   if (ready && !sms.data && !sms.error) loadChannel('sms', sms)
   const st = sms.data
+  const provider = smsForm.provider || st?.anbieter || 'handy'
+  const same = st?.eingerichtet && st.anbieter === provider
   const state = !ready
     ? '<span class="muted">Zuerst den Schnee-Alarm speichern und am Webspace einrichten (Alarm-Datei), dann geht es hier weiter.</span>'
     : sms.error
       ? `<span class="pill warning">${esc(sms.error)}</span>`
       : !st
         ? '<span class="muted">Frage den Webspace …</span>'
-        : st.eingerichtet
-          ? `<span class="pill ok">eingerichtet</span> <span class="muted">${esc(st.anbieterName)}, Absender ${esc(st.absender || 'vom Dienst')}, Schlüssel endet auf …${esc(st.schluesselEnde)}${st.guthaben !== null && st.guthaben !== undefined ? `, Guthaben zuletzt ${esc(euro(st.guthaben))}` : ''}</span>${st.guthaben !== null && st.guthaben !== undefined && st.guthaben < 2 ? ' <span class="pill error">Guthaben fast aufgebraucht</span>' : ''}`
-          : '<span class="pill info">noch nicht eingerichtet</span>'
+        : !st.eingerichtet
+          ? '<span class="pill info">noch nicht eingerichtet</span>'
+          : st.anbieter === 'handy'
+            ? `<span class="pill ok">eingerichtet</span> <span class="muted">${esc(st.anbieterName)}, Benutzer ${esc(st.benutzer)}${st.server ? `, Server ${esc(st.server)}` : ''}</span>`
+            : `<span class="pill ok">eingerichtet</span> <span class="muted">${esc(st.anbieterName)}, Absender ${esc(st.absender || 'vom Dienst')}, Schlüssel endet auf …${esc(st.schluesselEnde)}${st.guthaben !== null && st.guthaben !== undefined ? `, Guthaben zuletzt ${esc(euro(st.guthaben))}` : ''}</span>${st.guthaben !== null && st.guthaben !== undefined && st.guthaben < 2 ? ' <span class="pill error">Guthaben fast aufgebraucht</span>' : ''}`
   const bad = (text) => text && whatsappNumbers(text).length !== String(text).split(/[,;\n]+/).filter((x) => x.trim()).length
+  const keep = (what) => (same ? ` (leer lassen: bleibt, wie ${what} ist)` : '')
+  const fields =
+    provider === 'handy'
+      ? `<p class="note"><strong>Gratis mit einem eigenen Android-Handy:</strong> Ein Handy mit SIM-Karte (Tarif mit SMS inklusive) bleibt im Büro am Ladegerät und im WLAN. Darauf läuft die kostenlose App <strong>„SMS Gateway for Android“</strong> (von GitHub, Datei .apk; Android 5 oder neuer). In der App „Cloud Server“ einschalten; sie zeigt Benutzername und Passwort. Die SMS kommen dann von der Nummer dieses Handys: keine Registrierung, keine Kosten außer dem Tarif.</p>
+      <div class="form-grid">
+        <label class="field"><span>Benutzername (aus der App)</span><input type="text" id="al-sms-user" autocomplete="off" value="${esc(smsForm.user || (same ? st.benutzer : ''))}"></label>
+        <label class="field"><span>Passwort (aus der App)${keep('es')}</span><input type="password" id="al-sms-pass" autocomplete="off" value="${esc(smsForm.pass)}" placeholder="${same ? 'gespeichert' : ''}"></label>
+        <label class="field wide"><span>Eigener Server (sonst leer lassen)</span><input type="url" id="al-sms-server" value="${esc(smsForm.server ?? (same ? st.server : ''))}" placeholder="leer: öffentlicher Server der App"></label>
+      </div>
+      <details class="al-sms-help"><summary>So richtest du das Handy ein</summary><ol class="note">
+        <li>Ein Android-Handy (Android 5 oder neuer) mit SIM-Karte nehmen; Tarif mit SMS inklusive. Ein altes Handy genügt.</li>
+        <li>Die App „SMS Gateway for Android“ von github.com/capcom6/android-sms-gateway (Releases, Datei .apk) laden und installieren; Android fragt, ob Apps aus dieser Quelle erlaubt sind.</li>
+        <li>App öffnen, SMS senden erlauben, „Cloud Server“ einschalten und „Online“ wählen. Benutzername und Passwort hier eintragen.</li>
+        <li>In den Einstellungen des Handys die App vom Energiesparen ausnehmen. Handy ans Ladegerät und ins WLAN, nicht ausschalten.</li>
+        <li>„Am Webspace speichern“ und „Probe senden“.</li>
+      </ol><p class="note">Die SMS laufen über den Server des Projekts (sms-gate.app) zum Handy. Ist das Handy aus oder offline, kommt keine SMS; Push über ntfy geht trotzdem.</p></details>`
+      : `<p class="note"><strong>SMS-Dienst seven.io</strong> (kostet einige Cent je SMS, Guthaben im Voraus): Konto anlegen, Guthaben aufladen, API-Schlüssel erzeugen und hier eintragen.</p>
+      <div class="form-grid">
+        <label class="field wide"><span>Schlüssel der Schnittstelle${keep('er')}</span><input type="password" id="al-sms-key" autocomplete="off" value="${esc(smsForm.key)}" placeholder="${same ? `gespeichert, endet auf …${esc(st.schluesselEnde)}` : 'vom SMS-Dienst (API-Schlüssel)'}"></label>
+        <label class="field"><span>Absender (leer lassen oder eine Handynummer)</span><input type="text" id="al-sms-sender" maxlength="20" value="${esc(smsForm.sender || (same ? st.absender : '') || '')}" placeholder="leer: Nummer des Dienstes"></label>
+      </div>
+      <p class="note">In Österreich kommt eine SMS mit einem <strong>Namen</strong> als Absender (z. B. „Cleanos“) seit 1.10.2026 nur an, wenn der Name registriert ist (bei seven.io unter Einstellungen → Compliance, gilt nach 14 Tagen). Ohne Registrierung das Feld leer lassen oder eine Handynummer eintragen; Nummern brauchen keine Registrierung.</p>${same && st.absender && /[A-Za-z]/.test(st.absender) ? '<p class="banner warn-banner">Der gespeicherte Absender ist ein Name: nur verwenden, wenn er bei seven.io registriert ist, sonst kommen die SMS nicht an.</p>' : ''}`
   return `<h3>SMS von selbst</h3>
-    <p class="note">Der Server kann den Alarm zusätzlich als SMS schicken: kurzer Text mit der Lage und einem Link zum Bestätigen. Das geht auf jedem Handy ohne eigene App, braucht aber einen <strong>SMS-Dienst</strong>, denn ein Webspace kann selbst keine SMS senden. Eingebaut ist <strong>seven.io</strong>: Konto anlegen, Guthaben aufladen, einen Schlüssel für die Schnittstelle erzeugen und hier eintragen. Je SMS verrechnet der Dienst einige Cent; ein Alarm braucht je nach Länge eine oder zwei SMS. Eine SMS piept nur kurz: zum Wecken den Absender am Handy als Kontakt speichern und ihm einen lauten Ton und die Ausnahme von „Nicht stören“ geben.</p>
+    <p class="note">Der Server kann den Alarm zusätzlich als SMS schicken: kurzer Text mit der Lage und einem Link zum Bestätigen. Das geht auf jedem Handy ohne eigene App. Eine SMS piept nur kurz: zum Wecken den Absender am Handy als Kontakt speichern, ihm einen lauten Ton geben und ihn von „Nicht stören“ ausnehmen.</p>
     <p id="al-sms-state">${state}</p>
-    <div class="form-grid">
-      <label class="field"><span>SMS-Dienst</span><select id="al-sms-provider">${options(Object.entries(SMS_PROVIDERS), smsForm.provider || st?.anbieter || 'seven')}</select></label>
-      <label class="field wide"><span>Schlüssel der Schnittstelle${st?.eingerichtet ? ' (leer lassen: bleibt, wie er ist)' : ''}</span><input type="password" id="al-sms-key" autocomplete="off" value="${esc(smsForm.key)}" placeholder="${st?.eingerichtet ? `gespeichert, endet auf …${esc(st.schluesselEnde)}` : 'vom SMS-Dienst (API-Schlüssel)'}"></label>
-      <label class="field"><span>Absender (leer lassen oder eine Handynummer)</span><input type="text" id="al-sms-sender" maxlength="20" value="${esc(smsForm.sender || st?.absender || '')}" placeholder="leer: Nummer des Dienstes"></label>
-    </div>
-    <p class="note">In Österreich kommt eine SMS mit einem <strong>Namen</strong> als Absender (z. B. „Cleanos“) seit 1.10.2026 nur an, wenn der Name registriert ist (bei seven.io unter Einstellungen → Compliance, gilt nach 14 Tagen). Ohne Registrierung das Feld leer lassen oder eine Handynummer eintragen; Nummern brauchen keine Registrierung.</p>${st?.absender && /[A-Za-z]/.test(st.absender) ? '<p class="banner warn-banner">Der gespeicherte Absender ist ein Name: nur verwenden, wenn er bei seven.io registriert ist, sonst kommen die SMS nicht an.</p>' : ''}
-    <p class="note">Der Schlüssel geht nur an den Webspace (Ordner <code>privat/</code>) und wird hier nicht gespeichert und nie wieder angezeigt.</p>
+    <div class="form-grid"><label class="field wide"><span>Weg für die SMS</span><select id="al-sms-provider" data-change="wx-alarm-redraw">${options(Object.entries(SMS_PROVIDERS), provider)}</select></label></div>
+    ${fields}
+    <p class="note">Zugangsdaten gehen nur an den Webspace (Ordner <code>privat/</code>) und werden hier nicht gespeichert; Passwort und Schlüssel zeigt die App nie wieder an.</p>
     <div class="toolbar"><button class="btn" data-action="wx-sms-save">Am Webspace speichern</button>${st?.eingerichtet ? '<button class="btn" data-action="wx-sms-remove">SMS entfernen</button>' : ''}</div>
     ${st?.eingerichtet ? `<div class="inline-form" style="border:0;padding:0"><label class="field"><span>Probe-SMS an (Handynummer)</span><input type="tel" id="al-sms-test" value="${esc(smsForm.test)}" placeholder="z. B. 0664 1234567"></label><button class="btn" data-action="wx-sms-test">Probe senden</button></div>` : ''}
     <div class="form-grid"><label class="field wide"><span>Stufe 2 zusätzlich per SMS an (Handynummern)</span><input type="text" id="al-officesms" value="${esc(d.officeSms || '')}" placeholder="z. B. 0664 1234567, mehrere mit Komma">${bad(d.officeSms) ? '<small class="muted">Eine Nummer ist nicht brauchbar (mit Vorwahl, nur Ziffern).</small>' : ''}</label></div>`
@@ -385,18 +425,24 @@ function alarmModal() {
     .join('')
   const all = [...new Set(locations.flatMap((loc) => [...(d.places[loc.name]?.level1 || []), ...(d.places[loc.name]?.level2 || [])]))]
   const ntfy = d.ntfy || ALARM_DEFAULTS.ntfy
+  const handys = status.data?.handys || {}
+  const sent = !!alarmSettings().transferred
+  const when = (ts) => new Date(ts * 1000).toLocaleString('de-AT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   const phones = all
     .map((id) => {
       const e = empById(id)
       if (!e) return ''
       const t = d.topics[id]
-      const link = t ? `${ntfy}/${t}` : ''
-      const inviteText = t ? `Hallo ${e.name},\n\nfür den Schnee-Alarm bitte die App „ntfy“ installieren (Play Store bzw. App Store), dann auf + tippen und dieses Thema abonnieren:\n\n${t}\n\n(Server: ${ntfy}, oder diesen Link öffnen: ${link})\n\nIn der App beim Thema die Benachrichtigungen auf höchste Priorität stellen und „Nicht stören“ übergehen lassen, damit der Alarm auch nachts weckt.\n\nDanke!` : ''
-      const invite = t && e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent('Winterdienst: Schnee-Alarm aufs Handy')}&body=${encodeURIComponent(inviteText)}` : ''
+      const link = t ? alarmSetupLink(address(), t, langOf(e)) : ''
+      const { subject, text: inviteText } = t ? alarmInvite(langOf(e), { name: e.name, link }) : { subject: '', text: '' }
+      const invite = t && e.email ? `mailto:${encodeURIComponent(e.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(inviteText)}` : ''
       const number = waNumber(e.phone)
+      const ph = t ? phoneState(handys, t) : { state: 'never' }
+      const ready = !t || !sent ? '<span class="muted">nach dem Übertragen</span>' : ph.state === 'ready' ? `<span class="pill ok">bereit</span> <span class="muted">${esc(when(ph.at))}</span>` : ph.state === 'waiting' ? `<span class="pill info">Probe ${esc(when(ph.at))}, noch nicht bestätigt</span>` : '<span class="pill warning">noch nicht geprüft</span>'
       return `<tr><td>${esc(e.name)}</td><td>${t ? `<code>${esc(t)}</code>` : '<span class="muted">wird beim Speichern angelegt</span>'}</td><td>${esc(e.email || '–')}</td>
         <td class="al-handy">${number ? `<span>+${esc(number)}</span> <label class="check"><input type="checkbox" name="al-sms" value="${esc(id)}" ${d.sms?.[id] ? 'checked' : ''}><span>SMS</span></label> <label class="check"><input type="checkbox" name="al-wa" value="${esc(id)}" ${d.whatsapp?.[id] ? 'checked' : ''}><span>WhatsApp</span></label>` : '<span class="muted" title="Handynummer im Stammblatt eintragen">keine Nummer</span>'}</td>
-        <td class="actions">${invite ? `<a class="btn small" href="${esc(invite)}">Einladung per E-Mail</a>` : ''}${t ? waLink({ kind: 'schnee-alarm', phone: e.phone, text: inviteText, label: 'Einladung per WhatsApp' }) : ''}${t ? `<button class="btn small" data-action="wx-alarm-copy" data-text="${esc(t)}">Thema kopieren</button><button class="btn small" data-action="wx-alarm-newtopic" data-emp="${esc(id)}" title="Wenn jemand das Thema nicht mehr bekommen soll (z. B. Handy verloren)">Neues Thema</button>` : ''}</td></tr>`
+        <td class="al-ready">${ready}</td>
+        <td class="actions">${t && sent ? `<button class="btn small" data-action="wx-alarm-probe" data-emp="${esc(id)}" title="Probe an alle Wege dieser Person, mit „Bin wach“">Probe senden</button>` : ''}${invite ? `<a class="btn small" href="${esc(invite)}">Einladung per E-Mail</a>` : ''}${t ? waLink({ kind: 'schnee-alarm', phone: e.phone, text: inviteText, label: 'Einladung per WhatsApp' }) : ''}${t ? `<button class="btn small" data-action="wx-alarm-copy" data-text="${esc(link)}">Link kopieren</button><button class="btn small" data-action="wx-alarm-newtopic" data-emp="${esc(id)}" title="Wenn jemand das Thema nicht mehr bekommen soll (z. B. Handy verloren)">Neues Thema</button>` : ''}</td></tr>`
     })
     .join('')
   const file = fileFor(complete(d, locations), locations)
@@ -412,8 +458,9 @@ function alarmModal() {
       <div class="inline-form" style="border:0;padding:0"><label class="field"><span>Ort hinzufügen (z. B. Hallein, Obertrum)</span><input type="text" id="al-newplace" list="al-places" placeholder="Name oder „Name = Breite, Länge“"><datalist id="al-places">${known}</datalist></label><button class="btn" data-action="wx-alarm-place">${ICON.plus} Ort hinzufügen</button></div>
       <p class="note">Orte entfernen oder umbenennen: unter <em>Regeln & Feiertage → Wetter & Winterdienst</em>.</p>
       <h3>Handys (ntfy), SMS und WhatsApp</h3>
-      <p class="note">Jede Person installiert die kostenlose App <strong>ntfy</strong> (Android, iPhone) und abonniert ihr Thema. Beim Thema die höchste Priorität erlauben und „Nicht stören“ übergehen lassen (Android: Benachrichtigungskategorie „Höchste Priorität“ → „Nicht stören ignorieren“; iPhone: Fokus → Apps → ntfy erlauben). Das Thema wirkt wie ein Passwort: nicht weitergeben.</p>
-      ${phones ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>ntfy-Thema</th><th>E-Mail</th><th>Von selbst an die Handynummer</th><th></th></tr></thead><tbody>${phones}</tbody></table></div>` : '<p class="muted">Noch niemand ausgewählt.</p>'}
+      <p class="note">Gratis und am verlässlichsten weckt die App <strong>ntfy</strong> (Android ab 8, iPhone): Sie darf „Nicht stören“ übergehen. Jede Person bekommt einen eigenen Link zur Seite „Handy einrichten“ (per WhatsApp, E-Mail oder als Blatt mit QR-Code, in ihrer Sprache): App laden, mit einem Tipp abonnieren, Einstellungen für die Nacht, zum Schluss eine Probe mit „Bin wach“. Hier steht danach „bereit“. „Probe senden“ prüft ein Handy jederzeit wieder, z. B. vor dem ersten Schnee. Der Link wirkt wie ein Passwort: nur der Person geben.</p>
+      ${sent && all.length ? `<p><button class="btn" data-action="wx-alarm-sheets">${ICON.print} Blätter zum Einrichten (PDF)</button> <span class="muted">je Person eine Seite mit QR-Code, in ihrer Sprache</span></p>` : ''}
+      ${phones ? `<div class="table-wrap"><table class="data"><thead><tr><th>Person</th><th>ntfy-Thema</th><th>E-Mail</th><th>Von selbst an die Handynummer</th><th>Handy geprüft</th><th></th></tr></thead><tbody>${phones}</tbody></table></div>` : '<p class="muted">Noch niemand ausgewählt.</p>'}
       <label class="check"><input type="checkbox" id="al-office" ${d.topics.office ? 'checked' : ''}><span>Büro-Handy in Stufe 2${d.topics.office ? `: Thema <code>${esc(d.topics.office)}</code> <button class="btn small" data-action="wx-alarm-copy" data-text="${esc(d.topics.office)}">kopieren</button>` : ''}</span></label>
       <div class="form-grid">
         <label class="field wide"><span>Stufe 2 zusätzlich per E-Mail an</span><input type="text" id="al-officeemails" value="${esc(d.officeEmails || '')}" placeholder="z. B. office@…, mehrere mit Komma"></label>
@@ -529,6 +576,36 @@ registerActions({
       toast(`Gespeichert, aber nicht übertragen: ${err.message}`)
     }
   },
+  'wx-alarm-probe': async (el) => {
+    const d = readForm()
+    const topic = d.topics[el.dataset.emp]
+    const name = empById(el.dataset.emp)?.name || 'Person'
+    if (!topic) return toast('Erst speichern und übertragen.')
+    try {
+      const r = await post('probe', { thema: topic })
+      toast(r.fehler?.length ? `Probe an ${name} gesendet, aber: ${r.fehler.join('; ')}` : `Probe an ${name} gesendet. Sobald „Bin wach“ getippt ist, steht hier „bereit“.`)
+      await loadAlarmStatus(true)
+      if (app.ui.modal?.type === 'wx-alarm') renderModal()
+    } catch (err) {
+      toast(`Probe nicht gesendet: ${err.message}`)
+    }
+  },
+  'wx-alarm-sheets': async () => {
+    const d = readForm()
+    const ids = [...new Set(d.locations.flatMap((loc) => [...(d.places[loc.name]?.level1 || []), ...(d.places[loc.name]?.level2 || [])]))]
+    const people = ids
+      .map((id) => empById(id))
+      .filter((e) => e && d.topics[e.id])
+      .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+      .map((e) => {
+        const link = alarmSetupLink(address(), d.topics[e.id], langOf(e))
+        return { name: e.name, link, sheet: alarmInvite(langOf(e), { name: e.name, link }).sheet }
+      })
+    if (!people.length) return toast('Noch niemand mit Handy im Schnee-Alarm.')
+    const doc = alarmSetupDocument({ people, brand: app.config.brand, logo: await loadLogo().catch(() => null) })
+    download('Schnee-Alarm_Handy_einrichten.pdf', await pdfBlob(doc))
+    toast(`${people.length} ${people.length === 1 ? 'Blatt' : 'Blätter'} erstellt: jeder Person ihr Blatt geben (nicht aufhängen).`)
+  },
   'wx-alarm-test': async () => {
     try {
       const r = await post('test')
@@ -546,12 +623,16 @@ registerActions(
   {
     'wx-sms-save': async () => {
       readForm()
-      if (!smsForm.key && !sms.data?.eingerichtet) return toast('Bitte den Schlüssel des SMS-Dienstes eintragen.')
+      const provider = smsForm.provider || 'handy'
+      const same = sms.data?.eingerichtet && sms.data.anbieter === provider
+      if (provider === 'seven' && !smsForm.key && !same) return toast('Bitte den Schlüssel des SMS-Dienstes eintragen.')
+      if (provider === 'handy' && (!smsForm.user || (!smsForm.pass && !same))) return toast('Bitte Benutzername und Passwort aus der App am Handy eintragen.')
+      if (provider === 'handy' && smsForm.server && !/^https:\/\//.test(smsForm.server)) return toast('Eigener Server: eine Adresse mit https://, sonst leer lassen.')
       try {
-        const r = await post('sms', { anbieter: smsForm.provider || 'seven', schluessel: smsForm.key, absender: smsForm.sender })
+        const body = provider === 'seven' ? { anbieter: 'seven', schluessel: smsForm.key, absender: smsForm.sender } : { anbieter: 'handy', benutzer: smsForm.user, passwort: smsForm.pass, server: smsForm.server || '' }
+        const r = await post('sms', body)
         Object.assign(sms, { data: r, error: '', at: Date.now() })
-        smsForm.key = ''
-        smsForm.sender = ''
+        Object.assign(smsForm, { key: '', sender: '', pass: '', user: '', server: undefined })
         if (app.ui.modal?.type === 'wx-alarm') renderModal()
         toast('SMS am Webspace gespeichert. Jetzt eine Probe senden und oben anhaken, wer eine SMS bekommt.')
       } catch (err) {
@@ -563,7 +644,7 @@ registerActions(
       try {
         const r = await post('sms', { entfernen: true })
         Object.assign(sms, { data: r, error: '', at: Date.now() })
-        Object.assign(smsForm, { key: '', sender: '', provider: '', test: '' })
+        Object.assign(smsForm, { key: '', sender: '', provider: '', test: '', user: '', pass: '', server: undefined })
         if (app.ui.modal?.type === 'wx-alarm') renderModal()
         toast('SMS entfernt: der Server schickt keine SMS mehr.')
       } catch (err) {

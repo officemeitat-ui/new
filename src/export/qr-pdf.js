@@ -63,3 +63,24 @@ export function tabletSheetDocument({ object, link, brand = {}, logo = null, cre
   ]
   return docShell(content, { brand, colors, createdAt, title: 'Stempeluhr am Tablet einrichten' })
 }
+
+/**
+ * Blätter „Handy für den Schnee-Alarm einrichten“: je Person eine A4-Seite in ihrer Sprache mit Namen und QR-Code zur
+ * Seite „Handy einrichten“ (wetter-alarm.php?aktion=handy). people: [{ name, link, sheet: { title, scan, secret } }].
+ * Der Link enthält das Thema der Person: das Blatt nur ihr geben, nicht aufhängen.
+ */
+export function alarmSetupDocument({ people = [], brand = {}, logo = null, createdAt = new Date() }) {
+  const colors = inkColors(brand)
+  const content = people.map((p, i) => ({
+    stack: [
+      logo ? (logo.svg ? { svg: logo.svg, width: 160 } : { image: logo.image, fit: [170, 70] }) : { text: brand.name || '', style: 'brand' },
+      { text: p.sheet.title, fontSize: 24, bold: true, color: colors.ink, margin: [0, 26, 0, 6] },
+      { text: p.name, fontSize: 20, bold: true },
+      { qr: p.link, fit: 280, alignment: 'center', margin: [0, 34, 0, 30] },
+      { text: p.sheet.scan, fontSize: 15, alignment: 'center' },
+      { text: p.sheet.secret, fontSize: 10, color: colors.grey, alignment: 'center', margin: [0, 24, 0, 0] },
+    ],
+    ...(i ? { pageBreak: 'before' } : {}),
+  }))
+  return docShell(content.length ? content : [{ text: 'Niemand im Schnee-Alarm.' }], { brand, colors, createdAt, title: 'Handy für den Schnee-Alarm einrichten' })
+}

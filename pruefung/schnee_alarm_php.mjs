@@ -14,7 +14,11 @@
 //  8. SMS von selbst (SMS-Dienst seven.io nachgestellt): Zugang speichern (Schlüssel kommt nie zurück), Probe, Guthaben;
 //     Alarm als kurze SMS mit Link „Bin wach“ (nur SMS-taugliche Zeichen, höchstens zwei SMS lang), Bestätigen über den
 //     kurzen Link; Guthaben aufgebraucht, Grenze je Tag, Entfernen.
-// Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP), 19835 (SMS-Dienst).
+//  9. SMS über das eigene Android-Handy (App „SMS Gateway for Android“, Server nachgestellt): Zugang mit Benutzername und
+//     Passwort (kommt nie zurück), Probe, falsches Passwort, Wechsel des Weges, Alarm als SMS über das Handy.
+// 10. „Handy einrichten“: Seite in der Sprache der Person mit Link ntfy://, Probe von der Seite und aus der App (alle Wege,
+//     ohne Protokoll-Knopf), Grenze je Stunde, „Bin wach“ zur Probe, Stand „bereit“ je Thema (auch nach einem Alarm).
+// Ports 19831 (Wetter), 19832 (ntfy), 19833 (WhatsApp), 19834 (PHP), 19835 (SMS-Dienst), 19841 (SMS-Gateway).
 import { execFile, spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -27,6 +31,9 @@ const NTFY = 19832
 const WA = 19833
 const HTTP = 19834
 const SMS = 19835
+const GATE = 19841
+const GATE_USER = 'H7XQ2B'
+const GATE_PASS = 'pw-3x9_kLq2'
 const SMS_KEY = 'smsKey0123456789abcdefABCDEF4321'
 const SMS_KEY_BAD = 'falscherSchluessel0123456789xyz'
 const dir = join(P, 'schnee-alarm')
@@ -116,6 +123,20 @@ const seven = createServer(async (req, res) => {
   json({ success: '100', total_price: 0.15, balance: 12.34, debug: 'false', sms_type: 'direct', messages: [{ id: `77${smsListe.length}`, sender: f.from, recipient: f.to, text: f.text, encoding: 'gsm', parts: 2, price: 0.15, success: true, error: null, error_text: null }] })
 }).listen(SMS, '127.0.0.1')
 
+// SMS Gateway for Android (Cloud-Server nachgestellt): POST /3rdparty/v1/message, Basic, JSON { textMessage: { text }, phoneNumbers }
+const gateListe = []
+const gateFehler = new Set()
+const gate = createServer(async (req, res) => {
+  const roh = await body(req)
+  const json = (status, b) => res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(b))
+  if (req.url !== '/3rdparty/v1/message' || req.method !== 'POST') return json(404, { message: 'not found' })
+  if (req.headers.authorization !== `Basic ${Buffer.from(`${GATE_USER}:${GATE_PASS}`).toString('base64')}`) return json(401, { message: 'Unauthorized' })
+  const m = JSON.parse(roh || '{}')
+  if (gateFehler.has(m.phoneNumbers?.[0])) return json(202, { id: 'g-x', state: 'Failed', recipients: [{ phoneNumber: m.phoneNumbers[0], state: 'Failed' }] })
+  gateListe.push({ ...m, typ: req.headers['content-type'] })
+  json(202, { id: `g-${gateListe.length}`, state: 'Pending', recipients: [{ phoneNumber: m.phoneNumbers?.[0], state: 'Pending' }] })
+}).listen(GATE, '127.0.0.1')
+
 const env = (jetzt, szene) => ({
   ...process.env,
   WETTER_ALARM_ORDNER: dir,
@@ -124,6 +145,7 @@ const env = (jetzt, szene) => ({
   WETTER_WARNUNGEN: `http://127.0.0.1:${WX}/${szene}/warnings`,
   WHATSAPP_API: `http://127.0.0.1:${WA}`,
   SMS_API: `http://127.0.0.1:${SMS}`,
+  SMS_GATE_API: `http://127.0.0.1:${GATE}/3rdparty/v1`,
   TMPDIR: join(dir, 'tmp'),
   NO_PROXY: '127.0.0.1,localhost',
   no_proxy: '127.0.0.1,localhost',
@@ -364,12 +386,12 @@ try {
 
   // ---------------------------------------------------------------- 8. SMS von selbst
   r = await api('sms')
-  check('SMS: Stand „nicht eingerichtet“, bekannter Dienst seven.io', r.status === 200 && r.json.eingerichtet === false && r.json.anbieterListe.seven === 'seven.io' && (await api('status')).json.sms === false, JSON.stringify(r.json))
+  check('SMS: Stand „nicht eingerichtet“, zwei Wege (eigenes Handy als Vorgabe, seven.io)', r.status === 200 && r.json.eingerichtet === false && r.json.anbieter === 'handy' && /^eigenes Android-Handy/.test(r.json.anbieterListe.handy) && /^seven\.io/.test(r.json.anbieterListe.seven) && (await api('status')).json.sms === false, JSON.stringify(r.json))
   check('SMS-Zugang nur mit dem Schlüssel der App (nicht mit dem Prüfschlüssel, nicht ohne)', (await api('sms', { key: '' })).status === 403 && (await api('sms', { key: '', extra: `&schluessel=${CRON}` })).status === 403)
   check('Probe-SMS ohne Zugang: verständliche Absage', (r = await api('sms-test', { method: 'POST', json: { an: '436641234567' } })).status === 409 && /noch nicht eingerichtet/.test(r.json.fehler))
   check('SMS speichern: zu kurzer Schlüssel, unbekannter Dienst, kein Schlüssel werden abgelehnt', (await api('sms', { method: 'POST', json: { schluessel: 'kurz' } })).status === 400 && (await api('sms', { method: 'POST', json: { anbieter: 'irgendwer', schluessel: SMS_KEY } })).status === 400 && (await api('sms', { method: 'POST', json: { absender: 'Cleanos' } })).status === 400 && !existsSync(join(dir, 'sms.json')))
   r = await api('sms', { method: 'POST', json: { anbieter: 'seven', schluessel: SMS_KEY_BAD, absender: 'Cleanos Gebäudereinigung' } })
-  check('SMS gespeichert: Stand ohne Schlüssel (nur die letzten vier Zeichen), Absender auf elf Zeichen gekürzt', r.status === 200 && r.json.eingerichtet === true && r.json.anbieterName === 'seven.io' && r.json.absender === 'CleanosGeba' && r.json.schluesselEnde === SMS_KEY_BAD.slice(-4) && !r.text.includes(SMS_KEY_BAD) && !('schluessel' in r.json), r.text.slice(0, 220))
+  check('SMS gespeichert: Stand ohne Schlüssel (nur die letzten vier Zeichen), Absender auf elf Zeichen gekürzt', r.status === 200 && r.json.eingerichtet === true && r.json.anbieterName === 'seven.io (SMS-Dienst)' && r.json.absender === 'CleanosGeba' && r.json.schluesselEnde === SMS_KEY_BAD.slice(-4) && !r.text.includes(SMS_KEY_BAD) && !('schluessel' in r.json), r.text.slice(0, 220))
   check('Zugang liegt nur am Webspace (privat/sms.json, nur für den Besitzer lesbar)', JSON.parse(readFileSync(join(dir, 'sms.json'), 'utf8')).schluessel === SMS_KEY_BAD && (statSync(join(dir, 'sms.json')).mode & 0o077) === 0)
   r = await api('sms-test', { method: 'POST', json: { an: '+43 664 1234567' } })
   check('Probe mit einem Schlüssel, den der Dienst nicht kennt: klarer Grund', r.status === 502 && r.json.fehler === 'Schlüssel falsch (Code 900)', JSON.stringify(r.json))
@@ -424,6 +446,77 @@ try {
   n = await neu()
   check('Ohne SMS-Zugang: keine SMS, kein Fehler', !n.sms.length && r.json.Salzburg.fehler.length === 0 && n.push.length === 2)
   check('Am Webspace liegt der Schlüssel des SMS-Dienstes nirgends mehr', !readdirSync(dir).some((f) => statSync(join(dir, f)).isFile() && readFileSync(join(dir, f), 'utf8').includes(SMS_KEY)))
+
+  // ---------------------------------------------------------------- 9. SMS über das eigene Android-Handy
+  check('Eigenes Handy: ohne Benutzername oder Passwort, mit Leerzeichen oder einem Server ohne https abgelehnt', (await api('sms', { method: 'POST', json: { anbieter: 'handy', benutzer: GATE_USER } })).status === 400 && (await api('sms', { method: 'POST', json: { anbieter: 'handy', benutzer: 'mit leer', passwort: GATE_PASS } })).status === 400 && (await api('sms', { method: 'POST', json: { anbieter: 'handy', benutzer: GATE_USER, passwort: GATE_PASS, server: 'http://unsicher.example' } })).status === 400 && !existsSync(join(dir, 'sms.json')))
+  r = await api('sms', { method: 'POST', json: { anbieter: 'handy', benutzer: GATE_USER, passwort: 'falsch-123' } })
+  check('Eigenes Handy gespeichert: Stand mit Benutzername, ohne Passwort', r.status === 200 && r.json.eingerichtet === true && r.json.anbieter === 'handy' && r.json.benutzer === GATE_USER && r.json.server === '' && !r.text.includes('falsch-123') && !('passwort' in r.json) && (statSync(join(dir, 'sms.json')).mode & 0o077) === 0, r.text.slice(0, 200))
+  r = await api('sms-test', { method: 'POST', json: { an: '+43 664 1234567' } })
+  check('Probe mit falschem Passwort: klarer Grund, ohne das Passwort im Text', r.status === 502 && r.json.fehler === 'Benutzername oder Passwort falsch (Antwort 401)', JSON.stringify(r.json))
+  r = await api('sms', { method: 'POST', json: { passwort: GATE_PASS } })
+  check('Nur das Passwort tauschen: Weg und Benutzername bleiben', r.status === 200 && r.json.anbieter === 'handy' && r.json.benutzer === GATE_USER)
+  r = await api('sms-test', { method: 'POST', json: { an: '+43 664 1234567' } })
+  n = await neu()
+  check('Probe-SMS über das Handy: JSON mit Text und Nummer mit +, Benutzername und Passwort als Basic, kein SMS-Dienst beteiligt', r.status === 200 && gateListe.length === 1 && gateListe[0].phoneNumbers.join() === '+436641234567' && /^Probe Cleanos App: So kommt der Schnee-Alarm als SMS\./.test(gateListe[0].textMessage.text) && /application\/json/.test(gateListe[0].typ) && !n.sms.length && !('guthaben' in r.json), JSON.stringify(gateListe[0]))
+  gateFehler.add('+436649999999')
+  r = await api('sms-test', { method: 'POST', json: { an: '+43 664 9999999' } })
+  check('Meldet das Handy „Failed“: als Fehler erkannt', r.status === 502 && r.json.fehler === 'vom Handy nicht gesendet (Failed)', JSON.stringify(r.json))
+  gateFehler.clear()
+  r = await api('test', { method: 'POST', extra: '&ort=Salzburg' })
+  await wait(150)
+  const viaHandy = gateListe.slice(1)
+  n = await neu()
+  check('Testalarm: SMS an alle drei über das Handy, mit Link „Bin wach“', r.json.Salzburg.fehler.length === 0 && viaHandy.length === 3 && viaHandy.every((m) => /^\+43664[123]{7}$/.test(m.phoneNumbers[0]) && /wetter-alarm\.php\?w=[a-f0-9]{24}$/.test(m.textMessage.text)) && n.push.length === 2 && !n.sms.length, `${JSON.stringify(r.json)} · ${viaHandy.map((m) => m.phoneNumbers[0])}`)
+  r = await api('sms', { method: 'POST', json: { anbieter: 'seven', schluessel: SMS_KEY } })
+  check('Wechsel zu seven.io: Benutzername und Passwort des Handys fallen weg', r.status === 200 && r.json.anbieter === 'seven' && !/benutzer|passwort/.test(readFileSync(join(dir, 'sms.json'), 'utf8')))
+  r = await api('sms', { method: 'POST', json: { anbieter: 'handy', benutzer: GATE_USER } })
+  check('Zurück zum Handy ohne Passwort: abgelehnt (das alte gilt nicht mehr)', r.status === 400 && /Benutzername und Passwort/.test(r.json.fehler))
+  r = await api('sms', { method: 'POST', json: { anbieter: 'handy', benutzer: GATE_USER, passwort: GATE_PASS, server: 'https://sms.cleanos.example/3rdparty/v1' } })
+  check('Eigener Server mit https wird gespeichert und angezeigt', r.status === 200 && r.json.server === 'https://sms.cleanos.example/3rdparty/v1' && !readFileSync(join(dir, 'sms.json'), 'utf8').includes(SMS_KEY))
+  await neu()
+
+  // ---------------------------------------------------------------- 10. „Handy einrichten“, Probe, bereit
+  const seite = async (q, opts) => {
+    const res = await fetch(`http://127.0.0.1:${HTTP}/wetter-alarm.php?${q}`, { redirect: 'manual', ...opts })
+    return { status: res.status, html: await res.text(), robots: res.headers.get('x-robots-tag') || '' }
+  }
+  let sp = await seite('aktion=handy&t=wd-unbekannt')
+  check('Einrichtungsseite mit unbekanntem Thema: 404, keine Namen', sp.status === 404 && /gilt nicht \(mehr\)/.test(flat(sp.html)) && !/Dragan|Ana/.test(sp.html))
+  sp = await seite('aktion=handy&t=wd-dragan')
+  const deep = sp.html.match(/href="(ntfy:\/\/[^"]+)"/)?.[1]?.replace(/&amp;/g, '&') || ''
+  check('Einrichtungsseite in der Sprache der Person (Bosnisch/Kroatisch/Serbisch), mit Name, App-Läden und Schritten', sp.status === 200 && /<html lang="hr">/.test(sp.html) && /Dragan Jović/.test(sp.html) && /Podesi telefon za alarm za snijeg/.test(flat(sp.html)) && /play\.google\.com\/store\/apps\/details\?id=io\.heckel\.ntfy/.test(sp.html) && /f-droid\.org\/packages\/io\.heckel\.ntfy/.test(sp.html) && /apps\.apple\.com\/app\/ntfy\/id1625396347/.test(sp.html) && /noindex/.test(sp.robots), flat(sp.html).slice(0, 200))
+  check('Knopf öffnet ntfy und abonniert das Thema (ntfy://Server/Thema, Anzeigename, http-Server mit secure=false)', deep === `ntfy://127.0.0.1:${NTFY}/wd-dragan?display=Alarm%20za%20snijeg&secure=false`, deep)
+  check('Fallback von Hand: Thema und Server stehen auf der Seite', sp.html.includes('<code>wd-dragan</code>') && sp.html.includes(`<code>http://127.0.0.1:${NTFY}</code>`))
+  check('Seite auf Deutsch umstellbar', /Handy für den Schnee-Alarm einrichten/.test(flat((await seite('aktion=handy&t=wd-dragan&sprache=de')).html)))
+  sp = await seite('aktion=handy&t=wd-dragan', { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' } })
+  check('Probe von einer fremden Seite: 403', sp.status === 403)
+  sp = await seite('aktion=handy&t=wd-dragan', { method: 'POST' })
+  n = await neu()
+  const pp = n.push.find((p) => p.topic === 'wd-dragan')
+  const tP = tokenOf(pp || { actions: [] })
+  check('Probe von der Seite: Bestätigung auf der Seite, Push mit Knopf „Bin wach“ und ohne Protokoll-Knopf', /Proba je poslana/.test(flat(sp.html)) && !!pp && pp.title === 'Probe Winterdienst' && /^Probe: So kommt der Schnee-Alarm auf dieses Handy\./.test(pp.message) && tP.length === 24 && !pp.actions.some((a) => /aktion=protokoll/.test(a.url)), JSON.stringify(pp || {}).slice(0, 300))
+  check('Probe geht über alle Wege der Person: E-Mail ohne Protokoll-Link, SMS über das Handy (eigener Server laut Einstellung, hier nachgestellt)', n.mail.length === 1 && n.mail[0].an === 'dragan@cleanos.example' && /Bitte bestätigen: .*aktion=wach&t=/.test(n.mail[0].text) && !/Protokoll eintragen/.test(n.mail[0].text) && gateListe.at(-1)?.phoneNumbers?.[0] === '+436641111111' && gateListe.at(-1).textMessage.text.endsWith(`?w=${tP}`), JSON.stringify(n.mail[0] || {}).slice(0, 200))
+  r = await api('status')
+  check('Stand für die App: Probe gesendet (nach der letzten Bestätigung, also offen)', r.json.handys['wd-dragan']?.probe > 0 && r.json.handys['wd-dragan'].probe >= (r.json.handys['wd-dragan'].bestaetigt || 0), JSON.stringify(r.json.handys))
+  check('Bestätigte Alarme zählen auch: Hallein (03:10 bestätigt) ist „bereit“', r.json.handys['wd-h2']?.bestaetigt > 0, JSON.stringify(r.json.handys))
+  sp = await seite(`aktion=wach&t=${tP}`)
+  check('„Bin wach“ zur Probe: zuerst eine Seite mit Knopf', sp.status === 200 && /<form method="post">/.test(sp.html))
+  sp = await seite(`aktion=wach&t=${tP}`, { method: 'POST' })
+  check('Knopf: „Hvala, Dragan Jović!“ – Handy bereit', sp.status === 200 && /Hvala, Dragan Jović!/.test(flat(sp.html)) && /spreman za alarm za snijeg/.test(flat(sp.html)), flat(sp.html).slice(0, 160))
+  r = await api('status')
+  check('Stand für die App: bestätigt', r.json.handys['wd-dragan']?.bestaetigt > 0 && r.json.protokoll.some((p) => p.ort === 'Probe' && p.text === 'Probe an Dragan Jović'))
+  check('Die Einrichtungsseite zeigt danach „zuletzt bestätigt“', /zadnji put potvrdio/.test(flat((await seite('aktion=handy&t=wd-dragan')).html)))
+  await seite('aktion=handy&t=wd-dragan', { method: 'POST' })
+  await seite('aktion=handy&t=wd-dragan', { method: 'POST' })
+  sp = await seite('aktion=handy&t=wd-dragan', { method: 'POST' })
+  n = await neu()
+  check('Höchstens drei Proben je Stunde von der Seite', /Upravo je poslano više proba/.test(flat(sp.html)) && n.push.filter((p) => p.topic === 'wd-dragan').length === 2, `${n.push.length}`)
+  r = await api('probe', { method: 'POST', json: { thema: 'wd-ana' } })
+  n = await neu()
+  check('Probe aus der App an eine Person (Thema): Push an sie', r.status === 200 && r.json.gesendet === true && n.push.length === 1 && n.push[0].topic === 'wd-ana' && n.push[0].title === 'Probe Winterdienst', JSON.stringify(r.json))
+  check('Probe aus der App: unbekanntes Thema 404, ohne Schlüssel 403', (await api('probe', { method: 'POST', json: { thema: 'wd-niemand' } })).status === 404 && (await api('probe', { method: 'POST', key: '', json: { thema: 'wd-ana' } })).status === 403)
+  r = await api('sms', { method: 'POST', json: { entfernen: true } })
+  check('SMS über das Handy entfernt: Zugang gelöscht, Passwort liegt nirgends mehr', r.json.eingerichtet === false && !readdirSync(dir).some((f) => statSync(join(dir, f)).isFile() && readFileSync(join(dir, f), 'utf8').includes(GATE_PASS)))
 } catch (err) {
   check('Ablauf ohne Ausnahme', false, String(err?.stack || err).slice(0, 900))
 }
@@ -432,4 +525,5 @@ wetter.close()
 ntfy.close()
 meta.close()
 seven.close()
+gate.close()
 await finish(null, [], [])

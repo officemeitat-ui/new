@@ -7,7 +7,7 @@
 // oder Glatteiswarnung gilt:
 //
 //  - Push aufs Handy über ntfy (höchste Priorität, Knopf „Bin wach“) und E-Mail;
-//  - dazu SMS von selbst, wenn ein SMS-Dienst eingerichtet ist (privat/sms.json; kurzer Text mit Link „Bin wach“,
+//  - dazu SMS von selbst, wenn ein eigenes Android-Handy oder ein SMS-Dienst eingerichtet ist (privat/sms.json; kurzer Text mit Link „Bin wach“,
 //    wetter-alarm.php?w=…) und die Person in der App „SMS“ angehakt hat (stufe1[].sms);
 //  - dazu WhatsApp von selbst, wenn die Schnittstelle von Meta eingerichtet ist (privat/whatsapp.json, Vorlage mit
 //    Knopf „Bin wach“; webspace-lib.php) und die Person in der App „WhatsApp“ angehakt hat (stufe1[].whatsapp);
@@ -20,6 +20,8 @@
 //   wetter-alarm.php?aktion=pruefen&schluessel=… prüfen (externer Cron-Dienst, Prüfschlüssel)
 //   wetter-alarm.php?aktion=wach&t=…             „Bin wach“ (ntfy-Knopf, Link in der E-Mail)
 //   wetter-alarm.php?aktion=protokoll&t=…        Winterdienst-Protokoll am Handy (ohne Anmeldung, mit Fotos)
+//   wetter-alarm.php?aktion=handy&t=Thema        „Handy einrichten“: App ntfy, Thema mit einem Tipp abonnieren
+//                                                (ntfy://), Einstellungen, Probe an das eigene Handy (in der Sprache der Person)
 //   Die Seiten „Bin wach“ und „Protokoll“ und die Knöpfe der Push-Nachricht kommen in der Sprache der Person
 //   (aus dem Stammblatt, orte[].stufe1[].sprache; am Handy gemerkt wie bei „Mein Dienstplan“, ?sprache=);
 //   Texte in mein-plan-texte.php. Der Text des Alarms selbst bleibt deutsch.
@@ -27,8 +29,11 @@
 //   wetter-alarm.php?aktion=whatsapp        GET: Stand (ohne Token), POST: { token?, nummerId?, vorlage?, sprache?, version?,
 //                                           entfernen? } speichert die Zugangsdaten für WhatsApp am Webspace
 //   wetter-alarm.php?aktion=whatsapp-test   POST { an }: Probe-Nachricht an eine Nummer (höchstens 10 je Stunde)
-//   wetter-alarm.php?aktion=sms             GET: Stand (ohne Schlüssel), POST: { anbieter?, schluessel?, absender?, entfernen? }
+//   wetter-alarm.php?aktion=sms             GET: Stand (ohne Schlüssel bzw. Passwort), POST: { anbieter? (handy|seven),
+//                                           handy: benutzer?, passwort?, server?; seven: schluessel?, absender?; entfernen? }
 //   wetter-alarm.php?aktion=sms-test        POST { an }: Probe-SMS an eine Nummer (höchstens 10 je Stunde)
+//   wetter-alarm.php?aktion=probe           POST { thema }: Probe an eine Person (alle ihre Wege, mit „Bin wach“); bestätigte
+//                                           Proben und Alarme stehen im Stand unter „handys“ (Thema → bestätigt, Probe)
 //
 // Einstellungen: privat/wetter-alarm.json (erstellt die App unter Wetter & Winterdienst →
 // Alarm einrichten). Protokolle und Fotos: privat/winterdienst/ (die App übernimmt sie nach
@@ -359,6 +364,75 @@ function adresse(array $e): string
     return rtrim((string) ($e['adresse'] ?? ''), '/') . '/';
 }
 
+/** Formular von einer fremden Seite? (Browser schicken Sec-Fetch-Site mit; wie in mein-plan.php) */
+function fremde_herkunft(): bool
+{
+    $herkunft = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? '';
+    return $herkunft !== '' && $herkunft !== 'same-origin' && $herkunft !== 'none';
+}
+
+/** Person zum ntfy-Thema (Stufe 1 oder 2 eines Orts) oder null. */
+function person_zum_thema(?array $e, string $thema): ?array
+{
+    if (!$e || !preg_match('/^[A-Za-z0-9_-]{1,64}$/', $thema)) {
+        return null;
+    }
+    foreach ((array) ($e['orte'] ?? []) as $ort) {
+        foreach (['stufe1', 'stufe2'] as $stufe) {
+            foreach ((array) ($ort[$stufe] ?? []) as $p) {
+                if (is_array($p) && ($p['ntfy'] ?? '') === $thema) {
+                    return $p;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Probe an eine Person (alle ihre Wege, Knopf „Bin wach“ ohne Protokoll). $grenze: höchstens so viele Proben je Stunde
+ * für dieses Thema (die Seite „Handy einrichten“ ist ohne Anmeldung erreichbar). Liefert ['ok'|'grenze', Fehler].
+ */
+function probe_senden(array $e, array $person, int $grenze): array
+{
+    $thema = (string) ($person['ntfy'] ?? '');
+    $token = bin2hex(random_bytes(12));
+    $darf = mit_stand(function (array &$stand) use ($person, $thema, $token, $grenze) {
+        $stand['proben'] = array_filter((array) ($stand['proben'] ?? []), fn ($p) => is_array($p) && (int) ($p['gesendet'] ?? 0) > jetzt() - 30 * 86400);
+        $jetztDa = array_filter($stand['proben'], fn ($p) => ($p['thema'] ?? '') === $thema && (int) $p['gesendet'] > jetzt() - 3600);
+        if (count($jetztDa) >= $grenze) {
+            return false;
+        }
+        $stand['proben'][$token] = ['thema' => $thema, 'name' => (string) ($person['name'] ?? ''), 'gesendet' => jetzt(), 'wach' => null] + (sprache_gueltig($person['sprache'] ?? null) ? ['sprache' => $person['sprache']] : []);
+        $stand['proben'] = array_slice($stand['proben'], -300, null, true);
+        return true;
+    });
+    if (!$darf) {
+        return ['grenze', []];
+    }
+    $fehler = benachrichtigen($e, $person, 'Probe Winterdienst', 'Probe: So kommt der Schnee-Alarm auf dieses Handy. Bitte mit „Bin wach“ bestätigen.', $token, true, false);
+    mit_stand(function (array &$stand) use ($person, $fehler) {
+        protokoll($stand, 'Probe', 'Probe an ' . ($person['name'] ?? '?') . ($fehler ? ' – ' . implode('; ', $fehler) : ''));
+    });
+    return ['ok', $fehler];
+}
+
+/** Je ntfy-Thema: wann zuletzt ein Alarm oder eine Probe bestätigt wurde, wann die letzte Probe ging (für die App). */
+function handys_stand(array $stand): array
+{
+    $aus = [];
+    foreach ((array) ($stand['bereit'] ?? []) as $thema => $ts) {
+        $aus[(string) $thema] = ['bestaetigt' => (int) $ts, 'probe' => null];
+    }
+    foreach ((array) ($stand['proben'] ?? []) as $p) {
+        $t = (string) ($p['thema'] ?? '');
+        if ($t !== '' && (int) ($p['gesendet'] ?? 0) > (int) ($aus[$t]['probe'] ?? 0)) {
+            $aus[$t] = ['bestaetigt' => $aus[$t]['bestaetigt'] ?? null, 'probe' => (int) $p['gesendet']];
+        }
+    }
+    return $aus;
+}
+
 /** WhatsApp-Einstellungen dieses Aufrufs (einmal gelesen); null: nicht eingerichtet. */
 function whatsapp(): ?array
 {
@@ -449,12 +523,12 @@ function whatsapp_person(array $person, string $titel, string $text, ?string $to
  * WhatsApp. Liefert Fehlertexte. Mehrere Personen: alarm_senden schickt zuerst allen Push und E-Mail, dann SMS, dann
  * WhatsApp (antwortet ein Dienst langsam, wartet darauf kein Push).
  */
-function benachrichtigen(array $e, array $person, string $titel, string $text, ?string $token, bool $handy = true): array
+function benachrichtigen(array $e, array $person, string $titel, string $text, ?string $token, bool $handy = true, bool $mitProtokoll = true): array
 {
     $fehler = [];
     $app = adresse($e) . '#wetter';
     $wach = $token ? adresse($e) . 'wetter-alarm.php?aktion=wach&t=' . $token : null;
-    $prot = $token ? adresse($e) . 'wetter-alarm.php?aktion=protokoll&t=' . $token : null;
+    $prot = $token && $mitProtokoll ? adresse($e) . 'wetter-alarm.php?aktion=protokoll&t=' . $token : null;
     $sp = sprache_von($person);
     if (!empty($person['ntfy'])) {
         $nachricht = [
@@ -482,7 +556,7 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
         if ($absender) {
             $kopf[] = 'From: =?UTF-8?B?' . base64_encode(marke()['app'] . ' – Winterdienst') . '?= <' . $absender . '>';
         }
-        $inhalt = $text . "\n\n" . ($wach ? "Bitte bestätigen: $wach\nNach dem Räumen das Protokoll eintragen: $prot\n" : '') . "App: $app\n\nAutomatische Nachricht der " . marke()['app'] . " (Wetterdaten: GeoSphere Austria).\n";
+        $inhalt = $text . "\n\n" . ($wach ? "Bitte bestätigen: $wach\n" . ($prot ? "Nach dem Räumen das Protokoll eintragen: $prot\n" : '') : '') . "App: $app\n\nAutomatische Nachricht der " . marke()['app'] . " (Wetterdaten: GeoSphere Austria).\n";
         $ok = @mail($person['email'], '=?UTF-8?B?' . base64_encode($titel) . '?=', $inhalt, implode("\r\n", $kopf), $absender ? '-f' . $absender : '');
         if (!$ok) {
             $fehler[] = sprintf('E-Mail an %s nicht versendet', $person['name'] ?? $person['email']);
@@ -499,7 +573,7 @@ function alarm_senden(array $e, array &$alarm, array $personen, string $titel, s
     foreach ($personen as $i => $p) {
         $token = bin2hex(random_bytes(12));
         $codes[$i] = $token;
-        $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []);
+        $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []) + (!empty($p['ntfy']) ? ['thema' => (string) $p['ntfy']] : []);
         $fehler = array_merge($fehler, benachrichtigen($e, $p, $titel, $text, $token, false));
     }
     // SMS und WhatsApp erst, wenn alle ihren Push haben
@@ -620,7 +694,18 @@ if ($aktion === 'wach') {
         exit;
     }
     $zu = $e ? alarm_zum_code($token) : null;
-    sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : [], true);
+    // Probe (Seite „Handy einrichten“ oder aus der App): bestätigt, dass das Handy weckt
+    $probe = !$zu && $e ? (mit_stand(fn (array &$s) => $s)['proben'][$token] ?? null) : null;
+    sprache_waehlen($zu ? (array) ($zu[2]['empfaenger'][$token] ?? []) : (array) ($probe ?? []), true);
+    if ($probe && $methode === 'POST') {
+        mit_stand(function (array &$stand) use ($token) {
+            $p = &$stand['proben'][$token];
+            $p['wach'] = $p['wach'] ?? jetzt();
+            $stand['bereit'][(string) $p['thema']] = jetzt();
+        });
+        html_seite('<h1>' . th('h_probe_ok', ['name' => htmlspecialchars((string) $probe['name'])]) . '</h1><p>' . th('h_probe_ok_text') . '</p>', 200, '', t('h_titel'));
+        exit;
+    }
     if ($methode !== 'POST') {
         html_seite(sprachwahl_html('wetter-alarm.php?aktion=wach&t=' . $token) . '<h1>' . th('w_titel') . '</h1><p>' . th('w_bitte_bestaetigen') . '</p><form method="post"><button type="submit">' . th('w_wach_knopf') . '</button></form>', 200, '', t('w_titel'));
         exit;
@@ -630,6 +715,9 @@ if ($aktion === 'wach') {
             if (isset($s['alarm']['empfaenger'][$token])) {
                 $s['alarm']['wach'][$token] = $s['alarm']['wach'][$token] ?? jetzt();
                 $person = $s['alarm']['empfaenger'][$token]['name'];
+                if (!empty($s['alarm']['empfaenger'][$token]['thema'])) {
+                    $stand['bereit'][(string) $s['alarm']['empfaenger'][$token]['thema']] = jetzt(); // dieses Handy weckt
+                }
                 protokoll($stand, $name, "$person ist wach (bestätigt)");
                 return [$person, $name];
             }
@@ -642,6 +730,51 @@ if ($aktion === 'wach') {
     }
     html_seite('<h1>' . th('w_danke', ['name' => htmlspecialchars($wer[0])]) . '</h1><p>' . th('w_bestaetigt', ['ort' => htmlspecialchars($wer[1])]) . '</p>'
         . '<a class="knopf" href="wetter-alarm.php?aktion=protokoll&amp;t=' . $token . '">' . th('w_protokoll_eintragen') . '</a>', 200, '', t('w_titel'));
+    exit;
+}
+
+// „Handy einrichten“ (Link aus der Einladung bzw. QR-Code vom Blatt): App ntfy, Thema mit einem Tipp abonnieren, Einstellungen
+// für die Nacht, Probe an das eigene Handy. Ohne Anmeldung; das Thema im Link wirkt wie ein Passwort (wie in ntfy selbst).
+if ($aktion === 'handy') {
+    $thema = (string) ($_GET['t'] ?? '');
+    $person = person_zum_thema($e, $thema);
+    sprache_waehlen((array) ($person ?? []), true);
+    header('X-Robots-Tag: noindex, nofollow');
+    header('Referrer-Policy: no-referrer');
+    if (!$person) {
+        html_seite('<h1>' . th('h_titel') . '</h1><p>' . th('h_ungueltig') . '</p>', 404, '', t('h_titel'));
+        exit;
+    }
+    $h = fn (string $t) => htmlspecialchars($t, ENT_QUOTES);
+    $selbst = 'wetter-alarm.php?aktion=handy&t=' . rawurlencode($thema);
+    $meldung = '';
+    if ($methode === 'POST') {
+        if (fremde_herkunft()) {
+            html_seite('<p>' . th('nicht_erlaubt') . '</p>', 403, '', t('h_titel'));
+            exit;
+        }
+        [$ok, $fehler] = probe_senden($e, $person, 3);
+        // Fehler eines Weges (z. B. Push-Dienst antwortet nicht) stehen im Protokoll der App; die Person bekommt nur den Hinweis
+        $meldung = $ok === 'grenze' ? '<p class="fehler" role="alert">' . th('h_probe_zuviel') . '</p>'
+            : ($fehler ? '<p class="fehler" role="alert">' . th('h_probe_fehler') . '</p>' : '<p class="ok" role="status">' . th('h_probe_gesendet') . '</p>');
+    }
+    // ntfy-Server und Link für die App (ntfy://Server/Thema; http-Server mit secure=false)
+    $server = rtrim((string) ($e['ntfy'] ?? 'https://ntfy.sh'), '/');
+    $teile = parse_url($server) ?: [];
+    $wo = (string) ($teile['host'] ?? 'ntfy.sh') . (isset($teile['port']) ? ':' . (int) $teile['port'] : '') . rtrim((string) ($teile['path'] ?? ''), '/');
+    $tief = 'ntfy://' . $wo . '/' . rawurlencode($thema) . '?display=' . rawurlencode(t('h_anzeige')) . (($teile['scheme'] ?? 'https') === 'http' ? '&secure=false' : '');
+    $bereit = (int) (mit_stand(fn (array &$s) => $s)['bereit'][$thema] ?? 0);
+    $laden = '<ul><li><a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" rel="noopener">Google Play</a></li>'
+        . '<li><a href="https://f-droid.org/packages/io.heckel.ntfy/" rel="noopener">F-Droid</a> <span class="leise">(' . th('h_fdroid') . ')</span></li>'
+        . '<li><a href="https://apps.apple.com/app/ntfy/id1625396347" rel="noopener">App Store</a> <span class="leise">(iPhone)</span></li></ul>';
+    html_seite(sprachwahl_html($selbst) . '<h1>' . th('h_titel') . '</h1><p><b>' . $h((string) $person['name']) . '</b></p>' . $meldung
+        . ($bereit ? '<p class="ok">' . th('h_bereit', ['zeit' => $h(uhrzeit($bereit, 'd.m.Y H:i'))]) . '</p>' : '')
+        . '<p>' . th('h_intro') . '</p>'
+        . '<h2>1. ' . th('h_schritt1') . '</h2>' . $laden
+        . '<h2>2. ' . th('h_schritt2') . '</h2><a class="knopf" href="' . $h($tief) . '">' . th('h_knopf') . '</a>'
+        . '<p class="leise">' . th('h_vonhand', ['thema' => '<code>' . $h($thema) . '</code>', 'server' => '<code>' . $h($server) . '</code>']) . '</p>'
+        . '<h2>3. ' . th('h_schritt3') . '</h2><ul><li>' . th('h_einst_sofort') . '</li><li>' . th('h_einst_laut') . '</li><li>' . th('h_einst_akku') . '</li></ul>'
+        . '<h2>4. ' . th('h_schritt4') . '</h2><form method="post" action="' . $h($selbst) . '"><button type="submit">' . th('h_probe_knopf') . '</button></form>', 200, '', t('h_titel'));
     exit;
 }
 
@@ -846,7 +979,7 @@ if ($aktion === 'status') {
             'alarm' => $a ? ['gesendet' => $a['gesendet'], 'text' => $a['text'], 'test' => !empty($a['test']), 'eskaliert' => $a['eskaliert'], 'wach' => array_values(array_map(fn ($t) => ['name' => $a['empfaenger'][$t]['name'] ?? '?', 'zeit' => $a['wach'][$t]], array_keys($a['wach'])))] : null,
         ];
     }
-    ausgabe(200, ['jetzt' => jetzt(), 'letztePruefung' => $stand['letztePruefung'] ?? null, 'orte' => $orte, 'protokoll' => array_slice($stand['protokoll'] ?? [], 0, 20), 'whatsapp' => whatsapp() !== null, 'sms' => sms() !== null]);
+    ausgabe(200, ['jetzt' => jetzt(), 'letztePruefung' => $stand['letztePruefung'] ?? null, 'orte' => $orte, 'protokoll' => array_slice($stand['protokoll'] ?? [], 0, 20), 'whatsapp' => whatsapp() !== null, 'sms' => sms() !== null, 'handys' => handys_stand($stand)]);
 }
 if ($aktion === 'test' && ($cli || $methode === 'POST')) {
     $nur = $cli ? ($argv[2] ?? '') : (string) ($_GET['ort'] ?? '');
@@ -866,15 +999,33 @@ if ($aktion === 'test' && ($cli || $methode === 'POST')) {
     });
     ausgabe($bericht ? 200 : 404, $bericht ?: ['fehler' => 'Ort nicht gefunden']);
 }
+// Probe an eine Person aus der App (alle ihre Wege; höchstens 5 je Stunde und Person)
+if ($aktion === 'probe' && $methode === 'POST') {
+    $daten = json_decode((string) file_get_contents('php://input'), true);
+    $person = person_zum_thema($e, is_string($daten['thema'] ?? null) ? $daten['thema'] : '');
+    if (!$person) {
+        ausgabe(404, ['fehler' => 'Diese Person ist am Webspace noch nicht eingetragen: zuerst „Speichern und übertragen“.']);
+    }
+    [$ok, $fehler] = probe_senden($e, $person, 5);
+    if ($ok === 'grenze') {
+        ausgabe(429, ['fehler' => 'Zu viele Proben für diese Person in dieser Stunde (höchstens 5).']);
+    }
+    ausgabe(200, ['gesendet' => true, 'fehler' => $fehler]);
+}
 // SMS: Zugang zum SMS-Dienst (nur am Webspace, der Schlüssel kommt nie zurück)
 if ($aktion === 'sms' || $aktion === 'sms-test') {
     $datei = ordner() . '/sms.json';
     $stand_sms = function () use ($datei): array {
         $s = sms_einstellungen(ordner());
+        if (!$s) {
+            return ['eingerichtet' => false, 'anbieter' => 'handy', 'anbieterName' => SMS_ANBIETER['handy'], 'anbieterListe' => SMS_ANBIETER];
+        }
+        $aus = ['eingerichtet' => true, 'anbieter' => $s['anbieter'], 'anbieterName' => SMS_ANBIETER[$s['anbieter']], 'gespeichert' => (int) ($s['gespeichert'] ?? 0), 'anbieterListe' => SMS_ANBIETER];
+        if ($s['anbieter'] === 'handy') {
+            return $aus + ['benutzer' => $s['benutzer'], 'server' => $s['server']];
+        }
         $z = json_decode((string) @file_get_contents(ordner() . '/sms-zaehler.json'), true);
-        return $s
-            ? ['eingerichtet' => true, 'anbieter' => $s['anbieter'], 'anbieterName' => SMS_ANBIETER[$s['anbieter']], 'absender' => $s['absender'], 'schluesselEnde' => substr($s['schluessel'], -4), 'gespeichert' => (int) ($s['gespeichert'] ?? 0), 'guthaben' => is_array($z) && is_numeric($z['guthaben'] ?? null) ? (float) $z['guthaben'] : null, 'guthabenStand' => is_array($z) ? ($z['stand'] ?? null) : null]
-            : ['eingerichtet' => false, 'anbieter' => 'seven', 'anbieterName' => SMS_ANBIETER['seven'], 'anbieterListe' => SMS_ANBIETER];
+        return $aus + ['absender' => $s['absender'], 'schluesselEnde' => substr($s['schluessel'], -4), 'guthaben' => is_array($z) && is_numeric($z['guthaben'] ?? null) ? (float) $z['guthaben'] : null, 'guthabenStand' => is_array($z) ? ($z['stand'] ?? null) : null];
     };
     if ($aktion === 'sms-test') {
         if ($methode !== 'POST') {
@@ -882,7 +1033,7 @@ if ($aktion === 'sms' || $aktion === 'sms-test') {
         }
         $s = sms_einstellungen(ordner());
         if (!$s) {
-            ausgabe(409, ['fehler' => 'SMS ist am Webspace noch nicht eingerichtet (Schlüssel des SMS-Dienstes speichern).']);
+            ausgabe(409, ['fehler' => 'SMS ist am Webspace noch nicht eingerichtet (Zugangsdaten speichern).']);
         }
         $daten = json_decode((string) file_get_contents('php://input'), true);
         $an = is_string($daten['an'] ?? null) ? (string) preg_replace('/\D/', '', $daten['an']) : '';
@@ -911,32 +1062,41 @@ if ($aktion === 'sms' || $aktion === 'sms-test') {
             ausgabe(200, $stand_sms());
         }
         $alt = json_decode((string) @file_get_contents($datei), true);
-        $s = is_array($alt) ? $alt : [];
-        if (isset($neu['anbieter']) && $neu['anbieter'] !== '') {
-            if (!is_string($neu['anbieter']) || !isset(SMS_ANBIETER[$neu['anbieter']])) {
-                ausgabe(400, ['fehler' => 'Diesen SMS-Dienst kennt die App nicht.']);
-            }
-            $s['anbieter'] = $neu['anbieter'];
+        $alt = is_array($alt) ? $alt : [];
+        $anbieter = is_string($neu['anbieter'] ?? null) && $neu['anbieter'] !== '' ? $neu['anbieter'] : (string) ($alt['anbieter'] ?? 'handy');
+        if (!isset(SMS_ANBIETER[$anbieter])) {
+            ausgabe(400, ['fehler' => 'Diesen Weg für SMS kennt die App nicht.']);
         }
-        if (isset($neu['schluessel']) && $neu['schluessel'] !== '') {
-            if (!is_string($neu['schluessel']) || !preg_match('/^[A-Za-z0-9_\-]{20,200}$/', $neu['schluessel'])) {
-                ausgabe(400, ['fehler' => 'Der Schlüssel sieht nicht richtig aus (20 bis 200 Zeichen, ohne Leerzeichen).']);
+        // anderer Weg: die Zugangsdaten des alten gelten nicht weiter
+        $s = ($alt['anbieter'] ?? '') === $anbieter ? $alt : [];
+        $s['anbieter'] = $anbieter;
+        $felder = $anbieter === 'seven'
+            ? ['schluessel' => 'Der Schlüssel sieht nicht richtig aus (20 bis 200 Zeichen, ohne Leerzeichen).']
+            : ['benutzer' => 'Der Benutzername steht in der App am Handy unter „Cloud Server“ (ohne Leerzeichen).', 'passwort' => 'Das Passwort steht in der App am Handy unter „Cloud Server“ (ohne Leerzeichen).', 'server' => 'Eigener Server: eine Adresse mit https://, sonst leer lassen.'];
+        foreach ($felder as $k => $text) {
+            if (!isset($neu[$k]) || ($neu[$k] === '' && $k !== 'server')) {
+                continue;
             }
-            $s['schluessel'] = $neu['schluessel'];
+            if (!sms_feld_gueltig($k, $neu[$k])) {
+                ausgabe(400, ['fehler' => $text]);
+            }
+            $s[$k] = $neu[$k];
         }
-        if (isset($neu['absender'])) {
+        if ($anbieter === 'seven' && isset($neu['absender'])) {
             if (!is_string($neu['absender']) || mb_strlen($neu['absender']) > 40) {
                 ausgabe(400, ['fehler' => 'Absender: ein Name mit höchstens 11 Buchstaben und Ziffern oder eine Nummer mit Ländervorwahl.']);
             }
             $s['absender'] = sms_absender($neu['absender']);
         }
-        $s['anbieter'] = $s['anbieter'] ?? 'seven';
-        if (empty($s['schluessel'])) {
+        if ($anbieter === 'seven' && empty($s['schluessel'])) {
             ausgabe(400, ['fehler' => 'Den Schlüssel des SMS-Dienstes angeben.']);
         }
+        if ($anbieter === 'handy' && (empty($s['benutzer']) || empty($s['passwort']))) {
+            ausgabe(400, ['fehler' => 'Benutzername und Passwort aus der App am Handy angeben.']);
+        }
         $s['gespeichert'] = jetzt();
-        $s = array_intersect_key($s, array_flip(['anbieter', 'schluessel', 'absender', 'gespeichert']));
-        if (@file_put_contents($datei . '.neu', json_encode($s, JSON_PRETTY_PRINT), LOCK_EX) === false || !@rename($datei . '.neu', $datei)) {
+        $s = array_intersect_key($s, array_flip($anbieter === 'seven' ? ['anbieter', 'schluessel', 'absender', 'gespeichert'] : ['anbieter', 'benutzer', 'passwort', 'server', 'gespeichert']));
+        if (@file_put_contents($datei . '.neu', json_encode($s, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) === false || !@rename($datei . '.neu', $datei)) {
             ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
         }
         @chmod($datei, 0600);

@@ -20,6 +20,7 @@
 // Alles hier ist rein rechnend und ohne Netz testbar; das Laden macht
 // src/ui/weather.js.
 
+import { isLang } from './sprachen.js'
 import { waNumber } from './whatsapp.js'
 
 export const WEATHER_DEFAULTS = {
@@ -428,8 +429,42 @@ export const ALARM_DEFAULTS = {
   officeSms: '', // Stufe 2: weitere Nummern für SMS, mit Komma getrennt
 }
 
-/** SMS-Dienste, die der Webspace kennt (webspace-lib.php SMS_ANBIETER). */
-export const SMS_PROVIDERS = { seven: 'seven.io' }
+/** Wege für SMS, die der Webspace kennt (webspace-lib.php SMS_ANBIETER), in derselben Reihenfolge. */
+export const SMS_PROVIDERS = { handy: 'eigenes Android-Handy (SMS Gateway)', seven: 'seven.io (SMS-Dienst)' }
+
+/**
+ * Link zur Seite „Handy einrichten“ (wetter-alarm.php?aktion=handy): App ntfy laden, Thema mit einem Tipp abonnieren,
+ * Einstellungen für die Nacht, Probe. In der Sprache der Person (außer Deutsch mit &sprache=).
+ */
+export const alarmSetupLink = (address, topic, lang = 'de') => `${String(address).replace(/\/?$/, '/')}wetter-alarm.php?aktion=handy&t=${encodeURIComponent(topic)}${lang && lang !== 'de' && isLang(lang) ? `&sprache=${lang}` : ''}`
+
+const SETUP_TEXTS = {
+  de: { betreff: 'Winterdienst: Schnee-Alarm aufs Handy', text: 'Hallo {name},\n\nfür den Schnee-Alarm im Winterdienst bitte dein Handy einrichten. Das dauert ein paar Minuten und kostet nichts. Einfach diesen Link öffnen und die Schritte machen:\n{link}\n\nZum Schluss eine Probe schicken und auf „Bin wach“ tippen. Danke!', blatt: 'Handy für den Schnee-Alarm einrichten', scan: 'Mit der Kamera des Handys scannen und die Schritte machen.', geheim: 'Nur für diese Person. Nicht aufhängen.' },
+  bks: { betreff: 'Zimska služba: alarm za snijeg na telefonu', text: 'Zdravo, {name},\n\nza alarm za snijeg u zimskoj službi podesi svoj telefon. Traje nekoliko minuta i ništa ne košta. Otvori ovaj link i uradi korake:\n{link}\n\nNa kraju pošalji probu i dodirni „Budan/na sam“. Hvala!', blatt: 'Podesi telefon za alarm za snijeg', scan: 'Skeniraj kamerom telefona i uradi korake.', geheim: 'Samo za ovu osobu. Ne kačiti na zid.' },
+  ro: { betreff: 'Deszăpezire: alarma de zăpadă pe telefon', text: 'Bună, {name},\n\npentru alarma de zăpadă te rugăm să îți configurezi telefonul. Durează câteva minute și nu costă nimic. Deschide acest link și urmează pașii:\n{link}\n\nLa final trimite o probă și atinge „Sunt treaz”. Mulțumim!', blatt: 'Configurează telefonul pentru alarma de zăpadă', scan: 'Scanează cu camera telefonului și urmează pașii.', geheim: 'Doar pentru această persoană. Nu se afișează.' },
+  tr: { betreff: 'Kış hizmeti: telefonda kar alarmı', text: 'Merhaba {name},\n\nkış hizmetindeki kar alarmı için lütfen telefonunu ayarla. Birkaç dakika sürer ve ücretsizdir. Bu bağlantıyı aç ve adımları yap:\n{link}\n\nSonunda bir deneme gönder ve “Uyanığım”a dokun. Teşekkürler!', blatt: 'Telefonu kar alarmı için ayarla', scan: 'Telefonun kamerasıyla tara ve adımları yap.', geheim: 'Sadece bu kişi için. Asma.' },
+  hu: { betreff: 'Téli szolgálat: hóriasztás a telefonon', text: 'Szia {name}!\n\nKérjük, állítsd be a telefonodat a téli szolgálat hóriasztásához. Néhány percig tart, és ingyenes. Nyisd meg ezt a linket, és kövesd a lépéseket:\n{link}\n\nA végén küldj egy próbát, és koppints az „Ébren vagyok” gombra. Köszönjük!', blatt: 'Telefon beállítása a hóriasztáshoz', scan: 'Olvasd be a telefon kamerájával, és kövesd a lépéseket.', geheim: 'Csak ennek a személynek. Ne tedd ki.' },
+  en: { betreff: 'Winter service: snow alarm on your phone', text: 'Hello {name},\n\nplease set up your phone for the snow alarm of the winter service. It takes a few minutes and costs nothing. Open this link and follow the steps:\n{link}\n\nAt the end send a test and tap “I am awake”. Thank you!', blatt: 'Set up your phone for the snow alarm', scan: 'Scan with the phone camera and follow the steps.', geheim: 'For this person only. Do not put up.' },
+}
+export const SETUP_LANGS = Object.keys(SETUP_TEXTS)
+
+/** Einladung „Handy einrichten“ in der Sprache der Person: { subject, text } und die Zeilen fürs Blatt (sheet). */
+export function alarmInvite(lang, { name, link }) {
+  const t = SETUP_TEXTS[isLang(lang) && SETUP_TEXTS[lang] ? lang : 'de']
+  const fill = (x) => x.replace(/\{(\w+)\}/g, (m, k) => (k === 'name' ? String(name || '').split(' ')[0] : k === 'link' ? link : m))
+  return { subject: t.betreff, text: fill(t.text), sheet: { title: t.blatt, scan: t.scan, secret: t.geheim } }
+}
+
+/**
+ * Stand der Handys aus dem Stand des Webspace (handys: Thema → { bestaetigt, probe }): ready (bestätigt), waiting (Probe
+ * nach der letzten Bestätigung, noch offen) oder never. at: Zeitpunkt (Unix-Sekunden).
+ */
+export function phoneState(handys, topic) {
+  const h = (handys || {})[topic]
+  if (!h) return { state: 'never', at: null }
+  if (h.probe && (!h.bestaetigt || h.probe > h.bestaetigt)) return { state: 'waiting', at: h.probe, confirmed: h.bestaetigt || null }
+  return h.bestaetigt ? { state: 'ready', at: h.bestaetigt } : { state: 'never', at: null }
+}
 
 /**
  * Vorlage für den automatischen WhatsApp-Versand, so legt man sie bei Meta an (WhatsApp-Manager → Nachrichtenvorlagen):

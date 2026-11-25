@@ -6,9 +6,11 @@
 //     SharePoint noch im Browser; Stand „eingerichtet“ ohne Token. Probe-Nachricht.
 //  3. „Testalarm senden“: Push an alle aus Stufe 1, WhatsApp an die Angehakten; „Bin wach“ erscheint in der App.
 //  4. „WhatsApp entfernen“; Handy 390 px ohne Querscrollen.
-//  5. SMS: Häkchen je Person und Büro-Nummer in der Alarm-Datei, Zugang zum SMS-Dienst nur am Webspace, Probe mit
-//     Guthaben, Testalarm als SMS, Entfernen.
-// Ports 19836 (App), 19837 (PHP), 19838 (ntfy), 19839 (WhatsApp), 19840 (SMS-Dienst).
+//  5. SMS: Häkchen je Person und Büro-Nummer in der Alarm-Datei; Weg eigenes Handy (Vorgabe) oder seven.io; Zugang nur am
+//     Webspace, Probe mit Guthaben, Testalarm als SMS; später Wechsel zum eigenen Handy, Probe darüber, Entfernen.
+//  6. Handys prüfen: Spalte „Handy geprüft“, „Probe senden“ je Person, „Bin wach“ → „bereit“, Karte „Handys geprüft“,
+//     Einladung mit Link zur Seite „Handy einrichten“ in der Sprache der Person, Blätter mit QR-Code (PDF).
+// Ports 19836 (App), 19837 (PHP), 19838 (ntfy), 19839 (WhatsApp), 19840 (SMS-Dienst), 19842 (SMS-Gateway).
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -21,6 +23,9 @@ const NTFY = 19838
 const WA = 19839
 const SMS = 19840
 const SMS_KEY = 'smsKey0123456789abcdefABCDEF4321'
+const GATE = 19842
+const GATE_USER = 'H7XQ2B'
+const GATE_PASS = 'pw-3x9_kLq2'
 const TOKEN = `EAAG${'t0k3n'.repeat(30)}XYZ9`
 const NUMBER_ID = '123456789012345'
 const dir = join(P, 'schnee-app')
@@ -47,8 +52,15 @@ const seven = createServer(async (req, res) => {
   if (ok) smsListe.push(f)
   res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(ok ? { success: '100', balance: 12.34, messages: [{ id: '771', recipient: f.to, success: true }] } : { success: '900', messages: [] }))
 }).listen(SMS, '127.0.0.1')
+const gateListe = []
+const gate = createServer(async (req, res) => {
+  const m = JSON.parse((await body(req)) || '{}')
+  const ok = req.headers.authorization === `Basic ${Buffer.from(`${GATE_USER}:${GATE_PASS}`).toString('base64')}`
+  if (ok) gateListe.push(m)
+  res.writeHead(ok ? 202 : 401, { 'Content-Type': 'application/json' }).end(JSON.stringify(ok ? { id: 'g1', state: 'Pending' } : { message: 'Unauthorized' }))
+}).listen(GATE, '127.0.0.1')
 const server = startServer(PORT)
-const php = spawn('php', ['-S', `127.0.0.1:${PHP}`, '-t', R], { env: { ...process.env, WETTER_ALARM_ORDNER: dir, WHATSAPP_API: `http://127.0.0.1:${WA}`, SMS_API: `http://127.0.0.1:${SMS}`, TMPDIR: dir, NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' }, stdio: 'ignore' })
+const php = spawn('php', ['-S', `127.0.0.1:${PHP}`, '-t', R], { env: { ...process.env, WETTER_ALARM_ORDNER: dir, WHATSAPP_API: `http://127.0.0.1:${WA}`, SMS_API: `http://127.0.0.1:${SMS}`, SMS_GATE_API: `http://127.0.0.1:${GATE}/3rdparty/v1`, TMPDIR: dir, NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' }, stdio: 'ignore' })
 await wait(1200)
 const browser = await chromium.launch()
 const errors = []
@@ -155,15 +167,20 @@ try {
   check('„Probe senden“: Nachricht geht mit Ländervorwahl an Meta', !!(await O.toastWait(/Probe an \+436645555555 gesendet/, 15000)) && whatsapps.length === 1 && whatsapps[0].to === '436645555555' && whatsapps[0].pfad === `/v25.0/${NUMBER_ID}/messages` && whatsapps[0].template.name === 'winterdienst_alarm', JSON.stringify(whatsapps[0] || {}).slice(0, 200))
 
   // ------------------------------------------------ 5. SMS-Zugang (im selben Dialog)
-  check('Abschnitt „SMS von selbst“: erklärt SMS-Dienst, Kosten und das Wecken; Stand „noch nicht eingerichtet“', /SMS von selbst/.test(await modal()) && /SMS-Dienst/.test(await modal()) && /seven\.io/.test(await modal()) && /einige Cent/.test(await modal()) && /Ausnahme von „Nicht stören“/.test(await modal()) && /noch nicht eingerichtet/.test(await smsState()), await smsState())
+  check('Abschnitt „SMS von selbst“: Vorgabe eigenes Android-Handy (gratis, App „SMS Gateway for Android“), Hinweis zum Wecken', /SMS von selbst/.test(await modal()) && (await O.page.inputValue('#al-sms-provider')) === 'handy' && /Gratis mit einem eigenen Android-Handy/.test(await modal()) && /SMS Gateway for Android/.test(await modal()) && /von „Nicht stören“ ausnehmen/.test(await modal()) && (await O.page.locator('#al-sms-user').count()) === 1 && /noch nicht eingerichtet/.test(await smsState()), await smsState())
+  await O.page.click('.modal [data-action="wx-sms-save"]')
+  check('Eigenes Handy ohne Benutzername und Passwort: Hinweis, nichts gesendet', !!(await O.toastWait(/Bitte Benutzername und Passwort aus der App am Handy eintragen/)) && !calls.includes('POST sms'))
+  await O.page.selectOption('#al-sms-provider', 'seven')
+  await O.page.waitForSelector('#al-sms-key')
+  check('Weg seven.io gewählt: Schlüssel, Absender, Kosten und Hinweis auf die Registrierung', /einige Cent je SMS/.test(await modal()) && (await O.page.locator('#al-sms-user').count()) === 0 && /seit 1\.10\.2026 nur an, wenn der Name registriert ist/.test(await modal()))
   await O.page.click('.modal [data-action="wx-sms-save"]')
   check('Ohne Schlüssel: Hinweis, nichts gesendet', !!(await O.toastWait(/Bitte den Schlüssel des SMS-Dienstes eintragen/)) && !calls.includes('POST sms'))
   await O.page.fill('#al-sms-key', SMS_KEY)
   await O.page.fill('#al-sms-sender', 'Cleanos')
   await O.page.click('.modal [data-action="wx-sms-save"]')
   check('„Am Webspace speichern“ (SMS): gespeichert', !!(await O.toastWait(/SMS am Webspace gespeichert/, 15000)), await O.text('#toast'))
-  check('Stand „eingerichtet“ mit Dienst, Absender und den letzten vier Zeichen; das Schlüssel-Feld ist wieder leer', !!(await O.waitFor(async () => /eingerichtet seven\.io, Absender Cleanos, Schlüssel endet auf …4321/.test(await smsState()), 10000)) && (await O.page.inputValue('#al-sms-key')) === '' && (await O.page.getAttribute('#al-sms-key', 'type')) === 'password', await smsState())
-  check('Absender als Name: Hinweis auf die Registrierung in Österreich und Warnung beim gespeicherten Namen', /seit 1\.10\.2026 nur an, wenn der Name registriert ist/.test(await modal()) && /Der gespeicherte Absender ist ein Name/.test(await modal()))
+  check('Stand „eingerichtet“ mit Dienst, Absender und den letzten vier Zeichen; das Schlüssel-Feld ist wieder leer', !!(await O.waitFor(async () => /eingerichtet seven\.io \(SMS-Dienst\), Absender Cleanos, Schlüssel endet auf …4321/.test(await smsState()), 10000)) && (await O.page.inputValue('#al-sms-key')) === '' && (await O.page.getAttribute('#al-sms-key', 'type')) === 'password', await smsState())
+  check('Absender als Name: Warnung beim gespeicherten Namen', /Der gespeicherte Absender ist ein Name/.test(await modal()))
   await wait(1500)
   const smsInSharePoint = [...SP.drive.items.entries()].filter(([, it]) => Buffer.from(it.content).includes(SMS_KEY)).map(([p]) => p)
   const smsInBrowser = await O.page.evaluate((k) => JSON.stringify({ ...localStorage }).includes(k) || JSON.stringify({ ...sessionStorage }).includes(k) || document.body.innerHTML.includes(k), SMS_KEY)
@@ -192,6 +209,39 @@ try {
   await O.page.click('main [data-action="wx-alarm-status"]')
   check('„Bin wach“ über den Knopf der WhatsApp-Nachricht: die App zeigt, wer wach ist', wach.status === 200 && !!(await O.waitFor(async () => /wach: Dragan Jović/.test(await O.text('main .wx-alarm')), 15000)), (await O.text('main .wx-alarm')).slice(0, 300))
 
+  // ------------------------------------------------ 6. Handys prüfen
+  await O.waitFor(async () => /Handys geprüft/.test(await O.text('main .wx-alarm')), 15000)
+  t = await O.text('main .wx-alarm')
+  check('Karte: „Handys geprüft: 1 von 4“ (Dragan hat bestätigt), wer noch fehlt', /Handys geprüft: 1 von 4/.test(t) && /noch nicht bestätigt: Gül Arslan, Elif Kaya, Irina Bogdan/.test(t), t.slice(0, 400))
+  await openDialog()
+  const ready = () => O.page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.modal td.al-ready')].map((td) => [td.closest('tr').cells[0].innerText.trim(), td.innerText.replace(/\s+/g, ' ').trim()])))
+  let st6 = await O.waitFor(async () => { const r = await ready(); return /bereit/.test(r['Dragan Jović'] || '') && r })
+  check('Spalte „Handy geprüft“: Dragan bereit, die anderen noch nicht geprüft; „Probe senden“ je Person', !!st6 && /^bereit /.test(st6['Dragan Jović']) && st6['Gül Arslan'] === 'noch nicht geprüft' && (await O.page.locator('.modal [data-action="wx-alarm-probe"]').count()) === 4, JSON.stringify(st6))
+  const topicOf = (name) => O.page.evaluate((n) => [...document.querySelectorAll('.modal td.al-ready')].find((td) => td.closest('tr').cells[0].innerText.trim() === n)?.closest('tr').querySelector('code')?.textContent, name)
+  const gTopic = await topicOf('Gül Arslan')
+  const copyLink = await O.page.evaluate((tp) => [...document.querySelectorAll('.modal [data-action="wx-alarm-copy"]')].map((b) => b.dataset.text).find((x) => x.includes(`t=${tp}`)), gTopic)
+  check('„Link kopieren“: Link zur Seite „Handy einrichten“ mit dem Thema der Person', new RegExp(`^http://localhost:${PORT}/wetter-alarm\\.php\\?aktion=handy&t=${gTopic}(&sprache=[a-z]+)?$`).test(copyLink || ''), copyLink)
+  const waInvite = await O.page.evaluate((tp) => [...document.querySelectorAll('.modal a.wa-btn')].map((a) => decodeURIComponent(a.getAttribute('href'))).find((x) => x.includes(`t=${tp}`)), gTopic)
+  check('Einladung per WhatsApp: Text mit dem Link zur Einrichtungsseite', !!waInvite && /aktion=handy&t=/.test(waInvite) && /(Schnee-Alarm|alarm|Alarm)/.test(waInvite), (waInvite || '').slice(0, 200))
+  const page = await (await fetch(copyLink.replace(`http://localhost:${PORT}`, `http://127.0.0.1:${PHP}`))).text()
+  check('Die Einrichtungsseite am Webspace kennt die Person', /Gül Arslan/.test(page) && /ntfy:\/\//.test(page))
+  const before = pushes.length
+  await O.page.click(`.modal tr:has(code:text-is("${gTopic}")) [data-action="wx-alarm-probe"]`)
+  check('„Probe senden“: Push an Gül mit „Probe Winterdienst“', !!(await O.toastWait(/Probe an Gül Arslan gesendet/, 15000)) && pushes.length === before + 1 && pushes.at(-1).topic === gTopic && pushes.at(-1).title === 'Probe Winterdienst', JSON.stringify(pushes.at(-1) || {}).slice(0, 200))
+  st6 = await O.waitFor(async () => { const r = await ready(); return /Probe/.test(r['Gül Arslan'] || '') && r })
+  check('Spalte zeigt: Probe gesendet, noch nicht bestätigt', !!st6 && /^Probe \d{2}\.\d{2}\., \d{2}:\d{2}, noch nicht bestätigt$/.test(st6['Gül Arslan']), JSON.stringify(st6))
+  const probeToken = pushes.at(-1).actions.find((a) => a.action === 'http').url.match(/t=([a-f0-9]{24})/)[1]
+  await fetch(`http://127.0.0.1:${PHP}/wetter-alarm.php?aktion=wach&t=${probeToken}`, { method: 'POST' })
+  await O.closeModals()
+  await O.page.click('main [data-action="wx-alarm-status"]')
+  check('Nach „Bin wach“ zur Probe: Karte „Handys geprüft: 2 von 4“', !!(await O.waitFor(async () => /Handys geprüft: 2 von 4/.test(await O.text('main .wx-alarm')), 15000)), (await O.text('main .wx-alarm')).slice(0, 300))
+  await openDialog()
+  check('Spalte: Gül bereit', !!(await O.waitFor(async () => /^bereit /.test((await ready())['Gül Arslan'] || ''), 10000)))
+  const [sheets] = await Promise.all([O.page.waitForEvent('download', { timeout: 30000 }), O.page.click('.modal [data-action="wx-alarm-sheets"]')])
+  const sheetPdf = readFileSync(await sheets.path())
+  check('„Blätter zum Einrichten (PDF)“: ein PDF für alle vier', sheets.suggestedFilename() === 'Schnee-Alarm_Handy_einrichten.pdf' && sheetPdf.subarray(0, 5).toString() === '%PDF-' && !!(await O.toastWait(/4 Blätter erstellt/, 10000)), `${sheets.suggestedFilename()} ${sheetPdf.length}`)
+  await O.closeModals()
+
   // ------------------------------------------------ 4. Entfernen, Handy
   await openDialog()
   await O.waitFor(async () => /eingerichtet Telefonnummer-ID/.test(await waState()), 10000)
@@ -199,6 +249,15 @@ try {
   await O.page.click('.modal [data-action="wx-wa-remove"]')
   check('„WhatsApp entfernen“: Zugang am Webspace gelöscht, Stand „noch nicht eingerichtet“', !!(await O.toastWait(/WhatsApp entfernt/, 15000)) && !!(await O.waitFor(async () => /noch nicht eingerichtet/.test(await waState()), 10000)) && !existsSync(join(dir, 'whatsapp.json')))
   check('SMS ist davon unberührt: weiter „eingerichtet“, Häkchen wie gespeichert', /eingerichtet seven\.io/.test(await smsState()) && (await rows()).filter((p) => p.sms).map((p) => p.name).sort().join() === 'Dragan Jović,Gül Arslan')
+  await O.page.selectOption('#al-sms-provider', 'handy')
+  await O.page.waitForSelector('#al-sms-user')
+  await O.page.fill('#al-sms-user', GATE_USER)
+  await O.page.fill('#al-sms-pass', GATE_PASS)
+  await O.page.click('.modal [data-action="wx-sms-save"]')
+  check('Wechsel zum eigenen Android-Handy: gespeichert, Stand mit Benutzername, Passwort-Feld wieder leer', !!(await O.toastWait(/SMS am Webspace gespeichert/, 15000)) && !!(await O.waitFor(async () => /eingerichtet eigenes Android-Handy \(SMS Gateway\), Benutzer H7XQ2B/.test(await smsState()), 10000)) && (await O.page.inputValue('#al-sms-pass')) === '' && JSON.parse(readFileSync(join(dir, 'sms.json'), 'utf8')).passwort === GATE_PASS, await smsState())
+  await O.page.fill('#al-sms-test', '0664 7777777')
+  await O.page.click('.modal [data-action="wx-sms-test"]')
+  check('Probe-SMS über das eigene Handy', !!(await O.toastWait(/Probe-SMS an \+436647777777 gesendet/, 15000)) && gateListe.length === 1 && gateListe[0].phoneNumbers.join() === '+436647777777', JSON.stringify(gateListe[0] || {}))
   await O.page.click('.modal [data-action="wx-sms-remove"]')
   check('„SMS entfernen“: Zugang am Webspace gelöscht, Stand „noch nicht eingerichtet“', !!(await O.toastWait(/SMS entfernt/, 15000)) && !!(await O.waitFor(async () => /noch nicht eingerichtet/.test(await smsState()), 10000)) && !existsSync(join(dir, 'sms.json')))
   await O.ctx.close()
@@ -221,4 +280,5 @@ php.kill()
 ntfy.close()
 meta.close()
 seven.close()
+gate.close()
 await finish(browser, [server], errors)

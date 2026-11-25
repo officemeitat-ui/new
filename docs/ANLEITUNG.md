@@ -1228,15 +1228,16 @@ Der Schnee-Alarm prüft am Webspace alle 10 Minuten je Ort Vorhersage und Warnun
 
 *In der App: Wetter & Winterdienst*
 
-Der Server kann den Schnee-Alarm zusätzlich als SMS schicken: kurzer Text mit der Lage und einem Link zum Bestätigen. Das geht auf jedem Handy ohne eigene App, braucht aber einen SMS-Dienst, denn ein Webspace kann selbst keine SMS senden. Eingebaut ist seven.io: Guthaben aufladen, Schlüssel eintragen, fertig.
+Der Server kann den Schnee-Alarm zusätzlich als SMS schicken: kurzer Text mit der Lage und einem Link zum Bestätigen. Ein Webspace kann selbst keine SMS senden. Gratis geht es mit einem eigenen Android-Handy mit SIM-Karte und der App „SMS Gateway for Android“; sonst über den SMS-Dienst seven.io.
 
-1. Beim SMS-Dienst seven.io ein Konto anlegen, Guthaben aufladen und einen API-Schlüssel erzeugen.
-2. Im Alarm-Dialog unter „SMS von selbst“ den Schlüssel eintragen (Absender leer lassen) und „Am Webspace speichern“ klicken.
+1. Altes Android-Handy mit SIM-Karte (SMS im Tarif) ans Ladegerät und ins WLAN; die App „SMS Gateway for Android“ von GitHub installieren und „Cloud Server“ einschalten.
+2. Im Alarm-Dialog unter „SMS von selbst“ den Weg „eigenes Android-Handy“ lassen, Benutzername und Passwort aus der App eintragen und „Am Webspace speichern“ klicken.
 3. Mit „Probe senden“ eine SMS ans eigene Handy schicken.
 4. Bei den Personen „SMS“ anhaken (Handynummer im Stammblatt), dann „Speichern und übertragen“.
 5. Mit „Testalarm senden“ alle Wege prüfen.
 
-> Tipp: Ein Name als Absender muss in Österreich seit 1.10.2026 registriert sein, sonst kommt die SMS nicht an. Ohne Registrierung den Absender leer lassen.
+> Tipp: Beim eigenen Handy kommen die SMS von dessen Nummer: keine Registrierung, nur der eigene Tarif. Das Handy muss eingeschaltet, online und am Strom bleiben.
+> Tipp: Über seven.io: Absender leer lassen. Ein Name als Absender muss in Österreich seit 1.10.2026 registriert sein, sonst kommt die SMS nicht an.
 > Tipp: Der Schlüssel liegt nur am Webspace und wird nie wieder angezeigt.
 > Tipp: Eine SMS piept nur kurz: am Handy den Absender als Kontakt speichern, einen lauten Ton wählen und ihn von „Nicht stören“ ausnehmen.
 > Tipp: Ist das Guthaben aufgebraucht, steht das im Protokoll des Alarms; der Dialog zeigt das Guthaben nach jeder SMS.
@@ -1265,16 +1266,20 @@ Der Server kann den Schnee-Alarm zusätzlich zu Push und E-Mail von selbst per W
 
 *Wer die Einsatzplanung bearbeiten darf*
 
-### Schnee-Alarm am Handy (ntfy)
+### Schnee-Alarm am Handy (ntfy) einrichten und prüfen
 
 *In der App: Wetter & Winterdienst*
 
-Jede Person in Stufe 1 und 2 bekommt ein eigenes ntfy-Thema. Auf dem Handy die App ntfy installieren, auf + tippen und das Thema abonnieren. Beim Alarm mit „Bin wach“ bestätigen.
+Gratis und am verlässlichsten weckt die App ntfy (Android ab 8, iPhone). Jede Person bekommt einen Link zur Seite „Handy einrichten“ in ihrer Sprache: App laden, mit einem Tipp abonnieren, Einstellungen für die Nacht, Probe mit „Bin wach“. Danach steht im Alarm-Dialog „bereit“.
 
-1. Im Alarm-Dialog bei der Person „Einladung per E-Mail“ schicken oder „Thema kopieren“.
-2. Am Handy ntfy installieren, auf + tippen und das Thema abonnieren.
-3. Beim Thema höchste Priorität und „Nicht stören übergehen“ erlauben (iPhone: unter Fokus ntfy erlauben).
-4. Mit „Testalarm senden“ prüfen.
+1. Im Alarm-Dialog bei der Person „Einladung per WhatsApp“ oder „per E-Mail“ schicken, oder „Blätter zum Einrichten (PDF)“ drucken und jeder Person ihr Blatt geben.
+2. Die Person öffnet den Link bzw. scannt den QR-Code und macht die vier Schritte auf der Seite.
+3. Kommt die Probe an, tippt sie „Bin wach“; in der Spalte „Handy geprüft“ steht dann „bereit“.
+4. Vor dem ersten Schnee bei allen „Probe senden“; die Karte „Schnee-Alarm“ zeigt, wer noch fehlt.
+
+> Tipp: Auf Android ntfy vom Energiesparen ausnehmen, sonst beendet das Handy die App im Hintergrund.
+> Tipp: Huawei-Handys ohne Google: ntfy aus F-Droid.
+> Tipp: Der Link wirkt wie ein Passwort: nur der Person geben, das Blatt nicht aufhängen.
 
 ### Winterdienst-Protokoll vom Handy
 
