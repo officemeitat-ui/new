@@ -20,6 +20,8 @@
 // Alles hier ist rein rechnend und ohne Netz testbar; das Laden macht
 // src/ui/weather.js.
 
+import { waNumber } from './whatsapp.js'
+
 export const WEATHER_DEFAULTS = {
   locations: [{ name: 'Salzburg', lat: 47.8095, lon: 13.055 }],
   snowCm: 1, // Winterdienst ab so viel Neuschnee (ca. 1 mm Wasser = 1 cm Schnee)
@@ -420,7 +422,29 @@ export const ALARM_DEFAULTS = {
   officeEmails: '', // Stufe 2: weitere E-Mail-Adressen, mit Komma getrennt
   places: {}, // je Ort: { active, level1: [Personen], level2: [Personen] }
   topics: {}, // je Person und fürs Büro („office“): ntfy-Thema
+  whatsapp: {}, // je Person: true = zusätzlich per WhatsApp (Nummer aus dem Stammblatt; braucht die Schnittstelle von Meta am Webspace)
+  officeWhatsapp: '', // Stufe 2: weitere Nummern für WhatsApp, mit Komma getrennt
 }
+
+/**
+ * Vorlage für den automatischen WhatsApp-Versand, so legt man sie bei Meta an (WhatsApp-Manager → Nachrichtenvorlagen):
+ * zwei Variablen im Text ({{1}} Überschrift, {{2}} Text) und ein Knopf „Website besuchen“, dessen Adresse mit einer
+ * Variable endet. Der feste Text lässt sich frei ändern, solange die Variablen bleiben.
+ */
+export const WHATSAPP_TEMPLATE = {
+  name: 'winterdienst_alarm',
+  language: 'de',
+  version: 'v25.0',
+  body: 'Winterdienst-Meldung: {{1}} – {{2}} (automatische Nachricht)',
+  button: 'Bin wach',
+  samples: ['Winterdienst Salzburg', 'Schneefall ab 04:00 Uhr, ca. 6 cm in 12 h. Objekte: Wohnanlage Lehen. Bitte mit „Bin wach“ bestätigen.', 'a1b2c3d4e5f6a1b2c3d4e5f6'],
+}
+
+/** Adresse des Knopfs der Vorlage (endet mit der Variable {{1}}, dort setzt der Server den Bestätigungs-Code ein). */
+export const whatsappButtonUrl = (address) => `${String(address).replace(/\/?$/, '/')}wetter-alarm.php?aktion=wach&t={{1}}`
+
+/** Nummern aus einem Feld (Komma, Strichpunkt oder Zeilen) für WhatsApp: nur brauchbare, jede einmal. */
+export const whatsappNumbers = (text) => [...new Set(String(text || '').split(/[,;\n]+/).map((x) => waNumber(x)).filter(Boolean))]
 
 /** Personen, die an einem Ort Winterdienst haben (Teams der Objekte), und die Objekte selbst. */
 export function winterAt(place, objects, locations) {
@@ -464,15 +488,18 @@ export function alarmFile({ alarm, locations, objects, employees, address, absen
     const out = { name: e.name }
     if (a.topics?.[id]) out.ntfy = a.topics[id]
     if (withEmail && e.email) out.email = e.email
+    // WhatsApp von selbst (Schnittstelle von Meta am Webspace): nur wer angehakt ist, Nummer aus dem Stammblatt
+    if (a.whatsapp?.[id] && waNumber(e.phone)) out.whatsapp = waNumber(e.phone)
     // Sprache aus dem Stammblatt: Knöpfe der Push-Nachricht, Seiten „Bin wach“ und Protokoll (wetter-alarm.php)
     if (e.lang && e.lang !== 'de') out.sprache = e.lang
     const off = away(id)
     if (off.length) out.abwesend = off
-    return out.ntfy || out.email ? out : null
+    return out.ntfy || out.email || out.whatsapp ? out : null
   }
   const office = [
     ...(a.topics?.office ? [{ name: 'Büro', ntfy: a.topics.office }] : []),
     ...String(a.officeEmails || '').split(/[,;\s]+/).filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)).map((email) => ({ name: 'Büro', email })),
+    ...whatsappNumbers(a.officeWhatsapp).map((whatsapp) => ({ name: 'Büro', whatsapp })),
   ]
   const orte = (locations || [])
     .map((loc) => ({ loc, set: alarmPlace(a, loc, objects, locations) }))
@@ -537,7 +564,7 @@ export function alarmProblems(file) {
   const out = []
   for (const o of file.orte) {
     if (!o.stufe1.length) out.push(`${o.name}: niemand in Stufe 1`)
-    else if (!o.stufe1.some((p) => p.ntfy)) out.push(`${o.name}: Stufe 1 ohne Handy (ntfy)`)
+    else if (!o.stufe1.some((p) => p.ntfy || p.whatsapp)) out.push(`${o.name}: Stufe 1 ohne Handy (ntfy oder WhatsApp)`)
   }
   if (!file.orte.length) out.push('kein Ort eingeschaltet')
   return out

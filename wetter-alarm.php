@@ -7,6 +7,8 @@
 // oder Glatteiswarnung gilt:
 //
 //  - Push aufs Handy über ntfy (höchste Priorität, Knopf „Bin wach“) und E-Mail;
+//  - dazu WhatsApp von selbst, wenn die Schnittstelle von Meta eingerichtet ist (privat/whatsapp.json, Vorlage mit
+//    Knopf „Bin wach“; webspace-lib.php) und die Person in der App „WhatsApp“ angehakt hat (stufe1[].whatsapp);
 //  - bestätigt in Stufe 1 niemand binnen 15 Minuten, geht der Alarm an Stufe 2 (z. B. Büro);
 //  - ein Ort meldet sich höchstens alle 8 Stunden neu, außer die Warnstufe steigt;
 //  - optional Ruhezeit (z. B. 22–3 Uhr): Alarm erst am Ende, Warnung orange/rot sofort.
@@ -20,6 +22,9 @@
 //   (aus dem Stammblatt, orte[].stufe1[].sprache; am Handy gemerkt wie bei „Mein Dienstplan“, ?sprache=);
 //   Texte in mein-plan-texte.php. Der Text des Alarms selbst bleibt deutsch.
 //   wetter-alarm.php?aktion=status|test|speichern|protokolle|foto  aus der App, Schlüssel im Kopf X-Schluessel
+//   wetter-alarm.php?aktion=whatsapp        GET: Stand (ohne Token), POST: { token?, nummerId?, vorlage?, sprache?, version?,
+//                                           entfernen? } speichert die Zugangsdaten für WhatsApp am Webspace
+//   wetter-alarm.php?aktion=whatsapp-test   POST { an }: Probe-Nachricht an eine Nummer (höchstens 10 je Stunde)
 //
 // Einstellungen: privat/wetter-alarm.json (erstellt die App unter Wetter & Winterdienst →
 // Alarm einrichten). Protokolle und Fotos: privat/winterdienst/ (die App übernimmt sie nach
@@ -37,6 +42,7 @@ require __DIR__ . '/webspace-lib.php';
 
 const ALARM_STANDARD = ['vorlaufStunden' => 3, 'schneeCm' => 0.3, 'glaetteC' => 1, 'pauseStunden' => 8, 'eskalationMinuten' => 15, 'ruheVon' => '', 'ruheBis' => '', 'ruheAusnahmeStufe' => 2, 'ohneDatenStunden' => 2];
 const STUFE_TEXT = [1 => 'gelb', 2 => 'orange', 3 => 'rot'];
+const WHATSAPP_TAG = 150; // höchstens so viele WhatsApp-Nachrichten am Tag (Schutz vor Kosten, falls etwas schiefläuft)
 
 $cli = PHP_SAPI === 'cli';
 
@@ -348,8 +354,53 @@ function adresse(array $e): string
     return rtrim((string) ($e['adresse'] ?? ''), '/') . '/';
 }
 
-/** An eine Person: ntfy (Push, höchste Priorität, Knopf „Bin wach“) und/oder E-Mail. Liefert Fehlertexte. */
-function benachrichtigen(array $e, array $person, string $titel, string $text, ?string $token): array
+/** WhatsApp-Einstellungen dieses Aufrufs (einmal gelesen); null: nicht eingerichtet. */
+function whatsapp(): ?array
+{
+    static $w = false;
+    if ($w === false) {
+        $w = whatsapp_einstellungen(ordner());
+    }
+    return $w;
+}
+
+/** WhatsApp an eine Nummer, mit der Grenze je Tag (WHATSAPP_TAG). Liefert '' oder den Fehler. */
+function whatsapp_an(array $w, string $an, string $titel, string $text, string $knopf): string
+{
+    $datei = ordner() . '/whatsapp-zaehler.json';
+    $tag = uhrzeit(jetzt(), 'Y-m-d');
+    $z = json_decode((string) @file_get_contents($datei), true);
+    $n = is_array($z) && ($z['tag'] ?? '') === $tag ? (int) ($z['anzahl'] ?? 0) : 0;
+    if ($n >= WHATSAPP_TAG) {
+        return 'Grenze von ' . WHATSAPP_TAG . ' Nachrichten am Tag erreicht';
+    }
+    $f = whatsapp_senden($w, $an, [$titel, $text], $knopf);
+    if ($f === '') {
+        @file_put_contents($datei, json_encode(['tag' => $tag, 'anzahl' => $n + 1]), LOCK_EX);
+    }
+    return $f;
+}
+
+/**
+ * WhatsApp an eine Person über die Schnittstelle von Meta: Vorlage mit Überschrift, Text und Knopf (mit Code: „Bin wach“,
+ * ohne Code führt er zur App). Nur wer eine Nummer in der Alarm-Datei hat und nur, wenn WhatsApp eingerichtet ist.
+ */
+function whatsapp_person(array $person, string $titel, string $text, ?string $token): array
+{
+    $w = whatsapp();
+    if (!$w || !is_string($person['whatsapp'] ?? null) || $person['whatsapp'] === '') {
+        return [];
+    }
+    $f = whatsapp_an($w, $person['whatsapp'], $titel, $text, $token ?: 'info');
+    return $f !== '' ? [sprintf('WhatsApp an %s: %s', $person['name'] ?? '?', $f)] : [];
+}
+
+/**
+ * An eine Person: ntfy (Push, höchste Priorität, Knopf „Bin wach“) und/oder E-Mail; mit $whatsapp danach auch WhatsApp.
+ * Liefert Fehlertexte. Mehrere Personen: alarm_senden schickt zuerst allen Push und E-Mail, dann WhatsApp (antwortet
+ * Meta langsam, wartet darauf kein Push).
+ */
+function benachrichtigen(array $e, array $person, string $titel, string $text, ?string $token, bool $whatsapp = true): array
 {
     $fehler = [];
     $app = adresse($e) . '#wetter';
@@ -388,17 +439,23 @@ function benachrichtigen(array $e, array $person, string $titel, string $text, ?
             $fehler[] = sprintf('E-Mail an %s nicht versendet', $person['name'] ?? $person['email']);
         }
     }
-    return $fehler;
+    return $whatsapp ? array_merge($fehler, whatsapp_person($person, $titel, $text, $token)) : $fehler;
 }
 
 /** Alarm an eine Liste von Personen senden, je Person ein eigener Bestätigungs-Code. */
 function alarm_senden(array $e, array &$alarm, array $personen, string $titel, string $text): array
 {
     $fehler = [];
-    foreach ($personen as $p) {
+    $codes = [];
+    foreach ($personen as $i => $p) {
         $token = bin2hex(random_bytes(12));
+        $codes[$i] = $token;
         $alarm['empfaenger'][$token] = ['name' => (string) ($p['name'] ?? ''), 'stufe' => $alarm['eskaliert'] ? 2 : 1] + (sprache_gueltig($p['sprache'] ?? null) ? ['sprache' => $p['sprache']] : []);
-        $fehler = array_merge($fehler, benachrichtigen($e, $p, $titel, $text, $token));
+        $fehler = array_merge($fehler, benachrichtigen($e, $p, $titel, $text, $token, false));
+    }
+    // WhatsApp erst, wenn alle ihren Push haben
+    foreach ($personen as $i => $p) {
+        $fehler = array_merge($fehler, whatsapp_person($p, $titel, $text, $codes[$i]));
     }
     return $fehler;
 }
@@ -494,6 +551,11 @@ $methode = $cli ? 'CLI' : ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
 // „Bin wach“: GET zeigt eine Seite mit Knopf (E-Mail-Prüfprogramme öffnen Links von selbst), POST bestätigt
 if ($aktion === 'wach') {
+    // Knopf einer WhatsApp-Nachricht ohne Bestätigung (z. B. „keine Wetterdaten“): gleich zur App
+    if (($_GET['t'] ?? '') === 'info' && $e) {
+        header('Location: ' . adresse($e) . '#wetter', true, 302);
+        exit;
+    }
     $token = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['t'] ?? ''));
     if (strlen($token) !== 24) {
         sprache_waehlen([], true);
@@ -727,7 +789,7 @@ if ($aktion === 'status') {
             'alarm' => $a ? ['gesendet' => $a['gesendet'], 'text' => $a['text'], 'test' => !empty($a['test']), 'eskaliert' => $a['eskaliert'], 'wach' => array_values(array_map(fn ($t) => ['name' => $a['empfaenger'][$t]['name'] ?? '?', 'zeit' => $a['wach'][$t]], array_keys($a['wach'])))] : null,
         ];
     }
-    ausgabe(200, ['jetzt' => jetzt(), 'letztePruefung' => $stand['letztePruefung'] ?? null, 'orte' => $orte, 'protokoll' => array_slice($stand['protokoll'] ?? [], 0, 20)]);
+    ausgabe(200, ['jetzt' => jetzt(), 'letztePruefung' => $stand['letztePruefung'] ?? null, 'orte' => $orte, 'protokoll' => array_slice($stand['protokoll'] ?? [], 0, 20), 'whatsapp' => whatsapp() !== null]);
 }
 if ($aktion === 'test' && ($cli || $methode === 'POST')) {
     $nur = $cli ? ($argv[2] ?? '') : (string) ($_GET['ort'] ?? '');
@@ -746,6 +808,80 @@ if ($aktion === 'test' && ($cli || $methode === 'POST')) {
         return $aus;
     });
     ausgabe($bericht ? 200 : 404, $bericht ?: ['fehler' => 'Ort nicht gefunden']);
+}
+// WhatsApp: Zugangsdaten für die Schnittstelle von Meta (nur am Webspace, das Token kommt nie zurück)
+if ($aktion === 'whatsapp' || $aktion === 'whatsapp-test') {
+    $datei = ordner() . '/whatsapp.json';
+    $stand_wa = function () use ($datei): array {
+        $w = whatsapp_einstellungen(ordner());
+        $roh = json_decode((string) @file_get_contents($datei), true);
+        return $w
+            ? ['eingerichtet' => true, 'nummerId' => $w['nummerId'], 'vorlage' => $w['vorlage'], 'sprache' => $w['sprache'], 'version' => $w['version'], 'tokenEnde' => substr($w['token'], -4), 'gespeichert' => (int) ($w['gespeichert'] ?? 0)]
+            : ['eingerichtet' => false, 'vorlage' => WHATSAPP_VORLAGE, 'sprache' => 'de', 'version' => WHATSAPP_VERSION, 'unvollstaendig' => is_array($roh)];
+    };
+    if ($aktion === 'whatsapp-test') {
+        if ($methode !== 'POST') {
+            ausgabe(405, ['fehler' => 'POST erwartet']);
+        }
+        $w = whatsapp_einstellungen(ordner());
+        if (!$w) {
+            ausgabe(409, ['fehler' => 'WhatsApp ist am Webspace noch nicht eingerichtet (Zugriffstoken und Telefonnummer-ID speichern).']);
+        }
+        $daten = json_decode((string) file_get_contents('php://input'), true);
+        $an = is_string($daten['an'] ?? null) ? (string) preg_replace('/\D/', '', $daten['an']) : '';
+        // höchstens 10 Proben je Stunde
+        $darf = mit_stand(function (array &$stand) {
+            $stand['waProben'] = array_values(array_filter((array) ($stand['waProben'] ?? []), fn ($t) => (int) $t > jetzt() - 3600));
+            if (count($stand['waProben']) >= 10) {
+                return false;
+            }
+            $stand['waProben'][] = jetzt();
+            return true;
+        });
+        if (!$darf) {
+            ausgabe(429, ['fehler' => 'Zu viele Proben in dieser Stunde (höchstens 10).']);
+        }
+        $f = whatsapp_an($w, $an, 'Probe', 'So kommt eine Nachricht vom Winterdienst an. Der Knopf öffnet die App.', 'info');
+        ausgabe($f === '' ? 200 : 502, $f === '' ? ['gesendet' => true] : ['fehler' => $f]);
+    }
+    if ($methode === 'POST') {
+        $neu = json_decode((string) file_get_contents('php://input'), true);
+        if (!is_array($neu)) {
+            ausgabe(400, ['fehler' => 'POST mit JSON erwartet']);
+        }
+        if (!empty($neu['entfernen'])) {
+            @unlink($datei);
+            ausgabe(200, $stand_wa());
+        }
+        $alt = json_decode((string) @file_get_contents($datei), true);
+        $w = is_array($alt) ? $alt : [];
+        $felder = [
+            'token' => ['/^[A-Za-z0-9_|.\-]{40,1000}$/', 'Das Zugriffstoken sieht nicht richtig aus (40 bis 1000 Zeichen, ohne Leerzeichen).'],
+            'nummerId' => ['/^\d{6,20}$/', 'Die Telefonnummer-ID besteht nur aus Ziffern (nicht die Telefonnummer selbst).'],
+            'vorlage' => ['/^[a-z0-9_]{1,128}$/', 'Name der Vorlage: nur Kleinbuchstaben, Ziffern und Unterstrich.'],
+            'sprache' => ['/^[a-z]{2,3}(_[A-Z]{2})?$/', 'Sprache der Vorlage als Kürzel, z. B. de.'],
+            'version' => ['/^v\d{1,2}\.\d$/', 'Version der Schnittstelle in der Form v25.0.'],
+        ];
+        foreach ($felder as $k => [$muster, $text]) {
+            if (!isset($neu[$k]) || $neu[$k] === '') {
+                continue;
+            }
+            if (!is_string($neu[$k]) || !preg_match($muster, $neu[$k])) {
+                ausgabe(400, ['fehler' => $text]);
+            }
+            $w[$k] = $neu[$k];
+        }
+        if (empty($w['token']) || empty($w['nummerId'])) {
+            ausgabe(400, ['fehler' => 'Zugriffstoken und Telefonnummer-ID angeben.']);
+        }
+        $w['gespeichert'] = jetzt();
+        $w = array_intersect_key($w, array_flip(['token', 'nummerId', 'vorlage', 'sprache', 'version', 'gespeichert']));
+        if (@file_put_contents($datei . '.neu', json_encode($w, JSON_PRETTY_PRINT), LOCK_EX) === false || !@rename($datei . '.neu', $datei)) {
+            ausgabe(500, ['fehler' => 'Ordner privat/ ist am Webspace nicht beschreibbar']);
+        }
+        @chmod($datei, 0600);
+    }
+    ausgabe(200, $stand_wa());
 }
 if ($aktion === 'protokolle') {
     // Protokolle eines Monats (Standard: dieser und der vorige), für die Übernahme nach SharePoint

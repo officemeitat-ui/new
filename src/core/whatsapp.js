@@ -1,6 +1,9 @@
 // WhatsApp aus der App, ohne Konto bei Meta und ohne Kosten: der Link wa.me öffnet WhatsApp (App am Handy, WhatsApp
 // Web bzw. Desktop am PC) mit fertigem Text, auf Wunsch gleich beim richtigen Kontakt. Senden tippt die Person selbst.
 // Dateien (PDF) gehen am Handy über „Teilen“ (ui/whatsapp.js); wa.me selbst kann keine Anhänge.
+// Einzige Ausnahme: Der Schnee-Alarm kann von selbst per WhatsApp wecken (nachts drückt niemand „Senden“). Das läuft am
+// Webspace über die Schnittstelle von Meta (wetter-alarm.php, webspace-lib.php whatsapp_senden; Zugang in
+// privat/whatsapp.json) und hat mit den Knöpfen hier nichts zu tun.
 
 /**
  * Telefonnummer für wa.me: nur Ziffern mit Ländervorwahl, ohne „+“ und führende Nullen.

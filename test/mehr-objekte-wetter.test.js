@@ -236,5 +236,5 @@ test('Schnee-Alarm: unbekannte Personen und ungültige Büro-Adressen fallen weg
   assert.deepEqual(f.orte[1].stufe1, [], 'Stufe 1 ohne E-Mail, solange nicht eingeschaltet')
   assert.deepEqual(alarmProblems(f), ['Salzburg: niemand in Stufe 1', 'Hallein: niemand in Stufe 1'])
   const withMail = alarmFile({ alarm: { ...alarm, emailLevel1: true }, locations: LOCS, objects: OBJECTS, employees: EMPLOYEES, address: '' })
-  assert.deepEqual(alarmProblems(withMail), ['Salzburg: niemand in Stufe 1', 'Hallein: Stufe 1 ohne Handy (ntfy)'])
+  assert.deepEqual(alarmProblems(withMail), ['Salzburg: niemand in Stufe 1', 'Hallein: Stufe 1 ohne Handy (ntfy oder WhatsApp)'])
 })

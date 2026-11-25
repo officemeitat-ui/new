@@ -1395,7 +1395,8 @@ Damit niemand nachts selbst aufs Wetter schauen muss: Der Webspace prüft **alle
 Was dann passiert:
 
 - **Stufe 1** wird per Push aufs Handy geweckt: App **ntfy**, höchste Priorität, Knopf **„Bin wach“**. Auf Wunsch kommt zusätzlich eine E-Mail.
-- Bestätigt **15 Minuten** lang niemand, geht der Alarm an **Stufe 2**, z. B. Büro-Handy, Disposition oder E-Mail.
+- **WhatsApp von selbst** (seit 25.11.2026, optional): Wer in den Einstellungen bei „WhatsApp von selbst“ angehakt ist, bekommt den Alarm zusätzlich als WhatsApp-Nachricht mit dem Knopf „Bin wach“. Das geht nur über die offizielle Schnittstelle von Meta, siehe unten.
+- Bestätigt **15 Minuten** lang niemand, geht der Alarm an **Stufe 2**, z. B. Büro-Handy, Disposition oder E-Mail (und WhatsApp an die Büro-Nummern).
 - Ein Ort meldet sich höchstens alle 8 Stunden neu, außer die Warnstufe steigt.
 - Optional gibt es eine **Ruhezeit** (z. B. 22–3 Uhr): Dann wird erst am Ende geweckt, Warnung orange oder rot weckt sofort.
 - Kommen 2 Stunden lang keine Wetterdaten, erfährt es Stufe 2.
@@ -1409,6 +1410,10 @@ Was dann passiert:
 - **Stufe 1** sind anfangs die Winterdienst-Teams der Objekte an diesem Ort. **„Stufe 1 wechselt wöchentlich“** teilt die Bereitschaft auf: je Woche eine Person, Wechsel montags.
 - **Handys:** Jede Person in Stufe 1 und 2 bekommt ein eigenes ntfy-Thema. Es kommt per „Einladung per E-Mail“ oder wird kopiert. Auf dem Handy: App ntfy installieren, auf + tippen und das Thema abonnieren. Dann beim Thema höchste Priorität und „Nicht stören übergehen“ erlauben (Android: Benachrichtigungskategorie der höchsten Priorität; iPhone: unter Fokus die App ntfy erlauben). „Testalarm senden“ prüft alle Handys.
 - **Webspace:** Einmalig „Alarm-Datei herunterladen“ und die Datei in den Ordner `privat/` der App hochladen (Schritt 5 in [EINRICHTUNG.md](EINRICHTUNG.md)), dazu den Cronjob. Danach überträgt „Speichern und übertragen“ jede Änderung direkt.
+- **WhatsApp von selbst** (Abschnitt im selben Dialog): Die Knöpfe „WhatsApp“ sonst in der App öffnen nur WhatsApp mit fertigem Text, abgeschickt wird von Hand. Nachts drückt niemand „Senden“; ein Server darf WhatsApp nur über die **WhatsApp Business Platform von Meta** schicken. Dafür braucht es bei Meta ein Unternehmenskonto, eine Absendernummer (die nicht in der normalen WhatsApp-App läuft), ein dauerhaftes Zugriffstoken und eine **freigegebene Vorlage** (Name `winterdienst_alarm`, Kategorie „Dienstprogramm“, Text mit zwei Variablen, Knopf „Bin wach“ mit der Adresse `…/wetter-alarm.php?aktion=wach&t={{1}}`; der Dialog zeigt alles zum Kopieren). Meta verrechnet je Nachricht ein paar Cent.
+  - **Zugang:** Token, Telefonnummer-ID, Name und Sprache der Vorlage gehen aus dem Dialog direkt an den Webspace (`privat/whatsapp.json`, nur dort; nie in SharePoint, nie wieder angezeigt, nur „endet auf …“). „Probe senden“ schickt eine Nachricht an eine Nummer, „WhatsApp entfernen“ löscht den Zugang.
+  - **Wer:** je Person das Häkchen „WhatsApp von selbst“ (Nummer aus dem Stammblatt), fürs Büro das Feld „Stufe 2 zusätzlich per WhatsApp an“. Nur diese Nummern gehen in die Alarm-Datei.
+  - **Grenzen:** WhatsApp läutet nachts nur, wenn das Handy WhatsApp nicht stumm schaltet; zum Wecken bleibt ntfy verlässlicher (übergeht „Nicht stören“), am besten beides. Lehnt Meta eine Nachricht ab (Vorlage nicht freigegeben, Nummer nicht bei WhatsApp, Token abgelaufen), steht der Grund im Protokoll des Alarms; Push und E-Mail gehen trotzdem. Höchstens 150 WhatsApp-Nachrichten am Tag. Andere Nachrichten der App (Pläne, Links, Mitteilungen) bleiben Knöpfe zum Selber-Schicken.
 
 Die Karte „Schnee-Alarm“ zeigt je Ort:
 

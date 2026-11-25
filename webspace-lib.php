@@ -72,6 +72,76 @@ function mail_senden(string $an, string $betreff, string $text, string $absender
     return @mail($an, '=?UTF-8?B?' . base64_encode($betreff) . '?=', $text, implode("\r\n", $kopf), $von ? '-f' . $von : '');
 }
 
+// ---------------------------------------------------------------- WhatsApp (automatisch, Cloud API von Meta)
+//
+// Der Server kann WhatsApp nur über die offizielle Schnittstelle von Meta schicken (WhatsApp Business Platform, „Cloud
+// API“): eigene Absendernummer, Zugriffstoken und eine von Meta freigegebene Vorlage. Gesendet wird immer die Vorlage
+// mit zwei Text-Variablen ({{1}} Überschrift, {{2}} Text) und einem Knopf, dessen Adresse mit einer Variable endet
+// (z. B. …/wetter-alarm.php?aktion=wach&t={{1}}). Einstellungen: privat/whatsapp.json (Token nur dort, nie in
+// SharePoint), gespeichert über wetter-alarm.php?aktion=whatsapp. Für Tests: WHATSAPP_API ersetzt https://graph.facebook.com.
+
+const WHATSAPP_VERSION = 'v25.0';
+const WHATSAPP_VORLAGE = 'winterdienst_alarm';
+
+/** Einstellungen für den WhatsApp-Versand oder null (nicht eingerichtet bzw. unvollständig). */
+function whatsapp_einstellungen(string $ordner): ?array
+{
+    $w = json_decode((string) @file_get_contents($ordner . '/whatsapp.json'), true);
+    if (!is_array($w) || !is_string($w['token'] ?? null) || !preg_match('/^[A-Za-z0-9_|.\-]{40,1000}$/', $w['token']) || !preg_match('/^\d{6,20}$/', (string) ($w['nummerId'] ?? ''))) {
+        return null;
+    }
+    $w['vorlage'] = preg_match('/^[a-z0-9_]{1,128}$/', (string) ($w['vorlage'] ?? '')) ? (string) $w['vorlage'] : WHATSAPP_VORLAGE;
+    $w['sprache'] = preg_match('/^[a-z]{2,3}(_[A-Z]{2})?$/', (string) ($w['sprache'] ?? '')) ? (string) $w['sprache'] : 'de';
+    $w['version'] = preg_match('/^v\d{1,2}\.\d$/', (string) ($w['version'] ?? '')) ? (string) $w['version'] : WHATSAPP_VERSION;
+    return $w;
+}
+
+/** Text für eine Variable der Vorlage: eine Zeile, keine Tabs, keine Leerzeichen in Folge (Regeln von WhatsApp), gekürzt. */
+function whatsapp_text(string $t, int $max = 700): string
+{
+    $t = trim((string) preg_replace('/\s+/u', ' ', $t));
+    $t = mb_strlen($t) > $max ? mb_substr($t, 0, $max - 1) . '…' : $t;
+    return $t === '' ? '–' : $t;
+}
+
+/**
+ * Nachricht aus der Vorlage an eine Nummer (nur Ziffern mit Ländervorwahl, z. B. 436641234567). $werte: die Variablen
+ * des Textes in ihrer Reihenfolge; $knopf: Ende der Adresse des Knopfs. Liefert '' (von WhatsApp angenommen) oder den
+ * Fehler als kurzen Text, nie mit dem Token.
+ */
+function whatsapp_senden(array $w, string $an, array $werte, string $knopf): string
+{
+    if (!preg_match('/^[1-9]\d{7,14}$/', $an)) {
+        return 'Nummer ungültig (mit Ländervorwahl, nur Ziffern)';
+    }
+    $basis = rtrim(getenv('WHATSAPP_API') ?: 'https://graph.facebook.com', '/');
+    $nachricht = [
+        'messaging_product' => 'whatsapp',
+        'to' => $an,
+        'type' => 'template',
+        'template' => [
+            'name' => $w['vorlage'],
+            'language' => ['code' => $w['sprache']],
+            'components' => [
+                ['type' => 'body', 'parameters' => array_map(fn ($t) => ['type' => 'text', 'text' => whatsapp_text((string) $t)], array_values($werte))],
+                ['type' => 'button', 'sub_type' => 'url', 'index' => '0', 'parameters' => [['type' => 'text', 'text' => $knopf]]],
+            ],
+        ],
+    ];
+    [$status, $inhalt] = holen($basis . '/' . $w['version'] . '/' . $w['nummerId'] . '/messages', json_encode($nachricht, JSON_UNESCAPED_UNICODE), 8, ['Authorization: Bearer ' . $w['token']]);
+    $antwort = json_decode($inhalt, true);
+    if ($status >= 200 && $status < 300 && is_array($antwort) && !empty($antwort['messages'][0]['id'])) {
+        return '';
+    }
+    if ($status === 0) {
+        return 'WhatsApp nicht erreichbar';
+    }
+    $f = is_array($antwort) && is_array($antwort['error'] ?? null) ? $antwort['error'] : [];
+    $text = trim((string) ($f['error_data']['details'] ?? '') ?: (string) ($f['message'] ?? ''));
+    $text = str_replace((string) $w['token'], '…', mb_substr((string) preg_replace('/\s+/u', ' ', $text), 0, 200));
+    return 'Antwort ' . $status . (isset($f['code']) ? ' (Code ' . (int) $f['code'] . ')' : '') . ($text !== '' ? ': ' . $text : '');
+}
+
 /**
  * Adresse des Aufrufs für Grenzen je Adresse (kunden.php, mattentour.php): IPv4 wie sie ist, IPv6 nur das /64-Netz. Ein
  * Anschluss bekommt mit IPv6 meist ein ganzes /64 und könnte sonst mit jeder Anfrage eine neue Adresse nehmen (Grenze

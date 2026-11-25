@@ -88,12 +88,20 @@ function wetter_warnungen_url(float $lat, float $lon): string
     return wetter_ziel('warnungen') . sprintf('?lat=%.4F&lon=%.4F&lang=de', $lat, $lon);
 }
 
-/** HTTP mit Zeitlimit, ohne Weiterleitungen; liefert [Status, Inhalt] (Status 0 = nicht erreichbar). */
-function holen(string $url, ?string $json = null, int $zeit = 12): array
+/**
+ * HTTP mit Zeitlimit, ohne Weiterleitungen; liefert [Status, Inhalt] (Status 0 = nicht erreichbar).
+ * $zusatz: weitere Kopfzeilen (z. B. „Authorization: Bearer …“ für den WhatsApp-Versand).
+ */
+function holen(string $url, ?string $json = null, int $zeit = 12, array $zusatz = []): array
 {
     $kopf = ['Accept: application/json'];
     if ($json !== null) {
         $kopf[] = 'Content-Type: application/json';
+    }
+    foreach ($zusatz as $zeile) {
+        if (is_string($zeile) && !preg_match('/[\r\n]/', $zeile)) {
+            $kopf[] = $zeile;
+        }
     }
     if (function_exists('curl_init')) {
         $c = curl_init($url);

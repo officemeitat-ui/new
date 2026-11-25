@@ -2,13 +2,13 @@
 
 Alle Funktionen der Cleanos App, kurz erklärt und Schritt für Schritt. Dieselben Texte stehen in der App unter **Anleitung** (Menü ganz oben); Cleo, das Maskottchen unten rechts, beantwortet Fragen dazu direkt – auch ohne Internet. Was eine Rolle nicht sehen darf, zeigt die App ihr nicht an.
 
-*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 433 Themen, 45 Begriffe.*
+*Erzeugt aus `src/help/topics.js` mit `npm run anleitung` · 434 Themen, 45 Begriffe.*
 
 ## Inhalt
 
 - [Start & Übersicht](#start-uebersicht) (20)
 - [Planung](#planung) (45)
-- [Einsätze & Zeiten](#einsaetze-zeiten) (33)
+- [Einsätze & Zeiten](#einsaetze-zeiten) (34)
 - [Objekte & Kunden](#objekte-kunden) (112)
 - [Material & Fuhrpark](#material-fuhrpark) (28)
 - [Finanzen](#finanzen) (82)
@@ -794,7 +794,7 @@ Alles, was Mitarbeitende betrifft, geht per WhatsApp: Wochenplan und Planänderu
 3. In WhatsApp prüfen und senden.
 
 > Tipp: Ohne Nummer wählt man den Kontakt oder eine Gruppe selbst in WhatsApp.
-> Tipp: Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir.
+> Tipp: Die App sendet nichts im Hintergrund: abgeschickt wird immer von dir. Einzige Ausnahme ist der Schnee-Alarm, wenn dafür die Schnittstelle von Meta eingerichtet ist.
 > Tipp: Eine Mitteilung lässt sich so auch in eure WhatsApp-Gruppe stellen.
 > Tipp: Im Schlüsselbuch unter „je Person“ schickt „WhatsApp“ der Person ihre Schlüsselliste als PDF.
 
@@ -1221,6 +1221,26 @@ Der Schnee-Alarm prüft am Webspace alle 10 Minuten je Ort Vorhersage und Warnun
 
 > Tipp: Wer in Stufe 1 steht, ist in Rufbereitschaft (§ 20a AZG): wöchentlich wechseln oder schriftlich regeln.
 > Tipp: Liegt die letzte Prüfung am Webspace über 30 Minuten zurück, den Cronjob prüfen.
+
+*Wer die Einsatzplanung bearbeiten darf*
+
+### Schnee-Alarm von selbst per WhatsApp
+
+*In der App: Wetter & Winterdienst*
+
+Der Server kann den Schnee-Alarm zusätzlich zu Push und E-Mail von selbst per WhatsApp schicken, mit dem Knopf „Bin wach“. Das geht nur über die offizielle Schnittstelle von Meta: eigene Absendernummer, Zugriffstoken und eine freigegebene Vorlage. Meta verrechnet je Nachricht ein paar Cent.
+
+1. Bei Meta Unternehmenskonto, Absendernummer und Vorlage anlegen; was einzutragen ist, steht im Alarm-Dialog unter „So richtest du es bei Meta ein“.
+2. Im Alarm-Dialog unter „WhatsApp von selbst“ Zugriffstoken und Telefonnummer-ID eintragen und „Am Webspace speichern“ klicken.
+3. Mit „Probe senden“ eine Nachricht ans eigene Handy schicken.
+4. Bei den Personen „WhatsApp von selbst“ anhaken (Handynummer im Stammblatt), dann „Speichern und übertragen“.
+5. Mit „Testalarm senden“ alle Wege prüfen.
+
+> Tipp: Das Token liegt nur am Webspace und wird nie wieder angezeigt.
+> Tipp: WhatsApp läutet nachts nur, wenn das Handy WhatsApp nicht stumm schaltet. Zum Wecken ist die App ntfy verlässlicher; am besten beides.
+> Tipp: Lehnt Meta eine Nachricht ab, steht der Grund im Protokoll des Alarms.
+> Tipp: Höchstens 150 Nachrichten am Tag, damit nichts aus dem Ruder läuft.
+> Tipp: Die Personen müssen dem Empfang zustimmen.
 
 *Wer die Einsatzplanung bearbeiten darf*
 

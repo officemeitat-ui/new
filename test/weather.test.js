@@ -231,7 +231,7 @@ test('Schnee-Alarm: Datei für den Server (Stufe 1 aus den Teams, Stufe 2, Büro
   // Stufe 1 auch per E-Mail; Ort ohne Handy wird gemeldet
   const g = alarmFile({ alarm: { ...alarm, emailLevel1: true, topics: { e1: 'wd-ana' } }, locations, objects, employees, address: '' })
   assert.deepEqual(g.orte[1].stufe1, [{ name: 'Cem', email: 'cem@example.test' }])
-  assert.deepEqual(alarmProblems(g), ['Hallein: Stufe 1 ohne Handy (ntfy)'])
+  assert.deepEqual(alarmProblems(g), ['Hallein: Stufe 1 ohne Handy (ntfy oder WhatsApp)'])
   assert.deepEqual(alarmProblems({ orte: [] }), ['kein Ort eingeschaltet'])
 })
 
